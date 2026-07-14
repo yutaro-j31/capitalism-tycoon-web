@@ -2038,6 +2038,29 @@ class TycoonEngine extends EventTarget {
     this.dispatchEvent(new CustomEvent(type, {detail}));
   }
 
+  runTransaction(work, eventType = 'change', detail = {}, shouldCommit = result => result !== false) {
+    const previousDepth = this._transactionDepth || 0;
+    const outer = previousDepth === 0;
+    this._transactionDepth = previousDepth + 1;
+    let result;
+    try {
+      result = work();
+    } catch (error) {
+      this._transactionDepth = previousDepth;
+      throw error;
+    }
+    this._transactionDepth = previousDepth;
+    if (outer && shouldCommit(result)) {
+      this.save();
+      this.emit(eventType, typeof detail === 'function' ? detail(result) : detail);
+    }
+    return result;
+  }
+
+  inTransaction() {
+    return (this._transactionDepth || 0) > 0;
+  }
+
   notify(message, severity = 'info') {
     this.g.news.unshift(`第${this.g.week}週：${message}`);
     this.g.news = this.g.news.slice(0,300);
@@ -2072,7 +2095,7 @@ class TycoonEngine extends EventTarget {
     if (difficulty === 'easy') { this.g.companyCash += 4_000_000; this.g.companyCredit = 70; }
     if (difficulty === 'hard') { this.g.companyCash -= 2_000_000; this.g.companyCredit = 50; }
     this.notify(`${this.g.companyName}を創業しました。`,'success');
-    this.save(); this.emit();
+    if (!this.inTransaction()) { this.normalize(); this.save(); this.emit(); }
   }
 
   business(id) { return this.g.businesses.find(x => x.id === id); }
@@ -2540,7 +2563,8 @@ class TycoonEngine extends EventTarget {
     this.recordHistory(sales,profit);this.evaluateProgression();this.generateRecurringEvents();
     if(this.g.companyCash<0){this.g.consecutiveNegativeCashWeeks=finite(this.g.consecutiveNegativeCashWeeks)+1;if(this.g.consecutiveNegativeCashWeeks>=2){this.g.gameOver=true;this.g.gameOverReason='会社現金が2週連続でマイナスになりました。';}}else this.g.consecutiveNegativeCashWeeks=0;
     const summary={...report,companyCash:this.g.companyCash,companyValue:this.companyValue(),personalNetWorth:this.personalNetWorth(),newNews:this.g.news.slice(0,5)};this.g.lastWeeklySummary=summary;
-    this.save();this.emit('week',{summary:showSummary?summary:null});this.emit();return true;
+    if (!this.inTransaction()) { this.normalize(); this.save(); this.emit('week',{summary:showSummary?summary:null}); }
+    return true;
   }
 
   unrealizedPL(account='company') {
@@ -2710,12 +2734,12 @@ function installExpansion(TycoonEngine){
   };
 
   const baseConfigure=TycoonEngine.prototype.configure;
-  TycoonEngine.prototype.configure=function(options={}){
+  TycoonEngine.prototype.configure=function(options={}){return this.runTransaction(()=>{
     const result=baseConfigure.call(this,options);
     this.ensureExpansionDefaults();
     this.setFounderOrigin(options.founderPrefID||this.g.selectedPref,options.founderTraitID||'tech',options.playerName||this.g.playerName,false);
-    this.save();this.emit();return result;
-  };
+    return result;
+  });};
 
   TycoonEngine.prototype.founderTrait=function(){return FOUNDER_TRAITS.find(x=>x.id===this.g.founderTraitID)||FOUNDER_TRAITS[0];};
   TycoonEngine.prototype.founderHomeRankTitle=function(){return homeRankTitle(this.g.currentFounderHomeRank);};
@@ -2729,7 +2753,8 @@ function installExpansion(TycoonEngine){
     this.g.localReputationByPref[p.id]=Math.max(n(this.g.localReputationByPref[p.id]),trait.localRep);
     this.g.founderHomeActionLog.unshift(`第${this.g.week}週：${p.name}出身の${trait.name}として起業人生を開始。`);
     if(notify)this.notify(`創業者プロフィールを${p.name}・${trait.name}に設定しました。`,'success');
-    this.save();this.emit();return true;
+    if (!this.inTransaction()) { this.normalize(); this.save(); this.emit(); }
+    return true;
   };
 
   TycoonEngine.prototype.refreshFounderHomeUsedSlots=function(){
@@ -2920,13 +2945,13 @@ function installExpansion(TycoonEngine){
   TycoonEngine.prototype.personalNetWorth=function(){const base=basePersonalNetWorth.call(this),pe=sum((this.g.peDeals||[]).filter(x=>x.status==='active').map(x=>x.currentValuation)),angel=sum((this.g.angelInvestments||[]).filter(x=>x.status==='active').map(x=>x.investedAmount*x.multiple)),realEstate=sum((this.g.personalRealEstateHoldings||[]).filter(x=>x.status==='owned').map(x=>x.currentValue)),trust=n(this.g.familyTrustCash);return Math.max(0,base+pe+angel+realEstate+trust);};
 
   const baseAdvance=TycoonEngine.prototype.advanceWeek;
-  TycoonEngine.prototype.advanceWeek=function(showSummary=true){
-    const result=baseAdvance.call(this,false);if(!result)return result;this.ensureExpansionDefaults();if(this.g.lastExpansionUpdateWeek===this.g.week){if(showSummary)this.emit('week',{summary:this.g.lastWeeklySummary});return result;}this.g.lastExpansionUpdateWeek=this.g.week;
+  TycoonEngine.prototype.advanceWeek=function(showSummary=true){return this.runTransaction(()=>{
+    const result=baseAdvance.call(this,false);if(!result)return result;this.ensureExpansionDefaults();if(this.g.lastExpansionUpdateWeek===this.g.week)return result;this.g.lastExpansionUpdateWeek=this.g.week;
     this.updateFounderExpandedWeekly();const supply=this.g.isCompanySold?0:this.updateSupplyChainWeekly();const patents=this.g.isCompanySold?0:this.updateRDWeekly();const product=this.g.isCompanySold?{adjustment:0,salesAdjustment:0,expenseAdjustment:0}:this.updateProductFunnelsWeekly();const personal=this.updatePersonalExpandedWeekly();this.updateSportsExpandedWeekly();this.generateMediaWeekly();this.updateCapitalMarketsExpandedWeekly();this.updateSuccessionWeekly();this.updateHallOfRecords();
     this.g.expandedWeeklyAdjustments={supply,patents,personal,product:product.adjustment,media:0};
     if(this.g.lastReport&&!this.g.isCompanySold){this.g.lastReport.sales=n(this.g.lastReport.sales)+product.salesAdjustment;this.g.lastReport.expenses=n(this.g.lastReport.expenses)+product.expenseAdjustment-supply-patents;this.g.lastReport.profit=n(this.g.lastReport.profit)+supply+patents+product.adjustment;const idx=this.g.reports.findIndex(x=>x.week===this.g.lastReport.week);if(idx>=0)this.g.reports[idx]=copy(this.g.lastReport);}
-    this.recordExpandedHistory();const summary={...(this.g.lastReport||{}),week:this.g.week,companyCash:this.g.companyCash,companyValue:this.companyValue(),personalNetWorth:this.personalNetWorth(),newNews:this.g.news.slice(0,5),expandedAdjustments:copy(this.g.expandedWeeklyAdjustments)};this.g.lastWeeklySummary=summary;this.save();this.emit('week',{summary:showSummary?summary:null});this.emit();return result;
-  };
+    this.recordExpandedHistory();const summary={...(this.g.lastReport||{}),week:this.g.week,companyCash:this.g.companyCash,companyValue:this.companyValue(),personalNetWorth:this.personalNetWorth(),newNews:this.g.news.slice(0,5),expandedAdjustments:copy(this.g.expandedWeeklyAdjustments)};this.g.lastWeeklySummary=summary;return result;
+  },'week',()=>({summary:showSummary?this.g.lastWeeklySummary:null}));};
 
   TycoonEngine.prototype.recordExpandedHistory=function(){const g=this.g;if(g.companyValueHistory.length){g.companyValueHistory[g.companyValueHistory.length-1]=this.companyValue();g.personalNetWorthHistory[g.personalNetWorthHistory.length-1]=this.personalNetWorth();if(g.lastReport){g.weeklySalesHistory[g.weeklySalesHistory.length-1]=g.lastReport.sales;g.weeklyProfitHistory[g.weeklyProfitHistory.length-1]=g.lastReport.profit;}}};
 }
@@ -2997,7 +3022,7 @@ function installCompletion(TycoonEngine){
 
   const baseConfigure=TycoonEngine.prototype.configure;
   TycoonEngine.prototype.configure=function(options={}){
-    const r=baseConfigure.call(this,options);this.ensureCompletionDefaults();this.g.currentCompanyFoundedWeek=this.g.week;this.g.currentCompanySerial=1;this.g.serialCompanyCount=1;this.save();this.emit();return r;
+    return this.runTransaction(()=>{const r=baseConfigure.call(this,options);this.ensureCompletionDefaults();this.g.currentCompanyFoundedWeek=this.g.week;this.g.currentCompanySerial=1;this.g.serialCompanyCount=1;return r;});
   };
 
   TycoonEngine.prototype.totalOfficeCapacity=function(){return cxNum(this.g.officeCapacity);};
@@ -3114,9 +3139,10 @@ function installCompletion(TycoonEngine){
 
   const baseAdvance=TycoonEngine.prototype.advanceWeek;
   TycoonEngine.prototype.advanceWeek=function(showSummary=true){
-    const r=baseAdvance.call(this,false);if(!r)return r;this.ensureCompletionDefaults();if(this.g.lastCompletionUpdateWeek===this.g.week){if(showSummary)this.emit('week',{summary:this.g.lastWeeklySummary});return r;}this.g.lastCompletionUpdateWeek=this.g.week;
+    return this.runTransaction(()=>{const r=baseAdvance.call(this,false);if(!r)return r;this.ensureCompletionDefaults();if(this.g.lastCompletionUpdateWeek===this.g.week)return r;this.g.lastCompletionUpdateWeek=this.g.week;
     const adj=this.updateCompletionWeekly();if(this.g.lastReport&&!this.g.isCompanySold){this.g.lastReport.expenses=cxNum(this.g.lastReport.expenses)+adj.expenseAdjustment;this.g.lastReport.profit=cxNum(this.g.lastReport.profit)+adj.companyAdjustment;const idx=this.g.reports.findIndex(x=>x.week===this.g.lastReport.week);if(idx>=0)this.g.reports[idx]=cxCopy(this.g.lastReport);if(this.g.weeklyProfitHistory.length)this.g.weeklyProfitHistory[this.g.weeklyProfitHistory.length-1]=this.g.lastReport.profit;}
-    const summary={...(this.g.lastReport||{}),week:this.g.week,companyCash:this.g.companyCash,companyValue:this.companyValue(),personalNetWorth:this.personalNetWorth(),newNews:this.g.news.slice(0,5)};this.g.lastWeeklySummary=summary;this.save();this.emit('week',{summary:showSummary?summary:null});this.emit();return r;
+    const summary={...(this.g.lastReport||{}),week:this.g.week,companyCash:this.g.companyCash,companyValue:this.companyValue(),personalNetWorth:this.personalNetWorth(),newNews:this.g.news.slice(0,5)};this.g.lastWeeklySummary=summary;return r;
+    },'week',()=>({summary:showSummary?this.g.lastWeeklySummary:null}));
   };
 }
 
@@ -3165,7 +3191,7 @@ function installParity(TycoonEngine){
   const baseNormalize=TycoonEngine.prototype.normalize;
   TycoonEngine.prototype.normalize=function(){baseNormalize.call(this);this.ensureParityDefaults();};
   const baseConfigure=TycoonEngine.prototype.configure;
-  TycoonEngine.prototype.configure=function(options={}){const r=baseConfigure.call(this,options);this.ensureParityDefaults();this.save();this.emit();return r;};
+  TycoonEngine.prototype.configure=function(options={}){return this.runTransaction(()=>{const r=baseConfigure.call(this,options);this.ensureParityDefaults();return r;});};
 
   TycoonEngine.prototype.keyPersonRoleName=function(id){return KEY_PERSON_ROLES[id]||'キーパーソン';};
   TycoonEngine.prototype.generateKeyPersonCandidate=function(){
@@ -3224,7 +3250,7 @@ function installParity(TycoonEngine){
   };
 
   const baseAdvance=TycoonEngine.prototype.advanceWeek;
-  TycoonEngine.prototype.advanceWeek=function(showSummary=true){const r=baseAdvance.call(this,false);if(!r)return r;this.ensureParityDefaults();if(this.g.lastParityUpdateWeek===this.g.week){if(showSummary)this.emit('week',{summary:this.g.lastWeeklySummary});return r;}this.g.lastParityUpdateWeek=this.g.week;const adj=this.updateParityWeekly();if(this.g.lastReport&&!this.g.isCompanySold){this.g.lastReport.expenses=pyNum(this.g.lastReport.expenses)+adj.expenseAdjustment;this.g.lastReport.profit=pyNum(this.g.lastReport.profit)+adj.companyAdjustment;const i=this.g.reports.findIndex(x=>x.week===this.g.lastReport.week);if(i>=0)this.g.reports[i]=pyCopy(this.g.lastReport);if(this.g.weeklyProfitHistory.length)this.g.weeklyProfitHistory[this.g.weeklyProfitHistory.length-1]=this.g.lastReport.profit;}const summary={...(this.g.lastReport||{}),week:this.g.week,companyCash:this.g.companyCash,companyValue:this.companyValue(),personalNetWorth:this.personalNetWorth(),newNews:this.g.news.slice(0,5)};this.g.lastWeeklySummary=summary;this.save();this.emit('week',{summary:showSummary?summary:null});this.emit();return r;};
+  TycoonEngine.prototype.advanceWeek=function(showSummary=true){return this.runTransaction(()=>{const r=baseAdvance.call(this,false);if(!r)return r;this.ensureParityDefaults();if(this.g.lastParityUpdateWeek===this.g.week)return r;this.g.lastParityUpdateWeek=this.g.week;const adj=this.updateParityWeekly();if(this.g.lastReport&&!this.g.isCompanySold){this.g.lastReport.expenses=pyNum(this.g.lastReport.expenses)+adj.expenseAdjustment;this.g.lastReport.profit=pyNum(this.g.lastReport.profit)+adj.companyAdjustment;const i=this.g.reports.findIndex(x=>x.week===this.g.lastReport.week);if(i>=0)this.g.reports[i]=pyCopy(this.g.lastReport);if(this.g.weeklyProfitHistory.length)this.g.weeklyProfitHistory[this.g.weeklyProfitHistory.length-1]=this.g.lastReport.profit;}const summary={...(this.g.lastReport||{}),week:this.g.week,companyCash:this.g.companyCash,companyValue:this.companyValue(),personalNetWorth:this.personalNetWorth(),newNews:this.g.news.slice(0,5)};this.g.lastWeeklySummary=summary;return r;},'week',()=>({summary:showSummary?this.g.lastWeeklySummary:null}));};
 }
 
 Object.assign(exports,{KEY_PERSON_ROLES,installParity});
