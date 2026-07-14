@@ -23,3 +23,10 @@ Node.js標準機能のみで、`index.html` のゲームコードを変更せず
 
 - `npm run test:load`: `tests/save-load-integration-test.js` を実行し、実際の `TycoonEngine.load()`, `save()`, `loadSlot()`, `importSave()` と `localStorage` 書き込み履歴を検査します。
 - `npm test` は `test:load` も含みます。
+
+## CSS extraction test
+
+- `npm run test:css`: `tests/css-extraction-test.js` verifies the Phase 0 stylesheet split.
+- The test confirms that `index.html` references `./css/app.css`, the referenced file exists and is non-empty, the path is relative for GitHub Pages project-site deployment, no large static `<style>` block remains in `index.html`, CSS braces are balanced, `@media`/`@supports`/`@keyframes` blocks are not obviously broken, line endings are LF without UTF-8 BOM, unexpected bidirectional controls are absent, local `url(...)` assets exist, and no CDN reference is introduced by the CSS file.
+- CSS identity is checked by comparing `css/app.css` against `tests/fixtures/extracted-css-baseline.css`, which was captured from the original `index.html` `<style>` block during extraction. The comparison normalizes CRLF/CR to LF and trims only outer whitespace, so selector changes, declaration value changes, rule deletions, media query changes, keyframe changes, and rule reordering fail the test.
+- `npm test` includes `test:css` through `tests/run-all.js`.

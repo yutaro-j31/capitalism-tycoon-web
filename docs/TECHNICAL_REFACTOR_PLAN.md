@@ -205,3 +205,10 @@ GitHub PagesでES Modulesを使う場合:
 - `position: sticky/fixed` と `backdrop-filter` の負荷を確認する。
 - `type="module"` のキャッシュ更新が反映されるか確認する。
 - localStorage容量超過時の挙動を確認する。
+
+## Phase 0 CSS extraction update (2026-07-14)
+
+- Static CSS was physically extracted from the former single `<style>` block in `index.html` to `css/app.css`.
+- `index.html` now loads the stylesheet with the GitHub Pages-safe relative path `./css/app.css`.
+- CSS selector names, declaration values, rule order, media query order, JavaScript, save schema, weekly processing, random processing, and game balance were not intentionally changed.
+- Future JavaScript or UI refactors should treat this as a structure-only baseline and keep CSS changes covered by `npm run test:css` plus the existing deterministic game regression tests.

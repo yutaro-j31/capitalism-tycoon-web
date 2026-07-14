@@ -122,3 +122,13 @@ Fixed-seed transaction baseline note: adding `saveVersion: 2` is metadata/schema
 
 - Real browser rendering and iPhone Safari remain unverified in this Node-only test suite.
 - GitHub Actions cannot be observed locally, but `npm test` now includes syntax, static, save compatibility, migration, save/load integration, week, transaction, and long-run checks.
+
+## Phase 0 CSS extraction baseline update
+
+- Static CSS was externalized from the single `index.html` `<style>` element into `css/app.css`.
+- The game JavaScript was not intentionally changed for this extraction.
+- Game logic, save data compatibility, `SAVE_KEY`, `saveVersion`, weekly processing, random processing, prices, profits, probabilities, and balance values were not intentionally changed.
+- `index.html` now references `./css/app.css`, a relative path suitable for GitHub Pages project-site deployment.
+- `npm run test:css` was added and is included in `npm test`.
+- CSS identity is verified against `tests/fixtures/extracted-css-baseline.css`, captured from the extracted inline stylesheet content.
+- Real browser rendering, visual screenshots, and iPhone Safari checks remain outside this Node-only automated verification and should be checked manually after deployment or in a later browser-test PR.
