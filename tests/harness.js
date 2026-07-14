@@ -91,12 +91,12 @@ function loadGame(options = {}) {
   return loadGameFromHtml(readIndex(), options);
 }
 function loadGameFromHtml(html, options = {}) {
-  let code = extractScripts(html).map(s => s.code).join('\n');
-  code = code.replace('const __modules = Object.create(null);', 'const __modules = globalThis.__ct_modules = Object.create(null);');
+  const scripts = extractScripts(html);
+  let code = scripts.map(s => s.code).join('\n');
   code = code.replace('const engine = TycoonEngine.load();', 'const engine = globalThis.__ct_engine = TycoonEngine.load();');
   const ctx = createBrowserContext(options);
   vm.runInContext(code, ctx, { filename: 'index.html' });
-  return { ctx, modules: ctx.__ct_modules, engineModule: ctx.__ct_modules.engine };
+  return { ctx, modules: ctx.__capitalismTycoonModules, engineModule: ctx.__capitalismTycoonModules.engine };
 }
 function assertFinite(value, path, errors) { if (typeof value === 'number' && !Number.isFinite(value)) errors.push(`${path}: non-finite ${value}`); }
 function findStateIssues(value, base = 'g', errors = [], seen = new WeakSet()) {

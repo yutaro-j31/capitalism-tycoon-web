@@ -33,8 +33,13 @@ Node.js標準機能のみで、`index.html` のゲームコードを変更せず
 
 ## JavaScript extraction test
 
-- `npm run test:javascript`: verifies the Phase 0 JavaScript split from `index.html` to `js/app.js`.
-- The test resolves script `src` values from `index.html` in document order and executes the same production file path that GitHub Pages loads.
-- The test confirms `index.html` references `./js/app.js`, the referenced file exists and is non-empty, the path is relative, the script remains classic without `type="module"`, `defer`, or `async`, no large executable inline script remains, no new external CDN script is introduced, and relevant files are UTF-8 without BOM using LF line endings.
-- JavaScript identity is checked by comparing `js/app.js` against `tests/fixtures/embedded-javascript-baseline.js`, normalizing only script-boundary comments, outer whitespace, and line endings.
+- `npm run test:javascript`: verifies the Phase 0 JavaScript files referenced by `index.html`.
+- The test resolves script `src` values from `index.html` in document order and executes the same production file paths that GitHub Pages loads.
+- The test confirms `index.html` references `./js/runtime.js`, `./js/data.js`, `./js/engine.js`, `./js/expansion.js`, `./js/completion.js`, `./js/parity.js`, and `./js/app.js`; each referenced file exists and is non-empty; paths are relative; scripts remain classic without `type="module"`, `defer`, or `async`; no large executable inline script remains; no new external CDN script is introduced; and relevant files are UTF-8 without BOM using LF line endings.
 - `npm test` includes `test:javascript` through `tests/run-all.js`.
+
+## JavaScript module split test
+
+- `npm run test:modules`: verifies the Phase 0 internal IIFE module split.
+- The test reads `index.html` script tags in document order, requires `runtime.js` first and `app.js` last, confirms all referenced files exist and are non-empty, checks LF/no-BOM/no bidi controls, verifies required module exports, confirms the internal registry is non-enumerable, checks duplicate module registration errors, and ensures `TycoonEngine.load()` plus initial `render()` execute once in the instrumented harness.
+- `npm test` includes `test:modules` through `tests/run-all.js`.

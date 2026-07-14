@@ -219,3 +219,9 @@ GitHub PagesでES Modulesを使う場合:
 - `index.html` keeps the script load at the end of `body` and uses the project-site-safe relative path `./js/app.js`.
 - The file remains a classic script; no `type="module"`, `defer`, or `async` is used.
 - Future state/save/engine/UI splits should be performed in separate PRs with fixed-seed regression verification and without reordering prototype wrappers or initialization.
+
+## Phase 0 module file split update (2026-07-14)
+
+The first JavaScript physical split is complete. The former internal IIFE modules now live in `js/runtime.js`, `js/data.js`, `js/engine.js`, `js/expansion.js`, `js/completion.js`, `js/parity.js`, and `js/app.js` while preserving classic script execution. This is still not the future fine-grained subsystem structure listed above; it is an intermediate safety step that keeps the existing module boundaries and prototype installer order unchanged.
+
+The internal registry is `globalThis.__capitalismTycoonModules`. Future refactors should not add additional globals or migrate to ES modules until fixed-seed, save compatibility, and browser timing checks are updated for that larger semantic change.

@@ -58,3 +58,11 @@ If a service worker, app shell cache, or explicit asset manifest is introduced l
 ## iPhone Safari checks
 
 Manual mobile verification should cover initial load, save/load, week advancement, modals, delegated `[data-action]` buttons, chart drawing, result-card generation, file import/export where supported, and behavior after a hard refresh with cached assets.
+
+## Phase 0 multi-file classic scripts
+
+`index.html` now loads the JavaScript files in this order: `runtime.js`, `data.js`, `engine.js`, `expansion.js`, `completion.js`, `parity.js`, `app.js`. Keep this order exactly unless a separate dependency audit proves otherwise.
+
+`js/runtime.js` defines the non-enumerable internal registry `globalThis.__capitalismTycoonModules`. The other files register or read their existing module export objects through that registry. Duplicate module registration throws rather than silently overwriting an existing module.
+
+The final startup file, `js/app.js`, still performs the installer calls, `TycoonEngine.load()`, DOM lookup, event listener registration, resize listener registration, and initial `render()` in the inherited order. Do not move `TycoonEngine.load()` earlier than the installer calls.

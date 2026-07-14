@@ -4,42 +4,29 @@ const vm = require('node:vm');
 const { ROOT, readIndex, extractScripts, extractEventHandlers } = require('./harness');
 
 const INDEX = path.join(ROOT, 'index.html');
-const APP_JS = path.join(ROOT, 'js', 'app.js');
-const BASELINE = path.join(ROOT, 'tests', 'fixtures', 'embedded-javascript-baseline.js');
-
+const MODULES = ['runtime.js','data.js','engine.js','expansion.js','completion.js','parity.js','app.js'];
 function fail(message) { console.error(message); process.exit(1); }
-function normalizeNewlines(s) { return s.replace(/^\uFEFF/, '').replace(/\r\n?/g, '\n'); }
-function normalizeForIdentity(s) {
-  return normalizeNewlines(s)
-    .replace(/^\/\/ Script boundary: index\.html original inline script #\d+ \(classic JavaScript\)\n/gm, '')
-    .replace(/^\n+|\n+$/g, '');
-}
-function assertLfNoBom(file) {
-  const b = fs.readFileSync(file);
-  if (b.length >= 3 && b[0] === 0xef && b[1] === 0xbb && b[2] === 0xbf) fail(`${file} has UTF-8 BOM`);
-  const text = b.toString('utf8');
-  if (/\r/.test(text)) fail(`${file} must use LF line endings`);
-}
+function assertLfNoBom(file) { const b = fs.readFileSync(file); if (b.length >= 3 && b[0] === 0xef && b[1] === 0xbb && b[2] === 0xbf) fail(`${file} has UTF-8 BOM`); const text = b.toString('utf8'); if (/\r/.test(text)) fail(`${file} must use LF line endings`); }
 
 const html = readIndex();
 const scripts = extractScripts(html);
-if (!/<script\s+src="\.\/js\/app\.js"\s*><\/script>/i.test(html)) fail('index.html must reference ./js/app.js exactly as a classic script');
-if (!fs.existsSync(APP_JS)) fail('js/app.js is missing');
-if (!fs.existsSync(BASELINE)) fail('embedded JavaScript baseline fixture is missing');
 assertLfNoBom(INDEX);
-assertLfNoBom(APP_JS);
-assertLfNoBom(BASELINE);
-if (!fs.readFileSync(APP_JS, 'utf8').trim()) fail('js/app.js is empty');
-const appScripts = scripts.filter(s => s.src === './js/app.js');
-if (appScripts.length !== 1) fail(`expected exactly one ./js/app.js script, found ${appScripts.length}`);
-if (appScripts[0].parsedAttrs.type !== undefined) fail('./js/app.js must remain a classic script without type/module');
-if (appScripts[0].parsedAttrs.defer !== undefined || appScripts[0].parsedAttrs.async !== undefined) fail('./js/app.js must not use defer or async');
-const inlineLarge = scripts.filter(s => !s.src && normalizeForIdentity(s.code).length > 1000);
+for (const name of MODULES) {
+  const file = path.join(ROOT, 'js', name);
+  if (!fs.existsSync(file)) fail(`js/${name} is missing`);
+  assertLfNoBom(file);
+  if (!fs.readFileSync(file, 'utf8').trim()) fail(`js/${name} is empty`);
+}
+const srcs = scripts.filter(s => s.src).map(s => s.src);
+const expected = MODULES.map(n => `./js/${n}`);
+if (JSON.stringify(srcs) !== JSON.stringify(expected)) fail(`script order mismatch: ${JSON.stringify(srcs)}`);
+for (const s of scripts) {
+  if (s.parsedAttrs.type !== undefined) fail(`${s.src} must remain a classic script without type/module`);
+  if (s.parsedAttrs.defer !== undefined || s.parsedAttrs.async !== undefined) fail(`${s.src} must not use defer or async`);
+}
+const inlineLarge = scripts.filter(s => !s.src && s.code.trim().length > 1000);
 if (inlineLarge.length) fail(`large executable inline script remains in index.html: ${inlineLarge.length}`);
 if (/https?:\/\/[^"']+\.js/i.test(html)) fail('new external CDN JavaScript reference detected');
-const app = fs.readFileSync(APP_JS, 'utf8');
-const baseline = fs.readFileSync(BASELINE, 'utf8');
-if (normalizeForIdentity(app) !== normalizeForIdentity(baseline)) fail('js/app.js differs from embedded JavaScript baseline fixture');
 for (const [i, s] of scripts.entries()) {
   const type = (s.parsedAttrs.type || '').toLowerCase();
   if (type && !/^(text|application)\/javascript$/.test(type)) continue;

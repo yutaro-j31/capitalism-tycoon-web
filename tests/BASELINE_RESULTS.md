@@ -143,3 +143,13 @@ Fixed-seed transaction baseline note: adding `saveVersion: 2` is metadata/schema
 - JavaScript identity is verified against `tests/fixtures/embedded-javascript-baseline.js`, captured from the original embedded script during extraction.
 - Fixed-seed and deterministic regression coverage remains provided by the existing week, long-run, save/load, migration, and transaction tests, now loading `js/app.js` through `index.html` script resolution.
 - Real browser rendering and iPhone Safari behavior are outside the automated Node.js verification scope and should be checked manually before release.
+
+## Phase 0 JavaScript module split baseline update
+
+- The former internal IIFE modules were physically split into `js/runtime.js`, `js/data.js`, `js/engine.js`, `js/expansion.js`, `js/completion.js`, `js/parity.js`, and `js/app.js`.
+- The split preserves the existing classic script order, module boundaries, installer order, `TycoonEngine.load()` timing, and first `render()` timing.
+- Game logic, UI text, CSS, prices, revenue formulas, probabilities, initial funds, `SAVE_KEY`, and `saveVersion` were not intentionally changed.
+- Fixed-seed transaction regression still matches `tests/fixtures/transaction-baseline-v1.json`, including configure, 1-week, 12-week, and 52-week snapshots and the recorded random-call count.
+- Save compatibility tests continue to verify `SAVE_KEY: capitalism_tycoon_web_v1`, current save version handling, unversioned legacy migration, future-version rejection, corrupted-save overwrite prevention, slot loading, and JSON import/export behavior.
+- Automated checks include `npm test`, `npm run test:syntax`, `npm run test:static`, `npm run test:javascript`, `npm run test:modules`, `npm run test:css`, `npm run test:save`, `npm run test:migration`, `npm run test:week`, `npm run test:long`, and `npm run test:transaction`.
+- Real browser rendering and iPhone Safari remain outside the Node-only automated baseline and require manual verification.

@@ -1,0 +1,11 @@
+{
+  "scripts": [
+    "./js/runtime.js",
+    "./js/data.js",
+    "./js/engine.js",
+    "./js/expansion.js",
+    "./js/completion.js",
+    "./js/parity.js",
+    "./js/app.js"
+  ]
+}

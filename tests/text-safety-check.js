@@ -7,7 +7,7 @@ const TEXT_EXTENSIONS = new Set(['.html', '.js', '.json', '.yml', '.yaml', '.md'
 const EXCLUDED_DIRS = new Set(['.git', 'node_modules']);
 const ALLOWED_EXISTING = new Set([
   'index.html:3382:154:U+200D',
-  'js/app.js:3382:154:U+200D',
+  'js/parity.js:74:154:U+200D',
   'tests/fixtures/embedded-javascript-baseline.js:3381:154:U+200D'
 ]);
 
