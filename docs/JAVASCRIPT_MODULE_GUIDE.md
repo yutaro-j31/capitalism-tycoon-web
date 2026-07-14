@@ -96,3 +96,7 @@ Verify initial load, save/load, slot save/load, import/export where supported, w
 ## Future split direction
 
 Further splits should be smaller and subsystem-based only after this module boundary is stable. Recommended future candidates are save/migration, state defaults, weekly engine, rendering screens, actions, charts, and individual business systems.
+
+
+## market.js
+読み込み順は runtime.js → data.js → market.js → engine.js。market.jsはclassic scriptで内部レジストリにのみ公開する。
