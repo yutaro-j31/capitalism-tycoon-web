@@ -132,3 +132,14 @@ Fixed-seed transaction baseline note: adding `saveVersion: 2` is metadata/schema
 - `npm run test:css` was added and is included in `npm test`.
 - CSS identity is verified against `tests/fixtures/extracted-css-baseline.css`, captured from the extracted inline stylesheet content.
 - Real browser rendering, visual screenshots, and iPhone Safari checks remain outside this Node-only automated verification and should be checked manually after deployment or in a later browser-test PR.
+
+## Phase 0 JavaScript extraction baseline update
+
+- The game JavaScript was externalized from the single executable `index.html` script into `js/app.js`.
+- The code execution order and code body were not intentionally changed; only the script tag and an extraction boundary comment were added.
+- Game numbers, UI text, HTML body structure, and CSS were not intentionally changed.
+- `index.html` now references `./js/app.js`, a relative path suitable for GitHub Pages project-site deployment.
+- `npm run test:javascript` was added and is included in `npm test`.
+- JavaScript identity is verified against `tests/fixtures/embedded-javascript-baseline.js`, captured from the original embedded script during extraction.
+- Fixed-seed and deterministic regression coverage remains provided by the existing week, long-run, save/load, migration, and transaction tests, now loading `js/app.js` through `index.html` script resolution.
+- Real browser rendering and iPhone Safari behavior are outside the automated Node.js verification scope and should be checked manually before release.

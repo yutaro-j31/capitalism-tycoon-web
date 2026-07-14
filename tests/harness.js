@@ -8,11 +8,38 @@ const BIDI = /[\u202A-\u202E\u2066-\u2069]/;
 
 function readIndex() { return fs.readFileSync(INDEX, 'utf8'); }
 function lineOf(text, index) { return text.slice(0, index).split(/\r?\n/).length; }
+function parseAttrs(attrs = '') {
+  const out = {};
+  const re = /([:\w-]+)(?:\s*=\s*("([^"]*)"|'([^']*)'|([^\s"'>]+)))?/g;
+  let m;
+  while ((m = re.exec(attrs))) out[m[1].toLowerCase()] = m[3] ?? m[4] ?? m[5] ?? '';
+  return out;
+}
+function resolveLocalScript(src) {
+  if (!src) throw new Error('script src is empty');
+  if (/^(?:https?:)?\/\//i.test(src)) throw new Error(`external script is not supported in tests: ${src}`);
+  if (src.startsWith('/')) throw new Error(`root-absolute script path is not valid for GitHub Pages project sites: ${src}`);
+  const normalized = path.normalize(src.split(/[?#]/)[0]);
+  const file = path.resolve(ROOT, normalized);
+  if (!file.startsWith(ROOT + path.sep)) throw new Error(`script src escapes repository root: ${src}`);
+  if (!fs.existsSync(file)) throw new Error(`script src not found: ${src}`);
+  return file;
+}
 function extractScripts(html = readIndex()) {
   const scripts = [];
   const re = /<script\b([^>]*)>([\s\S]*?)<\/script>/gi;
   let m;
-  while ((m = re.exec(html))) scripts.push({ attrs: m[1], code: m[2], startLine: lineOf(html, m.index) });
+  while ((m = re.exec(html))) {
+    const attrs = m[1];
+    const parsedAttrs = parseAttrs(attrs);
+    const startLine = lineOf(html, m.index);
+    if (parsedAttrs.src !== undefined) {
+      const file = resolveLocalScript(parsedAttrs.src);
+      scripts.push({ attrs, parsedAttrs, src: parsedAttrs.src, file, code: fs.readFileSync(file, 'utf8'), startLine });
+    } else {
+      scripts.push({ attrs, parsedAttrs, code: m[2], startLine });
+    }
+  }
   return scripts;
 }
 function extractEventHandlers(html = readIndex()) {
@@ -87,4 +114,4 @@ function findStateIssues(value, base = 'g', errors = [], seen = new WeakSet()) {
   }
   return errors;
 }
-module.exports = { ROOT, INDEX, BIDI, readIndex, extractScripts, extractEventHandlers, createBrowserContext, loadGame, loadGameFromHtml, findStateIssues };
+module.exports = { ROOT, INDEX, BIDI, readIndex, parseAttrs, extractScripts, extractEventHandlers, createBrowserContext, loadGame, loadGameFromHtml, findStateIssues };

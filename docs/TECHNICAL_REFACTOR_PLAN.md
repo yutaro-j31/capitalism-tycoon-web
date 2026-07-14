@@ -212,3 +212,10 @@ GitHub PagesでES Modulesを使う場合:
 - `index.html` now loads the stylesheet with the GitHub Pages-safe relative path `./css/app.css`.
 - CSS selector names, declaration values, rule order, media query order, JavaScript, save schema, weekly processing, random processing, and game balance were not intentionally changed.
 - Future JavaScript or UI refactors should treat this as a structure-only baseline and keep CSS changes covered by `npm run test:css` plus the existing deterministic game regression tests.
+
+## Phase 0 JavaScript extraction note
+
+- The embedded classic game script has been physically moved from `index.html` to `js/app.js` without logical module splitting.
+- `index.html` keeps the script load at the end of `body` and uses the project-site-safe relative path `./js/app.js`.
+- The file remains a classic script; no `type="module"`, `defer`, or `async` is used.
+- Future state/save/engine/UI splits should be performed in separate PRs with fixed-seed regression verification and without reordering prototype wrappers or initialization.
