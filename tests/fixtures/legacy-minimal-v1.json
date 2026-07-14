@@ -1,0 +1,41 @@
+{
+  "saveVersion": 1,
+  "week": 12,
+  "month": 3,
+  "playerName": "Legacy Founder",
+  "companyName": "Legacy Shop Co",
+  "configured": true,
+  "difficulty": "normal",
+  "companyCash": 1234567,
+  "personalCash": 7654321,
+  "selectedTab": "home",
+  "stores": [
+    {
+      "id": "legacy-store-1",
+      "name": "Legacy Ramen 1",
+      "businessID": "ramen",
+      "areaID": "kanto",
+      "prefID": "tokyo",
+      "cityName": "東京中央",
+      "rent": 120000,
+      "traffic": 1.1,
+      "quality": 52,
+      "brand": 18
+    }
+  ],
+  "productVentures": [
+    {
+      "id": "legacy-product-1",
+      "name": "Legacy App",
+      "blueprintID": "mobileApp",
+      "status": "development",
+      "progress": 0.35,
+      "investment": 1000000
+    }
+  ],
+  "companyStocks": {
+    "stock_legacy": { "qty": 10, "avg": 1000 }
+  },
+  "settings": { "reducedMotion": true },
+  "news": ["旧セーブを模したテストデータです。"]
+}
