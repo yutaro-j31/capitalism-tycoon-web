@@ -15,6 +15,9 @@
     "test:transaction": "node tests/transaction-regression-test.js",
     "test:css": "node tests/css-extraction-test.js",
     "test:javascript": "node tests/javascript-extraction-test.js",
-    "test:modules": "node tests/javascript-module-split-test.js"
+    "test:modules": "node tests/javascript-module-split-test.js",
+    "test:stock": "node tests/stock-chart-test.js",
+    "test:stock-chart": "node tests/stock-chart-test.js",
+    "test:stock-migration": "node tests/stock-chart-test.js"
   }
 }

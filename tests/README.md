@@ -43,3 +43,5 @@ Node.js標準機能のみで、`index.html` のゲームコードを変更せず
 - `npm run test:modules`: verifies the Phase 0 internal IIFE module split.
 - The test reads `index.html` script tags in document order, requires `runtime.js` first and `app.js` last, confirms all referenced files exist and are non-empty, checks LF/no-BOM/no bidi controls, verifies required module exports, confirms the internal registry is non-enumerable, checks duplicate module registration errors, and ensures `TycoonEngine.load()` plus initial `render()` execute once in the instrumented harness.
 - `npm test` includes `test:modules` through `tests/run-all.js`.
+
+- `npm run test:stock`: 株価履歴、株式チャートUI、v3マイグレーション、固定シード基本回帰を検証します。

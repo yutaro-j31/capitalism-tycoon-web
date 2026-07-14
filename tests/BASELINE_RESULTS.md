@@ -104,13 +104,13 @@ These counts are now enforced by `tests/week-test.js` for the transaction-critic
   - Verified corrupted structural types and future save versions return explicit errors and do not mutate input fixtures.
   - Verified `migrateSave(migrateSave(state))` is stable and does not grow stores, cash, news, history, or reports.
 
-Fixed-seed transaction baseline note: adding `saveVersion: 2` is metadata/schema migration only. No game formulas, weekly order, random calls, prices, initial funds, UI, or CSS were intentionally changed.
+Fixed-seed transaction baseline note: adding `saveVersion: 3` stock history schema migration is metadata/history-shape only. No game formulas, weekly order, random calls, prices, initial funds, UI, or CSS were intentionally changed.
 
 
 ## Phase 0 save/load integration baseline update
 
 - `npm run test:load`
-  - Verified an unversioned legacy SAVE_KEY is adopted through the real `TycoonEngine.load()` path and can then be explicitly re-saved as `saveVersion: 2`.
+  - Verified an unversioned legacy SAVE_KEY is adopted through the real `TycoonEngine.load()` path and can then be explicitly re-saved as the current `saveVersion`.
   - Verified corrupted JSON and future-version SAVE_KEY values are not adopted, do not call `localStorage.setItem(SAVE_KEY, ...)`, and remain byte-for-byte unchanged during fallback.
   - Verified fallback engines created after startup load failure block automatic main SAVE_KEY saving until an explicit new game/reset/valid import/valid slot load clears the transient flag.
   - Verified valid legacy slots migrate and save the migrated state to the main SAVE_KEY while leaving the original slot string unchanged.
@@ -153,3 +153,8 @@ Fixed-seed transaction baseline note: adding `saveVersion: 2` is metadata/schema
 - Save compatibility tests continue to verify `SAVE_KEY: capitalism_tycoon_web_v1`, current save version handling, unversioned legacy migration, future-version rejection, corrupted-save overwrite prevention, slot loading, and JSON import/export behavior.
 - Automated checks include `npm test`, `npm run test:syntax`, `npm run test:static`, `npm run test:javascript`, `npm run test:modules`, `npm run test:css`, `npm run test:save`, `npm run test:migration`, `npm run test:week`, `npm run test:long`, and `npm run test:transaction`.
 - Real browser rendering and iPhone Safari remain outside the Node-only automated baseline and require manual verification.
+
+## Stock chart baseline
+
+- `npm run test:stock` verifies stock history rows, v2-to-v3 migration, stock chart UI affordances, and fixed-seed random-call stability for the added history data.
+- Fixed-seed transaction regression remains at 6,418 random calls by week 52; gameplay price fields are unchanged except for the added structured `priceHistory` rows.

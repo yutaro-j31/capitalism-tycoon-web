@@ -21,11 +21,11 @@ function getStored(ctx, key) { return ctx.__localStorageData.get(key); }
   assert(engine.g.companyName === '部分商事' && engine.g.playerName === '部分創業者', 'startup legacy names adopted');
   assert(engine.g.week === 20 && engine.g.companyCash === 22222222 && engine.g.personalCash === 3333333, 'startup legacy core numbers adopted');
   assert(engine.g.stores[0].id === 'store-a', 'startup legacy store ID preserved');
-  assert(engine.g.saveVersion === SAVE_VERSION && SAVE_VERSION === 2, 'startup legacy migrated to saveVersion 2');
+  assert(engine.g.saveVersion === SAVE_VERSION, 'startup legacy migrated to current saveVersion');
   assert(getStored(ctx, SAVE_KEY) === raw, 'startup load does not auto-resave before explicit save');
   engine.save();
   assert(setCallsFor(ctx, SAVE_KEY).length === 1, 'explicit save writes migrated state once');
-  assert(JSON.parse(getStored(ctx, SAVE_KEY)).saveVersion === 2, 'explicit save persists migrated version');
+  assert(JSON.parse(getStored(ctx, SAVE_KEY)).saveVersion === SAVE_VERSION, 'explicit save persists migrated version');
 }
 
 {
@@ -51,14 +51,14 @@ function getStored(ctx, key) { return ctx.__localStorageData.get(key); }
 }
 
 {
-  const { ctx, engine, SAVE_KEY } = bootWithStorage({});
+  const { ctx, engine, SAVE_KEY, SAVE_VERSION } = bootWithStorage({});
   const slotKey = `${SAVE_KEY}_slot_1`;
   const legacy = fixtureText('legacy-partial-entities.json');
   ctx.localStorage.setItem(slotKey, legacy);
   ctx.__localStorageHistory.setItem.length = 0;
   assert(engine.loadSlot(1) === true, 'normal legacy slot loads');
   assert(engine.g.companyName === '部分商事' && engine.g.stores[0].id === 'store-a', 'normal legacy slot migrated into state');
-  assert(JSON.parse(getStored(ctx, SAVE_KEY)).saveVersion === 2, 'normal slot load saves migrated main state');
+  assert(JSON.parse(getStored(ctx, SAVE_KEY)).saveVersion === SAVE_VERSION, 'normal slot load saves migrated main state');
   assert(getStored(ctx, slotKey) === legacy, 'normal slot source remains unchanged');
 }
 
@@ -78,10 +78,10 @@ function getStored(ctx, key) { return ctx.__localStorageData.get(key); }
 }
 
 {
-  const { ctx, engine, SAVE_KEY } = bootWithStorage({});
+  const { ctx, engine, SAVE_KEY, SAVE_VERSION } = bootWithStorage({});
   const legacy = fixtureText('legacy-unversioned-minimal.json');
   engine.importSave(legacy);
-  assert(engine.g.companyName === '旧商事' && engine.g.saveVersion === 2, 'legacy JSON import migrates and adopts');
+  assert(engine.g.companyName === '旧商事' && engine.g.saveVersion === SAVE_VERSION, 'legacy JSON import migrates and adopts');
   assert(JSON.parse(getStored(ctx, SAVE_KEY)).companyName === '旧商事', 'legacy JSON import saves migrated main state');
 }
 
