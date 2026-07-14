@@ -15,3 +15,7 @@ saveVersion 5では `finance.transactions`, `finance.fixedAssets`, `finance.loan
 ## 重複排除
 
 会計イベントは `transactionID`, `operationID`, `idempotencyKey` を分離する。週次自動取引は決定論的な `idempotencyKey` を持ち、ユーザー操作は操作ごとに一意の `operationID` を使う。
+
+## 店舗保証金・建物固定資産
+
+店舗保証金は現金返還ルールが既存実装にないため、閉店時は現金を動かさず保証金没収損として会計イベント化する。建物固定資産は `propertyID` を保持し、不動産売却時に土地簿価と建物正味簿価をまとめて除却する。

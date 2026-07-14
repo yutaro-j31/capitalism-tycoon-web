@@ -86,3 +86,10 @@
 | `workforce-invest` | 福利厚生投資 | `headOfficeExpense` | 営業CF | 費用 | なし | `workforceInvest` | UI inline処理だが会計イベントへ接続済み |
 
 未接続を隠すための自動現金差額計上は禁止。`validate()` はスナップショットの `cashDifference`、期間CF期末現金、累積cashEffectロールフォワードを検査する。
+
+## 店舗保証金と建物付き不動産の最終処理
+
+- `openStore` は店舗設備を `capitalExpenditure`、テナント保証金を `otherInvesting` として記録する。
+- `closeStore` は既存ゲーム仕様どおり店舗設備回収額のみ会社現金へ加算し、保証金返還は追加しない。閉店時に `closeStoreDeposit` イベントで `cashEffect=0`、`assetEffect=-tenant.deposit`、`profitEffect=-tenant.deposit` を記録し、保証金没収損として利益剰余金へ反映する。
+- `buildOnLand` の建物固定資産は `propertyID` で土地へ紐付ける。土地本体の簿価と建物固定資産簿価は分離し、売却時は `sellProperty` が土地取得原価 + 有効建物固定資産の正味簿価を総簿価として売却損益を計算する。
+- `sellProperty` は売却収入を会社現金へ1回だけ加算し、紐づく建物固定資産を `disposed` にして翌週以降の減価償却を停止する。

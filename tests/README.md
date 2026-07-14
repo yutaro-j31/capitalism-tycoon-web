@@ -53,3 +53,6 @@ Phase 1A用に `test:market`、`test:market-migration`、`test:market-ui`、`tes
 ## Finance tests
 
 Phase 1B adds `test:finance`, `test:statements`, `test:cashflow`, `test:working-capital`, `test:finance-migration`, `test:finance-ui`, and `test:accounting-invariants` to verify transaction recording, statements, migration, UI presence, and accounting invariants.
+
+- `finance-store-close-deposit-test.js`: 実際の `openStore` / `closeStore` で店舗保証金の没収損、設備除却、閉店後の償却停止を検証します。
+- `finance-property-building-disposal-test.js`: 土地購入、建物建設、建物付き不動産売却、v4建物付き土地のv5初期化を検証します。

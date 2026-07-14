@@ -166,3 +166,5 @@ Fixed-seed transaction baseline note: adding `saveVersion: 3` stock history sche
 ## Phase 1B baseline
 
 `npm test` passed with saveVersion 5, finance module load order, fixed-seed market regression, long-run stability, finance ledger, statements, migration, UI static, and accounting invariant checks.
+
+- Finance store close deposit and property building disposal tests passed locally with saveVersion 5. These confirm that closeStore does not change existing cash behavior for deposits, and sellProperty disposes property-linked building assets.

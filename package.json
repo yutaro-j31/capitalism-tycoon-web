@@ -48,6 +48,8 @@
     "test:finance-startup-subsidiary": "node tests/finance-startup-subsidiary-test.js",
     "test:finance-subsidiary-ipo": "node tests/finance-subsidiary-ipo-test.js",
     "test:finance-ma-accounting": "node tests/finance-ma-accounting-test.js",
-    "test:finance-working-capital-rollforward": "node tests/finance-working-capital-rollforward-test.js"
+    "test:finance-working-capital-rollforward": "node tests/finance-working-capital-rollforward-test.js",
+    "test:finance-store-close-deposit": "node tests/finance-store-close-deposit-test.js",
+    "test:finance-property-building-disposal": "node tests/finance-property-building-disposal-test.js"
   }
 }

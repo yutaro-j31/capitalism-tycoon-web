@@ -35,3 +35,5 @@ jobs:
       - run: npm run test:finance-subsidiary-ipo
       - run: npm run test:finance-ma-accounting
       - run: npm run test:finance-working-capital-rollforward
+      - run: npm run test:finance-store-close-deposit
+      - run: npm run test:finance-property-building-disposal
