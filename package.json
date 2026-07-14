@@ -50,6 +50,15 @@
     "test:finance-ma-accounting": "node tests/finance-ma-accounting-test.js",
     "test:finance-working-capital-rollforward": "node tests/finance-working-capital-rollforward-test.js",
     "test:finance-store-close-deposit": "node tests/finance-store-close-deposit-test.js",
-    "test:finance-property-building-disposal": "node tests/finance-property-building-disposal-test.js"
+    "test:finance-property-building-disposal": "node tests/finance-property-building-disposal-test.js",
+    "test:supply": "node tests/supply-engine-test.js && node tests/stockout-integration-test.js",
+    "test:inventory": "node tests/spoilage-test.js",
+    "test:procurement": "node tests/procurement-order-test.js",
+    "test:supply-finance": "node tests/supply-engine-test.js",
+    "test:supply-migration": "node tests/supply-migration-test.js",
+    "test:supply-ui": "node tests/market-ui-static-test.js",
+    "test:supply-rng": "node tests/supply-rng-regression-test.js",
+    "test:supply-calibration": "node tests/supply-engine-test.js",
+    "test:supply-long": "node tests/supply-long-run-test.js"
   }
 }

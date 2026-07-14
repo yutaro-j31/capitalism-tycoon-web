@@ -5,3 +5,5 @@ Phase 1Bの運転資本は深い在庫・仕入システムを先行実装せず
 運転資本 = 売掛金 + 棚卸資産 + その他営業流動資産 - 買掛金 - 未払費用。
 
 店舗型消費者向け売上は原則即時入金とし、売掛金は作らない。税金は未払税金として表示可能な残高を用意し、支払時にはCFへ接続する。CCCは基礎表示として0日から開始する。
+
+Phase 1C adds raw-material inventory and supplier AP to working capital. Higher safety stock increases inventory; payment terms increase AP; both affect the cash conversion cycle.

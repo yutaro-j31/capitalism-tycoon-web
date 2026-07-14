@@ -179,3 +179,7 @@
 ## saveVersion 5 財務フィールド
 
 `finance` を追加。`transactions`, `fixedAssets`, `loans`, `balances`, `lastStatements`, `lastValidation`, `nextTransactionSeq` を持つ。`SAVE_KEY` は `capitalism_tycoon_web_v1` のまま。
+
+## saveVersion 6 supply fields
+
+Phase 1C keeps `SAVE_KEY = capitalism_tycoon_web_v1` and adds `inventoryByStoreID`, `purchaseOrders`, `supplySettingsByStoreID`, `supplyResultsByStoreID`, `supplyResultsByBusinessID`, `nextPurchaseOrderSeq`, `nextInventoryLotSeq`, and `nextSupplyEventSeq`. Static material and supplier masters remain in `js/supply.js` and are not duplicated into saves.

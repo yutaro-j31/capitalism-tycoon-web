@@ -30,3 +30,7 @@
 ## Phase 1Bとの関係
 
 市場計算結果は変更しない。会計は `advanceWeek()` で確定した市場売上・変動費をイベント化するだけで、市場シェア、販売数量、株価履歴には影響しない。
+
+## Phase 1C supply connection
+
+For `ramen`, Phase 1A demand and capacity are calculated first. Phase 1C then constrains the already capacity-limited sales candidate by critical material availability and records demand market share separately from realized market share.

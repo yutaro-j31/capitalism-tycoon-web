@@ -23,3 +23,7 @@ Phase 1Bでは、実際のゲーム内取引から損益計算書、貸借対照
 ## 保証金没収損と建物付き不動産売却
 
 店舗閉鎖で保証金返還がない場合、会社現金は増えず、保証金資産の除却額が営業外損失としてPLへ出る。建物付き土地の売却では、土地取得原価と `propertyID` で紐づく建物固定資産の正味簿価を合算した売却時簿価と、手数料控除後売却収入との差額を売却損益として表示する。
+
+## Phase 1C inventory accounting
+
+Target ramen purchases increase inventory and either decrease cash or increase accounts payable. Selling consumes inventory and recognizes cost of sales with no second cash payment. AP payments reduce cash and AP without a second PL expense.
