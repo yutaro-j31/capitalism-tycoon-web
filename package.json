@@ -12,6 +12,7 @@
     "test:load": "node tests/save-load-integration-test.js",
     "test:week": "node tests/week-test.js",
     "test:long": "node tests/long-run-test.js",
-    "test:transaction": "node tests/transaction-regression-test.js"
+    "test:transaction": "node tests/transaction-regression-test.js",
+    "test:css": "node tests/css-extraction-test.js"
   }
 }
