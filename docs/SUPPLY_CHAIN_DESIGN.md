@@ -17,7 +17,7 @@ Phase 1C implements procurement, raw-material inventory, lead times, spoilage, e
 
 - Before Phase 1C, ramen Phase 1A used `variableCostPerUnit` from `business.unitCost` adjusted by quality, efficiency, and operations staff. Legacy non-target stores still use `demand * business.unitCost * inflation`.
 - Phase 1C replaces target ramen COGS with consumed FIFO/expiry-priority lot cost. Purchases increase inventory and cash/AP; sales reduce inventory and recognize COGS with cash effect 0.
-- Starting v5 saves migrate to v6 with deterministic two-week starting inventory and matching starting AP treatment during first accounting pass, preserving company cash and personal cash.
+- Starting v5 saves migrate to v6 with deterministic two-week starting inventory and an opening-balance inventory/equity adjustment, preserving company cash and personal cash without creating future AP payments.
 - Replaced scope: `ramen` store variable cost and supply availability only. Maintained scope: stock price, stock history, stock trading, non-target businesses, VC, M&A, subsidiaries, sports, and legacy random slots.
 
 ## Fixed scenario actuals
