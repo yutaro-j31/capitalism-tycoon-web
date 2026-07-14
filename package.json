@@ -8,6 +8,7 @@
     "test:syntax": "node tests/syntax-check.js",
     "test:static": "node tests/static-check.js",
     "test:save": "node tests/save-compat-test.js",
+    "test:migration": "node tests/save-migration-test.js",
     "test:week": "node tests/week-test.js",
     "test:long": "node tests/long-run-test.js",
     "test:transaction": "node tests/transaction-regression-test.js"

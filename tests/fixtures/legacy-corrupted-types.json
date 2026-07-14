@@ -1,0 +1,14 @@
+{
+  "week": "abc",
+  "companyCash": "not-a-number",
+  "personalCash": 1,
+  "stores": {
+    "bad": true
+  },
+  "businesses": [],
+  "market": [],
+  "news": [],
+  "history": [],
+  "reports": [],
+  "settings": "bad"
+}

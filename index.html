@@ -1838,7 +1838,7 @@ Object.assign(exports,{MASTER,DEPARTMENT_UNLOCKS,PRODUCT_BLUEPRINTS,LUXURY_OFFER
 (function(exports,data){
 const {MASTER,DEPARTMENT_UNLOCKS,PRODUCT_BLUEPRINTS,LUXURY_OFFERS,PERSONAL_INVESTMENT_OFFERS,OVERSEAS_COUNTRIES,SPORTS_TEAMS,MISSION_DEFS}=data;
 const SAVE_KEY = 'capitalism_tycoon_web_v1';
-const SAVE_VERSION = 1;
+const SAVE_VERSION = 2;
 
 const deepClone = value => typeof structuredClone === 'function'
   ? structuredClone(value)
@@ -1992,6 +1992,147 @@ function createInitialState(options = {}) {
   };
 }
 
+
+function isPlainObject(value) {
+  return Boolean(value && typeof value === 'object' && !Array.isArray(value));
+}
+
+function detectSaveVersion(rawState) {
+  if (!isPlainObject(rawState)) return {ok:false, version:null, error:'セーブデータのルートはオブジェクトである必要があります。'};
+  if (!('saveVersion' in rawState) || rawState.saveVersion === undefined || rawState.saveVersion === null || rawState.saveVersion === '') return {ok:true, version:0, legacy:true};
+  const version = Number(rawState.saveVersion);
+  if (!Number.isInteger(version)) return {ok:false, version:null, error:`saveVersionが整数ではありません: ${rawState.saveVersion}`};
+  if (version < 0) return {ok:false, version:null, error:`saveVersionが負数です: ${version}`};
+  if (version > SAVE_VERSION) return {ok:false, version, future:true, error:`このゲームより新しいsaveVersion ${version} のセーブです。現在対応しているのは ${SAVE_VERSION} までです。`};
+  return {ok:true, version};
+}
+
+function createDefaultEntityID(kind, index) {
+  return `legacy-${kind}-${index + 1}`;
+}
+
+function entityDefaults(kind, entity = {}, index = 0, state = {}) {
+  const week = finite(state.week, 1);
+  const base = {
+    store: {id:createDefaultEntityID('store', index), businessID:'ramen', prefID:state.selectedPref || 'tokyo', name:`店舗${index + 1}`, openedWeek:week, quality:0, brand:0, condition:100, lastSales:0, lastProfit:0, status:'open', openingWeek:week, weeksToOpen:0, tenantID:null, cityName:'', operatingHours:3},
+    business: {id:createDefaultEntityID('business', index), name:'事業', category:'未分類', price:100, unitCost:0, fixedCost:0, storeCost:0, demand:1, quality:0, brand:0, efficiency:0, dx:0, segmentFit:{}},
+    property: {id:createDefaultEntityID('property', index), prefID:state.selectedPref || 'tokyo', name:`不動産${index + 1}`, kind:'不動産', price:0, value:0, rentIncome:0, owner:null, basePrice:0, cityName:'', yieldRate:0, economySensitivity:0, canBuildHQ:false, hqBuilt:false, landAreaSqm:0, buildingType:'', buildingScale:0, constructionWeeksRemaining:0, rentMultiplier:1, vacancyRate:0, maintenanceCost:0, standardRentIncome:0, depreciationPerWeek:0, buildingLevel:0, buildingMaxLevel:10, buildingQuality:0},
+    tenant: {id:createDefaultEntityID('tenant', index), prefID:state.selectedPref || 'tokyo', cityName:'', name:`テナント${index + 1}`, businessID:'ramen', rent:0, deposit:0, traffic:1, size:'M', occupiedBy:null, expiresWeek:week + 24},
+    rentalOffice: {id:createDefaultEntityID('office', index), prefID:state.selectedPref || 'tokyo', cityName:'', name:`オフィス${index + 1}`, grade:'C', rent:0, deposit:0, capacity:0, prestige:0, dxBonus:0, contracted:false},
+    market: {id:createDefaultEntityID('stock', index), name:'銘柄', sector:'', price:100, previous:100, dividend:0, volatility:.05, marketCap:0, issuedShares:1, shareholders:{}, priceHistory:[]},
+    startup: {id:createDefaultEntityID('startup', index), name:'スタートアップ', domain:'', stage:'Seed', valuation:0, growth:0, risk:.2, ownedCompany:0, ownedPersonal:0, alive:true, subsidiary:false, totalInvestedCompany:0, totalInvestedPersonal:0, productProgress:.25, runwayWeeks:52, reports:[], fundingRound:'Seed', fundingOpen:true},
+    competitor: {id:createDefaultEntityID('competitor', index), name:'競合', areaID:state.selectedArea || 'kanto', businessID:'ramen', stores:0, brand:0, quality:0, ownedPlayerShares:0},
+    executiveMarket: {id:createDefaultEntityID('executive', index), name:'CXO候補', role:'CFO', skill:0, salary:0, desiredSalary:0, desiredSO:0, hired:false, negotiated:false, offeredSalary:0, offeredSO:0, acceptedOffer:false, rejectedOffer:false, age:40, gender:'unknown'},
+    subsidiary: {id:createDefaultEntityID('subsidiary', index), name:'子会社', domain:'', industry:'', valuation:0, status:'active', weeklyProfit:0, growth:0, risk:0, ownership:1, retainedEarnings:0, acquiredWeek:week},
+    acquisitionTarget: {id:createDefaultEntityID('target', index), name:'買収候補', industry:'', synergy:1, revenue:0, profit:0, valuation:0, askingPrice:0, cultureFit:50, risk:0, expiresWeek:week + 12},
+    maSubsidiary: {id:createDefaultEntityID('ma', index), name:'M&A子会社', industry:'', valuation:0, acquisitionPrice:0, weeklyProfit:0, synergy:1, integration:0, risk:0, acquiredWeek:week},
+    goodwillRecord: {id:createDefaultEntityID('goodwill', index), name:'のれん', amount:0, remaining:0, acquiredWeek:week, impairmentLoss:0},
+    productVenture: {id:createDefaultEntityID('product', index), blueprintID:'custom', name:'プロダクト', category:'service', status:'developing', progress:0, valuation:0, invested:0, weeklyRevenue:0, weeklyCost:0, users:0, quality:0, brand:0, startedWeek:week},
+    personalInvestment: {id:createDefaultEntityID('investment', index), name:'個人投資', category:'investment', purchasePrice:0, currentValue:0, maintenancePerWeek:0, purchasedWeek:week},
+    luxuryAsset: {id:createDefaultEntityID('luxury', index), name:'資産', category:'luxury', purchasePrice:0, currentValue:0, maintenancePerWeek:0, statusEffect:'', purchasedWeek:week},
+    sportsTeam: {id:createDefaultEntityID('sports', index), name:'スポーツチーム', league:'', owner:'personal', value:0, weeklyProfit:0, fanBase:0, performance:0, saleListed:false, acquiredWeek:week},
+    peDeal: {id:createDefaultEntityID('pe', index), targetName:'PE案件', industry:'', acquiredWeek:week, investedAmount:0, ownershipRatio:0, improvementScore:0, currentValuation:0, holdingWeeks:0, status:'active'},
+    cxoExecutive: {id:createDefaultEntityID('cxo', index), name:'CXO', role:'CFO', skill:0, salary:0, hiredWeek:week},
+    campaign: {id:createDefaultEntityID('campaign', index), departmentID:'marketing', type:'', budget:0, startWeek:week, endWeek:week, progress:0, status:'active'},
+    internalVenture: {id:createDefaultEntityID('venture', index), name:'社内ベンチャー', domain:'', requiredBudget:0, teamQuality:0, marketPotential:0, risk:0, status:'developing', progress:0, valuation:0, weeklyProfit:0},
+    scheduledPayment: {id:createDefaultEntityID('payment', index), week, amount:0, label:'', account:'company', status:'pending'},
+    report: {week, sales:0, expenses:0, profit:0, tax:0, companyCash:finite(state.companyCash, 0), companyValue:0, personalNetWorth:0},
+    boardAgenda: {id:createDefaultEntityID('agenda', index), title:'議題', detail:'', cost:0, effect:'', approved:false},
+    investorOffer: {id:createDefaultEntityID('investor', index), name:'投資家', amount:0, equity:0, expiresWeek:week, status:'pending'},
+    tenderOffer: {id:createDefaultEntityID('tender', index), stockID:'', price:0, qty:0, status:'pending'},
+    productBuyoutOffer: {id:createDefaultEntityID('product-offer', index), productID:'', buyerName:'買い手', offerAmount:0, status:'pending', week},
+    angelInvestment: {id:createDefaultEntityID('angel', index), startupName:'エンジェル投資先', investedAmount:0, week, multiple:1, status:'active'},
+    personalRealEstateHolding: {id:createDefaultEntityID('personal-real-estate', index), name:'個人不動産', purchasePrice:0, currentValue:0, rentIncome:0, maintenancePerWeek:0, purchasedWeek:week},
+    branchOffice: {id:createDefaultEntityID('branch', index), officeID:null, name:'支社', rent:0, deposit:0, capacity:0, prestige:0, contractedWeek:week},
+    keyPersonnel: {id:createDefaultEntityID('keyperson', index), name:'キーパーソン', role:'専門人材', level:1, salary:0, motivation:50, loyalty:50, retentionRisk:.1, hiredWeek:week},
+    competitorState: {id:createDefaultEntityID('rival-state', index), name:'競合', industryID:'ramen', strength:0, cash:0, pricePressure:0, qualityPressure:0, isDistressed:false}
+  };
+  return {...(base[kind] || {id:createDefaultEntityID(kind, index)}), ...entity};
+}
+
+const ARRAY_ENTITY_KINDS = {
+  stores:'store', businesses:'business', properties:'property', tenants:'tenant', rentalOffices:'rentalOffice', market:'market', startups:'startup', competitors:'competitor', executiveMarket:'executiveMarket', subsidiaries:'subsidiary', acquisitionTargets:'acquisitionTarget', maSubsidiaries:'maSubsidiary', goodwillRecords:'goodwillRecord', productVentures:'productVenture', personalInvestments:'personalInvestment', luxuryAssets:'luxuryAsset', sportsTeams:'sportsTeam', peDeals:'peDeal', cxoExecutives:'cxoExecutive', departmentCampaigns:'campaign', internalVentureProposals:'internalVenture', internalVentures:'internalVenture', scheduledPayments:'scheduledPayment', reports:'report', boardAgendas:'boardAgenda', investorOffers:'investorOffer', tenderOffers:'tenderOffer', productBuyoutOffers:'productBuyoutOffer', angelInvestments:'angelInvestment', personalRealEstateHoldings:'personalRealEstateHolding', branchOffices:'branchOffice', keyPersonnel:'keyPersonnel', competitorStates:'competitorState'
+};
+
+function normalizeArrayEntityList(state, key, kind) {
+  const value = state[key];
+  if (value === undefined || value === null) { state[key] = []; return; }
+  if (!Array.isArray(value)) throw new Error(`${key}は配列である必要があります。`);
+  state[key] = value.map((item, index) => {
+    if (!isPlainObject(item)) throw new Error(`${key}[${index}]はオブジェクトである必要があります。`);
+    const merged = entityDefaults(kind, item, index, state);
+    if (merged.id === undefined || merged.id === null || merged.id === '') merged.id = createDefaultEntityID(kind, index);
+    return merged;
+  });
+}
+
+function normalizeHoldingMap(state, key) {
+  const value = state[key];
+  if (value === undefined || value === null) { state[key] = {}; return; }
+  if (!isPlainObject(value)) throw new Error(`${key}はオブジェクトである必要があります。`);
+  for (const [stockID, holding] of Object.entries(value)) {
+    if (!isPlainObject(holding)) throw new Error(`${key}.${stockID}は保有株式オブジェクトである必要があります。`);
+    value[stockID] = {qty:0, avg:0, ...holding};
+  }
+}
+
+function normalizeObjectMap(state, key, defaultValue = {}) {
+  const value = state[key];
+  if (value === undefined || value === null) { state[key] = deepClone(defaultValue); return; }
+  if (!isPlainObject(value)) throw new Error(`${key}はオブジェクトである必要があります。`);
+}
+
+function deepNormalizeState(state) {
+  for (const [key, kind] of Object.entries(ARRAY_ENTITY_KINDS)) normalizeArrayEntityList(state, key, kind);
+  for (const key of ['news','history','competitorEvents','productEvents','favoriteStockIds','officeFloors','activeMissionIDs','completedMissionIDs','achievements','unlockedEndings','weeklySalesHistory','weeklyProfitHistory','companyValueHistory','personalNetWorthHistory','executiveDirectives','founderHomeActionLog','recommendedTenantIDsFromHomeSearch','supplyChainEvents','verticalIntegrationAssets','rdProjects','patentRecords','productFunnelEventLog','stockSplitHistory','ownershipHistory','activistCampaigns','shareholderEventLog','ventureForumEvents','weeklyNewspaper','majorBusinessNews','luxuryAuctionListings','sportsDraftCandidates','sportsTradeMarket','sportsSaleOffers','serialEntrepreneurHistory','endingRecords','pastCompanyRecords','employeeComplaintLog','transportRebuildProjects','transportRebuildLog','mediaCampaigns','mediaActionLog','inboundBuyoutOffers','companyBuyoutHistory','playerTitles','advisorDismissedActionIDs','advisorActionHistory','keyPersonnelEventLog','earningsEventLog','competitorEventLog','industryAwards','awardEventLog']) {
+    if (state[key] === undefined || state[key] === null) state[key] = [];
+    if (!Array.isArray(state[key])) throw new Error(`${key}は配列である必要があります。`);
+  }
+  for (const key of ['personalStocks','companyStocks']) normalizeHoldingMap(state, key);
+  for (const key of ['departments','departmentStaff','franchiseStoresByBusinessID','franchiseRoyaltyRateByBusinessID','franchiseQualityByBusinessID','franchiseTrustByBusinessID','organizationCulture','settings','inventoryByBusinessID','customerSegmentsByBusinessID','marketShareByBusinessID','productFunnels','quarterlyStockResults','startupFundingHistory','startupQuarterlyReports','localReputationByPref','hallOfRecords','expandedWeeklyAdjustments']) normalizeObjectMap(state, key);
+  return state;
+}
+
+function migrateUnversionedToV1(state) {
+  state.saveVersion = 1;
+  return state;
+}
+
+function migrateV1ToV2(state) {
+  state.saveVersion = 2;
+  return state;
+}
+
+function validateMigratedState(state) {
+  const detected = detectSaveVersion(state);
+  if (!detected.ok) return {ok:false, errors:[detected.error]};
+  const errors = [];
+  for (const key of ['week','month','companyCash','personalCash','companyDebt','personalDebt']) if (!Number.isFinite(Number(state[key]))) errors.push(`${key}が有限数ではありません。`);
+  for (const key of ['businesses','stores','market','news','history','reports']) if (!Array.isArray(state[key])) errors.push(`${key}が配列ではありません。`);
+  if (!isPlainObject(state.settings)) errors.push('settingsがオブジェクトではありません。');
+  return {ok:errors.length === 0, errors};
+}
+
+function migrateSave(rawState) {
+  const detected = detectSaveVersion(rawState);
+  if (!detected.ok) return {ok:false, state:null, version:detected.version, errors:[detected.error]};
+  let state;
+  try {
+    state = deepClone(rawState);
+    let version = detected.version;
+    if (version === 0) { state = migrateUnversionedToV1(state); version = 1; }
+    if (version === 1) { state = migrateV1ToV2(state); version = 2; }
+    if (version !== SAVE_VERSION) throw new Error(`未対応のsaveVersionです: ${version}`);
+    state = mergeDefaults(state, createInitialState({configured:false}));
+    deepNormalizeState(state);
+    const validation = validateMigratedState(state);
+    if (!validation.ok) return {ok:false, state:null, version, errors:validation.errors};
+    return {ok:true, state, version, errors:[]};
+  } catch (error) {
+    return {ok:false, state:null, version:detected.version, errors:[error.message || String(error)]};
+  }
+}
+
 function mergeDefaults(target, defaults) {
   if (Array.isArray(defaults)) return Array.isArray(target) ? target : deepClone(defaults);
   if (defaults && typeof defaults === 'object') {
@@ -2009,14 +2150,24 @@ class TycoonEngine extends EventTarget {
   constructor(state = null) {
     super();
     const defaults = createInitialState({configured:false});
-    this.g = state ? mergeDefaults(state, defaults) : defaults;
+    if (state) {
+      const migrated = migrateSave(state);
+      if (!migrated.ok) throw new Error(`Save migration failed: ${migrated.errors.join('; ')}`);
+      this.g = migrated.state;
+    } else {
+      this.g = defaults;
+    }
     this.normalize();
   }
 
   static load() {
     try {
       const raw = localStorage.getItem(SAVE_KEY);
-      return new TycoonEngine(raw ? JSON.parse(raw) : null);
+      if (!raw) return new TycoonEngine(null);
+      const parsed = JSON.parse(raw);
+      const migrated = migrateSave(parsed);
+      if (!migrated.ok) throw new Error(`Save migration failed: ${migrated.errors.join('; ')}`);
+      return new TycoonEngine(migrated.state);
     } catch (error) {
       console.error('Save load failed', error);
       return new TycoonEngine();
@@ -2077,7 +2228,9 @@ class TycoonEngine extends EventTarget {
   loadSlot(slot) {
     const raw = localStorage.getItem(`${SAVE_KEY}_slot_${slot}`);
     if (!raw) return false;
-    this.g = mergeDefaults(JSON.parse(raw), createInitialState({configured:false}));
+    const migrated = migrateSave(JSON.parse(raw));
+    if (!migrated.ok) { console.error('Slot save migration failed', migrated.errors); return false; }
+    this.g = migrated.state;
     this.normalize(); this.save(); this.emit(); return true;
   }
 
@@ -2592,11 +2745,11 @@ class TycoonEngine extends EventTarget {
     return new Blob([JSON.stringify(this.g,null,2)],{type:'application/json'});
   }
   importSave(text) {
-    const parsed=JSON.parse(text);if(!parsed||typeof parsed!=='object'||!('week'in parsed))throw new Error('セーブデータ形式が不正です。');this.g=mergeDefaults(parsed,createInitialState({configured:false}));this.normalize();this.save();this.emit();
+    const parsed=JSON.parse(text);const migrated=migrateSave(parsed);if(!migrated.ok)throw new Error(migrated.errors.join(' / ')||'セーブデータ形式が不正です。');this.g=migrated.state;this.normalize();this.save();this.emit();
   }
 }
 
-Object.assign(exports,{SAVE_KEY,SAVE_VERSION,clamp,finite,uuid,yen,compactYen,pct,rand,pick,createInitialState,TycoonEngine});
+Object.assign(exports,{SAVE_KEY,SAVE_VERSION,clamp,finite,uuid,yen,compactYen,pct,rand,pick,createInitialState,mergeDefaults,detectSaveVersion,migrateSave,migrateUnversionedToV1,migrateV1ToV2,deepNormalizeState,validateMigratedState,TycoonEngine});
 })(__modules.engine={},__modules.data);
 (function(exports){
 // Expansion layer for the browser port.

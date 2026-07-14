@@ -94,3 +94,14 @@ These counts are now enforced by `tests/week-test.js` for the transaction-critic
 
 1. Add deeper legacy array-element normalization for stores, products, stock holdings, and inventory-like structures.
 2. Add a browser-level smoke test only if a dependency/runtime such as Playwright is explicitly accepted in a later PR.
+
+## Phase 0 save migration baseline update
+
+- `npm run test:migration`
+  - Verified unversioned legacy saves migrate to the current saveVersion.
+  - Verified top-level defaults and array-element internals are backfilled without overwriting valid `0`, names, IDs, or unknown properties.
+  - Verified current-version saves preserve core game values, array order, and IDs.
+  - Verified corrupted structural types and future save versions return explicit errors and do not mutate input fixtures.
+  - Verified `migrateSave(migrateSave(state))` is stable and does not grow stores, cash, news, history, or reports.
+
+Fixed-seed transaction baseline note: adding `saveVersion: 2` is metadata/schema migration only. No game formulas, weekly order, random calls, prices, initial funds, UI, or CSS were intentionally changed.
