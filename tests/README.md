@@ -50,3 +50,6 @@ Node.js標準機能のみで、`index.html` のゲームコードを変更せず
 - `npm run test:market`: market engine and integration checks.
 - `npm run test:market-migration`: saveVersion 4 migration checks.
 - `npm run test:market-ui`: static UI/CSS/load-order checks.
+
+### PR #9 market correction coverage
+`test:market` now also runs capacity migration/reload checks, competitor business+area filtering, same-pref cannibalization, weighted business share, and numeric legacy calibration checks.

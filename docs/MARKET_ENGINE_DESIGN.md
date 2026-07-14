@@ -15,3 +15,11 @@ Utility is transformed with clamped exponentials to avoid overflow. Segment shar
 
 ## Determinism
 The market module does not call `Math.random()`. Existing weekly random updates outside ramen stores remain unchanged.
+
+## PR #9 merge-blocker corrections
+- Missing store `capacity` is now `null`/unset, not `0`. Explicit `capacity: 0` remains a valid sales-stop setting.
+- Effective capacity is derived only by `market.effectiveCapacity()` from business demand, operating hours, efficiency, and store condition.
+- The local market key is `businessID + prefID`. Competitors are connected by resolving `prefID` to `areaID` when competitor records only have `areaID`.
+- Competitor filtering is `businessID === target business AND areaID === target area`; if no competitor matches, one deterministic market-average offer is used.
+- Same-market player stores are evaluated together with competitors and the outside option, so stores cannibalize one another instead of each receiving a cloned market.
+- Business market share is weighted as total target units sold divided by unique local-market potential, with each local market counted once.

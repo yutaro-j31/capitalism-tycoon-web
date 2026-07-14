@@ -161,3 +161,6 @@ Fixed-seed transaction baseline note: adding `saveVersion: 3` stock history sche
 
 ## Phase 1A baseline
 Ramen store revenue intentionally changes because Phase 1A replaces its weekly sales path with deterministic segment demand, competitor market share and capacity constraints. Non-target industries, stock trading, stock price history, personal investment, M&A and subsidiaries remain on existing paths.
+
+### PR #9 correction baseline
+Normal ramen calibration is now asserted numerically: standard 993,362→990,894 (-0.25%), advertising 1,142,366→1,195,277 (+4.63%), quality 1,119,637→1,191,624 (+6.43%), low economy 854,291→852,169 (-0.25%), high economy 1,132,432→1,129,620 (-0.25%). Same-pref ramen stores cannibalize within one local market; non-target systems remain covered by fixed-seed and stock tests.

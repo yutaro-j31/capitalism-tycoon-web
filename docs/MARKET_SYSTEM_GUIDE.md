@@ -23,3 +23,8 @@ saveVersion 4 adds `marketResultsByStoreID`, `marketResultsByBusinessID`, `lastM
 
 ## Adding target industries
 Add a stable business ID to `TARGET_BUSINESS_IDS`, calibrate against legacy sales, add scenarios to the balance report, and add regression tests proving non-target industries still match legacy behavior.
+
+## Capacity and local-market corrections
+Unset capacity means automatic capacity. It is stored as `null` or omitted and resolved by `effectiveCapacity()`; explicit `0` means the store cannot sell. Automatic capacity uses business demand, operating hours, business efficiency, and store condition deterministically.
+
+A local market is `businessID + prefID`. All open target stores in that local market are compared together, causing cannibalization. Competitors must match both the target business and the area resolved from the pref. Business-level market share is `sum(unitsSold) / sum(unique local marketPotential)`.
