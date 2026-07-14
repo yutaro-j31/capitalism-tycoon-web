@@ -1,0 +1,23 @@
+{
+  "week": 30,
+  "playerName": "ID欠落創業者",
+  "companyName": "ID欠落商事",
+  "companyCash": 30000000,
+  "personalCash": 4000000,
+  "stores": [
+    { "name": "ID欠落店舗", "businessID": "ramen", "prefID": "tokyo", "quality": 0 }
+  ],
+  "productVentures": [
+    { "id": "product-existing", "name": "既存ID商品", "valuation": 0 }
+  ],
+  "subsidiaries": [
+    { "id": "sub-existing", "name": "既存ID子会社", "valuation": 1000 }
+  ],
+  "personalInvestments": [
+    { "id": "investment-existing", "name": "既存ID投資", "currentValue": 0 }
+  ],
+  "news": [],
+  "history": [],
+  "reports": [],
+  "settings": {}
+}

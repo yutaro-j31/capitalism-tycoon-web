@@ -75,3 +75,72 @@
 2. 未来バージョンのセーブを明示的に拒否する経路がなかった。
 3. `loadSlot()` と `importSave()` が直接 `mergeDefaults` へ進み、失敗時の安全性が起動ロードと統一されていなかった。
 4. 旧セーブで配列項目がオブジェクト化している場合など、白画面につながる型不整合を復元段階で検出しにくかった。
+
+## PR #4 merge前追加調査: 実ロード・保存経路
+
+調査日: 2026-07-14
+
+### 起動時にSAVE_KEYを読む処理
+
+- ブラウザ起動時はスクリプト末尾で `TycoonEngine.load()` を呼び、生成されたエンジンをUIに渡す。
+- `TycoonEngine.load()` は `localStorage.getItem(SAVE_KEY)` を読み、文字列があれば `JSON.parse` して `migrateSave()` に渡す。
+- `migrateSave()` が失敗した場合は例外化され、`catch` で `console.error('Save load failed', error)` を出したうえで新規状態へフォールバックする。
+
+### TycoonEngineの初期化経路
+
+- `new TycoonEngine(state)` は、明示された `state` があればコンストラクタ内で再度 `migrateSave(state)` を通してから `this.g` に採用する。
+- `state` がない場合は `createInitialState({configured:false})` を使う。
+- いずれも最後に `normalize()` を実行する。
+
+### load()
+
+- 正常な保存文字列: `getItem -> JSON.parse -> migrateSave -> new TycoonEngine(migrated.state)`。
+- 保存なし: `new TycoonEngine(null)`。
+- 破損JSON、壊れた型、未来バージョン: エラーを記録してフォールバックエンジンを返す。
+- フォールバックエンジンにはゲーム状態JSON外の一時フラグ `_saveBlockedDueToLoadFailure` と `_loadFailureReason` を持たせ、明示的な新規ゲーム/リセット/正常インポート/正常スロット読込までメインSAVE_KEYの保存をブロックする。
+
+### save()
+
+- `save(slot = null)` は、通常時は `lastSaveDate` を更新し、メイン保存なら `SAVE_KEY`、スロットなら `${SAVE_KEY}_slot_${slot}` へ `JSON.stringify(this.g)` を書く。
+- 起動ロード失敗フォールバック中のメイン保存は `console.error` を出して `false` を返し、`localStorage.setItem(SAVE_KEY, ...)` を呼ばない。
+
+### loadSlot()
+
+- `loadSlot(slot)` は `${SAVE_KEY}_slot_${slot}` を読み、存在しなければ `false`。
+- 存在する場合は `JSON.parse -> migrateSave` を実行し、成功したときだけ `this.g` を差し替え、メインSAVE_KEYへ保存する。
+- JSON parse失敗、型不正、未来バージョン、重複IDなどで失敗した場合は `console.error` を出して `false` を返し、現在の `engine.g`、元スロット文字列、メインSAVE_KEYを変更しない。
+
+### saveSlot()
+
+- 独立した `saveSlot()` 関数は存在せず、UIのスロット保存は `engine.save(id)` により `save(slot)` の分岐を使う。
+
+### importSave() / exportSave()
+
+- `exportSave()` は現在の `this.g` をJSON Blob化する。
+- `importSave(text)` は `JSON.parse -> migrateSave` が成功した場合だけ `this.g` を差し替え、`normalize()`、`save()`、`emit()` を実行する。
+- parseまたはmigration失敗時は例外を呼び出し元へ返し、現在状態とメインSAVE_KEYを変更しない。
+
+### 新規ゲームへのフォールバック処理と自動save到達経路
+
+- 起動ロード失敗時のフォールバックは新規状態をメモリ上で作るだけで、ロード直後には保存しない。
+- UI描画の `render()` は保存しない。
+- `configure()` と `reset()` はユーザーが明示的に新規ゲーム/初期化を選んだ経路であり、ロード失敗フラグを解除して保存する。
+- 通常操作、週送り、設定変更、スロット保存は既存通り `save()` へ到達するが、ロード失敗フォールバック中のメインSAVE_KEY保存はブロックされる。
+
+### 追加で確認した上書きリスク
+
+- 破損SAVE_KEYまたは未来バージョンSAVE_KEYの起動ロード中に `localStorage.setItem(SAVE_KEY, ...)` は呼ばれない。
+- フォールバック直後に `engine.save()` が呼ばれてもメインSAVE_KEYは上書きされない。
+- 破損スロットの読込失敗時に、現在状態、対象スロット、メインSAVE_KEYは変更されない。
+- 破損JSON/未来バージョンのインポート失敗時に、現在状態とメインSAVE_KEYは変更されない。
+
+### コードポイント単位の不可視文字再調査
+
+`docs/*.md` をコードポイント単位で再調査した。対象はBidi制御文字、ゼロ幅文字、BOM、行/段落区切り、C0/C1制御文字である。
+
+- 発見した不要な不可視文字: なし。
+- `docs/SAVE_MIGRATION_AUDIT.md`: 該当なし。
+- `docs/SAVE_MIGRATION_GUIDE.md`: 該当なし。
+- `docs/CURRENT_SAVE_SCHEMA.md`: 該当なし。
+- `docs/BASELINE_RESULTS.md` は存在しないため対象外。テスト結果文書は `tests/BASELINE_RESULTS.md`。
+- 正当な文字として日本語、ASCII記号、Markdown記号、改行 `U+000A` のみを確認した。

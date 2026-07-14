@@ -2058,10 +2058,13 @@ function normalizeArrayEntityList(state, key, kind) {
   const value = state[key];
   if (value === undefined || value === null) { state[key] = []; return; }
   if (!Array.isArray(value)) throw new Error(`${key}は配列である必要があります。`);
+  const seenIDs = new Set();
   state[key] = value.map((item, index) => {
     if (!isPlainObject(item)) throw new Error(`${key}[${index}]はオブジェクトである必要があります。`);
     const merged = entityDefaults(kind, item, index, state);
     if (merged.id === undefined || merged.id === null || merged.id === '') merged.id = createDefaultEntityID(kind, index);
+    if (seenIDs.has(merged.id)) throw new Error(`${key}で重複IDが見つかりました: ${merged.id}`);
+    seenIDs.add(merged.id);
     return merged;
   });
 }
@@ -2170,7 +2173,10 @@ class TycoonEngine extends EventTarget {
       return new TycoonEngine(migrated.state);
     } catch (error) {
       console.error('Save load failed', error);
-      return new TycoonEngine();
+      const fallback = new TycoonEngine();
+      fallback._saveBlockedDueToLoadFailure = true;
+      fallback._loadFailureReason = error?.message || String(error);
+      return fallback;
     }
   }
 
@@ -2219,25 +2225,39 @@ class TycoonEngine extends EventTarget {
   }
 
   save(slot = null) {
+    if (!slot && this._saveBlockedDueToLoadFailure) {
+      console.error('Save blocked because startup save migration failed', this._loadFailureReason || 'unknown load failure');
+      return false;
+    }
     this.g.lastSaveDate = new Date().toISOString();
     const key = slot ? `${SAVE_KEY}_slot_${slot}` : SAVE_KEY;
     localStorage.setItem(key, JSON.stringify(this.g));
     this.emit('saved', {slot});
+    return true;
   }
 
   loadSlot(slot) {
     const raw = localStorage.getItem(`${SAVE_KEY}_slot_${slot}`);
     if (!raw) return false;
-    const migrated = migrateSave(JSON.parse(raw));
-    if (!migrated.ok) { console.error('Slot save migration failed', migrated.errors); return false; }
-    this.g = migrated.state;
-    this.normalize(); this.save(); this.emit(); return true;
+    try {
+      const migrated = migrateSave(JSON.parse(raw));
+      if (!migrated.ok) { console.error('Slot save migration failed', migrated.errors); return false; }
+      this.g = migrated.state;
+      this._saveBlockedDueToLoadFailure = false;
+      this._loadFailureReason = '';
+      this.normalize(); this.save(); this.emit(); return true;
+    } catch (error) {
+      console.error('Slot save migration failed', error);
+      return false;
+    }
   }
 
   reset() {
     const settings = this.g.settings;
     this.g = createInitialState({configured:false});
     this.g.settings = settings;
+    this._saveBlockedDueToLoadFailure = false;
+    this._loadFailureReason = '';
     this.save(); this.emit();
   }
 
@@ -2245,6 +2265,8 @@ class TycoonEngine extends EventTarget {
     const next = createInitialState({playerName, companyName, difficulty, scenario, configured:true});
     const settings = this.g.settings;
     this.g = next; this.g.settings = settings;
+    this._saveBlockedDueToLoadFailure = false;
+    this._loadFailureReason = '';
     if (difficulty === 'easy') { this.g.companyCash += 4_000_000; this.g.companyCredit = 70; }
     if (difficulty === 'hard') { this.g.companyCash -= 2_000_000; this.g.companyCredit = 50; }
     this.notify(`${this.g.companyName}を創業しました。`,'success');
@@ -2745,7 +2767,7 @@ class TycoonEngine extends EventTarget {
     return new Blob([JSON.stringify(this.g,null,2)],{type:'application/json'});
   }
   importSave(text) {
-    const parsed=JSON.parse(text);const migrated=migrateSave(parsed);if(!migrated.ok)throw new Error(migrated.errors.join(' / ')||'セーブデータ形式が不正です。');this.g=migrated.state;this.normalize();this.save();this.emit();
+    const parsed=JSON.parse(text);const migrated=migrateSave(parsed);if(!migrated.ok)throw new Error(migrated.errors.join(' / ')||'セーブデータ形式が不正です。');this.g=migrated.state;this._saveBlockedDueToLoadFailure=false;this._loadFailureReason='';this.normalize();this.save();this.emit();
   }
 }
 

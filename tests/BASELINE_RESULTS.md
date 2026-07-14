@@ -53,7 +53,7 @@ Date: 2026-07-14
 ## Known issues observed
 
 - Static DOM-ID checking is necessarily conservative without a browser/HTML parser; template-generated IDs are allow-listed when they are intentionally dynamic.
-- The legacy fixture confirms top-level default backfill and JSON saveability, but current production `mergeDefaults` does not deeply migrate every array element schema.
+- Phase 0 now uses `deepNormalizeState()` after top-level `mergeDefaults()` so major saved array entities are backfilled at element level. Arrays that are log-only/string-only or currently not represented by object entities are normalized as arrays but do not receive per-object defaults unless they are listed in `ARRAY_ENTITY_KINDS`.
 
 ## save/emit/render diagnostics
 
@@ -92,8 +92,8 @@ These counts are now enforced by `tests/week-test.js` for the transaction-critic
 
 ## Recommended next PR fixes
 
-1. Add deeper legacy array-element normalization for stores, products, stock holdings, and inventory-like structures.
-2. Add a browser-level smoke test only if a dependency/runtime such as Playwright is explicitly accepted in a later PR.
+1. Add browser-level smoke testing only if a dependency/runtime such as Playwright is explicitly accepted in a later PR.
+2. Continue adding entity defaults and versioned migrations when future phases add market, accounting, inventory, or employee substructures.
 
 ## Phase 0 save migration baseline update
 
@@ -105,3 +105,20 @@ These counts are now enforced by `tests/week-test.js` for the transaction-critic
   - Verified `migrateSave(migrateSave(state))` is stable and does not grow stores, cash, news, history, or reports.
 
 Fixed-seed transaction baseline note: adding `saveVersion: 2` is metadata/schema migration only. No game formulas, weekly order, random calls, prices, initial funds, UI, or CSS were intentionally changed.
+
+
+## Phase 0 save/load integration baseline update
+
+- `npm run test:load`
+  - Verified an unversioned legacy SAVE_KEY is adopted through the real `TycoonEngine.load()` path and can then be explicitly re-saved as `saveVersion: 2`.
+  - Verified corrupted JSON and future-version SAVE_KEY values are not adopted, do not call `localStorage.setItem(SAVE_KEY, ...)`, and remain byte-for-byte unchanged during fallback.
+  - Verified fallback engines created after startup load failure block automatic main SAVE_KEY saving until an explicit new game/reset/valid import/valid slot load clears the transient flag.
+  - Verified valid legacy slots migrate and save the migrated state to the main SAVE_KEY while leaving the original slot string unchanged.
+  - Verified corrupted slots return failure, keep the current game state, keep the slot string, and keep the main SAVE_KEY unchanged.
+  - Verified valid legacy JSON import migrates and saves, while corrupted JSON and future-version imports throw to the caller and keep state plus main SAVE_KEY unchanged.
+  - Verified missing IDs receive deterministic legacy IDs, valid existing IDs and references are preserved, and duplicate IDs in the same array are explicit migration errors.
+
+## Remaining verification limits
+
+- Real browser rendering and iPhone Safari remain unverified in this Node-only test suite.
+- GitHub Actions cannot be observed locally, but `npm test` now includes syntax, static, save compatibility, migration, save/load integration, week, transaction, and long-run checks.

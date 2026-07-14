@@ -18,3 +18,8 @@ Node.js標準機能のみで、`index.html` のゲームコードを変更せず
 - `npm run test:migration`: `tests/save-migration-test.js` を実行し、未バージョン旧セーブ、部分的な配列要素、壊れた型、未来バージョン、冪等性、非破壊性、保存往復を検査します。
 - `npm test` は `test:migration` も含みます。
 - 追加fixtureは `tests/fixtures/legacy-unversioned-minimal.json`, `legacy-partial-entities.json`, `legacy-corrupted-types.json`, `future-version-save.json`, `current-version-save.json` です。
+
+## Save/load integration tests
+
+- `npm run test:load`: `tests/save-load-integration-test.js` を実行し、実際の `TycoonEngine.load()`, `save()`, `loadSlot()`, `importSave()` と `localStorage` 書き込み履歴を検査します。
+- `npm test` は `test:load` も含みます。

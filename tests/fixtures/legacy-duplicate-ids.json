@@ -1,0 +1,15 @@
+{
+  "week": 31,
+  "playerName": "ID重複創業者",
+  "companyName": "ID重複商事",
+  "companyCash": 31000000,
+  "personalCash": 4100000,
+  "stores": [
+    { "id": "dup-store", "name": "重複店舗A", "businessID": "ramen", "prefID": "tokyo" },
+    { "id": "dup-store", "name": "重複店舗B", "businessID": "cafe", "prefID": "tokyo" }
+  ],
+  "news": [],
+  "history": [],
+  "reports": [],
+  "settings": {}
+}

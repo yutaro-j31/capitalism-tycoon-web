@@ -36,7 +36,8 @@ function makeElement(id = '') {
 }
 function createBrowserContext(options = {}) {
   const random = options.random || Math.random;
-  const storage = new Map();
+  const storage = new Map(Object.entries(options.localStorageInitial || {}));
+  const storageHistory = { getItem: [], setItem: [], removeItem: [] };
   const nodes = new Map([['app', makeElement('app')], ['toast-root', makeElement('toast-root')], ['modal-root', makeElement('modal-root')]]);
   const document = {
     documentElement: makeElement('html'), body: makeElement('body'),
@@ -44,8 +45,8 @@ function createBrowserContext(options = {}) {
     querySelector(sel){ return sel.startsWith('#') ? this.getElementById(sel.slice(1)) : makeElement(sel); },
     querySelectorAll(){ return []; }, createElement(tag){ return makeElement(tag); }, addEventListener(){}, removeEventListener(){}
   };
-  class StorageStub { getItem(k){ return storage.has(k) ? storage.get(k) : null; } setItem(k,v){ storage.set(k, String(v)); } removeItem(k){ storage.delete(k); } clear(){ storage.clear(); } }
-  const context = { console, document, window: null, globalThis: null, localStorage: new StorageStub(), sessionStorage: new StorageStub(),
+  class StorageStub { getItem(k){ storageHistory.getItem.push({key:k}); return storage.has(k) ? storage.get(k) : null; } setItem(k,v){ const value = String(v); storageHistory.setItem.push({key:k, value}); storage.set(k, value); } removeItem(k){ storageHistory.removeItem.push({key:k}); storage.delete(k); } clear(){ for (const key of [...storage.keys()]) this.removeItem(key); } }
+  const context = { console, document, window: null, globalThis: null, localStorage: new StorageStub(), sessionStorage: new StorageStub(), __localStorageData: storage, __localStorageHistory: storageHistory,
     navigator: { userAgent: 'node-test' }, location: { href: 'http://localhost/' }, crypto: { randomUUID: () => `test-${random().toString(16).slice(2)}` },
     Blob: class Blob { constructor(parts, opts){ this.parts = parts; this.type = opts?.type || ''; } async text(){ return this.parts.join(''); } },
     URL: { createObjectURL(){ return 'blob:test'; }, revokeObjectURL(){} }, FormData: class { constructor(){ } entries(){ return []; } },
@@ -65,6 +66,7 @@ function loadGame(options = {}) {
 function loadGameFromHtml(html, options = {}) {
   let code = extractScripts(html).map(s => s.code).join('\n');
   code = code.replace('const __modules = Object.create(null);', 'const __modules = globalThis.__ct_modules = Object.create(null);');
+  code = code.replace('const engine = TycoonEngine.load();', 'const engine = globalThis.__ct_engine = TycoonEngine.load();');
   const ctx = createBrowserContext(options);
   vm.runInContext(code, ctx, { filename: 'index.html' });
   return { ctx, modules: ctx.__ct_modules, engineModule: ctx.__ct_modules.engine };
