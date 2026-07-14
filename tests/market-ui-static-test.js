@@ -1,0 +1,11 @@
+const assert = require('node:assert');
+const fs = require('node:fs');
+const { readIndex } = require('./harness');
+const html = readIndex();
+assert(html.includes('./js/market.js'), 'market script included');
+assert(html.indexOf('./js/data.js') < html.indexOf('./js/market.js') && html.indexOf('./js/market.js') < html.indexOf('./js/engine.js'));
+const app = fs.readFileSync('js/app.js','utf8');
+assert(app.includes('市場概要・店舗別採算'));
+assert(app.includes('新しい下部') === false);
+const css = fs.readFileSync('css/app.css','utf8');
+assert(css.includes('@media(max-width:420px)') && css.includes('market-store-card'));

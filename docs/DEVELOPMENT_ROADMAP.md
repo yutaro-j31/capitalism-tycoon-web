@@ -173,3 +173,6 @@ Phase 0完了後、v2.1の最初は Phase 1 の「商品/サービス別売上�
 2. 保存スキーマ検証スクリプト追加: トップレベル欠落、配列要素欠落、非有限数値チェック。
 3. CSS物理分割のみ。
 4. マスターデータ物理分割のみ。
+
+## Phase 1A completed
+- Added ramen-only customer segment market engine, market share, capacity constraints, unit economics, saveVersion 4 migration, UI cards, and market tests.

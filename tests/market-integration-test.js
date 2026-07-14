@@ -1,0 +1,14 @@
+const assert = require('node:assert');
+const { loadGame } = require('./harness');
+const { modules } = loadGame({ random: () => 0.5 });
+const { TycoonEngine } = modules.engine;
+const e = new TycoonEngine();
+const ramen = {id:'r1',businessID:'ramen',prefID:'tokyo',name:'対象',status:'open',openingWeek:1,condition:100,operatingHours:3,lastSales:0,lastProfit:0};
+const cafe = {id:'c1',businessID:'cafe',prefID:'tokyo',name:'対象外',status:'open',openingWeek:1,condition:100,operatingHours:3,lastSales:0,lastProfit:0};
+e.g.stores.push(ramen,cafe);
+e.advanceWeek(false);
+assert(e.g.marketResultsByStoreID.r1, 'target business has market result');
+assert(!e.g.marketResultsByStoreID.c1, 'non-target business keeps legacy path');
+const storeSales = e.g.stores.reduce((a,s)=>a+s.lastSales,0);
+assert(e.g.lastReport.sales >= storeSales, 'report includes store sales once with other revenues');
+assert(e.g.market[0].priceHistory.length >= 2, 'stock history still appends');

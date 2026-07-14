@@ -96,3 +96,6 @@ Verify initial load, save/load, slot save/load, import/export where supported, w
 ## Future split direction
 
 Further splits should be smaller and subsystem-based only after this module boundary is stable. Recommended future candidates are save/migration, state defaults, weekly engine, rendering screens, actions, charts, and individual business systems.
+
+## market.js
+Load order is `runtime.js`, `data.js`, `market.js`, `engine.js`, `expansion.js`, `completion.js`, `parity.js`, `app.js`. The module registers as `__capitalismTycoonModules.market` and does not bulk-publish functions to `window`.

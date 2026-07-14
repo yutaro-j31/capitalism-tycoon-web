@@ -171,3 +171,9 @@
 - `saveVersion: 3` は株価履歴を数値配列から `{ week, price }` 配列へ正規化する。
 - `SAVE_KEY` は `capitalism_tycoon_web_v1` のまま。
 - 旧セーブに履歴がない場合は、有効な `previous` と現在 `price` だけで最小履歴を作る。
+
+## saveVersion 4 market fields
+- `marketResultsByStoreID`: latest deterministic market result by store ID.
+- `marketResultsByBusinessID`: latest aggregated target-business market result.
+- `lastMarketSummary`: weekly summary for UI/report integration.
+- Store defaults: `customerSatisfaction`, `repeatRate`, `capacity`, `marketMetrics`.

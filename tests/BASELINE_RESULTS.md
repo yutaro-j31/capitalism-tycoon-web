@@ -158,3 +158,6 @@ Fixed-seed transaction baseline note: adding `saveVersion: 3` stock history sche
 
 - `npm run test:stock` verifies stock history rows, v2-to-v3 migration, stock chart UI affordances, and fixed-seed random-call stability for the added history data.
 - Fixed-seed transaction regression remains at 6,418 random calls by week 52; gameplay price fields are unchanged except for the added structured `priceHistory` rows.
+
+## Phase 1A baseline
+Ramen store revenue intentionally changes because Phase 1A replaces its weekly sales path with deterministic segment demand, competitor market share and capacity constraints. Non-target industries, stock trading, stock price history, personal investment, M&A and subsidiaries remain on existing paths.

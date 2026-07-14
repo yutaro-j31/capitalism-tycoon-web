@@ -100,3 +100,6 @@
 - 履歴がない銘柄は `previous` が有効なら前週、現在 `price` を現在週として最小履歴を作る。
 - 株価、保有株数、平均取得価格、銘柄ID、未知プロパティは変更しない。
 - マイグレーションは入力をdeep cloneして処理し、未来バージョン拒否と破損セーブ上書き防止を維持する。
+
+## v3 to v4
+`migrateV3ToV4()` adds market result containers and safe store market defaults without changing IDs, stock data, stock histories, or the save key. Existing zero/false/empty values are preserved by object spread order.

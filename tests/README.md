@@ -45,3 +45,8 @@ Node.js標準機能のみで、`index.html` のゲームコードを変更せず
 - `npm test` includes `test:modules` through `tests/run-all.js`.
 
 - `npm run test:stock`: 株価履歴、株式チャートUI、v3マイグレーション、固定シード基本回帰を検証します。
+
+## Phase 1A market tests
+- `npm run test:market`: market engine and integration checks.
+- `npm run test:market-migration`: saveVersion 4 migration checks.
+- `npm run test:market-ui`: static UI/CSS/load-order checks.
