@@ -17,6 +17,7 @@ Date: 2026-07-14
   - Checked inline event handler attributes when present.
 - `npm run test:static`
   - Confirmed `index.html`, `DOCTYPE`, root elements, duplicate literal IDs, script tag balance, closing body/html tags, and unintended bidirectional Unicode controls.
+  - Scanned repository text files (`*.html`, `*.js`, `*.json`, `*.yml`, `*.yaml`, `*.md`, `*.css`) for forbidden invisible/control characters, UTF-8 BOM, and CR/CRLF line endings.
   - Reports likely missing literal DOM IDs while allowing IDs generated dynamically from templates.
 - `npm run test:save`
   - Verified required symbols are present as definitions where practical.
@@ -39,6 +40,12 @@ Date: 2026-07-14
 
 - Real browser rendering, visual screenshots, and iPhone Safari checks are not covered by this Node-only baseline.
 - Full HTML5 parser validation is not performed because no external parser dependency was added.
+
+## Text normalization check
+
+- Target files added by this PR were inspected byte-by-byte and code-point-by-code-point.
+- No forbidden code points, UTF-8 BOM, C0/C1 controls, or CR/CRLF line endings were found in `.github/workflows/test.yml`, `package.json`, or `tests/` after normalization.
+- `index.html` was not modified. A pre-existing emoji ZWJ sequence in `index.html` is allow-listed by the repository-wide text safety check because this PR is forbidden from changing production game code.
 
 ## Known issues observed
 

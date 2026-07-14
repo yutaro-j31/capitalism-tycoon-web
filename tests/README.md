@@ -6,7 +6,7 @@ Node.js標準機能のみで、`index.html` のゲームコードを変更せず
 
 - `npm test`: 全テスト
 - `npm run test:syntax`: `<script>` とイベントハンドラー属性の構文検査
-- `npm run test:static`: HTML静的検査
+- `npm run test:static`: HTML静的検査、およびリポジトリ内テキストファイルの不可視文字/制御文字検査
 - `npm run test:save`: 必須シンボル、新規状態、保存往復、旧セーブfixture検査
 - `npm run test:week`: 通常資金の52週基礎テストとsave/emit診断
 - `npm run test:long`: 520週の安定性テスト

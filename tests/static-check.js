@@ -1,5 +1,6 @@
 const fs = require('node:fs');
 const { INDEX, readIndex, BIDI } = require('./harness');
+const { checkRepository } = require('./text-safety-check');
 const html = readIndex(); const errors = [];
 if (!fs.existsSync(INDEX)) errors.push('index.html missing');
 if (!/^\s*<!doctype html>/i.test(html)) errors.push('DOCTYPE missing');
@@ -12,5 +13,7 @@ for (const id of ['app','toast-root','modal-root']) if (!ids.includes(id)) error
 for (const m of html.matchAll(/getElementById\(['"]([^'"]+)['"]\)|\$\(['"]#([^'"]+)['"]\)/g)) { const id = m[1] || m[2]; if (!ids.includes(id) && !/^business-|overseas-business-|modal-|salary|so|ipo-|new-company|hire-ok|import-file|home-chart|report-chart/.test(id)) errors.push(`referenced id may be missing: ${id}`); }
 const opens = (html.match(/<script\b/gi)||[]).length, closes = (html.match(/<\/script>/gi)||[]).length; if (opens !== closes) errors.push(`script tag imbalance ${opens}/${closes}`);
 if (!html.includes('</html>') || !html.includes('</body>')) errors.push('body/html closing tag missing');
+const textFindings = checkRepository();
+for (const f of textFindings) errors.push(`${f.file}:${f.line}:${f.column} ${f.codePoint} ${f.reason}`);
 if (errors.length) { console.error(errors.join('\n')); process.exit(1); }
 console.log('static checks passed');
