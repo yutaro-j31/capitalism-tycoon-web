@@ -1,0 +1,17 @@
+const { loadGame } = require('./harness');
+const { engineModule, modules } = loadGame();
+const { TycoonEngine } = engineModule;
+const finance = modules.finance;
+const assert = (ok,msg)=>{ if(!ok) throw new Error(msg); };
+const e = new TycoonEngine();
+e.g.configured = true;
+finance.event(e.g,'revenue',1000,{cashEffect:1000,profitEffect:1000,sourceType:'test',sourceID:'sale'});
+finance.event(e.g,'costOfSales',300,{cashEffect:-300,profitEffect:-300,sourceType:'test',sourceID:'cogs'});
+finance.event(e.g,'costOfSales',300,{cashEffect:-300,profitEffect:-300,sourceType:'test',sourceID:'cogs'});
+assert(e.g.finance.transactions.length===2,'duplicate source should not be recorded twice');
+const st=finance.buildStatements(e.g,8000000,'52');
+assert(st.profitAndLoss.revenue===1000,'revenue reflected once');
+assert(st.profitAndLoss.costOfSales===300,'cogs reflected once');
+assert(st.profitAndLoss.grossProfit===700,'gross profit');
+assert(finance.validate(e.g).ok,'ledger validates');
+console.log('finance ledger checks passed');

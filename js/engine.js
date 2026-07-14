@@ -4,11 +4,12 @@ if(!globalThis.__capitalismTycoonModules)throw new Error('Capitalism Tycoon runt
 var __modules=globalThis.__capitalismTycoonModules;
 if(!__modules.data)throw new Error('Capitalism Tycoon data module must be loaded before engine.js.');
 if(!__modules.market)throw new Error('Capitalism Tycoon market module must be loaded before engine.js.');
+if(!__modules.finance)throw new Error('Capitalism Tycoon finance module must be loaded before engine.js.');
 if(__modules.engine)throw new Error('Capitalism Tycoon engine module is already registered.');
-(function(exports,data,market){
+(function(exports,data,market,finance){
 const {MASTER,DEPARTMENT_UNLOCKS,PRODUCT_BLUEPRINTS,LUXURY_OFFERS,PERSONAL_INVESTMENT_OFFERS,OVERSEAS_COUNTRIES,SPORTS_TEAMS,MISSION_DEFS}=data;
 const SAVE_KEY = 'capitalism_tycoon_web_v1';
-const SAVE_VERSION = 4;
+const SAVE_VERSION = 5;
 
 const deepClone = value => typeof structuredClone === 'function'
   ? structuredClone(value)
@@ -158,7 +159,7 @@ function createInitialState(options = {}) {
     activeMissionIDs: ['mission_setup'], completedMissionIDs: [], achievements: [], unlockedEndings: [],
     gameOver: false, gameOverReason: '', isCompanySold: false, hasSeenCompanyBuyoutEnding: false,
     lastSaveDate: new Date().toISOString(), settings: {detailMode:'standard', sound:false, reducedMotion:false, autoSave:true},
-    lastWeeklySummary: null, marketResultsByStoreID: {}, marketResultsByBusinessID: {}, lastMarketCalculationCount: 0
+    lastWeeklySummary: null, marketResultsByStoreID: {}, marketResultsByBusinessID: {}, lastMarketCalculationCount: 0, finance: finance.defaultFinanceState({companyCash:8_000_000, companyDebt:0, week:1})
   };
 }
 
@@ -257,7 +258,7 @@ function normalizeObjectMap(state, key, defaultValue = {}) {
 
 function deepNormalizeState(state) {
   for (const [key, kind] of Object.entries(ARRAY_ENTITY_KINDS)) normalizeArrayEntityList(state, key, kind);
-  for (const key of ['news','history','competitorEvents','productEvents','favoriteStockIds','officeFloors','activeMissionIDs','completedMissionIDs','achievements','unlockedEndings','weeklySalesHistory','weeklyProfitHistory','companyValueHistory','personalNetWorthHistory','executiveDirectives','founderHomeActionLog','recommendedTenantIDsFromHomeSearch','supplyChainEvents','verticalIntegrationAssets','rdProjects','patentRecords','productFunnelEventLog','stockSplitHistory','ownershipHistory','activistCampaigns','shareholderEventLog','ventureForumEvents','weeklyNewspaper','majorBusinessNews','luxuryAuctionListings','sportsDraftCandidates','sportsTradeMarket','sportsSaleOffers','serialEntrepreneurHistory','endingRecords','pastCompanyRecords','employeeComplaintLog','transportRebuildProjects','transportRebuildLog','mediaCampaigns','mediaActionLog','inboundBuyoutOffers','companyBuyoutHistory','playerTitles','advisorDismissedActionIDs','advisorActionHistory','keyPersonnelEventLog','earningsEventLog','competitorEventLog','industryAwards','awardEventLog']) {
+  for (const key of ['financeTransactionsLegacyDoNotUse','news','history','competitorEvents','productEvents','favoriteStockIds','officeFloors','activeMissionIDs','completedMissionIDs','achievements','unlockedEndings','weeklySalesHistory','weeklyProfitHistory','companyValueHistory','personalNetWorthHistory','executiveDirectives','founderHomeActionLog','recommendedTenantIDsFromHomeSearch','supplyChainEvents','verticalIntegrationAssets','rdProjects','patentRecords','productFunnelEventLog','stockSplitHistory','ownershipHistory','activistCampaigns','shareholderEventLog','ventureForumEvents','weeklyNewspaper','majorBusinessNews','luxuryAuctionListings','sportsDraftCandidates','sportsTradeMarket','sportsSaleOffers','serialEntrepreneurHistory','endingRecords','pastCompanyRecords','employeeComplaintLog','transportRebuildProjects','transportRebuildLog','mediaCampaigns','mediaActionLog','inboundBuyoutOffers','companyBuyoutHistory','playerTitles','advisorDismissedActionIDs','advisorActionHistory','keyPersonnelEventLog','earningsEventLog','competitorEventLog','industryAwards','awardEventLog']) {
     if (state[key] === undefined || state[key] === null) state[key] = [];
     if (!Array.isArray(state[key])) throw new Error(`${key}は配列である必要があります。`);
   }
@@ -319,6 +320,13 @@ function migrateV3ToV4(state) {
   return state;
 }
 
+
+function migrateV4ToV5(state) {
+  finance.migrateFinanceState(state);
+  state.saveVersion = 5;
+  return state;
+}
+
 function validateMigratedState(state) {
   const detected = detectSaveVersion(state);
   if (!detected.ok) return {ok:false, errors:[detected.error]};
@@ -340,6 +348,7 @@ function migrateSave(rawState) {
     if (version === 1) { state = migrateV1ToV2(state); version = 2; }
     if (version === 2) { state = migrateV2ToV3(state); version = 3; }
     if (version === 3) { state = migrateV3ToV4(state); version = 4; }
+    if (version === 4) { state = migrateV4ToV5(state); version = 5; }
     if (version !== SAVE_VERSION) throw new Error(`未対応のsaveVersionです: ${version}`);
     state = mergeDefaults(state, createInitialState({configured:false}));
     deepNormalizeState(state);
@@ -405,6 +414,7 @@ class TycoonEngine extends EventTarget {
     this.g.news = Array.isArray(this.g.news) ? this.g.news.slice(0,300) : [];
     this.g.history = Array.isArray(this.g.history) ? this.g.history.slice(0,500) : [];
     this.g.reports = Array.isArray(this.g.reports) ? this.g.reports.slice(-520) : [];
+    finance.ensureFinance(this.g);
     this.updateOwnershipRatios();
   }
 
@@ -547,6 +557,9 @@ class TycoonEngine extends EventTarget {
       quality:business.quality,brand:business.brand,condition:100,lastSales:0,lastProfit:0,status:'preparing',openingWeek:this.g.week+weeks,weeksToOpen:weeks,
       tenantID,cityName:tenant.cityName,operatingHours:Number(operatingHours)};
     this.g.stores.push(store);
+    finance.addFixedAsset(this.g,{assetID:`store-${store.id}`,assetType:'storeEquipment',acquisitionCost:business.storeCost,usefulLifeWeeks:260,salvageValue:business.storeCost*.1,businessID,storeID:store.id});
+    finance.event(this.g,'capitalExpenditure',business.storeCost,{cashEffect:-business.storeCost,assetEffect:business.storeCost,businessID,storeID:store.id,sourceType:'openStore',sourceID:store.id,description:`${store.name} 店舗設備`});
+    finance.event(this.g,'otherInvesting',tenant.deposit,{cashEffect:-tenant.deposit,assetEffect:tenant.deposit,businessID,storeID:store.id,sourceType:'openStoreDeposit',sourceID:store.id,description:`${store.name} 保証金`});
     this.notify(`${store.name}の出店準備を開始しました。開店まで${weeks}週。`,'success');
     this.evaluateProgression(); this.save(); this.emit(); return true;
   }
@@ -555,7 +568,7 @@ class TycoonEngine extends EventTarget {
     const index=this.g.stores.findIndex(s=>s.id===id); if(index<0)return false;
     const store=this.g.stores[index]; const tenant=this.g.tenants.find(t=>t.id===store.tenantID); if(tenant)tenant.occupiedBy=null;
     const proceeds=(this.business(store.businessID)?.storeCost||0)*.15;
-    this.g.companyCash+=proceeds; this.g.stores.splice(index,1); this.notify(`${store.name}を閉店し、${yen(proceeds)}を回収しました。`,'warning');
+    this.g.companyCash+=proceeds; finance.event(this.g,'assetSale',proceeds,{cashEffect:proceeds,assetEffect:-proceeds,businessID:store.businessID,storeID:store.id,sourceType:'closeStore',sourceID:store.id,description:`${store.name} 閉店回収`}); this.g.stores.splice(index,1); this.notify(`${store.name}を閉店し、${yen(proceeds)}を回収しました。`,'warning');
     this.save();this.emit();return true;
   }
 
@@ -566,6 +579,7 @@ class TycoonEngine extends EventTarget {
     const lock={quality:'product',brand:'marketing',efficiency:'operations',dx:'dx'}[kind];
     if(lock&&!this.g.departments[lock]&&amount>=2_000_000)return this.fail(`${MASTER.departments.find(d=>d.id===lock)?.name||'担当部門'}が必要です。`);
     this.g.companyCash-=amount;
+    finance.event(this.g,kind==='brand'?'advertising':kind==='quality'?'researchAndDevelopment':'capitalExpenditure',amount,{cashEffect:-amount,profitEffect:kind==='brand'||kind==='quality'?-amount:0,assetEffect:kind==='brand'||kind==='quality'?0:amount,businessID,sourceType:'investBusiness',sourceID:`${businessID}-${kind}-${this.g.week}`,description:`${b.name} ${kind}投資`});
     const gain=Math.log10(1+amount/100000)*({quality:1.2,brand:1.35,efficiency:1.05,dx:1.1}[kind]||1);
     b[kind]=clamp(finite(b[kind])+gain,0,100);
     this.notify(`${b.name}の${{quality:'品質',brand:'ブランド',efficiency:'効率',dx:'DX'}[kind]}へ${yen(amount)}投資しました。`,'success');
@@ -581,13 +595,13 @@ class TycoonEngine extends EventTarget {
     if(this.g.hasHeadOffice)return this.fail('すでに本社オフィスを契約しています。');
     const office=this.g.rentalOffices.find(o=>o.id===officeID);if(!office)return false;
     if(this.g.companyCash<office.deposit)return this.fail(`保証金${yen(office.deposit)}が必要です。`);
-    this.g.companyCash-=office.deposit;office.contracted=true;this.g.contractedOfficeID=office.id;this.g.hasHeadOffice=true;
+    this.g.companyCash-=office.deposit;finance.event(this.g,'otherInvesting',office.deposit,{cashEffect:-office.deposit,assetEffect:office.deposit,sourceType:'contractOffice',sourceID:office.id,description:`${office.name} 保証金`});office.contracted=true;this.g.contractedOfficeID=office.id;this.g.hasHeadOffice=true;
     this.g.officeName=office.name;this.g.officeCapacity=office.capacity;this.g.officeWeeklyCost=office.rent;this.g.officePrestige=office.prestige;
     this.notify(`${office.name}を本社として契約しました。`,'success');this.evaluateProgression();this.save();this.emit();return true;
   }
   cancelOffice() {
     if(Object.keys(this.g.departments).length||Object.keys(this.g.executives).length)return this.fail('部門またはCXOが在籍しているため解約できません。');
-    const office=this.g.rentalOffices.find(o=>o.id===this.g.contractedOfficeID);if(office){office.contracted=false;this.g.companyCash+=office.deposit*.6;}
+    const office=this.g.rentalOffices.find(o=>o.id===this.g.contractedOfficeID);if(office){office.contracted=false;const refund=office.deposit*.6;this.g.companyCash+=refund;finance.event(this.g,'assetSale',refund,{cashEffect:refund,assetEffect:-refund,sourceType:'cancelOffice',sourceID:office.id,description:`${office.name} 保証金返還`});}
     this.g.hasHeadOffice=false;this.g.contractedOfficeID=null;this.g.officeName='小さな創業オフィス';this.g.officeCapacity=2;this.g.officeWeeklyCost=85000;
     this.notify('本社オフィスを解約しました。','warning');this.save();this.emit();return true;
   }
@@ -599,7 +613,7 @@ class TycoonEngine extends EventTarget {
     if(this.g.companyCash<d.setupCost)return this.fail(`${yen(d.setupCost)}が必要です。`);
     const used=Object.keys(this.g.departments).length*8+Object.keys(this.g.executives).length;
     if(used+8>this.g.officeCapacity)return this.fail('オフィス定員が不足しています。');
-    this.g.companyCash-=d.setupCost;this.g.departments[id]={...deepClone(d),established:true};this.g.departmentStaff[id]=1;
+    this.g.companyCash-=d.setupCost;finance.event(this.g,'headOfficeExpense',d.setupCost,{cashEffect:-d.setupCost,profitEffect:-d.setupCost,sourceType:'establishDepartment',sourceID:id,description:`${d.name} 設置費`});this.g.departments[id]={...deepClone(d),established:true};this.g.departmentStaff[id]=1;
     this.g.officeFloors.push({id:uuid(),floorNumber:this.g.officeFloors.length+1,departmentID:id,name:d.name,seats:8,weeklyCost:d.weeklyCost});
     this.notify(`${d.name}を設置しました。`,'success');this.evaluateProgression();this.save();this.emit();return true;
   }
@@ -609,7 +623,7 @@ class TycoonEngine extends EventTarget {
     if(this.g.companyCash<cost)return this.fail('採用費が不足しています。');
     const used=Object.values(this.g.departmentStaff).reduce((a,n)=>a+n,0)+Object.keys(this.g.executives).length;
     if(used+count>this.g.officeCapacity)return this.fail('オフィス定員が不足しています。');
-    this.g.companyCash-=cost;this.g.departmentStaff[id]=finite(this.g.departmentStaff[id])+count;
+    this.g.companyCash-=cost;finance.event(this.g,'payroll',cost,{cashEffect:-cost,profitEffect:-cost,sourceType:'hireDepartmentStaff',sourceID:`${id}-${this.g.week}`,description:'採用費'});this.g.departmentStaff[id]=finite(this.g.departmentStaff[id])+count;
     this.notify(`${this.g.departments[id].name}で${count}名採用しました。`,'success');this.save();this.emit();return true;
   }
   refreshExecutives() {
@@ -632,7 +646,7 @@ class TycoonEngine extends EventTarget {
     const bonus=salary*.25;if(this.g.companyCash<bonus)return this.fail(`契約金${yen(bonus)}が必要です。`);
     const chance=clamp(.55+(salary/(c.desiredSalary||salary)-1)*.8+(so-(c.desiredSO||0))*12+this.g.companyReputation/300,.15,.98);
     if(Math.random()>chance){this.notify(`${c.name}との交渉は不成立でした。`,'warning');return false;}
-    this.g.companyCash-=bonus;this.g.executives[c.role]={...c,salary,offeredSO:so,hired:true,hireWeek:this.g.week};
+    this.g.companyCash-=bonus;finance.event(this.g,'payroll',bonus,{cashEffect:-bonus,profitEffect:-bonus,sourceType:'hireExecutive',sourceID:c.id,description:`${c.name} 契約金`});this.g.executives[c.role]={...c,salary,offeredSO:so,hired:true,hireWeek:this.g.week};
     this.g.executiveMarket.splice(i,1);this.g.usedSO=finite(this.g.usedSO)+so;
     this.notify(`${c.name}が${c.role}に就任しました。`,'success');this.save();this.emit();return true;
   }
@@ -642,7 +656,7 @@ class TycoonEngine extends EventTarget {
   establishBoard() {
     if(this.g.boardEstablished)return false;if(!this.g.executives.CEO||!this.g.executives.CFO)return this.fail('CEOとCFOが必要です。');
     if(this.g.companyCash<5_000_000)return this.fail('取締役会設置費500万円が必要です。');
-    this.g.companyCash-=5_000_000;this.g.boardEstablished=true;this.notify('取締役会を設置しました。','success');this.save();this.emit();return true;
+    this.g.companyCash-=5_000_000;finance.event(this.g,'headOfficeExpense',5_000_000,{cashEffect:-5_000_000,profitEffect:-5_000_000,sourceType:'establishBoard',sourceID:`board-${this.g.week}`,description:'取締役会設置費'});this.g.boardEstablished=true;this.notify('取締役会を設置しました。','success');this.save();this.emit();return true;
   }
 
   buyStock(stockID,qty,account='personal') {
@@ -650,7 +664,7 @@ class TycoonEngine extends EventTarget {
     const cost=stock.price*qty*1.001;const cashKey=account==='company'?'companyCash':'personalCash';
     if(account==='company'&&!this.g.departments.investment)return this.fail('会社口座の株式投資には投資部門が必要です。');
     if(this.g[cashKey]<cost)return this.fail('資金が不足しています。');
-    this.g[cashKey]-=cost;const key=account==='company'?'companyStocks':'personalStocks';const h=this.g[key][stockID]||{qty:0,avg:0};
+    this.g[cashKey]-=cost;if(account==='company')finance.event(this.g,'investmentPurchase',cost,{cashEffect:-cost,assetEffect:cost,sourceType:'buyStock',sourceID:`${stockID}-${this.g.week}`,description:`${stock.name} 株式購入`});const key=account==='company'?'companyStocks':'personalStocks';const h=this.g[key][stockID]||{qty:0,avg:0};
     h.avg=(h.avg*h.qty+stock.price*qty)/(h.qty+qty);h.qty+=qty;this.g[key][stockID]=h;
     stock.price*=1+Math.min(.03,qty/Math.max(1,stock.issuedShares)*.6);stock.marketCap=stock.price*stock.issuedShares;
     this.notify(`${account==='company'?'会社':'個人'}口座で${stock.name}を${qty.toLocaleString()}株購入しました。`,'success');this.save();this.emit();return true;
@@ -658,7 +672,7 @@ class TycoonEngine extends EventTarget {
   sellStock(stockID,qty,account='personal') {
     const stock=this.stock(stockID);qty=Math.max(0,Math.floor(qty));const key=account==='company'?'companyStocks':'personalStocks';const h=this.g[key][stockID];
     if(!stock||!h||qty<1||h.qty<qty)return this.fail('売却可能株数を超えています。');
-    const proceeds=stock.price*qty*.999;const profit=(stock.price-h.avg)*qty;this.g[account==='company'?'companyCash':'personalCash']+=proceeds;
+    const proceeds=stock.price*qty*.999;const profit=(stock.price-h.avg)*qty;this.g[account==='company'?'companyCash':'personalCash']+=proceeds;if(account==='company')finance.event(this.g,'investmentSale',proceeds,{cashEffect:proceeds,assetEffect:-h.avg*qty,profitEffect:profit,sourceType:'sellStock',sourceID:`${stockID}-${this.g.week}`,description:`${stock.name} 株式売却`});
     h.qty-=qty;if(h.qty===0)delete this.g[key][stockID];
     this.g[account==='company'?'realizedCompanyStockPL':'realizedPersonalStockPL']+=profit;
     stock.price*=1-Math.min(.03,qty/Math.max(1,stock.issuedShares)*.6);stock.marketCap=stock.price*stock.issuedShares;
@@ -674,7 +688,7 @@ class TycoonEngine extends EventTarget {
     if(amount<s.minTicket)return this.fail(`最低投資額は${yen(s.minTicket)}です。`);
     const cashKey=account==='company'?'companyCash':'personalCash';if(this.g[cashKey]<amount)return this.fail('資金が不足しています。');
     const equity=clamp(amount/(s.valuation+amount),0,.35);this.g[cashKey]-=amount;s.valuation+=amount*.75;
-    if(account==='company'){s.ownedCompany=clamp(s.ownedCompany+equity,0,.8);s.totalInvestedCompany+=amount;}
+    if(account==='company'){finance.event(this.g,'investmentPurchase',amount,{cashEffect:-amount,assetEffect:amount,sourceType:'investStartup',sourceID:`${startupID}-${this.g.week}`,description:`${s.name} VC投資`});s.ownedCompany=clamp(s.ownedCompany+equity,0,.8);s.totalInvestedCompany+=amount;}
     else{s.ownedPersonal=clamp(s.ownedPersonal+equity,0,.49);s.totalInvestedPersonal+=amount;}
     s.fundingOpen=false;s.runwayWeeks+=Math.floor(amount/Math.max(1,s.valuation)*156);
     this.notify(`${s.name}へ${yen(amount)}投資し、持分${pct(equity)}を取得しました。`,'success');this.save();this.emit();return true;
@@ -690,6 +704,7 @@ class TycoonEngine extends EventTarget {
     if(sub.valuation<250_000_000||sub.ownership<.5)return this.fail('評価額2.5億円以上・持分50%以上が必要です。');
     sub.publicCompany=true;sub.ticker=`V${Math.floor(rand(100,999))}`;sub.sharesOut=1_000_000;sub.stockPrice=sub.valuation/sub.sharesOut;
     const saleRatio=.15;const proceeds=sub.valuation*saleRatio;sub.ownership-=saleRatio;this.g.companyCash+=proceeds;
+    finance.event(this.g,'investmentSale',proceeds,{cashEffect:proceeds,assetEffect:-proceeds,sourceType:'ipoSubsidiary',sourceID:id,description:`${sub.name} IPO売出`});
     this.notify(`${sub.name}を上場させ、${yen(proceeds)}を調達しました。`,'success');this.save();this.emit();return true;
   }
 
@@ -756,11 +771,13 @@ class TycoonEngine extends EventTarget {
   borrow(amount,account='company') {
     amount=Math.max(0,finite(amount));const debtKey=account==='company'?'companyDebt':'personalDebt',cashKey=account==='company'?'companyCash':'personalCash';
     const limit=account==='company'?this.companyCreditLimit():this.personalCreditLimit();if(this.g[debtKey]+amount>limit)return this.fail(`借入限度額は${yen(limit)}です。`);
-    this.g[debtKey]+=amount;this.g[cashKey]+=amount;this.notify(`${account==='company'?'会社':'個人'}で${yen(amount)}借り入れました。`,'success');this.save();this.emit();return true;
+    this.g[debtKey]+=amount;this.g[cashKey]+=amount;
+    if(account==='company'){const f=finance.ensureFinance(this.g);f.loans.push({loanID:`loan-${this.g.week}-${f.loans.length+1}`,principal:amount,outstandingPrincipal:amount,interestRate:this.companyBorrowRate(),termWeeks:260,remainingWeeks:260,repaymentMethod:'manual',weeklyPrincipalPayment:0,nextPaymentWeek:this.g.week+1,status:'active'});finance.event(this.g,'debtBorrowing',amount,{cashEffect:amount,liabilityEffect:amount,sourceType:'borrow',sourceID:`company-${this.g.week}-${amount}`,description:'会社借入'});}
+    this.notify(`${account==='company'?'会社':'個人'}で${yen(amount)}借り入れました。`,'success');this.save();this.emit();return true;
   }
   repay(amount,account='company') {
     amount=Math.max(0,finite(amount));const debtKey=account==='company'?'companyDebt':'personalDebt',cashKey=account==='company'?'companyCash':'personalCash';amount=Math.min(amount,this.g[debtKey]);
-    if(this.g[cashKey]<amount)return this.fail('返済資金が不足しています。');this.g[cashKey]-=amount;this.g[debtKey]-=amount;if(account==='company')this.g.companyCredit=clamp(this.g.companyCredit+amount/10_000_000,0,100);
+    if(this.g[cashKey]<amount)return this.fail('返済資金が不足しています。');this.g[cashKey]-=amount;this.g[debtKey]-=amount;if(account==='company'){this.g.companyCredit=clamp(this.g.companyCredit+amount/10_000_000,0,100);let remaining=amount;for(const loan of finance.ensureFinance(this.g).loans.filter(l=>l.status==='active')){const pay=Math.min(remaining,loan.outstandingPrincipal);loan.outstandingPrincipal-=pay;remaining-=pay;if(loan.outstandingPrincipal<=0){loan.outstandingPrincipal=0;loan.status='paid';}if(remaining<=0)break;}finance.event(this.g,'debtRepayment',amount,{cashEffect:-amount,liabilityEffect:-amount,sourceType:'repay',sourceID:`company-${this.g.week}-${amount}`,description:'会社借入返済'});}
     this.notify(`${yen(amount)}返済しました。`,'success');this.save();this.emit();return true;
   }
 
@@ -804,23 +821,23 @@ class TycoonEngine extends EventTarget {
     if(method!=='shareSwap'&&this.g.companyCash<price)return this.fail(`${yen(price)}が必要です。`);
     if(method==='shareSwap'&&!this.g.publicCompany)return this.fail('株式交換には自社上場が必要です。');
     if(method==='shareSwap'){const newShares=Math.ceil(price/Math.max(1,this.g.stockPrice));this.g.sharesOut+=newShares;this.g.externalShareholderRatio+=newShares/this.g.sharesOut;}
-    else this.g.companyCash-=price;
+    else {this.g.companyCash-=price;finance.event(this.g,'acquisition',price,{cashEffect:-price,assetEffect:price,sourceType:'acquireTarget',sourceID:id,description:`${t.name} 買収`});}
     this.g.maSubsidiaries.push({...t,acquisitionPrice:price,acquisitionMethod:method,acquiredWeek:this.g.week,status:'active',retainedEarnings:0,weeklyProfit:t.operatingProfit/52});
     this.g.goodwillRecords.push({id:uuid(),name:t.name,amount:Math.max(0,price-t.valuation),carryingValue:Math.max(0,price-t.valuation),acquiredWeek:this.g.week});
     this.g.totalAcquisitions++;this.g.acquisitionTargets.splice(i,1);this.notify(`${t.name}を${method==='hostile'?'敵対的買収':method==='shareSwap'?'株式交換':'友好的買収'}で取得しました。`,'success');this.save();this.emit();return true;
   }
   sellMASubsidiary(id) {
-    const i=this.g.maSubsidiaries.findIndex(x=>x.id===id);if(i<0)return false;const s=this.g.maSubsidiaries[i],price=s.valuation*rand(.85,1.3),gain=price-s.acquisitionPrice;this.g.companyCash+=price;this.g.totalMAGain+=gain;this.g.maSubsidiaries.splice(i,1);this.notify(`${s.name}を${yen(price)}で売却しました。売却損益${yen(gain)}。`,gain>=0?'success':'warning');this.save();this.emit();return true;
+    const i=this.g.maSubsidiaries.findIndex(x=>x.id===id);if(i<0)return false;const s=this.g.maSubsidiaries[i],price=s.valuation*rand(.85,1.3),gain=price-s.acquisitionPrice;this.g.companyCash+=price;finance.event(this.g,'assetSale',price,{cashEffect:price,assetEffect:-s.acquisitionPrice,profitEffect:gain,sourceType:'sellMASubsidiary',sourceID:id,description:`${s.name} 売却`});this.g.totalMAGain+=gain;this.g.maSubsidiaries.splice(i,1);this.notify(`${s.name}を${yen(price)}で売却しました。売却損益${yen(gain)}。`,gain>=0?'success':'warning');this.save();this.emit();return true;
   }
 
   openOverseas(countryID,businessID) {
     if(!this.g.hasHeadOffice||!this.g.executives.CEO)return this.fail('本社とCEOが必要です。');const c=OVERSEAS_COUNTRIES.find(x=>x.id===countryID),b=this.business(businessID);if(!c||!b)return false;
-    const cost=c.cost+b.storeCost*2;if(this.g.companyCash<cost)return this.fail(`${yen(cost)}が必要です。`);this.g.companyCash-=cost;
+    const cost=c.cost+b.storeCost*2;if(this.g.companyCash<cost)return this.fail(`${yen(cost)}が必要です。`);this.g.companyCash-=cost;finance.event(this.g,'assetPurchase',cost,{cashEffect:-cost,assetEffect:cost,businessID,sourceType:'openOverseas',sourceID:`${countryID}-${businessID}`,description:`${c.name} 現地法人`});
     this.g.overseasSubsidiaries.push({id:uuid(),countryID:c.id,countryName:c.name,businessID:b.id,name:`${this.g.companyName} ${c.name}`,valuation:cost,status:'preparing',openingWeek:this.g.week+8,lastRevenue:0,lastProfit:0,localization:20,brand:10,risk:c.risk});
     this.notify(`${c.name}現地法人の設立を開始しました。`,'success');this.save();this.emit();return true;
   }
   overseasAction(id,kind,amount) {
-    const x=this.g.overseasSubsidiaries.find(y=>y.id===id);amount=finite(amount);if(!x||amount<=0||this.g.companyCash<amount)return false;this.g.companyCash-=amount;
+    const x=this.g.overseasSubsidiaries.find(y=>y.id===id);amount=finite(amount);if(!x||amount<=0||this.g.companyCash<amount)return false;this.g.companyCash-=amount;finance.event(this.g,'capitalExpenditure',amount,{cashEffect:-amount,assetEffect:amount,sourceType:'overseasAction',sourceID:`${id}-${kind}-${this.g.week}`,description:`海外 ${kind}`});
     if(kind==='localization')x.localization=clamp(x.localization+amount/500000,0,100);if(kind==='brand')x.brand=clamp(x.brand+amount/600000,0,100);
     this.notify(`${x.countryName}事業へ${yen(amount)}投資しました。`);this.save();this.emit();return true;
   }
@@ -828,22 +845,22 @@ class TycoonEngine extends EventTarget {
   startFranchise(businessID) {
     if(this.g.stores.filter(s=>s.businessID===businessID&&s.status==='open').length<3)return this.fail('同一業態の直営店3店が必要です。');
     if(this.g.franchiseStoresByBusinessID[businessID]!==undefined)return this.fail('FC展開済みです。');
-    if(this.g.companyCash<5_000_000)return this.fail('FC本部整備費500万円が必要です。');this.g.companyCash-=5_000_000;
+    if(this.g.companyCash<5_000_000)return this.fail('FC本部整備費500万円が必要です。');this.g.companyCash-=5_000_000;finance.event(this.g,'headOfficeExpense',5_000_000,{cashEffect:-5_000_000,profitEffect:-5_000_000,sourceType:'startFranchise',sourceID:businessID,description:'FC本部整備費'});
     this.g.franchiseStoresByBusinessID[businessID]=0;this.g.franchiseRoyaltyRateByBusinessID[businessID]=.05;this.g.franchiseQualityByBusinessID[businessID]=60;this.g.franchiseTrustByBusinessID[businessID]=60;
     this.notify(`${this.business(businessID).name}のフランチャイズ本部を設置しました。`,'success');this.save();this.emit();return true;
   }
   recruitFranchise(businessID,count=1) {
-    if(this.g.franchiseStoresByBusinessID[businessID]===undefined)return false;const cost=count*1_000_000;if(this.g.companyCash<cost)return this.fail('募集費が不足しています。');this.g.companyCash-=cost;this.g.franchiseStoresByBusinessID[businessID]+=count;
+    if(this.g.franchiseStoresByBusinessID[businessID]===undefined)return false;const cost=count*1_000_000;if(this.g.companyCash<cost)return this.fail('募集費が不足しています。');this.g.companyCash-=cost;finance.event(this.g,'advertising',cost,{cashEffect:-cost,profitEffect:-cost,sourceType:'recruitFranchise',sourceID:`${businessID}-${this.g.week}`,description:'FC募集費'});this.g.franchiseStoresByBusinessID[businessID]+=count;
     this.notify(`FC加盟店が${count}店増えました。`,'success');this.save();this.emit();return true;
   }
 
   addDirective(role,type,budget) {
     const e=this.g.executives[role];if(!e)return this.fail(`${role}が在籍していません。`);budget=Math.max(0,finite(budget));if(this.g.companyCash<budget)return this.fail('予算不足です。');
-    this.g.companyCash-=budget;this.g.executiveDirectives.push({id:uuid(),role,executiveName:e.name,type,budget,startWeek:this.g.week,endWeek:this.g.week+4,progress:0,status:'active'});
+    this.g.companyCash-=budget;finance.event(this.g,'headOfficeExpense',budget,{cashEffect:-budget,profitEffect:-budget,sourceType:'addDirective',sourceID:`${role}-${type}-${this.g.week}`,description:`${role} 指示予算`});this.g.executiveDirectives.push({id:uuid(),role,executiveName:e.name,type,budget,startWeek:this.g.week,endWeek:this.g.week+4,progress:0,status:'active'});
     this.notify(`${e.name}へ「${type}」を指示しました。`,'success');this.save();this.emit();return true;
   }
   startCampaign(departmentID,type,budget) {
-    if(!this.g.departments[departmentID])return this.fail('該当部門がありません。');budget=finite(budget);if(this.g.companyCash<budget)return this.fail('予算不足です。');this.g.companyCash-=budget;
+    if(!this.g.departments[departmentID])return this.fail('該当部門がありません。');budget=finite(budget);if(this.g.companyCash<budget)return this.fail('予算不足です。');this.g.companyCash-=budget;finance.event(this.g,type&&String(type).includes('広告')?'advertising':'headOfficeExpense',budget,{cashEffect:-budget,profitEffect:-budget,sourceType:'startCampaign',sourceID:`${departmentID}-${type}-${this.g.week}`,description:`${departmentID} ${type}`});
     this.g.departmentCampaigns.push({id:uuid(),departmentID,type,budget,startWeek:this.g.week,endWeek:this.g.week+6,progress:0,status:'active'});this.notify(`${this.g.departments[departmentID].name}で${type}を開始しました。`,'success');this.save();this.emit();return true;
   }
   proposeInternalVenture() {
@@ -851,7 +868,7 @@ class TycoonEngine extends EventTarget {
     const p={id:uuid(),name:`${pick(domains)}プロジェクト`,domain:pick(domains),requiredBudget:rand(8_000_000,60_000_000),teamQuality:rand(40,90),marketPotential:rand(35,95),risk:rand(.08,.30),expiresWeek:this.g.week+8};this.g.internalVentureProposals.push(p);this.notify(`社内ベンチャー案「${p.name}」が提案されました。`);this.save();this.emit();return true;
   }
   approveInternalVenture(id) {
-    const i=this.g.internalVentureProposals.findIndex(x=>x.id===id);if(i<0)return false;const p=this.g.internalVentureProposals[i];if(this.g.companyCash<p.requiredBudget)return this.fail('予算不足です。');this.g.companyCash-=p.requiredBudget;
+    const i=this.g.internalVentureProposals.findIndex(x=>x.id===id);if(i<0)return false;const p=this.g.internalVentureProposals[i];if(this.g.companyCash<p.requiredBudget)return this.fail('予算不足です。');this.g.companyCash-=p.requiredBudget;finance.event(this.g,'assetPurchase',p.requiredBudget,{cashEffect:-p.requiredBudget,assetEffect:p.requiredBudget,sourceType:'approveInternalVenture',sourceID:id,description:`${p.name} 社内VC`});
     this.g.internalVentures.push({...p,status:'developing',progress:0,valuation:p.requiredBudget,weeklyProfit:0});this.g.internalVentureProposals.splice(i,1);this.notify(`${p.name}を社内ベンチャーとして承認しました。`,'success');this.save();this.emit();return true;
   }
 
@@ -939,6 +956,7 @@ class TycoonEngine extends EventTarget {
     const product=this.updateProducts(),overseas=this.updateOverseas(),subs=this.updateSubsidiaries(),franchise=this.updateFranchise();this.updatePersonalAssets();
     for(const store of this.g.stores){if(store.status==='preparing'&&this.g.week>=store.openingWeek){store.status='open';store.weeksToOpen=0;this.g.news.unshift(`第${this.g.week}週：${store.name}が開店しました。`);}}
     const marketBatch=market.calculateMarkets(this.g);this.g.marketResultsByStoreID=marketBatch.byStore;this.g.marketResultsByBusinessID=marketBatch.businessSummary;this.g.lastMarketCalculationCount=marketBatch.calculationCount;
+    const beginningCash=this.g.companyCash; const financeStores=[];
     let sales=product.revenue+overseas.revenue+subs.revenue+franchise,expenses=product.cost+overseas.cost,rentIncome=0,stockIncome=0,dividend=0,propertyDepreciation=0;
     for(const store of this.g.stores){if(store.status!=='open'){store.weeksToOpen=Math.max(0,store.openingWeek-this.g.week);continue;}
       const b=this.business(store.businessID),p=this.pref(store.prefID),a=this.area(p.areaID);let storeSales,variable,fixed,repair;
@@ -948,6 +966,7 @@ class TycoonEngine extends EventTarget {
       demand*=1+this.departmentEffect('dx')*.05+this.departmentEffect('marketing')*.03;demand*=[0,.45,.75,1,1.17][store.operatingHours||3]||1;if(this.g.macroCrisis)demand*=this.g.macroCrisis.salesMultiplier;
       storeSales=Math.max(0,demand*b.price*this.g.inflation);variable=demand*b.unitCost*this.g.inflation*(1-Math.min(.22,b.efficiency/260))/(1+this.departmentEffect('operations')*.04);fixed=(b.fixedCost+p.rent+b.wage)*this.g.inflation*([0,.55,.8,1,1.24][store.operatingHours||3]||1)*(this.g.macroCrisis?.costMultiplier||1);repair=Math.max(0,100-store.condition)*650;
       store.marketResult=null;store.lastSales=storeSales;store.lastProfit=storeSales-variable-fixed-repair;}
+      const rentPart=p.rent*this.g.inflation*([0,.55,.8,1,1.24][store.operatingHours||3]||1)*(this.g.macroCrisis?.costMultiplier||1);const wagePart=b.wage*this.g.inflation*([0,.55,.8,1,1.24][store.operatingHours||3]||1)*(this.g.macroCrisis?.costMultiplier||1);const otherFixed=Math.max(0,fixed-rentPart-wagePart);financeStores.push({storeID:store.id,businessID:store.businessID,name:store.name,sales:storeSales,variable,rent:rentPart,wage:wagePart,repair:repair+otherFixed});
       store.condition=clamp(store.condition-rand(.1,1),40,100);sales+=storeSales;expenses+=variable+fixed+repair;}
     for(const p of this.g.properties){if(!p.owner)continue;const rent=p.rentIncome*clamp(this.g.economy,.75,1.25)*p.rentMultiplier*(1-p.vacancyRate);if(p.owner==='company')rentIncome+=rent;else this.g.personalCash+=rent;if(p.owner==='company')propertyDepreciation+=finite(p.depreciationPerWeek);}
     expenses+=propertyDepreciation;
@@ -957,6 +976,8 @@ class TycoonEngine extends EventTarget {
     if(this.g.week%13===0){for(const [id,h] of Object.entries(this.g.companyStocks)){const s=this.stock(id);if(s&&id!==this.g.ticker)stockIncome+=h.qty*(s.dividendPerShare||s.price*s.dividendYield/4);}for(const [id,h] of Object.entries(this.g.personalStocks)){const s=this.stock(id);if(s&&id!==this.g.ticker)this.g.personalCash+=h.qty*(s.dividendPerShare||s.price*s.dividendYield/4)*.797;}if(this.g.publicCompany&&this.g.dividendPerShare>0){dividend=this.g.dividendPerShare*Math.max(0,this.g.sharesOut-this.g.treasuryBuybackShares);const founderGross=dividend*this.g.founderOwnershipRatio;this.g.personalCash+=founderGross*.797;expenses+=dividend;}}
     const operatingProfit=sales+rentIncome+stockIncome-expenses+subs.profit;let tax=0;if(this.g.week%13===0&&operatingProfit>0){tax=operatingProfit*.306;expenses+=tax;}
     const profit=sales+rentIncome+stockIncome-expenses+subs.profit;this.g.companyCash+=profit;this.g.companyCredit=clamp(this.g.companyCredit+(profit>=0?.15:-.3),0,100);this.g.companyReputation=clamp(this.g.companyReputation+(profit>0?.08:-.04),0,100);
+    finance.recordWeekly(this.g,{beginningCash,stores:financeStores,other:{productRevenue:product.revenue,overseasRevenue:overseas.revenue,subsRevenue:subs.revenue,franchiseRevenue:franchise,rentIncome,stockIncome,productCost:-product.cost,overseasCost:-overseas.cost,execPayroll:-execPayroll,deptCost:-deptCost,officeCost:-officeCost,propertyDepreciation:-propertyDepreciation,interest:-interest,tax:-tax,dividend:-dividend,subsProfit:subs.profit}});
+    finance.validate(this.g);
     const report={week:this.g.week,sales,expenses,rentIncome,stockIncome,interest,dividend,officeCost,profit,investmentPL:subs.profit,companyStockUnrealizedPL:this.unrealizedPL('company'),propertyDepreciation,tax};this.g.lastReport=report;this.g.reports.push(report);this.g.reports=this.g.reports.slice(-520);
     this.recordHistory(sales,profit);this.evaluateProgression();this.generateRecurringEvents();
     if(this.g.companyCash<0){this.g.consecutiveNegativeCashWeeks=finite(this.g.consecutiveNegativeCashWeeks)+1;if(this.g.consecutiveNegativeCashWeeks>=2){this.g.gameOver=true;this.g.gameOverReason='会社現金が2週連続でマイナスになりました。';}}else this.g.consecutiveNegativeCashWeeks=0;
@@ -994,7 +1015,7 @@ class TycoonEngine extends EventTarget {
   }
 }
 
-Object.assign(exports,{SAVE_KEY,SAVE_VERSION,clamp,finite,uuid,yen,compactYen,pct,rand,pick,createInitialState,mergeDefaults,detectSaveVersion,migrateSave, normalizeStockPriceHistory,migrateUnversionedToV1,migrateV1ToV2,migrateV2ToV3,migrateV3ToV4,deepNormalizeState,validateMigratedState,TycoonEngine});
-})(__modules.engine={},__modules.data,__modules.market);
+Object.assign(exports,{SAVE_KEY,SAVE_VERSION,clamp,finite,uuid,yen,compactYen,pct,rand,pick,createInitialState,mergeDefaults,detectSaveVersion,migrateSave, normalizeStockPriceHistory,migrateUnversionedToV1,migrateV1ToV2,migrateV2ToV3,migrateV3ToV4,migrateV4ToV5,deepNormalizeState,validateMigratedState,TycoonEngine});
+})(__modules.engine={},__modules.data,__modules.market,__modules.finance);
 
 })();

@@ -49,3 +49,7 @@ Node.js標準機能のみで、`index.html` のゲームコードを変更せず
 
 ## Market tests
 Phase 1A用に `test:market`、`test:market-migration`、`test:market-ui`、`test:market-capacity`、`test:market-cannibalization`、`test:market-calibration` を追加。
+
+## Finance tests
+
+Phase 1B adds `test:finance`, `test:statements`, `test:cashflow`, `test:working-capital`, `test:finance-migration`, `test:finance-ui`, and `test:accounting-invariants` to verify transaction recording, statements, migration, UI presence, and accounting invariants.

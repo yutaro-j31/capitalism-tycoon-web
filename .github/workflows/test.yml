@@ -14,3 +14,8 @@ jobs:
       - run: npm test
       - run: npm run test:modules
       - run: npm run test:stock
+      - run: npm run test:finance
+      - run: npm run test:statements
+      - run: npm run test:finance-migration
+      - run: npm run test:finance-ui
+      - run: npm run test:accounting-invariants

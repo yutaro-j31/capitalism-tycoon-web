@@ -162,3 +162,7 @@ Fixed-seed transaction baseline note: adding `saveVersion: 3` stock history sche
 
 ## Phase 1A baseline
 対象業種ramenは市場計算由来の意図的差分を許容。株価、株価履歴、対象外業種、save/emit/render回数は既存回帰で保護。
+
+## Phase 1B baseline
+
+`npm test` passed with saveVersion 5, finance module load order, fixed-seed market regression, long-run stability, finance ledger, statements, migration, UI static, and accounting invariant checks.
