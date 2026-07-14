@@ -2,9 +2,9 @@
 
 ## 現在の saveVersion
 
-現在の明示的セーブスキーマ版は `2`。保存キー `capitalism_tycoon_web_v1` は変更しない。
+現在の明示的セーブスキーマ版は `3`。保存キー `capitalism_tycoon_web_v1` は変更しない。
 
-`saveVersion: 2` は、トップレベル補完に加えて主要な配列要素内部をエンティティ種別ごとに補完する最初のバージョンである。
+`saveVersion: 3` は、`saveVersion: 2` のエンティティ補完に加えて、株価履歴を `{ week, price }` 配列へ正規化するバージョンである。
 
 ## 未バージョンセーブの扱い
 
@@ -93,3 +93,10 @@
 - 同一配列内で同じ `id` が重複している場合、参照関係を安全に修復できないためマイグレーションエラーにする。
 - 重複IDを単純な再生成や要素削除で隠さない。
 - この方針は `legacy-missing-ids.json` と `legacy-duplicate-ids.json` の統合テストで検証する。
+
+## v2 -> v3: stock price history
+
+- `market[].priceHistory` の数値配列を `{ week, price }` に変換する。
+- 履歴がない銘柄は `previous` が有効なら前週、現在 `price` を現在週として最小履歴を作る。
+- 株価、保有株数、平均取得価格、銘柄ID、未知プロパティは変更しない。
+- マイグレーションは入力をdeep cloneして処理し、未来バージョン拒否と破損セーブ上書き防止を維持する。

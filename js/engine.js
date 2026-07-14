@@ -7,7 +7,7 @@ if(__modules.engine)throw new Error('Capitalism Tycoon engine module is already 
 (function(exports,data){
 const {MASTER,DEPARTMENT_UNLOCKS,PRODUCT_BLUEPRINTS,LUXURY_OFFERS,PERSONAL_INVESTMENT_OFFERS,OVERSEAS_COUNTRIES,SPORTS_TEAMS,MISSION_DEFS}=data;
 const SAVE_KEY = 'capitalism_tycoon_web_v1';
-const SAVE_VERSION = 2;
+const SAVE_VERSION = 3;
 
 const deepClone = value => typeof structuredClone === 'function'
   ? structuredClone(value)
@@ -103,7 +103,7 @@ function normalizeMasterData() {
   const market = deepClone(MASTER.market).map(s => ({
     ...s, previous: s.previous || s.price, issuedShares: s.issuedShares || Math.max(1, finite(s.marketCap) / Math.max(1, finite(s.price))),
     shareholders: s.shareholders && typeof s.shareholders === 'object' ? s.shareholders : {},
-    priceHistory: [s.price]
+    priceHistory: [{week:1, price:s.price}]
   }));
   const startups = deepClone(MASTER.startups).map(s => ({
     ...s, id: uuid(), ownedCompany: 0, ownedPersonal: 0, alive: true, subsidiary: false,
@@ -275,6 +275,35 @@ function migrateV1ToV2(state) {
   return state;
 }
 
+function normalizeStockPriceHistory(stock, week) {
+  const currentPrice = Math.max(1, finite(stock.price, 100));
+  const previousPrice = Math.max(1, finite(stock.previous, currentPrice));
+  const currentWeek = Math.max(1, Math.floor(finite(week, 1)));
+  const source = Array.isArray(stock.priceHistory) ? stock.priceHistory : [];
+  const rows = [];
+  for (const item of source) {
+    const row = isPlainObject(item) ? item : {price:item};
+    const price = Number(row.price);
+    const rowWeek = Math.floor(finite(row.week, currentWeek - source.length + rows.length + 1));
+    if (Number.isFinite(price) && price > 0 && Number.isFinite(rowWeek)) rows.push({...row, week:rowWeek, price});
+  }
+  if (!rows.length) {
+    if (Number.isFinite(previousPrice) && previousPrice > 0) rows.push({week:Math.max(1, currentWeek - 1), price:previousPrice});
+    if (Number.isFinite(currentPrice) && currentPrice > 0 && !rows.some(r => r.week === currentWeek)) rows.push({week:currentWeek, price:currentPrice});
+  }
+  if (!rows.some(r => r.week === currentWeek) && Number.isFinite(currentPrice) && currentPrice > 0) rows.push({week:currentWeek, price:currentPrice});
+  const byWeek = new Map();
+  for (const row of rows) byWeek.set(row.week, row);
+  return [...byWeek.values()].sort((a,b)=>a.week-b.week).slice(-260);
+}
+
+function migrateV2ToV3(state) {
+  const week = finite(state.week, 1);
+  state.market = Array.isArray(state.market) ? state.market.map(s => ({...s, priceHistory: normalizeStockPriceHistory(s, week)})) : state.market;
+  state.saveVersion = 3;
+  return state;
+}
+
 function validateMigratedState(state) {
   const detected = detectSaveVersion(state);
   if (!detected.ok) return {ok:false, errors:[detected.error]};
@@ -294,6 +323,7 @@ function migrateSave(rawState) {
     let version = detected.version;
     if (version === 0) { state = migrateUnversionedToV1(state); version = 1; }
     if (version === 1) { state = migrateV1ToV2(state); version = 2; }
+    if (version === 2) { state = migrateV2ToV3(state); version = 3; }
     if (version !== SAVE_VERSION) throw new Error(`未対応のsaveVersionです: ${version}`);
     state = mergeDefaults(state, createInitialState({configured:false}));
     deepNormalizeState(state);
@@ -351,7 +381,7 @@ class TycoonEngine extends EventTarget {
 
   normalize() {
     this.g.saveVersion = SAVE_VERSION;
-    this.g.market = (this.g.market || []).map(s => ({...s, price: Math.max(1, finite(s.price,100)), previous: Math.max(1,finite(s.previous,s.price)), priceHistory: Array.isArray(s.priceHistory) ? s.priceHistory.slice(-260) : [s.price]}));
+    this.g.market = (this.g.market || []).map(s => { const stock={...s, price: Math.max(1, finite(s.price,100)), previous: Math.max(1,finite(s.previous,s.price))}; stock.priceHistory = normalizeStockPriceHistory(stock, this.g.week); return stock; });
     this.g.businesses = (this.g.businesses || []).map(b => ({...b, price: Math.max(1,finite(b.price,100)), unitCost: Math.max(0,finite(b.unitCost)), demand: Math.max(1,finite(b.demand,10))}));
     this.g.stores = (this.g.stores || []).map(s => ({condition:100,lastSales:0,lastProfit:0,status:'open',openingWeek:this.g.week,weeksToOpen:0,operatingHours:3,...s}));
     this.g.news = Array.isArray(this.g.news) ? this.g.news.slice(0,300) : [];
@@ -728,7 +758,7 @@ class TycoonEngine extends EventTarget {
     sellShares=clamp(Math.floor(sellShares),50000,400000);const newShares=200000,companyRaise=this.g.stockPrice*newShares*.955,founderSale=this.g.stockPrice*sellShares*.955;
     this.g.sharesOut+=newShares;this.g.founderShares-=sellShares;this.g.companyCash+=companyRaise;this.g.personalCash+=founderSale;this.g.publicCompany=true;this.g.selectedListingMarket=market;
     this.g.ticker=(this.g.companyName.replace(/[^A-Za-z]/g,'').slice(0,4).toUpperCase()||'CPTY');this.updateOwnershipRatios();
-    this.g.market.push({id:this.g.ticker,name:this.g.companyName,sector:'コングロマリット',price:this.g.stockPrice,previous:this.g.stockPrice,dividendYield:0,volatility:.08,trend:.003,marketCap:this.g.stockPrice*this.g.sharesOut,per:20,pbr:2,issuedShares:this.g.sharesOut,dividendPerShare:0,shareholders:{創業者:this.g.founderOwnershipRatio},description:'プレイヤーが経営する企業',listingMarket:market,priceHistory:[this.g.stockPrice]});
+    this.g.market.push({id:this.g.ticker,name:this.g.companyName,sector:'コングロマリット',price:this.g.stockPrice,previous:this.g.stockPrice,dividendYield:0,volatility:.08,trend:.003,marketCap:this.g.stockPrice*this.g.sharesOut,per:20,pbr:2,issuedShares:this.g.sharesOut,dividendPerShare:0,shareholders:{創業者:this.g.founderOwnershipRatio},description:'プレイヤーが経営する企業',listingMarket:market,priceHistory:[{week:this.g.week, price:this.g.stockPrice}]});
     this.notify(`${market}へ上場しました。会社調達${yen(companyRaise)}、創業者売出収入${yen(founderSale)}。`,'success');this.evaluateProgression();this.save();this.emit();return true;
   }
   setDividend(amount) {
@@ -818,7 +848,7 @@ class TycoonEngine extends EventTarget {
   fail(message) { this.emit('notify',{message,severity:'error'}); return false; }
 
   updateMarket() {
-    for(const s of this.g.market){s.previous=s.price;let move=s.trend+(this.g.economy-1)*.018+rand(-s.volatility,s.volatility);if(s.id===this.g.ticker&&this.g.publicCompany){const last=this.g.lastReport?.profit||0;move+=clamp(last/Math.max(1,this.companyValue())*10,-.08,.08);}s.price=Math.max(10,s.price*(1+move));s.marketCap=s.price*Math.max(1,s.issuedShares||1);s.priceHistory=(s.priceHistory||[]).concat(s.price).slice(-260);if(s.per>0)s.per=clamp(s.per*(1+move*.25),3,120);}
+    for(const s of this.g.market){s.previous=s.price;let move=s.trend+(this.g.economy-1)*.018+rand(-s.volatility,s.volatility);if(s.id===this.g.ticker&&this.g.publicCompany){const last=this.g.lastReport?.profit||0;move+=clamp(last/Math.max(1,this.companyValue())*10,-.08,.08);}s.price=Math.max(10,s.price*(1+move));s.marketCap=s.price*Math.max(1,s.issuedShares||1);if(Number.isFinite(s.price)&&s.price>0){const history=normalizeStockPriceHistory(s,this.g.week).filter(r=>r.week!==this.g.week);history.push({week:this.g.week,price:s.price});s.priceHistory=history.slice(-260);}if(s.per>0)s.per=clamp(s.per*(1+move*.25),3,120);}
     if(this.g.publicCompany){const own=this.stock(this.g.ticker);if(own){this.g.stockPrice=own.price;own.issuedShares=this.g.sharesOut;own.marketCap=own.price*this.g.sharesOut;}}
   }
   updateStartups() {
@@ -830,7 +860,7 @@ class TycoonEngine extends EventTarget {
   }
   listStartup(s) {
     const id=`V${Math.floor(rand(1000,9999))}`;if(this.stock(id))return;s.ipoStockID=id;const shares=1_000_000,price=s.valuation/shares;
-    this.g.market.push({id,name:s.name,sector:s.domain,price,previous:price,dividendYield:0,volatility:.12,trend:.004,marketCap:s.valuation,per:0,pbr:5,issuedShares:shares,dividendPerShare:0,shareholders:{},description:`${s.domain}の新興企業`,listingMarket:'東証グロース',priceHistory:[price]});
+    this.g.market.push({id,name:s.name,sector:s.domain,price,previous:price,dividendYield:0,volatility:.12,trend:.004,marketCap:s.valuation,per:0,pbr:5,issuedShares:shares,dividendPerShare:0,shareholders:{},description:`${s.domain}の新興企業`,listingMarket:'東証グロース',priceHistory:[{week:this.g.week, price}]});
     const companyQty=Math.floor(s.ownedCompany*shares),personalQty=Math.floor(s.ownedPersonal*shares);if(companyQty)this.g.companyStocks[id]={qty:companyQty,avg:0};if(personalQty)this.g.personalStocks[id]={qty:personalQty,avg:0};
     s.ownedCompany=0;s.ownedPersonal=0;s.alive=false;this.g.news.unshift(`第${this.g.week}週：${s.name}がIPOしました。保有持分は上場株式へ転換されました。`);
   }
@@ -940,7 +970,7 @@ class TycoonEngine extends EventTarget {
   }
 }
 
-Object.assign(exports,{SAVE_KEY,SAVE_VERSION,clamp,finite,uuid,yen,compactYen,pct,rand,pick,createInitialState,mergeDefaults,detectSaveVersion,migrateSave,migrateUnversionedToV1,migrateV1ToV2,deepNormalizeState,validateMigratedState,TycoonEngine});
+Object.assign(exports,{SAVE_KEY,SAVE_VERSION,clamp,finite,uuid,yen,compactYen,pct,rand,pick,createInitialState,mergeDefaults,detectSaveVersion,migrateSave, normalizeStockPriceHistory,migrateUnversionedToV1,migrateV1ToV2,deepNormalizeState,validateMigratedState,TycoonEngine});
 })(__modules.engine={},__modules.data);
 
 })();
