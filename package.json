@@ -14,6 +14,7 @@
     "test:long": "node tests/long-run-test.js",
     "test:transaction": "node tests/transaction-regression-test.js",
     "test:css": "node tests/css-extraction-test.js",
-    "test:javascript": "node tests/javascript-extraction-test.js"
+    "test:javascript": "node tests/javascript-extraction-test.js",
+    "test:modules": "node tests/javascript-module-split-test.js"
   }
 }
