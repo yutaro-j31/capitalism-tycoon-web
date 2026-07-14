@@ -4,7 +4,7 @@ const vm = require('node:vm');
 const { ROOT, readIndex, extractScripts, createBrowserContext } = require('./harness');
 
 function assert(cond, msg) { if (!cond) throw new Error(msg); }
-const expected = ['./js/runtime.js','./js/data.js','./js/engine.js','./js/expansion.js','./js/completion.js','./js/parity.js','./js/app.js'];
+const expected = ['./js/runtime.js','./js/data.js','./js/market.js','./js/engine.js','./js/expansion.js','./js/completion.js','./js/parity.js','./js/app.js'];
 const scripts = extractScripts(readIndex()).filter(s => s.src);
 assert(JSON.stringify(scripts.map(s => s.src)) === JSON.stringify(expected), `script order mismatch: ${scripts.map(s => s.src).join(', ')}`);
 assert(scripts[0].src === './js/runtime.js', 'runtime.js must be first');
@@ -48,6 +48,7 @@ assert(listenerRegistrations >= 4, 'expected UI event listeners to be registered
 assert(modules.engine && modules.engine.TycoonEngine, 'TycoonEngine export missing');
 for (const [name, keys] of Object.entries({
   data:['MASTER','PRODUCT_BLUEPRINTS','LUXURY_OFFERS','PERSONAL_INVESTMENT_OFFERS','OVERSEAS_COUNTRIES','SPORTS_TEAMS','MISSION_DEFS'],
+  market:['calculateMarkets','effectiveCapacity','competitorOffers','SEGMENTS'],
   engine:['TycoonEngine','yen','compactYen','pct','finite'],
   expansion:['installExpansion','FOUNDER_TRAITS','FOUNDER_HOME_PRODUCTS','SUPPLIER_OFFERS','VERTICAL_INTEGRATION_OFFERS','RD_PROJECTS','PERSONAL_REAL_ESTATE_OFFERS','SUCCESSOR_CANDIDATES'],
   completion:['installCompletion','MEDIA_ACTIONS','TRANSPORT_REBUILD_ACTIONS','ENDING_DEFS'],
@@ -65,6 +66,7 @@ assert.throws(() => vm.runInContext(scripts[1].code, noRuntime), /runtime\.js/);
 const missingData = createBrowserContext();
 vm.runInContext(scripts[0].code, missingData);
 assert.throws(() => vm.runInContext(scripts[2].code, missingData), /data module/);
+assert.throws(() => vm.runInContext(scripts[3].code, missingData), /data module/);
 assert.throws(() => vm.runInContext(scripts[1].code, ctx), /already registered/);
 
 fs.writeFileSync(path.join(ROOT, 'tests', 'fixtures', 'module-load-order.json'), JSON.stringify({ scripts: expected }, null, 2) + '\n');

@@ -2,6 +2,7 @@
   "scripts": [
     "./js/runtime.js",
     "./js/data.js",
+    "./js/market.js",
     "./js/engine.js",
     "./js/expansion.js",
     "./js/completion.js",

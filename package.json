@@ -18,6 +18,12 @@
     "test:modules": "node tests/javascript-module-split-test.js",
     "test:stock": "node tests/stock-chart-test.js",
     "test:stock-chart": "node tests/stock-chart-test.js",
-    "test:stock-migration": "node tests/stock-chart-test.js"
+    "test:stock-migration": "node tests/stock-chart-test.js",
+    "test:market": "node tests/market-engine-test.js && node tests/market-integration-test.js && node tests/market-competitor-filter-test.js",
+    "test:market-migration": "node tests/market-migration-test.js",
+    "test:market-ui": "node tests/market-ui-static-test.js",
+    "test:market-capacity": "node tests/market-capacity-test.js",
+    "test:market-cannibalization": "node tests/market-cannibalization-test.js",
+    "test:market-calibration": "node tests/market-calibration-test.js"
   }
 }
