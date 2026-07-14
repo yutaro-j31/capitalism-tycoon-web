@@ -53,12 +53,13 @@
     "test:finance-property-building-disposal": "node tests/finance-property-building-disposal-test.js",
     "test:supply": "node tests/supply-engine-test.js && node tests/stockout-integration-test.js",
     "test:inventory": "node tests/inventory-lot-test.js && node tests/spoilage-test.js",
-    "test:procurement": "node tests/procurement-order-test.js && node tests/supplier-contract-test.js",
+    "test:procurement": "node tests/procurement-order-test.js && node tests/supplier-contract-test.js && node tests/supplier-material-coverage-test.js",
     "test:supply-finance": "node tests/supply-engine-test.js",
     "test:supply-migration": "node tests/supply-migration-test.js",
     "test:supply-ui": "node tests/market-ui-static-test.js",
     "test:supply-rng": "node tests/supply-rng-regression-test.js",
     "test:supply-calibration": "node tests/supply-calibration-test.js",
-    "test:supply-long": "node --max-old-space-size=16384 tests/supply-long-run-test.js"
+    "test:supply-long": "node --max-old-space-size=16384 tests/supply-long-run-test.js",
+    "test:supplier-coverage": "node tests/supplier-material-coverage-test.js"
   }
 }
