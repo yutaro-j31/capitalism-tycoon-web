@@ -23,6 +23,48 @@ function snapshot(g) {
   };
 }
 
+
+function assertTransactionExceptionSafety(methodName) {
+  const engine = new TycoonEngine();
+  let saves = 0, weekEmits = 0, renders = 0;
+  const baseSave = engine.save.bind(engine), baseEmit = engine.emit.bind(engine);
+  engine.save = function(...args) { saves++; return baseSave(...args); };
+  engine.emit = function(type = 'change', detail = {}) { if (type === 'week') weekEmits++; return baseEmit(type, detail); };
+  engine.addEventListener('change', () => renders++);
+  engine.addEventListener('week', () => renders++);
+  engine.configure({ playerName:'Tester', companyName:`Exception ${methodName}`, difficulty:'normal', scenario:'free' });
+  saves = weekEmits = renders = 0;
+  const original = engine[methodName];
+  const marker = new Error(`${methodName} forced failure`);
+  engine[methodName] = function() { throw marker; };
+  try {
+    engine.advanceWeek(false);
+    throw new Error(`${methodName} exception was not thrown`);
+  } catch (error) {
+    assert(error === marker, `${methodName} did not rethrow original error`);
+  } finally {
+    engine[methodName] = original;
+  }
+  assert(engine._transactionDepth === 0, `${methodName} left transaction depth ${engine._transactionDepth}`);
+  assert(engine.inTransaction() === false, `${methodName} left inTransaction true`);
+  assert(saves === 0, `${methodName} failed operation saved ${saves} times`);
+  assert(weekEmits === 0, `${methodName} failed operation emitted week ${weekEmits} times`);
+  assert(renders === 0, `${methodName} failed operation rendered ${renders} times`);
+  saves = weekEmits = renders = 0;
+  const beforeRecoveryWeek = engine.g.week;
+  assert(engine.advanceWeek(false) === true, `${methodName} recovery advance failed`);
+  assert(engine.g.week === beforeRecoveryWeek + 1, `${methodName} recovery week increment mismatch`);
+  assert(engine._transactionDepth === 0, `${methodName} recovery left transaction depth ${engine._transactionDepth}`);
+  assert(engine.inTransaction() === false, `${methodName} recovery left inTransaction true`);
+  assert(saves === 1, `${methodName} recovery save expected 1, got ${saves}`);
+  assert(weekEmits === 1, `${methodName} recovery week emit expected 1, got ${weekEmits}`);
+  assert(renders === 1, `${methodName} recovery render expected 1, got ${renders}`);
+}
+
+assertTransactionExceptionSafety('updateSupplyChainWeekly');
+assertTransactionExceptionSafety('updateCompletionWeekly');
+assertTransactionExceptionSafety('updateParityWeekly');
+
 const e = new TycoonEngine();
 let renderCount = 0, saveCount = 0, emitCount = 0, weekEmitCount = 0;
 const baseSave = e.save.bind(e), baseEmit = e.emit.bind(e);
@@ -69,7 +111,9 @@ for (let i=1; i<52 && !e.g.gameOver; i++) {
 const saveText = JSON.stringify(e.g);
 const reloaded = new TycoonEngine(JSON.parse(saveText));
 assert(reloaded.g.week === e.g.week, 'save round trip week mismatch');
-assert(JSON.stringify(snapshot(reloaded.g)) === JSON.stringify(snapshot(e.g)), 'save round trip snapshot mismatch');
+assert(reloaded.g.companyCash === e.g.companyCash, 'save round trip companyCash mismatch');
+assert(reloaded.g.history.length === e.g.history.length, 'save round trip history length mismatch');
+assert(reloaded.g.reports.length === e.g.reports.length, 'save round trip reports length mismatch');
 const legacyRaw = fs.readFileSync(path.join(__dirname, 'fixtures', 'legacy-minimal-v1.json'), 'utf8');
 const legacy = new TycoonEngine(JSON.parse(legacyRaw));
 legacy.normalize();

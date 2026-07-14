@@ -87,9 +87,12 @@ This preserves the existing calculation order while delaying persistence and pub
 
 ## Transaction design implemented
 
-- `beginTransaction()`, `finishTransaction(...)`, and `inTransaction()` were added to the engine.
+- `runTransaction(work, eventType, detail, shouldCommit)` and `inTransaction()` are used by the wrappers.
 - `configure` and `advanceWeek` wrappers now join the same transaction instead of independently saving and emitting.
 - Core `configure`, core `advanceWeek`, and `setFounderOrigin` suppress their immediate save/render side effects while a transaction is active.
-- The outermost wrapper normalizes the final state, saves once, and emits either one `change` event for `configure` or one `week` event for `advanceWeek`.
+- The outermost successful wrapper saves once and emits either one `change` event for `configure` or one `week` event for `advanceWeek`.
+- `runTransaction` restores `_transactionDepth` to the exact pre-call value if `work` throws, then rethrows the original exception without saving or emitting the final event.
+- If a transactional operation returns `false`, `shouldCommit` prevents a success save/event while still restoring depth.
 - Intermediate `notify` events are not suppressed because they are user-facing toasts/news and do not trigger full render.
 - No midway save was found to be required: all affected operations are synchronous and operate on the same in-memory state; saving only the final state preserves the intended game result while removing incomplete intermediate persistence.
+- Final transaction commit intentionally does not call `normalize()` because deterministic comparison against the pre-transaction main implementation showed that adding a new normalize pass mutates persisted business defaults. Existing direct non-wrapped calls still keep their pre-existing defensive normalization path.

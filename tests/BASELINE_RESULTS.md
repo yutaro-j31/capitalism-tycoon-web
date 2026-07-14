@@ -31,6 +31,9 @@ Date: 2026-07-14
 - `npm run test:long`
   - Ran 520 weeks with a one-time stability-only cash injection at test start.
   - No unhandled exception or non-finite numeric state was detected.
+- `npm run test:transaction`
+  - Compared current transaction behavior against `tests/fixtures/transaction-baseline-v1.json`, generated from the pre-transaction main implementation.
+  - Verified configure, 1-week, 12-week, and 52-week snapshots plus random call counts; week 52 used 6,418 random calls.
 
 ## Failed tests
 
@@ -43,9 +46,9 @@ Date: 2026-07-14
 
 ## Text normalization check
 
-- Target files added by this PR were inspected byte-by-byte and code-point-by-code-point.
-- No forbidden code points, UTF-8 BOM, C0/C1 controls, or CR/CRLF line endings were found in `.github/workflows/test.yml`, `package.json`, or `tests/` after normalization.
-- `index.html` was not modified. A pre-existing emoji ZWJ sequence in `index.html` is allow-listed by the repository-wide text safety check because this PR is forbidden from changing production game code.
+- PR #3 changes `index.html` transaction handling for `configure()` and `advanceWeek()`.
+- Game numbers, prices, revenue formulas, probabilities, initial funds, UI markup, and CSS were not intentionally changed.
+- A pre-existing emoji ZWJ sequence in `index.html` remains allow-listed by the repository-wide text safety check; only its line number changed because transaction code was added above it.
 
 ## Known issues observed
 
@@ -61,7 +64,14 @@ Measured by wrapping one `TycoonEngine` instance during `npm run test:week`:
 | `configure()` once | 1 | 3 | 0 | 1 |
 | `advanceWeek(false)` once | 1 | 2 | 1 | 1 |
 
-These counts are now enforced by `tests/week-test.js` for the transaction-critical save/week/render counts. Remaining emits are `notify`/`saved` plus the final public event.
+These counts are now enforced by `tests/week-test.js` for the transaction-critical save/week/render counts. Remaining emits are `notify`/`saved` plus the final public event. Exception-safety checks also verify that failed Expansion, Completion, and Parity weekly operations rethrow the original error, restore transaction depth to zero, do not perform final save/week/change events, and can recover on the next operation.
+
+## Deterministic transaction regression result
+
+- Baseline fixture: `tests/fixtures/transaction-baseline-v1.json`.
+- Scenario: configured normal game with seeded PRNG, snapshots after configure, 1 week, 12 weeks, and 52 weeks.
+- Result: current code matches the pre-transaction main baseline for game state snapshots.
+- Random call count: 6,418 by week 52, matching the fixture.
 
 ## Normal-funds 52-week result
 

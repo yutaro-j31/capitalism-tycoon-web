@@ -6,7 +6,7 @@ const ROOT = path.resolve(__dirname, '..');
 const TEXT_EXTENSIONS = new Set(['.html', '.js', '.json', '.yml', '.yaml', '.md', '.css']);
 const EXCLUDED_DIRS = new Set(['.git', 'node_modules']);
 const ALLOWED_EXISTING = new Set([
-  'index.html:3216:154:U+200D'
+  'index.html:3219:154:U+200D'
 ]);
 
 function isForbiddenCodePoint(codePoint, char) {
