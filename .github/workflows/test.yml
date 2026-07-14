@@ -24,3 +24,9 @@ jobs:
       - run: npm run test:finance-advanced
       - run: npm run test:finance-history
       - run: npm run test:finance-rng
+      - run: npm run test:finance-user-action-snapshot
+      - run: npm run test:finance-cash-mutation-coverage
+      - run: npm run test:finance-book-value
+      - run: npm run test:finance-working-capital-integration
+      - run: npm run test:finance-archive-rollforward
+      - run: npm run test:finance-migrated-advanced-save

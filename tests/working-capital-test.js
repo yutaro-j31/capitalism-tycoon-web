@@ -3,7 +3,7 @@ const { engineModule, modules } = loadGame();
 const e=new engineModule.TycoonEngine(); e.g.configured=true; const f=modules.finance;
 const opening=e.g.companyCash;
 f.event(e.g,'revenue',1000,{cashEffect:1000,profitEffect:1000,sourceType:'b2c-store',operationID:'b2c'}); e.g.companyCash+=1000;
-f.event(e.g,'revenue',1000,{cashEffect:700,profitEffect:1000,sourceType:'b2b-invoice',operationID:'b2b'}); e.g.companyCash+=700;
+f.event(e.g,'revenue',1000,{cashEffect:700,profitEffect:1000,sourceType:'corporate-contract',receivableAmount:300,settlementType:'invoice',paymentTermsWeeks:4,operationID:'b2b'}); e.g.companyCash+=700;
 f.event(e.g,'accountsReceivableCollection',300,{cashEffect:300,profitEffect:0,sourceType:'ar-collection',operationID:'ar'}); e.g.companyCash+=300;
 f.event(e.g,'taxExpense',100,{cashEffect:0,profitEffect:-100,sourceType:'tax',operationID:'tax-exp'});
 f.event(e.g,'taxPayment',40,{cashEffect:-40,profitEffect:0,sourceType:'tax',operationID:'tax-pay'}); e.g.companyCash-=40;

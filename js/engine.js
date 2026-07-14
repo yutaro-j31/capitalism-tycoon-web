@@ -456,6 +456,7 @@ class TycoonEngine extends EventTarget {
       console.error('Save blocked because startup save migration failed', this._loadFailureReason || 'unknown load failure');
       return false;
     }
+    finance.rebuildDirtySnapshots?.(this.g);
     this.g.lastSaveDate = new Date().toISOString();
     const key = slot ? `${SAVE_KEY}_slot_${slot}` : SAVE_KEY;
     localStorage.setItem(key, JSON.stringify(this.g));
@@ -579,7 +580,7 @@ class TycoonEngine extends EventTarget {
     const lock={quality:'product',brand:'marketing',efficiency:'operations',dx:'dx'}[kind];
     if(lock&&!this.g.departments[lock]&&amount>=2_000_000)return this.fail(`${MASTER.departments.find(d=>d.id===lock)?.name||'担当部門'}が必要です。`);
     this.g.companyCash-=amount;
-    finance.event(this.g,kind==='brand'?'advertising':kind==='quality'?'researchAndDevelopment':'capitalExpenditure',amount,{cashEffect:-amount,profitEffect:kind==='brand'||kind==='quality'?-amount:0,assetEffect:kind==='brand'||kind==='quality'?0:amount,businessID,sourceType:'investBusiness',sourceID:`${businessID}-${kind}-${this.g.week}`,description:`${b.name} ${kind}投資`});
+    finance.event(this.g,kind==='brand'?'advertising':kind==='quality'?'researchAndDevelopment':'headOfficeExpense',amount,{cashEffect:-amount,profitEffect:-amount,assetEffect:0,businessID,sourceType:'investBusiness',sourceID:`${businessID}-${kind}-${this.g.week}`,description:`${b.name} ${kind}投資（Phase 1Bは費用処理）`});
     const gain=Math.log10(1+amount/100000)*({quality:1.2,brand:1.35,efficiency:1.05,dx:1.1}[kind]||1);
     b[kind]=clamp(finite(b[kind])+gain,0,100);
     this.notify(`${b.name}の${{quality:'品質',brand:'ブランド',efficiency:'効率',dx:'DX'}[kind]}へ${yen(amount)}投資しました。`,'success');
@@ -601,7 +602,7 @@ class TycoonEngine extends EventTarget {
   }
   cancelOffice() {
     if(Object.keys(this.g.departments).length||Object.keys(this.g.executives).length)return this.fail('部門またはCXOが在籍しているため解約できません。');
-    const office=this.g.rentalOffices.find(o=>o.id===this.g.contractedOfficeID);if(office){office.contracted=false;const refund=office.deposit*.6;this.g.companyCash+=refund;finance.event(this.g,'assetSale',refund,{cashEffect:refund,assetEffect:-refund,sourceType:'cancelOffice',sourceID:office.id,description:`${office.name} 保証金返還`});}
+    const office=this.g.rentalOffices.find(o=>o.id===this.g.contractedOfficeID);if(office){office.contracted=false;const refund=office.deposit*.6;this.g.companyCash+=refund;finance.event(this.g,'assetSale',refund,{cashEffect:refund,assetEffect:-office.deposit,profitEffect:refund-office.deposit,sourceType:'cancelOffice',sourceID:office.id,description:`${office.name} 保証金返還・解約損`});}
     this.g.hasHeadOffice=false;this.g.contractedOfficeID=null;this.g.officeName='小さな創業オフィス';this.g.officeCapacity=2;this.g.officeWeeklyCost=85000;
     this.notify('本社オフィスを解約しました。','warning');this.save();this.emit();return true;
   }
@@ -628,7 +629,7 @@ class TycoonEngine extends EventTarget {
   }
   refreshExecutives() {
     if(!this.g.departments.hr)return this.fail('人事部門が必要です。');
-    const cost=rand(500000,2000000);if(this.g.companyCash<cost)return this.fail('紹介費が不足しています。');this.g.companyCash-=cost;
+    const cost=rand(500000,2000000);if(this.g.companyCash<cost)return this.fail('紹介費が不足しています。');this.g.companyCash-=cost;finance.event(this.g,'headOfficeExpense',cost,{cashEffect:-cost,profitEffect:-cost,sourceType:'refreshExecutives',sourceID:`executive-market-${this.g.week}`,description:'CXO候補紹介費'});
     const surnames=['佐藤','鈴木','高橋','田中','伊藤','渡辺','山本','中村','小林','加藤'];
     const roles=['CEO','COO','CFO','CMO','CTO','CPO','CHRO','CSO'];
     this.g.executiveMarket=roles.map(role=>{
@@ -696,7 +697,7 @@ class TycoonEngine extends EventTarget {
   makeSubsidiary(startupID) {
     const s=this.g.startups.find(x=>x.id===startupID);if(!s||s.subsidiary)return false;
     if(s.ownedCompany<.5)return this.fail('会社持分50%以上が必要です。');
-    s.subsidiary=true;this.g.subsidiaries.push({id:uuid(),startupID:s.id,name:s.name,domain:s.domain,ownership:s.ownedCompany,valuation:s.valuation,weeklyProfit:0,growth:s.growth,risk:s.risk,publicCompany:false,status:'active',retainedEarnings:0});
+    s.subsidiary=true;this.g.subsidiaries.push({id:uuid(),startupID:s.id,name:s.name,domain:s.domain,ownership:s.ownedCompany,valuation:s.valuation,investedCost:s.totalInvestedCompany||0,weeklyProfit:0,growth:s.growth,risk:s.risk,publicCompany:false,status:'active',retainedEarnings:0});
     this.notify(`${s.name}を連結子会社化しました。`,'success');this.save();this.emit();return true;
   }
   ipoSubsidiary(id) {
@@ -710,14 +711,14 @@ class TycoonEngine extends EventTarget {
 
   launchProduct(blueprintID,name=null) {
     if(!this.g.departments.product)return this.fail('商品開発部門が必要です。');const bp=PRODUCT_BLUEPRINTS.find(x=>x.id===blueprintID);if(!bp)return false;
-    if(this.g.companyCash<bp.cost)return this.fail(`${yen(bp.cost)}が必要です。`);this.g.companyCash-=bp.cost;
+    if(this.g.companyCash<bp.cost)return this.fail(`${yen(bp.cost)}が必要です。`);this.g.companyCash-=bp.cost;finance.event(this.g,'researchAndDevelopment',bp.cost,{cashEffect:-bp.cost,profitEffect:-bp.cost,assetEffect:0,sourceType:'launchProduct',sourceID:`${blueprintID}-${this.g.week}`,description:`${name||bp.name} 初期開発費`});
     this.g.productVentures.push({id:uuid(),blueprintID:bp.id,name:name||bp.name,category:bp.category,status:'developing',progress:0,weeksToLaunch:bp.weeks,
-      quality:20,brand:5,users:0,paidUsers:0,price:bp.price,serverCost:bp.serverCost,market:bp.market,risk:bp.risk,valuation:bp.cost,revenue:0,cost:0,profit:0});
+      quality:20,brand:5,users:0,paidUsers:0,price:bp.price,serverCost:bp.serverCost,market:bp.market,risk:bp.risk,valuation:bp.cost,developmentCost:bp.cost,investedCost:0,revenue:0,cost:0,profit:0});
     this.notify(`${name||bp.name}の開発を開始しました。`,'success');this.save();this.emit();return true;
   }
   productAction(id,kind,amount) {
     const p=this.g.productVentures.find(x=>x.id===id);amount=Math.max(0,finite(amount));if(!p||amount<=0||this.g.companyCash<amount)return this.fail('資金が不足しています。');
-    this.g.companyCash-=amount;
+    this.g.companyCash-=amount;finance.event(this.g,kind==='marketing'?'advertising':'researchAndDevelopment',amount,{cashEffect:-amount,profitEffect:-amount,assetEffect:0,sourceType:'productAction',sourceID:`${id}-${kind}-${this.g.week}`,description:`${p.name} ${kind}追加投資`});
     if(kind==='quality')p.quality=clamp(p.quality+Math.log10(1+amount/100000)*2,0,100);
     if(kind==='marketing')p.brand=clamp(p.brand+Math.log10(1+amount/100000)*2.2,0,100);
     if(kind==='development')p.progress=clamp(p.progress+amount/500000,0,100);
@@ -725,22 +726,22 @@ class TycoonEngine extends EventTarget {
   }
   sellProduct(id) {
     const i=this.g.productVentures.findIndex(x=>x.id===id);if(i<0)return false;const p=this.g.productVentures[i];const value=Math.max(p.valuation,p.profit*52*8);
-    this.g.companyCash+=value;this.g.productVentures.splice(i,1);this.g.productExitCount++;this.notify(`${p.name}を${yen(value)}で売却しました。`,'success');this.save();this.emit();return true;
+    this.g.companyCash+=value;finance.event(this.g,'assetSale',value,{cashEffect:value,assetEffect:-finite(p.investedCost||0),profitEffect:value-finite(p.investedCost||0),sourceType:'sellProduct',sourceID:id,description:`${p.name} 売却`});this.g.productVentures.splice(i,1);this.g.productExitCount++;this.notify(`${p.name}を${yen(value)}で売却しました。`,'success');this.save();this.emit();return true;
   }
 
   buyProperty(id,owner='company') {
     const p=this.g.properties.find(x=>x.id===id);if(!p||p.owner)return false;const cashKey=owner==='company'?'companyCash':'personalCash';
-    if(this.g[cashKey]<p.price)return this.fail('購入資金が不足しています。');this.g[cashKey]-=p.price;p.owner=owner;
+    if(this.g[cashKey]<p.price)return this.fail('購入資金が不足しています。');this.g[cashKey]-=p.price;p.owner=owner;p.purchasePrice=p.purchasePrice||p.price;p.bookValue=p.bookValue||p.price;if(owner==='company')finance.event(this.g,'assetPurchase',p.price,{cashEffect:-p.price,assetEffect:p.price,sourceType:'buyProperty',sourceID:id,description:`${p.name} 不動産取得`});
     this.notify(`${p.name}を${owner==='company'?'会社':'個人'}で購入しました。`,'success');this.save();this.emit();return true;
   }
   sellProperty(id) {
-    const p=this.g.properties.find(x=>x.id===id);if(!p||!p.owner)return false;const owner=p.owner,proceeds=p.value*.97;this.g[owner==='company'?'companyCash':'personalCash']+=proceeds;p.owner=null;
+    const p=this.g.properties.find(x=>x.id===id);if(!p||!p.owner)return false;const owner=p.owner,proceeds=p.value*.97,book=finite(p.bookValue||p.purchasePrice||p.price);this.g[owner==='company'?'companyCash':'personalCash']+=proceeds;if(owner==='company')finance.event(this.g,'assetSale',proceeds,{cashEffect:proceeds,assetEffect:-book,profitEffect:proceeds-book,sourceType:'sellProperty',sourceID:id,description:`${p.name} 不動産売却`});p.owner=null;p.bookValue=0;
     this.notify(`${p.name}を${yen(proceeds)}で売却しました。`,'success');this.save();this.emit();return true;
   }
   buildOnLand(id,type='本社ビル') {
     const p=this.g.properties.find(x=>x.id===id);if(!p||p.owner!=='company'||p.kind!=='土地')return this.fail('会社所有の土地が必要です。');
     const costs={'本社ビル':80_000_000,'商業施設':120_000_000,'物流施設':150_000_000};const cost=costs[type]||80_000_000;
-    if(this.g.companyCash<cost)return this.fail(`${yen(cost)}が必要です。`);this.g.companyCash-=cost;p.buildingType=type;p.constructionWeeksRemaining=12;p.buildingScale=1;p.depreciationPerWeek=cost*.025/52;
+    if(this.g.companyCash<cost)return this.fail(`${yen(cost)}が必要です。`);this.g.companyCash-=cost;p.buildingType=type;p.constructionWeeksRemaining=12;p.buildingScale=1;p.depreciationPerWeek=cost*.025/52;p.buildingCost=finite(p.buildingCost)+cost;p.bookValue=finite(p.bookValue||p.purchasePrice||p.price)+cost;finance.addFixedAsset(this.g,{assetID:`building-${id}-${this.g.week}`,assetType:'building',acquisitionCost:cost,usefulLifeWeeks:1040,salvageValue:cost*.2,businessID:null,storeID:null});finance.event(this.g,'capitalExpenditure',cost,{cashEffect:-cost,assetEffect:cost,sourceType:'buildOnLand',sourceID:id,description:`${p.name} ${type}建設`});
     this.notify(`${p.name}で${type}の建設を開始しました。`,'success');this.save();this.emit();return true;
   }
   buyLuxury(offerID) {
@@ -833,11 +834,11 @@ class TycoonEngine extends EventTarget {
   openOverseas(countryID,businessID) {
     if(!this.g.hasHeadOffice||!this.g.executives.CEO)return this.fail('本社とCEOが必要です。');const c=OVERSEAS_COUNTRIES.find(x=>x.id===countryID),b=this.business(businessID);if(!c||!b)return false;
     const cost=c.cost+b.storeCost*2;if(this.g.companyCash<cost)return this.fail(`${yen(cost)}が必要です。`);this.g.companyCash-=cost;finance.event(this.g,'assetPurchase',cost,{cashEffect:-cost,assetEffect:cost,businessID,sourceType:'openOverseas',sourceID:`${countryID}-${businessID}`,description:`${c.name} 現地法人`});
-    this.g.overseasSubsidiaries.push({id:uuid(),countryID:c.id,countryName:c.name,businessID:b.id,name:`${this.g.companyName} ${c.name}`,valuation:cost,status:'preparing',openingWeek:this.g.week+8,lastRevenue:0,lastProfit:0,localization:20,brand:10,risk:c.risk});
+    this.g.overseasSubsidiaries.push({id:uuid(),countryID:c.id,countryName:c.name,businessID:b.id,name:`${this.g.companyName} ${c.name}`,valuation:cost,acquisitionCost:cost,investedCost:cost,status:'preparing',openingWeek:this.g.week+8,lastRevenue:0,lastProfit:0,localization:20,brand:10,risk:c.risk});
     this.notify(`${c.name}現地法人の設立を開始しました。`,'success');this.save();this.emit();return true;
   }
   overseasAction(id,kind,amount) {
-    const x=this.g.overseasSubsidiaries.find(y=>y.id===id);amount=finite(amount);if(!x||amount<=0||this.g.companyCash<amount)return false;this.g.companyCash-=amount;finance.event(this.g,'capitalExpenditure',amount,{cashEffect:-amount,assetEffect:amount,sourceType:'overseasAction',sourceID:`${id}-${kind}-${this.g.week}`,description:`海外 ${kind}`});
+    const x=this.g.overseasSubsidiaries.find(y=>y.id===id);amount=finite(amount);if(!x||amount<=0||this.g.companyCash<amount)return false;this.g.companyCash-=amount;finance.event(this.g,kind==='brand'?'advertising':'researchAndDevelopment',amount,{cashEffect:-amount,profitEffect:-amount,assetEffect:0,sourceType:'overseasAction',sourceID:`${id}-${kind}-${this.g.week}`,description:`海外 ${kind}`});
     if(kind==='localization')x.localization=clamp(x.localization+amount/500000,0,100);if(kind==='brand')x.brand=clamp(x.brand+amount/600000,0,100);
     this.notify(`${x.countryName}事業へ${yen(amount)}投資しました。`);this.save();this.emit();return true;
   }

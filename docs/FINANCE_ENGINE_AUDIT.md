@@ -60,3 +60,29 @@
 | `evaluateProgression()` | ミッション報酬 | `otherOperating` | idempotencyKeyで重複防止 |
 
 拡張ファイル `expansion.js`, `completion.js`, `parity.js` には週次後調整が存在する。Phase 1Bでは主要な会社現金経路を会計接続し、今後のPhaseで拡張ラッパー単位の細分化を進める。
+
+## Merge前最終監査: companyCash 変更箇所と会計接続
+
+静的検索対象: `rg -n "companyCash\s*(?:[+\-*/]?=)|this\.g\.companyCash|g\.companyCash" js`。Phase 1Bでは会社資金のみを会計イベントへ接続し、個人資金はPL/BS/CFへ混在させない。
+
+| 処理/関数 | 現金増減 | 会計カテゴリ | CF区分 | PL影響 | BS影響 | 対応イベント | 備考 |
+|---|---:|---|---|---|---|---|---|
+| `openStore` | 店舗設備・保証金支払 | `capitalExpenditure`, `otherInvesting` | 投資CF | なし | 固定資産・保証金増 | `openStore`, `openStoreDeposit` | 店舗設備は固定資産台帳 |
+| `closeStore` | 除却回収額入金 | `assetSale` | 投資CF | 売却損益 | 固定資産除却 | `closeStore` | 翌週以降償却停止 |
+| `investBusiness` | 品質/ブランド/効率/DX投資 | `researchAndDevelopment`, `advertising`, `headOfficeExpense` | 営業CF | 費用 | assetEffect 0 | `investBusiness` | 効率/DXはPhase 1Bでは費用処理 |
+| `contractOffice` | 保証金支払 | `otherInvesting` | 投資CF | なし | 保証金資産増 | `contractOffice` | 簿価=保証金 |
+| `cancelOffice` | 60%返還 | `assetSale` | 投資CF | 40%解約損 | 保証金全額除却 | `cancelOffice` | 返還額と簿価差をPL認識 |
+| `refreshExecutives` | 紹介費支払 | `headOfficeExpense` | 営業CF | 費用 | なし | `refreshExecutives` | 乱数は候補生成のみ |
+| `hireDepartmentStaff` / `hireExecutive` | 採用・契約金 | `payroll` | 営業CF | 費用 | なし | `hireDepartmentStaff`, `hireExecutive` | 会社資金 |
+| `buyStock` / `sellStock` | 会社株式売買 | `investmentPurchase`, `investmentSale` | 投資CF | 売却損益 | 投資有価証券簿価 | `buyStock`, `sellStock` | 購入手数料込み取得原価 |
+| `borrow` / `repay` | 借入・返済 | `debtBorrowing`, `debtRepayment` | 財務CF | 利息のみ費用 | 借入残高 | `borrow`, `repay` | 会社借入のみ会計対象 |
+| `investStartup` / `makeSubsidiary` | VC投資 | `investmentPurchase` | 投資CF | なし | 投資資産/子会社簿価 | `investStartup` | 簿価は投資額 |
+| `acquireTarget` / `sellMASubsidiary` | M&A取得/売却 | `acquisition`, `assetSale` | 投資CF | 売却損益 | 子会社簿価・のれん | `acquireTarget`, `sellMASubsidiary` | 取得原価基準 |
+| `launchProduct` / `productAction` / `sellProduct` | 商品事業支出/売却 | `researchAndDevelopment`, `advertising`, `assetSale` | 営業CF/投資CF | 開発費・売却損益 | Phase 1Bは追加支出を費用処理 | `launchProduct`, `productAction`, `sellProduct` | valuationはBSに直接反映しない |
+| `buyProperty` / `sellProperty` / `buildOnLand` | 不動産取得/売却/建設 | `assetPurchase`, `assetSale`, `capitalExpenditure` | 投資CF | 売却損益 | 取得原価・建物固定資産 | `buyProperty`, `sellProperty`, `buildOnLand` | valuation変動は参考値のみ |
+| `openOverseas` / `overseasAction` | 海外法人設立/追加投資 | `assetPurchase`, `researchAndDevelopment`, `advertising` | 投資CF/営業CF | 追加投資は費用 | 海外法人簿価は設立原価 | `openOverseas`, `overseasAction` | valuationはBSに直接反映しない |
+| `buySportsTeam` / `sellSportsTeam` / `acceptTeamSaleOffer` | 球団取得/売却 | `assetPurchase`, `assetSale` | 投資CF | 売却損益 | 球団購入原価 | `buySportsTeam`, `sellSportsTeam`, `acceptTeamSaleOffer` | 補強費は営業費用 |
+| `missionReward` | 報酬入金 | `otherOperating` | 営業CF | 収益 | 現金増 | `missionReward` | イベント後に正式再スナップショット |
+| `workforce-invest` | 福利厚生投資 | `headOfficeExpense` | 営業CF | 費用 | なし | `workforceInvest` | UI inline処理だが会計イベントへ接続済み |
+
+未接続を隠すための自動現金差額計上は禁止。`validate()` はスナップショットの `cashDifference`、期間CF期末現金、累積cashEffectロールフォワードを検査する。
