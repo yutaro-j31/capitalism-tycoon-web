@@ -143,16 +143,24 @@
 - 旧セーブ、新規ゲーム、スロット読込、JSON読込を必ず個別に確認する。
 - 大型リファクタでは、保存前後の JSON deep diff を取り、意図しない消失がないことを確認する。
 
-## 将来の saveVersion / マイグレーション提案（今回は未実装）
+## saveVersion / マイグレーション方針
 
-- 現状 `SAVE_VERSION = 1` のまま、`normalize()` が実質マイグレーションを兼ねる。
-- 将来は以下に分ける。
-  1. `CURRENT_SAVE_VERSION = 2` を定義。
-  2. `migrateSave(rawState)` を追加し、`rawState.saveVersion ?? 1` から段階的に `v2`, `v3` へ変換。
-  3. `normalize()` は不正値補正だけにする。
-  4. 各バージョンに `migrationTests` を追加。
+- 現在は `SAVE_VERSION = 2`。
+- `migrateSave(rawState)` が `unversioned -> v1 -> v2` の段階変換、トップレベル補完、配列要素内部補完、検証を担当する。
+- 将来は `SAVE_VERSION` を1ずつ増やし、`migrateV2ToV3` のような関数を順番に追加する。
+- `normalize()` は既存の最終補正として維持し、保存値の意味を変える変更はバージョン付きマイグレーションへ分離する。
   5. マイグレーションは冪等にし、途中失敗時は元JSONを破壊しない。
 - 推奨マイグレーション単位:
   - v2: 配列要素スキーマ補完。
   - v3: マスターデータ差分保存への準備。
   - v4: 財務諸表導入に伴う会計項目追加。
+
+## Phase 0 save migration update (2026-07-14)
+
+- 現在の明示的スキーマ版は `saveVersion: 2`。
+- `saveVersion` 未設定のセーブは `unversioned legacy` として扱い、`unversioned -> v1 -> v2` の順で変換する。
+- `SAVE_KEY` は引き続き `capitalism_tycoon_web_v1`。
+- 復元は `migrateSave()` が担当し、トップレベルの `mergeDefaults()` 後に `deepNormalizeState()` で主要配列の要素内部を補完する。
+- 対象配列には `stores`, `businesses`, `properties`, `tenants`, `rentalOffices`, `market`, `startups`, `executiveMarket`, `competitors`, `subsidiaries`, `acquisitionTargets`, `maSubsidiaries`, `goodwillRecords`, `productVentures`, `personalInvestments`, `luxuryAssets`, `sportsTeams`, `peDeals`, `angelInvestments`, `personalRealEstateHoldings`, `branchOffices`, `keyPersonnel`, `competitorStates` などを含む。
+- `companyStocks` と `personalStocks` は銘柄IDキーの保有オブジェクトとして `qty` と `avg` を補完する。
+- 未来バージョンは読み込まず、元セーブを上書きしない。

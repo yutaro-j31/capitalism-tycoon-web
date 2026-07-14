@@ -1,0 +1,81 @@
+{
+  "week": 20,
+  "playerName": "部分創業者",
+  "companyName": "部分商事",
+  "companyCash": 22222222,
+  "personalCash": 3333333,
+  "stores": [
+    {
+      "id": "store-a",
+      "name": "欠落店舗",
+      "businessID": "ramen",
+      "quality": 0,
+      "customKeep": "keep"
+    }
+  ],
+  "productVentures": [
+    {
+      "id": "prod-a",
+      "name": "欠落商品",
+      "valuation": 0
+    }
+  ],
+  "subsidiaries": [
+    {
+      "id": "sub-a",
+      "name": "欠落子会社",
+      "valuation": 5000
+    }
+  ],
+  "companyStocks": {
+    "stock_1": {
+      "qty": 0,
+      "avg": 0,
+      "brokerNote": "keep"
+    }
+  },
+  "personalStocks": {
+    "stock_2": {
+      "qty": 5
+    }
+  },
+  "angelInvestments": [
+    {
+      "id": "angel-a",
+      "startupName": "欠落エンジェル"
+    }
+  ],
+  "peDeals": [
+    {
+      "id": "pe-a",
+      "targetName": "欠落PE"
+    }
+  ],
+  "personalRealEstateHoldings": [
+    {
+      "id": "pre-a",
+      "name": "欠落個人不動産"
+    }
+  ],
+  "keyPersonnel": [
+    {
+      "id": "key-a",
+      "name": "欠落人材"
+    }
+  ],
+  "news": [
+    "n1"
+  ],
+  "history": [
+    "h1"
+  ],
+  "reports": [
+    {
+      "week": 19,
+      "profit": 0
+    }
+  ],
+  "settings": {
+    "sound": false
+  }
+}

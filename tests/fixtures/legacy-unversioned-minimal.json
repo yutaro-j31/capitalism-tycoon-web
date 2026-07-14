@@ -1,0 +1,28 @@
+{
+  "week": 12,
+  "month": 3,
+  "playerName": "旧創業者",
+  "companyName": "旧商事",
+  "configured": true,
+  "companyCash": 12345678,
+  "personalCash": 7654321,
+  "stores": [],
+  "businesses": [
+    {
+      "id": "ramen",
+      "name": "ラーメン",
+      "price": 900,
+      "unitCost": 300,
+      "demand": 25
+    }
+  ],
+  "market": [],
+  "news": [
+    "旧ニュース"
+  ],
+  "history": [],
+  "reports": [],
+  "settings": {
+    "reducedMotion": true
+  }
+}
