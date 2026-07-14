@@ -36,6 +36,7 @@
     "test:finance-ui": "node tests/finance-ui-static-test.js",
     "test:accounting-invariants": "node tests/accounting-invariants-test.js",
     "test:finance-advanced": "node tests/finance-advanced-accounting-test.js",
-    "test:finance-history": "node tests/finance-history-retention-test.js"
+    "test:finance-history": "node tests/finance-history-retention-test.js",
+    "test:finance-rng": "node tests/finance-rng-regression-test.js"
   }
 }
