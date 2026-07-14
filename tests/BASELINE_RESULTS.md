@@ -7,7 +7,7 @@ Date: 2026-07-14
 - Repository: `capitalism-tycoon-web`
 - Runtime used by local verification: Node.js v24.15.0
 - Test harness dependencies: Node.js standard library only
-- Game source policy: `index.html` was not changed for this baseline harness.
+- Game source policy: `index.html` now includes Phase 0 transaction consolidation for `configure()` and `advanceWeek()`.
 
 ## Successful tests
 
@@ -49,7 +49,6 @@ Date: 2026-07-14
 
 ## Known issues observed
 
-- `configure()` and `advanceWeek()` currently trigger multiple `save`/`emit` calls because the engine is wrapped by multiple extension layers. This PR records the baseline only and does not modify production code.
 - Static DOM-ID checking is necessarily conservative without a browser/HTML parser; template-generated IDs are allow-listed when they are intentionally dynamic.
 - The legacy fixture confirms top-level default backfill and JSON saveability, but current production `mergeDefaults` does not deeply migrate every array element schema.
 
@@ -59,10 +58,10 @@ Measured by wrapping one `TycoonEngine` instance during `npm run test:week`:
 
 | Operation | save calls | emit calls | `emit('week')` calls | render/change listener calls |
 |---|---:|---:|---:|---:|
-| `configure()` once | 5 | 11 | 0 | 5 |
-| `advanceWeek(false)` once | 4 | 12 | 4 | 4 |
+| `configure()` once | 1 | 3 | 0 | 1 |
+| `advanceWeek(false)` once | 1 | 2 | 1 | 1 |
 
-These counts are baseline diagnostics, not pass/fail thresholds for this PR.
+These counts are now enforced by `tests/week-test.js` for the transaction-critical save/week/render counts. Remaining emits are `notify`/`saved` plus the final public event.
 
 ## Normal-funds 52-week result
 
@@ -83,6 +82,5 @@ These counts are baseline diagnostics, not pass/fail thresholds for this PR.
 
 ## Recommended next PR fixes
 
-1. Reduce duplicate `save`, `emit('week')`, and render calls caused by layered prototype wrappers.
-2. Add deeper legacy array-element normalization for stores, products, stock holdings, and inventory-like structures.
-3. Add a browser-level smoke test only if a dependency/runtime such as Playwright is explicitly accepted in a later PR.
+1. Add deeper legacy array-element normalization for stores, products, stock holdings, and inventory-like structures.
+2. Add a browser-level smoke test only if a dependency/runtime such as Playwright is explicitly accepted in a later PR.
