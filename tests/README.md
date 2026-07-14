@@ -53,3 +53,6 @@ Node.js標準機能のみで、`index.html` のゲームコードを変更せず
 
 ### PR #9 market correction coverage
 `test:market` now also runs capacity migration/reload checks, competitor business+area filtering, same-pref cannibalization, weighted business share, and numeric legacy calibration checks.
+
+### PR #9 market correction coverage
+`test:market` now also runs capacity migration/reload checks, competitor business+area filtering, same-pref cannibalization, weighted business share, and numeric legacy calibration checks.

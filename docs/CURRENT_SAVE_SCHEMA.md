@@ -180,3 +180,6 @@
 
 ### Capacity semantics in v4
 `store.capacity` may be `null`/missing for automatic capacity. Explicit numeric `0` is preserved and means sales are stopped. `store.effectiveCapacity` and market result `capacity` are derived outputs.
+
+### Capacity semantics in v4
+`store.capacity` may be `null`/missing for automatic capacity. Explicit numeric `0` is preserved and means sales are stopped. `store.effectiveCapacity` and market result `capacity` are derived outputs.

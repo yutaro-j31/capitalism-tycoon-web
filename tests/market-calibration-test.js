@@ -2,7 +2,6 @@ const assert = require('node:assert');
 const { loadGame } = require('./harness');
 const { legacyRamenStoreSales } = require('./legacy-market-helper');
 const { modules } = loadGame({ random: () => 0.5 });
-const e = new modules.engine.TycoonEngine();
 const market = modules.market;
 function scenario(label, mutate=()=>{}, count=1, pref='tokyo') {
   const g = new modules.engine.TycoonEngine().g;
