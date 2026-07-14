@@ -100,3 +100,7 @@ Further splits should be smaller and subsystem-based only after this module boun
 
 ## market.js
 読み込み順は runtime.js → data.js → market.js → engine.js。market.jsはclassic scriptで内部レジストリにのみ公開する。
+
+## finance.js
+
+ロード順は `runtime.js`, `data.js`, `market.js`, `finance.js`, `engine.js`, `expansion.js`, `completion.js`, `parity.js`, `app.js`。`finance.js` はclassic scriptで会計計算を提供し、UI描画は `app.js` が担当する。

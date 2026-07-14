@@ -1,0 +1,15 @@
+const { loadGame } = require('./harness');
+const { engineModule, modules } = loadGame();
+const { TycoonEngine } = engineModule;
+const finance = modules.finance;
+const assert = (ok,msg)=>{ if(!ok) throw new Error(msg); };
+const e = new TycoonEngine(); e.g.configured = true;
+finance.event(e.g,'revenue',1000,{cashEffect:1000,profitEffect:1000,sourceType:'test',sourceID:'sale',idempotencyKey:'auto-sale-1',operationID:'auto-sale-1'});
+finance.event(e.g,'revenue',1000,{cashEffect:1000,profitEffect:1000,sourceType:'test',sourceID:'sale',idempotencyKey:'auto-sale-1',operationID:'auto-sale-1'});
+finance.event(e.g,'costOfSales',300,{cashEffect:-300,profitEffect:-300,sourceType:'test',sourceID:'cogs',operationID:'manual-cogs-1'});
+finance.event(e.g,'costOfSales',300,{cashEffect:-300,profitEffect:-300,sourceType:'test',sourceID:'cogs',operationID:'manual-cogs-2'});
+assert(e.g.finance.transactions.length===3,'idempotent auto transaction dedupes while user operations remain separate');
+const st=finance.buildStatements(e.g,'52');
+assert(st.profitAndLoss.revenue===1000,'revenue reflected once');
+assert(st.profitAndLoss.costOfSales===600,'two manual cogs reflected');
+console.log('finance ledger checks passed');

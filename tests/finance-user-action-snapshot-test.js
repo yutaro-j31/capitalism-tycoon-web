@@ -1,0 +1,20 @@
+const { loadGame } = require('./harness');
+const { engineModule, modules } = loadGame({random:()=>0.5});
+const e=new engineModule.TycoonEngine(); e.g.configured=true; e.g.companyCash=2_000_000_000; e.g.finance=modules.finance.defaultFinanceState(e.g);
+for(let i=0;i<9;i++) e.advanceWeek(false);
+if(e.g.week!==10) throw new Error(`expected week 10 got ${e.g.week}`);
+const beforeCount=e.g.finance.transactions.length;
+e.g.departments.investment={name:'投資部'}; e.g.departments.operations={name:'運営部'}; e.g.departments.dx={name:'DX部'};
+e.borrow(10_000_000,'company'); e.repay(2_000_000,'company');
+const stock=e.g.market.find(s=>s.id!==e.g.ticker); e.buyStock(stock.id,10,'company'); e.sellStock(stock.id,5,'company');
+const tenant=e.g.tenants.find(t=>t.businessID==='ramen'&&t.prefID==='tokyo'); e.openStore({tenantID:tenant.id,businessID:'ramen',name:'snapshot-store'});
+e.investBusiness('ramen','efficiency',1_000_000);
+const office=e.g.rentalOffices.find(o=>!o.contracted); if(office&&!e.g.hasHeadOffice) e.contractOffice(office.id);
+const startup=e.g.startups.find(s=>s.alive&&s.minTicket<=5_000_000); if(startup) e.investStartup(startup.id,Math.max(startup.minTicket,5_000_000),'company');
+modules.finance.rebuildDirtySnapshots(e.g); const snap10=e.g.finance.weeklySnapshots.find(s=>s.week===10); if(!snap10) throw new Error('missing week10 snapshot');
+const tx10=e.g.finance.transactions.filter(t=>t.week===10); if(tx10.length<=beforeCount) throw new Error('week10 operations not recorded');
+e.advanceWeek(false); const snap11=e.g.finance.weeklySnapshots.find(s=>s.week===11); if(Math.abs(snap10.endingCash-snap11.openingCash)>10) throw new Error('week boundary cash mismatch');
+for(const p of ['week','13','quarter','year','52']){const st=modules.finance.buildStatements(e.g,p); if(Math.abs(st.cashFlow.openingCash+st.cashFlow.netCashChange-st.cashFlow.endingCash)>10) throw new Error(`${p} CF identity`); if(p==='week'&&Math.abs(st.cashFlow.endingCash-e.g.companyCash)>10) throw new Error(`${p} ending cash mismatch`);} 
+const val=modules.finance.validate(e.g); if(!val.ok) throw new Error(val.errors.join('\n'));
+const ids=new Set(tx10.map(t=>t.transactionID)); if(ids.size!==tx10.length) throw new Error('duplicate transaction ids');
+console.log('finance user action snapshot checks passed');

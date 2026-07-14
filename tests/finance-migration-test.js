@@ -1,0 +1,14 @@
+const fs=require('node:fs'); const path=require('node:path');
+const { loadGame } = require('./harness');
+const { engineModule } = loadGame();
+const { migrateSave, SAVE_VERSION } = engineModule;
+const raw=JSON.parse(fs.readFileSync(path.join(__dirname,'fixtures','current-version-save.json'),'utf8'));
+const cash=raw.companyCash, personal=raw.personalCash, debt=raw.companyDebt, market=JSON.stringify(raw.market?.[0]?.priceHistory||[]);
+raw.saveVersion=4; delete raw.finance;
+const once=migrateSave(raw); if(!once.ok) throw new Error(once.errors.join('\n'));
+if(once.state.saveVersion!==SAVE_VERSION||SAVE_VERSION!==5) throw new Error('saveVersion 5 expected');
+if(once.state.companyCash!==cash||once.state.personalCash!==personal||once.state.companyDebt!==debt) throw new Error('core balances changed');
+if(JSON.stringify(once.state.market?.[0]?.priceHistory||[])!==market) throw new Error('stock history changed');
+const twice=migrateSave(once.state); if(!twice.ok) throw new Error(twice.errors.join('\n'));
+if(JSON.stringify(once.state.finance)!==JSON.stringify(twice.state.finance)) throw new Error('finance migration not idempotent');
+console.log('finance migration checks passed');

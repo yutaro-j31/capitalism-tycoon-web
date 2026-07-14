@@ -14,3 +14,26 @@ jobs:
       - run: npm test
       - run: npm run test:modules
       - run: npm run test:stock
+      - run: npm run test:finance
+      - run: npm run test:statements
+      - run: npm run test:cashflow
+      - run: npm run test:working-capital
+      - run: npm run test:finance-migration
+      - run: npm run test:finance-ui
+      - run: npm run test:accounting-invariants
+      - run: npm run test:finance-advanced
+      - run: npm run test:finance-history
+      - run: npm run test:finance-rng
+      - run: npm run test:finance-user-action-snapshot
+      - run: npm run test:finance-cash-mutation-coverage
+      - run: npm run test:finance-book-value
+      - run: npm run test:finance-working-capital-integration
+      - run: npm run test:finance-archive-rollforward
+      - run: npm run test:finance-migrated-advanced-save
+      - run: npm run test:finance-product-venture
+      - run: npm run test:finance-startup-subsidiary
+      - run: npm run test:finance-subsidiary-ipo
+      - run: npm run test:finance-ma-accounting
+      - run: npm run test:finance-working-capital-rollforward
+      - run: npm run test:finance-store-close-deposit
+      - run: npm run test:finance-property-building-disposal

@@ -175,3 +175,7 @@
 
 ## saveVersion 4
 `marketResultsByStoreID`、`marketResultsByBusinessID`、`lastMarketCalculationCount`、店舗 `marketResult` を追加。SAVE_KEYは維持。capacity欠落は補完しない。
+
+## saveVersion 5 財務フィールド
+
+`finance` を追加。`transactions`, `fixedAssets`, `loans`, `balances`, `lastStatements`, `lastValidation`, `nextTransactionSeq` を持つ。`SAVE_KEY` は `capitalism_tycoon_web_v1` のまま。

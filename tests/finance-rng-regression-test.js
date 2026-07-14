@@ -1,0 +1,11 @@
+const fs=require('node:fs');
+const { loadGame } = require('./harness');
+if(/Math\.random|rand\(|randomUUID|Date\.now/.test(fs.readFileSync('js/finance.js','utf8'))) throw new Error('finance.js must not use random/time ID sources');
+let calls=0; const random=()=>{calls++; return 0.5;};
+const { engineModule } = loadGame({random});
+const e=new engineModule.TycoonEngine(); e.g.configured=true; e.g.companyCash=1e9; const before=calls;
+e.borrow(100000,'company'); e.repay(50000,'company');
+const stock=e.g.market.find(s=>s.id!==e.g.ticker); e.g.departments.investment={name:'投資部'}; e.buyStock(stock.id,2,'company'); e.sellStock(stock.id,1,'company');
+e.investBusiness('ramen','efficiency',100000); e.investBusiness('ramen','dx',100000);
+if(calls!==before) throw new Error(`finance/accounting operations consumed Math.random: ${calls-before}`);
+console.log('finance RNG regression checks passed');
