@@ -1,0 +1,16 @@
+const assert=require('node:assert/strict');
+const {loadGame}=require('./harness');
+const {ctx}=loadGame(); const e=ctx.__ct_engine;
+e.g.week=1; const t=e.g.tenants.find(t=>t.businessID==='ramen'&&t.prefID==='tokyo');
+e.g.stores=[{id:'opening',businessID:'ramen',prefID:'tokyo',name:'開店初週店',status:'preparing',openingWeek:2,weeksToOpen:1,tenantID:t.id,condition:100,operatingHours:3,lastSales:0,lastProfit:0}];
+assert.equal(e.g.stores[0].status,'preparing');
+e.advanceWeek(false);
+const store=e.g.stores[0];
+assert.equal(store.status,'open');
+assert.equal(e.g.news.filter(x=>x.includes('開店初週店が開店しました')).length,1);
+assert.equal(e.g.lastMarketCalculationCount,1);
+assert(store.marketResult); assert(store.marketResult.unitsSold>0); assert.equal(store.lastSales,store.marketResult.revenue);
+e.advanceWeek(false);
+assert.equal(e.g.news.filter(x=>x.includes('開店初週店が開店しました')).length,1);
+assert(store.marketResult);
+console.log('opening week ok');

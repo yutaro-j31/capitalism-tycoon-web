@@ -1,0 +1,10 @@
+const assert = require('node:assert/strict');
+const { loadGame } = require('./harness');
+const { modules } = loadGame();
+const { createInitialState } = modules.engine; const market=modules.market;
+const s=createInitialState({configured:true});
+s.competitors=[{id:'same',name:'same',businessID:'ramen',areaID:'kanto',stores:1,brand:20,quality:20},{id:'otherbiz',name:'otherbiz',businessID:'cafe',areaID:'kanto',stores:9,brand:99,quality:99},{id:'otherarea',name:'otherarea',businessID:'ramen',areaID:'kansai',stores:9,brand:99,quality:99}];
+const rows=market.competitorOffers(s,'ramen','tokyo'); assert.equal(rows.length,1); assert.match(rows[0].id,/same/);
+s.competitors=[]; const fallback=market.competitorOffers(s,'ramen','tokyo'); assert.equal(fallback.length,1); assert.equal(fallback[0].id,'competitor-market-average');
+let calls=0; const old=Math.random; Math.random=()=>{calls++; return .5}; market.competitorOffers(s,'ramen','tokyo'); Math.random=old; assert.equal(calls,0);
+console.log('competitor filter ok');
