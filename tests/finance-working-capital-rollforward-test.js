@@ -1,0 +1,8 @@
+const { loadGame } = require('./harness');
+const { engineModule, modules } = loadGame(); const e=new engineModule.TycoonEngine(); e.g.configured=true; const f=modules.finance; const opening=e.g.companyCash;
+f.event(e.g,'costOfSales',1000,{cashEffect:-700,profitEffect:-1000,payableAmount:300,sourceType:'supplier-invoice',operationID:'ap-add'}); e.g.companyCash-=700;
+f.event(e.g,'accountsPayablePayment',120,{cashEffect:-120,profitEffect:0,sourceType:'ap-payment',operationID:'ap-pay'}); e.g.companyCash-=120;
+f.event(e.g,'payroll',500,{cashEffect:-200,profitEffect:-500,accruedExpenseAmount:300,sourceType:'accrual',operationID:'ae-add'}); e.g.companyCash-=200;
+f.event(e.g,'accruedExpensePayment',100,{cashEffect:-100,profitEffect:0,sourceType:'ae-payment',operationID:'ae-pay'}); e.g.companyCash-=100;
+f.rebuildDirtySnapshots(e.g); const st=f.buildStatements(e.g,'52'), wc=st.workingCapital, cf=st.cashFlow; if(wc.accountsPayable!==180) throw new Error(`AP expected 180 got ${wc.accountsPayable}`); if(wc.accruedExpenses!==200) throw new Error(`AE expected 200 got ${wc.accruedExpenses}`); if(wc.workingCapitalChange!==-380) throw new Error(`WC change expected -380 got ${wc.workingCapitalChange}`); if(cf.workingCapitalCashFlowImpact!==380) throw new Error('WC cash impact sign mismatch'); if(e.g.companyCash!==opening-1120) throw new Error('cash mismatch'); if(st.profitAndLoss.costOfSales!==1000||st.profitAndLoss.payroll!==500) throw new Error('PL expense mismatch'); if(!f.validate(e.g).ok) throw new Error(f.validate(e.g).errors.join('\n'));
+console.log('finance working capital rollforward checks passed');

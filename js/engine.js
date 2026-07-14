@@ -697,15 +697,15 @@ class TycoonEngine extends EventTarget {
   makeSubsidiary(startupID) {
     const s=this.g.startups.find(x=>x.id===startupID);if(!s||s.subsidiary)return false;
     if(s.ownedCompany<.5)return this.fail('会社持分50%以上が必要です。');
-    s.subsidiary=true;this.g.subsidiaries.push({id:uuid(),startupID:s.id,name:s.name,domain:s.domain,ownership:s.ownedCompany,valuation:s.valuation,investedCost:s.totalInvestedCompany||0,weeklyProfit:0,growth:s.growth,risk:s.risk,publicCompany:false,status:'active',retainedEarnings:0});
+    s.subsidiary=true;const book=finite(s.totalInvestedCompany||0);this.g.subsidiaries.push({id:uuid(),startupID:s.id,name:s.name,domain:s.domain,ownership:s.ownedCompany,valuation:s.valuation,investedCost:book,carryingBookValue:book,weeklyProfit:0,growth:s.growth,risk:s.risk,publicCompany:false,status:'active',retainedEarnings:0});
     this.notify(`${s.name}を連結子会社化しました。`,'success');this.save();this.emit();return true;
   }
   ipoSubsidiary(id) {
     const sub=this.g.subsidiaries.find(s=>s.id===id);if(!sub||sub.publicCompany)return false;
     if(sub.valuation<250_000_000||sub.ownership<.5)return this.fail('評価額2.5億円以上・持分50%以上が必要です。');
     sub.publicCompany=true;sub.ticker=`V${Math.floor(rand(100,999))}`;sub.sharesOut=1_000_000;sub.stockPrice=sub.valuation/sub.sharesOut;
-    const saleRatio=.15;const proceeds=sub.valuation*saleRatio;sub.ownership-=saleRatio;this.g.companyCash+=proceeds;
-    finance.event(this.g,'investmentSale',proceeds,{cashEffect:proceeds,assetEffect:-proceeds,sourceType:'ipoSubsidiary',sourceID:id,description:`${sub.name} IPO売出`});
+    const soldOwnership=.15,preOwnership=sub.ownership,saleRatio=soldOwnership/Math.max(.000001,preOwnership),preBook=finite(sub.carryingBookValue||sub.investedCost||0),soldBook=preBook*saleRatio,proceeds=sub.valuation*soldOwnership,gain=proceeds-soldBook;sub.ownership-=soldOwnership;sub.carryingBookValue=Math.max(0,preBook-soldBook);this.g.companyCash+=proceeds;
+    finance.event(this.g,'investmentSale',proceeds,{cashEffect:proceeds,assetEffect:-soldBook,profitEffect:gain,sourceType:'ipoSubsidiary',sourceID:id,description:`${sub.name} IPO売出`});
     this.notify(`${sub.name}を上場させ、${yen(proceeds)}を調達しました。`,'success');this.save();this.emit();return true;
   }
 
@@ -821,14 +821,15 @@ class TycoonEngine extends EventTarget {
     const i=this.g.acquisitionTargets.findIndex(x=>x.id===id);if(i<0)return false;const t=this.g.acquisitionTargets[i];const premium=method==='hostile'?1.35:method==='shareSwap'?1.08:1.18;const price=t.valuation*premium;
     if(method!=='shareSwap'&&this.g.companyCash<price)return this.fail(`${yen(price)}が必要です。`);
     if(method==='shareSwap'&&!this.g.publicCompany)return this.fail('株式交換には自社上場が必要です。');
-    if(method==='shareSwap'){const newShares=Math.ceil(price/Math.max(1,this.g.stockPrice));this.g.sharesOut+=newShares;this.g.externalShareholderRatio+=newShares/this.g.sharesOut;}
+    const identifiable=Math.min(price,Math.max(0,t.valuation)),goodwill=Math.max(0,price-identifiable),goodwillID=uuid();
+    if(method==='shareSwap'){const newShares=Math.ceil(price/Math.max(1,this.g.stockPrice));this.g.sharesOut+=newShares;this.g.externalShareholderRatio+=newShares/this.g.sharesOut;finance.event(this.g,'acquisition',price,{cashEffect:0,assetEffect:price,sourceType:'acquireTargetShareSwap',sourceID:id,description:`${t.name} 株式交換取得`});finance.event(this.g,'equityFinancing',price,{cashEffect:0,equityEffect:price,sourceType:'shareSwapCapital',sourceID:id,description:`${t.name} 株式交換資本増加`});finance.ensureFinance(this.g).balances.capitalSurplus=finite(finance.ensureFinance(this.g).balances.capitalSurplus)+price;}
     else {this.g.companyCash-=price;finance.event(this.g,'acquisition',price,{cashEffect:-price,assetEffect:price,sourceType:'acquireTarget',sourceID:id,description:`${t.name} 買収`});}
-    this.g.maSubsidiaries.push({...t,acquisitionPrice:price,acquisitionMethod:method,acquiredWeek:this.g.week,status:'active',retainedEarnings:0,weeklyProfit:t.operatingProfit/52});
-    this.g.goodwillRecords.push({id:uuid(),name:t.name,amount:Math.max(0,price-t.valuation),carryingValue:Math.max(0,price-t.valuation),acquiredWeek:this.g.week});
+    this.g.maSubsidiaries.push({...t,identifiableNetAssetsBookValue:identifiable,goodwillBookValue:goodwill,totalCarryingValue:price,acquisitionPrice:price,acquisitionMethod:method,goodwillRecordID:goodwillID,acquiredWeek:this.g.week,status:'active',retainedEarnings:0,weeklyProfit:t.operatingProfit/52});
+    this.g.goodwillRecords.push({id:goodwillID,name:t.name,amount:goodwill,goodwillBookValue:goodwill,carryingValue:goodwill,acquiredWeek:this.g.week});
     this.g.totalAcquisitions++;this.g.acquisitionTargets.splice(i,1);this.notify(`${t.name}を${method==='hostile'?'敵対的買収':method==='shareSwap'?'株式交換':'友好的買収'}で取得しました。`,'success');this.save();this.emit();return true;
   }
   sellMASubsidiary(id) {
-    const i=this.g.maSubsidiaries.findIndex(x=>x.id===id);if(i<0)return false;const s=this.g.maSubsidiaries[i],price=s.valuation*rand(.85,1.3),gain=price-s.acquisitionPrice;this.g.companyCash+=price;finance.event(this.g,'assetSale',price,{cashEffect:price,assetEffect:-s.acquisitionPrice,profitEffect:gain,sourceType:'sellMASubsidiary',sourceID:id,description:`${s.name} 売却`});this.g.totalMAGain+=gain;this.g.maSubsidiaries.splice(i,1);this.notify(`${s.name}を${yen(price)}で売却しました。売却損益${yen(gain)}。`,gain>=0?'success':'warning');this.save();this.emit();return true;
+    const i=this.g.maSubsidiaries.findIndex(x=>x.id===id);if(i<0)return false;const s=this.g.maSubsidiaries[i],price=s.valuation*rand(.85,1.3),book=finite(s.identifiableNetAssetsBookValue)+finite(s.goodwillBookValue),gain=price-book;this.g.companyCash+=price;finance.event(this.g,'assetSale',price,{cashEffect:price,assetEffect:-book,profitEffect:gain,sourceType:'sellMASubsidiary',sourceID:id,description:`${s.name} 売却`});const gr=this.g.goodwillRecords.find(g=>g.id===s.goodwillRecordID);if(gr){gr.status='disposed';gr.carryingValue=0;gr.goodwillBookValue=0;}this.g.totalMAGain+=gain;this.g.maSubsidiaries.splice(i,1);this.notify(`${s.name}を${yen(price)}で売却しました。売却損益${yen(gain)}。`,gain>=0?'success':'warning');this.save();this.emit();return true;
   }
 
   openOverseas(countryID,businessID) {

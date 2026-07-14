@@ -30,3 +30,8 @@ jobs:
       - run: npm run test:finance-working-capital-integration
       - run: npm run test:finance-archive-rollforward
       - run: npm run test:finance-migrated-advanced-save
+      - run: npm run test:finance-product-venture
+      - run: npm run test:finance-startup-subsidiary
+      - run: npm run test:finance-subsidiary-ipo
+      - run: npm run test:finance-ma-accounting
+      - run: npm run test:finance-working-capital-rollforward
