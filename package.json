@@ -30,10 +30,12 @@
     "test:market-rng": "node tests/market-rng-regression-test.js",
     "test:finance": "node tests/finance-ledger-test.js",
     "test:statements": "node tests/financial-statements-test.js",
-    "test:cashflow": "node tests/financial-statements-test.js",
-    "test:working-capital": "node tests/finance-ledger-test.js",
+    "test:cashflow": "node tests/cash-flow-test.js",
+    "test:working-capital": "node tests/working-capital-test.js",
     "test:finance-migration": "node tests/finance-migration-test.js",
     "test:finance-ui": "node tests/finance-ui-static-test.js",
-    "test:accounting-invariants": "node tests/accounting-invariants-test.js"
+    "test:accounting-invariants": "node tests/accounting-invariants-test.js",
+    "test:finance-advanced": "node tests/finance-advanced-accounting-test.js",
+    "test:finance-history": "node tests/finance-history-retention-test.js"
   }
 }

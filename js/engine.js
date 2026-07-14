@@ -568,7 +568,7 @@ class TycoonEngine extends EventTarget {
     const index=this.g.stores.findIndex(s=>s.id===id); if(index<0)return false;
     const store=this.g.stores[index]; const tenant=this.g.tenants.find(t=>t.id===store.tenantID); if(tenant)tenant.occupiedBy=null;
     const proceeds=(this.business(store.businessID)?.storeCost||0)*.15;
-    this.g.companyCash+=proceeds; finance.event(this.g,'assetSale',proceeds,{cashEffect:proceeds,assetEffect:-proceeds,businessID:store.businessID,storeID:store.id,sourceType:'closeStore',sourceID:store.id,description:`${store.name} 閉店回収`}); this.g.stores.splice(index,1); this.notify(`${store.name}を閉店し、${yen(proceeds)}を回収しました。`,'warning');
+    this.g.companyCash+=proceeds; finance.disposeFixedAsset(this.g,store.id,proceeds); this.g.stores.splice(index,1); this.notify(`${store.name}を閉店し、${yen(proceeds)}を回収しました。`,'warning');
     this.save();this.emit();return true;
   }
 
@@ -761,11 +761,11 @@ class TycoonEngine extends EventTarget {
   }
   buySportsTeam(teamID,owner='personal') {
     const t=SPORTS_TEAMS.find(x=>x.id===teamID);if(!t)return false;const cashKey=owner==='company'?'companyCash':'personalCash';if(this.g[cashKey]<t.price)return this.fail('購入資金が不足しています。');
-    this.g[cashKey]-=t.price;this.g.sportsTeams.push({...deepClone(t),id:uuid(),owner,value:t.price,fanBase:40,teamStrength:45,seasonWins:0,saleListed:false});this.g.personalFame+=t.prestige;
+    this.g[cashKey]-=t.price;const team={...deepClone(t),id:uuid(),owner,value:t.price,purchasePrice:t.price,fanBase:40,teamStrength:45,seasonWins:0,saleListed:false};this.g.sportsTeams.push(team);if(owner==='company')finance.event(this.g,'assetPurchase',t.price,{cashEffect:-t.price,assetEffect:t.price,sourceType:'buySportsTeam',sourceID:team.id,description:`${t.name} 球団取得`});this.g.personalFame+=t.prestige;
     this.notify(`${t.name}を取得しました。`,'success');this.save();this.emit();return true;
   }
   sellSportsTeam(id) {
-    const i=this.g.sportsTeams.findIndex(x=>x.id===id);if(i<0)return false;const t=this.g.sportsTeams[i],price=t.value*rand(.9,1.25);this.g[t.owner==='company'?'companyCash':'personalCash']+=price;this.g.sportsTeams.splice(i,1);this.notify(`${t.name}を${yen(price)}で売却しました。`,'success');this.save();this.emit();return true;
+    const i=this.g.sportsTeams.findIndex(x=>x.id===id);if(i<0)return false;const t=this.g.sportsTeams[i],price=t.value*rand(.9,1.25);this.g[t.owner==='company'?'companyCash':'personalCash']+=price;if(t.owner==='company')finance.event(this.g,'assetSale',price,{cashEffect:price,assetEffect:-finite(t.purchasePrice||t.price),profitEffect:price-finite(t.purchasePrice||t.price),sourceType:'sellSportsTeam',sourceID:id,description:`${t.name} 球団売却`});this.g.sportsTeams.splice(i,1);this.notify(`${t.name}を${yen(price)}で売却しました。`,'success');this.save();this.emit();return true;
   }
 
   borrow(amount,account='company') {
@@ -976,7 +976,7 @@ class TycoonEngine extends EventTarget {
     if(this.g.week%13===0){for(const [id,h] of Object.entries(this.g.companyStocks)){const s=this.stock(id);if(s&&id!==this.g.ticker)stockIncome+=h.qty*(s.dividendPerShare||s.price*s.dividendYield/4);}for(const [id,h] of Object.entries(this.g.personalStocks)){const s=this.stock(id);if(s&&id!==this.g.ticker)this.g.personalCash+=h.qty*(s.dividendPerShare||s.price*s.dividendYield/4)*.797;}if(this.g.publicCompany&&this.g.dividendPerShare>0){dividend=this.g.dividendPerShare*Math.max(0,this.g.sharesOut-this.g.treasuryBuybackShares);const founderGross=dividend*this.g.founderOwnershipRatio;this.g.personalCash+=founderGross*.797;expenses+=dividend;}}
     const operatingProfit=sales+rentIncome+stockIncome-expenses+subs.profit;let tax=0;if(this.g.week%13===0&&operatingProfit>0){tax=operatingProfit*.306;expenses+=tax;}
     const profit=sales+rentIncome+stockIncome-expenses+subs.profit;this.g.companyCash+=profit;this.g.companyCredit=clamp(this.g.companyCredit+(profit>=0?.15:-.3),0,100);this.g.companyReputation=clamp(this.g.companyReputation+(profit>0?.08:-.04),0,100);
-    finance.recordWeekly(this.g,{beginningCash,stores:financeStores,other:{productRevenue:product.revenue,overseasRevenue:overseas.revenue,subsRevenue:subs.revenue,franchiseRevenue:franchise,rentIncome,stockIncome,productCost:-product.cost,overseasCost:-overseas.cost,execPayroll:-execPayroll,deptCost:-deptCost,officeCost:-officeCost,propertyDepreciation:-propertyDepreciation,interest:-interest,tax:-tax,dividend:-dividend,subsProfit:subs.profit}});
+    finance.recordWeekly(this.g,{beginningCash,stores:financeStores,other:{productRevenue:product.revenue,overseasRevenue:overseas.revenue,subsRevenue:subs.revenue,franchiseRevenue:franchise,rentIncome,stockIncome,productCost:-product.cost,overseasCost:-overseas.cost,execPayroll:-execPayroll,deptCost:-deptCost,officeCost:-officeCost,propertyDepreciation:-propertyDepreciation,interest:-interest,taxExpense:-tax,taxPayment:-tax,dividend:-dividend,subsProfit:subs.profit}});
     finance.validate(this.g);
     const report={week:this.g.week,sales,expenses,rentIncome,stockIncome,interest,dividend,officeCost,profit,investmentPL:subs.profit,companyStockUnrealizedPL:this.unrealizedPL('company'),propertyDepreciation,tax};this.g.lastReport=report;this.g.reports.push(report);this.g.reports=this.g.reports.slice(-520);
     this.recordHistory(sales,profit);this.evaluateProgression();this.generateRecurringEvents();
@@ -995,7 +995,7 @@ class TycoonEngine extends EventTarget {
     this.g.history.unshift(`第${this.g.week}週 売上${yen(sales)} 利益${yen(profit)} 会社現金${yen(this.g.companyCash)}`);this.g.history=this.g.history.slice(0,500);
   }
   evaluateProgression() {
-    for(const m of MISSION_DEFS){if(this.g.completedMissionIDs.includes(m.id))continue;if(m.check(this.g)){this.g.completedMissionIDs.push(m.id);this.g.activeMissionIDs=this.g.activeMissionIDs.filter(x=>x!==m.id);this.g.companyCash+=m.reward;this.g.news.unshift(`第${this.g.week}週：ミッション「${m.title}」達成。報酬${yen(m.reward)}。`);const idx=MISSION_DEFS.findIndex(x=>x.id===m.id);if(MISSION_DEFS[idx+1])this.g.activeMissionIDs.push(MISSION_DEFS[idx+1].id);}}
+    for(const m of MISSION_DEFS){if(this.g.completedMissionIDs.includes(m.id))continue;if(m.check(this.g)){this.g.completedMissionIDs.push(m.id);this.g.activeMissionIDs=this.g.activeMissionIDs.filter(x=>x!==m.id);this.g.companyCash+=m.reward;finance.event(this.g,'otherOperating',m.reward,{cashEffect:m.reward,profitEffect:m.reward,sourceType:'missionReward',sourceID:m.id,idempotencyKey:`mission-${m.id}`,operationID:`mission-${m.id}`,description:`ミッション ${m.title} 報酬`});const snap=this.g.finance?.weeklySnapshots?.find(s=>s.week===this.g.week);if(snap){snap.operatingCashFlow+=m.reward;snap.netCashChange+=m.reward;snap.endingCash+=m.reward;}this.g.news.unshift(`第${this.g.week}週：ミッション「${m.title}」達成。報酬${yen(m.reward)}。`);const idx=MISSION_DEFS.findIndex(x=>x.id===m.id);if(MISSION_DEFS[idx+1])this.g.activeMissionIDs.push(MISSION_DEFS[idx+1].id);}}
     const achievements=[['stores10','10店舗企業',this.g.stores.length>=10],['value1b','企業価値10億円',this.companyValue()>=1e9],['networth1b','個人資産10億円',this.personalNetWorth()>=1e9],['ipo','上場企業創業者',this.g.publicCompany],['ma5','連続買収者',this.g.totalAcquisitions>=5],['products3','プロダクト企業',this.g.productVentures.filter(p=>p.status==='released').length>=3]];
     for(const [id,title,ok] of achievements)if(ok&&!this.g.achievements.includes(id)){this.g.achievements.push(id);this.g.news.unshift(`第${this.g.week}週：実績「${title}」を解除しました。`);}
   }

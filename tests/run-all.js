@@ -1,5 +1,5 @@
 const { spawnSync } = require('node:child_process');
-const commands = ['test:syntax','test:static','test:save','test:migration','test:load','test:week','test:transaction','test:long','test:css','test:javascript','test:modules','test:stock','test:market','test:market-migration','test:market-ui','test:market-capacity','test:market-cannibalization','test:market-calibration','test:market-order','test:market-opening','test:market-rng','test:finance','test:statements','test:finance-migration','test:finance-ui','test:accounting-invariants'];
+const commands = ['test:syntax','test:static','test:save','test:migration','test:load','test:week','test:transaction','test:long','test:css','test:javascript','test:modules','test:stock','test:market','test:market-migration','test:market-ui','test:market-capacity','test:market-cannibalization','test:market-calibration','test:market-order','test:market-opening','test:market-rng','test:finance','test:statements','test:cashflow','test:working-capital','test:finance-migration','test:finance-ui','test:accounting-invariants','test:finance-advanced','test:finance-history'];
 let failed = 0;
 for (const c of commands) { const r = spawnSync('npm', ['run', c, '--silent'], { stdio: 'inherit', shell: false }); if (r.status) failed = r.status; }
 process.exit(failed);

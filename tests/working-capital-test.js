@@ -1,0 +1,12 @@
+const { loadGame } = require('./harness');
+const { engineModule, modules } = loadGame();
+const e=new engineModule.TycoonEngine(); e.g.configured=true; const f=modules.finance;
+f.event(e.g,'revenue',1000,{cashEffect:1000,profitEffect:1000,sourceType:'b2b-invoice',operationID:'b2b-1'});
+f.event(e.g,'accountsReceivableCollection',300,{cashEffect:300,profitEffect:0,sourceType:'ar-collection',operationID:'ar-1'});
+f.event(e.g,'taxExpense',100,{cashEffect:0,profitEffect:-100,sourceType:'tax',operationID:'tax-exp'});
+f.event(e.g,'taxPayment',40,{cashEffect:-40,profitEffect:0,sourceType:'tax',operationID:'tax-pay'});
+f.recordSnapshot(e.g,e.g.companyCash,e.g.week);
+const wc=f.buildStatements(e.g,'52').workingCapital;
+if(wc.accountsReceivable!==0||wc.accruedTaxes!==0) throw new Error('snapshot-only wc should not mutate without recordWeekly');
+f.recordWeekly(e.g,{beginningCash:e.g.companyCash,stores:[],other:{}});
+console.log('working capital checks passed');

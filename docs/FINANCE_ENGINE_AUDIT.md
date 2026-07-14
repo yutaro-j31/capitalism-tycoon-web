@@ -40,3 +40,23 @@
 
 - 完全な複式仕訳ではなく、検証可能な会計イベント方式を採用する。
 - 旧セーブ移行では架空の過去取引を生成しない。現在の会社現金、借入、保有資産から決定論的に初期残高を作る。
+
+
+## companyCash変更箇所と会計イベント
+
+| 関数 | 現金増減 | 会計イベント | 備考 |
+|---|---|---|---|
+| `openStore()` | 出店費・保証金支払 | `capitalExpenditure`, `otherInvesting` | 店舗設備は固定資産台帳へ登録 |
+| `closeStore()` | 閉店回収収入 | `assetSale` | 対応固定資産を `disposed` にし売却損益を認識 |
+| `investBusiness()` | 品質・ブランド・効率・DX投資 | `advertising`, `researchAndDevelopment`, `capitalExpenditure` | 台帳がない投資は費用分類を優先 |
+| `contractOffice()` / `cancelOffice()` | 保証金支払・返還 | `otherInvesting`, `assetSale` | 返還差額は資産減少として表示 |
+| `establishDepartment()` / `hireDepartmentStaff()` / `hireExecutive()` | 本社費・採用費 | `headOfficeExpense`, `payroll` | 会社現金のみ対象 |
+| `buyStock()` / `sellStock()` | 会社株式購入・売却 | `investmentPurchase`, `investmentSale` | 売却益損はPL営業外損益 |
+| `investStartup()` / `ipoSubsidiary()` | VC投資・売出 | `investmentPurchase`, `investmentSale` | 会社資金のみ対象 |
+| `acquireTarget()` / `sellMASubsidiary()` | M&A取得・売却 | `acquisition`, `assetSale` | 売却損益を認識 |
+| `buySportsTeam()` / `sellSportsTeam()` | 会社球団購入・売却 | `assetPurchase`, `assetSale` | 個人所有は会計対象外 |
+| `borrow()` / `repay()` | 借入・返済 | `debtBorrowing`, `debtRepayment` | ローン台帳と同期 |
+| `advanceWeek()` | 店舗・商品・不動産・株式配当・税金等 | 週次イベント | 会社現金反映後に1回だけ記録 |
+| `evaluateProgression()` | ミッション報酬 | `otherOperating` | idempotencyKeyで重複防止 |
+
+拡張ファイル `expansion.js`, `completion.js`, `parity.js` には週次後調整が存在する。Phase 1Bでは主要な会社現金経路を会計接続し、今後のPhaseで拡張ラッパー単位の細分化を進める。
