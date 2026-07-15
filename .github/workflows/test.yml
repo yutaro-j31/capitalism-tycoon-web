@@ -123,4 +123,5 @@ jobs:
       - run: npm run test:competitor-market-entry
       - run: npm run test:competitor-credit
       - run: npm run test:competitor-distress-lifecycle
+      - run: node tests/competitor-news-compat-test.js
       - run: npm run test:competitor-long
