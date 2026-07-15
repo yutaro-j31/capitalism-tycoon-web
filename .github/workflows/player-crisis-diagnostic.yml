@@ -1,0 +1,23 @@
+name: Player Crisis Diagnostic
+on:
+  pull_request:
+jobs:
+  diagnostic:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Run player crisis test
+        id: crisis
+        continue-on-error: true
+        run: npm run test:player-crisis > player-crisis.log 2>&1
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: player-crisis-log
+          path: player-crisis.log
+      - name: Propagate failure
+        if: steps.crisis.outcome == 'failure'
+        run: exit 1
