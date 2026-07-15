@@ -13,4 +13,15 @@ for (const command of commands) {
     process.exit(result.status || 1);
   }
 }
-console.log(`all ${commands.length} test commands passed`);
+const uiResult = spawnSync('node', ['tests/competitor-dashboard-ui-test.js'], {
+  encoding: 'utf8',
+  maxBuffer: 64 * 1024 * 1024,
+  shell: false
+});
+if (uiResult.status) {
+  console.error('::error title=Test suite failed::competitor-dashboard-ui');
+  if (uiResult.stdout) process.stdout.write(uiResult.stdout);
+  if (uiResult.stderr) process.stderr.write(uiResult.stderr);
+  process.exit(uiResult.status || 1);
+}
+console.log(`all ${commands.length} test commands and competitor dashboard UI passed`);
