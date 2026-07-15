@@ -24,7 +24,20 @@ jobs:
       - name: Diagnose full competitor validator
         run: node tests/week-distress-diagnostic.js fullValidator
       - name: Diagnose 52-week progression
-        run: node tests/week-distress-diagnostic.js long
+        id: week_long
+        continue-on-error: true
+        run: node tests/week-distress-diagnostic.js long > week-distress-diagnostic.log 2>&1
+      - name: Upload week diagnostic
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: week-distress-diagnostic
+          path: week-distress-diagnostic.log
+          if-no-files-found: error
+          retention-days: 1
+      - name: Enforce week diagnostic
+        if: steps.week_long.outcome == 'failure'
+        run: exit 1
       - name: Diagnose save round trip
         run: node tests/week-distress-diagnostic.js roundtrip
       - name: Diagnose legacy load
