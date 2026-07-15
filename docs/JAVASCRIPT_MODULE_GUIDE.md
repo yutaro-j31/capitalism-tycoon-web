@@ -108,3 +108,6 @@ Further splits should be smaller and subsystem-based only after this module boun
 ## supply.js
 
 `js/supply.js` is a classic script loaded after `data.js` and before `market.js`. It registers `__capitalismTycoonModules.supply` and owns material masters, supplier masters, contracts, purchase orders, inventory lots, spoilage, emergency procurement, and supply result validation.
+
+## workforce.js
+Loaded after data.js and before supply.js. It registers __capitalismTycoonModules.workforce and owns aggregated workforce teams, candidates, trainings, projects, capacity, fatigue, turnover, office constraints, and validation.

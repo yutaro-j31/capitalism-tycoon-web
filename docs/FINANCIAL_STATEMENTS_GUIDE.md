@@ -27,3 +27,6 @@ Phase 1Bでは、実際のゲーム内取引から損益計算書、貸借対照
 ## Phase 1C inventory accounting
 
 Target ramen purchases increase inventory and either decrease cash or increase accounts payable. Selling consumes inventory and recognizes cost of sales with no second cash payment. AP payments reduce cash and AP without a second PL expense.
+
+## Phase 4A workforce finance
+Corporate workforce payroll is recorded once through weekly payroll. Store base payroll remains business.wage. Hiring, training, severance, and project costs are operating expenses unless explicitly connected to an asset ledger.

@@ -1,0 +1,12 @@
+const assert = require('node:assert/strict');
+const { loadGame } = require('./harness');
+const { modules } = loadGame({ random: () => 0.5 });
+function finite(v){if(typeof v==='number')assert(Number.isFinite(v));else if(v&&typeof v==='object')for(const x of Object.values(v))finite(x);}
+function validateAll(e){assert.equal(modules.finance.validate(e.g).ok,true,modules.finance.validate(e.g).errors.join('\n'));assert.equal(modules.supply.validate(e.g).ok,true,modules.supply.validate(e.g).errors.join('\n'));assert.equal(modules.workforce.validate(e.g).ok,true,modules.workforce.validate(e.g).errors.join('\n'));}
+function setup(stores,allDepartments){const e=new modules.engine.TycoonEngine();e.g.configured=true;e.g.companyCash=1e12;e.g.finance=modules.finance.defaultFinanceState(e.g);e.g.personalCash=1e9;e.g.hasHeadOffice=true;e.g.officeCapacity=5000;const depts=allDepartments?modules.data.MASTER.departments:modules.data.MASTER.departments.filter(d=>d.id==='operations');for(const d of depts){e.g.departments[d.id]={...d,established:true};e.g.departmentStaff[d.id]=8;}for(let i=0;i<stores;i++)e.g.stores.push({id:`s${i}`,businessID:'ramen',prefID:i%2?'tokyo':'osaka',name:`s${i}`,status:'open',condition:100,operatingHours:3,openingWeek:1,weeksToOpen:0});modules.workforce.migrateV7(e.g);return e;}
+function run(name,stores,weeks,allDepartments,projects,skipWeeklyValidation){const e=setup(stores,allDepartments);e.g.skipWeeklyValidation=!!skipWeeklyValidation;if(projects){for(const t of ['dx-rollout','store-standardization','procurement-improvement'])e.startWorkforceProject(t);}for(let w=0;w<weeks;w++){e.advanceWeek(false);if(skipWeeklyValidation&&((w+1)%13===0||w===weeks-1))validateAll(e);}if(!skipWeeklyValidation)validateAll(e);finite(e.g);assert.equal(e.g.workforceTeams.filter(t=>t.roleID==='store-ops'&&!t.storeID).length,0,name);assert(e.g.workforceCandidates.length<=24,name);assert.equal(e.g.workforceTrainings.filter(t=>t.status==='active'&&t.endWeek<e.g.week).length,0,name);assert.equal(e.g.workforceProjects.filter(p=>p.status==='planned'&&p.startWeek<e.g.week-1).length,0,name);assert(e.g.stores.some(s=>s.lastSales>0),name);const fatigue=(e.g.workforceTeams||[]).map(t=>t.fatigue);assert(!fatigue.every(x=>x===100),name);assert(JSON.stringify(e.g).length<30000000,name);return e;}
+run('1店舗1部門52週',1,52,false,false,false);
+run('10店舗全7部門52週',10,52,true,false,false);
+run('50店舗全7部門52週',50,52,true,false,true);
+run('10店舗全7部門複数プロジェクト520週',10,520,true,true,false);
+console.log('workforce long run ok');

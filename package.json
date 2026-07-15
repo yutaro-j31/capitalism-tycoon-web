@@ -64,6 +64,18 @@
     "test:supply-store-close": "node tests/supply-store-close-test.js",
     "test:supply-spoilage-profit": "node tests/supply-spoilage-profit-test.js",
     "test:supply-procurement-cash": "node tests/supply-procurement-cash-budget-test.js",
-    "test:supply-multi-store-spoilage": "node tests/supply-multi-store-spoilage-test.js"
+    "test:supply-multi-store-spoilage": "node tests/supply-multi-store-spoilage-test.js",
+    "test:workforce": "node tests/workforce-empty-start-test.js && node tests/workforce-store-payroll-test.js && node tests/workforce-onboarding-activation-test.js && node tests/workforce-role-cohort-test.js && node tests/workforce-corporate-payroll-cohort-test.js && node tests/workforce-onboarding-batch-average-test.js && node tests/workforce-store-close-test.js && node tests/workforce-project-outcome-test.js && node tests/workforce-nonfinite-validation-test.js && node tests/workforce-department-lifecycle-test.js && node tests/workforce-onboarding-test.js && node tests/workforce-training-test.js && node tests/workforce-workload-fatigue-test.js && node tests/workforce-turnover-finance-test.js && node tests/workforce-project-finance-test.js && node tests/workforce-weekly-once-test.js && node tests/workforce-payroll-calibration-test.js && node tests/workforce-ui-actions-test.js && node tests/workforce-render-purity-test.js && node tests/workforce-validate-purity-test.js && node tests/workforce-engine-test.js && node tests/workforce-market-integration-test.js && node tests/workforce-migration-test.js && node tests/workforce-rng-regression-test.js && node tests/workforce-project-test.js",
+    "test:workforce-capacity": "node tests/workforce-workload-fatigue-test.js",
+    "test:workforce-fatigue": "node tests/workforce-workload-fatigue-test.js",
+    "test:workforce-hiring": "node tests/workforce-onboarding-test.js",
+    "test:workforce-turnover": "node tests/workforce-turnover-finance-test.js",
+    "test:workforce-projects": "node tests/workforce-project-finance-test.js",
+    "test:workforce-finance": "node tests/workforce-payroll-calibration-test.js && node tests/workforce-project-finance-test.js && node tests/workforce-turnover-finance-test.js",
+    "test:workforce-migration": "node tests/workforce-migration-test.js && node tests/workforce-department-lifecycle-test.js",
+    "test:workforce-ui": "node tests/workforce-ui-actions-test.js && node tests/workforce-render-purity-test.js && node tests/workforce-validate-purity-test.js",
+    "test:workforce-rng": "node tests/workforce-rng-regression-test.js",
+    "test:workforce-calibration": "node tests/workforce-payroll-calibration-test.js && node tests/workforce-market-integration-test.js",
+    "test:workforce-long": "node --max-old-space-size=16384 tests/workforce-long-run-test.js"
   }
 }

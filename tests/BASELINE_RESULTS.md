@@ -170,3 +170,6 @@ Fixed-seed transaction baseline note: adding `saveVersion: 3` stock history sche
 - Finance store close deposit and property building disposal tests passed locally with saveVersion 5. These confirm that closeStore does not change existing cash behavior for deposits, and sellProperty disposes property-linked building assets.
 
 Phase 1C baseline: supply, inventory, procurement, migration, RNG, and long-run checks pass with saveVersion 6.
+
+
+Phase 4A baseline: workforce, migration, market integration, deterministic RNG, and project checks pass with saveVersion 7.

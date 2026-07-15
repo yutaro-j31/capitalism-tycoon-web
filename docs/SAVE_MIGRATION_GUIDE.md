@@ -116,3 +116,6 @@ v4セーブに会社所有土地、`buildingType`、正の `buildingCost` があ
 ## v5 to v6
 
 v6 initializes Phase 1C supply containers and deterministic ramen-store starting inventory. Company cash, personal cash, store IDs, business IDs, market results, finance transactions, stock price, and stock price history are preserved. The migration is idempotent and rejects future versions through the existing version gate.
+
+## v6 to v7 workforce migration
+Existing departmentStaff is converted deterministically into workforceTeams, then departmentStaff becomes a compatibility mirror. Store base wage remains in business.wage. Cash, stock history, inventory, and finance ledgers are not changed by migration.

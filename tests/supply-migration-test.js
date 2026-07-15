@@ -13,7 +13,7 @@ s.stores.push({id:'legacy-cafe',businessID:'cafe',prefID:'tokyo',name:'cafe',sta
 s.finance=modules.finance.defaultFinanceState(s);s.finance.balances.accountsPayable=12345;s.finance.openingLiabilities+=12345;s.finance.openingEquity-=12345;s.finance.openingRetainedEarnings-=12345;
 const cash=s.companyCash,personal=s.personalCash,history=JSON.stringify(s.market[0].priceHistory);
 const m=migrateSave(s);assert(m.ok,m.errors.join('\n'));const g=m.state;
-assert.equal(g.saveVersion,6);assert.equal(g.companyCash,cash);assert.equal(g.personalCash,personal);assert.equal(JSON.stringify(g.market[0].priceHistory),history);
+assert.equal(g.saveVersion,7);assert.equal(g.companyCash,cash);assert.equal(g.personalCash,personal);assert.equal(JSON.stringify(g.market[0].priceHistory),history);
 assert(g.inventoryByStoreID['legacy-r1']);assert(g.inventoryByStoreID['legacy-r2']);assert(!g.inventoryByStoreID['legacy-cafe']);
 const physical=modules.supply.physicalInventoryValue(g);assert(physical>0);assert.equal(Math.round(g.finance.balances.inventory),Math.round(physical));
 assert.equal(g.finance.balances.accountsPayable,12345);assert.equal(g.supplyAccountsPayableBalance,0);

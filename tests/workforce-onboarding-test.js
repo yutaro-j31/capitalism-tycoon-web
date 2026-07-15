@@ -1,0 +1,60 @@
+const assert = require('node:assert/strict');
+const { loadGame } = require('./harness');
+const { modules } = loadGame({ random: () => 0.5 });
+
+function setup() {
+  const e = new modules.engine.TycoonEngine();
+  e.g.configured = true;
+  e.g.hasHeadOffice = true;
+  e.g.officeCapacity = 80;
+  e.g.companyCash = 100000000;
+  e.g.finance = modules.finance.defaultFinanceState(e.g);
+  e.g.departments.hr = { ...modules.data.MASTER.departments.find(d => d.id === 'hr'), established: true };
+  e.g.departmentStaff.hr = 2;
+  e.g.stores.push({ id: 'ramen-a', businessID: 'ramen', prefID: 'tokyo', name: 'ramen-a', status: 'open', condition: 100, operatingHours: 3, openingWeek: 1, weeksToOpen: 0 });
+  e.g.stores.push({ id: 'ramen-b', businessID: 'ramen', prefID: 'tokyo', name: 'ramen-b', status: 'open', condition: 100, operatingHours: 3, openingWeek: 1, weeksToOpen: 0 });
+  modules.workforce.migrateV7(e.g);
+  return e;
+}
+
+const e = setup();
+const team = e.g.workforceTeams.find(t => t.departmentID === 'hr' && !t.storeID);
+const old = { headcount: team.headcount, skill: team.averageSkill, exp: team.averageExperience, salary: team.averageWeeklySalary, morale: team.morale };
+e.g.workforceCandidates.push({ candidateID: 'cand-hi-skill', roleID: 'hr', departmentID: 'hr', headcount: 2, averageSkill: 90, averageExperience: 80, weeklySalaryPerPerson: 100000, recruitmentFee: 1000, onboardingWeeks: 1, expectedMorale: 80, remoteCompatibility: .9, expiresWeek: e.g.week + 4, status: 'open' });
+assert.equal(e.hireWorkforceCandidate('cand-hi-skill'), true);
+const hired = e.g.workforceTeams.find(t => t.departmentID === 'hr' && !t.storeID);
+assert.equal(hired.headcount, old.headcount + 2);
+assert.equal(hired.averageSkill, old.skill);
+assert.equal(hired.averageExperience, old.exp);
+assert.equal(hired.averageWeeklySalary, old.salary);
+assert.equal(e.g.departmentStaff.hr, hired.headcount);
+const capDuring = hired.weeklyCapacity;
+e.advanceWeek(false);
+const afterOnboarding = e.g.workforceTeams.find(t => t.departmentID === 'hr' && !t.storeID);
+assert.equal(afterOnboarding.onboardingHeadcount, 0);
+assert.equal(afterOnboarding.averageSkill, Math.round(((old.skill * old.headcount + 90 * 2) / afterOnboarding.headcount) * 100) / 100);
+assert.equal(afterOnboarding.averageExperience, Math.round(((old.exp * old.headcount + 80 * 2) / afterOnboarding.headcount) * 100) / 100);
+assert.equal(afterOnboarding.averageWeeklySalary, Math.round(((old.salary * old.headcount + 100000 * 2) / afterOnboarding.headcount) * 100) / 100);
+assert(afterOnboarding.weeklyCapacity >= capDuring);
+assert.equal(e.hireWorkforceCandidate('cand-hi-skill'), false);
+
+const storeA = e.g.workforceTeams.find(t => t.storeID === 'ramen-a');
+const storeB = e.g.workforceTeams.find(t => t.storeID === 'ramen-b');
+const aBefore = storeA.headcount;
+const bBefore = storeB.headcount;
+const hqBefore = modules.workforce.weeklyPayroll(e.g);
+const extraBefore = modules.workforce.storeExtraPayroll(e.g, 'ramen-a');
+e.g.workforceCandidates.push({ candidateID: 'cand-store-a', roleID: 'store-ops', departmentID: null, storeID: 'ramen-a', targetStoreID: 'ramen-a', headcount: 2, averageSkill: 75, averageExperience: 45, weeklySalaryPerPerson: 22000, recruitmentFee: 500, onboardingWeeks: 1, expectedMorale: 72, remoteCompatibility: 0, expiresWeek: e.g.week + 4, status: 'open' });
+assert.equal(e.hireWorkforceCandidate('cand-store-a'), true);
+assert.equal(e.g.workforceTeams.find(t => t.storeID === 'ramen-a').headcount, aBefore + 2);
+assert.equal(e.g.workforceTeams.find(t => t.storeID === 'ramen-b').headcount, bBefore);
+assert.equal(modules.workforce.weeklyPayroll(e.g), hqBefore);
+assert(modules.workforce.storeExtraPayroll(e.g, 'ramen-a') > extraBefore);
+assert.equal(e.g.workforceTeams.filter(t => t.roleID === 'store-ops' && !t.storeID).length, 0);
+const storeCapDuring = e.g.workforceTeams.find(t => t.storeID === 'ramen-a').weeklyCapacity;
+e.advanceWeek(false);
+assert.equal(e.g.workforceTeams.find(t => t.storeID === 'ramen-a').onboardingHeadcount, 0);
+assert(e.g.workforceTeams.find(t => t.storeID === 'ramen-a').weeklyCapacity >= storeCapDuring);
+e.g.workforceCandidates.push({ candidateID: 'cand-store-missing', roleID: 'store-ops', departmentID: null, headcount: 1, averageSkill: 50, averageExperience: 10, weeklySalaryPerPerson: 20000, recruitmentFee: 100, onboardingWeeks: 1, expectedMorale: 55, remoteCompatibility: 0, expiresWeek: e.g.week + 4, status: 'open' });
+assert.equal(e.hireWorkforceCandidate('cand-store-missing'), false);
+console.log('workforce onboarding ok');
