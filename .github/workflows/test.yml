@@ -40,3 +40,4 @@ jobs:
       - run: npm run test:workforce
       - run: npm run test:workforce-migration
       - run: npm run test:workforce-rng
+      - run: npm run test:workforce-long
