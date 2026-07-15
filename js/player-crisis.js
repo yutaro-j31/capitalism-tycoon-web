@@ -159,19 +159,15 @@ EngineClass.prototype.save=function(slot=null){ensure(this.g);return baseSave.ca
 const baseAdvanceWeek=EngineClass.prototype.advanceWeek;
 EngineClass.prototype.advanceWeek=function(showSummary=true){
  if(this.g.gameOver||this.g.isCompanySold)return baseAdvanceWeek.call(this,showSummary);
- const originalEmit=this.emit;
- let capturedWeekDetail=null;
- this.emit=function(type,detail={}){if(type==='week'){capturedWeekDetail=detail;return;}return originalEmit.call(this,type,detail);};
- let result;
- try{result=baseAdvanceWeek.call(this,showSummary);}finally{this.emit=originalEmit;}
- if(result===false)return result;
- const legacyTriggered=this.g.gameOver&&this.g.gameOverReason===LEGACY_GAME_OVER_REASON;
- const crisis=evaluate(this.g);
- if(legacyTriggered&&crisis.status!=='insolvent'){this.g.gameOver=false;this.g.gameOverReason='';}
- if(this.g.lastWeeklySummary)this.g.lastWeeklySummary.crisis=crisis;
- this.save();
- originalEmit.call(this,'week',{...(capturedWeekDetail||{}),summary:showSummary?this.g.lastWeeklySummary:null});
- return result;
+ return this.runTransaction(()=>{
+  const result=baseAdvanceWeek.call(this,false);
+  if(result===false)return result;
+  const legacyTriggered=this.g.gameOver&&this.g.gameOverReason===LEGACY_GAME_OVER_REASON;
+  const crisis=evaluate(this.g);
+  if(legacyTriggered&&crisis.status!=='insolvent'){this.g.gameOver=false;this.g.gameOverReason='';}
+  if(this.g.lastWeeklySummary)this.g.lastWeeklySummary.crisis=crisis;
+  return result;
+ },'week',()=>({summary:showSummary?this.g.lastWeeklySummary:null}));
 };
 EngineClass.prototype.__playerCrisisInstalled=true;
 
