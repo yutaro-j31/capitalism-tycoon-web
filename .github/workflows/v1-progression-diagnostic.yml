@@ -2,6 +2,7 @@ name: V1 Progression Diagnostic
 on:
   push:
     branches: [ chatgpt/phase-6a-v1-progression-gate ]
+  pull_request:
 jobs:
   progression:
     runs-on: ubuntu-latest
