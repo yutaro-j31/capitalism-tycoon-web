@@ -30,6 +30,18 @@ Direct state fixtures are limited to:
 
 All transitions under audit still use the production methods: `configure`, `openStore`, `advanceWeek`, `contractOffice`, `establishDepartment`, `investStartup`, `makeSubsidiary`, `acquireTarget`, `establishBoard`, `ipoMissingReasons`, `executeIPO`, `save`, and `TycoonEngine.load`.
 
+## Parent-company IPO accounting
+
+The gate identified that parent-company IPO proceeds increased `companyCash` but were not recorded in the finance ledger or equity balances. This caused cash-flow roll-forward and balance-sheet validation to fail immediately after listing.
+
+The v9 engine compatibility layer now records the public offering proceeds exactly once as:
+
+- an `equityFinancing` transaction with matching positive cash and equity effects;
+- an increase in `finance.balances.capitalSurplus` by the same amount;
+- a stable `parent-ipo-{week}` operation and idempotency key.
+
+The listing price, new-share count, underwriting discount, IPO thresholds, founder secondary sale, and all other IPO formulas remain unchanged.
+
 ## Release assertions
 
 The gate requires:
@@ -41,9 +53,10 @@ The gate requires:
 - M&A to create a retained subsidiary and increment acquisition history;
 - every IPO prerequisite to resolve to an empty missing-reason list;
 - the parent company to appear in the stock market after listing;
+- public-offering proceeds to create one finance transaction and increase capital surplus;
 - VC and M&A subsidiaries to remain present after listing and reload;
 - board, stores, subsidiaries, listing status, and IPO eligibility to survive reload;
-- finance validation and structural finite-value checks to pass before and after reload;
+- finance validation, finite-value checks, serialization, and constrained-quantity checks to pass before and after reload;
 - the corresponding UI action identifiers to remain connected in `app.js`;
 - `SAVE_KEY` to remain `capitalism_tycoon_web_v1` and save version to remain 9.
 
@@ -57,5 +70,5 @@ This increment does not alter:
 - M&A pricing or goodwill formulas;
 - IPO thresholds or pricing;
 - competitor behavior;
-- supply, workforce, stock, or finance formulas;
+- supply, workforce, stock, or finance formulas outside the missing IPO ledger entry;
 - persistent save schema.
