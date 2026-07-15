@@ -27,15 +27,15 @@ function provision(amount = 2_000_000_000) {
   game.g.finance.balanceSheet.cash = game.g.companyCash;
 }
 
-// 1. Founder setup.
-assert.equal(game.configure({
+// 1. Founder setup. configure() signals success through state and events rather than a boolean return value.
+game.configure({
   playerName: '進行テスト創業者',
   companyName: '進行テスト商事',
   difficulty: 'normal',
   scenario: 'standard',
   founderPrefID: 'tokyo',
   founderTraitID: 'merchant'
-}), true);
+});
 checkpoint('configured', game.g.configured && game.g.companyName === '進行テスト商事');
 provision();
 validate('configured');
