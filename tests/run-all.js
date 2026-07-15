@@ -13,15 +13,20 @@ for (const command of commands) {
     process.exit(result.status || 1);
   }
 }
-const uiResult = spawnSync('node', ['tests/competitor-dashboard-ui-test.js'], {
-  encoding: 'utf8',
-  maxBuffer: 64 * 1024 * 1024,
-  shell: false
-});
-if (uiResult.status) {
-  console.error('::error title=Test suite failed::competitor-dashboard-ui');
-  if (uiResult.stdout) process.stdout.write(uiResult.stdout);
-  if (uiResult.stderr) process.stderr.write(uiResult.stderr);
-  process.exit(uiResult.status || 1);
+for (const [name, file] of [
+  ['competitor-dashboard-ui', 'tests/competitor-dashboard-ui-test.js'],
+  ['v1-progression-gate', 'tests/v1-progression-gate-test.js']
+]) {
+  const result = spawnSync('node', [file], {
+    encoding: 'utf8',
+    maxBuffer: 64 * 1024 * 1024,
+    shell: false
+  });
+  if (result.status) {
+    console.error(`::error title=Test suite failed::${name}`);
+    if (result.stdout) process.stdout.write(result.stdout);
+    if (result.stderr) process.stderr.write(result.stderr);
+    process.exit(result.status || 1);
+  }
 }
-console.log(`all ${commands.length} test commands and competitor dashboard UI passed`);
+console.log(`all ${commands.length} test commands, competitor dashboard UI, and provisional v1 progression gate passed`);
