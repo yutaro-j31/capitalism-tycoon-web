@@ -1,0 +1,125 @@
+const assert = require('node:assert');
+const fs = require('node:fs');
+const path = require('node:path');
+const { loadGame, findStateIssues } = require('./harness');
+
+let seed = 0x61a2026;
+const random = () => {
+  seed = (seed * 1664525 + 1013904223) >>> 0;
+  return seed / 0x100000000;
+};
+
+const { ctx, engineModule, modules } = loadGame({ random });
+const { finance } = modules;
+const game = new engineModule.TycoonEngine();
+
+game.configure({
+  playerName: '進行監査者',
+  companyName: 'V1ゲート商事',
+  difficulty: 'normal',
+  scenario: 'standard'
+});
+assert.equal(game.g.configured, true, 'initial setup must complete');
+assert.equal(game.g.saveVersion, 9, 'progression gate must use save version 9');
+assert.equal(engineModule.SAVE_KEY, 'capitalism_tycoon_web_v1');
+
+// This is a capitalized release-audit scenario. It shortens waiting time without
+// bypassing the production action methods or their unlock conditions.
+game.g.companyCash = 2_000_000_000;
+game.g.finance = finance.defaultFinanceState(game.g);
+
+function availableTenant(businessID) {
+  return game.g.tenants.find(row => row.businessID === businessID && !row.occupiedBy);
+}
+
+for (const [businessID, name] of [
+  ['ramen', 'V1一号ラーメン'],
+  ['cafe', 'V1二号カフェ'],
+  ['conveni', 'V1三号コンビニ']
+]) {
+  const tenant = availableTenant(businessID);
+  assert.ok(tenant, `${businessID} tenant must exist`);
+  assert.equal(game.openStore({ tenantID: tenant.id, businessID, name, operatingHours: 3 }), true, `${businessID} store must open`);
+}
+assert.equal(game.g.stores.length, 3, 'three stores are required for the IPO route');
+assert.equal(new Set(game.g.stores.map(row => row.businessID)).size, 3, 'multi-business route must contain three businesses');
+
+for (let i = 0; i < 4; i += 1) assert.notEqual(game.advanceWeek(false), false, `week ${i + 1} must advance`);
+assert.ok(game.g.stores.every(row => row.status === 'open'), 'all initial stores must reach open status');
+
+const office = game.g.rentalOffices.find(row => row.grade === 'C') || game.g.rentalOffices[0];
+assert.ok(office, 'head-office candidate must exist');
+assert.equal(game.contractOffice(office.id), true, 'head office must be contractible');
+assert.equal(game.establishDepartment('accounting'), true, 'accounting department must unlock');
+assert.equal(game.establishDepartment('investment'), true, 'investment department must unlock at three stores');
+
+const startup = game.g.startups.find(row => row.alive && !row.subsidiary);
+assert.ok(startup, 'startup candidate must exist');
+const ticket = Math.max(startup.minTicket, 200_000_000);
+assert.equal(game.investStartup(startup.id, ticket, 'company'), true, 'first company VC investment must succeed');
+assert.equal(game.investStartup(startup.id, ticket, 'company'), true, 'follow-on company VC investment must succeed');
+assert.ok(startup.ownedCompany >= 0.5, 'company ownership must reach subsidiary threshold');
+assert.equal(game.makeSubsidiary(startup.id), true, 'startup must convert to consolidated subsidiary');
+assert.equal(game.g.subsidiaries.length, 1, 'one VC subsidiary must exist');
+
+const maTarget = {
+  id: 'v1-gate-ma-target',
+  name: 'V1統合ロジスティクス',
+  domain: '物流',
+  valuation: 100_000_000,
+  sales: 90_000_000,
+  operatingProfit: 9_000_000,
+  growth: 0.08,
+  risk: 0.1,
+  synergy: 0.12,
+  friendly: true,
+  expiresWeek: game.g.week + 20
+};
+game.g.acquisitionTargets = [maTarget];
+assert.equal(game.acquireTarget(maTarget.id, 'friendly'), true, 'friendly acquisition must succeed');
+assert.equal(game.g.maSubsidiaries.length, 1, 'one M&A subsidiary must exist');
+assert.equal(game.g.totalAcquisitions, 1, 'M&A counter must increment');
+
+// Hiring negotiation is intentionally excluded from this deterministic release
+// gate; the board action itself remains exercised through its production API.
+game.g.executives.CEO = { role: 'CEO', name: '監査CEO', skill: 80, salary: 4_000_000 };
+game.g.executives.CFO = { role: 'CFO', name: '監査CFO', skill: 80, salary: 3_000_000 };
+assert.equal(game.establishBoard(), true, 'board must be establishable with CEO and CFO');
+
+const reportStartWeek = Math.max(1, game.g.week - 51);
+game.g.reports = Array.from({ length: 52 }, (_, index) => ({
+  week: reportStartWeek + index,
+  sales: 5_000_000,
+  expenses: 3_000_000,
+  profit: 2_000_000
+}));
+game.g.lastReport = game.g.reports[game.g.reports.length - 1];
+assert.deepEqual(game.ipoMissingReasons(), [], 'capitalized audit route must satisfy every IPO condition');
+assert.equal(game.executeIPO('東証グロース', 100_000), true, 'parent company IPO must succeed');
+assert.equal(game.g.publicCompany, true, 'company must be public after IPO');
+assert.ok(game.g.market.some(row => row.id === game.g.ticker), 'player stock must be added to the market');
+assert.ok(game.g.subsidiaries.length + game.g.maSubsidiaries.length >= 2, 'conglomerate route must retain both subsidiary types');
+
+const appSource = fs.readFileSync(path.join(__dirname, '..', 'js', 'app.js'), 'utf8');
+for (const action of ['open-store', 'contract-office', 'establish-department', 'make-subsidiary', 'acquire-friendly', 'establish-board', 'execute-ipo']) {
+  assert.ok(appSource.includes(`'${action}'`) || appSource.includes(`\"${action}\"`), `UI action ${action} must remain reachable`);
+}
+
+const validation = finance.validate(game.g);
+assert.equal(validation.ok, true, validation.errors.join('\n'));
+assert.deepEqual(findStateIssues(game.g), [], 'completed progression state must contain no structural issues');
+
+assert.equal(game.save(), true, 'completed route must save');
+assert.ok(ctx.__localStorageData.has(engineModule.SAVE_KEY), 'main save key must be written');
+const reloaded = engineModule.TycoonEngine.load();
+assert.equal(reloaded.g.publicCompany, true, 'IPO state must survive reload');
+assert.equal(reloaded.g.stores.length, 3, 'stores must survive reload');
+assert.equal(reloaded.g.subsidiaries.length, 1, 'VC subsidiary must survive reload');
+assert.equal(reloaded.g.maSubsidiaries.length, 1, 'M&A subsidiary must survive reload');
+assert.equal(reloaded.g.boardEstablished, true, 'board state must survive reload');
+assert.deepEqual(reloaded.ipoMissingReasons(), [], 'reloaded public-company route must remain internally complete');
+const reloadValidation = finance.validate(reloaded.g);
+assert.equal(reloadValidation.ok, true, reloadValidation.errors.join('\n'));
+assert.deepEqual(findStateIssues(reloaded.g), [], 'reloaded progression state must remain structurally valid');
+
+console.log('provisional v1 progression gate passed');
