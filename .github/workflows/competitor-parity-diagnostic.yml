@@ -1,0 +1,30 @@
+name: Competitor Parity Diagnostic
+on:
+  pull_request:
+jobs:
+  parity:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          show-progress: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: npm run test:javascript
+      - run: npm run test:modules
+      - name: Run competitor parity compatibility
+        shell: bash
+        run: |
+          set +e
+          npm run test:competitor-parity > competitor-parity.log 2>&1
+          code=$?
+          tail -120 competitor-parity.log
+          exit $code
+      - name: Upload parity failure log
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: competitor-parity-failure
+          path: competitor-parity.log
+          if-no-files-found: error
