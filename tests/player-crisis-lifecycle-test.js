@@ -138,7 +138,13 @@ assert.equal(integrated.g.gameOver, true);
 assert.equal(integrated.g.playerCrisis.status, 'insolvent');
 assert.equal(integrated.g.gameOverReason, playerCrisis.INSOLVENCY_REASON);
 assert.equal(integrated.g.lastWeeklySummary.crisis.status, 'insolvent');
-assert.deepEqual(findStateIssues(integrated.g), []);
+const insolvencyIssues = findStateIssues(integrated.g);
+const expectedDistressRatios = new Set([
+  'g.finance.lastStatements.ratios.equityRatio: suspicious ratio -0.08',
+  'g.finance.lastStatements.ratios.netDeRatio: suspicious ratio 12.5'
+]);
+assert.ok(insolvencyIssues.every(issue => expectedDistressRatios.has(issue)), `unexpected insolvency state issue: ${insolvencyIssues.join(' / ')}`);
+for (const issue of expectedDistressRatios) assert.ok(insolvencyIssues.includes(issue), `expected finite distress ratio was not observed: ${issue}`);
 
 const saveGame = new engine.TycoonEngine(engine.createInitialState({ configured: true }));
 saveGame.g.week = 7;
