@@ -8,7 +8,26 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          show-progress: false
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
-      - run: node tests/v1-progression-gate-test.js
+      - name: Run progression gate
+        id: gate
+        shell: bash
+        run: |
+          set +e
+          node tests/v1-progression-gate-test.js > v1-progression.log 2>&1
+          status=$?
+          cat v1-progression.log
+          echo "status=$status" >> "$GITHUB_OUTPUT"
+          exit 0
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: v1-progression-diagnostic
+          path: v1-progression.log
+      - name: Fail when gate failed
+        if: steps.gate.outputs.status != '0'
+        run: exit 1
