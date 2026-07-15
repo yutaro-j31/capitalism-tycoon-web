@@ -11,6 +11,8 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
+      - run: npm run test:competitor-distress-lifecycle
+      - run: node tests/competitor-news-compat-test.js
       - run: npm run test:syntax
       - run: npm run test:static
       - run: npm run test:save
@@ -91,6 +93,4 @@ jobs:
       - run: npm run test:competitor-projects
       - run: npm run test:competitor-market-entry
       - run: npm run test:competitor-credit
-      - run: npm run test:competitor-distress-lifecycle
-      - run: node tests/competitor-news-compat-test.js
       - run: npm run test:competitor-long
