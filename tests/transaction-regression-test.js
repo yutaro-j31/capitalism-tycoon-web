@@ -16,6 +16,8 @@ function seededRandom(seed) {
 }
 function clone(value) { return JSON.parse(JSON.stringify(value)); }
 function snapshot(g, randomCalls) {
+  const legacyWeeklySummary = clone(g.lastWeeklySummary);
+  if (legacyWeeklySummary) delete legacyWeeklySummary.crisis;
   return clone({
     randomCalls,
     week: g.week,
@@ -33,7 +35,7 @@ function snapshot(g, randomCalls) {
     history: g.history,
     reports: g.reports,
     news: g.news,
-    lastWeeklySummary: g.lastWeeklySummary,
+    lastWeeklySummary: legacyWeeklySummary,
     gameOver: g.gameOver,
     gameOverReason: g.gameOverReason,
     expandedWeeklyAdjustments: g.expandedWeeklyAdjustments,
@@ -45,6 +47,16 @@ function snapshot(g, randomCalls) {
     keyPersonnel: g.keyPersonnel,
   });
 }
+function assertCrisisSnapshot(engine, label) {
+  const crisis = engine.g.playerCrisis;
+  const summary = engine.g.lastWeeklySummary?.crisis;
+  assert(crisis && summary, `${label}: crisis snapshot missing`);
+  assert(summary.status === crisis.status, `${label}: crisis status mismatch`);
+  for (const key of ['negativeCashWeeks','graceWeeksRemaining','recoveryWeeks','reserveThreshold','lastCash']) {
+    assert(Number.isFinite(Number(summary[key])), `${label}: crisis ${key} is not finite`);
+  }
+  assert(summary.lastCash === engine.g.companyCash, `${label}: crisis snapshot does not use final cash`);
+}
 function runScenario() {
   const random = seededRandom(123456789);
   const { engineModule } = loadGame({ random });
@@ -54,6 +66,7 @@ function runScenario() {
   result.configure = snapshot(engine.g, random.calls());
   for (const targetWeek of [1, 12, 52]) {
     while (engine.g.week < targetWeek + 1 && !engine.g.gameOver) engine.advanceWeek(false);
+    assertCrisisSnapshot(engine, `week${targetWeek}`);
     result[`week${targetWeek}`] = snapshot(engine.g, random.calls());
   }
   return result;
@@ -74,4 +87,4 @@ const expected = JSON.parse(fs.readFileSync(fixturePath, 'utf8'));
 const actual = runScenario();
 const diff = firstDiff(actual, expected);
 assert(!diff, `transaction deterministic regression mismatch: ${diff}`);
-console.log(JSON.stringify({ deterministicRegression: 'passed', points: Object.keys(actual), randomCallsAtWeek52: actual.week52.randomCalls }, null, 2));
+console.log(JSON.stringify({ deterministicRegression: 'passed', crisisSnapshot: 'passed', points: Object.keys(actual), randomCallsAtWeek52: actual.week52.randomCalls }, null, 2));
