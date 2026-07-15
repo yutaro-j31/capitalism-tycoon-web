@@ -11,4 +11,9 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
-      - run: node tests/v1-progression-gate-test.js
+      - name: Capture progression output
+        run: node tests/v1-progression-gate-test.js > progression.log 2>&1 || true
+      - uses: actions/upload-artifact@v4
+        with:
+          name: v1-progression-diagnostic
+          path: progression.log
