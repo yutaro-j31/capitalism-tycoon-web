@@ -111,13 +111,16 @@ function installCompatibility(TycoonEngine){
  TycoonEngine.prototype.normalize=function(){const result=baseNormalize.call(this);ensureCounterStates(this.g);return result;};
  TycoonEngine.prototype.seedCompetitorCounterStates=function(){if(this.__usingCompetitorCounterStates)return this.g.competitorStates;return ensureCounterStates(this.g);};
  TycoonEngine.prototype.competitorPressureMultiplier=function(businessID,prefID){
-  const area=this.pref(prefID)?.areaID;return clamp(1-ensureCounterStates(this.g).filter(row=>row.active&&row.industryID===businessID&&(!row.regionID||row.regionID===area)).reduce((sum,row)=>sum+finite(row.pricePressure),0)*.015,.86,1);
+  const area=this.pref(prefID)?.areaID;
+  const rows=this.__usingCompetitorCounterStates?(Array.isArray(this.g.competitorStates)?this.g.competitorStates:[]):ensureCounterStates(this.g);
+  const pressure=rows.filter(row=>row.active&&row.industryID===businessID&&(!row.regionID||row.regionID===area)).reduce((sum,row)=>sum+finite(row.pricePressure),0);
+  return clamp(1-pressure*.015,.86,1);
  };
  const baseUpdateParityWeekly=TycoonEngine.prototype.updateParityWeekly;
  TycoonEngine.prototype.updateParityWeekly=function(){
   const aiStates=this.g.competitorStates,counters=ensureCounterStates(this.g);
   this.__usingCompetitorCounterStates=true;this.g.competitorStates=counters;
-  try{return baseUpdateParityWeekly.call(this);}finally{this.g.competitorCounterStates=this.g.competitorStates;this.g.competitorStates=aiStates;this.__usingCompetitorCounterStates=false;ensureCounterStates(this.g);}
+  try{return baseUpdateParityWeekly.call(this);}finally{this.g.competitorCounterStates=Array.isArray(this.g.competitorStates)?this.g.competitorStates:counters;this.g.competitorStates=aiStates;this.__usingCompetitorCounterStates=false;ensureCounterStates(this.g);}
  };
  TycoonEngine.prototype.respondToCompetitor=function(id,action){
   const state=this.g,counter=findCounter(state,id),company=findCompany(state,id);if(!counter||!company)return false;
