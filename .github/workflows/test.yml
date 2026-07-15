@@ -99,3 +99,4 @@ jobs:
       - run: npm run test:competitor-dashboard
       - run: node tests/competitor-dashboard-ui-test.js
       - run: npm run test:competitor-long
+      - run: node tests/v1-progression-gate-test.js
