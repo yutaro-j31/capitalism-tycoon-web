@@ -41,7 +41,7 @@ The crisis evaluation therefore uses final company cash after:
 - completion-layer branch-office and related adjustments;
 - parity-layer key-person and competitor-response adjustments.
 
-The wrapper captures the composed engine's weekly event, evaluates the final state, saves once more with crisis metadata, and emits exactly one final weekly event to the UI.
+The wrapper encloses the composed weekly advance in one outer transaction. All existing weekly layers run first, the crisis state is evaluated from final cash, and that same transaction performs the single save and single final weekly event expected by the engine contract.
 
 The old engine may still set the legacy reason `会社現金が2週連続でマイナスになりました。` internally. The outer crisis layer clears that result while grace remains and replaces it with the new insolvency reason only when the grace period reaches zero.
 
@@ -62,7 +62,7 @@ The old engine may still set the legacy reason `会社現金が2週連続でマ�
 - crisis decisions are deterministic;
 - the old two-week game over is suppressed only for its exact legacy reason;
 - final weekly cash is used after all composed adjustments;
-- exactly one weekly event is emitted per successful advance;
+- exactly one save and one weekly event occur per successful advance;
 - recovery and insolvency transitions are finite and bounded;
 - save round-trip preserves crisis state;
 - validation is read-only;
