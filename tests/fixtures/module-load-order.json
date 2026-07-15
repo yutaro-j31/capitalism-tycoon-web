@@ -7,6 +7,7 @@
     "./js/competitor.js",
     "./js/competitor-projects.js",
     "./js/competitor-entry.js",
+    "./js/competitor-credit.js",
     "./js/market.js",
     "./js/finance.js",
     "./js/engine.js",
