@@ -86,6 +86,7 @@
     "test:competitor-ui": "node tests/competitor-ui-static-test.js && node tests/competitor-render-purity-test.js",
     "test:competitor-rng": "node tests/competitor-rng-regression-test.js",
     "test:competitor-calibration": "node tests/competitor-calibration-test.js",
+    "test:competitor-history": "node tests/competitor-history-retention-test.js",
     "test:competitor-long": "node tests/competitor-long-run-test.js"
   }
 }

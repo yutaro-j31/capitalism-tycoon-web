@@ -54,4 +54,5 @@ jobs:
       - run: npm run test:competitor-ui
       - run: npm run test:competitor-rng
       - run: npm run test:competitor-calibration
+      - run: npm run test:competitor-history
       - run: npm run test:competitor-long
