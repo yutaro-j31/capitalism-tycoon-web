@@ -11,7 +11,21 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
-      - run: npm run test:competitor-distress-lifecycle
+      - name: Run competitor distress lifecycle diagnostic
+        id: distress_lifecycle
+        continue-on-error: true
+        run: npm run test:competitor-distress-lifecycle > competitor-distress-lifecycle.log 2>&1
+      - name: Upload competitor distress diagnostic
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: competitor-distress-lifecycle
+          path: competitor-distress-lifecycle.log
+          if-no-files-found: error
+          retention-days: 1
+      - name: Enforce competitor distress lifecycle
+        if: steps.distress_lifecycle.outcome == 'failure'
+        run: exit 1
       - run: node tests/competitor-news-compat-test.js
       - run: npm run test:syntax
       - run: npm run test:static
