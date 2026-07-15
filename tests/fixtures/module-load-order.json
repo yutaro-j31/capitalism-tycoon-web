@@ -22,6 +22,7 @@
     "./js/competitor-dashboard.js",
     "./js/competitor-dashboard-status.js",
     "./js/competitor-dashboard-ui.js",
-    "./js/app.js"
+    "./js/app.js",
+    "./js/player-crisis.js"
   ]
 }
