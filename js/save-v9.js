@@ -3,10 +3,12 @@
 if(!globalThis.__capitalismTycoonModules)throw new Error('Capitalism Tycoon runtime.js must be loaded before save-v9.js.');
 const modules=globalThis.__capitalismTycoonModules;
 if(!modules.engine)throw new Error('engine.js must be loaded before save-v9.js.');
+if(!modules.finance)throw new Error('finance.js must be loaded before save-v9.js.');
 if(!modules.competitor?.__creditInstalled)throw new Error('competitor-credit.js must be loaded before save-v9.js.');
 if(modules.engine.__saveV9Installed)throw new Error('save version 9 migration is already installed.');
 
 const engine=modules.engine;
+const finance=modules.finance;
 const competitor=modules.competitor;
 const BaseTycoonEngine=engine.TycoonEngine;
 const baseMigrateSave=engine.migrateSave;
@@ -17,6 +19,7 @@ const SAVE_VERSION=9;
 const SAVE_KEY=engine.SAVE_KEY;
 const clone=value=>typeof structuredClone==='function'?structuredClone(value):JSON.parse(JSON.stringify(value));
 const plain=value=>Boolean(value&&typeof value==='object'&&!Array.isArray(value));
+const finite=(value,fallback=0)=>Number.isFinite(Number(value))?Number(value):fallback;
 
 function detectSaveVersion(raw){
  if(!plain(raw))return {ok:false,version:null,error:'セーブデータのルートはオブジェクトである必要があります。'};
@@ -135,7 +138,21 @@ class TycoonEngineV9 extends BaseTycoonEngine{
   this._loadFailureReason='';
   this.normalize();this.save();this.emit();
  }
+ executeIPO(market='東証グロース',sellShares=100000){
+  if(this.g.publicCompany||this.ipoMissingReasons().length)return super.executeIPO(market,sellShares);
+  const multiple=market==='東証プライム'?1.25:market==='東証スタンダード'?1.1:1;
+  const projectedStockPrice=Math.max(100,this.companyValue()*multiple/Math.max(1,this.g.sharesOut));
+  const companyRaise=projectedStockPrice*200000*.955;
+  const operationID=`parent-ipo-${this.g.week}`;
+  const ledger=finance.ensureFinance(this.g);
+  const exists=(ledger.transactions||[]).some(row=>row.operationID===operationID||row.idempotencyKey===operationID);
+  if(!exists){
+   finance.event(this.g,'equityFinancing',companyRaise,{cashEffect:companyRaise,equityEffect:companyRaise,sourceType:'parentCompanyIPO',sourceID:operationID,idempotencyKey:operationID,operationID,description:`${market} 親会社IPO公募増資`});
+   ledger.balances.capitalSurplus=finite(ledger.balances.capitalSurplus)+companyRaise;
+  }
+  return super.executeIPO(market,sellShares);
+ }
 }
 
-Object.assign(engine,{SAVE_VERSION,createInitialState,detectSaveVersion,validateMigratedState,migrateSave,migrateV8ToV9,TycoonEngine:TycoonEngineV9,__saveV9Installed:true});
+Object.assign(engine,{SAVE_VERSION,createInitialState,detectSaveVersion,validateMigratedState,migrateSave,migrateV8ToV9,TycoonEngine:TycoonEngineV9,__saveV9Installed:true,__parentIPOFinanceInstalled:true,__parentIPOEquityBalanceInstalled:true});
 })();
