@@ -11,6 +11,24 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
+      - name: Diagnose supply exception recovery
+        run: node tests/week-distress-diagnostic.js supply
+      - name: Diagnose completion exception recovery
+        run: node tests/week-distress-diagnostic.js completion
+      - name: Diagnose parity exception recovery
+        run: node tests/week-distress-diagnostic.js parity
+      - name: Diagnose first normal week
+        run: node tests/week-distress-diagnostic.js first
+      - name: Diagnose distress validator
+        run: node tests/week-distress-diagnostic.js distressValidator
+      - name: Diagnose full competitor validator
+        run: node tests/week-distress-diagnostic.js fullValidator
+      - name: Diagnose 52-week progression
+        run: node tests/week-distress-diagnostic.js long
+      - name: Diagnose save round trip
+        run: node tests/week-distress-diagnostic.js roundtrip
+      - name: Diagnose legacy load
+        run: node tests/week-distress-diagnostic.js legacy
       - run: npm run test:week
       - run: npm run test:syntax
       - run: npm run test:static
