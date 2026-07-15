@@ -138,10 +138,43 @@ function installCompatibility(TycoonEngine){
  };
  TycoonEngine.prototype.__competitorParityCompatibilityInstalled=true;
 }
+function validateCompatibility(state){
+ const errors=[];
+ if(!Array.isArray(state.competitorCounterStates))errors.push('competitorCounterStates配列不正');
+ else{
+  if(state.competitorCounterStates.length>COUNTER_LIMIT)errors.push('competitorCounterStates上限超過');
+  const ids=new Set((Array.isArray(state.competitorStates)?state.competitorStates:[]).map(row=>row?.competitorID).filter(Boolean));
+  const counterIDs=new Set();
+  for(const row of state.competitorCounterStates){
+   if(!row||typeof row!=='object'){errors.push('competitorCounterStates要素不正');continue;}
+   const id=String(row.competitorID||'');
+   if(!id)errors.push('competitorCounterStates ID欠落');
+   if(counterIDs.has(id))errors.push('competitorCounterStates ID重複');counterIDs.add(id);
+   if(!ids.has(id))errors.push('competitorCounterStates参照不正');
+   for(const key of ['strength','cashShadow','aggression','brandPower','pricePressure','lastActionWeek'])if(!Number.isFinite(Number(row[key])))errors.push(`competitorCounterStates.${key}非有限`);
+   if(finite(row.pricePressure)<0||finite(row.pricePressure)>8)errors.push('competitorCounterStates.pricePressure範囲外');
+   if(finite(row.aggression)<0||finite(row.aggression)>1)errors.push('competitorCounterStates.aggression範囲外');
+  }
+ }
+ if(!Array.isArray(state.rivalResponseHistory))errors.push('rivalResponseHistory配列不正');
+ else{
+  if(state.rivalResponseHistory.length>RESPONSE_HISTORY_LIMIT)errors.push('rivalResponseHistory上限超過');
+  const operations=new Set();
+  const ids=new Set((Array.isArray(state.competitorStates)?state.competitorStates:[]).map(row=>row?.competitorID).filter(Boolean));
+  for(const row of state.rivalResponseHistory){
+   if(!row||typeof row!=='object'){errors.push('rivalResponseHistory要素不正');continue;}
+   if(!ids.has(row.competitorID))errors.push('rivalResponseHistory参照不正');
+   if(!['ads','quality','acquire'].includes(row.action))errors.push('rivalResponseHistory action不正');
+   for(const key of ['week','cost'])if(!Number.isFinite(Number(row[key])))errors.push(`rivalResponseHistory.${key}非有限`);
+   const operationID=String(row.operationID||'');if(!operationID)errors.push('rivalResponseHistory operationID欠落');if(operations.has(operationID))errors.push('rivalResponseHistory operationID重複');operations.add(operationID);
+  }
+ }
+ if(errors.length)throw new Error(errors.join(' / '));return true;
+}
 
 const baseInstallParity=modules.parity.installParity;
 modules.parity.installParity=function(TycoonEngine){const result=baseInstallParity(TycoonEngine);installCompatibility(TycoonEngine);return result;};
 const baseValidate=competitor.validate;
-competitor.validate=function(state){baseValidate(state);ensureCounterStates(state);const errors=[],ids=new Set((state.competitorStates||[]).map(row=>row.competitorID));const counterIDs=new Set();for(const row of state.competitorCounterStates||[]){if(counterIDs.has(row.competitorID))errors.push('competitorCounterStates ID重複');counterIDs.add(row.competitorID);if(!ids.has(row.competitorID))errors.push('competitorCounterStates参照不正');for(const key of ['strength','cashShadow','aggression','brandPower','pricePressure','lastActionWeek'])if(!Number.isFinite(Number(row[key])))errors.push(`competitorCounterStates.${key}非有限`);}if(errors.length)throw new Error(errors.join(' / '));return true;};
-Object.assign(competitor,{ensureCounterStates,eventText,installParityCompatibility:installCompatibility,__parityCompatibilityRegistered:true});
+competitor.validate=function(state){baseValidate(state);validateCompatibility(state);return true;};
+Object.assign(competitor,{ensureCounterStates,eventText,validateParityCompatibility:validateCompatibility,installParityCompatibility:installCompatibility,__parityCompatibilityRegistered:true});
 })();
