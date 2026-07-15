@@ -4,7 +4,7 @@ const vm = require('node:vm');
 const { ROOT, readIndex, extractScripts, createBrowserContext } = require('./harness');
 
 function assert(cond, msg) { if (!cond) throw new Error(msg); }
-const expected = ['./js/runtime.js','./js/data.js','./js/workforce.js','./js/supply.js','./js/competitor.js','./js/competitor-projects.js','./js/competitor-entry.js','./js/competitor-credit.js','./js/competitor-distress.js','./js/market.js','./js/finance.js','./js/engine.js','./js/save-v9.js','./js/expansion.js','./js/competitor-media.js','./js/completion.js','./js/parity.js','./js/app.js'];
+const expected = ['./js/runtime.js','./js/data.js','./js/workforce.js','./js/supply.js','./js/competitor.js','./js/competitor-projects.js','./js/competitor-entry.js','./js/competitor-credit.js','./js/competitor-distress.js','./js/market.js','./js/finance.js','./js/engine.js','./js/save-v9.js','./js/expansion.js','./js/competitor-media.js','./js/completion.js','./js/parity.js','./js/competitor-parity.js','./js/app.js'];
 const scripts = extractScripts(readIndex()).filter(s => s.src);
 assert(JSON.stringify(scripts.map(s => s.src)) === JSON.stringify(expected), `script order mismatch: ${scripts.map(s => s.src).join(', ')}`);
 assert(scripts[0].src === './js/runtime.js', 'runtime.js must be first');
@@ -50,7 +50,7 @@ for (const [name, keys] of Object.entries({
   data:['MASTER','PRODUCT_BLUEPRINTS','LUXURY_OFFERS','PERSONAL_INVESTMENT_OFFERS','OVERSEAS_COUNTRIES','SPORTS_TEAMS','MISSION_DEFS'],
   workforce:['ROLES','recompute','validate','storeAdjustment'],
   supply:['MATERIALS','SUPPLIERS','createOrder','applyConstraint','autoOrder'],
-  competitor:['STRATEGIES','ensure','processWeek','validate','MAX_PROJECTS','PROJECT_ACTION_TYPES','ENTRY_LEAD_WEEKS','evaluateEntryCandidates','scheduleMarketEntry','MAX_CREDIT_HISTORY','CREDIT_STATUSES','calculateCreditLimit','reviewCompanyCredit','MAX_LIFECYCLE_HISTORY','LIFECYCLE_STATUSES','distressScore','startTurnaroundPlan','declareBankruptcy','sanitizeNewspapers','newspaperEventText','__distressInstalled'],
+  competitor:['STRATEGIES','ensure','processWeek','validate','MAX_PROJECTS','PROJECT_ACTION_TYPES','ENTRY_LEAD_WEEKS','evaluateEntryCandidates','scheduleMarketEntry','MAX_CREDIT_HISTORY','CREDIT_STATUSES','calculateCreditLimit','reviewCompanyCredit','MAX_LIFECYCLE_HISTORY','LIFECYCLE_STATUSES','distressScore','startTurnaroundPlan','declareBankruptcy','sanitizeNewspapers','newspaperEventText','ensureCounterStates','installParityCompatibility','__parityCompatibilityRegistered','__distressInstalled'],
   market:['calculateMarkets','effectiveCapacity','competitorOffers','SEGMENTS'],
   finance:['ensureFinance','event','recordWeekly','buildStatements','validate'],
   engine:['TycoonEngine','SAVE_VERSION','migrateSave','migrateV8ToV9','yen','compactYen','pct','finite','__saveV9Installed'],
@@ -63,6 +63,7 @@ for (const [name, keys] of Object.entries({
 }
 assert(modules.engine.SAVE_VERSION === 9, `expected save version 9, got ${modules.engine.SAVE_VERSION}`);
 assert(modules.engine.TycoonEngine.prototype.__competitorMediaInstalled === true, 'competitor media patch missing');
+assert(modules.engine.TycoonEngine.prototype.__competitorParityCompatibilityInstalled === true, 'competitor parity compatibility missing');
 const afterGlobals = Object.getOwnPropertyNames(ctx).filter(k => !beforeGlobals.has(k) && k !== 'loadCalls' && k !== 'renderEvents');
 assert(JSON.stringify(afterGlobals) === JSON.stringify(['__capitalismTycoonModules']), `unexpected globals: ${afterGlobals.join(', ')}`);
 
@@ -103,8 +104,12 @@ assert.throws(() => vm.runInContext(scripts[14].code, missingEngine), /engine\.j
 const missingExpansion = createBrowserContext();
 for (let index = 0; index <= 12; index += 1) vm.runInContext(scripts[index].code, missingExpansion);
 assert.throws(() => vm.runInContext(scripts[14].code, missingExpansion), /expansion\.js/);
+const missingParity = createBrowserContext();
+for (let index = 0; index <= 15; index += 1) vm.runInContext(scripts[index].code, missingParity);
+assert.throws(() => vm.runInContext(scripts[17].code, missingParity), /parity\.js/);
 assert.throws(() => vm.runInContext(scripts[12].code, ctx), /already installed/);
 assert.throws(() => vm.runInContext(scripts[14].code, ctx), /already installed/);
+assert.throws(() => vm.runInContext(scripts[17].code, ctx), /already installed/);
 assert.throws(() => vm.runInContext(scripts[8].code, ctx), /already installed/);
 assert.throws(() => vm.runInContext(scripts[1].code, ctx), /already registered/);
 
