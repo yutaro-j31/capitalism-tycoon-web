@@ -90,6 +90,7 @@
     "test:competitor-multi-presence": "node tests/competitor-multi-presence-history-test.js",
     "test:competitor-projects": "node tests/competitor-project-lifecycle-test.js",
     "test:competitor-market-entry": "node tests/competitor-market-entry-project-test.js",
+    "test:competitor-credit": "node tests/competitor-credit-lifecycle-test.js",
     "test:competitor-long": "node tests/competitor-long-run-test.js"
   }
 }
