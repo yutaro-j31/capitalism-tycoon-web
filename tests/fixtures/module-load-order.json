@@ -8,11 +8,13 @@
     "./js/competitor-projects.js",
     "./js/competitor-entry.js",
     "./js/competitor-credit.js",
+    "./js/competitor-distress.js",
     "./js/market.js",
     "./js/finance.js",
     "./js/engine.js",
     "./js/save-v9.js",
     "./js/expansion.js",
+    "./js/competitor-media.js",
     "./js/completion.js",
     "./js/parity.js",
     "./js/app.js"

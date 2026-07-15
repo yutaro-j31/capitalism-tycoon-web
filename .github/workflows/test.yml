@@ -91,4 +91,6 @@ jobs:
       - run: npm run test:competitor-projects
       - run: npm run test:competitor-market-entry
       - run: npm run test:competitor-credit
+      - run: npm run test:competitor-distress-lifecycle
+      - run: npm run test:competitor-media
       - run: npm run test:competitor-long
