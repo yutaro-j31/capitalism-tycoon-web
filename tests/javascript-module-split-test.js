@@ -136,9 +136,9 @@ for (let index = 0; index <= 21; index += 1) vm.runInContext(scripts[index].code
 assert.throws(() => vm.runInContext(scripts[23].code, missingAppComposition), /app\.js must install completion and parity/);
 assert.throws(() => vm.runInContext(scripts[13].code, ctx), /already installed/);
 assert.throws(() => vm.runInContext(scripts[15].code, ctx), /already installed/);
-assert.throws(() => vm.runInContext(scripts[18].code, ctx), /already registered/);
-assert.throws(() => vm.runInContext(scripts[19].code, ctx), /already normalized/);
-assert.throws(() => vm.runInContext(scripts[20].code, ctx), /already registered/);
+assert.throws(() => vm.runInContext(scripts[18].code, ctx), /already installed/);
+assert.throws(() => vm.runInContext(scripts[19].code, ctx), /already registered/);
+assert.throws(() => vm.runInContext(scripts[20].code, ctx), /already normalized/);
 assert.throws(() => vm.runInContext(scripts[21].code, ctx), /already registered/);
 assert.throws(() => vm.runInContext(scripts[23].code, ctx), /already registered/);
 assert.throws(() => vm.runInContext(scripts[9].code, ctx), /already installed/);
