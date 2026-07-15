@@ -19,6 +19,7 @@ const SAVE_VERSION=9;
 const SAVE_KEY=engine.SAVE_KEY;
 const clone=value=>typeof structuredClone==='function'?structuredClone(value):JSON.parse(JSON.stringify(value));
 const plain=value=>Boolean(value&&typeof value==='object'&&!Array.isArray(value));
+const finite=(value,fallback=0)=>Number.isFinite(Number(value))?Number(value):fallback;
 
 function detectSaveVersion(raw){
  if(!plain(raw))return {ok:false,version:null,error:'セーブデータのルートはオブジェクトである必要があります。'};
@@ -145,10 +146,13 @@ class TycoonEngineV9 extends BaseTycoonEngine{
   const operationID=`parent-ipo-${this.g.week}`;
   const ledger=finance.ensureFinance(this.g);
   const exists=(ledger.transactions||[]).some(row=>row.operationID===operationID||row.idempotencyKey===operationID);
-  if(!exists)finance.event(this.g,'equityFinancing',companyRaise,{cashEffect:companyRaise,equityEffect:companyRaise,sourceType:'parentCompanyIPO',sourceID:operationID,idempotencyKey:operationID,operationID,description:`${market} 親会社IPO公募増資`});
+  if(!exists){
+   finance.event(this.g,'equityFinancing',companyRaise,{cashEffect:companyRaise,equityEffect:companyRaise,sourceType:'parentCompanyIPO',sourceID:operationID,idempotencyKey:operationID,operationID,description:`${market} 親会社IPO公募増資`});
+   ledger.balances.capitalSurplus=finite(ledger.balances.capitalSurplus)+companyRaise;
+  }
   return super.executeIPO(market,sellShares);
  }
 }
 
-Object.assign(engine,{SAVE_VERSION,createInitialState,detectSaveVersion,validateMigratedState,migrateSave,migrateV8ToV9,TycoonEngine:TycoonEngineV9,__saveV9Installed:true,__parentIPOFinanceInstalled:true});
+Object.assign(engine,{SAVE_VERSION,createInitialState,detectSaveVersion,validateMigratedState,migrateSave,migrateV8ToV9,TycoonEngine:TycoonEngineV9,__saveV9Installed:true,__parentIPOFinanceInstalled:true,__parentIPOEquityBalanceInstalled:true});
 })();
