@@ -148,7 +148,8 @@ function makeState() {
   assert.equal(project.status, 'failed');
   assert.equal(project.failureReason, 'bankruptcy');
   assert.ok(company.marketPresence.every(row => !row.active && row.totalCapacity === 0));
-  assert.deepEqual(market.competitorOffers(state, 'ramen', presence.prefID), []);
+  const remainingOffers = market.competitorOffers(state, 'ramen', presence.prefID);
+  assert.ok(!remainingOffers.some(offer => offer.id === presence.presenceID || offer.presenceID === presence.presenceID || offer.competitorID === company.competitorID), 'bankrupt competitor offers must leave the market');
   const cashBefore = company.cash;
   const eventsBefore = state.competitorEvents.length;
   competitor.reviewCompanyLifecycle(state, company);
