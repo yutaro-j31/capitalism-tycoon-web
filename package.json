@@ -88,6 +88,7 @@
     "test:competitor-calibration": "node tests/competitor-calibration-test.js",
     "test:competitor-history": "node tests/competitor-history-retention-test.js",
     "test:competitor-multi-presence": "node tests/competitor-multi-presence-history-test.js",
+    "test:competitor-projects": "node tests/competitor-project-lifecycle-test.js",
     "test:competitor-long": "node tests/competitor-long-run-test.js"
   }
 }
