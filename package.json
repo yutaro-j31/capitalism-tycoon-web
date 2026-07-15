@@ -94,6 +94,7 @@
     "test:competitor-credit": "node tests/competitor-credit-lifecycle-test.js",
     "test:competitor-distress-lifecycle": "node tests/competitor-distress-lifecycle-test.js",
     "test:competitor-media": "node tests/competitor-newspaper-safety-test.js",
+    "test:competitor-parity": "node tests/competitor-parity-compatibility-test.js",
     "test:competitor-long": "node tests/competitor-long-run-test.js"
   }
 }
