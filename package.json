@@ -10,6 +10,7 @@
     "test:save": "node tests/save-compat-test.js",
     "test:migration": "node tests/save-migration-test.js",
     "test:save-v9": "node tests/save-v9-migration-test.js",
+    "test:player-crisis": "node tests/player-crisis-lifecycle-test.js",
     "test:load": "node tests/save-load-integration-test.js",
     "test:week": "node tests/week-test.js",
     "test:long": "node tests/long-run-test.js",
