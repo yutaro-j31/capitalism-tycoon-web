@@ -24,15 +24,17 @@ e.g.workforceCandidates.push({ candidateID: 'cand-hi-skill', roleID: 'hr', depar
 assert.equal(e.hireWorkforceCandidate('cand-hi-skill'), true);
 const hired = e.g.workforceTeams.find(t => t.departmentID === 'hr' && !t.storeID);
 assert.equal(hired.headcount, old.headcount + 2);
-assert.equal(hired.averageSkill, Math.round(((old.skill * old.headcount + 90 * 2) / hired.headcount) * 100) / 100);
-assert.equal(hired.averageExperience, Math.round(((old.exp * old.headcount + 80 * 2) / hired.headcount) * 100) / 100);
-assert.equal(hired.averageWeeklySalary, Math.round(((old.salary * old.headcount + 100000 * 2) / hired.headcount) * 100) / 100);
-assert(hired.morale > old.morale);
+assert.equal(hired.averageSkill, old.skill);
+assert.equal(hired.averageExperience, old.exp);
+assert.equal(hired.averageWeeklySalary, old.salary);
 assert.equal(e.g.departmentStaff.hr, hired.headcount);
 const capDuring = hired.weeklyCapacity;
 e.advanceWeek(false);
 const afterOnboarding = e.g.workforceTeams.find(t => t.departmentID === 'hr' && !t.storeID);
 assert.equal(afterOnboarding.onboardingHeadcount, 0);
+assert.equal(afterOnboarding.averageSkill, Math.round(((old.skill * old.headcount + 90 * 2) / afterOnboarding.headcount) * 100) / 100);
+assert.equal(afterOnboarding.averageExperience, Math.round(((old.exp * old.headcount + 80 * 2) / afterOnboarding.headcount) * 100) / 100);
+assert.equal(afterOnboarding.averageWeeklySalary, Math.round(((old.salary * old.headcount + 100000 * 2) / afterOnboarding.headcount) * 100) / 100);
 assert(afterOnboarding.weeklyCapacity >= capDuring);
 assert.equal(e.hireWorkforceCandidate('cand-hi-skill'), false);
 

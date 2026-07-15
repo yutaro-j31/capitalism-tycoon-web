@@ -580,7 +580,7 @@ class TycoonEngine extends EventTarget {
     const index=this.g.stores.findIndex(s=>s.id===id); if(index<0)return false;
     const store=this.g.stores[index]; const tenant=this.g.tenants.find(t=>t.id===store.tenantID),deposit=finite(tenant?.deposit); if(tenant)tenant.occupiedBy=null;
     const proceeds=(this.business(store.businessID)?.storeCost||0)*.15;
-    this.g.companyCash+=proceeds; supply.disposeStoreSupply(this.g,store.id,finance); finance.disposeFixedAsset(this.g,store.id,proceeds); if(deposit>0)finance.event(this.g,'assetSale',deposit,{cashEffect:0,assetEffect:-deposit,profitEffect:-deposit,businessID:store.businessID,storeID:store.id,sourceType:'closeStoreDeposit',sourceID:store.id,operationID:`closeStoreDeposit-${store.id}-${this.g.week}`,description:`${store.name} 保証金没収損`}); this.g.stores.splice(index,1); this.notify(`${store.name}を閉店し、${yen(proceeds)}を回収しました。`,'warning');
+    this.g.companyCash+=proceeds; workforce.disposeStoreTeam(this.g,store.id); supply.disposeStoreSupply(this.g,store.id,finance); finance.disposeFixedAsset(this.g,store.id,proceeds); if(deposit>0)finance.event(this.g,'assetSale',deposit,{cashEffect:0,assetEffect:-deposit,profitEffect:-deposit,businessID:store.businessID,storeID:store.id,sourceType:'closeStoreDeposit',sourceID:store.id,operationID:`closeStoreDeposit-${store.id}-${this.g.week}`,description:`${store.name} 保証金没収損`}); this.g.stores.splice(index,1); this.notify(`${store.name}を閉店し、${yen(proceeds)}を回収しました。`,'warning');
     this.save();this.emit();return true;
   }
 
