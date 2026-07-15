@@ -18,6 +18,8 @@
     "./js/completion.js",
     "./js/parity.js",
     "./js/competitor-parity.js",
+    "./js/competitor-dashboard.js",
+    "./js/competitor-dashboard-status.js",
     "./js/app.js"
   ]
 }
