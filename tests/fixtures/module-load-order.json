@@ -11,6 +11,7 @@
     "./js/market.js",
     "./js/finance.js",
     "./js/engine.js",
+    "./js/save-v9.js",
     "./js/expansion.js",
     "./js/completion.js",
     "./js/parity.js",

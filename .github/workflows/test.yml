@@ -11,9 +11,30 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
-      - run: npm test
+      - run: npm run test:syntax
+      - run: npm run test:static
+      - run: npm run test:save
+      - run: npm run test:migration
+      - run: npm run test:save-v9
+      - run: npm run test:load
+      - run: npm run test:week
+      - run: npm run test:transaction
+      - run: npm run test:long
+      - run: npm run test:css
+      - run: npm run test:javascript
       - run: npm run test:modules
       - run: npm run test:stock
+
+      - run: npm run test:market
+      - run: npm run test:market-migration
+      - run: npm run test:market-ui
+      - run: npm run test:market-capacity
+      - run: npm run test:market-cannibalization
+      - run: npm run test:market-calibration
+      - run: npm run test:market-order
+      - run: npm run test:market-opening
+      - run: npm run test:market-rng
+
       - run: npm run test:finance
       - run: npm run test:statements
       - run: npm run test:cashflow
@@ -37,14 +58,25 @@ jobs:
       - run: npm run test:finance-working-capital-rollforward
       - run: npm run test:finance-store-close-deposit
       - run: npm run test:finance-property-building-disposal
+
+      - run: npm run test:supply
+      - run: npm run test:inventory
+      - run: npm run test:procurement
+      - run: npm run test:supply-finance
+      - run: npm run test:supply-migration
+      - run: npm run test:supply-ui
+      - run: npm run test:supply-rng
+      - run: npm run test:supply-calibration
+      - run: npm run test:supplier-coverage
+      - run: npm run test:supply-procurement-cash
+      - run: npm run test:supply-store-close
+      - run: npm run test:supply-spoilage-profit
+      - run: npm run test:supply-multi-store-spoilage
+      - run: npm run test:supply-long
+
       - run: npm run test:workforce
-      - run: npm run test:workforce-migration
-      - run: npm run test:workforce-rng
       - run: npm run test:workforce-long
 
-      - run: npm run test:market
-      - run: npm run test:supply
-      - run: npm run test:supply-long
       - run: npm run test:competitor
       - run: npm run test:competitor-market
       - run: npm run test:competitor-finance

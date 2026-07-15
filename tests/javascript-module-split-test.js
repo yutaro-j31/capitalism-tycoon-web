@@ -4,7 +4,7 @@ const vm = require('node:vm');
 const { ROOT, readIndex, extractScripts, createBrowserContext } = require('./harness');
 
 function assert(cond, msg) { if (!cond) throw new Error(msg); }
-const expected = ['./js/runtime.js','./js/data.js','./js/workforce.js','./js/supply.js','./js/competitor.js','./js/competitor-projects.js','./js/competitor-entry.js','./js/competitor-credit.js','./js/market.js','./js/finance.js','./js/engine.js','./js/expansion.js','./js/completion.js','./js/parity.js','./js/app.js'];
+const expected = ['./js/runtime.js','./js/data.js','./js/workforce.js','./js/supply.js','./js/competitor.js','./js/competitor-projects.js','./js/competitor-entry.js','./js/competitor-credit.js','./js/market.js','./js/finance.js','./js/engine.js','./js/save-v9.js','./js/expansion.js','./js/completion.js','./js/parity.js','./js/app.js'];
 const scripts = extractScripts(readIndex()).filter(s => s.src);
 assert(JSON.stringify(scripts.map(s => s.src)) === JSON.stringify(expected), `script order mismatch: ${scripts.map(s => s.src).join(', ')}`);
 assert(scripts[0].src === './js/runtime.js', 'runtime.js must be first');
@@ -53,7 +53,7 @@ for (const [name, keys] of Object.entries({
   competitor:['STRATEGIES','ensure','processWeek','validate','MAX_PROJECTS','PROJECT_ACTION_TYPES','ENTRY_LEAD_WEEKS','evaluateEntryCandidates','scheduleMarketEntry','MAX_CREDIT_HISTORY','CREDIT_STATUSES','calculateCreditLimit','reviewCompanyCredit'],
   market:['calculateMarkets','effectiveCapacity','competitorOffers','SEGMENTS'],
   finance:['ensureFinance','event','recordWeekly','buildStatements','validate'],
-  engine:['TycoonEngine','yen','compactYen','pct','finite'],
+  engine:['TycoonEngine','SAVE_VERSION','migrateSave','migrateV8ToV9','yen','compactYen','pct','finite','__saveV9Installed'],
   expansion:['installExpansion','FOUNDER_TRAITS','FOUNDER_HOME_PRODUCTS','SUPPLIER_OFFERS','VERTICAL_INTEGRATION_OFFERS','RD_PROJECTS','PERSONAL_REAL_ESTATE_OFFERS','SUCCESSOR_CANDIDATES'],
   completion:['installCompletion','MEDIA_ACTIONS','TRANSPORT_REBUILD_ACTIONS','ENDING_DEFS'],
   parity:['installParity','KEY_PERSON_ROLES']
@@ -61,6 +61,7 @@ for (const [name, keys] of Object.entries({
   assert(modules[name], `${name} module missing`);
   for (const key of keys) assert(Object.prototype.hasOwnProperty.call(modules[name], key), `${name}.${key} missing`);
 }
+assert(modules.engine.SAVE_VERSION === 9, `expected save version 9, got ${modules.engine.SAVE_VERSION}`);
 const afterGlobals = Object.getOwnPropertyNames(ctx).filter(k => !beforeGlobals.has(k) && k !== 'loadCalls' && k !== 'renderEvents');
 assert(JSON.stringify(afterGlobals) === JSON.stringify(['__capitalismTycoonModules']), `unexpected globals: ${afterGlobals.join(', ')}`);
 
@@ -90,6 +91,10 @@ vm.runInContext(scripts[1].code, missingEntry);
 vm.runInContext(scripts[4].code, missingEntry);
 vm.runInContext(scripts[5].code, missingEntry);
 assert.throws(() => vm.runInContext(scripts[7].code, missingEntry), /competitor-entry\.js/);
+const missingEngine = createBrowserContext();
+vm.runInContext(scripts[0].code, missingEngine);
+assert.throws(() => vm.runInContext(scripts[11].code, missingEngine), /engine\.js/);
+assert.throws(() => vm.runInContext(scripts[11].code, ctx), /already installed/);
 assert.throws(() => vm.runInContext(scripts[1].code, ctx), /already registered/);
 
 fs.writeFileSync(path.join(ROOT, 'tests', 'fixtures', 'module-load-order.json'), JSON.stringify({ scripts: expected }, null, 2) + '\n');
