@@ -4,7 +4,7 @@ const vm = require('node:vm');
 const { ROOT, readIndex, extractScripts, createBrowserContext } = require('./harness');
 
 function assert(cond, msg) { if (!cond) throw new Error(msg); }
-const expected = ['./js/runtime.js','./js/data.js','./js/workforce.js','./js/supply.js','./js/competitor.js','./js/competitor-projects.js','./js/competitor-entry.js','./js/competitor-credit.js','./js/competitor-distress.js','./js/market.js','./js/finance.js','./js/engine.js','./js/save-v9.js','./js/expansion.js','./js/completion.js','./js/parity.js','./js/app.js'];
+const expected = ['./js/runtime.js','./js/data.js','./js/workforce.js','./js/supply.js','./js/competitor.js','./js/competitor-projects.js','./js/competitor-entry.js','./js/competitor-credit.js','./js/competitor-distress.js','./js/market.js','./js/finance.js','./js/engine.js','./js/save-v9.js','./js/expansion.js','./js/competitor-news.js','./js/completion.js','./js/parity.js','./js/app.js'];
 const scripts = extractScripts(readIndex()).filter(s => s.src);
 assert(JSON.stringify(scripts.map(s => s.src)) === JSON.stringify(expected), `script order mismatch: ${scripts.map(s => s.src).join(', ')}`);
 assert(scripts[0].src === './js/runtime.js', 'runtime.js must be first');
@@ -51,6 +51,7 @@ for (const [name, keys] of Object.entries({
   workforce:['ROLES','recompute','validate','storeAdjustment'],
   supply:['MATERIALS','SUPPLIERS','createOrder','applyConstraint','autoOrder'],
   competitor:['STRATEGIES','ensure','processWeek','validate','MAX_PROJECTS','PROJECT_ACTION_TYPES','ENTRY_LEAD_WEEKS','evaluateEntryCandidates','scheduleMarketEntry','MAX_CREDIT_HISTORY','CREDIT_STATUSES','calculateCreditLimit','reviewCompanyCredit','TURNAROUND_DURATION_WEEKS','assessDistress','startTurnaroundPlan','bankruptCompany','__distressInstalled'],
+  competitorNews:['competitorEventText','normalizeNewspaperDetails','installExpansionWithCompetitorNews'],
   market:['calculateMarkets','effectiveCapacity','competitorOffers','SEGMENTS'],
   finance:['ensureFinance','event','recordWeekly','buildStatements','validate'],
   engine:['TycoonEngine','SAVE_VERSION','migrateSave','migrateV8ToV9','yen','compactYen','pct','finite','__saveV9Installed'],
@@ -101,9 +102,13 @@ vm.runInContext(scripts[4].code, missingCredit);
 vm.runInContext(scripts[5].code, missingCredit);
 vm.runInContext(scripts[6].code, missingCredit);
 assert.throws(() => vm.runInContext(scripts[8].code, missingCredit), /competitor-credit\.js/);
+const missingExpansion = createBrowserContext();
+vm.runInContext(scripts[0].code, missingExpansion);
+assert.throws(() => vm.runInContext(scripts[14].code, missingExpansion), /expansion\.js/);
 const missingEngine = createBrowserContext();
 vm.runInContext(scripts[0].code, missingEngine);
 assert.throws(() => vm.runInContext(scripts[12].code, missingEngine), /engine\.js/);
+assert.throws(() => vm.runInContext(scripts[14].code, ctx), /already registered/);
 assert.throws(() => vm.runInContext(scripts[12].code, ctx), /already installed/);
 assert.throws(() => vm.runInContext(scripts[1].code, ctx), /already registered/);
 
