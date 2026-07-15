@@ -96,4 +96,5 @@ jobs:
       - run: npm run test:competitor-media
       - run: npm run test:competitor-parity
       - run: npm run test:competitor-dashboard
+      - run: node tests/competitor-dashboard-ui-test.js
       - run: npm run test:competitor-long

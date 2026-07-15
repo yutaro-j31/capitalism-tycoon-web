@@ -21,6 +21,7 @@
     "./js/competitor-parity.js",
     "./js/competitor-dashboard.js",
     "./js/competitor-dashboard-status.js",
+    "./js/competitor-dashboard-ui.js",
     "./js/app.js"
   ]
 }
