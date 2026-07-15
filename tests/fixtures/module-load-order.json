@@ -17,6 +17,7 @@
     "./js/competitor-media.js",
     "./js/completion.js",
     "./js/parity.js",
+    "./js/competitor-parity.js",
     "./js/app.js"
   ]
 }
