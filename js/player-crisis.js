@@ -8,6 +8,7 @@ if(modules.playerCrisis)throw new Error('player crisis module is already registe
 
 const engine=modules.engine;
 const EngineClass=engine.TycoonEngine;
+if(!EngineClass.prototype.__completionInstalled||!EngineClass.prototype.__parityInstalled)throw new Error('app.js must install completion and parity before player-crisis.js.');
 const STATUSES=Object.freeze(['stable','watch','distressed','turnaround','recovered','insolvent']);
 const ACTIVE_CRISIS=new Set(['distressed','turnaround']);
 const HISTORY_LIMIT=52;
@@ -42,12 +43,11 @@ function ensure(state){
  current.startedWeek=current.startedWeek==null?null:integer(current.startedWeek);
  current.lastEvaluationWeek=integer(current.lastEvaluationWeek);
  current.lastNegativeCashWeek=current.lastNegativeCashWeek==null?null:integer(current.lastNegativeCashWeek);
- current.negativeCashWeeks=integer(current.negativeCashWeeks,state.consecutiveNegativeCashWeeks);
+ current.negativeCashWeeks=integer(current.negativeCashWeeks);
  current.graceWeeksRemaining=integer(current.graceWeeksRemaining);
  current.recoveryWeeks=integer(current.recoveryWeeks);
  current.reserveThreshold=Math.max(0,finite(current.reserveThreshold,reserveThreshold(state)));
  current.lastCash=finite(current.lastCash,state.companyCash);
- current.lastCompanyValue=Math.max(0,finite(current.lastCompanyValue));
  current.reason=text(current.reason);
  current.history=normalizeHistory(current.history);
  if(ACTIVE_CRISIS.has(current.status)&&current.graceWeeksRemaining===0)current.graceWeeksRemaining=graceForDifficulty(state.difficulty);
@@ -91,7 +91,7 @@ function validate(state){
  if(!plain(crisis))errors.push('playerCrisisがオブジェクトではありません。');
  else{
   if(!STATUSES.includes(crisis.status))errors.push('playerCrisis.statusが不正です。');
-  for(const key of ['lastEvaluationWeek','negativeCashWeeks','graceWeeksRemaining','recoveryWeeks','reserveThreshold','lastCash','lastCompanyValue'])if(!Number.isFinite(Number(crisis[key])))errors.push(`playerCrisis.${key}が有限数ではありません。`);
+  for(const key of ['lastEvaluationWeek','negativeCashWeeks','graceWeeksRemaining','recoveryWeeks','reserveThreshold','lastCash'])if(!Number.isFinite(Number(crisis[key])))errors.push(`playerCrisis.${key}が有限数ではありません。`);
   if(!Array.isArray(crisis.history))errors.push('playerCrisis.historyが配列ではありません。');
   else{
    if(crisis.history.length>HISTORY_LIMIT)errors.push('playerCrisis.historyが上限を超えています。');
@@ -109,10 +109,9 @@ function evaluate(state){
  crisis.lastEvaluationWeek=week;
  crisis.reserveThreshold=reserveThreshold(state);
  crisis.lastCash=finite(state.companyCash);
- crisis.lastCompanyValue=Math.max(0,finite(modules.engine?.finite?state.companyCash:0));
  const cash=crisis.lastCash;
  if(cash<0){
-  crisis.negativeCashWeeks+=1;
+  crisis.negativeCashWeeks=Math.max(crisis.negativeCashWeeks+1,integer(state.consecutiveNegativeCashWeeks));
   state.consecutiveNegativeCashWeeks=crisis.negativeCashWeeks;
   crisis.recoveryWeeks=0;
   if(!ACTIVE_CRISIS.has(crisis.status)){
