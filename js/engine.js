@@ -6,12 +6,13 @@ if(!__modules.data)throw new Error('Capitalism Tycoon data module must be loaded
 if(!__modules.market)throw new Error('Capitalism Tycoon market module must be loaded before engine.js.');
 if(!__modules.workforce)throw new Error('Capitalism Tycoon workforce module must be loaded before engine.js.');
 if(!__modules.supply)throw new Error('Capitalism Tycoon supply module must be loaded before engine.js.');
+if(!__modules.competitor)throw new Error('Capitalism Tycoon competitor module must be loaded before engine.js.');
 if(!__modules.finance)throw new Error('Capitalism Tycoon finance module must be loaded before engine.js.');
 if(__modules.engine)throw new Error('Capitalism Tycoon engine module is already registered.');
-(function(exports,data,market,finance,supply,workforce){
+(function(exports,data,market,finance,supply,workforce,competitor){
 const {MASTER,DEPARTMENT_UNLOCKS,PRODUCT_BLUEPRINTS,LUXURY_OFFERS,PERSONAL_INVESTMENT_OFFERS,OVERSEAS_COUNTRIES,SPORTS_TEAMS,MISSION_DEFS}=data;
 const SAVE_KEY = 'capitalism_tycoon_web_v1';
-const SAVE_VERSION = 7;
+const SAVE_VERSION = 8;
 
 const deepClone = value => typeof structuredClone === 'function'
   ? structuredClone(value)
@@ -161,7 +162,7 @@ function createInitialState(options = {}) {
     activeMissionIDs: ['mission_setup'], completedMissionIDs: [], achievements: [], unlockedEndings: [],
     gameOver: false, gameOverReason: '', isCompanySold: false, hasSeenCompanyBuyoutEnding: false,
     lastSaveDate: new Date().toISOString(), settings: {detailMode:'standard', sound:false, reducedMotion:false, autoSave:true},
-    lastWeeklySummary: null, marketResultsByStoreID: {}, marketResultsByBusinessID: {}, lastMarketCalculationCount: 0, inventoryByStoreID:{}, purchaseOrders:[], supplySettingsByStoreID:{}, supplyResultsByStoreID:{}, supplyResultsByBusinessID:{}, nextPurchaseOrderSeq:1, nextInventoryLotSeq:1, nextSupplyEventSeq:1, finance: finance.defaultFinanceState({companyCash:8_000_000, companyDebt:0, week:1}), workforceTeams: [], workforceCandidates: [], workforceTrainings: [], workforceProjects: [], workforceResultsByDepartmentID: {}, workforceResultsByStoreID: {}, workforceSettings: {detailStoreBusinessIDs:['ramen']}, nextWorkforceTeamSeq: 1, nextCandidateSeq: 1, nextTrainingSeq: 1, nextProjectSeq: 1, nextWorkforceEventSeq: 1
+    lastWeeklySummary: null, marketResultsByStoreID: {}, marketResultsByBusinessID: {}, lastMarketCalculationCount: 0, inventoryByStoreID:{}, purchaseOrders:[], supplySettingsByStoreID:{}, supplyResultsByStoreID:{}, supplyResultsByBusinessID:{}, nextPurchaseOrderSeq:1, nextInventoryLotSeq:1, nextSupplyEventSeq:1, finance: finance.defaultFinanceState({companyCash:8_000_000, companyDebt:0, week:1}), workforceTeams: [], workforceCandidates: [], workforceTrainings: [], workforceProjects: [], workforceResultsByDepartmentID: {}, workforceResultsByStoreID: {}, workforceSettings: {detailStoreBusinessIDs:['ramen']}, nextWorkforceTeamSeq: 1, nextCandidateSeq: 1, nextTrainingSeq: 1, nextProjectSeq: 1, nextWorkforceEventSeq: 1, competitorStates: [], competitorActions: [], competitorMarketResultsByPresenceID: {}, competitorMarketResultsByCompetitorID: {}, competitorSettings: {detailBusinessIDs:['ramen']}, nextCompetitorStateSeq: 1, nextCompetitorPresenceSeq: 1, nextCompetitorActionSeq: 1, nextCompetitorInvestmentSeq: 1, competitorMigrationV8Applied: false
   };
 }
 
@@ -360,6 +361,7 @@ function migrateSave(rawState) {
     if (version === 4) { state = migrateV4ToV5(state); version = 5; }
     if (version === 5) { state = migrateV5ToV6(state); version = 6; }
     if (version === 6) { state = workforce.migrateV7(state); version = 7; }
+    if (version === 7) { competitor.ensure(state); state.saveVersion = 8; version = 8; }
     if (version !== SAVE_VERSION) throw new Error(`未対応のsaveVersionです: ${version}`);
     state = mergeDefaults(state, createInitialState({configured:false}));
     deepNormalizeState(state);
@@ -416,7 +418,7 @@ class TycoonEngine extends EventTarget {
   }
 
   normalize() {
-    this.g.saveVersion = SAVE_VERSION; supply.ensure(this.g); workforce.ensure(this.g); workforce.recompute(this.g);
+    this.g.saveVersion = SAVE_VERSION; supply.ensure(this.g); workforce.ensure(this.g); competitor.ensure(this.g); workforce.recompute(this.g);
     this.g.market = (this.g.market || []).map(s => { const stock={...s, price: Math.max(1, finite(s.price,100)), previous: Math.max(1,finite(s.previous,s.price))}; stock.priceHistory = normalizeStockPriceHistory(stock, this.g.week); return stock; });
     this.g.businesses = (this.g.businesses || []).map(b => ({...b, price: Math.max(1,finite(b.price,100)), unitCost: Math.max(0,finite(b.unitCost)), demand: Math.max(1,finite(b.demand,10))}));
     this.g.stores = (this.g.stores || []).map(s => ({condition:100,lastSales:0,lastProfit:0,status:'open',openingWeek:this.g.week,weeksToOpen:0,operatingHours:3,marketResult:null,...s}));
@@ -969,7 +971,7 @@ class TycoonEngine extends EventTarget {
     const product=this.updateProducts(),overseas=this.updateOverseas(),subs=this.updateSubsidiaries(),franchise=this.updateFranchise();this.updatePersonalAssets();
     for(const store of this.g.stores){if(store.status==='preparing'&&this.g.week>=store.openingWeek){store.status='open';store.weeksToOpen=0;this.g.news.unshift(`第${this.g.week}週：${store.name}が開店しました。`);}if(store.status==='open'&&supply.isTargetBusinessID(store.businessID))supply.ensureInitialProcurementForOpenStore(this.g,store,finance);}
     const spoilage=supply.spoil(this.g,finance);supply.receiveOrders(this.g,finance);supply.payables(this.g,finance);
-    workforce.recompute(this.g);const marketBatch=market.calculateMarkets(this.g);this.g.marketResultsByStoreID=marketBatch.byStore;this.g.marketResultsByBusinessID=marketBatch.businessSummary;this.g.lastMarketCalculationCount=marketBatch.calculationCount;
+    workforce.recompute(this.g);const marketBatch=market.calculateMarkets(this.g);this.g.marketResultsByStoreID=marketBatch.byStore;this.g.marketResultsByBusinessID=marketBatch.businessSummary;this.g.lastMarketCalculationCount=marketBatch.calculationCount;competitor.receiveMarketResults(this.g,marketBatch);competitor.processWeek(this.g);
     const financeStores=[];
     let sales=product.revenue+overseas.revenue+subs.revenue+franchise,expenses=product.cost+overseas.cost+finite(spoilage?.cost),supplyCogsNonCash=0,rentIncome=0,stockIncome=0,dividend=0,propertyDepreciation=0;
     for(const store of this.g.stores){if(store.status!=='open'){store.weeksToOpen=Math.max(0,store.openingWeek-this.g.week);continue;}
@@ -991,7 +993,7 @@ class TycoonEngine extends EventTarget {
     const projectRun=workforce.advanceProjects(this.g);const projectCost=finite(projectRun?.projectCost);expenses+=projectCost;const turnoverRun=workforce.updateEndOfWeek(this.g);const severanceCost=finite(turnoverRun?.turnoverCost);expenses+=severanceCost;supply.autoOrder(this.g);const operatingProfit=sales+rentIncome+stockIncome-expenses+subs.profit;let tax=0;if(this.g.week%13===0&&operatingProfit>0){tax=operatingProfit*.306;expenses+=tax;}
     const profit=sales+rentIncome+stockIncome-expenses+subs.profit;this.g.companyCash+=profit+supplyCogsNonCash+finite(spoilage?.cost);this.g.companyCredit=clamp(this.g.companyCredit+(profit>=0?.15:-.3),0,100);this.g.companyReputation=clamp(this.g.companyReputation+(profit>0?.08:-.04),0,100);
     finance.recordWeekly(this.g,{beginningCash,stores:financeStores,other:{productRevenue:product.revenue,overseasRevenue:overseas.revenue,subsRevenue:subs.revenue,franchiseRevenue:franchise,rentIncome,stockIncome,productCost:-product.cost,overseasCost:-overseas.cost,execPayroll:-execPayroll,deptCost:-deptCost,officeCost:-officeCost,projectCost:-projectCost,severanceCost:-severanceCost,propertyDepreciation:-propertyDepreciation,interest:-interest,taxExpense:-tax,taxPayment:-tax,dividend:-dividend,subsProfit:subs.profit}});
-    if(!this.g.skipWeeklyValidation){finance.validate(this.g);supply.validate(this.g);workforce.validate(this.g);}
+    if(!this.g.skipWeeklyValidation){finance.validate(this.g);supply.validate(this.g);workforce.validate(this.g);competitor.validate(this.g);}
     const report={week:this.g.week,sales,expenses,rentIncome,stockIncome,interest,dividend,officeCost,spoilageExpense:finite(spoilage?.cost),profit,investmentPL:subs.profit,companyStockUnrealizedPL:this.unrealizedPL('company'),propertyDepreciation,tax};this.g.lastReport=report;this.g.reports.push(report);this.g.reports=this.g.reports.slice(-520);
     this.recordHistory(sales,profit);this.evaluateProgression();this.generateRecurringEvents();
     if(this.g.companyCash<0){this.g.consecutiveNegativeCashWeeks=finite(this.g.consecutiveNegativeCashWeeks)+1;if(this.g.consecutiveNegativeCashWeeks>=2){this.g.gameOver=true;this.g.gameOverReason='会社現金が2週連続でマイナスになりました。';}}else this.g.consecutiveNegativeCashWeeks=0;
@@ -1046,6 +1048,6 @@ class TycoonEngine extends EventTarget {
 }
 
 Object.assign(exports,{SAVE_KEY,SAVE_VERSION,clamp,finite,uuid,yen,compactYen,pct,rand,pick,createInitialState,mergeDefaults,detectSaveVersion,migrateSave, normalizeStockPriceHistory,migrateUnversionedToV1,migrateV1ToV2,migrateV2ToV3,migrateV3ToV4,migrateV4ToV5,migrateV5ToV6,deepNormalizeState,validateMigratedState,TycoonEngine});
-})(__modules.engine={},__modules.data,__modules.market,__modules.finance,__modules.supply,__modules.workforce);
+})(__modules.engine={},__modules.data,__modules.market,__modules.finance,__modules.supply,__modules.workforce,__modules.competitor);
 
 })();

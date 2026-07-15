@@ -173,3 +173,7 @@ Phase 1C baseline: supply, inventory, procurement, migration, RNG, and long-run 
 
 
 Phase 4A baseline: workforce, migration, market integration, deterministic RNG, and project checks pass with saveVersion 7.
+
+## Phase 5A baseline
+
+Migration immediately after v7 keeps static ramen competitor offer calibration within 0.0% for the documented baseline rows in `docs/PHASE5A_BALANCE_REPORT.md`; intentional differences begin after `competitorActions[]` are applied.

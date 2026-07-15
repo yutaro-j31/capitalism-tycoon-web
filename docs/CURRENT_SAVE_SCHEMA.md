@@ -186,3 +186,7 @@ Phase 1C keeps `SAVE_KEY = capitalism_tycoon_web_v1` and adds `inventoryByStoreI
 
 ## saveVersion 7 workforce fields
 Adds workforceTeams, workforceCandidates, workforceTrainings, workforceProjects, workforceResultsByDepartmentID, workforceResultsByStoreID, workforceSettings, and nextWorkforce* sequence counters. SAVE_KEY remains capitalism_tycoon_web_v1.
+
+## Phase 5A 競合企業 AI
+
+saveVersion 8 では、ラーメン（`businessID === 'ramen'`）のみ `js/competitor.js` の決定論的な競合状態を利用する。既存 `competitors` は削除せず、v7→v8 で `competitorStates[]`、`competitorActions[]`、`competitorMarketResultsByPresenceID`、`competitorMarketResultsByCompetitorID` と採番フィールドを追加する。対象外業種は従来の静的競合処理を維持する。
