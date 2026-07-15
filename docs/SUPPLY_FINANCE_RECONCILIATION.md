@@ -34,3 +34,10 @@ Phase 1C uses one accounting path for normal receipts, fallback-supplier receipt
 - Partial receipts recognize only the received quantity/value; the remainder is delivered on the next arrival unless the finite retry cap fails the order.
 - Cancelled unreceived orders set `paymentStatus='cancelled'`; partially received cancelled orders retain payment obligations only for received value.
 - Settled paid/cancelled/failed purchase orders are compacted after the traceability window while open/unpaid orders remain available for AP validation.
+
+## Store close and spoilage follow-up
+
+- 店舗閉鎖時は `disposeStoreSupply()` が閉店前の在庫簿価を算出し、available ロットを `writtenOff` として数量・簿価を0にしたうえで、在庫本体を削除し、小さな `closedStoreSupplyArchive` へ閉店週・数量・簿価だけを残します。
+- 閉店在庫除却は `otherOperating` / `sourceType=closeStoreInventoryWriteoff` / `cashEffect=0` / `profitEffect=-bookValue` / `assetEffect=-bookValue` / `inventoryAmount=-bookValue` で1回だけ登録します。
+- 廃棄損は週次 `expenses` と税引前利益へ反映し、会社現金計算では非現金費用として加算戻し、税金減少分だけ現金差が出る構造にしています。
+- 未入庫注文は `cancelled/cancelled`、部分入庫済み注文は未入庫残だけキャンセルし、受領済み買掛金は支払週まで維持します。
