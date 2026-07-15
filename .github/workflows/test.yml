@@ -94,4 +94,5 @@ jobs:
       - run: npm run test:competitor-distress-lifecycle
       - run: npm run test:competitor-media
       - run: npm run test:competitor-parity
+      - run: npm run test:competitor-dashboard
       - run: npm run test:competitor-long
