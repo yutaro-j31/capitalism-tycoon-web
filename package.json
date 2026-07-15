@@ -92,6 +92,7 @@
     "test:competitor-projects": "node tests/competitor-project-lifecycle-test.js",
     "test:competitor-market-entry": "node tests/competitor-market-entry-project-test.js",
     "test:competitor-credit": "node tests/competitor-credit-lifecycle-test.js",
+    "test:competitor-distress-lifecycle": "node tests/competitor-distress-lifecycle-test.js",
     "test:competitor-long": "node tests/competitor-long-run-test.js"
   }
 }
