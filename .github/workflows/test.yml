@@ -11,13 +11,13 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
+      - run: npm run test:week
       - run: npm run test:syntax
       - run: npm run test:static
       - run: npm run test:save
       - run: npm run test:migration
       - run: npm run test:save-v9
       - run: npm run test:load
-      - run: npm run test:week
       - run: npm run test:transaction
       - run: npm run test:long
       - run: npm run test:css
