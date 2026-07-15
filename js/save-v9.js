@@ -35,6 +35,7 @@ function stampV9(state){
 }
 function upgradeState(state){
  competitor.ensure(state);
+ if(typeof competitor.ensureCounterStates==='function')competitor.ensureCounterStates(state);
  return stampV9(state);
 }
 function downgradeForBase(state){const copy=clone(state);copy.saveVersion=LEGACY_SAVE_VERSION;return copy;}
