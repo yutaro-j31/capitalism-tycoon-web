@@ -1,13 +1,34 @@
 const assert = require('node:assert');
 const fs = require('node:fs');
 const path = require('node:path');
-const { loadGame, findStateIssues } = require('./harness');
+const { loadGame } = require('./harness');
 
 let seed = 0x61a2026;
 const random = () => {
   seed = (seed * 1664525 + 1013904223) >>> 0;
   return seed / 0x100000000;
 };
+
+function stateIntegrityIssues(root) {
+  const errors = [];
+  const visited = new WeakSet();
+  const nonNegativeKeys = /^(?:qty|sharesOut|founderShares|treasuryBuybackShares|storeCount|totalCapacity|capacityPerStore|outstandingPrincipal|remainingWeeks)$/;
+  function visit(value, location) {
+    if (!value || typeof value !== 'object') return;
+    if (visited.has(value)) return;
+    visited.add(value);
+    for (const [key, child] of Object.entries(value)) {
+      const childPath = Array.isArray(value) ? `${location}[${key}]` : `${location}.${key}`;
+      if (typeof child === 'number') {
+        if (!Number.isFinite(child)) errors.push(`${childPath}: non-finite ${child}`);
+        if (nonNegativeKeys.test(key) && child < 0) errors.push(`${childPath}: negative constrained quantity ${child}`);
+      } else if (child && typeof child === 'object') visit(child, childPath);
+    }
+  }
+  visit(root, 'g');
+  try { JSON.stringify(root); } catch (error) { errors.push(`g: JSON serialization failed: ${error.message}`); }
+  return errors;
+}
 
 const { ctx, engineModule, modules } = loadGame({ random });
 const { finance } = modules;
@@ -95,19 +116,24 @@ game.g.reports = Array.from({ length: 52 }, (_, index) => ({
 }));
 game.g.lastReport = game.g.reports[game.g.reports.length - 1];
 assert.deepEqual(game.ipoMissingReasons(), [], 'capitalized audit route must satisfy every IPO condition');
+const capitalSurplusBeforeIPO = game.g.finance.balances.capitalSurplus;
 assert.equal(game.executeIPO('東証グロース', 100_000), true, 'parent company IPO must succeed');
 assert.equal(game.g.publicCompany, true, 'company must be public after IPO');
 assert.ok(game.g.market.some(row => row.id === game.g.ticker), 'player stock must be added to the market');
 assert.ok(game.g.subsidiaries.length + game.g.maSubsidiaries.length >= 2, 'conglomerate route must retain both subsidiary types');
+const ipoTransaction = game.g.finance.transactions.find(row => row.sourceType === 'parentCompanyIPO');
+assert.ok(ipoTransaction, 'parent IPO equity financing transaction must exist');
+assert.ok(ipoTransaction.cashEffect > 0 && ipoTransaction.equityEffect > 0, 'parent IPO transaction must increase cash and equity');
+assert.ok(game.g.finance.balances.capitalSurplus > capitalSurplusBeforeIPO, 'parent IPO proceeds must increase capital surplus');
 
 const appSource = fs.readFileSync(path.join(__dirname, '..', 'js', 'app.js'), 'utf8');
 for (const action of ['open-store', 'contract-office', 'establish-department', 'make-subsidiary', 'acquire-friendly', 'establish-board', 'execute-ipo']) {
-  assert.ok(appSource.includes(`'${action}'`) || appSource.includes(`\"${action}\"`), `UI action ${action} must remain reachable`);
+  assert.ok(appSource.includes(`'${action}'`) || appSource.includes(`"${action}"`), `UI action ${action} must remain reachable`);
 }
 
 const validation = finance.validate(game.g);
 assert.equal(validation.ok, true, validation.errors.join('\n'));
-assert.deepEqual(findStateIssues(game.g), [], 'completed progression state must contain no structural issues');
+assert.deepEqual(stateIntegrityIssues(game.g), [], 'completed progression state must remain finite and serializable');
 
 assert.equal(game.save(), true, 'completed route must save');
 assert.ok(ctx.__localStorageData.has(engineModule.SAVE_KEY), 'main save key must be written');
@@ -118,8 +144,9 @@ assert.equal(reloaded.g.subsidiaries.length, 1, 'VC subsidiary must survive relo
 assert.equal(reloaded.g.maSubsidiaries.length, 1, 'M&A subsidiary must survive reload');
 assert.equal(reloaded.g.boardEstablished, true, 'board state must survive reload');
 assert.deepEqual(reloaded.ipoMissingReasons(), [], 'reloaded public-company route must remain internally complete');
+assert.equal(reloaded.g.finance.transactions.filter(row => row.sourceType === 'parentCompanyIPO').length, 1, 'parent IPO financing must remain idempotent after reload');
 const reloadValidation = finance.validate(reloaded.g);
 assert.equal(reloadValidation.ok, true, reloadValidation.errors.join('\n'));
-assert.deepEqual(findStateIssues(reloaded.g), [], 'reloaded progression state must remain structurally valid');
+assert.deepEqual(stateIntegrityIssues(reloaded.g), [], 'reloaded progression state must remain finite and serializable');
 
 console.log('provisional v1 progression gate passed');
