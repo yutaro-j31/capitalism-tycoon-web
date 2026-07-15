@@ -1,0 +1,30 @@
+name: Competitor Dashboard Diagnostic
+on:
+  pull_request:
+jobs:
+  dashboard:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          show-progress: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: npm run test:javascript
+      - run: npm run test:modules
+      - name: Run competitor dashboard model
+        shell: bash
+        run: |
+          set +e
+          npm run test:competitor-dashboard > competitor-dashboard.log 2>&1
+          code=$?
+          cat competitor-dashboard.log
+          exit $code
+      - name: Upload dashboard failure log
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: competitor-dashboard-failure
+          path: competitor-dashboard.log
+          if-no-files-found: warn
