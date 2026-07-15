@@ -4,7 +4,7 @@ const vm = require('node:vm');
 const { ROOT, readIndex, extractScripts, createBrowserContext } = require('./harness');
 
 function assert(cond, msg) { if (!cond) throw new Error(msg); }
-const expected = ['./js/runtime.js','./js/data.js','./js/workforce.js','./js/supply.js','./js/competitor.js','./js/competitor-projects.js','./js/competitor-entry.js','./js/competitor-credit.js','./js/competitor-distress.js','./js/market.js','./js/finance.js','./js/engine.js','./js/save-v9.js','./js/expansion.js','./js/competitor-media.js','./js/completion.js','./js/parity.js','./js/competitor-parity.js','./js/competitor-dashboard.js','./js/competitor-dashboard-status.js','./js/app.js'];
+const expected = ['./js/runtime.js','./js/data.js','./js/workforce.js','./js/supply.js','./js/competitor.js','./js/competitor-projects.js','./js/competitor-entry.js','./js/competitor-credit.js','./js/competitor-distress.js','./js/competitor-terminal-compat.js','./js/market.js','./js/finance.js','./js/engine.js','./js/save-v9.js','./js/expansion.js','./js/competitor-media.js','./js/completion.js','./js/parity.js','./js/competitor-parity.js','./js/competitor-dashboard.js','./js/competitor-dashboard-status.js','./js/app.js'];
 const scripts = extractScripts(readIndex()).filter(s => s.src);
 assert(JSON.stringify(scripts.map(s => s.src)) === JSON.stringify(expected), `script order mismatch: ${scripts.map(s => s.src).join(', ')}`);
 assert(scripts[0].src === './js/runtime.js', 'runtime.js must be first');
@@ -50,7 +50,7 @@ for (const [name, keys] of Object.entries({
   data:['MASTER','PRODUCT_BLUEPRINTS','LUXURY_OFFERS','PERSONAL_INVESTMENT_OFFERS','OVERSEAS_COUNTRIES','SPORTS_TEAMS','MISSION_DEFS'],
   workforce:['ROLES','recompute','validate','storeAdjustment'],
   supply:['MATERIALS','SUPPLIERS','createOrder','applyConstraint','autoOrder'],
-  competitor:['STRATEGIES','ensure','processWeek','validate','MAX_PROJECTS','PROJECT_ACTION_TYPES','ENTRY_LEAD_WEEKS','evaluateEntryCandidates','scheduleMarketEntry','MAX_CREDIT_HISTORY','CREDIT_STATUSES','calculateCreditLimit','reviewCompanyCredit','MAX_LIFECYCLE_HISTORY','LIFECYCLE_STATUSES','distressScore','startTurnaroundPlan','declareBankruptcy','sanitizeNewspapers','newspaperEventText','ensureCounterStates','installParityCompatibility','dashboard','__parityCompatibilityRegistered','__distressInstalled'],
+  competitor:['STRATEGIES','ensure','processWeek','validate','MAX_PROJECTS','PROJECT_ACTION_TYPES','ENTRY_LEAD_WEEKS','evaluateEntryCandidates','scheduleMarketEntry','MAX_CREDIT_HISTORY','CREDIT_STATUSES','calculateCreditLimit','reviewCompanyCredit','MAX_LIFECYCLE_HISTORY','LIFECYCLE_STATUSES','distressScore','startTurnaroundPlan','declareBankruptcy','sanitizeNewspapers','newspaperEventText','ensureCounterStates','installParityCompatibility','dashboard','TERMINAL_STATUSES','preserveCompetitorEvents','applyTerminalCompatibility','__terminalCompatInstalled','__parityCompatibilityRegistered','__distressInstalled'],
   market:['calculateMarkets','effectiveCapacity','competitorOffers','SEGMENTS'],
   finance:['ensureFinance','event','recordWeekly','buildStatements','validate'],
   engine:['TycoonEngine','SAVE_VERSION','migrateSave','migrateV8ToV9','yen','compactYen','pct','finite','__saveV9Installed'],
@@ -75,8 +75,8 @@ assert.throws(() => vm.runInContext(scripts[1].code, noRuntime), /runtime\.js/);
 const missingData = createBrowserContext();
 vm.runInContext(scripts[0].code, missingData);
 assert.throws(() => vm.runInContext(scripts[4].code, missingData), /data\.js/);
-assert.throws(() => vm.runInContext(scripts[9].code, missingData), /data module/);
-assert.throws(() => vm.runInContext(scripts[11].code, missingData), /data module/);
+assert.throws(() => vm.runInContext(scripts[10].code, missingData), /data module/);
+assert.throws(() => vm.runInContext(scripts[12].code, missingData), /data module/);
 const missingCompetitor = createBrowserContext();
 vm.runInContext(scripts[0].code, missingCompetitor);
 vm.runInContext(scripts[1].code, missingCompetitor);
@@ -99,27 +99,36 @@ vm.runInContext(scripts[4].code, missingCredit);
 vm.runInContext(scripts[5].code, missingCredit);
 vm.runInContext(scripts[6].code, missingCredit);
 assert.throws(() => vm.runInContext(scripts[8].code, missingCredit), /competitor-credit\.js/);
+const missingDistress = createBrowserContext();
+vm.runInContext(scripts[0].code, missingDistress);
+vm.runInContext(scripts[1].code, missingDistress);
+vm.runInContext(scripts[4].code, missingDistress);
+vm.runInContext(scripts[5].code, missingDistress);
+vm.runInContext(scripts[6].code, missingDistress);
+vm.runInContext(scripts[7].code, missingDistress);
+assert.throws(() => vm.runInContext(scripts[9].code, missingDistress), /competitor-distress\.js/);
 const missingEngine = createBrowserContext();
 vm.runInContext(scripts[0].code, missingEngine);
-assert.throws(() => vm.runInContext(scripts[12].code, missingEngine), /engine\.js/);
-assert.throws(() => vm.runInContext(scripts[14].code, missingEngine), /engine\.js/);
+assert.throws(() => vm.runInContext(scripts[13].code, missingEngine), /engine\.js/);
+assert.throws(() => vm.runInContext(scripts[15].code, missingEngine), /engine\.js/);
 const missingExpansion = createBrowserContext();
-for (let index = 0; index <= 12; index += 1) vm.runInContext(scripts[index].code, missingExpansion);
-assert.throws(() => vm.runInContext(scripts[14].code, missingExpansion), /expansion\.js/);
+for (let index = 0; index <= 13; index += 1) vm.runInContext(scripts[index].code, missingExpansion);
+assert.throws(() => vm.runInContext(scripts[15].code, missingExpansion), /expansion\.js/);
 const missingParity = createBrowserContext();
-for (let index = 0; index <= 15; index += 1) vm.runInContext(scripts[index].code, missingParity);
-assert.throws(() => vm.runInContext(scripts[17].code, missingParity), /parity\.js/);
+for (let index = 0; index <= 16; index += 1) vm.runInContext(scripts[index].code, missingParity);
+assert.throws(() => vm.runInContext(scripts[18].code, missingParity), /parity\.js/);
 const missingParityCompatibility = createBrowserContext();
-for (let index = 0; index <= 16; index += 1) vm.runInContext(scripts[index].code, missingParityCompatibility);
-assert.throws(() => vm.runInContext(scripts[18].code, missingParityCompatibility), /competitor-parity\.js/);
+for (let index = 0; index <= 17; index += 1) vm.runInContext(scripts[index].code, missingParityCompatibility);
+assert.throws(() => vm.runInContext(scripts[19].code, missingParityCompatibility), /competitor-parity\.js/);
 const missingDashboard = createBrowserContext();
-for (let index = 0; index <= 17; index += 1) vm.runInContext(scripts[index].code, missingDashboard);
-assert.throws(() => vm.runInContext(scripts[19].code, missingDashboard), /competitor-dashboard\.js/);
-assert.throws(() => vm.runInContext(scripts[12].code, ctx), /already installed/);
-assert.throws(() => vm.runInContext(scripts[14].code, ctx), /already installed/);
-assert.throws(() => vm.runInContext(scripts[17].code, ctx), /already installed/);
-assert.throws(() => vm.runInContext(scripts[18].code, ctx), /already registered/);
-assert.throws(() => vm.runInContext(scripts[19].code, ctx), /already normalized/);
+for (let index = 0; index <= 18; index += 1) vm.runInContext(scripts[index].code, missingDashboard);
+assert.throws(() => vm.runInContext(scripts[20].code, missingDashboard), /competitor-dashboard\.js/);
+assert.throws(() => vm.runInContext(scripts[13].code, ctx), /already installed/);
+assert.throws(() => vm.runInContext(scripts[15].code, ctx), /already installed/);
+assert.throws(() => vm.runInContext(scripts[18].code, ctx), /already installed/);
+assert.throws(() => vm.runInContext(scripts[19].code, ctx), /already registered/);
+assert.throws(() => vm.runInContext(scripts[20].code, ctx), /already normalized/);
+assert.throws(() => vm.runInContext(scripts[9].code, ctx), /already installed/);
 assert.throws(() => vm.runInContext(scripts[8].code, ctx), /already installed/);
 assert.throws(() => vm.runInContext(scripts[1].code, ctx), /already registered/);
 
