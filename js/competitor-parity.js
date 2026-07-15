@@ -106,7 +106,7 @@ function closeAcquiredCompany(state,company,week){
 function installCompatibility(TycoonEngine){
  if(TycoonEngine.prototype.__competitorParityCompatibilityInstalled)return;
  const baseEnsureParityDefaults=TycoonEngine.prototype.ensureParityDefaults;
- TycoonEngine.prototype.ensureParityDefaults=function(){const result=baseEnsureParityDefaults.call(this);ensureCounterStates(this.g);return result;};
+ TycoonEngine.prototype.ensureParityDefaults=function(){const result=baseEnsureParityDefaults.call(this);if(!this.__usingCompetitorCounterStates)ensureCounterStates(this.g);return result;};
  const baseNormalize=TycoonEngine.prototype.normalize;
  TycoonEngine.prototype.normalize=function(){const result=baseNormalize.call(this);ensureCounterStates(this.g);return result;};
  TycoonEngine.prototype.seedCompetitorCounterStates=function(){if(this.__usingCompetitorCounterStates)return this.g.competitorStates;return ensureCounterStates(this.g);};
