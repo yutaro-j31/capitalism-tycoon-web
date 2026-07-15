@@ -181,3 +181,7 @@ Phase 0完了後、v2.1の最初は Phase 1 の「商品/サービス別売上�
 ## Phase 1B 完了: 財務諸表・運転資本・資金繰り
 
 saveVersion 5で会計イベント、PL/BS/CF、固定資産、ローン、配当可能額、13週資金繰り予測を追加した。Phase 1A市場計算と株価履歴仕様は維持した。
+
+## Phase 1C completed
+
+Added procurement, raw-material inventory, supplier choice, lead time, stockouts, emergency procurement, spoilage, actual COGS, inventory assets, AP, and supply UI for the standard `ramen` business.

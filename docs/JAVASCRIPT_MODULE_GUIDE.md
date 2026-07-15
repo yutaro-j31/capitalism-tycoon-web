@@ -104,3 +104,7 @@ Further splits should be smaller and subsystem-based only after this module boun
 ## finance.js
 
 ロード順は `runtime.js`, `data.js`, `market.js`, `finance.js`, `engine.js`, `expansion.js`, `completion.js`, `parity.js`, `app.js`。`finance.js` はclassic scriptで会計計算を提供し、UI描画は `app.js` が担当する。
+
+## supply.js
+
+`js/supply.js` is a classic script loaded after `data.js` and before `market.js`. It registers `__capitalismTycoonModules.supply` and owns material masters, supplier masters, contracts, purchase orders, inventory lots, spoilage, emergency procurement, and supply result validation.

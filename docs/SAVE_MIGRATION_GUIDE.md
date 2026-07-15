@@ -112,3 +112,7 @@ v4の会社現金、個人現金、借入、店舗ID、事業ID、市場結果�
 ## v4建物付き不動産のv5初期化
 
 v4セーブに会社所有土地、`buildingType`、正の `buildingCost` があり、まだfinance固定資産台帳が存在しない場合、v5初期化で `legacy-building-<propertyID>` を1件作成する。`propertyID` は対象不動産ID、`assetType` は `building`、取得原価と初期簿価は `buildingCost`、耐用週数は1040週、残存価額は20%とする。過去の架空償却履歴は作らず、再マイグレーションで同じ建物資産を重複作成しない。
+
+## v5 to v6
+
+v6 initializes Phase 1C supply containers and deterministic ramen-store starting inventory. Company cash, personal cash, store IDs, business IDs, market results, finance transactions, stock price, and stock price history are preserved. The migration is idempotent and rejects future versions through the existing version gate.

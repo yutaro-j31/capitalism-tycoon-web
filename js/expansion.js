@@ -289,7 +289,7 @@ function installExpansion(TycoonEngine){
 
   TycoonEngine.prototype.updateSupplyChainWeekly=function(){
     const g=this.g;let adjustment=0;const events=[];
-    for(const b of g.businesses){const stores=g.stores.filter(s=>s.businessID===b.id&&s.status==='open'),units=sum(stores.map(s=>s.lastSales/Math.max(1,b.price)));if(!stores.length)continue;const inv=g.inventoryByBusinessID[b.id];inv.lastDemandUnits=units;const contract=g.supplierContracts.find(x=>x.businessID===b.id&&x.active);
+    for(const b of g.businesses){if(globalThis.__capitalismTycoonModules?.supply?.isTargetBusinessID?.(b.id))continue;const stores=g.stores.filter(s=>s.businessID===b.id&&s.status==='open'),units=sum(stores.map(s=>s.lastSales/Math.max(1,b.price)));if(!stores.length)continue;const inv=g.inventoryByBusinessID[b.id];inv.lastDemandUnits=units;const contract=g.supplierContracts.find(x=>x.businessID===b.id&&x.active);
       if(contract){g.companyCash-=contract.weeklyFee;adjustment-=contract.weeklyFee;const baseCOGS=units*b.unitCost;const savings=baseCOGS*contract.discount;g.companyCash+=savings;adjustment+=savings;b.quality=clamp(b.quality+contract.quality*.002,0,100);if(Math.random()>contract.reliability){inv.disruptionWeeks=Math.max(inv.disruptionWeeks,Math.floor(rand(1,4)));events.push(`${contract.name}で供給遅延が発生。`);}}
       else if(g.autoSpotProcurement){const premium=units*b.unitCost*.03;g.companyCash-=premium;adjustment-=premium;}
       const target=units*inv.targetWeeks;inv.units=clamp(inv.units+Math.max(0,target-inv.units)-units,0,target*2);inv.lastProcurementCost=units*b.unitCost;
