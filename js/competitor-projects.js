@@ -7,7 +7,7 @@ if(modules.competitor.__projectsInstalled)throw new Error('competitor project li
 
 const competitor=modules.competitor;
 const MAX_PROJECTS=160;
-const PROJECT_ACTION_TYPES=Object.freeze(['brandInvestment','qualityInvestment','capacityExpansion','marketExit','turnaround']);
+const PROJECT_ACTION_TYPES=Object.freeze(['brandInvestment','qualityInvestment','capacityExpansion','marketEntry','marketExit','turnaround']);
 const PROJECT_STATUSES=Object.freeze(['planned','inProgress','completed','cancelled','failed']);
 const terminal=new Set(['completed','cancelled','failed']);
 const finite=(value,fallback=0)=>Number.isFinite(Number(value))?Number(value):fallback;
