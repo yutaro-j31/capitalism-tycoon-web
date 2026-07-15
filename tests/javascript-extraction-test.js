@@ -4,7 +4,7 @@ const vm = require('node:vm');
 const { ROOT, readIndex, extractScripts, extractEventHandlers } = require('./harness');
 
 const INDEX = path.join(ROOT, 'index.html');
-const MODULES = ['runtime.js','data.js','workforce.js','supply.js','competitor.js','competitor-projects.js','competitor-entry.js','competitor-credit.js','competitor-distress.js','competitor-terminal-compat.js','market.js','finance.js','engine.js','save-v9.js','expansion.js','competitor-media.js','completion.js','parity.js','competitor-parity.js','competitor-dashboard.js','competitor-dashboard-status.js','competitor-dashboard-ui.js','app.js'];
+const MODULES = ['runtime.js','data.js','workforce.js','supply.js','competitor.js','competitor-projects.js','competitor-entry.js','competitor-credit.js','competitor-distress.js','competitor-terminal-compat.js','market.js','finance.js','engine.js','save-v9.js','parent-ipo-equity-compat.js','expansion.js','competitor-media.js','completion.js','parity.js','competitor-parity.js','competitor-dashboard.js','competitor-dashboard-status.js','competitor-dashboard-ui.js','app.js'];
 function fail(message) { console.error(message); process.exit(1); }
 function assertLfNoBom(file) { const b = fs.readFileSync(file); if (b.length >= 3 && b[0] === 0xef && b[1] === 0xbb && b[2] === 0xbf) fail(`${file} has UTF-8 BOM`); const text = b.toString('utf8'); if (/\r/.test(text)) fail(`${file} must use LF line endings`); }
 
