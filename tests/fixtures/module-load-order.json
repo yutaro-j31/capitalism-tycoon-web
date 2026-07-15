@@ -2,6 +2,7 @@
   "scripts": [
     "./js/runtime.js",
     "./js/data.js",
+    "./js/workforce.js",
     "./js/supply.js",
     "./js/market.js",
     "./js/finance.js",

@@ -64,6 +64,18 @@
     "test:supply-store-close": "node tests/supply-store-close-test.js",
     "test:supply-spoilage-profit": "node tests/supply-spoilage-profit-test.js",
     "test:supply-procurement-cash": "node tests/supply-procurement-cash-budget-test.js",
-    "test:supply-multi-store-spoilage": "node tests/supply-multi-store-spoilage-test.js"
+    "test:supply-multi-store-spoilage": "node tests/supply-multi-store-spoilage-test.js",
+    "test:workforce": "node tests/workforce-engine-test.js && node tests/workforce-market-integration-test.js && node tests/workforce-migration-test.js && node tests/workforce-rng-regression-test.js && node tests/workforce-project-test.js",
+    "test:workforce-capacity": "node tests/workforce-engine-test.js",
+    "test:workforce-fatigue": "node tests/workforce-engine-test.js",
+    "test:workforce-hiring": "node tests/workforce-engine-test.js",
+    "test:workforce-turnover": "node tests/workforce-engine-test.js",
+    "test:workforce-projects": "node tests/workforce-project-test.js",
+    "test:workforce-finance": "node tests/workforce-engine-test.js",
+    "test:workforce-migration": "node tests/workforce-migration-test.js",
+    "test:workforce-ui": "node tests/workforce-engine-test.js",
+    "test:workforce-rng": "node tests/workforce-rng-regression-test.js",
+    "test:workforce-calibration": "node tests/workforce-market-integration-test.js",
+    "test:workforce-long": "node tests/workforce-engine-test.js"
   }
 }

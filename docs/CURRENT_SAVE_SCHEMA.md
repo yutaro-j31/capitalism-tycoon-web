@@ -183,3 +183,6 @@
 ## saveVersion 6 supply fields
 
 Phase 1C keeps `SAVE_KEY = capitalism_tycoon_web_v1` and adds `inventoryByStoreID`, `purchaseOrders`, `supplySettingsByStoreID`, `supplyResultsByStoreID`, `supplyResultsByBusinessID`, `nextPurchaseOrderSeq`, `nextInventoryLotSeq`, and `nextSupplyEventSeq`. Static material and supplier masters remain in `js/supply.js` and are not duplicated into saves.
+
+## saveVersion 7 workforce fields
+Adds workforceTeams, workforceCandidates, workforceTrainings, workforceProjects, workforceResultsByDepartmentID, workforceResultsByStoreID, workforceSettings, and nextWorkforce* sequence counters. SAVE_KEY remains capitalism_tycoon_web_v1.

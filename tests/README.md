@@ -58,3 +58,6 @@ Phase 1B adds `test:finance`, `test:statements`, `test:cashflow`, `test:working-
 - `finance-property-building-disposal-test.js`: 土地購入、建物建設、建物付き不動産売却、v4建物付き土地のv5初期化を検証します。
 
 Phase 1C supply tests: `test:supply`, `test:inventory`, `test:procurement`, `test:supply-finance`, `test:supply-migration`, `test:supply-ui`, `test:supply-rng`, `test:supply-calibration`, and `test:supply-long`.
+
+## Workforce tests
+Run npm run test:workforce for Phase 4A workforce capacity, migration, RNG, project, and market integration checks.

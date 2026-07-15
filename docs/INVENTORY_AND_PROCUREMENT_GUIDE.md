@@ -62,3 +62,6 @@ Phase 1C implements procurement, raw-material inventory, lead times, spoilage, e
 
 - 一社選択UIは維持しつつ、選択仕入先が扱わない材料は `balanced_wholesale` を第一候補とする補完仕入先へ決定論的に発注します。preferredSupplierID は変更せず、補完発注ごとの契約料は発生しません。
 - ロット統合時の品質は統合前数量と品質で加重平均し、validate はゲーム状態を変更しない読み取り専用検証にしました。
+
+## Phase 4A procurement workforce
+Procurement/logistics workload includes target stores and open purchase orders. Capacity shortages are represented as workforce backlog and do not mutate purchase orders or inventory accounting.

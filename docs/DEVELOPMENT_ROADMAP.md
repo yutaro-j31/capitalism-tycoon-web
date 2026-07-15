@@ -185,3 +185,6 @@ saveVersion 5で会計イベント、PL/BS/CF、固定資産、ローン、配�
 ## Phase 1C completed
 
 Added procurement, raw-material inventory, supplier choice, lead time, stockouts, emergency procurement, spoilage, actual COGS, inventory assets, AP, and supply UI for the standard `ramen` business.
+
+## Phase 4A complete
+Workforce capacity, fatigue, management coverage, hiring packages, training records, deterministic turnover risk, and project execution have been added as the safe first slice of the people/organization roadmap.

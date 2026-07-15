@@ -4,7 +4,7 @@ const vm = require('node:vm');
 const { ROOT, readIndex, extractScripts, createBrowserContext } = require('./harness');
 
 function assert(cond, msg) { if (!cond) throw new Error(msg); }
-const expected = ['./js/runtime.js','./js/data.js','./js/supply.js','./js/market.js','./js/finance.js','./js/engine.js','./js/expansion.js','./js/completion.js','./js/parity.js','./js/app.js'];
+const expected = ['./js/runtime.js','./js/data.js','./js/workforce.js','./js/supply.js','./js/market.js','./js/finance.js','./js/engine.js','./js/expansion.js','./js/completion.js','./js/parity.js','./js/app.js'];
 const scripts = extractScripts(readIndex()).filter(s => s.src);
 assert(JSON.stringify(scripts.map(s => s.src)) === JSON.stringify(expected), `script order mismatch: ${scripts.map(s => s.src).join(', ')}`);
 assert(scripts[0].src === './js/runtime.js', 'runtime.js must be first');
@@ -48,6 +48,7 @@ assert(listenerRegistrations >= 4, 'expected UI event listeners to be registered
 assert(modules.engine && modules.engine.TycoonEngine, 'TycoonEngine export missing');
 for (const [name, keys] of Object.entries({
   data:['MASTER','PRODUCT_BLUEPRINTS','LUXURY_OFFERS','PERSONAL_INVESTMENT_OFFERS','OVERSEAS_COUNTRIES','SPORTS_TEAMS','MISSION_DEFS'],
+  workforce:['ROLES','recompute','validate','storeAdjustment'],
   supply:['MATERIALS','SUPPLIERS','createOrder','applyConstraint','autoOrder'],
   market:['calculateMarkets','effectiveCapacity','competitorOffers','SEGMENTS'],
   finance:['ensureFinance','event','recordWeekly','buildStatements','validate'],
@@ -67,8 +68,8 @@ assert.throws = (fn, re) => { try { fn(); } catch (e) { assert(re.test(String(e.
 assert.throws(() => vm.runInContext(scripts[1].code, noRuntime), /runtime\.js/);
 const missingData = createBrowserContext();
 vm.runInContext(scripts[0].code, missingData);
-assert.throws(() => vm.runInContext(scripts[3].code, missingData), /data module/);
-assert.throws(() => vm.runInContext(scripts[5].code, missingData), /data module/);
+assert.throws(() => vm.runInContext(scripts[4].code, missingData), /data module/);
+assert.throws(() => vm.runInContext(scripts[6].code, missingData), /data module/);
 assert.throws(() => vm.runInContext(scripts[1].code, ctx), /already registered/);
 
 fs.writeFileSync(path.join(ROOT, 'tests', 'fixtures', 'module-load-order.json'), JSON.stringify({ scripts: expected }, null, 2) + '\n');
