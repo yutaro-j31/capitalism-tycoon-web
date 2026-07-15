@@ -58,6 +58,7 @@ let counter = game.g.competitorCounterStates.find(row => row.competitorID === ta
 counter.pricePressure = 3;
 game.g.companyCash = 100_000_000;
 game.g.week = 20;
+game.g.finance = finance.defaultFinanceState(game.g);
 const cashBeforeAds = game.g.companyCash;
 assert.equal(game.respondToCompetitor(target.competitorID, 'ads'), true);
 counter = game.g.competitorCounterStates.find(row => row.competitorID === target.competitorID);
@@ -96,6 +97,7 @@ acquired.status = 'distressed';
 acquired.lastDistressScore = 8;
 acquireGame.g.week = 30;
 acquireGame.g.companyCash = 1_000_000_000;
+acquireGame.g.finance = finance.defaultFinanceState(acquireGame.g);
 const presence = acquired.marketPresence[0];
 acquireGame.g.competitorActions.push({
   actionID: `ca-${acquireGame.g.nextCompetitorActionSeq++}`,
