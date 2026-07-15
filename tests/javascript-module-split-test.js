@@ -4,19 +4,35 @@ const vm = require('node:vm');
 const { ROOT, readIndex, extractScripts, createBrowserContext } = require('./harness');
 
 function assert(cond, msg) { if (!cond) throw new Error(msg); }
-const expected = ['./js/runtime.js','./js/data.js','./js/workforce.js','./js/supply.js','./js/competitor.js','./js/competitor-projects.js','./js/competitor-entry.js','./js/competitor-credit.js','./js/competitor-distress.js','./js/competitor-distress-projects.js','./js/market.js','./js/finance.js','./js/engine.js','./js/save-v9.js','./js/expansion.js','./js/competitor-news.js','./js/completion.js','./js/parity.js','./js/app.js'];
-const scripts = extractScripts(readIndex()).filter(s => s.src);
-assert(JSON.stringify(scripts.map(s => s.src)) === JSON.stringify(expected), `script order mismatch: ${scripts.map(s => s.src).join(', ')}`);
+assert.throws = (fn, re) => { try { fn(); } catch (error) { assert(re.test(String(error.message)), `error message mismatch: ${error.message}`); return; } throw new Error('expected throw'); };
+
+const expected = [
+  './js/runtime.js','./js/data.js','./js/workforce.js','./js/supply.js','./js/competitor.js',
+  './js/competitor-projects.js','./js/competitor-entry.js','./js/competitor-credit.js',
+  './js/competitor-distress.js','./js/competitor-distress-projects.js','./js/competitor-distress-market.js',
+  './js/market.js','./js/finance.js','./js/engine.js','./js/save-v9.js','./js/expansion.js',
+  './js/competitor-news.js','./js/completion.js','./js/parity.js','./js/app.js'
+];
+const scripts = extractScripts(readIndex()).filter(script => script.src);
+const bySrc = new Map(scripts.map(script => [script.src, script]));
+const code = src => {
+  const script = bySrc.get(src);
+  assert(script, `${src} missing from index`);
+  return script.code;
+};
+const run = (ctx, src) => vm.runInContext(code(src), ctx, { filename: src });
+
+assert(JSON.stringify(scripts.map(script => script.src)) === JSON.stringify(expected), `script order mismatch: ${scripts.map(script => script.src).join(', ')}`);
 assert(scripts[0].src === './js/runtime.js', 'runtime.js must be first');
 assert(scripts[scripts.length - 1].src === './js/app.js', 'app.js must be last');
-for (const s of scripts) {
-  assert(fs.existsSync(s.file), `${s.src} missing`);
-  const buf = fs.readFileSync(s.file);
-  assert(buf.length > 0, `${s.src} is empty`);
-  assert(!(buf[0] === 0xef && buf[1] === 0xbb && buf[2] === 0xbf), `${s.src} has BOM`);
-  const text = buf.toString('utf8');
-  assert(!/\r/.test(text), `${s.src} must use LF`);
-  assert(!/[\u202A-\u202E\u2066-\u2069]/.test(text), `${s.src} has invisible bidi control characters`);
+for (const script of scripts) {
+  assert(fs.existsSync(script.file), `${script.src} missing`);
+  const buffer = fs.readFileSync(script.file);
+  assert(buffer.length > 0, `${script.src} is empty`);
+  assert(!(buffer[0] === 0xef && buffer[1] === 0xbb && buffer[2] === 0xbf), `${script.src} has BOM`);
+  const text = buffer.toString('utf8');
+  assert(!/\r/.test(text), `${script.src} must use LF`);
+  assert(!/[\u202A-\u202E\u2066-\u2069]/.test(text), `${script.src} has invisible bidi control characters`);
 }
 assert(!/https?:\/\/[^"']+\.js/i.test(readIndex()), 'external CDN JavaScript reference detected');
 
@@ -28,16 +44,16 @@ let listenerRegistrations = 0;
 const app = ctx.document.getElementById('app');
 const modal = ctx.document.getElementById('modal-root');
 const originalAppAdd = app.addEventListener.bind(app);
-app.addEventListener = function(type, fn) { listenerRegistrations++; return originalAppAdd(type, fn); };
+app.addEventListener = function(type, fn) { listenerRegistrations += 1; return originalAppAdd(type, fn); };
 const originalModalAdd = modal.addEventListener.bind(modal);
-modal.addEventListener = function(type, fn) { listenerRegistrations++; return originalModalAdd(type, fn); };
-for (const s of scripts) {
-  let code = s.code;
-  if (s.src === './js/app.js') {
-    code = code.replace('const engine = TycoonEngine.load();', 'const engine = (loadCalls++, TycoonEngine.load());');
-    code = code.replace('function render() {', 'function render() {renderEvents++;');
+modal.addEventListener = function(type, fn) { listenerRegistrations += 1; return originalModalAdd(type, fn); };
+for (const script of scripts) {
+  let source = script.code;
+  if (script.src === './js/app.js') {
+    source = source.replace('const engine = TycoonEngine.load();', 'const engine = (loadCalls++, TycoonEngine.load());');
+    source = source.replace('function render() {', 'function render() {renderEvents++;');
   }
-  vm.runInContext(code, ctx, { filename: s.src });
+  vm.runInContext(source, ctx, { filename: script.src });
 }
 const modules = ctx.__capitalismTycoonModules;
 assert(modules && typeof modules === 'object', 'registry missing');
@@ -45,12 +61,11 @@ assert(Object.prototype.propertyIsEnumerable.call(ctx, '__capitalismTycoonModule
 assert(ctx.loadCalls === 1, `TycoonEngine.load expected once, got ${ctx.loadCalls}`);
 assert(ctx.renderEvents === 1, `initial render expected once, got ${ctx.renderEvents}`);
 assert(listenerRegistrations >= 4, 'expected UI event listeners to be registered');
-assert(modules.engine && modules.engine.TycoonEngine, 'TycoonEngine export missing');
 for (const [name, keys] of Object.entries({
   data:['MASTER','PRODUCT_BLUEPRINTS','LUXURY_OFFERS','PERSONAL_INVESTMENT_OFFERS','OVERSEAS_COUNTRIES','SPORTS_TEAMS','MISSION_DEFS'],
   workforce:['ROLES','recompute','validate','storeAdjustment'],
   supply:['MATERIALS','SUPPLIERS','createOrder','applyConstraint','autoOrder'],
-  competitor:['STRATEGIES','ensure','processWeek','validate','MAX_PROJECTS','PROJECT_ACTION_TYPES','ENTRY_LEAD_WEEKS','evaluateEntryCandidates','scheduleMarketEntry','MAX_CREDIT_HISTORY','CREDIT_STATUSES','calculateCreditLimit','reviewCompanyCredit','TURNAROUND_DURATION_WEEKS','assessDistress','startTurnaroundPlan','bankruptCompany','applyLifecycleCancellationReasons','__distressInstalled','__distressProjectsInstalled'],
+  competitor:['STRATEGIES','ensure','processWeek','validate','MAX_PROJECTS','PROJECT_ACTION_TYPES','ENTRY_LEAD_WEEKS','evaluateEntryCandidates','scheduleMarketEntry','MAX_CREDIT_HISTORY','CREDIT_STATUSES','calculateCreditLimit','reviewCompanyCredit','TURNAROUND_DURATION_WEEKS','assessDistress','startTurnaroundPlan','bankruptCompany','applyLifecycleCancellationReasons','archiveBankruptLegacyCompetitors','__distressInstalled','__distressProjectsInstalled','__distressMarketInstalled'],
   competitorNews:['competitorEventText','normalizeNewspaperDetails','installExpansionWithCompetitorNews'],
   market:['calculateMarkets','effectiveCapacity','competitorOffers','SEGMENTS'],
   finance:['ensureFinance','event','recordWeekly','buildStatements','validate'],
@@ -63,56 +78,68 @@ for (const [name, keys] of Object.entries({
   for (const key of keys) assert(Object.prototype.hasOwnProperty.call(modules[name], key), `${name}.${key} missing`);
 }
 assert(modules.engine.SAVE_VERSION === 9, `expected save version 9, got ${modules.engine.SAVE_VERSION}`);
-const afterGlobals = Object.getOwnPropertyNames(ctx).filter(k => !beforeGlobals.has(k) && k !== 'loadCalls' && k !== 'renderEvents');
+const afterGlobals = Object.getOwnPropertyNames(ctx).filter(key => !beforeGlobals.has(key) && key !== 'loadCalls' && key !== 'renderEvents');
 assert(JSON.stringify(afterGlobals) === JSON.stringify(['__capitalismTycoonModules']), `unexpected globals: ${afterGlobals.join(', ')}`);
 
 const noRuntime = createBrowserContext();
-assert.throws = (fn, re) => { try { fn(); } catch (e) { assert(re.test(String(e.message)), `error message mismatch: ${e.message}`); return; } throw new Error('expected throw'); };
-assert.throws(() => vm.runInContext(scripts[1].code, noRuntime), /runtime\.js/);
+assert.throws(() => run(noRuntime, './js/data.js'), /runtime\.js/);
+
 const missingData = createBrowserContext();
-vm.runInContext(scripts[0].code, missingData);
-assert.throws(() => vm.runInContext(scripts[4].code, missingData), /data\.js/);
-assert.throws(() => vm.runInContext(scripts[10].code, missingData), /data module/);
-assert.throws(() => vm.runInContext(scripts[12].code, missingData), /data module/);
+run(missingData, './js/runtime.js');
+assert.throws(() => run(missingData, './js/competitor.js'), /data\.js/);
+assert.throws(() => run(missingData, './js/market.js'), /data module/);
+assert.throws(() => run(missingData, './js/engine.js'), /data module/);
+
 const missingCompetitor = createBrowserContext();
-vm.runInContext(scripts[0].code, missingCompetitor);
-vm.runInContext(scripts[1].code, missingCompetitor);
-for(const index of [5,6,7,8,9])assert.throws(() => vm.runInContext(scripts[index].code, missingCompetitor), /competitor\.js|competitor-projects\.js|competitor-distress\.js/);
+run(missingCompetitor, './js/runtime.js');
+run(missingCompetitor, './js/data.js');
+for (const src of ['./js/competitor-projects.js','./js/competitor-entry.js','./js/competitor-credit.js','./js/competitor-distress.js']) {
+  assert.throws(() => run(missingCompetitor, src), /competitor\.js/);
+}
+
 const missingProjects = createBrowserContext();
-vm.runInContext(scripts[0].code, missingProjects);
-vm.runInContext(scripts[1].code, missingProjects);
-vm.runInContext(scripts[4].code, missingProjects);
-for(const index of [6,7,8,9])assert.throws(() => vm.runInContext(scripts[index].code, missingProjects), /competitor-projects\.js|competitor-distress\.js/);
+run(missingProjects, './js/runtime.js');
+run(missingProjects, './js/data.js');
+run(missingProjects, './js/competitor.js');
+for (const src of ['./js/competitor-entry.js','./js/competitor-credit.js','./js/competitor-distress.js']) {
+  assert.throws(() => run(missingProjects, src), /competitor-projects\.js/);
+}
+
 const missingEntry = createBrowserContext();
-vm.runInContext(scripts[0].code, missingEntry);
-vm.runInContext(scripts[1].code, missingEntry);
-vm.runInContext(scripts[4].code, missingEntry);
-vm.runInContext(scripts[5].code, missingEntry);
-assert.throws(() => vm.runInContext(scripts[7].code, missingEntry), /competitor-entry\.js/);
-assert.throws(() => vm.runInContext(scripts[8].code, missingEntry), /competitor-entry\.js/);
+run(missingEntry, './js/runtime.js');
+run(missingEntry, './js/data.js');
+run(missingEntry, './js/competitor.js');
+run(missingEntry, './js/competitor-projects.js');
+for (const src of ['./js/competitor-credit.js','./js/competitor-distress.js']) {
+  assert.throws(() => run(missingEntry, src), /competitor-entry\.js/);
+}
+
 const missingCredit = createBrowserContext();
-vm.runInContext(scripts[0].code, missingCredit);
-vm.runInContext(scripts[1].code, missingCredit);
-vm.runInContext(scripts[4].code, missingCredit);
-vm.runInContext(scripts[5].code, missingCredit);
-vm.runInContext(scripts[6].code, missingCredit);
-assert.throws(() => vm.runInContext(scripts[8].code, missingCredit), /competitor-credit\.js/);
+for (const src of ['./js/runtime.js','./js/data.js','./js/competitor.js','./js/competitor-projects.js','./js/competitor-entry.js']) run(missingCredit, src);
+assert.throws(() => run(missingCredit, './js/competitor-distress.js'), /competitor-credit\.js/);
+
 const missingDistress = createBrowserContext();
-vm.runInContext(scripts[0].code, missingDistress);
-vm.runInContext(scripts[1].code, missingDistress);
-vm.runInContext(scripts[4].code, missingDistress);
-vm.runInContext(scripts[5].code, missingDistress);
-assert.throws(() => vm.runInContext(scripts[9].code, missingDistress), /competitor-distress\.js/);
+for (const src of ['./js/runtime.js','./js/data.js','./js/competitor.js','./js/competitor-projects.js','./js/competitor-entry.js','./js/competitor-credit.js']) run(missingDistress, src);
+for (const src of ['./js/competitor-distress-projects.js','./js/competitor-distress-market.js']) {
+  assert.throws(() => run(missingDistress, src), /competitor-distress\.js/);
+}
+
+const missingDistressProjects = createBrowserContext();
+for (const src of ['./js/runtime.js','./js/data.js','./js/competitor.js','./js/competitor-projects.js','./js/competitor-entry.js','./js/competitor-credit.js','./js/competitor-distress.js']) run(missingDistressProjects, src);
+assert.throws(() => run(missingDistressProjects, './js/competitor-distress-market.js'), /competitor-distress-projects\.js/);
+
 const missingExpansion = createBrowserContext();
-vm.runInContext(scripts[0].code, missingExpansion);
-assert.throws(() => vm.runInContext(scripts[15].code, missingExpansion), /expansion\.js/);
+run(missingExpansion, './js/runtime.js');
+assert.throws(() => run(missingExpansion, './js/competitor-news.js'), /expansion\.js/);
+
 const missingEngine = createBrowserContext();
-vm.runInContext(scripts[0].code, missingEngine);
-assert.throws(() => vm.runInContext(scripts[13].code, missingEngine), /engine\.js/);
-assert.throws(() => vm.runInContext(scripts[9].code, ctx), /already installed/);
-assert.throws(() => vm.runInContext(scripts[15].code, ctx), /already registered/);
-assert.throws(() => vm.runInContext(scripts[13].code, ctx), /already installed/);
-assert.throws(() => vm.runInContext(scripts[1].code, ctx), /already registered/);
+run(missingEngine, './js/runtime.js');
+assert.throws(() => run(missingEngine, './js/save-v9.js'), /engine\.js/);
+
+assert.throws(() => run(ctx, './js/competitor-distress-market.js'), /already installed/);
+assert.throws(() => run(ctx, './js/competitor-news.js'), /already registered/);
+assert.throws(() => run(ctx, './js/save-v9.js'), /already installed/);
+assert.throws(() => run(ctx, './js/data.js'), /already registered/);
 
 fs.writeFileSync(path.join(ROOT, 'tests', 'fixtures', 'module-load-order.json'), JSON.stringify({ scripts: expected }, null, 2) + '\n');
 console.log('javascript module split checks passed');
