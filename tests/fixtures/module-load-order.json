@@ -14,6 +14,7 @@
     "./js/engine.js",
     "./js/save-v9.js",
     "./js/expansion.js",
+    "./js/competitor-news.js",
     "./js/completion.js",
     "./js/parity.js",
     "./js/app.js"
