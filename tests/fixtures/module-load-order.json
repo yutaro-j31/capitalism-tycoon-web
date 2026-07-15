@@ -10,6 +10,7 @@
     "./js/competitor-credit.js",
     "./js/competitor-distress.js",
     "./js/competitor-distress-projects.js",
+    "./js/competitor-distress-market.js",
     "./js/market.js",
     "./js/finance.js",
     "./js/engine.js",
