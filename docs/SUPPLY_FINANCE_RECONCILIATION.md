@@ -41,3 +41,10 @@ Phase 1C uses one accounting path for normal receipts, fallback-supplier receipt
 - 閉店在庫除却は `otherOperating` / `sourceType=closeStoreInventoryWriteoff` / `cashEffect=0` / `profitEffect=-bookValue` / `assetEffect=-bookValue` / `inventoryAmount=-bookValue` で1回だけ登録します。
 - 廃棄損は週次 `expenses` と税引前利益へ反映し、会社現金計算では非現金費用として加算戻し、税金減少分だけ現金差が出る構造にしています。
 - 未入庫注文は `cancelled/cancelled`、部分入庫済み注文は未入庫残だけキャンセルし、受領済み買掛金は支払週まで維持します。
+
+## Merge-readiness reconciliation addendum: cash procurement budgets and store aggregation
+
+- Immediate-cash procurement now reserves already-created, not-yet-received cash orders when evaluating the next order. The reserved amount is `remainingQuantity × unitCost` for ordered, delayed, partially received, and payment-blocked orders whose effective payment terms are immediate; `availableProcurementCash` is company cash minus this reservation.
+- If immediate-cash receipt cannot be paid at arrival, the order is payment-blocked/delayed for a finite retry window and no inventory lot, cash movement, or finance event is created until cash is available.
+- Spoilage is accumulated per store using per-store cost and quantity counters, while the company-wide finance event records the total once. Store A/B fixtures verify 10,000円 and 20,000円 store totals reconcile to one 30,000円 PL/BS inventory reduction with cashEffect 0.
+- Business inventory aggregation for Phase 1C target businesses is rebuilt from current store inventories every aggregate pass. When the final ramen store closes, `inventoryByBusinessID.ramen` is zeroed and stale business supply results are reset, so no orphan store inventory remains in BS inventory.

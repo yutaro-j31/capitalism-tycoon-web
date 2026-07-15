@@ -53,8 +53,8 @@
     "test:finance-property-building-disposal": "node tests/finance-property-building-disposal-test.js",
     "test:supply": "node tests/supply-engine-test.js && node tests/stockout-integration-test.js",
     "test:inventory": "node tests/inventory-lot-test.js && node tests/spoilage-test.js",
-    "test:procurement": "node tests/procurement-order-test.js && node tests/supplier-contract-test.js && node tests/supplier-material-coverage-test.js",
-    "test:supply-finance": "node tests/supply-engine-test.js && node tests/supply-store-close-test.js && node tests/supply-spoilage-profit-test.js",
+    "test:procurement": "node tests/procurement-order-test.js && node tests/supplier-contract-test.js && node tests/supplier-material-coverage-test.js && node tests/supply-procurement-cash-budget-test.js",
+    "test:supply-finance": "node tests/supply-engine-test.js && node tests/supply-store-close-test.js && node tests/supply-spoilage-profit-test.js && node tests/supply-multi-store-spoilage-test.js",
     "test:supply-migration": "node tests/supply-migration-test.js",
     "test:supply-ui": "node tests/market-ui-static-test.js",
     "test:supply-rng": "node tests/supply-rng-regression-test.js",
@@ -62,6 +62,8 @@
     "test:supply-long": "node --max-old-space-size=16384 tests/supply-long-run-test.js",
     "test:supplier-coverage": "node tests/supplier-material-coverage-test.js",
     "test:supply-store-close": "node tests/supply-store-close-test.js",
-    "test:supply-spoilage-profit": "node tests/supply-spoilage-profit-test.js"
+    "test:supply-spoilage-profit": "node tests/supply-spoilage-profit-test.js",
+    "test:supply-procurement-cash": "node tests/supply-procurement-cash-budget-test.js",
+    "test:supply-multi-store-spoilage": "node tests/supply-multi-store-spoilage-test.js"
   }
 }
