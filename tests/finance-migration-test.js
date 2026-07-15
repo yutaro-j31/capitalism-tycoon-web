@@ -6,7 +6,7 @@ const raw=JSON.parse(fs.readFileSync(path.join(__dirname,'fixtures','current-ver
 const cash=raw.companyCash, personal=raw.personalCash, debt=raw.companyDebt, market=JSON.stringify(raw.market?.[0]?.priceHistory||[]);
 raw.saveVersion=4; delete raw.finance;
 const once=migrateSave(raw); if(!once.ok) throw new Error(once.errors.join('\n'));
-if(once.state.saveVersion!==SAVE_VERSION||SAVE_VERSION!==8) throw new Error('saveVersion 8 expected');
+if(once.state.saveVersion!==SAVE_VERSION) throw new Error(`saveVersion ${SAVE_VERSION} expected`);
 if(once.state.companyCash!==cash||once.state.personalCash!==personal||once.state.companyDebt!==debt) throw new Error('core balances changed');
 if(JSON.stringify(once.state.market?.[0]?.priceHistory||[])!==market) throw new Error('stock history changed');
 const twice=migrateSave(once.state); if(!twice.ok) throw new Error(twice.errors.join('\n'));

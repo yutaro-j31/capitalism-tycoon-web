@@ -6,7 +6,7 @@ const { engine, competitor } = ctx.modules;
 const state = engine.createInitialState({ configured: true });
 competitor.ensure(state);
 
-assert.equal(state.saveVersion, 8, 'project foundation must remain additive to version 8 saves');
+assert.equal(state.saveVersion, engine.SAVE_VERSION, 'project foundation must use the current save version');
 assert.ok(Array.isArray(state.competitorProjects));
 assert.ok(Number.isInteger(state.nextCompetitorProjectSeq));
 

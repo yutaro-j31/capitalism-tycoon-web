@@ -1,10 +1,10 @@
 const assert = require('node:assert/strict');
 const { loadGame } = require('./harness');
 const { modules } = loadGame();
-const { createInitialState, migrateSave, TycoonEngine } = modules.engine; const market=modules.market;
+const { createInitialState, migrateSave, TycoonEngine, SAVE_VERSION } = modules.engine; const market=modules.market;
 const s=createInitialState({configured:true}); const b=s.businesses.find(b=>b.id==='ramen'), p=s.prefs.find(p=>p.id==='tokyo');
 assert(market.effectiveCapacity({operatingHours:3,condition:100},b,p)>0);
 assert.equal(market.effectiveCapacity({capacity:0,operatingHours:3,condition:100},b,p),0);
 assert.equal(market.effectiveCapacity({capacity:123,operatingHours:3,condition:100},b,p),123);
-const v3=createInitialState({configured:true}); v3.saveVersion=3; const t=v3.tenants.find(t=>t.businessID==='ramen'&&t.prefID==='tokyo'); v3.stores.push({id:'old',businessID:'ramen',prefID:'tokyo',name:'old',status:'open',tenantID:t.id,condition:100,operatingHours:3}); const m=migrateSave(v3); assert.equal(m.ok,true); assert.equal(m.state.saveVersion,8); assert(!('capacity' in m.state.stores[0])); const e=new TycoonEngine(m.state); e.advanceWeek(false); assert(e.g.stores[0].lastSales>0);
+const v3=createInitialState({configured:true}); v3.saveVersion=3; const t=v3.tenants.find(t=>t.businessID==='ramen'&&t.prefID==='tokyo'); v3.stores.push({id:'old',businessID:'ramen',prefID:'tokyo',name:'old',status:'open',tenantID:t.id,condition:100,operatingHours:3}); const m=migrateSave(v3); assert.equal(m.ok,true); assert.equal(m.state.saveVersion,SAVE_VERSION); assert(!('capacity' in m.state.stores[0])); const e=new TycoonEngine(m.state); e.advanceWeek(false); assert(e.g.stores[0].lastSales>0);
 console.log('capacity ok');
