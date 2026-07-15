@@ -625,7 +625,7 @@ class TycoonEngine extends EventTarget {
     if(this.g.companyCash<d.setupCost)return this.fail(`${yen(d.setupCost)}が必要です。`);
     const used=Object.keys(this.g.departments).length*8+Object.keys(this.g.executives).length;
     if(used+8>this.g.officeCapacity)return this.fail('オフィス定員が不足しています。');
-    this.g.companyCash-=d.setupCost;finance.event(this.g,'headOfficeExpense',d.setupCost,{cashEffect:-d.setupCost,profitEffect:-d.setupCost,sourceType:'establishDepartment',sourceID:id,description:`${d.name} 設置費`});this.g.departments[id]={...deepClone(d),established:true};this.g.departmentStaff[id]=1;workforce.migrateV7(this.g);
+    this.g.companyCash-=d.setupCost;finance.event(this.g,'headOfficeExpense',d.setupCost,{cashEffect:-d.setupCost,profitEffect:-d.setupCost,sourceType:'establishDepartment',sourceID:id,description:`${d.name} 設置費`});this.g.departments[id]={...deepClone(d),established:true};this.g.departmentStaff[id]=1;workforce.createDepartmentTeam(this.g,id,1,{averageWeeklySalary:d.weeklyCost});workforce.syncDepartmentStaff(this.g);if(this.g.departmentStaff[id]!==1)throw new Error('departmentStaff sync failed');
     this.g.officeFloors.push({id:uuid(),floorNumber:this.g.officeFloors.length+1,departmentID:id,name:d.name,seats:8,weeklyCost:d.weeklyCost});
     this.notify(`${d.name}を設置しました。`,'success');this.evaluateProgression();this.save();this.emit();return true;
   }
@@ -635,7 +635,7 @@ class TycoonEngine extends EventTarget {
     if(this.g.companyCash<cost)return this.fail('採用費が不足しています。');
     const used=Object.values(this.g.departmentStaff).reduce((a,n)=>a+n,0)+Object.keys(this.g.executives).length;
     if(used+count>this.g.officeCapacity)return this.fail('オフィス定員が不足しています。');
-    const hired=workforce.generateCandidates(this.g).find(c=>c.departmentID===id&&c.status==='open')||null;this.g.companyCash-=cost;finance.event(this.g,'payroll',cost,{cashEffect:-cost,profitEffect:-cost,sourceType:'hireDepartmentStaff',sourceID:`${id}-${this.g.week}`,description:'採用費'});let team=this.g.workforceTeams.find(t=>t.departmentID===id&&!t.storeID);if(team){team.headcount+=count;team.onboardingHeadcount+=count;}else this.g.departmentStaff[id]=finite(this.g.departmentStaff[id])+count;workforce.syncDepartmentStaff(this.g);
+    this.g.companyCash-=cost;finance.event(this.g,'payroll',cost,{cashEffect:-cost,profitEffect:-cost,sourceType:'hireDepartmentStaff',sourceID:`${id}-${this.g.week}`,description:'採用費'});workforce.addDepartmentHeadcount(this.g,id,count,{weeklySalaryPerPerson:65000,onboardingWeeks:1});
     this.notify(`${this.g.departments[id].name}で${count}名採用しました。`,'success');this.save();this.emit();return true;
   }
   refreshExecutives() {
@@ -965,7 +965,7 @@ class TycoonEngine extends EventTarget {
     if(this.g.isCompanySold){this.g.week++;this.g.month=Math.floor((this.g.week-1)/4)+1;this.updatePersonalAssets();this.recordHistory(0,0);this.save();this.emit('week',{summary:null});return true;}
     if(this.g.autoManage)this.autoManage();
     this.g.week++;this.g.month=Math.floor((this.g.week-1)/4)+1;if(this.g.week%52===0)this.g.founderAge++;
-    supply.ensure(this.g);workforce.ensure(this.g);workforce.generateCandidates(this.g);workforce.recompute(this.g);const beginningCash=this.g.companyCash;this.updateMacro();this.updateMarket();this.updateProperties();this.updateStartups();this.updateCompetitors();this.updateDirectivesAndCampaigns();
+    supply.ensure(this.g);workforce.ensure(this.g);workforce.processWeekStart(this.g);workforce.generateCandidates(this.g);workforce.recompute(this.g);const beginningCash=this.g.companyCash;this.updateMacro();this.updateMarket();this.updateProperties();this.updateStartups();this.updateCompetitors();this.updateDirectivesAndCampaigns();
     const product=this.updateProducts(),overseas=this.updateOverseas(),subs=this.updateSubsidiaries(),franchise=this.updateFranchise();this.updatePersonalAssets();
     for(const store of this.g.stores){if(store.status==='preparing'&&this.g.week>=store.openingWeek){store.status='open';store.weeksToOpen=0;this.g.news.unshift(`第${this.g.week}週：${store.name}が開店しました。`);}if(store.status==='open'&&supply.isTargetBusinessID(store.businessID))supply.ensureInitialProcurementForOpenStore(this.g,store,finance);}
     const spoilage=supply.spoil(this.g,finance);supply.receiveOrders(this.g,finance);supply.payables(this.g,finance);
@@ -988,16 +988,32 @@ class TycoonEngine extends EventTarget {
     const deptCost=workforce.weeklyPayroll(this.g);
     const officeCost=this.g.hasHeadOffice?this.g.officeWeeklyCost:0,interest=this.g.companyDebt*this.companyBorrowRate()/52;expenses+=execPayroll+deptCost+officeCost+interest;
     if(this.g.week%13===0){for(const [id,h] of Object.entries(this.g.companyStocks)){const s=this.stock(id);if(s&&id!==this.g.ticker)stockIncome+=h.qty*(s.dividendPerShare||s.price*s.dividendYield/4);}for(const [id,h] of Object.entries(this.g.personalStocks)){const s=this.stock(id);if(s&&id!==this.g.ticker)this.g.personalCash+=h.qty*(s.dividendPerShare||s.price*s.dividendYield/4)*.797;}if(this.g.publicCompany&&this.g.dividendPerShare>0){dividend=this.g.dividendPerShare*Math.max(0,this.g.sharesOut-this.g.treasuryBuybackShares);const founderGross=dividend*this.g.founderOwnershipRatio;this.g.personalCash+=founderGross*.797;expenses+=dividend;}}
-    workforce.advanceProjects(this.g);supply.autoOrder(this.g);const operatingProfit=sales+rentIncome+stockIncome-expenses+subs.profit;let tax=0;if(this.g.week%13===0&&operatingProfit>0){tax=operatingProfit*.306;expenses+=tax;}
+    const projectRun=workforce.advanceProjects(this.g);const projectCost=finite(projectRun?.projectCost);expenses+=projectCost;const turnoverRun=workforce.updateEndOfWeek(this.g);const severanceCost=finite(turnoverRun?.turnoverCost);expenses+=severanceCost;supply.autoOrder(this.g);const operatingProfit=sales+rentIncome+stockIncome-expenses+subs.profit;let tax=0;if(this.g.week%13===0&&operatingProfit>0){tax=operatingProfit*.306;expenses+=tax;}
     const profit=sales+rentIncome+stockIncome-expenses+subs.profit;this.g.companyCash+=profit+supplyCogsNonCash+finite(spoilage?.cost);this.g.companyCredit=clamp(this.g.companyCredit+(profit>=0?.15:-.3),0,100);this.g.companyReputation=clamp(this.g.companyReputation+(profit>0?.08:-.04),0,100);
-    finance.recordWeekly(this.g,{beginningCash,stores:financeStores,other:{productRevenue:product.revenue,overseasRevenue:overseas.revenue,subsRevenue:subs.revenue,franchiseRevenue:franchise,rentIncome,stockIncome,productCost:-product.cost,overseasCost:-overseas.cost,execPayroll:-execPayroll,deptCost:-deptCost,officeCost:-officeCost,propertyDepreciation:-propertyDepreciation,interest:-interest,taxExpense:-tax,taxPayment:-tax,dividend:-dividend,subsProfit:subs.profit}});
-    workforce.updateEndOfWeek(this.g);if(!this.g.skipWeeklyValidation){finance.validate(this.g);supply.validate(this.g);workforce.validate(this.g);}
+    finance.recordWeekly(this.g,{beginningCash,stores:financeStores,other:{productRevenue:product.revenue,overseasRevenue:overseas.revenue,subsRevenue:subs.revenue,franchiseRevenue:franchise,rentIncome,stockIncome,productCost:-product.cost,overseasCost:-overseas.cost,execPayroll:-execPayroll,deptCost:-deptCost,officeCost:-officeCost,projectCost:-projectCost,severanceCost:-severanceCost,propertyDepreciation:-propertyDepreciation,interest:-interest,taxExpense:-tax,taxPayment:-tax,dividend:-dividend,subsProfit:subs.profit}});
+    if(!this.g.skipWeeklyValidation){finance.validate(this.g);supply.validate(this.g);workforce.validate(this.g);}
     const report={week:this.g.week,sales,expenses,rentIncome,stockIncome,interest,dividend,officeCost,spoilageExpense:finite(spoilage?.cost),profit,investmentPL:subs.profit,companyStockUnrealizedPL:this.unrealizedPL('company'),propertyDepreciation,tax};this.g.lastReport=report;this.g.reports.push(report);this.g.reports=this.g.reports.slice(-520);
     this.recordHistory(sales,profit);this.evaluateProgression();this.generateRecurringEvents();
     if(this.g.companyCash<0){this.g.consecutiveNegativeCashWeeks=finite(this.g.consecutiveNegativeCashWeeks)+1;if(this.g.consecutiveNegativeCashWeeks>=2){this.g.gameOver=true;this.g.gameOverReason='会社現金が2週連続でマイナスになりました。';}}else this.g.consecutiveNegativeCashWeeks=0;
     const summary={...report,companyCash:this.g.companyCash,companyValue:this.companyValue(),personalNetWorth:this.personalNetWorth(),newNews:this.g.news.slice(0,5)};this.g.lastWeeklySummary=summary;
     if (!this.inTransaction()) { this.normalize(); this.save(); this.emit('week',{summary:showSummary?summary:null}); }
     return true;
+  }
+
+  hireWorkforceCandidate(id) {
+    const res=workforce.hireCandidate(this.g,id,finance);if(!res.ok)return this.fail(res.error||'採用できません。');this.notify(`採用パッケージを採用しました。採用費${yen(res.cost)}。`,'success');this.save();this.emit();return true;
+  }
+  startWorkforceTraining(teamID,type) {
+    const res=workforce.startTraining(this.g,teamID,type,finance);if(!res.ok)return this.fail(res.error||'研修を開始できません。');this.notify(`${res.training.trainingType}研修を開始しました。`,'success');this.save();this.emit();return true;
+  }
+  startWorkforceProject(templateID) {
+    const res=workforce.startProject(this.g,templateID);if(!res.ok)return this.fail(res.error||'プロジェクトを開始できません。');this.notify(`${res.project.name}を開始しました。`,'success');this.save();this.emit();return true;
+  }
+  setWorkforceProjectStatus(projectID,status) {
+    if(!workforce.setProjectStatus(this.g,projectID,status))return this.fail('プロジェクトが見つかりません。');this.save();this.emit();return true;
+  }
+  changeWorkforceProjectPriority(projectID,delta) {
+    if(!workforce.setProjectPriority(this.g,projectID,delta))return this.fail('プロジェクトが見つかりません。');this.save();this.emit();return true;
   }
 
   unrealizedPL(account='company') {
@@ -1009,7 +1025,7 @@ class TycoonEngine extends EventTarget {
     this.g.history.unshift(`第${this.g.week}週 売上${yen(sales)} 利益${yen(profit)} 会社現金${yen(this.g.companyCash)}`);this.g.history=this.g.history.slice(0,500);
   }
   evaluateProgression() {
-    for(const m of MISSION_DEFS){if(this.g.completedMissionIDs.includes(m.id))continue;if(m.check(this.g)){this.g.completedMissionIDs.push(m.id);this.g.activeMissionIDs=this.g.activeMissionIDs.filter(x=>x!==m.id);this.g.companyCash+=m.reward;finance.event(this.g,'otherOperating',m.reward,{cashEffect:m.reward,profitEffect:m.reward,sourceType:'missionReward',sourceID:m.id,idempotencyKey:`mission-${m.id}`,operationID:`mission-${m.id}`,description:`ミッション ${m.title} 報酬`});const snap=this.g.finance?.weeklySnapshots?.find(s=>s.week===this.g.week);if(snap)finance.recordSnapshot(this.g,snap.openingCash,this.g.week,this.g.companyCash);workforce.updateEndOfWeek(this.g);if(!this.g.skipWeeklyValidation){finance.validate(this.g);supply.validate(this.g);workforce.validate(this.g);}this.g.news.unshift(`第${this.g.week}週：ミッション「${m.title}」達成。報酬${yen(m.reward)}。`);const idx=MISSION_DEFS.findIndex(x=>x.id===m.id);if(MISSION_DEFS[idx+1])this.g.activeMissionIDs.push(MISSION_DEFS[idx+1].id);}}
+    for(const m of MISSION_DEFS){if(this.g.completedMissionIDs.includes(m.id))continue;if(m.check(this.g)){this.g.completedMissionIDs.push(m.id);this.g.activeMissionIDs=this.g.activeMissionIDs.filter(x=>x!==m.id);this.g.companyCash+=m.reward;finance.event(this.g,'otherOperating',m.reward,{cashEffect:m.reward,profitEffect:m.reward,sourceType:'missionReward',sourceID:m.id,idempotencyKey:`mission-${m.id}`,operationID:`mission-${m.id}`,description:`ミッション ${m.title} 報酬`});const snap=this.g.finance?.weeklySnapshots?.find(s=>s.week===this.g.week);if(snap)finance.recordSnapshot(this.g,snap.openingCash,this.g.week,this.g.companyCash);if(!this.g.skipWeeklyValidation){finance.validate(this.g);supply.validate(this.g);workforce.validate(this.g);}this.g.news.unshift(`第${this.g.week}週：ミッション「${m.title}」達成。報酬${yen(m.reward)}。`);const idx=MISSION_DEFS.findIndex(x=>x.id===m.id);if(MISSION_DEFS[idx+1])this.g.activeMissionIDs.push(MISSION_DEFS[idx+1].id);}}
     const achievements=[['stores10','10店舗企業',this.g.stores.length>=10],['value1b','企業価値10億円',this.companyValue()>=1e9],['networth1b','個人資産10億円',this.personalNetWorth()>=1e9],['ipo','上場企業創業者',this.g.publicCompany],['ma5','連続買収者',this.g.totalAcquisitions>=5],['products3','プロダクト企業',this.g.productVentures.filter(p=>p.status==='released').length>=3]];
     for(const [id,title,ok] of achievements)if(ok&&!this.g.achievements.includes(id)){this.g.achievements.push(id);this.g.news.unshift(`第${this.g.week}週：実績「${title}」を解除しました。`);}
   }

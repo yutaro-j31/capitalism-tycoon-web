@@ -1,0 +1,1 @@
+const assert=require('node:assert/strict');const {loadGame}=require('./harness');const {engineModule}=loadGame({random:()=>.5});const e=new engineModule.TycoonEngine();const before=JSON.stringify(e.g);e.emit('change');e.emit('change');assert.equal(JSON.stringify(e.g),before);console.log('workforce render purity ok');
