@@ -61,3 +61,7 @@ Phase 1C supply tests: `test:supply`, `test:inventory`, `test:procurement`, `tes
 
 ## Workforce tests
 Run npm run test:workforce for Phase 4A workforce capacity, migration, RNG, project, and market integration checks.
+
+## Phase 5A competitor tests
+
+Competitor tests cover v8 migration, deterministic ramen competitor offers, market integration, simple finance, AI decisions, entry/exit safeguards, validation purity, render purity, RNG regression, calibration, and long-run stability.

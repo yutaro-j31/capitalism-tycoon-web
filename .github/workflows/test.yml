@@ -41,3 +41,17 @@ jobs:
       - run: npm run test:workforce-migration
       - run: npm run test:workforce-rng
       - run: npm run test:workforce-long
+
+      - run: npm run test:market
+      - run: npm run test:supply
+      - run: npm run test:supply-long
+      - run: npm run test:competitor
+      - run: npm run test:competitor-market
+      - run: npm run test:competitor-finance
+      - run: npm run test:competitor-ai
+      - run: npm run test:competitor-entry-exit
+      - run: npm run test:competitor-migration
+      - run: npm run test:competitor-ui
+      - run: npm run test:competitor-rng
+      - run: npm run test:competitor-calibration
+      - run: npm run test:competitor-long

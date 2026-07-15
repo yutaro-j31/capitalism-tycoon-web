@@ -119,3 +119,7 @@ v6 initializes Phase 1C supply containers and deterministic ramen-store starting
 
 ## v6 to v7 workforce migration
 Existing departmentStaff is converted deterministically into workforceTeams, then departmentStaff becomes a compatibility mirror. Store base wage remains in business.wage. Cash, stock history, inventory, and finance ledgers are not changed by migration.
+
+## Phase 5A 競合企業 AI
+
+saveVersion 8 では、ラーメン（`businessID === 'ramen'`）のみ `js/competitor.js` の決定論的な競合状態を利用する。既存 `competitors` は削除せず、v7→v8 で `competitorStates[]`、`competitorActions[]`、`competitorMarketResultsByPresenceID`、`competitorMarketResultsByCompetitorID` と採番フィールドを追加する。対象外業種は従来の静的競合処理を維持する。

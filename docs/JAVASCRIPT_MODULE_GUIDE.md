@@ -111,3 +111,7 @@ Further splits should be smaller and subsystem-based only after this module boun
 
 ## workforce.js
 Loaded after data.js and before supply.js. It registers __capitalismTycoonModules.workforce and owns aggregated workforce teams, candidates, trainings, projects, capacity, fatigue, turnover, office constraints, and validation.
+
+## Phase 5A 競合企業 AI
+
+saveVersion 8 では、ラーメン（`businessID === 'ramen'`）のみ `js/competitor.js` の決定論的な競合状態を利用する。既存 `competitors` は削除せず、v7→v8 で `competitorStates[]`、`competitorActions[]`、`competitorMarketResultsByPresenceID`、`competitorMarketResultsByCompetitorID` と採番フィールドを追加する。対象外業種は従来の静的競合処理を維持する。

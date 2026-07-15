@@ -76,6 +76,16 @@
     "test:workforce-ui": "node tests/workforce-ui-actions-test.js && node tests/workforce-render-purity-test.js && node tests/workforce-validate-purity-test.js",
     "test:workforce-rng": "node tests/workforce-rng-regression-test.js",
     "test:workforce-calibration": "node tests/workforce-payroll-calibration-test.js && node tests/workforce-market-integration-test.js",
-    "test:workforce-long": "node --max-old-space-size=16384 tests/workforce-long-run-test.js"
+    "test:workforce-long": "node --max-old-space-size=16384 tests/workforce-long-run-test.js",
+    "test:competitor": "node tests/competitor-engine-test.js && node tests/competitor-offer-test.js",
+    "test:competitor-market": "node tests/competitor-market-integration-test.js",
+    "test:competitor-finance": "node tests/competitor-finance-test.js",
+    "test:competitor-ai": "node tests/competitor-price-ai-test.js && node tests/competitor-marketing-ai-test.js && node tests/competitor-quality-ai-test.js && node tests/competitor-capacity-test.js && node tests/competitor-public-signal-test.js",
+    "test:competitor-entry-exit": "node tests/competitor-entry-exit-test.js && node tests/competitor-distress-test.js",
+    "test:competitor-migration": "node tests/competitor-migration-test.js",
+    "test:competitor-ui": "node tests/competitor-ui-static-test.js && node tests/competitor-render-purity-test.js",
+    "test:competitor-rng": "node tests/competitor-rng-regression-test.js",
+    "test:competitor-calibration": "node tests/competitor-calibration-test.js",
+    "test:competitor-long": "node tests/competitor-long-run-test.js"
   }
 }
