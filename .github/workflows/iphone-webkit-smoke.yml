@@ -33,6 +33,8 @@ jobs:
         run: node tests/game-over-settings-webkit-test.js
       - name: Verify two-store first-week advance
         run: node tests/two-store-iphone-webkit-test.js
+      - name: Verify release diagnostics recovery
+        run: node tests/release-diagnostics-webkit-test.js
       - name: Retain WebKit smoke evidence
         if: always()
         uses: actions/upload-artifact@v4
