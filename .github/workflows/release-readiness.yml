@@ -17,4 +17,4 @@ jobs:
         with:
           node-version: 20
       - name: Run release readiness gate
-        run: node scripts/release-gate.js
+        run: npm run test:release
