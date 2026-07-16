@@ -1,0 +1,27 @@
+{
+  "schemaVersion": 1,
+  "version": "2.0.0-rc.1",
+  "tag": "v2.0.0-rc.1",
+  "channel": "release-candidate",
+  "entrypoint": "./index.html",
+  "deployment": {
+    "provider": "github-pages",
+    "url": "https://yutaro-j31.github.io/capitalism-tycoon-web/"
+  },
+  "repository": "yutaro-j31/capitalism-tycoon-web",
+  "sourceBranch": "main",
+  "save": {
+    "key": "capitalism_tycoon_web_v1",
+    "version": 9,
+    "compatibleFromVersion": 9
+  },
+  "releaseGate": "npm run test:release",
+  "manualSmokeChecks": [
+    "fresh-start",
+    "json-save-recovery",
+    "one-week-advance",
+    "four-week-advance",
+    "save-export-import",
+    "iphone-safe-area-navigation"
+  ]
+}
