@@ -12,6 +12,7 @@
     "test:save-v9": "node tests/save-v9-migration-test.js",
     "test:player-crisis": "node tests/player-crisis-lifecycle-test.js",
     "test:player-crisis-actions": "node tests/player-crisis-actions-test.js",
+    "test:player-crisis-ui": "node tests/player-crisis-ui-test.js",
     "test:load": "node tests/save-load-integration-test.js",
     "test:week": "node tests/week-test.js",
     "test:long": "node tests/long-run-test.js",
