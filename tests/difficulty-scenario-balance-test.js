@@ -3,7 +3,12 @@ const fs = require('node:fs');
 const path = require('node:path');
 const { loadGame, ROOT, findStateIssues } = require('./harness');
 
-const { engineModule, modules } = loadGame({ random: () => 0.5 });
+let seed = 0x6b300001;
+const random = () => {
+  seed = (Math.imul(seed, 1664525) + 1013904223) >>> 0;
+  return seed / 0x100000000;
+};
+const { engineModule, modules } = loadGame({ random });
 const balance = modules.difficultyScenarioBalance;
 const finance = modules.finance;
 assert.ok(balance?.__installed, 'difficulty scenario balance module must be installed');
