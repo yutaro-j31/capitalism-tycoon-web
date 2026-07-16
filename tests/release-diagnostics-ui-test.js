@@ -81,6 +81,29 @@ async function main() {
   assert.equal(await diagnostics.copyText('diagnostic payload', copyEnv), true);
   assert.equal(copied, 'diagnostic payload');
 
+  let appended = null;
+  let removed = false;
+  const deniedClipboardEnv = {
+    navigator: { clipboard: { async writeText() { throw new Error('permission denied'); } } },
+    document: {
+      body: { appendChild(node) { appended = node; } },
+      createElement() {
+        return {
+          value: '', style: {},
+          setAttribute() {}, select() {}, remove() { removed = true; }
+        };
+      },
+      execCommand(command) {
+        assert.equal(command, 'copy');
+        assert.equal(appended.value, 'fallback payload');
+        return true;
+      }
+    }
+  };
+  assert.equal(await diagnostics.copyText('fallback payload', deniedClipboardEnv), true,
+    'clipboard rejection must use the legacy copy fallback');
+  assert.equal(removed, true, 'fallback textarea must be removed');
+
   const text = diagnostics.diagnosticText(env);
   const parsedText = JSON.parse(text);
   assert.equal(parsedText.week, 27);
