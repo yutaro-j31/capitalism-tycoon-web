@@ -119,4 +119,25 @@ const legacy = new TycoonEngine(JSON.parse(legacyRaw));
 legacy.normalize();
 assert(Array.isArray(legacy.g.reports) && Array.isArray(legacy.g.news), 'legacy fixture did not load required arrays');
 JSON.stringify(legacy.g);
-console.log(JSON.stringify({ configure: configureMetrics, advanceWeekOneCall: advanceWeekMetrics, finalWeek: e.g.week, maxHistoryLength: maxHistory, gameOver: e.g.gameOver, gameOverReason: e.g.gameOverReason }, null, 2));
+
+// Regression: a new company can open the affordable Fukuoka ramen and cafe
+// tenants in week 1, then advance exactly one week without freezing or throwing.
+const twoStore = new TycoonEngine();
+twoStore.configure({ playerName:'悠太郎', companyName:'YTR', difficulty:'normal', scenario:'free', founderPrefID:'fukuoka', founderTraitID:'merchant' });
+const ramenTenant = twoStore.g.tenants.find(t => t.prefID === 'fukuoka' && t.businessID === 'ramen' && !t.occupiedBy);
+const cafeTenant = twoStore.g.tenants.find(t => t.prefID === 'fukuoka' && t.businessID === 'cafe' && !t.occupiedBy);
+assert(ramenTenant && cafeTenant, 'Fukuoka opening tenants are missing');
+assert(twoStore.openStore({ tenantID:ramenTenant.id, businessID:'ramen', name:'YTR 福岡ラーメン' }) === true, 'first store opening failed');
+assert(twoStore.openStore({ tenantID:cafeTenant.id, businessID:'cafe', name:'YTR 福岡カフェ' }) === true, 'second store opening failed');
+assert(twoStore.g.stores.length === 2, `expected two stores, got ${twoStore.g.stores.length}`);
+assert(twoStore.g.week === 1, `opening stores must not advance time, got week ${twoStore.g.week}`);
+const twoStoreCash = twoStore.g.companyCash;
+const twoStoreResult = twoStore.advanceWeek(true);
+assert(twoStoreResult === true, 'advanceWeek returned false after two openings');
+assert(twoStore.g.week === 2, `two-store first advance expected week 2, got ${twoStore.g.week}`);
+assert(twoStore.g.lastWeeklySummary && twoStore.g.lastWeeklySummary.week === 2, 'two-store weekly summary was not produced');
+assert(Number.isFinite(twoStore.g.companyCash), 'two-store company cash became non-finite');
+assert(twoStore.g.companyCash <= twoStoreCash + 5_000_000, 'two-store first week cash changed implausibly');
+assert(findStateIssues(twoStore.g).length === 0, `two-store state issues: ${findStateIssues(twoStore.g).slice(0,10).join('\n')}`);
+
+console.log(JSON.stringify({ configure: configureMetrics, advanceWeekOneCall: advanceWeekMetrics, finalWeek: e.g.week, maxHistoryLength: maxHistory, gameOver: e.g.gameOver, gameOverReason: e.g.gameOverReason, twoStoreWeek: twoStore.g.week, twoStoreCash: twoStore.g.companyCash }, null, 2));

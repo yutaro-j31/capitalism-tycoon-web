@@ -33,7 +33,9 @@ function close(server) {
   assert.ok(assets.includes('css/app.css'), 'CSS must be included in deployment attestation');
   assert.ok(assets.includes('js/runtime.js'), 'runtime must be included in deployment attestation');
   assert.ok(assets.includes('js/app.js'), 'application module must be included in deployment attestation');
-  assert.ok(deploymentTargets(ROOT).length > 30, 'deployment attestation must cover the complete static runtime');
+  const targets = deploymentTargets(ROOT);
+  assert.ok(targets.includes('play.html'), 'cache-safe play entry must be included in deployment attestation');
+  assert.ok(targets.length > 30, 'deployment attestation must cover the complete static runtime');
 
   const workflow = fs.readFileSync(path.join(ROOT, '.github', 'workflows', 'pages-deployment-smoke.yml'), 'utf8');
   assert.match(workflow, /^name: Pages Deployment Smoke$/m);
@@ -77,6 +79,7 @@ function close(server) {
     });
     assert.equal(recovered.attempts, 2, 'verifier must retry a stale Pages deployment');
     assert.ok(recovered.assetCount > 30);
+    assert.ok(recovered.checks.some(check => check.path === 'play.html' && check.ok), 'play entry bytes must be verified');
 
     state.alwaysStale = true;
     await assert.rejects(

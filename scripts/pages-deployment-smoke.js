@@ -50,7 +50,7 @@ function extractAssetPaths(html) {
 
 function deploymentTargets(root = ROOT) {
   const html = fs.readFileSync(path.join(root, 'index.html'), 'utf8');
-  return [...new Set(['index.html', 'release-candidate.json', ...extractAssetPaths(html)])];
+  return [...new Set(['index.html', 'play.html', 'release-candidate.json', ...extractAssetPaths(html)])];
 }
 
 function readLocalAsset(root, relativePath) {

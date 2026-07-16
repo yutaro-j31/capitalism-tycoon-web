@@ -1,0 +1,43 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,user-scalable=no">
+  <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+  <meta http-equiv="Pragma" content="no-cache">
+  <meta http-equiv="Expires" content="0">
+  <meta name="theme-color" content="#08101f">
+  <title>資本主義ポケット TYCOONを起動中</title>
+  <style>
+    :root{color-scheme:dark;font-family:-apple-system,BlinkMacSystemFont,"Hiragino Sans","Yu Gothic UI",sans-serif}
+    *{box-sizing:border-box}body{margin:0;min-height:100vh;display:grid;place-items:center;padding:24px;background:#07101e;color:#f4f7fb}.launcher{width:min(480px,100%);padding:28px;border:1px solid rgba(255,255,255,.14);border-radius:22px;background:#101f36;text-align:center}.mark{display:grid;place-items:center;width:68px;height:68px;margin:0 auto 18px;border-radius:18px;background:#efb85b;color:#07101e;font-size:40px;font-weight:900}h1{font-size:22px;margin:0 0 10px}p{color:#b9c7d8;line-height:1.7}.fallback{display:inline-flex;min-height:46px;align-items:center;justify-content:center;padding:10px 18px;border-radius:12px;background:#efb85b;color:#07101e;font-weight:800;text-decoration:none}.error{color:#ffc3c8}
+  </style>
+</head>
+<body>
+  <main class="launcher" id="launcher">
+    <div class="mark">¥</div>
+    <h1>資本主義ポケット TYCOON</h1>
+    <p id="launch-status">最新版を確認して起動しています…</p>
+    <a class="fallback" id="launch-fallback" href="./">通常ページを開く</a>
+  </main>
+  <script>
+  (function(){'use strict';
+    const token=`${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}`;
+    const fallback=document.getElementById('launch-fallback');
+    const fallbackUrl=new URL('./',location.href);fallbackUrl.searchParams.set('launch',token);fallback.href=fallbackUrl.toString();
+    const indexUrl=new URL('./index.html',location.href);indexUrl.searchParams.set('launch',token);
+    fetch(indexUrl,{cache:'no-store',credentials:'same-origin'})
+      .then(response=>{if(!response.ok)throw new Error(`起動ページの取得に失敗しました (${response.status})`);return response.text();})
+      .then(html=>{
+        const fresh=html.replace(/\b(src|href)="(\.\/(?:js|css)\/[^"?]+)(?:\?[^"#]*)?"/g,(_,attribute,url)=>`${attribute}="${url}?launch=${encodeURIComponent(token)}"`);
+        if(!fresh.includes('id="app"'))throw new Error('ゲーム画面の読み込みデータが不正です。');
+        document.open();document.write(fresh);document.close();
+      })
+      .catch(error=>{
+        const status=document.getElementById('launch-status');
+        if(status){status.className='error';status.textContent=`自動起動に失敗しました。下のボタンから再度開いてください。 ${error.message||error}`;}
+      });
+  })();
+  </script>
+</body>
+</html>

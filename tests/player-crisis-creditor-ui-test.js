@@ -11,6 +11,7 @@ const { ctx, modules } = loadGame({ random });
 const { engine, finance, playerCrisis, playerCrisisCreditorUI } = modules;
 assert.ok(playerCrisisCreditorUI?.__installed);
 assert.equal(typeof playerCrisisCreditorUI.renderSection, 'function');
+assert.equal(typeof playerCrisisCreditorUI.standalone, 'function');
 assert.equal(typeof playerCrisisCreditorUI.findCandidate, 'function');
 
 const game = new engine.TycoonEngine(engine.createInitialState({ configured: true }));
@@ -31,6 +32,10 @@ assert.ok(html.includes('承認見込み'));
 assert.ok(html.includes('&lt;b&gt;危険&lt;/b&gt;'));
 assert.ok(!html.includes('<b>危険</b>'));
 assert.ok(html.includes('data-player-crisis-creditor-action="negotiate"'));
+const standalone = playerCrisisCreditorUI.standalone(html);
+assert.ok(standalone.includes('data-player-crisis-creditor-standalone="1"'));
+assert.ok(standalone.includes('危機対応パネルと分離'));
+assert.ok(standalone.includes(html));
 
 const candidate = playerCrisisCreditorUI.findCandidate('principalDeferral', 'ui-loan');
 assert.ok(candidate);
