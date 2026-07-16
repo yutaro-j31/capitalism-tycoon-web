@@ -1,0 +1,29 @@
+'use strict';
+
+const { spawnSync } = require('node:child_process');
+
+const checks = [
+  ['mobile release contract', 'tests/mobile-release-contract-test.js', 30_000],
+  ['save storage budget', 'tests/save-storage-budget-test.js', 180_000]
+];
+
+for (const [label, script, timeout] of checks) {
+  console.log(`\n=== Release delivery: ${label} ===`);
+  const result = spawnSync(process.execPath, [script], {
+    stdio: 'inherit',
+    env: process.env,
+    timeout
+  });
+
+  if (result.error) {
+    console.error(`Unable to complete ${label}:`, result.error.message);
+    process.exit(1);
+  }
+
+  if (result.status !== 0) {
+    console.error(`Release delivery failed at ${label}.`);
+    process.exit(result.status || 1);
+  }
+}
+
+console.log('\nRelease delivery gate passed.');
