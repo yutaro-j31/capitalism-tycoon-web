@@ -50,7 +50,7 @@ async function startServer(server) {
   return `http://127.0.0.1:${address.port}/`;
 }
 
-async function openTenant(page, tenantName, businessID, storeName) {
+async function openTenant(page, tenantName, businessID, storeName, expectedStoreCount) {
   const card = page.locator('article.item').filter({ hasText: tenantName });
   await card.waitFor({ state: 'visible' });
   await card.locator('select[id^="business-"]').selectOption(businessID);
@@ -58,8 +58,13 @@ async function openTenant(page, tenantName, businessID, storeName) {
   await page.locator('#modal-text').waitFor({ state: 'visible' });
   await page.locator('#modal-text').fill(storeName);
   await page.locator('#modal-ok').click();
-  await page.locator('#modal-root').waitFor({ state: 'empty' });
-  await page.waitForFunction(name => document.body.innerText.includes(name), storeName);
+  await page.waitForFunction(() => document.getElementById('modal-root')?.innerHTML === '');
+  await page.waitForFunction(({ key, count }) => {
+    const raw = localStorage.getItem(key);
+    if (!raw) return false;
+    try { return JSON.parse(raw).stores?.length === count; }
+    catch (_) { return false; }
+  }, { key: SAVE_KEY, count: expectedStoreCount });
 }
 
 async function main() {
@@ -83,7 +88,13 @@ async function main() {
     page.on('pageerror', error => diagnostics.pageErrors.push(error.message));
     page.on('requestfailed', request => diagnostics.failedRequests.push(`${request.method()} ${request.url()} ${request.failure()?.errorText || ''}`));
 
-    await page.goto(baseUrl, { waitUntil: 'networkidle', timeout: 30_000 });
+    await page.goto(new URL('play.html', baseUrl).toString(), { waitUntil: 'networkidle', timeout: 30_000 });
+    await page.locator('#setup-form').waitFor({ state: 'visible', timeout: 20_000 });
+    assert.match(page.url(), /play\.html/, 'cache-safe launcher should keep the shareable play URL');
+    const loadedAssets = await page.evaluate(() => [...document.scripts].map(script => script.src).filter(Boolean));
+    assert.ok(loadedAssets.length >= 20, `expected game scripts from launcher, got ${loadedAssets.length}`);
+    assert.ok(loadedAssets.every(url => new URL(url).searchParams.has('launch')), 'launcher must cache-bust every game script');
+
     await page.locator('#setup-form input[name="playerName"]').fill('悠太郎');
     await page.locator('#setup-form input[name="companyName"]').fill('YTR');
     await page.locator('#setup-form select[name="founderPrefID"]').selectOption('fukuoka');
@@ -93,8 +104,8 @@ async function main() {
 
     await page.locator('button[data-action="tab"][data-tab="map"]').click();
     await page.locator('select[data-bind="selectedPref"]').selectOption('fukuoka');
-    await openTenant(page, '福岡 駅前1階テナント', 'ramen', 'YTR 福岡ラーメン');
-    await openTenant(page, '福岡 商店街角地テナント', 'cafe', 'YTR 福岡カフェ');
+    await openTenant(page, '福岡 駅前1階テナント', 'ramen', 'YTR 福岡ラーメン', 1);
+    await openTenant(page, '福岡 商店街角地テナント', 'cafe', 'YTR 福岡カフェ', 2);
 
     const before = JSON.parse(await page.evaluate(key => localStorage.getItem(key), SAVE_KEY));
     assert.equal(before.week, 1);
@@ -114,8 +125,8 @@ async function main() {
     assert.deepEqual(diagnostics, { consoleErrors: [], pageErrors: [], failedRequests: [] });
 
     await page.screenshot({ path: path.join(ARTIFACT_DIR, 'two-store-first-week.png'), fullPage: true });
-    fs.writeFileSync(path.join(ARTIFACT_DIR, 'two-store-first-week.json'), `${JSON.stringify({ status:'passed', beforeWeek:before.week, afterWeek:after.week, stores:after.stores.length }, null, 2)}\n`);
-    console.log('two-store iPhone WebKit first-week regression passed');
+    fs.writeFileSync(path.join(ARTIFACT_DIR, 'two-store-first-week.json'), `${JSON.stringify({ status:'passed', launchUrl:page.url(), beforeWeek:before.week, afterWeek:after.week, stores:after.stores.length }, null, 2)}\n`);
+    console.log('two-store iPhone WebKit first-week regression passed through play.html');
   } catch (error) {
     if (page) {
       try { await page.screenshot({ path: path.join(ARTIFACT_DIR, 'two-store-first-week-failure.png'), fullPage: true }); } catch (_) {}
