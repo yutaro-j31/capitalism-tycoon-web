@@ -24,6 +24,7 @@
     "./js/competitor-dashboard-ui.js",
     "./js/player-crisis-ui.js",
     "./js/player-engine-bridge.js",
+    "./js/progression-balance.js",
     "./js/app.js",
     "./js/player-crisis.js",
     "./js/player-crisis-actions.js",
