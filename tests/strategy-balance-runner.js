@@ -23,11 +23,13 @@ function makeRandom(initialSeed){
  return()=>{seed=(Math.imul(seed,1664525)+1013904223)>>>0;return seed/0x100000000;};
 }
 
-function runScenario(def,seed,{includeState=false}={}){
+function runScenario(def,seed,{includeState=false,difficulty='normal',gameScenario='standard'}={}){
  const random=makeRandom(seed);
  const {engineModule,modules}=loadGame({random});
  const game=new engineModule.TycoonEngine();
- game.configure({playerName:`監査-${def.id}`,companyName:`監査-${def.id}`,difficulty:'normal',scenario:'standard',founderPrefID:def.route[0],founderTraitID:def.trait});
+ game.configure({playerName:`監査-${def.id}`,companyName:`監査-${def.id}`,difficulty,scenario:gameScenario,founderPrefID:def.route[0],founderTraitID:def.trait});
+ const startingCash=game.g.companyCash;
+ const startingCredit=game.g.companyCredit;
  const actions=[];
  const business=game.business(def.businessID);
  const maxStores=def.route.length;
@@ -117,7 +119,7 @@ function runScenario(def,seed,{includeState=false}={}){
   game.advanceWeek(false);
  }
  const annualProfit=game.g.reports.slice(-52).reduce((sum,row)=>sum+Number(row.profit||0),0);
- const result={id:def.id,seed,businessID:def.businessID,calibratedDemand:business.demand,debtStrategy:def.debt,ipo:game.g.publicCompany,ipoWeek,gameOver:game.g.gameOver,reason:game.g.gameOverReason,week:game.g.week,stores:game.g.stores.length,openStores:game.g.stores.filter(row=>row.status==='open').length,cash:Math.round(game.g.companyCash),debt:Math.round(game.g.companyDebt),value:Math.round(game.companyValue()),annualProfit:Math.round(annualProfit),reports:game.g.reports.length,missing:game.ipoMissingReasons(),actions};
+ const result={id:def.id,seed,businessID:def.businessID,difficulty,gameScenario,startingCash,startingCredit,calibratedDemand:business.demand,debtStrategy:def.debt,ipo:game.g.publicCompany,ipoWeek,gameOver:game.g.gameOver,reason:game.g.gameOverReason,week:game.g.week,stores:game.g.stores.length,openStores:game.g.stores.filter(row=>row.status==='open').length,cash:Math.round(game.g.companyCash),debt:Math.round(game.g.companyDebt),value:Math.round(game.companyValue()),annualProfit:Math.round(annualProfit),reports:game.g.reports.length,missing:game.ipoMissingReasons(),actions};
  if(includeState){result.state=game.g;result.modules=modules;}
  return result;
 }
