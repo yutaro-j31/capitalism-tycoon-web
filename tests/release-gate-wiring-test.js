@@ -12,7 +12,11 @@ assert.equal(packageJson.scripts['test:release'], 'node scripts/release-all-gate
 assert.equal(packageJson.scripts['test:release:balance'], 'node scripts/release-gate.js');
 assert.equal(packageJson.scripts['test:release:hardening'], 'node scripts/release-hardening-gate.js');
 
-for (const requiredScript of ['scripts/release-gate.js', 'scripts/release-hardening-gate.js']) {
+for (const requiredScript of [
+  'scripts/release-gate.js',
+  'scripts/release-hardening-gate.js',
+  'scripts/release-delivery-gate.js'
+]) {
   assert.ok(orchestrator.includes(requiredScript), `release orchestrator must invoke ${requiredScript}`);
 }
 

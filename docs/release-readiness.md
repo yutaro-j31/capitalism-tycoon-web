@@ -2,13 +2,13 @@
 
 This checklist defines the minimum merge and release gate after the Phase 6B balance audits.
 
-Run the executable progression and balance gate locally with:
+Run the complete local release gate with:
 
 ```bash
 npm run test:release
 ```
 
-The dedicated `Release Readiness` workflow runs the same command on pull requests and manual dispatches.
+The dedicated `Release Readiness` workflow runs the same command on pull requests and manual dispatches. The command executes progression and balance readiness, compatibility and UI hardening, and delivery-environment checks.
 
 ## Progression and balance
 
@@ -37,6 +37,15 @@ The dedicated `Release Readiness` workflow runs the same command on pull request
 - Crisis, turnaround, scenario, and IPO blockers remain visible and actionable.
 - Weekly summaries explain material changes without mutating state during rendering.
 - Save, load, import, export, and reset remain reachable.
+
+## Delivery environment
+
+- The viewport contract retains device width, initial scale, and `viewport-fit=cover`.
+- Safe-area spacing remains active for the top bar, bottom navigation, and compact mobile layout.
+- Buttons and form controls retain touch-sized minimum heights, and constrained modals remain scrollable.
+- A deterministic 520-week game can be serialized, loaded, and saved again without invalid state.
+- The canonical ten-year save remains at or below 4 MiB, with no reload/save growth above 64 KiB.
+- Mobile contract checks must finish within 30 seconds and the ten-year storage audit within 180 seconds.
 
 ## Merge policy
 
