@@ -67,11 +67,49 @@ async function openTenant(page, tenantName, businessID, storeName, expectedStore
   }, { key: SAVE_KEY, count: expectedStoreCount });
 }
 
+async function installWeekTrace(page) {
+  await page.evaluate(() => {
+    const modules = globalThis.__capitalismTycoonModules;
+    const engine = modules?.playerEngineBridge?.getEngine?.();
+    if (!engine) throw new Error('active engine is unavailable for week trace');
+    const wrap = (target, name, label = name) => {
+      if (!target || typeof target[name] !== 'function' || target[name].__weekTraceWrapped) return;
+      const original = target[name];
+      const wrapped = function(...args) {
+        console.info(`[week-trace] start ${label}`);
+        try {
+          const result = original.apply(this, args);
+          console.info(`[week-trace] end ${label}`);
+          return result;
+        } catch (error) {
+          console.info(`[week-trace] throw ${label}: ${error?.message || error}`);
+          throw error;
+        }
+      };
+      Object.defineProperty(wrapped, '__weekTraceWrapped', { value: true });
+      target[name] = wrapped;
+    };
+    for (const name of [
+      'updateMacro','updateMarket','updateProperties','updateStartups','updateCompetitors',
+      'updateDirectivesAndCampaigns','updateProducts','updateOverseas','updateSubsidiaries',
+      'updateFranchise','updatePersonalAssets','recordHistory','evaluateProgression',
+      'generateRecurringEvents','updateExpansionWeekly','updateCompletionWeekly','updateParityWeekly'
+    ]) wrap(engine, name, `engine.${name}`);
+    for (const [moduleName, names] of Object.entries({
+      supply:['ensure','spoil','receiveOrders','payables','autoOrder','validate'],
+      workforce:['ensure','processWeekStart','generateCandidates','recompute','weeklyPayroll','advanceProjects','updateEndOfWeek','validate'],
+      market:['calculateMarkets'],
+      competitor:['receiveMarketResults','processWeek','validate'],
+      finance:['recordWeekly','validate','rebuildDirtySnapshots']
+    })) for (const name of names) wrap(modules[moduleName], name, `${moduleName}.${name}`);
+  });
+}
+
 async function main() {
   fs.mkdirSync(ARTIFACT_DIR, { recursive: true });
   const server = staticServer();
   const baseUrl = await startServer(server);
-  const diagnostics = { consoleErrors: [], pageErrors: [], failedRequests: [] };
+  const diagnostics = { consoleErrors: [], pageErrors: [], failedRequests: [], weekTrace: [] };
   let browser;
   let page;
   try {
@@ -84,7 +122,11 @@ async function main() {
       timezoneId: 'Asia/Tokyo'
     });
     page = await context.newPage();
-    page.on('console', message => message.type() === 'error' && diagnostics.consoleErrors.push(message.text()));
+    page.on('console', message => {
+      const text = message.text();
+      if (text.startsWith('[week-trace]')) diagnostics.weekTrace.push(text);
+      if (message.type() === 'error') diagnostics.consoleErrors.push(text);
+    });
     page.on('pageerror', error => diagnostics.pageErrors.push(error.message));
     page.on('requestfailed', request => diagnostics.failedRequests.push(`${request.method()} ${request.url()} ${request.failure()?.errorText || ''}`));
 
@@ -115,7 +157,8 @@ async function main() {
     assert.ok(before.companyCash > 0 && before.companyCash < 2_000_000,
       `reported setup must remain a low-cash two-store start, got ${before.companyCash}`);
 
-    await page.locator('button[data-action="advance-week"]').click();
+    await installWeekTrace(page);
+    await page.locator('button[data-action="advance-week"]').click({ timeout: 15_000 });
     const summary = page.locator('#modal-root .summary-modal');
     await summary.waitFor({ state: 'visible', timeout: 30_000 });
     assert.match(await summary.innerText(), /第2週/);
@@ -126,10 +169,10 @@ async function main() {
     assert.equal(after.week, 2);
     assert.equal(after.stores.length, 2);
     assert.ok(after.lastWeeklySummary && after.lastWeeklySummary.week === 2);
-    assert.deepEqual(diagnostics, { consoleErrors: [], pageErrors: [], failedRequests: [] });
+    assert.deepEqual({ consoleErrors: diagnostics.consoleErrors, pageErrors: diagnostics.pageErrors, failedRequests: diagnostics.failedRequests }, { consoleErrors: [], pageErrors: [], failedRequests: [] });
 
     await page.screenshot({ path: path.join(ARTIFACT_DIR, 'two-store-first-week.png'), fullPage: true });
-    fs.writeFileSync(path.join(ARTIFACT_DIR, 'two-store-first-week.json'), `${JSON.stringify({ status:'passed', launchUrl:page.url(), difficulty:before.difficulty, cashBeforeAdvance:before.companyCash, beforeWeek:before.week, afterWeek:after.week, stores:after.stores.length }, null, 2)}\n`);
+    fs.writeFileSync(path.join(ARTIFACT_DIR, 'two-store-first-week.json'), `${JSON.stringify({ status:'passed', launchUrl:page.url(), difficulty:before.difficulty, cashBeforeAdvance:before.companyCash, beforeWeek:before.week, afterWeek:after.week, stores:after.stores.length, weekTrace:diagnostics.weekTrace }, null, 2)}\n`);
     console.log('reported hard-mode two-store iPhone WebKit regression passed through play.html');
   } catch (error) {
     if (page) {
