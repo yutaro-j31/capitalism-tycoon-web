@@ -80,7 +80,7 @@ function execute(instance,type,id){
  if(!eligible(instance))return instance.fail('資産整理は資金繰り注意・危機・再建・回復確認中のみ実行できます。');
  const candidate=findCandidate(instance,type,id);
  if(!candidate)return instance.fail('売却・閉鎖対象が見つかりません。');
- const state=instance.g,actionState=ensure(state),seq=actionState.nextActionSeq++,actionID=`pcr-${seq}`,operationID=`player-crisis-restructuring-${actionID}`,cashBefore=finite(state.companyCash);
+ const state=instance.g,previousStatus=status(state),actionState=ensure(state),seq=actionState.nextActionSeq++,actionID=`pcr-${seq}`,operationID=`player-crisis-restructuring-${actionID}`,cashBefore=finite(state.companyCash);
  let result=false;
  if(type==='store')result=instance.closeStore(id);
  else if(type==='property')result=instance.sellProperty(id);
@@ -90,10 +90,13 @@ function execute(instance,type,id){
  const crisis=playerCrisis.ensure(state);
  crisis.lastEvaluationWeek=Math.max(0,integer(state.week)-1);
  const nextStatus=playerCrisis.evaluate(state).status;
- actionState.history.push({actionID,operationID,week:integer(state.week),type,targetID:String(id),targetName:candidate.name,expectedCash:candidate.expectedCash,cashBefore,cashAfter,realizedCash,status:'completed',detail:`${candidate.name} / 状態 ${status(state)}→${nextStatus}`});
+ actionState.history.push({actionID,operationID,week:integer(state.week),type,targetID:String(id),targetName:candidate.name,expectedCash:candidate.expectedCash,cashBefore,cashAfter,realizedCash,status:'completed',detail:`${candidate.name} / 状態 ${previousStatus}→${nextStatus}`});
  actionState.history=actionState.history.slice(-HISTORY_LIMIT);
  instance.notify(`${candidate.name}の資産整理で${Math.round(realizedCash).toLocaleString('ja-JP')}円を確保しました。`,'warning');
- validate(state);finance.validate(state);instance.save();instance.emit();return true;
+ validate(state);
+ const financeResult=finance.validate(state);
+ if(financeResult?.ok===false)throw new Error(financeResult.errors.join(' / '));
+ instance.save();instance.emit();return true;
 }
 function validate(state){
  const current=state?.playerCrisisRestructuring,errors=[];
