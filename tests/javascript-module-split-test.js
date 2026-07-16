@@ -4,12 +4,13 @@ const vm = require('node:vm');
 const { ROOT, readIndex, extractScripts, createBrowserContext } = require('./harness');
 
 function assert(cond, msg) { if (!cond) throw new Error(msg); }
-const expected = ['./js/runtime.js','./js/data.js','./js/workforce.js','./js/supply.js','./js/competitor.js','./js/competitor-projects.js','./js/competitor-entry.js','./js/competitor-credit.js','./js/competitor-distress.js','./js/competitor-terminal-compat.js','./js/market.js','./js/finance.js','./js/engine.js','./js/save-v9.js','./js/expansion.js','./js/competitor-media.js','./js/completion.js','./js/parity.js','./js/competitor-parity.js','./js/competitor-dashboard.js','./js/competitor-dashboard-status.js','./js/competitor-dashboard-ui.js','./js/app.js','./js/player-crisis.js'];
+const expected = ['./js/runtime.js','./js/data.js','./js/workforce.js','./js/supply.js','./js/competitor.js','./js/competitor-projects.js','./js/competitor-entry.js','./js/competitor-credit.js','./js/competitor-distress.js','./js/competitor-terminal-compat.js','./js/market.js','./js/finance.js','./js/engine.js','./js/save-v9.js','./js/expansion.js','./js/competitor-media.js','./js/completion.js','./js/parity.js','./js/competitor-parity.js','./js/competitor-dashboard.js','./js/competitor-dashboard-status.js','./js/competitor-dashboard-ui.js','./js/app.js','./js/player-crisis.js','./js/player-crisis-actions.js'];
 const scripts = extractScripts(readIndex()).filter(s => s.src);
 assert(JSON.stringify(scripts.map(s => s.src)) === JSON.stringify(expected), `script order mismatch: ${scripts.map(s => s.src).join(', ')}`);
 assert(scripts[0].src === './js/runtime.js', 'runtime.js must be first');
-assert(scripts[scripts.length - 2].src === './js/app.js', 'app.js must compose engine immediately before player-crisis.js');
-assert(scripts[scripts.length - 1].src === './js/player-crisis.js', 'player-crisis.js must wrap the final composed engine');
+assert(scripts[scripts.length - 3].src === './js/app.js', 'app.js must compose engine immediately before player crisis modules');
+assert(scripts[scripts.length - 2].src === './js/player-crisis.js', 'player-crisis.js must wrap the final composed engine');
+assert(scripts[scripts.length - 1].src === './js/player-crisis-actions.js', 'player-crisis-actions.js must extend the crisis lifecycle last');
 for (const s of scripts) {
   assert(fs.existsSync(s.file), `${s.src} missing`);
   const buf = fs.readFileSync(s.file);
@@ -58,7 +59,8 @@ for (const [name, keys] of Object.entries({
   expansion:['installExpansion','FOUNDER_TRAITS','FOUNDER_HOME_PRODUCTS','SUPPLIER_OFFERS','VERTICAL_INTEGRATION_OFFERS','RD_PROJECTS','PERSONAL_REAL_ESTATE_OFFERS','SUCCESSOR_CANDIDATES'],
   completion:['installCompletion','MEDIA_ACTIONS','TRANSPORT_REBUILD_ACTIONS','ENDING_DEFS'],
   parity:['installParity','KEY_PERSON_ROLES'],
-  playerCrisis:['STATUSES','HISTORY_LIMIT','LEGACY_GAME_OVER_REASON','INSOLVENCY_REASON','graceForDifficulty','reserveThreshold','ensure','evaluate','snapshot','validate','__installed']
+  playerCrisis:['STATUSES','HISTORY_LIMIT','LEGACY_GAME_OVER_REASON','INSOLVENCY_REASON','graceForDifficulty','reserveThreshold','ensure','evaluate','snapshot','validate','__installed'],
+  playerCrisisActions:['ACTION_TYPES','HISTORY_LIMIT','EMERGENCY_LOAN_COOLDOWN_WEEKS','MIN_EMERGENCY_LOAN','TARGET_EMERGENCY_LOAN','ensure','options','validate','__installed']
 })) {
   assert(modules[name], `${name} module missing`);
   for (const key of keys) assert(Object.prototype.hasOwnProperty.call(modules[name], key), `${name}.${key} missing`);
@@ -67,6 +69,7 @@ assert(modules.engine.SAVE_VERSION === 9, `expected save version 9, got ${module
 assert(modules.engine.TycoonEngine.prototype.__competitorMediaInstalled === true, 'competitor media patch missing');
 assert(modules.engine.TycoonEngine.prototype.__competitorParityCompatibilityInstalled === true, 'competitor parity compatibility missing');
 assert(modules.engine.TycoonEngine.prototype.__playerCrisisInstalled === true, 'player crisis patch missing');
+assert(modules.engine.TycoonEngine.prototype.__playerCrisisActionsInstalled === true, 'player crisis actions patch missing');
 assert(typeof modules.competitor.dashboard.buildDashboard === 'function', 'competitor dashboard builder missing');
 assert(modules.competitor.dashboard.__marketStatusNormalized === true, 'competitor dashboard status normalizer missing');
 assert(typeof modules.competitor.dashboardUI.render === 'function', 'competitor dashboard UI renderer missing');
@@ -134,6 +137,9 @@ assert.throws(() => vm.runInContext(scripts[21].code, missingDashboardStatus), /
 const missingAppComposition = createBrowserContext();
 for (let index = 0; index <= 21; index += 1) vm.runInContext(scripts[index].code, missingAppComposition);
 assert.throws(() => vm.runInContext(scripts[23].code, missingAppComposition), /app\.js must install completion and parity/);
+const missingPlayerCrisis = createBrowserContext();
+for (let index = 0; index <= 22; index += 1) vm.runInContext(scripts[index].code, missingPlayerCrisis);
+assert.throws(() => vm.runInContext(scripts[24].code, missingPlayerCrisis), /player-crisis\.js/);
 assert.throws(() => vm.runInContext(scripts[13].code, ctx), /already installed/);
 assert.throws(() => vm.runInContext(scripts[15].code, ctx), /already installed/);
 assert.throws(() => vm.runInContext(scripts[18].code, ctx), /already installed/);
@@ -141,6 +147,7 @@ assert.throws(() => vm.runInContext(scripts[19].code, ctx), /already registered/
 assert.throws(() => vm.runInContext(scripts[20].code, ctx), /already normalized/);
 assert.throws(() => vm.runInContext(scripts[21].code, ctx), /already registered/);
 assert.throws(() => vm.runInContext(scripts[23].code, ctx), /already registered/);
+assert.throws(() => vm.runInContext(scripts[24].code, ctx), /already registered/);
 assert.throws(() => vm.runInContext(scripts[9].code, ctx), /already installed/);
 assert.throws(() => vm.runInContext(scripts[8].code, ctx), /already installed/);
 assert.throws(() => vm.runInContext(scripts[1].code, ctx), /already registered/);
