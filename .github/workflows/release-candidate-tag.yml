@@ -56,7 +56,7 @@ jobs:
   create-release-candidate-tag:
     if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
-    timeout-minutes: 120
+    timeout-minutes: 150
     steps:
       - uses: actions/checkout@v4
         with:
@@ -93,11 +93,11 @@ jobs:
         run: node scripts/release-candidate-tag-gate.js
       - name: Run complete release gate
         run: npm run test:release
-      - name: Run automated iPhone WebKit smoke
+      - name: Run local automated iPhone WebKit smoke
         env:
           IPHONE_WEBKIT_ARTIFACT_DIR: artifacts/iphone-webkit-smoke
         run: node tests/iphone-webkit-smoke-test.js
-      - name: Retain automated WebKit evidence
+      - name: Retain local automated WebKit evidence
         if: always()
         uses: actions/upload-artifact@v4
         with:
@@ -111,6 +111,19 @@ jobs:
           PAGES_SMOKE_DELAY_MS: '30000'
           PAGES_SMOKE_REQUEST_TIMEOUT_MS: '15000'
         run: node scripts/pages-deployment-smoke.js
+      - name: Run published iPhone WebKit smoke
+        env:
+          IPHONE_WEBKIT_TARGET_URL: https://yutaro-j31.github.io/capitalism-tycoon-web/
+          IPHONE_WEBKIT_ARTIFACT_DIR: artifacts/published-iphone-webkit-smoke
+        run: node tests/iphone-webkit-smoke-test.js
+      - name: Retain published WebKit evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-candidate-published-webkit-${{ github.sha }}
+          path: artifacts/published-iphone-webkit-smoke
+          if-no-files-found: warn
+          retention-days: 90
       - name: Retain release candidate evidence
         uses: actions/upload-artifact@v4
         with:

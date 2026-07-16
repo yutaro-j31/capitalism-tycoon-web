@@ -6,12 +6,17 @@ const path = require('node:path');
 const { ROOT } = require('./harness');
 
 const read = relative => fs.readFileSync(path.join(ROOT, relative), 'utf8');
+const escapeRegExp = value => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+const count = (text, token) => text.split(token).length - 1;
 const workflow = read('.github/workflows/iphone-webkit-smoke.yml');
+const pagesWorkflow = read('.github/workflows/pages-deployment-smoke.yml');
 const tagWorkflow = read('.github/workflows/release-candidate-tag.yml');
 const smoke = read('tests/iphone-webkit-smoke-test.js');
 const deliveryGate = read('scripts/release-delivery-gate.js');
 const index = read('index.html');
 const mobileCss = read('css/mobile-release.css');
+const releaseCandidate = JSON.parse(read('release-candidate.json'));
+const deploymentUrlPattern = new RegExp(escapeRegExp(releaseCandidate.deployment.url));
 
 assert.match(workflow, /^name: iPhone WebKit Smoke$/m);
 assert.match(workflow, /^  pull_request:$/m, 'WebKit smoke must run for pull requests');
@@ -24,7 +29,9 @@ assert.match(workflow, /actions\/upload-artifact@v4/);
 assert.match(workflow, /artifacts\/iphone-webkit-smoke/);
 
 assert.match(smoke, /const \{ webkit, devices \} = require\('playwright'\)/);
+assert.match(smoke, /require\('\.\.\/release-candidate\.json'\)/);
 assert.match(smoke, /DEVICE_NAME = 'iPhone 13'/);
+assert.match(smoke, /TARGET_ENV = 'IPHONE_WEBKIT_TARGET_URL'/);
 assert.match(smoke, /await webkit\.launch\(\)/);
 assert.match(smoke, /serviceWorkers: 'block'/);
 assert.match(smoke, /#setup-form/);
@@ -39,6 +46,11 @@ assert.match(smoke, /documentScrollWidth/);
 assert.match(smoke, /overflowX/);
 assert.match(smoke, /pageErrors/);
 assert.match(smoke, /consoleErrors/);
+assert.match(smoke, /published-pages/);
+assert.match(smoke, /must use the release-candidate deployment origin/);
+assert.match(smoke, /must use the release-candidate deployment path/);
+assert.match(smoke, /must not include a query string/);
+assert.match(smoke, /must not include a fragment/);
 assert.doesNotMatch(smoke, /chromium|firefox/, 'release mobile smoke must exercise WebKit only');
 
 const appCssIndex = index.indexOf('./css/app.css');
@@ -51,14 +63,39 @@ assert.match(mobileCss, /\.week-controls \.secondary\s*\{[^}]*display:inline-fle
 assert.doesNotMatch(mobileCss, /\.week-controls \.secondary\s*\{[^}]*display:none/,
   'mobile release override must never hide the four-week control');
 
+assert.match(pagesWorkflow, /^name: Pages Deployment Smoke$/m);
+assert.match(pagesWorkflow, /^  push:$/m);
+assert.match(pagesWorkflow, /branches: \[ main \]/);
+assert.match(pagesWorkflow, /^  contents: read$/m, 'published smoke must keep read-only repository permissions');
+assert.match(pagesWorkflow, deploymentUrlPattern, 'published workflow must target the release-candidate deployment URL');
+assert.match(pagesWorkflow, /IPHONE_WEBKIT_TARGET_URL/);
+assert.match(pagesWorkflow, /artifacts\/published-iphone-webkit-smoke/);
+assert.match(pagesWorkflow, /published-iphone-webkit-smoke-\$\{\{ github\.sha \}\}/);
+assert.match(pagesWorkflow, /npm install --no-save --no-package-lock playwright@1\.61\.0/);
+assert.match(pagesWorkflow, /npx playwright install --with-deps webkit/);
+const pagesBytesIndex = pagesWorkflow.indexOf('node scripts/pages-deployment-smoke.js');
+const pagesInstallIndex = pagesWorkflow.indexOf('npm install --no-save --no-package-lock playwright@1.61.0');
+const pagesWebKitIndex = pagesWorkflow.indexOf('node tests/iphone-webkit-smoke-test.js');
+assert.ok(pagesBytesIndex >= 0, 'published assets must be attested');
+assert.ok(pagesInstallIndex > pagesBytesIndex, 'browser install must occur only after published bytes match main');
+assert.ok(pagesWebKitIndex > pagesInstallIndex, 'published WebKit smoke must follow browser installation');
+
 const installIndex = tagWorkflow.indexOf('npm install --no-save --no-package-lock playwright@1.61.0');
-const smokeIndex = tagWorkflow.indexOf('node tests/iphone-webkit-smoke-test.js');
+const localSmokeIndex = tagWorkflow.indexOf('node tests/iphone-webkit-smoke-test.js');
 const pagesIndex = tagWorkflow.indexOf('node scripts/pages-deployment-smoke.js');
+const publishedTargetIndex = tagWorkflow.indexOf('IPHONE_WEBKIT_TARGET_URL');
+const publishedSmokeIndex = tagWorkflow.lastIndexOf('node tests/iphone-webkit-smoke-test.js');
 const tagIndex = tagWorkflow.indexOf('git tag -a');
+assert.equal(count(tagWorkflow, 'node tests/iphone-webkit-smoke-test.js'), 2,
+  'tag workflow must run both local and published WebKit smoke');
 assert.ok(installIndex >= 0, 'tag workflow must install pinned Playwright');
-assert.ok(smokeIndex > installIndex, 'tag workflow must run WebKit smoke after installing Playwright');
-assert.ok(pagesIndex > smokeIndex, 'published Pages verification must follow local WebKit smoke');
-assert.ok(tagIndex > pagesIndex, 'tag creation must remain the final release step');
+assert.ok(localSmokeIndex > installIndex, 'local WebKit smoke must run after installing Playwright');
+assert.ok(pagesIndex > localSmokeIndex, 'published Pages verification must follow local WebKit smoke');
+assert.ok(publishedTargetIndex > pagesIndex, 'published WebKit target must be configured after byte attestation');
+assert.ok(publishedSmokeIndex > publishedTargetIndex, 'published WebKit smoke must use the configured deployment target');
+assert.ok(tagIndex > publishedSmokeIndex, 'tag creation must remain after both WebKit paths');
+assert.match(tagWorkflow, deploymentUrlPattern, 'tag workflow must test the manifest deployment URL');
+assert.match(tagWorkflow, /release-candidate-published-webkit-\$\{\{ github\.sha \}\}/);
 
 assert.match(deliveryGate, /tests\/iphone-webkit-smoke-contract-test\.js/,
   'canonical release delivery gate must protect the WebKit workflow contract');
