@@ -1,0 +1,16 @@
+name: Phase 6B-3 Diagnostic
+'on':
+  pull_request:
+jobs:
+  difficulty-scenario-matrix:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: node tests/phase6b3-difficulty-scenario-diagnostic.js > phase6b3-diagnostic.log 2>&1
+      - uses: actions/upload-artifact@v4
+        with:
+          name: phase6b3-diagnostic
+          path: phase6b3-diagnostic.log
