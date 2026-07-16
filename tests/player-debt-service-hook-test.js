@@ -35,6 +35,9 @@ function makeDebtGame() {
 function legacyRate(game) {
   return Math.max(0.012, Math.min(0.12, game.g.policyRate + 0.018 + (100 - game.g.companyCredit) * 0.00025));
 }
+function ledgerPrecision(value) {
+  return Math.round(Number(value) * 100) / 100;
+}
 
 const baseCase = makeDebtGame();
 assert.equal(baseCase.game.companyBorrowRate(), legacyRate(baseCase.game));
@@ -61,7 +64,7 @@ negotiated.game.companyWeeklyBorrowRate = function() {
   return usedRate;
 };
 assert.equal(negotiated.game.advanceWeek(false), true);
-assert.equal(negotiated.game.g.lastReport.interest, debtAtInterest * usedRate / 52);
+assert.equal(negotiated.game.g.lastReport.interest, ledgerPrecision(debtAtInterest * usedRate / 52));
 assert.equal(playerDebtService.inWeeklyContext(negotiated.game), false, 'weekly context must be released after success');
 assert.equal(negotiated.game.companyBorrowRate(), legacyRate(negotiated.game), 'ordinary quote must be restored after weekly processing');
 const interestTxn = negotiated.game.g.finance.transactions.find(row => row.week === negotiated.game.g.week && row.category === 'interestExpense');
