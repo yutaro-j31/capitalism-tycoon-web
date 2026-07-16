@@ -16,4 +16,5 @@ if (!html.includes('</html>') || !html.includes('</body>')) errors.push('body/ht
 const textFindings = checkRepository();
 for (const f of textFindings) errors.push(`${f.file}:${f.line}:${f.column} ${f.codePoint} ${f.reason}`);
 if (errors.length) { console.error(errors.join('\n')); process.exit(1); }
+require('./release-diagnostics-ui-test');
 console.log('static checks passed');
