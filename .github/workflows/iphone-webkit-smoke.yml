@@ -17,6 +17,7 @@ jobs:
     timeout-minutes: 30
     env:
       IPHONE_WEBKIT_ARTIFACT_DIR: artifacts/iphone-webkit-smoke
+      GAME_OVER_SETTINGS_ARTIFACT_DIR: artifacts/game-over-settings-webkit
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -28,11 +29,15 @@ jobs:
         run: npx playwright install --with-deps webkit
       - name: Run iPhone WebKit release smoke
         run: node tests/iphone-webkit-smoke-test.js
+      - name: Verify bankruptcy settings recovery
+        run: node tests/game-over-settings-webkit-test.js
       - name: Retain WebKit smoke evidence
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: iphone-webkit-smoke-${{ github.sha }}
-          path: artifacts/iphone-webkit-smoke
+          path: |
+            artifacts/iphone-webkit-smoke
+            artifacts/game-over-settings-webkit
           if-no-files-found: error
           retention-days: 30
