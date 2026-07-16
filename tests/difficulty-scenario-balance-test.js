@@ -15,13 +15,12 @@ assert.ok(balance?.__installed, 'difficulty scenario balance module must be inst
 assert.equal(engineModule.TycoonEngine.prototype.__difficultyScenarioBalanceInstalled, true);
 assert.equal(balance.VERSION, 1);
 assert.equal(balance.STANDARD_TARGET_WEEK, 208);
-assert.equal(balance.EASY_EXPANSION_RESERVE, 6_000_000);
-assert.equal(balance.HARD_STARTUP_CREDIT_FLOOR, 5_000_000);
-assert.equal(balance.STARTUP_GUARANTEE_END_WEEK, 26);
+assert.equal(balance.EASY_DEMAND_VERSION, 1);
+assert.equal(balance.EASY_DEMAND_MULTIPLIER, 1.1);
 assert.equal(engineModule.SAVE_VERSION, 9);
 assert.equal(engineModule.SAVE_KEY, 'capitalism_tycoon_web_v1');
 
-for (const [difficulty, expected] of Object.entries({ easy:[12_000_000,70], normal:[8_000_000,60], hard:[6_000_000,50] })) {
+for (const [difficulty, expected] of Object.entries({ easy:[12_000_000,70,715], normal:[8_000_000,60,650], hard:[6_000_000,50,650] })) {
   const game = new engineModule.TycoonEngine();
   game.configure({ playerName:`${difficulty}監査`, companyName:`${difficulty}監査`, difficulty, scenario:'free' });
   assert.equal(game.g.companyCash, expected[0], `${difficulty} company cash mismatch`);
@@ -30,28 +29,14 @@ for (const [difficulty, expected] of Object.entries({ easy:[12_000_000,70], norm
   assert.equal(game.g.finance.openingAssets, expected[0], `${difficulty} opening assets mismatch`);
   assert.equal(game.g.finance.openingEquity, expected[0], `${difficulty} opening equity mismatch`);
   assert.equal(game.g.finance.openingRetainedEarnings, expected[0], `${difficulty} opening retained earnings mismatch`);
+  assert.ok(Math.abs(game.business('cafe').demand - expected[2]) < 1e-9, `${difficulty} cafe demand mismatch`);
   assert.equal(game.g.difficultyOpeningBalanceApplied, true);
   assert.equal(game.g.difficultyScenarioBalanceVersion, 1);
+  if (difficulty === 'easy') assert.equal(game.g.easyDifficultyDemandVersion, 1);
+  else assert.equal(game.g.easyDifficultyDemandVersion, undefined);
   assert.equal(finance.validate(game.g).ok, true, finance.validate(game.g).errors.join(' / '));
   assert.equal(balance.validate(game.g), true);
 }
-
-const hardGuarantee = new engineModule.TycoonEngine();
-hardGuarantee.configure({ playerName:'保証', companyName:'保証', difficulty:'hard', scenario:'free' });
-assert.equal(hardGuarantee.companyCreditLimit(), 5_000_000, 'hard startup credit floor must apply at founding');
-hardGuarantee.g.week = 27;
-assert.ok(hardGuarantee.companyCreditLimit() < 5_000_000, 'hard startup credit floor must expire after week 26');
-
-const easySafety = new engineModule.TycoonEngine();
-easySafety.configure({ playerName:'安全', companyName:'安全', difficulty:'easy', scenario:'free' });
-const safetyTenant = easySafety.g.tenants[0];
-const safetyBusiness = easySafety.business('cafe');
-easySafety.g.stores.push({ id:'existing-store' });
-const openingCost = balance.storeOpeningCost(safetyTenant, safetyBusiness);
-easySafety.g.companyCash = openingCost + balance.EASY_EXPANSION_RESERVE - 1;
-assert.equal(balance.canOpenStoreSafely(easySafety.g, safetyTenant, safetyBusiness).allowed, false);
-easySafety.g.companyCash += 1;
-assert.equal(balance.canOpenStoreSafely(easySafety.g, safetyTenant, safetyBusiness).allowed, true);
 
 const custom = engineModule.createInitialState({ configured:true, difficulty:'normal', scenario:'free' });
 custom.week = 2;
@@ -67,14 +52,22 @@ assert.equal(balance.validate(customGame.g), true);
 
 const legacyEasy = engineModule.createInitialState({ configured:true, difficulty:'easy', scenario:'free' });
 legacyEasy.companyCash = 12_000_000;
+legacyEasy.businesses.find(row => row.id === 'cafe').demand = 374;
+delete legacyEasy.strategyBalanceVersion;
 delete legacyEasy.difficultyScenarioBalanceVersion;
 delete legacyEasy.difficultyOpeningBalanceApplied;
+delete legacyEasy.easyDifficultyDemandVersion;
 const migratedEasy = new engineModule.TycoonEngine(legacyEasy);
+const expectedMigratedCafe = 374 * 650 / 340 * 1.1;
 assert.equal(migratedEasy.g.finance.openingCash, 12_000_000, 'legacy easy opening cash must be repaired');
+assert.ok(Math.abs(migratedEasy.business('cafe').demand - expectedMigratedCafe) < 1e-9, 'legacy Easy demand upgrades must preserve ratios');
+assert.equal(migratedEasy.g.easyDifficultyDemandVersion, 1);
 assert.equal(finance.validate(migratedEasy.g).ok, true, finance.validate(migratedEasy.g).errors.join(' / '));
 const reloadedEasy = new engineModule.TycoonEngine(JSON.parse(JSON.stringify(migratedEasy.g)));
 assert.equal(reloadedEasy.g.finance.openingCash, 12_000_000, 'reloaded easy save must not be repaired twice');
 assert.equal(reloadedEasy.g.finance.openingEquity, migratedEasy.g.finance.openingEquity);
+assert.ok(Math.abs(reloadedEasy.business('cafe').demand - migratedEasy.business('cafe').demand) < 1e-9, 'Easy demand must not be multiplied twice');
+assert.equal(balance.applyEasyDemand(reloadedEasy.g), false, 'current Easy demand version must be idempotent');
 
 const freeGame = new engineModule.TycoonEngine();
 freeGame.configure({ playerName:'自由', companyName:'自由', difficulty:'normal', scenario:'free' });
