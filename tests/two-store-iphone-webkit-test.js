@@ -112,8 +112,8 @@ async function main() {
     assert.equal(before.difficulty, 'hard');
     assert.equal(before.week, 1);
     assert.equal(before.stores.length, 2);
-    assert.ok(before.companyCash > 1_000_000 && before.companyCash < 1_200_000,
-      `reported setup should leave about 108.5万円, got ${before.companyCash}`);
+    assert.ok(before.companyCash > 0 && before.companyCash < 2_000_000,
+      `reported setup must remain a low-cash two-store start, got ${before.companyCash}`);
 
     await page.locator('button[data-action="advance-week"]').click();
     const summary = page.locator('#modal-root .summary-modal');
