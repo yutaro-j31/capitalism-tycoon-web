@@ -1,18 +1,20 @@
 const assert = require('node:assert');
 const { loadGame, findStateIssues } = require('./harness');
 
-let seed = 0x6a2b0001;
+let seed = 0x6a2d0001;
 const random = () => {
   seed = (Math.imul(seed, 1664525) + 1013904223) >>> 0;
   return seed / 0x100000000;
 };
 const { ctx, modules } = loadGame({ random });
-const { engine, finance, playerCrisis, playerCrisisActions, playerCrisisUI } = modules;
+const { engine, finance, playerCrisis, playerCrisisActions, playerCrisisRestructuring, playerCrisisUI } = modules;
 
 assert.ok(playerCrisisUI?.__installed, 'player crisis UI must be registered');
+assert.ok(playerCrisisRestructuring?.__installed, 'player crisis restructuring must be registered');
 assert.equal(typeof playerCrisisUI.render, 'function');
 assert.equal(typeof playerCrisisUI.enhance, 'function');
 assert.equal(typeof playerCrisisUI.handleClick, 'function');
+assert.equal(typeof playerCrisisUI.confirmDisposition, 'function');
 assert.equal(engine.SAVE_KEY, 'capitalism_tycoon_web_v1');
 assert.equal(engine.SAVE_VERSION, 9);
 
@@ -32,6 +34,7 @@ function makeCrisisGame({ cash = -1_000_000, personalCash = 10_000_000, property
   state.finance = finance.defaultFinanceState(state);
   playerCrisis.evaluate(state);
   playerCrisisActions.ensure(state);
+  playerCrisisRestructuring.ensure(state);
   return new engine.TycoonEngine(state);
 }
 
@@ -48,6 +51,7 @@ assert.equal(JSON.stringify(founderGame.g), beforeRender, 'rendering a normalize
 assert.ok(html.includes('資金繰り危機対応'));
 assert.ok(html.includes('創業者資金を注入'));
 assert.ok(html.includes('緊急ブリッジローン'));
+assert.ok(html.includes('推奨資産整理候補'));
 assert.ok(html.includes('data-player-crisis-action="founder-capital"'));
 assert.ok(html.includes('data-player-crisis-action="emergency-bridge"'));
 assert.ok(html.includes('-100.0万円'), 'actual negative company cash must be displayed');
@@ -99,6 +103,64 @@ const cooldownHtml = playerCrisisUI.render(bridgeGame.g, bridgeGame);
 assert.ok(cooldownHtml.includes('再申請まで13週'));
 assert.ok(/data-player-crisis-action="emergency-bridge" disabled/.test(cooldownHtml));
 
+const dispositionGame = makeCrisisGame();
+dispositionGame.g.productVentures.push({
+  id: 'ui-product-loss',
+  name: '<script>赤字SaaS</script>',
+  valuation: 4_000_000,
+  profit: -200_000,
+  investedCost: 5_000_000
+});
+playerCrisisUI.bindEngine(dispositionGame);
+const dispositionHtml = playerCrisisUI.render(dispositionGame.g, dispositionGame);
+assert.ok(dispositionHtml.includes('data-player-crisis-action="execute-disposition"'));
+assert.ok(dispositionHtml.includes('data-disposition-type="product"'));
+assert.ok(dispositionHtml.includes('data-disposition-id="ui-product-loss"'));
+assert.ok(dispositionHtml.includes('回収見込 400.0万円'));
+assert.ok(!dispositionHtml.includes('<script>赤字SaaS</script>'), 'candidate name must be escaped');
+assert.ok(dispositionHtml.includes('&lt;script&gt;赤字SaaS&lt;/script&gt;'));
+
+const dispositionTarget = {
+  dataset: {
+    playerCrisisAction: 'execute-disposition',
+    dispositionType: 'product',
+    dispositionId: 'ui-product-loss',
+    dispositionName: '赤字SaaS',
+    dispositionCash: '4000000'
+  }
+};
+const dispositionEvent = {
+  target: { closest: () => dispositionTarget },
+  preventDefault(){ this.prevented = true; },
+  stopPropagation(){ this.stopped = true; }
+};
+const dispositionCashBefore = dispositionGame.g.companyCash;
+ctx.confirm = message => {
+  assert.ok(message.includes('商品・事業売却'));
+  assert.ok(message.includes('赤字SaaS'));
+  return false;
+};
+assert.equal(playerCrisisUI.handleClick(dispositionEvent), false, 'cancelled confirmation must not execute');
+assert.equal(dispositionGame.g.companyCash, dispositionCashBefore);
+assert.equal(dispositionGame.g.productVentures.length, 1);
+
+let confirmationCount = 0;
+ctx.confirm = message => {
+  confirmationCount += 1;
+  assert.ok(message.includes('400.0万円'));
+  assert.ok(message.includes('取り消せません'));
+  return true;
+};
+assert.equal(playerCrisisUI.handleClick(dispositionEvent), true);
+assert.equal(confirmationCount, 1);
+assert.equal(dispositionEvent.prevented, true);
+assert.equal(dispositionEvent.stopped, true);
+assert.equal(dispositionGame.g.companyCash, dispositionCashBefore + 4_000_000);
+assert.equal(dispositionGame.g.productVentures.length, 0);
+assert.equal(dispositionGame.g.playerCrisisRestructuring.history.at(-1).type, 'product');
+assert.equal(dispositionGame.g.playerCrisisRestructuring.history.at(-1).targetID, 'ui-product-loss');
+assert.equal(finance.validate(dispositionGame.g).ok, true, finance.validate(dispositionGame.g).errors.join(' / '));
+
 bridgeGame.g.playerCrisis.status = 'stable';
 bridgeGame.g.playerCrisis.lastEvaluationWeek = bridgeGame.g.week;
 playerCrisisUI.bindEngine(bridgeGame);
@@ -110,5 +172,6 @@ const unknownEvent = { target: { closest: () => ({ dataset: { playerCrisisAction
 assert.equal(playerCrisisUI.handleClick(unknownEvent), false);
 assert.deepEqual(findStateIssues(founderGame.g), []);
 assert.deepEqual(findStateIssues(bridgeGame.g), []);
+assert.deepEqual(findStateIssues(dispositionGame.g), []);
 
 console.log('player crisis UI tests passed');
