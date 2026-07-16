@@ -34,6 +34,7 @@ function runScenario(def,seed,{includeState=false,difficulty='normal',gameScenar
  const actions=[],borrowingAttempts=[];
  const business=game.business(def.businessID);
  const maxStores=def.route.length;
+ const corporateStoreThreshold=def.debt?3:Math.min(4,maxStores);
 
  function borrowFor(targetCash,reason){
   if(!def.debt||game.g.companyCash>=targetCash)return false;
@@ -57,11 +58,6 @@ function runScenario(def,seed,{includeState=false,difficulty='normal',gameScenar
   const index=game.g.stores.length;
   if(index>=maxStores)return false;
   if(index>0&&(!game.g.stores.every(row=>row.status==='open')||Number(game.g.lastReport?.profit||0)<=0))return false;
-  if(index>=3){
-   const missing=game.ipoMissingReasons();
-   const growthOnly=missing.every(reason=>['企業価値1億円','直近52週利益1,000万円','決算履歴52週'].includes(reason));
-   if(!growthOnly)return false;
-  }
   const tenant=tenantFor(index);
   if(!tenant)return false;
   const cost=business.storeCost+tenant.deposit;
@@ -89,7 +85,7 @@ function runScenario(def,seed,{includeState=false,difficulty='normal',gameScenar
   return Boolean(game.g.executives[role]);
  }
  function maybeBuildCorporateRoute(){
-  if(game.g.stores.filter(row=>row.status==='open').length<3)return;
+  if(game.g.stores.filter(row=>row.status==='open').length<corporateStoreThreshold)return;
   if(!game.g.hasHeadOffice){
    const office=cheapestOffice();if(!office)return;
    borrowFor(office.deposit+5000000,'office');
@@ -124,7 +120,7 @@ function runScenario(def,seed,{includeState=false,difficulty='normal',gameScenar
  }
  const annualProfit=game.g.reports.slice(-52).reduce((sum,row)=>sum+Number(row.profit||0),0);
  const scenario=modules.difficultyScenarioBalance.snapshot(game.g);
- const result={id:def.id,seed,businessID:def.businessID,difficulty,gameScenario,startingCash,startingCredit,startingCreditLimit,firstStoreCost:Math.round(firstStoreCost),calibratedDemand:business.demand,debtStrategy:def.debt,ipo:game.g.publicCompany,ipoWeek,gameOver:game.g.gameOver,reason:game.g.gameOverReason,week:game.g.week,stores:game.g.stores.length,openStores:game.g.stores.filter(row=>row.status==='open').length,cash:Math.round(game.g.companyCash),debt:Math.round(game.g.companyDebt),value:Math.round(game.companyValue()),annualProfit:Math.round(annualProfit),reports:game.g.reports.length,missing:game.ipoMissingReasons(),scenarioStatus:scenario.status,scenarioTargetWeek:scenario.targetIPOWeek,scenarioCompletedWeek:scenario.completedWeek,scenarioScore:scenario.score,scenarioGrade:scenario.grade,actions,borrowingAttempts:borrowingAttempts.slice(0,8)};
+ const result={id:def.id,seed,businessID:def.businessID,difficulty,gameScenario,startingCash,startingCredit,startingCreditLimit,firstStoreCost:Math.round(firstStoreCost),corporateStoreThreshold,calibratedDemand:business.demand,debtStrategy:def.debt,ipo:game.g.publicCompany,ipoWeek,gameOver:game.g.gameOver,reason:game.g.gameOverReason,week:game.g.week,stores:game.g.stores.length,openStores:game.g.stores.filter(row=>row.status==='open').length,cash:Math.round(game.g.companyCash),debt:Math.round(game.g.companyDebt),value:Math.round(game.companyValue()),annualProfit:Math.round(annualProfit),reports:game.g.reports.length,missing:game.ipoMissingReasons(),scenarioStatus:scenario.status,scenarioTargetWeek:scenario.targetIPOWeek,scenarioCompletedWeek:scenario.completedWeek,scenarioScore:scenario.score,scenarioGrade:scenario.grade,actions,borrowingAttempts:borrowingAttempts.slice(0,8)};
  if(includeState){result.state=game.g;result.modules=modules;}
  return result;
 }
