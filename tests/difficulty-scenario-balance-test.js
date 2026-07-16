@@ -15,6 +15,9 @@ assert.ok(balance?.__installed, 'difficulty scenario balance module must be inst
 assert.equal(engineModule.TycoonEngine.prototype.__difficultyScenarioBalanceInstalled, true);
 assert.equal(balance.VERSION, 1);
 assert.equal(balance.STANDARD_TARGET_WEEK, 208);
+assert.equal(balance.EASY_EXPANSION_RESERVE, 6_000_000);
+assert.equal(balance.HARD_STARTUP_CREDIT_FLOOR, 5_000_000);
+assert.equal(balance.STARTUP_GUARANTEE_END_WEEK, 26);
 assert.equal(engineModule.SAVE_VERSION, 9);
 assert.equal(engineModule.SAVE_KEY, 'capitalism_tycoon_web_v1');
 
@@ -32,6 +35,23 @@ for (const [difficulty, expected] of Object.entries({ easy:[12_000_000,70], norm
   assert.equal(finance.validate(game.g).ok, true, finance.validate(game.g).errors.join(' / '));
   assert.equal(balance.validate(game.g), true);
 }
+
+const hardGuarantee = new engineModule.TycoonEngine();
+hardGuarantee.configure({ playerName:'保証', companyName:'保証', difficulty:'hard', scenario:'free' });
+assert.equal(hardGuarantee.companyCreditLimit(), 5_000_000, 'hard startup credit floor must apply at founding');
+hardGuarantee.g.week = 27;
+assert.ok(hardGuarantee.companyCreditLimit() < 5_000_000, 'hard startup credit floor must expire after week 26');
+
+const easySafety = new engineModule.TycoonEngine();
+easySafety.configure({ playerName:'安全', companyName:'安全', difficulty:'easy', scenario:'free' });
+const safetyTenant = easySafety.g.tenants[0];
+const safetyBusiness = easySafety.business('cafe');
+easySafety.g.stores.push({ id:'existing-store' });
+const openingCost = balance.storeOpeningCost(safetyTenant, safetyBusiness);
+easySafety.g.companyCash = openingCost + balance.EASY_EXPANSION_RESERVE - 1;
+assert.equal(balance.canOpenStoreSafely(easySafety.g, safetyTenant, safetyBusiness).allowed, false);
+easySafety.g.companyCash += 1;
+assert.equal(balance.canOpenStoreSafely(easySafety.g, safetyTenant, safetyBusiness).allowed, true);
 
 const custom = engineModule.createInitialState({ configured:true, difficulty:'normal', scenario:'free' });
 custom.week = 2;
@@ -81,13 +101,13 @@ assert.ok(standardGame.g.scenarioProgress.history.some(row => row.kind === 'over
 standardGame.g.publicCompany = true;
 standardGame.g.week = 100;
 standardGame.g.scenarioProgress.completedWeek = null;
-standardGame.g.scenarioProgress.lastEvaluationWeek = 99;
+standardGame.g.scenarioProgress.lastEvaluationWeek = 100;
 const completed = balance.evaluate(standardGame.g);
 assert.equal(completed.status, 'completed');
 assert.equal(completed.completedWeek, 100);
 assert.equal(completed.grade, 'A');
 assert.equal(completed.score, 69);
-assert.ok(standardGame.g.scenarioProgress.history.some(row => row.kind === 'completed'));
+assert.ok(standardGame.g.scenarioProgress.history.some(row => row.kind === 'completed'), 'same-week IPO completion must be recorded');
 assert.equal(balance.validate(standardGame.g), true);
 assert.deepEqual(findStateIssues(standardGame.g), []);
 
