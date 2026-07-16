@@ -11,7 +11,7 @@ const SCENARIOS = Object.freeze([
   { id:'cram-school', businessID:'cramSchool', trait:'ambitious', route:['tokyo','kanagawa','aichi','osaka','fukuoka'], debt:true },
   { id:'real-estate-agency', businessID:'realEstateAgency', trait:'investor', route:['tokyo','kanagawa','osaka','aichi','fukuoka'], debt:true },
   { id:'insurance-agency', businessID:'insuranceAgency', trait:'investor', route:['fukuoka','osaka','tokyo','aichi','kanagawa'], debt:true },
-  { id:'ma-broker', businessID:'maBroker', trait:'investor', route:['tokyo','osaka','aichi','fukuoka','kanagawa'], debt:true },
+  { id:'ma-broker', businessID:'maBroker', trait:'investor', route:['fukuoka','osaka','aichi','tokyo','kanagawa'], debt:true },
   { id:'web-agency', businessID:'webAgency', trait:'tech', route:['fukuoka','osaka','tokyo','aichi','kanagawa'], debt:true },
   { id:'app-studio', businessID:'appStudio', trait:'tech', route:['fukuoka','osaka','tokyo','aichi','kanagawa'], debt:true }
 ]);
@@ -59,7 +59,7 @@ function runScenario(def,seed,{includeState=false}={}){
   const tenant=tenantFor(index);
   if(!tenant)return false;
   const cost=business.storeCost+tenant.deposit;
-  const reserve=index===0?(def.debt?100000:900000):3500000;
+  const reserve=index===0?(def.debt?0:900000):3500000;
   borrowFor(cost+reserve,`store-${index+1}`);
   if(game.g.companyCash<cost+reserve)return false;
   const result=game.openStore({tenantID:tenant.id,businessID:def.businessID,name:`${def.id}-${index+1}`,operatingHours:3});
