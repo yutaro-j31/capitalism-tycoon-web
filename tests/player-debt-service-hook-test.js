@@ -64,13 +64,13 @@ negotiated.game.companyWeeklyBorrowRate = function() {
   return usedRate;
 };
 assert.equal(negotiated.game.advanceWeek(false), true);
-assert.equal(negotiated.game.g.lastReport.interest, ledgerPrecision(debtAtInterest * usedRate / 52));
+assert.equal(negotiated.game.g.lastReport.interest, debtAtInterest * usedRate / 52);
 assert.equal(playerDebtService.inWeeklyContext(negotiated.game), false, 'weekly context must be released after success');
 assert.equal(negotiated.game.companyBorrowRate(), legacyRate(negotiated.game), 'ordinary quote must be restored after weekly processing');
 const interestTxn = negotiated.game.g.finance.transactions.find(row => row.week === negotiated.game.g.week && row.category === 'interestExpense');
 assert.ok(interestTxn, 'weekly interest transaction must remain recorded');
-assert.equal(interestTxn.amount, negotiated.game.g.lastReport.interest);
-assert.equal(interestTxn.cashEffect, -negotiated.game.g.lastReport.interest);
+assert.equal(interestTxn.amount, ledgerPrecision(negotiated.game.g.lastReport.interest));
+assert.equal(interestTxn.cashEffect, -ledgerPrecision(negotiated.game.g.lastReport.interest));
 assert.equal(finance.validate(negotiated.game.g).ok, true, finance.validate(negotiated.game.g).errors.join(' / '));
 assert.deepEqual(findStateIssues(negotiated.game.g), []);
 
