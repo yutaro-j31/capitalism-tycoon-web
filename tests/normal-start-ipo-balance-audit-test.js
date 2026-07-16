@@ -24,71 +24,96 @@ assert.equal(game.g.companyCash, 8_000_000, 'normal difficulty must start with e
 assert.equal(game.g.companyDebt, 0, 'normal route must not start with company debt');
 assert.equal(game.g.reports.length, 0, 'normal route must not inject historical reports');
 
-const RESERVE = 500_000;
 const MAX_WEEKS = 208;
-const TARGET_STORES = 4;
+const STORE_ROUTE = ['fukuoka', 'osaka', 'tokyo'];
+const STORE_RESERVES = [500_000, 4_000_000, 5_000_000];
+const actionLog = [];
 
 function totalStoreCost(tenant, businessID = 'ramen') {
   return game.business(businessID).storeCost + tenant.deposit;
 }
 
-function availableRamenTenants() {
+function routeTenant(index) {
+  const prefID = STORE_ROUTE[index];
   return game.g.tenants
-    .filter(row => !row.occupiedBy)
-    .map(row => ({ row, cost: totalStoreCost(row), score: (Number(row.traffic) || 0) / Math.max(1, totalStoreCost(row)) }))
-    .sort((a, b) => b.score - a.score || a.cost - b.cost);
+    .filter(row => row.prefID === prefID && !row.occupiedBy)
+    .sort((a, b) => b.traffic - a.traffic || a.deposit - b.deposit)[0];
 }
 
-function openAffordableStore() {
-  if (game.g.stores.length >= TARGET_STORES) return false;
-  const choices = availableRamenTenants();
-  const choice = choices.find(entry => game.g.companyCash >= entry.cost + RESERVE)
-    || choices.find(entry => game.g.stores.length < 3 && game.g.companyCash >= entry.cost);
-  if (!choice) return false;
-  return game.openStore({
-    tenantID: choice.row.id,
+function maybeOpenNextStore() {
+  const index = game.g.stores.length;
+  if (index >= STORE_ROUTE.length) return false;
+  if (index > 0 && (!game.g.stores.every(row => row.status === 'open') || Number(game.g.lastReport?.profit || 0) <= 0)) return false;
+  const tenant = routeTenant(index);
+  if (!tenant) return false;
+  const cost = totalStoreCost(tenant);
+  const reserve = STORE_RESERVES[index];
+  if (game.g.companyCash < cost + reserve) return false;
+  const result = game.openStore({
+    tenantID: tenant.id,
     businessID: 'ramen',
-    name: `通常IPOラーメン${game.g.stores.length + 1}号店`,
+    name: `通常IPOラーメン${index + 1}号店`,
     operatingHours: 3
   });
+  if (result) actionLog.push({ week: game.g.week, action: 'openStore', prefID: tenant.prefID, cash: Math.round(game.g.companyCash) });
+  return result;
 }
 
 function cheapestOffice() {
   return [...game.g.rentalOffices].sort((a, b) => a.deposit - b.deposit || a.rent - b.rent)[0];
 }
 
+function roleOffer(role) {
+  const candidate = game.g.executiveMarket.find(row => row.role === role);
+  if (!candidate) return null;
+  const salary = Math.ceil((candidate.desiredSalary || candidate.salary) * 1.5);
+  return { candidate, salary, so: Math.max(candidate.desiredSO || 0, 0.04), bonus: salary * 0.25 };
+}
+
 function hireRole(role) {
   if (game.g.executives[role]) return true;
-  const candidate = game.g.executiveMarket.find(row => row.role === role);
-  if (!candidate) return false;
-  const salary = Math.ceil((candidate.desiredSalary || candidate.salary) * 1.5);
-  const so = Math.max(candidate.desiredSO || 0, 0.04);
+  const offer = roleOffer(role);
+  if (!offer) return false;
   for (let attempt = 0; attempt < 8 && !game.g.executives[role]; attempt += 1) {
-    game.hireExecutive(candidate.id, salary, so);
+    game.hireExecutive(offer.candidate.id, offer.salary, offer.so);
   }
+  if (game.g.executives[role]) actionLog.push({ week: game.g.week, action: `hire${role}`, cash: Math.round(game.g.companyCash) });
   return Boolean(game.g.executives[role]);
 }
 
 function maybeBuildRoute() {
-  while (openAffordableStore()) {}
+  maybeOpenNextStore();
+  const openStores = game.g.stores.filter(row => row.status === 'open').length;
+  if (openStores < 3) return;
 
   if (!game.g.hasHeadOffice) {
     const office = cheapestOffice();
-    if (office && game.g.companyCash >= office.deposit + RESERVE) game.contractOffice(office.id);
+    if (office && game.g.companyCash >= office.deposit + 5_000_000 && game.contractOffice(office.id)) {
+      actionLog.push({ week: game.g.week, action: 'contractOffice', cash: Math.round(game.g.companyCash) });
+    }
+    return;
   }
 
-  if (game.g.hasHeadOffice && !game.g.departments.accounting) {
-    const accounting = game.g.businesses && modules.data.MASTER.departments.find(row => row.id === 'accounting');
-    if (accounting && game.g.companyCash >= accounting.setupCost + RESERVE) game.establishDepartment('accounting');
+  if (!game.g.departments.accounting) {
+    const accounting = modules.data.MASTER.departments.find(row => row.id === 'accounting');
+    if (accounting && game.g.companyCash >= accounting.setupCost + 5_000_000 && game.establishDepartment('accounting')) {
+      actionLog.push({ week: game.g.week, action: 'establishAccounting', cash: Math.round(game.g.companyCash) });
+    }
+    return;
   }
 
-  if (game.g.companyCash >= 1_000_000) {
-    hireRole('CEO');
-    hireRole('CFO');
+  if (!game.g.executives.CEO || !game.g.executives.CFO) {
+    const missingOffers = ['CEO', 'CFO'].filter(role => !game.g.executives[role]).map(roleOffer).filter(Boolean);
+    const requiredCash = missingOffers.reduce((sum, offer) => sum + offer.bonus, 0) + 5_000_000 + 4_000_000;
+    if (game.g.companyCash >= requiredCash) {
+      hireRole('CEO');
+      hireRole('CFO');
+    }
+    return;
   }
 
-  if (!game.g.boardEstablished && game.g.executives.CEO && game.g.executives.CFO && game.g.companyCash >= 5_000_000 + RESERVE) {
-    game.establishBoard();
+  if (!game.g.boardEstablished && game.g.companyCash >= 8_000_000 && game.establishBoard()) {
+    actionLog.push({ week: game.g.week, action: 'establishBoard', cash: Math.round(game.g.companyCash) });
   }
 }
 
@@ -98,6 +123,7 @@ for (let i = 0; i < MAX_WEEKS && !game.g.gameOver && !game.g.publicCompany; i +=
   if (game.ipoMissingReasons().length === 0) {
     assert.equal(game.executeIPO('東証グロース', 100_000), true, 'IPO execution must succeed once all conditions are met');
     ipoWeek = game.g.week;
+    actionLog.push({ week: game.g.week, action: 'executeIPO', cash: Math.round(game.g.companyCash) });
     break;
   }
   assert.notEqual(game.advanceWeek(false), false, `week ${game.g.week + 1} must advance`);
@@ -115,23 +141,26 @@ const audit = {
   companyValue: Math.round(game.companyValue()),
   stores: game.g.stores.length,
   openStores: game.g.stores.filter(row => row.status === 'open').length,
+  reports: game.g.reports.length,
   annualProfit: Math.round(annualProfit),
   hasHeadOffice: game.g.hasHeadOffice,
   accounting: Boolean(game.g.departments.accounting),
   boardEstablished: game.g.boardEstablished,
   CEO: Boolean(game.g.executives.CEO),
   CFO: Boolean(game.g.executives.CFO),
-  missing: game.ipoMissingReasons()
+  missing: game.ipoMissingReasons(),
+  actionLog
 };
 console.log(`NORMAL_IPO_AUDIT ${JSON.stringify(audit)}`);
 
 assert.equal(game.g.gameOver, false, `normal route must not end in bankruptcy: ${JSON.stringify(audit)}`);
 assert.equal(game.g.publicCompany, true, `normal 8,000,000-yen route must reach IPO within ${MAX_WEEKS} weeks: ${JSON.stringify(audit)}`);
-assert.ok(ipoWeek >= 52 && ipoWeek <= MAX_WEEKS, `IPO week must reflect the 52-week profit gate: ${ipoWeek}`);
+assert.ok(ipoWeek >= 53 && ipoWeek <= MAX_WEEKS, `IPO week must reflect the 52 organic-report gate: ${ipoWeek}`);
 assert.equal(game.g.companyDebt, 0, 'baseline audit should remain reachable without mandatory borrowing');
-assert.ok(game.g.stores.length >= 3, 'IPO route must retain at least three stores');
+assert.equal(game.g.stores.length, 3, 'baseline route should reach IPO with the required three stores, not expansion spam');
 assert.ok(game.g.reports.length >= 52, 'IPO route must produce at least 52 organic weekly reports');
-assert.equal(finance.validate(game.g).ok, true, finance.validate(game.g).errors.join('\n'));
+const validation = finance.validate(game.g);
+assert.equal(validation.ok, true, validation.errors.join('\n'));
 assert.deepEqual(findStateIssues(game.g).filter(issue => !issue.startsWith('g.finance.lastStatements.ratios.')), []);
 
 console.log('normal-start IPO balance audit passed');
