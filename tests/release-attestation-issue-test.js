@@ -71,11 +71,11 @@ ${physicalChecks.map(check => `- [ ] ${check}`).join('\n')}
 `;
 
 const updatedBody = updateTrackingBody(originalBody, attestation);
-assert.match(updatedBody, new RegExp(`Target main commit: \\`${commit}\\``));
+assert.ok(updatedBody.includes(`Target main commit: \`${commit}\``));
 assert.equal((updatedBody.match(/Published Pages bytes and iPhone WebKit smoke passed for main/g) || []).length, 1);
-assert.match(updatedBody, new RegExp(`Published Pages bytes and iPhone WebKit smoke passed for main \\`${commit}\\``));
+assert.ok(updatedBody.includes(`Published Pages bytes and iPhone WebKit smoke passed for main \`${commit}\``));
 for (const check of physicalChecks) {
-  assert.match(updatedBody, new RegExp(`- \\[ \\] ${check.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}`));
+  assert.ok(updatedBody.includes(`- [ ] ${check}`), `physical check must remain unchecked: ${check}`);
 }
 assert.equal(updateTrackingBody(updatedBody, attestation), updatedBody, 'tracking-body update must be idempotent');
 
@@ -133,6 +133,14 @@ assert.match(workflow, /rc-pages-attestation/);
 assert.match(workflow, /gh issue comment/);
 assert.match(workflow, /actions\/upload-artifact@v4/);
 assert.doesNotMatch(workflow, /git tag|git push/, 'attestation sync must never create or move a release tag');
+
+const focusedWorkflow = fs.readFileSync(path.join(ROOT, '.github', 'workflows', 'release-attestation-contract.yml'), 'utf8');
+assert.match(focusedWorkflow, /^name: Release Attestation Contract$/m);
+assert.match(focusedWorkflow, /^  pull_request:$/m);
+assert.match(focusedWorkflow, /^  contents: read$/m);
+assert.match(focusedWorkflow, /node tests\/release-attestation-issue-test\.js/);
+assert.match(focusedWorkflow, /release-attestation-contract\.log/);
+assert.match(focusedWorkflow, /actions\/upload-artifact@v4/);
 
 const deliveryGate = fs.readFileSync(path.join(ROOT, 'scripts', 'release-delivery-gate.js'), 'utf8');
 assert.match(deliveryGate, /tests\/release-attestation-issue-test\.js/,
