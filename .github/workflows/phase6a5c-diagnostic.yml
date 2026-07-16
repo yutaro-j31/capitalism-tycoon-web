@@ -9,4 +9,16 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
-      - run: node tests/player-turnaround-plan-report-test.js
+      - name: Run focused test
+        run: |
+          set +e
+          node tests/player-turnaround-plan-report-test.js > phase6a5c-diagnostic.log 2>&1
+          status=$?
+          echo "$status" > phase6a5c-status.txt
+          exit 0
+      - uses: actions/upload-artifact@v4
+        with:
+          name: phase6a5c-diagnostic
+          path: |
+            phase6a5c-diagnostic.log
+            phase6a5c-status.txt
