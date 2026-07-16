@@ -31,6 +31,8 @@ jobs:
         run: node tests/iphone-webkit-smoke-test.js
       - name: Verify bankruptcy settings recovery
         run: node tests/game-over-settings-webkit-test.js
+      - name: Verify two-store first-week advance
+        run: node tests/two-store-iphone-webkit-test.js
       - name: Retain WebKit smoke evidence
         if: always()
         uses: actions/upload-artifact@v4
