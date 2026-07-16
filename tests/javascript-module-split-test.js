@@ -13,7 +13,7 @@ function expectThrow(fn, re) {
 const expected = [
   './js/runtime.js','./js/data.js','./js/workforce.js','./js/supply.js','./js/competitor.js','./js/competitor-projects.js','./js/competitor-entry.js','./js/competitor-credit.js','./js/competitor-distress.js','./js/competitor-terminal-compat.js',
   './js/market.js','./js/finance.js','./js/engine.js','./js/save-v9.js','./js/expansion.js','./js/competitor-media.js','./js/completion.js','./js/parity.js','./js/competitor-parity.js','./js/competitor-dashboard.js','./js/competitor-dashboard-status.js','./js/competitor-dashboard-ui.js',
-  './js/player-crisis-ui.js','./js/app.js','./js/player-crisis.js','./js/player-crisis-actions.js','./js/player-crisis-restructuring.js'
+  './js/player-crisis-ui.js','./js/app.js','./js/player-crisis.js','./js/player-crisis-actions.js','./js/player-crisis-restructuring.js','./js/player-crisis-creditor.js'
 ];
 const scripts = extractScripts(readIndex()).filter(script => script.src);
 const bySrc = new Map(scripts.map(script => [script.src, script]));
@@ -23,11 +23,12 @@ const freshWith = srcs => { const context = createBrowserContext(); for (const s
 
 assert(JSON.stringify(scripts.map(script => script.src)) === JSON.stringify(expected), `script order mismatch: ${scripts.map(script => script.src).join(', ')}`);
 assert(expected[0] === './js/runtime.js', 'runtime.js must be first');
-assert(expected.at(-5) === './js/player-crisis-ui.js', 'player-crisis-ui.js must precede app.js');
-assert(expected.at(-4) === './js/app.js', 'app.js must compose the engine before crisis modules');
-assert(expected.at(-3) === './js/player-crisis.js', 'player-crisis.js must precede crisis actions');
-assert(expected.at(-2) === './js/player-crisis-actions.js', 'player-crisis-actions.js must precede restructuring');
-assert(expected.at(-1) === './js/player-crisis-restructuring.js', 'restructuring must be the final crisis extension');
+assert(expected.at(-6) === './js/player-crisis-ui.js', 'player-crisis-ui.js must precede app.js');
+assert(expected.at(-5) === './js/app.js', 'app.js must compose the engine before crisis modules');
+assert(expected.at(-4) === './js/player-crisis.js', 'player-crisis.js must precede crisis actions');
+assert(expected.at(-3) === './js/player-crisis-actions.js', 'player-crisis-actions.js must precede restructuring');
+assert(expected.at(-2) === './js/player-crisis-restructuring.js', 'restructuring must precede creditor negotiation');
+assert(expected.at(-1) === './js/player-crisis-creditor.js', 'creditor negotiation must be the final crisis extension');
 for (const script of scripts) {
   assert(fs.existsSync(script.file), `${script.src} missing`);
   const buffer = fs.readFileSync(script.file);
@@ -78,14 +79,15 @@ const requiredExports = {
   playerCrisis:['STATUSES','HISTORY_LIMIT','LEGACY_GAME_OVER_REASON','INSOLVENCY_REASON','graceForDifficulty','reserveThreshold','ensure','evaluate','snapshot','validate','__installed'],
   playerCrisisActions:['ACTION_TYPES','HISTORY_LIMIT','EMERGENCY_LOAN_COOLDOWN_WEEKS','MIN_EMERGENCY_LOAN','TARGET_EMERGENCY_LOAN','ensure','options','validate','__installed'],
   playerCrisisUI:['render','enhance','bindEngine','handleClick','install','stripPanel','STATUS_LABELS','REASON_LABELS','__installed'],
-  playerCrisisRestructuring:['HISTORY_LIMIT','DISPOSITION_TYPES','ELIGIBLE_STATUSES','ensure','options','validate','__installed']
+  playerCrisisRestructuring:['HISTORY_LIMIT','DISPOSITION_TYPES','COST_ACTION_TYPES','ELIGIBLE_STATUSES','ensure','options','costOptions','validate','__installed'],
+  playerCrisisCreditor:['NEGOTIATION_TYPES','ELIGIBLE_STATUSES','HISTORY_LIMIT','COOLDOWN_WEEKS','DEFERRAL_WEEKS','EXTENSION_WEEKS','FAILURE_CREDIT_PENALTY','ensure','activeLoans','approvalChance','options','findCandidate','hashRoll','validate','__installed']
 };
 for (const [name, keys] of Object.entries(requiredExports)) {
   assert(modules[name], `${name} module missing`);
   for (const key of keys) assert(Object.prototype.hasOwnProperty.call(modules[name], key), `${name}.${key} missing`);
 }
 assert(modules.engine.SAVE_VERSION === 9, `expected save version 9, got ${modules.engine.SAVE_VERSION}`);
-for (const marker of ['__competitorMediaInstalled','__competitorParityCompatibilityInstalled','__playerCrisisInstalled','__playerCrisisActionsInstalled','__playerCrisisRestructuringInstalled']) assert(modules.engine.TycoonEngine.prototype[marker] === true, `${marker} missing`);
+for (const marker of ['__competitorMediaInstalled','__competitorParityCompatibilityInstalled','__playerCrisisInstalled','__playerCrisisActionsInstalled','__playerCrisisRestructuringInstalled','__playerCrisisCreditorInstalled']) assert(modules.engine.TycoonEngine.prototype[marker] === true, `${marker} missing`);
 assert(typeof modules.competitor.dashboard.buildDashboard === 'function', 'competitor dashboard builder missing');
 assert(modules.competitor.dashboard.__marketStatusNormalized === true, 'competitor dashboard status normalizer missing');
 assert(typeof modules.competitor.dashboardUI.render === 'function', 'competitor dashboard UI renderer missing');
@@ -115,11 +117,12 @@ expectThrow(() => run(freshWith(prefix('./js/competitor-dashboard.js')), './js/c
 expectThrow(() => run(freshWith(prefix('./js/player-crisis-ui.js')), './js/player-crisis.js'), /app\.js must install completion and parity/);
 expectThrow(() => run(freshWith(prefix('./js/app.js')), './js/player-crisis-actions.js'), /player-crisis\.js/);
 expectThrow(() => run(freshWith(prefix('./js/player-crisis.js')), './js/player-crisis-restructuring.js'), /player-crisis-actions\.js/);
+expectThrow(() => run(freshWith(prefix('./js/player-crisis-actions.js')), './js/player-crisis-creditor.js'), /player-crisis-restructuring\.js/);
 
 const duplicateRegistration = /already (?:installed|registered|normalized)/;
 for (const src of [
   './js/save-v9.js','./js/competitor-media.js','./js/competitor-parity.js','./js/competitor-dashboard.js','./js/competitor-dashboard-status.js','./js/competitor-dashboard-ui.js',
-  './js/player-crisis-ui.js','./js/player-crisis.js','./js/player-crisis-actions.js','./js/player-crisis-restructuring.js','./js/competitor-terminal-compat.js','./js/competitor-distress.js','./js/data.js'
+  './js/player-crisis-ui.js','./js/player-crisis.js','./js/player-crisis-actions.js','./js/player-crisis-restructuring.js','./js/player-crisis-creditor.js','./js/competitor-terminal-compat.js','./js/competitor-distress.js','./js/data.js'
 ]) expectThrow(() => run(ctx, src), duplicateRegistration);
 
 fs.writeFileSync(path.join(ROOT, 'tests', 'fixtures', 'module-load-order.json'), JSON.stringify({ scripts: expected }, null, 2) + '\n');
