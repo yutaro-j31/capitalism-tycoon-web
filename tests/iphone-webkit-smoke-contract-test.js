@@ -10,6 +10,8 @@ const workflow = read('.github/workflows/iphone-webkit-smoke.yml');
 const tagWorkflow = read('.github/workflows/release-candidate-tag.yml');
 const smoke = read('tests/iphone-webkit-smoke-test.js');
 const deliveryGate = read('scripts/release-delivery-gate.js');
+const index = read('index.html');
+const mobileCss = read('css/mobile-release.css');
 
 assert.match(workflow, /^name: iPhone WebKit Smoke$/m);
 assert.match(workflow, /^  pull_request:$/m, 'WebKit smoke must run for pull requests');
@@ -38,6 +40,16 @@ assert.match(smoke, /overflowX/);
 assert.match(smoke, /pageErrors/);
 assert.match(smoke, /consoleErrors/);
 assert.doesNotMatch(smoke, /chromium|firefox/, 'release mobile smoke must exercise WebKit only');
+
+const appCssIndex = index.indexOf('./css/app.css');
+const mobileCssIndex = index.indexOf('./css/mobile-release.css');
+assert.ok(appCssIndex >= 0, 'base application stylesheet must remain linked');
+assert.ok(mobileCssIndex > appCssIndex, 'mobile release overrides must load after app.css');
+assert.match(mobileCss, /@media\(max-width:720px\)/);
+assert.match(mobileCss, /\.week-controls \.secondary\s*\{[^}]*display:inline-flex/,
+  'four-week control must remain visible at iPhone widths');
+assert.doesNotMatch(mobileCss, /\.week-controls \.secondary\s*\{[^}]*display:none/,
+  'mobile release override must never hide the four-week control');
 
 const installIndex = tagWorkflow.indexOf('npm install --no-save --no-package-lock playwright@1.61.0');
 const smokeIndex = tagWorkflow.indexOf('node tests/iphone-webkit-smoke-test.js');
