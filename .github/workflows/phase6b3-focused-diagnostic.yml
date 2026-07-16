@@ -1,0 +1,17 @@
+name: Phase 6B-3 Focused Diagnostic
+'on':
+  pull_request:
+jobs:
+  focused:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: node tests/difficulty-scenario-balance-test.js > phase6b3-focused.log 2>&1 || true
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: phase6b3-focused
+          path: phase6b3-focused.log
