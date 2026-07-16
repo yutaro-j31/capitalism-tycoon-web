@@ -1,0 +1,5 @@
+/* Release mobile reachability overrides. Keep after app.css. */
+@media(max-width:720px){
+  .week-controls{gap:4px}
+  .week-controls .secondary{display:inline-flex;min-width:44px;padding-inline:8px}
+}
