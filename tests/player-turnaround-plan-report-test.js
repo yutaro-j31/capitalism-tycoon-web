@@ -27,6 +27,7 @@ assert.ok(playerTurnaroundPlanUI.renderSection().includes('再建計画'), 'late
 
 function makePlanGame() {
   const game = new engine.TycoonEngine(engine.createInitialState({ configured: true }));
+  game.g.skipWeeklyValidation = true;
   game.g.companyCash = 1_000_000;
   game.g.companyDebt = 10_000_000;
   game.g.playerCrisis.lastEvaluationWeek = 0;
