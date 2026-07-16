@@ -19,7 +19,7 @@ const live = playerEngineBridge.getEngine();
 assert.ok(live instanceof engine.TycoonEngine, 'bridge must expose the app-created engine');
 live.g.companyCash = 1_000_000;
 live.g.companyDebt = 10_000_000;
-live.g.playerCrisis.lastEvaluationWeek = 0;
+playerCrisis.ensure(live.g).lastEvaluationWeek = 0;
 playerCrisis.evaluate(live.g);
 assert.notEqual(live.g.playerCrisis.status, 'stable');
 assert.equal(live.startTurnaroundPlan(), true);
@@ -30,7 +30,7 @@ function makePlanGame() {
   game.g.skipWeeklyValidation = true;
   game.g.companyCash = 1_000_000;
   game.g.companyDebt = 10_000_000;
-  game.g.playerCrisis.lastEvaluationWeek = 0;
+  playerCrisis.ensure(game.g).lastEvaluationWeek = 0;
   playerCrisis.evaluate(game.g);
   assert.notEqual(game.g.playerCrisis.status, 'stable');
   assert.equal(game.startTurnaroundPlan(), true);
