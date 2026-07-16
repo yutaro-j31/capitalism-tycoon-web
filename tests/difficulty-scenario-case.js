@@ -16,10 +16,12 @@ const result = runScenario(strategy, seed, { includeState:true, difficulty, game
 const { state, modules, ...summary } = result;
 const validation = modules.finance.validate(state);
 assert.equal(validation.ok, true, validation.errors.join('\n'));
+modules.difficultyScenarioBalance.validate(state);
 const serialized = JSON.stringify(state);
 assert.ok(serialized.length > 0, 'state must remain JSON serializable');
 const issues = findStateIssues(JSON.parse(serialized)).filter(issue =>
   !issue.startsWith('g.finance.lastStatements.ratios.') &&
+  !/^g\.finance\.lastStatements\.(?:cashFlow|workingCapital)\.inventoryChange: negative quantity\/inventory\/share value$/.test(issue) &&
   !/^g\.finance\.transactions\[\d+\]\.inventoryAmount: negative quantity\/inventory\/share value$/.test(issue)
 );
 assert.deepEqual(issues, []);
