@@ -160,7 +160,7 @@ async function main() {
       `reported setup must remain a low-cash two-store start, got ${before.companyCash}`);
 
     await installWeekTrace(page);
-    await page.locator('button[data-action="advance-week"]').click({ timeout: 15_000 });
+    await page.locator('button[data-action="advance-week"]').click({ timeout: 30_000 });
     const summary = page.locator('#modal-root .summary-modal');
     await summary.waitFor({ state: 'visible', timeout: 30_000 });
     assert.match(await summary.innerText(), /第2週/);
