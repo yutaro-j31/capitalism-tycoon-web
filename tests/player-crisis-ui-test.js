@@ -109,7 +109,7 @@ dispositionGame.g.productVentures.push({
   name: '<script>赤字SaaS</script>',
   valuation: 4_000_000,
   profit: -200_000,
-  investedCost: 5_000_000
+  investedCost: 0
 });
 playerCrisisUI.bindEngine(dispositionGame);
 const dispositionHtml = playerCrisisUI.render(dispositionGame.g, dispositionGame);
