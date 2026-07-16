@@ -9,4 +9,8 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
-      - run: node tests/phase6b2-strategy-matrix-diagnostic.js
+      - run: node tests/phase6b2-strategy-matrix-diagnostic.js > phase6b2-strategy.log
+      - uses: actions/upload-artifact@v4
+        with:
+          name: phase6b2-strategy
+          path: phase6b2-strategy.log
