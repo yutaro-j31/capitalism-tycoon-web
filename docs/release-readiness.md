@@ -2,6 +2,14 @@
 
 This checklist defines the minimum merge and release gate after the Phase 6B balance audits.
 
+Run the executable progression and balance gate locally with:
+
+```bash
+npm run test:release
+```
+
+The dedicated `Release Readiness` workflow runs the same command on pull requests and manual dispatches.
+
 ## Progression and balance
 
 - Normal-start progression reaches IPO using production actions and at least 52 organic weekly reports.
