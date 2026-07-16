@@ -10,6 +10,8 @@ jobs:
         with:
           node-version: '22'
       - run: node tests/difficulty-scenario-balance-test.js > phase6b3-focused.log 2>&1 || true
+      - run: node tests/difficulty-scenario-case.js web-agency hard free 1797259521 >> phase6b3-focused.log 2>&1 || true
+      - run: node tests/difficulty-scenario-case.js cafe-bootstrap easy free 1797259778 >> phase6b3-focused.log 2>&1 || true
       - uses: actions/upload-artifact@v4
         if: always()
         with:
