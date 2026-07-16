@@ -28,26 +28,33 @@ function makeDebtGame() {
   state.finance = finance.defaultFinanceState(state);
   return new engine.TycoonEngine(state);
 }
+function legacyRate(game) {
+  return Math.max(0.012, Math.min(0.12, game.g.policyRate + 0.018 + (100 - game.g.companyCredit) * 0.00025));
+}
+function legacyInterest(game) {
+  return game.g.companyDebt * legacyRate(game) / 52;
+}
 
 const game = makeDebtGame();
-const baseRate = 0.005 + 0.018 + (100 - 60) * 0.00025;
-const baseInterest = 52_000_000 * baseRate / 52;
-assert.equal(game.companyBorrowRate(), baseRate, 'normal borrowing rate must remain unchanged outside weekly processing');
-assert.equal(game.companyWeeklyBorrowRate(), baseRate);
-assert.equal(game.companyWeeklyInterest(), baseInterest);
-assert.equal(playerDebtService.baseRate(game), baseRate);
-assert.equal(playerDebtService.weeklyRate(game), baseRate);
-assert.equal(playerDebtService.weeklyInterest(game), baseInterest);
+const openingRate = legacyRate(game);
+const openingInterest = legacyInterest(game);
+assert.equal(game.companyBorrowRate(), openingRate, 'normal borrowing rate must remain unchanged outside weekly processing');
+assert.equal(game.companyWeeklyBorrowRate(), openingRate);
+assert.equal(game.companyWeeklyInterest(), openingInterest);
+assert.equal(playerDebtService.baseRate(game), openingRate);
+assert.equal(playerDebtService.weeklyRate(game), openingRate);
+assert.equal(playerDebtService.weeklyInterest(game), openingInterest);
 assert.equal(playerDebtService.inWeeklyContext(game), false);
 
 assert.equal(game.advanceWeek(false), true);
-assert.equal(game.g.lastReport.interest, baseInterest, 'default weekly interest must preserve the legacy formula exactly');
+const settledInterest = legacyInterest(game);
+assert.equal(game.g.lastReport.interest, settledInterest, 'default weekly interest must preserve the legacy post-macro formula exactly');
 assert.equal(playerDebtService.inWeeklyContext(game), false, 'weekly context must be released after a successful week');
-assert.equal(game.companyBorrowRate(), baseRate, 'weekly processing must not change later borrowing quotes');
+assert.equal(game.companyBorrowRate(), legacyRate(game), 'weekly processing must not change later borrowing quotes');
 const baseInterestTxn = game.g.finance.transactions.find(row => row.week === game.g.week && row.category === 'interestExpense');
 assert.ok(baseInterestTxn, 'weekly interest transaction must remain recorded');
-assert.equal(baseInterestTxn.amount, baseInterest);
-assert.equal(baseInterestTxn.cashEffect, -baseInterest);
+assert.equal(baseInterestTxn.amount, settledInterest);
+assert.equal(baseInterestTxn.cashEffect, -settledInterest);
 assert.equal(finance.validate(game.g).ok, true, finance.validate(game.g).errors.join(' / '));
 assert.deepEqual(findStateIssues(game.g), []);
 
@@ -57,12 +64,12 @@ negotiated.companyWeeklyBorrowRate = function() {
   sawWeeklyContext = playerDebtService.inWeeklyContext(this);
   return 0.01;
 };
-assert.equal(negotiated.companyBorrowRate(), baseRate, 'weekly override must not alter ordinary borrowing quotes');
+assert.equal(negotiated.companyBorrowRate(), legacyRate(negotiated), 'weekly override must not alter ordinary borrowing quotes');
 assert.equal(negotiated.companyWeeklyInterest(), 10_000);
 assert.equal(negotiated.advanceWeek(false), true);
 assert.equal(sawWeeklyContext, true, 'weekly hook must execute only inside the weekly debt-service context');
 assert.equal(negotiated.g.lastReport.interest, 10_000);
-assert.equal(negotiated.companyBorrowRate(), baseRate, 'ordinary rate must be restored immediately after weekly processing');
+assert.equal(negotiated.companyBorrowRate(), legacyRate(negotiated), 'ordinary rate must be restored immediately after weekly processing');
 assert.equal(playerDebtService.inWeeklyContext(negotiated), false);
 const negotiatedTxn = negotiated.g.finance.transactions.find(row => row.week === negotiated.g.week && row.category === 'interestExpense');
 assert.ok(negotiatedTxn);
@@ -73,7 +80,7 @@ assert.deepEqual(findStateIssues(negotiated.g), []);
 
 const invalid = makeDebtGame();
 invalid.companyWeeklyBorrowRate = () => Number.NaN;
-assert.equal(playerDebtService.weeklyRate(invalid), baseRate, 'non-finite hooks must fall back to the legacy rate');
+assert.equal(playerDebtService.weeklyRate(invalid), legacyRate(invalid), 'non-finite hooks must fall back to the legacy rate');
 invalid.companyWeeklyBorrowRate = () => 99;
 assert.equal(playerDebtService.weeklyRate(invalid), 0.18, 'weekly rate must remain bounded');
 invalid.companyWeeklyBorrowRate = () => -1;
@@ -83,11 +90,11 @@ const throwing = makeDebtGame();
 throwing.companyWeeklyBorrowRate = () => { throw new Error('debt hook test failure'); };
 assert.throws(() => throwing.advanceWeek(false), /debt hook test failure/);
 assert.equal(playerDebtService.inWeeklyContext(throwing), false, 'weekly context must be released after an exception');
-assert.equal(throwing.companyBorrowRate(), baseRate, 'ordinary borrowing rate must recover after an exception');
+assert.equal(throwing.companyBorrowRate(), legacyRate(throwing), 'ordinary borrowing rate must recover after an exception');
 
 const restored = new engine.TycoonEngine(JSON.parse(JSON.stringify(negotiated.g)));
-assert.equal(restored.companyBorrowRate(), baseRate);
-assert.equal(restored.companyWeeklyBorrowRate(), baseRate, 'runtime hooks must not leak into persisted state');
+assert.equal(restored.companyBorrowRate(), legacyRate(restored));
+assert.equal(restored.companyWeeklyBorrowRate(), legacyRate(restored), 'runtime hooks must not leak into persisted state');
 assert.deepEqual(findStateIssues(restored.g), []);
 
 console.log('player debt service hook tests passed');
