@@ -45,8 +45,24 @@ function apply(state){
 const baseNormalize=EngineClass.prototype.normalize;
 if(typeof baseNormalize!=='function')throw new Error('engine normalize API is missing.');
 EngineClass.prototype.normalize=function(){
- baseNormalize.call(this);
+ const result=baseNormalize.call(this);
  apply(this.g);
+ return result;
+};
+const baseConfigure=EngineClass.prototype.configure;
+if(typeof baseConfigure!=='function')throw new Error('engine configure API is missing.');
+EngineClass.prototype.configure=function(options={}){
+ return this.runTransaction(()=>{
+  const result=baseConfigure.call(this,options);
+  apply(this.g);
+  return result;
+ });
+};
+const baseReset=EngineClass.prototype.reset;
+if(typeof baseReset==='function')EngineClass.prototype.reset=function(){
+ const result=baseReset.call(this);
+ if(apply(this.g)){this.save();this.emit();}
+ return result;
 };
 EngineClass.prototype.__strategyBalanceInstalled=true;
 modules.strategyBalance=Object.freeze({VERSION,DEMAND_CALIBRATIONS,apply,__installed:true});
