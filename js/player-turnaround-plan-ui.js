@@ -30,14 +30,23 @@ function renderSection(instance=activeEngine){
  const result=latest?`<div class="news-line">第${integer(latest.startedWeek)}週開始 → 第${integer(latest.endedWeek)}週 ${esc(label)} · 終了時現金 ${esc(compactYen(latest.endingCash))} · 終了時負債 ${esc(compactYen(latest.endingDebt))}</div>`:'<p>8週間で必要現金を確保し、開始時負債の10％削減を目指します。</p>';
  return `<details class="learning-card turnaround-plan-card" open data-player-turnaround-ui="1"><summary>再建計画 ${status!=='inactive'?`· <span class="badge ${kind}">${esc(label)}</span>`:''}</summary>${result}<div class="kpi-grid mini"><div class="stat"><span>次回の現金目標</span><strong>${esc(compactYen(preview.targetCash))}</strong><small>現在 ${esc(compactYen(currentCash))}</small></div><div class="stat"><span>次回の負債目標</span><strong>${esc(compactYen(preview.targetDebt))}</strong><small>現在 ${esc(compactYen(currentDebt))}</small></div></div><button class="btn primary" data-player-turnaround-action="start" ${eligible?'':'disabled'}>8週間の再建計画を開始</button>${eligible?'':`<p class="muted">現在の会社状態では新しい再建計画を開始できません。</p>`}</details>`;
 }
-function standalone(html){return `<section class="card player-turnaround-standalone" data-player-turnaround-standalone="1" aria-live="polite"><div class="card-head"><div><h2>再建計画</h2><p>危機状態が解除された後も、進行中の財務目標を継続表示します。</p></div><span class="badge good">継続中</span></div><div class="card-body">${html}</div></section>`;}
+function standalone(html){return `<section class="card player-turnaround-standalone" data-player-turnaround-standalone="1" aria-live="polite"><div class="card-head"><div><h2>再建計画</h2><p>危機対応パネルと分離し、進行中の財務目標を継続表示します。</p></div><span class="badge good">継続中</span></div><div class="card-body">${html}</div></section>`;}
+function sameMarkup(node,html){return Boolean(node&&typeof node.outerHTML==='string'&&node.outerHTML===html);}
 function enhance(){
  if(typeof document==='undefined'||!activeEngine)return false;
- const screen=document.getElementById('screen'),body=document.querySelector('#player-crisis-panel .card-body');
- screen?.querySelector?.('[data-player-turnaround-standalone]')?.remove?.();
- if(body){body.querySelector?.('[data-player-turnaround-ui]')?.remove?.();const html=renderSection(activeEngine);if(!html)return false;if(typeof body.insertAdjacentHTML==='function')body.insertAdjacentHTML('beforeend',html);else body.innerHTML=`${String(body.innerHTML||'')}${html}`;return true;}
- if(!screen||activeEngine.g?.playerTurnaroundPlan?.status!=='active')return false;
- const html=standalone(renderSection(activeEngine));if(typeof screen.insertAdjacentHTML==='function')screen.insertAdjacentHTML('afterbegin',html);else screen.innerHTML=`${html}${String(screen.innerHTML||'')}`;return true;
+ const screen=document.getElementById('screen');if(!screen)return false;
+ const panel=screen.querySelector?.('#player-crisis-panel');
+ const existing=screen.querySelector?.('[data-player-turnaround-standalone]');
+ const shouldShow=Boolean(panel)||activeEngine.g?.playerTurnaroundPlan?.status==='active';
+ const section=shouldShow?renderSection(activeEngine):'';
+ const desired=section?standalone(section):'';
+ if(!desired){if(existing){existing.remove?.();return true;}return false;}
+ if(sameMarkup(existing,desired))return false;
+ if(existing){existing.outerHTML=desired;return true;}
+ if(panel&&typeof panel.insertAdjacentHTML==='function')panel.insertAdjacentHTML('afterend',desired);
+ else if(typeof screen.insertAdjacentHTML==='function')screen.insertAdjacentHTML('afterbegin',desired);
+ else screen.innerHTML=`${desired}${String(screen.innerHTML||'')}`;
+ return true;
 }
 function schedule(){if(scheduled)return;scheduled=true;const run=()=>{scheduled=false;enhance();};if(typeof queueMicrotask==='function')queueMicrotask(run);else setTimeout(run,0);}
 function bindEngine(instance){activeEngine=instance;schedule();return instance;}
