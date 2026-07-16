@@ -1,0 +1,17 @@
+name: Release Hardening
+
+on:
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  hardening:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Run compatibility and UI hardening gate
+        run: node scripts/release-hardening-gate.js
