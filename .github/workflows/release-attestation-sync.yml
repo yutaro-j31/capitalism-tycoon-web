@@ -1,0 +1,101 @@
+name: Release Attestation Sync
+
+on:
+  workflow_run:
+    workflows: [ Pages Deployment Smoke ]
+    types: [ completed ]
+
+permissions:
+  contents: read
+  actions: read
+  issues: write
+
+concurrency:
+  group: release-attestation-sync
+  cancel-in-progress: true
+
+jobs:
+  sync-release-attestation:
+    if: >-
+      github.event.workflow_run.conclusion == 'success' &&
+      github.event.workflow_run.event == 'push' &&
+      github.event.workflow_run.head_branch == 'main' &&
+      github.event.workflow_run.head_repository.full_name == github.repository
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.workflow_run.head_sha }}
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Ignore stale successful runs
+        id: current-main
+        env:
+          GH_TOKEN: ${{ github.token }}
+          ATTESTED_SHA: ${{ github.event.workflow_run.head_sha }}
+        run: |
+          CURRENT_MAIN="$(gh api "repos/$GITHUB_REPOSITORY/commits/main" --jq .sha)"
+          if [ "$CURRENT_MAIN" != "$ATTESTED_SHA" ]; then
+            echo "Pages run $ATTESTED_SHA is stale; current main is $CURRENT_MAIN."
+            echo "current=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          echo "current=true" >> "$GITHUB_OUTPUT"
+      - name: Verify published WebKit evidence artifact
+        if: steps.current-main.outputs.current == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RUN_ID: ${{ github.event.workflow_run.id }}
+          ATTESTED_SHA: ${{ github.event.workflow_run.head_sha }}
+        run: |
+          ARTIFACT_NAME="published-iphone-webkit-smoke-$ATTESTED_SHA"
+          ARTIFACT_COUNT="$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$RUN_ID/artifacts?per_page=100" --jq ".artifacts | map(select(.name == \"$ARTIFACT_NAME\" and .expired == false)) | length")"
+          if [ "$ARTIFACT_COUNT" != "1" ]; then
+            echo "Expected exactly one non-expired $ARTIFACT_NAME artifact, found $ARTIFACT_COUNT."
+            exit 1
+          fi
+      - name: Read current release tracking issue
+        if: steps.current-main.outputs.current == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TRACKING_ISSUE: '63'
+        run: gh issue view "$TRACKING_ISSUE" --repo "$GITHUB_REPOSITORY" --json body --jq .body > release-attestation-current-issue.md
+      - name: Render release attestation
+        if: steps.current-main.outputs.current == 'true'
+        env:
+          GITHUB_REPOSITORY: ${{ github.repository }}
+          RC_ATTESTATION_COMMIT: ${{ github.event.workflow_run.head_sha }}
+          RC_ATTESTATION_RUN_ID: ${{ github.event.workflow_run.id }}
+          RC_ATTESTATION_RUN_URL: ${{ github.event.workflow_run.html_url }}
+          RC_ATTESTATION_ARTIFACT: published-iphone-webkit-smoke-${{ github.event.workflow_run.head_sha }}
+          RC_ATTESTATION_COMPLETED_AT: ${{ github.event.workflow_run.updated_at }}
+          RC_TRACKING_ISSUE: '63'
+          RC_EXISTING_ISSUE_BODY_PATH: release-attestation-current-issue.md
+          RC_UPDATED_ISSUE_BODY_PATH: release-attestation-updated-issue.md
+          RC_ATTESTATION_COMMENT_PATH: release-attestation-comment.md
+        run: node scripts/release-attestation-issue.js
+      - name: Update release tracking issue
+        if: steps.current-main.outputs.current == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TRACKING_ISSUE: '63'
+        run: |
+          gh issue edit "$TRACKING_ISSUE" --repo "$GITHUB_REPOSITORY" --body-file release-attestation-updated-issue.md
+          COMMENT_ID="$(gh api "repos/$GITHUB_REPOSITORY/issues/$TRACKING_ISSUE/comments" --paginate --jq '.[] | select(.body | contains("<!-- rc-pages-attestation -->")) | .id' | head -n 1)"
+          if [ -n "$COMMENT_ID" ]; then
+            gh api "repos/$GITHUB_REPOSITORY/issues/comments/$COMMENT_ID" --method PATCH --raw-field body="$(cat release-attestation-comment.md)" >/dev/null
+          else
+            gh issue comment "$TRACKING_ISSUE" --repo "$GITHUB_REPOSITORY" --body-file release-attestation-comment.md
+          fi
+      - name: Retain synchronized attestation
+        if: steps.current-main.outputs.current == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-attestation-sync-${{ github.event.workflow_run.head_sha }}
+          path: |
+            release-attestation-updated-issue.md
+            release-attestation-comment.md
+          if-no-files-found: error
+          retention-days: 90
