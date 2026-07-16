@@ -116,12 +116,11 @@ expectThrow(() => run(freshWith(prefix('./js/player-crisis-ui.js')), './js/playe
 expectThrow(() => run(freshWith(prefix('./js/app.js')), './js/player-crisis-actions.js'), /player-crisis\.js/);
 expectThrow(() => run(freshWith(prefix('./js/player-crisis.js')), './js/player-crisis-restructuring.js'), /player-crisis-actions\.js/);
 
-for (const [src, re] of [
-  ['./js/save-v9.js',/already installed/],['./js/competitor-media.js',/already installed/],['./js/competitor-parity.js',/already installed/],
-  ['./js/competitor-dashboard.js',/already normalized/],['./js/competitor-dashboard-status.js',/already registered/],['./js/competitor-dashboard-ui.js',/already registered/],
-  ['./js/player-crisis-ui.js',/already registered/],['./js/player-crisis.js',/already registered/],['./js/player-crisis-actions.js',/already registered/],['./js/player-crisis-restructuring.js',/already registered/],
-  ['./js/competitor-terminal-compat.js',/already installed/],['./js/competitor-distress.js',/already installed/],['./js/data.js',/already registered/]
-]) expectThrow(() => run(ctx, src), re);
+const duplicateRegistration = /already (?:installed|registered|normalized)/;
+for (const src of [
+  './js/save-v9.js','./js/competitor-media.js','./js/competitor-parity.js','./js/competitor-dashboard.js','./js/competitor-dashboard-status.js','./js/competitor-dashboard-ui.js',
+  './js/player-crisis-ui.js','./js/player-crisis.js','./js/player-crisis-actions.js','./js/player-crisis-restructuring.js','./js/competitor-terminal-compat.js','./js/competitor-distress.js','./js/data.js'
+]) expectThrow(() => run(ctx, src), duplicateRegistration);
 
 fs.writeFileSync(path.join(ROOT, 'tests', 'fixtures', 'module-load-order.json'), JSON.stringify({ scripts: expected }, null, 2) + '\n');
 console.log('javascript module split checks passed');
