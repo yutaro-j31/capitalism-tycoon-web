@@ -26,6 +26,7 @@
     "test:javascript": "node tests/javascript-extraction-test.js",
     "test:modules": "node tests/javascript-module-split-test.js",
     "test:progression-balance": "node tests/normal-start-ipo-balance-audit-test.js",
+    "test:strategy-balance": "node tests/strategy-balance-calibration-test.js && node tests/strategy-balance-matrix-test.js",
     "test:stock": "node tests/stock-chart-test.js",
     "test:stock-chart": "node tests/stock-chart-test.js",
     "test:stock-migration": "node tests/stock-chart-test.js",
