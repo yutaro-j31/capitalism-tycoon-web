@@ -39,7 +39,7 @@ function runScenario(def,seed,{includeState=false,difficulty='normal',gameScenar
   if(!def.debt||game.g.companyCash>=targetCash)return false;
   const available=Math.max(0,game.companyCreditLimit()-game.g.companyDebt);
   const amount=Math.min(available,Math.ceil((targetCash-game.g.companyCash)/100000)*100000);
-  if(amount<500000){borrowingAttempts.push({week:game.g.week,reason,targetCash,available,amount,result:false,detail:'minimum'});return false;}
+  if(amount<=0){borrowingAttempts.push({week:game.g.week,reason,targetCash,available,amount,result:false,detail:'unavailable'});return false;}
   const result=game.borrow(amount,'company');
   borrowingAttempts.push({week:game.g.week,reason,targetCash,available,amount,result:Boolean(result),detail:String(game.g.news?.[0]||'')});
   if(result)actions.push({week:game.g.week,action:'borrow',reason,amount,debt:Math.round(game.g.companyDebt)});
