@@ -97,6 +97,7 @@ async function main() {
 
     await page.locator('#setup-form input[name="playerName"]').fill('悠太郎');
     await page.locator('#setup-form input[name="companyName"]').fill('YTR');
+    await page.locator('#setup-form select[name="difficulty"]').selectOption('hard');
     await page.locator('#setup-form select[name="founderPrefID"]').selectOption('fukuoka');
     await page.locator('#setup-form select[name="founderTraitID"]').selectOption('merchant');
     await page.locator('#setup-form').evaluate(form => form.requestSubmit());
@@ -104,12 +105,15 @@ async function main() {
 
     await page.locator('button[data-action="tab"][data-tab="map"]').click();
     await page.locator('select[data-bind="selectedPref"]').selectOption('fukuoka');
-    await openTenant(page, '福岡 駅前1階テナント', 'ramen', 'YTR 福岡ラーメン', 1);
-    await openTenant(page, '福岡 商店街角地テナント', 'cafe', 'YTR 福岡カフェ', 2);
+    await openTenant(page, '福岡 駅前1階テナント', 'ramen', 'YTR 福岡駅前店', 1);
+    await openTenant(page, '福岡 商店街角地テナント', 'ramen', 'YTR 福岡商店街店', 2);
 
     const before = JSON.parse(await page.evaluate(key => localStorage.getItem(key), SAVE_KEY));
+    assert.equal(before.difficulty, 'hard');
     assert.equal(before.week, 1);
     assert.equal(before.stores.length, 2);
+    assert.ok(before.companyCash > 1_000_000 && before.companyCash < 1_200_000,
+      `reported setup should leave about 108.5万円, got ${before.companyCash}`);
 
     await page.locator('button[data-action="advance-week"]').click();
     const summary = page.locator('#modal-root .summary-modal');
@@ -125,8 +129,8 @@ async function main() {
     assert.deepEqual(diagnostics, { consoleErrors: [], pageErrors: [], failedRequests: [] });
 
     await page.screenshot({ path: path.join(ARTIFACT_DIR, 'two-store-first-week.png'), fullPage: true });
-    fs.writeFileSync(path.join(ARTIFACT_DIR, 'two-store-first-week.json'), `${JSON.stringify({ status:'passed', launchUrl:page.url(), beforeWeek:before.week, afterWeek:after.week, stores:after.stores.length }, null, 2)}\n`);
-    console.log('two-store iPhone WebKit first-week regression passed through play.html');
+    fs.writeFileSync(path.join(ARTIFACT_DIR, 'two-store-first-week.json'), `${JSON.stringify({ status:'passed', launchUrl:page.url(), difficulty:before.difficulty, cashBeforeAdvance:before.companyCash, beforeWeek:before.week, afterWeek:after.week, stores:after.stores.length }, null, 2)}\n`);
+    console.log('reported hard-mode two-store iPhone WebKit regression passed through play.html');
   } catch (error) {
     if (page) {
       try { await page.screenshot({ path: path.join(ARTIFACT_DIR, 'two-store-first-week-failure.png'), fullPage: true }); } catch (_) {}
