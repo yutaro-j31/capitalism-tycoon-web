@@ -103,8 +103,10 @@ function diagnosticText(env=globalThis){
 async function copyText(text,env=globalThis){
   const clipboard=env.navigator&&env.navigator.clipboard;
   if(clipboard&&typeof clipboard.writeText==='function'){
-    await clipboard.writeText(text);
-    return true;
+    try{
+      await clipboard.writeText(text);
+      return true;
+    }catch(_){}
   }
   const doc=env.document;
   if(!doc||!doc.createElement||!doc.body||!doc.body.appendChild)return false;
