@@ -59,7 +59,7 @@ function assertCrisisSnapshot(engine, label) {
 }
 function runScenario() {
   const random = seededRandom(123456789);
-  const { engineModule } = loadGame({ random });
+  const { engineModule, modules } = loadGame({ random });
   const engine = new engineModule.TycoonEngine();
   const result = {};
   engine.configure({ playerName:'Tester', companyName:'Baseline Co', difficulty:'normal', scenario:'free' });
@@ -69,7 +69,16 @@ function runScenario() {
     assertCrisisSnapshot(engine, `week${targetWeek}`);
     result[`week${targetWeek}`] = snapshot(engine.g, random.calls());
   }
-  return result;
+  return { snapshots: result, calibrations: modules.strategyBalance.DEMAND_CALIBRATIONS };
+}
+function migrateExpectedDemand(expected, calibrations) {
+  for (const point of Object.values(expected)) {
+    for (const business of point.businesses || []) {
+      const calibration = calibrations[business.id];
+      if (calibration) business.demand *= calibration.to / calibration.from;
+    }
+  }
+  return expected;
 }
 function firstDiff(a, b, at = '$') {
   if (JSON.stringify(a) === JSON.stringify(b)) return null;
@@ -83,8 +92,9 @@ function firstDiff(a, b, at = '$') {
 }
 
 const fixturePath = path.join(__dirname, 'fixtures', 'transaction-baseline-v1.json');
-const expected = JSON.parse(fs.readFileSync(fixturePath, 'utf8'));
-const actual = runScenario();
+const run = runScenario();
+const expected = migrateExpectedDemand(JSON.parse(fs.readFileSync(fixturePath, 'utf8')), run.calibrations);
+const actual = run.snapshots;
 const diff = firstDiff(actual, expected);
 assert(!diff, `transaction deterministic regression mismatch: ${diff}`);
 console.log(JSON.stringify({ deterministicRegression: 'passed', crisisSnapshot: 'passed', points: Object.keys(actual), randomCallsAtWeek52: actual.week52.randomCalls }, null, 2));
