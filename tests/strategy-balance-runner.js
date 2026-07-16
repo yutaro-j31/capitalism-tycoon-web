@@ -31,7 +31,7 @@ function runScenario(def,seed,{includeState=false,difficulty='normal',gameScenar
  const startingCash=game.g.companyCash;
  const startingCredit=game.g.companyCredit;
  const startingCreditLimit=Math.round(game.companyCreditLimit());
- const actions=[];
+ const actions=[],borrowingAttempts=[];
  const business=game.business(def.businessID);
  const maxStores=def.route.length;
 
@@ -39,8 +39,9 @@ function runScenario(def,seed,{includeState=false,difficulty='normal',gameScenar
   if(!def.debt||game.g.companyCash>=targetCash)return false;
   const available=Math.max(0,game.companyCreditLimit()-game.g.companyDebt);
   const amount=Math.min(available,Math.ceil((targetCash-game.g.companyCash)/100000)*100000);
-  if(amount<500000)return false;
+  if(amount<500000){borrowingAttempts.push({week:game.g.week,reason,targetCash,available,amount,result:false,detail:'minimum'});return false;}
   const result=game.borrow(amount,'company');
+  borrowingAttempts.push({week:game.g.week,reason,targetCash,available,amount,result:Boolean(result),detail:String(game.g.news?.[0]||'')});
   if(result)actions.push({week:game.g.week,action:'borrow',reason,amount,debt:Math.round(game.g.companyDebt)});
   return result;
  }
@@ -49,6 +50,8 @@ function runScenario(def,seed,{includeState=false,difficulty='normal',gameScenar
   const prefID=def.route[index];
   return game.g.tenants.filter(row=>row.prefID===prefID&&!row.occupiedBy).sort((a,b)=>b.traffic-a.traffic||a.deposit-b.deposit)[0];
  }
+ const firstTenant=tenantFor(0);
+ const firstStoreCost=business.storeCost+Number(firstTenant?.deposit||0);
 
  function maybeOpenStore(){
   const index=game.g.stores.length;
@@ -121,7 +124,7 @@ function runScenario(def,seed,{includeState=false,difficulty='normal',gameScenar
  }
  const annualProfit=game.g.reports.slice(-52).reduce((sum,row)=>sum+Number(row.profit||0),0);
  const scenario=modules.difficultyScenarioBalance.snapshot(game.g);
- const result={id:def.id,seed,businessID:def.businessID,difficulty,gameScenario,startingCash,startingCredit,startingCreditLimit,calibratedDemand:business.demand,debtStrategy:def.debt,ipo:game.g.publicCompany,ipoWeek,gameOver:game.g.gameOver,reason:game.g.gameOverReason,week:game.g.week,stores:game.g.stores.length,openStores:game.g.stores.filter(row=>row.status==='open').length,cash:Math.round(game.g.companyCash),debt:Math.round(game.g.companyDebt),value:Math.round(game.companyValue()),annualProfit:Math.round(annualProfit),reports:game.g.reports.length,missing:game.ipoMissingReasons(),scenarioStatus:scenario.status,scenarioTargetWeek:scenario.targetIPOWeek,scenarioCompletedWeek:scenario.completedWeek,scenarioScore:scenario.score,scenarioGrade:scenario.grade,actions};
+ const result={id:def.id,seed,businessID:def.businessID,difficulty,gameScenario,startingCash,startingCredit,startingCreditLimit,firstStoreCost:Math.round(firstStoreCost),calibratedDemand:business.demand,debtStrategy:def.debt,ipo:game.g.publicCompany,ipoWeek,gameOver:game.g.gameOver,reason:game.g.gameOverReason,week:game.g.week,stores:game.g.stores.length,openStores:game.g.stores.filter(row=>row.status==='open').length,cash:Math.round(game.g.companyCash),debt:Math.round(game.g.companyDebt),value:Math.round(game.companyValue()),annualProfit:Math.round(annualProfit),reports:game.g.reports.length,missing:game.ipoMissingReasons(),scenarioStatus:scenario.status,scenarioTargetWeek:scenario.targetIPOWeek,scenarioCompletedWeek:scenario.completedWeek,scenarioScore:scenario.score,scenarioGrade:scenario.grade,actions,borrowingAttempts:borrowingAttempts.slice(0,8)};
  if(includeState){result.state=game.g;result.modules=modules;}
  return result;
 }
