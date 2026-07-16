@@ -25,6 +25,14 @@ let clickBound=false;
 let scheduled=false;
 
 function stripPanel(html){return String(html||'').replace(PANEL_PATTERN,'');}
+function renderKey(html){let hash=2166136261;const text=String(html||'');for(let i=0;i<text.length;i++){hash^=text.charCodeAt(i);hash=Math.imul(hash,16777619);}return (hash>>>0).toString(36);}
+function currentRenderKey(screen){
+ const panel=screen?.querySelector?.('#player-crisis-panel');
+ const direct=panel?.getAttribute?.('data-player-crisis-render-key')||panel?.dataset?.playerCrisisRenderKey;
+ if(direct)return String(direct);
+ const match=String(screen?.innerHTML||'').match(/data-player-crisis-render-key="([^"]+)"/);
+ return match?match[1]:'';
+}
 function ready(){return Boolean(modules.playerCrisis?.__installed&&modules.playerCrisisActions?.__installed);}
 function statusKind(status){return status==='recovered'?'good':status==='watch'?'':'warn';}
 function badge(label,kind=''){return `<span class="badge ${kind}">${esc(label)}</span>`;}
@@ -112,12 +120,20 @@ function enhance(){
  if(!activeEngine||typeof document==='undefined')return false;
  const screen=document.getElementById('screen');
  if(!screen)return false;
+ const currentKey=currentRenderKey(screen);
  const base=stripPanel(screen.innerHTML);
  const panel=render(activeEngine.g,activeEngine);
- const next=panel+base;
- if(next===screen.innerHTML)return false;
- screen.innerHTML=next;
- screen.dataset.playerCrisisUi=panel?'1':'0';
+ if(!panel){
+  if(!currentKey&&!String(screen.innerHTML||'').includes(PANEL_START)){screen.dataset.playerCrisisUi='0';return false;}
+  screen.innerHTML=base;
+  screen.dataset.playerCrisisUi='0';
+  return true;
+ }
+ const key=renderKey(panel);
+ if(currentKey===key){screen.dataset.playerCrisisUi='1';return false;}
+ const keyedPanel=panel.replace('id="player-crisis-panel"',`id="player-crisis-panel" data-player-crisis-render-key="${key}"`);
+ screen.innerHTML=keyedPanel+base;
+ screen.dataset.playerCrisisUi='1';
  return true;
 }
 function scheduleEnhance(){
@@ -180,5 +196,5 @@ function install(){
 const baseLoad=EngineClass.load.bind(EngineClass);
 EngineClass.load=function(...args){const instance=bindEngine(baseLoad(...args));install();return instance;};
 install();
-modules.playerCrisisUI=Object.freeze({render,enhance,bindEngine,handleClick,install,stripPanel,findDispositionCandidate,findCostReductionCandidate,STATUS_LABELS,REASON_LABELS,DISPOSITION_LABELS,COST_ACTION_LABELS,__installed:true});
+modules.playerCrisisUI=Object.freeze({render,renderKey,currentRenderKey,enhance,bindEngine,handleClick,install,stripPanel,findDispositionCandidate,findCostReductionCandidate,STATUS_LABELS,REASON_LABELS,DISPOSITION_LABELS,COST_ACTION_LABELS,__installed:true});
 })();
