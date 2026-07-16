@@ -12,4 +12,16 @@ jobs:
         with:
           node-version: 24
       - name: Run focused creditor UI test
-        run: node tests/player-crisis-creditor-ui-test.js
+        shell: bash
+        run: |
+          set +e
+          node tests/player-crisis-creditor-ui-test.js > phase6a4b-diagnostic.log 2>&1
+          status=$?
+          echo "exit_status=$status" >> phase6a4b-diagnostic.log
+          exit 0
+      - name: Upload diagnostic log
+        uses: actions/upload-artifact@v4
+        with:
+          name: phase6a4b-diagnostic-log
+          path: phase6a4b-diagnostic.log
+          retention-days: 1
