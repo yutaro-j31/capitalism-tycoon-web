@@ -34,6 +34,7 @@ function message(report){
  if(report?.kind==='deadline')return `第${integer(report.week)}週：再建計画の期限まで残り${integer(report.weeksRemaining)}週です。総合進捗${pct}%、現金${cash}、負債${debt}。`;
  return `第${integer(report?.week)}週：再建計画は総合進捗${pct}%、残り${integer(report?.weeksRemaining)}週です。現金${cash}、負債${debt}。`;
 }
+function alertText(report){return message(report).replace(/^第\d+週：/,'');}
 function applyReport(state,report){
  if(!state||!report||!REPORT_KINDS.includes(report.kind))return false;
  const summary=state.lastWeeklySummary;
@@ -68,10 +69,10 @@ function schedule(){if(scheduled)return;scheduled=true;const run=()=>{scheduled=
 function connect(instance){if(!instance)return null;activeEngine=instance;modules.playerEngineBridge.bindEngine(instance);modules.playerCrisisCreditorUI?.bindEngine?.(instance);modules.playerTurnaroundPlanUI?.bindEngine?.(instance);schedule();return instance;}
 function install(){if(typeof document==='undefined')return;const root=document.getElementById('modal-root');if(root&&!observer&&typeof MutationObserver==='function'){observer=new MutationObserver(schedule);observer.observe(root,{childList:true,subtree:true});}}
 const baseAdvanceWeek=EngineClass.prototype.advanceWeek;
-EngineClass.prototype.advanceWeek=function(showSummary=true){const before=capture(this.g),result=baseAdvanceWeek.call(this,showSummary);if(result===false)return result;const report=buildReport(this.g,before);if(report&&applyReport(this.g,report)){this.save();if(report.kind==='deadline')this.notify(message(report),'warning');else if(report.kind==='completed')this.notify(message(report),'success');else if(report.kind==='failed')this.notify(message(report),'error');schedule();}return result;};
+EngineClass.prototype.advanceWeek=function(showSummary=true){const before=capture(this.g),result=baseAdvanceWeek.call(this,showSummary);if(result===false)return result;const report=buildReport(this.g,before);if(report&&applyReport(this.g,report)){this.save();const severity=report.kind==='deadline'?'warning':report.kind==='completed'?'success':report.kind==='failed'?'error':null;if(severity)this.emit('notify',{message:alertText(report),severity});schedule();}return result;};
 const baseLoad=EngineClass.load.bind(EngineClass);
 EngineClass.load=function(...args){return connect(baseLoad(...args));};
 EngineClass.prototype.__playerTurnaroundPlanReportInstalled=true;
 install();connect(modules.playerEngineBridge.getEngine());
-modules.playerTurnaroundPlanReport=Object.freeze({REPORT_KINDS,KIND_LABELS,capture,buildReport,message,applyReport,renderSummarySection,enhanceSummary,connect,__installed:true});
+modules.playerTurnaroundPlanReport=Object.freeze({REPORT_KINDS,KIND_LABELS,capture,buildReport,message,alertText,applyReport,renderSummarySection,enhanceSummary,connect,__installed:true});
 })();
