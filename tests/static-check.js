@@ -1,4 +1,6 @@
 const fs = require('node:fs');
+const path = require('node:path');
+const { spawnSync } = require('node:child_process');
 const { INDEX, readIndex, BIDI } = require('./harness');
 const { checkRepository } = require('./text-safety-check');
 const html = readIndex(); const errors = [];
@@ -16,5 +18,7 @@ if (!html.includes('</html>') || !html.includes('</body>')) errors.push('body/ht
 const textFindings = checkRepository();
 for (const f of textFindings) errors.push(`${f.file}:${f.line}:${f.column} ${f.codePoint} ${f.reason}`);
 if (errors.length) { console.error(errors.join('\n')); process.exit(1); }
-require('./release-diagnostics-ui-test');
+const diagnostics = spawnSync(process.execPath, [path.join(__dirname, 'release-diagnostics-ui-test.js')], { stdio: 'inherit' });
+if (diagnostics.error) { console.error(diagnostics.error.message); process.exit(1); }
+if (diagnostics.status !== 0) process.exit(diagnostics.status || 1);
 console.log('static checks passed');
