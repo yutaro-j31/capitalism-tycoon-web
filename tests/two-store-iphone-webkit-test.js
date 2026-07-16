@@ -76,13 +76,14 @@ async function installWeekTrace(page) {
       if (!target || typeof target[name] !== 'function' || target[name].__weekTraceWrapped) return;
       const original = target[name];
       const wrapped = function(...args) {
-        console.info(`[week-trace] start ${label}`);
+        const suffix = name === 'emit' ? `(${args[0] || 'change'})` : '';
+        console.info(`[week-trace] start ${label}${suffix}`);
         try {
           const result = original.apply(this, args);
-          console.info(`[week-trace] end ${label}`);
+          console.info(`[week-trace] end ${label}${suffix}`);
           return result;
         } catch (error) {
-          console.info(`[week-trace] throw ${label}: ${error?.message || error}`);
+          console.info(`[week-trace] throw ${label}${suffix}: ${error?.message || error}`);
           throw error;
         }
       };
@@ -93,7 +94,8 @@ async function installWeekTrace(page) {
       'updateMacro','updateMarket','updateProperties','updateStartups','updateCompetitors',
       'updateDirectivesAndCampaigns','updateProducts','updateOverseas','updateSubsidiaries',
       'updateFranchise','updatePersonalAssets','recordHistory','evaluateProgression',
-      'generateRecurringEvents','updateExpansionWeekly','updateCompletionWeekly','updateParityWeekly'
+      'generateRecurringEvents','updateExpansionWeekly','updateCompletionWeekly','updateParityWeekly',
+      'save','emit'
     ]) wrap(engine, name, `engine.${name}`);
     for (const [moduleName, names] of Object.entries({
       supply:['ensure','spoil','receiveOrders','payables','autoOrder','validate'],
