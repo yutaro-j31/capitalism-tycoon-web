@@ -5,6 +5,7 @@ const { spawnSync } = require('node:child_process');
 const checks = [
   ['mobile release contract', 'tests/mobile-release-contract-test.js', 30_000],
   ['cache-safe play entry', 'tests/play-entry-contract-test.js', 30_000],
+  ['WebKit week event yield', 'tests/webkit-week-yield-contract-test.js', 30_000],
   ['setup recovery UI', 'tests/setup-recovery-ui-test.js', 30_000],
   ['game-over settings recovery', 'tests/game-over-settings-ui-test.js', 30_000],
   ['Pages deployment verifier', 'tests/pages-deployment-smoke-test.js', 45_000],
