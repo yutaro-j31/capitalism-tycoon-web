@@ -1,0 +1,28 @@
+name: Phase 6A-3A Diagnostic
+on:
+  push:
+    branches: [ chatgpt/phase-6a3a-debt-service-hook ]
+  pull_request:
+jobs:
+  debt-service:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Capture focused output
+        shell: bash
+        run: |
+          set +e
+          npm run test:player-debt-service > debt-service-test.log 2>&1
+          echo "$?" > debt-service-test.status
+          exit 0
+      - uses: actions/upload-artifact@v4
+        with:
+          name: phase6a3a-debt-service-log
+          path: |
+            debt-service-test.log
+            debt-service-test.status
+      - name: Enforce focused result
+        shell: bash
+        run: |
+          cat debt-service-test.log
+          test "$(cat debt-service-test.status)" = "0"
