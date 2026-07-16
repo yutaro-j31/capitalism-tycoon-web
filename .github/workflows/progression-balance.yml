@@ -1,0 +1,14 @@
+name: Progression Balance
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+jobs:
+  normal-start-ipo:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: npm run test:progression-balance
