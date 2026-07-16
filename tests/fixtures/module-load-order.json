@@ -23,6 +23,7 @@
     "./js/competitor-dashboard-status.js",
     "./js/competitor-dashboard-ui.js",
     "./js/player-crisis-ui.js",
+    "./js/player-engine-bridge.js",
     "./js/app.js",
     "./js/player-crisis.js",
     "./js/player-crisis-actions.js",
@@ -31,6 +32,7 @@
     "./js/player-debt-service.js",
     "./js/player-turnaround-plan.js",
     "./js/player-crisis-creditor-ui.js",
-    "./js/player-turnaround-plan-ui.js"
+    "./js/player-turnaround-plan-ui.js",
+    "./js/player-turnaround-plan-report.js"
   ]
 }
