@@ -8,7 +8,7 @@ if(!modules.playerEngineBridge?.__installed)throw new Error('player-engine-bridg
 if(!modules.engine.TycoonEngine.prototype.__completionInstalled||!modules.engine.TycoonEngine.prototype.__parityInstalled)throw new Error('app.js must install completion and parity before difficulty-scenario-balance.js.');
 if(modules.difficultyScenarioBalance)throw new Error('difficulty scenario balance module is already registered.');
 const EngineClass=modules.engine.TycoonEngine,finance=modules.finance;
-const VERSION=1,STANDARD_TARGET_WEEK=208,HISTORY_LIMIT=24;
+const VERSION=1,STANDARD_TARGET_WEEK=208,HISTORY_LIMIT=24,LEGACY_BASE_CASH=8000000;
 const WARNING_WEEKS=Object.freeze([52,104,156,196,208]);
 const DIFFICULTY_PROFILES=Object.freeze({easy:Object.freeze({id:'easy',label:'やさしい',startingCash:12000000,startingCredit:70,crisisGraceWeeks:4}),normal:Object.freeze({id:'normal',label:'標準',startingCash:8000000,startingCredit:60,crisisGraceWeeks:3}),hard:Object.freeze({id:'hard',label:'ハード',startingCash:6000000,startingCredit:50,crisisGraceWeeks:2})});
 const SCENARIO_PROFILES=Object.freeze({free:Object.freeze({id:'free',label:'自由プレイ',targetIPOWeek:null}),standard:Object.freeze({id:'standard',label:'標準シナリオ',targetIPOWeek:STANDARD_TARGET_WEEK})});
@@ -28,17 +28,28 @@ function ensure(state){
  const profile=scenarioProfile(state.scenario),current=plain(state.scenarioProgress)?state.scenarioProgress:{};
  current.scenario=profile.id;current.targetIPOWeek=profile.targetIPOWeek;current.status=profile.id==='free'?'free':state.publicCompany?'completed':integer(state.week)>STANDARD_TARGET_WEEK?'overdue':'active';
  current.startedWeek=Math.max(1,integer(current.startedWeek,1));current.completedWeek=current.completedWeek==null?null:integer(current.completedWeek);current.score=current.score==null?null:integer(current.score);current.grade=current.grade==null?null:text(current.grade);current.lastEvaluationWeek=integer(current.lastEvaluationWeek);
- current.notifiedWeeks=[...new Set((Array.isArray(current.notifiedWeeks)?current.notifiedWeeks:[]).map(integer).filter(v=>WARNING_WEEKS.includes(v)))];current.history=normalizeHistory(current.history);
+ current.notifiedWeeks=[...new Set((Array.isArray(current.notifiedWeeks)?current.notifiedWeeks:[]).map(value=>integer(value)).filter(v=>WARNING_WEEKS.includes(v)))];current.history=normalizeHistory(current.history);
  if(profile.id==='free'){current.completedWeek=null;current.score=null;current.grade=null;current.notifiedWeeks=[];}
  if(state.publicCompany&&profile.id==='standard'&&current.completedWeek==null){current.completedWeek=integer(state.week);current.score=scoreForWeek(current.completedWeek);current.grade=gradeForWeek(current.completedWeek);}
  state.scenarioProgress=current;return current;
 }
 function markFinanceDirty(state,f){f.dirtyWeeks=[...new Set([...(Array.isArray(f.dirtyWeeks)?f.dirtyWeeks:[]),...(Array.isArray(f.weeklySnapshots)?f.weeklySnapshots.map(row=>integer(row.week)):[])])].filter(Boolean).sort((a,b)=>a-b);f.lastStatements=null;if(f.dirtyWeeks.length)finance.rebuildDirtySnapshots(state);}
 function reconcileOpeningFinance(state){
- if(!plain(state))return false;const profile=difficultyProfile(state.difficulty),f=finance.ensureFinance(state);if(integer(state.difficultyScenarioBalanceVersion)>=VERSION)return false;
- const currentOpening=finite(f.openingCash,profile.startingCash),delta=round2(profile.startingCash-currentOpening);
- if(Math.abs(delta)>.001){f.openingCash=round2(currentOpening+delta);f.openingAssets=round2(finite(f.openingAssets)+delta);f.openingEquity=round2(finite(f.openingEquity)+delta);f.openingRetainedEarnings=round2(finite(f.openingRetainedEarnings)+delta);for(const s of Array.isArray(f.weeklySnapshots)?f.weeklySnapshots:[]){s.openingCash=round2(finite(s.openingCash)+delta);s.endingCash=round2(finite(s.endingCash)+delta);s.cashDifference=round2(finite(s.actualCompanyCash)-finite(s.endingCash));}markFinanceDirty(state,f);}
- state.difficultyScenarioBalanceVersion=VERSION;return Math.abs(delta)>.001;
+ if(!plain(state))return false;
+ const profile=difficultyProfile(state.difficulty),f=finance.ensureFinance(state);
+ if(integer(state.difficultyScenarioBalanceVersion)>=VERSION)return false;
+ const currentOpening=finite(f.openingCash,profile.startingCash);
+ const legacySignature=Math.abs(currentOpening-LEGACY_BASE_CASH)<=.01;
+ const alreadyAligned=Math.abs(currentOpening-profile.startingCash)<=.01;
+ const delta=legacySignature?round2(profile.startingCash-LEGACY_BASE_CASH):0;
+ if(Math.abs(delta)>.001){
+  f.openingCash=round2(currentOpening+delta);f.openingAssets=round2(finite(f.openingAssets)+delta);f.openingEquity=round2(finite(f.openingEquity)+delta);f.openingRetainedEarnings=round2(finite(f.openingRetainedEarnings)+delta);
+  for(const s of Array.isArray(f.weeklySnapshots)?f.weeklySnapshots:[]){s.openingCash=round2(finite(s.openingCash)+delta);s.endingCash=round2(finite(s.endingCash)+delta);s.cashDifference=round2(finite(s.actualCompanyCash)-finite(s.endingCash));}
+  markFinanceDirty(state,f);
+ }
+ state.difficultyOpeningBalanceApplied=Boolean(state.difficultyOpeningBalanceApplied)||legacySignature||alreadyAligned;
+ state.difficultyScenarioBalanceVersion=VERSION;
+ return Math.abs(delta)>.001;
 }
 function addHistory(state,p,kind,message){const operationID=`scenario-${integer(state.week)}-${kind}`;if(p.history.some(row=>row.operationID===operationID))return false;p.history.push({week:integer(state.week),kind,status:p.status,message:text(message),operationID});p.history=p.history.slice(-HISTORY_LIMIT);const line=`第${integer(state.week)}週：${text(message)}`;state.news=[line,...(Array.isArray(state.news)?state.news:[]).filter(row=>String(row)!==line)].slice(0,300);return true;}
 function snapshot(state){const p=ensure(state),profile=scenarioProfile(p.scenario),week=integer(state.week);return Object.freeze({scenario:profile.id,label:profile.label,status:p.status,targetIPOWeek:p.targetIPOWeek,weeksRemaining:profile.targetIPOWeek==null?null:Math.max(0,profile.targetIPOWeek-week),completedWeek:p.completedWeek,score:p.score,grade:p.grade});}
@@ -47,7 +58,7 @@ function evaluate(state){
  if(state.publicCompany){if(p.completedWeek==null)p.completedWeek=week;p.status='completed';p.score=scoreForWeek(p.completedWeek);p.grade=gradeForWeek(p.completedWeek);addHistory(state,p,'completed',`標準シナリオのIPO目標を第${p.completedWeek}週に達成しました。評価${p.grade}（${p.score}点）。`);}else{p.status=week>STANDARD_TARGET_WEEK?'overdue':'active';if(WARNING_WEEKS.includes(week)&&!p.notifiedWeeks.includes(week)){p.notifiedWeeks.push(week);const remaining=Math.max(0,STANDARD_TARGET_WEEK-week);addHistory(state,p,'checkpoint',remaining>0?`標準シナリオのIPO目標まで残り${remaining}週です。`:'標準シナリオのIPO目標週に到達しました。次週から期限超過として記録されます。');}if(p.status==='overdue')addHistory(state,p,'overdue',`標準シナリオのIPO目標（第${STANDARD_TARGET_WEEK}週）を超過しました。IPO後に最終評価を確定します。`);}
  return snapshot(state);
 }
-function validate(state){const errors=[],profile=difficultyProfile(state?.difficulty),p=state?.scenarioProgress,f=state?.finance;if(!plain(p))errors.push('scenarioProgressがオブジェクトではありません。');else{if(p.scenario!==state.scenario)errors.push('scenarioProgress.scenarioがstate.scenarioと不一致です。');if(!['free','active','completed','overdue'].includes(p.status))errors.push('scenarioProgress.statusが不正です。');if(!Array.isArray(p.history)||p.history.length>HISTORY_LIMIT)errors.push('scenarioProgress.historyが不正です。');}if(integer(state?.difficultyScenarioBalanceVersion)<VERSION)errors.push('difficultyScenarioBalanceVersionが未適用です。');if(plain(f)&&Math.abs(finite(f.openingCash)-profile.startingCash)>.01)errors.push('難易度別の期首現金が不一致です。');if(errors.length)throw new Error(errors.join(' / '));return true;}
+function validate(state){const errors=[],profile=difficultyProfile(state?.difficulty),p=state?.scenarioProgress,f=state?.finance;if(!plain(p))errors.push('scenarioProgressがオブジェクトではありません。');else{if(p.scenario!==state.scenario)errors.push('scenarioProgress.scenarioがstate.scenarioと不一致です。');if(!['free','active','completed','overdue'].includes(p.status))errors.push('scenarioProgress.statusが不正です。');if(!Array.isArray(p.history)||p.history.length>HISTORY_LIMIT)errors.push('scenarioProgress.historyが不正です。');}if(integer(state?.difficultyScenarioBalanceVersion)<VERSION)errors.push('difficultyScenarioBalanceVersionが未適用です。');if(state?.difficultyOpeningBalanceApplied===true&&plain(f)&&Math.abs(finite(f.openingCash)-profile.startingCash)>.01)errors.push('難易度別の期首現金が不一致です。');if(errors.length)throw new Error(errors.join(' / '));return true;}
 const baseNormalize=EngineClass.prototype.normalize;EngineClass.prototype.normalize=function(){const result=baseNormalize.call(this);reconcileOpeningFinance(this.g);ensure(this.g);return result;};
 const baseSave=EngineClass.prototype.save;EngineClass.prototype.save=function(slot=null){reconcileOpeningFinance(this.g);ensure(this.g);return baseSave.call(this,slot);};
 const baseConfigure=EngineClass.prototype.configure;EngineClass.prototype.configure=function(options={}){return this.runTransaction(()=>{const result=baseConfigure.call(this,options);reconcileOpeningFinance(this.g);evaluate(this.g);return result;});};
