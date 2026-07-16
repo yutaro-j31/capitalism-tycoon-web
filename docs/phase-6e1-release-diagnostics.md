@@ -35,14 +35,22 @@ The safe restart does not clear or rewrite local storage. Players should still e
 
 `tests/release-diagnostics-ui-test.js` verifies:
 
-- inline module presence and public contract
+- external classic-script module presence and public contract
 - manifest-aligned release and save identifiers
 - safe diagnostics redaction
 - HTML escaping
 - stable render keys
 - same-origin cache-safe launcher URL generation
-- clipboard behavior
+- clipboard success and permission-denied fallback behavior
 - blocked/corrupt storage handling
 - absence of save-storage mutation APIs
 
 The contract runs from the existing static release-hardening gate.
+
+`tests/release-diagnostics-webkit-test.js` runs in the iPhone 13 WebKit workflow and verifies:
+
+- the settings card is visible and actionable
+- copied diagnostics omit private game state
+- `最新版で再起動` reaches `play.html`
+- the same company, week, cash, and save version survive the restart
+- screenshot and machine-readable evidence are retained with the existing WebKit artifact
