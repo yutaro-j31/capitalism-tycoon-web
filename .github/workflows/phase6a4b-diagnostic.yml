@@ -1,0 +1,15 @@
+name: Phase 6A-4B Diagnostic
+on:
+  push:
+    branches:
+      - chatgpt/phase-6a4b-creditor-ui
+jobs:
+  creditor-ui:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - name: Run focused creditor UI test
+        run: node tests/player-crisis-creditor-ui-test.js
