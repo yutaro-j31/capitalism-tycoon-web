@@ -68,7 +68,7 @@ assert.doesNotMatch(recoverySource, /localStorage|SAVE_KEY|saveVersion/, 'recove
 assert.ok(importBridgeSource.trim().length <= 1000, 'setup recovery import bridge must remain a small inline script');
 assert.match(importBridgeSource, /p\.importSave=function/, 'import bridge must wrap the canonical engine import method');
 assert.match(importBridgeSource, /this\.g&&this\.g\.configured/, 'only a configured imported save may leave setup');
-assert.match(importBridgeSource, /document\.getElementById\(['"]setup-form['"]\)/, 'reload must be limited to the setup recovery screen');
+assert.match(importBridgeSource, /document\.querySelector\(['"]#setup-form['"]\)/, 'reload must be limited to the dynamic setup recovery screen');
 assert.match(importBridgeSource, /location\.reload/, 'successful setup recovery must re-enter the normal boot path');
 assert.match(importBridgeSource, /__setupRecoveryImportBridge/, 'import bridge installation must be idempotent');
 assert.doesNotMatch(importBridgeSource, /localStorage|SAVE_KEY|saveVersion/, 'import bridge must not rewrite save storage or schema');
