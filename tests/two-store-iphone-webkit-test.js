@@ -103,7 +103,7 @@ async function main() {
     await page.locator('#setup-form').evaluate(form => form.requestSubmit());
     await page.locator('.topbar').waitFor({ state: 'visible', timeout: 20_000 });
 
-    await page.locator('button[data-action="tab"][data-tab="map"]').click();
+    await page.locator('.tabs button[data-action="tab"][data-tab="map"]').click();
     await page.locator('select[data-bind="selectedPref"]').selectOption('fukuoka');
     await openTenant(page, '福岡 駅前1階テナント', 'ramen', 'YTR 福岡駅前店', 1);
     await openTenant(page, '福岡 商店街角地テナント', 'ramen', 'YTR 福岡商店街店', 2);
