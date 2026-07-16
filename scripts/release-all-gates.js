@@ -7,6 +7,7 @@ const { spawnSync } = require('node:child_process');
 const gates = [
   ['release readiness', 'scripts/release-gate.js'],
   ['release hardening', 'scripts/release-hardening-gate.js'],
+  ['release delivery', 'scripts/release-delivery-gate.js'],
 ];
 
 for (const [label, script] of gates) {
