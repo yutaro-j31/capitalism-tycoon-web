@@ -12,6 +12,7 @@ assert.equal(engine.SAVE_KEY, 'capitalism_tycoon_web_v1');
 assert.equal(engine.SAVE_VERSION, 9);
 
 function addLoan(game, loanID, amount = 2_000_000, interestRate = 0.08) {
+  game.g.week = 4;
   game.g.companyCash += amount;
   game.g.companyDebt += amount;
   finance.event(game.g, 'debtBorrowing', amount, {
