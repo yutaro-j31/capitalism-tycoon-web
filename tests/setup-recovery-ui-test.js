@@ -3,9 +3,13 @@
 const assert = require('node:assert/strict');
 const { readIndex, extractScripts, loadGame } = require('./harness');
 
-const recoveryScript = extractScripts(readIndex()).find(script => !script.src && script.attrs.includes('data-setup-recovery-bootstrap'));
+const scripts = extractScripts(readIndex());
+const recoveryScript = scripts.find(script => !script.src && script.attrs.includes('data-setup-recovery-bootstrap'));
+const importBridgeScript = scripts.find(script => !script.src && script.attrs.includes('data-setup-recovery-import-bridge'));
 assert.ok(recoveryScript, 'setup recovery bootstrap must be present in index.html');
+assert.ok(importBridgeScript, 'setup recovery import bridge must be present in index.html');
 const recoverySource = recoveryScript.code;
+const importBridgeSource = importBridgeScript.code;
 const count = (text, token) => text.split(token).length - 1;
 
 function appHtml(ctx) {
@@ -60,5 +64,13 @@ assert.ok(recoverySource.trim().length <= 1000, 'setup recovery bootstrap must r
 assert.match(recoverySource, /typeof MutationObserver===['"]function['"]/, 'browser observer must restore recovery after reset');
 assert.match(recoverySource, /innerHTML\.includes\(m\)/, 'recovery injection must be idempotent');
 assert.doesNotMatch(recoverySource, /localStorage|SAVE_KEY|saveVersion/, 'recovery renderer must not mutate save storage or schema');
+
+assert.ok(importBridgeSource.trim().length <= 1000, 'setup recovery import bridge must remain a small inline script');
+assert.match(importBridgeSource, /p\.importSave=function/, 'import bridge must wrap the canonical engine import method');
+assert.match(importBridgeSource, /this\.g&&this\.g\.configured/, 'only a configured imported save may leave setup');
+assert.match(importBridgeSource, /document\.querySelector\(['"]#setup-form['"]\)/, 'reload must be limited to the dynamic setup recovery screen');
+assert.match(importBridgeSource, /location\.reload/, 'successful setup recovery must re-enter the normal boot path');
+assert.match(importBridgeSource, /__setupRecoveryImportBridge/, 'import bridge installation must be idempotent');
+assert.doesNotMatch(importBridgeSource, /localStorage|SAVE_KEY|saveVersion/, 'import bridge must not rewrite save storage or schema');
 
 console.log('setup recovery UI checks passed');
