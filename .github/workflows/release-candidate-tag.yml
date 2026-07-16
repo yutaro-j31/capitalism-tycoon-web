@@ -1,0 +1,123 @@
+name: Release Candidate Tag
+
+on:
+  workflow_dispatch:
+    inputs:
+      fresh_start:
+        description: Fresh visit reaches founder setup
+        required: true
+        type: boolean
+      json_save_recovery:
+        description: JSON save recovery works before replacement setup
+        required: true
+        type: boolean
+      one_week_advance:
+        description: One-week advance produces a responsive weekly report
+        required: true
+        type: boolean
+      four_week_advance:
+        description: Four-week advance completes with final summary
+        required: true
+        type: boolean
+      save_export_import:
+        description: Save, export, reset, and import all work
+        required: true
+        type: boolean
+      iphone_safe_area_navigation:
+        description: iPhone safe areas, navigation, forms, buttons, and modals are usable
+        required: true
+        type: boolean
+      device:
+        description: Tested iPhone model
+        required: true
+        type: string
+      safari_version:
+        description: Tested Safari/iOS version
+        required: true
+        type: string
+      tested_at:
+        description: Optional ISO-8601 smoke-test completion time
+        required: false
+        type: string
+      notes:
+        description: Optional smoke-test notes
+        required: false
+        type: string
+
+permissions:
+  contents: write
+  actions: read
+
+concurrency:
+  group: release-candidate-tag
+  cancel-in-progress: false
+
+jobs:
+  create-release-candidate-tag:
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Reject open pull requests
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          OPEN_COUNT="$(gh pr list --repo "$GITHUB_REPOSITORY" --state open --json number --jq 'length')"
+          if [ "$OPEN_COUNT" != "0" ]; then
+            echo "Release candidate tagging is blocked by $OPEN_COUNT open pull request(s)."
+            exit 1
+          fi
+      - name: Capture manual iPhone Safari evidence
+        env:
+          RC_CONFIRM_FRESH_START: ${{ inputs.fresh_start }}
+          RC_CONFIRM_JSON_SAVE_RECOVERY: ${{ inputs.json_save_recovery }}
+          RC_CONFIRM_ONE_WEEK_ADVANCE: ${{ inputs.one_week_advance }}
+          RC_CONFIRM_FOUR_WEEK_ADVANCE: ${{ inputs.four_week_advance }}
+          RC_CONFIRM_SAVE_EXPORT_IMPORT: ${{ inputs.save_export_import }}
+          RC_CONFIRM_IPHONE_SAFE_AREA_NAVIGATION: ${{ inputs.iphone_safe_area_navigation }}
+          RC_TEST_DEVICE: ${{ inputs.device }}
+          RC_SAFARI_VERSION: ${{ inputs.safari_version }}
+          RC_TESTED_AT: ${{ inputs.tested_at }}
+          RC_TEST_NOTES: ${{ inputs.notes }}
+          RC_EVIDENCE_PATH: release-candidate-evidence.json
+        run: node scripts/release-candidate-tag-gate.js
+      - name: Run complete release gate
+        run: npm run test:release
+      - name: Verify published GitHub Pages bytes
+        env:
+          PAGES_SMOKE_ATTEMPTS: '20'
+          PAGES_SMOKE_DELAY_MS: '30000'
+          PAGES_SMOKE_REQUEST_TIMEOUT_MS: '15000'
+        run: node scripts/pages-deployment-smoke.js
+      - name: Retain release candidate evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-candidate-evidence-${{ github.sha }}
+          path: release-candidate-evidence.json
+          if-no-files-found: error
+          retention-days: 90
+      - name: Create annotated release candidate tag
+        shell: bash
+        run: |
+          TAG="$(node -p "require('./release-candidate.json').tag")"
+          VERSION="$(node -p "require('./release-candidate.json').version")"
+          git fetch --tags --force
+          if git rev-parse -q --verify "refs/tags/$TAG" >/dev/null; then
+            EXISTING_SHA="$(git rev-list -n 1 "$TAG")"
+            if [ "$EXISTING_SHA" = "$GITHUB_SHA" ]; then
+              echo "$TAG already points to $GITHUB_SHA."
+              exit 0
+            fi
+            echo "$TAG already exists at $EXISTING_SHA and will not be moved."
+            exit 1
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git tag -a "$TAG" "$GITHUB_SHA" -m "Capitalism Tycoon Web $VERSION release candidate"
+          git push origin "refs/tags/$TAG"
