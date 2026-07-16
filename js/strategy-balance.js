@@ -9,7 +9,7 @@ const VERSION=1;
 const DEMAND_CALIBRATIONS=Object.freeze({
  cafe:{from:340,to:650},
  conveni:{from:625,to:1450},
- bakery:{from:360,to:650},
+ bakery:{from:360,to:760},
  bento:{from:430,to:650},
  drugstore:{from:650,to:800},
  bookstore:{from:220,to:600},
