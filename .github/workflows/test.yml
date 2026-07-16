@@ -17,6 +17,7 @@ jobs:
       - run: npm run test:migration
       - run: npm run test:save-v9
       - run: npm run test:player-crisis
+      - run: npm run test:player-crisis-actions
       - run: npm run test:load
       - run: npm run test:week
       - run: npm run test:transaction
