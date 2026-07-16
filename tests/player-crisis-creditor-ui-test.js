@@ -1,7 +1,13 @@
 const assert = require('node:assert');
 const { loadGame } = require('./harness');
 
-const { ctx, modules } = loadGame({ random: () => 0.25 });
+let seed = 0x6a4b0001;
+const random = () => {
+  seed = (Math.imul(seed, 1664525) + 1013904223) >>> 0;
+  return seed / 0x100000000;
+};
+
+const { ctx, modules } = loadGame({ random });
 const { engine, finance, playerCrisis, playerCrisisCreditorUI } = modules;
 assert.ok(playerCrisisCreditorUI?.__installed);
 assert.equal(typeof playerCrisisCreditorUI.renderSection, 'function');
