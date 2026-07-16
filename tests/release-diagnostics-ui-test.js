@@ -2,6 +2,7 @@
 
 const assert = require('node:assert/strict');
 const { URL } = require('node:url');
+const releaseCandidate = require('../release-candidate.json');
 const { readIndex, extractScripts, loadGame } = require('./harness');
 
 async function main() {
@@ -22,15 +23,15 @@ async function main() {
     'copyText','settingsVisible','enhance','handleClick','install'
   ]) assert.equal(typeof diagnostics[name], 'function', `${name} export missing`);
 
-  assert.equal(diagnostics.VERSION, '2.0.0-rc.1');
-  assert.equal(diagnostics.SAVE_KEY, 'capitalism_tycoon_web_v1');
-  assert.equal(diagnostics.SAVE_VERSION, 9);
+  assert.equal(diagnostics.VERSION, releaseCandidate.version);
+  assert.equal(diagnostics.SAVE_KEY, releaseCandidate.save.key);
+  assert.equal(diagnostics.SAVE_VERSION, releaseCandidate.save.version);
   assert.equal(diagnostics.SAFE_ENTRY, 'play.html');
 
   let reads = 0;
   const env = {
     location: {
-      href: 'https://yutaro-j31.github.io/capitalism-tycoon-web/play.html?reload=test',
+      href: `${releaseCandidate.deployment.url}play.html?reload=test`,
       pathname: '/capitalism-tycoon-web/play.html'
     },
     navigator: { userAgent: 'iPhone <WebKit>', onLine: true },
@@ -45,8 +46,8 @@ async function main() {
 
   const snapshot = diagnostics.diagnosticSnapshot(env);
   assert.equal(reads, 1);
-  assert.equal(snapshot.gameVersion, '2.0.0-rc.1');
-  assert.equal(snapshot.saveVersion, 9);
+  assert.equal(snapshot.gameVersion, releaseCandidate.version);
+  assert.equal(snapshot.saveVersion, releaseCandidate.save.version);
   assert.equal(snapshot.entrypoint, 'play.html');
   assert.equal(snapshot.launchMode, '最新版起動');
   assert.equal(snapshot.week, 27);
@@ -67,7 +68,7 @@ async function main() {
   assert.notEqual(firstKey, diagnostics.renderKey({ ...snapshot, week: 28 }));
 
   const launch = diagnostics.latestLaunchUrl({
-    location: { href: 'https://yutaro-j31.github.io/capitalism-tycoon-web/index.html?stale=1#old' },
+    location: { href: `${releaseCandidate.deployment.url}index.html?stale=1#old` },
     URL
   });
   const parsedLaunch = new URL(launch);
