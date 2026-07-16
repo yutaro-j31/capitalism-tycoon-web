@@ -1,18 +1,16 @@
-name: Phase 6B-3 Diagnostic
+name: Difficulty Scenario Balance
 'on':
+  push:
+    branches:
+      - main
   pull_request:
 jobs:
-  difficulty-scenario-matrix:
+  balance:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
-      - run: node tests/difficulty-scenario-balance-test.js > phase6b3-diagnostic.log 2>&1 || true
-      - run: node tests/phase6b3-difficulty-scenario-diagnostic.js >> phase6b3-diagnostic.log 2>&1 || true
-      - uses: actions/upload-artifact@v4
-        if: always()
-        with:
-          name: phase6b3-diagnostic
-          path: phase6b3-diagnostic.log
+      - run: node tests/difficulty-scenario-balance-test.js
+      - run: node tests/difficulty-scenario-matrix-test.js
