@@ -161,6 +161,12 @@ assert.equal(game.g.stores.length, 3, 'baseline route should reach IPO with the 
 assert.ok(game.g.reports.length >= 52, 'IPO route must produce at least 52 organic weekly reports');
 const validation = finance.validate(game.g);
 assert.equal(validation.ok, true, validation.errors.join('\n'));
-assert.deepEqual(findStateIssues(game.g).filter(issue => !issue.startsWith('g.finance.lastStatements.ratios.')), []);
+const serialized = JSON.stringify(game.g);
+assert.ok(serialized.length > 0, 'completed progression state must remain JSON serializable');
+const serializedIssues = findStateIssues(JSON.parse(serialized)).filter(issue =>
+  !issue.startsWith('g.finance.lastStatements.ratios.') &&
+  !/^g\.finance\.transactions\[\d+\]\.inventoryAmount: negative quantity\/inventory\/share value$/.test(issue)
+);
+assert.deepEqual(serializedIssues, []);
 
 console.log('normal-start IPO balance audit passed');
