@@ -1,0 +1,134 @@
+'use strict';
+
+const assert = require('node:assert/strict');
+const fs = require('node:fs');
+const http = require('node:http');
+const path = require('node:path');
+const { webkit, devices } = require('playwright');
+
+const ROOT = path.resolve(__dirname, '..');
+const ARTIFACT_DIR = path.resolve(process.env.IPHONE_WEBKIT_ARTIFACT_DIR || path.join(ROOT, 'artifacts', 'iphone-webkit-smoke'));
+const SAVE_KEY = 'capitalism_tycoon_web_v1';
+const DEVICE_NAME = 'iPhone 13';
+const MIME = new Map([
+  ['.css', 'text/css; charset=utf-8'], ['.html', 'text/html; charset=utf-8'],
+  ['.js', 'text/javascript; charset=utf-8'], ['.json', 'application/json; charset=utf-8']
+]);
+
+function requestPath(rawUrl) {
+  const pathname = decodeURIComponent(new URL(rawUrl, 'http://127.0.0.1').pathname);
+  const resolved = path.resolve(ROOT, pathname === '/' ? 'index.html' : pathname.replace(/^\/+/, ''));
+  assert.ok(resolved === ROOT || resolved.startsWith(`${ROOT}${path.sep}`), `request escaped repository root: ${pathname}`);
+  return resolved;
+}
+
+function staticServer() {
+  return http.createServer((request, response) => {
+    try {
+      const requested = requestPath(request.url || '/');
+      const target = fs.statSync(requested).isDirectory() ? path.join(requested, 'index.html') : requested;
+      const body = fs.readFileSync(target);
+      response.writeHead(200, {
+        'cache-control': 'no-store',
+        'content-length': String(body.length),
+        'content-type': MIME.get(path.extname(target).toLowerCase()) || 'application/octet-stream'
+      });
+      response.end(body);
+    } catch (error) {
+      response.writeHead(error?.code === 'ENOENT' ? 404 : 500, { 'content-type': 'text/plain; charset=utf-8' });
+      response.end(error?.code === 'ENOENT' ? 'Not found' : String(error?.message || error));
+    }
+  });
+}
+
+async function startServer(server) {
+  await new Promise((resolve, reject) => {
+    server.once('error', reject);
+    server.listen(0, '127.0.0.1', resolve);
+  });
+  const address = server.address();
+  return `http://127.0.0.1:${address.port}/`;
+}
+
+async function openTenant(page, tenantName, businessID, storeName) {
+  const card = page.locator('article.item').filter({ hasText: tenantName });
+  await card.waitFor({ state: 'visible' });
+  await card.locator('select[id^="business-"]').selectOption(businessID);
+  await card.locator('button[data-action="open-store"]').click();
+  await page.locator('#modal-text').waitFor({ state: 'visible' });
+  await page.locator('#modal-text').fill(storeName);
+  await page.locator('#modal-ok').click();
+  await page.locator('#modal-root').waitFor({ state: 'empty' });
+  await page.waitForFunction(name => document.body.innerText.includes(name), storeName);
+}
+
+async function main() {
+  fs.mkdirSync(ARTIFACT_DIR, { recursive: true });
+  const server = staticServer();
+  const baseUrl = await startServer(server);
+  const diagnostics = { consoleErrors: [], pageErrors: [], failedRequests: [] };
+  let browser;
+  let page;
+  try {
+    browser = await webkit.launch();
+    const context = await browser.newContext({
+      ...devices[DEVICE_NAME],
+      locale: 'ja-JP',
+      reducedMotion: 'reduce',
+      serviceWorkers: 'block',
+      timezoneId: 'Asia/Tokyo'
+    });
+    page = await context.newPage();
+    page.on('console', message => message.type() === 'error' && diagnostics.consoleErrors.push(message.text()));
+    page.on('pageerror', error => diagnostics.pageErrors.push(error.message));
+    page.on('requestfailed', request => diagnostics.failedRequests.push(`${request.method()} ${request.url()} ${request.failure()?.errorText || ''}`));
+
+    await page.goto(baseUrl, { waitUntil: 'networkidle', timeout: 30_000 });
+    await page.locator('#setup-form input[name="playerName"]').fill('悠太郎');
+    await page.locator('#setup-form input[name="companyName"]').fill('YTR');
+    await page.locator('#setup-form select[name="founderPrefID"]').selectOption('fukuoka');
+    await page.locator('#setup-form select[name="founderTraitID"]').selectOption('merchant');
+    await page.locator('#setup-form').evaluate(form => form.requestSubmit());
+    await page.locator('.topbar').waitFor({ state: 'visible', timeout: 20_000 });
+
+    await page.locator('button[data-action="tab"][data-tab="map"]').click();
+    await page.locator('select[data-bind="selectedPref"]').selectOption('fukuoka');
+    await openTenant(page, '福岡 駅前1階テナント', 'ramen', 'YTR 福岡ラーメン');
+    await openTenant(page, '福岡 商店街角地テナント', 'cafe', 'YTR 福岡カフェ');
+
+    const before = JSON.parse(await page.evaluate(key => localStorage.getItem(key), SAVE_KEY));
+    assert.equal(before.week, 1);
+    assert.equal(before.stores.length, 2);
+
+    await page.locator('button[data-action="advance-week"]').click();
+    const summary = page.locator('#modal-root .summary-modal');
+    await summary.waitFor({ state: 'visible', timeout: 30_000 });
+    assert.match(await summary.innerText(), /第2週/);
+    assert.match(await summary.innerText(), /週間経営レポート/);
+    assert.match(await page.locator('.topbar').innerText(), /第2週/);
+
+    const after = JSON.parse(await page.evaluate(key => localStorage.getItem(key), SAVE_KEY));
+    assert.equal(after.week, 2);
+    assert.equal(after.stores.length, 2);
+    assert.ok(after.lastWeeklySummary && after.lastWeeklySummary.week === 2);
+    assert.deepEqual(diagnostics, { consoleErrors: [], pageErrors: [], failedRequests: [] });
+
+    await page.screenshot({ path: path.join(ARTIFACT_DIR, 'two-store-first-week.png'), fullPage: true });
+    fs.writeFileSync(path.join(ARTIFACT_DIR, 'two-store-first-week.json'), `${JSON.stringify({ status:'passed', beforeWeek:before.week, afterWeek:after.week, stores:after.stores.length }, null, 2)}\n`);
+    console.log('two-store iPhone WebKit first-week regression passed');
+  } catch (error) {
+    if (page) {
+      try { await page.screenshot({ path: path.join(ARTIFACT_DIR, 'two-store-first-week-failure.png'), fullPage: true }); } catch (_) {}
+    }
+    fs.writeFileSync(path.join(ARTIFACT_DIR, 'two-store-first-week.json'), `${JSON.stringify({ status:'failed', error:error?.stack || String(error), ...diagnostics }, null, 2)}\n`);
+    throw error;
+  } finally {
+    if (browser) await browser.close();
+    await new Promise(resolve => server.close(resolve));
+  }
+}
+
+main().catch(error => {
+  console.error(error?.stack || error);
+  process.exit(1);
+});
