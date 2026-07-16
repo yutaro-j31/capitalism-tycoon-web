@@ -1,0 +1,31 @@
+name: Phase 6A-2D Diagnostic
+on:
+  push:
+    branches: [ chatgpt/phase-6a2d-crisis-disposition-ui ]
+  pull_request:
+jobs:
+  crisis-ui:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Capture crisis UI test
+        shell: bash
+        run: |
+          set +e
+          npm run test:player-crisis-ui > crisis-ui-test.log 2>&1
+          echo "$?" > crisis-ui-test.status
+          exit 0
+      - uses: actions/upload-artifact@v4
+        with:
+          name: phase6a2d-crisis-ui-log
+          path: |
+            crisis-ui-test.log
+            crisis-ui-test.status
+      - name: Enforce result
+        shell: bash
+        run: |
+          cat crisis-ui-test.log
+          test "$(cat crisis-ui-test.status)" = "0"
