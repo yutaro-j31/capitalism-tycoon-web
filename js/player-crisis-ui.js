@@ -13,6 +13,6 @@ function render(){pending=false;if(!instance||!instance.g?.configured)return;con
 function schedule(){if(pending)return;pending=true;queueMicrotask(render);}
 EngineClass.load=function(){instance=originalLoad();instance.addEventListener('change',schedule);instance.addEventListener('week',schedule);schedule();return instance;};
 document.addEventListener('click',event=>{const button=event.target.closest('[data-crisis-action]');if(!button||button.disabled||!instance)return;if(button.dataset.crisisAction==='founder'){const available=Math.floor(Number(instance.g.personalCash)||0),raw=globalThis.prompt('会社へ注入する金額（円）',String(Math.min(available,3_000_000)));if(raw==null)return;const amount=Math.floor(Number(String(raw).replace(/,/g,'')));if(Number.isFinite(amount))instance.injectFounderCapital(amount);}else if(button.dataset.crisisAction==='bridge'&&globalThis.confirm('緊急ブリッジローンを実行しますか？'))instance.requestEmergencyBridgeLoan();schedule();});
-new MutationObserver(schedule).observe(document.documentElement,{childList:true,subtree:true});
+const appRoot=document.querySelector('#app');if(!appRoot)throw new Error('#app root is required before player-crisis-ui.js.');new MutationObserver(schedule).observe(appRoot,{childList:true});
 modules.playerCrisisUI=Object.freeze({render,schedule,__installed:true});
 })();
