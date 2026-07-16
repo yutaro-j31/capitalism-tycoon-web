@@ -57,3 +57,4 @@ assert.equal(restored.g.playerTurnaroundPlan.status, 'completed');
 assert.equal(restored.g.playerTurnaroundPlan.history.length, 1);
 assert.deepEqual(findStateIssues(restored.g).filter(x => !x.startsWith('g.finance.lastStatements.ratios.')), []);
 console.log('player turnaround plan tests passed');
+require('./player-turnaround-plan-ui-test');

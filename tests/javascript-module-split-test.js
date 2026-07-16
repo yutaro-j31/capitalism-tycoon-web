@@ -13,7 +13,7 @@ function expectThrow(fn, re) {
 const expected = [
   './js/runtime.js','./js/data.js','./js/workforce.js','./js/supply.js','./js/competitor.js','./js/competitor-projects.js','./js/competitor-entry.js','./js/competitor-credit.js','./js/competitor-distress.js','./js/competitor-terminal-compat.js',
   './js/market.js','./js/finance.js','./js/engine.js','./js/save-v9.js','./js/expansion.js','./js/competitor-media.js','./js/completion.js','./js/parity.js','./js/competitor-parity.js','./js/competitor-dashboard.js','./js/competitor-dashboard-status.js','./js/competitor-dashboard-ui.js',
-  './js/player-crisis-ui.js','./js/app.js','./js/player-crisis.js','./js/player-crisis-actions.js','./js/player-crisis-restructuring.js','./js/player-crisis-creditor.js','./js/player-debt-service.js','./js/player-turnaround-plan.js','./js/player-crisis-creditor-ui.js'
+  './js/player-crisis-ui.js','./js/app.js','./js/player-crisis.js','./js/player-crisis-actions.js','./js/player-crisis-restructuring.js','./js/player-crisis-creditor.js','./js/player-debt-service.js','./js/player-turnaround-plan.js','./js/player-crisis-creditor-ui.js','./js/player-turnaround-plan-ui.js'
 ];
 const scripts = extractScripts(readIndex()).filter(script => script.src);
 const bySrc = new Map(scripts.map(script => [script.src, script]));
@@ -23,15 +23,16 @@ const freshWith = srcs => { const context = createBrowserContext(); for (const s
 
 assert(JSON.stringify(scripts.map(script => script.src)) === JSON.stringify(expected), `script order mismatch: ${scripts.map(script => script.src).join(', ')}`);
 assert(expected[0] === './js/runtime.js', 'runtime.js must be first');
-assert(expected.at(-9) === './js/player-crisis-ui.js', 'player-crisis-ui.js must precede app.js');
-assert(expected.at(-8) === './js/app.js', 'app.js must compose the engine before crisis modules');
-assert(expected.at(-7) === './js/player-crisis.js', 'player-crisis.js must precede crisis actions');
-assert(expected.at(-6) === './js/player-crisis-actions.js', 'player-crisis-actions.js must precede restructuring');
-assert(expected.at(-5) === './js/player-crisis-restructuring.js', 'restructuring must precede creditor negotiation');
-assert(expected.at(-4) === './js/player-crisis-creditor.js', 'creditor negotiation must precede weekly debt service');
-assert(expected.at(-3) === './js/player-debt-service.js', 'weekly debt service must precede turnaround planning');
-assert(expected.at(-2) === './js/player-turnaround-plan.js', 'turnaround planning must precede creditor UI');
-assert(expected.at(-1) === './js/player-crisis-creditor-ui.js', 'creditor UI must be the final crisis extension');
+assert(expected.at(-10) === './js/player-crisis-ui.js', 'player-crisis-ui.js must precede app.js');
+assert(expected.at(-9) === './js/app.js', 'app.js must compose the engine before crisis modules');
+assert(expected.at(-8) === './js/player-crisis.js', 'player-crisis.js must precede crisis actions');
+assert(expected.at(-7) === './js/player-crisis-actions.js', 'player-crisis-actions.js must precede restructuring');
+assert(expected.at(-6) === './js/player-crisis-restructuring.js', 'restructuring must precede creditor negotiation');
+assert(expected.at(-5) === './js/player-crisis-creditor.js', 'creditor negotiation must precede weekly debt service');
+assert(expected.at(-4) === './js/player-debt-service.js', 'weekly debt service must precede turnaround planning');
+assert(expected.at(-3) === './js/player-turnaround-plan.js', 'turnaround planning must precede crisis UI extensions');
+assert(expected.at(-2) === './js/player-crisis-creditor-ui.js', 'creditor UI must precede turnaround plan UI');
+assert(expected.at(-1) === './js/player-turnaround-plan-ui.js', 'turnaround plan UI must be the final crisis extension');
 for (const script of scripts) {
   assert(fs.existsSync(script.file), `${script.src} missing`);
   const buffer = fs.readFileSync(script.file);
@@ -66,7 +67,7 @@ assert(modules && typeof modules === 'object', 'registry missing');
 assert(Object.prototype.propertyIsEnumerable.call(ctx, '__capitalismTycoonModules') === false, 'registry must be non-enumerable');
 assert(ctx.loadCalls === 1, `TycoonEngine.load expected once, got ${ctx.loadCalls}`);
 assert(ctx.renderEvents === 1, `initial render expected once, got ${ctx.renderEvents}`);
-assert(listenerRegistrations >= 5, 'expected UI event listeners');
+assert(listenerRegistrations >= 6, 'expected UI event listeners');
 
 const requiredExports = {
   data:['MASTER','PRODUCT_BLUEPRINTS','LUXURY_OFFERS','PERSONAL_INVESTMENT_OFFERS','OVERSEAS_COUNTRIES','SPORTS_TEAMS','MISSION_DEFS'],
@@ -86,7 +87,8 @@ const requiredExports = {
   playerCrisisCreditor:['NEGOTIATION_TYPES','ELIGIBLE_STATUSES','HISTORY_LIMIT','COOLDOWN_WEEKS','DEFERRAL_WEEKS','EXTENSION_WEEKS','FAILURE_CREDIT_PENALTY','ensure','activeLoans','approvalChance','options','findCandidate','hashRoll','validate','__installed'],
   playerDebtService:['ordinaryRate','negotiatedRate','weeklyRate','weeklyInterest','inWeeklyContext','shadowWithoutNegotiatedDiscounts','__installed'],
   playerTurnaroundPlan:['STATUSES','ELIGIBLE_STATUSES','HISTORY_LIMIT','TERM_WEEKS','ensure','start','cancel','evaluate','snapshot','metrics','validate','__installed'],
-  playerCrisisCreditorUI:['renderSection','enhance','bindEngine','handleClick','findCandidate','LABELS','__installed']
+  playerCrisisCreditorUI:['renderSection','enhance','bindEngine','handleClick','findCandidate','LABELS','__installed'],
+  playerTurnaroundPlanUI:['renderSection','standalone','enhance','bindEngine','handleClick','startPreview','latestHistory','STATUS_LABELS','__installed']
 };
 for (const [name, keys] of Object.entries(requiredExports)) {
   assert(modules[name], `${name} module missing`);
@@ -99,6 +101,7 @@ assert(modules.competitor.dashboard.__marketStatusNormalized === true, 'competit
 assert(typeof modules.competitor.dashboardUI.render === 'function', 'competitor dashboard UI renderer missing');
 assert(typeof modules.playerCrisisUI.handleClick === 'function', 'player crisis UI action wiring missing');
 assert(typeof modules.playerCrisisCreditorUI.handleClick === 'function', 'creditor negotiation UI action wiring missing');
+assert(typeof modules.playerTurnaroundPlanUI.handleClick === 'function', 'turnaround plan UI action wiring missing');
 const afterGlobals = Object.getOwnPropertyNames(ctx).filter(key => !beforeGlobals.has(key) && key !== 'loadCalls' && key !== 'renderEvents');
 assert(JSON.stringify(afterGlobals) === JSON.stringify(['__capitalismTycoonModules']), `unexpected globals: ${afterGlobals.join(', ')}`);
 
@@ -128,11 +131,12 @@ expectThrow(() => run(freshWith(prefix('./js/player-crisis-actions.js')), './js/
 expectThrow(() => run(freshWith(prefix('./js/player-crisis-restructuring.js')), './js/player-debt-service.js'), /player-crisis-creditor\.js/);
 expectThrow(() => run(freshWith(prefix('./js/player-crisis-creditor.js')), './js/player-turnaround-plan.js'), /player-debt-service\.js/);
 expectThrow(() => run(freshWith(prefix('./js/player-crisis-restructuring.js')), './js/player-crisis-creditor-ui.js'), /player-crisis-creditor\.js/);
+expectThrow(() => run(freshWith(prefix('./js/player-turnaround-plan.js')), './js/player-turnaround-plan-ui.js'), /player-crisis-creditor-ui\.js/);
 
 const duplicateRegistration = /already (?:installed|registered|normalized)/;
 for (const src of [
   './js/save-v9.js','./js/competitor-media.js','./js/competitor-parity.js','./js/competitor-dashboard.js','./js/competitor-dashboard-status.js','./js/competitor-dashboard-ui.js',
-  './js/player-crisis-ui.js','./js/player-crisis.js','./js/player-crisis-actions.js','./js/player-crisis-restructuring.js','./js/player-crisis-creditor.js','./js/player-debt-service.js','./js/player-turnaround-plan.js','./js/player-crisis-creditor-ui.js','./js/competitor-terminal-compat.js','./js/competitor-distress.js','./js/data.js'
+  './js/player-crisis-ui.js','./js/player-crisis.js','./js/player-crisis-actions.js','./js/player-crisis-restructuring.js','./js/player-crisis-creditor.js','./js/player-debt-service.js','./js/player-turnaround-plan.js','./js/player-crisis-creditor-ui.js','./js/player-turnaround-plan-ui.js','./js/competitor-terminal-compat.js','./js/competitor-distress.js','./js/data.js'
 ]) expectThrow(() => run(ctx, src), duplicateRegistration);
 
 fs.writeFileSync(path.join(ROOT, 'tests', 'fixtures', 'module-load-order.json'), JSON.stringify({ scripts: expected }, null, 2) + '\n');
