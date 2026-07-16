@@ -1,9 +1,24 @@
-const { SCENARIOS, runMatrix } = require('./strategy-balance-runner');
+const path = require('node:path');
+const { spawnSync } = require('node:child_process');
+const { SCENARIOS, SEEDS } = require('./strategy-balance-runner');
 
-const results = runMatrix();
-for (const result of results) {
-  const { state, modules, ...summary } = result;
-  console.log(`STRATEGY_RESULT ${JSON.stringify(summary)}`);
+const caseScript = path.join(__dirname, 'strategy-balance-case.js');
+const results = [];
+for (const scenario of SCENARIOS) {
+  for (const seed of SEEDS) {
+    const child = spawnSync(process.execPath, [caseScript, scenario.id, String(seed)], {
+      encoding: 'utf8',
+      maxBuffer: 16 * 1024 * 1024
+    });
+    if (child.status !== 0) {
+      process.stderr.write(child.stdout || '');
+      process.stderr.write(child.stderr || '');
+      throw new Error(`strategy case failed: ${scenario.id} seed ${seed}`);
+    }
+    const result = JSON.parse(child.stdout.trim().split(/\r?\n/).at(-1));
+    results.push(result);
+    console.log(`STRATEGY_RESULT ${JSON.stringify(result)}`);
+  }
 }
 const summary = SCENARIOS.map(scenario => {
   const rows = results.filter(result => result.id === scenario.id);
