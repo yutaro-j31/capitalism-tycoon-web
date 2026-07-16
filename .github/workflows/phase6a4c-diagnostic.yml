@@ -1,0 +1,26 @@
+name: Phase 6A-4C Diagnostic
+on:
+  pull_request:
+    branches: [ main ]
+jobs:
+  weekly-debt-service:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Capture focused output
+        shell: bash
+        run: |
+          set +e
+          node tests/player-debt-service-hook-test.js > phase6a4c-diagnostic.log 2>&1
+          status=$?
+          echo "exit_status=$status" >> phase6a4c-diagnostic.log
+          exit 0
+      - name: Upload diagnostic log
+        uses: actions/upload-artifact@v4
+        with:
+          name: phase6a4c-diagnostic-log
+          path: phase6a4c-diagnostic.log
+          retention-days: 1
