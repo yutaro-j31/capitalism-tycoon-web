@@ -1,5 +1,7 @@
 'use strict';
 
+require('../tests/release-gate-wiring-test.js');
+
 const { spawnSync } = require('node:child_process');
 
 const gates = [
