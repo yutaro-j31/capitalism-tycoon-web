@@ -54,7 +54,11 @@ function reconcileOpeningFinance(state){
 function addHistory(state,p,kind,message){const operationID=`scenario-${integer(state.week)}-${kind}`;if(p.history.some(row=>row.operationID===operationID))return false;p.history.push({week:integer(state.week),kind,status:p.status,message:text(message),operationID});p.history=p.history.slice(-HISTORY_LIMIT);const line=`第${integer(state.week)}週：${text(message)}`;state.news=[line,...(Array.isArray(state.news)?state.news:[]).filter(row=>String(row)!==line)].slice(0,300);return true;}
 function snapshot(state){const p=ensure(state),profile=scenarioProfile(p.scenario),week=integer(state.week);return Object.freeze({scenario:profile.id,label:profile.label,status:p.status,targetIPOWeek:p.targetIPOWeek,weeksRemaining:profile.targetIPOWeek==null?null:Math.max(0,profile.targetIPOWeek-week),completedWeek:p.completedWeek,score:p.score,grade:p.grade});}
 function evaluate(state){
- const p=ensure(state),week=integer(state.week);if(p.lastEvaluationWeek===week)return snapshot(state);p.lastEvaluationWeek=week;if(p.scenario==='free')return snapshot(state);
+ const p=ensure(state),week=integer(state.week);
+ const completionPending=p.scenario==='standard'&&Boolean(state.publicCompany)&&!p.history.some(row=>row.kind==='completed');
+ if(p.lastEvaluationWeek===week&&!completionPending)return snapshot(state);
+ p.lastEvaluationWeek=week;
+ if(p.scenario==='free')return snapshot(state);
  if(state.publicCompany){if(p.completedWeek==null)p.completedWeek=week;p.status='completed';p.score=scoreForWeek(p.completedWeek);p.grade=gradeForWeek(p.completedWeek);addHistory(state,p,'completed',`標準シナリオのIPO目標を第${p.completedWeek}週に達成しました。評価${p.grade}（${p.score}点）。`);}else{p.status=week>STANDARD_TARGET_WEEK?'overdue':'active';if(WARNING_WEEKS.includes(week)&&!p.notifiedWeeks.includes(week)){p.notifiedWeeks.push(week);const remaining=Math.max(0,STANDARD_TARGET_WEEK-week);addHistory(state,p,'checkpoint',remaining>0?`標準シナリオのIPO目標まで残り${remaining}週です。`:'標準シナリオのIPO目標週に到達しました。次週から期限超過として記録されます。');}if(p.status==='overdue')addHistory(state,p,'overdue',`標準シナリオのIPO目標（第${STANDARD_TARGET_WEEK}週）を超過しました。IPO後に最終評価を確定します。`);}
  return snapshot(state);
 }
