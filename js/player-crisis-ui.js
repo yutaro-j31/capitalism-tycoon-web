@@ -1,4 +1,4 @@
-// Phase 6A-2B: mobile-safe player crisis response panel and action wiring.
+// Phase 6A-2D: mobile-safe player crisis response panel, liquidity actions, and guided restructuring.
 (function(){'use strict';
 if(!globalThis.__capitalismTycoonModules)throw new Error('Capitalism Tycoon runtime.js must be loaded before player-crisis-ui.js.');
 const modules=globalThis.__capitalismTycoonModules;
@@ -15,6 +15,7 @@ const PANEL_END='<!--player-crisis-ui:end-->';
 const PANEL_PATTERN=/<!--player-crisis-ui:start-->[\s\S]*?<!--player-crisis-ui:end-->/g;
 const STATUS_LABELS=Object.freeze({stable:'安定',watch:'資金繰り注意',distressed:'資金繰り危機',turnaround:'再建中',recovered:'回復確認中',insolvent:'支払不能'});
 const REASON_LABELS=Object.freeze({negativeCash:'現金残高がマイナス',lowReserve:'必要運転資金を下回る',losses:'赤字が継続',highLeverage:'負債負担が高い',missedPayments:'支払遅延',recovery:'流動性が改善',insolvency:'猶予期間終了'});
+const DISPOSITION_LABELS=Object.freeze({store:'店舗閉鎖',property:'会社不動産売却',product:'プロダクト売却'});
 const RECOVERY_CONFIRMATION_WEEKS=2;
 
 let activeEngine=null;
@@ -40,6 +41,19 @@ function reasonText(snapshot){
  if(mapped.length)return mapped.join('・');
  return String(snapshot.reason||'資金繰り指標を監視中');
 }
+function restructuringSection(instance){
+ if(typeof instance?.crisisRestructuringOptions!=='function')return '';
+ const options=instance.crisisRestructuringOptions();
+ const recommended=Array.isArray(options?.recommended)?options.recommended.slice(0,3):[];
+ if(!options?.eligible||recommended.length===0)return '';
+ const rows=recommended.map(row=>{
+  const weekly=finite(row.weeklyProfit);
+  const weeklyText=weekly<0?`週次損失 ${compactYen(Math.abs(weekly))}`:`週次利益 ${compactYen(weekly)}`;
+  const type=DISPOSITION_LABELS[row.type]||row.type;
+  return `<article class="item crisis-disposition-item"><div><h3>${esc(row.name)}</h3><p>${esc(type)} · 想定回収 ${esc(compactYen(row.expectedCash))}</p></div><div class="item-metrics"><span>${esc(weeklyText)}</span></div><button class="btn secondary" data-player-crisis-action="dispose-asset" data-disposition-type="${esc(row.type)}" data-disposition-id="${esc(row.id)}">整理を検討</button></article>`;
+ }).join('');
+ return `<details class="learning-card crisis-restructuring-card" open><summary>事業整理候補 · 資金不足 ${esc(compactYen(options.liquidityGap))}</summary><p>赤字事業や換金可能資産を優先表示します。実行前に確認画面を表示します。</p><div class="grid two">${rows}</div></details>`;
+}
 function render(state,instance=activeEngine){
  if(!ready()||!state||!instance||typeof instance.crisisLiquidityOptions!=='function')return '';
  const snapshot=modules.playerCrisis.snapshot(state);
@@ -58,6 +72,7 @@ function render(state,instance=activeEngine){
   ?`再申請まで${integer(options.bridgeCooldownWeeksRemaining)}週`
   :`利用可能枠 ${compactYen(options.availableCredit)}`;
  const history=(state.playerCrisisActions?.history||[]).slice(-3).reverse().map(row=>`<div class="news-line">第${integer(row.week)}週 · ${row.type==='founderCapital'?'創業者資本注入':'緊急融資'} ${compactYen(row.amount)}</div>`).join('');
+ const restructuring=restructuringSection(instance);
  return `${PANEL_START}<section class="card player-crisis-panel" id="player-crisis-panel" aria-live="polite">
   <div class="card-head"><div><h2>資金繰り危機対応</h2><p>会社の流動性、猶予期間、利用可能な回復策を表示します。</p></div>${badge(status,statusKind(snapshot.status))}</div>
   <div class="card-body">
@@ -71,6 +86,7 @@ function render(state,instance=activeEngine){
     <article class="item"><div><h3>創業者資金を注入</h3><p>個人資金を会社の資本へ振り替えます。利益や負債は発生しません。</p><label class="field"><span>注入額</span><input id="player-crisis-founder-amount" type="number" inputmode="numeric" min="10000" step="10000" value="${founderAmount}" ${options.canInjectFounder?'':'disabled'}></label></div><div class="item-metrics"><span>個人資金 ${compactYen(options.founderAvailable)}</span></div>${button('資本注入を実行','founder-capital',{disabled:!options.canInjectFounder||founderAmount<=0})}</article>
     <article class="item"><div><h3>緊急ブリッジローン</h3><p>既存与信枠の範囲で、必要準備額までの短期資金を調達します。</p></div><div class="item-metrics"><span>予定額 ${compactYen(options.bridgeAmount)}</span><span>${esc(bridgeSub)}</span></div>${button('緊急融資を申請','emergency-bridge',{kind:'secondary',disabled:!options.canRequestBridge})}</article>
    </div>
+   ${restructuring}
    ${history?`<details class="learning-card"><summary>直近の危機対応履歴</summary>${history}</details>`:''}
   </div>
  </section>${PANEL_END}`;
@@ -94,9 +110,15 @@ function scheduleEnhance(){
  if(typeof queueMicrotask==='function')queueMicrotask(run);else setTimeout(run,0);
 }
 function bindEngine(instance){activeEngine=instance;scheduleEnhance();setTimeout(scheduleEnhance,0);return instance;}
+function findDispositionCandidate(type,id){
+ if(!activeEngine||typeof activeEngine.crisisRestructuringOptions!=='function')return null;
+ const options=activeEngine.crisisRestructuringOptions();
+ const rows=({store:options.stores,property:options.properties,product:options.products})[type];
+ return Array.isArray(rows)?rows.find(row=>String(row.id)===String(id))||null:null;
+}
 function handleClick(event){
  const target=event?.target?.closest?.('[data-player-crisis-action]');
- if(!target||!activeEngine)return false;
+ if(!target||target.disabled||!activeEngine)return false;
  event.preventDefault?.();event.stopPropagation?.();
  const action=target.dataset.playerCrisisAction;
  let result=false;
@@ -104,6 +126,15 @@ function handleClick(event){
   const input=document.getElementById('player-crisis-founder-amount');
   result=activeEngine.injectFounderCapital(Number(input?.value));
  }else if(action==='emergency-bridge')result=activeEngine.requestEmergencyBridgeLoan();
+ else if(action==='dispose-asset'){
+  const type=String(target.dataset.dispositionType||''),id=String(target.dataset.dispositionId||'');
+  const candidate=findDispositionCandidate(type,id);
+  if(!candidate||typeof activeEngine.executeCrisisDisposition!=='function')return false;
+  const typeLabel=DISPOSITION_LABELS[type]||type;
+  const message=`${candidate.name}を${typeLabel}します。想定回収額は${compactYen(candidate.expectedCash)}です。実行後は元に戻せません。`;
+  if(typeof globalThis.confirm!=='function'||!globalThis.confirm(message))return false;
+  result=activeEngine.executeCrisisDisposition(type,id);
+ }
  if(result)scheduleEnhance();
  return Boolean(result);
 }
@@ -116,5 +147,5 @@ function install(){
 const baseLoad=EngineClass.load.bind(EngineClass);
 EngineClass.load=function(...args){const instance=bindEngine(baseLoad(...args));install();return instance;};
 install();
-modules.playerCrisisUI=Object.freeze({render,enhance,bindEngine,handleClick,install,stripPanel,STATUS_LABELS,REASON_LABELS,__installed:true});
+modules.playerCrisisUI=Object.freeze({render,enhance,bindEngine,handleClick,install,stripPanel,findDispositionCandidate,STATUS_LABELS,REASON_LABELS,DISPOSITION_LABELS,__installed:true});
 })();
