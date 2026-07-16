@@ -28,6 +28,7 @@
     "./js/player-crisis-actions.js",
     "./js/player-crisis-restructuring.js",
     "./js/player-crisis-creditor.js",
+    "./js/player-debt-service.js",
     "./js/player-crisis-creditor-ui.js"
   ]
 }

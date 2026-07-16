@@ -16,6 +16,7 @@
     "test:player-crisis-restructuring": "node tests/player-crisis-restructuring-test.js && node tests/player-crisis-cost-restructuring-test.js && node tests/player-crisis-creditor-negotiation-test.js",
     "test:player-crisis-creditor": "node tests/player-crisis-creditor-negotiation-test.js",
     "test:player-crisis-restructuring-ui": "node tests/player-crisis-restructuring-ui-test.js && node tests/player-crisis-cost-restructuring-ui-test.js && node tests/player-crisis-creditor-ui-test.js",
+    "test:player-debt-service": "node tests/player-debt-service-hook-test.js",
     "test:load": "node tests/save-load-integration-test.js",
     "test:week": "node tests/week-test.js",
     "test:long": "node tests/long-run-test.js",

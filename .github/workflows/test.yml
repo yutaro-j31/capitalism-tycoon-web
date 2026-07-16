@@ -21,6 +21,7 @@ jobs:
       - run: npm run test:player-crisis-ui
       - run: npm run test:player-crisis-restructuring
       - run: npm run test:player-crisis-restructuring-ui
+      - run: node tests/player-debt-service-hook-test.js
       - run: npm run test:load
       - run: npm run test:week
       - run: npm run test:transaction

@@ -2,9 +2,10 @@ const assert = require('node:assert');
 const { loadGame, findStateIssues } = require('./harness');
 
 const { modules } = loadGame();
-const { engine, finance, playerCrisis, playerCrisisCreditor } = modules;
+const { engine, finance, playerCrisis, playerCrisisCreditor, playerDebtService } = modules;
 
 assert.ok(playerCrisisCreditor?.__installed, 'player crisis creditor module must be registered');
+assert.ok(playerDebtService?.__installed, 'weekly debt service module must be registered');
 assert.deepEqual([...playerCrisisCreditor.NEGOTIATION_TYPES], ['principalDeferral', 'maturityExtension', 'interestReduction']);
 assert.equal(typeof engine.TycoonEngine.prototype.crisisCreditorNegotiationOptions, 'function');
 assert.equal(typeof engine.TycoonEngine.prototype.executeCrisisCreditorNegotiation, 'function');
@@ -80,12 +81,14 @@ const rateCandidate = playerCrisisCreditor.findCandidate(rateGame, 'interestRedu
 assert.ok(rateCandidate);
 assert.ok(rateCandidate.approvalChance >= 0.12 && rateCandidate.approvalChance <= 0.92);
 const borrowRateBefore = rateGame.companyBorrowRate();
+const weeklyRateBefore = rateGame.companyWeeklyBorrowRate();
 const loanRateBefore = rateLoan.interestRate;
 assert.equal(rateGame.executeCrisisCreditorNegotiation('interestReduction', rateLoan.loanID), true);
 const rateHistory = rateGame.g.playerCrisisCreditor.history.at(-1);
 assert.equal(rateHistory.success, true, 'loan-10 deterministic rate negotiation should succeed');
 assert.ok(rateLoan.interestRate < loanRateBefore);
-assert.ok(rateGame.companyBorrowRate() < borrowRateBefore, 'negotiated rate discount must reduce actual weekly borrowing rate');
+assert.equal(rateGame.companyBorrowRate(), borrowRateBefore, 'negotiated relief must not lower ordinary borrowing quotes');
+assert.ok(rateGame.companyWeeklyBorrowRate() < weeklyRateBefore, 'negotiated rate discount must reduce weekly debt-service rate');
 assert.equal(rateGame.crisisCreditorNegotiationOptions().loans[0].cooldownWeeksRemaining, playerCrisisCreditor.COOLDOWN_WEEKS);
 assert.equal(rateGame.executeCrisisCreditorNegotiation('interestReduction', rateLoan.loanID), false, 'same-loan negotiation must respect cooldown');
 assert.equal(finance.validate(rateGame.g).ok, true, finance.validate(rateGame.g).errors.join(' / '));
@@ -128,7 +131,8 @@ assert.equal(failureGame.executeCrisisCreditorNegotiation('interestReduction', f
 
 const restored = new engine.TycoonEngine(JSON.parse(JSON.stringify(rateGame.g)));
 assert.equal(restored.g.playerCrisisCreditor.history.length, 1);
-assert.ok(restored.companyBorrowRate() < borrowRateBefore);
+assert.equal(restored.companyBorrowRate(), borrowRateBefore);
+assert.ok(restored.companyWeeklyBorrowRate() < restored.companyBorrowRate());
 assert.doesNotThrow(() => playerCrisisCreditor.validate(restored.g));
 assert.equal(finance.validate(restored.g).ok, true, finance.validate(restored.g).errors.join(' / '));
 
