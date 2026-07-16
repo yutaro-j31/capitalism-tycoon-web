@@ -6,12 +6,12 @@ const { readIndex, extractScripts, loadGame } = require('./harness');
 
 async function main() {
   const index = readIndex();
-  const inline = extractScripts(index).find(script => Object.prototype.hasOwnProperty.call(script.parsedAttrs, 'data-release-diagnostics-ui'));
-  assert.ok(inline, 'release diagnostics inline module must be present');
-  assert.match(inline.code, /data-release-diagnostics-card/);
-  assert.match(inline.code, /最新版で再起動/);
-  assert.match(inline.code, /診断情報をコピー/);
-  assert.doesNotMatch(inline.code, /localStorage\.setItem|localStorage\.removeItem|localStorage\.clear/,
+  const moduleScript = extractScripts(index).find(script => script.src === './js/release-diagnostics-ui.js');
+  assert.ok(moduleScript, 'release diagnostics module must be loaded from index.html');
+  assert.match(moduleScript.code, /data-release-diagnostics-card/);
+  assert.match(moduleScript.code, /最新版で再起動/);
+  assert.match(moduleScript.code, /診断情報をコピー/);
+  assert.doesNotMatch(moduleScript.code, /localStorage\.setItem|localStorage\.removeItem|localStorage\.clear/,
     'diagnostics UI must never mutate save storage');
 
   const { modules } = loadGame();
@@ -59,7 +59,7 @@ async function main() {
   assert.match(html, /起動・診断情報/);
   assert.match(html, /第27週/);
   assert.match(html, /最新版起動/);
-  assert.ok(!html.includes('<WebKit>'), 'diagnostics HTML must escape user agent data');
+  assert.ok(!html.includes('<WebKit>'), 'diagnostics HTML must not expose unescaped support data');
 
   const firstKey = diagnostics.renderKey(snapshot);
   const secondKey = diagnostics.renderKey({ ...snapshot });
