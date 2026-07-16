@@ -17,7 +17,10 @@ function seededRandom(seed) {
 function clone(value) { return JSON.parse(JSON.stringify(value)); }
 function snapshot(g, randomCalls) {
   const legacyWeeklySummary = clone(g.lastWeeklySummary);
-  if (legacyWeeklySummary) delete legacyWeeklySummary.crisis;
+  if (legacyWeeklySummary) {
+    delete legacyWeeklySummary.crisis;
+    delete legacyWeeklySummary.scenario;
+  }
   return clone({
     randomCalls,
     week: g.week,

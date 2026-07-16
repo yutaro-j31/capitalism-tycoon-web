@@ -1,0 +1,139 @@
+const assert = require('node:assert');
+const path = require('node:path');
+const { spawnSync } = require('node:child_process');
+const { SCENARIOS, SEEDS } = require('./strategy-balance-runner');
+
+const STRATEGY_IDS = Object.freeze(['ramen-bootstrap','cafe-bootstrap','conveni-leverage','real-estate-agency','web-agency']);
+const DIFFICULTIES = Object.freeze(['easy','normal','hard']);
+const GAME_SCENARIOS = Object.freeze(['free','standard']);
+const ECONOMIC_KEYS = Object.freeze(['ipo','ipoWeek','gameOver','week','stores','openStores','cash','debt','value','annualProfit','reports','calibratedDemand']);
+const EXPECTED_START = Object.freeze({easy:[12_000_000,70],normal:[8_000_000,60],hard:[6_000_000,50]});
+const strategies = STRATEGY_IDS.map(id => SCENARIOS.find(row => row.id === id));
+const caseScript = path.join(__dirname, 'difficulty-scenario-case.js');
+const results = [];
+
+function close(actual, expected, tolerance = 1e-8) {
+  return Math.abs(Number(actual) - Number(expected)) <= tolerance * Math.max(1, Math.abs(Number(expected)));
+}
+function expectedGrade(week) {
+  return week <= 78 ? 'S' : week <= 104 ? 'A' : week <= 130 ? 'B' : week <= 156 ? 'C' : week <= 208 ? 'D' : 'E';
+}
+function expectedScore(week) {
+  return Math.max(0, Math.min(100, Math.round(100 - Math.max(0, week - 52) * 100 / 156)));
+}
+function runCase(strategy, difficulty, gameScenario, seed) {
+  const child = spawnSync(process.execPath, [caseScript, strategy.id, difficulty, gameScenario, String(seed)], {
+    encoding:'utf8',
+    maxBuffer:16 * 1024 * 1024,
+    timeout:180_000
+  });
+  if (child.error || child.status !== 0) {
+    process.stderr.write(child.stdout || '');
+    process.stderr.write(child.stderr || '');
+    throw child.error || new Error(`case failed: ${strategy.id}/${difficulty}/${gameScenario}/${seed}`);
+  }
+  return JSON.parse(child.stdout.trim().split(/\r?\n/).at(-1));
+}
+
+for (const strategy of strategies) {
+  for (const difficulty of DIFFICULTIES) {
+    for (const gameScenario of GAME_SCENARIOS) {
+      for (const seed of SEEDS) {
+        const result = runCase(strategy, difficulty, gameScenario, seed);
+        results.push(result);
+        console.log(`DIFFICULTY_SCENARIO_RESULT ${JSON.stringify(result)}`);
+      }
+    }
+  }
+}
+
+assert.equal(results.length, 90, 'expected 90 difficulty/scenario cases');
+for (const result of results) {
+  const [cash, credit] = EXPECTED_START[result.difficulty];
+  assert.equal(result.startingCash, cash, `${result.id}/${result.difficulty}: starting cash mismatch`);
+  assert.equal(result.startingCredit, credit, `${result.id}/${result.difficulty}: starting credit mismatch`);
+  assert.equal(result.gameOver, false, `${result.id}/${result.difficulty}/${result.seed}: bankruptcy is not acceptable`);
+  assert.ok(result.reports >= 52, `${result.id}/${result.difficulty}/${result.seed}: insufficient organic reports`);
+  assert.ok(result.stores >= 3, `${result.id}/${result.difficulty}/${result.seed}: insufficient stores`);
+  assert.ok(result.openStores >= 3, `${result.id}/${result.difficulty}/${result.seed}: insufficient open stores`);
+  assert.ok(Number.isFinite(result.cash) && Number.isFinite(result.debt) && Number.isFinite(result.value) && Number.isFinite(result.annualProfit), `${result.id}: non-finite result`);
+  if (result.debtStrategy) {
+    assert.ok(result.borrowingAttempts.some(row => row.result), `${result.id}/${result.difficulty}: leveraged route must borrow`);
+    assert.ok(result.debt > 0, `${result.id}/${result.difficulty}: leveraged route must retain debt at IPO audit`);
+  } else {
+    assert.equal(result.debt, 0, `${result.id}/${result.difficulty}: bootstrap route must remain debt-free`);
+  }
+  if (result.difficulty !== 'hard') {
+    assert.equal(result.ipo, true, `${result.id}/${result.difficulty}/${result.seed}: Easy and Normal must reach IPO`);
+    assert.ok(result.ipoWeek <= 208, `${result.id}/${result.difficulty}: IPO must occur by week 208`);
+  }
+  if (result.gameScenario === 'free') {
+    assert.equal(result.scenarioStatus, 'free');
+    assert.equal(result.scenarioTargetWeek, null);
+    assert.equal(result.scenarioCompletedWeek, null);
+    assert.equal(result.scenarioScore, null);
+    assert.equal(result.scenarioGrade, null);
+  } else {
+    assert.equal(result.scenarioTargetWeek, 208);
+    if (result.ipo) {
+      assert.equal(result.scenarioStatus, 'completed');
+      assert.equal(result.scenarioCompletedWeek, result.ipoWeek);
+      assert.equal(result.scenarioScore, expectedScore(result.ipoWeek));
+      assert.equal(result.scenarioGrade, expectedGrade(result.ipoWeek));
+    } else {
+      assert.equal(result.scenarioStatus, 'overdue');
+      assert.equal(result.scenarioCompletedWeek, null);
+      assert.equal(result.scenarioScore, null);
+      assert.equal(result.scenarioGrade, null);
+    }
+  }
+}
+
+for (const strategy of strategies) {
+  for (const gameScenario of GAME_SCENARIOS) {
+    for (const difficulty of DIFFICULTIES) {
+      const rows = results.filter(row => row.id === strategy.id && row.gameScenario === gameScenario && row.difficulty === difficulty);
+      const passed = rows.filter(row => row.ipo).length;
+      if (difficulty === 'hard') {
+        assert.ok(passed >= 2, `${strategy.id}/${gameScenario}: Hard must remain viable in at least two seeds`);
+        for (const row of rows.filter(value => !value.ipo)) {
+          assert.ok(row.cash > 0, `${strategy.id}: Hard non-IPO case must remain liquid`);
+          assert.ok(row.value >= 100_000_000, `${strategy.id}: Hard non-IPO case must retain IPO-scale value`);
+          assert.ok(row.annualProfit >= 7_000_000, `${strategy.id}: Hard non-IPO case must remain near the profit gate`);
+          assert.deepEqual(row.missing, ['直近52週利益1,000万円'], `${strategy.id}: Hard failure must be limited to the profit gate`);
+        }
+      } else {
+        assert.equal(passed, 3, `${strategy.id}/${difficulty}/${gameScenario}: all seeds must reach IPO`);
+      }
+    }
+  }
+}
+
+for (const strategy of strategies) {
+  for (const difficulty of DIFFICULTIES) {
+    for (const seed of SEEDS) {
+      const free = results.find(row => row.id === strategy.id && row.difficulty === difficulty && row.gameScenario === 'free' && row.seed === seed);
+      const standard = results.find(row => row.id === strategy.id && row.difficulty === difficulty && row.gameScenario === 'standard' && row.seed === seed);
+      for (const key of ECONOMIC_KEYS) assert.deepEqual(standard[key], free[key], `${strategy.id}/${difficulty}/${seed}: scenario changed economic key ${key}`);
+    }
+  }
+}
+
+for (const strategy of strategies) {
+  for (const seed of SEEDS) {
+    const rows = Object.fromEntries(DIFFICULTIES.map(difficulty => [difficulty, results.find(row => row.id === strategy.id && row.difficulty === difficulty && row.gameScenario === 'free' && row.seed === seed)]));
+    const easyWeek = rows.easy.ipoWeek || 209;
+    const normalWeek = rows.normal.ipoWeek || 209;
+    const hardWeek = rows.hard.ipoWeek || 209;
+    assert.ok(easyWeek <= normalWeek, `${strategy.id}/${seed}: Easy must not progress slower than Normal`);
+    assert.ok(normalWeek <= hardWeek, `${strategy.id}/${seed}: Normal must not progress slower than Hard`);
+    assert.ok(close(rows.easy.calibratedDemand, rows.normal.calibratedDemand * 1.1), `${strategy.id}/${seed}: Easy demand multiplier mismatch`);
+    assert.ok(close(rows.hard.calibratedDemand, rows.normal.calibratedDemand), `${strategy.id}/${seed}: Hard demand must match Normal`);
+  }
+}
+
+const economicCases = results.filter(row => row.gameScenario === 'free');
+assert.equal(economicCases.filter(row => row.ipo).length, 44, 'expected 44 of 45 unique economic cases to reach IPO');
+assert.equal(results.filter(row => row.ipo).length, 88, 'expected 88 of 90 scenario rows to reach IPO');
+assert.equal(results.filter(row => row.gameOver).length, 0, 'no matrix case may go bankrupt');
+console.log(JSON.stringify({cases:results.length,economicCases:economicCases.length,ipoEconomicCases:44,ipoScenarioRows:88,bankruptcies:0,scenarioEconomicParityPairs:45},null,2));

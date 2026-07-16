@@ -30,6 +30,7 @@ jobs:
       - run: npm run test:css
       - run: npm run test:javascript
       - run: npm run test:modules
+      - run: node tests/difficulty-scenario-balance-test.js
       - run: npm run test:stock
 
       - run: npm run test:market
