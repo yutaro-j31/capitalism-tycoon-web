@@ -3,7 +3,12 @@ const fs = require('node:fs');
 const path = require('node:path');
 const { loadGame, ROOT } = require('./harness');
 
-const { engineModule, modules } = loadGame({ random: () => 0.5 });
+let seed = 0x6b2ca11b;
+const random = () => {
+  seed = (Math.imul(seed, 1664525) + 1013904223) >>> 0;
+  return seed / 0x100000000;
+};
+const { engineModule, modules } = loadGame({ random });
 const strategy = modules.strategyBalance;
 assert.ok(strategy?.__installed, 'strategy balance module must be installed');
 assert.equal(strategy.VERSION, 1);
