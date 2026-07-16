@@ -15,7 +15,7 @@ const DEMAND_CALIBRATIONS=Object.freeze({
  bookstore:{from:220,to:600},
  electronicsMini:{from:80,to:170},
  coworking:{from:260,to:340},
- cleaning:{from:210,to:480},
+ cleaning:{from:210,to:560},
  cramSchool:{from:55,to:32},
  realEstateAgency:{from:34,to:7},
  gameStudio:{from:12,to:1.5},
