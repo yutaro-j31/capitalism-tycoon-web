@@ -1,11 +1,11 @@
 'use strict';
 
 const assert = require('node:assert/strict');
-const fs = require('node:fs');
-const path = require('node:path');
-const { ROOT, loadGame } = require('./harness');
+const { readIndex, extractScripts, loadGame } = require('./harness');
 
-const recoverySource = fs.readFileSync(path.join(ROOT, 'js', 'setup-recovery.js'), 'utf8');
+const recoveryScript = extractScripts(readIndex()).find(script => !script.src && script.attrs.includes('data-setup-recovery-bootstrap'));
+assert.ok(recoveryScript, 'setup recovery bootstrap must be present in index.html');
+const recoverySource = recoveryScript.code;
 const count = (text, token) => text.split(token).length - 1;
 
 function appHtml(ctx) {
@@ -56,8 +56,9 @@ function appHtml(ctx) {
   }
 }
 
+assert.ok(recoverySource.trim().length <= 1000, 'setup recovery bootstrap must remain a small inline script');
 assert.match(recoverySource, /typeof MutationObserver===['"]function['"]/, 'browser observer must restore recovery after reset');
-assert.match(recoverySource, /app\.innerHTML\.includes\(marker\)/, 'recovery injection must be idempotent');
+assert.match(recoverySource, /innerHTML\.includes\(m\)/, 'recovery injection must be idempotent');
 assert.doesNotMatch(recoverySource, /localStorage|SAVE_KEY|saveVersion/, 'recovery renderer must not mutate save storage or schema');
 
 console.log('setup recovery UI checks passed');
