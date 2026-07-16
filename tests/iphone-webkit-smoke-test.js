@@ -5,11 +5,13 @@ const fs = require('node:fs');
 const http = require('node:http');
 const path = require('node:path');
 const { webkit, devices } = require('playwright');
+const releaseCandidate = require('../release-candidate.json');
 
 const ROOT = path.resolve(__dirname, '..');
 const ARTIFACT_DIR = path.resolve(process.env.IPHONE_WEBKIT_ARTIFACT_DIR || path.join(ROOT, 'artifacts', 'iphone-webkit-smoke'));
 const SAVE_KEY = 'capitalism_tycoon_web_v1';
 const DEVICE_NAME = 'iPhone 13';
+const TARGET_ENV = 'IPHONE_WEBKIT_TARGET_URL';
 assert.ok(devices[DEVICE_NAME], `Playwright device descriptor is unavailable: ${DEVICE_NAME}`);
 
 const MIME = new Map([
@@ -21,6 +23,33 @@ const MIME = new Map([
 function writeResult(value) {
   fs.mkdirSync(ARTIFACT_DIR, { recursive: true });
   fs.writeFileSync(path.join(ARTIFACT_DIR, 'result.json'), `${JSON.stringify(value, null, 2)}\n`);
+}
+
+function normalizedDirectoryPath(pathname) {
+  return `${pathname.replace(/\/+$/, '')}/`;
+}
+
+function publishedTargetUrl(env = process.env) {
+  const raw = String(env[TARGET_ENV] || '').trim();
+  if (!raw) return null;
+
+  const expected = new URL(releaseCandidate.deployment.url);
+  const supplied = new URL(raw);
+  assert.equal(supplied.protocol, 'https:', `${TARGET_ENV} must use HTTPS`);
+  assert.equal(supplied.username, '', `${TARGET_ENV} must not include credentials`);
+  assert.equal(supplied.password, '', `${TARGET_ENV} must not include credentials`);
+  assert.equal(supplied.origin, expected.origin, `${TARGET_ENV} must use the release-candidate deployment origin`);
+  assert.equal(
+    normalizedDirectoryPath(supplied.pathname),
+    normalizedDirectoryPath(expected.pathname),
+    `${TARGET_ENV} must use the release-candidate deployment path`
+  );
+  assert.equal(supplied.search, '', `${TARGET_ENV} must not include a query string`);
+  assert.equal(supplied.hash, '', `${TARGET_ENV} must not include a fragment`);
+
+  supplied.pathname = normalizedDirectoryPath(supplied.pathname);
+  supplied.searchParams.set('webkit-smoke', String(env.GITHUB_SHA || Date.now()));
+  return supplied.toString();
 }
 
 function requestPath(rawUrl) {
@@ -121,8 +150,10 @@ async function mobileLayout(page) {
 
 async function main() {
   fs.mkdirSync(ARTIFACT_DIR, { recursive: true });
-  const server = staticServer();
-  const baseUrl = await startServer(server);
+  const publishedUrl = publishedTargetUrl();
+  const server = publishedUrl ? null : staticServer();
+  const baseUrl = publishedUrl || await startServer(server);
+  const targetMode = publishedUrl ? 'published-pages' : 'local-static';
   let browser;
   let page;
   const diagnostics = { consoleErrors: [], pageErrors: [], failedRequests: [] };
@@ -210,18 +241,23 @@ async function main() {
     writeResult({
       status: 'passed', startedAt, completedAt: new Date().toISOString(),
       device: DEVICE_NAME, browser: 'WebKit', browserVersion: browser.version(),
+      targetMode, targetUrl: publishedUrl ? releaseCandidate.deployment.url : baseUrl,
       weekAfterAdvances, saveVersion: restored.saveVersion
     });
-    console.log('iPhone WebKit smoke passed');
+    console.log(`iPhone WebKit smoke passed (${targetMode})`);
   } catch (error) {
     if (page) {
       try { await page.screenshot({ path: path.join(ARTIFACT_DIR, 'iphone-webkit-smoke-failure.png'), fullPage: true }); } catch (_) {}
     }
-    writeResult({ status: 'failed', startedAt, completedAt: new Date().toISOString(), error: error?.stack || String(error), ...diagnostics });
+    writeResult({
+      status: 'failed', startedAt, completedAt: new Date().toISOString(),
+      targetMode, targetUrl: publishedUrl ? releaseCandidate.deployment.url : baseUrl,
+      error: error?.stack || String(error), ...diagnostics
+    });
     throw error;
   } finally {
     if (browser) await browser.close();
-    await stopServer(server);
+    if (server) await stopServer(server);
   }
 }
 
