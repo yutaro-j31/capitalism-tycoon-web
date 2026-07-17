@@ -74,6 +74,7 @@ async function main() {
       return modules.runtimeRecoveryUI.supportPayload(root.__runtimeRecoveryRecord);
     });
     assert.equal(payload.runtimeError.message, '<webkit recovery probe>');
+    assert.equal(payload.runtimeError.source, '', 'source-less WebKit errors must not display /undefined');
     for (const key of ['companyCash', 'personalCash', 'companyName', 'playerName', 'stores']) {
       assert.equal(key in payload, false, `diagnostics payload leaked ${key}`);
     }
