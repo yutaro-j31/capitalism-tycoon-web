@@ -14,7 +14,7 @@ assert.match(script, /event\.key==='ArrowLeft'/, 'left arrow keyboard navigation
 assert.match(script, /event\.key==='Home'/, 'Home keyboard navigation must remain supported');
 assert.match(script, /event\.key==='End'/, 'End keyboard navigation must remain supported');
 assert.match(script, /const cost=Math\.max\(0,sales-profit\)/, 'finance tab must remain read-only and derive cost from existing results');
-assert.doesNotMatch(script, /companyCash\s*[+\-*/]?=/, 'context tabs must not mutate company cash');
+assert.doesNotMatch(script, /companyCash\s*(?:\+=|-=|\*=|\/=|=)/, 'context tabs must not mutate company cash');
 assert.doesNotMatch(script, /lastProfit\s*=/, 'context tabs must not mutate store results');
 assert.match(css, /min-height:44px/, 'tab controls must preserve the minimum touch target');
 assert.match(css, /prefers-reduced-motion:reduce/, 'tab transitions must respect reduced motion');
