@@ -15,6 +15,7 @@ This pass moves the production D-style shell closer to the approved reference im
 - darker right-side location detail panel with clearer active tabs, metrics, status bars, and primary actions
 - responsive fallbacks for tablet and iPhone widths
 - reduced-motion support for players who disable interface animation
+- forced-colors support that preserves navigation selection, map labels, status bars, tabs, and keyboard focus
 
 ## Compatibility
 
