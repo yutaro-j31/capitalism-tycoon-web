@@ -29,6 +29,14 @@ function server() {
   });
 }
 
+async function openDTab(page, tab) {
+  await page.locator('[data-d-ui-action="toggle-menu"]').first().click();
+  const menu = page.locator('#d-ui-command-menu.open');
+  await menu.waitFor({ state: 'visible' });
+  await menu.locator(`[data-tab="${tab}"]`).click();
+  await menu.waitFor({ state: 'hidden' });
+}
+
 async function main() {
   fs.mkdirSync(OUT, { recursive: true });
   const appServer = server();
@@ -54,9 +62,9 @@ async function main() {
     await page.locator('#setup-form').evaluate(form => form.requestSubmit());
     await page.locator('.topbar').waitFor();
 
-    await page.locator('.tabs button[data-tab="map"]').click();
-    await page.locator('.tabs button[data-tab="home"]').click();
-    await page.locator('.tabs button[data-tab="settings"]').click();
+    await openDTab(page, 'map');
+    await openDTab(page, 'home');
+    await openDTab(page, 'settings');
 
     const reportButton = page.locator('[data-playtest-report-action="download"]');
     await reportButton.waitFor();
