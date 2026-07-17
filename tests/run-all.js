@@ -28,6 +28,7 @@ for (const command of commands) {
 for (const [name, file] of [
   ['difficulty-scenario-balance', 'tests/difficulty-scenario-balance-test.js'],
   ['competitor-dashboard-ui', 'tests/competitor-dashboard-ui-test.js'],
+  ['d-ui-context-tabs', 'tests/d-ui-context-tabs-test.js'],
   ['v1-progression-gate', 'tests/v1-progression-gate-test.js']
 ]) {
   const result = spawnSync('node', [file], {
@@ -43,4 +44,4 @@ for (const [name, file] of [
   }
 }
 
-console.log(`all ${commands.length} test commands, difficulty/scenario balance, competitor dashboard UI, and provisional v1 progression gate passed`);
+console.log(`all ${commands.length} test commands, difficulty/scenario balance, competitor dashboard UI, D UI context tabs, and provisional v1 progression gate passed`);
