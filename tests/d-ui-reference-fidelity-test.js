@@ -25,6 +25,9 @@ for(const landscapeContract of ['@media(max-width:932px) and (orientation:landsc
 for(const touchContract of ['@media(hover:none),(pointer:coarse)','touch-action:manipulation','-webkit-tap-highlight-color:transparent','.d-map-marker.selected:hover','.d-nav-button:active']){
   assert.ok(override.includes(touchContract),`missing coarse-pointer touch contract: ${touchContract}`);
 }
+for(const dynamicViewportContract of ['@supports(height:100dvh)','min-height:calc(100dvh - 164px)','max-height:calc(100dvh - 172px)','min-height:calc(100dvh - 154px)']){
+  assert.ok(override.includes(dynamicViewportContract),`missing dynamic viewport contract: ${dynamicViewportContract}`);
+}
 for(const highContrastContract of ['@media(forced-colors:active)','outline:3px solid Highlight','.d-map-marker small{opacity:1','.d-status-bars em{background:Highlight!important']){
   assert.ok(override.includes(highContrastContract),`missing forced-colors accessibility contract: ${highContrastContract}`);
 }
