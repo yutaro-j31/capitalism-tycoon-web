@@ -14,10 +14,11 @@ concurrency:
 jobs:
   iphone-webkit-smoke:
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 35
     env:
       IPHONE_WEBKIT_ARTIFACT_DIR: artifacts/iphone-webkit-smoke
       GAME_OVER_SETTINGS_ARTIFACT_DIR: artifacts/game-over-settings-webkit
+      D_UI_ARTIFACT_DIR: artifacts/d-ui-webkit
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -29,6 +30,8 @@ jobs:
         run: npx playwright install --with-deps webkit
       - name: Run iPhone WebKit release smoke
         run: node tests/iphone-webkit-smoke-test.js
+      - name: Verify D UI desktop and iPhone layouts
+        run: node tests/d-ui-webkit-test.js
       - name: Verify bankruptcy settings recovery
         run: node tests/game-over-settings-webkit-test.js
       - name: Verify two-store first-week advance
@@ -49,5 +52,6 @@ jobs:
           path: |
             artifacts/iphone-webkit-smoke
             artifacts/game-over-settings-webkit
+            artifacts/d-ui-webkit
           if-no-files-found: error
           retention-days: 30
