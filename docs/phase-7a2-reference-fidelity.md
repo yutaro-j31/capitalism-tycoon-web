@@ -15,6 +15,7 @@ This pass moves the production D-style shell closer to the approved reference im
 - darker right-side location detail panel with clearer active tabs, metrics, status bars, and primary actions
 - responsive fallbacks for tablet and iPhone widths
 - compact iPhone landscape treatment that reduces vertical chrome while preserving safe-area spacing and touch targets
+- coarse-pointer treatment that prevents sticky hover states, removes delayed tap highlighting, and preserves selected marker/navigation feedback
 - reduced-motion support for players who disable interface animation
 - forced-colors support that preserves navigation selection, map labels, status bars, tabs, and keyboard focus
 
