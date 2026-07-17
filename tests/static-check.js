@@ -18,7 +18,9 @@ if (!html.includes('</html>') || !html.includes('</body>')) errors.push('body/ht
 const textFindings = checkRepository();
 for (const f of textFindings) errors.push(`${f.file}:${f.line}:${f.column} ${f.codePoint} ${f.reason}`);
 if (errors.length) { console.error(errors.join('\n')); process.exit(1); }
-const diagnostics = spawnSync(process.execPath, [path.join(__dirname, 'release-diagnostics-ui-test.js')], { stdio: 'inherit' });
-if (diagnostics.error) { console.error(diagnostics.error.message); process.exit(1); }
-if (diagnostics.status !== 0) process.exit(diagnostics.status || 1);
+for (const test of ['release-diagnostics-ui-test.js', 'runtime-recovery-ui-test.js']) {
+  const result = spawnSync(process.execPath, [path.join(__dirname, test)], { stdio: 'inherit' });
+  if (result.error) { console.error(result.error.message); process.exit(1); }
+  if (result.status !== 0) process.exit(result.status || 1);
+}
 console.log('static checks passed');
