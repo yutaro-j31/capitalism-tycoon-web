@@ -7,6 +7,9 @@ assert.match(loader,/@import url\("\.\/d-ui-reference-fidelity\.css"\);/,'refere
 for(const selector of ['.d-topbar','.d-kpi-strip','.d-sidebar','.d-map-workspace','.d-city-surface','.d-map-marker','.d-map-overlay','.d-context-panel','.d-bottom-dock']){
   assert.ok(override.includes(selector),`missing reference fidelity selector: ${selector}`);
 }
+for(const interaction of ['.d-topbar::after','.d-map-marker:hover','.d-white-card:hover','.d-context-tabs b::after','@media(prefers-reduced-motion:reduce)']){
+  assert.ok(override.includes(interaction),`missing reference interaction treatment: ${interaction}`);
+}
 assert.ok(override.includes('@media(max-width:820px)'), 'iPhone/tablet fallback must remain explicit');
 assert.ok(!/url\((?!["']?\.\/)/.test(override), 'remote or root-relative assets are not allowed');
 assert.ok(!/localStorage|SAVE_KEY|save version|Math\.random/.test(override), 'visual override must not touch runtime state contracts');
