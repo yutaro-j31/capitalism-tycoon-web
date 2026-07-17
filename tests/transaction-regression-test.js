@@ -76,7 +76,8 @@ function runScenario() {
 }
 function migrateExpectedDemand(expected, calibrations) {
   for (const point of Object.values(expected)) {
-    for (const business of point.businesses || []) {
+    point.businesses = (point.businesses || []).filter(business => business && typeof business.id === 'string' && business.id.length > 0);
+    for (const business of point.businesses) {
       const calibration = calibrations[business.id];
       if (calibration) business.demand *= calibration.to / calibration.from;
     }

@@ -8,6 +8,7 @@ const clone = value => JSON.parse(JSON.stringify(value));
 assert.equal(engine.SAVE_KEY, 'capitalism_tycoon_web_v1');
 assert.equal(engine.SAVE_VERSION, 9);
 assert.equal(engine.__saveV9Installed, true);
+assert.equal(typeof engine.sanitizeBusinessRecords, 'function');
 assert.equal(engine.detectSaveVersion({ saveVersion: 9 }).ok, true);
 assert.equal(engine.detectSaveVersion({ saveVersion: 10 }).future, true);
 
@@ -18,7 +19,17 @@ assert.equal(fresh.competitorMigrationV9Applied, true);
 assert.equal(fresh.competitorLifecycleSchemaVersion, 1);
 assert.ok(fresh.competitorStates.length > 0);
 assert.ok(fresh.competitorStates.every(company => Number.isFinite(company.creditLimit)));
+assert.ok(fresh.businesses.length > 0);
+assert.ok(fresh.businesses.every(business => business && typeof business.id === 'string' && business.id.length > 0));
 assert.deepEqual(findStateIssues(fresh), []);
+
+const malformedV9 = clone(fresh);
+const validBusinessSnapshot = clone(malformedV9.businesses);
+malformedV9.businesses.push({}, { segmentFit: {} }, null, { id: '' });
+const repairedV9 = engine.migrateSave(malformedV9);
+assert.equal(repairedV9.ok, true, repairedV9.errors?.join('\n'));
+assert.deepEqual(repairedV9.state.businesses, validBusinessSnapshot, 'v9 repair must only remove incomplete business records');
+assert.equal(malformedV9.businesses.length, validBusinessSnapshot.length + 4, 'v9 repair must not mutate its input');
 
 const sourceV8 = clone(fresh);
 sourceV8.saveVersion = 8;
@@ -30,6 +41,7 @@ firstCompany.cash = 12_345_678;
 firstCompany.debt = 4_321_000;
 firstCompany.creditScore = 57;
 firstCompany.customCompanyMarker = 'keep-company';
+sourceV8.businesses.push({ segmentFit: {} });
 const sourceBefore = clone(sourceV8);
 
 const direct = engine.migrateV8ToV9(sourceV8);
@@ -44,6 +56,7 @@ assert.equal(direct.state.competitorStates[0].debt, 4_321_000);
 assert.equal(direct.state.competitorStates[0].customCompanyMarker, 'keep-company');
 assert.equal(direct.state.competitorStates[0].competitorID, sourceV8.competitorStates[0].competitorID);
 assert.equal(direct.state.competitorStates[0].marketPresence[0].presenceID, sourceV8.competitorStates[0].marketPresence[0].presenceID);
+assert.ok(direct.state.businesses.every(business => typeof business.id === 'string' && business.id.length > 0));
 assert.equal(JSON.stringify(sourceV8), JSON.stringify(sourceBefore), 'v8 migration must not mutate input');
 assert.deepEqual(findStateIssues(direct.state), []);
 assert.doesNotThrow(() => competitor.validate(direct.state));
@@ -67,6 +80,7 @@ const instance = new engine.TycoonEngine(sourceV8);
 assert.equal(instance.g.saveVersion, 9);
 assert.equal(instance.g.competitorMigrationV9Applied, true);
 assert.equal(instance.g.competitorStates[0].cash, 12_345_678);
+assert.ok(instance.g.businesses.every(business => typeof business.id === 'string' && business.id.length > 0));
 instance.save();
 const saved = JSON.parse(ctx.__localStorageData.get(engine.SAVE_KEY));
 assert.equal(saved.saveVersion, 9);
@@ -78,6 +92,7 @@ ctx.localStorage.setItem(`${engine.SAVE_KEY}_slot_2`, JSON.stringify(slotState))
 assert.equal(instance.loadSlot(2), true);
 assert.equal(instance.g.companyName, 'v8スロット企業');
 assert.equal(instance.g.saveVersion, 9);
+assert.ok(instance.g.businesses.every(business => typeof business.id === 'string' && business.id.length > 0));
 assert.equal(JSON.parse(ctx.__localStorageData.get(`${engine.SAVE_KEY}_slot_2`)).saveVersion, 8, 'slot source remains unchanged');
 
 const importState = clone(sourceV8);
@@ -85,12 +100,14 @@ importState.companyName = 'v8インポート企業';
 instance.importSave(JSON.stringify(importState));
 assert.equal(instance.g.companyName, 'v8インポート企業');
 assert.equal(instance.g.saveVersion, 9);
+assert.ok(instance.g.businesses.every(business => typeof business.id === 'string' && business.id.length > 0));
 assert.equal(JSON.parse(ctx.__localStorageData.get(engine.SAVE_KEY)).saveVersion, 9);
 
 const settingsBeforeReset = clone(instance.g.settings);
 instance.reset();
 assert.equal(instance.g.saveVersion, 9);
 assert.equal(instance.g.competitorMigrationV9Applied, true);
+assert.ok(instance.g.businesses.every(business => typeof business.id === 'string' && business.id.length > 0));
 assert.deepEqual(instance.g.settings, settingsBeforeReset);
 assert.deepEqual(findStateIssues(instance.g), []);
 

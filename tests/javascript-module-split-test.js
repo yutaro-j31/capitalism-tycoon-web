@@ -13,35 +13,33 @@ function expectThrow(fn, re) {
 const expected = [
   './js/boot-recovery.js','./js/runtime.js','./js/data.js','./js/workforce.js','./js/supply.js','./js/competitor.js','./js/competitor-projects.js','./js/competitor-entry.js','./js/competitor-credit.js','./js/competitor-distress.js','./js/competitor-terminal-compat.js',
   './js/market.js','./js/finance.js','./js/engine.js','./js/save-v9.js','./js/expansion.js','./js/competitor-media.js','./js/completion.js','./js/parity.js','./js/competitor-parity.js','./js/competitor-dashboard.js','./js/competitor-dashboard-status.js','./js/competitor-dashboard-ui.js',
-  './js/player-crisis-ui.js','./js/player-engine-bridge.js','./js/strategy-balance.js','./js/progression-balance.js','./js/app.js','./js/difficulty-scenario-balance.js','./js/player-crisis.js','./js/player-crisis-actions.js','./js/player-crisis-restructuring.js','./js/player-crisis-creditor.js','./js/player-debt-service.js','./js/player-turnaround-plan.js','./js/player-crisis-creditor-ui.js','./js/player-turnaround-plan-ui.js','./js/player-turnaround-plan-report.js','./js/release-diagnostics-ui.js','./js/playtest-report-ui.js','./js/runtime-recovery-ui.js'
+  './js/player-crisis-ui.js','./js/player-engine-bridge.js','./js/strategy-balance.js','./js/progression-balance.js','./js/app.js','./js/difficulty-scenario-balance.js','./js/player-crisis.js','./js/player-crisis-actions.js','./js/player-crisis-restructuring.js','./js/player-crisis-creditor.js','./js/player-debt-service.js','./js/player-turnaround-plan.js','./js/player-crisis-creditor-ui.js','./js/player-turnaround-plan-ui.js','./js/player-turnaround-plan-report.js','./js/release-diagnostics-ui.js','./js/playtest-report-ui.js','./js/d-ui-shell.js','./js/runtime-recovery-ui.js'
 ];
 const scripts = extractScripts(readIndex()).filter(script => script.src);
 const bySrc = new Map(scripts.map(script => [script.src, script]));
 const run = (context, src, code = bySrc.get(src)?.code) => vm.runInContext(code, context, { filename: src });
 const prefix = finalSrc => expected.slice(0, expected.indexOf(finalSrc) + 1);
 const freshWith = srcs => { const context = createBrowserContext(); for (const src of srcs) run(context, src); return context; };
+const before = (left, right) => assert(expected.indexOf(left) !== -1 && expected.indexOf(left) < expected.indexOf(right), `${left} must precede ${right}`);
 
 assert(JSON.stringify(scripts.map(script => script.src)) === JSON.stringify(expected), `script order mismatch: ${scripts.map(script => script.src).join(', ')}`);
 assert(expected[0] === './js/boot-recovery.js', 'boot recovery must be the first external script');
 assert(expected[1] === './js/runtime.js', 'runtime.js must immediately follow boot recovery');
-assert(expected.at(-18) === './js/player-crisis-ui.js', 'player-crisis-ui.js must precede the engine bridge');
-assert(expected.at(-17) === './js/player-engine-bridge.js', 'engine bridge must capture the app load');
-assert(expected.at(-16) === './js/strategy-balance.js', 'strategy balance must precede progression balance');
-assert(expected.at(-15) === './js/progression-balance.js', 'progression balance must precede app startup');
-assert(expected.at(-14) === './js/app.js', 'app.js must compose the engine before post-app balance modules');
-assert(expected.at(-13) === './js/difficulty-scenario-balance.js', 'difficulty scenario balance must precede crisis lifecycle');
-assert(expected.at(-12) === './js/player-crisis.js', 'player-crisis.js must precede crisis actions');
-assert(expected.at(-11) === './js/player-crisis-actions.js', 'player-crisis-actions.js must precede restructuring');
-assert(expected.at(-10) === './js/player-crisis-restructuring.js', 'restructuring must precede creditor negotiation');
-assert(expected.at(-9) === './js/player-crisis-creditor.js', 'creditor negotiation must precede weekly debt service');
-assert(expected.at(-8) === './js/player-debt-service.js', 'weekly debt service must precede turnaround planning');
-assert(expected.at(-7) === './js/player-turnaround-plan.js', 'turnaround planning must precede crisis UI extensions');
-assert(expected.at(-6) === './js/player-crisis-creditor-ui.js', 'creditor UI must precede turnaround plan UI');
-assert(expected.at(-5) === './js/player-turnaround-plan-ui.js', 'turnaround plan UI must precede weekly reporting');
-assert(expected.at(-4) === './js/player-turnaround-plan-report.js', 'turnaround weekly report must precede release diagnostics');
-assert(expected.at(-3) === './js/release-diagnostics-ui.js', 'release diagnostics must precede playtest reporting');
-assert(expected.at(-2) === './js/playtest-report-ui.js', 'playtest reporting must precede runtime recovery');
-assert(expected.at(-1) === './js/runtime-recovery-ui.js', 'runtime recovery must be the final external UI module');
+before('./js/player-crisis-ui.js','./js/player-engine-bridge.js');
+before('./js/player-engine-bridge.js','./js/app.js');
+before('./js/strategy-balance.js','./js/progression-balance.js');
+before('./js/progression-balance.js','./js/app.js');
+before('./js/app.js','./js/difficulty-scenario-balance.js');
+before('./js/player-crisis.js','./js/player-crisis-actions.js');
+before('./js/player-crisis-actions.js','./js/player-crisis-restructuring.js');
+before('./js/player-crisis-restructuring.js','./js/player-crisis-creditor.js');
+before('./js/player-crisis-creditor.js','./js/player-debt-service.js');
+before('./js/player-debt-service.js','./js/player-turnaround-plan.js');
+before('./js/player-turnaround-plan-report.js','./js/release-diagnostics-ui.js');
+before('./js/release-diagnostics-ui.js','./js/playtest-report-ui.js');
+before('./js/playtest-report-ui.js','./js/d-ui-shell.js');
+before('./js/d-ui-shell.js','./js/runtime-recovery-ui.js');
+assert(expected.at(-1) === './js/runtime-recovery-ui.js', 'runtime recovery must remain the final external UI module');
 for (const script of scripts) {
   assert(fs.existsSync(script.file), `${script.src} missing`);
   const buffer = fs.readFileSync(script.file);
@@ -109,6 +107,7 @@ const requiredExports = {
   playerTurnaroundPlanReport:['REPORT_KINDS','KIND_LABELS','capture','buildReport','message','applyReport','renderSummarySection','enhanceSummary','connect','__installed'],
   releaseDiagnosticsUI:['VERSION','SAVE_KEY','SAVE_VERSION','SAFE_ENTRY','diagnosticSnapshot','renderKey','renderCard','latestLaunchUrl','diagnosticText','copyText','settingsVisible','enhance','handleClick','install','__installed'],
   playtestReportUI:['SCHEMA_VERSION','KIND','MAX_ACTIONS','safeToken','utf8Bytes','checksum','record','activeTab','saveFingerprint','viewport','buildReport','filename','download','enhance','handleClick','handleChange','handleSubmit','install','__installed'],
+  dUIShell:['PRIMARY_NAV','DOCK_NAV','ALL_NAV','money','reportSeries','sparkline','currentKpis','mapEntities','missionRows','selectedDetail','renderMapWorkspace','enhance','handleClick','install','__installed'],
   runtimeRecoveryUI:['ROOT_ID','SAVE_KEY','buildRecord','readSave','supportPayload','backupFilename','downloadBackup','renderPanel','show','close','capture','handleClick','install','__installed']
 };
 for (const [name, keys] of Object.entries(requiredExports)) {
@@ -127,6 +126,7 @@ assert(typeof modules.playerTurnaroundPlanUI.handleClick === 'function', 'turnar
 assert(typeof modules.playerTurnaroundPlanReport.renderSummarySection === 'function', 'turnaround weekly summary rendering missing');
 assert(typeof modules.releaseDiagnosticsUI.latestLaunchUrl === 'function', 'release diagnostics restart wiring missing');
 assert(typeof modules.playtestReportUI.buildReport === 'function', 'playtest report build wiring missing');
+assert(typeof modules.dUIShell.renderMapWorkspace === 'function', 'D UI map workspace wiring missing');
 assert(typeof modules.runtimeRecoveryUI.capture === 'function', 'runtime recovery capture wiring missing');
 assert(modules.strategyBalance.VERSION === 1, 'strategy balance version must remain 1');
 assert(modules.progressionBalance.REQUIRED_IPO_REPORT_WEEKS === 52, 'IPO report history gate must remain 52 weeks');
@@ -139,12 +139,7 @@ const runtimeOnly = freshWith(['./js/runtime.js']);
 expectThrow(() => run(runtimeOnly, './js/competitor.js'), /data\.js/);
 expectThrow(() => run(runtimeOnly, './js/market.js'), /data module/);
 expectThrow(() => run(runtimeOnly, './js/engine.js'), /data module/);
-expectThrow(() => run(runtimeOnly, './js/strategy-balance.js'), /engine\.js/);
-expectThrow(() => run(runtimeOnly, './js/progression-balance.js'), /engine\.js/);
-expectThrow(() => run(runtimeOnly, './js/difficulty-scenario-balance.js'), /engine\.js/);
-expectThrow(() => run(runtimeOnly, './js/release-diagnostics-ui.js'), /engine\.js/);
-expectThrow(() => run(runtimeOnly, './js/playtest-report-ui.js'), /engine\.js/);
-expectThrow(() => run(runtimeOnly, './js/runtime-recovery-ui.js'), /engine\.js/);
+for (const src of ['./js/strategy-balance.js','./js/progression-balance.js','./js/difficulty-scenario-balance.js','./js/release-diagnostics-ui.js','./js/playtest-report-ui.js','./js/d-ui-shell.js','./js/runtime-recovery-ui.js']) expectThrow(() => run(runtimeOnly, src), /engine\.js/);
 const dataReady = freshWith(['./js/runtime.js','./js/data.js']);
 for (const src of ['./js/competitor-projects.js','./js/competitor-entry.js','./js/competitor-credit.js','./js/competitor-distress.js']) expectThrow(() => run(dataReady, src), /competitor\.js/);
 const competitorReady = freshWith(prefix('./js/competitor.js'));
@@ -171,12 +166,13 @@ expectThrow(() => run(freshWith(prefix('./js/player-crisis-restructuring.js')), 
 expectThrow(() => run(freshWith(prefix('./js/player-turnaround-plan.js')), './js/player-turnaround-plan-ui.js'), /player-crisis-creditor-ui\.js/);
 expectThrow(() => run(freshWith(prefix('./js/player-crisis-creditor-ui.js')), './js/player-turnaround-plan-report.js'), /player-turnaround-plan-ui\.js/);
 expectThrow(() => run(freshWith(prefix('./js/player-turnaround-plan-report.js')), './js/playtest-report-ui.js'), /release-diagnostics-ui\.js/);
+expectThrow(() => run(freshWith(prefix('./js/player-turnaround-plan-report.js')), './js/d-ui-shell.js'), /player-engine-bridge\.js|release-diagnostics-ui\.js|engine\.js/);
 expectThrow(() => run(freshWith(prefix('./js/player-turnaround-plan-report.js')), './js/runtime-recovery-ui.js'), /release-diagnostics-ui\.js/);
 
-const duplicateRegistration = /already (?:installed|registered|normalized)/;
+const duplicateRegistration = /already (?:installed|registered|normalized)|D UI shell is already registered/;
 for (const src of [
   './js/boot-recovery.js','./js/save-v9.js','./js/competitor-media.js','./js/competitor-parity.js','./js/competitor-dashboard.js','./js/competitor-dashboard-status.js','./js/competitor-dashboard-ui.js',
-  './js/player-crisis-ui.js','./js/player-engine-bridge.js','./js/strategy-balance.js','./js/progression-balance.js','./js/difficulty-scenario-balance.js','./js/player-crisis.js','./js/player-crisis-actions.js','./js/player-crisis-restructuring.js','./js/player-crisis-creditor.js','./js/player-debt-service.js','./js/player-turnaround-plan.js','./js/player-crisis-creditor-ui.js','./js/player-turnaround-plan-ui.js','./js/player-turnaround-plan-report.js','./js/release-diagnostics-ui.js','./js/playtest-report-ui.js','./js/runtime-recovery-ui.js','./js/competitor-terminal-compat.js','./js/competitor-distress.js','./js/data.js'
+  './js/player-crisis-ui.js','./js/player-engine-bridge.js','./js/strategy-balance.js','./js/progression-balance.js','./js/difficulty-scenario-balance.js','./js/player-crisis.js','./js/player-crisis-actions.js','./js/player-crisis-restructuring.js','./js/player-crisis-creditor.js','./js/player-debt-service.js','./js/player-turnaround-plan.js','./js/player-crisis-creditor-ui.js','./js/player-turnaround-plan-ui.js','./js/player-turnaround-plan-report.js','./js/release-diagnostics-ui.js','./js/playtest-report-ui.js','./js/d-ui-shell.js','./js/runtime-recovery-ui.js','./js/competitor-terminal-compat.js','./js/competitor-distress.js','./js/data.js'
 ]) expectThrow(() => run(ctx, src), duplicateRegistration);
 
 fs.writeFileSync(path.join(ROOT, 'tests', 'fixtures', 'module-load-order.json'), JSON.stringify({ scripts: expected }, null, 2) + '\n');

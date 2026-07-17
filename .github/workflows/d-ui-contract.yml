@@ -1,0 +1,39 @@
+name: D UI Contract
+
+on:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: d-ui-contract-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  d-ui-contract:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Verify D UI shell contract
+        run: node tests/d-ui-shell-test.js
+      - name: Verify JavaScript module boundaries
+        run: |
+          mkdir -p artifacts/d-ui-contract
+          set -o pipefail
+          node tests/javascript-module-split-test.js 2>&1 | tee artifacts/d-ui-contract/module-split.log
+      - name: Verify JavaScript extraction
+        run: node tests/javascript-extraction-test.js
+      - name: Retain D UI contract evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: d-ui-contract-${{ github.sha }}
+          path: artifacts/d-ui-contract
+          if-no-files-found: warn
+          retention-days: 14
