@@ -77,7 +77,8 @@ const downloadEnv = {
 assert.equal(recovery.downloadBackup(downloadEnv), true);
 assert.equal(clicked, true);
 assert.equal(link.download, 'capitalism-tycoon-recovery-week-27.json');
-assert.deepEqual(createdBlob.parts, [raw]);
+assert.equal(createdBlob.parts.length, 1);
+assert.equal(String(createdBlob.parts[0]), raw);
 assert.equal(createdBlob.type, 'application/json');
 
 const corrupt = recovery.readSave({ localStorage: { getItem() { return '{bad'; } } });
