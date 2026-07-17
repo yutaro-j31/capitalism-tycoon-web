@@ -37,6 +37,7 @@
     "./js/player-crisis-creditor-ui.js",
     "./js/player-turnaround-plan-ui.js",
     "./js/player-turnaround-plan-report.js",
-    "./js/release-diagnostics-ui.js"
+    "./js/release-diagnostics-ui.js",
+    "./js/runtime-recovery-ui.js"
   ]
 }

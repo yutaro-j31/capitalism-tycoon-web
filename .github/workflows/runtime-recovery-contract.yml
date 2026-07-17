@@ -1,0 +1,47 @@
+name: Runtime Recovery Contract
+
+on:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: runtime-recovery-contract-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  runtime-recovery-contract:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Verify runtime recovery contract
+        shell: bash
+        run: |
+          mkdir -p artifacts/runtime-recovery-contract
+          set +e
+          node tests/runtime-recovery-ui-test.js > artifacts/runtime-recovery-contract/unit.log 2>&1
+          STATUS=$?
+          cat artifacts/runtime-recovery-contract/unit.log
+          exit "$STATUS"
+      - name: Verify static integration
+        shell: bash
+        run: |
+          set +e
+          node tests/static-check.js > artifacts/runtime-recovery-contract/static.log 2>&1
+          STATUS=$?
+          cat artifacts/runtime-recovery-contract/static.log
+          exit "$STATUS"
+      - name: Retain runtime recovery contract logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: runtime-recovery-contract-${{ github.sha }}
+          path: artifacts/runtime-recovery-contract
+          if-no-files-found: error
+          retention-days: 14

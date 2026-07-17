@@ -73,10 +73,13 @@ function createBrowserContext(options = {}) {
     querySelectorAll(){ return []; }, createElement(tag){ return makeElement(tag); }, addEventListener(){}, removeEventListener(){}
   };
   class StorageStub { getItem(k){ storageHistory.getItem.push({key:k}); return storage.has(k) ? storage.get(k) : null; } setItem(k,v){ const value = String(v); storageHistory.setItem.push({key:k, value}); storage.set(k, value); } removeItem(k){ storageHistory.removeItem.push({key:k}); storage.delete(k); } clear(){ for (const key of [...storage.keys()]) this.removeItem(key); } }
+  class URLStub extends URL {}
+  URLStub.createObjectURL = () => 'blob:test';
+  URLStub.revokeObjectURL = () => {};
   const context = { console, document, window: null, globalThis: null, localStorage: new StorageStub(), sessionStorage: new StorageStub(), __localStorageData: storage, __localStorageHistory: storageHistory,
     navigator: { userAgent: 'node-test' }, location: { href: 'http://localhost/' }, crypto: { randomUUID: () => `test-${random().toString(16).slice(2)}` },
     Blob: class Blob { constructor(parts, opts){ this.parts = parts; this.type = opts?.type || ''; } async text(){ return this.parts.join(''); } },
-    URL: { createObjectURL(){ return 'blob:test'; }, revokeObjectURL(){} }, FormData: class { constructor(){ } entries(){ return []; } },
+    URL: URLStub, FormData: class { constructor(){ } entries(){ return []; } },
     EventTarget, Event, CustomEvent: global.CustomEvent || class CustomEvent extends Event { constructor(type, init={}){ super(type); this.detail = init.detail; } },
     setTimeout, clearTimeout, requestAnimationFrame: cb => setTimeout(cb, 0), getComputedStyle: () => ({ getPropertyValue: () => '#efb85b' }), confirm: () => true, alert(){}, addEventListener(){}, removeEventListener(){}
   };
