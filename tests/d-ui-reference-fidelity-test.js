@@ -10,6 +10,9 @@ for(const selector of ['.d-topbar','.d-kpi-strip','.d-sidebar','.d-map-workspace
 for(const interaction of ['.d-topbar::after','.d-map-marker:hover','.d-white-card:hover','.d-context-tabs b::after','@media(prefers-reduced-motion:reduce)']){
   assert.ok(override.includes(interaction),`missing reference interaction treatment: ${interaction}`);
 }
+for(const mobileContract of ['env(safe-area-inset-bottom,0px)','min-width:44px','min-height:44px']){
+  assert.ok(override.includes(mobileContract),`missing iPhone safe-area or touch-target contract: ${mobileContract}`);
+}
 assert.ok(override.includes('@media(max-width:820px)'), 'iPhone/tablet fallback must remain explicit');
 assert.ok(!/url\((?!["']?\.\/)/.test(override), 'remote or root-relative assets are not allowed');
 assert.ok(!/localStorage|SAVE_KEY|save version|Math\.random/.test(override), 'visual override must not touch runtime state contracts');
