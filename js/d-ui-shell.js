@@ -4,6 +4,8 @@ if(!globalThis.__capitalismTycoonModules)throw new Error('runtime.js must be loa
 const modules=globalThis.__capitalismTycoonModules;
 if(!modules.engine)throw new Error('engine.js must be loaded before d-ui-shell.js.');
 if(!modules.playerEngineBridge?.__installed)throw new Error('player-engine-bridge.js must be loaded before d-ui-shell.js.');
+if(!modules.releaseDiagnosticsUI?.__installed)throw new Error('release-diagnostics-ui.js must be loaded before d-ui-shell.js.');
+if(!modules.playtestReportUI?.__installed)throw new Error('playtest-report-ui.js must be loaded before d-ui-shell.js.');
 if(modules.dUIShell)throw new Error('D UI shell is already registered.');
 
 const PRIMARY_NAV=[
@@ -104,11 +106,12 @@ function selectedDetail(entity,g){
 function missionRows(g){
   const profit=finite(g.lastReport?.profit);const openStores=(g.stores||[]).filter(store=>store.status==='open').length;
   return [
-    ['↗','週間利益を黒字化する',profit,Math.max(1000000,Math.abs(profit)||1000000),profit>=0],
-    ['▣','直営店舗を3店まで拡大する',openStores,3,openStores>=3],
-    ['△','本社機能を整備する',g.hasHeadOffice?1:0,1,Boolean(g.hasHeadOffice)]
+    ['↗','週間利益を黒字化する',profit,Math.max(1000000,Math.abs(profit)||1000000),profit>=0,'money'],
+    ['▣','直営店舗を3店まで拡大する',openStores,3,openStores>=3,'count'],
+    ['△','本社機能を整備する',g.hasHeadOffice?1:0,1,Boolean(g.hasHeadOffice),'count']
   ];
 }
+function missionValue(value,kind){return kind==='money'?money(value):`${Math.max(0,Math.round(finite(value))).toLocaleString('ja-JP')}件`;}
 function renderMapWorkspace(screen,g){
   const entities=mapEntities(g,screen);if(!selectedEntity||!entities.some(entity=>entity.id===selectedEntity))selectedEntity=entities[0]?.id||'';
   const chosen=entities.find(entity=>entity.id===selectedEntity)||entities[0];
@@ -122,7 +125,7 @@ function renderMapWorkspace(screen,g){
   const positions=entities.map((entity,index)=>{const pos=markerPosition(entity.id,index);return `<button type="button" class="d-map-marker ${entity.kind} ${entity.id===chosen?.id?'selected':''}" style="--x:${pos[0]}%;--y:${pos[1]}%" data-d-ui-marker="${esc(entity.id)}"><span>${markerIcon(entity)}</span><small>${esc(entity.name)}</small></button>`;}).join('');
   const blocks=Array.from({length:34},(_,index)=>{const x=7+(index*17)%84,y=12+(index*23)%68,h=18+(index*13)%58;return `<i style="--x:${x}%;--y:${y}%;--h:${h}px"></i>`;}).join('');
   const missions=missionRows(g);const news=(g.news||[]).slice(0,3);
-  workspace.innerHTML=`<div class="d-map-stage"><div class="d-map-toolbar"><button type="button">都市ビュー⌄</button><span>${esc(engine()?.pref?.(screen.querySelector('[data-bind="selectedPref"]')?.value)?.name||'全国')}</span></div><div class="d-city-surface"><div class="d-water"></div><div class="d-road-grid"></div><div class="d-city-blocks">${blocks}</div>${positions||'<div class="d-no-markers">出店候補を読み込み中です</div>'}</div><div class="d-map-tools"><button type="button">◎</button><button type="button">☷<small>フィルター</small></button><button type="button">⌕<small>凡例</small></button><button type="button">−</button><button type="button">＋</button></div></div><div class="d-map-overlay"><article class="d-white-card d-chart-card"><header><div><h2>週間利益推移</h2><small>単位：円</small></div><b>${money(g.lastReport?.profit)}</b></header>${sparkline(reportSeries(g))}<footer><span>4週前</span><span>3週前</span><span>2週前</span><span>先週</span><span>今週</span></footer></article><article class="d-white-card d-mission-card"><header><h2>ミッション</h2><b>${missions.filter(item=>item[4]).length}/${missions.length}</b></header>${missions.map(item=>`<div class="d-mission-row ${item[4]?'done':''}"><span>${item[0]}</span><div><strong>${esc(item[1])}</strong><small>${money(item[2])} / ${money(item[3])}</small><i><em style="width:${clamp(item[2]/Math.max(1,item[3])*100,0,100)}%"></em></i></div></div>`).join('')}<button type="button" data-action="tab" data-tab="missions">すべてのミッションを見る ›</button></article><article class="d-white-card d-news-card"><header><h2>企業ニュース</h2><button type="button" data-action="tab" data-tab="news">すべて見る ↗</button></header>${news.length?news.map((item,index)=>`<div><span></span><p>${esc(item)}</p><small>${index+1}件前</small></div>`).join(''):'<p>新しいニュースはありません。</p>'}</article></div><aside class="d-context-panel"><header><div><span>●</span><h2>${esc(chosen?.name||'拠点詳細')}</h2></div><button type="button" data-d-ui-action="clear-selection">×</button></header>${selectedDetail(chosen,g)}</aside>`;
+  workspace.innerHTML=`<div class="d-map-stage"><div class="d-map-toolbar"><button type="button">都市ビュー⌄</button><span>${esc(engine()?.pref?.(screen.querySelector('[data-bind="selectedPref"]')?.value)?.name||'全国')}</span></div><div class="d-city-surface"><div class="d-water"></div><div class="d-road-grid"></div><div class="d-city-blocks">${blocks}</div>${positions||'<div class="d-no-markers">出店候補を読み込み中です</div>'}</div><div class="d-map-tools"><button type="button">◎</button><button type="button">☷<small>フィルター</small></button><button type="button">⌕<small>凡例</small></button><button type="button">−</button><button type="button">＋</button></div></div><div class="d-map-overlay"><article class="d-white-card d-chart-card"><header><div><h2>週間利益推移</h2><small>単位：円</small></div><b>${money(g.lastReport?.profit)}</b></header>${sparkline(reportSeries(g))}<footer><span>4週前</span><span>3週前</span><span>2週前</span><span>先週</span><span>今週</span></footer></article><article class="d-white-card d-mission-card"><header><h2>ミッション</h2><b>${missions.filter(item=>item[4]).length}/${missions.length}</b></header>${missions.map(item=>`<div class="d-mission-row ${item[4]?'done':''}"><span>${item[0]}</span><div><strong>${esc(item[1])}</strong><small>${missionValue(item[2],item[5])} / ${missionValue(item[3],item[5])}</small><i><em style="width:${clamp(item[2]/Math.max(1,item[3])*100,0,100)}%"></em></i></div></div>`).join('')}<button type="button" data-action="tab" data-tab="missions">すべてのミッションを見る ›</button></article><article class="d-white-card d-news-card"><header><h2>企業ニュース</h2><button type="button" data-action="tab" data-tab="news">すべて見る ↗</button></header>${news.length?news.map((item,index)=>`<div><span></span><p>${esc(item)}</p><small>${index+1}件前</small></div>`).join(''):'<p>新しいニュースはありません。</p>'}</article></div><aside class="d-context-panel"><header><div><span>●</span><h2>${esc(chosen?.name||'拠点詳細')}</h2></div><button type="button" data-d-ui-action="clear-selection">×</button></header>${selectedDetail(chosen,g)}</aside>`;
 }
 function enhanceMap(g){
   const screen=document.getElementById('screen');if(!screen)return;
@@ -151,6 +154,6 @@ function install(){
   document.addEventListener('click',handleClick,true);const app=document.getElementById('app');if(app&&typeof MutationObserver==='function'){observer=new MutationObserver(schedule);observer.observe(app,{childList:true,subtree:true});}
   schedule();return true;
 }
-modules.dUIShell=Object.freeze({PRIMARY_NAV,DOCK_NAV,ALL_NAV,money,reportSeries,sparkline,currentKpis,mapEntities,missionRows,selectedDetail,renderMapWorkspace,enhance,handleClick,install,__installed:true});
+modules.dUIShell=Object.freeze({PRIMARY_NAV,DOCK_NAV,ALL_NAV,money,reportSeries,sparkline,currentKpis,mapEntities,missionRows,missionValue,selectedDetail,renderMapWorkspace,enhance,handleClick,install,__installed:true});
 install();
 })();
