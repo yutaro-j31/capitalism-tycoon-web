@@ -35,6 +35,8 @@ jobs:
         run: node tests/two-store-iphone-webkit-test.js
       - name: Verify release diagnostics recovery
         run: node tests/release-diagnostics-webkit-test.js
+      - name: Verify playtest report download
+        run: node tests/playtest-report-webkit-test.js
       - name: Verify boot failure recovery
         run: node tests/boot-recovery-webkit-test.js
       - name: Verify uncaught runtime recovery
