@@ -40,6 +40,7 @@
     "./js/player-turnaround-plan-report.js",
     "./js/release-diagnostics-ui.js",
     "./js/playtest-report-ui.js",
+    "./js/d-ui-shell.js",
     "./js/runtime-recovery-ui.js"
   ]
 }
