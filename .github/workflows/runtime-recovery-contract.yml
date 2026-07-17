@@ -21,6 +21,27 @@ jobs:
         with:
           node-version: '22'
       - name: Verify runtime recovery contract
-        run: node tests/runtime-recovery-ui-test.js
+        shell: bash
+        run: |
+          mkdir -p artifacts/runtime-recovery-contract
+          set +e
+          node tests/runtime-recovery-ui-test.js > artifacts/runtime-recovery-contract/unit.log 2>&1
+          STATUS=$?
+          cat artifacts/runtime-recovery-contract/unit.log
+          exit "$STATUS"
       - name: Verify static integration
-        run: node tests/static-check.js
+        shell: bash
+        run: |
+          set +e
+          node tests/static-check.js > artifacts/runtime-recovery-contract/static.log 2>&1
+          STATUS=$?
+          cat artifacts/runtime-recovery-contract/static.log
+          exit "$STATUS"
+      - name: Retain runtime recovery contract logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: runtime-recovery-contract-${{ github.sha }}
+          path: artifacts/runtime-recovery-contract
+          if-no-files-found: error
+          retention-days: 14
