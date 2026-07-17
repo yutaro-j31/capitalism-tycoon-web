@@ -36,7 +36,13 @@ function stampV9(state){
  state.competitorLifecycleSchemaVersion=1;
  return state;
 }
+function sanitizeBusinessRecords(state){
+ if(!plain(state)||!Array.isArray(state.businesses))return state;
+ state.businesses=state.businesses.filter(business=>plain(business)&&typeof business.id==='string'&&business.id.trim().length>0);
+ return state;
+}
 function upgradeState(state){
+ sanitizeBusinessRecords(state);
  competitor.ensure(state);
  if(typeof competitor.ensureCounterStates==='function')competitor.ensureCounterStates(state);
  return stampV9(state);
@@ -154,5 +160,5 @@ class TycoonEngineV9 extends BaseTycoonEngine{
  }
 }
 
-Object.assign(engine,{SAVE_VERSION,createInitialState,detectSaveVersion,validateMigratedState,migrateSave,migrateV8ToV9,TycoonEngine:TycoonEngineV9,__saveV9Installed:true,__parentIPOFinanceInstalled:true,__parentIPOEquityBalanceInstalled:true});
+Object.assign(engine,{SAVE_VERSION,createInitialState,detectSaveVersion,validateMigratedState,migrateSave,migrateV8ToV9,sanitizeBusinessRecords,TycoonEngine:TycoonEngineV9,__saveV9Installed:true,__parentIPOFinanceInstalled:true,__parentIPOEquityBalanceInstalled:true});
 })();
