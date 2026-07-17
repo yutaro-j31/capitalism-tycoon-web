@@ -16,7 +16,8 @@ let handling=false;
 const esc=value=>String(value??'').replace(/[&<>'"]/g,char=>({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[char]));
 const clip=(value,max=MAX_MESSAGE)=>String(value??'').replace(/[\u0000-\u001f\u007f]/g,' ').replace(/\s+/g,' ').trim().slice(0,max);
 function sourcePath(value){
-  const text=String(value||'');
+  const text=String(value??'').trim();
+  if(!text||text==='undefined'||text==='null')return '';
   try{return new URL(text,globalThis.location?.href||'https://local.invalid/').pathname||'';}catch(_){return text.split(/[?#]/)[0].slice(-240);}
 }
 function buildRecord(error,meta={}){
