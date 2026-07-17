@@ -19,6 +19,9 @@ for(const responsiveReset of ['.d-context-panel{position:static','max-height:non
 for(const mobileContract of ['env(safe-area-inset-bottom,0px)','min-width:44px','min-height:44px']){
   assert.ok(override.includes(mobileContract),`missing iPhone safe-area or touch-target contract: ${mobileContract}`);
 }
+for(const highContrastContract of ['@media(forced-colors:active)','outline:3px solid Highlight','.d-map-marker small{opacity:1','.d-status-bars em{background:Highlight!important']){
+  assert.ok(override.includes(highContrastContract),`missing forced-colors accessibility contract: ${highContrastContract}`);
+}
 assert.ok(override.includes('@media(max-width:820px)'), 'iPhone/tablet fallback must remain explicit');
 assert.ok(!/url\((?!["']?\.\/)/.test(override), 'remote or root-relative assets are not allowed');
 assert.ok(!/localStorage|SAVE_KEY|save version|Math\.random/.test(override), 'visual override must not touch runtime state contracts');
