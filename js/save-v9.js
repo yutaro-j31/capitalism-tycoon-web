@@ -113,6 +113,7 @@ class TycoonEngineV9 extends BaseTycoonEngine{
   return this.g;
  }
  save(slot=null){
+  sanitizeBusinessRecords(this.g);
   stampV9(this.g);
   return super.save(slot);
  }
