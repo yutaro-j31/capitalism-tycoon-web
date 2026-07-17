@@ -1,0 +1,2 @@
+/* Keep the company identity visible in the compact D-style header. */
+@media(max-width:520px){.d-topbar .brand p{display:block!important;max-width:170px;margin-top:2px!important;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-size:9px!important;line-height:1.2!important}}
