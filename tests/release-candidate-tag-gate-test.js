@@ -81,18 +81,22 @@ assert.match(workflow, /gh pr list[^\n]*--state open/, 'tag workflow must reject
 assert.match(workflow, /node scripts\/release-candidate-tag-gate\.js/);
 assert.match(workflow, /npm run test:release/);
 assert.match(workflow, /node scripts\/pages-deployment-smoke\.js/);
+assert.match(workflow, /node tests\/playtest-report-webkit-test\.js/,
+  'RC tagging must exercise playtest report download in WebKit');
 assert.match(workflow, /node tests\/boot-recovery-webkit-test\.js/,
   'RC tagging must exercise boot recovery in WebKit');
 assert.match(workflow, /node tests\/runtime-recovery-webkit-test\.js/,
   'RC tagging must exercise runtime recovery in WebKit');
 const localSmokeIndex = workflow.indexOf('node tests/iphone-webkit-smoke-test.js');
+const playtestIndex = workflow.indexOf('node tests/playtest-report-webkit-test.js');
 const bootIndex = workflow.indexOf('node tests/boot-recovery-webkit-test.js');
 const recoveryIndex = workflow.indexOf('node tests/runtime-recovery-webkit-test.js');
 const tagIndex = workflow.indexOf('git tag -a');
-assert.ok(localSmokeIndex !== -1 && bootIndex > localSmokeIndex,
-  'boot recovery WebKit must run after the local iPhone smoke');
+assert.ok(localSmokeIndex !== -1 && playtestIndex > localSmokeIndex,
+  'playtest report WebKit must run after the local iPhone smoke');
+assert.ok(bootIndex > playtestIndex, 'boot recovery WebKit must run after playtest reporting');
 assert.ok(recoveryIndex > bootIndex, 'runtime recovery WebKit must run after boot recovery');
-assert.ok(tagIndex > recoveryIndex, 'both recovery WebKit checks must pass before tag creation');
+assert.ok(tagIndex > recoveryIndex, 'all support WebKit checks must pass before tag creation');
 assert.match(workflow, /git tag -a/);
 assert.match(workflow, /git push origin "refs\/tags\/\$TAG"/);
 assert.match(workflow, /actions\/upload-artifact@v4/, 'manual evidence must be retained as an artifact');
