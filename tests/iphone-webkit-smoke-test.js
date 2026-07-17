@@ -148,6 +148,14 @@ async function mobileLayout(page) {
   }
 }
 
+async function openDTab(page, tab) {
+  await page.locator('[data-d-ui-action="toggle-menu"]').first().click();
+  const menu = page.locator('#d-ui-command-menu.open');
+  await menu.waitFor({ state: 'visible' });
+  await menu.locator(`[data-tab="${tab}"]`).click();
+  await menu.waitFor({ state: 'hidden' });
+}
+
 async function main() {
   fs.mkdirSync(ARTIFACT_DIR, { recursive: true });
   const publishedUrl = publishedTargetUrl();
@@ -195,7 +203,7 @@ async function main() {
     const weekAfterAdvances = await page.evaluate(key => JSON.parse(localStorage.getItem(key)).week, SAVE_KEY);
     assert.ok(Number.isFinite(weekAfterAdvances) && weekAfterAdvances >= 6, `unexpected saved week: ${weekAfterAdvances}`);
 
-    await page.locator('button[data-action="tab"][data-tab="settings"]').click();
+    await openDTab(page, 'settings');
     await page.locator('button[data-action="save-now"]').waitFor({ state: 'visible' });
     for (const action of ['save-now', 'export-save', 'import-save', 'reset-game']) {
       assert.equal(await page.locator(`button[data-action="${action}"]`).count(), 1, `settings action missing: ${action}`);
