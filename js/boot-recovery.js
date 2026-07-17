@@ -6,8 +6,6 @@ const SAVE_KEY='capitalism_tycoon_web_v1';
 const ROOT_ID='boot-recovery-root';
 let latest=null;
 let active=true;
-let bridgeTimer=null;
-let bridgeAttempts=0;
 
 const esc=value=>String(value??'').replace(/[&<>'"]/g,char=>({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[char]));
 const clip=(value,max=400)=>String(value??'').replace(/[\u0000-\u001f\u007f]/g,' ').replace(/\s+/g,' ').trim().slice(0,max);
@@ -82,21 +80,20 @@ function onClick(event){
   else if(action==='backup')download();
   else if(action==='close')dismiss();
 }
+function onLoad(){bridge();}
 function handoff(env=globalThis){
-  active=false;if(bridgeTimer!==null)clearTimeout(bridgeTimer);bridgeTimer=null;
-  env.removeEventListener?.('error',onError,true);env.removeEventListener?.('unhandledrejection',onRejection);env.document?.removeEventListener?.('click',onClick);dismiss(env);return latest;
+  active=false;env.removeEventListener?.('error',onError,true);env.removeEventListener?.('unhandledrejection',onRejection);env.removeEventListener?.('load',onLoad);env.document?.removeEventListener?.('click',onClick);dismiss(env);return latest;
 }
 function bridge(env=globalThis){
   if(!active)return false;
   const rich=env.__capitalismTycoonModules?.runtimeRecoveryUI;
-  if(!rich?.__installed){if(++bridgeAttempts<200)bridgeTimer=setTimeout(()=>bridge(env),100);return false;}
+  if(!rich?.__installed)return false;
   const item=handoff(env);
   if(item)rich.capture({name:item.name,message:item.message,fileName:item.source},{kind:item.kind,source:item.source,line:item.line,column:item.column},env);
   return true;
 }
 function install(env=globalThis){
-  env.addEventListener?.('error',onError,true);env.addEventListener?.('unhandledrejection',onRejection);env.document?.addEventListener?.('click',onClick);
-  bridgeTimer=setTimeout(()=>bridge(env),0);return true;
+  env.addEventListener?.('error',onError,true);env.addEventListener?.('unhandledrejection',onRejection);env.addEventListener?.('load',onLoad,{once:true});env.document?.addEventListener?.('click',onClick);return true;
 }
 const api=Object.freeze({SAVE_KEY,ROOT_ID,record,readSave,launchUrl,render,show,dismiss,capture,download,handoff,bridge,install,__installed:true});
 Object.defineProperty(globalThis,SLOT,{value:api,configurable:false,enumerable:false,writable:false});
