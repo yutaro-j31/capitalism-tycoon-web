@@ -8,8 +8,12 @@ const { ROOT, loadGame } = require('./harness');
 const source = fs.readFileSync(path.join(ROOT, 'js', 'runtime-recovery-ui.js'), 'utf8');
 assert.doesNotMatch(source, /localStorage\.setItem|localStorage\.removeItem|localStorage\.clear/,
   'runtime recovery must never mutate save storage');
-assert.doesNotMatch(source, /preventDefault\?\.\(\).*event.*(?:error|rejection)/s,
-  'runtime error listeners must not suppress the original error');
+for (const listener of ['onError', 'onRejection']) {
+  const match = source.match(new RegExp(`function ${listener}\\([^)]*\\)\\{([\\s\\S]*?)\\n\\}`));
+  assert.ok(match, `${listener} listener missing`);
+  assert.doesNotMatch(match[1], /preventDefault\?\.\(\)|preventDefault\(\)/,
+    `${listener} must not suppress the original error`);
+}
 
 const { modules } = loadGame();
 const recovery = modules.runtimeRecoveryUI;
