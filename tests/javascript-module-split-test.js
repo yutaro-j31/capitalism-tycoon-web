@@ -170,7 +170,7 @@ expectThrow(() => run(freshWith(prefix('./js/player-turnaround-plan.js')), './js
 expectThrow(() => run(freshWith(prefix('./js/player-crisis-creditor-ui.js')), './js/player-turnaround-plan-report.js'), /player-turnaround-plan-ui\.js/);
 expectThrow(() => run(freshWith(prefix('./js/player-turnaround-plan-report.js')), './js/playtest-report-ui.js'), /release-diagnostics-ui\.js/);
 expectThrow(() => run(freshWith(prefix('./js/player-turnaround-plan-report.js')), './js/d-ui-shell.js'), /player-engine-bridge\.js|release-diagnostics-ui\.js|engine\.js/);
-expectThrow(() => run(freshWith(prefix('./js/d-ui-shell.js')), './js/d-ui-context-tabs.js'), /player-engine-bridge\.js|d-ui-shell\.js/);
+expectThrow(() => run(freshWith(prefix('./js/playtest-report-ui.js')), './js/d-ui-context-tabs.js'), /d-ui-shell\.js/);
 expectThrow(() => run(freshWith(prefix('./js/player-turnaround-plan-report.js')), './js/runtime-recovery-ui.js'), /release-diagnostics-ui\.js/);
 
 const duplicateRegistration = /already (?:installed|registered|normalized)|D UI shell is already registered|D UI context tabs are already registered/;
