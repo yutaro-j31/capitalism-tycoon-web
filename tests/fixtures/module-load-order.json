@@ -1,5 +1,6 @@
 {
   "scripts": [
+    "./js/boot-recovery.js",
     "./js/runtime.js",
     "./js/data.js",
     "./js/workforce.js",
