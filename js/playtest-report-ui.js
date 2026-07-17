@@ -94,7 +94,9 @@ function download(env=globalThis){
   if(!env.document?.createElement||!env.Blob||!env.URL?.createObjectURL)return false;
   const link=env.document.createElement('a');
   const href=env.URL.createObjectURL(new env.Blob([JSON.stringify(report,null,2)+'\n'],{type:'application/json'}));
-  link.href=href;link.download=filename(report);link.click?.();
+  link.href=href;link.download=filename(report);link.hidden=true;
+  env.document.body?.appendChild?.(link);
+  link.click?.();link.remove?.();
   setTimeout(()=>env.URL.revokeObjectURL?.(href),1000);
   return true;
 }
