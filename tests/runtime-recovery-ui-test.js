@@ -9,9 +9,11 @@ const source = fs.readFileSync(path.join(ROOT, 'js', 'runtime-recovery-ui.js'), 
 assert.doesNotMatch(source, /localStorage\.setItem|localStorage\.removeItem|localStorage\.clear/,
   'runtime recovery must never mutate save storage');
 for (const listener of ['onError', 'onRejection']) {
-  const match = source.match(new RegExp(`function ${listener}\\([^)]*\\)\\{([\\s\\S]*?)\\n\\}`));
-  assert.ok(match, `${listener} listener missing`);
-  assert.doesNotMatch(match[1], /preventDefault\?\.\(\)|preventDefault\(\)/,
+  const start = source.indexOf(`function ${listener}(`);
+  assert.notEqual(start, -1, `${listener} listener missing`);
+  const nextFunction = source.indexOf('\nfunction ', start + 1);
+  const body = source.slice(start, nextFunction === -1 ? source.length : nextFunction);
+  assert.doesNotMatch(body, /preventDefault\?\.\(\)|preventDefault\(\)/,
     `${listener} must not suppress the original error`);
 }
 
