@@ -6,11 +6,15 @@ This pass moves the production D-style shell closer to the approved reference im
 
 - denser dark navy and gold top command bar
 - stronger company identity and KPI hierarchy
+- reference-style notification rail in the top-right command area
 - tighter left strategic navigation and bottom dock
 - larger city workspace with higher-contrast roads, water, buildings, and location markers
-- more compact white analytics cards
-- darker right-side location detail panel
+- additional city depth through coastline lighting, road shadows, and varied building heights
+- clearer marker hover, focus, and selected states
+- more compact white analytics cards with restrained elevation feedback
+- darker right-side location detail panel with clearer active tabs, metrics, status bars, and primary actions
 - responsive fallbacks for tablet and iPhone widths
+- reduced-motion support for players who disable interface animation
 
 ## Compatibility
 
