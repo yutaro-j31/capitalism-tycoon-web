@@ -8,6 +8,7 @@ const { webkit, devices } = require('playwright');
 
 const ROOT = path.resolve(__dirname, '..');
 const OUT = path.resolve(process.env.D_UI_ARTIFACT_DIR || path.join(ROOT, 'artifacts', 'd-ui-webkit'));
+const DIAGNOSTICS = [];
 
 function server() {
   return http.createServer((req, res) => {
@@ -35,12 +36,21 @@ async function createCompany(page, suffix) {
   await page.locator('.d-kpi-strip').waitFor();
 }
 
+async function assertNoRecovery(page, stage, errors) {
+  const recovery = page.locator('[data-runtime-recovery-root]');
+  if (await recovery.count()) {
+    const text = await recovery.innerText().catch(() => 'runtime recovery text unavailable');
+    throw new Error(`${stage}: runtime recovery opened\n${text}\npage errors: ${errors.join(' | ')}`);
+  }
+}
+
 async function verifyDesktop(browser, base) {
   const context = await browser.newContext({ viewport: { width: 1440, height: 900 }, locale: 'ja-JP', serviceWorkers: 'block' });
   const page = await context.newPage();
   page.baseURL = `${base}index.html`;
   const errors = [];
-  page.on('pageerror', error => errors.push(String(error.message || error)));
+  page.on('pageerror', error => { const text=String(error.message || error); errors.push(text); DIAGNOSTICS.push(`desktop pageerror: ${text}`); });
+  page.on('console', message => { if(message.type()==='error')DIAGNOSTICS.push(`desktop console: ${message.text()}`); });
   await createCompany(page, 'desktop');
 
   await page.locator('#d-ui-sidebar').waitFor();
@@ -63,6 +73,7 @@ async function verifyDesktop(browser, base) {
   await page.locator('#screen').waitFor();
   assert.equal(await page.locator('#d-ui-command-menu.open').count(), 0, 'command menu must close after navigation');
   assert.ok(await page.locator('#screen .card').count() > 0, 'existing business screen must remain rendered');
+  await assertNoRecovery(page, 'after business navigation', errors);
 
   await page.locator('#d-ui-sidebar [data-tab="map"]').click();
   await page.locator('.d-map-workspace').waitFor();
@@ -76,7 +87,8 @@ async function verifyIPhone(browser, base) {
   const page = await context.newPage();
   page.baseURL = `${base}index.html`;
   const errors = [];
-  page.on('pageerror', error => errors.push(String(error.message || error)));
+  page.on('pageerror', error => { const text=String(error.message || error); errors.push(text); DIAGNOSTICS.push(`iphone pageerror: ${text}`); });
+  page.on('console', message => { if(message.type()==='error')DIAGNOSTICS.push(`iphone console: ${message.text()}`); });
   await createCompany(page, 'iphone');
   await page.locator('#d-ui-sidebar').waitFor();
 
@@ -90,6 +102,7 @@ async function verifyIPhone(browser, base) {
   await page.locator('#d-ui-command-menu [data-tab="settings"]').click();
   await page.locator('#screen').waitFor();
   assert.ok(await page.locator('#screen .card').count() > 0, 'settings screen must remain usable from the mobile command menu');
+  await assertNoRecovery(page, 'after settings navigation', errors);
   await page.screenshot({ path: path.join(OUT, 'd-ui-iphone.png'), fullPage: true });
   assert.deepEqual(errors, []);
   await context.close();
@@ -115,7 +128,7 @@ async function main() {
 
 main().catch(error => {
   fs.mkdirSync(OUT, { recursive: true });
-  fs.writeFileSync(path.join(OUT, 'd-ui-webkit-failure.log'), String(error.stack || error) + '\n');
+  fs.writeFileSync(path.join(OUT, 'd-ui-webkit-failure.log'), `${String(error.stack || error)}\n\n${DIAGNOSTICS.join('\n')}\n`);
   console.error(error.stack || error);
   process.exit(1);
 });
