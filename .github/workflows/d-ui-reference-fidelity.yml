@@ -1,0 +1,26 @@
+name: D UI Reference Fidelity
+
+on:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: d-ui-reference-fidelity-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  contract:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Verify reference fidelity contract
+        run: node tests/d-ui-reference-fidelity-test.js
+      - name: Verify existing D UI contract
+        run: node tests/d-ui-shell-test.js
