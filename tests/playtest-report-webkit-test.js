@@ -105,6 +105,8 @@ async function main() {
 }
 
 main().catch(error => {
+  fs.mkdirSync(OUT, { recursive: true });
+  fs.writeFileSync(path.join(OUT, 'playtest-report-webkit-failure.log'), String(error.stack || error) + '\n');
   console.error(error.stack || error);
   process.exit(1);
 });
