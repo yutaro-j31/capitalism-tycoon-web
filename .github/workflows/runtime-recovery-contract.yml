@@ -20,10 +20,18 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
-      - name: Verify runtime recovery contract
+      - name: Verify boot recovery contract
         shell: bash
         run: |
           mkdir -p artifacts/runtime-recovery-contract
+          set +e
+          node tests/boot-recovery-test.js > artifacts/runtime-recovery-contract/boot.log 2>&1
+          STATUS=$?
+          cat artifacts/runtime-recovery-contract/boot.log
+          exit "$STATUS"
+      - name: Verify runtime recovery contract
+        shell: bash
+        run: |
           set +e
           node tests/runtime-recovery-ui-test.js > artifacts/runtime-recovery-contract/unit.log 2>&1
           STATUS=$?
