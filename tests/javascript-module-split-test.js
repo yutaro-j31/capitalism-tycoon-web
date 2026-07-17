@@ -11,7 +11,7 @@ function expectThrow(fn, re) {
 }
 
 const expected = [
-  './js/runtime.js','./js/data.js','./js/workforce.js','./js/supply.js','./js/competitor.js','./js/competitor-projects.js','./js/competitor-entry.js','./js/competitor-credit.js','./js/competitor-distress.js','./js/competitor-terminal-compat.js',
+  './js/boot-recovery.js','./js/runtime.js','./js/data.js','./js/workforce.js','./js/supply.js','./js/competitor.js','./js/competitor-projects.js','./js/competitor-entry.js','./js/competitor-credit.js','./js/competitor-distress.js','./js/competitor-terminal-compat.js',
   './js/market.js','./js/finance.js','./js/engine.js','./js/save-v9.js','./js/expansion.js','./js/competitor-media.js','./js/completion.js','./js/parity.js','./js/competitor-parity.js','./js/competitor-dashboard.js','./js/competitor-dashboard-status.js','./js/competitor-dashboard-ui.js',
   './js/player-crisis-ui.js','./js/player-engine-bridge.js','./js/strategy-balance.js','./js/progression-balance.js','./js/app.js','./js/difficulty-scenario-balance.js','./js/player-crisis.js','./js/player-crisis-actions.js','./js/player-crisis-restructuring.js','./js/player-crisis-creditor.js','./js/player-debt-service.js','./js/player-turnaround-plan.js','./js/player-crisis-creditor-ui.js','./js/player-turnaround-plan-ui.js','./js/player-turnaround-plan-report.js','./js/release-diagnostics-ui.js','./js/runtime-recovery-ui.js'
 ];
@@ -22,7 +22,8 @@ const prefix = finalSrc => expected.slice(0, expected.indexOf(finalSrc) + 1);
 const freshWith = srcs => { const context = createBrowserContext(); for (const src of srcs) run(context, src); return context; };
 
 assert(JSON.stringify(scripts.map(script => script.src)) === JSON.stringify(expected), `script order mismatch: ${scripts.map(script => script.src).join(', ')}`);
-assert(expected[0] === './js/runtime.js', 'runtime.js must be first');
+assert(expected[0] === './js/boot-recovery.js', 'boot recovery must be the first external script');
+assert(expected[1] === './js/runtime.js', 'runtime.js must immediately follow boot recovery');
 assert(expected.at(-17) === './js/player-crisis-ui.js', 'player-crisis-ui.js must precede the engine bridge');
 assert(expected.at(-16) === './js/player-engine-bridge.js', 'engine bridge must capture the app load');
 assert(expected.at(-15) === './js/strategy-balance.js', 'strategy balance must precede progression balance');
@@ -70,6 +71,10 @@ for (const script of scripts) {
   run(ctx, script.src, code);
 }
 const modules = ctx.__capitalismTycoonModules;
+const boot = vm.runInContext("globalThis[Symbol.for('capitalismTycoon.bootRecovery')]", ctx);
+assert(boot?.__installed === true, 'boot recovery symbol registry missing');
+assert(boot.SAVE_KEY === 'capitalism_tycoon_web_v1', 'boot recovery save key drifted');
+assert(typeof boot.bridge === 'function' && typeof boot.download === 'function', 'boot recovery contract missing');
 assert(modules && typeof modules === 'object', 'registry missing');
 assert(Object.prototype.propertyIsEnumerable.call(ctx, '__capitalismTycoonModules') === false, 'registry must be non-enumerable');
 assert(ctx.loadCalls === 1, `TycoonEngine.load expected once, got ${ctx.loadCalls}`);
@@ -165,7 +170,7 @@ expectThrow(() => run(freshWith(prefix('./js/player-turnaround-plan-report.js'))
 
 const duplicateRegistration = /already (?:installed|registered|normalized)/;
 for (const src of [
-  './js/save-v9.js','./js/competitor-media.js','./js/competitor-parity.js','./js/competitor-dashboard.js','./js/competitor-dashboard-status.js','./js/competitor-dashboard-ui.js',
+  './js/boot-recovery.js','./js/save-v9.js','./js/competitor-media.js','./js/competitor-parity.js','./js/competitor-dashboard.js','./js/competitor-dashboard-status.js','./js/competitor-dashboard-ui.js',
   './js/player-crisis-ui.js','./js/player-engine-bridge.js','./js/strategy-balance.js','./js/progression-balance.js','./js/difficulty-scenario-balance.js','./js/player-crisis.js','./js/player-crisis-actions.js','./js/player-crisis-restructuring.js','./js/player-crisis-creditor.js','./js/player-debt-service.js','./js/player-turnaround-plan.js','./js/player-crisis-creditor-ui.js','./js/player-turnaround-plan-ui.js','./js/player-turnaround-plan-report.js','./js/release-diagnostics-ui.js','./js/runtime-recovery-ui.js','./js/competitor-terminal-compat.js','./js/competitor-distress.js','./js/data.js'
 ]) expectThrow(() => run(ctx, src), duplicateRegistration);
 

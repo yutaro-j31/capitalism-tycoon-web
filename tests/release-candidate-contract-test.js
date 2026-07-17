@@ -40,7 +40,13 @@ const html = readIndex();
 assert.match(html, /<html\b[^>]*\blang="ja"/i, 'Japanese document language is required');
 assert.match(html, /<title>資本主義ポケット TYCOON v2\.0<\/title>/, 'document title must match the 2.0 release line');
 assert.match(html, /<link\b[^>]*href="\.\/css\/app\.css"/i, 'release CSS must use a Pages-safe relative URL');
+assert.match(html, /<script\b[^>]*src="\.\/js\/boot-recovery\.js"/i,
+  'boot recovery must use a Pages-safe relative URL');
 assert.match(html, /<script\b[^>]*src="\.\/js\/runtime\.js"/i, 'runtime entry script must use a Pages-safe relative URL');
+const bootIndex = html.indexOf('src="./js/boot-recovery.js"');
+const runtimeIndex = html.indexOf('src="./js/runtime.js"');
+assert.ok(bootIndex !== -1 && runtimeIndex > bootIndex,
+  'boot recovery must load before the runtime entry script');
 assert.doesNotMatch(html, /<base\b/i, 'a base tag could break GitHub Pages project paths');
 assert.doesNotMatch(html, /https?:\/\/[^"']+\.js/i, 'release must not depend on external JavaScript');
 
