@@ -43,17 +43,29 @@ assert.match(html, /<link\b[^>]*href="\.\/css\/app\.css"/i, 'release CSS must us
 assert.match(html, /<script\b[^>]*src="\.\/js\/boot-recovery\.js"/i,
   'boot recovery must use a Pages-safe relative URL');
 assert.match(html, /<script\b[^>]*src="\.\/js\/runtime\.js"/i, 'runtime entry script must use a Pages-safe relative URL');
+assert.match(html, /<script\b[^>]*src="\.\/js\/playtest-report-ui\.js"/i,
+  'playtest report module must use a Pages-safe relative URL');
 const bootIndex = html.indexOf('src="./js/boot-recovery.js"');
 const runtimeIndex = html.indexOf('src="./js/runtime.js"');
+const diagnosticsIndex = html.indexOf('src="./js/release-diagnostics-ui.js"');
+const playtestIndex = html.indexOf('src="./js/playtest-report-ui.js"');
+const recoveryIndex = html.indexOf('src="./js/runtime-recovery-ui.js"');
 assert.ok(bootIndex !== -1 && runtimeIndex > bootIndex,
   'boot recovery must load before the runtime entry script');
+assert.ok(diagnosticsIndex !== -1 && playtestIndex > diagnosticsIndex,
+  'playtest reporting must load after release diagnostics');
+assert.ok(recoveryIndex > playtestIndex,
+  'runtime recovery must load after playtest reporting');
 assert.doesNotMatch(html, /<base\b/i, 'a base tag could break GitHub Pages project paths');
 assert.doesNotMatch(html, /https?:\/\/[^"']+\.js/i, 'release must not depend on external JavaScript');
 
-const { engineModule } = loadGame();
+const { engineModule, modules } = loadGame();
 assert.equal(engineModule.SAVE_KEY, manifest.save.key, 'release manifest save key drifted from runtime');
 assert.equal(engineModule.SAVE_VERSION, manifest.save.version, 'release manifest save version drifted from runtime');
 assert.ok(manifest.save.compatibleFromVersion <= manifest.save.version, 'save compatibility floor is invalid');
+assert.equal(modules.playtestReportUI.SCHEMA_VERSION, 1, 'playtest report schema drifted');
+assert.equal(modules.playtestReportUI.KIND, 'capitalism-tycoon-playtest-report');
+assert.equal(modules.playtestReportUI.MAX_ACTIONS, 30, 'playtest breadcrumb limit drifted');
 
 console.log(JSON.stringify({
   version: manifest.version,
