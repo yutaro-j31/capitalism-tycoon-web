@@ -14,6 +14,7 @@ This pass moves the production D-style shell closer to the approved reference im
 - more compact white analytics cards with restrained elevation feedback
 - darker right-side location detail panel with clearer active tabs, metrics, status bars, and primary actions
 - responsive fallbacks for tablet and iPhone widths
+- compact iPhone landscape treatment that reduces vertical chrome while preserving safe-area spacing and touch targets
 - reduced-motion support for players who disable interface animation
 - forced-colors support that preserves navigation selection, map labels, status bars, tabs, and keyboard focus
 
