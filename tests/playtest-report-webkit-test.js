@@ -54,14 +54,15 @@ async function main() {
     await page.locator('#setup-form').evaluate(form => form.requestSubmit());
     await page.locator('.topbar').waitFor();
 
-    const beforeRaw = await page.evaluate(key => localStorage.getItem(key), rc.save.key);
-    assert.ok(beforeRaw, 'save must exist before report download');
     await page.locator('.tabs button[data-tab="map"]').click();
     await page.locator('.tabs button[data-tab="home"]').click();
     await page.locator('.tabs button[data-tab="settings"]').click();
 
     const reportButton = page.locator('[data-playtest-report-action="download"]');
     await reportButton.waitFor();
+    const beforeRaw = await page.evaluate(key => localStorage.getItem(key), rc.save.key);
+    assert.ok(beforeRaw, 'save must exist immediately before report download');
+
     const downloadPromise = page.waitForEvent('download');
     await reportButton.click();
     const download = await downloadPromise;
