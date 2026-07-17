@@ -34,6 +34,10 @@ assert.equal(record.source, '/capitalism-tycoon-web/js/app.js');
 assert.equal(record.line, 42);
 assert.equal(record.column, 7);
 assert.equal(Object.isFrozen(record), true);
+for (const missingSource of [undefined, null, '', 'undefined', 'null']) {
+  assert.equal(recovery.buildRecord(new Error('no source'), { source: missingSource }).source, '',
+    `missing source must remain blank: ${String(missingSource)}`);
+}
 
 const raw = JSON.stringify({ week: 27, companyName: 'Private Co', companyCash: 123456789, stores: [{ name: 'Secret' }] });
 let reads = 0;
