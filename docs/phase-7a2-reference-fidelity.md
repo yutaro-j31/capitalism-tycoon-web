@@ -16,6 +16,7 @@ This pass moves the production D-style shell closer to the approved reference im
 - responsive fallbacks for tablet and iPhone widths
 - compact iPhone landscape treatment that reduces vertical chrome while preserving safe-area spacing and touch targets
 - coarse-pointer treatment that prevents sticky hover states, removes delayed tap highlighting, and preserves selected marker/navigation feedback
+- dynamic viewport sizing that follows mobile browser chrome without clipping the map or context panel
 - reduced-motion support for players who disable interface animation
 - forced-colors support that preserves navigation selection, map labels, status bars, tabs, and keyboard focus
 
