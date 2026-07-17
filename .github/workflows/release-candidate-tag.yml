@@ -97,6 +97,10 @@ jobs:
         env:
           IPHONE_WEBKIT_ARTIFACT_DIR: artifacts/iphone-webkit-smoke
         run: node tests/iphone-webkit-smoke-test.js
+      - name: Verify uncaught runtime recovery
+        env:
+          IPHONE_WEBKIT_ARTIFACT_DIR: artifacts/iphone-webkit-smoke
+        run: node tests/runtime-recovery-webkit-test.js
       - name: Retain local automated WebKit evidence
         if: always()
         uses: actions/upload-artifact@v4
