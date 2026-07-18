@@ -20,7 +20,7 @@ const ALL_NAV=[
   ['legacy','♜','承継'],['missions','✓','進行・目標'],['rivals','⚔','競合'],['news','●','ニュース'],['settings','⚙','設定']
 ];
 const MARKER_POSITIONS=[[18,23],[43,17],[66,27],[25,47],[54,48],[78,52],[37,70],[64,73],[15,67],[83,31]];
-let selectedEntity='';
+let selectedEntity;
 let scheduled=false;
 let observer=null;
 
@@ -113,8 +113,8 @@ function missionRows(g){
 }
 function missionValue(value,kind){return kind==='money'?money(value):`${Math.max(0,Math.round(finite(value))).toLocaleString('ja-JP')}件`;}
 function renderMapWorkspace(screen,g){
-  const entities=mapEntities(g,screen);if(!selectedEntity||!entities.some(entity=>entity.id===selectedEntity))selectedEntity=entities[0]?.id||'';
-  const chosen=entities.find(entity=>entity.id===selectedEntity)||entities[0];
+  const entities=mapEntities(g,screen);if(selectedEntity===undefined||(selectedEntity!==null&&!entities.some(entity=>entity.id===selectedEntity)))selectedEntity=entities[0]?.id||null;
+  const chosen=selectedEntity===null?null:entities.find(entity=>entity.id===selectedEntity)||null;
   let directory=screen.querySelector(':scope > .d-map-directory');
   if(!directory){
     const originals=[...screen.children];directory=document.createElement('details');directory.className='d-map-directory';directory.open=globalThis.innerWidth<960;directory.innerHTML='<summary>出店候補・不動産・オフィス一覧を開く</summary><div class="d-map-directory-body"></div>';
@@ -125,7 +125,7 @@ function renderMapWorkspace(screen,g){
   const positions=entities.map((entity,index)=>{const pos=markerPosition(entity.id,index);return `<button type="button" class="d-map-marker ${entity.kind} ${entity.id===chosen?.id?'selected':''}" style="--x:${pos[0]}%;--y:${pos[1]}%" data-d-ui-marker="${esc(entity.id)}"><span>${markerIcon(entity)}</span><small>${esc(entity.name)}</small></button>`;}).join('');
   const blocks=Array.from({length:34},(_,index)=>{const x=7+(index*17)%84,y=12+(index*23)%68,h=18+(index*13)%58;return `<i style="--x:${x}%;--y:${y}%;--h:${h}px"></i>`;}).join('');
   const missions=missionRows(g);const news=(g.news||[]).slice(0,3);
-  workspace.innerHTML=`<div class="d-map-stage"><div class="d-map-toolbar"><button type="button">都市ビュー⌄</button><span>${esc(engine()?.pref?.(screen.querySelector('[data-bind="selectedPref"]')?.value)?.name||'全国')}</span></div><div class="d-city-surface"><div class="d-water"></div><div class="d-road-grid"></div><div class="d-city-blocks">${blocks}</div>${positions||'<div class="d-no-markers">出店候補を読み込み中です</div>'}</div><div class="d-map-tools"><button type="button">◎</button><button type="button">☷<small>フィルター</small></button><button type="button">⌕<small>凡例</small></button><button type="button">−</button><button type="button">＋</button></div></div><div class="d-map-overlay"><article class="d-white-card d-chart-card"><header><div><h2>週間利益推移</h2><small>単位：円</small></div><b>${money(g.lastReport?.profit)}</b></header>${sparkline(reportSeries(g))}<footer><span>4週前</span><span>3週前</span><span>2週前</span><span>先週</span><span>今週</span></footer></article><article class="d-white-card d-mission-card"><header><h2>ミッション</h2><b>${missions.filter(item=>item[4]).length}/${missions.length}</b></header>${missions.map(item=>`<div class="d-mission-row ${item[4]?'done':''}"><span>${item[0]}</span><div><strong>${esc(item[1])}</strong><small>${missionValue(item[2],item[5])} / ${missionValue(item[3],item[5])}</small><i><em style="width:${clamp(item[2]/Math.max(1,item[3])*100,0,100)}%"></em></i></div></div>`).join('')}<button type="button" data-action="tab" data-tab="missions">すべてのミッションを見る ›</button></article><article class="d-white-card d-news-card"><header><h2>企業ニュース</h2><button type="button" data-action="tab" data-tab="news">すべて見る ↗</button></header>${news.length?news.map((item,index)=>`<div><span></span><p>${esc(item)}</p><small>${index+1}件前</small></div>`).join(''):'<p>新しいニュースはありません。</p>'}</article></div><aside class="d-context-panel"><header><div><span>●</span><h2>${esc(chosen?.name||'拠点詳細')}</h2></div><button type="button" data-d-ui-action="clear-selection">×</button></header>${selectedDetail(chosen,g)}</aside>`;
+  workspace.innerHTML=`<div class="d-map-stage"><div class="d-map-toolbar"><button type="button">都市ビュー⌄</button><span>${esc(engine()?.pref?.(screen.querySelector('[data-bind="selectedPref"]')?.value)?.name||'全国')}</span></div><div class="d-city-surface"><div class="d-water"></div><div class="d-road-grid"></div><div class="d-city-blocks">${blocks}</div>${positions||'<div class="d-no-markers">出店候補を読み込み中です</div>'}</div><div class="d-map-tools"><button type="button">◎</button><button type="button">☷<small>フィルター</small></button><button type="button">⌕<small>凡例</small></button><button type="button">−</button><button type="button">＋</button></div></div><div class="d-map-overlay"><article class="d-white-card d-chart-card"><header><div><h2>週間利益推移</h2><small>単位：円</small></div><b>${money(g.lastReport?.profit)}</b></header>${sparkline(reportSeries(g))}<footer><span>4週前</span><span>3週前</span><span>2週前</span><span>先週</span><span>今週</span></footer></article><article class="d-white-card d-mission-card"><header><h2>ミッション</h2><b>${missions.filter(item=>item[4]).length}/${missions.length}</b></header>${missions.map(item=>`<div class="d-mission-row ${item[4]?'done':''}"><span>${item[0]}</span><div><strong>${esc(item[1])}</strong><small>${missionValue(item[2],item[5])} / ${missionValue(item[3],item[5])}</small><i><em style="width:${clamp(item[2]/Math.max(1,item[3])*100,0,100)}%"></em></i></div></div>`).join('')}<button type="button" data-action="tab" data-tab="missions">すべてのミッションを見る ›</button></article><article class="d-white-card d-news-card"><header><h2>企業ニュース</h2><button type="button" data-action="tab" data-tab="news">すべて見る ↗</button></header>${news.length?news.map((item,index)=>`<div><span></span><p>${esc(item)}</p><small>${index+1}件前</small></div>`).join(''):'<p>新しいニュースはありません。</p>'}</article></div><aside class="d-context-panel"><header><div><span>●</span><h2>${esc(chosen?.name||'拠点詳細')}</h2></div><button type="button" data-d-ui-action="clear-selection" aria-label="拠点詳細を閉じる">×</button></header>${selectedDetail(chosen,g)}</aside>`;
 }
 function enhanceMap(g){
   const screen=document.getElementById('screen');if(!screen)return;
@@ -144,7 +144,7 @@ function schedule(){if(scheduled)return;scheduled=true;const run=()=>{scheduled=
 function handleClick(event){
   const action=event.target?.closest?.('[data-d-ui-action]')?.dataset?.dUiAction;
   if(action==='toggle-menu'){event.preventDefault();document.getElementById('d-ui-command-menu')?.classList.toggle('open');return true;}
-  if(action==='clear-selection'){event.preventDefault();selectedEntity='';enhance(true);return true;}
+  if(action==='clear-selection'){event.preventDefault();selectedEntity=null;enhance(true);return true;}
   const marker=event.target?.closest?.('[data-d-ui-marker]');
   if(marker){event.preventDefault();selectedEntity=marker.dataset.dUiMarker;enhance(true);return true;}
   const tab=event.target?.closest?.('[data-action="tab"]');if(tab)document.getElementById('d-ui-command-menu')?.classList.remove('open');
