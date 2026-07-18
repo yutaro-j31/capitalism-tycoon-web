@@ -160,8 +160,17 @@ function handleClick(event){
   return false;
 }
 function handleKeydown(event){
-  if(event.key!=='Escape'||!document.getElementById('d-ui-command-menu')?.classList.contains('open'))return false;
-  event.preventDefault();setCommandMenu(false,true);return true;
+  const menu=document.getElementById('d-ui-command-menu');
+  if(!menu?.classList.contains('open'))return false;
+  if(event.key==='Escape'){event.preventDefault();setCommandMenu(false,true);return true;}
+  if(event.key!=='Tab')return false;
+  const focusable=[...menu.querySelectorAll('button:not([disabled]),[href],input:not([disabled]),select:not([disabled]),textarea:not([disabled]),[tabindex]:not([tabindex="-1"])')].filter(element=>!element.hidden&&element.getAttribute('aria-hidden')!=='true');
+  if(!focusable.length)return false;
+  const first=focusable[0];const last=focusable[focusable.length-1];const active=document.activeElement;
+  if(event.shiftKey&&active===first){event.preventDefault();last.focus();return true;}
+  if(!event.shiftKey&&active===last){event.preventDefault();first.focus();return true;}
+  if(!menu.contains(active)){event.preventDefault();first.focus();return true;}
+  return false;
 }
 function install(){
   document.addEventListener('click',handleClick,true);document.addEventListener('keydown',handleKeydown,true);const app=document.getElementById('app');if(app&&typeof MutationObserver==='function'){observer=new MutationObserver(schedule);observer.observe(app,{childList:true,subtree:true});}
