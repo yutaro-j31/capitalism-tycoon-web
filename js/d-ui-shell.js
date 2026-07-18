@@ -69,18 +69,26 @@ function enhanceTopbar(g,e){
   const controls=topbar.querySelector('.week-controls');
   if(controls)controls.innerHTML=`<div class="d-date"><span>▣ 第${finite(g.week)}週</span><small>${finite(g.month)}か月目</small></div><div class="d-speed" aria-label="進行速度"><button type="button" disabled>◀</button><button type="button" disabled>Ⅱ</button><button type="button" data-action="advance-4" aria-label="4週進める">▶▶</button></div><button type="button" class="btn primary d-advance" data-action="advance-week">一週進める <b>»</b></button>`;
 }
+function setCommandMenu(open,restoreFocus=false){
+  const menu=document.getElementById('d-ui-command-menu');if(!menu)return false;
+  menu.classList.toggle('open',open);
+  const toggle=document.querySelector('.d-menu-toggle');if(toggle)toggle.setAttribute('aria-expanded',String(open));
+  if(!open&&restoreFocus)toggle?.focus();
+  return true;
+}
 function ensureNavigation(g){
   const app=document.getElementById('app');const screen=document.getElementById('screen');const source=document.querySelector('.tabs');if(!app||!screen||!source)return;
   source.classList.add('d-source-tabs');source.setAttribute('aria-hidden','true');
   let sidebar=document.getElementById('d-ui-sidebar');
   if(!sidebar){sidebar=document.createElement('aside');sidebar.id='d-ui-sidebar';sidebar.className='d-sidebar';screen.before(sidebar);}
-  sidebar.innerHTML=`<button class="d-menu-toggle" type="button" data-d-ui-action="toggle-menu" aria-label="全メニューを開く">☰</button><nav>${PRIMARY_NAV.map(tabButton).join('')}</nav><div class="d-company-rank"><small>企業ランク</small><strong>${g.publicCompany?'A':'B'}</strong><span>評価スコア ${Math.max(0,Math.round(finite(engine()?.companyValue?.())/100000)).toLocaleString('ja-JP')}</span></div>`;
+  const menuOpen=document.getElementById('d-ui-command-menu')?.classList.contains('open')||false;
+  sidebar.innerHTML=`<button class="d-menu-toggle" type="button" data-d-ui-action="toggle-menu" aria-label="全メニューを開く" aria-controls="d-ui-command-menu" aria-expanded="${menuOpen}">☰</button><nav>${PRIMARY_NAV.map(tabButton).join('')}</nav><div class="d-company-rank"><small>企業ランク</small><strong>${g.publicCompany?'A':'B'}</strong><span>評価スコア ${Math.max(0,Math.round(finite(engine()?.companyValue?.())/100000)).toLocaleString('ja-JP')}</span></div>`;
   let dock=document.getElementById('d-ui-dock');
   if(!dock){dock=document.createElement('footer');dock.id='d-ui-dock';dock.className='d-bottom-dock';app.appendChild(dock);}
   dock.innerHTML=DOCK_NAV.map(tabButton).join('');
   let menu=document.getElementById('d-ui-command-menu');
   if(!menu){menu=document.createElement('div');menu.id='d-ui-command-menu';menu.className='d-command-menu';app.appendChild(menu);}
-  menu.innerHTML=`<div class="d-command-panel"><div class="d-command-head"><div><strong>経営メニュー</strong><small>すべての機能へ移動</small></div><button type="button" data-d-ui-action="toggle-menu" aria-label="閉じる">×</button></div><div class="d-command-grid">${ALL_NAV.map(tabButton).join('')}</div></div>`;
+  menu.innerHTML=`<div class="d-command-panel" role="dialog" aria-modal="true" aria-label="経営メニュー"><div class="d-command-head"><div><strong>経営メニュー</strong><small>すべての機能へ移動</small></div><button type="button" data-d-ui-action="toggle-menu" aria-label="閉じる">×</button></div><div class="d-command-grid">${ALL_NAV.map(tabButton).join('')}</div></div>`;
   const active=activeTab();
   for(const button of [...sidebar.querySelectorAll('[data-tab]'),...dock.querySelectorAll('[data-tab]'),...menu.querySelectorAll('[data-tab]')])button.classList.toggle('active',button.dataset.tab===active);
 }
@@ -143,17 +151,21 @@ function enhance(force=false){
 function schedule(){if(scheduled)return;scheduled=true;const run=()=>{scheduled=false;enhance();};if(typeof queueMicrotask==='function')queueMicrotask(run);else setTimeout(run,0);}
 function handleClick(event){
   const action=event.target?.closest?.('[data-d-ui-action]')?.dataset?.dUiAction;
-  if(action==='toggle-menu'){event.preventDefault();document.getElementById('d-ui-command-menu')?.classList.toggle('open');return true;}
+  if(action==='toggle-menu'){event.preventDefault();const menu=document.getElementById('d-ui-command-menu');setCommandMenu(!menu?.classList.contains('open'));return true;}
   if(action==='clear-selection'){event.preventDefault();selectedEntity=null;enhance(true);return true;}
   const marker=event.target?.closest?.('[data-d-ui-marker]');
   if(marker){event.preventDefault();selectedEntity=marker.dataset.dUiMarker;enhance(true);return true;}
-  const tab=event.target?.closest?.('[data-action="tab"]');if(tab)document.getElementById('d-ui-command-menu')?.classList.remove('open');
+  const tab=event.target?.closest?.('[data-action="tab"]');if(tab)setCommandMenu(false);
   return false;
 }
+function handleKeydown(event){
+  if(event.key!=='Escape'||!document.getElementById('d-ui-command-menu')?.classList.contains('open'))return false;
+  event.preventDefault();setCommandMenu(false,true);return true;
+}
 function install(){
-  document.addEventListener('click',handleClick,true);const app=document.getElementById('app');if(app&&typeof MutationObserver==='function'){observer=new MutationObserver(schedule);observer.observe(app,{childList:true,subtree:true});}
+  document.addEventListener('click',handleClick,true);document.addEventListener('keydown',handleKeydown,true);const app=document.getElementById('app');if(app&&typeof MutationObserver==='function'){observer=new MutationObserver(schedule);observer.observe(app,{childList:true,subtree:true});}
   schedule();return true;
 }
-modules.dUIShell=Object.freeze({PRIMARY_NAV,DOCK_NAV,ALL_NAV,money,reportSeries,sparkline,currentKpis,mapEntities,missionRows,missionValue,selectedDetail,renderMapWorkspace,enhance,handleClick,install,__installed:true});
+modules.dUIShell=Object.freeze({PRIMARY_NAV,DOCK_NAV,ALL_NAV,money,reportSeries,sparkline,currentKpis,mapEntities,missionRows,missionValue,selectedDetail,renderMapWorkspace,setCommandMenu,enhance,handleClick,handleKeydown,install,__installed:true});
 install();
 })();
