@@ -2,6 +2,7 @@ const fs = require('node:fs');
 const assert = require('node:assert/strict');
 
 const script = fs.readFileSync('js/d-ui-context-tabs.js', 'utf8');
+const shell = fs.readFileSync('js/d-ui-shell.js', 'utf8');
 const css = fs.readFileSync('css/d-ui-context-tabs.css', 'utf8');
 const html = fs.readFileSync('index.html', 'utf8');
 
@@ -25,6 +26,12 @@ assert.match(script, /const cost=Math\.max\(0,sales-profit\)/, 'finance tab must
 assert.doesNotMatch(script, /selectedTab\s*=/, 'context actions must delegate navigation instead of mutating selected tab state');
 assert.doesNotMatch(script, /companyCash\s*(?:\+=|-=|\*=|\/=|=)/, 'context tabs must not mutate company cash');
 assert.doesNotMatch(script, /lastProfit\s*=/, 'context tabs must not mutate store results');
+assert.match(shell, /let selectedEntity;/, 'map selection must distinguish initial state from an explicit dismissal');
+assert.match(shell, /selectedEntity===undefined\|\|\(selectedEntity!==null&&![\s\S]*entities\.some/, 'initial or stale selections may choose a valid default without overriding dismissal');
+assert.match(shell, /const chosen=selectedEntity===null\?null:/, 'an explicitly dismissed context panel must remain empty');
+assert.match(shell, /action==='clear-selection'[\s\S]*selectedEntity=null;enhance\(true\)/, 'close control must persist an explicit no-selection state');
+assert.match(shell, /data-d-ui-action="clear-selection" aria-label="拠点詳細を閉じる"/, 'close control must expose an accessible name');
+assert.doesNotMatch(shell, /action==='clear-selection'[\s\S]{0,120}selectedEntity=''/, 'close control must not reuse the initial auto-selection sentinel');
 assert.match(css, /\.d-context-actions button\{[^}]*min-height:52px/s, 'desktop context action must preserve a generous touch target');
 assert.match(css, /max-width:420px[\s\S]*\.d-context-actions button\{min-height:48px\}/, 'iPhone context action must preserve at least a 48px touch target');
 assert.match(css, /prefers-reduced-motion:reduce/, 'tab transitions must respect reduced motion');
