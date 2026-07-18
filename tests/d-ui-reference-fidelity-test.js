@@ -22,6 +22,9 @@ for(const mobileContract of ['env(safe-area-inset-bottom,0px)','min-width:44px',
 for(const commandMenuScrollContract of ['body.d-ui-active:has(.d-command-menu.open){overflow:hidden','overscroll-behavior:none','touch-action:none','.d-command-menu.open .d-command-panel{touch-action:auto','overscroll-behavior:contain']){
   assert.ok(override.includes(commandMenuScrollContract),`missing command-menu background scroll lock: ${commandMenuScrollContract}`);
 }
+for(const commandMenuSafeAreaContract of ['.d-command-menu{place-items:stretch','env(safe-area-inset-top,0px)','env(safe-area-inset-right,0px)','env(safe-area-inset-left,0px)','max-height:calc(100dvh - max(16px,env(safe-area-inset-top,0px)) - max(16px,env(safe-area-inset-bottom,0px)))','.d-command-head{position:sticky','min-width:44px;min-height:44px']){
+  assert.ok(override.includes(commandMenuSafeAreaContract),`missing iPhone command-menu safe-area contract: ${commandMenuSafeAreaContract}`);
+}
 for(const landscapeContract of ['@media(max-width:932px) and (orientation:landscape) and (max-height:500px)','min-height:340px','.d-topbar .brand p{display:none}','height:calc(44px + env(safe-area-inset-bottom,0px))']){
   assert.ok(override.includes(landscapeContract),`missing compact iPhone landscape contract: ${landscapeContract}`);
 }
