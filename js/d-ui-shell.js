@@ -151,8 +151,10 @@ function enhance(force=false){
 }
 function schedule(){if(scheduled)return;scheduled=true;const run=()=>{scheduled=false;enhance();};if(typeof queueMicrotask==='function')queueMicrotask(run);else setTimeout(run,0);}
 function handleClick(event){
+  const menu=document.getElementById('d-ui-command-menu');
+  if(menu?.classList.contains('open')&&event.target===menu){event.preventDefault();setCommandMenu(false,true);return true;}
   const action=event.target?.closest?.('[data-d-ui-action]')?.dataset?.dUiAction;
-  if(action==='toggle-menu'){event.preventDefault();const menu=document.getElementById('d-ui-command-menu');const open=!menu?.classList.contains('open');setCommandMenu(open,!open);return true;}
+  if(action==='toggle-menu'){event.preventDefault();const open=!menu?.classList.contains('open');setCommandMenu(open,!open);return true;}
   if(action==='clear-selection'){event.preventDefault();selectedEntity=null;enhance(true);return true;}
   const marker=event.target?.closest?.('[data-d-ui-marker]');
   if(marker){event.preventDefault();selectedEntity=marker.dataset.dUiMarker;enhance(true);return true;}
