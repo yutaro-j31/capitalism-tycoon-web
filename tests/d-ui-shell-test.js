@@ -33,6 +33,11 @@ assert.match(script, /data-action="open-store"/, 'D UI tenant action must preser
 assert.match(script, /if\(open\)menu\.querySelector\('\[data-d-ui-action="toggle-menu"\]'\)\?\.focus\(\)/, 'opening the command menu must move focus into the dialog');
 assert.match(script, /setCommandMenu\(open,!open\)/, 'pointer dismissal must restore focus to the menu trigger');
 assert.match(script, /setCommandMenu\(false,true\)/, 'Escape dismissal must restore focus to the menu trigger');
+assert.match(script, /if\(event\.key!==['"]Tab['"]\)return false/, 'command menu must handle Tab only while open');
+assert.match(script, /menu\.querySelectorAll\('button:not\(\[disabled\]\)/, 'command menu must enumerate focusable controls');
+assert.match(script, /event\.shiftKey&&active===first/, 'Shift+Tab must wrap to the final command');
+assert.match(script, /!event\.shiftKey&&active===last/, 'Tab must wrap to the first command');
+assert.match(script, /!menu\.contains\(active\)/, 'focus escaping the open dialog must be recovered');
 assert.doesNotMatch(script, /localStorage\.(?:setItem|removeItem|clear)/, 'D UI shell must not mutate save storage directly');
 assert.doesNotMatch(script, /Math\.random/, 'D UI marker placement must remain deterministic');
 assert.doesNotMatch(script + style, /https?:\/\//, 'D UI shell must not add remote runtime assets');
