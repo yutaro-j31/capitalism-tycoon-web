@@ -73,7 +73,8 @@ function setCommandMenu(open,restoreFocus=false){
   const menu=document.getElementById('d-ui-command-menu');if(!menu)return false;
   menu.classList.toggle('open',open);
   const toggle=document.querySelector('.d-menu-toggle');if(toggle)toggle.setAttribute('aria-expanded',String(open));
-  if(!open&&restoreFocus)toggle?.focus();
+  if(open)menu.querySelector('[data-d-ui-action="toggle-menu"]')?.focus();
+  else if(restoreFocus)toggle?.focus();
   return true;
 }
 function ensureNavigation(g){
@@ -151,7 +152,7 @@ function enhance(force=false){
 function schedule(){if(scheduled)return;scheduled=true;const run=()=>{scheduled=false;enhance();};if(typeof queueMicrotask==='function')queueMicrotask(run);else setTimeout(run,0);}
 function handleClick(event){
   const action=event.target?.closest?.('[data-d-ui-action]')?.dataset?.dUiAction;
-  if(action==='toggle-menu'){event.preventDefault();const menu=document.getElementById('d-ui-command-menu');setCommandMenu(!menu?.classList.contains('open'));return true;}
+  if(action==='toggle-menu'){event.preventDefault();const menu=document.getElementById('d-ui-command-menu');const open=!menu?.classList.contains('open');setCommandMenu(open,!open);return true;}
   if(action==='clear-selection'){event.preventDefault();selectedEntity=null;enhance(true);return true;}
   const marker=event.target?.closest?.('[data-d-ui-marker]');
   if(marker){event.preventDefault();selectedEntity=marker.dataset.dUiMarker;enhance(true);return true;}
