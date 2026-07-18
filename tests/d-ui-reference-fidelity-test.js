@@ -25,6 +25,9 @@ for(const commandMenuScrollContract of ['body.d-ui-active:has(.d-command-menu.op
 for(const commandMenuSafeAreaContract of ['.d-command-menu{place-items:stretch','env(safe-area-inset-top,0px)','env(safe-area-inset-right,0px)','env(safe-area-inset-left,0px)','max-height:calc(100dvh - max(16px,env(safe-area-inset-top,0px)) - max(16px,env(safe-area-inset-bottom,0px)))','.d-command-head{position:sticky','min-width:44px;min-height:44px']){
   assert.ok(override.includes(commandMenuSafeAreaContract),`missing iPhone command-menu safe-area contract: ${commandMenuSafeAreaContract}`);
 }
+for(const commandMenuFocusContract of ['.d-command-head button:focus-visible','.d-command-grid .d-nav-button:focus-visible','outline:3px solid #ffe097!important','outline-offset:3px','box-shadow:0 0 0 4px rgba(217,168,77,.18)']){
+  assert.ok(override.includes(commandMenuFocusContract),`missing command-menu keyboard focus treatment: ${commandMenuFocusContract}`);
+}
 for(const landscapeContract of ['@media(max-width:932px) and (orientation:landscape) and (max-height:500px)','min-height:340px','.d-topbar .brand p{display:none}','height:calc(44px + env(safe-area-inset-bottom,0px))']){
   assert.ok(override.includes(landscapeContract),`missing compact iPhone landscape contract: ${landscapeContract}`);
 }
