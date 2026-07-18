@@ -19,6 +19,8 @@ assert.match(script, /event\.key==='ArrowRight'/, 'right arrow keyboard navigati
 assert.match(script, /event\.key==='ArrowLeft'/, 'left arrow keyboard navigation must remain supported');
 assert.match(script, /event\.key==='Home'/, 'Home keyboard navigation must remain supported');
 assert.match(script, /event\.key==='End'/, 'End keyboard navigation must remain supported');
+assert.match(script, /function handleClick\(event\)[\s\S]*select\(button\.dataset\.dContextTab,true\)/, 'pointer activation must restore focus to the newly rendered active tab');
+assert.match(script, /if\(focus\)oldTabs\.querySelector\([\s\S]*\)\?\.focus\(\)/, 'tab rendering must retain an explicit focus restoration path');
 assert.match(script, /const cost=Math\.max\(0,sales-profit\)/, 'finance tab must remain read-only and derive cost from existing results');
 assert.doesNotMatch(script, /selectedTab\s*=/, 'context actions must delegate navigation instead of mutating selected tab state');
 assert.doesNotMatch(script, /companyCash\s*(?:\+=|-=|\*=|\/=|=)/, 'context tabs must not mutate company cash');
