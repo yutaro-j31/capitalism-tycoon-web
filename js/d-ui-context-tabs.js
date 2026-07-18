@@ -1,4 +1,4 @@
-// Phase 7B-2: interactive, read-only store context tabs with contextual navigation.
+// Phase 7B-3: interactive, read-only store context tabs with stable focus and contextual navigation.
 (function(){'use strict';
 const modules=globalThis.__capitalismTycoonModules;
 if(!modules?.dUIShell||!modules?.playerEngineBridge?.__installed)throw new Error('d-ui-shell.js and player-engine-bridge.js must be loaded before d-ui-context-tabs.js.');
@@ -48,7 +48,7 @@ function renderTabs(panel,context,focus=false){
 }
 function enhance(focus=false){const panel=document.querySelector('.d-context-panel');const context=selectedStore();if(!panel||!context)return false;if(!focus&&panel.dataset.dContextStore===context.key&&panel.dataset.dContextActive===activeByStore.get(context.key)&&panel.querySelector('[data-d-context-tab]'))return false;return renderTabs(panel,context,focus);}
 function select(tab,focus=true){const context=selectedStore();if(!context||!TABS.some(([id])=>id===tab))return false;activeByStore.set(context.key,tab);return enhance(focus);}
-function handleClick(event){const button=event.target?.closest?.('[data-d-context-tab]');if(!button)return false;event.preventDefault();select(button.dataset.dContextTab,false);return true;}
+function handleClick(event){const button=event.target?.closest?.('[data-d-context-tab]');if(!button)return false;event.preventDefault();select(button.dataset.dContextTab,true);return true;}
 function handleKeydown(event){const button=event.target?.closest?.('[data-d-context-tab]');if(!button)return false;const index=TABS.findIndex(([id])=>id===button.dataset.dContextTab);let next=index;if(event.key==='ArrowRight')next=(index+1)%TABS.length;else if(event.key==='ArrowLeft')next=(index-1+TABS.length)%TABS.length;else if(event.key==='Home')next=0;else if(event.key==='End')next=TABS.length-1;else return false;event.preventDefault();select(TABS[next][0],true);return true;}
 function schedule(){if(scheduled)return;scheduled=true;const run=()=>{scheduled=false;enhance();};typeof queueMicrotask==='function'?queueMicrotask(run):setTimeout(run,0);}
 function install(){document.addEventListener('click',handleClick,true);document.addEventListener('keydown',handleKeydown,true);const app=document.getElementById('app');if(app&&typeof MutationObserver==='function')new MutationObserver(schedule).observe(app,{childList:true,subtree:true});schedule();return true;}
