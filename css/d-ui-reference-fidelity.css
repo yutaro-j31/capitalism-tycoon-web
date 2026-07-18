@@ -1,5 +1,7 @@
 /* Phase 7A-2: reference-image fidelity pass. Visual overrides only. */
 body.d-ui-active{background:#020a14}
+body.d-ui-active:has(.d-command-menu.open){overflow:hidden;overscroll-behavior:none;touch-action:none}
+.d-command-menu.open .d-command-panel{touch-action:auto;overscroll-behavior:contain}
 .d-topbar{position:relative!important;min-height:76px!important;padding:8px 12px!important;grid-template-columns:300px minmax(0,1fr) auto!important;background:linear-gradient(180deg,#071421 0,#020a13 100%)!important;border-bottom-color:rgba(218,169,77,.36)!important}
 .d-topbar::after{content:"●   🔔   ✉   ⚙";position:absolute;top:5px;right:15px;z-index:2;color:#9fb0c3;font-size:13px;letter-spacing:7px;white-space:pre;opacity:.92;text-shadow:0 0 12px rgba(217,168,77,.22);pointer-events:none}
 .d-topbar .brand{display:flex;align-items:center;gap:10px}.d-brand-crest{width:44px;height:52px;font-size:21px}.d-topbar .brand h1{font-family:Georgia,"Yu Mincho",serif;font-size:18px;letter-spacing:.035em}.d-topbar .brand p{font-size:10px}
