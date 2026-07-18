@@ -22,6 +22,9 @@ for(const mobileContract of ['env(safe-area-inset-bottom,0px)','min-width:44px',
 for(const commandMenuScrollContract of ['body.d-ui-active:has(.d-command-menu.open){overflow:hidden','overscroll-behavior:none','touch-action:none','.d-command-menu.open .d-command-panel{touch-action:auto','overscroll-behavior:contain']){
   assert.ok(override.includes(commandMenuScrollContract),`missing command-menu background scroll lock: ${commandMenuScrollContract}`);
 }
+for(const commandMenuMotionContract of ['.d-command-menu.open{animation:d-command-backdrop-in .16s ease-out both}','animation:d-command-panel-in .2s cubic-bezier(.2,.8,.2,1) both','@keyframes d-command-backdrop-in','@keyframes d-command-panel-in','transform:translateY(10px) scale(.985)','.d-command-menu.open,.d-command-menu.open .d-command-panel{animation:none!important}']){
+  assert.ok(override.includes(commandMenuMotionContract),`missing reduced-motion-safe command-menu transition: ${commandMenuMotionContract}`);
+}
 for(const commandMenuSafeAreaContract of ['.d-command-menu{place-items:stretch','env(safe-area-inset-top,0px)','env(safe-area-inset-right,0px)','env(safe-area-inset-left,0px)','max-height:calc(100dvh - max(16px,env(safe-area-inset-top,0px)) - max(16px,env(safe-area-inset-bottom,0px)))','.d-command-head{position:sticky','min-width:44px;min-height:44px']){
   assert.ok(override.includes(commandMenuSafeAreaContract),`missing iPhone command-menu safe-area contract: ${commandMenuSafeAreaContract}`);
 }
