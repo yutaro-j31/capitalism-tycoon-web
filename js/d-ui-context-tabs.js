@@ -1,9 +1,10 @@
-// Phase 7B-1: interactive, read-only store context tabs for the D map panel.
+// Phase 7B-2: interactive, read-only store context tabs with contextual navigation.
 (function(){'use strict';
 const modules=globalThis.__capitalismTycoonModules;
 if(!modules?.dUIShell||!modules?.playerEngineBridge?.__installed)throw new Error('d-ui-shell.js and player-engine-bridge.js must be loaded before d-ui-context-tabs.js.');
 if(modules.dUIContextTabs)throw new Error('D UI context tabs are already registered.');
 const TABS=[['overview','概要'],['finance','財務'],['staff','スタッフ'],['product','商品']];
+const ACTIONS={overview:['business','店舗を管理','価格・広告・店舗運営を開く'],finance:['report','決算を確認','全社の決算・レポートを開く'],staff:['founder','人材を管理','採用・経営陣の画面を開く'],product:['strategy','商品を強化','研究開発・戦略を開く']};
 const activeByStore=new Map();
 let scheduled=false;
 const finite=value=>Number.isFinite(Number(value))?Number(value):0;
@@ -20,18 +21,19 @@ function selectedStore(){
 }
 function metrics(items){return `<div class="d-context-metrics">${items.map(([label,value,note])=>`<div><span>${esc(label)}</span><strong>${esc(value)}</strong>${note?`<small>${esc(note)}</small>`:''}</div>`).join('')}</div>`;}
 function bars(items){return `<div class="d-status-bars">${items.map(([label,value])=>{const score=clamp(finite(value),0,100);return `<label><span>${esc(label)}<b>${score.toFixed(0)}%</b></span><i><em style="width:${score}%"></em></i></label>`;}).join('')}</div>`;}
+function action(tab){const item=ACTIONS[tab]||ACTIONS.overview;return `<div class="d-context-actions" aria-label="関連する経営操作"><button type="button" data-d-ui-tab="${esc(item[0])}"><span>${esc(item[1])}</span><small>${esc(item[2])}</small><b aria-hidden="true">›</b></button></div>`;}
 function panelContent(tab,context){
   const {store,business,g}=context;const sales=finite(store.lastSales);const profit=finite(store.lastProfit);const customers=finite(store.lastCustomers??store.customers);const satisfaction=finite(store.satisfaction??g.customerSatisfaction);const cost=Math.max(0,sales-profit);const margin=sales?profit/sales*100:0;
-  if(tab==='finance')return metrics([['今週の売上',money(sales)],['今週の利益',money(profit),profit>=0?'黒字':'赤字'],['推定費用',money(cost)],['利益率',`${margin.toFixed(1)}%`]])+bars([['収益性',50+margin],['資金効率',store.efficiency??business?.efficiency??72]]);
+  if(tab==='finance')return metrics([['今週の売上',money(sales)],['今週の利益',money(profit),profit>=0?'黒字':'赤字'],['推定費用',money(cost)],['利益率',`${margin.toFixed(1)}%`]])+bars([['収益性',50+margin],['資金効率',store.efficiency??business?.efficiency??72]])+action(tab);
   if(tab==='staff'){
     const staff=finite(store.staffCount??store.employees?.length??store.workers?.length);const manager=store.managerName??store.manager?.name??'未配置';const service=store.quality??business?.quality??70;const efficiency=store.efficiency??business?.efficiency??72;
-    return metrics([['スタッフ数',staff?`${staff.toLocaleString('ja-JP')}人`:'—'],['店長',manager],['サービス品質',`${clamp(finite(service),0,100).toFixed(0)}%`],['運営効率',`${clamp(finite(efficiency),0,100).toFixed(0)}%`]])+bars([['接客力',service],['チーム効率',efficiency]]);
+    return metrics([['スタッフ数',staff?`${staff.toLocaleString('ja-JP')}人`:'—'],['店長',manager],['サービス品質',`${clamp(finite(service),0,100).toFixed(0)}%`],['運営効率',`${clamp(finite(efficiency),0,100).toFixed(0)}%`]])+bars([['接客力',service],['チーム効率',efficiency]])+action(tab);
   }
   if(tab==='product'){
     const price=finite(store.price??business?.price);const quality=store.productQuality??business?.quality??68;const brand=store.brand??business?.brand??62;
-    return metrics([['主力事業',business?.name||'店舗事業'],['販売価格',price?money(price):'—'],['商品品質',`${clamp(finite(quality),0,100).toFixed(0)}%`],['ブランド力',`${clamp(finite(brand),0,100).toFixed(0)}%`]])+bars([['商品魅力度',quality],['ブランド認知',brand]]);
+    return metrics([['主力事業',business?.name||'店舗事業'],['販売価格',price?money(price):'—'],['商品品質',`${clamp(finite(quality),0,100).toFixed(0)}%`],['ブランド力',`${clamp(finite(brand),0,100).toFixed(0)}%`]])+bars([['商品魅力度',quality],['ブランド認知',brand]])+action(tab);
   }
-  return metrics([['今週の売上',money(sales)],['今週の利益',money(profit)],['来客数',customers?`${customers.toLocaleString('ja-JP')}人`:'—'],['満足度',satisfaction?`${satisfaction.toFixed(1)} ★`:'—']])+bars([['集客力',store.brand??business?.brand??62],['サービス品質',store.quality??business?.quality??70],['商品魅力度',business?.quality??68],['運営効率',store.efficiency??business?.efficiency??72]]);
+  return metrics([['今週の売上',money(sales)],['今週の利益',money(profit)],['来客数',customers?`${customers.toLocaleString('ja-JP')}人`:'—'],['満足度',satisfaction?`${satisfaction.toFixed(1)} ★`:'—']])+bars([['集客力',store.brand??business?.brand??62],['サービス品質',store.quality??business?.quality??70],['商品魅力度',business?.quality??68],['運営効率',store.efficiency??business?.efficiency??72]])+action(tab);
 }
 function renderTabs(panel,context,focus=false){
   const oldTabs=panel.querySelector('.d-context-tabs');if(!oldTabs)return false;
@@ -50,6 +52,6 @@ function handleClick(event){const button=event.target?.closest?.('[data-d-contex
 function handleKeydown(event){const button=event.target?.closest?.('[data-d-context-tab]');if(!button)return false;const index=TABS.findIndex(([id])=>id===button.dataset.dContextTab);let next=index;if(event.key==='ArrowRight')next=(index+1)%TABS.length;else if(event.key==='ArrowLeft')next=(index-1+TABS.length)%TABS.length;else if(event.key==='Home')next=0;else if(event.key==='End')next=TABS.length-1;else return false;event.preventDefault();select(TABS[next][0],true);return true;}
 function schedule(){if(scheduled)return;scheduled=true;const run=()=>{scheduled=false;enhance();};typeof queueMicrotask==='function'?queueMicrotask(run):setTimeout(run,0);}
 function install(){document.addEventListener('click',handleClick,true);document.addEventListener('keydown',handleKeydown,true);const app=document.getElementById('app');if(app&&typeof MutationObserver==='function')new MutationObserver(schedule).observe(app,{childList:true,subtree:true});schedule();return true;}
-modules.dUIContextTabs=Object.freeze({TABS,selectedStore,panelContent,enhance,select,handleClick,handleKeydown,install,__installed:true});
+modules.dUIContextTabs=Object.freeze({TABS,ACTIONS,selectedStore,panelContent,action,enhance,select,handleClick,handleKeydown,install,__installed:true});
 install();
 })();
