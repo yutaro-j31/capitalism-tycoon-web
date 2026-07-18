@@ -91,7 +91,11 @@ function ensureNavigation(g){
   if(!menu){menu=document.createElement('div');menu.id='d-ui-command-menu';menu.className='d-command-menu';app.appendChild(menu);}
   menu.innerHTML=`<div class="d-command-panel" role="dialog" aria-modal="true" aria-label="経営メニュー"><div class="d-command-head"><div><strong>経営メニュー</strong><small>すべての機能へ移動</small></div><button type="button" data-d-ui-action="toggle-menu" aria-label="閉じる">×</button></div><div class="d-command-grid">${ALL_NAV.map(tabButton).join('')}</div></div>`;
   const active=activeTab();
-  for(const button of [...sidebar.querySelectorAll('[data-tab]'),...dock.querySelectorAll('[data-tab]'),...menu.querySelectorAll('[data-tab]')])button.classList.toggle('active',button.dataset.tab===active);
+  for(const button of [...sidebar.querySelectorAll('[data-tab]'),...dock.querySelectorAll('[data-tab]'),...menu.querySelectorAll('[data-tab]')]){
+    const isActive=button.dataset.tab===active;
+    button.classList.toggle('active',isActive);
+    if(isActive)button.setAttribute('aria-current','page');else button.removeAttribute('aria-current');
+  }
 }
 function mapEntities(g,screen){
   const prefID=screen.querySelector('[data-bind="selectedPref"]')?.value||g.selectedPref||g.founderHomePrefID;
