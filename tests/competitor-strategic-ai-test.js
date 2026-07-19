@@ -10,6 +10,7 @@ const clone = value => JSON.parse(JSON.stringify(value));
 assert.equal(engine.SAVE_KEY, 'capitalism_tycoon_web_v1');
 assert.equal(engine.SAVE_VERSION, 9);
 assert.equal(competitor.__strategicAIInstalled, true);
+assert.equal(competitor.__strategicCapacitySignalInstalled, true);
 assert.equal(competitorStrategicAI.__installed, true);
 assert.equal(competitorStrategicAI.SCHEMA_VERSION, 1);
 assert.equal(competitorStrategicAI.MAX_MARKET_HISTORY, 104);
@@ -82,6 +83,8 @@ assert.equal(signal.ownShare, 0.12);
 assert.ok(signal.gapToPlayer > 0.20);
 assert.ok(signal.playerShareChange > 0.07);
 assert.ok(signal.ownShareChange < 0);
+const expectedUtilization = Math.min(1, 120 / Math.max(1, presence.totalCapacity));
+assert.ok(Math.abs(signal.capacityUtilization - expectedUtilization) < 1e-9);
 
 // Keep this focused test on market-share reaction rather than capacity pressure.
 signal.capacityUtilization = 0;
