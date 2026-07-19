@@ -46,6 +46,9 @@ for(const mapDepthContract of ['.d-city-surface::after','pointer-events:none','r
 for(const mobilePanelContract of ['@media(max-width:520px)','grid-auto-flow:column','grid-auto-columns:minmax(272px,88vw)','overflow-x:auto','overscroll-behavior-inline:contain','scroll-snap-type:x mandatory','padding-inline:max(7px,env(safe-area-inset-left,0px)) max(7px,env(safe-area-inset-right,0px))','scroll-padding-inline:max(7px,env(safe-area-inset-left,0px)) max(7px,env(safe-area-inset-right,0px))','-webkit-overflow-scrolling:touch','.d-map-overlay>.d-white-card','scroll-snap-align:start','scroll-snap-stop:always','@media(prefers-reduced-motion:reduce)','@media(forced-colors:active)']){
   assert.ok(mobilePanels.includes(mobilePanelContract),`missing iPhone swipeable insight-panel contract: ${mobilePanelContract}`);
 }
+for(const mobilePanelFocusContract of ['scroll-margin-inline:max(7px,env(safe-area-inset-left,0px))','.d-map-overlay>.d-white-card:focus-within','outline:3px solid #ffe097','outline-offset:-3px','box-shadow:0 0 0 3px rgba(217,168,77,.24)','outline:3px solid Highlight;box-shadow:none']){
+  assert.ok(mobilePanels.includes(mobilePanelFocusContract),`missing iPhone insight-panel focus contract: ${mobilePanelFocusContract}`);
+}
 for(const landscapeContract of ['@media(max-width:932px) and (orientation:landscape) and (max-height:500px)','min-height:340px','.d-topbar .brand p{display:none}','height:calc(44px + env(safe-area-inset-bottom,0px))']){
   assert.ok(override.includes(landscapeContract),`missing compact iPhone landscape contract: ${landscapeContract}`);
 }
