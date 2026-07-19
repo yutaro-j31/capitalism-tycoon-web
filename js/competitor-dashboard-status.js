@@ -31,3 +31,20 @@ function buildDashboard(state,options={}){return normalizeResult(state,base.buil
 function buildDetail(state,competitorID){return buildDashboard(state).rows.find(row=>row.competitorID===text(competitorID))||null;}
 competitor.dashboard=Object.freeze({...base,buildDashboard,buildDetail,__marketStatusNormalized:true});
 })();
+
+// Phase 8A-2 compatibility: terminal lifecycle outcomes override later strategic project synchronization.
+(function(){'use strict';
+const modules=globalThis.__capitalismTycoonModules;
+const competitor=modules?.competitor;
+if(!competitor?.__strategicAIInstalled)throw new Error('competitor strategic AI must load before terminal strategy compatibility.');
+if(typeof competitor.applyTerminalCompatibility!=='function')throw new Error('competitor terminal compatibility must load before terminal strategy compatibility.');
+if(competitor.__strategicTerminalCompatibilityInstalled)throw new Error('strategic terminal compatibility is already installed.');
+const baseProcessWeek=competitor.processWeek;
+competitor.processWeek=function(state){
+ const beforeEvents=Array.isArray(state?.competitorEvents)?state.competitorEvents.slice():[];
+ const result=baseProcessWeek(state);
+ competitor.applyTerminalCompatibility(state,beforeEvents);
+ return result;
+};
+competitor.__strategicTerminalCompatibilityInstalled=true;
+})();
