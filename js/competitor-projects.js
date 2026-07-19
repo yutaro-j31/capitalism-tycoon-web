@@ -191,7 +191,8 @@ function enterMode(state,c,threat){
  const duration=threat.mode==='price_war'?8:threat.mode==='brand_defense'?10:12;
  c.rivalry.mode=threat.mode;c.rivalry.modeName=MODE_NAMES[threat.mode];c.rivalry.startedWeek=state.week;c.rivalry.untilWeek=state.week+duration;c.rivalry.lastThreat={...threat,detectedWeek:state.week};c.rivalry.pendingResponse=true;
  const message=`第${state.week}週：${c.name}が「${c.rivalry.modeName}」へ移行。${threat.reason}。`;
- state.competitorEvents.unshift(message);state.competitorEvents=state.competitorEvents.slice(0,200);state.news.unshift(message);state.news=state.news.slice(0,300);
+ const event={week:Math.max(0,Math.floor(finiteR(state.week))),competitorID:c.competitorID,type:'rivalryMode',mode:c.rivalry.mode,text:message,operationID:`rivalry-mode-${state.week}-${c.competitorID}-${c.rivalry.mode}`};
+ state.competitorEvents.unshift(event);state.competitorEvents=state.competitorEvents.slice(0,200);state.news.unshift(message);state.news=state.news.slice(0,300);
  appendRivalryHistory(c,state,threat);
 }
 function leaveMode(state,c){
