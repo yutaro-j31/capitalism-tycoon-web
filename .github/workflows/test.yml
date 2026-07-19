@@ -17,6 +17,14 @@ jobs:
       - run: node tests/competitor-capacity-test.js
       - run: node tests/competitor-public-signal-test.js
       - run: node tests/competitor-rivalry-ai-test.js
+  product-innovation:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: npm run test:product-innovation
   test:
     runs-on: ubuntu-latest
     steps:
