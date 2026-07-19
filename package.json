@@ -110,6 +110,7 @@
     "test:competitor-media": "node tests/competitor-newspaper-safety-test.js",
     "test:competitor-parity": "node tests/competitor-parity-compatibility-test.js",
     "test:competitor-dashboard": "node tests/competitor-dashboard-model-test.js",
-    "test:competitor-long": "node tests/competitor-long-run-test.js"
+    "test:competitor-long": "node tests/competitor-long-run-test.js",
+    "test:product-innovation": "node tests/product-innovation-test.js"
   }
 }
