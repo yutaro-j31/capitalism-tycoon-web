@@ -18,7 +18,27 @@ jobs:
       - run: node tests/competitor-public-signal-test.js
       - run: node tests/competitor-rivalry-ai-test.js
       - run: node tests/competitor-strategic-ai-test.js
-      - run: node tests/competitor-distress-lifecycle-test.js
+      - name: Run competitor distress lifecycle regression
+        shell: bash
+        run: |
+          set +e
+          node tests/competitor-distress-lifecycle-test.js > competitor-distress.log 2>&1
+          echo $? > competitor-distress.status
+          exit 0
+      - name: Retain competitor distress evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: competitor-distress-regression
+          path: |
+            competitor-distress.log
+            competitor-distress.status
+          retention-days: 14
+      - name: Enforce competitor distress lifecycle regression
+        shell: bash
+        run: |
+          cat competitor-distress.log
+          test "$(cat competitor-distress.status)" = "0"
   test:
     runs-on: ubuntu-latest
     steps:
