@@ -100,7 +100,7 @@ const leanDebt = product.technicalDebt;
 assert.equal(e.setProductMaintenancePolicy(product.id, 'intensive'), true);
 e.g.week = 32;e.updateProductLifecycleWeekly();
 assert.ok(product.technicalDebt < leanDebt, 'intensive maintenance should reduce technical debt');
-assert.ok(lifecycle.renderSection(e).includes('Phase 8A-4'));
+assert.ok(lifecycle.renderSection(e).includes('Phase 8A-5'));
 const lifecycleSaveVersion=e.g.saveVersion;delete e.g.productLifecycleVersion;delete e.g.productLifecycleHistory;delete product.maintenancePolicy;delete product.technicalDebt;e.normalize();
 assert.equal(e.g.saveVersion,lifecycleSaveVersion,'lifecycle migration must preserve save version');
 assert.equal(lifecycle.validate(e.g).ok,true,lifecycle.validate(e.g).errors.join('\n'));
