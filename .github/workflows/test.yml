@@ -4,6 +4,19 @@ on:
     branches: [ main ]
   pull_request:
 jobs:
+  competitor-ai:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: node tests/competitor-price-ai-test.js
+      - run: node tests/competitor-marketing-ai-test.js
+      - run: node tests/competitor-quality-ai-test.js
+      - run: node tests/competitor-capacity-test.js
+      - run: node tests/competitor-public-signal-test.js
+      - run: node tests/competitor-rivalry-ai-test.js
   test:
     runs-on: ubuntu-latest
     steps:
