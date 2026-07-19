@@ -28,6 +28,7 @@ for (const command of commands) {
 for (const [name, file] of [
   ['difficulty-scenario-balance', 'tests/difficulty-scenario-balance-test.js'],
   ['competitor-dashboard-ui', 'tests/competitor-dashboard-ui-test.js'],
+  ['competitor-strategic-ai', 'tests/competitor-strategic-ai-test.js'],
   ['d-ui-context-tabs', 'tests/d-ui-context-tabs-test.js'],
   ['v1-progression-gate', 'tests/v1-progression-gate-test.js']
 ]) {
@@ -44,4 +45,4 @@ for (const [name, file] of [
   }
 }
 
-console.log(`all ${commands.length} test commands, difficulty/scenario balance, competitor dashboard UI, D UI context tabs, and provisional v1 progression gate passed`);
+console.log(`all ${commands.length} test commands, difficulty/scenario balance, competitor dashboard UI, competitor strategic AI, D UI context tabs, and provisional v1 progression gate passed`);
