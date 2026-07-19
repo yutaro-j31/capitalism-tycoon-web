@@ -3,9 +3,11 @@ const fs=require('node:fs');
 const assert=require('node:assert/strict');
 const override=fs.readFileSync('css/d-ui-reference-fidelity.css','utf8');
 const mapFocus=fs.readFileSync('css/d-ui-map-focus.css','utf8');
+const mapDepth=fs.readFileSync('css/d-ui-map-depth.css','utf8');
 const loader=fs.readFileSync('css/d-ui-mobile-company.css','utf8');
 assert.match(loader,/@import url\("\.\/d-ui-reference-fidelity\.css"\);/,'reference fidelity stylesheet must load after the base D UI');
 assert.match(loader,/@import url\("\.\/d-ui-map-focus\.css"\);/,'map focus stylesheet must load after reference fidelity overrides');
+assert.match(loader,/@import url\("\.\/d-ui-map-depth\.css"\);/,'map depth stylesheet must load after focus overrides');
 for(const selector of ['.d-topbar','.d-kpi-strip','.d-sidebar','.d-map-workspace','.d-city-surface','.d-map-marker','.d-map-overlay','.d-context-panel','.d-bottom-dock']){
   assert.ok(override.includes(selector),`missing reference fidelity selector: ${selector}`);
 }
@@ -36,6 +38,9 @@ for(const commandMenuFocusContract of ['.d-command-head button:focus-visible','.
 for(const mapMarkerFocusContract of ['.d-map-marker:focus-visible','outline:3px solid #ffe097!important','outline-offset:4px','box-shadow:0 0 0 5px rgba(3,11,19,.72),0 0 0 8px rgba(217,168,77,.24)','@media(prefers-reduced-motion:reduce){.d-map-marker:focus-visible{transform:translate(-50%,-50%)}}','@media(forced-colors:active){.d-map-marker:focus-visible{outline:3px solid Highlight!important']){
   assert.ok(mapFocus.includes(mapMarkerFocusContract),`missing map-marker keyboard focus treatment: ${mapMarkerFocusContract}`);
 }
+for(const mapDepthContract of ['.d-city-surface::after','pointer-events:none','radial-gradient(ellipse at 50% 42%','.d-city-blocks i::before','.d-city-blocks i::after','filter:drop-shadow','background-blend-mode:screen','@media(max-width:820px)','@media(forced-colors:active)']){
+  assert.ok(mapDepth.includes(mapDepthContract),`missing layered production-map depth treatment: ${mapDepthContract}`);
+}
 for(const landscapeContract of ['@media(max-width:932px) and (orientation:landscape) and (max-height:500px)','min-height:340px','.d-topbar .brand p{display:none}','height:calc(44px + env(safe-area-inset-bottom,0px))']){
   assert.ok(override.includes(landscapeContract),`missing compact iPhone landscape contract: ${landscapeContract}`);
 }
@@ -49,6 +54,6 @@ for(const highContrastContract of ['@media(forced-colors:active)','outline:3px s
   assert.ok(override.includes(highContrastContract),`missing forced-colors accessibility contract: ${highContrastContract}`);
 }
 assert.ok(override.includes('@media(max-width:820px)'), 'iPhone/tablet fallback must remain explicit');
-assert.ok(!/url\((?!["']?\.\/)/.test(override+mapFocus), 'remote or root-relative assets are not allowed');
-assert.ok(!/localStorage|SAVE_KEY|save version|Math\.random/.test(override+mapFocus), 'visual overrides must not touch runtime state contracts');
+assert.ok(!/url\((?!["']?\.\/)/.test(override+mapFocus+mapDepth), 'remote or root-relative assets are not allowed');
+assert.ok(!/localStorage|SAVE_KEY|save version|Math\.random/.test(override+mapFocus+mapDepth), 'visual overrides must not touch runtime state contracts');
 console.log('D UI reference fidelity contract passed.');
