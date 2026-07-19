@@ -16,17 +16,6 @@ jobs:
       - run: node tests/competitor-quality-ai-test.js
       - run: node tests/competitor-capacity-test.js
       - run: node tests/competitor-public-signal-test.js
-      - run: RIVALRY_TEST_STAGE=module node tests/competitor-rivalry-ai-test.js
-      - run: RIVALRY_TEST_STAGE=baseline node tests/competitor-rivalry-ai-test.js
-      - run: RIVALRY_TEST_STAGE=trigger node tests/competitor-rivalry-ai-test.js
-      - run: RIVALRY_TEST_STAGE=action-queued node tests/competitor-rivalry-ai-test.js
-      - run: RIVALRY_TEST_STAGE=action-details node tests/competitor-rivalry-ai-test.js
-      - run: RIVALRY_TEST_STAGE=event node tests/competitor-rivalry-ai-test.js
-      - run: RIVALRY_TEST_STAGE=project node tests/competitor-rivalry-ai-test.js
-      - run: RIVALRY_TEST_STAGE=idempotency node tests/competitor-rivalry-ai-test.js
-      - run: RIVALRY_TEST_STAGE=apply node tests/competitor-rivalry-ai-test.js
-      - run: RIVALRY_TEST_STAGE=migration node tests/competitor-rivalry-ai-test.js
-      - run: RIVALRY_TEST_STAGE=validation node tests/competitor-rivalry-ai-test.js
       - run: node tests/competitor-rivalry-ai-test.js
   test:
     runs-on: ubuntu-latest
