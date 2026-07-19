@@ -10,7 +10,8 @@
     overflow-y:hidden;
     overscroll-behavior-inline:contain;
     scroll-snap-type:x mandatory;
-    scroll-padding-inline:7px;
+    padding-inline:max(7px,env(safe-area-inset-left,0px)) max(7px,env(safe-area-inset-right,0px));
+    scroll-padding-inline:max(7px,env(safe-area-inset-left,0px)) max(7px,env(safe-area-inset-right,0px));
     -webkit-overflow-scrolling:touch;
     scrollbar-width:thin;
   }
