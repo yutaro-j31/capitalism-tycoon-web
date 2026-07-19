@@ -11,7 +11,27 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
-      - run: node tests/competitor-strategic-ai-test.js
+      - name: Run strategic AI regression
+        shell: bash
+        run: |
+          set +e
+          node tests/competitor-strategic-ai-test.js > strategic-ai.log 2>&1
+          echo $? > strategic-ai.status
+          exit 0
+      - name: Retain strategic AI evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: competitor-strategic-ai
+          path: |
+            strategic-ai.log
+            strategic-ai.status
+          retention-days: 14
+      - name: Enforce strategic AI regression
+        shell: bash
+        run: |
+          cat strategic-ai.log
+          test "$(cat strategic-ai.status)" = "0"
       - run: npm run test:syntax
       - run: npm run test:static
       - run: npm run test:save
