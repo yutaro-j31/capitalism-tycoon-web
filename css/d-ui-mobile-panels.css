@@ -1,0 +1,28 @@
+/* Keep production insight panels compact and swipeable on iPhone without changing panel content or game state. */
+@media(max-width:520px){
+  .d-map-overlay{
+    display:grid!important;
+    grid-auto-flow:column;
+    grid-auto-columns:minmax(272px,88vw);
+    grid-template-columns:none!important;
+    gap:8px;
+    overflow-x:auto;
+    overflow-y:hidden;
+    overscroll-behavior-inline:contain;
+    scroll-snap-type:x mandatory;
+    scroll-padding-inline:7px;
+    -webkit-overflow-scrolling:touch;
+    scrollbar-width:thin;
+  }
+  .d-map-overlay>.d-white-card{
+    min-width:0;
+    scroll-snap-align:start;
+    scroll-snap-stop:always;
+  }
+}
+@media(prefers-reduced-motion:reduce){
+  .d-map-overlay{scroll-behavior:auto!important}
+}
+@media(forced-colors:active){
+  .d-map-overlay>.d-white-card{border:1px solid CanvasText}
+}

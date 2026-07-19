@@ -4,10 +4,12 @@ const assert=require('node:assert/strict');
 const override=fs.readFileSync('css/d-ui-reference-fidelity.css','utf8');
 const mapFocus=fs.readFileSync('css/d-ui-map-focus.css','utf8');
 const mapDepth=fs.readFileSync('css/d-ui-map-depth.css','utf8');
+const mobilePanels=fs.readFileSync('css/d-ui-mobile-panels.css','utf8');
 const loader=fs.readFileSync('css/d-ui-mobile-company.css','utf8');
 assert.match(loader,/@import url\("\.\/d-ui-reference-fidelity\.css"\);/,'reference fidelity stylesheet must load after the base D UI');
 assert.match(loader,/@import url\("\.\/d-ui-map-focus\.css"\);/,'map focus stylesheet must load after reference fidelity overrides');
 assert.match(loader,/@import url\("\.\/d-ui-map-depth\.css"\);/,'map depth stylesheet must load after focus overrides');
+assert.match(loader,/@import url\("\.\/d-ui-mobile-panels\.css"\);/,'mobile panel carousel must load after map depth overrides');
 for(const selector of ['.d-topbar','.d-kpi-strip','.d-sidebar','.d-map-workspace','.d-city-surface','.d-map-marker','.d-map-overlay','.d-context-panel','.d-bottom-dock']){
   assert.ok(override.includes(selector),`missing reference fidelity selector: ${selector}`);
 }
@@ -41,6 +43,9 @@ for(const mapMarkerFocusContract of ['.d-map-marker:focus-visible','outline:3px 
 for(const mapDepthContract of ['.d-city-surface::after','pointer-events:none','radial-gradient(ellipse at 50% 42%','.d-city-blocks i::before','.d-city-blocks i::after','filter:drop-shadow','background-blend-mode:screen','@media(max-width:820px)','@media(forced-colors:active)']){
   assert.ok(mapDepth.includes(mapDepthContract),`missing layered production-map depth treatment: ${mapDepthContract}`);
 }
+for(const mobilePanelContract of ['@media(max-width:520px)','grid-auto-flow:column','grid-auto-columns:minmax(272px,88vw)','overflow-x:auto','overscroll-behavior-inline:contain','scroll-snap-type:x mandatory','-webkit-overflow-scrolling:touch','.d-map-overlay>.d-white-card','scroll-snap-align:start','scroll-snap-stop:always','@media(prefers-reduced-motion:reduce)','@media(forced-colors:active)']){
+  assert.ok(mobilePanels.includes(mobilePanelContract),`missing iPhone swipeable insight-panel contract: ${mobilePanelContract}`);
+}
 for(const landscapeContract of ['@media(max-width:932px) and (orientation:landscape) and (max-height:500px)','min-height:340px','.d-topbar .brand p{display:none}','height:calc(44px + env(safe-area-inset-bottom,0px))']){
   assert.ok(override.includes(landscapeContract),`missing compact iPhone landscape contract: ${landscapeContract}`);
 }
@@ -54,6 +59,6 @@ for(const highContrastContract of ['@media(forced-colors:active)','outline:3px s
   assert.ok(override.includes(highContrastContract),`missing forced-colors accessibility contract: ${highContrastContract}`);
 }
 assert.ok(override.includes('@media(max-width:820px)'), 'iPhone/tablet fallback must remain explicit');
-assert.ok(!/url\((?!["']?\.\/)/.test(override+mapFocus+mapDepth), 'remote or root-relative assets are not allowed');
-assert.ok(!/localStorage|SAVE_KEY|save version|Math\.random/.test(override+mapFocus+mapDepth), 'visual overrides must not touch runtime state contracts');
+assert.ok(!/url\((?!["']?\.\/)/.test(override+mapFocus+mapDepth+mobilePanels), 'remote or root-relative assets are not allowed');
+assert.ok(!/localStorage|SAVE_KEY|save version|Math\.random/.test(override+mapFocus+mapDepth+mobilePanels), 'visual overrides must not touch runtime state contracts');
 console.log('D UI reference fidelity contract passed.');
