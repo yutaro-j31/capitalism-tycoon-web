@@ -9,6 +9,7 @@ vm.runInContext(fs.readFileSync(path.join(ROOT, 'js/product-lifecycle.js'), 'utf
 const lifecycle = modules.productLifecycle;
 assert.ok(lifecycle?.__installed, 'product lifecycle module should register');
 assert.equal(engineModule.TycoonEngine.prototype.__productLifecycleInstalled, true);
+assert.equal(lifecycle.VERSION, 2);
 
 const e = new engineModule.TycoonEngine();
 e.g.configured = true;
@@ -26,6 +27,7 @@ e.ensureProductLifecycleDefaults();
 const product = e.g.productVentures.find(x => x.id === 'lifecycle-product-1');
 assert.equal(product.maintenancePolicy, 'standard');
 assert.equal(product.technicalDebt, 0);
+assert.equal(product.lifecycleStage, 'active');
 
 const openingCash = e.g.companyCash;
 e.g.week = 2;
@@ -56,18 +58,54 @@ assert.ok(product.quality < qualityBefore, 'incident should reduce quality');
 assert.ok(product.lifecycleIncidents >= 1);
 assert.ok(e.g.productLifecycleHistory.some(x => x.type === 'maintenanceIncident'));
 
+product.technicalDebt = 10;
+assert.equal(e.startProductSunset(product.id), true, 'active product should enter sunsetting');
+assert.equal(product.lifecycleStage, 'sunsetting');
+assert.equal(product.maintenancePolicy, 'lean');
+const revenueBeforeSunset = product.revenue;
+const usersBeforeSunset = product.users;
+for (let week = 6; week <= 9; week += 1) {
+  e.g.week = week;
+  e.updateProductLifecycleWeekly();
+}
+assert.equal(product.sunsetWeeks, 4, 'sunsetting should count migration weeks');
+assert.ok(product.revenue < revenueBeforeSunset, 'sunsetting should wind down revenue');
+assert.ok(product.users < usersBeforeSunset, 'sunsetting should wind down users');
+assert.ok(e.g.productLifecycleHistory.some(x => x.type === 'sunsetStarted'));
+
+const cashBeforeRetirement = e.g.companyCash;
+assert.equal(e.retireProduct(product.id, '収益性低下'), true, 'product should retire after migration period');
+assert.equal(product.status, 'released', 'retirement should preserve existing product status invariants');
+assert.equal(product.lifecycleStage, 'retired');
+assert.equal(product.revenue, 0);
+assert.equal(product.users, 0);
+assert.equal(product.paidUsers, 0);
+assert.ok(e.g.companyCash < cashBeforeRetirement, 'retirement should consume shutdown cost');
+assert.ok(e.g.productLifecycleHistory.some(x => x.type === 'productRetired'));
+
+const retiredCash = e.g.companyCash;
+e.g.week = 10;
+e.updateProductLifecycleWeekly();
+assert.equal(e.g.companyCash, retiredCash, 'retired product should no longer consume maintenance cash');
+assert.equal(product.revenue, 0, 'retired product should remain economically inactive');
+
 const html = lifecycle.renderSection(e);
 assert.ok(html.includes('プロダクト・ライフサイクル'));
-assert.ok(html.includes('Phase 8A-4'));
+assert.ok(html.includes('Phase 8A-5'));
 assert.ok(html.includes('成熟SaaS'));
+assert.ok(html.includes('終了済み'));
 
 const saveVersion = e.g.saveVersion;
 delete e.g.productLifecycleVersion;
 delete e.g.productLifecycleHistory;
 delete product.maintenancePolicy;
 delete product.technicalDebt;
+product.lifecycleStage = 'retired';
+delete product.sunsetWeeks;
 e.normalize();
 assert.equal(e.g.saveVersion, saveVersion, 'lifecycle migration must not change save version');
 assert.equal(product.maintenancePolicy, 'standard');
+assert.equal(product.lifecycleStage, 'retired');
+assert.equal(product.revenue, 0);
 assert.equal(lifecycle.validate(e.g).ok, true, lifecycle.validate(e.g).errors.join('\n'));
 console.log('product lifecycle checks passed');
