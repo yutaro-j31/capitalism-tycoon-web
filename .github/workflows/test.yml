@@ -11,6 +11,7 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
+      - run: node tests/competitor-strategic-ai-test.js
       - run: npm run test:syntax
       - run: npm run test:static
       - run: npm run test:save
