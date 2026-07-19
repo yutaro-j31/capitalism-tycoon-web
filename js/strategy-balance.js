@@ -66,5 +66,5 @@ if(typeof baseReset==='function')EngineClass.prototype.reset=function(){
 };
 EngineClass.prototype.__strategyBalanceInstalled=true;
 modules.strategyBalance=Object.freeze({VERSION,DEMAND_CALIBRATIONS,apply,__installed:true});
-if(typeof document!=='undefined'&&!modules.productLifecycle){const script=document.createElement('script');script.src='./js/product-lifecycle.js';script.async=false;script.dataset.phase='8A-4';document.head.appendChild(script);}
+if(typeof document!=='undefined'&&!modules.productLifecycle){const script=document.createElement('script');script.src='./js/product-lifecycle.js';script.async=false;script.dataset.phase='8A-4';(document.head||document.body||document.documentElement)?.appendChild(script);}
 })();
