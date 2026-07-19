@@ -1,0 +1,17 @@
+{
+  "currentPhase": "8A-1",
+  "uiDevelopment": "paused",
+  "saveKey": "capitalism_tycoon_web_v1",
+  "saveVersion": 9,
+  "phases": [
+    {"id":"8A-1","title":"Strategic competitor AI","status":"in_progress"},
+    {"id":"8A-2","title":"Market share rivalry objectives","status":"planned"},
+    {"id":"8A-3","title":"Multi-business competitor allocation","status":"planned"},
+    {"id":"8A-4","title":"Competitor product and R&D race","status":"planned"},
+    {"id":"8B","title":"Products, R&D, inventory, procurement and supply chain","status":"planned"},
+    {"id":"8C","title":"Economic cycles, industry events, loans and covenants","status":"planned"},
+    {"id":"8D","title":"CXO, departments and board governance","status":"planned"},
+    {"id":"8E","title":"VC, M&A, subsidiaries, IPO and shareholders","status":"planned"},
+    {"id":"8F","title":"Real estate, overseas expansion, crises, succession and endings","status":"planned"}
+  ]
+}
