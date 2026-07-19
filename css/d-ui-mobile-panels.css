@@ -19,6 +19,12 @@
     min-width:0;
     scroll-snap-align:start;
     scroll-snap-stop:always;
+    scroll-margin-inline:max(7px,env(safe-area-inset-left,0px));
+  }
+  .d-map-overlay>.d-white-card:focus-within{
+    outline:3px solid #ffe097;
+    outline-offset:-3px;
+    box-shadow:0 0 0 3px rgba(217,168,77,.24);
   }
 }
 @media(prefers-reduced-motion:reduce){
@@ -26,4 +32,5 @@
 }
 @media(forced-colors:active){
   .d-map-overlay>.d-white-card{border:1px solid CanvasText}
+  .d-map-overlay>.d-white-card:focus-within{outline:3px solid Highlight;box-shadow:none}
 }
