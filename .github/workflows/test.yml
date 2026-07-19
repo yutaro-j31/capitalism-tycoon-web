@@ -18,6 +18,7 @@ jobs:
       - run: node tests/competitor-public-signal-test.js
       - run: node tests/competitor-rivalry-ai-test.js
       - run: node tests/competitor-strategic-ai-test.js
+      - run: node tests/competitor-distress-lifecycle-test.js
   test:
     runs-on: ubuntu-latest
     steps:
