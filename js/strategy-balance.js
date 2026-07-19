@@ -66,5 +66,7 @@ if(typeof baseReset==='function')EngineClass.prototype.reset=function(){
 };
 EngineClass.prototype.__strategyBalanceInstalled=true;
 modules.strategyBalance=Object.freeze({VERSION,DEMAND_CALIBRATIONS,apply,__installed:true});
-if(typeof document!=='undefined'&&!modules.productLifecycle){const script=document.createElement('script');script.src='./js/product-lifecycle.js';script.async=false;script.dataset.phase='8A-4';(document.head||document.body||document.documentElement)?.appendChild(script);}
+function loadPhaseScript(src,phase,guard){if(typeof document==='undefined'||guard())return;const script=document.createElement('script');script.src=src;script.async=false;script.dataset.phase=phase;(document.head||document.body||document.documentElement)?.appendChild(script);}
+loadPhaseScript('./js/product-lifecycle.js','8A-5',()=>Boolean(modules.productLifecycle));
+loadPhaseScript('./js/macro-cycle.js','8B-1',()=>Boolean(modules.macroCycle));
 })();
