@@ -52,3 +52,35 @@ modules.expansion.installExpansion=function(TycoonEngine){
 };
 Object.assign(modules.competitor,{sanitizeNewspapers,newspaperEventText:eventText,installCompetitorMedia,__mediaInstallerRegistered:true});
 })();
+
+// Phase 8A-1 integration: use physical capacity, not demand fulfillment, for strategic pressure.
+(function(){'use strict';
+const modules=globalThis.__capitalismTycoonModules;
+const competitor=modules?.competitor;
+if(!competitor?.__strategicAIInstalled)return;
+if(competitor.__strategicCapacitySignalInstalled)throw new Error('strategic capacity signal integration is already installed.');
+const finite=(value,fallback=0)=>Number.isFinite(Number(value))?Number(value):fallback;
+const clamp=(value,min,max)=>Math.max(min,Math.min(max,finite(value,min)));
+const keyFor=presence=>`${presence.businessID}::${presence.prefID}`;
+const baseReceiveMarketResults=competitor.receiveMarketResults;
+competitor.receiveMarketResults=function(state,batch){
+ const result=baseReceiveMarketResults(state,batch);
+ const markets=batch?.byMarket||{};
+ for(const company of state.competitorStates||[]){
+  const signals=company.strategicAI?.marketSignals;
+  if(!signals)continue;
+  for(const presence of company.marketPresence||[]){
+   const key=keyFor(presence),signal=signals[key],market=markets[key];
+   if(!signal||!market)continue;
+   let fulfilled=0;
+   for(const row of Object.values(market.competitorResults||{})){
+    if(row?.competitorID===company.competitorID)fulfilled+=Math.max(0,finite(row.fulfilledUnits));
+   }
+   const capacity=Math.max(0,finite(presence.totalCapacity));
+   signal.capacityUtilization=capacity>0?clamp(fulfilled/capacity,0,1):0;
+  }
+ }
+ return result;
+};
+competitor.__strategicCapacitySignalInstalled=true;
+})();
