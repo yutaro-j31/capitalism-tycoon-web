@@ -7,7 +7,6 @@
     "./js/supply.js",
     "./js/competitor.js",
     "./js/competitor-projects.js",
-    "./js/competitor-strategic-ai.js",
     "./js/competitor-entry.js",
     "./js/competitor-credit.js",
     "./js/competitor-distress.js",
