@@ -141,7 +141,10 @@ for (let week = 126; week <= 190; week++) {
 }
 assert.ok(company.strategicAI.planHistory.length <= competitorStrategicAI.MAX_PLAN_HISTORY);
 
-assert.deepEqual(findStateIssues(state), []);
+// The live market aggregator intentionally shares immutable result objects across indexes.
+// Validate the exact JSON-serializable save shape to avoid treating shared references as cycles.
+const serializedState = clone(state);
+assert.deepEqual(findStateIssues(serializedState), []);
 const beforeValidation = JSON.stringify(state);
 assert.doesNotThrow(() => competitor.validate(state));
 assert.equal(JSON.stringify(state), beforeValidation, 'validation must remain pure');
