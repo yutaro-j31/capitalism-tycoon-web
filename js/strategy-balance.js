@@ -66,7 +66,8 @@ if(typeof baseReset==='function')EngineClass.prototype.reset=function(){
 };
 EngineClass.prototype.__strategyBalanceInstalled=true;
 modules.strategyBalance=Object.freeze({VERSION,DEMAND_CALIBRATIONS,apply,__installed:true});
-function loadPhaseScript(src,phase,guard){if(typeof document==='undefined'||guard())return;const script=document.createElement('script');script.src=src;script.async=false;script.dataset.phase=phase;(document.head||document.body||document.documentElement)?.appendChild(script);}
+const phaseLaunchToken=(()=>{if(typeof document==='undefined')return'';const source=String(document.currentScript?.src||'');const match=source.match(/[?&]launch=([^&#]+)/);if(!match)return'';try{return decodeURIComponent(match[1]);}catch(_){return match[1];}})();
+function loadPhaseScript(src,phase,guard){if(typeof document==='undefined'||guard())return;const script=document.createElement('script');script.src=phaseLaunchToken?`${src}${src.includes('?')?'&':'?'}launch=${encodeURIComponent(phaseLaunchToken)}`:src;script.async=false;script.dataset.phase=phase;(document.head||document.body||document.documentElement)?.appendChild(script);}
 loadPhaseScript('./js/product-lifecycle.js','8A-5',()=>Boolean(modules.productLifecycle));
 loadPhaseScript('./js/macro-cycle.js','8B-1',()=>Boolean(modules.macroCycle));
 })();
