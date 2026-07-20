@@ -1,11 +1,12 @@
 const assert = require('node:assert');
 const { loadGame } = require('./harness');
 const { modules } = loadGame();
-const { engine, finance, playerBankCovenants, playerCreditRating, playerDebtRefinancing, playerLiquidityRunway } = modules;
+const { engine, finance, playerBankCovenants, playerCreditRating, playerDebtRefinancing, playerLiquidityRunway, playerFundingConcentration } = modules;
 assert.ok(playerBankCovenants?.__installed, 'bank covenant module must be installed');
 assert.ok(playerCreditRating?.__installed, 'credit rating module must be installed');
 assert.ok(playerDebtRefinancing?.__installed, 'debt refinancing module must be installed');
 assert.ok(playerLiquidityRunway?.__installed, 'liquidity runway module must be installed');
+assert.ok(playerFundingConcentration?.__installed, 'funding concentration module must be installed');
 assert.equal(engine.SAVE_KEY, 'capitalism_tycoon_web_v1');
 assert.equal(engine.SAVE_VERSION, 9);
 const state = engine.createInitialState({ configured: true });
@@ -22,6 +23,11 @@ assert.equal(first.breachWeeks, 1);
 assert.ok(first.rateSurcharge > 0);
 assert.equal(game.g.companyCredit, 69);
 assert.equal(playerBankCovenants.evaluate(game).history.length, 1, 'same-week evaluation must be idempotent');
+const concentrated = playerFundingConcentration.evaluate(game);
+assert.equal(concentrated.status, 'concentrated');
+assert.equal(concentrated.largestShare, 1);
+assert.equal(concentrated.rateSurcharge, .005);
+assert.equal(playerFundingConcentration.evaluate(game).history.length, 1, 'same-week concentration evaluation must be idempotent');
 const weakRating = playerCreditRating.evaluate(game);
 assert.ok(['BB','B','CCC'].includes(weakRating.grade));
 assert.ok(weakRating.rateAdjustment > 0);
@@ -78,10 +84,30 @@ const completed = playerDebtRefinancing.process(game);
 assert.equal(completed.status, 'refinanced');
 assert.ok(game.g.companyDebt < healthyDebtBefore);
 assert.equal(completed.nextMaturityWeek, game.g.week + completed.termWeeks);
-for(let i=0;i<60;i++){game.g.week++;playerBankCovenants.evaluate(game);playerCreditRating.evaluate(game);playerLiquidityRunway.evaluate(game);}
+const concentrationState = engine.createInitialState({ configured: true });
+concentrationState.finance = finance.defaultFinanceState(concentrationState);
+concentrationState.week = 10;
+concentrationState.companyDebt = 100_000_000;
+concentrationState.companyCredit = 80;
+concentrationState.finance.loans = [{status:'active',outstandingPrincipal:100_000_000}];
+const concentrationGame = new engine.TycoonEngine(concentrationState);
+const concentrationCredit = concentrationGame.g.companyCredit;
+for(let i=0;i<4;i++){playerFundingConcentration.evaluate(concentrationGame);concentrationGame.g.week++;}
+assert.equal(concentrationGame.g.companyCredit, concentrationCredit - 1, 'persistent single-lender concentration reduces credit every fourth week');
+concentrationGame.g.finance.loans = [
+  {status:'active',outstandingPrincipal:40_000_000},
+  {status:'active',outstandingPrincipal:30_000_000},
+  {status:'active',outstandingPrincipal:30_000_000}
+];
+const diversified = playerFundingConcentration.evaluate(concentrationGame);
+assert.equal(diversified.status, 'diversified');
+assert.equal(diversified.rateSurcharge, 0);
+assert.equal(diversified.concentratedStreak, 0);
+for(let i=0;i<60;i++){game.g.week++;playerBankCovenants.evaluate(game);playerCreditRating.evaluate(game);playerLiquidityRunway.evaluate(game);playerFundingConcentration.evaluate(game);}
 assert.ok(game.g.finance.bankCovenants.history.length <= 52);
 assert.ok(game.g.finance.creditRating.history.length <= 52);
 assert.ok(game.g.finance.liquidityRunway.history.length <= 52);
+assert.ok(game.g.finance.fundingConcentration.history.length <= 52);
 for(let i=0;i<30;i++){game.g.finance.debtRefinancing.nextMaturityWeek=game.g.week;game.g.finance.debtRefinancing.lastProcessedWeek=-1;playerDebtRefinancing.process(game);game.g.week++;}
 assert.ok(game.g.finance.debtRefinancing.history.length <= 26);
 const legacy = engine.createInitialState({ configured: true });
@@ -90,10 +116,12 @@ delete legacy.finance.bankCovenants;
 delete legacy.finance.creditRating;
 delete legacy.finance.debtRefinancing;
 delete legacy.finance.liquidityRunway;
+delete legacy.finance.fundingConcentration;
 const normalized = playerBankCovenants.normalize(legacy);
 const normalizedRating = playerCreditRating.normalize(legacy);
 const normalizedRefinancing = playerDebtRefinancing.normalize(legacy);
 const normalizedLiquidity = playerLiquidityRunway.normalize(legacy);
+const normalizedConcentration = playerFundingConcentration.normalize(legacy);
 assert.equal(normalized.status, 'compliant');
 assert.deepEqual(normalized.history, []);
 assert.equal(normalizedRating.grade, 'BBB');
@@ -105,4 +133,8 @@ assert.deepEqual(normalizedRefinancing.history, []);
 assert.equal(normalizedLiquidity.status, 'stable');
 assert.equal(normalizedLiquidity.runwayWeeks, 99);
 assert.deepEqual(normalizedLiquidity.history, []);
-console.log('player bank covenant, credit rating, debt refinancing, and liquidity runway tests passed');
+assert.equal(normalizedConcentration.status, 'diversified');
+assert.equal(normalizedConcentration.largestShare, 0);
+assert.equal(normalizedConcentration.rateSurcharge, 0);
+assert.deepEqual(normalizedConcentration.history, []);
+console.log('player bank covenant, credit rating, debt refinancing, liquidity runway, and funding concentration tests passed');
