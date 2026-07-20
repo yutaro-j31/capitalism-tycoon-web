@@ -70,4 +70,5 @@ const phaseLaunchToken=(()=>{if(typeof document==='undefined')return'';const sou
 function loadPhaseScript(src,phase,guard){if(typeof document==='undefined'||guard())return;const script=document.createElement('script');script.src=phaseLaunchToken?`${src}${src.includes('?')?'&':'?'}launch=${encodeURIComponent(phaseLaunchToken)}`:src;script.async=false;script.dataset.phase=phase;(document.head||document.body||document.documentElement)?.appendChild(script);}
 loadPhaseScript('./js/product-lifecycle.js','8A-5',()=>Boolean(modules.productLifecycle));
 loadPhaseScript('./js/macro-cycle.js','8B-1',()=>Boolean(modules.macroCycle));
+loadPhaseScript('./js/treasury-prepayment.js','8B-9',()=>Boolean(modules.treasuryPrepayment));
 })();
