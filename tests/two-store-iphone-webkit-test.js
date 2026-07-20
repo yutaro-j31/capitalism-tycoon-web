@@ -137,8 +137,9 @@ async function main() {
     assert.match(page.url(), /play\.html/, 'cache-safe launcher should keep the shareable play URL');
     const loadedAssets = await page.evaluate(() => [...document.scripts].map(script => script.src).filter(Boolean));
     const gameScripts = loadedAssets.filter(url => new URL(url).pathname.includes('/js/'));
+    const uncachedGameScripts = gameScripts.filter(url => !new URL(url).searchParams.has('launch'));
     assert.ok(gameScripts.length >= 20, `expected game scripts from launcher, got ${gameScripts.length}`);
-    assert.ok(gameScripts.every(url => new URL(url).searchParams.has('launch')), 'launcher must cache-bust every game script');
+    assert.deepEqual(uncachedGameScripts, [], `launcher must cache-bust every game script; uncached=${uncachedGameScripts.join(',')}`);
 
     await page.locator('#setup-form input[name="playerName"]').fill('悠太郎');
     await page.locator('#setup-form input[name="companyName"]').fill('YTR');
