@@ -5,6 +5,7 @@ const vm=require('node:vm');
 const {loadGame}=require('./harness');
 function install(load){for(const file of ['player-debt-service.js','treasury-prepayment.js','shareholder-returns.js','capital-allocation-score.js','capital-allocation-policy.js','capital-allocation-forecast.js','capital-allocation-actions.js']){const key=file.replace('.js','').replace(/-([a-z])/g,(_,c)=>c.toUpperCase());if(!load.modules[key])vm.runInContext(fs.readFileSync(path.join(__dirname,'../js',file),'utf8'),load.ctx,{filename:file});}return load;}
 function publicGame(modules,cash=30_000_000,debt=100_000_000){const {engine,finance}=modules,state=engine.createInitialState({configured:true});state.week=27;state.publicCompany=true;state.selectedTab='market';state.companyCash=cash;state.companyDebt=debt;state.sharesOut=1_000_000;state.founderShares=600_000;state.stockPrice=100;state.ticker='CPTY';state.market=state.market.filter(row=>row.id!=='CPTY');state.market.push({id:'CPTY',name:state.companyName,sector:'コングロマリット',price:100,previous:100,dividendYield:0,volatility:0,trend:0,marketCap:100_000_000,per:20,pbr:2,issuedShares:1_000_000,dividendPerShare:0,shareholders:{},description:'test',listingMarket:'東証グロース',priceHistory:[{week:27,price:100}]});state.finance=finance.defaultFinanceState(state);state.finance.loans=[{id:'test-loan',loanID:'test-loan',status:'active',principal:debt,outstandingPrincipal:debt,interestRate:.12,maturityWeek:104}];return new engine.TycoonEngine(state);}
+function legacyScore(policy,policyId,metrics){const p=policy.POLICIES[policyId]||policy.POLICIES.balanced,m=metrics||{},finite=(value,fallback=0)=>Number.isFinite(Number(value))?Number(value):fallback;let score=100;if(finite(m.growthRatio)<p.growth[0])score-=Math.min(35,(p.growth[0]-finite(m.growthRatio))*180);if(finite(m.growthRatio)>p.growth[1])score-=Math.min(30,(finite(m.growthRatio)-p.growth[1])*100);if(finite(m.leverageRatio)>p.maxLeverage)score-=Math.min(35,(finite(m.leverageRatio)-p.maxLeverage)*70);if(finite(m.payoutRatio)>p.maxPayout)score-=Math.min(35,(finite(m.payoutRatio)-p.maxPayout)*45);if(finite(m.debtReductionRatio)<p.minDebtReduction)score-=Math.min(30,(p.minDebtReduction-finite(m.debtReductionRatio))*400);return Math.max(0,Math.min(100,Math.round(score)));}
 const load=install(loadGame()),modules=load.modules,policy=modules.capitalAllocationPolicy,actions=modules.capitalAllocationActions;
 assert.ok(policy?.__installed);
 assert.ok(actions?.__installed);
@@ -25,6 +26,16 @@ assert.equal(perfect.score,100);
 assert.equal(perfect.totalPenalty,0);
 assert.equal(perfect.bindingConstraint,null);
 assert.equal(policy.executionScoreBreakdown('invalid',metrics).policy,'balanced','invalid policy IDs must use the safe default');
+const boundaryMetrics=[
+  {growthRatio:0,leverageRatio:0,payoutRatio:0,debtReductionRatio:0},
+  {growthRatio:.019999999999,leverageRatio:.750000000001,payoutRatio:.800000000001,debtReductionRatio:0},
+  {growthRatio:.020000000001,leverageRatio:.749999999999,payoutRatio:.799999999999,debtReductionRatio:.000000000001},
+  {growthRatio:.349999999999,leverageRatio:.899999999999,payoutRatio:.449999999999,debtReductionRatio:.039999999999},
+  {growthRatio:.350000000001,leverageRatio:.900000000001,payoutRatio:1.000000000001,debtReductionRatio:.040000000001},
+  {growthRatio:.123456789,leverageRatio:.987654321,payoutRatio:.567890123,debtReductionRatio:.0123456789},
+  {growthRatio:1.5,leverageRatio:3,payoutRatio:4,debtReductionRatio:-1}
+];
+for(const policyId of Object.keys(policy.POLICIES))for(const sample of boundaryMetrics)assert.equal(policy.executionScoreBreakdown(policyId,sample).score,legacyScore(policy,policyId,sample),`${policyId} breakdown must preserve legacy sequential scoring at boundaries`);
 const game=publicGame(modules),warm=game.capitalAllocationPolicyScoreBreakdown('deleveraging'),stateBefore=JSON.stringify(game.g),engineBreakdown=game.capitalAllocationPolicyScoreBreakdown('deleveraging');
 assert.deepEqual(engineBreakdown,warm,'engine score breakdown must be deterministic');
 assert.equal(JSON.stringify(game.g),stateBefore,'engine score breakdown must not mutate initialized game state');
