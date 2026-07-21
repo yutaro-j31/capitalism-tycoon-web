@@ -28,7 +28,8 @@ const requiredSmokeChecks = [
   'one-week-advance',
   'four-week-advance',
   'save-export-import',
-  'iphone-safe-area-navigation'
+  'iphone-safe-area-navigation',
+  'market-capital-allocation-cards'
 ];
 assert.deepEqual(manifest.manualSmokeChecks, requiredSmokeChecks, 'manual smoke contract changed');
 
