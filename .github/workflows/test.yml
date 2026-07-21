@@ -47,32 +47,13 @@ jobs:
         with:
           node-version: '22'
       - run: npm run test:product-innovation
-  test:
+  capital-allocation:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
-      - run: npm run test:syntax
-      - run: npm run test:static
-      - run: npm run test:save
-      - run: npm run test:migration
-      - run: npm run test:save-v9
-      - run: npm run test:player-crisis
-      - run: npm run test:player-crisis-actions
-      - run: npm run test:player-crisis-ui
-      - run: npm run test:player-crisis-restructuring
-      - run: npm run test:player-crisis-restructuring-ui
-      - run: node tests/player-debt-service-hook-test.js
-      - run: npm run test:player-turnaround-plan
-      - run: npm run test:load
-      - run: npm run test:week
-      - run: npm run test:transaction
-      - run: npm run test:long
-      - run: npm run test:css
-      - run: npm run test:javascript
-      - run: npm run test:modules
       - name: Treasury prepayment regression
         run: node tests/treasury-prepayment-test.js
       - name: Treasury refinancing policy regression
@@ -112,6 +93,32 @@ jobs:
         run: node tests/capital-allocation-recovery-test.js
       - name: Capital allocation production wiring regression
         run: node tests/capital-allocation-production-wiring-test.js
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: npm run test:syntax
+      - run: npm run test:static
+      - run: npm run test:save
+      - run: npm run test:migration
+      - run: npm run test:save-v9
+      - run: npm run test:player-crisis
+      - run: npm run test:player-crisis-actions
+      - run: npm run test:player-crisis-ui
+      - run: npm run test:player-crisis-restructuring
+      - run: npm run test:player-crisis-restructuring-ui
+      - run: node tests/player-debt-service-hook-test.js
+      - run: npm run test:player-turnaround-plan
+      - run: npm run test:load
+      - run: npm run test:week
+      - run: npm run test:transaction
+      - run: npm run test:long
+      - run: npm run test:css
+      - run: npm run test:javascript
+      - run: npm run test:modules
       - run: node tests/difficulty-scenario-balance-test.js
       - run: npm run test:stock
 
