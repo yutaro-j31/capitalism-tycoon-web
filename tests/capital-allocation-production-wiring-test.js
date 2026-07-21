@@ -1,7 +1,6 @@
 const assert = require('node:assert');
 const fs = require('node:fs');
 const path = require('node:path');
-const vm = require('node:vm');
 const { ROOT, readIndex, extractScripts, loadGame } = require('./harness');
 
 const html = readIndex();
@@ -16,6 +15,7 @@ const required = [
 
 for (const source of required) {
   assert.ok(sources.includes(source), `${source} must be loaded by index.html`);
+  assert.equal(sources.filter(item => item === source).length, 1, `${source} must be loaded exactly once`);
 }
 
 const indexOf = source => sources.indexOf(source);
@@ -23,6 +23,11 @@ assert.ok(indexOf('./js/player-engine-bridge.js') < indexOf('./js/app.js'), 'the
 assert.ok(indexOf('./js/app.js') < indexOf('./js/shareholder-returns.js'), 'capital allocation extensions must install after the app engine is captured');
 assert.ok(indexOf('./js/shareholder-returns.js') < indexOf('./js/capital-allocation-score.js'), 'shareholder returns must load before capital allocation score');
 assert.ok(indexOf('./js/capital-allocation-score.js') < indexOf('./js/capital-allocation-policy.js'), 'capital allocation score must load before policy');
+
+const strategySource = fs.readFileSync(path.join(ROOT, 'js', 'strategy-balance.js'), 'utf8');
+for (const file of ['shareholder-returns.js', 'capital-allocation-score.js', 'capital-allocation-policy.js']) {
+  assert.ok(!strategySource.includes(file), `${file} must not be dynamically loaded by strategy-balance.js`);
+}
 
 const load = loadGame();
 const { modules, ctx } = load;
@@ -36,18 +41,6 @@ assert.equal(typeof ctx.__ct_engine.setCapitalAllocationPolicy, 'function');
 assert.equal(typeof ctx.__ct_engine.capitalAllocationPolicyTrend, 'function');
 assert.equal(modules.engine.SAVE_KEY, 'capitalism_tycoon_web_v1');
 assert.equal(modules.engine.SAVE_VERSION, 9);
-
-const moduleKeys = ['shareholderReturns', 'capitalAllocationScore', 'capitalAllocationPolicy'];
-const files = ['shareholder-returns.js', 'capital-allocation-score.js', 'capital-allocation-policy.js'];
-const beforeModules = Object.fromEntries(moduleKeys.map(key => [key, modules[key]]));
-const beforeAdvanceWeek = modules.engine.TycoonEngine.prototype.advanceWeek;
-for (const file of files) {
-  Object.defineProperty(ctx.document, 'currentScript', { value: { src: `http://127.0.0.1/js/${file}` }, configurable: true });
-  vm.runInContext(fs.readFileSync(path.join(ROOT, 'js', file), 'utf8'), ctx, { filename: file });
-}
-delete ctx.document.currentScript;
-for (const key of moduleKeys) assert.equal(modules[key], beforeModules[key], `${key} must remain the same object after a duplicate browser script load`);
-assert.equal(modules.engine.TycoonEngine.prototype.advanceWeek, beforeAdvanceWeek, 'duplicate browser script loads must not wrap advanceWeek again');
 
 ctx.__ct_engine.g.configured = true;
 ctx.__ct_engine.g.publicCompany = true;
