@@ -41,6 +41,10 @@
     "./js/release-diagnostics-ui.js",
     "./js/playtest-report-ui.js",
     "./js/d-ui-shell.js",
-    "./js/runtime-recovery-ui.js"
+    "./js/d-ui-context-tabs.js",
+    "./js/runtime-recovery-ui.js",
+    "./js/shareholder-returns.js",
+    "./js/capital-allocation-score.js",
+    "./js/capital-allocation-policy.js"
   ]
 }
