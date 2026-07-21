@@ -1,4 +1,6 @@
 const assert=require('node:assert');
+const fs=require('node:fs');
+const path=require('node:path');
 const {loadGame,findStateIssues}=require('./harness');
 const {modules}=loadGame();
 const {engine,finance,treasuryRefinancingPolicy,playerDebtRefinancing}=modules;
@@ -8,14 +10,21 @@ assert.equal(engine.SAVE_VERSION,9);
 const state=engine.createInitialState({configured:true});
 state.companyCash=40000000;
 state.companyDebt=80000000;
+state.selectedTab='bank';
 state.finance=finance.defaultFinanceState(state);
 const game=new engine.TycoonEngine(state);
 const originalMaturity=playerDebtRefinancing.normalize(game).nextMaturityWeek;
 assert.equal(game.refinancingPolicySnapshot().policy.id,'balanced');
+const balancedMarkup=treasuryRefinancingPolicy.render(game);
+const balancedKey=(balancedMarkup.match(/data-refinancing-policy-render-key="([^"]+)"/)||[])[1];
+assert.ok(balancedKey,'refinancing panel must expose a stable render key');
+assert.equal((treasuryRefinancingPolicy.render(game).match(/data-refinancing-policy-render-key="([^"]+)"/)||[])[1],balancedKey,'unchanged state must preserve the render key');
 assert.equal(game.setRefinancingPolicy('short'),true);
 let refi=playerDebtRefinancing.normalize(game);
 assert.deepEqual([refi.termWeeks,refi.principalShare,refi.feeRate],[26,.15,.003]);
 assert.equal(refi.nextMaturityWeek,originalMaturity);
+const shortKey=(treasuryRefinancingPolicy.render(game).match(/data-refinancing-policy-render-key="([^"]+)"/)||[])[1];
+assert.notEqual(shortKey,balancedKey,'policy changes must invalidate the panel render key');
 assert.equal(game.setRefinancingPolicy('long'),false);
 modules.playerDebtMaturityReserve.evaluate(game);
 assert.equal(modules.playerDebtMaturityReserve.normalize(game).targetAmount,12000000);
@@ -29,4 +38,8 @@ assert.equal(restored.refinancingPolicySnapshot().policy.id,'long');
 assert.equal(restored.g.finance.refinancingPolicy.history.length,2);
 assert.equal(finance.validate(restored.g).ok,true);
 assert.deepEqual(findStateIssues(restored.g).filter(x=>!x.startsWith('g.finance.lastStatements.ratios.')),[]);
+for(const file of ['treasury-refinancing-policy.js','treasury-prepayment.js']){
+ const source=fs.readFileSync(path.join(__dirname,'..','js',file),'utf8');
+ assert.match(source,/currentKey===desiredKey/,`${file} must skip identical MutationObserver redraws`);
+}
 console.log('treasury refinancing policy tests passed');
