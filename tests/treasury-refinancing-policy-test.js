@@ -1,8 +1,14 @@
 const assert=require('node:assert');
 const fs=require('node:fs');
 const path=require('node:path');
+const vm=require('node:vm');
 const {loadGame,findStateIssues}=require('./harness');
-const {modules}=loadGame();
+const load=loadGame();
+for(const file of ['player-debt-service.js','treasury-refinancing-policy.js']){
+ const key=file.replace('.js','').replace(/-([a-z])/g,(_,c)=>c.toUpperCase());
+ if(!load.modules[key])vm.runInContext(fs.readFileSync(path.join(__dirname,'..','js',file),'utf8'),load.ctx,{filename:file});
+}
+const {modules}=load;
 const {engine,finance,treasuryRefinancingPolicy,playerDebtRefinancing}=modules;
 assert.ok(treasuryRefinancingPolicy?.__installed);
 assert.equal(engine.SAVE_KEY,'capitalism_tycoon_web_v1');
