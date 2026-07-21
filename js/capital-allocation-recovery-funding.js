@@ -25,7 +25,10 @@ function scoreForFunding(metrics,policyId,assetCash=0,borrowing=0){
 function propertyCarryingValue(state,property){
  const landCarryingValue=Math.max(0,finite(property?.purchasePrice||property?.price||property?.bookValue));
  const buildingAssets=(state?.finance?.fixedAssets||[]).filter(asset=>asset?.propertyID===property?.id&&asset?.status==='active');
- const buildingCarryingValue=buildingAssets.reduce((sum,asset)=>sum+Math.max(0,finite(asset?.bookValue||Math.max(0,finite(asset?.acquisitionCost)-finite(asset?.accumulatedDepreciation))))),0);
+ const buildingCarryingValue=buildingAssets.reduce((sum,asset)=>{
+  const fallback=Math.max(0,finite(asset?.acquisitionCost)-finite(asset?.accumulatedDepreciation));
+  return sum+Math.max(0,finite(asset?.bookValue||fallback));
+ },0);
  return{landCarryingValue,buildingCarryingValue,buildingAssetCount:buildingAssets.length,carryingValue:landCarryingValue+buildingCarryingValue};
 }
 function sourceInventory(instance){
@@ -92,7 +95,7 @@ function minimumBorrowing(metrics,policyId,targetScore,assetCash,capacity){
  const atCapacity=scoreForFunding(metrics,policyId,assetCash,maxAmount);if(atCapacity.score>maxScore){maxScore=atCapacity.score;bestAmount=maxAmount;}
  if(high===null)return{reachable:false,amount:null,bestAmount,baseScore:base.score,projectedScore:maxScore,maxScore,scoreAtCapacity:atCapacity.score};
  for(let i=0;i<52;i++){const mid=(low+high)/2;if(scoreForFunding(metrics,policyId,assetCash,mid).score>=target)high=mid;else low=mid;}
- let amount=Math.max(0,Math.min(maxAmount,Math.ceil(high)));while(amount>0&&scoreForFunding(metrics,policyId,assetCash,amount-1,0).score>=target)amount--;
+ let amount=Math.max(0,Math.min(maxAmount,Math.ceil(high)));while(amount>0&&scoreForFunding(metrics,policyId,assetCash,amount-1).score>=target)amount--;
  const final=scoreForFunding(metrics,policyId,assetCash,amount);return{reachable:final.score>=target,amount,bestAmount:amount,baseScore:base.score,projectedScore:final.score,maxScore:Math.max(maxScore,final.score),scoreAtCapacity:atCapacity.score};
 }
 function summarizePlan(target,policyRow,recovery,inventory,metrics,allocation,borrowingAnalysis,status,reason){
