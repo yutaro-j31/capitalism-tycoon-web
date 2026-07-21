@@ -3,6 +3,7 @@
 const modules=globalThis.__capitalismTycoonModules;
 if(!modules?.engine?.TycoonEngine)throw new Error('engine.js must load before capital-allocation-policy.js.');
 if(!modules.capitalAllocationScore?.metrics)throw new Error('capital-allocation-score.js must load before capital-allocation-policy.js.');
+if(modules.capitalAllocationPolicy?.__installed&&typeof document!=='undefined'&&document.currentScript)return;
 if(modules.capitalAllocationPolicy)throw new Error('capital allocation policy module is already registered.');
 const EngineClass=modules.engine.TycoonEngine,scoreModule=modules.capitalAllocationScore;
 const HISTORY_LIMIT=20,TREND_LIMIT=8,COOLDOWN_WEEKS=13,MIN_GUIDANCE_CASH=Math.max(0,Number.isFinite(Number(modules.shareholderReturns?.MIN_CASH))?Number(modules.shareholderReturns.MIN_CASH):5_000_000);
