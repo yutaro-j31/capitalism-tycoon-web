@@ -17,8 +17,15 @@ assert.equal(comparison.rows[0].id,comparison.recommendedPolicy);
 assert.equal(comparison.rows[0].score,comparison.recommendedScore);
 assert.ok(comparison.rows.some(row=>row.current&&row.id===comparison.currentPolicy));
 assert.ok(comparison.advantage>=0);
-for(let i=0;i<comparison.rows.length;i++){const row=comparison.rows[i];assert.ok(row.score>=0&&row.score<=100);assert.ok(row.metCount>=0&&row.metCount<=4);if(i)assert.ok(comparison.rows[i-1].score>=row.score,'rows must be sorted by score');}
+for(let i=0;i<comparison.rows.length;i++){const row=comparison.rows[i];assert.ok(row.score>=0&&row.score<=100);assert.ok(row.metCount>=0&&row.metCount<=4);assert.ok(row.plan.requiredCash>=0);assert.ok(row.plan.availableCash>=0);assert.ok(row.plan.fundingGap>=0);assert.ok(row.plan.fundedRatio>=0&&row.plan.fundedRatio<=1);assert.equal(row.plan.requiredCash,row.plan.growthAmount+row.plan.debtAmount);assert.ok(row.plan.actions.length>=1);if(i)assert.ok(comparison.rows[i-1].score>=row.score,'rows must be sorted by score');}
 assert.equal(typeof game.capitalAllocationPolicyComparison,'function');
-game.g.selectedTab='market';const html=mod.render(game);assert.match(html,/data-capital-allocation-comparison/);assert.match(html,/方針比較/);assert.match(html,/推奨/);assert.match(html,/目標達成/);
+assert.equal(typeof game.capitalAllocationPolicyActionPlan,'function');
+const planBefore=JSON.stringify(game.g),planA=game.capitalAllocationPolicyActionPlan('growth'),planB=game.capitalAllocationPolicyActionPlan('growth');
+assert.deepEqual(planA,planB,'action plan must be deterministic');
+assert.equal(JSON.stringify(game.g),planBefore,'action plan must not mutate game state');
+assert.equal(planA.policy,'growth');
+assert.ok(planA.actions.some(row=>row.id==='growth'||row.id==='maintain'));
+const constrained=publicGame(load.modules);constrained.g.companyCash=5_500_000;const limited=constrained.capitalAllocationPolicyActionPlan('deleveraging');assert.ok(limited.availableCash<=500_000);assert.ok(limited.fundedRatio<=1);if(limited.requiredCash>limited.availableCash)assert.ok(limited.fundingGap>0);
+game.g.selectedTab='market';const html=mod.render(game);assert.match(html,/data-capital-allocation-comparison/);assert.match(html,/方針比較/);assert.match(html,/推奨/);assert.match(html,/必要/);assert.match(html,/充足/);
 const snapshot=JSON.stringify(game.g);mod.render(game);assert.equal(JSON.stringify(game.g),snapshot,'comparison rendering must remain read-only');
-console.log('capital allocation comparison tests passed');
+console.log('capital allocation comparison and action requirement tests passed');
