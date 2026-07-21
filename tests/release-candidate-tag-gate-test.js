@@ -28,6 +28,15 @@ for (const checkID of manifest.manualSmokeChecks) {
   baseEnv[confirmationEnvName(checkID)] = 'true';
 }
 
+assert.ok(
+  manifest.manualSmokeChecks.includes('market-capital-allocation-cards'),
+  'RC1 must require physical verification of the market capital allocation cards'
+);
+assert.equal(
+  confirmationEnvName('market-capital-allocation-cards'),
+  'RC_CONFIRM_MARKET_CAPITAL_ALLOCATION_CARDS'
+);
+
 const evidence = buildEvidence({ manifest, env: baseEnv });
 assert.equal(evidence.version, '2.0.0-rc.1');
 assert.equal(evidence.tag, 'v2.0.0-rc.1');
@@ -43,6 +52,11 @@ const missingEnv = { ...baseEnv, RC_CONFIRM_JSON_SAVE_RECOVERY: 'false' };
 assert.throws(
   () => buildEvidence({ manifest, env: missingEnv }),
   /Manual smoke checks are incomplete: json-save-recovery/
+);
+const missingMarketCardEnv = { ...baseEnv, RC_CONFIRM_MARKET_CAPITAL_ALLOCATION_CARDS: 'false' };
+assert.throws(
+  () => buildEvidence({ manifest, env: missingMarketCardEnv }),
+  /Manual smoke checks are incomplete: market-capital-allocation-cards/
 );
 assert.throws(
   () => buildEvidence({ manifest, env: { ...baseEnv, GITHUB_REF_NAME: 'feature' } }),
@@ -78,6 +92,10 @@ assert.doesNotMatch(workflow, /^\s*schedule:/m, 'release tag creation must never
 assert.match(workflow, /contents: write/, 'tag workflow needs explicit contents write permission');
 assert.match(workflow, /if: github\.ref == 'refs\/heads\/main'/, 'tag workflow must be restricted to main');
 assert.match(workflow, /gh pr list[^\n]*--state open/, 'tag workflow must reject open pull requests');
+assert.match(workflow, /market_capital_allocation_cards:/,
+  'tag workflow must expose the physical market-card confirmation input');
+assert.match(workflow, /RC_CONFIRM_MARKET_CAPITAL_ALLOCATION_CARDS: \$\{\{ inputs\.market_capital_allocation_cards \}\}/,
+  'tag workflow must pass the market-card confirmation to the generic evidence gate');
 assert.match(workflow, /node scripts\/release-candidate-tag-gate\.js/);
 assert.match(workflow, /npm run test:release/);
 assert.match(workflow, /node scripts\/pages-deployment-smoke\.js/);
