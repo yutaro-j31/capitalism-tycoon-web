@@ -1,7 +1,15 @@
 const assert = require('node:assert');
+const fs = require('node:fs');
+const path = require('node:path');
+const vm = require('node:vm');
 const { loadGame, findStateIssues } = require('./harness');
 
-const { modules } = loadGame();
+const load = loadGame();
+for (const file of ['player-debt-service.js', 'treasury-prepayment.js']) {
+  const key = file.replace('.js', '').replace(/-([a-z])/g, (_, c) => c.toUpperCase());
+  if (!load.modules[key]) vm.runInContext(fs.readFileSync(path.join(__dirname, '..', 'js', file), 'utf8'), load.ctx, { filename: file });
+}
+const { modules } = load;
 const { engine, finance, treasuryPrepayment } = modules;
 
 assert.ok(treasuryPrepayment?.__installed, 'treasury prepayment module must be installed');
@@ -15,8 +23,8 @@ function makeGame() {
   state.companyDebt = 20_000_000;
   state.finance = finance.defaultFinanceState(state);
   state.finance.loans = [
-    { id: 'low', status: 'active', outstandingPrincipal: 8_000_000, interestRate: 0.03 },
-    { id: 'high', status: 'active', outstandingPrincipal: 12_000_000, interestRate: 0.08 }
+    { id: 'low', loanID: 'low', status: 'active', principal: 8_000_000, outstandingPrincipal: 8_000_000, interestRate: 0.03 },
+    { id: 'high', loanID: 'high', status: 'active', principal: 12_000_000, outstandingPrincipal: 12_000_000, interestRate: 0.08 }
   ];
   return new engine.TycoonEngine(state);
 }
