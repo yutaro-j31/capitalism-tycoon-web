@@ -1,8 +1,8 @@
 // Phase 8C-7: deterministic capital allocation quarter-end score forecast.
-(function(){'use strict';
+(function install(attempt=0){'use strict';
 const modules=globalThis.__capitalismTycoonModules;
 if(!modules?.engine?.TycoonEngine)throw new Error('engine.js must load before capital-allocation-forecast.js.');
-if(!modules.capitalAllocationPolicy?.progress||!modules.capitalAllocationPolicy?.guidance||!modules.capitalAllocationPolicy?.executionScore)throw new Error('capital-allocation-policy.js must load before capital-allocation-forecast.js.');
+if(!modules.capitalAllocationPolicy?.progress||!modules.capitalAllocationPolicy?.guidance||!modules.capitalAllocationPolicy?.executionScore){if(typeof document!=='undefined'&&attempt<50){setTimeout(()=>install(attempt+1),0);return;}throw new Error('capital-allocation-policy.js must load before capital-allocation-forecast.js.');}
 if(modules.capitalAllocationForecast)throw new Error('capital allocation forecast module is already registered.');
 const EngineClass=modules.engine.TycoonEngine,policyModule=modules.capitalAllocationPolicy,POLICIES=policyModule.POLICIES;
 const finite=(value,fallback=0)=>Number.isFinite(Number(value))?Number(value):fallback;
@@ -20,4 +20,4 @@ function schedule(){if(scheduled)return;scheduled=true;(typeof queueMicrotask===
 function installUI(){if(typeof document==='undefined')return;const root=document.getElementById('app');if(root&&!observer&&typeof MutationObserver==='function'){observer=new MutationObserver(schedule);observer.observe(root,{childList:true,subtree:true});}schedule();}
 modules.capitalAllocationForecast=Object.freeze({scoreFor,forecast,renderKey,render,enhance,installUI,__installed:true});
 installUI();
-})();
+})(0);
