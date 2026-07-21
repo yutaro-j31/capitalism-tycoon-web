@@ -73,18 +73,26 @@ jobs:
       - run: npm run test:css
       - run: npm run test:javascript
       - run: npm run test:modules
-      - name: Run capital allocation regressions
-        run: |
-          node tests/treasury-prepayment-test.js
-          node tests/treasury-refinancing-policy-test.js
-          node tests/shareholder-returns-test.js
-          node tests/capital-allocation-score-test.js
-          node tests/capital-allocation-policy-test.js
-          node tests/capital-allocation-comparison-test.js
-          node tests/capital-allocation-actions-test.js
-          node tests/capital-allocation-breakdown-test.js
-          node tests/capital-allocation-recovery-test.js
-          node tests/capital-allocation-production-wiring-test.js
+      - name: Treasury prepayment regression
+        run: node tests/treasury-prepayment-test.js
+      - name: Treasury refinancing policy regression
+        run: node tests/treasury-refinancing-policy-test.js
+      - name: Shareholder returns regression
+        run: node tests/shareholder-returns-test.js
+      - name: Capital allocation score regression
+        run: node tests/capital-allocation-score-test.js
+      - name: Capital allocation policy regression
+        run: node tests/capital-allocation-policy-test.js
+      - name: Capital allocation comparison regression
+        run: node tests/capital-allocation-comparison-test.js
+      - name: Capital allocation action regression
+        run: node tests/capital-allocation-actions-test.js
+      - name: Capital allocation breakdown regression
+        run: node tests/capital-allocation-breakdown-test.js
+      - name: Capital allocation recovery regression
+        run: node tests/capital-allocation-recovery-test.js
+      - name: Capital allocation production wiring regression
+        run: node tests/capital-allocation-production-wiring-test.js
       - run: node tests/difficulty-scenario-balance-test.js
       - run: npm run test:stock
 
