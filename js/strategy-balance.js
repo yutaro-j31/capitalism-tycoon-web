@@ -73,4 +73,5 @@ loadPhaseScript('./js/macro-cycle.js','8B-1',()=>Boolean(modules.macroCycle));
 loadPhaseScript('./js/treasury-prepayment.js','8B-9',()=>Boolean(modules.treasuryPrepayment));
 loadPhaseScript('./js/treasury-refinancing-policy.js','8B-10',()=>Boolean(modules.treasuryRefinancingPolicy));
 loadPhaseScript('./js/capital-allocation-forecast.js','8C-7',()=>Boolean(modules.capitalAllocationForecast));
+loadPhaseScript('./js/capital-allocation-actions.js','8C-10',()=>Boolean(modules.capitalAllocationActions));
 })();
