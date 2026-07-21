@@ -54,45 +54,47 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
-      - name: Treasury prepayment regression
-        run: node tests/treasury-prepayment-test.js
-      - name: Treasury refinancing policy regression
-        run: node tests/treasury-refinancing-policy-test.js
-      - name: Shareholder returns regression
-        run: node tests/shareholder-returns-test.js
-      - name: Run capital allocation score regression
+      - name: Run all capital allocation regressions
         shell: bash
         run: |
+          mkdir -p capital-allocation-logs
+          overall=0
           set +e
-          node tests/capital-allocation-score-test.js > capital-allocation-score.log 2>&1
-          echo $? > capital-allocation-score.status
+          for file in \
+            tests/treasury-prepayment-test.js \
+            tests/treasury-refinancing-policy-test.js \
+            tests/shareholder-returns-test.js \
+            tests/capital-allocation-score-test.js \
+            tests/capital-allocation-policy-test.js \
+            tests/capital-allocation-comparison-test.js \
+            tests/capital-allocation-actions-test.js \
+            tests/capital-allocation-breakdown-test.js \
+            tests/capital-allocation-recovery-test.js \
+            tests/capital-allocation-production-wiring-test.js
+          do
+            name="$(basename "$file" .js)"
+            node "$file" > "capital-allocation-logs/${name}.log" 2>&1
+            status=$?
+            echo "$status" > "capital-allocation-logs/${name}.status"
+            if [ "$status" -ne 0 ]; then overall=1; fi
+          done
+          echo "$overall" > capital-allocation-logs/overall.status
           exit 0
-      - name: Retain capital allocation score evidence
+      - name: Retain capital allocation evidence
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: capital-allocation-score-regression
-          path: |
-            capital-allocation-score.log
-            capital-allocation-score.status
+          name: capital-allocation-regressions
+          path: capital-allocation-logs
           retention-days: 14
-      - name: Enforce capital allocation score regression
+      - name: Enforce capital allocation regressions
         shell: bash
         run: |
-          cat capital-allocation-score.log
-          test "$(cat capital-allocation-score.status)" = "0"
-      - name: Capital allocation policy regression
-        run: node tests/capital-allocation-policy-test.js
-      - name: Capital allocation comparison regression
-        run: node tests/capital-allocation-comparison-test.js
-      - name: Capital allocation action regression
-        run: node tests/capital-allocation-actions-test.js
-      - name: Capital allocation breakdown regression
-        run: node tests/capital-allocation-breakdown-test.js
-      - name: Capital allocation recovery regression
-        run: node tests/capital-allocation-recovery-test.js
-      - name: Capital allocation production wiring regression
-        run: node tests/capital-allocation-production-wiring-test.js
+          for log in capital-allocation-logs/*.log; do
+            echo "===== $(basename "$log") ====="
+            cat "$log"
+          done
+          test "$(cat capital-allocation-logs/overall.status)" = "0"
   test:
     runs-on: ubuntu-latest
     steps:
