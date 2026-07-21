@@ -3,6 +3,7 @@
 const modules=globalThis.__capitalismTycoonModules;
 if(!modules?.engine?.TycoonEngine)throw new Error('engine.js must load before shareholder-returns.js.');
 if(!modules.finance?.buildStatements)throw new Error('finance.js must load before shareholder-returns.js.');
+if(modules.shareholderReturns?.__installed)return;
 if(modules.shareholderReturns)throw new Error('shareholder returns module is already registered.');
 const EngineClass=modules.engine.TycoonEngine,finance=modules.finance;
 const baseAdvanceWeek=EngineClass.prototype.advanceWeek;
