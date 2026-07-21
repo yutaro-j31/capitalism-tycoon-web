@@ -15,8 +15,8 @@ assert.equal(mod.classify({currentPolicy:'balanced',recommendedPolicy:'balanced'
 assert.equal(mod.classify({currentPolicy:'balanced',recommendedPolicy:'balanced',currentScore:90}).id,'hold');
 assert.equal(mod.classify({currentPolicy:'balanced',recommendedPolicy:'balanced',currentScore:60}).id,'monitor');
 const game=publicGame(modules);assert.deepEqual(modules.finance.validate(game.g).errors,[],'memo fixture must satisfy accounting invariants');
-const before=JSON.stringify(game.g),memoA=game.capitalAllocationDecisionMemo(),memoB=game.capitalAllocationDecisionMemo();
-assert.deepEqual(memoA,memoB,'board memo must be deterministic');assert.equal(JSON.stringify(game.g),before,'board memo must not mutate save or accounting state');
+const warmMemo=game.capitalAllocationDecisionMemo(),before=JSON.stringify(game.g),memoA=game.capitalAllocationDecisionMemo(),memoB=game.capitalAllocationDecisionMemo();
+assert.deepEqual(memoA,warmMemo,'board memo must remain stable after finance display cache initialization');assert.deepEqual(memoA,memoB,'board memo must be deterministic');assert.equal(JSON.stringify(game.g),before,'board memo must not mutate initialized save or accounting state');
 assert.ok(['hold','monitor','switchPolicy','waitCooldown','executeAction','secureFunding','improveConstraint'].includes(memoA.id));
 assert.ok(memoA.currentScore>=0&&memoA.currentScore<=100);assert.ok(memoA.recommendedScore>=0&&memoA.recommendedScore<=100);assert.ok(Array.isArray(memoA.rationale)&&memoA.rationale.length>=2);assert.equal(typeof memoA.switchAllowed,'boolean');
 assert.equal(memoA.threshold.executableAmount,memoA.threshold.scoreImpact.amount,'memo must use the threshold repayment preview');
