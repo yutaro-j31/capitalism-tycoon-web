@@ -9,10 +9,10 @@ const load=install(loadGame()),modules=load.modules,game=publicGame(modules),mod
 assert.ok(mod?.__installed);
 assert.equal(modules.engine.SAVE_KEY,'capitalism_tycoon_web_v1');
 assert.equal(modules.engine.SAVE_VERSION,9);
-const warmPreview=game.capitalAllocationDebtActionPreview('deleveraging');
 assert.deepEqual(modules.finance.validate(game.g).errors,[],'action fixture must satisfy accounting invariants before repayment');
+const warmPreview=game.capitalAllocationDebtActionPreview('deleveraging');
 const beforePreview=JSON.stringify(game.g),previewA=game.capitalAllocationDebtActionPreview('deleveraging'),previewB=game.capitalAllocationDebtActionPreview('deleveraging');
-assert.deepEqual(previewA,warmPreview,'preview must remain deterministic after lazy policy initialization');
+assert.deepEqual(previewA,warmPreview,'preview must remain deterministic after finance cache and policy initialization');
 assert.deepEqual(previewA,previewB,'preview must be deterministic');
 assert.equal(JSON.stringify(game.g),beforePreview,'preview must not mutate initialized state');
 assert.ok(previewA.debtRequested>0,'deleveraging should request debt repayment in a leveraged state');
