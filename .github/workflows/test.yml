@@ -79,8 +79,27 @@ jobs:
         run: node tests/treasury-refinancing-policy-test.js
       - name: Shareholder returns regression
         run: node tests/shareholder-returns-test.js
-      - name: Capital allocation score regression
-        run: node tests/capital-allocation-score-test.js
+      - name: Run capital allocation score regression
+        shell: bash
+        run: |
+          set +e
+          node tests/capital-allocation-score-test.js > capital-allocation-score.log 2>&1
+          echo $? > capital-allocation-score.status
+          exit 0
+      - name: Retain capital allocation score evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: capital-allocation-score-regression
+          path: |
+            capital-allocation-score.log
+            capital-allocation-score.status
+          retention-days: 14
+      - name: Enforce capital allocation score regression
+        shell: bash
+        run: |
+          cat capital-allocation-score.log
+          test "$(cat capital-allocation-score.status)" = "0"
       - name: Capital allocation policy regression
         run: node tests/capital-allocation-policy-test.js
       - name: Capital allocation comparison regression
