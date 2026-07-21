@@ -73,7 +73,7 @@ function audit(instance,targetScore=70){
  const state=instance?.g||instance||{};
  const week=Math.max(1,Math.floor(finite(state.week,plan.week)));
  const changed=finite(state.finance?.capitalAllocationPolicy?.lastChangedWeek,NaN);
- const lastPolicyChangeWeek=Number.isFinite(changed)?Math.floor(changed):null;
+ const lastPolicyChangeWeek=Number.isFinite(changed)&&changed>=1?Math.floor(changed):null;
  return{...result,week,lastPolicyChangeWeek,weeksSincePolicyChange:lastPolicyChangeWeek===null?null:Math.max(0,week-lastPolicyChangeWeek)};
 }
 function frontierFromAudits(audits,targets){
@@ -110,6 +110,14 @@ function frontier(instance,targets=DEFAULT_AUDIT_TARGETS){
  const normalized=normalizeTargets(targets);
  return frontierFromAudits(normalized.map(target=>audit(instance,target)),normalized);
 }
+function frontierSummary(value){
+ const source=value&&typeof value==='object'?value:{};
+ const topTarget=Array.isArray(source.targets)&&source.targets.length?source.targets.at(-1):null;
+ if(source.nextTarget)return `${source.nextTarget.targetScore}点・必要現金 ${compactYen(source.nextTarget.currentRequiredCash??0)}`;
+ if(topTarget!==null&&finite(source.currentScore)>=topTarget)return `${topTarget}点以上を達成`;
+ if(source.maximumReachableTarget!==null&&finite(source.currentScore)>=source.maximumReachableTarget)return `${source.maximumReachableTarget}点まで達成・上位目標は構造改善が必要`;
+ return '現行方針の現金積み増しだけでは上位目標へ到達不能';
+}
 EngineClass.prototype.capitalAllocationRecoveryAudit=function(targetScore=70){return audit(this,targetScore);};
 EngineClass.prototype.capitalAllocationRecoveryAuditFrontier=function(targets=DEFAULT_AUDIT_TARGETS){return frontier(this,targets);};
 function render(instance=modules.playerEngineBridge?.getEngine?.()){
@@ -123,7 +131,7 @@ function render(instance=modules.playerEngineBridge?.getEngine?.()){
   const marginal=row.currentScore>=row.targetScore?'現在の耐性内':row.marginalAdditionalCash===null?'構造改善が必要':row.marginalAdditionalCash>0?`前段階から +${compactYen(row.marginalAdditionalCash)}`:'前段階と同額';
   return `<div class="stat"><span>目標 ${row.targetScore}点</span><strong>${esc(amount)}</strong><small>${esc(marginal)}</small></div>`;
  }).join('');
- const nextText=milestones.nextTarget?`${milestones.nextTarget.targetScore}点・必要現金 ${compactYen(milestones.nextTarget.currentRequiredCash??0)}`:milestones.maximumReachableTarget!==null&&milestones.currentScore>=milestones.maximumReachableTarget?'80点以上を達成':'現行方針の現金積み増しだけでは上位目標へ到達不能';
+ const nextText=frontierSummary(milestones);
  const key=renderKey(`${value.week}|${value.targetScore}|${value.currentPolicy}|${value.currentScore}|${value.projectedScore}|${value.currentRequiredCash}|${value.eventualPolicy}|${value.cashSavings}|${value.id}|${value.weeksUntilSwitch}|${milestones.rows.map(row=>`${row.targetScore}:${row.currentRequiredCash}:${row.marginalAdditionalCash}:${row.id}`).join('|')}`);
  return `<section class="card" data-capital-allocation-recovery-audit="1" data-capital-allocation-recovery-audit-render-key="${key}"><div class="card-head"><div><h2>取締役会・回復進捗監査</h2><p>現行方針が複合悪化後の耐性目標へどこまで近づいているかを確認します。</p></div><span class="badge ${value.tone}">Phase 8D-12 · ${esc(value.statusLabel)}</span></div><div class="card-body"><div class="kpi-grid mini"><div class="stat"><span>現在スコア</span><strong>${value.currentScore}点</strong><small>目標 ${value.targetScore}点・差 ${value.scoreGap}点</small></div><div class="stat"><span>現行方針</span><strong>${esc(value.currentPolicyName||value.currentPolicy)}</strong><small>${value.policyAligned?'最少現金方針と一致':'最少現金方針と不一致'}</small></div><div class="stat"><span>必要追加現金</span><strong>${esc(cashText)}</strong><small>確保後 ${value.projectedScore}点</small></div><div class="stat"><span>最終案との差</span><strong>${esc(savingText)}</strong></div><div class="stat"><span>前回方針変更</span><strong>${esc(changedText)}</strong></div></div><p><strong>次の行動：</strong>${esc(value.nextAction)}</p><div data-capital-allocation-recovery-audit-frontier="1"><h3>現行方針の回復マイルストーン</h3><div class="kpi-grid mini">${milestoneRows}</div><p><strong>次の到達目標：</strong>${esc(nextText)}</p></div></div></section>`;
 }
@@ -143,6 +151,6 @@ function enhance(){
 }
 function schedule(){if(scheduled)return;scheduled=true;(typeof queueMicrotask==='function'?queueMicrotask:setTimeout)(()=>{scheduled=false;enhance();},0);}
 function installUI(){if(typeof document==='undefined')return;const root=document.getElementById('app');if(root&&!observer&&typeof MutationObserver==='function'){observer=new MutationObserver(schedule);observer.observe(root,{childList:true,subtree:true});}schedule();}
-modules.capitalAllocationRecoveryAudit=Object.freeze({DEFAULT_AUDIT_TARGETS,wholeCash,normalizeTargets,auditFromPlan,audit,frontierFromAudits,frontier,renderKey,render,enhance,installUI,__installed:true});
+modules.capitalAllocationRecoveryAudit=Object.freeze({DEFAULT_AUDIT_TARGETS,wholeCash,normalizeTargets,auditFromPlan,audit,frontierFromAudits,frontier,frontierSummary,renderKey,render,enhance,installUI,__installed:true});
 installUI();
 })(0);
