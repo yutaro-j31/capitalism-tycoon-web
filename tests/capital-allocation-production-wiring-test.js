@@ -28,6 +28,11 @@ const strategySource = fs.readFileSync(path.join(ROOT, 'js', 'strategy-balance.j
 for (const file of ['shareholder-returns.js', 'capital-allocation-score.js', 'capital-allocation-policy.js']) {
   assert.ok(!strategySource.includes(file), `${file} must not be dynamically loaded by strategy-balance.js`);
 }
+const actionsLoader = "loadPhaseScript('./js/capital-allocation-actions.js','8C-10'";
+const decisionMemoLoader = "loadPhaseScript('./js/capital-allocation-decision-memo.js','8D-1'";
+assert.ok(strategySource.includes(decisionMemoLoader), 'the Phase 8D-1 board memo must be dynamically loaded in production');
+assert.equal((strategySource.match(/capital-allocation-decision-memo\.js/g) || []).length, 1, 'the Phase 8D-1 board memo must be wired exactly once');
+assert.ok(strategySource.indexOf(actionsLoader) < strategySource.indexOf(decisionMemoLoader), 'the board memo must load after Phase 8C-15 actions');
 
 const load = loadGame();
 const { modules, ctx } = load;
