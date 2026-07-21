@@ -1,0 +1,40 @@
+const assert=require('node:assert');
+const fs=require('node:fs');
+const path=require('node:path');
+const vm=require('node:vm');
+const {loadGame,findStateIssues}=require('./harness');
+function random(seed){let x=seed>>>0;return()=>{x=(Math.imul(x,1664525)+1013904223)>>>0;return x/4294967296;};}
+function install(load){if(!load.modules.shareholderReturns)vm.runInContext(fs.readFileSync(path.join(__dirname,'../js/shareholder-returns.js'),'utf8'),load.ctx,{filename:'shareholder-returns.js'});return load;}
+function makePublicGame(modules){const {engine,finance}=modules,state=engine.createInitialState({configured:true});state.week=12;state.companyCash=100_000_000;state.companyDebt=0;state.publicCompany=true;state.sharesOut=1_000_000;state.founderShares=600_000;state.treasuryBuybackShares=0;state.stockPrice=100;state.ticker='CPTY';state.market=state.market.filter(x=>x.id!=='CPTY');state.market.push({id:'CPTY',name:state.companyName,sector:'コングロマリット',price:100,previous:100,dividendYield:0,volatility:0,trend:0,marketCap:100_000_000,per:20,pbr:2,issuedShares:1_000_000,dividendPerShare:0,shareholders:{},description:'test',listingMarket:'東証グロース',priceHistory:[{week:12,price:100}]});state.finance=finance.defaultFinanceState(state);return new engine.TycoonEngine(state);}
+const controlLoad=loadGame({random:random(42)}),dividendLoad=install(loadGame({random:random(42)}));
+assert.ok(dividendLoad.modules.shareholderReturns?.__installed,'shareholder returns module must be installed');
+assert.equal(dividendLoad.modules.engine.SAVE_KEY,'capitalism_tycoon_web_v1');
+assert.equal(dividendLoad.modules.engine.SAVE_VERSION,9);
+const control=makePublicGame(controlLoad.modules),payout=makePublicGame(dividendLoad.modules);
+assert.equal(payout.setDividend(1),true);
+const planned=payout.g.sharesOut-payout.g.treasuryBuybackShares;
+assert.equal(payout.advanceWeek(true),true);
+assert.equal(control.advanceWeek(true),true);
+assert.ok(Math.abs(payout.g.lastReport.profit-control.g.lastReport.profit)<1,'dividend must not reduce net income');
+assert.ok(Math.abs((control.g.companyCash-payout.g.companyCash)-planned)<2,'cash difference must equal dividend payment');
+assert.equal(Math.round(payout.g.lastReport.dividend),planned);
+const statements=dividendLoad.modules.finance.buildStatements(payout.g,'52');
+assert.ok(Math.abs(statements.profitAndLoss.netIncome-controlLoad.modules.finance.buildStatements(control.g,'52').profitAndLoss.netIncome)<1);
+assert.equal(Math.round(statements.cashFlow.dividend),-planned);
+assert.equal(dividendLoad.modules.finance.validate(payout.g).ok,true,dividendLoad.modules.finance.validate(payout.g).errors.join(' / '));
+assert.equal(payout.g.finance.shareholderReturns.lastPaymentWeek,13);
+assert.equal(payout.g.finance.shareholderReturns.history.some(x=>x.type==='dividendPayment'),true);
+const buyback=makePublicGame(dividendLoad.modules),cashBefore=buyback.g.companyCash;
+assert.equal(buyback.buybackOwnShares(10_000_000),true);
+assert.equal(buyback.g.companyCash,cashBefore-10_000_000);
+assert.equal(buyback.g.treasuryBuybackShares,100_000);
+assert.equal(buyback.g.finance.balances.treasuryStock,10_000_000);
+assert.ok(buyback.g.finance.transactions.some(x=>x.sourceType==='shareholderReturns'&&x.category==='otherFinancing'));
+assert.equal(dividendLoad.modules.finance.validate(buyback.g).ok,true,dividendLoad.modules.finance.validate(buyback.g).errors.join(' / '));
+const constrained=makePublicGame(dividendLoad.modules);constrained.g.companyCash=5_500_000;constrained.g.finance=dividendLoad.modules.finance.defaultFinanceState(constrained.g);
+assert.equal(constrained.buybackOwnShares(1_000_000),false,'minimum cash and safe capacity must be protected');
+const cap=constrained.shareholderReturnCapacity();assert.ok(cap.safeAmount<=500_000+.1);
+assert.equal(constrained.setDividend(cap.maxDividendPerShare+10),false,'unsafe dividend must be rejected');
+constrained.g.selectedTab='market';const html=dividendLoad.modules.shareholderReturns.render(constrained);assert.match(html,/data-shareholder-returns-ui/);assert.match(html,/data-action="set-dividend"/);assert.match(html,/data-action="buyback"/);
+assert.deepEqual(findStateIssues(buyback.g).filter(x=>!x.startsWith('g.finance.lastStatements.ratios.')),[]);
+console.log('shareholder returns tests passed');

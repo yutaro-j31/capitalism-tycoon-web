@@ -72,4 +72,5 @@ loadPhaseScript('./js/product-lifecycle.js','8A-5',()=>Boolean(modules.productLi
 loadPhaseScript('./js/macro-cycle.js','8B-1',()=>Boolean(modules.macroCycle));
 loadPhaseScript('./js/treasury-prepayment.js','8B-9',()=>Boolean(modules.treasuryPrepayment));
 loadPhaseScript('./js/treasury-refinancing-policy.js','8B-10',()=>Boolean(modules.treasuryRefinancingPolicy));
+loadPhaseScript('./js/shareholder-returns.js','8C-1',()=>Boolean(modules.shareholderReturns));
 })();
