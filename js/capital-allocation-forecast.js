@@ -1,5 +1,5 @@
 // Phase 8C-7: deterministic capital allocation quarter-end score forecast.
-(function install(attempt=0){'use strict';
+(function install(attempt){'use strict';attempt=Number.isFinite(Number(attempt))?Number(attempt):0;
 const modules=globalThis.__capitalismTycoonModules;
 if(!modules?.engine?.TycoonEngine)throw new Error('engine.js must load before capital-allocation-forecast.js.');
 if(!modules.capitalAllocationPolicy?.progress||!modules.capitalAllocationPolicy?.guidance||!modules.capitalAllocationPolicy?.executionScore){if(typeof document!=='undefined'&&attempt<50){setTimeout(()=>install(attempt+1),0);return;}throw new Error('capital-allocation-policy.js must load before capital-allocation-forecast.js.');}
