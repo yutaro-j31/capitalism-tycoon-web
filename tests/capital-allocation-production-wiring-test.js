@@ -30,9 +30,15 @@ for (const file of ['shareholder-returns.js', 'capital-allocation-score.js', 'ca
 }
 const actionsLoader = "loadPhaseScript('./js/capital-allocation-actions.js','8C-10'";
 const decisionMemoLoader = "loadPhaseScript('./js/capital-allocation-decision-memo.js','8D-1'";
+const resilienceLoader = "loadPhaseScript('./js/capital-allocation-resilience-memo.js','8D-5'";
+const recoveryAuditLoader = "loadPhaseScript('./js/capital-allocation-recovery-audit.js','8D-11'";
 assert.ok(strategySource.includes(decisionMemoLoader), 'the Phase 8D-1 board memo must be dynamically loaded in production');
 assert.equal((strategySource.match(/capital-allocation-decision-memo\.js/g) || []).length, 1, 'the Phase 8D-1 board memo must be wired exactly once');
+assert.ok(strategySource.includes(resilienceLoader), 'the resilience memo must be dynamically loaded in production');
+assert.ok(strategySource.includes(recoveryAuditLoader), 'the Phase 8D-11 recovery audit must be dynamically loaded in production');
+assert.equal((strategySource.match(/capital-allocation-recovery-audit\.js/g) || []).length, 1, 'the recovery audit must be wired exactly once');
 assert.ok(strategySource.indexOf(actionsLoader) < strategySource.indexOf(decisionMemoLoader), 'the board memo must load after Phase 8C-15 actions');
+assert.ok(strategySource.indexOf(resilienceLoader) < strategySource.indexOf(recoveryAuditLoader), 'the recovery audit must load after resilience planning');
 
 const load = loadGame();
 const { modules, ctx } = load;
