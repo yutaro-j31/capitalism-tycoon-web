@@ -9,6 +9,7 @@ const load=install(loadGame()),modules=load.modules,game=publicGame(modules),mod
 assert.ok(mod?.__installed);
 assert.equal(modules.engine.SAVE_KEY,'capitalism_tycoon_web_v1');
 assert.equal(modules.engine.SAVE_VERSION,9);
+assert.deepEqual(modules.finance.validate(game.g).errors,[],'action fixture must satisfy accounting invariants before repayment');
 const beforePreview=JSON.stringify(game.g),previewA=game.capitalAllocationDebtActionPreview('deleveraging'),previewB=game.capitalAllocationDebtActionPreview('deleveraging');
 assert.deepEqual(previewA,previewB,'preview must be deterministic');
 assert.equal(JSON.stringify(game.g),beforePreview,'preview must not mutate state');
@@ -41,6 +42,7 @@ assert.equal(actualMetrics.debtReduction,impactA.afterMetrics.debtReduction,'pre
 assert.equal(actualMetrics.leverageRatio,impactA.afterMetrics.leverageRatio,'predicted leverage must match the executed state');
 assert.equal(actualMetrics.debtReductionRatio,impactA.afterMetrics.debtReductionRatio,'predicted debt reduction ratio must match the executed state');
 assert.equal(actualScore,impactA.afterScore,'predicted policy score must match the score after execution');
+assert.deepEqual(modules.finance.validate(game.g).errors,[],'executed repayment must preserve accounting invariants');
 const html=mod.render(game);assert.match(html,/data-capital-allocation-actions-ui/);assert.match(html,/資本配分アクション/);assert.match(html,/推奨返済/);assert.match(html,/現在予測点/);assert.match(html,/返済後予測点/);assert.match(html,/予測改善幅/);
 const low=publicGame(modules,5_000_000,100_000_000),lowBefore=JSON.stringify(low.g),lowPreview=low.capitalAllocationDebtActionPreview('deleveraging'),lowImpact=low.capitalAllocationDebtActionImpact('deleveraging');
 assert.equal(lowPreview.debtExecutable,0);
