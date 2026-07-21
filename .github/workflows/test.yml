@@ -124,6 +124,7 @@ jobs:
       - run: npm run test:modules
       - run: node tests/difficulty-scenario-balance-test.js
       - run: npm run test:stock
+
       - run: npm run test:market
       - run: npm run test:market-migration
       - run: npm run test:market-ui
@@ -133,6 +134,7 @@ jobs:
       - run: npm run test:market-order
       - run: npm run test:market-opening
       - run: npm run test:market-rng
+
       - run: npm run test:finance
       - run: npm run test:statements
       - run: npm run test:cashflow
@@ -156,6 +158,7 @@ jobs:
       - run: npm run test:finance-working-capital-rollforward
       - run: npm run test:finance-store-close-deposit
       - run: npm run test:finance-property-building-disposal
+
       - run: npm run test:supply
       - run: npm run test:inventory
       - run: npm run test:procurement
@@ -170,8 +173,10 @@ jobs:
       - run: npm run test:supply-spoilage-profit
       - run: npm run test:supply-multi-store-spoilage
       - run: npm run test:supply-long
+
       - run: npm run test:workforce
       - run: npm run test:workforce-long
+
       - run: npm run test:competitor
       - run: npm run test:competitor-market
       - run: npm run test:competitor-finance
