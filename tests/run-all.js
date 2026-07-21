@@ -34,7 +34,8 @@ for (const [name, file] of [
   ['treasury-prepayment', 'tests/treasury-prepayment-test.js'],
   ['treasury-refinancing-policy', 'tests/treasury-refinancing-policy-test.js'],
   ['shareholder-returns', 'tests/shareholder-returns-test.js'],
-  ['capital-allocation-score', 'tests/capital-allocation-score-test.js']
+  ['capital-allocation-score', 'tests/capital-allocation-score-test.js'],
+  ['capital-allocation-policy', 'tests/capital-allocation-policy-test.js']
 ]) {
   const result = spawnSync('node', [file], {
     encoding: 'utf8',
@@ -49,4 +50,4 @@ for (const [name, file] of [
   }
 }
 
-console.log(`all ${commands.length} test commands, difficulty/scenario balance, competitor dashboard UI, D UI context tabs, provisional v1 progression gate, treasury prepayment, refinancing policy, shareholder returns, and capital allocation score passed`);
+console.log(`all ${commands.length} test commands, difficulty/scenario balance, competitor dashboard UI, D UI context tabs, provisional v1 progression gate, treasury prepayment, refinancing policy, shareholder returns, capital allocation score, and capital allocation policy passed`);
