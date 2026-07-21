@@ -1,0 +1,25 @@
+const assert=require('node:assert');
+const fs=require('node:fs');
+const path=require('node:path');
+const vm=require('node:vm');
+const {loadGame,findStateIssues}=require('./harness');
+function install(load){if(!load.modules.shareholderReturns)vm.runInContext(fs.readFileSync(path.join(__dirname,'../js/shareholder-returns.js'),'utf8'),load.ctx,{filename:'shareholder-returns.js'});if(!load.modules.capitalAllocationScore)vm.runInContext(fs.readFileSync(path.join(__dirname,'../js/capital-allocation-score.js'),'utf8'),load.ctx,{filename:'capital-allocation-score.js'});return load;}
+function publicGame(modules){const {engine,finance}=modules,state=engine.createInitialState({configured:true});state.week=13;state.publicCompany=true;state.companyCash=120_000_000;state.companyDebt=20_000_000;state.sharesOut=1_000_000;state.founderShares=600_000;state.treasuryBuybackShares=0;state.stockPrice=100;state.ticker='CPTY';state.market=state.market.filter(x=>x.id!=='CPTY');state.market.push({id:'CPTY',name:state.companyName,sector:'コングロマリット',price:100,previous:100,dividendYield:0,volatility:0,trend:0,marketCap:100_000_000,per:20,pbr:2,issuedShares:1_000_000,dividendPerShare:0,shareholders:{},description:'test',listingMarket:'東証グロース',priceHistory:[{week:13,price:100}]});state.finance=finance.defaultFinanceState(state);return new engine.TycoonEngine(state);}
+const load=install(loadGame()),game=publicGame(load.modules),mod=load.modules.capitalAllocationScore;
+assert.ok(mod?.__installed,'capital allocation score module must install');
+assert.equal(load.modules.engine.SAVE_KEY,'capitalism_tycoon_web_v1');
+assert.equal(load.modules.engine.SAVE_VERSION,9);
+const first=game.evaluateCapitalAllocation(true);
+assert.ok(first.score>=0&&first.score<=100);
+assert.equal(first.lastEvaluatedWeek,13);
+assert.ok(Number.isFinite(first.investorConfidence));
+assert.equal(first.history.length,1);
+const priceAfter=game.g.stockPrice;
+const second=game.evaluateCapitalAllocation(false);
+assert.equal(second.history.length,1,'same quarter must not be evaluated twice');
+assert.equal(game.g.stockPrice,priceAfter,'same quarter must not move stock twice');
+const strong=publicGame(load.modules);strong.g.finance.transactions.push({week:13,category:'productDevelopment',amount:10_000_000,description:'成長投資'});strong.g.finance.transactions.push({week:13,category:'debtRepayment',amount:5_000_000,description:'借入返済'});const strongResult=strong.evaluateCapitalAllocation(true);assert.ok(strongResult.score>=first.score,'balanced investment and debt reduction should not score worse');
+const weak=publicGame(load.modules);weak.g.companyCash=6_000_000;weak.g.companyDebt=200_000_000;weak.g.finance.transactions.push({week:13,category:'otherFinancing',amount:50_000_000,sourceType:'shareholderReturns',sourceID:'buyback-test',description:'自社株式取得'});const weakResult=weak.evaluateCapitalAllocation(true);assert.ok(weakResult.score<strongResult.score,'high leverage and excessive returns should score lower');
+weak.g.selectedTab='market';const html=mod.render(weak);assert.match(html,/data-capital-allocation-score-ui/);assert.match(html,/投資家信頼/);
+assert.deepEqual(findStateIssues(strong.g).filter(x=>!x.startsWith('g.finance.lastStatements.ratios.')),[]);
+console.log('capital allocation score tests passed');
