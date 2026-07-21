@@ -22,6 +22,15 @@ function scoreForFunding(metrics,policyId,assetCash=0,borrowing=0){
  const funded=stress.recalculate(metrics,{cash:Math.max(0,finite(metrics?.cash)+cash+debtFunding),debt:Math.max(0,finite(metrics?.debt)+debtFunding)}),stressed=stress.applyScenario(funded,COMPOUND_SCENARIO);
  return{score:policy.executionScore(policyId,stressed),fundedMetrics:funded,stressedMetrics:stressed,assetCash:cash,borrowing:debtFunding};
 }
+function propertyCarryingValue(state,property){
+ const landCarryingValue=Math.max(0,finite(property?.purchasePrice||property?.price||property?.bookValue));
+ const buildingAssets=(state?.finance?.fixedAssets||[]).filter(asset=>asset?.propertyID===property?.id&&asset?.status==='active');
+ const buildingCarryingValue=buildingAssets.reduce((sum,asset)=>{
+  const fallback=Math.max(0,finite(asset?.acquisitionCost)-finite(asset?.accumulatedDepreciation));
+  return sum+Math.max(0,finite(asset?.bookValue||fallback));
+ },0);
+ return{landCarryingValue,buildingCarryingValue,buildingAssetCount:buildingAssets.length,carryingValue:landCarryingValue+buildingCarryingValue};
+}
 function sourceInventory(instance){
  const state=instance?.g||{},marketById=new Map((state.market||[]).map(row=>[row.id,row])),sources=[];
  for(const [stockId,holding] of Object.entries(state.companyStocks||{})){
@@ -31,8 +40,8 @@ function sourceInventory(instance){
  }
  for(const property of state.properties||[]){
   if(property?.owner!=='company')continue;
-  const marketValue=Math.max(0,finite(property?.value,finite(property?.price))),carryingValue=Math.max(0,finite(property?.bookValue,finite(property?.purchasePrice,marketValue))),proceeds=whole(marketValue*PROPERTY_SALE_RATE);if(proceeds<=0)continue;
-  sources.push({id:`property:${property.id}`,sourceId:property.id,kind:'properties',kindName:'会社不動産',name:property.name||'会社不動産',priority:2,discrete:true,units:1,unitProceeds:proceeds,unitMarketValue:marketValue,unitCarryingValue:carryingValue,proceeds,marketValue,carryingValue,gainLoss:proceeds-carryingValue});
+  const marketValue=Math.max(0,finite(property?.value,finite(property?.price))),books=propertyCarryingValue(state,property),proceeds=whole(marketValue*PROPERTY_SALE_RATE);if(proceeds<=0)continue;
+  sources.push({id:`property:${property.id}`,sourceId:property.id,kind:'properties',kindName:'会社不動産',name:property.name||'会社不動産',priority:2,discrete:true,units:1,unitProceeds:proceeds,unitMarketValue:marketValue,unitCarryingValue:books.carryingValue,proceeds,marketValue,carryingValue:books.carryingValue,landCarryingValue:books.landCarryingValue,buildingCarryingValue:books.buildingCarryingValue,buildingAssetCount:books.buildingAssetCount,gainLoss:proceeds-books.carryingValue});
  }
  sources.sort((a,b)=>a.priority-b.priority||a.proceeds-b.proceeds||a.id.localeCompare(b.id));
  const totals={securities:0,properties:0};for(const row of sources)totals[row.kind]+=row.proceeds;
@@ -128,6 +137,6 @@ let observer=null,scheduled=false;
 function enhance(){if(typeof document==='undefined')return false;const screen=document.getElementById('screen');if(!screen)return false;const old=screen.querySelector?.('[data-capital-allocation-recovery-funding]'),html=render();if(!html){old?.remove?.();return false;}const desired=(html.match(/data-capital-allocation-recovery-funding-render-key="([^"]+)"/)||[])[1]||'',current=String(old?.getAttribute?.('data-capital-allocation-recovery-funding-render-key')||'');if(old&&current===desired)return false;if(old){old.outerHTML=html;return true;}const host=screen.querySelector?.('[data-capital-allocation-recovery-audit]')||screen.querySelector?.('[data-capital-allocation-resilience-memo]');if(host){host.insertAdjacentHTML?.('afterend',html);return true;}screen.insertAdjacentHTML?.('beforeend',html);return true;}
 function schedule(){if(scheduled)return;scheduled=true;(typeof queueMicrotask==='function'?queueMicrotask:setTimeout)(()=>{scheduled=false;enhance();},0);}
 function installUI(){if(typeof document==='undefined')return;const root=document.getElementById('app');if(root&&!observer&&typeof MutationObserver==='function'){observer=new MutationObserver(schedule);observer.observe(root,{childList:true,subtree:true});}schedule();}
-modules.capitalAllocationRecoveryFunding=Object.freeze({DEFAULT_TARGETS,STOCK_FEE_RATE,PROPERTY_SALE_RATE,COMPOUND_SCENARIO,metricsFor,scoreForFunding,sourceInventory,allocationFrom,allocateSources,appendSource,debtCapacityAfter,minimumCashOnly,minimumBorrowing,summarizePlan,fundingPlan,fundingFrontier,renderKey,render,enhance,installUI,__installed:true});
+modules.capitalAllocationRecoveryFunding=Object.freeze({DEFAULT_TARGETS,STOCK_FEE_RATE,PROPERTY_SALE_RATE,COMPOUND_SCENARIO,metricsFor,scoreForFunding,propertyCarryingValue,sourceInventory,allocationFrom,allocateSources,appendSource,debtCapacityAfter,minimumCashOnly,minimumBorrowing,summarizePlan,fundingPlan,fundingFrontier,renderKey,render,enhance,installUI,__installed:true});
 installUI();
 })(0);
