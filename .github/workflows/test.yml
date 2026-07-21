@@ -70,6 +70,7 @@ jobs:
             tests/capital-allocation-actions-test.js \
             tests/capital-allocation-breakdown-test.js \
             tests/capital-allocation-recovery-test.js \
+            tests/capital-allocation-decision-memo-test.js \
             tests/capital-allocation-production-wiring-test.js
           do
             name="$(basename "$file" .js)"
