@@ -1,0 +1,32 @@
+const assert=require('node:assert');
+const fs=require('node:fs');
+const path=require('node:path');
+const vm=require('node:vm');
+const {loadGame}=require('./harness');
+function install(load){for(const file of ['player-debt-service.js','treasury-prepayment.js','shareholder-returns.js','capital-allocation-score.js','capital-allocation-policy.js','capital-allocation-forecast.js','capital-allocation-actions.js']){const key=file.replace('.js','').replace(/-([a-z])/g,(_,c)=>c.toUpperCase());if(!load.modules[key])vm.runInContext(fs.readFileSync(path.join(__dirname,'../js',file),'utf8'),load.ctx,{filename:file});}return load;}
+function publicGame(modules,cash=30_000_000,debt=100_000_000){const {engine,finance}=modules,state=engine.createInitialState({configured:true});state.week=27;state.publicCompany=true;state.selectedTab='market';state.companyCash=cash;state.companyDebt=debt;state.sharesOut=1_000_000;state.founderShares=600_000;state.stockPrice=100;state.ticker='CPTY';state.market=state.market.filter(x=>x.id!=='CPTY');state.market.push({id:'CPTY',name:state.companyName,sector:'コングロマリット',price:100,previous:100,dividendYield:0,volatility:0,trend:0,marketCap:100_000_000,per:20,pbr:2,issuedShares:1_000_000,dividendPerShare:0,shareholders:{},description:'test',listingMarket:'東証グロース',priceHistory:[{week:27,price:100}]});state.finance=finance.defaultFinanceState(state);state.finance.loans.push({id:'test-loan',status:'active',outstandingPrincipal:debt,interestRate:.12,maturityWeek:104});return new engine.TycoonEngine(state);}
+const load=install(loadGame()),modules=load.modules,game=publicGame(modules),mod=modules.capitalAllocationActions;
+assert.ok(mod?.__installed);
+assert.equal(modules.engine.SAVE_KEY,'capitalism_tycoon_web_v1');
+assert.equal(modules.engine.SAVE_VERSION,9);
+const beforePreview=JSON.stringify(game.g),previewA=game.capitalAllocationDebtActionPreview('deleveraging'),previewB=game.capitalAllocationDebtActionPreview('deleveraging');
+assert.deepEqual(previewA,previewB,'preview must be deterministic');
+assert.equal(JSON.stringify(game.g),beforePreview,'preview must not mutate state');
+assert.ok(previewA.debtRequested>0,'deleveraging should request debt repayment in a leveraged state');
+assert.ok(previewA.debtExecutable>0);
+assert.ok(previewA.debtExecutable<=previewA.capacity.maxAmount);
+const cashBefore=game.g.companyCash,debtBefore=game.g.companyDebt,loanBefore=game.g.finance.loans[0].outstandingPrincipal;
+assert.equal(game.executeCapitalAllocationDebtAction('deleveraging'),true);
+const paid=debtBefore-game.g.companyDebt;
+assert.equal(paid,previewA.debtExecutable);
+assert.equal(cashBefore-game.g.companyCash,paid);
+assert.equal(loanBefore-game.g.finance.loans[0].outstandingPrincipal,paid);
+assert.ok(game.g.companyCash>=modules.treasuryPrepayment.MIN_CASH);
+assert.ok(game.g.finance.transactions.some(row=>row.category==='debtRepayment'&&row.sourceType==='voluntaryDebtPrepayment'&&row.amount===paid));
+assert.ok(game.g.finance.voluntaryDebtPrepayments.some(row=>row.amount===paid));
+const html=mod.render(game);assert.match(html,/data-capital-allocation-actions-ui/);assert.match(html,/資本配分アクション/);assert.match(html,/推奨返済/);
+const low=publicGame(modules,5_000_000,100_000_000),lowBefore=JSON.stringify(low.g),lowPreview=low.capitalAllocationDebtActionPreview('deleveraging');
+assert.equal(lowPreview.debtExecutable,0);
+assert.equal(low.executeCapitalAllocationDebtAction('deleveraging'),false);
+assert.equal(JSON.stringify(low.g),lowBefore,'blocked execution must not mutate state');
+console.log('capital allocation action execution tests passed');
