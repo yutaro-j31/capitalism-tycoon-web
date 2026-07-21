@@ -5,7 +5,7 @@ if(!modules?.engine?.TycoonEngine)throw new Error('engine.js must load before ca
 if(!modules.capitalAllocationScore?.metrics)throw new Error('capital-allocation-score.js must load before capital-allocation-policy.js.');
 if(modules.capitalAllocationPolicy)throw new Error('capital allocation policy module is already registered.');
 const EngineClass=modules.engine.TycoonEngine,scoreModule=modules.capitalAllocationScore;
-const HISTORY_LIMIT=20,COOLDOWN_WEEKS=13,MIN_GUIDANCE_CASH=Math.max(0,finite(modules.shareholderReturns?.MIN_CASH,5_000_000));
+const HISTORY_LIMIT=20,COOLDOWN_WEEKS=13,MIN_GUIDANCE_CASH=Math.max(0,Number.isFinite(Number(modules.shareholderReturns?.MIN_CASH))?Number(modules.shareholderReturns.MIN_CASH):5_000_000);
 const POLICIES=Object.freeze({balanced:{name:'均衡配分',growth:[.02,.35],maxLeverage:.75,maxPayout:.8,minDebtReduction:0},growth:{name:'成長優先',growth:[.08,.55],maxLeverage:.9,maxPayout:.45,minDebtReduction:0},deleveraging:{name:'負債圧縮',growth:[0,.25],maxLeverage:.5,maxPayout:.35,minDebtReduction:.04},shareholder:{name:'株主還元',growth:[.01,.3],maxLeverage:.65,maxPayout:1,minDebtReduction:0}});
 const finite=(v,f=0)=>Number.isFinite(Number(v))?Number(v):f;
 const clamp=(v,min,max)=>Math.max(min,Math.min(max,finite(v,min)));
