@@ -1,0 +1,26 @@
+const assert=require('node:assert');
+const fs=require('node:fs');
+const path=require('node:path');
+const vm=require('node:vm');
+const {loadGame}=require('./harness');
+function install(load){for(const file of ['player-debt-service.js','treasury-prepayment.js','shareholder-returns.js','capital-allocation-score.js','capital-allocation-policy.js','capital-allocation-forecast.js','capital-allocation-actions.js','capital-allocation-decision-memo.js']){const key=file.replace('.js','').replace(/-([a-z])/g,(_,c)=>c.toUpperCase());if(!load.modules[key])vm.runInContext(fs.readFileSync(path.join(__dirname,'../js',file),'utf8'),load.ctx,{filename:file});}return load;}
+function publicGame(modules){const {engine,finance}=modules,state=engine.createInitialState({configured:true});state.week=27;state.publicCompany=true;state.selectedTab='market';state.companyCash=80_000_000;state.companyDebt=120_000_000;state.sharesOut=1_000_000;state.founderShares=600_000;state.stockPrice=100;state.ticker='CPTY';state.market=state.market.filter(row=>row.id!=='CPTY');state.market.push({id:'CPTY',name:state.companyName,sector:'コングロマリット',price:100,previous:100,dividendYield:0,volatility:0,trend:0,marketCap:100_000_000,per:20,pbr:2,issuedShares:1_000_000,dividendPerShare:0,shareholders:{},description:'test',listingMarket:'東証グロース',priceHistory:[{week:27,price:100}]});state.finance=finance.defaultFinanceState(state);finance.event(state,'revenue',100_000_000,{week:27,cashEffect:0,profitEffect:100_000_000,receivableAmount:100_000_000,sourceType:'capitalAllocationDecisionMemoFixture',sourceID:'baseline-revenue',idempotencyKey:'capital-allocation-decision-memo-revenue',description:'売掛売上'});state.finance.loans=[{id:'test-loan',loanID:'test-loan',status:'active',principal:120_000_000,outstandingPrincipal:120_000_000,interestRate:.1,maturityWeek:104}];finance.rebuildSnapshotForWeek(state,27);return new engine.TycoonEngine(state);}
+const load=install(loadGame()),modules=load.modules,mod=modules.capitalAllocationDecisionMemo;
+assert.ok(mod?.__installed);assert.equal(modules.engine.SAVE_KEY,'capitalism_tycoon_web_v1');assert.equal(modules.engine.SAVE_VERSION,9);
+assert.equal(mod.classify({currentPolicy:'balanced',recommendedPolicy:'growth',weeksUntilSwitch:0}).id,'switchPolicy');
+assert.equal(mod.classify({currentPolicy:'balanced',recommendedPolicy:'growth',weeksUntilSwitch:4}).id,'waitCooldown');
+assert.equal(mod.classify({currentPolicy:'balanced',recommendedPolicy:'balanced',direct:true,executableAmount:5_000_000,actionImprovement:3}).id,'executeAction');
+assert.equal(mod.classify({currentPolicy:'balanced',recommendedPolicy:'balanced',bindingId:'growthBelow',fundingGap:8_000_000}).id,'secureFunding');
+assert.equal(mod.classify({currentPolicy:'balanced',recommendedPolicy:'balanced',bindingId:'growthAbove'}).id,'improveConstraint');
+assert.equal(mod.classify({currentPolicy:'balanced',recommendedPolicy:'balanced',currentScore:90}).id,'hold');
+assert.equal(mod.classify({currentPolicy:'balanced',recommendedPolicy:'balanced',currentScore:60}).id,'monitor');
+const game=publicGame(modules);assert.deepEqual(modules.finance.validate(game.g).errors,[],'memo fixture must satisfy accounting invariants');
+const before=JSON.stringify(game.g),memoA=game.capitalAllocationDecisionMemo(),memoB=game.capitalAllocationDecisionMemo();
+assert.deepEqual(memoA,memoB,'board memo must be deterministic');assert.equal(JSON.stringify(game.g),before,'board memo must not mutate save or accounting state');
+assert.ok(['hold','monitor','switchPolicy','waitCooldown','executeAction','secureFunding','improveConstraint'].includes(memoA.id));
+assert.ok(memoA.currentScore>=0&&memoA.currentScore<=100);assert.ok(memoA.recommendedScore>=0&&memoA.recommendedScore<=100);assert.ok(Array.isArray(memoA.rationale)&&memoA.rationale.length>=2);assert.equal(typeof memoA.switchAllowed,'boolean');
+assert.equal(memoA.threshold.executableAmount,memoA.threshold.scoreImpact.amount,'memo must use the threshold repayment preview');
+const renderBefore=JSON.stringify(game.g),html=mod.render(game);assert.equal(JSON.stringify(game.g),renderBefore,'board memo render must remain read-only');
+assert.match(html,/data-capital-allocation-decision-memo/);assert.match(html,/取締役会・資本配分メモ/);assert.match(html,/推奨決定/);assert.match(html,/判断理由/);assert.match(html,/方針変更/);assert.match(html,/閾値返済/);
+const strategySource=fs.readFileSync(path.join(__dirname,'../js/strategy-balance.js'),'utf8');assert.match(strategySource,/capital-allocation-decision-memo\.js/);assert.match(strategySource,/'8D-1'/);
+console.log('capital allocation board decision memo tests passed');
