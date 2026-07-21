@@ -46,6 +46,17 @@ const low=publicGame(modules,5_000_000,100_000_000),lowBefore=JSON.stringify(low
 assert.equal(lowPreview.debtExecutable,0);
 assert.equal(lowImpact.amount,0);
 assert.equal(lowImpact.beforeScore,lowImpact.afterScore);
+assert.equal(lowImpact.canExecute,false);
 assert.equal(low.executeCapitalAllocationDebtAction('deleveraging'),false);
 assert.equal(JSON.stringify(low.g),lowBefore,'blocked execution must not mutate state');
+const harmful=publicGame(modules,90_000_000,100_000_000),harmfulBefore=JSON.stringify(harmful.g),harmfulImpact=harmful.capitalAllocationDebtActionImpact('balanced');
+assert.ok(harmfulImpact.amount>0,'the harmful scenario must have executable repayment capacity');
+assert.ok(harmfulImpact.improvement<0,'partial repayment should expose a negative policy-score impact in this scenario');
+assert.equal(harmfulImpact.canExecute,false);
+assert.equal(harmful.executeCapitalAllocationDebtAction('balanced'),false,'score-worsening repayment must be blocked');
+assert.equal(JSON.stringify(harmful.g),harmfulBefore,'score-worsening repayment must not mutate state');
+harmful.capitalAllocationPolicyComparison=()=>({recommendedPolicy:'balanced'});
+const harmfulHtml=mod.render(harmful);
+assert.match(harmfulHtml,/評価点が悪化するため、返済は停止/);
+assert.match(harmfulHtml,/data-capital-allocation-debt-action="balanced" disabled/);
 console.log('capital allocation action execution and impact tests passed');
