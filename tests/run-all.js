@@ -43,6 +43,7 @@ for (const [name, file] of [
   ['capital-allocation-decision-memo', 'tests/capital-allocation-decision-memo-test.js'],
   ['capital-allocation-stress-test', 'tests/capital-allocation-stress-test-test.js'],
   ['capital-allocation-resilience-memo', 'tests/capital-allocation-resilience-memo-test.js'],
+  ['capital-allocation-recovery-audit', 'tests/capital-allocation-recovery-audit-test.js'],
   ['capital-allocation-production-wiring', 'tests/capital-allocation-production-wiring-test.js']
 ]) {
   const result = spawnSync('node', [file], {
@@ -58,4 +59,4 @@ for (const [name, file] of [
   }
 }
 
-console.log(`all ${commands.length} test commands, difficulty/scenario balance, competitor dashboard UI, D UI context tabs, provisional v1 progression gate, treasury prepayment, refinancing policy, shareholder returns, capital allocation score, capital allocation policy, capital allocation comparison, capital allocation actions, capital allocation score breakdown, capital allocation recovery targets, capital allocation board decision memo, capital allocation board stress test, capital allocation resilience memo, and capital allocation production wiring passed`);
+console.log(`all ${commands.length} test commands, difficulty/scenario balance, competitor dashboard UI, D UI context tabs, provisional v1 progression gate, treasury prepayment, refinancing policy, shareholder returns, capital allocation score, capital allocation policy, capital allocation comparison, capital allocation actions, capital allocation score breakdown, capital allocation recovery targets, capital allocation board decision memo, capital allocation board stress test, capital allocation resilience memo, capital allocation recovery audit, and capital allocation production wiring passed`);
