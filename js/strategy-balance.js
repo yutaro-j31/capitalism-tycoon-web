@@ -75,4 +75,5 @@ loadPhaseScript('./js/treasury-refinancing-policy.js','8B-10',()=>Boolean(module
 loadPhaseScript('./js/capital-allocation-forecast.js','8C-7',()=>Boolean(modules.capitalAllocationForecast));
 loadPhaseScript('./js/capital-allocation-actions.js','8C-10',()=>Boolean(modules.capitalAllocationActions));
 loadPhaseScript('./js/capital-allocation-decision-memo.js','8D-1',()=>Boolean(modules.capitalAllocationDecisionMemo));
+loadPhaseScript('./js/capital-allocation-stress-test.js','8D-2',()=>Boolean(modules.capitalAllocationStressTest));
 })();
