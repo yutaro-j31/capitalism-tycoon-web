@@ -15,6 +15,12 @@ assert.equal(mod.stateFor(game).id,'growth');
 assert.equal(game.setCapitalAllocationPolicy('deleveraging'),false,'policy cooldown must prevent immediate switching');
 game.g.week+=13;
 assert.equal(game.setCapitalAllocationPolicy('deleveraging'),true);
+const targetProgress=game.capitalAllocationPolicyProgress();
+assert.equal(targetProgress.policy,'deleveraging');
+assert.equal(targetProgress.rows.length,4);
+assert.equal(targetProgress.total,4);
+assert.ok(targetProgress.metCount>=0&&targetProgress.metCount<=4);
+for(const row of targetProgress.rows){assert.ok(Number.isFinite(row.actual));assert.equal(typeof row.met,'boolean');assert.ok(row.target.length>0);}
 const first=game.evaluateCapitalAllocationPolicy(true),score=first.executionScore,confidence=game.g.investorConfidence;
 assert.ok(score>=0&&score<=100);
 assert.ok(Number.isFinite(confidence));
@@ -24,6 +30,6 @@ assert.equal(first.history.length,historyLength,'same quarter must not double ev
 const disciplined=publicGame(load.modules);disciplined.g.week=39;disciplined.g.finance.transactions.push({week:39,category:'debtRepayment',amount:5_000_000,description:'借入返済'});disciplined.setCapitalAllocationPolicy('deleveraging');const good=disciplined.evaluateCapitalAllocationPolicy(true).executionScore;
 const reckless=publicGame(load.modules);reckless.g.week=39;reckless.g.companyDebt=300_000_000;reckless.g.finance=load.modules.finance.defaultFinanceState(reckless.g);reckless.setCapitalAllocationPolicy('deleveraging');const bad=reckless.evaluateCapitalAllocationPolicy(true).executionScore;
 assert.ok(good>bad,'policy execution should reward actual deleveraging');
-reckless.g.selectedTab='market';assert.match(mod.render(reckless),/data-capital-allocation-policy-ui/);assert.match(mod.render(reckless),/負債圧縮/);
+reckless.g.selectedTab='market';const html=mod.render(reckless);assert.match(html,/data-capital-allocation-policy-ui/);assert.match(html,/負債圧縮/);assert.match(html,/目標達成/);assert.match(html,/成長投資率/);assert.match(html,/レバレッジ/);assert.match(html,/株主還元率/);assert.match(html,/負債削減率/);
 assert.deepEqual(findStateIssues(game.g).filter(x=>!x.startsWith('g.finance.lastStatements.ratios.')),[]);
 console.log('capital allocation policy tests passed');
