@@ -71,4 +71,5 @@ function loadPhaseScript(src,phase,guard){if(typeof document==='undefined'||guar
 loadPhaseScript('./js/product-lifecycle.js','8A-5',()=>Boolean(modules.productLifecycle));
 loadPhaseScript('./js/macro-cycle.js','8B-1',()=>Boolean(modules.macroCycle));
 loadPhaseScript('./js/treasury-prepayment.js','8B-9',()=>Boolean(modules.treasuryPrepayment));
+loadPhaseScript('./js/treasury-refinancing-policy.js','8B-10',()=>Boolean(modules.treasuryRefinancingPolicy));
 })();
