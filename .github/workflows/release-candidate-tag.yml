@@ -27,6 +27,10 @@ on:
         description: iPhone safe areas, navigation, forms, buttons, and modals are usable
         required: true
         type: boolean
+      market_capital_allocation_cards:
+        description: Market capital allocation action and board memo cards are usable without horizontal overflow
+        required: true
+        type: boolean
       device:
         description: Tested iPhone model
         required: true
@@ -85,6 +89,7 @@ jobs:
           RC_CONFIRM_FOUR_WEEK_ADVANCE: ${{ inputs.four_week_advance }}
           RC_CONFIRM_SAVE_EXPORT_IMPORT: ${{ inputs.save_export_import }}
           RC_CONFIRM_IPHONE_SAFE_AREA_NAVIGATION: ${{ inputs.iphone_safe_area_navigation }}
+          RC_CONFIRM_MARKET_CAPITAL_ALLOCATION_CARDS: ${{ inputs.market_capital_allocation_cards }}
           RC_TEST_DEVICE: ${{ inputs.device }}
           RC_SAFARI_VERSION: ${{ inputs.safari_version }}
           RC_TESTED_AT: ${{ inputs.tested_at }}
