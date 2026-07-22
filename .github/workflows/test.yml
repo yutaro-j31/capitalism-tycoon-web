@@ -75,6 +75,7 @@ jobs:
             tests/capital-allocation-resilience-memo-test.js \
             tests/capital-allocation-recovery-audit-test.js \
             tests/capital-allocation-recovery-funding-test.js \
+            tests/capital-allocation-recovery-funding-options-test.js \
             tests/capital-allocation-production-wiring-test.js
           do
             name="$(basename "$file" .js)"
