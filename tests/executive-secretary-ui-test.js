@@ -12,6 +12,7 @@ assert.match(app, /case 'secretary-jump':[\s\S]*focusSecretaryTarget/, 'navigati
 assert.match(app, /aria-live="polite"/, 'task list announces updates politely');
 assert.match(app, /aria-label="\$\{esc\(a\.title\)\}の確認先へ移動"/, 'buttons include aria labels');
 assert.match(app, /prefers-reduced-motion: reduce/, 'focus respects reduced motion');
+assert.match(app, /const target=selector\?document\.querySelector\(selector\):document\.getElementById\('screen'\);if\(!target\)return false;/, 'missing focus selectors must not fall back to the wrong card');
 assert.match(css, /\.secretary-item \.btn\{min-height:44px/, 'tap target is at least 44px');
 assert.match(css, /grid-template-columns:minmax\(0,1fr\) auto/, 'desktop card avoids overflow with minmax');
 assert.match(css, /@media\(max-width:720px\)[\s\S]*\.secretary-item\{grid-template-columns:1fr/, 'iPhone width collapses task rows');

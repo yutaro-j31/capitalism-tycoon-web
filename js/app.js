@@ -78,7 +78,7 @@ function render() {
   requestAnimationFrame(drawCharts);
 }
 
-function focusSecretaryTarget(selector){const target=(selector&&document.querySelector(selector))||document.getElementById('screen');if(!target)return false;target.setAttribute('tabindex',target.getAttribute('tabindex')||'-1');const reduce=Boolean(engine.g.settings?.reducedMotion)||globalThis.matchMedia?.('(prefers-reduced-motion: reduce)')?.matches;target.scrollIntoView?.({block:'start',behavior:reduce?'auto':'smooth'});target.focus?.({preventScroll:true});return true;}
+function focusSecretaryTarget(selector){const target=selector?document.querySelector(selector):document.getElementById('screen');if(!target)return false;target.setAttribute('tabindex',target.getAttribute('tabindex')||'-1');const reduce=Boolean(engine.g.settings?.reducedMotion)||globalThis.matchMedia?.('(prefers-reduced-motion: reduce)')?.matches;target.scrollIntoView?.({block:'start',behavior:reduce?'auto':'smooth'});target.focus?.({preventScroll:true});return true;}
 
 function renderSetup() {
   app.innerHTML=`<div class="setup-shell"><div class="setup-panel">

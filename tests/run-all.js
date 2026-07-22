@@ -56,7 +56,8 @@ for (const [name, file] of [
   ['capital-allocation-recovery-save-reload', 'tests/capital-allocation-recovery-save-reload-test.js'],
   ['capital-allocation-production-wiring', 'tests/capital-allocation-production-wiring-test.js'],
   ['executive-secretary', 'tests/executive-secretary-test.js'],
-  ['executive-secretary-ui', 'tests/executive-secretary-ui-test.js']
+  ['executive-secretary-ui', 'tests/executive-secretary-ui-test.js'],
+  ['executive-secretary-purity', 'tests/executive-secretary-purity-test.js']
 ]) {
   const result = spawnSync('node', [file], {
     encoding: 'utf8',
@@ -71,4 +72,4 @@ for (const [name, file] of [
   }
 }
 
-console.log(`all ${commands.length} test commands, difficulty/scenario balance, competitor dashboard UI, D UI context tabs, provisional v1 progression gate, treasury prepayment, refinancing policy, shareholder returns, capital allocation score, capital allocation policy, capital allocation comparison, capital allocation actions, capital allocation score breakdown, capital allocation recovery targets, capital allocation board decision memo, capital allocation board stress test, capital allocation resilience memo, capital allocation recovery audit, capital allocation recovery funding, capital allocation recovery funding options, capital allocation recovery funding readiness, capital allocation recovery funding reconciliation, capital allocation recovery target selector, capital allocation recovery funding outcome, capital allocation management guide, capital allocation recovery save reload, capital allocation production wiring, executive secretary, and executive secretary UI passed`);
+console.log(`all ${commands.length} test commands, difficulty/scenario balance, competitor dashboard UI, D UI context tabs, provisional v1 progression gate, treasury prepayment, refinancing policy, shareholder returns, capital allocation score, capital allocation policy, capital allocation comparison, capital allocation actions, capital allocation score breakdown, capital allocation recovery targets, capital allocation board decision memo, capital allocation board stress test, capital allocation resilience memo, capital allocation recovery audit, capital allocation recovery funding, capital allocation recovery funding options, capital allocation recovery funding readiness, capital allocation recovery funding reconciliation, capital allocation recovery target selector, capital allocation recovery funding outcome, capital allocation management guide, capital allocation recovery save reload, capital allocation production wiring, executive secretary, executive secretary UI, and executive secretary purity passed`);
