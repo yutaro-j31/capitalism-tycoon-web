@@ -46,6 +46,7 @@ for (const [name, file] of [
   ['capital-allocation-recovery-audit', 'tests/capital-allocation-recovery-audit-test.js'],
   ['capital-allocation-recovery-funding', 'tests/capital-allocation-recovery-funding-test.js'],
   ['capital-allocation-recovery-funding-options', 'tests/capital-allocation-recovery-funding-options-test.js'],
+  ['capital-allocation-recovery-funding-readiness', 'tests/capital-allocation-recovery-funding-readiness-test.js'],
   ['capital-allocation-production-wiring', 'tests/capital-allocation-production-wiring-test.js']
 ]) {
   const result = spawnSync('node', [file], {
@@ -61,4 +62,4 @@ for (const [name, file] of [
   }
 }
 
-console.log(`all ${commands.length} test commands, difficulty/scenario balance, competitor dashboard UI, D UI context tabs, provisional v1 progression gate, treasury prepayment, refinancing policy, shareholder returns, capital allocation score, capital allocation policy, capital allocation comparison, capital allocation actions, capital allocation score breakdown, capital allocation recovery targets, capital allocation board decision memo, capital allocation board stress test, capital allocation resilience memo, capital allocation recovery audit, capital allocation recovery funding, capital allocation recovery funding options, and capital allocation production wiring passed`);
+console.log(`all ${commands.length} test commands, difficulty/scenario balance, competitor dashboard UI, D UI context tabs, provisional v1 progression gate, treasury prepayment, refinancing policy, shareholder returns, capital allocation score, capital allocation policy, capital allocation comparison, capital allocation actions, capital allocation score breakdown, capital allocation recovery targets, capital allocation board decision memo, capital allocation board stress test, capital allocation resilience memo, capital allocation recovery audit, capital allocation recovery funding, capital allocation recovery funding options, capital allocation recovery funding readiness, and capital allocation production wiring passed`);
