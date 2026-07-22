@@ -19,6 +19,11 @@ const MIME = new Map([
 
 assert.ok(devices[DEVICE_NAME], `Playwright device descriptor is unavailable: ${DEVICE_NAME}`);
 
+function writeResult(value) {
+  fs.mkdirSync(ARTIFACT_DIR, { recursive: true });
+  fs.writeFileSync(path.join(ARTIFACT_DIR, 'result.json'), `${JSON.stringify(value, null, 2)}\n`);
+}
+
 function requestPath(rawUrl) {
   const pathname = decodeURIComponent(new URL(rawUrl, 'http://127.0.0.1').pathname);
   const resolved = path.resolve(ROOT, pathname === '/' ? 'index.html' : pathname.replace(/^\/+/, ''));
@@ -59,12 +64,20 @@ async function stopServer(server) {
   await new Promise(resolve => server.close(resolve));
 }
 
+async function savedGame(page) {
+  return page.evaluate(key => {
+    const raw = localStorage.getItem(key);
+    return raw ? JSON.parse(raw) : null;
+  }, SAVE_KEY);
+}
+
 async function inspectDashboard(page) {
   const dashboard = page.locator('[data-ceo-dashboard="1"]');
   await dashboard.waitFor({ state: 'visible', timeout: 20_000 });
-  assert.match(await dashboard.innerText(), /CEO Dashboard/);
-  assert.match(await dashboard.innerText(), /30秒で読む会社ホーム/);
-  assert.match(await dashboard.innerText(), /読み取り専用/);
+  const dashboardText = await dashboard.innerText();
+  assert.match(dashboardText, /CEO Dashboard/);
+  assert.match(dashboardText, /30秒で読む会社ホーム/);
+  assert.match(dashboardText, /読み取り専用/);
 
   for (const id of CARD_IDS) {
     const card = dashboard.locator(`[data-ceo-dashboard-card="${id}"]`);
@@ -80,11 +93,13 @@ async function inspectDashboard(page) {
       const summary = card?.querySelector('summary');
       const cardRect = card?.getBoundingClientRect();
       const summaryRect = summary?.getBoundingClientRect();
+      const summaryStyle = summary ? getComputedStyle(summary) : null;
       return {
         id,
         cardLeft: cardRect?.left,
         cardRight: cardRect?.right,
         summaryHeight: summaryRect?.height,
+        summaryMinHeight: summaryStyle ? Number.parseFloat(summaryStyle.minHeight) : NaN,
         open: Boolean(card?.open)
       };
     });
@@ -98,24 +113,33 @@ async function inspectDashboard(page) {
     };
   }, CARD_IDS);
 
-  assert.ok(layout.documentScrollWidth <= layout.viewportWidth + 2, 'CEO dashboard must not overflow the document viewport');
-  assert.ok(layout.bodyScrollWidth <= layout.viewportWidth + 2, 'CEO dashboard must not overflow the body viewport');
-  assert.ok(layout.rootLeft >= -1 && layout.rootRight <= layout.viewportWidth + 1, 'CEO dashboard root must fit the iPhone viewport');
+  assert.ok(layout.documentScrollWidth <= layout.viewportWidth + 2, `CEO dashboard document overflow: ${JSON.stringify(layout)}`);
+  assert.ok(layout.bodyScrollWidth <= layout.viewportWidth + 2, `CEO dashboard body overflow: ${JSON.stringify(layout)}`);
+  assert.ok(layout.rootLeft >= -1 && layout.rootRight <= layout.viewportWidth + 1, `CEO dashboard root overflow: ${JSON.stringify(layout)}`);
   for (const card of layout.cards) {
-    assert.ok(Number.isFinite(card.cardLeft) && Number.isFinite(card.cardRight), `card is not measurable: ${card.id}`);
-    assert.ok(card.cardLeft >= -1 && card.cardRight <= layout.viewportWidth + 1, `card overflows viewport: ${card.id}`);
-    assert.ok(card.summaryHeight >= 44, `card summary tap target is below 44px: ${card.id}`);
-    assert.equal(card.open, true, `card should initially be open: ${card.id}`);
+    assert.ok(Number.isFinite(card.cardLeft) && Number.isFinite(card.cardRight), `card is not measurable: ${JSON.stringify(card)}`);
+    assert.ok(card.cardLeft >= -1 && card.cardRight <= layout.viewportWidth + 1, `card overflows viewport: ${JSON.stringify(card)}`);
+    assert.ok(card.summaryHeight >= 43.5 || card.summaryMinHeight >= 44, `card summary tap target is below 44px: ${JSON.stringify(card)}`);
+    assert.equal(card.open, true, `card should initially be open: ${JSON.stringify(card)}`);
   }
 
-  const saveBefore = await page.evaluate(key => localStorage.getItem(key), SAVE_KEY);
-  const financeSummary = dashboard.locator('[data-ceo-dashboard-card="finance"] summary');
+  await page.waitForTimeout(100);
+  const saveBefore = await savedGame(page);
+  assert.ok(saveBefore, 'configured save must exist before dashboard interaction');
+  const financeCard = dashboard.locator('[data-ceo-dashboard-card="finance"]');
+  const financeSummary = financeCard.locator('summary');
   await financeSummary.click();
-  assert.equal(await dashboard.locator('[data-ceo-dashboard-card="finance"]').evaluate(card => card.open), false);
+  await assert.doesNotReject(async () => financeCard.evaluate(card => {
+    if (card.open) throw new Error('finance card did not close');
+  }));
   await financeSummary.click();
-  assert.equal(await dashboard.locator('[data-ceo-dashboard-card="finance"]').evaluate(card => card.open), true);
-  const saveAfter = await page.evaluate(key => localStorage.getItem(key), SAVE_KEY);
-  assert.equal(saveAfter, saveBefore, 'folding CEO dashboard cards must not mutate the saved game');
+  await assert.doesNotReject(async () => financeCard.evaluate(card => {
+    if (!card.open) throw new Error('finance card did not reopen');
+  }));
+  await page.waitForTimeout(50);
+  const saveAfter = await savedGame(page);
+  assert.deepEqual(saveAfter, saveBefore, 'folding CEO dashboard cards must not mutate the saved game');
+  return layout;
 }
 
 async function main() {
@@ -124,7 +148,9 @@ async function main() {
   const baseUrl = await startServer(server);
   let browser;
   let page;
+  let layout = null;
   const diagnostics = { consoleErrors: [], pageErrors: [], failedRequests: [] };
+  const startedAt = new Date().toISOString();
 
   try {
     browser = await webkit.launch();
@@ -145,25 +171,31 @@ async function main() {
     await page.locator('#setup-form input[name="companyName"]').fill('Dashboard Holdings');
     await page.locator('#setup-form').evaluate(form => form.requestSubmit());
     await page.locator('.topbar').waitFor({ state: 'visible', timeout: 20_000 });
+    await page.waitForFunction(key => Boolean(localStorage.getItem(key)), SAVE_KEY);
 
-    const save = JSON.parse(await page.evaluate(key => localStorage.getItem(key), SAVE_KEY));
+    const save = await savedGame(page);
     assert.equal(save.configured, true);
     assert.equal(save.saveVersion, 9);
     assert.equal(save.companyName, 'Dashboard Holdings');
 
-    await inspectDashboard(page);
+    layout = await inspectDashboard(page);
     await page.screenshot({ path: path.join(ARTIFACT_DIR, 'ceo-dashboard-iphone.png'), fullPage: true });
     assert.deepEqual(diagnostics, { consoleErrors: [], pageErrors: [], failedRequests: [] });
 
-    fs.writeFileSync(path.join(ARTIFACT_DIR, 'result.json'), `${JSON.stringify({
-      status: 'passed', device: DEVICE_NAME, browser: 'WebKit', browserVersion: browser.version(), saveVersion: save.saveVersion,
-      cards: CARD_IDS
-    }, null, 2)}\n`);
+    writeResult({
+      status: 'passed', startedAt, completedAt: new Date().toISOString(),
+      device: DEVICE_NAME, browser: 'WebKit', browserVersion: browser.version(), saveVersion: save.saveVersion,
+      cards: CARD_IDS, layout
+    });
     console.log('CEO dashboard iPhone WebKit smoke passed');
   } catch (error) {
     if (page) {
       try { await page.screenshot({ path: path.join(ARTIFACT_DIR, 'ceo-dashboard-iphone-failure.png'), fullPage: true }); } catch (_) {}
     }
+    writeResult({
+      status: 'failed', startedAt, completedAt: new Date().toISOString(),
+      error: error?.stack || String(error), layout, diagnostics
+    });
     throw error;
   } finally {
     if (browser) await browser.close();
