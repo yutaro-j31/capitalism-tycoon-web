@@ -169,8 +169,12 @@ async function main() {
     const storedBeforeTarget = await page.evaluate(key => localStorage.getItem(key), SAVE_KEY);
     await reconciliation.locator('[data-capital-allocation-funding-target="50"]').click();
     await reconciliation.locator('[data-capital-allocation-funding-target="50"][aria-pressed="true"]').waitFor({ state:'visible', timeout:10_000 });
+    await page.waitForFunction(() => document.querySelector('[data-capital-allocation-recovery-funding-options]')?.textContent?.includes('目標：50点'), null, { timeout:10_000 });
+    await page.waitForFunction(() => document.querySelector('[data-capital-allocation-recovery-funding-readiness]')?.textContent?.includes('目標スコア50点'), null, { timeout:10_000 });
     assert.equal(await reconciliation.locator('[data-capital-allocation-funding-pin="50"]').count(), 4);
     assert.ok(await reconciliation.locator('[data-capital-allocation-funding-pin="50"]:not([disabled])').count() >= 1);
+    assert.match(await options.innerText(), /目標：\s*50点/);
+    assert.match(await readiness.innerText(), /目標スコア\s*50点/);
     assert.equal(await page.evaluate(key => localStorage.getItem(key), SAVE_KEY), storedBeforeTarget, 'transient target selection must not mutate the save');
     await assertMobileCardLayout(page, '[data-capital-allocation-recovery-funding-reconciliation]', 8);
 
@@ -200,8 +204,8 @@ async function main() {
     stage = 'evidence';
     await reconciliation.screenshot({ path:path.join(OUT, 'capital-allocation-recovery-workflow.png') });
     assert.deepEqual(diagnostics, { consoleErrors:[], pageErrors:[], failedRequests:[] });
-    fs.writeFileSync(RESULT_PATH, `${JSON.stringify({ status:'passed', stage, startedAt, completedAt:new Date().toISOString(), device:DEVICE_NAME, browser:'WebKit', browserVersion:browser.version(), selectedTarget:50, pinnedOption, optionCount:4, saveKey:SAVE_KEY, saveVersion:9 }, null, 2)}\n`);
-    console.log('capital allocation recovery target selection and workflow iPhone WebKit smoke passed');
+    fs.writeFileSync(RESULT_PATH, `${JSON.stringify({ status:'passed', stage, startedAt, completedAt:new Date().toISOString(), device:DEVICE_NAME, browser:'WebKit', browserVersion:browser.version(), selectedTarget:50, synchronizedCards:['options','readiness','reconciliation'], pinnedOption, optionCount:4, saveKey:SAVE_KEY, saveVersion:9 }, null, 2)}\n`);
+    console.log('capital allocation recovery target synchronization and workflow iPhone WebKit smoke passed');
     await context.close();
   } catch (error) {
     if (page) { try { await page.screenshot({ path:path.join(OUT, 'capital-allocation-recovery-workflow-failure.png') }); } catch (_) {} }
