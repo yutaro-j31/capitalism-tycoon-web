@@ -24,8 +24,12 @@ function recommendation(instance){
  if(fixed){
   const recon=reconciliation.reconcile(instance,fixed),result=outcome.report(instance,fixed);
   if(result.targetReached&&result.verified)return action('targetReached','回復目標の同期証跡を確認する',`目標${result.targetScore}点に対し現在${result.actualScore}点で、固定計画の会計証跡も検証済みです。`,'「回復資金・結果検証」と「回復資金・実行後照合」の証跡を確認してください。','[data-capital-allocation-recovery-funding-outcome]');
+  if(result.status==='diverged'||recon.status==='diverged')return action('planDiverged','計画との差異を確認し、必要なら現在状態で再固定する',recon.reason||result.reason||'固定計画と現在状態または会計証跡に差異があります。追加取引を行う前に差異を確認してください。','「回復資金・実行後照合」の要確認事項、現金差異、借入差異、会計証跡を確認してください。','[data-capital-allocation-recovery-funding-reconciliation]');
+  if(result.status==='review')return action('accountingReview','現金差異・借入差異・会計証跡を確認する',result.reason||'手順は完了していますが、会計差異または不足している証跡があります。完了済み手順を再実行しないでください。','「回復資金・結果検証」と「実行後照合」の差異・証跡を確認してください。','[data-capital-allocation-recovery-funding-outcome]');
+  if(result.status==='belowTarget')return action('belowTarget','目標スコアと次の計画を再検討する',`会計照合は完了していますが、現在${result.actualScore}点で目標${result.targetScore}点に届いていません。完了済み手順は再実行せず、資本配分方針と次の計画を見直してください。`,'「回復資金・結果検証」の目標差と資本配分方針を確認してください。','[data-capital-allocation-recovery-funding-outcome]');
   if(recon.status==='inProgress')return action('partiallyExecuted','残りの手動手順と会計差異を確認する',`固定計画の${recon.completedCount}/${recon.totalSteps}手順が完了または一部進行しています。途中状態のため自動売却・自動借入は行いません。`,'「回復資金・実行後照合」の未完了手順と会計証跡を確認してください。','[data-capital-allocation-recovery-funding-reconciliation]');
-  return action('planPinned','固定した計画の最初の手動手順を実行する',`目標${fixed.targetScore}点の「${fixed.optionName||fixed.optionId}」案が固定中です。週を進める前に、計画と現在状態が一致しているか確認してください。`,'「回復資金・実行後照合」の手順一覧を確認してください。','[data-capital-allocation-recovery-funding-reconciliation]');
+  if(recon.status==='notStarted')return action('planPinned','固定した計画の最初の手動手順を実行する',`目標${fixed.targetScore}点の「${fixed.optionName||fixed.optionId}」案が固定中です。週を進める前に、計画と現在状態が一致しているか確認してください。`,'「回復資金・実行後照合」の手順一覧を確認してください。','[data-capital-allocation-recovery-funding-reconciliation]');
+  return action('planReview','固定計画の状態を再確認する',result.reason||recon.reason||'固定計画の状態を安全に判定できません。追加取引を行う前に計画と会計証跡を確認してください。','「回復資金・実行後照合」と「結果検証」を確認してください。','[data-capital-allocation-recovery-funding-reconciliation]');
  }
  const cooldown=cooldownAction(instance);if(cooldown)return cooldown;
  if(Number.isFinite(currentScore)&&currentScore>=target)return action('targetAlreadyReached',`目標${target}点は到達済みのため証跡を固定する`,`現在の資本配分スコアは${Math.round(currentScore)}点で目標以上です。固定計画なしでは会計証跡が残らないため、必要なら到達案を固定して確認してください。`,'「回復資金・実行後照合」で到達案を固定し、「結果検証」を確認してください。','[data-capital-allocation-recovery-funding-reconciliation]');
