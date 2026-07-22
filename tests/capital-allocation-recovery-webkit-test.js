@@ -10,6 +10,7 @@ const { ROOT, loadGame } = require('./harness');
 
 const SAVE_KEY = 'capitalism_tycoon_web_v1';
 const DEVICE_NAME = 'iPhone 13';
+const TARGET_URL = String(process.env.CAPITAL_ALLOCATION_RECOVERY_TARGET_URL || '').trim();
 const OUT = path.resolve(process.env.IPHONE_WEBKIT_ARTIFACT_DIR || path.join(ROOT, 'artifacts', 'iphone-webkit-smoke'));
 const RESULT_PATH = path.join(OUT, 'capital-allocation-recovery-workflow.json');
 const MIME = new Map([
@@ -99,6 +100,14 @@ async function startServer(server) {
 
 async function stopServer(server) { await new Promise(resolve => server.close(resolve)); }
 
+function normalizedTargetUrl(value) {
+  if (!value) return '';
+  const target = new URL(value);
+  assert.ok(['http:', 'https:'].includes(target.protocol), 'recovery target URL must use http or https');
+  if (!target.pathname.endsWith('/')) target.pathname += '/';
+  return target.toString();
+}
+
 async function assertMobileCardLayout(page, selector, minimumControls) {
   const layout = await page.locator(selector).evaluate(node => {
     const rect = node.getBoundingClientRect();
@@ -126,12 +135,16 @@ async function main() {
   let server;
   let browser;
   let page;
+  let baseUrl = '';
   let stage = 'fixture';
   try {
     const save = resilientPublicSave();
-    stage = 'server';
-    server = staticServer();
-    const baseUrl = await startServer(server);
+    baseUrl = normalizedTargetUrl(TARGET_URL);
+    if (!baseUrl) {
+      stage = 'server';
+      server = staticServer();
+      baseUrl = await startServer(server);
+    }
     stage = 'browser';
     browser = await webkit.launch();
     const context = await browser.newContext({ ...devices[DEVICE_NAME], locale:'ja-JP', reducedMotion:'reduce', serviceWorkers:'block', timezoneId:'Asia/Tokyo' });
@@ -204,12 +217,12 @@ async function main() {
     stage = 'evidence';
     await reconciliation.screenshot({ path:path.join(OUT, 'capital-allocation-recovery-workflow.png') });
     assert.deepEqual(diagnostics, { consoleErrors:[], pageErrors:[], failedRequests:[] });
-    fs.writeFileSync(RESULT_PATH, `${JSON.stringify({ status:'passed', stage, startedAt, completedAt:new Date().toISOString(), device:DEVICE_NAME, browser:'WebKit', browserVersion:browser.version(), selectedTarget:50, synchronizedCards:['options','readiness','reconciliation'], pinnedOption, optionCount:4, saveKey:SAVE_KEY, saveVersion:9 }, null, 2)}\n`);
-    console.log('capital allocation recovery target synchronization and workflow iPhone WebKit smoke passed');
+    fs.writeFileSync(RESULT_PATH, `${JSON.stringify({ status:'passed', stage, startedAt, completedAt:new Date().toISOString(), device:DEVICE_NAME, browser:'WebKit', browserVersion:browser.version(), targetUrl:baseUrl, published:Boolean(TARGET_URL), selectedTarget:50, synchronizedCards:['options','readiness','reconciliation'], pinnedOption, optionCount:4, saveKey:SAVE_KEY, saveVersion:9 }, null, 2)}\n`);
+    console.log(`capital allocation recovery target synchronization and workflow iPhone WebKit smoke passed (${TARGET_URL ? 'published' : 'local'})`);
     await context.close();
   } catch (error) {
     if (page) { try { await page.screenshot({ path:path.join(OUT, 'capital-allocation-recovery-workflow-failure.png') }); } catch (_) {} }
-    fs.writeFileSync(RESULT_PATH, `${JSON.stringify({ status:'failed', stage, startedAt, completedAt:new Date().toISOString(), error:error?.stack || String(error), ...diagnostics }, null, 2)}\n`);
+    fs.writeFileSync(RESULT_PATH, `${JSON.stringify({ status:'failed', stage, startedAt, completedAt:new Date().toISOString(), targetUrl:baseUrl || TARGET_URL || null, published:Boolean(TARGET_URL), error:error?.stack || String(error), ...diagnostics }, null, 2)}\n`);
     throw error;
   } finally {
     if (browser) await browser.close();

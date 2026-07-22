@@ -54,16 +54,23 @@ function close(server) {
     'Pages smoke must execute the published recovery outcome workflow');
   assert.equal((workflow.match(/capital-allocation-recovery-outcome-webkit-test\.js/g) || []).length, 1,
     'published recovery outcome must run exactly once per Pages deployment');
+  assert.match(workflow, /node tests\/capital-allocation-recovery-webkit-test\.js/,
+    'Pages smoke must execute the published recovery target synchronization workflow');
+  assert.equal((workflow.match(/capital-allocation-recovery-webkit-test\.js/g) || []).length, 1,
+    'published recovery target synchronization must run exactly once per Pages deployment');
   assert.match(workflow, /IPHONE_WEBKIT_ARTIFACT_DIR: artifacts\/published-iphone-webkit-smoke/,
     'published outcome evidence must use the retained Pages artifact directory');
   const byteCheckIndex = workflow.indexOf('node scripts/pages-deployment-smoke.js');
   const genericWebKitIndex = workflow.indexOf('node tests/iphone-webkit-smoke-test.js');
+  const targetSyncWebKitIndex = workflow.indexOf('node tests/capital-allocation-recovery-webkit-test.js');
   const outcomeWebKitIndex = workflow.indexOf('node tests/capital-allocation-recovery-outcome-webkit-test.js');
   const uploadIndex = workflow.indexOf('Retain published WebKit evidence');
   assert.ok(byteCheckIndex !== -1 && genericWebKitIndex > byteCheckIndex,
     'generic WebKit smoke must run only after exact Pages bytes match main');
-  assert.ok(outcomeWebKitIndex > genericWebKitIndex,
-    'recovery outcome verification must run after generic published WebKit smoke');
+  assert.ok(targetSyncWebKitIndex > genericWebKitIndex,
+    'recovery target synchronization must run after generic published WebKit smoke');
+  assert.ok(outcomeWebKitIndex > targetSyncWebKitIndex,
+    'recovery outcome verification must run after target synchronization');
   assert.ok(uploadIndex > outcomeWebKitIndex,
     'published recovery outcome evidence must be retained before the workflow ends');
 
