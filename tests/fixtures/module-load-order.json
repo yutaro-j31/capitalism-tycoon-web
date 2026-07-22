@@ -19,6 +19,7 @@
     "./js/competitor-media.js",
     "./js/completion.js",
     "./js/parity.js",
+    "./js/executive-secretary.js",
     "./js/competitor-parity.js",
     "./js/competitor-dashboard.js",
     "./js/competitor-dashboard-status.js",
