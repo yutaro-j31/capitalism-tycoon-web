@@ -96,6 +96,7 @@ async function startServer(server) {
   await new Promise((resolve, reject) => { server.once('error', reject); server.listen(0, '127.0.0.1', resolve); });
   return `http://127.0.0.1:${server.address().port}/`;
 }
+
 async function stopServer(server) { await new Promise(resolve => server.close(resolve)); }
 
 async function assertMobileCardLayout(page, selector, minimumControls) {
@@ -155,18 +156,33 @@ async function main() {
     assert.match(await readiness.innerText(), /回復資金・実行前確認/);
     const initialText = await reconciliation.innerText();
     for (const label of ['現行推奨', '無借入', '不動産温存', '資産温存']) assert.match(initialText, new RegExp(label));
+    assert.match(initialText, /総調達/);
+    assert.match(initialText, /資産売却/);
+    assert.match(initialText, /借入/);
+    assert.equal(await reconciliation.locator('[data-capital-allocation-funding-target]').count(), 4);
+    assert.equal(await reconciliation.locator('[data-capital-allocation-funding-target="70"]').getAttribute('aria-pressed'), 'true');
     assert.equal(await reconciliation.locator('[data-capital-allocation-funding-pin]').count(), 4);
     assert.ok(await reconciliation.locator('[data-capital-allocation-funding-pin]:not([disabled])').count() >= 1);
-    await assertMobileCardLayout(page, '[data-capital-allocation-recovery-funding-reconciliation]', 4);
+    await assertMobileCardLayout(page, '[data-capital-allocation-recovery-funding-reconciliation]', 8);
+
+    stage = 'target';
+    const storedBeforeTarget = await page.evaluate(key => localStorage.getItem(key), SAVE_KEY);
+    await reconciliation.locator('[data-capital-allocation-funding-target="50"]').click();
+    await reconciliation.locator('[data-capital-allocation-funding-target="50"][aria-pressed="true"]').waitFor({ state:'visible', timeout:10_000 });
+    assert.equal(await reconciliation.locator('[data-capital-allocation-funding-pin="50"]').count(), 4);
+    assert.ok(await reconciliation.locator('[data-capital-allocation-funding-pin="50"]:not([disabled])').count() >= 1);
+    assert.equal(await page.evaluate(key => localStorage.getItem(key), SAVE_KEY), storedBeforeTarget, 'transient target selection must not mutate the save');
+    await assertMobileCardLayout(page, '[data-capital-allocation-recovery-funding-reconciliation]', 8);
 
     stage = 'pin';
     const storedBeforePin = await page.evaluate(key => localStorage.getItem(key), SAVE_KEY);
-    const pinButton = reconciliation.locator('[data-capital-allocation-funding-pin]:not([disabled])').first();
+    const pinButton = reconciliation.locator('[data-capital-allocation-funding-pin="50"]:not([disabled])').first();
     const pinnedOption = await pinButton.getAttribute('data-capital-allocation-funding-option');
     await pinButton.click();
     const clearButton = page.locator('[data-capital-allocation-funding-clear]');
     await clearButton.waitFor({ state:'visible', timeout:10_000 });
     const pinnedText = await page.locator('[data-capital-allocation-recovery-funding-reconciliation]').innerText();
+    assert.match(pinnedText, /目標スコア\s*50点/);
     assert.match(pinnedText, /計画識別子/);
     assert.match(pinnedText, /会計証跡/);
     assert.match(pinnedText, /固定を解除/);
@@ -175,16 +191,17 @@ async function main() {
 
     stage = 'clear';
     await clearButton.click();
-    await page.locator('[data-capital-allocation-funding-pin]').first().waitFor({ state:'visible', timeout:10_000 });
-    assert.equal(await page.locator('[data-capital-allocation-funding-pin]').count(), 4);
+    await page.locator('[data-capital-allocation-funding-pin="50"]').first().waitFor({ state:'visible', timeout:10_000 });
+    assert.equal(await page.locator('[data-capital-allocation-funding-target="50"]').getAttribute('aria-pressed'), 'true');
+    assert.equal(await page.locator('[data-capital-allocation-funding-pin="50"]').count(), 4);
     assert.equal(await page.evaluate(key => localStorage.getItem(key), SAVE_KEY), storedBeforePin, 'clearing the transient plan must not mutate the save');
-    await assertMobileCardLayout(page, '[data-capital-allocation-recovery-funding-reconciliation]', 4);
+    await assertMobileCardLayout(page, '[data-capital-allocation-recovery-funding-reconciliation]', 8);
 
     stage = 'evidence';
     await reconciliation.screenshot({ path:path.join(OUT, 'capital-allocation-recovery-workflow.png') });
     assert.deepEqual(diagnostics, { consoleErrors:[], pageErrors:[], failedRequests:[] });
-    fs.writeFileSync(RESULT_PATH, `${JSON.stringify({ status:'passed', stage, startedAt, completedAt:new Date().toISOString(), device:DEVICE_NAME, browser:'WebKit', browserVersion:browser.version(), pinnedOption, optionCount:4, saveKey:SAVE_KEY, saveVersion:9 }, null, 2)}\n`);
-    console.log('capital allocation recovery workflow iPhone WebKit smoke passed');
+    fs.writeFileSync(RESULT_PATH, `${JSON.stringify({ status:'passed', stage, startedAt, completedAt:new Date().toISOString(), device:DEVICE_NAME, browser:'WebKit', browserVersion:browser.version(), selectedTarget:50, pinnedOption, optionCount:4, saveKey:SAVE_KEY, saveVersion:9 }, null, 2)}\n`);
+    console.log('capital allocation recovery target selection and workflow iPhone WebKit smoke passed');
     await context.close();
   } catch (error) {
     if (page) { try { await page.screenshot({ path:path.join(OUT, 'capital-allocation-recovery-workflow-failure.png') }); } catch (_) {} }
