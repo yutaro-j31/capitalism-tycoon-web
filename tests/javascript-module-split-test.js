@@ -13,7 +13,7 @@ function expectThrow(fn, re) {
 const expected = [
   './js/boot-recovery.js','./js/runtime.js','./js/data.js','./js/workforce.js','./js/supply.js','./js/competitor.js','./js/competitor-projects.js','./js/competitor-entry.js','./js/competitor-credit.js','./js/competitor-distress.js','./js/competitor-terminal-compat.js',
   './js/market.js','./js/finance.js','./js/engine.js','./js/save-v9.js','./js/expansion.js','./js/competitor-media.js','./js/completion.js','./js/parity.js','./js/executive-secretary.js','./js/competitor-parity.js','./js/competitor-dashboard.js','./js/competitor-dashboard-status.js','./js/competitor-dashboard-ui.js',
-  './js/player-crisis-ui.js','./js/player-engine-bridge.js','./js/strategy-balance.js','./js/progression-balance.js','./js/app.js','./js/difficulty-scenario-balance.js','./js/player-crisis.js','./js/player-crisis-actions.js','./js/player-crisis-restructuring.js','./js/player-crisis-creditor.js','./js/player-debt-service.js','./js/player-turnaround-plan.js','./js/player-crisis-creditor-ui.js','./js/player-turnaround-plan-ui.js','./js/player-turnaround-plan-report.js','./js/release-diagnostics-ui.js','./js/playtest-report-ui.js','./js/d-ui-shell.js','./js/d-ui-context-tabs.js','./js/runtime-recovery-ui.js','./js/shareholder-returns.js','./js/capital-allocation-score.js','./js/capital-allocation-policy.js'
+  './js/player-crisis-ui.js','./js/player-engine-bridge.js','./js/strategy-balance.js','./js/progression-balance.js','./js/founding-tutorial.js','./js/app.js','./js/difficulty-scenario-balance.js','./js/player-crisis.js','./js/player-crisis-actions.js','./js/player-crisis-restructuring.js','./js/player-crisis-creditor.js','./js/player-debt-service.js','./js/player-turnaround-plan.js','./js/player-crisis-creditor-ui.js','./js/player-turnaround-plan-ui.js','./js/player-turnaround-plan-report.js','./js/release-diagnostics-ui.js','./js/playtest-report-ui.js','./js/d-ui-shell.js','./js/d-ui-context-tabs.js','./js/runtime-recovery-ui.js','./js/shareholder-returns.js','./js/capital-allocation-score.js','./js/capital-allocation-policy.js'
 ];
 const scripts = extractScripts(readIndex()).filter(script => script.src);
 const bySrc = new Map(scripts.map(script => [script.src, script]));
@@ -28,7 +28,8 @@ assert(expected[1] === './js/runtime.js', 'runtime.js must immediately follow bo
 before('./js/player-crisis-ui.js','./js/player-engine-bridge.js');
 before('./js/player-engine-bridge.js','./js/app.js');
 before('./js/strategy-balance.js','./js/progression-balance.js');
-before('./js/progression-balance.js','./js/app.js');
+before('./js/progression-balance.js','./js/founding-tutorial.js');
+before('./js/founding-tutorial.js','./js/app.js');
 before('./js/app.js','./js/difficulty-scenario-balance.js');
 before('./js/player-crisis.js','./js/player-crisis-actions.js');
 before('./js/player-crisis-actions.js','./js/player-crisis-restructuring.js');
@@ -101,6 +102,7 @@ const requiredExports = {
   playerEngineBridge:['bindEngine','getEngine','__installed'],
   strategyBalance:['VERSION','DEMAND_CALIBRATIONS','apply','__installed'],
   progressionBalance:['REQUIRED_IPO_REPORT_WEEKS','REPORT_HISTORY_REASON','reportCount','missingReasons','__installed'],
+  foundingTutorial:['STEPS','build'],
   difficultyScenarioBalance:['VERSION','STANDARD_TARGET_WEEK','HISTORY_LIMIT','WARNING_WEEKS','DIFFICULTY_PROFILES','SCENARIO_PROFILES','difficultyProfile','scenarioProfile','gradeForWeek','scoreForWeek','ensure','reconcileOpeningFinance','evaluate','snapshot','validate','__installed'],
   playerCrisisRestructuring:['HISTORY_LIMIT','DISPOSITION_TYPES','COST_ACTION_TYPES','ELIGIBLE_STATUSES','ensure','options','costOptions','validate','__installed'],
   playerCrisisCreditor:['NEGOTIATION_TYPES','ELIGIBLE_STATUSES','HISTORY_LIMIT','COOLDOWN_WEEKS','DEFERRAL_WEEKS','EXTENSION_WEEKS','FAILURE_CREDIT_PENALTY','ensure','activeLoans','approvalChance','options','findCandidate','hashRoll','validate','__installed'],
