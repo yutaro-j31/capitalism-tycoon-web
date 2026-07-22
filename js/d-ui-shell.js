@@ -168,8 +168,9 @@ function handleClick(event){
 function handleKeydown(event){
   const menu=document.getElementById('d-ui-command-menu');
   if(!menu?.classList.contains('open'))return false;
-  if(event.key==='Escape'){event.preventDefault();setCommandMenu(false,true);return true;}
-  if(event.key!=='Tab')return false;
+  if(event.key!=='Escape'){
+    if(event.key!=='Tab')return false;
+  }else{event.preventDefault();setCommandMenu(false,true);return true;}
   const focusable=[...menu.querySelectorAll('button:not([disabled]),[href],input:not([disabled]),select:not([disabled]),textarea:not([disabled]),[tabindex]:not([tabindex="-1"])')].filter(element=>!element.hidden&&element.getAttribute('aria-hidden')!=='true');
   if(!focusable.length)return false;
   const first=focusable[0];const last=focusable[focusable.length-1];const active=document.activeElement;
