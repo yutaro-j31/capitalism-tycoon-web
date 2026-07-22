@@ -36,6 +36,11 @@ jobs:
           IPHONE_WEBKIT_TARGET_URL: https://yutaro-j31.github.io/capitalism-tycoon-web/
           IPHONE_WEBKIT_ARTIFACT_DIR: artifacts/published-iphone-webkit-smoke
         run: node tests/iphone-webkit-smoke-test.js
+      - name: Verify published weekly impact recap
+        env:
+          WEEKLY_IMPACT_TARGET_URL: https://yutaro-j31.github.io/capitalism-tycoon-web/
+          IPHONE_WEBKIT_ARTIFACT_DIR: artifacts/published-iphone-webkit-smoke
+        run: node tests/published-weekly-impact-webkit-test.js
       - name: Verify published recovery target synchronization
         env:
           CAPITAL_ALLOCATION_RECOVERY_TARGET_URL: https://yutaro-j31.github.io/capitalism-tycoon-web/
