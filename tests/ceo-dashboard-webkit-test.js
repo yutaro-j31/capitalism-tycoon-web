@@ -75,7 +75,7 @@ async function inspectDashboard(page) {
   const dashboard = page.locator('[data-ceo-dashboard="1"]');
   await dashboard.waitFor({ state: 'visible', timeout: 20_000 });
   const dashboardText = await dashboard.innerText();
-  assert.match(dashboardText, /CEO Dashboard/);
+  assert.match(dashboardText, /CEO DASHBOARD/i);
   assert.match(dashboardText, /30秒で読む会社ホーム/);
   assert.match(dashboardText, /読み取り専用/);
 
