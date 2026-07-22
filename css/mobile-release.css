@@ -2,4 +2,5 @@
 @media(max-width:720px){
   .week-controls{gap:4px}
   .week-controls .secondary{display:inline-flex;min-width:44px;padding-inline:8px}
+  .summary-modal .modal-actions .btn{min-height:44px}
 }
