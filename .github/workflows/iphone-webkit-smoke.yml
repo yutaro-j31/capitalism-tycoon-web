@@ -34,6 +34,8 @@ jobs:
         run: node tests/d-ui-webkit-test.js
       - name: Verify recovery funding workflow on iPhone
         run: node tests/capital-allocation-recovery-webkit-test.js
+      - name: Verify recovery funding outcome on iPhone
+        run: node tests/capital-allocation-recovery-outcome-webkit-test.js
       - name: Verify bankruptcy settings recovery
         run: node tests/game-over-settings-webkit-test.js
       - name: Verify two-store first-week advance
