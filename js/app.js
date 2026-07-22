@@ -8,10 +8,11 @@ if(!__modules.finance)throw new Error('Capitalism Tycoon finance module must be 
 if(!__modules.supply)throw new Error('Capitalism Tycoon supply module must be loaded before app.js.');
 if(!__modules.data)throw new Error('Capitalism Tycoon data module must be loaded before app.js.');
 if(!__modules.executiveSecretary)throw new Error('Capitalism Tycoon executiveSecretary module must be loaded before app.js.');
+if(!__modules.ceoDashboard)throw new Error('Capitalism Tycoon ceoDashboard module must be loaded before app.js.');
 if(!__modules.expansion||!__modules.expansion.installExpansion)throw new Error('Capitalism Tycoon installExpansion must be loaded before app.js.');
 if(!__modules.completion||!__modules.completion.installCompletion)throw new Error('Capitalism Tycoon installCompletion must be loaded before app.js.');
 if(!__modules.parity||!__modules.parity.installParity)throw new Error('Capitalism Tycoon installParity must be loaded before app.js.');
-(function(engineModule,dataModule,marketModule,financeModule,supplyModule,expansionModule,completionModule,parityModule,secretaryModule){
+(function(engineModule,dataModule,marketModule,financeModule,supplyModule,expansionModule,completionModule,parityModule,secretaryModule,dashboardModule){
 const {TycoonEngine,yen,compactYen,pct,finite}=engineModule;
 const {MASTER,PRODUCT_BLUEPRINTS,LUXURY_OFFERS,PERSONAL_INVESTMENT_OFFERS,OVERSEAS_COUNTRIES,SPORTS_TEAMS,MISSION_DEFS}=dataModule;
 const {installExpansion,FOUNDER_TRAITS,FOUNDER_HOME_PRODUCTS,SUPPLIER_OFFERS,VERTICAL_INTEGRATION_OFFERS,RD_PROJECTS,PERSONAL_REAL_ESTATE_OFFERS,SUCCESSOR_CANDIDATES}=expansionModule;
@@ -107,31 +108,25 @@ function renderScreen(tab) {
 }
 
 function renderHome() {
-  const g=engine.g,r=g.lastReport;
-  const risks=[];if(g.companyCash<Math.max(3_000_000,Math.abs(r?.profit||0)*4))risks.push(['資金繰り','現金余力が小さい','danger']);if(g.companyDebt>engine.companyValue()*.4)risks.push(['借入負担','企業価値に対する負債が重い','warn']);if(g.employeeSatisfaction<40)risks.push(['組織','社員満足度が低い','warn']);if(g.competitorOwnedRatio>.15)risks.push(['株式防衛','競合保有比率が上昇','danger']);if(!risks.length)risks.push(['経営状態','重大な警告なし','good']);
-  const nextActions=[];
-  if(!g.stores.length)nextActions.push(['最初の店舗を開く','map']);
-  if(g.stores.length>=1&&!g.hasHeadOffice)nextActions.push(['本社オフィスを契約','office']);
-  if(g.hasHeadOffice&&!Object.keys(g.departments).length)nextActions.push(['経理・人事などの部門を設置','office']);
-  if(g.departments.product&&!g.productVentures.length)nextActions.push(['自社プロダクトを開発','business']);
-  if(g.departments.investment&&!g.acquisitionTargets.length)nextActions.push(['M&A候補を探索','ma']);
-  if(!g.publicCompany&&engine.ipoMissingReasons().length===0)nextActions.push(['IPOを実行','office']);
-  return `<div class="hero-grid">
-    ${card('経営コックピット',`<div class="kpi-grid">${stat('今週売上',r?compactYen(r.sales):'—')}${stat('今週利益',r?compactYen(r.profit):'—',r&&r.profit<0?'赤字':'')}${stat('店舗',`${g.stores.filter(s=>s.status==='open').length}店`,`準備中 ${g.stores.filter(s=>s.status==='preparing').length}`)}${stat('信用力',`${g.companyCredit.toFixed(0)}/100`,`借入金利 ${(engine.companyBorrowRate()*100).toFixed(2)}%`)}</div><canvas id="home-chart" height="130"></canvas>`,{subtitle:'会社・投資・個人資産を統合表示'})}
-    ${card('次にやること',nextActions.length?nextActions.slice(0,5).map(([t,tab])=>`<button class="action-row" data-action="tab" data-tab="${tab}"><span>${esc(t)}</span><b>›</b></button>`).join(''):empty('自由経営フェーズです。'))}
-  </div>
-  ${g.inboundBuyoutOffers.filter(x=>x.status==='pending'&&x.expiresWeek>=g.week).length?card('ライバルから会社買収提案',g.inboundBuyoutOffers.filter(x=>x.status==='pending'&&x.expiresWeek>=g.week).map(o=>`<article class="item"><div><h3>${esc(o.bidderName)} ${o.hostile?badge('敵対的','warn'):badge('友好的','good')}</h3><p>提示額 ${compactYen(o.offerAmount)} · プレミアム ${pct(o.premiumRate-1)} · 期限 第${o.expiresWeek}週</p></div><div class="button-row">${btn('受諾','accept-inbound',{kind:'primary small',data:`data-id="${o.id}"`})}${btn('拒否','decline-inbound',{kind:'danger small',data:`data-id="${o.id}"`})}</div></article>`).join(''),{className:'wide'}):''}
-  ${renderExecutiveSecretary()}
-  ${renderAdvisorCard()}
-  <div class="grid two">
-    ${card('リスクサマリー',risks.map(([a,b,k])=>`<div class="risk-row"><span class="risk-dot ${k}"></span><div><strong>${a}</strong><p>${b}</p></div></div>`).join(''))}
-    ${card('直近ニュース',g.news.slice(0,7).map(n=>`<div class="news-line">${esc(n)}</div>`).join('')||empty('ニュースなし'),{action:btn('一覧','tab',{kind:'ghost small',data:'data-tab="news"'})})}
-  </div>
-  <div class="grid three">
-    ${card('事業ポートフォリオ',`${stat('直営店舗',`${g.stores.length}店`)}${stat('FC店舗',`${Object.values(g.franchiseStoresByBusinessID).reduce((a,n)=>a+n,0)}店`)}${stat('プロダクト',`${g.productVentures.length}件`)}${stat('海外法人',`${g.overseasSubsidiaries.length}社`)}`)}
-    ${card('投資ポートフォリオ',`${stat('VC投資先',`${g.startups.filter(s=>s.ownedCompany+s.ownedPersonal>0).length}社`)}${stat('M&A子会社',`${g.maSubsidiaries.length}社`)}${stat('株式含み損益',compactYen(engine.unrealizedPL('company')+engine.unrealizedPL('personal')))}${stat('不動産',`${g.properties.filter(p=>p.owner).length}件`)}`)}
-    ${card('創業者',`${stat('年齢',`${g.founderAge}歳`)}${stat('名声',g.personalFame.toFixed(0))}${stat('持株比率',pct(g.founderOwnershipRatio))}${stat('実績',`${g.achievements.length}個`)}`)}
-  </div>`;
+  const g=engine.g;
+  const model=dashboardModule.build(g,{companyValue:engine.companyValue(),ipoMissingReasons:engine.ipoMissingReasons(),missions:MISSION_DEFS});
+  const topTasks=secretaryModule.generateTasks(g,{companyValue:engine.companyValue(),ipoReady:!g.publicCompany&&engine.ipoMissingReasons().length===0}).slice(0,3);
+  const money=v=>compactYen(v);
+  const rate=v=>pct(v);
+  const fold=(id,title,body,subtitle='')=>`<details class="ceo-card card" data-ceo-dashboard-card="${esc(id)}" open><summary class="ceo-card-summary"><span><strong>${esc(title)}</strong>${subtitle?`<small>${esc(subtitle)}</small>`:''}</span><span aria-hidden="true">⌄</span></summary><div class="card-body">${body}</div></details>`;
+  const overview=model.overview,finance=model.finance,allocation=model.allocation,journey=model.journey;
+  return `<section class="ceo-dashboard" aria-labelledby="ceo-dashboard-title" data-ceo-dashboard="1">
+    <div class="ceo-dashboard-hero"><div><p class="eyebrow">CEO Dashboard</p><h2 id="ceo-dashboard-title">30秒で読む会社ホーム</h2><p>会社の状態・今やるべきこと・目標・危険・成長状況を読み取り専用で統合します。</p></div><span class="badge good">読み取り専用</span></div>
+    <div class="ceo-card-grid">
+      ${fold('overview','会社概要',`<div class="kpi-grid mini">${stat('社名',overview.companyName)}${stat('経営年数',`${overview.years}年目`)}${stat('会社現金',money(overview.cash))}${stat('時価総額',money(overview.companyValue))}${stat('借入',money(overview.debt))}${stat('店舗数',`${overview.stores}店`)}${stat('従業員数',`${overview.employees}人`)}${stat('信用格付け',`${overview.credit.toFixed(0)}/100`)}${stat('IPO状況',overview.ipo)}</div>`)}
+      ${fold('priority','今週の最優先',topTasks.length?`<div class="secretary-list compact">${topTasks.map(a=>`<article class="secretary-item ${a.priority}"><div class="secretary-item-main"><span class="badge ${a.priority==='critical'?'danger':a.priority==='opportunity'?'good':'warn'}">${esc(a.priorityLabel)}</span><h3>${esc(a.title)}</h3><p>${esc(a.reason)}</p></div><button class="btn primary small" data-action="secretary-jump" data-tab="${esc(a.targetTab)}" data-focus="${esc(a.focus)}" aria-label="${esc(a.title)}の確認先へ移動">確認する</button></article>`).join('')}</div><button class="btn ghost wide" data-action="tab" data-tab="strategy">すべて見る</button>`:empty('今週の重大な優先タスクはありません。'),'Executive Secretary上位3件')}
+      ${fold('journey','Company Journey',`${stat('達成率',journey.rateLabel)}${progress(journey.completed,journey.total)}<div class="kpi-grid mini">${stat('次の目標',journey.nextGoal)}${stat('残り数',`${journey.remaining}件`)}</div>`)}
+      ${fold('finance','財務サマリー',`<div class="kpi-grid mini">${stat('売上',money(finance.sales))}${stat('営業利益',money(finance.operatingProfit))}${stat('当期利益',money(finance.netIncome))}${stat('現金',money(finance.cash))}${stat('FCF',money(finance.fcf))}${stat('ROE',rate(finance.roe))}${stat('ROIC',rate(finance.roic))}</div>`)}
+      ${fold('allocation','資本配分',`<div class="kpi-grid mini">${stat('スコア',`${allocation.score.toFixed(0)}点`)}${stat('配当',money(allocation.dividend))}${stat('自社株買い',money(allocation.buyback))}${stat('投資',`${allocation.investment}件`)}${stat('借入返済',money(allocation.debtRepayment))}</div>`)}
+      ${fold('risk','リスク',model.risks.length?model.risks.map(r=>`<div class="risk-row"><span class="risk-dot ${r.severity===0?'danger':r.severity===1?'warn':'good'}"></span><div><strong>${esc(r.label)}</strong><p>${esc(r.detail)}</p></div></div>`).join(''):empty('重大な警告なし'),'危険度順')}
+      ${fold('growth','成長',model.growth.length?model.growth.map(x=>`<button class="action-row" data-action="tab" data-tab="${esc(x.targetTab)}"><span>${esc(x.label)}</span><b>›</b></button>`).join(''):empty('表示できる成長候補はまだありません。'))}
+    </div>
+  </section>`;
 }
 
 
@@ -433,6 +428,6 @@ window.addEventListener('resize',()=>requestAnimationFrame(drawCharts));
 
 render();
 
-})(__modules.engine,__modules.data,__modules.market,__modules.finance,__modules.supply,__modules.expansion,__modules.completion,__modules.parity,__modules.executiveSecretary);
+})(__modules.engine,__modules.data,__modules.market,__modules.finance,__modules.supply,__modules.expansion,__modules.completion,__modules.parity,__modules.executiveSecretary,__modules.ceoDashboard);
 
 })();

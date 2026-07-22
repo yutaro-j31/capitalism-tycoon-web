@@ -1,0 +1,61 @@
+name: CEO Dashboard
+
+on:
+  pull_request:
+    paths:
+      - 'index.html'
+      - 'js/ceo-dashboard.js'
+      - 'js/app.js'
+      - 'css/app.css'
+      - 'tests/ceo-dashboard-test.js'
+      - 'tests/fixtures/extracted-css-baseline.css'
+      - 'tests/fixtures/module-load-order.json'
+      - 'tests/javascript-extraction-test.js'
+      - 'tests/javascript-module-split-test.js'
+      - 'package.json'
+      - 'tests/run-all.js'
+      - '.github/workflows/ceo-dashboard.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'index.html'
+      - 'js/ceo-dashboard.js'
+      - 'js/app.js'
+      - 'css/app.css'
+      - 'tests/ceo-dashboard-test.js'
+      - 'tests/fixtures/extracted-css-baseline.css'
+      - 'tests/fixtures/module-load-order.json'
+      - 'tests/javascript-extraction-test.js'
+      - 'tests/javascript-module-split-test.js'
+      - 'package.json'
+      - 'tests/run-all.js'
+      - '.github/workflows/ceo-dashboard.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  ceo-dashboard:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Verify syntax and static assets
+        run: |
+          npm run test:syntax
+          npm run test:static
+          npm run test:css
+      - name: Verify JavaScript extraction and module contracts
+        run: |
+          npm run test:javascript
+          npm run test:modules
+      - name: Verify CEO dashboard contract
+        run: npm run test:ceo-dashboard
+      - name: Verify Executive Secretary integration
+        run: |
+          node tests/executive-secretary-test.js
+          node tests/executive-secretary-purity-test.js
+          node tests/executive-secretary-ui-test.js
