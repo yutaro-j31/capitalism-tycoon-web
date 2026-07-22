@@ -143,14 +143,18 @@ async function assertMobileCardLayout(page, selector) {
 
 async function main() {
   fs.mkdirSync(OUT, { recursive:true });
-  const save = resilientPublicSave();
-  const server = staticServer();
-  const baseUrl = await startServer(server);
   const diagnostics = { consoleErrors:[], pageErrors:[], failedRequests:[] };
+  const startedAt = new Date().toISOString();
+  let server;
   let browser;
   let page;
-  const startedAt = new Date().toISOString();
+  let stage = 'fixture';
   try {
+    const save = resilientPublicSave();
+    stage = 'server';
+    server = staticServer();
+    const baseUrl = await startServer(server);
+    stage = 'browser';
     browser = await webkit.launch();
     const context = await browser.newContext({ ...devices[DEVICE_NAME], locale:'ja-JP', reducedMotion:'reduce', serviceWorkers:'block', timezoneId:'Asia/Tokyo' });
     await context.addInitScript(({ key, value }) => {
@@ -161,10 +165,12 @@ async function main() {
     page.on('pageerror', error => diagnostics.pageErrors.push(error.message));
     page.on('requestfailed', request => diagnostics.failedRequests.push(`${request.method()} ${request.url()} ${request.failure()?.errorText || ''}`));
 
+    stage = 'boot';
     await page.goto(baseUrl, { waitUntil:'networkidle', timeout:30_000 });
     await page.locator('.topbar').waitFor({ state:'visible', timeout:20_000 });
     assert.match(await page.locator('.topbar').innerText(), /Recovery Holdings/);
 
+    stage = 'cards';
     const readiness = page.locator('[data-capital-allocation-recovery-funding-readiness]');
     const options = page.locator('[data-capital-allocation-recovery-funding-options]');
     const reconciliation = page.locator('[data-capital-allocation-recovery-funding-reconciliation]');
@@ -178,6 +184,7 @@ async function main() {
     assert.ok(await reconciliation.locator('[data-capital-allocation-funding-pin]:not([disabled])').count() >= 1);
     await assertMobileCardLayout(page, '[data-capital-allocation-recovery-funding-reconciliation]');
 
+    stage = 'pin';
     const storedBeforePin = await page.evaluate(key => localStorage.getItem(key), SAVE_KEY);
     const pinButton = reconciliation.locator('[data-capital-allocation-funding-pin]:not([disabled])').first();
     const pinnedOption = await pinButton.getAttribute('data-capital-allocation-funding-option');
@@ -191,26 +198,28 @@ async function main() {
     assert.equal(await page.evaluate(key => localStorage.getItem(key), SAVE_KEY), storedBeforePin, 'transient pinning must not mutate the save');
     await assertMobileCardLayout(page, '[data-capital-allocation-recovery-funding-reconciliation]');
 
+    stage = 'clear';
     await clearButton.click();
     await page.locator('[data-capital-allocation-funding-pin]').first().waitFor({ state:'visible', timeout:10_000 });
     assert.equal(await page.locator('[data-capital-allocation-funding-pin]').count(), 4);
     assert.equal(await page.evaluate(key => localStorage.getItem(key), SAVE_KEY), storedBeforePin, 'clearing the transient plan must not mutate the save');
     await assertMobileCardLayout(page, '[data-capital-allocation-recovery-funding-reconciliation]');
 
+    stage = 'evidence';
     await page.screenshot({ path:path.join(OUT, 'capital-allocation-recovery-workflow.png'), fullPage:true });
     assert.deepEqual(diagnostics, { consoleErrors:[], pageErrors:[], failedRequests:[] });
-    fs.writeFileSync(RESULT_PATH, `${JSON.stringify({ status:'passed', startedAt, completedAt:new Date().toISOString(), device:DEVICE_NAME, browser:'WebKit', browserVersion:browser.version(), pinnedOption, optionCount:4, saveKey:SAVE_KEY, saveVersion:9 }, null, 2)}\n`);
+    fs.writeFileSync(RESULT_PATH, `${JSON.stringify({ status:'passed', stage, startedAt, completedAt:new Date().toISOString(), device:DEVICE_NAME, browser:'WebKit', browserVersion:browser.version(), pinnedOption, optionCount:4, saveKey:SAVE_KEY, saveVersion:9 }, null, 2)}\n`);
     console.log('capital allocation recovery workflow iPhone WebKit smoke passed');
     await context.close();
   } catch (error) {
     if (page) {
       try { await page.screenshot({ path:path.join(OUT, 'capital-allocation-recovery-workflow-failure.png'), fullPage:true }); } catch (_) {}
     }
-    fs.writeFileSync(RESULT_PATH, `${JSON.stringify({ status:'failed', startedAt, completedAt:new Date().toISOString(), error:error?.stack || String(error), ...diagnostics }, null, 2)}\n`);
+    fs.writeFileSync(RESULT_PATH, `${JSON.stringify({ status:'failed', stage, startedAt, completedAt:new Date().toISOString(), error:error?.stack || String(error), ...diagnostics }, null, 2)}\n`);
     throw error;
   } finally {
     if (browser) await browser.close();
-    await stopServer(server);
+    if (server) await stopServer(server);
   }
 }
 
