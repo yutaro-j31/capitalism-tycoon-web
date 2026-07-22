@@ -17,24 +17,25 @@ function growth(g,helpers={}){const rows=[];if(openStores(g).length>=1&&nf(g?.co
 
 function deltaLabel(v,formatter){const n=nf(v);const sign=n>0?'+':n<0?'−':'';const abs=Math.abs(n);return `${sign}${formatter?formatter(abs):Math.round(abs).toLocaleString('ja-JP')}`;}
 function latestTwoReports(g){return arr(g?.reports).filter(r=>r&&Number.isFinite(Number(r.week))).slice().sort((a,b)=>nf(b.week)-nf(a.week)).slice(0,2);}
+function cashFromSnapshot(g,week){const snap=arr(g?.finance?.weeklySnapshots).find(s=>s&&nf(s.week)===nf(week));if(!snap)return null;const cash=Number.isFinite(Number(snap.actualCompanyCash))?nf(snap.actualCompanyCash):(Number.isFinite(Number(snap.endingCash))?nf(snap.endingCash):null);return cash;}
+function metric(id,label,value,delta,hasDelta,positiveTone='good',negativeTone='warn'){return Object.freeze({id,label,value,delta:hasDelta?delta:0,hasDelta:!!hasDelta,tone:!hasDelta?'neutral':delta>=0?positiveTone:negativeTone});}
 function weeklyImpact(g,helpers={}){
-  const reports=latestTwoReports(g),latest=reports[0]||g?.lastReport||{},previous=reports[1]||{};
-  const week=nf(latest.week,nf(g?.week,1));
-  const valueHistory=arr(g?.companyValueHistory),cash=nf(g?.companyCash),prevCash=Number.isFinite(Number(previous.companyCash))?nf(previous.companyCash):null;
-  const companyValue=Number.isFinite(Number(latest.companyValue))?nf(latest.companyValue):nf(helpers.companyValue);
-  const prevValue=Number.isFinite(Number(previous.companyValue))?nf(previous.companyValue):(valueHistory.length>1?nf(valueHistory[valueHistory.length-2]):null);
+  const reports=latestTwoReports(g),latest=reports[0]||g?.lastReport||{},previous=reports[1]||{},hasPrevious=reports.length>1;
+  const week=nf(latest.week,nf(g?.week,1)),prevWeek=nf(previous.week,week-1);
+  const latestCash=cashFromSnapshot(g,week),previousCash=hasPrevious?cashFromSnapshot(g,prevWeek):null;
+  const history=arr(g?.companyValueHistory).map(n=>nf(n,NaN)).filter(Number.isFinite);
+  const hasValueDelta=history.length>1;
+  const companyValue=history.length?history[history.length-1]:nf(helpers.companyValue);
   const metrics=[
-    {id:'sales',label:'売上',value:nf(latest.sales),delta:nf(latest.sales)-nf(previous.sales),tone:nf(latest.sales)-nf(previous.sales)>=0?'good':'warn'},
-    {id:'profit',label:'利益',value:nf(latest.profit,nf(latest.netIncome)),delta:nf(latest.profit,nf(latest.netIncome))-nf(previous.profit,nf(previous.netIncome)),tone:nf(latest.profit,nf(latest.netIncome))-nf(previous.profit,nf(previous.netIncome))>=0?'good':'danger'},
-    {id:'cash',label:'会社現金',value:cash,delta:prevCash===null?0:cash-prevCash,tone:prevCash===null||cash-prevCash>=0?'good':'warn'},
-    {id:'value',label:'企業価値',value:companyValue,delta:prevValue===null?0:companyValue-prevValue,tone:prevValue===null||companyValue-prevValue>=0?'good':'warn'}
+    metric('sales','売上',nf(latest.sales),nf(latest.sales)-nf(previous.sales),hasPrevious,'good','warn'),
+    metric('profit','利益',nf(latest.profit,nf(latest.netIncome)),nf(latest.profit,nf(latest.netIncome))-nf(previous.profit,nf(previous.netIncome)),hasPrevious,'good','danger'),
+    metric('cash','会社現金',latestCash===null?nf(g?.companyCash):latestCash,latestCash===null||previousCash===null?0:latestCash-previousCash,hasPrevious&&latestCash!==null&&previousCash!==null,'good','warn'),
+    metric('value','企業価値',companyValue,hasValueDelta?history[history.length-1]-history[history.length-2]:0,hasValueDelta,'good','warn')
   ];
   const highlights=[];
-  for(const m of metrics){if(m.delta!==0)highlights.push({id:m.id,label:m.label,delta:m.delta,tone:m.tone});}
-  const news=arr(g?.news).slice(0,4);
-  return Object.freeze({week,metrics:Object.freeze(metrics.map(Object.freeze)),highlights:Object.freeze(highlights.slice(0,4).map(Object.freeze)),news:Object.freeze(news),hasPrevious:reports.length>1});
+  if(hasPrevious)for(const m of metrics){if(m.hasDelta&&m.delta!==0)highlights.push({id:m.id,label:m.label,delta:m.delta,tone:m.tone});}
+  return Object.freeze({week,metrics:Object.freeze(metrics),highlights:Object.freeze(highlights.slice(0,4).map(Object.freeze)),news:Object.freeze(arr(g?.news).slice(0,4)),hasPrevious});
 }
-
 function build(g,helpers={}){const stores=openStores(g);return Object.freeze({overview:Object.freeze({companyName:g?.companyName||'会社',years:Math.max(0,Math.floor((nf(g?.week,1)-1)/52)),cash:nf(g?.companyCash),companyValue:nf(helpers.companyValue),debt:nf(g?.companyDebt),stores:stores.length,employees:nf(g?.employeeCount,arr(g?.workforceTeams).reduce((a,t)=>a+nf(t?.headcount),0)),credit:nf(g?.companyCredit),ipo:g?.publicCompany?`上場 ${g?.ticker||''}`:'未上場'}),journey:companyJourney(g,helpers),finance:financialSummary(g,helpers),allocation:capitalAllocation(g,helpers),risks:risks(g,helpers),growth:growth(g,helpers)});}
 exports.build=build;exports.companyJourney=companyJourney;exports.financialSummary=financialSummary;exports.capitalAllocation=capitalAllocation;exports.risks=risks;exports.growth=growth;exports.weeklyImpact=weeklyImpact;exports.deltaLabel=deltaLabel;
 })(__modules.ceoDashboard={});

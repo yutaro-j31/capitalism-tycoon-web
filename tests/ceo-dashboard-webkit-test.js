@@ -142,6 +142,71 @@ async function inspectDashboard(page) {
   return layout;
 }
 
+
+async function inspectWeeklyImpactRecap(page, expectedPrevious) {
+  const saveBefore = await savedGame(page);
+  await page.locator('[data-action="advance-week"]').click();
+  const modal = page.locator('.summary-modal');
+  await modal.waitFor({ state: 'visible', timeout: 20_000 });
+  await modal.locator('.weekly-impact-grid').waitFor({ state: 'visible' });
+  const cards = modal.locator('.weekly-impact-card');
+  assert.equal(await cards.count(), 4, 'weekly impact recap must show four metrics');
+  const text = await modal.innerText();
+  assert.match(text, /週間経営レポート/);
+  assert.match(text, /売上/);
+  assert.match(text, /利益/);
+  assert.match(text, /会社現金/);
+  assert.match(text, /企業価値/);
+  if (expectedPrevious) {
+    assert.doesNotMatch(text, /比較できる前週データがありません/, 'second recap should show deltas');
+  } else {
+    assert.match(text, /前週比較なし/);
+    assert.match(text, /比較できる前週データがありません/);
+  }
+  const layout = await modal.evaluate(panel => {
+    const rect = panel.getBoundingClientRect();
+    const closeButton = [...panel.querySelectorAll('button')].find(button => button.textContent.includes('閉じる'));
+    const nextButton = [...panel.querySelectorAll('button')].find(button => button.textContent.includes('次の優先タスクを見る'));
+    const cardRects = [...panel.querySelectorAll('.weekly-impact-card')].map(card => card.getBoundingClientRect());
+    const closeRect = closeButton?.getBoundingClientRect();
+    const nextRect = nextButton?.getBoundingClientRect();
+    const style = getComputedStyle(panel);
+    return {
+      viewportWidth: innerWidth,
+      documentScrollWidth: document.documentElement.scrollWidth,
+      bodyScrollWidth: document.body.scrollWidth,
+      panelTop: rect.top,
+      panelBottom: rect.bottom,
+      panelOverflowY: style.overflowY,
+      panelMaxHeight: style.maxHeight,
+      cardCount: cardRects.length,
+      cardsInside: cardRects.every(r => r.left >= -1 && r.right <= innerWidth + 1),
+      closeHeight: closeRect?.height || 0,
+      nextHeight: nextRect?.height || 0
+    };
+  });
+  assert.ok(layout.documentScrollWidth <= layout.viewportWidth + 2, `weekly recap document overflow: ${JSON.stringify(layout)}`);
+  assert.ok(layout.bodyScrollWidth <= layout.viewportWidth + 2, `weekly recap body overflow: ${JSON.stringify(layout)}`);
+  assert.ok(layout.cardsInside, `weekly recap cards overflow viewport: ${JSON.stringify(layout)}`);
+  assert.ok(layout.panelMaxHeight.includes('env(safe-area-inset-bottom)') || layout.panelBottom <= 844, `weekly recap safe area/max height missing: ${JSON.stringify(layout)}`);
+  assert.ok(layout.closeHeight >= 43.5, `close button below 44px: ${JSON.stringify(layout)}`);
+  assert.ok(layout.nextHeight >= 43.5, `next task button below 44px: ${JSON.stringify(layout)}`);
+  await modal.locator('button', { hasText: '閉じる' }).click();
+  await modal.waitFor({ state: 'hidden', timeout: 10_000 });
+  const afterClose = await savedGame(page);
+  assert.equal(afterClose.saveVersion, saveBefore.saveVersion, 'weekly recap close must preserve save version');
+  await page.locator('[data-action="advance-week"]').click();
+  const nextModal = page.locator('.summary-modal');
+  await nextModal.waitFor({ state: 'visible', timeout: 20_000 });
+  await nextModal.locator('button', { hasText: '次の優先タスクを見る' }).click();
+  await nextModal.waitFor({ state: 'hidden', timeout: 10_000 });
+  await page.locator('[data-ceo-dashboard="1"]').waitFor({ state: 'visible', timeout: 10_000 });
+  const afterJump = await savedGame(page);
+  assert.equal(afterJump.selectedTab, 'home', 'next task CTA must navigate to CEO Dashboard home');
+  assert.equal(afterJump.saveVersion, saveBefore.saveVersion, 'weekly recap navigation must preserve save version');
+  return layout;
+}
+
 async function main() {
   fs.mkdirSync(ARTIFACT_DIR, { recursive: true });
   const server = staticServer();
@@ -179,13 +244,15 @@ async function main() {
     assert.equal(save.companyName, 'Dashboard Holdings');
 
     layout = await inspectDashboard(page);
+    const firstWeeklyLayout = await inspectWeeklyImpactRecap(page, false);
+    const secondWeeklyLayout = await inspectWeeklyImpactRecap(page, true);
     await page.screenshot({ path: path.join(ARTIFACT_DIR, 'ceo-dashboard-iphone.png'), fullPage: true });
     assert.deepEqual(diagnostics, { consoleErrors: [], pageErrors: [], failedRequests: [] });
 
     writeResult({
       status: 'passed', startedAt, completedAt: new Date().toISOString(),
       device: DEVICE_NAME, browser: 'WebKit', browserVersion: browser.version(), saveVersion: save.saveVersion,
-      cards: CARD_IDS, layout
+      cards: CARD_IDS, layout, firstWeeklyLayout, secondWeeklyLayout
     });
     console.log('CEO dashboard iPhone WebKit smoke passed');
   } catch (error) {

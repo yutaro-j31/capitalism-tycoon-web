@@ -9,6 +9,7 @@ on:
       - 'js/app.js'
       - 'css/app.css'
       - 'tests/ceo-dashboard-test.js'
+      - 'tests/weekly-impact-recap-test.js'
       - 'tests/executive-secretary-test.js'
       - 'tests/executive-secretary-purity-test.js'
       - 'tests/executive-secretary-ui-test.js'
@@ -28,6 +29,7 @@ on:
       - 'js/app.js'
       - 'css/app.css'
       - 'tests/ceo-dashboard-test.js'
+      - 'tests/weekly-impact-recap-test.js'
       - 'tests/executive-secretary-test.js'
       - 'tests/executive-secretary-purity-test.js'
       - 'tests/executive-secretary-ui-test.js'
@@ -59,7 +61,9 @@ jobs:
           npm run test:javascript
           npm run test:modules
       - name: Verify CEO dashboard model and browser integration
-        run: npm run test:ceo-dashboard
+        run: |
+          npm run test:ceo-dashboard
+          npm run test:weekly-impact
       - name: Verify executive secretary integration and purity
         run: |
           node tests/executive-secretary-test.js
