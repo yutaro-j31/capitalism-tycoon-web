@@ -82,4 +82,5 @@ loadPhaseScript('./js/capital-allocation-recovery-funding.js','8D-13',()=>Boolea
 loadPhaseScript('./js/capital-allocation-recovery-funding-options.js','8D-15',()=>Boolean(modules.capitalAllocationRecoveryFundingOptions));
 loadPhaseScript('./js/capital-allocation-recovery-funding-readiness.js','8D-17',()=>Boolean(modules.capitalAllocationRecoveryFundingReadiness));
 loadPhaseScript('./js/capital-allocation-recovery-funding-reconciliation.js','8D-19',()=>Boolean(modules.capitalAllocationRecoveryFundingReconciliation));
+loadPhaseScript('./js/capital-allocation-recovery-funding-outcome.js','8D-21',()=>Boolean(modules.capitalAllocationRecoveryFundingOutcome));
 })();
