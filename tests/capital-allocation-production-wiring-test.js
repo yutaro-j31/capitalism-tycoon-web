@@ -37,6 +37,7 @@ const recoveryFundingOptionsLoader = "loadPhaseScript('./js/capital-allocation-r
 const recoveryFundingReadinessLoader = "loadPhaseScript('./js/capital-allocation-recovery-funding-readiness.js','8D-17'";
 const recoveryFundingReconciliationLoader = "loadPhaseScript('./js/capital-allocation-recovery-funding-reconciliation.js','8D-19'";
 const recoveryFundingOutcomeLoader = "loadPhaseScript('./js/capital-allocation-recovery-funding-outcome.js','8D-21'";
+const managementGuideLoader = "loadPhaseScript('./js/capital-allocation-management-guide.js','8D-29'";
 for (const [loader,label,file] of [
   [decisionMemoLoader,'Phase 8D-1 board memo','capital-allocation-decision-memo.js'],
   [stressLoader,'Phase 8D-3 stress test','capital-allocation-stress-test.js'],
@@ -46,7 +47,8 @@ for (const [loader,label,file] of [
   [recoveryFundingOptionsLoader,'Phase 8D-15 recovery funding options','capital-allocation-recovery-funding-options.js'],
   [recoveryFundingReadinessLoader,'Phase 8D-17 funding execution readiness','capital-allocation-recovery-funding-readiness.js'],
   [recoveryFundingReconciliationLoader,'Phase 8D-19 funding execution reconciliation','capital-allocation-recovery-funding-reconciliation.js'],
-  [recoveryFundingOutcomeLoader,'Phase 8D-21 funding outcome verification','capital-allocation-recovery-funding-outcome.js']
+  [recoveryFundingOutcomeLoader,'Phase 8D-21 funding outcome verification','capital-allocation-recovery-funding-outcome.js'],
+  [managementGuideLoader,'Phase 8D-29 management guide','capital-allocation-management-guide.js']
 ]) {
   assert.ok(strategySource.includes(loader), `${label} must be dynamically loaded in production`);
   assert.equal((strategySource.match(new RegExp(file.replace('.', '\\.').replaceAll('-', '\\-'), 'g')) || []).length, 1, `${label} must be wired exactly once`);
@@ -60,10 +62,11 @@ assert.ok(strategySource.indexOf(recoveryFundingLoader) < strategySource.indexOf
 assert.ok(strategySource.indexOf(recoveryFundingOptionsLoader) < strategySource.indexOf(recoveryFundingReadinessLoader), 'funding readiness must load after the option matrix');
 assert.ok(strategySource.indexOf(recoveryFundingReadinessLoader) < strategySource.indexOf(recoveryFundingReconciliationLoader), 'funding reconciliation must load after readiness');
 assert.ok(strategySource.indexOf(recoveryFundingReconciliationLoader) < strategySource.indexOf(recoveryFundingOutcomeLoader), 'funding outcome must load after reconciliation');
+assert.ok(strategySource.indexOf(recoveryFundingOutcomeLoader) < strategySource.indexOf(managementGuideLoader), 'management guide must load after outcome verification');
 
 const load = loadGame();
 const { modules, ctx } = load;
-for (const file of ['player-debt-service.js','treasury-prepayment.js','capital-allocation-forecast.js','capital-allocation-actions.js','capital-allocation-decision-memo.js','capital-allocation-stress-test.js','capital-allocation-resilience-memo.js','capital-allocation-recovery-audit.js','capital-allocation-recovery-funding.js','capital-allocation-recovery-funding-options.js','capital-allocation-recovery-funding-readiness.js','capital-allocation-recovery-funding-reconciliation.js','capital-allocation-recovery-funding-outcome.js']) {
+for (const file of ['player-debt-service.js','treasury-prepayment.js','capital-allocation-forecast.js','capital-allocation-actions.js','capital-allocation-decision-memo.js','capital-allocation-stress-test.js','capital-allocation-resilience-memo.js','capital-allocation-recovery-audit.js','capital-allocation-recovery-funding.js','capital-allocation-recovery-funding-options.js','capital-allocation-recovery-funding-readiness.js','capital-allocation-recovery-funding-reconciliation.js','capital-allocation-recovery-funding-outcome.js','capital-allocation-management-guide.js']) {
   const key=file.replace('.js','').replace(/-([a-z])/g,(_,c)=>c.toUpperCase());
   if (!modules[key]) vm.runInContext(fs.readFileSync(path.join(ROOT,'js',file),'utf8'),ctx,{filename:file});
 }
@@ -76,6 +79,7 @@ assert.ok(modules.capitalAllocationRecoveryFundingOptions?.__installed, 'capital
 assert.ok(modules.capitalAllocationRecoveryFundingReadiness?.__installed, 'capital allocation recovery funding readiness must register through its production dependency chain');
 assert.ok(modules.capitalAllocationRecoveryFundingReconciliation?.__installed, 'capital allocation recovery funding reconciliation must register through its production dependency chain');
 assert.ok(modules.capitalAllocationRecoveryFundingOutcome?.__installed, 'capital allocation recovery funding outcome must register through its production dependency chain');
+assert.ok(modules.capitalAllocationManagementGuide?.__installed, 'capital allocation management guide must register through its production dependency chain');
 assert.ok(ctx.__ct_engine, 'the production app engine must be captured');
 assert.equal(typeof ctx.__ct_engine.setDividend, 'function');
 assert.equal(typeof ctx.__ct_engine.evaluateCapitalAllocation, 'function');
@@ -94,6 +98,7 @@ assert.equal(typeof ctx.__ct_engine.pinCapitalAllocationRecoveryFundingSnapshot,
 assert.equal(typeof ctx.__ct_engine.clearCapitalAllocationRecoveryFundingSnapshot, 'function');
 assert.equal(typeof ctx.__ct_engine.capitalAllocationRecoveryFundingReconciliation, 'function');
 assert.equal(typeof ctx.__ct_engine.capitalAllocationRecoveryFundingOutcome, 'function');
+assert.equal(typeof ctx.__ct_engine.capitalAllocationManagementGuide, 'function');
 assert.equal(modules.engine.SAVE_KEY, 'capitalism_tycoon_web_v1');
 assert.equal(modules.engine.SAVE_VERSION, 9);
 
@@ -109,5 +114,6 @@ assert.match(modules.capitalAllocationRecoveryFundingOptions.render(ctx.__ct_eng
 assert.match(modules.capitalAllocationRecoveryFundingReadiness.render(ctx.__ct_engine), /data-capital-allocation-recovery-funding-readiness/);
 assert.match(modules.capitalAllocationRecoveryFundingReconciliation.render(ctx.__ct_engine), /data-capital-allocation-recovery-funding-reconciliation/);
 assert.match(modules.capitalAllocationRecoveryFundingOutcome.render(ctx.__ct_engine), /data-capital-allocation-recovery-funding-outcome/);
+assert.match(modules.capitalAllocationManagementGuide.render(ctx.__ct_engine), /data-capital-allocation-management-guide/);
 
 console.log('capital allocation production wiring tests passed');
