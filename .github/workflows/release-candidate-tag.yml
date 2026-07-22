@@ -102,6 +102,10 @@ jobs:
         env:
           IPHONE_WEBKIT_ARTIFACT_DIR: artifacts/iphone-webkit-smoke
         run: node tests/iphone-webkit-smoke-test.js
+      - name: Verify local recovery target synchronization
+        env:
+          IPHONE_WEBKIT_ARTIFACT_DIR: artifacts/iphone-webkit-smoke
+        run: node tests/capital-allocation-recovery-webkit-test.js
       - name: Verify local recovery funding outcome
         env:
           IPHONE_WEBKIT_ARTIFACT_DIR: artifacts/iphone-webkit-smoke
@@ -137,6 +141,11 @@ jobs:
           IPHONE_WEBKIT_TARGET_URL: https://yutaro-j31.github.io/capitalism-tycoon-web/
           IPHONE_WEBKIT_ARTIFACT_DIR: artifacts/published-iphone-webkit-smoke
         run: node tests/iphone-webkit-smoke-test.js
+      - name: Verify published recovery target synchronization
+        env:
+          CAPITAL_ALLOCATION_RECOVERY_TARGET_URL: https://yutaro-j31.github.io/capitalism-tycoon-web/
+          IPHONE_WEBKIT_ARTIFACT_DIR: artifacts/published-iphone-webkit-smoke
+        run: node tests/capital-allocation-recovery-webkit-test.js
       - name: Verify published recovery funding outcome
         env:
           CAPITAL_ALLOCATION_RECOVERY_TARGET_URL: https://yutaro-j31.github.io/capitalism-tycoon-web/
