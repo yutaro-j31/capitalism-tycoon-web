@@ -27,7 +27,8 @@ function installCapitalAllocationModules(load) {
     'capital-allocation-stress-test.js', 'capital-allocation-resilience-memo.js',
     'capital-allocation-recovery-audit.js', 'capital-allocation-recovery-funding.js',
     'capital-allocation-recovery-funding-options.js', 'capital-allocation-recovery-funding-readiness.js',
-    'capital-allocation-recovery-funding-reconciliation.js'
+    'capital-allocation-recovery-funding-reconciliation.js',
+    'capital-allocation-recovery-funding-outcome.js', 'capital-allocation-management-guide.js'
   ];
   for (const file of files) {
     const key = file.replace('.js', '').replace(/-([a-z])/g, (_, char) => char.toUpperCase());
@@ -163,15 +164,22 @@ async function main() {
     const readiness = page.locator('[data-capital-allocation-recovery-funding-readiness]');
     const options = page.locator('[data-capital-allocation-recovery-funding-options]');
     const reconciliation = page.locator('[data-capital-allocation-recovery-funding-reconciliation]');
+    const guide = page.locator('[data-capital-allocation-management-guide]');
     await readiness.waitFor({ state:'visible', timeout:30_000 });
     await options.waitFor({ state:'visible', timeout:30_000 });
     await reconciliation.waitFor({ state:'visible', timeout:30_000 });
+    await guide.waitFor({ state:'visible', timeout:30_000 });
     assert.match(await readiness.innerText(), /回復資金・実行前確認/);
     const initialText = await reconciliation.innerText();
     for (const label of ['現行推奨', '無借入', '不動産温存', '資産温存']) assert.match(initialText, new RegExp(label));
     assert.match(initialText, /総調達/);
     assert.match(initialText, /資産売却/);
     assert.match(initialText, /借入/);
+    assert.match(await guide.innerText(), /経営判断ガイド/);
+    assert.match(await guide.innerText(), /次の推奨行動/);
+    assert.match(await guide.innerText(), /理由/);
+    assert.match(await guide.innerText(), /確認先/);
+    await assertMobileCardLayout(page, '[data-capital-allocation-management-guide]', 1);
     assert.equal(await reconciliation.locator('[data-capital-allocation-funding-target]').count(), 4);
     assert.equal(await reconciliation.locator('[data-capital-allocation-funding-target="70"]').getAttribute('aria-pressed'), 'true');
     assert.equal(await reconciliation.locator('[data-capital-allocation-funding-pin]').count(), 4);
@@ -198,6 +206,7 @@ async function main() {
     await pinButton.click();
     const clearButton = page.locator('[data-capital-allocation-funding-clear]');
     await clearButton.waitFor({ state:'visible', timeout:10_000 });
+    await page.waitForFunction(() => document.querySelector('[data-capital-allocation-management-guide]')?.textContent?.includes('固定した計画'), null, { timeout:10_000 });
     const pinnedText = await page.locator('[data-capital-allocation-recovery-funding-reconciliation]').innerText();
     assert.match(pinnedText, /目標スコア\s*50点/);
     assert.match(pinnedText, /計画識別子/);
@@ -212,12 +221,14 @@ async function main() {
     assert.equal(await page.locator('[data-capital-allocation-funding-target="50"]').getAttribute('aria-pressed'), 'true');
     assert.equal(await page.locator('[data-capital-allocation-funding-pin="50"]').count(), 4);
     assert.equal(await page.evaluate(key => localStorage.getItem(key), SAVE_KEY), storedBeforePin, 'clearing the transient plan must not mutate the save');
+    await page.locator('[data-capital-allocation-management-guide] [data-capital-allocation-guide-focus]').click();
+    assert.equal(await page.locator('[data-capital-allocation-recovery-funding-reconciliation]').evaluate(node => document.activeElement === node || node.contains(document.activeElement)), true, 'guide focus button must move keyboard focus to the existing card');
     await assertMobileCardLayout(page, '[data-capital-allocation-recovery-funding-reconciliation]', 8);
 
     stage = 'evidence';
     await reconciliation.screenshot({ path:path.join(OUT, 'capital-allocation-recovery-workflow.png') });
     assert.deepEqual(diagnostics, { consoleErrors:[], pageErrors:[], failedRequests:[] });
-    fs.writeFileSync(RESULT_PATH, `${JSON.stringify({ status:'passed', stage, startedAt, completedAt:new Date().toISOString(), device:DEVICE_NAME, browser:'WebKit', browserVersion:browser.version(), targetUrl:baseUrl, published:Boolean(TARGET_URL), selectedTarget:50, synchronizedCards:['options','readiness','reconciliation'], pinnedOption, optionCount:4, saveKey:SAVE_KEY, saveVersion:9 }, null, 2)}\n`);
+    fs.writeFileSync(RESULT_PATH, `${JSON.stringify({ status:'passed', stage, startedAt, completedAt:new Date().toISOString(), device:DEVICE_NAME, browser:'WebKit', browserVersion:browser.version(), targetUrl:baseUrl, published:Boolean(TARGET_URL), selectedTarget:50, synchronizedCards:['options','readiness','reconciliation','managementGuide'], pinnedOption, optionCount:4, saveKey:SAVE_KEY, saveVersion:9 }, null, 2)}\n`);
     console.log(`capital allocation recovery target synchronization and workflow iPhone WebKit smoke passed (${TARGET_URL ? 'published' : 'local'})`);
     await context.close();
   } catch (error) {
