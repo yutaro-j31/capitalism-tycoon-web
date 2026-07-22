@@ -13,7 +13,7 @@ const dashboard=standalone();
 const before=JSON.stringify(state());const a=dashboard.build(state(),helpers);const b=dashboard.build(state(),helpers);
 assert.deepEqual(a,b,'dashboard model must be deterministic');
 assert.equal(JSON.stringify(state()),before,'dashboard model must not mutate save JSON');
-assert.deepEqual(embedded().build(state(),helpers),a,'browser-embedded dashboard must match standalone model');
+assert.equal(JSON.stringify(embedded().build(state(),helpers)),JSON.stringify(a),'browser-embedded dashboard must match standalone model across VM realms');
 assert.equal(a.overview.companyName,'テスト商事');assert.equal(a.overview.years,2);assert.equal(a.journey.rateLabel,'50%');assert.equal(a.journey.nextGoal,'上場準備');assert.ok(a.risks.map(x=>x.id).includes('debt-due'));assert.ok(a.growth.map(x=>x.id).includes('ipo'));
 const { ctx } = loadGame({ random: () => 0.42 });
 const appCode = fs.readFileSync(path.join(ROOT, 'js/app.js'), 'utf8');
