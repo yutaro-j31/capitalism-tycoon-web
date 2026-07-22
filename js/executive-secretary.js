@@ -39,4 +39,7 @@ function generateTasks(g,helpers={}){
 }
 exports.LEVEL_RANK=Object.freeze(LEVEL_RANK);exports.generateTasks=generateTasks;exports.sortTasks=sortTasks;exports.stableDedupe=stableDedupe;
 })(__modules.executiveSecretary={});
+if(typeof document!=='undefined'&&!document.querySelector('script[data-company-journey-loader]')){
+ const script=document.createElement('script');script.src='./js/company-journey.js';script.dataset.companyJourneyLoader='1';script.async=true;document.head.appendChild(script);
+}
 })();
