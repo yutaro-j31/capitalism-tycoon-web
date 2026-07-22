@@ -1,0 +1,67 @@
+name: CEO Dashboard
+
+on:
+  pull_request:
+    paths:
+      - 'index.html'
+      - 'js/ceo-dashboard.js'
+      - 'js/executive-secretary.js'
+      - 'js/app.js'
+      - 'css/app.css'
+      - 'tests/ceo-dashboard-test.js'
+      - 'tests/executive-secretary-test.js'
+      - 'tests/executive-secretary-purity-test.js'
+      - 'tests/executive-secretary-ui-test.js'
+      - 'tests/fixtures/extracted-css-baseline.css'
+      - 'tests/fixtures/module-load-order.json'
+      - 'tests/javascript-extraction-test.js'
+      - 'tests/javascript-module-split-test.js'
+      - 'tests/run-all.js'
+      - 'package.json'
+      - '.github/workflows/ceo-dashboard.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'index.html'
+      - 'js/ceo-dashboard.js'
+      - 'js/executive-secretary.js'
+      - 'js/app.js'
+      - 'css/app.css'
+      - 'tests/ceo-dashboard-test.js'
+      - 'tests/executive-secretary-test.js'
+      - 'tests/executive-secretary-purity-test.js'
+      - 'tests/executive-secretary-ui-test.js'
+      - 'tests/fixtures/extracted-css-baseline.css'
+      - 'tests/fixtures/module-load-order.json'
+      - 'tests/javascript-extraction-test.js'
+      - 'tests/javascript-module-split-test.js'
+      - 'tests/run-all.js'
+      - 'package.json'
+      - '.github/workflows/ceo-dashboard.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  ceo-dashboard:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Verify syntax and extracted assets
+        run: |
+          npm run test:syntax
+          npm run test:static
+          npm run test:css
+          npm run test:javascript
+          npm run test:modules
+      - name: Verify CEO dashboard model and browser integration
+        run: npm run test:ceo-dashboard
+      - name: Verify executive secretary integration and purity
+        run: |
+          node tests/executive-secretary-test.js
+          node tests/executive-secretary-purity-test.js
+          node tests/executive-secretary-ui-test.js
