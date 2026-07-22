@@ -16,6 +16,9 @@ const clamp=(v,min,max)=>Math.max(min,Math.min(max,finite(v,min)));
 const integer=(v,d=0)=>Math.max(0,Math.floor(finite(v,d)));
 const esc=v=>String(v??'').replace(/[&<>'"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c]));
 const compactYen=modules.engine.compactYen||((v)=>`${Math.round(finite(v)).toLocaleString('ja-JP')}円`);
+const engineRand=typeof modules.engine.rand==='function'?modules.engine.rand:null;
+const seededRand=(min,max)=>engineRand?engineRand(min,max):min+(max-min)*0.5;
+const chance=threshold=>seededRand(0,1)<threshold;
 function ensure(state){
   if(!state||typeof state!=='object')return state;
   state.productLifecycleVersion=Math.max(VERSION,integer(state.productLifecycleVersion));
@@ -60,7 +63,7 @@ function install(){
       product.technicalDebt=clamp(finite(product.technicalDebt)+policy.debtDelta+fundingGap*6+load*1.4+burden*.8+agePressure,0,100);product.lastMaintenanceWeek=integer(this.g.week);
       if(product.lifecycleStage===STAGES.sunsetting){product.sunsetWeeks=integer(product.sunsetWeeks)+1;product.revenue=Math.max(0,Math.round(finite(product.revenue)*.94));product.users=Math.max(0,Math.round(finite(product.users)*.92));product.paidUsers=Math.max(0,Math.round(finite(product.paidUsers)*.93));if(funnel){funnel.organicTraffic=Math.max(0,finite(funnel.organicTraffic)*.88);funnel.paidTraffic=0;funnel.supportBurden=clamp(finite(funnel.supportBurden,.1)-.015,0,1.5);}}
       const debt=product.technicalDebt,incidentChance=policy.qualityRisk+(debt>=80?.35:debt>=55?.12:0)+fundingGap*.3;
-      if(debt>=55&&Math.random()<incidentChance){product.lifecycleIncidents=integer(product.lifecycleIncidents)+1;product.quality=clamp(finite(product.quality)-1.5,0,100);if(funnel){funnel.churnRate=clamp(finite(funnel.churnRate,.08)+.003,.003,.28);funnel.supportBurden=clamp(finite(funnel.supportBurden,.1)+.03,0,1.5);}const row=history(this.g,'maintenanceIncident',`${product.name}で保守障害が発生しました。品質が低下し、解約率とサポート負荷が上昇しました。`,{productID:String(product.id),technicalDebt:debt});incidents.push(row);}
+      if(debt>=55&&chance(incidentChance)){product.lifecycleIncidents=integer(product.lifecycleIncidents)+1;product.quality=clamp(finite(product.quality)-1.5,0,100);if(funnel){funnel.churnRate=clamp(finite(funnel.churnRate,.08)+.003,.003,.28);funnel.supportBurden=clamp(finite(funnel.supportBurden,.1)+.03,0,1.5);}const row=history(this.g,'maintenanceIncident',`${product.name}で保守障害が発生しました。品質が低下し、解約率とサポート負荷が上昇しました。`,{productID:String(product.id),technicalDebt:debt});incidents.push(row);}
       if(product.lastInnovationWeek===integer(this.g.week))product.technicalDebt=clamp(product.technicalDebt-18,0,100);
     }
     return incidents;
