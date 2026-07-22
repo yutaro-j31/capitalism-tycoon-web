@@ -59,6 +59,9 @@ assert.equal((defaultHtml.match(/data-capital-allocation-funding-target=/g) || [
 assert.match(defaultHtml, /data-capital-allocation-funding-target="70" aria-pressed="true"/);
 assert.equal((defaultHtml.match(/data-capital-allocation-funding-pin="70"/g) || []).length, 4);
 assert.match(defaultHtml, /Phase 8D-27 · 目標70点/);
+assert.match(defaultHtml, /総調達/);
+assert.match(defaultHtml, /資産売却/);
+assert.match(defaultHtml, /借入/);
 
 assert.equal(game.setCapitalAllocationRecoveryFundingTarget(50), true);
 assert.equal(game.capitalAllocationRecoveryFundingTarget(), 50);
@@ -67,6 +70,9 @@ const target50Html = mod.render(game);
 assert.match(target50Html, /data-capital-allocation-funding-target="50" aria-pressed="true"/);
 assert.equal((target50Html.match(/data-capital-allocation-funding-pin="50"/g) || []).length, 4);
 assert.match(target50Html, /Phase 8D-27 · 目標50点/);
+assert.ok((target50Html.match(/総調達/g) || []).length >= 1, 'reachable plans must display total funding');
+assert.ok((target50Html.match(/資産売却/g) || []).length >= 1, 'reachable plans must display asset funding');
+assert.ok((target50Html.match(/借入/g) || []).length >= 1, 'reachable plans must display borrowing');
 
 const ready = mod.candidates(game,50).find(row => row.ready);
 assert.ok(ready, 'fixture must expose a ready 50-point recovery option');
@@ -90,4 +96,4 @@ assert.equal((target80Html.match(/data-capital-allocation-funding-pin="80"/g) ||
 assert.equal(JSON.stringify(game.g), before, 'clearing and target reselection must remain transient');
 assert.equal(modules.engine.SAVE_KEY, 'capitalism_tycoon_web_v1');
 assert.equal(modules.engine.SAVE_VERSION, 9);
-console.log('recovery funding target selector and transient state tests passed');
+console.log('recovery funding target selector, funding breakdown, and transient state tests passed');
