@@ -26,7 +26,8 @@ function installCapitalAllocationModules(load) {
     'capital-allocation-stress-test.js', 'capital-allocation-resilience-memo.js',
     'capital-allocation-recovery-audit.js', 'capital-allocation-recovery-funding.js',
     'capital-allocation-recovery-funding-options.js', 'capital-allocation-recovery-funding-readiness.js',
-    'capital-allocation-recovery-funding-reconciliation.js'
+    'capital-allocation-recovery-funding-reconciliation.js',
+    'capital-allocation-recovery-funding-outcome.js'
   ];
   for (const file of files) {
     const key = file.replace('.js', '').replace(/-([a-z])/g, (_, char) => char.toUpperCase());
@@ -35,12 +36,12 @@ function installCapitalAllocationModules(load) {
   return load;
 }
 
-function resilientPublicSave() {
+function resilientPublicFixture() {
   const load = installCapitalAllocationModules(loadGame());
   const { engine, finance } = load.modules;
   const state = engine.createInitialState({ configured:true, playerName:'WebKit Director', companyName:'Recovery Holdings' });
   Object.assign(state, {
-    week:53, publicCompany:true, selectedTab:'market', companyCash:2_000_000_000,
+    week:53, publicCompany:true, selectedTab:'market', companyCash:10_000_000,
     companyDebt:100_000_000, companyCredit:100, companyReputation:80, investorConfidence:80,
     sharesOut:1_000_000, founderShares:600_000, stockPrice:1_000, ticker:'CPTY'
   });
@@ -49,8 +50,8 @@ function resilientPublicSave() {
     { id:'CPTY', name:state.companyName, sector:'コングロマリット', price:1_000, previous:1_000, dividendYield:0, volatility:0, trend:0, marketCap:1_000_000_000, per:20, pbr:2, issuedShares:1_000_000, dividendPerShare:0, shareholders:{}, description:'test issuer', listingMarket:'東証グロース', priceHistory:[{week:53,price:1_000}] },
     { id:'EXT', name:'外部上場株', sector:'IT', price:10_000, previous:10_000, dividendYield:0, volatility:0, trend:0, marketCap:10_000_000_000, per:20, pbr:2, issuedShares:1_000_000, dividendPerShare:0, shareholders:{}, description:'test asset', listingMarket:'東証プライム', priceHistory:[{week:53,price:10_000}] }
   );
-  state.companyStocks = { EXT:{ qty:10_000, avg:8_000 } };
-  Object.assign(state.properties[0], { owner:'company', value:1_000_000_000, price:1_000_000_000, purchasePrice:600_000_000, bookValue:600_000_000 });
+  state.companyStocks = { EXT:{ qty:100_000, avg:8_000 } };
+  Object.assign(state.properties[0], { owner:'company', value:3_000_000_000, price:3_000_000_000, purchasePrice:1_800_000_000, bookValue:1_800_000_000 });
   state.finance = finance.defaultFinanceState(state);
   state.finance.capitalAllocationPolicy = { id:'balanced', lastChangedWeek:-999, lastEvaluatedWeek:-1, executionScore:80, history:[] };
   finance.event(state, 'revenue', 500_000_000, {
@@ -68,10 +69,15 @@ function resilientPublicSave() {
   assert.equal(game.g.saveVersion, 9);
   const candidates = load.modules.capitalAllocationRecoveryFundingReconciliation.candidates(game, 70);
   assert.equal(candidates.length, 4);
-  assert.ok(candidates.some(row => row.ready), 'fixture must expose at least one pinnable recovery option');
+  const preferred = candidates.find(row => row.ready && row.steps.some(step => ['securities', 'properties', 'borrowing'].includes(step.kind)));
+  assert.ok(preferred, 'fixture must expose a ready recovery option with an accounting transaction');
   const financeErrors = Array.from(finance.validate(game.g).errors || []);
   assert.equal(financeErrors.length, 0, `fixture accounting errors: ${financeErrors.join(' | ')}`);
-  return JSON.stringify(game.g);
+  return {
+    save:JSON.stringify(game.g),
+    preferredOptionId:preferred.optionId,
+    expectedStepKinds:preferred.steps.map(step => step.kind)
+  };
 }
 
 function staticServer() {
@@ -127,14 +133,14 @@ async function main() {
   let page;
   let stage = 'fixture';
   try {
-    const save = resilientPublicSave();
+    const fixture = resilientPublicFixture();
     stage = 'server';
     server = staticServer();
     const baseUrl = await startServer(server);
     stage = 'browser';
     browser = await webkit.launch();
     const context = await browser.newContext({ ...devices[DEVICE_NAME], locale:'ja-JP', reducedMotion:'reduce', serviceWorkers:'block', timezoneId:'Asia/Tokyo' });
-    await context.addInitScript(({ key, value }) => { if (!localStorage.getItem(key)) localStorage.setItem(key, value); }, { key:SAVE_KEY, value:save });
+    await context.addInitScript(({ key, value }) => { if (!localStorage.getItem(key)) localStorage.setItem(key, value); }, { key:SAVE_KEY, value:fixture.save });
     page = await context.newPage();
     page.on('console', message => message.type() === 'error' && diagnostics.consoleErrors.push(message.text()));
     page.on('pageerror', error => diagnostics.pageErrors.push(error.message));
@@ -149,42 +155,111 @@ async function main() {
     const readiness = page.locator('[data-capital-allocation-recovery-funding-readiness]');
     const options = page.locator('[data-capital-allocation-recovery-funding-options]');
     const reconciliation = page.locator('[data-capital-allocation-recovery-funding-reconciliation]');
+    const outcome = page.locator('[data-capital-allocation-recovery-funding-outcome]');
     await readiness.waitFor({ state:'visible', timeout:30_000 });
     await options.waitFor({ state:'visible', timeout:30_000 });
     await reconciliation.waitFor({ state:'visible', timeout:30_000 });
+    await outcome.waitFor({ state:'visible', timeout:30_000 });
     assert.match(await readiness.innerText(), /回復資金・実行前確認/);
+    assert.match(await outcome.innerText(), /計画なし/);
     const initialText = await reconciliation.innerText();
     for (const label of ['現行推奨', '無借入', '不動産温存', '資産温存']) assert.match(initialText, new RegExp(label));
     assert.equal(await reconciliation.locator('[data-capital-allocation-funding-pin]').count(), 4);
-    assert.ok(await reconciliation.locator('[data-capital-allocation-funding-pin]:not([disabled])').count() >= 1);
     await assertMobileCardLayout(page, '[data-capital-allocation-recovery-funding-reconciliation]', 4);
+    await assertMobileCardLayout(page, '[data-capital-allocation-recovery-funding-outcome]', 0);
 
     stage = 'pin';
     const storedBeforePin = await page.evaluate(key => localStorage.getItem(key), SAVE_KEY);
-    const pinButton = reconciliation.locator('[data-capital-allocation-funding-pin]:not([disabled])').first();
-    const pinnedOption = await pinButton.getAttribute('data-capital-allocation-funding-option');
+    const pinButton = reconciliation.locator(`[data-capital-allocation-funding-pin][data-capital-allocation-funding-option="${fixture.preferredOptionId}"]`);
+    assert.equal(await pinButton.isEnabled(), true, `${fixture.preferredOptionId} must be pinnable`);
     await pinButton.click();
     const clearButton = page.locator('[data-capital-allocation-funding-clear]');
     await clearButton.waitFor({ state:'visible', timeout:10_000 });
-    const pinnedText = await page.locator('[data-capital-allocation-recovery-funding-reconciliation]').innerText();
+    const pinnedText = await reconciliation.innerText();
     assert.match(pinnedText, /計画識別子/);
     assert.match(pinnedText, /会計証跡/);
     assert.match(pinnedText, /固定を解除/);
+    assert.match(await outcome.innerText(), /未着手|実行中/);
     assert.equal(await page.evaluate(key => localStorage.getItem(key), SAVE_KEY), storedBeforePin, 'transient pinning must not mutate the save');
     await assertMobileCardLayout(page, '[data-capital-allocation-recovery-funding-reconciliation]', 1);
+    await assertMobileCardLayout(page, '[data-capital-allocation-recovery-funding-outcome]', 0);
+
+    stage = 'execute';
+    const execution = await page.evaluate(() => {
+      const modules = globalThis.__capitalismTycoonModules;
+      const engine = modules.playerEngineBridge?.getEngine?.();
+      const plan = modules.capitalAllocationRecoveryFundingReconciliation?.pinned?.(engine);
+      if (!engine || !plan) throw new Error('pinned recovery plan is unavailable');
+      const results = [];
+      for (const step of plan.steps || []) {
+        let ok = false;
+        if (step.kind === 'policy') ok = engine.setCapitalAllocationPolicy(plan.targetPolicy) === true;
+        else if (step.kind === 'securities') ok = engine.sellStock(step.sourceId, step.units, 'company') === true;
+        else if (step.kind === 'properties') ok = engine.sellProperty(step.sourceId) === true;
+        else if (step.kind === 'borrowing') ok = engine.borrow(step.amount, 'company') === true;
+        else if (step.kind === 'noAction') ok = true;
+        else throw new Error(`unsupported recovery step: ${step.kind}`);
+        results.push({ kind:step.kind, ok });
+        if (!ok) throw new Error(`recovery step failed: ${step.kind}`);
+      }
+      engine.emit?.();
+      const financeErrors = Array.from(modules.finance?.validate?.(engine.g)?.errors || []).map(String);
+      const report = engine.capitalAllocationRecoveryFundingOutcome();
+      return {
+        optionId:plan.optionId,
+        fingerprint:plan.fingerprint,
+        stepKinds:(plan.steps || []).map(step => step.kind),
+        results,
+        financeErrors,
+        report:{
+          status:report.status,
+          verified:report.verified,
+          targetReached:report.targetReached,
+          transactionCount:report.evidence?.transactionCount || 0,
+          cashVariance:report.cashVariance,
+          debtVariance:report.debtVariance,
+          scoreVariance:report.scoreVariance
+        }
+      };
+    });
+    assert.deepEqual(execution.stepKinds, fixture.expectedStepKinds);
+    assert.ok(execution.results.every(row => row.ok));
+    assert.deepEqual(execution.financeErrors, []);
+    assert.equal(execution.report.status, 'verified');
+    assert.equal(execution.report.verified, true);
+    assert.equal(execution.report.targetReached, true);
+    assert.ok(execution.report.transactionCount >= 1);
+    assert.ok(Math.abs(execution.report.cashVariance) <= .5);
+    assert.ok(Math.abs(execution.report.debtVariance) <= .5);
+    await page.waitForFunction(() => /検証完了/.test(document.querySelector('[data-capital-allocation-recovery-funding-outcome]')?.innerText || ''), null, { timeout:10_000 });
+    const completedOutcomeText = await outcome.innerText();
+    assert.match(completedOutcomeText, /検証完了/);
+    assert.match(completedOutcomeText, /会計証跡/);
+    assert.match(await reconciliation.innerText(), /完了/);
+    const storedAfterExecution = await page.evaluate(key => localStorage.getItem(key), SAVE_KEY);
+    assert.notEqual(storedAfterExecution, storedBeforePin, 'manual funding transactions must persist through the normal save path');
+    await outcome.screenshot({ path:path.join(OUT, 'capital-allocation-recovery-outcome.png') });
+    await assertMobileCardLayout(page, '[data-capital-allocation-recovery-funding-outcome]', 0);
 
     stage = 'clear';
     await clearButton.click();
     await page.locator('[data-capital-allocation-funding-pin]').first().waitFor({ state:'visible', timeout:10_000 });
-    assert.equal(await page.locator('[data-capital-allocation-funding-pin]').count(), 4);
-    assert.equal(await page.evaluate(key => localStorage.getItem(key), SAVE_KEY), storedBeforePin, 'clearing the transient plan must not mutate the save');
+    await page.waitForFunction(() => /計画なし/.test(document.querySelector('[data-capital-allocation-recovery-funding-outcome]')?.innerText || ''), null, { timeout:10_000 });
+    assert.equal(await reconciliation.locator('[data-capital-allocation-funding-pin]').count(), 4);
+    assert.equal(await page.evaluate(key => localStorage.getItem(key), SAVE_KEY), storedAfterExecution, 'clearing the transient plan must not mutate the executed save');
     await assertMobileCardLayout(page, '[data-capital-allocation-recovery-funding-reconciliation]', 4);
+    await assertMobileCardLayout(page, '[data-capital-allocation-recovery-funding-outcome]', 0);
 
     stage = 'evidence';
     await reconciliation.screenshot({ path:path.join(OUT, 'capital-allocation-recovery-workflow.png') });
     assert.deepEqual(diagnostics, { consoleErrors:[], pageErrors:[], failedRequests:[] });
-    fs.writeFileSync(RESULT_PATH, `${JSON.stringify({ status:'passed', stage, startedAt, completedAt:new Date().toISOString(), device:DEVICE_NAME, browser:'WebKit', browserVersion:browser.version(), pinnedOption, optionCount:4, saveKey:SAVE_KEY, saveVersion:9 }, null, 2)}\n`);
-    console.log('capital allocation recovery workflow iPhone WebKit smoke passed');
+    fs.writeFileSync(RESULT_PATH, `${JSON.stringify({
+      status:'passed', stage, startedAt, completedAt:new Date().toISOString(), device:DEVICE_NAME,
+      browser:'WebKit', browserVersion:browser.version(), pinnedOption:fixture.preferredOptionId,
+      executedStepKinds:execution.stepKinds, outcome:execution.report, optionCount:4,
+      saveKey:SAVE_KEY, saveVersion:9
+    }, null, 2)}\n`);
+    console.log('capital allocation recovery funding outcome iPhone WebKit workflow passed');
     await context.close();
   } catch (error) {
     if (page) { try { await page.screenshot({ path:path.join(OUT, 'capital-allocation-recovery-workflow-failure.png') }); } catch (_) {} }
