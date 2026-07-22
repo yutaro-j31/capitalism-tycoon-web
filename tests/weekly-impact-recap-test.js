@@ -67,6 +67,21 @@ function metric(model,id){return model.metrics.find(x=>x.id===id);}
 
 {
   const { e, modules } = configuredEngine();
+  e.g.reports = [{ week: 2, sales: 100, profit: 10 }, { week: 3, sales: 100, profit: 10 }];
+  e.g.finance.weeklySnapshots = [
+    { week: 2, actualCompanyCash: 500 },
+    { week: 3, actualCompanyCash: 500 }
+  ];
+  e.g.companyValueHistory = [1000, 1000];
+  const unchanged = modules.ceoDashboard.weeklyImpact(e.g, { companyValue: 1000 });
+  assert.equal(unchanged.hasPrevious, true, 'unchanged reports still have a valid previous comparison');
+  assert.deepEqual(unchanged.highlights.map(x => x.id), ['no-change'], 'unchanged comparison must not be mistaken for missing data');
+  assert.equal(modules.ceoDashboard.deltaLabel(0, value => `${value}円`), '変化なし', 'zero delta label must describe an unchanged metric');
+  assert.equal(unchanged.metrics.every(x => x.tone === 'neutral'), true, 'unchanged metrics use neutral tone');
+}
+
+{
+  const { e, modules } = configuredEngine();
   e.g.reports = [{ week: 2, sales: 100, profit: 10 }, { week: 3, sales: 120, profit: 15 }];
   e.g.finance.weeklySnapshots = [];
   e.g.companyValueHistory = [1000];
@@ -86,4 +101,4 @@ const css = fs.readFileSync(path.join(__dirname, '../css/app.css'), 'utf8');
 assert.match(css, /weekly-impact-card/, 'weekly impact cards are styled');
 assert.match(css, /min-height:44px/, 'weekly impact touch target is at least 44px');
 assert.match(css, /env\(safe-area-inset-bottom\)/, 'weekly impact respects safe area in modal');
-console.log('Weekly Impact recap production-data tests passed: first week, second week, sales/profit/cash/value deltas, snapshots/history integration, old save fallback, deterministic, read-only, localStorage unchanged');
+console.log('Weekly Impact recap production-data tests passed: first week, second week, unchanged comparison, sales/profit/cash/value deltas, snapshots/history integration, old save fallback, deterministic, read-only, localStorage unchanged');
