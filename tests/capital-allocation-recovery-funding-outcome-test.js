@@ -13,5 +13,4 @@ const below=mod.summarize(reconciled,snapshot,{},68);assert.equal(below.status,'
 const diverged=mod.summarize({...reconciled,status:'diverged',complete:false,issues:[{id:'cashVariance'}],cashVariance:1_000},snapshot,{},75);assert.equal(diverged.status,'diverged');assert.equal(diverged.verified,false);
 const blocked=mod.summarize({status:'blocked',steps:[]},null,{},50);assert.equal(blocked.status,'blocked');assert.equal(blocked.fingerprint,'');
 const state=modules.engine.createInitialState({configured:true});state.publicCompany=true;state.selectedTab='market';const game=new modules.engine.TycoonEngine(state),before=JSON.stringify(game.g),report=game.capitalAllocationRecoveryFundingOutcome();assert.equal(report.status,'blocked');assert.equal(JSON.stringify(game.g),before,'outcome report must remain read-only');const html=mod.render(game);assert.match(html,/data-capital-allocation-recovery-funding-outcome/);assert.match(html,/Phase 8D-22/);assert.match(html,/回復資金・結果検証/);
-require('./capital-allocation-recovery-target-selector-test.js');
-console.log('funding outcome verification, score variance, evidence totals, target selection, and read-only UI tests passed');
+console.log('funding outcome verification, score variance, evidence totals, and read-only UI tests passed');
