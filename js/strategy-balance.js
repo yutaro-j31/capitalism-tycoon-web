@@ -79,4 +79,5 @@ loadPhaseScript('./js/capital-allocation-stress-test.js','8D-3',()=>Boolean(modu
 loadPhaseScript('./js/capital-allocation-resilience-memo.js','8D-5',()=>Boolean(modules.capitalAllocationResilienceMemo));
 loadPhaseScript('./js/capital-allocation-recovery-audit.js','8D-11',()=>Boolean(modules.capitalAllocationRecoveryAudit));
 loadPhaseScript('./js/capital-allocation-recovery-funding.js','8D-13',()=>Boolean(modules.capitalAllocationRecoveryFunding));
+loadPhaseScript('./js/capital-allocation-recovery-funding-options.js','8D-15',()=>Boolean(modules.capitalAllocationRecoveryFundingOptions));
 })();
