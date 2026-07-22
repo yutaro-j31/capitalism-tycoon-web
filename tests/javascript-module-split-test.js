@@ -12,7 +12,7 @@ function expectThrow(fn, re) {
 
 const expected = [
   './js/boot-recovery.js','./js/runtime.js','./js/data.js','./js/workforce.js','./js/supply.js','./js/competitor.js','./js/competitor-projects.js','./js/competitor-entry.js','./js/competitor-credit.js','./js/competitor-distress.js','./js/competitor-terminal-compat.js',
-  './js/market.js','./js/finance.js','./js/engine.js','./js/save-v9.js','./js/expansion.js','./js/competitor-media.js','./js/completion.js','./js/parity.js','./js/executive-secretary.js','./js/competitor-parity.js','./js/competitor-dashboard.js','./js/competitor-dashboard-status.js','./js/competitor-dashboard-ui.js',
+  './js/market.js','./js/finance.js','./js/engine.js','./js/save-v9.js','./js/expansion.js','./js/competitor-media.js','./js/completion.js','./js/parity.js','./js/executive-secretary.js','./js/ceo-dashboard.js','./js/competitor-parity.js','./js/competitor-dashboard.js','./js/competitor-dashboard-status.js','./js/competitor-dashboard-ui.js',
   './js/player-crisis-ui.js','./js/player-engine-bridge.js','./js/strategy-balance.js','./js/progression-balance.js','./js/app.js','./js/difficulty-scenario-balance.js','./js/player-crisis.js','./js/player-crisis-actions.js','./js/player-crisis-restructuring.js','./js/player-crisis-creditor.js','./js/player-debt-service.js','./js/player-turnaround-plan.js','./js/player-crisis-creditor-ui.js','./js/player-turnaround-plan-ui.js','./js/player-turnaround-plan-report.js','./js/release-diagnostics-ui.js','./js/playtest-report-ui.js','./js/d-ui-shell.js','./js/d-ui-context-tabs.js','./js/runtime-recovery-ui.js','./js/shareholder-returns.js','./js/capital-allocation-score.js','./js/capital-allocation-policy.js'
 ];
 const scripts = extractScripts(readIndex()).filter(script => script.src);
@@ -29,6 +29,8 @@ before('./js/player-crisis-ui.js','./js/player-engine-bridge.js');
 before('./js/player-engine-bridge.js','./js/app.js');
 before('./js/strategy-balance.js','./js/progression-balance.js');
 before('./js/progression-balance.js','./js/app.js');
+before('./js/executive-secretary.js','./js/ceo-dashboard.js');
+before('./js/ceo-dashboard.js','./js/app.js');
 before('./js/app.js','./js/difficulty-scenario-balance.js');
 before('./js/player-crisis.js','./js/player-crisis-actions.js');
 before('./js/player-crisis-actions.js','./js/player-crisis-restructuring.js');
@@ -95,6 +97,8 @@ const requiredExports = {
   expansion:['installExpansion','FOUNDER_TRAITS','FOUNDER_HOME_PRODUCTS','SUPPLIER_OFFERS','VERTICAL_INTEGRATION_OFFERS','RD_PROJECTS','PERSONAL_REAL_ESTATE_OFFERS','SUCCESSOR_CANDIDATES'],
   completion:['installCompletion','MEDIA_ACTIONS','TRANSPORT_REBUILD_ACTIONS','ENDING_DEFS'],
   parity:['installParity','KEY_PERSON_ROLES'],
+  executiveSecretary:['LEVEL_RANK','generateTasks','sortTasks','stableDedupe'],
+  ceoDashboard:['build','companyJourney','financialSummary','capitalAllocation','risks','growth'],
   playerCrisis:['STATUSES','HISTORY_LIMIT','LEGACY_GAME_OVER_REASON','INSOLVENCY_REASON','graceForDifficulty','reserveThreshold','ensure','evaluate','snapshot','validate','__installed'],
   playerCrisisActions:['ACTION_TYPES','HISTORY_LIMIT','EMERGENCY_LOAN_COOLDOWN_WEEKS','MIN_EMERGENCY_LOAN','TARGET_EMERGENCY_LOAN','ensure','options','validate','__installed'],
   playerCrisisUI:['render','enhance','bindEngine','handleClick','install','stripPanel','STATUS_LABELS','REASON_LABELS','__installed'],
@@ -163,6 +167,7 @@ expectThrow(() => run(freshWith(prefix('./js/competitor-credit.js')), './js/comp
 for (const src of ['./js/save-v9.js','./js/competitor-media.js','./js/player-crisis-ui.js']) expectThrow(() => run(runtimeOnly, src), /engine\.js/);
 expectThrow(() => run(freshWith(prefix('./js/competitor-dashboard-ui.js')), './js/player-engine-bridge.js'), /player-crisis-ui\.js/);
 expectThrow(() => run(freshWith(prefix('./js/save-v9.js')), './js/competitor-media.js'), /expansion\.js/);
+expectThrow(() => run(runtimeOnly, './js/ceo-dashboard.js'), /executive-secretary\.js/);
 expectThrow(() => run(freshWith(prefix('./js/completion.js')), './js/competitor-parity.js'), /parity\.js/);
 expectThrow(() => run(freshWith(prefix('./js/parity.js')), './js/competitor-dashboard.js'), /competitor-parity\.js/);
 expectThrow(() => run(freshWith(prefix('./js/competitor-parity.js')), './js/competitor-dashboard-status.js'), /competitor-dashboard\.js/);
@@ -185,7 +190,7 @@ expectThrow(() => run(freshWith(prefix('./js/runtime-recovery-ui.js')), './js/ca
 
 const duplicateRegistration = /already (?:installed|registered|normalized)|D UI shell is already registered|D UI context tabs are already registered/;
 for (const src of [
-  './js/boot-recovery.js','./js/save-v9.js','./js/competitor-media.js','./js/competitor-parity.js','./js/competitor-dashboard.js','./js/competitor-dashboard-status.js','./js/competitor-dashboard-ui.js',
+  './js/boot-recovery.js','./js/save-v9.js','./js/ceo-dashboard.js','./js/competitor-media.js','./js/competitor-parity.js','./js/competitor-dashboard.js','./js/competitor-dashboard-status.js','./js/competitor-dashboard-ui.js',
   './js/player-crisis-ui.js','./js/player-engine-bridge.js','./js/strategy-balance.js','./js/progression-balance.js','./js/difficulty-scenario-balance.js','./js/player-crisis.js','./js/player-crisis-actions.js','./js/player-crisis-restructuring.js','./js/player-crisis-creditor.js','./js/player-debt-service.js','./js/player-turnaround-plan.js','./js/player-crisis-creditor-ui.js','./js/player-turnaround-plan-ui.js','./js/player-turnaround-plan-report.js','./js/release-diagnostics-ui.js','./js/playtest-report-ui.js','./js/d-ui-shell.js','./js/d-ui-context-tabs.js','./js/runtime-recovery-ui.js','./js/shareholder-returns.js','./js/capital-allocation-score.js','./js/capital-allocation-policy.js','./js/competitor-terminal-compat.js','./js/competitor-distress.js','./js/data.js'
 ]) expectThrow(() => run(ctx, src), duplicateRegistration);
 
