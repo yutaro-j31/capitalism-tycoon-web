@@ -43,13 +43,13 @@ function sourceSignature(instance,allocation){
  }).sort((a,b)=>a.id.localeCompare(b.id));
 }
 function checklist(instance,plan,row,allocation){
- const state=instance?.g||{},steps=[],switchRequired=plan.targetPolicy!==plan.currentPolicy;
+ const steps=[],switchRequired=plan.targetPolicy!==plan.currentPolicy;
  if(switchRequired)steps.push({id:'policy',kind:'policy',label:`資本配分方針を「${plan.targetPolicyName}」へ変更`,ready:Boolean(plan.policySwitchAllowed),waitWeeks:Math.max(0,Math.floor(finite(plan.policyWaitWeeks))),amount:0});
  for(const source of allocation.selected||[]){
   if(source.kind==='securities')steps.push({id:source.id,kind:'securities',sourceId:source.sourceId,label:`${source.name}を${Math.floor(finite(source.selectedUnits)).toLocaleString('ja-JP')}株売却`,ready:true,units:Math.floor(finite(source.selectedUnits)),amount:Math.max(0,finite(source.selectedProceeds))});
   if(source.kind==='properties')steps.push({id:source.id,kind:'properties',sourceId:source.sourceId,label:`${source.name}を売却`,ready:true,units:1,amount:Math.max(0,finite(source.selectedProceeds))});
  }
- if(row.borrowing>0)steps.push({id:'borrowing',kind:'borrowing',label:`会社借入を実行`,ready:row.borrowing<=row.borrowingCapacity+.5,units:1,amount:Math.max(0,finite(row.borrowing)),capacity:Math.max(0,finite(row.borrowingCapacity))});
+ if(row.borrowing>0)steps.push({id:'borrowing',kind:'borrowing',label:'会社借入を実行',ready:row.borrowing<=row.borrowingCapacity+.5,units:1,amount:Math.max(0,finite(row.borrowing)),capacity:Math.max(0,finite(row.borrowingCapacity))});
  if(!steps.length)steps.push({id:'noAction',kind:'noAction',label:'追加調達は不要',ready:true,units:0,amount:0});
  return steps.map((step,index)=>({...step,order:index+1}));
 }
@@ -63,7 +63,7 @@ function snapshot(instance,targetScore=70,optionId='recommended'){
  if(row&&plan.targetPolicy!==plan.currentPolicy&&!plan.policySwitchAllowed)blockers.push({id:'policyCooldown',message:`方針変更まであと${Math.max(0,Math.floor(finite(plan.policyWaitWeeks)))}週必要です。`});
  if(row&&row.borrowing>row.borrowingCapacity+.5)blockers.push({id:'borrowingCapacity',message:'必要借入額が現在の借入余力を超えています。'});
  const allocation=row?allocationForOption(instance,plan,row.id):funding.allocationFrom([],0),sources=sourceSignature(instance,allocation),steps=row?checklist(instance,plan,row,allocation):[],ready=Boolean(row?.targetReached&&blockers.length===0),status=ready?'ready':blockers.some(item=>item.id==='policyCooldown')?'waitPolicy':row?'blocked':'unavailable';
- const payload={week,targetScore:target,optionId:row?.id??normalizedOptionId,targetPolicy:plan.targetPolicy,currentPolicy:plan.currentPolicy,policyWaitWeeks:Math.max(0,Math.floor(finite(plan.policyWaitWeeks))),projectedScore:row?.projectedScore??null,totalFunding:row?.totalFunding??null,assetFunding:row?.assetFunding??null,borrowing:row?.borrowing??null,borrowingCapacity:row?.borrowingCapacity??null,sources};
+ const payload={week,targetScore:target,optionId:row?.id??normalizedOptionId,targetPolicy:plan.targetPolicy,currentPolicy:plan.currentPolicy,policyWaitWeeks:Math.max(0,Math.floor(finite(plan.policyWaitWeeks))),baselineCash:finite(state.companyCash),baselineDebt:Math.max(0,finite(state.companyDebt)),projectedScore:row?.projectedScore??null,totalFunding:row?.totalFunding??null,assetFunding:row?.assetFunding??null,borrowing:row?.borrowing??null,borrowingCapacity:row?.borrowingCapacity??null,sources};
  const fingerprint=hash(JSON.stringify(payload));
  return{...payload,fingerprint,optionName:row?.name??'',targetPolicyName:plan.targetPolicyName||'',currentPolicyName:plan.currentPolicyName||'',targetReached:Boolean(row?.targetReached),ready,status,blockers,steps,sourceCount:sources.length,reason:ready?'現在の状態で手順を開始できます。':blockers[0]?.message||'実行条件を確認できません。'};
 }
@@ -73,11 +73,13 @@ function validateSnapshot(instance,previous){
  if(finite(source.week)!==current.week)reasons.push({id:'weekChanged',message:'週が進行しました。'});
  if(String(source.currentPolicy||'')!==String(current.currentPolicy||''))reasons.push({id:'policyChanged',message:'現在の資本配分方針が変わりました。'});
  if(String(source.targetPolicy||'')!==String(current.targetPolicy||''))reasons.push({id:'targetPolicyChanged',message:'推奨される回復方針が変わりました。'});
+ if(finite(source.baselineCash)!==finite(current.baselineCash))reasons.push({id:'cashChanged',message:'会社現金が変わりました。'});
+ if(finite(source.baselineDebt)!==finite(current.baselineDebt))reasons.push({id:'debtChanged',message:'会社借入残高が変わりました。'});
  if(finite(source.totalFunding,-1)!==finite(current.totalFunding,-1)||finite(source.borrowing,-1)!==finite(current.borrowing,-1))reasons.push({id:'fundingChanged',message:'必要な売却・借入額が変わりました。'});
  if(finite(source.borrowingCapacity,-1)!==finite(current.borrowingCapacity,-1))reasons.push({id:'borrowingCapacityChanged',message:'借入余力が変わりました。'});
  if(JSON.stringify(source.sources||[])!==JSON.stringify(current.sources||[]))reasons.push({id:'sourcesChanged',message:'市場価格、保有量、または不動産の状態が変わりました。'});
  if(String(source.fingerprint||'')!==current.fingerprint&&!reasons.length)reasons.push({id:'fingerprintChanged',message:'計画の前提条件が変わりました。'});
- return{valid:reasons.length===0&&!current.blockers.length,stale:reasons.length>0,reasons,currentFingerprint:current.fingerprint,previousFingerprint:String(source.fingerprint||''),current};
+ return{valid:reasons.length===0,executable:current.ready,stale:reasons.length>0,reasons,currentFingerprint:current.fingerprint,previousFingerprint:String(source.fingerprint||''),current};
 }
 EngineClass.prototype.capitalAllocationRecoveryFundingReadiness=function(targetScore=70,optionId='recommended'){return snapshot(this,targetScore,optionId);};
 EngineClass.prototype.validateCapitalAllocationRecoveryFundingSnapshot=function(previous){return validateSnapshot(this,previous);};
