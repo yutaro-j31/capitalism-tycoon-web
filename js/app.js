@@ -7,10 +7,11 @@ if(!__modules.market)throw new Error('Capitalism Tycoon market module must be lo
 if(!__modules.finance)throw new Error('Capitalism Tycoon finance module must be loaded before app.js.');
 if(!__modules.supply)throw new Error('Capitalism Tycoon supply module must be loaded before app.js.');
 if(!__modules.data)throw new Error('Capitalism Tycoon data module must be loaded before app.js.');
+if(!__modules.executiveSecretary)throw new Error('Capitalism Tycoon executiveSecretary module must be loaded before app.js.');
 if(!__modules.expansion||!__modules.expansion.installExpansion)throw new Error('Capitalism Tycoon installExpansion must be loaded before app.js.');
 if(!__modules.completion||!__modules.completion.installCompletion)throw new Error('Capitalism Tycoon installCompletion must be loaded before app.js.');
 if(!__modules.parity||!__modules.parity.installParity)throw new Error('Capitalism Tycoon installParity must be loaded before app.js.');
-(function(engineModule,dataModule,marketModule,financeModule,supplyModule,expansionModule,completionModule,parityModule){
+(function(engineModule,dataModule,marketModule,financeModule,supplyModule,expansionModule,completionModule,parityModule,secretaryModule){
 const {TycoonEngine,yen,compactYen,pct,finite}=engineModule;
 const {MASTER,PRODUCT_BLUEPRINTS,LUXURY_OFFERS,PERSONAL_INVESTMENT_OFFERS,OVERSEAS_COUNTRIES,SPORTS_TEAMS,MISSION_DEFS}=dataModule;
 const {installExpansion,FOUNDER_TRAITS,FOUNDER_HOME_PRODUCTS,SUPPLIER_OFFERS,VERTICAL_INTEGRATION_OFFERS,RD_PROJECTS,PERSONAL_REAL_ESTATE_OFFERS,SUCCESSOR_CANDIDATES}=expansionModule;
@@ -71,11 +72,13 @@ function render() {
       <div class="week-controls">${btn('1週進める','advance-week',{kind:'primary',icon:'▶'})}${btn('4週','advance-4',{kind:'secondary'})}</div>
     </header>
     <nav class="tabs" aria-label="ゲームメニュー">${TABS.map(([id,ic,label])=>`<button data-action="tab" data-tab="${id}" class="${g.selectedTab===id?'active':''}"><span>${ic}</span><small>${label}</small></button>`).join('')}</nav>
-    <main id="screen" class="screen">${renderScreen(g.selectedTab)}</main>
+    <main id="screen" class="screen" data-screen="${esc(g.selectedTab)}">${renderScreen(g.selectedTab)}</main>
     ${g.gameOver?renderGameOver():''}
   `;
   requestAnimationFrame(drawCharts);
 }
+
+function focusSecretaryTarget(selector){const target=(selector&&document.querySelector(selector))||document.getElementById('screen');if(!target)return false;target.setAttribute('tabindex',target.getAttribute('tabindex')||'-1');const reduce=Boolean(engine.g.settings?.reducedMotion)||globalThis.matchMedia?.('(prefers-reduced-motion: reduce)')?.matches;target.scrollIntoView?.({block:'start',behavior:reduce?'auto':'smooth'});target.focus?.({preventScroll:true});return true;}
 
 function renderSetup() {
   app.innerHTML=`<div class="setup-shell"><div class="setup-panel">
@@ -118,6 +121,7 @@ function renderHome() {
     ${card('次にやること',nextActions.length?nextActions.slice(0,5).map(([t,tab])=>`<button class="action-row" data-action="tab" data-tab="${tab}"><span>${esc(t)}</span><b>›</b></button>`).join(''):empty('自由経営フェーズです。'))}
   </div>
   ${g.inboundBuyoutOffers.filter(x=>x.status==='pending'&&x.expiresWeek>=g.week).length?card('ライバルから会社買収提案',g.inboundBuyoutOffers.filter(x=>x.status==='pending'&&x.expiresWeek>=g.week).map(o=>`<article class="item"><div><h3>${esc(o.bidderName)} ${o.hostile?badge('敵対的','warn'):badge('友好的','good')}</h3><p>提示額 ${compactYen(o.offerAmount)} · プレミアム ${pct(o.premiumRate-1)} · 期限 第${o.expiresWeek}週</p></div><div class="button-row">${btn('受諾','accept-inbound',{kind:'primary small',data:`data-id="${o.id}"`})}${btn('拒否','decline-inbound',{kind:'danger small',data:`data-id="${o.id}"`})}</div></article>`).join(''),{className:'wide'}):''}
+  ${renderExecutiveSecretary()}
   ${renderAdvisorCard()}
   <div class="grid two">
     ${card('リスクサマリー',risks.map(([a,b,k])=>`<div class="risk-row"><span class="risk-dot ${k}"></span><div><strong>${a}</strong><p>${b}</p></div></div>`).join(''))}
@@ -130,6 +134,8 @@ function renderHome() {
   </div>`;
 }
 
+
+function renderExecutiveSecretary(){const items=secretaryModule.generateTasks(engine.g,{companyValue:engine.companyValue(),ipoReady:!engine.g.publicCompany&&engine.ipoMissingReasons().length===0});return card('経営秘書・今週の優先タスク',items.length?`<div class="secretary-list" aria-live="polite">${items.map(a=>`<article class="secretary-item ${a.priority}" data-secretary-task-id="${esc(a.id)}"><div class="secretary-item-main"><span class="badge ${a.priority==='critical'?'danger':a.priority==='opportunity'?'good':'warn'}">${esc(a.priorityLabel)}</span><h3>${esc(a.title)}</h3><p>${esc(a.reason)}</p><details><summary>放置リスク・期待効果</summary><p>${esc(a.risk)}</p><p><strong>確認先：</strong>${esc(a.targetLabel)}</p></details></div><button class="btn primary small" type="button" data-action="secretary-jump" data-tab="${esc(a.targetTab)}" data-focus="${esc(a.focus)}" aria-label="${esc(a.title)}の確認先へ移動">確認する</button></article>`).join('')}</div>`:empty('今週の重大な優先タスクはありません。'),{className:'wide executive-secretary-card',subtitle:'読み取り専用：保存・会計・週送り・自動実行は行いません'});}
 
 function renderAdvisorCard(){const items=engine.generateAdvisorActions();return card('AI秘書・次にやること',items.length?items.map(a=>`<article class="advisor-item"><span class="advisor-icon">${a.icon}</span><div><h3>${esc(a.title)} ${badge(a.category)}</h3><p>${esc(a.message)}</p></div><div class="button-row">${btn(a.actionLabel,'advisor-jump',{kind:'primary small',data:`data-kind="${a.targetTab}"`})}${btn('非表示','advisor-dismiss',{kind:'ghost small',data:`data-id="${a.id}"`})}</div></article>`).join(''):empty('現在、優先度の高い提案はありません。'),{className:'wide',subtitle:'資金・店舗・組織・競合・決算を自動診断'});}
 
@@ -397,7 +403,7 @@ function action(name,el){const id=el.dataset.id,kind=el.dataset.kind;
     case 'refresh-sports':engine.refreshSportsMarket();break;case 'draft-player':engine.draftPlayer(kind,id);break;case 'trade-player':engine.tradePlayer(kind,id);break;case 'foreign-player':engine.signForeignPlayer(id);break;case 'toggle-team-sale':engine.toggleTeamSale(id);break;case 'accept-team-offer':engine.acceptTeamSaleOffer(id);break;
     case 'venture-forum':engine.attendVentureForum(id);break;case 'auction-bid':engine.bidLuxuryAuction(id);break;case 'media-action':engine.startMediaAction(id);break;
     case 'transport-rebuild':engine.startTransportRebuild(id,kind);break;case 'accept-inbound':confirmModal('会社売却提案を受諾',`${engine.g.inboundBuyoutOffers.find(x=>x.id===id)?.bidderName||'買い手'}へ会社を売却します。`, 'confirm-accept-inbound',`data-id="${id}"`);break;case 'confirm-accept-inbound':engine.acceptInboundBuyoutOffer(id);closeModal();break;case 'decline-inbound':engine.declineInboundBuyoutOffer(id);break;case 'appoint-successor':engine.appointSuccessor(id);break;case 'train-successor':engine.trainSuccessorExpanded();break;case 'establish-trust':engine.establishFamilyTrust();break;case 'transfer-trust':askMoney('ファミリートラストへ移管',10000000,v=>engine.transferToFamilyTrust(v));break;case 'execute-succession':engine.executeSuccession();break;
-    case 'new-company':modal(`<h2>新会社を創業</h2><label class="field"><span>会社名</span><input id="new-company-name" value="${esc(`新会社${engine.g.currentCompanySerial+1}`)}"></label>${moneyInput('new-company-investment',10000000,'創業者出資額')}<label class="field"><span>開始方針</span><select id="new-company-mode"><option value="store">店舗経営</option><option value="homeProduct">自宅プロダクト</option><option value="investment">投資会社</option></select></label><div class="modal-actions">${btn('キャンセル','close-modal',{kind:'ghost'})}<button class="btn primary" id="new-company-ok">創業する</button></div>`);$('#new-company-ok').onclick=()=>{const name=$('#new-company-name').value,inv=Number($('#new-company-investment').value.replace(/,/g,'')),mode=$('#new-company-mode').value;closeModal();engine.foundNewCompanyAfterBuyout(name,inv,mode);};break;case 'download-result-card':downloadResultCard();break;case 'advisor-jump':engine.g.selectedTab=kind;engine.save();render();break;case 'advisor-dismiss':engine.dismissAdvisorAction(id);break;case 'hire-keyperson':engine.hireKeyPerson();break;case 'train-keyperson':engine.trainKeyPerson(id);break;case 'retain-keyperson':engine.retainKeyPerson(id);break;case 'respond-rival':engine.respondToCompetitor(id,kind);break;case 'force-earnings':engine.runEarningsEventsIfNeeded(true);engine.save();render();break;case 'borrow-company':askMoney('会社借入',10000000,v=>engine.borrow(v,'company'));break;case 'repay-company':askMoney('会社返済',Math.min(engine.g.companyDebt,10000000),v=>engine.repay(v,'company'));break;case 'borrow-personal':askMoney('個人借入',5000000,v=>engine.borrow(v,'personal'));break;case 'repay-personal':askMoney('個人返済',Math.min(engine.g.personalDebt,5000000),v=>engine.repay(v,'personal'));break;
+    case 'secretary-jump':engine.g.selectedTab=el.dataset.tab;render();requestAnimationFrame(()=>focusSecretaryTarget(el.dataset.focus));break;case 'new-company':modal(`<h2>新会社を創業</h2><label class="field"><span>会社名</span><input id="new-company-name" value="${esc(`新会社${engine.g.currentCompanySerial+1}`)}"></label>${moneyInput('new-company-investment',10000000,'創業者出資額')}<label class="field"><span>開始方針</span><select id="new-company-mode"><option value="store">店舗経営</option><option value="homeProduct">自宅プロダクト</option><option value="investment">投資会社</option></select></label><div class="modal-actions">${btn('キャンセル','close-modal',{kind:'ghost'})}<button class="btn primary" id="new-company-ok">創業する</button></div>`);$('#new-company-ok').onclick=()=>{const name=$('#new-company-name').value,inv=Number($('#new-company-investment').value.replace(/,/g,'')),mode=$('#new-company-mode').value;closeModal();engine.foundNewCompanyAfterBuyout(name,inv,mode);};break;case 'download-result-card':downloadResultCard();break;case 'advisor-jump':engine.g.selectedTab=kind;engine.save();render();break;case 'advisor-dismiss':engine.dismissAdvisorAction(id);break;case 'hire-keyperson':engine.hireKeyPerson();break;case 'train-keyperson':engine.trainKeyPerson(id);break;case 'retain-keyperson':engine.retainKeyPerson(id);break;case 'respond-rival':engine.respondToCompetitor(id,kind);break;case 'force-earnings':engine.runEarningsEventsIfNeeded(true);engine.save();render();break;case 'borrow-company':askMoney('会社借入',10000000,v=>engine.borrow(v,'company'));break;case 'repay-company':askMoney('会社返済',Math.min(engine.g.companyDebt,10000000),v=>engine.repay(v,'company'));break;case 'borrow-personal':askMoney('個人借入',5000000,v=>engine.borrow(v,'personal'));break;case 'repay-personal':askMoney('個人返済',Math.min(engine.g.personalDebt,5000000),v=>engine.repay(v,'personal'));break;
     case 'save-now':engine.save();toast('保存しました。','success');break;case 'save-slot':engine.save(id);toast(`スロット${id}に保存しました。`,'success');break;case 'load-slot':if(engine.loadSlot(id))toast(`スロット${id}を読み込みました。`,'success');else toast('セーブがありません。','error');break;
     case 'export-save':{const a=document.createElement('a');a.href=URL.createObjectURL(engine.exportSave());a.download=`capitalism-tycoon-week-${engine.g.week}.json`;a.click();setTimeout(()=>URL.revokeObjectURL(a.href),1000);break;}
     case 'import-save':$('#import-file').click();break;case 'reset-game':confirmModal('完全初期化','現在の進行状況をすべて削除します。この操作は取り消せません。','confirm-reset');break;case 'confirm-reset':closeModal();engine.reset();ui.showSetup=true;render();break;
@@ -427,6 +433,6 @@ window.addEventListener('resize',()=>requestAnimationFrame(drawCharts));
 
 render();
 
-})(__modules.engine,__modules.data,__modules.market,__modules.finance,__modules.supply,__modules.expansion,__modules.completion,__modules.parity);
+})(__modules.engine,__modules.data,__modules.market,__modules.finance,__modules.supply,__modules.expansion,__modules.completion,__modules.parity,__modules.executiveSecretary);
 
 })();
