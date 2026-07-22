@@ -7,6 +7,8 @@ const path = require('node:path');
 const root = path.resolve(__dirname, '..');
 const packageJson = JSON.parse(fs.readFileSync(path.join(root, 'package.json'), 'utf8'));
 const orchestrator = fs.readFileSync(path.join(root, 'scripts', 'release-all-gates.js'), 'utf8');
+const iphoneWorkflow = fs.readFileSync(path.join(root, '.github', 'workflows', 'iphone-webkit-smoke.yml'), 'utf8');
+const recoveryWebKitTest = path.join(root, 'tests', 'capital-allocation-recovery-webkit-test.js');
 
 assert.equal(packageJson.scripts['test:release'], 'node scripts/release-all-gates.js');
 assert.equal(packageJson.scripts['test:release:balance'], 'node scripts/release-gate.js');
@@ -19,5 +21,14 @@ for (const requiredScript of [
 ]) {
   assert.ok(orchestrator.includes(requiredScript), `release orchestrator must invoke ${requiredScript}`);
 }
+
+assert.ok(fs.existsSync(recoveryWebKitTest), 'recovery funding iPhone WebKit test must exist');
+assert.match(
+  iphoneWorkflow,
+  /name: Verify recovery funding workflow on iPhone\s+run: node tests\/capital-allocation-recovery-webkit-test\.js/,
+  'iPhone WebKit workflow must execute the recovery funding interaction smoke'
+);
+assert.match(iphoneWorkflow, /IPHONE_WEBKIT_ARTIFACT_DIR: artifacts\/iphone-webkit-smoke/,
+  'recovery workflow evidence must be retained with the iPhone WebKit artifacts');
 
 console.log('Release gate wiring test passed.');
