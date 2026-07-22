@@ -181,13 +181,13 @@ async function main() {
     await assertMobileCardLayout(page, '[data-capital-allocation-recovery-funding-reconciliation]', 4);
 
     stage = 'evidence';
-    await page.screenshot({ path:path.join(OUT, 'capital-allocation-recovery-workflow.png'), fullPage:true });
+    await reconciliation.screenshot({ path:path.join(OUT, 'capital-allocation-recovery-workflow.png') });
     assert.deepEqual(diagnostics, { consoleErrors:[], pageErrors:[], failedRequests:[] });
     fs.writeFileSync(RESULT_PATH, `${JSON.stringify({ status:'passed', stage, startedAt, completedAt:new Date().toISOString(), device:DEVICE_NAME, browser:'WebKit', browserVersion:browser.version(), pinnedOption, optionCount:4, saveKey:SAVE_KEY, saveVersion:9 }, null, 2)}\n`);
     console.log('capital allocation recovery workflow iPhone WebKit smoke passed');
     await context.close();
   } catch (error) {
-    if (page) { try { await page.screenshot({ path:path.join(OUT, 'capital-allocation-recovery-workflow-failure.png'), fullPage:true }); } catch (_) {} }
+    if (page) { try { await page.screenshot({ path:path.join(OUT, 'capital-allocation-recovery-workflow-failure.png') }); } catch (_) {} }
     fs.writeFileSync(RESULT_PATH, `${JSON.stringify({ status:'failed', stage, startedAt, completedAt:new Date().toISOString(), error:error?.stack || String(error), ...diagnostics }, null, 2)}\n`);
     throw error;
   } finally {
