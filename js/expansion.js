@@ -78,6 +78,19 @@ const clamp = (v,min,max) => Math.max(min,Math.min(max,n(v,min)));
 const rand = (min,max) => min + Math.random()*(max-min);
 const pick = arr => arr[Math.floor(Math.random()*arr.length)];
 const uid = () => globalThis.crypto?.randomUUID?.() ?? `x-${Date.now()}-${Math.random().toString(16).slice(2)}`;
+const deterministicUnit = (...parts) => {
+  let h = 2166136261;
+  const text = parts.map(v => String(v ?? '')).join('|');
+  for (let i = 0; i < text.length; i++) {
+    h ^= text.charCodeAt(i);
+    h = Math.imul(h, 16777619);
+  }
+  return ((h >>> 0) % 10000) / 10000;
+};
+const deterministicRange = (min, max, ...parts) => min + deterministicUnit(...parts) * (max - min);
+const stableBusinessKey = business => String(business?.id || business?.name || 'legacy-business');
+const stableContractKey = (contract, business) => String(contract?.contractID || contract?.id || contract?.supplierID || contract?.name || stableBusinessKey(business));
+const stableAssetKey = asset => String(asset?.assetID || asset?.id || asset?.name || `${asset?.businessID || 'legacy-asset'}:${asset?.startedWeek || 0}:${asset?.cost || 0}`);
 const copy = v => typeof structuredClone==='function' ? structuredClone(v) : JSON.parse(JSON.stringify(v));
 const sum = arr => arr.reduce((a,b)=>a+n(b),0);
 
@@ -290,13 +303,13 @@ function installExpansion(TycoonEngine){
   TycoonEngine.prototype.updateSupplyChainWeekly=function(){
     const g=this.g;let adjustment=0;const events=[];
     for(const b of g.businesses){if(globalThis.__capitalismTycoonModules?.supply?.isTargetBusinessID?.(b.id))continue;const stores=g.stores.filter(s=>s.businessID===b.id&&s.status==='open'),units=sum(stores.map(s=>s.lastSales/Math.max(1,b.price)));if(!stores.length)continue;const inv=g.inventoryByBusinessID[b.id];inv.lastDemandUnits=units;const contract=g.supplierContracts.find(x=>x.businessID===b.id&&x.active);
-      if(contract){g.companyCash-=contract.weeklyFee;adjustment-=contract.weeklyFee;const baseCOGS=units*b.unitCost;const savings=baseCOGS*contract.discount;g.companyCash+=savings;adjustment+=savings;b.quality=clamp(b.quality+contract.quality*.002,0,100);if(Math.random()>contract.reliability){inv.disruptionWeeks=Math.max(inv.disruptionWeeks,Math.floor(rand(1,4)));events.push(`${contract.name}で供給遅延が発生。`);}}
+      if(contract){g.companyCash-=contract.weeklyFee;adjustment-=contract.weeklyFee;const baseCOGS=units*b.unitCost;const savings=baseCOGS*contract.discount;g.companyCash+=savings;adjustment+=savings;b.quality=clamp(b.quality+contract.quality*.002,0,100);const contractKey=stableContractKey(contract,b),businessKey=stableBusinessKey(b);if(deterministicUnit('supplier-delay',businessKey,contractKey,g.week)>contract.reliability){inv.disruptionWeeks=Math.max(inv.disruptionWeeks,Math.floor(deterministicRange(1,4,'supplier-delay-weeks',businessKey,contractKey,g.week)));events.push(`${contract.name}で供給遅延が発生。`);}}
       else if(g.autoSpotProcurement){const premium=units*b.unitCost*.03;g.companyCash-=premium;adjustment-=premium;}
       const target=units*inv.targetWeeks;inv.units=clamp(inv.units+Math.max(0,target-inv.units)-units,0,target*2);inv.lastProcurementCost=units*b.unitCost;
-      if(inv.disruptionWeeks>0){const shortage=clamp(.12+Math.random()*.22,0,.45),lostMargin=sum(stores.map(s=>Math.max(0,s.lastSales)*shortage*Math.max(.12,1-b.unitCost/Math.max(1,b.price))));g.companyCash-=lostMargin;adjustment-=lostMargin;for(const s of stores){s.lastSales*=1-shortage;s.lastProfit-=lostMargin/stores.length;}inv.disruptionWeeks--;events.push(`${b.name}で欠品が発生し、機会損失${Math.round(lostMargin).toLocaleString()}円。`);}
+      if(inv.disruptionWeeks>0){const businessKey=stableBusinessKey(b),shortage=clamp(deterministicRange(.12,.34,'supplier-shortage',businessKey,inv.disruptionWeeks,g.week),0,.45),lostMargin=sum(stores.map(s=>Math.max(0,s.lastSales)*shortage*Math.max(.12,1-b.unitCost/Math.max(1,b.price))));g.companyCash-=lostMargin;adjustment-=lostMargin;for(const s of stores){s.lastSales*=1-shortage;s.lastProfit-=lostMargin/stores.length;}inv.disruptionWeeks--;events.push(`${b.name}で欠品が発生し、機会損失${Math.round(lostMargin).toLocaleString()}円。`);}
       const marketDemand=Math.max(1,b.demand*stores.length*1.8);g.marketShareByBusinessID[b.id]=clamp(units/marketDemand,0,1);
     }
-    for(const a of g.verticalIntegrationAssets.filter(x=>x.active)){g.companyCash-=a.weeklyCost;adjustment-=a.weeklyCost;const affected=g.stores.filter(s=>a.businessID==='all'||s.businessID===a.businessID);const cogs=sum(affected.map(s=>{const b=this.business(s.businessID);return s.lastSales/Math.max(1,b.price)*b.unitCost;}));const saving=cogs*a.costReduction;g.companyCash+=saving;adjustment+=saving;a.condition=clamp(a.condition-rand(.02,.25),50,100);if(Math.random()<a.risk*.01){const loss=a.cost*.01;g.companyCash-=loss;adjustment-=loss;events.push(`${a.name}で品質・供給トラブル。修繕費${Math.round(loss).toLocaleString()}円。`);}}
+    for(const a of g.verticalIntegrationAssets.filter(x=>x.active)){g.companyCash-=a.weeklyCost;adjustment-=a.weeklyCost;const affected=g.stores.filter(s=>a.businessID==='all'||s.businessID===a.businessID);const cogs=sum(affected.map(s=>{const b=this.business(s.businessID);return s.lastSales/Math.max(1,b.price)*b.unitCost;}));const saving=cogs*a.costReduction;g.companyCash+=saving;adjustment+=saving;const assetKey=stableAssetKey(a);a.condition=clamp(a.condition-deterministicRange(.02,.25,'vertical-condition',assetKey,g.week),50,100);if(deterministicUnit('vertical-incident',assetKey,g.week)<a.risk*.01){const loss=a.cost*.01;g.companyCash-=loss;adjustment-=loss;events.push(`${a.name}で品質・供給トラブル。修繕費${Math.round(loss).toLocaleString()}円。`);}}
     g.supplyChainEvents=[...events.map(x=>`第${g.week}週：${x}`),...g.supplyChainEvents].slice(0,100);g.news.unshift(...events.map(x=>`第${g.week}週：${x}`));return adjustment;
   };
 
