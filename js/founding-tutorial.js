@@ -4,6 +4,7 @@ if(!globalThis.__capitalismTycoonModules)throw new Error('Capitalism Tycoon runt
 var __modules=globalThis.__capitalismTycoonModules;
 if(__modules.foundingTutorial)throw new Error('Capitalism Tycoon foundingTutorial module is already registered.');
 (function(exports){
+const MASTER=__modules.data?.MASTER||{};
 const nf=(v,f=0)=>Number.isFinite(Number(v))?Number(v):f;
 const arr=v=>Array.isArray(v)?v:[];
 const obj=v=>v&&typeof v==='object'?v:{};
@@ -11,7 +12,9 @@ const openStores=g=>arr(g?.stores).filter(s=>s&&s.status==='open');
 const reports=g=>arr(g?.reports).filter(r=>r&&Number.isFinite(Number(r.week))).slice().sort((a,b)=>nf(a.week)-nf(b.week));
 const hasInventory=g=>{const inventory=obj(g?.inventoryByStoreID);return Object.values(inventory).some(store=>Object.values(obj(store?.inventoryByBusinessID||store)).some(v=>nf(v)>0));};
 const hasSupplyPlan=g=>Object.keys(obj(g?.supplySettingsByStoreID)).length>0||arr(g?.purchaseOrders).some(o=>o&&o.orderStatus!=='cancelled');
-const hasImprovement=g=>arr(g?.workforceTeams).some(t=>nf(t?.headcount)>0)||arr(g?.workforceTrainings).some(t=>t&&t.status!=='cancelled')||arr(g?.rdProjects).some(p=>p&&nf(p.progress)>0)||arr(g?.productVentures).some(p=>p&&['released','scaling'].includes(p.status))||reports(g).length>=2;
+const hasBusinessImprovement=g=>arr(g?.businesses).some(b=>{const base=arr(MASTER.businesses).find(x=>x&&x.id===b?.id)||{};return nf(b?.quality)>nf(base.quality)||nf(b?.brand)>nf(base.brand)||nf(b?.efficiency)>nf(base.efficiency)||nf(b?.dx)>nf(base.dx)||nf(b?.price,nf(base.price))!==nf(base.price);});
+const hasFinanceImprovement=g=>arr(g?.finance?.transactions).some(t=>t&&['investBusiness','workforceInvest','productAction','overseasAction'].includes(t.sourceType));
+const hasImprovement=g=>hasBusinessImprovement(g)||hasFinanceImprovement(g)||arr(g?.workforceTeams).some(t=>nf(t?.headcount)>0)||arr(g?.workforceTrainings).some(t=>t&&t.status!=='cancelled')||arr(g?.rdProjects).some(p=>p&&nf(p.progress)>0)||arr(g?.productVentures).some(p=>p&&['released','scaling'].includes(p.status));
 const cashRunwayWeeks=g=>{const last=g?.lastReport||reports(g).slice(-1)[0]||{};const fixed=Math.max(1,nf(last.fixedCosts,nf(last.expenses)*0.35)+nf(g?.finance?.lastStatements?.profitAndLoss?.rent)+nf(g?.finance?.lastStatements?.profitAndLoss?.payroll));return nf(g?.companyCash)/fixed;};
 const hasOrganization=g=>Boolean(g?.hasHeadOffice)||Object.keys(obj(g?.departments)).length>0||arr(g?.workforceTeams).some(t=>!t?.storeID&&nf(t?.headcount)>0)||arr(g?.workforceProjects).some(p=>p&&p.status&&p.status!=='cancelled');
 const advanced=g=>Boolean(g?.publicCompany)||arr(g?.maSubsidiaries).length>0||arr(g?.subsidiaries).length>0||arr(g?.overseasSubsidiaries).length>0||nf(g?.totalAcquisitions)>0;
@@ -20,12 +23,12 @@ const completed={
  first_store:g=>openStores(g).length>=1,
  unit_economics:g=>openStores(g).length>=1&&(hasInventory(g)||hasSupplyPlan(g)||arr(g?.supplyResultsByStoreID).length>0||Object.keys(obj(g?.supplyResultsByStoreID)).length>0),
  first_week:g=>nf(g?.week)>1||reports(g).length>0,
- weekly_recap:g=>reports(g).length>=1||Boolean(g?.lastReport),
- first_improvement:g=>hasImprovement(g)||reports(g).length>=2,
- cash_runway:g=>reports(g).length>=1&&(cashRunwayWeeks(g)>=4||nf(g?.companyCash)>=3000000),
+ weekly_recap:g=>reports(g).length>=2,
+ first_improvement:g=>hasImprovement(g),
+ cash_runway:g=>reports(g).length>=3&&cashRunwayWeeks(g)>=4,
  growth_step:g=>openStores(g).length>=2||hasOrganization(g)||advanced(g)||arr(g?.completedMissionIDs).includes('mission_two_stores'),
  organization:g=>hasOrganization(g)||advanced(g),
- graduation:g=>(hasOrganization(g)||advanced(g))&&reports(g).length>=2&&(openStores(g).length>=2||nf(g?.companyCash)>=5000000)
+ graduation:g=>(hasOrganization(g)||advanced(g))&&reports(g).length>=3&&(openStores(g).length>=2||nf(g?.companyCash)>=7000000)&&nf(g?.companyCash)>=7000000
 };
 const STEPS=Object.freeze([
  {id:'dashboard',order:1,title:'会社の現在地を確認',targetTab:'home',targetSelector:'[data-ceo-dashboard="1"]',buttonLabel:'CEO Dashboardを見る',description:'まず現金・売上・利益・企業価値の位置を見ます。',points:['現金：今すぐ支払いに使える資金','利益：売上から費用を差し引いた残り','Executive Secretaryは危険や機会の優先順位を示します。']},
@@ -39,8 +42,7 @@ const STEPS=Object.freeze([
  {id:'organization',order:9,title:'組織経営へ移行',targetTab:'office',targetSelector:'.office-grid,.workforce-card,[data-action="contract-office"]',buttonLabel:'本社・組織へ',description:'本社、部門、人材、疲労、プロジェクトを確認します。',points:['個人商店から、役割分担する会社へ移ります。','Executive Secretaryは以後も毎週の優先課題を案内します。']},
  {id:'graduation',order:10,title:'創業チュートリアル完了',targetTab:'missions',targetSelector:'.mission,.milestone-road',buttonLabel:'成長ロードマップへ',description:'複数週の実績と成長基盤を確認できました。',points:['今後はExecutive Secretaryで現在の優先課題を確認します。','中期目標は店舗網、組織、商品開発、IPO準備です。']}
 ].map(Object.freeze));
-function stepState(g,step,index,firstOpen){if(completed[step.id]?.(g))return 'completed';if(index===firstOpen)return advanced(g)?'unavailable':'current';if(index<firstOpen)return 'blocked';return advanced(g)?'unavailable':'upcoming';}
-function build(g){const done=STEPS.map(s=>Boolean(completed[s.id]?.(g)));const firstOpen=done.findIndex(v=>!v);const currentIndex=firstOpen<0?STEPS.length-1:firstOpen;const steps=STEPS.map((s,i)=>Object.freeze({...s,state:stepState(g,s,i,currentIndex),completed:done[i],current:i===currentIndex&&!done[i],upcoming:i>currentIndex&&!done[i]}));const completedCount=done.filter(Boolean).length;const isAdvanced=advanced(g);const currentStep=isAdvanced?steps[steps.length-1]:(steps[currentIndex]||steps[steps.length-1]);return Object.freeze({steps:Object.freeze(steps),completedCount,total:STEPS.length,progressLabel:`${completedCount}/${STEPS.length}`,complete:completedCount===STEPS.length,current:currentStep,displayMode:isAdvanced&&!done[9]?'summary':'guide',roleNote:'創業ガイドは固定順の学習用、Executive Secretaryは毎週の危険・機会の優先順位です。'});}
-exports.STEPS=STEPS;exports.build=build;exports._internals=Object.freeze({cashRunwayWeeks,hasImprovement,hasOrganization,advanced});
+function build(g){const done=STEPS.map(s=>Boolean(completed[s.id]?.(g)));const completedCount=done.filter(Boolean).length;const complete=completedCount===STEPS.length;const isAdvanced=advanced(g);const displayMode=complete?'complete':isAdvanced?'summary':'guide';const firstOpen=done.findIndex(v=>!v);const currentIndex=firstOpen<0?STEPS.length-1:firstOpen;const steps=STEPS.map((s,i)=>{const state=done[i]?'completed':displayMode==='summary'?'unavailable':i===currentIndex?'current':i<currentIndex?'blocked':'upcoming';return Object.freeze({...s,state,completed:done[i],current:displayMode==='guide'&&i===currentIndex&&!done[i],upcoming:displayMode==='guide'&&i>currentIndex&&!done[i]});});const currentStep=displayMode==='guide'?(steps[currentIndex]||steps[steps.length-1]):null;return Object.freeze({steps:Object.freeze(steps),completedCount,total:STEPS.length,progressLabel:`${completedCount}/${STEPS.length}`,complete,current:currentStep,displayMode,roleNote:'創業ガイドは固定順の学習用、Executive Secretaryは毎週の危険・機会の優先順位です。'});}
+exports.STEPS=STEPS;exports.build=build;exports._internals=Object.freeze({cashRunwayWeeks,hasImprovement,hasBusinessImprovement,hasOrganization,advanced});
 })(__modules.foundingTutorial={});
 })();
