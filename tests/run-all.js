@@ -51,6 +51,7 @@ for (const [name, file] of [
   ['capital-allocation-recovery-target-selector', 'tests/capital-allocation-recovery-target-selector-test.js'],
   ['capital-allocation-recovery-funding-outcome', 'tests/capital-allocation-recovery-funding-outcome-test.js'],
   ['capital-allocation-management-guide', 'tests/capital-allocation-management-guide-test.js'],
+  ['capital-allocation-section-nav', 'tests/capital-allocation-section-nav-test.js'],
   ['capital-allocation-recovery-save-reload', 'tests/capital-allocation-recovery-save-reload-test.js'],
   ['capital-allocation-production-wiring', 'tests/capital-allocation-production-wiring-test.js']
 ]) {
