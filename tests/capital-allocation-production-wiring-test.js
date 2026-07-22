@@ -47,7 +47,7 @@ for (const [loader,label,file] of [
   [recoveryFundingReconciliationLoader,'Phase 8D-19 funding execution reconciliation','capital-allocation-recovery-funding-reconciliation.js']
 ]) {
   assert.ok(strategySource.includes(loader), `${label} must be dynamically loaded in production`);
-  assert.equal((strategySource.match(new RegExp(file.replace('.', '\\.\'), 'g')) || []).length, 1, `${label} must be wired exactly once`);
+  assert.equal((strategySource.match(new RegExp(file.replace('.', '\\.'), 'g')) || []).length, 1, `${label} must be wired exactly once`);
 }
 assert.ok(strategySource.indexOf(actionsLoader) < strategySource.indexOf(decisionMemoLoader), 'the board memo must load after Phase 8C-15 actions');
 assert.ok(strategySource.indexOf(decisionMemoLoader) < strategySource.indexOf(stressLoader), 'the stress test must load after the board memo');
