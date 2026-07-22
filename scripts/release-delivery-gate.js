@@ -10,6 +10,7 @@ const checks = [
   ['game-over settings recovery', 'tests/game-over-settings-ui-test.js', 30_000],
   ['Pages deployment verifier', 'tests/pages-deployment-smoke-test.js', 45_000],
   ['release candidate tag gate', 'tests/release-candidate-tag-gate-test.js', 30_000],
+  ['recovery outcome attestation', 'tests/release-candidate-recovery-attestation-test.js', 30_000],
   ['iPhone WebKit smoke contract', 'tests/iphone-webkit-smoke-contract-test.js', 30_000],
   ['release attestation sync', 'tests/release-attestation-issue-test.js', 30_000],
   ['save storage budget', 'tests/save-storage-budget-test.js', 180_000]

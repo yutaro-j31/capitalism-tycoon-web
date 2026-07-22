@@ -94,6 +94,8 @@ assert.match(workflow, /if: github\.ref == 'refs\/heads\/main'/, 'tag workflow m
 assert.match(workflow, /gh pr list[^\n]*--state open/, 'tag workflow must reject open pull requests');
 assert.match(workflow, /market_capital_allocation_cards:/,
   'tag workflow must expose the physical market-card confirmation input');
+assert.match(workflow, /description: Market capital allocation, recovery funding, reconciliation, and outcome cards are usable without horizontal overflow/,
+  'physical market-card confirmation must cover the complete recovery funding workflow');
 assert.match(workflow, /RC_CONFIRM_MARKET_CAPITAL_ALLOCATION_CARDS: \$\{\{ inputs\.market_capital_allocation_cards \}\}/,
   'tag workflow must pass the market-card confirmation to the generic evidence gate');
 assert.match(workflow, /node scripts\/release-candidate-tag-gate\.js/);
@@ -105,21 +107,45 @@ assert.match(workflow, /node tests\/boot-recovery-webkit-test\.js/,
   'RC tagging must exercise boot recovery in WebKit');
 assert.match(workflow, /node tests\/runtime-recovery-webkit-test\.js/,
   'RC tagging must exercise runtime recovery in WebKit');
+const outcomeRuns = workflow.match(/node tests\/capital-allocation-recovery-outcome-webkit-test\.js/g) || [];
+assert.equal(outcomeRuns.length, 2, 'RC tagging must run recovery outcome verification locally and against published Pages');
+assert.match(workflow, /CAPITAL_ALLOCATION_RECOVERY_TARGET_URL: https:\/\/yutaro-j31\.github\.io\/capitalism-tycoon-web\//,
+  'published recovery outcome verification must target the public Pages URL');
+assert.match(workflow, /node scripts\/release-candidate-recovery-attestation\.js/,
+  'RC tagging must consolidate the local and published recovery evidence');
+assert.match(workflow, /RC_LOCAL_RECOVERY_OUTCOME_PATH: artifacts\/iphone-webkit-smoke\/capital-allocation-recovery-outcome-workflow\.json/);
+assert.match(workflow, /RC_PUBLISHED_RECOVERY_OUTCOME_PATH: artifacts\/published-iphone-webkit-smoke\/capital-allocation-recovery-outcome-workflow\.json/);
+assert.match(workflow, /RC_RECOVERY_ATTESTATION_PATH: release-candidate-recovery-attestation\.json/);
+assert.match(workflow, /release-candidate-recovery-attestation\.json/,
+  'consolidated recovery evidence must be retained with release candidate evidence');
+
 const localSmokeIndex = workflow.indexOf('node tests/iphone-webkit-smoke-test.js');
+const localOutcomeIndex = workflow.indexOf('node tests/capital-allocation-recovery-outcome-webkit-test.js');
 const playtestIndex = workflow.indexOf('node tests/playtest-report-webkit-test.js');
 const bootIndex = workflow.indexOf('node tests/boot-recovery-webkit-test.js');
 const recoveryIndex = workflow.indexOf('node tests/runtime-recovery-webkit-test.js');
+const pagesBytesIndex = workflow.indexOf('node scripts/pages-deployment-smoke.js');
+const publishedSmokeIndex = workflow.lastIndexOf('node tests/iphone-webkit-smoke-test.js');
+const publishedOutcomeIndex = workflow.lastIndexOf('node tests/capital-allocation-recovery-outcome-webkit-test.js');
+const attestationIndex = workflow.indexOf('node scripts/release-candidate-recovery-attestation.js');
 const tagIndex = workflow.indexOf('git tag -a');
-assert.ok(localSmokeIndex !== -1 && playtestIndex > localSmokeIndex,
-  'playtest report WebKit must run after the local iPhone smoke');
+assert.ok(localSmokeIndex !== -1 && localOutcomeIndex > localSmokeIndex,
+  'local recovery outcome WebKit must run after the local iPhone smoke');
+assert.ok(playtestIndex > localOutcomeIndex, 'playtest report WebKit must run after local recovery outcome verification');
 assert.ok(bootIndex > playtestIndex, 'boot recovery WebKit must run after playtest reporting');
 assert.ok(recoveryIndex > bootIndex, 'runtime recovery WebKit must run after boot recovery');
-assert.ok(tagIndex > recoveryIndex, 'all support WebKit checks must pass before tag creation');
+assert.ok(pagesBytesIndex > recoveryIndex, 'published byte attestation must run after local support checks');
+assert.ok(publishedSmokeIndex > pagesBytesIndex, 'published iPhone smoke must run after published byte attestation');
+assert.ok(publishedOutcomeIndex > publishedSmokeIndex, 'published recovery outcome must run after the published iPhone smoke');
+assert.ok(attestationIndex > publishedOutcomeIndex, 'local and published recovery evidence must be consolidated after both runs');
+assert.ok(tagIndex > attestationIndex, 'the recovery attestation must pass before tag creation');
 assert.match(workflow, /git tag -a/);
 assert.match(workflow, /git push origin "refs\/tags\/\$TAG"/);
 assert.match(workflow, /actions\/upload-artifact@v4/, 'manual evidence must be retained as an artifact');
 
 const deliveryGate = fs.readFileSync(path.join(ROOT, 'scripts', 'release-delivery-gate.js'), 'utf8');
 assert.match(deliveryGate, /tests\/release-candidate-tag-gate-test\.js/, 'tag gate contract must remain in release delivery');
+assert.match(deliveryGate, /tests\/release-candidate-recovery-attestation-test\.js/,
+  'recovery attestation contract must remain in release delivery');
 
 console.log('release candidate tag gate checks passed.');

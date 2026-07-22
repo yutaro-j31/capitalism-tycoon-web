@@ -28,7 +28,7 @@ on:
         required: true
         type: boolean
       market_capital_allocation_cards:
-        description: Market capital allocation action and board memo cards are usable without horizontal overflow
+        description: Market capital allocation, recovery funding, reconciliation, and outcome cards are usable without horizontal overflow
         required: true
         type: boolean
       device:
@@ -102,6 +102,10 @@ jobs:
         env:
           IPHONE_WEBKIT_ARTIFACT_DIR: artifacts/iphone-webkit-smoke
         run: node tests/iphone-webkit-smoke-test.js
+      - name: Verify local recovery funding outcome
+        env:
+          IPHONE_WEBKIT_ARTIFACT_DIR: artifacts/iphone-webkit-smoke
+        run: node tests/capital-allocation-recovery-outcome-webkit-test.js
       - name: Verify playtest report download
         env:
           IPHONE_WEBKIT_ARTIFACT_DIR: artifacts/iphone-webkit-smoke
@@ -133,6 +137,17 @@ jobs:
           IPHONE_WEBKIT_TARGET_URL: https://yutaro-j31.github.io/capitalism-tycoon-web/
           IPHONE_WEBKIT_ARTIFACT_DIR: artifacts/published-iphone-webkit-smoke
         run: node tests/iphone-webkit-smoke-test.js
+      - name: Verify published recovery funding outcome
+        env:
+          CAPITAL_ALLOCATION_RECOVERY_TARGET_URL: https://yutaro-j31.github.io/capitalism-tycoon-web/
+          IPHONE_WEBKIT_ARTIFACT_DIR: artifacts/published-iphone-webkit-smoke
+        run: node tests/capital-allocation-recovery-outcome-webkit-test.js
+      - name: Consolidate local and published recovery evidence
+        env:
+          RC_LOCAL_RECOVERY_OUTCOME_PATH: artifacts/iphone-webkit-smoke/capital-allocation-recovery-outcome-workflow.json
+          RC_PUBLISHED_RECOVERY_OUTCOME_PATH: artifacts/published-iphone-webkit-smoke/capital-allocation-recovery-outcome-workflow.json
+          RC_RECOVERY_ATTESTATION_PATH: release-candidate-recovery-attestation.json
+        run: node scripts/release-candidate-recovery-attestation.js
       - name: Retain published WebKit evidence
         if: always()
         uses: actions/upload-artifact@v4
@@ -145,7 +160,9 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: release-candidate-evidence-${{ github.sha }}
-          path: release-candidate-evidence.json
+          path: |
+            release-candidate-evidence.json
+            release-candidate-recovery-attestation.json
           if-no-files-found: error
           retention-days: 90
       - name: Create annotated release candidate tag
