@@ -3,6 +3,7 @@ name: CEO Dashboard
 on:
   pull_request:
     paths:
+      - 'index.html'
       - 'js/ceo-dashboard.js'
       - 'js/executive-secretary.js'
       - 'js/app.js'
@@ -12,12 +13,16 @@ on:
       - 'tests/executive-secretary-purity-test.js'
       - 'tests/executive-secretary-ui-test.js'
       - 'tests/fixtures/extracted-css-baseline.css'
+      - 'tests/fixtures/module-load-order.json'
+      - 'tests/javascript-extraction-test.js'
+      - 'tests/javascript-module-split-test.js'
       - 'tests/run-all.js'
       - 'package.json'
       - '.github/workflows/ceo-dashboard.yml'
   push:
     branches: [main]
     paths:
+      - 'index.html'
       - 'js/ceo-dashboard.js'
       - 'js/executive-secretary.js'
       - 'js/app.js'
@@ -27,6 +32,9 @@ on:
       - 'tests/executive-secretary-purity-test.js'
       - 'tests/executive-secretary-ui-test.js'
       - 'tests/fixtures/extracted-css-baseline.css'
+      - 'tests/fixtures/module-load-order.json'
+      - 'tests/javascript-extraction-test.js'
+      - 'tests/javascript-module-split-test.js'
       - 'tests/run-all.js'
       - 'package.json'
       - '.github/workflows/ceo-dashboard.yml'
