@@ -75,7 +75,7 @@ function metric(model,id){return model.metrics.find(x=>x.id===id);}
   e.g.companyValueHistory = [1000, 1000];
   const unchanged = modules.ceoDashboard.weeklyImpact(e.g, { companyValue: 1000 });
   assert.equal(unchanged.hasPrevious, true, 'unchanged reports still have a valid previous comparison');
-  assert.deepEqual(unchanged.highlights.map(x => x.id), ['no-change'], 'unchanged comparison must not be mistaken for missing data');
+  assert.equal(unchanged.highlights.map(x => x.id).join(','), 'no-change', 'unchanged comparison must not be mistaken for missing data');
   assert.equal(modules.ceoDashboard.deltaLabel(0, value => `${value}円`), '変化なし', 'zero delta label must describe an unchanged metric');
   assert.equal(unchanged.metrics.every(x => x.tone === 'neutral'), true, 'unchanged metrics use neutral tone');
 }
