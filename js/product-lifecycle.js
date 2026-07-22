@@ -16,7 +16,8 @@ const clamp=(v,min,max)=>Math.max(min,Math.min(max,finite(v,min)));
 const integer=(v,d=0)=>Math.max(0,Math.floor(finite(v,d)));
 const esc=v=>String(v??'').replace(/[&<>'"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c]));
 const compactYen=modules.engine.compactYen||((v)=>`${Math.round(finite(v)).toLocaleString('ja-JP')}円`);
-const seededRand=modules.engine.rand||((min,max)=>min+(globalThis.Math?.random?.()||0)*(max-min));
+const engineRand=typeof modules.engine.rand==='function'?modules.engine.rand:null;
+const seededRand=(min,max)=>engineRand?engineRand(min,max):min+(max-min)*0.5;
 const chance=threshold=>seededRand(0,1)<threshold;
 function ensure(state){
   if(!state||typeof state!=='object')return state;
