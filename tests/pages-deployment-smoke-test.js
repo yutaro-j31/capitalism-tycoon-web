@@ -46,6 +46,27 @@ function close(server) {
   assert.match(workflow, /cancel-in-progress: true/, 'stale deployment checks must be cancelled');
   assert.ok(fs.existsSync(path.join(ROOT, '.nojekyll')), 'exact static delivery requires .nojekyll');
 
+  const outcomeTestPath = path.join(ROOT, 'tests', 'capital-allocation-recovery-outcome-webkit-test.js');
+  assert.ok(fs.existsSync(outcomeTestPath), 'published recovery outcome WebKit test must exist');
+  assert.match(workflow, /CAPITAL_ALLOCATION_RECOVERY_TARGET_URL: https:\/\/yutaro-j31\.github\.io\/capitalism-tycoon-web\//,
+    'published recovery outcome must target the public Pages URL');
+  assert.match(workflow, /node tests\/capital-allocation-recovery-outcome-webkit-test\.js/,
+    'Pages smoke must execute the published recovery outcome workflow');
+  assert.equal((workflow.match(/capital-allocation-recovery-outcome-webkit-test\.js/g) || []).length, 1,
+    'published recovery outcome must run exactly once per Pages deployment');
+  assert.match(workflow, /IPHONE_WEBKIT_ARTIFACT_DIR: artifacts\/published-iphone-webkit-smoke/,
+    'published outcome evidence must use the retained Pages artifact directory');
+  const byteCheckIndex = workflow.indexOf('node scripts/pages-deployment-smoke.js');
+  const genericWebKitIndex = workflow.indexOf('node tests/iphone-webkit-smoke-test.js');
+  const outcomeWebKitIndex = workflow.indexOf('node tests/capital-allocation-recovery-outcome-webkit-test.js');
+  const uploadIndex = workflow.indexOf('Retain published WebKit evidence');
+  assert.ok(byteCheckIndex !== -1 && genericWebKitIndex > byteCheckIndex,
+    'generic WebKit smoke must run only after exact Pages bytes match main');
+  assert.ok(outcomeWebKitIndex > genericWebKitIndex,
+    'recovery outcome verification must run after generic published WebKit smoke');
+  assert.ok(uploadIndex > outcomeWebKitIndex,
+    'published recovery outcome evidence must be retained before the workflow ends');
+
   const state = { staleResponsesRemaining: 1, alwaysStale: false };
   const server = http.createServer((request, response) => {
     const requestUrl = new URL(request.url, 'http://127.0.0.1');
@@ -96,7 +117,7 @@ function close(server) {
     await close(server);
   }
 
-  console.log('Pages deployment smoke checks passed.');
+  console.log('Pages deployment bytes and published recovery outcome wiring checks passed.');
 })().catch(error => {
   console.error(error instanceof Error ? error.stack : error);
   process.exit(1);
