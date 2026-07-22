@@ -34,13 +34,15 @@ const resilienceLoader = "loadPhaseScript('./js/capital-allocation-resilience-me
 const recoveryAuditLoader = "loadPhaseScript('./js/capital-allocation-recovery-audit.js','8D-11'";
 const recoveryFundingLoader = "loadPhaseScript('./js/capital-allocation-recovery-funding.js','8D-13'";
 const recoveryFundingOptionsLoader = "loadPhaseScript('./js/capital-allocation-recovery-funding-options.js','8D-15'";
+const recoveryFundingReadinessLoader = "loadPhaseScript('./js/capital-allocation-recovery-funding-readiness.js','8D-17'";
 for (const [loader,label,file] of [
   [decisionMemoLoader,'Phase 8D-1 board memo','capital-allocation-decision-memo.js'],
   [stressLoader,'Phase 8D-3 stress test','capital-allocation-stress-test.js'],
   [resilienceLoader,'Phase 8D-5 resilience memo','capital-allocation-resilience-memo.js'],
   [recoveryAuditLoader,'Phase 8D-11 recovery audit','capital-allocation-recovery-audit.js'],
   [recoveryFundingLoader,'Phase 8D-13 recovery funding','capital-allocation-recovery-funding.js'],
-  [recoveryFundingOptionsLoader,'Phase 8D-15 recovery funding options','capital-allocation-recovery-funding-options.js']
+  [recoveryFundingOptionsLoader,'Phase 8D-15 recovery funding options','capital-allocation-recovery-funding-options.js'],
+  [recoveryFundingReadinessLoader,'Phase 8D-17 funding execution readiness','capital-allocation-recovery-funding-readiness.js']
 ]) {
   assert.ok(strategySource.includes(loader), `${label} must be dynamically loaded in production`);
   assert.equal((strategySource.match(new RegExp(file.replace('.', '\\.'), 'g')) || []).length, 1, `${label} must be wired exactly once`);
@@ -51,10 +53,11 @@ assert.ok(strategySource.indexOf(stressLoader) < strategySource.indexOf(resilien
 assert.ok(strategySource.indexOf(resilienceLoader) < strategySource.indexOf(recoveryAuditLoader), 'the recovery audit must load after resilience planning');
 assert.ok(strategySource.indexOf(recoveryAuditLoader) < strategySource.indexOf(recoveryFundingLoader), 'the recovery funding plan must load after the recovery audit');
 assert.ok(strategySource.indexOf(recoveryFundingLoader) < strategySource.indexOf(recoveryFundingOptionsLoader), 'the recovery funding options must load after the recovery funding plan');
+assert.ok(strategySource.indexOf(recoveryFundingOptionsLoader) < strategySource.indexOf(recoveryFundingReadinessLoader), 'funding readiness must load after the option matrix');
 
 const load = loadGame();
 const { modules, ctx } = load;
-for (const file of ['player-debt-service.js','treasury-prepayment.js','capital-allocation-forecast.js','capital-allocation-actions.js','capital-allocation-decision-memo.js','capital-allocation-stress-test.js','capital-allocation-resilience-memo.js','capital-allocation-recovery-audit.js','capital-allocation-recovery-funding.js','capital-allocation-recovery-funding-options.js']) {
+for (const file of ['player-debt-service.js','treasury-prepayment.js','capital-allocation-forecast.js','capital-allocation-actions.js','capital-allocation-decision-memo.js','capital-allocation-stress-test.js','capital-allocation-resilience-memo.js','capital-allocation-recovery-audit.js','capital-allocation-recovery-funding.js','capital-allocation-recovery-funding-options.js','capital-allocation-recovery-funding-readiness.js']) {
   const key=file.replace('.js','').replace(/-([a-z])/g,(_,c)=>c.toUpperCase());
   if (!modules[key]) vm.runInContext(fs.readFileSync(path.join(ROOT,'js',file),'utf8'),ctx,{filename:file});
 }
@@ -64,6 +67,7 @@ assert.ok(modules.capitalAllocationPolicy?.__installed, 'capital allocation poli
 assert.ok(modules.capitalAllocationRecoveryAudit?.__installed, 'capital allocation recovery audit must register through its production dependency chain');
 assert.ok(modules.capitalAllocationRecoveryFunding?.__installed, 'capital allocation recovery funding must register through its production dependency chain');
 assert.ok(modules.capitalAllocationRecoveryFundingOptions?.__installed, 'capital allocation recovery funding options must register through its production dependency chain');
+assert.ok(modules.capitalAllocationRecoveryFundingReadiness?.__installed, 'capital allocation recovery funding readiness must register through its production dependency chain');
 assert.ok(ctx.__ct_engine, 'the production app engine must be captured');
 assert.equal(typeof ctx.__ct_engine.setDividend, 'function');
 assert.equal(typeof ctx.__ct_engine.evaluateCapitalAllocation, 'function');
@@ -76,6 +80,8 @@ assert.equal(typeof ctx.__ct_engine.capitalAllocationRecoveryFundingPlan, 'funct
 assert.equal(typeof ctx.__ct_engine.capitalAllocationRecoveryFundingFrontier, 'function');
 assert.equal(typeof ctx.__ct_engine.capitalAllocationRecoveryFundingOptions, 'function');
 assert.equal(typeof ctx.__ct_engine.capitalAllocationRecoveryFundingOptionFrontier, 'function');
+assert.equal(typeof ctx.__ct_engine.capitalAllocationRecoveryFundingReadiness, 'function');
+assert.equal(typeof ctx.__ct_engine.validateCapitalAllocationRecoveryFundingSnapshot, 'function');
 assert.equal(modules.engine.SAVE_KEY, 'capitalism_tycoon_web_v1');
 assert.equal(modules.engine.SAVE_VERSION, 9);
 
@@ -88,5 +94,6 @@ assert.match(modules.capitalAllocationPolicy.render(ctx.__ct_engine), /data-capi
 assert.match(modules.capitalAllocationRecoveryAudit.render(ctx.__ct_engine), /data-capital-allocation-recovery-audit/);
 assert.match(modules.capitalAllocationRecoveryFunding.render(ctx.__ct_engine), /data-capital-allocation-recovery-funding/);
 assert.match(modules.capitalAllocationRecoveryFundingOptions.render(ctx.__ct_engine), /data-capital-allocation-recovery-funding-options/);
+assert.match(modules.capitalAllocationRecoveryFundingReadiness.render(ctx.__ct_engine), /data-capital-allocation-recovery-funding-readiness/);
 
 console.log('capital allocation production wiring tests passed');
