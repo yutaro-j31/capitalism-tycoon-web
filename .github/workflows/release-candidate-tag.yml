@@ -28,7 +28,7 @@ on:
         required: true
         type: boolean
       market_capital_allocation_cards:
-        description: Market capital allocation action and board memo cards are usable without horizontal overflow
+        description: Market capital allocation, recovery funding, reconciliation, and outcome cards are usable without horizontal overflow
         required: true
         type: boolean
       device:
@@ -102,6 +102,10 @@ jobs:
         env:
           IPHONE_WEBKIT_ARTIFACT_DIR: artifacts/iphone-webkit-smoke
         run: node tests/iphone-webkit-smoke-test.js
+      - name: Verify local recovery funding outcome
+        env:
+          IPHONE_WEBKIT_ARTIFACT_DIR: artifacts/iphone-webkit-smoke
+        run: node tests/capital-allocation-recovery-outcome-webkit-test.js
       - name: Verify playtest report download
         env:
           IPHONE_WEBKIT_ARTIFACT_DIR: artifacts/iphone-webkit-smoke
@@ -133,6 +137,11 @@ jobs:
           IPHONE_WEBKIT_TARGET_URL: https://yutaro-j31.github.io/capitalism-tycoon-web/
           IPHONE_WEBKIT_ARTIFACT_DIR: artifacts/published-iphone-webkit-smoke
         run: node tests/iphone-webkit-smoke-test.js
+      - name: Verify published recovery funding outcome
+        env:
+          CAPITAL_ALLOCATION_RECOVERY_TARGET_URL: https://yutaro-j31.github.io/capitalism-tycoon-web/
+          IPHONE_WEBKIT_ARTIFACT_DIR: artifacts/published-iphone-webkit-smoke
+        run: node tests/capital-allocation-recovery-outcome-webkit-test.js
       - name: Retain published WebKit evidence
         if: always()
         uses: actions/upload-artifact@v4
