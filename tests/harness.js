@@ -65,8 +65,6 @@ function createBrowserContext(options = {}) {
   const random = options.random || Math.random;
   const storage = new Map(Object.entries(options.localStorageInitial || {}));
   const storageHistory = { getItem: [], setItem: [], removeItem: [] };
-  let ctxRef = null;
-  const pendingDynamicScripts = [];
   const nodes = new Map();
   const document = {
     documentElement: null, head: null, body: null,
@@ -78,13 +76,6 @@ function createBrowserContext(options = {}) {
   document.head = makeElement('head', document);
   document.body = makeElement('body', document);
   nodes.set('app', makeElement('app', document)); nodes.set('toast-root', makeElement('toast-root', document)); nodes.set('modal-root', makeElement('modal-root', document));
-  document.head.appendChild = function(child){
-    this.children.push(child);
-    if (child && typeof child.src === 'string') {
-      if (/ma-portfolio-summary(?:-ui)?\.js(?:[?#].*)?$/.test(child.src)) pendingDynamicScripts.push(child);
-    }
-    return child;
-  };
   class StorageStub { getItem(k){ storageHistory.getItem.push({key:k}); return storage.has(k) ? storage.get(k) : null; } setItem(k,v){ const value = String(v); storageHistory.setItem.push({key:k, value}); storage.set(k, value); } removeItem(k){ storageHistory.removeItem.push({key:k}); storage.delete(k); } clear(){ for (const key of [...storage.keys()]) this.removeItem(key); } }
   class URLStub extends URL {}
   URLStub.createObjectURL = () => 'blob:test';
@@ -94,16 +85,14 @@ function createBrowserContext(options = {}) {
     Blob: class Blob { constructor(parts, opts){ this.parts = parts; this.type = opts?.type || ''; } async text(){ return this.parts.join(''); } },
     URL: URLStub, FormData: class { constructor(){ } entries(){ return []; } },
     EventTarget, Event, CustomEvent: global.CustomEvent || class CustomEvent extends Event { constructor(type, init={}){ super(type); this.detail = init.detail; } },
-    setTimeout, clearTimeout, requestAnimationFrame: cb => setTimeout(cb, 0), getComputedStyle: () => ({ getPropertyValue: () => '#efb85b' }), confirm: () => true, alert(){}, addEventListener(){}, removeEventListener(){}, __runPendingDynamicScripts(){ while(pendingDynamicScripts.length){ const child=pendingDynamicScripts.shift(); try { const file = resolveLocalScript(child.src); vm.runInContext(fs.readFileSync(file, 'utf8'), ctxRef, { filename: child.src }); if (typeof child.onload === 'function') child.onload(); } catch (err) { if (typeof child.onerror === 'function') child.onerror(err); else throw err; } } }
+    setTimeout, clearTimeout, requestAnimationFrame: cb => setTimeout(cb, 0), getComputedStyle: () => ({ getPropertyValue: () => '#efb85b' }), confirm: () => true, alert(){}, addEventListener(){}, removeEventListener(){}
   };
   if (options.random) {
     context.Math = Object.create(Math);
     context.Math.random = random;
   }
   context.window = context; context.globalThis = context;
-  const ctx = vm.createContext(context);
-  ctxRef = ctx;
-  return ctx;
+  return vm.createContext(context);
 }
 function loadGame(options = {}) {
   return loadGameFromHtml(readIndex(), options);
@@ -115,7 +104,6 @@ function loadGameFromHtml(html, options = {}) {
   code = code.replace('const ui = {', 'const ui = globalThis.__ct_ui = {');
   const ctx = createBrowserContext(options);
   vm.runInContext(code, ctx, { filename: 'index.html' });
-  ctx.__runPendingDynamicScripts();
   return { ctx, modules: ctx.__capitalismTycoonModules, engineModule: ctx.__capitalismTycoonModules.engine };
 }
 function assertFinite(value, path, errors) { if (typeof value === 'number' && !Number.isFinite(value)) errors.push(`${path}: non-finite ${value}`); }
