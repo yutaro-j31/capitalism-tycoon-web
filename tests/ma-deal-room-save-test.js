@@ -19,7 +19,7 @@ const { TycoonEngine, SAVE_KEY, SAVE_VERSION } = engineModule;
   assert.equal(e.startMADueDiligence(d.id, 'screening'), true);
   e.g.week += 1; dr.processDealWeek(e.g, e.g.week);
   assert.equal(d.status, 'ready');
-  assert.equal(e.submitMAOffer(d.id, { method: 'friendly', offerPrice: Math.min(250000000, Math.max(d.sellerAsk * 1.1, d.valuationBridge.recommendedMaximumPrice)) }), true);
+  assert.equal(e.submitMAOffer(d.id, { method: 'friendly', offerPrice: Math.min(250000000, Math.max(118000000, d.sellerAsk * 1.1, d.valuationBridge.recommendedMaximumPrice)) }), true);
   e.g.week += 1; dr.processDealWeek(e.g, e.g.week);
   const preservedBeforeSave = JSON.parse(JSON.stringify({ deal: e.g.maDealRooms[0], truth: e.g.maTargetTruthByID }));
   assert.equal(e.save(), true);
