@@ -1,0 +1,35 @@
+name: M&A Board Approval
+on:
+  pull_request:
+  workflow_dispatch:
+jobs:
+  ma-board-approval:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - run: npm ci || npm install
+      - run: npm run test:ma-board-approval
+      - run: npm run test:ma-deal-room
+      - run: npm run test:ma-integration
+      - run: npm run test:ma-portfolio-summary
+      - run: npm run test:ma-portfolio-summary-ui
+      - run: npm run test:ceo-dashboard
+      - run: npm run test:finance-ma-accounting
+      - run: npm run test:save
+      - run: npm run test:migration
+      - run: npm run test:save-v9
+      - run: npm run test:week
+      - run: npm run test:transaction
+      - run: npm run test:syntax
+      - run: npm run test:javascript
+      - run: npm run test:modules
+      - run: npm run test:static
+      - run: npm run test:css
+      - run: npm run test:progression-balance
+      - run: npm run test:strategy-balance
+      - run: node tests/ma-board-approval-webkit-test.js
+      - run: node tests/ma-integration-webkit-test.js
+      - run: node tests/ceo-dashboard-webkit-test.js
