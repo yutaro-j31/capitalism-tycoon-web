@@ -28,6 +28,8 @@
     "./js/competitor-dashboard-ui.js",
     "./js/player-crisis-ui.js",
     "./js/player-engine-bridge.js",
+    "./js/ma-portfolio-summary.js",
+    "./js/ma-portfolio-summary-ui.js",
     "./js/strategy-balance.js",
     "./js/progression-balance.js",
     "./js/founding-tutorial.js",

@@ -4,3 +4,6 @@
   .week-controls .secondary{display:inline-flex;min-width:44px;padding-inline:8px}
   .summary-modal .modal-actions .btn{min-height:44px}
 }
+
+/* M&A portfolio priority action uses the iOS recommended minimum tap target. */
+[data-ma-portfolio-action]{min-height:44px;box-sizing:border-box;white-space:normal;line-height:1.25}
