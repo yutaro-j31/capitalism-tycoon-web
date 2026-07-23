@@ -20,7 +20,7 @@ assert.match(app, /data-action="founding-tutorial-jump"/, 'read-only navigation 
 assert.match(app, /case 'founding-tutorial-jump':engine\.g\.selectedTab=el\.dataset\.tab\|\|'home';render\(\);requestAnimationFrame/, 'jump only changes tab and focuses');
 assert.doesNotMatch(app.match(/case 'founding-tutorial-jump':[\s\S]*?break;/)[0], /engine\.save|advanceWeek|openStore|borrow|repay|hire|invest/, 'guide jump does not execute game actions or save');
 assert.match(app, /Executive Secretary/, 'role split note is rendered');
-assert.match(css, /min-height:44px/, '44px tap target style exists');
+assert.match(css, /\.btn\.small\.founding-guide-cta\s*\{[^}]*min-height:44px/, 'founding guide CTA keeps a 44px tap target with enough specificity to override .btn.small');
 assert.match(css, /@media\(max-width:430px\)/, 'narrow iPhone width rule exists');
 assert.match(css, /@media\(prefers-reduced-motion:reduce\)/, 'reduced motion rule exists');
 assert.match(css, /focus-visible/, 'keyboard focus style exists');
