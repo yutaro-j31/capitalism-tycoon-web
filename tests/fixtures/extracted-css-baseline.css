@@ -48,3 +48,16 @@
 @media (max-width:430px){body{padding-left:max(0px,env(safe-area-inset-left));padding-right:max(0px,env(safe-area-inset-right))}.ma-pmi-options{grid-template-columns:1fr}.ma-subsidiary-card{display:block}.ma-subsidiary-card .kpi-grid{grid-template-columns:1fr 1fr}.ma-subsidiary-card .button-row{gap:8px}.ma-subsidiary-card button{min-height:44px}}
 @media (prefers-reduced-motion: reduce){.ma-subsidiary-card,.ma-pmi-option{transition:none!important;animation:none!important}}
 .ma-subsidiary-card button:focus-visible,.ma-pmi-option button:focus-visible{outline:3px solid var(--accent,#efb85b);outline-offset:2px}
+
+/* iPhone WebKit minimum tap targets for M&A and week controls */
+[data-action="advance-4"],
+[data-action="advance-week"],
+[data-action="generate-ma"],
+[data-action="acquire-friendly"],
+[data-action="acquire-hostile"],
+[data-action="acquire-swap"],
+[data-action="start-ma-pmi"],
+[data-action="support-ma-pmi"],
+[data-action="sell-ma"],
+[data-action="transport-rebuild"]{min-height:44px;box-sizing:border-box}
+[data-action="advance-4"]{min-width:44px}
