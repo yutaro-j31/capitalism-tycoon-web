@@ -1,0 +1,55 @@
+name: M&A Acquisition Financing
+
+on:
+  pull_request:
+    branches: [ main ]
+  push:
+    branches: [ feat/ma-acquisition-financing ]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - run: npm ci
+      - name: Unit and integration suites
+        run: |
+          npm run test:ma-acquisition-financing
+          npm run test:ma-board-approval
+          npm run test:ma-deal-room
+          npm run test:ma-integration
+          npm run test:ma-portfolio-summary
+          npm run test:ma-portfolio-summary-ui
+          npm run test:ceo-dashboard
+          npm run test:finance
+          npm run test:finance-ma-accounting
+          npm run test:accounting-invariants
+          npm run test:save
+          npm run test:migration
+          npm run test:save-v9
+          npm run test:week
+          npm run test:transaction
+          npm run test:syntax
+          npm run test:javascript
+          npm run test:modules
+          npm run test:static
+          npm run test:css
+          npm run test:progression-balance
+          npm run test:strategy-balance
+          node tests/v1-progression-gate-test.js
+      - name: iPhone WebKit smoke
+        run: |
+          node tests/ma-acquisition-financing-webkit-test.js
+          node tests/ma-board-approval-webkit-test.js
+          node tests/ma-deal-room-webkit-test.js
+          node tests/ceo-dashboard-webkit-test.js
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: ma-acquisition-financing-artifacts
+          path: |
+            test-artifacts/**
+            artifacts/**

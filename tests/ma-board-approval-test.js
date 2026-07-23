@@ -3,6 +3,7 @@ const { loadGame } = require('./harness');
 const { modules } = loadGame();
 const { engine, finance } = modules;
 const ba = modules.maBoardApproval;
+const maf = modules.maAcquisitionFinancing;
 
 function state(method = 'friendly') {
   const g = engine.createInitialState({ configured: true });
@@ -15,6 +16,8 @@ function state(method = 'friendly') {
   g.finance = finance.defaultFinanceState(g);
   g.acquisitionTargets = [{ id: 't1', name: '承認テック', valuation: 68400000, sales: 100000000, operatingProfit: 12000000, risk: 0.1, synergy: 0.1 }];
   g.maDealRooms = [{ id: 'd1', targetID: 't1', status: 'accepted', diligenceLevel: 'full', diligenceConfidence: 0.94, acceptedTerms: { method, finalPrice: 90000000, acceptedWeek: 23, closingDeadlineWeek: 28, offerRound: 1 }, history: [] }];
+  const d = g.maDealRooms[0];
+  if (method !== 'shareSwap') d.acquisitionFinancingPlan = maf.buildPlan(g, d, { presetID: 'custom', cashAmount: 90000000, termLoanAmount: 0, bridgeLoanAmount: 0, equityRaiseAmount: 0 }, { companyValue: 450000000 });
   return g;
 }
 
@@ -48,7 +51,7 @@ assert.equal(ba.buildMemo(g, d).decision, 'blocked');
 
 g = state();
 g.companyCash = 1000;
-assert.ok(ba.buildMemo(g, g.maDealRooms[0]).blockers.some(x => x.id === 'cash-shortfall'));
+assert.ok(ba.buildMemo(g, g.maDealRooms[0]).blockers.some(x => x.id === 'funding-plan-invalid' || x.id === 'funding-plan-missing'));
 
 g = state();
 g.week = 29;
