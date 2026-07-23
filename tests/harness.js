@@ -49,13 +49,13 @@ function extractEventHandlers(html = readIndex()) {
   while ((m = re.exec(html))) handlers.push({ name: m[1], code: m[3] ?? m[4] ?? '', line: lineOf(html, m.index) });
   return handlers;
 }
-function makeElement(id = '') {
+function makeElement(id = '', ownerDocument = null) {
   const el = {
-    id, children: [], style: {}, dataset: {}, className: '', innerHTML: '', textContent: '', value: '', checked: false,
+    id, tagName: String(id || '').toUpperCase(), ownerDocument, children: [], style: {}, dataset: {}, className: '', innerHTML: '', textContent: '', value: '', checked: false,
     classList: { add(){}, remove(){}, contains(){ return false; }, toggle(){} },
     appendChild(child){ this.children.push(child); return child; },
     remove(){}, addEventListener(){}, removeEventListener(){}, closest(){ return null; }, querySelector(){ return null; }, querySelectorAll(){ return []; },
-    setAttribute(k, v){ this[k] = v; }, getAttribute(k){ return this[k] ?? null; }, click(){}, select(){},
+    setAttribute(k, v){ const value=String(v); if(k==='src')this.src=value; else if(k && k.startsWith('data-'))this.dataset[k.slice(5).replace(/-([a-z])/g,(_,c)=>c.toUpperCase())]=value; else this[k] = value; }, getAttribute(k){ if(k==='src')return this.src ?? null; if(k && k.startsWith('data-'))return this.dataset[k.slice(5).replace(/-([a-z])/g,(_,c)=>c.toUpperCase())] ?? null; return this[k] ?? null; }, click(){}, select(){},
     getContext(){ return { scale(){}, clearRect(){}, beginPath(){}, moveTo(){}, lineTo(){}, stroke(){}, fillRect(){}, fillText(){}, createLinearGradient(){ return { addColorStop(){} }; } }; },
     toDataURL(){ return 'data:image/png;base64,'; }
   };
@@ -65,13 +65,17 @@ function createBrowserContext(options = {}) {
   const random = options.random || Math.random;
   const storage = new Map(Object.entries(options.localStorageInitial || {}));
   const storageHistory = { getItem: [], setItem: [], removeItem: [] };
-  const nodes = new Map([['app', makeElement('app')], ['toast-root', makeElement('toast-root')], ['modal-root', makeElement('modal-root')]]);
+  const nodes = new Map();
   const document = {
-    documentElement: makeElement('html'), head: makeElement('head'), body: makeElement('body'),
-    getElementById(id){ if (!nodes.has(id)) nodes.set(id, makeElement(id)); return nodes.get(id); },
-    querySelector(sel){ return sel.startsWith('#') ? this.getElementById(sel.slice(1)) : makeElement(sel); },
-    querySelectorAll(){ return []; }, createElement(tag){ return makeElement(tag); }, addEventListener(){}, removeEventListener(){}
+    documentElement: null, head: null, body: null,
+    getElementById(id){ if (!nodes.has(id)) nodes.set(id, makeElement(id, this)); return nodes.get(id); },
+    querySelector(sel){ return sel.startsWith('#') ? this.getElementById(sel.slice(1)) : makeElement(sel, this); },
+    querySelectorAll(){ return []; }, createElement(tag){ return makeElement(tag, this); }, addEventListener(){}, removeEventListener(){}
   };
+  document.documentElement = makeElement('html', document);
+  document.head = makeElement('head', document);
+  document.body = makeElement('body', document);
+  nodes.set('app', makeElement('app', document)); nodes.set('toast-root', makeElement('toast-root', document)); nodes.set('modal-root', makeElement('modal-root', document));
   class StorageStub { getItem(k){ storageHistory.getItem.push({key:k}); return storage.has(k) ? storage.get(k) : null; } setItem(k,v){ const value = String(v); storageHistory.setItem.push({key:k, value}); storage.set(k, value); } removeItem(k){ storageHistory.removeItem.push({key:k}); storage.delete(k); } clear(){ for (const key of [...storage.keys()]) this.removeItem(key); } }
   class URLStub extends URL {}
   URLStub.createObjectURL = () => 'blob:test';

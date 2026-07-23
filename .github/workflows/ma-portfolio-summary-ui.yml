@@ -39,7 +39,7 @@ jobs:
           node tests/ma-portfolio-summary-ui-test.js
       - name: Local loader and save contract
         run: |
-          node -e "const fs=require('fs');const h=fs.readFileSync('index.html','utf8');if(!h.includes('data-ma-portfolio-summary-loader'))throw new Error('M&A portfolio loader missing');const a=h.indexOf('./js/ma-portfolio-summary.js'),b=h.indexOf('./js/ma-portfolio-summary-ui.js');if(!(a>0&&b>a))throw new Error('M&A portfolio loader order invalid');if(/<script src=\"\.\/js\/ma-portfolio-summary/.test(h))throw new Error('portfolio modules must not alter strict external module order');"
+          node -e "const fs=require('fs');const h=fs.readFileSync('index.html','utf8');if(h.includes('data-ma-portfolio-summary-loader'))throw new Error('M&A portfolio dynamic loader must not be used');const bridge=h.indexOf('./js/player-engine-bridge.js'),summary=h.indexOf('./js/ma-portfolio-summary.js'),ui=h.indexOf('./js/ma-portfolio-summary-ui.js'),app=h.indexOf('./js/app.js');if(!(bridge>0&&summary>bridge&&ui>summary&&app>ui))throw new Error('M&A portfolio static loader order invalid');"
           grep -q "capitalism_tycoon_web_v1" js/engine.js
           npm run test:save-v9
       - name: Existing M&A and static regressions
