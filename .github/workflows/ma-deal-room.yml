@@ -34,3 +34,10 @@ jobs:
       - name: Install WebKit browser and system dependencies
         run: npx playwright install --with-deps webkit
       - run: node tests/ma-deal-room-webkit-test.js
+      - name: Upload M&A Deal Room WebKit artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ma-deal-room-webkit
+          path: artifacts/ma-deal-room-webkit
+          if-no-files-found: error
