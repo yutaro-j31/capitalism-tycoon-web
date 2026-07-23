@@ -1,0 +1,68 @@
+name: M&A Board Approval
+on:
+  pull_request:
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: ma-board-approval-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+jobs:
+  ma-board-approval:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    env:
+      MA_BOARD_APPROVAL_ARTIFACT_DIR: artifacts/ma-board-approval-webkit
+      MA_DEAL_ROOM_ARTIFACT_DIR: artifacts/ma-deal-room-webkit
+      MA_INTEGRATION_ARTIFACT_DIR: artifacts/ma-integration-webkit
+      CEO_DASHBOARD_ARTIFACT_DIR: artifacts/ceo-dashboard-webkit
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: npm ci || npm install
+      - run: npm run test:ma-board-approval
+      - run: npm run test:ma-deal-room
+      - run: npm run test:ma-integration
+      - run: npm run test:ma-portfolio-summary
+      - run: npm run test:ma-portfolio-summary-ui
+      - run: npm run test:ceo-dashboard
+      - run: npm run test:finance-ma-accounting
+      - run: npm run test:save
+      - run: npm run test:migration
+      - run: npm run test:save-v9
+      - run: npm run test:week
+      - run: npm run test:transaction
+      - run: npm run test:syntax
+      - run: npm run test:javascript
+      - run: npm run test:modules
+      - run: npm run test:static
+      - run: npm run test:css
+      - run: npm run test:progression-balance
+      - run: npm run test:strategy-balance
+      - run: node tests/v1-progression-gate-test.js
+      - name: Install pinned Playwright runtime
+        run: npm install --no-save --no-package-lock playwright@1.61.0
+      - name: Install WebKit browser and system dependencies
+        run: npx playwright install --with-deps webkit
+      - name: Run M&A board approval WebKit
+        run: node tests/ma-board-approval-webkit-test.js
+      - name: Run M&A deal room WebKit
+        run: node tests/ma-deal-room-webkit-test.js
+      - name: Run M&A integration WebKit
+        run: node tests/ma-integration-webkit-test.js
+      - name: Run CEO dashboard WebKit
+        run: node tests/ceo-dashboard-webkit-test.js
+      - name: Upload M&A board approval artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ma-board-approval-${{ github.sha }}
+          path: |
+            artifacts/ma-board-approval-webkit
+            artifacts/ma-deal-room-webkit
+            artifacts/ma-integration-webkit
+            artifacts/ceo-dashboard-webkit
+          if-no-files-found: error
+          retention-days: 30

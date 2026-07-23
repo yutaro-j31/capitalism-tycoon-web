@@ -116,7 +116,25 @@ while (deal.status === 'countered' && negotiationGuard < 3) {
   negotiationGuard += 1;
 }
 assert.equal(deal.status, 'accepted', `deal must reach accepted before closing, got ${deal.status}`);
-assert.equal(game.closeMADeal(deal.id), true, 'accepted deal must close through final contract action');
+const beforeApproval = {
+  companyCash: game.g.companyCash,
+  financeTransactions: game.g.finance.transactions.length,
+  goodwillRecords: game.g.goodwillRecords.length,
+  maSubsidiaries: game.g.maSubsidiaries.length,
+  totalAcquisitions: game.g.totalAcquisitions,
+  week: game.g.week
+};
+assert.equal(game.closeMADeal(deal.id), false, 'unapproved accepted deal must not close');
+assert.deepEqual({
+  companyCash: game.g.companyCash,
+  financeTransactions: game.g.finance.transactions.length,
+  goodwillRecords: game.g.goodwillRecords.length,
+  maSubsidiaries: game.g.maSubsidiaries.length,
+  totalAcquisitions: game.g.totalAcquisitions,
+  week: game.g.week
+}, beforeApproval, 'unapproved close attempt must not mutate acquisition accounting state');
+assert.equal(game.approveMAClosing(deal.id), true, 'accepted deal must receive board approval');
+assert.equal(game.closeMADeal(deal.id), true, 'approved deal must close through final contract action');
 assert.equal(game.g.maSubsidiaries.length, 1, 'one M&A subsidiary must exist');
 assert.equal(game.g.totalAcquisitions, 1, 'M&A counter must increment');
 const acquiredMA = game.g.maSubsidiaries[0];
@@ -150,7 +168,7 @@ assert.ok(ipoTransaction.cashEffect > 0 && ipoTransaction.equityEffect > 0, 'par
 assert.ok(game.g.finance.balances.capitalSurplus > capitalSurplusBeforeIPO, 'parent IPO proceeds must increase capital surplus');
 
 const appSource = fs.readFileSync(path.join(__dirname, '..', 'js', 'app.js'), 'utf8');
-for (const action of ['open-store', 'contract-office', 'establish-department', 'make-subsidiary', 'ma-open-deal', 'ma-start-dd', 'ma-submit-offer', 'ma-close-deal', 'start-ma-pmi', 'establish-board', 'execute-ipo']) {
+for (const action of ['open-store', 'contract-office', 'establish-department', 'make-subsidiary', 'ma-open-deal', 'ma-start-dd', 'ma-submit-offer', 'ma-board-approve', 'ma-board-revoke', 'ma-close-deal', 'start-ma-pmi', 'establish-board', 'execute-ipo']) {
   assert.ok(appSource.includes(`'${action}'`) || appSource.includes(`"${action}"`), `UI action ${action} must remain reachable`);
 }
 

@@ -30,6 +30,7 @@
     "./js/player-engine-bridge.js",
     "./js/ma-portfolio-summary.js",
     "./js/ma-portfolio-summary-ui.js",
+    "./js/ma-board-approval.js",
     "./js/strategy-balance.js",
     "./js/progression-balance.js",
     "./js/founding-tutorial.js",
