@@ -67,7 +67,7 @@ function createBrowserContext(options = {}) {
   const storageHistory = { getItem: [], setItem: [], removeItem: [] };
   const nodes = new Map([['app', makeElement('app')], ['toast-root', makeElement('toast-root')], ['modal-root', makeElement('modal-root')]]);
   const document = {
-    documentElement: makeElement('html'), body: makeElement('body'),
+    documentElement: makeElement('html'), head: makeElement('head'), body: makeElement('body'),
     getElementById(id){ if (!nodes.has(id)) nodes.set(id, makeElement(id)); return nodes.get(id); },
     querySelector(sel){ return sel.startsWith('#') ? this.getElementById(sel.slice(1)) : makeElement(sel); },
     querySelectorAll(){ return []; }, createElement(tag){ return makeElement(tag); }, addEventListener(){}, removeEventListener(){}
