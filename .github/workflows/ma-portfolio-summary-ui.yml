@@ -1,0 +1,50 @@
+name: M&A Portfolio Summary UI
+
+on:
+  pull_request:
+    paths:
+      - 'index.html'
+      - 'js/ma-portfolio-summary.js'
+      - 'js/ma-portfolio-summary-ui.js'
+      - 'tests/ma-portfolio-summary-test.js'
+      - 'tests/ma-portfolio-summary-ui-test.js'
+      - '.github/workflows/ma-portfolio-summary-ui.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'index.html'
+      - 'js/ma-portfolio-summary.js'
+      - 'js/ma-portfolio-summary-ui.js'
+      - 'tests/ma-portfolio-summary-test.js'
+      - 'tests/ma-portfolio-summary-ui-test.js'
+      - '.github/workflows/ma-portfolio-summary-ui.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  ma-portfolio-summary-ui:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - name: Syntax check
+        run: node --check js/ma-portfolio-summary.js && node --check js/ma-portfolio-summary-ui.js && node --check tests/ma-portfolio-summary-test.js && node --check tests/ma-portfolio-summary-ui-test.js
+      - name: Summary model and dashboard UI contracts
+        run: |
+          node tests/ma-portfolio-summary-test.js
+          node tests/ma-portfolio-summary-ui-test.js
+      - name: Module load order and save contract
+        run: |
+          node -e "const fs=require('fs');const h=fs.readFileSync('index.html','utf8');const a=h.indexOf('js/ma-portfolio-summary.js'),b=h.indexOf('js/ma-portfolio-summary-ui.js'),c=h.indexOf('js/app.js');if(!(a>0&&b>a&&c>b))throw new Error('M&A portfolio modules must load before app.js');"
+          grep -q "capitalism_tycoon_web_v1" js/engine.js
+          npm run test:save-v9
+      - name: Existing M&A and static regressions
+        run: |
+          npm run test:ma-deal-room
+          npm run test:ma-integration
+          npm run test:finance-ma-accounting
+          npm run test:static
