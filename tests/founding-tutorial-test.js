@@ -10,6 +10,23 @@ assert.equal(foundingTutorial.STEPS.length, 10, 'fixed 10 step roadmap');
 assert.deepEqual(Array.from(foundingTutorial.STEPS, s => s.id), ['dashboard','first_store','unit_economics','first_week','weekly_recap','first_improvement','cash_runway','growth_step','organization','graduation']);
 const currentID = state => foundingTutorial.build(state).current?.id || null;
 const isDone = (model, id) => model.steps.find(s => s.id === id).completed;
+
+function setupImprovementState() {
+  const state = engine.createInitialState({ configured: true });
+  state.selectedTab = 'home';
+  state.stores.push({ id:'s1', businessID:'ramen', prefID:'tokyo', name:'本店', status:'open', quality:0, brand:0, condition:100, operatingHours:3, openingWeek:1, weeksToOpen:0 });
+  state.supplySettingsByStoreID = { s1: { autoPolicy:'balanced' } };
+  state.week = 2;
+  state.reports = [{ week:1, sales:1000000, profit:100000, expenses:700000 }, { week:2, sales:1200000, profit:150000, expenses:750000 }];
+  state.lastReport = state.reports[1];
+  return state;
+}
+function assertAtImprovement(state, label) {
+  const model = foundingTutorial.build(state);
+  assert.equal(model.current.id, 'first_improvement', label);
+  assert.equal(isDone(model, 'first_improvement'), false, `${label}: first improvement remains incomplete`);
+}
+
 const fresh = engine.createInitialState({ configured: true });
 const before = JSON.stringify(fresh);
 const a = foundingTutorial.build(fresh);
@@ -50,11 +67,40 @@ fresh.companyCash = 7000000;
 m = foundingTutorial.build(fresh);
 assert.equal(m.displayMode, 'complete');
 assert.equal(m.complete, true);
-const training = engine.createInitialState({ configured: true });
-training.stores.push({ id:'s1', businessID:'ramen', prefID:'tokyo', name:'本店', status:'open' });
-training.supplySettingsByStoreID = { s1: { autoPolicy:'balanced' } };
-training.week = 2; training.reports = [{week:1},{week:2}]; training.workforceTrainings = [{ status:'active' }];
+const noTeam = setupImprovementState();
+assertAtImprovement(noTeam, 'state without workforce team reaches improvement step');
+const baseTeam = setupImprovementState();
+modules.workforce.storeAdjustment(baseTeam, baseTeam.stores[0], 1000);
+const autoTeam = baseTeam.workforceTeams.find(t => t.storeID === 's1');
+assert.ok(autoTeam, 'storeAdjustment creates the normal store team');
+assert.equal(autoTeam.headcount, autoTeam.baseHeadcount, 'auto store team starts at base headcount');
+assert.equal(foundingTutorial._internals.hasStoreWorkforceImprovement(baseTeam), false, 'base store team is not an improvement');
+assertAtImprovement(baseTeam, 'base store team does not advance tutorial');
+const added = JSON.parse(JSON.stringify(baseTeam));
+const addedTeam = added.workforceTeams.find(t => t.storeID === 's1');
+addedTeam.headcount = addedTeam.baseHeadcount + 1;
+assert.equal(foundingTutorial._internals.hasStoreWorkforceImprovement(added), true, 'headcount over base is an improvement');
+assert.equal(currentID(added), 'cash_runway', 'added store headcount advances to cash runway');
+assert.equal(isDone(foundingTutorial.build(added), 'cash_runway'), false, 'cash runway remains incomplete before third report');
+const cohort = JSON.parse(JSON.stringify(baseTeam));
+cohort.workforceTeams.find(t => t.storeID === 's1').storePayrollCohorts = [{ status:'active', headcount:1, weeklySalaryPerPerson:22000 }];
+assert.equal(foundingTutorial._internals.hasStoreWorkforceImprovement(cohort), true, 'active store payroll cohort is an improvement');
+const onboarding = JSON.parse(JSON.stringify(baseTeam));
+onboarding.workforceTeams.find(t => t.storeID === 's1').onboardingHeadcount = 1;
+assert.equal(foundingTutorial._internals.hasStoreWorkforceImprovement(onboarding), true, 'onboarding headcount is an improvement');
+const missingBase = JSON.parse(JSON.stringify(baseTeam));
+delete missingBase.workforceTeams.find(t => t.storeID === 's1').baseHeadcount;
+assert.equal(foundingTutorial._internals.hasStoreWorkforceImprovement(missingBase), false, 'missing baseHeadcount does not treat existing headcount as improvement');
+assertAtImprovement(missingBase, 'legacy team without baseHeadcount remains at improvement');
+const training = setupImprovementState();
+modules.workforce.storeAdjustment(training, training.stores[0], 1000);
+training.workforceTrainings = [{ status:'active' }];
 assert.equal(foundingTutorial._internals.hasImprovement(training), true, 'training is a safe improvement path');
+const cancelledTraining = setupImprovementState();
+modules.workforce.storeAdjustment(cancelledTraining, cancelledTraining.stores[0], 1000);
+cancelledTraining.workforceTrainings = [{ status:'cancelled' }];
+assert.equal(foundingTutorial._internals.hasImprovement(cancelledTraining), false, 'cancelled training is not an improvement');
+assertAtImprovement(cancelledTraining, 'cancelled training does not advance tutorial');
 for (const difficulty of ['easy','normal','hard']) {
   const state = engine.createInitialState({ configured: true, difficulty });
   assert.equal(isDone(foundingTutorial.build(state), 'cash_runway'), false, `${difficulty} initial cash does not complete cash runway`);
