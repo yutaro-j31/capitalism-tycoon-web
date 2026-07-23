@@ -51,6 +51,19 @@ async function startServer(server) {
 async function stopServer(server) { await new Promise(resolve => server.close(resolve)); }
 async function save(page) { return page.evaluate(key => localStorage.getItem(key), SAVE_KEY); }
 async function parsed(page) { const raw = await save(page); return raw ? JSON.parse(raw) : null; }
+async function inspectTutorialState(page) {
+  return page.evaluate(key => {
+    const raw = localStorage.getItem(key);
+    if (!raw) throw new Error(`saved game is missing: ${key}`);
+    const state = JSON.parse(raw);
+    const modules = globalThis.__capitalismTycoonModules;
+    if (!modules?.foundingTutorial?.build) throw new Error('founding tutorial module is unavailable');
+    return {
+      model: modules.foundingTutorial.build(state),
+      team: (state.workforceTeams || []).find(team => team?.storeID) || null
+    };
+  }, SAVE_KEY);
+}
 async function assertText(locator, pattern) { assert.match(await locator.innerText(), pattern); }
 async function assertNoText(locator, pattern) { assert.doesNotMatch(await locator.innerText(), pattern); }
 
@@ -212,9 +225,12 @@ async function main() {
 
     await setState(page, 'improvement');
     await assertText(page.locator('[data-founding-guide="1"]'), /最初の改善を行う/);
-    const model = await page.evaluate(() => globalThis.__capitalismTycoonModules.foundingTutorial.build(globalThis.__ct_engine.g));
-    assert.equal(model.current.id, 'first_improvement');
-    const team = await page.evaluate(() => globalThis.__ct_engine.g.workforceTeams.find(t => t.storeID));
+    const beforeInspection = await save(page);
+    const inspection = await inspectTutorialState(page);
+    assert.equal(await save(page), beforeInspection, 'tutorial inspection must not mutate the saved game');
+    assert.equal(inspection.model.current.id, 'first_improvement');
+    const team = inspection.team;
+    assert.ok(team, 'baseline store workforce team must exist');
     assert.ok(team.storeID);
     assert.equal(team.headcount, team.baseHeadcount);
     assert.equal((team.storePayrollCohorts || []).length, 0);
