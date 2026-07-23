@@ -44,10 +44,12 @@ function generateTasks(g,helpers={}){
     const target=arr(g?.acquisitionTargets).find(t=>t&&t.id===deal.targetID)||{};
     const name=target.name||deal.targetID||'候補企業';
     const focus=`[data-ma-deal-room="${deal.id}"]`;
+    const approvalFocus=`${focus} [data-ma-board-approve]`;
+    const closingFocus=`${focus} [data-action="ma-close-deal"]`;
     if(deal.activeDiligence?.status==='completed')rows.push(task(`ma_dd_completed_${deal.id}`,'high',`${name}のデューデリジェンスが完了しました`,'調査結果と企業価値ブリッジを確認できます。','提示価格と撤退判断を更新してください。','ma','M&A',focus));
     if(deal.status==='countered')rows.push(task(`ma_counter_${deal.id}`,'high',`${name}からカウンターオファーが届いています`,'売り手が修正条件を提示しています。','期限前に受諾・再提示・撤退を選んでください。','ma','M&A',focus));
     if(deal.competingBid?.status==='active')rows.push(task(`ma_competing_bid_${deal.id}`,'critical',`${name}の買収案件に競合入札が入りました`,'競合買い手が売り手に条件を提示しています。','価格・方法・スピードの見直しが必要です。','ma','M&A',focus));
-    if(deal.status==='accepted'){const ba=globalThis.__capitalismTycoonModules?.maBoardApproval,memo=ba?.buildMemo?.(g,deal,{maPortfolio:helpers.maPortfolio}),valid=ba?.validateApproval?.(g,deal,memo)?.valid,near=(memo&&Math.min(memo.weeksRemaining??99,(memo.approvalExpiresWeek??99)-safeNumber(g.week))<=1),sev=near?'critical':'warning';rows.push(valid?task(`ma_accepted_${deal.id}`,sev,`${name}の最終契約が承認済みです`,'取締役会承認済みです。最終契約で既存の買収会計とPMIへ接続します。','期限前に条件不一致・資金不足がないか確認してください。','ma','M&A','[data-action="ma-close-deal"]'):task(`ma_board_${deal.id}`,sev,`${name}の取締役会承認が必要です`,'売り手受諾後も取締役会承認まではクロージングできません。','価格・方法・現金余力・DD・PMI余力を確認してください。','ma','M&A','[data-ma-board-approve]'));}
+    if(deal.status==='accepted'){const ba=globalThis.__capitalismTycoonModules?.maBoardApproval,memo=ba?.buildMemo?.(g,deal,{maPortfolio:helpers.maPortfolio}),valid=ba?.validateApproval?.(g,deal,memo)?.valid,near=(memo&&Math.min(memo.weeksRemaining??99,(memo.approvalExpiresWeek??99)-nf(g?.week,1))<=1),severity=near?'critical':'high';rows.push(valid?task(`ma_accepted_${deal.id}`,severity,`${name}の最終契約が承認済みです`,'取締役会承認済みです。最終契約で既存の買収会計とPMIへ接続します。','期限前に条件不一致・資金不足がないか確認してください。','ma','M&A',closingFocus):task(`ma_board_${deal.id}`,severity,`${name}の取締役会承認が必要です`,'売り手受諾後も取締役会承認まではクロージングできません。','価格・方法・現金余力・DD・PMI余力を確認してください。','ma','M&A',approvalFocus));}
     if(nf(deal.deadlineWeek)-nf(g?.week)<=2)rows.push(task(`ma_deadline_${deal.id}`,'high',`${name}のM&A期限が近づいています`,'案件期限まで残り2週以内です。','未成立のまま期限を迎えると失効または競合敗北になります。','ma','M&A',focus));
   }
   return sortTasks(stableDedupe(rows)).slice(0,5);

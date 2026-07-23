@@ -24,3 +24,34 @@ assert.ok(mod.generateTasks({...state(), companyCash:20000000, crisis:null, stor
 assert.ok(a.some(x => x.id === 'crisis_active'), 'management crisis task is generated');
 for (const t of a) { assert.match(t.targetTab, /^(bank|report|business|office|rivals|strategy|map)$/); assert.ok(t.focus, 'focus target selector exists'); }
 console.log('executive secretary model tests passed');
+const { loadGame } = require('./harness');
+const fullCtx = loadGame();
+const fullModules = fullCtx.modules;
+function acceptedDealState(weeksRemaining = 4) {
+  const g = fullModules.engine.createInitialState({ configured: true });
+  g.week = 20; g.companyCash = 200000000; g.finance = { loans: [], transactions: [] }; g.stores = [];
+  g.acquisitionTargets = [
+    { id: 'a1', name: 'A承認', valuation: 50000000, activeDealID: 'd-a' },
+    { id: 'a2', name: 'B承認', valuation: 50000000, activeDealID: 'd-b' }
+  ];
+  g.maDealRooms = [
+    { id: 'd-a', targetID: 'a1', status: 'accepted', diligenceConfidence: 0.94, acceptedTerms: { method: 'friendly', finalPrice: 60000000, acceptedWeek: 19, closingDeadlineWeek: g.week + weeksRemaining, offerRound: 1 }, history: [] },
+    { id: 'd-b', targetID: 'a2', status: 'accepted', diligenceConfidence: 0.94, acceptedTerms: { method: 'friendly', finalPrice: 60000000, acceptedWeek: 19, closingDeadlineWeek: g.week + weeksRemaining, offerRound: 1 }, history: [] }
+  ];
+  return g;
+}
+let eg = acceptedDealState();
+let tasks = fullModules.executiveSecretary.generateTasks(eg, { companyValue: 500000000, maPortfolio: fullModules.maPortfolioSummary.build(eg) });
+const maTasks = tasks.filter(t => /^ma_board_/.test(t.id));
+assert.equal(maTasks.length, 2, 'multiple accepted deals must produce separate board approval tasks');
+assert.equal(maTasks[0].priority, 'high');
+assert.ok(maTasks.some(t => t.focus === '[data-ma-deal-room="d-a"] [data-ma-board-approve]'));
+assert.ok(maTasks.some(t => t.focus === '[data-ma-deal-room="d-b"] [data-ma-board-approve]'));
+eg = acceptedDealState(1);
+tasks = fullModules.executiveSecretary.generateTasks(eg, { companyValue: 500000000, maPortfolio: fullModules.maPortfolioSummary.build(eg) });
+assert.ok(tasks.filter(t => /^ma_board_/.test(t.id)).every(t => t.priority === 'critical'), 'near deadline accepted deals must be critical');
+eg = acceptedDealState();
+eg.maDealRooms[0].boardApproval = { status: 'approved', approvedWeek: 20, expiresWeek: 22, termsKey: fullModules.maBoardApproval.buildTermsKey(eg.maDealRooms[0]), approvedPrice: 60000000, approvedMethod: 'friendly', cashBufferAfter: 120000000, expectedDilution: 0, criticalSubsidiaries: 0 };
+tasks = fullModules.executiveSecretary.generateTasks(eg, { companyValue: 500000000, maPortfolio: fullModules.maPortfolioSummary.build(eg) });
+assert.ok(tasks.some(t => t.id === 'ma_accepted_d-a' && t.focus === '[data-ma-deal-room="d-a"] [data-action="ma-close-deal"]'));
+assert.ok(!tasks.some(t => t.priority === 'warning'), 'undefined warning priority must never be used');

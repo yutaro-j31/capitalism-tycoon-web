@@ -20,3 +20,23 @@ assert.equal(mod.riskFor({pmiStatus:'integrating',pmiHealth:55,pmiFriction:52}),
 const reversed=fixture();reversed.maDealRooms.reverse();reversed.maSubsidiaries.reverse();reversed.finance.transactions.reverse();assert.deepEqual(mod.build(reversed),a,'summary is order invariant for equivalent state');
 const forbidden=/SAVE_KEY|saveVersion|localStorage|Math\.random|advanceWeek|companyCash\s*[+\-*/]?=/;assert.ok(!forbidden.test(code),'summary stays read-only and save-schema neutral');
 console.log('M&A portfolio summary deterministic/purity/risk/priority/accounting aggregation tests passed');
+const { loadGame } = require('./harness');
+const full = loadGame().modules;
+function acceptedState() {
+  const g = full.engine.createInitialState({ configured: true });
+  g.week = 12; g.companyCash = 200000000; g.reports = [{ expenses: 1000000 }];
+  g.acquisitionTargets = [{ id: 'pt1', name: '優先対象', valuation: 50000000, activeDealID: 'pd1' }];
+  g.maDealRooms = [{ id: 'pd1', targetID: 'pt1', status: 'accepted', diligenceConfidence: 0.94, acceptedTerms: { method: 'friendly', finalPrice: 60000000, acceptedWeek: 11, closingDeadlineWeek: 16, offerRound: 1 }, history: [] }];
+  return g;
+}
+let g2 = acceptedState();
+assert.equal(full.maPortfolioSummary.build(g2).nextAction.id, 'approve-deal', 'unapproved accepted deal must prioritize board approval');
+g2.maDealRooms[0].boardApproval = { status: 'approved', approvedWeek: 12, expiresWeek: 14, termsKey: full.maBoardApproval.buildTermsKey(g2.maDealRooms[0]), approvedPrice: 60000000, approvedMethod: 'friendly', cashBufferAfter: 120000000, expectedDilution: 0, criticalSubsidiaries: 0 };
+assert.equal(full.maPortfolioSummary.build(g2).nextAction.id, 'close-deal', 'valid board approval must prioritize final contract');
+g2.week = 15;
+assert.equal(full.maPortfolioSummary.build(g2).nextAction.id, 'approve-deal', 'expired approval must return to board approval');
+g2 = acceptedState();
+g2.maDealRooms[0].boardApproval = { status: 'approved', approvedWeek: 12, expiresWeek: 14, termsKey: 'wrong', approvedPrice: 60000000, approvedMethod: 'friendly', cashBufferAfter: 120000000, expectedDilution: 0, criticalSubsidiaries: 0 };
+assert.equal(full.maPortfolioSummary.build(g2).nextAction.id, 'approve-deal', 'termsKey mismatch must return to board approval');
+g2.maSubsidiaries = [{ id: 'critical', status: 'active', pmiStatus: 'stalled', pmiHealth: 20, pmiFriction: 80 }];
+assert.equal(full.maPortfolioSummary.build(g2).nextAction.id, 'stabilize-pmi', 'critical PMI still outranks board approval');
