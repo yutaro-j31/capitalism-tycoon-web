@@ -28,6 +28,7 @@
     "./js/player-engine-bridge.js",
     "./js/strategy-balance.js",
     "./js/progression-balance.js",
+    "./js/founding-tutorial.js",
     "./js/app.js",
     "./js/difficulty-scenario-balance.js",
     "./js/player-crisis.js",
