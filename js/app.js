@@ -111,7 +111,8 @@ function renderScreen(tab) {
 
 function renderHome() {
   const g=engine.g;
-  const model=dashboardModule.build(g,{companyValue:engine.companyValue(),ipoMissingReasons:engine.ipoMissingReasons(),missions:MISSION_DEFS});
+  const maPortfolio=globalThis.__capitalismTycoonModules?.maPortfolioSummary?.build?.(g)||null;
+  const model=dashboardModule.build(g,{companyValue:engine.companyValue(),ipoMissingReasons:engine.ipoMissingReasons(),missions:MISSION_DEFS,maPortfolio});
   const foundingModel=foundingTutorialModule.build(g);
   const topTasks=secretaryModule.generateTasks(g,{companyValue:engine.companyValue(),ipoReady:!g.publicCompany&&engine.ipoMissingReasons().length===0}).slice(0,3);
   const impact=dashboardModule.weeklyImpact(g,{companyValue:engine.companyValue()});
@@ -119,7 +120,11 @@ function renderHome() {
   const rate=v=>pct(v);
   const impactDelta=m=>m.hasDelta?dashboardModule.deltaLabel(m.delta,compactYen):'前週比較なし';
   const fold=(id,title,body,subtitle='')=>`<details class="ceo-card card" data-ceo-dashboard-card="${esc(id)}" open><summary class="ceo-card-summary"><span><strong>${esc(title)}</strong>${subtitle?`<small>${esc(subtitle)}</small>`:''}</span><span aria-hidden="true">⌄</span></summary><div class="card-body">${body}</div></details>`;
-  const overview=model.overview,finance=model.finance,allocation=model.allocation,journey=model.journey;
+  const overview=model.overview,finance=model.finance,allocation=model.allocation,journey=model.journey,ma=model.ma;
+  const maSelectors=globalThis.__capitalismTycoonModules?.maPortfolioSummaryUI?.ACTION_SELECTORS||{};
+  const maFocus=maSelectors[ma.nextAction?.id]||'[data-ma-deal-room],[data-screen=\"ma\"]';
+  const maStatus=ma.criticalSubsidiaries>0?{text:'要緊急対応',kind:'danger'}:ma.watchSubsidiaries>0?{text:'要監視',kind:'warn'}:{text:'安定',kind:'good'};
+  const maActionLabel=ma.nextAction?.label||'買収候補探索';
   return `<section class="ceo-dashboard" aria-labelledby="ceo-dashboard-title" data-ceo-dashboard="1">
     <div class="ceo-dashboard-hero"><div><p class="eyebrow">CEO Dashboard</p><h2 id="ceo-dashboard-title">30秒で読む会社ホーム</h2><p>会社の状態・今やるべきこと・目標・危険・成長状況を読み取り専用で統合します。</p></div><span class="badge good">読み取り専用</span></div>
     ${renderFoundingTutorial(foundingModel)}
@@ -130,6 +135,7 @@ function renderHome() {
       ${fold('journey','Company Journey',`${stat('達成率',journey.rateLabel)}${progress(journey.completed,journey.total)}<div class="kpi-grid mini">${stat('次の目標',journey.nextGoal)}${stat('残り数',`${journey.remaining}件`)}</div>`)}
       ${fold('finance','財務サマリー',`<div class="kpi-grid mini">${stat('売上',money(finance.sales))}${stat('営業利益',money(finance.operatingProfit))}${stat('当期利益',money(finance.netIncome))}${stat('現金',money(finance.cash))}${stat('FCF',money(finance.fcf))}${stat('ROE',rate(finance.roe))}${stat('ROIC',rate(finance.roic))}</div>`)}
       ${fold('allocation','資本配分',`<div class="kpi-grid mini">${stat('スコア',`${allocation.score.toFixed(0)}点`)}${stat('配当',money(allocation.dividend))}${stat('自社株買い',money(allocation.buyback))}${stat('投資',`${allocation.investment}件`)}${stat('借入返済',money(allocation.debtRepayment))}</div>`)}
+      ${fold('ma-governance','M&Aガバナンス',`<section class="ceo-ma-governance" data-ceo-ma-governance aria-label="M&Aガバナンス要約"><div class="ceo-ma-status"><span class="badge ${maStatus.kind}">${esc(maStatus.text)}</span><strong data-ceo-ma-health>PMI健全度 ${ma.portfolioHealth}/100</strong><small>危険対象 ${ma.criticalSubsidiaries}社 / 監視対象 ${ma.watchSubsidiaries}社</small></div><div class="kpi-grid mini ceo-ma-kpis">${stat('稼働案件',`${ma.activeDeals}件`,`DD ${ma.diligenceDeals} / 交渉 ${ma.negotiatingDeals} / 受諾 ${ma.acceptedDeals}`).replace('<div class="stat"','<div class="stat" data-ceo-ma-active-deals')}${stat('保有子会社',`${ma.subsidiaries}社`,`計画 ${ma.planningSubsidiaries} / 統合中 ${ma.integratingSubsidiaries} / 完了 ${ma.completedSubsidiaries}`).replace('<div class="stat"','<div class="stat" data-ceo-ma-subsidiaries')}${stat('累計取得価格',money(ma.totalAcquisitionPrice),`識別可能純資産 ${money(ma.identifiableNetAssetsBookValue)}`)}${stat('のれん簿価',money(ma.goodwillBookValue)).replace('<div class="stat"','<div class="stat" data-ceo-ma-goodwill')}${stat('週次実現シナジー',money(ma.weeklyRealizedSynergy)).replace('<div class="stat"','<div class="stat" data-ceo-ma-synergy')}</div><div class="ceo-ma-action"><span>最優先アクション：<strong>${esc(maActionLabel)}</strong></span><button class="btn primary small" type="button" data-action="secretary-jump" data-tab="ma" data-focus="${esc(maFocus)}" data-ceo-ma-action aria-label="${esc(maActionLabel)}の確認先へ移動">${esc(maActionLabel)}を確認</button></div></section>`,`${maStatus.text} · 最優先：${maActionLabel}`)}
       ${fold('risk','リスク',model.risks.length?model.risks.map(r=>`<div class="risk-row"><span class="risk-dot ${r.severity===0?'danger':r.severity===1?'warn':'good'}"></span><div><strong>${esc(r.label)}</strong><p>${esc(r.detail)}</p></div></div>`).join(''):empty('重大な警告なし'),'危険度順')}
       ${fold('growth','成長',model.growth.length?model.growth.map(x=>`<button class="action-row" data-action="tab" data-tab="${esc(x.targetTab)}"><span>${esc(x.label)}</span><b>›</b></button>`).join(''):empty('表示できる成長候補はまだありません。'))}
     </div>

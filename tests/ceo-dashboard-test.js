@@ -18,7 +18,7 @@ assert.equal(a.overview.companyName,'テスト商事');assert.equal(a.overview.y
 const { ctx } = loadGame({ random: () => 0.42 });
 const appCode = fs.readFileSync(path.join(ROOT, 'js/app.js'), 'utf8');
 assert.match(appCode,/data-ceo-dashboard="1"/,'home renders CEO dashboard markup');
-for (const id of ['overview','priority','journey','finance','allocation','risk','growth']) assert.match(appCode,new RegExp(`fold\\('${id}'`),`${id} card renders`);
+for (const id of ['overview','priority','journey','finance','allocation','ma-governance','risk','growth']) assert.match(appCode,new RegExp(`fold\\('${id}'`),`${id} card renders`);
 assert.match(appCode,/aria-labelledby="ceo-dashboard-title"/,'dashboard has ARIA label');
 assert.match(appCode,/すべて見る/,'secretary navigation is available');
 assert.equal(ctx.__localStorageHistory.setItem.length,0,'loading dashboard must not write localStorage before user action');
