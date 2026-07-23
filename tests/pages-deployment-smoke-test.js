@@ -55,6 +55,16 @@ function close(server) {
   assert.equal((workflow.match(/published-weekly-impact-webkit-test\.js/g) || []).length, 1,
     'published weekly impact must run exactly once per Pages deployment');
 
+
+  const foundingTutorialTestPath = path.join(ROOT, 'tests', 'published-founding-tutorial-webkit-test.js');
+  assert.ok(fs.existsSync(foundingTutorialTestPath), 'published founding tutorial WebKit test must exist');
+  assert.match(workflow, /FOUNDING_TUTORIAL_TARGET_URL: https:\/\/yutaro-j31\.github\.io\/capitalism-tycoon-web\//,
+    'published founding tutorial must target the public Pages URL');
+  assert.match(workflow, /node tests\/published-founding-tutorial-webkit-test\.js/,
+    'Pages smoke must execute the published founding tutorial workflow');
+  assert.equal((workflow.match(/published-founding-tutorial-webkit-test\.js/g) || []).length, 1,
+    'published founding tutorial must run exactly once per Pages deployment');
+
   const outcomeTestPath = path.join(ROOT, 'tests', 'capital-allocation-recovery-outcome-webkit-test.js');
   assert.ok(fs.existsSync(outcomeTestPath), 'published recovery outcome WebKit test must exist');
   assert.match(workflow, /CAPITAL_ALLOCATION_RECOVERY_TARGET_URL: https:\/\/yutaro-j31\.github\.io\/capitalism-tycoon-web\//,
@@ -72,6 +82,7 @@ function close(server) {
   const byteCheckIndex = workflow.indexOf('node scripts/pages-deployment-smoke.js');
   const genericWebKitIndex = workflow.indexOf('node tests/iphone-webkit-smoke-test.js');
   const weeklyImpactIndex = workflow.indexOf('node tests/published-weekly-impact-webkit-test.js');
+  const foundingTutorialIndex = workflow.indexOf('node tests/published-founding-tutorial-webkit-test.js');
   const targetSyncWebKitIndex = workflow.indexOf('node tests/capital-allocation-recovery-webkit-test.js');
   const outcomeWebKitIndex = workflow.indexOf('node tests/capital-allocation-recovery-outcome-webkit-test.js');
   const uploadIndex = workflow.indexOf('Retain published WebKit evidence');
@@ -79,8 +90,10 @@ function close(server) {
     'generic WebKit smoke must run only after exact Pages bytes match main');
   assert.ok(weeklyImpactIndex > genericWebKitIndex,
     'weekly impact verification must run after generic published WebKit smoke');
-  assert.ok(targetSyncWebKitIndex > weeklyImpactIndex,
-    'recovery target synchronization must run after weekly impact verification');
+  assert.ok(foundingTutorialIndex > weeklyImpactIndex,
+    'founding tutorial verification must run after weekly impact verification');
+  assert.ok(targetSyncWebKitIndex > foundingTutorialIndex,
+    'recovery target synchronization must run after founding tutorial verification');
   assert.ok(outcomeWebKitIndex > targetSyncWebKitIndex,
     'recovery outcome verification must run after target synchronization');
   assert.ok(uploadIndex > outcomeWebKitIndex,

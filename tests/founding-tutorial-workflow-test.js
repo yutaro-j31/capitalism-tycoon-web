@@ -1,0 +1,7 @@
+'use strict';
+const assert=require('node:assert/strict');const fs=require('node:fs');const path=require('node:path');const ROOT=path.resolve(__dirname,'..');
+const workflow=fs.readFileSync(path.join(ROOT,'.github','workflows','founding-tutorial.yml'),'utf8');
+assert.match(workflow,/^name: Founding Tutorial$/m);assert.match(workflow,/branches: \[ main \]/);assert.match(workflow,/node-version: '22'/);assert.match(workflow,/playwright@1\.61\.0/);assert.match(workflow,/npx playwright install --with-deps webkit/);assert.match(workflow,/node tests\/founding-tutorial-webkit-test\.js/);assert.match(workflow,/actions\/upload-artifact@v4/);assert.match(workflow,/SAVE_KEY: capitalism_tycoon_web_v1/);assert.match(workflow,/SAVE_VERSION: '9'/);
+for(const p of ['js/founding-tutorial.js','js/app.js','js/ceo-dashboard.js','index.html','css/app.css','tests/founding-tutorial-test.js','tests/founding-tutorial-ui-test.js','tests/founding-tutorial-webkit-test.js','tests/published-founding-tutorial-webkit-test.js','package.json','tests/run-all.js','.github/workflows/founding-tutorial.yml'])assert.match(workflow,new RegExp(p.replace(/[.*+?^${}()|[\]\\]/g,'\\$&')));
+for(const cmd of ['npm run test:founding-tutorial','npm run test:ceo-dashboard','npm run test:weekly-impact','npm run test:syntax','npm run test:javascript','npm run test:modules','npm run test:static','npm run test:css'])assert.match(workflow,new RegExp(cmd.replace(/[.*+?^${}()|[\]\\]/g,'\\$&')));
+console.log('founding tutorial workflow contract passed');
