@@ -32,4 +32,4 @@ jobs:
       - name: Preserve save contract
         run: |
           grep -q "capitalism_tycoon_web_v1" js/engine.js
-          grep -Eq "saveVersion[^0-9]*9|SAVE_VERSION[^0-9]*9" js/engine.js
+          npm run test:save-v9
