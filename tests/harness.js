@@ -97,6 +97,7 @@ function loadGameFromHtml(html, options = {}) {
   const scripts = extractScripts(html);
   let code = scripts.map(s => s.code).join('\n');
   code = code.replace('const engine = TycoonEngine.load();', 'const engine = globalThis.__ct_engine = TycoonEngine.load();');
+  code = code.replace('const ui = {', 'const ui = globalThis.__ct_ui = {');
   const ctx = createBrowserContext(options);
   vm.runInContext(code, ctx, { filename: 'index.html' });
   return { ctx, modules: ctx.__capitalismTycoonModules, engineModule: ctx.__capitalismTycoonModules.engine };
