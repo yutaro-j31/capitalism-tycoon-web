@@ -12,7 +12,7 @@ function expectThrow(fn, re) {
 
 const expected = [
   './js/boot-recovery.js','./js/runtime.js','./js/data.js','./js/workforce.js','./js/supply.js','./js/competitor.js','./js/competitor-projects.js','./js/competitor-entry.js','./js/competitor-credit.js','./js/competitor-distress.js','./js/competitor-terminal-compat.js',
-  './js/market.js','./js/finance.js','./js/engine.js','./js/save-v9.js','./js/ma-integration.js','./js/expansion.js','./js/competitor-media.js','./js/completion.js','./js/parity.js','./js/executive-secretary.js','./js/competitor-parity.js','./js/competitor-dashboard.js','./js/competitor-dashboard-status.js','./js/competitor-dashboard-ui.js',
+  './js/market.js','./js/finance.js','./js/engine.js','./js/save-v9.js','./js/ma-integration.js','./js/ma-deal-room.js','./js/expansion.js','./js/competitor-media.js','./js/completion.js','./js/parity.js','./js/executive-secretary.js','./js/competitor-parity.js','./js/competitor-dashboard.js','./js/competitor-dashboard-status.js','./js/competitor-dashboard-ui.js',
   './js/player-crisis-ui.js','./js/player-engine-bridge.js','./js/strategy-balance.js','./js/progression-balance.js','./js/founding-tutorial.js','./js/app.js','./js/difficulty-scenario-balance.js','./js/player-crisis.js','./js/player-crisis-actions.js','./js/player-crisis-restructuring.js','./js/player-crisis-creditor.js','./js/player-debt-service.js','./js/player-turnaround-plan.js','./js/player-crisis-creditor-ui.js','./js/player-turnaround-plan-ui.js','./js/player-turnaround-plan-report.js','./js/release-diagnostics-ui.js','./js/playtest-report-ui.js','./js/d-ui-shell.js','./js/d-ui-context-tabs.js','./js/runtime-recovery-ui.js','./js/shareholder-returns.js','./js/capital-allocation-score.js','./js/capital-allocation-policy.js'
 ];
 const scripts = extractScripts(readIndex()).filter(script => script.src);
@@ -25,6 +25,8 @@ const before = (left, right) => assert(expected.indexOf(left) !== -1 && expected
 assert(JSON.stringify(scripts.map(script => script.src)) === JSON.stringify(expected), `script order mismatch: ${scripts.map(script => script.src).join(', ')}`);
 assert(expected[0] === './js/boot-recovery.js', 'boot recovery must be the first external script');
 assert(expected[1] === './js/runtime.js', 'runtime.js must immediately follow boot recovery');
+before('./js/ma-integration.js','./js/ma-deal-room.js');
+before('./js/ma-deal-room.js','./js/expansion.js');
 before('./js/player-crisis-ui.js','./js/player-engine-bridge.js');
 before('./js/player-engine-bridge.js','./js/app.js');
 before('./js/strategy-balance.js','./js/progression-balance.js');

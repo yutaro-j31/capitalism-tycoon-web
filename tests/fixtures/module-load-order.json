@@ -16,6 +16,7 @@
     "./js/engine.js",
     "./js/save-v9.js",
     "./js/ma-integration.js",
+    "./js/ma-deal-room.js",
     "./js/expansion.js",
     "./js/competitor-media.js",
     "./js/completion.js",

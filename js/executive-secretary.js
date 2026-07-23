@@ -39,6 +39,17 @@ function generateTasks(g,helpers={}){
   }
   if(g?.crisis?.active||g?.playerCrisis?.active||cash<0)rows.push(task('crisis_active','critical','経営危機への対応が必要です','危機状態または資金ショートが検出されています。','再建計画・債権者対応を遅らせると倒産に近づきます。','strategy','戦略','[data-player-crisis-ui],.screen'));
   if(openStores.length>=1&&cash>Math.max(10_000_000,fixed*8))rows.push(task('growth_expansion_capacity','opportunity','新店舗を出店できます','既存店舗と現金余力があり、出店候補を検討できます。','収益源を増やせますが、固定費も増えるため候補確認が必要です。','map','出店','.screen'));
+  for(const deal of arr(g?.maDealRooms)){
+    if(!deal||['acquired','withdrawn','expired','lost'].includes(deal.status))continue;
+    const target=arr(g?.acquisitionTargets).find(t=>t&&t.id===deal.targetID)||{};
+    const name=target.name||deal.targetID||'候補企業';
+    const focus=`[data-ma-deal-room="${deal.id}"]`;
+    if(deal.activeDiligence?.status==='completed')rows.push(task(`ma_dd_completed_${deal.id}`,'high',`${name}のデューデリジェンスが完了しました`,'調査結果と企業価値ブリッジを確認できます。','提示価格と撤退判断を更新してください。','ma','M&A',focus));
+    if(deal.status==='countered')rows.push(task(`ma_counter_${deal.id}`,'high',`${name}からカウンターオファーが届いています`,'売り手が修正条件を提示しています。','期限前に受諾・再提示・撤退を選んでください。','ma','M&A',focus));
+    if(deal.competingBid?.status==='active')rows.push(task(`ma_competing_bid_${deal.id}`,'critical',`${name}の買収案件に競合入札が入りました`,'競合買い手が売り手に条件を提示しています。','価格・方法・スピードの見直しが必要です。','ma','M&A',focus));
+    if(deal.status==='accepted')rows.push(task(`ma_accepted_${deal.id}`,'critical',`${name}の買収契約が受諾済みです`,'最終契約を実行すると既存の買収会計とPMIへ接続します。','クロージング期限切れ前に資金条件を確認してください。','ma','M&A',focus));
+    if(nf(deal.deadlineWeek)-nf(g?.week)<=2)rows.push(task(`ma_deadline_${deal.id}`,'high',`${name}のM&A期限が近づいています`,'案件期限まで残り2週以内です。','未成立のまま期限を迎えると失効または競合敗北になります。','ma','M&A',focus));
+  }
   return sortTasks(stableDedupe(rows)).slice(0,5);
 }
 exports.LEVEL_RANK=Object.freeze(LEVEL_RANK);exports.generateTasks=generateTasks;exports.sortTasks=sortTasks;exports.stableDedupe=stableDedupe;

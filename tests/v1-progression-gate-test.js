@@ -97,9 +97,32 @@ const maTarget = {
   expiresWeek: game.g.week + 20
 };
 game.g.acquisitionTargets = [maTarget];
-assert.equal(game.acquireTarget(maTarget.id, 'friendly'), true, 'friendly acquisition must succeed');
+game.normalize();
+assert.equal(game.openMADealRoom(maTarget.id), true, 'M&A deal room must open through production action');
+const deal = game.g.maDealRooms.find(row => row.targetID === maTarget.id);
+assert.ok(deal, 'deal room state must exist');
+assert.equal(game.startMADueDiligence(deal.id, 'financial'), true, 'financial due diligence must start');
+assert.notEqual(game.advanceWeek(false), false, 'first DD week must advance');
+assert.equal(deal.status, 'diligence', 'initial financial DD must not complete in one week');
+assert.notEqual(game.advanceWeek(false), false, 'second DD week must advance');
+assert.equal(deal.status, 'ready', 'financial DD must complete after two weeks');
+const offerPrice = Math.min(maTarget.valuation * 2.5, Math.max(deal.sellerAsk * 1.45, deal.valuationBridge.recommendedMaximumPrice * 1.3));
+assert.equal(game.submitMAOffer(deal.id, { method: 'friendly', offerPrice }), true, 'friendly deal-room offer must be submitted');
+assert.notEqual(game.advanceWeek(false), false, 'seller response week must advance');
+let negotiationGuard = 0;
+while (deal.status === 'countered' && negotiationGuard < 3) {
+  assert.equal(game.acceptMACounterOffer(deal.id), true, 'counter offer must be accepted through production action');
+  assert.notEqual(game.advanceWeek(false), false, 'counter response week must advance');
+  negotiationGuard += 1;
+}
+assert.equal(deal.status, 'accepted', `deal must reach accepted before closing, got ${deal.status}`);
+assert.equal(game.closeMADeal(deal.id), true, 'accepted deal must close through final contract action');
 assert.equal(game.g.maSubsidiaries.length, 1, 'one M&A subsidiary must exist');
 assert.equal(game.g.totalAcquisitions, 1, 'M&A counter must increment');
+const acquiredMA = game.g.maSubsidiaries[0];
+assert.equal(acquiredMA.pmiStatus, 'planning', 'deal-room acquisition must enter PMI planning');
+assert.equal(acquiredMA.identifiableNetAssetsBookValue + acquiredMA.goodwillBookValue, acquiredMA.acquisitionPrice, 'identifiable assets plus goodwill must equal acquisition price');
+assert.equal(finance.validate(game.g).ok, true, 'M&A deal-room accounting must validate');
 
 // Hiring negotiation is intentionally excluded from this deterministic release
 // gate; the board action itself remains exercised through its production API.
@@ -127,7 +150,7 @@ assert.ok(ipoTransaction.cashEffect > 0 && ipoTransaction.equityEffect > 0, 'par
 assert.ok(game.g.finance.balances.capitalSurplus > capitalSurplusBeforeIPO, 'parent IPO proceeds must increase capital surplus');
 
 const appSource = fs.readFileSync(path.join(__dirname, '..', 'js', 'app.js'), 'utf8');
-for (const action of ['open-store', 'contract-office', 'establish-department', 'make-subsidiary', 'acquire-friendly', 'establish-board', 'execute-ipo']) {
+for (const action of ['open-store', 'contract-office', 'establish-department', 'make-subsidiary', 'ma-open-deal', 'ma-start-dd', 'ma-submit-offer', 'ma-close-deal', 'start-ma-pmi', 'establish-board', 'execute-ipo']) {
   assert.ok(appSource.includes(`'${action}'`) || appSource.includes(`"${action}"`), `UI action ${action} must remain reachable`);
 }
 
