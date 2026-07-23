@@ -50,14 +50,14 @@
 .ma-subsidiary-card button:focus-visible,.ma-pmi-option button:focus-visible{outline:3px solid var(--accent,#efb85b);outline-offset:2px}
 
 /* iPhone WebKit minimum tap targets for M&A and week controls */
-[data-action="advance-4"],
-[data-action="advance-week"],
-[data-action="generate-ma"],
-[data-action="acquire-friendly"],
-[data-action="acquire-hostile"],
-[data-action="acquire-swap"],
-[data-action="start-ma-pmi"],
-[data-action="support-ma-pmi"],
-[data-action="sell-ma"],
-[data-action="transport-rebuild"]{min-height:44px;box-sizing:border-box}
-[data-action="advance-4"]{min-width:44px}
+.btn[data-action="generate-ma"],
+.btn.small[data-action="acquire-friendly"],
+.btn.small[data-action="acquire-hostile"],
+.btn.small[data-action="acquire-swap"],
+.btn.small[data-action="start-ma-pmi"],
+.btn.small[data-action="support-ma-pmi"],
+.btn.small[data-action="sell-ma"],
+.btn.small[data-action="transport-rebuild"],
+.week-controls .btn[data-action="advance-week"],
+.week-controls .btn[data-action="advance-4"]{min-height:44px;box-sizing:border-box}
+.week-controls .btn[data-action="advance-4"]{min-width:44px}
