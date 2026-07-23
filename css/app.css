@@ -35,3 +35,29 @@
 .founding-points{margin:10px 0;padding-left:1.25rem;display:grid;gap:6px}.founding-points li{line-height:1.55}.founding-roadmap{margin-top:10px}.founding-roadmap summary{min-height:44px;display:flex;align-items:center;cursor:pointer;outline:none}.founding-roadmap summary:focus-visible,.founding-guide-cta:focus-visible{outline:3px solid var(--accent);outline-offset:3px}.founding-roadmap ol{display:grid;gap:8px;margin:8px 0 0;padding:0;list-style:none}.founding-step{display:grid;grid-template-columns:28px minmax(0,1fr);gap:8px;align-items:center;padding:8px;border:1px solid rgba(255,255,255,.08);border-radius:12px}.founding-step span{font-weight:800}.founding-step strong,.founding-step small{display:block}.founding-step.completed{border-color:rgba(83,215,137,.32)}.founding-step.current{border-color:rgba(239,184,91,.7);background:rgba(239,184,91,.08)}.founding-step.unavailable{opacity:.78}.btn.small.founding-guide-cta{min-height:44px}
 @media(max-width:430px){.founding-guide-card{margin-left:0;margin-right:0}.founding-guide-card .card-head{display:grid}.founding-progress{grid-template-columns:1fr}.founding-step{grid-template-columns:24px minmax(0,1fr)}}
 @media(prefers-reduced-motion:reduce){.founding-guide-card,.founding-step{scroll-behavior:auto;transition:none}}
+
+/* M&A PMI mobile-first cards */
+.ma-subsidiary-card{align-items:stretch;gap:12px;overflow-wrap:anywhere;min-width:0}
+.ma-subsidiary-card>div{min-width:0;width:100%}
+.ma-pmi-options{display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:10px;margin-top:12px;min-width:0}
+.ma-pmi-option{border:1px solid rgba(255,255,255,.12);border-radius:14px;padding:12px;background:rgba(255,255,255,.04);min-width:0}
+.ma-pmi-option .btn,.ma-pmi-supports .btn,.ma-subsidiary-card .btn{min-height:44px;white-space:normal;line-height:1.25}
+.ma-pmi-kpis .stat,.ma-subsidiary-card .stat{min-width:0;overflow-wrap:anywhere}
+.ma-pmi-supports{flex-wrap:wrap}.ma-pmi-supports .btn{flex:1 1 120px}
+.ma-subsidiary-card:focus-within{outline:2px solid var(--accent,#efb85b);outline-offset:2px}
+@media (max-width:430px){body{padding-left:max(0px,env(safe-area-inset-left));padding-right:max(0px,env(safe-area-inset-right))}.ma-pmi-options{grid-template-columns:1fr}.ma-subsidiary-card{display:block}.ma-subsidiary-card .kpi-grid{grid-template-columns:1fr 1fr}.ma-subsidiary-card .button-row{gap:8px}.ma-subsidiary-card button{min-height:44px}}
+@media (prefers-reduced-motion: reduce){.ma-subsidiary-card,.ma-pmi-option{transition:none!important;animation:none!important}}
+.ma-subsidiary-card button:focus-visible,.ma-pmi-option button:focus-visible{outline:3px solid var(--accent,#efb85b);outline-offset:2px}
+
+/* iPhone WebKit minimum tap targets for M&A and week controls */
+.btn[data-action="generate-ma"],
+.btn.small[data-action="acquire-friendly"],
+.btn.small[data-action="acquire-hostile"],
+.btn.small[data-action="acquire-swap"],
+.btn.small[data-action="start-ma-pmi"],
+.btn.small[data-action="support-ma-pmi"],
+.btn.small[data-action="sell-ma"],
+.btn.small[data-action="transport-rebuild"],
+.week-controls .btn[data-action="advance-week"],
+.week-controls .btn[data-action="advance-4"]{min-height:44px;box-sizing:border-box}
+.week-controls .btn[data-action="advance-4"]{min-width:44px}
