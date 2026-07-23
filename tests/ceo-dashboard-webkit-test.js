@@ -10,7 +10,7 @@ const ROOT = path.resolve(__dirname, '..');
 const ARTIFACT_DIR = path.resolve(process.env.CEO_DASHBOARD_ARTIFACT_DIR || path.join(ROOT, 'artifacts', 'ceo-dashboard-webkit'));
 const SAVE_KEY = 'capitalism_tycoon_web_v1';
 const DEVICE_NAME = 'iPhone 13';
-const CARD_IDS = ['overview', 'priority', 'journey', 'finance', 'allocation', 'risk', 'growth'];
+const CARD_IDS = ['overview', 'priority', 'journey', 'finance', 'allocation', 'ma-governance', 'risk', 'growth'];
 const MIME = new Map([
   ['.css', 'text/css; charset=utf-8'], ['.html', 'text/html; charset=utf-8'],
   ['.js', 'text/javascript; charset=utf-8'], ['.json', 'application/json; charset=utf-8'],
@@ -143,6 +143,73 @@ async function inspectDashboard(page) {
 }
 
 
+async function injectMAGovernanceFixture(page) {
+  await page.evaluate(key => {
+    const save = JSON.parse(localStorage.getItem(key));
+    save.selectedTab = 'home';
+    save.departments = {...(save.departments || {}), investment: {id:'investment', name:'投資部門'}};
+    save.acquisitionTargets = [{id:'target-1', name:'PMI危機テック', domain:'SaaS', sales:120000000, operatingProfit:18000000, valuation:120000000, growth:.18, synergy:.22, risk:.2, expiresWeek:save.week + 12, dealStatus:'accepted'}];
+    save.maDealRooms = [{id:'deal-1', targetID:'target-1', status:'accepted', deadlineWeek:save.week + 4, sellerAsk:120000000, diligenceLevel:'confirmatory', diligenceConfidence:.9, valuationBridge:{recommendedMaximumPrice:120000000}, findings:[], history:[]}];
+    save.goodwillRecords = [{id:'gw-1', carryingValue:21600000, amount:30000000, status:'active'}];
+    save.maSubsidiaries = [{id:'sub-1', name:'PMI危機子会社', status:'active', pmiStatus:'stalled', pmiHealth:30, pmiFriction:82, acquisitionMethod:'cash', domain:'SaaS', acquisitionPrice:90000000, identifiableNetAssetsBookValue:68400000, goodwillBookValue:30000000, goodwillRecordID:'gw-1', pmiWeeklySynergyProfit:400000, standaloneWeeklyProfit:600000, weeklyProfit:1000000, valuation:95000000}];
+    localStorage.setItem(key, JSON.stringify(save));
+  }, SAVE_KEY);
+  await page.reload({ waitUntil: 'networkidle', timeout: 30_000 });
+  await page.locator('[data-ceo-dashboard="1"]').waitFor({ state: 'visible', timeout: 20_000 });
+}
+
+async function inspectMAGovernance(page) {
+  const card = page.locator('[data-ceo-ma-governance]');
+  await card.waitFor({ state: 'visible', timeout: 20_000 });
+  const text = await card.innerText();
+  assert.match(text, /PMI立て直し/);
+  assert.match(text, /要緊急対応/);
+  const button = card.locator('[data-ceo-ma-action]');
+  await button.waitFor({ state: 'visible' });
+  const maGovernance = await card.evaluate((root, key) => {
+    const button = root.querySelector('[data-ceo-ma-action]');
+    const buttonRect = button.getBoundingClientRect();
+    const txt = root.innerText;
+    const numberBefore = label => { const m = txt.match(new RegExp(label + '\\n?([0-9,]+)')); return m ? Number(m[1].replace(/,/g,'')) : null; };
+    const health = (txt.match(/PMI健全度\s+([0-9]+)\/100/) || [])[1];
+    const save = JSON.parse(localStorage.getItem(key));
+    const summary = globalThis.__capitalismTycoonModules.maPortfolioSummary.build(save);
+    return {
+      visible: true,
+      activeDeals: numberBefore('稼働案件'),
+      acceptedDeals: Number((txt.match(/受諾\s+([0-9]+)/) || [])[1] || 0),
+      subsidiaries: numberBefore('保有子会社'),
+      portfolioHealth: Number(health),
+      criticalSubsidiaries: Number((txt.match(/危険対象\s+([0-9]+)社/) || [])[1] || 0),
+      goodwillBookValue: summary.goodwillBookValue,
+      weeklyRealizedSynergy: summary.weeklyRealizedSynergy,
+      nextAction: button.textContent.includes('PMI立て直し') ? 'stabilize-pmi' : button.textContent.trim(),
+      buttonHeight: buttonRect.height,
+      buttonFocus: button.getAttribute('data-focus'),
+      statusVisible: txt.includes('要緊急対応')
+    };
+  }, SAVE_KEY);
+  assert.equal(maGovernance.activeDeals, 1);
+  assert.equal(maGovernance.acceptedDeals, 1);
+  assert.equal(maGovernance.subsidiaries, 1);
+  assert.equal(maGovernance.portfolioHealth, 30);
+  assert.equal(maGovernance.criticalSubsidiaries, 1);
+  assert.equal(maGovernance.nextAction, 'stabilize-pmi');
+  assert.ok(maGovernance.buttonHeight >= 43.5, `M&A CTA below 44px: ${JSON.stringify(maGovernance)}`);
+  await button.click();
+  await page.locator('[data-screen="ma"]').waitFor({ state: 'visible', timeout: 10_000 });
+  const focusedSelector = await page.evaluate(() => {
+    const active = document.activeElement;
+    if (!active) return '';
+    if (active.matches?.('[data-ma-subsidiary] [data-ma-pmi-support]')) return '[data-ma-subsidiary] [data-ma-pmi-support]';
+    if (active.closest?.('[data-ma-subsidiary]')) return '[data-ma-subsidiary]';
+    return active.tagName || '';
+  });
+  assert.equal(focusedSelector, '[data-ma-subsidiary] [data-ma-pmi-support]');
+  maGovernance.focusedSelector = focusedSelector;
+  return maGovernance;
+}
+
 async function inspectWeeklyImpactRecap(page, expectedPrevious) {
   const saveBefore = await savedGame(page);
   await page.locator('[data-action="advance-week"]').click();
@@ -214,6 +281,7 @@ async function main() {
   let browser;
   let page;
   let layout = null;
+  let maGovernance = null;
   const diagnostics = { consoleErrors: [], pageErrors: [], failedRequests: [] };
   const startedAt = new Date().toISOString();
 
@@ -243,16 +311,19 @@ async function main() {
     assert.equal(save.saveVersion, 9);
     assert.equal(save.companyName, 'Dashboard Holdings');
 
+    await injectMAGovernanceFixture(page);
     layout = await inspectDashboard(page);
+    maGovernance = await inspectMAGovernance(page);
     const firstWeeklyLayout = await inspectWeeklyImpactRecap(page, false);
     const secondWeeklyLayout = await inspectWeeklyImpactRecap(page, true);
     await page.screenshot({ path: path.join(ARTIFACT_DIR, 'ceo-dashboard-iphone.png'), fullPage: true });
+    await page.screenshot({ path: path.join(ARTIFACT_DIR, 'ceo-dashboard-ma-governance-iphone.png'), fullPage: true });
     assert.deepEqual(diagnostics, { consoleErrors: [], pageErrors: [], failedRequests: [] });
 
     writeResult({
       status: 'passed', startedAt, completedAt: new Date().toISOString(),
       device: DEVICE_NAME, browser: 'WebKit', browserVersion: browser.version(), saveVersion: save.saveVersion,
-      cards: CARD_IDS, layout, firstWeeklyLayout, secondWeeklyLayout
+      cards: CARD_IDS, layout, maGovernance, firstWeeklyLayout, secondWeeklyLayout
     });
     console.log('CEO dashboard iPhone WebKit smoke passed');
   } catch (error) {
@@ -261,7 +332,7 @@ async function main() {
     }
     writeResult({
       status: 'failed', startedAt, completedAt: new Date().toISOString(),
-      error: error?.stack || String(error), layout, diagnostics
+      error: error?.stack || String(error), layout, maGovernance, diagnostics
     });
     throw error;
   } finally {
