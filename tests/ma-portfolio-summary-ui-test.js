@@ -11,15 +11,14 @@ const focusTarget={setAttribute(){},getAttribute(){return null;},focus(){focused
 const screen={querySelector(){return null;},insertAdjacentHTML(_where,html){inserted=html;}};
 const app={querySelector(selector){return selector==='[data-screen="ma"]'?screen:null;}};
 const document={getElementById(id){return id==='app'?app:null;},querySelector(){return focusTarget;},addEventListener(type,fn){listeners[type]=fn;}};
-class Engine{static load(){return {g:{maDealRooms:[{status:'accepted'}],maSubsidiaries:[{pmiStatus:'planning',pmiHealth:80,pmiFriction:10,acquisitionPrice:120000000,goodwillBookValue:30000000,weeklyRealizedSynergy:400000}]},addEventListener(){}};}}
-const context={console,setTimeout,queueMicrotask:fn=>fn(),MutationObserver:class{observe(){}},document,globalThis:{__capitalismTycoonModules:{engine:{TycoonEngine:Engine}}}};context.globalThis.globalThis=context.globalThis;context.globalThis.document=document;context.globalThis.queueMicrotask=context.queueMicrotask;context.globalThis.MutationObserver=context.MutationObserver;context.globalThis.setTimeout=setTimeout;
+const engine={g:{maDealRooms:[{status:'accepted'}],maSubsidiaries:[{pmiStatus:'planning',pmiHealth:80,pmiFriction:10,acquisitionPrice:120000000,goodwillBookValue:30000000,weeklyRealizedSynergy:400000}]}};
+const modules={engine:{TycoonEngine:class{}},playerEngineBridge:{getEngine(){return engine;}}};
+const context={console,setTimeout,queueMicrotask:fn=>fn(),MutationObserver:class{observe(){}},document,globalThis:{__capitalismTycoonModules:modules}};context.globalThis.globalThis=context.globalThis;context.globalThis.document=document;context.globalThis.queueMicrotask=context.queueMicrotask;context.globalThis.MutationObserver=context.MutationObserver;context.globalThis.setTimeout=setTimeout;
 vm.runInNewContext(summaryCode,context);vm.runInNewContext(uiCode,context);
-const engine=context.globalThis.__capitalismTycoonModules.engine.TycoonEngine.load();
-assert(engine,'patched load returns engine');
 assert(inserted.includes('data-ma-portfolio-summary'),'summary card injected');
 assert(inserted.includes('PMI健全度'),'health KPI rendered');
 assert(inserted.includes('最優先：最終契約'),'accepted deal priority rendered');
-assert(inserted.includes('1.20億円'),'acquisition value rendered');
+assert(inserted.includes('1.2億円'),'acquisition value rendered');
 assert(inserted.includes('3,000万円'),'goodwill rendered');
 assert(inserted.includes('40万円'),'weekly synergy rendered');
 assert(inserted.includes('data-focus-selector="[data-action=&quot;ma-close-deal&quot;]"'),'priority target is machine-readable');
@@ -28,5 +27,5 @@ const stable=mod.renderCard(context.globalThis.__capitalismTycoonModules.maPortf
 assert(stable.includes('安定'),'empty portfolio is stable');assert(stable.includes('買収候補探索'),'empty portfolio sources deals');
 listeners.click({target:{closest(){return {dataset:{focusSelector:'[data-action="ma-close-deal"]'}};}}});
 assert(focused&&scrolled,'priority action focuses and scrolls without mutating game state');
-const forbidden=/companyCash\s*[+\-*/]?=|saveVersion\s*=|localStorage\.setItem|Math\.random/;assert(!forbidden.test(uiCode),'UI bridge stays read-only and deterministic');
+const forbidden=/companyCash\s*[+\-*/]?=|saveVersion\s*=|localStorage\.setItem|Math\.random|TycoonEngine\.load\s*=/;assert(!forbidden.test(uiCode),'UI bridge stays read-only and does not patch engine loading');
 console.log('M&A portfolio summary UI tests passed');
