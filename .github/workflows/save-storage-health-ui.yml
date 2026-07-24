@@ -1,0 +1,35 @@
+name: Save Storage Health UI
+
+on:
+  pull_request:
+    paths:
+      - 'js/save-storage.js'
+      - 'js/save-storage-ui.js'
+      - 'play.html'
+      - 'tests/save-storage-ui-test.js'
+      - '.github/workflows/save-storage-health-ui.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  storage-health-ui:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Syntax and focused UI regression
+        run: |
+          node --check js/save-storage.js
+          node --check js/save-storage-ui.js
+          node tests/save-storage-ui-test.js
+      - name: Save and public entry regressions
+        run: |
+          node tests/save-storage-quota-test.js
+          node tests/save-v9-migration-test.js
+          node tests/iphone-playtest-remediation-test.js
+          node tests/static-check.js
