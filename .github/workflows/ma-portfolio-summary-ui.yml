@@ -48,9 +48,9 @@ jobs:
           node tests/ma-portfolio-summary-test.js
           node tests/ma-exit-readiness-test.js
           node tests/ma-portfolio-summary-ui-test.js
-      - name: Cache-safe loader and save contract
+      - name: Static loader and save contract
         run: |
-          node -e "const fs=require('fs');const h=fs.readFileSync('index.html','utf8');if(h.includes('data-ma-portfolio-summary-loader'))throw new Error('legacy M&A portfolio dynamic loader must not be used');if(!h.includes('data-ma-exit-readiness-loader'))throw new Error('M&A exit readiness loader missing');if(!h.includes('ma-portfolio-summary.js')||!h.includes('ma-exit-readiness.js')||!h.includes('s.src.slice(s.src.indexOf'))throw new Error('exit readiness loader must inherit the cache-bust query');const bridge=h.indexOf('./js/player-engine-bridge.js'),summary=h.indexOf('./js/ma-portfolio-summary.js'),loader=h.indexOf('data-ma-exit-readiness-loader'),ui=h.indexOf('./js/ma-portfolio-summary-ui.js'),app=h.indexOf('./js/app.js');if(!(bridge>0&&summary>bridge&&loader>summary&&ui>loader&&app>ui))throw new Error('M&A portfolio and exit readiness loader order invalid');"
+          node -e "const fs=require('fs');const h=fs.readFileSync('index.html','utf8');if(h.includes('data-ma-portfolio-summary-loader')||h.includes('data-ma-exit-readiness-loader'))throw new Error('M&A dynamic loader must not be used');const bridge=h.indexOf('./js/player-engine-bridge.js'),summary=h.indexOf('./js/ma-portfolio-summary.js'),exit=h.indexOf('./js/ma-exit-readiness.js'),ui=h.indexOf('./js/ma-portfolio-summary-ui.js'),app=h.indexOf('./js/app.js');if(!(bridge>0&&summary>bridge&&exit>summary&&ui>exit&&app>ui))throw new Error('M&A portfolio and exit readiness static loader order invalid');"
           grep -q "capitalism_tycoon_web_v1" js/engine.js
           npm run test:save-v9
       - name: Existing M&A and static regressions
