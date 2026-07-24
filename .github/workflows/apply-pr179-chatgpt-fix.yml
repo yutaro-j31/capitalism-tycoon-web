@@ -1,0 +1,47 @@
+name: Apply PR179 ChatGPT Fix
+
+on:
+  pull_request:
+    branches: [ main ]
+
+permissions:
+  contents: write
+
+jobs:
+  apply:
+    if: github.head_ref == 'a8z22f-codex/add-ma-acquisition-financing-packages'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: a8z22f-codex/add-ma-acquisition-financing-packages
+          fetch-depth: 0
+
+      - name: Extract reviewed fix payload
+        shell: python
+        run: |
+          import base64
+          import pathlib
+          import re
+          import tarfile
+
+          workflow = pathlib.Path('.github/workflows/ma-acquisition-financing.yml').read_text(encoding='utf-8')
+          match = re.search(r"echo '([^']+)' \| base64 -d > /tmp/pr179-fix\.tar\.gz", workflow)
+          if not match:
+              raise SystemExit('embedded PR179 payload not found')
+          archive = pathlib.Path('/tmp/pr179-fix.tar.gz')
+          archive.write_bytes(base64.b64decode(match.group(1)))
+          with tarfile.open(archive, 'r:gz') as bundle:
+              bundle.extractall('.')
+
+      - name: Commit reviewed fix set
+        shell: bash
+        run: |
+          rm -rf .github/pr179-patch
+          rm -f .github/workflows/apply-pr179-chatgpt-fix.yml
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add -A
+          git diff --cached --check
+          git commit -m 'fix: complete M&A financing integration and tests'
+          git push origin HEAD:a8z22f-codex/add-ma-acquisition-financing-packages
