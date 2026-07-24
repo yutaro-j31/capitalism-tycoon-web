@@ -31,9 +31,12 @@
       .then(html=>{
         let fresh=html.replace(/\b(src|href)="(\.\/(?:js|css)\/[^"?]+)(?:\?[^"#]*)?"/g,(_,attribute,url)=>`${attribute}="${url}?launch=${encodeURIComponent(token)}"`);
         if(!fresh.includes('id="app"'))throw new Error('ゲーム画面の読み込みデータが不正です。');
+        const saveV9=`<script src="./js/save-v9.js?launch=${encodeURIComponent(token)}"><\/script>`;
         fresh=fresh
+          .replace(saveV9,`${saveV9}<script src="./js/save-storage.js?launch=${encodeURIComponent(token)}"><\/script>`)
           .replace('</head>',`<link rel="stylesheet" href="./css/iphone-playtest-fixes.css?launch=${encodeURIComponent(token)}"></head>`)
-          .replace('</body>',`<script src="./js/play-runtime-compat.js?launch=${encodeURIComponent(token)}"><\/script><script src="./js/save-storage.js?launch=${encodeURIComponent(token)}"><\/script><script src="./js/iphone-playtest-fixes.js?launch=${encodeURIComponent(token)}"><\/script></body>`);
+          .replace('</body>',`<script src="./js/play-runtime-compat.js?launch=${encodeURIComponent(token)}"><\/script><script src="./js/save-storage-ui.js?launch=${encodeURIComponent(token)}"><\/script><script src="./js/iphone-playtest-fixes.js?launch=${encodeURIComponent(token)}"><\/script></body>`);
+        if(!fresh.includes('./js/save-storage.js?launch='))throw new Error('セーブ容量保護モジュールを起動順へ追加できませんでした。');
         document.open();document.write(fresh);document.close();
       })
       .catch(error=>{
