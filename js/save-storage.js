@@ -13,6 +13,7 @@ const RAW_COMPACTION_THRESHOLD=1_250_000;
 const OPERATING_CATEGORIES=new Set(['revenue','costOfSales','payroll','rent','advertising','researchAndDevelopment','maintenance','headOfficeExpense','interestExpense','taxPayment','otherOperating','workingCapitalIncrease','workingCapitalDecrease','accountsReceivableCollection','accountsPayablePayment','accruedExpensePayment']);
 const INVESTING_CATEGORIES=new Set(['capitalExpenditure','assetPurchase','assetSale','investmentPurchase','investmentSale','investmentDividend','acquisition','otherInvesting']);
 const FINANCING_CATEGORIES=new Set(['debtBorrowing','debtRepayment','equityFinancing','dividend','otherFinancing']);
+const PROFIT_CATEGORIES=new Set(['revenue','costOfSales','payroll','advertising','researchAndDevelopment','rent','maintenance','headOfficeExpense','otherOperating','depreciation','interestExpense','investmentDividend','investmentSale','assetSale','otherNonOperating','taxExpense']);
 const PROFILES=Object.freeze({
  normal:Object.freeze({transactionWeeks:78,maxTransactions:1800,weeklySnapshots:104,reports:104,weeklyHistory:260,news:160,history:260,priceHistory:260,startupReports:52}),
  emergency:Object.freeze({transactionWeeks:52,maxTransactions:900,weeklySnapshots:65,reports:52,weeklyHistory:104,news:80,history:104,priceHistory:104,startupReports:26}),
@@ -52,7 +53,7 @@ function archiveTransactions(state,profile){
  for(const row of removed){
   const category=String(row?.category||'');
   const cashEffect=finite(row?.cashEffect);
-  profit+=finite(row?.profitEffect);
+  if(PROFIT_CATEGORIES.has(category))profit+=finite(row?.profitEffect);
   if(category==='dividend')dividends-=cashEffect;
   if(OPERATING_CATEGORIES.has(category))operating+=cashEffect;
   if(INVESTING_CATEGORIES.has(category))investing+=cashEffect;
