@@ -21,7 +21,7 @@ jobs:
           ref: a8z22f-codex/add-ma-acquisition-financing-packages
           fetch-depth: 0
 
-      - name: Apply verified fix bundle
+      - name: Reconstruct and verify fix bundle
         shell: bash
         run: |
           set -euo pipefail
@@ -34,100 +34,36 @@ jobs:
             .github/pr179-patch/new-07-08 \
             > /tmp/pr179-fix.patch.gz.b64
           base64 --decode /tmp/pr179-fix.patch.gz.b64 | gzip --decompress > /tmp/pr179-fix.patch
-          echo '76848639701f00f227677567f38c0272d4fe1b52c08fba10f6d86d51d53ff739  /tmp/pr179-fix.patch' | sha256sum --check --strict
+          test "$(sha256sum /tmp/pr179-fix.patch | cut -d' ' -f1)" = '76848639701f00f227677567f38c0272d4fe1b52c08fba10f6d86d51d53ff739'
+
+      - name: Apply production and test changes
+        shell: bash
+        run: |
+          set -euo pipefail
+          git apply --check --whitespace=error-all /tmp/pr179-fix.patch
           git apply --whitespace=error-all /tmp/pr179-fix.patch
+
+      - name: Restore final workflow and remove temporary files
+        shell: bash
+        run: |
+          set -euo pipefail
           rm -rf .github/pr179-patch
           rm -f .github/workflows/apply-pr179-verified-fix.yml
-          cat > .github/workflows/ma-acquisition-financing.yml <<'FINAL_WORKFLOW'
-          name: M&A Acquisition Financing
+          echo 'bmFtZTogTSZBIEFjcXVpc2l0aW9uIEZpbmFuY2luZwoKb246CiAgcHVsbF9yZXF1ZXN0OgogICAgYnJhbmNoZXM6IFsgbWFpbiBdCgpwZXJtaXNzaW9uczoKICBjb250ZW50czogcmVhZAoKY29uY3VycmVuY3k6CiAgZ3JvdXA6IG1hLWFjcXVpc2l0aW9uLWZpbmFuY2luZy0ke3sgZ2l0aHViLmV2ZW50LnB1bGxfcmVxdWVzdC5udW1iZXIgfHwgZ2l0aHViLnJlZiB9fQogIGNhbmNlbC1pbi1wcm9ncmVzczogdHJ1ZQoKZW52OgogIE1BX0FDUVVJU0lUSU9OX0ZJTkFOQ0lOR19BUlRJRkFDVF9ESVI6IGFydGlmYWN0cy9tYS1hY3F1aXNpdGlvbi1maW5hbmNpbmctd2Via2l0CiAgTUFfQk9BUkRfQVBQUk9WQUxfQVJUSUZBQ1RfRElSOiBhcnRpZmFjdHMvbWEtYm9hcmQtYXBwcm92YWwtd2Via2l0CiAgTUFfREVBTF9ST09NX0FSVElGQUNUX0RJUjogYXJ0aWZhY3RzL21hLWRlYWwtcm9vbS13ZWJraXQKICBNQV9JTlRFR1JBVElPTl9BUlRJRkFDVF9ESVI6IGFydGlmYWN0cy9tYS1pbnRlZ3JhdGlvbi13ZWJraXQKICBDRU9fREFTSEJPQVJEX0FSVElGQUNUX0RJUjogYXJ0aWZhY3RzL2Nlby1kYXNoYm9hcmQtd2Via2l0Cgpqb2JzOgogIHRlc3Q6CiAgICBydW5zLW9uOiB1YnVudHUtbGF0ZXN0CiAgICB0aW1lb3V0LW1pbnV0ZXM6IDQ1CiAgICBzdGVwczoKICAgICAgLSB1c2VzOiBhY3Rpb25zL2NoZWNrb3V0QHY0CgogICAgICAtIHVzZXM6IGFjdGlvbnMvc2V0dXAtbm9kZUB2NAogICAgICAgIHdpdGg6CiAgICAgICAgICBub2RlLXZlcnNpb246ICcyMicKCiAgICAgIC0gbmFtZTogSW5zdGFsbCBkZXBlbmRlbmNpZXMKICAgICAgICBydW46IG5wbSBjaSB8fCBucG0gaW5zdGFsbAoKICAgICAgLSBuYW1lOiBVbml0IGFuZCBpbnRlZ3JhdGlvbiBzdWl0ZXMKICAgICAgICBydW46IHwKICAgICAgICAgIG5wbSBydW4gdGVzdDptYS1hY3F1aXNpdGlvbi1maW5hbmNpbmcKICAgICAgICAgIG5wbSBydW4gdGVzdDptYS1ib2FyZC1hcHByb3ZhbAogICAgICAgICAgbnBtIHJ1biB0ZXN0Om1hLWRlYWwtcm9vbQogICAgICAgICAgbnBtIHJ1biB0ZXN0Om1hLWludGVncmF0aW9uCiAgICAgICAgICBucG0gcnVuIHRlc3Q6bWEtcG9ydGZvbGlvLXN1bW1hcnkKICAgICAgICAgIG5wbSBydW4gdGVzdDptYS1wb3J0Zm9saW8tc3VtbWFyeS11aQogICAgICAgICAgbnBtIHJ1biB0ZXN0OmNlby1kYXNoYm9hcmQKICAgICAgICAgIG5wbSBydW4gdGVzdDpmaW5hbmNlCiAgICAgICAgICBucG0gcnVuIHRlc3Q6ZmluYW5jZS1tYS1hY2NvdW50aW5nCiAgICAgICAgICBucG0gcnVuIHRlc3Q6YWNjb3VudGluZy1pbnZhcmlhbnRzCiAgICAgICAgICBucG0gcnVuIHRlc3Q6c2F2ZQogICAgICAgICAgbnBtIHJ1biB0ZXN0Om1pZ3JhdGlvbgogICAgICAgICAgbnBtIHJ1biB0ZXN0OnNhdmUtdjkKICAgICAgICAgIG5wbSBydW4gdGVzdDp3ZWVrCiAgICAgICAgICBucG0gcnVuIHRlc3Q6dHJhbnNhY3Rpb24KICAgICAgICAgIG5wbSBydW4gdGVzdDpzeW50YXgKICAgICAgICAgIG5wbSBydW4gdGVzdDpqYXZhc2NyaXB0CiAgICAgICAgICBucG0gcnVuIHRlc3Q6bW9kdWxlcwogICAgICAgICAgbnBtIHJ1biB0ZXN0OnN0YXRpYwogICAgICAgICAgbnBtIHJ1biB0ZXN0OmNzcwogICAgICAgICAgbnBtIHJ1biB0ZXN0OnByb2dyZXNzaW9uLWJhbGFuY2UKICAgICAgICAgIG5wbSBydW4gdGVzdDpzdHJhdGVneS1iYWxhbmNlCiAgICAgICAgICBub2RlIHRlc3RzL3YxLXByb2dyZXNzaW9uLWdhdGUtdGVzdC5qcwogICAgICAgICAgbm9kZSB0ZXN0cy9leGVjdXRpdmUtc2VjcmV0YXJ5LXRlc3QuanMKCiAgICAgIC0gbmFtZTogSW5zdGFsbCBwaW5uZWQgUGxheXdyaWdodCBydW50aW1lCiAgICAgICAgcnVuOiBucG0gaW5zdGFsbCAtLW5vLXNhdmUgLS1uby1wYWNrYWdlLWxvY2sgcGxheXdyaWdodEAxLjYxLjAKCiAgICAgIC0gbmFtZTogSW5zdGFsbCBXZWJLaXQgYnJvd3NlciBhbmQgc3lzdGVtIGRlcGVuZGVuY2llcwogICAgICAgIHJ1bjogbnB4IHBsYXl3cmlnaHQgaW5zdGFsbCAtLXdpdGgtZGVwcyB3ZWJraXQKCiAgICAgIC0gbmFtZTogaVBob25lIFdlYktpdCBzbW9rZQogICAgICAgIHJ1bjogfAogICAgICAgICAgbm9kZSB0ZXN0cy9tYS1hY3F1aXNpdGlvbi1maW5hbmNpbmctd2Via2l0LXRlc3QuanMKICAgICAgICAgIG5vZGUgdGVzdHMvbWEtYm9hcmQtYXBwcm92YWwtd2Via2l0LXRlc3QuanMKICAgICAgICAgIG5vZGUgdGVzdHMvbWEtZGVhbC1yb29tLXdlYmtpdC10ZXN0LmpzCiAgICAgICAgICBub2RlIHRlc3RzL21hLWludGVncmF0aW9uLXdlYmtpdC10ZXN0LmpzCiAgICAgICAgICBub2RlIHRlc3RzL2Nlby1kYXNoYm9hcmQtd2Via2l0LXRlc3QuanMKCiAgICAgIC0gbmFtZTogVXBsb2FkIE0mQSBhY3F1aXNpdGlvbiBmaW5hbmNpbmcgYXJ0aWZhY3RzCiAgICAgICAgdXNlczogYWN0aW9ucy91cGxvYWQtYXJ0aWZhY3RAdjQKICAgICAgICBpZjogYWx3YXlzKCkKICAgICAgICB3aXRoOgogICAgICAgICAgbmFtZTogbWEtYWNxdWlzaXRpb24tZmluYW5jaW5nLSR7eyBnaXRodWIuc2hhIH19CiAgICAgICAgICBwYXRoOiB8CiAgICAgICAgICAgIGFydGlmYWN0cy9tYS1hY3F1aXNpdGlvbi1maW5hbmNpbmctd2Via2l0CiAgICAgICAgICAgIGFydGlmYWN0cy9tYS1ib2FyZC1hcHByb3ZhbC13ZWJraXQKICAgICAgICAgICAgYXJ0aWZhY3RzL21hLWRlYWwtcm9vbS13ZWJraXQKICAgICAgICAgICAgYXJ0aWZhY3RzL21hLWludGVncmF0aW9uLXdlYmtpdAogICAgICAgICAgICBhcnRpZmFjdHMvY2VvLWRhc2hib2FyZC13ZWJraXQKICAgICAgICAgIGlmLW5vLWZpbGVzLWZvdW5kOiB3YXJuCiAgICAgICAgICByZXRlbnRpb24tZGF5czogMzAK' | base64 --decode > .github/workflows/ma-acquisition-financing.yml
 
-          on:
-            pull_request:
-              branches: [ main ]
-
-          permissions:
-            contents: read
-
-          env:
-            MA_ACQUISITION_FINANCING_ARTIFACT_DIR: artifacts/ma-acquisition-financing-webkit
-            MA_BOARD_APPROVAL_ARTIFACT_DIR: artifacts/ma-board-approval-webkit
-            MA_DEAL_ROOM_ARTIFACT_DIR: artifacts/ma-deal-room-webkit
-            MA_INTEGRATION_ARTIFACT_DIR: artifacts/ma-integration-webkit
-            CEO_DASHBOARD_ARTIFACT_DIR: artifacts/ceo-dashboard-webkit
-
-          jobs:
-            test:
-              runs-on: ubuntu-latest
-              timeout-minutes: 45
-              steps:
-                - uses: actions/checkout@v4
-
-                - uses: actions/setup-node@v4
-                  with:
-                    node-version: '22'
-
-                - name: Install dependencies
-                  run: npm ci || npm install
-
-                - name: Unit and integration suites
-                  run: |
-                    npm run test:ma-acquisition-financing
-                    npm run test:ma-board-approval
-                    npm run test:ma-deal-room
-                    npm run test:ma-integration
-                    npm run test:ma-portfolio-summary
-                    npm run test:ma-portfolio-summary-ui
-                    npm run test:ceo-dashboard
-                    npm run test:finance
-                    npm run test:finance-ma-accounting
-                    npm run test:accounting-invariants
-                    npm run test:save
-                    npm run test:migration
-                    npm run test:save-v9
-                    npm run test:week
-                    npm run test:transaction
-                    npm run test:syntax
-                    npm run test:javascript
-                    npm run test:modules
-                    npm run test:static
-                    npm run test:css
-                    npm run test:progression-balance
-                    npm run test:strategy-balance
-                    node tests/v1-progression-gate-test.js
-                    node tests/executive-secretary-test.js
-
-                - name: Install pinned Playwright runtime
-                  run: npm install --no-save --no-package-lock playwright@1.61.0
-
-                - name: Install WebKit browser and system dependencies
-                  run: npx playwright install --with-deps webkit
-
-                - name: iPhone WebKit smoke
-                  run: |
-                    node tests/ma-acquisition-financing-webkit-test.js
-                    node tests/ma-board-approval-webkit-test.js
-                    node tests/ma-deal-room-webkit-test.js
-                    node tests/ma-integration-webkit-test.js
-                    node tests/ceo-dashboard-webkit-test.js
-
-                - name: Upload M&A acquisition financing artifacts
-                  uses: actions/upload-artifact@v4
-                  if: always()
-                  with:
-                    name: ma-acquisition-financing-artifacts
-                    path: |
-                      artifacts/ma-acquisition-financing-webkit
-                      artifacts/ma-board-approval-webkit
-                      artifacts/ma-deal-room-webkit
-                      artifacts/ma-integration-webkit
-                      artifacts/ceo-dashboard-webkit
-                    if-no-files-found: warn
-                    retention-days: 30
-          FINAL_WORKFLOW
-          sed -i 's/^          //' .github/workflows/ma-acquisition-financing.yml
-          git config user.name 'github-actions[bot]'
-          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+      - name: Validate staged changes
+        shell: bash
+        run: |
+          set -euo pipefail
           git add -A
           git diff --cached --check
+          test -n "$(git diff --cached --name-only)"
+
+      - name: Commit and push verified fixes
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
           git commit -m 'fix: complete deterministic M&A acquisition financing'
           git push origin HEAD:a8z22f-codex/add-ma-acquisition-financing-packages
