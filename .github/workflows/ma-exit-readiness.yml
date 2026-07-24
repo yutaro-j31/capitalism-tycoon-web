@@ -1,0 +1,37 @@
+name: M&A Exit Readiness
+
+on:
+  pull_request:
+    paths:
+      - 'js/ma-exit-readiness.js'
+      - 'tests/ma-exit-readiness-test.js'
+      - 'tests/run-all.js'
+      - '.github/workflows/ma-exit-readiness.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'js/ma-exit-readiness.js'
+      - 'tests/ma-exit-readiness-test.js'
+      - 'tests/run-all.js'
+      - '.github/workflows/ma-exit-readiness.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  ma-exit-readiness:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - name: Syntax check
+        run: node --check js/ma-exit-readiness.js && node --check tests/ma-exit-readiness-test.js
+      - name: Determinism, purity, valuation and recommendation checks
+        run: node tests/ma-exit-readiness-test.js
+      - name: Preserve save contract
+        run: |
+          grep -q "capitalism_tycoon_web_v1" js/engine.js
+          npm run test:save-v9
