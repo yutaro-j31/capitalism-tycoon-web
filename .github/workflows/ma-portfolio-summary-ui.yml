@@ -5,18 +5,28 @@ on:
     paths:
       - 'index.html'
       - 'js/ma-portfolio-summary.js'
+      - 'js/ma-exit-readiness.js'
       - 'js/ma-portfolio-summary-ui.js'
       - 'tests/ma-portfolio-summary-test.js'
+      - 'tests/ma-exit-readiness-test.js'
       - 'tests/ma-portfolio-summary-ui-test.js'
+      - 'tests/javascript-extraction-test.js'
+      - 'tests/javascript-module-split-test.js'
+      - 'tests/fixtures/module-load-order.json'
       - '.github/workflows/ma-portfolio-summary-ui.yml'
   push:
     branches: [main]
     paths:
       - 'index.html'
       - 'js/ma-portfolio-summary.js'
+      - 'js/ma-exit-readiness.js'
       - 'js/ma-portfolio-summary-ui.js'
       - 'tests/ma-portfolio-summary-test.js'
+      - 'tests/ma-exit-readiness-test.js'
       - 'tests/ma-portfolio-summary-ui-test.js'
+      - 'tests/javascript-extraction-test.js'
+      - 'tests/javascript-module-split-test.js'
+      - 'tests/fixtures/module-load-order.json'
       - '.github/workflows/ma-portfolio-summary-ui.yml'
 
 permissions:
@@ -32,14 +42,15 @@ jobs:
         with:
           node-version: '24'
       - name: Syntax check
-        run: node --check js/ma-portfolio-summary.js && node --check js/ma-portfolio-summary-ui.js && node --check tests/ma-portfolio-summary-test.js && node --check tests/ma-portfolio-summary-ui-test.js
-      - name: Summary model and dashboard UI contracts
+        run: node --check js/ma-portfolio-summary.js && node --check js/ma-exit-readiness.js && node --check js/ma-portfolio-summary-ui.js && node --check tests/ma-portfolio-summary-test.js && node --check tests/ma-exit-readiness-test.js && node --check tests/ma-portfolio-summary-ui-test.js
+      - name: Summary, exit readiness and dashboard UI contracts
         run: |
           node tests/ma-portfolio-summary-test.js
+          node tests/ma-exit-readiness-test.js
           node tests/ma-portfolio-summary-ui-test.js
       - name: Local loader and save contract
         run: |
-          node -e "const fs=require('fs');const h=fs.readFileSync('index.html','utf8');if(h.includes('data-ma-portfolio-summary-loader'))throw new Error('M&A portfolio dynamic loader must not be used');const bridge=h.indexOf('./js/player-engine-bridge.js'),summary=h.indexOf('./js/ma-portfolio-summary.js'),ui=h.indexOf('./js/ma-portfolio-summary-ui.js'),app=h.indexOf('./js/app.js');if(!(bridge>0&&summary>bridge&&ui>summary&&app>ui))throw new Error('M&A portfolio static loader order invalid');"
+          node -e "const fs=require('fs');const h=fs.readFileSync('index.html','utf8');if(h.includes('data-ma-portfolio-summary-loader'))throw new Error('M&A portfolio dynamic loader must not be used');const bridge=h.indexOf('./js/player-engine-bridge.js'),summary=h.indexOf('./js/ma-portfolio-summary.js'),exit=h.indexOf('./js/ma-exit-readiness.js'),ui=h.indexOf('./js/ma-portfolio-summary-ui.js'),app=h.indexOf('./js/app.js');if(!(bridge>0&&summary>bridge&&exit>summary&&ui>exit&&app>ui))throw new Error('M&A portfolio and exit readiness static loader order invalid');"
           grep -q "capitalism_tycoon_web_v1" js/engine.js
           npm run test:save-v9
       - name: Existing M&A and static regressions
@@ -47,4 +58,6 @@ jobs:
           npm run test:ma-deal-room
           npm run test:ma-integration
           npm run test:finance-ma-accounting
+          npm run test:javascript
+          npm run test:modules
           npm run test:static
