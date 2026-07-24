@@ -29,8 +29,11 @@
     fetch(indexUrl,{cache:'no-store',credentials:'same-origin'})
       .then(response=>{if(!response.ok)throw new Error(`起動ページの取得に失敗しました (${response.status})`);return response.text();})
       .then(html=>{
-        const fresh=html.replace(/\b(src|href)="(\.\/(?:js|css)\/[^"?]+)(?:\?[^"#]*)?"/g,(_,attribute,url)=>`${attribute}="${url}?launch=${encodeURIComponent(token)}"`);
+        let fresh=html.replace(/\b(src|href)="(\.\/(?:js|css)\/[^"?]+)(?:\?[^"#]*)?"/g,(_,attribute,url)=>`${attribute}="${url}?launch=${encodeURIComponent(token)}"`);
         if(!fresh.includes('id="app"'))throw new Error('ゲーム画面の読み込みデータが不正です。');
+        fresh=fresh
+          .replace('</head>',`<link rel="stylesheet" href="./css/iphone-playtest-fixes.css?launch=${encodeURIComponent(token)}"></head>`)
+          .replace('</body>',`<script src="./js/play-runtime-compat.js?launch=${encodeURIComponent(token)}"><\/script><script src="./js/iphone-playtest-fixes.js?launch=${encodeURIComponent(token)}"><\/script></body>`);
         document.open();document.write(fresh);document.close();
       })
       .catch(error=>{
