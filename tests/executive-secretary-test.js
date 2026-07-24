@@ -29,29 +29,17 @@ const fullCtx = loadGame();
 const fullModules = fullCtx.modules;
 function acceptedDealState(weeksRemaining = 4) {
   const g = fullModules.engine.createInitialState({ configured: true });
-  g.week = 20; g.companyCash = 200000000; g.finance = { loans: [], transactions: [] }; g.stores = [];
-  g.acquisitionTargets = [
-    { id: 'a1', name: 'A承認', valuation: 50000000, activeDealID: 'd-a' },
-    { id: 'a2', name: 'B承認', valuation: 50000000, activeDealID: 'd-b' }
-  ];
-  g.maDealRooms = [
-    { id: 'd-a', targetID: 'a1', status: 'accepted', diligenceConfidence: 0.94, acceptedTerms: { method: 'friendly', finalPrice: 60000000, acceptedWeek: 19, closingDeadlineWeek: g.week + weeksRemaining, offerRound: 1 }, history: [] },
-    { id: 'd-b', targetID: 'a2', status: 'accepted', diligenceConfidence: 0.94, acceptedTerms: { method: 'friendly', finalPrice: 60000000, acceptedWeek: 19, closingDeadlineWeek: g.week + weeksRemaining, offerRound: 1 }, history: [] }
-  ];
+  Object.assign(g,{week:20,companyCash:200000000,companyDebt:0,companyCredit:90,publicCompany:true,stockPrice:1000,sharesOut:1000000,founderShares:700000,reports:[{week:19,expenses:1000000,profit:3000000,sales:6000000}],stores:[]});
+  g.lastReport=g.reports[0]; g.finance=fullModules.finance.defaultFinanceState(g);
+  g.acquisitionTargets=[{id:'a1',name:'A承認',valuation:50000000,activeDealID:'d-a'},{id:'a2',name:'B承認',valuation:50000000,activeDealID:'d-b'}];
+  g.maDealRooms=[{id:'d-a',targetID:'a1',status:'accepted',diligenceConfidence:.94,acceptedTerms:{method:'friendly',finalPrice:60000000,acceptedWeek:19,closingDeadlineWeek:g.week+weeksRemaining,offerRound:1},history:[]},{id:'d-b',targetID:'a2',status:'accepted',diligenceConfidence:.94,acceptedTerms:{method:'friendly',finalPrice:60000000,acceptedWeek:19,closingDeadlineWeek:g.week+weeksRemaining,offerRound:1},history:[]}];
   return g;
 }
-let eg = acceptedDealState();
-let tasks = fullModules.executiveSecretary.generateTasks(eg, { companyValue: 500000000, maPortfolio: fullModules.maPortfolioSummary.build(eg) });
-const maTasks = tasks.filter(t => /^ma_board_/.test(t.id));
-assert.equal(maTasks.length, 2, 'multiple accepted deals must produce separate board approval tasks');
-assert.equal(maTasks[0].priority, 'high');
-assert.ok(maTasks.some(t => t.focus === '[data-ma-deal-room="d-a"] [data-ma-board-approve]'));
-assert.ok(maTasks.some(t => t.focus === '[data-ma-deal-room="d-b"] [data-ma-board-approve]'));
-eg = acceptedDealState(1);
-tasks = fullModules.executiveSecretary.generateTasks(eg, { companyValue: 500000000, maPortfolio: fullModules.maPortfolioSummary.build(eg) });
-assert.ok(tasks.filter(t => /^ma_board_/.test(t.id)).every(t => t.priority === 'critical'), 'near deadline accepted deals must be critical');
-eg = acceptedDealState();
-eg.maDealRooms[0].boardApproval = { status: 'approved', approvedWeek: 20, expiresWeek: 22, termsKey: fullModules.maBoardApproval.buildTermsKey(eg.maDealRooms[0]), approvedPrice: 60000000, approvedMethod: 'friendly', cashBufferAfter: 120000000, expectedDilution: 0, criticalSubsidiaries: 0 };
-tasks = fullModules.executiveSecretary.generateTasks(eg, { companyValue: 500000000, maPortfolio: fullModules.maPortfolioSummary.build(eg) });
-assert.ok(tasks.some(t => t.id === 'ma_accepted_d-a' && t.focus === '[data-ma-deal-room="d-a"] [data-action="ma-close-deal"]'));
-assert.ok(!tasks.some(t => t.priority === 'warning'), 'undefined warning priority must never be used');
+function taskHelpers(g,borrowRate=.05){return{companyValue:500000000,borrowRate,creditLimit:400000000,maPortfolio:fullModules.maPortfolioSummary.build(g)};}
+function attachPlan(g,deal){deal.acquisitionFinancingPlan=fullModules.maAcquisitionFinancing.buildPlan(g,deal,{presetID:'cash-heavy'},{companyValue:500000000,borrowRate:.05,creditLimit:400000000});assert.equal(fullModules.maAcquisitionFinancing.validatePlan(g,deal,deal.acquisitionFinancingPlan,{companyValue:500000000,borrowRate:.05,creditLimit:400000000}).valid,true);}
+function approveDeal(g,id){const e=new fullModules.engine.TycoonEngine();e.g=g;e.save=()=>true;e.emit=()=>{};e.notify=()=>{};e.fail=()=>false;assert.equal(e.approveMAClosing(id),true);}
+let eg=acceptedDealState();let tasks=fullModules.executiveSecretary.generateTasks(eg,taskHelpers(eg));let maTasks=tasks.filter(t=>/^ma_financing_/.test(t.id));assert.equal(maTasks.length,2);assert.ok(maTasks.some(t=>t.focus==='[data-ma-deal-room="d-a"] [data-ma-financing]'));assert.ok(maTasks.some(t=>t.focus==='[data-ma-deal-room="d-b"] [data-ma-financing]'));
+for(const deal of eg.maDealRooms)attachPlan(eg,deal);tasks=fullModules.executiveSecretary.generateTasks(eg,taskHelpers(eg));maTasks=tasks.filter(t=>/^ma_board_/.test(t.id));assert.equal(maTasks.length,2);assert.equal(maTasks[0].priority,'high');
+eg=acceptedDealState(1);for(const deal of eg.maDealRooms)attachPlan(eg,deal);tasks=fullModules.executiveSecretary.generateTasks(eg,taskHelpers(eg));assert.ok(tasks.filter(t=>/^ma_board_/.test(t.id)).every(t=>t.priority==='critical'));
+eg=acceptedDealState();for(const deal of eg.maDealRooms)attachPlan(eg,deal);approveDeal(eg,'d-a');tasks=fullModules.executiveSecretary.generateTasks(eg,taskHelpers(eg,eg.maDealRooms[0].boardApproval.approvedBorrowRate));assert.ok(tasks.some(t=>t.id==='ma_accepted_d-a'&&t.focus==='[data-ma-deal-room="d-a"] [data-action="ma-close-deal"]'));
+eg=acceptedDealState();attachPlan(eg,eg.maDealRooms[0]);eg.maDealRooms[0].acquisitionFinancingPlan={...eg.maDealRooms[0].acquisitionFinancingPlan,planKey:'stale-plan-key'};tasks=fullModules.executiveSecretary.generateTasks(eg,taskHelpers(eg));assert.ok(tasks.some(t=>t.id==='ma_financing_invalid_d-a'&&t.priority==='critical'));assert.ok(!tasks.some(t=>t.priority==='warning'));
