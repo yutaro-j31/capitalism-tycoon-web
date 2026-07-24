@@ -14,16 +14,19 @@ assert.match(uiSource,/data-save-storage-health/);
 assert.match(uiSource,/stopImmediatePropagation/);
 assert.match(uiSource,/以前のセーブは残っています/);
 assert.match(uiSource,/会社・個人資産と会計累計は保持/);
+assert.match(uiSource,/if\(node\.dataset\.saveStorageRenderKey===key\)return true/,'render must be idempotent under MutationObserver');
 assert.ok(play.indexOf('./js/save-storage.js?launch=')<play.indexOf('./js/save-storage-ui.js?launch='),'storage layer must load before its UI');
 assert.match(play,/save-v9\.js\?launch=.*save-storage\.js\?launch=/s);
 new vm.Script(storageSource,{filename:'save-storage.js'});
 new vm.Script(uiSource,{filename:'save-storage-ui.js'});
 const toastRoot={children:[],appendChild(node){this.children.push(node);}};
+let htmlWrites=0;
+const healthNode={className:'',dataset:{},_innerHTML:'',set innerHTML(value){htmlWrites++;this._innerHTML=value;},get innerHTML(){return this._innerHTML;},setAttribute(){},classList:{add(){},remove(){}},remove(){}};
 const screen={node:null,querySelector(){return this.node;},appendChild(node){this.node=node;}};
 const document={
  getElementById(id){if(id==='toast-root')return toastRoot;if(id==='app')return null;return null;},
  querySelector(selector){return selector==='[data-screen="settings"]'?screen:null;},
- createElement(tag){return {tagName:tag.toUpperCase(),className:'',dataset:{},innerHTML:'',setAttribute(name,value){this[name]=value;},classList:{add(){},remove(){}},remove(){}};},
+ createElement(tag){if(tag==='section')return healthNode;return {tagName:tag.toUpperCase(),className:'',dataset:{},innerHTML:'',textContent:'',setAttribute(name,value){this[name]=value;},classList:{add(){},remove(){}},remove(){}};},
  addEventListener(){}
 };
 let saveResult=true;
@@ -37,6 +40,9 @@ assert.equal(ui.engine(),engine);
 assert.equal(ui.renderCard(),true);
 assert.match(screen.node.innerHTML,/容量節約/);
 assert.match(screen.node.innerHTML,/820件/);
+const writesAfterFirstRender=htmlWrites;
+assert.equal(ui.renderCard(),true);
+assert.equal(htmlWrites,writesAfterFirstRender,'unchanged card model must not rewrite DOM or retrigger observer');
 let stopped=false;
 const target={dataset:{action:'save-now'},closest(){return this;}};
 assert.equal(ui.handleSaveClick({target,preventDefault(){},stopPropagation(){},stopImmediatePropagation(){stopped=true;}}),true);
