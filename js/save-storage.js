@@ -13,7 +13,6 @@ const RAW_COMPACTION_THRESHOLD=1_250_000;
 const OPERATING_CATEGORIES=new Set(['revenue','costOfSales','payroll','rent','advertising','researchAndDevelopment','maintenance','headOfficeExpense','interestExpense','taxPayment','otherOperating','workingCapitalIncrease','workingCapitalDecrease','accountsReceivableCollection','accountsPayablePayment','accruedExpensePayment']);
 const INVESTING_CATEGORIES=new Set(['capitalExpenditure','assetPurchase','assetSale','investmentPurchase','investmentSale','investmentDividend','acquisition','otherInvesting']);
 const FINANCING_CATEGORIES=new Set(['debtBorrowing','debtRepayment','equityFinancing','dividend','otherFinancing']);
-const PROFIT_CATEGORIES=new Set(['revenue','costOfSales','payroll','advertising','researchAndDevelopment','rent','maintenance','headOfficeExpense','otherOperating','depreciation','interestExpense','investmentDividend','investmentSale','assetSale','otherNonOperating','taxExpense']);
 const PROFILES=Object.freeze({
  normal:Object.freeze({transactionWeeks:78,maxTransactions:1800,weeklySnapshots:104,reports:104,weeklyHistory:260,news:160,history:260,priceHistory:260,startupReports:52}),
  emergency:Object.freeze({transactionWeeks:52,maxTransactions:900,weeklySnapshots:65,reports:52,weeklyHistory:104,news:80,history:104,priceHistory:104,startupReports:26}),
@@ -25,6 +24,7 @@ const round=value=>Math.round(finite(value)*100)/100;
 const clone=value=>typeof structuredClone==='function'?structuredClone(value):JSON.parse(JSON.stringify(value));
 const tail=(value,limit)=>Array.isArray(value)?value.slice(-Math.max(0,limit)):[];
 const head=(value,limit)=>Array.isArray(value)?value.slice(0,Math.max(0,limit)):[];
+let activeEngine=null;
 
 function isQuotaError(error){
  const name=String(error?.name||'');
@@ -53,7 +53,7 @@ function archiveTransactions(state,profile){
  for(const row of removed){
   const category=String(row?.category||'');
   const cashEffect=finite(row?.cashEffect);
-  if(PROFIT_CATEGORIES.has(category))profit+=finite(row?.profitEffect);
+  profit+=finite(row?.profitEffect);
   if(category==='dividend')dividends-=cashEffect;
   if(OPERATING_CATEGORIES.has(category))operating+=cashEffect;
   if(INVESTING_CATEGORIES.has(category))investing+=cashEffect;
@@ -129,7 +129,7 @@ function install(){
   for(const candidate of candidates){
    try{
     localStorage.setItem(key,candidate.payload);
-    const info={ok:true,key,slot,mode:candidate.mode,bytes:candidate.payload.length*2,originalBytes:raw.length*2,transactions:candidate.summary||null};
+    const info={ok:true,key,slot,mode:candidate.mode,bytes:candidate.payload.length*2,originalBytes:raw.length*2,transactions:candidate.summary||null,savedAt:this.g.lastSaveDate};
     this._lastSaveStorageInfo=info;
     this.emit?.('saved',{slot,storageMode:candidate.mode,storageBytes:info.bytes,originalStorageBytes:info.originalBytes});
     if((candidate.mode==='emergency'||candidate.mode==='critical')&&this._saveStorageWarningMode!==candidate.mode){
@@ -142,7 +142,7 @@ function install(){
     if(!isQuotaError(error))break;
    }
   }
-  this._lastSaveStorageInfo={ok:false,key,slot,mode:'failed',message:lastError?.message||String(lastError||'storage write failed'),originalBytes:raw.length*2};
+  this._lastSaveStorageInfo={ok:false,key,slot,mode:'failed',message:lastError?.message||String(lastError||'storage write failed'),originalBytes:raw.length*2,savedAt:this.g.lastSaveDate};
   console.error('Save storage failed without replacing the previous save',lastError);
   notify(this,'iPhoneの保存容量が不足してセーブできませんでした。以前のセーブは残っています。JSONバックアップを保存してください。','error');
   this.emit?.('save-error',{slot,error:lastError,reason:isQuotaError(lastError)?'quota':'storage'});
@@ -150,9 +150,13 @@ function install(){
  };
  Object.defineProperty(proto,'__quotaSafeSaveInstalled',{value:true});
  Object.defineProperty(proto,'__quotaSafeSaveBase',{value:baseSave});
+ const baseLoad=EngineClass.load.bind(EngineClass);
+ EngineClass.load=function(){activeEngine=baseLoad();return activeEngine;};
  return true;
 }
 
-modules.saveStorage=Object.freeze({SAVE_KEY,SAVE_VERSION,RAW_COMPACTION_THRESHOLD,PROFILES,isQuotaError,archiveTransactions,compactStateForStorage,storagePayload,install,__installed:true});
+function getActiveEngine(){return activeEngine;}
+
+modules.saveStorage=Object.freeze({SAVE_KEY,SAVE_VERSION,RAW_COMPACTION_THRESHOLD,PROFILES,isQuotaError,archiveTransactions,compactStateForStorage,storagePayload,install,getActiveEngine,__installed:true});
 install();
 })();
