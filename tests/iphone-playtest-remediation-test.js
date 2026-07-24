@@ -1,0 +1,23 @@
+'use strict';
+const fs=require('fs');
+const assert=require('assert');
+const js=fs.readFileSync('js/iphone-playtest-fixes.js','utf8');
+const css=fs.readFileSync('css/iphone-playtest-fixes.css','utf8');
+const play=fs.readFileSync('play.html','utf8');
+function has(text,needle,message){assert(text.includes(needle),message||`missing ${needle}`);}
+for(const forbidden of ['Math.random','localStorage','SAVE_KEY','saveVersion'])assert(!js.includes(forbidden),`UI patch must not use ${forbidden}`);
+has(js,'inputmode="numeric"','numeric inputmode required');
+has(js,'pattern="[0-9]*"','numeric pattern required');
+has(js,'enterkeyhint="done"','iPhone Done key required');
+has(js,'input.focus({preventScroll:true})','money modal must synchronously focus input');
+has(js,"['business-invest','borrow-company','repay-company','borrow-personal','repay-personal']",'money actions must use shared iPhone modal');
+for(const action of ['filter','legend','zoom-out','zoom-reset','zoom-in','view'])has(js,`data-iphone-map-action=\"${action}\"`,`map action ${action} must exist`);
+for(const feature of ['iphone-store-cockpit','iphone-debt-ledger','iphone-crisis-compact','data-iphone-pref'])has(js,feature,`${feature} missing`);
+has(css,'top:auto!important','mobile navigation must clear conflicting top');
+has(css,'bottom:0!important','mobile navigation must be bottom anchored');
+has(css,'max-width:100vw!important','viewport overflow guard missing');
+has(css,'min-height:44px','tap target guard missing');
+has(css,'#player-crisis-panel[hidden]{display:none!important}','crisis panel hidden contract missing');
+has(play,'./css/iphone-playtest-fixes.css','play launcher must load remediation CSS');
+has(play,'./js/iphone-playtest-fixes.js','play launcher must load remediation JS');
+console.log('iphone playtest remediation static contract: ok');
