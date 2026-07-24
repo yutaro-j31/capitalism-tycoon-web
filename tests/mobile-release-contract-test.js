@@ -15,9 +15,11 @@ function metaTag(name) {
 }
 
 function minimumPixelHeight(selectorPattern, label) {
-  const rule = css.match(new RegExp(`${selectorPattern}\\{([^}]*)\\}`));
-  assert.ok(rule, `${label} rule is required`);
-  const declaration = rule[1].match(/(?:^|;)min-height:(\d+(?:\.\d+)?)px(?:;|$)/);
+  const rules = [...css.matchAll(new RegExp(`${selectorPattern}\\{([^}]*)\\}`, 'g'))];
+  assert.ok(rules.length > 0, `${label} rule is required`);
+  const declaration = rules
+    .map(rule => rule[1].match(/(?:^|;)min-height:(\d+(?:\.\d+)?)px(?:;|$)/))
+    .find(Boolean);
   assert.ok(declaration, `${label} must define a pixel min-height`);
   return Number(declaration[1]);
 }
