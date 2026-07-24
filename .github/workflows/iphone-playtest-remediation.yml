@@ -45,4 +45,16 @@ jobs:
           npm install --no-save --no-package-lock playwright@1.61.0
           npx playwright install --with-deps webkit
       - name: Exercise physical-playtest workflows in WebKit
-        run: node tests/iphone-playtest-webkit-test.js
+        shell: bash
+        run: |
+          mkdir -p artifacts/iphone-playtest-remediation
+          set -o pipefail
+          node tests/iphone-playtest-webkit-test.js 2>&1 | tee artifacts/iphone-playtest-remediation/webkit.log
+      - name: Retain iPhone remediation evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: iphone-playtest-remediation-${{ github.sha }}
+          path: artifacts/iphone-playtest-remediation
+          if-no-files-found: warn
+          retention-days: 14
