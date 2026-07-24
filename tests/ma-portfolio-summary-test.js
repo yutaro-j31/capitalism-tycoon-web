@@ -14,7 +14,7 @@ assert.equal(a.activeDeals,3);assert.equal(a.terminalDeals,1);assert.equal(a.dil
 assert.equal(a.subsidiaries,3,'disposed subsidiaries are excluded');assert.equal(a.planningSubsidiaries,1);assert.equal(a.integratingSubsidiaries,1);assert.equal(a.completedSubsidiaries,1);
 assert.equal(a.criticalSubsidiaries,1);assert.equal(a.watchSubsidiaries,0);assert.equal(a.totalAcquisitionPrice,250000000);assert.equal(a.identifiableNetAssetsBookValue,205000000);assert.equal(a.goodwillBookValue,33000000,'goodwill uses non-disposed carrying value after impairment');assert.equal(a.weeklyRealizedSynergy,850000);assert.equal(a.portfolioHealth,68);
 assert.equal(a.nextAction.id,'stabilize-pmi','critical PMI must outrank accepted closing');
-const accepted=fixture();accepted.maSubsidiaries=accepted.maSubsidiaries.map(s=>({...s,pmiStatus:'completed',pmiHealth:90,pmiFriction:10}));assert.equal(mod.build(accepted).nextAction.id,'close-deal');
+const accepted=fixture();accepted.maSubsidiaries=accepted.maSubsidiaries.map(s=>({...s,pmiStatus:'completed',pmiHealth:90,pmiFriction:10}));assert.equal(mod.build(accepted).nextAction.id,'plan-financing');
 const empty=mod.build({});assert.equal(empty.portfolioHealth,100);assert.equal(empty.nextAction.id,'source-deals');
 assert.equal(mod.riskFor({pmiStatus:'integrating',pmiHealth:55,pmiFriction:52}),'watch');assert.equal(mod.riskFor({pmiStatus:'stalled',pmiHealth:90,pmiFriction:0}),'critical');assert.equal(mod.riskFor({pmiStatus:'planning',pmiHealth:80,pmiFriction:10}),'stable');assert.equal(mod.riskFor({pmiStatus:'integrating',pmiHealth:20,pmiFriction:10}),'critical');assert.equal(mod.riskFor({pmiStatus:'integrating',pmiHealth:80,pmiFriction:80}),'critical');assert.equal(mod.riskFor({pmiStatus:'completed'}),'stable');
 const reversed=fixture();reversed.maDealRooms.reverse();reversed.maSubsidiaries.reverse();reversed.finance.transactions.reverse();assert.deepEqual(mod.build(reversed),a,'summary is order invariant for equivalent state');
@@ -22,6 +22,7 @@ const forbidden=/SAVE_KEY|saveVersion|localStorage|Math\.random|advanceWeek|comp
 console.log('M&A portfolio summary deterministic/purity/risk/priority/accounting aggregation tests passed');
 const { loadGame } = require('./harness');
 const full = loadGame().modules;
+const maf = full.maAcquisitionFinancing;
 function acceptedState() {
   const g = full.engine.createInitialState({ configured: true });
   g.week = 12; g.companyCash = 200000000; g.reports = [{ expenses: 1000000 }];
@@ -30,13 +31,15 @@ function acceptedState() {
   return g;
 }
 let g2 = acceptedState();
-assert.equal(full.maPortfolioSummary.build(g2).nextAction.id, 'approve-deal', 'unapproved accepted deal must prioritize board approval');
-g2.maDealRooms[0].boardApproval = { status: 'approved', approvedWeek: 12, expiresWeek: 14, termsKey: full.maBoardApproval.buildTermsKey(g2.maDealRooms[0]), approvedPrice: 60000000, approvedMethod: 'friendly', cashBufferAfter: 120000000, expectedDilution: 0, criticalSubsidiaries: 0 };
+assert.equal(full.maPortfolioSummary.build(g2).nextAction.id, 'plan-financing', 'unapproved accepted deal must prioritize board approval');
+g2.maDealRooms[0].acquisitionFinancingPlan = maf.buildPlan(g2, g2.maDealRooms[0], { presetID: 'custom', cashAmount: 60000000, termLoanAmount: 0, bridgeLoanAmount: 0, equityRaiseAmount: 0 }, { companyValue: 450000000 });
+g2.maDealRooms[0].boardApproval = { status: 'approved', financingPlanKey: g2.maDealRooms[0].acquisitionFinancingPlan.planKey, approvedWeek: 12, expiresWeek: 14, termsKey: full.maBoardApproval.buildTermsKey(g2.maDealRooms[0]), approvedPrice: 60000000, approvedMethod: 'friendly', cashBufferAfter: 120000000, expectedDilution: 0, criticalSubsidiaries: 0 };
 assert.equal(full.maPortfolioSummary.build(g2).nextAction.id, 'close-deal', 'valid board approval must prioritize final contract');
 g2.week = 15;
 assert.equal(full.maPortfolioSummary.build(g2).nextAction.id, 'approve-deal', 'expired approval must return to board approval');
 g2 = acceptedState();
-g2.maDealRooms[0].boardApproval = { status: 'approved', approvedWeek: 12, expiresWeek: 14, termsKey: 'wrong', approvedPrice: 60000000, approvedMethod: 'friendly', cashBufferAfter: 120000000, expectedDilution: 0, criticalSubsidiaries: 0 };
+g2.maDealRooms[0].acquisitionFinancingPlan = maf.buildPlan(g2, g2.maDealRooms[0], { presetID: 'custom', cashAmount: 60000000, termLoanAmount: 0, bridgeLoanAmount: 0, equityRaiseAmount: 0 }, { companyValue: 450000000 });
+g2.maDealRooms[0].boardApproval = { status: 'approved', financingPlanKey: g2.maDealRooms[0].acquisitionFinancingPlan.planKey, approvedWeek: 12, expiresWeek: 14, termsKey: 'wrong', approvedPrice: 60000000, approvedMethod: 'friendly', cashBufferAfter: 120000000, expectedDilution: 0, criticalSubsidiaries: 0 };
 assert.equal(full.maPortfolioSummary.build(g2).nextAction.id, 'approve-deal', 'termsKey mismatch must return to board approval');
 g2.maSubsidiaries = [{ id: 'critical', status: 'active', pmiStatus: 'stalled', pmiHealth: 20, pmiFriction: 80 }];
 assert.equal(full.maPortfolioSummary.build(g2).nextAction.id, 'stabilize-pmi', 'critical PMI still outranks board approval');

@@ -17,11 +17,11 @@ const context={console,setTimeout,queueMicrotask:fn=>fn(),MutationObserver:class
 vm.runInNewContext(summaryCode,context);vm.runInNewContext(uiCode,context);
 assert(inserted.includes('data-ma-portfolio-summary'),'summary card injected');
 assert(inserted.includes('PMI健全度'),'health KPI rendered');
-assert(inserted.includes('最優先：最終契約'),'accepted deal priority rendered');
+assert(inserted.includes('最優先：買収資金を決定'),'accepted deal priority rendered');
 assert(inserted.includes('1.2億円'),'acquisition value rendered');
 assert(inserted.includes('3,000万円'),'goodwill rendered');
 assert(inserted.includes('40万円'),'weekly synergy rendered');
-assert(inserted.includes('data-focus-selector="[data-action=&quot;ma-close-deal&quot;]"'),'priority target is machine-readable');
+assert(inserted.includes('data-focus-selector="[data-ma-financing-select]"'),'priority target is machine-readable');
 const mod=context.globalThis.__capitalismTycoonModules.maPortfolioSummaryUI;
 const stable=mod.renderCard(context.globalThis.__capitalismTycoonModules.maPortfolioSummary.build({}));
 assert(stable.includes('安定'),'empty portfolio is stable');assert(stable.includes('買収候補探索'),'empty portfolio sources deals');

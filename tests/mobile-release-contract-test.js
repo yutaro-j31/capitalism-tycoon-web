@@ -14,6 +14,16 @@ function metaTag(name) {
     .find(tag => new RegExp(`\\bname=(['"])${name}\\1`, 'i').test(tag));
 }
 
+function minimumPixelHeight(selectorPattern, label) {
+  const rules = [...css.matchAll(new RegExp(`${selectorPattern}\\{([^}]*)\\}`, 'g'))];
+  assert.ok(rules.length > 0, `${label} rule is required`);
+  const declaration = rules
+    .map(rule => rule[1].match(/(?:^|;)min-height:(\d+(?:\.\d+)?)px(?:;|$)/))
+    .find(Boolean);
+  assert.ok(declaration, `${label} must define a pixel min-height`);
+  return Number(declaration[1]);
+}
+
 const viewport = metaTag('viewport');
 assert.ok(viewport, 'viewport meta tag is required');
 for (const token of ['width=device-width', 'initial-scale=1', 'viewport-fit=cover']) {
@@ -26,8 +36,8 @@ assert.match(css, /body\{[^}]*padding-bottom:calc\([^)]*env\(safe-area-inset-bot
 assert.match(css, /safe-area-inset-left/, 'horizontal layout must account for the left safe area');
 assert.match(css, /safe-area-inset-right/, 'horizontal layout must account for the right safe area');
 assert.match(css, /button\{[^}]*touch-action:manipulation/, 'buttons must opt into direct touch manipulation');
-assert.match(css, /\.btn\{[^}]*min-height:42px/, 'primary button contract must keep a mobile-sized touch target');
-assert.match(css, /input,select\{[^}]*min-height:43px/, 'form controls must keep a mobile-sized touch target');
+assert.ok(minimumPixelHeight('\\.btn', 'primary button') >= 42, 'primary button contract must keep a mobile-sized touch target');
+assert.ok(minimumPixelHeight('input,select', 'form controls') >= 43, 'form controls must keep a mobile-sized touch target');
 assert.match(css, /\.tabs\{[^}]*overflow-x:auto/, 'bottom navigation must remain horizontally reachable');
 assert.match(css, /\.modal\{[^}]*max-height:86vh;overflow:auto/, 'modals must remain scrollable inside the viewport');
 assert.match(css, /\.setup-shell\{[^}]*min-height:100vh/, 'first-run setup must fill the viewport');

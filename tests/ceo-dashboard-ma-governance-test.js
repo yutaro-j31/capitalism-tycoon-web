@@ -20,7 +20,7 @@ for(const key of ['activeDeals','diligenceDeals','negotiatingDeals','acceptedDea
 assert.equal(ma.nextAction.id,'stabilize-pmi','critical PMI outranks accepted closing');
 assert.equal(ma.goodwillBookValue,21600000,'disposed goodwill is excluded and impaired carrying value is used');
 assert.equal(ma.totalAcquisitionPrice,90000000,'disposed subsidiary acquisition price is excluded');
-let accepted=fixture();accepted.maSubsidiaries=accepted.maSubsidiaries.map(s=>({...s,pmiStatus:'completed',pmiHealth:90,pmiFriction:10}));assert.equal(maFor(accepted).nextAction.id,'close-deal','accepted deal priority');
+let accepted=fixture();accepted.maSubsidiaries=accepted.maSubsidiaries.map(s=>({...s,pmiStatus:'completed',pmiHealth:90,pmiFriction:10}));assert.equal(maFor(accepted).nextAction.id,'plan-financing','accepted deal priority');
 let dd={maDealRooms:[{status:'diligence'}],maSubsidiaries:[]};assert.equal(maFor(dd).nextAction.id,'complete-dd','DD priority');
 let negotiating={maDealRooms:[{status:'offer_pending'}],maSubsidiaries:[]};assert.equal(maFor(negotiating).nextAction.id,'review-offer','negotiating priority');
 let planning={maDealRooms:[],maSubsidiaries:[{status:'active',pmiStatus:'planning',pmiHealth:80,pmiFriction:10}]};assert.equal(maFor(planning).nextAction.id,'start-pmi','PMI planning priority');

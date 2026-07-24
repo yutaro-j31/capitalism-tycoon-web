@@ -5,7 +5,8 @@ if(!modules?.maPortfolioSummary)throw new Error('Capitalism Tycoon maPortfolioSu
 if(!modules?.playerEngineBridge?.getEngine)throw new Error('Capitalism Tycoon playerEngineBridge must be loaded before ma-portfolio-summary-ui.js.');
 if(modules.maPortfolioSummaryUI)throw new Error('Capitalism Tycoon maPortfolioSummaryUI module is already registered.');
 const summary=modules.maPortfolioSummary,bridge=modules.playerEngineBridge;
-const ACTION_SELECTORS=Object.freeze({'stabilize-pmi':'[data-ma-subsidiary] [data-ma-pmi-support]','approve-deal':'[data-ma-board-approve]','close-deal':'[data-action="ma-close-deal"]','complete-dd':'[data-ma-dd-progress]','review-offer':'[data-ma-offer-price]','start-pmi':'[data-ma-pmi-strategy]','review-deals':'[data-ma-deal-room]','source-deals':'[data-action="generate-ma"]'});
+const ACTION_SELECTORS=Object.freeze({'stabilize-pmi':'[data-ma-subsidiary] [data-ma-pmi-support]','plan-financing':'[data-ma-financing-select]',
+  'approve-deal':'[data-ma-board-approve]','close-deal':'[data-action="ma-close-deal"]','complete-dd':'[data-ma-dd-progress]','review-offer':'[data-ma-offer-price]','start-pmi':'[data-ma-pmi-strategy]','review-deals':'[data-ma-deal-room]','source-deals':'[data-action="generate-ma"]'});
 const esc=v=>String(v??'').replace(/[&<>'"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c]));
 const rounded=(v,d)=>Number(Number(v).toFixed(d)).toLocaleString('ja-JP');
 const compact=v=>{const n=Number(v)||0,a=Math.abs(n);if(a>=100000000)return `${rounded(n/100000000,a>=1000000000?1:2)}億円`;if(a>=10000)return `${rounded(n/10000,a>=1000000?1:0)}万円`;return `${Math.round(n).toLocaleString('ja-JP')}円`;};
