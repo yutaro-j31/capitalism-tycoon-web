@@ -33,7 +33,7 @@
         if(!fresh.includes('id="app"'))throw new Error('ゲーム画面の読み込みデータが不正です。');
         const patched=fresh
           .replace('</head>',`<link rel="stylesheet" href="./css/iphone-playtest-fixes.css?launch=${encodeURIComponent(token)}"></head>`)
-          .replace('</body>',`<script src="./js/iphone-playtest-fixes.js?launch=${encodeURIComponent(token)}"><\/script></body>`);
+          .replace('</body>',`<script src="./js/play-runtime-compat.js?launch=${encodeURIComponent(token)}"><\/script><script src="./js/iphone-playtest-fixes.js?launch=${encodeURIComponent(token)}"><\/script></body>`);
         document.open();document.write(patched);document.close();
       })
       .catch(error=>{
