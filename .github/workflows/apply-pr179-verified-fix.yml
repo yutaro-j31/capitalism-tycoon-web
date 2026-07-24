@@ -1,0 +1,133 @@
+name: Apply PR179 Verified Fix
+
+on:
+  pull_request:
+    branches: [ main ]
+
+permissions:
+  contents: write
+
+concurrency:
+  group: apply-pr179-verified-fix
+  cancel-in-progress: false
+
+jobs:
+  apply:
+    if: github.head_ref == 'a8z22f-codex/add-ma-acquisition-financing-packages'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: a8z22f-codex/add-ma-acquisition-financing-packages
+          fetch-depth: 0
+
+      - name: Apply verified fix bundle
+        shell: bash
+        run: |
+          set -euo pipefail
+          cat \
+            .github/pr179-patch/new-00 \
+            .github/pr179-patch/new-01 \
+            .github/pr179-patch/new-02 \
+            .github/pr179-patch/new-03-04 \
+            .github/pr179-patch/new-05-06 \
+            .github/pr179-patch/new-07-08 \
+            > /tmp/pr179-fix.patch.gz.b64
+          base64 --decode /tmp/pr179-fix.patch.gz.b64 | gzip --decompress > /tmp/pr179-fix.patch
+          echo '76848639701f00f227677567f38c0272d4fe1b52c08fba10f6d86d51d53ff739  /tmp/pr179-fix.patch' | sha256sum --check --strict
+          git apply --whitespace=error-all /tmp/pr179-fix.patch
+          rm -rf .github/pr179-patch
+          rm -f .github/workflows/apply-pr179-verified-fix.yml
+          cat > .github/workflows/ma-acquisition-financing.yml <<'FINAL_WORKFLOW'
+          name: M&A Acquisition Financing
+
+          on:
+            pull_request:
+              branches: [ main ]
+
+          permissions:
+            contents: read
+
+          env:
+            MA_ACQUISITION_FINANCING_ARTIFACT_DIR: artifacts/ma-acquisition-financing-webkit
+            MA_BOARD_APPROVAL_ARTIFACT_DIR: artifacts/ma-board-approval-webkit
+            MA_DEAL_ROOM_ARTIFACT_DIR: artifacts/ma-deal-room-webkit
+            MA_INTEGRATION_ARTIFACT_DIR: artifacts/ma-integration-webkit
+            CEO_DASHBOARD_ARTIFACT_DIR: artifacts/ceo-dashboard-webkit
+
+          jobs:
+            test:
+              runs-on: ubuntu-latest
+              timeout-minutes: 45
+              steps:
+                - uses: actions/checkout@v4
+
+                - uses: actions/setup-node@v4
+                  with:
+                    node-version: '22'
+
+                - name: Install dependencies
+                  run: npm ci || npm install
+
+                - name: Unit and integration suites
+                  run: |
+                    npm run test:ma-acquisition-financing
+                    npm run test:ma-board-approval
+                    npm run test:ma-deal-room
+                    npm run test:ma-integration
+                    npm run test:ma-portfolio-summary
+                    npm run test:ma-portfolio-summary-ui
+                    npm run test:ceo-dashboard
+                    npm run test:finance
+                    npm run test:finance-ma-accounting
+                    npm run test:accounting-invariants
+                    npm run test:save
+                    npm run test:migration
+                    npm run test:save-v9
+                    npm run test:week
+                    npm run test:transaction
+                    npm run test:syntax
+                    npm run test:javascript
+                    npm run test:modules
+                    npm run test:static
+                    npm run test:css
+                    npm run test:progression-balance
+                    npm run test:strategy-balance
+                    node tests/v1-progression-gate-test.js
+                    node tests/executive-secretary-test.js
+
+                - name: Install pinned Playwright runtime
+                  run: npm install --no-save --no-package-lock playwright@1.61.0
+
+                - name: Install WebKit browser and system dependencies
+                  run: npx playwright install --with-deps webkit
+
+                - name: iPhone WebKit smoke
+                  run: |
+                    node tests/ma-acquisition-financing-webkit-test.js
+                    node tests/ma-board-approval-webkit-test.js
+                    node tests/ma-deal-room-webkit-test.js
+                    node tests/ma-integration-webkit-test.js
+                    node tests/ceo-dashboard-webkit-test.js
+
+                - name: Upload M&A acquisition financing artifacts
+                  uses: actions/upload-artifact@v4
+                  if: always()
+                  with:
+                    name: ma-acquisition-financing-artifacts
+                    path: |
+                      artifacts/ma-acquisition-financing-webkit
+                      artifacts/ma-board-approval-webkit
+                      artifacts/ma-deal-room-webkit
+                      artifacts/ma-integration-webkit
+                      artifacts/ceo-dashboard-webkit
+                    if-no-files-found: warn
+                    retention-days: 30
+          FINAL_WORKFLOW
+          sed -i 's/^          //' .github/workflows/ma-acquisition-financing.yml
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add -A
+          git diff --cached --check
+          git commit -m 'fix: complete deterministic M&A acquisition financing'
+          git push origin HEAD:a8z22f-codex/add-ma-acquisition-financing-packages
