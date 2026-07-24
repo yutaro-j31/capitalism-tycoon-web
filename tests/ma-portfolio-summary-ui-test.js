@@ -35,6 +35,10 @@ assert(exitHTML.includes('子会社IPOを検討'),'IPO recommendation rendered')
 assert(exitHTML.includes('3.6億円'),'stake value rendered');
 assert(exitHTML.includes('1.2億円'),'book value rendered');
 assert(exitHTML.includes('2.4億円'),'unrealized gain rendered');
+assert(exitHTML.includes('data-ma-exit-primary'),'highest-priority subsidiary is always visible');
+assert(exitHTML.includes('data-ma-exit-details'),'secondary subsidiaries are grouped in details');
+assert(!/<details[^>]*data-ma-exit-details[^>]*\sopen(?:\s|>)/.test(exitHTML),'secondary subsidiaries stay collapsed initially');
+assert(exitHTML.includes('その他の候補を表示（1社）'),'collapsed details reports remaining count');
 assert(exitHTML.includes('data-target-tab="venture"'),'venture navigation target is machine-readable');
 assert(exitHTML.includes('ipo-subsidiary'),'IPO focus selector is machine-readable');
 assert.equal(JSON.stringify(engine.g),before,'UI injection must not mutate game state');
@@ -43,6 +47,12 @@ const stable=mod.renderCard(context.globalThis.__capitalismTycoonModules.maPortf
 assert(stable.includes('安定'),'empty portfolio is stable');assert(stable.includes('買収候補探索'),'empty portfolio sources deals');
 const emptyExit=mod.renderExitCard(context.globalThis.__capitalismTycoonModules.maExitReadiness.build({}));
 assert(emptyExit.includes('評価対象の子会社はありません'),'empty exit portfolio is explicit');
+assert(!emptyExit.includes('data-ma-exit-details'),'empty exit portfolio has no redundant details');
+const manyRows=Array.from({length:10},(_,i)=>({id:`row-${i}`,subsidiaryID:`sub-${i}`,name:`子会社${i}`,source:i%2?'venture':'ma',ownership:.6,stakeValue:100000000+i,bookValue:50000000,unrealizedGain:50000000+i,weeklyProfit:1000000,holdingWeeks:20+i,pmiRisk:i%2?'none':'watch',recommendation:{id:i===0?'stabilize-pmi':i%2?'prepare-ipo':'review-sale',label:i===0?'PMI立て直し':i%2?'子会社IPOを検討':'売却候補を精査'}}));
+const bounded=mod.renderExitCard({subsidiaries:10,ipoReady:5,divestCandidates:4,pmiBlocked:5,criticalPMI:1,totalStakeValue:1000000000,totalBookValue:500000000,totalUnrealizedGain:500000000,weeklyProfit:10000000,nextAction:{id:'stabilize-pmi'},rows:manyRows});
+assert.equal((bounded.match(/data-ma-exit-row/g)||[]).length,8,'exit readiness DOM is bounded to eight subsidiary rows');
+assert(bounded.includes('その他の候補を表示（9社）'),'bounded card reports all secondary candidates');
+assert(bounded.includes('ほか2社は優先順位順に省略表示しています'),'bounded card reports omitted rows');
 listeners.click({target:{closest(selector){return selector==='[data-ma-portfolio-action]'?{dataset:{focusSelector:'[data-action="ma-close-deal"]'}}:null;}}});
 assert(focused&&scrolled,'portfolio action focuses and scrolls without mutating game state');
 focused=false;scrolled=false;
