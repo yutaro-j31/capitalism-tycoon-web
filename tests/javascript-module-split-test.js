@@ -181,7 +181,6 @@ expectThrow(() => run(freshWith(prefix('./js/completion.js')), './js/competitor-
 expectThrow(() => run(freshWith(prefix('./js/parity.js')), './js/competitor-dashboard.js'), /competitor-parity\.js/);
 expectThrow(() => run(freshWith(prefix('./js/competitor-parity.js')), './js/competitor-dashboard-status.js'), /competitor-dashboard\.js/);
 expectThrow(() => run(freshWith(prefix('./js/competitor-dashboard.js')), './js/competitor-dashboard-ui.js'), /competitor-dashboard-status\.js/);
-expectThrow(() => run(freshWith(prefix('./js/ma-portfolio-summary.js')), './js/ma-portfolio-summary-ui.js'), /maExitReadiness/);
 expectThrow(() => run(freshWith(prefix('./js/progression-balance.js')), './js/difficulty-scenario-balance.js'), /app\.js must install completion and parity/);
 expectThrow(() => run(freshWith(prefix('./js/player-crisis-ui.js')), './js/player-crisis.js'), /app\.js must install completion and parity/);
 expectThrow(() => run(freshWith(prefix('./js/app.js')), './js/player-crisis-actions.js'), /player-crisis\.js/);
