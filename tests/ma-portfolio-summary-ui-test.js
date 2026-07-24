@@ -25,6 +25,9 @@ assert(portfolioHTML.includes('data-ma-portfolio-summary'),'portfolio summary ca
 assert(portfolioHTML.includes('PMI健全度'),'health KPI rendered');
 assert(portfolioHTML.includes('最優先：PMI立て直し'),'critical PMI priority rendered');
 assert(exitHTML.includes('data-ma-exit-readiness'),'exit readiness card injected');
+assert(exitHTML.includes('<details class="card ma-exit-readiness"'),'exit readiness uses a collapsible card');
+assert(!/<details class="card ma-exit-readiness"[^>]*\sopen(?:\s|>)/.test(exitHTML),'exit readiness card stays collapsed initially');
+assert(exitHTML.includes('評価 2社 · IPO 1社 · 売却 0社 · PMI未完了 1社'),'collapsed summary exposes key counts');
 assert(exitHTML.includes('子会社出口戦略'),'exit readiness title rendered');
 assert(exitHTML.includes('IPO候補'),'IPO KPI rendered');
 assert(exitHTML.includes('売却候補'),'divestiture KPI rendered');
@@ -35,7 +38,7 @@ assert(exitHTML.includes('子会社IPOを検討'),'IPO recommendation rendered')
 assert(exitHTML.includes('3.6億円'),'stake value rendered');
 assert(exitHTML.includes('1.2億円'),'book value rendered');
 assert(exitHTML.includes('2.4億円'),'unrealized gain rendered');
-assert(exitHTML.includes('data-ma-exit-primary'),'highest-priority subsidiary strip is always visible');
+assert(exitHTML.includes('data-ma-exit-primary'),'highest-priority subsidiary strip is available when expanded');
 assert(exitHTML.includes('data-ma-exit-details'),'all subsidiary rows are grouped in details');
 assert(!/<details[^>]*data-ma-exit-details[^>]*\sopen(?:\s|>)/.test(exitHTML),'subsidiary details stay collapsed initially');
 assert(exitHTML.indexOf('data-ma-exit-row')>exitHTML.indexOf('data-ma-exit-details'),'full subsidiary rows render only inside collapsed details');
@@ -48,6 +51,7 @@ const stable=mod.renderCard(context.globalThis.__capitalismTycoonModules.maPortf
 assert(stable.includes('安定'),'empty portfolio is stable');assert(stable.includes('買収候補探索'),'empty portfolio sources deals');
 const emptyExit=mod.renderExitCard(context.globalThis.__capitalismTycoonModules.maExitReadiness.build({}));
 assert(emptyExit.includes('評価対象の子会社はありません'),'empty exit portfolio is explicit');
+assert(emptyExit.includes('<details class="card ma-exit-readiness"'),'empty exit portfolio remains collapsible');
 assert(!emptyExit.includes('data-ma-exit-details'),'empty exit portfolio has no redundant details');
 const manyRows=Array.from({length:10},(_,i)=>({id:`row-${i}`,subsidiaryID:`sub-${i}`,name:`子会社${i}`,source:i%2?'venture':'ma',ownership:.6,stakeValue:100000000+i,bookValue:50000000,unrealizedGain:50000000+i,weeklyProfit:1000000,holdingWeeks:20+i,pmiRisk:i%2?'none':'watch',recommendation:{id:i===0?'stabilize-pmi':i%2?'prepare-ipo':'review-sale',label:i===0?'PMI立て直し':i%2?'子会社IPOを検討':'売却候補を精査'}}));
 const bounded=mod.renderExitCard({subsidiaries:10,ipoReady:5,divestCandidates:4,pmiBlocked:5,criticalPMI:1,totalStakeValue:1000000000,totalBookValue:500000000,totalUnrealizedGain:500000000,weeklyProfit:10000000,nextAction:{id:'stabilize-pmi'},rows:manyRows});
