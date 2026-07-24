@@ -1,0 +1,38 @@
+name: iPhone Playtest Remediation
+on:
+  pull_request:
+    paths:
+      - 'play.html'
+      - 'js/iphone-playtest-fixes.js'
+      - 'css/iphone-playtest-fixes.css'
+      - 'tests/iphone-playtest-remediation-test.js'
+      - '.github/workflows/iphone-playtest-remediation.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'play.html'
+      - 'js/iphone-playtest-fixes.js'
+      - 'css/iphone-playtest-fixes.css'
+      - 'tests/iphone-playtest-remediation-test.js'
+      - '.github/workflows/iphone-playtest-remediation.yml'
+permissions:
+  contents: read
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - name: Syntax and static contract
+        run: |
+          node --check js/iphone-playtest-fixes.js
+          node tests/iphone-playtest-remediation-test.js
+      - name: Save and accounting regressions
+        run: |
+          npm run test:save-v9
+          npm run test:finance
+          npm run test:supply
+          npm run test:player-crisis-ui
+          npm run test:static
