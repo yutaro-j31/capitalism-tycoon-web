@@ -31,7 +31,10 @@
       .then(html=>{
         const fresh=html.replace(/\b(src|href)="(\.\/(?:js|css)\/[^"?]+)(?:\?[^"#]*)?"/g,(_,attribute,url)=>`${attribute}="${url}?launch=${encodeURIComponent(token)}"`);
         if(!fresh.includes('id="app"'))throw new Error('ゲーム画面の読み込みデータが不正です。');
-        document.open();document.write(fresh);document.close();
+        const patched=fresh
+          .replace('</head>',`<link rel="stylesheet" href="./css/iphone-playtest-fixes.css?launch=${encodeURIComponent(token)}"></head>`)
+          .replace('</body>',`<script src="./js/iphone-playtest-fixes.js?launch=${encodeURIComponent(token)}"><\/script></body>`);
+        document.open();document.write(patched);document.close();
       })
       .catch(error=>{
         const status=document.getElementById('launch-status');
