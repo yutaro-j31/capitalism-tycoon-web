@@ -6,6 +6,7 @@ on:
       - 'js/iphone-playtest-fixes.js'
       - 'css/iphone-playtest-fixes.css'
       - 'tests/iphone-playtest-remediation-test.js'
+      - 'tests/iphone-playtest-webkit-test.js'
       - '.github/workflows/iphone-playtest-remediation.yml'
   push:
     branches: [main]
@@ -14,12 +15,14 @@ on:
       - 'js/iphone-playtest-fixes.js'
       - 'css/iphone-playtest-fixes.css'
       - 'tests/iphone-playtest-remediation-test.js'
+      - 'tests/iphone-playtest-webkit-test.js'
       - '.github/workflows/iphone-playtest-remediation.yml'
 permissions:
   contents: read
 jobs:
   validate:
     runs-on: ubuntu-latest
+    timeout-minutes: 40
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -28,6 +31,7 @@ jobs:
       - name: Syntax and static contract
         run: |
           node --check js/iphone-playtest-fixes.js
+          node --check tests/iphone-playtest-webkit-test.js
           node tests/iphone-playtest-remediation-test.js
       - name: Save and accounting regressions
         run: |
@@ -36,3 +40,9 @@ jobs:
           npm run test:supply
           npm run test:player-crisis-ui
           npm run test:static
+      - name: Install pinned Playwright WebKit
+        run: |
+          npm install --no-save --no-package-lock playwright@1.61.0
+          npx playwright install --with-deps webkit
+      - name: Exercise physical-playtest workflows in WebKit
+        run: node tests/iphone-playtest-webkit-test.js
