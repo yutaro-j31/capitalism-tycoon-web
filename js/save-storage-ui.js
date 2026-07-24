@@ -10,10 +10,25 @@ const esc=value=>String(value??'').replace(/[&<>'"]/g,char=>({'&':'&amp;','<':'&
 const bytes=value=>{const n=Number(value)||0;if(n>=1024*1024)return `${(n/1024/1024).toFixed(2)} MB`;if(n>=1024)return `${(n/1024).toFixed(0)} KB`;return `${n} B`;};
 function engine(){return storage.getActiveEngine?.()||null;}
 function info(){return engine()?._lastSaveStorageInfo||null;}
-function toast(message,severity='info'){
- const root=document.getElementById('toast-root');if(!root)return false;
- const el=document.createElement('div');el.className=`toast ${severity}`;el.textContent=message;root.appendChild(el);
- setTimeout(()=>el.classList.add('show'),10);setTimeout(()=>{el.classList.remove('show');setTimeout(()=>el.remove(),250);},3600);return true;
+function toast(message,severity='info',env=globalThis){
+ const root=env.document?.getElementById?.('toast-root');if(!root)return false;
+ const el=env.document.createElement('div');el.className=`toast ${severity}`;el.textContent=message;root.appendChild(el);
+ env.setTimeout?.(()=>el.classList.add('show'),10);env.setTimeout?.(()=>{el.classList.remove('show');env.setTimeout?.(()=>el.remove(),250);},3600);return true;
+}
+function backupFilename(instance=engine()){
+ const week=Math.max(1,Math.floor(Number(instance?.g?.week)||1));
+ return `capitalism-tycoon-backup-week-${week}.json`;
+}
+function downloadBackup(instance=engine(),env=globalThis){
+ if(!instance?.g||!env.document?.createElement||!env.Blob||!env.URL?.createObjectURL)return false;
+ let text;
+ try{text=JSON.stringify(instance.g,null,2);}catch(error){console.error('Save backup serialization failed',error);return false;}
+ const link=env.document.createElement('a');
+ const href=env.URL.createObjectURL(new env.Blob([text],{type:'application/json'}));
+ link.href=href;link.download=backupFilename(instance);link.hidden=true;
+ env.document.body?.appendChild?.(link);link.click?.();link.remove?.();
+ env.setTimeout?.(()=>env.URL.revokeObjectURL?.(href),1000);
+ return true;
 }
 function cardModel(){
  const current=info();
@@ -25,15 +40,15 @@ function cardModel(){
  const removed=Number(current?.transactions?.removed)||0;
  return {mode,ok,label,size,original,removed};
 }
-function renderCard(){
- const screen=document.querySelector('[data-screen="settings"]');if(!screen)return false;
+function renderCard(env=globalThis){
+ const screen=env.document?.querySelector?.('[data-screen="settings"]');if(!screen)return false;
  let node=screen.querySelector(ROOT_SELECTOR);
- if(!node){node=document.createElement('section');node.className='card';node.setAttribute('data-save-storage-health','');screen.appendChild(node);}
+ if(!node){node=env.document.createElement('section');node.className='card';node.setAttribute('data-save-storage-health','');screen.appendChild(node);}
  const model=cardModel();
  const key=JSON.stringify(model);
  if(node.dataset.saveStorageRenderKey===key)return true;
  node.dataset.saveStorageRenderKey=key;
- node.innerHTML=`<div class="card-head"><div><h2>セーブ容量</h2><p>iPhoneの保存上限に合わせて古い履歴を整理します。会社・個人資産と会計累計は保持されます。</p></div><span class="badge ${model.ok?'good':'danger'}">${esc(model.label)}</span></div><div class="card-body"><div class="kpi-grid mini"><div class="stat"><span>保存状態</span><strong>${model.ok?'保存可能':'要バックアップ'}</strong></div><div class="stat"><span>保存サイズ</span><strong>${esc(model.size)}</strong><small>${esc(model.original)}</small></div><div class="stat"><span>整理した会計明細</span><strong>${model.removed.toLocaleString('ja-JP')}件</strong></div><div class="stat"><span>セーブ形式</span><strong>v${storage.SAVE_VERSION}</strong><small>${esc(storage.SAVE_KEY)}</small></div></div>${model.ok?'':'<p class="empty">以前のセーブは残っています。JSON書き出しを保存してから再試行してください。</p>'}</div>`;
+ node.innerHTML=`<div class="card-head"><div><h2>セーブ容量</h2><p>iPhoneの保存上限に合わせて古い履歴を整理します。会社・個人資産と会計累計は保持されます。</p></div><span class="badge ${model.ok?'good':'danger'}">${esc(model.label)}</span></div><div class="card-body"><div class="kpi-grid mini"><div class="stat"><span>保存状態</span><strong>${model.ok?'保存可能':'要バックアップ'}</strong></div><div class="stat"><span>保存サイズ</span><strong>${esc(model.size)}</strong><small>${esc(model.original)}</small></div><div class="stat"><span>整理した会計明細</span><strong>${model.removed.toLocaleString('ja-JP')}件</strong></div><div class="stat"><span>セーブ形式</span><strong>v${storage.SAVE_VERSION}</strong><small>${esc(storage.SAVE_KEY)}</small></div></div>${model.ok?'':'<p class="empty">以前のセーブは残っています。JSONバックアップを保存してから再試行してください。</p>'}<div class="button-grid"><button class="btn secondary" type="button" data-save-storage-action="backup">JSONバックアップ</button><button class="btn primary" type="button" data-save-storage-action="compact-save">履歴を整理して保存</button></div><p class="muted">バックアップは現在のプレイ状態を端末へ書き出します。「履歴を整理して保存」は古い履歴だけを圧縮し、店舗・資産・借入・在庫・会計累計を保持します。</p></div>`;
  return true;
 }
 function handleSaveClick(event){
@@ -47,11 +62,29 @@ function handleSaveClick(event){
  else toast('保存できませんでした。以前のセーブは残っています。JSONバックアップを保存してください。','error');
  renderCard();return true;
 }
-function install(){
- document.addEventListener('click',handleSaveClick,true);
- const app=document.getElementById('app');if(app&&typeof MutationObserver==='function')new MutationObserver(()=>renderCard()).observe(app,{childList:true,subtree:true});
- renderCard();return true;
+function handleRecoveryClick(event,env=globalThis){
+ const target=event.target?.closest?.('[data-save-storage-action]');if(!target)return false;
+ const instance=engine();if(!instance)return false;
+ event.preventDefault?.();event.stopImmediatePropagation?.();event.stopPropagation?.();
+ const action=target.dataset.saveStorageAction;
+ if(action==='backup'){
+  const ok=downloadBackup(instance,env);
+  toast(ok?'JSONバックアップを書き出しました。':'JSONバックアップを作成できませんでした。',ok?'success':'error',env);
+  return ok;
+ }
+ if(action==='compact-save'){
+  const ok=instance.save();
+  toast(ok?'古い履歴を整理して保存しました。':'保存できませんでした。先にJSONバックアップを保存してください。',ok?'success':'error',env);
+  renderCard(env);return ok;
+ }
+ return false;
 }
-modules.saveStorageUI=Object.freeze({MODE_LABELS,bytes,engine,info,cardModel,toast,renderCard,handleSaveClick,install,__installed:true});
+function install(env=globalThis){
+ env.document?.addEventListener?.('click',handleSaveClick,true);
+ env.document?.addEventListener?.('click',event=>handleRecoveryClick(event,env),true);
+ const app=env.document?.getElementById?.('app');if(app&&typeof env.MutationObserver==='function')new env.MutationObserver(()=>renderCard(env)).observe(app,{childList:true,subtree:true});
+ renderCard(env);return true;
+}
+modules.saveStorageUI=Object.freeze({MODE_LABELS,bytes,engine,info,toast,backupFilename,downloadBackup,cardModel,renderCard,handleSaveClick,handleRecoveryClick,install,__installed:true});
 install();
 })();
