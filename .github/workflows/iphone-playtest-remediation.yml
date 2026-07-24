@@ -3,6 +3,7 @@ on:
   pull_request:
     paths:
       - 'play.html'
+      - 'js/play-runtime-compat.js'
       - 'js/iphone-playtest-fixes.js'
       - 'css/iphone-playtest-fixes.css'
       - 'tests/iphone-playtest-remediation-test.js'
@@ -12,6 +13,7 @@ on:
     branches: [main]
     paths:
       - 'play.html'
+      - 'js/play-runtime-compat.js'
       - 'js/iphone-playtest-fixes.js'
       - 'css/iphone-playtest-fixes.css'
       - 'tests/iphone-playtest-remediation-test.js'
@@ -30,6 +32,7 @@ jobs:
           node-version: '24'
       - name: Syntax and static contract
         run: |
+          node --check js/play-runtime-compat.js
           node --check js/iphone-playtest-fixes.js
           node --check tests/iphone-playtest-webkit-test.js
           node tests/iphone-playtest-remediation-test.js
