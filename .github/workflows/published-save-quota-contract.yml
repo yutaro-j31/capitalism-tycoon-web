@@ -1,0 +1,28 @@
+name: Published Save Quota Contract
+
+on:
+  pull_request:
+    paths:
+      - 'tests/published-save-quota-webkit-test.js'
+      - 'tests/published-save-quota-contract-test.js'
+      - '.github/workflows/pages-deployment-smoke.yml'
+      - '.github/workflows/published-save-quota-contract.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  contract:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Validate syntax and deployment wiring
+        run: |
+          node --check tests/published-save-quota-webkit-test.js
+          node tests/published-save-quota-contract-test.js
+          node tests/pages-deployment-smoke-test.js
