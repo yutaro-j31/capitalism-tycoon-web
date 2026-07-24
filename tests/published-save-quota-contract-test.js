@@ -1,0 +1,17 @@
+'use strict';
+const assert=require('node:assert/strict');
+const fs=require('node:fs');
+const path=require('node:path');
+const root=path.resolve(__dirname,'..');
+const workflow=fs.readFileSync(path.join(root,'.github','workflows','pages-deployment-smoke.yml'),'utf8');
+const testPath=path.join(root,'tests','published-save-quota-webkit-test.js');
+assert.ok(fs.existsSync(testPath),'published save quota WebKit test must exist');
+const source=fs.readFileSync(testPath,'utf8');
+assert.match(workflow,/SAVE_QUOTA_TARGET_URL: https:\/\/yutaro-j31\.github\.io\/capitalism-tycoon-web\//);
+assert.match(workflow,/node tests\/published-save-quota-webkit-test\.js/);
+assert.equal((workflow.match(/published-save-quota-webkit-test\.js/g)||[]).length,1,'published quota smoke must run once');
+assert.ok(workflow.indexOf('node tests/published-save-quota-webkit-test.js')>workflow.indexOf('node scripts/pages-deployment-smoke.js'),'quota test must run after exact-byte attestation');
+assert.ok(workflow.indexOf('Retain published WebKit evidence')>workflow.indexOf('node tests/published-save-quota-webkit-test.js'),'quota evidence must be uploaded');
+for(const token of ['QuotaExceededError','modules?.saveStorage?.__installed','engine.save()','saveVersion, 9','companyCashAfter','personalCashAfter','page.reload'])assert.ok(source.includes(token),`missing published quota assertion: ${token}`);
+assert.doesNotMatch(source,/localStorage\.clear\s*\(/,'published quota smoke must not clear all storage');
+console.log('published save quota deployment contract passed');

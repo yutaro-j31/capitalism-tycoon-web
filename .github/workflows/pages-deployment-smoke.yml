@@ -56,6 +56,11 @@ jobs:
           CAPITAL_ALLOCATION_RECOVERY_TARGET_URL: https://yutaro-j31.github.io/capitalism-tycoon-web/
           IPHONE_WEBKIT_ARTIFACT_DIR: artifacts/published-iphone-webkit-smoke
         run: node tests/capital-allocation-recovery-outcome-webkit-test.js
+      - name: Verify published iPhone save quota recovery
+        env:
+          SAVE_QUOTA_TARGET_URL: https://yutaro-j31.github.io/capitalism-tycoon-web/
+          IPHONE_WEBKIT_ARTIFACT_DIR: artifacts/published-iphone-webkit-smoke
+        run: node tests/published-save-quota-webkit-test.js
       - name: Retain published WebKit evidence
         if: always()
         uses: actions/upload-artifact@v4
