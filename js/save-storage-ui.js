@@ -8,14 +8,24 @@ const ROOT_SELECTOR='[data-save-storage-health]';
 const MODE_LABELS=Object.freeze({raw:'通常保存',normal:'履歴整理済み',emergency:'容量節約',critical:'最小履歴',failed:'保存失敗','serialize-error':'作成失敗'});
 const esc=value=>String(value??'').replace(/[&<>'"]/g,char=>({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[char]));
 const bytes=value=>{const n=Number(value)||0;if(n>=1024*1024)return `${(n/1024/1024).toFixed(2)} MB`;if(n>=1024)return `${(n/1024).toFixed(0)} KB`;return `${n} B`;};
-let capacity={supported:false,usage:0,quota:0,ratio:null,status:'unknown',label:'端末容量 未確認'};
+let capacity={supported:false,usage:0,quota:0,ratio:null,status:'unknown',label:'ブラウザ全体 未確認'};
 function engine(){return storage.getActiveEngine?.()||null;}
 function info(){return engine()?._lastSaveStorageInfo||null;}
 function capacityStatus(ratio){
- if(!Number.isFinite(ratio))return {status:'unknown',label:'端末容量 未確認'};
- if(ratio>=.9)return {status:'critical',label:'端末容量 危険'};
- if(ratio>=.75)return {status:'warning',label:'端末容量 注意'};
- return {status:'good',label:'端末容量 良好'};
+ if(!Number.isFinite(ratio))return {status:'unknown',label:'ブラウザ全体 未確認'};
+ if(ratio>=.9)return {status:'critical',label:'ブラウザ全体 危険'};
+ if(ratio>=.75)return {status:'warning',label:'ブラウザ全体 注意'};
+ return {status:'good',label:'ブラウザ全体 良好'};
+}
+function savePressure(current=info()){
+ const mode=String(current?.mode||'not-saved');
+ const originalBytes=Math.max(0,Number(current?.originalBytes)||0);
+ const storedBytes=Math.max(0,Number(current?.bytes)||0);
+ const threshold=Math.max(1,Number(storage.RAW_COMPACTION_THRESHOLD)||1_250_000)*2;
+ const measured=Math.max(originalBytes,storedBytes);
+ if(current?.ok===false||mode==='failed'||mode==='serialize-error'||mode==='critical')return {status:'critical',label:'セーブ容量 危険',ratio:measured?measured/threshold:null};
+ if(mode==='emergency'||measured>=threshold)return {status:'warning',label:'セーブ容量 注意',ratio:measured/threshold};
+ return {status:measured?'good':'unknown',label:measured?'セーブ容量 良好':'セーブ容量 未確認',ratio:measured?measured/threshold:null};
 }
 async function refreshCapacity(env=globalThis){
  const estimate=env.navigator?.storage?.estimate;
@@ -56,9 +66,11 @@ function cardModel(){
  const size=current?.bytes?bytes(current.bytes):'未確認';
  const original=current?.originalBytes&&current.originalBytes!==current.bytes?`（整理前 ${bytes(current.originalBytes)}）`:'';
  const removed=Number(current?.transactions?.removed)||0;
- const capacityText=capacity.supported&&capacity.quota?`${bytes(capacity.usage)} / ${bytes(capacity.quota)}`:'ブラウザ非対応';
+ const pressure=savePressure(current);
+ const pressurePercent=Number.isFinite(pressure.ratio)?`${Math.round(pressure.ratio*100)}%`: '—';
+ const capacityText=capacity.supported&&capacity.quota?`${bytes(capacity.usage)} / ${bytes(capacity.quota)}`:'API非対応';
  const capacityPercent=Number.isFinite(capacity.ratio)?`${Math.round(capacity.ratio*100)}%`:'—';
- return {mode,ok,label,size,original,removed,capacityStatus:capacity.status,capacityLabel:capacity.label,capacityText,capacityPercent};
+ return {mode,ok,label,size,original,removed,pressureStatus:pressure.status,pressureLabel:pressure.label,pressurePercent,capacityStatus:capacity.status,capacityLabel:capacity.label,capacityText,capacityPercent};
 }
 function renderCard(env=globalThis){
  const screen=env.document?.querySelector?.('[data-screen="settings"]');if(!screen)return false;
@@ -68,8 +80,9 @@ function renderCard(env=globalThis){
  const key=JSON.stringify(model);
  if(node.dataset.saveStorageRenderKey===key)return true;
  node.dataset.saveStorageRenderKey=key;
- const capacityAdvice=model.capacityStatus==='critical'?'<p class="empty">端末の保存領域が90%以上です。JSONバックアップ後に「履歴を整理して保存」を実行してください。</p>':model.capacityStatus==='warning'?'<p class="muted">端末の保存領域が75%以上です。早めのJSONバックアップを推奨します。</p>':'';
- node.innerHTML=`<div class="card-head"><div><h2>セーブ容量</h2><p>iPhoneの保存上限に合わせて古い履歴を整理します。会社・個人資産と会計累計は保持されます。</p></div><span class="badge ${model.ok?'good':'danger'}">${esc(model.label)}</span></div><div class="card-body"><div class="kpi-grid mini"><div class="stat"><span>保存状態</span><strong>${model.ok?'保存可能':'要バックアップ'}</strong></div><div class="stat"><span>保存サイズ</span><strong>${esc(model.size)}</strong><small>${esc(model.original)}</small></div><div class="stat"><span>整理した会計明細</span><strong>${model.removed.toLocaleString('ja-JP')}件</strong></div><div class="stat"><span>セーブ形式</span><strong>v${storage.SAVE_VERSION}</strong><small>${esc(storage.SAVE_KEY)}</small></div><div class="stat"><span>${esc(model.capacityLabel)}</span><strong>${esc(model.capacityPercent)}</strong><small>${esc(model.capacityText)}</small></div></div>${capacityAdvice}${model.ok?'':'<p class="empty">以前のセーブは残っています。JSONバックアップを保存してから再試行してください。</p>'}<div class="button-grid"><button class="btn secondary" type="button" data-save-storage-action="backup">JSONバックアップ</button><button class="btn primary" type="button" data-save-storage-action="compact-save">履歴を整理して保存</button></div><p class="muted">バックアップは現在のプレイ状態を端末へ書き出します。「履歴を整理して保存」は古い履歴だけを圧縮し、店舗・資産・借入・在庫・会計累計を保持します。</p></div>`;
+ const pressureAdvice=model.pressureStatus==='critical'?'<p class="empty">このセーブは保存上限に近いか、すでに最小履歴モードです。JSONバックアップ後に「履歴を整理して保存」を実行してください。</p>':model.pressureStatus==='warning'?'<p class="muted">セーブデータが大きくなっています。早めのJSONバックアップを推奨します。</p>':'';
+ const originAdvice=model.capacityStatus==='critical'?'<p class="muted">ブラウザ全体の保存領域も90%以上です。ほかのサイトデータを含む参考値です。</p>':model.capacityStatus==='warning'?'<p class="muted">ブラウザ全体の保存領域が75%以上です。この値はlocalStorage固有の上限とは異なる参考値です。</p>':'';
+ node.innerHTML=`<div class="card-head"><div><h2>セーブ容量</h2><p>実際のセーブサイズと保存方式を優先して警告します。会社・個人資産と会計累計は保持されます。</p></div><span class="badge ${model.ok?'good':'danger'}">${esc(model.label)}</span></div><div class="card-body"><div class="kpi-grid mini"><div class="stat"><span>保存状態</span><strong>${model.ok?'保存可能':'要バックアップ'}</strong></div><div class="stat"><span>保存サイズ</span><strong>${esc(model.size)}</strong><small>${esc(model.original)}</small></div><div class="stat"><span>${esc(model.pressureLabel)}</span><strong>${esc(model.pressurePercent)}</strong><small>安全圧縮基準比</small></div><div class="stat"><span>整理した会計明細</span><strong>${model.removed.toLocaleString('ja-JP')}件</strong></div><div class="stat"><span>セーブ形式</span><strong>v${storage.SAVE_VERSION}</strong><small>${esc(storage.SAVE_KEY)}</small></div><div class="stat"><span>${esc(model.capacityLabel)}</span><strong>${esc(model.capacityPercent)}</strong><small>${esc(model.capacityText)}</small></div></div>${pressureAdvice}${originAdvice}${model.ok?'':'<p class="empty">以前のセーブは残っています。JSONバックアップを保存してから再試行してください。</p>'}<div class="button-grid"><button class="btn secondary" type="button" data-save-storage-action="backup">JSONバックアップ</button><button class="btn primary" type="button" data-save-storage-action="compact-save">履歴を整理して保存</button></div><p class="muted">ブラウザ全体の容量は補助情報です。保存可否の判断には、実際のセーブサイズ・保存方式・直近の保存結果を使用します。</p></div>`;
  return true;
 }
 function handleSaveClick(event){
@@ -106,6 +119,6 @@ function install(env=globalThis){
  const app=env.document?.getElementById?.('app');if(app&&typeof env.MutationObserver==='function')new env.MutationObserver(()=>renderCard(env)).observe(app,{childList:true,subtree:true});
  renderCard(env);refreshCapacity(env);return true;
 }
-modules.saveStorageUI=Object.freeze({MODE_LABELS,bytes,engine,info,capacityStatus,refreshCapacity,toast,backupFilename,downloadBackup,cardModel,renderCard,handleSaveClick,handleRecoveryClick,install,__installed:true});
+modules.saveStorageUI=Object.freeze({MODE_LABELS,bytes,engine,info,capacityStatus,savePressure,refreshCapacity,toast,backupFilename,downloadBackup,cardModel,renderCard,handleSaveClick,handleRecoveryClick,install,__installed:true});
 install();
 })();
