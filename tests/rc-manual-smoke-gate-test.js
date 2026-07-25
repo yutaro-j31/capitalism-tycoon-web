@@ -2,7 +2,7 @@
 
 const assert = require('node:assert/strict');
 const releaseCandidate = require('../release-candidate.json');
-const { loadGame, findStateIssues } = require('./harness');
+const { loadGame } = require('./harness');
 
 const REQUIRED_CHECKS = [
   'fresh-start',
@@ -22,9 +22,43 @@ function seededRandom(seed = 0x5eed189) {
   };
 }
 
+function findSerializationIssues(value, path = 'g', ancestors = new Set(), issues = []) {
+  if (typeof value === 'number') {
+    if (!Number.isFinite(value)) issues.push(`${path}: non-finite number`);
+    return issues;
+  }
+  if (value == null || typeof value !== 'object') return issues;
+  if (ancestors.has(value)) {
+    issues.push(`${path}: circular reference`);
+    return issues;
+  }
+
+  const nextAncestors = new Set(ancestors);
+  nextAncestors.add(value);
+  if (Array.isArray(value)) {
+    value.forEach((entry, index) => findSerializationIssues(entry, `${path}[${index}]`, nextAncestors, issues));
+  } else {
+    Object.entries(value).forEach(([key, entry]) => {
+      findSerializationIssues(entry, `${path}.${key}`, nextAncestors, issues);
+    });
+  }
+  return issues;
+}
+
 function assertCleanState(state, label) {
-  const issues = findStateIssues(state);
+  const issues = findSerializationIssues(state);
   assert.deepEqual(issues, [], `${label}: ${issues.join(' / ')}`);
+  assert.doesNotThrow(() => JSON.stringify(state), `${label}: state is not JSON serializable`);
+  assert.ok(Number.isFinite(state.companyCash), `${label}: companyCash is not finite`);
+  assert.ok(Number.isFinite(state.personalCash), `${label}: personalCash is not finite`);
+  assert.ok(Number.isInteger(state.week) && state.week >= 1, `${label}: invalid week ${state.week}`);
+  assert.ok(Array.isArray(state.stores), `${label}: stores must be an array`);
+  for (const [index, store] of state.stores.entries()) {
+    if (Object.hasOwn(store, 'inventory')) {
+      assert.ok(Number.isFinite(store.inventory) && store.inventory >= 0,
+        `${label}: store[${index}].inventory is invalid`);
+    }
+  }
 }
 
 async function main() {
@@ -101,6 +135,7 @@ async function main() {
   assert.equal(storedState.week, engine.g.week, 'stored week mismatch');
   assert.equal(storedState.companyCash, engine.g.companyCash, 'stored companyCash mismatch');
   assert.equal(storedState.personalCash, engine.g.personalCash, 'stored personalCash mismatch');
+  assertCleanState(storedState, 'stored state issues');
 
   const reloaded = TycoonEngine.load();
   assert.equal(reloaded.g.week, engine.g.week, 'reload week mismatch');
