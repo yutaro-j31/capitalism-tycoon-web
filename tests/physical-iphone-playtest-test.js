@@ -11,8 +11,9 @@ assert.doesNotMatch(source,/localStorage\.(?:setItem|removeItem|clear)/,'physica
 assert.doesNotMatch(source,/engine\(\)\.(?:save|runWeek)|\.runWeeks?\(/,'physical checklist must not execute gameplay');
 assert.ok(play.includes('./js/physical-iphone-playtest.js?launch='),'public play launcher must load physical checklist');
 assert.ok(play.indexOf('./js/save-storage-ui.js?launch=')<play.indexOf('./js/physical-iphone-playtest.js?launch='),'checklist must load after save UI');
-assert.ok(play.includes('fresh.indexOf(debtService)>fresh.indexOf(appBootstrap)'),'public launcher must guard debt-service bootstrap ordering');
-assert.ok(play.includes("fresh=fresh.replace(debtService,'').replace(appBootstrap,`${debtService}${appBootstrap}`)"),'public launcher must move debt service before app bootstrap');
+assert.ok(play.includes("const bootstrapAnchor=`<script src=\"./js/capital-allocation-policy.js?launch=${encodeURIComponent(token)}\"><\\/script>`"),'public launcher must define the final static dependency anchor');
+assert.ok(play.includes("fresh=fresh.replace(appBootstrap,'').replace(bootstrapAnchor,`${bootstrapAnchor}${appBootstrap}`)"),'public launcher must move app bootstrap after runtime dependencies');
+assert.ok(play.includes('fresh.indexOf(appBootstrap)<fresh.indexOf(bootstrapAnchor)'),'public launcher must guard the complete bootstrap ordering');
 
 const fakeDocument={addEventListener(){},getElementById(){return null;},querySelector(){return null;}};
 const context={
