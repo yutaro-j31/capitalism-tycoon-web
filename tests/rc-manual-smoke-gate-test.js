@@ -27,10 +27,10 @@ async function main() {
   assert.equal(SAVE_KEY, releaseCandidate.save.key);
   assert.equal(SAVE_VERSION, releaseCandidate.save.version);
 
-  // Use the supported easy start for the release smoke path so the initial
-  // store cost plus the selected tenant deposit is always affordable. The
-  // gate is validating the real setup/store/week/save/reload path, not
-  // calibrating normal-mode opening capital (covered by balance tests).
+  // Exercise the real setup/store path without coupling this release gate to a
+  // single tenant's balance calibration. Prefer Fukuoka, then select the
+  // cheapest affordable opening deterministically. Dedicated balance suites
+  // remain responsible for difficulty-specific opening-capital calibration.
   const engine = new TycoonEngine();
   engine.configure({
     playerName: 'RC Tester',
@@ -43,14 +43,32 @@ async function main() {
   assert.equal(engine.g.configured, true, 'fresh start did not configure');
   assert.equal(engine.g.week, 1, 'fresh start week mismatch');
 
-  const tenant = engine.g.tenants.find(row => row.prefID === 'fukuoka' && row.businessID === 'ramen' && !row.occupiedBy);
-  assert.ok(tenant, 'fresh start ramen tenant missing');
-  const ramen = engine.business('ramen');
-  assert.ok(ramen, 'ramen business missing');
-  const openingCost = ramen.storeCost + tenant.deposit;
-  assert.ok(engine.g.companyCash >= openingCost,
-    `easy start cannot afford RC store: cash=${engine.g.companyCash}, cost=${openingCost}`);
-  assert.equal(engine.openStore({ tenantID: tenant.id, businessID: 'ramen', name: 'RC 福岡店' }), true, 'store opening failed');
+  const businesses = new Map(engine.g.businesses.map(row => [row.id, row]));
+  const candidates = engine.g.tenants
+    .filter(row => !row.occupiedBy && businesses.has(row.businessID))
+    .map(tenant => {
+      const business = businesses.get(tenant.businessID);
+      return {
+        tenant,
+        business,
+        openingCost: Number(business.storeCost || 0) + Number(tenant.deposit || 0)
+      };
+    })
+    .filter(row => Number.isFinite(row.openingCost) && row.openingCost >= 0)
+    .sort((a, b) => {
+      const prefRank = Number(b.tenant.prefID === 'fukuoka') - Number(a.tenant.prefID === 'fukuoka');
+      if (prefRank) return prefRank;
+      if (a.openingCost !== b.openingCost) return a.openingCost - b.openingCost;
+      return String(a.tenant.stableKey || a.tenant.id).localeCompare(String(b.tenant.stableKey || b.tenant.id));
+    });
+  const opening = candidates.find(row => row.openingCost <= engine.g.companyCash);
+  assert.ok(opening,
+    `easy start has no affordable RC store: cash=${engine.g.companyCash}, cheapest=${candidates[0]?.openingCost ?? 'none'}`);
+  assert.equal(engine.openStore({
+    tenantID: opening.tenant.id,
+    businessID: opening.business.id,
+    name: `RC ${opening.tenant.prefID === 'fukuoka' ? '福岡' : '試験'}店`
+  }), true, 'store opening failed');
 
   const startWeek = engine.g.week;
   assert.equal(engine.advanceWeek(true), true, 'one-week advance failed');
@@ -88,6 +106,9 @@ async function main() {
     release: releaseCandidate.version,
     saveVersion: SAVE_VERSION,
     difficulty: engine.g.difficulty,
+    openingPrefID: opening.tenant.prefID,
+    openingBusinessID: opening.business.id,
+    openingCost: opening.openingCost,
     finalWeek: engine.g.week,
     stores: engine.g.stores.length,
     localStorageBytes: stored.length * 2,
