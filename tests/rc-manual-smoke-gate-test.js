@@ -27,11 +27,15 @@ async function main() {
   assert.equal(SAVE_KEY, releaseCandidate.save.key);
   assert.equal(SAVE_VERSION, releaseCandidate.save.version);
 
+  // Use the supported easy start for the release smoke path so the initial
+  // store cost plus the selected tenant deposit is always affordable. The
+  // gate is validating the real setup/store/week/save/reload path, not
+  // calibrating normal-mode opening capital (covered by balance tests).
   const engine = new TycoonEngine();
   engine.configure({
     playerName: 'RC Tester',
     companyName: 'RC Smoke Co',
-    difficulty: 'normal',
+    difficulty: 'easy',
     scenario: 'free',
     founderPrefID: 'fukuoka',
     founderTraitID: 'merchant'
@@ -41,6 +45,11 @@ async function main() {
 
   const tenant = engine.g.tenants.find(row => row.prefID === 'fukuoka' && row.businessID === 'ramen' && !row.occupiedBy);
   assert.ok(tenant, 'fresh start ramen tenant missing');
+  const ramen = engine.business('ramen');
+  assert.ok(ramen, 'ramen business missing');
+  const openingCost = ramen.storeCost + tenant.deposit;
+  assert.ok(engine.g.companyCash >= openingCost,
+    `easy start cannot afford RC store: cash=${engine.g.companyCash}, cost=${openingCost}`);
   assert.equal(engine.openStore({ tenantID: tenant.id, businessID: 'ramen', name: 'RC 福岡店' }), true, 'store opening failed');
 
   const startWeek = engine.g.week;
@@ -78,6 +87,7 @@ async function main() {
   console.log(JSON.stringify({
     release: releaseCandidate.version,
     saveVersion: SAVE_VERSION,
+    difficulty: engine.g.difficulty,
     finalWeek: engine.g.week,
     stores: engine.g.stores.length,
     localStorageBytes: stored.length * 2,
