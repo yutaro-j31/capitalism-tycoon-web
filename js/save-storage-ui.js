@@ -12,152 +12,20 @@ const bytes=value=>{const n=Number(value)||0;if(n>=1024*1024)return `${(n/1024/1
 let capacity={supported:false,usage:0,quota:0,ratio:null,status:'unknown',label:'ブラウザ全体 未確認'};
 function engine(){return storage.getActiveEngine?.()||null;}
 function info(){return engine()?._lastSaveStorageInfo||null;}
-function capacityStatus(ratio){
- if(!Number.isFinite(ratio))return {status:'unknown',label:'ブラウザ全体 未確認'};
- if(ratio>=.9)return {status:'critical',label:'ブラウザ全体 危険'};
- if(ratio>=.75)return {status:'warning',label:'ブラウザ全体 注意'};
- return {status:'good',label:'ブラウザ全体 良好'};
-}
-function savePressure(current=info()){
- const mode=String(current?.mode||'not-saved');
- const originalBytes=Math.max(0,Number(current?.originalBytes)||0);
- const storedBytes=Math.max(0,Number(current?.bytes)||0);
- const threshold=Math.max(1,Number(storage.RAW_COMPACTION_THRESHOLD)||1_250_000)*2;
- const measured=Math.max(originalBytes,storedBytes);
- if(current?.ok===false||mode==='failed'||mode==='serialize-error'||mode==='critical')return {status:'critical',label:'セーブ容量 危険',ratio:measured?measured/threshold:null};
- if(mode==='emergency'||measured>=threshold)return {status:'warning',label:'セーブ容量 注意',ratio:measured/threshold};
- return {status:measured?'good':'unknown',label:measured?'セーブ容量 良好':'セーブ容量 未確認',ratio:measured?measured/threshold:null};
-}
-async function refreshCapacity(env=globalThis){
- const estimate=env.navigator?.storage?.estimate;
- if(typeof estimate!=='function'){capacity={supported:false,usage:0,quota:0,ratio:null,...capacityStatus(null)};renderCard(env);return capacity;}
- try{
-  const result=await estimate.call(env.navigator.storage);
-  const usage=Math.max(0,Number(result?.usage)||0),quota=Math.max(0,Number(result?.quota)||0);
-  const ratio=quota>0?Math.min(1,usage/quota):null;
-  capacity={supported:true,usage,quota,ratio,...capacityStatus(ratio)};
- }catch(error){capacity={supported:false,usage:0,quota:0,ratio:null,...capacityStatus(null)};}
- renderCard(env);return capacity;
-}
-function toast(message,severity='info',env=globalThis){
- const root=env.document?.getElementById?.('toast-root');if(!root)return false;
- const el=env.document.createElement('div');el.className=`toast ${severity}`;el.textContent=message;root.appendChild(el);
- env.setTimeout?.(()=>el.classList.add('show'),10);env.setTimeout?.(()=>{el.classList.remove('show');env.setTimeout?.(()=>el.remove(),250);},3600);return true;
-}
-function backupFilename(instance=engine()){
- const week=Math.max(1,Math.floor(Number(instance?.g?.week)||1));
- return `capitalism-tycoon-backup-week-${week}.json`;
-}
-function downloadBackup(instance=engine(),env=globalThis){
- if(!instance?.g||!env.document?.createElement||!env.Blob||!env.URL?.createObjectURL)return false;
- let text;
- try{text=JSON.stringify(instance.g,null,2);}catch(error){console.error('Save backup serialization failed',error);return false;}
- const link=env.document.createElement('a');
- const href=env.URL.createObjectURL(new env.Blob([text],{type:'application/json'}));
- link.href=href;link.download=backupFilename(instance);link.hidden=true;
- env.document.body?.appendChild?.(link);link.click?.();link.remove?.();
- env.setTimeout?.(()=>env.URL.revokeObjectURL?.(href),1000);
- return true;
-}
-function ensureImportInput(env=globalThis){
- let input=env.document?.getElementById?.(IMPORT_INPUT_ID);
- if(input)return input;
- if(!env.document?.createElement)return null;
- input=env.document.createElement('input');input.id=IMPORT_INPUT_ID;input.type='file';input.accept='application/json,.json';input.hidden=true;
- env.document.body?.appendChild?.(input);return input;
-}
-async function importBackupFile(file,instance=engine(),env=globalThis){
- if(!file||!instance?.g||typeof file.text!=='function')return {ok:false,error:'JSONファイルを読み込めません。'};
- let text,parsed,migrated;
- try{text=await file.text();parsed=JSON.parse(text);migrated=modules.engine?.migrateSave?.(parsed);}
- catch(error){return {ok:false,error:'JSONファイルを解析できません。'};}
- if(!migrated?.ok)return {ok:false,error:(migrated?.errors||['セーブデータ形式が不正です。']).join(' / ')};
- const previousState=instance.g;
- const previousBlocked=instance._saveBlockedDueToLoadFailure;
- const previousReason=instance._loadFailureReason;
- if(!downloadBackup(instance,env))return {ok:false,error:'現在のセーブを安全バックアップできなかったため、復元を中止しました。'};
- try{
-  instance.importSave(text);
-  return {ok:true,week:Math.max(1,Math.floor(Number(instance.g?.week)||1),saveVersion:Number(instance.g?.saveVersion)||0};
- }catch(error){
-  instance.g=previousState;instance._saveBlockedDueToLoadFailure=previousBlocked;instance._loadFailureReason=previousReason;
-  try{instance.emit?.();}catch(ignore){}
-  return {ok:false,error:error?.message||'セーブを復元できませんでした。'};
- }
-}
-function cardModel(){
- const current=info();
- const mode=current?.mode||'not-saved';
- const ok=current?.ok!==false;
- const label=MODE_LABELS[mode]||'未確認';
- const size=current?.bytes?bytes(current.bytes):'未確認';
- const original=current?.originalBytes&&current.originalBytes!==current.bytes?`（整理前 ${bytes(current.originalBytes)}）`:'';
- const removed=Number(current?.transactions?.removed)||0;
- const pressure=savePressure(current);
- const pressurePercent=Number.isFinite(pressure.ratio)?`${Math.round(pressure.ratio*100)}%`: '—';
- const capacityText=capacity.supported&&capacity.quota?`${bytes(capacity.usage)} / ${bytes(capacity.quota)}`:'API非対応';
- const capacityPercent=Number.isFinite(capacity.ratio)?`${Math.round(capacity.ratio*100)}%`:'—';
- return {mode,ok,label,size,original,removed,pressureStatus:pressure.status,pressureLabel:pressure.label,pressurePercent,capacityStatus:capacity.status,capacityLabel:capacity.label,capacityText,capacityPercent};
-}
-function renderCard(env=globalThis){
- const screen=env.document?.querySelector?.('[data-screen="settings"]');if(!screen)return false;
- let node=screen.querySelector(ROOT_SELECTOR);
- if(!node){node=env.document.createElement('section');node.className='card';node.setAttribute('data-save-storage-health','');screen.appendChild(node);}
- ensureImportInput(env);
- const model=cardModel();
- const key=JSON.stringify(model);
- if(node.dataset.saveStorageRenderKey===key)return true;
- node.dataset.saveStorageRenderKey=key;
- const pressureAdvice=model.pressureStatus==='critical'?'<p class="empty">このセーブは保存上限に近いか、すでに最小履歴モードです。JSONバックアップ後に「履歴を整理して保存」を実行してください。</p>':model.pressureStatus==='warning'?'<p class="muted">セーブデータが大きくなっています。早めのJSONバックアップを推奨します。</p>':'';
- const originAdvice=model.capacityStatus==='critical'?'<p class="muted">ブラウザ全体の保存領域も90%以上です。ほかのサイトデータを含む参考値です。</p>':model.capacityStatus==='warning'?'<p class="muted">ブラウザ全体の保存領域が75%以上です。この値はlocalStorage固有の上限とは異なる参考値です。</p>':'';
- node.innerHTML=`<div class="card-head"><div><h2>セーブ容量</h2><p>実際のセーブサイズと保存方式を優先して警告します。会社・個人資産と会計累計は保持されます。</p></div><span class="badge ${model.ok?'good':'danger'}">${esc(model.label)}</span></div><div class="card-body"><div class="kpi-grid mini"><div class="stat"><span>保存状態</span><strong>${model.ok?'保存可能':'要バックアップ'}</strong></div><div class="stat"><span>保存サイズ</span><strong>${esc(model.size)}</strong><small>${esc(model.original)}</small></div><div class="stat"><span>${esc(model.pressureLabel)}</span><strong>${esc(model.pressurePercent)}</strong><small>安全圧縮基準比</small></div><div class="stat"><span>整理した会計明細</span><strong>${model.removed.toLocaleString('ja-JP')}件</strong></div><div class="stat"><span>セーブ形式</span><strong>v${storage.SAVE_VERSION}</strong><small>${esc(storage.SAVE_KEY)}</small></div><div class="stat"><span>${esc(model.capacityLabel)}</span><strong>${esc(model.capacityPercent)}</strong><small>${esc(model.capacityText)}</small></div></div>${pressureAdvice}${originAdvice}${model.ok?'':'<p class="empty">以前のセーブは残っています。JSONバックアップを保存してから再試行してください。</p>'}<div class="button-grid"><button class="btn secondary" type="button" data-save-storage-action="backup">JSONバックアップ</button><button class="btn secondary" type="button" data-save-storage-action="import">JSONから復元</button><button class="btn primary" type="button" data-save-storage-action="compact-save">履歴を整理して保存</button></div><p class="muted">復元前には現在の状態を自動でJSONバックアップします。互換性検証に失敗したファイルでは現在のゲームを変更しません。</p><p class="muted">ブラウザ全体の容量は補助情報です。保存可否の判断には、実際のセーブサイズ・保存方式・直近の保存結果を使用します。</p></div>`;
- return true;
-}
-function handleSaveClick(event){
- const target=event.target?.closest?.('[data-action="save-now"],[data-action="save-slot"]');
- if(!target)return false;
- const instance=engine();if(!instance)return false;
- event.preventDefault?.();event.stopImmediatePropagation?.();event.stopPropagation?.();
- const slot=target.dataset.action==='save-slot'?target.dataset.id:null;
- const ok=instance.save(slot);
- if(ok)toast(slot?`スロット${slot}に保存しました。`:'保存しました。','success');
- else toast('保存できませんでした。以前のセーブは残っています。JSONバックアップを保存してください。','error');
- renderCard();refreshCapacity();return true;
-}
-function handleRecoveryClick(event,env=globalThis){
- const target=event.target?.closest?.('[data-save-storage-action]');if(!target)return false;
- const instance=engine();if(!instance)return false;
- event.preventDefault?.();event.stopImmediatePropagation?.();event.stopPropagation?.();
- const action=target.dataset.saveStorageAction;
- if(action==='backup'){
-  const ok=downloadBackup(instance,env);
-  toast(ok?'JSONバックアップを書き出しました。':'JSONバックアップを作成できませんでした。',ok?'success':'error',env);
-  return ok;
- }
- if(action==='import'){
-  const input=ensureImportInput(env);if(!input)return false;input.value='';input.click?.();return true;
- }
- if(action==='compact-save'){
-  const ok=instance.save();
-  toast(ok?'古い履歴を整理して保存しました。':'保存できませんでした。先にJSONバックアップを保存してください。',ok?'success':'error',env);
-  renderCard(env);refreshCapacity(env);return ok;
- }
- return false;
-}
-async function handleImportChange(event,env=globalThis){
- const input=event.target;if(input?.id!==IMPORT_INPUT_ID)return false;
- const file=input.files?.[0];if(!file)return false;
- const result=await importBackupFile(file,engine(),env);
- toast(result.ok?`第${result.week}週のセーブを復元しました。`:result.error,result.ok?'success':'error',env);
- input.value='';renderCard(env);refreshCapacity(env);return result.ok;
-}
-function install(env=globalThis){
- env.document?.addEventListener?.('click',handleSaveClick,true);
- env.document?.addEventListener?.('click',event=>handleRecoveryClick(event,env),true);
- env.document?.addEventListener?.('change',event=>{handleImportChange(event,env);},true);
- const app=env.document?.getElementById?.('app');if(app&&typeof env.MutationObserver==='function')new env.MutationObserver(()=>renderCard(env)).observe(app,{childList:true,subtree:true});
- renderCard(env);refreshCapacity(env);return true;
-}
+function capacityStatus(ratio){if(!Number.isFinite(ratio))return {status:'unknown',label:'ブラウザ全体 未確認'};if(ratio>=.9)return {status:'critical',label:'ブラウザ全体 危険'};if(ratio>=.75)return {status:'warning',label:'ブラウザ全体 注意'};return {status:'good',label:'ブラウザ全体 良好'};}
+function savePressure(current=info()){const mode=String(current?.mode||'not-saved');const originalBytes=Math.max(0,Number(current?.originalBytes)||0);const storedBytes=Math.max(0,Number(current?.bytes)||0);const threshold=Math.max(1,Number(storage.RAW_COMPACTION_THRESHOLD)||1_250_000)*2;const measured=Math.max(originalBytes,storedBytes);if(current?.ok===false||mode==='failed'||mode==='serialize-error'||mode==='critical')return {status:'critical',label:'セーブ容量 危険',ratio:measured?measured/threshold:null};if(mode==='emergency'||measured>=threshold)return {status:'warning',label:'セーブ容量 注意',ratio:measured/threshold};return {status:measured?'good':'unknown',label:measured?'セーブ容量 良好':'セーブ容量 未確認',ratio:measured?measured/threshold:null};}
+async function refreshCapacity(env=globalThis){const estimate=env.navigator?.storage?.estimate;if(typeof estimate!=='function'){capacity={supported:false,usage:0,quota:0,ratio:null,...capacityStatus(null)};renderCard(env);return capacity;}try{const result=await estimate.call(env.navigator.storage);const usage=Math.max(0,Number(result?.usage)||0),quota=Math.max(0,Number(result?.quota)||0);const ratio=quota>0?Math.min(1,usage/quota):null;capacity={supported:true,usage,quota,ratio,...capacityStatus(ratio)};}catch(error){capacity={supported:false,usage:0,quota:0,ratio:null,...capacityStatus(null)};}renderCard(env);return capacity;}
+function toast(message,severity='info',env=globalThis){const root=env.document?.getElementById?.('toast-root');if(!root)return false;const el=env.document.createElement('div');el.className=`toast ${severity}`;el.textContent=message;root.appendChild(el);env.setTimeout?.(()=>el.classList.add('show'),10);env.setTimeout?.(()=>{el.classList.remove('show');env.setTimeout?.(()=>el.remove(),250);},3600);return true;}
+function backupFilename(instance=engine()){const week=Math.max(1,Math.floor(Number(instance?.g?.week)||1));return `capitalism-tycoon-backup-week-${week}.json`;}
+function downloadBackup(instance=engine(),env=globalThis){if(!instance?.g||!env.document?.createElement||!env.Blob||!env.URL?.createObjectURL)return false;let text;try{text=JSON.stringify(instance.g,null,2);}catch(error){console.error('Save backup serialization failed',error);return false;}const link=env.document.createElement('a');const href=env.URL.createObjectURL(new env.Blob([text],{type:'application/json'}));link.href=href;link.download=backupFilename(instance);link.hidden=true;env.document.body?.appendChild?.(link);link.click?.();link.remove?.();env.setTimeout?.(()=>env.URL.revokeObjectURL?.(href),1000);return true;}
+function ensureImportInput(env=globalThis){let input=env.document?.getElementById?.(IMPORT_INPUT_ID);if(input)return input;if(!env.document?.createElement)return null;input=env.document.createElement('input');input.id=IMPORT_INPUT_ID;input.type='file';input.accept='application/json,.json';input.hidden=true;env.document.body?.appendChild?.(input);return input;}
+async function importBackupFile(file,instance=engine(),env=globalThis){if(!file||!instance?.g||typeof file.text!=='function')return {ok:false,error:'JSONファイルを読み込めません。'};let text,parsed,migrated;try{text=await file.text();parsed=JSON.parse(text);migrated=modules.engine?.migrateSave?.(parsed);}catch(error){return {ok:false,error:'JSONファイルを解析できません。'};}if(!migrated?.ok)return {ok:false,error:(migrated?.errors||['セーブデータ形式が不正です。']).join(' / ')};const previousState=instance.g;const previousBlocked=instance._saveBlockedDueToLoadFailure;const previousReason=instance._loadFailureReason;if(!downloadBackup(instance,env))return {ok:false,error:'現在のセーブを安全バックアップできなかったため、復元を中止しました。'};try{instance.importSave(text);return {ok:true,week:Math.max(1,Math.floor(Number(instance.g?.week)||1)),saveVersion:Number(instance.g?.saveVersion)||0};}catch(error){instance.g=previousState;instance._saveBlockedDueToLoadFailure=previousBlocked;instance._loadFailureReason=previousReason;try{instance.emit?.();}catch(ignore){}return {ok:false,error:error?.message||'セーブを復元できませんでした。'};}}
+function cardModel(){const current=info();const mode=current?.mode||'not-saved';const ok=current?.ok!==false;const label=MODE_LABELS[mode]||'未確認';const size=current?.bytes?bytes(current.bytes):'未確認';const original=current?.originalBytes&&current.originalBytes!==current.bytes?`（整理前 ${bytes(current.originalBytes)}）`:'';const removed=Number(current?.transactions?.removed)||0;const pressure=savePressure(current);const pressurePercent=Number.isFinite(pressure.ratio)?`${Math.round(pressure.ratio*100)}%`: '—';const capacityText=capacity.supported&&capacity.quota?`${bytes(capacity.usage)} / ${bytes(capacity.quota)}`:'API非対応';const capacityPercent=Number.isFinite(capacity.ratio)?`${Math.round(capacity.ratio*100)}%`:'—';return {mode,ok,label,size,original,removed,pressureStatus:pressure.status,pressureLabel:pressure.label,pressurePercent,capacityStatus:capacity.status,capacityLabel:capacity.label,capacityText,capacityPercent};}
+function renderCard(env=globalThis){const screen=env.document?.querySelector?.('[data-screen="settings"]');if(!screen)return false;let node=screen.querySelector(ROOT_SELECTOR);if(!node){node=env.document.createElement('section');node.className='card';node.setAttribute('data-save-storage-health','');screen.appendChild(node);}ensureImportInput(env);const model=cardModel();const key=JSON.stringify(model);if(node.dataset.saveStorageRenderKey===key)return true;node.dataset.saveStorageRenderKey=key;const pressureAdvice=model.pressureStatus==='critical'?'<p class="empty">このセーブは保存上限に近いか、すでに最小履歴モードです。JSONバックアップ後に「履歴を整理して保存」を実行してください。</p>':model.pressureStatus==='warning'?'<p class="muted">セーブデータが大きくなっています。早めのJSONバックアップを推奨します。</p>':'';const originAdvice=model.capacityStatus==='critical'?'<p class="muted">ブラウザ全体の保存領域も90%以上です。ほかのサイトデータを含む参考値です。</p>':model.capacityStatus==='warning'?'<p class="muted">ブラウザ全体の保存領域が75%以上です。この値はlocalStorage固有の上限とは異なる参考値です。</p>':'';node.innerHTML=`<div class="card-head"><div><h2>セーブ容量</h2><p>実際のセーブサイズと保存方式を優先して警告します。会社・個人資産と会計累計は保持されます。</p></div><span class="badge ${model.ok?'good':'danger'}">${esc(model.label)}</span></div><div class="card-body"><div class="kpi-grid mini"><div class="stat"><span>保存状態</span><strong>${model.ok?'保存可能':'要バックアップ'}</strong></div><div class="stat"><span>保存サイズ</span><strong>${esc(model.size)}</strong><small>${esc(model.original)}</small></div><div class="stat"><span>${esc(model.pressureLabel)}</span><strong>${esc(model.pressurePercent)}</strong><small>安全圧縮基準比</small></div><div class="stat"><span>整理した会計明細</span><strong>${model.removed.toLocaleString('ja-JP')}件</strong></div><div class="stat"><span>セーブ形式</span><strong>v${storage.SAVE_VERSION}</strong><small>${esc(storage.SAVE_KEY)}</small></div><div class="stat"><span>${esc(model.capacityLabel)}</span><strong>${esc(model.capacityPercent)}</strong><small>${esc(model.capacityText)}</small></div></div>${pressureAdvice}${originAdvice}${model.ok?'':'<p class="empty">以前のセーブは残っています。JSONバックアップを保存してから再試行してください。</p>'}<div class="button-grid"><button class="btn secondary" type="button" data-save-storage-action="backup">JSONバックアップ</button><button class="btn secondary" type="button" data-save-storage-action="import">JSONから復元</button><button class="btn primary" type="button" data-save-storage-action="compact-save">履歴を整理して保存</button></div><p class="muted">復元前には現在の状態を自動でJSONバックアップします。互換性検証に失敗したファイルでは現在のゲームを変更しません。</p><p class="muted">ブラウザ全体の容量は補助情報です。保存可否の判断には、実際のセーブサイズ・保存方式・直近の保存結果を使用します。</p></div>`;return true;}
+function handleSaveClick(event){const target=event.target?.closest?.('[data-action="save-now"],[data-action="save-slot"]');if(!target)return false;const instance=engine();if(!instance)return false;event.preventDefault?.();event.stopImmediatePropagation?.();event.stopPropagation?.();const slot=target.dataset.action==='save-slot'?target.dataset.id:null;const ok=instance.save(slot);if(ok)toast(slot?`スロット${slot}に保存しました。`:'保存しました。','success');else toast('保存できませんでした。以前のセーブは残っています。JSONバックアップを保存してください。','error');renderCard();refreshCapacity();return true;}
+function handleRecoveryClick(event,env=globalThis){const target=event.target?.closest?.('[data-save-storage-action]');if(!target)return false;const instance=engine();if(!instance)return false;event.preventDefault?.();event.stopImmediatePropagation?.();event.stopPropagation?.();const action=target.dataset.saveStorageAction;if(action==='backup'){const ok=downloadBackup(instance,env);toast(ok?'JSONバックアップを書き出しました。':'JSONバックアップを作成できませんでした。',ok?'success':'error',env);return ok;}if(action==='import'){const input=ensureImportInput(env);if(!input)return false;input.value='';input.click?.();return true;}if(action==='compact-save'){const ok=instance.save();toast(ok?'古い履歴を整理して保存しました。':'保存できませんでした。先にJSONバックアップを保存してください。',ok?'success':'error',env);renderCard(env);refreshCapacity(env);return ok;}return false;}
+async function handleImportChange(event,env=globalThis){const input=event.target;if(input?.id!==IMPORT_INPUT_ID)return false;const file=input.files?.[0];if(!file)return false;const result=await importBackupFile(file,engine(),env);toast(result.ok?`第${result.week}週のセーブを復元しました。`:result.error,result.ok?'success':'error',env);input.value='';renderCard(env);refreshCapacity(env);return result.ok;}
+function install(env=globalThis){env.document?.addEventListener?.('click',handleSaveClick,true);env.document?.addEventListener?.('click',event=>handleRecoveryClick(event,env),true);env.document?.addEventListener?.('change',event=>{handleImportChange(event,env);},true);const app=env.document?.getElementById?.('app');if(app&&typeof env.MutationObserver==='function')new env.MutationObserver(()=>renderCard(env)).observe(app,{childList:true,subtree:true});renderCard(env);refreshCapacity(env);return true;}
 modules.saveStorageUI=Object.freeze({IMPORT_INPUT_ID,MODE_LABELS,bytes,engine,info,capacityStatus,savePressure,refreshCapacity,toast,backupFilename,downloadBackup,ensureImportInput,importBackupFile,cardModel,renderCard,handleSaveClick,handleRecoveryClick,handleImportChange,install,__installed:true});
 install();
 })();
