@@ -19,7 +19,8 @@ assert.doesNotMatch(source,/localStorage\.(?:removeItem|clear)/,'recovery action
 const {modules}=loadGame();
 const ui=modules.saveStorageUI;
 assert.ok(ui?.__installed,'save storage UI must install');
-for(const name of ['backupFilename','downloadBackup','ensureImportInput','importBackupFile','handleRecoveryClick','handleImportChange'])assert.equal(typeof ui[name],'function',`${name} missing`);
+for(const name of ['backupFilename','downloadBackup','ensureImportInput','importSizeError','importBackupFile','handleRecoveryClick','handleImportChange'])assert.equal(typeof ui[name],'function',`${name} missing`);
+assert.equal(ui.MAX_IMPORT_BYTES,8*1024*1024,'iPhone import limit must stay explicit and testable');
 
 const instance={g:{week:88,saveVersion:9,companyCash:123456,personalCash:654321,stores:[{id:'store-1'}]},saveCalls:0,save(){this.saveCalls++;return true;}};
 assert.equal(ui.backupFilename(instance),'capitalism-tycoon-backup-week-88.json');
@@ -63,7 +64,7 @@ const restoreEnv={
  URL:{createObjectURL(){return 'blob:safety';},revokeObjectURL(){}},setTimeout(fn){fn();},
  document:{body:{appendChild(){}},createElement(){return {click(){safetyDownloads++;},remove(){}};},getElementById(){return null;}}
 };
-const goodFile={async text(){return JSON.stringify(restoreState);}};
+const goodFile={size:Buffer.byteLength(JSON.stringify(restoreState)),async text(){return JSON.stringify(restoreState);}};
 const restored=await ui.importBackupFile(goodFile,real,restoreEnv);
 assert.equal(restored.ok,true);
 assert.equal(restored.week,41);
@@ -73,10 +74,24 @@ assert.equal(real.g.personalCash,3456789);
 assert.equal(safetyDownloads,1,'current save must be backed up before restore');
 
 const beforeInvalid=JSON.stringify(real.g);
-const invalid=await ui.importBackupFile({async text(){return '{bad json';}},real,restoreEnv);
+const invalid=await ui.importBackupFile({size:9,async text(){return '{bad json';}},real,restoreEnv);
 assert.equal(invalid.ok,false);
 assert.equal(JSON.stringify(real.g),beforeInvalid,'invalid JSON must not mutate the active game');
 assert.equal(safetyDownloads,1,'invalid JSON must fail before creating a redundant safety backup');
+
+let oversizedRead=false;
+const oversized=await ui.importBackupFile({size:ui.MAX_IMPORT_BYTES+1,async text(){oversizedRead=true;return '{}';}},real,restoreEnv);
+assert.equal(oversized.ok,false);
+assert.match(oversized.error,/大きすぎます/);
+assert.equal(oversizedRead,false,'declared oversized files must be rejected before loading into iPhone memory');
+assert.equal(JSON.stringify(real.g),beforeInvalid,'oversized JSON must not mutate the active game');
+assert.equal(safetyDownloads,1,'oversized JSON must fail before creating a safety backup');
+
+const hiddenOversized=await ui.importBackupFile({async text(){return ' '.repeat(ui.MAX_IMPORT_BYTES+1);}},real,restoreEnv);
+assert.equal(hiddenOversized.ok,false);
+assert.match(hiddenOversized.error,/大きすぎます/);
+assert.equal(JSON.stringify(real.g),beforeInvalid,'oversized text without file metadata must not mutate the active game');
+assert.equal(safetyDownloads,1,'oversized text must fail before creating a safety backup');
 
 function eventFor(action){return {target:{closest(selector){return selector==='[data-save-storage-action]'?{dataset:{saveStorageAction:action}}:null;}},preventDefault(){},stopImmediatePropagation(){},stopPropagation(){}};}
 assert.match(source,/if\(action==='compact-save'\)[\s\S]*instance\.save\(\)/,'compact action must call the quota-safe engine save');
