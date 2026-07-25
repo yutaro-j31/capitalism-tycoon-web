@@ -14,6 +14,19 @@ const REQUIRED_CHECKS = [
   'market-capital-allocation-cards'
 ];
 
+function seededRandom(seed = 0x5eed189) {
+  let state = seed >>> 0;
+  return () => {
+    state = (Math.imul(state, 1664525) + 1013904223) >>> 0;
+    return state / 0x100000000;
+  };
+}
+
+function assertCleanState(state, label) {
+  const issues = findStateIssues(state);
+  assert.deepEqual(issues, [], `${label}: ${issues.join(' / ')}`);
+}
+
 async function main() {
   assert.equal(releaseCandidate.version, '2.0.0-rc.1');
   assert.equal(releaseCandidate.save.key, 'capitalism_tycoon_web_v1');
@@ -22,15 +35,13 @@ async function main() {
     assert.ok(releaseCandidate.manualSmokeChecks.includes(check), `missing RC smoke check: ${check}`);
   }
 
-  const { ctx, engineModule } = loadGame();
+  // A seeded generator keeps the real market/week path reproducible while
+  // still producing distinct UUID inputs in the browser harness.
+  const { ctx, engineModule } = loadGame({ random: seededRandom() });
   const { TycoonEngine, SAVE_KEY, SAVE_VERSION } = engineModule;
   assert.equal(SAVE_KEY, releaseCandidate.save.key);
   assert.equal(SAVE_VERSION, releaseCandidate.save.version);
 
-  // Exercise the real setup/store path without coupling this release gate to a
-  // single tenant's balance calibration. Prefer Fukuoka, then select the
-  // cheapest affordable opening deterministically. Dedicated balance suites
-  // remain responsible for difficulty-specific opening-capital calibration.
   const engine = new TycoonEngine();
   engine.configure({
     playerName: 'RC Tester',
@@ -42,7 +53,10 @@ async function main() {
   });
   assert.equal(engine.g.configured, true, 'fresh start did not configure');
   assert.equal(engine.g.week, 1, 'fresh start week mismatch');
+  assertCleanState(engine.g, 'fresh start state issues');
 
+  // Exercise the real setup/store path without coupling the gate to one
+  // tenant's balance calibration. Prefer Fukuoka and then the lowest cost.
   const businesses = new Map(engine.g.businesses.map(row => [row.id, row]));
   const candidates = engine.g.tenants
     .filter(row => !row.occupiedBy && businesses.has(row.businessID))
@@ -69,13 +83,15 @@ async function main() {
     businessID: opening.business.id,
     name: `RC ${opening.tenant.prefID === 'fukuoka' ? '福岡' : '試験'}店`
   }), true, 'store opening failed');
+  assert.equal(engine.g.stores.length, 1, 'store was not added');
+  assertCleanState(engine.g, 'post-opening state issues');
 
   const startWeek = engine.g.week;
-  assert.equal(engine.advanceWeek(true), true, 'one-week advance failed');
-  assert.equal(engine.g.week, startWeek + 1, 'one-week advance mismatch');
-  for (let i = 0; i < 3; i++) assert.equal(engine.advanceWeek(true), true, `four-week advance failed at step ${i + 2}`);
-  assert.equal(engine.g.week, startWeek + 4, 'four-week advance mismatch');
-  assert.equal(findStateIssues(engine.g).length, 0, 'state issues after four-week advance');
+  for (let step = 1; step <= 4; step++) {
+    assert.equal(engine.advanceWeek(true), true, `week advance failed at step ${step}`);
+    assert.equal(engine.g.week, startWeek + step, `week mismatch at step ${step}`);
+    assertCleanState(engine.g, `state issues after week step ${step}`);
+  }
 
   assert.equal(engine.save(), true, 'localStorage save failed');
   const stored = ctx.localStorage.getItem(SAVE_KEY);
@@ -91,6 +107,7 @@ async function main() {
   assert.equal(reloaded.g.companyCash, engine.g.companyCash, 'reload companyCash mismatch');
   assert.equal(reloaded.g.personalCash, engine.g.personalCash, 'reload personalCash mismatch');
   assert.equal(reloaded.g.stores.length, engine.g.stores.length, 'reload stores mismatch');
+  assertCleanState(reloaded.g, 'reloaded state issues');
 
   const exportText = await engine.exportSave().text();
   const imported = new TycoonEngine();
@@ -100,7 +117,7 @@ async function main() {
   assert.equal(imported.g.companyCash, engine.g.companyCash, 'import companyCash mismatch');
   assert.equal(imported.g.personalCash, engine.g.personalCash, 'import personalCash mismatch');
   assert.equal(imported.g.stores.length, engine.g.stores.length, 'import stores mismatch');
-  assert.equal(findStateIssues(imported.g).length, 0, 'imported state issues');
+  assertCleanState(imported.g, 'imported state issues');
 
   console.log(JSON.stringify({
     release: releaseCandidate.version,
