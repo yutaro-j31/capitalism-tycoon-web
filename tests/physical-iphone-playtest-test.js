@@ -13,17 +13,11 @@ assert.equal(source.includes('localStorage.clear'),false,'physical checklist mus
 assert.equal(source.includes('.runWeek('),false,'physical checklist must not execute gameplay');
 assert.ok(play.includes('./js/physical-iphone-playtest.js?launch='),'public play launcher must load physical checklist');
 assert.ok(play.indexOf('./js/save-storage-ui.js?launch=')<play.indexOf('./js/physical-iphone-playtest.js?launch='),'checklist must load after save UI');
-assert.ok(play.includes('data-play-dynamic-script-queue'),'public launcher must install dynamic script queue');
-assert.ok(play.includes('globalThis.__ctFlushDynamicScripts'),'public launcher must expose deterministic dynamic script flush');
-assert.ok(play.includes('data-play-dynamic-script-flush'),'public launcher must flush after static dependencies');
-assert.ok(play.includes('prerequisiteBlock}${queueBridge}${appBootstrap}'),'debt prerequisites must precede app bootstrap');
-for(const dependency of ['difficulty-scenario-balance.js','player-crisis.js','player-crisis-actions.js','player-crisis-restructuring.js','player-crisis-creditor.js','player-debt-service.js'])assert.ok(play.includes(`'${dependency}'`),`missing prerequisite: ${dependency}`);
-assert.ok(play.includes("for(const tag of prerequisiteTags)fresh=fresh.replace(tag,'')"),'original prerequisite tags must be removed');
-assert.ok(play.includes('prerequisiteTags.some(tag=>!fresh.includes(tag))'),'missing prerequisite must fail launch');
-assert.ok(play.includes('n.async=false'),'queued dynamic scripts must preserve insertion order');
-assert.ok(play.includes('Node.prototype.appendChild=p'),'native appendChild must be restored');
-assert.ok(play.includes('Element.prototype.append=a'),'Element.append must be restored');
-assert.ok(play.includes('Element.prototype.prepend=r'),'Element.prepend must be restored');
+assert.ok(play.indexOf('./js/physical-iphone-playtest.js?launch=')<play.indexOf('./js/iphone-playtest-fixes.js?launch='),'checklist must load before the final iPhone enhancement layer');
+assert.equal(play.includes('data-play-dynamic-script-queue'),false,'launcher must retain the proven index script order');
+assert.equal(play.includes('__ctFlushDynamicScripts'),false,'launcher must not intercept dynamic module insertion');
+assert.equal(play.includes('prerequisitePaths'),false,'launcher must not move app prerequisites ahead of app bootstrap');
+assert.ok(play.includes("document.open();document.write(fresh);document.close();"),'cache-safe public entry contract must remain intact');
 
 const fakeDocument={addEventListener(){},getElementById(){return null;},querySelector(){return null;}};
 const context={
