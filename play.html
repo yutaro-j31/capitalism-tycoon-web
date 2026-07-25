@@ -32,12 +32,18 @@
         let fresh=html.replace(/\b(src|href)="(\.\/(?:js|css)\/[^"?]+)(?:\?[^"#]*)?"/g,(_,attribute,url)=>`${attribute}="${url}?launch=${encodeURIComponent(token)}"`);
         if(!fresh.includes('id="app"'))throw new Error('ゲーム画面の読み込みデータが不正です。');
         const saveV9=`<script src="./js/save-v9.js?launch=${encodeURIComponent(token)}"><\/script>`;
+        const debtService=`<script src="./js/player-debt-service.js?launch=${encodeURIComponent(token)}"><\/script>`;
+        const appBootstrap=`<script src="./js/app.js?launch=${encodeURIComponent(token)}"><\/script>`;
+        if(fresh.includes(debtService)&&fresh.includes(appBootstrap)&&fresh.indexOf(debtService)>fresh.indexOf(appBootstrap)){
+          fresh=fresh.replace(debtService,'').replace(appBootstrap,`${debtService}${appBootstrap}`);
+        }
         fresh=fresh
           .replace(saveV9,`${saveV9}<script src="./js/save-storage.js?launch=${encodeURIComponent(token)}"><\/script>`)
           .replace('</head>',`<link rel="stylesheet" href="./css/iphone-playtest-fixes.css?launch=${encodeURIComponent(token)}"></head>`)
           .replace('</body>',`<script src="./js/play-runtime-compat.js?launch=${encodeURIComponent(token)}"><\/script><script src="./js/save-storage-ui.js?launch=${encodeURIComponent(token)}"><\/script><script src="./js/physical-iphone-playtest.js?launch=${encodeURIComponent(token)}"><\/script><script src="./js/iphone-playtest-fixes.js?launch=${encodeURIComponent(token)}"><\/script></body>`);
         if(!fresh.includes('./js/save-storage.js?launch='))throw new Error('セーブ容量保護モジュールを起動順へ追加できませんでした。');
         if(!fresh.includes('./js/physical-iphone-playtest.js?launch='))throw new Error('物理iPhone試しプレイ機能を起動順へ追加できませんでした。');
+        if(fresh.indexOf(debtService)>fresh.indexOf(appBootstrap))throw new Error('負債サービスをアプリ起動前へ配置できませんでした。');
         document.open();document.write(fresh);document.close();
       })
       .catch(error=>{
