@@ -19,6 +19,10 @@ assert.ok(play.includes('fresh.replace(appBootstrap,`${queueBridge}${appBootstra
 assert.ok(play.includes('replace(bootstrapAnchor,`${bootstrapAnchor}${flushBridge}`)'),'flush bridge must follow final static dependency');
 assert.ok(play.includes('n.async=false'),'queued dynamic scripts must preserve insertion order');
 assert.ok(play.includes('Node.prototype.appendChild=p'),'native appendChild must be restored before flushing');
+assert.ok(play.includes('Element.prototype.append=a'),'Element.append must be restored before flushing');
+assert.ok(play.includes('Element.prototype.prepend=r'),'Element.prepend must be restored before flushing');
+assert.ok(play.includes('Element.prototype.append=function()'),'dynamic scripts inserted with Element.append must be queued');
+assert.ok(play.includes('Element.prototype.prepend=function()'),'dynamic scripts inserted with Element.prepend must be queued');
 
 const fakeDocument={addEventListener(){},getElementById(){return null;},querySelector(){return null;}};
 const context={
