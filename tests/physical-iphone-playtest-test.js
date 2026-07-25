@@ -12,8 +12,13 @@ assert.doesNotMatch(source,/engine\(\)\.(?:save|runWeek)|\.runWeeks?\(/,'physica
 assert.ok(play.includes('./js/physical-iphone-playtest.js?launch='),'public play launcher must load physical checklist');
 assert.ok(play.indexOf('./js/save-storage-ui.js?launch=')<play.indexOf('./js/physical-iphone-playtest.js?launch='),'checklist must load after save UI');
 assert.ok(play.includes("const bootstrapAnchor=`<script src=\"./js/capital-allocation-policy.js?launch=${encodeURIComponent(token)}\"><\\/script>`"),'public launcher must define the final static dependency anchor');
-assert.ok(play.includes("fresh=fresh.replace(appBootstrap,'').replace(bootstrapAnchor,`${bootstrapAnchor}${appBootstrap}`)"),'public launcher must move app bootstrap after runtime dependencies');
-assert.ok(play.includes('fresh.indexOf(appBootstrap)<fresh.indexOf(bootstrapAnchor)'),'public launcher must guard the complete bootstrap ordering');
+assert.ok(play.includes('data-play-dynamic-script-queue'),'public launcher must install dynamic script queue before app bootstrap');
+assert.ok(play.includes('globalThis.__ctFlushDynamicScripts'),'public launcher must expose deterministic dynamic script flush');
+assert.ok(play.includes('data-play-dynamic-script-flush'),'public launcher must flush after static dependencies');
+assert.ok(play.includes('fresh.replace(appBootstrap,`${queueBridge}${appBootstrap}`)'),'queue bridge must precede app bootstrap');
+assert.ok(play.includes('replace(bootstrapAnchor,`${bootstrapAnchor}${flushBridge}`)'),'flush bridge must follow final static dependency');
+assert.ok(play.includes('n.async=false'),'queued dynamic scripts must preserve insertion order');
+assert.ok(play.includes('Node.prototype.appendChild=p'),'native appendChild must be restored before flushing');
 
 const fakeDocument={addEventListener(){},getElementById(){return null;},querySelector(){return null;}};
 const context={
