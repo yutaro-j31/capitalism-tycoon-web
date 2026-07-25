@@ -1,0 +1,28 @@
+name: Physical iPhone Playtest
+
+on:
+  pull_request:
+    paths:
+      - 'js/physical-iphone-playtest.js'
+      - 'tests/physical-iphone-playtest-test.js'
+      - 'play.html'
+      - '.github/workflows/physical-iphone-playtest.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  checklist-contract:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Validate syntax and checklist safety
+        run: |
+          node --check js/physical-iphone-playtest.js
+          node tests/physical-iphone-playtest-test.js
+          npm run test:static --silent

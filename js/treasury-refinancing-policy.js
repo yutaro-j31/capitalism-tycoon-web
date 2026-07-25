@@ -2,7 +2,15 @@
 (function(){'use strict';
 const modules=globalThis.__capitalismTycoonModules;
 if(!modules?.engine?.TycoonEngine)throw new Error('engine.js must load before treasury-refinancing-policy.js.');
-if(!modules.playerDebtRefinancing?.__installed)throw new Error('player-debt-service.js must load before treasury-refinancing-policy.js.');
+if(!modules.playerDebtRefinancing?.__installed){
+ const src=typeof document!=='undefined'?document.currentScript?.src:'';
+ if(src&&!modules.__deferredTreasuryRefinancingPolicy){
+  modules.__deferredTreasuryRefinancingPolicy=true;
+  const retry=()=>{if(modules.playerDebtRefinancing?.__installed){const script=document.createElement('script');script.src=src;script.async=false;script.setAttribute('data-deferred-treasury-refinancing','');(document.head||document.documentElement).appendChild(script);}else setTimeout(retry,0);};
+  setTimeout(retry,0);return;
+ }
+ throw new Error('player-debt-service.js must load before treasury-refinancing-policy.js.');
+}
 if(modules.treasuryRefinancingPolicy)throw new Error('treasury refinancing policy is already registered.');
 const EngineClass=modules.engine.TycoonEngine;
 const HISTORY_LIMIT=52,CHANGE_COOLDOWN_WEEKS=13;
