@@ -29,7 +29,14 @@ const requiredSmokeChecks = [
   'four-week-advance',
   'save-export-import',
   'iphone-safe-area-navigation',
-  'market-capital-allocation-cards'
+  'ceo-dashboard-layout',
+  'market-capital-allocation-cards',
+  'recovery-target-sync',
+  'save-immutability',
+  'save-quota-backup',
+  'safari-reload-recovery',
+  'no-console-recovery-error',
+  'touch-targets'
 ];
 assert.deepEqual(manifest.manualSmokeChecks, requiredSmokeChecks, 'manual smoke contract changed');
 
