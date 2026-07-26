@@ -27,8 +27,36 @@ on:
         description: iPhone safe areas, navigation, forms, buttons, and modals are usable
         required: true
         type: boolean
+      ceo_dashboard_layout:
+        description: All CEO Dashboard cards fit without horizontal overflow
+        required: true
+        type: boolean
       market_capital_allocation_cards:
         description: Market capital allocation, recovery funding, reconciliation, and outcome cards are usable without horizontal overflow
+        required: true
+        type: boolean
+      recovery_target_sync:
+        description: Recovery target switches from 70 to 50 and all related cards stay synchronized
+        required: true
+        type: boolean
+      save_immutability:
+        description: Recovery-target UI changes do not mutate the saved game
+        required: true
+        type: boolean
+      save_quota_backup:
+        description: Save-capacity status is visible and JSON backup export works
+        required: true
+        type: boolean
+      safari_reload_recovery:
+        description: Safari reload restores the same saved game
+        required: true
+        type: boolean
+      no_console_recovery_error:
+        description: No console error or recovery dialog appears during the smoke test
+        required: true
+        type: boolean
+      touch_targets:
+        description: Primary controls have usable touch targets without accidental actions
         required: true
         type: boolean
       device:
@@ -89,7 +117,14 @@ jobs:
           RC_CONFIRM_FOUR_WEEK_ADVANCE: ${{ inputs.four_week_advance }}
           RC_CONFIRM_SAVE_EXPORT_IMPORT: ${{ inputs.save_export_import }}
           RC_CONFIRM_IPHONE_SAFE_AREA_NAVIGATION: ${{ inputs.iphone_safe_area_navigation }}
+          RC_CONFIRM_CEO_DASHBOARD_LAYOUT: ${{ inputs.ceo_dashboard_layout }}
           RC_CONFIRM_MARKET_CAPITAL_ALLOCATION_CARDS: ${{ inputs.market_capital_allocation_cards }}
+          RC_CONFIRM_RECOVERY_TARGET_SYNC: ${{ inputs.recovery_target_sync }}
+          RC_CONFIRM_SAVE_IMMUTABILITY: ${{ inputs.save_immutability }}
+          RC_CONFIRM_SAVE_QUOTA_BACKUP: ${{ inputs.save_quota_backup }}
+          RC_CONFIRM_SAFARI_RELOAD_RECOVERY: ${{ inputs.safari_reload_recovery }}
+          RC_CONFIRM_NO_CONSOLE_RECOVERY_ERROR: ${{ inputs.no_console_recovery_error }}
+          RC_CONFIRM_TOUCH_TARGETS: ${{ inputs.touch_targets }}
           RC_TEST_DEVICE: ${{ inputs.device }}
           RC_SAFARI_VERSION: ${{ inputs.safari_version }}
           RC_TESTED_AT: ${{ inputs.tested_at }}
