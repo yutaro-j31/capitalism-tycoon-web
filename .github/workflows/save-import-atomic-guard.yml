@@ -1,0 +1,30 @@
+name: Save Import Atomic Guard
+
+on:
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  verify-save-import-rollback:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - name: Run atomic import rollback tests
+        run: node tests/save-import-atomic-guard-test.js
+      - name: Verify public launcher load order
+        run: |
+          node - <<'NODE'
+          const fs=require('fs');
+          const html=fs.readFileSync('play.html','utf8');
+          const guard=html.indexOf('save-import-atomic-guard.js');
+          const ui=html.indexOf('save-storage-ui.js');
+          if(guard<0||ui<0||guard>ui)throw new Error('save import atomic guard must load before save-storage-ui.js');
+          NODE
