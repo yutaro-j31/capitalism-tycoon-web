@@ -4,16 +4,20 @@ if(!globalThis.__capitalismTycoonModules)throw new Error('runtime.js must be loa
 const modules=globalThis.__capitalismTycoonModules;
 if(modules.physicalIphonePlaytest)return;
 const CHECKS=Object.freeze([
- Object.freeze({id:'launch',label:'公開URLからエラーなく起動できる'}),
- Object.freeze({id:'layout',label:'画面タブ・ヘッダー・KPIが重ならない'}),
- Object.freeze({id:'moneyInput',label:'事業投資と借入で数字キーボードが開く'}),
- Object.freeze({id:'storeAction',label:'赤字店舗の原因と改善操作を確認できる'}),
- Object.freeze({id:'inventory',label:'在庫警告から対象店舗の在庫管理へ移動できる'}),
- Object.freeze({id:'debt',label:'負債の借入先・金利・返済条件を確認できる'}),
- Object.freeze({id:'map',label:'都道府県変更・フィルター・凡例・ズームが動作する'}),
- Object.freeze({id:'week',label:'1週進行後も操作でき、セーブが維持される'}),
- Object.freeze({id:'reload',label:'Safariを再読み込みして同じセーブを復元できる'}),
- Object.freeze({id:'quota',label:'保存容量カードが表示され、バックアップを書き出せる'})
+ Object.freeze({id:'freshLaunch',label:'新規アクセスで創業者セットアップ画面まで到達できる'}),
+ Object.freeze({id:'preSetupRecovery',label:'会社を作り直す前にJSONセーブを復元できる'}),
+ Object.freeze({id:'oneWeek',label:'1週進行で週次レポートが表示され、その後も操作できる'}),
+ Object.freeze({id:'fourWeeks',label:'4週進行が完了し、最終週のサマリーを確認できる'}),
+ Object.freeze({id:'saveExportImport',label:'保存・JSON書き出し・リセット・JSON復元が操作できる'}),
+ Object.freeze({id:'safeArea',label:'Safe Area、横スクロール、ボタン、フォーム、モーダルが使える'}),
+ Object.freeze({id:'ceoDashboard',label:'CEOダッシュボードの全カードが横にはみ出さず表示される'}),
+ Object.freeze({id:'capitalAllocation',label:'市場画面の資本配分・取締役会・ストレステスト関連カードが表示される'}),
+ Object.freeze({id:'recoveryTarget',label:'復旧目標を70から50へ切替え、関連カードが同じ目標を示す'}),
+ Object.freeze({id:'saveImmutable',label:'復旧目標の切替えだけでは保存済みゲームが変化しない'}),
+ Object.freeze({id:'quota',label:'保存容量カードが表示され、JSONバックアップを書き出せる'}),
+ Object.freeze({id:'reload',label:'Safari再読み込み後に同じセーブを復元できる'}),
+ Object.freeze({id:'noConsoleError',label:'試しプレイ中にコンソールエラーや復旧ダイアログが出ない'}),
+ Object.freeze({id:'touchTargets',label:'主要操作のタップ領域が十分で誤操作なく進められる'})
 ]);
 const esc=value=>String(value??'').replace(/[&<>'"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c]));
 function engine(){return modules.playerEngineBridge?.getEngine?.()||modules.saveStorage?.getActiveEngine?.()||null;}
@@ -34,10 +38,11 @@ function checklistState(root){
 function report(root,env=globalThis){
  const instance=engine(),checks=checklistState(root),passed=Object.values(checks).filter(Boolean).length;
  return Object.freeze({
-  schema:'capitalism-tycoon-physical-iphone-playtest-v1',generatedAt:new Date().toISOString(),
+  schema:'capitalism-tycoon-physical-iphone-playtest-v2',generatedAt:new Date().toISOString(),
   page:String(env.location?.href||''),device:deviceSnapshot(env),
   game:{week:Number(instance?.g?.week)||null,saveVersion:Number(instance?.g?.saveVersion)||null,configured:Boolean(instance?.g?.configured)},
   checks,passed,total:CHECKS.length,allPassed:passed===CHECKS.length,
+  iphoneModel:String(root?.querySelector?.('[data-physical-field="model"]')?.value||'').trim(),
   iosVersion:String(root?.querySelector?.('[data-physical-field="ios"]')?.value||'').trim(),
   safariVersion:String(root?.querySelector?.('[data-physical-field="safari"]')?.value||'').trim(),
   notes:String(root?.querySelector?.('[data-physical-field="notes"]')?.value||'').trim()
@@ -61,7 +66,7 @@ function renderCard(env=globalThis){
  if(node)return true;
  node=env.document.createElement('section');node.className='card';node.setAttribute('data-physical-iphone-playtest','');
  const rows=CHECKS.map(item=>`<label class="stat" style="display:flex;gap:12px;align-items:flex-start;min-height:44px"><input type="checkbox" data-physical-check="${esc(item.id)}" style="width:22px;height:22px;margin-top:2px"><span>${esc(item.label)}</span></label>`).join('');
- node.innerHTML=`<div class="card-head"><div><h2>物理iPhone試しプレイ</h2><p>RC1公開前に実機で確認し、結果JSONを開発レビューへ添付します。ゲームセーブには保存しません。</p></div><span class="badge warn">Physical QA</span></div><div class="card-body"><div class="kpi-grid mini"><label class="stat"><span>iOSバージョン</span><input type="text" inputmode="decimal" placeholder="例: 18.5" data-physical-field="ios"></label><label class="stat"><span>Safariバージョン</span><input type="text" inputmode="decimal" placeholder="例: 18.5" data-physical-field="safari"></label></div><div class="stack">${rows}</div><label class="stat"><span>気づいた点</span><textarea rows="4" placeholder="画面名、操作、発生した症状を記録" data-physical-field="notes"></textarea></label><div class="button-grid"><button class="btn primary" type="button" data-physical-action="download">結果JSONを書き出す</button><button class="btn secondary" type="button" data-physical-action="copy">結果をコピー</button></div><p class="muted" data-physical-summary aria-live="polite">0/${CHECKS.length}項目を確認済み</p></div>`;
+ node.innerHTML=`<div class="card-head"><div><h2>物理iPhone試しプレイ</h2><p>RC1公開前の必須実機確認です。結果JSONはGitHub Issue #63の証跡として添付でき、ゲームセーブには保存しません。</p></div><span class="badge warn">Physical QA</span></div><div class="card-body"><div class="kpi-grid mini"><label class="stat"><span>iPhoneモデル</span><input type="text" placeholder="例: iPhone 15 Pro" data-physical-field="model"></label><label class="stat"><span>iOSバージョン</span><input type="text" inputmode="decimal" placeholder="例: 18.5" data-physical-field="ios"></label><label class="stat"><span>Safariバージョン</span><input type="text" inputmode="decimal" placeholder="例: 18.5" data-physical-field="safari"></label></div><div class="stack">${rows}</div><label class="stat"><span>気づいた点</span><textarea rows="4" placeholder="画面名、操作、発生した症状を記録。問題がなければ「問題なし」と入力" data-physical-field="notes"></textarea></label><div class="button-grid"><button class="btn primary" type="button" data-physical-action="download">結果JSONを書き出す</button><button class="btn secondary" type="button" data-physical-action="copy">結果をコピー</button></div><p class="muted" data-physical-summary aria-live="polite">0/${CHECKS.length}項目を確認済み</p></div>`;
  screen.appendChild(node);return true;
 }
 function updateSummary(root){const count=Object.values(checklistState(root)).filter(Boolean).length,summary=root?.querySelector?.('[data-physical-summary]');if(summary)summary.textContent=`${count}/${CHECKS.length}項目を確認済み${count===CHECKS.length?'・RC確認完了':''}`;}
