@@ -30,6 +30,7 @@
       .then(response=>{if(!response.ok)throw new Error(`起動ページの取得に失敗しました (${response.status})`);return response.text();})
       .then(html=>{
         let fresh=html.replace(/\b(src|href)="(\.\/(?:js|css)\/[^"?]+)(?:\?[^"#]*)?"/g,(_,attribute,url)=>`${attribute}="${url}?launch=${encodeURIComponent(token)}"`);
+        fresh=fresh.replace("s.src='./js/subsidiary-ipo-preparation.js'+(v?`?v=${encodeURIComponent(v)}`:'');",`s.src='./js/subsidiary-ipo-preparation.js?launch=${encodeURIComponent(token)}';`);
         if(!fresh.includes('id="app"'))throw new Error('ゲーム画面の読み込みデータが不正です。');
         const saveV9=`<script src="./js/save-v9.js?launch=${encodeURIComponent(token)}"><\/script>`;
         fresh=fresh
@@ -39,6 +40,7 @@
         if(!fresh.includes('./js/save-storage.js?launch='))throw new Error('セーブ容量保護モジュールを起動順へ追加できませんでした。');
         if(!fresh.includes('./js/save-import-atomic-guard.js?launch='))throw new Error('JSON復元の原子的ロールバックを起動順へ追加できませんでした。');
         if(!fresh.includes('./js/physical-iphone-playtest.js?launch='))throw new Error('物理iPhone試しプレイ機能を起動順へ追加できませんでした。');
+        if(!fresh.includes('./js/subsidiary-ipo-preparation.js?launch='))throw new Error('子会社IPO準備モジュールへ起動トークンを引き継げませんでした。');
         document.open();document.write(fresh);document.close();
       })
       .catch(error=>{
