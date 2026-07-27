@@ -36,7 +36,7 @@
         fresh=fresh
           .replace(saveV9,`${saveV9}<script src="./js/save-storage.js?launch=${encodeURIComponent(token)}"><\/script>`)
           .replace('</head>',`<link rel="stylesheet" href="./css/iphone-playtest-fixes.css?launch=${encodeURIComponent(token)}"></head>`)
-          .replace('</body>',`<script src="./js/listed-subsidiary-market.js?launch=${encodeURIComponent(token)}"><\/script><script src="./js/listed-subsidiary-control-actions.js?launch=${encodeURIComponent(token)}"><\/script><script src="./js/subsidiary-integration-synergy.js?launch=${encodeURIComponent(token)}"><\/script><script src="./js/play-runtime-compat.js?launch=${encodeURIComponent(token)}"><\/script><script src="./js/save-import-atomic-guard.js?launch=${encodeURIComponent(token)}"><\/script><script src="./js/save-storage-ui.js?launch=${encodeURIComponent(token)}"><\/script><script src="./js/physical-iphone-playtest.js?launch=${encodeURIComponent(token)}"><\/script><script src="./js/iphone-playtest-fixes.js?launch=${encodeURIComponent(token)}"><\/script></body>`);
+          .replace('</body>',`<script src="./js/listed-subsidiary-market.js?launch=${encodeURIComponent(token)}"><\/script><script src="./js/listed-subsidiary-control-actions.js?launch=${encodeURIComponent(token)}"><\/script><script src="./js/subsidiary-integration-synergy.js?launch=${encodeURIComponent(token)}"><\/script><script src="./js/subsidiary-relisting-options.js?launch=${encodeURIComponent(token)}"><\/script><script src="./js/play-runtime-compat.js?launch=${encodeURIComponent(token)}"><\/script><script src="./js/save-import-atomic-guard.js?launch=${encodeURIComponent(token)}"><\/script><script src="./js/save-storage-ui.js?launch=${encodeURIComponent(token)}"><\/script><script src="./js/physical-iphone-playtest.js?launch=${encodeURIComponent(token)}"><\/script><script src="./js/iphone-playtest-fixes.js?launch=${encodeURIComponent(token)}"><\/script></body>`);
         if(!fresh.includes('./js/save-storage.js?launch='))throw new Error('セーブ容量保護モジュールを起動順へ追加できませんでした。');
         if(!fresh.includes('./js/save-import-atomic-guard.js?launch='))throw new Error('JSON復元の原子的ロールバックを起動順へ追加できませんでした。');
         if(!fresh.includes('./js/physical-iphone-playtest.js?launch='))throw new Error('物理iPhone試しプレイ機能を起動順へ追加できませんでした。');
@@ -44,6 +44,7 @@
         if(!fresh.includes('./js/listed-subsidiary-market.js?launch='))throw new Error('上場子会社市場モジュールを公開起動順へ追加できませんでした。');
         if(!fresh.includes('./js/listed-subsidiary-control-actions.js?launch='))throw new Error('上場子会社支配権モジュールを公開起動順へ追加できませんでした。');
         if(!fresh.includes('./js/subsidiary-integration-synergy.js?launch='))throw new Error('完全子会社シナジー投資モジュールを公開起動順へ追加できませんでした。');
+        if(!fresh.includes('./js/subsidiary-relisting-options.js?launch='))throw new Error('再上場戦略モジュールを公開起動順へ追加できませんでした。');
         document.open();document.write(fresh);document.close();
       })
       .catch(error=>{
