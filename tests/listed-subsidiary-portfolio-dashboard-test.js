@@ -1,0 +1,21 @@
+'use strict';
+const assert=require('node:assert/strict');
+const fs=require('node:fs');
+const vm=require('node:vm');
+const path=require('node:path');
+const code=fs.readFileSync(path.join(__dirname,'../js/listed-subsidiary-portfolio-dashboard.js'),'utf8');
+class Engine{constructor(state){this.g=state;this.normalize();}normalize(){}fail(message){this.lastError=message;return false;}notify(){} }
+const snapshots=state=>state.subsidiaries.filter(s=>s.publicCompany).map(s=>({id:s.id,name:s.name,valuation:s.valuation,ownership:s.ownership,stakeValue:s.valuation*s.ownership,bookValue:s.carryingBookValue,unrealizedGain:s.valuation*s.ownership-s.carryingBookValue,priceIndex:100,locked:Boolean(s.locked),lockupRemaining:s.locked?8:0,parentDividendsReceived:s.parentDividendsReceived||0,weeklyProfit:s.weeklyProfit,canBuy:s.ownership<1,canSell:!s.locked&&s.ownership>.1})).sort((a,b)=>b.stakeValue-a.stakeValue);
+const modules={engine:{TycoonEngine:Engine,compactYen:v=>`${Math.round(v)}円`},listedSubsidiaryMarket:{allSnapshots:snapshots},playerEngineBridge:{getEngine:()=>null}};
+const context={globalThis:{__capitalismTycoonModules:modules}};context.globalThis.globalThis=context.globalThis;
+vm.runInNewContext(code,context,{filename:'listed-subsidiary-portfolio-dashboard.js'});
+const mod=modules.listedSubsidiaryPortfolioDashboard;
+const state={configured:true,selectedTab:'venture',companyCash:50_000_000,personalCash:3_000_000,saveVersion:9,subsidiaries:[{id:'a',name:'A社',status:'active',publicCompany:true,valuation:200_000_000,ownership:.7,carryingBookValue:90_000_000,weeklyProfit:2_000_000,parentDividendsReceived:5_000_000},{id:'b',name:'B社',status:'active',publicCompany:true,valuation:100_000_000,ownership:.4,carryingBookValue:50_000_000,weeklyProfit:-100_000,locked:true}]};
+const engine=new Engine(state),view=mod.build(state);
+assert.equal(view.totalCompanies,2);assert.equal(view.stakeValue,180_000_000);assert.equal(view.bookValue,140_000_000);assert.equal(view.unrealizedGain,40_000_000);assert.equal(view.dividends,5_000_000);assert.equal(view.lossMaking,1);assert.equal(view.risk,'高');
+assert.equal(engine.setListedSubsidiaryPortfolioMandate('a','grow'),true);assert.equal(state.subsidiaries[0].portfolioMandateID,'grow');assert.equal(state.companyCash,50_000_000);assert.equal(state.personalCash,3_000_000);assert.equal(state.saveVersion,9);
+assert.match(mod.renderSection({g:state}),/上場子会社ポートフォリオ/);assert.match(mod.renderSection({g:state}),/min-height:44px/);assert.match(mod.renderSection({g:state}),/収益改善を優先/);
+const play=fs.readFileSync(path.join(__dirname,'../play.html'),'utf8'),runAll=fs.readFileSync(path.join(__dirname,'run-all.js'),'utf8');
+assert.match(play,/listed-subsidiary-portfolio-dashboard\.js\?launch=/);assert.match(play,/上場子会社ポートフォリオモジュールを公開起動順へ追加できませんでした/);assert.match(runAll,/listed-subsidiary-portfolio-dashboard-test\.js/);
+assert.ok(!/Math\.random|Date\.now|companyCash\s*[+\-*/]?=|personalCash\s*[+\-*/]?=|SAVE_KEY\s*=|saveVersion\s*=/.test(code));
+console.log('Listed subsidiary portfolio aggregation, mandate purity, iPhone UI and production wiring tests passed');
