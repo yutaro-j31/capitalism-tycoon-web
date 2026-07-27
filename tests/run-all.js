@@ -68,6 +68,7 @@ for (const [name, file] of [
   ['inter-subsidiary-synergy-performance', 'tests/inter-subsidiary-synergy-performance-test.js'],
   ['group-capital-allocation-actions', 'tests/group-capital-allocation-actions-test.js'],
   ['group-restructuring-candidates', 'tests/group-restructuring-candidates-test.js'],
+  ['group-restructuring-progress', 'tests/group-restructuring-progress-test.js'],
   ['subsidiary-relisting-options', 'tests/subsidiary-relisting-options-test.js'],
   ['listed-subsidiary-follow-on-offering', 'tests/listed-subsidiary-follow-on-offering-test.js'],
   ['executive-secretary', 'tests/executive-secretary-test.js'],
