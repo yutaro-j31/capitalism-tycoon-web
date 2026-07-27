@@ -76,7 +76,8 @@ function createBrowserContext(options = {}) {
   document.head = makeElement('head', document);
   document.body = makeElement('body', document);
   nodes.set('app', makeElement('app', document)); nodes.set('toast-root', makeElement('toast-root', document)); nodes.set('modal-root', makeElement('modal-root', document));
-  class StorageStub { getItem(k){ storageHistory.getItem.push({key:k}); return storage.has(k) ? storage.get(k) : null; } setItem(k,v){ const value = String(v); storageHistory.setItem.push({key:k, value}); storage.set(k, value); } removeItem(k){ storageHistory.removeItem.push({key:k}); storage.delete(k); } clear(){ for (const key of [...storage.keys()]) this.removeItem(key); } }
+  const recordStorageHistory = options.recordStorageHistory !== false;
+  class StorageStub { getItem(k){ if(recordStorageHistory)storageHistory.getItem.push({key:k}); return storage.has(k) ? storage.get(k) : null; } setItem(k,v){ const value = String(v); if(recordStorageHistory)storageHistory.setItem.push({key:k, value}); storage.set(k, value); } removeItem(k){ if(recordStorageHistory)storageHistory.removeItem.push({key:k}); storage.delete(k); } clear(){ for (const key of [...storage.keys()]) this.removeItem(key); } }
   class URLStub extends URL {}
   URLStub.createObjectURL = () => 'blob:test';
   URLStub.revokeObjectURL = () => {};
@@ -85,7 +86,10 @@ function createBrowserContext(options = {}) {
     Blob: class Blob { constructor(parts, opts){ this.parts = parts; this.type = opts?.type || ''; } async text(){ return this.parts.join(''); } },
     URL: URLStub, FormData: class { constructor(){ } entries(){ return []; } },
     EventTarget, Event, CustomEvent: global.CustomEvent || class CustomEvent extends Event { constructor(type, init={}){ super(type); this.detail = init.detail; } },
-    setTimeout, clearTimeout, requestAnimationFrame: cb => setTimeout(cb, 0), getComputedStyle: () => ({ getPropertyValue: () => '#efb85b' }), confirm: () => true, alert(){}, addEventListener(){}, removeEventListener(){}
+    setTimeout: options.headless ? (() => 0) : setTimeout,
+    clearTimeout: options.headless ? (() => {}) : clearTimeout,
+    requestAnimationFrame: options.headless ? (() => 0) : (cb => setTimeout(cb, 0)),
+    getComputedStyle: () => ({ getPropertyValue: () => '#efb85b' }), confirm: () => true, alert(){}, addEventListener(){}, removeEventListener(){}
   };
   if (options.random) {
     context.Math = Object.create(Math);
@@ -98,9 +102,17 @@ function loadGame(options = {}) {
   return loadGameFromHtml(readIndex(), options);
 }
 function loadGameFromHtml(html, options = {}) {
-  const scripts = extractScripts(html);
+  let scripts = extractScripts(html);
+  if (options.headless) {
+    scripts = scripts.filter(script => {
+      if (!script.file) return script.parsedAttrs?.['data-business-master-compat'] !== undefined;
+      return path.basename(script.file) !== 'boot-recovery.js';
+    });
+  }
   let code = scripts.map(s => s.code).join('\n');
-  code = code.replace('const engine = TycoonEngine.load();', 'const engine = globalThis.__ct_engine = TycoonEngine.load();');
+  code = code.replace('const engine = TycoonEngine.load();', options.headless
+    ? 'globalThis.__ct_headlessEngineClass = TycoonEngine; return; const engine = TycoonEngine.load();'
+    : 'const engine = globalThis.__ct_engine = TycoonEngine.load();');
   code = code.replace('const ui = {', 'const ui = globalThis.__ct_ui = {');
   const ctx = createBrowserContext(options);
   vm.runInContext(code, ctx, { filename: 'index.html' });
