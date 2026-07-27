@@ -1,0 +1,20 @@
+name: Subsidiary Integration Synergy
+
+on:
+  pull_request:
+    paths:
+      - 'js/subsidiary-integration-synergy.js'
+      - 'tests/subsidiary-integration-synergy-test.js'
+      - '.github/workflows/subsidiary-integration-synergy.yml'
+  workflow_dispatch:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - run: node --check js/subsidiary-integration-synergy.js
+      - run: node tests/subsidiary-integration-synergy-test.js
