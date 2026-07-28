@@ -1,0 +1,31 @@
+name: Group Capital Allocation Execution
+
+on:
+  pull_request:
+    paths:
+      - 'js/group-capital-allocation-execution.js'
+      - 'js/group-capital-allocation-plan.js'
+      - 'js/pmi-100-day-loader.js'
+      - 'tests/group-capital-allocation-execution-test.js'
+      - '.github/workflows/group-capital-allocation-execution.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - run: node --check js/group-capital-allocation-execution.js
+      - run: node tests/group-capital-allocation-execution-test.js
+      - run: npm run test:static
+      - name: Production wiring
+        run: |
+          grep -q 'group-capital-allocation-execution.js' js/pmi-100-day-loader.js
+          grep -q 'groupCapitalAllocationExecution' js/pmi-100-day-loader.js
