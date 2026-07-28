@@ -1,0 +1,13 @@
+'use strict';
+const fs=require('fs'),vm=require('vm'),assert=require('assert');
+class TycoonEngine{constructor(g){this.g=g;}normalize(){}runTransaction(fn){return fn();}fail(){return false;}notify(){}}
+const modules={engine:{TycoonEngine},playerEngineBridge:{getEngine:()=>null},subsidiaryBudgetKpi:{}};
+const context={globalThis:{__capitalismTycoonModules:modules},console,setTimeout,queueMicrotask};vm.createContext(context);vm.runInContext(fs.readFileSync('js/subsidiary-performance-review.js','utf8'),context);
+const mod=modules.subsidiaryPerformanceReview;
+function state(){return {week:12,configured:true,selectedTab:'venture',cash:5000000,personalCash:900000,maSubsidiaries:[{id:'a',name:'A社',revenue:1200,weeklyProfit:220,risk:.2,growthRate:.12,groupMandate:'維持改善',groupBudgetPlan:{revenueTarget:1000,profitTarget:200,riskTarget:.25}},{id:'b',name:'B社',revenue:500,weeklyProfit:-50,risk:.65,growthRate:-.05,groupMandate:'維持改善',groupBudgetPlan:{revenueTarget:1000,profitTarget:100,riskTarget:.35}}]};}
+const s=state(),cash=s.cash,personal=s.personalCash;assert.strictEqual(mod.review(s),true);assert.strictEqual(mod.review(s),false);assert.strictEqual(s.maSubsidiaries[0].groupPerformanceReview.status,'達成');assert.strictEqual(s.maSubsidiaries[0].groupPerformanceReview.recommendedMandate,'成長投資');assert.strictEqual(s.maSubsidiaries[1].groupPerformanceReview.status,'未達');assert.strictEqual(s.maSubsidiaries[1].groupPerformanceReview.recommendedMandate,'リスク削減');assert.strictEqual(s.cash,cash);assert.strictEqual(s.personalCash,personal);assert.strictEqual(s.subsidiaryPerformanceReview.history.length,1);
+const round=JSON.parse(JSON.stringify(s));mod.ensure(round);assert.deepStrictEqual(JSON.parse(JSON.stringify(mod.summarize(round))),JSON.parse(JSON.stringify(mod.summarize(s))));
+const reversed=state();reversed.maSubsidiaries.reverse();mod.review(reversed);const byId=x=>Object.fromEntries(x.maSubsidiaries.map(v=>[v.id,v.groupPerformanceReview]));assert.deepStrictEqual(JSON.parse(JSON.stringify(byId(reversed))),JSON.parse(JSON.stringify(byId(s))));
+const engine=new TycoonEngine(state());engine.normalize();assert.strictEqual(engine.runSubsidiaryPerformanceReview(),true);assert.strictEqual(engine.runSubsidiaryPerformanceReview(),false);
+for(let i=0;i<80;i++){s.week++;s.subsidiaryPerformanceReview.lastReviewWeek=null;mod.review(s);}assert.strictEqual(s.subsidiaryPerformanceReview.history.length,60);
+const source=fs.readFileSync('js/subsidiary-performance-review.js','utf8');assert(!source.includes('Math.random('));assert(!source.includes('Date.now('));assert(source.includes('min-height:44px'));console.log('subsidiary performance review tests passed');
