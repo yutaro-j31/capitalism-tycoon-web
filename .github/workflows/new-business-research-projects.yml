@@ -1,0 +1,25 @@
+name: New Business Research Projects
+on:
+  pull_request:
+    paths:
+      - 'js/new-business-research-projects.js'
+      - 'js/new-business-market-analysis.js'
+      - 'js/pmi-100-day-loader.js'
+      - 'tests/new-business-research-projects-test.js'
+      - '.github/workflows/new-business-research-projects.yml'
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - run: node --check js/new-business-research-projects.js
+      - run: node tests/new-business-research-projects-test.js
+      - run: npm run test:static
+      - name: Production wiring
+        run: |
+          grep -q 'new-business-research-projects.js' js/pmi-100-day-loader.js
+          grep -q 'newBusinessResearchProjects' js/pmi-100-day-loader.js
