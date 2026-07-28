@@ -21,8 +21,9 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
-      - name: Validate syntax and checklist safety
-        run: |
-          node --check js/physical-iphone-playtest.js
-          node tests/physical-iphone-playtest-test.js
-          npm run test:static --silent
+      - name: Validate checklist syntax
+        run: node --check js/physical-iphone-playtest.js
+      - name: Validate physical checklist contract
+        run: node tests/physical-iphone-playtest-test.js
+      - name: Validate shared static safety
+        run: npm run test:static --silent
