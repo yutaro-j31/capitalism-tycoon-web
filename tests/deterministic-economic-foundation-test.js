@@ -1,0 +1,11 @@
+'use strict';
+const assert=require('assert'),fs=require('fs'),vm=require('vm');
+class Engine{constructor(g){this.g=g;}normalize(){}}
+const modules={engine:{TycoonEngine:Engine},playerEngineBridge:{getEngine:()=>null}},context={globalThis:null,console,setTimeout,queueMicrotask};context.globalThis=context;context.__capitalismTycoonModules=modules;vm.runInNewContext(fs.readFileSync('js/deterministic-economic-foundation.js','utf8'),context);
+const mod=modules.deterministicEconomicFoundation,base={week:1,companyName:'Test Holdings',ticker:'TEST',configured:true,selectedTab:'home',economy:1,season:1,policyRate:.005,inflation:1,exchangeRate:1,realEstateCycle:1,macroCrisis:null};
+const a=JSON.parse(JSON.stringify(base)),b=JSON.parse(JSON.stringify(base));for(let week=1;week<=520;week++){a.week=week;b.week=week;assert.deepStrictEqual(JSON.parse(JSON.stringify(mod.step(a))),JSON.parse(JSON.stringify(mod.step(b))));assert(Number.isFinite(a.economy));assert(Number.isFinite(a.policyRate));assert(Number.isFinite(a.inflation));assert(Number.isFinite(a.exchangeRate));}
+assert.deepStrictEqual(JSON.parse(JSON.stringify(a.economicFoundation)),JSON.parse(JSON.stringify(b.economicFoundation)));assert.strictEqual(a.economicFoundation.history.length,260);const snapshot=JSON.stringify(a);mod.step(a);assert.strictEqual(JSON.stringify(a),snapshot);
+const roundTrip=JSON.parse(JSON.stringify(a));mod.ensure(roundTrip);assert.deepStrictEqual(JSON.parse(JSON.stringify(roundTrip.economicFoundation)),JSON.parse(JSON.stringify(a.economicFoundation)));assert(mod.renderSection({g:{...a,configured:true,selectedTab:'home'}}).includes('経済・市場環境'));
+const legacy={...JSON.parse(JSON.stringify(base)),week:8,macroCrisis:{kind:'景気後退',weeks:2,salesMultiplier:.8,costMultiplier:1.1}};mod.step(legacy);assert.strictEqual(legacy.macroCrisis.weeks,1);legacy.week=9;mod.step(legacy);assert.strictEqual(legacy.macroCrisis,null);
+const source=fs.readFileSync('js/deterministic-economic-foundation.js','utf8');assert(!source.includes('Math.random'));assert(!source.includes('Date.now'));assert(source.includes('lastProcessedWeek'));assert(source.includes('HISTORY_LIMIT'));
+console.log('deterministic-economic-foundation tests passed');
