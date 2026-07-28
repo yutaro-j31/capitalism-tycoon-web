@@ -1,0 +1,23 @@
+name: Bank Loans Covenants
+on:
+  pull_request:
+    paths:
+      - 'js/bank-loans-covenants.js'
+      - 'js/pmi-100-day-loader.js'
+      - 'tests/bank-loans-covenants-test.js'
+      - '.github/workflows/bank-loans-covenants.yml'
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - run: node --check js/bank-loans-covenants.js
+      - run: node tests/bank-loans-covenants-test.js
+      - run: npm run test:static
+      - name: Production wiring
+        run: |
+          grep -q 'bank-loans-covenants.js' js/pmi-100-day-loader.js
+          grep -q 'bankLoansCovenants' js/pmi-100-day-loader.js
