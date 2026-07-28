@@ -18,7 +18,20 @@ jobs:
         with:
           node-version: 20
       - run: node --check js/pmi-100-day-plan.js
-      - run: node tests/pmi-100-day-plan-test.js
+      - name: Run PMI lifecycle tests
+        id: pmi
+        continue-on-error: true
+        run: node tests/pmi-100-day-plan-test.js > pmi-test.log 2>&1
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: pmi-100-day-plan-diagnostics
+          path: pmi-test.log
+      - name: Enforce PMI lifecycle tests
+        if: steps.pmi.outcome != 'success'
+        run: |
+          cat pmi-test.log
+          exit 1
       - run: node tests/ma-integration-test.js
       - run: node tests/finance-ma-accounting-test.js
       - run: node tests/save-v9-migration-test.js
