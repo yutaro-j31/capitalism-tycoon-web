@@ -1,0 +1,31 @@
+name: PMI 100 Day Plan
+
+on:
+  pull_request:
+    paths:
+      - 'js/pmi-100-day-plan.js'
+      - 'tests/pmi-100-day-plan-test.js'
+      - 'play.html'
+      - '.github/workflows/pmi-100-day-plan.yml'
+  workflow_dispatch:
+
+jobs:
+  pmi-100-day-plan:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - run: node --check js/pmi-100-day-plan.js
+      - run: node tests/pmi-100-day-plan-test.js
+      - run: node tests/ma-integration-test.js
+      - run: node tests/finance-ma-accounting-test.js
+      - run: node tests/save-v9-migration-test.js
+      - run: |
+          node - <<'NODE'
+          const fs=require('fs');
+          const play=fs.readFileSync('play.html','utf8');
+          if(!play.includes('./js/pmi-100-day-plan.js?launch='))throw new Error('PMI production wiring missing');
+          if(Buffer.byteLength(play)>7000)throw new Error(`play.html exceeds 7KB contract: ${Buffer.byteLength(play)}`);
+          NODE
