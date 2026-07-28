@@ -1,0 +1,24 @@
+name: Corporate Bonds Ratings
+on:
+  pull_request:
+    paths:
+      - 'js/corporate-bonds-ratings.js'
+      - 'js/pmi-100-day-loader.js'
+      - 'tests/corporate-bonds-ratings-test.js'
+      - '.github/workflows/corporate-bonds-ratings.yml'
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - run: node --check js/corporate-bonds-ratings.js
+      - run: node tests/corporate-bonds-ratings-test.js
+      - run: npm run test:static
+      - name: Production wiring
+        run: |
+          grep -q 'corporate-bonds-ratings.js' js/pmi-100-day-loader.js
+          grep -q 'corporateBondsRatings' js/pmi-100-day-loader.js
