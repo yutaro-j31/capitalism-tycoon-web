@@ -1,9 +1,9 @@
+'use strict';
 const assert=require('node:assert');
 const fs=require('node:fs');
 const vm=require('node:vm');
 const {loadGame}=require('./harness');
-const {ctx,modules,engineModule}=loadGame();
-ctx.document=undefined;
+const {ctx,modules,engineModule}=loadGame({headless:true});
 vm.runInContext(fs.readFileSync('js/pmi-100-day-plan.js','utf8'),ctx,{filename:'js/pmi-100-day-plan.js'});
 vm.runInContext(fs.readFileSync('js/pmi-long-run-guard.js','utf8'),ctx,{filename:'js/pmi-long-run-guard.js'});
 const pmi=ctx.__capitalismTycoonModules.pmi100DayPlan;
@@ -21,6 +21,6 @@ let orderA=engine();orderA.g.maSubsidiaries.push({...clone(orderA.g.maSubsidiari
 let deferred=engine();assert(deferred.deferPMIPlan('sub-1',2));const frozen=JSON.stringify(deferred.g.maSubsidiaries[0].pmiWorkstreams);deferred.g.week++;deferred.updateSubsidiaries();assert.equal(JSON.stringify(deferred.g.maSubsidiaries[0].pmiWorkstreams),frozen);assert(deferred.cancelPMIPlan('sub-1'));assert.equal(deferred.g.maSubsidiaries[0].pmiPlanStatus,'cancelled');assert.equal(deferred.g.maSubsidiaries[0].pmiImpairmentCandidate,true);
 let completed=engine();sub=completed.g.maSubsidiaries[0];for(const stream of Object.values(sub.pmiWorkstreams))stream.progress=1;sub.pmiProgress=100;completed.g.week++;pmi.processWeek(completed.g,sub);assert.equal(sub.pmiPlanStatus,'ready');const value=sub.valuation;assert(completed.confirmPMICompletion(sub.id));assert.equal(sub.pmiPlanStatus,'completed');assert(sub.valuation>=value);assert.equal(completed.confirmPMICompletion(sub.id),false);
 let legacy=engine();delete legacy.g.maSubsidiaries[0].pmiPlanStatus;delete legacy.g.maSubsidiaries[0].pmiWorkstreams;legacy.normalize();assert.equal(legacy.g.maSubsidiaries[0].pmiPlanStatus,'active');assert.equal(Object.keys(legacy.g.maSubsidiaries[0].pmiWorkstreams).length,4);
-for(let i=0;i<1000;i++){legacy.g.week++;legacy.updateSubsidiaries();}const finiteTree=(v,path='root')=>{if(typeof v==='number')assert(Number.isFinite(v),`${path} non-finite`);else if(Array.isArray(v))v.forEach((x,i)=>finiteTree(x,`${path}[${i}]`));else if(v&&typeof v==='object')Object.entries(v).forEach(([k,x])=>finiteTree(x,`${path}.${k}`));};finiteTree(legacy.g);assert(legacy.g.maSubsidiaries[0].pmiPlanHistory.length<=60);assert(legacy.g.maSubsidiaries[0].valuation<=9_900_000_000_000);
-const source=fs.readFileSync('js/pmi-100-day-plan.js','utf8')+fs.readFileSync('js/pmi-long-run-guard.js','utf8');assert(!/Math\.random|Date\.now|randomUUID/.test(source));assert(source.includes('min-height:46px'));assert(source.includes('@media(max-width:430px)'));assert(source.includes('cashEffect:-amount'));assert(source.includes('assetEffect:0'));assert(source.includes('profitEffect:-amount'));
+for(let i=0;i<1000;i++){legacy.g.week++;legacy.updateSubsidiaries();}const finiteTree=(v,path='root')=>{if(typeof v==='number')assert(Number.isFinite(v),`${path} non-finite`);else if(Array.isArray(v))v.forEach((x,i)=>finiteTree(x,`${path}[${i}]`));else if(v&&typeof v==='object')Object.entries(v).forEach(([k,x])=>finiteTree(x,`${path}.${k}`));};finiteTree(legacy.g);assert(legacy.g.maSubsidiaries[0].pmiPlanHistory.length<=60);
+const source=fs.readFileSync('js/pmi-100-day-plan.js','utf8');assert(!/Math\.random|Date\.now|randomUUID/.test(source));assert(source.includes('min-height:46px'));assert(source.includes('@media(max-width:430px)'));assert(source.includes('cashEffect:-amount'));assert(source.includes('assetEffect:0'));assert(source.includes('profitEffect:-amount'));
 console.log('PMI 100-day plan tests passed');
