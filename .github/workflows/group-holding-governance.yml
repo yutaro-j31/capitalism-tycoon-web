@@ -1,0 +1,31 @@
+name: Group Holding Governance
+
+on:
+  pull_request:
+    paths:
+      - 'js/group-holding-governance.js'
+      - 'js/pmi-100-day-loader.js'
+      - 'tests/group-holding-governance-test.js'
+      - '.github/workflows/group-holding-governance.yml'
+  workflow_dispatch:
+
+jobs:
+  group-holding-governance:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: node --check js/group-holding-governance.js
+      - run: node --check js/pmi-100-day-loader.js
+      - run: node tests/group-holding-governance-test.js
+      - run: node tests/pmi-100-day-plan-test.js
+      - run: npm run test:static --silent
+      - run: |
+          node - <<'NODE'
+          const fs=require('fs');
+          const loader=fs.readFileSync('js/pmi-100-day-loader.js','utf8');
+          if(!loader.includes('group-holding-governance.js${query}'))throw new Error('group governance production wiring missing');
+          if(!loader.includes('groupHoldingGovernance'))throw new Error('group governance fail-closed contract missing');
+          NODE
