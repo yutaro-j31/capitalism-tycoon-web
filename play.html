@@ -52,7 +52,7 @@
         if(!fresh.includes('./js/group-restructuring-progress.js?launch='))throw new Error('グループ再編進捗モジュールを公開起動順へ追加できませんでした。');
         if(!fresh.includes('./js/subsidiary-relisting-options.js?launch='))throw new Error('再上場戦略モジュールを公開起動順へ追加できませんでした。');
         if(!fresh.includes('./js/listed-subsidiary-follow-on-offering.js?launch='))throw new Error('追加資本政策モジュールを公開起動順へ追加できませんでした。');
-        if(!fresh.includes('./js/ma-investment-committee.js?launch='))throw new Error('M&A投資委員会モジュールを公開起動順へ追加できませんでした。');
+        if(!fresh.includes('./js/ma-investment-committee.js?launch='))throw Error('M&A IC load failed');
         document.open();document.write(fresh);document.close();
       })
       .catch(error=>{
