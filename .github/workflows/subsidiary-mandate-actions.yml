@@ -1,0 +1,37 @@
+name: Subsidiary Mandate Actions
+
+on:
+  pull_request:
+    paths:
+      - 'js/subsidiary-mandate-actions.js'
+      - 'js/pmi-100-day-loader.js'
+      - 'tests/subsidiary-mandate-actions-test.js'
+      - '.github/workflows/subsidiary-mandate-actions.yml'
+  workflow_dispatch:
+
+jobs:
+  subsidiary-mandate-actions:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - name: Check syntax
+        run: node --check js/subsidiary-mandate-actions.js
+      - name: Run mandate action tests
+        run: node tests/subsidiary-mandate-actions-test.js
+      - name: Run performance review regression
+        run: node tests/subsidiary-performance-review-test.js
+      - name: Run budget KPI regression
+        run: node tests/subsidiary-budget-kpi-test.js
+      - name: Validate static safety
+        run: npm run test:static
+      - name: Validate production wiring
+        run: |
+          node - <<'NODE'
+          const fs=require('fs');
+          const source=fs.readFileSync('js/pmi-100-day-loader.js','utf8');
+          if(!source.includes('subsidiary-mandate-actions.js')) throw new Error('mandate actions module is not wired');
+          if(!source.includes('subsidiaryMandateActions')) throw new Error('mandate actions fail-closed contract is missing');
+          NODE
