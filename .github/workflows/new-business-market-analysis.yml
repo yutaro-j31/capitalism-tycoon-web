@@ -1,0 +1,24 @@
+name: New Business Market Analysis
+on:
+  pull_request:
+    paths:
+      - 'js/new-business-market-analysis.js'
+      - 'js/deterministic-economic-foundation.js'
+      - 'js/pmi-100-day-loader.js'
+      - 'tests/new-business-market-analysis-test.js'
+      - '.github/workflows/new-business-market-analysis.yml'
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - run: node --check js/new-business-market-analysis.js
+      - run: node tests/new-business-market-analysis-test.js
+      - run: npm run test:static
+      - name: Production wiring
+        run: |
+          grep -q 'new-business-market-analysis.js' js/pmi-100-day-loader.js
+          grep -q 'newBusinessMarketAnalysis' js/pmi-100-day-loader.js
