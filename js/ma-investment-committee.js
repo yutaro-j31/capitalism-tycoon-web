@@ -1,0 +1,160 @@
+// Script boundary: js/ma-investment-committee.js (classic JavaScript)
+'use strict';
+(function(exports){
+const finite=(value,fallback=0)=>Number.isFinite(Number(value))?Number(value):fallback;
+const clamp=(value,min=0,max=1)=>Math.max(min,Math.min(max,finite(value,min)));
+const money=value=>Math.round(finite(value));
+const ratio=value=>Math.round(clamp(value,-10,10)*1e6)/1e6;
+const yen=value=>`${money(value).toLocaleString('ja-JP')}円`;
+const pct=value=>`${(finite(value)*100).toFixed(1)}%`;
+const esc=value=>String(value??'').replace(/[&<>"']/g,char=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[char]));
+const ACTIVE_STATUSES=new Set(['screening','diligence','ready','offer_pending','countered','accepted']);
+
+function annuityFactor(rate,years){
+ let result=0;
+ for(let year=1;year<=years;year++)result+=1/Math.pow(1+rate,year);
+ return result;
+}
+
+function finding(deal,category){return (Array.isArray(deal?.findings)?deal.findings:[]).find(row=>row?.category===category);}
+
+function targetFor(state,deal){return (Array.isArray(state?.acquisitionTargets)?state.acquisitionTargets:[]).find(row=>String(row?.id)===String(deal?.targetID))||null;}
+
+function buildInvestmentMemo(state,dealOrID){
+ const deals=Array.isArray(state?.maDealRooms)?state.maDealRooms:[];
+ const deal=typeof dealOrID==='object'&&dealOrID?dealOrID:deals.find(row=>String(row?.id)===String(dealOrID));
+ if(!deal)return null;
+ const target=targetFor(state,deal);
+ if(!target)return null;
+ const bridge=deal.valuationBridge||globalThis.__capitalismTycoonModules?.maDealRoom?.buildValuationBridge?.(state,target,deal)||{};
+ const sales=Math.max(1,money(target.sales));
+ const operatingProfit=money(target.operatingProfit);
+ const growth=clamp(target.growth,-.25,.5);
+ const risk=clamp(target.risk,0,1);
+ const synergy=clamp(target.synergy,0,.5);
+ const netDebt=money(bridge.netDebt);
+ const equityValue=Math.max(0,money(bridge.adjustedEquityValue||target.valuation));
+ const enterpriseValue=Math.max(0,equityValue+netDebt);
+ const ebitda=Math.max(1,operatingProfit+Math.max(0,sales*.035));
+ const netIncome=Math.max(1,operatingProfit*.7);
+ const bookEquity=Math.max(1,equityValue*.55-netDebt*.15);
+ const evEbitda=ratio(enterpriseValue/ebitda);
+ const per=ratio(equityValue/netIncome);
+ const pbr=ratio(equityValue/bookEquity);
+ const margin=ratio(operatingProfit/sales);
+ const wacc=clamp(.065+risk*.075-growth*.02,.045,.16);
+ const terminalGrowth=clamp(growth*.25,.005,.035);
+ const baseCashFlow=Math.max(0,operatingProfit*.72);
+ let dcf=0;
+ for(let year=1;year<=5;year++){
+  const annualGrowth=clamp(growth*(1-(year-1)*.12),-.2,.35);
+  const cashFlow=baseCashFlow*Math.pow(1+annualGrowth,year);
+  dcf+=cashFlow/Math.pow(1+wacc,year);
+ }
+ const year5CashFlow=baseCashFlow*Math.pow(1+clamp(growth,.0,.35),5);
+ const terminalValue=year5CashFlow*(1+terminalGrowth)/Math.max(.01,wacc-terminalGrowth);
+ dcf+=terminalValue/Math.pow(1+wacc,5);
+ const synergyAnnual=Math.max(0,operatingProfit)*synergy;
+ const synergyNPV=synergyAnnual*annuityFactor(wacc,5);
+ const legal=Math.max(0,money(finding(deal,'legal')?.observedValue||bridge.legalRiskAdjustment));
+ const customer=clamp(finding(deal,'customer')?.observedValue/100,0,1);
+ const technology=clamp(finding(deal,'technology')?.observedValue/100,0,1);
+ const management=clamp(finding(deal,'management')?.observedValue/100,0,1);
+ const criticalFindings=(Array.isArray(deal.findings)?deal.findings:[]).filter(row=>row?.severity==='critical').length;
+ const ddConfidence=clamp(deal.diligenceConfidence);
+ const riskScore=Math.round(clamp(risk*.38+customer*.14+technology*.12+management*.12+clamp(legal/Math.max(1,equityValue),0,.25)*.8+criticalFindings*.08+(1-ddConfidence)*.16,0,1)*100);
+ const strategicScore=Math.round(clamp(growth*.7+synergy*.9+margin*.8+(1-risk)*.25,0,1)*100);
+ const financialScore=Math.round(clamp((margin+.1)*1.8+Math.min(growth,.25)*1.4+(evEbitda<=10?.25:evEbitda<=15?.12:0),0,1)*100);
+ const recommendedMaximum=Math.max(0,money(Math.min(
+  finite(bridge.recommendedMaximumPrice,Infinity),
+  Math.max(equityValue,dcf-netDebt)+synergyNPV*.55
+ )));
+ const currentAsk=Math.max(0,money(deal.counterOffer?.price||deal.sellerAsk||target.valuation));
+ const headroom=ratio((recommendedMaximum-currentAsk)/Math.max(1,currentAsk));
+ let recommendation='追加DD';
+ let tone='watch';
+ if(ddConfidence>=.7&&riskScore<=48&&headroom>=.08){recommendation='買収推奨';tone='go';}
+ else if(ddConfidence>=.4&&riskScore<=68&&headroom>=-.05){recommendation='条件付き推奨';tone='conditional';}
+ else if(riskScore>=75||headroom<-.12){recommendation='見送り推奨';tone='stop';}
+ const reasons=[];
+ if(ddConfidence<.4)reasons.push('DDの確度が不足しています。');
+ if(headroom>=.08)reasons.push(`提示余力が${pct(headroom)}あります。`);
+ if(headroom<0)reasons.push(`売り手希望額が上限を${pct(Math.abs(headroom))}上回ります。`);
+ if(riskScore>=65)reasons.push(`統合・財務リスクが${riskScore}点と高水準です。`);
+ if(synergy>=.12)reasons.push(`想定シナジー${pct(synergy)}が投資価値を支えます。`);
+ if(!reasons.length)reasons.push('価格とリスクの追加確認が必要です。');
+ return Object.freeze({
+  dealID:String(deal.id),targetID:String(target.id),targetName:String(target.name||'買収候補'),status:String(deal.status||'screening'),
+  sales,operatingProfit,margin,growth,risk,synergy,enterpriseValue,equityValue,ebitda,evEbitda,per,pbr,
+  dcfEquityValue:Math.max(0,money(dcf-netDebt)),synergyNPV:money(synergyNPV),wacc:ratio(wacc),terminalGrowth:ratio(terminalGrowth),
+  currentAsk,recommendedMaximum,headroom,ddConfidence,riskScore,strategicScore,financialScore,recommendation,tone,reasons:Object.freeze(reasons)
+ });
+}
+
+function buildAllMemos(state){
+ return Object.freeze((Array.isArray(state?.maDealRooms)?state.maDealRooms:[])
+  .filter(deal=>ACTIVE_STATUSES.has(String(deal?.status)))
+  .map(deal=>buildInvestmentMemo(state,deal)).filter(Boolean)
+  .sort((a,b)=>a.riskScore-b.riskScore||b.strategicScore-a.strategicScore||a.dealID.localeCompare(b.dealID)));
+}
+
+function installMAInvestmentCommittee(TycoonEngine){
+ if(!TycoonEngine||TycoonEngine.prototype.__maInvestmentCommitteeInstalled)return;
+ const proto=TycoonEngine.prototype;
+ proto.getMAInvestmentMemo=function(dealID){return buildInvestmentMemo(this.g,dealID);};
+ proto.getMAInvestmentCommitteeMemos=function(){return buildAllMemos(this.g);};
+ Object.defineProperty(proto,'__maInvestmentCommitteeInstalled',{value:true});
+}
+
+function renderMemo(memo){
+ const metric=(label,value)=>`<div class="ma-ic-metric"><span>${esc(label)}</span><strong>${esc(value)}</strong></div>`;
+ return `<section class="ma-ic-card ma-ic-${esc(memo.tone)}">
+  <header><div><small>M&A投資委員会</small><h3>${esc(memo.targetName)}</h3></div><b>${esc(memo.recommendation)}</b></header>
+  <div class="ma-ic-grid">
+   ${metric('企業価値',yen(memo.enterpriseValue))}${metric('株主価値',yen(memo.equityValue))}
+   ${metric('DCF株主価値',yen(memo.dcfEquityValue))}${metric('シナジーNPV',yen(memo.synergyNPV))}
+   ${metric('EV/EBITDA',`${memo.evEbitda.toFixed(1)}倍`)}${metric('PER',`${memo.per.toFixed(1)}倍`)}
+   ${metric('PBR',`${memo.pbr.toFixed(1)}倍`)}${metric('営業利益率',pct(memo.margin))}
+   ${metric('価格上限',yen(memo.recommendedMaximum))}${metric('売り手希望',yen(memo.currentAsk))}
+   ${metric('DD確度',pct(memo.ddConfidence))}${metric('リスク',`${memo.riskScore}/100`)}
+  </div>
+  <div class="ma-ic-scores"><span>戦略 ${memo.strategicScore}</span><span>財務 ${memo.financialScore}</span><span>リスク ${memo.riskScore}</span></div>
+  <ul>${memo.reasons.map(reason=>`<li>${esc(reason)}</li>`).join('')}</ul>
+ </section>`;
+}
+
+function installUI(){
+ if(typeof document==='undefined'||document.getElementById('ma-investment-committee-button'))return;
+ const button=document.createElement('button');
+ button.id='ma-investment-committee-button';button.type='button';button.textContent='M&A投資委員会';button.setAttribute('aria-haspopup','dialog');
+ const overlay=document.createElement('div');overlay.id='ma-investment-committee-overlay';overlay.hidden=true;
+ overlay.innerHTML='<div class="ma-ic-dialog" role="dialog" aria-modal="true" aria-label="M&A投資委員会"><div class="ma-ic-toolbar"><h2>M&A投資委員会</h2><button type="button" data-ma-ic-close>閉じる</button></div><div data-ma-ic-content></div></div>';
+ const style=document.createElement('style');style.textContent=`
+ #ma-investment-committee-button{position:fixed;right:12px;bottom:max(76px,calc(env(safe-area-inset-bottom) + 68px));z-index:2147482000;min-height:46px;padding:10px 14px;border:0;border-radius:999px;background:#efb85b;color:#08101f;font-weight:900;box-shadow:0 8px 28px #0008}
+ #ma-investment-committee-overlay{position:fixed;inset:0;z-index:2147483000;background:#050b16dd;padding:calc(12px + env(safe-area-inset-top)) 12px calc(12px + env(safe-area-inset-bottom));overflow:auto}
+ .ma-ic-dialog{width:min(720px,100%);margin:0 auto;background:#101f36;color:#f5f7fb;border:1px solid #ffffff24;border-radius:20px;padding:16px}.ma-ic-toolbar{display:flex;align-items:center;justify-content:space-between;gap:12px}.ma-ic-toolbar h2{font-size:20px;margin:0}.ma-ic-toolbar button{min-height:44px;padding:8px 14px;border-radius:12px;border:1px solid #ffffff30;background:#1c304f;color:#fff;font-weight:800}.ma-ic-card{margin-top:14px;padding:14px;border-radius:16px;background:#0b172b;border:1px solid #ffffff18}.ma-ic-card header{display:flex;justify-content:space-between;gap:12px;align-items:flex-start}.ma-ic-card h3{margin:2px 0 0;font-size:18px}.ma-ic-card small{color:#9eb0c8}.ma-ic-card header b{max-width:46%;text-align:right;color:#efb85b}.ma-ic-go header b{color:#76e09f}.ma-ic-stop header b{color:#ff8e96}.ma-ic-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;margin-top:12px}.ma-ic-metric{min-width:0;padding:9px;border-radius:10px;background:#ffffff0b}.ma-ic-metric span,.ma-ic-metric strong{display:block;overflow-wrap:anywhere}.ma-ic-metric span{font-size:12px;color:#aebcd0}.ma-ic-metric strong{margin-top:3px;font-size:14px}.ma-ic-scores{display:flex;flex-wrap:wrap;gap:8px;margin-top:10px}.ma-ic-scores span{padding:6px 9px;border-radius:999px;background:#ffffff10;font-size:12px}.ma-ic-card ul{margin:10px 0 0;padding-left:20px;color:#d5deea;line-height:1.55}@media(max-width:390px){.ma-ic-grid{grid-template-columns:1fr}.ma-ic-dialog{padding:12px}.ma-ic-card header{display:block}.ma-ic-card header b{display:block;max-width:none;text-align:left;margin-top:8px}}
+ `;
+ function refresh(){
+  const content=overlay.querySelector('[data-ma-ic-content]');
+  try{
+   const E=globalThis.__capitalismTycoonModules?.engine?.TycoonEngine;
+   const state=E?.load?.()?.g;
+   const memos=state?buildAllMemos(state):[];
+   button.hidden=!memos.length;
+   content.innerHTML=memos.length?memos.map(renderMemo).join(''):'<p>進行中のM&A案件はありません。</p>';
+  }catch(error){button.hidden=true;content.innerHTML='<p>M&A案件を読み込めませんでした。</p>';}
+ }
+ button.addEventListener('click',()=>{refresh();overlay.hidden=false;overlay.querySelector('[data-ma-ic-close]')?.focus();});
+ overlay.addEventListener('click',event=>{if(event.target===overlay||event.target.closest('[data-ma-ic-close]'))overlay.hidden=true;});
+ document.addEventListener('keydown',event=>{if(event.key==='Escape'&&!overlay.hidden)overlay.hidden=true;});
+ document.head.appendChild(style);document.body.append(button,overlay);refresh();
+ if(typeof MutationObserver==='function'){const app=document.getElementById('app');if(app)new MutationObserver(()=>refresh()).observe(app,{childList:true,subtree:true});}
+}
+
+exports.buildInvestmentMemo=buildInvestmentMemo;
+exports.buildAllMemos=buildAllMemos;
+exports.installMAInvestmentCommittee=installMAInvestmentCommittee;
+const Engine=globalThis.__capitalismTycoonModules?.engine?.TycoonEngine;
+installMAInvestmentCommittee(Engine);
+if(typeof document!=='undefined'){if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',installUI,{once:true});else installUI();}
+})(globalThis.__capitalismTycoonModules.maInvestmentCommittee={});
