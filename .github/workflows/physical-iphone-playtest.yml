@@ -21,8 +21,21 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
-      - name: Validate syntax and checklist safety
+      - name: Validate checklist syntax
+        run: node --check js/physical-iphone-playtest.js
+      - name: Run physical checklist contract
+        id: physical
+        continue-on-error: true
+        run: node tests/physical-iphone-playtest-test.js > physical-iphone-test.log 2>&1
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: physical-iphone-playtest-diagnostics
+          path: physical-iphone-test.log
+      - name: Enforce physical checklist contract
+        if: ${{ steps.physical.outcome != 'success' }}
         run: |
-          node --check js/physical-iphone-playtest.js
-          node tests/physical-iphone-playtest-test.js
-          npm run test:static --silent
+          cat physical-iphone-test.log
+          exit 1
+      - name: Validate shared static safety
+        run: npm run test:static --silent
