@@ -1,0 +1,24 @@
+name: Preferred Shares Dividends
+on:
+  pull_request:
+    paths:
+      - 'js/preferred-shares-dividends.js'
+      - 'js/pmi-100-day-loader.js'
+      - 'tests/preferred-shares-dividends-test.js'
+      - '.github/workflows/preferred-shares-dividends.yml'
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - run: node --check js/preferred-shares-dividends.js
+      - run: node tests/preferred-shares-dividends-test.js
+      - run: npm run test:static
+      - name: Production wiring
+        run: |
+          grep -q 'preferred-shares-dividends.js' js/pmi-100-day-loader.js
+          grep -q 'preferredSharesDividends' js/pmi-100-day-loader.js
