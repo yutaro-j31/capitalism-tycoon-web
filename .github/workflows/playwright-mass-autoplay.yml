@@ -1,0 +1,67 @@
+name: Playwright Mass Autoplay
+
+on:
+  workflow_dispatch:
+    inputs:
+      weeks:
+        description: Weeks per run
+        required: false
+        default: '104'
+      runs:
+        description: Runs per browser/difficulty/strategy
+        required: false
+        default: '3'
+  pull_request:
+    paths:
+      - 'scripts/playwright-mass-autoplay.mjs'
+      - 'scripts/analyze-autoplay-results.mjs'
+      - '.github/workflows/playwright-mass-autoplay.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  autoplay:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    env:
+      AUTOPLAY_WEEKS: ${{ inputs.weeks || '24' }}
+      AUTOPLAY_RUNS: ${{ inputs.runs || '1' }}
+      AUTOPLAY_BROWSERS: chromium,webkit
+      AUTOPLAY_DIFFICULTIES: easy,normal,hard
+      AUTOPLAY_STRATEGIES: passive,conservative,growth,leveraged,diversified
+      AUTOPLAY_BASE_URL: http://127.0.0.1:4173
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - name: Install Playwright without changing lockfiles
+        run: npm install --no-save --package-lock=false playwright@1.54.1
+      - name: Install browser dependencies
+        run: npx playwright install --with-deps chromium webkit
+      - name: Start static server
+        run: |
+          python3 -m http.server 4173 --bind 127.0.0.1 > /tmp/capitalism-http.log 2>&1 &
+          echo $! > /tmp/capitalism-http.pid
+          for i in {1..30}; do
+            curl -fsS http://127.0.0.1:4173/ >/dev/null && exit 0
+            sleep 1
+          done
+          cat /tmp/capitalism-http.log
+          exit 1
+      - name: Run mass autoplay
+        run: node scripts/playwright-mass-autoplay.mjs
+      - name: Analyze bankruptcy and balance
+        run: node scripts/analyze-autoplay-results.mjs
+      - name: Print report
+        if: always()
+        run: cat artifacts/autoplay/report.md || true
+      - name: Upload autoplay artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-mass-autoplay-${{ github.run_id }}
+          path: artifacts/autoplay/
+          if-no-files-found: warn
+          retention-days: 30
