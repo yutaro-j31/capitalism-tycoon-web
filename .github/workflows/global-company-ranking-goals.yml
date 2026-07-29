@@ -1,0 +1,24 @@
+name: Global Company Ranking Goals
+on:
+  pull_request:
+    paths:
+      - 'js/global-company-ranking-goals.js'
+      - 'js/pmi-100-day-loader.js'
+      - 'tests/global-company-ranking-goals-test.js'
+      - '.github/workflows/global-company-ranking-goals.yml'
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - run: node --check js/global-company-ranking-goals.js
+      - run: node tests/global-company-ranking-goals-test.js
+      - run: npm run test:static
+      - name: Production wiring
+        run: |
+          grep -q 'global-company-ranking-goals.js' js/pmi-100-day-loader.js
+          grep -q 'globalCompanyRankingGoals' js/pmi-100-day-loader.js
