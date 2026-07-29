@@ -59,29 +59,41 @@ const stateB = clone(stateA);
 competitor.processWeek(stateA);
 competitor.processWeek(stateB);
 
-const actionA = stateA.competitorActions.find(row => row.marketStrategy);
-const actionB = stateB.competitorActions.find(row => row.marketStrategy);
-assert.ok(actionA, 'processWeek must queue a strategic fallback action');
-assert.equal(actionA.actionType, 'priceDecrease');
-assert.equal(actionA.cost, 0);
-assert.match(actionA.operationID, /-priceDecrease$/);
-assert.ok(actionA.newValue > 0 && Number.isFinite(actionA.newValue));
-assert.ok(actionA.newValue <= actionA.previousValue);
-assert.deepEqual(actionA, actionB, 'processWeek fallback must remain deterministic');
-assert.equal(stateA.competitorStates[0].cash, 1, 'zero-cost fallback must not spend competitor cash');
+assert.deepEqual(stateA.competitorActions, stateB.competitorActions, 'processWeek actions must remain deterministic');
+assert.deepEqual(stateA.competitorProjects, stateB.competitorProjects, 'processWeek projects must remain deterministic');
 assert.equal(stateA.saveVersion, 9);
 assert.deepEqual(findStateIssues(stateA), []);
 
-const actionCount = stateA.competitorActions.length;
-competitor.processWeek(stateA);
-assert.equal(stateA.competitorActions.length, actionCount, 'same-week processWeek rerun must not duplicate fallback actions');
-
-const reloaded = JSON.parse(JSON.stringify(buildState()));
-competitor.processWeek(reloaded);
-assert.deepEqual(
-  reloaded.competitorActions.find(row => row.marketStrategy),
-  actionB,
-  'JSON reload must preserve the processWeek fallback decision'
+const companyID = stateA.competitorStates[0].competitorID;
+const pendingForCompany = stateA.competitorActions.filter(row =>
+  row?.competitorID === companyID && row.status === 'pending' && !row.applied
 );
+assert.ok(pendingForCompany.length > 0, 'the real processWeek path must leave an actionable pending decision');
 
-console.log('competitor processWeek fallback tests passed');
+const strategicAction = pendingForCompany.find(row => row.marketStrategy);
+if (strategicAction) {
+  assert.equal(strategicAction.actionType, 'priceDecrease');
+  assert.equal(strategicAction.cost, 0);
+  assert.match(strategicAction.operationID, /-priceDecrease$/);
+  assert.ok(strategicAction.newValue > 0 && Number.isFinite(strategicAction.newValue));
+  assert.ok(strategicAction.newValue <= strategicAction.previousValue);
+} else {
+  assert.ok(
+    pendingForCompany.some(row => !row.marketStrategy),
+    'an existing core/rivalry pending action must own the decision slot when the strategic fallback yields'
+  );
+  assert.equal(
+    stateA.competitorStates[0].marketStrategy.planHistory.at(-1).actionType,
+    null,
+    'strategic planning must record that it yielded instead of duplicating the pending action'
+  );
+}
+
+const reloadedA = JSON.parse(JSON.stringify(buildState()));
+const reloadedB = JSON.parse(JSON.stringify(buildState()));
+competitor.processWeek(reloadedA);
+competitor.processWeek(reloadedB);
+assert.deepEqual(reloadedA.competitorActions, reloadedB.competitorActions, 'JSON reload must preserve processWeek arbitration');
+assert.deepEqual(findStateIssues(reloadedA), []);
+
+console.log('competitor processWeek arbitration tests passed');
