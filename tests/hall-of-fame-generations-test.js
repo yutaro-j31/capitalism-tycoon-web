@@ -130,10 +130,11 @@ assert.strictEqual(segmentedResult.saveVersion, 9);
 for (const value of [
   weeklyResult.hallOfFame.generation,
   weeklyResult.hallOfFame.legacyPoints,
-  weeklyResult.hallOfFame.lastProcessedWeek,
-  weeklyResult.hallOfFame.lastRetiredWeek,
   ...weeklyResult.hallOfFame.records.flatMap(row => [row.generation, row.week, row.rank, row.score, row.prestige, row.legacyPoints])
 ]) assert(Number.isFinite(value));
+for (const value of [weeklyResult.hallOfFame.lastProcessedWeek, weeklyResult.hallOfFame.lastRetiredWeek]) {
+  assert(value === null || Number.isFinite(value), 'nullable week markers must be null or finite');
+}
 
 const html = mod.renderSection({ g: { configured: true, selectedTab: 'finance', hallOfFame: state.hallOfFame } });
 assert(html.includes('min-height:44px'));
