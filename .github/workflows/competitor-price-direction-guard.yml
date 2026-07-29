@@ -5,6 +5,7 @@ on:
     paths:
       - 'js/competitor-media.js'
       - 'tests/competitor-price-direction-guard-test.js'
+      - 'tests/competitor-process-week-fallback-test.js'
       - 'tests/competitor-strategic-ai-test.js'
       - '.github/workflows/competitor-price-direction-guard.yml'
   workflow_dispatch:
@@ -23,5 +24,6 @@ jobs:
           node-version: 24
       - run: node --check js/competitor-media.js
       - run: node tests/competitor-price-direction-guard-test.js
+      - run: node tests/competitor-process-week-fallback-test.js
       - run: node tests/competitor-strategic-ai-test.js
       - run: npm run test:static
