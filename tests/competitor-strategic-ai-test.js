@@ -174,4 +174,75 @@ assert.doesNotThrow(() => competitor.validate(state));
 assert.equal(JSON.stringify(state), beforeValidation, 'validation must remain pure');
 assert.equal(state.saveVersion, 9);
 
+// Cash-constrained rivals must still make a deterministic operating decision instead of stalling.
+const constrainedA = clone(beforePlanning);
+const constrainedB = clone(beforePlanning);
+for (const constrained of [constrainedA, constrainedB]) {
+  const constrainedCompany = constrained.competitorStates[0];
+  constrainedCompany.cash = 1;
+  constrainedCompany.marketStrategy.lastPlanWeek = 0;
+  constrainedCompany.marketStrategy.signals[key].capacityUtilization = 0;
+  constrainedCompany.marketStrategy.signals[key].lostDemandRate = 0;
+  constrainedCompany.marketStrategy.signals[key].contributionMarginRate = 0.20;
+  constrained.competitorActions = [];
+  constrained.competitorProjects = [];
+  competitorStrategicAI.planWeek(constrained);
+}
+const constrainedDecisionA = constrainedA.competitorActions.find(row => row.marketStrategy);
+const constrainedDecisionB = constrainedB.competitorActions.find(row => row.marketStrategy);
+assert.equal(constrainedDecisionA.actionType, 'priceDecrease');
+assert.equal(constrainedDecisionA.cost, 0);
+assert.equal(constrainedA.competitorStates[0].cash, 1);
+assert.match(constrainedDecisionA.operationID, /-priceDecrease$/);
+assert.deepEqual(constrainedDecisionA, constrainedDecisionB);
+const constrainedCount = constrainedA.competitorActions.length;
+competitorStrategicAI.planWeek(constrainedA);
+assert.equal(constrainedA.competitorActions.length, constrainedCount, 'fallback action must not duplicate in the same week');
+
+const lowMargin = clone(beforePlanning);
+lowMargin.competitorStates[0].cash = 1;
+lowMargin.competitorStates[0].marketStrategy.lastPlanWeek = 0;
+lowMargin.competitorStates[0].marketStrategy.signals[key].capacityUtilization = 0;
+lowMargin.competitorStates[0].marketStrategy.signals[key].lostDemandRate = 0;
+lowMargin.competitorStates[0].marketStrategy.signals[key].contributionMarginRate = 0.01;
+lowMargin.competitorActions = [];
+lowMargin.competitorProjects = [];
+competitorStrategicAI.planWeek(lowMargin);
+const lowMarginDecision = lowMargin.competitorActions.find(row => row.marketStrategy);
+assert.equal(lowMarginDecision.actionType, 'priceIncrease');
+assert.ok(lowMarginDecision.newValue > lowMarginDecision.previousValue);
+assert.match(lowMarginDecision.operationID, /-priceIncrease$/);
+
+const boundary = clone(beforePlanning);
+const boundaryCompany = boundary.competitorStates[0];
+boundaryCompany.marketStrategy.lastPlanWeek = 0;
+boundaryCompany.marketStrategy.signals[key].capacityUtilization = 0;
+boundaryCompany.marketStrategy.signals[key].lostDemandRate = 0;
+boundary.competitorActions = [];
+boundary.competitorProjects = [];
+const expectedBrandCost = Math.round(220000 + boundaryCompany.marketStrategy.aggression * 260000);
+boundaryCompany.cash = expectedBrandCost * 1.1;
+competitorStrategicAI.planWeek(boundary);
+const boundaryDecision = boundary.competitorActions.find(row => row.marketStrategy);
+assert.equal(boundaryDecision.actionType, 'brandInvestment', 'exact affordability threshold must keep the paid action');
+assert.equal(boundaryDecision.cost, expectedBrandCost);
+
+const accountingBefore = {
+  companyCash: constrainedB.competitorStates[0].cash,
+  personalCash: constrainedB.personalCash,
+  totalAssets: constrainedB.totalAssets,
+  personalAssets: constrainedB.personalAssets,
+  cumulativeProfit: constrainedB.cumulativeProfit
+};
+const savedReloaded = clone(constrainedB);
+competitor.ensure(savedReloaded);
+assert.deepEqual(findStateIssues(savedReloaded), []);
+assert.deepEqual({
+  companyCash: savedReloaded.competitorStates[0].cash,
+  personalCash: savedReloaded.personalCash,
+  totalAssets: savedReloaded.totalAssets,
+  personalAssets: savedReloaded.personalAssets,
+  cumulativeProfit: savedReloaded.cumulativeProfit
+}, accountingBefore, 'fallback planning and JSON reload must preserve accounting fields');
+
 console.log('competitor strategic AI tests passed');
