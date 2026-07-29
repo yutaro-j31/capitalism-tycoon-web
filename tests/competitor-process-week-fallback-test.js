@@ -89,11 +89,13 @@ if (strategicAction) {
   );
 }
 
-const reloadedA = JSON.parse(JSON.stringify(buildState()));
-const reloadedB = JSON.parse(JSON.stringify(buildState()));
+const reloadSource = buildState();
+const reloadedA = clone(reloadSource);
+const reloadedB = clone(reloadSource);
 competitor.processWeek(reloadedA);
 competitor.processWeek(reloadedB);
 assert.deepEqual(reloadedA.competitorActions, reloadedB.competitorActions, 'JSON reload must preserve processWeek arbitration');
+assert.deepEqual(reloadedA.competitorProjects, reloadedB.competitorProjects, 'JSON reload must preserve project arbitration');
 assert.deepEqual(findStateIssues(reloadedA), []);
 
 console.log('competitor processWeek arbitration tests passed');
