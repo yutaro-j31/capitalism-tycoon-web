@@ -133,6 +133,86 @@ assert.deepEqual(
   { stance: deterministicB.competitorStates[0].marketStrategy.stance, actionType: decisionB.actionType, newValue: decisionB.newValue, cost: decisionB.cost }
 );
 
+// A legacy or malformed save may contain a price below the normal cost floor.
+// A price-decrease decision must never turn that condition into a price increase.
+const belowFloor = clone(beforePlanning);
+const belowFloorCompany = belowFloor.competitorStates[0];
+const belowFloorPresence = belowFloorCompany.marketPresence.find(row => row.presenceID === presence.presenceID);
+belowFloorCompany.strategyID = 'low_price';
+belowFloorCompany.baseUnitCost = 1_000;
+belowFloorCompany.marketStrategy.lastPlanWeek = 0;
+belowFloorPresence.price = 500;
+belowFloor.competitorActions = [];
+belowFloor.competitorProjects = [];
+belowFloor.nextCompetitorActionSeq = 1;
+const financialSnapshot = value => ({
+  competitorCash: value.competitorStates[0].cash,
+  companyCash: value.companyCash,
+  personalCash: value.personalCash,
+  companyAssets: clone({
+    buildings: value.buildings,
+    companyStocks: value.companyStocks,
+    properties: (value.properties || []).filter(row => row.owner === 'company'),
+    subsidiaries: value.subsidiaries
+  }),
+  personalAssets: clone({
+    luxuryAssets: value.luxuryAssets,
+    personalStocks: value.personalStocks,
+    properties: (value.properties || []).filter(row => row.owner === 'personal')
+  }),
+  accounting: clone(value.finance),
+  weeklyProfitHistory: clone(value.weeklyProfitHistory)
+});
+const beforeBelowFloorPlanning = financialSnapshot(belowFloor);
+competitorStrategicAI.planWeek(belowFloor);
+const belowFloorAction = belowFloor.competitorActions.find(row => row.marketStrategy);
+assert.ok(belowFloorAction);
+assert.equal(belowFloorAction.actionType, 'priceDecrease');
+assert.ok(belowFloorAction.newValue <= belowFloorAction.previousValue);
+assert.ok(belowFloorAction.newValue > 0);
+assert.ok(Number.isFinite(belowFloorAction.newValue));
+assert.ok(belowFloorAction.operationID.endsWith(`-${belowFloorAction.actionType}`));
+assert.deepEqual(financialSnapshot(belowFloor), beforeBelowFloorPlanning, 'planning must not mutate cash, assets, profit, or accounting');
+assert.equal(belowFloor.saveVersion, 9);
+const belowFloorActionCount = belowFloor.competitorActions.length;
+competitorStrategicAI.planWeek(belowFloor);
+assert.equal(belowFloor.competitorActions.length, belowFloorActionCount, 'same-week price planning must remain idempotent');
+
+const belowFloorReplay = clone(beforePlanning);
+const replayCompany = belowFloorReplay.competitorStates[0];
+const replayPresence = replayCompany.marketPresence.find(row => row.presenceID === presence.presenceID);
+replayCompany.strategyID = 'low_price';
+replayCompany.baseUnitCost = 1_000;
+replayCompany.marketStrategy.lastPlanWeek = 0;
+replayPresence.price = 500;
+belowFloorReplay.competitorActions = [];
+belowFloorReplay.competitorProjects = [];
+belowFloorReplay.nextCompetitorActionSeq = 1;
+const jsonReloaded = JSON.parse(JSON.stringify(belowFloorReplay));
+competitorStrategicAI.planWeek(belowFloorReplay);
+competitorStrategicAI.planWeek(jsonReloaded);
+assert.deepEqual(
+  belowFloorReplay.competitorActions.find(row => row.marketStrategy),
+  jsonReloaded.competitorActions.find(row => row.marketStrategy),
+  'JSON save/reload must preserve the deterministic price decision'
+);
+const normalized = new engine.TycoonEngine(jsonReloaded).g;
+assert.equal(normalized.saveVersion, 9);
+assert.deepEqual(findStateIssues(normalized), []);
+
+const normalPrice = clone(belowFloorReplay);
+const normalCompany = normalPrice.competitorStates[0];
+const normalPresence = normalCompany.marketPresence.find(row => row.presenceID === presence.presenceID);
+normalPresence.price = 2_000;
+normalCompany.marketStrategy.lastPlanWeek = 0;
+normalPrice.competitorActions = [];
+normalPrice.competitorProjects = [];
+competitorStrategicAI.planWeek(normalPrice);
+const normalPriceAction = normalPrice.competitorActions.find(row => row.marketStrategy);
+assert.equal(normalPriceAction.actionType, 'priceDecrease');
+assert.ok(normalPriceAction.newValue < normalPriceAction.previousValue);
+assert.ok(normalPriceAction.newValue >= Math.round(normalCompany.baseUnitCost * 1.10));
+
 // A rivalry response or any other pending action must win over the slower strategic layer.
 const rivalryState = clone(beforePlanning);
 const rivalryCompany = rivalryState.competitorStates[0];
