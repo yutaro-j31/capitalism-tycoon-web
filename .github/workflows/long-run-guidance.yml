@@ -1,0 +1,33 @@
+name: Long Run Guidance
+on:
+  pull_request:
+    paths:
+      - 'js/long-run-guidance.js'
+      - 'js/pmi-100-day-loader.js'
+      - 'tests/long-run-guidance-test.js'
+      - '.github/workflows/long-run-guidance.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'js/long-run-guidance.js'
+      - 'js/pmi-100-day-loader.js'
+      - 'tests/long-run-guidance-test.js'
+      - '.github/workflows/long-run-guidance.yml'
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - run: node --check js/long-run-guidance.js
+      - run: node tests/long-run-guidance-test.js
+      - run: npm run test:static
+      - name: Production wiring and fail-closed contract
+        run: |
+          grep -q 'long-run-guidance.js' js/pmi-100-day-loader.js
+          grep -q 'longRunGuidance' js/pmi-100-day-loader.js
+          grep -q 'hallOfFameGenerations' js/long-run-guidance.js
+          grep -q "throw new Error('Capitalism Tycoon hall-of-fame module must load before long-run-guidance.js.')" js/long-run-guidance.js
