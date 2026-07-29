@@ -1,0 +1,25 @@
+name: Long Run Guidance
+on:
+  pull_request:
+    paths:
+      - 'js/long-run-guidance.js'
+      - 'js/pmi-100-day-loader.js'
+      - 'tests/long-run-guidance-test.js'
+      - '.github/workflows/long-run-guidance.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'js/long-run-guidance.js'
+      - 'js/pmi-100-day-loader.js'
+      - 'tests/long-run-guidance-test.js'
+      - '.github/workflows/long-run-guidance.yml'
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - run: node tests/long-run-guidance-test.js
