@@ -49,6 +49,27 @@ assert.strictEqual(unlocked.length, 4);
 assert.strictEqual(mod.process(state), false);
 assert.deepStrictEqual(snapshot(state), before);
 
+const stringWeekSave = {
+  week: 7,
+  cumulativeProfit: 100,
+  subsidiaries: Array(5).fill({}),
+  globalRanking: { currentRank: 8, score: 2000, prestige: 50 },
+  hallOfFame: {
+    generation: 1,
+    legacyPoints: 40,
+    achievements: ['first-profit', 'global-top100', 'global-top10', 'group-builder'],
+    records: [],
+    lastProcessedWeek: '7',
+    lastRetiredWeek: null
+  }
+};
+const stringWeekBefore = clone(stringWeekSave.hallOfFame);
+assert.strictEqual(mod.process(stringWeekSave), false);
+assert.strictEqual(stringWeekSave.hallOfFame.lastProcessedWeek, 7);
+assert.strictEqual(stringWeekSave.hallOfFame.legacyPoints, stringWeekBefore.legacyPoints);
+assert.deepStrictEqual(clone(stringWeekSave.hallOfFame.achievements), stringWeekBefore.achievements);
+assert.deepStrictEqual(clone(stringWeekSave.hallOfFame.records), stringWeekBefore.records);
+
 const rec = mod.retireGeneration(state);
 assert.strictEqual(rec.generation, 1);
 assert.strictEqual(state.hallOfFame.generation, 2);
