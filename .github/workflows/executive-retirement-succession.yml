@@ -1,0 +1,24 @@
+name: Executive Retirement Succession
+on:
+  pull_request:
+    paths:
+      - 'js/executive-retirement-succession.js'
+      - 'js/pmi-100-day-loader.js'
+      - 'tests/executive-retirement-succession-test.js'
+      - '.github/workflows/executive-retirement-succession.yml'
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - run: node --check js/executive-retirement-succession.js
+      - run: node tests/executive-retirement-succession-test.js
+      - run: npm run test:static
+      - name: Production wiring
+        run: |
+          grep -q 'executive-retirement-succession.js' js/pmi-100-day-loader.js
+          grep -q 'executiveRetirementSuccession' js/pmi-100-day-loader.js
