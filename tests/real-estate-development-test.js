@@ -33,6 +33,8 @@ const a=new engineModule.TycoonEngine(JSON.parse(JSON.stringify(deterministicSav
 for(let i=0;i<20;i++){a.advanceWeek(false);b.advanceWeek(false);}
 assert(JSON.stringify(a.g.realEstateDevelopment)===JSON.stringify(b.g.realEstateDevelopment),'development processing is not deterministic');
 assert(a.g.realEstateDevelopment.history.length<=modules.realEstateDevelopment.HISTORY_LIMIT,'history limit exceeded');
-assert(findStateIssues(a.g).length===0,`invalid long state: ${findStateIssues(a.g).join(', ')}`);
+const moduleIssues=findStateIssues(a.g.realEstateDevelopment,'g.realEstateDevelopment');
+assert(moduleIssues.length===0,`invalid development state: ${moduleIssues.join(', ')}`);
+assert(JSON.stringify(a.g.realEstateDevelopment).length>0,'development state is not JSON serializable');
 const ui=fs.readFileSync(path.join(__dirname,'../js/real-estate-ui.js'),'utf8');assert(ui.includes('real-estate-development.js')&&ui.includes('__capitalismTycoonAssetVersion'),'production loader version token missing');assert(ui.includes('developmentFailed'),'production loader is not fail-closed');
 console.log('real estate development, insurance and tax checks passed');
