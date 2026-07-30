@@ -1,0 +1,35 @@
+name: Real Estate Risk Mitigation
+
+on:
+  pull_request:
+    paths:
+      - 'js/real-estate-risk-mitigation.js'
+      - 'js/real-estate-insurance-risk.js'
+      - 'js/real-estate-insurance-claims.js'
+      - 'js/real-estate-ui.js'
+      - 'tests/real-estate-risk-mitigation-test.js'
+      - '.github/workflows/real-estate-risk-mitigation.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  mitigation:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - name: Run mitigation regression
+        run: node tests/real-estate-risk-mitigation-test.js
+      - name: Run insurance risk regression
+        run: node tests/real-estate-insurance-risk-test.js
+      - name: Run insurance claims regression
+        run: node tests/real-estate-insurance-claims-test.js
+      - name: Run development regression
+        run: node tests/real-estate-development-test.js
+      - name: Run transaction safety regression
+        run: node tests/week-test.js
