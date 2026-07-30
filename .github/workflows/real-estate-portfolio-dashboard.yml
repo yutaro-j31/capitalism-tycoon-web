@@ -1,0 +1,22 @@
+name: Real Estate Portfolio Dashboard
+on:
+  pull_request:
+    paths:
+      - 'js/real-estate-portfolio-dashboard.js'
+      - 'js/real-estate-portfolio-dashboard-ui.js'
+      - 'js/real-estate-property-maintenance.js'
+      - 'tests/real-estate-portfolio-dashboard-test.js'
+      - '.github/workflows/real-estate-portfolio-dashboard.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - run: node tests/real-estate-portfolio-dashboard-test.js
