@@ -1,0 +1,22 @@
+name: Real Estate Redevelopment Projects
+on:
+  pull_request:
+    paths:
+      - 'js/real-estate-redevelopment-projects.js'
+      - 'js/real-estate-redevelopment-projects-ui.js'
+      - 'js/real-estate-property-disposals.js'
+      - 'tests/real-estate-redevelopment-projects-test.js'
+      - '.github/workflows/real-estate-redevelopment-projects.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - run: node tests/real-estate-redevelopment-projects-test.js
