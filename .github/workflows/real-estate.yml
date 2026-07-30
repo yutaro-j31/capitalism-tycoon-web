@@ -4,6 +4,7 @@ on:
   pull_request:
     paths:
       - 'js/real-estate.js'
+      - 'js/real-estate-ui.js'
       - 'tests/real-estate-foundation-test.js'
       - 'index.html'
       - '.github/workflows/real-estate.yml'
