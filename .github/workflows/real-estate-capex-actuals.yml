@@ -1,0 +1,25 @@
+name: Real Estate Capex Actuals
+
+on:
+  pull_request:
+    paths:
+      - 'js/real-estate-capex-actuals.js'
+      - 'js/real-estate-capex-actuals-ui.js'
+      - 'js/real-estate-capex-roi-ui.js'
+      - 'tests/real-estate-capex-actuals-test.js'
+      - '.github/workflows/real-estate-capex-actuals.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - run: node tests/real-estate-capex-actuals-test.js

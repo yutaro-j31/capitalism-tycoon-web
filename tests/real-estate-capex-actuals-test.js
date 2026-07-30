@@ -1,0 +1,16 @@
+const assert=require('node:assert/strict');const fs=require('node:fs');const vm=require('node:vm');
+const src=fs.readFileSync('js/real-estate-capex-actuals.js','utf8'),ui=fs.readFileSync('js/real-estate-capex-actuals-ui.js','utf8'),loader=fs.readFileSync('js/real-estate-capex-roi-ui.js','utf8');
+assert.doesNotMatch(src,/Math\.random|Date\.now/);assert.match(ui,/CAPEX実績管理/);assert.match(ui,/min-height:44px/);assert.match(loader,/real-estate-capex-actuals\.js/);assert.match(loader,/RealEstateCapexActualsFailed/);
+class Engine{constructor(g){this.g=g;}normalize(){return this.g;}}Engine.prototype.updateParityWeekly=function(){};
+const development={ensure(g){g.realEstateDevelopment||={projects:[]};g.realEstateDevelopment.projects||=[];return g.realEstateDevelopment;}};
+const pricing={marketRent(p){return Math.round((p.value||1)*.004);}};
+const roi={ensure(g){return development.ensure(g);}};
+const modules={engine:{TycoonEngine:Engine},realEstateDevelopment:development,realEstateCapexROI:roi,realEstateRentPricing:pricing};
+vm.runInNewContext(src,{globalThis:{__capitalismTycoonModules:modules}});const mod=modules.realEstateCapexActuals;
+const g={week:10,companyCash:100000,personalCash:500000,properties:[{id:'p1',name:'本社ビル',owner:'company',value:100000000,realEstate:{marketMonthlyRent:420000}}],realEstateDevelopment:{projects:[{projectID:'pr1',propertyID:'p1',owner:'company',kind:'renovation',status:'active',startedWeek:8,durationWeeks:8,totalCost:8000000,paidCost:2000000}],capexROIHistory:[{type:'capex-plan-started',projectID:'pr1',propertyID:'p1',currentMarketRent:380000,projectedMarketRent:450000,annualRentUplift:840000}]}};
+const e=new Engine(g);e.normalize();let rows=e.getRealEstateCapexActuals();assert.equal(rows.length,1);assert.equal(rows[0].remainingCost,6000000);assert.equal(rows[0].progress,.25);assert(rows[0].fundingGap>0);assert.equal(rows[0].pausedForFunding,false);assert.equal(g.companyCash,100000,'analytics must not mutate cash');
+assert.equal(mod.processWeek(e).length,1);assert.equal(mod.processWeek(e).length,0,'same week must not double process');g.realEstateDevelopment.projects[0].status='paused';g.week++;rows=mod.processWeek(e);assert.equal(rows[0].pausedForFunding,true);
+g.realEstateDevelopment.projects[0].status='completed';g.realEstateDevelopment.projects[0].paidCost=8000000;g.realEstateDevelopment.projects[0].completedWeek=g.week+1;g.properties[0].realEstate.marketMonthlyRent=470000;g.week++;rows=mod.processWeek(e);assert.equal(rows[0].progress,1);assert.equal(rows[0].remainingCost,0);assert.equal(rows[0].rentVariance,20000);assert.equal(rows[0].actualAnnualUplift,1080000);
+for(let i=0;i<300;i++){g.week++;mod.processWeek(e);}assert.equal(g.realEstateDevelopment.capexActuals.history.length,260);
+const saved=JSON.parse(JSON.stringify(g)),e2=new Engine(saved);e2.normalize();assert.deepEqual(JSON.parse(JSON.stringify(e2.getRealEstateCapexActuals())),JSON.parse(JSON.stringify(e.getRealEstateCapexActuals())));
+console.log('real-estate-capex-actuals: ok');
