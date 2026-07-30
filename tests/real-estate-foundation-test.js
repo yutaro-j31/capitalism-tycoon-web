@@ -70,8 +70,10 @@ assert(migrated.g.realEstate.schemaVersion===3,'migration failed');
 assert(migrated.g.realEstate.marketSchemaVersion===1,'market migration failed');
 assert(migrated.g.properties.every(p=>p.realEstate&&p.realEstate.regionID&&p.realEstate.propertyTypeID),'property market migration failed');
 assert(migrated.g.properties.every(p=>Number.isFinite(p.realEstate.landValue)&&Number.isFinite(p.realEstate.buildingValue)),'split valuation migration failed');
-const a=configuredEngine(),b=configuredEngine();
-for(const candidate of [a,b]){const p=candidate.g.properties.find(x=>!x.owner);p.owner='company';p.purchasePrice=p.price||p.value;p.buildingType='賃貸マンション';modules.realEstate.ensure(candidate.g);candidate.setPropertyMarketSegment(p.id,'urban_core','apartment');candidate.enablePropertyRental(p.id,{monthlyRent:1_500_000,targetOccupancy:.9});}
+const a=configuredEngine();
+const deterministicProperty=a.g.properties.find(x=>!x.owner);
+deterministicProperty.owner='company';deterministicProperty.purchasePrice=deterministicProperty.price||deterministicProperty.value;deterministicProperty.buildingType='賃貸マンション';modules.realEstate.ensure(a.g);a.setPropertyMarketSegment(deterministicProperty.id,'urban_core','apartment');a.enablePropertyRental(deterministicProperty.id,{monthlyRent:1_500_000,targetOccupancy:.9});
+const b=new engineModule.TycoonEngine(JSON.parse(JSON.stringify(a.g)));
 for(let i=0;i<52;i++){a.advanceWeek(false);b.advanceWeek(false);}
 assert(JSON.stringify(a.g.realEstate.marketEvents)===JSON.stringify(b.g.realEstate.marketEvents),'market events are not deterministic');
 assert(JSON.stringify(a.g.realEstate.ledger)===JSON.stringify(b.g.realEstate.ledger),'regional weekly results are not deterministic');
