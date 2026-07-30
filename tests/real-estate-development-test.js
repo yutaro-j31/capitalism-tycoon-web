@@ -30,7 +30,9 @@ const seed=configured(),seedProperty=seed.g.properties.find(p=>!p.owner);seedPro
 const deterministicSave=JSON.parse(JSON.stringify(seed.g));
 const a=new engineModule.TycoonEngine(JSON.parse(JSON.stringify(deterministicSave))),b=new engineModule.TycoonEngine(JSON.parse(JSON.stringify(deterministicSave)));
 for(let i=0;i<20;i++){a.advanceWeek(false);b.advanceWeek(false);}
-assert(JSON.stringify(a.g.realEstateDevelopment)===JSON.stringify(b.g.realEstateDevelopment),'development processing is not deterministic');
+const aDevelopment=JSON.stringify(a.g.realEstateDevelopment),bDevelopment=JSON.stringify(b.g.realEstateDevelopment);
+if(aDevelopment!==bDevelopment){console.error('DETERMINISM_A',aDevelopment);console.error('DETERMINISM_B',bDevelopment);}
+assert(aDevelopment===bDevelopment,'development processing is not deterministic');
 assert(a.g.realEstateDevelopment.history.length<=modules.realEstateDevelopment.HISTORY_LIMIT,'history limit exceeded');
 assert(findStateIssues(a.g).length===0,`invalid long state: ${findStateIssues(a.g).join(', ')}`);
 const ui=fs.readFileSync(path.join(__dirname,'../js/real-estate-ui.js'),'utf8');assert(ui.includes('real-estate-development.js')&&ui.includes('__capitalismTycoonAssetVersion'),'production loader version token missing');assert(ui.includes('developmentFailed'),'production loader is not fail-closed');
