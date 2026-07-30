@@ -1,0 +1,34 @@
+name: Real Estate Tenant Renewals
+
+on:
+  pull_request:
+    paths:
+      - 'js/real-estate-tenant-renewals.js'
+      - 'js/real-estate-tenant-renewals-ui.js'
+      - 'js/real-estate-tenant-operations.js'
+      - 'tests/real-estate-tenant-renewals-test.js'
+      - '.github/workflows/real-estate-tenant-renewals.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  tenant-renewals:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - name: Run tenant renewal regression
+        run: node tests/real-estate-tenant-renewals-test.js
+      - name: Run tenant operations regression
+        run: node tests/real-estate-tenant-operations-test.js
+      - name: Run tenant leasing regression
+        run: node tests/real-estate-tenant-leasing-test.js
+      - name: Run tenant contracts regression
+        run: node tests/real-estate-tenant-contracts-test.js
+      - name: Run transaction safety regression
+        run: node tests/week-test.js
