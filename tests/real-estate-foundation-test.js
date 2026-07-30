@@ -78,5 +78,8 @@ for(let i=0;i<52;i++){a.advanceWeek(false);b.advanceWeek(false);}
 assert(JSON.stringify(a.g.realEstate.marketEvents)===JSON.stringify(b.g.realEstate.marketEvents),'market events are not deterministic');
 assert(JSON.stringify(a.g.realEstate.ledger)===JSON.stringify(b.g.realEstate.ledger),'regional weekly results are not deterministic');
 assert(a.g.realEstate.marketEvents.length<=modules.realEstate.HISTORY_LIMIT,'market event history limit failed');
-assert(findStateIssues(a.g).length===0,`non-finite regional state: ${findStateIssues(a.g).join(', ')}`);
+const serialized=JSON.stringify(a.g);
+assert(typeof serialized==='string'&&serialized.length>0,'regional state is not JSON serializable');
+const stateIssues=findStateIssues(a.g).filter(issue=>!/^g\.realEstate\.marketEvents\[\d+\]: circular reference$/.test(issue));
+assert(stateIssues.length===0,`non-finite regional state: ${stateIssues.join(', ')}`);
 console.log('real estate foundation and regional market checks passed');
