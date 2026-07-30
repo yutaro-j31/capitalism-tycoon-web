@@ -1,0 +1,27 @@
+name: Real Estate
+
+on:
+  pull_request:
+    paths:
+      - 'js/real-estate.js'
+      - 'tests/real-estate-foundation-test.js'
+      - 'index.html'
+      - '.github/workflows/real-estate.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  real-estate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - name: Run real estate regression
+        run: node tests/real-estate-foundation-test.js
+      - name: Run transaction exception safety regression
+        run: node tests/week-test.js
