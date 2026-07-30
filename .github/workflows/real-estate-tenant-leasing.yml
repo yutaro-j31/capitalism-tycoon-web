@@ -1,0 +1,34 @@
+name: Real Estate Tenant Leasing
+
+on:
+  pull_request:
+    paths:
+      - 'js/real-estate-tenant-leasing.js'
+      - 'js/real-estate-tenant-contracts.js'
+      - 'js/real-estate-ui.js'
+      - 'tests/real-estate-tenant-leasing-test.js'
+      - '.github/workflows/real-estate-tenant-leasing.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  tenant-leasing:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - name: Run tenant leasing regression
+        run: node tests/real-estate-tenant-leasing-test.js
+      - name: Run tenant contracts regression
+        run: node tests/real-estate-tenant-contracts-test.js
+      - name: Run safety certification regression
+        run: node tests/real-estate-safety-certification-test.js
+      - name: Run mitigation regression
+        run: node tests/real-estate-risk-mitigation-test.js
+      - name: Run transaction safety regression
+        run: node tests/week-test.js
