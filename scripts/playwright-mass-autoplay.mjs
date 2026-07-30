@@ -53,8 +53,26 @@ async function visibleEnabledButtons(page){
     return r.width>0&&r.height>0&&s.visibility!=='hidden'&&s.display!=='none';
   }).map(node=>({text:(node.textContent||'').trim(),action:node.dataset.action||'',tab:node.dataset.tab||''})));
 }
+async function dismissTransientModals(page){
+  for(let attempt=0;attempt<8;attempt++){
+    const panel=page.locator('#modal-root [data-modal-panel], #modal-root [role="dialog"]').last();
+    if(!(await panel.count())||!(await panel.isVisible().catch(()=>false)))return;
+    const closeButton=panel.locator('button:not([disabled])').filter({hasText:/閉じる|次へ|続ける|確認|OK|了解|完了/}).last();
+    if(await closeButton.count()){
+      await closeButton.click({timeout:1000,force:true}).catch(()=>{});
+    }else{
+      const closer=page.locator('#modal-root [data-action="close-modal"], #modal-root .modal-backdrop').last();
+      if(await closer.count())await closer.click({timeout:1000,force:true}).catch(()=>{});
+      else await page.keyboard.press('Escape').catch(()=>{});
+    }
+    await page.waitForTimeout(20);
+  }
+  const remaining=page.locator('#modal-root [data-modal-panel], #modal-root [role="dialog"]').last();
+  if(await remaining.count()&&await remaining.isVisible().catch(()=>false))throw new Error('modal-remained-open');
+}
 async function clickMatchingAction(page,rules,random){
   if(!rules.length)return null;
+  await dismissTransientModals(page);
   const buttons=await visibleEnabledButtons(page);
   const candidates=buttons.filter(b=>rules.some(rule=>rule.test(`${b.text} ${b.action} ${b.tab}`)))
     .filter(b=>!/削除|破棄|解任|売却|清算|倒産|リセット|全額/.test(b.text));
@@ -65,6 +83,7 @@ async function clickMatchingAction(page,rules,random){
     await locator.click({timeout:1500});
     const confirm=page.locator('#modal-root button[data-action]:not([disabled])').filter({hasText:/実行する|確認|借りる|購入|契約|発行/}).last();
     if(await confirm.count())await confirm.click({timeout:1000}).catch(()=>{});
+    await dismissTransientModals(page);
     return chosen;
   }catch{return null;}
 }
@@ -77,6 +96,7 @@ async function createGame(page,difficulty,index){
   await page.locator('select[name="difficulty"]').selectOption(difficulty);
   await page.locator('#setup-form button[type="submit"]').click();
   await page.waitForSelector('button[data-action="advance-week"]',{timeout:10000});
+  await dismissTransientModals(page);
 }
 async function runOne(browserName,browser,difficulty,strategy,index){
   const seed=stableSeed(browserName,difficulty,strategy,index);
@@ -87,10 +107,11 @@ async function runOne(browserName,browser,difficulty,strategy,index){
   page.on('console',m=>{if(m.type()==='error')consoleErrors.push(m.text());});
   page.on('pageerror',e=>pageErrors.push(String(e?.stack||e)));
   const startedAt=new Date().toISOString();
+  let completedSteps=0;let minCash=Infinity,maxDebt=0,firstProfitWeek=null;
   try{
     await createGame(page,difficulty,index);
-    let minCash=Infinity,maxDebt=0,firstProfitWeek=null;
     for(let step=0;step<weeks;step++){
+      await dismissTransientModals(page);
       const state=await readState(page);
       if(!state)break;
       const cash=finite(state.companyCash,0);minCash=Math.min(minCash,cash);
@@ -103,18 +124,21 @@ async function runOne(browserName,browser,difficulty,strategy,index){
         const action=await clickMatchingAction(page,rules,random);
         if(action)actionLog.push({week:finite(state.week,step),...action});
       }
+      await dismissTransientModals(page);
       const advance=page.locator('button[data-action="advance-week"]:not([disabled])');
       if(!(await advance.count()))break;
-      await advance.click();
+      await advance.click({timeout:5000});
+      completedSteps++;
       await page.waitForTimeout(25);
+      await dismissTransientModals(page);
       if(step%13===0)snapshots.push({week:finite(state.week,step),companyCash:cash,cumulativeProfit:finite(state.cumulativeProfit),debt});
     }
     const state=await readState(page);
     const errors=[...consoleErrors,...pageErrors];
-    const result={schemaVersion:1,runId:`${browserName}-${difficulty}-${strategy}-${index}`,browser:browserName,difficulty,strategy,index,seed,weeksRequested:weeks,weeksCompleted:finite(state?.week,0),startedAt,finishedAt:new Date().toISOString(),gameOver:Boolean(state?.gameOver),failureReason:classifyFailure(state,errors),companyCash:finite(state?.companyCash),personalCash:finite(state?.personalCash),cumulativeProfit:finite(state?.cumulativeProfit),companyValue:finite(state?.companyValue),storeCount:Array.isArray(state?.stores)?state.stores.length:null,subsidiaryCount:Array.isArray(state?.subsidiaries)?state.subsidiaries.length:null,minCompanyCash:Number.isFinite(minCash)?minCash:null,maxDebt,firstProfitWeek,consoleErrors,pageErrors,actionLog:actionLog.slice(-100),snapshots};
-    return result;
+    return{schemaVersion:2,runId:`${browserName}-${difficulty}-${strategy}-${index}`,browser:browserName,difficulty,strategy,index,seed,weeksRequested:weeks,weeksCompleted:completedSteps,saveWeek:finite(state?.week),startedAt,finishedAt:new Date().toISOString(),gameOver:Boolean(state?.gameOver),failureReason:classifyFailure(state,errors),companyCash:finite(state?.companyCash),personalCash:finite(state?.personalCash),cumulativeProfit:finite(state?.cumulativeProfit),companyValue:finite(state?.companyValue),storeCount:Array.isArray(state?.stores)?state.stores.length:null,subsidiaryCount:Array.isArray(state?.subsidiaries)?state.subsidiaries.length:null,minCompanyCash:Number.isFinite(minCash)?minCash:null,maxDebt,firstProfitWeek,consoleErrors,pageErrors,actionLog:actionLog.slice(-100),snapshots};
   }catch(error){
-    return{schemaVersion:1,runId:`${browserName}-${difficulty}-${strategy}-${index}`,browser:browserName,difficulty,strategy,index,seed,weeksRequested:weeks,weeksCompleted:0,startedAt,finishedAt:new Date().toISOString(),gameOver:false,failureReason:'runner-error',runnerError:String(error?.stack||error),consoleErrors,pageErrors,actionLog,snapshots};
+    const state=await readState(page).catch(()=>null);
+    return{schemaVersion:2,runId:`${browserName}-${difficulty}-${strategy}-${index}`,browser:browserName,difficulty,strategy,index,seed,weeksRequested:weeks,weeksCompleted:completedSteps,saveWeek:finite(state?.week),startedAt,finishedAt:new Date().toISOString(),gameOver:Boolean(state?.gameOver),failureReason:'runner-error',runnerError:String(error?.stack||error),companyCash:finite(state?.companyCash),personalCash:finite(state?.personalCash),cumulativeProfit:finite(state?.cumulativeProfit),consoleErrors,pageErrors,actionLog,snapshots};
   }finally{await context.close();}
 }
 
