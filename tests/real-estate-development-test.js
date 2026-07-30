@@ -1,0 +1,33 @@
+const fs=require('node:fs');
+const path=require('node:path');
+const {readIndex,loadGameFromHtml,findStateIssues}=require('./harness');
+function assert(c,m){if(!c)throw new Error(m);}
+const html=readIndex().replace('<script src="./js/save-v9.js"></script>','<script src="./js/real-estate-development.js"></script><script src="./js/save-v9.js"></script>');
+const {engineModule,modules}=loadGameFromHtml(html,{headless:true});
+function configured(){const e=new engineModule.TycoonEngine();e.g.configured=true;e.g.companyCash=2_000_000_000;e.g.personalCash=800_000_000;e.g.companyDebt=0;e.g.personalDebt=0;e.g.finance=modules.finance.defaultFinanceState(e.g);return e;}
+const e=configured(),company=e.g.properties.find(p=>!p.owner);company.owner='company';company.purchasePrice=company.price||company.value||100_000_000;company.buildingType='賃貸マンション';modules.realEstate.ensure(e.g);e.setPropertyMarketSegment(company.id,'urban_core','apartment');
+const personal=e.g.properties.find(p=>!p.owner&&p.id!==company.id);personal.owner='personal';personal.purchasePrice=personal.price||personal.value||50_000_000;personal.buildingType='ホテル';modules.realEstate.ensure(e.g);e.setPropertyMarketSegment(personal.id,'resort','hotel');
+const companyCash=e.g.companyCash,personalCash=e.g.personalCash;
+const projectID=e.startPropertyDevelopment(company.id,'renovation',{totalCost:52_000_000,durationWeeks:8});
+assert(projectID,'company renovation did not start');
+assert(e.g.companyCash<companyCash&&e.g.personalCash===personalCash,'development deposit crossed owner boundary');
+const policyID=e.buyPropertyInsurance(personal.id,{premiumPerWeek:250_000,coverageRate:.8});
+assert(policyID,'personal policy did not start');
+assert(e.buyPropertyInsurance(personal.id)===policyID,'duplicate active policy created');
+const financeBefore=e.g.finance.transactions.length,personalBefore=e.g.personalCash;
+e.advanceWeek(false);
+assert(e.g.realEstateDevelopment.lastProcessedWeek===e.g.week,'weekly development processing missing');
+assert(e.g.personalCash<personalBefore,'personal premium or tax not charged');
+assert(e.g.finance.transactions.length>financeBefore,'company property expenditure or tax ledger missing');
+assert(!e.g.finance.transactions.some(t=>t.sourceID===policyID),'personal insurance leaked to company ledger');
+const count=e.g.realEstateDevelopment.history.length;modules.realEstateDevelopment.processWeek(e);assert(e.g.realEstateDevelopment.history.length===count,'same week processed twice');
+for(let i=0;i<12;i++)e.advanceWeek(false);
+const project=e.g.realEstateDevelopment.projects.find(x=>x.projectID===projectID);assert(project.status==='completed','renovation did not complete');
+assert(company.realEstate.condition>=.2&&company.realEstate.condition<=1,'condition outside bounds');
+const saved=JSON.stringify(e.g),restored=new engineModule.TycoonEngine(JSON.parse(saved));modules.realEstateDevelopment.ensure(restored.g);
+assert(JSON.stringify(restored.g.realEstateDevelopment)===JSON.stringify(e.g.realEstateDevelopment),'save reload changed development state');
+const a=configured(),pa=a.g.properties.find(p=>!p.owner);pa.owner='company';pa.purchasePrice=pa.price||pa.value;pa.buildingType='賃貸マンション';modules.realEstate.ensure(a.g);a.startPropertyDevelopment(pa.id,'development',{totalCost:104_000_000,durationWeeks:16});a.buyPropertyInsurance(pa.id,{premiumPerWeek:100_000});const b=new engineModule.TycoonEngine(JSON.parse(JSON.stringify(a.g)));for(let i=0;i<20;i++){a.advanceWeek(false);b.advanceWeek(false);}assert(JSON.stringify(a.g.realEstateDevelopment)===JSON.stringify(b.g.realEstateDevelopment),'development processing is not deterministic');
+assert(a.g.realEstateDevelopment.history.length<=modules.realEstateDevelopment.HISTORY_LIMIT,'history limit exceeded');
+assert(findStateIssues(a.g).length===0,`invalid long state: ${findStateIssues(a.g).join(', ')}`);
+const ui=fs.readFileSync(path.join(__dirname,'../js/real-estate-ui.js'),'utf8');assert(ui.includes('real-estate-development.js')&&ui.includes('__capitalismTycoonAssetVersion'),'production loader version token missing');assert(ui.includes('developmentFailed'),'production loader is not fail-closed');
+console.log('real estate development, insurance and tax checks passed');
