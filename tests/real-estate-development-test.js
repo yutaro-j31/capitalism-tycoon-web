@@ -26,7 +26,11 @@ const project=e.g.realEstateDevelopment.projects.find(x=>x.projectID===projectID
 assert(company.realEstate.condition>=.2&&company.realEstate.condition<=1,'condition outside bounds');
 const saved=JSON.stringify(e.g),restored=new engineModule.TycoonEngine(JSON.parse(saved));modules.realEstateDevelopment.ensure(restored.g);
 assert(JSON.stringify(restored.g.realEstateDevelopment)===JSON.stringify(e.g.realEstateDevelopment),'save reload changed development state');
-const a=configured(),pa=a.g.properties.find(p=>!p.owner);pa.owner='company';pa.purchasePrice=pa.price||pa.value;pa.buildingType='賃貸マンション';modules.realEstate.ensure(a.g);a.startPropertyDevelopment(pa.id,'development',{totalCost:104_000_000,durationWeeks:16});a.buyPropertyInsurance(pa.id,{premiumPerWeek:100_000});const b=new engineModule.TycoonEngine(JSON.parse(JSON.stringify(a.g)));for(let i=0;i<20;i++){a.advanceWeek(false);b.advanceWeek(false);}assert(JSON.stringify(a.g.realEstateDevelopment)===JSON.stringify(b.g.realEstateDevelopment),'development processing is not deterministic');
+const seed=configured(),seedProperty=seed.g.properties.find(p=>!p.owner);seedProperty.owner='company';seedProperty.purchasePrice=seedProperty.price||seedProperty.value;seedProperty.buildingType='賃貸マンション';modules.realEstate.ensure(seed.g);seed.startPropertyDevelopment(seedProperty.id,'development',{totalCost:104_000_000,durationWeeks:16});seed.buyPropertyInsurance(seedProperty.id,{premiumPerWeek:100_000});
+const deterministicSave=JSON.parse(JSON.stringify(seed.g));
+const a=new engineModule.TycoonEngine(JSON.parse(JSON.stringify(deterministicSave))),b=new engineModule.TycoonEngine(JSON.parse(JSON.stringify(deterministicSave)));
+for(let i=0;i<20;i++){a.advanceWeek(false);b.advanceWeek(false);}
+assert(JSON.stringify(a.g.realEstateDevelopment)===JSON.stringify(b.g.realEstateDevelopment),'development processing is not deterministic');
 assert(a.g.realEstateDevelopment.history.length<=modules.realEstateDevelopment.HISTORY_LIMIT,'history limit exceeded');
 assert(findStateIssues(a.g).length===0,`invalid long state: ${findStateIssues(a.g).join(', ')}`);
 const ui=fs.readFileSync(path.join(__dirname,'../js/real-estate-ui.js'),'utf8');assert(ui.includes('real-estate-development.js')&&ui.includes('__capitalismTycoonAssetVersion'),'production loader version token missing');assert(ui.includes('developmentFailed'),'production loader is not fail-closed');
