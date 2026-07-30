@@ -2,7 +2,7 @@ const assert=require('node:assert/strict');
 const fs=require('node:fs');
 const path=require('node:path');
 const vm=require('node:vm');
-const {ROOT,loadGame,findStateIssues}=require('./helpers');
+const {ROOT,loadGame,findStateIssues}=require('./harness');
 function load(){const loaded=loadGame({headless:true,random:()=>.5});vm.runInContext(fs.readFileSync(path.join(ROOT,'js/real-estate-development.js'),'utf8'),loaded.ctx,{filename:'real-estate-development.js'});vm.runInContext(fs.readFileSync(path.join(ROOT,'js/real-estate-insurance-claims.js'),'utf8'),loaded.ctx,{filename:'real-estate-insurance-claims.js'});return loaded;}
 function seed(engine,owner,id){engine.g.properties=engine.g.properties||[];engine.g.properties.push({id,name:id,owner,buildingType:'オフィス',value:100000000,purchasePrice:100000000,realEstate:{landBookValue:40000000,buildingBookValue:60000000,landValue:40000000,buildingValue:60000000,condition:.8,marketEffects:[]}});}
 const {engineModule,modules}=load();
