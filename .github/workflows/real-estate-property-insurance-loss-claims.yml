@@ -1,0 +1,22 @@
+name: Real Estate Property Insurance Loss Claims
+on:
+  pull_request:
+    paths:
+      - 'js/real-estate-property-insurance.js'
+      - 'js/real-estate-property-insurance-ui.js'
+      - 'tests/real-estate-property-insurance-test.js'
+      - 'docs/audits/property-insurance-loss-claim-model.md'
+      - '.github/workflows/real-estate-property-insurance-loss-claims.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - run: node tests/real-estate-property-insurance-test.js
