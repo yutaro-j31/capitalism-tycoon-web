@@ -1,0 +1,25 @@
+name: Real Estate Capex ROI
+
+on:
+  pull_request:
+    paths:
+      - 'js/real-estate-capex-roi.js'
+      - 'js/real-estate-capex-roi-ui.js'
+      - 'js/real-estate-rent-performance-ui.js'
+      - 'tests/real-estate-capex-roi-test.js'
+      - '.github/workflows/real-estate-capex-roi.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - run: node tests/real-estate-capex-roi-test.js
