@@ -1,0 +1,23 @@
+name: Real Estate Rent Pricing
+on:
+  pull_request:
+    paths:
+      - 'js/real-estate-rent-pricing.js'
+      - 'js/real-estate-rent-pricing-ui.js'
+      - 'js/real-estate-portfolio-dashboard-ui.js'
+      - 'tests/real-estate-rent-pricing-test.js'
+      - 'docs/audits/real-estate-rent-pricing-model.md'
+      - '.github/workflows/real-estate-rent-pricing.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - run: node tests/real-estate-rent-pricing-test.js
