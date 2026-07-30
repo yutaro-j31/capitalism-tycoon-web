@@ -11,11 +11,6 @@ on:
         description: Runs per browser/difficulty/strategy
         required: false
         default: '3'
-  pull_request:
-    paths:
-      - 'scripts/playwright-mass-autoplay.mjs'
-      - 'scripts/analyze-autoplay-results.mjs'
-      - '.github/workflows/playwright-mass-autoplay.yml'
 
 permissions:
   contents: read
@@ -25,8 +20,8 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 45
     env:
-      AUTOPLAY_WEEKS: ${{ inputs.weeks || '24' }}
-      AUTOPLAY_RUNS: ${{ inputs.runs || '1' }}
+      AUTOPLAY_WEEKS: ${{ inputs.weeks || '104' }}
+      AUTOPLAY_RUNS: ${{ inputs.runs || '3' }}
       AUTOPLAY_BROWSERS: chromium,webkit
       AUTOPLAY_DIFFICULTIES: easy,normal,hard
       AUTOPLAY_STRATEGIES: passive,conservative,growth,leveraged,diversified
