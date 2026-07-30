@@ -1,0 +1,22 @@
+name: Real Estate Property Insurance
+on:
+  pull_request:
+    paths:
+      - 'js/real-estate-property-insurance.js'
+      - 'js/real-estate-property-insurance-ui.js'
+      - 'js/real-estate-security-deposits.js'
+      - 'tests/real-estate-property-insurance-test.js'
+      - '.github/workflows/real-estate-property-insurance.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - run: node tests/real-estate-property-insurance-test.js
