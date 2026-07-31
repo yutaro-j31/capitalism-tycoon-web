@@ -1,6 +1,6 @@
 // Canonical production loader for modules that were implemented but not wired into index.html.
 (function(){'use strict';
-const modules=globalThis.__capitalismTycoonModules=globalThis.__capitalismTycoonModules||{};
+const modules=globalThis.__capitalismTycoonModules||(globalThis.__capitalismTycoonModules={});
 if(modules.moduleIntegrationLoader?.__installed)return;
 const REQUIRED=[
 'save-storage.js','save-import-atomic-guard.js','save-storage-ui.js',
