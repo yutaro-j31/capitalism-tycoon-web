@@ -17,6 +17,9 @@ function url(name){return`./js/${name}${token?`?launch=${encodeURIComponent(deco
 async function available(name){try{const r=await fetch(url(name),{cache:'no-store',credentials:'same-origin'});return r.ok;}catch{return false;}}
 function inject(name){return new Promise((resolve,reject)=>{const s=document.createElement('script');s.src=url(name);s.async=false;s.dataset.integratedModule=name;s.onload=()=>resolve(name);s.onerror=()=>reject(new Error(`${name} failed to load`));document.head.appendChild(s);});}
 async function loadList(list,required){const loaded=existing();for(const name of list){if(loaded.has(name))continue;const exists=await available(name);if(!exists){if(required)throw new Error(`${name} is declared as required but is not deployable`);continue;}await inject(name);loaded.add(name);}}
-const ready=(async()=>{try{await loadList(REQUIRED,true);await loadList(OPTIONAL,false);modules.moduleIntegrationLoader=Object.freeze({__installed:true,required:Object.freeze([...REQUIRED]),optional:Object.freeze([...OPTIONAL]),ready:Promise.resolve(true)});globalThis.dispatchEvent?.(new CustomEvent('capitalism-tycoon-modules-wired'));return true;}catch(error){globalThis.__capitalismTycoonModuleIntegrationFailed=true;globalThis.__capitalismTycoonModuleIntegrationError=String(error?.message||error);throw error;}})();
-modules.moduleIntegrationLoader=Object.freeze({__installed:true,required:Object.freeze([...REQUIRED]),optional:Object.freeze([...OPTIONAL]),ready});
+const record={__installed:true,required:Object.freeze([...REQUIRED]),optional:Object.freeze([...OPTIONAL]),ready:null};
+modules.moduleIntegrationLoader=record;
+const ready=(async()=>{try{await loadList(REQUIRED,true);await loadList(OPTIONAL,false);globalThis.dispatchEvent?.(new CustomEvent('capitalism-tycoon-modules-wired'));return true;}catch(error){globalThis.__capitalismTycoonModuleIntegrationFailed=true;globalThis.__capitalismTycoonModuleIntegrationError=String(error?.message||error);throw error;}})();
+record.ready=ready;
+Object.freeze(record);
 })();
