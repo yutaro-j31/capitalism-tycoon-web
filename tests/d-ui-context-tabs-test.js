@@ -35,7 +35,8 @@ assert.doesNotMatch(shell, /action==='clear-selection'[\s\S]{0,120}selectedEntit
 assert.match(shell, /aria-controls="d-ui-command-menu" aria-expanded="\$\{menuOpen\}"/, 'command menu trigger must expose and preserve expanded state');
 assert.match(shell, /role="dialog" aria-modal="true" aria-label="経営メニュー"/, 'command menu must expose dialog semantics');
 assert.match(shell, /function setCommandMenu\(open,restoreFocus=false\)[\s\S]*setAttribute\('aria-expanded',String\(open\)\)/, 'command menu state must stay synchronized with aria-expanded');
-assert.match(shell, /function handleKeydown\(event\)[\s\S]*event\.key!=='Escape'[\s\S]*setCommandMenu\(false,true\)/, 'Escape must close the open command menu and restore trigger focus');
+const escapeClosesAndRestores = /function handleKeydown\(event\)[\s\S]*(?:event\.key!=='Escape'[\s\S]*setCommandMenu\(false,true\)|event\.key==='Escape'[\s\S]*setCommandMenu\(false,true\))/;
+assert.match(shell, escapeClosesAndRestores, 'Escape must close the open command menu and restore trigger focus');
 assert.match(shell, /document\.addEventListener\('keydown',handleKeydown,true\)/, 'keyboard dismissal must be installed in production');
 assert.doesNotMatch(shell, /function handleKeydown[\s\S]*selectedTab\s*=/, 'keyboard dismissal must not mutate game navigation state');
 assert.match(css, /\.d-context-actions button\{[^}]*min-height:52px/s, 'desktop context action must preserve a generous touch target');
