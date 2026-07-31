@@ -20,10 +20,11 @@ const dynamicallyReferenced=new Set();
 for(const name of files){const text=fs.readFileSync(path.join(jsDir,name),'utf8');for(const match of text.matchAll(/\.\/js\/([a-z0-9-]+\.js)/g))dynamicallyReferenced.add(match[1]);}
 for(const name of dynamicallyReferenced)referenced.add(name);
 const intentional=new Set([
-'boot-recovery.js','runtime.js','data.js','workforce.js','supply.js','competitor.js','market.js','finance.js','engine.js','real-estate.js','save-v9.js','app.js'
+'boot-recovery.js','runtime.js','data.js','workforce.js','supply.js','competitor.js','market.js','finance.js','engine.js','real-estate.js','save-v9.js','app.js',
+'pmi-100-day-loader.js' // obsolete document.write loader retained only for backward-compatible file references; canonical loader wires its children directly.
 ]);
 const unwired=files.filter(name=>!referenced.has(name)&&!intentional.has(name));
 assert.deepEqual(unwired,[],`Unwired production modules: ${unwired.join(', ')}`);
 const priority=['ceo-dashboard.js','real-estate-ui.js','capital-allocation-actions.js','treasury-prepayment.js','treasury-refinancing-policy.js','product-lifecycle.js','subsidiary-ipo-preparation.js','subsidiary-ipo-secondary-sale.js','save-storage.js','save-storage-ui.js','save-import-atomic-guard.js'];
 for(const name of priority)assert.ok(referenced.has(name),`${name} must be reachable from the canonical production path`);
-console.log(`All ${files.length} JavaScript files are classified as directly wired, loader wired, dynamically wired, or intentionally foundational.`);
+console.log(`All ${files.length} JavaScript files are classified as directly wired, loader wired, dynamically wired, or intentionally excluded with a documented reason.`);
