@@ -8,7 +8,7 @@ const play=fs.readFileSync(path.join(root,'play.html'),'utf8');
 const bootstrap=fs.readFileSync(path.join(jsDir,'d-ui-context-tabs.js'),'utf8');
 const loader=fs.readFileSync(path.join(jsDir,'module-integration-loader.js'),'utf8');
 assert.doesNotMatch(play,/document\.write\s*\(/,'play.html must not reconstruct index.html with document.write');
-assert.match(play,/location\.replace\(target\.toString\(\)\)/,'play.html must redirect to canonical index.html');
+assert.match(play,/location\.replace\((?:target|indexUrl)\.toString\(\)\)/,'play.html must redirect to canonical index.html');
 assert.match(bootstrap,/module-integration-loader\.js/,'index production path must bootstrap the canonical integration loader');
 assert.match(loader,/globalThis\.__capitalismTycoonModuleIntegrationFailed=true/,'loader failures must fail closed');
 assert.match(loader,/s\.async=false/,'modules must load sequentially');
