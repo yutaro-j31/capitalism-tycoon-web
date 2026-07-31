@@ -1,0 +1,26 @@
+name: All Modules Wired
+
+on:
+  pull_request:
+    paths:
+      - 'index.html'
+      - 'play.html'
+      - 'js/**'
+      - 'tests/all-modules-wired-test.js'
+      - '.github/workflows/all-modules-wired.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  wiring:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - run: node tests/all-modules-wired-test.js
+      - run: node tests/d-ui-context-tabs-test.js
