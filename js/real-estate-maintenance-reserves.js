@@ -3,16 +3,21 @@
 const modules=globalThis.__capitalismTycoonModules;
 if(!modules?.realEstatePropertyInsurance)throw new Error('real-estate-property-insurance.js must load before real-estate-maintenance-reserves.js.');
 if(modules.realEstateMaintenanceReserves)throw new Error('real-estate-maintenance-reserves.js already registered.');
-if(!modules.realEstatePropertyMaintenance?.ensure||!modules.realEstatePropertyMaintenance?.processWeek)throw new Error('real-estate-property-maintenance.js is required as the single maintenance source.');
-const source=modules.realEstatePropertyMaintenance;
-modules.realEstateMaintenanceReserves=Object.freeze({
-  VERSION:0,
-  LEGACY_COMPATIBILITY:true,
-  HISTORY_LIMIT:source.HISTORY_LIMIT,
-  POLICIES:source.POLICIES,
-  ensure:source.ensure,
-  processWeek(){return[];}
+function source(){
+  const s=modules.realEstatePropertyMaintenance;
+  if(!s?.ensure||!s?.processWeek)throw new Error('real-estate-property-maintenance.js is required as the single maintenance source.');
+  return s;
+}
+const bridge={};
+Object.defineProperties(bridge,{
+  VERSION:{value:0,enumerable:true},
+  LEGACY_COMPATIBILITY:{value:true,enumerable:true},
+  HISTORY_LIMIT:{get(){return source().HISTORY_LIMIT;},enumerable:true},
+  POLICIES:{get(){return source().POLICIES;},enumerable:true},
+  ensure:{value:function(g){return modules.realEstatePropertyInsurance.ensure(g);},enumerable:true},
+  processWeek:{value:function(){return[];},enumerable:true}
 });
+modules.realEstateMaintenanceReserves=Object.freeze(bridge);
 if(typeof document!=='undefined'&&!modules.realEstatePropertyTaxes){
   const s=document.createElement('script'),q=String(globalThis.location?.search||'').match(/(?:^|[?&])v=([^&]+)/),v=q?decodeURIComponent(q[1]):globalThis.__capitalismTycoonAssetVersion||'';
   s.src='./js/real-estate-property-taxes.js'+(v?`?v=${encodeURIComponent(v)}`:'');s.async=false;s.dataset.realEstatePropertyTaxes='';
