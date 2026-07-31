@@ -6,7 +6,7 @@ const {loadGame,findStateIssues}=require('./harness');
 function random(seed){let x=seed>>>0;return()=>{x=(Math.imul(x,1664525)+1013904223)>>>0;return x/4294967296;};}
 function install(load){if(!load.modules.shareholderReturns)vm.runInContext(fs.readFileSync(path.join(__dirname,'../js/shareholder-returns.js'),'utf8'),load.ctx,{filename:'shareholder-returns.js'});return load;}
 function makePublicGame(modules){const {engine,finance}=modules,state=engine.createInitialState({configured:true});state.week=12;state.companyCash=100_000_000;state.companyDebt=0;state.publicCompany=true;state.sharesOut=1_000_000;state.founderShares=600_000;state.treasuryBuybackShares=0;state.stockPrice=100;state.ticker='CPTY';state.market=state.market.filter(x=>x.id!=='CPTY');state.market.push({id:'CPTY',name:state.companyName,sector:'コングロマリット',price:100,previous:100,dividendYield:0,volatility:0,trend:0,marketCap:100_000_000,per:20,pbr:2,issuedShares:1_000_000,dividendPerShare:0,shareholders:{},description:'test',listingMarket:'東証グロース',priceHistory:[{week:12,price:100}]});state.finance=finance.defaultFinanceState(state);return new engine.TycoonEngine(state);}
-const controlLoad=loadGame({random:random(42)}),dividendLoad=install(loadGame({random:random(42)}));
+const controlLoad=loadGame({random:random(42),isolatedLegacyIndex:true}),dividendLoad=install(loadGame({random:random(42),isolatedLegacyIndex:true}));
 assert.ok(dividendLoad.modules.shareholderReturns?.__installed,'shareholder returns module must be installed');
 assert.equal(dividendLoad.modules.engine.SAVE_KEY,'capitalism_tycoon_web_v1');
 assert.equal(dividendLoad.modules.engine.SAVE_VERSION,9);

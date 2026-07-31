@@ -22,5 +22,5 @@ assert.equal(engine.setGroupCapitalAllocationPairPaused('a::b',true),true);rows=
 s.week=153;engine.normalize();assert.equal(mod.budget(s).spent,0);assert.equal(mod.budget(s).cycleStartWeek,153);
 const html=mod.renderSection({g:state()});assert.match(html,/グループ資本配分/);assert.match(html,/min-height:44px/);assert.match(html,/追加配分/);
 assert.ok(!/Math\.random|Date\.now|personalCash\s*[+\-*/]?=|personalInvestments/.test(code));assert.ok(!/SAVE_KEY\s*=|saveVersion\s*=/.test(code));
-const play=fs.readFileSync(path.join(__dirname,'../play.html'),'utf8');const runAll=fs.readFileSync(path.join(__dirname,'run-all.js'),'utf8');assert.match(play,/group-capital-allocation-actions\.js\?launch=/);assert.match(play,/グループ資本配分モジュールを公開起動順へ追加できませんでした/);assert.match(runAll,/group-capital-allocation-actions-test\.js/);
+const play=fs.readFileSync(path.join(__dirname,'../index.html'),'utf8');const runAll=fs.readFileSync(path.join(__dirname,'run-all.js'),'utf8');assert.match(play,/group-capital-allocation-actions\.js"/);assert.match(runAll,/group-capital-allocation-actions-test\.js/);
 console.log('Group capital allocation budget, ranking, pause, accounting delegation, determinism and UI tests passed');

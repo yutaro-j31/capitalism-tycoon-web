@@ -1,5 +1,5 @@
 const { loadGame } = require('./harness');
-const { engineModule, modules } = loadGame({random:()=>0.5});
+const { engineModule, modules } = loadGame({random:()=>0.5,isolatedLegacyIndex:true});
 const e=new engineModule.TycoonEngine(); e.g.configured=true; e.g.companyCash=1_000_000_000; e.g.finance=modules.finance.defaultFinanceState(e.g); e.g.departments.investment={name:'投資部'};
 const s=e.g.startups.find(x=>x.alive); const amount=Math.max(s.minTicket,200_000_000); e.investStartup(s.id,amount,'company'); e.investStartup(s.id,amount,'company'); let before=modules.finance.buildStatements(e.g,'52'); const assetBefore=before.balanceSheet.assets.subsidiariesAndAffiliates,totalBefore=before.balanceSheet.assets.totalAssets,cashBefore=e.g.companyCash;
 if(!e.makeSubsidiary(s.id)) throw new Error('makeSubsidiary failed'); let after=modules.finance.buildStatements(e.g,'52'); if(Math.abs(after.balanceSheet.assets.subsidiariesAndAffiliates-assetBefore)>0.1) throw new Error('startup/subsidiary double counted'); if(Math.abs(after.balanceSheet.assets.totalAssets-totalBefore)>0.1) throw new Error('total assets changed on subsidiary conversion'); if(e.g.companyCash!==cashBefore) throw new Error('cash changed on subsidiary conversion'); if(!modules.finance.validate(e.g).ok) throw new Error(modules.finance.validate(e.g).errors.join('\n'));

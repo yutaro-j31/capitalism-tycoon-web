@@ -62,7 +62,7 @@ function assertCrisisSnapshot(engine, label) {
 }
 function runScenario() {
   const random = seededRandom(123456789);
-  const { engineModule, modules } = loadGame({ random });
+  const { engineModule, modules } = loadGame({ random, isolatedLegacyIndex:true });
   const engine = new engineModule.TycoonEngine();
   const result = {};
   engine.configure({ playerName:'Tester', companyName:'Baseline Co', difficulty:'normal', scenario:'free' });

@@ -1,5 +1,5 @@
 const { loadGame, findStateIssues } = require('./harness');
-const { engineModule, modules } = loadGame();
+const { engineModule, modules } = loadGame({isolatedLegacyIndex:true});
 function assert(cond,msg){if(!cond)throw new Error(msg);}
 function configuredEngine(){const e=new engineModule.TycoonEngine();e.g.configured=true;e.g.companyCash=1_000_000_000;e.g.personalCash=500_000_000;e.g.companyDebt=0;e.g.personalDebt=0;e.g.finance=modules.finance.defaultFinanceState(e.g);return e;}
 const e=configuredEngine();

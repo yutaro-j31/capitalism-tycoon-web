@@ -1,6 +1,6 @@
 const assert = require('node:assert/strict');
 const { loadGame } = require('./harness');
-const { modules } = loadGame({ random: () => 0.5 });
+const { modules } = loadGame({ random: () => 0.5, isolatedLegacyIndex:true });
 function finite(v){if(typeof v==='number')assert(Number.isFinite(v));else if(v&&typeof v==='object')for(const x of Object.values(v))finite(x);}
 function validateAll(e){assert.equal(modules.finance.validate(e.g).ok,true,modules.finance.validate(e.g).errors.join('\n'));assert.equal(modules.supply.validate(e.g).ok,true,modules.supply.validate(e.g).errors.join('\n'));assert.equal(modules.workforce.validate(e.g).ok,true,modules.workforce.validate(e.g).errors.join('\n'));}
 function setup(stores,allDepartments){const e=new modules.engine.TycoonEngine();e.g.configured=true;e.g.companyCash=1e12;e.g.finance=modules.finance.defaultFinanceState(e.g);e.g.personalCash=1e9;e.g.hasHeadOffice=true;e.g.officeCapacity=5000;const depts=allDepartments?modules.data.MASTER.departments:modules.data.MASTER.departments.filter(d=>d.id==='operations');for(const d of depts){e.g.departments[d.id]={...d,established:true};e.g.departmentStaff[d.id]=8;}for(let i=0;i<stores;i++)e.g.stores.push({id:`s${i}`,businessID:'ramen',prefID:i%2?'tokyo':'osaka',name:`s${i}`,status:'open',condition:100,operatingHours:3,openingWeek:1,weeksToOpen:0});modules.workforce.migrateV7(e.g);return e;}

@@ -1,6 +1,6 @@
 const assert = require('node:assert');
 const { loadGame } = require('./harness');
-const { modules } = loadGame();
+const { modules } = loadGame({isolatedLegacyIndex:true});
 const { engine, finance, playerBankCovenants, playerCreditRating, playerDebtRefinancing, playerLiquidityRunway, playerFundingConcentration, playerDebtMaturityReserve } = modules;
 assert.ok(playerBankCovenants?.__installed, 'bank covenant module must be installed');
 assert.ok(playerCreditRating?.__installed, 'credit rating module must be installed');

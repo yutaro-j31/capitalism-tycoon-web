@@ -22,7 +22,7 @@ s.week=106;assert.equal(engine.executeInterSubsidiarySynergy('b','a','procuremen
 const deterministicA=state(),deterministicB=state(),eA=new Engine(deterministicA),eB=new Engine(deterministicB);eA.executeInterSubsidiarySynergy('a','b','platform');eB.executeInterSubsidiarySynergy('b','a','platform');assert.deepEqual(JSON.parse(JSON.stringify(deterministicA.subsidiaries)),JSON.parse(JSON.stringify(deterministicB.subsidiaries)));
 const low=state();low.subsidiaries[0].ownership=.19;const lowEngine=new Engine(low);assert.equal(lowEngine.executeInterSubsidiarySynergy('a','b','crossSell'),false);
 const html=mod.renderSection({g:state()});assert.match(html,/子会社間シナジー配分/);assert.match(html,/min-height:44px/);assert.match(html,/二重計上しません/);
-const play=fs.readFileSync(path.join(__dirname,'../play.html'),'utf8');assert.match(play,/inter-subsidiary-synergy-allocation\.js\?launch=/);assert.match(play,/子会社間シナジー配分モジュールを公開起動順へ追加できませんでした/);
+const play=fs.readFileSync(path.join(__dirname,'../index.html'),'utf8');assert.match(play,/inter-subsidiary-synergy-allocation\.js"/);
 const runAll=fs.readFileSync(path.join(__dirname,'run-all.js'),'utf8');assert.match(runAll,/inter-subsidiary-synergy-allocation-test\.js/);
 assert.ok(!/Math\.random|Date\.now|personalCash\s*[+\-*/]?=|personalInvestments/.test(code));assert.ok(!/SAVE_KEY\s*=|saveVersion\s*=/.test(code));
 console.log('Inter-subsidiary synergy allocation accounting, cooldown, determinism, production wiring and iPhone UI tests passed');

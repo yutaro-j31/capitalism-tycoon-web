@@ -4,7 +4,7 @@ const path = require('node:path');
 const vm = require('node:vm');
 const { loadGame, ROOT } = require('./harness');
 
-const { ctx, engineModule, modules } = loadGame({ random: () => 0 });
+const { ctx, engineModule, modules } = loadGame({ random: () => 0, isolatedLegacyIndex:true });
 vm.runInContext(fs.readFileSync(path.join(ROOT, 'js/product-lifecycle.js'), 'utf8'), ctx, { filename: 'js/product-lifecycle.js' });
 const lifecycle = modules.productLifecycle;
 assert.ok(lifecycle?.__installed, 'product lifecycle module should register');

@@ -4,7 +4,7 @@ const path = require('node:path');
 const vm = require('node:vm');
 const { loadGame, ROOT } = require('./harness');
 
-const { ctx, engineModule, modules } = loadGame({ random: () => 0.5 });
+const { ctx, engineModule, modules } = loadGame({ random: () => 0.5, isolatedLegacyIndex:true });
 const innovation = modules.productInnovation;
 assert.ok(innovation?.__installed, 'product innovation module should register');
 assert.equal(engineModule.TycoonEngine.prototype.__productInnovationInstalled, true, 'engine extension should install before app load');

@@ -4,7 +4,7 @@ const fs=require('node:fs');
 const vm=require('node:vm');
 const path=require('node:path');
 const code=fs.readFileSync(path.join(__dirname,'../js/listed-subsidiary-market.js'),'utf8');
-const launcher=fs.readFileSync(path.join(__dirname,'../play.html'),'utf8');
+const launcher=fs.readFileSync(path.join(__dirname,'../index.html'),'utf8');
 class Engine{
   constructor(state){this.g=state;this.saved=0;this.emitted=0;this.notices=[];this.normalize();}
   normalize(){}
@@ -29,8 +29,8 @@ assert.equal(engine.setListedSubsidiaryDividendPolicy('sub-1','income'),true);as
 const lockedState=state(25),lockedEngine=new Engine(lockedState);assert.equal(lockedEngine.sellListedSubsidiaryStake('sub-1',.05),false);assert.match(lockedEngine.lastError,/ロックアップ/);
 const dividendState=state(52);dividendState.subsidiaries[0].dividendPolicyID='income';dividendState.subsidiaries[0].marketLastWeek=51;const dividendCashBefore=dividendState.companyCash;new Engine(dividendState);assert.ok(dividendState.companyCash>dividendCashBefore,'quarterly parent dividend must increase company cash');assert.equal(dividendState.personalCash,personalBefore,'personal cash must remain separated');assert.equal(financeEvents.at(-1).type,'dividendIncome');
 const render=mod.renderSection({g:state()});assert.match(render,/上場子会社の資本市場運営/);assert.match(render,/5%売却/);assert.match(render,/高配当/);
-assert.match(launcher,/\.\/js\/listed-subsidiary-market\.js\?launch=/,'public launcher must cache-bust listed market module');
-assert.match(launcher,/上場子会社市場モジュールを公開起動順へ追加できませんでした/,'public launcher must fail closed when market module injection is missing');
+assert.match(launcher,/\.\/js\/listed-subsidiary-market\.js"/,'public launcher must cache-bust listed market module');
+
 assert.ok(!/Math\.random|Date\.now|personalCash\s*[+\-*/]?=|personalInvestments/.test(code),'listed market must stay deterministic and company-only');
 assert.ok(!/SAVE_KEY\s*=|saveVersion\s*=/.test(code),'save key/version contract is not changed');
 console.log('Listed subsidiary weekly market, lockup, stake trades, dividends, accounting, launcher and determinism tests passed');

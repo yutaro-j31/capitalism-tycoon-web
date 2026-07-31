@@ -1,5 +1,5 @@
 const { loadGame } = require('./harness');
-const { engineModule, modules } = loadGame(); const e=new engineModule.TycoonEngine(); e.g.configured=true; const f=modules.finance; const opening=e.g.companyCash;
+const { engineModule, modules } = loadGame({isolatedLegacyIndex:true}); const e=new engineModule.TycoonEngine(); e.g.configured=true; const f=modules.finance; const opening=e.g.companyCash;
 f.event(e.g,'costOfSales',1000,{cashEffect:-700,profitEffect:-1000,payableAmount:300,sourceType:'supplier-invoice',operationID:'ap-add'}); e.g.companyCash-=700;
 f.event(e.g,'accountsPayablePayment',120,{cashEffect:-120,profitEffect:0,sourceType:'ap-payment',operationID:'ap-pay'}); e.g.companyCash-=120;
 f.event(e.g,'payroll',500,{cashEffect:-200,profitEffect:-500,accruedExpenseAmount:300,sourceType:'accrual',operationID:'ae-add'}); e.g.companyCash-=200;
