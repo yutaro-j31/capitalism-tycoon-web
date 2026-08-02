@@ -14,7 +14,8 @@ assert(loader.includes('__capitalismTycoonRealEstateMaintenanceReservesFailed'))
 
 const state={week:12,companyCash:2e7,properties:[{id:'p1',maintenanceReserve:5000}]};
 let insuranceEnsureCalls=0,maintenanceEnsureCalls=0,processCalls=0;
-const insurance={ensure(g){insuranceEnsureCalls++;return g;}};
+const insuranceEnsureResult={source:'property-insurance'};
+const insurance={ensure(g){insuranceEnsureCalls++;assert.strictEqual(g,state);return insuranceEnsureResult;}};
 const modules={realEstatePropertyInsurance:insurance};
 const context={globalThis:{__capitalismTycoonModules:modules}};
 vm.runInNewContext(src,context);
@@ -39,7 +40,7 @@ assert.strictEqual(bridge.POLICIES,policies);
 assert.notStrictEqual(bridge.ensure,maintenance.ensure);
 assert.deepEqual(Array.from(bridge.processWeek({g:state})),[]);
 assert.equal(processCalls,0);
-assert.doesNotThrow(()=>bridge.ensure(state),'insurance delegation must not recurse into property maintenance');
+assert.strictEqual(bridge.ensure(state),insuranceEnsureResult,'ensure must return the property-insurance delegation result');
 assert.equal(insuranceEnsureCalls,1);
 assert.equal(maintenanceEnsureCalls,0);
 assert.equal(state.companyCash,2e7);
