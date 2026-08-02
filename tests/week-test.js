@@ -1,6 +1,6 @@
 const fs = require('node:fs'); const path = require('node:path');
 const { loadGame, findStateIssues } = require('./harness');
-const { engineModule } = loadGame(); const { TycoonEngine } = engineModule;
+const { engineModule } = loadGame({isolatedLegacyIndex:true}); const { TycoonEngine } = engineModule;
 
 function assert(cond, msg) { if (!cond) throw new Error(msg); }
 function snapshot(g) {

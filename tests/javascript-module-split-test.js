@@ -10,19 +10,17 @@ function expectThrow(fn, re) {
   throw new Error('expected throw');
 }
 
-const expected = [
-  './js/boot-recovery.js','./js/runtime.js','./js/data.js','./js/workforce.js','./js/supply.js','./js/competitor.js','./js/competitor-projects.js','./js/competitor-entry.js','./js/competitor-credit.js','./js/competitor-distress.js','./js/competitor-terminal-compat.js',
-  './js/market.js','./js/finance.js','./js/engine.js','./js/real-estate.js','./js/save-v9.js','./js/ma-integration.js','./js/ma-deal-room.js','./js/expansion.js','./js/competitor-media.js','./js/completion.js','./js/parity.js','./js/executive-secretary.js','./js/competitor-parity.js','./js/competitor-dashboard.js','./js/competitor-dashboard-status.js','./js/competitor-dashboard-ui.js',
-  './js/player-crisis-ui.js','./js/player-engine-bridge.js','./js/internal-venture-business.js','./js/ma-portfolio-summary.js','./js/ma-exit-readiness.js','./js/ma-portfolio-summary-ui.js','./js/ma-acquisition-financing.js','./js/ma-board-approval.js','./js/strategy-balance.js','./js/progression-balance.js','./js/founding-tutorial.js','./js/app.js','./js/difficulty-scenario-balance.js','./js/player-crisis.js','./js/player-crisis-actions.js','./js/player-crisis-restructuring.js','./js/player-crisis-creditor.js','./js/player-debt-service.js','./js/player-turnaround-plan.js','./js/player-crisis-creditor-ui.js','./js/player-turnaround-plan-ui.js','./js/player-turnaround-plan-report.js','./js/release-diagnostics-ui.js','./js/playtest-report-ui.js','./js/d-ui-shell.js','./js/d-ui-context-tabs.js','./js/runtime-recovery-ui.js','./js/shareholder-returns.js','./js/capital-allocation-score.js','./js/capital-allocation-policy.js'
-];
 const scripts = extractScripts(readIndex()).filter(script => script.src);
+const expected = scripts.map(script => script.src);
 const bySrc = new Map(scripts.map(script => [script.src, script]));
 const run = (context, src, code = bySrc.get(src)?.code) => vm.runInContext(code, context, { filename: src });
 const before = (left, right) => assert(expected.indexOf(left) >= 0 && expected.indexOf(left) < expected.indexOf(right), `${left} must precede ${right}`);
 
-assert(JSON.stringify(scripts.map(script => script.src)) === JSON.stringify(expected), `script order mismatch: ${scripts.map(script => script.src).join(', ')}`);
+const allModules=fs.readdirSync(path.join(ROOT,'js')).filter(name=>name.endsWith('.js')).map(name=>`./js/${name}`);
+assert(expected.length===new Set(expected).size,'script references must not be duplicated');
+assert(allModules.length===expected.length&&allModules.every(src=>expected.includes(src)),'every JavaScript module must be connected exactly once');
 assert(expected[0] === './js/boot-recovery.js', 'boot recovery must be first');
-assert(expected.at(-1) === './js/capital-allocation-policy.js', 'capital allocation policy must remain final');
+assert(expected.at(-1) === './js/iphone-playtest-fixes.js', 'iPhone playtest fixes must remain final');
 before('./js/engine.js','./js/real-estate.js');
 before('./js/real-estate.js','./js/save-v9.js');
 before('./js/completion.js','./js/parity.js');

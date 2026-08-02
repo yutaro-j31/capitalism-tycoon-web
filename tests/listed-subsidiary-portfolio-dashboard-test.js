@@ -16,7 +16,7 @@ assert.equal(view.totalCompanies,2);assert.equal(view.stakeValue,180_000_000);as
 assert.equal(engine.setListedSubsidiaryPortfolioMandate('a','grow'),true);assert.equal(state.subsidiaries[0].portfolioMandateID,'grow');assert.equal(engine.transactionCalls.length,1);assert.equal(engine.transactionCalls[0].type,'change');assert.equal(engine.transactionCalls[0].meta.source,'listedSubsidiaryPortfolioMandate');assert.deepEqual({companyCash:state.companyCash,personalCash:state.personalCash,bookValue:state.subsidiaries[0].carryingBookValue,cumulativeProfit:state.accounting.cumulativeProfit},financialBefore);assert.equal(state.saveVersion,9);
 const reloaded=JSON.parse(JSON.stringify(state));const reloadedEngine=new Engine(reloaded);assert.equal(reloaded.subsidiaries[0].portfolioMandateID,'grow');assert.equal(reloadedEngine.g.saveVersion,9);
 assert.match(mod.renderSection({g:state}),/上場子会社ポートフォリオ/);assert.match(mod.renderSection({g:state}),/min-height:44px/);assert.match(mod.renderSection({g:state}),/収益改善を優先/);
-const play=fs.readFileSync(path.join(__dirname,'../play.html'),'utf8'),runAll=fs.readFileSync(path.join(__dirname,'run-all.js'),'utf8');
-assert.match(play,/listed-subsidiary-portfolio-dashboard\.js\?launch=/);assert.match(play,/上場子会社ポートフォリオモジュールを公開起動順へ追加できませんでした/);assert.match(runAll,/listed-subsidiary-portfolio-dashboard-test\.js/);
+const play=fs.readFileSync(path.join(__dirname,'../index.html'),'utf8'),runAll=fs.readFileSync(path.join(__dirname,'run-all.js'),'utf8');
+assert.match(play,/listed-subsidiary-portfolio-dashboard\.js"/);assert.match(runAll,/listed-subsidiary-portfolio-dashboard-test\.js/);
 assert.ok(!/Math\.random|Date\.now|companyCash\s*[+\-*/]?=|personalCash\s*[+\-*/]?=|SAVE_KEY\s*=|saveVersion\s*=/.test(code));
 console.log('Listed subsidiary portfolio aggregation, transactional mandate persistence, accounting purity, iPhone UI and production wiring tests passed');

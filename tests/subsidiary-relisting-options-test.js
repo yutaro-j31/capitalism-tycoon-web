@@ -20,7 +20,7 @@ assert.equal(events[0].type,'professionalServices');assert.equal(events[1].type,
 const b=state(),c=state(),eb=new Engine(b),ec=new Engine(c);eb.relistSubsidiary('sub-1','growth');ec.relistSubsidiary('sub-1','growth');assert.deepEqual(JSON.parse(JSON.stringify(b.subsidiaries[0])),JSON.parse(JSON.stringify(c.subsidiaries[0])));
 const ineligible=state();ineligible.subsidiaries[0].integrationSynergyRounds=1;const e2=new Engine(ineligible);assert.equal(e2.relistSubsidiary('sub-1','balanced'),false);assert.match(e2.lastError,/PMI投資2回/);
 assert.match(mod.renderSection({g:state()}),/完全子会社の再上場/);assert.match(mod.renderSection({g:state()}),/min-height:44px/);
-const play=fs.readFileSync(path.join(__dirname,'../play.html'),'utf8');assert.match(play,/subsidiary-relisting-options\.js\?launch=/);assert.match(play,/再上場戦略モジュールを公開起動順へ追加できませんでした/);
+const play=fs.readFileSync(path.join(__dirname,'../index.html'),'utf8');assert.match(play,/subsidiary-relisting-options\.js"/);
 const runAll=fs.readFileSync(path.join(__dirname,'run-all.js'),'utf8');assert.match(runAll,/subsidiary-relisting-options-test\.js/);
 assert.ok(!/Math\.random|Date\.now|personalCash\s*[+\-*/]?=|personalInvestments/.test(code));assert.ok(!/SAVE_KEY\s*=|saveVersion\s*=/.test(code));
 console.log('Subsidiary relisting strategy, accounting, determinism, loader and iPhone UI tests passed');

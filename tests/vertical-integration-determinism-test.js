@@ -23,7 +23,7 @@ function blockableRandom() {
   return fn;
 }
 function makeEngine(randomImpl = () => .5) {
-  const { modules, ctx } = loadGame({ random: randomImpl });
+  const { modules, ctx } = loadGame({ random: randomImpl, isolatedLegacyIndex:true });
   const engine = new modules.engine.TycoonEngine();
   engine.g.configured = true;
   engine.g.skipWeeklyValidation = false;

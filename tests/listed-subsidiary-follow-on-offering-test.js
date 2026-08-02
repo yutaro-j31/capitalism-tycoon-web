@@ -23,7 +23,7 @@ assert.equal(events.filter(e=>e.type==='capitalRaise').length,1);assert.equal(ev
 const b=makeState(),engineB=new Engine(b);engineB.executeListedSubsidiaryFollowOnOffering('listed-1','primary');const c=makeState(),engineC=new Engine(c);engineC.executeListedSubsidiaryFollowOnOffering('listed-1','primary');assert.deepEqual(JSON.parse(JSON.stringify(b.subsidiaries[0])),JSON.parse(JSON.stringify(c.subsidiaries[0])));
 const locked=makeState();locked.week=50;const lockedEngine=new Engine(locked);assert.equal(lockedEngine.executeListedSubsidiaryFollowOnOffering('listed-1','balanced'),false);assert.ok(lockedEngine.lastError.includes('残り16週'));
 const html=mod.renderSection({g:makeState()});assert.ok(html.includes('上場子会社の追加資本政策'));assert.ok(html.includes('min-height:44px'));
-const launcher=fs.readFileSync(path.join(__dirname,'../play.html'),'utf8');assert.ok(launcher.includes('listed-subsidiary-follow-on-offering.js?launch='));assert.ok(launcher.includes('追加資本政策モジュールを公開起動順へ追加できませんでした'));
+const launcher=fs.readFileSync(path.join(__dirname,'../index.html'),'utf8');assert.ok(launcher.includes('listed-subsidiary-follow-on-offering.js"></script>'));
 const runAll=fs.readFileSync(path.join(__dirname,'run-all.js'),'utf8');assert.ok(runAll.includes('listed-subsidiary-follow-on-offering-test.js'));
 assert.equal(code.includes('Math.random'),false);assert.equal(code.includes('Date.now'),false);assert.equal(code.includes('SAVE_KEY='),false);assert.equal(code.includes('saveVersion='),false);
 console.log('Listed subsidiary follow-on offering tests passed');

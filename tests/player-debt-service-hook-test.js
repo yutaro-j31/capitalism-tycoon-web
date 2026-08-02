@@ -9,7 +9,7 @@ function seededRandom(seedValue) {
   };
 }
 
-const { modules } = loadGame({ random: seededRandom(0x6a4c0001) });
+const { modules } = loadGame({ random: seededRandom(0x6a4c0001), isolatedLegacyIndex:true });
 const { engine, finance, playerDebtService, playerCrisisCreditor } = modules;
 
 assert.ok(playerDebtService?.__installed, 'player debt service module must be registered');

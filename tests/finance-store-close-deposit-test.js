@@ -1,5 +1,5 @@
 const { loadGame } = require('./harness');
-const { engineModule, modules } = loadGame({random:()=>0.5});
+const { engineModule, modules } = loadGame({random:()=>0.5,isolatedLegacyIndex:true});
 const e=new engineModule.TycoonEngine(); e.g.configured=true; e.g.companyCash=500_000_000; e.g.finance=modules.finance.defaultFinanceState(e.g);
 const tenant=e.g.tenants.find(t=>!t.occupiedBy&&t.businessID==='ramen'&&t.deposit>0); if(!tenant) throw new Error('deposit tenant missing');
 if(!e.openStore({tenantID:tenant.id,businessID:'ramen',name:'deposit-close'})) throw new Error('openStore failed'); const store=e.g.stores[e.g.stores.length-1], deposit=e.g.tenants.find(t=>t.id===store.tenantID).deposit; let st=modules.finance.buildStatements(e.g,'52'); if(st.balanceSheet.assets.otherFixedAssets<deposit) throw new Error('deposit not in BS after open'); const cashAfterOpen=e.g.companyCash;

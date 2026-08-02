@@ -6,7 +6,7 @@ const random = () => {
   seed = (Math.imul(seed, 1664525) + 1013904223) >>> 0;
   return seed / 0x100000000;
 };
-const { ctx, modules } = loadGame({ random });
+const { ctx, modules } = loadGame({ random, isolatedLegacyIndex:true });
 const { engine, playerCrisis } = modules;
 
 assert.ok(playerCrisis, 'player crisis module must be registered');

@@ -43,5 +43,5 @@ const weekState=JSON.parse(JSON.stringify(ab.state)),weekCompany=weekState.compa
 
 assert.equal(a.saveVersion,9);assert.ok(a.groupRestructuringHistory.length<=80);assert.match(mod.renderSection({g:base()}),/グループ再編判断/);assert.match(mod.renderSection({g:base()}),/min-height:44px/);assert.match(mod.renderSection({g:base()}),/minmax\(min\(100%,320px\),1fr\)/,'390px contract must collapse without overflow');
 assert.ok(!/Math\.random|Date\.now/.test(code));assert.ok(!/SAVE_KEY\s*=|saveVersion\s*=|personalCash\s*[+\-*/]?=/.test(code));
-const play=fs.readFileSync(path.join(__dirname,'../play.html'),'utf8'),runAll=fs.readFileSync(path.join(__dirname,'run-all.js'),'utf8');assert.match(play,/group-restructuring-candidates\.js\?launch=/);assert.match(play,/グループ再編判断モジュールを公開起動順へ追加できませんでした/);assert.match(runAll,/group-restructuring-candidates-test\.js/);
+const play=fs.readFileSync(path.join(__dirname,'../index.html'),'utf8'),runAll=fs.readFileSync(path.join(__dirname,'run-all.js'),'utf8');assert.match(play,/group-restructuring-candidates\.js"/);assert.match(runAll,/group-restructuring-candidates-test\.js/);
 console.log('Group restructuring candidates, previews, accounting, determinism, save compatibility and mobile UI tests passed');

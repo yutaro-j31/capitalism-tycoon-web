@@ -22,7 +22,7 @@ for (const id of ['overview','priority','journey','finance','allocation','ma-gov
 assert.match(appCode,/aria-labelledby="ceo-dashboard-title"/,'dashboard has ARIA label');
 assert.match(appCode,/すべて見る/,'secretary navigation is available');
 assert.equal(ctx.__localStorageHistory.setItem.length,0,'loading dashboard must not write localStorage before user action');
-const index=readIndex();assert.doesNotMatch(index,/js\/ceo-dashboard\.js/,'dashboard must not be loaded twice');assert.match(index,/js\/executive-secretary\.js/,'browser integration script is registered');
+const index=readIndex();assert.equal((index.match(/\.\/js\/ceo-dashboard\.js/g)||[]).length,1,'dashboard must be loaded exactly once');assert.ok(index.indexOf('./js/ceo-dashboard.js')<index.indexOf('./js/executive-secretary.js'),'dashboard must load before the secretary compatibility fallback');
 const css=fs.readFileSync(path.join(ROOT,'css/app.css'),'utf8');
 assert.match(css,/env\(safe-area-inset-bottom\)/,'iPhone safe area is supported');
 assert.match(css,/min-height:44px|44px/,'44px tap target support exists');

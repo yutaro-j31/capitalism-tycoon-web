@@ -1,9 +1,10 @@
 const fs=require('node:fs');
 const path=require('node:path');
-const {readIndex,loadGameFromHtml,findStateIssues}=require('./harness');
+const vm=require('node:vm');
+const {loadGame,findStateIssues}=require('./harness');
 function assert(c,m){if(!c)throw new Error(m);}
-const html=readIndex().replace('<script src="./js/save-v9.js"></script>','<script src="./js/real-estate-development.js"></script><script src="./js/save-v9.js"></script>');
-const {engineModule,modules}=loadGameFromHtml(html,{headless:true});
+const {ctx,engineModule,modules}=loadGame({headless:true,isolatedLegacyIndex:true});
+vm.runInContext(fs.readFileSync(path.join(__dirname,'../js/real-estate-development.js'),'utf8'),ctx,{filename:'real-estate-development.js'});
 function configured(){const e=new engineModule.TycoonEngine();e.g.configured=true;e.g.companyCash=2_000_000_000;e.g.personalCash=800_000_000;e.g.companyDebt=0;e.g.personalDebt=0;e.g.finance=modules.finance.defaultFinanceState(e.g);return e;}
 const e=configured(),company=e.g.properties.find(p=>!p.owner);company.owner='company';company.purchasePrice=company.price||company.value||100_000_000;company.buildingType='賃貸マンション';modules.realEstate.ensure(e.g);e.setPropertyMarketSegment(company.id,'urban_core','apartment');
 const personal=e.g.properties.find(p=>!p.owner&&p.id!==company.id);personal.owner='personal';personal.purchasePrice=personal.price||personal.value||50_000_000;personal.buildingType='ホテル';modules.realEstate.ensure(e.g);e.setPropertyMarketSegment(personal.id,'resort','hotel');

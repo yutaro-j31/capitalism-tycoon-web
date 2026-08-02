@@ -4,7 +4,7 @@ const fs=require('node:fs');
 const vm=require('node:vm');
 const path=require('node:path');
 const code=fs.readFileSync(path.join(__dirname,'../js/subsidiary-integration-synergy.js'),'utf8');
-const play=fs.readFileSync(path.join(__dirname,'../play.html'),'utf8');
+const play=fs.readFileSync(path.join(__dirname,'../index.html'),'utf8');
 const runAll=fs.readFileSync(path.join(__dirname,'run-all.js'),'utf8');
 class Engine{constructor(state){this.g=state;this.normalize();}normalize(){}fail(message){this.lastError=message;return false;}notify(){}runTransaction(work){return work();}}
 const events=[];
@@ -25,6 +25,6 @@ const b=state(),engineB=new Engine(b);engineB.investSubsidiaryIntegrationSynergy
 function stateAfterFirst(){const s=state(),e=new Engine(s);e.investSubsidiaryIntegrationSynergy('sub-1','crossSell');return s.subsidiaries[0];}
 const ineligible=state();ineligible.subsidiaries[0].publicCompany=true;const e2=new Engine(ineligible);assert.equal(e2.investSubsidiaryIntegrationSynergy('sub-1','operations'),false);
 assert.match(mod.renderSection({g:state()}),/完全子会社シナジー投資/);assert.match(mod.renderSection({g:state()}),/min-height:44px/);
-assert.match(play,/subsidiary-integration-synergy\.js\?launch=/);assert.match(play,/完全子会社シナジー投資モジュールを公開起動順へ追加できませんでした/);assert.match(runAll,/subsidiary-integration-synergy-test\.js/);
+assert.match(play,/subsidiary-integration-synergy\.js"/);assert.match(runAll,/subsidiary-integration-synergy-test\.js/);
 assert.ok(!/Math\.random|Date\.now|personalCash\s*[+\-*/]?=|personalInvestments/.test(code));assert.ok(!/SAVE_KEY\s*=|saveVersion\s*=/.test(code));
 console.log('Subsidiary integration synergy accounting, cooldown, determinism, production wiring and UI tests passed');

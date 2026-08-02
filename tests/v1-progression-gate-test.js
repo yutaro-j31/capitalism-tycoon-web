@@ -30,7 +30,7 @@ function stateIntegrityIssues(root) {
   return errors;
 }
 
-const { ctx, engineModule, modules } = loadGame({ random });
+const { ctx, engineModule, modules } = loadGame({ random, isolatedLegacyIndex:true });
 const { finance } = modules;
 const game = new engineModule.TycoonEngine();
 

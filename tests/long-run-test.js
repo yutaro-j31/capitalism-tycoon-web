@@ -1,5 +1,5 @@
 const { loadGame, findStateIssues } = require('./harness');
-const { engineModule } = loadGame(); const { TycoonEngine } = engineModule;
+const { engineModule } = loadGame({isolatedLegacyIndex:true}); const { TycoonEngine } = engineModule;
 const e = new TycoonEngine();
 e.configure({ playerName:'Tester', companyName:'Long Run Co', difficulty:'normal', scenario:'free' });
 const injection = 1_000_000_000; e.g.companyCash += injection; e.g.personalCash += injection;

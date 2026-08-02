@@ -5,6 +5,7 @@ const vm = require('node:vm');
 const ROOT = path.resolve(__dirname, '..');
 const INDEX = path.join(ROOT, 'index.html');
 const BIDI = /[\u202A-\u202E\u2066-\u2069]/;
+const compiledGameScripts = new Map();
 
 function readIndex() { return fs.readFileSync(INDEX, 'utf8'); }
 function lineOf(text, index) { return text.slice(0, index).split(/\r?\n/).length; }
@@ -53,9 +54,12 @@ function makeElement(id = '', ownerDocument = null) {
   const el = {
     id, tagName: String(id || '').toUpperCase(), ownerDocument, children: [], style: {}, dataset: {}, className: '', innerHTML: '', textContent: '', value: '', checked: false,
     classList: { add(){}, remove(){}, contains(){ return false; }, toggle(){} },
-    appendChild(child){ this.children.push(child); return child; },
-    remove(){}, addEventListener(){}, removeEventListener(){}, closest(){ return null; }, querySelector(){ return null; }, querySelectorAll(){ return []; },
-    setAttribute(k, v){ const value=String(v); if(k==='src')this.src=value; else if(k && k.startsWith('data-'))this.dataset[k.slice(5).replace(/-([a-z])/g,(_,c)=>c.toUpperCase())]=value; else this[k] = value; }, getAttribute(k){ if(k==='src')return this.src ?? null; if(k && k.startsWith('data-'))return this.dataset[k.slice(5).replace(/-([a-z])/g,(_,c)=>c.toUpperCase())] ?? null; return this[k] ?? null; }, click(){}, select(){},
+    appendChild(child){ this.children.push(child); return child; }, prepend(...children){ this.children.unshift(...children); },
+    before(){}, after(){}, remove(){}, addEventListener(){}, removeEventListener(){}, closest(){ return null; }, querySelector(){ return null; }, querySelectorAll(){ return []; },
+    insertAdjacentHTML(position, html){ if(position==='afterbegin')this.innerHTML=String(html)+this.innerHTML; else this.innerHTML+=String(html); },
+    setAttribute(k, v){ const value=String(v); if(k==='src')this.src=value; else if(k && k.startsWith('data-'))this.dataset[k.slice(5).replace(/-([a-z])/g,(_,c)=>c.toUpperCase())]=value; else this[k] = value; }, getAttribute(k){ if(k==='src')return this.src ?? null; if(k && k.startsWith('data-'))return this.dataset[k.slice(5).replace(/-([a-z])/g,(_,c)=>c.toUpperCase())] ?? null; return this[k] ?? null; },
+    removeAttribute(k){ if(k && k.startsWith('data-'))delete this.dataset[k.slice(5).replace(/-([a-z])/g,(_,c)=>c.toUpperCase())]; else delete this[k]; },
+    contains(node){ return node===this||this.children.some(child=>child?.contains?.(node)); }, focus(){ if(this.ownerDocument)this.ownerDocument.activeElement=this; }, click(){}, select(){},
     getContext(){ return { scale(){}, clearRect(){}, beginPath(){}, moveTo(){}, lineTo(){}, stroke(){}, fillRect(){}, fillText(){}, createLinearGradient(){ return { addColorStop(){} }; } }; },
     toDataURL(){ return 'data:image/png;base64,'; }
   };
@@ -81,13 +85,15 @@ function createBrowserContext(options = {}) {
   class URLStub extends URL {}
   URLStub.createObjectURL = () => 'blob:test';
   URLStub.revokeObjectURL = () => {};
+  class MutationObserverStub { constructor(callback){ this.callback=callback; } observe(){} disconnect(){} takeRecords(){ return []; } }
   const context = { console, document, window: null, globalThis: null, localStorage: new StorageStub(), sessionStorage: new StorageStub(), __localStorageData: storage, __localStorageHistory: storageHistory,
     navigator: { userAgent: 'node-test' }, location: { href: 'http://localhost/' }, crypto: { randomUUID: () => `test-${random().toString(16).slice(2)}` },
-    Blob: class Blob { constructor(parts, opts){ this.parts = parts; this.type = opts?.type || ''; } async text(){ return this.parts.join(''); } },
+    Blob: class Blob { constructor(parts, opts){ this.parts = parts; this.type = opts?.type || ''; this.size=Buffer.byteLength(this.parts.join('')); } async text(){ return this.parts.join(''); } },
     URL: URLStub, FormData: class { constructor(){ } entries(){ return []; } },
-    EventTarget, Event, CustomEvent: global.CustomEvent || class CustomEvent extends Event { constructor(type, init={}){ super(type); this.detail = init.detail; } },
+    EventTarget, Event, CustomEvent: global.CustomEvent || class CustomEvent extends Event { constructor(type, init={}){ super(type); this.detail = init.detail; } }, MutationObserver: MutationObserverStub,
     setTimeout: options.headless ? (() => 0) : setTimeout,
     clearTimeout: options.headless ? (() => {}) : clearTimeout,
+    queueMicrotask: options.headless ? (() => {}) : queueMicrotask,
     requestAnimationFrame: options.headless ? (() => 0) : (cb => setTimeout(cb, 0)),
     getComputedStyle: () => ({ getPropertyValue: () => '#efb85b' }), confirm: () => true, alert(){}, addEventListener(){}, removeEventListener(){}
   };
@@ -103,6 +109,14 @@ function loadGame(options = {}) {
 }
 function loadGameFromHtml(html, options = {}) {
   let scripts = extractScripts(html);
+  if (options.isolatedLegacyIndex) {
+    let connectedModules=false;
+    scripts = scripts.filter(script => {
+      const name=script.file&&path.basename(script.file);
+      if(name==='macro-cycle.js')connectedModules=true;
+      return !connectedModules&&name!=='ceo-dashboard.js';
+    });
+  }
   if (options.headless) {
     scripts = scripts.filter(script => {
       if (!script.file) return script.parsedAttrs?.['data-business-master-compat'] !== undefined;
@@ -115,7 +129,12 @@ function loadGameFromHtml(html, options = {}) {
     : 'const engine = globalThis.__ct_engine = TycoonEngine.load();');
   code = code.replace('const ui = {', 'const ui = globalThis.__ct_ui = {');
   const ctx = createBrowserContext(options);
-  vm.runInContext(code, ctx, { filename: 'index.html' });
+  let script = compiledGameScripts.get(code);
+  if (!script) {
+    script = new vm.Script(code, { filename: 'index.html' });
+    compiledGameScripts.set(code, script);
+  }
+  script.runInContext(ctx);
   return { ctx, modules: ctx.__capitalismTycoonModules, engineModule: ctx.__capitalismTycoonModules.engine };
 }
 function assertFinite(value, path, errors) { if (typeof value === 'number' && !Number.isFinite(value)) errors.push(`${path}: non-finite ${value}`); }
@@ -131,6 +150,7 @@ function findStateIssues(value, base = 'g', errors = [], seen = new WeakSet()) {
       if ((/(ratio|ownership|Rate)$/i.test(k)) && typeof v === 'number' && (v < 0 || v > 1.5)) errors.push(`${p}: suspicious ratio ${v}`);
       if (v && typeof v === 'object') findStateIssues(v, p, errors, seen);
     }
+    seen.delete(value);
   }
   return errors;
 }

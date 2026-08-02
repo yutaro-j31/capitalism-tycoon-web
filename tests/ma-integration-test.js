@@ -1,7 +1,7 @@
 const assert=require('node:assert');
 const fs=require('node:fs');
 const {loadGame}=require('./harness');
-const {ctx,modules,engineModule}=loadGame();
+const {ctx,modules,engineModule}=loadGame({isolatedLegacyIndex:true});
 const ma=modules.maIntegration;ma.installMAIntegration(engineModule.TycoonEngine);
 const SAVE_KEY='capitalism_tycoon_web_v1';
 const clone=v=>JSON.parse(JSON.stringify(v));
