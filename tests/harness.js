@@ -5,6 +5,7 @@ const vm = require('node:vm');
 const ROOT = path.resolve(__dirname, '..');
 const INDEX = path.join(ROOT, 'index.html');
 const BIDI = /[\u202A-\u202E\u2066-\u2069]/;
+const compiledGameScripts = new Map();
 
 function readIndex() { return fs.readFileSync(INDEX, 'utf8'); }
 function lineOf(text, index) { return text.slice(0, index).split(/\r?\n/).length; }
@@ -128,7 +129,12 @@ function loadGameFromHtml(html, options = {}) {
     : 'const engine = globalThis.__ct_engine = TycoonEngine.load();');
   code = code.replace('const ui = {', 'const ui = globalThis.__ct_ui = {');
   const ctx = createBrowserContext(options);
-  vm.runInContext(code, ctx, { filename: 'index.html' });
+  let script = compiledGameScripts.get(code);
+  if (!script) {
+    script = new vm.Script(code, { filename: 'index.html' });
+    compiledGameScripts.set(code, script);
+  }
+  script.runInContext(ctx);
   return { ctx, modules: ctx.__capitalismTycoonModules, engineModule: ctx.__capitalismTycoonModules.engine };
 }
 function assertFinite(value, path, errors) { if (typeof value === 'number' && !Number.isFinite(value)) errors.push(`${path}: non-finite ${value}`); }
