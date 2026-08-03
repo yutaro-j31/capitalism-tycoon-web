@@ -17,6 +17,9 @@ assert.equal(balance.VERSION, 1);
 assert.equal(balance.STANDARD_TARGET_WEEK, 208);
 assert.equal(balance.EASY_DEMAND_VERSION, 1);
 assert.equal(balance.EASY_DEMAND_MULTIPLIER, 1.1);
+assert.equal(balance.WEEKLY_CASH_ROUNDING_LIMIT, .05);
+assert.equal(balance.ROUNDING_HISTORY_LIMIT, 52);
+assert.equal(balance.ROUNDING_ADJUSTMENT_PER_52_WEEKS, 1);
 assert.equal(engineModule.SAVE_VERSION, 9);
 assert.equal(engineModule.SAVE_KEY, 'capitalism_tycoon_web_v1');
 
@@ -32,6 +35,10 @@ for (const [difficulty, expected] of Object.entries({ easy:[12_000_000,70,715], 
   assert.ok(Math.abs(game.business('cafe').demand - expected[2]) < 1e-9, `${difficulty} cafe demand mismatch`);
   assert.equal(game.g.difficultyOpeningBalanceApplied, true);
   assert.equal(game.g.difficultyScenarioBalanceVersion, 1);
+  assert.equal(game.g.finance.roundingAdjustmentTotal, 0);
+  assert.equal(game.g.finance.roundingAdjustmentAbsoluteTotal, 0);
+  assert.equal(game.g.finance.roundingAdjustmentCount, 0);
+  assert.equal(game.g.finance.roundingAdjustmentHistory.length, 0);
   if (difficulty === 'easy') assert.equal(game.g.easyDifficultyDemandVersion, 1);
   else assert.equal(game.g.easyDifficultyDemandVersion, undefined);
   assert.equal(finance.validate(game.g).ok, true, finance.validate(game.g).errors.join(' / '));
@@ -68,6 +75,28 @@ assert.equal(reloadedEasy.g.finance.openingCash, 12_000_000, 'reloaded easy save
 assert.equal(reloadedEasy.g.finance.openingEquity, migratedEasy.g.finance.openingEquity);
 assert.ok(Math.abs(reloadedEasy.business('cafe').demand - migratedEasy.business('cafe').demand) < 1e-9, 'Easy demand must not be multiplied twice');
 assert.equal(balance.applyEasyDemand(reloadedEasy.g), false, 'current Easy demand version must be idempotent');
+
+const roundingGame = new engineModule.TycoonEngine();
+roundingGame.configure({ playerName:'丸め監査', companyName:'丸め監査', difficulty:'normal', scenario:'free' });
+roundingGame.g.week = 52;
+const cashBeforeRounding = roundingGame.g.companyCash;
+roundingGame.g.finance.weeklySnapshots = [{ week:52, openingCash:cashBeforeRounding, endingCash:cashBeforeRounding-.02, actualCompanyCash:cashBeforeRounding, cashDifference:.02, operatingCashFlow:-.02, investingCashFlow:0, financingCashFlow:0, netCashChange:-.02 }];
+assert.equal(balance.reconcileWeeklyCashRounding(roundingGame.g), true, 'sub-five-cent difference must be reconciled');
+assert.equal(roundingGame.g.companyCash, cashBeforeRounding-.02);
+assert.equal(roundingGame.g.finance.roundingAdjustmentTotal, -.02);
+assert.equal(roundingGame.g.finance.roundingAdjustmentAbsoluteTotal, .02);
+assert.equal(roundingGame.g.finance.roundingAdjustmentCount, 1);
+assert.equal(roundingGame.g.finance.roundingAdjustmentHistory.length, 1);
+assert.deepEqual(roundingGame.g.finance.roundingAdjustmentHistory[0], { week:52, adjustment:-.02, differenceBefore:.02 });
+assert.equal(balance.roundingAdjustmentLimit(roundingGame.g), 1);
+assert.equal(finance.validate(roundingGame.g).ok, true, finance.validate(roundingGame.g).errors.join(' / '));
+const roundingReloaded = new engineModule.TycoonEngine(JSON.parse(JSON.stringify(roundingGame.g)));
+assert.equal(roundingReloaded.g.finance.roundingAdjustmentTotal, -.02, 'rounding audit total must survive JSON reload');
+assert.equal(roundingReloaded.g.finance.roundingAdjustmentHistory.length, 1, 'rounding audit history must survive JSON reload');
+roundingReloaded.g.finance.roundingAdjustmentAbsoluteTotal = 1.01;
+const excessiveRounding = finance.validate(roundingReloaded.g);
+assert.equal(excessiveRounding.ok, false, 'excessive cumulative rounding must fail finance validation');
+assert.ok(excessiveRounding.errors.some(message => message.includes('週次現金丸め補正の累積が許容値を超過')));
 
 const freeGame = new engineModule.TycoonEngine();
 freeGame.configure({ playerName:'自由', companyName:'自由', difficulty:'normal', scenario:'free' });

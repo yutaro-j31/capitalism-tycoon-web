@@ -16,6 +16,12 @@ const result = runScenario(strategy, seed, { includeState:true, difficulty, game
 const { state, modules, ...summary } = result;
 const validation = modules.finance.validate(state);
 assert.equal(validation.ok, true, validation.errors.join('\n'));
+const weeklyCashDrift = (state.finance?.weeklySnapshots || []).filter(row => Math.abs(Number(row.cashDifference || 0)) > 0.01);
+assert.equal(
+  weeklyCashDrift.length,
+  0,
+  `weekly cash rounding drift must stay within one cent: ${weeklyCashDrift.slice(0,5).map(row => `week ${row.week}: ${row.cashDifference}`).join(', ')}`
+);
 modules.difficultyScenarioBalance.validate(state);
 const serialized = JSON.stringify(state);
 assert.ok(serialized.length > 0, 'state must remain JSON serializable');
