@@ -5,7 +5,7 @@ name: Difficulty Scenario Balance
       - main
   pull_request:
 jobs:
-  balance:
+  balance-contract:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -13,4 +13,48 @@ jobs:
         with:
           node-version: '22'
       - run: node tests/difficulty-scenario-balance-test.js
-      - run: node tests/difficulty-scenario-matrix-test.js
+
+  matrix-shard:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [0, 1, 2, 3, 4, 5]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Run difficulty matrix shard
+        env:
+          DIFFICULTY_MATRIX_SHARD_INDEX: ${{ matrix.shard }}
+          DIFFICULTY_MATRIX_SHARD_COUNT: 6
+          DIFFICULTY_MATRIX_OUTPUT: artifacts/difficulty-matrix/shard-${{ matrix.shard }}.json
+        run: node tests/difficulty-scenario-shard-runner.js
+      - name: Upload shard result
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: difficulty-matrix-shard-${{ matrix.shard }}
+          path: artifacts/difficulty-matrix/shard-${{ matrix.shard }}.json
+          if-no-files-found: error
+          retention-days: 7
+
+  matrix-aggregate:
+    if: always()
+    needs: matrix-shard
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: difficulty-matrix-shard-*
+          path: artifacts/difficulty-matrix
+          merge-multiple: true
+      - name: Validate complete difficulty matrix
+        env:
+          DIFFICULTY_MATRIX_AGGREGATE_DIR: artifacts/difficulty-matrix
+        run: node tests/difficulty-scenario-matrix-test.js
