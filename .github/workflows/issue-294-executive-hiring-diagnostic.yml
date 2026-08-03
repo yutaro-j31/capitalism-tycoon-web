@@ -1,0 +1,16 @@
+name: Issue 294 Executive Hiring Diagnostic
+'on':
+  pull_request:
+    paths:
+      - 'tests/issue-294-executive-hiring-diagnostic.js'
+      - 'tests/normal-start-ipo-balance-audit-test.js'
+      - '.github/workflows/issue-294-executive-hiring-diagnostic.yml'
+jobs:
+  diagnose:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: node tests/issue-294-executive-hiring-diagnostic.js
