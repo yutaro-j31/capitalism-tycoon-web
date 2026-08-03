@@ -56,10 +56,9 @@ function validateIndividual(result) {
     assert.ok(result.borrowingAttempts.some(row => row.result), `${result.id}/${result.difficulty}: leveraged route must borrow`);
     assert.ok(result.debt > 0, `${result.id}/${result.difficulty}: leveraged route must retain debt at IPO audit`);
   } else assert.equal(result.debt, 0, `${result.id}/${result.difficulty}: bootstrap route must remain debt-free`);
-  if (result.difficulty !== 'hard') {
-    assert.equal(result.ipo, true, `${result.id}/${result.difficulty}/${result.seed}: Easy and Normal must reach IPO`);
-    assert.ok(result.ipoWeek <= 208, `${result.id}/${result.difficulty}: IPO must occur by week 208`);
-  }
+  // Issue #294 fixed the executive-hiring API collision, so every difficulty must now reach IPO.
+  assert.equal(result.ipo, true, `${result.id}/${result.difficulty}/${result.seed}: every matrix case must reach IPO`);
+  assert.ok(result.ipoWeek <= 208, `${result.id}/${result.difficulty}: IPO must occur by week 208`);
   if (result.gameScenario === 'free') {
     assert.equal(result.scenarioStatus, 'free');
     assert.equal(result.scenarioTargetWeek, null);
@@ -68,17 +67,10 @@ function validateIndividual(result) {
     assert.equal(result.scenarioGrade, null);
   } else {
     assert.equal(result.scenarioTargetWeek, 208);
-    if (result.ipo) {
-      assert.equal(result.scenarioStatus, 'completed');
-      assert.equal(result.scenarioCompletedWeek, result.ipoWeek);
-      assert.equal(result.scenarioScore, expectedScore(result.ipoWeek));
-      assert.equal(result.scenarioGrade, expectedGrade(result.ipoWeek));
-    } else {
-      assert.equal(result.scenarioStatus, 'overdue');
-      assert.equal(result.scenarioCompletedWeek, null);
-      assert.equal(result.scenarioScore, null);
-      assert.equal(result.scenarioGrade, null);
-    }
+    assert.equal(result.scenarioStatus, 'completed');
+    assert.equal(result.scenarioCompletedWeek, result.ipoWeek);
+    assert.equal(result.scenarioScore, expectedScore(result.ipoWeek));
+    assert.equal(result.scenarioGrade, expectedGrade(result.ipoWeek));
   }
 }
 function validateAggregate(results) {
@@ -91,15 +83,7 @@ function validateAggregate(results) {
     const rows = results.filter(row => row.id === strategy.id && row.gameScenario === gameScenario && row.difficulty === difficulty);
     const passed = rows.filter(row => row.ipo).length;
     assert.equal(rows.length, 3, `${strategy.id}/${difficulty}/${gameScenario}: expected three seeds`);
-    if (difficulty === 'hard') {
-      assert.ok(passed >= 2, `${strategy.id}/${gameScenario}: Hard must remain viable in at least two seeds`);
-      for (const row of rows.filter(value => !value.ipo)) {
-        assert.ok(row.cash > 0, `${strategy.id}: Hard non-IPO case must remain liquid`);
-        assert.ok(row.value >= 100_000_000, `${strategy.id}: Hard non-IPO case must retain IPO-scale value`);
-        assert.ok(row.annualProfit >= 7_000_000, `${strategy.id}: Hard non-IPO case must remain near the profit gate`);
-        assert.deepEqual(row.missing, ['直近52週利益1,000万円'], `${strategy.id}: Hard failure must be limited to the profit gate`);
-      }
-    } else assert.equal(passed, 3, `${strategy.id}/${difficulty}/${gameScenario}: all seeds must reach IPO`);
+    assert.equal(passed, 3, `${strategy.id}/${difficulty}/${gameScenario}: all seeds must reach IPO after Issue #294`);
   }
 
   for (const strategy of strategies) for (const difficulty of DIFFICULTIES) for (const seed of SEEDS) {
@@ -118,10 +102,11 @@ function validateAggregate(results) {
   }
 
   const economicCases = results.filter(row => row.gameScenario === 'free');
-  assert.equal(economicCases.filter(row => row.ipo).length, 44, 'expected 44 of 45 unique economic cases to reach IPO');
-  assert.equal(results.filter(row => row.ipo).length, 88, 'expected 88 of 90 scenario rows to reach IPO');
+  // Issue #294 restored the legacy CEO/CFO hiring path; any future drop below 45/45 or 90/90 is a regression.
+  assert.equal(economicCases.filter(row => row.ipo).length, 45, 'expected all 45 unique economic cases to reach IPO');
+  assert.equal(results.filter(row => row.ipo).length, 90, 'expected all 90 scenario rows to reach IPO');
   assert.equal(results.filter(row => row.gameOver).length, 0, 'no matrix case may go bankrupt');
-  console.log(JSON.stringify({cases:90,economicCases:45,ipoEconomicCases:44,ipoScenarioRows:88,bankruptcies:0,scenarioEconomicParityPairs:45},null,2));
+  console.log(JSON.stringify({cases:90,economicCases:45,ipoEconomicCases:45,ipoScenarioRows:90,bankruptcies:0,scenarioEconomicParityPairs:45},null,2));
 }
 function readAggregateDirectory(directory) {
   const files = fs.readdirSync(directory).filter(file => file.endsWith('.json')).sort();
