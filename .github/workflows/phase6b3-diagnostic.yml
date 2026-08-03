@@ -30,7 +30,7 @@ jobs:
           DIFFICULTY_MATRIX_SHARD_INDEX: ${{ matrix.shard }}
           DIFFICULTY_MATRIX_SHARD_COUNT: 6
           DIFFICULTY_MATRIX_OUTPUT: artifacts/difficulty-matrix/shard-${{ matrix.shard }}.json
-        run: node tests/difficulty-scenario-matrix-test.js
+        run: node tests/difficulty-scenario-shard-runner.js
       - name: Upload shard result
         if: always()
         uses: actions/upload-artifact@v4
