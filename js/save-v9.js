@@ -20,6 +20,49 @@ const SAVE_KEY=engine.SAVE_KEY;
 const clone=value=>typeof structuredClone==='function'?structuredClone(value):JSON.parse(JSON.stringify(value));
 const plain=value=>Boolean(value&&typeof value==='object'&&!Array.isArray(value));
 const finite=(value,fallback=0)=>Number.isFinite(Number(value))?Number(value):fallback;
+const round=value=>Math.round(finite(value)*100)/100;
+
+const OPERATING_CATEGORIES=new Set(['revenue','costOfSales','payroll','rent','advertising','researchAndDevelopment','maintenance','headOfficeExpense','interestExpense','taxPayment','otherOperating','workingCapitalIncrease','workingCapitalDecrease','accountsReceivableCollection','accountsPayablePayment','accruedExpensePayment']);
+const INVESTING_CATEGORIES=new Set(['capitalExpenditure','assetPurchase','assetSale','investmentPurchase','investmentSale','investmentDividend','acquisition','otherInvesting']);
+const FINANCING_CATEGORIES=new Set(['debtBorrowing','debtRepayment','equityFinancing','dividend','otherFinancing']);
+const TRANSACTION_SOFT_LIMIT=5000;
+const TRANSACTION_COMPACT_TARGET=4500;
+
+function archiveCompletedTransactions(ledger,rows){
+ if(!rows.length)return;
+ ledger.archivedProfitTotal=round(finite(ledger.archivedProfitTotal)+rows.reduce((sum,row)=>sum+finite(row.profitEffect),0));
+ ledger.archivedDividendTotal=round(finite(ledger.archivedDividendTotal)-rows.filter(row=>row.category==='dividend').reduce((sum,row)=>sum+finite(row.cashEffect),0));
+ ledger.archivedOperatingCashFlow=round(finite(ledger.archivedOperatingCashFlow)+rows.filter(row=>OPERATING_CATEGORIES.has(row.category)).reduce((sum,row)=>sum+finite(row.cashEffect),0));
+ ledger.archivedInvestingCashFlow=round(finite(ledger.archivedInvestingCashFlow)+rows.filter(row=>INVESTING_CATEGORIES.has(row.category)).reduce((sum,row)=>sum+finite(row.cashEffect),0));
+ ledger.archivedFinancingCashFlow=round(finite(ledger.archivedFinancingCashFlow)+rows.filter(row=>FINANCING_CATEGORIES.has(row.category)).reduce((sum,row)=>sum+finite(row.cashEffect),0));
+}
+function compactCompletedTransactionWeeks(ledger,incomingWeek){
+ const rows=Array.isArray(ledger.transactions)?ledger.transactions:[];
+ if(rows.length<TRANSACTION_SOFT_LIMIT)return 0;
+ const currentWeek=Math.max(1,Math.floor(finite(incomingWeek,rows.at(-1)?.week||1)));
+ const desiredRemoval=Math.max(1,rows.length-TRANSACTION_COMPACT_TARGET);
+ let removeCount=0;
+ while(removeCount<rows.length&&removeCount<desiredRemoval&&Math.floor(finite(rows[removeCount]?.week,currentWeek))<currentWeek)removeCount+=1;
+ if(removeCount===0)return 0;
+ const boundaryWeek=Math.floor(finite(rows[removeCount-1]?.week,currentWeek));
+ while(removeCount<rows.length&&Math.floor(finite(rows[removeCount]?.week,currentWeek))===boundaryWeek)removeCount+=1;
+ const removed=rows.slice(0,removeCount);
+ archiveCompletedTransactions(ledger,removed);
+ ledger.transactions=rows.slice(removeCount);
+ return removeCount;
+}
+function installFinanceTransactionRetentionGuard(){
+ if(finance.__completedWeekCompressionInstalled)return true;
+ const baseEvent=finance.event;
+ finance.event=function guardedFinanceEvent(g,category,amount,opts={}){
+  const ledger=finance.ensureFinance(g);
+  const incomingWeek=Math.max(1,Math.floor(finite(opts?.week,g?.week||1)));
+  compactCompletedTransactionWeeks(ledger,incomingWeek);
+  return baseEvent.apply(this,arguments);
+ };
+ Object.assign(finance,{compactCompletedTransactionWeeks,__completedWeekCompressionInstalled:true});
+ return true;
+}
 
 function detectSaveVersion(raw){
  if(!plain(raw))return {ok:false,version:null,error:'セーブデータのルートはオブジェクトである必要があります。'};
@@ -161,5 +204,6 @@ class TycoonEngineV9 extends BaseTycoonEngine{
  }
 }
 
+installFinanceTransactionRetentionGuard();
 Object.assign(engine,{SAVE_VERSION,createInitialState,detectSaveVersion,validateMigratedState,migrateSave,migrateV8ToV9,sanitizeBusinessRecords,TycoonEngine:TycoonEngineV9,__saveV9Installed:true,__parentIPOFinanceInstalled:true,__parentIPOEquityBalanceInstalled:true});
 })();
