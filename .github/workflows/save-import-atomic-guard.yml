@@ -23,7 +23,7 @@ jobs:
         run: |
           node - <<'NODE'
           const fs=require('fs');
-          const html=fs.readFileSync('play.html','utf8');
+          const html=fs.readFileSync('index.html','utf8');
           const guard=html.indexOf('save-import-atomic-guard.js');
           const ui=html.indexOf('save-storage-ui.js');
           if(guard<0||ui<0||guard>ui)throw new Error('save import atomic guard must load before save-storage-ui.js');
