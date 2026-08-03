@@ -20,6 +20,13 @@ harness.loadGame = function loadGameWithExecutiveDiagnostics(options) {
   const originalConfigure = Engine.prototype.configure;
   const originalHireExecutive = Engine.prototype.hireExecutive;
   diagnostics.loadedHireExecutiveSource = String(originalHireExecutive);
+  let activeAttempt = null;
+  const originalRandom = loaded.ctx.Math.random;
+  loaded.ctx.Math.random = function diagnosticRandom() {
+    const value = originalRandom();
+    if (activeAttempt) activeAttempt.randomDraws.push(value);
+    return value;
+  };
 
   Engine.prototype.configure = function configureWithExecutiveDiagnostics(config) {
     const result = originalConfigure.call(this, config);
@@ -29,8 +36,17 @@ harness.loadGame = function loadGameWithExecutiveDiagnostics(options) {
   Engine.prototype.hireExecutive = function hireExecutiveWithDiagnostics(candidateID, salary, so) {
     const candidateIndex = (this.g.executiveMarket || []).findIndex(row => row.id === candidateID);
     const candidate = candidateIndex >= 0 ? this.g.executiveMarket[candidateIndex] : null;
-    const before = {week:this.g.week,candidateID,candidateIndex,candidateRole:candidate?.role||null,candidateName:candidate?.name||null,salary,so,desiredSalary:candidate?.desiredSalary??null,desiredSO:candidate?.desiredSO??null,companyCash:this.g.companyCash,companyReputation:this.g.companyReputation,alreadyHired:candidate?Boolean(this.g.executives?.[candidate.role]):null,marketRoles:(this.g.executiveMarket||[]).map(row=>row.role)};
-    const result = originalHireExecutive.call(this, candidateID, salary, so);
+    const desiredSalary = candidate?.desiredSalary ?? candidate?.salary ?? salary;
+    const desiredSO = candidate?.desiredSO ?? 0;
+    const calculatedChance = candidate ? Math.max(0.15, Math.min(0.98, 0.55 + (salary / desiredSalary - 1) * 0.8 + (so - desiredSO) * 12 + this.g.companyReputation / 300)) : null;
+    const before = {week:this.g.week,candidateID,candidateIndex,candidateRole:candidate?.role||null,candidateName:candidate?.name||null,salary,so,desiredSalary:candidate?.desiredSalary??null,desiredSO:candidate?.desiredSO??null,calculatedChance,companyCash:this.g.companyCash,companyReputation:this.g.companyReputation,alreadyHired:candidate?Boolean(this.g.executives?.[candidate.role]):null,marketRoles:(this.g.executiveMarket||[]).map(row=>row.role),randomDraws:[]};
+    activeAttempt = before;
+    let result;
+    try {
+      result = originalHireExecutive.call(this, candidateID, salary, so);
+    } finally {
+      activeAttempt = null;
+    }
     diagnostics.hireAttempts.push({before,result:Boolean(result),hiredRoles:Object.keys(this.g.executives||{}),companyCashAfter:this.g.companyCash,latestNews:this.g.news?.[0]||null});
     return result;
   };
