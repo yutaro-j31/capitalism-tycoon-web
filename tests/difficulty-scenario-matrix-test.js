@@ -1,4 +1,5 @@
 const assert = require('node:assert');
+const fs = require('node:fs');
 const path = require('node:path');
 const { spawnSync } = require('node:child_process');
 const { SCENARIOS, SEEDS } = require('./strategy-balance-runner');
@@ -10,7 +11,6 @@ const ECONOMIC_KEYS = Object.freeze(['ipo','ipoWeek','gameOver','week','stores',
 const EXPECTED_START = Object.freeze({easy:[12_000_000,70],normal:[8_000_000,60],hard:[6_000_000,50]});
 const strategies = STRATEGY_IDS.map(id => SCENARIOS.find(row => row.id === id));
 const caseScript = path.join(__dirname, 'difficulty-scenario-case.js');
-const results = [];
 
 function close(actual, expected, tolerance = 1e-8) {
   return Math.abs(Number(actual) - Number(expected)) <= tolerance * Math.max(1, Math.abs(Number(expected)));
@@ -19,9 +19,30 @@ function expectedGrade(week) {
   return week <= 78 ? 'S' : week <= 104 ? 'A' : week <= 130 ? 'B' : week <= 156 ? 'C' : week <= 208 ? 'D' : 'E';
 }
 function expectedScore(week) {
-  return Math.max(0, Math.min(100, Math.round(100 - Math.max(0, week - 52) * 100 / 156)));
+  return Math.max(0, Math.min(100, Math.round(100 - Math.max(0, week - 52) * 100 / 156));
 }
-function runCase(strategy, difficulty, gameScenario, seed) {
+function integerEnv(name, fallback) {
+  const raw = process.env[name];
+  if (raw === undefined || raw === '') return fallback;
+  const value = Number(raw);
+  assert.ok(Number.isInteger(value), `${name} must be an integer`);
+  return value;
+}
+function enumerateCases() {
+  const cases = [];
+  for (const strategy of strategies) {
+    assert.ok(strategy, 'all configured strategies must exist');
+    for (const difficulty of DIFFICULTIES) {
+      for (const gameScenario of GAME_SCENARIOS) {
+        for (const seed of SEEDS) cases.push({ strategy, difficulty, gameScenario, seed });
+      }
+    }
+  }
+  assert.equal(cases.length, 90, 'expected 90 difficulty/scenario cases');
+  return cases;
+}
+function runCase(testCase) {
+  const { strategy, difficulty, gameScenario, seed } = testCase;
   const child = spawnSync(process.execPath, [caseScript, strategy.id, difficulty, gameScenario, String(seed)], {
     encoding:'utf8',
     maxBuffer:16 * 1024 * 1024,
@@ -34,21 +55,7 @@ function runCase(strategy, difficulty, gameScenario, seed) {
   }
   return JSON.parse(child.stdout.trim().split(/\r?\n/).at(-1));
 }
-
-for (const strategy of strategies) {
-  for (const difficulty of DIFFICULTIES) {
-    for (const gameScenario of GAME_SCENARIOS) {
-      for (const seed of SEEDS) {
-        const result = runCase(strategy, difficulty, gameScenario, seed);
-        results.push(result);
-        console.log(`DIFFICULTY_SCENARIO_RESULT ${JSON.stringify(result)}`);
-      }
-    }
-  }
-}
-
-assert.equal(results.length, 90, 'expected 90 difficulty/scenario cases');
-for (const result of results) {
+function validateIndividual(result) {
   const [cash, credit] = EXPECTED_START[result.difficulty];
   assert.equal(result.startingCash, cash, `${result.id}/${result.difficulty}: starting cash mismatch`);
   assert.equal(result.startingCredit, credit, `${result.id}/${result.difficulty}: starting credit mismatch`);
@@ -88,52 +95,98 @@ for (const result of results) {
     }
   }
 }
+function validateAggregate(results) {
+  assert.equal(results.length, 90, 'expected 90 aggregated difficulty/scenario cases');
+  const keys = results.map(row => `${row.id}/${row.difficulty}/${row.gameScenario}/${row.seed}`);
+  assert.equal(new Set(keys).size, 90, 'aggregated cases must not contain duplicates');
+  for (const result of results) validateIndividual(result);
 
-for (const strategy of strategies) {
-  for (const gameScenario of GAME_SCENARIOS) {
-    for (const difficulty of DIFFICULTIES) {
-      const rows = results.filter(row => row.id === strategy.id && row.gameScenario === gameScenario && row.difficulty === difficulty);
-      const passed = rows.filter(row => row.ipo).length;
-      if (difficulty === 'hard') {
-        assert.ok(passed >= 2, `${strategy.id}/${gameScenario}: Hard must remain viable in at least two seeds`);
-        for (const row of rows.filter(value => !value.ipo)) {
-          assert.ok(row.cash > 0, `${strategy.id}: Hard non-IPO case must remain liquid`);
-          assert.ok(row.value >= 100_000_000, `${strategy.id}: Hard non-IPO case must retain IPO-scale value`);
-          assert.ok(row.annualProfit >= 7_000_000, `${strategy.id}: Hard non-IPO case must remain near the profit gate`);
-          assert.deepEqual(row.missing, ['直近52週利益1,000万円'], `${strategy.id}: Hard failure must be limited to the profit gate`);
+  for (const strategy of strategies) {
+    for (const gameScenario of GAME_SCENARIOS) {
+      for (const difficulty of DIFFICULTIES) {
+        const rows = results.filter(row => row.id === strategy.id && row.gameScenario === gameScenario && row.difficulty === difficulty);
+        const passed = rows.filter(row => row.ipo).length;
+        assert.equal(rows.length, 3, `${strategy.id}/${difficulty}/${gameScenario}: expected three seeds`);
+        if (difficulty === 'hard') {
+          assert.ok(passed >= 2, `${strategy.id}/${gameScenario}: Hard must remain viable in at least two seeds`);
+          for (const row of rows.filter(value => !value.ipo)) {
+            assert.ok(row.cash > 0, `${strategy.id}: Hard non-IPO case must remain liquid`);
+            assert.ok(row.value >= 100_000_000, `${strategy.id}: Hard non-IPO case must retain IPO-scale value`);
+            assert.ok(row.annualProfit >= 7_000_000, `${strategy.id}: Hard non-IPO case must remain near the profit gate`);
+            assert.deepEqual(row.missing, ['直近52週利益1,000万円'], `${strategy.id}: Hard failure must be limited to the profit gate`);
+          }
+        } else {
+          assert.equal(passed, 3, `${strategy.id}/${difficulty}/${gameScenario}: all seeds must reach IPO`);
         }
-      } else {
-        assert.equal(passed, 3, `${strategy.id}/${difficulty}/${gameScenario}: all seeds must reach IPO`);
       }
     }
   }
-}
 
-for (const strategy of strategies) {
-  for (const difficulty of DIFFICULTIES) {
-    for (const seed of SEEDS) {
-      const free = results.find(row => row.id === strategy.id && row.difficulty === difficulty && row.gameScenario === 'free' && row.seed === seed);
-      const standard = results.find(row => row.id === strategy.id && row.difficulty === difficulty && row.gameScenario === 'standard' && row.seed === seed);
-      for (const key of ECONOMIC_KEYS) assert.deepEqual(standard[key], free[key], `${strategy.id}/${difficulty}/${seed}: scenario changed economic key ${key}`);
+  for (const strategy of strategies) {
+    for (const difficulty of DIFFICULTIES) {
+      for (const seed of SEEDS) {
+        const free = results.find(row => row.id === strategy.id && row.difficulty === difficulty && row.gameScenario === 'free' && row.seed === seed);
+        const standard = results.find(row => row.id === strategy.id && row.difficulty === difficulty && row.gameScenario === 'standard' && row.seed === seed);
+        assert.ok(free && standard, `${strategy.id}/${difficulty}/${seed}: missing scenario pair`);
+        for (const key of ECONOMIC_KEYS) assert.deepEqual(standard[key], free[key], `${strategy.id}/${difficulty}/${seed}: scenario changed economic key ${key}`);
+      }
     }
   }
-}
 
-for (const strategy of strategies) {
-  for (const seed of SEEDS) {
-    const rows = Object.fromEntries(DIFFICULTIES.map(difficulty => [difficulty, results.find(row => row.id === strategy.id && row.difficulty === difficulty && row.gameScenario === 'free' && row.seed === seed)]));
-    const easyWeek = rows.easy.ipoWeek || 209;
-    const normalWeek = rows.normal.ipoWeek || 209;
-    const hardWeek = rows.hard.ipoWeek || 209;
-    assert.ok(easyWeek <= normalWeek, `${strategy.id}/${seed}: Easy must not progress slower than Normal`);
-    assert.ok(normalWeek <= hardWeek, `${strategy.id}/${seed}: Normal must not progress slower than Hard`);
-    assert.ok(close(rows.easy.calibratedDemand, rows.normal.calibratedDemand * 1.1), `${strategy.id}/${seed}: Easy demand multiplier mismatch`);
-    assert.ok(close(rows.hard.calibratedDemand, rows.normal.calibratedDemand), `${strategy.id}/${seed}: Hard demand must match Normal`);
+  for (const strategy of strategies) {
+    for (const seed of SEEDS) {
+      const rows = Object.fromEntries(DIFFICULTIES.map(difficulty => [difficulty, results.find(row => row.id === strategy.id && row.difficulty === difficulty && row.gameScenario === 'free' && row.seed === seed)]));
+      const easyWeek = rows.easy.ipoWeek || 209;
+      const normalWeek = rows.normal.ipoWeek || 209;
+      const hardWeek = rows.hard.ipoWeek || 209;
+      assert.ok(easyWeek <= normalWeek, `${strategy.id}/${seed}: Easy must not progress slower than Normal`);
+      assert.ok(normalWeek <= hardWeek, `${strategy.id}/${seed}: Normal must not progress slower than Hard`);
+      assert.ok(close(rows.easy.calibratedDemand, rows.normal.calibratedDemand * 1.1), `${strategy.id}/${seed}: Easy demand multiplier mismatch`);
+      assert.ok(close(rows.hard.calibratedDemand, rows.normal.calibratedDemand), `${strategy.id}/${seed}: Hard demand must match Normal`);
+    }
   }
+
+  const economicCases = results.filter(row => row.gameScenario === 'free');
+  assert.equal(economicCases.filter(row => row.ipo).length, 44, 'expected 44 of 45 unique economic cases to reach IPO');
+  assert.equal(results.filter(row => row.ipo).length, 88, 'expected 88 of 90 scenario rows to reach IPO');
+  assert.equal(results.filter(row => row.gameOver).length, 0, 'no matrix case may go bankrupt');
+  console.log(JSON.stringify({cases:results.length,economicCases:economicCases.length,ipoEconomicCases:44,ipoScenarioRows:88,bankruptcies:0,scenarioEconomicParityPairs:45},null,2));
+}
+function readAggregateDirectory(directory) {
+  const files = fs.readdirSync(directory).filter(file => file.endsWith('.json')).sort();
+  assert.ok(files.length > 0, 'aggregate directory must contain shard JSON files');
+  return files.flatMap(file => {
+    const value = JSON.parse(fs.readFileSync(path.join(directory, file), 'utf8'));
+    assert.ok(Array.isArray(value), `${file} must contain a JSON array`);
+    return value;
+  });
 }
 
-const economicCases = results.filter(row => row.gameScenario === 'free');
-assert.equal(economicCases.filter(row => row.ipo).length, 44, 'expected 44 of 45 unique economic cases to reach IPO');
-assert.equal(results.filter(row => row.ipo).length, 88, 'expected 88 of 90 scenario rows to reach IPO');
-assert.equal(results.filter(row => row.gameOver).length, 0, 'no matrix case may go bankrupt');
-console.log(JSON.stringify({cases:results.length,economicCases:economicCases.length,ipoEconomicCases:44,ipoScenarioRows:88,bankruptcies:0,scenarioEconomicParityPairs:45},null,2));
+const aggregateDirectory = process.env.DIFFICULTY_MATRIX_AGGREGATE_DIR;
+if (aggregateDirectory) {
+  validateAggregate(readAggregateDirectory(aggregateDirectory));
+} else {
+  const shardCount = integerEnv('DIFFICULTY_MATRIX_SHARD_COUNT', 1);
+  const shardIndex = integerEnv('DIFFICULTY_MATRIX_SHARD_INDEX', 0);
+  assert.ok(shardCount >= 1, 'DIFFICULTY_MATRIX_SHARD_COUNT must be at least 1');
+  assert.ok(shardIndex >= 0 && shardIndex < shardCount, 'DIFFICULTY_MATRIX_SHARD_INDEX must be within shard count');
+
+  const allCases = enumerateCases();
+  const selectedCases = allCases.filter((_, caseIndex) => caseIndex % shardCount === shardIndex);
+  assert.ok(selectedCases.length > 0, 'selected shard must contain at least one case');
+  const results = [];
+  for (const testCase of selectedCases) {
+    const result = runCase(testCase);
+    validateIndividual(result);
+    results.push(result);
+    console.log(`DIFFICULTY_SCENARIO_RESULT ${JSON.stringify(result)}`);
+  }
+
+  const outputFile = process.env.DIFFICULTY_MATRIX_OUTPUT;
+  if (outputFile) {
+    fs.mkdirSync(path.dirname(outputFile), { recursive:true });
+    fs.writeFileSync(outputFile, `${JSON.stringify(results)}\n`);
+  }
+  if (shardCount === 1) validateAggregate(results);
+  else console.log(JSON.stringify({shardIndex,shardCount,cases:results.length,totalCases:allCases.length},null,2));
+}
