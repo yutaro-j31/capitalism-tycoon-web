@@ -38,9 +38,9 @@ function archiveCompletedTransactions(ledger,rows){
 }
 function compactCompletedTransactionWeeks(ledger,incomingWeek){
  const rows=Array.isArray(ledger.transactions)?ledger.transactions:[];
- if(rows.length<TRANSACTION_SOFT_LIMIT)return 0;
+ if(rows.length<TRANSACTION_COMPACT_TARGET)return 0;
  const currentWeek=Math.max(1,Math.floor(finite(incomingWeek,rows.at(-1)?.week||1)));
- const desiredRemoval=Math.max(1,rows.length-TRANSACTION_COMPACT_TARGET);
+ const desiredRemoval=Math.max(1,rows.length-TRANSACTION_COMPACT_TARGET+1);
  let removeCount=0;
  while(removeCount<rows.length&&removeCount<desiredRemoval&&Math.floor(finite(rows[removeCount]?.week,currentWeek))<currentWeek)removeCount+=1;
  if(removeCount===0)return 0;
@@ -54,13 +54,18 @@ function compactCompletedTransactionWeeks(ledger,incomingWeek){
 function installFinanceTransactionRetentionGuard(){
  if(finance.__completedWeekCompressionInstalled)return true;
  const baseEvent=finance.event;
+ const baseRecordWeekly=finance.recordWeekly;
  finance.event=function guardedFinanceEvent(g,category,amount,opts={}){
   const ledger=finance.ensureFinance(g);
   const incomingWeek=Math.max(1,Math.floor(finite(opts?.week,g?.week||1)));
   compactCompletedTransactionWeeks(ledger,incomingWeek);
   return baseEvent.apply(this,arguments);
  };
- Object.assign(finance,{compactCompletedTransactionWeeks,__completedWeekCompressionInstalled:true});
+ finance.recordWeekly=function guardedRecordWeekly(g,ctx){
+  compactCompletedTransactionWeeks(finance.ensureFinance(g),Math.max(1,Math.floor(finite(g?.week,1))));
+  return baseRecordWeekly.apply(this,arguments);
+ };
+ Object.assign(finance,{compactCompletedTransactionWeeks,TRANSACTION_SOFT_LIMIT,TRANSACTION_COMPACT_TARGET,__completedWeekCompressionInstalled:true});
  return true;
 }
 
