@@ -1,4 +1,33 @@
+const fs = require('node:fs');
+const path = require('node:path');
 const harness = require('./harness');
+
+const diagnostics = {
+  market: null,
+  hireAttempts: [],
+  finalError: null
+};
+const outputPath = path.join(__dirname, '..', 'artifacts', 'issue-294-executive-hiring.json');
+
+function persistAndExit(error) {
+  if (error) diagnostics.finalError = String(error?.stack || error);
+  fs.mkdirSync(path.dirname(outputPath), { recursive: true });
+  fs.writeFileSync(outputPath, `${JSON.stringify(diagnostics, null, 2)}\n`);
+  console.log(`ISSUE_294_SUMMARY ${JSON.stringify({
+    marketRoles: diagnostics.market?.candidates?.map(row => row.role) || [],
+    hireAttemptCount: diagnostics.hireAttempts.length,
+    attempts: diagnostics.hireAttempts.map(row => ({
+      week: row.before.week,
+      role: row.before.candidateRole,
+      result: row.result,
+      latestNews: row.latestNews
+    })),
+    finalError: diagnostics.finalError?.split('\n')[0] || null
+  })}`);
+  process.exitCode = 0;
+}
+
+process.once('uncaughtException', persistAndExit);
 
 const originalLoadGame = harness.loadGame;
 harness.loadGame = function loadGameWithExecutiveDiagnostics(options) {
@@ -9,7 +38,7 @@ harness.loadGame = function loadGameWithExecutiveDiagnostics(options) {
 
   Engine.prototype.configure = function configureWithExecutiveDiagnostics(config) {
     const result = originalConfigure.call(this, config);
-    console.log(`ISSUE_294_MARKET ${JSON.stringify({
+    diagnostics.market = {
       week: this.g.week,
       candidates: (this.g.executiveMarket || []).map(row => ({
         id: row.id,
@@ -19,7 +48,7 @@ harness.loadGame = function loadGameWithExecutiveDiagnostics(options) {
         desiredSalary: row.desiredSalary,
         desiredSO: row.desiredSO
       }))
-    })}`);
+    };
     return result;
   };
 
@@ -40,13 +69,13 @@ harness.loadGame = function loadGameWithExecutiveDiagnostics(options) {
       marketRoles: (this.g.executiveMarket || []).map(row => row.role)
     };
     const result = originalHireExecutive.call(this, candidateID, salary, so);
-    console.log(`ISSUE_294_HIRE ${JSON.stringify({
+    diagnostics.hireAttempts.push({
       before,
       result: Boolean(result),
       hiredRoles: Object.keys(this.g.executives || {}),
       companyCashAfter: this.g.companyCash,
       latestNews: this.g.news?.[0] || null
-    })}`);
+    });
     return result;
   };
 
@@ -54,3 +83,4 @@ harness.loadGame = function loadGameWithExecutiveDiagnostics(options) {
 };
 
 require('./normal-start-ipo-balance-audit-test');
+persistAndExit(null);
