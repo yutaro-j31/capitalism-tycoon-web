@@ -4,6 +4,8 @@ name: Difficulty Scenario Balance
     branches:
       - main
   pull_request:
+  schedule:
+    - cron: '15 2 * * *'
 jobs:
   balance-contract:
     runs-on: ubuntu-latest
@@ -14,7 +16,19 @@ jobs:
           node-version: '22'
       - run: node tests/difficulty-scenario-balance-test.js
 
+  pr-representative-smoke:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Run six balanced representative cases
+        run: node tests/difficulty-scenario-pr-smoke-test.js
+
   matrix-shard:
+    if: github.event_name != 'pull_request'
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
@@ -41,7 +55,7 @@ jobs:
           retention-days: 7
 
   matrix-aggregate:
-    if: always()
+    if: ${{ always() && github.event_name != 'pull_request' }}
     needs: matrix-shard
     runs-on: ubuntu-latest
     steps:
