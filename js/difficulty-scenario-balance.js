@@ -9,7 +9,7 @@ if(!modules.engine.TycoonEngine.prototype.__completionInstalled||!modules.engine
 if(modules.difficultyScenarioBalance)throw new Error('difficulty scenario balance module is already registered.');
 const EngineClass=modules.engine.TycoonEngine,finance=modules.finance;
 const VERSION=1,STANDARD_TARGET_WEEK=208,HISTORY_LIMIT=24,LEGACY_BASE_CASH=8000000;
-const EASY_DEMAND_VERSION=1,EASY_DEMAND_MULTIPLIER=1.1;
+const EASY_DEMAND_VERSION=1,EASY_DEMAND_MULTIPLIER=1.1,WEEKLY_CASH_ROUNDING_LIMIT=.05;
 const WARNING_WEEKS=Object.freeze([52,104,156,196,208]);
 const DIFFICULTY_PROFILES=Object.freeze({easy:Object.freeze({id:'easy',label:'やさしい',startingCash:12000000,startingCredit:70,crisisGraceWeeks:4}),normal:Object.freeze({id:'normal',label:'標準',startingCash:8000000,startingCredit:60,crisisGraceWeeks:3}),hard:Object.freeze({id:'hard',label:'ハード',startingCash:6000000,startingCredit:50,crisisGraceWeeks:2})});
 const SCENARIO_PROFILES=Object.freeze({free:Object.freeze({id:'free',label:'自由プレイ',targetIPOWeek:null}),standard:Object.freeze({id:'standard',label:'標準シナリオ',targetIPOWeek:STANDARD_TARGET_WEEK})});
@@ -58,6 +58,16 @@ function reconcileOpeningFinance(state){
  state.difficultyScenarioBalanceVersion=VERSION;
  return Math.abs(delta)>.001;
 }
+function reconcileWeeklyCashRounding(state){
+ if(!plain(state))return false;
+ const f=finance.ensureFinance(state),week=integer(state.week),snap=(Array.isArray(f.weeklySnapshots)?f.weeklySnapshots:[]).find(row=>integer(row.week)===week);
+ if(!snap)return false;
+ const difference=round2(finite(snap.actualCompanyCash,state.companyCash)-finite(snap.endingCash));
+ if(Math.abs(difference)<.001||Math.abs(difference)>WEEKLY_CASH_ROUNDING_LIMIT)return false;
+ state.companyCash=round2(snap.endingCash);snap.actualCompanyCash=state.companyCash;snap.cashDifference=0;f.lastStatements=null;
+ if(plain(state.lastWeeklySummary))state.lastWeeklySummary.companyCash=state.companyCash;
+ return true;
+}
 function addHistory(state,p,kind,message){const operationID=`scenario-${integer(state.week)}-${kind}`;if(p.history.some(row=>row.operationID===operationID))return false;p.history.push({week:integer(state.week),kind,status:p.status,message:text(message),operationID});p.history=p.history.slice(-HISTORY_LIMIT);const line=`第${integer(state.week)}週：${text(message)}`;state.news=[line,...(Array.isArray(state.news)?state.news:[]).filter(row=>String(row)!==line)].slice(0,300);return true;}
 function snapshot(state){const p=ensure(state),profile=scenarioProfile(p.scenario),week=integer(state.week);return Object.freeze({scenario:profile.id,label:profile.label,status:p.status,targetIPOWeek:p.targetIPOWeek,weeksRemaining:profile.targetIPOWeek==null?null:Math.max(0,profile.targetIPOWeek-week),completedWeek:p.completedWeek,score:p.score,grade:p.grade});}
 function evaluate(state){
@@ -74,9 +84,9 @@ const baseNormalize=EngineClass.prototype.normalize;EngineClass.prototype.normal
 const baseSave=EngineClass.prototype.save;EngineClass.prototype.save=function(slot=null){reconcileOpeningFinance(this.g);applyEasyDemand(this.g);ensure(this.g);return baseSave.call(this,slot);};
 const baseConfigure=EngineClass.prototype.configure;EngineClass.prototype.configure=function(options={}){return this.runTransaction(()=>{const result=baseConfigure.call(this,options);reconcileOpeningFinance(this.g);applyEasyDemand(this.g);const scenario=evaluate(this.g);if(scenario.scenario==='standard')addHistory(this.g,this.g.scenarioProgress,'started',`標準シナリオを開始しました。第${STANDARD_TARGET_WEEK}週までのIPOを目指します。期限超過後も経営は継続できます。`);return result;});};
 const baseReset=EngineClass.prototype.reset;EngineClass.prototype.reset=function(){return this.runTransaction(()=>{const result=baseReset.call(this);reconcileOpeningFinance(this.g);applyEasyDemand(this.g);ensure(this.g);return result;});};
-const baseAdvanceWeek=EngineClass.prototype.advanceWeek;EngineClass.prototype.advanceWeek=function(showSummary=true){if(this.g.gameOver||this.g.isCompanySold)return baseAdvanceWeek.call(this,showSummary);return this.runTransaction(()=>{const result=baseAdvanceWeek.call(this,false);if(result===false)return result;const scenario=evaluate(this.g);if(this.g.lastWeeklySummary)this.g.lastWeeklySummary.scenario=scenario;return result;},'week',()=>({summary:showSummary?this.g.lastWeeklySummary:null}));};
+const baseAdvanceWeek=EngineClass.prototype.advanceWeek;EngineClass.prototype.advanceWeek=function(showSummary=true){if(this.g.gameOver||this.g.isCompanySold)return baseAdvanceWeek.call(this,showSummary);return this.runTransaction(()=>{const result=baseAdvanceWeek.call(this,false);if(result===false)return result;reconcileWeeklyCashRounding(this.g);const scenario=evaluate(this.g);if(this.g.lastWeeklySummary)this.g.lastWeeklySummary.scenario=scenario;return result;},'week',()=>({summary:showSummary?this.g.lastWeeklySummary:null}));};
 const baseExecuteIPO=EngineClass.prototype.executeIPO;if(typeof baseExecuteIPO==='function')EngineClass.prototype.executeIPO=function(...args){return this.runTransaction(()=>{const result=baseExecuteIPO.apply(this,args);if(result)evaluate(this.g);return result;});};
 EngineClass.prototype.__difficultyScenarioBalanceInstalled=true;
 const activeEngine=modules.playerEngineBridge.getEngine();if(activeEngine){const financeChanged=reconcileOpeningFinance(activeEngine.g),demandChanged=applyEasyDemand(activeEngine.g);ensure(activeEngine.g);if(financeChanged||demandChanged)activeEngine.save();}
-modules.difficultyScenarioBalance=Object.freeze({VERSION,STANDARD_TARGET_WEEK,HISTORY_LIMIT,WARNING_WEEKS,EASY_DEMAND_VERSION,EASY_DEMAND_MULTIPLIER,DIFFICULTY_PROFILES,SCENARIO_PROFILES,difficultyProfile,scenarioProfile,gradeForWeek,scoreForWeek,applyEasyDemand,ensure,reconcileOpeningFinance,evaluate,snapshot,validate,__installed:true});
+modules.difficultyScenarioBalance=Object.freeze({VERSION,STANDARD_TARGET_WEEK,HISTORY_LIMIT,WARNING_WEEKS,EASY_DEMAND_VERSION,EASY_DEMAND_MULTIPLIER,WEEKLY_CASH_ROUNDING_LIMIT,DIFFICULTY_PROFILES,SCENARIO_PROFILES,difficultyProfile,scenarioProfile,gradeForWeek,scoreForWeek,applyEasyDemand,ensure,reconcileOpeningFinance,reconcileWeeklyCashRounding,evaluate,snapshot,validate,__installed:true});
 })();
