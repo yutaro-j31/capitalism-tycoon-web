@@ -3,7 +3,7 @@ on:
   pull_request:
     paths:
       - 'js/convertible-bonds-dilution.js'
-      - 'js/pmi-100-day-loader.js'
+      - 'index.html'
       - 'tests/convertible-bonds-dilution-test.js'
       - '.github/workflows/convertible-bonds-dilution.yml'
 jobs:
@@ -19,6 +19,4 @@ jobs:
       - run: node tests/convertible-bonds-dilution-test.js
       - run: npm run test:static
       - name: Production wiring
-        run: |
-          grep -q 'convertible-bonds-dilution.js' js/pmi-100-day-loader.js
-          grep -q 'convertibleBondsDilution' js/pmi-100-day-loader.js
+        run: grep -q 'js/convertible-bonds-dilution.js' index.html
