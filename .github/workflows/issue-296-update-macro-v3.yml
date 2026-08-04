@@ -1,0 +1,39 @@
+name: Issue 296 updateMacro diagnostic v3
+on:
+  pull_request:
+    paths:
+      - '.github/workflows/issue-296-update-macro-v3.yml'
+      - 'scripts/issue-296-update-macro-impact-v3.js'
+      - 'index.html'
+      - 'js/**'
+      - 'tests/**'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  compare:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - name: Run captured-chain comparison
+        shell: bash
+        run: |
+          set +e
+          node scripts/issue-296-update-macro-impact-v3.js 2>&1 | tee issue-296-update-macro-v3-console.txt
+          status=${PIPESTATUS[0]}
+          echo "node_status=$status" > issue-296-update-macro-v3-status.txt
+          ls -la issue-296-update-macro-v3* > issue-296-update-macro-v3-files.txt
+          exit "$status"
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: issue-296-update-macro-v3
+          path: |
+            issue-296-update-macro-v3*.txt
+            issue-296-update-macro-v3*.json
+          if-no-files-found: warn
+          retention-days: 14
