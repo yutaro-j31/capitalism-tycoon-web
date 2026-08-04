@@ -19,7 +19,7 @@ Development has returned to normal feature-delivery mode after the accounting, s
 ## Phase 8C: Macro and finance
 
 1. Expansion, overheating, slowdown, recession, and recovery cycle.
-2. Industry-specific demand, cost, regulation, technology, and supply events. In progress: deterministic per-business modifiers connected to canonical demand and unit-cost calculation paths.
+2. Industry-specific demand, cost, regulation, technology, and supply events. In progress: deterministic modifiers and one-per-event response plans. In progress: deterministic per-business modifiers connected to canonical demand and unit-cost calculation paths.
 3. Bank relationships, loan products, collateral, refinancing, maturity ladders, and credit ratings.
 4. Financial covenants, waiver negotiations, cure periods, cross-defaults, and lender intervention.
 
