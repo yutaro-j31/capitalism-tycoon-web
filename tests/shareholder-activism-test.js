@@ -9,7 +9,7 @@ function configured(difficulty='normal'){
   engine.g.publicCompany=true;
   engine.g.difficulty=difficulty;
   engine.g.week=140;
-  engine.g.companyCash=160_000_000;
+  engine.g.companyCash=900_000_000;
   engine.g.sharesOut=Math.max(1,engine.g.sharesOut||1_000_000);
   engine.g.founderShares=Math.floor(engine.g.sharesOut*.28);
   engine.g.stockPrice=Math.max(100,engine.g.stockPrice||100);
@@ -27,6 +27,7 @@ function configured(difficulty='normal'){
 {
   const {loaded,engine}=configured('normal');
   const p=engine.getShareholderActivismPressure();
+  console.log(`direct fixture pressure=${p.score} threshold=${p.threshold} public=${engine.g.publicCompany} week=${engine.g.week} last=${engine.g.lastActivistCampaignWeek}`);
   assert(p.score>=p.threshold,`fixture pressure ${p.score} must meet threshold ${p.threshold}`);
   const campaign=loaded.modules.shareholderActivism.maybeStart(engine);
   assert(campaign,'campaign starts from adverse governance and capital allocation state');
@@ -40,6 +41,16 @@ function configured(difficulty='normal'){
   const restored=new loaded.engineModule.TycoonEngine(snapshot);
   restored.normalize();
   assert(restored.g.activeActivistCampaign,'campaign survives normalize/save-shaped reload');
+}
+{
+  const {engine}=configured('normal');
+  const before=engine.getShareholderActivismPressure();
+  console.log(`weekly wrapper before week=${engine.g.week} pressure=${before.score}/${before.threshold} active=${Boolean(engine.g.activeActivistCampaign)}`);
+  const result=engine.advanceWeek();
+  const after=engine.getShareholderActivismPressure();
+  console.log(`weekly wrapper after week=${engine.g.week} pressure=${after.score}/${after.threshold} active=${Boolean(engine.g.activeActivistCampaign)}`);
+  assert.notEqual(result,false,'advanceWeek must complete');
+  assert(engine.g.activeActivistCampaign,'shareholder-activism.js advanceWeek wrapper reaches maybeStart without a compatibility hook');
 }
 {
   const {loaded,engine}=configured('hard');
