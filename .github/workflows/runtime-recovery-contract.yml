@@ -2,6 +2,22 @@ name: Runtime Recovery Contract
 
 on:
   pull_request:
+    paths:
+      - 'js/*recovery*.js'
+      - 'js/app.js'
+      - 'js/engine.js'
+      - 'js/finance.js'
+      - 'js/save*.js'
+      - 'js/*normalize*.js'
+      - 'index.html'
+      - 'play.html'
+      - 'package.json'
+      - 'tests/harness.js'
+      - 'tests/run-all.js'
+      - 'tests/boot-recovery-*.js'
+      - 'tests/runtime-recovery-*.js'
+      - 'tests/static-check.js'
+      - '.github/workflows/runtime-recovery-contract.yml'
   workflow_dispatch:
 
 permissions:
