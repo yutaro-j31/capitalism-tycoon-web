@@ -3,7 +3,7 @@ on:
   pull_request:
     paths:
       - 'js/executive-retirement-succession.js'
-      - 'js/pmi-100-day-loader.js'
+      - 'index.html'
       - 'tests/executive-retirement-succession-test.js'
       - '.github/workflows/executive-retirement-succession.yml'
 jobs:
@@ -19,6 +19,4 @@ jobs:
       - run: node tests/executive-retirement-succession-test.js
       - run: npm run test:static
       - name: Production wiring
-        run: |
-          grep -q 'executive-retirement-succession.js' js/pmi-100-day-loader.js
-          grep -q 'executiveRetirementSuccession' js/pmi-100-day-loader.js
+        run: grep -q 'js/executive-retirement-succession.js' index.html
