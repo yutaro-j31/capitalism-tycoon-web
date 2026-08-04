@@ -4,7 +4,7 @@ on:
     paths:
       - 'js/new-business-market-analysis.js'
       - 'js/deterministic-economic-foundation.js'
-      - 'js/pmi-100-day-loader.js'
+      - 'index.html'
       - 'tests/new-business-market-analysis-test.js'
       - '.github/workflows/new-business-market-analysis.yml'
 jobs:
@@ -19,6 +19,4 @@ jobs:
       - run: node tests/new-business-market-analysis-test.js
       - run: npm run test:static
       - name: Production wiring
-        run: |
-          grep -q 'new-business-market-analysis.js' js/pmi-100-day-loader.js
-          grep -q 'newBusinessMarketAnalysis' js/pmi-100-day-loader.js
+        run: grep -q 'js/new-business-market-analysis.js' index.html
