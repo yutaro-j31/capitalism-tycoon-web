@@ -16,11 +16,9 @@ function createEngine(loaded,mode){
   return engine;
 }
 
-function tryHirePair(engine,mode,stats){
+function tryHirePair(engine,mode){
   const candidates=engine.generateExecutiveCandidates();
   assert.equal(candidates.length,3,'normal candidate generation exposes three executives');
-  const low=candidates.filter(row=>row.skill<=60);
-  if(low.length){stats.lowCandidateWeeks.push(engine.g.week);stats.lowCandidateCount+=low.length;}
   const ordered=[...candidates].sort((a,b)=>a.skill-b.skill||String(a.id).localeCompare(String(b.id)));
   const target=mode==='adverse'?ordered.find(row=>row.skill<=60):[...ordered].reverse().find(row=>row.skill>=85);
   if(!target)return null;
@@ -38,11 +36,10 @@ function tryHirePair(engine,mode,stats){
 function run(mode){
   const loaded=loadGame({headless:true});
   const engine=createEngine(loaded,mode);
-  const stats={lowCandidateWeeks:[],lowCandidateCount:0};
   let pair=null,decisionWeek=null,lastAssessment=null;
 
   for(let i=0;i<208;i++){
-    if(!pair)pair=tryHirePair(engine,mode,stats);
+    if(!pair)pair=tryHirePair(engine,mode);
     else if(decisionWeek===null){
       assert.equal(engine.holdExecutiveReview(),true,'board review is reachable through gameplay API');
       lastAssessment=engine.assessExecutiveDismissal(pair.target.id,'underperformance');
@@ -74,11 +71,29 @@ function run(mode){
     targetStillEmployed:engine.g.executiveManagement.executives.some(row=>row.id===pair.target.id),
     disruptionUntilWeek:engine.g.executiveDismissalDisruptionUntilWeek,
     finalSupport:lastAssessment?.support??null,
-    finalScore:lastAssessment?.score??null,
-    lowCandidateWeeks:stats.lowCandidateWeeks,
-    lowCandidateCount:stats.lowCandidateCount
+    finalScore:lastAssessment?.score??null
   };
 }
+
+function sampleCandidateDistribution(){
+  const loaded=loadGame({headless:true});
+  const engine=createEngine(loaded,'adverse');
+  const lowCandidateWeeks=[];
+  let lowCandidateCount=0;
+  for(let i=0;i<208;i++){
+    const candidates=engine.generateExecutiveCandidates();
+    const low=candidates.filter(row=>row.skill<=60);
+    if(low.length){lowCandidateWeeks.push(engine.g.week);lowCandidateCount+=low.length;}
+    assert.notEqual(engine.advanceWeek(),false,'distribution sample weekly progression must continue');
+  }
+  const validation=loaded.modules.finance.validate(engine.g);
+  assert(validation.ok,JSON.stringify(validation));
+  return{firstWeek:lowCandidateWeeks[0]??null,lowCandidateWeeks,lowCandidateCount};
+}
+
+const distributionA=sampleCandidateDistribution(),distributionB=sampleCandidateDistribution();
+assert.deepEqual(distributionA,distributionB,'208-week candidate distribution is deterministic');
+assert(distributionA.lowCandidateCount>0,'ability 60 or lower candidates appear within 208 weeks');
 
 const adverseA=run('adverse'),adverseB=run('adverse');
 assert(adverseA.decisionWeek!==null&&adverseA.decisionWeek<=208,'adverse play reaches dismissal within 208 weeks');
@@ -94,4 +109,4 @@ assert.equal(healthyA.rejectedCount,1,'healthy control records one rejected prop
 assert.equal(healthyA.targetStillEmployed,true,'healthy high performer remains employed');
 assert.deepEqual(healthyA,healthyB,'healthy control result is deterministic');
 
-console.log(`executive-dismissal-reachability-test: ok (adverse hired ${adverseA.hiredWeek}, decision ${adverseA.decisionWeek}, skill ${adverseA.targetSkill}, support ${adverseA.finalSupport}; low-skill candidates ${adverseA.lowCandidateCount} across weeks ${adverseA.lowCandidateWeeks.join(',')}; healthy decision ${healthyA.decisionWeek}, rejected ${healthyA.rejectedCount})`);
+console.log(`executive-dismissal-reachability-test: ok (adverse hired ${adverseA.hiredWeek}, decision ${adverseA.decisionWeek}, skill ${adverseA.targetSkill}, support ${adverseA.finalSupport}; 208-week low-skill first ${distributionA.firstWeek}, candidates ${distributionA.lowCandidateCount}, occurrence weeks ${distributionA.lowCandidateWeeks.length}; healthy decision ${healthyA.decisionWeek}, rejected ${healthyA.rejectedCount})`);
