@@ -15,4 +15,21 @@ legacy.week=110;const recession=macro.update(legacy);assert.equal(recession.regi
 for(let week=111;week<1500;week++){legacy.week=week;macro.update(legacy);}assert(legacy.macroHistory.length<=104,'history bounded');assert(legacy.industryEventHistory.length<=52,'event history bounded');assert(macro.validate(legacy).ok,'state validates');
 const corrupted={week:26,macroCycleVersion:1,macroHistory:null,industryEventHistory:null,activeIndustryEvent:{id:'unknown'},economy:1,inflation:1,policyRate:.005,realEstateCycle:1,exchangeRate:1};macro.ensure(corrupted);assert.equal(corrupted.activeIndustryEvent,null,'invalid legacy event is discarded');assert.equal(corrupted.macroCycleVersion,2);
 const engine=new Engine();engine.g={week:21,economy:1,inflation:1,policyRate:.005,realEstateCycle:1,exchangeRate:1,news:[],history:[],saveVersion:9};engine.normalize();assert.equal(engine.g.macroCycleVersion,2);const base=engine.updateProductInnovationWeekly();assert.deepEqual(base,['base']);assert.equal(engine.g.macroRegime,'expansion');
+
+// Contract for Issue #296: deterministic-economic-foundation intentionally owns the
+// canonical core updateMacro implementation. It must remain deterministic while the
+// separately connected macro-cycle hook continues to update regimes and demand events.
+const foundationSource=fs.readFileSync('js/deterministic-economic-foundation.js','utf8');
+assert(foundationSource.includes('ISSUE-296-CANONICAL-UPDATE-MACRO'),'canonical replacement must stay documented at the assignment');
+const {loadGame}=require('./harness');
+function runFoundation(){const loaded=loadGame({headless:true});const e=new loaded.engineModule.TycoonEngine();e.g.configured=true;const rows=[];for(let i=0;i<60;i++){e.advanceWeek(false);rows.push({economy:e.g.economy,policyRate:e.g.policyRate,inflation:e.g.inflation,exchangeRate:e.g.exchangeRate,regime:e.g.macroRegime,event:e.g.activeIndustryEvent?.id||null});}return{rows,state:e.g,finance:loaded.modules.finance.validate(e.g),macro:loaded.modules.macroCycle.validate(e.g)};}
+const canonicalA=runFoundation(),canonicalB=runFoundation();
+assert.deepEqual(canonicalA.rows,canonicalB.rows,'canonical macro path is deterministic');
+for(const key of ['economy','policyRate','inflation','exchangeRate'])assert(new Set(canonicalA.rows.map(row=>row[key])).size>10,`${key} changes over time`);
+assert(new Set(canonicalA.rows.map(row=>row.regime)).size>=3,'macro regimes continue changing');
+assert(canonicalA.rows.some(row=>row.event),'industry demand event remains connected');
+assert(canonicalA.state.economicFoundation.history.length===60,'foundation history advances once per week');
+assert(canonicalA.state.macroHistory.length>0,'macro-cycle history remains connected');
+assert(canonicalA.finance.ok,canonicalA.finance.errors?.join('\n'));
+assert(canonicalA.macro.ok,canonicalA.macro.errors?.join('\n'));
 console.log('macro-cycle-test: ok');
