@@ -11,6 +11,7 @@ const difficultyMatrixTest = isPullRequest
   : 'tests/difficulty-scenario-matrix-test.js';
 
 const commands = [
+  ['node', ['tests/workflow-path-filter-contract-test.js']],
   ['node', ['tests/normal-start-ipo-balance-audit-test.js']],
   ['node', ['tests/strategy-balance-calibration-test.js']],
   ['node', [strategyMatrixTest]],
@@ -40,4 +41,4 @@ for (const [command, args] of commands) {
   }
 }
 
-console.log(`\n[release-gate] progression, strategy, difficulty, and scenario gates passed (${isPullRequest ? 'representative PR matrices' : 'full matrices'}).`);
+console.log(`\n[release-gate] workflow filters, progression, strategy, difficulty, and scenario gates passed (${isPullRequest ? 'representative PR matrices' : 'full matrices'}).`);
