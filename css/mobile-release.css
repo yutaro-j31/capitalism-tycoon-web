@@ -1,3 +1,5 @@
+@import url("./iphone-playtest-fixes.css");
+
 /* Release mobile reachability overrides. Keep after app.css. */
 @media(max-width:720px){
   .week-controls{gap:4px}
