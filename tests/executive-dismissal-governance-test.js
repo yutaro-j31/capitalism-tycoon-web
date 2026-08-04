@@ -23,6 +23,8 @@ function setup(){
     {week:159,executiveId:'exec-high',score:92,rating:'S'}
   ],boardHistory:[],dismissalDecisions:[],successorId:'exec-successor',lastReviewWeek:159};
   engine.normalize();
+  loaded.modules.finance.rebuildSnapshotForWeek(engine.g,engine.g.week);
+  assert(loaded.modules.finance.validate(engine.g).ok,'fixture starts with valid finance state');
   return{loaded,engine};
 }
 {
