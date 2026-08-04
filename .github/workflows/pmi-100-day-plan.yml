@@ -7,6 +7,7 @@ on:
       - 'js/pmi-long-run-guard.js'
       - 'js/pmi-100-day-loader.js'
       - 'tests/pmi-100-day-plan-test.js'
+      - 'index.html'
       - 'play.html'
       - '.github/workflows/pmi-100-day-plan.yml'
   workflow_dispatch:
@@ -39,11 +40,23 @@ jobs:
       - run: node tests/ma-integration-test.js
       - run: node tests/finance-ma-accounting-test.js
       - run: node tests/save-v9-migration-test.js
-      - run: |
+      - name: Verify direct production wiring
+        run: |
           node - <<'NODE'
           const fs=require('fs');
+          const index=fs.readFileSync('index.html','utf8');
           const play=fs.readFileSync('play.html','utf8');
-          if(!play.includes('./js/pmi-100-day-loader.js?launch='))throw new Error('PMI production wiring missing');
-          if(!play.includes('追加資本政策モジュールを公開起動順へ追加できませんでした'))throw new Error('existing fail-closed contract missing');
-          if(Buffer.byteLength(play)>7000)throw new Error(`play.html exceeds 7KB contract: ${Buffer.byteLength(play)}`);
+          const loader=fs.readFileSync('js/pmi-100-day-loader.js','utf8');
+          const plan='./js/pmi-100-day-plan.js';
+          const guard='./js/pmi-long-run-guard.js';
+          const compatibility='./js/pmi-100-day-loader.js';
+          const planAt=index.indexOf(plan);
+          const guardAt=index.indexOf(guard);
+          const loaderAt=index.indexOf(compatibility);
+          if(planAt<0||guardAt<0||loaderAt<0)throw new Error('PMI direct production wiring missing from index.html');
+          if(!(planAt<guardAt&&guardAt<loaderAt))throw new Error('PMI production load order is invalid');
+          if(/document\.write\s*\(/.test(loader))throw new Error('PMI compatibility loader must remain side-effect free');
+          if(!loader.includes('dynamic document.write loading is intentionally unnecessary'))throw new Error('PMI compatibility-boundary rationale missing');
+          if(!play.includes("new URL('./index.html',location.href)"))throw new Error('play.html must redirect to index.html');
+          if(Buffer.byteLength(play)>3000)throw new Error(`play.html exceeds redirect launcher contract: ${Buffer.byteLength(play)}`);
           NODE

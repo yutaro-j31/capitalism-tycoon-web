@@ -1,0 +1,33 @@
+name: Issue 294 Executive Hiring Regression
+'on':
+  pull_request:
+    paths:
+      - 'js/executives-department-assignments.js'
+      - 'tests/executives-department-assignments-test.js'
+      - 'tests/prototype-overwrite-audit.js'
+      - 'tests/normal-start-ipo-balance-audit-test.js'
+      - 'tests/strategy-balance-runner.js'
+      - '.github/workflows/issue-294-executive-hiring-diagnostic.yml'
+jobs:
+  regression:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Executive hiring route regression
+        run: node tests/executives-department-assignments-test.js
+      - name: Prototype overwrite audit
+        run: node tests/prototype-overwrite-audit.js
+      - name: Progression Balance
+        run: npm run test:progression-balance --silent
+      - name: Strategy Balance
+        run: npm run test:strategy-balance --silent
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: issue-294-prototype-overwrite-audit
+          path: artifacts/prototype-overwrite-audit.json
+          if-no-files-found: warn
+          retention-days: 14

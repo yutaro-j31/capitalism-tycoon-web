@@ -6,7 +6,7 @@ const assert=require('node:assert/strict');
 const ROOT=path.resolve(__dirname,'..');
 const storageSource=fs.readFileSync(path.join(ROOT,'js','save-storage.js'),'utf8');
 const uiSource=fs.readFileSync(path.join(ROOT,'js','save-storage-ui.js'),'utf8');
-const play=fs.readFileSync(path.join(ROOT,'play.html'),'utf8');
+const indexHtml=fs.readFileSync(path.join(ROOT,'index.html'),'utf8');
 
 async function main(){
  assert.match(storageSource,/let activeEngine=null/);
@@ -22,8 +22,14 @@ async function main(){
  assert.match(uiSource,/以前のセーブは残っています/);
  assert.match(uiSource,/会社・個人資産と会計累計は保持/);
  assert.match(uiSource,/if\(node\.dataset\.saveStorageRenderKey===key\)return true/,'render must be idempotent under MutationObserver');
- assert.ok(play.indexOf('./js/save-storage.js?launch=')<play.indexOf('./js/save-storage-ui.js?launch='),'storage layer must load before its UI');
- assert.match(play,/save-v9\.js\?launch=.*save-storage\.js\?launch=/s);
+ const saveV9Index=indexHtml.indexOf('./js/save-v9.js');
+ const storageIndex=indexHtml.indexOf('./js/save-storage.js');
+ const storageUIIndex=indexHtml.indexOf('./js/save-storage-ui.js');
+ assert.ok(saveV9Index>=0,'save-v9 must be directly connected in index.html');
+ assert.ok(storageIndex>=0,'save storage layer must be directly connected in index.html');
+ assert.ok(storageUIIndex>=0,'save storage UI must be directly connected in index.html');
+ assert.ok(saveV9Index<storageIndex,'save-v9 must load before save storage');
+ assert.ok(storageIndex<storageUIIndex,'storage layer must load before its UI');
  new vm.Script(storageSource,{filename:'save-storage.js'});
  new vm.Script(uiSource,{filename:'save-storage-ui.js'});
  const toastRoot={children:[],appendChild(node){this.children.push(node);}};

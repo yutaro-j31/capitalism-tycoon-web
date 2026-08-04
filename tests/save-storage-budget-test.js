@@ -6,6 +6,7 @@ const { loadGame, findStateIssues } = require('./harness');
 const AUDIT_WEEKS = 520;
 const MAX_SAVE_BYTES = 4 * 1024 * 1024;
 const MAX_RELOAD_GROWTH_BYTES = 64 * 1024;
+const RETAINED_REPORT_WEEKS = 104;
 const CASH_BUFFER = 1_000_000_000;
 
 function seededRandom(initialSeed) {
@@ -53,6 +54,7 @@ assert.equal(parsed.week, engine.g.week, 'serialized week does not match runtime
 assert.equal(parsed.companyName, engine.g.companyName, 'serialized company name does not match runtime state');
 assert.deepEqual(findStateIssues(parsed), [], 'serialized ten-year save must remain finite and acyclic');
 
+const expectedRetainedReports = engine.g.reports.slice(-RETAINED_REPORT_WEEKS);
 const reloaded = loadGame({
   random: seededRandom(0x6c400002),
   localStorageInitial: { [SAVE_KEY]: payload }
@@ -60,7 +62,12 @@ const reloaded = loadGame({
 const loadedEngine = reloaded.ctx.__ct_engine;
 assert.equal(loadedEngine.g.week, engine.g.week, 'reload must preserve the audited week');
 assert.equal(loadedEngine.g.companyName, engine.g.companyName, 'reload must preserve the company name');
-assert.equal(loadedEngine.g.reports.length, engine.g.reports.length, 'reload must preserve retained report history');
+assert.equal(loadedEngine.g.reports.length, RETAINED_REPORT_WEEKS, 'reload must enforce the bounded 104-week report history');
+assert.deepEqual(
+  JSON.parse(JSON.stringify(loadedEngine.g.reports)),
+  JSON.parse(JSON.stringify(expectedRetainedReports)),
+  'reload must preserve the newest bounded report-history tail'
+);
 assert.deepEqual(findStateIssues(loadedEngine.g), [], 'reloaded ten-year state must remain finite and valid');
 
 loadedEngine.save();
