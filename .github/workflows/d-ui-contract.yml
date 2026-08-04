@@ -2,6 +2,21 @@ name: D UI Contract
 
 on:
   pull_request:
+    paths:
+      - 'js/d-ui-*.js'
+      - 'css/**'
+      - 'index.html'
+      - 'js/engine.js'
+      - 'js/finance.js'
+      - 'js/save*.js'
+      - 'js/*normalize*.js'
+      - 'package.json'
+      - 'tests/harness.js'
+      - 'tests/run-all.js'
+      - 'tests/d-ui-*.js'
+      - 'tests/javascript-module-split-test.js'
+      - 'tests/javascript-extraction-test.js'
+      - '.github/workflows/d-ui-contract.yml'
   workflow_dispatch:
 
 permissions:

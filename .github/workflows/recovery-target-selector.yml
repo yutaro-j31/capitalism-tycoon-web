@@ -2,6 +2,19 @@ name: Recovery Target Selector
 
 on:
   pull_request:
+    paths:
+      - 'js/capital-allocation-recovery*.js'
+      - 'js/capital-allocation-*.js'
+      - 'js/engine.js'
+      - 'js/finance.js'
+      - 'js/save*.js'
+      - 'js/*normalize*.js'
+      - 'index.html'
+      - 'package.json'
+      - 'tests/harness.js'
+      - 'tests/run-all.js'
+      - 'tests/capital-allocation-recovery-*.js'
+      - '.github/workflows/recovery-target-selector.yml'
   push:
     branches: [ main ]
 

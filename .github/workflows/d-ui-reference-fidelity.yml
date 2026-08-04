@@ -2,6 +2,19 @@ name: D UI Reference Fidelity
 
 on:
   pull_request:
+    paths:
+      - 'js/d-ui-*.js'
+      - 'css/**'
+      - 'index.html'
+      - 'js/engine.js'
+      - 'js/finance.js'
+      - 'js/save*.js'
+      - 'js/*normalize*.js'
+      - 'package.json'
+      - 'tests/harness.js'
+      - 'tests/run-all.js'
+      - 'tests/d-ui-*.js'
+      - '.github/workflows/d-ui-reference-fidelity.yml'
   workflow_dispatch:
 
 permissions:

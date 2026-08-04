@@ -43,6 +43,14 @@ pushしていないのに完了報告、間違ったPRのクローズなど)を�
 6. 履歴を持つ配列には上限を設ける。
 7. iPhone Safariでの操作性(ボタン高さ44px以上、横スクロール
    なし、1画面に情報を詰め込みすぎない)を守る。
+8. 新しいGitHub Actions workflowを追加する場合、pull_requestには
+   機能固有のpath filterを設定し、少なくとも js/engine.js、
+   js/finance.js、index.html、package.json、tests/harness.js、
+   tests/run-all.js、保存系(js/save*.js)、normalize系の変更を
+   取りこぼさないこと。workflow自身のYAML変更でも必ず起動させる。
+   required checkとして常時存在する必要があるworkflowはpath filterで
+   消さず、常時起動の軽量gateまたは明示的なalways-run workflowとして
+   維持する。path filter契約テストも常時起動workflowから実行する。
 
 ## ステップ3: index.htmlへの接続(最重要)
 

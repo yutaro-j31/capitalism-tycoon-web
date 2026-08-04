@@ -2,6 +2,20 @@ name: Playtest Report Contract
 
 on:
   pull_request:
+    paths:
+      - 'js/playtest-report*.js'
+      - 'js/engine.js'
+      - 'js/finance.js'
+      - 'js/save*.js'
+      - 'js/*normalize*.js'
+      - 'index.html'
+      - 'play.html'
+      - 'package.json'
+      - 'tests/harness.js'
+      - 'tests/run-all.js'
+      - 'tests/playtest-report-*.js'
+      - 'tests/static-check.js'
+      - '.github/workflows/playtest-report-contract.yml'
   workflow_dispatch:
 
 permissions:
