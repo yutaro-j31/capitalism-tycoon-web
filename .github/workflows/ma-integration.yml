@@ -2,8 +2,30 @@ name: M&A Integration
 
 on:
   pull_request:
+    paths:
+      - 'js/ma-*.js'
+      - 'js/pmi-*.js'
+      - 'js/subsidiary-*.js'
+      - 'js/group-*.js'
+      - 'js/ceo-dashboard.js'
+      - 'js/engine.js'
+      - 'js/finance.js'
+      - 'js/save*.js'
+      - 'js/*normalize*.js'
+      - 'index.html'
+      - 'package.json'
+      - 'tests/harness.js'
+      - 'tests/run-all.js'
+      - 'tests/ma-*.js'
+      - 'tests/pmi-*.js'
+      - 'tests/subsidiary-*.js'
+      - 'tests/finance-ma-accounting-test.js'
+      - '.github/workflows/ma-integration.yml'
   push:
     branches: [main]
+  schedule:
+    - cron: '30 3 * * *'
+  workflow_dispatch:
 
 jobs:
   ma-integration:
@@ -21,13 +43,16 @@ jobs:
       - run: npm run test:static
       - run: npm run test:css
       - name: Install pinned Playwright runtime
+        if: github.event_name != 'pull_request'
         run: npm install --no-save --no-package-lock playwright@1.61.0
       - name: Install WebKit browser and system dependencies
+        if: github.event_name != 'pull_request'
         run: npx playwright install --with-deps webkit
       - name: Verify M&A PMI in iPhone WebKit
+        if: github.event_name != 'pull_request'
         run: node tests/ma-integration-webkit-test.js
       - uses: actions/upload-artifact@v4
-        if: always()
+        if: ${{ always() && github.event_name != 'pull_request' }}
         with:
           name: ma-integration-webkit
           path: artifacts/ma-integration-webkit
