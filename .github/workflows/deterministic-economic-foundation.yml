@@ -3,7 +3,7 @@ on:
   pull_request:
     paths:
       - 'js/deterministic-economic-foundation.js'
-      - 'js/pmi-100-day-loader.js'
+      - 'index.html'
       - 'tests/deterministic-economic-foundation-test.js'
       - '.github/workflows/deterministic-economic-foundation.yml'
   workflow_dispatch:
@@ -20,6 +20,4 @@ jobs:
       - run: node tests/deterministic-economic-foundation-test.js
       - run: npm run test:static
       - name: Production wiring
-        run: |
-          grep -q 'deterministic-economic-foundation.js' js/pmi-100-day-loader.js
-          grep -q 'deterministicEconomicFoundation' js/pmi-100-day-loader.js
+        run: grep -q 'js/deterministic-economic-foundation.js' index.html
