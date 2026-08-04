@@ -2,6 +2,20 @@ name: Release Attestation Contract
 
 on:
   pull_request:
+    paths:
+      - 'release-*.json'
+      - 'docs/**'
+      - 'scripts/release-*.js'
+      - 'tests/release-attestation-*.js'
+      - 'js/engine.js'
+      - 'js/finance.js'
+      - 'js/save*.js'
+      - 'js/*normalize*.js'
+      - 'index.html'
+      - 'package.json'
+      - 'tests/harness.js'
+      - 'tests/run-all.js'
+      - '.github/workflows/release-attestation-contract.yml'
   workflow_dispatch:
 
 permissions:
