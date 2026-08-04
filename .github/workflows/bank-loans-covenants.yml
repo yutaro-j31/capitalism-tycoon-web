@@ -3,7 +3,7 @@ on:
   pull_request:
     paths:
       - 'js/bank-loans-covenants.js'
-      - 'js/pmi-100-day-loader.js'
+      - 'index.html'
       - 'tests/bank-loans-covenants-test.js'
       - '.github/workflows/bank-loans-covenants.yml'
 jobs:
@@ -18,6 +18,4 @@ jobs:
       - run: node tests/bank-loans-covenants-test.js
       - run: npm run test:static
       - name: Production wiring
-        run: |
-          grep -q 'bank-loans-covenants.js' js/pmi-100-day-loader.js
-          grep -q 'bankLoansCovenants' js/pmi-100-day-loader.js
+        run: grep -q '<script src="./js/bank-loans-covenants.js"></script>' index.html
