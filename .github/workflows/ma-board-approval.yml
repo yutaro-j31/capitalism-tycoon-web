@@ -1,6 +1,30 @@
 name: M&A Board Approval
 on:
   pull_request:
+    paths:
+      - 'js/ma-*.js'
+      - 'js/pmi-*.js'
+      - 'js/subsidiary-*.js'
+      - 'js/group-*.js'
+      - 'js/ceo-dashboard.js'
+      - 'js/engine.js'
+      - 'js/finance.js'
+      - 'js/save*.js'
+      - 'js/*normalize*.js'
+      - 'index.html'
+      - 'package.json'
+      - 'tests/harness.js'
+      - 'tests/run-all.js'
+      - 'tests/ma-*.js'
+      - 'tests/pmi-*.js'
+      - 'tests/subsidiary-*.js'
+      - 'tests/finance-ma-accounting-test.js'
+      - 'tests/v1-progression-gate-test.js'
+      - '.github/workflows/ma-board-approval.yml'
+  push:
+    branches: [main]
+  schedule:
+    - cron: '40 3 * * *'
   workflow_dispatch:
 permissions:
   contents: read
@@ -43,19 +67,25 @@ jobs:
       - run: npm run test:strategy-balance
       - run: node tests/v1-progression-gate-test.js
       - name: Install pinned Playwright runtime
+        if: github.event_name != 'pull_request'
         run: npm install --no-save --no-package-lock playwright@1.61.0
       - name: Install WebKit browser and system dependencies
+        if: github.event_name != 'pull_request'
         run: npx playwright install --with-deps webkit
       - name: Run M&A board approval WebKit
+        if: github.event_name != 'pull_request'
         run: node tests/ma-board-approval-webkit-test.js
       - name: Run M&A deal room WebKit
+        if: github.event_name != 'pull_request'
         run: node tests/ma-deal-room-webkit-test.js
       - name: Run M&A integration WebKit
+        if: github.event_name != 'pull_request'
         run: node tests/ma-integration-webkit-test.js
       - name: Run CEO dashboard WebKit
+        if: github.event_name != 'pull_request'
         run: node tests/ceo-dashboard-webkit-test.js
       - name: Upload M&A board approval artifacts
-        if: always()
+        if: ${{ always() && github.event_name != 'pull_request' }}
         uses: actions/upload-artifact@v4
         with:
           name: ma-board-approval-${{ github.sha }}
