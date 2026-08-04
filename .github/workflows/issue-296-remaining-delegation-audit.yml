@@ -1,0 +1,45 @@
+name: Issue 296 Remaining Delegation Audit
+
+on:
+  pull_request:
+    paths:
+      - '.github/workflows/issue-296-remaining-delegation-audit.yml'
+      - 'scripts/issue-296-remaining-delegation-audit.js'
+      - 'index.html'
+      - 'js/**'
+      - 'tests/**'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - name: Repository-wide lifecycle grep
+        run: |
+          grep -rnE "prototype\.(save|advanceWeek|updateMacro|updateSubsidiaries|completeTargetAcquisition|normalize)[[:space:]]*=|proto\.(save|advanceWeek|updateMacro|updateSubsidiaries|completeTargetAcquisition|normalize)[[:space:]]*=" js/ | tee issue-296-grep.txt
+      - name: Load-order delegation audit
+        run: node scripts/issue-296-remaining-delegation-audit.js | tee issue-296-audit.txt
+      - name: Save-path regressions
+        run: |
+          npm run test:save
+          npm run test:migration
+          npm run test:save-v9
+          npm run test:load
+          node tests/save-storage-test.js
+          node tests/save-import-atomic-guard-test.js
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: issue-296-remaining-delegation-audit
+          path: |
+            issue-296-grep.txt
+            issue-296-audit.txt
+          retention-days: 14
