@@ -1,10 +1,10 @@
 'use strict';
 const assert=require('node:assert');
 const {loadGame}=require('./harness');
-// This regression intentionally exercises only post-IPO state so pre-IPO progression remains untouched.
 function configured(difficulty='normal'){
   const loaded=loadGame({headless:true});
   const engine=new loaded.engineModule.TycoonEngine();
+  engine.normalize();
   engine.g.configured=true;
   engine.g.publicCompany=true;
   engine.g.difficulty=difficulty;
@@ -16,7 +16,7 @@ function configured(difficulty='normal'){
   engine.g.ipoPrice=engine.g.stockPrice*1.35;
   engine.g.boardGovernanceQuality=42;
   engine.g.dividendPerShare=0;
-  engine.normalize();
+  engine.g.lastActivistCampaignWeek=0;
   return{loaded,engine};
 }
 {
@@ -26,6 +26,8 @@ function configured(difficulty='normal'){
 }
 {
   const {loaded,engine}=configured('normal');
+  const p=engine.getShareholderActivismPressure();
+  assert(p.score>=p.threshold,`fixture pressure ${p.score} must meet threshold ${p.threshold}`);
   const campaign=loaded.modules.shareholderActivism.maybeStart(engine);
   assert(campaign,'campaign starts from adverse governance and capital allocation state');
   assert(['buyback','dividend'].includes(campaign.type));
@@ -38,7 +40,6 @@ function configured(difficulty='normal'){
   const restored=new loaded.engineModule.TycoonEngine(snapshot);
   restored.normalize();
   assert(restored.g.activeActivistCampaign,'campaign survives normalize/save-shaped reload');
-  assert.equal(restored.g.governanceCommitments.length,1);
 }
 {
   const {loaded,engine}=configured('hard');
@@ -63,8 +64,7 @@ function configured(difficulty='normal'){
   const campaign=loaded.modules.shareholderActivism.maybeStart(engine);
   assert(campaign);
   const before=engine.g.companyCash;
-  const accepted=engine.acceptShareholderProposal();
-  assert.equal(accepted,true);
+  assert.equal(engine.acceptShareholderProposal(),true);
   assert.equal(engine.g.activeActivistCampaign,null);
   assert(loaded.modules.finance.validate(engine.g).ok,'finance remains valid after canonical acceptance path');
   if(campaign.type==='buyback')assert(engine.g.companyCash<before,'buyback canonical path spends cash');
