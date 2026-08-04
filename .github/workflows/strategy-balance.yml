@@ -1,5 +1,18 @@
 name: Strategy Balance
-on: [push, pull_request]
+on:
+  push:
+  pull_request:
+    paths:
+      - 'js/**'
+      - 'index.html'
+      - 'package.json'
+      - 'tests/harness.js'
+      - 'tests/run-all.js'
+      - 'tests/strategy-balance-runner.js'
+      - 'tests/strategy-balance-matrix-test.js'
+      - 'tests/strategy-balance-pr-smoke-test.js'
+      - 'tests/**/*strategy*'
+      - '.github/workflows/strategy-balance.yml'
 jobs:
   strategy-balance:
     runs-on: ubuntu-latest
