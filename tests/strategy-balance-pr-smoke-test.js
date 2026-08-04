@@ -27,7 +27,7 @@ for (const [scenarioID, seed] of REPRESENTATIVE_CASES) {
   assert.ok(result.annualProfit >= 10_000_000 && result.annualProfit < 200_000_000, `${scenarioID} seed ${seed} annual profit out of calibrated range: ${result.annualProfit}`);
   assert.ok(result.value >= 100_000_000 && result.value < 2_000_000_000, `${scenarioID} seed ${seed} company value out of calibrated range: ${result.value}`);
   assert.ok(result.debt >= 0 && result.debt < 100_000_000, `${scenarioID} seed ${seed} debt out of calibrated range: ${result.debt}`);
-  assert.deepEqual(result.missing, [], `${scenarioID} seed ${seed} has remaining IPO blockers`);
+  assert.equal(result.missing.length, 0, `${scenarioID} seed ${seed} has remaining IPO blockers: ${JSON.stringify(result.missing)}`);
   if (scenario.debt) assert.ok(result.debt > 0, `${scenarioID} seed ${seed} must exercise company borrowing`);
   else assert.equal(result.debt, 0, `${scenarioID} seed ${seed} bootstrap route must remain debt-free`);
 }
