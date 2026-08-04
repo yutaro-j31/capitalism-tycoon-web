@@ -5,6 +5,7 @@ on:
     paths:
       - '.github/workflows/issue-296-remaining-delegation-audit.yml'
       - 'scripts/issue-296-remaining-delegation-audit.js'
+      - 'scripts/issue-296-update-macro-impact.js'
       - 'index.html'
       - 'js/**'
       - 'tests/**'
@@ -27,6 +28,8 @@ jobs:
           grep -rnE "prototype\.(save|advanceWeek|updateMacro|updateSubsidiaries|completeTargetAcquisition|normalize)[[:space:]]*=|proto\.(save|advanceWeek|updateMacro|updateSubsidiaries|completeTargetAcquisition|normalize)[[:space:]]*=" js/ | tee issue-296-grep.txt
       - name: Load-order delegation audit
         run: node scripts/issue-296-remaining-delegation-audit.js | tee issue-296-audit.txt
+      - name: updateMacro impact comparison
+        run: node scripts/issue-296-update-macro-impact.js | tee issue-296-update-macro-impact.txt
       - name: Save-path regressions
         run: |
           npm run test:save
@@ -42,4 +45,5 @@ jobs:
           path: |
             issue-296-grep.txt
             issue-296-audit.txt
+            issue-296-update-macro-impact.txt
           retention-days: 14
