@@ -30,6 +30,22 @@ has(index,'./js/play-runtime-compat.js','production entry must load runtime comp
 has(index,'./js/iphone-playtest-fixes.js','production entry must load remediation JS');
 assert(index.indexOf('./js/play-runtime-compat.js')<index.indexOf('./js/iphone-playtest-fixes.js'),'runtime compatibility must load before iPhone enhancements');
 
+// WebKit and physical-device suites are deliberately excluded from pull requests.
+// Their static contracts remain in the normal Test workflow, while browser/device
+// execution runs on main pushes, nightly schedules, and explicit manual dispatches.
+for(const workflow of [
+ '.github/workflows/iphone-webkit-smoke.yml',
+ '.github/workflows/iphone-playtest-remediation.yml',
+ '.github/workflows/physical-iphone-playtest.yml'
+]){
+ const source=fs.readFileSync(workflow,'utf8');
+ assert(!/^\s*pull_request\s*:/m.test(source),`${workflow} must not run on pull_request`);
+ assert(/^\s*push\s*:/m.test(source),`${workflow} must retain main push coverage`);
+ assert(/branches:\s*\[main\]/.test(source),`${workflow} push coverage must target main`);
+ assert(/^\s*schedule\s*:/m.test(source),`${workflow} must retain nightly coverage`);
+ assert(/^\s*workflow_dispatch\s*:/m.test(source),`${workflow} must retain manual execution`);
+}
+
 // CSS equivalent of the all-modules wiring guard: every production CSS file must be
 // reachable from an index.html stylesheet link or a recursively followed @import.
 const cssRoot=path.resolve('css');
