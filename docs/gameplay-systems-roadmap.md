@@ -28,7 +28,7 @@ Development has returned to normal feature-delivery mode after the accounting, s
 1. CXO responsibilities, skills, incentives, contracts, succession, and conflicts.
 2. Department budgets, capacity, projects, coordination, and accountability.
 3. Board composition, committees, resolutions, approval thresholds, and governance quality.
-4. Founder control, executive dismissal, shareholder proposals, and activist pressure. In progress: state-driven shareholder proposals, negotiation, and deterministic proxy fights.
+4. Founder control, executive dismissal, shareholder proposals, and activist pressure. In progress: state-driven shareholder proposals, negotiation, deterministic proxy fights, and governed executive dismissal decisions with board approval and severance accounting.
 
 ## Phase 8E: Capital allocation
 

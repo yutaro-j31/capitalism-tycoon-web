@@ -1,0 +1,28 @@
+name: Executive Dismissal Governance
+
+on:
+  pull_request:
+    paths:
+      - 'js/executive-reviews-succession-board.js'
+      - 'js/executives-department-assignments.js'
+      - 'js/engine.js'
+      - 'js/finance.js'
+      - 'js/save*.js'
+      - 'index.html'
+      - 'package.json'
+      - 'tests/harness.js'
+      - 'tests/run-all.js'
+      - 'tests/executive-dismissal-governance-test.js'
+      - '.github/workflows/executive-dismissal-governance.yml'
+  workflow_dispatch:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - run: node tests/executive-dismissal-governance-test.js

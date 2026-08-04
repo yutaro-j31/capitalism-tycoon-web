@@ -1,0 +1,27 @@
+'use strict';
+const assert=require('node:assert');
+const {loadGame}=require('./harness');
+function setup(){
+  const loaded=loadGame({headless:true});
+  const engine=new loaded.engineModule.TycoonEngine();
+  engine.g.configured=true;
+  engine.g.week=160;
+  engine.g.companyReputation=70;
+  engine.g.employeeSatisfaction=75;
+  engine.g.boardGovernanceQuality=65;
+  engine.g.executiveManagement={executives:[{id:'exec-low',name:'低評価役員',role:'COO',skill:42,salary:5_000_000,hiredWeek:120,fit:'operations'},{id:'exec-high',name:'高評価役員',role:'CFO',skill:90,salary:12_000_000,hiredWeek:80,fit:'finance'},{id:'exec-successor',name:'後継役員',role:'CSO',skill:78,salary:8_000_000,hiredWeek:130,fit:'strategy'}],assignments:{operations:'exec-low',finance:'exec-high',strategy:'exec-successor'}};
+  engine.g.executiveGovernance={reviews:[{week:159,executiveId:'exec-low',score:40,rating:'C'},{week:159,executiveId:'exec-high',score:92,rating:'S'}],boardHistory:[],dismissalDecisions:[],successorId:'exec-successor',lastReviewWeek:159};
+  engine.normalize();
+  const targetCash=200_000_000,delta=targetCash-engine.g.companyCash;
+  engine.g.companyCash+=delta;
+  loaded.modules.finance.event(engine.g,'revenue',delta,{cashEffect:delta,profitEffect:delta,sourceType:'test',sourceID:'dismissal-fixture-funding',idempotencyKey:'dismissal-fixture-funding'});
+  loaded.modules.finance.rebuildSnapshotForWeek(engine.g,engine.g.week);
+  const validation=loaded.modules.finance.validate(engine.g);if(!validation.ok)throw new Error(`fixture finance invalid: ${JSON.stringify(validation)}`);
+  return{loaded,engine};
+}
+{const {engine}=setup();const low=engine.assessExecutiveDismissal('exec-low','underperformance'),high=engine.assessExecutiveDismissal('exec-high','underperformance');assert(low.approved);assert(!high.approved);}
+{const {loaded,engine}=setup(),beforeCash=engine.g.companyCash;assert.equal(engine.dismissExecutiveWithReason('exec-low','underperformance'),true);assert(!engine.g.executiveManagement.executives.some(e=>e.id==='exec-low'));assert(engine.g.companyCash<beforeCash);assert.equal(engine.g.executiveGovernance.dismissalDecisions.at(-1).outcome,'approved');assert(engine.g.executiveDismissalDisruptionUntilWeek>=164);const validation=loaded.modules.finance.validate(engine.g);assert(validation.ok,JSON.stringify(validation));}
+{const {loaded,engine}=setup(),beforeCash=engine.g.companyCash;assert.equal(engine.dismissExecutiveWithReason('exec-high','underperformance'),false);assert(engine.g.executiveManagement.executives.some(e=>e.id==='exec-high'));assert.equal(engine.g.companyCash,beforeCash);assert.equal(engine.g.executiveGovernance.dismissalDecisions.at(-1).outcome,'rejected');assert(loaded.modules.finance.validate(engine.g).ok);}
+{const a=setup(),b=setup(),aa=a.engine.assessExecutiveDismissal('exec-high','misconduct'),bb=b.engine.assessExecutiveDismissal('exec-high','misconduct');assert.deepEqual(JSON.parse(JSON.stringify(aa)),JSON.parse(JSON.stringify(bb)));assert(aa.approved);}
+{const {loaded,engine}=setup();engine.dismissExecutiveWithReason('exec-low','underperformance');const restored=new loaded.engineModule.TycoonEngine(JSON.parse(JSON.stringify(engine.g)));restored.normalize();assert.equal(restored.g.executiveGovernance.dismissalDecisions.length,1);assert(restored.g.executiveGovernance.dismissalDecisions.length<=80);}
+console.log('executive-dismissal-governance-test: ok');
