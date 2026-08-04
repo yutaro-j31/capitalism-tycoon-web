@@ -158,7 +158,6 @@
     "./js/global-company-ranking-goals.js",
     "./js/hall-of-fame-generations.js",
     "./js/long-run-guidance.js",
-    "./js/pmi-100-day-loader.js",
     "./js/play-runtime-compat.js",
     "./js/physical-iphone-playtest.js",
     "./js/iphone-playtest-fixes.js"
