@@ -5,6 +5,7 @@ name: Issue 294 Executive Hiring Regression
       - 'js/executives-department-assignments.js'
       - 'tests/executives-department-assignments-test.js'
       - 'tests/prototype-overwrite-audit.js'
+      - 'tests/issue-296-core-overwrite-diagnostic-test.js'
       - 'tests/normal-start-ipo-balance-audit-test.js'
       - 'tests/strategy-balance-runner.js'
       - '.github/workflows/issue-294-executive-hiring-diagnostic.yml'
@@ -18,6 +19,8 @@ jobs:
           node-version: '22'
       - name: Executive hiring route regression
         run: node tests/executives-department-assignments-test.js
+      - name: Issue 296 core overwrite diagnostic
+        run: node tests/issue-296-core-overwrite-diagnostic-test.js
       - name: Prototype overwrite audit
         run: node tests/prototype-overwrite-audit.js
       - name: Progression Balance
