@@ -39,6 +39,7 @@ const allCss=fs.readdirSync(cssRoot,{withFileTypes:true})
  .sort();
 const linked=[...index.matchAll(/<link\b[^>]*href=["']\.\/css\/([^"']+\.css)["'][^>]*>/g)].map(match=>match[1]);
 const reachable=new Set();
+const importEdges=[];
 function visit(file){
  if(reachable.has(file))return;
  const full=path.join(cssRoot,file);
@@ -47,6 +48,7 @@ function visit(file){
  const source=fs.readFileSync(full,'utf8');
  for(const match of source.matchAll(/@import\s+(?:url\(\s*)?["']?([^"')\s]+\.css)["']?\s*\)?/g)){
   const imported=path.posix.normalize(path.posix.join(path.posix.dirname(file),match[1].replace(/^\.\//,'')));
+  importEdges.push([file,imported]);
   visit(imported);
  }
 }
@@ -54,6 +56,7 @@ for(const file of linked)visit(file);
 const unconnected=allCss.filter(file=>!reachable.has(file));
 console.log(`CSS_FILES ${JSON.stringify(allCss)}`);
 console.log(`CSS_LINKS ${JSON.stringify(linked)}`);
+console.log(`CSS_IMPORTS ${JSON.stringify(importEdges)}`);
 console.log(`CSS_REACHABLE ${JSON.stringify([...reachable].sort())}`);
 assert.deepEqual(unconnected,[],`production-unconnected CSS files: ${unconnected.join(', ')}`);
 console.log('iphone playtest remediation and CSS production wiring contract: ok');
