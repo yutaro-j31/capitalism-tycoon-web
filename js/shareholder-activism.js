@@ -10,7 +10,7 @@ const VERSION=1,HISTORY_LIMIT=52,COOLDOWN=26;
 const finite=(v,d=0)=>Number.isFinite(Number(v))?Number(v):d;
 const clamp=(v,min,max)=>Math.max(min,Math.min(max,finite(v,min)));
 const integer=(v,d=0)=>Math.max(0,Math.floor(finite(v,d)));
-const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot',"'":'&#39;'}[c]));
+const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const yen=modules.engine.compactYen||modules.engine.yen||(v=>`${Math.round(finite(v)).toLocaleString('ja-JP')}円`);
 function hash(text){let h=2166136261;for(const c of String(text)){h^=c.charCodeAt(0);h=Math.imul(h,16777619);}return h>>>0;}
 function unit(seed){return hash(seed)/4294967295;}
