@@ -4,6 +4,7 @@ const assert=require('assert');
 const js=fs.readFileSync('js/iphone-playtest-fixes.js','utf8');
 const compat=fs.readFileSync('js/play-runtime-compat.js','utf8');
 const css=fs.readFileSync('css/iphone-playtest-fixes.css','utf8');
+const mobileRelease=fs.readFileSync('css/mobile-release.css','utf8');
 const index=fs.readFileSync('index.html','utf8');
 function has(text,needle,message){assert(text.includes(needle),message||`missing ${needle}`);}
 for(const forbidden of ['Math.random','localStorage','SAVE_KEY','saveVersion'])assert(!js.includes(forbidden),`UI patch must not use ${forbidden}`);
@@ -22,7 +23,8 @@ has(css,'bottom:0!important','mobile navigation must be bottom anchored');
 has(css,'max-width:100vw!important','viewport overflow guard missing');
 has(css,'min-height:44px','tap target guard missing');
 has(css,'#player-crisis-panel[hidden]{display:none!important}','crisis panel hidden contract missing');
-has(index,'./css/iphone-playtest-fixes.css','production entry must load remediation CSS');
+has(index,'./css/mobile-release.css','production entry must load mobile release CSS');
+has(mobileRelease,'@import url("./iphone-playtest-fixes.css")','mobile release CSS must import iPhone remediation CSS');
 has(index,'./js/play-runtime-compat.js','production entry must load runtime compatibility before enhancements');
 has(index,'./js/iphone-playtest-fixes.js','production entry must load remediation JS');
 assert(index.indexOf('./js/play-runtime-compat.js')<index.indexOf('./js/iphone-playtest-fixes.js'),'runtime compatibility must load before iPhone enhancements');
