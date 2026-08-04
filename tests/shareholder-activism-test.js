@@ -22,9 +22,12 @@ function configured(difficulty='normal',options={}){
   const engine=new loaded.engineModule.TycoonEngine();
   engine.normalize();
   engine.g.configured=true;
-  engine.g.publicCompany=true;
+  engine.g.publicCompany=false;
   engine.g.difficulty=difficulty;
-  engine.g.week=140;
+  engine.g.week=139;
+  fundFixture(loaded,engine,900_000_000,`activism-fixture-${difficulty}-${options.boundary?'boundary':'adverse'}`);
+  assert.notEqual(engine.advanceWeek(false),false,'fixture funding week closes');
+  engine.g.publicCompany=true;
   engine.g.sharesOut=Math.max(1,engine.g.sharesOut||1_000_000);
   engine.g.founderShares=Math.floor(engine.g.sharesOut*.28);
   engine.g.stockPrice=Math.max(100,engine.g.stockPrice||100);
@@ -35,7 +38,6 @@ function configured(difficulty='normal',options={}){
   engine.g.lastActivistCampaignWeek=0;
   engine.g.subsidiaries=[];
   engine.g.maSubsidiaries=[];
-  fundFixture(loaded,engine,900_000_000,`activism-fixture-${difficulty}-${options.boundary?'boundary':'adverse'}`);
   return{loaded,engine};
 }
 
