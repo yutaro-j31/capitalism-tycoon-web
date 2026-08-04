@@ -3,7 +3,7 @@ on:
   pull_request:
     paths:
       - 'js/new-business-commercialization.js'
-      - 'js/pmi-100-day-loader.js'
+      - 'index.html'
       - 'tests/new-business-commercialization-test.js'
       - '.github/workflows/new-business-commercialization.yml'
   workflow_dispatch:
@@ -20,6 +20,4 @@ jobs:
       - run: node tests/new-business-commercialization-test.js
       - run: npm run test:static
       - name: Production wiring
-        run: |
-          grep -q 'new-business-commercialization.js' js/pmi-100-day-loader.js
-          grep -q 'newBusinessCommercialization' js/pmi-100-day-loader.js
+        run: grep -q 'js/new-business-commercialization.js' index.html

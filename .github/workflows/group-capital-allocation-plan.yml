@@ -3,7 +3,7 @@ on:
   pull_request:
     paths:
       - 'js/group-capital-allocation-plan.js'
-      - 'js/pmi-100-day-loader.js'
+      - 'index.html'
       - 'tests/group-capital-allocation-plan-test.js'
       - '.github/workflows/group-capital-allocation-plan.yml'
   workflow_dispatch:
@@ -20,6 +20,4 @@ jobs:
       - run: node tests/group-capital-allocation-plan-test.js
       - run: npm run test:static
       - name: Production wiring
-        run: |
-          grep -F 'group-capital-allocation-plan.js' js/pmi-100-day-loader.js
-          grep -F 'groupCapitalAllocationPlan' js/pmi-100-day-loader.js
+        run: grep -q 'js/group-capital-allocation-plan.js' index.html

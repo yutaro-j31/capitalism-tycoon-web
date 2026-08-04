@@ -3,7 +3,7 @@ on:
   pull_request:
     paths:
       - 'js/executive-reviews-succession-board.js'
-      - 'js/pmi-100-day-loader.js'
+      - 'index.html'
       - 'tests/executive-reviews-succession-board-test.js'
       - '.github/workflows/executive-reviews-succession-board.yml'
 jobs:
@@ -19,6 +19,4 @@ jobs:
       - run: node tests/executive-reviews-succession-board-test.js
       - run: npm run test:static
       - name: Production wiring
-        run: |
-          grep -q 'executive-reviews-succession-board.js' js/pmi-100-day-loader.js
-          grep -q 'executiveReviewsSuccessionBoard' js/pmi-100-day-loader.js
+        run: grep -q 'js/executive-reviews-succession-board.js' index.html

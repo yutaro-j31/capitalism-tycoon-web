@@ -5,7 +5,7 @@ on:
     paths:
       - 'js/group-capital-allocation-execution.js'
       - 'js/group-capital-allocation-plan.js'
-      - 'js/pmi-100-day-loader.js'
+      - 'index.html'
       - 'tests/group-capital-allocation-execution-test.js'
       - '.github/workflows/group-capital-allocation-execution.yml'
   workflow_dispatch:
@@ -26,6 +26,4 @@ jobs:
       - run: node tests/group-capital-allocation-execution-test.js
       - run: npm run test:static
       - name: Production wiring
-        run: |
-          grep -q 'group-capital-allocation-execution.js' js/pmi-100-day-loader.js
-          grep -q 'groupCapitalAllocationExecution' js/pmi-100-day-loader.js
+        run: grep -q 'js/group-capital-allocation-execution.js' index.html

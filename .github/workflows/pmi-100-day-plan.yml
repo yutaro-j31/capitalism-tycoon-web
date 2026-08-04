@@ -5,7 +5,6 @@ on:
     paths:
       - 'js/pmi-100-day-plan.js'
       - 'js/pmi-long-run-guard.js'
-      - 'js/pmi-100-day-loader.js'
       - 'tests/pmi-100-day-plan-test.js'
       - 'index.html'
       - 'play.html'
@@ -22,7 +21,6 @@ jobs:
           node-version: 20
       - run: node --check js/pmi-100-day-plan.js
       - run: node --check js/pmi-long-run-guard.js
-      - run: node --check js/pmi-100-day-loader.js
       - name: Run PMI lifecycle tests
         id: pmi
         continue-on-error: true
@@ -46,17 +44,12 @@ jobs:
           const fs=require('fs');
           const index=fs.readFileSync('index.html','utf8');
           const play=fs.readFileSync('play.html','utf8');
-          const loader=fs.readFileSync('js/pmi-100-day-loader.js','utf8');
           const plan='./js/pmi-100-day-plan.js';
           const guard='./js/pmi-long-run-guard.js';
-          const compatibility='./js/pmi-100-day-loader.js';
           const planAt=index.indexOf(plan);
           const guardAt=index.indexOf(guard);
-          const loaderAt=index.indexOf(compatibility);
-          if(planAt<0||guardAt<0||loaderAt<0)throw new Error('PMI direct production wiring missing from index.html');
-          if(!(planAt<guardAt&&guardAt<loaderAt))throw new Error('PMI production load order is invalid');
-          if(/document\.write\s*\(/.test(loader))throw new Error('PMI compatibility loader must remain side-effect free');
-          if(!loader.includes('dynamic document.write loading is intentionally unnecessary'))throw new Error('PMI compatibility-boundary rationale missing');
+          if(planAt<0||guardAt<0)throw new Error('PMI direct production wiring missing from index.html');
+          if(!(planAt<guardAt))throw new Error('PMI production load order is invalid');
           if(!play.includes("new URL('./index.html',location.href)"))throw new Error('play.html must redirect to index.html');
           if(Buffer.byteLength(play)>3000)throw new Error(`play.html exceeds redirect launcher contract: ${Buffer.byteLength(play)}`);
           NODE

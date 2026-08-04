@@ -4,7 +4,7 @@ on:
   pull_request:
     paths:
       - 'js/subsidiary-performance-review.js'
-      - 'js/pmi-100-day-loader.js'
+      - 'index.html'
       - 'tests/subsidiary-performance-review-test.js'
       - '.github/workflows/subsidiary-performance-review.yml'
   workflow_dispatch:
@@ -28,10 +28,4 @@ jobs:
       - name: Validate static safety
         run: npm run test:static
       - name: Validate production wiring
-        run: |
-          node - <<'NODE'
-          const fs=require('fs');
-          const source=fs.readFileSync('js/pmi-100-day-loader.js','utf8');
-          if(!source.includes('subsidiary-performance-review.js')) throw new Error('performance review module is not wired');
-          if(!source.includes('subsidiaryPerformanceReview')) throw new Error('performance review fail-closed contract is missing');
-          NODE
+        run: grep -q 'js/subsidiary-performance-review.js' index.html

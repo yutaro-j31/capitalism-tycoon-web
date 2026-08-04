@@ -1,11 +1,10 @@
 const fs=require('fs'),vm=require('vm'),assert=require('assert');
-const source=fs.readFileSync('js/long-run-guidance.js','utf8'),loader=fs.readFileSync('js/pmi-100-day-loader.js','utf8');
+const source=fs.readFileSync('js/long-run-guidance.js','utf8'),index=fs.readFileSync('index.html','utf8');
 assert(!/Math\.random|Date\.now/.test(source));
 assert(source.includes('LIMIT=40'));
 assert(source.includes('lastProcessedWeek===week'));
 assert(source.includes('min-height:44px'));
-assert(loader.includes('long-run-guidance.js'));
-assert(loader.includes('longRunGuidance'));
+assert(index.includes('<script src="./js/long-run-guidance.js"></script>'));
 class E{constructor(g){this.g=g}normalize(){}updateMacro(){}}
 const context={globalThis:{__capitalismTycoonModules:{engine:{TycoonEngine:E},playerEngineBridge:{getEngine(){return null}},hallOfFameGenerations:{}}}};
 context.globalThis.globalThis=context.globalThis;
