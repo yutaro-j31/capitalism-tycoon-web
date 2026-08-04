@@ -98,6 +98,15 @@ function covers(paths, file) {
   return paths.some(pattern => globRegex(pattern).test(file));
 }
 
+const allWorkflowFiles = fs.readdirSync(workflowRoot).filter(file => /\.ya?ml$/.test(file));
+for (const file of allWorkflowFiles) {
+  const source = readWorkflow(file);
+  assert(
+    !source.includes('js/pmi-100-day-loader.js'),
+    `${file} must not inspect or depend on the obsolete pmi-100-day-loader.js compatibility file`,
+  );
+}
+
 for (const file of alwaysRun) {
   const source = readWorkflow(file);
   const paths = pullRequestPaths(source);
