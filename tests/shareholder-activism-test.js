@@ -2,32 +2,26 @@
 const assert=require('node:assert');
 const {loadGame}=require('./harness');
 
-function fundFixture(loaded,engine,targetCash,id){
-  const delta=targetCash-(Number(engine.g.companyCash)||0);
-  engine.g.companyCash+=delta;
-  loaded.modules.finance.event(engine.g,'revenue',delta,{
-    cashEffect:delta,
-    profitEffect:delta,
-    sourceType:'test',
-    sourceID:id,
-    idempotencyKey:id
-  });
-  loaded.modules.finance.rebuildSnapshotForWeek(engine.g,engine.g.week);
+function createWithEarnedOpeningBalance(loaded,targetCash){
+  const engine=new loaded.engineModule.TycoonEngine();
+  engine.g.companyCash=targetCash;
+  engine.g.companyDebt=0;
+  delete engine.g.finance;
+  engine.normalize();
+  const finance=loaded.modules.finance.ensureFinance(engine.g);
+  assert.equal(finance.openingRetainedEarnings,targetCash,'fixture opening balance is retained earnings');
   const validation=loaded.modules.finance.validate(engine.g);
   assert(validation.ok,`fixture finance invalid: ${JSON.stringify(validation)}`);
+  return engine;
 }
 
 function configured(difficulty='normal',options={}){
   const loaded=loadGame({headless:true});
-  const engine=new loaded.engineModule.TycoonEngine();
-  engine.normalize();
+  const engine=createWithEarnedOpeningBalance(loaded,900_000_000);
   engine.g.configured=true;
-  engine.g.publicCompany=false;
-  engine.g.difficulty=difficulty;
-  engine.g.week=139;
-  fundFixture(loaded,engine,900_000_000,`activism-fixture-${difficulty}-${options.boundary?'boundary':'adverse'}`);
-  assert.notEqual(engine.advanceWeek(false),false,'fixture funding week closes');
   engine.g.publicCompany=true;
+  engine.g.difficulty=difficulty;
+  engine.g.week=140;
   engine.g.sharesOut=Math.max(1,engine.g.sharesOut||1_000_000);
   engine.g.founderShares=Math.floor(engine.g.sharesOut*.28);
   engine.g.stockPrice=Math.max(100,engine.g.stockPrice||100);
