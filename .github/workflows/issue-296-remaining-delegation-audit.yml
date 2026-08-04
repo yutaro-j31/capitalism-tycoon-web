@@ -29,7 +29,12 @@ jobs:
       - name: Load-order delegation audit
         run: node scripts/issue-296-remaining-delegation-audit.js | tee issue-296-audit.txt
       - name: updateMacro impact comparison
-        run: node scripts/issue-296-update-macro-impact.js | tee issue-296-update-macro-impact.txt
+        run: |
+          set -o pipefail
+          node scripts/issue-296-update-macro-impact.js | tee issue-296-update-macro-impact.txt
+          test -s issue-296-update-macro-impact.json
+          echo 'Verified non-empty JSON comparison report:'
+          wc -c issue-296-update-macro-impact.json
       - name: Save-path regressions
         run: |
           npm run test:save
@@ -46,4 +51,5 @@ jobs:
             issue-296-grep.txt
             issue-296-audit.txt
             issue-296-update-macro-impact.txt
+            issue-296-update-macro-impact.json
           retention-days: 14
