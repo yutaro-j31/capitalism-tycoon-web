@@ -1,6 +1,7 @@
 'use strict';
 const assert=require('node:assert');
 const {loadGame}=require('./harness');
+// This regression intentionally exercises only post-IPO state so pre-IPO progression remains untouched.
 function configured(difficulty='normal'){
   const loaded=loadGame({headless:true});
   const engine=new loaded.engineModule.TycoonEngine();
