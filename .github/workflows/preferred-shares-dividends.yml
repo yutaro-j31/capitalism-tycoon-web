@@ -3,7 +3,7 @@ on:
   pull_request:
     paths:
       - 'js/preferred-shares-dividends.js'
-      - 'js/pmi-100-day-loader.js'
+      - 'index.html'
       - 'tests/preferred-shares-dividends-test.js'
       - '.github/workflows/preferred-shares-dividends.yml'
 jobs:
@@ -19,6 +19,4 @@ jobs:
       - run: node tests/preferred-shares-dividends-test.js
       - run: npm run test:static
       - name: Production wiring
-        run: |
-          grep -q 'preferred-shares-dividends.js' js/pmi-100-day-loader.js
-          grep -q 'preferredSharesDividends' js/pmi-100-day-loader.js
+        run: grep -q 'js/preferred-shares-dividends.js' index.html
