@@ -1,0 +1,29 @@
+name: Wire Shareholder Activism
+on:
+  pull_request:
+    paths:
+      - '.github/workflows/wire-shareholder-activism.yml'
+      - 'scripts/wire-shareholder-activism.js'
+      - 'js/shareholder-activism.js'
+      - 'tests/shareholder-activism-test.js'
+permissions:
+  contents: write
+jobs:
+  wire:
+    if: github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.head_ref }}
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - run: node scripts/wire-shareholder-activism.js
+      - run: |
+          git rm scripts/wire-shareholder-activism.js .github/workflows/wire-shareholder-activism.yml
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add index.html tests/run-all.js docs/gameplay-systems-roadmap.md
+          git commit -m "chore: wire shareholder activism module"
+          git push origin HEAD:${{ github.head_ref }}
