@@ -1,0 +1,26 @@
+name: Industry Specific Events
+on:
+  pull_request:
+    paths:
+      - js/industry-specific-events.js
+      - js/macro-cycle.js
+      - js/engine.js
+      - js/finance.js
+      - js/save-storage.js
+      - js/save-v9.js
+      - index.html
+      - package.json
+      - tests/harness.js
+      - tests/run-all.js
+      - tests/industry-specific-events-test.js
+      - .github/workflows/industry-specific-events.yml
+jobs:
+  regression:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - run: node tests/industry-specific-events-test.js
+      - run: npm run test:syntax
