@@ -1,0 +1,35 @@
+name: Wire Industry Event Response Plans V2
+on:
+  push:
+    branches: [feat/phase-8c2-industry-event-response-plans]
+    paths:
+      - .github/workflows/wire-industry-event-response-plans-v2.yml
+permissions:
+  contents: write
+jobs:
+  wire:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feat/phase-8c2-industry-event-response-plans
+      - name: Update files
+        run: |
+          node - <<'NODE'
+          const fs=require('fs');
+          let html=fs.readFileSync('index.html','utf8');
+          const a='<script src="./js/industry-specific-events.js"></script>';
+          const b=a+'<script src="./js/industry-event-response-plans.js"></script><script src="./js/industry-event-response-plans-ui.js"></script>';
+          if(!html.includes('industry-event-response-plans.js'))fs.writeFileSync('index.html',html.replace(a,b));
+          const p='docs/gameplay-systems-roadmap.md';
+          let text=fs.readFileSync(p,'utf8');
+          const old='2. Industry-specific demand, cost, regulation, technology, and supply events.';
+          if(text.includes(old)&&!text.includes('one-per-event response plans'))fs.writeFileSync(p,text.replace(old,old+' In progress: deterministic modifiers and one-per-event response plans.'));
+          NODE
+      - name: Commit
+        run: |
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add index.html docs/gameplay-systems-roadmap.md
+          git diff --cached --quiet || git commit -m "chore: wire industry event response plans"
+          git push
