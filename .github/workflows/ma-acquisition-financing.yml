@@ -3,6 +3,32 @@ name: M&A Acquisition Financing
 on:
   pull_request:
     branches: [ main ]
+    paths:
+      - 'js/ma-*.js'
+      - 'js/pmi-*.js'
+      - 'js/subsidiary-*.js'
+      - 'js/group-*.js'
+      - 'js/ceo-dashboard.js'
+      - 'js/engine.js'
+      - 'js/finance.js'
+      - 'js/save*.js'
+      - 'js/*normalize*.js'
+      - 'index.html'
+      - 'package.json'
+      - 'tests/harness.js'
+      - 'tests/run-all.js'
+      - 'tests/ma-*.js'
+      - 'tests/pmi-*.js'
+      - 'tests/subsidiary-*.js'
+      - 'tests/finance-ma-accounting-test.js'
+      - 'tests/accounting-invariants-test.js'
+      - 'tests/v1-progression-gate-test.js'
+      - '.github/workflows/ma-acquisition-financing.yml'
+  push:
+    branches: [main]
+  schedule:
+    - cron: '50 3 * * *'
+  workflow_dispatch:
 
 permissions:
   contents: read
@@ -60,12 +86,15 @@ jobs:
           node tests/executive-secretary-test.js
 
       - name: Install pinned Playwright runtime
+        if: github.event_name != 'pull_request'
         run: npm install --no-save --no-package-lock playwright@1.61.0
 
       - name: Install WebKit browser and system dependencies
+        if: github.event_name != 'pull_request'
         run: npx playwright install --with-deps webkit
 
       - name: iPhone WebKit smoke
+        if: github.event_name != 'pull_request'
         run: |
           node tests/ma-acquisition-financing-webkit-test.js
           node tests/ma-board-approval-webkit-test.js
@@ -75,7 +104,7 @@ jobs:
 
       - name: Upload M&A acquisition financing artifacts
         uses: actions/upload-artifact@v4
-        if: always()
+        if: ${{ always() && github.event_name != 'pull_request' }}
         with:
           name: ma-acquisition-financing-${{ github.sha }}
           path: |
