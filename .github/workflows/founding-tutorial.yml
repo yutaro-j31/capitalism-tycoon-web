@@ -3,43 +3,26 @@ name: Founding Tutorial
 on:
   push:
     branches: [ main ]
-    paths:
-      - 'js/founding-tutorial.js'
-      - 'js/app.js'
-      - 'js/ceo-dashboard.js'
-      - 'index.html'
-      - 'css/app.css'
-      - 'tests/founding-tutorial-test.js'
-      - 'tests/founding-tutorial-ui-test.js'
-      - 'tests/founding-tutorial-webkit-test.js'
-      - 'tests/published-founding-tutorial-webkit-test.js'
-      - 'tests/founding-tutorial-workflow-test.js'
-      - 'tests/pages-deployment-smoke-test.js'
-      - '.github/workflows/iphone-webkit-smoke.yml'
-      - '.github/workflows/pages-deployment-smoke.yml'
-      - 'tests/fixtures/extracted-css-baseline.css'
-      - 'package.json'
-      - 'tests/run-all.js'
-      - '.github/workflows/founding-tutorial.yml'
   pull_request:
     paths:
       - 'js/founding-tutorial.js'
       - 'js/app.js'
       - 'js/ceo-dashboard.js'
+      - 'js/engine.js'
+      - 'js/finance.js'
+      - 'js/save*.js'
+      - 'js/*normalize*.js'
       - 'index.html'
-      - 'css/app.css'
-      - 'tests/founding-tutorial-test.js'
-      - 'tests/founding-tutorial-ui-test.js'
-      - 'tests/founding-tutorial-webkit-test.js'
-      - 'tests/published-founding-tutorial-webkit-test.js'
-      - 'tests/founding-tutorial-workflow-test.js'
-      - 'tests/pages-deployment-smoke-test.js'
-      - '.github/workflows/iphone-webkit-smoke.yml'
-      - '.github/workflows/pages-deployment-smoke.yml'
-      - 'tests/fixtures/extracted-css-baseline.css'
       - 'package.json'
+      - 'tests/harness.js'
       - 'tests/run-all.js'
+      - 'css/**'
+      - 'tests/founding-tutorial-*.js'
+      - 'tests/pages-deployment-smoke-test.js'
+      - 'tests/fixtures/extracted-css-baseline.css'
       - '.github/workflows/founding-tutorial.yml'
+  schedule:
+    - cron: '20 3 * * *'
   workflow_dispatch:
 
 permissions:
@@ -70,13 +53,16 @@ jobs:
           npm run test:static
           npm run test:css
       - name: Install pinned Playwright runtime
+        if: github.event_name != 'pull_request'
         run: npm install --no-save --no-package-lock playwright@1.61.0
       - name: Install WebKit browser and system dependencies
+        if: github.event_name != 'pull_request'
         run: npx playwright install --with-deps webkit
       - name: Verify founding tutorial in iPhone WebKit
+        if: github.event_name != 'pull_request'
         run: node tests/founding-tutorial-webkit-test.js
       - name: Retain founding tutorial WebKit evidence
-        if: always()
+        if: ${{ always() && github.event_name != 'pull_request' }}
         uses: actions/upload-artifact@v4
         with:
           name: founding-tutorial-webkit-${{ github.sha }}
