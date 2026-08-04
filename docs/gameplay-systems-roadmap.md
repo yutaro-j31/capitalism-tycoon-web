@@ -1,6 +1,6 @@
 # Gameplay systems roadmap
 
-UI expansion is paused. Development proceeds through small, testable gameplay-system phases while preserving `SAVE_KEY=capitalism_tycoon_web_v1`, save version 9 whenever possible, deterministic simulation, bounded histories, and existing accounting invariants.
+Development has returned to normal feature-delivery mode after the accounting, save-compatibility, module-wiring, and lifecycle-delegation audits were completed. New gameplay systems may now include the minimal UI required to operate them, while preserving `SAVE_KEY=capitalism_tycoon_web_v1`, save version 9 whenever possible, deterministic simulation, bounded histories, and existing accounting invariants.
 
 ## Phase 8A: Competition and markets
 
@@ -46,4 +46,4 @@ UI expansion is paused. Development proceeds through small, testable gameplay-sy
 
 ## Delivery rule
 
-Each unit includes focused tests, full regression checks, save compatibility, bounded state growth, finite-number validation, and a reviewable pull request. UI changes are excluded unless a gameplay system cannot be operated without a minimal interface addition.
+Each unit includes focused tests, full regression checks, save compatibility, bounded state growth, finite-number validation, and a reviewable pull request. UI changes remain scoped to the minimum needed for the selected gameplay system and must preserve iPhone Safari usability.
