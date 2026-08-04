@@ -1,7 +1,23 @@
 'use strict';
 const assert=require('node:assert');
 const {loadGame}=require('./harness');
-function configured(difficulty='normal'){
+
+function fundFixture(loaded,engine,targetCash,id){
+  const delta=targetCash-(Number(engine.g.companyCash)||0);
+  engine.g.companyCash+=delta;
+  loaded.modules.finance.event(engine.g,'revenue',delta,{
+    cashEffect:delta,
+    profitEffect:delta,
+    sourceType:'test',
+    sourceID:id,
+    idempotencyKey:id
+  });
+  loaded.modules.finance.rebuildSnapshotForWeek(engine.g,engine.g.week);
+  const validation=loaded.modules.finance.validate(engine.g);
+  assert(validation.ok,`fixture finance invalid: ${JSON.stringify(validation)}`);
+}
+
+function configured(difficulty='normal',options={}){
   const loaded=loadGame({headless:true});
   const engine=new loaded.engineModule.TycoonEngine();
   engine.normalize();
@@ -9,22 +25,36 @@ function configured(difficulty='normal'){
   engine.g.publicCompany=true;
   engine.g.difficulty=difficulty;
   engine.g.week=140;
-  engine.g.companyCash=900_000_000;
   engine.g.sharesOut=Math.max(1,engine.g.sharesOut||1_000_000);
   engine.g.founderShares=Math.floor(engine.g.sharesOut*.28);
   engine.g.stockPrice=Math.max(100,engine.g.stockPrice||100);
-  engine.g.ipoPrice=engine.g.stockPrice*2;
-  engine.g.boardGovernanceQuality=0;
+  engine.g.ipoPrice=options.boundary?engine.g.stockPrice:engine.g.stockPrice*2;
+  engine.g.boardGovernanceQuality=options.boundary?100:0;
   engine.g.dividendPerShare=0;
-  engine.g.founderControlPressure=30;
+  engine.g.founderControlPressure=options.boundary?0:30;
   engine.g.lastActivistCampaignWeek=0;
+  engine.g.subsidiaries=[];
+  engine.g.maSubsidiaries=[];
+  fundFixture(loaded,engine,900_000_000,`activism-fixture-${difficulty}-${options.boundary?'boundary':'adverse'}`);
   return{loaded,engine};
 }
+
 {
   const easy=configured('easy'),normal=configured('normal'),hard=configured('hard');
   const ep=easy.engine.getShareholderActivismPressure(),np=normal.engine.getShareholderActivismPressure(),hp=hard.engine.getShareholderActivismPressure();
   assert(ep.threshold>np.threshold&&np.threshold>hp.threshold,'difficulty thresholds tighten from easy to hard');
 }
+
+{
+  const {loaded,engine}=configured('normal',{boundary:true});
+  const p=engine.getShareholderActivismPressure();
+  assert.equal(p.metrics.cashPressure,100,'boundary has maximum excess-cash pressure');
+  assert.equal(p.metrics.dividendPressure,100,'boundary has maximum payout pressure');
+  assert.equal(p.metrics.cashHoardingBonus,16,'boundary receives the targeted hoarding bonus');
+  assert.equal(p.score,p.threshold,'boundary score intentionally equals the normal threshold');
+  assert(loaded.modules.shareholderActivism.maybeStart(engine),'score equal to threshold starts a campaign');
+}
+
 {
   const {loaded,engine}=configured('normal');
   const p=engine.getShareholderActivismPressure();
@@ -43,6 +73,7 @@ function configured(difficulty='normal'){
   restored.normalize();
   assert(restored.g.activeActivistCampaign,'campaign survives normalize/save-shaped reload');
 }
+
 {
   const {engine}=configured('normal');
   const before=engine.getShareholderActivismPressure();
@@ -53,6 +84,7 @@ function configured(difficulty='normal'){
   assert.notEqual(result,false,'advanceWeek must complete');
   assert(engine.g.activeActivistCampaign,'shareholder-activism.js advanceWeek wrapper reaches maybeStart without a compatibility hook');
 }
+
 {
   const {loaded,engine}=configured('hard');
   const campaign=loaded.modules.shareholderActivism.maybeStart(engine);
@@ -66,11 +98,13 @@ function configured(difficulty='normal'){
   assert(engine.g.founderControlPressure>0);
   assert.equal(engine.g.activeActivistCampaign,null);
 }
+
 {
   const a=configured('normal'),b=configured('normal');
   const ca=a.loaded.modules.shareholderActivism.maybeStart(a.engine),cb=b.loaded.modules.shareholderActivism.maybeStart(b.engine);
   assert.deepEqual(JSON.parse(JSON.stringify(ca)),JSON.parse(JSON.stringify(cb)),'same state creates deterministic campaign');
 }
+
 {
   const {loaded,engine}=configured('normal');
   const campaign=loaded.modules.shareholderActivism.maybeStart(engine);
@@ -78,8 +112,10 @@ function configured(difficulty='normal'){
   const before=engine.g.companyCash;
   assert.equal(engine.acceptShareholderProposal(),true);
   assert.equal(engine.g.activeActivistCampaign,null);
-  assert(loaded.modules.finance.validate(engine.g).ok,'finance remains valid after canonical acceptance path');
+  const validation=loaded.modules.finance.validate(engine.g);
+  assert(validation.ok,JSON.stringify(validation));
   if(campaign.type==='buyback')assert(engine.g.companyCash<before,'buyback canonical path spends cash');
   else assert(engine.g.dividendPerShare>0,'dividend canonical path changes declared dividend without direct cash mutation');
 }
+
 console.log('shareholder-activism-test: ok');
