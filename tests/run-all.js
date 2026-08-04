@@ -37,6 +37,7 @@ for (const [name, file] of [
   ['treasury-prepayment', 'tests/treasury-prepayment-test.js'],
   ['treasury-refinancing-policy', 'tests/treasury-refinancing-policy-test.js'],
   ['shareholder-returns', 'tests/shareholder-returns-test.js'],
+  ['shareholder-activism', 'tests/shareholder-activism-test.js'],
   ['capital-allocation-score', 'tests/capital-allocation-score-test.js'],
   ['capital-allocation-policy', 'tests/capital-allocation-policy-test.js'],
   ['capital-allocation-comparison', 'tests/capital-allocation-comparison-test.js'],
