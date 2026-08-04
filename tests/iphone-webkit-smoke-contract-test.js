@@ -19,7 +19,11 @@ const releaseCandidate = JSON.parse(read('release-candidate.json'));
 const deploymentUrlPattern = new RegExp(escapeRegExp(releaseCandidate.deployment.url));
 
 assert.match(workflow, /^name: iPhone WebKit Smoke$/m);
-assert.match(workflow, /^  pull_request:$/m, 'WebKit smoke must run for pull requests');
+assert.doesNotMatch(workflow, /^  pull_request:$/m, 'WebKit smoke must not consume pull-request runners');
+assert.match(workflow, /^  push:$/m, 'WebKit smoke must run after main updates');
+assert.match(workflow, /^    branches: \[main\]$/m, 'WebKit smoke push trigger must target main');
+assert.match(workflow, /^  schedule:$/m, 'WebKit smoke must retain nightly coverage');
+assert.match(workflow, /^    - cron: '[^']+'$/m, 'WebKit smoke must define a nightly cron');
 assert.match(workflow, /^  workflow_dispatch:$/m, 'WebKit smoke must remain manually runnable');
 assert.match(workflow, /^  contents: read$/m, 'WebKit smoke must use read-only contents permission');
 assert.match(workflow, /npm install --no-save --no-package-lock playwright@1\.61\.0/);
