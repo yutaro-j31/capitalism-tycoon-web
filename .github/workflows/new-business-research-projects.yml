@@ -4,7 +4,7 @@ on:
     paths:
       - 'js/new-business-research-projects.js'
       - 'js/new-business-market-analysis.js'
-      - 'js/pmi-100-day-loader.js'
+      - 'index.html'
       - 'tests/new-business-research-projects-test.js'
       - '.github/workflows/new-business-research-projects.yml'
 jobs:
@@ -20,6 +20,4 @@ jobs:
       - run: node tests/new-business-research-projects-test.js
       - run: npm run test:static
       - name: Production wiring
-        run: |
-          grep -q 'new-business-research-projects.js' js/pmi-100-day-loader.js
-          grep -q 'newBusinessResearchProjects' js/pmi-100-day-loader.js
+        run: grep -q 'js/new-business-research-projects.js' index.html
