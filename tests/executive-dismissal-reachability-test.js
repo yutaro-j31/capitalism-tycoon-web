@@ -79,21 +79,29 @@ function sampleCandidateDistribution(){
   const loaded=loadGame({headless:true});
   const engine=createEngine(loaded,'adverse');
   const lowCandidateWeeks=[];
-  let lowCandidateCount=0;
+  let totalLowCandidates=0,totalCandidates=0;
   for(let i=0;i<208;i++){
     const candidates=engine.generateExecutiveCandidates();
+    totalCandidates+=candidates.length;
     const low=candidates.filter(row=>row.skill<=60);
-    if(low.length){lowCandidateWeeks.push(engine.g.week);lowCandidateCount+=low.length;}
+    if(low.length){lowCandidateWeeks.push(engine.g.week);totalLowCandidates+=low.length;}
     assert.notEqual(engine.advanceWeek(),false,'distribution sample weekly progression must continue');
   }
   const validation=loaded.modules.finance.validate(engine.g);
   assert(validation.ok,JSON.stringify(validation));
-  return{firstWeek:lowCandidateWeeks[0]??null,lowCandidateWeeks,lowCandidateCount};
+  return{
+    firstWeek:lowCandidateWeeks[0]??null,
+    weeksAppeared:lowCandidateWeeks.length,
+    totalLowCandidates,
+    totalCandidates,
+    lowCandidateWeeks
+  };
 }
 
 const distributionA=sampleCandidateDistribution(),distributionB=sampleCandidateDistribution();
 assert.deepEqual(distributionA,distributionB,'208-week candidate distribution is deterministic');
-assert(distributionA.lowCandidateCount>0,'ability 60 or lower candidates appear within 208 weeks');
+assert(distributionA.totalLowCandidates>0,'ability 60 or lower candidates appear within 208 weeks');
+assert.equal(distributionA.totalCandidates,208*3,'three candidates are sampled in every one of 208 weeks');
 
 const adverseA=run('adverse'),adverseB=run('adverse');
 assert(adverseA.decisionWeek!==null&&adverseA.decisionWeek<=208,'adverse play reaches dismissal within 208 weeks');
@@ -109,4 +117,6 @@ assert.equal(healthyA.rejectedCount,1,'healthy control records one rejected prop
 assert.equal(healthyA.targetStillEmployed,true,'healthy high performer remains employed');
 assert.deepEqual(healthyA,healthyB,'healthy control result is deterministic');
 
-console.log(`executive-dismissal-reachability-test: ok (adverse hired ${adverseA.hiredWeek}, decision ${adverseA.decisionWeek}, skill ${adverseA.targetSkill}, support ${adverseA.finalSupport}; 208-week low-skill first ${distributionA.firstWeek}, candidates ${distributionA.lowCandidateCount}, occurrence weeks ${distributionA.lowCandidateWeeks.length}; healthy decision ${healthyA.decisionWeek}, rejected ${healthyA.rejectedCount})`);
+console.log('executive-candidate-distribution:');
+console.log(`  firstWeek=${distributionA.firstWeek} weeksAppeared=${distributionA.weeksAppeared} totalLow=${distributionA.totalLowCandidates} totalAll=${distributionA.totalCandidates}`);
+console.log(`executive-dismissal-reachability-test: ok (adverse hired ${adverseA.hiredWeek}, decision ${adverseA.decisionWeek}, skill ${adverseA.targetSkill}, support ${adverseA.finalSupport}; healthy decision ${healthyA.decisionWeek}, rejected ${healthyA.rejectedCount})`);
