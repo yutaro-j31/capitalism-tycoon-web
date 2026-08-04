@@ -2,6 +2,20 @@ name: Release Candidate Contract
 
 on:
   pull_request:
+    paths:
+      - 'release-*.json'
+      - 'docs/**'
+      - 'scripts/release-*.js'
+      - 'tests/release-candidate-*.js'
+      - 'js/engine.js'
+      - 'js/finance.js'
+      - 'js/save*.js'
+      - 'js/*normalize*.js'
+      - 'index.html'
+      - 'package.json'
+      - 'tests/harness.js'
+      - 'tests/run-all.js'
+      - '.github/workflows/release-candidate-contract.yml'
   workflow_dispatch:
 
 permissions:
