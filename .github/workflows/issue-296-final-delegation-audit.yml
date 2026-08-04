@@ -1,0 +1,31 @@
+name: Issue 296 Final Delegation Audit
+on:
+  pull_request:
+    paths:
+      - '.github/workflows/issue-296-final-delegation-audit.yml'
+      - 'scripts/issue-296-final-delegation-audit.js'
+      - 'index.html'
+      - 'js/**'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - name: Print load-order contexts
+        run: node scripts/issue-296-final-delegation-audit.js | tee issue-296-final-delegation.txt
+      - name: Repository-wide grep
+        run: grep -rnE 'advanceWeek|updateSubsidiaries|completeTargetAcquisition|normalize' js/ > issue-296-final-grep.txt
+      - uses: actions/upload-artifact@v4
+        with:
+          name: issue-296-final-delegation
+          path: |
+            issue-296-final-delegation.txt
+            issue-296-final-grep.txt
+          retention-days: 14
