@@ -3,7 +3,7 @@ on:
   pull_request:
     paths:
       - 'js/hall-of-fame-generations.js'
-      - 'js/pmi-100-day-loader.js'
+      - 'index.html'
       - 'tests/hall-of-fame-generations-test.js'
       - '.github/workflows/hall-of-fame-generations.yml'
 jobs:
@@ -19,6 +19,4 @@ jobs:
       - run: node tests/hall-of-fame-generations-test.js
       - run: npm run test:static
       - name: Production wiring
-        run: |
-          grep -q 'hall-of-fame-generations.js' js/pmi-100-day-loader.js
-          grep -q 'hallOfFameGenerations' js/pmi-100-day-loader.js
+        run: grep -q 'js/hall-of-fame-generations.js' index.html
