@@ -3,6 +3,17 @@ on:
   push:
     branches: [ main ]
   pull_request:
+    paths:
+      - 'js/**'
+      - 'index.html'
+      - 'package.json'
+      - 'tests/harness.js'
+      - 'tests/run-all.js'
+      - 'tests/strategy-balance-runner.js'
+      - 'tests/normal-start-ipo-balance-audit-test.js'
+      - 'tests/**/*progression*'
+      - 'tests/v1-progression-gate-test.js'
+      - '.github/workflows/progression-balance.yml'
 jobs:
   normal-start-ipo:
     runs-on: ubuntu-latest
