@@ -1,0 +1,39 @@
+name: Issue 296 updateMacro diagnostic v2
+on:
+  pull_request:
+    paths:
+      - '.github/workflows/issue-296-update-macro-v2.yml'
+      - 'scripts/issue-296-update-macro-impact-v2.js'
+      - 'index.html'
+      - 'js/**'
+      - 'tests/**'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  compare:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - name: Run comparison with durable diagnostics
+        shell: bash
+        run: |
+          set +e
+          node scripts/issue-296-update-macro-impact-v2.js 2>&1 | tee issue-296-update-macro-v2-console.txt
+          status=${PIPESTATUS[0]}
+          echo "node_status=$status" | tee issue-296-update-macro-v2-status.txt
+          ls -la issue-296-update-macro-v2* | tee issue-296-update-macro-v2-files.txt
+          exit "$status"
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: issue-296-update-macro-v2
+          path: |
+            issue-296-update-macro-v2*.txt
+            issue-296-update-macro-v2*.json
+          if-no-files-found: warn
+          retention-days: 14
