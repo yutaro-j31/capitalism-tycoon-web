@@ -98,3 +98,4 @@ assert.ok(restored.companyWeeklyBorrowRate() <= restored.companyBorrowRate(), 's
 assert.deepEqual(structuralIssues(restored.g), []);
 
 console.log('player weekly debt service tests passed');
+require('./bank-loans-covenants-accounting-test');
