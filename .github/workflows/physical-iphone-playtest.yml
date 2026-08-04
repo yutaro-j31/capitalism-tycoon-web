@@ -1,12 +1,16 @@
 name: Physical iPhone Playtest
 
 on:
-  pull_request:
+  push:
+    branches: [main]
     paths:
+      - 'index.html'
+      - 'play.html'
       - 'js/physical-iphone-playtest.js'
       - 'tests/physical-iphone-playtest-test.js'
-      - 'play.html'
       - '.github/workflows/physical-iphone-playtest.yml'
+  schedule:
+    - cron: '5 3 * * *'
   workflow_dispatch:
 
 permissions:
