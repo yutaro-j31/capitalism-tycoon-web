@@ -13,9 +13,10 @@ function configured(difficulty='normal'){
   engine.g.sharesOut=Math.max(1,engine.g.sharesOut||1_000_000);
   engine.g.founderShares=Math.floor(engine.g.sharesOut*.28);
   engine.g.stockPrice=Math.max(100,engine.g.stockPrice||100);
-  engine.g.ipoPrice=engine.g.stockPrice*1.35;
-  engine.g.boardGovernanceQuality=42;
+  engine.g.ipoPrice=engine.g.stockPrice*2;
+  engine.g.boardGovernanceQuality=0;
   engine.g.dividendPerShare=0;
+  engine.g.founderControlPressure=30;
   engine.g.lastActivistCampaignWeek=0;
   return{loaded,engine};
 }
