@@ -2,27 +2,27 @@
 const assert=require('node:assert');
 const {loadGame}=require('./harness');
 
-function recordFunding(loaded,engine,targetCash,id){
-  const delta=targetCash-(Number(engine.g.companyCash)||0);
-  engine.g.companyCash+=delta;
-  loaded.modules.finance.event(engine.g,'revenue',delta,{
-    cashEffect:delta,
-    profitEffect:delta,
-    sourceType:'test',
-    sourceID:id,
-    idempotencyKey:id
-  });
-  loaded.modules.finance.rebuildSnapshotForWeek(engine.g,engine.g.week);
+function createEngine(loaded,mode){
+  const engine=new loaded.engineModule.TycoonEngine();
+  if(mode==='adverse'){
+    engine.g.companyCash=900_000_000;
+    engine.g.companyDebt=0;
+    delete engine.g.finance;
+  }
+  engine.normalize();
+  if(mode==='adverse'){
+    const finance=loaded.modules.finance.ensureFinance(engine.g);
+    assert.equal(finance.openingRetainedEarnings,900_000_000,'adverse play starts with accumulated retained earnings');
+  }
+  engine.g.configured=true;
+  engine.g.difficulty='normal';
+  engine.g.companyName=mode==='adverse'?'Reachability Co':'Healthy Operator Co';
+  return engine;
 }
 
 function run(mode){
   const loaded=loadGame({headless:true});
-  const engine=new loaded.engineModule.TycoonEngine();
-  engine.normalize();
-  engine.g.configured=true;
-  engine.g.difficulty='normal';
-  engine.g.companyName=mode==='adverse'?'Reachability Co':'Healthy Operator Co';
-  let funded=false;
+  const engine=createEngine(loaded,mode);
   let firstCampaignWeek=null;
 
   for(let i=0;i<208;i++){
@@ -31,23 +31,18 @@ function run(mode){
       engine.g.sharesOut=Math.max(1,Number(engine.g.sharesOut)||1_000_000);
       engine.g.founderShares=Math.floor(engine.g.sharesOut*.28);
       engine.g.stockPrice=Math.max(100,Number(engine.g.stockPrice)||100);
+      engine.g.ipoPrice=engine.g.stockPrice;
       engine.g.lastActivistCampaignWeek=Math.max(0,Number(engine.g.lastActivistCampaignWeek)||0);
+      engine.g.founderControlPressure=0;
+      engine.g.subsidiaries=[];
+      engine.g.maSubsidiaries=[];
       if(mode==='adverse'){
-        if(!funded){
-          recordFunding(loaded,engine,900_000_000,'activism-reachability-funding');
-          funded=true;
-        }
-        engine.g.ipoPrice=engine.g.stockPrice;
         engine.g.boardGovernanceQuality=100;
-        engine.g.founderControlPressure=0;
         engine.g.dividendPerShare=0;
-        engine.g.subsidiaries=[];
-        engine.g.maSubsidiaries=[];
       }else{
-        engine.g.ipoPrice=engine.g.stockPrice;
         engine.g.boardGovernanceQuality=90;
-        engine.g.founderControlPressure=0;
-        engine.g.dividendPerShare=1_000_000;
+        const cap=loaded.modules.shareholderReturns.capacity(engine);
+        engine.g.dividendPerShare=cap.outstandingShares>0?cap.safeAmount/cap.outstandingShares:0;
       }
     }
 
