@@ -3,6 +3,17 @@ name: Save Import Atomic Guard
 on:
   pull_request:
     branches: [main]
+    paths:
+      - 'js/save*.js'
+      - 'js/*normalize*.js'
+      - 'js/engine.js'
+      - 'js/finance.js'
+      - 'index.html'
+      - 'package.json'
+      - 'tests/harness.js'
+      - 'tests/run-all.js'
+      - 'tests/save-*.js'
+      - '.github/workflows/save-import-atomic-guard.yml'
   workflow_dispatch:
 
 permissions:
