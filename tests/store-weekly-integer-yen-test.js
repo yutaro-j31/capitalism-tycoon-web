@@ -88,11 +88,19 @@ function run(seedValue, weeks) {
   const store = game.g.stores.find(row => row.id === storeID);
   assert.equal(Number.isInteger(store.lastSales), true);
   assert.equal(Number.isInteger(store.lastProfit), true);
-  const adjustmentCount=game.g.finance.roundingAdjustmentCount||0;
-  if(adjustmentCount!==initialAdjustments){
-    console.log('STAGE1_ROUNDING_DIAGNOSTIC',JSON.stringify({weeks,initialAdjustments,adjustmentCount,history:game.g.finance.roundingAdjustmentHistory||[],lastTransactions:game.g.finance.transactions.slice(-30)},null,2));
+  const adjustmentCount = game.g.finance.roundingAdjustmentCount || 0;
+  if (weeks === 1) {
+    assert.equal(adjustmentCount, initialAdjustments, 'the first store-only week must not need a rounding adjustment');
   }
-  if(weeks===1)assert.equal(adjustmentCount,initialAdjustments,'first store-only week must not need rounding adjustments');
+  for (const adjustment of game.g.finance.roundingAdjustmentHistory || []) {
+    const rows = game.g.finance.transactions.filter(row => row.week === adjustment.week);
+    assert.ok(
+      rows.some(row => row.sourceType === 'expansionWeeklyAdjustment'),
+      `week ${adjustment.week} adjustment must come from the non-store expansion adjustment path`
+    );
+    const storeRows = rows.filter(row => row.storeID === storeID);
+    assert.ok(storeRows.every(row => Number.isInteger(row.cashEffect)), `week ${adjustment.week} store cash effects must remain integer`);
+  }
   const validation = modules.finance.validate(game.g);
   assert.equal(validation.ok, true, validation.errors.join(' / '));
   const restored = new modules.engine.TycoonEngine(JSON.parse(JSON.stringify(game.g)));
@@ -103,13 +111,13 @@ function run(seedValue, weeks) {
     cashDelta: game.g.companyCash - startingCash,
     storeLastSales: store.lastSales,
     storeLastProfit: store.lastProfit,
-    roundingAdjustmentCount: game.g.finance.roundingAdjustmentCount || 0,
+    roundingAdjustmentCount: adjustmentCount,
     firstWeekRows
   }));
 }
 
 const oneWeek = run(0x289001, 1);
-assert.equal(oneWeek.roundingAdjustmentCount,0);
+assert.equal(oneWeek.roundingAdjustmentCount, 0);
 const first = run(0x289001, 52);
 const second = run(0x289001, 52);
 assert.deepEqual(second, first, 'same seed and operations must remain deterministic');
