@@ -3,6 +3,9 @@
 const { spawnSync } = require('node:child_process');
 
 const isPullRequest = process.env.GITHUB_EVENT_NAME === 'pull_request';
+const strategyMatrixTest = isPullRequest
+  ? 'tests/strategy-balance-pr-smoke-test.js'
+  : 'tests/strategy-balance-matrix-test.js';
 const difficultyMatrixTest = isPullRequest
   ? 'tests/difficulty-scenario-pr-smoke-test.js'
   : 'tests/difficulty-scenario-matrix-test.js';
@@ -10,12 +13,12 @@ const difficultyMatrixTest = isPullRequest
 const commands = [
   ['node', ['tests/normal-start-ipo-balance-audit-test.js']],
   ['node', ['tests/strategy-balance-calibration-test.js']],
-  ['node', ['tests/strategy-balance-matrix-test.js']],
+  ['node', [strategyMatrixTest]],
   ['node', ['tests/difficulty-scenario-balance-test.js']],
   ['node', [difficultyMatrixTest]],
 ];
 
-console.log(`[release-gate] mode=${isPullRequest ? 'pull-request-representative' : 'full-release'} difficultyMatrix=${difficultyMatrixTest}`);
+console.log(`[release-gate] mode=${isPullRequest ? 'pull-request-representative' : 'full-release'} strategyMatrix=${strategyMatrixTest} difficultyMatrix=${difficultyMatrixTest}`);
 
 for (const [command, args] of commands) {
   const label = [command, ...args].join(' ');
@@ -37,4 +40,4 @@ for (const [command, args] of commands) {
   }
 }
 
-console.log(`\n[release-gate] progression, strategy, difficulty, and scenario gates passed (${isPullRequest ? 'representative PR matrix' : 'full matrix'}).`);
+console.log(`\n[release-gate] progression, strategy, difficulty, and scenario gates passed (${isPullRequest ? 'representative PR matrices' : 'full matrices'}).`);
