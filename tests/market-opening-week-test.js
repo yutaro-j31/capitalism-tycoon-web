@@ -9,7 +9,7 @@ const store=e.g.stores[0];
 assert.equal(store.status,'open');
 assert.equal(e.g.news.filter(x=>x.includes('開店初週店が開店しました')).length,1);
 assert.equal(e.g.lastMarketCalculationCount,1);
-assert(store.marketResult); assert(store.marketResult.unitsSold>0); assert.equal(store.lastSales,store.marketResult.revenue);
+assert(store.marketResult); assert(store.marketResult.unitsSold>0); assert.equal(store.lastSales,Math.floor(store.marketResult.revenue));
 e.advanceWeek(false);
 assert.equal(e.g.news.filter(x=>x.includes('開店初週店が開店しました')).length,1);
 assert(store.marketResult);
