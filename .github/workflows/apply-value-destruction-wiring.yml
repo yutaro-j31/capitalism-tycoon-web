@@ -1,0 +1,51 @@
+name: Apply Value Destruction Wiring
+permissions:
+  contents: write
+on:
+  push:
+    branches: [feature/phase-8d4-value-destruction]
+    paths: ['.github/workflows/apply-value-destruction-wiring.yml']
+jobs:
+  wire:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feature/phase-8d4-value-destruction
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Apply wiring
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          import json
+          index=Path('index.html')
+          text=index.read_text()
+          old='<script src="./js/shareholder-activism.js"></script>'
+          new=old+'\n<script src="./js/shareholder-value-destruction.js"></script>'
+          if 'shareholder-value-destruction.js' not in text:
+              assert old in text
+              text=text.replace(old,new,1)
+              index.write_text(text)
+          run=Path('tests/run-all.js')
+          text=run.read_text()
+          anchor="  ['shareholder-activism-incidence-matrix', 'tests/shareholder-activism-incidence-matrix-test.js'],"
+          addition=anchor+"\n  ['shareholder-value-destruction', 'tests/shareholder-value-destruction-test.js'],\n  ['shareholder-value-destruction-incidence-matrix', 'tests/shareholder-value-destruction-incidence-matrix-test.js'],"
+          if 'shareholder-value-destruction-incidence-matrix' not in text:
+              assert anchor in text
+              text=text.replace(anchor,addition,1)
+              run.write_text(text)
+          shard=Path('tests/run-all-shards.json')
+          data=json.loads(shard.read_text())
+          for item in ['tests/shareholder-value-destruction-test.js','tests/shareholder-value-destruction-incidence-matrix-test.js']:
+              if item not in data['B']: data['B'].append(item)
+          shard.write_text(json.dumps(data,ensure_ascii=False,indent=2)+'\n')
+          PY
+      - name: Commit wiring
+        run: |
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add index.html tests/run-all.js tests/run-all-shards.json
+          git diff --cached --quiet || git commit -m "chore: register value destruction module and tests"
+          git push origin HEAD:feature/phase-8d4-value-destruction
