@@ -2,6 +2,8 @@
 const assert = require('node:assert');
 const { loadGame } = require('./harness');
 
+const MACRO_EVENT_HISTORY_LIMIT = 52;
+
 function makeRandom(initialSeed) {
   let seed = initialSeed >>> 0;
   return () => {
@@ -64,7 +66,7 @@ function run(seed) {
   assert(activeWeeks.length > 0, 'normal play contains active industry-event weeks');
   assert(nonNeutralDemandWeeks > 0, 'active events produce non-neutral demand modifiers');
   assert(nonNeutralCostWeeks > 0, 'active events produce non-neutral effective unit-cost modifiers');
-  assert((engine.g.industryEventHistory || []).length <= loaded.modules.macroCycle.EVENT_HISTORY_LIMIT, 'macro event history remains bounded');
+  assert((engine.g.industryEventHistory || []).length <= MACRO_EVENT_HISTORY_LIMIT, 'macro event history remains bounded');
   assert((engine.g.industrySpecificEventHistory || []).length <= loaded.modules.industrySpecificEvents.HISTORY_LIMIT, 'industry modifier history remains bounded');
   assert(loaded.modules.macroCycle.validate(engine.g).ok, JSON.stringify(loaded.modules.macroCycle.validate(engine.g)));
   assert(loaded.modules.industrySpecificEvents.validate(engine.g).ok, JSON.stringify(loaded.modules.industrySpecificEvents.validate(engine.g)));
