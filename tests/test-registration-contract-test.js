@@ -6,11 +6,10 @@ const path = require('node:path');
 
 const ROOT = path.resolve(__dirname, '..');
 const TESTS_DIR = path.join(ROOT, 'tests');
-const WORKFLOWS_DIR = path.join(ROOT, '.github', 'workflows');
 const RUN_ALL = path.join(TESTS_DIR, 'run-all.js');
 const PACKAGE_JSON = path.join(ROOT, 'package.json');
+const REGISTRY = path.join(TESTS_DIR, 'test-execution-registry.json');
 
-// Source helpers are not independently executable tests. Every exclusion has a reason.
 const HELPER_EXCLUSIONS = Object.freeze([
   { pattern: /(^|\/)fixtures\//, reason: 'fixture data is loaded by standalone tests and is not executed directly' },
   { pattern: /(^|\/)harness\.js$/, reason: 'shared VM/browser harness imported by standalone tests' },
@@ -41,75 +40,60 @@ function extractTestFiles(source) {
   return new Set([...source.matchAll(/(?:^|[\s'"`])(tests\/[\w./-]+-test\.js)(?=[\s'"`]|$)/gm)].map(match => match[1]));
 }
 
-function extractNpmCommands(source) {
-  return new Set([...source.matchAll(/(?:npm\s+run|npm\s+test\s+--\s+)(test:[\w:-]+)/g)].map(match => match[1]));
-}
-
-function filesFromPackageCommands(packageJson, commands) {
-  const files = new Set();
+function canonicalRoutes(packageJson, runAllSource) {
+  const files = extractTestFiles(runAllSource);
+  const commands = new Set([...runAllSource.matchAll(/['"](test:[^'"]+)['"]/g)].map(match => match[1]));
   for (const command of commands) {
     const script = packageJson.scripts?.[command];
-    assert.equal(typeof script, 'string', `execution route references missing package script: ${command}`);
+    assert.equal(typeof script, 'string', `run-all.js references missing package script: ${command}`);
     for (const file of extractTestFiles(script)) files.add(file);
   }
   return files;
 }
 
-function canonicalRoutes(packageJson, runAllSource) {
-  const files = extractTestFiles(runAllSource);
-  const commands = new Set([...runAllSource.matchAll(/['"](test:[^'"]+)['"]/g)].map(match => match[1]));
-  for (const file of filesFromPackageCommands(packageJson, commands)) files.add(file);
-  return files;
-}
-
-function workflowRoutes(packageJson) {
-  const routes = new Map();
-  for (const workflow of walk(WORKFLOWS_DIR).filter(file => /\.ya?ml$/.test(file))) {
-    const source = fs.readFileSync(path.join(ROOT, workflow), 'utf8');
-    const files = extractTestFiles(source);
-    for (const file of filesFromPackageCommands(packageJson, extractNpmCommands(source))) files.add(file);
-    for (const file of files) {
-      if (!routes.has(file)) routes.set(file, []);
-      routes.get(file).push(workflow);
-    }
+function validateRegistry(registry) {
+  assert.ok(registry && typeof registry === 'object' && !Array.isArray(registry), 'test execution registry must be an object');
+  for (const [testFile, entry] of Object.entries(registry)) {
+    assert.ok(testFile.startsWith('tests/') && testFile.endsWith('-test.js'), `registry key must be a test file: ${testFile}`);
+    assert.ok(fs.existsSync(path.join(ROOT, testFile)), `registry test file does not exist: ${testFile}`);
+    assert.ok(entry && typeof entry === 'object' && !Array.isArray(entry), `registry entry must be an object: ${testFile}`);
+    assert.ok(typeof entry.reason === 'string' && entry.reason.trim(), `registry reason is required: ${testFile}`);
+    assert.ok(typeof entry.executedBy === 'string' && entry.executedBy.trim(), `registry executedBy is required: ${testFile}`);
+    assert.ok(fs.existsSync(path.join(ROOT, entry.executedBy)), `registry executedBy does not exist for ${testFile}: ${entry.executedBy}`);
   }
-  return routes;
 }
 
-function findUnregistered(allFiles, canonical, workflows) {
+function findUnclassified(allFiles, canonical, registry) {
   return allFiles
     .filter(file => file.startsWith('tests/') && file.endsWith('-test.js'))
     .filter(file => !helperReason(file))
     .filter(file => !canonical.has(file))
-    .filter(file => !workflows.has(file))
+    .filter(file => !Object.prototype.hasOwnProperty.call(registry, file))
     .sort();
 }
 
 const packageJson = JSON.parse(fs.readFileSync(PACKAGE_JSON, 'utf8'));
 const runAllSource = fs.readFileSync(RUN_ALL, 'utf8');
+const registry = JSON.parse(fs.readFileSync(REGISTRY, 'utf8'));
 const allFiles = walk(TESTS_DIR);
 const canonical = canonicalRoutes(packageJson, runAllSource);
-const workflows = workflowRoutes(packageJson);
 
-// Contract behavior: an orphan fails, canonical registration passes, workflow registration passes, helpers are excluded.
-assert.deepEqual(findUnregistered(['tests/new-feature-test.js'], new Set(), new Map()), ['tests/new-feature-test.js']);
-assert.deepEqual(findUnregistered(['tests/new-feature-test.js'], new Set(['tests/new-feature-test.js']), new Map()), []);
-assert.deepEqual(findUnregistered(['tests/new-feature-test.js'], new Set(), new Map([['tests/new-feature-test.js', ['.github/workflows/example.yml']]])), []);
-assert.deepEqual(findUnregistered(['tests/fixtures/sample-test.js'], new Set(), new Map()), []);
+validateRegistry(registry);
 
-const unregistered = findUnregistered(allFiles, canonical, workflows);
-if (unregistered.length) {
-  console.error('Standalone test files with no execution route:');
-  for (const file of unregistered) console.error(`- ${file}`);
-  console.error('Register each file in tests/run-all.js or in an existing .github/workflows/*.yml execution path.');
+assert.deepEqual(findUnclassified(['tests/new-feature-test.js'], new Set(), {}), ['tests/new-feature-test.js']);
+assert.deepEqual(findUnclassified(['tests/new-feature-test.js'], new Set(['tests/new-feature-test.js']), {}), []);
+assert.deepEqual(findUnclassified(['tests/new-feature-test.js'], new Set(), {
+  'tests/new-feature-test.js': { reason: 'example', executedBy: 'tests/syntax-check.js' }
+}), []);
+assert.deepEqual(findUnclassified(['tests/fixtures/sample-test.js'], new Set(), {}), []);
+
+const unclassified = findUnclassified(allFiles, canonical, registry);
+if (unclassified.length) {
+  console.error('Standalone test files missing from run-all.js and tests/test-execution-registry.json:');
+  for (const file of unclassified) console.error(`- ${file}`);
   process.exit(1);
 }
 
 const standalone = allFiles.filter(file => file.endsWith('-test.js') && !helperReason(file));
-const workflowOnly = standalone.filter(file => !canonical.has(file) && workflows.has(file)).sort();
-const helpers = allFiles.filter(file => helperReason(file)).map(file => ({ file, reason: helperReason(file) }));
-console.log(`test-registration-contract-test: ok (standalone=${standalone.length}, canonical=${canonical.size}, workflowOnly=${workflowOnly.length}, helpers=${helpers.length})`);
-if (workflowOnly.length) {
-  console.log('workflow-only test routes:');
-  for (const file of workflowOnly) console.log(`- ${file}: ${workflows.get(file).join(', ')}`);
-}
+const helpers = allFiles.filter(file => helperReason(file));
+console.log(`test-registration-contract-test: ok (standalone=${standalone.length}, canonical=${canonical.size}, alternative=${Object.keys(registry).length}, helpers=${helpers.length}, unclassified=0)`);
