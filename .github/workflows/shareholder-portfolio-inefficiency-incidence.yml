@@ -9,10 +9,9 @@ on:
       - 'js/group-restructuring-progress.js'
       - 'js/engine.js'
       - 'js/finance.js'
+      - 'tests/shareholder-value-destruction-test.js'
       - 'tests/shareholder-portfolio-inefficiency-*'
       - 'tests/harness.js'
-      - 'tests/run-all.js'
-      - 'tests/run-all-shards.json'
       - '.github/workflows/shareholder-portfolio-inefficiency-incidence.yml'
   workflow_dispatch:
 
@@ -26,10 +25,10 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
-      - name: Run Phase 1 unit coverage
-        run: node tests/shareholder-portfolio-inefficiency-test.js
+      - name: Run Phase 1 canonical unit coverage
+        run: node tests/shareholder-value-destruction-test.js
       - name: Run Phase 2 208-week reachability
-        run: node tests/shareholder-portfolio-inefficiency-reachability-test.js
+        run: node tests/shareholder-portfolio-inefficiency-reachability-runner.js
 
   incidence:
     name: ${{ matrix.style }}-${{ matrix.seed }}
@@ -49,4 +48,4 @@ jobs:
         env:
           PORTFOLIO_INEFFICIENCY_STYLE: ${{ matrix.style }}
           PORTFOLIO_INEFFICIENCY_SEED: ${{ matrix.seed }}
-        run: node tests/shareholder-portfolio-inefficiency-incidence-matrix-test.js
+        run: node tests/shareholder-portfolio-inefficiency-incidence-runner.js
