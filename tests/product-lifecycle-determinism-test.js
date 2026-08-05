@@ -2,17 +2,23 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
 const vm = require('node:vm');
-const { loadGame, ROOT } = require('./harness');
+const { loadGameFromHtml, readIndex, ROOT } = require('./harness');
 
 const LIFECYCLE_PATH = path.join(ROOT, 'js', 'product-lifecycle.js');
+const LIFECYCLE_TAG = '<script src="./js/product-lifecycle.js"></script>';
 
 function installLifecycle(ctx) {
-  if (ctx.__capitalismTycoonModules?.productLifecycle) return;
   vm.runInContext(fs.readFileSync(LIFECYCLE_PATH, 'utf8'), ctx, { filename: 'js/product-lifecycle.js' });
 }
 
+function loadWithoutLifecycle(randomValue) {
+  const html = readIndex().replace(LIFECYCLE_TAG, '');
+  assert.notEqual(html, readIndex(), 'product lifecycle script must be removable from the test index');
+  return loadGameFromHtml(html, { random: () => randomValue });
+}
+
 function build(randomValue, options = {}) {
-  const { ctx, engineModule, modules } = loadGame({ random: () => randomValue });
+  const { ctx, engineModule, modules } = loadWithoutLifecycle(randomValue);
   if (options.removeEngineRand) delete modules.engine.rand;
   installLifecycle(ctx);
   const engine = new engineModule.TycoonEngine();
