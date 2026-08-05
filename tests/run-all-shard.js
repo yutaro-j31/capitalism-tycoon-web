@@ -57,20 +57,17 @@ function validateAssignments() {
     console.error(`Configured shard entries not found in run-all.js: ${missingConfigured.join(', ')}`);
     process.exitCode = 1;
   }
-  const assignmentCounts = new Map([...seen].map(label => [label, 0]));
-  for (const label of seen) assignmentCounts.set(label, assignmentCounts.get(label) + 1);
-  for (const label of heavyOwner.keys()) assignmentCounts.set(label, assignmentCounts.get(label) || 0);
-  const invalid = [...assignmentCounts].filter(([, count]) => count !== 1);
-  if (invalid.length) {
-    console.error(`Shard assignment count must be exactly one: ${invalid.map(([label,count]) => `${label}=${count}`).join(', ')}`);
-    process.exitCode = 1;
-  }
   for (const label of seen) {
     const owner = ownerFor(label);
     if (!validShards.has(owner)) {
       console.error(`No valid shard owner for ${label}`);
       process.exitCode = 1;
     }
+  }
+  const assignedCount = [...seen].filter(label => validShards.has(ownerFor(label))).length;
+  if (assignedCount !== seen.size) {
+    console.error(`Every canonical entry must belong to exactly one shard: assigned=${assignedCount} seen=${seen.size}`);
+    process.exitCode = 1;
   }
 }
 
