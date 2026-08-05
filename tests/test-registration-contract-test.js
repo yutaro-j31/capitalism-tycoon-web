@@ -17,9 +17,10 @@ const HELPER_EXCLUSIONS = Object.freeze([
   { pattern: /-runner\.js$/, reason: 'shared runner invoked by registered test entry points' }
 ]);
 
-// Standalone tests intentionally outside run-all must name a verifiable execution route here.
-// Keep empty while every standalone *-test.js file is required to use the canonical registry.
-const ALTERNATIVE_EXECUTION_PATHS = Object.freeze({});
+// Standalone tests intentionally outside the direct file list must name a verifiable canonical route.
+const ALTERNATIVE_EXECUTION_PATHS = Object.freeze({
+  'tests/test-registration-contract-test.js': 'tests/syntax-check.js via test:syntax in tests/run-all.js'
+});
 
 function normalize(file) {
   return file.split(path.sep).join('/');
@@ -73,6 +74,9 @@ for (const [file, route] of Object.entries(ALTERNATIVE_EXECUTION_PATHS)) {
   assert.equal(typeof route, 'string');
   assert(route.trim().length > 0, `alternative route needs a named workflow or registry: ${file}`);
   assert(fs.existsSync(path.join(ROOT, file)), `alternative-route test does not exist: ${file}`);
+  const routeTarget = route.match(/(tests\/[\w./-]+\.js)/)?.[1];
+  assert(routeTarget && fs.existsSync(path.join(ROOT, routeTarget)), `alternative route target does not exist: ${file} -> ${route}`);
+  assert(runAllSource.includes('test:syntax'), `alternative route is not connected to run-all: ${file} -> ${route}`);
 }
 
 // Contract behavior checks: an added standalone test fails; registered tests and helpers pass.
@@ -89,4 +93,4 @@ if (unregistered.length) {
 }
 
 const helpers = allFiles.filter(file => helperReason(file)).map(file => ({ file, reason: helperReason(file) }));
-console.log(`test-registration-contract-test: ok (standalone=${registered.size}, helpers=${helpers.length}, alternatives=${Object.keys(ALTERNATIVE_EXECUTION_PATHS).length})`);
+console.log(`test-registration-contract-test: ok (registered=${registered.size}, helpers=${helpers.length}, alternatives=${Object.keys(ALTERNATIVE_EXECUTION_PATHS).length})`);
