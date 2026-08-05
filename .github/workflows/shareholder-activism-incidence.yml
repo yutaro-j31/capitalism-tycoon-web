@@ -5,6 +5,7 @@ on:
     paths:
       - 'js/shareholder-activism.js'
       - 'js/shareholder-returns.js'
+      - 'tests/shareholder-activism-incidence-case.js'
       - 'tests/shareholder-activism-incidence-matrix-test.js'
       - 'tests/strategy-balance-runner.js'
       - 'tests/run-all.js'
@@ -14,11 +15,21 @@ on:
 
 jobs:
   incidence:
+    name: ${{ matrix.style }}-${{ matrix.seed }}
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        style: [growth-reinvestment, balanced-returns, cash-hoarder]
+        seed: ['0x6b200101', '0x6b200202', '0x6b200303']
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
-      - run: node tests/shareholder-activism-incidence-matrix-test.js
+      - name: Run deterministic 208-week incidence case twice
+        env:
+          ACTIVISM_STYLE: ${{ matrix.style }}
+          ACTIVISM_SEED: ${{ matrix.seed }}
+        run: node tests/shareholder-activism-incidence-matrix-test.js
