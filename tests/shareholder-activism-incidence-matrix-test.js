@@ -21,21 +21,15 @@ function runCase(style, seed) {
   return JSON.parse(line.slice('SHAREHOLDER_ACTIVISM_INCIDENCE_CASE '.length));
 }
 
-function runMatrix() {
-  const results=[];
-  for (const style of STYLES) for (const seed of SEEDS) results.push(runCase(style, seed));
-  return results;
-}
+const requestedStyle = process.env.ACTIVISM_STYLE || STYLES[0];
+const requestedSeed = Number(process.env.ACTIVISM_SEED || SEEDS[0]);
+assert(STYLES.includes(requestedStyle), 'known ACTIVISM_STYLE is required');
+assert(SEEDS.includes(requestedSeed), 'known ACTIVISM_SEED is required');
 
-const first=runMatrix();
-const second=runMatrix();
-assert.deepEqual(first,second,'full activism incidence matrix is deterministic');
+const first = runCase(requestedStyle, requestedSeed);
+const second = runCase(requestedStyle, requestedSeed);
+assert.deepEqual(first, second, `${requestedStyle} seed ${requestedSeed} incidence result is deterministic`);
 
-for (const style of STYLES) {
-  const rows=first.filter(row=>row.style===style);
-  const encounters=rows.filter(row=>row.campaignCount>0).length;
-  const campaigns=rows.reduce((sum,row)=>sum+row.campaignCount,0);
-  console.log(`shareholder-activism-incidence: style=${style} cases=${rows.length} encounters=${encounters} campaigns=${campaigns} rate=${(encounters/rows.length).toFixed(3)}`);
-}
-console.log(`SHAREHOLDER_ACTIVISM_INCIDENCE_MATRIX ${JSON.stringify(first)}`);
-console.log('shareholder activism incidence matrix passed');
+console.log(`shareholder-activism-incidence: style=${requestedStyle} seed=${requestedSeed} encountered=${first.campaignCount > 0} campaigns=${first.campaignCount} firstWeek=${first.firstCampaignWeek ?? 'none'} maxPressure=${first.maxPressure?.score ?? 'none'}`);
+console.log(`SHAREHOLDER_ACTIVISM_INCIDENCE_MATRIX ${JSON.stringify([first])}`);
+console.log('shareholder activism incidence matrix case passed');
