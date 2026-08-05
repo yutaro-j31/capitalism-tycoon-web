@@ -4,6 +4,7 @@ on:
   pull_request:
     paths:
       - 'js/shareholder-activism.js'
+      - 'js/shareholder-value-destruction.js'
       - 'js/shareholder-returns.js'
       - 'tests/shareholder-activism-incidence-case.js'
       - 'tests/shareholder-activism-incidence-matrix-test.js'
