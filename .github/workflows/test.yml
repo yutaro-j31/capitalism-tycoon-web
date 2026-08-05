@@ -105,13 +105,45 @@ jobs:
             cat "$log"
           done
           test "$(cat capital-allocation-logs/overall.status)" = "0"
-  test:
+  test-shard-contract:
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 5
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
-      - name: Run canonical test registry
-        run: node tests/run-all.js
+      - name: Verify every canonical entry belongs to exactly one shard
+        env:
+          TEST_SHARD: A
+          TEST_SHARD_CONTRACT: '1'
+        run: node tests/run-all-shard.js
+  test-shards:
+    name: test-shard-${{ matrix.shard }}
+    needs: test-shard-contract
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [A, B, C, D]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Run canonical test shard ${{ matrix.shard }}
+        env:
+          TEST_SHARD: ${{ matrix.shard }}
+        run: node tests/run-all-shard.js
+  test:
+    name: test
+    if: always()
+    needs: [test-shard-contract, test-shards]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Enforce all canonical shards
+        shell: bash
+        run: |
+          test "${{ needs.test-shard-contract.result }}" = "success"
+          test "${{ needs.test-shards.result }}" = "success"

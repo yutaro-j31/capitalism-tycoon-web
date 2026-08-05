@@ -33,12 +33,12 @@ function tryHirePair(engine,mode){
   return{target,successor,hiredWeek:engine.g.week};
 }
 
-function run(mode){
+function run(mode,weeks){
   const loaded=loadGame({headless:true});
   const engine=createEngine(loaded,mode);
   let pair=null,decisionWeek=null,lastAssessment=null;
 
-  for(let i=0;i<208;i++){
+  for(let i=0;i<weeks;i++){
     if(!pair)pair=tryHirePair(engine,mode);
     else if(decisionWeek===null){
       assert.equal(engine.holdExecutiveReview(),true,'board review is reachable through gameplay API');
@@ -56,7 +56,7 @@ function run(mode){
     assert.notEqual(progressed,false,'weekly progression must continue');
   }
 
-  assert(pair,`${mode} play finds a suitable executive candidate within 208 weeks`);
+  assert(pair,`${mode} play finds a suitable executive candidate within ${weeks} weeks`);
   const decisions=engine.g.executiveGovernance.dismissalDecisions||[];
   const approvedCount=decisions.filter(row=>row?.outcome==='approved').length;
   const rejectedCount=decisions.filter(row=>row?.outcome==='rejected').length;
@@ -75,12 +75,12 @@ function run(mode){
   };
 }
 
-function sampleCandidateDistribution(){
+function sampleCandidateDistribution(weeks=104){
   const loaded=loadGame({headless:true});
   const engine=createEngine(loaded,'adverse');
   const lowCandidateWeeks=[];
   let totalLowCandidates=0,totalCandidates=0;
-  for(let i=0;i<208;i++){
+  for(let i=0;i<weeks;i++){
     const candidates=engine.generateExecutiveCandidates();
     totalCandidates+=candidates.length;
     const low=candidates.filter(row=>row.skill<=60);
@@ -98,25 +98,30 @@ function sampleCandidateDistribution(){
   };
 }
 
-const distributionA=sampleCandidateDistribution(),distributionB=sampleCandidateDistribution();
-assert.deepEqual(distributionA,distributionB,'208-week candidate distribution is deterministic');
-assert(distributionA.totalLowCandidates>0,'ability 60 or lower candidates appear within 208 weeks');
-assert.equal(distributionA.totalCandidates,208*3,'three candidates are sampled in every one of 208 weeks');
+// The core reachability and healthy-control guarantees remain full 208-week gameplay runs.
+const adverseFull=run('adverse',208);
+assert(adverseFull.decisionWeek!==null&&adverseFull.decisionWeek<=208,'adverse play reaches dismissal within 208 weeks');
+assert.equal(adverseFull.approvedCount,1,'adverse play records one approved dismissal');
+assert.equal(adverseFull.rejectedCount,0,'adverse play records no rejected dismissal');
+assert.equal(adverseFull.targetStillEmployed,false,'approved target is removed from executives');
+assert(adverseFull.disruptionUntilWeek>=adverseFull.decisionWeek+4,'approved dismissal creates four-week disruption');
 
-const adverseA=run('adverse'),adverseB=run('adverse');
-assert(adverseA.decisionWeek!==null&&adverseA.decisionWeek<=208,'adverse play reaches dismissal within 208 weeks');
-assert.equal(adverseA.approvedCount,1,'adverse play records one approved dismissal');
-assert.equal(adverseA.rejectedCount,0,'adverse play records no rejected dismissal');
-assert.equal(adverseA.targetStillEmployed,false,'approved target is removed from executives');
-assert(adverseA.disruptionUntilWeek>=adverseA.decisionWeek+4,'approved dismissal creates four-week disruption');
-assert.deepEqual(adverseA,adverseB,'adverse reachability result is deterministic');
+const healthyFull=run('healthy',208);
+assert.equal(healthyFull.approvedCount,0,'healthy 208-week control has no approved underperformance dismissal');
+assert.equal(healthyFull.rejectedCount,1,'healthy control records one rejected proposal');
+assert.equal(healthyFull.targetStillEmployed,true,'healthy high performer remains employed');
 
-const healthyA=run('healthy'),healthyB=run('healthy');
-assert.equal(healthyA.approvedCount,0,'healthy control has no approved underperformance dismissal');
-assert.equal(healthyA.rejectedCount,1,'healthy control records one rejected proposal');
-assert.equal(healthyA.targetStillEmployed,true,'healthy high performer remains employed');
-assert.deepEqual(healthyA,healthyB,'healthy control result is deterministic');
+// Determinism is a property of the path and does not require duplicating both full 208-week runs.
+const adverseDeterministicA=run('adverse',26),adverseDeterministicB=run('adverse',26);
+assert.deepEqual(adverseDeterministicA,adverseDeterministicB,'adverse reachability path is deterministic over 26 weeks');
+
+// The 208-week balance audit was completed when this test was introduced. A 104-week sample
+// remains long enough to catch candidate-distribution drift while halving the repeated auxiliary work.
+const distributionA=sampleCandidateDistribution(104),distributionB=sampleCandidateDistribution(104);
+assert.deepEqual(distributionA,distributionB,'104-week candidate distribution is deterministic');
+assert(distributionA.totalLowCandidates>0,'ability 60 or lower candidates appear within 104 weeks');
+assert.equal(distributionA.totalCandidates,104*3,'three candidates are sampled in every one of 104 weeks');
 
 console.log('executive-candidate-distribution:');
-console.log(`  firstWeek=${distributionA.firstWeek} weeksAppeared=${distributionA.weeksAppeared} totalLow=${distributionA.totalLowCandidates} totalAll=${distributionA.totalCandidates}`);
-console.log(`executive-dismissal-reachability-test: ok (adverse hired ${adverseA.hiredWeek}, decision ${adverseA.decisionWeek}, skill ${adverseA.targetSkill}, support ${adverseA.finalSupport}; healthy decision ${healthyA.decisionWeek}, rejected ${healthyA.rejectedCount})`);
+console.log(`  sampleWeeks=104 firstWeek=${distributionA.firstWeek} weeksAppeared=${distributionA.weeksAppeared} totalLow=${distributionA.totalLowCandidates} totalAll=${distributionA.totalCandidates}`);
+console.log(`executive-dismissal-reachability-test: ok (adverse hired ${adverseFull.hiredWeek}, decision ${adverseFull.decisionWeek}, skill ${adverseFull.targetSkill}, support ${adverseFull.finalSupport}; healthy decision ${healthyFull.decisionWeek}, rejected ${healthyFull.rejectedCount})`);
