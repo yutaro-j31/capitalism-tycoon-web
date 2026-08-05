@@ -64,12 +64,14 @@ function runCase(style, seed) {
     if (after>before && firstCampaignWeek===null) firstCampaignWeek=engine.g.week;
   }
   const history=engine.g.activistCampaignHistory||[];
-  const campaignCount=history.filter(row=>row?.type==='campaignStarted').length;
+  const campaignStarts=history.filter(row=>row?.type==='campaignStarted');
+  const campaignCount=campaignStarts.length;
+  const campaignsByPath=campaignStarts.reduce((counts,row)=>{const path=String(row?.triggerPath||'capitalStagnation');counts[path]=(counts[path]||0)+1;return counts;},{});
   const validation=loaded.modules.finance.validate(engine.g);
   assert(validation.ok, JSON.stringify(validation));
   assert(history.length<=loaded.modules.shareholderActivism.HISTORY_LIMIT, 'activism history remains bounded');
   const finance=loaded.modules.finance.ensureFinance(engine.g);
-  return {style,seed,ipoWeek:ipo.ipoWeek,firstCampaignWeek,campaignCount,maxPressure,
+  return {style,seed,ipoWeek:ipo.ipoWeek,firstCampaignWeek,campaignCount,campaignsByPath,maxPressure,
     endingCash:Math.round(engine.g.companyCash),retainedEarnings:Math.round(finance.balances?.retainedEarnings||0),
     dividendPerShare:Number(engine.g.dividendPerShare||0),stores:engine.g.stores.length,
     companyValue:Math.round(engine.companyValue()),finalWeek:engine.g.week};
