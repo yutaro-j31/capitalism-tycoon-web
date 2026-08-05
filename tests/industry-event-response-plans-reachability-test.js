@@ -124,6 +124,17 @@ function runLifecycle(seed, weeks=208) {
   const history = engine.g.industryEventResponsePlanHistory || [];
   const activations = history.filter(row => row?.type === 'activated');
   const expirations = history.filter(row => row?.type === 'expired');
+  console.log(`response-plan-lifecycle-diagnosis ${JSON.stringify({
+    requestedWeeks:weeks,
+    finalWeek:engine.g.week,
+    starts,
+    selected,
+    history,
+    activeIndustryEvent:engine.g.activeIndustryEvent || null,
+    activePlan:engine.g.activeIndustryEventResponsePlan || null,
+    activationCount:activations.length,
+    expirationCount:expirations.length
+  })}`);
   assert.equal(activations.length, 3, 'three plan activations are recorded');
   assert(expirations.length >= 3, 'plans automatically expire when their events end or change');
   assert.equal(engine.g.activeIndustryEventResponsePlan, null, 'final expired event leaves no stale active plan');
