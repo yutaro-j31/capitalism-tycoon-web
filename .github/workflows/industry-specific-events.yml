@@ -13,14 +13,17 @@ on:
       - tests/harness.js
       - tests/run-all.js
       - tests/industry-specific-events-test.js
+      - tests/industry-specific-events-reachability-test.js
       - .github/workflows/industry-specific-events.yml
 jobs:
   regression:
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 22
       - run: node tests/industry-specific-events-test.js
+      - run: node tests/industry-specific-events-reachability-test.js
       - run: npm run test:syntax
