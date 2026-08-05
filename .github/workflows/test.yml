@@ -113,5 +113,5 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
-      - name: Run canonical test registry
-        run: node tests/run-all.js
+      - name: Run canonical test registry with timings
+        run: node tests/run-all-timed.js
