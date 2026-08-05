@@ -15,6 +15,17 @@ function createWithEarnedOpeningBalance(loaded,targetCash){
   return engine;
 }
 
+function seedCapitalUse(loaded,engine,{weeks=26,investment=0,shareholderReturns=0,excessCash=900_000_000}={}){
+  const reserve=loaded.modules.shareholderActivism.operatingReserve(engine.g);
+  engine.g.activistCapitalUseHistory=Array.from({length:weeks},(_,index)=>({
+    week:engine.g.week-weeks+index,
+    excessCash,
+    operatingReserve:reserve,
+    investment,
+    shareholderReturns
+  }));
+}
+
 function configured(difficulty='normal',options={}){
   const loaded=loadGame({headless:true});
   const engine=createWithEarnedOpeningBalance(loaded,900_000_000);
@@ -32,7 +43,16 @@ function configured(difficulty='normal',options={}){
   engine.g.lastActivistCampaignWeek=0;
   engine.g.subsidiaries=[];
   engine.g.maSubsidiaries=[];
+  seedCapitalUse(loaded,engine,options.capitalUse||{});
   return{loaded,engine};
+}
+
+{
+  const loaded=loadGame({headless:true});
+  const engine=new loaded.engineModule.TycoonEngine();
+  delete engine.g.activistCapitalUseHistory;
+  engine.normalize();
+  assert.deepEqual(engine.g.activistCapitalUseHistory,[],'old saves normalize missing capital-use history to an empty array');
 }
 
 {
@@ -44,11 +64,26 @@ function configured(difficulty='normal',options={}){
 {
   const {loaded,engine}=configured('normal',{boundary:true});
   const p=engine.getShareholderActivismPressure();
-  assert.equal(p.metrics.cashPressure,100,'boundary has maximum excess-cash pressure');
+  assert.equal(p.metrics.windowWeeks,26,'boundary uses a complete 26-week observation window');
+  assert.equal(p.metrics.cashPressure,100,'sustained excess cash with no capital use reaches maximum pressure');
   assert.equal(p.metrics.dividendPressure,100,'boundary has maximum payout pressure');
   assert.equal(p.metrics.cashHoardingBonus,16,'boundary receives the targeted hoarding bonus');
   assert.equal(p.score,p.threshold,'boundary score intentionally equals the normal threshold');
   assert(loaded.modules.shareholderActivism.maybeStart(engine),'score equal to threshold starts a campaign');
+}
+
+{
+  const immature=configured('normal',{boundary:true,capitalUse:{weeks:25}}).engine.getShareholderActivismPressure();
+  assert(immature.metrics.cashPressure<100,'an incomplete observation window cannot reach full stagnation pressure');
+  assert.equal(immature.metrics.cashHoardingBonus,0,'a transient cash position does not receive the hoarding bonus');
+}
+
+{
+  const investment=configured('normal',{boundary:true,capitalUse:{investment:20_000_000}}).engine.getShareholderActivismPressure();
+  assert.equal(investment.metrics.cashPressure,0,'sustained productive investment fully suppresses capital-stagnation pressure');
+  assert.equal(investment.metrics.cashHoardingBonus,0);
+  const returns=configured('normal',{boundary:true,capitalUse:{shareholderReturns:10_000_000}}).engine.getShareholderActivismPressure();
+  assert.equal(returns.metrics.cashPressure,0,'sustained shareholder returns suppress capital-stagnation pressure');
 }
 
 {
@@ -57,7 +92,7 @@ function configured(difficulty='normal',options={}){
   console.log(`direct fixture pressure=${p.score} threshold=${p.threshold} public=${engine.g.publicCompany} week=${engine.g.week} last=${engine.g.lastActivistCampaignWeek}`);
   assert(p.score>=p.threshold,`fixture pressure ${p.score} must meet threshold ${p.threshold}`);
   const campaign=loaded.modules.shareholderActivism.maybeStart(engine);
-  assert(campaign,'campaign starts from adverse governance and capital allocation state');
+  assert(campaign,'campaign starts from adverse governance and sustained capital-stagnation state');
   assert(['buyback','dividend'].includes(campaign.type));
   const beforeCash=engine.g.companyCash;
   assert.equal(engine.negotiateShareholderProposal(),true);
@@ -68,6 +103,7 @@ function configured(difficulty='normal',options={}){
   const restored=new loaded.engineModule.TycoonEngine(snapshot);
   restored.normalize();
   assert(restored.g.activeActivistCampaign,'campaign survives normalize/save-shaped reload');
+  assert.equal(restored.g.activistCapitalUseHistory.length,26,'capital-use history survives save-shaped reload');
 }
 
 {
@@ -112,6 +148,14 @@ function configured(difficulty='normal',options={}){
   assert(validation.ok,JSON.stringify(validation));
   if(campaign.type==='buyback')assert(engine.g.companyCash<before,'buyback canonical path spends cash');
   else assert(engine.g.dividendPerShare>0,'dividend canonical path changes declared dividend without direct cash mutation');
+}
+
+{
+  const {loaded,engine}=configured('normal');
+  engine.g.activistCapitalUseHistory=Array.from({length:80},(_,week)=>({week,excessCash:week,operatingReserve:8_000_000,investment:0,shareholderReturns:0}));
+  loaded.modules.shareholderActivism.ensure(engine.g);
+  assert.equal(engine.g.activistCapitalUseHistory.length,loaded.modules.shareholderActivism.HISTORY_LIMIT,'capital-use history remains bounded');
+  assert.equal(engine.g.activistCapitalUseHistory[0].week,28,'history keeps the most recent rows');
 }
 
 console.log('shareholder-activism-test: ok');
