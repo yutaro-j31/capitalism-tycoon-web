@@ -4,6 +4,21 @@ on:
     branches: [ main ]
   pull_request:
 jobs:
+  registry-migration:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Generate one-time registry migration evidence
+        run: node scripts/tmp-generate-test-registry.js
+      - name: Upload registry migration evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-registry-migration
+          path: tmp-test-registry-output
+          retention-days: 2
   competitor-ai:
     runs-on: ubuntu-latest
     steps:
