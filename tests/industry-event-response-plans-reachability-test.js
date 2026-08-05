@@ -13,14 +13,19 @@ function makeRandom(initialSeed) {
 function createEngine(seed, name) {
   const loaded = loadGame({ headless:true, random:makeRandom(seed) });
   const engine = new loaded.engineModule.TycoonEngine();
+  engine.configure({
+    playerName:'Audit Player', companyName:name, difficulty:'normal', scenario:'free',
+    founderPrefID:'fukuoka', founderTraitID:'merchant'
+  });
   engine.g.companyCash = 200_000_000;
   engine.g.companyDebt = 0;
   delete engine.g.finance;
   engine.normalize();
-  engine.g.configured = true;
-  engine.g.difficulty = 'normal';
-  engine.g.scenario = 'free';
-  engine.g.companyName = name;
+  const tenant = engine.g.tenants.find(row => row.prefID === 'fukuoka' && row.businessID === 'ramen' && !row.occupiedBy);
+  assert(tenant, 'normal Fukuoka ramen tenant is available');
+  assert.equal(engine.openStore({ tenantID:tenant.id, businessID:'ramen', name:'Response Plan Ramen' }), true, 'normal gameplay opens an operating ramen store');
+  assert.equal(engine.g.stores.length, 1, 'fixture contains one real operating store');
+  assert(loaded.modules.finance.validate(engine.g).ok, JSON.stringify(loaded.modules.finance.validate(engine.g)));
   return { loaded, engine };
 }
 
@@ -33,11 +38,23 @@ function advanceToFirstEvent(seed, name) {
   return ctx;
 }
 
+function pickFinite(source, keys) {
+  for (const key of keys) {
+    const value = source?.[key];
+    if (Number.isFinite(Number(value))) return Number(value);
+  }
+  return null;
+}
+
 function measuredOutcome(seed, planType) {
-  const ctx = advanceToFirstEvent(seed, planType || 'no-plan-control');
-  const { loaded, engine } = ctx;
+  const { loaded, engine } = advanceToFirstEvent(seed, planType || 'no-plan-control');
   const eventId = engine.g.activeIndustryEvent.id;
+  const business = engine.g.businesses.find(row => row.id === 'ramen');
+  const store = engine.g.stores[0];
   const beforeCash = engine.g.companyCash;
+  const baseDemand = Number(business.demand);
+  let appliedDemand = baseDemand;
+  let appliedUnitCost = Number(business.unitCost);
   let cost = 0;
   if (planType) {
     cost = engine.getIndustryEventResponsePlanCost(planType);
@@ -45,20 +62,35 @@ function measuredOutcome(seed, planType) {
     assert.equal(engine.g.activeIndustryEventResponsePlan.type, planType);
     assert.equal(engine.activateIndustryEventResponsePlan(planType), false, 'one plan per event prevents duplicate selection');
     assert.equal(beforeCash - engine.g.companyCash, cost, 'activation cash outflow equals quoted plan cost');
+    loaded.modules.industryEventResponsePlans.withPlan(engine, () => {
+      appliedDemand = Number(business.demand);
+      appliedUnitCost = Number(business.unitCost);
+    });
     assert(loaded.modules.finance.validate(engine.g).ok, JSON.stringify(loaded.modules.finance.validate(engine.g)));
   }
   const cashBeforeWeek = engine.g.companyCash;
   assert.notEqual(engine.advanceWeek(false), false, 'post-selection week advances normally');
   const operatingCashDelta = engine.g.companyCash - cashBeforeWeek;
   const adjustedFinalCash = engine.g.companyCash + cost;
+  const marketResult = engine.g.marketResultsByStoreID?.[store.id] || store.marketResult || {};
+  const supplyResult = engine.g.supplyResultsByStoreID?.[store.id] || {};
+  const customers = pickFinite(marketResult, ['customers','customerCount','visitors','units','quantity','demandUnits']);
+  const demandInput = pickFinite(marketResult, ['demand','effectiveDemand','demandScore','demandMultiplier','marketDemand']);
+  const sales = pickFinite(marketResult, ['sales','revenue','grossSales']) ?? Number(store.lastSales || 0);
+  const grossCost = pickFinite(marketResult, ['cost','costOfSales','variableCost','cogs'])
+    ?? pickFinite(supplyResult, ['cost','procurementCost','usedCost'])
+    ?? Math.max(0, sales - Number(store.lastProfit || 0));
+  const profit = pickFinite(marketResult, ['profit','operatingProfit']) ?? Number(store.lastProfit || 0);
+  const trace = {
+    planType:planType || 'control', eventId, eventWeek:engine.g.week - 1,
+    baseDemand, appliedDemand, appliedUnitCost, demandInput, customers, sales, grossCost, profit, operatingCashDelta
+  };
+  console.log(`response-plan-trace ${JSON.stringify(trace)}`);
   return {
-    eventId,
-    eventWeek:engine.g.week - 1,
-    planType:planType || null,
+    ...trace,
     cost,
-    operatingCashDelta,
     adjustedFinalCash,
-    businessCount:Array.isArray(engine.g.businesses) ? engine.g.businesses.length : 0,
+    storeCount:engine.g.stores.length,
     financeValid:loaded.modules.finance.validate(engine.g).ok,
     planValid:loaded.modules.industryEventResponsePlans.validate(engine.g).ok
   };
@@ -104,14 +136,7 @@ function runLifecycle(seed, weeks=208) {
   assert(loaded.modules.finance.validate(restored.g).ok, 'save-shaped reload remains finance-valid');
   assert(loaded.modules.industryEventResponsePlans.validate(restored.g).ok, 'save-shaped reload retains a valid response-plan state');
 
-  return {
-    starts,
-    selected,
-    activationCount:activations.length,
-    expirationCount:expirations.length,
-    finalWeek:engine.g.week,
-    historyLength:history.length
-  };
+  return { starts, selected, activationCount:activations.length, expirationCount:expirations.length, finalWeek:engine.g.week, historyLength:history.length };
 }
 
 const seed = 0x8c200319;
@@ -124,9 +149,11 @@ for (const result of [demand, supply, technology]) {
   assert.equal(result.eventId, control.eventId, 'plan and control observe the same deterministic event');
   assert.equal(result.eventWeek, control.eventWeek, 'plan and control reach the event on the same week');
   assert(result.financeValid && result.planValid, `${result.planType} remains accounting- and state-valid`);
-  assert(result.businessCount > 0, 'normal play has at least one business for plan effects to influence');
+  assert.equal(result.storeCount, 1, 'plan comparison uses an actual operating store');
   assert.notEqual(result.adjustedFinalCash, control.adjustedFinalCash, `${result.planType} changes the real weekly cash outcome after removing activation cost`);
 }
+assert(demand.appliedDemand > demand.baseDemand, 'demand defense changes business demand before weekly sales calculation');
+assert(supply.appliedUnitCost < supply.baseDemand || supply.grossCost !== control.grossCost, 'supply hedge changes effective cost input or realized cost');
 
 const full = runLifecycle(seed, 208);
 const deterministicA = runLifecycle(seed, 80);
