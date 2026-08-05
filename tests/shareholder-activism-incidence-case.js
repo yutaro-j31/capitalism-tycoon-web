@@ -35,6 +35,33 @@ function applyStyle(engine, modules, style, postIpoWeek) {
   assert(modules.finance.validate(engine.g).ok, 'weekly style action must keep finance valid');
 }
 
+function triggerDiagnostic(engine, modules) {
+  const state=engine.g;
+  const value=engine.getShareholderValueDestructionPressure();
+  const stores=(state.stores||[]).filter(row=>row&&!['closed','sold'].includes(String(row.status||'open')));
+  const profits=(state.weeklyProfitHistory||[]).slice(-13).map(Number);
+  const values=(state.companyValueHistory||[]).slice(-13).map(Number);
+  return {
+    triggerPath:String(state.activeActivistCampaign?.triggerPath||''),
+    stockPrice:Number(Number(state.stockPrice||0).toFixed(4)),
+    valuePressure:Number(Number(value.valueDestructionPressure||0).toFixed(4)),
+    recoveryRatio:Number(Number(value.recoveryRatio||0).toFixed(4)),
+    averageIpoDrawdown:Number(Number(value.averageIpoDrawdown||0).toFixed(4)),
+    averageHighDrawdown:Number(Number(value.averageHighDrawdown||0).toFixed(4)),
+    cumulativeUnderperformance:Number(Number(value.cumulativeUnderperformance||0).toFixed(4)),
+    persistenceRatio:Number(Number(value.persistenceRatio||0).toFixed(4)),
+    operatingRecovery:modules.shareholderValueDestruction.operatingRecoveryForWeek(state),
+    activeStores:stores.length,
+    aggregateStoreProfit:Math.round(stores.reduce((sum,row)=>sum+Number(row.lastProfit||0),0)),
+    trailingProfit:Math.round(profits.reduce((sum,row)=>sum+(Number.isFinite(row)?row:0),0)),
+    trailingProfitWeeks:profits.length,
+    latestReportProfit:Math.round(Number(state.lastReport?.profit||0)),
+    companyValueStart:Math.round(Number(values[0]||0)),
+    companyValueEnd:Math.round(Number(values.at(-1)||0)),
+    companyValueWeeks:values.length
+  };
+}
+
 function runCase(style, seed) {
   const ipo = runScenario(BASE_SCENARIO, seed, {includeState:true, gameScenario:'free'});
   assert.equal(ipo.ipo, true, `${style} seed ${seed} reaches IPO`);
@@ -42,6 +69,7 @@ function runCase(style, seed) {
   const engine = new loaded.engineModule.TycoonEngine(JSON.parse(JSON.stringify(ipo.state)));
   engine.normalize();
   let firstCampaignWeek = null;
+  let firstCampaignDiagnostic = null;
   let maxPressure = null;
   const startingWeek = engine.g.week;
   const remainingWeeks = Math.max(0, WEEKS - startingWeek + 1);
@@ -61,7 +89,10 @@ function runCase(style, seed) {
     const before=(engine.g.activistCampaignHistory||[]).filter(row=>row?.type==='campaignStarted').length;
     assert.notEqual(engine.advanceWeek(false), false, `${style} seed ${seed} weekly progression continues`);
     const after=(engine.g.activistCampaignHistory||[]).filter(row=>row?.type==='campaignStarted').length;
-    if (after>before && firstCampaignWeek===null) firstCampaignWeek=engine.g.week;
+    if (after>before && firstCampaignWeek===null) {
+      firstCampaignWeek=engine.g.week;
+      firstCampaignDiagnostic=triggerDiagnostic(engine,loaded.modules);
+    }
   }
   const history=engine.g.activistCampaignHistory||[];
   const campaignStarts=history.filter(row=>row?.type==='campaignStarted');
@@ -71,7 +102,7 @@ function runCase(style, seed) {
   assert(validation.ok, JSON.stringify(validation));
   assert(history.length<=loaded.modules.shareholderActivism.HISTORY_LIMIT, 'activism history remains bounded');
   const finance=loaded.modules.finance.ensureFinance(engine.g);
-  return {style,seed,ipoWeek:ipo.ipoWeek,firstCampaignWeek,campaignCount,campaignsByPath,maxPressure,
+  return {style,seed,ipoWeek:ipo.ipoWeek,firstCampaignWeek,firstCampaignDiagnostic,campaignCount,campaignsByPath,maxPressure,
     endingCash:Math.round(engine.g.companyCash),retainedEarnings:Math.round(finance.balances?.retainedEarnings||0),
     dividendPerShare:Number(engine.g.dividendPerShare||0),stores:engine.g.stores.length,
     companyValue:Math.round(engine.companyValue()),finalWeek:engine.g.week};
