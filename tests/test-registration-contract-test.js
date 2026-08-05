@@ -7,7 +7,6 @@ const path = require('node:path');
 const ROOT = path.resolve(__dirname, '..');
 const TESTS_DIR = path.join(ROOT, 'tests');
 const RUN_ALL = path.join(TESTS_DIR, 'run-all.js');
-const SYNTAX_CHECK = path.join(TESTS_DIR, 'syntax-check.js');
 const PACKAGE_JSON = path.join(ROOT, 'package.json');
 const REGISTRY = path.join(TESTS_DIR, 'test-execution-registry.json');
 
@@ -41,9 +40,8 @@ function extractTestFiles(source) {
   return new Set([...source.matchAll(/(?:^|[\s'"`])(tests\/[\w./-]+-test\.js)(?=[\s'"`]|$)/gm)].map(match => match[1]));
 }
 
-function canonicalRoutes(packageJson, runAllSource, syntaxSource) {
+function canonicalRoutes(packageJson, runAllSource) {
   const files = extractTestFiles(runAllSource);
-  for (const file of extractTestFiles(syntaxSource)) files.add(file);
   const commands = new Set([...runAllSource.matchAll(/['"](test:[^'"]+)['"]/g)].map(match => match[1]));
   for (const command of commands) {
     const script = packageJson.scripts?.[command];
@@ -76,10 +74,9 @@ function findUnclassified(allFiles, canonical, registry) {
 
 const packageJson = JSON.parse(fs.readFileSync(PACKAGE_JSON, 'utf8'));
 const runAllSource = fs.readFileSync(RUN_ALL, 'utf8');
-const syntaxSource = fs.readFileSync(SYNTAX_CHECK, 'utf8');
 const registry = JSON.parse(fs.readFileSync(REGISTRY, 'utf8'));
 const allFiles = walk(TESTS_DIR);
-const canonical = canonicalRoutes(packageJson, runAllSource, syntaxSource);
+const canonical = canonicalRoutes(packageJson, runAllSource);
 
 validateRegistry(registry);
 
