@@ -32,6 +32,9 @@ function adversePortfolioRows(count,options={}){return Array.from({length:count}
  const e=engine();e.g.subsidiaries=[{id:'low',status:'active',ownership:1,carryingBookValue:100_000_000,weeklyProfit:50_000},{id:'high',status:'active',ownership:.5,carryingBookValue:100_000_000,weeklyProfit:300_000}];const snapshot=portfolio.portfolioSnapshot(e.g);assert.equal(snapshot.investedCapital,150_000_000);assert(snapshot.weightedRoic>0&&snapshot.weightedRoic<.08);assert(snapshot.lowCapitalShare>.6&&snapshot.lowCapitalShare<.7);
 }
 {
+ const e=engine();e.g.groupRestructuringHistory=[{week:99,type:'sale'}];let remedy=portfolio.portfolioRemedyForWeek(e.g,99);assert.equal(remedy.disposalAction,true,'canonical restructuring sale is recognized');e.g.groupRestructuringHistory=[];e.g.restructuringPrograms=[{startedWeek:90,status:'active'}];remedy=portfolio.portfolioRemedyForWeek(e.g,99);assert.equal(remedy.improvementAction,true,'active turnaround program is recognized');e.g.restructuringPrograms=[{startedWeek:90,status:'completed',completedWeek:99}];remedy=portfolio.portfolioRemedyForWeek(e.g,99);assert.equal(remedy.improvementAction,true,'completed turnaround program is recognized in its completion week');e.g.restructuringPrograms=[];e.g.saleNegotiations=[{startedWeek:95,status:'active'}];remedy=portfolio.portfolioRemedyForWeek(e.g,99);assert.equal(remedy.improvementAction,true,'active canonical sale negotiation is recognized');
+}
+{
  const e=engine();e.g.activistPortfolioEfficiencyHistory=adversePortfolioRows(25);const p=portfolio.metrics(e.g);assert.equal(p.windowWeeks,25);assert.equal(p.maturity,0);assert.equal(p.portfolioInefficiencyPressure,0);assert.equal(portfolio.startCampaign(e),null,'25-week history cannot trigger');
 }
 {
