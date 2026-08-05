@@ -7,6 +7,7 @@ const { loadGame, ROOT } = require('./harness');
 const LIFECYCLE_PATH = path.join(ROOT, 'js', 'product-lifecycle.js');
 
 function installLifecycle(ctx) {
+  if (ctx.__capitalismTycoonModules?.productLifecycle) return;
   vm.runInContext(fs.readFileSync(LIFECYCLE_PATH, 'utf8'), ctx, { filename: 'js/product-lifecycle.js' });
 }
 
