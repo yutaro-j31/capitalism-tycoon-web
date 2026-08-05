@@ -5,6 +5,7 @@ const path = require('node:path');
 const shardConfig = require('./run-all-shards.json');
 
 const selectedShard = process.env.TEST_SHARD || '';
+const contractOnly = process.env.TEST_SHARD_CONTRACT === '1';
 const validShards = new Set(['A', ...Object.keys(shardConfig)]);
 if (!validShards.has(selectedShard)) {
   console.error(`Unknown TEST_SHARD: ${selectedShard || '(empty)'}`);
@@ -39,7 +40,7 @@ function ownerFor(label) {
 childProcess.spawnSync = function shardedSpawnSync(command, args, options) {
   const label = commandLabel(command, args);
   seen.add(label);
-  if (ownerFor(label) !== selectedShard) {
+  if (contractOnly || ownerFor(label) !== selectedShard) {
     return { status: 0, signal: null, stdout: '', stderr: '', pid: 0, output: [null, '', ''] };
   }
   const startedAt = process.hrtime.bigint();
@@ -56,6 +57,14 @@ function validateAssignments() {
     console.error(`Configured shard entries not found in run-all.js: ${missingConfigured.join(', ')}`);
     process.exitCode = 1;
   }
+  const assignmentCounts = new Map([...seen].map(label => [label, 0]));
+  for (const label of seen) assignmentCounts.set(label, assignmentCounts.get(label) + 1);
+  for (const label of heavyOwner.keys()) assignmentCounts.set(label, assignmentCounts.get(label) || 0);
+  const invalid = [...assignmentCounts].filter(([, count]) => count !== 1);
+  if (invalid.length) {
+    console.error(`Shard assignment count must be exactly one: ${invalid.map(([label,count]) => `${label}=${count}`).join(', ')}`);
+    process.exitCode = 1;
+  }
   for (const label of seen) {
     const owner = ownerFor(label);
     if (!validShards.has(owner)) {
@@ -68,7 +77,7 @@ function validateAssignments() {
 process.on('exit', () => {
   validateAssignments();
   const totalMs = executed.reduce((sum, item) => sum + item.elapsedMs, 0);
-  console.log(`canonical-test-shard-summary: shard=${selectedShard} executed=${executed.length} seen=${seen.size} total=${(totalMs / 1000).toFixed(3)}s`);
+  console.log(`canonical-test-shard-summary: shard=${selectedShard} contractOnly=${contractOnly} executed=${executed.length} seen=${seen.size} total=${(totalMs / 1000).toFixed(3)}s`);
 });
 
 require('./run-all');
