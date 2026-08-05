@@ -120,7 +120,7 @@ function runLifecycle(seed, weeks=208) {
     lastEventId = eventId;
   }
 
-  assert.equal(selected.length, 3, 'all three response plans are reachable within 208 weeks');
+  assert.equal(selected.length, 3, 'all three response plans are reachable within the lifecycle window');
   const history = engine.g.industryEventResponsePlanHistory || [];
   const activations = history.filter(row => row?.type === 'activated');
   const expirations = history.filter(row => row?.type === 'expired');
@@ -167,8 +167,8 @@ assert(demand.appliedDemand > demand.baseDemand, 'demand defense changes busines
 assert(supply.appliedUnitCost < supply.baseDemand || supply.grossCost !== control.grossCost, 'supply hedge changes effective cost input or realized cost');
 
 const full = runLifecycle(seed, 208);
-const deterministicA = runLifecycle(seed, 80);
-const deterministicB = runLifecycle(seed, 80);
+const deterministicA = runLifecycle(seed, 86);
+const deterministicB = runLifecycle(seed, 86);
 assert.deepEqual(deterministicA, deterministicB, 'response-plan reachability and lifecycle are deterministic for the same seed');
 
 console.log(`industry-event-response-plans-reachability-test: ok (plans=${full.selected.map(row => `${row.week}:${row.type}`).join(', ')}; effects=${[demand,supply,technology].map(row => `${row.planType}:${row.adjustedFinalCash-control.adjustedFinalCash}`).join(', ')})`);
