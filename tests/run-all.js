@@ -28,6 +28,16 @@ for (const command of commands) {
 }
 
 for (const [name, file] of [
+  ['bank-loans-covenants-accounting', 'tests/bank-loans-covenants-accounting-test.js'],
+  ['board-governance-resolution', 'tests/board-governance-resolution-test.js'],
+  ['business-record-sanitizer', 'tests/business-record-sanitizer-test.js'],
+  ['crisis-ui-observer-contract', 'tests/crisis-ui-observer-contract-test.js'],
+  ['game-over-settings-ui', 'tests/game-over-settings-ui-test.js'],
+  ['macro-cycle', 'tests/macro-cycle-test.js'],
+  ['player-turnaround-plan-ui', 'tests/player-turnaround-plan-ui-test.js'],
+  ['product-lifecycle-determinism', 'tests/product-lifecycle-determinism-test.js'],
+  ['save-storage-budget', 'tests/save-storage-budget-test.js'],
+  ['setup-recovery-ui', 'tests/setup-recovery-ui-test.js'],
   ['save-storage-quota', 'tests/save-storage-quota-test.js'],
   ['save-storage-recovery-actions', 'tests/save-storage-recovery-actions-test.js'],
   ['difficulty-scenario-balance', 'tests/difficulty-scenario-balance-test.js'],
@@ -91,5 +101,5 @@ for (const [name, file] of [
   }
 }
 
-console.log(`all ${commands.length} test commands including save storage quota recovery, save storage recovery actions, M&A board approval, M&A deal room, M&A integration, M&A portfolio summary, M&A exit readiness, internal venture funding and spin-off, staged subsidiary IPO preparation, listed subsidiary market operations, listed subsidiary portfolio dashboard, listed subsidiary TOB and squeeze-out control actions, wholly owned subsidiary integration synergy investments, inter-subsidiary synergy allocation and performance, group capital allocation actions, subsidiary relisting strategies, listed subsidiary follow-on offering capital policy, vertical integration determinism, difficulty/scenario balance, competitor dashboard UI, D UI context tabs, provisional v1 progression gate, treasury prepayment, refinancing policy, shareholder returns, executive dismissal reachability, industry event reachability, capital allocation score, capital allocation policy, capital allocation comparison, capital allocation actions, capital allocation score breakdown, capital allocation recovery targets, capital allocation board decision memo, capital allocation board stress test, capital allocation resilience memo, capital allocation recovery audit, capital allocation recovery funding, capital allocation recovery funding options, capital allocation recovery funding readiness, capital allocation recovery funding reconciliation, capital allocation recovery target selector, capital allocation recovery funding outcome, capital allocation management guide, capital allocation recovery save reload, capital allocation production wiring, executive secretary, executive secretary UI, executive secretary purity, and CEO dashboard passed`);
+console.log(`all ${commands.length} test commands including registration backfill, save storage quota recovery, save storage recovery actions, M&A board approval, M&A deal room, M&A integration, M&A portfolio summary, M&A exit readiness, internal venture funding and spin-off, staged subsidiary IPO preparation, listed subsidiary market operations, listed subsidiary portfolio dashboard, listed subsidiary TOB and squeeze-out control actions, wholly owned subsidiary integration synergy investments, inter-subsidiary synergy allocation and performance, group capital allocation actions, subsidiary relisting strategies, listed subsidiary follow-on offering capital policy, vertical integration determinism, difficulty/scenario balance, competitor dashboard UI, D UI context tabs, provisional v1 progression gate, treasury prepayment, refinancing policy, shareholder returns, executive dismissal reachability, industry event reachability, capital allocation score, capital allocation policy, capital allocation comparison, capital allocation actions, capital allocation score breakdown, capital allocation recovery targets, capital allocation board decision memo, capital allocation board stress test, capital allocation resilience memo, capital allocation recovery audit, capital allocation recovery funding, capital allocation recovery funding options, capital allocation recovery funding readiness, capital allocation recovery funding reconciliation, capital allocation recovery target selector, capital allocation recovery funding outcome, capital allocation management guide, capital allocation recovery save reload, capital allocation production wiring, executive secretary, executive secretary UI, executive secretary purity, and CEO dashboard passed`);
 console.log('Weekly Impact recap is registered in run-all and all tests passed');
