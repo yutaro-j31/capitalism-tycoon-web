@@ -7,7 +7,7 @@ assert(mod,'value-destruction module is loaded');
 function engine(){const e=new loaded.engineModule.TycoonEngine();e.normalize();e.g.configured=true;e.g.publicCompany=true;e.g.week=100;e.g.ticker='CPTY';e.g.ipoPrice=100;e.g.stockPrice=60;e.g.lastActivistCampaignWeek=0;e.g.activeActivistCampaign=null;e.g.activistMarketPerformanceHistory=[];return e;}
 function adverseRows(count,recoveryEvery=0){return Array.from({length:count},(_,i)=>({week:74+i,price:60,referencePrice:100,rollingHigh:100,ownReturn:-.025,benchmarkReturn:.005,relativeReturn:-.03,recoveryAction:recoveryEvery>0&&i%recoveryEvery===0}));}
 {
- const e=engine();delete e.g.activistMarketPerformanceHistory;e.normalize();assert.deepEqual(e.g.activistMarketPerformanceHistory,[],'old saves normalize to empty market-performance history');
+ const e=engine();delete e.g.activistMarketPerformanceHistory;e.normalize();assert(Array.isArray(e.g.activistMarketPerformanceHistory),'old saves normalize market-performance history to an array');assert.equal(e.g.activistMarketPerformanceHistory.length,0,'old saves normalize to empty market-performance history');
  e.g.activistMarketPerformanceHistory=Array.from({length:70},(_,i)=>({week:i+1,price:100,referencePrice:100,rollingHigh:100}));e.normalize();assert.equal(e.g.activistMarketPerformanceHistory.length,52,'history is bounded to 52 rows');
 }
 {
