@@ -49,6 +49,8 @@ for (const [name, file] of [
   ['shareholder-returns', 'tests/shareholder-returns-test.js'],
   ['shareholder-activism', 'tests/shareholder-activism-test.js'],
   ['shareholder-activism-incidence-matrix', 'tests/shareholder-activism-incidence-matrix-test.js'],
+  ['shareholder-value-destruction', 'tests/shareholder-value-destruction-test.js'],
+  ['shareholder-value-destruction-incidence-matrix', 'tests/shareholder-value-destruction-incidence-matrix-test.js'],
   ['executive-dismissal-reachability', 'tests/executive-dismissal-reachability-test.js'],
   ['industry-specific-events-reachability', 'tests/industry-specific-events-reachability-test.js'],
   ['industry-event-response-plans-reachability', 'tests/industry-event-response-plans-reachability-test.js'],

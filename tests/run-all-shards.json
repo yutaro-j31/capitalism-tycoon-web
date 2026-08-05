@@ -3,11 +3,13 @@
     "tests/executive-dismissal-reachability-test.js",
     "tests/industry-specific-events-reachability-test.js",
     "tests/industry-event-response-plans-reachability-test.js",
-    "tests/shareholder-activism-incidence-matrix-test.js"
+    "tests/shareholder-activism-incidence-matrix-test.js",
+    "tests/shareholder-value-destruction-test.js"
   ],
   "C": [
     "tests/save-storage-budget-test.js",
-    "test:supply-long"
+    "test:supply-long",
+    "tests/shareholder-value-destruction-incidence-matrix-test.js"
   ],
   "D": [
     "test:workforce-long",
