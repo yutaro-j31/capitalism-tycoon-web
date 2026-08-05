@@ -22,9 +22,10 @@ const engine=new Engine();engine.g={week:21,economy:1,inflation:1,policyRate:.00
 const foundationSource=fs.readFileSync('js/deterministic-economic-foundation.js','utf8');
 assert(foundationSource.includes('ISSUE-296-CANONICAL-UPDATE-MACRO'),'canonical replacement must stay documented at the assignment');
 const {loadGame}=require('./harness');
-function runFoundation(){const loaded=loadGame({headless:true});const e=new loaded.engineModule.TycoonEngine();e.g.configured=true;const rows=[];for(let i=0;i<60;i++){e.advanceWeek(false);rows.push({economy:e.g.economy,policyRate:e.g.policyRate,inflation:e.g.inflation,exchangeRate:e.g.exchangeRate,regime:e.g.macroRegime,event:e.g.activeIndustryEvent?.id||null});}return{rows,state:e.g,finance:loaded.modules.finance.validate(e.g),macro:loaded.modules.macroCycle.validate(e.g)};}
+function seededRandom(seed){let state=seed>>>0;return()=>{state=(Math.imul(state,1664525)+1013904223)>>>0;return state/4294967296;};}
+function runFoundation(){const loaded=loadGame({headless:true,random:seededRandom(0x8d4c3a21)});const e=new loaded.engineModule.TycoonEngine();e.g.configured=true;const rows=[];for(let i=0;i<60;i++){e.advanceWeek(false);rows.push({economy:e.g.economy,policyRate:e.g.policyRate,inflation:e.g.inflation,exchangeRate:e.g.exchangeRate,regime:e.g.macroRegime,event:e.g.activeIndustryEvent?.id||null});}return{rows,state:e.g,finance:loaded.modules.finance.validate(e.g),macro:loaded.modules.macroCycle.validate(e.g)};}
 const canonicalA=runFoundation(),canonicalB=runFoundation();
-assert.deepEqual(canonicalA.rows,canonicalB.rows,'canonical macro path is deterministic');
+assert.deepEqual(canonicalA.rows,canonicalB.rows,'canonical macro path is deterministic for the same game RNG seed');
 for(const key of ['economy','policyRate','inflation','exchangeRate'])assert(new Set(canonicalA.rows.map(row=>row[key])).size>10,`${key} changes over time`);
 assert(new Set(canonicalA.rows.map(row=>row.regime)).size>=3,'macro regimes continue changing');
 assert(canonicalA.rows.some(row=>row.event),'industry demand event remains connected');

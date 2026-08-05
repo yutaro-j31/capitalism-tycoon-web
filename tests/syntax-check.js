@@ -1,3 +1,4 @@
+require('./test-registration-contract-test');
 const vm = require('node:vm');
 const { extractScripts, extractEventHandlers } = require('./harness');
 let failures = 0;
