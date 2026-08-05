@@ -1,7 +1,8 @@
 {
   "B": [
     "tests/executive-dismissal-reachability-test.js",
-    "tests/industry-specific-events-reachability-test.js"
+    "tests/industry-specific-events-reachability-test.js",
+    "tests/industry-event-response-plans-reachability-test.js"
   ],
   "C": [
     "tests/save-storage-budget-test.js",
