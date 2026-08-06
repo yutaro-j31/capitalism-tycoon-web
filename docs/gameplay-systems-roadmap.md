@@ -88,10 +88,10 @@ Each roadmap item separates the playable minimum core from expansion candidates.
 - **Minimum core:** A material action is submitted as a board resolution, evaluated against an approval threshold, and accepted or rejected with real consequences.
 - **Expansion candidates (decide after playtesting):** Committees, director factions, committee-specific authority, and deeper governance-quality modelling.
 
-### 8D.4 Shareholder governance — Minimum core completed; current expansion in progress
+### 8D.4 Shareholder governance — Minimum core and current expansion completed
 
 - **Minimum core — completed:** Shareholder proposals, activist pressure through the capital-stagnation path, deterministic proxy fights, and governed executive dismissal with board approval and severance accounting.
-- **Current expansion:** Shareholder-value-destruction path completed; business-portfolio inefficiency path in progress.
+- **Current implemented expansion:** The shareholder-value-destruction and business-portfolio inefficiency paths are completed. All three paths share the global active-campaign guard and 26-week cooldown.
 - **Expansion candidates (decide after playtesting):** Institutional-investor behavior, ESG demands, and any additional trigger paths justified by playtesting.
 
 ## Phase 8E: Capital allocation
