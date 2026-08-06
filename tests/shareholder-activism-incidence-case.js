@@ -7,6 +7,7 @@ const WEEKS = 208;
 const BASE_SCENARIO = SCENARIOS.find(row => row.id === 'ramen-bootstrap');
 const GROWTH_STORE_LIMIT = 6;
 const BALANCED_STORE_LIMIT = 5;
+const GROWTH_RND_INVESTMENT = 1_500_000;
 
 function continuationSeed(seed, style) {
   let value = seed >>> 0;
@@ -37,13 +38,21 @@ function openGrowthStore(engine, businessID, reserve, storeLimit) {
   return Boolean(engine.openStore({tenantID:tenant.id,businessID,name:`Incidence-${engine.g.stores.length+1}`,operatingHours:3}));
 }
 
+function investInGrowth(engine, reserve) {
+  if (!healthyExpansionReady(engine) || engine.g.companyCash < reserve + GROWTH_RND_INVESTMENT) return false;
+  return Boolean(engine.investBusiness('ramen','quality',GROWTH_RND_INVESTMENT));
+}
+
 function applyStyle(engine, modules, style, postIpoWeek) {
-  if (style === 'growth-reinvestment' && postIpoWeek % 13 === 0) openGrowthStore(engine, 'ramen', 12_000_000, GROWTH_STORE_LIMIT);
+  if (style === 'growth-reinvestment' && postIpoWeek % 13 === 0) {
+    openGrowthStore(engine, 'ramen', 12_000_000, GROWTH_STORE_LIMIT);
+    investInGrowth(engine, 12_000_000);
+  }
   if (style === 'balanced-returns') {
     if (postIpoWeek % 26 === 0) openGrowthStore(engine, 'ramen', 30_000_000, BALANCED_STORE_LIMIT);
     if (postIpoWeek % 13 === 1) {
       const capacity = engine.shareholderReturnCapacity();
-      const dividend = Number(capacity?.maxDividendPerShare || 0) * 0.25;
+      const dividend = Number(capacity?.maxDividendPerShare || 0) * 0.75;
       if (dividend > 0) engine.setDividend(dividend);
     }
   }
