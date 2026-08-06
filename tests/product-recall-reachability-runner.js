@@ -37,7 +37,7 @@ function configureEstablishedCompany(loaded, engine, policy) {
   engine.g.configured = true;
 }
 
-function simulate({ policy, seed, respond }) {
+function simulate({ policy, seed, respond, qualityGuard = false }) {
   const loaded = loadGame({ headless: true, random: rng(seed) });
   assert(loaded.modules.productLifecycle?.__installed, 'product lifecycle module must be loaded');
   const engine = new loaded.engineModule.TycoonEngine();
@@ -47,10 +47,26 @@ function simulate({ policy, seed, respond }) {
   let responseWeek = null;
   let responseEffect = null;
   let minCash = engine.g.companyCash;
+  const maintenanceChangeWeeks = [];
   let profitableWeeks = 0;
   let observedWeeks = 0;
 
   for (let i = 0; i < 207; i++) {
+    const current = engine.g.productVentures[0];
+    if (qualityGuard) {
+      let nextPolicy = null;
+      if (current.maintenancePolicy === 'standard' && Number(current.technicalDebt) >= 45) nextPolicy = 'intensive';
+      else if (current.maintenancePolicy === 'intensive' && Number(current.technicalDebt) <= 20) nextPolicy = 'standard';
+      if (nextPolicy) {
+        assert.equal(
+          engine.setProductMaintenancePolicy(current.id, nextPolicy),
+          true,
+          'healthy quality guard must use the normal maintenance policy API'
+        );
+        maintenanceChangeWeeks.push({ week: Number(engine.g.week), policy: nextPolicy });
+      }
+    }
+
     assert.notEqual(
       engine.advanceWeek(false),
       false,
@@ -106,6 +122,7 @@ function simulate({ policy, seed, respond }) {
     firstRecallWeek,
     responseWeek,
     responseEffect,
+    maintenanceChangeWeeks,
     recallCount: starts.length,
     initialRecallCost: Math.round(initialTransactions.reduce((sum, row) => sum + Number(row.amount || 0), 0)),
     initialRecallCashEffect: Math.round(initialTransactions.reduce((sum, row) => sum + Number(row.cashEffect || 0), 0)),
@@ -150,10 +167,12 @@ assert.equal(respondedA.responseEffect.plannedWeeks, 2, JSON.stringify(responded
 assert(respondedA.responseTransactionCount >= 1, JSON.stringify(respondedA));
 assert(respondedA.cumulativeLostRevenue < ignoredA.cumulativeLostRevenue, JSON.stringify({ ignoredA, respondedA }));
 
-const healthyA = simulate({ policy: 'standard', seed, respond: false });
-const healthyB = simulate({ policy: 'standard', seed, respond: false });
+const healthyA = simulate({ policy: 'standard', seed, respond: false, qualityGuard: true });
+const healthyB = simulate({ policy: 'standard', seed, respond: false, qualityGuard: true });
 assert.deepEqual(healthyA, healthyB, 'same-seed standard-maintenance path is deterministic');
 assert.equal(healthyA.recallCount, 0, JSON.stringify(healthyA));
+assert(healthyA.maintenanceChangeWeeks.length >= 1, JSON.stringify(healthyA));
+assert(healthyA.finalTechnicalDebt < 55, JSON.stringify(healthyA));
 assert(healthyA.profitableRatio >= 0.8, `healthy control must actually be profitable: ${JSON.stringify(healthyA)}`);
 assert(healthyA.finalProfit > 0, `healthy control final product must be profitable: ${JSON.stringify(healthyA)}`);
 

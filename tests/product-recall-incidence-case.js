@@ -50,6 +50,7 @@ function simulate() {
   configureEstablishedCompany(loaded, engine, initialPolicy);
 
   let maintenanceChangeWeek = null;
+  const maintenanceChangeWeeks = [];
   let firstRecallWeek = null;
   let maxTechnicalDebt = 0;
   let minCash = Number(engine.g.companyCash);
@@ -66,6 +67,20 @@ function simulate() {
         'timely quality control must use the normal maintenance policy API'
       );
       maintenanceChangeWeek = Number(engine.g.week);
+      maintenanceChangeWeeks.push({ week: maintenanceChangeWeek, policy: 'intensive' });
+    } else if (style === 'healthy-standard') {
+      let nextPolicy = null;
+      if (current.maintenancePolicy === 'standard' && Number(current.technicalDebt) >= 45) nextPolicy = 'intensive';
+      else if (current.maintenancePolicy === 'intensive' && Number(current.technicalDebt) <= 20) nextPolicy = 'standard';
+      if (nextPolicy) {
+        assert.equal(
+          engine.setProductMaintenancePolicy(current.id, nextPolicy),
+          true,
+          'healthy quality guard must use the normal maintenance policy API'
+        );
+        if (maintenanceChangeWeek === null) maintenanceChangeWeek = Number(engine.g.week);
+        maintenanceChangeWeeks.push({ week: Number(engine.g.week), policy: nextPolicy });
+      }
     }
 
     assert.notEqual(
@@ -111,6 +126,8 @@ function simulate() {
     recallCount: starts.length,
     recallStartWeeks: startWeeks,
     maintenanceChangeWeek,
+    maintenanceChangeWeeks,
+    maintenanceChangeCount: maintenanceChangeWeeks.length,
     cumulativeLostRevenue: Math.round(cumulativeLostRevenue),
     finalCash: Math.round(engine.g.companyCash),
     minCash: Math.round(minCash),

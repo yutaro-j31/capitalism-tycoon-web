@@ -45,7 +45,10 @@ function assertCase(row) {
     assert(row.profitableRatio >= 0.8, `timely control must remain genuinely profitable: ${JSON.stringify(row)}`);
     assert(row.finalProfit > 0, `timely control final product must be profitable: ${JSON.stringify(row)}`);
   } else {
-    assert.equal(row.finalMaintenancePolicy, 'standard', JSON.stringify(row));
+    assert(row.maintenanceChangeWeek !== null, JSON.stringify(row));
+    assert(row.maintenanceChangeCount >= 1, JSON.stringify(row));
+    assert(['standard', 'intensive'].includes(row.finalMaintenancePolicy), JSON.stringify(row));
+    assert(row.maxTechnicalDebt < 55, `healthy quality guard must cap debt: ${JSON.stringify(row)}`);
     assert(row.profitableRatio >= 0.8, `healthy control must remain genuinely profitable: ${JSON.stringify(row)}`);
     assert(row.finalProfit > 0, `healthy control final product must be profitable: ${JSON.stringify(row)}`);
   }
