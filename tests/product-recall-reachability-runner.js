@@ -24,13 +24,11 @@ function releasedProduct(policy) {
 
 function simulate({ policy, seed, respond }) {
   const loaded = loadGame({ headless: true, random: rng(seed) });
+  assert(loaded.modules.productLifecycle?.__installed, 'product lifecycle module must be loaded');
   const engine = new loaded.engineModule.TycoonEngine();
+  engine.g.productVentures = [releasedProduct(policy)];
   engine.normalize();
   engine.g.configured = true;
-  engine.g.productVentures = [releasedProduct(policy)];
-  engine.ensureExpansionDefaults();
-  engine.ensureProductInnovationDefaults();
-  engine.ensureProductLifecycleDefaults();
   let firstRecallWeek = null;
   let responseWeek = null;
   let minCash = engine.g.companyCash;

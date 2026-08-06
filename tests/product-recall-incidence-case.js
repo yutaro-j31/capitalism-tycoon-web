@@ -30,14 +30,12 @@ function product(policy) {
 
 function simulate() {
   const loaded = loadGame({ headless: true, random: rng(seed) });
+  assert(loaded.modules.productLifecycle?.__installed, 'product lifecycle module must be loaded');
   const engine = new loaded.engineModule.TycoonEngine();
-  engine.normalize();
-  engine.g.configured = true;
   const initialPolicy = style === 'healthy-standard' ? 'standard' : 'lean';
   engine.g.productVentures = [product(initialPolicy)];
-  engine.ensureExpansionDefaults();
-  engine.ensureProductInnovationDefaults();
-  engine.ensureProductLifecycleDefaults();
+  engine.normalize();
+  engine.g.configured = true;
 
   let maintenanceChangeWeek = null;
   let firstRecallWeek = null;

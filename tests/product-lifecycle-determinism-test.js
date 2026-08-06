@@ -162,7 +162,7 @@ assert.doesNotThrow(() => build(0.01, { removeEngineRand: true, throwOnRandom: t
   assert.equal(product.revenue, 650_000);
   assert.equal(adjusted.revenue, 650_000);
   assert.equal(adjusted.profit, 450_000);
-  assert.equal(recall.cumulativeLostRevenue, 350_000);
+  assert.equal(engine.g.activeProductRecall.cumulativeLostRevenue, 350_000);
   const debtBefore = product.technicalDebt;
   const responseCashBefore = engine.g.companyCash;
   const responseReputationBefore = engine.g.companyReputation;
@@ -171,8 +171,8 @@ assert.doesNotThrow(() => build(0.01, { removeEngineRand: true, throwOnRandom: t
   assert.equal(engine.g.companyReputation, responseReputationBefore + 4);
   assert.equal(product.technicalDebt, Math.max(0, debtBefore - 45));
   assert.equal(product.maintenancePolicy, 'intensive');
-  assert.equal(recall.revenueMultiplier, modules.productLifecycle.RECALL.RESPONDED_REVENUE_MULTIPLIER);
-  assert.equal(recall.plannedWeeks, 2);
+  assert.equal(engine.g.activeProductRecall.revenueMultiplier, modules.productLifecycle.RECALL.RESPONDED_REVENUE_MULTIPLIER);
+  assert.equal(engine.g.activeProductRecall.plannedWeeks, 2);
   assert.equal(engine.g.finance.transactions.filter(t => t.sourceType === 'productRecallResponse').length, 1);
   assert.equal(engine.executeProductRecallResponse(), false, 'duplicate response is rejected');
   const lifecycleValidation = modules.productLifecycle.validate(engine.g);

@@ -9,7 +9,7 @@ vm.runInContext(fs.readFileSync(path.join(ROOT, 'js/product-lifecycle.js'), 'utf
 const lifecycle = modules.productLifecycle;
 assert.ok(lifecycle?.__installed, 'product lifecycle module should register');
 assert.equal(engineModule.TycoonEngine.prototype.__productLifecycleInstalled, true);
-assert.equal(lifecycle.VERSION, 2);
+assert.equal(lifecycle.VERSION, 3);
 
 const e = new engineModule.TycoonEngine();
 e.g.configured = true;
