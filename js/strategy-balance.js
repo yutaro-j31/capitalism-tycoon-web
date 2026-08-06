@@ -66,22 +66,4 @@ if(typeof baseReset==='function')EngineClass.prototype.reset=function(){
 };
 EngineClass.prototype.__strategyBalanceInstalled=true;
 modules.strategyBalance=Object.freeze({VERSION,DEMAND_CALIBRATIONS,apply,__installed:true});
-const phaseLaunchToken=(()=>{if(typeof document==='undefined')return'';const source=String(document.currentScript?.src||'');const match=source.match(/[?&]launch=([^&#]+)/);if(!match)return'';try{return decodeURIComponent(match[1]);}catch(_){return match[1];}})();
-function loadPhaseScript(src,phase,guard){if(typeof document==='undefined'||guard())return;const script=document.createElement('script');script.src=phaseLaunchToken?`${src}${src.includes('?')?'&':'?'}launch=${encodeURIComponent(phaseLaunchToken)}`:src;script.async=false;script.dataset.phase=phase;(document.head||document.body||document.documentElement)?.appendChild(script);}
-loadPhaseScript('./js/product-lifecycle.js','8A-5',()=>Boolean(modules.productLifecycle));
-loadPhaseScript('./js/macro-cycle.js','8B-1',()=>Boolean(modules.macroCycle));
-loadPhaseScript('./js/treasury-prepayment.js','8B-9',()=>Boolean(modules.treasuryPrepayment));
-loadPhaseScript('./js/treasury-refinancing-policy.js','8B-10',()=>Boolean(modules.treasuryRefinancingPolicy));
-loadPhaseScript('./js/capital-allocation-forecast.js','8C-7',()=>Boolean(modules.capitalAllocationForecast));
-loadPhaseScript('./js/capital-allocation-actions.js','8C-10',()=>Boolean(modules.capitalAllocationActions));
-loadPhaseScript('./js/capital-allocation-decision-memo.js','8D-1',()=>Boolean(modules.capitalAllocationDecisionMemo));
-loadPhaseScript('./js/capital-allocation-stress-test.js','8D-3',()=>Boolean(modules.capitalAllocationStressTest));
-loadPhaseScript('./js/capital-allocation-resilience-memo.js','8D-5',()=>Boolean(modules.capitalAllocationResilienceMemo));
-loadPhaseScript('./js/capital-allocation-recovery-audit.js','8D-11',()=>Boolean(modules.capitalAllocationRecoveryAudit));
-loadPhaseScript('./js/capital-allocation-recovery-funding.js','8D-13',()=>Boolean(modules.capitalAllocationRecoveryFunding));
-loadPhaseScript('./js/capital-allocation-recovery-funding-options.js','8D-15',()=>Boolean(modules.capitalAllocationRecoveryFundingOptions));
-loadPhaseScript('./js/capital-allocation-recovery-funding-readiness.js','8D-17',()=>Boolean(modules.capitalAllocationRecoveryFundingReadiness));
-loadPhaseScript('./js/capital-allocation-recovery-funding-reconciliation.js','8D-19',()=>Boolean(modules.capitalAllocationRecoveryFundingReconciliation));
-loadPhaseScript('./js/capital-allocation-recovery-funding-outcome.js','8D-21',()=>Boolean(modules.capitalAllocationRecoveryFundingOutcome));
-loadPhaseScript('./js/capital-allocation-management-guide.js','8D-29',()=>Boolean(modules.capitalAllocationManagementGuide));
 })();
