@@ -24,45 +24,36 @@ assert.ok(indexOf('./js/shareholder-returns.js') < indexOf('./js/capital-allocat
 assert.ok(indexOf('./js/capital-allocation-score.js') < indexOf('./js/capital-allocation-policy.js'), 'capital allocation score must load before policy');
 
 const strategySource = fs.readFileSync(path.join(ROOT, 'js', 'strategy-balance.js'), 'utf8');
-for (const file of ['shareholder-returns.js', 'capital-allocation-score.js', 'capital-allocation-policy.js']) {
-  assert.ok(!strategySource.includes(file), `${file} must not be dynamically loaded by strategy-balance.js`);
+assert.doesNotMatch(strategySource, /document\.createElement\(\s*['"]script['"]\s*\)/, 'strategy-balance.js must not create module script elements');
+assert.doesNotMatch(strategySource, /\bloadPhaseScript\b/, 'the legacy phase script loader must remain removed');
+assert.doesNotMatch(strategySource, /document\.currentScript|__capitalismTycoonAssetVersion/, 'strategy-balance.js must not derive dynamic module URLs');
+
+const staticPhaseScripts = [
+  './js/macro-cycle.js',
+  './js/product-lifecycle.js',
+  './js/treasury-prepayment.js',
+  './js/treasury-refinancing-policy.js',
+  './js/capital-allocation-forecast.js',
+  './js/capital-allocation-actions.js',
+  './js/capital-allocation-decision-memo.js',
+  './js/capital-allocation-stress-test.js',
+  './js/capital-allocation-resilience-memo.js',
+  './js/capital-allocation-recovery-audit.js',
+  './js/capital-allocation-recovery-funding.js',
+  './js/capital-allocation-recovery-funding-options.js',
+  './js/capital-allocation-recovery-funding-readiness.js',
+  './js/capital-allocation-recovery-funding-reconciliation.js',
+  './js/capital-allocation-recovery-funding-outcome.js',
+  './js/capital-allocation-management-guide.js'
+];
+assert.equal(sources.filter(item => item === './js/strategy-balance.js').length, 1, 'strategy-balance.js must be loaded exactly once');
+for (const source of staticPhaseScripts) {
+  assert.equal(sources.filter(item => item === source).length, 1, `${source} must be loaded exactly once by index.html`);
+  assert.ok(indexOf(source) < indexOf('./js/strategy-balance.js'), `${source} must load before strategy-balance.js`);
 }
-const actionsLoader = "loadPhaseScript('./js/capital-allocation-actions.js','8C-10'";
-const decisionMemoLoader = "loadPhaseScript('./js/capital-allocation-decision-memo.js','8D-1'";
-const stressLoader = "loadPhaseScript('./js/capital-allocation-stress-test.js','8D-3'";
-const resilienceLoader = "loadPhaseScript('./js/capital-allocation-resilience-memo.js','8D-5'";
-const recoveryAuditLoader = "loadPhaseScript('./js/capital-allocation-recovery-audit.js','8D-11'";
-const recoveryFundingLoader = "loadPhaseScript('./js/capital-allocation-recovery-funding.js','8D-13'";
-const recoveryFundingOptionsLoader = "loadPhaseScript('./js/capital-allocation-recovery-funding-options.js','8D-15'";
-const recoveryFundingReadinessLoader = "loadPhaseScript('./js/capital-allocation-recovery-funding-readiness.js','8D-17'";
-const recoveryFundingReconciliationLoader = "loadPhaseScript('./js/capital-allocation-recovery-funding-reconciliation.js','8D-19'";
-const recoveryFundingOutcomeLoader = "loadPhaseScript('./js/capital-allocation-recovery-funding-outcome.js','8D-21'";
-const managementGuideLoader = "loadPhaseScript('./js/capital-allocation-management-guide.js','8D-29'";
-for (const [loader,label,file] of [
-  [decisionMemoLoader,'Phase 8D-1 board memo','capital-allocation-decision-memo.js'],
-  [stressLoader,'Phase 8D-3 stress test','capital-allocation-stress-test.js'],
-  [resilienceLoader,'Phase 8D-5 resilience memo','capital-allocation-resilience-memo.js'],
-  [recoveryAuditLoader,'Phase 8D-11 recovery audit','capital-allocation-recovery-audit.js'],
-  [recoveryFundingLoader,'Phase 8D-13 recovery funding','capital-allocation-recovery-funding.js'],
-  [recoveryFundingOptionsLoader,'Phase 8D-15 recovery funding options','capital-allocation-recovery-funding-options.js'],
-  [recoveryFundingReadinessLoader,'Phase 8D-17 funding execution readiness','capital-allocation-recovery-funding-readiness.js'],
-  [recoveryFundingReconciliationLoader,'Phase 8D-19 funding execution reconciliation','capital-allocation-recovery-funding-reconciliation.js'],
-  [recoveryFundingOutcomeLoader,'Phase 8D-21 funding outcome verification','capital-allocation-recovery-funding-outcome.js'],
-  [managementGuideLoader,'Phase 8D-29 management guide','capital-allocation-management-guide.js']
-]) {
-  assert.ok(strategySource.includes(loader), `${label} must be dynamically loaded in production`);
-  assert.equal((strategySource.match(new RegExp(file.replace('.', '\\.').replaceAll('-', '\\-'), 'g')) || []).length, 1, `${label} must be wired exactly once`);
+for (let i = 1; i < staticPhaseScripts.length; i++) {
+  assert.ok(indexOf(staticPhaseScripts[i - 1]) < indexOf(staticPhaseScripts[i]), `${staticPhaseScripts[i]} must preserve the static dependency order`);
 }
-assert.ok(strategySource.indexOf(actionsLoader) < strategySource.indexOf(decisionMemoLoader), 'the board memo must load after Phase 8C-15 actions');
-assert.ok(strategySource.indexOf(decisionMemoLoader) < strategySource.indexOf(stressLoader), 'the stress test must load after the board memo');
-assert.ok(strategySource.indexOf(stressLoader) < strategySource.indexOf(resilienceLoader), 'the resilience memo must load after the stress test');
-assert.ok(strategySource.indexOf(resilienceLoader) < strategySource.indexOf(recoveryAuditLoader), 'the recovery audit must load after resilience planning');
-assert.ok(strategySource.indexOf(recoveryAuditLoader) < strategySource.indexOf(recoveryFundingLoader), 'the recovery funding plan must load after the recovery audit');
-assert.ok(strategySource.indexOf(recoveryFundingLoader) < strategySource.indexOf(recoveryFundingOptionsLoader), 'the recovery funding options must load after the recovery funding plan');
-assert.ok(strategySource.indexOf(recoveryFundingOptionsLoader) < strategySource.indexOf(recoveryFundingReadinessLoader), 'funding readiness must load after the option matrix');
-assert.ok(strategySource.indexOf(recoveryFundingReadinessLoader) < strategySource.indexOf(recoveryFundingReconciliationLoader), 'funding reconciliation must load after readiness');
-assert.ok(strategySource.indexOf(recoveryFundingReconciliationLoader) < strategySource.indexOf(recoveryFundingOutcomeLoader), 'funding outcome must load after reconciliation');
-assert.ok(strategySource.indexOf(recoveryFundingOutcomeLoader) < strategySource.indexOf(managementGuideLoader), 'management guide must load after outcome verification');
 
 const load = loadGame();
 const { modules, ctx } = load;
