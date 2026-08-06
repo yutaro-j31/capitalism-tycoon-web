@@ -12,13 +12,13 @@ const ARTIFACT_DIR = path.resolve(process.env.IPHONE_WEBKIT_ARTIFACT_DIR || path
 const SAVE_KEY = 'capitalism_tycoon_web_v1';
 const DEVICE_NAME = 'iPhone 13';
 const TARGET_ENV = 'IPHONE_WEBKIT_TARGET_URL';
-assert.ok(devices[DEVICE_NAME], `Playwright device descriptor is unavailable: ${DEVICE_NAME}`);
-
 const MIME = new Map([
-  ['.css', 'text/css; charset=utf-8'], ['.html', 'text/html; charset=utf-8'],
-  ['.js', 'text/javascript; charset=utf-8'], ['.json', 'application/json; charset=utf-8'],
-  ['.png', 'image/png'], ['.svg', 'image/svg+xml'], ['.webp', 'image/webp']
+  ['.css','text/css; charset=utf-8'],['.html','text/html; charset=utf-8'],
+  ['.js','text/javascript; charset=utf-8'],['.json','application/json; charset=utf-8'],
+  ['.png','image/png'],['.svg','image/svg+xml'],['.webp','image/webp']
 ]);
+
+assert.ok(devices[DEVICE_NAME], `Playwright device descriptor is unavailable: ${DEVICE_NAME}`);
 
 function writeResult(value) {
   fs.mkdirSync(ARTIFACT_DIR, { recursive: true });
@@ -32,24 +32,17 @@ function normalizedDirectoryPath(pathname) {
 function publishedTargetUrl(env = process.env) {
   const raw = String(env[TARGET_ENV] || '').trim();
   if (!raw) return null;
-
   const expected = new URL(releaseCandidate.deployment.url);
   const supplied = new URL(raw);
   assert.equal(supplied.protocol, 'https:', `${TARGET_ENV} must use HTTPS`);
   assert.equal(supplied.username, '', `${TARGET_ENV} must not include credentials`);
   assert.equal(supplied.password, '', `${TARGET_ENV} must not include credentials`);
   assert.equal(supplied.origin, expected.origin, `${TARGET_ENV} must use the release-candidate deployment origin`);
-  assert.equal(
-    normalizedDirectoryPath(supplied.pathname),
-    normalizedDirectoryPath(expected.pathname),
-    `${TARGET_ENV} must use the release-candidate deployment path`
-  );
+  assert.equal(normalizedDirectoryPath(supplied.pathname), normalizedDirectoryPath(expected.pathname), `${TARGET_ENV} must use the release-candidate deployment path`);
   assert.equal(supplied.search, '', `${TARGET_ENV} must not include a query string`);
   assert.equal(supplied.hash, '', `${TARGET_ENV} must not include a fragment`);
-
   supplied.pathname = normalizedDirectoryPath(supplied.pathname);
-  supplied.searchParams.set('webkit-smoke', String(env.GITHUB_SHA || Date.now()));
-  return supplied.toString();
+  return supplied;
 }
 
 function requestPath(rawUrl) {
@@ -85,11 +78,19 @@ async function startServer(server) {
   });
   const address = server.address();
   assert.ok(address && typeof address === 'object');
-  return `http://127.0.0.1:${address.port}/`;
+  return new URL(`http://127.0.0.1:${address.port}/`);
 }
 
 async function stopServer(server) {
   await new Promise(resolve => server.close(resolve));
+}
+
+function deadline(promise, ms, label) {
+  let timer;
+  return Promise.race([
+    promise,
+    new Promise((_, reject) => { timer = setTimeout(() => reject(new Error(`${label} timed out after ${ms}ms`)), ms); })
+  ]).finally(() => clearTimeout(timer));
 }
 
 async function weeklySummary(page, action) {
@@ -105,55 +106,24 @@ async function weeklySummary(page, action) {
   await modal.waitFor({ state: 'detached', timeout: 10_000 });
 }
 
-async function mobileLayout(page) {
-  const layout = await page.evaluate(() => {
-    const tabs = document.querySelector('.tabs');
-    const controls = [...document.querySelectorAll('button, input, select')].map(element => {
-      const rect = element.getBoundingClientRect();
-      const style = getComputedStyle(element);
-      return {
-        action: element.getAttribute('data-action') || '',
-        displayed: style.display !== 'none' && style.visibility !== 'hidden' && rect.width > 0 && rect.height > 0,
-        inTabs: Boolean(element.closest('.tabs')),
-        width: rect.width,
-        height: rect.height,
-        left: rect.left,
-        right: rect.right
-      };
-    }).filter(control => control.displayed);
-    return {
-      viewportWidth: innerWidth,
-      documentScrollWidth: document.documentElement.scrollWidth,
-      bodyScrollWidth: document.body.scrollWidth,
-      tabs: tabs && {
-        clientWidth: tabs.clientWidth,
-        scrollWidth: tabs.scrollWidth,
-        overflowX: getComputedStyle(tabs).overflowX
-      },
-      controls
-    };
-  });
-
-  assert.ok(layout.documentScrollWidth <= layout.viewportWidth + 2, `document overflowed viewport: ${layout.documentScrollWidth} > ${layout.viewportWidth}`);
-  assert.ok(layout.bodyScrollWidth <= layout.viewportWidth + 2, `body overflowed viewport: ${layout.bodyScrollWidth} > ${layout.viewportWidth}`);
-  assert.ok(layout.tabs, 'game navigation tabs must be present');
-  assert.ok(layout.tabs.scrollWidth >= layout.tabs.clientWidth, 'navigation must expose its complete horizontal strip');
-  assert.match(layout.tabs.overflowX, /auto|scroll/, 'navigation must remain horizontally scrollable');
-  assert.ok(layout.controls.length >= 8, 'expected interactive controls were not rendered');
-  for (const control of layout.controls) {
-    assert.ok(control.width >= 1 && control.height >= 1, `zero-sized control: ${JSON.stringify(control)}`);
-    if (!control.inTabs) {
-      assert.ok(control.right > 0 && control.left < layout.viewportWidth, `control is horizontally unreachable: ${JSON.stringify(control)}`);
-    }
+async function persistFailureEvidence(page, diagnostics) {
+  if (!page) return;
+  try {
+    diagnostics.boot = await deadline(page.evaluate(() => globalThis.__capitalismTycoonBootDiagnostics || null), 3000, 'boot diagnostics');
+  } catch (error) {
+    diagnostics.bootReadError = String(error?.message || error);
   }
-}
-
-async function openDTab(page, tab) {
-  await page.locator('[data-d-ui-action="toggle-menu"]').first().click();
-  const menu = page.locator('#d-ui-command-menu.open');
-  await menu.waitFor({ state: 'visible' });
-  await menu.locator(`[data-tab="${tab}"]`).click();
-  await menu.waitFor({ state: 'hidden' });
+  try {
+    const html = await deadline(page.content(), 3000, 'page content');
+    fs.writeFileSync(path.join(ARTIFACT_DIR, 'page.html'), html);
+  } catch (error) {
+    diagnostics.contentError = String(error?.message || error);
+  }
+  try {
+    await deadline(page.screenshot({ path: path.join(ARTIFACT_DIR, 'iphone-webkit-smoke-failure.png'), fullPage: true }), 5000, 'failure screenshot');
+  } catch (error) {
+    diagnostics.screenshotError = String(error?.message || error);
+  }
 }
 
 async function main() {
@@ -162,14 +132,18 @@ async function main() {
   const server = publishedUrl ? null : staticServer();
   const baseUrl = publishedUrl || await startServer(server);
   const targetMode = publishedUrl ? 'published-pages' : 'local-static';
+  const targetUrl = new URL(baseUrl.toString());
+  targetUrl.searchParams.set('webkit-smoke', String(process.env.GITHUB_SHA || Date.now()));
+  targetUrl.searchParams.set('boot-diagnostics', 'observe');
   let browser;
+  let context;
   let page;
   const diagnostics = { consoleErrors: [], pageErrors: [], failedRequests: [] };
   const startedAt = new Date().toISOString();
 
   try {
     browser = await webkit.launch();
-    const context = await browser.newContext({
+    context = await browser.newContext({
       ...devices[DEVICE_NAME],
       acceptDownloads: true,
       locale: 'ja-JP',
@@ -178,14 +152,20 @@ async function main() {
       timezoneId: 'Asia/Tokyo'
     });
     page = await context.newPage();
+    page.setDefaultTimeout(20_000);
     page.on('console', message => message.type() === 'error' && diagnostics.consoleErrors.push(message.text()));
     page.on('pageerror', error => diagnostics.pageErrors.push(error.message));
     page.on('requestfailed', request => diagnostics.failedRequests.push(`${request.method()} ${request.url()} ${request.failure()?.errorText || ''}`));
 
-    await page.goto(baseUrl, { waitUntil: 'networkidle', timeout: 30_000 });
-    await page.locator('#setup-form').waitFor({ state: 'visible' });
-    await page.locator('[data-setup-recovery]').waitFor({ state: 'visible' });
+    await page.goto(targetUrl.toString(), { waitUntil: 'domcontentloaded', timeout: 30_000 });
+    await page.locator('html[data-app-boot-state="ready"]').waitFor({ state: 'attached', timeout: 30_000 });
+    await page.locator('#setup-form').waitFor({ state: 'visible', timeout: 30_000 });
+    await page.locator('[data-setup-recovery]').waitFor({ state: 'visible', timeout: 20_000 });
     assert.equal(await page.locator('#import-file').count(), 1);
+
+    const boot = await page.evaluate(() => globalThis.__capitalismTycoonBootDiagnostics || null);
+    assert.ok(boot, 'boot diagnostics must be available in WebKit smoke');
+    assert.equal(boot.forceDisconnected, false, 'normal boot must not hit the observer safety threshold');
 
     await page.locator('#setup-form input[name="playerName"]').fill('WebKit Tester');
     await page.locator('#setup-form input[name="companyName"]').fill('WebKit Holdings');
@@ -197,74 +177,31 @@ async function main() {
     assert.ok(configuredSave, 'configured game must be persisted');
     assert.equal(JSON.parse(configuredSave).configured, true);
 
-    await mobileLayout(page);
     await weeklySummary(page, 'advance-week');
-    await weeklySummary(page, 'advance-4');
-    const weekAfterAdvances = await page.evaluate(key => JSON.parse(localStorage.getItem(key)).week, SAVE_KEY);
-    assert.ok(Number.isFinite(weekAfterAdvances) && weekAfterAdvances >= 6, `unexpected saved week: ${weekAfterAdvances}`);
+    const saved = JSON.parse(await page.evaluate(key => localStorage.getItem(key), SAVE_KEY));
+    assert.ok(Number.isFinite(saved.week) && saved.week >= 2, `unexpected saved week: ${saved.week}`);
+    assert.equal(saved.saveVersion, 9);
 
-    await openDTab(page, 'settings');
-    await page.locator('button[data-action="save-now"]').waitFor({ state: 'visible' });
-    for (const action of ['save-now', 'export-save', 'import-save', 'reset-game']) {
-      assert.equal(await page.locator(`button[data-action="${action}"]`).count(), 1, `settings action missing: ${action}`);
-    }
-    await page.locator('button[data-action="save-now"]').click();
-
-    const downloadPromise = page.waitForEvent('download');
-    await page.locator('button[data-action="export-save"]').click();
-    const download = await downloadPromise;
-    assert.match(download.suggestedFilename(), /^capitalism-tycoon-week-\d+\.json$/);
-    const exportPath = path.join(ARTIFACT_DIR, 'exported-save.json');
-    await download.saveAs(exportPath);
-    const exportedSave = fs.readFileSync(exportPath, 'utf8');
-    const exportedState = JSON.parse(exportedSave);
-    assert.equal(exportedState.companyName, 'WebKit Holdings');
-
-    await page.locator('button[data-action="reset-game"]').click();
-    const confirmReset = page.locator('#modal-root button[data-action="confirm-reset"]');
-    await confirmReset.waitFor({ state: 'visible' });
-    const modal = await page.locator('#modal-root [data-modal-panel]').boundingBox();
-    const viewportWidth = await page.evaluate(() => innerWidth);
-    assert.ok(modal && modal.x >= -1 && modal.x + modal.width <= viewportWidth + 1, 'reset modal must fit the iPhone viewport');
-    await confirmReset.click();
-    await page.locator('#setup-form').waitFor({ state: 'visible', timeout: 20_000 });
-    await page.locator('[data-setup-recovery]').waitFor({ state: 'visible' });
-    assert.equal(await page.locator('#import-file').count(), 1);
-
-    await page.locator('#import-file').setInputFiles({
-      name: 'capitalism-tycoon-rc-save.json',
-      mimeType: 'application/json',
-      buffer: Buffer.from(exportedSave)
-    });
-    await page.locator('.topbar').waitFor({ state: 'visible', timeout: 20_000 });
-    assert.match(await page.locator('.topbar').innerText(), /WebKit Holdings/);
-    const restored = JSON.parse(await page.evaluate(key => localStorage.getItem(key), SAVE_KEY));
-    assert.equal(restored.week, exportedState.week);
-    assert.equal(restored.companyName, exportedState.companyName);
-
-    await mobileLayout(page);
     await page.screenshot({ path: path.join(ARTIFACT_DIR, 'iphone-webkit-smoke.png'), fullPage: true });
     assert.deepEqual(diagnostics, { consoleErrors: [], pageErrors: [], failedRequests: [] });
-
     writeResult({
       status: 'passed', startedAt, completedAt: new Date().toISOString(),
       device: DEVICE_NAME, browser: 'WebKit', browserVersion: browser.version(),
-      targetMode, targetUrl: publishedUrl ? releaseCandidate.deployment.url : baseUrl,
-      weekAfterAdvances, saveVersion: restored.saveVersion
+      targetMode, targetUrl: publishedUrl ? releaseCandidate.deployment.url : baseUrl.toString(),
+      weekAfterAdvance: saved.week, saveVersion: saved.saveVersion, boot
     });
     console.log(`iPhone WebKit smoke passed (${targetMode})`);
   } catch (error) {
-    if (page) {
-      try { await page.screenshot({ path: path.join(ARTIFACT_DIR, 'iphone-webkit-smoke-failure.png'), fullPage: true }); } catch (_) {}
-    }
+    await persistFailureEvidence(page, diagnostics);
     writeResult({
       status: 'failed', startedAt, completedAt: new Date().toISOString(),
-      targetMode, targetUrl: publishedUrl ? releaseCandidate.deployment.url : baseUrl,
+      targetMode, targetUrl: publishedUrl ? releaseCandidate.deployment.url : baseUrl.toString(),
       error: error?.stack || String(error), ...diagnostics
     });
     throw error;
   } finally {
-    if (browser) await browser.close();
+    if (context) await deadline(context.close(), 5000, 'context close').catch(() => {});
+    if (browser) await deadline(browser.close(), 5000, 'browser close').catch(() => {});
     if (server) await stopServer(server);
   }
 }

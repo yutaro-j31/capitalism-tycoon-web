@@ -40,6 +40,16 @@ for (const script of scripts) {
 }
 assert(!/https?:\/\/[^"']+\.js/i.test(readIndex()), 'external CDN JavaScript reference detected');
 
+const bootSafety=fs.readFileSync(path.join(ROOT,'js','boot-diagnostics.js'),'utf8');
+const portfolioUI=fs.readFileSync(path.join(ROOT,'js','real-estate-portfolio-dashboard-ui.js'),'utf8');
+assert(bootSafety.includes('__capitalismTycoonStaticRealEstateScriptGuard'),'real-estate dynamic script guard missing');
+assert(bootSafety.includes("data-app-boot-state', 'ready"),'explicit browser boot-ready marker missing');
+assert(!portfolioUI.includes('MutationObserver'),'portfolio dashboard UI must not observe its own DOM writes');
+assert(!portfolioUI.includes("document.createElement('script')"),'portfolio dashboard UI must rely on canonical static script order');
+assert(portfolioUI.includes("addEventListener?.('change',queue)"),'portfolio dashboard UI must refresh after engine change');
+assert(portfolioUI.includes("addEventListener?.('week',queue)"),'portfolio dashboard UI must refresh after week processing');
+assert(portfolioUI.includes('requestAnimationFrame'),'portfolio dashboard redraw must yield to browser paint');
+
 const ctx = createBrowserContext();
 ctx.loadCalls = 0;
 ctx.renderEvents = 0;
@@ -63,6 +73,7 @@ assert(Object.keys(modules.realEstate.PROPERTY_TYPES||{}).length>=7,'property ty
 const activeEngine = modules.playerEngineBridge?.getEngine?.();
 assert(activeEngine instanceof modules.engine.TycoonEngine, 'engine bridge did not capture app engine');
 for (const key of ['enablePropertyRental','disablePropertyRental','getPropertyInvestmentMetrics','getPropertyMarketProfile','setPropertyMarketSegment','borrowAgainstProperty','repayPropertyLoan','sellPropertyInvestment']) assert(typeof activeEngine[key] === 'function', `engine.${key} missing`);
+assert(modules.realEstatePortfolioDashboardUI?.observerFree===true,'portfolio dashboard UI observer-free marker missing');
 
 const runtimeOnly = createBrowserContext();
 run(runtimeOnly, './js/runtime.js');

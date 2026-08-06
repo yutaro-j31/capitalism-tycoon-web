@@ -1,6 +1,79 @@
-// Browser boot diagnostics. Active only when ?boot-diagnostics=observe|force is present.
+// Browser boot safety and diagnostics.
 (function () {
   'use strict';
+
+  function installStaticRealEstateScriptGuard() {
+    const doc = globalThis.document;
+    const head = doc?.head;
+    if (!doc || !head || doc.readyState !== 'loading' || typeof head.appendChild !== 'function') return false;
+    if (globalThis.__capitalismTycoonStaticRealEstateScriptGuard?.installed) return true;
+
+    const nativeAppendChild = head.appendChild;
+    const baseHref = globalThis.location?.href || doc.baseURI || 'http://localhost/';
+    const baseOrigin = new URL(baseHref).origin;
+    const pending = [];
+    let listening = false;
+    let flushed = false;
+
+    function localRealEstatePath(node) {
+      if (String(node?.tagName || '').toUpperCase() !== 'SCRIPT') return '';
+      const raw = node.getAttribute?.('src') || node.src || '';
+      if (!raw) return '';
+      try {
+        const url = new URL(raw, baseHref);
+        const filename = url.pathname.split('/').pop() || '';
+        return url.origin === baseOrigin && /^real-estate-[a-z0-9-]+\.js$/i.test(filename) ? url.pathname : '';
+      } catch (_) {
+        return '';
+      }
+    }
+
+    function staticPaths() {
+      const paths = new Set();
+      for (const script of doc.querySelectorAll?.('script[src]') || []) {
+        try { paths.add(new URL(script.getAttribute('src') || script.src, baseHref).pathname); } catch (_) {}
+      }
+      return paths;
+    }
+
+    function flush() {
+      if (flushed) return;
+      flushed = true;
+      head.appendChild = nativeAppendChild;
+      const connected = staticPaths();
+      for (const entry of pending) {
+        if (!connected.has(entry.path)) nativeAppendChild.call(head, entry.node);
+      }
+      pending.length = 0;
+    }
+
+    head.appendChild = function guardedAppendChild(node) {
+      const path = localRealEstatePath(node);
+      if (!path || doc.readyState !== 'loading') return nativeAppendChild.call(this, node);
+      pending.push({ node, path });
+      if (!listening) {
+        listening = true;
+        doc.addEventListener('DOMContentLoaded', flush, { once: true });
+      }
+      return node;
+    };
+
+    doc.documentElement?.setAttribute?.('data-app-boot-state', 'loading');
+    doc.addEventListener('DOMContentLoaded', () => {
+      flush();
+      doc.documentElement?.setAttribute?.('data-app-boot-state', 'ready');
+      globalThis.__capitalismTycoonMarkBootStage?.('app-ready');
+    }, { once: true });
+
+    globalThis.__capitalismTycoonStaticRealEstateScriptGuard = Object.freeze({
+      installed: true,
+      pendingCount: () => pending.length,
+      flush
+    });
+    return true;
+  }
+
+  installStaticRealEstateScriptGuard();
 
   function queryValue(name) {
     const search = String(globalThis.location?.search || '').replace(/^\?/, '');
@@ -16,7 +89,7 @@
 
   const requestedMode = queryValue('boot-diagnostics');
   // Canonical Node tests execute every index script without a real browser. Inert
-  // mode must not install clocks, wrappers or globals in that environment.
+  // mode must not install clocks, observer wrappers or diagnostic globals.
   if (!requestedMode) return;
 
   const mode = requestedMode === 'force' ? 'force' : 'observe';
@@ -35,7 +108,7 @@
   let lastPulseBucket = -1;
 
   const metrics = {
-    version: 2,
+    version: 3,
     enabled: true,
     mode,
     threshold,
@@ -62,10 +135,7 @@
   };
 
   const combinedActivity = () => metrics.observerCallbacks + metrics.microtasksScheduled + metrics.microtasksRun;
-
-  function clip(value, max = 220) {
-    return String(value || '').replace(/\s+/g, ' ').trim().slice(0, max);
-  }
+  const clip = (value, max = 220) => String(value || '').replace(/\s+/g, ' ').trim().slice(0, max);
 
   function scriptOwner() {
     const current = globalThis.document?.currentScript;
@@ -113,28 +183,35 @@
     if (reason) metrics.stage = reason;
     const owners = Object.entries(metrics.byOwner)
       .map(([owner, values]) => ({ owner, ...values }))
-      .sort((a, b) =>
-        b.observerCallbacks - a.observerCallbacks ||
-        b.microtasksScheduled - a.microtasksScheduled ||
-        b.mutationRecords - a.mutationRecords
-      );
+      .sort((a, b) => b.observerCallbacks - a.observerCallbacks || b.microtasksScheduled - a.microtasksScheduled || b.mutationRecords - a.mutationRecords);
     return {
       ...metrics,
       combinedActivity: combinedActivity(),
       byOwner: undefined,
       topOwners: owners.slice(0, 30),
-      ownerCount: owners.length
+      ownerCount: owners.length,
+      deferredRealEstateScripts: globalThis.__capitalismTycoonStaticRealEstateScriptGuard?.pendingCount?.() || 0
     };
   }
 
   function publishPulse(value, force = false) {
     if (!pulseURL || typeof globalThis.navigator?.sendBeacon !== 'function') return;
-    const bucket = Math.floor((value.combinedActivity || 0) / 100);
+    const bucket = Math.floor((value.combinedActivity || 0) / 250);
     if (!force && bucket === lastPulseBucket) return;
     lastPulseBucket = bucket;
-    try {
-      globalThis.navigator.sendBeacon(pulseURL, JSON.stringify(value));
-    } catch (_) {}
+    const payload = {
+      version: value.version,
+      stage: value.stage,
+      elapsedMs: value.elapsedMs,
+      observerRegistrations: value.observerRegistrations,
+      observerCallbacks: value.observerCallbacks,
+      mutationRecords: value.mutationRecords,
+      microtasksScheduled: value.microtasksScheduled,
+      microtasksRun: value.microtasksRun,
+      forceDisconnected: value.forceDisconnected,
+      topOwners: value.topOwners.slice(0, 8)
+    };
+    try { globalThis.navigator.sendBeacon(pulseURL, JSON.stringify(payload)); } catch (_) {}
   }
 
   function snapshot(reason, pulse = false) {
@@ -171,9 +248,7 @@
 
   if (typeof nativeMutationObserver === 'function') {
     function DiagnosticMutationObserver(callback) {
-      if (!(this instanceof DiagnosticMutationObserver)) {
-        throw new TypeError("Failed to construct 'MutationObserver': Please use the 'new' operator.");
-      }
+      if (!(this instanceof DiagnosticMutationObserver)) throw new TypeError("Failed to construct 'MutationObserver': Please use the 'new' operator.");
       const owner = scriptOwner();
       metrics.observerRegistrations += 1;
       ownerRow(owner).observerRegistrations += 1;
@@ -190,11 +265,10 @@
         if (forced) return;
         const previousOwner = activeOwner;
         activeOwner = owner;
-        try {
-          callback(records, nativeObserver);
-        } finally {
+        try { callback(records, nativeObserver); }
+        finally {
           activeOwner = previousOwner;
-          if (combinedActivity() % 100 < 3) snapshot('observer-callbacks-running', true);
+          if (combinedActivity() % 250 < 3) snapshot('observer-callbacks-running', true);
           enforceThreshold('observer-callback-complete');
         }
       });
@@ -216,7 +290,7 @@
       ownerRow(owner).droppedMicrotasks += 1;
       return;
     }
-    if (combinedActivity() % 100 < 3) snapshot('microtasks-running', true);
+    if (combinedActivity() % 250 < 3) snapshot('microtasks-running', true);
     return nativeQueueMicrotask(() => {
       if (forced) {
         metrics.droppedMicrotasks += 1;
@@ -229,9 +303,8 @@
       if (forced) return;
       const previousOwner = activeOwner;
       activeOwner = owner;
-      try {
-        return callback();
-      } finally {
+      try { return callback(); }
+      finally {
         activeOwner = previousOwner;
         enforceThreshold('microtask-complete');
       }
@@ -242,12 +315,10 @@
     metrics.domContentLoadedAtMs = Date.now() - startedAt;
     mark('dom-content-loaded');
   }, { once: true });
-
   globalThis.addEventListener?.('load', () => {
     metrics.loadAtMs = Date.now() - startedAt;
     mark('window-loaded');
   }, { once: true });
-
   if (typeof globalThis.requestAnimationFrame === 'function') {
     globalThis.requestAnimationFrame(() => {
       metrics.firstAnimationFrameAtMs = Date.now() - startedAt;
