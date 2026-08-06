@@ -29,8 +29,8 @@ assert.doesNotMatch(strategySource, /\bloadPhaseScript\b/, 'the legacy phase scr
 assert.doesNotMatch(strategySource, /document\.currentScript|__capitalismTycoonAssetVersion/, 'strategy-balance.js must not derive dynamic module URLs');
 
 const staticPhaseScripts = [
-  './js/product-lifecycle.js',
   './js/macro-cycle.js',
+  './js/product-lifecycle.js',
   './js/treasury-prepayment.js',
   './js/treasury-refinancing-policy.js',
   './js/capital-allocation-forecast.js',
