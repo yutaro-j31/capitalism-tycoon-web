@@ -6,42 +6,80 @@
   <meta name="theme-color" content="#08101f">
   <title>資本主義ポケット TYCOON Stage 3B Heartbeat</title>
   <style>
-    html,body{margin:0;min-height:100%;background:#08101f;color:#fff;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}
-    #stage3b-loader{padding:calc(env(safe-area-inset-top) + 24px) 20px 24px;font-weight:800}
-    #stage3b-loader small{display:block;margin-top:8px;color:#9fb3c8;font-weight:500}
+    :root{color-scheme:dark}
+    *{box-sizing:border-box}
+    html,body{margin:0;width:100%;height:100%;overflow:hidden;background:#08101f;color:#fff;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}
+    #runtime-host{position:fixed;inset:0;background:#08101f;padding-top:220px}
+    #runtime-host iframe{display:block;width:100%;height:100%;border:0;background:#08101f}
+    #stage3b-panel{position:fixed;z-index:2147483647;top:calc(env(safe-area-inset-top) + 8px);left:8px;right:8px;min-height:198px;padding:10px 12px;border:3px solid #22c55e;border-radius:14px;background:rgba(3,10,22,.97);box-shadow:0 8px 28px rgba(0,0,0,.5);pointer-events:auto}
+    #stage3b-title{display:flex;align-items:center;justify-content:space-between;gap:8px;font-weight:900;font-size:13px}
+    #stage3b-summary{margin-top:6px;font-weight:800;font-size:13px}
+    #stage3b-detail{margin:6px 0 0;white-space:pre-wrap;font:650 11px/1.35 ui-monospace,SFMono-Regular,Menlo,monospace;color:#dbeafe}
+    #stage3b-status{margin-top:5px;font-size:12px;color:#93c5fd}
+    #stage3b-actions{display:flex;gap:8px;margin-top:8px}
+    #stage3b-actions button{flex:1;min-height:44px;border:1px solid rgba(255,255,255,.75);border-radius:10px;color:#fff;font-weight:850;font-size:13px}
+    #stage3b-tap-test{background:#1d4ed8}
+    #stage3b-start-runtime{background:#92400e}
+    #stage3b-start-runtime:disabled{opacity:.55}
+    #stage3b-placeholder{padding:28px 20px;color:#cbd5e1;font-size:14px;line-height:1.6}
   </style>
 </head>
 <body>
-  <div id="stage3b-loader">STAGE 3B-0: 完全構成を読み込み中<small>heartbeat計測を最初に注入しています。</small></div>
-  <script>
-  (async function(){
-    'use strict';
+  <section id="stage3b-panel" aria-label="Stage 3B heartbeat diagnostics">
+    <div id="stage3b-title"><span>STAGE 3B-1 PARENT HEARTBEAT</span><span id="stage3b-ready">SHELL READY</span></div>
+    <div id="stage3b-summary">HB 0 / 初期化中</div>
+    <pre id="stage3b-detail">Observer 登録 0 / 発火 0 / records 0
+Microtask 予約 0 / 実行 0
+完全構成 未開始</pre>
+    <div id="stage3b-status">まず「タップ確認」を押してください。その後「完全構成を開始」を押します。</div>
+    <div id="stage3b-actions">
+      <button id="stage3b-tap-test" type="button">タップ確認</button>
+      <button id="stage3b-start-runtime" type="button">完全構成を開始</button>
+    </div>
+  </section>
+  <main id="runtime-host"><div id="stage3b-placeholder">親ページのheartbeatだけが動いています。上の青いボタンが反応することを確認してから、完全構成を開始してください。</div></main>
 
-    function stage3BInstrumentation(){
+  <script>
+  (function(){
+    'use strict';
+    const startedAt=performance.now();
+    const summary=document.getElementById('stage3b-summary');
+    const detail=document.getElementById('stage3b-detail');
+    const status=document.getElementById('stage3b-status');
+    const panel=document.getElementById('stage3b-panel');
+    const tapButton=document.getElementById('stage3b-tap-test');
+    const startButton=document.getElementById('stage3b-start-runtime');
+    const host=document.getElementById('runtime-host');
+    let heartbeat=0;
+    let taps=0;
+    let runtimeState='未開始';
+    let lastHeartbeatAt=0;
+    let maxGap=0;
+    let loading=false;
+
+    function childInstrumentation(){
       'use strict';
-      const startedAt=performance.now();
       const NativeObserver=globalThis.MutationObserver;
       const nativeQueueMicrotask=typeof globalThis.queueMicrotask==='function'
         ? globalThis.queueMicrotask.bind(globalThis)
         : callback=>Promise.resolve().then(callback);
       let activeOwner='';
       const metrics={
-        version:1,
-        heartbeat:0,
-        taps:0,
-        pointerDowns:0,
-        documentClicks:0,
         observerRegistrations:0,
         observerCallbacks:0,
         mutationRecords:0,
         microtasksScheduled:0,
         microtasksRun:0,
-        lastHeartbeatAtMs:0,
-        lastGapMs:0,
-        maxGapMs:0,
-        byOwner:Object.create(null)
+        pointerDowns:0,
+        documentClicks:0,
+        byOwner:Object.create(null),
+        readyState:document.readyState,
+        stage:'probe-installed'
       };
-
+      function publish(){
+        metrics.readyState=document.readyState;
+        try{parent.__capitalismTycoonStage3BChildMetrics=metrics;}catch(_){}
+      }
       function ownerName(){
         const current=document.currentScript;
         const src=current&&current.getAttribute&&current.getAttribute('src');
@@ -54,23 +92,23 @@
         }catch(_){}
         return 'inline/unknown';
       }
-
       function row(owner){
         if(!metrics.byOwner[owner])metrics.byOwner[owner]={registrations:0,callbacks:0,records:0,microtasksScheduled:0,microtasksRun:0};
         return metrics.byOwner[owner];
       }
-
       if(typeof NativeObserver==='function'){
         function Stage3BMutationObserver(callback){
-          if(!(this instanceof Stage3BMutationObserver))throw new TypeError("MutationObserver must be constructed with new");
+          if(!(this instanceof Stage3BMutationObserver))throw new TypeError('MutationObserver must be constructed with new');
           const owner=ownerName();
           metrics.observerRegistrations+=1;
           row(owner).registrations+=1;
+          publish();
           return new NativeObserver((records,observer)=>{
             metrics.observerCallbacks+=1;
             metrics.mutationRecords+=records?records.length:0;
             row(owner).callbacks+=1;
             row(owner).records+=records?records.length:0;
+            if(metrics.observerCallbacks%25===0)publish();
             const previous=activeOwner;
             activeOwner=owner;
             try{return callback(records,observer);}finally{activeOwner=previous;}
@@ -80,85 +118,90 @@
         try{Object.setPrototypeOf(Stage3BMutationObserver,NativeObserver);}catch(_){}
         globalThis.MutationObserver=Stage3BMutationObserver;
       }
-
       globalThis.queueMicrotask=function stage3BQueueMicrotask(callback){
         const owner=ownerName();
         metrics.microtasksScheduled+=1;
         row(owner).microtasksScheduled+=1;
+        if(metrics.microtasksScheduled%25===0)publish();
         return nativeQueueMicrotask(()=>{
           metrics.microtasksRun+=1;
           row(owner).microtasksRun+=1;
+          if(metrics.microtasksRun%25===0)publish();
           const previous=activeOwner;
           activeOwner=owner;
           try{return callback();}finally{activeOwner=previous;}
         });
       };
-
-      const panel=document.getElementById('stage3b-heartbeat-panel');
-      const summary=document.getElementById('stage3b-heartbeat-summary');
-      const detail=document.getElementById('stage3b-heartbeat-detail');
-      const tapButton=document.getElementById('stage3b-tap-test');
-      const status=document.getElementById('stage3b-tap-status');
-
-      function topOwner(){
-        const values=Object.entries(metrics.byOwner);
-        values.sort((a,b)=>b[1].callbacks-a[1].callbacks||b[1].microtasksScheduled-a[1].microtasksScheduled);
-        return values[0]||['なし',{callbacks:0,microtasksScheduled:0}];
-      }
-
-      function paint(){
-        const now=performance.now();
-        const elapsed=now-startedAt;
-        const gap=metrics.lastHeartbeatAtMs?now-metrics.lastHeartbeatAtMs:0;
-        metrics.heartbeat+=1;
-        metrics.lastGapMs=Math.round(gap);
-        metrics.maxGapMs=Math.max(metrics.maxGapMs,Math.round(gap));
-        metrics.lastHeartbeatAtMs=now;
-        const top=topOwner();
-        if(summary)summary.textContent='HB '+metrics.heartbeat+'  経過 '+(elapsed/1000).toFixed(1)+'秒  間隔 '+Math.round(gap)+'ms';
-        if(detail)detail.textContent='Observer 登録 '+metrics.observerRegistrations+' / 発火 '+metrics.observerCallbacks+' / records '+metrics.mutationRecords+'\nMicrotask 予約 '+metrics.microtasksScheduled+' / 実行 '+metrics.microtasksRun+'\n最大HB遅延 '+metrics.maxGapMs+'ms / readyState '+document.readyState+'\n最多発火 '+top[0]+' ('+top[1].callbacks+')';
-        if(panel){
-          panel.dataset.heartbeat=String(metrics.heartbeat);
-          panel.style.borderColor=gap>1000?'#ef4444':gap>500?'#f59e0b':'#22c55e';
-        }
-        globalThis.__capitalismTycoonStage3BHeartbeat={
-          ...metrics,
-          elapsedMs:Math.round(elapsed),
-          byOwner:undefined,
-          topOwners:Object.entries(metrics.byOwner).sort((a,b)=>b[1].callbacks-a[1].callbacks).slice(0,10).map(([owner,value])=>({owner,...value}))
-        };
-      }
-
-      document.addEventListener('pointerdown',()=>{metrics.pointerDowns+=1;},{capture:true});
-      document.addEventListener('click',()=>{metrics.documentClicks+=1;},{capture:true});
-      tapButton&&tapButton.addEventListener('click',event=>{
-        event.preventDefault();
-        event.stopPropagation();
-        metrics.taps+=1;
-        tapButton.textContent='タップ受信 '+metrics.taps+'回';
-        if(status)status.textContent='タップイベント正常: '+new Date().toLocaleTimeString('ja-JP');
-      });
-
-      paint();
-      setInterval(paint,250);
+      document.addEventListener('pointerdown',()=>{metrics.pointerDowns+=1;publish();},{capture:true});
+      document.addEventListener('click',()=>{metrics.documentClicks+=1;publish();},{capture:true});
+      document.addEventListener('DOMContentLoaded',()=>{metrics.stage='dom-content-loaded';publish();},{once:true});
+      globalThis.addEventListener('load',()=>{metrics.stage='window-loaded';publish();},{once:true});
+      publish();
     }
 
-    const response=await fetch('./index.html?stage3b_source='+Date.now(),{cache:'no-store'});
-    if(!response.ok)throw new Error('index.html fetch failed: '+response.status);
-    let html=await response.text();
-    const overlay='<div id="stage3b-heartbeat-panel" style="position:fixed;z-index:2147483647;top:calc(env(safe-area-inset-top) + 6px);left:6px;right:6px;padding:8px 10px;border:3px solid #22c55e;border-radius:12px;background:rgba(3,10,22,.94);color:#fff;font:700 12px/1.35 -apple-system,BlinkMacSystemFont,sans-serif;white-space:normal;pointer-events:auto;box-shadow:0 6px 24px rgba(0,0,0,.45)"><div style="display:flex;gap:8px;align-items:center;justify-content:space-between"><strong>STAGE 3B-0 HEARTBEAT</strong><button id="stage3b-tap-test" type="button" style="min-height:40px;padding:6px 12px;border:1px solid #fff;border-radius:9px;background:#1d4ed8;color:#fff;font-weight:800">ここをタップ</button></div><div id="stage3b-heartbeat-summary" style="margin-top:4px">初期化中</div><pre id="stage3b-heartbeat-detail" style="margin:4px 0 0;white-space:pre-wrap;font:600 11px/1.3 ui-monospace,SFMono-Regular,Menlo,monospace"></pre><div id="stage3b-tap-status" style="margin-top:3px;color:#93c5fd">タップ待機中</div></div>';
-    const probe='<script>('+stage3BInstrumentation.toString()+')();<\/script>';
-    html=html.replace(/<title>[\s\S]*?<\/title>/i,'<title>資本主義ポケット TYCOON Stage 3B Heartbeat</title>');
-    if(!/<body[^>]*>/i.test(html))throw new Error('index.html body not found');
-    html=html.replace(/<body([^>]*)>/i,'<body$1>'+overlay+probe);
-    document.open();
-    document.write(html);
-    document.close();
-  })().catch(error=>{
-    const loader=document.getElementById('stage3b-loader');
-    if(loader){loader.textContent='STAGE 3B-0 起動失敗: '+String(error&&error.message||error);loader.style.color='#fecaca';}
-    console.error(error);
-  });
+    function topOwner(metrics){
+      const entries=Object.entries(metrics&&metrics.byOwner||{});
+      entries.sort((a,b)=>b[1].callbacks-a[1].callbacks||b[1].microtasksScheduled-a[1].microtasksScheduled);
+      return entries[0]||['なし',{callbacks:0,microtasksScheduled:0}];
+    }
+
+    function paint(){
+      const now=performance.now();
+      const gap=lastHeartbeatAt?now-lastHeartbeatAt:0;
+      heartbeat+=1;
+      maxGap=Math.max(maxGap,Math.round(gap));
+      lastHeartbeatAt=now;
+      const metrics=globalThis.__capitalismTycoonStage3BChildMetrics||{};
+      const top=topOwner(metrics);
+      summary.textContent='HB '+heartbeat+' / 経過 '+((now-startedAt)/1000).toFixed(1)+'秒 / 間隔 '+Math.round(gap)+'ms';
+      detail.textContent='Observer 登録 '+(metrics.observerRegistrations||0)+' / 発火 '+(metrics.observerCallbacks||0)+' / records '+(metrics.mutationRecords||0)+'\nMicrotask 予約 '+(metrics.microtasksScheduled||0)+' / 実行 '+(metrics.microtasksRun||0)+'\n最大HB遅延 '+maxGap+'ms / child '+(metrics.readyState||'-')+' / '+(metrics.stage||runtimeState)+'\n最多発火 '+top[0]+' ('+(top[1].callbacks||0)+')';
+      panel.style.borderColor=gap>1000?'#ef4444':gap>500?'#f59e0b':'#22c55e';
+      globalThis.__capitalismTycoonStage3BParentHeartbeat={heartbeat,elapsedMs:Math.round(now-startedAt),gapMs:Math.round(gap),maxGapMs:maxGap,runtimeState};
+    }
+
+    async function startRuntime(){
+      if(loading)return;
+      loading=true;
+      runtimeState='HTML取得中';
+      startButton.disabled=true;
+      startButton.textContent='起動中';
+      status.textContent='親heartbeatを残したまま、iframe内で完全構成を起動します。';
+      try{
+        const response=await fetch('./index.html?stage3b_source='+Date.now(),{cache:'no-store'});
+        if(!response.ok)throw new Error('index.html fetch failed: '+response.status);
+        let html=await response.text();
+        const probe='<script>('+childInstrumentation.toString()+')();<\/script>';
+        if(!/<body[^>]*>/i.test(html))throw new Error('index.html body not found');
+        html=html.replace(/<title>[\s\S]*?<\/title>/i,'<title>資本主義ポケット TYCOON Stage 3B Runtime</title>');
+        html=html.replace(/<body([^>]*)>/i,'<body$1>'+probe);
+        await new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve)));
+        runtimeState='完全構成を投入';
+        const frame=document.createElement('iframe');
+        frame.id='stage3b-runtime-frame';
+        frame.title='Stage 3B complete runtime';
+        frame.setAttribute('sandbox','allow-scripts allow-same-origin allow-forms allow-modals allow-downloads');
+        frame.addEventListener('load',()=>{runtimeState='iframe load発火';status.textContent='iframeのloadイベントを受信しました。ゲーム側操作も確認してください。';},{once:true});
+        frame.srcdoc=html;
+        host.replaceChildren(frame);
+      }catch(error){
+        runtimeState='起動失敗';
+        status.textContent='Stage 3B起動失敗: '+String(error&&error.message||error);
+        status.style.color='#fecaca';
+        startButton.disabled=false;
+        startButton.textContent='再試行';
+        loading=false;
+      }
+    }
+
+    tapButton.addEventListener('click',()=>{
+      taps+=1;
+      tapButton.textContent='タップ受信 '+taps+'回';
+      status.textContent='親ページのタップイベント正常: '+new Date().toLocaleTimeString('ja-JP');
+    });
+    startButton.addEventListener('click',startRuntime);
+    paint();
+    setInterval(paint,250);
+  })();
   </script>
 </body>
 </html>
