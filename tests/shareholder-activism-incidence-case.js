@@ -8,6 +8,8 @@ const BASE_SCENARIO = SCENARIOS.find(row => row.id === 'ramen-bootstrap');
 const GROWTH_STORE_LIMIT = 6;
 const BALANCED_STORE_LIMIT = 5;
 const GROWTH_RND_INVESTMENT = 1_500_000;
+const BALANCED_RESERVE = 30_000_000;
+const BALANCED_BUYBACK_LIMIT = 5_000_000;
 
 function continuationSeed(seed, style) {
   let value = seed >>> 0;
@@ -43,16 +45,25 @@ function investInGrowth(engine, reserve) {
   return Boolean(engine.investBusiness('ramen','quality',GROWTH_RND_INVESTMENT));
 }
 
+function buyBackBalancedCapital(engine) {
+  const capacity = engine.shareholderReturnCapacity();
+  const cashRoom = Math.max(0, Number(engine.g.companyCash || 0) - BALANCED_RESERVE);
+  const amount = Math.floor(Math.min(BALANCED_BUYBACK_LIMIT, Number(capacity?.safeAmount || 0) * 0.2, cashRoom));
+  if (amount < Math.max(1, Number(engine.g.stockPrice || 0))) return false;
+  return Boolean(engine.buybackOwnShares(amount));
+}
+
 function applyStyle(engine, modules, style, postIpoWeek) {
   if (style === 'growth-reinvestment') {
     if (postIpoWeek % 6 === 0) investInGrowth(engine, 12_000_000);
     if (postIpoWeek % 13 === 0) openGrowthStore(engine, 'ramen', 12_000_000, GROWTH_STORE_LIMIT);
   }
   if (style === 'balanced-returns') {
-    if (postIpoWeek % 26 === 0) openGrowthStore(engine, 'ramen', 30_000_000, BALANCED_STORE_LIMIT);
+    if (postIpoWeek % 26 === 0) openGrowthStore(engine, 'ramen', BALANCED_RESERVE, BALANCED_STORE_LIMIT);
     const capacity = engine.shareholderReturnCapacity();
     const dividend = Number(capacity?.maxDividendPerShare || 0) * 0.9;
     if (dividend > 0) engine.setDividend(dividend);
+    if (postIpoWeek % 13 === 0) buyBackBalancedCapital(engine);
   }
   assert(modules.finance.validate(engine.g).ok, 'weekly style action must keep finance valid');
 }
@@ -60,6 +71,7 @@ function applyStyle(engine, modules, style, postIpoWeek) {
 function triggerDiagnostic(engine) {
   const state=engine.g;
   const value=engine.getShareholderValueDestructionPressure();
+  const capital=engine.getShareholderActivismPressure();
   const stores=activeStores(engine);
   const profits=(state.weeklyProfitHistory||[]).slice(-13).map(Number);
   const values=(state.companyValueHistory||[]).slice(-13).map(Number);
@@ -68,6 +80,11 @@ function triggerDiagnostic(engine) {
   const operatingRecovery=aggregateStoreProfit>0||trailingProfit>0||(values.length>=4&&Number(state.lastReport?.profit||0)>0&&Number(values.at(-1)||0)>=Number(values[0]||0));
   return {
     triggerPath:String(state.activeActivistCampaign?.triggerPath||''),
+    capitalScore:Number(Number(capital.score||0).toFixed(4)),
+    capitalThreshold:Number(capital.threshold||0),
+    cashPressure:Number(Number(capital.metrics?.cashPressure||0).toFixed(4)),
+    dividendPressure:Number(Number(capital.metrics?.dividendPressure||0).toFixed(4)),
+    cashHoardingBonus:Number(capital.metrics?.cashHoardingBonus||0),
     stockPrice:Number(Number(state.stockPrice||0).toFixed(4)),
     valuePressure:Number(Number(value.valueDestructionPressure||0).toFixed(4)),
     recoveryRatio:Number(Number(value.recoveryRatio||0).toFixed(4)),
