@@ -5,6 +5,8 @@ const { SCENARIOS, makeRandom, runScenario } = require('./strategy-balance-runne
 
 const WEEKS = 208;
 const BASE_SCENARIO = SCENARIOS.find(row => row.id === 'ramen-bootstrap');
+const GROWTH_STORE_LIMIT = 6;
+const BALANCED_STORE_LIMIT = 5;
 
 function continuationSeed(seed, style) {
   let value = seed >>> 0;
@@ -12,8 +14,21 @@ function continuationSeed(seed, style) {
   return value;
 }
 
-function openGrowthStore(engine, businessID, reserve) {
-  if (engine.g.companyCash <= reserve || engine.g.stores.length >= 10) return false;
+function activeStores(engine) {
+  return engine.g.stores.filter(row => row && !['closed','sold'].includes(String(row.status || 'open')));
+}
+
+function healthyExpansionReady(engine) {
+  const stores = activeStores(engine);
+  if (stores.some(row => String(row.status || 'open') !== 'open')) return false;
+  const aggregateProfit = stores.reduce((sum,row) => sum + Number(row.lastProfit || 0), 0);
+  const recent = (engine.g.weeklyProfitHistory || []).slice(-8).map(Number);
+  const recentProfit = recent.reduce((sum,row) => sum + (Number.isFinite(row) ? row : 0), 0);
+  return aggregateProfit > 0 && (recent.length < 4 || recentProfit > 0);
+}
+
+function openGrowthStore(engine, businessID, reserve, storeLimit) {
+  if (engine.g.companyCash <= reserve || activeStores(engine).length >= storeLimit || !healthyExpansionReady(engine)) return false;
   const business = engine.business(businessID);
   const tenant = engine.g.tenants.filter(row => !row.occupiedBy).sort((a,b) => b.traffic-a.traffic || a.deposit-b.deposit)[0];
   if (!business || !tenant) return false;
@@ -23,9 +38,9 @@ function openGrowthStore(engine, businessID, reserve) {
 }
 
 function applyStyle(engine, modules, style, postIpoWeek) {
-  if (style === 'growth-reinvestment' && postIpoWeek % 8 === 0) openGrowthStore(engine, 'ramen', 12_000_000);
+  if (style === 'growth-reinvestment' && postIpoWeek % 13 === 0) openGrowthStore(engine, 'ramen', 12_000_000, GROWTH_STORE_LIMIT);
   if (style === 'balanced-returns') {
-    if (postIpoWeek % 13 === 0) openGrowthStore(engine, 'ramen', 30_000_000);
+    if (postIpoWeek % 26 === 0) openGrowthStore(engine, 'ramen', 30_000_000, BALANCED_STORE_LIMIT);
     if (postIpoWeek % 13 === 1) {
       const capacity = engine.shareholderReturnCapacity();
       const dividend = Number(capacity?.maxDividendPerShare || 0) * 0.25;
@@ -35,12 +50,15 @@ function applyStyle(engine, modules, style, postIpoWeek) {
   assert(modules.finance.validate(engine.g).ok, 'weekly style action must keep finance valid');
 }
 
-function triggerDiagnostic(engine, modules) {
+function triggerDiagnostic(engine) {
   const state=engine.g;
   const value=engine.getShareholderValueDestructionPressure();
-  const stores=(state.stores||[]).filter(row=>row&&!['closed','sold'].includes(String(row.status||'open')));
+  const stores=activeStores(engine);
   const profits=(state.weeklyProfitHistory||[]).slice(-13).map(Number);
   const values=(state.companyValueHistory||[]).slice(-13).map(Number);
+  const aggregateStoreProfit=stores.reduce((sum,row)=>sum+Number(row.lastProfit||0),0);
+  const trailingProfit=profits.reduce((sum,row)=>sum+(Number.isFinite(row)?row:0),0);
+  const operatingRecovery=aggregateStoreProfit>0||trailingProfit>0||(values.length>=4&&Number(state.lastReport?.profit||0)>0&&Number(values.at(-1)||0)>=Number(values[0]||0));
   return {
     triggerPath:String(state.activeActivistCampaign?.triggerPath||''),
     stockPrice:Number(Number(state.stockPrice||0).toFixed(4)),
@@ -50,15 +68,26 @@ function triggerDiagnostic(engine, modules) {
     averageHighDrawdown:Number(Number(value.averageHighDrawdown||0).toFixed(4)),
     cumulativeUnderperformance:Number(Number(value.cumulativeUnderperformance||0).toFixed(4)),
     persistenceRatio:Number(Number(value.persistenceRatio||0).toFixed(4)),
-    operatingRecovery:modules.shareholderValueDestruction.operatingRecoveryForWeek(state),
+    operatingRecovery,
     activeStores:stores.length,
-    aggregateStoreProfit:Math.round(stores.reduce((sum,row)=>sum+Number(row.lastProfit||0),0)),
-    trailingProfit:Math.round(profits.reduce((sum,row)=>sum+(Number.isFinite(row)?row:0),0)),
+    aggregateStoreProfit:Math.round(aggregateStoreProfit),
+    trailingProfit:Math.round(trailingProfit),
     trailingProfitWeeks:profits.length,
     latestReportProfit:Math.round(Number(state.lastReport?.profit||0)),
     companyValueStart:Math.round(Number(values[0]||0)),
     companyValueEnd:Math.round(Number(values.at(-1)||0)),
     companyValueWeeks:values.length
+  };
+}
+
+function operatingSummary(engine) {
+  const stores=activeStores(engine);
+  const profits=(engine.g.weeklyProfitHistory||[]).slice(-13).map(Number);
+  return {
+    activeStores:stores.length,
+    aggregateStoreProfit:Math.round(stores.reduce((sum,row)=>sum+Number(row.lastProfit||0),0)),
+    trailingProfit:Math.round(profits.reduce((sum,row)=>sum+(Number.isFinite(row)?row:0),0)),
+    trailingProfitWeeks:profits.length
   };
 }
 
@@ -91,7 +120,7 @@ function runCase(style, seed) {
     const after=(engine.g.activistCampaignHistory||[]).filter(row=>row?.type==='campaignStarted').length;
     if (after>before && firstCampaignWeek===null) {
       firstCampaignWeek=engine.g.week;
-      firstCampaignDiagnostic=triggerDiagnostic(engine,loaded.modules);
+      firstCampaignDiagnostic=triggerDiagnostic(engine);
     }
   }
   const history=engine.g.activistCampaignHistory||[];
@@ -104,7 +133,7 @@ function runCase(style, seed) {
   const finance=loaded.modules.finance.ensureFinance(engine.g);
   return {style,seed,ipoWeek:ipo.ipoWeek,firstCampaignWeek,firstCampaignDiagnostic,campaignCount,campaignsByPath,maxPressure,
     endingCash:Math.round(engine.g.companyCash),retainedEarnings:Math.round(finance.balances?.retainedEarnings||0),
-    dividendPerShare:Number(engine.g.dividendPerShare||0),stores:engine.g.stores.length,
+    dividendPerShare:Number(engine.g.dividendPerShare||0),stores:engine.g.stores.length,operatingSummary:operatingSummary(engine),
     companyValue:Math.round(engine.companyValue()),finalWeek:engine.g.week};
 }
 
