@@ -54,6 +54,22 @@ jobs:
         run: |
           node <<'NODE'
           const fs=require('node:fs'),path=require('node:path');
+          const stage1=[
+            'ma-portfolio-summary-ui.js','real-estate-capex-actuals-ui.js','real-estate-capex-actuals.js',
+            'real-estate-capex-roi-ui.js','real-estate-capex-roi.js','real-estate-complete-cycle.js',
+            'real-estate-development.js','real-estate-insurance-claims.js','real-estate-insurance-risk.js',
+            'real-estate-maintenance-reserves.js','real-estate-mortgage-refinancing.js',
+            'real-estate-portfolio-dashboard-ui.js','real-estate-portfolio-dashboard.js',
+            'real-estate-property-disposals.js','real-estate-property-insurance.js',
+            'real-estate-property-maintenance.js','real-estate-property-management.js',
+            'real-estate-property-taxes.js','real-estate-redevelopment-projects.js',
+            'real-estate-rent-guarantee.js','real-estate-rent-performance-ui.js',
+            'real-estate-rent-performance.js','real-estate-rent-pricing.js','real-estate-risk-mitigation.js',
+            'real-estate-safety-certification.js','real-estate-security-deposits.js',
+            'real-estate-tenant-collections.js','real-estate-tenant-contracts.js',
+            'real-estate-tenant-leasing.js','real-estate-tenant-operations.js',
+            'real-estate-tenant-renewals.js','real-estate-ui.js','real-estate.js'
+          ];
           const remaining=[];
           for(const name of fs.readdirSync('js').filter(x=>x.endsWith('.js')).sort()){
             const source=fs.readFileSync(path.join('js',name),'utf8');
@@ -65,7 +81,7 @@ jobs:
           const scripts=[...html.matchAll(/<script[^>]+src=["']\.\/js\/([^"'?]+\.js)/g)].map(m=>m[1]);
           const duplicates=scripts.filter((x,i)=>scripts.indexOf(x)!==i);
           if(duplicates.length)throw new Error(`duplicate static scripts: ${[...new Set(duplicates)].join(', ')}`);
-          for(const name of files)if(!scripts.includes(name))throw new Error(`${name} is not statically registered`);
+          for(const name of stage1)if(!scripts.includes(name))throw new Error(`${name} is not statically registered`);
           console.log(`static scripts: ${scripts.length}; remaining special loaders: ${remaining.join(', ')}`);
           NODE
       - name: Run canonical tests
