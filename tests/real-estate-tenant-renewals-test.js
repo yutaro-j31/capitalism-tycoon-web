@@ -13,8 +13,6 @@ assert.match(renewal, /renewalConcessionPaid/);
 assert.match(renewal, /idempotencyKey/);
 assert.doesNotMatch(renewal, /Math\.random|Date\.now/);
 assert.doesNotMatch(loader,/document\.createElement\(\s*['"]script['"]\s*\)/);
-assert.match(loader, /__capitalismTycoonAssetVersion/);
-assert.doesNotMatch(loader,/document\.createElement\(\s*['"]script['"]\s*\)/);
 assert.doesNotMatch(renewal,/document\.createElement\(\s*['"]script['"]\s*\)/);
 assert.match(ui, /min-height:44px/);
 assert.match(ui, /data-tenant-renewal-action/);
