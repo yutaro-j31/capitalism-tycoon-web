@@ -18,13 +18,12 @@ jobs:
         with:
           ref: fix/boot-observer-livelock-diagnostics
           fetch-depth: 0
-      - name: Patch canonical entry and WebKit gate
+      - name: Patch canonical entry
         shell: bash
         run: |
           set -euo pipefail
           python - <<'PY'
           from pathlib import Path
-
           index = Path('index.html')
           text = index.read_text()
           target = '<script src="./js/boot-recovery.js"></script>'
@@ -32,30 +31,17 @@ jobs:
           if diagnostic not in text:
               if target not in text:
                   raise SystemExit('boot-recovery script tag not found')
-              text = text.replace(target, diagnostic + target, 1)
-              index.write_text(text)
-
-          workflow = Path('.github/workflows/iphone-webkit-smoke.yml')
-          content = workflow.read_text()
-          marker = '  push:\n    branches: [main]\n'
-          pull_request = '  pull_request:\n    branches: [main]\n'
-          if pull_request not in content:
-              if marker not in content:
-                  raise SystemExit('iphone workflow push trigger not found')
-              content = content.replace(marker, marker + pull_request, 1)
-              workflow.write_text(content)
+              index.write_text(text.replace(target, diagnostic + target, 1))
           PY
-          rm .github/workflows/_bootstrap-boot-diagnostics.yml
       - name: Validate patch
         run: |
           grep -q '<script src="./js/boot-diagnostics.js"></script><script src="./js/boot-recovery.js"></script>' index.html
-          grep -q 'pull_request:' .github/workflows/iphone-webkit-smoke.yml
           node --check js/boot-diagnostics.js
           node --check tests/boot-observer-diagnostics-test.js
-      - name: Commit patch
+      - name: Commit index patch
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add index.html .github/workflows/iphone-webkit-smoke.yml .github/workflows/_bootstrap-boot-diagnostics.yml
-          git commit -m "diagnostics: wire earliest boot probe and PR WebKit gate"
+          git add index.html
+          git commit -m "diagnostics: load boot probe before recovery"
           git push origin HEAD:fix/boot-observer-livelock-diagnostics
