@@ -3,6 +3,8 @@ name: iPhone WebKit Smoke
 on:
   push:
     branches: [main]
+  pull_request:
+    branches: [main]
   schedule:
     - cron: '35 2 * * *'
   workflow_dispatch:
