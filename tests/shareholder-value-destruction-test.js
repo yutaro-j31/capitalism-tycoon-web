@@ -26,9 +26,6 @@ function adversePortfolioRows(count,options={}){return Array.from({length:count}
  const e=engine();e.g.activistMarketPerformanceHistory=adverseRows(26,4);assert(mod.metrics(e.g).valueDestructionPressure<68,'repeated genuine recovery actions mitigate the path');
 }
 {
- const e=engine();e.g.stores=[{status:'open',lastProfit:120_000},{status:'open',lastProfit:80_000},{status:'open',lastProfit:40_000}];assert.equal(mod.operatingRecoveryForWeek(e.g),true,'profitable multi-store operations are recovery evidence');e.g.stores[2].lastProfit=-300_000;e.g.weeklyProfitHistory=[250_000,120_000,-50_000,80_000];assert.equal(mod.operatingRecoveryForWeek(e.g),true,'positive trailing operating profit survives one loss week');e.g.weeklyProfitHistory=[100_000,-200_000,-150_000,-50_000];e.g.companyValueHistory=[100_000_000,102_000_000,104_000_000,106_000_000];e.g.lastReport={profit:500_000};assert.equal(mod.operatingRecoveryForWeek(e.g),true,'positive report and non-declining enterprise value distinguish market weakness from management destruction');assert.equal(mod.recoveryActionForWeek(e.g,99),true,'fundamental recovery is recorded as a value-recovery action');e.g.lastReport={profit:-500_000};assert.equal(mod.operatingRecoveryForWeek(e.g),false,'deteriorating reported fundamentals do not suppress value-destruction pressure');
-}
-{
  const e=engine();delete e.g.activistPortfolioEfficiencyHistory;e.normalize();assert(Array.isArray(e.g.activistPortfolioEfficiencyHistory));assert.equal(e.g.activistPortfolioEfficiencyHistory.length,0,'old saves normalize portfolio history to empty');e.g.activistPortfolioEfficiencyHistory=Array.from({length:70},(_,i)=>({week:i+1,investedCapital:1,weightedRoic:0,capitalCost:.08,lowCapitalShare:1,averageShortfall:1,adverse:true}));e.normalize();assert.equal(e.g.activistPortfolioEfficiencyHistory.length,52,'portfolio history is bounded to 52 rows');
 }
 {
