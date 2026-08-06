@@ -1,0 +1,206 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,user-scalable=no">
+  <meta name="theme-color" content="#08101f">
+  <title>資本主義ポケット TYCOON Stage 3B-2 Prefix Probe</title>
+  <style>
+    :root{color-scheme:dark}
+    *{box-sizing:border-box}
+    html,body{margin:0;width:100%;height:100%;overflow:hidden;background:#08101f;color:#fff;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}
+    #runtime-host{position:fixed;inset:0;background:#08101f;padding-top:258px}
+    #runtime-host iframe{display:block;width:100%;height:100%;border:0;background:#08101f}
+    #panel{position:fixed;z-index:2147483647;top:calc(env(safe-area-inset-top) + 6px);left:7px;right:7px;min-height:244px;padding:10px 12px;border:3px solid #22c55e;border-radius:14px;background:rgba(3,10,22,.98);box-shadow:0 8px 28px rgba(0,0,0,.5)}
+    #title{display:flex;align-items:center;justify-content:space-between;gap:8px;font-weight:900;font-size:13px}
+    #summary{margin-top:6px;font-weight:800;font-size:13px}
+    #detail{margin:6px 0 0;white-space:pre-wrap;font:650 11px/1.35 ui-monospace,SFMono-Regular,Menlo,monospace;color:#dbeafe}
+    #status{margin-top:5px;font-size:12px;color:#93c5fd}
+    #actions{display:grid;grid-template-columns:1fr 1fr;gap:7px;margin-top:8px}
+    button,a.probe{display:flex;align-items:center;justify-content:center;min-height:42px;border:1px solid rgba(255,255,255,.72);border-radius:10px;color:#fff;font-weight:850;font-size:12px;text-decoration:none}
+    #tap{background:#1d4ed8} #start{background:#92400e} #start:disabled{opacity:.55}
+    a.probe{background:#172554} a.probe.active{outline:3px solid #f59e0b}
+    #placeholder{padding:28px 20px;color:#cbd5e1;font-size:14px;line-height:1.6}
+  </style>
+</head>
+<body>
+  <section id="panel" aria-label="Stage 3B prefix diagnostics">
+    <div id="title"><span>STAGE 3B-2 PREFIX HEARTBEAT</span><span id="ready">SHELL READY</span></div>
+    <div id="summary">HB 0 / 初期化中</div>
+    <pre id="detail">prefix 読込前
+Observer 0 / Microtask 0
+動的script遮断 0</pre>
+    <div id="status">青いボタンを3回押してから、選択prefixを開始してください。</div>
+    <div id="actions">
+      <button id="tap" type="button">タップ確認</button>
+      <button id="start" type="button">選択prefixを開始</button>
+      <a class="probe" data-cut="app" href="?cut=app">CORE app.jsまで</a>
+      <a class="probe" data-cut="70" href="?cut=70">PREFIX 70</a>
+      <a class="probe" data-cut="91" href="?cut=91">PREFIX 91</a>
+      <a class="probe" data-cut="92" href="?cut=92">PREFIX 92</a>
+    </div>
+  </section>
+  <main id="runtime-host"><div id="placeholder">親heartbeatだけが動いています。選択中のprefixより後の静的scriptと動的scriptを遮断して起動します。</div></main>
+
+  <script>
+  (function(){
+    'use strict';
+    const query=new URLSearchParams(location.search);
+    const requestedCut=query.get('cut')||'app';
+    document.querySelectorAll('.probe').forEach(link=>link.classList.toggle('active',link.dataset.cut===requestedCut));
+
+    const startedAt=performance.now();
+    const summary=document.getElementById('summary');
+    const detail=document.getElementById('detail');
+    const status=document.getElementById('status');
+    const panel=document.getElementById('panel');
+    const tapButton=document.getElementById('tap');
+    const startButton=document.getElementById('start');
+    const host=document.getElementById('runtime-host');
+    let heartbeat=0,taps=0,lastHeartbeatAt=0,maxGap=0,loading=false;
+    let runtimeState='未開始';
+
+    function childInstrumentation(allowedPaths,meta){
+      'use strict';
+      const allowed=new Set(allowedPaths||[]);
+      const threshold=10000;
+      const NativeObserver=globalThis.MutationObserver;
+      const nativeQueueMicrotask=typeof globalThis.queueMicrotask==='function'?globalThis.queueMicrotask.bind(globalThis):callback=>Promise.resolve().then(callback);
+      const observers=new Set();
+      let activeOwner='',forced=false;
+      const metrics={
+        cut:meta.cut,label:meta.label,totalScripts:meta.totalScripts,lastStaticScript:meta.lastStaticScript,
+        observerRegistrations:0,observerCallbacks:0,mutationRecords:0,
+        microtasksScheduled:0,microtasksRun:0,droppedMicrotasks:0,
+        blockedDynamicScripts:0,lastBlockedScript:'',pointerDowns:0,documentClicks:0,
+        forceDisconnected:false,readyState:document.readyState,stage:'probe-installed',byOwner:Object.create(null)
+      };
+      const activity=()=>metrics.observerCallbacks+metrics.microtasksScheduled+metrics.microtasksRun;
+      function publish(){metrics.readyState=document.readyState;try{parent.__capitalismTycoonStage3BPrefixMetrics=metrics;}catch(_){}}
+      function ownerName(){
+        const current=document.currentScript,src=current&&current.getAttribute&&current.getAttribute('src');
+        if(src)return src.replace(/^.*\/js\//,'js/');
+        if(activeOwner)return activeOwner;
+        try{const match=String(new Error().stack||'').match(/(?:https?:\/\/[^)\s]+\/)?(js\/[^):\s?]+)/);if(match)return match[1];}catch(_){}
+        return 'inline/unknown';
+      }
+      function row(owner){if(!metrics.byOwner[owner])metrics.byOwner[owner]={registrations:0,callbacks:0,records:0,microtasksScheduled:0,microtasksRun:0};return metrics.byOwner[owner];}
+      function forceStop(reason){
+        if(forced)return;
+        forced=true;metrics.forceDisconnected=true;metrics.stage='threshold:'+reason;
+        observers.forEach(observer=>{try{observer.disconnect();}catch(_){}});
+        publish();
+      }
+      function enforce(reason){if(activity()>=threshold)forceStop(reason);}
+      function scriptPath(node){
+        if(String(node&&node.tagName||'').toUpperCase()!=='SCRIPT')return '';
+        const raw=node.getAttribute&&node.getAttribute('src')||node.src||'';
+        if(!raw)return '';
+        try{return new URL(raw,document.baseURI).pathname;}catch(_){return raw;}
+      }
+      function block(node){
+        const path=scriptPath(node);
+        if(!path||allowed.has(path))return false;
+        metrics.blockedDynamicScripts+=1;metrics.lastBlockedScript=path;publish();return true;
+      }
+      const nativeAppend=Node.prototype.appendChild;
+      const nativeInsert=Node.prototype.insertBefore;
+      const nativeReplace=Node.prototype.replaceChild;
+      Node.prototype.appendChild=function(node){if(block(node))return node;return nativeAppend.call(this,node);};
+      Node.prototype.insertBefore=function(node,ref){if(block(node))return node;return nativeInsert.call(this,node,ref);};
+      Node.prototype.replaceChild=function(node,old){if(block(node))return old;return nativeReplace.call(this,node,old);};
+
+      if(typeof NativeObserver==='function'){
+        function ProbeObserver(callback){
+          if(!(this instanceof ProbeObserver))throw new TypeError('MutationObserver must be constructed with new');
+          const owner=ownerName();metrics.observerRegistrations+=1;row(owner).registrations+=1;publish();
+          const observer=new NativeObserver((records,nativeObserver)=>{
+            if(forced)return;
+            metrics.observerCallbacks+=1;metrics.mutationRecords+=records?records.length:0;
+            row(owner).callbacks+=1;row(owner).records+=records?records.length:0;enforce('observer');if(forced)return;
+            const previous=activeOwner;activeOwner=owner;
+            try{return callback(records,nativeObserver);}finally{activeOwner=previous;if(activity()%25<3)publish();enforce('observer-complete');}
+          });
+          observers.add(observer);return observer;
+        }
+        ProbeObserver.prototype=NativeObserver.prototype;
+        try{Object.setPrototypeOf(ProbeObserver,NativeObserver);}catch(_){}
+        globalThis.MutationObserver=ProbeObserver;
+      }
+      globalThis.queueMicrotask=function(callback){
+        const owner=ownerName();metrics.microtasksScheduled+=1;row(owner).microtasksScheduled+=1;enforce('microtask-scheduled');
+        if(forced){metrics.droppedMicrotasks+=1;return;}
+        return nativeQueueMicrotask(()=>{
+          if(forced){metrics.droppedMicrotasks+=1;return;}
+          metrics.microtasksRun+=1;row(owner).microtasksRun+=1;enforce('microtask-run');if(forced)return;
+          const previous=activeOwner;activeOwner=owner;
+          try{return callback();}finally{activeOwner=previous;if(activity()%25<3)publish();enforce('microtask-complete');}
+        });
+      };
+      document.addEventListener('pointerdown',()=>{metrics.pointerDowns+=1;publish();},{capture:true});
+      document.addEventListener('click',()=>{metrics.documentClicks+=1;publish();},{capture:true});
+      document.addEventListener('DOMContentLoaded',()=>{metrics.stage='dom-content-loaded';publish();},{once:true});
+      globalThis.addEventListener('load',()=>{metrics.stage='window-loaded';publish();},{once:true});
+      publish();
+    }
+
+    function topOwner(metrics){
+      const entries=Object.entries(metrics&&metrics.byOwner||{});
+      entries.sort((a,b)=>b[1].callbacks-a[1].callbacks||b[1].microtasksScheduled-a[1].microtasksScheduled);
+      return entries[0]||['なし',{callbacks:0,microtasksScheduled:0}];
+    }
+    function paint(){
+      const now=performance.now(),gap=lastHeartbeatAt?now-lastHeartbeatAt:0;
+      heartbeat+=1;maxGap=Math.max(maxGap,Math.round(gap));lastHeartbeatAt=now;
+      const m=globalThis.__capitalismTycoonStage3BPrefixMetrics||{},top=topOwner(m);
+      summary.textContent='HB '+heartbeat+' / 経過 '+((now-startedAt)/1000).toFixed(1)+'秒 / 間隔 '+Math.round(gap)+'ms';
+      detail.textContent='prefix '+(m.label||requestedCut)+' / '+(m.cut||'-')+'/'+(m.totalScripts||'-')+' / 最終 '+(m.lastStaticScript||'-')+'\nObserver 登録 '+(m.observerRegistrations||0)+' / 発火 '+(m.observerCallbacks||0)+' / records '+(m.mutationRecords||0)+'\nMicrotask 予約 '+(m.microtasksScheduled||0)+' / 実行 '+(m.microtasksRun||0)+' / drop '+(m.droppedMicrotasks||0)+'\n動的script遮断 '+(m.blockedDynamicScripts||0)+' / '+(m.lastBlockedScript||'-')+'\n最大HB遅延 '+maxGap+'ms / child '+(m.readyState||'-')+' / '+(m.stage||runtimeState)+'\n最多発火 '+top[0]+' ('+(top[1].callbacks||0)+')';
+      panel.style.borderColor=gap>1000?'#ef4444':gap>500?'#f59e0b':'#22c55e';
+    }
+
+    async function startPrefix(){
+      if(loading)return;loading=true;startButton.disabled=true;startButton.textContent='起動中';runtimeState='HTML取得中';
+      status.textContent='canonical index.htmlから指定prefixを生成しています。';
+      try{
+        const response=await fetch('./index.html?prefix_source='+Date.now(),{cache:'no-store'});
+        if(!response.ok)throw new Error('index.html fetch failed: '+response.status);
+        const source=await response.text();
+        const doc=new DOMParser().parseFromString(source,'text/html');
+        const scripts=[...doc.querySelectorAll('script')];
+        const appIndex=scripts.findIndex(script=>(script.getAttribute('src')||'').endsWith('/js/app.js')||(script.getAttribute('src')||'')==='./js/app.js');
+        let cut;
+        if(requestedCut==='app')cut=appIndex+1;
+        else if(requestedCut==='full')cut=scripts.length;
+        else cut=Math.max(1,Math.min(scripts.length,Number(requestedCut)||appIndex+1));
+        if(appIndex<0)throw new Error('app.js not found');
+        const retained=scripts.slice(0,cut);
+        const allowedPaths=retained.map(script=>script.getAttribute('src')).filter(Boolean).map(src=>new URL(src,location.href).pathname);
+        scripts.slice(cut).forEach(script=>script.remove());
+        const last=retained[retained.length-1];
+        const meta={cut,label:requestedCut,totalScripts:scripts.length,lastStaticScript:last&&((last.getAttribute('src'))||('[inline '+cut+']'))};
+        let base=doc.querySelector('base');
+        if(!base){base=doc.createElement('base');base.href='./';doc.head.prepend(base);}
+        const probe=doc.createElement('script');
+        probe.textContent='('+childInstrumentation.toString()+')('+JSON.stringify(allowedPaths)+','+JSON.stringify(meta)+');';
+        doc.body.prepend(probe);
+        const html='<!doctype html>\n'+doc.documentElement.outerHTML;
+        await new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve)));
+        runtimeState='prefix投入';
+        const frame=document.createElement('iframe');
+        frame.title='Stage 3B prefix runtime';
+        frame.setAttribute('sandbox','allow-scripts allow-same-origin allow-forms allow-modals allow-downloads');
+        frame.addEventListener('load',()=>{runtimeState='iframe load発火';status.textContent='prefixのloadイベントを受信しました。ゲーム側のタップと週送りを確認してください。';},{once:true});
+        frame.srcdoc=html;host.replaceChildren(frame);
+      }catch(error){
+        runtimeState='起動失敗';status.textContent='起動失敗: '+String(error&&error.message||error);status.style.color='#fecaca';
+        startButton.disabled=false;startButton.textContent='再試行';loading=false;
+      }
+    }
+
+    tapButton.addEventListener('click',()=>{taps+=1;tapButton.textContent='タップ受信 '+taps+'回';status.textContent='親タップ正常。選択prefixは '+requestedCut+' です。';});
+    startButton.addEventListener('click',startPrefix);
+    paint();setInterval(paint,250);
+  })();
+  </script>
+</body>
+</html>
