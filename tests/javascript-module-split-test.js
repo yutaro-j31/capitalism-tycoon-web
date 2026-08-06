@@ -19,7 +19,8 @@ const before = (left, right) => assert(expected.indexOf(left) >= 0 && expected.i
 const allModules=fs.readdirSync(path.join(ROOT,'js')).filter(name=>name.endsWith('.js')).map(name=>`./js/${name}`);
 assert(expected.length===new Set(expected).size,'script references must not be duplicated');
 assert(allModules.length===expected.length&&allModules.every(src=>expected.includes(src)),'every JavaScript module must be connected exactly once');
-assert(expected[0] === './js/boot-recovery.js', 'boot recovery must be first');
+assert(expected[0] === './js/boot-diagnostics.js', 'boot diagnostics must be first');
+assert(expected[1] === './js/boot-recovery.js', 'boot recovery must immediately follow diagnostics');
 assert(expected.at(-1) === './js/iphone-playtest-fixes.js', 'iPhone playtest fixes must remain final');
 before('./js/engine.js','./js/real-estate.js');
 before('./js/real-estate.js','./js/save-v9.js');
