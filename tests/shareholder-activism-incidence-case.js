@@ -44,17 +44,15 @@ function investInGrowth(engine, reserve) {
 }
 
 function applyStyle(engine, modules, style, postIpoWeek) {
-  if (style === 'growth-reinvestment' && postIpoWeek % 13 === 0) {
-    investInGrowth(engine, 12_000_000);
-    openGrowthStore(engine, 'ramen', 12_000_000, GROWTH_STORE_LIMIT);
+  if (style === 'growth-reinvestment') {
+    if (postIpoWeek % 6 === 0) investInGrowth(engine, 12_000_000);
+    if (postIpoWeek % 13 === 0) openGrowthStore(engine, 'ramen', 12_000_000, GROWTH_STORE_LIMIT);
   }
   if (style === 'balanced-returns') {
     if (postIpoWeek % 26 === 0) openGrowthStore(engine, 'ramen', 30_000_000, BALANCED_STORE_LIMIT);
-    if (postIpoWeek % 13 === 1) {
-      const capacity = engine.shareholderReturnCapacity();
-      const dividend = Number(capacity?.maxDividendPerShare || 0) * 0.75;
-      if (dividend > 0) engine.setDividend(dividend);
-    }
+    const capacity = engine.shareholderReturnCapacity();
+    const dividend = Number(capacity?.maxDividendPerShare || 0) * 0.9;
+    if (dividend > 0) engine.setDividend(dividend);
   }
   assert(modules.finance.validate(engine.g).ok, 'weekly style action must keep finance valid');
 }
