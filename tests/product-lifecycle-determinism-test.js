@@ -193,10 +193,11 @@ assert.doesNotThrow(() => build(0.01, { removeEngineRand: true, throwOnRandom: t
 
 {
   const { engine, modules } = recallFixture();
+  engine.g.week = 100;
   engine.g.productRecallRiskHistory = riskRows(8);
-  engine.g.lastProductRecallWeek = engine.g.week - 51;
+  engine.g.lastProductRecallWeek = 49;
   assert.equal(modules.productLifecycle.startRecall(engine), null, '51-week cooldown blocks recall');
-  engine.g.lastProductRecallWeek = engine.g.week - 52;
+  engine.g.lastProductRecallWeek = 48;
   assert(modules.productLifecycle.startRecall(engine), '52-week cooldown boundary permits recall');
 }
 

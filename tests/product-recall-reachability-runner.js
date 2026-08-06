@@ -15,6 +15,7 @@ function rng(seed) {
 function releasedProduct(policy) {
   return {
     id: 'recall-reachability-product', name: 'Reachability Cloud', status: 'released', origin: 'office',
+    category: 'SaaS', risk: .08,
     quality: 82, brand: 76, revenue: 0, profit: 0, users: 28000, paidUsers: 4200,
     price: 4800, serverCost: 90000, serverCapacity: 80000, market: 4_000_000,
     valuation: 180_000_000, maintenancePolicy: policy, technicalDebt: 0,
