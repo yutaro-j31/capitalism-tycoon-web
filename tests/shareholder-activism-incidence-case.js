@@ -45,8 +45,8 @@ function investInGrowth(engine, reserve) {
 
 function applyStyle(engine, modules, style, postIpoWeek) {
   if (style === 'growth-reinvestment' && postIpoWeek % 13 === 0) {
-    openGrowthStore(engine, 'ramen', 12_000_000, GROWTH_STORE_LIMIT);
     investInGrowth(engine, 12_000_000);
+    openGrowthStore(engine, 'ramen', 12_000_000, GROWTH_STORE_LIMIT);
   }
   if (style === 'balanced-returns') {
     if (postIpoWeek % 26 === 0) openGrowthStore(engine, 'ramen', 30_000_000, BALANCED_STORE_LIMIT);
