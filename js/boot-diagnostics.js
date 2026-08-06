@@ -2,11 +2,27 @@
 (function () {
   'use strict';
 
-  const params = new URLSearchParams(globalThis.location?.search || '');
-  const requestedMode = params.get('boot-diagnostics') || '';
-  const mode = requestedMode === 'force' ? 'force' : requestedMode ? 'observe' : 'off';
-  const enabled = mode !== 'off';
-  const threshold = Math.max(100, Number(params.get('observer-threshold')) || 10000);
+  function queryValue(name) {
+    const search = String(globalThis.location?.search || '').replace(/^\?/, '');
+    if (!search) return '';
+    for (const entry of search.split('&')) {
+      const [rawKey, ...rawValue] = entry.split('=');
+      try {
+        if (decodeURIComponent(rawKey || '') === name) {
+          return decodeURIComponent(rawValue.join('=') || '');
+        }
+      } catch (_) {}
+    }
+    return '';
+  }
+
+  const requestedMode = queryValue('boot-diagnostics');
+  // The canonical Node harness executes every index script without browser globals.
+  // Leave no clocks, globals or wrappers behind unless diagnostics are explicitly enabled.
+  if (!requestedMode) return;
+
+  const mode = requestedMode === 'force' ? 'force' : 'observe';
+  const threshold = Math.max(100, Number(queryValue('observer-threshold')) || 10000);
   const startedAt = Date.now();
   const nativeMutationObserver = globalThis.MutationObserver;
   const nativeQueueMicrotask = typeof globalThis.queueMicrotask === 'function'
@@ -19,7 +35,7 @@
 
   const metrics = {
     version: 1,
-    enabled,
+    enabled: true,
     mode,
     threshold,
     startedAt: new Date(startedAt).toISOString(),
@@ -134,8 +150,6 @@
   });
   snapshot('diagnostics-initialized');
 
-  if (!enabled) return;
-
   if (typeof nativeMutationObserver === 'function') {
     function DiagnosticMutationObserver(callback) {
       if (!(this instanceof DiagnosticMutationObserver)) {
@@ -208,8 +222,8 @@
     });
   }
 
-  // Timed snapshots are useful when the event loop remains responsive. Synchronous
-  // snapshots above preserve evidence when microtask starvation delays timers.
+  // Timed snapshots help when timers are serviced. Synchronous snapshots above
+  // preserve evidence even when microtask starvation delays timer callbacks.
   publishTimer = globalThis.setInterval?.(() => snapshot('interval-snapshot'), 500) || null;
   globalThis.setTimeout?.(() => {
     if (publishTimer && metrics.loadAtMs !== null) {

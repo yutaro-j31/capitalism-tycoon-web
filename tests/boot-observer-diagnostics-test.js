@@ -59,14 +59,17 @@ function variantHtml(indexHtml, scripts, cut) {
   const first = scripts[0];
   const last = scripts[scripts.length - 1];
   const count = Math.max(0, Math.min(scripts.length, Number(cut)));
-  return `${indexHtml.slice(0, first.start)}${scripts.slice(0, count).map(item => item.tag).join('')}${indexHtml.slice(last.end)}`;
+  const html = `${indexHtml.slice(0, first.start)}${scripts.slice(0, count).map(item => item.tag).join('')}${indexHtml.slice(last.end)}`;
+  // The variant is served at /variant.html so the canonical ./js and ./css paths
+  // resolve from the repository root exactly as they do for index.html.
+  return html;
 }
 
 function staticServer(indexHtml, scripts) {
   return http.createServer((request, response) => {
     try {
       const url = new URL(request.url || '/', 'http://127.0.0.1');
-      if (url.pathname === '/__boot-diagnostics/variant.html') {
+      if (url.pathname === '/variant.html') {
         const cut = Number(url.searchParams.get('cut') || scripts.length);
         const body = Buffer.from(variantHtml(indexHtml, scripts, cut));
         response.writeHead(200, {
@@ -148,7 +151,7 @@ async function runVariant(browser, baseUrl, scripts, cut, label) {
     evidence.failedRequests.push(`${request.method()} ${request.url()} ${request.failure()?.errorText || ''}`);
   });
 
-  const url = `${baseUrl}/__boot-diagnostics/variant.html?cut=${cut}&boot-diagnostics=force&observer-threshold=10000`;
+  const url = `${baseUrl}/variant.html?cut=${cut}&boot-diagnostics=force&observer-threshold=10000`;
   try {
     await page.goto(url, { waitUntil: 'commit', timeout: 10_000 });
     try {
