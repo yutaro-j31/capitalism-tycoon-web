@@ -1,0 +1,164 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,user-scalable=no">
+  <meta name="theme-color" content="#08101f">
+  <title>資本主義ポケット TYCOON Stage 3B Heartbeat</title>
+  <style>
+    html,body{margin:0;min-height:100%;background:#08101f;color:#fff;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}
+    #stage3b-loader{padding:calc(env(safe-area-inset-top) + 24px) 20px 24px;font-weight:800}
+    #stage3b-loader small{display:block;margin-top:8px;color:#9fb3c8;font-weight:500}
+  </style>
+</head>
+<body>
+  <div id="stage3b-loader">STAGE 3B-0: 完全構成を読み込み中<small>heartbeat計測を最初に注入しています。</small></div>
+  <script>
+  (async function(){
+    'use strict';
+
+    function stage3BInstrumentation(){
+      'use strict';
+      const startedAt=performance.now();
+      const NativeObserver=globalThis.MutationObserver;
+      const nativeQueueMicrotask=typeof globalThis.queueMicrotask==='function'
+        ? globalThis.queueMicrotask.bind(globalThis)
+        : callback=>Promise.resolve().then(callback);
+      let activeOwner='';
+      const metrics={
+        version:1,
+        heartbeat:0,
+        taps:0,
+        pointerDowns:0,
+        documentClicks:0,
+        observerRegistrations:0,
+        observerCallbacks:0,
+        mutationRecords:0,
+        microtasksScheduled:0,
+        microtasksRun:0,
+        lastHeartbeatAtMs:0,
+        lastGapMs:0,
+        maxGapMs:0,
+        byOwner:Object.create(null)
+      };
+
+      function ownerName(){
+        const current=document.currentScript;
+        const src=current&&current.getAttribute&&current.getAttribute('src');
+        if(src)return src.replace(/^.*\/js\//,'js/');
+        if(activeOwner)return activeOwner;
+        try{
+          const stack=String(new Error().stack||'');
+          const match=stack.match(/(?:https?:\/\/[^)\s]+\/)?(js\/[^):\s?]+)/);
+          if(match)return match[1];
+        }catch(_){}
+        return 'inline/unknown';
+      }
+
+      function row(owner){
+        if(!metrics.byOwner[owner])metrics.byOwner[owner]={registrations:0,callbacks:0,records:0,microtasksScheduled:0,microtasksRun:0};
+        return metrics.byOwner[owner];
+      }
+
+      if(typeof NativeObserver==='function'){
+        function Stage3BMutationObserver(callback){
+          if(!(this instanceof Stage3BMutationObserver))throw new TypeError("MutationObserver must be constructed with new");
+          const owner=ownerName();
+          metrics.observerRegistrations+=1;
+          row(owner).registrations+=1;
+          return new NativeObserver((records,observer)=>{
+            metrics.observerCallbacks+=1;
+            metrics.mutationRecords+=records?records.length:0;
+            row(owner).callbacks+=1;
+            row(owner).records+=records?records.length:0;
+            const previous=activeOwner;
+            activeOwner=owner;
+            try{return callback(records,observer);}finally{activeOwner=previous;}
+          });
+        }
+        Stage3BMutationObserver.prototype=NativeObserver.prototype;
+        try{Object.setPrototypeOf(Stage3BMutationObserver,NativeObserver);}catch(_){}
+        globalThis.MutationObserver=Stage3BMutationObserver;
+      }
+
+      globalThis.queueMicrotask=function stage3BQueueMicrotask(callback){
+        const owner=ownerName();
+        metrics.microtasksScheduled+=1;
+        row(owner).microtasksScheduled+=1;
+        return nativeQueueMicrotask(()=>{
+          metrics.microtasksRun+=1;
+          row(owner).microtasksRun+=1;
+          const previous=activeOwner;
+          activeOwner=owner;
+          try{return callback();}finally{activeOwner=previous;}
+        });
+      };
+
+      const panel=document.getElementById('stage3b-heartbeat-panel');
+      const summary=document.getElementById('stage3b-heartbeat-summary');
+      const detail=document.getElementById('stage3b-heartbeat-detail');
+      const tapButton=document.getElementById('stage3b-tap-test');
+      const status=document.getElementById('stage3b-tap-status');
+
+      function topOwner(){
+        const values=Object.entries(metrics.byOwner);
+        values.sort((a,b)=>b[1].callbacks-a[1].callbacks||b[1].microtasksScheduled-a[1].microtasksScheduled);
+        return values[0]||['なし',{callbacks:0,microtasksScheduled:0}];
+      }
+
+      function paint(){
+        const now=performance.now();
+        const elapsed=now-startedAt;
+        const gap=metrics.lastHeartbeatAtMs?now-metrics.lastHeartbeatAtMs:0;
+        metrics.heartbeat+=1;
+        metrics.lastGapMs=Math.round(gap);
+        metrics.maxGapMs=Math.max(metrics.maxGapMs,Math.round(gap));
+        metrics.lastHeartbeatAtMs=now;
+        const top=topOwner();
+        if(summary)summary.textContent='HB '+metrics.heartbeat+'  経過 '+(elapsed/1000).toFixed(1)+'秒  間隔 '+Math.round(gap)+'ms';
+        if(detail)detail.textContent='Observer 登録 '+metrics.observerRegistrations+' / 発火 '+metrics.observerCallbacks+' / records '+metrics.mutationRecords+'\nMicrotask 予約 '+metrics.microtasksScheduled+' / 実行 '+metrics.microtasksRun+'\n最大HB遅延 '+metrics.maxGapMs+'ms / readyState '+document.readyState+'\n最多発火 '+top[0]+' ('+top[1].callbacks+')';
+        if(panel){
+          panel.dataset.heartbeat=String(metrics.heartbeat);
+          panel.style.borderColor=gap>1000?'#ef4444':gap>500?'#f59e0b':'#22c55e';
+        }
+        globalThis.__capitalismTycoonStage3BHeartbeat={
+          ...metrics,
+          elapsedMs:Math.round(elapsed),
+          byOwner:undefined,
+          topOwners:Object.entries(metrics.byOwner).sort((a,b)=>b[1].callbacks-a[1].callbacks).slice(0,10).map(([owner,value])=>({owner,...value}))
+        };
+      }
+
+      document.addEventListener('pointerdown',()=>{metrics.pointerDowns+=1;},{capture:true});
+      document.addEventListener('click',()=>{metrics.documentClicks+=1;},{capture:true});
+      tapButton&&tapButton.addEventListener('click',event=>{
+        event.preventDefault();
+        event.stopPropagation();
+        metrics.taps+=1;
+        tapButton.textContent='タップ受信 '+metrics.taps+'回';
+        if(status)status.textContent='タップイベント正常: '+new Date().toLocaleTimeString('ja-JP');
+      });
+
+      paint();
+      setInterval(paint,250);
+    }
+
+    const response=await fetch('./index.html?stage3b_source='+Date.now(),{cache:'no-store'});
+    if(!response.ok)throw new Error('index.html fetch failed: '+response.status);
+    let html=await response.text();
+    const overlay='<div id="stage3b-heartbeat-panel" style="position:fixed;z-index:2147483647;top:calc(env(safe-area-inset-top) + 6px);left:6px;right:6px;padding:8px 10px;border:3px solid #22c55e;border-radius:12px;background:rgba(3,10,22,.94);color:#fff;font:700 12px/1.35 -apple-system,BlinkMacSystemFont,sans-serif;white-space:normal;pointer-events:auto;box-shadow:0 6px 24px rgba(0,0,0,.45)"><div style="display:flex;gap:8px;align-items:center;justify-content:space-between"><strong>STAGE 3B-0 HEARTBEAT</strong><button id="stage3b-tap-test" type="button" style="min-height:40px;padding:6px 12px;border:1px solid #fff;border-radius:9px;background:#1d4ed8;color:#fff;font-weight:800">ここをタップ</button></div><div id="stage3b-heartbeat-summary" style="margin-top:4px">初期化中</div><pre id="stage3b-heartbeat-detail" style="margin:4px 0 0;white-space:pre-wrap;font:600 11px/1.3 ui-monospace,SFMono-Regular,Menlo,monospace"></pre><div id="stage3b-tap-status" style="margin-top:3px;color:#93c5fd">タップ待機中</div></div>';
+    const probe='<script>('+stage3BInstrumentation.toString()+')();<\/script>';
+    html=html.replace(/<title>[\s\S]*?<\/title>/i,'<title>資本主義ポケット TYCOON Stage 3B Heartbeat</title>');
+    if(!/<body[^>]*>/i.test(html))throw new Error('index.html body not found');
+    html=html.replace(/<body([^>]*)>/i,'<body$1>'+overlay+probe);
+    document.open();
+    document.write(html);
+    document.close();
+  })().catch(error=>{
+    const loader=document.getElementById('stage3b-loader');
+    if(loader){loader.textContent='STAGE 3B-0 起動失敗: '+String(error&&error.message||error);loader.style.color='#fecaca';}
+    console.error(error);
+  });
+  </script>
+</body>
+</html>
