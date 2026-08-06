@@ -1,0 +1,35 @@
+name: Audit dynamic script loaders
+
+on:
+  push:
+    branches:
+      - audit/dynamic-script-loaders
+
+permissions:
+  contents: read
+
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Enumerate source and target scripts
+        run: |
+          node <<'NODE'
+          const fs = require('node:fs');
+          const path = require('node:path');
+          const root = path.join(process.cwd(), 'js');
+          const rows = [];
+          for (const name of fs.readdirSync(root).filter(x => x.endsWith('.js')).sort()) {
+            const source = fs.readFileSync(path.join(root, name), 'utf8');
+            if (!/document\.createElement\(\s*['"]script['"]\s*\)/.test(source)) continue;
+            const targets = [...source.matchAll(/\.src\s*=\s*['"]\.\/js\/([^'"?]+\.js)/g)].map(m => m[1]);
+            rows.push({ source: name, targets: [...new Set(targets)] });
+          }
+          console.log('DYNAMIC_SCRIPT_LOADER_COUNT=' + rows.length);
+          console.log(JSON.stringify(rows, null, 2));
+          if (rows.length !== 36) {
+            console.error(`Expected 36 loader files, found ${rows.length}`);
+            process.exitCode = 1;
+          }
+          NODE
