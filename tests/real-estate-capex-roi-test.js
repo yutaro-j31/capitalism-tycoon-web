@@ -11,8 +11,7 @@ assert.match(ui, /data-start-capex-property/);
 assert.match(ui, /min-height:44px/);
 assert.match(ui, /\.save\?\.\(\)/);
 assert.match(ui, /\.emit\?\.\(\)/);
-assert.match(loader, /real-estate-capex-roi\.js/);
-assert.match(loader, /RealEstateCapexROIFailed/);
+assert.doesNotMatch(loader,/document\.createElement\(\s*['"]script['"]\s*\)/);
 
 class Engine {
   constructor(g) { this.g = g; }

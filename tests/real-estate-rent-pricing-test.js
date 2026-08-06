@@ -10,8 +10,7 @@ assert.match(src,/vacancyOpportunityLossTotal/);
 assert.match(ui,/min-height:44px/);
 assert.match(ui,/engine\.save\?\.\(\)/);
 assert.match(ui,/engine\.emit\?\.\(\)/);
-assert.match(loader,/real-estate-rent-pricing\.js/);
-assert.match(loader,/__capitalismTycoonRealEstateRentPricingFailed/);
+assert.doesNotMatch(loader,/document\.createElement\(\s*['"]script['"]\s*\)/);
 class Engine{constructor(g){this.g=g;}runTransaction(fn){return fn();}normalize(){return this.g;}}
 Engine.prototype.updateParityWeekly=function(){};
 const profiles={stable:{renewalChance:.9},growth:{renewalChance:.7},premium:{renewalChance:.82}};
