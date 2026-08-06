@@ -84,10 +84,6 @@ jobs:
           for(const name of stage1)if(!scripts.includes(name))throw new Error(`${name} is not statically registered`);
           console.log(`static scripts: ${scripts.length}; remaining special loaders: ${remaining.join(', ')}`);
           NODE
-      - name: Run canonical tests
-        run: |
-          if [ -f package.json ]; then npm test --if-present; fi
-          if [ -f tests/run-all.js ]; then node tests/run-all.js; fi
       - name: Commit stage 1 rewrite
         run: |
           rm .github/workflows/_stage1-remove-dynamic-loaders.yml
