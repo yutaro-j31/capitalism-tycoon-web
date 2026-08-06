@@ -88,10 +88,135 @@ function assertNoNondeterministicRandomFallback(source) {
   }
 }
 
+function recallFixture(policy = 'lean') {
+  const { ctx, engineModule, modules } = loadWithoutLifecycle(0.5);
+  installLifecycle(ctx);
+  const engine = new engineModule.TycoonEngine();
+  engine.g.configured = true;
+  engine.g.companyReputation = 50;
+  engine.g.productVentures = [{
+    id: 'recall-product', name: 'Recall SaaS', status: 'released', origin: 'office',
+    quality: 70, brand: 60, revenue: 2_000_000, profit: 1_500_000,
+    users: 12000, paidUsers: 900, price: 3000, serverCost: 50000,
+    serverCapacity: 30000, market: 2_000_000, valuation: 80_000_000,
+    maintenancePolicy: policy, technicalDebt: 90, lifecycleAgeWeeks: 30,
+    lifecycleStage: 'active', lifecycleIncidents: 2
+  }];
+  engine.ensureExpansionDefaults();
+  engine.ensureProductInnovationDefaults();
+  engine.ensureProductLifecycleDefaults();
+  engine.g.week = 20;
+  return { engine, modules };
+}
+
+function riskRows(count, policy = 'lean', spike = false) {
+  return Array.from({ length: count }, (_, i) => ({
+    week: 13 + i,
+    productID: 'recall-product',
+    productName: 'Recall SaaS',
+    maintenancePolicy: spike && i < count - 1 ? 'standard' : policy,
+    technicalDebt: spike && i < count - 1 ? 30 : 90,
+    revenue: 2_000_000,
+    profit: 1_500_000,
+    quality: 70
+  }));
+}
+
 assert.equal(build(0.01), build(0.01), 'same RNG path must produce identical lifecycle results');
 assert.notEqual(build(0.01), build(0.99), 'different RNG paths should control incident outcomes through the injected engine rand path');
 assert.equal(build(0.01, { removeEngineRand: true }), build(0.99, { removeEngineRand: true }), 'missing engine rand must use deterministic fixed fallback, not nondeterminism');
 assert.doesNotThrow(() => build(0.01, { removeEngineRand: true, throwOnRandom: true }), 'missing engine rand fallback must not access Math.random');
 
+{
+  const { engine, modules } = recallFixture();
+  delete engine.g.productRecallRiskHistory;
+  delete engine.g.productRecallHistory;
+  delete engine.g.activeProductRecall;
+  modules.productLifecycle.ensure(engine.g);
+  assert.deepEqual(Array.from(engine.g.productRecallRiskHistory), []);
+  assert.deepEqual(Array.from(engine.g.productRecallHistory), []);
+  engine.g.productRecallRiskHistory = Array.from({ length: 70 }, (_, i) => ({ ...riskRows(1)[0], week: i + 1 }));
+  modules.productLifecycle.ensure(engine.g);
+  assert.equal(engine.g.productRecallRiskHistory.length, 52, 'recall risk history is bounded');
+}
+
+{
+  const { engine, modules } = recallFixture();
+  engine.g.productRecallRiskHistory = riskRows(7);
+  assert.equal(modules.productLifecycle.recallReadiness(engine.g).maturity, 0);
+  assert.equal(modules.productLifecycle.startRecall(engine), null, 'seven risk weeks cannot trigger');
+  engine.g.productRecallRiskHistory = riskRows(8);
+  const cashBefore = engine.g.companyCash;
+  const reputationBefore = engine.g.companyReputation;
+  const recall = modules.productLifecycle.startRecall(engine);
+  assert(recall, 'eighth persistent risk week starts recall');
+  assert.equal(engine.g.companyCash, cashBefore - recall.initialCost);
+  assert.equal(engine.g.companyReputation, reputationBefore - 8);
+  assert.equal(engine.g.productVentures[0].quality, 66);
+  assert.equal(engine.g.finance.transactions.filter(t => t.sourceType === 'productRecall').length, 1);
+  assert.equal(modules.productLifecycle.startRecall(engine), null, 'overlapping recall is rejected');
+  const product = engine.g.productVentures[0];
+  product.revenue = 1_000_000;
+  product.profit = 800_000;
+  const adjusted = modules.productLifecycle.applyRecallRevenueImpact(engine, { revenue: 1_000_000, cost: 200_000, profit: 800_000 });
+  assert.equal(product.revenue, 650_000);
+  assert.equal(adjusted.revenue, 650_000);
+  assert.equal(adjusted.profit, 450_000);
+  assert.equal(engine.g.activeProductRecall.cumulativeLostRevenue, 350_000);
+  const debtBefore = product.technicalDebt;
+  const responseCashBefore = engine.g.companyCash;
+  const responseReputationBefore = engine.g.companyReputation;
+  assert.equal(engine.executeProductRecallResponse(), true);
+  assert(engine.g.companyCash < responseCashBefore);
+  assert.equal(engine.g.companyReputation, responseReputationBefore + 4);
+  assert.equal(product.technicalDebt, Math.max(0, debtBefore - 45));
+  assert.equal(product.maintenancePolicy, 'intensive');
+  assert.equal(engine.g.activeProductRecall.revenueMultiplier, modules.productLifecycle.RECALL.RESPONDED_REVENUE_MULTIPLIER);
+  assert.equal(engine.g.activeProductRecall.plannedWeeks, 2);
+  assert.equal(engine.g.finance.transactions.filter(t => t.sourceType === 'productRecallResponse').length, 1);
+  assert.equal(engine.executeProductRecallResponse(), false, 'duplicate response is rejected');
+  const lifecycleValidation = modules.productLifecycle.validate(engine.g);
+  assert.equal(lifecycleValidation.ok, true, lifecycleValidation.errors.join('\n'));
+  const financeValidation = modules.finance.validate(engine.g);
+  assert.equal(financeValidation.ok, true, JSON.stringify(financeValidation));
+}
+
+{
+  const { engine, modules } = recallFixture();
+  engine.g.productRecallRiskHistory = riskRows(8, 'lean', true);
+  assert.equal(modules.productLifecycle.recallReadiness(engine.g).eligible, false, 'one-week spike cannot trigger');
+  engine.g.productRecallRiskHistory = riskRows(8, 'standard');
+  assert.equal(modules.productLifecycle.recallReadiness(engine.g).eligible, false, 'standard maintenance cannot trigger');
+  engine.g.productRecallRiskHistory = riskRows(8, 'intensive');
+  assert.equal(modules.productLifecycle.recallReadiness(engine.g).eligible, false, 'intensive maintenance cannot trigger');
+}
+
+{
+  const { engine, modules } = recallFixture();
+  engine.g.week = 100;
+  engine.g.productRecallRiskHistory = riskRows(8);
+  engine.g.lastProductRecallWeek = 49;
+  assert.equal(modules.productLifecycle.startRecall(engine), null, '51-week cooldown blocks recall');
+  engine.g.lastProductRecallWeek = 48;
+  assert(modules.productLifecycle.startRecall(engine), '52-week cooldown boundary permits recall');
+}
+
+{
+  const { engine, modules } = recallFixture();
+  engine.g.productRecallRiskHistory = riskRows(8);
+  const recall = modules.productLifecycle.startRecall(engine);
+  assert(recall);
+  assert.equal(engine.executeProductRecallResponse(), true);
+  for (let i = 1; i <= 2; i++) {
+    engine.g.week += 1;
+    engine.g.productVentures[0].revenue = 1_000_000;
+    engine.g.productVentures[0].profit = 800_000;
+    modules.productLifecycle.applyRecallRevenueImpact(engine, { revenue: 1_000_000, cost: 200_000, profit: 800_000 });
+    modules.productLifecycle.advanceRecall(engine);
+  }
+  assert.equal(engine.g.activeProductRecall, null, 'responded recall resolves after two impacted weeks');
+  assert(engine.g.productRecallHistory.some(row => row.type === 'resolved'));
+}
+
 assertNoNondeterministicRandomFallback(fs.readFileSync(LIFECYCLE_PATH, 'utf8'));
-console.log('product lifecycle determinism ok');
+console.log('product lifecycle determinism and product recall core ok');

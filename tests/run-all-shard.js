@@ -54,7 +54,7 @@ childProcess.spawnSync = function shardedSpawnSync(command, args, options) {
 function validateAssignments() {
   const missingConfigured = [...heavyOwner.keys()].filter(label => !seen.has(label));
   if (missingConfigured.length) {
-    console.error(`Configured shard entries not found in run-all.js: ${missingConfigured.join(', ')}`);
+    console.error(`Configured shard entries not found in run-all.js or the execution registry: ${missingConfigured.join(', ')}`);
     process.exitCode = 1;
   }
   for (const label of seen) {
@@ -71,10 +71,25 @@ function validateAssignments() {
   }
 }
 
+function runRegisteredNodeTest(name, file) {
+  const result = childProcess.spawnSync('node', [file], {
+    encoding: 'utf8',
+    maxBuffer: 64 * 1024 * 1024,
+    shell: false
+  });
+  if (result.status) {
+    console.error(`::error title=Test suite failed::${name}`);
+    if (result.stdout) process.stdout.write(result.stdout);
+    if (result.stderr) process.stderr.write(result.stderr);
+    process.exit(result.status || 1);
+  }
+}
+
 process.on('exit', () => {
   validateAssignments();
   const totalMs = executed.reduce((sum, item) => sum + item.elapsedMs, 0);
   console.log(`canonical-test-shard-summary: shard=${selectedShard} contractOnly=${contractOnly} executed=${executed.length} seen=${seen.size} total=${(totalMs / 1000).toFixed(3)}s`);
 });
 
+runRegisteredNodeTest('product-recall-reachability', 'tests/product-recall-reachability-runner.js');
 require('./run-all');
