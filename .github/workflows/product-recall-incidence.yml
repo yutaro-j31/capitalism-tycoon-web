@@ -1,0 +1,50 @@
+name: Product Recall Incidence
+
+on:
+  pull_request:
+    paths:
+      - 'js/product-lifecycle.js'
+      - 'js/player-engine-bridge.js'
+      - 'js/engine.js'
+      - 'js/finance.js'
+      - 'index.html'
+      - 'tests/product-lifecycle-determinism-test.js'
+      - 'tests/product-recall-*'
+      - 'tests/harness.js'
+      - '.github/workflows/product-recall-incidence.yml'
+  workflow_dispatch:
+
+jobs:
+  core:
+    name: unit-and-208-week-reachability
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Run Phase 1 canonical unit and boundary coverage
+        run: node tests/product-lifecycle-determinism-test.js
+      - name: Run Phase 2 deterministic 208-week reachability
+        run: node tests/product-recall-reachability-runner.js
+
+  incidence:
+    name: ${{ matrix.style }}-${{ matrix.seed }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        style: [neglected-lean, timely-quality, healthy-standard]
+        seed: ['0x8f300101', '0x8f300202', '0x8f300303']
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Run deterministic 208-week incidence case twice
+        env:
+          PRODUCT_RECALL_STYLE: ${{ matrix.style }}
+          PRODUCT_RECALL_SEED: ${{ matrix.seed }}
+        run: node tests/product-recall-incidence-runner.js
