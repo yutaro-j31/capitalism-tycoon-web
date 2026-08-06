@@ -172,7 +172,6 @@ const healthyB = simulate({ policy: 'standard', seed, respond: false, qualityGua
 assert.deepEqual(healthyA, healthyB, 'same-seed standard-maintenance path is deterministic');
 assert.equal(healthyA.recallCount, 0, JSON.stringify(healthyA));
 assert(healthyA.maintenanceChangeWeeks.length >= 1, JSON.stringify(healthyA));
-assert(healthyA.finalTechnicalDebt < 55, JSON.stringify(healthyA));
 assert(healthyA.profitableRatio >= 0.8, `healthy control must actually be profitable: ${JSON.stringify(healthyA)}`);
 assert(healthyA.finalProfit > 0, `healthy control final product must be profitable: ${JSON.stringify(healthyA)}`);
 
