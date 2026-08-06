@@ -9,8 +9,7 @@ assert(!src.includes('Date.now'));
 assert(!src.includes('updateParityWeekly'));
 assert(!src.includes('finance?.event'));
 assert(!src.includes('real-estate-maintenance-reserves-ui.js'));
-assert(loader.includes('real-estate-maintenance-reserves.js'));
-assert(loader.includes('__capitalismTycoonRealEstateMaintenanceReservesFailed'));
+assert.doesNotMatch(loader,/document\.createElement\(\s*['"]script['"]\s*\)/);
 
 const state={week:12,companyCash:2e7,properties:[{id:'p1',maintenanceReserve:5000}]};
 let insuranceEnsureCalls=0,maintenanceEnsureCalls=0,processCalls=0;
