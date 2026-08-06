@@ -1,0 +1,51 @@
+name: Shareholder Portfolio Inefficiency Incidence
+
+on:
+  pull_request:
+    paths:
+      - 'js/shareholder-value-destruction.js'
+      - 'js/shareholder-activism.js'
+      - 'js/group-restructuring-candidates.js'
+      - 'js/group-restructuring-progress.js'
+      - 'js/engine.js'
+      - 'js/finance.js'
+      - 'tests/shareholder-value-destruction-test.js'
+      - 'tests/shareholder-portfolio-inefficiency-*'
+      - 'tests/harness.js'
+      - '.github/workflows/shareholder-portfolio-inefficiency-incidence.yml'
+  workflow_dispatch:
+
+jobs:
+  core:
+    name: unit-and-208-week-reachability
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Run Phase 1 canonical unit coverage
+        run: node tests/shareholder-value-destruction-test.js
+      - name: Run Phase 2 208-week reachability
+        run: node tests/shareholder-portfolio-inefficiency-reachability-runner.js
+
+  incidence:
+    name: ${{ matrix.style }}-${{ matrix.seed }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        style: [neglected-low-roic, remedied-low-roic, high-roic]
+        seed: ['0x6c300101', '0x6c300202', '0x6c300303']
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Run deterministic 208-week incidence case twice
+        env:
+          PORTFOLIO_INEFFICIENCY_STYLE: ${{ matrix.style }}
+          PORTFOLIO_INEFFICIENCY_SEED: ${{ matrix.seed }}
+        run: node tests/shareholder-portfolio-inefficiency-incidence-runner.js
