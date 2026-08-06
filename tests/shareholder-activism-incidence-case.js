@@ -8,6 +8,7 @@ const BASE_SCENARIO = SCENARIOS.find(row => row.id === 'ramen-bootstrap');
 const GROWTH_STORE_LIMIT = 6;
 const BALANCED_STORE_LIMIT = 5;
 const GROWTH_RND_INVESTMENT = 1_500_000;
+const BALANCED_RND_INVESTMENT = 1_500_000;
 const BALANCED_RESERVE = 30_000_000;
 const BALANCED_BUYBACK_LIMIT = 5_000_000;
 
@@ -40,9 +41,9 @@ function openGrowthStore(engine, businessID, reserve, storeLimit) {
   return Boolean(engine.openStore({tenantID:tenant.id,businessID,name:`Incidence-${engine.g.stores.length+1}`,operatingHours:3}));
 }
 
-function investInGrowth(engine, reserve) {
-  if (!healthyExpansionReady(engine) || engine.g.companyCash < reserve + GROWTH_RND_INVESTMENT) return false;
-  return Boolean(engine.investBusiness('ramen','quality',GROWTH_RND_INVESTMENT));
+function investInBusiness(engine, reserve, amount) {
+  if (!healthyExpansionReady(engine) || engine.g.companyCash < reserve + amount) return false;
+  return Boolean(engine.investBusiness('ramen','quality',amount));
 }
 
 function buyBackBalancedCapital(engine) {
@@ -55,10 +56,11 @@ function buyBackBalancedCapital(engine) {
 
 function applyStyle(engine, modules, style, postIpoWeek) {
   if (style === 'growth-reinvestment') {
-    if (postIpoWeek % 6 === 0) investInGrowth(engine, 12_000_000);
+    if (postIpoWeek % 6 === 0) investInBusiness(engine, 12_000_000, GROWTH_RND_INVESTMENT);
     if (postIpoWeek % 13 === 0) openGrowthStore(engine, 'ramen', 12_000_000, GROWTH_STORE_LIMIT);
   }
   if (style === 'balanced-returns') {
+    if (postIpoWeek % 8 === 0) investInBusiness(engine, BALANCED_RESERVE, BALANCED_RND_INVESTMENT);
     if (postIpoWeek % 26 === 0) openGrowthStore(engine, 'ramen', BALANCED_RESERVE, BALANCED_STORE_LIMIT);
     const capacity = engine.shareholderReturnCapacity();
     const dividend = Number(capacity?.maxDividendPerShare || 0) * 0.9;
