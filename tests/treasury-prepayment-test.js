@@ -2,7 +2,34 @@ const assert = require('node:assert');
 const fs = require('node:fs');
 const path = require('node:path');
 const vm = require('node:vm');
-const { loadGame, findStateIssues } = require('./harness');
+const { ROOT, readIndex, extractScripts, loadGame, findStateIssues } = require('./harness');
+
+const html = readIndex();
+const sources = extractScripts(html).map(script => script.src).filter(Boolean);
+for (const source of ['./js/player-debt-service.js', './js/treasury-prepayment.js']) {
+  assert.equal(sources.filter(item => item === source).length, 1, `${source} must be loaded exactly once by index.html`);
+}
+assert.ok(
+  sources.indexOf('./js/player-debt-service.js') < sources.indexOf('./js/treasury-prepayment.js'),
+  'player-debt-service.js must load before treasury-prepayment.js'
+);
+
+const treasurySource = fs.readFileSync(path.join(ROOT, 'js', 'treasury-prepayment.js'), 'utf8');
+assert.doesNotMatch(
+  treasurySource,
+  /document\.createElement\(\s*['"]script['"]\s*\)/,
+  'treasury-prepayment.js must not create module script elements'
+);
+assert.doesNotMatch(
+  treasurySource,
+  /document\.currentScript|__deferredTreasuryPrepayment|data-deferred-treasury-prepayment/,
+  'treasury-prepayment.js must not retain self-reload state or URL derivation'
+);
+assert.match(
+  treasurySource,
+  /player-debt-service\.js must load before treasury-prepayment\.js/,
+  'treasury-prepayment.js must fail immediately when its static dependency is missing'
+);
 
 const load = loadGame();
 for (const file of ['player-debt-service.js', 'treasury-prepayment.js']) {
