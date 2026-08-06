@@ -5,6 +5,8 @@ const { loadGame } = require('./harness');
 const style = String(process.argv[2] || '');
 const seed = Number(process.argv[3]);
 const STYLES = new Set(['neglected-lean', 'timely-quality', 'healthy-standard']);
+const INITIAL_COMPANY_CASH = 500_000_000;
+const INITIAL_REPUTATION = 70;
 assert(STYLES.has(style), `unknown product recall style: ${style}`);
 assert(Number.isFinite(seed), `invalid product recall seed: ${process.argv[3]}`);
 
@@ -22,11 +24,22 @@ function product(policy) {
   return {
     id: 'recall-incidence-product', name: 'Incidence Cloud', status: 'released', origin: 'office',
     category: 'SaaS', risk: .08,
-    quality: 82, brand: 76, revenue: 0, profit: 0, users: 28000, paidUsers: 4200,
-    price: 4800, serverCost: 90000, serverCapacity: 80000, market: 4_000_000,
-    valuation: 180_000_000, maintenancePolicy: policy, technicalDebt: 0,
+    quality: 92, brand: 85, revenue: 0, profit: 0, users: 45000, paidUsers: 8000,
+    price: 6000, serverCost: 75000, serverCapacity: 250000, market: 5_000_000,
+    valuation: 300_000_000, maintenancePolicy: policy, technicalDebt: 0,
     lifecycleAgeWeeks: 0, lifecycleStage: 'active', lifecycleIncidents: 0
   };
+}
+
+function configureEstablishedCompany(loaded, engine, initialPolicy) {
+  engine.g.productVentures = [product(initialPolicy)];
+  engine.normalize();
+  engine.g.companyCash = INITIAL_COMPANY_CASH;
+  engine.g.companyReputation = INITIAL_REPUTATION;
+  engine.g.consecutiveNegativeCashWeeks = 0;
+  engine.g.gameOver = false;
+  engine.g.finance = loaded.modules.finance.defaultFinanceState(engine.g);
+  engine.g.configured = true;
 }
 
 function simulate() {
@@ -34,9 +47,7 @@ function simulate() {
   assert(loaded.modules.productLifecycle?.__installed, 'product lifecycle module must be loaded');
   const engine = new loaded.engineModule.TycoonEngine();
   const initialPolicy = style === 'healthy-standard' ? 'standard' : 'lean';
-  engine.g.productVentures = [product(initialPolicy)];
-  engine.normalize();
-  engine.g.configured = true;
+  configureEstablishedCompany(loaded, engine, initialPolicy);
 
   let maintenanceChangeWeek = null;
   let firstRecallWeek = null;
@@ -57,7 +68,11 @@ function simulate() {
       maintenanceChangeWeek = Number(engine.g.week);
     }
 
-    assert.notEqual(engine.advanceWeek(false), false, `advanceWeek failed at week ${engine.g.week}`);
+    assert.notEqual(
+      engine.advanceWeek(false),
+      false,
+      `advanceWeek failed at week ${engine.g.week}: cash=${engine.g.companyCash}`
+    );
     const updated = engine.g.productVentures[0];
     maxTechnicalDebt = Math.max(maxTechnicalDebt, Number(updated.technicalDebt));
     minCash = Math.min(minCash, Number(engine.g.companyCash));

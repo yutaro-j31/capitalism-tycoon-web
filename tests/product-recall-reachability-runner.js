@@ -2,6 +2,9 @@
 const assert = require('node:assert/strict');
 const { loadGame } = require('./harness');
 
+const INITIAL_COMPANY_CASH = 500_000_000;
+const INITIAL_REPUTATION = 70;
+
 function rng(seed) {
   let x = seed >>> 0;
   return () => {
@@ -16,51 +19,97 @@ function releasedProduct(policy) {
   return {
     id: 'recall-reachability-product', name: 'Reachability Cloud', status: 'released', origin: 'office',
     category: 'SaaS', risk: .08,
-    quality: 82, brand: 76, revenue: 0, profit: 0, users: 28000, paidUsers: 4200,
-    price: 4800, serverCost: 90000, serverCapacity: 80000, market: 4_000_000,
-    valuation: 180_000_000, maintenancePolicy: policy, technicalDebt: 0,
+    quality: 92, brand: 85, revenue: 0, profit: 0, users: 45000, paidUsers: 8000,
+    price: 6000, serverCost: 75000, serverCapacity: 250000, market: 5_000_000,
+    valuation: 300_000_000, maintenancePolicy: policy, technicalDebt: 0,
     lifecycleAgeWeeks: 0, lifecycleStage: 'active', lifecycleIncidents: 0
   };
+}
+
+function configureEstablishedCompany(loaded, engine, policy) {
+  engine.g.productVentures = [releasedProduct(policy)];
+  engine.normalize();
+  engine.g.companyCash = INITIAL_COMPANY_CASH;
+  engine.g.companyReputation = INITIAL_REPUTATION;
+  engine.g.consecutiveNegativeCashWeeks = 0;
+  engine.g.gameOver = false;
+  engine.g.finance = loaded.modules.finance.defaultFinanceState(engine.g);
+  engine.g.configured = true;
 }
 
 function simulate({ policy, seed, respond }) {
   const loaded = loadGame({ headless: true, random: rng(seed) });
   assert(loaded.modules.productLifecycle?.__installed, 'product lifecycle module must be loaded');
   const engine = new loaded.engineModule.TycoonEngine();
-  engine.g.productVentures = [releasedProduct(policy)];
-  engine.normalize();
-  engine.g.configured = true;
+  configureEstablishedCompany(loaded, engine, policy);
+
   let firstRecallWeek = null;
   let responseWeek = null;
+  let responseEffect = null;
   let minCash = engine.g.companyCash;
   let profitableWeeks = 0;
   let observedWeeks = 0;
+
   for (let i = 0; i < 207; i++) {
-    assert.notEqual(engine.advanceWeek(false), false);
+    assert.notEqual(
+      engine.advanceWeek(false),
+      false,
+      `normal advanceWeek stopped at week ${engine.g.week}: cash=${engine.g.companyCash}`
+    );
     const product = engine.g.productVentures[0];
     if (Number(product?.profit) > 0) profitableWeeks++;
     observedWeeks++;
     minCash = Math.min(minCash, Number(engine.g.companyCash));
     const starts = engine.g.productRecallHistory.filter(row => row.type === 'started');
-    if (starts.length && firstRecallWeek === null) firstRecallWeek = starts.at(-1).week;
+    if (starts.length && firstRecallWeek === null) firstRecallWeek = Number(starts.at(-1).week);
+
     if (respond && engine.g.activeProductRecall?.responseStatus === 'pending') {
+      const cashBefore = Number(engine.g.companyCash);
+      const reputationBefore = Number(engine.g.companyReputation);
+      const debtBefore = Number(product.technicalDebt);
+      const qualityBefore = Number(product.quality);
+      const transactionCountBefore = engine.g.finance.transactions.length;
       assert.equal(engine.executeProductRecallResponse(), true, 'normal response API must be executable');
-      responseWeek = engine.g.week;
+      const recall = engine.g.activeProductRecall;
+      const responseTransaction = engine.g.finance.transactions
+        .slice(transactionCountBefore)
+        .find(row => row.sourceType === 'productRecallResponse');
+      assert(responseTransaction, 'response must create a productRecallResponse finance transaction');
+      responseWeek = Number(engine.g.week);
+      responseEffect = {
+        responseCost: Number(recall.responseCost),
+        cashDelta: Math.round(Number(engine.g.companyCash) - cashBefore),
+        reputationDelta: Number((Number(engine.g.companyReputation) - reputationBefore).toFixed(4)),
+        technicalDebtDelta: Number((Number(product.technicalDebt) - debtBefore).toFixed(4)),
+        qualityDelta: Number((Number(product.quality) - qualityBefore).toFixed(4)),
+        revenueMultiplier: Number(recall.revenueMultiplier),
+        plannedWeeks: Number(recall.plannedWeeks),
+        financeCashEffect: Number(responseTransaction.cashEffect),
+        financeProfitEffect: Number(responseTransaction.profitEffect)
+      };
     }
   }
+
   const starts = engine.g.productRecallHistory.filter(row => row.type === 'started');
   const resolved = engine.g.productRecallHistory.filter(row => row.type === 'resolved');
+  const initialTransactions = engine.g.finance.transactions.filter(row => row.sourceType === 'productRecall');
+  const responseTransactions = engine.g.finance.transactions.filter(row => row.sourceType === 'productRecallResponse');
   const cumulativeLostRevenue = resolved.reduce((sum, row) => sum + Number(row.cumulativeLostRevenue || 0), 0)
     + Number(engine.g.activeProductRecall?.cumulativeLostRevenue || 0);
   const financeValidation = loaded.modules.finance.validate(engine.g);
   assert.equal(financeValidation.ok, true, JSON.stringify(financeValidation));
   const lifecycleValidation = loaded.modules.productLifecycle.validate(engine.g);
   assert.equal(lifecycleValidation.ok, true, lifecycleValidation.errors.join('\n'));
+
   return {
     policy, seed, respond,
     firstRecallWeek,
     responseWeek,
+    responseEffect,
     recallCount: starts.length,
+    initialRecallCost: Math.round(initialTransactions.reduce((sum, row) => sum + Number(row.amount || 0), 0)),
+    initialRecallCashEffect: Math.round(initialTransactions.reduce((sum, row) => sum + Number(row.cashEffect || 0), 0)),
+    responseTransactionCount: responseTransactions.length,
     cumulativeLostRevenue: Math.round(cumulativeLostRevenue),
     finalCash: Math.round(engine.g.companyCash),
     minCash: Math.round(minCash),
@@ -80,12 +129,25 @@ const ignoredB = simulate({ policy: 'lean', seed, respond: false });
 assert.deepEqual(ignoredA, ignoredB, 'same-seed ignored recall path is deterministic');
 assert(ignoredA.firstRecallWeek !== null && ignoredA.firstRecallWeek <= 208, JSON.stringify(ignoredA));
 assert(ignoredA.recallCount >= 1, JSON.stringify(ignoredA));
+assert(ignoredA.initialRecallCost > 0, JSON.stringify(ignoredA));
+assert.equal(ignoredA.initialRecallCashEffect, -ignoredA.initialRecallCost, JSON.stringify(ignoredA));
+assert(ignoredA.cumulativeLostRevenue > 0, JSON.stringify(ignoredA));
 
 const respondedA = simulate({ policy: 'lean', seed, respond: true });
 const respondedB = simulate({ policy: 'lean', seed, respond: true });
 assert.deepEqual(respondedA, respondedB, 'same-seed response path is deterministic');
 assert(respondedA.firstRecallWeek !== null, JSON.stringify(respondedA));
 assert(respondedA.responseWeek !== null, JSON.stringify(respondedA));
+assert(respondedA.responseEffect, JSON.stringify(respondedA));
+assert.equal(respondedA.responseEffect.cashDelta, -respondedA.responseEffect.responseCost, JSON.stringify(respondedA));
+assert.equal(respondedA.responseEffect.financeCashEffect, -respondedA.responseEffect.responseCost, JSON.stringify(respondedA));
+assert.equal(respondedA.responseEffect.financeProfitEffect, -respondedA.responseEffect.responseCost, JSON.stringify(respondedA));
+assert.equal(respondedA.responseEffect.reputationDelta, 4, JSON.stringify(respondedA));
+assert.equal(respondedA.responseEffect.technicalDebtDelta, -45, JSON.stringify(respondedA));
+assert.equal(respondedA.responseEffect.qualityDelta, 5, JSON.stringify(respondedA));
+assert.equal(respondedA.responseEffect.revenueMultiplier, 0.88, JSON.stringify(respondedA));
+assert.equal(respondedA.responseEffect.plannedWeeks, 2, JSON.stringify(respondedA));
+assert(respondedA.responseTransactionCount >= 1, JSON.stringify(respondedA));
 assert(respondedA.cumulativeLostRevenue < ignoredA.cumulativeLostRevenue, JSON.stringify({ ignoredA, respondedA }));
 
 const healthyA = simulate({ policy: 'standard', seed, respond: false });

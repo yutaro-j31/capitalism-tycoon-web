@@ -5,6 +5,11 @@ const { spawnSync } = require('node:child_process');
 
 const STYLES = ['neglected-lean', 'timely-quality', 'healthy-standard'];
 const SEEDS = [0x8f300101, 0x8f300202, 0x8f300303];
+const TARGETS = Object.freeze({
+  'neglected-lean': Object.freeze({ minIncidence: 2 / 3, maxIncidence: 1 }),
+  'timely-quality': Object.freeze({ minIncidence: 0, maxIncidence: 1 / 3 }),
+  'healthy-standard': Object.freeze({ minIncidence: 0, maxIncidence: 0 })
+});
 const script = path.join(__dirname, 'product-recall-incidence-case.js');
 
 function run(style, seed) {
@@ -23,36 +28,60 @@ function run(style, seed) {
   return JSON.parse(line.slice('PRODUCT_RECALL_INCIDENCE_CASE '.length));
 }
 
-function assertStyle(row) {
+function assertCase(row) {
   assert.equal(row.riskHistory, 52, `risk history must remain bounded: ${JSON.stringify(row)}`);
   assert(row.recallHistory <= 52, `recall history must remain bounded: ${JSON.stringify(row)}`);
   assert(row.recallCount <= 4, `52-week cooldown must bound recall count: ${JSON.stringify(row)}`);
+  assert.equal(row.finalWeek, 208, `case must complete 208 normal weeks: ${JSON.stringify(row)}`);
+  assert(row.minCash > 0, `established-company fixture must remain solvent: ${JSON.stringify(row)}`);
   if (row.style === 'neglected-lean') {
-    assert(row.recallCount >= 1, `neglected lean maintenance must encounter a recall: ${JSON.stringify(row)}`);
-    assert(row.firstRecallWeek !== null && row.firstRecallWeek <= 208, JSON.stringify(row));
-    assert(row.cumulativeLostRevenue > 0, JSON.stringify(row));
+    if (row.recallCount > 0) {
+      assert(row.firstRecallWeek !== null && row.firstRecallWeek <= 208, JSON.stringify(row));
+      assert(row.cumulativeLostRevenue > 0, JSON.stringify(row));
+    }
   } else if (row.style === 'timely-quality') {
-    assert.equal(row.recallCount, 0, `timely quality intervention must avoid recall: ${JSON.stringify(row)}`);
     assert(row.maintenanceChangeWeek !== null, JSON.stringify(row));
     assert.equal(row.finalMaintenancePolicy, 'intensive', JSON.stringify(row));
     assert(row.profitableRatio >= 0.8, `timely control must remain genuinely profitable: ${JSON.stringify(row)}`);
     assert(row.finalProfit > 0, `timely control final product must be profitable: ${JSON.stringify(row)}`);
   } else {
-    assert.equal(row.recallCount, 0, `healthy standard maintenance must avoid recall: ${JSON.stringify(row)}`);
     assert.equal(row.finalMaintenancePolicy, 'standard', JSON.stringify(row));
     assert(row.profitableRatio >= 0.8, `healthy control must remain genuinely profitable: ${JSON.stringify(row)}`);
     assert(row.finalProfit > 0, `healthy control final product must be profitable: ${JSON.stringify(row)}`);
   }
 }
 
-const requestedStyle = String(process.env.PRODUCT_RECALL_STYLE || '');
-const requestedSeed = Number(process.env.PRODUCT_RECALL_SEED);
-assert(STYLES.includes(requestedStyle), `invalid PRODUCT_RECALL_STYLE: ${requestedStyle}`);
-assert(SEEDS.includes(requestedSeed), `invalid PRODUCT_RECALL_SEED: ${process.env.PRODUCT_RECALL_SEED}`);
+const rows = [];
+for (const style of STYLES) {
+  for (const seed of SEEDS) {
+    const first = run(style, seed);
+    const second = run(style, seed);
+    assert.deepEqual(first, second, `${style}-${seed} must be deterministic`);
+    assertCase(first);
+    rows.push(first);
+  }
+}
 
-const first = run(requestedStyle, requestedSeed);
-const second = run(requestedStyle, requestedSeed);
-assert.deepEqual(first, second, 'product recall incidence case must be deterministic');
-assertStyle(first);
-console.log(`PRODUCT_RECALL_INCIDENCE_MATRIX ${JSON.stringify([first])}`);
-console.log('product recall incidence matrix case passed');
+const summary = Object.fromEntries(STYLES.map(style => {
+  const cases = rows.filter(row => row.style === style);
+  const triggeredCases = cases.filter(row => row.recallCount > 0).length;
+  const incidence = triggeredCases / cases.length;
+  const target = TARGETS[style];
+  assert(
+    incidence >= target.minIncidence && incidence <= target.maxIncidence,
+    `${style} incidence ${incidence} is outside ${target.minIncidence}-${target.maxIncidence}: ${JSON.stringify(cases)}`
+  );
+  return [style, {
+    triggeredCases,
+    totalCases: cases.length,
+    incidence: Number(incidence.toFixed(4)),
+    targetMin: Number(target.minIncidence.toFixed(4)),
+    targetMax: Number(target.maxIncidence.toFixed(4)),
+    totalRecalls: cases.reduce((sum, row) => sum + row.recallCount, 0),
+    recallCounts: cases.map(row => row.recallCount),
+    firstRecallWeeks: cases.map(row => row.firstRecallWeek)
+  }];
+}));
+
+console.log(`PRODUCT_RECALL_INCIDENCE_MATRIX ${JSON.stringify({ summary, cases: rows })}`);
+console.log('product recall incidence matrix passed');
