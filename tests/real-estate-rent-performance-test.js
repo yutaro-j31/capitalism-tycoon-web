@@ -4,7 +4,7 @@ const vm=require('node:vm');
 const src=fs.readFileSync('js/real-estate-rent-performance.js','utf8');
 const ui=fs.readFileSync('js/real-estate-rent-performance-ui.js','utf8');
 const loader=fs.readFileSync('js/real-estate-portfolio-dashboard-ui.js','utf8');
-assert.doesNotMatch(src,/Math\.random|Date\.now/);assert.match(src,/HISTORY_LIMIT=260/);assert.match(ui,/data-rent-performance-dashboard/);assert.match(loader,/real-estate-rent-performance\.js/);assert.match(loader,/RealEstateRentPerformanceFailed/);assert.match(ui,/賃貸収益分析/);
+assert.doesNotMatch(src,/Math\.random|Date\.now/);assert.match(src,/HISTORY_LIMIT=260/);assert.match(ui,/data-rent-performance-dashboard/);assert.doesNotMatch(loader,/document\.createElement\(\s*['"]script['"]\s*\)/);assert.match(ui,/賃貸収益分析/);
 class Engine{constructor(g){this.g=g;}normalize(){return this.g;}}Engine.prototype.updateParityWeekly=function(){};
 const baseEnsure=g=>{g.realEstateDevelopment=g.realEstateDevelopment||{};return g.realEstateDevelopment;};
 const modules={engine:{TycoonEngine:Engine},realEstateRentPricing:{ensure:baseEnsure},realEstatePortfolioDashboard:{ensure:baseEnsure}};

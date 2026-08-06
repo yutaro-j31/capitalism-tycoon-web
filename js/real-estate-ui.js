@@ -6,7 +6,7 @@ if(!modules?.playerEngineBridge?.getEngine)throw new Error('player-engine-bridge
 if(modules.realEstateUI)throw new Error('real estate UI module is already registered.');
 const bridge=modules.playerEngineBridge,esc=v=>String(v??'').replace(/[&<>'"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c])),finite=(v,d=0)=>Number.isFinite(Number(v))?Number(v):d,money=v=>`${Math.round(finite(v)).toLocaleString('ja-JP')}円`,pct=v=>`${(finite(v)*100).toFixed(1)}%`;
 let developmentLoading=false,developmentFailed=false;
-function loadDevelopment(){if(modules.realEstateDevelopment||developmentLoading||developmentFailed)return;developmentLoading=true;const s=document.createElement('script'),q=String(globalThis.location?.search||'').match(/(?:^|[?&])v=([^&]+)/),v=q?decodeURIComponent(q[1]):globalThis.__capitalismTycoonAssetVersion||'';s.src='./js/real-estate-development.js'+(v?`?v=${encodeURIComponent(v)}`:'');s.async=false;s.dataset.realEstateDevelopmentModule='';s.addEventListener?.('load',()=>{developmentLoading=false;queue();setTimeout(queue,240);});s.addEventListener?.('error',()=>{developmentLoading=false;developmentFailed=true;queue();});document.head?.appendChild(s);}
+function loadDevelopment(){return Boolean(modules.realEstateDevelopment);}
 function owned(engine){return(engine?.g?.properties||[]).filter(p=>p.owner==='company'||p.owner==='personal');}
 function loanFor(engine,id){return(engine?.g?.realEstate?.loans||[]).find(l=>l.propertyID===id&&l.status==='active')||null;}
 function latestEvent(engine,id){return[...(engine?.g?.realEstate?.marketEvents||[])].reverse().find(e=>e.propertyID===id)||null;}

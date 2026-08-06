@@ -1,6 +1,6 @@
 const assert=require('node:assert/strict');const fs=require('node:fs');const vm=require('node:vm');
 const src=fs.readFileSync('js/real-estate-capex-actuals.js','utf8'),ui=fs.readFileSync('js/real-estate-capex-actuals-ui.js','utf8'),loader=fs.readFileSync('js/real-estate-capex-roi-ui.js','utf8');
-assert.doesNotMatch(src,/Math\.random|Date\.now/);assert.match(ui,/CAPEX実績管理/);assert.match(ui,/min-height:44px/);assert.match(loader,/real-estate-capex-actuals\.js/);assert.match(loader,/RealEstateCapexActualsFailed/);
+assert.doesNotMatch(src,/Math\.random|Date\.now/);assert.match(ui,/CAPEX実績管理/);assert.match(ui,/min-height:44px/);assert.doesNotMatch(loader,/document\.createElement\(\s*['"]script['"]\s*\)/);
 class Engine{constructor(g){this.g=g;}normalize(){return this.g;}}Engine.prototype.updateParityWeekly=function(){};
 const development={ensure(g){g.realEstateDevelopment||={projects:[]};g.realEstateDevelopment.projects||=[];return g.realEstateDevelopment;}};
 const pricing={marketRent(p){return Math.round((p.value||1)*.004);}};

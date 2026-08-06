@@ -18,9 +18,5 @@ Object.defineProperties(bridge,{
   processWeek:{value:function(){return[];},enumerable:true}
 });
 modules.realEstateMaintenanceReserves=Object.freeze(bridge);
-if(typeof document!=='undefined'&&!modules.realEstatePropertyTaxes){
-  const s=document.createElement('script'),q=String(globalThis.location?.search||'').match(/(?:^|[?&])v=([^&]+)/),v=q?decodeURIComponent(q[1]):globalThis.__capitalismTycoonAssetVersion||'';
-  s.src='./js/real-estate-property-taxes.js'+(v?`?v=${encodeURIComponent(v)}`:'');s.async=false;s.dataset.realEstatePropertyTaxes='';
-  s.addEventListener?.('error',()=>{globalThis.__capitalismTycoonRealEstatePropertyTaxesFailed=true;});document.head?.appendChild(s);
-}
+
 })();
