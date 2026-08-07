@@ -37,7 +37,7 @@ Both modules retain their existing render functions and duplicate-application gu
 
 Status: white screen remained after the first two migrations.
 
-This was treated as an expected result because 74 app-wide observer modules remained.
+This was treated as an expected result because the original narrow scan still found 74 files containing unqualified `new MutationObserver(...)` after Stage 3-2.
 
 ## Observer threshold diagnostic
 
@@ -100,13 +100,33 @@ For migrated modules:
 - action-triggered refreshes route through `modules.uiEnhancerRegistry.runUIEnhancers()` where applicable.
 - each module registers once via `registerUIEnhancer`, preserving static script order.
 
+## Observer count reconciliation
+
+The earlier migration notes used a narrow scan for unqualified `new MutationObserver(...)`. That scan missed constructor calls written through an environment object.
+
+At the Stage 3-3 base there were three qualified-only observer files:
+
+- `js/save-storage-ui.js` — `new env.MutationObserver(...)`; migrated in Stage 3-3.
+- `js/physical-iphone-playtest.js` — `new env.MutationObserver(...)`; still pending.
+- `js/playtest-report-ui.js` — `new env.MutationObserver(...)`; still pending.
+
+Therefore the counts reconcile as follows:
+
+- Narrow Stage 3-2 residual: 74 unqualified observer files.
+- Comprehensive Stage 3-2 residual: 77 files = 74 unqualified + 3 qualified-only.
+- Stage 3-3 migrated: 20 files = 19 unqualified + `save-storage-ui.js` qualified-only.
+- Narrow Stage 3-3 residual: 55 unqualified observer files.
+- Comprehensive Stage 3-3 residual: 57 files = 55 unqualified + 2 qualified-only.
+
+The original pre-Stage-3-2 comprehensive baseline was therefore 79 observer-driven JS files, not 76. The 20-file Stage 3-3 migration itself was complete; the previous `54 remaining` figure was a counting-method error, not a migration omission.
+
 ## Migration count
 
-- Baseline observer-driven UI files: 76.
+- Comprehensive observer-driven JS baseline before Stage 3-2: 79.
 - Stage 3-2 migrated: 2.
 - Stage 3-3 migrated: 20.
 - Total migrated: 22.
-- Remaining observer-driven UI files: 54.
+- Remaining observer-driven JS files: 57.
 
 Do not begin the next migration batch until Stage 3-3 external validation is complete and the physical iPhone result is recorded below.
 
@@ -116,7 +136,7 @@ Status: pending.
 
 Decision after physical-device test:
 
-- Starts and operates: continue the remaining 54 in controlled 10-20 file batches.
+- Starts and operates: continue the remaining 57 in controlled 10-20 file batches.
 - Starts but is heavy or partially unresponsive: migration is effective; continue with a larger high-impact batch.
 - Still white: 20 removed observers were insufficient; identify the new first-blocked threshold/source and migrate the next high-impact cluster.
 
