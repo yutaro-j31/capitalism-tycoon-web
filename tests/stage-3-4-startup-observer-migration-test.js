@@ -1,6 +1,7 @@
 'use strict';
 const fs=require('node:fs');
 const path=require('node:path');
+const vm=require('node:vm');
 const assert=require('node:assert/strict');
 const {ROOT,readIndex}=require('./harness');
 
@@ -41,10 +42,30 @@ for(const name of migrated){
 }
 assert.equal(new Set(indexPositions).size,migrated.length,'migrated modules must remain uniquely connected in index.html');
 
-const registry=fs.readFileSync(path.join(ROOT,'js','ui-enhancer-registry.js'),'utf8');
-assert.match(registry,/__capitalismTycoonPendingUIEnhancers/,'registry must drain static pre-registry enhancer registrations');
-assert.match(registry,/for\s*\(const definition of pending\)registerUIEnhancer\(definition\)/,'pending registrations must be drained deterministically in insertion order');
+const registryPath=path.join(ROOT,'js','ui-enhancer-registry.js');
+const registry=fs.readFileSync(registryPath,'utf8');
+assert.match(registry,/__capitalismTycoonPendingUIEnhancers/,'registry must support static pre-registry enhancer registrations');
+assert.match(registry,/queue\.splice\(0\)/,'registry must empty the pending queue before processing it');
+assert.match(registry,/pendingIDs\.has\(id\)/,'registry must deduplicate repeated pre-init enhancer ids');
 assert.doesNotMatch(registry,/MutationObserver|queueMicrotask|requestAnimationFrame/,'registry must remain observer- and async-render-loop free');
+
+// Exercise the pending path directly: FIFO order, duplicate suppression, and an empty queue after drain.
+const app={innerHTML:''};
+const sandbox={
+  console:{error(){}},
+  document:{getElementById(id){return id==='app'?app:null;}},
+  __capitalismTycoonModules:{},
+  __capitalismTycoonPendingUIEnhancers:[
+    {id:'startup-a',enhance(){}},
+    {id:'startup-a',enhance(){throw new Error('duplicate enhancer must not run');}},
+    {id:'startup-b',enhance(){}}
+  ]
+};
+sandbox.globalThis=sandbox;
+vm.runInNewContext(registry,sandbox,{filename:'ui-enhancer-registry.js'});
+const installed=sandbox.__capitalismTycoonModules.uiEnhancerRegistry;
+assert.deepEqual(Array.from(installed.registeredIDs()),['startup-a','startup-b'],'pending enhancer order must remain FIFO with duplicate ids registered once');
+assert.equal(sandbox.__capitalismTycoonPendingUIEnhancers.length,0,'pending queue must be empty after registry initialization');
 
 const jsFiles=fs.readdirSync(path.join(ROOT,'js')).filter(name=>name.endsWith('.js'));
 const unqualified=jsFiles.filter(name=>/new\s+MutationObserver\s*\(/.test(fs.readFileSync(path.join(ROOT,'js',name),'utf8')));
