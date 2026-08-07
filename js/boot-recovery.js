@@ -16,6 +16,12 @@ function observerLimitFromLocation(env=globalThis){
     return Number.isFinite(value)&&value>=0?Math.min(200,value):null;
   }catch(_){return null;}
 }
+function observerReportEnabled(env=globalThis){
+  try{
+    const url=new (env.URL||URL)(String(env.location?.href||''),'https://local.invalid/');
+    return url.searchParams.get('observerReport')==='1';
+  }catch(_){return false;}
+}
 function installObserverThresholdGuard(env=globalThis){
   const limit=observerLimitFromLocation(env);
   if(limit===null||typeof env.MutationObserver!=='function')return null;
@@ -50,6 +56,22 @@ const observerThreshold=installObserverThresholdGuard();
 
 const esc=value=>String(value??'').replace(/[&<>'"]/g,char=>({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[char]));
 const clip=(value,max=400)=>String(value??'').replace(/[\u0000-\u001f\u007f]/g,' ').replace(/\s+/g,' ').trim().slice(0,max);
+function showObserverThresholdReport(env=globalThis){
+  if(!observerThreshold||!observerReportEnabled(env)||!env.document?.createElement||!env.document?.body?.appendChild)return false;
+  const id='observer-threshold-report';
+  let node=env.document.getElementById?.(id);
+  if(!node){node=env.document.createElement('div');node.id=id;env.document.body.appendChild(node);}
+  const first=Math.max(1,observerThreshold.limit-4);
+  const last=Math.min(observerThreshold.sources.length,observerThreshold.limit+6);
+  const rows=[];
+  for(let index=first;index<=last;index++){
+    const source=observerThreshold.sources[index-1]||'(unknown)';
+    const marker=index===observerThreshold.limit+1?' ← FIRST BLOCKED':'';
+    rows.push(`#${index} ${esc(source)}${marker}`);
+  }
+  node.innerHTML=`<section style="position:fixed;top:max(8px,env(safe-area-inset-top));left:8px;right:8px;z-index:2147483646;background:#07111f;color:#f5f7fb;border:2px solid #22c55e;border-radius:12px;padding:12px;font:13px/1.45 ui-monospace,SFMono-Regular,Menlo,monospace;box-shadow:0 8px 24px #0008"><strong>Observer threshold report</strong><br>limit=${observerThreshold.limit} tracked=${observerThreshold.tracked} allowed=${observerThreshold.allowed} blocked=${observerThreshold.blocked}<pre style="white-space:pre-wrap;margin:8px 0 0">${rows.join('\n')}</pre></section>`;
+  return true;
+}
 function sourcePath(value,env=globalThis){
   const text=String(value??'').trim();
   if(!text||text==='undefined'||text==='null')return '';
@@ -121,7 +143,7 @@ function onClick(event){
   else if(action==='backup')download();
   else if(action==='close')dismiss();
 }
-function onLoad(){bridge();}
+function onLoad(){showObserverThresholdReport();bridge();}
 function handoff(env=globalThis){
   active=false;env.removeEventListener?.('error',onError,true);env.removeEventListener?.('unhandledrejection',onRejection);env.removeEventListener?.('load',onLoad);env.document?.removeEventListener?.('click',onClick);dismiss(env);return latest;
 }
@@ -136,7 +158,7 @@ function bridge(env=globalThis){
 function install(env=globalThis){
   env.addEventListener?.('error',onError,true);env.addEventListener?.('unhandledrejection',onRejection);env.addEventListener?.('load',onLoad,{once:true});env.document?.addEventListener?.('click',onClick);return true;
 }
-const api=Object.freeze({SAVE_KEY,ROOT_ID,record,readSave,launchUrl,render,show,dismiss,capture,download,handoff,bridge,install,observerThreshold,__installed:true});
+const api=Object.freeze({SAVE_KEY,ROOT_ID,record,readSave,launchUrl,render,show,dismiss,capture,download,handoff,bridge,install,observerThreshold,showObserverThresholdReport,__installed:true});
 Object.defineProperty(globalThis,SLOT,{value:api,configurable:false,enumerable:false,writable:false});
 install();
 })();
