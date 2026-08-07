@@ -79,7 +79,15 @@ The batch deliberately avoids `app.js`. It also avoids changing the underlying b
 
 ### Registration before the registry loads
 
-Some Stage 3-4 modules load before `ui-enhancer-registry.js`. To preserve static module order, they enqueue enhancer definitions in `globalThis.__capitalismTycoonPendingUIEnhancers`. When the registry loads it drains that queue in insertion order and then normal direct registrations continue. No existing module load order is rearranged.
+Some Stage 3-4 modules load before `ui-enhancer-registry.js`. Moving the registry to immediately after `runtime.js` was considered, but rejected for this stabilization batch because it would newly wrap `#app.innerHTML` across the entire early boot sequence and broaden the behavioral change beyond the observer migration itself.
+
+Instead, early modules enqueue enhancer definitions in `globalThis.__capitalismTycoonPendingUIEnhancers`. The registry contract is:
+
+1. the pending array is drained with `splice(0)`, so it is empty before definitions are processed;
+2. duplicate pre-init enhancer IDs are suppressed and registered exactly once;
+3. non-duplicate definitions are processed FIFO, preserving `index.html` script order.
+
+These guarantees are exercised directly by `tests/stage-3-4-startup-observer-migration-test.js` in addition to static checks.
 
 For every Stage 3-4 migrated module:
 
