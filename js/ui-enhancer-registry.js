@@ -33,22 +33,28 @@ function registerUIEnhancer(definition){
   runUIEnhancers();
   return hook;
 }
-function findInnerHTMLDescriptor(node){
+function createInnerHTMLAccess(node){
+  const own=Object.getOwnPropertyDescriptor(node,'innerHTML');
+  if(own?.get&&own?.set)return {enumerable:own.enumerable,get:()=>own.get.call(node),set:value=>own.set.call(node,value)};
+  if(own&&Object.prototype.hasOwnProperty.call(own,'value')&&own.writable){
+    let value=own.value;
+    return {enumerable:own.enumerable,get:()=>value,set:next=>{value=next;}};
+  }
   let prototype=node;
   while((prototype=Object.getPrototypeOf(prototype))){
     const descriptor=Object.getOwnPropertyDescriptor(prototype,'innerHTML');
-    if(descriptor?.get&&descriptor?.set)return descriptor;
+    if(descriptor?.get&&descriptor?.set)return {enumerable:descriptor.enumerable,get:()=>descriptor.get.call(node),set:value=>descriptor.set.call(node,value)};
   }
   return null;
 }
-const innerHTMLDescriptor=findInnerHTMLDescriptor(app);
-if(!innerHTMLDescriptor)throw new Error('Unable to bind the #app render boundary.');
+const innerHTMLAccess=createInnerHTMLAccess(app);
+if(!innerHTMLAccess)throw new Error('Unable to bind the #app render boundary.');
 Object.defineProperty(app,'innerHTML',{
   configurable:true,
-  enumerable:innerHTMLDescriptor.enumerable,
-  get(){return innerHTMLDescriptor.get.call(this);},
+  enumerable:innerHTMLAccess.enumerable,
+  get(){return innerHTMLAccess.get();},
   set(value){
-    innerHTMLDescriptor.set.call(this,value);
+    innerHTMLAccess.set(value);
     generation+=1;
     runUIEnhancers();
   }
