@@ -1,6 +1,16 @@
 // Phase 8B-9: voluntary debt prepayment and treasury action panel.
 (function(){'use strict';
 const modules=globalThis.__capitalismTycoonModules;
+function registerEnhancer(definition){
+ const registry=modules.uiEnhancerRegistry;
+ if(registry?.registerUIEnhancer)return registry.registerUIEnhancer(definition);
+ const key='__capitalismTycoonPendingUIEnhancers';
+ const pending=Array.isArray(globalThis[key])?globalThis[key]:(globalThis[key]=[]);
+ pending.push(definition);
+ return definition;
+}
+function runEnhancers(fallback){const registry=modules.uiEnhancerRegistry;if(registry?.runUIEnhancers)return registry.runUIEnhancers();return typeof fallback==='function'?fallback():false;}
+
 if(!modules?.engine?.TycoonEngine)throw new Error('engine.js must load before treasury-prepayment.js.');
 if(!modules.playerDebtService?.__installed)throw new Error('player-debt-service.js must load before treasury-prepayment.js.');
 if(modules.treasuryPrepayment)throw new Error('treasury prepayment is already registered.');
@@ -19,11 +29,12 @@ EngineClass.prototype.voluntaryDebtPrepaymentCapacity=function(){return capacity
 EngineClass.prototype.prepayCompanyDebtVoluntarily=function(amount){return prepay(this,amount);};
 Object.defineProperty(EngineClass.prototype,'__treasuryPrepaymentInstalled',{value:true});
 function render(instance=modules.playerEngineBridge?.getEngine?.()){if(!instance?.g?.configured||instance.g.selectedTab!=='bank')return'';const c=capacity(instance),reserve=modules.playerDebtMaturityReserve?.normalize?.(instance),coverage=reserve?Math.round(clamp(reserve.coverageRatio,0,1)*100):100,key=renderKey(`${c.debt}|${c.cash}|${c.maxAmount}|${reserve?.status||''}|${coverage}`);return `<section class="card" data-treasury-prepayment-ui="1" data-treasury-prepayment-render-key="${key}"><div class="card-head"><div><h2>財務戦略・繰上返済</h2><p>最低運転資金500万円を残し、借入元本を前倒しで削減します。高金利の借入から優先して返済します。</p></div><span class="badge good">Phase 8B-9</span></div><div class="card-body"><div class="kpi-grid mini"><div class="stat"><span>返済可能額</span><strong>${esc(compactYen(c.maxAmount))}</strong></div><div class="stat"><span>返済後最低現金</span><strong>${esc(compactYen(MIN_CASH))}</strong></div><div class="stat"><span>満期カバレッジ</span><strong>${coverage}%</strong></div></div><div class="button-row"><button class="btn secondary small" data-treasury-prepayment="5000000" ${c.maxAmount<5_000_000?'disabled':''}>500万円返済</button><button class="btn secondary small" data-treasury-prepayment="10000000" ${c.maxAmount<10_000_000?'disabled':''}>1,000万円返済</button><button class="btn primary small" data-treasury-prepayment="max" ${c.maxAmount<=0?'disabled':''}>返済可能額を全額</button></div></div></section>`;}
-let scheduled=false,observer=null,bound=false;
+let bound=false;
 function enhance(){if(typeof document==='undefined')return false;const engine=modules.playerEngineBridge?.getEngine?.(),screen=document.getElementById('screen');if(!screen)return false;const old=screen.querySelector?.('[data-treasury-prepayment-ui]'),html=render(engine);if(!html){old?.remove?.();return false;}const desiredKey=(html.match(/data-treasury-prepayment-render-key="([^"]+)"/)||[])[1]||'',currentKey=String(old?.getAttribute?.('data-treasury-prepayment-render-key')||old?.dataset?.treasuryPrepaymentRenderKey||'');if(old&&currentKey===desiredKey)return false;if(old){old.outerHTML=html;return true;}screen.insertAdjacentHTML?.('beforeend',html);return true;}
-function schedule(){if(scheduled)return;scheduled=true;(typeof queueMicrotask==='function'?queueMicrotask:setTimeout)(()=>{scheduled=false;enhance();},0);}
+function schedule(){return runEnhancers();}
 function click(event){const button=event?.target?.closest?.('[data-treasury-prepayment]'),engine=modules.playerEngineBridge?.getEngine?.();if(!button||button.disabled||!engine)return;event.preventDefault?.();const c=capacity(engine),raw=button.dataset.treasuryPrepayment,amount=raw==='max'?c.maxAmount:Number(raw);if(amount>0&&engine.prepayCompanyDebtVoluntarily(amount))schedule();}
-function installUI(){if(typeof document==='undefined')return;const root=document.getElementById('app');if(root&&!bound){root.addEventListener('click',click);bound=true;}if(root&&!observer&&typeof MutationObserver==='function'){observer=new MutationObserver(schedule);observer.observe(root,{childList:true,subtree:true});}schedule();}
+function installUI(){if(typeof document==='undefined')return;const root=document.getElementById('app');if(root&&!bound){root.addEventListener('click',click);bound=true;}schedule();}
 modules.treasuryPrepayment=Object.freeze({MIN_CASH,HISTORY_LIMIT,stateFor,capacity,reduceLoans,prepay,renderKey,render,enhance,installUI,__installed:true});
 installUI();
+registerEnhancer({id:'treasury-prepayment',enhance:()=>enhance()});
 })();
