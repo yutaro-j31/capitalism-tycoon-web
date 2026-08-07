@@ -6,6 +6,7 @@ if(!modules.engine)throw new Error('engine.js must be loaded before d-ui-shell.j
 if(!modules.playerEngineBridge?.__installed)throw new Error('player-engine-bridge.js must be loaded before d-ui-shell.js.');
 if(!modules.releaseDiagnosticsUI?.__installed)throw new Error('release-diagnostics-ui.js must be loaded before d-ui-shell.js.');
 if(!modules.playtestReportUI?.__installed)throw new Error('playtest-report-ui.js must be loaded before d-ui-shell.js.');
+if(!modules.uiEnhancerRegistry?.registerUIEnhancer)throw new Error('app.js UI enhancer registry must be loaded before d-ui-shell.js.');
 if(modules.dUIShell)throw new Error('D UI shell is already registered.');
 
 const PRIMARY_NAV=[
@@ -21,8 +22,6 @@ const ALL_NAV=[
 ];
 const MARKER_POSITIONS=[[18,23],[43,17],[66,27],[25,47],[54,48],[78,52],[37,70],[64,73],[15,67],[83,31]];
 let selectedEntity;
-let scheduled=false;
-let observer=null;
 
 const esc=value=>String(value??'').replace(/[&<>'"]/g,char=>({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[char]));
 const finite=value=>Number.isFinite(Number(value))?Number(value):0;
@@ -147,21 +146,20 @@ function enhanceMap(g){
   renderMapWorkspace(screen,g);
 }
 function renderKey(g){return [g.week,g.selectedTab,g.stores?.length,g.companyCash,g.lastReport?.profit,selectedEntity].join(':');}
-function enhance(force=false){
-  const app=document.getElementById('app');const g=game();const e=engine();if(!app||!g)return false;
+function enhance(force=false,context=null){
+  const app=context?.app||document.getElementById('app');const g=context?.state||game();const e=context?.engine||engine();if(!app||!g)return false;
   if(document.getElementById('setup-form')){document.body.classList.remove('d-ui-active');return false;}
   const key=renderKey(g);if(!force&&app.dataset.dUiKey===key&&document.getElementById('d-ui-sidebar'))return false;
   app.dataset.dUiKey=key;document.body.classList.add('d-ui-active');enhanceTopbar(g,e);ensureNavigation(g);enhanceMap(g);return true;
 }
-function schedule(){if(scheduled)return;scheduled=true;const run=()=>{scheduled=false;enhance();};if(typeof queueMicrotask==='function')queueMicrotask(run);else setTimeout(run,0);}
 function handleClick(event){
   const menu=document.getElementById('d-ui-command-menu');
   if(menu?.classList.contains('open')&&event.target===menu){event.preventDefault();setCommandMenu(false,true);return true;}
   const action=event.target?.closest?.('[data-d-ui-action]')?.dataset?.dUiAction;
   if(action==='toggle-menu'){event.preventDefault();const open=!menu?.classList.contains('open');setCommandMenu(open,!open);return true;}
-  if(action==='clear-selection'){event.preventDefault();selectedEntity=null;enhance(true);return true;}
+  if(action==='clear-selection'){event.preventDefault();selectedEntity=null;modules.uiEnhancerRegistry.runUIEnhancers();return true;}
   const marker=event.target?.closest?.('[data-d-ui-marker]');
-  if(marker){event.preventDefault();selectedEntity=marker.dataset.dUiMarker;enhance(true);return true;}
+  if(marker){event.preventDefault();selectedEntity=marker.dataset.dUiMarker;modules.uiEnhancerRegistry.runUIEnhancers();return true;}
   const tab=event.target?.closest?.('[data-action="tab"]');if(tab)setCommandMenu(false);
   return false;
 }
@@ -180,8 +178,10 @@ function handleKeydown(event){
   return false;
 }
 function install(){
-  document.addEventListener('click',handleClick,true);document.addEventListener('keydown',handleKeydown,true);const app=document.getElementById('app');if(app&&typeof MutationObserver==='function'){observer=new MutationObserver(schedule);observer.observe(app,{childList:true,subtree:true});}
-  schedule();return true;
+  document.addEventListener('click',handleClick,true);
+  document.addEventListener('keydown',handleKeydown,true);
+  modules.uiEnhancerRegistry.registerUIEnhancer({id:'d-ui-shell',enhance:context=>enhance(false,context)});
+  return true;
 }
 modules.dUIShell=Object.freeze({PRIMARY_NAV,DOCK_NAV,ALL_NAV,money,reportSeries,sparkline,currentKpis,mapEntities,missionRows,missionValue,selectedDetail,renderMapWorkspace,setCommandMenu,enhance,handleClick,handleKeydown,install,__installed:true});
 install();
