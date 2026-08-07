@@ -43,6 +43,7 @@ for (const [name, file] of [
   ['difficulty-scenario-balance', 'tests/difficulty-scenario-balance-test.js'],
   ['competitor-dashboard-ui', 'tests/competitor-dashboard-ui-test.js'],
   ['d-ui-context-tabs', 'tests/d-ui-context-tabs-test.js'],
+  ['stage-3-3-observer-migration', 'tests/stage-3-3-observer-migration-test.js'],
   ['v1-progression-gate', 'tests/v1-progression-gate-test.js'],
   ['treasury-prepayment', 'tests/treasury-prepayment-test.js'],
   ['treasury-refinancing-policy', 'tests/treasury-refinancing-policy-test.js'],
