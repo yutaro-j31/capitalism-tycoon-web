@@ -57,7 +57,11 @@ The source report on a working `observerLimit=44` page identified the first bloc
 
 - `#45 real-estate-portfolio-dashboard-ui.js`
 
-Nearby registrations were the dense real-estate UI chain (`real-estate-mortgage-refinancing-ui.js` through `real-estate-complete-cycle-ui.js`). This indicates a cumulative observer/microtask livelock boundary rather than evidence that the dashboard's render content itself is defective.
+A second physical-device diagnostic disabled only the app-wide observer registered by `real-estate-portfolio-dashboard-ui.js` while leaving every other observer unrestricted. The page still white-screened. Therefore #45 is not a sufficient single-cause explanation; the failure requires cumulative observer count and/or interaction among multiple observer-driven UI modules.
+
+The #45 module itself is still a high-risk participant: each render removes its existing dashboard, creates a replacement section, prepends it to `#app`, and its former app-wide observer scheduled another render from that DOM mutation. It did not have a same-DOM-generation application key. Stage 3-3 therefore migrates it together with the surrounding observer cluster rather than treating it as a standalone fix.
+
+Nearby registrations were the dense real-estate UI chain (`real-estate-mortgage-refinancing-ui.js` through `real-estate-complete-cycle-ui.js`). The Stage 3-3 batch targets that cluster plus two earlier startup UI observers.
 
 ## Stage 3-3 migrated files
 
