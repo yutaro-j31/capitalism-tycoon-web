@@ -17,13 +17,14 @@ Replace observer-driven UI augmentation with a deterministic, one-way render pip
 
 Status: implemented in the active PR; external validation pending.
 
-- Registry location: `js/app.js` (`modules.uiEnhancerRegistry`).
+- Registry location: `js/ui-enhancer-registry.js` (`modules.uiEnhancerRegistry`).
+- The registry loads statically immediately before `app.js`.
+- It binds the `#app.innerHTML` write boundary before `app.js` starts, so `runUIEnhancers()` executes synchronously after each core `render()` DOM replacement.
 - `registerUIEnhancer({ id, enhance })` appends hooks in deterministic registration order.
-- `runUIEnhancers()` runs after every core `render()` pass.
 - Registration also applies a newly loaded enhancer to the already-rendered DOM.
 - A reentry flag prevents recursive pipeline execution.
 - Every hook has an independent `try/catch`; failures log the hook ID and do not stop later hooks.
-- No new registry file was created, so `index.html` requires no new script connection. `app.js` already loads before the migrated UI modules.
+- `index.html` connects the registry between `founding-tutorial.js` and `app.js` without reordering any existing script.
 
 ## Stage 3-2 migrated files
 
