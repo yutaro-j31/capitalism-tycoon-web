@@ -3,6 +3,7 @@
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
+const vm = require('node:vm');
 const { ROOT, readIndex } = require('./harness');
 
 const html = readIndex();
@@ -11,6 +12,8 @@ const stylePath = path.join(ROOT, 'css', 'd-ui.css');
 assert.ok(fs.existsSync(scriptPath), 'D UI shell script is required');
 assert.ok(fs.existsSync(stylePath), 'D UI stylesheet is required');
 const script = fs.readFileSync(scriptPath, 'utf8');
+const appScript = fs.readFileSync(path.join(ROOT, 'js', 'app.js'), 'utf8');
+const contextTabsScript = fs.readFileSync(path.join(ROOT, 'js', 'd-ui-context-tabs.js'), 'utf8');
 const style = fs.readFileSync(stylePath, 'utf8');
 
 assert.match(html, /<link[^>]+href="\.\/css\/d-ui\.css"/i, 'D UI stylesheet must load from index');
@@ -20,6 +23,47 @@ const shellIndex = html.indexOf('src="./js/d-ui-shell.js"');
 const recoveryIndex = html.indexOf('src="./js/runtime-recovery-ui.js"');
 assert.ok(playtestIndex !== -1 && shellIndex > playtestIndex, 'D UI shell must load after playtest reporting');
 assert.ok(recoveryIndex > shellIndex, 'runtime recovery must remain after the D UI shell');
+
+assert.match(appScript, /const uiEnhancers=\[\]/, 'app must own one ordered UI enhancer registry');
+assert.match(appScript, /if\(uiEnhancersRunning\)return false/, 'UI enhancer execution must reject reentry');
+assert.match(appScript, /for\(const hook of uiEnhancers\)/, 'UI enhancers must execute in registration order');
+assert.match(appScript, /try\{hook\.enhance\(context\);\}[\s\S]*catch\(error\)/, 'each UI enhancer must have an isolated failure boundary');
+assert.match(appScript, /\[UI enhancer failed: \$\{hook\.id\}\]/, 'failed enhancer logs must identify the hook');
+assert.match(appScript, /finally\{uiEnhancersRunning=false;\}/, 'reentry guard must reset even when hooks fail');
+assert.match(appScript, /uiEnhancers\.push\(hook\)/, 'registration order must remain insertion order');
+assert.match(appScript, /function render\(\)[\s\S]*runUIEnhancers\(\);[\s\S]*\}/, 'app render must synchronously run enhancers after core DOM creation');
+assert.match(script, /registerUIEnhancer\(\{id:'d-ui-shell'/, 'D UI shell must register with the central pipeline');
+assert.match(contextTabsScript, /registerUIEnhancer\(\{id:'d-ui-context-tabs'/, 'context tabs must register after the shell');
+assert.doesNotMatch(script, /new MutationObserver|queueMicrotask|function schedule\(/, 'D UI shell must not observe or microtask-loop over app DOM');
+assert.doesNotMatch(contextTabsScript, /new MutationObserver|queueMicrotask|function schedule\(/, 'context tabs must not observe or microtask-loop over app DOM');
+
+const registryStart = appScript.indexOf('const uiEnhancers=[];');
+const registryEnd = appScript.indexOf('const esc =', registryStart);
+assert.ok(registryStart >= 0 && registryEnd > registryStart, 'registry source must remain independently testable');
+const registryErrors = [];
+const registrySandbox = {
+  app: { id: 'app' },
+  document: { getElementById: id => id === 'screen' ? { id } : null },
+  engine: { g: { configured: true } },
+  __modules: {},
+  console: { error: (...args) => registryErrors.push(args) }
+};
+vm.runInNewContext(appScript.slice(registryStart, registryEnd), registrySandbox);
+const registry = registrySandbox.__modules.uiEnhancerRegistry;
+const calls = [];
+let nestedRun;
+registry.registerUIEnhancer({ id: 'first', enhance() { calls.push('first'); nestedRun = registry.runUIEnhancers(); } });
+registry.registerUIEnhancer({ id: 'broken', enhance() { calls.push('broken'); throw new Error('expected'); } });
+registry.registerUIEnhancer({ id: 'third', enhance() { calls.push('third'); } });
+calls.length = 0;
+registryErrors.length = 0;
+assert.equal(registry.runUIEnhancers(), true, 'top-level enhancer pass must execute');
+assert.deepEqual(calls, ['first', 'broken', 'third'], 'enhancers must run in deterministic registration order after a failure');
+assert.equal(nestedRun, false, 'nested enhancer execution must be rejected');
+assert.equal(registry.isRunning(), false, 'reentry flag must reset after the pass');
+assert.deepEqual(Array.from(registry.registeredIDs()), ['first', 'broken', 'third'], 'registered IDs must preserve insertion order');
+assert.equal(registryErrors.length, 1, 'one failed enhancer must produce one isolated error');
+assert.match(String(registryErrors[0][0]), /UI enhancer failed: broken/, 'error logging must name the failed enhancer');
 
 for (const label of ['マップ','本社','店舗','資金調達','研究開発','採用','危機対応','実績','目標','一週進める']) {
   assert.ok(script.includes(label), `D UI shell is missing ${label}`);
