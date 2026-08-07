@@ -8,12 +8,13 @@ const read=name=>fs.readFileSync(path.join(ROOT,'js',name),'utf8');
 const index=readIndex();
 const baseName='real-estate-ui.js';
 const base=read(baseName);
+const assetsSelector="document.querySelector('[data-screen=\"assets\"]')";
 
 assert.doesNotMatch(base,/MutationObserver/,'base real-estate UI must not retain its app-wide observer');
 assert.doesNotMatch(base,/queueMicrotask/,'base real-estate UI must not retain microtask redraw scheduling');
 assert.match(base,/uiEnhancerRegistry\.registerUIEnhancer/,'base real-estate UI must register with the central enhancer registry');
 assert.match(base,/id:['"]real-estate-ui['"]/,'base real-estate UI must use a stable enhancer id');
-assert.match(base,/\[data-screen=\\?['"]assets\\?['"]\]/,'base real-estate UI must remain scoped to the assets screen');
+assert.ok(base.includes(assetsSelector),'base real-estate UI must remain scoped to the assets screen');
 
 const satellites=[
   'real-estate-tenant-renewals-ui.js',
@@ -51,7 +52,7 @@ const topDashboards=[
 ];
 for(const name of topDashboards){
   const code=read(name);
-  assert.match(code,/document\.querySelector\(['"]\[data-screen=\\?['"]assets\\?['"]\]['"]\)/,`${name} must resolve the assets screen explicitly`);
+  assert.ok(code.includes(assetsSelector),`${name} must resolve the assets screen explicitly`);
   assert.doesNotMatch(code,/document\.getElementById\(['"]app['"]\)/,`${name} must not render directly against #app`);
   assert.doesNotMatch(code,/\bapp\.prepend\s*\(/,`${name} must not fall back to app.prepend`);
   assert.match(code,/\bscreen\.(?:prepend|querySelector)\b/,`${name} must render inside the assets screen`);
