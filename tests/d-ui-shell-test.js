@@ -36,8 +36,9 @@ assert.match(registryScript, /try\{hook\.enhance\(current\);\}[\s\S]*catch\(erro
 assert.match(registryScript, /\[UI enhancer failed: \$\{hook\.id\}\]/, 'failed enhancer logs must identify the hook');
 assert.match(registryScript, /finally\{running=false;\}/, 'reentry guard must reset even when hooks fail');
 assert.match(registryScript, /enhancers\.push\(hook\)/, 'registration order must remain insertion order');
+assert.match(registryScript, /function createInnerHTMLAccess\(node\)/, 'registry must adapt both real DOM accessors and test DOM data properties');
 assert.match(registryScript, /Object\.defineProperty\(app,'innerHTML'/, 'registry must bind the synchronous core render boundary');
-assert.match(registryScript, /innerHTMLDescriptor\.set\.call\(this,value\);[\s\S]*runUIEnhancers\(\);/, 'enhancers must run synchronously after the core app DOM write');
+assert.match(registryScript, /innerHTMLAccess\.set\(value\);[\s\S]*runUIEnhancers\(\);/, 'enhancers must run synchronously after the core app DOM write');
 assert.doesNotMatch(registryScript, /MutationObserver|queueMicrotask|requestAnimationFrame|setTimeout/, 'registry must not depend on observer or deferred scheduling');
 assert.match(script, /registerUIEnhancer\(\{id:'d-ui-shell'/, 'D UI shell must register with the central pipeline');
 assert.match(contextTabsScript, /registerUIEnhancer\(\{id:'d-ui-context-tabs'/, 'context tabs must register after the shell');
@@ -47,10 +48,7 @@ assert.doesNotMatch(contextTabsScript, /new MutationObserver|queueMicrotask|func
 const calls=[];
 const errors=[];
 const modules={playerEngineBridge:{getEngine:()=>({g:{configured:true}})}};
-let stored='';
-const proto={};
-Object.defineProperty(proto,'innerHTML',{get(){return stored;},set(value){stored=String(value);},configurable:true});
-const app=Object.create(proto);app.id='app';
+const app={id:'app',innerHTML:''};
 const document={getElementById:id=>id==='app'?app:id==='screen'?{id}:null};
 const sandbox={globalThis:null,document,Object,Set,String,TypeError,Error,console:{error:(...args)=>errors.push(args)},__capitalismTycoonModules:modules};
 sandbox.globalThis=sandbox;
