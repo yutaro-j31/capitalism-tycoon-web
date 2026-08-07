@@ -4,6 +4,7 @@
     "tests/industry-specific-events-reachability-test.js",
     "tests/industry-event-response-plans-reachability-test.js",
     "tests/stage-3-3-observer-migration-test.js",
+    "tests/stage-3-4-startup-observer-migration-test.js",
     "tests/shareholder-activism-incidence-matrix-test.js",
     "tests/shareholder-value-destruction-test.js"
   ],
