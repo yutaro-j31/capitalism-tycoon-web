@@ -29,9 +29,10 @@ assert.doesNotMatch(script, /lastProfit\s*=/, 'context tabs must not mutate stor
 assert.match(shell, /let selectedEntity;/, 'map selection must distinguish initial state from an explicit dismissal');
 assert.match(shell, /selectedEntity===undefined\|\|\(selectedEntity!==null&&![\s\S]*entities\.some/, 'initial or stale selections may choose a valid default without overriding dismissal');
 assert.match(shell, /const chosen=selectedEntity===null\?null:/, 'an explicitly dismissed context panel must remain empty');
-assert.match(shell, /action==='clear-selection'[\s\S]*selectedEntity=null;enhance\(true\)/, 'close control must persist an explicit no-selection state');
+assert.match(shell, /action==='clear-selection'[\s\S]*selectedEntity=null;modules\.uiEnhancerRegistry\.runUIEnhancers\(\)/, 'close control must rerun the ordered enhancer pipeline after dismissal');
 assert.match(shell, /data-d-ui-action="clear-selection" aria-label="拠点詳細を閉じる"/, 'close control must expose an accessible name');
 assert.doesNotMatch(shell, /action==='clear-selection'[\s\S]{0,120}selectedEntity=''/, 'close control must not reuse the initial auto-selection sentinel');
+assert.match(shell, /const marker=event\.target\?\.closest\?\.\('\[data-d-ui-marker\]'\)[\s\S]*selectedEntity=marker\.dataset\.dUiMarker;modules\.uiEnhancerRegistry\.runUIEnhancers\(\)/, 'marker selection must rerun the complete ordered enhancer pipeline');
 assert.match(shell, /aria-controls="d-ui-command-menu" aria-expanded="\$\{menuOpen\}"/, 'command menu trigger must expose and preserve expanded state');
 assert.match(shell, /role="dialog" aria-modal="true" aria-label="経営メニュー"/, 'command menu must expose dialog semantics');
 assert.match(shell, /function setCommandMenu\(open,restoreFocus=false\)[\s\S]*setAttribute\('aria-expanded',String\(open\)\)/, 'command menu state must stay synchronized with aria-expanded');
