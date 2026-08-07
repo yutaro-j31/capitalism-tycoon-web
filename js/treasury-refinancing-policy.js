@@ -1,6 +1,16 @@
 // Phase 8B-10: player-selectable refinancing term policy.
 (function(){'use strict';
 const modules=globalThis.__capitalismTycoonModules;
+function registerEnhancer(definition){
+ const registry=modules.uiEnhancerRegistry;
+ if(registry?.registerUIEnhancer)return registry.registerUIEnhancer(definition);
+ const key='__capitalismTycoonPendingUIEnhancers';
+ const pending=Array.isArray(globalThis[key])?globalThis[key]:(globalThis[key]=[]);
+ pending.push(definition);
+ return definition;
+}
+function runEnhancers(fallback){const registry=modules.uiEnhancerRegistry;if(registry?.runUIEnhancers)return registry.runUIEnhancers();return typeof fallback==='function'?fallback():false;}
+
 if(!modules?.engine?.TycoonEngine)throw new Error('engine.js must load before treasury-refinancing-policy.js.');
 if(!modules.playerDebtRefinancing?.__installed)throw new Error('player-debt-service.js must load before treasury-refinancing-policy.js.');
 if(modules.treasuryRefinancingPolicy)throw new Error('treasury refinancing policy is already registered.');
@@ -23,11 +33,12 @@ EngineClass.prototype.setRefinancingPolicy=function(policyID){return setPolicy(t
 Object.defineProperty(EngineClass.prototype,'__treasuryRefinancingPolicyInstalled',{value:true});
 const compactYen=modules.engine.compactYen||((v)=>`${Math.round(finite(v)).toLocaleString('ja-JP')}円`);
 function render(instance=modules.playerEngineBridge?.getEngine?.()){if(!instance?.g?.configured||instance.g.selectedTab!=='bank')return'';const view=snapshot(instance),debt=Math.max(0,finite(instance.g.companyDebt)),principal=Math.round(debt*view.refinancing.principalShare),fee=Math.round(debt*view.refinancing.feeRate),key=renderKey(`${view.policy.id}|${view.refinancing.termWeeks}|${view.refinancing.principalShare}|${view.refinancing.feeRate}|${view.cooldownRemaining}|${debt}|${principal}|${fee}`);const buttons=Object.values(POLICIES).map(p=>`<button class="btn small ${p.id===view.policy.id?'primary':'ghost'}" data-refinancing-policy="${p.id}" ${p.id===view.policy.id||!view.canChange?'disabled':''}>${esc(p.name)}</button>`).join('');return `<section class="card" data-refinancing-policy-ui="1" data-refinancing-policy-render-key="${key}"><div class="card-head"><div><h2>借換期間方針</h2><p>次回以降の借換期間、満期元本返済率、手数料率を選択します。満期日そのものは変更しません。</p></div><span class="badge good">Phase 8B-10</span></div><div class="card-body"><div class="kpi-grid mini"><div class="stat"><span>現在方針</span><strong>${esc(view.policy.name)}</strong></div><div class="stat"><span>借換期間</span><strong>${view.refinancing.termWeeks}週</strong></div><div class="stat"><span>満期元本目安</span><strong>${esc(compactYen(principal))}</strong></div><div class="stat"><span>手数料目安</span><strong>${esc(compactYen(fee))}</strong></div></div><p>${esc(view.policy.description)}${view.cooldownRemaining?` 再変更まであと${view.cooldownRemaining}週。`:''}</p><div class="button-row">${buttons}</div></div></section>`;}
-let scheduled=false,observer=null,bound=false;
+let bound=false;
 function enhance(){if(typeof document==='undefined')return false;const engine=modules.playerEngineBridge?.getEngine?.(),screen=document.getElementById('screen');if(!screen)return false;const old=screen.querySelector?.('[data-refinancing-policy-ui]'),html=render(engine);if(!html){old?.remove?.();return false;}const desiredKey=(html.match(/data-refinancing-policy-render-key="([^"]+)"/)||[])[1]||'',currentKey=String(old?.getAttribute?.('data-refinancing-policy-render-key')||old?.dataset?.refinancingPolicyRenderKey||'');if(old&&currentKey===desiredKey)return false;if(old){old.outerHTML=html;return true;}screen.insertAdjacentHTML?.('beforeend',html);return true;}
-function schedule(){if(scheduled)return;scheduled=true;(typeof queueMicrotask==='function'?queueMicrotask:setTimeout)(()=>{scheduled=false;enhance();},0);}
+function schedule(){return runEnhancers();}
 function click(event){const button=event?.target?.closest?.('[data-refinancing-policy]'),engine=modules.playerEngineBridge?.getEngine?.();if(!button||button.disabled||!engine)return;event.preventDefault?.();if(engine.setRefinancingPolicy(String(button.dataset.refinancingPolicy||'')))schedule();}
-function installUI(){if(typeof document==='undefined')return;const root=document.getElementById('app');if(root&&!bound){root.addEventListener('click',click);bound=true;}if(root&&!observer&&typeof MutationObserver==='function'){observer=new MutationObserver(schedule);observer.observe(root,{childList:true,subtree:true});}schedule();}
+function installUI(){if(typeof document==='undefined')return;const root=document.getElementById('app');if(root&&!bound){root.addEventListener('click',click);bound=true;}schedule();}
 modules.treasuryRefinancingPolicy=Object.freeze({HISTORY_LIMIT,CHANGE_COOLDOWN_WEEKS,POLICIES,stateFor,snapshot,setPolicy,renderKey,render,enhance,installUI,__installed:true});
 installUI();
+registerEnhancer({id:'treasury-refinancing-policy',enhance:()=>enhance()});
 })();

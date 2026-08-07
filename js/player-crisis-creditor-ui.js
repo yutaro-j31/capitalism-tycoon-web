@@ -2,23 +2,34 @@
 (function(){'use strict';
 if(!globalThis.__capitalismTycoonModules)throw new Error('runtime.js must be loaded before player-crisis-creditor-ui.js.');
 const modules=globalThis.__capitalismTycoonModules;
+function registerEnhancer(definition){
+ const registry=modules.uiEnhancerRegistry;
+ if(registry?.registerUIEnhancer)return registry.registerUIEnhancer(definition);
+ const key='__capitalismTycoonPendingUIEnhancers';
+ const pending=Array.isArray(globalThis[key])?globalThis[key]:(globalThis[key]=[]);
+ pending.push(definition);
+ return definition;
+}
+function runEnhancers(fallback){const registry=modules.uiEnhancerRegistry;if(registry?.runUIEnhancers)return registry.runUIEnhancers();return typeof fallback==='function'?fallback():false;}
+
 if(!modules.engine?.TycoonEngine)throw new Error('engine.js must be loaded before player-crisis-creditor-ui.js.');
 if(!modules.playerCrisisCreditor?.__installed)throw new Error('player-crisis-creditor.js must be loaded before player-crisis-creditor-ui.js.');
 if(modules.playerCrisisCreditorUI)throw new Error('player crisis creditor UI is already registered.');
 const EngineClass=modules.engine.TycoonEngine,compactYen=modules.engine.compactYen||((v)=>`${Math.round(Number(v)||0).toLocaleString('ja-JP')}円`);
 const esc=v=>String(v??'').replace(/[&<>'"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c]));
 const LABELS=Object.freeze({principalDeferral:'元本返済猶予',maturityExtension:'返済期間延長',interestReduction:'金利引き下げ'});
-let activeEngine=null,observer=null,bound=false,scheduled=false;
+let activeEngine=null,bound=false;
 function renderKey(html){let hash=2166136261;const text=String(html||'');for(let i=0;i<text.length;i++){hash^=text.charCodeAt(i);hash=Math.imul(hash,16777619);}return (hash>>>0).toString(36);}
 function findCandidate(type,loanID){if(!activeEngine||typeof activeEngine.crisisCreditorNegotiationOptions!=='function')return null;const data=activeEngine.crisisCreditorNegotiationOptions();for(const loan of data.loans||[]){const row=(loan.actions||[]).find(x=>x.type===type&&String(x.loanID)===String(loanID));if(row)return row;}return null;}
 function renderSection(instance=activeEngine){if(!instance||typeof instance.crisisCreditorNegotiationOptions!=='function')return '';const data=instance.crisisCreditorNegotiationOptions();if(!data?.eligible)return '';const rows=(data.recommended||[]).slice(0,3).map(row=>{const label=LABELS[row.type]||row.type;const cooldown=row.cooldownWeeksRemaining>0?`再交渉まで${row.cooldownWeeksRemaining}週`:`承認見込み ${row.approvalPercent}%`;return `<article class="item crisis-creditor-item"><div><h3>${esc(row.loanName)}</h3><p>${esc(label)} · 残高 ${esc(compactYen(row.outstandingPrincipal))}</p></div><div class="item-metrics"><span>${esc(row.benefit)}</span><span>${esc(cooldown)}</span></div><button class="btn secondary" data-player-crisis-creditor-action="negotiate" data-creditor-type="${esc(row.type)}" data-creditor-loan-id="${esc(row.loanID)}" ${row.canExecute?'':'disabled'}>条件変更を交渉</button></article>`;}).join('');if(!rows)return '';return `<details class="learning-card crisis-creditor-card" open data-player-crisis-creditor-ui="1"><summary>債権者との条件変更交渉</summary><p>承認確率は信用力、財務責任者能力、負債比率、再建実績などから決まります。否決時は会社信用が低下します。</p><div class="grid two">${rows}</div></details>`;}
 function standalone(html,key=renderKey(html)){return `<section class="card player-creditor-standalone" data-player-crisis-creditor-standalone="1" data-player-crisis-creditor-render-key="${key}" aria-live="polite"><div class="card-head"><div><h2>債権者交渉</h2><p>危機対応パネルと分離して返済条件の候補を表示します。</p></div></div><div class="card-body">${html}</div></section>`;}
 function existingRenderKey(node){return String(node?.getAttribute?.('data-player-crisis-creditor-render-key')||node?.dataset?.playerCrisisCreditorRenderKey||'');}
 function enhance(){if(typeof document==='undefined'||!activeEngine)return false;const screen=document.getElementById('screen');if(!screen)return false;const panel=screen.querySelector?.('#player-crisis-panel'),existing=screen.querySelector?.('[data-player-crisis-creditor-standalone]');const section=panel?renderSection(activeEngine):'';if(!section){if(existing){existing.remove?.();return true;}return false;}const key=renderKey(section);if(existingRenderKey(existing)===key)return false;const desired=standalone(section,key);if(existing){existing.outerHTML=desired;return true;}if(panel&&typeof panel.insertAdjacentHTML==='function')panel.insertAdjacentHTML('afterend',desired);else if(typeof screen.insertAdjacentHTML==='function')screen.insertAdjacentHTML('afterbegin',desired);else screen.innerHTML=`${desired}${String(screen.innerHTML||'')}`;return true;}
-function schedule(){if(scheduled)return;scheduled=true;const run=()=>{scheduled=false;enhance();};if(typeof queueMicrotask==='function')queueMicrotask(run);else setTimeout(run,0);}
+function schedule(){return runEnhancers();}
 function bindEngine(instance){activeEngine=instance;schedule();return instance;}
 function handleClick(event){const target=event?.target?.closest?.('[data-player-crisis-creditor-action]');if(!target||target.disabled||!activeEngine)return false;event.preventDefault?.();event.stopPropagation?.();const type=String(target.dataset.creditorType||''),loanID=String(target.dataset.creditorLoanId||''),candidate=findCandidate(type,loanID);if(!candidate||!candidate.canExecute||typeof activeEngine.executeCrisisCreditorNegotiation!=='function')return false;const label=LABELS[type]||type;const warning=`${candidate.loanName}について${label}を申請します。${candidate.benefit}。承認見込みは${candidate.approvalPercent}%です。否決時は会社信用が低下します。`;if(typeof globalThis.confirm!=='function'||!globalThis.confirm(warning))return false;const result=activeEngine.executeCrisisCreditorNegotiation(type,loanID);if(result)schedule();return Boolean(result);}
-function install(){if(typeof document==='undefined')return;const root=document.getElementById('app');if(root&&!bound){root.addEventListener('click',handleClick);bound=true;}if(root&&!observer&&typeof MutationObserver==='function'){observer=new MutationObserver(schedule);observer.observe(root,{childList:true,subtree:true});}}
+function install(){if(typeof document==='undefined')return;const root=document.getElementById('app');if(root&&!bound){root.addEventListener('click',handleClick);bound=true;}}
 const baseLoad=EngineClass.load.bind(EngineClass);EngineClass.load=function(...args){const instance=bindEngine(baseLoad(...args));install();return instance;};
 install();modules.playerCrisisCreditorUI=Object.freeze({renderKey,renderSection,standalone,enhance,bindEngine,handleClick,findCandidate,LABELS,__installed:true});
+registerEnhancer({id:'player-crisis-creditor-ui',enhance:()=>enhance()});
 })();

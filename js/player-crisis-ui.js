@@ -2,6 +2,15 @@
 (function(){'use strict';
 if(!globalThis.__capitalismTycoonModules)throw new Error('Capitalism Tycoon runtime.js must be loaded before player-crisis-ui.js.');
 const modules=globalThis.__capitalismTycoonModules;
+function registerEnhancer(definition){
+ const registry=modules.uiEnhancerRegistry;
+ if(registry?.registerUIEnhancer)return registry.registerUIEnhancer(definition);
+ const key='__capitalismTycoonPendingUIEnhancers';
+ const pending=Array.isArray(globalThis[key])?globalThis[key]:(globalThis[key]=[]);
+ pending.push(definition);
+ return definition;
+}
+function runEnhancers(fallback){const registry=modules.uiEnhancerRegistry;if(registry?.runUIEnhancers)return registry.runUIEnhancers();return typeof fallback==='function'?fallback():false;}
 if(!modules.engine?.TycoonEngine)throw new Error('engine.js must be loaded before player-crisis-ui.js.');
 if(modules.playerCrisisUI)throw new Error('player crisis UI is already registered.');
 
@@ -20,9 +29,7 @@ const COST_ACTION_LABELS=Object.freeze({pauseProject:'プロジェクト一時�
 const RECOVERY_CONFIRMATION_WEEKS=2;
 
 let activeEngine=null;
-let observer=null;
 let clickBound=false;
-let scheduled=false;
 
 function stripPanel(html){return String(html||'').replace(PANEL_PATTERN,'');}
 function renderKey(html){let hash=2166136261;const text=String(html||'');for(let i=0;i<text.length;i++){hash^=text.charCodeAt(i);hash=Math.imul(hash,16777619);}return (hash>>>0).toString(36);}
@@ -136,13 +143,8 @@ function enhance(){
  screen.dataset.playerCrisisUi='1';
  return true;
 }
-function scheduleEnhance(){
- if(scheduled)return;
- scheduled=true;
- const run=()=>{scheduled=false;enhance();};
- if(typeof queueMicrotask==='function')queueMicrotask(run);else setTimeout(run,0);
-}
-function bindEngine(instance){activeEngine=instance;scheduleEnhance();setTimeout(scheduleEnhance,0);return instance;}
+function scheduleEnhance(){return runEnhancers();}
+function bindEngine(instance){activeEngine=instance;scheduleEnhance();return instance;}
 function findDispositionCandidate(type,id){
  if(!activeEngine||typeof activeEngine.crisisRestructuringOptions!=='function')return null;
  const options=activeEngine.crisisRestructuringOptions();
@@ -191,10 +193,10 @@ function install(){
  if(typeof document==='undefined')return;
  const root=document.getElementById('app');
  if(root&&!clickBound){root.addEventListener('click',handleClick);clickBound=true;}
- if(!observer&&typeof MutationObserver==='function'&&root){observer=new MutationObserver(scheduleEnhance);observer.observe(root,{childList:true,subtree:true});}
 }
 const baseLoad=EngineClass.load.bind(EngineClass);
 EngineClass.load=function(...args){const instance=bindEngine(baseLoad(...args));install();return instance;};
 install();
 modules.playerCrisisUI=Object.freeze({render,renderKey,currentRenderKey,enhance,bindEngine,handleClick,install,stripPanel,findDispositionCandidate,findCostReductionCandidate,STATUS_LABELS,REASON_LABELS,DISPOSITION_LABELS,COST_ACTION_LABELS,__installed:true});
+registerEnhancer({id:'player-crisis-ui',enhance:()=>enhance()});
 })();

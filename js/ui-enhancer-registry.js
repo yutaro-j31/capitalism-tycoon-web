@@ -2,6 +2,7 @@
 (function(){'use strict';
 if(!globalThis.__capitalismTycoonModules)throw new Error('runtime.js must be loaded before ui-enhancer-registry.js.');
 const modules=globalThis.__capitalismTycoonModules;
+const PENDING_KEY='__capitalismTycoonPendingUIEnhancers';
 if(modules.uiEnhancerRegistry)throw new Error('UI enhancer registry is already registered.');
 const app=document.getElementById('app');
 if(!app)throw new Error('#app must exist before ui-enhancer-registry.js.');
@@ -59,5 +60,18 @@ Object.defineProperty(app,'innerHTML',{
     runUIEnhancers();
   }
 });
-modules.uiEnhancerRegistry=Object.freeze({registerUIEnhancer,runUIEnhancers,registeredIDs:()=>enhancers.map(hook=>hook.id),isRunning:()=>running,generation:()=>generation,__installed:true});
+function drainPendingUIEnhancers(){
+  const queue=Array.isArray(globalThis[PENDING_KEY])?globalThis[PENDING_KEY]:[];
+  const pending=queue.splice(0);
+  const pendingIDs=new Set();
+  for(const definition of pending){
+    const id=String(definition?.id||'').trim();
+    if(id&&(pendingIDs.has(id)||enhancerIDs.has(id)))continue;
+    if(id)pendingIDs.add(id);
+    registerUIEnhancer(definition);
+  }
+  return pending.length;
+}
+modules.uiEnhancerRegistry=Object.freeze({registerUIEnhancer,runUIEnhancers,drainPendingUIEnhancers,registeredIDs:()=>enhancers.map(hook=>hook.id),isRunning:()=>running,generation:()=>generation,__installed:true});
+drainPendingUIEnhancers();
 })();

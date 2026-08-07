@@ -2,150 +2,127 @@
 
 ## Purpose
 
-Replace observer-driven UI augmentation with a deterministic, one-way render pipeline. The production white screen was reproduced on iPhone and isolated to the `MutationObserver` / `queueMicrotask` UI enhancer chain. The core-only `boot-test.html` rendered the setup screen successfully.
+Replace observer-driven UI augmentation with a deterministic one-way enhancement pipeline. The production iPhone white screen was isolated to cumulative app-wide `MutationObserver` redraw chains that schedule additional DOM work.
 
 ## Invariants
 
 - Preserve `SAVE_KEY=capitalism_tycoon_web_v1` and effective `saveVersion=9`.
 - Do not change accounting, game formulas, deterministic state transitions, or company/personal asset separation.
-- Preserve each module's existing render content and duplicate-application keys.
-- Execute enhancers in registration order, matching static `index.html` script order.
-- Isolate each enhancer failure so later enhancers still run.
-- Reject recursive `runUIEnhancers()` calls while a pipeline pass is active.
+- Preserve existing renderer output, action logic, and duplicate/render keys.
+- Execute enhancers deterministically in static script registration order.
+- Isolate enhancer failures and reject recursive pipeline execution.
 
-## Stage 3-1
+## Completed stages
 
-Status: merged and externally validated.
+### Stage 3-1 / 3-2
 
-- Registry location: `js/ui-enhancer-registry.js` (`modules.uiEnhancerRegistry`).
-- The registry loads statically immediately before `app.js`.
-- It binds the `#app.innerHTML` write boundary before `app.js` starts, so `runUIEnhancers()` executes synchronously after each core `render()` DOM replacement.
-- `registerUIEnhancer({ id, enhance })` appends hooks in deterministic registration order.
-- Registration also applies a newly loaded enhancer to the already-rendered DOM.
-- A reentry flag prevents recursive pipeline execution.
-- Every hook has an independent `try/catch`; failures log the hook ID and do not stop later hooks.
-- `index.html` connects the registry between `founding-tutorial.js` and `app.js` without reordering any existing script.
+Merged and externally validated. `js/ui-enhancer-registry.js` was introduced and `js/d-ui-shell.js` plus `js/d-ui-context-tabs.js` were migrated. The production iPhone still white-screened.
 
-## Stage 3-2 migrated files
+### Observer threshold diagnosis
 
-1. `js/d-ui-shell.js`
-2. `js/d-ui-context-tabs.js`
+Physical iPhone results on the pre-Stage-3-3 production tree:
 
-Both modules retain their existing render functions and duplicate-application guards. Their `MutationObserver`, `queueMicrotask`, and scheduling loops were removed and replaced with registry registration.
+- `observerLimit=37`, `41`, `43`, `44`: starts and operates.
+- `observerLimit=45`, `46`, `55`: white screen / startup livelock.
 
-## Stage 3-2 iPhone result
+The 45th tracked registration was `real-estate-portfolio-dashboard-ui.js`, but disabling only that observer still produced a white screen. The failure is therefore cumulative and/or multi-observer interaction rather than a sufficient single-module cause.
 
-Status: white screen remained after the first two migrations.
+### Stage 3-3
 
-This was treated as an expected result because the original narrow scan still found 74 files containing unqualified `new MutationObserver(...)` after Stage 3-2.
+Merged and externally validated. Twenty observer-driven UI modules were migrated to the registry. Comprehensive residual observer-driven JS files fell from 77 to 57. The normal production iPhone URL still white-screened.
 
-## Observer threshold diagnostic
+The comprehensive count includes qualified constructors such as `new env.MutationObserver(...)`; the earlier narrow count did not.
 
-A query-gated diagnostic in `js/boot-recovery.js` limits only external-JS `MutationObserver` registrations that watch `#app`, `document`, `body`, or `documentElement` with `subtree:true`. Normal URLs do not change `MutationObserver` behavior.
+## Startup Observer diagnostic after Stage 3-3
 
-Physical iPhone results:
+A dedicated same-origin diagnostic recorded every external app-wide observer whose `observe()` call actually occurs during initial page load.
 
-- `observerLimit=37`: starts and operates.
-- `observerLimit=41`: starts and operates.
-- `observerLimit=43`: starts and operates.
-- `observerLimit=44`: starts and operates.
-- `observerLimit=45`: white screen / startup livelock.
-- `observerLimit=46`: white screen / startup livelock.
-- `observerLimit=55`: white screen / startup livelock.
+Physical iPhone result:
 
-The source report on a working `observerLimit=44` page identified the first blocked registration as:
+- tracked startup registrations: **56**
+- unique startup source files: **56**
 
-- `#45 real-estate-portfolio-dashboard-ui.js`
+A second physical-device threshold test on this Stage-3-3 tree showed:
 
-A second physical-device diagnostic disabled only the app-wide observer registered by `real-estate-portfolio-dashboard-ui.js` while leaving every other observer unrestricted. The page still white-screened. Therefore #45 is not a sufficient single-cause explanation; the failure requires cumulative observer count and/or interaction among multiple observer-driven UI modules.
+- `observerLimit=36`: **starts and operates**
 
-The #45 module itself is still a high-risk participant: each render removes its existing dashboard, creates a replacement section, prepends it to `#app`, and its former app-wide observer scheduled another render from that DOM mutation. It did not have a same-DOM-generation application key. Stage 3-3 therefore migrates it together with the surrounding observer cluster rather than treating it as a standalone fix.
+This gives Stage 3-4 a concrete target: remove 20 startup registrations while preserving game behavior.
 
-Nearby registrations were the dense real-estate UI chain (`real-estate-mortgage-refinancing-ui.js` through `real-estate-complete-cycle-ui.js`). The Stage 3-3 batch targets that cluster plus two earlier startup UI observers.
+## Stage 3-4 migrated files
 
-## Stage 3-3 migrated files
+Status: implementation complete; external offline validation pending. Do not merge until validation approval.
 
-Status: implemented in the active PR; external validation and physical iPhone test pending.
+Exactly 20 startup observer modules are migrated. `app.js` remains unchanged. Every file below was observed by the physical-device startup-source diagnostic during initial page load.
 
-The batch removes observer-driven redraw scheduling from exactly 20 startup UI files while preserving their rendering and action logic:
+1. `js/capital-allocation-decision-memo.js`
+2. `js/capital-allocation-forecast.js`
+3. `js/capital-allocation-policy.js`
+4. `js/capital-allocation-recovery-funding-outcome.js`
+5. `js/capital-allocation-score.js`
+6. `js/competitor-dashboard-ui.js`
+7. `js/group-capital-allocation-execution.js`
+8. `js/group-capital-allocation-plan.js`
+9. `js/inter-subsidiary-synergy-performance.js`
+10. `js/ma-portfolio-summary-ui.js`
+11. `js/new-business-market-analysis.js`
+12. `js/player-crisis-creditor-ui.js`
+13. `js/player-crisis-ui.js`
+14. `js/player-turnaround-plan-ui.js`
+15. `js/playtest-report-ui.js`
+16. `js/release-diagnostics-ui.js`
+17. `js/shareholder-returns.js`
+18. `js/subsidiary-mandate-apply.js`
+19. `js/treasury-prepayment.js`
+20. `js/treasury-refinancing-policy.js`
 
-1. `js/industry-event-response-plans-ui.js`
-2. `js/save-storage-ui.js`
-3. `js/real-estate-tenant-renewals-ui.js`
-4. `js/real-estate-tenant-collections-ui.js`
-5. `js/real-estate-rent-guarantee-ui.js`
-6. `js/real-estate-security-deposits-ui.js`
-7. `js/real-estate-property-insurance-ui.js`
-8. `js/real-estate-maintenance-reserves-ui.js`
-9. `js/real-estate-property-taxes-ui.js`
-10. `js/real-estate-mortgage-refinancing-ui.js`
-11. `js/real-estate-property-disposals-ui.js`
-12. `js/real-estate-redevelopment-projects-ui.js`
-13. `js/real-estate-property-management-ui.js`
-14. `js/real-estate-property-maintenance-ui.js`
-15. `js/real-estate-portfolio-dashboard-ui.js` — physical threshold trigger candidate #45
-16. `js/real-estate-rent-pricing-ui.js`
-17. `js/real-estate-rent-performance-ui.js`
-18. `js/real-estate-capex-roi-ui.js`
-19. `js/real-estate-capex-actuals-ui.js`
-20. `js/real-estate-complete-cycle-ui.js`
+The batch deliberately avoids `app.js`. It also avoids changing the underlying business/accounting algorithms in these modules; only the UI refresh trigger is moved from observer/microtask scheduling to the registry pipeline.
 
-`js/real-estate-ui.js` remains observer-driven for a later audited batch because it is the large base renderer for the assets screen, unlike the smaller satellite UI modules above. Keeping it out of this batch reduces regression risk while still removing the full observer cluster surrounding #45.
+### Registration before the registry loads
 
-For migrated modules:
+Some Stage 3-4 modules load before `ui-enhancer-registry.js`. Moving the registry to immediately after `runtime.js` was considered, but rejected for this stabilization batch because it would newly wrap `#app.innerHTML` across the entire early boot sequence and broaden the behavioral change beyond the observer migration itself.
 
-- `MutationObserver` redraw hooks are removed.
-- `queueMicrotask` redraw scheduling is removed.
-- existing `render`/`enhance` output is retained.
-- action-triggered refreshes route through `modules.uiEnhancerRegistry.runUIEnhancers()` where applicable.
-- each module registers once via `registerUIEnhancer`, preserving static script order.
+Instead, early modules enqueue enhancer definitions in `globalThis.__capitalismTycoonPendingUIEnhancers`. The registry contract is:
 
-## Observer count reconciliation
+1. the pending array is drained with `splice(0)`, so it is empty before definitions are processed;
+2. duplicate pre-init enhancer IDs are suppressed and registered exactly once;
+3. non-duplicate definitions are processed FIFO, preserving `index.html` script order.
 
-The earlier migration notes used a narrow scan for unqualified `new MutationObserver(...)`. That scan missed constructor calls written through an environment object.
+These guarantees are exercised directly by `tests/stage-3-4-startup-observer-migration-test.js` in addition to static checks.
 
-At the Stage 3-3 base there were three qualified-only observer files:
+For every Stage 3-4 migrated module:
 
-- `js/save-storage-ui.js` — `new env.MutationObserver(...)`; migrated in Stage 3-3.
-- `js/physical-iphone-playtest.js` — `new env.MutationObserver(...)`; still pending.
-- `js/playtest-report-ui.js` — `new env.MutationObserver(...)`; still pending.
+- observer-driven redraw registration is removed;
+- `queueMicrotask` redraw scheduling is removed;
+- existing render/enhance and action behavior is retained;
+- action-triggered refreshes call the central enhancer pipeline where required.
 
-Therefore the counts reconcile as follows:
+## Observer counts after Stage 3-4
 
-- Narrow Stage 3-2 residual: 74 unqualified observer files.
-- Comprehensive Stage 3-2 residual: 77 files = 74 unqualified + 3 qualified-only.
-- Stage 3-3 migrated: 20 files = 19 unqualified + `save-storage-ui.js` qualified-only.
-- Narrow Stage 3-3 residual: 55 unqualified observer files.
-- Comprehensive Stage 3-3 residual: 57 files = 55 unqualified + 2 qualified-only.
+Expected and contract-tested counts on the Stage 3-4 implementation:
 
-The original pre-Stage-3-2 comprehensive baseline was therefore 79 observer-driven JS files, not 76. The 20-file Stage 3-3 migration itself was complete; the previous `54 remaining` figure was a counting-method error, not a migration omission.
+- unqualified `new MutationObserver(...)` files: **36**
+- qualified-only observer files: **1** (`physical-iphone-playtest.js`)
+- comprehensive residual observer-driven JS files: **37**
+- total migrated since Stage 3-2: **42** = 2 + 20 + 20
 
-## Migration count
+A post-merge physical-device test is still required because the exact set of 36 startup observers after migration is not identical to the artificial `observerLimit=36` subset.
 
-- Comprehensive observer-driven JS baseline before Stage 3-2: 79.
-- Stage 3-2 migrated: 2.
-- Stage 3-3 migrated: 20.
-- Total migrated: 22.
-- Remaining observer-driven JS files: 57.
+## Validation required before merge
 
-Do not begin the next migration batch until Stage 3-3 external validation is complete and the physical iPhone result is recorded below.
+- `tests/stage-3-4-startup-observer-migration-test.js`
+- migrated-file syntax checks
+- registration contract and shard registration
+- existing static checks
+- module boot / dependency guards and unconnected-JS check
+- accounting invariants and `finance.validate`
+- 208-week simulation with balance-sheet difference 0
+- physical iPhone test after merge using a commit-SHA cache-busting query
 
-## Stage 3-3 iPhone result
+## Remaining observer policy
 
-Status: pending.
+After Stage 3-4, approximately 37 observer-driven JS files remain. After the Stage 3-4 physical iPhone check, rerun the startup-source diagnostic and classify the residual set into:
 
-Decision after physical-device test:
+1. observers whose `observe()` runs during initial startup — migrate all of these;
+2. observers registered only after a later screen/action — lower priority, but migrate where practical to remove future recurrence risk.
 
-- Starts and operates: continue the remaining 57 in controlled 10-20 file batches.
-- Starts but is heavy or partially unresponsive: migration is effective; continue with a larger high-impact batch.
-- Still white: 20 removed observers were insufficient; identify the new first-blocked threshold/source and migrate the next high-impact cluster.
-
-## Validation required before each migration merge
-
-- `tests/stage-3-3-observer-migration-test.js` for this batch.
-- Focused UI contracts for modified modules.
-- Syntax checks for all modified JavaScript.
-- Registry reentry, exception isolation, and registration-order contracts.
-- Module boot and dependency guards.
-- Existing static, registration, accounting, capital-allocation production wiring, and 208-week validations.
-- GitHub Pages iPhone test after merge, using a commit-SHA cache-busting query.
+No new feature work should resume until the startup white-screen issue is resolved on the normal production URL.

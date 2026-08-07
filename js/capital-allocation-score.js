@@ -1,6 +1,16 @@
 // Phase 8C-2/8D-1: quarterly capital allocation score with mutation-free read paths.
 (function(){'use strict';
 const modules=globalThis.__capitalismTycoonModules;
+function registerEnhancer(definition){
+ const registry=modules.uiEnhancerRegistry;
+ if(registry?.registerUIEnhancer)return registry.registerUIEnhancer(definition);
+ const key='__capitalismTycoonPendingUIEnhancers';
+ const pending=Array.isArray(globalThis[key])?globalThis[key]:(globalThis[key]=[]);
+ pending.push(definition);
+ return definition;
+}
+function runEnhancers(fallback){const registry=modules.uiEnhancerRegistry;if(registry?.runUIEnhancers)return registry.runUIEnhancers();return typeof fallback==='function'?fallback():false;}
+
 if(!modules?.engine?.TycoonEngine)throw new Error('engine.js must load before capital-allocation-score.js.');
 if(!modules.finance?.buildStatements)throw new Error('finance.js must load before capital-allocation-score.js.');
 if(modules.capitalAllocationScore)throw new Error('capital allocation score module is already registered.');
@@ -26,10 +36,11 @@ EngineClass.prototype.evaluateCapitalAllocation=function(force=false){return eva
 EngineClass.prototype.advanceWeek=function(showSummary=true,...args){const nextWeek=Math.max(1,Math.floor(finite(this.g?.week,1)))+1,due=Boolean(this.g?.publicCompany&&nextWeek%13===0);const result=baseAdvanceWeek.call(this,due?false:showSummary,...args);if(result!==false){evaluate(this,false);if(due&&showSummary)this.emit?.('week',{summary:this.g.lastWeeklySummary});}return result;};
 Object.defineProperty(EngineClass.prototype,'__capitalAllocationScoreInstalled',{value:true});
 function render(instance=modules.playerEngineBridge?.getEngine?.()){if(!instance?.g?.configured||instance.g.selectedTab!=='market'||!instance.g.publicCompany)return'';const allocation=readStateFor(instance),value=metrics(instance),tone=allocation.score>=68?'good':allocation.score<42?'bad':'warn',key=renderKey(`${instance.g.week}|${allocation.score}|${allocation.investorConfidence}|${value.growthSpend}|${value.debtReduction}|${value.dividend+value.buyback}`);return `<section class="card" data-capital-allocation-score-ui="1" data-capital-allocation-render-key="${key}"><div class="card-head"><div><h2>資本配分スコア</h2><p>成長投資、負債削減、株主還元、流動性を四半期ごとに評価し、投資家信頼と株価へ反映します。</p></div><span class="badge ${tone}">${allocation.score}点</span></div><div class="card-body"><div class="kpi-grid mini"><div class="stat"><span>投資家信頼</span><strong>${allocation.investorConfidence.toFixed(1)}</strong></div><div class="stat"><span>成長投資（13週）</span><strong>${esc(compactYen(value.growthSpend))}</strong></div><div class="stat"><span>負債削減（13週）</span><strong>${esc(compactYen(value.debtReduction))}</strong></div><div class="stat"><span>株主還元（13週）</span><strong>${esc(compactYen(value.dividend+value.buyback))}</strong></div></div></div></section>`;}
-let scheduled=false,observer=null;
+
 function enhance(){if(typeof document==='undefined')return false;const screen=document.getElementById('screen');if(!screen)return false;const old=screen.querySelector?.('[data-capital-allocation-score-ui]'),html=render();if(!html){old?.remove?.();return false;}const desired=(html.match(/data-capital-allocation-render-key="([^"]+)"/)||[])[1]||'',current=String(old?.getAttribute?.('data-capital-allocation-render-key')||old?.dataset?.capitalAllocationRenderKey||'');if(old&&current===desired)return false;if(old){old.outerHTML=html;return true;}screen.insertAdjacentHTML?.('beforeend',html);return true;}
-function schedule(){if(scheduled)return;scheduled=true;(typeof queueMicrotask==='function'?queueMicrotask:setTimeout)(()=>{scheduled=false;enhance();},0);}
-function installUI(){if(typeof document==='undefined')return;const root=document.getElementById('app');if(root&&!observer&&typeof MutationObserver==='function'){observer=new MutationObserver(schedule);observer.observe(root,{childList:true,subtree:true});}schedule();}
+function schedule(){return runEnhancers();}
+function installUI(){if(typeof document==='undefined')return;schedule();}
 modules.capitalAllocationScore=Object.freeze({HISTORY_LIMIT,normalizedState,readStateFor,stateFor,cloneFinanceBook,financeReadState,recentTransactions,metrics,scoreMetrics,evaluate,renderKey,render,enhance,installUI,__installed:true});
 installUI();
+registerEnhancer({id:'capital-allocation-score',enhance:()=>enhance()});
 })();

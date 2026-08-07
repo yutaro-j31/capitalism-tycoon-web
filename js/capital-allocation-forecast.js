@@ -1,6 +1,16 @@
 // Phase 8C-7/8C-9: deterministic capital allocation forecast, policy comparison, and action requirements.
 (function install(attempt){'use strict';attempt=Number.isFinite(Number(attempt))?Number(attempt):0;
 const modules=globalThis.__capitalismTycoonModules;
+function registerEnhancer(definition){
+ const registry=modules.uiEnhancerRegistry;
+ if(registry?.registerUIEnhancer)return registry.registerUIEnhancer(definition);
+ const key='__capitalismTycoonPendingUIEnhancers';
+ const pending=Array.isArray(globalThis[key])?globalThis[key]:(globalThis[key]=[]);
+ pending.push(definition);
+ return definition;
+}
+function runEnhancers(fallback){const registry=modules.uiEnhancerRegistry;if(registry?.runUIEnhancers)return registry.runUIEnhancers();return typeof fallback==='function'?fallback():false;}
+
 if(!modules?.engine?.TycoonEngine)throw new Error('engine.js must load before capital-allocation-forecast.js.');
 if(!modules.capitalAllocationPolicy?.progress||!modules.capitalAllocationPolicy?.guidance||!modules.capitalAllocationPolicy?.executionScore){if(typeof document!=='undefined'&&attempt<50){setTimeout(()=>install(attempt+1),0);return;}throw new Error('capital-allocation-policy.js must load before capital-allocation-forecast.js.');}
 if(modules.capitalAllocationForecast)throw new Error('capital allocation forecast module is already registered.');
@@ -19,10 +29,11 @@ EngineClass.prototype.capitalAllocationPolicyForecast=function(){return forecast
 EngineClass.prototype.capitalAllocationPolicyComparison=function(){return policyComparison(this);};
 EngineClass.prototype.capitalAllocationPolicyActionPlan=function(policyId){return actionPlan(policyId||policyModule.progress(this).policy,policyModule.progress(this).metrics);};
 function render(instance=modules.playerEngineBridge?.getEngine?.()){if(!instance?.g?.configured||instance.g.selectedTab!=='market'||!instance.g.publicCompany)return'';const value=forecast(instance),comparison=policyComparison(instance),tone=value.recommendedScore>=70?'good':value.recommendedScore<50?'bad':'warn',blockers=value.blockers.length?value.blockers.map(row=>`<p><strong>注意：</strong>${esc(row.text)}</p>`).join(''):'<p>重大な未解消要因はありません。</p>',comparisonRows=comparison.rows.map((row,index)=>`<div class="stat"><span>${index===0?'推奨 · ':''}${esc(row.name)}${row.current?'（現在）':''}</span><strong>${row.score}点</strong><small>目標 ${row.metCount}/4 · 必要${compactYen(row.plan.requiredCash)} · 充足${(row.plan.fundedRatio*100).toFixed(0)}%</small></div>`).join(''),recommended=comparison.rows[0]?.plan,actionText=recommended?.actions.map(x=>esc(x.text)).join('、')||'現行配分を維持',key=renderKey(`${instance.g.week}|${value.policy}|${value.baselineScore}|${value.recommendedScore}|${value.upside}|${value.fundedRatio}|${value.confidence}|${value.blockers.map(x=>x.id).join('|')}|${comparison.rows.map(x=>`${x.id}:${x.score}:${x.metCount}:${x.plan.requiredCash}:${x.plan.fundingGap}`).join('|')}`);return `<section class="card" data-capital-allocation-forecast-ui="1" data-capital-allocation-forecast-render-key="${key}"><div class="card-head"><div><h2>四半期評価予測</h2><p>現在の実績と改善提案の資金充足度から、次回評価を決定論的に試算します。</p></div><span class="badge ${tone}">計画後${value.recommendedScore}点</span></div><div class="card-body"><div class="kpi-grid mini"><div class="stat"><span>現状予測</span><strong>${value.baselineScore}点</strong></div><div class="stat"><span>改善後予測</span><strong>${value.recommendedScore}点</strong></div><div class="stat"><span>改善余地</span><strong>+${value.upside}点</strong></div><div class="stat"><span>予測確度</span><strong>${value.confidenceLabel}</strong><small>評価まで${value.weeksRemaining}週</small></div></div><p><strong>計画資金充足率：</strong>${(value.fundedRatio*100).toFixed(1)}%</p>${blockers}<div data-capital-allocation-comparison="1"><h3>方針比較</h3><p>推奨は<strong>${esc(comparison.recommendedPolicyName)}</strong>（${comparison.recommendedScore}点）。必要行動：${actionText}。${recommended?.fundingGap>0?`資金不足 ${compactYen(recommended.fundingGap)}。`:'必要資金は実行可能範囲です。'}</p><div class="kpi-grid mini">${comparisonRows}</div></div></div></section>`;}
-let observer=null,scheduled=false;
+
 function enhance(){if(typeof document==='undefined')return false;const screen=document.getElementById('screen');if(!screen)return false;const old=screen.querySelector?.('[data-capital-allocation-forecast-ui]'),html=render();if(!html){old?.remove?.();return false;}const desired=(html.match(/data-capital-allocation-forecast-render-key="([^"]+)"/)||[])[1]||'',current=String(old?.getAttribute?.('data-capital-allocation-forecast-render-key')||old?.dataset?.capitalAllocationForecastRenderKey||'');if(old&&current===desired)return false;if(old){old.outerHTML=html;return true;}const policy=screen.querySelector?.('[data-capital-allocation-policy-ui]');if(policy){policy.insertAdjacentHTML?.('afterend',html);return true;}screen.insertAdjacentHTML?.('beforeend',html);return true;}
-function schedule(){if(scheduled)return;scheduled=true;(typeof queueMicrotask==='function'?queueMicrotask:setTimeout)(()=>{scheduled=false;enhance();},0);}
-function installUI(){if(typeof document==='undefined')return;const root=document.getElementById('app');if(root&&!observer&&typeof MutationObserver==='function'){observer=new MutationObserver(schedule);observer.observe(root,{childList:true,subtree:true});}schedule();}
+function schedule(){return runEnhancers();}
+function installUI(){if(typeof document==='undefined')return;schedule();}
 modules.capitalAllocationForecast=Object.freeze({MIN_CASH,scoreFor,targetCount,actionPlan,policyComparison,forecast,renderKey,render,enhance,installUI,__installed:true});
 installUI();
+registerEnhancer({id:'capital-allocation-forecast',enhance:()=>enhance()});
 })(0);

@@ -2,6 +2,15 @@
 (function(){'use strict';
 if(!globalThis.__capitalismTycoonModules)throw new Error('Capitalism Tycoon runtime.js must be loaded before competitor-dashboard-ui.js.');
 const modules=globalThis.__capitalismTycoonModules;
+function registerEnhancer(definition){
+ const registry=modules.uiEnhancerRegistry;
+ if(registry?.registerUIEnhancer)return registry.registerUIEnhancer(definition);
+ const key='__capitalismTycoonPendingUIEnhancers';
+ const pending=Array.isArray(globalThis[key])?globalThis[key]:(globalThis[key]=[]);
+ pending.push(definition);
+ return definition;
+}
+function runEnhancers(fallback){const registry=modules.uiEnhancerRegistry;if(registry?.runUIEnhancers)return registry.runUIEnhancers();return typeof fallback==='function'?fallback():false;}
 const competitor=modules.competitor;
 if(!competitor?.dashboard?.__marketStatusNormalized)throw new Error('competitor-dashboard-status.js must be loaded before competitor-dashboard-ui.js.');
 if(!modules.engine?.TycoonEngine)throw new Error('engine.js must be loaded before competitor-dashboard-ui.js.');
@@ -73,8 +82,6 @@ function render(state){
 }
 
 let activeEngine=null;
-let observer=null;
-let scheduled=false;
 function enhance(){
  if(!activeEngine||activeEngine.g?.selectedTab!=='rivals')return false;
  const screen=typeof document==='undefined'?null:document.getElementById('screen');
@@ -83,25 +90,13 @@ function enhance(){
  screen.dataset.competitorDashboardUi='1';
  return true;
 }
-function scheduleEnhance(){
- if(scheduled)return;
- scheduled=true;
- const run=()=>{scheduled=false;enhance();};
- if(typeof queueMicrotask==='function')queueMicrotask(run);else setTimeout(run,0);
-}
+function scheduleEnhance(){return runEnhancers();}
+function installObserver(){return null;}
 function bindEngine(instance){activeEngine=instance;scheduleEnhance();return instance;}
-function installObserver(){
- if(observer||typeof MutationObserver!=='function'||typeof document==='undefined')return observer;
- const root=document.getElementById('app');
- if(!root)return null;
- observer=new MutationObserver(scheduleEnhance);
- observer.observe(root,{childList:true,subtree:true});
- return observer;
-}
 const EngineClass=modules.engine.TycoonEngine;
 const baseLoad=EngineClass.load.bind(EngineClass);
-EngineClass.load=function(...args){const instance=bindEngine(baseLoad(...args));installObserver();return instance;};
-installObserver();
+EngineClass.load=function(...args){return bindEngine(baseLoad(...args));};
 
 competitor.dashboardUI=Object.freeze({render,marketName,enhance,bindEngine,installObserver,ENTRY_LABELS,PROJECT_LABELS,CREDIT_LABELS});
+registerEnhancer({id:'competitor-dashboard-ui',enhance:()=>enhance()});
 })();

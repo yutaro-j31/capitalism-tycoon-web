@@ -2,6 +2,16 @@
 (function(){'use strict';
 if(!globalThis.__capitalismTycoonModules)throw new Error('runtime.js must be loaded before player-turnaround-plan-ui.js.');
 const modules=globalThis.__capitalismTycoonModules;
+function registerEnhancer(definition){
+ const registry=modules.uiEnhancerRegistry;
+ if(registry?.registerUIEnhancer)return registry.registerUIEnhancer(definition);
+ const key='__capitalismTycoonPendingUIEnhancers';
+ const pending=Array.isArray(globalThis[key])?globalThis[key]:(globalThis[key]=[]);
+ pending.push(definition);
+ return definition;
+}
+function runEnhancers(fallback){const registry=modules.uiEnhancerRegistry;if(registry?.runUIEnhancers)return registry.runUIEnhancers();return typeof fallback==='function'?fallback():false;}
+
 if(!modules.engine?.TycoonEngine)throw new Error('engine.js must be loaded before player-turnaround-plan-ui.js.');
 if(!modules.playerTurnaroundPlan?.__installed)throw new Error('player-turnaround-plan.js must be loaded before player-turnaround-plan-ui.js.');
 if(!modules.playerCrisisCreditorUI?.__installed)throw new Error('player-crisis-creditor-ui.js must be loaded before player-turnaround-plan-ui.js.');
@@ -13,7 +23,7 @@ const clamp=v=>Math.max(0,Math.min(1,finite(v)));
 const esc=v=>String(v??'').replace(/[&<>'"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c]));
 const STATUS_LABELS=Object.freeze({inactive:'未開始',active:'進行中',completed:'達成',failed:'未達',cancelled:'中止'});
 const RESULT_KINDS=Object.freeze({completed:'good',failed:'warn',cancelled:''});
-let activeEngine=null,observer=null,bound=false,scheduled=false;
+let activeEngine=null,bound=false;
 function renderKey(html){let hash=2166136261;const text=String(html||'');for(let i=0;i<text.length;i++){hash^=text.charCodeAt(i);hash=Math.imul(hash,16777619);}return (hash>>>0).toString(36);}
 function progress(label,value,sub){const pct=Math.round(clamp(value)*100);return `<label>${esc(label)} ${pct}%<div class="progress" aria-label="${esc(label)} ${pct}%"><i style="width:${pct}%"></i></div>${sub?`<small>${esc(sub)}</small>`:''}</label>`;}
 function latestHistory(state){const rows=Array.isArray(state?.playerTurnaroundPlan?.history)?state.playerTurnaroundPlan.history:[];return rows.length?rows[rows.length-1]:null;}
@@ -50,7 +60,7 @@ function enhance(){
  else screen.innerHTML=`${desired}${String(screen.innerHTML||'')}`;
  return true;
 }
-function schedule(){if(scheduled)return;scheduled=true;const run=()=>{scheduled=false;enhance();};if(typeof queueMicrotask==='function')queueMicrotask(run);else setTimeout(run,0);}
+function schedule(){return runEnhancers();}
 function bindEngine(instance){activeEngine=instance;schedule();return instance;}
 function handleClick(event){const target=event?.target?.closest?.('[data-player-turnaround-action]');if(!target||target.disabled||!activeEngine)return false;event.preventDefault?.();event.stopPropagation?.();const action=String(target.dataset.playerTurnaroundAction||''),state=activeEngine.g;let result=false;
  if(action==='start'){
@@ -67,7 +77,8 @@ function handleClick(event){const target=event?.target?.closest?.('[data-player-
  }
  if(result)schedule();return Boolean(result);
 }
-function install(){if(typeof document==='undefined')return;const root=document.getElementById('app');if(root&&!bound){root.addEventListener('click',handleClick);bound=true;}if(root&&!observer&&typeof MutationObserver==='function'){observer=new MutationObserver(schedule);observer.observe(root,{childList:true,subtree:true});}}
+function install(){if(typeof document==='undefined')return;const root=document.getElementById('app');if(root&&!bound){root.addEventListener('click',handleClick);bound=true;}}
 const baseLoad=EngineClass.load.bind(EngineClass);EngineClass.load=function(...args){const instance=bindEngine(baseLoad(...args));install();return instance;};
 install();modules.playerTurnaroundPlanUI=Object.freeze({renderKey,renderSection,standalone,enhance,bindEngine,handleClick,startPreview,latestHistory,STATUS_LABELS,__installed:true});
+registerEnhancer({id:'player-turnaround-plan-ui',enhance:()=>enhance()});
 })();

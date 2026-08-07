@@ -2,6 +2,16 @@
 (function(){'use strict';
 if(!globalThis.__capitalismTycoonModules)throw new Error('runtime.js must be loaded before playtest-report-ui.js.');
 const modules=globalThis.__capitalismTycoonModules;
+function registerEnhancer(definition){
+ const registry=modules.uiEnhancerRegistry;
+ if(registry?.registerUIEnhancer)return registry.registerUIEnhancer(definition);
+ const key='__capitalismTycoonPendingUIEnhancers';
+ const pending=Array.isArray(globalThis[key])?globalThis[key]:(globalThis[key]=[]);
+ pending.push(definition);
+ return definition;
+}
+function runEnhancers(fallback){const registry=modules.uiEnhancerRegistry;if(registry?.runUIEnhancers)return registry.runUIEnhancers();return typeof fallback==='function'?fallback():false;}
+
 if(!modules.engine)throw new Error('engine.js must be loaded before playtest-report-ui.js.');
 if(!modules.releaseDiagnosticsUI?.__installed)throw new Error('release-diagnostics-ui.js must be loaded before playtest-report-ui.js.');
 if(modules.playtestReportUI)throw new Error('playtest report UI is already registered.');
@@ -12,9 +22,7 @@ const MAX_ACTIONS=30;
 const BUTTON_MARKER='data-playtest-report-button';
 const ACTION_SELECTOR='[data-action],[data-release-diagnostics-action],[data-runtime-recovery-action],[data-boot-recovery-action]';
 const actions=[];
-let observer=null;
 let installed=false;
-let scheduled=false;
 
 function safeToken(value,max=80){
   const text=String(value??'').trim().toLowerCase();
@@ -119,12 +127,7 @@ function enhance(env=globalThis){
   grid.appendChild(button);
   return true;
 }
-function schedule(env=globalThis){
-  if(scheduled)return;
-  scheduled=true;
-  const run=()=>{scheduled=false;enhance(env);};
-  if(typeof env.queueMicrotask==='function')env.queueMicrotask(run);else setTimeout(run,0);
-}
+function schedule(env=globalThis){void env;return runEnhancers();}
 function eventAction(target){
   if(target?.dataset?.action)return {action:target.dataset.action,source:'click',tab:target.dataset.tab,kind:target.dataset.kind};
   if(target?.dataset?.releaseDiagnosticsAction)return {action:`diagnostics-${target.dataset.releaseDiagnosticsAction}`,source:'click'};
@@ -156,10 +159,6 @@ function install(env=globalThis){
   env.document?.addEventListener?.('click',event=>handleClick(event,env),true);
   env.document?.addEventListener?.('change',handleChange,true);
   env.document?.addEventListener?.('submit',handleSubmit,true);
-  const app=env.document?.getElementById?.('app');
-  if(app&&typeof env.MutationObserver==='function'){
-    observer=new env.MutationObserver(()=>schedule(env));observer.observe(app,{childList:true,subtree:true});
-  }
   schedule(env);return true;
 }
 
@@ -168,4 +167,5 @@ modules.playtestReportUI=Object.freeze({
   viewport,buildReport,filename,download,enhance,handleClick,handleChange,handleSubmit,install,__installed:true
 });
 install();
+registerEnhancer({id:'playtest-report-ui',enhance:()=>enhance()});
 })();
