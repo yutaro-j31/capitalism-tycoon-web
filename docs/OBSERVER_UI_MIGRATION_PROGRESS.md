@@ -15,7 +15,7 @@ Replace observer-driven UI augmentation with a deterministic, one-way render pip
 
 ## Stage 3-1
 
-Status: implemented in the active PR; external validation pending.
+Status: merged and externally validated.
 
 - Registry location: `js/ui-enhancer-registry.js` (`modules.uiEnhancerRegistry`).
 - The registry loads statically immediately before `app.js`.
@@ -39,21 +39,43 @@ Both modules retain their existing render functions and duplicate-application gu
 - Migrated in Stage 3-2: 2.
 - Remaining: 74.
 
-The remaining list must be migrated in audited batches after the Stage 3-2 iPhone result. Do not begin the next batch until that result is recorded here.
+Do not begin the next migration batch until the observer threshold/source diagnostic below is recorded and the Stage 3-3 priority list is selected.
 
 ## Stage 3-2 iPhone result
 
-Status: pending.
+Status: white screen remained after the first two migrations.
 
-Decision after physical-device test:
+This was treated as an expected result because 74 app-wide observer modules remained.
 
-- Starts and operates: continue remaining 74 in controlled batches.
-- Starts but remains slow or partially unresponsive: continue with a larger audited batch and remeasure.
-- Still white: migrate 10-20 additional observer modules before the next measurement.
+## Observer threshold diagnostic
 
-## Validation required before merge
+A query-gated diagnostic in `js/boot-recovery.js` limits only external-JS `MutationObserver` registrations that watch `#app`, `document`, `body`, or `documentElement` with `subtree:true`. Normal URLs do not change `MutationObserver` behavior.
 
-- Focused D UI shell and context-tab contracts.
+Physical iPhone results:
+
+- `observerLimit=37`: starts and operates.
+- `observerLimit=41`: starts and operates.
+- `observerLimit=43`: starts and operates.
+- `observerLimit=44`: starts and operates.
+- `observerLimit=45`: white screen / startup livelock.
+- `observerLimit=46`: white screen / startup livelock.
+- `observerLimit=55`: white screen / startup livelock.
+
+Conclusion: the first reproducible failure boundary is exactly between observer registrations 44 and 45. The 45th app-wide external-JS observer is the primary trigger candidate and must be identified before choosing the Stage 3-3 batch.
+
+A separate `observerReport=1` diagnostic displays the captured source ordering around the threshold on a working `observerLimit=44` page, including the first blocked observer (`#45`).
+
+## Stage 3-3 next action
+
+1. Identify observer source `#45` from the physical iPhone source report.
+2. Prioritize that module plus nearby/high-impact startup UI observer modules.
+3. Migrate 20 audited files to `registerUIEnhancer` without changing what they render.
+4. Update this file to `22 migrated / 54 remaining`.
+5. Re-run full external validation and physical iPhone startup/operation checks.
+
+## Validation required before each migration merge
+
+- Focused UI contracts for modified modules.
 - Syntax checks for all modified JavaScript.
 - Registry reentry, exception isolation, and registration-order contracts.
 - Module boot and dependency guards.
