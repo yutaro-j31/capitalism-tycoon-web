@@ -157,9 +157,9 @@ function handleClick(event){
   if(menu?.classList.contains('open')&&event.target===menu){event.preventDefault();setCommandMenu(false,true);return true;}
   const action=event.target?.closest?.('[data-d-ui-action]')?.dataset?.dUiAction;
   if(action==='toggle-menu'){event.preventDefault();const open=!menu?.classList.contains('open');setCommandMenu(open,!open);return true;}
-  if(action==='clear-selection'){event.preventDefault();selectedEntity=null;enhance(true);return true;}
+  if(action==='clear-selection'){event.preventDefault();selectedEntity=null;modules.uiEnhancerRegistry.runUIEnhancers();return true;}
   const marker=event.target?.closest?.('[data-d-ui-marker]');
-  if(marker){event.preventDefault();selectedEntity=marker.dataset.dUiMarker;enhance(true);return true;}
+  if(marker){event.preventDefault();selectedEntity=marker.dataset.dUiMarker;modules.uiEnhancerRegistry.runUIEnhancers();return true;}
   const tab=event.target?.closest?.('[data-action="tab"]');if(tab)setCommandMenu(false);
   return false;
 }
