@@ -2,11 +2,11 @@
 (function(){'use strict';
 const modules=globalThis.__capitalismTycoonModules;
 if(!modules?.dUIShell||!modules?.playerEngineBridge?.__installed)throw new Error('d-ui-shell.js and player-engine-bridge.js must be loaded before d-ui-context-tabs.js.');
+if(!modules?.uiEnhancerRegistry?.registerUIEnhancer)throw new Error('app.js UI enhancer registry must be loaded before d-ui-context-tabs.js.');
 if(modules.dUIContextTabs)throw new Error('D UI context tabs are already registered.');
 const TABS=[['overview','概要'],['finance','財務'],['staff','スタッフ'],['product','商品']];
 const ACTIONS={overview:['business','店舗を管理','価格・広告・店舗運営を開く'],finance:['report','決算を確認','全社の決算・レポートを開く'],staff:['founder','人材を管理','採用・経営陣の画面を開く'],product:['strategy','商品を強化','研究開発・戦略を開く']};
 const activeByStore=new Map();
-let scheduled=false;
 const finite=value=>Number.isFinite(Number(value))?Number(value):0;
 const esc=value=>String(value??'').replace(/[&<>'"]/g,char=>({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[char]));
 const clamp=(value,min,max)=>Math.max(min,Math.min(max,value));
@@ -46,12 +46,11 @@ function renderTabs(panel,context,focus=false){
   if(focus)oldTabs.querySelector(`[data-d-context-tab="${active}"]`)?.focus();
   panel.dataset.dContextStore=context.key;panel.dataset.dContextActive=active;return true;
 }
-function enhance(focus=false){const panel=document.querySelector('.d-context-panel');const context=selectedStore();if(!panel||!context)return false;if(!focus&&panel.dataset.dContextStore===context.key&&panel.dataset.dContextActive===activeByStore.get(context.key)&&panel.querySelector('[data-d-context-tab]'))return false;return renderTabs(panel,context,focus);}
+function enhance(focus=false,uiContext=null){const panel=uiContext?.app?.querySelector?.('.d-context-panel')||document.querySelector('.d-context-panel');const context=selectedStore();if(!panel||!context)return false;if(!focus&&panel.dataset.dContextStore===context.key&&panel.dataset.dContextActive===activeByStore.get(context.key)&&panel.querySelector('[data-d-context-tab]'))return false;return renderTabs(panel,context,focus);}
 function select(tab,focus=true){const context=selectedStore();if(!context||!TABS.some(([id])=>id===tab))return false;activeByStore.set(context.key,tab);return enhance(focus);}
 function handleClick(event){const button=event.target?.closest?.('[data-d-context-tab]');if(!button)return false;event.preventDefault();select(button.dataset.dContextTab,true);return true;}
 function handleKeydown(event){const button=event.target?.closest?.('[data-d-context-tab]');if(!button)return false;const index=TABS.findIndex(([id])=>id===button.dataset.dContextTab);let next=index;if(event.key==='ArrowRight')next=(index+1)%TABS.length;else if(event.key==='ArrowLeft')next=(index-1+TABS.length)%TABS.length;else if(event.key==='Home')next=0;else if(event.key==='End')next=TABS.length-1;else return false;event.preventDefault();select(TABS[next][0],true);return true;}
-function schedule(){if(scheduled)return;scheduled=true;const run=()=>{scheduled=false;enhance();};typeof queueMicrotask==='function'?queueMicrotask(run):setTimeout(run,0);}
-function install(){document.addEventListener('click',handleClick,true);document.addEventListener('keydown',handleKeydown,true);const app=document.getElementById('app');if(app&&typeof MutationObserver==='function')new MutationObserver(schedule).observe(app,{childList:true,subtree:true});schedule();return true;}
+function install(){document.addEventListener('click',handleClick,true);document.addEventListener('keydown',handleKeydown,true);modules.uiEnhancerRegistry.registerUIEnhancer({id:'d-ui-context-tabs',enhance:context=>enhance(false,context)});return true;}
 modules.dUIContextTabs=Object.freeze({TABS,ACTIONS,selectedStore,panelContent,action,enhance,select,handleClick,handleKeydown,install,__installed:true});
 install();
 })();
