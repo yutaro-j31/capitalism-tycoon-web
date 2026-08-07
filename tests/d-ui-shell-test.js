@@ -8,88 +8,88 @@ const { ROOT, readIndex } = require('./harness');
 
 const html = readIndex();
 const scriptPath = path.join(ROOT, 'js', 'd-ui-shell.js');
+const registryPath = path.join(ROOT, 'js', 'ui-enhancer-registry.js');
 const stylePath = path.join(ROOT, 'css', 'd-ui.css');
 assert.ok(fs.existsSync(scriptPath), 'D UI shell script is required');
+assert.ok(fs.existsSync(registryPath), 'UI enhancer registry script is required');
 assert.ok(fs.existsSync(stylePath), 'D UI stylesheet is required');
 const script = fs.readFileSync(scriptPath, 'utf8');
-const appScript = fs.readFileSync(path.join(ROOT, 'js', 'app.js'), 'utf8');
+const registryScript = fs.readFileSync(registryPath, 'utf8');
 const contextTabsScript = fs.readFileSync(path.join(ROOT, 'js', 'd-ui-context-tabs.js'), 'utf8');
 const style = fs.readFileSync(stylePath, 'utf8');
 
 assert.match(html, /<link[^>]+href="\.\/css\/d-ui\.css"/i, 'D UI stylesheet must load from index');
 assert.match(html, /<script[^>]+src="\.\/js\/d-ui-shell\.js"/i, 'D UI shell must load from index');
+const tutorialIndex = html.indexOf('src="./js/founding-tutorial.js"');
+const registryIndex = html.indexOf('src="./js/ui-enhancer-registry.js"');
+const appIndex = html.indexOf('src="./js/app.js"');
 const playtestIndex = html.indexOf('src="./js/playtest-report-ui.js"');
 const shellIndex = html.indexOf('src="./js/d-ui-shell.js"');
 const recoveryIndex = html.indexOf('src="./js/runtime-recovery-ui.js"');
+assert.ok(tutorialIndex !== -1 && registryIndex > tutorialIndex && appIndex > registryIndex, 'registry must load statically immediately before app.js');
 assert.ok(playtestIndex !== -1 && shellIndex > playtestIndex, 'D UI shell must load after playtest reporting');
 assert.ok(recoveryIndex > shellIndex, 'runtime recovery must remain after the D UI shell');
 
-assert.match(appScript, /const uiEnhancers=\[\]/, 'app must own one ordered UI enhancer registry');
-assert.match(appScript, /if\(uiEnhancersRunning\)return false/, 'UI enhancer execution must reject reentry');
-assert.match(appScript, /for\(const hook of uiEnhancers\)/, 'UI enhancers must execute in registration order');
-assert.match(appScript, /try\{hook\.enhance\(context\);\}[\s\S]*catch\(error\)/, 'each UI enhancer must have an isolated failure boundary');
-assert.match(appScript, /\[UI enhancer failed: \$\{hook\.id\}\]/, 'failed enhancer logs must identify the hook');
-assert.match(appScript, /finally\{uiEnhancersRunning=false;\}/, 'reentry guard must reset even when hooks fail');
-assert.match(appScript, /uiEnhancers\.push\(hook\)/, 'registration order must remain insertion order');
-assert.match(appScript, /function render\(\)[\s\S]*runUIEnhancers\(\);[\s\S]*\}/, 'app render must synchronously run enhancers after core DOM creation');
+assert.match(registryScript, /if\(running\)return false/, 'UI enhancer execution must reject reentry');
+assert.match(registryScript, /for\(const hook of enhancers\)/, 'UI enhancers must execute in registration order');
+assert.match(registryScript, /try\{hook\.enhance\(current\);\}[\s\S]*catch\(error\)/, 'each UI enhancer must have an isolated failure boundary');
+assert.match(registryScript, /\[UI enhancer failed: \$\{hook\.id\}\]/, 'failed enhancer logs must identify the hook');
+assert.match(registryScript, /finally\{running=false;\}/, 'reentry guard must reset even when hooks fail');
+assert.match(registryScript, /enhancers\.push\(hook\)/, 'registration order must remain insertion order');
+assert.match(registryScript, /Object\.defineProperty\(app,'innerHTML'/, 'registry must bind the synchronous core render boundary');
+assert.match(registryScript, /innerHTMLDescriptor\.set\.call\(this,value\);[\s\S]*runUIEnhancers\(\);/, 'enhancers must run synchronously after the core app DOM write');
+assert.doesNotMatch(registryScript, /MutationObserver|queueMicrotask|requestAnimationFrame|setTimeout/, 'registry must not depend on observer or deferred scheduling');
 assert.match(script, /registerUIEnhancer\(\{id:'d-ui-shell'/, 'D UI shell must register with the central pipeline');
 assert.match(contextTabsScript, /registerUIEnhancer\(\{id:'d-ui-context-tabs'/, 'context tabs must register after the shell');
 assert.doesNotMatch(script, /new MutationObserver|queueMicrotask|function schedule\(/, 'D UI shell must not observe or microtask-loop over app DOM');
 assert.doesNotMatch(contextTabsScript, /new MutationObserver|queueMicrotask|function schedule\(/, 'context tabs must not observe or microtask-loop over app DOM');
 
-const registryStart = appScript.indexOf('const uiEnhancers=[];');
-const registryEnd = appScript.indexOf('const esc =', registryStart);
-assert.ok(registryStart >= 0 && registryEnd > registryStart, 'registry source must remain independently testable');
-const registryErrors = [];
-const registrySandbox = {
-  app: { id: 'app' },
-  document: { getElementById: id => id === 'screen' ? { id } : null },
-  engine: { g: { configured: true } },
-  __modules: {},
-  console: { error: (...args) => registryErrors.push(args) }
-};
-vm.runInNewContext(appScript.slice(registryStart, registryEnd), registrySandbox);
-const registry = registrySandbox.__modules.uiEnhancerRegistry;
-const calls = [];
+const calls=[];
+const errors=[];
+const modules={playerEngineBridge:{getEngine:()=>({g:{configured:true}})}};
+let stored='';
+const proto={};
+Object.defineProperty(proto,'innerHTML',{get(){return stored;},set(value){stored=String(value);},configurable:true});
+const app=Object.create(proto);app.id='app';
+const document={getElementById:id=>id==='app'?app:id==='screen'?{id}:null};
+const sandbox={globalThis:null,document,Object,Set,String,TypeError,Error,console:{error:(...args)=>errors.push(args)},__capitalismTycoonModules:modules};
+sandbox.globalThis=sandbox;
+vm.runInNewContext(registryScript,sandbox);
+const registry=modules.uiEnhancerRegistry;
 let nestedRun;
-registry.registerUIEnhancer({ id: 'first', enhance() { calls.push('first'); nestedRun = registry.runUIEnhancers(); } });
-registry.registerUIEnhancer({ id: 'broken', enhance() { calls.push('broken'); throw new Error('expected'); } });
-registry.registerUIEnhancer({ id: 'third', enhance() { calls.push('third'); } });
-calls.length = 0;
-registryErrors.length = 0;
-assert.equal(registry.runUIEnhancers(), true, 'top-level enhancer pass must execute');
-assert.deepEqual(calls, ['first', 'broken', 'third'], 'enhancers must run in deterministic registration order after a failure');
-assert.equal(nestedRun, false, 'nested enhancer execution must be rejected');
-assert.equal(registry.isRunning(), false, 'reentry flag must reset after the pass');
-assert.deepEqual(Array.from(registry.registeredIDs()), ['first', 'broken', 'third'], 'registered IDs must preserve insertion order');
-assert.equal(registryErrors.length, 1, 'one failed enhancer must produce one isolated error');
-assert.match(String(registryErrors[0][0]), /UI enhancer failed: broken/, 'error logging must name the failed enhancer');
+registry.registerUIEnhancer({id:'first',enhance(){calls.push('first');nestedRun=registry.runUIEnhancers();}});
+registry.registerUIEnhancer({id:'broken',enhance(){calls.push('broken');throw new Error('expected');}});
+registry.registerUIEnhancer({id:'third',enhance(){calls.push('third');}});
+calls.length=0;errors.length=0;
+app.innerHTML='<main id="screen"></main>';
+assert.deepEqual(calls,['first','broken','third'],'enhancers must run in deterministic registration order after a failure');
+assert.equal(nestedRun,false,'nested enhancer execution must be rejected');
+assert.equal(registry.isRunning(),false,'reentry flag must reset after the pass');
+assert.deepEqual(Array.from(registry.registeredIDs()),['first','broken','third'],'registered IDs must preserve insertion order');
+assert.equal(errors.length,1,'one failed enhancer must produce one isolated error');
+assert.match(String(errors[0][0]),/UI enhancer failed: broken/,'error logging must name the failed enhancer');
+assert.equal(registry.generation(),1,'one core app DOM write must create one generation');
 
-for (const label of ['マップ','本社','店舗','資金調達','研究開発','採用','危機対応','実績','目標','一週進める']) {
-  assert.ok(script.includes(label), `D UI shell is missing ${label}`);
-}
-for (const token of ['d-kpi-strip','d-sidebar','d-map-workspace','d-context-panel','d-bottom-dock','d-command-menu']) {
-  assert.ok(script.includes(token) || style.includes(token), `D UI contract is missing ${token}`);
-}
-assert.match(script, /modules\.playerEngineBridge\.getEngine/, 'D UI must reuse the existing engine instance');
-assert.match(script, /data-action="tab"/, 'D UI navigation must use the existing tab action contract');
-assert.match(script, /data-action="open-store"/, 'D UI tenant action must preserve the existing open-store action');
-assert.match(script, /const isActive=button\.dataset\.tab===active/, 'D UI navigation must derive current state from the active tab');
-assert.match(script, /if\(isActive\)button\.setAttribute\('aria-current','page'\);else button\.removeAttribute\('aria-current'\)/, 'D UI navigation must expose and clear aria-current across rerenders');
-assert.match(script, /if\(open\)menu\.querySelector\('\[data-d-ui-action="toggle-menu"\]'\)\?\.focus\(\)/, 'opening the command menu must move focus into the dialog');
-assert.match(script, /setCommandMenu\(open,!open\)/, 'pointer dismissal must restore focus to the menu trigger');
-assert.match(script, /setCommandMenu\(false,true\)/, 'Escape dismissal must restore focus to the menu trigger');
-assert.match(script, /event\.target===menu[\s\S]*setCommandMenu\(false,true\)/, 'backdrop activation must close the command menu and restore trigger focus');
-assert.match(script, /if\(event\.key!==['"]Tab['"]\)return false/, 'command menu must handle Tab only while open');
-assert.match(script, /menu\.querySelectorAll\('button:not\(\[disabled\]\)/, 'command menu must enumerate focusable controls');
-assert.match(script, /event\.shiftKey&&active===first/, 'Shift+Tab must wrap to the final command');
-assert.match(script, /!event\.shiftKey&&active===last/, 'Tab must wrap to the first command');
-assert.match(script, /!menu\.contains\(active\)/, 'focus escaping the open dialog must be recovered');
-assert.doesNotMatch(script, /localStorage\.(?:setItem|removeItem|clear)/, 'D UI shell must not mutate save storage directly');
-assert.doesNotMatch(script, /Math\.random/, 'D UI marker placement must remain deterministic');
-assert.doesNotMatch(script + style, /https?:\/\//, 'D UI shell must not add remote runtime assets');
-assert.match(style, /@media\(max-width:820px\)/, 'D UI must include an iPhone layout');
-assert.match(style, /grid-template-columns:minmax\(480px,1fr\) 350px 300px/, 'desktop D layout columns are missing');
-assert.match(style, /--d-gold:/, 'D UI design tokens are missing');
-
+for (const label of ['マップ','本社','店舗','資金調達','研究開発','採用','危機対応','実績','目標','一週進める']) assert.ok(script.includes(label),`D UI shell is missing ${label}`);
+for (const token of ['d-kpi-strip','d-sidebar','d-map-workspace','d-context-panel','d-bottom-dock','d-command-menu']) assert.ok(script.includes(token)||style.includes(token),`D UI contract is missing ${token}`);
+assert.match(script,/modules\.playerEngineBridge\.getEngine/,'D UI must reuse the existing engine instance');
+assert.match(script,/data-action="tab"/,'D UI navigation must use the existing tab action contract');
+assert.match(script,/data-action="open-store"/,'D UI tenant action must preserve the existing open-store action');
+assert.match(script,/const isActive=button\.dataset\.tab===active/,'D UI navigation must derive current state from the active tab');
+assert.match(script,/if\(isActive\)button\.setAttribute\('aria-current','page'\);else button\.removeAttribute\('aria-current'\)/,'D UI navigation must expose and clear aria-current across rerenders');
+assert.match(script,/if\(open\)menu\.querySelector\('\[data-d-ui-action="toggle-menu"\]'\)\?\.focus\(\)/,'opening the command menu must move focus into the dialog');
+assert.match(script,/setCommandMenu\(open,!open\)/,'pointer dismissal must restore focus to the menu trigger');
+assert.match(script,/setCommandMenu\(false,true\)/,'Escape dismissal must restore focus to the menu trigger');
+assert.match(script,/event\.target===menu[\s\S]*setCommandMenu\(false,true\)/,'backdrop activation must close the command menu and restore trigger focus');
+assert.match(script,/if\(event\.key!==['"]Tab['"]\)return false/,'command menu must handle Tab only while open');
+assert.match(script,/menu\.querySelectorAll\('button:not\(\[disabled\]\)/,'command menu must enumerate focusable controls');
+assert.match(script,/event\.shiftKey&&active===first/,'Shift+Tab must wrap to the final command');
+assert.match(script,/!event\.shiftKey&&active===last/,'Tab must wrap to the first command');
+assert.match(script,/!menu\.contains\(active\)/,'focus escaping the open dialog must be recovered');
+assert.doesNotMatch(script,/localStorage\.(?:setItem|removeItem|clear)/,'D UI shell must not mutate save storage directly');
+assert.doesNotMatch(script,/Math\.random/,'D UI marker placement must remain deterministic');
+assert.doesNotMatch(script+style,/https?:\/\//,'D UI shell must not add remote runtime assets');
+assert.match(style,/@media\(max-width:820px\)/,'D UI must include an iPhone layout');
+assert.match(style,/grid-template-columns:minmax\(480px,1fr\) 350px 300px/,'desktop D layout columns are missing');
+assert.match(style,/--d-gold:/,'D UI design tokens are missing');
 console.log('D UI shell contract passed');
