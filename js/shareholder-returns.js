@@ -1,6 +1,16 @@
 // Phase 8C-1/8C-14: shareholder returns discipline with mutation-free read paths.
 (function(){'use strict';
 const modules=globalThis.__capitalismTycoonModules;
+function registerEnhancer(definition){
+ const registry=modules.uiEnhancerRegistry;
+ if(registry?.registerUIEnhancer)return registry.registerUIEnhancer(definition);
+ const key='__capitalismTycoonPendingUIEnhancers';
+ const pending=Array.isArray(globalThis[key])?globalThis[key]:(globalThis[key]=[]);
+ pending.push(definition);
+ return definition;
+}
+function runEnhancers(fallback){const registry=modules.uiEnhancerRegistry;if(registry?.runUIEnhancers)return registry.runUIEnhancers();return typeof fallback==='function'?fallback():false;}
+
 if(!modules?.engine?.TycoonEngine)throw new Error('engine.js must load before shareholder-returns.js.');
 if(!modules.finance?.buildStatements)throw new Error('finance.js must load before shareholder-returns.js.');
 if(modules.shareholderReturns)throw new Error('shareholder returns module is already registered.');
@@ -28,10 +38,11 @@ EngineClass.prototype.buybackOwnShares=function(amount){return buyback(this,amou
 EngineClass.prototype.advanceWeek=function(showSummary=true,...args){const state=this.g,declaredPerShare=Math.max(0,finite(state?.dividendPerShare)),paymentWeek=Boolean(state?.publicCompany&&declaredPerShare>0&&((Math.max(1,Math.floor(finite(state.week,1)))+1)%13===0));if(!paymentWeek)return baseAdvanceWeek.call(this,showSummary,...args);const cap=capacity(this),shares=outstandingShares(state),declaredTotal=declaredPerShare*shares,actualTotal=Math.min(declaredTotal,cap.safeAmount),actualPerShare=shares>0?actualTotal/shares:0,own=this.stock?.(state.ticker),ownDeclared=finite(own?.dividendPerShare,declaredPerShare);state.dividendPerShare=actualPerShare;if(own)own.dividendPerShare=actualPerShare;let result;try{result=baseAdvanceWeek.call(this,false,...args);}finally{state.dividendPerShare=declaredPerShare;if(own)own.dividendPerShare=ownDeclared;}if(result!==false)correctQuarterlyDividend(this,declaredPerShare,declaredTotal,cap.safeAmount,showSummary);return result;};
 Object.defineProperty(EngineClass.prototype,'__shareholderReturnsInstalled',{value:true});
 function render(instance=modules.playerEngineBridge?.getEngine?.()){if(!instance?.g?.configured||instance.g.selectedTab!=='market'||!instance.g.publicCompany)return'';const state=instance.g,cap=capacity(instance),returns=readStateFor(instance),planned=finite(state.dividendPerShare)*cap.outstandingShares,treasuryBook=finite(state.finance?.balances?.treasuryStock),key=renderKey(`${state.week}|${state.companyCash}|${state.dividendPerShare}|${planned}|${cap.safeAmount}|${state.treasuryBuybackShares}|${treasuryBook}|${returns.lastActualDividend}`);return `<section class="card" data-shareholder-returns-ui="1" data-shareholder-returns-render-key="${key}"><div class="card-head"><div><h2>株主還元・資本配分</h2><p>配当と自社株買いを、最低運転資金・返済余力・利益剰余金の範囲で実行します。配当は利益を減らさず財務CFとして処理されます。</p></div><span class="badge good">Phase 8C-1</span></div><div class="card-body"><div class="kpi-grid mini"><div class="stat"><span>安全還元可能額</span><strong>${esc(compactYen(cap.safeAmount))}</strong></div><div class="stat"><span>設定配当</span><strong>1株 ${esc(yen(state.dividendPerShare))}</strong></div><div class="stat"><span>次回予定総額</span><strong>${esc(compactYen(planned))}</strong></div><div class="stat"><span>直近実支払</span><strong>${esc(compactYen(returns.lastActualDividend))}</strong></div><div class="stat"><span>自己株式</span><strong>${Math.floor(finite(state.treasuryBuybackShares)).toLocaleString('ja-JP')}株</strong></div><div class="stat"><span>自己株式簿価</span><strong>${esc(compactYen(treasuryBook))}</strong></div></div><div class="button-row"><button class="btn secondary" data-action="set-dividend">配当を設定</button><button class="btn primary" data-action="buyback" ${cap.safeAmount<Math.max(1,finite(state.stockPrice))?'disabled':''}>自社株買い</button></div></div></section>`;}
-let scheduled=false,observer=null;
+
 function enhance(){if(typeof document==='undefined')return false;const screen=document.getElementById('screen');if(!screen)return false;const old=screen.querySelector?.('[data-shareholder-returns-ui]'),html=render();if(!html){old?.remove?.();return false;}const desired=(html.match(/data-shareholder-returns-render-key="([^"]+)"/)||[])[1]||'',current=String(old?.getAttribute?.('data-shareholder-returns-render-key')||old?.dataset?.shareholderReturnsRenderKey||'');if(old&&current===desired)return false;if(old){old.outerHTML=html;return true;}screen.insertAdjacentHTML?.('beforeend',html);return true;}
-function schedule(){if(scheduled)return;scheduled=true;(typeof queueMicrotask==='function'?queueMicrotask:setTimeout)(()=>{scheduled=false;enhance();},0);}
-function installUI(){if(typeof document==='undefined')return;const root=document.getElementById('app');if(root&&!observer&&typeof MutationObserver==='function'){observer=new MutationObserver(schedule);observer.observe(root,{childList:true,subtree:true});}schedule();}
+function schedule(){return runEnhancers();}
+function installUI(){if(typeof document==='undefined')return;schedule();}
 modules.shareholderReturns=Object.freeze({MIN_CASH,HISTORY_LIMIT,TAX_RATE,normalizedState,readStateFor,stateFor,outstandingShares,capacity,setDividend,buyback,correctQuarterlyDividend,renderKey,render,enhance,installUI,__installed:true});
 installUI();
+registerEnhancer({id:'shareholder-returns',enhance:()=>enhance()});
 })();
