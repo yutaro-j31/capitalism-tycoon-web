@@ -16,6 +16,15 @@ function observerLimitFromLocation(env=globalThis){
     return Number.isFinite(value)&&value>=0?Math.min(200,value):null;
   }catch(_){return null;}
 }
+function observerSkipSourceFromLocation(env=globalThis){
+  try{
+    const url=new (env.URL||URL)(String(env.location?.href||''),'https://local.invalid/');
+    const raw=String(url.searchParams.get('observerSkip')||'').trim();
+    if(!raw)return '';
+    const name=raw.split('/').pop().split(/[?#]/)[0];
+    return /^[A-Za-z0-9._-]+\.js$/.test(name)?name:'';
+  }catch(_){return '';}
+}
 function observerReportEnabled(env=globalThis){
   try{
     const url=new (env.URL||URL)(String(env.location?.href||''),'https://local.invalid/');
@@ -24,23 +33,26 @@ function observerReportEnabled(env=globalThis){
 }
 function installObserverThresholdGuard(env=globalThis){
   const limit=observerLimitFromLocation(env);
-  if(limit===null||typeof env.MutationObserver!=='function')return null;
+  const skipSource=observerSkipSourceFromLocation(env);
+  if((limit===null&&!skipSource)||typeof env.MutationObserver!=='function')return null;
   const NativeMutationObserver=env.MutationObserver;
   const app=env.document?.getElementById?.('app');
-  const state={limit,tracked:0,allowed:0,blocked:0,other:0,sources:[]};
+  const state={limit,skipSource,tracked:0,allowed:0,blocked:0,skipped:0,other:0,sources:[],skippedIndexes:[]};
   class ThresholdMutationObserver{
     constructor(callback){
       this.native=new NativeMutationObserver(callback);
       const current=env.document?.currentScript;
       this.source=String(current?.src||'');
+      this.sourceName=this.source.split('/').pop().split(/[?#]/)[0];
       this.external=/\/js\/[^/?#]+\.js(?:[?#]|$)/.test(this.source);
     }
     observe(target,options){
       const tracked=this.external&&Boolean(options?.subtree)&&(target===app||target===env.document||target===env.document?.body||target===env.document?.documentElement);
       if(tracked){
         state.tracked+=1;
-        state.sources.push(this.source.split('/').pop().split(/[?#]/)[0]);
-        if(state.tracked>limit){state.blocked+=1;return;}
+        state.sources.push(this.sourceName);
+        if(skipSource&&this.sourceName===skipSource){state.skipped+=1;state.skippedIndexes.push(state.tracked);return;}
+        if(limit!==null&&state.tracked>limit){state.blocked+=1;return;}
         state.allowed+=1;
       }else state.other+=1;
       return this.native.observe(target,options);
@@ -61,15 +73,19 @@ function showObserverThresholdReport(env=globalThis){
   const id='observer-threshold-report';
   let node=env.document.getElementById?.(id);
   if(!node){node=env.document.createElement('div');node.id=id;env.document.body.appendChild(node);}
-  const first=Math.max(1,observerThreshold.limit-4);
-  const last=Math.min(observerThreshold.sources.length,observerThreshold.limit+6);
+  const pivot=observerThreshold.limit!==null?observerThreshold.limit+1:(observerThreshold.skippedIndexes[0]||1);
+  const first=Math.max(1,pivot-5);
+  const last=Math.min(observerThreshold.sources.length,pivot+5);
   const rows=[];
   for(let index=first;index<=last;index++){
     const source=observerThreshold.sources[index-1]||'(unknown)';
-    const marker=index===observerThreshold.limit+1?' ← FIRST BLOCKED':'';
+    let marker='';
+    if(observerThreshold.limit!==null&&index===observerThreshold.limit+1)marker+=' ← FIRST BLOCKED';
+    if(observerThreshold.skippedIndexes.includes(index))marker+=' ← SKIPPED';
     rows.push(`#${index} ${esc(source)}${marker}`);
   }
-  node.innerHTML=`<section style="position:fixed;top:max(8px,env(safe-area-inset-top));left:8px;right:8px;z-index:2147483646;background:#07111f;color:#f5f7fb;border:2px solid #22c55e;border-radius:12px;padding:12px;font:13px/1.45 ui-monospace,SFMono-Regular,Menlo,monospace;box-shadow:0 8px 24px #0008"><strong>Observer threshold report</strong><br>limit=${observerThreshold.limit} tracked=${observerThreshold.tracked} allowed=${observerThreshold.allowed} blocked=${observerThreshold.blocked}<pre style="white-space:pre-wrap;margin:8px 0 0">${rows.join('\n')}</pre></section>`;
+  const limitText=observerThreshold.limit===null?'none':observerThreshold.limit;
+  node.innerHTML=`<section style="position:fixed;top:max(8px,env(safe-area-inset-top));left:8px;right:8px;z-index:2147483646;background:#07111f;color:#f5f7fb;border:2px solid #22c55e;border-radius:12px;padding:12px;font:13px/1.45 ui-monospace,SFMono-Regular,Menlo,monospace;box-shadow:0 8px 24px #0008"><strong>Observer threshold report</strong><br>limit=${limitText} skip=${esc(observerThreshold.skipSource||'none')} tracked=${observerThreshold.tracked} allowed=${observerThreshold.allowed} blocked=${observerThreshold.blocked} skipped=${observerThreshold.skipped}<pre style="white-space:pre-wrap;margin:8px 0 0">${rows.join('\n')}</pre></section>`;
   return true;
 }
 function sourcePath(value,env=globalThis){
