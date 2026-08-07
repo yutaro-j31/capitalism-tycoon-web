@@ -36,8 +36,10 @@ const satellites=[
   'real-estate-capex-actuals-ui.js',
   'real-estate-complete-cycle-ui.js'
 ];
+const registryPosition=index.indexOf('src="./js/ui-enhancer-registry.js"');
 const basePosition=index.indexOf(`src="./js/${baseName}"`);
-assert.ok(basePosition>=0,'base real-estate UI must stay connected in index.html');
+assert.ok(registryPosition>=0,'UI enhancer registry must stay connected in index.html');
+assert.ok(basePosition>registryPosition,'base real-estate UI must load after the UI enhancer registry');
 for(const name of satellites){
   const position=index.indexOf(`src="./js/${name}"`);
   assert.ok(position>basePosition,`${name} must load after the base real-estate UI so registry order is deterministic`);
