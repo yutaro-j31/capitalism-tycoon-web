@@ -45,6 +45,10 @@ assert.match(css, /forced-colors:active[\s\S]*\.d-context-actions button/, 'cont
 assert.match(html, /css\/d-ui-context-tabs\.css/, 'context tab stylesheet must load in production');
 assert.match(html, /js\/d-ui-context-tabs\.js/, 'context tab script must load in production');
 assert.ok(html.indexOf('js/d-ui-shell.js') < html.indexOf('js/d-ui-context-tabs.js'), 'context tabs must load after the D UI shell');
+assert.match(script, /registerUIEnhancer\(\{id:'d-ui-context-tabs'/, 'context tabs must use the central ordered enhancer pipeline');
+assert.match(shell, /registerUIEnhancer\(\{id:'d-ui-shell'/, 'D UI shell must use the central ordered enhancer pipeline');
+assert.doesNotMatch(script, /new MutationObserver|queueMicrotask|function schedule\(/, 'context tabs must not create an observer-driven rerender loop');
+assert.doesNotMatch(shell, /new MutationObserver|queueMicrotask|function schedule\(/, 'D UI shell must not create an observer-driven rerender loop');
 assert.match(html, /capitalism_tycoon_web_v1|js\/save-v9\.js/, 'save compatibility contract must remain present');
 
 console.log('D UI context tabs contract passed');
