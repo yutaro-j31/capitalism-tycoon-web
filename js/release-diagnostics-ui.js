@@ -2,6 +2,16 @@
 (function(){'use strict';
 if(!globalThis.__capitalismTycoonModules)throw new Error('Capitalism Tycoon runtime.js must be loaded before release-diagnostics-ui.js.');
 const modules=globalThis.__capitalismTycoonModules;
+function registerEnhancer(definition){
+ const registry=modules.uiEnhancerRegistry;
+ if(registry?.registerUIEnhancer)return registry.registerUIEnhancer(definition);
+ const key='__capitalismTycoonPendingUIEnhancers';
+ const pending=Array.isArray(globalThis[key])?globalThis[key]:(globalThis[key]=[]);
+ pending.push(definition);
+ return definition;
+}
+function runEnhancers(fallback){const registry=modules.uiEnhancerRegistry;if(registry?.runUIEnhancers)return registry.runUIEnhancers();return typeof fallback==='function'?fallback():false;}
+
 if(!modules.engine)throw new Error('engine.js must be loaded before release-diagnostics-ui.js.');
 if(modules.releaseDiagnosticsUI)throw new Error('release diagnostics UI is already registered.');
 
@@ -175,23 +185,12 @@ async function handleClick(event){
   return false;
 }
 
-let observer=null;
 let bound=false;
-let scheduled=false;
-function schedule(){
-  if(scheduled)return;
-  scheduled=true;
-  const run=()=>{scheduled=false;enhance();};
-  if(typeof queueMicrotask==='function')queueMicrotask(run);else setTimeout(run,0);
-}
+function schedule(){return runEnhancers();}
 function install(){
   const app=document.getElementById('app');
   if(!app)return false;
   if(!bound){app.addEventListener('click',handleClick);bound=true;}
-  if(!observer&&typeof MutationObserver==='function'){
-    observer=new MutationObserver(schedule);
-    observer.observe(app,{childList:true,subtree:true});
-  }
   schedule();
   return true;
 }
@@ -202,4 +201,5 @@ modules.releaseDiagnosticsUI=Object.freeze({
   settingsVisible,enhance,handleClick,install,__installed:true
 });
 install();
+registerEnhancer({id:'release-diagnostics-ui',enhance:()=>enhance()});
 })();
