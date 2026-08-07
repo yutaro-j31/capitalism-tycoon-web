@@ -1,0 +1,36 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#08101f">
+<title>Startup Observer Sources</title>
+<style>
+:root{color-scheme:dark}*{box-sizing:border-box}body{margin:0;background:#07111f;color:#f5f7fb;font:14px/1.5 -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;padding:max(12px,env(safe-area-inset-top)) 12px max(12px,env(safe-area-inset-bottom))}main{max-width:760px;margin:auto}.card{background:#111b2d;border:1px solid #33415c;border-radius:14px;padding:14px;margin-bottom:12px}h1{font-size:20px;margin:0 0 8px}.muted{color:#aebbd0}.status{font-weight:700}.ok{color:#4ade80}.warn{color:#fbbf24}button{width:100%;min-height:46px;border:0;border-radius:10px;font-weight:700;font-size:15px;margin-top:10px}textarea{width:100%;height:52vh;min-height:320px;border:1px solid #475569;border-radius:10px;background:#02070f;color:#e2e8f0;padding:10px;font:12px/1.45 ui-monospace,SFMono-Regular,Menlo,monospace;resize:vertical}iframe{position:absolute;width:1px;height:1px;left:-9999px;top:-9999px;border:0}</style>
+</head>
+<body>
+<main>
+<section class="card"><h1>Startup Observer Sources</h1><p class="muted">本番と同じscript順で読み込み、外部JSのapp-wide Observerをすべてブロックした状態で、初期ロード中に実際にobserve()された登録元を収集します。画面遷移後に初めて登録されるObserverは含みません。</p><div id="status" class="status warn">診断中…</div><button id="copy" type="button" disabled>一覧をコピー</button></section>
+<section class="card"><textarea id="output" readonly>iframeの起動を待っています…</textarea></section>
+</main>
+<iframe id="probe" title="observer probe" src="./?observerLimit=0&startupObserverProbe=1"></iframe>
+<script>
+(function(){'use strict';
+const probe=document.getElementById('probe'),out=document.getElementById('output'),status=document.getElementById('status'),copy=document.getElementById('copy');
+function render(){
+  try{
+    const state=probe.contentWindow&&probe.contentWindow.__ctObserverThreshold;
+    if(!state||!Array.isArray(state.sources)){status.textContent='診断データを取得できません';status.className='status warn';return false;}
+    const counts=new Map();for(const source of state.sources)counts.set(source,(counts.get(source)||0)+1);
+    const unique=[...counts.keys()];
+    const lines=[`tracked registrations: ${state.tracked}`,`unique startup source files: ${unique.length}`,`allowed: ${state.allowed} / blocked: ${state.blocked}`, '', ...unique.map((name,index)=>`${String(index+1).padStart(2,'0')}. ${name}${counts.get(name)>1?` (x${counts.get(name)})`:''}`), '', 'RAW REGISTRATION ORDER', ...state.sources.map((name,index)=>`#${index+1} ${name}`)];
+    out.value=lines.join('\n');status.textContent=`完了: ${state.tracked}登録 / ${unique.length}ファイル`;status.className='status ok';copy.disabled=false;return true;
+  }catch(error){status.textContent=`取得失敗: ${error&&error.message?error.message:error}`;status.className='status warn';return false;}
+}
+probe.addEventListener('load',()=>{setTimeout(render,100);setTimeout(render,700);});
+setTimeout(render,2500);
+copy.addEventListener('click',async()=>{try{await navigator.clipboard.writeText(out.value);copy.textContent='コピーしました';setTimeout(()=>copy.textContent='一覧をコピー',1500);}catch(_){out.focus();out.select();document.execCommand&&document.execCommand('copy');copy.textContent='選択しました';}});
+})();
+</script>
+</body>
+</html>
