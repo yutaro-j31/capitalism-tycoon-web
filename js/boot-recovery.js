@@ -7,6 +7,47 @@ const ROOT_ID='boot-recovery-root';
 let latest=null;
 let active=true;
 
+function observerLimitFromLocation(env=globalThis){
+  try{
+    const url=new (env.URL||URL)(String(env.location?.href||''),'https://local.invalid/');
+    const raw=url.searchParams.get('observerLimit');
+    if(raw===null)return null;
+    const value=Math.floor(Number(raw));
+    return Number.isFinite(value)&&value>=0?Math.min(200,value):null;
+  }catch(_){return null;}
+}
+function installObserverThresholdGuard(env=globalThis){
+  const limit=observerLimitFromLocation(env);
+  if(limit===null||typeof env.MutationObserver!=='function')return null;
+  const NativeMutationObserver=env.MutationObserver;
+  const app=env.document?.getElementById?.('app');
+  const state={limit,tracked:0,allowed:0,blocked:0,other:0,sources:[]};
+  class ThresholdMutationObserver{
+    constructor(callback){
+      this.native=new NativeMutationObserver(callback);
+      const current=env.document?.currentScript;
+      this.source=String(current?.src||'');
+      this.external=/\/js\/[^/?#]+\.js(?:[?#]|$)/.test(this.source);
+    }
+    observe(target,options){
+      const tracked=this.external&&Boolean(options?.subtree)&&(target===app||target===env.document||target===env.document?.body||target===env.document?.documentElement);
+      if(tracked){
+        state.tracked+=1;
+        state.sources.push(this.source.split('/').pop().split(/[?#]/)[0]);
+        if(state.tracked>limit){state.blocked+=1;return;}
+        state.allowed+=1;
+      }else state.other+=1;
+      return this.native.observe(target,options);
+    }
+    disconnect(){return this.native.disconnect();}
+    takeRecords(){return this.native.takeRecords();}
+  }
+  env.MutationObserver=ThresholdMutationObserver;
+  Object.defineProperty(env,'__ctObserverThreshold',{value:state,configurable:true,enumerable:false,writable:false});
+  return state;
+}
+const observerThreshold=installObserverThresholdGuard();
+
 const esc=value=>String(value??'').replace(/[&<>'"]/g,char=>({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[char]));
 const clip=(value,max=400)=>String(value??'').replace(/[\u0000-\u001f\u007f]/g,' ').replace(/\s+/g,' ').trim().slice(0,max);
 function sourcePath(value,env=globalThis){
@@ -95,7 +136,7 @@ function bridge(env=globalThis){
 function install(env=globalThis){
   env.addEventListener?.('error',onError,true);env.addEventListener?.('unhandledrejection',onRejection);env.addEventListener?.('load',onLoad,{once:true});env.document?.addEventListener?.('click',onClick);return true;
 }
-const api=Object.freeze({SAVE_KEY,ROOT_ID,record,readSave,launchUrl,render,show,dismiss,capture,download,handoff,bridge,install,__installed:true});
+const api=Object.freeze({SAVE_KEY,ROOT_ID,record,readSave,launchUrl,render,show,dismiss,capture,download,handoff,bridge,install,observerThreshold,__installed:true});
 Object.defineProperty(globalThis,SLOT,{value:api,configurable:false,enumerable:false,writable:false});
 install();
 })();

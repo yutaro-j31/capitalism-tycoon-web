@@ -1,0 +1,11 @@
+'use strict';
+const fs=require('node:fs');
+const assert=require('node:assert/strict');
+const code=fs.readFileSync('js/boot-recovery.js','utf8');
+assert.ok(code.includes("searchParams.get('observerLimit')"),'diagnostic must be query-gated');
+assert.ok(code.includes("this.external=/\\/js\\/[^/?#]+\\.js"),'only external JS observers are thresholded');
+assert.ok(code.includes('Boolean(options?.subtree)'),'only subtree observers are thresholded');
+assert.ok(code.includes('state.tracked>limit'),'observers above the limit must be blocked');
+assert.ok(code.includes('return this.native.observe(target,options)'),'allowed observers must keep native semantics');
+assert.ok(code.includes("if(limit===null||typeof env.MutationObserver!=='function')return null"),'normal URLs must leave MutationObserver unchanged');
+console.log('observer threshold guard contract passed');
