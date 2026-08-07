@@ -42,20 +42,9 @@ for(const name of migrated){
   previous=position;
 }
 
-const jsFiles=fs.readdirSync(path.join(ROOT,'js')).filter(name=>name.endsWith('.js'));
-const unqualifiedObserverFiles=jsFiles.filter(name=>/new\s+MutationObserver\s*\(/.test(fs.readFileSync(path.join(ROOT,'js',name),'utf8')));
-const observerFiles=jsFiles.filter(name=>/new\s+(?:[A-Za-z_$][\w$]*\.)?MutationObserver\s*\(/.test(fs.readFileSync(path.join(ROOT,'js',name),'utf8')));
-const qualifiedOnlyObserverFiles=observerFiles.filter(name=>!unqualifiedObserverFiles.includes(name)).sort();
-
-// The earlier 74-file figure counted only `new MutationObserver(...)`. Before
-// Stage 3-3 there were also three qualified constructors: save-storage-ui.js,
-// physical-iphone-playtest.js, and playtest-report-ui.js. Stage 3-3 migrates
-// save-storage-ui.js plus 19 unqualified observers, leaving 55 unqualified and
-// two qualified-only observers = 57 comprehensive observer-driven JS files.
-assert.equal(unqualifiedObserverFiles.length,55,`expected 55 unqualified observer-driven JS files after Stage 3-3, got ${unqualifiedObserverFiles.length}`);
-assert.equal(observerFiles.length,57,`expected 57 observer-driven JS files after Stage 3-3 including qualified constructors, got ${observerFiles.length}`);
-assert.deepEqual(qualifiedOnlyObserverFiles,['physical-iphone-playtest.js','playtest-report-ui.js'],'qualified-only observer files must stay explicitly accounted for');
-
+// Stage-local contract only: later migration stages are expected to reduce the
+// repository-wide observer count further. Aggregate residual counts belong to
+// the latest migration-stage test, not to this Stage 3-3 regression contract.
 const trigger=fs.readFileSync(path.join(ROOT,'js','real-estate-portfolio-dashboard-ui.js'),'utf8');
 assert.match(trigger,/id:'real-estate-portfolio-dashboard-ui'/,'physical threshold trigger candidate #45 must be migrated');
 console.log('Stage 3-3 observer migration contract passed');
