@@ -5,7 +5,7 @@ if(!modules?.realEstate)throw new Error('real-estate.js must be loaded before re
 if(!modules?.playerEngineBridge?.getEngine)throw new Error('player-engine-bridge.js must be loaded before real-estate-ui.js.');
 if(!modules?.uiEnhancerRegistry?.registerUIEnhancer)throw new Error('ui-enhancer-registry.js must load before real-estate-ui.js.');
 if(modules.realEstateUI)throw new Error('real estate UI module is already registered.');
-const bridge=modules.playerEngineBridge,esc=v=>String(v??'').replace(/[&<>'\"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c])),finite=(v,d=0)=>Number.isFinite(Number(v))?Number(v):d,money=v=>`${Math.round(finite(v)).toLocaleString('ja-JP')}円`,pct=v=>`${(finite(v)*100).toFixed(1)}%`;
+const bridge=modules.playerEngineBridge,esc=v=>String(v??'').replace(/[&<>'"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c])),finite=(v,d=0)=>Number.isFinite(Number(v))?Number(v):d,money=v=>`${Math.round(finite(v)).toLocaleString('ja-JP')}円`,pct=v=>`${(finite(v)*100).toFixed(1)}%`;
 let developmentLoading=false,developmentFailed=false;
 function loadDevelopment(){return Boolean(modules.realEstateDevelopment);}
 function owned(engine){return(engine?.g?.properties||[]).filter(p=>p.owner==='company'||p.owner==='personal');}
