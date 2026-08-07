@@ -45,6 +45,7 @@ for (const [name, file] of [
   ['d-ui-context-tabs', 'tests/d-ui-context-tabs-test.js'],
   ['stage-3-3-observer-migration', 'tests/stage-3-3-observer-migration-test.js'],
   ['stage-3-4-startup-observer-migration', 'tests/stage-3-4-startup-observer-migration-test.js'],
+  ['stage-3-ui-screen-scope-regression', 'tests/stage-3-ui-screen-scope-regression-test.js'],
   ['v1-progression-gate', 'tests/v1-progression-gate-test.js'],
   ['treasury-prepayment', 'tests/treasury-prepayment-test.js'],
   ['treasury-refinancing-policy', 'tests/treasury-refinancing-policy-test.js'],
