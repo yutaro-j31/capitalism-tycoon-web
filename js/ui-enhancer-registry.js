@@ -60,7 +60,18 @@ Object.defineProperty(app,'innerHTML',{
     runUIEnhancers();
   }
 });
-modules.uiEnhancerRegistry=Object.freeze({registerUIEnhancer,runUIEnhancers,registeredIDs:()=>enhancers.map(hook=>hook.id),isRunning:()=>running,generation:()=>generation,__installed:true});
-const pending=Array.isArray(globalThis[PENDING_KEY])?globalThis[PENDING_KEY].splice(0):[];
-for(const definition of pending)registerUIEnhancer(definition);
+function drainPendingUIEnhancers(){
+  const queue=Array.isArray(globalThis[PENDING_KEY])?globalThis[PENDING_KEY]:[];
+  const pending=queue.splice(0);
+  const pendingIDs=new Set();
+  for(const definition of pending){
+    const id=String(definition?.id||'').trim();
+    if(id&&(pendingIDs.has(id)||enhancerIDs.has(id)))continue;
+    if(id)pendingIDs.add(id);
+    registerUIEnhancer(definition);
+  }
+  return pending.length;
+}
+modules.uiEnhancerRegistry=Object.freeze({registerUIEnhancer,runUIEnhancers,drainPendingUIEnhancers,registeredIDs:()=>enhancers.map(hook=>hook.id),isRunning:()=>running,generation:()=>generation,__installed:true});
+drainPendingUIEnhancers();
 })();
