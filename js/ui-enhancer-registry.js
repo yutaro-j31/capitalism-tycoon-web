@@ -2,6 +2,7 @@
 (function(){'use strict';
 if(!globalThis.__capitalismTycoonModules)throw new Error('runtime.js must be loaded before ui-enhancer-registry.js.');
 const modules=globalThis.__capitalismTycoonModules;
+const PENDING_KEY='__capitalismTycoonPendingUIEnhancers';
 if(modules.uiEnhancerRegistry)throw new Error('UI enhancer registry is already registered.');
 const app=document.getElementById('app');
 if(!app)throw new Error('#app must exist before ui-enhancer-registry.js.');
@@ -60,4 +61,6 @@ Object.defineProperty(app,'innerHTML',{
   }
 });
 modules.uiEnhancerRegistry=Object.freeze({registerUIEnhancer,runUIEnhancers,registeredIDs:()=>enhancers.map(hook=>hook.id),isRunning:()=>running,generation:()=>generation,__installed:true});
+const pending=Array.isArray(globalThis[PENDING_KEY])?globalThis[PENDING_KEY].splice(0):[];
+for(const definition of pending)registerUIEnhancer(definition);
 })();
