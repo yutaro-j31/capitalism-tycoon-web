@@ -50,10 +50,10 @@ for(const name of ['real-estate-ui.js','iphone-playtest-fixes.js','player-turnar
   assert.doesNotMatch(code,/queueMicrotask/,`${name} must not retain observer-era microtask scheduling`);
 }
 
-// Late module registration happens after app.js has already crossed the first
-// #app render boundary. It must execute only the newly registered hook; replaying
-// all earlier hooks here previously caused a startup auto-save regression. A real
-// render boundary must still execute the complete deterministic pipeline.
+// Enhancer registration is not a render event. Each registration must execute
+// only its own hook, before or after the first #app render. Replaying all earlier
+// hooks during registration caused startup side effects. Actual render boundaries
+// must still execute the complete deterministic pipeline in registration order.
 {
   const registryCode=fs.readFileSync(path.join(ROOT,'js','ui-enhancer-registry.js'),'utf8');
   let html='';
@@ -68,14 +68,19 @@ for(const name of ['real-estate-ui.js','iphone-playtest-fixes.js','player-turnar
   sandbox.globalThis=sandbox;
   vm.runInNewContext(registryCode,sandbox,{filename:'ui-enhancer-registry.js'});
   const registry=sandbox.__capitalismTycoonModules.uiEnhancerRegistry;
-  registry.registerUIEnhancer({id:'stage35a-early',enhance(){calls.push('early');}});
+  registry.registerUIEnhancer({id:'stage35a-early-a',enhance(){calls.push('early-a');}});
+  calls.length=0;
+  registry.registerUIEnhancer({id:'stage35a-early-b',enhance(){calls.push('early-b');}});
+  assert.deepEqual(Array.from(calls),['early-b'],'pre-render registration must not replay earlier hooks');
+  calls.length=0;
   app.innerHTML='<main>first render</main>';
+  assert.deepEqual(Array.from(calls),['early-a','early-b'],'first app render must execute all registered hooks in order');
   calls.length=0;
   registry.registerUIEnhancer({id:'stage35a-late',enhance(){calls.push('late');}});
-  assert.deepEqual(Array.from(calls),['late'],'late enhancer registration must not replay earlier hooks after the first app render');
+  assert.deepEqual(Array.from(calls),['late'],'late enhancer registration must not replay earlier hooks');
   calls.length=0;
   app.innerHTML='<main>second render</main>';
-  assert.deepEqual(Array.from(calls),['early','late'],'a real app render must still execute the complete ordered enhancer pipeline');
+  assert.deepEqual(Array.from(calls),['early-a','early-b','late'],'later app renders must execute the complete ordered enhancer pipeline');
 }
 
 const index=readIndex();
