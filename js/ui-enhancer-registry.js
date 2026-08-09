@@ -12,15 +12,16 @@ let running=false;
 let generation=0;
 function engine(){return modules.playerEngineBridge?.getEngine?.()||null;}
 function context(){const activeEngine=engine();return {app,screen:document.getElementById('screen'),engine:activeEngine,state:activeEngine?.g||null,generation};}
+function runEnhancer(hook,current){
+  try{hook.enhance(current);}
+  catch(error){globalThis.console?.error?.(`[UI enhancer failed: ${hook.id}]`,error);}
+}
 function runUIEnhancers(){
   if(running)return false;
   running=true;
   const current=context();
   try{
-    for(const hook of enhancers){
-      try{hook.enhance(current);}
-      catch(error){globalThis.console?.error?.(`[UI enhancer failed: ${hook.id}]`,error);}
-    }
+    for(const hook of enhancers)runEnhancer(hook,current);
   }finally{running=false;}
   return true;
 }
@@ -31,7 +32,11 @@ function registerUIEnhancer(definition){
   const hook=Object.freeze({id,enhance:definition.enhance});
   enhancerIDs.add(id);
   enhancers.push(hook);
-  runUIEnhancers();
+  // Registration is not a render event. Apply only the newly connected hook;
+  // replaying every older hook for each later module can repeat stateful legacy
+  // compatibility work during startup. Actual #app render boundaries below run
+  // the complete ordered pipeline.
+  if(!running)runEnhancer(hook,context());
   return hook;
 }
 function createInnerHTMLAccess(node){

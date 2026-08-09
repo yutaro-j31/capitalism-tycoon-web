@@ -17,7 +17,7 @@ function toast(message,severity='info'){
  const node=document.createElement('div');node.className=`toast ${severity}`;node.textContent=message;root.appendChild(node);
  requestAnimationFrame(()=>node.classList.add('show'));setTimeout(()=>{node.classList.remove('show');setTimeout(()=>node.remove(),250)},3200);
 }
-function schedule(){if(state.scheduled)return;state.scheduled=true;const run=()=>{state.scheduled=false;enhance();};typeof queueMicrotask==='function'?queueMicrotask(run):setTimeout(run,0);}
+function schedule(){const registry=modules.uiEnhancerRegistry;if(registry?.runUIEnhancers)return registry.runUIEnhancers();enhance();return true;}
 function parseAmount(value){const digits=String(value??'').replace(/[^0-9]/g,'');return digits?Number(digits):0;}
 function moneyContext(action,id,kind){
  const e=engine(),g=e?.g;if(!e||!g)return null;
@@ -137,6 +137,6 @@ function handleGoTab(event){const button=event.target?.closest?.('[data-iphone-g
 function enhanceBrowserMode(){const ios=/iP(hone|od|ad)/.test(navigator.userAgent);document.body.classList.toggle('iphone-browser-mode',ios&&!navigator.standalone);document.body.classList.toggle('standalone-mode',Boolean(navigator.standalone));}
 function enhance(){enhanceBrowserMode();ensureCrisisPresentation();ensureMapChrome();ensureStoreCockpit();ensureDebtLedger();}
 function handleClick(event){if(interceptMoney(event))return;secretaryContext(event);selectStoreFromContext(event);if(handleMapAction(event))return;if(handleSyntheticMarker(event))return;if(handleStoreAction(event))return;if(handleGoTab(event))return;const marker=event.target?.closest?.('.d-map-marker[data-d-ui-marker^="store:"]');if(marker)state.selectedStoreID=marker.dataset.dUiMarker.slice(6);}
-function install(){document.addEventListener('click',handleClick,true);document.addEventListener('change',handleStoreAction,true);const app=document.getElementById('app');if(app&&typeof MutationObserver==='function')new MutationObserver(schedule).observe(app,{childList:true,subtree:true});globalThis.visualViewport?.addEventListener?.('resize',schedule);schedule();return true;}
+function install(){document.addEventListener('click',handleClick,true);document.addEventListener('change',handleStoreAction,true);const registry=modules.uiEnhancerRegistry;if(registry?.registerUIEnhancer)registry.registerUIEnhancer({id:'iphone-playtest-fixes',enhance});else enhance();globalThis.visualViewport?.addEventListener?.('resize',schedule);return true;}
 modules.iphonePlaytestFixes=Object.freeze({state,parseAmount,moneyContext,causeRows,markerPosition,enhance,install,__installed:true});install();
 })();

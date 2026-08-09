@@ -14,7 +14,7 @@ const clamp=v=>Math.max(0,Math.min(1,finite(v)));
 const esc=v=>String(v??'').replace(/[&<>'"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c]));
 const REPORT_KINDS=Object.freeze(['progress','deadline','completed','failed']);
 const KIND_LABELS=Object.freeze({progress:'進捗',deadline:'期限接近',completed:'達成',failed:'未達'});
-let activeEngine=null,observer=null,scheduled=false;
+let activeEngine=null,enhancerRegistered=false;
 function capture(state){const plan=state?.playerTurnaroundPlan||{};return Object.freeze({status:String(plan.status||'inactive'),planID:String(plan.planID||''),week:integer(state?.week),historyLength:Array.isArray(plan.history)?plan.history.length:0});}
 function buildReport(state,before){
  if(!state||before?.status!=='active')return null;
@@ -65,9 +65,9 @@ function enhanceSummary(){
  else modal.innerHTML=`${String(modal.innerHTML||'')}${html}`;
  return true;
 }
-function schedule(){if(scheduled)return;scheduled=true;const run=()=>{scheduled=false;enhanceSummary();};if(typeof queueMicrotask==='function')queueMicrotask(run);else setTimeout(run,0);}
+function schedule(){return enhanceSummary();}
 function connect(instance){if(!instance)return null;activeEngine=instance;modules.playerEngineBridge.bindEngine(instance);modules.playerCrisisCreditorUI?.bindEngine?.(instance);modules.playerTurnaroundPlanUI?.bindEngine?.(instance);schedule();return instance;}
-function install(){if(typeof document==='undefined')return;const root=document.getElementById('modal-root');if(root&&!observer&&typeof MutationObserver==='function'){observer=new MutationObserver(schedule);observer.observe(root,{childList:true,subtree:true});}}
+function install(){const registry=modules.uiEnhancerRegistry;if(registry?.registerUIEnhancer&&!enhancerRegistered){enhancerRegistered=true;registry.registerUIEnhancer({id:'player-turnaround-plan-report',enhance:enhanceSummary});}return true;}
 const baseAdvanceWeek=EngineClass.prototype.advanceWeek;
 EngineClass.prototype.advanceWeek=function(showSummary=true){const before=capture(this.g),result=baseAdvanceWeek.call(this,showSummary);if(result===false)return result;const report=buildReport(this.g,before);if(report&&applyReport(this.g,report)){this.save();const severity=report.kind==='deadline'?'warning':report.kind==='completed'?'success':report.kind==='failed'?'error':null;if(severity)this.emit('notify',{message:alertText(report),severity});schedule();}return result;};
 const baseLoad=EngineClass.load.bind(EngineClass);

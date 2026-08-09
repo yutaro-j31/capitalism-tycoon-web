@@ -67,12 +67,6 @@ const installed=sandbox.__capitalismTycoonModules.uiEnhancerRegistry;
 assert.deepEqual(Array.from(installed.registeredIDs()),['startup-a','startup-b'],'pending enhancer order must remain FIFO with duplicate ids registered once');
 assert.equal(sandbox.__capitalismTycoonPendingUIEnhancers.length,0,'pending queue must be empty after registry initialization');
 
-const jsFiles=fs.readdirSync(path.join(ROOT,'js')).filter(name=>name.endsWith('.js'));
-const unqualified=jsFiles.filter(name=>/new\s+MutationObserver\s*\(/.test(fs.readFileSync(path.join(ROOT,'js',name),'utf8')));
-const comprehensive=jsFiles.filter(name=>/new\s+(?:[A-Za-z_$][\w$]*\.)?MutationObserver\s*\(/.test(fs.readFileSync(path.join(ROOT,'js',name),'utf8')));
-const qualifiedOnly=comprehensive.filter(name=>!unqualified.includes(name)).sort();
-assert.equal(unqualified.length,36,`expected 36 unqualified observer-driven JS files after Stage 3-4, got ${unqualified.length}`);
-assert.equal(comprehensive.length,37,`expected 37 comprehensive observer-driven JS files after Stage 3-4, got ${comprehensive.length}`);
-assert.deepEqual(qualifiedOnly,['physical-iphone-playtest.js'],'only physical-iphone-playtest.js should remain qualified-only after migrating playtest-report-ui.js');
-
+// Aggregate residual observer counts intentionally belong to the latest migration-stage contract.
+// Later stages must be free to reduce that count without breaking this Stage 3-4 regression test.
 console.log('Stage 3-4 startup observer migration contract passed');

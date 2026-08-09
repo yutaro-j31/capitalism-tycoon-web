@@ -61,7 +61,8 @@ function appHtml(ctx) {
 }
 
 assert.ok(recoverySource.trim().length <= 1000, 'setup recovery bootstrap must remain a small inline script');
-assert.match(recoverySource, /typeof MutationObserver===['"]function['"]/, 'browser observer must restore recovery after reset');
+assert.match(recoverySource, /registerUIEnhancer\(\{id:'setup-recovery-bootstrap'/, 'setup recovery must use the central ordered enhancer pipeline');
+assert.doesNotMatch(recoverySource, /MutationObserver/, 'setup recovery must not create an observer-driven rerender loop');
 assert.match(recoverySource, /innerHTML\.includes\(m\)/, 'recovery injection must be idempotent');
 assert.doesNotMatch(recoverySource, /localStorage|SAVE_KEY|saveVersion/, 'recovery renderer must not mutate save storage or schema');
 
