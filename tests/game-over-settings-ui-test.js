@@ -12,7 +12,8 @@ assert.ok(bridge, 'game-over settings bridge must be present in index.html');
 assert.ok(bridge.code.trim().length <= 700, 'game-over settings bridge must remain a small inline script');
 assert.match(bridge.code, /\.game-over/, 'bridge must target the bankruptcy overlay');
 assert.match(bridge.code, /button\[data-action="save-now"\]/, 'bridge must only unlock the settings screen');
-assert.match(bridge.code, /MutationObserver/, 'bridge must survive settings rerenders');
+assert.match(bridge.code, /registerUIEnhancer\(\{id:'game-over-settings-bridge'/, 'bridge must survive settings rerenders through the central enhancer pipeline');
+assert.doesNotMatch(bridge.code, /MutationObserver/, 'bridge must not create an observer-driven rerender loop');
 assert.match(bridge.code, /o&&s\)o\.remove\(\)/, 'bridge must remove the blocking overlay only when settings are visible');
 assert.doesNotMatch(bridge.code, /localStorage|SAVE_KEY|saveVersion|gameOver\s*=/,
   'bridge must not rewrite save data, schema, or bankruptcy state');
