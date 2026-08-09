@@ -12,13 +12,31 @@ assert.equal(source.includes('localStorage.setItem'),false,'physical checklist m
 assert.equal(source.includes('localStorage.removeItem'),false,'physical checklist must not remove browser saves');
 assert.equal(source.includes('localStorage.clear'),false,'physical checklist must not clear browser saves');
 assert.equal(source.includes('.runWeek('),false,'physical checklist must not execute gameplay');
-assert.ok(play.includes('./js/physical-iphone-playtest.js?launch='),'public play launcher must load physical checklist');
-assert.ok(play.indexOf('./js/save-storage-ui.js?launch=')<play.indexOf('./js/physical-iphone-playtest.js?launch='),'checklist must load after save UI');
-assert.ok(play.indexOf('./js/physical-iphone-playtest.js?launch=')<play.indexOf('./js/iphone-playtest-fixes.js?launch='),'checklist must load before the final iPhone enhancement layer');
-assert.equal(play.includes('data-play-dynamic-script-queue'),false,'launcher must retain the proven index script order');
-assert.equal(play.includes('__ctFlushDynamicScripts'),false,'launcher must not intercept dynamic module insertion');
-assert.equal(play.includes('prerequisitePaths'),false,'launcher must not move app prerequisites ahead of app bootstrap');
-assert.ok(play.includes("document.open();document.write(fresh);document.close();"),'cache-safe public entry contract must remain intact');
+const playScripts=Array.from(play.matchAll(/<script\b([^>]*)>([\s\S]*?)<\/script>/gi));
+assert.equal(playScripts.length,1,'play.html must remain a redirect-only legacy entry with one inline script');
+assert.doesNotMatch(playScripts[0][1],/\bsrc\s*=/i,'play.html redirect script must not load application scripts itself');
+for(const applicationScript of ['physical-iphone-playtest.js','save-storage-ui.js','iphone-playtest-fixes.js']){
+  assert.equal(play.includes(applicationScript),false,`redirect-only play.html must not load ${applicationScript}`);
+}
+assert.equal(play.includes('data-play-dynamic-script-queue'),false,'redirect-only launcher must not create a dynamic script queue');
+assert.equal(play.includes('__ctFlushDynamicScripts'),false,'redirect-only launcher must not intercept dynamic module insertion');
+assert.equal(play.includes('prerequisitePaths'),false,'redirect-only launcher must not reorder app prerequisites');
+assert.doesNotMatch(play,/document\.(?:open|write|close)\s*\(/,'redirect-only launcher must not rewrite the document');
+{
+  let replaced=null;
+  const now=1786250000123;
+  const launchContext={
+    URL,
+    Date:{now:()=>now},
+    location:{href:'https://example.test/capitalism-tycoon-web/play.html?old=1',replace(value){replaced=String(value);}}
+  };
+  vm.runInNewContext(playScripts[0][2],launchContext,{filename:'play.html'});
+  assert.ok(replaced,'play.html must redirect using location.replace');
+  const target=new URL(replaced);
+  assert.equal(target.pathname,'/capitalism-tycoon-web/index.html','play.html must redirect to index.html in the same project path');
+  assert.equal(target.searchParams.get('v'),now.toString(36),'play.html must add a cache-busting launch token');
+  assert.equal(target.searchParams.has('old'),false,'legacy play.html query parameters must not leak into the canonical launcher');
+}
 
 const fakeDocument={addEventListener(){},getElementById(){return null;},querySelector(){return null;}};
 const context={

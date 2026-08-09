@@ -14,31 +14,44 @@ const MIGRATED=[
   'player-turnaround-plan-report.js'
 ];
 const INLINE_IDS=['d-ui-nav-scrub','setup-recovery-bootstrap','game-over-settings-bridge'];
-const SKIP_DIRS=new Set(['.git','node_modules','tests','docs']);
+const SKIP_DIRS=new Set(['.git','node_modules','tests']);
+const RUNTIME_EXTENSIONS=new Set(['.html','.htm','.js','.mjs','.cjs']);
+// Keep diagnostics explicit. Do not skip docs/: GitHub Pages can be switched to
+// publish from /docs, so runtime HTML/JS under docs must remain inside this audit.
+const NON_PRODUCTION_DIAGNOSTIC_HTML=Object.freeze([
+  'boot-test.html',
+  'boot-test-stage-2a.html',
+  'boot-test-stage-3a.html',
+  'boot-test-stage-3b-heartbeat.html',
+  'boot-test-stage-3b-prefix.html',
+  'observer-source-diagnostic.html'
+]);
+const DIAGNOSTIC_SET=new Set(NON_PRODUCTION_DIAGNOSTIC_HTML);
 
 function observerMatches(text,pattern=OBSERVER){
   pattern.lastIndex=0;
   return Array.from(String(text||'').matchAll(pattern));
 }
 function isText(buffer){return !buffer.includes(0);}
-function walkProduction(dir=ROOT,relative=''){
+function isRuntimeSource(file){return RUNTIME_EXTENSIONS.has(path.extname(file).toLowerCase());}
+function walkAuditedSources(dir=ROOT,relative=''){
   const rows=[];
   for(const entry of fs.readdirSync(dir,{withFileTypes:true})){
     const rel=relative?path.join(relative,entry.name):entry.name;
     if(entry.isDirectory()){
       if(SKIP_DIRS.has(entry.name))continue;
-      rows.push(...walkProduction(path.join(dir,entry.name),rel));
+      rows.push(...walkAuditedSources(path.join(dir,entry.name),rel));
       continue;
     }
     if(!entry.isFile())continue;
     const buffer=fs.readFileSync(path.join(dir,entry.name));
     if(!isText(buffer))continue;
-    const text=buffer.toString('utf8');
-    const matches=observerMatches(text);
-    if(matches.length)rows.push({path:rel.split(path.sep).join('/'),occurrences:matches.length});
+    rows.push({path:rel.split(path.sep).join('/'),text:buffer.toString('utf8')});
   }
   return rows;
 }
+function isDiagnosticSource(row){return !row.path.includes('/')&&DIAGNOSTIC_SET.has(row.path);}
+
 
 for(const name of MIGRATED){
   const code=fs.readFileSync(path.join(ROOT,'js',name),'utf8');
@@ -97,8 +110,34 @@ assert.equal(comprehensive.length,33,`expected 33 residual observer-driven JS so
 assert.equal(unqualified.length,33,`expected 33 residual unqualified observer-driven JS sources after Stage 3-5a, got ${unqualified.length}`);
 assert.deepEqual(qualifiedOnly,[],'Stage 3-5a must remove the last qualified-only env.MutationObserver source');
 
-const productionSources=walkProduction().sort((a,b)=>a.path.localeCompare(b.path));
-assert.equal(productionSources.length,33,`repository-wide production scan expected 33 observer sources after Stage 3-5a, got ${productionSources.length}: ${productionSources.map(row=>`${row.path}(${row.occurrences})`).join(', ')}`);
-assert.ok(productionSources.every(row=>row.path.startsWith('js/')),`MutationObserver constructors outside js/ are forbidden after Stage 3-5a: ${productionSources.filter(row=>!row.path.startsWith('js/')).map(row=>row.path).join(', ')}`);
+const auditedSources=walkAuditedSources().sort((a,b)=>a.path.localeCompare(b.path));
+const runtimeSources=auditedSources.filter(row=>isRuntimeSource(row.path));
+const diagnosticRows=NON_PRODUCTION_DIAGNOSTIC_HTML.map(name=>{
+  const row=runtimeSources.find(candidate=>candidate.path===name);
+  assert.ok(row,`explicit diagnostic exclusion is missing from repository: ${name}`);
+  return {path:name,occurrences:observerMatches(row.text).length};
+});
+const productionObserverSources=runtimeSources
+  .filter(row=>!isDiagnosticSource(row))
+  .map(row=>({path:row.path,occurrences:observerMatches(row.text).length}))
+  .filter(row=>row.occurrences>0);
+const productionObserverConstructors=productionObserverSources.reduce((sum,row)=>sum+row.occurrences,0);
+const diagnosticObserverConstructors=diagnosticRows.reduce((sum,row)=>sum+row.occurrences,0);
 
-console.log(`Stage 3-5a observer stability contract passed: ${productionSources.length} production observer sources remain for later migration batches`);
+console.log(`Stage 3-5a production observer scan: sources=${productionObserverSources.length}, constructors=${productionObserverConstructors}`);
+console.log(`Stage 3-5a diagnostic exclusions: files=${diagnosticRows.length}, constructors=${diagnosticObserverConstructors}`);
+for(const row of diagnosticRows)console.log(`  ${row.path}: ${row.occurrences}`);
+
+// An excluded diagnostic must never become reachable from another runtime source.
+// This checks every audited text source (including index.html, play.html, js/*.js,
+// docs/, and CI/config files) rather than guarding index.html alone.
+for(const row of auditedSources.filter(row=>!isDiagnosticSource(row))){
+  for(const diagnostic of NON_PRODUCTION_DIAGNOSTIC_HTML){
+    assert.equal(row.text.includes(diagnostic),false,`${row.path} must not reference excluded diagnostic page ${diagnostic}`);
+  }
+}
+
+assert.equal(productionObserverSources.length,33,`repository-wide production scan expected 33 observer sources after Stage 3-5a, got ${productionObserverSources.length}: ${productionObserverSources.map(row=>`${row.path}(${row.occurrences})`).join(', ')}`);
+assert.ok(productionObserverSources.every(row=>row.path.startsWith('js/')),`MutationObserver constructors outside js/ are forbidden after Stage 3-5a: ${productionObserverSources.filter(row=>!row.path.startsWith('js/')).map(row=>row.path).join(', ')}`);
+
+console.log(`Stage 3-5a observer stability contract passed: ${productionObserverSources.length} production observer sources remain for later migration batches`);
