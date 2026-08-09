@@ -79,11 +79,16 @@ async function handle(event,env=globalThis){
  const summary=root.querySelector?.('[data-physical-summary]');if(summary)summary.textContent=ok?`${data.passed}/${data.total}項目・結果を${action==='download'?'書き出しました':'コピーしました'}`:'結果を出力できませんでした';
  return ok;
 }
+let enhancerRegistered=false;
 function install(env=globalThis){
  env.document?.addEventListener?.('change',event=>handle(event,env));
  env.document?.addEventListener?.('click',event=>handle(event,env));
- const app=env.document?.getElementById?.('app');if(app&&typeof env.MutationObserver==='function')new env.MutationObserver(()=>renderCard(env)).observe(app,{childList:true,subtree:true});
- renderCard(env);return true;
+ const registry=modules.uiEnhancerRegistry;
+ if(env===globalThis&&registry?.registerUIEnhancer&&!enhancerRegistered){
+  enhancerRegistered=true;
+  registry.registerUIEnhancer({id:'physical-iphone-playtest',enhance:()=>renderCard(env)});
+ }else renderCard(env);
+ return true;
 }
 modules.physicalIphonePlaytest=Object.freeze({CHECKS,deviceSnapshot,checklistState,report,filename,download,copy,renderCard,updateSummary,handle,install,__installed:true});
 install();
