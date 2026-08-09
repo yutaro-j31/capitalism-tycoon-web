@@ -69,24 +69,39 @@ function createBrowserContext(options = {}) {
   const random = options.random || Math.random;
   const storage = new Map(Object.entries(options.localStorageInitial || {}));
   const storageHistory = { getItem: [], setItem: [], removeItem: [] };
+  const sessionStorageHistory = { getItem: [], setItem: [], removeItem: [] };
+  const startupMetrics = { mutationObserverConstructed: 0, observeCalls: 0, subtreeObserveCalls: 0, enhancerExecutions: 0, enhancerExecutionsById: {} };
   const nodes = new Map();
+  const documentListeners = new Map();
   const document = {
-    documentElement: null, head: null, body: null,
+    documentElement: null, head: null, body: null, readyState: options.documentReadyState || 'loading',
     getElementById(id){ if (!nodes.has(id)) nodes.set(id, makeElement(id, this)); return nodes.get(id); },
     querySelector(sel){ return sel.startsWith('#') ? this.getElementById(sel.slice(1)) : makeElement(sel, this); },
-    querySelectorAll(){ return []; }, createElement(tag){ return makeElement(tag, this); }, addEventListener(){}, removeEventListener(){}
+    querySelectorAll(){ return []; }, createElement(tag){ return makeElement(tag, this); },
+    addEventListener(type,callback,listenerOptions){
+      if(typeof callback!=='function')return;
+      const rows=documentListeners.get(type)||[];rows.push({callback,once:Boolean(listenerOptions?.once)});documentListeners.set(type,rows);
+    },
+    removeEventListener(type,callback){
+      if(!documentListeners.has(type))return;
+      documentListeners.set(type,documentListeners.get(type).filter(row=>row.callback!==callback));
+    },
+    __dispatchTestEvent(type){
+      const rows=[...(documentListeners.get(type)||[])];
+      for(const row of rows){row.callback.call(this,{type,target:this});if(row.once)this.removeEventListener(type,row.callback);}
+    }
   };
   document.documentElement = makeElement('html', document);
   document.head = makeElement('head', document);
   document.body = makeElement('body', document);
   nodes.set('app', makeElement('app', document)); nodes.set('toast-root', makeElement('toast-root', document)); nodes.set('modal-root', makeElement('modal-root', document));
   const recordStorageHistory = options.recordStorageHistory !== false;
-  class StorageStub { getItem(k){ if(recordStorageHistory)storageHistory.getItem.push({key:k}); return storage.has(k) ? storage.get(k) : null; } setItem(k,v){ const value = String(v); if(recordStorageHistory)storageHistory.setItem.push({key:k, value}); storage.set(k, value); } removeItem(k){ if(recordStorageHistory)storageHistory.removeItem.push({key:k}); storage.delete(k); } clear(){ for (const key of [...storage.keys()]) this.removeItem(key); } }
+  class StorageStub { constructor(history){ this.history=history; } getItem(k){ if(recordStorageHistory)this.history.getItem.push({key:k}); return storage.has(k) ? storage.get(k) : null; } setItem(k,v){ const value = String(v); if(recordStorageHistory)this.history.setItem.push({key:k, value}); storage.set(k, value); } removeItem(k){ if(recordStorageHistory)this.history.removeItem.push({key:k}); storage.delete(k); } clear(){ for (const key of [...storage.keys()]) this.removeItem(key); } }
   class URLStub extends URL {}
   URLStub.createObjectURL = () => 'blob:test';
   URLStub.revokeObjectURL = () => {};
-  class MutationObserverStub { constructor(callback){ this.callback=callback; } observe(){} disconnect(){} takeRecords(){ return []; } }
-  const context = { console, document, window: null, globalThis: null, localStorage: new StorageStub(), sessionStorage: new StorageStub(), __localStorageData: storage, __localStorageHistory: storageHistory,
+  class MutationObserverStub { constructor(callback){ this.callback=callback; startupMetrics.mutationObserverConstructed+=1; } observe(target,observeOptions){ startupMetrics.observeCalls+=1; if(observeOptions?.subtree===true)startupMetrics.subtreeObserveCalls+=1; } disconnect(){} takeRecords(){ return []; } }
+  const context = { console, document, window: null, globalThis: null, localStorage: new StorageStub(storageHistory), sessionStorage: new StorageStub(sessionStorageHistory), __localStorageData: storage, __localStorageHistory: storageHistory, __sessionStorageHistory: sessionStorageHistory, __startupMetrics: startupMetrics,
     navigator: { userAgent: 'node-test' }, location: { href: 'http://localhost/' }, crypto: { randomUUID: () => `test-${random().toString(16).slice(2)}` },
     Blob: class Blob { constructor(parts, opts){ this.parts = parts; this.type = opts?.type || ''; this.size=Buffer.byteLength(this.parts.join('')); } async text(){ return this.parts.join(''); } },
     URL: URLStub, FormData: class { constructor(){ } entries(){ return []; } },
@@ -123,6 +138,19 @@ function loadGameFromHtml(html, options = {}) {
       return path.basename(script.file) !== 'boot-recovery.js';
     });
   }
+  if (options.measureStartup) {
+    let instrumented=false;
+    scripts = scripts.map(script => {
+      if (!script.file || path.basename(script.file) !== 'ui-enhancer-registry.js') return script;
+      const needle='hook.enhance(current);';
+      const sites=script.code.split(needle).length-1;
+      if(sites<1)throw new Error('startup metrics could not find enhancer invocation sites in ui-enhancer-registry');
+      const counter=`globalThis.__startupMetrics.enhancerExecutions+=1;globalThis.__startupMetrics.enhancerExecutionsById[hook.id]=(globalThis.__startupMetrics.enhancerExecutionsById[hook.id]||0)+1;${needle}`;
+      instrumented=true;
+      return { ...script, code: script.code.split(needle).join(counter) };
+    });
+    if (!instrumented) throw new Error('startup metrics require ui-enhancer-registry.js in the loaded index');
+  }
   let code = scripts.map(s => s.code).join('\n');
   code = code.replace('const engine = TycoonEngine.load();', options.headless
     ? 'globalThis.__ct_headlessEngineClass = TycoonEngine; return; const engine = TycoonEngine.load();'
@@ -135,6 +163,10 @@ function loadGameFromHtml(html, options = {}) {
     compiledGameScripts.set(code, script);
   }
   script.runInContext(ctx);
+  if(ctx.document.readyState==='loading'){
+    ctx.document.readyState='interactive';
+    ctx.document.__dispatchTestEvent('DOMContentLoaded');
+  }
   return { ctx, modules: ctx.__capitalismTycoonModules, engineModule: ctx.__capitalismTycoonModules.engine };
 }
 function assertFinite(value, path, errors) { if (typeof value === 'number' && !Number.isFinite(value)) errors.push(`${path}: non-finite ${value}`); }
