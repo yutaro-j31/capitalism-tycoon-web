@@ -68,5 +68,11 @@ run(runtimeOnly, './js/runtime.js');
 expectThrow(() => run(runtimeOnly, './js/real-estate.js'), /engine\.js/);
 expectThrow(() => run(ctx, './js/real-estate.js'), /already registered/);
 
-fs.writeFileSync(path.join(ROOT, 'tests', 'fixtures', 'module-load-order.json'), JSON.stringify({ scripts: expected }, null, 2) + '\n');
+const fixturePath=path.join(ROOT,'tests','fixtures','module-load-order.json');
+const fixture=JSON.parse(fs.readFileSync(fixturePath,'utf8'));
+assert(Array.isArray(fixture.scripts),'module-load-order fixture must contain a scripts array');
+const actualSerialized=JSON.stringify(expected);
+const fixtureSerialized=JSON.stringify(fixture.scripts);
+assert(fixtureSerialized===actualSerialized,
+  `module load order fixture drifted; update tests/fixtures/module-load-order.json intentionally after review\nexpected fixture: ${fixture.scripts.join(' -> ')}\nactual index: ${expected.join(' -> ')}`);
 console.log('javascript module split checks passed');
