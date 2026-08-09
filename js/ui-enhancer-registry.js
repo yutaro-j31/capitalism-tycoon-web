@@ -32,12 +32,11 @@ function registerUIEnhancer(definition){
   const hook=Object.freeze({id,enhance:definition.enhance});
   enhancerIDs.add(id);
   enhancers.push(hook);
-  // After the first #app render, registration applies only the newly connected
-  // enhancer. Re-running every earlier enhancer here can repeat stateful legacy
-  // compatibility work during startup. Normal render-boundary updates still run
-  // the complete ordered pipeline below.
-  if(generation>0&&!running)runEnhancer(hook,context());
-  else runUIEnhancers();
+  // Registration is not a render event. Apply only the newly connected hook;
+  // replaying every older hook for each later module can repeat stateful legacy
+  // compatibility work during startup. Actual #app render boundaries below run
+  // the complete ordered pipeline.
+  if(!running)runEnhancer(hook,context());
   return hook;
 }
 function createInnerHTMLAccess(node){
