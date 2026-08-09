@@ -10,18 +10,39 @@ const enhancers=[];
 const enhancerIDs=new Set();
 let running=false;
 let generation=0;
+let bootComplete=document.readyState!=='loading';
+let pendingRun=false;
+let hookExecutions=0;
+let registrationRuns=0;
+let pipelineRuns=0;
+let deferredRunRequests=0;
 function engine(){return modules.playerEngineBridge?.getEngine?.()||null;}
 function context(){const activeEngine=engine();return {app,screen:document.getElementById('screen'),engine:activeEngine,state:activeEngine?.g||null,generation};}
-function runEnhancer(hook,current){
+function runHook(hook,current){
+  hookExecutions+=1;
   try{hook.enhance(current);}
   catch(error){globalThis.console?.error?.(`[UI enhancer failed: ${hook.id}]`,error);}
 }
-function runUIEnhancers(){
+function runRegistrationHook(hook){
   if(running)return false;
   running=true;
+  try{registrationRuns+=1;runHook(hook,context());}
+  finally{running=false;}
+  return true;
+}
+function runUIEnhancers(){
+  if(!bootComplete){pendingRun=true;deferredRunRequests+=1;return false;}
+  if(running)return false;
+  running=true;
+  pendingRun=false;
+  pipelineRuns+=1;
   const current=context();
   try{
-    for(const hook of enhancers)runEnhancer(hook,current);
+    for(const hook of enhancers){
+      hookExecutions+=1;
+      try{hook.enhance(current);}
+      catch(error){globalThis.console?.error?.(`[UI enhancer failed: ${hook.id}]`,error);}
+    }
   }finally{running=false;}
   return true;
 }
@@ -32,11 +53,9 @@ function registerUIEnhancer(definition){
   const hook=Object.freeze({id,enhance:definition.enhance});
   enhancerIDs.add(id);
   enhancers.push(hook);
-  // Registration is not a render event. Apply only the newly connected hook;
-  // replaying every older hook for each later module can repeat stateful legacy
-  // compatibility work during startup. Actual #app render boundaries below run
-  // the complete ordered pipeline.
-  if(!running)runEnhancer(hook,context());
+  // Registration is not a render event. Run only the newly connected hook;
+  // startup-wide refresh requests are collapsed separately until DOMContentLoaded.
+  runRegistrationHook(hook);
   return hook;
 }
 function createInnerHTMLAccess(node){
@@ -65,6 +84,18 @@ Object.defineProperty(app,'innerHTML',{
     runUIEnhancers();
   }
 });
+function completeBoot(){
+  if(bootComplete)return false;
+  bootComplete=true;
+  // All startup render requests, including explicit module refreshes, collapse
+  // into this single ordered reconciliation pass.
+  pendingRun=false;
+  return runUIEnhancers();
+}
+if(!bootComplete){
+  if(typeof document.addEventListener==='function')document.addEventListener('DOMContentLoaded',completeBoot,{once:true});
+  else bootComplete=true;
+}
 function drainPendingUIEnhancers(){
   const queue=Array.isArray(globalThis[PENDING_KEY])?globalThis[PENDING_KEY]:[];
   const pending=queue.splice(0);
@@ -77,6 +108,7 @@ function drainPendingUIEnhancers(){
   }
   return pending.length;
 }
-modules.uiEnhancerRegistry=Object.freeze({registerUIEnhancer,runUIEnhancers,drainPendingUIEnhancers,registeredIDs:()=>enhancers.map(hook=>hook.id),isRunning:()=>running,generation:()=>generation,__installed:true});
+function stats(){return Object.freeze({registered:enhancers.length,hookExecutions,registrationRuns,pipelineRuns,deferredRunRequests,generation,bootComplete,pendingRun});}
+modules.uiEnhancerRegistry=Object.freeze({registerUIEnhancer,runUIEnhancers,drainPendingUIEnhancers,completeBoot,registeredIDs:()=>enhancers.map(hook=>hook.id),isRunning:()=>running,isBootComplete:()=>bootComplete,generation:()=>generation,stats,__installed:true});
 drainPendingUIEnhancers();
 })();
