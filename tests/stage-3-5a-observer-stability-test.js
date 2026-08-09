@@ -1,6 +1,7 @@
 'use strict';
 const fs=require('node:fs');
 const path=require('node:path');
+const vm=require('node:vm');
 const assert=require('node:assert/strict');
 const {ROOT,readIndex}=require('./harness');
 
@@ -47,6 +48,34 @@ for(const name of MIGRATED){
 for(const name of ['real-estate-ui.js','iphone-playtest-fixes.js','player-turnaround-plan-report.js']){
   const code=fs.readFileSync(path.join(ROOT,'js',name),'utf8');
   assert.doesNotMatch(code,/queueMicrotask/,`${name} must not retain observer-era microtask scheduling`);
+}
+
+// Late module registration happens after app.js has already crossed the first
+// #app render boundary. It must execute only the newly registered hook; replaying
+// all earlier hooks here previously caused a startup auto-save regression. A real
+// render boundary must still execute the complete deterministic pipeline.
+{
+  const registryCode=fs.readFileSync(path.join(ROOT,'js','ui-enhancer-registry.js'),'utf8');
+  let html='';
+  const app={};
+  Object.defineProperty(app,'innerHTML',{configurable:true,get(){return html;},set(value){html=String(value);}});
+  const calls=[];
+  const sandbox={
+    console:{error(){}},
+    document:{getElementById(id){return id==='app'?app:null;}},
+    __capitalismTycoonModules:{}
+  };
+  sandbox.globalThis=sandbox;
+  vm.runInNewContext(registryCode,sandbox,{filename:'ui-enhancer-registry.js'});
+  const registry=sandbox.__capitalismTycoonModules.uiEnhancerRegistry;
+  registry.registerUIEnhancer({id:'stage35a-early',enhance(){calls.push('early');}});
+  app.innerHTML='<main>first render</main>';
+  calls.length=0;
+  registry.registerUIEnhancer({id:'stage35a-late',enhance(){calls.push('late');}});
+  assert.deepEqual(Array.from(calls),['late'],'late enhancer registration must not replay earlier hooks after the first app render');
+  calls.length=0;
+  app.innerHTML='<main>second render</main>';
+  assert.deepEqual(Array.from(calls),['early','late'],'a real app render must still execute the complete ordered enhancer pipeline');
 }
 
 const index=readIndex();
