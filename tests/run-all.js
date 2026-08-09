@@ -47,6 +47,7 @@ for (const [name, file] of [
   ['stage-3-4-startup-observer-migration', 'tests/stage-3-4-startup-observer-migration-test.js'],
   ['stage-3-5a-observer-stability', 'tests/stage-3-5a-observer-stability-test.js'],
   ['observer-threshold-guard', 'tests/observer-threshold-guard-test.js'],
+  ['startup-side-effects', 'tests/startup-side-effects-test.js'],
   ['stage-3-ui-screen-scope-regression', 'tests/stage-3-ui-screen-scope-regression-test.js'],
   ['v1-progression-gate', 'tests/v1-progression-gate-test.js'],
   ['treasury-prepayment', 'tests/treasury-prepayment-test.js'],
