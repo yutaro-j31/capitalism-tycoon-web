@@ -66,6 +66,6 @@ if(typeof baseReset==='function')EngineClass.prototype.reset=function(){
 };
 EngineClass.prototype.__strategyBalanceInstalled=true;
 const activeEngine=modules.playerEngineBridge?.getEngine?.();
-if(activeEngine&&apply(activeEngine.g)&&typeof activeEngine.save==='function')activeEngine.save();
+if(activeEngine)apply(activeEngine.g);
 modules.strategyBalance=Object.freeze({VERSION,DEMAND_CALIBRATIONS,apply,__installed:true});
 })();
