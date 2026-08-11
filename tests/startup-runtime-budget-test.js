@@ -5,15 +5,15 @@ const {loadGame,readIndex,extractScripts}=require('./harness');
 
 // Ratchets are ceilings, not targets. Lower values are always acceptable.
 // Raise a ceiling only after deliberately reviewing a new physical-startup baseline.
-// After the startup-side-effects merge, the reviewed startup baseline is 98
-// registry-level hook invocations: 49 registration hooks + one 49-hook final pass.
+// After deterministic-economic-foundation moved to the enhancer registry, the reviewed startup baseline is 100
+// registry-level hook invocations: 50 registration hooks + one 50-hook final pass.
 // The ceiling is intentionally tight; any return toward the old cascade must fail CI.
 const LIMITS=Object.freeze({
-  mutationObserverConstructed:33,
-  observeCalls:33,
-  subtreeObserveCalls:33,
-  externalEnhancerRegistrations:46,
-  enhancerExecutions:98
+  mutationObserverConstructed:32,
+  observeCalls:32,
+  subtreeObserveCalls:32,
+  externalEnhancerRegistrations:47,
+  enhancerExecutions:100
 });
 
 // Startup collapsing relies on ui-enhancer-registry.js executing synchronously
