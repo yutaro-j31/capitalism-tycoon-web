@@ -95,8 +95,7 @@ function createBrowserContext(options = {}) {
   document.head = makeElement('head', document);
   document.body = makeElement('body', document);
   nodes.set('app', makeElement('app', document)); nodes.set('toast-root', makeElement('toast-root', document)); nodes.set('modal-root', makeElement('modal-root', document));
-  const recordStorageHistory = options.recordStorageHistory !== false;
-  class StorageStub { constructor(history){ this.history=history; } getItem(k){ if(recordStorageHistory)this.history.getItem.push({key:k}); return storage.has(k) ? storage.get(k) : null; } setItem(k,v){ const value = String(v); if(recordStorageHistory)this.history.setItem.push({key:k, value}); storage.set(k, value); } removeItem(k){ if(recordStorageHistory)this.history.removeItem.push({key:k}); storage.delete(k); } clear(){ for (const key of [...storage.keys()]) this.removeItem(key); } }
+  class StorageStub { constructor(history){ this.history=history; } getItem(k){ this.history.getItem.push({key:k}); return storage.has(k) ? storage.get(k) : null; } setItem(k,v){ const value = String(v); this.history.setItem.push({key:k, bytes:value.length}); storage.set(k, value); } removeItem(k){ this.history.removeItem.push({key:k}); storage.delete(k); } clear(){ for (const key of [...storage.keys()]) this.removeItem(key); } }
   class URLStub extends URL {}
   URLStub.createObjectURL = () => 'blob:test';
   URLStub.revokeObjectURL = () => {};
