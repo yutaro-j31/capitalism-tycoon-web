@@ -40,3 +40,4 @@ console.log('deterministic-economic-foundation tests passed');
   assert(!source.includes('MutationObserver'),'economic foundation UI must not use MutationObserver');
   assert(!source.includes('queueMicrotask'),'economic foundation UI must not use queueMicrotask scheduling');
 }
+
