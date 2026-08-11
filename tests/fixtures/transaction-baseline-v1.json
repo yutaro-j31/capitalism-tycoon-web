@@ -456,9 +456,6 @@
         "fixedCost": 220000,
         "wage": 220000,
         "segmentFit": {}
-      },
-      {
-        "segmentFit": {}
       }
     ],
     "companyStocks": {},
@@ -946,9 +943,6 @@
         "storeCost": 9000000,
         "fixedCost": 220000,
         "wage": 220000,
-        "segmentFit": {}
-      },
-      {
         "segmentFit": {}
       }
     ],
@@ -1499,9 +1493,6 @@
         "storeCost": 9000000,
         "fixedCost": 220000,
         "wage": 220000,
-        "segmentFit": {}
-      },
-      {
         "segmentFit": {}
       }
     ],
@@ -2242,9 +2233,6 @@
         "storeCost": 9000000,
         "fixedCost": 220000,
         "wage": 220000,
-        "segmentFit": {}
-      },
-      {
         "segmentFit": {}
       }
     ],
