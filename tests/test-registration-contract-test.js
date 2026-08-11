@@ -51,7 +51,7 @@ function canonicalRoutes(packageJson, runAllSource) {
   return files;
 }
 
-function validateRegistry(registry) {
+function validateRegistry(registry, packageScripts) {
   assert.ok(registry && typeof registry === 'object' && !Array.isArray(registry), 'test execution registry must be an object');
   for (const [testFile, entry] of Object.entries(registry)) {
     assert.ok(testFile.startsWith('tests/') && testFile.endsWith('-test.js'), `registry key must be a test file: ${testFile}`);
@@ -60,7 +60,43 @@ function validateRegistry(registry) {
     assert.ok(typeof entry.reason === 'string' && entry.reason.trim(), `registry reason is required: ${testFile}`);
     assert.ok(typeof entry.executedBy === 'string' && entry.executedBy.trim(), `registry executedBy is required: ${testFile}`);
     assert.ok(fs.existsSync(path.join(ROOT, entry.executedBy)), `registry executedBy does not exist for ${testFile}: ${entry.executedBy}`);
+    assert.ok(
+      executorRunsTest(entry.executedBy, testFile, packageScripts),
+      `registry executedBy does not actually run ${testFile}: ${entry.executedBy}`
+    );
   }
+}
+
+// A declared executor must genuinely reference the test, either directly or via an
+// npm script it invokes. Existence alone is not enough: a stale path would otherwise
+// keep passing and make the registry unusable for deciding what is safe to delete.
+function resolvesRelativeTo(executor, source) {
+  const base = path.dirname(path.join(ROOT, executor));
+  const resolved = new Set();
+  // Matches both './x-test.js' and the extensionless './x-test' require form.
+  for (const [, reference] of source.matchAll(/['"`](\.{1,2}\/[\w./-]+-test(?:\.js)?)['"`]/g)) {
+    const withExtension = reference.endsWith('.js') ? reference : `${reference}.js`;
+    resolved.add(normalize(path.relative(ROOT, path.resolve(base, withExtension))));
+  }
+  return resolved;
+}
+
+function extractBareTestNames(source) {
+  return new Set([...source.matchAll(/['"`]([\w.-]+-test\.js)['"`]/g)].map(match => match[1]));
+}
+
+function executorRunsTest(executor, testFile, packageScripts) {
+  const source = fs.readFileSync(path.join(ROOT, executor), 'utf8');
+  if (extractTestFiles(source).has(testFile)) return true;
+  // Some runners list bare basenames and join them with the tests directory themselves;
+  // others require the test through a path relative to their own directory.
+  if (executor.startsWith('tests/') && extractBareTestNames(source).has(path.basename(testFile))) return true;
+  if (resolvesRelativeTo(executor, source).has(testFile)) return true;
+  for (const [, command] of source.matchAll(/npm run ([\w:-]+)/g)) {
+    const script = packageScripts?.[command];
+    if (script && extractTestFiles(script).has(testFile)) return true;
+  }
+  return false;
 }
 
 function findUnclassified(allFiles, canonical, registry) {
@@ -78,7 +114,7 @@ const registry = JSON.parse(fs.readFileSync(REGISTRY, 'utf8'));
 const allFiles = walk(TESTS_DIR);
 const canonical = canonicalRoutes(packageJson, runAllSource);
 
-validateRegistry(registry);
+validateRegistry(registry, packageJson.scripts);
 
 assert.deepEqual(findUnclassified(['tests/new-feature-test.js'], new Set(), {}), ['tests/new-feature-test.js']);
 assert.deepEqual(findUnclassified(['tests/new-feature-test.js'], new Set(['tests/new-feature-test.js']), {}), []);

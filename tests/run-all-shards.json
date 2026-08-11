@@ -7,17 +7,21 @@
     "tests/stage-3-4-startup-observer-migration-test.js",
     "tests/stage-3-ui-screen-scope-regression-test.js",
     "tests/shareholder-activism-incidence-matrix-test.js",
-    "tests/shareholder-value-destruction-test.js"
+    "tests/shareholder-value-destruction-test.js",
+    "tests/exploration-smoke-test.js"
   ],
   "C": [
     "tests/save-storage-budget-test.js",
     "test:supply-long",
-    "tests/shareholder-value-destruction-incidence-matrix-test.js"
+    "tests/shareholder-value-destruction-incidence-matrix-test.js",
+    "tests/exploration-style-test.js",
+    "tests/real-estate-insurance-claims-test.js"
   ],
   "D": [
     "test:workforce-long",
     "test:finance-history",
     "test:stock",
-    "tests/product-recall-reachability-runner.js"
+    "tests/product-recall-reachability-runner.js",
+    "tests/normal-start-ipo-balance-audit-test.js"
   ]
 }
