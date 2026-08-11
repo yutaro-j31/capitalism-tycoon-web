@@ -106,8 +106,8 @@ const jsFiles=fs.readdirSync(path.join(ROOT,'js')).filter(name=>name.endsWith('.
 const comprehensive=jsFiles.filter(name=>observerMatches(fs.readFileSync(path.join(ROOT,'js',name),'utf8')).length>0).sort();
 const unqualified=jsFiles.filter(name=>observerMatches(fs.readFileSync(path.join(ROOT,'js',name),'utf8'),UNQUALIFIED).length>0).sort();
 const qualifiedOnly=comprehensive.filter(name=>!unqualified.includes(name));
-assert.equal(comprehensive.length,20,`expected 20 residual observer-driven JS sources after deterministic-economic-foundation migration, got ${comprehensive.length}: ${comprehensive.join(', ')}`);
-assert.equal(unqualified.length,20,`expected 20 residual unqualified observer-driven JS sources after deterministic-economic-foundation migration, got ${unqualified.length}`);
+assert.equal(comprehensive.length,2,`expected 2 residual observer-driven JS sources after deterministic-economic-foundation migration, got ${comprehensive.length}: ${comprehensive.join(', ')}`);
+assert.equal(unqualified.length,2,`expected 2 residual unqualified observer-driven JS sources after deterministic-economic-foundation migration, got ${unqualified.length}`);
 assert.deepEqual(qualifiedOnly,[],'Stage 3-5a must remove the last qualified-only env.MutationObserver source');
 
 const auditedSources=walkAuditedSources().sort((a,b)=>a.path.localeCompare(b.path));
@@ -137,7 +137,7 @@ for(const row of auditedSources.filter(row=>!isDiagnosticSource(row))){
   }
 }
 
-assert.equal(productionObserverSources.length,20,`repository-wide production scan expected 20 observer sources after deterministic-economic-foundation migration, got ${productionObserverSources.length}: ${productionObserverSources.map(row=>`${row.path}(${row.occurrences})`).join(', ')}`);
+assert.equal(productionObserverSources.length,2,`repository-wide production scan expected 2 observer sources after deterministic-economic-foundation migration, got ${productionObserverSources.length}: ${productionObserverSources.map(row=>`${row.path}(${row.occurrences})`).join(', ')}`);
 assert.ok(productionObserverSources.every(row=>row.path.startsWith('js/')),`MutationObserver constructors outside js/ are forbidden after Stage 3-5a: ${productionObserverSources.filter(row=>!row.path.startsWith('js/')).map(row=>row.path).join(', ')}`);
 
 console.log(`Stage 3-5a observer stability contract passed: ${productionObserverSources.length} production observer sources remain for later migration batches`);
