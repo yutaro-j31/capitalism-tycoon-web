@@ -16,5 +16,6 @@ assert.doesNotMatch(loader,/document\.createElement\(\s*['"]script['"]\s*\)/);
 assert.doesNotMatch(renewal,/document\.createElement\(\s*['"]script['"]\s*\)/);
 assert.match(ui, /min-height:44px/);
 assert.match(ui, /data-tenant-renewal-action/);
-assert.match(ui, /MutationObserver/);
+assert.match(ui, /registerUIEnhancer/);
+assert.doesNotMatch(ui, /MutationObserver/);
 console.log('real-estate-tenant-renewals-test: ok');

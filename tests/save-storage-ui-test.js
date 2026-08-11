@@ -44,11 +44,12 @@ async function main(){
  };
  let saveResult=true;
  const engine={_lastSaveStorageInfo:{ok:true,mode:'emergency',bytes:750000,originalBytes:3400000,transactions:{removed:820}},save(slot){this.lastSlot=slot;return saveResult;}};
- const context={console,document,navigator:{storage:{async estimate(){return {usage:8000000,quota:10000000};}}},setTimeout(fn){fn();return 1;},clearTimeout(){},MutationObserver:class{observe(){}},globalThis:null,__capitalismTycoonModules:{saveStorage:{__installed:true,SAVE_KEY:'capitalism_tycoon_web_v1',SAVE_VERSION:9,RAW_COMPACTION_THRESHOLD:1250000,getActiveEngine(){return engine;}}}};
+ const context={console,document,navigator:{storage:{async estimate(){return {usage:8000000,quota:10000000};}}},setTimeout(fn){fn();return 1;},clearTimeout(){},MutationObserver:class{observe(){}},globalThis:null,__capitalismTycoonModules:{saveStorage:{__installed:true,SAVE_KEY:'capitalism_tycoon_web_v1',SAVE_VERSION:9,RAW_COMPACTION_THRESHOLD:1250000,getActiveEngine(){return engine;}},uiEnhancerRegistry:{registeredEnhancers:[],registerUIEnhancer(definition){this.registeredEnhancers.push(definition);return definition;},runUIEnhancers(){for(const entry of this.registeredEnhancers)entry.enhance?.();}}}};
  context.globalThis=context;
  vm.createContext(context);
  vm.runInContext(uiSource,context,{filename:'save-storage-ui.js'});
  const ui=context.__capitalismTycoonModules.saveStorageUI;
+ assert.ok(context.__capitalismTycoonModules.uiEnhancerRegistry.registeredEnhancers.some(entry=>entry.id==='save-storage-ui'),'save storage UI must register through the enhancer registry');
  assert.equal(ui.engine(),engine);
  await ui.refreshCapacity(context);
  assert.equal(ui.capacityStatus(.2).status,'good');
