@@ -99,7 +99,7 @@ for(const name of ['real-estate-ui.js','iphone-playtest-fixes.js','player-turnar
 const index=readIndex();
 assert.equal(observerMatches(index).length,0,'index.html must not contain inline MutationObserver constructors after Stage 3-5a');
 for(const id of INLINE_IDS){
-  assert.match(index,new RegExp(`id:['"]${id}['"]`),`${id} must register as a deterministic UI enhancer`);
+  assert.match(index,new RegExp(`id:['\"]${id}['\"]`),`${id} must register as a deterministic UI enhancer`);
 }
 
 const jsFiles=fs.readdirSync(path.join(ROOT,'js')).filter(name=>name.endsWith('.js'));
