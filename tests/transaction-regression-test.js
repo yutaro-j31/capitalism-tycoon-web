@@ -72,17 +72,7 @@ function runScenario() {
     assertCrisisSnapshot(engine, `week${targetWeek}`);
     result[`week${targetWeek}`] = snapshot(engine.g, random.calls());
   }
-  return { snapshots: result, calibrations: modules.strategyBalance.DEMAND_CALIBRATIONS };
-}
-function migrateExpectedDemand(expected, calibrations) {
-  for (const point of Object.values(expected)) {
-    point.businesses = (point.businesses || []).filter(business => business && typeof business.id === 'string' && business.id.length > 0);
-    for (const business of point.businesses) {
-      const calibration = calibrations[business.id];
-      if (calibration) business.demand *= calibration.to / calibration.from;
-    }
-  }
-  return expected;
+  return result;
 }
 function firstDiff(a, b, at = '$') {
   if (JSON.stringify(a) === JSON.stringify(b)) return null;
@@ -96,9 +86,8 @@ function firstDiff(a, b, at = '$') {
 }
 
 const fixturePath = path.join(__dirname, 'fixtures', 'transaction-baseline-v1.json');
-const run = runScenario();
-const expected = migrateExpectedDemand(JSON.parse(fs.readFileSync(fixturePath, 'utf8')), run.calibrations);
-const actual = run.snapshots;
+const actual = runScenario();
+const expected = JSON.parse(fs.readFileSync(fixturePath, 'utf8'));
 const diff = firstDiff(actual, expected);
 assert(!diff, `transaction deterministic regression mismatch: ${diff}`);
 console.log(JSON.stringify({ deterministicRegression: 'passed', crisisSnapshot: 'passed', points: Object.keys(actual), randomCallsAtWeek52: actual.week52.randomCalls }, null, 2));
