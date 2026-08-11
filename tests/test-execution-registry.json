@@ -79,18 +79,6 @@
     "reason": "Executed outside the canonical run-all suite by .github/workflows/executives-department-assignments.yml, .github/workflows/issue-294-executive-hiring-diagnostic.yml.",
     "executedBy": ".github/workflows/executives-department-assignments.yml"
   },
-  "tests/exploration-infrastructure-test.js": {
-    "reason": "Long-running exploration infrastructure coverage is executed outside the canonical PR suite.",
-    "executedBy": ".github/workflows/exploration-1000-week.yml"
-  },
-  "tests/exploration-smoke-test.js": {
-    "reason": "Long-running exploration smoke coverage is executed outside the canonical PR suite.",
-    "executedBy": ".github/workflows/exploration-1000-week.yml"
-  },
-  "tests/exploration-style-test.js": {
-    "reason": "Long-running exploration presentation coverage is executed outside the canonical PR suite.",
-    "executedBy": ".github/workflows/exploration-1000-week.yml"
-  },
   "tests/founding-tutorial-webkit-test.js": {
     "reason": "Executed outside the canonical run-all suite by .github/workflows/founding-tutorial.yml, .github/workflows/iphone-webkit-smoke.yml.",
     "executedBy": ".github/workflows/founding-tutorial.yml"
@@ -136,8 +124,8 @@
     "executedBy": ".github/workflows/iphone-playtest-remediation.yml"
   },
   "tests/iphone-webkit-smoke-contract-test.js": {
-    "reason": "Requires the dedicated iPhone/WebKit-equivalent smoke environment.",
-    "executedBy": ".github/workflows/iphone-webkit-smoke.yml"
+    "reason": "Executed by the release delivery gate aggregator, which is invoked from release-readiness.yml.",
+    "executedBy": "scripts/release-delivery-gate.js"
   },
   "tests/iphone-webkit-smoke-test.js": {
     "reason": "Executed outside the canonical run-all suite by .github/workflows/iphone-webkit-smoke.yml, .github/workflows/pages-deployment-smoke.yml, .github/workflows/release-candidate-tag.yml.",
@@ -168,8 +156,8 @@
     "executedBy": ".github/workflows/ma-investment-committee.yml"
   },
   "tests/mobile-release-contract-test.js": {
-    "reason": "Release-only contract executed by the release readiness gate.",
-    "executedBy": ".github/workflows/release-readiness.yml"
+    "reason": "Executed by the release delivery gate aggregator, which is invoked from release-readiness.yml.",
+    "executedBy": "scripts/release-delivery-gate.js"
   },
   "tests/new-business-commercialization-test.js": {
     "reason": "Executed outside the canonical run-all suite by .github/workflows/new-business-commercialization.yml.",
@@ -196,8 +184,8 @@
     "executedBy": ".github/workflows/physical-iphone-playtest.yml"
   },
   "tests/play-entry-contract-test.js": {
-    "reason": "Published play-entry contract executed by the release candidate gate.",
-    "executedBy": ".github/workflows/release-candidate-contract.yml"
+    "reason": "Executed by the release delivery gate aggregator, which is invoked from release-readiness.yml.",
+    "executedBy": "scripts/release-delivery-gate.js"
   },
   "tests/playtest-report-ui-test.js": {
     "reason": "Executed outside the canonical run-all suite by .github/workflows/playtest-report-contract.yml.",
@@ -352,24 +340,24 @@
     "executedBy": ".github/workflows/release-candidate-contract.yml"
   },
   "tests/release-candidate-recovery-attestation-test.js": {
-    "reason": "Recovery attestation is evaluated by the release attestation workflow.",
-    "executedBy": ".github/workflows/release-attestation-contract.yml"
+    "reason": "Executed by the release delivery gate aggregator, which is invoked from release-readiness.yml.",
+    "executedBy": "scripts/release-delivery-gate.js"
   },
   "tests/release-candidate-tag-gate-test.js": {
-    "reason": "Tag-specific release gate is only meaningful in the release candidate tag workflow.",
-    "executedBy": ".github/workflows/release-candidate-tag.yml"
+    "reason": "Executed by the release delivery gate aggregator, which is invoked from release-readiness.yml.",
+    "executedBy": "scripts/release-delivery-gate.js"
   },
   "tests/release-diagnostics-ui-test.js": {
-    "reason": "Release diagnostics UI contract is executed as part of release readiness.",
-    "executedBy": ".github/workflows/release-readiness.yml"
+    "reason": "Executed by the static check entry point, which runs as test:static inside the canonical suite.",
+    "executedBy": "tests/static-check.js"
   },
   "tests/release-diagnostics-webkit-test.js": {
     "reason": "Executed outside the canonical run-all suite by .github/workflows/iphone-webkit-smoke.yml.",
     "executedBy": ".github/workflows/iphone-webkit-smoke.yml"
   },
   "tests/release-gate-wiring-test.js": {
-    "reason": "Release workflow wiring is verified by the release readiness workflow.",
-    "executedBy": ".github/workflows/release-readiness.yml"
+    "reason": "Executed by the release gate aggregator script.",
+    "executedBy": "scripts/release-all-gates.js"
   },
   "tests/runtime-recovery-ui-test.js": {
     "reason": "Executed outside the canonical run-all suite by .github/workflows/runtime-recovery-contract.yml.",
@@ -420,7 +408,7 @@
     "executedBy": ".github/workflows/subsidiary-mandate-apply.yml"
   },
   "tests/test-registration-contract-test.js": {
-    "reason": "The registration contract is loaded by syntax-check.js, which is part of test:syntax in run-all.js.",
+    "reason": "Executed by the syntax check entry point, which runs as test:syntax inside the canonical suite.",
     "executedBy": "tests/syntax-check.js"
   },
   "tests/two-store-iphone-webkit-test.js": {
@@ -428,7 +416,7 @@
     "executedBy": ".github/workflows/iphone-webkit-smoke.yml"
   },
   "tests/workflow-path-filter-contract-test.js": {
-    "reason": "Workflow path-filter behavior is verified by the release readiness workflow.",
-    "executedBy": ".github/workflows/release-readiness.yml"
+    "reason": "Executed by the release gate script.",
+    "executedBy": "scripts/release-gate.js"
   }
 }
