@@ -70,18 +70,18 @@ const extraLegacy = state.competitors.find(row => !linked.has(row.id) && Number(
 if (extraLegacy) assert.match(html, new RegExp(extraLegacy.name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')));
 assert.deepEqual(findStateIssues(state), []);
 
-const screen = { dataset: {}, innerHTML: '' };
-const originalGetElementById = ctx.document.getElementById.bind(ctx.document);
-ctx.document.getElementById = id => id === 'screen' ? screen : originalGetElementById(id);
+const screen = ctx.document.getElementById('screen');
 const game = new engine.TycoonEngine(state);
+screen.innerHTML = '<section id="market-content">市場画面</section>';
+game.g.selectedTab = 'market';
+dashboardUI.bindEngine(game);
+assert.match(screen.innerHTML, /market-content/, 'the dashboard must not leak onto other screens');
+assert.doesNotMatch(screen.innerHTML, /競合ダッシュボード/);
 game.g.selectedTab = 'rivals';
 dashboardUI.bindEngine(game);
-assert.equal(dashboardUI.enhance(), true, 'enhance should replace the rivals screen');
 assert.equal(screen.dataset.competitorDashboardUi, '1');
 assert.match(screen.innerHTML, /競合ダッシュボード/);
 const enhancedOnce = screen.innerHTML;
 assert.equal(dashboardUI.enhance(), false, 'enhance must be idempotent for the current screen');
 assert.equal(screen.innerHTML, enhancedOnce);
-ctx.document.getElementById = originalGetElementById;
-
 console.log('competitor dashboard UI tests passed');

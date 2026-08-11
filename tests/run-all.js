@@ -37,6 +37,7 @@ for (const [name, file] of [
   ['player-turnaround-plan-ui', 'tests/player-turnaround-plan-ui-test.js'],
   ['product-lifecycle-determinism', 'tests/product-lifecycle-determinism-test.js'],
   ['save-storage-budget', 'tests/save-storage-budget-test.js'],
+  ['storage-history-contract', 'tests/storage-history-contract-test.js'],
   ['setup-recovery-ui', 'tests/setup-recovery-ui-test.js'],
   ['save-storage-quota', 'tests/save-storage-quota-test.js'],
   ['save-storage-recovery-actions', 'tests/save-storage-recovery-actions-test.js'],

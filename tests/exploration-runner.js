@@ -180,7 +180,7 @@ function recordWeeklyTelemetry(game, definition) {
 
 function createGame(definition) {
   const random = statefulRandom(definition.seed);
-  const loaded = loadGame({ random, headless: true, recordStorageHistory: false });
+  const loaded = loadGame({ random, headless: true });
   const game = new loaded.engineModule.TycoonEngine();
   // The browser persists every action/week. Exploration checkpoints explicitly instead,
   // avoiding 1000 large transient save strings (and the harness's optional save log).
@@ -196,7 +196,7 @@ function createGame(definition) {
 
 function resumeGame(definition, checkpoint) {
   const random = statefulRandom(definition.seed);
-  const loaded = loadGame({ random, headless: true, recordStorageHistory: false });
+  const loaded = loadGame({ random, headless: true });
   const game = new loaded.engineModule.TycoonEngine();
   game.g = checkpoint.state;
   game.save = () => true;

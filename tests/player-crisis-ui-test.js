@@ -58,9 +58,9 @@ for (const forbidden of ['NaN', 'Infinity', 'undefined', '[object Object]']) ass
 const screen = ctx.document.getElementById('screen');
 screen.innerHTML = '<section id="existing-content">既存画面</section>';
 playerCrisisUI.bindEngine(founderGame);
-assert.equal(playerCrisisUI.enhance(), true);
-assert.ok(screen.innerHTML.startsWith('<!--player-crisis-ui:start-->'));
-assert.ok(screen.innerHTML.includes('existing-content'));
+assert.ok(screen.innerHTML.startsWith('<!--player-crisis-ui:start-->'), 'bindEngine must install the crisis panel marker');
+assert.ok(screen.innerHTML.includes('資金繰り危機対応'), 'bindEngine must install the crisis panel content');
+assert.ok(screen.innerHTML.includes('existing-content'), 'bindEngine must preserve the existing screen content');
 assert.equal(screen.dataset.playerCrisisUi, '1');
 assert.equal(playerCrisisUI.enhance(), false, 'enhancement must be idempotent');
 assert.equal((screen.innerHTML.match(/player-crisis-ui:start/g) || []).length, 1);
@@ -102,7 +102,7 @@ assert.ok(/data-player-crisis-action="emergency-bridge" disabled/.test(cooldownH
 bridgeGame.g.playerCrisis.status = 'stable';
 bridgeGame.g.playerCrisis.lastEvaluationWeek = bridgeGame.g.week;
 playerCrisisUI.bindEngine(bridgeGame);
-assert.equal(playerCrisisUI.enhance(), true, 'stable transition must remove an existing panel');
+assert.equal(playerCrisisUI.enhance(), false, 'bindEngine must remove the existing panel before another enhancement pass');
 assert.ok(!screen.innerHTML.includes('player-crisis-ui:start'));
 assert.equal(screen.dataset.playerCrisisUi, '0');
 

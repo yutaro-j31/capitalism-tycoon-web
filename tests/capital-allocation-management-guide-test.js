@@ -42,5 +42,5 @@ assertFixed('belowTarget','complete','belowTarget');
 assert.equal(mod.fixedPlanRecommendation(fixedFixture,{status:'notStarted'},{status:'pending'}).id,'planPinned');
 assert.equal(mod.fixedPlanRecommendation(fixedFixture,{status:'complete'},{status:'verified',targetReached:true,verified:true,targetScore:70,actualScore:75}).id,'targetReached');
 assert.equal(mod.fixedPlanRecommendation(fixedFixture,{status:'blocked'},{status:'blocked'}).id,'planReview');
-const source=fs.readFileSync(path.join(__dirname,'../js/strategy-balance.js'),'utf8');assert.match(source,/capital-allocation-management-guide\.js/);assert.match(source,/'8D-29'/);
+const indexSource=fs.readFileSync(path.join(__dirname,'../index.html'),'utf8'),wiringBefore=indexSource.indexOf('./js/capital-allocation-recovery-funding-outcome.js'),wiringTarget=indexSource.indexOf('./js/capital-allocation-management-guide.js');assert.ok(wiringBefore>=0&&wiringTarget>wiringBefore,'capital-allocation-management-guide.js must load after capital-allocation-recovery-funding-outcome.js');assert.equal(indexSource.split('./js/capital-allocation-management-guide.js').length-1,1);
 console.log('capital allocation management guide recommendation, UI, purity, determinism, and wiring tests passed');
