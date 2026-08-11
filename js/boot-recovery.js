@@ -21,8 +21,8 @@ function observerSkipSourceFromLocation(env=globalThis){
     const url=new (env.URL||URL)(String(env.location?.href||''),'https://local.invalid/');
     const raw=String(url.searchParams.get('observerSkip')||'').trim();
     if(!raw)return '';
-    const name=raw.split('/').pop().split(/[?#]/)[0];
-    return /^[A-Za-z0-9._-]+\.js$/.test(name)?name:'';
+    const names=raw.split(',').map(part=>String(part||'').trim().split('/').pop().split(/[?#]/)[0]).filter(name=>/^[A-Za-z0-9._-]+\.js$/.test(name));
+    return names.length?names.join(','):'';
   }catch(_){return '';}
 }
 function observerReportEnabled(env=globalThis){
@@ -51,7 +51,7 @@ function installObserverThresholdGuard(env=globalThis){
       if(tracked){
         state.tracked+=1;
         state.sources.push(this.sourceName);
-        if(skipSource&&this.sourceName===skipSource){state.skipped+=1;state.skippedIndexes.push(state.tracked);return;}
+        if(skipSource&&skipSource.split(',').includes(this.sourceName)){state.skipped+=1;state.skippedIndexes.push(state.tracked);return;}
         if(limit!==null&&state.tracked>limit){state.blocked+=1;return;}
         state.allowed+=1;
       }else state.other+=1;

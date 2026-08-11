@@ -232,7 +232,7 @@ function installProductInnovation(){
   proto.sellProduct=function(id){ensure(this.g);for(const project of this.g.productRoadmaps.filter(x=>x.productID===String(id)&&x.status==='active')){project.status='cancelled';project.cancelledWeek=integer(this.g.week);history(this.g,'roadmapCancelled',`${project.productName||'プロダクト'}の計画は事業売却により終了しました。`,{projectID:project.projectID,productID:project.productID,roadmapID:project.roadmapID});}return baseSellProduct.call(this,id);};
   Object.defineProperty(proto,'__productInnovationInstalled',{value:true});return true;
 }
-let activeEngine=null,observer=null,bound=false,scheduled=false;
+let activeEngine=null,bound=false;
 function bindEngine(instance){activeEngine=instance||null;schedule();return instance;}
 function getEngine(){return activeEngine;}
 function renderKey(html){let hash=2166136261;const text=String(html||'');for(let i=0;i<text.length;i++){hash^=text.charCodeAt(i);hash=Math.imul(hash,16777619);}return (hash>>>0).toString(36);}
@@ -255,7 +255,7 @@ function enhance(){
   const key=(desired.match(/data-product-innovation-render-key="([^"]+)"/)||[])[1]||'';if(existingRenderKey(existing)===key)return false;
   if(existing){existing.outerHTML=desired;return true;}if(typeof screen.insertAdjacentHTML==='function')screen.insertAdjacentHTML('beforeend',desired);else screen.innerHTML=`${String(screen.innerHTML||'')}${desired}`;return true;
 }
-function schedule(){if(scheduled)return;scheduled=true;const run=()=>{scheduled=false;enhance();};if(typeof queueMicrotask==='function')queueMicrotask(run);else setTimeout(run,0);}
+function schedule(){enhance();}
 function handleClick(event){
   const target=event?.target?.closest?.('[data-product-innovation-action]');if(!target||target.disabled||!activeEngine)return false;event.preventDefault?.();event.stopPropagation?.();const action=String(target.dataset.productInnovationAction||'');let result=false;
   if(action==='start'){
@@ -270,7 +270,9 @@ function handleClick(event){
   }
   if(result)schedule();return Boolean(result);
 }
-function installUI(){if(typeof document==='undefined')return;const root=document.getElementById('app');if(root&&!bound){root.addEventListener('click',handleClick);bound=true;}if(root&&!observer&&typeof MutationObserver==='function'){observer=new MutationObserver(schedule);observer.observe(root,{childList:true,subtree:true});}}
+let registeredEnhancerDefinition=null;
+function registerEnhancer(definition){if(registeredEnhancerDefinition)return registeredEnhancerDefinition;registeredEnhancerDefinition=definition;const registry=modules.uiEnhancerRegistry;if(registry?.registerUIEnhancer)return registry.registerUIEnhancer(definition);const key='__capitalismTycoonPendingUIEnhancers';const pending=Array.isArray(globalThis[key])?globalThis[key]:(globalThis[key]=[]);pending.push(definition);return definition;}
+function installUI(){if(typeof document==='undefined')return;const root=document.getElementById('app');if(root&&!bound){root.addEventListener('click',handleClick);bound=true;}registerEnhancer({id:'player-engine-bridge-product-innovation',enhance});}
 const productInnovation=Object.freeze({VERSION,HISTORY_LIMIT,PROJECT_LIMIT,ROADMAPS,ensure,activeRoadmap,options,roadmapCost,roadmapWeeks,missingDepartments,workforceFactor,applyRoadmap,applyPatent,validate,renderSection,enhance,handleClick,installProductInnovation,__installed:true});
 modules.productInnovation=productInnovation;
 const baseLoad=EngineClass.load.bind(EngineClass);

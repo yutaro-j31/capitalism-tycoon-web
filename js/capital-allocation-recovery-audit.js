@@ -135,7 +135,7 @@ function render(instance=modules.playerEngineBridge?.getEngine?.()){
  const key=renderKey(`${value.week}|${value.targetScore}|${value.currentPolicy}|${value.currentScore}|${value.projectedScore}|${value.currentRequiredCash}|${value.eventualPolicy}|${value.cashSavings}|${value.id}|${value.weeksUntilSwitch}|${milestones.rows.map(row=>`${row.targetScore}:${row.currentRequiredCash}:${row.marginalAdditionalCash}:${row.id}`).join('|')}`);
  return `<section class="card" data-capital-allocation-recovery-audit="1" data-capital-allocation-recovery-audit-render-key="${key}"><div class="card-head"><div><h2>取締役会・回復進捗監査</h2><p>現行方針が複合悪化後の耐性目標へどこまで近づいているかを確認します。</p></div><span class="badge ${value.tone}">Phase 8D-12 · ${esc(value.statusLabel)}</span></div><div class="card-body"><div class="kpi-grid mini"><div class="stat"><span>現在スコア</span><strong>${value.currentScore}点</strong><small>目標 ${value.targetScore}点・差 ${value.scoreGap}点</small></div><div class="stat"><span>現行方針</span><strong>${esc(value.currentPolicyName||value.currentPolicy)}</strong><small>${value.policyAligned?'最少現金方針と一致':'最少現金方針と不一致'}</small></div><div class="stat"><span>必要追加現金</span><strong>${esc(cashText)}</strong><small>確保後 ${value.projectedScore}点</small></div><div class="stat"><span>最終案との差</span><strong>${esc(savingText)}</strong></div><div class="stat"><span>前回方針変更</span><strong>${esc(changedText)}</strong></div></div><p><strong>次の行動：</strong>${esc(value.nextAction)}</p><div data-capital-allocation-recovery-audit-frontier="1"><h3>現行方針の回復マイルストーン</h3><div class="kpi-grid mini">${milestoneRows}</div><p><strong>次の到達目標：</strong>${esc(nextText)}</p></div></div></section>`;
 }
-let observer=null,scheduled=false;
+
 function enhance(){
  if(typeof document==='undefined')return false;
  const screen=document.getElementById('screen');if(!screen)return false;
@@ -149,8 +149,10 @@ function enhance(){
  if(memo){memo.insertAdjacentHTML?.('afterend',html);return true;}
  screen.insertAdjacentHTML?.('beforeend',html);return true;
 }
-function schedule(){if(scheduled)return;scheduled=true;(typeof queueMicrotask==='function'?queueMicrotask:setTimeout)(()=>{scheduled=false;enhance();},0);}
-function installUI(){if(typeof document==='undefined')return;const root=document.getElementById('app');if(root&&!observer&&typeof MutationObserver==='function'){observer=new MutationObserver(schedule);observer.observe(root,{childList:true,subtree:true});}schedule();}
+function schedule(){enhance();}
+let registeredEnhancerDefinition=null;
+function registerEnhancer(definition){if(registeredEnhancerDefinition)return registeredEnhancerDefinition;registeredEnhancerDefinition=definition;const registry=modules.uiEnhancerRegistry;if(registry?.registerUIEnhancer)return registry.registerUIEnhancer(definition);const key='__capitalismTycoonPendingUIEnhancers';const pending=Array.isArray(globalThis[key])?globalThis[key]:(globalThis[key]=[]);pending.push(definition);return definition;}
+function installUI(){if(typeof document==='undefined')return;const root=document.getElementById('app');registerEnhancer({id:'capital-allocation-recovery-audit',enhance:enhance});schedule();}
 modules.capitalAllocationRecoveryAudit=Object.freeze({DEFAULT_AUDIT_TARGETS,wholeCash,normalizeTargets,auditFromPlan,audit,frontierFromAudits,frontier,frontierSummary,renderKey,render,enhance,installUI,__installed:true});
 installUI();
 })(0);
