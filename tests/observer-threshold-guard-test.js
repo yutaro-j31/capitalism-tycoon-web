@@ -7,7 +7,8 @@ assert.ok(code.includes("searchParams.get('observerSkip')"),'single-source skip 
 assert.ok(code.includes("searchParams.get('observerReport')==='1'"),'report must be separately query-gated');
 assert.ok(code.includes("this.external=/\\/js\\/[^/?#]+\\.js"),'only external JS observers are thresholded');
 assert.ok(code.includes('Boolean(options?.subtree)'),'only subtree observers are thresholded');
-assert.ok(code.includes('skipSource&&this.sourceName===skipSource'),'requested source observer must be individually skippable');
+assert.ok(code.includes("skipSource&&skipSource.split(',').includes(this.sourceName)"),'requested source observers must be skippable, one or many');
+assert.ok(code.includes("raw.split(',').map(part=>"),'observerSkip must accept a comma-separated list');
 assert.ok(code.includes('state.skippedIndexes.push(state.tracked)'),'skip diagnostic must record the skipped observer position');
 assert.ok(code.includes('limit!==null&&state.tracked>limit'),'limit must remain optional when a source-only skip is active');
 assert.ok(code.includes('return this.native.observe(target,options)'),'all non-skipped observers must keep native semantics');

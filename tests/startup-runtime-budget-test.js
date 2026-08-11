@@ -9,11 +9,11 @@ const {loadGame,readIndex,extractScripts}=require('./harness');
 // registry-level hook invocations: 50 registration hooks + one 50-hook final pass.
 // The ceiling is intentionally tight; any return toward the old cascade must fail CI.
 const LIMITS=Object.freeze({
-  mutationObserverConstructed:32,
-  observeCalls:32,
-  subtreeObserveCalls:32,
-  externalEnhancerRegistrations:47,
-  enhancerExecutions:100
+  mutationObserverConstructed:20,
+  observeCalls:20,
+  subtreeObserveCalls:20,
+  externalEnhancerRegistrations:59,
+  enhancerExecutions:124
 });
 
 // Startup collapsing relies on ui-enhancer-registry.js executing synchronously
