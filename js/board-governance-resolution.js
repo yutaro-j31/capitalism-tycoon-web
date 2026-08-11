@@ -449,7 +449,6 @@
     return `<section class="card board-governance-resolution" data-board-governance-resolution><div class="card-head"><div><h2>取締役会・重要投資決議</h2><p>取締役 ${summary.members}名・社外比率 ${(summary.independentRatio * 100).toFixed(0)}%・統治品質 ${summary.governanceQuality.toFixed(0)}</p></div><span class="badge">BOARD</span></div><div class="card-body"><label for="board-growth-investment-amount">重要投資額</label><input id="board-growth-investment-amount" type="number" min="1" step="1000000" inputmode="numeric" value="10000000" style="min-height:44px"><button class="btn primary wide" type="button" data-board-resolution-submit style="min-height:44px">取締役会へ提出</button><p class="muted">重要投資案件は取締役3名の3分の2以上の賛成で承認されます。決議だけでは会社現金を移動しません。</p>${latestHtml}</div></section>`;
   }
 
-  let observer = null;
   let bound = false;
   let queued = false;
 
@@ -463,18 +462,15 @@
       existing?.remove?.();
       return false;
     }
-    if (existing) existing.outerHTML = html;
-    else screen.insertAdjacentHTML?.('beforeend', html);
+    if (existing) {
+      if (existing.outerHTML === html) return false;
+      existing.outerHTML = html;
+    } else screen.insertAdjacentHTML?.('beforeend', html);
     return true;
   }
 
   function schedule() {
-    if (queued) return;
-    queued = true;
-    const enqueue = typeof queueMicrotask === 'function'
-      ? queueMicrotask
-      : callback => setTimeout(callback, 0);
-    enqueue(inject);
+    inject();
   }
 
   function handleClick(event) {
@@ -492,6 +488,18 @@
     return Boolean(result);
   }
 
+  let registeredEnhancerDefinition = null;
+  function registerEnhancer(definition) {
+    if (registeredEnhancerDefinition) return registeredEnhancerDefinition;
+    registeredEnhancerDefinition = definition;
+    const registry = modules.uiEnhancerRegistry;
+    if (registry?.registerUIEnhancer) return registry.registerUIEnhancer(definition);
+    const key = '__capitalismTycoonPendingUIEnhancers';
+    const pending = Array.isArray(globalThis[key]) ? globalThis[key] : (globalThis[key] = []);
+    pending.push(definition);
+    return definition;
+  }
+
   function installUI() {
     if (typeof document === 'undefined') return false;
     const root = document.getElementById?.('app');
@@ -499,10 +507,7 @@
       root.addEventListener?.('click', handleClick);
       bound = true;
     }
-    if (root && !observer && typeof MutationObserver === 'function') {
-      observer = new MutationObserver(schedule);
-      observer.observe(root, { childList: true, subtree: true });
-    }
+    registerEnhancer({ id: 'board-governance-resolution', enhance: inject });
     schedule();
     return true;
   }
