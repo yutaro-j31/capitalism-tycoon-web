@@ -123,6 +123,46 @@ function normalizeMasterData() {
   return {businesses, market, startups, executives};
 }
 
+// Roadmap 8A.3: one competitor runs two businesses out of a single budget. The extra
+// business is a second row sharing a groupID, so every market still sees single-business
+// competitors and the market calculation is unchanged.
+const COMPETITOR_GROUPS=Object.freeze([
+  Object.freeze({groupID:'group-mega',anchorName:'メガ麺',groupName:'メガ麺グループ',
+    second:Object.freeze({name:'メガ麺 中部',businessID:'ramen',areaID:'chubu',stores:1,brand:6,quality:9,cash:4000000,strategy:'品質重視'})})
+]);
+
+function buildPlayerFrontShares(batch){
+  const totals={};
+  for(const market of Object.values(batch?.byMarket||{})){
+    const key=`${market.businessID}::${market.areaID}`;
+    const row=totals[key]||(totals[key]={units:0,potential:0});
+    row.units+=Number(market.ownUnitsSold)||0;
+    row.potential+=Number(market.marketPotential)||0;
+  }
+  const shares={};
+  for(const [key,row] of Object.entries(totals))shares[key]=row.potential>0?Math.min(1,Math.max(0,row.units/row.potential)):0;
+  return shares;
+}
+
+function buildCompetitorRoster(uuid){
+  const used=new Set();
+  const uniqueID=()=>{
+    const base=uuid();
+    let candidate=base,suffix=1;
+    while(used.has(candidate)){candidate=`${base}-${suffix}`;suffix+=1;}
+    used.add(candidate);
+    return candidate;
+  };
+  const rows=deepClone(MASTER.competitors).map(c=>({...c,id:uniqueID(),ownedPlayerShares:0}));
+  for(const group of COMPETITOR_GROUPS){
+    const anchor=rows.find(row=>row.name===group.anchorName);
+    if(!anchor)continue;
+    anchor.groupID=group.groupID;anchor.groupName=group.groupName;
+    rows.push({...deepClone(group.second),id:uniqueID(),ownedPlayerShares:0,groupID:group.groupID,groupName:group.groupName});
+  }
+  return rows;
+}
+
 function createInitialState(options = {}) {
   const master = normalizeMasterData();
   return {
@@ -140,7 +180,7 @@ function createInitialState(options = {}) {
     businesses: master.businesses, areas: deepClone(MASTER.areas), prefs: deepClone(MASTER.prefs),
     stores: [], properties: makeProperties(), tenants: makeTenants(), rentalOffices: makeRentalOffices(),
     market: master.market, startups: master.startups,
-    executives: {}, executiveMarket: master.executives, competitors: deepClone(MASTER.competitors).map(c => ({...c,id:uuid(),ownedPlayerShares:0})),
+    executives: {}, executiveMarket: master.executives, competitors: buildCompetitorRoster(uuid),
     departments: {}, departmentStaff: {}, officeFloors: [],
     hasHeadOffice: false, officeLevel: 1, officeName: '小さな創業オフィス', officePrestige: 5,
     officeCapacity: 2, officeWeeklyCost: 85_000, contractedOfficeID: null,
@@ -930,8 +970,85 @@ class TycoonEngine extends EventTarget {
     const companyQty=Math.floor(s.ownedCompany*shares),personalQty=Math.floor(s.ownedPersonal*shares);const companyBook=Math.max(0,finite(s.totalInvestedCompany)),personalBook=Math.max(0,finite(s.totalInvestedPersonal));if(companyQty)this.g.companyStocks[id]={qty:companyQty,avg:companyBook/companyQty};if(personalQty)this.g.personalStocks[id]={qty:personalQty,avg:personalBook/personalQty};if(companyBook>0){finance.event(this.g,'investmentSale',companyBook,{cashEffect:0,assetEffect:-companyBook,profitEffect:0,sourceType:'listStartup',sourceID:`${s.id}-${this.g.week}`,idempotencyKey:`list-startup-${s.id}`,description:`${s.name} IPO転換（VC持分の振替）`});finance.event(this.g,'investmentPurchase',companyBook,{cashEffect:0,assetEffect:companyBook,profitEffect:0,sourceType:'listStartupShares',sourceID:`${s.id}-${this.g.week}`,idempotencyKey:`list-startup-shares-${s.id}`,description:`${s.name} 上場株式への振替`});s.totalInvestedCompany=0;}if(personalBook>0)s.totalInvestedPersonal=0;
     s.ownedCompany=0;s.ownedPersonal=0;s.alive=false;this.g.news.unshift(`第${this.g.week}週：${s.name}がIPOしました。保有持分は上場株式へ転換されました。`);
   }
+  // Roadmap 8A.3: a competitor group runs more than one business out of one finite budget.
+  // Each competitor row stays scoped to a single business so the market calculation is
+  // untouched; the group is what owns the money and decides where it goes. The split is
+  // returned as a growth weight per row, and the weights inside a group always sum to the
+  // number of rows, so allocation redistributes effort without creating any.
+  competitorGroupProfile() {
+    const difficulty=this.g.difficulty;
+    if(difficulty==='easy')return {id:'easy',lead:.5,reactsToPlayer:false};
+    if(difficulty==='hard')return {id:'hard',lead:.75,reactsToPlayer:true};
+    return {id:'normal',lead:.65,reactsToPlayer:false};
+  }
+
+  ensureCompetitorGroups() {
+    const g=this.g;
+    if(!Array.isArray(g.competitorGroups))g.competitorGroups=[];
+    const byGroup=new Map();
+    for(const c of g.competitors){
+      if(!c.groupID)continue;
+      if(c.areaID==='__bankrupt__'||finite(c.stores)<=0)continue;
+      if(!byGroup.has(c.groupID))byGroup.set(c.groupID,[]);
+      byGroup.get(c.groupID).push(c);
+    }
+    for(const [groupID,rows] of byGroup){
+      let group=g.competitorGroups.find(x=>x.id===groupID);
+      if(!group){group={id:groupID,name:rows[0]?.groupName||rows[0]?.name||'競合グループ',shareAverages:{},lastAllocation:{}};g.competitorGroups.push(group);}
+      if(!group.shareAverages||typeof group.shareAverages!=='object')group.shareAverages={};
+      if(!group.lastAllocation||typeof group.lastAllocation!=='object')group.lastAllocation={};
+    }
+    const known=new Set(g.competitors.map(row=>row.groupID).filter(Boolean));
+    g.competitorGroups=g.competitorGroups.filter(x=>known.has(x.id));
+    return byGroup;
+  }
+
+  // The player's pressure is read as an exponential moving average rather than this week's
+  // number: a single new store should not make a whole group swing its budget across.
+  competitorFrontKey(row){return `${row.businessID}::${row.areaID}`;}
+
+  // Player pressure is measured per front (business and area), because a group can run the
+  // same business in two areas. It is read as an exponential moving average rather than
+  // this week's number: one new store should not swing a whole budget across.
+  playerShareOnFront(row) {
+    return clamp(finite((this.g.playerFrontShares||{})[this.competitorFrontKey(row)]),0,1);
+  }
+
+  updateCompetitorShareAverages(group,rows) {
+    for(const row of rows){
+      const key=this.competitorFrontKey(row);
+      const observed=this.playerShareOnFront(row);
+      const previous=finite(group.shareAverages[key],observed);
+      group.shareAverages[key]=previous+(observed-previous)*.15;
+    }
+  }
+
+  allocateCompetitorGroupBudgets() {
+    const weights=new Map(),byGroup=this.ensureCompetitorGroups(),profile=this.competitorGroupProfile();
+    for(const [groupID,rows] of byGroup){
+      const group=this.g.competitorGroups.find(x=>x.id===groupID);
+      if(!group||rows.length<2){for(const row of rows)weights.set(row.id,1);continue;}
+      this.updateCompetitorShareAverages(group,rows);
+      const scores=rows.map(row=>profile.reactsToPlayer
+        // Hard: pour the budget into whichever market the player is taking, so a strong
+        // player is pushed back on exactly the front they are winning.
+        ? finite(group.shareAverages[this.competitorFrontKey(row)])
+        // Easy and normal: judge the group's own businesses on their own momentum.
+        : Math.max(0,finite(row.brand)+finite(row.quality))/200);
+      const best=scores.indexOf(Math.max(...scores));
+      const leadShare=profile.lead,restShare=rows.length>1?(1-leadShare)/(rows.length-1):0;
+      for(let index=0;index<rows.length;index+=1){
+        const share=index===best?leadShare:restShare;
+        weights.set(rows[index].id,share*rows.length);
+        group.lastAllocation[this.competitorFrontKey(rows[index])]=Math.round(share*1000)/1000;
+      }
+    }
+    return weights;
+  }
+
   updateCompetitors() {
-    for(const c of this.g.competitors){const profit=c.stores*rand(100000,450000);c.cash+=profit;c.brand=clamp(c.brand+rand(-.1,.5),0,100);c.quality=clamp(c.quality+rand(-.1,.4),0,100);if(c.cash>8_000_000&&Math.random()<.08){c.stores++;c.cash-=rand(2_000_000,7_000_000);this.g.competitorEvents.unshift(`${c.name}が${this.area(c.areaID)?.name||''}で出店しました。`);}if(this.g.publicCompany&&Math.random()<.005){const spend=Math.min(c.cash*.1,5_000_000),qty=spend/Math.max(1,this.g.stockPrice);c.cash-=spend;c.ownedPlayerShares+=qty;this.g.competitorOwnedRatio=clamp(this.g.competitorOwnedRatio+qty/this.g.sharesOut,0,.49);}}
+    const allocations=this.allocateCompetitorGroupBudgets();
+    for(const c of this.g.competitors){const weight=allocations.get(c.id)??1;const profit=c.stores*rand(100000,450000);c.cash+=profit;c.brand=clamp(c.brand+rand(-.1,.5)*weight,0,100);c.quality=clamp(c.quality+rand(-.1,.4)*weight,0,100);if(c.cash>8_000_000&&Math.random()<.08*weight){c.stores++;c.cash-=rand(2_000_000,7_000_000);this.g.competitorEvents.unshift(`${c.name}が${this.area(c.areaID)?.name||''}で出店しました。`);}if(this.g.publicCompany&&Math.random()<.005){const spend=Math.min(c.cash*.1,5_000_000),qty=spend/Math.max(1,this.g.stockPrice);c.cash-=spend;c.ownedPlayerShares+=qty;this.g.competitorOwnedRatio=clamp(this.g.competitorOwnedRatio+qty/this.g.sharesOut,0,.49);}}
     this.updateOwnershipRatios();
   }
   updateProducts() {
@@ -987,7 +1104,7 @@ class TycoonEngine extends EventTarget {
     const product=this.updateProducts(),overseas=this.updateOverseas(),subs=this.updateSubsidiaries(),franchise=this.updateFranchise();this.updatePersonalAssets();
     for(const store of this.g.stores){if(store.status==='preparing'&&this.g.week>=store.openingWeek){store.status='open';store.weeksToOpen=0;this.g.news.unshift(`第${this.g.week}週：${store.name}が開店しました。`);}if(store.status==='open'&&supply.isTargetBusinessID(store.businessID))supply.ensureInitialProcurementForOpenStore(this.g,store,finance);}
     const spoilage=supply.spoil(this.g,finance);supply.receiveOrders(this.g,finance);supply.payables(this.g,finance);
-    workforce.recompute(this.g);const marketBatch=market.calculateMarkets(this.g);this.g.marketResultsByStoreID=marketBatch.byStore;this.g.marketResultsByBusinessID=marketBatch.businessSummary;this.g.lastMarketCalculationCount=marketBatch.calculationCount;competitor.receiveMarketResults(this.g,marketBatch);competitor.processWeek(this.g);
+    workforce.recompute(this.g);const marketBatch=market.calculateMarkets(this.g);this.g.marketResultsByStoreID=marketBatch.byStore;this.g.marketResultsByBusinessID=marketBatch.businessSummary;this.g.playerFrontShares=buildPlayerFrontShares(marketBatch);this.g.lastMarketCalculationCount=marketBatch.calculationCount;competitor.receiveMarketResults(this.g,marketBatch);competitor.processWeek(this.g);
     const financeStores=[];
     let storeCashDelta=0;
     let sales=product.revenue+overseas.revenue+subs.revenue+franchise,expenses=product.cost+overseas.cost+finite(spoilage?.cost),supplyCogsNonCash=0,rentIncome=0,stockIncome=0,dividend=0,propertyDepreciation=0;
