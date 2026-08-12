@@ -124,7 +124,7 @@ function installExpansion(TycoonEngine){
       peDeals:[],peRealizedPL:0,angelInvestments:[],personalRealEstateHoldings:[],
       sportsDraftCandidates:[],sportsTradeMarket:[],sportsSaleOffers:[],lastSportsMarketWeek:0,
       weeklyNewspaper:[],majorBusinessNews:[],luxuryAuctionListings:[],lastNewspaperWeek:0,lastAuctionWeek:0,
-      successorCandidate:null,successorTrainingWeeks:0,familyTrustEstablished:false,familyTrustCash:0,familyTrustShares:0,legacyScore:0,
+      successorCandidate:null,successorTrainingWeeks:0,familyTrustEstablished:false,familyTrustCash:0,familyTrustShares:0,legacyScore:0,generationLegacyScore:0,inheritedLegacyScore:0,retirementRecords:[],lastSuccessionWeek:0,
       serialEntrepreneurHistory:[],hallOfRecords:{highestCompanyValue:0,highestPersonalNetWorth:0,highestRevenue:0,highestProfit:0,maxStores:0,maxSubsidiaries:0,maxPropertyValue:0,maxVCMultiple:0,maxProductExit:0,maxCompanyBuyoutPrice:0,fastestIPOWeek:null,fastestTrillionWeek:null,bankruptcyCount:0},
       expandedWeeklyAdjustments:{supply:0,patents:0,personal:0,product:0,media:0},lastExpansionUpdateWeek:0
     };
@@ -292,6 +292,77 @@ function installExpansion(TycoonEngine){
   TycoonEngine.prototype.trainSuccessorExpanded=function(){if(!this.g.successorCandidate)return this.fail('後継者候補を指名してください。');const cost=1500000;if(this.g.personalCash<cost)return this.fail('個人資金が不足しています。');this.g.personalCash-=cost;this.g.successorCandidate.readiness=clamp(this.g.successorCandidate.readiness+6,0,100);this.g.successorCandidate.skill=clamp(this.g.successorCandidate.skill+2,0,100);this.g.successorReadiness=this.g.successorCandidate.readiness;this.g.successorTrainingWeeks+=1;this.save();this.emit();return true;};
   TycoonEngine.prototype.establishFamilyTrust=function(){if(this.g.familyTrustEstablished)return false;const cost=10000000;if(this.g.personalCash<cost)return this.fail('設立費用が不足しています。');this.g.personalCash-=cost;this.g.familyTrustEstablished=true;this.g.familyTrustCash=cost;this.notify('ファミリートラストを設立しました。','success');this.save();this.emit();return true;};
   TycoonEngine.prototype.transferToFamilyTrust=function(amount){amount=Math.max(0,n(amount));if(!this.g.familyTrustEstablished||this.g.personalCash<amount)return this.fail('移管条件を満たしていません。');this.g.personalCash-=amount;this.g.familyTrustCash+=amount;this.save();this.emit();return true;};
+  // Retirement is the end of a chapter, not the end of the run: the founder hands the
+  // company to a prepared successor, the generation is graded on what it built, and play
+  // continues under the next generation.
+  const RETIREMENT_TIERS = [
+    {id:'retire_great_founder',minScore:3000,title:'偉大な創業者',icon:'🏆',detail:'事業と社会的評価の双方を築き上げて退いた。'},
+    {id:'retire_industrialist',minScore:1000,title:'実業家',icon:'🏢',detail:'会社を大きく育て上げて退いた。'},
+    {id:'retire_quiet',minScore:0,title:'静かな引退',icon:'🌿',detail:'ひとつの会社を守り抜いて退いた。'}
+  ];
+  const RETIREMENT_AGE = 60;
+  const RETIREMENT_SCORE = 1000;
+  const RETIREMENT_TENURE_WEEKS = 520;
+  const SUCCESSOR_READINESS = 70;
+
+  TycoonEngine.prototype.retirementTier=function(score){
+    const value=n(score);
+    return RETIREMENT_TIERS.find(tier=>value>=tier.minScore)||RETIREMENT_TIERS[RETIREMENT_TIERS.length-1];
+  };
+
+  TycoonEngine.prototype.retirementEligibility=function(){
+    const g=this.g;
+    const readiness=n(g.successorCandidate?.readiness);
+    const successorReady=Boolean(g.successorCandidate)&&readiness>=SUCCESSOR_READINESS;
+    const tenureWeeks=Math.max(0,n(g.week)-n(g.lastSuccessionWeek));
+    const reasons=[
+      {id:'age',met:n(g.founderAge)>=RETIREMENT_AGE,label:`創業者年齢 ${RETIREMENT_AGE}歳以上`},
+      {id:'legacy',met:n(g.generationLegacyScore)>=RETIREMENT_SCORE,label:`レガシースコア ${RETIREMENT_SCORE}以上`},
+      {id:'tenure',met:n(g.founderGeneration)>1&&tenureWeeks>=RETIREMENT_TENURE_WEEKS,label:'承継から10年経過'}
+    ];
+    const qualified=reasons.filter(reason=>reason.met);
+    return {
+      eligible:successorReady&&qualified.length>0&&!g.gameOver&&!g.isCompanySold,
+      successorReady,readiness,tenureWeeks,reasons,
+      metReasonIDs:qualified.map(reason=>reason.id),
+      score:n(g.generationLegacyScore),
+      tier:this.retirementTier(g.generationLegacyScore)
+    };
+  };
+
+  TycoonEngine.prototype.retireFounder=function(){
+    const g=this.g,status=this.retirementEligibility();
+    if(!status.successorReady)return this.fail(`後継者の準備度${SUCCESSOR_READINESS}以上が必要です。`);
+    if(!status.eligible)return this.fail('引退条件を満たしていません。年齢・レガシースコア・承継からの経過年数のいずれかが必要です。');
+    const tier=status.tier,record={
+      id:tier.id,title:tier.title,icon:tier.icon,detail:tier.detail,
+      week:n(g.week),generation:n(g.founderGeneration),founderName:g.founderName,
+      companyName:g.companyName,companyValue:this.companyValue(),
+      personalNetWorth:this.personalNetWorth(),legacyScore:status.score,
+      reasonIDs:status.metReasonIDs
+    };
+    g.retirementRecords.unshift(record);
+    if(g.retirementRecords.length>50)g.retirementRecords.length=50;
+    g.endingRecords.unshift({
+      id:tier.id,title:tier.title,icon:tier.icon,detail:tier.detail,week:n(g.week),
+      companyName:g.companyName,companyValue:this.companyValue(),
+      personalNetWorth:this.personalNetWorth(),
+      stores:g.stores.length,subsidiaries:g.subsidiaries.length+g.maSubsidiaries.length
+    });
+    if(!g.unlockedEndings.includes(tier.id))g.unlockedEndings.push(tier.id);
+    if(!g.playerTitles.some(title=>title.id===tier.id))g.playerTitles.push({id:tier.id,name:tier.title,icon:tier.icon});
+    g.news.unshift(`第${n(g.week)}週：${g.founderName}が引退しました。評価「${tier.title}」。`);
+    // The successor inherits the standing score, so the next generation is graded on
+    // what it adds rather than on what it was handed.
+    g.inheritedLegacyScore=n(g.legacyScore);
+    g.generationLegacyScore=0;
+    g.lastSuccessionWeek=n(g.week);
+    this.executeSuccession();
+    this.notify(`引退しました。評価「${tier.title}」。第${n(g.founderGeneration)}世代へ引き継ぎます。`,'success');
+    this.save();this.emit();
+    return true;
+  };
+
   TycoonEngine.prototype.executeSuccession=function(){if(!this.g.successorCandidate||this.g.successorCandidate.readiness<70)return this.fail('後継者の準備度70以上が必要です。');this.g.founderGeneration+=1;this.g.founderAge=Math.max(27,Math.floor(rand(30,45)));this.g.playerName=this.g.successorCandidate.name;this.g.founderName=this.g.successorCandidate.name;this.g.serialEntrepreneurHistory.push({week:this.g.week,companyName:this.g.companyName,value:this.companyValue(),generation:this.g.founderGeneration-1});this.g.successorCandidate=null;this.g.successorReadiness=0;this.notify(`第${this.g.founderGeneration}世代へ経営承継しました。`,'success');this.save();this.emit();return true;};
 
   TycoonEngine.prototype.updateFounderExpandedWeekly=function(){
@@ -354,7 +425,7 @@ function installExpansion(TycoonEngine){
     if(g.publicCompany){g.ownershipHistory.push({week:g.week,founder:g.founderOwnershipRatio,external:g.externalShareholderRatio,competitor:g.competitorOwnedRatio});g.ownershipHistory=g.ownershipHistory.slice(-260);if(g.founderOwnershipRatio<.5&&g.competitorOwnedRatio>.1&&!g.activistCampaigns.some(x=>x.status==='active')&&Math.random()<.04){const c={id:uid(),investorName:'アクティビスト・キャピタル',demand:pick(['不採算事業売却','増配','自社株買い','経営陣刷新']),createdWeek:g.week,expiresWeek:g.week+16,pressure:rand(.2,.7),status:'active'};g.activistCampaigns.unshift(c);g.shareholderEventLog.unshift(`第${g.week}週：${c.investorName}が「${c.demand}」を要求。`);g.news.unshift(`第${g.week}週：アクティビスト株主が経営改善を要求しています。`);}}
   };
 
-  TycoonEngine.prototype.updateSuccessionWeekly=function(){const g=this.g;if(g.successorCandidate){g.successorCandidate.readiness=clamp(g.successorCandidate.readiness+.05+n(g.successorCandidate.skill)/2500,0,100);g.successorReadiness=g.successorCandidate.readiness;}g.legacyScore=Math.round(this.companyValue()/10000000+this.personalNetWorth()/10000000+g.foundationReputation*2+g.founderGeneration*50);};
+  TycoonEngine.prototype.updateSuccessionWeekly=function(){const g=this.g;if(g.successorCandidate){g.successorCandidate.readiness=clamp(g.successorCandidate.readiness+.05+n(g.successorCandidate.skill)/2500,0,100);g.successorReadiness=g.successorCandidate.readiness;}g.legacyScore=Math.round(this.companyValue()/10000000+this.personalNetWorth()/10000000+g.foundationReputation*2+g.founderGeneration*50);g.generationLegacyScore=Math.max(0,g.legacyScore-n(g.inheritedLegacyScore));};
   TycoonEngine.prototype.updateHallOfRecords=function(){const g=this.g,h=g.hallOfRecords,r=g.lastReport||{};h.highestCompanyValue=Math.max(h.highestCompanyValue,this.companyValue());h.highestPersonalNetWorth=Math.max(h.highestPersonalNetWorth,this.personalNetWorth());h.highestRevenue=Math.max(h.highestRevenue,n(r.sales));h.highestProfit=Math.max(h.highestProfit,n(r.profit));h.maxStores=Math.max(h.maxStores,g.stores.length);h.maxSubsidiaries=Math.max(h.maxSubsidiaries,g.subsidiaries.length+g.maSubsidiaries.length);h.maxPropertyValue=Math.max(h.maxPropertyValue,sum(g.properties.filter(x=>x.owner).map(x=>x.value)));h.maxVCMultiple=Math.max(h.maxVCMultiple,...g.angelInvestments.map(x=>x.multiple),0);if(g.publicCompany&&h.fastestIPOWeek===null)h.fastestIPOWeek=g.week;if(this.companyValue()>=1e12&&h.fastestTrillionWeek===null)h.fastestTrillionWeek=g.week;};
 
   const baseCompanyValue=TycoonEngine.prototype.companyValue;

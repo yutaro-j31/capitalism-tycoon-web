@@ -30,6 +30,8 @@ for (const command of commands) {
 for (const [name, file] of [
   ['bank-loans-covenants-accounting', 'tests/bank-loans-covenants-accounting-test.js'],
   ['exploration-infrastructure', 'tests/exploration-infrastructure-test.js'],
+  ['founder-retirement', 'tests/founder-retirement-test.js'],
+  ['founder-retirement-reachability', 'tests/founder-retirement-reachability-test.js'],
   ['bank-loans-covenants', 'tests/bank-loans-covenants-test.js'],
   ['boot-recovery', 'tests/boot-recovery-test.js'],
   ['competitor-price-direction-guard', 'tests/competitor-price-direction-guard-test.js'],
