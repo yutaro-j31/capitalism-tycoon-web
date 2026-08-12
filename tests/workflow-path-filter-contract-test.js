@@ -9,22 +9,17 @@ const alwaysRun = Object.freeze([
   'test.yml',
   'release-readiness.yml',
 ]);
+// Workflows that still run on their own because they are either too slow for the
+// canonical suite or exercise a real WebKit browser. Everything else was absorbed
+// into the canonical suite, which runs unconditionally and therefore needs no path
+// filter to guarantee coverage.
 const scoped = Object.freeze([
-  'progression-balance.yml',
   'strategy-balance.yml',
   'phase6b3-diagnostic.yml',
   'founding-tutorial.yml',
   'ma-integration.yml',
   'ma-board-approval.yml',
   'ma-acquisition-financing.yml',
-  'd-ui-contract.yml',
-  'd-ui-reference-fidelity.yml',
-  'playtest-report-contract.yml',
-  'release-attestation-contract.yml',
-  'release-candidate-contract.yml',
-  'runtime-recovery-contract.yml',
-  'recovery-target-selector.yml',
-  'save-import-atomic-guard.yml',
 ]);
 
 const sharedDependencyFiles = Object.freeze([
