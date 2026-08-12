@@ -24,6 +24,17 @@ installExpansion(TycoonEngine);
 installCompletion(TycoonEngine);
 installParity(TycoonEngine);
 const engine = TycoonEngine.load();
+// A save that only reached IndexedDB is invisible to the synchronous load above, so check
+// for one and offer it rather than letting the player continue from an older week.
+(function checkForNewerStoredSave(){
+  const store=globalThis.__capitalismTycoonModules?.saveStorageIDB;
+  if(!store?.findNewerSave)return;
+  store.findNewerSave(engine.g).then(found=>{
+    if(!found)return;
+    engine.notify(`第${found.week}週のセーブが端末に残っています（現在は第${found.loadedWeek}週）。設定画面から読み込めます。`,'warning');
+    globalThis.__capitalismTycoonPendingSave=found;
+  }).catch(()=>{});
+})();
 const ui = {
   selectedPref: engine.g.selectedPref || 'tokyo', selectedBusiness: engine.g.selectedBusiness || 'ramen',
   selectedAccount: 'personal', stockSector: 'all', selectedStockId: null, stockChartRange: '52', assetTab: 'property', officeTab: 'overview',
@@ -432,7 +443,59 @@ function renderCompetitorProducts(){
 function renderRivals(){const g=engine.g;engine.seedCompetitorCounterStates();return `${renderCompetitorProducts()}${card('競合反撃システム',g.competitorStates.map(c=>`<article class="item"><div><h3>${esc(c.name)} ${c.isDistressed?badge('買収機会','warn'):''}</h3><p>${engine.business(c.industryID)?.name||c.industryID} · ${engine.area(c.regionID)?.name||'全国'} · 圧力${c.pricePressure.toFixed(1)} · 攻撃性${pct(c.aggression)}</p></div><div class="item-metrics"><span>強さ${c.strength.toFixed(0)}</span><span>現金${compactYen(c.cash)}</span><span>ブランド${c.brandPower.toFixed(0)}</span></div><div class="button-row">${btn('広告防衛','respond-rival',{kind:'secondary small',data:`data-id="${c.id}" data-kind="ads"`})}${btn('品質防衛','respond-rival',{kind:'secondary small',data:`data-id="${c.id}" data-kind="quality"`})}${btn('買収','respond-rival',{kind:'primary small',data:`data-id="${c.id}" data-kind="acquire"`,disabled:!c.isDistressed})}</div></article>`).join('')||empty('競合状態なし'))}${card('既存ライバル',g.competitors.map(c=>`<article class="item"><div><h3>${esc(c.name)}</h3><p>${engine.business(c.businessID)?.name} · ${engine.area(c.areaID)?.name} · 戦略「${esc(c.strategy)}」</p></div><div class="item-metrics"><span>${c.stores}店舗</span><span>現金${compactYen(c.cash)}</span><span>品質${c.quality.toFixed(0)}</span><span>ブランド${c.brand.toFixed(0)}</span></div></article>`).join(''))}${card('競合イベント',g.competitorEventLog.slice(0,30).map(x=>`<div class="news-line">${esc(x)}</div>`).join('')||g.competitorEvents.slice(0,30).map(x=>`<div class="news-line">${esc(x)}</div>`).join('')||empty('イベントなし'),{className:'wide'})}`;}
 function renderNews(){const g=engine.g;return `<div class="grid two">${card('ニュース履歴',g.news.map(n=>`<div class="news-line">${esc(n)}</div>`).join('')||empty('ニュースなし'))}${card('週次経営履歴',g.history.map(n=>`<div class="news-line mono">${esc(n)}</div>`).join('')||empty('履歴なし'))}</div>`;}
 
-function renderSettings(){const g=engine.g;return `<div class="grid two">${card('ゲーム設定',`<label class="switch-row"><span>自動経営</span><input type="checkbox" data-setting="autoManage" ${g.autoManage?'checked':''}></label><label class="field"><span>自動経営方針</span><select data-setting="autoManageStyle"><option value="aggressive" ${g.autoManageStyle==='aggressive'?'selected':''}>成長重視</option><option value="balanced" ${g.autoManageStyle==='balanced'?'selected':''}>バランス</option><option value="defensive" ${g.autoManageStyle==='defensive'?'selected':''}>守備重視</option></select></label><label class="switch-row"><span>動きを減らす</span><input type="checkbox" data-setting="reducedMotion" ${g.settings.reducedMotion?'checked':''}></label>`)}${card('セーブ管理',`<div class="button-grid">${btn('現在データを保存','save-now',{kind:'primary'})}${btn('JSON書き出し','export-save',{kind:'secondary'})}${btn('JSON読み込み','import-save',{kind:'secondary'})}</div><h3>セーブスロット</h3><div class="button-grid">${[1,2,3].map(i=>`${btn(`スロット${i}保存`,'save-slot',{kind:'ghost small',data:`data-id="${i}"`})}${btn(`読込`,'load-slot',{kind:'ghost small',data:`data-id="${i}"`})}`).join('')}</div><input id="import-file" type="file" accept="application/json" hidden>`)}
+// iOS Safari ignores a click on an anchor that is not in the document, and it ignores the
+// download attribute entirely, so the original one-liner silently did nothing on the very
+// devices this game targets. Share the file through the Web Share API when the browser
+// offers it, fall back to a real anchor that is attached to the document, and if even that
+// is blocked, open the JSON in a new tab so the player can still copy it out. A backup
+// route that fails silently is worse than none, so every path reports what happened.
+async function exportSaveFile(){
+  const blob=engine.exportSave();
+  const filename=`capitalism-tycoon-week-${engine.g.week}.json`;
+  try{
+    const file=typeof File==='function'?new File([blob],filename,{type:'application/json'}):null;
+    if(file&&navigator.canShare?.({files:[file]})&&navigator.share){
+      await navigator.share({files:[file],title:filename});
+      engine.notify('JSONバックアップを共有しました。','success');
+      return true;
+    }
+  }catch(error){
+    if(error?.name==='AbortError')return false;
+  }
+  const url=URL.createObjectURL(blob);
+  try{
+    const anchor=document.createElement('a');
+    anchor.href=url;anchor.download=filename;anchor.rel='noopener';
+    anchor.style.display='none';
+    document.body.appendChild(anchor);
+    anchor.click();
+    anchor.remove();
+    engine.notify('JSONバックアップを書き出しました。','success');
+    return true;
+  }catch(error){
+    const opened=window.open(url,'_blank');
+    engine.notify(opened
+      ?'JSONバックアップを新しいタブで開きました。長押しして保存してください。'
+      :'JSONバックアップを書き出せませんでした。共有メニューから保存し直してください。',opened?'warning':'error');
+    return Boolean(opened);
+  }finally{
+    setTimeout(()=>URL.revokeObjectURL(url),60000);
+  }
+}
+
+// A save that only reached IndexedDB is invisible to the synchronous boot load, so if one
+// is found the player needs a way to actually take it — a warning with no action would
+// leave them stuck on an older week with no route back.
+function renderPendingStoredSave(){
+  const found=globalThis.__capitalismTycoonPendingSave;
+  if(!found)return '';
+  return `<div class="notice warning"><p>端末に第${found.week}週のセーブが残っています（現在は第${found.loadedWeek}週）。`
+    +`容量不足で書き出せなかった回のデータです。</p>`
+    +`<div class="button-row">${btn(`第${found.week}週のセーブを読み込む`,'restore-stored-save',{kind:'primary'})}`
+    +`${btn('無視する','dismiss-stored-save',{kind:'ghost'})}</div></div>`;
+}
+
+function renderSettings(){const g=engine.g;return `<div class="grid two">${card('ゲーム設定',`<label class="switch-row"><span>自動経営</span><input type="checkbox" data-setting="autoManage" ${g.autoManage?'checked':''}></label><label class="field"><span>自動経営方針</span><select data-setting="autoManageStyle"><option value="aggressive" ${g.autoManageStyle==='aggressive'?'selected':''}>成長重視</option><option value="balanced" ${g.autoManageStyle==='balanced'?'selected':''}>バランス</option><option value="defensive" ${g.autoManageStyle==='defensive'?'selected':''}>守備重視</option></select></label><label class="switch-row"><span>動きを減らす</span><input type="checkbox" data-setting="reducedMotion" ${g.settings.reducedMotion?'checked':''}></label>`)}${card('セーブ管理',`${renderPendingStoredSave()}<div class="button-grid">${btn('現在データを保存','save-now',{kind:'primary'})}${btn('JSON書き出し','export-save',{kind:'secondary'})}${btn('JSON読み込み','import-save',{kind:'secondary'})}</div><h3>セーブスロット</h3><div class="button-grid">${[1,2,3].map(i=>`${btn(`スロット${i}保存`,'save-slot',{kind:'ghost small',data:`data-id="${i}"`})}${btn(`読込`,'load-slot',{kind:'ghost small',data:`data-id="${i}"`})}`).join('')}</div><input id="import-file" type="file" accept="application/json" hidden>`)}
   ${card('データ情報',`${stat('セーブバージョン',String(g.saveVersion))}${stat('最終保存',new Date(g.lastSaveDate).toLocaleString('ja-JP'))}${stat('ゲーム週',String(g.week))}${stat('ニュース件数',String(g.news.length))}`)}${card('危険な操作',`${btn('最初からやり直す','reset-game',{kind:'danger'})}`)}</div>${card('会社売却・エンディング',`<p>企業価値が十分に成長した後、会社全体を売却して個人資産モードへ移行できます。</p>${btn('会社売却を検討','company-buyout',{kind:'danger',disabled:engine.companyValue()<200_000_000||g.isCompanySold})}`)}`;}
 
 function renderGameOver(){return `<div class="game-over"><div><h2>倒産</h2><p>${esc(engine.g.gameOverReason)}</p>${btn('設定を開く','tab',{kind:'primary',data:'data-tab="settings"'})}</div></div>`;}
@@ -486,7 +549,8 @@ function action(name,el){const id=el.dataset.id,kind=el.dataset.kind;
     case 'transport-rebuild':engine.startTransportRebuild(id,kind);break;case 'accept-inbound':confirmModal('会社売却提案を受諾',`${engine.g.inboundBuyoutOffers.find(x=>x.id===id)?.bidderName||'買い手'}へ会社を売却します。`, 'confirm-accept-inbound',`data-id="${id}"`);break;case 'confirm-accept-inbound':engine.acceptInboundBuyoutOffer(id);closeModal();break;case 'decline-inbound':engine.declineInboundBuyoutOffer(id);break;case 'appoint-successor':engine.appointSuccessor(id);break;case 'train-successor':engine.trainSuccessorExpanded();break;case 'establish-trust':engine.establishFamilyTrust();break;case 'transfer-trust':askMoney('ファミリートラストへ移管',10000000,v=>engine.transferToFamilyTrust(v));break;case 'execute-succession':engine.executeSuccession();break;case 'retire-founder':confirmModal('引退して承継する',`${engine.g.founderName}が引退し、後継者へ会社を託します。評価は「${engine.retirementEligibility().tier.title}」になります。`,'confirm-retire-founder');break;case 'confirm-retire-founder':engine.retireFounder();closeModal();break;
     case 'founding-tutorial-jump':engine.g.selectedTab=el.dataset.tab||'home';render();requestAnimationFrame(()=>{if(!focusSecretaryTarget(el.dataset.focus))focusSecretaryTarget('#screen');});break;case 'secretary-jump':engine.g.selectedTab=el.dataset.tab;render();requestAnimationFrame(()=>focusSecretaryTarget(el.dataset.focus));break;case 'new-company':modal(`<h2>新会社を創業</h2><label class="field"><span>会社名</span><input id="new-company-name" value="${esc(`新会社${engine.g.currentCompanySerial+1}`)}"></label>${moneyInput('new-company-investment',10000000,'創業者出資額')}<label class="field"><span>開始方針</span><select id="new-company-mode"><option value="store">店舗経営</option><option value="homeProduct">自宅プロダクト</option><option value="investment">投資会社</option></select></label><div class="modal-actions">${btn('キャンセル','close-modal',{kind:'ghost'})}<button class="btn primary" id="new-company-ok">創業する</button></div>`);$('#new-company-ok').onclick=()=>{const name=$('#new-company-name').value,inv=Number($('#new-company-investment').value.replace(/,/g,'')),mode=$('#new-company-mode').value;closeModal();engine.foundNewCompanyAfterBuyout(name,inv,mode);};break;case 'download-result-card':downloadResultCard();break;case 'advisor-jump':engine.g.selectedTab=kind;engine.save();render();break;case 'advisor-dismiss':engine.dismissAdvisorAction(id);break;case 'hire-keyperson':engine.hireKeyPerson();break;case 'train-keyperson':engine.trainKeyPerson(id);break;case 'retain-keyperson':engine.retainKeyPerson(id);break;case 'counter-competitor-product':engine.launchCounterCampaign(id,kind);break;case 'respond-rival':engine.respondToCompetitor(id,kind);break;case 'force-earnings':engine.runEarningsEventsIfNeeded(true);engine.save();render();break;case 'borrow-company':askMoney('会社借入',10000000,v=>engine.borrow(v,'company'));break;case 'repay-company':askMoney('会社返済',Math.min(engine.g.companyDebt,10000000),v=>engine.repay(v,'company'));break;case 'borrow-personal':askMoney('個人借入',5000000,v=>engine.borrow(v,'personal'));break;case 'repay-personal':askMoney('個人返済',Math.min(engine.g.personalDebt,5000000),v=>engine.repay(v,'personal'));break;
     case 'save-now':engine.save();toast('保存しました。','success');break;case 'save-slot':engine.save(id);toast(`スロット${id}に保存しました。`,'success');break;case 'load-slot':if(engine.loadSlot(id))toast(`スロット${id}を読み込みました。`,'success');else toast('セーブがありません。','error');break;
-    case 'export-save':{const a=document.createElement('a');a.href=URL.createObjectURL(engine.exportSave());a.download=`capitalism-tycoon-week-${engine.g.week}.json`;a.click();setTimeout(()=>URL.revokeObjectURL(a.href),1000);break;}
+    case 'export-save':exportSaveFile();break;
+    case 'restore-stored-save':{const found=globalThis.__capitalismTycoonPendingSave;if(!found){toast('読み込めるセーブが見つかりません。','error');break;}try{engine.importSave(found.payload);globalThis.__capitalismTycoonPendingSave=null;toast(`第${found.week}週のセーブを読み込みました。`,'success');}catch(error){toast('セーブを読み込めませんでした。','error');}break;}case 'dismiss-stored-save':globalThis.__capitalismTycoonPendingSave=null;render();break;
     case 'import-save':$('#import-file').click();break;case 'reset-game':confirmModal('完全初期化','現在の進行状況をすべて削除します。この操作は取り消せません。','confirm-reset');break;case 'confirm-reset':closeModal();engine.reset();ui.showSetup=true;render();break;
     case 'company-buyout':confirmModal('会社売却','会社を売却すると事業経営は終了し、個人資産モードへ移行します。','confirm-buyout');break;case 'confirm-buyout':engine.acceptBuyoutOffer(1.2);closeModal();break;
   }

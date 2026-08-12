@@ -68,6 +68,47 @@ function archiveTransactions(state,profile){
  return {removed:removed.length,kept:kept.length};
 }
 
+// A long run carries hundreds of properties and tenants the player never touched. Those
+// records still sit at their master values, so storing all 57 of their fields each week is
+// what pushes a late-game save past the device quota — properties alone were 43% of it.
+// Untouched records are reduced to the fields that identify them and the few that drift on
+// their own; normalize() restores the rest from master data on load. Anything the player
+// has interacted with is stored in full, so nothing owned or in progress is ever thinned.
+// Determined by deleting each field and checking what normalize() rebuilds: these are the
+// fields it cannot reconstruct, so they are always stored. Everything else on an
+// untouched record — including the heavy realEstate sub-object and the long tail of
+// zeroed counters — is rebuilt on load and does not need to occupy the quota. realEstate is
+// kept despite being rebuildable because its valuations drift week by week, and normalize()
+// can only reconstruct them at their opening values.
+const PROPERTY_IDENTITY_KEYS=Object.freeze(['id','prefID','name','kind','price','value','rentIncome','owner',
+ 'basePrice','cityName','yieldRate','economySensitivity','canBuildHQ','hqBuilt','landAreaSqm','buildingType',
+ 'buildingScale','constructionWeeksRemaining','rentMultiplier','vacancyRate','maintenanceCost',
+ 'standardRentIncome','depreciationPerWeek','buildingLevel','buildingMaxLevel','buildingQuality',
+ 'realEstate','buildingCondition']);
+
+function isUntouchedProperty(record){
+  // buildingLevel starts at 1 on every property, so only a level above the starting one
+  // counts as the player having done something.
+  return !record.owner&&!record.hqBuilt&&!record.mortgageBalance&&!record.realEstate?.owned
+    &&!record.constructionWeeksRemaining&&!record.disposalListedWeek&&!record.redevelopmentStartWeek
+    &&!record.insurancePremiumPaid&&!record.propertyTaxPaidTotal&&!record.maintenanceContributedTotal
+    &&!record.pendingInsuranceIncident&&finite(record.buildingLevel,1)<=1
+    &&!record.redevelopmentSpentTotal&&!record.maintenanceRepairsTotal&&!record.insurancePayoutTotal;
+}
+
+function compactUntouchedRecords(records,isUntouched,identityKeys){
+  if(!Array.isArray(records))return records;
+  return records.map(record=>{
+    if(!record||typeof record!=='object')return record;
+    let untouched=false;
+    try{untouched=isUntouched(record);}catch(error){untouched=false;}
+    if(!untouched)return record;
+    const reduced={};
+    for(const key of identityKeys)if(record[key]!==undefined)reduced[key]=record[key];
+    return reduced;
+  });
+}
+
 function compactStateForStorage(source,profileName='normal'){
  const profile=PROFILES[profileName]||PROFILES.normal;
  const state=clone(source);
@@ -80,6 +121,8 @@ function compactStateForStorage(source,profileName='normal'){
  state.news=head(state.news,profile.news);
  state.history=head(state.history,profile.history);
  if(Array.isArray(state.market))for(const stock of state.market)if(stock&&typeof stock==='object')stock.priceHistory=tail(stock.priceHistory,profile.priceHistory);
+ state.properties=compactUntouchedRecords(state.properties,isUntouchedProperty,PROPERTY_IDENTITY_KEYS);
+
  if(Array.isArray(state.startups))for(const startup of state.startups)if(startup&&typeof startup==='object')startup.reports=tail(startup.reports,profile.startupReports);
  if(state.finance&&typeof state.finance==='object')state.finance.weeklySnapshots=tail(state.finance.weeklySnapshots,profile.weeklySnapshots);
  const transactionSummary=archiveTransactions(state,profile);
@@ -128,7 +171,12 @@ function install(){
   let lastError=null;
   for(const candidate of candidates){
    try{
-    localStorage.setItem(key,candidate.payload);
+    // IndexedDB carries the save; localStorage is written too while the payload still fits
+    // so older builds keep reading it, but running out of that quota is no longer fatal.
+    const idb=modules.saveStorageIDB;
+    const idbHolding=Boolean(idb)&&idb.status().available&&idb.writeSync(key,candidate.payload);
+    try{localStorage.setItem(key,candidate.payload);}
+    catch(mirrorError){if(!idbHolding||!isQuotaError(mirrorError))throw mirrorError;}
     const info={ok:true,key,slot,mode:candidate.mode,bytes:candidate.payload.length*2,originalBytes:raw.length*2,transactions:candidate.summary||null,savedAt:this.g.lastSaveDate};
     this._lastSaveStorageInfo=info;
     this.emit?.('saved',{slot,storageMode:candidate.mode,storageBytes:info.bytes,originalStorageBytes:info.originalBytes});
@@ -157,6 +205,6 @@ function install(){
 
 function getActiveEngine(){return activeEngine;}
 
-modules.saveStorage=Object.freeze({SAVE_KEY,SAVE_VERSION,RAW_COMPACTION_THRESHOLD,PROFILES,isQuotaError,archiveTransactions,compactStateForStorage,storagePayload,install,getActiveEngine,__installed:true});
+modules.saveStorage=Object.freeze({SAVE_KEY,SAVE_VERSION,RAW_COMPACTION_THRESHOLD,PROFILES,isQuotaError,compactUntouchedRecords,isUntouchedProperty,archiveTransactions,compactStateForStorage,storagePayload,install,getActiveEngine,__installed:true});
 install();
 })();
