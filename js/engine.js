@@ -904,14 +904,30 @@ class TycoonEngine extends EventTarget {
   updateStartups() {
     for(const s of this.g.startups){if(!s.alive)continue;s.runwayWeeks--;const annual=s.growth+rand(-s.risk,s.risk)+(this.g.economy-1)*.15;s.valuation=Math.max(2_000_000,s.valuation*(1+annual/52));s.productProgress=clamp(s.productProgress+rand(.005,.035),0,1);
       if(s.runwayWeeks<8)s.fundingOpen=true;if(s.fundingOpen&&Math.random()<.08){s.stage=s.stage==='Seed'?'Series A':s.stage==='Series A'?'Series B':s.stage==='Series B'?'Series C':'Pre-IPO';s.valuation*=rand(1.15,1.65);s.runwayWeeks+=52;s.ownedCompany*=rand(.82,.94);s.ownedPersonal*=rand(.82,.94);s.fundingOpen=false;this.g.news.unshift(`第${this.g.week}週：${s.name}が${s.stage}資金調達を完了しました。`);}
-      if(s.runwayWeeks<=0&&Math.random()<.25){s.alive=false;s.valuation*=.1;this.g.news.unshift(`第${this.g.week}週：${s.name}が資金枯渇で事業停止しました。`);}
+      if(s.runwayWeeks<=0&&Math.random()<.25){s.alive=false;s.valuation*=.1;this.writeOffStartup(s,'資金枯渇');this.g.news.unshift(`第${this.g.week}週：${s.name}が資金枯渇で事業停止しました。`);}
       if(s.stage==='Pre-IPO'&&s.valuation>1_000_000_000&&Math.random()<.025)this.listStartup(s);
     }
+  }
+  // A venture that stops operating has to leave the balance sheet: the company's cost
+  // basis is written off in full, so an unrecoverable holding no longer sits on the books
+  // at its original value.
+  writeOffStartup(s,reason='事業停止') {
+    const book=Math.max(0,finite(s.totalInvestedCompany));
+    s.ownedCompany=0;s.ownedPersonal=0;
+    const personalBook=Math.max(0,finite(s.totalInvestedPersonal));
+    if(personalBook>0)s.totalInvestedPersonal=0;
+    if(book<=0)return false;
+    s.totalInvestedCompany=0;
+    finance.event(this.g,'investmentSale',0,{cashEffect:0,assetEffect:-book,profitEffect:-book,
+      sourceType:'startupWriteOff',sourceID:`${s.id}-${this.g.week}`,idempotencyKey:`startup-writeoff-${s.id}`,
+      description:`${s.name} 投資損失（${reason}）`});
+    this.g.news.unshift(`第${this.g.week}週：${s.name}への投資${yen(book)}を損失計上しました。`);
+    return true;
   }
   listStartup(s) {
     const id=`V${Math.floor(rand(1000,9999))}`;if(this.stock(id))return;s.ipoStockID=id;const shares=1_000_000,price=s.valuation/shares;
     this.g.market.push({id,name:s.name,sector:s.domain,price,previous:price,dividendYield:0,volatility:.12,trend:.004,marketCap:s.valuation,per:0,pbr:5,issuedShares:shares,dividendPerShare:0,shareholders:{},description:`${s.domain}の新興企業`,listingMarket:'東証グロース',priceHistory:[{week:this.g.week, price}]});
-    const companyQty=Math.floor(s.ownedCompany*shares),personalQty=Math.floor(s.ownedPersonal*shares);if(companyQty)this.g.companyStocks[id]={qty:companyQty,avg:0};if(personalQty)this.g.personalStocks[id]={qty:personalQty,avg:0};
+    const companyQty=Math.floor(s.ownedCompany*shares),personalQty=Math.floor(s.ownedPersonal*shares);const companyBook=Math.max(0,finite(s.totalInvestedCompany)),personalBook=Math.max(0,finite(s.totalInvestedPersonal));if(companyQty)this.g.companyStocks[id]={qty:companyQty,avg:companyBook/companyQty};if(personalQty)this.g.personalStocks[id]={qty:personalQty,avg:personalBook/personalQty};if(companyBook>0){finance.event(this.g,'investmentSale',companyBook,{cashEffect:0,assetEffect:-companyBook,profitEffect:0,sourceType:'listStartup',sourceID:`${s.id}-${this.g.week}`,idempotencyKey:`list-startup-${s.id}`,description:`${s.name} IPO転換（VC持分の振替）`});finance.event(this.g,'investmentPurchase',companyBook,{cashEffect:0,assetEffect:companyBook,profitEffect:0,sourceType:'listStartupShares',sourceID:`${s.id}-${this.g.week}`,idempotencyKey:`list-startup-shares-${s.id}`,description:`${s.name} 上場株式への振替`});s.totalInvestedCompany=0;}if(personalBook>0)s.totalInvestedPersonal=0;
     s.ownedCompany=0;s.ownedPersonal=0;s.alive=false;this.g.news.unshift(`第${this.g.week}週：${s.name}がIPOしました。保有持分は上場株式へ転換されました。`);
   }
   updateCompetitors() {
