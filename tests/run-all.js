@@ -31,6 +31,8 @@ for (const [name, file] of [
   ['bank-loans-covenants-accounting', 'tests/bank-loans-covenants-accounting-test.js'],
   ['exploration-infrastructure', 'tests/exploration-infrastructure-test.js'],
   ['founder-retirement', 'tests/founder-retirement-test.js'],
+  ['venture-investment-outcome', 'tests/venture-investment-outcome-test.js'],
+  ['venture-investment-reachability', 'tests/venture-investment-reachability-test.js'],
   ['founder-retirement-reachability', 'tests/founder-retirement-reachability-test.js'],
   ['bank-loans-covenants', 'tests/bank-loans-covenants-test.js'],
   ['boot-recovery', 'tests/boot-recovery-test.js'],
