@@ -970,6 +970,152 @@ class TycoonEngine extends EventTarget {
     const companyQty=Math.floor(s.ownedCompany*shares),personalQty=Math.floor(s.ownedPersonal*shares);const companyBook=Math.max(0,finite(s.totalInvestedCompany)),personalBook=Math.max(0,finite(s.totalInvestedPersonal));if(companyQty)this.g.companyStocks[id]={qty:companyQty,avg:companyBook/companyQty};if(personalQty)this.g.personalStocks[id]={qty:personalQty,avg:personalBook/personalQty};if(companyBook>0){finance.event(this.g,'investmentSale',companyBook,{cashEffect:0,assetEffect:-companyBook,profitEffect:0,sourceType:'listStartup',sourceID:`${s.id}-${this.g.week}`,idempotencyKey:`list-startup-${s.id}`,description:`${s.name} IPO転換（VC持分の振替）`});finance.event(this.g,'investmentPurchase',companyBook,{cashEffect:0,assetEffect:companyBook,profitEffect:0,sourceType:'listStartupShares',sourceID:`${s.id}-${this.g.week}`,idempotencyKey:`list-startup-shares-${s.id}`,description:`${s.name} 上場株式への振替`});s.totalInvestedCompany=0;}if(personalBook>0)s.totalInvestedPersonal=0;
     s.ownedCompany=0;s.ownedPersonal=0;s.alive=false;this.g.news.unshift(`第${this.g.week}週：${s.name}がIPOしました。保有持分は上場株式へ転換されました。`);
   }
+  // Roadmap 8A.4: the player answers a rival launch with one campaign. The four options
+  // are the same mechanism with different economics, so the choice is a real trade-off
+  // rather than a menu: cheap and instant but margin-destroying, expensive and instant,
+  // slow but durable, or slowest and strongest. Every option is paid for through
+  // finance.event, and every effect lands on fields the market already reads.
+  static get COUNTER_CAMPAIGNS(){
+    return Object.freeze({
+      price:Object.freeze({id:'price',label:'値下げで対抗',cost:1_200_000,delayWeeks:0,durationWeeks:16,
+        priceRatio:.88,brandGain:0,qualityGain:0,detail:'即座に効くが利幅を削る。'}),
+      advertising:Object.freeze({id:'advertising',label:'広告で対抗',cost:9_000_000,delayWeeks:0,durationWeeks:16,
+        priceRatio:1,brandGain:14,qualityGain:0,detail:'高いが即座に認知を押し上げる。'}),
+      quality:Object.freeze({id:'quality',label:'品質で対抗',cost:5_000_000,delayWeeks:6,durationWeeks:36,
+        priceRatio:1,brandGain:3,qualityGain:12,detail:'効き始めるまで時間がかかるが長く続く。'}),
+      product:Object.freeze({id:'product',label:'自社製品を投入',cost:18_000_000,delayWeeks:12,durationWeeks:52,
+        priceRatio:1,brandGain:16,qualityGain:16,detail:'開発に時間と資金がかかるが、最も強い。'})
+    });
+  }
+
+  counterCampaignOptions(){return Object.values(TycoonEngine.COUNTER_CAMPAIGNS);}
+
+  activeCounterCampaigns(){
+    this.ensureCompetitorProductState();
+    return this.g.counterCampaigns.filter(c=>!c.endedWeek);
+  }
+
+  launchCounterCampaign(productID,type) {
+    this.ensureCompetitorProductState();
+    const g=this.g,definition=TycoonEngine.COUNTER_CAMPAIGNS[type];
+    if(!definition)return this.fail('対抗手段が不正です。');
+    const product=this.activeCompetitorProducts().find(p=>p.id===productID);
+    if(!product)return this.fail('対象の競合製品が見つかりません。');
+    if(product.counteredBy)return this.fail('この製品にはすでに対抗しています。');
+    const business=this.business(product.businessID);
+    if(!business)return this.fail('対象の事業が見つかりません。');
+    if(g.companyCash<definition.cost)return this.fail(`${definition.label}には${yen(definition.cost)}が必要です。`);
+
+    const week=finite(g.week);
+    g.companyCash-=definition.cost;
+    finance.event(g,'advertising',definition.cost,{cashEffect:-definition.cost,profitEffect:-definition.cost,
+      sourceType:'counterCampaign',sourceID:`${productID}-${type}`,idempotencyKey:`counter-${productID}-${type}`,
+      businessID:product.businessID,description:`${business.name} ${definition.label}`});
+
+    const campaign={id:`cc-${productID}-${type}`,productID,type,businessID:product.businessID,
+      startedWeek:week,activatesWeek:week+definition.delayWeeks,endsWeek:week+definition.delayWeeks+definition.durationWeeks,
+      cost:definition.cost,applied:false,basePrice:finite(business.price),endedWeek:null};
+    g.counterCampaigns.unshift(campaign);
+    if(g.counterCampaigns.length>40)g.counterCampaigns.length=40;
+    product.counteredBy=type;
+    this.notify(`${definition.label}を開始しました。${definition.delayWeeks>0?`効果は第${campaign.activatesWeek}週から現れます。`:'効果はすぐに現れます。'}`,'success');
+    this.save();this.emit();
+    return true;
+  }
+
+  applyCounterCampaign(campaign) {
+    const definition=TycoonEngine.COUNTER_CAMPAIGNS[campaign.type],business=this.business(campaign.businessID);
+    if(!definition||!business)return;
+    campaign.basePrice=finite(business.price);
+    if(definition.priceRatio!==1)business.price=Math.max(1,Math.round(finite(business.price)*definition.priceRatio));
+    business.brand=clamp(finite(business.brand)+definition.brandGain,0,100);
+    business.quality=clamp(finite(business.quality)+definition.qualityGain,0,100);
+    campaign.applied=true;
+  }
+
+  endCounterCampaign(campaign) {
+    const definition=TycoonEngine.COUNTER_CAMPAIGNS[campaign.type],business=this.business(campaign.businessID);
+    if(definition&&business&&campaign.applied){
+      if(definition.priceRatio!==1)business.price=Math.max(1,Math.round(finite(campaign.basePrice)));
+      business.brand=clamp(finite(business.brand)-definition.brandGain,0,100);
+      business.quality=clamp(finite(business.quality)-definition.qualityGain,0,100);
+    }
+    campaign.endedWeek=finite(this.g.week);
+  }
+
+  updateCounterCampaigns() {
+    this.ensureCompetitorProductState();
+    const week=finite(this.g.week);
+    for(const campaign of this.activeCounterCampaigns()){
+      if(!campaign.applied&&week>=finite(campaign.activatesWeek))this.applyCounterCampaign(campaign);
+      if(week>=finite(campaign.endsWeek))this.endCounterCampaign(campaign);
+    }
+  }
+
+  // Roadmap 8A.4: a competitor occasionally launches a product that really moves the
+  // market. The launch raises that competitor's brand and quality — the same fields the
+  // market already reads — so no market calculation changes, and the boost is unwound when
+  // the product matures. Launches are rare by design: the tension comes from them being
+  // events, not weather.
+  static get COMPETITOR_PRODUCT_COOLDOWN_WEEKS(){return 40;}
+
+  competitorProductChance(){return .035;}
+
+  ensureCompetitorProductState() {
+    const g=this.g;
+    if(!Array.isArray(g.competitorProducts))g.competitorProducts=[];
+    if(!Array.isArray(g.counterCampaigns))g.counterCampaigns=[];
+    if(!Number.isFinite(Number(g.lastCompetitorProductWeek)))g.lastCompetitorProductWeek=0;
+  }
+
+  launchCompetitorProduct(row) {
+    this.ensureCompetitorProductState();
+    const g=this.g,week=finite(g.week);
+    const product={
+      id:`cp-${row.id}-${week}`,competitorID:row.id,competitorName:row.name,
+      businessID:row.businessID,areaID:row.areaID,launchedWeek:week,maturesWeek:week+26,
+      brandBoost:Math.round(clamp(8+finite(row.brand)*.12,6,18)*10)/10,
+      qualityBoost:Math.round(clamp(5+finite(row.quality)*.10,4,14)*10)/10,
+      counteredBy:null
+    };
+    row.brand=clamp(finite(row.brand)+product.brandBoost,0,100);
+    row.quality=clamp(finite(row.quality)+product.qualityBoost,0,100);
+    g.competitorProducts.unshift(product);
+    if(g.competitorProducts.length>40)g.competitorProducts.length=40;
+    g.lastCompetitorProductWeek=week;
+    g.competitorEvents.unshift(`${row.name}が新製品を投入しました。`);
+    g.news.unshift(`第${week}週：${row.name}が新製品を投入し、${this.business(row.businessID)?.name||row.businessID}市場の競争が激化しました。`);
+    return product;
+  }
+
+  retireCompetitorProduct(product) {
+    const row=this.g.competitors.find(x=>x.id===product.competitorID);
+    if(row){
+      row.brand=clamp(finite(row.brand)-finite(product.brandBoost),0,100);
+      row.quality=clamp(finite(row.quality)-finite(product.qualityBoost),0,100);
+    }
+    product.retiredWeek=finite(this.g.week);
+  }
+
+  activeCompetitorProducts(){
+    this.ensureCompetitorProductState();
+    return this.g.competitorProducts.filter(p=>!p.retiredWeek);
+  }
+
+  updateCompetitorProducts() {
+    this.ensureCompetitorProductState();
+    const g=this.g,week=finite(g.week);
+    for(const product of this.activeCompetitorProducts()){
+      if(week>=finite(product.maturesWeek))this.retireCompetitorProduct(product);
+    }
+    if(week-finite(g.lastCompetitorProductWeek)<TycoonEngine.COMPETITOR_PRODUCT_COOLDOWN_WEEKS)return null;
+    if(Math.random()>=this.competitorProductChance())return null;
+    const candidates=g.competitors.filter(row=>row.areaID!=='__bankrupt__'&&finite(row.stores)>0);
+    if(!candidates.length)return null;
+    const row=candidates[Math.floor(Math.random()*candidates.length)%candidates.length];
+    return this.launchCompetitorProduct(row);
+  }
+
   // Roadmap 8A.3: a competitor group runs more than one business out of one finite budget.
   // Each competitor row stays scoped to a single business so the market calculation is
   // untouched; the group is what owns the money and decides where it goes. The split is
@@ -1100,7 +1246,7 @@ class TycoonEngine extends EventTarget {
     if(this.g.isCompanySold){this.g.week++;this.g.month=Math.floor((this.g.week-1)/4)+1;this.updatePersonalAssets();this.recordHistory(0,0);this.save();this.emit('week',{summary:null});return true;}
     if(this.g.autoManage)this.autoManage();
     this.g.week++;this.g.month=Math.floor((this.g.week-1)/4)+1;if(this.g.week%52===0)this.g.founderAge++;
-    supply.ensure(this.g);workforce.ensure(this.g);workforce.processWeekStart(this.g);workforce.generateCandidates(this.g);workforce.recompute(this.g);const beginningCash=this.g.companyCash;this.updateMacro();this.updateMarket();this.updateProperties();this.updateStartups();this.updateCompetitors();this.updateDirectivesAndCampaigns();
+    supply.ensure(this.g);workforce.ensure(this.g);workforce.processWeekStart(this.g);workforce.generateCandidates(this.g);workforce.recompute(this.g);const beginningCash=this.g.companyCash;this.updateMacro();this.updateMarket();this.updateProperties();this.updateStartups();this.updateCompetitors();this.updateCompetitorProducts();this.updateCounterCampaigns();this.updateDirectivesAndCampaigns();
     const product=this.updateProducts(),overseas=this.updateOverseas(),subs=this.updateSubsidiaries(),franchise=this.updateFranchise();this.updatePersonalAssets();
     for(const store of this.g.stores){if(store.status==='preparing'&&this.g.week>=store.openingWeek){store.status='open';store.weeksToOpen=0;this.g.news.unshift(`第${this.g.week}週：${store.name}が開店しました。`);}if(store.status==='open'&&supply.isTargetBusinessID(store.businessID))supply.ensureInitialProcurementForOpenStore(this.g,store,finance);}
     const spoilage=supply.spoil(this.g,finance);supply.receiveOrders(this.g,finance);supply.payables(this.g,finance);
