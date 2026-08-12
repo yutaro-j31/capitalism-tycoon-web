@@ -25,14 +25,17 @@ for (const requiredScript of [
 
 assert.ok(fs.existsSync(recoveryWebKitTest), 'recovery funding iPhone WebKit test must exist');
 assert.ok(fs.existsSync(recoveryOutcomeWebKitTest), 'recovery outcome iPhone WebKit test must exist');
+// The step may carry extra keys such as timeout-minutes between its name and its
+// run command. Match across them, but never across a following step boundary, so a
+// run command belonging to a different step cannot satisfy this assertion.
 assert.match(
   iphoneWorkflow,
-  /name: Verify recovery funding workflow on iPhone\s+run: node tests\/capital-allocation-recovery-webkit-test\.js/,
+  /name: Verify recovery funding workflow on iPhone(?:(?!- name:)[\s\S])*?run: node tests\/capital-allocation-recovery-webkit-test\.js/,
   'iPhone WebKit workflow must execute the recovery funding interaction smoke'
 );
 assert.match(
   iphoneWorkflow,
-  /name: Verify recovery funding outcome on iPhone\s+run: node tests\/capital-allocation-recovery-outcome-webkit-test\.js/,
+  /name: Verify recovery funding outcome on iPhone(?:(?!- name:)[\s\S])*?run: node tests\/capital-allocation-recovery-outcome-webkit-test\.js/,
   'iPhone WebKit workflow must execute the recovery funding outcome smoke'
 );
 assert.match(iphoneWorkflow, /IPHONE_WEBKIT_ARTIFACT_DIR: artifacts\/iphone-webkit-smoke/,
