@@ -33,6 +33,8 @@ for (const [name, file] of [
   ['founder-retirement', 'tests/founder-retirement-test.js'],
   ['venture-investment-outcome', 'tests/venture-investment-outcome-test.js'],
   ['competitor-group-allocation', 'tests/competitor-group-allocation-test.js'],
+  ['competitor-product-counter', 'tests/competitor-product-counter-test.js'],
+  ['competitor-product-counter-reachability', 'tests/competitor-product-counter-reachability-test.js'],
   ['competitor-group-allocation-reachability', 'tests/competitor-group-allocation-reachability-test.js'],
   ['venture-investment-reachability', 'tests/venture-investment-reachability-test.js'],
   ['founder-retirement-reachability', 'tests/founder-retirement-reachability-test.js'],
