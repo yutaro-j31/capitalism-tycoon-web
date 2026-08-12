@@ -442,7 +442,8 @@ class TycoonEngine extends EventTarget {
 
   static load() {
     try {
-      const raw = localStorage.getItem(SAVE_KEY);
+      const idb = globalThis.__capitalismTycoonModules?.saveStorageIDB;
+      const raw = idb ? idb.readSync(SAVE_KEY) : localStorage.getItem(SAVE_KEY);
       if (!raw) return new TycoonEngine(null);
       const parsed = JSON.parse(raw);
       const migrated = migrateSave(parsed);

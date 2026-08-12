@@ -66,6 +66,7 @@
     "./js/industry-event-response-plans.js",
     "./js/industry-event-response-plans-ui.js",
     "./js/product-lifecycle.js",
+    "./js/save-storage-idb.js",
     "./js/save-storage.js",
     "./js/save-import-atomic-guard.js",
     "./js/save-storage-ui.js",
