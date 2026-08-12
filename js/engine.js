@@ -155,7 +155,7 @@ function createInitialState(options = {}) {
     employeeSatisfaction: 55, employeeAbility: 50, wageLevel: 1, benefitLevel: 1, remoteWorkEnabled: false,
     organizationCulture: {morale:55, innovation:30, compliance:40, turnoverRate:.08},
     autoManage: false, autoManageStyle: 'balanced', autoExecutiveManagementEnabled: false,
-    esgScore: 0, complianceLevel: 0, globalPrestige: 0, founderAge: 27, founderGeneration: 1,
+    esgScore: 0, complianceLevel: 0, globalPrestige: 0, founderAge: 20, founderGeneration: 1,
     macroCrisis: null, scheduledPayments: [],
     reports: [], lastReport: null, weeklySalesHistory: [], weeklyProfitHistory: [], companyValueHistory: [], personalNetWorthHistory: [],
     news: ['会社を設立しました。最初の店舗を探しましょう。'], history: [], competitorEvents: [], productEvents: [],
