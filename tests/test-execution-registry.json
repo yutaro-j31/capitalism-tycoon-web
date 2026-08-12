@@ -1,12 +1,4 @@
 {
-  "tests/bank-loans-covenants-test.js": {
-    "reason": "Executed outside the canonical run-all suite by .github/workflows/bank-loans-covenants.yml.",
-    "executedBy": ".github/workflows/bank-loans-covenants.yml"
-  },
-  "tests/boot-recovery-test.js": {
-    "reason": "Executed outside the canonical run-all suite by .github/workflows/runtime-recovery-contract.yml.",
-    "executedBy": ".github/workflows/runtime-recovery-contract.yml"
-  },
   "tests/boot-recovery-webkit-test.js": {
     "reason": "Executed outside the canonical run-all suite by .github/workflows/iphone-webkit-smoke.yml, .github/workflows/release-candidate-tag.yml.",
     "executedBy": ".github/workflows/iphone-webkit-smoke.yml"
@@ -23,37 +15,9 @@
     "reason": "Executed outside the canonical run-all suite by .github/workflows/ceo-dashboard.yml, .github/workflows/iphone-webkit-smoke.yml, .github/workflows/ma-acquisition-financing.yml, .github/workflows/ma-board-approval.yml.",
     "executedBy": ".github/workflows/ceo-dashboard.yml"
   },
-  "tests/competitor-price-direction-guard-test.js": {
-    "reason": "Executed outside the canonical run-all suite by .github/workflows/competitor-price-direction-guard.yml.",
-    "executedBy": ".github/workflows/competitor-price-direction-guard.yml"
-  },
-  "tests/competitor-process-week-fallback-test.js": {
-    "reason": "Executed outside the canonical run-all suite by .github/workflows/competitor-price-direction-guard.yml.",
-    "executedBy": ".github/workflows/competitor-price-direction-guard.yml"
-  },
-  "tests/convertible-bonds-dilution-test.js": {
-    "reason": "Executed outside the canonical run-all suite by .github/workflows/convertible-bonds-dilution.yml.",
-    "executedBy": ".github/workflows/convertible-bonds-dilution.yml"
-  },
-  "tests/corporate-bonds-ratings-test.js": {
-    "reason": "Executed outside the canonical run-all suite by .github/workflows/corporate-bonds-ratings.yml.",
-    "executedBy": ".github/workflows/corporate-bonds-ratings.yml"
-  },
-  "tests/d-ui-reference-fidelity-test.js": {
-    "reason": "Executed outside the canonical run-all suite by .github/workflows/d-ui-reference-fidelity.yml.",
-    "executedBy": ".github/workflows/d-ui-reference-fidelity.yml"
-  },
-  "tests/d-ui-shell-test.js": {
-    "reason": "Executed outside the canonical run-all suite by .github/workflows/d-ui-contract.yml, .github/workflows/d-ui-reference-fidelity.yml.",
-    "executedBy": ".github/workflows/d-ui-contract.yml"
-  },
   "tests/d-ui-webkit-test.js": {
     "reason": "Executed outside the canonical run-all suite by .github/workflows/iphone-webkit-smoke.yml.",
     "executedBy": ".github/workflows/iphone-webkit-smoke.yml"
-  },
-  "tests/deterministic-economic-foundation-test.js": {
-    "reason": "Executed outside the canonical run-all suite by .github/workflows/deterministic-economic-foundation.yml.",
-    "executedBy": ".github/workflows/deterministic-economic-foundation.yml"
   },
   "tests/difficulty-scenario-matrix-test.js": {
     "reason": "Executed outside the canonical run-all suite by .github/workflows/phase6b3-diagnostic.yml.",
@@ -63,22 +27,6 @@
     "reason": "Executed outside the canonical run-all suite by .github/workflows/phase6b3-diagnostic.yml.",
     "executedBy": ".github/workflows/phase6b3-diagnostic.yml"
   },
-  "tests/executive-dismissal-governance-test.js": {
-    "reason": "Executed outside the canonical run-all suite by .github/workflows/executive-dismissal-governance.yml.",
-    "executedBy": ".github/workflows/executive-dismissal-governance.yml"
-  },
-  "tests/executive-retirement-succession-test.js": {
-    "reason": "Executed outside the canonical run-all suite by .github/workflows/executive-retirement-succession.yml.",
-    "executedBy": ".github/workflows/executive-retirement-succession.yml"
-  },
-  "tests/executive-reviews-succession-board-test.js": {
-    "reason": "Executed outside the canonical run-all suite by .github/workflows/executive-reviews-succession-board.yml.",
-    "executedBy": ".github/workflows/executive-reviews-succession-board.yml"
-  },
-  "tests/executives-department-assignments-test.js": {
-    "reason": "Executed outside the canonical run-all suite by .github/workflows/executives-department-assignments.yml, .github/workflows/issue-294-executive-hiring-diagnostic.yml.",
-    "executedBy": ".github/workflows/executives-department-assignments.yml"
-  },
   "tests/founding-tutorial-webkit-test.js": {
     "reason": "Executed outside the canonical run-all suite by .github/workflows/founding-tutorial.yml, .github/workflows/iphone-webkit-smoke.yml.",
     "executedBy": ".github/workflows/founding-tutorial.yml"
@@ -86,38 +34,6 @@
   "tests/game-over-settings-webkit-test.js": {
     "reason": "Executed outside the canonical run-all suite by .github/workflows/iphone-webkit-smoke.yml.",
     "executedBy": ".github/workflows/iphone-webkit-smoke.yml"
-  },
-  "tests/global-company-ranking-goals-test.js": {
-    "reason": "Executed outside the canonical run-all suite by .github/workflows/global-company-ranking-goals.yml.",
-    "executedBy": ".github/workflows/global-company-ranking-goals.yml"
-  },
-  "tests/group-capital-allocation-execution-test.js": {
-    "reason": "Executed outside the canonical run-all suite by .github/workflows/group-capital-allocation-execution.yml.",
-    "executedBy": ".github/workflows/group-capital-allocation-execution.yml"
-  },
-  "tests/group-capital-allocation-plan-test.js": {
-    "reason": "Executed outside the canonical run-all suite by .github/workflows/group-capital-allocation-plan.yml.",
-    "executedBy": ".github/workflows/group-capital-allocation-plan.yml"
-  },
-  "tests/group-holding-governance-test.js": {
-    "reason": "Executed outside the canonical run-all suite by .github/workflows/group-holding-governance.yml, .github/workflows/subsidiary-budget-kpi.yml, .github/workflows/subsidiary-performance-review.yml.",
-    "executedBy": ".github/workflows/group-holding-governance.yml"
-  },
-  "tests/hall-of-fame-generations-test.js": {
-    "reason": "Executed outside the canonical run-all suite by .github/workflows/hall-of-fame-generations.yml.",
-    "executedBy": ".github/workflows/hall-of-fame-generations.yml"
-  },
-  "tests/industry-event-response-plans-test.js": {
-    "reason": "Executed outside the canonical run-all suite by .github/workflows/industry-event-response-plans.yml.",
-    "executedBy": ".github/workflows/industry-event-response-plans.yml"
-  },
-  "tests/industry-specific-events-test.js": {
-    "reason": "Executed outside the canonical run-all suite by .github/workflows/industry-specific-events.yml.",
-    "executedBy": ".github/workflows/industry-specific-events.yml"
-  },
-  "tests/iphone-playtest-remediation-test.js": {
-    "reason": "Executed outside the canonical run-all suite by .github/workflows/iphone-playtest-remediation.yml, .github/workflows/save-storage-health-ui.yml.",
-    "executedBy": ".github/workflows/iphone-playtest-remediation.yml"
   },
   "tests/iphone-playtest-webkit-test.js": {
     "reason": "Executed outside the canonical run-all suite by .github/workflows/iphone-playtest-remediation.yml.",
@@ -130,10 +46,6 @@
   "tests/iphone-webkit-smoke-test.js": {
     "reason": "Executed outside the canonical run-all suite by .github/workflows/iphone-webkit-smoke.yml, .github/workflows/pages-deployment-smoke.yml, .github/workflows/release-candidate-tag.yml.",
     "executedBy": ".github/workflows/iphone-webkit-smoke.yml"
-  },
-  "tests/long-run-guidance-test.js": {
-    "reason": "Executed outside the canonical run-all suite by .github/workflows/long-run-guidance.yml.",
-    "executedBy": ".github/workflows/long-run-guidance.yml"
   },
   "tests/ma-acquisition-financing-webkit-test.js": {
     "reason": "Executed outside the canonical run-all suite by .github/workflows/ma-acquisition-financing.yml.",
@@ -151,57 +63,21 @@
     "reason": "Executed outside the canonical run-all suite by .github/workflows/ma-acquisition-financing.yml, .github/workflows/ma-board-approval.yml, .github/workflows/ma-integration.yml.",
     "executedBy": ".github/workflows/ma-acquisition-financing.yml"
   },
-  "tests/ma-investment-committee-test.js": {
-    "reason": "Executed outside the canonical run-all suite by .github/workflows/ma-investment-committee.yml.",
-    "executedBy": ".github/workflows/ma-investment-committee.yml"
-  },
   "tests/mobile-release-contract-test.js": {
     "reason": "Executed by the release delivery gate aggregator, which is invoked from release-readiness.yml.",
     "executedBy": "scripts/release-delivery-gate.js"
-  },
-  "tests/new-business-commercialization-test.js": {
-    "reason": "Executed outside the canonical run-all suite by .github/workflows/new-business-commercialization.yml.",
-    "executedBy": ".github/workflows/new-business-commercialization.yml"
-  },
-  "tests/new-business-market-analysis-test.js": {
-    "reason": "Executed outside the canonical run-all suite by .github/workflows/new-business-market-analysis.yml.",
-    "executedBy": ".github/workflows/new-business-market-analysis.yml"
-  },
-  "tests/new-business-research-projects-test.js": {
-    "reason": "Executed outside the canonical run-all suite by .github/workflows/new-business-research-projects.yml.",
-    "executedBy": ".github/workflows/new-business-research-projects.yml"
-  },
-  "tests/normal-start-ipo-balance-audit-test.js": {
-    "reason": "Executed outside the canonical run-all suite by .github/workflows/issue-294-executive-hiring-diagnostic.yml, .github/workflows/ma-acquisition-financing.yml, .github/workflows/ma-board-approval.yml, .github/workflows/progression-balance.yml.",
-    "executedBy": ".github/workflows/issue-294-executive-hiring-diagnostic.yml"
   },
   "tests/pages-deployment-smoke-test.js": {
     "reason": "Executed outside the canonical run-all suite by .github/workflows/founding-tutorial.yml, .github/workflows/published-save-quota-contract.yml.",
     "executedBy": ".github/workflows/founding-tutorial.yml"
   },
-  "tests/physical-iphone-playtest-test.js": {
-    "reason": "Executed outside the canonical run-all suite by .github/workflows/physical-iphone-playtest.yml.",
-    "executedBy": ".github/workflows/physical-iphone-playtest.yml"
-  },
   "tests/play-entry-contract-test.js": {
     "reason": "Executed by the release delivery gate aggregator, which is invoked from release-readiness.yml.",
     "executedBy": "scripts/release-delivery-gate.js"
   },
-  "tests/playtest-report-ui-test.js": {
-    "reason": "Executed outside the canonical run-all suite by .github/workflows/playtest-report-contract.yml.",
-    "executedBy": ".github/workflows/playtest-report-contract.yml"
-  },
   "tests/playtest-report-webkit-test.js": {
     "reason": "Executed outside the canonical run-all suite by .github/workflows/iphone-webkit-smoke.yml, .github/workflows/release-candidate-tag.yml.",
     "executedBy": ".github/workflows/iphone-webkit-smoke.yml"
-  },
-  "tests/pmi-100-day-plan-test.js": {
-    "reason": "Executed outside the canonical run-all suite by .github/workflows/group-holding-governance.yml, .github/workflows/pmi-100-day-plan.yml.",
-    "executedBy": ".github/workflows/group-holding-governance.yml"
-  },
-  "tests/preferred-shares-dividends-test.js": {
-    "reason": "Executed outside the canonical run-all suite by .github/workflows/preferred-shares-dividends.yml.",
-    "executedBy": ".github/workflows/preferred-shares-dividends.yml"
   },
   "tests/published-founding-tutorial-webkit-test.js": {
     "reason": "Executed outside the canonical run-all suite by .github/workflows/founding-tutorial.yml, .github/workflows/pages-deployment-smoke.yml.",
@@ -218,126 +94,6 @@
   "tests/published-weekly-impact-webkit-test.js": {
     "reason": "Executed outside the canonical run-all suite by .github/workflows/pages-deployment-smoke.yml.",
     "executedBy": ".github/workflows/pages-deployment-smoke.yml"
-  },
-  "tests/rc-manual-smoke-gate-test.js": {
-    "reason": "Executed outside the canonical run-all suite by .github/workflows/rc-manual-smoke-gate.yml.",
-    "executedBy": ".github/workflows/rc-manual-smoke-gate.yml"
-  },
-  "tests/real-estate-capex-actuals-test.js": {
-    "reason": "Executed outside the canonical run-all suite by .github/workflows/real-estate-capex-actuals.yml.",
-    "executedBy": ".github/workflows/real-estate-capex-actuals.yml"
-  },
-  "tests/real-estate-capex-roi-test.js": {
-    "reason": "Executed outside the canonical run-all suite by .github/workflows/real-estate-capex-roi.yml.",
-    "executedBy": ".github/workflows/real-estate-capex-roi.yml"
-  },
-  "tests/real-estate-complete-cycle-test.js": {
-    "reason": "Executed outside the canonical run-all suite by .github/workflows/real-estate-complete-cycle.yml.",
-    "executedBy": ".github/workflows/real-estate-complete-cycle.yml"
-  },
-  "tests/real-estate-development-test.js": {
-    "reason": "Executed outside the canonical run-all suite by .github/workflows/real-estate-development.yml, .github/workflows/real-estate-insurance-claims.yml, .github/workflows/real-estate-insurance-risk.yml, .github/workflows/real-estate-risk-mitigation.yml.",
-    "executedBy": ".github/workflows/real-estate-development.yml"
-  },
-  "tests/real-estate-foundation-test.js": {
-    "reason": "Executed outside the canonical run-all suite by .github/workflows/real-estate-development.yml, .github/workflows/real-estate-insurance-claims.yml, .github/workflows/real-estate.yml.",
-    "executedBy": ".github/workflows/real-estate-development.yml"
-  },
-  "tests/real-estate-insurance-claims-test.js": {
-    "reason": "Executed outside the canonical run-all suite by .github/workflows/real-estate-insurance-claims.yml, .github/workflows/real-estate-insurance-risk.yml, .github/workflows/real-estate-risk-mitigation.yml, .github/workflows/real-estate-safety-certification.yml.",
-    "executedBy": ".github/workflows/real-estate-insurance-claims.yml"
-  },
-  "tests/real-estate-insurance-risk-test.js": {
-    "reason": "Executed outside the canonical run-all suite by .github/workflows/real-estate-insurance-risk.yml, .github/workflows/real-estate-risk-mitigation.yml, .github/workflows/real-estate-safety-certification.yml, .github/workflows/real-estate-tenant-contracts.yml, .github/workflows/real-estate-tenant-operations.yml.",
-    "executedBy": ".github/workflows/real-estate-insurance-risk.yml"
-  },
-  "tests/real-estate-maintenance-reserves-test.js": {
-    "reason": "Executed outside the canonical run-all suite by .github/workflows/real-estate-maintenance-reserves.yml.",
-    "executedBy": ".github/workflows/real-estate-maintenance-reserves.yml"
-  },
-  "tests/real-estate-mortgage-refinancing-test.js": {
-    "reason": "Executed outside the canonical run-all suite by .github/workflows/real-estate-mortgage-refinancing.yml.",
-    "executedBy": ".github/workflows/real-estate-mortgage-refinancing.yml"
-  },
-  "tests/real-estate-portfolio-dashboard-test.js": {
-    "reason": "Executed outside the canonical run-all suite by .github/workflows/real-estate-portfolio-dashboard.yml.",
-    "executedBy": ".github/workflows/real-estate-portfolio-dashboard.yml"
-  },
-  "tests/real-estate-property-disposals-test.js": {
-    "reason": "Executed outside the canonical run-all suite by .github/workflows/real-estate-property-disposals.yml.",
-    "executedBy": ".github/workflows/real-estate-property-disposals.yml"
-  },
-  "tests/real-estate-property-insurance-test.js": {
-    "reason": "Executed outside the canonical run-all suite by .github/workflows/real-estate-property-insurance-loss-claims.yml, .github/workflows/real-estate-property-insurance.yml.",
-    "executedBy": ".github/workflows/real-estate-property-insurance-loss-claims.yml"
-  },
-  "tests/real-estate-property-maintenance-test.js": {
-    "reason": "Executed outside the canonical run-all suite by .github/workflows/real-estate-property-maintenance.yml.",
-    "executedBy": ".github/workflows/real-estate-property-maintenance.yml"
-  },
-  "tests/real-estate-property-management-test.js": {
-    "reason": "Executed outside the canonical run-all suite by .github/workflows/real-estate-property-management.yml.",
-    "executedBy": ".github/workflows/real-estate-property-management.yml"
-  },
-  "tests/real-estate-property-taxes-test.js": {
-    "reason": "Executed outside the canonical run-all suite by .github/workflows/real-estate-property-taxes.yml.",
-    "executedBy": ".github/workflows/real-estate-property-taxes.yml"
-  },
-  "tests/real-estate-redevelopment-projects-test.js": {
-    "reason": "Executed outside the canonical run-all suite by .github/workflows/real-estate-redevelopment-projects.yml.",
-    "executedBy": ".github/workflows/real-estate-redevelopment-projects.yml"
-  },
-  "tests/real-estate-rent-guarantee-test.js": {
-    "reason": "Executed outside the canonical run-all suite by .github/workflows/real-estate-rent-guarantee.yml.",
-    "executedBy": ".github/workflows/real-estate-rent-guarantee.yml"
-  },
-  "tests/real-estate-rent-performance-test.js": {
-    "reason": "Executed outside the canonical run-all suite by .github/workflows/real-estate-rent-performance.yml.",
-    "executedBy": ".github/workflows/real-estate-rent-performance.yml"
-  },
-  "tests/real-estate-rent-pricing-test.js": {
-    "reason": "Executed outside the canonical run-all suite by .github/workflows/real-estate-rent-pricing.yml.",
-    "executedBy": ".github/workflows/real-estate-rent-pricing.yml"
-  },
-  "tests/real-estate-risk-mitigation-test.js": {
-    "reason": "Executed outside the canonical run-all suite by .github/workflows/real-estate-risk-mitigation.yml, .github/workflows/real-estate-safety-certification.yml, .github/workflows/real-estate-tenant-contracts.yml, .github/workflows/real-estate-tenant-leasing.yml.",
-    "executedBy": ".github/workflows/real-estate-risk-mitigation.yml"
-  },
-  "tests/real-estate-safety-certification-test.js": {
-    "reason": "Executed outside the canonical run-all suite by .github/workflows/real-estate-safety-certification.yml, .github/workflows/real-estate-tenant-contracts.yml, .github/workflows/real-estate-tenant-leasing.yml.",
-    "executedBy": ".github/workflows/real-estate-safety-certification.yml"
-  },
-  "tests/real-estate-security-deposits-test.js": {
-    "reason": "Executed outside the canonical run-all suite by .github/workflows/real-estate-security-deposits.yml.",
-    "executedBy": ".github/workflows/real-estate-security-deposits.yml"
-  },
-  "tests/real-estate-tenant-collections-test.js": {
-    "reason": "Executed outside the canonical run-all suite by .github/workflows/real-estate-rent-guarantee.yml, .github/workflows/real-estate-tenant-collections.yml.",
-    "executedBy": ".github/workflows/real-estate-rent-guarantee.yml"
-  },
-  "tests/real-estate-tenant-contracts-test.js": {
-    "reason": "Executed outside the canonical run-all suite by .github/workflows/real-estate-tenant-collections.yml, .github/workflows/real-estate-tenant-contracts.yml, .github/workflows/real-estate-tenant-leasing.yml, .github/workflows/real-estate-tenant-operations.yml, .github/workflows/real-estate-tenant-renewals.yml, .github/workflows/real-estate-tenant-rent-accounting.yml.",
-    "executedBy": ".github/workflows/real-estate-tenant-collections.yml"
-  },
-  "tests/real-estate-tenant-leasing-test.js": {
-    "reason": "Executed outside the canonical run-all suite by .github/workflows/real-estate-tenant-leasing.yml, .github/workflows/real-estate-tenant-operations.yml, .github/workflows/real-estate-tenant-renewals.yml.",
-    "executedBy": ".github/workflows/real-estate-tenant-leasing.yml"
-  },
-  "tests/real-estate-tenant-operations-test.js": {
-    "reason": "Executed outside the canonical run-all suite by .github/workflows/real-estate-tenant-collections.yml, .github/workflows/real-estate-tenant-operations.yml, .github/workflows/real-estate-tenant-renewals.yml.",
-    "executedBy": ".github/workflows/real-estate-tenant-collections.yml"
-  },
-  "tests/real-estate-tenant-renewals-test.js": {
-    "reason": "Executed outside the canonical run-all suite by .github/workflows/real-estate-rent-guarantee.yml, .github/workflows/real-estate-tenant-collections.yml, .github/workflows/real-estate-tenant-renewals.yml.",
-    "executedBy": ".github/workflows/real-estate-rent-guarantee.yml"
-  },
-  "tests/release-attestation-issue-test.js": {
-    "reason": "Executed outside the canonical run-all suite by .github/workflows/release-attestation-contract.yml.",
-    "executedBy": ".github/workflows/release-attestation-contract.yml"
-  },
-  "tests/release-candidate-contract-test.js": {
-    "reason": "Executed outside the canonical run-all suite by .github/workflows/release-candidate-contract.yml.",
-    "executedBy": ".github/workflows/release-candidate-contract.yml"
   },
   "tests/release-candidate-recovery-attestation-test.js": {
     "reason": "Executed by the release delivery gate aggregator, which is invoked from release-readiness.yml.",
@@ -359,29 +115,13 @@
     "reason": "Executed by the release gate aggregator script.",
     "executedBy": "scripts/release-all-gates.js"
   },
-  "tests/runtime-recovery-ui-test.js": {
-    "reason": "Executed outside the canonical run-all suite by .github/workflows/runtime-recovery-contract.yml.",
-    "executedBy": ".github/workflows/runtime-recovery-contract.yml"
-  },
   "tests/runtime-recovery-webkit-test.js": {
     "reason": "Executed outside the canonical run-all suite by .github/workflows/iphone-webkit-smoke.yml, .github/workflows/release-candidate-tag.yml.",
     "executedBy": ".github/workflows/iphone-webkit-smoke.yml"
   },
-  "tests/save-import-atomic-guard-test.js": {
-    "reason": "Executed outside the canonical run-all suite by .github/workflows/save-import-atomic-guard.yml.",
-    "executedBy": ".github/workflows/save-import-atomic-guard.yml"
-  },
-  "tests/save-storage-ui-test.js": {
-    "reason": "Executed outside the canonical run-all suite by .github/workflows/save-storage-health-ui.yml.",
-    "executedBy": ".github/workflows/save-storage-health-ui.yml"
-  },
   "tests/shareholder-activism-reachability-test.js": {
     "reason": "Executed outside the canonical run-all suite by .github/workflows/shareholder-activism.yml.",
     "executedBy": ".github/workflows/shareholder-activism.yml"
-  },
-  "tests/strategy-balance-calibration-test.js": {
-    "reason": "Heavy strategy calibration is executed by the dedicated strategy balance workflow.",
-    "executedBy": ".github/workflows/strategy-balance.yml"
   },
   "tests/strategy-balance-matrix-test.js": {
     "reason": "Executed outside the canonical run-all suite by .github/workflows/issue-294-executive-hiring-diagnostic.yml, .github/workflows/ma-acquisition-financing.yml, .github/workflows/ma-board-approval.yml, .github/workflows/strategy-balance.yml.",
@@ -390,22 +130,6 @@
   "tests/strategy-balance-pr-smoke-test.js": {
     "reason": "Executed outside the canonical run-all suite by .github/workflows/strategy-balance.yml.",
     "executedBy": ".github/workflows/strategy-balance.yml"
-  },
-  "tests/subsidiary-budget-kpi-test.js": {
-    "reason": "Executed outside the canonical run-all suite by .github/workflows/subsidiary-budget-kpi.yml, .github/workflows/subsidiary-mandate-apply.yml, .github/workflows/subsidiary-performance-review.yml.",
-    "executedBy": ".github/workflows/subsidiary-budget-kpi.yml"
-  },
-  "tests/subsidiary-ipo-secondary-sale-test.js": {
-    "reason": "Executed outside the canonical run-all suite by .github/workflows/subsidiary-ipo-secondary-sale.yml.",
-    "executedBy": ".github/workflows/subsidiary-ipo-secondary-sale.yml"
-  },
-  "tests/subsidiary-mandate-apply-test.js": {
-    "reason": "Executed outside the canonical run-all suite by .github/workflows/subsidiary-mandate-apply.yml.",
-    "executedBy": ".github/workflows/subsidiary-mandate-apply.yml"
-  },
-  "tests/subsidiary-performance-review-test.js": {
-    "reason": "Executed outside the canonical run-all suite by .github/workflows/subsidiary-mandate-apply.yml, .github/workflows/subsidiary-performance-review.yml.",
-    "executedBy": ".github/workflows/subsidiary-mandate-apply.yml"
   },
   "tests/test-registration-contract-test.js": {
     "reason": "Executed by the syntax check entry point, which runs as test:syntax inside the canonical suite.",
