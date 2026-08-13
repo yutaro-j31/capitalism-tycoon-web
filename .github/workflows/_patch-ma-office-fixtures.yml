@@ -27,17 +27,17 @@ jobs:
                   continue
               t=p.read_text()
               old=t
+              if 'hasHeadOffice' in t:
+                  continue
               replacements=[
                 ("e.g.departments.investment = { established: true };", "e.g.departments.investment = { established: true }; e.g.hasHeadOffice = true;"),
                 ("e.g.departments.investment={established:true};", "e.g.departments.investment={established:true};e.g.hasHeadOffice=true;"),
                 ("engine.g.departments.investment = { established: true };", "engine.g.departments.investment = { established: true }; engine.g.hasHeadOffice = true;"),
                 ("engine.g.departments.investment={established:true};", "engine.g.departments.investment={established:true};engine.g.hasHeadOffice=true;")
               ]
-              if 'hasHeadOffice' not in t:
-                  for a,b in replacements:
-                      if a in t:
-                          t=t.replace(a,b,1)
-                          break
+              for a,b in replacements:
+                  if a in t:
+                      t=t.replace(a,b)
               if t!=old:
                   p.write_text(t)
                   changed.append(str(p))
