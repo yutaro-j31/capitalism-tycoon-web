@@ -6,7 +6,8 @@
     "tests/stage-3-3-observer-migration-test.js",
     "tests/stage-3-4-startup-observer-migration-test.js",
     "tests/stage-3-ui-screen-scope-regression-test.js",
-    "tests/shareholder-activism-incidence-matrix-test.js"
+    "tests/shareholder-activism-incidence-matrix-test.js",
+    "tests/competitor-product-counter-reachability-test.js"
   ],
   "C": [
     "tests/save-storage-budget-test.js",
@@ -20,6 +21,7 @@
     "test:finance-history",
     "test:stock",
     "tests/product-recall-reachability-runner.js",
-    "tests/normal-start-ipo-balance-audit-test.js"
+    "tests/normal-start-ipo-balance-audit-test.js",
+    "tests/founder-retirement-reachability-test.js"
   ]
 }
