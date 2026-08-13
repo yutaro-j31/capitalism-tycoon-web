@@ -8,6 +8,7 @@ const { TycoonEngine, SAVE_KEY, SAVE_VERSION } = engineModule;
   e.g.configured = true;
   e.g.companyCash = 1_000_000_000;
   e.g.departments.investment = { established: true };
+  e.g.hasHeadOffice = true;
   e.g.acquisitionTargets = [{ id: 'legacy', name: 'Legacy物流', domain: '物流', valuation: '100000000', sales: null, operatingProfit: 8000000, growth: .1, risk: .2, synergy: .1, friendly: true, expiresWeek: 999 }];
   e.normalize();
   assert.equal(e.g.saveVersion, 9);

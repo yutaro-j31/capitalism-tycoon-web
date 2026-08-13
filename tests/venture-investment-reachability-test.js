@@ -21,6 +21,7 @@ function createEngine(loaded) {
   engine.g.difficulty = 'normal';
   engine.g.companyName = 'Venture Reachability Co';
   engine.g.departments.investment = { level: 1 };
+  engine.g.hasHeadOffice = true;
   return engine;
 }
 

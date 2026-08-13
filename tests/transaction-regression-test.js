@@ -20,7 +20,11 @@ function snapshot(g, randomCalls) {
   if (legacyWeeklySummary) {
     delete legacyWeeklySummary.crisis;
     delete legacyWeeklySummary.scenario;
+    delete legacyWeeklySummary.causalDrivers;
+    delete legacyWeeklySummary.recommendation;
   }
+  const legacyLastReport=clone(g.lastReport);if(legacyLastReport){delete legacyLastReport.causalDrivers;delete legacyLastReport.recommendation;}
+  const legacyReports=clone(g.reports).map(r=>{delete r.causalDrivers;delete r.recommendation;return r;});
   return clone({
     randomCalls,
     week: g.week,
@@ -34,9 +38,9 @@ function snapshot(g, randomCalls) {
     personalInvestments: g.personalInvestments,
     subsidiaries: g.subsidiaries,
     maSubsidiaries: g.maSubsidiaries,
-    lastReport: g.lastReport,
+    lastReport: legacyLastReport,
     history: g.history,
-    reports: g.reports,
+    reports: legacyReports,
     news: g.news,
     lastWeeklySummary: legacyWeeklySummary,
     gameOver: g.gameOver,
