@@ -1,0 +1,95 @@
+name: Stage stock purchase panel package
+on:
+  push:
+    branches:
+      - fix/stock-purchase-panel
+    paths:
+      - .github/workflows/_stage-stock-purchase-panel.yml
+permissions:
+  contents: write
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: fix/stock-purchase-panel
+          fetch-depth: 0
+      - name: Apply verified package delta
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPOSITORY: ${{ github.repository }}
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          import base64, hashlib, json, os, shutil, urllib.request
+
+          BASE='17c39790ab8775d47214ae06a1cf5ab29f47b50f'
+          expected={
+            'js/app.js':'12f02afbae0c1c37413eba36698b6707de10b335',
+            'css/app.css':'22b1a7a59cf8fee1a47165b93a067d5df9e011e1',
+            'tests/fixtures/extracted-css-baseline.css':'22b1a7a59cf8fee1a47165b93a067d5df9e011e1',
+            'tests/stock-trade-panel-test.js':'d7654fe10bdd5ff59feecabc926d4c400db197a6',
+            'tests/run-all.js':'7ddc1a63409d59b40942984e6fdf1d289a0918f0',
+          }
+          def replace_once(text, old, new, label):
+              n=text.count(old)
+              if n != 1: raise SystemExit(f'{label}: expected one anchor, found {n}')
+              return text.replace(old,new,1)
+          def blob_sha(path):
+              b=Path(path).read_bytes()
+              return hashlib.sha1(f'blob {len(b)}\0'.encode()+b).hexdigest()
+
+          app=Path('js/app.js').read_text()
+          anchor="function selectedStockFrom(stocks){const g=engine.g;if(stocks.some(s=>s.id===ui.selectedStockId))return stocks.find(s=>s.id===ui.selectedStockId);const holding=stocks.find(s=>(g.companyStocks[s.id]?.qty||g.personalStocks[s.id]?.qty)>0);const fav=stocks.find(s=>g.favoriteStockIds.includes(s.id));const next=holding||fav||stocks[0]||null;ui.selectedStockId=next?.id||null;return next;}\nfunction renderStockDetail"
+          inserted="function selectedStockFrom(stocks){const g=engine.g;if(stocks.some(s=>s.id===ui.selectedStockId))return stocks.find(s=>s.id===ui.selectedStockId);const holding=stocks.find(s=>(g.companyStocks[s.id]?.qty||g.personalStocks[s.id]?.qty)>0);const fav=stocks.find(s=>g.favoriteStockIds.includes(s.id));const next=holding||fav||stocks[0]||null;ui.selectedStockId=next?.id||null;return next;}\nfunction stockTradeCapacity(stock){const g=engine.g;const company=ui.selectedAccount==='company';const cash=finite(company?g.companyCash:g.personalCash);const unit=finite(stock?.price)*1.001;const blocked=company&&!g.departments.investment;return{company,cash,blocked,maxQty:blocked||unit<=0?0:Math.max(0,Math.floor(cash/unit))};}\nfunction renderStockTradePanel(stock,holding){const g=engine.g;const cap=stockTradeCapacity(stock);const owned=finite(holding?.qty);const fav=g.favoriteStockIds.includes(stock.id);return `<div class=\"stock-trade-panel\" data-stock-trade-panel data-id=\"${esc(stock.id)}\"><div class=\"stock-trade-meta\"><div><span>${cap.company?'会社口座':'個人口座'}の現金</span><strong>${compactYen(cap.cash)}</strong></div><div><span>購入可能</span><strong>${num(cap.maxQty)}株</strong></div><div><span>保有</span><strong>${num(owned)}株</strong></div></div><div class=\"button-row\">${btn('買う','buy-stock',{kind:'primary',data:`data-id=\"${esc(stock.id)}\"`,disabled:cap.maxQty<1})}${btn('売る','sell-stock',{kind:'secondary',data:`data-id=\"${esc(stock.id)}\"`,disabled:owned<1})}${btn(fav?'★ お気に入り':'☆ お気に入り','favorite-stock',{kind:'ghost',data:`data-id=\"${esc(stock.id)}\"`})}</div>${cap.blocked?'<p class=\"muted\">会社口座で売買するには投資部門の設置が必要です。個人口座に切り替えると購入できます。</p>':cap.maxQty<1?'<p class=\"muted\">現在の口座残高では1株も購入できません。</p>':''}</div>`;}\nfunction renderStockDetail"
+          app=replace_once(app,anchor,inserted,'app function insertion')
+          app=replace_once(app,"return card('株式詳細',`<div class=\"stock-detail-head\">","return card('株式詳細',`${renderStockTradePanel(stock,h)}<div class=\"stock-detail-head\">",'app panel wiring')
+          Path('js/app.js').write_text(app)
+
+          css=Path('css/app.css').read_text()
+          panel='.stock-trade-panel{display:grid;gap:10px;margin:0 0 14px;padding:13px;border:1px solid rgba(239,184,91,.34);border-radius:14px;background:linear-gradient(150deg,rgba(239,184,91,.10),rgba(255,255,255,.03))}.stock-trade-meta{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:9px}.stock-trade-meta>div{min-width:0}.stock-trade-meta span{display:block;color:var(--muted);font-size:10px}.stock-trade-meta strong{display:block;margin-top:3px;font-size:14px;overflow-wrap:anywhere}.stock-trade-panel .button-row{gap:8px}.stock-trade-panel .btn{flex:1 1 auto;min-height:44px}.stock-trade-panel p.muted{margin:0}'
+          css=replace_once(css,'\n.stock-detail-card{','\n'+panel+'.stock-detail-card{','css panel')
+          css=replace_once(css,'@media(max-width:720px){.stock-detail-head{flex-direction:column}.chart-range','@media(max-width:720px){.stock-detail-head{flex-direction:column}.stock-trade-meta{grid-template-columns:repeat(3,minmax(0,1fr))}.stock-trade-meta strong{font-size:13px}.stock-trade-panel .btn{flex:1 1 30%}.chart-range','css mobile')
+          Path('css/app.css').write_text(css)
+          shutil.copyfile('css/app.css','tests/fixtures/extracted-css-baseline.css')
+
+          run=Path('tests/run-all.js').read_text()
+          run=replace_once(run,"  ['executive-secretary-purity', 'tests/executive-secretary-purity-test.js']\n]) {","  ['executive-secretary-purity', 'tests/executive-secretary-purity-test.js'],\n  ['stock-trade-panel', 'tests/stock-trade-panel-test.js']\n]) {",'run-all registration')
+          run=replace_once(run,'executive secretary purity, and CEO dashboard passed','executive secretary purity, stock trade panel, and CEO dashboard passed','run-all summary')
+          Path('tests/run-all.js').write_text(run)
+
+          repo=os.environ['GH_REPOSITORY']; token=os.environ['GH_TOKEN']; sha=expected['tests/stock-trade-panel-test.js']
+          req=urllib.request.Request(f'https://api.github.com/repos/{repo}/git/blobs/{sha}',headers={'Authorization':f'Bearer {token}','Accept':'application/vnd.github+json','X-GitHub-Api-Version':'2022-11-28'})
+          with urllib.request.urlopen(req) as r: obj=json.load(r)
+          raw=base64.b64decode(obj['content'])
+          Path('tests/stock-trade-panel-test.js').write_bytes(raw)
+
+          for path,sha in expected.items():
+              actual=blob_sha(path)
+              print(path,actual)
+              if actual != sha: raise SystemExit(f'blob mismatch {path}: {actual} != {sha}')
+          PY
+      - name: Remove staging and verify final diff
+        run: |
+          rm -rf .stock-purchase-stage
+          rm -f .github/workflows/_stage-stock-purchase-panel.yml
+          git add -A
+          BASE=17c39790ab8775d47214ae06a1cf5ab29f47b50f
+          EXPECTED=$(printf '%s\n' css/app.css js/app.js tests/fixtures/extracted-css-baseline.css tests/run-all.js tests/stock-trade-panel-test.js | sort)
+          ACTUAL=$(git diff --cached --name-only "$BASE" | sort)
+          test "$ACTUAL" = "$EXPECTED"
+          for p in app.js app.css run-all.js stock-trade-panel-test.js extracted-css-baseline.css; do test ! -e "$p"; done
+          git diff --cached --quiet "$BASE" -- index.html tests/fixtures/module-load-order.json tests/fixtures/transaction-baseline-v1.json .github/workflows
+          test "$(find .github/workflows -maxdepth 1 -type f | wc -l | tr -d ' ')" = 22
+          test "$(git hash-object js/app.js)" = 12f02afbae0c1c37413eba36698b6707de10b335
+          test "$(git hash-object css/app.css)" = 22b1a7a59cf8fee1a47165b93a067d5df9e011e1
+          test "$(git hash-object tests/fixtures/extracted-css-baseline.css)" = 22b1a7a59cf8fee1a47165b93a067d5df9e011e1
+          test "$(git hash-object tests/stock-trade-panel-test.js)" = d7654fe10bdd5ff59feecabc926d4c400db197a6
+          test "$(git hash-object tests/run-all.js)" = 7ddc1a63409d59b40942984e6fdf1d289a0918f0
+      - name: Commit verified final tree
+        run: |
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git commit -m 'fix(market): add stock purchase panel'
+          git push origin HEAD:fix/stock-purchase-panel
