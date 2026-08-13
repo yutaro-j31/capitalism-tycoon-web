@@ -30,6 +30,15 @@ jobs:
           Path('/tmp/stage.py').write_text('\n'.join(lines)+'\n')
           PY
           python /tmp/stage.py
+          python - <<'PY'
+          from pathlib import Path
+          p=Path('tests/founding-routes-restaurant-investment-test.js')
+          t=p.read_text()
+          old="const e=game(),stock=e.g.market[0];e.g.companyCash=500_000_000;e.g.personalCash=500_000_000;const q=e.stockExecution(stock,10_000_000,'buy');assert(q.filled<q.requested);const c=e.g.companyCash;"
+          new="const e=game(),stock=e.g.market[0];e.g.personalCash=500_000_000;const q=e.stockExecution(stock,10_000_000,'buy');assert(q.filled<q.requested);e.g.companyCash=Math.max(500_000_000,Math.ceil(q.total*2));const c=e.g.companyCash;"
+          if t.count(old)!=1: raise SystemExit('liquidity test marker mismatch')
+          p.write_text(t.replace(old,new,1))
+          PY
           node tests/syntax-check.js
           node tests/static-check.js
           node tests/founding-routes-restaurant-investment-test.js
