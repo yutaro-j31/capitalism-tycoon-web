@@ -27,8 +27,6 @@ jobs:
                   continue
               t=p.read_text()
               old=t
-              if 'hasHeadOffice' in t:
-                  continue
               replacements=[
                 ("e.g.departments.investment = { established: true };", "e.g.departments.investment = { established: true }; e.g.hasHeadOffice = true;"),
                 ("e.g.departments.investment={established:true};", "e.g.departments.investment={established:true};e.g.hasHeadOffice=true;"),
