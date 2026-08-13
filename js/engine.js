@@ -186,6 +186,8 @@ function createInitialState(options = {}) {
     officeCapacity: 2, officeWeeklyCost: 85_000, contractedOfficeID: null,
     boardEstablished: false, boardAgendas: [], investorOffers: [],
     personalStocks: {}, companyStocks: {}, favoriteStockIds: [], realizedCompanyStockPL: 0, realizedPersonalStockPL: 0,
+    personalStockDividends: 0, companyStockDividends: 0, pendingStockOrders: [], nextStockOrderSeq: 1,
+    investmentPolicy: 'stable-dividend', founderFundingLedger: [], founderContributedEquity: 0, founderShareholderLoan: 0, foundingMilestoneCompleted: false, lastCompanyPortfolioValue: 0,
     subsidiaries: [], acquisitionTargets: [], maSubsidiaries: [], goodwillRecords: [], tenderOffers: [],
     totalAcquisitions: 0, totalMAGain: 0, totalImpairmentLoss: 0,
     productVentures: [], productBuyoutOffers: [], productExitCount: 0,
@@ -602,22 +604,50 @@ class TycoonEngine extends EventTarget {
   openStore({tenantID,businessID,name,operatingHours=3}) {
     const tenant = this.g.tenants.find(t=>t.id===tenantID);
     const business = this.business(businessID);
-    if (!tenant || tenant.occupiedBy) return this.fail('選択したテナントは利用できません。');
+    if (!tenant) return this.fail('物件IDが不正です。');
+    if (tenant.occupiedBy) return this.fail('選択したテナントはすでに契約済みです。');
     if (!business) return this.fail('業種が見つかりません。');
     const cost = business.storeCost + tenant.deposit;
     if (this.g.companyCash < cost) return this.fail(`出店には${yen(cost)}が必要です。`);
-    this.g.companyCash -= cost; tenant.occupiedBy = 'player';
-    const weeks = business.storeCost >= 15_000_000 ? 8 : business.storeCost >= 7_000_000 ? 5 : 3;
-    const store = {id:uuid(),businessID,prefID:tenant.prefID,name:name||`${this.g.companyName} ${this.g.stores.length+1}号店`,openedWeek:this.g.week,
-      quality:business.quality,brand:business.brand,condition:100,lastSales:0,lastProfit:0,status:'preparing',openingWeek:this.g.week+weeks,weeksToOpen:weeks,
-      tenantID,cityName:tenant.cityName,operatingHours:Number(operatingHours)};
-    this.g.stores.push(store);
-    finance.addFixedAsset(this.g,{assetID:`store-${store.id}`,assetType:'storeEquipment',acquisitionCost:business.storeCost,usefulLifeWeeks:260,salvageValue:business.storeCost*.1,businessID,storeID:store.id});
-    finance.event(this.g,'capitalExpenditure',business.storeCost,{cashEffect:-business.storeCost,assetEffect:business.storeCost,businessID,storeID:store.id,sourceType:'openStore',sourceID:store.id,description:`${store.name} 店舗設備`});
-    finance.event(this.g,'otherInvesting',tenant.deposit,{cashEffect:-tenant.deposit,assetEffect:tenant.deposit,businessID,storeID:store.id,sourceType:'openStoreDeposit',sourceID:store.id,description:`${store.name} 保証金`});
-    this.notify(`${store.name}の出店準備を開始しました。開店まで${weeks}週。`,'success');
-    this.evaluateProgression(); this.save(); this.emit(); return true;
+    const before=deepClone(this.g);
+    try {
+      this.g.companyCash -= cost; tenant.occupiedBy = 'player';
+      const weeks = business.storeCost >= 15_000_000 ? 8 : business.storeCost >= 7_000_000 ? 5 : 3;
+      const store = {id:uuid(),businessID,prefID:tenant.prefID,name:name||`${this.g.companyName} ${this.g.stores.length+1}号店`,openedWeek:this.g.week,
+        quality:business.quality,brand:business.brand,condition:100,lastSales:0,lastProfit:0,status:'preparing',openingWeek:this.g.week+weeks,weeksToOpen:weeks,
+        tenantID,cityName:tenant.cityName,operatingHours:Number(operatingHours)};
+      if(businessID==='ramen'){store.concept='station-tonkotsu';store.signatureMenu='classic-value';store.rebrandUntilWeek=0;store.manager=null;store.delegationPolicy={price:'standard',procurement:'standard',staffing:'standard'};}
+      this.g.stores.push(store);
+      finance.addFixedAsset(this.g,{assetID:`store-${store.id}`,assetType:'storeEquipment',acquisitionCost:business.storeCost,usefulLifeWeeks:260,salvageValue:business.storeCost*.1,businessID,storeID:store.id});
+      finance.event(this.g,'capitalExpenditure',business.storeCost,{cashEffect:-business.storeCost,assetEffect:business.storeCost,businessID,storeID:store.id,sourceType:'openStore',sourceID:store.id,description:`${store.name} 店舗設備`});
+      finance.event(this.g,'otherInvesting',tenant.deposit,{cashEffect:-tenant.deposit,assetEffect:tenant.deposit,businessID,storeID:store.id,sourceType:'openStoreDeposit',sourceID:store.id,description:`${store.name} 保証金`});
+      this.notify(`${store.name}の出店準備を開始しました。開店まで${weeks}週。`,'success');
+      this.completeFoundingMilestone('store');this.evaluateProgression();this.save();this.emit();return true;
+    } catch(error) {
+      this.g=before;
+      return this.fail(`出店処理を完了できませんでした: ${error?.message||'不明なエラー'}`);
+    }
   }
+
+  setRamenStrategy(storeID,{concept,signatureMenu}={}) {
+    const store=this.g.stores.find(s=>s.id===storeID&&s.businessID==='ramen');if(!store)return this.fail('対象のラーメン店舗が見つかりません。');
+    const concepts=['station-tonkotsu','artisan-shoyu','family-miso','late-rich'],menus=['classic-value','rich-quality','limited-topping','set-refill'];
+    if(concept&&!concepts.includes(concept))return this.fail('店舗コンセプトが不正です。');if(signatureMenu&&!menus.includes(signatureMenu))return this.fail('看板メニュー方針が不正です。');
+    const changing=Boolean((concept&&store.concept&&concept!==store.concept)||(signatureMenu&&store.signatureMenu&&signatureMenu!==store.signatureMenu));
+    if(changing){const fee=300_000;if(this.g.companyCash<fee)return this.fail('再ブランディング費用30万円が不足しています。');this.g.companyCash-=fee;finance.event(this.g,'advertising',fee,{cashEffect:-fee,profitEffect:-fee,businessID:'ramen',storeID:store.id,sourceType:'storeRebrand',sourceID:`${store.id}-${this.g.week}`,description:`${store.name} 再ブランディング`});store.rebrandUntilWeek=this.g.week+2;}
+    if(concept)store.concept=concept;if(signatureMenu)store.signatureMenu=signatureMenu;this.save();this.emit();return true;
+  }
+  ramenModifiers(storeID){const s=this.g.stores.find(x=>x.id===storeID);const c={
+    'station-tonkotsu':{demand:1.03,capacity:1.08,quality:.98,unitCost:1.01,supply:1.04},'artisan-shoyu':{demand:.98,capacity:.96,quality:1.08,unitCost:1.07,supply:1.02},
+    'family-miso':{demand:1.06,capacity:1.02,quality:1.01,unitCost:1.01,supply:1},'late-rich':{demand:1.04,capacity:.98,quality:1.04,unitCost:1.05,supply:1.03}
+  }[s?.concept]||{demand:1,capacity:1,quality:1,unitCost:1,supply:1};const m={
+    'classic-value':{demand:1.03,capacity:1.03,quality:.99,unitCost:.96,supply:.98},'rich-quality':{demand:.99,capacity:.96,quality:1.06,unitCost:1.07,supply:1.04},
+    'limited-topping':{demand:1.03,capacity:.98,quality:1.03,unitCost:1.04,supply:1.06},'set-refill':{demand:1.04,capacity:.97,quality:1,unitCost:1.02,supply:1.03}
+  }[s?.signatureMenu]||{demand:1,capacity:1,quality:1,unitCost:1,supply:1};return Object.fromEntries(Object.keys(c).map(k=>[k,c[k]*m[k]]));}
+  setStoreManager(storeID,manager,policy={}){const s=this.g.stores.find(x=>x.id===storeID&&x.businessID==='ramen');if(!s)return this.fail('対象店舗が見つかりません。');const abilities=['planning','service','costControl'];if(!manager||abilities.some(k=>!Number.isFinite(Number(manager[k]))))return this.fail('店長能力が不正です。');s.manager={name:String(manager.name||'店長'),planning:clamp(manager.planning,0,100),service:clamp(manager.service,0,100),costControl:clamp(manager.costControl,0,100),morale:clamp(finite(manager.morale,70),0,100),fatigue:clamp(finite(manager.fatigue,10),0,100)};s.delegationPolicy={price:policy.price||'standard',procurement:policy.procurement||'standard',staffing:policy.staffing||'standard'};this.save();this.emit();return true;}
+  setStoreDelegation(storeID,kind,value){const s=this.g.stores.find(x=>x.id===storeID&&x.businessID==='ramen');if(!s?.manager)return this.fail('店長の配置が必要です。');const valid={price:['profit','standard','traffic'],procurement:['stable','standard','lean'],staffing:['service','standard','cost']};if(!valid[kind]?.includes(value))return this.fail('委任方針が不正です。');s.delegationPolicy=s.delegationPolicy||{price:'standard',procurement:'standard',staffing:'standard'};s.delegationPolicy[kind]=value;this.save();this.emit();return true;}
+  applyManagerDelegation(){for(const s of this.g.stores.filter(x=>x.manager&&x.status==='open')){const m=s.manager,p=s.delegationPolicy||{},wf=this.g.workforceResultsByStoreID?.[s.id]||{};m.fatigue=clamp(finite(wf.fatigue,m.fatigue),0,100);m.morale=clamp(finite(wf.morale,m.morale),0,100);const effect=clamp((m.planning+m.service+m.costControl)/300*(.7+m.morale/250)*(1-m.fatigue/180),.05,1);const setting=this.g.supplySettingsByStoreID[s.id]||(this.g.supplySettingsByStoreID[s.id]={});const target=p.procurement==='stable'?1.5:p.procurement==='lean'?.6:1;setting.safetyStockWeeks=clamp(finite(setting.safetyStockWeeks,1)*(1-effect*.2)+target*effect*.2,.25,3);s.lastManagerExplanation=`${m.name}が段取り・接客・原価管理、士気${Math.round(m.morale)}、疲労${Math.round(m.fatigue)}を基に委任方針を適用しました。`;}}
+  storeOperations(storeID){const s=this.g.stores.find(x=>x.id===storeID),m=this.g.marketResultsByStoreID?.[storeID]||s?.marketResult||{},w=this.g.workforceResultsByStoreID?.[storeID]||{},p=this.g.supplyResultsByStoreID?.[storeID]||{};const demand=finite(m.potentialDemand,finite(m.unitsSold)+finite(m.lostDemand)),served=finite(m.unitsSold),lost=finite(m.lostDemand),cap=finite(m.effectiveCapacity,served),fill=finite(p.fillRate,1),spoil=finite(p.spoilageUnits,p.spoilage),scores={demand:demand?served/demand:1,capacity:demand?cap/demand:1,ingredients:Math.min(fill,spoil>0?.7:1),reputation:clamp((finite(s?.quality,50)+finite(s?.brand,20)+finite(w.serviceQuality,50))/300,0,1)};const key=Object.entries(scores).sort((a,b)=>a[1]-b[1]||a[0].localeCompare(b[0]))[0][0];const reasons={demand:'需要に対して実来店が弱く、価格・商圏適合の見直しが必要です。',capacity:'需要が提供力を上回り、待ち時間による機会損失が発生しています。',ingredients:spoil>0?'廃棄が発生し、仕入量と販売量が合っていません。':'食材充足率が低く、欠品で販売機会を失っています。',reputation:'品質・価格・接客の総合評価が弱く、再来店につながっていません。'};return{demand:{demand,served,lost},capacity:{effective:cap,staffLimited:finite(w.staffLimitedCapacity,cap),queueRisk:demand?Math.max(0,(demand-cap)/demand):0},ingredients:{fillRate:fill,stockout:finite(p.stockoutUnits),spoilage:spoil},reputation:{quality:finite(s?.quality),price:finite(this.business(s?.businessID)?.price),service:finite(w.serviceQuality,50),loyalty:finite(s?.brand)},bottleneck:key,reason:reasons[key],suggestions:key==='ingredients'?['仕入方針を調整','販売予測を確認']:key==='capacity'?['人員配置を見直す','提供工程を改善']:['価格と品質を確認','店長方針を確認']};}
 
   closeStore(id) {
     const index=this.g.stores.findIndex(s=>s.id===id); if(index<0)return false;
@@ -714,32 +744,40 @@ class TycoonEngine extends EventTarget {
     this.g.companyCash-=5_000_000;finance.event(this.g,'headOfficeExpense',5_000_000,{cashEffect:-5_000_000,profitEffect:-5_000_000,sourceType:'establishBoard',sourceID:`board-${this.g.week}`,description:'取締役会設置費'});this.g.boardEstablished=true;this.notify('取締役会を設置しました。','success');this.save();this.emit();return true;
   }
 
-  buyStock(stockID,qty,account='personal') {
+  buyStock(stockID,qty,account='personal',opts={}) {
     const stock=this.stock(stockID);qty=Math.max(0,Math.floor(qty));if(!stock||qty<1)return this.fail('数量が不正です。');
-    const cost=stock.price*qty*1.001;const cashKey=account==='company'?'companyCash':'personalCash';
-    if(account==='company'&&!this.g.departments.investment)return this.fail('会社口座の株式投資には投資部門が必要です。');
+    if(!['company','personal'].includes(account))return this.fail('投資口座が不正です。');const execution=this.stockExecution(stock,qty,'buy',opts);if(execution.filled<1)return this.fail('注文条件では約定しませんでした。');const cost=execution.total,filled=execution.filled,cashKey=account==='company'?'companyCash':'personalCash';
     if(this.g[cashKey]<cost)return this.fail('資金が不足しています。');
     this.g[cashKey]-=cost;if(account==='company')finance.event(this.g,'investmentPurchase',cost,{cashEffect:-cost,assetEffect:cost,sourceType:'buyStock',sourceID:`${stockID}-${this.g.week}`,description:`${stock.name} 株式購入`});const key=account==='company'?'companyStocks':'personalStocks';const h=this.g[key][stockID]||{qty:0,avg:0};
-    h.avg=(h.avg*h.qty+cost)/(h.qty+qty);h.qty+=qty;this.g[key][stockID]=h;
-    stock.price*=1+Math.min(.03,qty/Math.max(1,stock.issuedShares)*.6);stock.marketCap=stock.price*stock.issuedShares;
-    this.notify(`${account==='company'?'会社':'個人'}口座で${stock.name}を${qty.toLocaleString()}株購入しました。`,'success');this.save();this.emit();return true;
+    h.avg=(h.avg*h.qty+cost)/(h.qty+filled);h.qty+=filled;this.g[key][stockID]=h;
+    stock.price*=1+Math.min(.03,filled/Math.max(1,stock.issuedShares)*.6);stock.marketCap=stock.price*stock.issuedShares;if(account==='company')this.completeFoundingMilestone('investment');
+    this.notify(`${account==='company'?'会社':'個人'}口座で${stock.name}を${filled.toLocaleString()}株購入しました。${filled<qty?'流動性により一部約定。':''}`,'success');this.save();this.emit();return true;
   }
-  sellStock(stockID,qty,account='personal') {
-    const stock=this.stock(stockID);qty=Math.max(0,Math.floor(qty));const key=account==='company'?'companyStocks':'personalStocks';const h=this.g[key][stockID];
-    if(!stock||!h||qty<1||h.qty<qty)return this.fail('売却可能株数を超えています。');
-    const proceeds=stock.price*qty*.999;const soldBook=h.avg*qty,profit=proceeds-soldBook;this.g[account==='company'?'companyCash':'personalCash']+=proceeds;if(account==='company')finance.event(this.g,'investmentSale',proceeds,{cashEffect:proceeds,assetEffect:-soldBook,profitEffect:profit,sourceType:'sellStock',sourceID:`${stockID}-${this.g.week}`,description:`${stock.name} 株式売却`});
-    h.qty-=qty;if(h.qty===0)delete this.g[key][stockID];
+  sellStock(stockID,qty,account='personal',opts={}) {
+    const stock=this.stock(stockID);qty=Math.max(0,Math.floor(qty));if(!['company','personal'].includes(account))return this.fail('投資口座が不正です。');const key=account==='company'?'companyStocks':'personalStocks';const h=this.g[key][stockID];
+    if(!stock||!h||qty<1||h.qty<1)return this.fail('売却可能株数を超えています。');const requested=Math.min(qty,h.qty),execution=this.stockExecution(stock,requested,'sell',opts);if(execution.filled<1)return this.fail('注文条件では約定しませんでした。');const filled=execution.filled,proceeds=execution.total,soldBook=h.avg*filled,profit=proceeds-soldBook;this.g[account==='company'?'companyCash':'personalCash']+=proceeds;if(account==='company')finance.event(this.g,'investmentSale',proceeds,{cashEffect:proceeds,assetEffect:-soldBook,profitEffect:profit,sourceType:'sellStock',sourceID:`${stockID}-${this.g.week}`,description:`${stock.name} 株式売却`});
+    h.qty-=filled;if(h.qty===0)delete this.g[key][stockID];
     this.g[account==='company'?'realizedCompanyStockPL':'realizedPersonalStockPL']+=profit;
-    stock.price*=1-Math.min(.03,qty/Math.max(1,stock.issuedShares)*.6);stock.marketCap=stock.price*stock.issuedShares;
-    this.notify(`${stock.name}を${qty.toLocaleString()}株売却しました。損益${yen(profit)}。`,profit>=0?'success':'warning');this.save();this.emit();return true;
+    stock.price*=1-Math.min(.03,filled/Math.max(1,stock.issuedShares)*.6);stock.marketCap=stock.price*stock.issuedShares;
+    this.notify(`${stock.name}を${filled.toLocaleString()}株売却しました。損益${yen(profit)}。${filled<qty?'流動性により一部約定。':''}`,profit>=0?'success':'warning');this.save();this.emit();return true;
   }
+  stockExecution(stock,qty,side,{limitPrice=null}={}){const requested=Math.max(0,Math.floor(finite(qty))),liquidity=Math.max(1000,Math.floor(finite(stock.issuedShares,1)*.002)),spread=clamp(.001+finite(stock.volatility,.05)*.02,.001,.006),price=finite(stock.price)*(side==='buy'?1+spread:1-spread);if(Number.isFinite(Number(limitPrice))&&Number(limitPrice)>0&&((side==='buy'&&price>Number(limitPrice))||(side==='sell'&&price<Number(limitPrice))))return{requested,filled:0,unfilled:requested,price,spread,commission:0,total:0,liquidity};const filled=Math.min(requested,liquidity),commission=filled?Math.max(50,price*filled*.001):0;return{requested,filled,unfilled:requested-filled,price,spread,commission,total:side==='buy'?price*filled+commission:Math.max(0,price*filled-commission),liquidity};}
+  placeStockOrder({stockID,qty,account='personal',side='buy',type='market',limitPrice=null,expiresWeek=null}={}){const stock=this.stock(stockID);qty=Math.floor(finite(qty));if(!stock||qty<1||!['company','personal'].includes(account)||!['buy','sell'].includes(side)||!['market','limit'].includes(type))return this.fail('注文内容が不正です。');if(type==='market')return side==='buy'?this.buyStock(stockID,qty,account):this.sellStock(stockID,qty,account);limitPrice=finite(limitPrice);if(limitPrice<=0)return this.fail('指値価格が不正です。');const key=account==='company'?'companyStocks':'personalStocks',cash=account==='company'?this.g.companyCash:this.g.personalCash;if(side==='buy'&&cash<qty*limitPrice)return this.fail('資金が不足しています。');if(side==='sell'&&finite(this.g[key]?.[stockID]?.qty)<qty)return this.fail('売却可能株数を超えています。');this.g.pendingStockOrders.push({id:`stock-order-${this.g.nextStockOrderSeq++}`,stockID,qty,remaining:qty,account,side,type,status:'pending',limitPrice,createdWeek:this.g.week,expiresWeek:expiresWeek||this.g.week+4});this.save();this.emit();return true;}
+  processStockOrders(){for(const o of this.g.pendingStockOrders.filter(x=>x.status==='pending'||x.status==='partial')){if(this.g.week>o.expiresWeek){o.status='expired';continue;}const stock=this.stock(o.stockID);if(!stock){o.status='expired';continue;}const execution=this.stockExecution(stock,o.remaining,o.side,{limitPrice:o.limitPrice});if(execution.filled<1)continue;const ok=o.side==='buy'?this.buyStock(o.stockID,execution.filled,o.account,{limitPrice:o.limitPrice}):this.sellStock(o.stockID,execution.filled,o.account,{limitPrice:o.limitPrice});if(ok){o.remaining-=execution.filled;o.status=o.remaining>0?'partial':'filled';}}}
+  portfolioSummary(account='company'){const holdings=this.g[account==='company'?'companyStocks':'personalStocks'],cash=finite(this.g[account==='company'?'companyCash':'personalCash']),rows=Object.entries(holdings).map(([id,h])=>({id,value:finite(this.stock(id)?.price)*h.qty,cost:h.avg*h.qty})),marketValue=rows.reduce((a,x)=>a+x.value,0),costBasis=rows.reduce((a,x)=>a+x.cost,0),largest=Math.max(0,...rows.map(x=>x.value));return{marketValue,costBasis,unrealizedPL:marketValue-costBasis,realizedPL:finite(this.g[account==='company'?'realizedCompanyStockPL':'realizedPersonalStockPL']),dividends:finite(this.g[account==='company'?'companyStockDividends':'personalStockDividends']),cashRatio:cash/Math.max(1,cash+marketValue),concentration:largest/Math.max(1,marketValue)};}
+  setInvestmentPolicy(policy){if(!['stable-dividend','growth','value-turnaround'].includes(policy))return this.fail('投資方針が不正です。');this.g.investmentPolicy=policy;this.save();this.emit();return true;}
+  updateInvestmentRiskCredit(){const p=this.portfolioSummary('company'),prev=finite(this.g.lastCompanyPortfolioValue,p.marketValue);if(prev>0&&p.marketValue>0){const r=(p.marketValue-prev)/prev;if(r<-.05)this.g.companyCredit=clamp(this.g.companyCredit-Math.min(.5,Math.abs(r)*2),0,100);else if(r>.05)this.g.companyCredit=clamp(this.g.companyCredit+.05,0,100);}if(p.concentration>.65)this.g.companyCredit=clamp(this.g.companyCredit-.10,0,100);this.g.lastCompanyPortfolioValue=p.marketValue;return p;}
+  founderFund(kind,amount){amount=finite(amount);if(!['equity','shareholder-loan'].includes(kind)||amount<=0)return this.fail('資金移動の種類または金額が不正です。');if(this.g.personalCash<amount)return this.fail('個人資金が不足しています。');this.g.personalCash-=amount;this.g.companyCash+=amount;const f=finance.ensureFinance(this.g);if(kind==='shareholder-loan'){this.g.companyDebt+=amount;this.g.founderShareholderLoan=finite(this.g.founderShareholderLoan)+amount;f.loans.push({loanID:`founder-loan-${this.g.week}-${f.loans.length+1}`,principal:amount,outstandingPrincipal:amount,interestRate:.02,termWeeks:260,remainingWeeks:260,repaymentMethod:'manual',weeklyPrincipalPayment:0,nextPaymentWeek:null,status:'active',lender:'founder'});finance.event(this.g,'debtBorrowing',amount,{cashEffect:amount,liabilityEffect:amount,sourceType:'founderFunding',sourceID:`loan-${this.g.week}-${this.g.founderFundingLedger.length}`,description:'創業者株主ローン'});}else{this.g.founderContributedEquity=finite(this.g.founderContributedEquity)+amount;f.balances.capitalSurplus=finite(f.balances.capitalSurplus)+amount;finance.event(this.g,'equityFinancing',amount,{cashEffect:amount,equityEffect:amount,sourceType:'founderFunding',sourceID:`equity-${this.g.week}-${this.g.founderFundingLedger.length}`,description:'創業者増資'});}this.g.founderFundingLedger.push({week:this.g.week,kind,amount});this.save();this.emit();return true;}
+  repayFounderLoan(amount){amount=Math.min(finite(amount),finite(this.g.founderShareholderLoan));if(amount<=0)return this.fail('返済額が不正です。');if(this.g.companyCash<amount)return this.fail('会社現金が不足しています。');this.g.companyCash-=amount;this.g.personalCash+=amount;this.g.companyDebt-=amount;this.g.founderShareholderLoan-=amount;let remaining=amount;for(const loan of finance.ensureFinance(this.g).loans.filter(x=>x.status==='active'&&x.lender==='founder')){const pay=Math.min(remaining,finite(loan.outstandingPrincipal));loan.outstandingPrincipal-=pay;remaining-=pay;if(loan.outstandingPrincipal<=0){loan.outstandingPrincipal=0;loan.status='paid';}if(remaining<=0)break;}finance.event(this.g,'debtRepayment',amount,{cashEffect:-amount,liabilityEffect:-amount,sourceType:'founderLoanRepayment',sourceID:`${this.g.week}-${amount}`,description:'創業者株主ローン返済'});this.g.founderFundingLedger.push({week:this.g.week,kind:'shareholder-loan-repayment',amount});this.save();this.emit();return true;}
+  completeFoundingMilestone(source){if(this.g.foundingMilestoneCompleted)return false;this.g.foundingMilestoneCompleted=true;if(!this.g.achievements.includes('home_founding'))this.g.achievements.push('home_founding');this.g.news.unshift(`第${this.g.week}週：実績「実家起業」を解除しました。`);return source;}
+  districtTags(entity){const pref=this.g.prefs.find(p=>p.id===entity?.prefID)||{},area=this.area(pref.areaID||this.g.selectedArea)||{},traffic=finite(entity?.traffic,pref.traffic),rent=finite(entity?.rent,pref.rent),competition=finite(area.competition),wins=[];if(traffic>=1.05)wins.push('高い通行量');if(rent<finite(pref.rent,1)*1.05)wins.push('賃料効率');if(competition<.55)wins.push('競合余地');if(wins.length<2)wins.push('安定商圏','供給アクセス');const warning=competition>.65?'競合過密':rent>finite(pref.rent,1)*1.2?'高賃料':'採用難に注意';const recommended=traffic>1.12?'station-tonkotsu':competition<.45?'family-miso':rent>finite(pref.rent,1)*1.15?'artisan-shoyu':'late-rich';return{wins:wins.slice(0,2),warning,recommended};}
   toggleFavorite(stockID) {
     const a=this.g.favoriteStockIds;const i=a.indexOf(stockID);i>=0?a.splice(i,1):a.push(stockID);this.save();this.emit();
   }
 
   investStartup(startupID,amount,account='company') {
     const s=this.g.startups.find(x=>x.id===startupID);amount=finite(amount);if(!s||!s.alive||amount<=0)return false;
-    if(account==='company'&&!this.g.departments.investment)return this.fail('会社投資には投資部門が必要です。');
+    if(account==='company'&&!this.g.hasHeadOffice)return this.fail('会社VC投資はオフィス契約後に利用可能です。');
     if(amount<s.minTicket)return this.fail(`最低投資額は${yen(s.minTicket)}です。`);
     const cashKey=account==='company'?'companyCash':'personalCash';if(this.g[cashKey]<amount)return this.fail('資金が不足しています。');
     const equity=clamp(amount/(s.valuation+amount),0,.35);this.g[cashKey]-=amount;s.valuation+=amount*.75;
@@ -750,6 +788,7 @@ class TycoonEngine extends EventTarget {
   }
   makeSubsidiary(startupID) {
     const s=this.g.startups.find(x=>x.id===startupID);if(!s||s.subsidiary)return false;
+    if(!this.g.hasHeadOffice)return this.fail('子会社化はオフィス契約後に利用可能です。');
     if(s.ownedCompany<.5)return this.fail('会社持分50%以上が必要です。');
     s.subsidiary=true;const book=finite(s.totalInvestedCompany||0);this.g.subsidiaries.push({id:uuid(),startupID:s.id,name:s.name,domain:s.domain,ownership:s.ownedCompany,valuation:s.valuation,investedCost:book,carryingBookValue:book,weeklyProfit:0,growth:s.growth,risk:s.risk,publicCompany:false,status:'active',retainedEarnings:0});
     this.notify(`${s.name}を連結子会社化しました。`,'success');this.save();this.emit();return true;
@@ -862,7 +901,7 @@ class TycoonEngine extends EventTarget {
   }
 
   generateMATargets(force=false) {
-    if(!this.g.departments.investment)return this.fail('投資部門が必要です。');if(!force&&this.g.acquisitionTargets.length>=6)return true;
+    if(!this.g.hasHeadOffice)return this.fail('M&Aはオフィス契約後に利用可能です。');if(!force&&this.g.acquisitionTargets.length>=6)return true;
     const names=['北斗フーズ','ネクスト店舗DX','東亜物流','みらい不動産管理','クラウド工房','地域メディアネット','ウェルネスパートナーズ','精密部品ラボ'];
     const domains=['外食','SaaS','物流','不動産','IT','メディア','ヘルスケア','製造'];
     this.g.acquisitionTargets=Array.from({length:8},(_,i)=>{
@@ -1246,8 +1285,8 @@ class TycoonEngine extends EventTarget {
     if(this.g.gameOver)return this.fail('会社は破綻状態です。');
     if(this.g.isCompanySold){this.g.week++;this.g.month=Math.floor((this.g.week-1)/4)+1;this.updatePersonalAssets();this.recordHistory(0,0);this.save();this.emit('week',{summary:null});return true;}
     if(this.g.autoManage)this.autoManage();
-    this.g.week++;this.g.month=Math.floor((this.g.week-1)/4)+1;if(this.g.week%52===0)this.g.founderAge++;
-    supply.ensure(this.g);workforce.ensure(this.g);workforce.processWeekStart(this.g);workforce.generateCandidates(this.g);workforce.recompute(this.g);const beginningCash=this.g.companyCash;this.updateMacro();this.updateMarket();this.updateProperties();this.updateStartups();this.updateCompetitors();this.updateCompetitorProducts();this.updateCounterCampaigns();this.updateDirectivesAndCampaigns();
+    this.g.week++;this.g.month=Math.floor((this.g.week-1)/4)+1;if(this.g.week%52===0)this.g.founderAge++;this.applyManagerDelegation();
+    supply.ensure(this.g);workforce.ensure(this.g);workforce.processWeekStart(this.g);workforce.generateCandidates(this.g);workforce.recompute(this.g);const beginningCash=this.g.companyCash;this.updateMacro();this.updateMarket();this.processStockOrders();this.updateInvestmentRiskCredit();this.updateProperties();this.updateStartups();this.updateCompetitors();this.updateCompetitorProducts();this.updateCounterCampaigns();this.updateDirectivesAndCampaigns();
     const product=this.updateProducts(),overseas=this.updateOverseas(),subs=this.updateSubsidiaries(),franchise=this.updateFranchise();this.updatePersonalAssets();
     for(const store of this.g.stores){if(store.status==='preparing'&&this.g.week>=store.openingWeek){store.status='open';store.weeksToOpen=0;this.g.news.unshift(`第${this.g.week}週：${store.name}が開店しました。`);}if(store.status==='open'&&supply.isTargetBusinessID(store.businessID))supply.ensureInitialProcurementForOpenStore(this.g,store,finance);}
     const spoilage=supply.spoil(this.g,finance);supply.receiveOrders(this.g,finance);supply.payables(this.g,finance);
@@ -1283,12 +1322,13 @@ class TycoonEngine extends EventTarget {
     const execPayroll=this.g.week%4===0?Object.values(this.g.executives).reduce((a,e)=>a+finite(e.salary)/12,0):0;
     const deptCost=workforce.weeklyPayroll(this.g);
     const officeCost=this.g.hasHeadOffice?this.g.officeWeeklyCost:0,interest=this.g.companyDebt*this.companyBorrowRate()/52;expenses+=execPayroll+deptCost+officeCost+interest;
-    if(this.g.week%13===0){for(const [id,h] of Object.entries(this.g.companyStocks)){const s=this.stock(id);if(s&&id!==this.g.ticker)stockIncome+=h.qty*(s.dividendPerShare||s.price*s.dividendYield/4);}for(const [id,h] of Object.entries(this.g.personalStocks)){const s=this.stock(id);if(s&&id!==this.g.ticker)this.g.personalCash+=h.qty*(s.dividendPerShare||s.price*s.dividendYield/4)*.797;}if(this.g.publicCompany&&this.g.dividendPerShare>0){dividend=this.g.dividendPerShare*Math.max(0,this.g.sharesOut-this.g.treasuryBuybackShares);const founderGross=dividend*this.g.founderOwnershipRatio;this.g.personalCash+=founderGross*.797;expenses+=dividend;}}
+    if(this.g.week%13===0){for(const [id,h] of Object.entries(this.g.companyStocks)){const s=this.stock(id);if(s&&id!==this.g.ticker)stockIncome+=h.qty*(s.dividendPerShare||s.price*s.dividendYield/4);}this.g.companyStockDividends=finite(this.g.companyStockDividends)+stockIncome;for(const [id,h] of Object.entries(this.g.personalStocks)){const s=this.stock(id);if(s&&id!==this.g.ticker){const personalDividend=h.qty*(s.dividendPerShare||s.price*s.dividendYield/4)*.797;this.g.personalCash+=personalDividend;this.g.personalStockDividends=finite(this.g.personalStockDividends)+personalDividend;}}if(this.g.publicCompany&&this.g.dividendPerShare>0){dividend=this.g.dividendPerShare*Math.max(0,this.g.sharesOut-this.g.treasuryBuybackShares);const founderGross=dividend*this.g.founderOwnershipRatio;this.g.personalCash+=founderGross*.797;expenses+=dividend;}}
     const projectRun=workforce.advanceProjects(this.g);const projectCost=finite(projectRun?.projectCost);expenses+=projectCost;const turnoverRun=workforce.updateEndOfWeek(this.g);const severanceCost=finite(turnoverRun?.turnoverCost);expenses+=severanceCost;supply.autoOrder(this.g);const operatingProfit=sales+rentIncome+stockIncome-expenses+subs.profit;let tax=0;if(this.g.week%13===0&&operatingProfit>0){tax=operatingProfit*.306;expenses+=tax;}
     const profit=sales+rentIncome+stockIncome-expenses+subs.profit;const weeklyCashDelta=profit+supplyCogsNonCash+finite(spoilage?.cost),nonStoreCashDelta=weeklyCashDelta-storeCashDelta;this.g.companyCash+=nonStoreCashDelta+storeCashDelta;this.g.companyCredit=clamp(this.g.companyCredit+(profit>=0?.15:-.3),0,100);this.g.companyReputation=clamp(this.g.companyReputation+(profit>0?.08:-.04),0,100);
     finance.recordWeekly(this.g,{beginningCash,stores:financeStores,other:{productRevenue:product.revenue,overseasRevenue:overseas.revenue,subsRevenue:subs.revenue,franchiseRevenue:franchise,rentIncome,stockIncome,productCost:-product.cost,overseasCost:-overseas.cost,execPayroll:-execPayroll,deptCost:-deptCost,officeCost:-officeCost,projectCost:-projectCost,severanceCost:-severanceCost,propertyDepreciation:-propertyDepreciation,interest:-interest,taxExpense:-tax,taxPayment:-tax,dividend:-dividend,subsProfit:subs.profit}});
     if(!this.g.skipWeeklyValidation){finance.validate(this.g);supply.validate(this.g);workforce.validate(this.g);competitor.validate(this.g);}
-    const report={week:this.g.week,sales,expenses,rentIncome,stockIncome,interest,dividend,officeCost,spoilageExpense:finite(spoilage?.cost),profit,investmentPL:subs.profit,companyStockUnrealizedPL:this.unrealizedPL('company'),propertyDepreciation,tax};this.g.lastReport=report;this.g.reports.push(report);this.g.reports=this.g.reports.slice(-520);
+    const causal=this.g.stores.length?[{kind:'revenue',label:'店舗売上',amount:sales},{kind:'cost',label:'営業費用',amount:-expenses},{kind:'opportunity',label:'失注機会',amount:-Object.values(this.g.marketResultsByStoreID||{}).reduce((a,r)=>a+finite(r.lostDemand)*finite(r.price),0)}]:[{kind:'portfolio',label:'上場株評価損益',amount:this.unrealizedPL('company')},{kind:'dividend',label:'受取配当',amount:stockIncome},{kind:'liquidity',label:'会社現金',amount:this.g.companyCash}];causal.sort((a,b)=>Math.abs(b.amount)-Math.abs(a.amount)||a.label.localeCompare(b.label));
+    const report={week:this.g.week,sales,expenses,rentIncome,stockIncome,interest,dividend,officeCost,spoilageExpense:finite(spoilage?.cost),profit,investmentPL:subs.profit,companyStockUnrealizedPL:this.unrealizedPL('company'),propertyDepreciation,tax,causalDrivers:causal.slice(0,3),recommendation:this.g.stores.length?(causal.some(x=>x.kind==='opportunity'&&x.amount<0)?'欠品・提供力を改善する':'最も利益率の高い店舗へ集中する'):(this.portfolioSummary('company').concentration>.5?'集中投資リスクを下げる':'投資余力と配当を確認する')};this.g.lastReport=report;this.g.reports.push(report);this.g.reports=this.g.reports.slice(-520);
     this.recordHistory(sales,profit);this.evaluateProgression();this.generateRecurringEvents();
     if(this.g.companyCash<0){this.g.consecutiveNegativeCashWeeks=finite(this.g.consecutiveNegativeCashWeeks)+1;if(this.g.consecutiveNegativeCashWeeks>=2){this.g.gameOver=true;this.g.gameOverReason='会社現金が2週連続でマイナスになりました。';}}else this.g.consecutiveNegativeCashWeeks=0;
     const summary={...report,companyCash:this.g.companyCash,companyValue:this.companyValue(),personalNetWorth:this.personalNetWorth(),newNews:this.g.news.slice(0,5)};this.g.lastWeeklySummary=summary;
@@ -1327,7 +1367,7 @@ class TycoonEngine extends EventTarget {
   }
   generateRecurringEvents() {
     if(this.g.week%13===0){this.g.news.unshift(`第${this.g.week}週：四半期決算を発表しました。`);if(this.g.boardEstablished)this.g.boardAgendas=[{id:uuid(),title:'成長投資枠の承認',detail:'次四半期の投資予算を決定',cost:5_000_000,effect:'成長',approved:false},{id:uuid(),title:'財務規律の強化',detail:'借入削減と信用改善',cost:2_000_000,effect:'信用',approved:false}];}
-    if(this.g.departments.investment&&this.g.acquisitionTargets.length<3&&this.g.week%8===0)this.generateMATargets(true);
+    if(this.g.hasHeadOffice&&this.g.acquisitionTargets.length<3&&this.g.week%8===0)this.generateMATargets(true);
     if(this.g.departments.product&&this.g.internalVentureProposals.length===0&&Math.random()<.08)this.proposeInternalVenture();
     if(this.g.publicCompany&&this.companyValue()>1_000_000_000&&Math.random()<.005)this.g.news.unshift(`第${this.g.week}週：同業大手から自社買収の打診が届いています。`);
     if(this.g.news.length>300)this.g.news=this.g.news.slice(0,300);

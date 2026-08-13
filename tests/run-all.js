@@ -180,7 +180,8 @@ for (const [name, file] of [
   ['executive-secretary', 'tests/executive-secretary-test.js'],
   ['executive-secretary-ui', 'tests/executive-secretary-ui-test.js'],
   ['executive-secretary-purity', 'tests/executive-secretary-purity-test.js'],
-  ['stock-trade-panel', 'tests/stock-trade-panel-test.js']
+  ['stock-trade-panel', 'tests/stock-trade-panel-test.js'],
+  ['founding-routes-restaurant-investment', 'tests/founding-routes-restaurant-investment-test.js']
 ]) {
   const result = spawnSync('node', [file], {
     encoding: 'utf8',

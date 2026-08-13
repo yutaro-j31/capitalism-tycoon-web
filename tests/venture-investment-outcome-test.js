@@ -17,6 +17,7 @@ function createEngine(loaded) {
   engine.g.difficulty = 'normal';
   engine.g.companyName = 'Venture Co';
   engine.g.departments.investment = { level: 1 };
+  engine.g.hasHeadOffice = true;
   return engine;
 }
 
@@ -124,8 +125,9 @@ function nonOperating(loaded, engine) {
   const listed = engine.g.market.find(row => row.id === stockID);
   assert.ok(listed, 'the venture is listed');
 
-  const costBasis = holding.qty * holding.avg;
-  const proceeds = listed.price * holding.qty * 0.999;
+  const execution = engine.stockExecution(listed, holding.qty, 'sell');
+  const costBasis = execution.filled * holding.avg;
+  const proceeds = execution.total;
   const expectedGain = Math.round(proceeds - costBasis);
   const nonOperatingBefore = nonOperating(loaded, engine);
 
