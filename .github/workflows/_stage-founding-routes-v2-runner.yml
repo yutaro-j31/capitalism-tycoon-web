@@ -56,6 +56,12 @@ jobs:
           new="  const execution = engine.stockExecution(listed, holding.qty, 'sell');\n  const costBasis = execution.filled * holding.avg;\n  const proceeds = execution.total;\n  const expectedGain = Math.round(proceeds - costBasis);"
           if vt.count(old)!=1: raise SystemExit('venture partial-fill expectation marker mismatch')
           vp.write_text(vt.replace(old,new,1))
+          ma=Path('tests/ma-deal-room-test.js')
+          mt=ma.read_text()
+          old="e.g.departments.investment={established:true};e.g.departmentStaff.investment=6;"
+          new="e.g.departments.investment={established:true};e.g.hasHeadOffice=true;e.g.departmentStaff.investment=6;"
+          if mt.count(old)!=1: raise SystemExit('ma fixture office marker mismatch')
+          ma.write_text(mt.replace(old,new,1))
           PY
           node tests/syntax-check.js
           node tests/static-check.js
@@ -80,7 +86,7 @@ jobs:
           import subprocess
           expected={
             'css/app.css','docs/LOAD_ORDER.md','js/app.js','js/engine.js','js/ma-deal-room.js','js/market.js','js/play-runtime-compat.js',
-            'tests/finance-startup-subsidiary-test.js','tests/fixtures/extracted-css-baseline.css','tests/founding-routes-restaurant-investment-test.js','tests/run-all.js','tests/transaction-regression-test.js','tests/venture-investment-outcome-test.js','tests/venture-investment-reachability-test.js'
+            'tests/finance-startup-subsidiary-test.js','tests/fixtures/extracted-css-baseline.css','tests/founding-routes-restaurant-investment-test.js','tests/ma-deal-room-test.js','tests/run-all.js','tests/transaction-regression-test.js','tests/venture-investment-outcome-test.js','tests/venture-investment-reachability-test.js'
           }
           got=set(subprocess.check_output(['git','diff','--name-only','cf938896702b60398addd305eb20403972834bf5']).decode().split())
           if got!=expected: raise SystemExit(f'net diff mismatch expected={sorted(expected)} got={sorted(got)}')
