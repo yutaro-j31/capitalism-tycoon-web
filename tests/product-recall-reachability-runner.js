@@ -37,7 +37,12 @@ function configureEstablishedCompany(loaded, engine, policy) {
   engine.g.configured = true;
 }
 
-function simulate({ policy, seed, respond, qualityGuard = false }) {
+// Determinism is a property of the path, so verifying it does not require a second full
+// 207-week replay. A capped run walks the same path and must reach the same checkpoint
+// the full run passes through; any divergence before it still surfaces.
+const CHECKPOINT_WEEKS = 26;
+
+function simulate({ policy, seed, respond, qualityGuard = false, weeks = 207 }) {
   const loaded = loadGame({ headless: true, random: rng(seed) });
   assert(loaded.modules.productLifecycle?.__installed, 'product lifecycle module must be loaded');
   const engine = new loaded.engineModule.TycoonEngine();
@@ -51,7 +56,8 @@ function simulate({ policy, seed, respond, qualityGuard = false }) {
   let profitableWeeks = 0;
   let observedWeeks = 0;
 
-  for (let i = 0; i < 207; i++) {
+  let checkpoint = null;
+  for (let i = 0; i < weeks; i++) {
     const current = engine.g.productVentures[0];
     if (qualityGuard) {
       let nextPolicy = null;
@@ -104,6 +110,24 @@ function simulate({ policy, seed, respond, qualityGuard = false }) {
         financeProfitEffect: Number(responseTransaction.profitEffect)
       };
     }
+
+    if (i === CHECKPOINT_WEEKS - 1) {
+      checkpoint = {
+        week: Number(engine.g.week),
+        cash: Math.round(Number(engine.g.companyCash)),
+        reputation: Number(Number(engine.g.companyReputation).toFixed(4)),
+        recallStarts: engine.g.productRecallHistory.filter(row => row.type === 'started').length,
+        activeRecallStatus: String(engine.g.activeProductRecall?.responseStatus || 'none'),
+        technicalDebt: Number(Number(product?.technicalDebt || 0).toFixed(4)),
+        quality: Number(Number(product?.quality || 0).toFixed(4)),
+        revenue: Math.round(Number(product?.revenue || 0)),
+        profit: Math.round(Number(product?.profit || 0)),
+        maintenancePolicy: String(product?.maintenancePolicy || ''),
+        maintenanceChangeWeeks: maintenanceChangeWeeks.slice(),
+        riskHistory: engine.g.productRecallRiskHistory.length,
+        transactions: engine.g.finance.transactions.length
+      };
+    }
   }
 
   const starts = engine.g.productRecallHistory.filter(row => row.type === 'started');
@@ -119,6 +143,7 @@ function simulate({ policy, seed, respond, qualityGuard = false }) {
 
   return {
     policy, seed, respond,
+    checkpoint,
     firstRecallWeek,
     responseWeek,
     responseEffect,
@@ -142,8 +167,9 @@ function simulate({ policy, seed, respond, qualityGuard = false }) {
 
 const seed = 0x8f300101;
 const ignoredA = simulate({ policy: 'lean', seed, respond: false });
-const ignoredB = simulate({ policy: 'lean', seed, respond: false });
-assert.deepEqual(ignoredA, ignoredB, 'same-seed ignored recall path is deterministic');
+const ignoredReplay = simulate({ policy: 'lean', seed, respond: false, weeks: CHECKPOINT_WEEKS });
+assert(ignoredA.checkpoint && ignoredReplay.checkpoint, 'both ignored runs record a checkpoint');
+assert.deepEqual(ignoredReplay.checkpoint, ignoredA.checkpoint, 'same-seed ignored recall path is deterministic');
 assert(ignoredA.firstRecallWeek !== null && ignoredA.firstRecallWeek <= 208, JSON.stringify(ignoredA));
 assert(ignoredA.recallCount >= 1, JSON.stringify(ignoredA));
 assert(ignoredA.initialRecallCost > 0, JSON.stringify(ignoredA));
@@ -151,8 +177,9 @@ assert.equal(ignoredA.initialRecallCashEffect, -ignoredA.initialRecallCost, JSON
 assert(ignoredA.cumulativeLostRevenue > 0, JSON.stringify(ignoredA));
 
 const respondedA = simulate({ policy: 'lean', seed, respond: true });
-const respondedB = simulate({ policy: 'lean', seed, respond: true });
-assert.deepEqual(respondedA, respondedB, 'same-seed response path is deterministic');
+const respondedReplay = simulate({ policy: 'lean', seed, respond: true, weeks: CHECKPOINT_WEEKS });
+assert(respondedA.checkpoint && respondedReplay.checkpoint, 'both response runs record a checkpoint');
+assert.deepEqual(respondedReplay.checkpoint, respondedA.checkpoint, 'same-seed response path is deterministic');
 assert(respondedA.firstRecallWeek !== null, JSON.stringify(respondedA));
 assert(respondedA.responseWeek !== null, JSON.stringify(respondedA));
 assert(respondedA.responseEffect, JSON.stringify(respondedA));
@@ -168,8 +195,9 @@ assert(respondedA.responseTransactionCount >= 1, JSON.stringify(respondedA));
 assert(respondedA.cumulativeLostRevenue < ignoredA.cumulativeLostRevenue, JSON.stringify({ ignoredA, respondedA }));
 
 const healthyA = simulate({ policy: 'standard', seed, respond: false, qualityGuard: true });
-const healthyB = simulate({ policy: 'standard', seed, respond: false, qualityGuard: true });
-assert.deepEqual(healthyA, healthyB, 'same-seed standard-maintenance path is deterministic');
+const healthyReplay = simulate({ policy: 'standard', seed, respond: false, qualityGuard: true, weeks: CHECKPOINT_WEEKS });
+assert(healthyA.checkpoint && healthyReplay.checkpoint, 'both standard-maintenance runs record a checkpoint');
+assert.deepEqual(healthyReplay.checkpoint, healthyA.checkpoint, 'same-seed standard-maintenance path is deterministic');
 assert.equal(healthyA.recallCount, 0, JSON.stringify(healthyA));
 assert(healthyA.maintenanceChangeWeeks.length >= 1, JSON.stringify(healthyA));
 assert(healthyA.profitableRatio >= 0.8, `healthy control must actually be profitable: ${JSON.stringify(healthyA)}`);

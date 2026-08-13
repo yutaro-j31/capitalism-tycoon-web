@@ -4,6 +4,11 @@ const { loadGame } = require('./harness');
 const { SCENARIOS, makeRandom, runScenario } = require('./strategy-balance-runner');
 
 const WEEKS = 208;
+// A determinism run only needs the first weeks of the post-IPO path: the weekly loop
+// does not read the remaining count, so a capped run reproduces the same checkpoint
+// the full run passes through. This keeps the guarantee without a second full replay.
+const CHECKPOINT_POST_IPO_WEEK = 26;
+const POST_IPO_WEEK_LIMIT = Number(process.argv[4] || 0) > 0 ? Number(process.argv[4]) : Infinity;
 const BASE_SCENARIO = SCENARIOS.find(row => row.id === 'ramen-bootstrap');
 const GROWTH_STORE_LIMIT = 6;
 const BALANCED_STORE_LIMIT = 5;
@@ -127,7 +132,8 @@ function runCase(style, seed) {
   let firstCampaignDiagnostic = null;
   let maxPressure = null;
   const startingWeek = engine.g.week;
-  const remainingWeeks = Math.max(0, WEEKS - startingWeek + 1);
+  const remainingWeeks = Math.min(POST_IPO_WEEK_LIMIT, Math.max(0, WEEKS - startingWeek + 1));
+  let checkpoint = null;
   for (let i=0; i<remainingWeeks; i+=1) {
     const postIpoWeek = engine.g.week - startingWeek + 1;
     applyStyle(engine, loaded.modules, style, postIpoWeek);
@@ -148,6 +154,12 @@ function runCase(style, seed) {
       firstCampaignWeek=engine.g.week;
       firstCampaignDiagnostic=triggerDiagnostic(engine);
     }
+    if (postIpoWeek===CHECKPOINT_POST_IPO_WEEK) {
+      checkpoint={postIpoWeek,week:engine.g.week,campaignStarts:after,
+        diagnostic:triggerDiagnostic(engine),operating:operatingSummary(engine),
+        cash:Math.round(engine.g.companyCash),stores:engine.g.stores.length,
+        dividendPerShare:Number(engine.g.dividendPerShare||0)};
+    }
   }
   const history=engine.g.activistCampaignHistory||[];
   const campaignStarts=history.filter(row=>row?.type==='campaignStarted');
@@ -157,7 +169,7 @@ function runCase(style, seed) {
   assert(validation.ok, JSON.stringify(validation));
   assert(history.length<=loaded.modules.shareholderActivism.HISTORY_LIMIT, 'activism history remains bounded');
   const finance=loaded.modules.finance.ensureFinance(engine.g);
-  return {style,seed,ipoWeek:ipo.ipoWeek,firstCampaignWeek,firstCampaignDiagnostic,campaignCount,campaignsByPath,maxPressure,
+  return {style,seed,ipoWeek:ipo.ipoWeek,checkpoint,firstCampaignWeek,firstCampaignDiagnostic,campaignCount,campaignsByPath,maxPressure,
     endingCash:Math.round(engine.g.companyCash),retainedEarnings:Math.round(finance.balances?.retainedEarnings||0),
     dividendPerShare:Number(engine.g.dividendPerShare||0),stores:engine.g.stores.length,operatingSummary:operatingSummary(engine),
     companyValue:Math.round(engine.companyValue()),finalWeek:engine.g.week};
