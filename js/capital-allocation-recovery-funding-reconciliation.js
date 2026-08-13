@@ -21,6 +21,17 @@ function statusLabel(status){return({pending:'未着手',partial:'一部完了',
 function toneFor(status){return status==='complete'?'good':status==='diverged'||status==='blocked'?'bad':'warn';}
 function currentPolicy(instance){return policy.readStateFor(instance).id;}
 function sourceFor(snapshot,sourceId){return(snapshot?.sources||[]).find(row=>row.sourceId===sourceId)||null;}
+function expectedStockProceeds(instance,source,units){
+ const qty=Math.max(0,Math.floor(finite(units))),price=Math.max(0,finite(source?.price));if(qty<1||price<=0)return 0;
+ const live=(instance?.g?.market||[]).find(row=>row.id===source?.sourceId)||{};
+ if(typeof instance?.stockExecution==='function'){const quote=instance.stockExecution({...live,price},qty,'sell');return Math.max(0,finite(quote?.total));}
+ return price*qty*.999;
+}
+function expectedAssetFunding(instance,snapshot){return(snapshot?.steps||[]).reduce((sum,step)=>{
+ if(step.kind==='securities')return sum+expectedStockProceeds(instance,sourceFor(snapshot,step.sourceId),step.units);
+ if(step.kind==='properties')return sum+Math.max(0,finite(step.amount));
+ return sum;
+},0);}
 function transactionId(row){return String(row?.transactionID||row?.id||'');}
 function transactionsSince(instance,snapshot){
  const rows=Array.isArray(instance?.g?.finance?.transactions)?instance.g.finance.transactions:[],lastId=String(snapshot?.baselineLastTransactionId||''),count=Math.max(0,Math.floor(finite(snapshot?.baselineTransactionCount)));
@@ -48,9 +59,9 @@ function reconcileStep(instance,snapshot,step,transactions){
  if(step.kind==='securities'){
   const source=sourceFor(snapshot,step.sourceId);if(!source)return{...base,status:'diverged',progress:0,actual:null,expected:null,reason:'固定時点の株式情報がありません。'};
   const holding=state.companyStocks?.[step.sourceId],actual=Math.max(0,Math.floor(finite(holding?.qty))),initial=Math.max(0,Math.floor(finite(source.holdingUnits))),planned=Math.max(0,Math.floor(finite(step.units))),expected=Math.max(0,initial-planned),stock=(state.market||[]).find(row=>row.id===step.sourceId),priceChanged=Math.abs(finite(stock?.price)-finite(source.price))>.0001;
-  if(actual===expected){if(!evidence.count)return{...base,status:'diverged',progress:1,initial,expected,actual,reason:'保有株数は減っていますが、株式売却の会計記録がありません。'};if(!moneyClose(evidence.cashEffect,base.plannedAmount))return{...base,status:'diverged',progress:1,initial,expected,actual,reason:'株式売却手取額が計画額と一致しません。'};return{...base,status:'complete',progress:1,initial,expected,actual,reason:'予定株数と売却手取額を会計記録で確認しました。'};}
+  if(actual===expected){const expectedProceeds=expectedStockProceeds(instance,source,planned);if(!evidence.count)return{...base,status:'diverged',progress:1,initial,expected,actual,reason:'保有株数は減っていますが、株式売却の会計記録がありません。'};if(!moneyClose(evidence.cashEffect,expectedProceeds))return{...base,status:'diverged',progress:1,initial,expected,actual,reason:'株式売却手取額が約定条件と一致しません。'};return{...base,status:'complete',progress:1,initial,expected,actual,reason:'予定株数と売却手取額を会計記録で確認しました。'};}
   if(actual===initial){if(evidence.count)return{...base,status:'diverged',progress:0,initial,expected,actual,reason:'売却記録がありますが保有株数が減っていません。'};return{...base,status:priceChanged?'diverged':'pending',progress:0,initial,expected,actual,reason:priceChanged?'未売却のまま市場価格が変化しました。':'株式売却はまだ実行されていません。'};}
-  if(actual>expected&&actual<initial){const sold=initial-actual;if(!evidence.count||!moneyClose(evidence.cashEffect,finite(source.price)*sold*.999))return{...base,status:'diverged',progress:sold/Math.max(1,planned),initial,expected,actual,reason:'保有株数の減少と会計上の売却手取額が一致しません。'};return{...base,status:'partial',progress:sold/Math.max(1,planned),initial,expected,actual,reason:'予定株数の一部を売却済みです。'};}
+  if(actual>expected&&actual<initial){const sold=initial-actual,expectedProceeds=expectedStockProceeds(instance,source,sold);if(!evidence.count||!moneyClose(evidence.cashEffect,expectedProceeds))return{...base,status:'diverged',progress:sold/Math.max(1,planned),initial,expected,actual,reason:'保有株数の減少と会計上の売却手取額が約定条件と一致しません。'};return{...base,status:'partial',progress:sold/Math.max(1,planned),initial,expected,actual,reason:'予定株数の一部を売却済みです。'};}
   return{...base,status:'diverged',progress:actual<expected?1:0,initial,expected,actual,reason:actual<expected?'予定株数を超えて売却しています。':'計画固定後に保有株数が増えています。'};
  }
  if(step.kind==='properties'){
@@ -78,7 +89,7 @@ function reconcile(instance,snapshot){
  if(source&&Math.floor(finite(source.week))!==Math.floor(finite(state.week)))issues.push({id:'weekChanged',message:'計画固定後に週が進行しました。'});
  const transactionWindow=source?transactionsSince(instance,source):{rows:[],missingBaseline:false};if(transactionWindow.missingBaseline)issues.push({id:'transactionBaselineMissing',message:'固定時点の会計取引を履歴内で確認できません。'});
  const steps=source?(source.steps||[]).map(step=>reconcileStep(instance,source,step,transactionWindow.rows)):[],counts={pending:0,partial:0,complete:0,diverged:0,blocked:0};for(const step of steps)counts[step.status]=(counts[step.status]||0)+1;
- const baselineCash=finite(source?.baselineCash),actualCash=finite(state.companyCash),expectedCash=baselineCash+Math.max(0,finite(source?.assetFunding))+Math.max(0,finite(source?.borrowing)),cashVariance=actualCash-expectedCash,baselineDebt=Math.max(0,finite(source?.baselineDebt)),actualDebt=Math.max(0,finite(state.companyDebt)),expectedDebt=baselineDebt+Math.max(0,finite(source?.borrowing)),debtVariance=actualDebt-expectedDebt,allComplete=steps.length>0&&counts.complete===steps.length;
+ const baselineCash=finite(source?.baselineCash),actualCash=finite(state.companyCash),plannedAssetFunding=expectedAssetFunding(instance,source),expectedCash=baselineCash+plannedAssetFunding+Math.max(0,finite(source?.borrowing)),cashVariance=actualCash-expectedCash,baselineDebt=Math.max(0,finite(source?.baselineDebt)),actualDebt=Math.max(0,finite(state.companyDebt)),expectedDebt=baselineDebt+Math.max(0,finite(source?.borrowing)),debtVariance=actualDebt-expectedDebt,allComplete=steps.length>0&&counts.complete===steps.length;
  const usedIds=new Set(steps.flatMap(step=>step.evidence?.transactionIds||[])),relevantTransactions=transactionWindow.rows.filter(row=>['sellStock','sellProperty','borrow'].includes(String(row?.sourceType||''))),unexpectedTransactions=relevantTransactions.filter(row=>!usedIds.has(transactionId(row)));
  if(unexpectedTransactions.length)issues.push({id:'unexpectedFundingTransaction',message:`計画外の資金取引が${unexpectedTransactions.length}件あります。`});
  if(allComplete&&!moneyClose(cashVariance,0))issues.push({id:'cashVariance',message:'全手順完了後の会社現金が計画値と一致しません。'});
