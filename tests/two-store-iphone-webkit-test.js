@@ -152,7 +152,6 @@ async function main() {
     await page.locator('#setup-form input[name="playerName"]').fill('悠太郎');
     await page.locator('#setup-form input[name="companyName"]').fill('YTR');
     await page.locator('#setup-form select[name="difficulty"]').selectOption('hard');
-    await page.locator('#setup-form select[name="founderPrefID"]').selectOption('fukuoka');
     await page.locator('#setup-form select[name="founderTraitID"]').selectOption('merchant');
     await page.locator('#setup-form').evaluate(form => form.requestSubmit());
     await page.locator('.topbar').waitFor({ state: 'visible', timeout: 20_000 });
