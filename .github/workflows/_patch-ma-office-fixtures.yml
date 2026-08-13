@@ -31,7 +31,8 @@ jobs:
                 ("e.g.departments.investment = { established: true };", "e.g.departments.investment = { established: true }; e.g.hasHeadOffice = true;"),
                 ("e.g.departments.investment={established:true};", "e.g.departments.investment={established:true};e.g.hasHeadOffice=true;"),
                 ("engine.g.departments.investment = { established: true };", "engine.g.departments.investment = { established: true }; engine.g.hasHeadOffice = true;"),
-                ("engine.g.departments.investment={established:true};", "engine.g.departments.investment={established:true};engine.g.hasHeadOffice=true;")
+                ("engine.g.departments.investment={established:true};", "engine.g.departments.investment={established:true};engine.g.hasHeadOffice=true;"),
+                ("late.g.departments.investment={established:true};", "late.g.departments.investment={established:true};late.g.hasHeadOffice=true;")
               ]
               for a,b in replacements:
                   if a in t:
