@@ -23,6 +23,7 @@ ctx.__ct_ui.showSetup = false;
 engine.g.selectedTab = 'ma';
 engine.g.companyCash = 1_000_000_000;
 engine.g.departments.investment = { established: true };
+engine.g.hasHeadOffice = true;
 engine.g.acquisitionTargets = [{ id: 'ui-pure', name: 'UI純粋物流', domain: '物流', valuation: 100_000_000, sales: 80_000_000, operatingProfit: 8_000_000, growth: .1, risk: .2, synergy: .12, friendly: true, expiresWeek: engine.g.week + 20 }, { id: 'ui-lost', name: 'UI敗北物流', domain: '物流', valuation: 100_000_000, sales: 80_000_000, operatingProfit: 8_000_000, growth: .1, risk: .2, synergy: .12, friendly: true, expiresWeek: engine.g.week + 20, dealStatus: 'lost' }, { id: 'ui-expired', name: 'UI期限切物流', domain: '物流', valuation: 100_000_000, sales: 80_000_000, operatingProfit: 8_000_000, growth: .1, risk: .2, synergy: .12, friendly: true, expiresWeek: engine.g.week + 20, dealStatus: 'expired' }];
 engine.normalize();
 modules.maDealRoom.ensure(engine.g);
