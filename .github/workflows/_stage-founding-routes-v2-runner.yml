@@ -1,0 +1,67 @@
+name: Stage founding routes complete v2 runner
+on:
+  push:
+    branches:
+      - feature/founding-routes-complete-v2
+permissions:
+  contents: write
+jobs:
+  stage:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feature/founding-routes-complete-v2
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Extract and run staging program
+        shell: bash
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          src=Path('.github/workflows/_stage-founding-routes-v2.yml').read_text().splitlines()
+          start=next(i for i,l in enumerate(src) if "python - <<'PY'" in l)+1
+          end=next(i for i in range(start,len(src)) if src[i].strip()=='PY')
+          lines=[]
+          for line in src[start:end]:
+              lines.append(line[10:] if line.startswith('          ') else line)
+          Path('/tmp/stage.py').write_text('\n'.join(lines)+'\n')
+          PY
+          python /tmp/stage.py
+          node tests/syntax-check.js
+          node tests/static-check.js
+          node tests/founding-routes-restaurant-investment-test.js
+          node tests/transaction-regression-test.js
+          node tests/save-compat-test.js
+          node tests/finance-ledger-test.js
+          node tests/market-engine-test.js
+          node tests/market-integration-test.js
+          node tests/supply-engine-test.js
+          node tests/workforce-engine-test.js
+          node tests/finance-startup-subsidiary-test.js
+          node tests/venture-investment-outcome-test.js
+          node tests/venture-investment-reachability-test.js
+          node tests/ma-deal-room-test.js
+          node tests/css-extraction-test.js
+      - name: Verify net diff and commit
+        shell: bash
+        run: |
+          rm -f .github/workflows/_stage-founding-routes-v2.yml .github/workflows/_stage-founding-routes-v2-runner.yml
+          python - <<'PY'
+          import subprocess
+          expected={
+            'css/app.css','docs/LOAD_ORDER.md','js/app.js','js/engine.js','js/ma-deal-room.js','js/market.js','js/play-runtime-compat.js',
+            'tests/finance-startup-subsidiary-test.js','tests/fixtures/extracted-css-baseline.css','tests/founding-routes-restaurant-investment-test.js','tests/run-all.js','tests/transaction-regression-test.js','tests/venture-investment-outcome-test.js','tests/venture-investment-reachability-test.js'
+          }
+          got=set(subprocess.check_output(['git','diff','--name-only','cf938896702b60398addd305eb20403972834bf5']).decode().split())
+          if got!=expected: raise SystemExit(f'net diff mismatch expected={sorted(expected)} got={sorted(got)}')
+          if any(x.startswith('.github/workflows/') for x in got): raise SystemExit('workflow leaked into net diff')
+          if open('css/app.css','rb').read()!=open('tests/fixtures/extracted-css-baseline.css','rb').read(): raise SystemExit('css baseline mismatch')
+          PY
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add -A
+          git commit -m 'feat: integrate ramen and investment founding routes'
+          git push origin HEAD:feature/founding-routes-complete-v2
