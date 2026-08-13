@@ -1,0 +1,81 @@
+name: Patch recovery stock reconciliation
+on:
+  push:
+    branches:
+      - feature/founding-routes-complete-clean
+permissions:
+  contents: write
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feature/founding-routes-complete-clean
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Align recovery reconciliation with stock execution
+        shell: bash
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          p=Path('js/capital-allocation-recovery-funding-reconciliation.js')
+          t=p.read_text()
+
+          old="function sourceFor(snapshot,sourceId){return(snapshot?.sources||[]).find(row=>row.sourceId===sourceId)||null;}\nfunction transactionId(row){return String(row?.transactionID||row?.id||'');}"
+          new="""function sourceFor(snapshot,sourceId){return(snapshot?.sources||[]).find(row=>row.sourceId===sourceId)||null;}
+function expectedStockProceeds(instance,source,units){
+ const qty=Math.max(0,Math.floor(finite(units))),price=Math.max(0,finite(source?.price));if(qty<1||price<=0)return 0;
+ const live=(instance?.g?.market||[]).find(row=>row.id===source?.sourceId)||{};
+ if(typeof instance?.stockExecution==='function'){const quote=instance.stockExecution({...live,price},qty,'sell');return Math.max(0,finite(quote?.total));}
+ return price*qty*.999;
+}
+function expectedAssetFunding(instance,snapshot){return(snapshot?.steps||[]).reduce((sum,step)=>{
+ if(step.kind==='securities')return sum+expectedStockProceeds(instance,sourceFor(snapshot,step.sourceId),step.units);
+ if(step.kind==='properties')return sum+Math.max(0,finite(step.amount));
+ return sum;
+},0);}
+function transactionId(row){return String(row?.transactionID||row?.id||'');}"""
+          if t.count(old)!=1: raise SystemExit(f'source helper anchor count={t.count(old)}')
+          t=t.replace(old,new,1)
+
+          old="if(actual===expected){if(!evidence.count)return{...base,status:'diverged',progress:1,initial,expected,actual,reason:'保有株数は減っていますが、株式売却の会計記録がありません。'};if(!moneyClose(evidence.cashEffect,base.plannedAmount))return{...base,status:'diverged',progress:1,initial,expected,actual,reason:'株式売却手取額が計画額と一致しません。'};return{...base,status:'complete',progress:1,initial,expected,actual,reason:'予定株数と売却手取額を会計記録で確認しました。'};}"
+          new="if(actual===expected){const expectedProceeds=expectedStockProceeds(instance,source,planned);if(!evidence.count)return{...base,status:'diverged',progress:1,initial,expected,actual,reason:'保有株数は減っていますが、株式売却の会計記録がありません。'};if(!moneyClose(evidence.cashEffect,expectedProceeds))return{...base,status:'diverged',progress:1,initial,expected,actual,reason:'株式売却手取額が約定条件と一致しません。'};return{...base,status:'complete',progress:1,initial,expected,actual,reason:'予定株数と売却手取額を会計記録で確認しました。'};}"
+          if t.count(old)!=1: raise SystemExit(f'complete securities anchor count={t.count(old)}')
+          t=t.replace(old,new,1)
+
+          old="if(actual>expected&&actual<initial){const sold=initial-actual;if(!evidence.count||!moneyClose(evidence.cashEffect,finite(source.price)*sold*.999))return{...base,status:'diverged',progress:sold/Math.max(1,planned),initial,expected,actual,reason:'保有株数の減少と会計上の売却手取額が一致しません。'};return{...base,status:'partial',progress:sold/Math.max(1,planned),initial,expected,actual,reason:'予定株数の一部を売却済みです。'};}"
+          new="if(actual>expected&&actual<initial){const sold=initial-actual,expectedProceeds=expectedStockProceeds(instance,source,sold);if(!evidence.count||!moneyClose(evidence.cashEffect,expectedProceeds))return{...base,status:'diverged',progress:sold/Math.max(1,planned),initial,expected,actual,reason:'保有株数の減少と会計上の売却手取額が約定条件と一致しません。'};return{...base,status:'partial',progress:sold/Math.max(1,planned),initial,expected,actual,reason:'予定株数の一部を売却済みです。'};}"
+          if t.count(old)!=1: raise SystemExit(f'partial securities anchor count={t.count(old)}')
+          t=t.replace(old,new,1)
+
+          old="const baselineCash=finite(source?.baselineCash),actualCash=finite(state.companyCash),expectedCash=baselineCash+Math.max(0,finite(source?.assetFunding))+Math.max(0,finite(source?.borrowing)),cashVariance=actualCash-expectedCash,baselineDebt=Math.max(0,finite(source?.baselineDebt)),actualDebt=Math.max(0,finite(state.companyDebt)),expectedDebt=baselineDebt+Math.max(0,finite(source?.borrowing)),debtVariance=actualDebt-expectedDebt,allComplete=steps.length>0&&counts.complete===steps.length;"
+          new="const baselineCash=finite(source?.baselineCash),actualCash=finite(state.companyCash),plannedAssetFunding=expectedAssetFunding(instance,source),expectedCash=baselineCash+plannedAssetFunding+Math.max(0,finite(source?.borrowing)),cashVariance=actualCash-expectedCash,baselineDebt=Math.max(0,finite(source?.baselineDebt)),actualDebt=Math.max(0,finite(state.companyDebt)),expectedDebt=baselineDebt+Math.max(0,finite(source?.borrowing)),debtVariance=actualDebt-expectedDebt,allComplete=steps.length>0&&counts.complete===steps.length;"
+          if t.count(old)!=1: raise SystemExit(f'cash variance anchor count={t.count(old)}')
+          t=t.replace(old,new,1)
+
+          p.write_text(t)
+          PY
+          node tests/capital-allocation-recovery-funding-reconciliation-test.js
+          node tests/capital-allocation-recovery-save-reload-test.js
+          node tests/capital-allocation-recovery-funding-outcome-test.js
+          node tests/transaction-regression-test.js
+          node tests/syntax-check.js
+          node tests/static-check.js
+      - name: Commit production fix and self-remove
+        shell: bash
+        run: |
+          rm -f .github/workflows/_patch-recovery-stock-reconciliation.yml
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add -A
+          python - <<'PY'
+          import subprocess
+          got=set(subprocess.check_output(['git','diff','--cached','--name-only']).decode().split())
+          expected={'.github/workflows/_patch-recovery-stock-reconciliation.yml','js/capital-allocation-recovery-funding-reconciliation.js'}
+          if got!=expected: raise SystemExit(f'unexpected staged paths: {sorted(got)}')
+          PY
+          git commit -m 'fix: reconcile recovery funding with stock execution'
+          git push origin HEAD:feature/founding-routes-complete-clean
