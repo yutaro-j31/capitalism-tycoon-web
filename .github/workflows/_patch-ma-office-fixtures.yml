@@ -1,0 +1,67 @@
+name: Patch M&A office fixtures
+on:
+  push:
+    branches:
+      - feature/founding-routes-complete-v2
+permissions:
+  contents: write
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feature/founding-routes-complete-v2
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Patch fixtures and verify M&A suite
+        shell: bash
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          changed=[]
+          for p in sorted(Path('tests').glob('ma-deal-room-*.js')):
+              if p.name.endswith('helpers.js'):
+                  continue
+              t=p.read_text()
+              old=t
+              replacements=[
+                ("e.g.departments.investment = { established: true };", "e.g.departments.investment = { established: true }; e.g.hasHeadOffice = true;"),
+                ("e.g.departments.investment={established:true};", "e.g.departments.investment={established:true};e.g.hasHeadOffice=true;"),
+                ("engine.g.departments.investment = { established: true };", "engine.g.departments.investment = { established: true }; engine.g.hasHeadOffice = true;"),
+                ("engine.g.departments.investment={established:true};", "engine.g.departments.investment={established:true};engine.g.hasHeadOffice=true;")
+              ]
+              if 'hasHeadOffice' not in t:
+                  for a,b in replacements:
+                      if a in t:
+                          t=t.replace(a,b,1)
+                          break
+              if t!=old:
+                  p.write_text(t)
+                  changed.append(str(p))
+          print('patched:', *changed)
+          if not changed:
+              raise SystemExit('no stale M&A fixtures found')
+          PY
+          npm install --ignore-scripts
+          npm run test:ma-deal-room
+          npm run test:ma-board-approval
+      - name: Commit without workflow file
+        shell: bash
+        run: |
+          rm -f .github/workflows/_patch-ma-office-fixtures.yml
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add -A
+          if git diff --cached --quiet; then
+            echo 'no changes to commit'
+            exit 1
+          fi
+          if git diff --cached --name-only | grep -q '^.github/workflows/'; then
+            echo 'temporary workflow leaked into final diff'
+            exit 1
+          fi
+          git commit -m 'test: align M&A fixtures with office capability gate'
+          git push origin HEAD:feature/founding-routes-complete-v2
