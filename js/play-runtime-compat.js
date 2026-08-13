@@ -9,4 +9,14 @@ modules.playRuntimeCompat=Object.freeze({
   debtServiceAliasReady:Boolean(modules.playerDebtService?.__installed),
   __installed:true
 });
+// Load the additive founding-route layer late, after the core engine, market, finance,
+// UI registry and player-engine bridge exist. This intentionally avoids rebundling the
+// legacy synchronous script graph in this feature.
+if(typeof document!=='undefined'&&!modules.foundingRoutesIntegration&&!document.querySelector('script[data-founding-routes-loader]')){
+  const script=document.createElement('script');
+  script.src='./js/founding-routes-integration.js';
+  script.async=false;
+  script.dataset.foundingRoutesLoader='1';
+  document.head.appendChild(script);
+}
 })();
