@@ -77,7 +77,7 @@ function render() {
   const g=engine.g;
   app.innerHTML=`
     <header class="topbar">
-      <div class="brand"><div class="brand-mark">¥</div><div><h1>${esc(g.companyName)}</h1><p>${esc(g.playerName)} · 第${g.week}週 / ${g.month}か月目</p></div></div>
+      <div class="brand"><div class="brand-mark">¥</div><div><h1>${esc(g.companyName)}</h1><p>${esc(g.playerName)} · ${engineModule.gameDate(g.week).fullLabel} · 第${g.week}週</p></div></div>
       <div class="top-stats">
         ${stat('会社現金',compactYen(g.companyCash),g.companyCash<0?'資金危機':'')}
         ${stat('企業価値',compactYen(engine.companyValue()),g.publicCompany?`${g.ticker} ${yen(g.stockPrice)}`:'未上場')}

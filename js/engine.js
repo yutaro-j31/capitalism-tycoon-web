@@ -1341,7 +1341,25 @@ class TycoonEngine extends EventTarget {
   }
 }
 
-Object.assign(exports,{SAVE_KEY,SAVE_VERSION,clamp,finite,uuid,yen,compactYen,pct,rand,pick,createInitialState,mergeDefaults,detectSaveVersion,migrateSave, normalizeStockPriceHistory,migrateUnversionedToV1,migrateV1ToV2,migrateV2ToV3,migrateV3ToV4,migrateV4ToV5,migrateV5ToV6,deepNormalizeState,validateMigratedState,TycoonEngine});
+// 週番号からゲーム内の日付を作る。エンジンは52週=1年で年齢を加算するので（advanceWeek の
+// week%52）、暦も52週364日で1年とし、毎年必ず第1週が1月1日になるようにする。
+// 表示専用の純関数で、状態も乱数も触らない。
+const MONTH_DAYS=[31,28,31,30,31,30,31,31,30,31,30,31];
+function gameDate(week){
+  const w=Math.max(1,Math.floor(finite(week))||1);
+  const year=Math.floor((w-1)/52)+1;
+  const weekOfYear=((w-1)%52)+1;
+  let day=(weekOfYear-1)*7+1,month=1;
+  for(let i=0;i<MONTH_DAYS.length;i+=1){
+    if(day<=MONTH_DAYS[i]){month=i+1;break;}
+    day-=MONTH_DAYS[i];
+  }
+  return {year,month,day,weekOfYear,
+    label:`${month}月${day}日`,
+    fullLabel:`${year}年目 ${month}月${day}日`};
+}
+
+Object.assign(exports,{SAVE_KEY,SAVE_VERSION,clamp,finite,uuid,yen,compactYen,pct,rand,pick,gameDate,createInitialState,mergeDefaults,detectSaveVersion,migrateSave, normalizeStockPriceHistory,migrateUnversionedToV1,migrateV1ToV2,migrateV2ToV3,migrateV3ToV4,migrateV4ToV5,migrateV5ToV6,deepNormalizeState,validateMigratedState,TycoonEngine});
 })(__modules.engine={},__modules.data,__modules.market,__modules.finance,__modules.supply,__modules.workforce,__modules.competitor);
 
 })();
