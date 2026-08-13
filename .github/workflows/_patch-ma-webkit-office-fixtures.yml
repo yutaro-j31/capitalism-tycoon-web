@@ -1,0 +1,83 @@
+name: Patch M&A WebKit office fixtures
+on:
+  push:
+    branches:
+      - feature/founding-routes-complete-v2
+permissions:
+  contents: write
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feature/founding-routes-complete-v2
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Audit and patch M&A WebKit fixtures
+        shell: bash
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          import re
+
+          files=sorted(Path('tests').glob('ma-*-webkit-test.js'))
+          changed=[]
+          audited=[]
+          for p in files:
+              t=p.read_text()
+              original=t
+              # Only scenario fixtures that actually create or bind an engine/state need the office prerequisite.
+              # Insert immediately after each fixture root creation/bind; never touch production files.
+              patterns=[
+                  (r'(const\s+(\w+)\s*=\s*new\s+TycoonEngine\(\);)(?!\s*\2\.g\.hasHeadOffice\s*=\s*true;)',
+                   lambda m: f'{m.group(1)}{m.group(2)}.g.hasHeadOffice=true;'),
+                  (r'(const\s+(\w+)\s*=\s*modules\.engine\.createInitialState\(\);)(?!\s*\2\.hasHeadOffice\s*=\s*true;)',
+                   lambda m: f'{m.group(1)}{m.group(2)}.hasHeadOffice=true;'),
+                  (r'(const\s+(\w+)\s*=\s*ctx\.__ct_engine;)(?!\s*\2\.g\.hasHeadOffice\s*=\s*true;)',
+                   lambda m: f'{m.group(1)}{m.group(2)}.g.hasHeadOffice=true;'),
+              ]
+              for pattern,repl in patterns:
+                  t=re.sub(pattern,repl,t)
+              scenario_root=bool(re.search(r'new\s+TycoonEngine\(\)|createInitialState\(\)|__ct_engine',t))
+              if scenario_root:
+                  audited.append(str(p))
+                  if 'hasHeadOffice=true' not in t and 'hasHeadOffice = true' not in t:
+                      raise SystemExit(f'office prerequisite could not be inserted: {p}')
+              if t!=original:
+                  p.write_text(t)
+                  changed.append(str(p))
+          print('audited scenario fixtures:')
+          print('\n'.join(audited) or '(none)')
+          print('patched fixtures:')
+          print('\n'.join(changed) or '(none)')
+          if 'tests/ma-deal-room-webkit-test.js' not in changed:
+              raise SystemExit('expected ma-deal-room WebKit fixture was not patched')
+          PY
+          node tests/syntax-check.js
+          node tests/static-check.js
+      - name: Commit fixture-only changes and remove temporary workflow
+        shell: bash
+        run: |
+          rm -f .github/workflows/_patch-ma-webkit-office-fixtures.yml
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add -A
+          changed="$(git diff --cached --name-only)"
+          echo "$changed"
+          if [ -z "$changed" ]; then
+            echo 'no changes to commit'
+            exit 1
+          fi
+          if echo "$changed" | grep -q '^\.github/workflows/'; then
+            echo 'temporary workflow leaked into final diff'
+            exit 1
+          fi
+          if echo "$changed" | grep -Ev '^tests/ma-.*-webkit-test\.js$' | grep -q .; then
+            echo 'non-WebKit fixture path leaked into patch'
+            exit 1
+          fi
+          git commit -m 'test: align M&A WebKit fixtures with office capability gate'
+          git push origin HEAD:feature/founding-routes-complete-v2
