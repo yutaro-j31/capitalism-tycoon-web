@@ -34,10 +34,16 @@ jobs:
           from pathlib import Path
           p=Path('tests/founding-routes-restaurant-investment-test.js')
           t=p.read_text()
-          old="const e=game(),stock=e.g.market[0];e.g.companyCash=500_000_000;e.g.personalCash=500_000_000;const q=e.stockExecution(stock,10_000_000,'buy');assert(q.filled<q.requested);const c=e.g.companyCash;"
-          new="const e=game(),stock=e.g.market[0];e.g.personalCash=500_000_000;const q=e.stockExecution(stock,10_000_000,'buy');assert(q.filled<q.requested);e.g.companyCash=Math.max(500_000_000,Math.ceil(q.total*2));const c=e.g.companyCash;"
-          if t.count(old)!=1: raise SystemExit('liquidity test marker mismatch')
-          p.write_text(t.replace(old,new,1))
+          patches=[
+            ("const e=game(),stock=e.g.market[0];e.g.companyCash=500_000_000;e.g.personalCash=500_000_000;const q=e.stockExecution(stock,10_000_000,'buy');assert(q.filled<q.requested);const c=e.g.companyCash;",
+             "const e=game(),stock=e.g.market[0];e.g.personalCash=500_000_000;const q=e.stockExecution(stock,10_000_000,'buy');assert(q.filled<q.requested);e.g.companyCash=Math.max(500_000_000,Math.ceil(q.total*2));const c=e.g.companyCash;"),
+            ("const high=stock.price*10,liq=e.stockExecution(stock,10_000_000,'buy',{limitPrice:high}).filled;",
+             "e.g.companyCash=1_000_000_000_000_000;const high=stock.price*10,liq=e.stockExecution(stock,10_000_000,'buy',{limitPrice:high}).filled;")
+          ]
+          for old,new in patches:
+              if t.count(old)!=1: raise SystemExit(f'test patch marker mismatch: {old[:50]}')
+              t=t.replace(old,new,1)
+          p.write_text(t)
           PY
           node tests/syntax-check.js
           node tests/static-check.js
