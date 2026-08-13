@@ -88,7 +88,9 @@ jobs:
             'css/app.css','docs/LOAD_ORDER.md','js/app.js','js/engine.js','js/ma-deal-room.js','js/market.js','js/play-runtime-compat.js',
             'tests/finance-startup-subsidiary-test.js','tests/fixtures/extracted-css-baseline.css','tests/founding-routes-restaurant-investment-test.js','tests/ma-deal-room-test.js','tests/run-all.js','tests/transaction-regression-test.js','tests/venture-investment-outcome-test.js','tests/venture-investment-reachability-test.js'
           }
-          got=set(subprocess.check_output(['git','diff','--name-only','cf938896702b60398addd305eb20403972834bf5']).decode().split())
+          changed=set(subprocess.check_output(['git','diff','--name-only','cf938896702b60398addd305eb20403972834bf5']).decode().split())
+          untracked=set(subprocess.check_output(['git','ls-files','--others','--exclude-standard']).decode().split())
+          got=changed|untracked
           if got!=expected: raise SystemExit(f'net diff mismatch expected={sorted(expected)} got={sorted(got)}')
           if any(x.startswith('.github/workflows/') for x in got): raise SystemExit('workflow leaked into net diff')
           if open('css/app.css','rb').read()!=open('tests/fixtures/extracted-css-baseline.css','rb').read(): raise SystemExit('css baseline mismatch')
