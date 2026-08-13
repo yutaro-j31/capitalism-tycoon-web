@@ -38,8 +38,11 @@ jobs:
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
           git add -A
-          changed="$(git diff --cached --name-only)"
-          printf '%s\n' "$changed"
-          test "$changed" = 'tests/ma-deal-room-webkit-test.js'
+          python - <<'PY'
+          import subprocess
+          got=set(subprocess.check_output(['git','diff','--cached','--name-only']).decode().split())
+          expected={'.github/workflows/_patch-ma-webkit-office-fixtures.yml','tests/ma-deal-room-webkit-test.js'}
+          if got!=expected: raise SystemExit(f'unexpected staged paths: {sorted(got)}')
+          PY
           git commit -m 'test: align M&A WebKit fixture with office capability gate'
           git push origin HEAD:feature/founding-routes-complete-v2
