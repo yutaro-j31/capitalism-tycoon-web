@@ -11,7 +11,7 @@ const FOUNDER_TRAITS = [
   {id:'tech',name:'技術者肌',icon:'💻',detail:'プロダクト開発とR&Dが少し得意。',business:1.00,tech:1.25,finance:1.00,negotiation:1.00,localRep:20,focus:78,energy:68},
   {id:'merchant',name:'商売上手',icon:'🏪',detail:'店舗・仕入れ・交渉が少し得意。',business:1.25,tech:1.00,finance:1.00,negotiation:1.15,localRep:23,focus:72,energy:72},
   {id:'investor',name:'投資家気質',icon:'📈',detail:'金融・VC・M&A判断が少し得意。',business:1.00,tech:1.00,finance:1.30,negotiation:1.05,localRep:18,focus:72,energy:70},
-  {id:'local',name:'地元密着',icon:'🗾',detail:'出身地の信用が高く、紹介が出やすい。',business:1.10,tech:1.00,finance:1.00,negotiation:1.15,localRep:32,focus:70,energy:76},
+  {id:'local',name:'地元密着',icon:'🗾',detail:'地元の信用が高く、紹介が出やすい。',business:1.10,tech:1.00,finance:1.00,negotiation:1.15,localRep:32,focus:70,energy:76},
   {id:'ambitious',name:'野心家',icon:'🔥',detail:'全分野に小さな成長補正。',business:1.08,tech:1.08,finance:1.08,negotiation:1.08,localRep:20,focus:86,energy:62}
 ];
 
