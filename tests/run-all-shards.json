@@ -1,6 +1,7 @@
 {
   "B": [
     "tests/executive-dismissal-reachability-test.js",
+    "tests/game-date-display-test.js",
     "tests/industry-event-response-plans-reachability-test.js",
     "tests/industry-specific-events-reachability-test.js",
     "tests/normal-start-ipo-balance-audit-test.js",
