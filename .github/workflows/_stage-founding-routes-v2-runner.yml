@@ -50,6 +50,12 @@ jobs:
           new=";let baseCap=effectiveCapacity(store,b,p)*cm.cap*mm.cap*managerCap*policyCap;let wfAdj="
           if mt.count(old)!=1: raise SystemExit('market baseCap patch marker mismatch')
           mp.write_text(mt.replace(old,new,1))
+          vp=Path('tests/venture-investment-outcome-test.js')
+          vt=vp.read_text()
+          old="  const costBasis = holding.qty * holding.avg;\n  const proceeds = engine.stockExecution(listed, holding.qty, 'sell').total;\n  const expectedGain = Math.round(proceeds - costBasis);"
+          new="  const execution = engine.stockExecution(listed, holding.qty, 'sell');\n  const costBasis = execution.filled * holding.avg;\n  const proceeds = execution.total;\n  const expectedGain = Math.round(proceeds - costBasis);"
+          if vt.count(old)!=1: raise SystemExit('venture partial-fill expectation marker mismatch')
+          vp.write_text(vt.replace(old,new,1))
           PY
           node tests/syntax-check.js
           node tests/static-check.js
