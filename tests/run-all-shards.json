@@ -1,25 +1,28 @@
 {
   "B": [
     "tests/executive-dismissal-reachability-test.js",
-    "tests/industry-specific-events-reachability-test.js",
     "tests/industry-event-response-plans-reachability-test.js",
+    "tests/industry-specific-events-reachability-test.js",
+    "tests/normal-start-ipo-balance-audit-test.js",
+    "tests/shareholder-activism-incidence-matrix-test.js",
     "tests/stage-3-3-observer-migration-test.js",
     "tests/stage-3-4-startup-observer-migration-test.js",
-    "tests/stage-3-ui-screen-scope-regression-test.js",
-    "tests/shareholder-activism-incidence-matrix-test.js"
+    "tests/stage-3-ui-screen-scope-regression-test.js"
   ],
   "C": [
-    "tests/save-storage-budget-test.js",
+    "test:long",
     "test:supply-long",
-    "tests/shareholder-value-destruction-incidence-matrix-test.js",
     "tests/exploration-style-test.js",
-    "tests/real-estate-insurance-claims-test.js"
+    "tests/founder-retirement-reachability-test.js",
+    "tests/real-estate-insurance-claims-test.js",
+    "tests/save-storage-budget-test.js",
+    "tests/shareholder-value-destruction-incidence-matrix-test.js"
   ],
   "D": [
-    "test:workforce-long",
     "test:finance-history",
     "test:stock",
-    "tests/product-recall-reachability-runner.js",
-    "tests/normal-start-ipo-balance-audit-test.js"
+    "test:workforce-long",
+    "tests/competitor-product-counter-reachability-test.js",
+    "tests/product-recall-reachability-runner.js"
   ]
 }

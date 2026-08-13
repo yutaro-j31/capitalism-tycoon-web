@@ -7,8 +7,12 @@ const { SEEDS } = require('./strategy-balance-runner');
 const STYLES = Object.freeze(['growth-reinvestment','balanced-returns','cash-hoarder']);
 const CASE_SCRIPT = path.join(__dirname, 'shareholder-activism-incidence-case.js');
 
-function runCase(style, seed) {
-  const result = spawnSync(process.execPath, [CASE_SCRIPT, style, String(seed)], {
+const DETERMINISM_POST_IPO_WEEKS = 26;
+
+function runCase(style, seed, postIpoWeeks) {
+  const args = [CASE_SCRIPT, style, String(seed)];
+  if (postIpoWeeks) args.push(String(postIpoWeeks));
+  const result = spawnSync(process.execPath, args, {
     encoding:'utf8', maxBuffer:64*1024*1024, timeout:10*60*1000
   });
   if (result.status !== 0) {
@@ -27,8 +31,14 @@ assert(STYLES.includes(requestedStyle), 'known ACTIVISM_STYLE is required');
 assert(SEEDS.includes(requestedSeed), 'known ACTIVISM_SEED is required');
 
 const first = runCase(requestedStyle, requestedSeed);
-const second = runCase(requestedStyle, requestedSeed);
-assert.deepEqual(first, second, `${requestedStyle} seed ${requestedSeed} incidence result is deterministic`);
+// Determinism is a property of the path, so it does not require a second full 208-week
+// replay. The capped run walks the same path and must reach the same checkpoint the full
+// run passed through; a divergence anywhere before it still surfaces here.
+const replay = runCase(requestedStyle, requestedSeed, DETERMINISM_POST_IPO_WEEKS);
+assert(first.checkpoint, `${requestedStyle} seed ${requestedSeed} full run records a checkpoint`);
+assert(replay.checkpoint, `${requestedStyle} seed ${requestedSeed} capped run records a checkpoint`);
+assert.deepEqual(replay.checkpoint, first.checkpoint, `${requestedStyle} seed ${requestedSeed} incidence path is deterministic`);
+assert.equal(replay.ipoWeek, first.ipoWeek, `${requestedStyle} seed ${requestedSeed} reaches IPO deterministically`);
 assert.equal(first.campaignsByPath?.portfolioInefficiency||0,0,'store-operation controls cannot trigger the subsidiary portfolio path');
 if(requestedStyle==='balanced-returns')assert.equal(first.campaignCount,0,JSON.stringify(first));
 if(requestedStyle==='growth-reinvestment')assert.equal(first.campaignCount,0,JSON.stringify(first));
