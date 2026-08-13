@@ -44,6 +44,12 @@ jobs:
               if t.count(old)!=1: raise SystemExit(f'test patch marker mismatch: {old[:50]}')
               t=t.replace(old,new,1)
           p.write_text(t)
+          mp=Path('js/market.js')
+          mt=mp.read_text()
+          old=";baseCap=effectiveCapacity(store,b,p)*cm.cap*mm.cap*managerCap*policyCap;let wfAdj="
+          new=";let baseCap=effectiveCapacity(store,b,p)*cm.cap*mm.cap*managerCap*policyCap;let wfAdj="
+          if mt.count(old)!=1: raise SystemExit('market baseCap patch marker mismatch')
+          mp.write_text(mt.replace(old,new,1))
           PY
           node tests/syntax-check.js
           node tests/static-check.js
