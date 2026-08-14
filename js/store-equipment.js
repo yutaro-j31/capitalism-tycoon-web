@@ -15,8 +15,13 @@ const USEFUL_LIFE_WEEKS=260;
 const SALVAGE_RATE=.1;
 // Keep this in sync with effectiveCapacity() in market.js.
 const CAPACITY_GAIN_PER_LEVEL=.08;
+const FULL_CONDITION=100;
+// engine.js charges (100-condition)*650 in upkeep every week, so a full renovation
+// is priced at ten weeks of the upkeep it removes.
+const RENOVATION_COST_PER_POINT=6500;
 
 const finite=(value,fallback=0)=>Number.isFinite(Number(value))?Number(value):fallback;
+const clamp=(value,min,max)=>Math.max(min,Math.min(max,value));
 const yen=value=>`${Math.round(finite(value)).toLocaleString('ja-JP')}円`;
 
 function level(store){return Math.min(MAX_LEVEL,Math.max(1,Math.floor(finite(store?.level,1))));}
@@ -90,6 +95,61 @@ function upgrade(engine,storeID){
   return true;
 }
 
+function conditionOf(store){return clamp(finite(store?.condition,FULL_CONDITION),0,FULL_CONDITION);}
+
+// Restoring wear is an expense, not an upgrade: it returns the store to its original
+// state rather than adding capability, so it is charged to profit instead of capitalised.
+function renovationCost(store){
+  return Math.round(Math.max(0,FULL_CONDITION-conditionOf(store))*RENOVATION_COST_PER_POINT);
+}
+
+function renovatable(state,store){
+  if(!store)return {ok:false,reason:'店舗が見つかりません。'};
+  if(store.status==='closed')return {ok:false,reason:'閉店した店舗は改装できません。'};
+  if(renovationCost(store)<=0)return {ok:false,reason:'この店舗は改装の必要がありません。'};
+  return {ok:true,reason:''};
+}
+
+function renovationPlan(state,store){
+  const condition=conditionOf(store);
+  const gate=renovatable(state,store);
+  const cost=gate.ok?renovationCost(store):0;
+  return Object.freeze({
+    storeID:store?String(store.id):'',
+    condition,
+    fullCondition:FULL_CONDITION,
+    cost,
+    weeklyUpkeepSaved:Math.round(Math.max(0,FULL_CONDITION-condition)*650),
+    needed:gate.ok,
+    affordable:gate.ok&&finite(state?.companyCash)>=cost,
+    blockedReason:gate.ok?'':gate.reason
+  });
+}
+
+function renovate(engine,storeID){
+  const state=engine.g;
+  const store=(state.stores||[]).find(row=>String(row.id)===String(storeID));
+  const gate=renovatable(state,store);
+  if(!gate.ok)return engine.fail(gate.reason);
+  const cost=renovationCost(store);
+  if(finite(state.companyCash)<cost)return engine.fail(`改装には${yen(cost)}が必要です。`);
+  state.companyCash-=cost;
+  store.condition=FULL_CONDITION;
+  finance.event(state,'otherOperating',cost,{
+    cashEffect:-cost,
+    profitEffect:-cost,
+    businessID:store.businessID,
+    storeID:store.id,
+    sourceType:'storeRenovation',
+    sourceID:store.id,
+    description:`${store.name} 改装`
+  });
+  engine.notify(`${store.name}を改装し、店舗状態を回復しました。`,'success');
+  engine.save();
+  engine.emit('change');
+  return true;
+}
+
 function install(){
   const proto=EngineClass.prototype;
   if(proto.__storeEquipmentInstalled)return true;
@@ -98,6 +158,11 @@ function install(){
     return store?plan(this.g,store,this.business(store.businessID)):null;
   };
   proto.upgradeStoreEquipment=function(storeID){return upgrade(this,storeID);};
+  proto.storeRenovationPlan=function(storeID){
+    const store=(this.g.stores||[]).find(row=>String(row.id)===String(storeID));
+    return store?renovationPlan(this.g,store):null;
+  };
+  proto.renovateStore=function(storeID){return renovate(this,storeID);};
   Object.defineProperty(proto,'__storeEquipmentInstalled',{value:true});
   return true;
 }
@@ -105,7 +170,10 @@ function install(){
 install();
 modules.storeEquipment=Object.freeze({
   MAX_LEVEL,USEFUL_LIFE_WEEKS,SALVAGE_RATE,CAPACITY_GAIN_PER_LEVEL,
-  level,isMaxLevel,capacityMultiplier,upgradeCost,upgradeable,plan,upgrade,install,
+  FULL_CONDITION,RENOVATION_COST_PER_POINT,
+  level,isMaxLevel,capacityMultiplier,upgradeCost,upgradeable,plan,upgrade,
+  conditionOf,renovationCost,renovatable,renovationPlan,renovate,
+  install,
   __installed:true
 });
 })();
