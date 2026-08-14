@@ -26,6 +26,23 @@
   run-all-shard.js 内の runRegisteredNodeTest() で登録されている
 - iOS Safari はDOM未接続の a への click() と download 属性を無視する
 - canonical suite は4シャード並列・timeout 15分。最長Cが12分45秒で余裕は約2分15秒
+- CIワークフローが手前のステップでずっと落ちていると、その後のステップは
+  何週間もskippedのまま実行されず、奥に埋まった別の回帰が誰にも気づかれない。
+  「直近の失敗ログ」だけを見て原因を1つに決め打ちしない。1つ直すたびに
+  ジョブのstep一覧を見て、次のstepが新しく走り始めていないか確認する
+- push トリガーに paths: フィルタがあるworkflowは、フィルタ対象外のファイルを
+  何回直してもCI上で一切発火しない。赤いworkflowを直したら
+  workflow_dispatch で対象ブランチに対して手動発火し、実際に直ったか確認する
+- play.html は index.html への location.replace リダイレクトのみ（document.write
+  もfetchも使わない、iOS Safariでの不安定を避けるため）。「play.htmlのURLに
+  留まる」「スクリプトごとに?launch=トークンが付く」という前提のコードは古い。
+  Cache-bust の合図が必要な場合は search に v= があるかで判定する
+  （pathnameがplay.htmlのままになることは実行時には起きない）
+- ローカルの `main` ブランチは自動で最新化されない。`git checkout main` は
+  fetchしても更新しないので、他ブランチで作業した直後に main へ戻ると
+  作業ディレクトリのファイルが古い内容に巻き戻る。ブランチを跨ぐ前に必ず
+  `git fetch origin <branch> && git merge --ff-only origin/<branch>` で
+  ローカルブランチ自体を進めてから checkout する
 
 # 検証手順
 単体テスト → 208週到達テスト → 発生率検証 →
