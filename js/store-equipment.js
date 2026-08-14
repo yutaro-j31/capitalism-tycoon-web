@@ -19,6 +19,18 @@ const FULL_CONDITION=100;
 // engine.js charges (100-condition)*650 in upkeep every week, so a full renovation
 // is priced at ten weeks of the upkeep it removes.
 const RENOVATION_COST_PER_POINT=6500;
+// Operating hours already drive capacity (market.js), fixed cost and legacy demand
+// (engine.js) and required workload (workforce.js). Only slots 1-4 are meaningful;
+// anything else falls back to the standard multiplier of 1 in those lookups.
+const MIN_OPERATING_HOURS=1;
+const MAX_OPERATING_HOURS=4;
+const DEFAULT_OPERATING_HOURS=3;
+const OPERATING_HOUR_OPTIONS=Object.freeze([
+  Object.freeze({value:1,name:'昼のみ',demandFactor:.45,costFactor:.55}),
+  Object.freeze({value:2,name:'昼・夕',demandFactor:.75,costFactor:.8}),
+  Object.freeze({value:3,name:'昼〜夜（標準）',demandFactor:1,costFactor:1}),
+  Object.freeze({value:4,name:'昼〜深夜',demandFactor:1.17,costFactor:1.24})
+]);
 
 const finite=(value,fallback=0)=>Number.isFinite(Number(value))?Number(value):fallback;
 const clamp=(value,min,max)=>Math.max(min,Math.min(max,value));
@@ -150,6 +162,47 @@ function renovate(engine,storeID){
   return true;
 }
 
+function operatingHoursOf(store){
+  const raw=Math.floor(finite(store?.operatingHours,DEFAULT_OPERATING_HOURS));
+  return Number.isFinite(raw)&&raw>=MIN_OPERATING_HOURS&&raw<=MAX_OPERATING_HOURS?raw:DEFAULT_OPERATING_HOURS;
+}
+
+function operatingHoursOption(hours){
+  return OPERATING_HOUR_OPTIONS.find(row=>row.value===hours)||OPERATING_HOUR_OPTIONS.find(row=>row.value===DEFAULT_OPERATING_HOURS);
+}
+
+function operatingHoursPlan(state,store){
+  const current=operatingHoursOf(store);
+  const closed=store?.status==='closed';
+  return Object.freeze({
+    storeID:store?String(store.id):'',
+    current,
+    currentName:operatingHoursOption(current).name,
+    changeable:!closed,
+    blockedReason:closed?'閉店した店舗の営業時間は変更できません。':'',
+    options:OPERATING_HOUR_OPTIONS
+  });
+}
+
+// Changing hours costs nothing up front; the trade-off is that demand and cost move
+// by different amounts, so the choice is paid for through the weekly result instead.
+function setOperatingHours(engine,storeID,hours){
+  const state=engine.g;
+  const store=(state.stores||[]).find(row=>String(row.id)===String(storeID));
+  if(!store)return engine.fail('店舗が見つかりません。');
+  if(store.status==='closed')return engine.fail('閉店した店舗の営業時間は変更できません。');
+  const requested=Math.floor(finite(hours,NaN));
+  if(!Number.isFinite(requested)||requested<MIN_OPERATING_HOURS||requested>MAX_OPERATING_HOURS){
+    return engine.fail('その営業時間は選べません。');
+  }
+  if(operatingHoursOf(store)===requested)return false;
+  store.operatingHours=requested;
+  engine.notify(`${store.name}の営業時間を「${operatingHoursOption(requested).name}」に変更しました。`,'success');
+  engine.save();
+  engine.emit('change');
+  return true;
+}
+
 function install(){
   const proto=EngineClass.prototype;
   if(proto.__storeEquipmentInstalled)return true;
@@ -163,6 +216,11 @@ function install(){
     return store?renovationPlan(this.g,store):null;
   };
   proto.renovateStore=function(storeID){return renovate(this,storeID);};
+  proto.storeOperatingHoursPlan=function(storeID){
+    const store=(this.g.stores||[]).find(row=>String(row.id)===String(storeID));
+    return store?operatingHoursPlan(this.g,store):null;
+  };
+  proto.setStoreOperatingHours=function(storeID,hours){return setOperatingHours(this,storeID,hours);};
   Object.defineProperty(proto,'__storeEquipmentInstalled',{value:true});
   return true;
 }
@@ -171,8 +229,10 @@ install();
 modules.storeEquipment=Object.freeze({
   MAX_LEVEL,USEFUL_LIFE_WEEKS,SALVAGE_RATE,CAPACITY_GAIN_PER_LEVEL,
   FULL_CONDITION,RENOVATION_COST_PER_POINT,
+  MIN_OPERATING_HOURS,MAX_OPERATING_HOURS,DEFAULT_OPERATING_HOURS,OPERATING_HOUR_OPTIONS,
   level,isMaxLevel,capacityMultiplier,upgradeCost,upgradeable,plan,upgrade,
   conditionOf,renovationCost,renovatable,renovationPlan,renovate,
+  operatingHoursOf,operatingHoursOption,operatingHoursPlan,setOperatingHours,
   install,
   __installed:true
 });

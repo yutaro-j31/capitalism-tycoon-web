@@ -211,7 +211,9 @@ function renderStoreEquipment(store){
     ?`${btn(`改装 ${compactYen(repair.cost)}`,'renovate-store',{kind:'ghost small',data:`data-id="${esc(store.id)}"`,disabled:!repair.affordable})}<span class="muted">状態を${repair.fullCondition}%へ回復し、維持費 ${compactYen(repair.weeklyUpkeepSaved)}/週を解消</span>`
     :`<span class="muted">改装の必要はありません。</span>`;
   const conditionLabel=repair?`<span>状態 ${Math.round(repair.condition)}%</span>`:'';
-  return `<div class="store-equipment" data-store-equipment="${esc(store.id)}"><div class="item-metrics"><span>設備 Lv${plan.currentLevel}/${plan.maxLevel}</span><span>販売能力 +${gain(plan.capacityMultiplier)}</span>${conditionLabel}</div><div class="button-row">${action}</div><div class="button-row">${renovation}</div></div>`;
+  const hours=engine.storeOperatingHoursPlan?.(store.id);
+  const hoursRow=!hours?'':`<label class="field store-hours"><span>営業時間</span><select data-store-hours="${esc(store.id)}" ${hours.changeable?'':'disabled'}>${hours.options.map(o=>`<option value="${o.value}" ${o.value===hours.current?'selected':''}>${esc(o.name)}（需要 ${Math.round(o.demandFactor*100)}% / 費用 ${Math.round(o.costFactor*100)}%）</option>`).join('')}</select></label>`;
+  return `<div class="store-equipment" data-store-equipment="${esc(store.id)}"><div class="item-metrics"><span>設備 Lv${plan.currentLevel}/${plan.maxLevel}</span><span>販売能力 +${gain(plan.capacityMultiplier)}</span>${conditionLabel}</div>${hoursRow}<div class="button-row">${action}</div><div class="button-row">${renovation}</div></div>`;
 }
 
 function formatMarketReasonValue(reason){const v=finite(reason?.value);if(reason?.label==='市場規模')return `${num(v,0)}人`;if(reason?.label==='販売能力不足')return v===0?'なし':`${num(Math.abs(v)*100,1)}%相当`;if(reason?.label==='価格競争力')return v>0.05?'競争力 高い':v<-0.05?'競争力 低い':'競争力 標準';if(['品質','ブランド・広告認知','顧客満足度','リピート','景気'].includes(reason?.label))return v>0.2?'高い':v<-0.2?'低い':'標準';if(reason?.label==='競合')return v<-.1?'強い':v<0?'存在':'弱い';return num(v,2);}
@@ -577,6 +579,7 @@ app.addEventListener('click',e=>{const el=e.target.closest('[data-action]');if(e
 modalRoot.addEventListener('click',e=>{const el=e.target.closest('[data-action]');if(el)action(el.dataset.action,el);if(e.target.classList.contains('modal-backdrop'))closeModal();});
 app.addEventListener('change',e=>{
   const bind=e.target.dataset.bind;if(bind){ui[bind]=e.target.value;if(bind==='selectedPref')engine.g.selectedPref=e.target.value;if(bind==='selectedBusiness')engine.g.selectedBusiness=e.target.value;render();}
+  const storeHours=e.target.dataset.storeHours;if(storeHours){engine.setStoreOperatingHours(storeHours,Number(e.target.value));return;}
   const setting=e.target.dataset.setting;if(setting){let v=e.target.type==='checkbox'?e.target.checked:e.target.value;if(setting in engine.g)engine.g[setting]=v;else engine.g.settings[setting]=v;engine.save();render();}
   if(e.target.matches('[data-ma-offer-method]')){const dealID=e.target.dataset.dealId,deal=engine.g.maDealRooms?.find(d=>d.id===dealID),target=deal&&engine.g.acquisitionTargets.find(t=>t.id===deal.targetID),method=e.target.value,input=document.querySelector(`[data-ma-offer-price][data-deal-id="${dealID}"]`),quote=target&&engine.calculateMAAcquisitionPrice?.(target,method);if(input&&quote&&Number(String(input.value).replace(/,/g,''))<quote.minimumPrice)input.value=Math.round(quote.minimumPrice);}
 });
