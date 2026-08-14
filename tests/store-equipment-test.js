@@ -187,4 +187,104 @@ function openRamenStore(engine) {
   assert.equal(legacy.storeEquipmentPlan(legacyStore.id).nextLevel, 2, '旧セーブからも強化を開始できる');
 }
 
+// 12. 改装：状態が回復し、費用が利益と現金の両方に反映される（資産計上ではない）。
+{
+  const { modules, engine } = newGame();
+  const store = openRamenStore(engine);
+  store.condition = 40;
+  const cashBefore = engine.g.companyCash;
+  const assetsBefore = engine.g.finance.fixedAssets.length;
+  const cost = modules.storeEquipment.renovationCost(store);
+  assert.equal(cost, Math.round(60 * modules.storeEquipment.RENOVATION_COST_PER_POINT), '費用は不足ポイント×単価');
+
+  const txBefore = (engine.g.finance.transactions || []).length;
+
+  assert.equal(engine.renovateStore(store.id), true, '改装は成功する');
+  assert.equal(store.condition, modules.storeEquipment.FULL_CONDITION, '状態が100%へ回復する');
+  assert.equal(engine.g.companyCash, cashBefore - cost, '現金が費用分だけ減る');
+  assert.equal(engine.g.finance.fixedAssets.length, assetsBefore, '原状回復なので固定資産は増えない');
+
+  // 修繕費は費用処理なので、現金だけでなく利益にも同額が効いていなければならない。
+  const posted = (engine.g.finance.transactions || []).slice(txBefore)
+    .filter(tx => tx.sourceType === 'storeRenovation');
+  assert.equal(posted.length, 1, '改装の会計イベントが1件記録される');
+  assert.equal(posted[0].cashEffect, -cost, '現金への影響が費用と一致する');
+  assert.equal(posted[0].profitEffect, -cost, '利益への影響が費用と一致する（費用処理であること）');
+  assert.equal(posted[0].storeID, store.id, 'イベントが店舗に紐づく');
+}
+
+// 13. 改装で市場の販売能力が実際に戻る。
+{
+  const { modules, engine } = newGame();
+  const store = openRamenStore(engine);
+  const business = engine.business('ramen');
+  const pref = engine.pref(store.prefID);
+  const capacity = () => modules.market.effectiveCapacity(store, business, pref);
+
+  const healthy = capacity();
+  store.condition = 40;
+  const worn = capacity();
+  assert.ok(worn < healthy, '劣化すると販売能力が落ちる');
+  engine.renovateStore(store.id);
+  assert.equal(capacity(), healthy, '改装で販売能力が元に戻る');
+}
+
+// 14. 改装が不要・不可能なケースでは状態も現金も動かさない。
+{
+  const { engine } = newGame();
+  const store = openRamenStore(engine);
+  assert.equal(store.condition, 100, '新規店舗は状態100%');
+  const cashBefore = engine.g.companyCash;
+  assert.equal(engine.renovateStore(store.id), false, '状態100%では改装できない');
+  assert.equal(engine.g.companyCash, cashBefore, '現金は変わらない');
+
+  store.condition = 60;
+  store.status = 'closed';
+  assert.equal(engine.renovateStore(store.id), false, '閉店店舗は改装できない');
+  assert.equal(store.condition, 60, '状態は変わらない');
+
+  store.status = 'open';
+  engine.g.companyCash = 1;
+  assert.equal(engine.renovateStore(store.id), false, '現金不足では改装できない');
+  assert.equal(store.condition, 60, '失敗時に状態は変わらない');
+  assert.equal(engine.g.companyCash, 1, '失敗時に現金は変わらない');
+
+  assert.equal(engine.renovateStore('missing-store-id'), false, '不明なIDは安全に失敗する');
+  assert.equal(engine.storeRenovationPlan('missing-store-id'), null, '不明なIDの計画は null');
+}
+
+// 15. 改装費用は乱数に依存せず、状態だけで決まる。
+{
+  const a = newGame(3); const sa = openRamenStore(a.engine); sa.condition = 55;
+  const b = newGame(8888); const sb = openRamenStore(b.engine); sb.condition = 55;
+  assert.equal(
+    a.modules.storeEquipment.renovationCost(sa),
+    b.modules.storeEquipment.renovationCost(sb),
+    '乱数種が違っても同じ費用になる'
+  );
+  sb.condition = 45;
+  assert.ok(
+    b.modules.storeEquipment.renovationCost(sb) > a.modules.storeEquipment.renovationCost(sa),
+    '状態が悪いほど費用が高い'
+  );
+}
+
+// 16. renovationPlan が UI に必要な情報を返す（節約できる維持費を含む）。
+{
+  const { engine } = newGame();
+  const store = openRamenStore(engine);
+  store.condition = 70;
+  const plan = engine.storeRenovationPlan(store.id);
+  assert.equal(plan.condition, 70);
+  assert.equal(plan.needed, true);
+  assert.equal(plan.affordable, true);
+  assert.equal(plan.weeklyUpkeepSaved, 30 * 650, 'engine の週次維持費(650/pt)と一致する');
+  assert.ok(plan.cost > 0);
+
+  store.condition = 100;
+  const settled = engine.storeRenovationPlan(store.id);
+  assert.equal(settled.needed, false, '状態100%なら不要と表現される');
+  assert.equal(settled.cost, 0);
+}
+
 console.log('store equipment tests passed');
