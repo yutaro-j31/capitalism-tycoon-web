@@ -20,6 +20,7 @@
     "./js/ma-integration.js",
     "./js/ma-deal-room.js",
     "./js/expansion.js",
+    "./js/pe-value-creation.js",
     "./js/competitor-media.js",
     "./js/completion.js",
     "./js/parity.js",

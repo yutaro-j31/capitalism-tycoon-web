@@ -366,8 +366,20 @@ function renderPersonalAlternativeAssets(){
   const g=engine.g;
   return `<section><h2 class="section-title">個人資産の高度運用</h2><div class="grid two">
     ${card('個人不動産',`${PERSONAL_REAL_ESTATE_OFFERS.map(o=>`<article class="item"><div><h3>${o.name}</h3><p>価格${compactYen(o.price)} · 週次家賃${yen(o.weeklyRent)}</p></div>${btn('購入','buy-personal-re',{kind:'primary small',data:`data-id="${o.id}"`})}</article>`).join('')}<h3>保有物件</h3>${g.personalRealEstateHoldings.filter(x=>x.status==='owned').map(x=>`<article class="item"><div><h3>${x.name}</h3><p>評価額${compactYen(x.currentValue)} · 家賃${yen(x.weeklyRent)} · 損益${compactYen(x.currentValue-x.purchasePrice)}</p></div>${btn('売却','sell-personal-re',{kind:'ghost small',data:`data-id="${x.assetID}"`})}</article>`).join('')||empty('保有なし')}`)}
-    ${card('PE・エンジェル',`<div class="button-row">${btn('PE案件を組成','create-pe',{kind:'primary'})}${btn('エンジェル投資','create-angel',{kind:'secondary'})}</div>${g.peDeals.filter(x=>x.status==='active').map(x=>`<article class="item"><div><h3>${x.targetName}</h3><p>${x.industry} · 評価${compactYen(x.currentValuation)} · 改善${x.improvementScore.toFixed(0)} · 保有${x.holdingWeeks}週</p></div><div class="button-row">${btn('改善','improve-pe',{kind:'secondary small',data:`data-id="${x.id}"`})}${btn('EXIT','exit-pe',{kind:'ghost small',data:`data-id="${x.id}"`})}</div></article>`).join('')}${g.angelInvestments.filter(x=>x.status==='active').map(x=>`<article class="item"><div><h3>${x.startupName}</h3><p>投資${compactYen(x.investedAmount)} · 評価倍率 x${x.multiple.toFixed(2)}</p></div>${btn('EXIT','exit-angel',{kind:'ghost small',data:`data-id="${x.id}"`})}</article>`).join('')||empty('案件を組成するとここに表示されます。')}`)}
+    ${card('PE・エンジェル',`<div class="button-row">${btn('PE案件を組成','create-pe',{kind:'primary'})}${btn('エンジェル投資','create-angel',{kind:'secondary'})}</div>${g.peDeals.filter(x=>x.status==='active').map(x=>renderPEDeal(x)).join('')}${g.angelInvestments.filter(x=>x.status==='active').map(x=>`<article class="item"><div><h3>${x.startupName}</h3><p>投資${compactYen(x.investedAmount)} · 評価倍率 x${x.multiple.toFixed(2)}</p></div>${btn('EXIT','exit-angel',{kind:'ghost small',data:`data-id="${x.id}"`})}</article>`).join('')||empty('案件を組成するとここに表示されます。')}`)}
   </div></section>`;
+}
+
+function renderPEDeal(deal){
+  const plan=engine.peValueCreationPlan?.(deal.id);
+  const head=`<div><h3>${esc(deal.targetName)}</h3><p>${esc(deal.industry)} · 評価${compactYen(deal.currentValuation)} · 保有${deal.holdingWeeks}週</p></div>`;
+  const exit=btn('EXIT','exit-pe',{kind:'ghost small',data:`data-id="${esc(deal.id)}"`});
+  if(!plan)return `<article class="item">${head}<div class="button-row">${exit}</div></article>`;
+  const status=plan.resolved
+    ?`<p class="muted">再建完了（改善 ${plan.score}/${plan.maxScore}）。EXITの判断ができます。</p>`
+    :`<p class="muted"><strong>課題：${esc(plan.issue.name)}</strong> ${esc(plan.issue.detail)}</p>${progress(plan.score,plan.maxScore)}<span class="muted">改善 ${plan.score}/${plan.maxScore} · 施策1回 ${compactYen(plan.cost)}</span>`;
+  const actions=plan.resolved?'':`<div class="button-grid">${plan.initiatives.map(x=>btn(`${x.name}${x.recommended?' ◎':''}`,'pe-initiative',{kind:x.recommended?'primary small':'small',data:`data-id="${esc(deal.id)}" data-kind="${esc(x.id)}"`,disabled:!plan.affordable})).join('')}</div>`;
+  return `<article class="item" data-pe-deal="${esc(deal.id)}">${head}${status}${actions}<div class="button-row">${exit}</div></article>`;
 }
 
 function renderStrategy(){
@@ -560,7 +572,7 @@ function action(name,el){const id=el.dataset.id,kind=el.dataset.kind;
     case 'vertical-integration':engine.addVerticalIntegration(id);break;case 'start-rd':engine.startRDProject(id);break;case 'license-patent':engine.licensePatent(id);break;
     case 'product-funnel':engine.productFunnelAction(id,kind);break;case 'accept-product-offer':engine.acceptProductBuyoutOffer(id);break;case 'decline-product-offer':engine.declineProductBuyoutOffer(id);break;
     case 'stock-split':engine.stockSplit(id,2);break;case 'stock-mbo':engine.executeMBO(id);break;case 'founder-share-sale':askMoney('創業者保有株の売却株数',Math.min(10000,engine.g.founderShares),v=>engine.sellFounderShares(v));break;case 'defense':engine.activateDefense(kind);break;
-    case 'create-pe':askText('PE案件組成','業界','テック',industry=>askMoney('投資額',20000000,v=>engine.createPEDeal(industry,v)));break;case 'improve-pe':engine.improvePEDeal(id);break;case 'exit-pe':engine.exitPEDeal(id);break;
+    case 'create-pe':askText('PE案件組成','業界','テック',industry=>askMoney('投資額',20000000,v=>engine.createPEDeal(industry,v)));break;case 'pe-initiative':engine.applyPEInitiative(id,kind);break;case 'improve-pe':engine.improvePEDeal(id);break;case 'exit-pe':engine.exitPEDeal(id);break;
     case 'create-angel':askMoney('エンジェル投資額',5000000,v=>engine.createAngelInvestment(v));break;case 'exit-angel':engine.exitAngelInvestment(id);break;
     case 'buy-personal-re':engine.buyPersonalRealEstate(id);break;case 'sell-personal-re':engine.sellPersonalRealEstate(id);break;
     case 'refresh-sports':engine.refreshSportsMarket();break;case 'draft-player':engine.draftPlayer(kind,id);break;case 'trade-player':engine.tradePlayer(kind,id);break;case 'foreign-player':engine.signForeignPlayer(id);break;case 'toggle-team-sale':engine.toggleTeamSale(id);break;case 'accept-team-offer':engine.acceptTeamSaleOffer(id);break;
