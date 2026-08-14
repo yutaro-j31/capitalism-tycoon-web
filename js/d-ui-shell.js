@@ -66,7 +66,7 @@ function enhanceTopbar(g,e){
   const stats=topbar.querySelector('.top-stats');
   if(stats){stats.className='top-stats d-kpi-strip';stats.innerHTML=currentKpis(g,e).map(item=>`<div class="d-kpi"><span class="d-kpi-icon">${item[1]}</span><div><small>${esc(item[0])}</small><strong>${esc(item[2])}</strong><em class="${item[3].startsWith('▼')?'down':'up'}">${esc(item[3])}</em></div></div>`).join('');}
   const controls=topbar.querySelector('.week-controls');
-  if(controls)controls.innerHTML=`<div class="d-date"><span>▣ ${esc(modules.engine.gameDate(g.week).label)}</span><small>${modules.engine.gameDate(g.week).year}年目 · 第${finite(g.week)}週</small></div><div class="d-speed" aria-label="進行速度"><button type="button" disabled>◀</button><button type="button" disabled>Ⅱ</button><button type="button" data-action="advance-4" aria-label="4週進める">▶▶</button></div><button type="button" class="btn primary d-advance" data-action="advance-week">一週進める <b>»</b></button>`;
+  if(controls)controls.innerHTML=`<div class="d-date"><span>▣ ${esc(modules.engine.gameDate(g.week).label)} · 第${finite(g.week)}週</span><small>${modules.engine.gameDate(g.week).year}年目</small></div><div class="d-speed" aria-label="進行速度"><button type="button" disabled>◀</button><button type="button" disabled>Ⅱ</button><button type="button" data-action="advance-4" aria-label="4週進める">▶▶</button></div><button type="button" class="btn primary d-advance" data-action="advance-week">一週進める <b>»</b></button>`;
 }
 function setCommandMenu(open,restoreFocus=false){
   const menu=document.getElementById('d-ui-command-menu');if(!menu)return false;
