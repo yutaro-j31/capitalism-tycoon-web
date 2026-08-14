@@ -287,4 +287,100 @@ function openRamenStore(engine) {
   assert.equal(settled.cost, 0);
 }
 
+// 17. 営業時間：既定は3で、既存セーブ・新規店舗ともに標準として解決される。
+{
+  const { modules, engine } = newGame();
+  const store = openRamenStore(engine);
+  assert.equal(store.operatingHours, modules.storeEquipment.DEFAULT_OPERATING_HOURS, '新規店舗は標準営業');
+  assert.equal(modules.storeEquipment.operatingHoursOf(store), 3);
+  // 値が壊れていても標準へ落ちる（engine 側の [..][hours||3]||1 と同じ緩さを保つ）
+  for (const broken of [undefined, null, 0, -1, 5, 99, NaN, 'x']) {
+    const probe = { ...store, operatingHours: broken };
+    assert.equal(modules.storeEquipment.operatingHoursOf(probe), 3, `不正値 ${String(broken)} は標準へ落ちる`);
+  }
+}
+
+// 18. 営業時間を変更でき、market の販売能力が実際に動く。
+{
+  const { modules, engine } = newGame();
+  const store = openRamenStore(engine);
+  const business = engine.business('ramen');
+  const pref = engine.pref(store.prefID);
+  const capacity = () => modules.market.effectiveCapacity(store, business, pref);
+
+  const standard = capacity();
+  assert.equal(engine.setStoreOperatingHours(store.id, 4), true, '延長へ変更できる');
+  assert.equal(store.operatingHours, 4);
+  const extended = capacity();
+  assert.ok(extended > standard, '延長すると販売能力が増える');
+
+  assert.equal(engine.setStoreOperatingHours(store.id, 1), true, '短縮へ変更できる');
+  const reduced = capacity();
+  assert.ok(reduced < standard, '短縮すると販売能力が減る');
+}
+
+// 19. 需要と費用の係数が engine / market の実装と一致している（表示が実態とずれない）。
+{
+  const { modules } = newGame();
+  const demandTable = [0, .45, .75, 1, 1.17];   // market.js effectiveCapacity / engine.js 旧売上式
+  const costTable = [0, .55, .8, 1, 1.24];      // engine.js 固定費 / workforce.js 必要工数
+  for (const option of modules.storeEquipment.OPERATING_HOUR_OPTIONS) {
+    assert.equal(option.demandFactor, demandTable[option.value], `需要係数が engine/market と一致 (${option.value})`);
+    assert.equal(option.costFactor, costTable[option.value], `費用係数が engine/workforce と一致 (${option.value})`);
+  }
+}
+
+// 20. 変更できないケースでは状態を動かさない。
+{
+  const { engine } = newGame();
+  const store = openRamenStore(engine);
+  for (const invalid of [0, 5, -1, NaN, 'x', undefined]) {
+    assert.equal(engine.setStoreOperatingHours(store.id, invalid), false, `不正な指定 ${String(invalid)} は失敗する`);
+    assert.equal(store.operatingHours, 3, '失敗時に営業時間は変わらない');
+  }
+  assert.equal(engine.setStoreOperatingHours(store.id, 3), false, '同じ値への変更は何もしない');
+
+  store.status = 'closed';
+  assert.equal(engine.setStoreOperatingHours(store.id, 4), false, '閉店店舗は変更できない');
+  assert.equal(store.operatingHours, 3, '閉店店舗の営業時間は変わらない');
+
+  assert.equal(engine.setStoreOperatingHours('missing-store-id', 4), false, '不明なIDは安全に失敗する');
+  assert.equal(engine.storeOperatingHoursPlan('missing-store-id'), null, '不明なIDの計画は null');
+}
+
+// 21. 営業時間はセーブへ往復し、標準のままなら既存セーブと同じ形を保つ。
+{
+  const { modules, ctx, engine } = newGame();
+  const EngineClass = modules.engine.TycoonEngine;
+  const store = openRamenStore(engine);
+  engine.setStoreOperatingHours(store.id, 4);
+  engine.save();
+
+  const saved = JSON.parse(ctx.localStorage.getItem('capitalism_tycoon_web_v1'));
+  assert.equal(saved.saveVersion, 9, 'saveVersion は 9 のまま');
+  assert.equal(saved.stores[0].operatingHours, 4, '営業時間がセーブへ書き出される');
+  assert.equal(EngineClass.load().g.stores[0].operatingHours, 4, 'ロード後も復元される');
+
+  // 営業時間を持たない旧セーブでも標準として扱われる
+  delete saved.stores[0].operatingHours;
+  ctx.localStorage.setItem('capitalism_tycoon_web_v1', JSON.stringify(saved));
+  const legacyStore = EngineClass.load().g.stores[0];
+  assert.equal(modules.storeEquipment.operatingHoursOf(legacyStore), 3, '旧セーブは標準営業として解決される');
+}
+
+// 22. plan() が UI に必要な選択肢を返す。
+{
+  const { modules, engine } = newGame();
+  const store = openRamenStore(engine);
+  const plan = engine.storeOperatingHoursPlan(store.id);
+  assert.equal(plan.current, 3);
+  assert.equal(plan.changeable, true);
+  assert.equal(plan.options.length, 4, '4段階の選択肢を返す');
+  assert.equal(plan.options[2].value, 3);
+  assert.equal(plan.currentName, modules.storeEquipment.operatingHoursOption(3).name);
+
+  store.status = 'closed';
+  assert.equal(engine.storeOperatingHoursPlan(store.id).changeable, false, '閉店店舗は変更不可として表現される');
+}
+
 console.log('store equipment tests passed');
