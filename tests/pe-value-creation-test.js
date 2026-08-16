@@ -410,7 +410,7 @@ function advanceToFailure(modules, engine, deal, initiativeID) {
   );
 }
 
-// 23. 週が進めば結果は変わりうる（同じ施策でも打ち直す機会がある）。
+// 23. 改善度が動かない状態でも、週が進めば結果は変わる（打ち直す機会が必ずある）。
 {
   const { modules, engine } = newGame();
   const deal = openDeal(engine);
@@ -422,6 +422,19 @@ function advanceToFailure(modules, engine, deal, initiativeID) {
   assert.equal(results.size, 2, '週によって成功も失敗も起きる');
 }
 
+// 23b. 案件の状態も判定材料：同じ週でも改善度が違えば成否は変わる。
+{
+  const { modules, engine } = newGame();
+  const deal = openDeal(engine);
+  engine.g.week = 5;
+  const results = new Set();
+  for (let score = 0; score <= 90; score += 2) {
+    deal.improvementScore = score;
+    results.add(modules.peValueCreation.succeeds(engine.g, deal, 'cost-cut'));
+  }
+  assert.equal(results.size, 2, '同じ週でも改善度が違えば成功も失敗も起きる');
+}
+
 // 24. 失敗が続いても改善度は0を下回らない。
 {
   const { modules, engine } = newGame();
@@ -431,6 +444,14 @@ function advanceToFailure(modules, engine, deal, initiativeID) {
   assert.equal(engine.applyPEInitiative(deal.id, 'cost-cut'), true);
   assert.equal(deal.improvementScore, 0, '改善度は0で止まる');
   assert.equal(modules.peValueCreation.exitMultiplier(deal), 1, '後退してもEXIT価格は目減りしない');
+
+  // 改善度が0で止まると判定の材料が動かなくなるが、週を進めれば必ず打ち直せる。
+  const stuckWeek = engine.g.week;
+  assert.equal(modules.peValueCreation.succeeds(engine.g, deal, 'cost-cut'), false, '同じ週では失敗のまま');
+  const escaped = advanceToSuccess(modules, engine, deal, 'cost-cut');
+  assert.ok(escaped > stuckWeek, '週を進めれば成功する週に届く');
+  assert.equal(engine.applyPEInitiative(deal.id, 'cost-cut'), true);
+  assert.ok(deal.improvementScore > 0, '再建をやり直せる');
 }
 
 // 25. 失敗しても会社側の現金・会計は動かない（資産分離は成否に関係なく守られる）。

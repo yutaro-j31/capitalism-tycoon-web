@@ -92,9 +92,10 @@ function matches(deal,initiativeID){
 function initiativeOf(initiativeID){return INITIATIVES.find(row=>row.id===initiativeID)||null;}
 
 // Whether an initiative lands is decided by the same hash style as the problem itself, so
-// no random number is drawn and saving and reloading cannot re-roll the outcome. The week
-// is part of the key: retrying the same initiative in the same week repeats the same
-// result, while letting time pass gives a fresh attempt.
+// no random number is drawn and saving and reloading cannot re-roll the outcome. The key
+// holds both the improvement score and the week: any attempt that moves the score is
+// judged afresh, and when the score is pinned at 0 or 100 letting a week pass is what
+// gives a new attempt.
 function outcomeRoll(state,deal,initiativeID){
   return deterministicUnit('pe-initiative',deal?.id,initiativeID,scoreOf(deal),finite(state?.week));
 }
