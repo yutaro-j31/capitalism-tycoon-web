@@ -372,15 +372,18 @@ function renderPersonalAlternativeAssets(){
 
 function renderPEDeal(deal){
   const plan=engine.peValueCreationPlan?.(deal.id);
+  const conv=engine.peSubsidiaryConversionPreview?.(deal.id);
   const head=`<div><h3>${esc(deal.targetName)}</h3><p>${esc(deal.industry)} · 評価${compactYen(deal.currentValuation)} · 保有${deal.holdingWeeks}週</p></div>`;
   const exitLabel=plan&&plan.exitPremium>0?`EXIT ${compactYen(plan.exitValue)}`:'EXIT';
   const exit=btn(exitLabel,'exit-pe',{kind:'ghost small',data:`data-id="${esc(deal.id)}"`});
-  if(!plan)return `<article class="item">${head}<div class="button-row">${exit}</div></article>`;
+  const convertBtn=conv?btn('自社へ売却して子会社化','sell-pe-to-company',{kind:'secondary small',data:`data-id="${esc(deal.id)}"`,disabled:!conv.canExecute}):'';
+  const convertNote=conv?`<p class="muted">自社売却額 ${compactYen(conv.price)}（現在の企業価値と同額）· 会社現金 ${compactYen(conv.companyCash)} · 子会社化後は親会社持分${(conv.ownership*100).toFixed(1)}%${conv.ipoEligibleOwnership?'（IPO準備を開始できます）':'（IPO準備には持分50%以上が必要です）'}${conv.canExecute?'':conv.blockedReason?`<br>${esc(conv.blockedReason)}`:''}</p>`:'';
+  if(!plan)return `<article class="item">${head}${convertNote}<div class="button-row">${exit}${convertBtn}</div></article>`;
   const status=plan.resolved
     ?`<p class="muted">再建完了（改善 ${plan.score}/${plan.maxScore}）。EXITで再建プレミアム +${compactYen(plan.exitPremium)} が上乗せされます。</p>`
     :`<p class="muted"><strong>課題：${esc(plan.issue.name)}</strong> ${esc(plan.issue.detail)}</p>${progress(plan.score,plan.maxScore)}<span class="muted">改善 ${plan.score}/${plan.maxScore} · 施策1回 ${compactYen(plan.cost)}${plan.exitPremium>0?` · 再建プレミアム +${compactYen(plan.exitPremium)}`:''}</span>`;
   const actions=plan.resolved?'':`<div class="button-grid">${plan.initiatives.map(x=>btn(`${x.name}${x.recommended?' ◎':''} ${Math.round(x.successRate*100)}%`,'pe-initiative',{kind:x.recommended?'primary small':'small',data:`data-id="${esc(deal.id)}" data-kind="${esc(x.id)}"`,disabled:!plan.affordable})).join('')}</div>${plan.affordable?`<span class="muted">数字は成功率。失敗しても費用はかかり、改善度と企業価値が後退します。行き詰まったら週を進めると状況が変わります。</span>`:''}`;
-  return `<article class="item" data-pe-deal="${esc(deal.id)}">${head}${status}${actions}<div class="button-row">${exit}</div></article>`;
+  return `<article class="item" data-pe-deal="${esc(deal.id)}">${head}${status}${actions}${convertNote}<div class="button-row">${exit}${convertBtn}</div></article>`;
 }
 
 function renderStrategy(){
@@ -573,7 +576,7 @@ function action(name,el){const id=el.dataset.id,kind=el.dataset.kind;
     case 'vertical-integration':engine.addVerticalIntegration(id);break;case 'start-rd':engine.startRDProject(id);break;case 'license-patent':engine.licensePatent(id);break;
     case 'product-funnel':engine.productFunnelAction(id,kind);break;case 'accept-product-offer':engine.acceptProductBuyoutOffer(id);break;case 'decline-product-offer':engine.declineProductBuyoutOffer(id);break;
     case 'stock-split':engine.stockSplit(id,2);break;case 'stock-mbo':engine.executeMBO(id);break;case 'founder-share-sale':askMoney('創業者保有株の売却株数',Math.min(10000,engine.g.founderShares),v=>engine.sellFounderShares(v));break;case 'defense':engine.activateDefense(kind);break;
-    case 'create-pe':askText('PE案件組成','業界','テック',industry=>askMoney('投資額',20000000,v=>engine.createPEDeal(industry,v)));break;case 'pe-initiative':engine.applyPEInitiative(id,kind);break;case 'improve-pe':engine.improvePEDeal(id);break;case 'exit-pe':engine.exitPEDeal(id);break;
+    case 'create-pe':askText('PE案件組成','業界','テック',industry=>askMoney('投資額',20000000,v=>engine.createPEDeal(industry,v)));break;case 'pe-initiative':engine.applyPEInitiative(id,kind);break;case 'improve-pe':engine.improvePEDeal(id);break;case 'exit-pe':engine.exitPEDeal(id);break;case 'sell-pe-to-company':engine.sellPEDealToCompany(id);break;
     case 'create-angel':askMoney('エンジェル投資額',5000000,v=>engine.createAngelInvestment(v));break;case 'exit-angel':engine.exitAngelInvestment(id);break;
     case 'buy-personal-re':engine.buyPersonalRealEstate(id);break;case 'sell-personal-re':engine.sellPersonalRealEstate(id);break;
     case 'refresh-sports':engine.refreshSportsMarket();break;case 'draft-player':engine.draftPlayer(kind,id);break;case 'trade-player':engine.tradePlayer(kind,id);break;case 'foreign-player':engine.signForeignPlayer(id);break;case 'toggle-team-sale':engine.toggleTeamSale(id);break;case 'accept-team-offer':engine.acceptTeamSaleOffer(id);break;

@@ -25,6 +25,7 @@
     "test:workforce-long",
     "tests/competitor-product-counter-reachability-test.js",
     "tests/pe-value-creation-test.js",
+    "tests/pe-subsidiary-conversion-test.js",
     "tests/product-recall-reachability-runner.js",
     "tests/store-equipment-test.js"
   ]
