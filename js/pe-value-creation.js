@@ -21,6 +21,12 @@ const MATCHED_VALUATION_GAIN=.09;
 const MISMATCHED_VALUATION_GAIN=.03;
 const MIN_INITIATIVE_COST=500000;
 const INITIATIVE_COST_RATE=.02;
+// createPEDeal starts every holding at improvementScore 20, so that is the point where
+// the exit premium is zero. Anything below it never discounts the exit; only progress
+// beyond the starting condition pays out. This keeps untouched deals worth exactly what
+// they were worth before this premium existed.
+const EXIT_BASELINE_SCORE=20;
+const EXIT_PREMIUM_AT_FULL=.5;
 
 const ISSUES=Object.freeze([
   Object.freeze({id:'cost',name:'高コスト体質',detail:'固定費が重く、利益が出にくい状態です。',initiativeID:'cost-cut'}),
@@ -76,6 +82,17 @@ function findDeal(state,dealID){
   return (state?.peDeals||[]).find(row=>String(row.id)===String(dealID)&&row.status==='active')||null;
 }
 
+// How much the turnaround itself is worth at exit, on top of the valuation the deal
+// already carries. Never below 1: a neglected holding sells for what it always did.
+function exitMultiplier(deal){
+  const progress=clamp((scoreOf(deal)-EXIT_BASELINE_SCORE)/(MAX_SCORE-EXIT_BASELINE_SCORE),0,1);
+  return 1+progress*EXIT_PREMIUM_AT_FULL;
+}
+
+function exitValue(deal){
+  return Math.round(finite(deal?.currentValuation)*exitMultiplier(deal));
+}
+
 function applicable(state,deal){
   if(!deal)return {ok:false,reason:'対象のPE案件が見つかりません。'};
   if(isResolved(deal))return {ok:false,reason:'この案件の再建は完了しています。'};
@@ -94,6 +111,9 @@ function plan(state,deal){
     resolved:isResolved(deal),
     issue,
     cost,
+    exitValue:exitValue(deal),
+    exitPremium:exitValue(deal)-Math.round(finite(deal?.currentValuation)),
+    exitMultiplier:exitMultiplier(deal),
     affordable:gate.ok&&finite(state?.personalCash)>=cost,
     blockedReason:gate.ok?'':gate.reason,
     initiatives:Object.freeze(INITIATIVES.map(row=>Object.freeze({
@@ -141,6 +161,25 @@ function install(){
     return deal?plan(this.g,deal):null;
   };
   proto.applyPEInitiative=function(dealID,initiativeID){return applyInitiative(this,dealID,initiativeID);};
+
+  // Wrap the existing exit so the turnaround premium is paid without duplicating the
+  // cash, realised P&L, status and notification handling that already lives there.
+  const baseExit=proto.exitPEDeal;
+  if(typeof baseExit==='function'){
+    proto.exitPEDeal=function(dealID){
+      const deal=findDeal(this.g,dealID);
+      if(!deal)return baseExit.call(this,dealID);
+      // Compare the multiplier rather than rounded amounts: at exactly the baseline the
+      // valuation must pass through untouched, and rounding it would shift the payout.
+      if(exitMultiplier(deal)<=1)return baseExit.call(this,dealID);
+      const original=finite(deal.currentValuation);
+      deal.currentValuation=exitValue(deal);
+      const result=baseExit.call(this,dealID);
+      if(result===false)deal.currentValuation=original;
+      return result;
+    };
+  }
+
   Object.defineProperty(proto,'__peValueCreationInstalled',{value:true});
   return true;
 }
@@ -150,6 +189,7 @@ modules.peValueCreation=Object.freeze({
   MAX_SCORE,STAGE_SIZE,MATCHED_SCORE_GAIN,MISMATCHED_SCORE_GAIN,
   MATCHED_VALUATION_GAIN,MISMATCHED_VALUATION_GAIN,
   MIN_INITIATIVE_COST,INITIATIVE_COST_RATE,ISSUES,INITIATIVES,
+  EXIT_BASELINE_SCORE,EXIT_PREMIUM_AT_FULL,exitMultiplier,exitValue,
   scoreOf,stageOf,isResolved,issueOf,initiativeCost,matches,applicable,plan,applyInitiative,install,
   __installed:true
 });

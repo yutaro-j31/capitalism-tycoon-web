@@ -201,4 +201,127 @@ function openDeal(engine, amount = 20_000_000) {
   assert.equal(engine.peValueCreationPlan(deal.id).affordable, false, '資金不足は affordable=false で表現される');
 }
 
+// 12. EXIT価格：改善していない案件は従来どおりの価格で売れる（既存バランスを変えない）。
+{
+  const { modules, engine } = newGame();
+  const deal = openDeal(engine);
+  assert.equal(deal.improvementScore, modules.peValueCreation.EXIT_BASELINE_SCORE, '初期改善度が基準点と一致する');
+  assert.equal(modules.peValueCreation.exitMultiplier(deal), 1, '未改善の案件に上乗せは無い');
+
+  const valuation = deal.currentValuation;
+  const cashBefore = engine.g.personalCash;
+  const plBefore = engine.g.peRealizedPL;
+  assert.equal(engine.exitPEDeal(deal.id), true, 'EXITできる');
+  assert.equal(engine.g.personalCash, cashBefore + valuation, '従来どおり評価額どおりに現金化される');
+  assert.equal(engine.g.peRealizedPL, plBefore + (valuation - deal.investedAmount), '実現損益も従来どおり');
+  assert.equal(deal.status, 'exited', 'ステータスが更新される');
+}
+
+// 13. 再建を進めるほどEXIT価格に上乗せが乗る。
+{
+  const { modules, engine } = newGame();
+  const deal = openDeal(engine);
+  const base = deal.currentValuation;
+
+  deal.improvementScore = modules.peValueCreation.MAX_SCORE;
+  assert.ok(
+    Math.abs(modules.peValueCreation.exitMultiplier(deal) - (1 + modules.peValueCreation.EXIT_PREMIUM_AT_FULL)) < 1e-9,
+    '改善度100で上乗せが最大になる'
+  );
+  assert.equal(modules.peValueCreation.exitValue(deal), Math.round(base * 1.5), '最大時のEXIT価格');
+
+  deal.improvementScore = 60;
+  const mid = modules.peValueCreation.exitMultiplier(deal);
+  assert.ok(mid > 1 && mid < 1.5, '途中段階では上乗せも中間になる');
+}
+
+// 14. 上乗せ分が実際に個人現金と実現損益へ渡る。
+{
+  const { modules, engine } = newGame();
+  const deal = openDeal(engine);
+  deal.improvementScore = modules.peValueCreation.MAX_SCORE;
+  const expected = modules.peValueCreation.exitValue(deal);
+  const valuationBefore = deal.currentValuation;
+  const cashBefore = engine.g.personalCash;
+  const plBefore = engine.g.peRealizedPL;
+
+  assert.ok(expected > valuationBefore, '上乗せがある状態で検証する');
+  assert.equal(engine.exitPEDeal(deal.id), true);
+  assert.equal(engine.g.personalCash, cashBefore + expected, '上乗せ後の金額が現金化される');
+  assert.equal(engine.g.peRealizedPL, plBefore + (expected - deal.investedAmount), '実現損益にも上乗せが反映される');
+}
+
+// 15. 改善度が基準を下回っても、EXIT価格が目減りすることはない。
+{
+  const { modules, engine } = newGame();
+  const deal = openDeal(engine);
+  deal.improvementScore = 0;
+  assert.equal(modules.peValueCreation.exitMultiplier(deal), 1, '基準未満でも倍率は1で止まる');
+  const valuation = deal.currentValuation;
+  const cashBefore = engine.g.personalCash;
+  assert.equal(engine.exitPEDeal(deal.id), true);
+  assert.equal(engine.g.personalCash, cashBefore + valuation, '評価額を下回らない');
+}
+
+// 16. EXITは個人側だけで完結する（会社現金・会社会計に触れない）。
+{
+  const { modules, engine } = newGame();
+  const deal = openDeal(engine);
+  deal.improvementScore = modules.peValueCreation.MAX_SCORE;
+  const companyBefore = engine.g.companyCash;
+  const txBefore = (engine.g.finance.transactions || []).length;
+  assert.equal(engine.exitPEDeal(deal.id), true);
+  assert.equal(engine.g.companyCash, companyBefore, '会社現金は動かない');
+  assert.equal((engine.g.finance.transactions || []).length, txBefore, '会社の会計へは計上しない');
+}
+
+// 17. 不明な案件やEXIT済みの案件では従来どおり失敗する（ラップで壊れていない）。
+{
+  const { engine } = newGame();
+  const deal = openDeal(engine);
+  assert.equal(engine.exitPEDeal('missing-deal-id'), false, '不明な案件は失敗する');
+  assert.equal(engine.exitPEDeal(deal.id), true, '一度目は成功する');
+  const cashAfter = engine.g.personalCash;
+  assert.equal(engine.exitPEDeal(deal.id), false, '二重EXITはできない');
+  assert.equal(engine.g.personalCash, cashAfter, '二重EXITで現金は増えない');
+}
+
+// 18. 施策 → EXIT の一連の流れで、改善が価格として報われる。
+{
+  const { modules } = newGame();
+  const sell = initiatives => {
+    const { engine } = newGame(31415);
+    const deal = openDeal(engine);
+    for (const id of initiatives) engine.applyPEInitiative(deal.id, id);
+    const cashBefore = engine.g.personalCash;
+    engine.exitPEDeal(deal.id);
+    return engine.g.personalCash - cashBefore;
+  };
+  const probe = newGame(31415);
+  const probeDeal = openDeal(probe.engine);
+  const matchedID = probe.modules.peValueCreation.issueOf(probeDeal).initiativeID;
+  const mismatchedID = modules.peValueCreation.INITIATIVES.find(x => x.id !== matchedID).id;
+
+  const noWork = sell([]);
+  const matchedWork = sell([matchedID, matchedID, matchedID]);
+  const mismatchedWork = sell([mismatchedID, mismatchedID, mismatchedID]);
+
+  assert.ok(matchedWork > noWork, '再建した方が高く売れる');
+  assert.ok(matchedWork > mismatchedWork, '課題に的中させた方が高く売れる');
+}
+
+// 19. plan() が EXIT情報を UI へ渡す。
+{
+  const { modules, engine } = newGame();
+  const deal = openDeal(engine);
+  const before = engine.peValueCreationPlan(deal.id);
+  assert.equal(before.exitPremium, 0, '未改善では上乗せ0と表現される');
+  assert.equal(before.exitValue, Math.round(deal.currentValuation));
+
+  deal.improvementScore = modules.peValueCreation.MAX_SCORE;
+  const after = engine.peValueCreationPlan(deal.id);
+  assert.ok(after.exitPremium > 0, '改善後は上乗せが表示される');
+  assert.equal(after.exitValue, modules.peValueCreation.exitValue(deal));
+}
+
 console.log('PE value creation tests passed');
