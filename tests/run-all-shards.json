@@ -9,7 +9,8 @@
     "tests/shareholder-activism-incidence-matrix-test.js",
     "tests/stage-3-3-observer-migration-test.js",
     "tests/stage-3-4-startup-observer-migration-test.js",
-    "tests/stage-3-ui-screen-scope-regression-test.js"
+    "tests/stage-3-ui-screen-scope-regression-test.js",
+    "tests/store-specific-pricing-test.js"
   ],
   "C": [
     "test:long",

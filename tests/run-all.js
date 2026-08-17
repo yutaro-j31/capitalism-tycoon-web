@@ -117,6 +117,7 @@ for (const [name, file] of [
   ['player-turnaround-plan-ui', 'tests/player-turnaround-plan-ui-test.js'],
   ['product-lifecycle-determinism', 'tests/product-lifecycle-determinism-test.js'],
   ['store-equipment', 'tests/store-equipment-test.js'],
+  ['store-specific-pricing', 'tests/store-specific-pricing-test.js'],
   ['pe-value-creation', 'tests/pe-value-creation-test.js'],
   ['pe-dual-ownership', 'tests/pe-dual-ownership-test.js'],
   ['save-storage-budget', 'tests/save-storage-budget-test.js'],
