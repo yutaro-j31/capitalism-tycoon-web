@@ -118,6 +118,7 @@ for (const [name, file] of [
   ['product-lifecycle-determinism', 'tests/product-lifecycle-determinism-test.js'],
   ['store-equipment', 'tests/store-equipment-test.js'],
   ['pe-value-creation', 'tests/pe-value-creation-test.js'],
+  ['pe-dual-ownership', 'tests/pe-dual-ownership-test.js'],
   ['save-storage-budget', 'tests/save-storage-budget-test.js'],
   ['storage-history-contract', 'tests/storage-history-contract-test.js'],
   ['setup-recovery-ui', 'tests/setup-recovery-ui-test.js'],
