@@ -1,65 +1,37 @@
-# Hourly Codex automation
+# Manual Codex development (ChatGPT plan)
 
-This directory contains the prompt used by `.github/workflows/codex-hourly-development.yml`.
+This directory contains the reusable prompt for developing Capitalism Tycoon Web with **Codex Web / Codex Cloud signed in through the user's ChatGPT plan**.
 
-The workflow is deliberately disabled by default for scheduled runs. Enable it only after configuring all three repository settings:
+The project does **not** require an `OPENAI_API_KEY`, a GitHub write PAT for automation, or a scheduled Codex GitHub Action in this operating mode.
 
-1. Actions secret `OPENAI_API_KEY`
-2. Actions secret `CODEX_GITHUB_TOKEN`
-3. Actions variable `CODEX_HOURLY_ENABLED=true`
+## Instruction hierarchy
 
-`CODEX_GITHUB_TOKEN` should be a fine-grained personal access token scoped only to this repository with the minimum permissions needed to push feature-branch commits and create/update pull requests. It is intentionally separated from the OpenAI API key.
+Keep the files separate by purpose:
 
-After both secrets are configured, use `workflow_dispatch` for a manual end-to-end validation before setting `CODEX_HOURLY_ENABLED=true`. Scheduled runs use cron `17 * * * *`.
+1. **`/AGENTS.md`** — repository-wide, durable operating rules for Codex and other coding agents. Keep this file at the repository root.
+2. **`/CLAUDE.md`** — detailed project-specific invariants, pitfalls, and validation rules.
+3. **`/docs/feature-requests.md`** and **`/docs/gameplay-systems-roadmap.md`** — current backlog and roadmap.
+4. **`.github/codex/prompts/manual-development.md`** — short task launcher for a manually started Codex task.
 
-## Safety model
+Do not paste the full contents of `AGENTS.md` into every task. The launcher explicitly tells Codex to read the current repository copy so the durable rules can evolve independently.
 
-The workflow uses four isolated jobs:
+## iPhone / iPad operating loop
 
-1. **gate** — uses only the repository-provided read-only `GITHUB_TOKEN` to inspect current `main`, managed PRs, reviews, and relevant Actions state. It does not receive either write-capable secret.
-2. **codex** — runs `openai/codex-action@v1` with read-only GitHub permissions, no persisted GitHub credential, `permission-profile: :workspace`, and `safety-strategy: unprivileged-user`. Codex runs as a dedicated `codex-agent` user. The repository `.git` metadata is read-only to that user. Codex may edit only the working tree and produces a patch artifact; it cannot commit, push, or mutate GitHub state.
-3. **validate** — starts on a fresh runner with neither `OPENAI_API_KEY` nor `CODEX_GITHUB_TOKEN`. It revalidates the main/PR SHA and scoped CI push gate, applies the patch, rejects protected orchestration-file edits, enforces patch size/file-count limits, and runs `npm run test:syntax` plus `npm run test:static` as a dedicated unprivileged validator user. It then confirms validation did not add new repository changes, records the verified patch SHA-256, and uploads a verified artifact.
-4. **publish** — starts on another fresh runner. It revalidates main/target state again, verifies the patch SHA-256, applies the already-validated patch, disables Git hooks, commits locally, and does not execute patched code or tests. Only the final push and PR/comment steps receive `CODEX_GITHUB_TOKEN`.
+1. Open Codex Web while signed in with ChatGPT.
+2. Select the GitHub-connected `yutaro-j31/capitalism-tycoon-web` environment/repository.
+3. Start a **Code** task.
+4. Paste the contents of `.github/codex/prompts/manual-development.md`.
+5. Optionally append one specific task after the launcher. If no task is appended, Codex should select the next safe unit of work according to `AGENTS.md`.
+6. Let Codex inspect the repository, implement one reviewable change, and run focused tests.
+7. When supported by the connected Codex environment, have it push a non-main branch and open a **Draft PR**. It must never merge autonomously.
+8. Return to ChatGPT with the PR URL. ChatGPT reviews the live GitHub state, CI, diff, and review feedback before any merge.
 
-The OpenAI API key is supplied only to the Codex action. The GitHub write token is supplied only to the final publisher steps. Patched code is executed only in the validation runner, where no GitHub write token is present.
+## Usage and cost boundary
 
-Scheduled Codex cannot modify:
+This manual path is intentionally separate from API automation. Do not add an `OPENAI_API_KEY` merely to use this workflow. Usage is governed by the Codex allowance of the ChatGPT account used to sign in.
 
-- `AGENTS.md`
-- `CLAUDE.md`
-- `.github/workflows/**`
-- `.github/codex/**`
+## Removed API scheduler
 
-Those files require a separate human-reviewed change.
+The previous hourly GitHub Actions + `openai/codex-action` scheduler was removed after choosing the ChatGPT-plan-only operating model. This prevents hourly skipped runs and avoids accidentally enabling API-billed autonomous development.
 
-## PR policy
-
-The automation never merges.
-
-A new autonomous change is pushed to a branch named `feat/codex-hourly-<run-id>` and opened as a Draft PR. Later hourly runs can repair that managed PR only when its current CI has failed or review changes were requested.
-
-When a managed PR is green, the workflow stops changing it and waits for human review/merge.
-
-To avoid colliding with other agents or human work, a new feature is not started while another non-managed PR updated within the last 24 hours is active. Existing older PRs remain visible in the runtime context for collision awareness but are not modified by this workflow.
-
-## Cost and queue control
-
-The hourly job is guarded by `CODEX_HOURLY_ENABLED`, uses one global concurrency group, and does not call Codex while the current `main` or selected managed PR has queued/in-progress CI.
-
-The gate ignores the currently running hourly workflow itself when checking whether `main` CI is busy. Repository-wide stale/ghost runs are not treated as blockers; only runs associated with the current main or selected managed PR head are considered.
-
-This prevents stacked autonomous writes while repository CI is still evaluating the current state.
-
-## Why a separate GitHub token is required
-
-GitHub normally suppresses recursive workflow creation for events generated with the repository-provided `GITHUB_TOKEN`. Because an autonomous feature-branch push must trigger the repository's normal PR CI, the publisher uses `CODEX_GITHUB_TOKEN` only for the final push and PR/comment operations.
-
-## Activation order
-
-1. Merge the automation PR after its normal CI is green.
-2. Create `OPENAI_API_KEY` as an Actions secret.
-3. Create a repository-scoped fine-grained PAT and store it as `CODEX_GITHUB_TOKEN`.
-4. Keep `CODEX_HOURLY_ENABLED` unset or false.
-5. Run `Codex Hourly Development` once with `workflow_dispatch` and inspect the gate/Codex/validate/publish results.
-6. If the manual run behaves correctly, set repository variable `CODEX_HOURLY_ENABLED=true`.
-7. Continue to require human review and merge for every generated Draft PR.
+If API automation is ever reconsidered, restore it through a new reviewed PR rather than silently re-enabling old scheduler files.
