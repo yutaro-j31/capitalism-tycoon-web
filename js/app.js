@@ -101,6 +101,7 @@ function renderSetup() {
       <label class="field"><span>プレイヤー名</span><input name="playerName" value="創業者" maxlength="24"></label>
       <label class="field"><span>会社名</span><input name="companyName" value="ポケット商事" maxlength="30"></label>
       <label class="field"><span>難易度</span><select name="difficulty"><option value="easy">やさしい</option><option value="normal" selected>標準</option><option value="hard">ハード</option></select></label>
+      <label class="field"><span>出身地</span><select name="founderPrefID">${opts(engine.g.prefs,engine.g.founderHomePrefID)}</select></label>
       <label class="field"><span>初期特性</span><select name="founderTraitID">${FOUNDER_TRAITS.map(t=>`<option value="${t.id}">${t.icon} ${t.name} — ${t.detail}</option>`).join('')}</select></label>
       <label class="field"><span>シナリオ</span><select name="scenario"><option value="free">自由プレイ</option><option value="standard">標準シナリオ</option></select></label>
       <button class="btn primary wide" type="submit">創業する</button>
@@ -353,8 +354,8 @@ function renderVentureExpansion(){
 }
 
 function renderFounder(){
-  const g=engine.g,trait=engine.founderTrait(),recommended=g.tenants.filter(t=>g.recommendedTenantIDsFromHomeSearch.includes(t.id));
-  return `${card('創業者プロフィール',`<div class="founder-hero"><div class="founder-avatar">${engine.founderHomeRankIcon()}</div><div><h2>${esc(g.founderName)}</h2><p>${trait.icon} ${trait.name} · ${engine.founderHomeRankTitle()}</p></div></div><div class="kpi-grid">${stat('経営スキル',g.founderSkillBusiness.toFixed(2))}${stat('技術スキル',g.founderSkillTech.toFixed(2))}${stat('金融スキル',g.founderSkillFinance.toFixed(2))}${stat('交渉スキル',g.founderSkillNegotiation.toFixed(2))}</div>`,{subtitle:trait.detail})}
+  const g=engine.g,trait=engine.founderTrait(),pref=engine.pref(g.founderHomePrefID),recommended=g.tenants.filter(t=>g.recommendedTenantIDsFromHomeSearch.includes(t.id));
+  return `${card('創業者プロフィール',`<div class="founder-hero"><div class="founder-avatar">${engine.founderHomeRankIcon()}</div><div><h2>${esc(g.founderName)}</h2><p>${pref?.name||g.founderHomePrefName}出身 · ${trait.icon} ${trait.name} · ${engine.founderHomeRankTitle()}</p></div></div><div class="kpi-grid">${stat('地元信用',`${finite(g.localReputationByPref[g.founderHomePrefID]).toFixed(0)}/100`)}${stat('経営スキル',g.founderSkillBusiness.toFixed(2))}${stat('技術スキル',g.founderSkillTech.toFixed(2))}${stat('金融スキル',g.founderSkillFinance.toFixed(2))}${stat('交渉スキル',g.founderSkillNegotiation.toFixed(2))}</div>`,{subtitle:trait.detail})}
   <div class="grid two">
     ${card('創業者ホーム',`<p>自宅の行動から店舗探索、学習、人脈形成、個人開発を行えます。</p><div class="button-grid">${btn('街へ出て店舗探索','founder-action',{kind:'primary',data:'data-kind="storeHunt"'})}${btn('地元イベント','founder-action',{kind:'secondary',data:'data-kind="localEvent"'})}${btn('経営を学ぶ','founder-action',{kind:'ghost',data:'data-kind="studyBusiness"'})}${btn('技術を学ぶ','founder-action',{kind:'ghost',data:'data-kind="studyTech"'})}${btn('金融を学ぶ','founder-action',{kind:'ghost',data:'data-kind="studyFinance"'})}${btn('人脈を作る','founder-action',{kind:'ghost',data:'data-kind="network"'})}${btn('自宅アップグレード','upgrade-home',{kind:'secondary'})}</div><p class="muted">作業机 ${g.founderHomeUsedSlots}/${g.founderHomeDeskSlots} · 月額維持費 ${yen(g.founderHomeMonthlyCost)}</p>`)}
     ${card('自宅から個人開発',FOUNDER_HOME_PRODUCTS.map(p=>`<article class="item"><div><h3>${p.name}</h3><p>${p.category} · 開発${p.weeks}週 · 必要資金${compactYen(p.cost)}</p></div>${btn('試作開始','launch-home-product',{kind:'primary small',data:`data-id="${p.id}"`})}</article>`).join(''))}

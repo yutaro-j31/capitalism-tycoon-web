@@ -18,23 +18,26 @@ function screen(tab, seed = 4242) {
   return { engine, ui, html: read() };
 }
 
-// 1. セットアップから出身地の選択欄が消えている。
+// 1. ゲーム結果に影響する出身地の選択欄は残っている。
 {
   const { html } = screen('setup');
-  assert(!html.includes('founderPrefID'), 'セットアップに出身地セレクタが無い');
-  assert(!html.includes('出身地'), 'セットアップに「出身地」の見出しが無い');
+  assert(html.includes('name="founderPrefID"'), 'セットアップに出身地セレクタが残っている');
+  assert(html.includes('出身地'), 'セットアップに「出身地」の見出しが残っている');
 }
 
-// 2. 創業者プロフィールから、結果に影響しない指標と出身地表記が消えている。
+// 2. 創業者プロフィールから、結果に影響しない指標だけが消えている。
 {
   const { html } = screen('founder');
   // 指標としての表示が消えていること。「人脈を作る」は交渉スキルを上げる実効のある
   // 行動なので残す（同じ語を含むため、指標表示の形で判定する）。
-  for (const word of ['出身', '体力', '集中力', '健康', '地元信用', '政策影響力']) {
+  for (const word of ['体力', '集中力', '健康', '政策影響力']) {
     assert(!html.includes(word), `創業者画面に「${word}」が残っていない`);
   }
   for (const label of ['教育', '人脈']) {
     assert(!html.includes(`<span>${label}</span>`), `創業者画面に指標「${label}」が残っていない`);
+  }
+  for (const word of ['出身', '地元信用']) {
+    assert(html.includes(word), `創業者画面に意味のある「${word}」が残っている`);
   }
 }
 
@@ -65,7 +68,7 @@ function screen(tab, seed = 4242) {
 }
 
 // 5. 内部状態は温存されている。出身地は地元信用・製品の初期ブランド・
-//    テナント探索の対象県に効いているため、表示だけを外して値は残す。
+//    テナント探索の対象県に効くため、選択UIと結果表示も残す。
 {
   const { engine } = screen('founder');
   assert(engine.g.founderHomePrefID, '出身地の内部値は保持される');
@@ -75,13 +78,12 @@ function screen(tab, seed = 4242) {
   assert(Number.isFinite(engine.g.founderHealth), '健康の内部値は保持される');
 }
 
-// 6. 出身地を渡さずに開始しても壊れない（セレクタが無くなったため既定値で始まる）。
+// 6. 非UIの既存呼び出しが出身地を省略しても既定値で開始できる。
 {
   const { ctx, modules: mods } = loadGame({ random: lcg(31) });
   const engine = ctx.__ct_engine;
   const expectedDefaultPref = engine.g.selectedPref;
   engine.configure({ playerName: '既定', companyName: '既定', difficulty: 'normal', scenario: 'standard' });
-  // セレクタを外した以上、出身地は「地図で選択中の県」に従うのが意図。
   // setFounderOrigin 側にも prefs[0] の保険があるため、意図した既定値を明示的に固定する。
   assert(engine.g.founderHomePrefID, '出身地未指定でも既定値が入る');
   assert.equal(engine.g.founderHomePrefID, expectedDefaultPref,
@@ -100,14 +102,14 @@ function screen(tab, seed = 4242) {
   assert.equal(engine.g.founderHomePrefID, 'fukuoka', 'configure の founderPrefID は今も効く');
 }
 
-// 8. 削除した表示が実装ファイルから消えている（元に戻したら気づけるように）。
+// 8. 意味のある出身地UIは残し、効果のない表示だけが消えている。
 {
   const app = fs.readFileSync(path.join(ROOT, 'js/app.js'), 'utf8');
-  assert(!app.includes('name="founderPrefID"'), 'app.js に出身地セレクタが無い');
+  assert(app.includes('name="founderPrefID"'), 'app.js に出身地セレクタが残る');
   assert(!app.includes("stat('体力'"), 'app.js に体力の表示が無い');
   assert(!app.includes("stat('集中力'"), 'app.js に集中力の表示が無い');
   assert(!app.includes("stat('健康'"), 'app.js に健康の表示が無い');
-  assert(!app.includes("stat('地元信用'"), 'app.js に地元信用の表示が無い');
+  assert(app.includes("stat('地元信用'"), 'app.js に地元信用の表示が残る');
   assert(!app.includes("stat('政策影響力'"), 'app.js に政策影響力の表示が無い');
   assert(app.includes("stat('財団評価'"), 'app.js に財団評価の表示は残る');
 }
