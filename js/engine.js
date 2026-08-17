@@ -762,7 +762,7 @@ class TycoonEngine extends EventTarget {
     this.g[cashKey]-=amount;const cap=account==='company'?'Company':'Personal';s.activeFundingRound[`contributed${cap}`]+=amount;s[`totalInvested${cap}`]=finite(s[`totalInvested${cap}`])+amount;
     if(account==='company')finance.event(this.g,'investmentPurchase',amount,{cashEffect:-amount,assetEffect:amount,sourceType:'startupFundingRound',sourceID:`${startupID}-${s.activeFundingRound.id}-${account}`,description:`${s.name} ${plan.round}追加投資`});
     const history=this.g.startupFundingHistory[startupID]||(this.g.startupFundingHistory[startupID]=[]);history.unshift({id:`${s.activeFundingRound.id}-${account}-${this.g.week}-${history.length}`,eventType:'participated',stage:plan.round,week:this.g.week,account,amount,preMoneyValuation:plan.preMoneyValuation,targetRaise:plan.targetRaise,postMoneyValuation:plan.postMoneyValuation});this.g.startupFundingHistory[startupID]=history.slice(0,24);
-    const message=`${s.name}の${plan.round}ラウンドへ${yen(amount)}追加出資しました。`;this.g.news.unshift(`第${this.g.week}週：${message}`);this.g.news=this.g.news.slice(0,300);this.save();this.emit('notify',{message,severity:'success'});return true;
+    const message=`${s.name}の${plan.round}ラウンドへ${yen(amount)}追加出資しました。`;this.notify(message,'success');this.save();this.emit();return true;
   }
   openStartupFundingRound(s) {
     if(!s?.alive||s.subsidiary||s.activeFundingRound||(finite(s.ownedCompany)<=0&&finite(s.ownedPersonal)<=0)||!s.fundingOpen||this.g.week-finite(s.lastFundingRoundClosedWeek,-999)<16)return false;
