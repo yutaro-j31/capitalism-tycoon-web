@@ -142,7 +142,7 @@ function plan(state,deal){
     exitValue:exitValue(deal),
     exitPremium:exitValue(deal)-Math.round(finite(deal?.currentValuation)),
     exitMultiplier:exitMultiplier(deal),
-    affordable:gate.ok&&finite(state?.personalCash)>=cost,
+    affordable:gate.ok&&finite(state?.[deal?.ownerAccount==='company'?'companyCash':'personalCash'])>=cost,
     blockedReason:gate.ok?'':gate.reason,
     initiatives:Object.freeze(INITIATIVES.map(row=>Object.freeze({
       ...row,
@@ -156,8 +156,8 @@ function plan(state,deal){
   });
 }
 
-// Personal money only: PE holdings sit on the personal side of the ledger, so this never
-// touches company cash or the company's financial statements.
+// Charge the current owner account. Company-owned holdings also record the expense in
+// company finance; personal holdings remain entirely outside the company ledger.
 function applyInitiative(engine,dealID,initiativeID){
   const state=engine.g;
   const deal=findDeal(state,dealID);
@@ -166,12 +166,15 @@ function applyInitiative(engine,dealID,initiativeID){
   const initiative=initiativeOf(initiativeID);
   if(!initiative)return engine.fail('その施策は選べません。');
   const cost=initiativeCost(deal);
-  if(finite(state.personalCash)<cost)return engine.fail(`施策の実行には${yen(cost)}が必要です。`);
+  const owner=deal.ownerAccount==='company'?'company':'personal';
+  const cashKey=owner==='company'?'companyCash':'personalCash';
+  if(finite(state[cashKey])<cost)return engine.fail(`施策の実行には${yen(cost)}が必要です。`);
 
   // The fee is paid either way — the work was commissioned regardless of how it turned out.
   const succeeded=succeeds(state,deal,initiativeID);
   const matched=matches(deal,initiativeID);
-  state.personalCash-=cost;
+  state[cashKey]-=cost;
+  if(owner==='company')modules.finance?.event?.(state,'otherOperating',cost,{cashEffect:-cost,profitEffect:-cost,assetEffect:0,sourceType:'peInitiative',sourceID:deal.id,description:`${deal.targetName} ${initiative.name}`});
   if(succeeded){
     deal.improvementScore=clamp(scoreOf(deal)+(matched?MATCHED_SCORE_GAIN:MISMATCHED_SCORE_GAIN),0,MAX_SCORE);
     deal.currentValuation=finite(deal.currentValuation)*(1+(matched?MATCHED_VALUATION_GAIN:MISMATCHED_VALUATION_GAIN));
@@ -179,6 +182,8 @@ function applyInitiative(engine,dealID,initiativeID){
     deal.improvementScore=clamp(scoreOf(deal)-initiative.setbackScore,0,MAX_SCORE);
     deal.currentValuation=finite(deal.currentValuation)*(1-initiative.setbackValuation);
   }
+
+  engine.syncPESubsidiary?.(deal);
 
   engine.notify(
     !succeeded
