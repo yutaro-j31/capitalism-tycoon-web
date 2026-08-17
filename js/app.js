@@ -373,11 +373,13 @@ function renderPersonalAlternativeAssets(){
 function renderPEDeal(deal){
   const plan=engine.peValueCreationPlan?.(deal.id);
   const head=`<div><h3>${esc(deal.targetName)}</h3><p>${esc(deal.industry)} · 評価${compactYen(deal.currentValuation)} · 保有${deal.holdingWeeks}週</p></div>`;
-  const exit=btn('EXIT','exit-pe',{kind:'ghost small',data:`data-id="${esc(deal.id)}"`});
+  const plan0=engine.peValueCreationPlan?.(deal.id);
+  const exitLabel=plan0&&plan0.exitPremium>0?`EXIT ${compactYen(plan0.exitValue)}`:'EXIT';
+  const exit=btn(exitLabel,'exit-pe',{kind:'ghost small',data:`data-id="${esc(deal.id)}"`});
   if(!plan)return `<article class="item">${head}<div class="button-row">${exit}</div></article>`;
   const status=plan.resolved
-    ?`<p class="muted">再建完了（改善 ${plan.score}/${plan.maxScore}）。EXITの判断ができます。</p>`
-    :`<p class="muted"><strong>課題：${esc(plan.issue.name)}</strong> ${esc(plan.issue.detail)}</p>${progress(plan.score,plan.maxScore)}<span class="muted">改善 ${plan.score}/${plan.maxScore} · 施策1回 ${compactYen(plan.cost)}</span>`;
+    ?`<p class="muted">再建完了（改善 ${plan.score}/${plan.maxScore}）。EXITで再建プレミアム +${compactYen(plan.exitPremium)} が上乗せされます。</p>`
+    :`<p class="muted"><strong>課題：${esc(plan.issue.name)}</strong> ${esc(plan.issue.detail)}</p>${progress(plan.score,plan.maxScore)}<span class="muted">改善 ${plan.score}/${plan.maxScore} · 施策1回 ${compactYen(plan.cost)}${plan.exitPremium>0?` · 再建プレミアム +${compactYen(plan.exitPremium)}`:''}</span>`;
   const actions=plan.resolved?'':`<div class="button-grid">${plan.initiatives.map(x=>btn(`${x.name}${x.recommended?' ◎':''}`,'pe-initiative',{kind:x.recommended?'primary small':'small',data:`data-id="${esc(deal.id)}" data-kind="${esc(x.id)}"`,disabled:!plan.affordable})).join('')}</div>`;
   return `<article class="item" data-pe-deal="${esc(deal.id)}">${head}${status}${actions}<div class="button-row">${exit}</div></article>`;
 }
