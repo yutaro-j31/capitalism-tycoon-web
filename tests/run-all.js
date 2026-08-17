@@ -4,12 +4,12 @@ const commands = [
   'test:syntax','test:static','test:save','test:migration','test:save-v9',
   'test:player-crisis','test:player-crisis-actions','test:player-crisis-ui','test:player-crisis-restructuring','test:player-crisis-restructuring-ui','test:player-debt-service','test:player-turnaround-plan',
   'test:load','test:week','test:transaction','test:long','test:css','test:javascript','test:modules','test:stock',
-  'test:market','test:market-migration','test:market-ui','test:market-capacity','test:market-cannibalization','test:market-calibration','test:market-order','test:market-opening','test:market-rng',
+  'test:market','test:player-media-advertising','test:market-migration','test:market-ui','test:market-capacity','test:market-cannibalization','test:market-calibration','test:market-order','test:market-opening','test:market-rng',
   'test:finance','test:store-weekly-integer-yen','test:statements','test:cashflow','test:working-capital','test:finance-migration','test:finance-ui','test:accounting-invariants','test:finance-advanced','test:finance-history','test:finance-rng','test:finance-user-action-snapshot','test:finance-cash-mutation-coverage','test:finance-book-value','test:finance-working-capital-integration','test:finance-archive-rollforward','test:finance-migrated-advanced-save','test:finance-product-venture','test:finance-startup-subsidiary','test:finance-subsidiary-ipo','test:finance-ma-accounting','test:finance-working-capital-rollforward','test:finance-store-close-deposit','test:finance-property-building-disposal',
   'test:vertical-integration-determinism','test:supply','test:inventory','test:procurement','test:supply-finance','test:supply-migration','test:supply-ui','test:supply-rng','test:supply-calibration','test:supplier-coverage','test:supply-procurement-cash','test:supply-store-close','test:supply-spoilage-profit','test:supply-multi-store-spoilage','test:supply-long',
   'test:workforce','test:workforce-long',
   'test:competitor','test:competitor-market','test:competitor-finance','test:competitor-ai','test:competitor-entry-exit','test:competitor-migration','test:competitor-ui','test:competitor-rng','test:competitor-calibration','test:competitor-history','test:competitor-multi-presence','test:competitor-projects','test:competitor-market-entry','test:competitor-credit','test:competitor-distress-lifecycle','test:competitor-terminal-compat','test:competitor-media','test:competitor-parity','test:competitor-dashboard','test:competitor-long',
-  'test:product-innovation','test:ceo-dashboard','test:ma-acquisition-financing','test:weekly-impact','test:founding-tutorial','test:ma-deal-room','test:ma-integration','test:ma-portfolio-summary','test:ma-portfolio-summary-ui','test:ma-board-approval'
+  'test:product-innovation','test:ceo-dashboard','test:ma-acquisition-financing','test:weekly-impact','test:founding-tutorial','test:ma-deal-room','test:ma-integration','test:ma-portfolio-summary','test:ma-portfolio-summary-ui','test:ma-board-approval','test:startup-funding-round','test:personal-real-estate'
 
 ];
 
@@ -116,6 +116,11 @@ for (const [name, file] of [
   ['macro-cycle', 'tests/macro-cycle-test.js'],
   ['player-turnaround-plan-ui', 'tests/player-turnaround-plan-ui-test.js'],
   ['product-lifecycle-determinism', 'tests/product-lifecycle-determinism-test.js'],
+  ['store-equipment', 'tests/store-equipment-test.js'],
+  ['store-specific-pricing', 'tests/store-specific-pricing-test.js'],
+  ['store-multiple-menu', 'tests/store-multiple-menu-test.js'],
+  ['pe-value-creation', 'tests/pe-value-creation-test.js'],
+  ['pe-dual-ownership', 'tests/pe-dual-ownership-test.js'],
   ['save-storage-budget', 'tests/save-storage-budget-test.js'],
   ['storage-history-contract', 'tests/storage-history-contract-test.js'],
   ['setup-recovery-ui', 'tests/setup-recovery-ui-test.js'],

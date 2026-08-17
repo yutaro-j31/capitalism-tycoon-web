@@ -6,10 +6,15 @@
     "tests/industry-event-response-plans-reachability-test.js",
     "tests/industry-specific-events-reachability-test.js",
     "tests/normal-start-ipo-balance-audit-test.js",
+    "test:player-media-advertising",
     "tests/shareholder-activism-incidence-matrix-test.js",
     "tests/stage-3-3-observer-migration-test.js",
     "tests/stage-3-4-startup-observer-migration-test.js",
-    "tests/stage-3-ui-screen-scope-regression-test.js"
+    "tests/stage-3-ui-screen-scope-regression-test.js",
+    "tests/store-specific-pricing-test.js",
+    "tests/store-multiple-menu-test.js",
+    "test:startup-funding-round",
+    "test:personal-real-estate"
   ],
   "C": [
     "test:long",
@@ -25,6 +30,9 @@
     "test:stock",
     "test:workforce-long",
     "tests/competitor-product-counter-reachability-test.js",
-    "tests/product-recall-reachability-runner.js"
+    "tests/pe-value-creation-test.js",
+    "tests/pe-dual-ownership-test.js",
+    "tests/product-recall-reachability-runner.js",
+    "tests/store-equipment-test.js"
   ]
 }

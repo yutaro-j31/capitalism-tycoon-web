@@ -30,12 +30,24 @@ function pathName(href){
   return String(href||'').split(/[?#]/)[0];
 }
 
+function hasCacheBustMarker(env,location){
+  try{
+    const URLSearchParamsClass=(env&&env.URLSearchParams)||globalThis.URLSearchParams;
+    if(typeof URLSearchParamsClass!=='function')return false;
+    return new URLSearchParamsClass(String(location.search||'')).has('v');
+  }catch(_){return false;}
+}
+
 function diagnosticSnapshot(env=globalThis){
   const location=env.location||{};
   const navigator=env.navigator||{};
   const href=String(location.href||'');
   const pathname=String(location.pathname||pathName(href)||'/');
   const entrypoint=pathname.split('/').filter(Boolean).pop()||'index.html';
+  // play.html immediately redirects to index.html?v=<token>, so by the time this
+  // runs the pathname is always index.html; the ?v= cache-bust token is the only
+  // surviving signal that the page was reached through the safe-restart redirect.
+  const safeEntry=entrypoint===SAFE_ENTRY||hasCacheBustMarker(env,location);
   let week=null;
   let saveReadable=true;
   try{
@@ -50,7 +62,7 @@ function diagnosticSnapshot(env=globalThis){
     saveKey:SAVE_KEY,
     saveVersion:Number(modules.engine.SAVE_VERSION)||SAVE_VERSION,
     entrypoint,
-    launchMode:entrypoint===SAFE_ENTRY?'最新版起動':'通常起動',
+    launchMode:safeEntry?'最新版起動':'通常起動',
     page:pathname,
     userAgent:String(navigator.userAgent||'unknown'),
     online:navigator.onLine!==false,

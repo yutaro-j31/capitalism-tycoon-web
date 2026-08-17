@@ -59,6 +59,16 @@ const PERSONAL_REAL_ESTATE_OFFERS = [
   {id:'logistics-aichi',name:'物流倉庫持分',prefID:'aichi',price:95000000,weeklyRent:310000}
 ];
 
+const PERSONAL_REAL_ESTATE_RENEWAL_STRATEGIES = [
+  {id:'income',name:'収益重視',rentChange:.08,acceptanceBonus:-.15},
+  {id:'balanced',name:'標準更新',rentChange:.02,acceptanceBonus:.03},
+  {id:'retention',name:'長期入居優先',rentChange:-.03,acceptanceBonus:.18}
+];
+const PERSONAL_REAL_ESTATE_LEASE_WEEKS=52;
+const PERSONAL_REAL_ESTATE_RENEWAL_WINDOW=6;
+const PERSONAL_REAL_ESTATE_FIXED_MAINTENANCE_RATE=.006;
+const PERSONAL_REAL_ESTATE_MANAGEMENT_FEE_RATE=.05;
+
 const LUXURY_AUCTION_POOL = [
   {name:'ヴィンテージ腕時計',category:'時計',basePrice:18000000,rarity:4},
   {name:'現代アート作品',category:'美術',basePrice:35000000,rarity:5},
@@ -93,6 +103,33 @@ const stableContractKey = (contract, business) => String(contract?.contractID ||
 const stableAssetKey = asset => String(asset?.assetID || asset?.id || asset?.name || `${asset?.businessID || 'legacy-asset'}:${asset?.startedWeek || 0}:${asset?.cost || 0}`);
 const copy = v => typeof structuredClone==='function' ? structuredClone(v) : JSON.parse(JSON.stringify(v));
 const sum = arr => arr.reduce((a,b)=>a+n(b),0);
+
+function personalRealEstateOps(asset,week){
+  const raw=asset?.rentalOps&&typeof asset.rentalOps==='object'?asset.rentalOps:{};
+  const occupancy=raw.occupancyStatus==='vacant'?'vacant':'occupied';
+  const finiteNonnegative=(value,fallback=0)=>Math.max(0,n(value,fallback));
+  const started=Math.max(0,Math.floor(n(raw.leaseStartedWeek,asset?.purchasedWeek??week)));
+  const defaultRent=finiteNonnegative(asset?.weeklyRent);
+  const savedContract=n(raw.contractWeeklyRent,defaultRent);
+  const contract=occupancy==='occupied'?Math.max(1,savedContract>0?savedContract:defaultRent):0;
+  let renewal=['none','accepted','declined'].includes(raw.renewalStatus)?raw.renewalStatus:'none';
+  const strategy=PERSONAL_REAL_ESTATE_RENEWAL_STRATEGIES.some(x=>x.id===raw.renewalStrategyID)?raw.renewalStrategyID:null;
+  if(occupancy==='vacant'||(renewal!=='none'&&(!strategy||!(n(raw.renewalProposedWeeklyRent)>0))))renewal='none';
+  return {
+    occupancyStatus:occupancy,contractWeeklyRent:contract,leaseStartedWeek:started,
+    leaseEndsWeek:Math.max(started+1,Math.floor(n(raw.leaseEndsWeek,started+PERSONAL_REAL_ESTATE_LEASE_WEEKS))),
+    renewalStatus:renewal,renewalStrategyID:renewal==='none'?null:strategy,
+    renewalProposedWeeklyRent:renewal==='none'?0:finiteNonnegative(raw.renewalProposedWeeklyRent),
+    renewalDecisionChance:renewal==='none'?0:clamp(raw.renewalDecisionChance,0,1),
+    condition:clamp(n(raw.condition,90),0,100),weeksTracked:Math.floor(finiteNonnegative(raw.weeksTracked)),
+    occupiedWeeks:Math.floor(finiteNonnegative(raw.occupiedWeeks)),vacantWeeks:Math.floor(finiteNonnegative(raw.vacantWeeks)),
+    currentVacancyWeeks:occupancy==='vacant'?Math.floor(finiteNonnegative(raw.currentVacancyWeeks)):0,
+    grossRentTotal:finiteNonnegative(raw.grossRentTotal),operatingExpenseTotal:finiteNonnegative(raw.operatingExpenseTotal),
+    repairExpenseTotal:finiteNonnegative(raw.repairExpenseTotal),noiTotal:n(raw.noiTotal),
+    lastGrossRent:finiteNonnegative(raw.lastGrossRent),lastOperatingExpense:finiteNonnegative(raw.lastOperatingExpense),
+    lastNOI:n(raw.lastNOI),lastProcessedWeek:Number.isFinite(Number(raw.lastProcessedWeek))?Math.floor(Number(raw.lastProcessedWeek)):null
+  };
+}
 
 function homeRankTitle(rank){return ({familyHome:'実家',oneRoom:'ワンルーム',liveWorkOffice:'小型オフィス兼自宅',cityApartment:'都市型マンション',luxuryCondo:'高級マンション',mansion:'邸宅',executiveResidence:'本社ビル上層階',estate:'大豪邸'})[rank]||'実家';}
 function homeRankIcon(rank){return ({familyHome:'🏠',oneRoom:'🚪',liveWorkOffice:'💻',cityApartment:'🏙️',luxuryCondo:'🌃',mansion:'🏛️',executiveResidence:'🏢',estate:'🏰'})[rank]||'🏠';}
@@ -130,6 +167,11 @@ function installExpansion(TycoonEngine){
     };
     for(const [k,v] of Object.entries(defaults)){
       if(g[k]===undefined||g[k]===null)g[k]=copy(v);
+    }
+    for(const deal of g.peDeals){
+      if(deal.ownerAccount!=='company')deal.ownerAccount='personal';
+      if(!Number.isFinite(deal.originalInvestedAmount))deal.originalInvestedAmount=n(deal.investedAmount);
+      if(!Number.isFinite(deal.ownerCostBasis))deal.ownerCostBasis=n(deal.investedAmount);
     }
     const trait=FOUNDER_TRAITS.find(x=>x.id===g.founderTraitID)||FOUNDER_TRAITS[0];
     if(!Object.keys(g.localReputationByPref).length)g.localReputationByPref[g.founderHomePrefID]=trait.localRep;
@@ -265,15 +307,22 @@ function installExpansion(TycoonEngine){
     if(!this.g.publicCompany)return this.fail('自社が上場していません。');const costs={poisonPill:12000000,whiteKnight:25000000,irCampaign:6000000},cost=costs[kind]||6000000;if(this.g.companyCash<cost)return this.fail('防衛資金が不足しています。');this.g.companyCash-=cost;const reduction={poisonPill:.05,whiteKnight:.09,irCampaign:.025}[kind]||.025;this.g.competitorOwnedRatio=clamp(this.g.competitorOwnedRatio-reduction,0,.49);this.g.companyReputation=clamp(this.g.companyReputation+(kind==='irCampaign'?2:0),0,100);this.g.shareholderEventLog.unshift(`第${this.g.week}週：買収防衛策「${kind}」を実行。`);this.notify('買収防衛策を実行しました。','success');this.save();this.emit();return true;
   };
 
-  TycoonEngine.prototype.createPEDeal=function(industry,amount){
-    amount=Math.max(1000000,n(amount));if(this.g.personalCash<amount)return this.fail('個人資金が不足しています。');this.g.personalCash-=amount;const names=['再生工業','地域サービス','成長テック','老舗フーズ','物流ソリューション'];this.g.peDeals.push({id:uid(),targetName:`${industry||pick(names)} ${Math.floor(rand(10,99))}`,industry:industry||'テック',acquiredWeek:this.g.week,investedAmount:amount,ownershipRatio:rand(.55,.9),improvementScore:20,currentValuation:amount*rand(.9,1.15),holdingWeeks:0,status:'active'});this.notify('PE案件を組成しました。','success');this.save();this.emit();return true;
+  TycoonEngine.prototype.syncPESubsidiary=function(deal){if(!deal||deal.ownerAccount!=='company'||deal.status!=='active')return null;const ownership=clamp(n(deal.ownershipRatio),.000001,1),id=`pe-subsidiary-${deal.id}`;let sub=this.g.subsidiaries.find(x=>x.id===id);if(!sub){sub={id,name:deal.targetName,industry:deal.industry,domain:deal.industry,status:'active',ownership,valuation:0,carryingBookValue:n(deal.ownerCostBasis),investedCost:n(deal.ownerCostBasis),acquisitionPrice:n(deal.ownerCostBasis),weeklyProfit:0,growth:0,risk:0,retainedEarnings:0,acquiredWeek:this.g.week,source:'pe',peDealID:deal.id,valuationManagedBy:'pe'};this.g.subsidiaries.push(sub);}sub.ownership=ownership;sub.valuation=n(deal.currentValuation)/ownership;sub.carryingBookValue=n(deal.ownerCostBasis);deal.subsidiaryID=id;return sub;};
+  TycoonEngine.prototype.syncPEDealFromSubsidiary=function(sub){if(!sub||sub.valuationManagedBy!=='pe')return null;const deal=this.g.peDeals.find(x=>String(x.id)===String(sub.peDealID)&&x.status==='active'&&x.ownerAccount==='company');if(!deal)return null;deal.ownershipRatio=clamp(n(sub.ownership),0,1);deal.currentValuation=n(sub.valuation)*deal.ownershipRatio;deal.ownerCostBasis=Math.max(0,n(sub.carryingBookValue));deal.subsidiaryID=sub.id;return deal;};
+  TycoonEngine.prototype.createPEDeal=function(industry,amount,ownerAccount='personal'){
+    ownerAccount=ownerAccount==='company'?'company':'personal';amount=Math.max(1000000,n(amount));if(ownerAccount==='company'&&!this.g.departments.investment)return this.fail('会社PE取得には投資部門が必要です。');const cashKey=ownerAccount==='company'?'companyCash':'personalCash';if(this.g[cashKey]<amount)return this.fail(ownerAccount==='company'?'会社資金が不足しています。':'個人資金が不足しています。');this.g[cashKey]-=amount;const names=['再生工業','地域サービス','成長テック','老舗フーズ','物流ソリューション'];const deal={id:uid(),targetName:`${industry||pick(names)} ${Math.floor(rand(10,99))}`,industry:industry||'テック',acquiredWeek:this.g.week,investedAmount:amount,originalInvestedAmount:amount,ownerCostBasis:amount,ownerAccount,ownershipRatio:rand(.55,.9),improvementScore:20,currentValuation:amount*rand(.9,1.15),holdingWeeks:0,status:'active'};this.g.peDeals.push(deal);if(ownerAccount==='company'){__modules.finance.event(this.g,'acquisition',amount,{cashEffect:-amount,assetEffect:amount,sourceType:'peAcquisition',sourceID:deal.id,operationID:`pe-acquire-${deal.id}`,idempotencyKey:`pe-acquire-${deal.id}`,description:`${deal.targetName} PE持分取得`});this.syncPESubsidiary(deal);}this.notify('PE案件を組成しました。','success');this.save();this.emit();return true;
   };
-  TycoonEngine.prototype.improvePEDeal=function(id){const d=this.g.peDeals.find(x=>x.id===id&&x.status==='active');if(!d)return false;const cost=Math.max(500000,d.investedAmount*.02);if(this.g.personalCash<cost)return this.fail('個人資金が不足しています。');this.g.personalCash-=cost;d.improvementScore=clamp(d.improvementScore+6,0,100);d.currentValuation*=1.05;this.notify(`${d.targetName}で改善施策を実行しました。`,'success');this.save();this.emit();return true;};
-  TycoonEngine.prototype.exitPEDeal=function(id){const d=this.g.peDeals.find(x=>x.id===id&&x.status==='active');if(!d)return false;this.g.personalCash+=d.currentValuation;this.g.peRealizedPL+=d.currentValuation-d.investedAmount;d.status='exited';this.notify(`${d.targetName}をEXITしました。`,'success');this.save();this.emit();return true;};
+  TycoonEngine.prototype.improvePEDeal=function(id){const d=this.g.peDeals.find(x=>x.id===id&&x.status==='active');if(!d)return false;const cost=Math.max(500000,d.investedAmount*.02),cashKey=d.ownerAccount==='company'?'companyCash':'personalCash';if(this.g[cashKey]<cost)return this.fail(d.ownerAccount==='company'?'会社資金が不足しています。':'個人資金が不足しています。');this.g[cashKey]-=cost;if(d.ownerAccount==='company')__modules.finance.event(this.g,'otherOperating',cost,{cashEffect:-cost,profitEffect:-cost,sourceType:'peInitiative',sourceID:d.id,description:`${d.targetName} 旧PE改善施策`});d.improvementScore=clamp(d.improvementScore+6,0,100);d.currentValuation*=1.05;this.syncPESubsidiary(d);this.notify(`${d.targetName}で改善施策を実行しました。`,'success');this.save();this.emit();return true;};
+  TycoonEngine.prototype.transferPEDealToCompany=function(id){return this.runTransaction(()=>{const d=this.g.peDeals.find(x=>x.id===id&&x.status==='active');if(!d||d.ownerAccount==='company')return false;const price=n(d.currentValuation);if(this.g.companyCash<price)return this.fail('会社資金が不足しています。');this.g.companyCash-=price;this.g.personalCash+=price;this.g.peRealizedPL+=price-n(d.ownerCostBasis,d.investedAmount);d.ownerAccount='company';d.ownerCostBasis=price;d.companyAcquisitionCost=price;__modules.finance.event(this.g,'acquisition',price,{cashEffect:-price,assetEffect:price,sourceType:'peTransfer',sourceID:d.id,operationID:`pe-transfer-${d.id}`,idempotencyKey:`pe-transfer-${d.id}`,description:`${d.targetName} PE持分の公正価値取得`});this.syncPESubsidiary(d);this.notify(`${d.targetName}を公正価値で自社グループへ移管しました。`,'success');return true;});};
+  TycoonEngine.prototype.exitPEDeal=function(id){const d=this.g.peDeals.find(x=>x.id===id&&x.status==='active');if(!d)return false;const proceeds=n(d.currentValuation),basis=n(d.ownerCostBasis,d.investedAmount);if(d.ownerAccount==='company'){this.g.companyCash+=proceeds;__modules.finance.event(this.g,'assetSale',proceeds,{cashEffect:proceeds,assetEffect:-basis,profitEffect:proceeds-basis,sourceType:'peExit',sourceID:d.id,operationID:`pe-exit-${d.id}`,idempotencyKey:`pe-exit-${d.id}`,description:`${d.targetName} PE持分売却`});this.g.subsidiaries=this.g.subsidiaries.filter(x=>x.id!==d.subsidiaryID&&x.peDealID!==d.id);}else{this.g.personalCash+=proceeds;this.g.peRealizedPL+=proceeds-basis;}d.status='exited';this.notify(`${d.targetName}をEXITしました。`,'success');this.save();this.emit();return true;};
   TycoonEngine.prototype.createAngelInvestment=function(amount){amount=Math.max(500000,n(amount));if(this.g.personalCash<amount)return this.fail('個人資金が不足しています。');this.g.personalCash-=amount;this.g.angelInvestments.push({id:uid(),startupName:`スタートアップ${this.g.week}-${Math.floor(rand(10,99))}`,investedAmount:amount,week:this.g.week,multiple:1,status:'active'});this.notify('エンジェル投資を実行しました。','success');this.save();this.emit();return true;};
   TycoonEngine.prototype.exitAngelInvestment=function(id){const a=this.g.angelInvestments.find(x=>x.id===id&&x.status==='active');if(!a)return false;this.g.personalCash+=a.investedAmount*a.multiple;a.status='exited';this.notify(`${a.startupName}をEXITしました。`,'success');this.save();this.emit();return true;};
-  TycoonEngine.prototype.buyPersonalRealEstate=function(id){const o=PERSONAL_REAL_ESTATE_OFFERS.find(x=>x.id===id);if(!o||this.g.personalCash<o.price)return this.fail('個人資金が不足しています。');this.g.personalCash-=o.price;this.g.personalRealEstateHoldings.push({...copy(o),assetID:uid(),purchasePrice:o.price,currentValue:o.price,purchasedWeek:this.g.week,status:'owned'});this.notify(`${o.name}を個人で購入しました。`,'success');this.save();this.emit();return true;};
+  TycoonEngine.prototype.buyPersonalRealEstate=function(id){const o=PERSONAL_REAL_ESTATE_OFFERS.find(x=>x.id===id);if(!o||this.g.personalCash<o.price)return this.fail('個人資金が不足しています。');this.g.personalCash-=o.price;this.g.personalRealEstateHoldings.push({...copy(o),assetID:uid(),purchasePrice:o.price,currentValue:o.price,purchasedWeek:this.g.week,status:'owned',rentalOps:{occupancyStatus:'occupied',contractWeeklyRent:o.weeklyRent,leaseStartedWeek:this.g.week,leaseEndsWeek:this.g.week+PERSONAL_REAL_ESTATE_LEASE_WEEKS,renewalStatus:'none',renewalStrategyID:null,renewalProposedWeeklyRent:0,renewalDecisionChance:0,condition:90,weeksTracked:0,occupiedWeeks:0,vacantWeeks:0,currentVacancyWeeks:0,grossRentTotal:0,operatingExpenseTotal:0,repairExpenseTotal:0,noiTotal:0,lastGrossRent:0,lastOperatingExpense:0,lastNOI:0,lastProcessedWeek:null}});this.notify(`${o.name}を個人で購入しました。`,'success');this.save();this.emit();return true;};
   TycoonEngine.prototype.sellPersonalRealEstate=function(id){const a=this.g.personalRealEstateHoldings.find(x=>x.assetID===id&&x.status==='owned');if(!a)return false;this.g.personalCash+=a.currentValue;a.status='sold';a.soldWeek=this.g.week;a.salePrice=a.currentValue;this.notify(`${a.name}を売却しました。`,'success');this.save();this.emit();return true;};
+  TycoonEngine.prototype.getPersonalRealEstateOperations=function(id){const a=this.g.personalRealEstateHoldings.find(x=>x.assetID===id&&x.status==='owned');if(!a)return null;const ops=personalRealEstateOps(a,this.g.week),weeksUntil=Math.max(0,ops.leaseEndsWeek-this.g.week),price=Math.max(1,n(a.purchasePrice));return {...ops,weeksUntilLeaseEnd:ops.occupancyStatus==='occupied'?weeksUntil:0,renewalAvailable:ops.occupancyStatus==='occupied'&&weeksUntil<=PERSONAL_REAL_ESTATE_RENEWAL_WINDOW&&weeksUntil>0&&ops.renewalStatus==='none',renewalStrategies:PERSONAL_REAL_ESTATE_RENEWAL_STRATEGIES.map(s=>({...s,proposedWeeklyRent:Math.round(ops.contractWeeklyRent*(1+s.rentChange))})),repairQuote:ops.condition<100?Math.max(50000,price*(100-ops.condition)*.0005):0,occupancyRate:ops.weeksTracked?clamp(ops.occupiedWeeks/ops.weeksTracked,0,1):(ops.occupancyStatus==='occupied'?1:0),grossYield:n(a.weeklyRent)*52/price,effectiveYield:ops.weeksTracked?ops.noiTotal/ops.weeksTracked*52/price:0};};
+  TycoonEngine.prototype.personalRealEstateRenewalChance=function(a,ops,strategy){const proposed=Math.round(ops.contractWeeklyRent*(1+strategy.rentChange)),market=Math.max(1,n(a.weeklyRent,ops.contractWeeklyRent)),economy=(clamp(this.g.economy,.7,1.4)-1)*.18,condition=(ops.condition-75)*.004,overMarket=Math.max(0,proposed/market-1)*.9;return {proposed,chance:clamp(.77+economy+condition-overMarket+strategy.acceptanceBonus,.08,.98)};};
+  TycoonEngine.prototype.offerPersonalRealEstateRenewal=function(id,strategyID){const a=this.g.personalRealEstateHoldings.find(x=>x.assetID===id&&x.status==='owned'),strategy=PERSONAL_REAL_ESTATE_RENEWAL_STRATEGIES.find(x=>x.id===strategyID);if(!a||!strategy)return false;const view=this.getPersonalRealEstateOperations(id);if(!view?.renewalAvailable)return false;const ops=personalRealEstateOps(a,this.g.week),decision=this.personalRealEstateRenewalChance(a,ops,strategy);ops.renewalStatus=deterministicUnit(a.assetID,ops.leaseEndsWeek,strategy.id,'renewal')<decision.chance?'accepted':'declined';ops.renewalStrategyID=strategy.id;ops.renewalProposedWeeklyRent=decision.proposed;ops.renewalDecisionChance=decision.chance;a.rentalOps=ops;this.notify(`${a.name}の契約更新は${ops.renewalStatus==='accepted'?'合意':'退去予定'}となりました。`,ops.renewalStatus==='accepted'?'success':'warning');this.save();this.emit();return true;};
+  TycoonEngine.prototype.repairPersonalRealEstate=function(id){const a=this.g.personalRealEstateHoldings.find(x=>x.assetID===id&&x.status==='owned');if(!a)return false;const view=this.getPersonalRealEstateOperations(id),cost=view?.repairQuote;if(!(cost>0)||this.g.personalCash<cost)return false;const ops=personalRealEstateOps(a,this.g.week);this.g.personalCash-=cost;ops.condition=100;ops.repairExpenseTotal+=cost;ops.operatingExpenseTotal+=cost;ops.noiTotal-=cost;ops.lastOperatingExpense+=cost;ops.lastNOI-=cost;a.rentalOps=ops;this.notify(`${a.name}を修繕しました（${Math.round(cost).toLocaleString()}円）。`,'success');this.save();this.emit();return true;};
   TycoonEngine.prototype.investFounder=function(kind){const specs={health:[500000,8],education:[800000,6],network:[600000,7],successor:[700000,5],foundation:[5000000,1],lobby:[4000000,1]},s=specs[kind];if(!s||this.g.personalCash<s[0])return this.fail('個人資金が不足しています。');this.g.personalCash-=s[0];if(kind==='health')this.g.founderHealth=clamp(this.g.founderHealth+s[1],0,100);if(kind==='education')this.g.founderEducationLevel=clamp(this.g.founderEducationLevel+s[1],0,100);if(kind==='network')this.g.founderNetworkLevel=clamp(this.g.founderNetworkLevel+s[1],0,100);if(kind==='successor')this.g.successorReadiness=clamp(this.g.successorReadiness+s[1],0,100);if(kind==='foundation'){this.g.foundationEndowment+=s[0];this.g.foundationReputation=clamp(this.g.foundationReputation+s[0]/5000000,0,100);}if(kind==='lobby')this.g.lobbyInfluence=clamp(this.g.lobbyInfluence+s[0]/4000000,0,100);this.save();this.emit();return true;};
 
   TycoonEngine.prototype.refreshSportsMarket=function(){
@@ -401,9 +450,11 @@ function installExpansion(TycoonEngine){
   };
 
   TycoonEngine.prototype.updatePersonalExpandedWeekly=function(){
-    const g=this.g;let adjustment=0;for(const d of g.peDeals.filter(x=>x.status==='active')){d.holdingWeeks++;d.currentValuation=Math.max(d.investedAmount*.25,d.currentValuation*(1+rand(-.012,.025)+d.improvementScore/50000));}
+    const g=this.g;let adjustment=0;for(const d of g.peDeals.filter(x=>x.status==='active')){d.holdingWeeks++;d.currentValuation=Math.max(d.investedAmount*.25,d.currentValuation*(1+rand(-.012,.025)+d.improvementScore/50000));this.syncPESubsidiary(d);}
     for(const a of g.angelInvestments.filter(x=>x.status==='active')){const event=Math.random();a.multiple=clamp(a.multiple*(event<.02?1.9:event>.98?.55:rand(.98,1.03)),.1,20);}
-    for(const x of g.personalRealEstateHoldings.filter(x=>x.status==='owned')){const cycle=clamp((g.realEstateCycle+g.economy)/2,.7,1.4);x.currentValue=clamp(x.currentValue*(1.0005+(cycle-1)*.05),x.purchasePrice*.5,x.purchasePrice*6);x.weeklyRent=clamp(x.weeklyRent*(1+(cycle-1)*.03),x.purchasePrice*.0003,x.purchasePrice*.004);g.personalCash+=x.weeklyRent;adjustment+=x.weeklyRent;}
+    for(const x of g.personalRealEstateHoldings.filter(x=>x.status==='owned')){const ops=personalRealEstateOps(x,g.week);if(ops.lastProcessedWeek===g.week)continue;const cycle=clamp((g.realEstateCycle+g.economy)/2,.7,1.4);x.currentValue=clamp(x.currentValue*(1.0005+(cycle-1)*.05),x.purchasePrice*.5,x.purchasePrice*6);x.weeklyRent=clamp(x.weeklyRent*(1+(cycle-1)*.03),x.purchasePrice*.0003,x.purchasePrice*.004);let acquiredThisWeek=false;if(ops.occupancyStatus==='occupied'&&g.week>=ops.leaseEndsWeek){if(ops.renewalStatus==='none'){const strategy=PERSONAL_REAL_ESTATE_RENEWAL_STRATEGIES[1],decision=this.personalRealEstateRenewalChance(x,ops,strategy);ops.renewalStatus=deterministicUnit(x.assetID,ops.leaseEndsWeek,strategy.id,'renewal')<decision.chance?'accepted':'declined';ops.renewalStrategyID=strategy.id;ops.renewalProposedWeeklyRent=decision.proposed;ops.renewalDecisionChance=decision.chance;}if(ops.renewalStatus==='accepted'){ops.contractWeeklyRent=ops.renewalProposedWeeklyRent;ops.leaseStartedWeek=g.week;ops.leaseEndsWeek=g.week+PERSONAL_REAL_ESTATE_LEASE_WEEKS;ops.renewalStatus='none';ops.renewalStrategyID=null;ops.renewalProposedWeeklyRent=0;ops.renewalDecisionChance=0;}else{ops.occupancyStatus='vacant';ops.contractWeeklyRent=0;ops.currentVacancyWeeks=0;}}
+      if(ops.occupancyStatus==='vacant'){const chance=clamp(.28+(clamp(g.economy,.7,1.4)-1)*.22+(cycle-1)*.18+(ops.condition-70)*.006,.05,.75);if(deterministicUnit(x.assetID,g.week,'tenant-search')<chance){ops.occupancyStatus='occupied';ops.contractWeeklyRent=Math.round(x.weeklyRent);ops.leaseStartedWeek=g.week;ops.leaseEndsWeek=g.week+PERSONAL_REAL_ESTATE_LEASE_WEEKS;ops.renewalStatus='none';ops.renewalStrategyID=null;ops.renewalProposedWeeklyRent=0;ops.renewalDecisionChance=0;ops.currentVacancyWeeks=0;acquiredThisWeek=true;}else ops.currentVacancyWeeks++;}else ops.currentVacancyWeeks=0;
+      const gross=ops.occupancyStatus==='occupied'&&!acquiredThisWeek?ops.contractWeeklyRent:0,fixed=n(x.purchasePrice)*PERSONAL_REAL_ESTATE_FIXED_MAINTENANCE_RATE/52,expense=fixed+gross*PERSONAL_REAL_ESTATE_MANAGEMENT_FEE_RATE,noi=gross-expense;g.personalCash+=noi;adjustment+=noi;ops.weeksTracked++;if(ops.occupancyStatus==='occupied')ops.occupiedWeeks++;else ops.vacantWeeks++;ops.grossRentTotal+=gross;ops.operatingExpenseTotal+=expense;ops.noiTotal+=noi;ops.lastGrossRent=gross;ops.lastOperatingExpense=expense;ops.lastNOI=noi;ops.condition=clamp(ops.condition-(ops.occupancyStatus==='occupied'?.12:.08),0,100);ops.lastProcessedWeek=g.week;x.rentalOps=ops;}
     if(g.familyTrustEstablished){const r=g.familyTrustCash*.0004;g.familyTrustCash+=r;}
     return adjustment;
   };
@@ -431,7 +482,7 @@ function installExpansion(TycoonEngine){
   const baseCompanyValue=TycoonEngine.prototype.companyValue;
   TycoonEngine.prototype.companyValue=function(){const base=baseCompanyValue.call(this),vertical=sum((this.g.verticalIntegrationAssets||[]).filter(x=>x.active).map(x=>x.cost*.65)),patents=sum((this.g.patentRecords||[]).map(x=>x.licenseIncome*52*5));return Math.max(0,base+vertical+patents);};
   const basePersonalNetWorth=TycoonEngine.prototype.personalNetWorth;
-  TycoonEngine.prototype.personalNetWorth=function(){const base=basePersonalNetWorth.call(this),pe=sum((this.g.peDeals||[]).filter(x=>x.status==='active').map(x=>x.currentValuation)),angel=sum((this.g.angelInvestments||[]).filter(x=>x.status==='active').map(x=>x.investedAmount*x.multiple)),realEstate=sum((this.g.personalRealEstateHoldings||[]).filter(x=>x.status==='owned').map(x=>x.currentValue)),trust=n(this.g.familyTrustCash);return Math.max(0,base+pe+angel+realEstate+trust);};
+  TycoonEngine.prototype.personalNetWorth=function(){const base=basePersonalNetWorth.call(this),pe=sum((this.g.peDeals||[]).filter(x=>x.status==='active'&&x.ownerAccount!=='company').map(x=>x.currentValuation)),angel=sum((this.g.angelInvestments||[]).filter(x=>x.status==='active').map(x=>x.investedAmount*x.multiple)),realEstate=sum((this.g.personalRealEstateHoldings||[]).filter(x=>x.status==='owned').map(x=>x.currentValue)),trust=n(this.g.familyTrustCash);return Math.max(0,base+pe+angel+realEstate+trust);};
 
   const baseAdvance=TycoonEngine.prototype.advanceWeek;
   TycoonEngine.prototype.advanceWeek=function(showSummary=true){return this.runTransaction(()=>{
@@ -445,7 +496,7 @@ function installExpansion(TycoonEngine){
   TycoonEngine.prototype.recordExpandedHistory=function(){const g=this.g;if(g.companyValueHistory.length){g.companyValueHistory[g.companyValueHistory.length-1]=this.companyValue();g.personalNetWorthHistory[g.personalNetWorthHistory.length-1]=this.personalNetWorth();if(g.lastReport){g.weeklySalesHistory[g.weeklySalesHistory.length-1]=g.lastReport.sales;g.weeklyProfitHistory[g.weeklyProfitHistory.length-1]=g.lastReport.profit;}}};
 }
 
-Object.assign(exports,{FOUNDER_TRAITS,FOUNDER_HOME_PRODUCTS,SUPPLIER_OFFERS,VERTICAL_INTEGRATION_OFFERS,RD_PROJECTS,PERSONAL_REAL_ESTATE_OFFERS,LUXURY_AUCTION_POOL,SUCCESSOR_CANDIDATES,installExpansion});
+Object.assign(exports,{FOUNDER_TRAITS,FOUNDER_HOME_PRODUCTS,SUPPLIER_OFFERS,VERTICAL_INTEGRATION_OFFERS,RD_PROJECTS,PERSONAL_REAL_ESTATE_OFFERS,PERSONAL_REAL_ESTATE_RENEWAL_STRATEGIES,LUXURY_AUCTION_POOL,SUCCESSOR_CANDIDATES,installExpansion});
 })(__modules.expansion={});
 
 })();

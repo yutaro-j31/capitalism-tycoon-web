@@ -576,7 +576,8 @@ class TycoonEngine extends EventTarget {
     const investments = this.g.personalInvestments.reduce((a,x)=>a+finite(x.currentValue),0);
     const lux = this.g.luxuryAssets.reduce((a,x)=>a+finite(x.currentValue),0);
     const sports = this.g.sportsTeams.reduce((a,x)=>a+finite(x.value),0);
-    return Math.max(0, this.g.personalCash - this.g.personalDebt + stocks + props + investments + lux + sports);
+    const ventures = this.g.startups.reduce((sum,s)=>sum+s.valuation*finite(s.ownedPersonal),0);
+    return Math.max(0, this.g.personalCash - this.g.personalDebt + stocks + props + investments + lux + sports + ventures);
   }
   companyCreditLimit() { return Math.max(0, this.companyValue() * (.15 + this.g.companyCredit / 250)); }
   personalCreditLimit() { return Math.max(0, this.personalNetWorth() * .25 + 5_000_000); }
@@ -739,6 +740,7 @@ class TycoonEngine extends EventTarget {
 
   investStartup(startupID,amount,account='company') {
     const s=this.g.startups.find(x=>x.id===startupID);amount=finite(amount);if(!s||!s.alive||amount<=0)return false;
+    if(s.activeFundingRound?.status==='open')return this.fail('追加資金調達中はフォローオン投資を利用してください。');
     if(account==='company'&&!this.g.departments.investment)return this.fail('会社投資には投資部門が必要です。');
     if(amount<s.minTicket)return this.fail(`最低投資額は${yen(s.minTicket)}です。`);
     const cashKey=account==='company'?'companyCash':'personalCash';if(this.g[cashKey]<amount)return this.fail('資金が不足しています。');
@@ -748,8 +750,33 @@ class TycoonEngine extends EventTarget {
     s.fundingOpen=false;s.runwayWeeks+=Math.floor(amount/Math.max(1,s.valuation)*156);
     this.notify(`${s.name}へ${yen(amount)}投資し、持分${pct(equity)}を取得しました。`,'success');this.save();this.emit();return true;
   }
+  getStartupFundingRoundPlan(startupID) {
+    const s=this.g.startups.find(x=>x.id===startupID),r=s?.activeFundingRound;
+    if(!s||!s.alive||!r||r.status!=='open'||![r.preMoneyValuation,r.targetRaise,r.postMoneyValuation,r.preRoundOwnedCompany,r.preRoundOwnedPersonal,r.contributedCompany,r.contributedPersonal,r.closesWeek].every(Number.isFinite)||r.preMoneyValuation<=0||r.targetRaise<=0||r.postMoneyValuation!==r.preMoneyValuation+r.targetRaise)return null;
+    const side=account=>{const cap=account==='company'?'Company':'Personal',before=r[`preRoundOwned${cap}`],contributed=r[`contributed${cap}`],required=before*r.targetRaise,diluted=before*r.preMoneyValuation/r.postMoneyValuation;return{account,ownershipBefore:before,ownershipWithoutParticipation:diluted,projectedOwnership:diluted+contributed/r.postMoneyValuation,proRataRequired:required,contributed,remaining:Math.max(0,required-contributed)};};
+    return{id:r.id,round:r.round,openedWeek:r.openedWeek,closesWeek:r.closesWeek,weeksRemaining:Math.max(0,r.closesWeek-this.g.week),preMoneyValuation:r.preMoneyValuation,targetRaise:r.targetRaise,postMoneyValuation:r.postMoneyValuation,company:side('company'),personal:side('personal')};
+  }
+  participateStartupFundingRound(startupID,amount,account) {
+    const plan=this.getStartupFundingRoundPlan(startupID),s=this.g.startups.find(x=>x.id===startupID);if(!plan||this.g.week>=plan.closesWeek||(account!=='company'&&account!=='personal')||typeof amount!=='number'||!Number.isFinite(amount)||amount<=0)return false;
+    const side=plan[account],cashKey=account==='company'?'companyCash':'personalCash';if(side.ownershipBefore<=0||amount>side.remaining+1e-7||this.g[cashKey]<amount)return false;
+    this.g[cashKey]-=amount;const cap=account==='company'?'Company':'Personal';s.activeFundingRound[`contributed${cap}`]+=amount;s[`totalInvested${cap}`]=finite(s[`totalInvested${cap}`])+amount;
+    if(account==='company')finance.event(this.g,'investmentPurchase',amount,{cashEffect:-amount,assetEffect:amount,sourceType:'startupFundingRound',sourceID:`${startupID}-${s.activeFundingRound.id}-${account}`,description:`${s.name} ${plan.round}追加投資`});
+    const history=this.g.startupFundingHistory[startupID]||(this.g.startupFundingHistory[startupID]=[]);history.unshift({id:`${s.activeFundingRound.id}-${account}-${this.g.week}-${history.length}`,eventType:'participated',stage:plan.round,week:this.g.week,account,amount,preMoneyValuation:plan.preMoneyValuation,targetRaise:plan.targetRaise,postMoneyValuation:plan.postMoneyValuation});this.g.startupFundingHistory[startupID]=history.slice(0,24);
+    const message=`${s.name}の${plan.round}ラウンドへ${yen(amount)}追加出資しました。`;this.notify(message,'success');this.save();this.emit();return true;
+  }
+  openStartupFundingRound(s) {
+    if(!s?.alive||s.subsidiary||s.activeFundingRound||(finite(s.ownedCompany)<=0&&finite(s.ownedPersonal)<=0)||!s.fundingOpen||this.g.week-finite(s.lastFundingRoundClosedWeek,-999)<16)return false;
+    const next={Seed:'Series A','Series A':'Series B','Series B':'Pre-IPO','Series C':'Pre-IPO','Pre-IPO':'Pre-IPO','プレIPO':'プレIPO'}[s.stage]||'Series A',rates={Seed:.2,'Series A':.25,'Series B':.2,'Pre-IPO':.15,'プレIPO':.15},pre=Math.max(1,finite(s.valuation)),raise=pre*(rates[next]||.2);
+    s.activeFundingRound={id:`${s.id}-${next}-${this.g.week}`,round:next,openedWeek:this.g.week,closesWeek:this.g.week+4,preMoneyValuation:pre,targetRaise:raise,postMoneyValuation:pre+raise,preRoundOwnedCompany:finite(s.ownedCompany),preRoundOwnedPersonal:finite(s.ownedPersonal),contributedCompany:0,contributedPersonal:0,status:'open'};s.fundingOpen=false;
+    const h=this.g.startupFundingHistory[s.id]||(this.g.startupFundingHistory[s.id]=[]);h.unshift({id:`${s.activeFundingRound.id}-opened`,eventType:'opened',stage:next,openedWeek:this.g.week,preMoneyValuation:pre,targetRaise:raise,postMoneyValuation:pre+raise,status:'open'});this.g.startupFundingHistory[s.id]=h.slice(0,24);this.g.news.unshift(`第${this.g.week}週：${s.name}が${next}追加資金調達を開始しました。`);return true;
+  }
+  closeStartupFundingRound(s) {
+    const plan=this.getStartupFundingRoundPlan(s?.id);if(!plan||this.g.week<plan.closesWeek)return false;const r=s.activeFundingRound;s.ownedCompany=r.preRoundOwnedCompany*r.preMoneyValuation/r.postMoneyValuation+r.contributedCompany/r.postMoneyValuation;s.ownedPersonal=r.preRoundOwnedPersonal*r.preMoneyValuation/r.postMoneyValuation+r.contributedPersonal/r.postMoneyValuation;s.valuation=r.postMoneyValuation;s.stage=r.round;s.fundingRound=r.round;s.runwayWeeks=Math.max(finite(s.runwayWeeks),({Seed:40,'Series A':48,'Series B':56,'Pre-IPO':52,'プレIPO':52}[r.round]||48));s.lastFundingRoundClosedWeek=this.g.week;
+    const h=this.g.startupFundingHistory[s.id]||(this.g.startupFundingHistory[s.id]=[]),opened=h.find(x=>x.status==='open');if(opened){opened.status='closed';opened.closedWeek=this.g.week;}h.unshift({id:`${r.id}-closed`,eventType:'closed',stage:r.round,closedWeek:this.g.week,preMoneyValuation:r.preMoneyValuation,targetRaise:r.targetRaise,postMoneyValuation:r.postMoneyValuation,ownershipBefore:{company:r.preRoundOwnedCompany,personal:r.preRoundOwnedPersonal},ownershipAfter:{company:s.ownedCompany,personal:s.ownedPersonal}});this.g.startupFundingHistory[s.id]=h.slice(0,24);s.activeFundingRound=null;this.g.news.unshift(`第${this.g.week}週：${s.name}の${s.stage}追加資金調達が完了しました。`);return true;
+  }
   makeSubsidiary(startupID) {
     const s=this.g.startups.find(x=>x.id===startupID);if(!s||s.subsidiary)return false;
+    if(s.activeFundingRound?.status==='open')return this.fail('追加資金調達ラウンド終了後に子会社化できます。');
     if(s.ownedCompany<.5)return this.fail('会社持分50%以上が必要です。');
     s.subsidiary=true;const book=finite(s.totalInvestedCompany||0);this.g.subsidiaries.push({id:uuid(),startupID:s.id,name:s.name,domain:s.domain,ownership:s.ownedCompany,valuation:s.valuation,investedCost:book,carryingBookValue:book,weeklyProfit:0,growth:s.growth,risk:s.risk,publicCompany:false,status:'active',retainedEarnings:0});
     this.notify(`${s.name}を連結子会社化しました。`,'success');this.save();this.emit();return true;
@@ -759,8 +786,8 @@ class TycoonEngine extends EventTarget {
     if(sub.valuation<250_000_000||sub.ownership<.5)return this.fail('評価額2.5億円以上・持分50%以上が必要です。');
     sub.publicCompany=true;sub.ticker=`V${Math.floor(rand(100,999))}`;sub.sharesOut=1_000_000;sub.stockPrice=sub.valuation/sub.sharesOut;
     const soldOwnership=.15,preOwnership=sub.ownership,saleRatio=soldOwnership/Math.max(.000001,preOwnership),preBook=finite(sub.carryingBookValue||sub.investedCost||0),soldBook=preBook*saleRatio,proceeds=sub.valuation*soldOwnership,gain=proceeds-soldBook;sub.ownership-=soldOwnership;sub.carryingBookValue=Math.max(0,preBook-soldBook);this.g.companyCash+=proceeds;
-    finance.event(this.g,'investmentSale',proceeds,{cashEffect:proceeds,assetEffect:-soldBook,profitEffect:gain,sourceType:'ipoSubsidiary',sourceID:id,description:`${sub.name} IPO売出`});
-    this.notify(`${sub.name}を上場させ、${yen(proceeds)}を調達しました。`,'success');this.save();this.emit();return true;
+    finance.event(this.g,'investmentSale',proceeds,{cashEffect:proceeds,assetEffect:-soldBook,profitEffect:gain,sourceType:'ipoSubsidiary',sourceID:id,description:`${sub.name} IPO売出`});this.syncPEDealFromSubsidiary?.(sub);
+    this.notify(`${sub.name}を上場させ、${yen(proceeds)}を調達しました。`,'success');if(!this.inTransaction()){this.save();this.emit();}return true;
   }
 
   launchProduct(blueprintID,name=null) {
@@ -943,8 +970,8 @@ class TycoonEngine extends EventTarget {
     if(this.g.publicCompany){const own=this.stock(this.g.ticker);if(own){this.g.stockPrice=own.price;own.issuedShares=this.g.sharesOut;own.marketCap=own.price*this.g.sharesOut;}}
   }
   updateStartups() {
-    for(const s of this.g.startups){if(!s.alive)continue;s.runwayWeeks--;const annual=s.growth+rand(-s.risk,s.risk)+(this.g.economy-1)*.15;s.valuation=Math.max(2_000_000,s.valuation*(1+annual/52));s.productProgress=clamp(s.productProgress+rand(.005,.035),0,1);
-      if(s.runwayWeeks<8)s.fundingOpen=true;if(s.fundingOpen&&Math.random()<.08){s.stage=s.stage==='Seed'?'Series A':s.stage==='Series A'?'Series B':s.stage==='Series B'?'Series C':'Pre-IPO';s.valuation*=rand(1.15,1.65);s.runwayWeeks+=52;s.ownedCompany*=rand(.82,.94);s.ownedPersonal*=rand(.82,.94);s.fundingOpen=false;this.g.news.unshift(`第${this.g.week}週：${s.name}が${s.stage}資金調達を完了しました。`);}
+    for(const s of this.g.startups){if(!s.alive){s.activeFundingRound=null;continue;}if(s.activeFundingRound&&!this.getStartupFundingRoundPlan(s.id))s.activeFundingRound=null;if(s.activeFundingRound&&this.g.week>=s.activeFundingRound.closesWeek){this.closeStartupFundingRound(s);continue;}s.runwayWeeks--;const annual=s.growth+rand(-s.risk,s.risk)+(this.g.economy-1)*.15;s.valuation=Math.max(2_000_000,s.valuation*(1+annual/52));s.productProgress=clamp(s.productProgress+rand(.005,.035),0,1);
+      if(s.runwayWeeks<8)s.fundingOpen=true;if(s.fundingOpen&&(s.ownedCompany>0||s.ownedPersonal>0))this.openStartupFundingRound(s);else if(s.fundingOpen&&Math.random()<.08){s.stage=s.stage==='Seed'?'Series A':s.stage==='Series A'?'Series B':s.stage==='Series B'?'Series C':'Pre-IPO';s.valuation*=rand(1.15,1.65);s.runwayWeeks+=52;s.ownedCompany*=rand(.82,.94);s.ownedPersonal*=rand(.82,.94);s.fundingOpen=false;this.g.news.unshift(`第${this.g.week}週：${s.name}が${s.stage}資金調達を完了しました。`);}
       if(s.runwayWeeks<=0&&Math.random()<.25){s.alive=false;s.valuation*=.1;this.writeOffStartup(s,'資金枯渇');this.g.news.unshift(`第${this.g.week}週：${s.name}が資金枯渇で事業停止しました。`);}
       if(s.stage==='Pre-IPO'&&s.valuation>1_000_000_000&&Math.random()<.025)this.listStartup(s);
     }
@@ -954,7 +981,7 @@ class TycoonEngine extends EventTarget {
   // at its original value.
   writeOffStartup(s,reason='事業停止') {
     const book=Math.max(0,finite(s.totalInvestedCompany));
-    s.ownedCompany=0;s.ownedPersonal=0;
+    s.ownedCompany=0;s.ownedPersonal=0;s.activeFundingRound=null;
     const personalBook=Math.max(0,finite(s.totalInvestedPersonal));
     if(personalBook>0)s.totalInvestedPersonal=0;
     if(book<=0)return false;
@@ -966,6 +993,7 @@ class TycoonEngine extends EventTarget {
     return true;
   }
   listStartup(s) {
+    if(s?.activeFundingRound?.status==='open')return false;
     const id=`V${Math.floor(rand(1000,9999))}`;if(this.stock(id))return;s.ipoStockID=id;const shares=1_000_000,price=s.valuation/shares;
     this.g.market.push({id,name:s.name,sector:s.domain,price,previous:price,dividendYield:0,volatility:.12,trend:.004,marketCap:s.valuation,per:0,pbr:5,issuedShares:shares,dividendPerShare:0,shareholders:{},description:`${s.domain}の新興企業`,listingMarket:'東証グロース',priceHistory:[{week:this.g.week, price}]});
     const companyQty=Math.floor(s.ownedCompany*shares),personalQty=Math.floor(s.ownedPersonal*shares);const companyBook=Math.max(0,finite(s.totalInvestedCompany)),personalBook=Math.max(0,finite(s.totalInvestedPersonal));if(companyQty)this.g.companyStocks[id]={qty:companyQty,avg:companyBook/companyQty};if(personalQty)this.g.personalStocks[id]={qty:personalQty,avg:personalBook/personalQty};if(companyBook>0){finance.event(this.g,'investmentSale',companyBook,{cashEffect:0,assetEffect:-companyBook,profitEffect:0,sourceType:'listStartup',sourceID:`${s.id}-${this.g.week}`,idempotencyKey:`list-startup-${s.id}`,description:`${s.name} IPO転換（VC持分の振替）`});finance.event(this.g,'investmentPurchase',companyBook,{cashEffect:0,assetEffect:companyBook,profitEffect:0,sourceType:'listStartupShares',sourceID:`${s.id}-${this.g.week}`,idempotencyKey:`list-startup-shares-${s.id}`,description:`${s.name} 上場株式への振替`});s.totalInvestedCompany=0;}if(personalBook>0)s.totalInvestedPersonal=0;
@@ -1215,7 +1243,7 @@ class TycoonEngine extends EventTarget {
   }
   updateSubsidiaries() {
     let revenue=0,profit=0,dividends=0;
-    for(const s of this.g.subsidiaries){if(s.status==='bankrupt')continue;const annual=clamp(s.growth+rand(-s.risk,s.risk)+(this.g.economy-1)*.08,-.3,.8);s.valuation=Math.max(5_000_000,s.valuation*(1+annual/52));s.weeklyProfit=s.valuation*clamp(rand(.01,.055)-s.risk*.025,-.015,.06)/52;s.retainedEarnings=finite(s.retainedEarnings)+s.weeklyProfit;revenue+=Math.max(0,s.weeklyProfit/.12)*s.ownership;profit+=s.weeklyProfit*s.ownership;if(this.g.week%13===0&&s.retainedEarnings>0){const div=s.retainedEarnings*.15*s.ownership;s.retainedEarnings-=div;dividends+=div;}if(s.status==='distressed'&&Math.random()<.03){s.status='bankrupt';s.valuation*=.1;}}
+    for(const s of this.g.subsidiaries){if(s.status==='bankrupt'||s.valuationManagedBy==='pe')continue;const annual=clamp(s.growth+rand(-s.risk,s.risk)+(this.g.economy-1)*.08,-.3,.8);s.valuation=Math.max(5_000_000,s.valuation*(1+annual/52));s.weeklyProfit=s.valuation*clamp(rand(.01,.055)-s.risk*.025,-.015,.06)/52;s.retainedEarnings=finite(s.retainedEarnings)+s.weeklyProfit;revenue+=Math.max(0,s.weeklyProfit/.12)*s.ownership;profit+=s.weeklyProfit*s.ownership;if(this.g.week%13===0&&s.retainedEarnings>0){const div=s.retainedEarnings*.15*s.ownership;s.retainedEarnings-=div;dividends+=div;}if(s.status==='distressed'&&Math.random()<.03){s.status='bankrupt';s.valuation*=.1;}}
     for(const s of this.g.maSubsidiaries){if(s.status!=='active')continue;if(s.pmiStatus&&s.pmiStatus!=='completed'){s.weeklyProfit=finite(s.weeklyProfit,finite(s.operatingProfit)/52);}else{s.valuation=Math.max(1_000_000,s.valuation*(1+s.growth/52+rand(-.025,.03)));s.weeklyProfit=s.operatingProfit/52*rand(.8,1.2);}s.retainedEarnings=finite(s.retainedEarnings)+s.weeklyProfit;revenue+=Math.max(0,s.sales/52);profit+=s.weeklyProfit;if(this.g.week%13===0&&s.retainedEarnings>0){const div=s.retainedEarnings*.2;s.retainedEarnings-=div;dividends+=div;}if(Math.random()<s.risk*.005){const goodwill=this.g.goodwillRecords.find(g=>g.name===s.name);const loss=Math.min(goodwill?.carryingValue||0,s.valuation*.1);if(goodwill)goodwill.carryingValue-=loss;this.g.totalImpairmentLoss+=loss;profit-=loss;}}
     this.g.companyCash+=dividends;return {revenue,profit,dividends};
   }
