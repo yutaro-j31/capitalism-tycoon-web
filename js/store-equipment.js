@@ -203,6 +203,35 @@ function setOperatingHours(engine,storeID,hours){
   return true;
 }
 
+function validPrice(value){return typeof value==='number'&&Number.isFinite(value)&&value>0;}
+function pricingPlan(state,store,business){
+  const businessPrice=Math.max(1,finite(business?.price,1));
+  const isOverridden=validPrice(store?.priceOverride);
+  return Object.freeze({storeID:store?String(store.id):'',businessPrice,
+    overridePrice:isOverridden?store.priceOverride:null,effectivePrice:isOverridden?store.priceOverride:businessPrice,
+    isOverridden,changeable:store?.status==='open',
+    blockedReason:store?.status==='open'?'':'閉店した店舗の価格は変更できません。'});
+}
+function setStorePrice(engine,storeID,price){
+  const store=(engine.g.stores||[]).find(row=>String(row.id)===String(storeID));
+  if(!store)return engine.fail('店舗が見つかりません。');
+  if(store.status!=='open')return engine.fail('営業中の店舗だけ価格を変更できます。');
+  if(!validPrice(price))return engine.fail('価格は0より大きい有限の数値で指定してください。');
+  if(store.priceOverride===price)return false;
+  store.priceOverride=price;
+  engine.notify(`${store.name}の店舗価格を${yen(price)}に変更しました。`,'success');
+  engine.save();engine.emit('change');return true;
+}
+function resetStorePrice(engine,storeID){
+  const store=(engine.g.stores||[]).find(row=>String(row.id)===String(storeID));
+  if(!store)return engine.fail('店舗が見つかりません。');
+  if(store.status!=='open')return engine.fail('営業中の店舗だけ価格を変更できます。');
+  if(!Object.prototype.hasOwnProperty.call(store,'priceOverride'))return false;
+  delete store.priceOverride;
+  engine.notify(`${store.name}の価格を全社価格に戻しました。`,'success');
+  engine.save();engine.emit('change');return true;
+}
+
 function install(){
   const proto=EngineClass.prototype;
   if(proto.__storeEquipmentInstalled)return true;
@@ -221,6 +250,9 @@ function install(){
     return store?operatingHoursPlan(this.g,store):null;
   };
   proto.setStoreOperatingHours=function(storeID,hours){return setOperatingHours(this,storeID,hours);};
+  proto.getStorePricingPlan=function(storeID){const store=(this.g.stores||[]).find(row=>String(row.id)===String(storeID));return store?pricingPlan(this.g,store,this.business(store.businessID)):null;};
+  proto.setStorePrice=function(storeID,price){return setStorePrice(this,storeID,price);};
+  proto.resetStorePrice=function(storeID){return resetStorePrice(this,storeID);};
   Object.defineProperty(proto,'__storeEquipmentInstalled',{value:true});
   return true;
 }
@@ -233,6 +265,7 @@ modules.storeEquipment=Object.freeze({
   level,isMaxLevel,capacityMultiplier,upgradeCost,upgradeable,plan,upgrade,
   conditionOf,renovationCost,renovatable,renovationPlan,renovate,
   operatingHoursOf,operatingHoursOption,operatingHoursPlan,setOperatingHours,
+  validPrice,pricingPlan,setStorePrice,resetStorePrice,
   install,
   __installed:true
 });
