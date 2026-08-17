@@ -765,7 +765,7 @@ class TycoonEngine extends EventTarget {
     const message=`${s.name}の${plan.round}ラウンドへ${yen(amount)}追加出資しました。`;this.g.news.unshift(`第${this.g.week}週：${message}`);this.g.news=this.g.news.slice(0,300);this.save();this.emit('notify',{message,severity:'success'});return true;
   }
   openStartupFundingRound(s) {
-    if(!s?.alive||s.activeFundingRound||(finite(s.ownedCompany)<=0&&finite(s.ownedPersonal)<=0)||!s.fundingOpen||this.g.week-finite(s.lastFundingRoundClosedWeek,-999)<16)return false;
+    if(!s?.alive||s.subsidiary||s.activeFundingRound||(finite(s.ownedCompany)<=0&&finite(s.ownedPersonal)<=0)||!s.fundingOpen||this.g.week-finite(s.lastFundingRoundClosedWeek,-999)<16)return false;
     const next={Seed:'Series A','Series A':'Series B','Series B':'Pre-IPO','Series C':'Pre-IPO','Pre-IPO':'Pre-IPO','プレIPO':'プレIPO'}[s.stage]||'Series A',rates={Seed:.2,'Series A':.25,'Series B':.2,'Pre-IPO':.15,'プレIPO':.15},pre=Math.max(1,finite(s.valuation)),raise=pre*(rates[next]||.2);
     s.activeFundingRound={id:`${s.id}-${next}-${this.g.week}`,round:next,openedWeek:this.g.week,closesWeek:this.g.week+4,preMoneyValuation:pre,targetRaise:raise,postMoneyValuation:pre+raise,preRoundOwnedCompany:finite(s.ownedCompany),preRoundOwnedPersonal:finite(s.ownedPersonal),contributedCompany:0,contributedPersonal:0,status:'open'};s.fundingOpen=false;
     const h=this.g.startupFundingHistory[s.id]||(this.g.startupFundingHistory[s.id]=[]);h.unshift({id:`${s.activeFundingRound.id}-opened`,eventType:'opened',stage:next,openedWeek:this.g.week,preMoneyValuation:pre,targetRaise:raise,postMoneyValuation:pre+raise,status:'open'});this.g.startupFundingHistory[s.id]=h.slice(0,24);this.g.news.unshift(`第${this.g.week}週：${s.name}が${next}追加資金調達を開始しました。`);return true;
