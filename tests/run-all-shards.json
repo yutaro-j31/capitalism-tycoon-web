@@ -5,6 +5,8 @@
     "tests/industry-event-response-plans-reachability-test.js",
     "tests/industry-specific-events-reachability-test.js",
     "tests/normal-start-ipo-balance-audit-test.js",
+    "tests/player-media-advertising-test.js",
+    "tests/player-media-advertising-ui-test.js",
     "tests/shareholder-activism-incidence-matrix-test.js",
     "tests/stage-3-3-observer-migration-test.js",
     "tests/stage-3-4-startup-observer-migration-test.js",
