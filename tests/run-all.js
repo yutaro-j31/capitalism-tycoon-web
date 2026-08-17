@@ -9,7 +9,7 @@ const commands = [
   'test:vertical-integration-determinism','test:supply','test:inventory','test:procurement','test:supply-finance','test:supply-migration','test:supply-ui','test:supply-rng','test:supply-calibration','test:supplier-coverage','test:supply-procurement-cash','test:supply-store-close','test:supply-spoilage-profit','test:supply-multi-store-spoilage','test:supply-long',
   'test:workforce','test:workforce-long',
   'test:competitor','test:competitor-market','test:competitor-finance','test:competitor-ai','test:competitor-entry-exit','test:competitor-migration','test:competitor-ui','test:competitor-rng','test:competitor-calibration','test:competitor-history','test:competitor-multi-presence','test:competitor-projects','test:competitor-market-entry','test:competitor-credit','test:competitor-distress-lifecycle','test:competitor-terminal-compat','test:competitor-media','test:competitor-parity','test:competitor-dashboard','test:competitor-long',
-  'test:product-innovation','test:ceo-dashboard','test:ma-acquisition-financing','test:weekly-impact','test:founding-tutorial','test:ma-deal-room','test:ma-integration','test:ma-portfolio-summary','test:ma-portfolio-summary-ui','test:ma-board-approval'
+  'test:product-innovation','test:ceo-dashboard','test:ma-acquisition-financing','test:weekly-impact','test:founding-tutorial','test:ma-deal-room','test:ma-integration','test:ma-portfolio-summary','test:ma-portfolio-summary-ui','test:ma-board-approval','test:startup-funding-round'
 
 ];
 

@@ -11,7 +11,8 @@
     "tests/stage-3-4-startup-observer-migration-test.js",
     "tests/stage-3-ui-screen-scope-regression-test.js",
     "tests/store-specific-pricing-test.js",
-    "tests/store-multiple-menu-test.js"
+    "tests/store-multiple-menu-test.js",
+    "test:startup-funding-round"
   ],
   "C": [
     "test:long",
