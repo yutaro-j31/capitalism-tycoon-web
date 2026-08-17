@@ -35,11 +35,22 @@ const ISSUES=Object.freeze([
   Object.freeze({id:'sales',name:'販路縮小',detail:'取引先が減り、売上の土台が細っています。',initiativeID:'sales'})
 ]);
 
+// Every initiative can fail, and each one fails in its own way: the ones that hurt most
+// when they go wrong are not the ones that go wrong most often, so picking an initiative
+// is a trade between how likely it is to land and how much a miss costs.
 const INITIATIVES=Object.freeze([
-  Object.freeze({id:'cost-cut',name:'コスト削減',detail:'固定費を見直して損益分岐点を下げます。'}),
-  Object.freeze({id:'talent',name:'人材強化',detail:'中核人材を採用・引き留めします。'}),
-  Object.freeze({id:'capex',name:'設備投資',detail:'老朽設備を入れ替えて生産性を上げます。'}),
-  Object.freeze({id:'sales',name:'販路拡大',detail:'新規取引先を開拓して売上の土台を広げます。'})
+  Object.freeze({id:'cost-cut',name:'コスト削減',detail:'固定費を見直して損益分岐点を下げます。',
+    failureRate:.3,setbackScore:6,setbackValuation:.05,
+    risk:'削りすぎると現場が荒れ、改善度と企業価値が大きく後退します。'}),
+  Object.freeze({id:'talent',name:'人材強化',detail:'中核人材を採用・引き留めします。',
+    failureRate:.2,setbackScore:4,setbackValuation:.03,
+    risk:'採用が空振りに終わると、費用だけがかさみます。'}),
+  Object.freeze({id:'capex',name:'設備投資',detail:'老朽設備を入れ替えて生産性を上げます。',
+    failureRate:.25,setbackScore:5,setbackValuation:.06,
+    risk:'入れ替えに失敗すると稼働が止まり、企業価値が最も傷みます。'}),
+  Object.freeze({id:'sales',name:'販路拡大',detail:'新規取引先を開拓して売上の土台を広げます。',
+    failureRate:.35,setbackScore:3,setbackValuation:.02,
+    risk:'空振りは最も多い一方、傷は浅く済みます。'})
 ]);
 
 const finite=(value,fallback=0)=>Number.isFinite(Number(value))?Number(value):fallback;
@@ -76,6 +87,23 @@ function initiativeCost(deal){
 function matches(deal,initiativeID){
   const issue=issueOf(deal);
   return Boolean(issue&&issue.initiativeID===initiativeID);
+}
+
+function initiativeOf(initiativeID){return INITIATIVES.find(row=>row.id===initiativeID)||null;}
+
+// Whether an initiative lands is decided by the same hash style as the problem itself, so
+// no random number is drawn and saving and reloading cannot re-roll the outcome. The key
+// holds both the improvement score and the week: any attempt that moves the score is
+// judged afresh, and when the score is pinned at 0 or 100 letting a week pass is what
+// gives a new attempt.
+function outcomeRoll(state,deal,initiativeID){
+  return deterministicUnit('pe-initiative',deal?.id,initiativeID,scoreOf(deal),finite(state?.week));
+}
+
+function succeeds(state,deal,initiativeID){
+  const initiative=initiativeOf(initiativeID);
+  if(!initiative)return false;
+  return outcomeRoll(state,deal,initiativeID)>=initiative.failureRate;
 }
 
 function findDeal(state,dealID){
@@ -120,7 +148,10 @@ function plan(state,deal){
       ...row,
       recommended:Boolean(issue&&issue.initiativeID===row.id),
       scoreGain:issue&&issue.initiativeID===row.id?MATCHED_SCORE_GAIN:MISMATCHED_SCORE_GAIN,
-      valuationGain:issue&&issue.initiativeID===row.id?MATCHED_VALUATION_GAIN:MISMATCHED_VALUATION_GAIN
+      valuationGain:issue&&issue.initiativeID===row.id?MATCHED_VALUATION_GAIN:MISMATCHED_VALUATION_GAIN,
+      // The odds are shown, never the outcome: telling the player which attempt is already
+      // decided to fail would remove the decision this whole feature exists to create.
+      successRate:1-row.failureRate
     })))
   });
 }
@@ -132,21 +163,30 @@ function applyInitiative(engine,dealID,initiativeID){
   const deal=findDeal(state,dealID);
   const gate=applicable(state,deal);
   if(!gate.ok)return engine.fail(gate.reason);
-  const initiative=INITIATIVES.find(row=>row.id===initiativeID);
+  const initiative=initiativeOf(initiativeID);
   if(!initiative)return engine.fail('その施策は選べません。');
   const cost=initiativeCost(deal);
   if(finite(state.personalCash)<cost)return engine.fail(`施策の実行には${yen(cost)}が必要です。`);
 
+  // The fee is paid either way — the work was commissioned regardless of how it turned out.
+  const succeeded=succeeds(state,deal,initiativeID);
   const matched=matches(deal,initiativeID);
   state.personalCash-=cost;
-  deal.improvementScore=clamp(scoreOf(deal)+(matched?MATCHED_SCORE_GAIN:MISMATCHED_SCORE_GAIN),0,MAX_SCORE);
-  deal.currentValuation=finite(deal.currentValuation)*(1+(matched?MATCHED_VALUATION_GAIN:MISMATCHED_VALUATION_GAIN));
+  if(succeeded){
+    deal.improvementScore=clamp(scoreOf(deal)+(matched?MATCHED_SCORE_GAIN:MISMATCHED_SCORE_GAIN),0,MAX_SCORE);
+    deal.currentValuation=finite(deal.currentValuation)*(1+(matched?MATCHED_VALUATION_GAIN:MISMATCHED_VALUATION_GAIN));
+  }else{
+    deal.improvementScore=clamp(scoreOf(deal)-initiative.setbackScore,0,MAX_SCORE);
+    deal.currentValuation=finite(deal.currentValuation)*(1-initiative.setbackValuation);
+  }
 
   engine.notify(
-    matched
-      ?`${deal.targetName}で「${initiative.name}」が課題に的中し、企業価値が大きく伸びました。`
-      :`${deal.targetName}で「${initiative.name}」を実行しましたが、いまの課題には噛み合いませんでした。`,
-    matched?'success':'warning'
+    !succeeded
+      ?`${deal.targetName}の「${initiative.name}」は失敗に終わり、費用だけがかさんで再建が後退しました。`
+      :matched
+        ?`${deal.targetName}で「${initiative.name}」が課題に的中し、企業価値が大きく伸びました。`
+        :`${deal.targetName}で「${initiative.name}」を実行しましたが、いまの課題には噛み合いませんでした。`,
+    !succeeded?'error':matched?'success':'warning'
   );
   engine.save();
   engine.emit('change');
@@ -199,7 +239,8 @@ modules.peValueCreation=Object.freeze({
   MATCHED_VALUATION_GAIN,MISMATCHED_VALUATION_GAIN,
   MIN_INITIATIVE_COST,INITIATIVE_COST_RATE,ISSUES,INITIATIVES,
   EXIT_BASELINE_SCORE,EXIT_PREMIUM_AT_FULL,exitMultiplier,exitValue,
-  scoreOf,stageOf,isResolved,issueOf,initiativeCost,matches,applicable,plan,applyInitiative,installExitWrapper,install,
+  scoreOf,stageOf,isResolved,issueOf,initiativeCost,initiativeOf,matches,
+  outcomeRoll,succeeds,applicable,plan,applyInitiative,installExitWrapper,install,
   __installed:true
 });
 })();

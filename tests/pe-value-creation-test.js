@@ -17,6 +17,24 @@ function openDeal(engine, amount = 20_000_000) {
   return engine.g.peDeals[engine.g.peDeals.length - 1];
 }
 
+// 施策には成否があるので、成功だけを見たいテストは「その施策が成功する週」まで進めてから
+// 実行する。結果を書き換えるのではなく、実装が公開している判定をそのまま使う。
+function advanceToSuccess(modules, engine, deal, initiativeID) {
+  for (let step = 0; step < 500; step++) {
+    if (modules.peValueCreation.succeeds(engine.g, deal, initiativeID)) return engine.g.week;
+    engine.g.week += 1;
+  }
+  throw new Error(`施策 ${initiativeID} が成功する週が見つからない`);
+}
+
+function advanceToFailure(modules, engine, deal, initiativeID) {
+  for (let step = 0; step < 500; step++) {
+    if (!modules.peValueCreation.succeeds(engine.g, deal, initiativeID)) return engine.g.week;
+    engine.g.week += 1;
+  }
+  throw new Error(`施策 ${initiativeID} が失敗する週が見つからない`);
+}
+
 // 1. 課題は既存フィールドから導出され、保存もされず、同じ案件なら常に同じ。
 {
   const { modules, engine } = newGame();
@@ -32,8 +50,9 @@ function openDeal(engine, amount = 20_000_000) {
 {
   const { modules } = newGame();
   const run = initiativeID => {
-    const { engine } = newGame(777);
+    const { modules: mods, engine } = newGame(777);
     const deal = openDeal(engine);
+    advanceToSuccess(mods, engine, deal, initiativeID);
     const before = { score: deal.improvementScore, valuation: deal.currentValuation };
     assert.equal(engine.applyPEInitiative(deal.id, initiativeID), true);
     return {
@@ -54,16 +73,17 @@ function openDeal(engine, amount = 20_000_000) {
   assert.ok(matched.valuationRatio > mismatched.valuationRatio, '的中の方が企業価値が伸びる');
 }
 
-// 3. 進めると課題が移り変わる（再建が段階的に進む）。
+// 3. 進めると課題が移り変わる（再建が段階的に進む）。失敗を挟んでも完了までは到達できる。
 {
   const { modules, engine } = newGame();
   const deal = openDeal(engine);
   const seen = new Set();
   let guard = 0;
-  while (!modules.peValueCreation.isResolved(deal) && guard++ < 60) {
+  while (!modules.peValueCreation.isResolved(deal) && guard++ < 200) {
     const issue = modules.peValueCreation.issueOf(deal);
     if (issue) seen.add(`${modules.peValueCreation.stageOf(deal)}:${issue.id}`);
-    engine.applyPEInitiative(deal.id, modules.peValueCreation.INITIATIVES[0].id);
+    engine.applyPEInitiative(deal.id, issue.initiativeID);
+    engine.g.week += 1;
   }
   assert.equal(modules.peValueCreation.isResolved(deal), true, '施策を重ねれば再建は完了する');
   assert.equal(deal.improvementScore, modules.peValueCreation.MAX_SCORE, '改善度は上限で止まる');
@@ -290,9 +310,12 @@ function openDeal(engine, amount = 20_000_000) {
 {
   const { modules } = newGame();
   const sell = initiatives => {
-    const { engine } = newGame(31415);
+    const { modules: mods, engine } = newGame(31415);
     const deal = openDeal(engine);
-    for (const id of initiatives) engine.applyPEInitiative(deal.id, id);
+    for (const id of initiatives) {
+      advanceToSuccess(mods, engine, deal, id);
+      engine.applyPEInitiative(deal.id, id);
+    }
     const cashBefore = engine.g.personalCash;
     engine.exitPEDeal(deal.id);
     return engine.g.personalCash - cashBefore;
@@ -322,6 +345,155 @@ function openDeal(engine, amount = 20_000_000) {
   const after = engine.peValueCreationPlan(deal.id);
   assert.ok(after.exitPremium > 0, '改善後は上乗せが表示される');
   assert.equal(after.exitValue, modules.peValueCreation.exitValue(deal));
+}
+
+// 20. 施策は失敗しうる。失敗しても費用は取られ、改善度と企業価値が後退する。
+{
+  const { modules, engine } = newGame();
+  const deal = openDeal(engine);
+  advanceToFailure(modules, engine, deal, 'cost-cut');
+  const spec = modules.peValueCreation.initiativeOf('cost-cut');
+  const cost = modules.peValueCreation.initiativeCost(deal);
+  const before = { score: deal.improvementScore, valuation: deal.currentValuation, cash: engine.g.personalCash };
+
+  assert.equal(engine.applyPEInitiative(deal.id, 'cost-cut'), true, '失敗も「実行できた」結果として扱う');
+  assert.equal(engine.g.personalCash, before.cash - cost, '失敗しても費用は支払う');
+  assert.equal(deal.improvementScore, before.score - spec.setbackScore, '改善度が後退する');
+  assert.ok(
+    Math.abs(deal.currentValuation - before.valuation * (1 - spec.setbackValuation)) < 1e-6,
+    '企業価値も後退する'
+  );
+}
+
+// 21. 成否は施策ごとに違う痛手を持つ（どれを打つかがトレードオフになる）。
+{
+  const { modules } = newGame();
+  const rates = modules.peValueCreation.INITIATIVES.map(x => x.failureRate);
+  const setbacks = modules.peValueCreation.INITIATIVES.map(x => x.setbackValuation);
+  assert.equal(new Set(rates).size > 1, true, '失敗率は施策ごとに異なる');
+  assert.equal(new Set(setbacks).size > 1, true, '失敗時の痛手も施策ごとに異なる');
+  for (const row of modules.peValueCreation.INITIATIVES) {
+    assert.ok(row.failureRate > 0 && row.failureRate < 1, `${row.id} の失敗率が確率として妥当`);
+    assert.ok(row.setbackScore > 0 && row.setbackValuation > 0, `${row.id} に失敗時の副作用がある`);
+    assert.ok(String(row.risk).length > 0, `${row.id} のリスクが説明される`);
+  }
+  // 最も失敗しやすい施策が、最も痛手の大きい施策と一致していない（選ぶ意味がある）。
+  const worstOdds = [...modules.peValueCreation.INITIATIVES].sort((a, b) => b.failureRate - a.failureRate)[0];
+  const worstDamage = [...modules.peValueCreation.INITIATIVES].sort((a, b) => b.setbackValuation - a.setbackValuation)[0];
+  assert.notEqual(worstOdds.id, worstDamage.id, '確率と痛手が別の施策に振り分けられている');
+}
+
+// 22. 成否は決定論：セーブ&ロードしても、同じ週の同じ施策は同じ結果になる。
+{
+  const { modules, ctx, engine } = newGame();
+  const EngineClass = modules.engine.TycoonEngine;
+  const deal = openDeal(engine);
+  advanceToFailure(modules, engine, deal, 'sales');
+  engine.save();
+
+  const reloaded = EngineClass.load();
+  const reloadedDeal = reloaded.g.peDeals[0];
+  assert.equal(
+    modules.peValueCreation.succeeds(reloaded.g, reloadedDeal, 'sales'),
+    false,
+    'ロードし直しても失敗は失敗のまま（引き直せない）'
+  );
+  assert.equal(
+    modules.peValueCreation.outcomeRoll(engine.g, deal, 'sales'),
+    modules.peValueCreation.outcomeRoll(reloaded.g, reloadedDeal, 'sales'),
+    '判定値そのものが一致する'
+  );
+  assert.equal(
+    Object.prototype.hasOwnProperty.call(JSON.parse(ctx.localStorage.getItem('capitalism_tycoon_web_v1')).peDeals[0], 'lastOutcome'),
+    false,
+    '成否はセーブに増えない'
+  );
+}
+
+// 23. 改善度が動かない状態でも、週が進めば結果は変わる（打ち直す機会が必ずある）。
+{
+  const { modules, engine } = newGame();
+  const deal = openDeal(engine);
+  const results = new Set();
+  for (let week = 1; week <= 40; week++) {
+    engine.g.week = week;
+    results.add(modules.peValueCreation.succeeds(engine.g, deal, 'cost-cut'));
+  }
+  assert.equal(results.size, 2, '週によって成功も失敗も起きる');
+}
+
+// 23b. 案件の状態も判定材料：同じ週でも改善度が違えば成否は変わる。
+{
+  const { modules, engine } = newGame();
+  const deal = openDeal(engine);
+  engine.g.week = 5;
+  const results = new Set();
+  for (let score = 0; score <= 90; score += 2) {
+    deal.improvementScore = score;
+    results.add(modules.peValueCreation.succeeds(engine.g, deal, 'cost-cut'));
+  }
+  assert.equal(results.size, 2, '同じ週でも改善度が違えば成功も失敗も起きる');
+}
+
+// 24. 失敗が続いても改善度は0を下回らない。
+{
+  const { modules, engine } = newGame();
+  const deal = openDeal(engine);
+  deal.improvementScore = 2;
+  advanceToFailure(modules, engine, deal, 'cost-cut');
+  assert.equal(engine.applyPEInitiative(deal.id, 'cost-cut'), true);
+  assert.equal(deal.improvementScore, 0, '改善度は0で止まる');
+  assert.equal(modules.peValueCreation.exitMultiplier(deal), 1, '後退してもEXIT価格は目減りしない');
+
+  // 改善度が0で止まると判定の材料が動かなくなるが、週を進めれば必ず打ち直せる。
+  const stuckWeek = engine.g.week;
+  assert.equal(modules.peValueCreation.succeeds(engine.g, deal, 'cost-cut'), false, '同じ週では失敗のまま');
+  const escaped = advanceToSuccess(modules, engine, deal, 'cost-cut');
+  assert.ok(escaped > stuckWeek, '週を進めれば成功する週に届く');
+  assert.equal(engine.applyPEInitiative(deal.id, 'cost-cut'), true);
+  assert.ok(deal.improvementScore > 0, '再建をやり直せる');
+}
+
+// 25. 失敗しても会社側の現金・会計は動かない（資産分離は成否に関係なく守られる）。
+{
+  const { modules, engine } = newGame();
+  const deal = openDeal(engine);
+  advanceToFailure(modules, engine, deal, 'capex');
+  const companyBefore = engine.g.companyCash;
+  const txBefore = (engine.g.finance.transactions || []).length;
+  const assetsBefore = engine.g.finance.fixedAssets.length;
+  assert.equal(engine.applyPEInitiative(deal.id, 'capex'), true);
+  assert.equal(engine.g.companyCash, companyBefore, '会社現金は動かない');
+  assert.equal((engine.g.finance.transactions || []).length, txBefore, '会社の会計へは計上しない');
+  assert.equal(engine.g.finance.fixedAssets.length, assetsBefore, '会社の固定資産も動かない');
+}
+
+// 26. plan() は成功率とリスクを UI へ渡す（成否そのものは渡さない）。
+{
+  const { modules, engine } = newGame();
+  const deal = openDeal(engine);
+  const plan = engine.peValueCreationPlan(deal.id);
+  for (const row of plan.initiatives) {
+    const spec = modules.peValueCreation.initiativeOf(row.id);
+    assert.ok(Math.abs(row.successRate - (1 - spec.failureRate)) < 1e-9, `${row.id} の成功率が伝わる`);
+    assert.equal(row.setbackScore, spec.setbackScore, `${row.id} の副作用が伝わる`);
+    assert.ok(String(row.risk).length > 0, `${row.id} のリスク説明が伝わる`);
+  }
+  for (const key of ['succeeds', 'willSucceed', 'outcome', 'roll']) {
+    assert.equal(Object.prototype.hasOwnProperty.call(plan, key), false, `plan は ${key} を漏らさない`);
+    assert.equal(Object.prototype.hasOwnProperty.call(plan.initiatives[0], key), false, `施策も ${key} を漏らさない`);
+  }
+}
+
+// 27. 資金不足など実行できないケースでは、成否判定より前に止まる（費用も引かれない）。
+{
+  const { modules, engine } = newGame();
+  const deal = openDeal(engine);
+  advanceToFailure(modules, engine, deal, 'cost-cut');
+  engine.g.personalCash = modules.peValueCreation.initiativeCost(deal) - 1;
+  const before = JSON.stringify({ s: deal.improvementScore, v: deal.currentValuation, c: engine.g.personalCash });
+  assert.equal(engine.applyPEInitiative(deal.id, 'cost-cut'), false, '資金不足では実行できない');
+  assert.equal(JSON.stringify({ s: deal.improvementScore, v: deal.currentValuation, c: engine.g.personalCash }), before, '状態は変わらない');
 }
 
 console.log('PE value creation tests passed');
