@@ -30,26 +30,12 @@ jobs:
       pr_number: ${{ steps.select.outputs.pr_number }}
       reason: ${{ steps.select.outputs.reason }}
     steps:
-      - name: Check required secrets
-        id: secrets
-        env:
-          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
-          CODEX_GITHUB_TOKEN: ${{ secrets.CODEX_GITHUB_TOKEN }}
-        shell: bash
-        run: |
-          if [ -n "${OPENAI_API_KEY:-}" ] && [ -n "${CODEX_GITHUB_TOKEN:-}" ]; then
-            echo "ready=true" >> "$GITHUB_OUTPUT"
-          else
-            echo "ready=false" >> "$GITHUB_OUTPUT"
-          fi
-
       - name: Select safe target
         id: select
         env:
           GH_TOKEN: ${{ github.token }}
           REPO: ${{ github.repository }}
           RUN_ID: ${{ github.run_id }}
-          SECRETS_READY: ${{ steps.secrets.outputs.ready }}
         shell: bash
         run: |
           set -euo pipefail
@@ -66,11 +52,6 @@ jobs:
           out target_sha "$main_sha"
           out pr_number "0"
           out reason "UNINITIALIZED"
-
-          if [ "$SECRETS_READY" != "true" ]; then
-            out reason "MISSING_REQUIRED_SECRETS"
-            exit 0
-          fi
 
           main_runs="$(gh api -X GET "repos/$REPO/actions/runs" -f head_sha="$main_sha" -f per_page=100)"
           main_busy="$(jq --argjson current "$RUN_ID" '[.workflow_runs[] | select(.id != $current and (.status == "queued" or .status == "in_progress"))] | length' <<<"$main_runs")"
@@ -104,15 +85,15 @@ jobs:
               exit 0
             fi
 
-            pr_runs="$(gh api -X GET "repos/$REPO/actions/runs" -f head_sha="$target_sha" -f per_page=100)"
-            pr_busy="$(jq '[.workflow_runs[] | select(.status == "queued" or .status == "in_progress")] | length' <<<"$pr_runs")"
+            status_rollup="$(gh pr view "$pr_number" --repo "$REPO" --json statusCheckRollup,reviewDecision)"
+            pr_busy="$(jq '[.statusCheckRollup[]? | select((.status // "") == "QUEUED" or (.status // "") == "IN_PROGRESS" or (.status // "") == "PENDING")] | length' <<<"$status_rollup")"
             if [ "$pr_busy" -gt 0 ]; then
               out reason "TARGET_PR_CI_BUSY"
               exit 0
             fi
 
-            pr_failed="$(jq '[.workflow_runs[] | select(.status == "completed" and (.conclusion != "success" and .conclusion != "skipped" and .conclusion != "neutral"))] | length' <<<"$pr_runs")"
-            review_decision="$(gh pr view "$pr_number" --repo "$REPO" --json reviewDecision --jq '.reviewDecision // ""')"
+            pr_failed="$(jq '[.statusCheckRollup[]? | select((.conclusion // "") != "" and (.conclusion != "SUCCESS" and .conclusion != "SKIPPED" and .conclusion != "NEUTRAL"))] | length' <<<"$status_rollup")"
+            review_decision="$(jq -r '.reviewDecision // ""' <<<"$status_rollup")"
 
             if [ "$pr_failed" -gt 0 ] || [ "$review_decision" = "CHANGES_REQUESTED" ]; then
               out run_codex "true"
@@ -155,7 +136,7 @@ jobs:
           } >> "$GITHUB_STEP_SUMMARY"
 
   codex:
-    name: Run Codex safely
+    name: Run Codex as unprivileged user
     needs: gate
     if: ${{ needs.gate.outputs.run_codex == 'true' }}
     runs-on: ubuntu-latest
@@ -227,11 +208,8 @@ jobs:
               name="${REPO#*/}"
               gh api graphql -f query='query($owner:String!,$name:String!,$number:Int!){repository(owner:$owner,name:$name){pullRequest(number:$number){reviewThreads(first:100){nodes{isResolved comments(first:20){nodes{author{login} body path line}}}}}}}' -F owner="$owner" -F name="$name" -F number="$PR_NUMBER" || true
               echo
-              echo "## Workflow runs for selected head"
-              runs="$(gh run list --repo "$REPO" --commit "$TARGET_SHA" --limit 50 --json databaseId,name,status,conclusion,url 2>/dev/null || echo '[]')"
-              printf '%s\n' "$runs"
-              echo
               echo "## Failed workflow logs"
+              runs="$(gh run list --repo "$REPO" --commit "$TARGET_SHA" --limit 50 --json databaseId,name,status,conclusion,url 2>/dev/null || echo '[]')"
               jq -r '.[] | select(.conclusion != null and .conclusion != "success" and .conclusion != "skipped" and .conclusion != "neutral") | .databaseId' <<<"$runs" | while read -r run_id; do
                 [ -n "$run_id" ] || continue
                 echo "### run $run_id"
@@ -240,18 +218,43 @@ jobs:
             } >> .codex/hourly-runtime-context.md
           fi
 
+      - name: Create isolated Codex user
+        shell: bash
+        run: |
+          set -euo pipefail
+          sudo adduser --system --home /home/codex-agent --shell /bin/bash --group codex-agent
+          sudo usermod -a -G runner codex-agent
+
+          sudo chown -R runner:codex-agent "$GITHUB_WORKSPACE"
+          sudo find "$GITHUB_WORKSPACE" -path "$GITHUB_WORKSPACE/.git" -prune -o -type d -exec chmod g+rwx {} +
+          sudo find "$GITHUB_WORKSPACE" -path "$GITHUB_WORKSPACE/.git" -prune -o -type f -exec chmod g+rw {} +
+
+          sudo chmod -R g+rX "$GITHUB_WORKSPACE/.git"
+          sudo chmod -R g-w "$GITHUB_WORKSPACE/.git"
+
       - name: Run Codex
         id: run_codex
         uses: openai/codex-action@v1
         with:
           openai-api-key: ${{ secrets.OPENAI_API_KEY }}
           permission-profile: ":workspace"
-          safety-strategy: drop-sudo
+          safety-strategy: unprivileged-user
+          codex-user: codex-agent
           prompt-file: .github/codex/prompts/hourly-development.md
           output-file: .codex/hourly-final-message.md
 
+      - name: Freeze Codex processes and workspace
+        if: ${{ always() }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          sudo pkill -KILL -u codex-agent 2>/dev/null || true
+          sudo chown -R runner:runner "$GITHUB_WORKSPACE"
+          sudo chmod -R go-w "$GITHUB_WORKSPACE"
+
       - name: Build patch artifact
         id: patch
+        if: ${{ success() }}
         env:
           EXPECTED_SHA: ${{ needs.gate.outputs.target_sha }}
         shell: bash
@@ -259,12 +262,13 @@ jobs:
           set -euo pipefail
 
           if [ "$(git rev-parse HEAD)" != "$EXPECTED_SHA" ]; then
-            echo "Codex created or moved commits locally. Scheduled Codex must leave commits to the publisher job." >&2
+            echo "Codex changed repository metadata or HEAD." >&2
             exit 1
           fi
 
           artifact_dir="$RUNNER_TEMP/codex-hourly"
           mkdir -p "$artifact_dir"
+
           if [ -f .codex/hourly-final-message.md ]; then
             cp .codex/hourly-final-message.md "$artifact_dir/final-message.md"
           else
@@ -292,17 +296,17 @@ jobs:
             } >> "$GITHUB_STEP_SUMMARY"
           fi
 
-      - name: Upload patch artifact
+      - name: Upload raw Codex patch
         if: ${{ steps.patch.outputs.has_changes == 'true' }}
         uses: actions/upload-artifact@v4
         with:
-          name: codex-hourly-${{ github.run_id }}
+          name: codex-raw-${{ github.run_id }}
           path: ${{ runner.temp }}/codex-hourly
           if-no-files-found: error
           retention-days: 3
 
-  publish:
-    name: Validate and publish
+  validate:
+    name: Validate proposed patch without write secrets
     needs: [gate, codex]
     if: ${{ needs.codex.outputs.has_changes == 'true' }}
     runs-on: ubuntu-latest
@@ -310,6 +314,9 @@ jobs:
       contents: read
       pull-requests: read
       actions: read
+    outputs:
+      validated: ${{ steps.finalize.outputs.validated }}
+      patch_sha256: ${{ steps.inspect.outputs.patch_sha256 }}
     steps:
       - name: Checkout clean target
         uses: actions/checkout@v5
@@ -318,11 +325,11 @@ jobs:
           fetch-depth: 0
           persist-credentials: false
 
-      - name: Download Codex patch
+      - name: Download raw Codex patch
         uses: actions/download-artifact@v4
         with:
-          name: codex-hourly-${{ github.run_id }}
-          path: ${{ runner.temp }}/codex-hourly
+          name: codex-raw-${{ github.run_id }}
+          path: ${{ runner.temp }}/codex-raw
 
       - name: Revalidate branch and CI gate
         id: revalidate
@@ -360,8 +367,8 @@ jobs:
               exit 0
             fi
 
-            target_runs="$(gh api -X GET "repos/$REPO/actions/runs" -f head_sha="$current_target" -f per_page=100)"
-            target_busy="$(jq '[.workflow_runs[] | select(.status == "queued" or .status == "in_progress")] | length' <<<"$target_runs")"
+            status_rollup="$(gh pr view "$PR_NUMBER" --repo "$REPO" --json statusCheckRollup)"
+            target_busy="$(jq '[.statusCheckRollup[]? | select((.status // "") == "QUEUED" or (.status // "") == "IN_PROGRESS" or (.status // "") == "PENDING")] | length' <<<"$status_rollup")"
             if [ "$target_busy" -gt 0 ]; then
               echo "target PR CI became busy; skipping publish." >> "$GITHUB_STEP_SUMMARY"
               exit 0
@@ -370,20 +377,25 @@ jobs:
 
           echo "safe=true" >> "$GITHUB_OUTPUT"
 
-      - name: Apply and inspect patch
+      - name: Inspect and apply patch
+        id: inspect
         if: ${{ steps.revalidate.outputs.safe == 'true' }}
         shell: bash
         run: |
           set -euo pipefail
-          patch="$RUNNER_TEMP/codex-hourly/codex.patch"
 
-          patch_bytes="$(wc -c < "$patch")"
+          src="$RUNNER_TEMP/codex-raw/codex.patch"
+          trusted="$RUNNER_TEMP/trusted-codex.patch"
+          cp "$src" "$trusted"
+          chmod 600 "$trusted"
+
+          patch_bytes="$(wc -c < "$trusted")"
           if [ "$patch_bytes" -gt 750000 ]; then
             echo "Patch exceeds 750 KB safety limit." >&2
             exit 1
           fi
 
-          git apply --index --whitespace=error-all "$patch"
+          git apply --index --whitespace=error-all "$trusted"
 
           changed_files="$(git diff --cached --name-only)"
           changed_count="$(printf '%s\n' "$changed_files" | sed '/^$/d' | wc -l | tr -d ' ')"
@@ -403,22 +415,166 @@ jobs:
           fi
 
           git diff --cached --check
+          patch_sha256="$(sha256sum "$trusted" | awk '{print $1}')"
+          echo "patch_sha256=$patch_sha256" >> "$GITHUB_OUTPUT"
+
           {
             echo "### Proposed files"
             echo '```'
             printf '%s\n' "$changed_files"
             echo '```'
+            echo "- patch sha256: \`$patch_sha256\`"
           } >> "$GITHUB_STEP_SUMMARY"
 
-      - name: Run publisher safety checks
+      - name: Create isolated validator user
         if: ${{ steps.revalidate.outputs.safe == 'true' }}
         shell: bash
         run: |
           set -euo pipefail
-          npm run test:syntax
-          npm run test:static
+          sudo adduser --system --home /home/codex-validator --shell /bin/bash --group codex-validator
+          sudo usermod -a -G runner codex-validator
+          sudo chown -R runner:codex-validator "$GITHUB_WORKSPACE"
+          sudo find "$GITHUB_WORKSPACE" -path "$GITHUB_WORKSPACE/.git" -prune -o -type d -exec chmod g+rwx {} +
+          sudo find "$GITHUB_WORKSPACE" -path "$GITHUB_WORKSPACE/.git" -prune -o -type f -exec chmod g+rw {} +
+          sudo chmod -R g+rX "$GITHUB_WORKSPACE/.git"
+          sudo chmod -R g-w "$GITHUB_WORKSPACE/.git"
 
-      - name: Commit locally
+      - name: Run publisher safety checks unprivileged
+        if: ${{ steps.revalidate.outputs.safe == 'true' }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          sudo -u codex-validator env HOME=/home/codex-validator PATH="$PATH" npm run test:syntax
+          sudo -u codex-validator env HOME=/home/codex-validator PATH="$PATH" npm run test:static
+
+      - name: Freeze validator and verify clean validation
+        id: finalize
+        if: ${{ steps.revalidate.outputs.safe == 'true' && success() }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          sudo pkill -KILL -u codex-validator 2>/dev/null || true
+          sudo chown -R runner:runner "$GITHUB_WORKSPACE"
+          sudo chmod -R go-w "$GITHUB_WORKSPACE"
+
+          if [ -n "$(git diff --name-only)" ]; then
+            echo "Validation produced unstaged repository changes." >&2
+            git status --short >&2
+            exit 1
+          fi
+
+          if [ -n "$(git ls-files --others --exclude-standard)" ]; then
+            echo "Validation produced untracked repository files." >&2
+            git status --short >&2
+            exit 1
+          fi
+
+          git diff --cached --check
+          echo "validated=true" >> "$GITHUB_OUTPUT"
+
+      - name: Prepare trusted patch artifact
+        if: ${{ steps.finalize.outputs.validated == 'true' }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          out="$RUNNER_TEMP/codex-validated"
+          mkdir -p "$out"
+          cp "$RUNNER_TEMP/trusted-codex.patch" "$out/codex.patch"
+          cp "$RUNNER_TEMP/codex-raw/final-message.md" "$out/final-message.md"
+          printf '%s\n' "${{ steps.inspect.outputs.patch_sha256 }}" > "$out/patch.sha256"
+
+      - name: Upload validated patch
+        if: ${{ steps.finalize.outputs.validated == 'true' }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: codex-validated-${{ github.run_id }}
+          path: ${{ runner.temp }}/codex-validated
+          if-no-files-found: error
+          retention-days: 3
+
+  publish:
+    name: Publish validated patch on fresh runner
+    needs: [gate, validate]
+    if: ${{ needs.validate.outputs.validated == 'true' }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: read
+      actions: read
+    steps:
+      - name: Checkout clean target
+        uses: actions/checkout@v5
+        with:
+          ref: ${{ needs.gate.outputs.target_ref }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Download validated patch
+        uses: actions/download-artifact@v4
+        with:
+          name: codex-validated-${{ github.run_id }}
+          path: ${{ runner.temp }}/codex-validated
+
+      - name: Final head revalidation
+        id: revalidate
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          RUN_ID: ${{ github.run_id }}
+          MODE: ${{ needs.gate.outputs.mode }}
+          MAIN_SHA: ${{ needs.gate.outputs.main_sha }}
+          TARGET_SHA: ${{ needs.gate.outputs.target_sha }}
+          PR_NUMBER: ${{ needs.gate.outputs.pr_number }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          echo "safe=false" >> "$GITHUB_OUTPUT"
+
+          current_main="$(gh api "repos/$REPO/git/ref/heads/main" --jq '.object.sha')"
+          if [ "$current_main" != "$MAIN_SHA" ]; then
+            echo "main moved after validation; not publishing." >> "$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
+
+          main_runs="$(gh api -X GET "repos/$REPO/actions/runs" -f head_sha="$current_main" -f per_page=100)"
+          main_busy="$(jq --argjson current "$RUN_ID" '[.workflow_runs[] | select(.id != $current and (.status == "queued" or .status == "in_progress"))] | length' <<<"$main_runs")"
+          if [ "$main_busy" -gt 0 ]; then
+            echo "main CI became busy after validation; not publishing." >> "$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
+
+          if [ "$MODE" = "EXISTING_PR_FIX" ]; then
+            current_target="$(gh api "repos/$REPO/pulls/$PR_NUMBER" --jq '.head.sha')"
+            if [ "$current_target" != "$TARGET_SHA" ]; then
+              echo "target PR moved after validation; not publishing." >> "$GITHUB_STEP_SUMMARY"
+              exit 0
+            fi
+          fi
+
+          echo "safe=true" >> "$GITHUB_OUTPUT"
+
+      - name: Verify and apply validated patch
+        if: ${{ steps.revalidate.outputs.safe == 'true' }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          dir="$RUNNER_TEMP/codex-validated"
+          expected="$(cat "$dir/patch.sha256")"
+          actual="$(sha256sum "$dir/codex.patch" | awk '{print $1}')"
+          if [ "$actual" != "$expected" ] || [ "$actual" != "${{ needs.validate.outputs.patch_sha256 }}" ]; then
+            echo "Validated patch hash mismatch." >&2
+            exit 1
+          fi
+
+          git apply --index --whitespace=error-all "$dir/codex.patch"
+          changed_files="$(git diff --cached --name-only)"
+          if printf '%s\n' "$changed_files" | grep -Eq '^(AGENTS\.md|CLAUDE\.md|\.github/workflows/|\.github/codex/)'; then
+            echo "Protected file appeared in validated patch." >&2
+            exit 1
+          fi
+          git diff --cached --check
+
+      - name: Commit locally without hooks
         id: commit
         if: ${{ steps.revalidate.outputs.safe == 'true' }}
         env:
@@ -467,7 +623,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          body="$RUNNER_TEMP/codex-hourly/pr-body.md"
+          body="$RUNNER_TEMP/codex-validated/pr-body.md"
           {
             echo "## Automated Codex development"
             echo
@@ -476,7 +632,7 @@ jobs:
             echo
             echo "### Codex report"
             echo
-            cat "$RUNNER_TEMP/codex-hourly/final-message.md"
+            cat "$RUNNER_TEMP/codex-validated/final-message.md"
             echo
             echo "### Publisher gates"
             echo
@@ -484,8 +640,8 @@ jobs:
             echo "- current main/target CI busy gate: passed"
             echo "- protected orchestration files: unchanged"
             echo "- patch size/file-count limits: passed"
-            echo "- \`npm run test:syntax\`: passed"
-            echo "- \`npm run test:static\`: passed"
+            echo "- \`npm run test:syntax\`: passed in an unprivileged validation job"
+            echo "- \`npm run test:static\`: passed in an unprivileged validation job"
           } > "$body"
 
           url="$(gh pr create --repo "$REPO" --draft --base main --head "$BRANCH" --title "feat: Codex hourly autonomous development" --body-file "$body")"
@@ -501,11 +657,11 @@ jobs:
         run: |
           set -euo pipefail
           {
-            echo "Hourly Codex applied a follow-up commit after revalidating the PR head and CI push gate."
+            echo "Hourly Codex applied a follow-up commit after fresh-runner revalidation."
             echo
-            cat "$RUNNER_TEMP/codex-hourly/final-message.md"
-          } > "$RUNNER_TEMP/codex-hourly/pr-comment.md"
-          gh pr comment "$PR_NUMBER" --repo "$REPO" --body-file "$RUNNER_TEMP/codex-hourly/pr-comment.md"
+            cat "$RUNNER_TEMP/codex-validated/final-message.md"
+          } > "$RUNNER_TEMP/codex-validated/pr-comment.md"
+          gh pr comment "$PR_NUMBER" --repo "$REPO" --body-file "$RUNNER_TEMP/codex-validated/pr-comment.md"
 
       - name: Publish summary
         if: ${{ steps.revalidate.outputs.safe == 'true' }}
