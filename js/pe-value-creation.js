@@ -193,45 +193,54 @@ function applyInitiative(engine,dealID,initiativeID){
   return true;
 }
 
+function installExitWrapper(){
+  const proto=EngineClass.prototype;
+  if(proto.__peExitPremiumInstalled)return true;
+  const baseExit=proto.exitPEDeal;
+  if(typeof baseExit!=='function')return false;
+  proto.exitPEDeal=function(dealID){
+    const deal=findDeal(this.g,dealID);
+    if(!deal)return baseExit.call(this,dealID);
+    // Compare the multiplier rather than rounded amounts: at exactly the baseline the
+    // valuation must pass through untouched, and rounding it would shift the payout.
+    if(exitMultiplier(deal)<=1)return baseExit.call(this,dealID);
+    const original=finite(deal.currentValuation);
+    deal.currentValuation=exitValue(deal);
+    const result=baseExit.call(this,dealID);
+    if(result===false)deal.currentValuation=original;
+    return result;
+  };
+  Object.defineProperty(proto,'__peExitPremiumInstalled',{value:true});
+  return true;
+}
+
 function install(){
   const proto=EngineClass.prototype;
-  if(proto.__peValueCreationInstalled)return true;
-  proto.peValueCreationPlan=function(dealID){
-    const deal=findDeal(this.g,dealID);
-    return deal?plan(this.g,deal):null;
-  };
-  proto.applyPEInitiative=function(dealID,initiativeID){return applyInitiative(this,dealID,initiativeID);};
-
-  // Wrap the existing exit so the turnaround premium is paid without duplicating the
-  // cash, realised P&L, status and notification handling that already lives there.
-  const baseExit=proto.exitPEDeal;
-  if(typeof baseExit==='function'){
-    proto.exitPEDeal=function(dealID){
+  if(!proto.__peValueCreationInstalled){
+    proto.peValueCreationPlan=function(dealID){
       const deal=findDeal(this.g,dealID);
-      if(!deal)return baseExit.call(this,dealID);
-      // Compare the multiplier rather than rounded amounts: at exactly the baseline the
-      // valuation must pass through untouched, and rounding it would shift the payout.
-      if(exitMultiplier(deal)<=1)return baseExit.call(this,dealID);
-      const original=finite(deal.currentValuation);
-      deal.currentValuation=exitValue(deal);
-      const result=baseExit.call(this,dealID);
-      if(result===false)deal.currentValuation=original;
-      return result;
+      return deal?plan(this.g,deal):null;
     };
+    proto.applyPEInitiative=function(dealID,initiativeID){return applyInitiative(this,dealID,initiativeID);};
+    Object.defineProperty(proto,'__peValueCreationInstalled',{value:true});
   }
-
-  Object.defineProperty(proto,'__peValueCreationInstalled',{value:true});
+  installExitWrapper();
   return true;
 }
 
 install();
+// expansion.js only defines installExpansion; app.js applies it later. Keep the canonical
+// script order and attach the EXIT wrapper once parser startup has installed expansion.
+if(!EngineClass.prototype.__peExitPremiumInstalled&&typeof document!=='undefined'&&typeof document.addEventListener==='function'){
+  document.addEventListener('DOMContentLoaded',installExitWrapper,{once:true});
+}
 modules.peValueCreation=Object.freeze({
   MAX_SCORE,STAGE_SIZE,MATCHED_SCORE_GAIN,MISMATCHED_SCORE_GAIN,
   MATCHED_VALUATION_GAIN,MISMATCHED_VALUATION_GAIN,
   MIN_INITIATIVE_COST,INITIATIVE_COST_RATE,ISSUES,INITIATIVES,
   EXIT_BASELINE_SCORE,EXIT_PREMIUM_AT_FULL,exitMultiplier,exitValue,
   scoreOf,stageOf,isResolved,issueOf,initiativeCost,initiativeOf,matches,
-  outcomeRoll,succeeds,applicable,plan,applyInitiative,install,
+  outcomeRoll,succeeds,applicable,plan,applyInitiative,installExitWrapper,install,
   __installed:true
 });
 })();
