@@ -38,6 +38,13 @@ const MENU_CATALOG=Object.freeze([
   Object.freeze({id:'vegetable',name:'野菜たっぷりラーメン',priceMultiplier:1.18,qualityDelta:5,noveltyDelta:5,segmentFit:Object.freeze({standard:.18,quality:.22,brand:.12}),recipeMultipliers:Object.freeze({ramen_toppings:.65,ramen_vegetables:1.8}),strategyLabel:'日常・品質向け'}),
   Object.freeze({id:'spicy',name:'旨辛限定麺',priceMultiplier:1.22,qualityDelta:3,noveltyDelta:12,segmentFit:Object.freeze({brand:.62,quality:.12}),recipeMultipliers:Object.freeze({ramen_soup:1.22}),strategyLabel:'流行向け'})
 ]);
+const STORE_CONCEPT_CHANGE_COST=300000, STORE_CONCEPT_TRANSITION_WEEKS=2, DEFAULT_STORE_CONCEPT='balanced';
+const STORE_CONCEPTS=Object.freeze([
+  Object.freeze({id:'balanced',name:'地域の定番',description:'偏りのない標準運営',capacityMultiplier:1,qualityDelta:0,serviceDelta:0,noveltyDelta:0,repeatRateDelta:0,segmentFit:Object.freeze({}),recipeMultipliers:Object.freeze({})}),
+  Object.freeze({id:'turnover',name:'回転率重視',description:'販売能力 +18% / 品質・接客 -6 / 包装 +15%',capacityMultiplier:1.18,qualityDelta:-6,serviceDelta:-6,noveltyDelta:0,repeatRateDelta:-.04,segmentFit:Object.freeze({price:.08,convenience:.16}),recipeMultipliers:Object.freeze({ramen_packaging:1.15})}),
+  Object.freeze({id:'craft',name:'品質重視',description:'品質 +10 / 販売能力 -14% / スープ・具材 +20%',capacityMultiplier:.86,qualityDelta:10,serviceDelta:2,noveltyDelta:4,repeatRateDelta:.04,segmentFit:Object.freeze({quality:.18,brand:.08}),recipeMultipliers:Object.freeze({ramen_soup:1.2,ramen_toppings:1.2})}),
+  Object.freeze({id:'community',name:'常連重視',description:'リピート +8pt / 日常需要に強い / 販売能力 -6%・流行性 -8',capacityMultiplier:.94,qualityDelta:2,serviceDelta:5,noveltyDelta:-8,repeatRateDelta:.08,segmentFit:Object.freeze({standard:.18,convenience:.08}),recipeMultipliers:Object.freeze({ramen_vegetables:1.08})})
+]);
 
 const finite=(value,fallback=0)=>Number.isFinite(Number(value))?Number(value):fallback;
 const clamp=(value,min,max)=>Math.max(min,Math.min(max,value));
@@ -256,6 +263,11 @@ function removeMenu(engine,storeID,menuID){const gate=menuGate(engine,storeID,me
 function setMenuPrice(engine,storeID,menuID,price){const gate=menuGate(engine,storeID,menuID);if(gate.error)return engine.fail(gate.error);if(!validPrice(price))return engine.fail('価格は0より大きい有限の数値で指定してください。');const plan=menuPlan(engine.g,gate.store,engine.business(gate.store.businessID));if(!plan.items.some(x=>x.id===menuID))return engine.fail('そのメニューは追加されていません。');gate.store.menuItems=plan.items.map(x=>({menuID:x.id,...(x.id===menuID?{priceOverride:price}:(x.isOverridden?{priceOverride:x.priceOverride}:{}))}));return persistMenu(engine,gate.store,`${gate.def.name}の価格を${yen(price)}に変更しました。`);}
 function resetMenuPrice(engine,storeID,menuID){const gate=menuGate(engine,storeID,menuID);if(gate.error)return engine.fail(gate.error);const plan=menuPlan(engine.g,gate.store,engine.business(gate.store.businessID)), item=plan.items.find(x=>x.id===menuID);if(!item)return engine.fail('そのメニューは追加されていません。');if(!item.isOverridden)return false;gate.store.menuItems=plan.items.map(x=>({menuID:x.id,...(x.id!==menuID&&x.isOverridden?{priceOverride:x.priceOverride}:{})}));return persistMenu(engine,gate.store,`${gate.def.name}の価格を標準価格に戻しました。`);}
 
+function conceptDefinition(id){return STORE_CONCEPTS.find(row=>row.id===id)||STORE_CONCEPTS[0];}
+function conceptOf(store){return conceptDefinition(typeof store?.conceptID==='string'?store.conceptID:DEFAULT_STORE_CONCEPT);}
+function conceptPlan(state,store){if(!store||store.businessID!=='ramen')return null;const current=conceptOf(store),transitionUntilWeek=Math.max(0,Math.floor(finite(store.conceptTransitionUntilWeek,0)));return Object.freeze({storeID:String(store.id),current,currentID:current.id,options:STORE_CONCEPTS,cost:STORE_CONCEPT_CHANGE_COST,changeable:store.status==='open'&&finite(state?.week)>=transitionUntilWeek,transitionActive:finite(state?.week)<transitionUntilWeek,transitionUntilWeek,blockedReason:store.status==='open'?'':'営業中のラーメン店舗だけコンセプトを変更できます。'});}
+function setConcept(engine,storeID,conceptID){const state=engine.g,store=(state.stores||[]).find(row=>String(row.id)===String(storeID));if(!store)return engine.fail('店舗が見つかりません。');if(store.businessID!=='ramen'||store.status!=='open')return engine.fail('営業中のラーメン店舗だけコンセプトを変更できます。');if(finite(state.week)<finite(store.conceptTransitionUntilWeek))return engine.fail('コンセプト移行中は再変更できません。');const requested=STORE_CONCEPTS.find(row=>row.id===conceptID);if(!requested)return engine.fail('その店舗コンセプトは選べません。');if(conceptOf(store).id===requested.id)return false;if(finite(state.companyCash)<STORE_CONCEPT_CHANGE_COST)return engine.fail(`コンセプト変更には${yen(STORE_CONCEPT_CHANGE_COST)}が必要です。`);state.companyCash-=STORE_CONCEPT_CHANGE_COST;store.conceptID=requested.id;store.conceptTransitionUntilWeek=Math.floor(finite(state.week))+STORE_CONCEPT_TRANSITION_WEEKS;finance.event(state,'otherOperating',STORE_CONCEPT_CHANGE_COST,{cashEffect:-STORE_CONCEPT_CHANGE_COST,profitEffect:-STORE_CONCEPT_CHANGE_COST,businessID:store.businessID,storeID:store.id,sourceType:'storeConceptChange',sourceID:store.id,operationID:`store-concept-${store.id}-w${Math.floor(finite(state.week))}`,description:`${store.name} コンセプト変更（${requested.name}）`});engine.notify(`${store.name}を「${requested.name}」へ変更しました。移行期間は販売能力が低下します。`,'success');engine.save();engine.emit('change');return true;}
+
 function install(){
   const proto=EngineClass.prototype;
   if(proto.__storeEquipmentInstalled)return true;
@@ -282,6 +294,8 @@ function install(){
   proto.removeStoreMenuItem=function(storeID,menuID){return removeMenu(this,storeID,menuID);};
   proto.setStoreMenuItemPrice=function(storeID,menuID,price){return setMenuPrice(this,storeID,menuID,price);};
   proto.resetStoreMenuItemPrice=function(storeID,menuID){return resetMenuPrice(this,storeID,menuID);};
+  proto.getStoreConceptPlan=function(storeID){const store=(this.g.stores||[]).find(row=>String(row.id)===String(storeID));return conceptPlan(this.g,store);};
+  proto.setStoreConcept=function(storeID,conceptID){return setConcept(this,storeID,conceptID);};
   Object.defineProperty(proto,'__storeEquipmentInstalled',{value:true});
   return true;
 }
@@ -296,6 +310,7 @@ modules.storeEquipment=Object.freeze({
   operatingHoursOf,operatingHoursOption,operatingHoursPlan,setOperatingHours,
   validPrice,pricingPlan,setStorePrice,resetStorePrice,
   MENU_CATALOG,menuDefinition,menuPlan,addMenu,removeMenu,setMenuPrice,resetMenuPrice,
+  STORE_CONCEPT_CHANGE_COST,STORE_CONCEPT_TRANSITION_WEEKS,DEFAULT_STORE_CONCEPT,STORE_CONCEPTS,conceptDefinition,conceptOf,conceptPlan,setConcept,
   install,
   __installed:true
 });
