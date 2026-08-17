@@ -31,6 +31,13 @@ const OPERATING_HOUR_OPTIONS=Object.freeze([
   Object.freeze({value:3,name:'昼〜夜（標準）',demandFactor:1,costFactor:1}),
   Object.freeze({value:4,name:'昼〜深夜',demandFactor:1.17,costFactor:1.24})
 ]);
+const MENU_CATALOG=Object.freeze([
+  Object.freeze({id:'classic',name:'定番ラーメン',priceMultiplier:1,qualityDelta:0,noveltyDelta:0,segmentFit:Object.freeze({}),recipeMultipliers:Object.freeze({}),strategyLabel:'基準メニュー'}),
+  Object.freeze({id:'value',name:'お手頃ラーメン',priceMultiplier:.82,qualityDelta:-3,noveltyDelta:0,segmentFit:Object.freeze({price:.55,standard:.12}),recipeMultipliers:Object.freeze({ramen_toppings:.72,ramen_vegetables:.85}),strategyLabel:'価格重視向け'}),
+  Object.freeze({id:'chashu',name:'特製チャーシューメン',priceMultiplier:1.35,qualityDelta:8,noveltyDelta:2,segmentFit:Object.freeze({quality:.55,brand:.18}),recipeMultipliers:Object.freeze({ramen_toppings:1.65}),strategyLabel:'品質重視向け'}),
+  Object.freeze({id:'vegetable',name:'野菜たっぷりラーメン',priceMultiplier:1.18,qualityDelta:5,noveltyDelta:5,segmentFit:Object.freeze({standard:.18,quality:.22,brand:.12}),recipeMultipliers:Object.freeze({ramen_toppings:.65,ramen_vegetables:1.8}),strategyLabel:'日常・品質向け'}),
+  Object.freeze({id:'spicy',name:'旨辛限定麺',priceMultiplier:1.22,qualityDelta:3,noveltyDelta:12,segmentFit:Object.freeze({brand:.62,quality:.12}),recipeMultipliers:Object.freeze({ramen_soup:1.22}),strategyLabel:'流行向け'})
+]);
 
 const finite=(value,fallback=0)=>Number.isFinite(Number(value))?Number(value):fallback;
 const clamp=(value,min,max)=>Math.max(min,Math.min(max,value));
@@ -232,6 +239,23 @@ function resetStorePrice(engine,storeID){
   engine.save();engine.emit('change');return true;
 }
 
+function menuDefinition(id){return MENU_CATALOG.find(row=>row.id===id)||null;}
+function menuPlan(state,store,business){
+  if(!store||store.businessID!=='ramen')return null;
+  const base=pricingPlan(state,store,business).effectivePrice, seen=new Set(['classic']);
+  const source=Array.isArray(store.menuItems)?store.menuItems:[];
+  const valid=[{menuID:'classic'}];
+  for(const item of source){if(!item||typeof item!=='object'||item.menuID==='classic'||seen.has(item.menuID)||!menuDefinition(item.menuID))continue;seen.add(item.menuID);valid.push({menuID:item.menuID,...(validPrice(item.priceOverride)?{priceOverride:item.priceOverride}:{})});}
+  const items=valid.map(item=>{const def=menuDefinition(item.menuID), overridden=item.menuID!=='classic'&&validPrice(item.priceOverride);return Object.freeze({...def,active:true,isClassic:item.menuID==='classic',isOverridden:overridden,priceOverride:overridden?item.priceOverride:null,effectivePrice:item.menuID==='classic'?base:(overridden?item.priceOverride:Math.round(base*def.priceMultiplier))});});
+  return Object.freeze({storeID:String(store.id),basePrice:base,changeable:store.status==='open',items:Object.freeze(items),inactive:Object.freeze(MENU_CATALOG.filter(def=>!seen.has(def.id)))});
+}
+function menuGate(engine,storeID,menuID,allowClassic=false){const store=(engine.g.stores||[]).find(row=>String(row.id)===String(storeID));if(!store)return {error:'店舗が見つかりません。'};if(store.businessID!=='ramen')return {error:'ラーメン店舗だけメニューを変更できます。'};if(store.status!=='open')return {error:'営業中の店舗だけメニューを変更できます。'};const def=menuDefinition(menuID);if(!def)return {error:'そのメニューは選べません。'};if(!allowClassic&&menuID==='classic')return {error:'定番ラーメンは外せません。'};return {store,def};}
+function persistMenu(engine,store,message){engine.notify(message,'success');engine.save();engine.emit('change');return true;}
+function addMenu(engine,storeID,menuID){const gate=menuGate(engine,storeID,menuID);if(gate.error)return engine.fail(gate.error);const plan=menuPlan(engine.g,gate.store,engine.business(gate.store.businessID));if(plan.items.some(x=>x.id===menuID))return engine.fail('そのメニューは追加済みです。');gate.store.menuItems=plan.items.map(x=>({menuID:x.id,...(x.isOverridden?{priceOverride:x.priceOverride}:{})})).concat({menuID});return persistMenu(engine,gate.store,`${gate.def.name}をメニューに追加しました。`);}
+function removeMenu(engine,storeID,menuID){const gate=menuGate(engine,storeID,menuID);if(gate.error)return engine.fail(gate.error);const plan=menuPlan(engine.g,gate.store,engine.business(gate.store.businessID));if(!plan.items.some(x=>x.id===menuID))return engine.fail('そのメニューは追加されていません。');gate.store.menuItems=plan.items.filter(x=>x.id!==menuID).map(x=>({menuID:x.id,...(x.isOverridden?{priceOverride:x.priceOverride}:{})}));return persistMenu(engine,gate.store,`${gate.def.name}をメニューから外しました。`);}
+function setMenuPrice(engine,storeID,menuID,price){const gate=menuGate(engine,storeID,menuID);if(gate.error)return engine.fail(gate.error);if(!validPrice(price))return engine.fail('価格は0より大きい有限の数値で指定してください。');const plan=menuPlan(engine.g,gate.store,engine.business(gate.store.businessID));if(!plan.items.some(x=>x.id===menuID))return engine.fail('そのメニューは追加されていません。');gate.store.menuItems=plan.items.map(x=>({menuID:x.id,...(x.id===menuID?{priceOverride:price}:(x.isOverridden?{priceOverride:x.priceOverride}:{}))}));return persistMenu(engine,gate.store,`${gate.def.name}の価格を${yen(price)}に変更しました。`);}
+function resetMenuPrice(engine,storeID,menuID){const gate=menuGate(engine,storeID,menuID);if(gate.error)return engine.fail(gate.error);const plan=menuPlan(engine.g,gate.store,engine.business(gate.store.businessID)), item=plan.items.find(x=>x.id===menuID);if(!item)return engine.fail('そのメニューは追加されていません。');if(!item.isOverridden)return false;gate.store.menuItems=plan.items.map(x=>({menuID:x.id,...(x.id!==menuID&&x.isOverridden?{priceOverride:x.priceOverride}:{})}));return persistMenu(engine,gate.store,`${gate.def.name}の価格を標準価格に戻しました。`);}
+
 function install(){
   const proto=EngineClass.prototype;
   if(proto.__storeEquipmentInstalled)return true;
@@ -253,6 +277,11 @@ function install(){
   proto.getStorePricingPlan=function(storeID){const store=(this.g.stores||[]).find(row=>String(row.id)===String(storeID));return store?pricingPlan(this.g,store,this.business(store.businessID)):null;};
   proto.setStorePrice=function(storeID,price){return setStorePrice(this,storeID,price);};
   proto.resetStorePrice=function(storeID){return resetStorePrice(this,storeID);};
+  proto.getStoreMenuPlan=function(storeID){const store=(this.g.stores||[]).find(row=>String(row.id)===String(storeID));return store?menuPlan(this.g,store,this.business(store.businessID)):null;};
+  proto.addStoreMenuItem=function(storeID,menuID){return addMenu(this,storeID,menuID);};
+  proto.removeStoreMenuItem=function(storeID,menuID){return removeMenu(this,storeID,menuID);};
+  proto.setStoreMenuItemPrice=function(storeID,menuID,price){return setMenuPrice(this,storeID,menuID,price);};
+  proto.resetStoreMenuItemPrice=function(storeID,menuID){return resetMenuPrice(this,storeID,menuID);};
   Object.defineProperty(proto,'__storeEquipmentInstalled',{value:true});
   return true;
 }
@@ -266,6 +295,7 @@ modules.storeEquipment=Object.freeze({
   conditionOf,renovationCost,renovatable,renovationPlan,renovate,
   operatingHoursOf,operatingHoursOption,operatingHoursPlan,setOperatingHours,
   validPrice,pricingPlan,setStorePrice,resetStorePrice,
+  MENU_CATALOG,menuDefinition,menuPlan,addMenu,removeMenu,setMenuPrice,resetMenuPrice,
   install,
   __installed:true
 });
