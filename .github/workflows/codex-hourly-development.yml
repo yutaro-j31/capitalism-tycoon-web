@@ -1,0 +1,526 @@
+name: Codex Hourly Development
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "17 * * * *"
+
+concurrency:
+  group: codex-hourly-development
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  gate:
+    name: Select safe target
+    if: ${{ github.event_name == 'workflow_dispatch' || vars.CODEX_HOURLY_ENABLED == 'true' }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: read
+      actions: read
+    outputs:
+      run_codex: ${{ steps.select.outputs.run_codex }}
+      mode: ${{ steps.select.outputs.mode }}
+      main_sha: ${{ steps.select.outputs.main_sha }}
+      target_ref: ${{ steps.select.outputs.target_ref }}
+      target_sha: ${{ steps.select.outputs.target_sha }}
+      pr_number: ${{ steps.select.outputs.pr_number }}
+      reason: ${{ steps.select.outputs.reason }}
+    steps:
+      - name: Check required secrets
+        id: secrets
+        env:
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          CODEX_GITHUB_TOKEN: ${{ secrets.CODEX_GITHUB_TOKEN }}
+        shell: bash
+        run: |
+          if [ -n "${OPENAI_API_KEY:-}" ] && [ -n "${CODEX_GITHUB_TOKEN:-}" ]; then
+            echo "ready=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "ready=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Select safe target
+        id: select
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          RUN_ID: ${{ github.run_id }}
+          SECRETS_READY: ${{ steps.secrets.outputs.ready }}
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          out() {
+            printf '%s=%s\n' "$1" "$2" >> "$GITHUB_OUTPUT"
+          }
+
+          main_sha="$(gh api "repos/$REPO/git/ref/heads/main" --jq '.object.sha')"
+          out main_sha "$main_sha"
+          out run_codex "false"
+          out mode "BLOCKED"
+          out target_ref "main"
+          out target_sha "$main_sha"
+          out pr_number "0"
+          out reason "UNINITIALIZED"
+
+          if [ "$SECRETS_READY" != "true" ]; then
+            out reason "MISSING_REQUIRED_SECRETS"
+            exit 0
+          fi
+
+          main_runs="$(gh api -X GET "repos/$REPO/actions/runs" -f head_sha="$main_sha" -f per_page=100)"
+          main_busy="$(jq --argjson current "$RUN_ID" '[.workflow_runs[] | select(.id != $current and (.status == "queued" or .status == "in_progress"))] | length' <<<"$main_runs")"
+          if [ "$main_busy" -gt 0 ]; then
+            out reason "MAIN_CI_BUSY"
+            exit 0
+          fi
+
+          prs="$(gh pr list --repo "$REPO" --state open --base main --limit 50 --json number,title,isDraft,headRefName,updatedAt)"
+          managed="$(jq '[.[] | select(.headRefName | test("^(feat|fix|ci|refactor|docs)/codex-hourly-"))]' <<<"$prs")"
+          managed_count="$(jq 'length' <<<"$managed")"
+
+          if [ "$managed_count" -gt 1 ]; then
+            out reason "MULTIPLE_MANAGED_PRS"
+            exit 0
+          fi
+
+          if [ "$managed_count" -eq 1 ]; then
+            pr_number="$(jq -r '.[0].number' <<<"$managed")"
+            pr_data="$(gh api "repos/$REPO/pulls/$pr_number")"
+            target_ref="$(jq -r '.head.ref' <<<"$pr_data")"
+            target_sha="$(jq -r '.head.sha' <<<"$pr_data")"
+            head_repo="$(jq -r '.head.repo.full_name // ""' <<<"$pr_data")"
+
+            out target_ref "$target_ref"
+            out target_sha "$target_sha"
+            out pr_number "$pr_number"
+
+            if [ "$head_repo" != "$REPO" ] || [ "$target_ref" = "main" ]; then
+              out reason "UNSAFE_MANAGED_PR_HEAD"
+              exit 0
+            fi
+
+            pr_runs="$(gh api -X GET "repos/$REPO/actions/runs" -f head_sha="$target_sha" -f per_page=100)"
+            pr_busy="$(jq '[.workflow_runs[] | select(.status == "queued" or .status == "in_progress")] | length' <<<"$pr_runs")"
+            if [ "$pr_busy" -gt 0 ]; then
+              out reason "TARGET_PR_CI_BUSY"
+              exit 0
+            fi
+
+            pr_failed="$(jq '[.workflow_runs[] | select(.status == "completed" and (.conclusion != "success" and .conclusion != "skipped" and .conclusion != "neutral"))] | length' <<<"$pr_runs")"
+            review_decision="$(gh pr view "$pr_number" --repo "$REPO" --json reviewDecision --jq '.reviewDecision // ""')"
+
+            if [ "$pr_failed" -gt 0 ] || [ "$review_decision" = "CHANGES_REQUESTED" ]; then
+              out run_codex "true"
+              out mode "EXISTING_PR_FIX"
+              out reason "ACTIVE_PR_NEEDS_FIX"
+              exit 0
+            fi
+
+            out reason "WAITING_HUMAN_REVIEW_OR_MERGE"
+            exit 0
+          fi
+
+          cutoff="$(date -u -d '24 hours ago' '+%Y-%m-%dT%H:%M:%SZ')"
+          recent_external="$(jq --arg cutoff "$cutoff" '[.[] | select((.headRefName | test("^(feat|fix|ci|refactor|docs)/codex-hourly-") | not) and (.updatedAt >= $cutoff))]' <<<"$prs")"
+          recent_external_count="$(jq 'length' <<<"$recent_external")"
+
+          if [ "$recent_external_count" -gt 0 ]; then
+            out reason "RECENT_EXTERNAL_PR_ACTIVE"
+            exit 0
+          fi
+
+          out run_codex "true"
+          out mode "NEW_FEATURE"
+          out target_ref "main"
+          out target_sha "$main_sha"
+          out pr_number "0"
+          out reason "SAFE_NEW_FEATURE"
+
+      - name: Gate summary
+        shell: bash
+        run: |
+          {
+            echo "### Codex hourly gate"
+            echo "- run_codex: \`${{ steps.select.outputs.run_codex }}\`"
+            echo "- mode: \`${{ steps.select.outputs.mode }}\`"
+            echo "- reason: \`${{ steps.select.outputs.reason }}\`"
+            echo "- main: \`${{ steps.select.outputs.main_sha }}\`"
+            echo "- target: \`${{ steps.select.outputs.target_ref }}\` @ \`${{ steps.select.outputs.target_sha }}\`"
+            echo "- PR: \`${{ steps.select.outputs.pr_number }}\`"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+  codex:
+    name: Run Codex safely
+    needs: gate
+    if: ${{ needs.gate.outputs.run_codex == 'true' }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: read
+      actions: read
+    outputs:
+      has_changes: ${{ steps.patch.outputs.has_changes }}
+    steps:
+      - name: Checkout selected target
+        uses: actions/checkout@v5
+        with:
+          ref: ${{ needs.gate.outputs.target_ref }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Refresh refs and verify target
+        env:
+          EXPECTED_SHA: ${{ needs.gate.outputs.target_sha }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch --prune origin
+          actual="$(git rev-parse HEAD)"
+          if [ "$actual" != "$EXPECTED_SHA" ]; then
+            echo "Target moved before Codex started: expected $EXPECTED_SHA, got $actual" >&2
+            exit 1
+          fi
+
+      - name: Build runtime context
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          MODE: ${{ needs.gate.outputs.mode }}
+          MAIN_SHA: ${{ needs.gate.outputs.main_sha }}
+          TARGET_REF: ${{ needs.gate.outputs.target_ref }}
+          TARGET_SHA: ${{ needs.gate.outputs.target_sha }}
+          PR_NUMBER: ${{ needs.gate.outputs.pr_number }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p .codex
+          {
+            echo "# Hourly runtime context"
+            echo
+            echo "- repository: $REPO"
+            echo "- mode: $MODE"
+            echo "- main_sha: $MAIN_SHA"
+            echo "- target_ref: $TARGET_REF"
+            echo "- target_sha: $TARGET_SHA"
+            echo "- pr_number: $PR_NUMBER"
+            echo
+            echo "## Open PRs"
+            gh pr list --repo "$REPO" --state open --base main --limit 50 --json number,title,isDraft,headRefName,updatedAt,mergeStateStatus || true
+            echo
+            echo "## Recent commits"
+            git log --oneline -12
+          } > .codex/hourly-runtime-context.md
+
+          if [ "$PR_NUMBER" != "0" ]; then
+            {
+              echo
+              echo "## Selected PR"
+              gh pr view "$PR_NUMBER" --repo "$REPO" --json number,title,body,isDraft,headRefName,headRefOid,baseRefName,mergeStateStatus,reviewDecision,statusCheckRollup,comments,reviews || true
+              echo
+              echo "## Review threads"
+              owner="${REPO%%/*}"
+              name="${REPO#*/}"
+              gh api graphql -f query='query($owner:String!,$name:String!,$number:Int!){repository(owner:$owner,name:$name){pullRequest(number:$number){reviewThreads(first:100){nodes{isResolved comments(first:20){nodes{author{login} body path line}}}}}}}' -F owner="$owner" -F name="$name" -F number="$PR_NUMBER" || true
+              echo
+              echo "## Workflow runs for selected head"
+              runs="$(gh run list --repo "$REPO" --commit "$TARGET_SHA" --limit 50 --json databaseId,name,status,conclusion,url 2>/dev/null || echo '[]')"
+              printf '%s\n' "$runs"
+              echo
+              echo "## Failed workflow logs"
+              jq -r '.[] | select(.conclusion != null and .conclusion != "success" and .conclusion != "skipped" and .conclusion != "neutral") | .databaseId' <<<"$runs" | while read -r run_id; do
+                [ -n "$run_id" ] || continue
+                echo "### run $run_id"
+                gh run view "$run_id" --repo "$REPO" --log-failed 2>&1 | tail -n 2500 || true
+              done
+            } >> .codex/hourly-runtime-context.md
+          fi
+
+      - name: Run Codex
+        id: run_codex
+        uses: openai/codex-action@v1
+        with:
+          openai-api-key: ${{ secrets.OPENAI_API_KEY }}
+          permission-profile: ":workspace"
+          safety-strategy: drop-sudo
+          prompt-file: .github/codex/prompts/hourly-development.md
+          output-file: .codex/hourly-final-message.md
+
+      - name: Build patch artifact
+        id: patch
+        env:
+          EXPECTED_SHA: ${{ needs.gate.outputs.target_sha }}
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          if [ "$(git rev-parse HEAD)" != "$EXPECTED_SHA" ]; then
+            echo "Codex created or moved commits locally. Scheduled Codex must leave commits to the publisher job." >&2
+            exit 1
+          fi
+
+          artifact_dir="$RUNNER_TEMP/codex-hourly"
+          mkdir -p "$artifact_dir"
+          if [ -f .codex/hourly-final-message.md ]; then
+            cp .codex/hourly-final-message.md "$artifact_dir/final-message.md"
+          else
+            printf '%s\n' "Codex completed without a final-message file." > "$artifact_dir/final-message.md"
+          fi
+
+          rm -f .codex/hourly-runtime-context.md .codex/hourly-final-message.md
+          rmdir .codex 2>/dev/null || true
+
+          git add -N .
+          git diff --check
+          git status --short > "$artifact_dir/status.txt"
+          git diff --binary > "$artifact_dir/codex.patch"
+          git reset --quiet
+
+          if [ -s "$artifact_dir/codex.patch" ]; then
+            echo "has_changes=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "has_changes=false" >> "$GITHUB_OUTPUT"
+            {
+              echo "### Codex result"
+              echo "No repository changes were produced."
+              echo
+              cat "$artifact_dir/final-message.md"
+            } >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+      - name: Upload patch artifact
+        if: ${{ steps.patch.outputs.has_changes == 'true' }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: codex-hourly-${{ github.run_id }}
+          path: ${{ runner.temp }}/codex-hourly
+          if-no-files-found: error
+          retention-days: 3
+
+  publish:
+    name: Validate and publish
+    needs: [gate, codex]
+    if: ${{ needs.codex.outputs.has_changes == 'true' }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: read
+      actions: read
+    steps:
+      - name: Checkout clean target
+        uses: actions/checkout@v5
+        with:
+          ref: ${{ needs.gate.outputs.target_ref }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Download Codex patch
+        uses: actions/download-artifact@v4
+        with:
+          name: codex-hourly-${{ github.run_id }}
+          path: ${{ runner.temp }}/codex-hourly
+
+      - name: Revalidate branch and CI gate
+        id: revalidate
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          RUN_ID: ${{ github.run_id }}
+          MODE: ${{ needs.gate.outputs.mode }}
+          MAIN_SHA: ${{ needs.gate.outputs.main_sha }}
+          TARGET_SHA: ${{ needs.gate.outputs.target_sha }}
+          PR_NUMBER: ${{ needs.gate.outputs.pr_number }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          echo "safe=false" >> "$GITHUB_OUTPUT"
+
+          current_main="$(gh api "repos/$REPO/git/ref/heads/main" --jq '.object.sha')"
+          if [ "$current_main" != "$MAIN_SHA" ]; then
+            echo "main moved during Codex execution; skipping publish." >> "$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
+
+          main_runs="$(gh api -X GET "repos/$REPO/actions/runs" -f head_sha="$current_main" -f per_page=100)"
+          main_busy="$(jq --argjson current "$RUN_ID" '[.workflow_runs[] | select(.id != $current and (.status == "queued" or .status == "in_progress"))] | length' <<<"$main_runs")"
+          if [ "$main_busy" -gt 0 ]; then
+            echo "main CI became busy; skipping publish." >> "$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
+
+          if [ "$MODE" = "EXISTING_PR_FIX" ]; then
+            pr_data="$(gh api "repos/$REPO/pulls/$PR_NUMBER")"
+            current_target="$(jq -r '.head.sha' <<<"$pr_data")"
+            if [ "$current_target" != "$TARGET_SHA" ]; then
+              echo "target PR moved during Codex execution; skipping publish." >> "$GITHUB_STEP_SUMMARY"
+              exit 0
+            fi
+
+            target_runs="$(gh api -X GET "repos/$REPO/actions/runs" -f head_sha="$current_target" -f per_page=100)"
+            target_busy="$(jq '[.workflow_runs[] | select(.status == "queued" or .status == "in_progress")] | length' <<<"$target_runs")"
+            if [ "$target_busy" -gt 0 ]; then
+              echo "target PR CI became busy; skipping publish." >> "$GITHUB_STEP_SUMMARY"
+              exit 0
+            fi
+          fi
+
+          echo "safe=true" >> "$GITHUB_OUTPUT"
+
+      - name: Apply and inspect patch
+        if: ${{ steps.revalidate.outputs.safe == 'true' }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          patch="$RUNNER_TEMP/codex-hourly/codex.patch"
+
+          patch_bytes="$(wc -c < "$patch")"
+          if [ "$patch_bytes" -gt 750000 ]; then
+            echo "Patch exceeds 750 KB safety limit." >&2
+            exit 1
+          fi
+
+          git apply --index --whitespace=error-all "$patch"
+
+          changed_files="$(git diff --cached --name-only)"
+          changed_count="$(printf '%s\n' "$changed_files" | sed '/^$/d' | wc -l | tr -d ' ')"
+
+          if [ "$changed_count" -eq 0 ]; then
+            echo "No staged changes after applying patch." >&2
+            exit 1
+          fi
+          if [ "$changed_count" -gt 20 ]; then
+            echo "Patch changes $changed_count files; limit is 20." >&2
+            exit 1
+          fi
+
+          if printf '%s\n' "$changed_files" | grep -Eq '^(AGENTS\.md|CLAUDE\.md|\.github/workflows/|\.github/codex/)'; then
+            echo "Scheduled Codex attempted to modify protected policy/orchestration files." >&2
+            exit 1
+          fi
+
+          git diff --cached --check
+          {
+            echo "### Proposed files"
+            echo '```'
+            printf '%s\n' "$changed_files"
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Run publisher safety checks
+        if: ${{ steps.revalidate.outputs.safe == 'true' }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm run test:syntax
+          npm run test:static
+
+      - name: Commit locally
+        id: commit
+        if: ${{ steps.revalidate.outputs.safe == 'true' }}
+        env:
+          MODE: ${{ needs.gate.outputs.mode }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git config core.hooksPath /dev/null
+
+          if [ "$MODE" = "NEW_FEATURE" ]; then
+            branch="feat/codex-hourly-${GITHUB_RUN_ID}"
+            git switch -c "$branch"
+          else
+            branch="$(git branch --show-current)"
+            if [ -z "$branch" ] || [ "$branch" = "main" ]; then
+              echo "Unsafe existing-PR branch: $branch" >&2
+              exit 1
+            fi
+          fi
+
+          git commit --no-verify -m "codex: hourly autonomous development"
+          echo "branch=$branch" >> "$GITHUB_OUTPUT"
+          echo "commit_sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+
+      - name: Push branch with dedicated token
+        if: ${{ steps.revalidate.outputs.safe == 'true' }}
+        env:
+          CODEX_GITHUB_TOKEN: ${{ secrets.CODEX_GITHUB_TOKEN }}
+          REPO: ${{ github.repository }}
+          BRANCH: ${{ steps.commit.outputs.branch }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          remote="https://x-access-token:${CODEX_GITHUB_TOKEN}@github.com/${REPO}.git"
+          git push "$remote" "HEAD:refs/heads/$BRANCH"
+
+      - name: Create draft PR
+        id: create_pr
+        if: ${{ steps.revalidate.outputs.safe == 'true' && needs.gate.outputs.mode == 'NEW_FEATURE' }}
+        env:
+          GH_TOKEN: ${{ secrets.CODEX_GITHUB_TOKEN }}
+          REPO: ${{ github.repository }}
+          BRANCH: ${{ steps.commit.outputs.branch }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          body="$RUNNER_TEMP/codex-hourly/pr-body.md"
+          {
+            echo "## Automated Codex development"
+            echo
+            echo "Created by the hourly Codex workflow from the current \`main\`."
+            echo "This PR is intentionally **Draft** and must not be auto-merged."
+            echo
+            echo "### Codex report"
+            echo
+            cat "$RUNNER_TEMP/codex-hourly/final-message.md"
+            echo
+            echo "### Publisher gates"
+            echo
+            echo "- fresh main/head SHA revalidation: passed"
+            echo "- current main/target CI busy gate: passed"
+            echo "- protected orchestration files: unchanged"
+            echo "- patch size/file-count limits: passed"
+            echo "- \`npm run test:syntax\`: passed"
+            echo "- \`npm run test:static\`: passed"
+          } > "$body"
+
+          url="$(gh pr create --repo "$REPO" --draft --base main --head "$BRANCH" --title "feat: Codex hourly autonomous development" --body-file "$body")"
+          echo "url=$url" >> "$GITHUB_OUTPUT"
+
+      - name: Comment on updated PR
+        if: ${{ steps.revalidate.outputs.safe == 'true' && needs.gate.outputs.mode == 'EXISTING_PR_FIX' }}
+        env:
+          GH_TOKEN: ${{ secrets.CODEX_GITHUB_TOKEN }}
+          REPO: ${{ github.repository }}
+          PR_NUMBER: ${{ needs.gate.outputs.pr_number }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          {
+            echo "Hourly Codex applied a follow-up commit after revalidating the PR head and CI push gate."
+            echo
+            cat "$RUNNER_TEMP/codex-hourly/final-message.md"
+          } > "$RUNNER_TEMP/codex-hourly/pr-comment.md"
+          gh pr comment "$PR_NUMBER" --repo "$REPO" --body-file "$RUNNER_TEMP/codex-hourly/pr-comment.md"
+
+      - name: Publish summary
+        if: ${{ steps.revalidate.outputs.safe == 'true' }}
+        shell: bash
+        run: |
+          {
+            echo "### Published"
+            echo "- mode: \`${{ needs.gate.outputs.mode }}\`"
+            echo "- branch: \`${{ steps.commit.outputs.branch }}\`"
+            echo "- commit: \`${{ steps.commit.outputs.commit_sha }}\`"
+            if [ -n "${{ steps.create_pr.outputs.url }}" ]; then
+              echo "- draft PR: ${{ steps.create_pr.outputs.url }}"
+            else
+              echo "- updated PR: #${{ needs.gate.outputs.pr_number }}"
+            fi
+            echo
+            echo "No merge was performed."
+          } >> "$GITHUB_STEP_SUMMARY"
