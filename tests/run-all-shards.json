@@ -12,7 +12,8 @@
     "tests/stage-3-ui-screen-scope-regression-test.js",
     "tests/store-specific-pricing-test.js",
     "tests/store-multiple-menu-test.js",
-    "test:startup-funding-round"
+    "test:startup-funding-round",
+    "test:personal-real-estate"
   ],
   "C": [
     "test:long",
