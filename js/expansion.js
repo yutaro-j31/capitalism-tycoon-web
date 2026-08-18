@@ -421,9 +421,20 @@ function installExpansion(TycoonEngine){
   // updateStartups()'s weekly valuation/runway formula (which every existing calibration
   // scenario runs unconditionally), so it cannot drift any baseline fixture; it only changes
   // the terms of a *future* investStartup() call, and only for a startup someone chose to
-  // vet. The verdict/discount/flags are derived once via the existing deterministicUnit
-  // helper (already used for supplier delay / personal real estate renewal elsewhere in this
-  // file), so no RNG is consumed and the same startup always yields the same DD result.
+  // vet.
+  //
+  // The verdict/discount unit is 70% the startup's actual growth/risk fundamentals and 30%
+  // a deterministicUnit hash (already used for supplier delay / personal real estate renewal
+  // elsewhere in this file) -- no RNG is consumed, and the same startup+state always yields
+  // the same DD result. A pure ID-hash verdict (the original design) was uncorrelated with
+  // the startup's real risk field, so the discount it granted for an unfavorable verdict was
+  // free alpha rather than compensation for real risk: a player could cherry-pick "危険"
+  // verdicts among startups whose actual risk was no higher than an "優良"-verdict startup's,
+  // buy the discounted equity, and realize the same expected return with no matching downside.
+  // Deriving most of the unit from real risk/growth means a bigger discount now tracks a
+  // genuinely riskier position (standard risk-based pricing), closing that exploit while the
+  // 30% hash term keeps DD from being fully redundant with the growth/risk numbers already
+  // shown on every startup card.
   const DD_FLAG_POOL=['経営陣の実行力に懸念','資金管理体制が不透明','主要メンバーの離職リスク','技術的な優位性が限定的','販路の再現性に疑問','競合参入への耐性が低い','特許・知財の防御が弱い','顧客獲得コストが高止まり'];
   TycoonEngine.prototype.conductStartupDueDiligence=function(startupID){
     const s=this.g.startups.find(x=>x.id===startupID);
@@ -432,7 +443,14 @@ function installExpansion(TycoonEngine){
     const cost=Math.round(s.minTicket*.05);
     if(this.g.personalCash<cost)return this.fail('個人資金が不足しています。');
     this.g.personalCash-=cost;
-    const unit=deterministicUnit(s.id,'founder-dd');
+    // Deal-flow risk/growth ranges span roughly risk 0.10-0.22 and growth 0.045-0.10
+    // (STARTUP_DEAL_POOL above and the 3 starting startups in data.js); these anchors
+    // normalize real fundamentals onto a comparable 0..1 scale before blending with noise.
+    const riskScore=clamp((n(s.risk,.2)-.10)/(.22-.10),0,1);
+    const growthScore=clamp((n(s.growth,0)-.045)/(.10-.045),0,1);
+    const fundamentalsUnit=clamp((1-riskScore)*.5+growthScore*.5,0,1);
+    const noiseUnit=deterministicUnit(s.id,'founder-dd');
+    const unit=clamp(fundamentalsUnit*.7+noiseUnit*.3,0,1);
     const verdict=unit<.25?'危険':unit<.5?'要注意':unit<.75?'普通':'優良';
     const discount=unit<.5?clamp((.5-unit)*.3,0,.15):0;
     const flagCount=unit<.25?2:unit<.5?1:0;
