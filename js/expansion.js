@@ -53,10 +53,15 @@ const RD_PROJECTS = [
   {id:'customer-data',name:'顧客データ分析特許',field:'マーケティング',cost:24000000,weeks:21,effect:'brand',strength:.05,licenseIncome:135000}
 ];
 
+// Gross yields sit around 8-9%, so a holding out-earns the mortgage rates it can be bought
+// with but not by so much that borrowing is free money. They previously ran at 17-18% gross
+// (15-16% NOI), far above any financing rate, which made leverage unconditionally correct and
+// left foreclosure risk as the only thing arguing against it. Smaller lots yield slightly more
+// than large ones, so "several small" and "one large" are genuinely different bets.
 const PERSONAL_REAL_ESTATE_OFFERS = [
-  {id:'studio-tokyo',name:'都心ワンルーム',prefID:'tokyo',price:18000000,weeklyRent:62000},
-  {id:'commercial-osaka',name:'商業ビル区分',prefID:'osaka',price:65000000,weeklyRent:220000},
-  {id:'logistics-aichi',name:'物流倉庫持分',prefID:'aichi',price:95000000,weeklyRent:310000}
+  {id:'studio-tokyo',name:'都心ワンルーム',prefID:'tokyo',price:18000000,weeklyRent:31000},
+  {id:'commercial-osaka',name:'商業ビル区分',prefID:'osaka',price:65000000,weeklyRent:106000},
+  {id:'logistics-aichi',name:'物流倉庫持分',prefID:'aichi',price:95000000,weeklyRent:146000}
 ];
 
 const PERSONAL_REAL_ESTATE_RENEWAL_STRATEGIES = [
