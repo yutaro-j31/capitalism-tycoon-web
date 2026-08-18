@@ -755,7 +755,11 @@ class TycoonEngine extends EventTarget {
     if(account==='company'&&!this.g.departments.investment)return this.fail('会社投資には投資部門が必要です。');
     if(amount<s.minTicket)return this.fail(`最低投資額は${yen(s.minTicket)}です。`);
     const cashKey=account==='company'?'companyCash':'personalCash';if(this.g[cashKey]<amount)return this.fail('資金が不足しています。');
-    const equity=clamp(amount/(s.valuation+amount),0,.35);this.g[cashKey]-=amount;s.valuation+=amount*.75;
+    // A completed due-diligence discount (js/expansion.js's conductStartupDueDiligence)
+    // negotiates better terms on the *equity received*, not the startup's headline
+    // valuation -- s.valuation itself still bumps by the same amount*.75 below.
+    const effectiveValuation=s.valuation*(1-finite(s.dueDiligence?.discount,0));
+    const equity=clamp(amount/(effectiveValuation+amount),0,.35);this.g[cashKey]-=amount;s.valuation+=amount*.75;
     if(account==='company'){finance.event(this.g,'investmentPurchase',amount,{cashEffect:-amount,assetEffect:amount,sourceType:'investStartup',sourceID:`${startupID}-${this.g.week}`,description:`${s.name} VC投資`});s.ownedCompany=clamp(s.ownedCompany+equity,0,.8);s.totalInvestedCompany+=amount;}
     else{s.ownedPersonal=clamp(s.ownedPersonal+equity,0,.49);s.totalInvestedPersonal+=amount;}
     s.fundingOpen=false;s.runwayWeeks+=Math.floor(amount/Math.max(1,s.valuation)*156);
@@ -846,11 +850,18 @@ class TycoonEngine extends EventTarget {
   }
   buyPersonalInvestment(offerID,amount) {
     const o=PERSONAL_INVESTMENT_OFFERS.find(x=>x.id===offerID);amount=finite(amount);if(!o||amount<o.minAmount||this.g.personalCash<amount)return this.fail('投資条件を満たしていません。');
-    this.g.personalCash-=amount;this.g.personalInvestments.push({id:uuid(),name:o.name,type:o.type,principal:amount,currentValue:amount,weeklyReturn:o.weeklyReturn,risk:o.risk,purchasedWeek:this.g.week,reinvest:true});
+    this.g.personalCash-=amount;this.g.personalInvestments.push({id:uuid(),name:o.name,type:o.type,principal:amount,currentValue:amount,weeklyReturn:o.weeklyReturn,risk:o.risk,carryRate:finite(o.carryRate,0),purchasedWeek:this.g.week,reinvest:true});
     this.notify(`${o.name}へ${yen(amount)}投資しました。`,'success');this.save();this.emit();return true;
   }
   sellPersonalInvestment(id) {
-    const i=this.g.personalInvestments.findIndex(x=>x.id===id);if(i<0)return false;const x=this.g.personalInvestments[i];this.g.personalCash+=x.currentValue;this.g.personalInvestments.splice(i,1);this.notify(`${x.name}を解約しました。`);this.save();this.emit();return true;
+    // A VC/LP-style offer (carryRate>0, e.g. PERSONAL_INVESTMENT_OFFERS' 'vc-fund') takes
+    // its performance cut on redemption, matching how a fund's general partner is paid --
+    // only on gains, never eating into principal. carryRate is 0/undefined on every other
+    // offer, so this is a strict no-op for the bond/index/REIT/PE products that predate it.
+    const i=this.g.personalInvestments.findIndex(x=>x.id===id);if(i<0)return false;const x=this.g.personalInvestments[i];
+    const gain=Math.max(0,finite(x.currentValue)-finite(x.principal)),carry=gain*finite(x.carryRate,0),proceeds=finite(x.currentValue)-carry;
+    this.g.personalCash+=proceeds;this.g.personalInvestments.splice(i,1);
+    this.notify(carry>0?`${x.name}を解約しました（成功報酬${yen(carry)}控除後 ${yen(proceeds)}）。`:`${x.name}を解約しました。`);this.save();this.emit();return true;
   }
   buySportsTeam(teamID,owner='personal') {
     const t=SPORTS_TEAMS.find(x=>x.id===teamID);if(!t)return false;const cashKey=owner==='company'?'companyCash':'personalCash';if(this.g[cashKey]<t.price)return this.fail('購入資金が不足しています。');

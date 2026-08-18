@@ -1796,7 +1796,8 @@ const PERSONAL_INVESTMENT_OFFERS = [
   {id:'bond',name:'国内債券ファンド',type:'債券',minAmount:1000000,weeklyReturn:.00035,risk:.01},
   {id:'index',name:'世界株インデックス',type:'投資信託',minAmount:1000000,weeklyReturn:.00125,risk:.035},
   {id:'reit',name:'グローバルREIT',type:'REIT',minAmount:3000000,weeklyReturn:.0011,risk:.04},
-  {id:'pe',name:'未上場PEファンド',type:'PE',minAmount:20000000,weeklyReturn:.0020,risk:.09}
+  {id:'pe',name:'未上場PEファンド',type:'PE',minAmount:20000000,weeklyReturn:.0020,risk:.09},
+  {id:'vc-fund',name:'アーリーステージVCファンド（LP出資）',type:'VC',minAmount:15000000,weeklyReturn:.0026,risk:.13,carryRate:.20}
 ];
 
 const OVERSEAS_COUNTRIES = [

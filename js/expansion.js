@@ -399,6 +399,37 @@ function installExpansion(TycoonEngine){
     this.save();this.emit();return true;
   };
 
+  // R1 (feature-requests.md) remaining item "創業者・チームの詳細DD": before this, the
+  // visible growth/risk fields were the only information a player had, with no way to dig
+  // deeper. This is a pure information-and-negotiation feature -- it never touches
+  // updateStartups()'s weekly valuation/runway formula (which every existing calibration
+  // scenario runs unconditionally), so it cannot drift any baseline fixture; it only changes
+  // the terms of a *future* investStartup() call, and only for a startup someone chose to
+  // vet. The verdict/discount/flags are derived once via the existing deterministicUnit
+  // helper (already used for supplier delay / personal real estate renewal elsewhere in this
+  // file), so no RNG is consumed and the same startup always yields the same DD result.
+  const DD_FLAG_POOL=['経営陣の実行力に懸念','資金管理体制が不透明','主要メンバーの離職リスク','技術的な優位性が限定的','販路の再現性に疑問','競合参入への耐性が低い','特許・知財の防御が弱い','顧客獲得コストが高止まり'];
+  TycoonEngine.prototype.conductStartupDueDiligence=function(startupID){
+    const s=this.g.startups.find(x=>x.id===startupID);
+    if(!s||!s.alive)return this.fail('対象のスタートアップが見つかりません。');
+    if(s.dueDiligence?.done)return this.fail('既にデューデリジェンス済みです。');
+    const cost=Math.round(s.minTicket*.05);
+    if(this.g.personalCash<cost)return this.fail('個人資金が不足しています。');
+    this.g.personalCash-=cost;
+    const unit=deterministicUnit(s.id,'founder-dd');
+    const verdict=unit<.25?'危険':unit<.5?'要注意':unit<.75?'普通':'優良';
+    const discount=unit<.5?clamp((.5-unit)*.3,0,.15):0;
+    const flagCount=unit<.25?2:unit<.5?1:0;
+    const flags=[];
+    for(let i=0;i<flagCount;i++){
+      const flag=DD_FLAG_POOL[Math.floor(deterministicUnit(s.id,'dd-flag',i)*DD_FLAG_POOL.length)];
+      if(!flags.includes(flag))flags.push(flag);
+    }
+    s.dueDiligence={done:true,week:this.g.week,unit,verdict,discount,flags,cost};
+    this.notify(`${s.name}の詳細DDが完了しました（評価：${verdict}）。`,discount>0?'warning':'success');
+    this.save();this.emit();return true;
+  };
+
   TycoonEngine.prototype.executeMBO=function(stockID){
     const s=this.stock(stockID),h=this.g.companyStocks[stockID];if(!s||!h||h.qty/s.issuedShares<.5)return this.fail('会社口座で過半数保有が必要です。');const remaining=s.issuedShares-h.qty,cost=remaining*s.price*1.25;if(this.g.companyCash<cost)return this.fail('MBO資金が不足しています。');this.g.companyCash-=cost;this.g.companyStocks[stockID].qty=s.issuedShares;s.privateCompany=true;s.suspended=true;this.notify(`${s.name}のMBOを成立させました。`,'success');this.save();this.emit();return true;
   };

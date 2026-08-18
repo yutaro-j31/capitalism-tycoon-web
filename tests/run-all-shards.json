@@ -29,7 +29,8 @@
     "tests/shareholder-value-destruction-incidence-matrix-test.js",
     "tests/investment-route-ipo-reachability-test.js",
     "tests/founder-capital-movement-test.js",
-    "tests/startup-deal-flow-refresh-test.js"
+    "tests/startup-deal-flow-refresh-test.js",
+    "tests/vc-fund-lp-test.js"
   ],
   "D": [
     "test:finance-history",
@@ -41,6 +42,7 @@
     "tests/product-recall-reachability-runner.js",
     "tests/store-equipment-test.js",
     "tests/store-manager-delegation-test.js",
+    "tests/startup-due-diligence-test.js",
     "tests/startup-secondary-sale-test.js"
   ]
 }
