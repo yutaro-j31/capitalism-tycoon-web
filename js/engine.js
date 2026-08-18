@@ -1321,6 +1321,30 @@ class TycoonEngine extends EventTarget {
   autoManage() {
     if(!this.g.executives.CEO)return;const reserve=this.g.autoManageStyle==='aggressive'?3_000_000:this.g.autoManageStyle==='defensive'?20_000_000:8_000_000;
     if(this.g.companyCash>reserve+3_000_000&&this.g.week%4===0){const b=[...this.g.businesses].sort((a,b)=>b.brand+b.quality-(a.brand+a.quality))[0];this.investBusiness(b.id,'brand',Math.min(2_000_000,this.g.companyCash-reserve));}
+    this.autoManageStoreDelegation();
+  }
+  // Store-manager delegation: reuses the existing autoManage/autoManageStyle toggle (no new
+  // top-level state) and the existing per-store workforce staffing snapshot instead of a
+  // dedicated per-store manager-assignment map. A store only gets delegated if it currently
+  // has a hired manager (workforce team managerHeadcount>=1, via the existing 'manager' role
+  // hiring flow); the manager then sets next week's operating hours from last week's staffing
+  // utilization, using the same aggressive/balanced/defensive style already exposed in
+  // Settings. Runs only when g.autoManage is enabled, so it is a strict no-op (identical
+  // behavior/determinism/RNG-count to before) for every save and test that never opts in.
+  autoManageStoreDelegation() {
+    const style=this.g.autoManageStyle;
+    for(const store of this.g.stores){
+      if(store.status!=='open'||workforce.TARGET_BUSINESS_IDS.indexOf(store.businessID)<0)continue;
+      const team=(this.g.workforceTeams||[]).find(t=>t.storeID===store.id&&t.status!=='removed'&&t.status!=='closed');
+      if(!team||finite(team.managerHeadcount)<1)continue;
+      const result=this.g.workforceResultsByStoreID[store.id];if(!result)continue;
+      const utilization=finite(result.staffingUtilization,1);
+      let target=store.operatingHours;
+      if(style==='aggressive')target=utilization<=1.1?4:3;
+      else if(style==='defensive')target=3;
+      else target=utilization<=.85?4:utilization>1?3:store.operatingHours;
+      if(target!==store.operatingHours)this.setStoreOperatingHours(store.id,target);
+    }
   }
 
   advanceWeek(showSummary=true) {
