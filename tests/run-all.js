@@ -193,7 +193,8 @@ for (const [name, file] of [
   ['store-zero-investment-founding', 'tests/store-zero-investment-founding-test.js'],
   ['investment-route-ipo-reachability', 'tests/investment-route-ipo-reachability-test.js'],
   ['store-manager-delegation', 'tests/store-manager-delegation-test.js'],
-  ['founder-capital-movement', 'tests/founder-capital-movement-test.js']
+  ['founder-capital-movement', 'tests/founder-capital-movement-test.js'],
+  ['startup-deal-flow-refresh', 'tests/startup-deal-flow-refresh-test.js']
 ]) {
   const result = spawnSync('node', [file], {
     encoding: 'utf8',

@@ -1436,6 +1436,7 @@ class TycoonEngine extends EventTarget {
     if(this.g.departments.product&&this.g.internalVentureProposals.length===0&&Math.random()<.08)this.proposeInternalVenture();
     if(!this.g.publicCompany&&this.g.hasHeadOffice&&this.g.week%6===0&&this.g.investorOffers.filter(o=>o.status==='pending').length<2)this.refreshInvestorOffers();
     for(const o of this.g.investorOffers)if(o.status==='pending'&&this.g.week>o.expiresWeek)o.status='expired';
+    if(this.g.startups.filter(s=>s.alive&&!s.subsidiary&&!s.ipoStockID).length<3&&Math.random()<.02+this.g.founderNetworkLevel/2000)this.refreshStartupDealFlow();
     if(this.g.publicCompany&&this.companyValue()>1_000_000_000&&Math.random()<.005)this.g.news.unshift(`第${this.g.week}週：同業大手から自社買収の打診が届いています。`);
     if(this.g.news.length>300)this.g.news=this.g.news.slice(0,300);
   }
