@@ -28,6 +28,20 @@ const INITIATIVE_COST_RATE=.02;
 const EXIT_BASELINE_SCORE=20;
 const EXIT_PREMIUM_AT_FULL=.5;
 
+// R2 remaining item "再建中の企業の週次業績を改善度と連動させる": before this, a peDeal
+// carried no weekly P&L at all -- only currentValuation drifted (mostly noise, with a
+// token improvementScore/50000 nudge). Turning a company around never showed up as an
+// actual cash consequence. Revenue is fixed at acquisition (a share of investedAmount, so
+// it doesn't drift with market noise) and margin is derived from improvementScore around
+// the same EXIT_BASELINE_SCORE=20 baseline the exit premium already uses: an untouched
+// deal loses money every week (a real distressed business), and only sustained progress
+// past the acquisition condition turns it into a cash generator.
+const WEEKLY_REVENUE_RATE=.03;      // weekly revenue as a fraction of investedAmount
+const BASELINE_MARGIN=-.03;         // margin at improvementScore===EXIT_BASELINE_SCORE
+const MARGIN_SWING=.15;             // margin gained moving from baseline to MAX_SCORE
+const MARGIN_FLOOR=-.10;
+const MARGIN_CEILING=.15;
+
 const ISSUES=Object.freeze([
   Object.freeze({id:'cost',name:'高コスト体質',detail:'固定費が重く、利益が出にくい状態です。',initiativeID:'cost-cut'}),
   Object.freeze({id:'talent',name:'人材流出',detail:'中核人材が抜け、現場が回らなくなっています。',initiativeID:'talent'}),
@@ -82,6 +96,24 @@ function issueOf(deal){
 
 function initiativeCost(deal){
   return Math.round(Math.max(MIN_INITIATIVE_COST,finite(deal?.investedAmount)*INITIATIVE_COST_RATE));
+}
+
+// Fixed once at acquisition so the weekly headline number moves only because of
+// improvementScore, not because of unrelated valuation noise.
+function weeklyRevenueFor(deal){
+  return Math.round(Math.max(0,finite(deal?.investedAmount))*WEEKLY_REVENUE_RATE);
+}
+
+function marginFor(deal){
+  const progress=(scoreOf(deal)-EXIT_BASELINE_SCORE)/(MAX_SCORE-EXIT_BASELINE_SCORE);
+  return clamp(BASELINE_MARGIN+progress*MARGIN_SWING,MARGIN_FLOOR,MARGIN_CEILING);
+}
+
+// Old saves and freshly-migrated deals may not have weeklyRevenue stored yet; derive it
+// from investedAmount in that case rather than treating the deal as revenue-less.
+function weeklyProfitFor(deal){
+  const revenue=finite(deal?.weeklyRevenue)>0?finite(deal.weeklyRevenue):weeklyRevenueFor(deal);
+  return Math.round(revenue*marginFor(deal));
 }
 
 function matches(deal,initiativeID){
@@ -244,6 +276,8 @@ modules.peValueCreation=Object.freeze({
   MATCHED_VALUATION_GAIN,MISMATCHED_VALUATION_GAIN,
   MIN_INITIATIVE_COST,INITIATIVE_COST_RATE,ISSUES,INITIATIVES,
   EXIT_BASELINE_SCORE,EXIT_PREMIUM_AT_FULL,exitMultiplier,exitValue,
+  WEEKLY_REVENUE_RATE,BASELINE_MARGIN,MARGIN_SWING,MARGIN_FLOOR,MARGIN_CEILING,
+  weeklyRevenueFor,marginFor,weeklyProfitFor,
   scoreOf,stageOf,isResolved,issueOf,initiativeCost,initiativeOf,matches,
   outcomeRoll,succeeds,applicable,plan,applyInitiative,installExitWrapper,install,
   __installed:true

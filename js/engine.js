@@ -246,7 +246,7 @@ function entityDefaults(kind, entity = {}, index = 0, state = {}) {
     personalInvestment: {id:createDefaultEntityID('investment', index), name:'個人投資', category:'investment', purchasePrice:0, currentValue:0, maintenancePerWeek:0, purchasedWeek:week},
     luxuryAsset: {id:createDefaultEntityID('luxury', index), name:'資産', category:'luxury', purchasePrice:0, currentValue:0, maintenancePerWeek:0, statusEffect:'', purchasedWeek:week},
     sportsTeam: {id:createDefaultEntityID('sports', index), name:'スポーツチーム', league:'', owner:'personal', value:0, weeklyProfit:0, fanBase:0, performance:0, saleListed:false, acquiredWeek:week},
-    peDeal: {id:createDefaultEntityID('pe', index), targetName:'PE案件', industry:'', acquiredWeek:week, investedAmount:0, ownershipRatio:0, improvementScore:0, currentValuation:0, holdingWeeks:0, status:'active'},
+    peDeal: {id:createDefaultEntityID('pe', index), targetName:'PE案件', industry:'', acquiredWeek:week, investedAmount:0, ownershipRatio:0, improvementScore:0, currentValuation:0, holdingWeeks:0, status:'active', weeklyRevenue:0, weeklyProfit:0},
     cxoExecutive: {id:createDefaultEntityID('cxo', index), name:'CXO', role:'CFO', skill:0, salary:0, hiredWeek:week},
     campaign: {id:createDefaultEntityID('campaign', index), departmentID:'marketing', type:'', budget:0, startWeek:week, endWeek:week, progress:0, status:'active'},
     internalVenture: {id:createDefaultEntityID('venture', index), name:'社内ベンチャー', domain:'', requiredBudget:0, teamQuality:0, marketPotential:0, risk:0, status:'developing', progress:0, valuation:0, weeklyProfit:0},

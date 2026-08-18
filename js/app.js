@@ -382,7 +382,8 @@ function renderPersonalAlternativeAssets(){
 function renderPEDeal(deal){
   const plan=engine.peValueCreationPlan?.(deal.id);
   const companyOwned=deal.ownerAccount==='company';
-  const head=`<div><h3>${esc(deal.targetName)}</h3><p><strong>${companyOwned?'会社保有':'個人保有'}</strong> · 持分率${pct(deal.ownershipRatio)} · 保有持分価値${compactYen(deal.currentValuation)} · 保有${deal.holdingWeeks}週</p><p class="muted">${companyOwned?'自社グループ所属':'自社グループ未所属'}</p></div>`;
+  const weeklyProfit=finite(deal.weeklyProfit);
+  const head=`<div><h3>${esc(deal.targetName)}</h3><p><strong>${companyOwned?'会社保有':'個人保有'}</strong> · 持分率${pct(deal.ownershipRatio)} · 保有持分価値${compactYen(deal.currentValuation)} · 保有${deal.holdingWeeks}週</p><p>週次売上${compactYen(finite(deal.weeklyRevenue))} · 週次利益<span class="${weeklyProfit>=0?'up':'down'}">${weeklyProfit>=0?'+':''}${compactYen(weeklyProfit)}</span></p><p class="muted">${companyOwned?'自社グループ所属':'自社グループ未所属'}</p></div>`;
   const exitLabel=plan&&plan.exitPremium>0?`EXIT ${compactYen(plan.exitValue)}`:'EXIT';
   const exit=btn(exitLabel,'exit-pe',{kind:'ghost small',data:`data-id="${esc(deal.id)}"`});
   if(!plan)return `<article class="item">${head}<div class="button-row">${exit}</div></article>`;
