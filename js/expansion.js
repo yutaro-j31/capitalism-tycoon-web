@@ -429,6 +429,11 @@ function installExpansion(TycoonEngine){
     const s=this.g.startups.find(x=>x.id===startupID);
     if(!s||!s.alive)return this.fail('対象のスタートアップが見つかりません。');
     if(s.dueDiligence?.done)return this.fail('既にデューデリジェンス済みです。');
+    // A malformed entity (e.g. a legacy/migrated save missing minTicket) must fail
+    // atomically here rather than let Math.round(NaN*.05) turn into a NaN cost:
+    // personalCash-=NaN would silently poison personalCash into NaN for the rest of the
+    // session, since every subsequent numeric comparison against NaN is false.
+    if(!Number.isFinite(s.minTicket)||s.minTicket<=0)return this.fail('この案件は詳細DDを実施できません。');
     const cost=Math.round(s.minTicket*.05);
     if(this.g.personalCash<cost)return this.fail('個人資金が不足しています。');
     this.g.personalCash-=cost;
