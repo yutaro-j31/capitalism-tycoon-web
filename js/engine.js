@@ -569,14 +569,21 @@ class TycoonEngine extends EventTarget {
     const ma = this.g.maSubsidiaries.reduce((sum,s)=>sum+finite(s.valuation),0);
     const products = this.g.productVentures.reduce((sum,p)=>sum+finite(p.valuation),0);
     const overseas = this.g.overseasSubsidiaries.reduce((sum,x)=>sum+finite(x.valuation),0);
-    return Math.max(0, this.g.companyCash - this.g.companyDebt + storeValue + propertyValue + stocks + ventures + subsidiaries + ma + products + overseas);
+    // Company-owned teams are already carried as company fixed assets by finance.js's
+    // otherFixedBook(); counting them here keeps companyValue consistent with the ledger.
+    const sports = this.g.sportsTeams.filter(x=>x.owner==='company').reduce((a,x)=>a+finite(x.value),0);
+    return Math.max(0, this.g.companyCash - this.g.companyDebt + storeValue + propertyValue + stocks + ventures + subsidiaries + ma + products + overseas + sports);
   }
   personalNetWorth() {
     const stocks = Object.entries(this.g.personalStocks).reduce((sum,[id,h])=>sum+(this.stock(id)?.price||0)*h.qty,0);
     const props = this.g.properties.filter(p=>p.owner==='personal').reduce((a,p)=>a+finite(p.value),0);
     const investments = this.g.personalInvestments.reduce((a,x)=>a+finite(x.currentValue),0);
     const lux = this.g.luxuryAssets.reduce((a,x)=>a+finite(x.currentValue),0);
-    const sports = this.g.sportsTeams.reduce((a,x)=>a+finite(x.value),0);
+    // Anything not explicitly company-owned is personal, matching how finance.js decides which
+    // teams belong on the company books. Without this filter a team bought with company cash
+    // counted toward personal net worth (and personal credit) while never appearing in
+    // companyValue -- company money turning directly into personal assets.
+    const sports = this.g.sportsTeams.filter(x=>x.owner!=='company').reduce((a,x)=>a+finite(x.value),0);
     const ventures = this.g.startups.reduce((sum,s)=>sum+s.valuation*finite(s.ownedPersonal),0);
     return Math.max(0, this.g.personalCash - this.g.personalDebt + stocks + props + investments + lux + sports + ventures);
   }
@@ -1325,7 +1332,11 @@ class TycoonEngine extends EventTarget {
     // time while giving higher-risk products (pe, vc-fund) a real, risk-scaling chance of loss.
     for(const x of this.g.personalInvestments){const r=x.weeklyReturn+rand(-x.risk,x.risk)/5;x.currentValue=Math.max(0,x.currentValue*(1+r));}
     for(const x of this.g.luxuryAssets){x.currentValue=Math.max(x.purchasePrice*.3,x.currentValue*(1+rand(-.01,.012)));this.g.personalCash-=x.maintenancePerWeek;}
-    for(const t of this.g.sportsTeams){const win=Math.random()<t.teamStrength/100;if(win)t.seasonWins++;t.fanBase=clamp(t.fanBase+(win?rand(.1,1.2):rand(-.5,.2)),10,100);const weeklyRevenue=t.revenue*(.7+t.fanBase/100),weeklyCost=t.cost;this.g[t.owner==='company'?'companyCash':'personalCash']+=weeklyRevenue-weeklyCost;t.value=Math.max(t.price*.5,t.value*(1+rand(-.01,.015)+(win?.002:-.001)));}
+    // A company-owned team's weekly gate receipts move companyCash, so they have to reach the
+    // finance ledger too -- without this the ledger's opening-cash rollforward drifts from
+    // companyCash every single week and finance.validate() fails outright. Personal-owned teams
+    // stay outside the ledger, like every other personal-only cash flow in this codebase.
+    for(const t of this.g.sportsTeams){const win=Math.random()<t.teamStrength/100;if(win)t.seasonWins++;t.fanBase=clamp(t.fanBase+(win?rand(.1,1.2):rand(-.5,.2)),10,100);const weeklyRevenue=t.revenue*(.7+t.fanBase/100),weeklyCost=t.cost,net=Math.round(weeklyRevenue-weeklyCost);this.g[t.owner==='company'?'companyCash':'personalCash']+=net;if(t.owner==='company'&&net)finance.event(this.g,'otherOperating',Math.abs(net),{cashEffect:net,profitEffect:net,sourceType:'sportsTeamWeekly',sourceID:t.id,idempotencyKey:`sports-weekly-${t.id}-${this.g.week}`,description:`${t.name} 週次興行収支`});t.value=Math.max(t.price*.5,t.value*(1+rand(-.01,.015)+(win?.002:-.001)));}
     this.g.personalCash-=this.g.personalDebt*this.personalBorrowRate()/52;
   }
   updateFranchise() {

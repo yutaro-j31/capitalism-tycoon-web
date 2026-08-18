@@ -202,7 +202,8 @@ for (const [name, file] of [
   ['personal-investment-risk-model', 'tests/personal-investment-risk-model-test.js'],
   ['startup-secondary-sale-confirm-ui', 'tests/startup-secondary-sale-confirm-ui-test.js'],
   ['pe-weekly-performance', 'tests/pe-weekly-performance-test.js'],
-  ['pe-initiative-delay-concurrency', 'tests/pe-initiative-delay-concurrency-test.js']
+  ['pe-initiative-delay-concurrency', 'tests/pe-initiative-delay-concurrency-test.js'],
+  ['sports-team-accounting', 'tests/sports-team-accounting-test.js']
 ]) {
   const result = spawnSync('node', [file], {
     encoding: 'utf8',
