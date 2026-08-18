@@ -15,7 +15,8 @@
     "tests/store-specific-pricing-test.js",
     "tests/store-multiple-menu-test.js",
     "test:startup-funding-round",
-    "test:personal-real-estate"
+    "test:personal-real-estate",
+    "tests/investor-offer-test.js"
   ],
   "C": [
     "test:long",

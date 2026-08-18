@@ -173,7 +173,7 @@ function createInitialState(options = {}) {
     economy: 1, season: 1, policyRate: .005, realEstateCycle: 1, inflation: 1, exchangeRate: 1,
     companyCash: 8_000_000, companyDebt: 0, companyCredit: 60, companyReputation: 12,
     personalCash: 2_000_000, personalDebt: 0, personalFame: 0,
-    publicCompany: false, sharesOut: 1_000_000, founderShares: 1_000_000, stockPrice: 0,
+    publicCompany: false, sharesOut: 10_000, founderShares: 10_000, stockPrice: 0,
     dividendPerShare: 0, treasuryBuybackShares: 0, selectedListingMarket: '東証グロース',
     externalShareholderRatio: 0, founderOwnershipRatio: 1, competitorOwnedRatio: 0,
     selectedArea: 'kanto', selectedPref: 'tokyo', selectedBusiness: 'ramen', selectedTab: 'home',
@@ -869,10 +869,18 @@ class TycoonEngine extends EventTarget {
     if(this.g.stores.length<3)reasons.push('店舗3店');if(annualProfit<10_000_000)reasons.push('直近52週利益1,000万円');if(this.companyValue()<100_000_000)reasons.push('企業価値1億円');
     return reasons;
   }
-  executeIPO(market='東証グロース',sellShares=100000) {
+  executeIPO(market='東証グロース',sellShares=0) {
     if(this.g.publicCompany)return false;const missing=this.ipoMissingReasons();if(missing.length)return this.fail(`IPO条件不足：${missing.join('、')}`);
     const value=this.companyValue(),multiple=market==='東証プライム'?1.25:market==='東証スタンダード'?1.1:1;this.g.stockPrice=Math.max(100,value*multiple/this.g.sharesOut);
-    sellShares=clamp(Math.floor(sellShares),50000,400000);const newShares=200000,companyRaise=this.g.stockPrice*newShares*.955,founderSale=this.g.stockPrice*sellShares*.955;
+    // Sized relative to the current share count rather than a fixed absolute number of
+    // shares, since sharesOut/founderShares can now be diluted well below the historical
+    // 1,000,000-share baseline by VC funding rounds before IPO. The ratios themselves
+    // (20% primary offering, 5-40% founder sale) match the previous fixed 200,000/1,000,000
+    // and 50,000-400,000/1,000,000 figures, so a company that never took VC money reaches
+    // the same outcome as before.
+    const sellFloor=Math.max(1,Math.round(this.g.founderShares*.05)),sellCeil=Math.max(sellFloor,Math.round(this.g.founderShares*.4));
+    sellShares=clamp(Math.floor(sellShares)||sellFloor,sellFloor,sellCeil);
+    const newShares=Math.max(1,Math.round(this.g.sharesOut*.2)),companyRaise=this.g.stockPrice*newShares*.955,founderSale=this.g.stockPrice*sellShares*.955;
     this.g.sharesOut+=newShares;this.g.founderShares-=sellShares;this.g.companyCash+=companyRaise;this.g.personalCash+=founderSale;this.g.publicCompany=true;this.g.selectedListingMarket=market;
     this.g.ticker=(this.g.companyName.replace(/[^A-Za-z]/g,'').slice(0,4).toUpperCase()||'CPTY');this.updateOwnershipRatios();
     this.g.market.push({id:this.g.ticker,name:this.g.companyName,sector:'コングロマリット',price:this.g.stockPrice,previous:this.g.stockPrice,dividendYield:0,volatility:.08,trend:.003,marketCap:this.g.stockPrice*this.g.sharesOut,per:20,pbr:2,issuedShares:this.g.sharesOut,dividendPerShare:0,shareholders:{創業者:this.g.founderOwnershipRatio},description:'プレイヤーが経営する企業',listingMarket:market,priceHistory:[{week:this.g.week, price:this.g.stockPrice}]});
@@ -1357,6 +1365,8 @@ class TycoonEngine extends EventTarget {
     if(this.g.week%13===0){this.g.news.unshift(`第${this.g.week}週：四半期決算を発表しました。`);if(this.g.boardEstablished)this.g.boardAgendas=[{id:uuid(),title:'成長投資枠の承認',detail:'次四半期の投資予算を決定',cost:5_000_000,effect:'成長',approved:false},{id:uuid(),title:'財務規律の強化',detail:'借入削減と信用改善',cost:2_000_000,effect:'信用',approved:false}];}
     if(this.g.departments.investment&&this.g.acquisitionTargets.length<3&&this.g.week%8===0)this.generateMATargets(true);
     if(this.g.departments.product&&this.g.internalVentureProposals.length===0&&Math.random()<.08)this.proposeInternalVenture();
+    if(!this.g.publicCompany&&this.g.hasHeadOffice&&this.g.week%6===0&&this.g.investorOffers.filter(o=>o.status==='pending').length<2)this.refreshInvestorOffers();
+    for(const o of this.g.investorOffers)if(o.status==='pending'&&this.g.week>o.expiresWeek)o.status='expired';
     if(this.g.publicCompany&&this.companyValue()>1_000_000_000&&Math.random()<.005)this.g.news.unshift(`第${this.g.week}週：同業大手から自社買収の打診が届いています。`);
     if(this.g.news.length>300)this.g.news=this.g.news.slice(0,300);
   }
