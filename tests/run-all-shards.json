@@ -26,7 +26,8 @@
     "tests/founder-retirement-reachability-test.js",
     "tests/real-estate-insurance-claims-test.js",
     "tests/save-storage-budget-test.js",
-    "tests/shareholder-value-destruction-incidence-matrix-test.js"
+    "tests/shareholder-value-destruction-incidence-matrix-test.js",
+    "tests/investment-route-ipo-reachability-test.js"
   ],
   "D": [
     "test:finance-history",

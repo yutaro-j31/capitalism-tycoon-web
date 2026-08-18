@@ -666,13 +666,16 @@ class TycoonEngine extends EventTarget {
     if(this.g.departments[id])return this.fail('設置済みです。');
     const d=MASTER.departments.find(x=>x.id===id);if(!d)return false;
     const unlock=DEPARTMENT_UNLOCKS[id];const minStores=unlock?.minStores||0;
-    // Investment-company founding route: a founder who never opens a store still needs a
-    // way into the investment department, since that is the only gate in front of company-
-    // account stock/VC/PE investing. Store count stays the unlock signal for every other
-    // department (accounting/hr/product/operations/marketing/dx keep their existing
-    // minStores), so this only ever widens eligibility for the one department the
-    // store-zero route depends on, and only while the founder genuinely has zero stores.
-    const storeZeroInvestmentRoute=id==='investment'&&this.g.stores.length===0;
+    // Investment-company founding route: a founder who never opens a store still needs a way
+    // into the investment department (the only gate in front of company-account stock/VC/PE
+    // investing) and the accounting department (required by ipoMissingReasons(), so without
+    // this the route could never reach IPO regardless of profit/company value). Store count
+    // stays the unlock signal for every other department (hr/product/operations/marketing/dx
+    // keep their existing minStores, since those are store-operations departments the
+    // investment route has no use for), so this only widens eligibility for the two
+    // departments the store-zero route's core loop and IPO goal depend on, and only while the
+    // founder genuinely has zero stores.
+    const storeZeroInvestmentRoute=(id==='investment'||id==='accounting')&&this.g.stores.length===0;
     if(this.g.stores.length<minStores&&!storeZeroInvestmentRoute)return this.fail(`店舗数${minStores}以上が必要です。`);
     if(this.g.companyCash<d.setupCost)return this.fail(`${yen(d.setupCost)}が必要です。`);
     const used=Object.keys(this.g.departments).length*8+Object.keys(this.g.executives).length;
@@ -874,7 +877,12 @@ class TycoonEngine extends EventTarget {
   ipoMissingReasons() {
     const reasons=[];const annualProfit=this.g.reports.slice(-52).reduce((a,r)=>a+r.profit,0);
     if(!this.g.hasHeadOffice)reasons.push('本社オフィス');if(!this.g.departments.accounting)reasons.push('経理部門');if(!this.g.boardEstablished)reasons.push('取締役会');
-    if(this.g.stores.length<3)reasons.push('店舗3店');if(annualProfit<10_000_000)reasons.push('直近52週利益1,000万円');if(this.companyValue()<100_000_000)reasons.push('企業価値1億円');
+    // No store-count requirement: the investment-company founding route (CLAUDE.md) must be able
+    // to reach IPO with zero stores. establishBoard() already requires both CEO and CFO, so
+    // "board established" covers Coffee Inc 2's board+CFO conditions. Profit and company-value
+    // thresholds stay -- they're satisfiable via stock/subsidiary income without ever opening a
+    // store, and they're what actually gates a trivial IPO, not store count.
+    if(annualProfit<10_000_000)reasons.push('直近52週利益1,000万円');if(this.companyValue()<100_000_000)reasons.push('企業価値1億円');
     return reasons;
   }
   executeIPO(market='東証グロース',sellShares=0) {

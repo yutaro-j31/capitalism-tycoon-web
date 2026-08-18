@@ -95,19 +95,22 @@ function reachInvestmentDepartment(engine) {
   assert.equal(engine.establishDepartment('investment'), false, '店舗1件では引き続き店舗3件条件が適用される');
 }
 
-// 2d. The alternate path is scoped to the investment department only: at store-zero,
-// every other department (whose minStores is 1 or 2) must remain blocked exactly as
-// before -- this feature must not become a general "ignore minStores at zero stores" rule.
+// 2d. The alternate path is scoped to investment and accounting only: at store-zero,
+// every store-operations department (whose minStores is 1 or 2) must remain blocked
+// exactly as before -- this feature must not become a general "ignore minStores at
+// zero stores" rule. accounting is exempted alongside investment because
+// ipoMissingReasons() requires it, and IPO must be reachable on this route (see test 10).
 {
   const { engine } = newGame();
   const office = cheapestOffice(engine);
   assert.equal(engine.contractOffice(office.id), true);
   assert.equal(engine.g.stores.length, 0);
-  for (const id of ['accounting', 'hr', 'product', 'operations', 'marketing', 'dx']) {
+  for (const id of ['hr', 'product', 'operations', 'marketing', 'dx']) {
     assert.equal(engine.establishDepartment(id), false, `店舗0件では${id}部門は依然として設置できない`);
     assert.equal(Boolean(engine.g.departments[id]), false);
   }
   assert.equal(engine.establishDepartment('investment'), true, '一方でinvestment部門は店舗0件でも設置できる');
+  assert.equal(engine.establishDepartment('accounting'), true, 'accounting部門もIPO到達のため店舗0件で設置できる');
 }
 
 // 3 & 4 & 5 & 6. Company stock purchase at store-zero: companyCash decreases,
@@ -193,7 +196,11 @@ function reachInvestmentDepartment(engine) {
   // Real estate purchase power is unrelated to departments/stores in the existing code
   // (buyProperty only checks cash), so it is unaffected either way and stays reachable
   // only through its own cash gate -- confirmed unrelated to this change.
-  assert.equal(Boolean(engine.g.departments.accounting), false, '経理部門は未設置のまま（minStores1は変えていない）');
+  // accounting is not asserted false here: it is now independently reachable at store-zero
+  // (test 2d), but nothing in this test calls establishDepartment('accounting'), so it
+  // simply was never established -- this checks that buying stock / establishing investment
+  // has no side effect on it, not that it is blocked.
+  assert.equal(Boolean(engine.g.departments.accounting), false, 'accounting部門は明示的に設置しない限り自動では付与されない');
   assert.equal(Boolean(engine.g.departments.hr), false, '人事部門は未設置のまま（minStores1は変えていない）');
   assert.equal(Boolean(engine.g.departments.product), false, '商品開発部門は未設置のまま');
   assert.equal(Boolean(engine.g.departments.operations), false, '生産管理部門は未設置のまま（minStores2は変えていない）');
@@ -202,7 +209,8 @@ function reachInvestmentDepartment(engine) {
   assert.equal(engine.g.boardEstablished, false, '取締役会は無条件に設置されない');
   assert.equal(engine.g.publicCompany, false, 'IPOは無条件に発生しない');
   const missing = engine.ipoMissingReasons();
-  assert.ok(missing.includes('店舗3店'), 'IPO条件はstores>=3を引き続き要求する（緩めていない）');
+  assert.ok(!missing.includes('店舗3店'), 'IPO条件はstores>=3を要求しない（別PRで撤去済み）');
+  assert.ok(missing.length > 0, 'accounting/board/利益/企業価値が未達のためIPOはまだ無条件には解放されない');
   assert.equal(engine.g.subsidiaries.length, 0, '子会社は無条件に生成されない');
   assert.equal(engine.g.maSubsidiaries.length, 0, 'M&A子会社は無条件に生成されない');
   assert.equal((engine.g.properties || []).filter(p => p.owner).length, 0, '不動産は無条件に取得されない');
