@@ -371,6 +371,7 @@ function installExpansion(TycoonEngine){
       growth:rand(template.growthRange[0],template.growthRange[1]),
       risk:rand(template.riskRange[0],template.riskRange[1]),
       ownedCompany:0,ownedPersonal:0,alive:true,subsidiary:false,totalInvestedCompany:0,totalInvestedPersonal:0,
+      ddNegotiatedOwnedCompany:0,ddNegotiatedOwnedPersonal:0,
       productProgress:rand(0,.15),runwayWeeks:Math.round(rand(40,60)),reports:[],fundingRound:template.stage,fundingOpen:true};
     this.g.startups.push(s);
     this.notify(`人脈を通じて新しい投資案件「${s.name}」（${s.domain}）が見つかりました。`,'info');
@@ -393,8 +394,11 @@ function installExpansion(TycoonEngine){
     // only when buying would let an immediate buy/sell round trip exit at the undiscounted
     // headline valuation and manufacture cash when the DD discount exceeds illiquidity.
     const ddDiscount=clamp(n(s.dueDiligence?.discount),0,.15);
-    const effectiveValuation=s.valuation*(1-ddDiscount);
-    const proceeds=Math.round(owned*effectiveValuation*(1-discount));
+    // Missing buckets are legacy ownership and deliberately default to normal valuation:
+    // old saves cannot prove whether historical shares used DD-negotiated terms.
+    const ddOwnedKey=account==='company'?'ddNegotiatedOwnedCompany':'ddNegotiatedOwnedPersonal';
+    const ddOwned=clamp(n(s[ddOwnedKey]),0,owned),normalOwned=owned-ddOwned;
+    const proceeds=Math.round((normalOwned*s.valuation+ddOwned*s.valuation*(1-ddDiscount))*(1-discount));
     const book=Math.max(0,n(s[investedKey]));
     const cashKey=account==='company'?'companyCash':'personalCash';
     if(account==='company'){
@@ -406,7 +410,7 @@ function installExpansion(TycoonEngine){
       if(!recorded)return false;
     }
     this.g[cashKey]+=proceeds;
-    s[ownedKey]=0;s[investedKey]=0;
+    s[ownedKey]=0;s[investedKey]=0;s[ddOwnedKey]=0;
     this.notify(`${s.name}の持分をセカンダリー市場で${Math.round(proceeds).toLocaleString()}円（流動性ディスカウント${Math.round(discount*100)}%）で売却しました。`,'success');
     this.save();this.emit();return true;
   };
