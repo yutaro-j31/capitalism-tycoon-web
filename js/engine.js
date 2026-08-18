@@ -112,7 +112,8 @@ function normalizeMasterData() {
   }));
   const startups = deepClone(MASTER.startups).map(s => ({
     ...s, id: uuid(), ownedCompany: 0, ownedPersonal: 0, alive: true, subsidiary: false,
-    totalInvestedCompany: 0, totalInvestedPersonal: 0, productProgress: .25,
+    totalInvestedCompany: 0, totalInvestedPersonal: 0, ddNegotiatedOwnedCompany: 0,
+    ddNegotiatedOwnedPersonal: 0, productProgress: .25,
     runwayWeeks: 52, reports: [], fundingRound: s.stage, fundingOpen: true
   }));
   const executives = deepClone(MASTER.executives).map(e => ({
@@ -234,7 +235,7 @@ function entityDefaults(kind, entity = {}, index = 0, state = {}) {
     tenant: {id:createDefaultEntityID('tenant', index), prefID:state.selectedPref || 'tokyo', cityName:'', name:`テナント${index + 1}`, businessID:'ramen', rent:0, deposit:0, traffic:1, size:'M', occupiedBy:null, expiresWeek:week + 24},
     rentalOffice: {id:createDefaultEntityID('office', index), prefID:state.selectedPref || 'tokyo', cityName:'', name:`オフィス${index + 1}`, grade:'C', rent:0, deposit:0, capacity:0, prestige:0, dxBonus:0, contracted:false},
     market: {id:createDefaultEntityID('stock', index), name:'銘柄', sector:'', price:100, previous:100, dividend:0, volatility:.05, marketCap:0, issuedShares:1, shareholders:{}, priceHistory:[]},
-    startup: {id:createDefaultEntityID('startup', index), name:'スタートアップ', domain:'', stage:'Seed', valuation:0, growth:0, risk:.2, ownedCompany:0, ownedPersonal:0, alive:true, subsidiary:false, totalInvestedCompany:0, totalInvestedPersonal:0, productProgress:.25, runwayWeeks:52, reports:[], fundingRound:'Seed', fundingOpen:true},
+    startup: {id:createDefaultEntityID('startup', index), name:'スタートアップ', domain:'', stage:'Seed', valuation:0, growth:0, risk:.2, ownedCompany:0, ownedPersonal:0, alive:true, subsidiary:false, totalInvestedCompany:0, totalInvestedPersonal:0, ddNegotiatedOwnedCompany:0, ddNegotiatedOwnedPersonal:0, productProgress:.25, runwayWeeks:52, reports:[], fundingRound:'Seed', fundingOpen:true},
     competitor: {id:createDefaultEntityID('competitor', index), name:'競合', areaID:state.selectedArea || 'kanto', businessID:'ramen', stores:0, brand:0, quality:0, ownedPlayerShares:0},
     executiveMarket: {id:createDefaultEntityID('executive', index), name:'CXO候補', role:'CFO', skill:0, salary:0, desiredSalary:0, desiredSO:0, hired:false, negotiated:false, offeredSalary:0, offeredSO:0, acceptedOffer:false, rejectedOffer:false, age:40, gender:'unknown'},
     subsidiary: {id:createDefaultEntityID('subsidiary', index), name:'子会社', domain:'', industry:'', valuation:0, status:'active', weeklyProfit:0, growth:0, risk:0, ownership:1, retainedEarnings:0, acquiredWeek:week},
@@ -758,10 +759,10 @@ class TycoonEngine extends EventTarget {
     // A completed due-diligence discount (js/expansion.js's conductStartupDueDiligence)
     // negotiates better terms on the *equity received*, not the startup's headline
     // valuation -- s.valuation itself still bumps by the same amount*.75 below.
-    const effectiveValuation=s.valuation*(1-finite(s.dueDiligence?.discount,0));
+    const ddDiscount=clamp(finite(s.dueDiligence?.discount,0),0,.15),effectiveValuation=s.valuation*(1-ddDiscount);
     const equity=clamp(amount/(effectiveValuation+amount),0,.35);this.g[cashKey]-=amount;s.valuation+=amount*.75;
-    if(account==='company'){finance.event(this.g,'investmentPurchase',amount,{cashEffect:-amount,assetEffect:amount,sourceType:'investStartup',sourceID:`${startupID}-${this.g.week}`,description:`${s.name} VC投資`});s.ownedCompany=clamp(s.ownedCompany+equity,0,.8);s.totalInvestedCompany+=amount;}
-    else{s.ownedPersonal=clamp(s.ownedPersonal+equity,0,.49);s.totalInvestedPersonal+=amount;}
+    if(account==='company'){finance.event(this.g,'investmentPurchase',amount,{cashEffect:-amount,assetEffect:amount,sourceType:'investStartup',sourceID:`${startupID}-${this.g.week}`,description:`${s.name} VC投資`});const before=finite(s.ownedCompany);s.ownedCompany=clamp(before+equity,0,.8);if(ddDiscount>0)s.ddNegotiatedOwnedCompany=clamp(finite(s.ddNegotiatedOwnedCompany)+(s.ownedCompany-before),0,s.ownedCompany);s.totalInvestedCompany+=amount;}
+    else{const before=finite(s.ownedPersonal);s.ownedPersonal=clamp(before+equity,0,.49);if(ddDiscount>0)s.ddNegotiatedOwnedPersonal=clamp(finite(s.ddNegotiatedOwnedPersonal)+(s.ownedPersonal-before),0,s.ownedPersonal);s.totalInvestedPersonal+=amount;}
     s.fundingOpen=false;s.runwayWeeks+=Math.floor(amount/Math.max(1,s.valuation)*156);
     this.notify(`${s.name}へ${yen(amount)}投資し、持分${pct(equity)}を取得しました。`,'success');this.save();this.emit();return true;
   }
@@ -786,14 +787,14 @@ class TycoonEngine extends EventTarget {
     const h=this.g.startupFundingHistory[s.id]||(this.g.startupFundingHistory[s.id]=[]);h.unshift({id:`${s.activeFundingRound.id}-opened`,eventType:'opened',stage:next,openedWeek:this.g.week,preMoneyValuation:pre,targetRaise:raise,postMoneyValuation:pre+raise,status:'open'});this.g.startupFundingHistory[s.id]=h.slice(0,24);this.g.news.unshift(`第${this.g.week}週：${s.name}が${next}追加資金調達を開始しました。`);return true;
   }
   closeStartupFundingRound(s) {
-    const plan=this.getStartupFundingRoundPlan(s?.id);if(!plan||this.g.week<plan.closesWeek)return false;const r=s.activeFundingRound;s.ownedCompany=r.preRoundOwnedCompany*r.preMoneyValuation/r.postMoneyValuation+r.contributedCompany/r.postMoneyValuation;s.ownedPersonal=r.preRoundOwnedPersonal*r.preMoneyValuation/r.postMoneyValuation+r.contributedPersonal/r.postMoneyValuation;s.valuation=r.postMoneyValuation;s.stage=r.round;s.fundingRound=r.round;s.runwayWeeks=Math.max(finite(s.runwayWeeks),({Seed:40,'Series A':48,'Series B':56,'Pre-IPO':52,'プレIPO':52}[r.round]||48));s.lastFundingRoundClosedWeek=this.g.week;
+    const plan=this.getStartupFundingRoundPlan(s?.id);if(!plan||this.g.week<plan.closesWeek)return false;const r=s.activeFundingRound,dilution=r.preMoneyValuation/r.postMoneyValuation;s.ownedCompany=r.preRoundOwnedCompany*dilution+r.contributedCompany/r.postMoneyValuation;s.ownedPersonal=r.preRoundOwnedPersonal*dilution+r.contributedPersonal/r.postMoneyValuation;s.ddNegotiatedOwnedCompany=clamp(finite(s.ddNegotiatedOwnedCompany)*dilution,0,s.ownedCompany);s.ddNegotiatedOwnedPersonal=clamp(finite(s.ddNegotiatedOwnedPersonal)*dilution,0,s.ownedPersonal);s.valuation=r.postMoneyValuation;s.stage=r.round;s.fundingRound=r.round;s.runwayWeeks=Math.max(finite(s.runwayWeeks),({Seed:40,'Series A':48,'Series B':56,'Pre-IPO':52,'プレIPO':52}[r.round]||48));s.lastFundingRoundClosedWeek=this.g.week;
     const h=this.g.startupFundingHistory[s.id]||(this.g.startupFundingHistory[s.id]=[]),opened=h.find(x=>x.status==='open');if(opened){opened.status='closed';opened.closedWeek=this.g.week;}h.unshift({id:`${r.id}-closed`,eventType:'closed',stage:r.round,closedWeek:this.g.week,preMoneyValuation:r.preMoneyValuation,targetRaise:r.targetRaise,postMoneyValuation:r.postMoneyValuation,ownershipBefore:{company:r.preRoundOwnedCompany,personal:r.preRoundOwnedPersonal},ownershipAfter:{company:s.ownedCompany,personal:s.ownedPersonal}});this.g.startupFundingHistory[s.id]=h.slice(0,24);s.activeFundingRound=null;this.g.news.unshift(`第${this.g.week}週：${s.name}の${s.stage}追加資金調達が完了しました。`);return true;
   }
   makeSubsidiary(startupID) {
     const s=this.g.startups.find(x=>x.id===startupID);if(!s||s.subsidiary)return false;
     if(s.activeFundingRound?.status==='open')return this.fail('追加資金調達ラウンド終了後に子会社化できます。');
     if(s.ownedCompany<.5)return this.fail('会社持分50%以上が必要です。');
-    s.subsidiary=true;const book=finite(s.totalInvestedCompany||0);this.g.subsidiaries.push({id:uuid(),startupID:s.id,name:s.name,domain:s.domain,ownership:s.ownedCompany,valuation:s.valuation,investedCost:book,carryingBookValue:book,weeklyProfit:0,growth:s.growth,risk:s.risk,publicCompany:false,status:'active',retainedEarnings:0});
+    s.subsidiary=true;const book=finite(s.totalInvestedCompany||0);this.g.subsidiaries.push({id:uuid(),startupID:s.id,name:s.name,domain:s.domain,ownership:s.ownedCompany,valuation:s.valuation,investedCost:book,carryingBookValue:book,weeklyProfit:0,growth:s.growth,risk:s.risk,publicCompany:false,status:'active',retainedEarnings:0});s.ddNegotiatedOwnedCompany=0;
     this.notify(`${s.name}を連結子会社化しました。`,'success');this.save();this.emit();return true;
   }
   ipoSubsidiary(id) {
@@ -1035,7 +1036,7 @@ class TycoonEngine extends EventTarget {
   }
   updateStartups() {
     for(const s of this.g.startups){if(!s.alive){s.activeFundingRound=null;continue;}if(s.activeFundingRound&&!this.getStartupFundingRoundPlan(s.id))s.activeFundingRound=null;if(s.activeFundingRound&&this.g.week>=s.activeFundingRound.closesWeek){this.closeStartupFundingRound(s);continue;}s.runwayWeeks--;const annual=s.growth+rand(-s.risk,s.risk)+(this.g.economy-1)*.15;s.valuation=Math.max(2_000_000,s.valuation*(1+annual/52));s.productProgress=clamp(s.productProgress+rand(.005,.035),0,1);
-      if(s.runwayWeeks<8)s.fundingOpen=true;if(s.fundingOpen&&(s.ownedCompany>0||s.ownedPersonal>0))this.openStartupFundingRound(s);else if(s.fundingOpen&&Math.random()<.08){s.stage=s.stage==='Seed'?'Series A':s.stage==='Series A'?'Series B':s.stage==='Series B'?'Series C':'Pre-IPO';s.valuation*=rand(1.15,1.65);s.runwayWeeks+=52;s.ownedCompany*=rand(.82,.94);s.ownedPersonal*=rand(.82,.94);s.fundingOpen=false;this.g.news.unshift(`第${this.g.week}週：${s.name}が${s.stage}資金調達を完了しました。`);}
+      if(s.runwayWeeks<8)s.fundingOpen=true;if(s.fundingOpen&&(s.ownedCompany>0||s.ownedPersonal>0))this.openStartupFundingRound(s);else if(s.fundingOpen&&Math.random()<.08){s.stage=s.stage==='Seed'?'Series A':s.stage==='Series A'?'Series B':s.stage==='Series B'?'Series C':'Pre-IPO';s.valuation*=rand(1.15,1.65);s.runwayWeeks+=52;const companyDilution=rand(.82,.94),personalDilution=rand(.82,.94);s.ownedCompany*=companyDilution;s.ownedPersonal*=personalDilution;s.ddNegotiatedOwnedCompany=clamp(finite(s.ddNegotiatedOwnedCompany)*companyDilution,0,s.ownedCompany);s.ddNegotiatedOwnedPersonal=clamp(finite(s.ddNegotiatedOwnedPersonal)*personalDilution,0,s.ownedPersonal);s.fundingOpen=false;this.g.news.unshift(`第${this.g.week}週：${s.name}が${s.stage}資金調達を完了しました。`);}
       if(s.runwayWeeks<=0&&Math.random()<.25){s.alive=false;s.valuation*=.1;this.writeOffStartup(s,'資金枯渇');this.g.news.unshift(`第${this.g.week}週：${s.name}が資金枯渇で事業停止しました。`);}
       if(s.stage==='Pre-IPO'&&s.valuation>1_000_000_000&&Math.random()<.025)this.listStartup(s);
     }
@@ -1045,7 +1046,7 @@ class TycoonEngine extends EventTarget {
   // at its original value.
   writeOffStartup(s,reason='事業停止') {
     const book=Math.max(0,finite(s.totalInvestedCompany));
-    s.ownedCompany=0;s.ownedPersonal=0;s.activeFundingRound=null;
+    s.ownedCompany=0;s.ownedPersonal=0;s.ddNegotiatedOwnedCompany=0;s.ddNegotiatedOwnedPersonal=0;s.activeFundingRound=null;
     const personalBook=Math.max(0,finite(s.totalInvestedPersonal));
     if(personalBook>0)s.totalInvestedPersonal=0;
     if(book<=0)return false;
@@ -1061,7 +1062,7 @@ class TycoonEngine extends EventTarget {
     const id=`V${Math.floor(rand(1000,9999))}`;if(this.stock(id))return;s.ipoStockID=id;const shares=1_000_000,price=s.valuation/shares;
     this.g.market.push({id,name:s.name,sector:s.domain,price,previous:price,dividendYield:0,volatility:.12,trend:.004,marketCap:s.valuation,per:0,pbr:5,issuedShares:shares,dividendPerShare:0,shareholders:{},description:`${s.domain}の新興企業`,listingMarket:'東証グロース',priceHistory:[{week:this.g.week, price}]});
     const companyQty=Math.floor(s.ownedCompany*shares),personalQty=Math.floor(s.ownedPersonal*shares);const companyBook=Math.max(0,finite(s.totalInvestedCompany)),personalBook=Math.max(0,finite(s.totalInvestedPersonal));if(companyQty)this.g.companyStocks[id]={qty:companyQty,avg:companyBook/companyQty};if(personalQty)this.g.personalStocks[id]={qty:personalQty,avg:personalBook/personalQty};if(companyBook>0){finance.event(this.g,'investmentSale',companyBook,{cashEffect:0,assetEffect:-companyBook,profitEffect:0,sourceType:'listStartup',sourceID:`${s.id}-${this.g.week}`,idempotencyKey:`list-startup-${s.id}`,description:`${s.name} IPO転換（VC持分の振替）`});finance.event(this.g,'investmentPurchase',companyBook,{cashEffect:0,assetEffect:companyBook,profitEffect:0,sourceType:'listStartupShares',sourceID:`${s.id}-${this.g.week}`,idempotencyKey:`list-startup-shares-${s.id}`,description:`${s.name} 上場株式への振替`});s.totalInvestedCompany=0;}if(personalBook>0)s.totalInvestedPersonal=0;
-    s.ownedCompany=0;s.ownedPersonal=0;s.alive=false;this.g.news.unshift(`第${this.g.week}週：${s.name}がIPOしました。保有持分は上場株式へ転換されました。`);
+    s.ownedCompany=0;s.ownedPersonal=0;s.ddNegotiatedOwnedCompany=0;s.ddNegotiatedOwnedPersonal=0;s.alive=false;this.g.news.unshift(`第${this.g.week}週：${s.name}がIPOしました。保有持分は上場株式へ転換されました。`);
   }
   // Roadmap 8A.4: the player answers a rival launch with one campaign. The four options
   // are the same mechanism with different economics, so the choice is a real trade-off
