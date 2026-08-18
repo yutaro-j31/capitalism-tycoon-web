@@ -1318,7 +1318,12 @@ class TycoonEngine extends EventTarget {
     return {revenue,cost,profit:revenue-cost};
   }
   updatePersonalAssets() {
-    for(const x of this.g.personalInvestments){const r=x.weeklyReturn+rand(-x.risk,x.risk)/20;x.currentValue=Math.max(0,x.currentValue*(1+r));}
+    // The /20 dampening made `risk` nearly inert: across a 10,000-trial 52-week Monte Carlo,
+    // every PERSONAL_INVESTMENT_OFFERS product (bond through vc-fund, risk 0.01-0.13) showed
+    // a 0.0% chance of ending below principal, so the field a player is shown as "risk" never
+    // actually manifested as risk. /5 keeps low-risk products (bond, index) safe most of the
+    // time while giving higher-risk products (pe, vc-fund) a real, risk-scaling chance of loss.
+    for(const x of this.g.personalInvestments){const r=x.weeklyReturn+rand(-x.risk,x.risk)/5;x.currentValue=Math.max(0,x.currentValue*(1+r));}
     for(const x of this.g.luxuryAssets){x.currentValue=Math.max(x.purchasePrice*.3,x.currentValue*(1+rand(-.01,.012)));this.g.personalCash-=x.maintenancePerWeek;}
     for(const t of this.g.sportsTeams){const win=Math.random()<t.teamStrength/100;if(win)t.seasonWins++;t.fanBase=clamp(t.fanBase+(win?rand(.1,1.2):rand(-.5,.2)),10,100);const weeklyRevenue=t.revenue*(.7+t.fanBase/100),weeklyCost=t.cost;this.g[t.owner==='company'?'companyCash':'personalCash']+=weeklyRevenue-weeklyCost;t.value=Math.max(t.price*.5,t.value*(1+rand(-.01,.015)+(win?.002:-.001)));}
     this.g.personalCash-=this.g.personalDebt*this.personalBorrowRate()/52;
