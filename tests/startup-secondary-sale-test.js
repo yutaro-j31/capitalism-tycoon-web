@@ -204,6 +204,31 @@ function enableCompanyInvesting(engine) {
   assert.equal(calls, before, 'sellStartupSecondaryはMath.randomを一切消費しない');
 }
 
+// 12b. previewStartupSecondarySale(): a read-only preview used by the UI's confirmation
+// dialog (Priority 5 of the post-#439 audit: the sale was a single irreversible click with
+// no price shown beforehand). It must never mutate state, must return exactly the proceeds
+// the real sale would credit, and must return null wherever sellStartupSecondary would
+// return false.
+{
+  const { engine } = newGame();
+  const s = engine.g.startups[0];
+  assert.equal(engine.investStartup(s.id, s.minTicket, 'personal'), true);
+  const before = JSON.stringify(engine.g.startups);
+  const preview = engine.previewStartupSecondarySale(s.id, 'personal');
+  assert.equal(JSON.stringify(engine.g.startups), before, 'previewは一切state を変更しない');
+  assert.ok(preview && Number.isFinite(preview.proceeds) && preview.proceeds > 0, 'previewは有効な売却代金を返す');
+  assert.ok(preview.discount >= .12 && preview.discount < .28);
+  const cashBefore = engine.g.personalCash;
+  assert.equal(engine.sellStartupSecondary(s.id, 'personal'), true);
+  assert.equal(engine.g.personalCash, cashBefore + preview.proceeds, 'previewの金額は実際の売却代金と完全に一致する');
+}
+{
+  const { engine } = newGame();
+  assert.equal(engine.previewStartupSecondarySale('no-such-startup', 'personal'), null, '存在しない案件はnullを返す');
+  const s = engine.g.startups[0];
+  assert.equal(engine.previewStartupSecondarySale(s.id, 'personal'), null, '持分ゼロはnullを返す（sellStartupSecondaryのfalseに対応）');
+}
+
 // 13. Static source scan: no new MutationObserver introduced by this feature.
 {
   const fs = require('node:fs');
