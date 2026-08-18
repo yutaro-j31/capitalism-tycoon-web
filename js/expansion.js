@@ -300,6 +300,48 @@ function installExpansion(TycoonEngine){
   TycoonEngine.prototype.sellFounderShares=function(qty){
     qty=Math.max(0,Math.floor(qty));if(!this.g.publicCompany||qty<1||qty>this.g.founderShares)return this.fail('売却可能株数を確認してください。');const proceeds=qty*this.g.stockPrice*.995;this.g.founderShares-=qty;this.g.personalCash+=proceeds;this.g.founderShareSaleHistory.unshift({week:this.g.week,qty,price:this.g.stockPrice,proceeds});this.updateOwnershipRatios();this.notify(`創業者保有株${qty.toLocaleString()}株を売却しました。`,'success');this.save();this.emit();return true;
   };
+
+  // Pre-IPO venture funding: an outside investor offers cash for newly issued shares.
+  // Company side only -- companyCash/sharesOut/finance ledger move, personalCash and
+  // personalStocks are never touched. Reuses the state.investorOffers array that was
+  // already scaffolded in engine.js's entityDefaults('investorOffer') template but had
+  // no producer or consumer before this.
+  const INVESTOR_NAMES=['グロースキャピタル','新星ベンチャーズ','フロンティア・パートナーズ','東京インパクト・ファンド','サンライズ・エクイティ','ブルーオーシャン・キャピタル'];
+  TycoonEngine.prototype.refreshInvestorOffers=function(){
+    if(this.g.publicCompany)return this.fail('上場後は別の資金調達手段を利用してください。');
+    if(!this.g.hasHeadOffice)return this.fail('本社オフィスが必要です。');
+    const baseValue=Math.max(5_000_000,this.companyValue());
+    const count=Math.floor(rand(1,3));
+    for(let i=0;i<count;i++){
+      const preMoneyValuation=Math.round(baseValue*rand(.7,1.3));
+      const equity=rand(.05,.2);
+      const amount=Math.round(preMoneyValuation*equity/(1-equity));
+      this.g.investorOffers.push({id:uid(),name:pick(INVESTOR_NAMES),amount,equity,preMoneyValuation,expiresWeek:this.g.week+6,status:'pending'});
+    }
+    this.g.investorOffers=this.g.investorOffers.slice(-30);
+    this.notify(`投資家から${count}件の出資提案が届きました。`,'info');this.save();this.emit();return true;
+  };
+  TycoonEngine.prototype.acceptInvestorOffer=function(offerID){
+    const o=this.g.investorOffers.find(x=>String(x.id)===String(offerID)&&x.status==='pending');
+    if(!o)return this.fail('対象の出資提案が見つかりません。');
+    if(this.g.publicCompany)return this.fail('上場後はこの提案を利用できません。');
+    if(this.g.week>o.expiresWeek)return this.fail('この提案は期限切れです。');
+    const newShares=Math.max(1,Math.round(this.g.sharesOut*o.amount/o.preMoneyValuation));
+    this.g.sharesOut+=newShares;this.g.companyCash+=o.amount;
+    __modules.finance.event(this.g,'equityFinancing',o.amount,{cashEffect:o.amount,equityEffect:o.amount,sourceType:'investorOffer',sourceID:o.id,operationID:`investorOffer-${o.id}`,idempotencyKey:`investorOffer-${o.id}`,description:`${o.name} 出資受け入れ`});
+    __modules.finance.ensureFinance(this.g).balances.capitalSurplus=n(__modules.finance.ensureFinance(this.g).balances.capitalSurplus)+o.amount;
+    o.status='accepted';o.acceptedWeek=this.g.week;o.newShares=newShares;
+    this.updateOwnershipRatios();
+    this.notify(`${o.name}から${Math.round(o.amount).toLocaleString('ja-JP')}円の出資を受け入れ、新株${newShares.toLocaleString()}株を発行しました。`,'success');
+    this.save();this.emit();return true;
+  };
+  TycoonEngine.prototype.declineInvestorOffer=function(offerID){
+    const o=this.g.investorOffers.find(x=>String(x.id)===String(offerID)&&x.status==='pending');
+    if(!o)return false;
+    o.status='declined';
+    this.notify(`${o.name}からの出資提案を見送りました。`,'info');this.save();this.emit();return true;
+  };
+
   TycoonEngine.prototype.executeMBO=function(stockID){
     const s=this.stock(stockID),h=this.g.companyStocks[stockID];if(!s||!h||h.qty/s.issuedShares<.5)return this.fail('会社口座で過半数保有が必要です。');const remaining=s.issuedShares-h.qty,cost=remaining*s.price*1.25;if(this.g.companyCash<cost)return this.fail('MBO資金が不足しています。');this.g.companyCash-=cost;this.g.companyStocks[stockID].qty=s.issuedShares;s.privateCompany=true;s.suspended=true;this.notify(`${s.name}のMBOを成立させました。`,'success');this.save();this.emit();return true;
   };
