@@ -377,6 +377,28 @@ function installExpansion(TycoonEngine){
     this.save();this.emit();return true;
   };
 
+  // R1 remaining item "セカンダリー市場": before this, a live (not yet IPO'd, not yet a
+  // subsidiary) VC position could only be exited by the startup dying or listing -- there
+  // was no way to voluntarily cash out early. This adds a relative (secondary) sale of the
+  // whole stake at the current valuation, less an illiquidity discount (private secondaries
+  // never trade at par). The discount is deterministic (startup id + account + week), not
+  // drawn from Math.random, so it adds zero RNG consumption and stays reproducible.
+  TycoonEngine.prototype.sellStartupSecondary=function(startupID,account='company'){
+    const s=this.g.startups.find(x=>x.id===startupID);if(!s||!s.alive||s.subsidiary||s.ipoStockID||s.activeFundingRound)return false;
+    account=account==='company'?'company':'personal';
+    const ownedKey=account==='company'?'ownedCompany':'ownedPersonal',investedKey=account==='company'?'totalInvestedCompany':'totalInvestedPersonal';
+    const owned=n(s[ownedKey]);if(owned<=0)return false;
+    const discount=deterministicRange(.12,.28,'startup-secondary',s.id,account,this.g.week);
+    const proceeds=Math.round(owned*s.valuation*(1-discount));
+    const book=Math.max(0,n(s[investedKey]));
+    const cashKey=account==='company'?'companyCash':'personalCash';
+    this.g[cashKey]+=proceeds;
+    if(account==='company')__modules.finance.event(this.g,'investmentSale',proceeds,{cashEffect:proceeds,assetEffect:-book,profitEffect:proceeds-book,sourceType:'startupSecondarySale',sourceID:`${s.id}-${this.g.week}`,idempotencyKey:`startup-secondary-${s.id}-${account}-${this.g.week}`,description:`${s.name} 持分の相対売却（セカンダリー、割引${Math.round(discount*100)}%）`});
+    s[ownedKey]=0;s[investedKey]=0;
+    this.notify(`${s.name}の持分をセカンダリー市場で${Math.round(proceeds).toLocaleString()}円（流動性ディスカウント${Math.round(discount*100)}%）で売却しました。`,'success');
+    this.save();this.emit();return true;
+  };
+
   TycoonEngine.prototype.executeMBO=function(stockID){
     const s=this.stock(stockID),h=this.g.companyStocks[stockID];if(!s||!h||h.qty/s.issuedShares<.5)return this.fail('会社口座で過半数保有が必要です。');const remaining=s.issuedShares-h.qty,cost=remaining*s.price*1.25;if(this.g.companyCash<cost)return this.fail('MBO資金が不足しています。');this.g.companyCash-=cost;this.g.companyStocks[stockID].qty=s.issuedShares;s.privateCompany=true;s.suspended=true;this.notify(`${s.name}のMBOを成立させました。`,'success');this.save();this.emit();return true;
   };
