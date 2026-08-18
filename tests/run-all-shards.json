@@ -40,6 +40,7 @@
     "tests/pe-dual-ownership-test.js",
     "tests/product-recall-reachability-runner.js",
     "tests/store-equipment-test.js",
-    "tests/store-manager-delegation-test.js"
+    "tests/store-manager-delegation-test.js",
+    "tests/startup-due-diligence-test.js"
   ]
 }

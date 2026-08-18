@@ -755,7 +755,11 @@ class TycoonEngine extends EventTarget {
     if(account==='company'&&!this.g.departments.investment)return this.fail('会社投資には投資部門が必要です。');
     if(amount<s.minTicket)return this.fail(`最低投資額は${yen(s.minTicket)}です。`);
     const cashKey=account==='company'?'companyCash':'personalCash';if(this.g[cashKey]<amount)return this.fail('資金が不足しています。');
-    const equity=clamp(amount/(s.valuation+amount),0,.35);this.g[cashKey]-=amount;s.valuation+=amount*.75;
+    // A completed due-diligence discount (js/expansion.js's conductStartupDueDiligence)
+    // negotiates better terms on the *equity received*, not the startup's headline
+    // valuation -- s.valuation itself still bumps by the same amount*.75 below.
+    const effectiveValuation=s.valuation*(1-finite(s.dueDiligence?.discount,0));
+    const equity=clamp(amount/(effectiveValuation+amount),0,.35);this.g[cashKey]-=amount;s.valuation+=amount*.75;
     if(account==='company'){finance.event(this.g,'investmentPurchase',amount,{cashEffect:-amount,assetEffect:amount,sourceType:'investStartup',sourceID:`${startupID}-${this.g.week}`,description:`${s.name} VC投資`});s.ownedCompany=clamp(s.ownedCompany+equity,0,.8);s.totalInvestedCompany+=amount;}
     else{s.ownedPersonal=clamp(s.ownedPersonal+equity,0,.49);s.totalInvestedPersonal+=amount;}
     s.fundingOpen=false;s.runwayWeeks+=Math.floor(amount/Math.max(1,s.valuation)*156);
