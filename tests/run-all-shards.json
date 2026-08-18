@@ -46,6 +46,7 @@
     "tests/store-manager-delegation-test.js",
     "tests/startup-due-diligence-test.js",
     "tests/startup-secondary-sale-test.js",
-    "tests/startup-secondary-integrity-test.js"
+    "tests/startup-secondary-integrity-test.js",
+    "tests/pe-weekly-performance-test.js"
   ]
 }
