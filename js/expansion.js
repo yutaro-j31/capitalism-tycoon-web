@@ -384,11 +384,16 @@ function installExpansion(TycoonEngine){
   // whole stake at the current valuation, less an illiquidity discount (private secondaries
   // never trade at par). The discount is deterministic (startup id + account + week), not
   // drawn from Math.random, so it adds zero RNG consumption and stays reproducible.
-  TycoonEngine.prototype.sellStartupSecondary=function(startupID,account='company'){
-    const s=this.g.startups.find(x=>x.id===startupID);if(!s||!s.alive||s.subsidiary||s.ipoStockID||s.activeFundingRound)return false;
+  // Read-only preview of what sellStartupSecondary() would do -- same formula, no state
+  // mutation. The UI uses this to show proceeds/discount in a confirmation dialog before the
+  // player commits to an irreversible one-click full-position sale. Sharing this function
+  // (instead of the UI re-deriving the formula) keeps the preview and the real sale from
+  // drifting out of sync if the pricing formula changes later.
+  TycoonEngine.prototype.previewStartupSecondarySale=function(startupID,account='company'){
+    const s=this.g.startups.find(x=>x.id===startupID);if(!s||!s.alive||s.subsidiary||s.ipoStockID||s.activeFundingRound)return null;
     account=account==='company'?'company':'personal';
-    const ownedKey=account==='company'?'ownedCompany':'ownedPersonal',investedKey=account==='company'?'totalInvestedCompany':'totalInvestedPersonal';
-    const owned=n(s[ownedKey]);if(owned<=0)return false;
+    const ownedKey=account==='company'?'ownedCompany':'ownedPersonal';
+    const owned=n(s[ownedKey]);if(owned<=0)return null;
     const discount=deterministicRange(.12,.28,'startup-secondary',s.id,account,this.g.week);
     // DD negotiates an effective valuation for both sides of this position.  Applying it
     // only when buying would let an immediate buy/sell round trip exit at the undiscounted
@@ -399,6 +404,15 @@ function installExpansion(TycoonEngine){
     const ddOwnedKey=account==='company'?'ddNegotiatedOwnedCompany':'ddNegotiatedOwnedPersonal';
     const ddOwned=clamp(n(s[ddOwnedKey]),0,owned),normalOwned=owned-ddOwned;
     const proceeds=Math.round((normalOwned*s.valuation+ddOwned*s.valuation*(1-ddDiscount))*(1-discount));
+    return{owned,discount,proceeds};
+  };
+  TycoonEngine.prototype.sellStartupSecondary=function(startupID,account='company'){
+    account=account==='company'?'company':'personal';
+    const preview=this.previewStartupSecondarySale(startupID,account);if(!preview)return false;
+    const s=this.g.startups.find(x=>x.id===startupID);
+    const{discount,proceeds}=preview;
+    const ownedKey=account==='company'?'ownedCompany':'ownedPersonal',investedKey=account==='company'?'totalInvestedCompany':'totalInvestedPersonal';
+    const ddOwnedKey=account==='company'?'ddNegotiatedOwnedCompany':'ddNegotiatedOwnedPersonal';
     const book=Math.max(0,n(s[investedKey]));
     const cashKey=account==='company'?'companyCash':'personalCash';
     if(account==='company'){
