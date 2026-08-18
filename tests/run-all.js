@@ -196,7 +196,8 @@ for (const [name, file] of [
   ['founder-capital-movement', 'tests/founder-capital-movement-test.js'],
   ['startup-deal-flow-refresh', 'tests/startup-deal-flow-refresh-test.js'],
   ['startup-due-diligence', 'tests/startup-due-diligence-test.js'],
-  ['vc-fund-lp', 'tests/vc-fund-lp-test.js']
+  ['vc-fund-lp', 'tests/vc-fund-lp-test.js'],
+  ['startup-secondary-sale', 'tests/startup-secondary-sale-test.js']
 ]) {
   const result = spawnSync('node', [file], {
     encoding: 'utf8',
