@@ -103,6 +103,21 @@ function pushStartup(engine, id, overrides = {}) {
   assert.equal(engine.conductStartupDueDiligence(s.id), false, '倒産済みの案件はDDできない');
 }
 
+// 4b. A startup entity with a missing/invalid minTicket (e.g. a malformed legacy save) must
+// fail atomically -- it must never corrupt personalCash into NaN. cost=Math.round(s.minTicket*.05)
+// with an undefined/non-finite minTicket previously produced NaN, and personalCash-=NaN
+// poisoned personalCash for the rest of the session (all comparisons against NaN are false,
+// so it was silently accepted).
+for (const badMinTicket of [undefined, NaN, 0, -1]) {
+  const { engine } = newGame();
+  const s = pushStartup(engine, UNFAVORABLE_ID, { minTicket: badMinTicket });
+  const before = engine.g.personalCash;
+  assert.equal(engine.conductStartupDueDiligence(s.id), false, `minTicket=${badMinTicket}は無効なentityとして拒否される`);
+  assert.equal(engine.g.personalCash, before, 'personalCashは変化しない');
+  assert.ok(Number.isFinite(engine.g.personalCash), 'personalCashはNaNに汚染されない');
+  assert.equal(s.dueDiligence, undefined, '無効なentityにdueDiligenceは記録されない');
+}
+
 // 5. Effect on investStartup(): a startup with a completed unfavorable DD grants strictly
 // more equity for the same investment amount than an identical startup with no DD, and a
 // favorable-verdict startup grants exactly the same equity as no DD (discount 0).
