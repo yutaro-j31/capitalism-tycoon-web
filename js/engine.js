@@ -873,6 +873,35 @@ class TycoonEngine extends EventTarget {
     if(this.g[cashKey]<amount)return this.fail('返済資金が不足しています。');this.g[cashKey]-=amount;this.g[debtKey]-=amount;if(account==='company'){this.g.companyCredit=clamp(this.g.companyCredit+amount/10_000_000,0,100);let remaining=amount;for(const loan of finance.ensureFinance(this.g).loans.filter(l=>l.status==='active')){const pay=Math.min(remaining,loan.outstandingPrincipal);loan.outstandingPrincipal-=pay;remaining-=pay;if(loan.outstandingPrincipal<=0){loan.outstandingPrincipal=0;loan.status='paid';}if(remaining<=0)break;}finance.event(this.g,'debtRepayment',amount,{cashEffect:-amount,liabilityEffect:-amount,sourceType:'repay',sourceID:`company-${this.g.week}-${amount}`,description:'会社借入返済'});}
     this.notify(`${yen(amount)}返済しました。`,'success');this.save();this.emit();return true;
   }
+  // Issue #423 priority 3: a formal, always-available founder-to-company capital movement,
+  // distinct from player-crisis-actions.js's injectFounderCapital (which stays crisis-status
+  // gated and crisis-panel only, unchanged, for backward compatibility with existing crisis
+  // tests/UI). These two reuse the exact accounting shape of existing company-side actions
+  // (equityFinancing+capitalSurplus from injectFounderCapital/investor offers; the itemized
+  // finance.loans + companyDebt shape from borrow()) rather than inventing new mechanics, and
+  // never touch personalStocks or any store/company asset beyond cash/debt.
+  contributeFounderCapital(amount) {
+    amount=Math.max(0,Math.floor(finite(amount)));
+    if(this.g.gameOver||this.g.isCompanySold)return this.fail('会社清算後は資本移動できません。');
+    if(amount<=0)return this.fail('注入額が不正です。');
+    if(finite(this.g.personalCash)<amount)return this.fail('個人資金が不足しています。');
+    this.g.personalCash-=amount;this.g.companyCash+=amount;
+    finance.event(this.g,'equityFinancing',amount,{cashEffect:amount,equityEffect:amount,sourceType:'founderCapitalContribution',sourceID:`founder-capital-${this.g.week}-${uuid()}`,description:'創業者資本注入'});
+    const f=finance.ensureFinance(this.g);f.balances.capitalSurplus=finite(f.balances.capitalSurplus)+amount;
+    this.notify(`個人資金から会社へ${yen(amount)}を資本注入しました。`,'success');this.save();this.emit();return true;
+  }
+  foundersLoanToCompany(amount) {
+    amount=Math.max(0,Math.floor(finite(amount)));
+    if(this.g.gameOver||this.g.isCompanySold)return this.fail('会社清算後は資本移動できません。');
+    if(amount<=0)return this.fail('融資額が不正です。');
+    if(finite(this.g.personalCash)<amount)return this.fail('個人資金が不足しています。');
+    const limit=this.companyCreditLimit();if(this.g.companyDebt+amount>limit)return this.fail(`借入限度額は${yen(limit)}です。`);
+    this.g.personalCash-=amount;this.g.companyCash+=amount;this.g.companyDebt+=amount;
+    const f=finance.ensureFinance(this.g);
+    f.loans.push({loanID:`founder-loan-${this.g.week}-${f.loans.length+1}`,principal:amount,outstandingPrincipal:amount,interestRate:this.companyBorrowRate(),termWeeks:260,remainingWeeks:260,repaymentMethod:'manual',weeklyPrincipalPayment:0,nextPaymentWeek:this.g.week+1,status:'active',sourceType:'founderShareholderLoan'});
+    finance.event(this.g,'debtBorrowing',amount,{cashEffect:amount,liabilityEffect:amount,sourceType:'founderShareholderLoan',sourceID:`founder-loan-${this.g.week}-${uuid()}`,description:'創業者株主ローン'});
+    this.notify(`個人資金から会社へ${yen(amount)}を株主ローンとして貸し付けました。`,'success');this.save();this.emit();return true;
+  }
 
   ipoMissingReasons() {
     const reasons=[];const annualProfit=this.g.reports.slice(-52).reduce((a,r)=>a+r.profit,0);
