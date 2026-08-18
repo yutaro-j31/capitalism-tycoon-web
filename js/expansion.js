@@ -633,7 +633,11 @@ function installExpansion(TycoonEngine){
   };
 
   TycoonEngine.prototype.updatePersonalExpandedWeekly=function(){
-    const g=this.g;let adjustment=0;const peValueCreation=globalThis.__capitalismTycoonModules?.peValueCreation;for(const d of g.peDeals.filter(x=>x.status==='active')){d.holdingWeeks++;d.currentValuation=Math.max(d.investedAmount*.25,d.currentValuation*(1+rand(-.012,.025)+d.improvementScore/50000));
+    const g=this.g;let adjustment=0;const peValueCreation=globalThis.__capitalismTycoonModules?.peValueCreation;
+    // Resolve any initiatives whose delay has elapsed before this week's P&L, so a
+    // turnaround that lands this week is already reflected in this week's weeklyProfit.
+    peValueCreation?.resolvePendingInitiatives?.(this);
+    for(const d of g.peDeals.filter(x=>x.status==='active')){d.holdingWeeks++;d.currentValuation=Math.max(d.investedAmount*.25,d.currentValuation*(1+rand(-.012,.025)+d.improvementScore/50000));
       // R2 remaining item: weekly P&L tied to improvementScore. An untouched (baseline)
       // deal is a real cash drain every week; sustained turnaround progress is what makes
       // it a cash generator. Revenue is fixed at acquisition, so only margin -- and

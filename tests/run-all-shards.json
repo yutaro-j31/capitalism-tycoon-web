@@ -47,6 +47,7 @@
     "tests/startup-due-diligence-test.js",
     "tests/startup-secondary-sale-test.js",
     "tests/startup-secondary-integrity-test.js",
-    "tests/pe-weekly-performance-test.js"
+    "tests/pe-weekly-performance-test.js",
+    "tests/pe-initiative-delay-concurrency-test.js"
   ]
 }

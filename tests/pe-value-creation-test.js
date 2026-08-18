@@ -35,6 +35,14 @@ function advanceToFailure(modules, engine, deal, initiativeID) {
   throw new Error(`施策 ${initiativeID} が失敗する週が見つからない`);
 }
 
+// Initiatives now resolve INITIATIVE_DELAY_WEEKS after being committed (R2 remaining item
+// "施策の効果が数週かけて現れる遅延"). Tests that need to see the score/valuation effect
+// (rather than just that an initiative was accepted) advance to that week and resolve.
+function resolveInitiative(modules, engine) {
+  engine.g.week += modules.peValueCreation.INITIATIVE_DELAY_WEEKS;
+  modules.peValueCreation.resolvePendingInitiatives(engine);
+}
+
 // 1. 課題は既存フィールドから導出され、保存もされず、同じ案件なら常に同じ。
 {
   const { modules, engine } = newGame();
@@ -55,6 +63,7 @@ function advanceToFailure(modules, engine, deal, initiativeID) {
     advanceToSuccess(mods, engine, deal, initiativeID);
     const before = { score: deal.improvementScore, valuation: deal.currentValuation };
     assert.equal(engine.applyPEInitiative(deal.id, initiativeID), true);
+    resolveInitiative(mods, engine);
     return {
       scoreGain: deal.improvementScore - before.score,
       valuationRatio: deal.currentValuation / before.valuation
@@ -83,7 +92,7 @@ function advanceToFailure(modules, engine, deal, initiativeID) {
     const issue = modules.peValueCreation.issueOf(deal);
     if (issue) seen.add(`${modules.peValueCreation.stageOf(deal)}:${issue.id}`);
     engine.applyPEInitiative(deal.id, issue.initiativeID);
-    engine.g.week += 1;
+    resolveInitiative(modules, engine);
   }
   assert.equal(modules.peValueCreation.isResolved(deal), true, '施策を重ねれば再建は完了する');
   assert.equal(deal.improvementScore, modules.peValueCreation.MAX_SCORE, '改善度は上限で止まる');
@@ -147,10 +156,12 @@ function advanceToFailure(modules, engine, deal, initiativeID) {
 // 7. 決定論：同じ種・同じ操作なら結果が完全に一致する。
 {
   const run = () => {
-    const { engine } = newGame(20260814);
+    const { modules, engine } = newGame(20260814);
     const deal = openDeal(engine);
     engine.applyPEInitiative(deal.id, 'cost-cut');
+    resolveInitiative(modules, engine);
     engine.applyPEInitiative(deal.id, 'talent');
+    resolveInitiative(modules, engine);
     return JSON.stringify({ s: deal.improvementScore, v: deal.currentValuation, c: engine.g.personalCash });
   };
   assert.equal(run(), run(), '同じ入力なら同じ結果になる');
@@ -179,6 +190,7 @@ function advanceToFailure(modules, engine, deal, initiativeID) {
   const EngineClass = modules.engine.TycoonEngine;
   const deal = openDeal(engine);
   engine.applyPEInitiative(deal.id, 'cost-cut');
+  resolveInitiative(modules, engine);
   engine.save();
 
   const saved = JSON.parse(ctx.localStorage.getItem('capitalism_tycoon_web_v1'));
@@ -315,6 +327,7 @@ function advanceToFailure(modules, engine, deal, initiativeID) {
     for (const id of initiatives) {
       advanceToSuccess(mods, engine, deal, id);
       engine.applyPEInitiative(deal.id, id);
+      resolveInitiative(mods, engine);
     }
     const cashBefore = engine.g.personalCash;
     engine.exitPEDeal(deal.id);
@@ -357,7 +370,8 @@ function advanceToFailure(modules, engine, deal, initiativeID) {
   const before = { score: deal.improvementScore, valuation: deal.currentValuation, cash: engine.g.personalCash };
 
   assert.equal(engine.applyPEInitiative(deal.id, 'cost-cut'), true, '失敗も「実行できた」結果として扱う');
-  assert.equal(engine.g.personalCash, before.cash - cost, '失敗しても費用は支払う');
+  assert.equal(engine.g.personalCash, before.cash - cost, '失敗しても費用は支払う（結果判明前でも即時）');
+  resolveInitiative(modules, engine);
   assert.equal(deal.improvementScore, before.score - spec.setbackScore, '改善度が後退する');
   assert.ok(
     Math.abs(deal.currentValuation - before.valuation * (1 - spec.setbackValuation)) < 1e-6,
@@ -442,15 +456,17 @@ function advanceToFailure(modules, engine, deal, initiativeID) {
   deal.improvementScore = 2;
   advanceToFailure(modules, engine, deal, 'cost-cut');
   assert.equal(engine.applyPEInitiative(deal.id, 'cost-cut'), true);
+  resolveInitiative(modules, engine);
   assert.equal(deal.improvementScore, 0, '改善度は0で止まる');
   assert.equal(modules.peValueCreation.exitMultiplier(deal), 1, '後退してもEXIT価格は目減りしない');
 
   // 改善度が0で止まると判定の材料が動かなくなるが、週を進めれば必ず打ち直せる。
-  const stuckWeek = engine.g.week;
+  const stuckWeek = advanceToFailure(modules, engine, deal, 'cost-cut');
   assert.equal(modules.peValueCreation.succeeds(engine.g, deal, 'cost-cut'), false, '同じ週では失敗のまま');
   const escaped = advanceToSuccess(modules, engine, deal, 'cost-cut');
   assert.ok(escaped > stuckWeek, '週を進めれば成功する週に届く');
   assert.equal(engine.applyPEInitiative(deal.id, 'cost-cut'), true);
+  resolveInitiative(modules, engine);
   assert.ok(deal.improvementScore > 0, '再建をやり直せる');
 }
 
