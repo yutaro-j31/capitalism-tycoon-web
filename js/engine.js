@@ -665,7 +665,15 @@ class TycoonEngine extends EventTarget {
     if(!this.g.hasHeadOffice)return this.fail('本社オフィスが必要です。');
     if(this.g.departments[id])return this.fail('設置済みです。');
     const d=MASTER.departments.find(x=>x.id===id);if(!d)return false;
-    const unlock=DEPARTMENT_UNLOCKS[id];if(this.g.stores.length<(unlock?.minStores||0))return this.fail(`店舗数${unlock.minStores}以上が必要です。`);
+    const unlock=DEPARTMENT_UNLOCKS[id];const minStores=unlock?.minStores||0;
+    // Investment-company founding route: a founder who never opens a store still needs a
+    // way into the investment department, since that is the only gate in front of company-
+    // account stock/VC/PE investing. Store count stays the unlock signal for every other
+    // department (accounting/hr/product/operations/marketing/dx keep their existing
+    // minStores), so this only ever widens eligibility for the one department the
+    // store-zero route depends on, and only while the founder genuinely has zero stores.
+    const storeZeroInvestmentRoute=id==='investment'&&this.g.stores.length===0;
+    if(this.g.stores.length<minStores&&!storeZeroInvestmentRoute)return this.fail(`店舗数${minStores}以上が必要です。`);
     if(this.g.companyCash<d.setupCost)return this.fail(`${yen(d.setupCost)}が必要です。`);
     const used=Object.keys(this.g.departments).length*8+Object.keys(this.g.executives).length;
     if(used+8>this.g.officeCapacity)return this.fail('オフィス定員が不足しています。');
