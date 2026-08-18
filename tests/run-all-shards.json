@@ -18,7 +18,8 @@
     "test:personal-real-estate",
     "tests/investor-offer-test.js",
     "tests/store-zero-investment-founding-test.js",
-    "tests/sports-team-accounting-test.js"
+    "tests/sports-team-accounting-test.js",
+    "tests/sports-management-test.js"
   ],
   "C": [
     "test:long",

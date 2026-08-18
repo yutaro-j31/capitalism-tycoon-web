@@ -1336,7 +1336,11 @@ class TycoonEngine extends EventTarget {
     // finance ledger too -- without this the ledger's opening-cash rollforward drifts from
     // companyCash every single week and finance.validate() fails outright. Personal-owned teams
     // stay outside the ledger, like every other personal-only cash flow in this codebase.
-    for(const t of this.g.sportsTeams){const win=Math.random()<t.teamStrength/100;if(win)t.seasonWins++;t.fanBase=clamp(t.fanBase+(win?rand(.1,1.2):rand(-.5,.2)),10,100);const weeklyRevenue=t.revenue*(.7+t.fanBase/100),weeklyCost=t.cost,net=Math.round(weeklyRevenue-weeklyCost);this.g[t.owner==='company'?'companyCash':'personalCash']+=net;if(t.owner==='company'&&net)finance.event(this.g,'otherOperating',Math.abs(net),{cashEffect:net,profitEffect:net,sourceType:'sportsTeamWeekly',sourceID:t.id,idempotencyKey:`sports-weekly-${t.id}-${this.g.week}`,description:`${t.name} 週次興行収支`});t.value=Math.max(t.price*.5,t.value*(1+rand(-.01,.015)+(win?.002:-.001)));}
+    // sports-management.js loads after engine.js, so it is looked up at call time rather than
+    // captured when this module is defined. Falling back to the old flat formula keeps a team
+    // earning something even if that module is somehow absent.
+    const sportsManagement=globalThis.__capitalismTycoonModules?.sportsManagement;
+    for(const t of this.g.sportsTeams){const win=Math.random()<t.teamStrength/100;if(sportsManagement)sportsManagement.recordGameResult(t,win);else if(win)t.seasonWins++;t.fanBase=clamp(t.fanBase+(win?rand(.1,1.2):rand(-.5,.2)),10,100);const net=sportsManagement?sportsManagement.weeklyFinancialsFor(t).net:Math.round(t.revenue*(.7+t.fanBase/100)-t.cost);this.g[t.owner==='company'?'companyCash':'personalCash']+=net;if(t.owner==='company'&&net)finance.event(this.g,'otherOperating',Math.abs(net),{cashEffect:net,profitEffect:net,sourceType:'sportsTeamWeekly',sourceID:t.id,idempotencyKey:`sports-weekly-${t.id}-${this.g.week}`,description:`${t.name} 週次興行収支`});t.value=Math.max(t.price*.5,t.value*(1+rand(-.01,.015)+(win?.002:-.001)));sportsManagement?.rolloverSeason(t,this.g.week);}
     this.g.personalCash-=this.g.personalDebt*this.personalBorrowRate()/52;
   }
   updateFranchise() {
