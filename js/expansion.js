@@ -389,11 +389,23 @@ function installExpansion(TycoonEngine){
     const ownedKey=account==='company'?'ownedCompany':'ownedPersonal',investedKey=account==='company'?'totalInvestedCompany':'totalInvestedPersonal';
     const owned=n(s[ownedKey]);if(owned<=0)return false;
     const discount=deterministicRange(.12,.28,'startup-secondary',s.id,account,this.g.week);
-    const proceeds=Math.round(owned*s.valuation*(1-discount));
+    // DD negotiates an effective valuation for both sides of this position.  Applying it
+    // only when buying would let an immediate buy/sell round trip exit at the undiscounted
+    // headline valuation and manufacture cash when the DD discount exceeds illiquidity.
+    const ddDiscount=clamp(n(s.dueDiligence?.discount),0,.15);
+    const effectiveValuation=s.valuation*(1-ddDiscount);
+    const proceeds=Math.round(owned*effectiveValuation*(1-discount));
     const book=Math.max(0,n(s[investedKey]));
     const cashKey=account==='company'?'companyCash':'personalCash';
+    if(account==='company'){
+      const finance=__modules.finance.ensureFinance(this.g);
+      const transactionIdentity=`startup-secondary-${s.id}-${account}-${this.g.week}-${finance.nextTransactionSeq}`;
+      const recorded=__modules.finance.event(this.g,'investmentSale',proceeds,{cashEffect:proceeds,assetEffect:-book,profitEffect:proceeds-book,sourceType:'startupSecondarySale',sourceID:transactionIdentity,idempotencyKey:transactionIdentity,operationID:transactionIdentity,description:`${s.name} 持分の相対売却（セカンダリー、割引${Math.round(discount*100)}%）`});
+      // Keep the sale atomic: cash and ownership may move only after its company ledger row
+      // has been accepted.  nextTransactionSeq makes every legitimate same-week sale unique.
+      if(!recorded)return false;
+    }
     this.g[cashKey]+=proceeds;
-    if(account==='company')__modules.finance.event(this.g,'investmentSale',proceeds,{cashEffect:proceeds,assetEffect:-book,profitEffect:proceeds-book,sourceType:'startupSecondarySale',sourceID:`${s.id}-${this.g.week}`,idempotencyKey:`startup-secondary-${s.id}-${account}-${this.g.week}`,description:`${s.name} 持分の相対売却（セカンダリー、割引${Math.round(discount*100)}%）`});
     s[ownedKey]=0;s[investedKey]=0;
     this.notify(`${s.name}の持分をセカンダリー市場で${Math.round(proceeds).toLocaleString()}円（流動性ディスカウント${Math.round(discount*100)}%）で売却しました。`,'success');
     this.save();this.emit();return true;
