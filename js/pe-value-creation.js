@@ -42,6 +42,20 @@ const MARGIN_SWING=.15;             // margin gained moving from baseline to MAX
 const MARGIN_FLOOR=-.10;
 const MARGIN_CEILING=.15;
 
+// R2 remaining items "施策の効果が数週かけて現れる遅延" and "複数案件を同時に抱えたとき
+// の経営資源の取り合い": before this, applyInitiative was instant (pay -> know the result
+// -> score/valuation already moved, all in the same call) and every deal was fully
+// independent of every other deal the player held. Both gaps share one piece of state: a
+// deal can now have at most one initiative "in flight" (pendingInitiative), and only a
+// limited number of deals *of the same owner account* may have one in flight at the same
+// time -- modeling limited management attention as a real, shared, contested resource
+// instead of an unlimited one. The pay/succeed/match decision is still made (and locked
+// in) the moment the initiative is committed, using the exact same deterministic
+// outcomeRoll as before; only the reveal and the score/valuation effect are delayed, so
+// save/reload still cannot re-roll a result once it has been committed to.
+const INITIATIVE_DELAY_WEEKS=2;
+const MAX_CONCURRENT_INITIATIVES=Object.freeze({company:2,personal:1});
+
 const ISSUES=Object.freeze([
   Object.freeze({id:'cost',name:'高コスト体質',detail:'固定費が重く、利益が出にくい状態です。',initiativeID:'cost-cut'}),
   Object.freeze({id:'talent',name:'人材流出',detail:'中核人材が抜け、現場が回らなくなっています。',initiativeID:'talent'}),
@@ -153,9 +167,23 @@ function exitValue(deal){
   return Math.round(finite(deal?.currentValuation)*exitMultiplier(deal));
 }
 
+// How many OTHER active deals of the same owner account currently have an initiative in
+// flight. Company and personal bandwidth are tracked separately, matching this codebase's
+// unconditional company/personal asset (and now attention) separation.
+function activeInitiativeCount(state,ownerAccount,excludeDealID){
+  return (state?.peDeals||[]).filter(row=>row.status==='active'&&(row.ownerAccount==='company'?'company':'personal')===ownerAccount&&row.pendingInitiative&&String(row.id)!==String(excludeDealID)).length;
+}
+function concurrencyCapFor(ownerAccount){
+  return MAX_CONCURRENT_INITIATIVES[ownerAccount]||MAX_CONCURRENT_INITIATIVES.personal;
+}
+
 function applicable(state,deal){
   if(!deal)return {ok:false,reason:'対象のPE案件が見つかりません。'};
   if(isResolved(deal))return {ok:false,reason:'この案件の再建は完了しています。'};
+  if(deal.pendingInitiative)return {ok:false,reason:'既に施策が進行中です。結果判明までお待ちください。'};
+  const ownerAccount=deal.ownerAccount==='company'?'company':'personal';
+  const used=activeInitiativeCount(state,ownerAccount,deal.id),cap=concurrencyCapFor(ownerAccount);
+  if(used>=cap)return {ok:false,reason:`経営資源が他の案件に割かれています（同時進行 ${used}/${cap}）。他の施策の結果が判明するまでお待ちください。`};
   return {ok:true,reason:''};
 }
 
@@ -163,6 +191,7 @@ function plan(state,deal){
   const gate=applicable(state,deal);
   const issue=issueOf(deal);
   const cost=initiativeCost(deal);
+  const ownerAccount=deal?.ownerAccount==='company'?'company':'personal';
   return Object.freeze({
     dealID:deal?String(deal.id):'',
     score:scoreOf(deal),
@@ -174,8 +203,16 @@ function plan(state,deal){
     exitValue:exitValue(deal),
     exitPremium:exitValue(deal)-Math.round(finite(deal?.currentValuation)),
     exitMultiplier:exitMultiplier(deal),
-    affordable:gate.ok&&finite(state?.[deal?.ownerAccount==='company'?'companyCash':'personalCash'])>=cost,
+    affordable:gate.ok&&finite(state?.[ownerAccount==='company'?'companyCash':'personalCash'])>=cost,
     blockedReason:gate.ok?'':gate.reason,
+    pending:deal?.pendingInitiative?Object.freeze({
+      initiativeID:deal.pendingInitiative.initiativeID,
+      initiativeName:initiativeOf(deal.pendingInitiative.initiativeID)?.name||'',
+      resolveWeek:deal.pendingInitiative.resolveWeek,
+      weeksRemaining:Math.max(0,deal.pendingInitiative.resolveWeek-finite(state?.week))
+    }):null,
+    concurrencyUsed:activeInitiativeCount(state,ownerAccount,deal?.id)+(deal?.pendingInitiative?1:0),
+    concurrencyCap:concurrencyCapFor(ownerAccount),
     initiatives:Object.freeze(INITIATIVES.map(row=>Object.freeze({
       ...row,
       recommended:Boolean(issue&&issue.initiativeID===row.id),
@@ -188,8 +225,12 @@ function plan(state,deal){
   });
 }
 
-// Charge the current owner account. Company-owned holdings also record the expense in
-// company finance; personal holdings remain entirely outside the company ledger.
+// Charge the current owner account and lock in the outcome immediately (same deterministic
+// outcomeRoll as before, keyed on the committing week and the score at commit time -- once
+// committed, save/reload cannot re-roll it). The score/valuation effect itself, and telling
+// the player which way it went, are deferred to resolvePendingInitiatives(). Company-owned
+// holdings record the expense in company finance immediately; personal holdings remain
+// entirely outside the company ledger, exactly as before.
 function applyInitiative(engine,dealID,initiativeID){
   const state=engine.g;
   const deal=findDeal(state,dealID);
@@ -202,32 +243,52 @@ function applyInitiative(engine,dealID,initiativeID){
   const cashKey=owner==='company'?'companyCash':'personalCash';
   if(finite(state[cashKey])<cost)return engine.fail(`施策の実行には${yen(cost)}が必要です。`);
 
-  // The fee is paid either way — the work was commissioned regardless of how it turned out.
+  // The fee is paid either way — the work was commissioned regardless of how it turns out.
   const succeeded=succeeds(state,deal,initiativeID);
   const matched=matches(deal,initiativeID);
   state[cashKey]-=cost;
   if(owner==='company')modules.finance?.event?.(state,'otherOperating',cost,{cashEffect:-cost,profitEffect:-cost,assetEffect:0,sourceType:'peInitiative',sourceID:deal.id,description:`${deal.targetName} ${initiative.name}`});
-  if(succeeded){
-    deal.improvementScore=clamp(scoreOf(deal)+(matched?MATCHED_SCORE_GAIN:MISMATCHED_SCORE_GAIN),0,MAX_SCORE);
-    deal.currentValuation=finite(deal.currentValuation)*(1+(matched?MATCHED_VALUATION_GAIN:MISMATCHED_VALUATION_GAIN));
-  }else{
-    deal.improvementScore=clamp(scoreOf(deal)-initiative.setbackScore,0,MAX_SCORE);
-    deal.currentValuation=finite(deal.currentValuation)*(1-initiative.setbackValuation);
-  }
 
-  engine.syncPESubsidiary?.(deal);
+  const resolveWeek=finite(state.week)+INITIATIVE_DELAY_WEEKS;
+  deal.pendingInitiative={
+    initiativeID,matched,succeeded,
+    scoreDelta:succeeded?(matched?MATCHED_SCORE_GAIN:MISMATCHED_SCORE_GAIN):-initiative.setbackScore,
+    valuationDelta:succeeded?(matched?MATCHED_VALUATION_GAIN:MISMATCHED_VALUATION_GAIN):-initiative.setbackValuation,
+    committedWeek:finite(state.week),resolveWeek
+  };
 
-  engine.notify(
-    !succeeded
-      ?`${deal.targetName}の「${initiative.name}」は失敗に終わり、費用だけがかさんで再建が後退しました。`
-      :matched
-        ?`${deal.targetName}で「${initiative.name}」が課題に的中し、企業価値が大きく伸びました。`
-        :`${deal.targetName}で「${initiative.name}」を実行しましたが、いまの課題には噛み合いませんでした。`,
-    !succeeded?'error':matched?'success':'warning'
-  );
+  engine.notify(`${deal.targetName}で「${initiative.name}」に着手しました。結果は第${resolveWeek}週に判明します。`,'info');
   engine.save();
   engine.emit('change');
   return true;
+}
+
+// Called once per week (js/expansion.js's updatePersonalExpandedWeekly). Applies the
+// score/valuation effect and reveals the outcome for every pending initiative whose
+// resolveWeek has arrived, then clears the pending slot so the deal (and its owner
+// account's concurrency budget) is free again.
+function resolvePendingInitiatives(engine){
+  const state=engine.g;
+  let resolvedAny=false;
+  for(const deal of (state?.peDeals||[]).filter(row=>row.status==='active'&&row.pendingInitiative)){
+    const pending=deal.pendingInitiative;
+    if(finite(state.week)<finite(pending.resolveWeek))continue;
+    const initiative=initiativeOf(pending.initiativeID);
+    deal.improvementScore=clamp(scoreOf(deal)+finite(pending.scoreDelta),0,MAX_SCORE);
+    deal.currentValuation=finite(deal.currentValuation)*(1+finite(pending.valuationDelta));
+    deal.pendingInitiative=null;
+    engine.syncPESubsidiary?.(deal);
+    engine.notify(
+      !pending.succeeded
+        ?`${deal.targetName}の「${initiative?.name||''}」は失敗に終わり、費用だけがかさんで再建が後退しました。`
+        :pending.matched
+          ?`${deal.targetName}で「${initiative?.name||''}」が課題に的中し、企業価値が大きく伸びました。`
+          :`${deal.targetName}で「${initiative?.name||''}」を実行しましたが、いまの課題には噛み合いませんでした。`,
+      !pending.succeeded?'error':pending.matched?'success':'warning'
+    );
+    resolvedAny=true;
+  }
+  return resolvedAny;
 }
 
 function installExitWrapper(){
@@ -278,6 +339,8 @@ modules.peValueCreation=Object.freeze({
   EXIT_BASELINE_SCORE,EXIT_PREMIUM_AT_FULL,exitMultiplier,exitValue,
   WEEKLY_REVENUE_RATE,BASELINE_MARGIN,MARGIN_SWING,MARGIN_FLOOR,MARGIN_CEILING,
   weeklyRevenueFor,marginFor,weeklyProfitFor,
+  INITIATIVE_DELAY_WEEKS,MAX_CONCURRENT_INITIATIVES,activeInitiativeCount,concurrencyCapFor,
+  resolvePendingInitiatives,
   scoreOf,stageOf,isResolved,issueOf,initiativeCost,initiativeOf,matches,
   outcomeRoll,succeeds,applicable,plan,applyInitiative,installExitWrapper,install,
   __installed:true

@@ -389,8 +389,9 @@ function renderPEDeal(deal){
   if(!plan)return `<article class="item">${head}<div class="button-row">${exit}</div></article>`;
   const status=plan.resolved
     ?`<p class="muted">再建完了（改善 ${plan.score}/${plan.maxScore}）。EXITで再建プレミアム +${compactYen(plan.exitPremium)} が上乗せされます。</p>`
-    :`<p class="muted"><strong>課題：${esc(plan.issue.name)}</strong> ${esc(plan.issue.detail)}</p>${progress(plan.score,plan.maxScore)}<span class="muted">改善 ${plan.score}/${plan.maxScore} · 施策1回 ${compactYen(plan.cost)}${plan.exitPremium>0?` · 再建プレミアム +${compactYen(plan.exitPremium)}`:''}</span>`;
-  const actions=plan.resolved?'':`<div class="button-grid">${plan.initiatives.map(x=>btn(`${x.name}${x.recommended?' ◎':''} ${Math.round(x.successRate*100)}%`,'pe-initiative',{kind:x.recommended?'primary small':'small',data:`data-id="${esc(deal.id)}" data-kind="${esc(x.id)}"`,disabled:!plan.affordable})).join('')}</div>${plan.affordable?`<span class="muted">数字は成功率。失敗しても費用はかかり、改善度と企業価値が後退します。行き詰まったら週を進めると状況が変わります。</span>`:''}`;
+    :`<p class="muted"><strong>課題：${esc(plan.issue.name)}</strong> ${esc(plan.issue.detail)}</p>${progress(plan.score,plan.maxScore)}<span class="muted">改善 ${plan.score}/${plan.maxScore} · 施策1回 ${compactYen(plan.cost)}${plan.exitPremium>0?` · 再建プレミアム +${compactYen(plan.exitPremium)}`:''} · 同時進行 ${plan.concurrencyUsed}/${plan.concurrencyCap}</span>`;
+  const pendingNotice=plan.pending?`<p class="muted">「${esc(plan.pending.initiativeName)}」進行中 · 第${plan.pending.resolveWeek}週に結果判明（あと${plan.pending.weeksRemaining}週）</p>`:'';
+  const actions=plan.resolved?'':`${pendingNotice}<div class="button-grid">${plan.initiatives.map(x=>btn(`${x.name}${x.recommended?' ◎':''} ${Math.round(x.successRate*100)}%`,'pe-initiative',{kind:x.recommended?'primary small':'small',data:`data-id="${esc(deal.id)}" data-kind="${esc(x.id)}"`,disabled:!plan.affordable})).join('')}</div>${plan.affordable?`<span class="muted">数字は成功率。失敗しても費用はかかり、改善度と企業価値が後退します。行き詰まったら週を進めると状況が変わります。</span>`:plan.blockedReason?`<span class="muted">${esc(plan.blockedReason)}</span>`:''}`;
   const transfer=companyOwned?'':btn('自社グループへ移管','transfer-pe',{kind:'secondary small',data:`data-id="${esc(deal.id)}"`});
   return `<article class="item" data-pe-deal="${esc(deal.id)}">${head}${status}${actions}<div class="button-row">${transfer}${exit}</div></article>`;
 }
