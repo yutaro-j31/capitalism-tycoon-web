@@ -342,6 +342,41 @@ function installExpansion(TycoonEngine){
     this.notify(`${o.name}からの出資提案を見送りました。`,'info');this.save();this.emit();return true;
   };
 
+  // R1 (feature-requests.md) remaining item "案件の自動入替": g.startups was populated
+  // once from 3 fixed master-data templates and never grew, so a startup that died
+  // (runway exhaustion) or exited (IPO) permanently shrank the investable deal pool with
+  // no way to refill it. This adds new candidates from a separate pool, gated by
+  // founderNetworkLevel -- a personal stat that investFounder('network')/attendVentureForum
+  // already raise but that nothing previously consumed, so this gives it real effect
+  // without any new state field. Only fires when the open (alive, not yet a subsidiary or
+  // IPO'd) deal count is below 3, keeping the pool size comparable to the original design.
+  const STARTUP_DEAL_POOL=[
+    {name:'配送ルートAI',domain:'物流最適化',stage:'Seed',valuationRange:[60_000_000,100_000_000],minTicketRange:[4_000_000,6_000_000],growthRange:[.06,.09],riskRange:[.15,.20]},
+    {name:'次世代POSクラウド',domain:'決済インフラ',stage:'Series A',valuationRange:[300_000_000,500_000_000],minTicketRange:[12_000_000,18_000_000],growthRange:[.045,.065],riskRange:[.10,.14]},
+    {name:'来店予測エンジン',domain:'マーケティングDX',stage:'Seed',valuationRange:[70_000_000,110_000_000],minTicketRange:[5_000_000,8_000_000],growthRange:[.07,.10],riskRange:[.17,.22]},
+    {name:'省エネ厨房IoT',domain:'省人化・省エネ設備',stage:'Seed',valuationRange:[90_000_000,140_000_000],minTicketRange:[6_000_000,9_000_000],growthRange:[.05,.08],riskRange:[.14,.19]},
+    {name:'人材シェアリング基盤',domain:'労務DX',stage:'Series A',valuationRange:[250_000_000,400_000_000],minTicketRange:[10_000_000,16_000_000],growthRange:[.05,.07],riskRange:[.11,.15]},
+    {name:'地域通貨プラットフォーム',domain:'決済・地域振興',stage:'Seed',valuationRange:[50_000_000,90_000_000],minTicketRange:[4_000_000,6_000_000],growthRange:[.06,.09],riskRange:[.16,.21]}
+  ];
+  TycoonEngine.prototype.refreshStartupDealFlow=function(){
+    const openCount=this.g.startups.filter(s=>s.alive&&!s.subsidiary&&!s.ipoStockID).length;
+    if(openCount>=3)return false;
+    const usedNames=new Set(this.g.startups.map(s=>s.name));
+    const candidates=STARTUP_DEAL_POOL.filter(t=>!usedNames.has(t.name));
+    if(!candidates.length)return false;
+    const template=pick(candidates);
+    const s={id:uid(),name:template.name,domain:template.domain,stage:template.stage,
+      valuation:Math.round(rand(template.valuationRange[0],template.valuationRange[1])),
+      minTicket:Math.round(rand(template.minTicketRange[0],template.minTicketRange[1])),
+      growth:rand(template.growthRange[0],template.growthRange[1]),
+      risk:rand(template.riskRange[0],template.riskRange[1]),
+      ownedCompany:0,ownedPersonal:0,alive:true,subsidiary:false,totalInvestedCompany:0,totalInvestedPersonal:0,
+      productProgress:rand(0,.15),runwayWeeks:Math.round(rand(40,60)),reports:[],fundingRound:template.stage,fundingOpen:true};
+    this.g.startups.push(s);
+    this.notify(`人脈を通じて新しい投資案件「${s.name}」（${s.domain}）が見つかりました。`,'info');
+    this.save();this.emit();return true;
+  };
+
   TycoonEngine.prototype.executeMBO=function(stockID){
     const s=this.stock(stockID),h=this.g.companyStocks[stockID];if(!s||!h||h.qty/s.issuedShares<.5)return this.fail('会社口座で過半数保有が必要です。');const remaining=s.issuedShares-h.qty,cost=remaining*s.price*1.25;if(this.g.companyCash<cost)return this.fail('MBO資金が不足しています。');this.g.companyCash-=cost;this.g.companyStocks[stockID].qty=s.issuedShares;s.privateCompany=true;s.suspended=true;this.notify(`${s.name}のMBOを成立させました。`,'success');this.save();this.emit();return true;
   };
