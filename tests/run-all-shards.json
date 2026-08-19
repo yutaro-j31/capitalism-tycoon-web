@@ -50,6 +50,10 @@
     "tests/startup-secondary-sale-test.js",
     "tests/startup-secondary-integrity-test.js",
     "tests/pe-weekly-performance-test.js",
-    "tests/pe-initiative-delay-concurrency-test.js"
+    "tests/pe-initiative-delay-concurrency-test.js",
+    "tests/personal-real-estate-mortgage-test.js",
+    "tests/personal-real-estate-taxes-test.js",
+    "tests/real-estate-cycle-state-collision-test.js",
+    "tests/personal-real-estate-short-term-test.js"
   ]
 }
