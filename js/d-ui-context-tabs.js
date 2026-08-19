@@ -23,7 +23,9 @@ function metrics(items){return `<div class="d-context-metrics">${items.map(([lab
 function bars(items){return `<div class="d-status-bars">${items.map(([label,value])=>{const score=clamp(finite(value),0,100);return `<label><span>${esc(label)}<b>${score.toFixed(0)}%</b></span><i><em style="width:${score}%"></em></i></label>`;}).join('')}</div>`;}
 function action(tab){const item=ACTIONS[tab]||ACTIONS.overview;return `<div class="d-context-actions" aria-label="関連する経営操作"><button type="button" data-d-ui-tab="${esc(item[0])}"><span>${esc(item[1])}</span><small>${esc(item[2])}</small><b aria-hidden="true">›</b></button></div>`;}
 function panelContent(tab,context){
-  const {store,business,g}=context;const sales=finite(store.lastSales);const profit=finite(store.lastProfit);const customers=finite(store.lastCustomers??store.customers);const satisfaction=finite(store.satisfaction??g.customerSatisfaction);const cost=Math.max(0,sales-profit);const margin=sales?profit/sales*100:0;
+  // Same fix as js/d-ui-shell.js: read what market.js actually produces (store.marketResult)
+  // before falling back to lastCustomers/store.satisfaction, which nothing ever writes.
+  const {store,business,g}=context;const sales=finite(store.lastSales);const profit=finite(store.lastProfit);const customers=finite(store.marketResult?.unitsSold??store.lastCustomers??store.customers);const satisfaction=finite(store.marketResult?.customerSatisfaction??store.satisfaction??g.customerSatisfaction);const cost=Math.max(0,sales-profit);const margin=sales?profit/sales*100:0;
   if(tab==='finance')return metrics([['今週の売上',money(sales)],['今週の利益',money(profit),profit>=0?'黒字':'赤字'],['推定費用',money(cost)],['利益率',`${margin.toFixed(1)}%`]])+bars([['収益性',50+margin],['資金効率',store.efficiency??business?.efficiency??72]])+action(tab);
   if(tab==='staff'){
     const staff=finite(store.staffCount??store.employees?.length??store.workers?.length);const manager=store.managerName??store.manager?.name??'未配置';const service=store.quality??business?.quality??70;const efficiency=store.efficiency??business?.efficiency??72;
