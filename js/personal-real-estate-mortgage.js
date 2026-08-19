@@ -28,12 +28,18 @@ const Engine=modules.engine.TycoonEngine;
 
 // Ceilings are deliberately below the company equivalents: a private borrower gets less
 // leverage and pays more for it. variable starts cheapest and can end up dearest.
+//
+// Terms are long (20-30 years) because straight-line principal over a short term dwarfs the
+// rent. At the 8-12 year terms this shipped with, a fully-let property still bled cash every
+// single week -- borrowing guaranteed eventual foreclosure regardless of how well the building
+// performed, which made the whole feature unusable. A let property now covers its payment
+// comfortably and a vacant one does not, which is the tension this is supposed to create.
 const PRODUCTS=Object.freeze({
-  fixed:Object.freeze({id:'fixed',label:'固定金利',baseRate:.042,spread:0,variable:false,maxLTV:.60,termWeeks:520,feeRate:.012,
+  fixed:Object.freeze({id:'fixed',label:'固定金利',baseRate:.042,spread:0,variable:false,maxLTV:.60,termWeeks:1560,feeRate:.012,
     detail:'金利が動かないぶん割高。政策金利が上がっても返済額は変わりません。'}),
-  variable:Object.freeze({id:'variable',label:'変動金利',baseRate:0,spread:.022,variable:true,maxLTV:.70,termWeeks:416,feeRate:.016,
+  variable:Object.freeze({id:'variable',label:'変動金利',baseRate:0,spread:.022,variable:true,maxLTV:.70,termWeeks:1300,feeRate:.016,
     detail:'政策金利に連動。いまは最も安いが、利上げ局面では固定より高くつきます。'}),
-  conservative:Object.freeze({id:'conservative',label:'低LTV長期',baseRate:.034,spread:0,variable:false,maxLTV:.45,termWeeks:624,feeRate:.008,
+  conservative:Object.freeze({id:'conservative',label:'低LTV長期',baseRate:.034,spread:0,variable:false,maxLTV:.45,termWeeks:1820,feeRate:.008,
     detail:'借りられる額は小さいが、金利が最も低く期間も長い堅実な融資です。'})
 });
 
