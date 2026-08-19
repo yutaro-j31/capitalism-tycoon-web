@@ -215,7 +215,8 @@ for (const [name, file] of [
   ['real-estate-building-depreciation', 'tests/real-estate-building-depreciation-test.js'],
   ['personal-real-estate-depreciation', 'tests/personal-real-estate-depreciation-test.js'],
   ['personal-reit-market-link', 'tests/personal-reit-market-link-test.js'],
-  ['personal-real-estate-redevelopment', 'tests/personal-real-estate-redevelopment-test.js']
+  ['personal-real-estate-redevelopment', 'tests/personal-real-estate-redevelopment-test.js'],
+  ['personal-real-estate-corp', 'tests/personal-real-estate-corp-test.js']
 ]) {
   const result = spawnSync('node', [file], {
     encoding: 'utf8',
