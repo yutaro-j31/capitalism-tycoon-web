@@ -60,7 +60,8 @@
     "tests/product-recall-reachability-runner.js",
     "tests/exploration-smoke-test.js",
     "tests/menu-research-test.js",
-    "tests/personal-real-estate-corp-test.js"
+    "tests/personal-real-estate-corp-test.js",
+    "tests/company-headcount-display-test.js"
   ],
   "G": [
     "tests/executive-dismissal-reachability-test.js",
