@@ -4,6 +4,11 @@ const fs=require('node:fs');
 const {loadGame}=require('./harness');
 let calls=0,seed=9876;const random=()=>{calls++;seed=(Math.imul(seed,1664525)+1013904223)>>>0;return seed/2**32;};
 const {modules,ctx}=loadGame({random,isolatedLegacyIndex:true});const engine=ctx.__ct_engine,business=engine.business('ramen');business.price=1000;
+// This file exercises store-equipment.js's own menu mechanics (pricing, market integration,
+// save/reload, recipe multipliers), not menu-research.js's R&D gate -- pre-unlock every
+// catalog item so addStoreMenuItem behaves as it did before menu-research.js existed,
+// the same way an old save with items already unlocked would.
+engine.g.menuResearch={unlockedIDs:modules.storeEquipment.MENU_CATALOG.map(x=>x.id),pending:null};
 const tenant=engine.g.tenants.find(t=>t.businessID==='ramen')||engine.g.tenants[0];
 const base={businessID:'ramen',prefID:tenant.prefID,tenantID:tenant.id,status:'open',condition:100,operatingHours:3,capacity:1000,quality:0,brand:0,lastSales:0,lastProfit:0};
 const a={...base,id:'menu-a',name:'メニューA'},b={...base,id:'menu-b',name:'メニューB'};engine.g.stores.push(a,b);

@@ -210,7 +210,8 @@ for (const [name, file] of [
   ['real-estate-cycle-state-collision', 'tests/real-estate-cycle-state-collision-test.js'],
   ['personal-real-estate-short-term', 'tests/personal-real-estate-short-term-test.js'],
   ['pe-pending-initiative-exit-lifecycle', 'tests/pe-pending-initiative-exit-lifecycle-test.js'],
-  ['pe-pending-initiative-transfer-lifecycle', 'tests/pe-pending-initiative-transfer-lifecycle-test.js']
+  ['pe-pending-initiative-transfer-lifecycle', 'tests/pe-pending-initiative-transfer-lifecycle-test.js'],
+  ['menu-research', 'tests/menu-research-test.js']
 ]) {
   const result = spawnSync('node', [file], {
     encoding: 'utf8',
