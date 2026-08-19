@@ -281,11 +281,14 @@ function withHolding(seed = 260819777, offer = 'logistics-aichi', cash = 500_000
   engine.switchPersonalRealEstateRentalMode(asset.assetID, 'short');
   for (let i = 0; i < 5; i++) engine.advanceWeek(false);
   const weeks = asset.shortTermWeeks;
+  const market = { currentValue: asset.currentValue, weeklyRent: asset.weeklyRent };
   engine.save();
   const reloaded = modules.engine.TycoonEngine.load();
   const loaded = reloaded.g.personalRealEstateHoldings[0];
   assert.equal(loaded.rentalMode, 'short', 'reload後も運用方式が残る');
   assert.equal(loaded.shortTermWeeks, weeks);
+  assert.equal(loaded.currentValue, market.currentValue, 'reload後も更新済み市場評価額が残る');
+  assert.equal(loaded.weeklyRent, market.weeklyRent, 'reload後も更新済み市場家賃が残る');
   assert.equal(reloaded.g.saveVersion, 9);
 }
 
@@ -330,7 +333,50 @@ function withHolding(seed = 260819777, offer = 'logistics-aichi', cash = 500_000
   assert.ok(/運用方式の変更まであと\d+週/.test(running), 'ロック期間が表示される');
 }
 
-// 22. Static source scan: no MutationObserver introduced.
+// 22. Rental mode changes operations, not the property's market. Both modes must receive the
+// same value and market-rent movement in rising and falling markets, over short and long holds.
+// A signed long lease remains fixed separately in contractWeeklyRent.
+{
+  const bag = withHolding(20260819);
+  const template = JSON.parse(JSON.stringify(bag.asset));
+  function compareMarket(cycle, economy, weeks) {
+    const { modules, engine, shortTerm } = bag;
+    const long = JSON.parse(JSON.stringify(template));
+    const short = JSON.parse(JSON.stringify(long));
+    short.assetID = `${long.assetID}-short`;
+    short.rentalMode = shortTerm.MODE_SHORT;
+    short.rentalOps.occupancyStatus = 'vacant';
+    short.rentalOps.contractWeeklyRent = 0;
+    engine.g.personalRealEstateHoldings = [long, short];
+    engine.g.week = template.purchasedWeek;
+    engine.g.personalCash = 500_000_000;
+    const signedRent = long.rentalOps.contractWeeklyRent;
+    const initialValue = long.currentValue;
+    const initialRent = long.weeklyRent;
+    for (let i = 0; i < weeks; i++) {
+      engine.g.realEstateCycle = cycle;
+      engine.g.economy = economy;
+      engine.updatePersonalExpandedWeekly();
+      engine.g.week++;
+    }
+    assert.equal(short.currentValue, long.currentValue, `${weeks}週後の市場評価額は運用方式に依存しない`);
+    assert.equal(short.weeklyRent, long.weeklyRent, `${weeks}週後の市場家賃は運用方式に依存しない`);
+    assert.equal(long.rentalOps.contractWeeklyRent, signedRent, '締結済み契約家賃は市場家賃と分離する');
+    assert.equal(shortTerm.fullRateFor(short), Math.round(short.weeklyRent * shortTerm.SHORT_TERM_RATE_MULTIPLIER), '短期基準収益は更新済み市場家賃を使う');
+    assert.equal(modules.personalRealEstateTaxes.annualTaxFor(short), modules.personalRealEstateTaxes.annualTaxFor(long), '固定資産税評価も運用方式に依存しない');
+    return { initialValue, initialRent, currentValue: long.currentValue, weeklyRent: long.weeklyRent };
+  }
+  for (const weeks of [1, 13, 52]) {
+    const rising = compareMarket(1.2, 1.1, weeks);
+    assert.ok(rising.currentValue > rising.initialValue, `${weeks}週の上昇市場で評価額が上がる`);
+    assert.ok(rising.weeklyRent > rising.initialRent, `${weeks}週の上昇市場で市場家賃が上がる`);
+    const falling = compareMarket(.8, .9, weeks);
+    assert.ok(falling.currentValue < falling.initialValue, `${weeks}週の下落市場で評価額が下がる`);
+    assert.ok(falling.weeklyRent < falling.initialRent, `${weeks}週の下落市場で市場家賃が下がる`);
+  }
+}
+
+// 23. Static source scan: no MutationObserver introduced.
 {
   const fs = require('node:fs');
   const path = require('node:path');
