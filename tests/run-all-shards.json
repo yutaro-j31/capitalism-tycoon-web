@@ -64,7 +64,8 @@
     "tests/executive-dismissal-reachability-test.js",
     "test:workforce-long",
     "tests/save-storage-budget-test.js",
-    "tests/personal-reit-market-link-test.js"
+    "tests/personal-reit-market-link-test.js",
+    "tests/personal-real-estate-redevelopment-test.js"
   ],
   "H": [
     "tests/stock-trade-panel-test.js",
