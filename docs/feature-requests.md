@@ -254,6 +254,15 @@ Manus や ChatGPT など他のツールで考えた案を持ち込む運用が�
        数値を週次スロットに置いた取り違え。**この定数は週次**であることに注意
     2. 建物の劣化を `.06` と長期（`.12`占有時/`.08`空室時）より**遅く**設定 →
        短期の方が建物に優しいという逆転。`.24`（長期の2倍）へ修正
+- **実装済み（開発・再開発）**（`js/personal-real-estate-redevelopment.js`、新規）:
+  会社側 `real-estate-redevelopment-projects.js` の3段階（改装/用途転換/建替え、同じ
+  costRate/valueRate/conditionGain/durationWeeks）をそのまま再利用したが、対象は
+  `g.properties`ではなく`personalRealEstateHoldings`。会社側のコードは personal owner
+  への分岐（`ownerOf`/`cashKey`）を既に持つが、`g.properties`に個人所有物件を作る
+  ゲームプレイ経路が実質無いため到達不能だった（下記「候補の監査結果」の旧い記述が
+  これを見落としていた）。`personalCash`のみで施行し、完了まで家賃は入らず、会社台帳
+  には一切触れない。完了時に評価額・帳簿価額・建物の状態がまとめて上がる。工事中の
+  売却はブロックする
 - **候補の監査結果（2026-08-19）**: 残りに着手する前に読むこと。
   - **REIT**: 既存の `createRealEstateVehicle`（`real-estate-complete-cycle.js`）は
     `g.properties`（会社物件）を束ねるビークルで、**個人が間接投資する手段ではない**。
@@ -262,9 +271,7 @@ Manus や ChatGPT など他のツールで考えた案を持ち込む運用が�
     節税効果を表現するには税制の土台から作る必要がある
   - **不動産法人**: 「会社資産と個人資産の分離」という不変条件に直接触れるため、
     設計時点で分離の維持方法を先に決めること
-  - **開発・再開発**: 会社側モジュール（`real-estate-development.js` /
-    `real-estate-redevelopment-projects.js`）を流用できるが規模が大きい
-- **将来候補**: 減価償却の税務処理、不動産法人、REIT、開発・再開発。
+- **将来候補**: 減価償却の税務処理、不動産法人、REIT。
 
 ### R5. 個人資産の使い道全般を深くする
 

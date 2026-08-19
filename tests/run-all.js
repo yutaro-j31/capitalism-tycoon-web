@@ -213,7 +213,8 @@ for (const [name, file] of [
   ['pe-pending-initiative-transfer-lifecycle', 'tests/pe-pending-initiative-transfer-lifecycle-test.js'],
   ['menu-research', 'tests/menu-research-test.js'],
   ['real-estate-building-depreciation', 'tests/real-estate-building-depreciation-test.js'],
-  ['personal-real-estate-depreciation', 'tests/personal-real-estate-depreciation-test.js']
+  ['personal-real-estate-depreciation', 'tests/personal-real-estate-depreciation-test.js'],
+  ['personal-real-estate-redevelopment', 'tests/personal-real-estate-redevelopment-test.js']
 ]) {
   const result = spawnSync('node', [file], {
     encoding: 'utf8',
