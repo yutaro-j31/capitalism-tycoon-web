@@ -1330,7 +1330,15 @@ class TycoonEngine extends EventTarget {
     // a 0.0% chance of ending below principal, so the field a player is shown as "risk" never
     // actually manifested as risk. /5 keeps low-risk products (bond, index) safe most of the
     // time while giving higher-risk products (pe, vc-fund) a real, risk-scaling chance of loss.
-    for(const x of this.g.personalInvestments){const r=x.weeklyReturn+rand(-x.risk,x.risk)/5;x.currentValue=Math.max(0,x.currentValue*(1+r));}
+    // The 'reit' offer already existed here but was mechanically identical to a bond/index
+    // fund -- a flat weeklyReturn with no link to the game's actual real estate market. Since
+    // g.realEstateCycle (clamped .65-1.55, already the macro driver behind both the legacy
+    // property valuation at updateProperties() and the personal-property value cycle) is a
+    // real, already-computed market signal, a REIT should track it: this makes it the only
+    // personal investment product whose return genuinely correlates with real estate
+    // performance instead of being a differently-labeled synthetic asset. No new RNG draw is
+    // added -- same one rand() call per investment as before.
+    for(const x of this.g.personalInvestments){const cycleLink=x.type==='REIT'?(this.g.realEstateCycle-1)*.0025:0;const r=x.weeklyReturn+cycleLink+rand(-x.risk,x.risk)/5;x.currentValue=Math.max(0,x.currentValue*(1+r));}
     for(const x of this.g.luxuryAssets){x.currentValue=Math.max(x.purchasePrice*.3,x.currentValue*(1+rand(-.01,.012)));this.g.personalCash-=x.maintenancePerWeek;}
     // A company-owned team's weekly gate receipts move companyCash, so they have to reach the
     // finance ledger too -- without this the ledger's opening-cash rollforward drifts from
