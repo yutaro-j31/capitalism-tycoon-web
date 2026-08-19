@@ -1,6 +1,5 @@
 {
   "B": [
-    "tests/executive-dismissal-reachability-test.js",
     "tests/founder-profile-cleanup-test.js",
     "tests/game-date-display-test.js",
     "tests/industry-specific-events-reachability-test.js",
@@ -26,20 +25,16 @@
     "tests/exploration-style-test.js",
     "tests/founder-retirement-reachability-test.js",
     "tests/real-estate-insurance-claims-test.js",
-    "tests/save-storage-budget-test.js",
     "tests/shareholder-value-destruction-incidence-matrix-test.js",
     "tests/investment-route-ipo-reachability-test.js",
     "tests/founder-capital-movement-test.js",
     "tests/startup-deal-flow-refresh-test.js",
     "tests/vc-fund-lp-test.js",
     "tests/personal-investment-risk-model-test.js",
-    "tests/startup-secondary-sale-confirm-ui-test.js",
-    "tests/exploration-smoke-test.js"
+    "tests/startup-secondary-sale-confirm-ui-test.js"
   ],
   "D": [
-    "test:finance-history",
     "test:stock",
-    "test:workforce-long",
     "tests/pe-value-creation-test.js",
     "tests/pe-dual-ownership-test.js",
     "tests/store-equipment-test.js",
@@ -55,8 +50,25 @@
     "tests/personal-real-estate-short-term-test.js"
   ],
   "E": [
-    "tests/product-recall-reachability-runner.js",
     "tests/competitor-product-counter-reachability-test.js",
     "tests/industry-event-response-plans-reachability-test.js"
+  ],
+  "F": [
+    "tests/product-recall-reachability-runner.js",
+    "tests/exploration-smoke-test.js"
+  ],
+  "G": [
+    "tests/executive-dismissal-reachability-test.js",
+    "test:workforce-long",
+    "tests/save-storage-budget-test.js"
+  ],
+  "H": [
+    "tests/stock-trade-panel-test.js",
+    "tests/save-storage-compaction-test.js",
+    "test:procurement",
+    "test:supplier-coverage",
+    "tests/macro-cycle-test.js",
+    "test:supply-rng",
+    "test:finance-history"
   ]
 }

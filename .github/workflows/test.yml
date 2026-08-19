@@ -128,7 +128,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        shard: [A, B, C, D, E]
+        shard: [A, B, C, D, E, F, G, H]
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
