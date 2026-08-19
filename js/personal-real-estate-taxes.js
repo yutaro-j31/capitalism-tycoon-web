@@ -56,6 +56,20 @@ function totalPaid(state){
     .reduce((sum,asset)=>sum+finite(asset.propertyTaxPaid),0);
 }
 
+// A sale ends the holding but not the owner's tax obligation.  Clear arrears from the
+// proceeds left after the secured mortgage; if the property is underwater, preserve the
+// unpaid amount as personal debt instead of letting it disappear with the sold asset.
+function settleOnSale(state,asset,proceeds){
+  const outstanding=Math.max(0,round(asset?.propertyTaxArrears));
+  const available=Math.max(0,round(proceeds));
+  const paid=Math.min(outstanding,available);
+  const shortfall=round(outstanding-paid);
+  asset.propertyTaxArrears=0;
+  asset.propertyTaxPaid=round(finite(asset.propertyTaxPaid)+paid);
+  if(shortfall>0)state.personalDebt=round(finite(state.personalDebt)+shortfall);
+  return {paid,shortfall,net:available-paid};
+}
+
 // Called once per week from the personal-property weekly loop. An unpayable bill accrues as
 // arrears rather than being skipped, so the debt is visible and still owed.
 function processWeek(engine){
@@ -107,7 +121,7 @@ Engine.prototype.getPersonalRealEstateTax=function(assetID){
 
 modules.personalRealEstateTaxes=Object.freeze({
   ANNUAL_RATE,INSTALMENTS,WEEKS_PER_INSTALMENT,
-  assessedValueOf,annualTaxFor,instalmentFor,instalmentDue,totalPaid,processWeek,summaryFor,
+  assessedValueOf,annualTaxFor,instalmentFor,instalmentDue,totalPaid,settleOnSale,processWeek,summaryFor,
   __installed:true
 });
 })();

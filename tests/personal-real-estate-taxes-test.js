@@ -254,7 +254,80 @@ function keepVacant(asset) {
   assert.ok(annualTax < annualRent * .3, '年税額が年間家賃の3割を超えるほど重くはない');
 }
 
-// 18. Static source scan: no MutationObserver introduced.
+// 18. Cross-feature sale settlement: switching to short-term letting does not make tax
+// arrears disappear when a mortgaged property is sold.  The sale proceeds must clear both
+// secured claims before any cash reaches the owner.
+{
+  const { modules, engine, asset } = withHolding();
+  assert.equal(engine.switchPersonalRealEstateRentalMode(asset.assetID, 'short'), true);
+  assert.equal(engine.borrowPersonalRealEstateMortgage(asset.assetID, 'variable'), true);
+  const mortgage = asset.mortgageBalance;
+  const arrears = 3_000_000;
+  asset.propertyTaxArrears = arrears;
+  const proceeds = asset.currentValue;
+  const cashBefore = engine.g.personalCash;
+  const companyBefore = JSON.stringify({ cash: engine.g.companyCash, debt: engine.g.companyDebt, finance: engine.g.finance });
+
+  assert.equal(engine.sellPersonalRealEstate(asset.assetID), true);
+  assert.equal(engine.g.personalCash, cashBefore + proceeds - mortgage - arrears,
+    '売却代金はmortgageと固定資産税未納を清算した残額だけpersonalCashへ入る');
+  assert.equal(asset.propertyTaxArrears, 0, '売却後に固定資産税未納を残留・消滅させない');
+  assert.equal(asset.status, 'sold');
+  assert.equal(JSON.stringify({ cash: engine.g.companyCash, debt: engine.g.companyDebt, finance: engine.g.finance }), companyBefore,
+    '個人物件の売却清算はcompany cash・debt・ledgerを変更しない');
+  assert.equal(modules.finance.validate(engine.g).ok, true);
+}
+
+// 19. An underwater sale preserves tax arrears as personal debt, and repeated sale attempts
+// cannot settle or credit the same property twice.
+{
+  const { engine, asset } = withHolding();
+  asset.currentValue = 1_000_000;
+  asset.propertyTaxArrears = 2_000_000;
+  const debtBefore = engine.g.personalDebt;
+  const cashBefore = engine.g.personalCash;
+  assert.equal(engine.sellPersonalRealEstate(asset.assetID), true);
+  assert.equal(engine.g.personalCash, cashBefore, '売却代金は全額が税未納の清算へ回る');
+  assert.equal(engine.g.personalDebt, debtBefore + 1_000_000,
+    '売却代金を超えた税未納はpersonalDebtへ引き継ぐ');
+  const after = JSON.stringify({ cash: engine.g.personalCash, debt: engine.g.personalDebt, asset });
+  for (let i = 0; i < 100; i++) assert.equal(engine.sellPersonalRealEstate(asset.assetID), false);
+  assert.equal(JSON.stringify({ cash: engine.g.personalCash, debt: engine.g.personalDebt, asset }), after,
+    '同一週に売却を反復してもcash・debt・assetは増減しない');
+}
+
+// 20. Malformed legacy arrears cannot poison sale proceeds with NaN/Infinity.
+{
+  for (const malformed of [undefined, null, NaN, Infinity, -1]) {
+    const { engine, asset } = withHolding();
+    asset.propertyTaxArrears = malformed;
+    assert.equal(engine.sellPersonalRealEstate(asset.assetID), true);
+    assert.ok(Number.isFinite(engine.g.personalCash));
+    assert.ok(Number.isFinite(engine.g.personalDebt));
+    assert.equal(asset.propertyTaxArrears, 0);
+  }
+}
+
+// 21. Saving immediately before the combined settlement gives the same result as selling
+// without a reload.
+{
+  const { modules, engine, asset } = withHolding();
+  assert.equal(engine.borrowPersonalRealEstateMortgage(asset.assetID, 'fixed'), true);
+  asset.propertyTaxArrears = 1_234_567;
+  engine.save();
+  const reloaded = modules.engine.TycoonEngine.load();
+  assert.equal(engine.sellPersonalRealEstate(asset.assetID), true);
+  assert.equal(reloaded.sellPersonalRealEstate(asset.assetID), true);
+  const result = state => ({
+    personalCash: state.personalCash,
+    personalDebt: state.personalDebt,
+    holding: state.personalRealEstateHoldings.find(row => row.assetID === asset.assetID)
+  });
+  assert.deepEqual(result(reloaded.g), result(engine.g), 'reload有無で売却清算結果が一致する');
+  assert.equal(reloaded.g.saveVersion, 9);
+}
+
+// 22. Static source scan: no MutationObserver introduced.
 {
   const fs = require('node:fs');
   const path = require('node:path');
