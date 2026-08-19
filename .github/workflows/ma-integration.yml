@@ -30,6 +30,11 @@ on:
 jobs:
   ma-integration:
     runs-on: ubuntu-latest
+    # Matches the other WebKit jobs (iphone-webkit-smoke, iphone-playtest-remediation).
+    # Without it, a hung `playwright install` holds the runner for GitHub's 6-hour default.
+    # The WebKit steps only run on push/schedule, so this job is ~40s on a pull request and
+    # ~95s on main; 15 minutes is a backstop, not a budget.
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4

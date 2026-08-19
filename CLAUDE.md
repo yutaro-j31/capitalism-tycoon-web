@@ -94,6 +94,17 @@
 - push トリガーに paths: フィルタがあるworkflowは、フィルタ対象外のファイルを
   何回直してもCI上で一切発火しない。赤いworkflowを直したら
   workflow_dispatch で対象ブランチに対して手動発火し、実際に直ったか確認する
+- `npx playwright install --with-deps webkit` は**時々ダウンロードのまま固まる**。
+  通常1分20秒で終わるところが、2026-08-19の午前だけで4回ハングした
+  （M&A Integration ×2 / M&A Deal Room ×1 ＋ 1件は約2時間居座り）。
+  同じジョブを**変更なしで再実行すれば毎回成功する**ので、原因はコードではなく取得側。
+  ジョブに timeout-minutes が無いとGitHub既定の6時間ランナーを占有し続け、
+  「まだインストール中」と「詰んでいる」の区別がつかない。
+  ブラウザを入れるジョブには必ず job-level timeout-minutes を付ける
+  （`tests/workflow-browser-timeout-contract.js` が強制する）。
+  なお `ma-integration.yml` のWebKitステップは `if: github.event_name != 'pull_request'`
+  で**PRではスキップされ push/schedule でしか走らない**。PRが緑でもmainで固まりうるので、
+  この種のハングをPRのCIだけで判断しない
 - play.html は index.html への location.replace リダイレクトのみ（document.write
   もfetchも使わない、iOS Safariでの不安定を避けるため）。「play.htmlのURLに
   留まる」「スクリプトごとに?launch=トークンが付く」という前提のコードは古い。

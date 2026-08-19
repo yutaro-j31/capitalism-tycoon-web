@@ -120,6 +120,8 @@ jobs:
         run: node tests/run-all-shard.js
       - name: Verify the shard matrix covers every configured shard
         run: node tests/shard-matrix-contract.js
+      - name: Verify every browser-installing job is time-bounded
+        run: node tests/workflow-browser-timeout-contract.js
   test-shards:
     name: test-shard-${{ matrix.shard }}
     needs: test-shard-contract
