@@ -16,6 +16,7 @@
     "./js/engine.js",
     "./js/player-media-advertising.js",
     "./js/store-equipment.js",
+    "./js/menu-research.js",
     "./js/real-estate.js",
     "./js/save-v9.js",
     "./js/ma-integration.js",

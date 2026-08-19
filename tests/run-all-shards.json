@@ -55,7 +55,8 @@
   ],
   "F": [
     "tests/product-recall-reachability-runner.js",
-    "tests/exploration-smoke-test.js"
+    "tests/exploration-smoke-test.js",
+    "tests/menu-research-test.js"
   ],
   "G": [
     "tests/executive-dismissal-reachability-test.js",
