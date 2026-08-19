@@ -118,6 +118,8 @@ jobs:
           TEST_SHARD: A
           TEST_SHARD_CONTRACT: '1'
         run: node tests/run-all-shard.js
+      - name: Verify the shard matrix covers every configured shard
+        run: node tests/shard-matrix-contract.js
   test-shards:
     name: test-shard-${{ matrix.shard }}
     needs: test-shard-contract
@@ -126,7 +128,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        shard: [A, B, C, D]
+        shard: [A, B, C, D, E, F, G, H]
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
