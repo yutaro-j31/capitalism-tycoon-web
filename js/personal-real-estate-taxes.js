@@ -82,7 +82,9 @@ function processWeek(engine){
     asset.propertyTaxProcessedWeek=week;
     const due=instalmentFor(asset)+round(asset.propertyTaxArrears);
     if(due<=0)continue;
-    const paid=globalThis.__capitalismTycoonModules.personalRealEstateCorp.debitOwnerAccount(state,asset,due);
+    const cash=Math.max(0,round(state.personalCash));
+    const paid=Math.min(due,cash);
+    state.personalCash=round(finite(state.personalCash)-paid);
     asset.propertyTaxPaid=round(finite(asset.propertyTaxPaid)+paid);
     asset.propertyTaxArrears=round(due-paid);
     asset.lastPropertyTaxWeek=week;

@@ -45,7 +45,6 @@ Engine.prototype.getPersonalRealEstateRedevelopmentProjects=function(assetID){
 Engine.prototype.startPersonalRealEstateRedevelopment=function(assetID,projectID){
   const g=this.g,x=holding(g,assetID),project=PROJECTS[projectID];
   if(!x||!project||inProgress(x))return this.fail('この物件は開発・再開発を開始できません。');
-  if(x.ownerCorp)return this.fail('法人所有の物件は個人資金での開発・再開発を開始できません。');
   const quote=quotesFor(x).find(q=>q.id===projectID);
   if(!quote||finite(g.personalCash)<quote.cost)return this.fail('個人資金が不足しています。');
   g.personalCash=round(finite(g.personalCash)-quote.cost);

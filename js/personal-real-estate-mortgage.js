@@ -131,7 +131,6 @@ function borrow(engine,assetID,productID){
   const state=engine.g;
   const asset=(state.personalRealEstateHoldings||[]).find(row=>row.assetID===assetID&&row.status==='owned');
   if(!asset)return engine.fail('対象の物件が見つかりません。');
-  if(asset.ownerCorp)return engine.fail('法人所有の物件には個人名義の融資を実行できません。');
   const product=productOf(productID);
   if(!product)return engine.fail('その融資商品は選べません。');
   if(hasMortgage(asset)&&asset.mortgageProductID!==productID)return engine.fail('この物件には既に別の融資が実行されています。繰上返済で完済してから借り換えてください。');
