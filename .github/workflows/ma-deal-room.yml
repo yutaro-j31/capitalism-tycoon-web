@@ -11,6 +11,10 @@ on:
 jobs:
   ma-deal-room:
     runs-on: ubuntu-latest
+    # Matches the other WebKit jobs (iphone-webkit-smoke, iphone-playtest-remediation).
+    # Without it, a hung `playwright install` holds the runner for GitHub's 6-hour default:
+    # this job normally finishes in about 2m40s, so 15 minutes is a backstop, not a budget.
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
