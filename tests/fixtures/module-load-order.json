@@ -24,6 +24,7 @@
     "./js/pe-value-creation.js",
     "./js/sports-management.js",
     "./js/personal-real-estate-mortgage.js",
+    "./js/personal-real-estate-taxes.js",
     "./js/competitor-media.js",
     "./js/completion.js",
     "./js/parity.js",
