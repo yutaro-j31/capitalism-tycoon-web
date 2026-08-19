@@ -299,6 +299,16 @@ function installExitWrapper(){
   proto.exitPEDeal=function(dealID){
     const deal=findDeal(this.g,dealID);
     if(!deal)return baseExit.call(this,dealID);
+    // Without this, EXIT silently discarded an in-flight initiative: the fee was already
+    // paid and the outcome already decided (outcomeRoll is locked in at commit time), but
+    // exiting before resolveWeek let the deal leave 'active' with pendingInitiative still
+    // set on it. Nothing ever read that stale field (every other reader filters on
+    // status==='active'), so it was inert -- but it was still a forfeited decision the
+    // player could not see coming, and a state invariant (pendingInitiative only ever
+    // lives on a resolvable deal) silently broken. Blocking here matches the same "wait
+    // for the decision" rule applicable() already enforces against committing a second
+    // initiative on top of a pending one.
+    if(deal.pendingInitiative)return this.fail('施策の結果が判明するまでEXITできません。');
     // Compare the multiplier rather than rounded amounts: at exactly the baseline the
     // valuation must pass through untouched, and rounding it would shift the payout.
     if(exitMultiplier(deal)<=1)return baseExit.call(this,dealID);

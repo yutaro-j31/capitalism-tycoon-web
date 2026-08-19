@@ -69,6 +69,7 @@
     "test:supplier-coverage",
     "tests/macro-cycle-test.js",
     "test:supply-rng",
-    "test:finance-history"
+    "test:finance-history",
+    "tests/pe-pending-initiative-exit-lifecycle-test.js"
   ]
 }
