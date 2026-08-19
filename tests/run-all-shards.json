@@ -70,6 +70,7 @@
     "tests/macro-cycle-test.js",
     "test:supply-rng",
     "test:finance-history",
-    "tests/pe-pending-initiative-exit-lifecycle-test.js"
+    "tests/pe-pending-initiative-exit-lifecycle-test.js",
+    "tests/pe-pending-initiative-transfer-lifecycle-test.js"
   ]
 }
