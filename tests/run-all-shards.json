@@ -51,7 +51,8 @@
   ],
   "E": [
     "tests/competitor-product-counter-reachability-test.js",
-    "tests/industry-event-response-plans-reachability-test.js"
+    "tests/industry-event-response-plans-reachability-test.js",
+    "tests/personal-real-estate-depreciation-test.js"
   ],
   "F": [
     "tests/product-recall-reachability-runner.js",
