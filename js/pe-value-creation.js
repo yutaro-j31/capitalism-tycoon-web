@@ -322,6 +322,30 @@ function installExitWrapper(){
   return true;
 }
 
+// Without this, transferring a deal to the company account while its initiative was
+// pending silently freed the personal concurrency slot it was occupying: ownerAccount
+// changes immediately, and activeInitiativeCount recomputes live from ownerAccount, so
+// the deal stopped counting against 'personal' the instant it became 'company' -- before
+// the initiative it was still holding a personal slot for had resolved. A company with
+// enough cash could chain personal-commit -> transfer-to-company -> personal-commit to
+// exceed MAX_CONCURRENT_INITIATIVES.personal, defeating the "limited management
+// attention" constraint the concurrency cap exists to model. Same "wait for the
+// decision" rule as EXIT, applied here for the same reason: an ownership change is as
+// disruptive to an in-flight decision as ending the deal outright.
+function installTransferWrapper(){
+  const proto=EngineClass.prototype;
+  if(proto.__peTransferGuardInstalled)return true;
+  const baseTransfer=proto.transferPEDealToCompany;
+  if(typeof baseTransfer!=='function')return false;
+  proto.transferPEDealToCompany=function(dealID){
+    const deal=findDeal(this.g,dealID);
+    if(deal&&deal.pendingInitiative)return this.fail('施策の結果が判明するまで移管できません。');
+    return baseTransfer.call(this,dealID);
+  };
+  Object.defineProperty(proto,'__peTransferGuardInstalled',{value:true});
+  return true;
+}
+
 function install(){
   const proto=EngineClass.prototype;
   if(!proto.__peValueCreationInstalled){
@@ -333,14 +357,17 @@ function install(){
     Object.defineProperty(proto,'__peValueCreationInstalled',{value:true});
   }
   installExitWrapper();
+  installTransferWrapper();
   return true;
 }
 
 install();
 // expansion.js only defines installExpansion; app.js applies it later. Keep the canonical
-// script order and attach the EXIT wrapper once parser startup has installed expansion.
-if(!EngineClass.prototype.__peExitPremiumInstalled&&typeof document!=='undefined'&&typeof document.addEventListener==='function'){
-  document.addEventListener('DOMContentLoaded',installExitWrapper,{once:true});
+// script order and attach the EXIT and transfer wrappers once parser startup has installed
+// expansion.
+if(typeof document!=='undefined'&&typeof document.addEventListener==='function'){
+  if(!EngineClass.prototype.__peExitPremiumInstalled)document.addEventListener('DOMContentLoaded',installExitWrapper,{once:true});
+  if(!EngineClass.prototype.__peTransferGuardInstalled)document.addEventListener('DOMContentLoaded',installTransferWrapper,{once:true});
 }
 modules.peValueCreation=Object.freeze({
   MAX_SCORE,STAGE_SIZE,MATCHED_SCORE_GAIN,MISMATCHED_SCORE_GAIN,
@@ -352,7 +379,7 @@ modules.peValueCreation=Object.freeze({
   INITIATIVE_DELAY_WEEKS,MAX_CONCURRENT_INITIATIVES,activeInitiativeCount,concurrencyCapFor,
   resolvePendingInitiatives,
   scoreOf,stageOf,isResolved,issueOf,initiativeCost,initiativeOf,matches,
-  outcomeRoll,succeeds,applicable,plan,applyInitiative,installExitWrapper,install,
+  outcomeRoll,succeeds,applicable,plan,applyInitiative,installExitWrapper,installTransferWrapper,install,
   __installed:true
 });
 })();

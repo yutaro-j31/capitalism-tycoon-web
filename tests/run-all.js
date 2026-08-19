@@ -209,7 +209,8 @@ for (const [name, file] of [
   ['personal-real-estate-taxes', 'tests/personal-real-estate-taxes-test.js'],
   ['real-estate-cycle-state-collision', 'tests/real-estate-cycle-state-collision-test.js'],
   ['personal-real-estate-short-term', 'tests/personal-real-estate-short-term-test.js'],
-  ['pe-pending-initiative-exit-lifecycle', 'tests/pe-pending-initiative-exit-lifecycle-test.js']
+  ['pe-pending-initiative-exit-lifecycle', 'tests/pe-pending-initiative-exit-lifecycle-test.js'],
+  ['pe-pending-initiative-transfer-lifecycle', 'tests/pe-pending-initiative-transfer-lifecycle-test.js']
 ]) {
   const result = spawnSync('node', [file], {
     encoding: 'utf8',
