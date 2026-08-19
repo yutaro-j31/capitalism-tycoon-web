@@ -28,6 +28,7 @@
     "./js/personal-real-estate-taxes.js",
     "./js/personal-real-estate-short-term.js",
     "./js/personal-real-estate-redevelopment.js",
+    "./js/personal-real-estate-corp.js",
     "./js/competitor-media.js",
     "./js/completion.js",
     "./js/parity.js",

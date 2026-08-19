@@ -138,6 +138,7 @@ function canSwitch(state,asset,target){
   if(!asset||asset.status!=='owned')return {ok:false,reason:'対象の物件が見つかりません。'};
   if(target!==MODE_LONG&&target!==MODE_SHORT)return {ok:false,reason:'その運用方式は選べません。'};
   if(modeOf(asset)===target)return {ok:false,reason:'すでにその運用方式です。'};
+  if(target===MODE_SHORT&&asset.ownerCorp)return {ok:false,reason:'法人所有の物件は短期賃貸に切り替えられません。'};
   const locked=weeksUntilUnlocked(state,asset);
   if(locked>0)return {ok:false,reason:`運用方式の変更は切替から${MODE_LOCK_WEEKS}週おきです。あと${locked}週お待ちください。`};
   if(target===MODE_SHORT){
