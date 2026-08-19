@@ -6,7 +6,21 @@ if(modules.realEstateCompleteCycle)throw new Error('real-estate-complete-cycle.j
 const Engine=modules.engine.TycoonEngine,finance=modules.finance,VERSION=1,HISTORY_LIMIT=260;
 const n=(v,d=0)=>Number.isFinite(Number(v))?Number(v):d,round=v=>Math.round(n(v)*100)/100,clamp=(v,a,b)=>Math.min(b,Math.max(a,n(v,a))),week=g=>Math.max(1,Math.floor(n(g.week,1)));
 const hash=(seed,salt)=>{let h=2166136261>>>0;for(const c of `${seed}:${salt}`){h^=c.charCodeAt(0);h=Math.imul(h,16777619)>>>0;}return h/4294967296;};
-function ensure(g){if(!g.realEstateCycle||typeof g.realEstateCycle!=='object')g.realEstateCycle={};const s=g.realEstateCycle;s.schemaVersion=VERSION;if(!Array.isArray(s.loans))s.loans=[];if(!Array.isArray(s.rivals))s.rivals=[];if(!Array.isArray(s.events))s.events=[];if(!Array.isArray(s.history))s.history=[];if(!Array.isArray(s.vehicles))s.vehicles=[];if(!s.macro||typeof s.macro!=='object')s.macro={policyRate:.01,inflation:.02,landIndex:100,constructionIndex:100,rentIndex:100,cycle:'normal'};s.lastProcessedWeek=Math.max(0,Math.floor(n(s.lastProcessedWeek)));s.history=s.history.slice(-HISTORY_LIMIT);s.events=s.events.slice(-HISTORY_LIMIT);return s;}
+// g.realEstateCycle is the numeric property-cycle index (0.65-1.55) that engine.js,
+// expansion.js and macro-cycle.js all read and write. This module used to claim the same key
+// for its own object state, overwriting the number every week; macro-cycle.js then quietly
+// restored a 1 via finite(state.realEstateCycle,1), so the cycle never accumulated and no
+// error was ever raised. This module's state lives under its own key now, and any save
+// written while the collision existed is migrated across so its loans, rivals and history
+// survive -- with the numeric index handed back to the code that owns it.
+function ensure(g){
+  if(g.realEstateCycle&&typeof g.realEstateCycle==='object'){
+    if(!g.realEstateMarket||typeof g.realEstateMarket!=='object')g.realEstateMarket=g.realEstateCycle;
+    g.realEstateCycle=1;
+  }
+  if(typeof g.realEstateCycle!=='number'||!Number.isFinite(g.realEstateCycle))g.realEstateCycle=1;
+  if(!g.realEstateMarket||typeof g.realEstateMarket!=='object')g.realEstateMarket={};
+  const s=g.realEstateMarket;s.schemaVersion=VERSION;if(!Array.isArray(s.loans))s.loans=[];if(!Array.isArray(s.rivals))s.rivals=[];if(!Array.isArray(s.events))s.events=[];if(!Array.isArray(s.history))s.history=[];if(!Array.isArray(s.vehicles))s.vehicles=[];if(!s.macro||typeof s.macro!=='object')s.macro={policyRate:.01,inflation:.02,landIndex:100,constructionIndex:100,rentIndex:100,cycle:'normal'};s.lastProcessedWeek=Math.max(0,Math.floor(n(s.lastProcessedWeek)));s.history=s.history.slice(-HISTORY_LIMIT);s.events=s.events.slice(-HISTORY_LIMIT);return s;}
 function props(g){return Array.isArray(g.properties)?g.properties:[];} function prop(g,id){return props(g).find(p=>p.id===id)||null;} function ownerOf(p){return p?.owner==='personal'?'personal':'company';} function cashKey(owner){return owner==='personal'?'personalCash':'companyCash';}
 function valueOf(p){return Math.max(0,n(p?.marketValue,n(p?.value,n(p?.bookValue,0))));} function annualNOI(p){const r=Math.max(0,n(p?.realEstate?.monthlyRent,n(p?.monthlyRent,0))),occ=clamp(n(p?.realEstate?.occupancyRate,1),0,1),cost=clamp(n(p?.realEstate?.expenseRatio,.3),0,.95);return round(r*12*occ*(1-cost));}
 function quote(g,propertyID,amount,options={}){const s=ensure(g),p=prop(g,propertyID);if(!p)return null;const owner=ownerOf(p),principal=Math.max(0,round(amount)),value=valueOf(p),existing=s.loans.filter(x=>x.propertyID===propertyID&&x.status==='active').reduce((a,x)=>a+n(x.balance),0),ltv=value>0?(existing+principal)/value:999,rate=round(Math.max(0,s.macro.policyRate+n(options.spread,.025)+(owner==='personal'?.006:0))),term=Math.max(52,Math.floor(n(options.termWeeks,520))),weeklyRate=rate/52,payment=weeklyRate>0?principal*weeklyRate/(1-Math.pow(1+weeklyRate,-term)):principal/term,noi=annualNOI(p),dscr=payment>0?noi/(payment*52):999,maxLTV=owner==='personal'?.7:.75,minDSCR=1.2;return {propertyID,owner,principal,value,existingDebt:round(existing),ltv:round(ltv),rate,termWeeks:term,weeklyPayment:round(payment),annualNOI:noi,dscr:round(dscr),approved:principal>0&&ltv<=maxLTV&&dscr>=minDSCR,maxLTV,minDSCR,rateType:options.rateType==='fixed'?'fixed':'variable'};}
