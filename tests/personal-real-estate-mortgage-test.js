@@ -365,4 +365,39 @@ function keepVacant(asset) {
   }
 }
 
+// 23. Foreclosure must also settle property-tax arrears. Otherwise marking the holding
+// inactive makes the unpaid tax disappear from every active-asset total without following
+// the borrower as personal debt.
+{
+  const { modules, engine, asset, mortgage } = withHolding(901);
+  assert.equal(engine.borrowPersonalRealEstateMortgage(asset.assetID, 'variable'), true);
+  const proceeds = Math.round(asset.currentValue * mortgage.FORECLOSURE_SALE_RATE);
+  const mortgageBalance = mortgage.balanceOf(asset);
+  assert.ok(proceeds > mortgageBalance, '前提: 差押え売却代金だけで住宅ローンは全額返済できる');
+  asset.propertyTaxArrears = 100_000_000;
+  keepVacant(asset);
+  engine.g.personalCash = 0;
+  const debtBefore = engine.g.personalDebt;
+  const companyBefore = JSON.stringify({
+    cash: engine.g.companyCash,
+    debt: engine.g.companyDebt,
+    transactions: engine.g.finance.transactions
+  });
+  asset.mortgageDelinquentWeeks = mortgage.MAX_DELINQUENT_WEEKS - 1;
+  asset.mortgageProcessedWeek = -1;
+  mortgage.processWeek(engine);
+  assert.equal(asset.status, 'foreclosed');
+  assert.equal(asset.propertyTaxArrears, 0, '差押え時に物件へ紐づく税未納を清算する');
+  assert.equal(engine.g.personalDebt - debtBefore, 100_000_000 - (proceeds - mortgageBalance), '売却代金で清算できない税未納だけが個人負債として残る');
+  assert.equal(JSON.stringify({ cash: engine.g.companyCash, debt: engine.g.companyDebt, transactions: engine.g.finance.transactions }), companyBefore, '個人差押えは会社現金・会社負債・ledgerを動かさない');
+  assert.equal(modules.finance.validate(engine.g).ok, true, '個人差押え後も会社finance.validateはgreen');
+
+  engine.save();
+  const reloaded = modules.engine.TycoonEngine.load();
+  const restored = reloaded.g.personalRealEstateHoldings.find(row => row.assetID === asset.assetID);
+  assert.equal(restored.status, 'foreclosed', '差押え済みのinactive stateはreload後も復活しない');
+  assert.equal(restored.propertyTaxArrears, 0, '清算済み税未納はreload後も復活しない');
+  assert.equal(reloaded.g.personalDebt, engine.g.personalDebt, '税未納から振り替えた個人負債はreload後も保持する');
+}
+
 console.log('personal real estate mortgage tests passed');
