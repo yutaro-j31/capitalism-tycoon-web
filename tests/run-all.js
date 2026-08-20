@@ -232,7 +232,8 @@ for (const [name, file] of [
   ['business-screen-tap-target', 'tests/business-screen-tap-target-test.js'],
   ['foundable-business-scope', 'tests/foundable-business-scope-test.js'],
   ['product-ventures-it-pillar', 'tests/product-ventures-it-pillar-test.js'],
-  ['convenience-merchandising', 'tests/convenience-merchandising-test.js']
+  ['convenience-merchandising', 'tests/convenience-merchandising-test.js'],
+  ['gym-membership-model', 'tests/gym-membership-model-test.js']
 ]) {
   const result = spawnSync('node', [file], {
     encoding: 'utf8',
