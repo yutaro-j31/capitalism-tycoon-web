@@ -58,7 +58,8 @@
     "tests/company-valuation-normalization-test.js",
     "tests/weekly-cashflow-bridge-test.js",
     "tests/business-portfolio-focus-test.js",
-    "tests/foundable-business-scope-test.js"
+    "tests/foundable-business-scope-test.js",
+    "tests/convenience-merchandising-test.js"
   ],
   "F": [
     "tests/product-recall-reachability-runner.js",

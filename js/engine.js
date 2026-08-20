@@ -558,6 +558,7 @@ class TycoonEngine extends EventTarget {
     this.g.businesses = (this.g.businesses || []).map(b => ({...b, price: Math.max(1,finite(b.price,100)), unitCost: Math.max(0,finite(b.unitCost)), demand: Math.max(1,finite(b.demand,10))}));
     this.g.stores = (this.g.stores || []).map(s => ({condition:100,lastSales:0,lastProfit:0,status:'open',openingWeek:this.g.week,weeksToOpen:0,operatingHours:3,marketResult:null,...s}));
     globalThis.__capitalismTycoonModules?.realEstateAgencyPipeline?.normalize?.(this.g);
+    globalThis.__capitalismTycoonModules?.convenienceMerchandising?.normalize?.(this.g);
     this.g.marketResultsByStoreID = isPlainObject(this.g.marketResultsByStoreID) ? this.g.marketResultsByStoreID : {};
     this.g.marketResultsByBusinessID = isPlainObject(this.g.marketResultsByBusinessID) ? this.g.marketResultsByBusinessID : {};
     this.g.news = Array.isArray(this.g.news) ? this.g.news.slice(0,300) : [];
@@ -871,6 +872,12 @@ class TycoonEngine extends EventTarget {
     const b=this.business(businessID); price=finite(price);
     if(!b||price<=0)return this.fail('価格が不正です。');
     b.price=price; this.notify(`${b.name}の価格を${yen(price)}に変更しました。`);this.save();this.emit();return true;
+  }
+  changeMerchandisingPolicy(policyID) {
+    const mod=globalThis.__capitalismTycoonModules?.convenienceMerchandising;
+    if(!mod||!mod.setPolicy(this.g,policyID))return this.fail('品揃え構成を変更できません。');
+    this.notify(`コンビニの品揃え構成を「${mod.policyFor(policyID).name}」に変更しました。`);
+    this.save();this.emit();return true;
   }
 
   contractOffice(officeID) {
@@ -1623,6 +1630,9 @@ class TycoonEngine extends EventTarget {
       if(market.isTargetBusinessID(store.businessID)&&marketBatch.byStore[store.id]){rand(.88,1.14); // Preserve the legacy per-store demand RNG slot; deterministic market results intentionally ignore this value.
       let mr=marketBatch.byStore[store.id];mr=supply.applyConstraint(this.g,store,mr,finance);marketBatch.byStore[store.id]=mr;const extraStorePayroll=workforce.storeExtraPayroll(this.g,store.id);fixed=(b.fixedCost+p.rent+b.wage+extraStorePayroll)*this.g.inflation*([0,.55,.8,1,1.24][store.operatingHours||3]||1)*(this.g.macroCrisis?.costMultiplier||1);repair=Math.max(0,100-store.condition)*650;storeSales=mr.revenue;variable=mr.variableCost;store.marketResult={...mr};}
       else if(store.businessID==='realEstateAgency'&&globalThis.__capitalismTycoonModules?.realEstateAgencyPipeline){rand(.88,1.14);const brokerage=globalThis.__capitalismTycoonModules.realEstateAgencyPipeline.processStore(this.g,store,b,p);storeSales=brokerage.sales;variable=brokerage.variable;fixed=(b.fixedCost+p.rent+b.wage)*this.g.inflation*([0,.55,.8,1,1.24][store.operatingHours||3]||1)*(this.g.macroCrisis?.costMultiplier||1);repair=Math.max(0,100-store.condition)*650;store.marketResult=null;}
+      else if(store.businessID==='conveni'&&globalThis.__capitalismTycoonModules?.convenienceMerchandising){const localCompetition=a.competition+this.competitorPressure(a.id,b.id);let demand=b.demand*p.traffic*a.traffic*this.g.economy*this.g.season*this.fit(b,a)*(1+b.quality/100)*(1+b.brand/90)*(1+b.dx/140)*(1-localCompetition*.55)*rand(.88,1.14);
+      demand*=1+this.departmentEffect('dx')*.05+this.departmentEffect('marketing')*.03;demand*=[0,.45,.75,1,1.17][store.operatingHours||3]||1;if(this.g.macroCrisis)demand*=this.g.macroCrisis.salesMultiplier;
+      const merch=globalThis.__capitalismTycoonModules.convenienceMerchandising.processStore(this.g,store,b,demand,this.g.inflation);storeSales=merch.sales;variable=merch.variable;fixed=(b.fixedCost+p.rent+b.wage)*this.g.inflation*([0,.55,.8,1,1.24][store.operatingHours||3]||1)*(this.g.macroCrisis?.costMultiplier||1);repair=Math.max(0,100-store.condition)*650;store.marketResult=null;}
       else{const localCompetition=a.competition+this.competitorPressure(a.id,b.id);let demand=b.demand*p.traffic*a.traffic*this.g.economy*this.g.season*this.fit(b,a)*(1+b.quality/100)*(1+b.brand/90)*(1+b.dx/140)*(1-localCompetition*.55)*rand(.88,1.14);
       demand*=1+this.departmentEffect('dx')*.05+this.departmentEffect('marketing')*.03;demand*=[0,.45,.75,1,1.17][store.operatingHours||3]||1;if(this.g.macroCrisis)demand*=this.g.macroCrisis.salesMultiplier;
       storeSales=Math.max(0,demand*b.price*this.g.inflation);variable=demand*b.unitCost*this.g.inflation*(1-Math.min(.22,b.efficiency/260))/(1+this.departmentEffect('operations')*.04);fixed=(b.fixedCost+p.rent+b.wage)*this.g.inflation*([0,.55,.8,1,1.24][store.operatingHours||3]||1)*(this.g.macroCrisis?.costMultiplier||1);repair=Math.max(0,100-store.condition)*650;
