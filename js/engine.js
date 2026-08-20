@@ -695,6 +695,48 @@ class TycoonEngine extends EventTarget {
     return 1;
   }
 
+  // 事業ポートフォリオの整理。ゲーム開始時、事業画面には30業種すべてが同じ見た目の
+  // 空カードとして並ぶ（全業種が 0店・週次利益¥0）。実際には初期資金8,000,000円で
+  // 出店できるのは16業種、詳細シミュレーション対象は1業種しかないのに、
+  // その差が画面から一切読み取れなかった。
+  //
+  // ここでは運営中の事業と未出店の業種を分け、未出店側は「今すぐ出店できるか」で並べ替える。
+  // 業種そのものは1つも隠さない（資金が増えれば出店可能性は変わるため）。読み取り専用。
+  businessPortfolio() {
+    const freeDeposits=(this.g.tenants||[]).filter(t=>!t.occupiedBy).map(t=>finite(t.deposit));
+    const minimumDeposit=freeDeposits.length?Math.min(...freeDeposits):0;
+    const cash=finite(this.g.companyCash);
+
+    const rows=(this.g.businesses||[]).map(b=>{
+      const stores=(this.g.stores||[]).filter(s=>s.businessID===b.id&&s.status!=='closed');
+      const open=stores.filter(s=>s.status==='open');
+      const minimumUpfront=finite(b.storeCost)+minimumDeposit;
+      return Object.freeze({
+        businessID:b.id,name:b.name,storeCost:finite(b.storeCost),
+        storeCount:stores.length,openStoreCount:open.length,
+        weeklyProfit:open.reduce((a,s)=>a+finite(s.lastProfit),0),
+        minimumUpfront,affordable:freeDeposits.length>0&&cash>=minimumUpfront,
+        shortfall:Math.max(0,minimumUpfront-cash),
+        depthLevel:businessSimulationDepth(b.id).level
+      });
+    });
+
+    // 運営中はまず稼ぎ頭から見せる。
+    const operating=rows.filter(r=>r.storeCount>0)
+      .sort((a,b)=>b.weeklyProfit-a.weeklyProfit||a.businessID.localeCompare(b.businessID));
+    // 未出店は「今すぐ出店できるもの」を先に、その中では安い順。
+    const idle=rows.filter(r=>r.storeCount===0)
+      .sort((a,b)=>(a.affordable===b.affordable?0:a.affordable?-1:1)
+        ||a.minimumUpfront-b.minimumUpfront||a.businessID.localeCompare(b.businessID));
+
+    return Object.freeze({
+      operating:Object.freeze(operating),idle:Object.freeze(idle),
+      counts:Object.freeze({total:rows.length,operating:operating.length,idle:idle.length,
+        affordableIdle:idle.filter(r=>r.affordable).length}),
+      minimumDeposit,hasFreeTenant:freeDeposits.length>0
+    });
+  }
+
   // 出店前の収支試算。約400万円（設備＋保証金）を投じる判断を、開けてみるまで
   // 何も分からない状態でさせないための読み取り専用の見積り。
   //
