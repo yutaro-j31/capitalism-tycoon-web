@@ -13,9 +13,18 @@ const POLICIES=Object.freeze({
   staples:Object.freeze({id:'staples',name:'定番・日用品重視',demandMultiplier:.93,wasteRate:.007,marginMultiplier:.97})
 });
 const POLICY_ORDER=Object.freeze(['standard','freshFocus','staples']);
+// ドミナント戦略: 同一都道府県に自社コンビニを集中出店すると、共同配送・巡回効率化により
+// 需要が伸び廃棄ロス率が下がる。実際のコンビニチェーンの立地戦略を模した、店舗数に応じた
+// シナジー（上限あり）。新規の乱数消費は無い（既存店舗数を数えるだけの決定論的な導出）。
+const CLUSTER_DEMAND_BONUS_PER_STORE=.02,CLUSTER_DEMAND_BONUS_MAX=.10;
+const CLUSTER_WASTE_REDUCTION_PER_STORE=.10,CLUSTER_WASTE_REDUCTION_MAX=.45;
 const finite=(value,fallback=0)=>Number.isFinite(Number(value))?Number(value):fallback;
 const integer=(value,fallback=0)=>Math.max(0,Math.floor(finite(value,fallback)));
 function policyFor(id){return POLICIES[id]||POLICIES.standard;}
+function clusterCountFor(g,store){
+  if(!store)return 0;
+  return (Array.isArray(g?.stores)?g.stores:[]).filter(s=>s&&s.id!==store.id&&s.businessID===BUSINESS_ID&&s.status==='open'&&s.prefID===store.prefID).length;
+}
 function ensure(g){
   if(!g||typeof g!=='object')return {schemaVersion:SCHEMA_VERSION,policyID:'standard',lastWeekByStoreID:{},totals:{revenue:0,wasteCost:0}};
   const raw=g.conveniMerchandising&&typeof g.conveniMerchandising==='object'?g.conveniMerchandising:{};
@@ -37,15 +46,19 @@ function eligibleStores(stores){return (Array.isArray(stores)?stores:[]).filter(
 function processStore(g,store,business,demand,inflation){
   if(!store||store.businessID!==BUSINESS_ID)return null;
   const week=Math.max(1,integer(g?.week,1)),mix=ensure(g),policy=policyFor(mix.policyID);
-  const adjustedDemand=Math.max(0,finite(demand)*policy.demandMultiplier);
+  const clusterCount=clusterCountFor(g,store);
+  const clusterDemandBonus=Math.min(CLUSTER_DEMAND_BONUS_MAX,clusterCount*CLUSTER_DEMAND_BONUS_PER_STORE);
+  const clusterWasteReduction=Math.min(CLUSTER_WASTE_REDUCTION_MAX,clusterCount*CLUSTER_WASTE_REDUCTION_PER_STORE);
+  const adjustedDemand=Math.max(0,finite(demand)*policy.demandMultiplier*(1+clusterDemandBonus));
+  const effectiveWasteRate=policy.wasteRate*(1-clusterWasteReduction);
   const price=Math.max(1,finite(business?.price,1));
   const sales=Math.max(0,adjustedDemand*price*finite(inflation,1));
-  const wasteCost=Math.round(sales*policy.wasteRate);
+  const wasteCost=Math.round(sales*effectiveWasteRate);
   const variable=Math.max(0,adjustedDemand*finite(business?.unitCost,1)*finite(inflation,1)*policy.marginMultiplier+wasteCost);
-  const row={week,policyID:policy.id,demand:Math.round(adjustedDemand),sales:Math.round(sales),wasteCost};
+  const row={week,policyID:policy.id,demand:Math.round(adjustedDemand),sales:Math.round(sales),wasteCost,clusterCount,clusterDemandBonus,clusterWasteReduction};
   mix.lastWeekByStoreID[store.id]=row;
   mix.totals.revenue+=row.sales;mix.totals.wasteCost+=row.wasteCost;
   return {sales:row.sales,variable:Math.round(variable)};
 }
-Object.assign(modules,{convenienceMerchandising:Object.freeze({BUSINESS_ID,SCHEMA_VERSION,POLICIES,POLICY_ORDER,policyFor,ensure,normalize,setPolicy,eligibleStores,processStore})});
+Object.assign(modules,{convenienceMerchandising:Object.freeze({BUSINESS_ID,SCHEMA_VERSION,POLICIES,POLICY_ORDER,policyFor,clusterCountFor,ensure,normalize,setPolicy,eligibleStores,processStore})});
 })();
