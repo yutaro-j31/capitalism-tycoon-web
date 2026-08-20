@@ -57,7 +57,7 @@ const empty = text => `<div class="empty">${esc(text)}</div>`;
 const opts = (items,value,key='id',label='name') => items.map(x=>`<option value="${esc(x[key])}" ${String(x[key])===String(value)?'selected':''}>${esc(x[label])}</option>`).join('');
 // 業種セレクトは深度ラベル付き。どの業種が詳細シミュレーション対象かは出店を決める時点で
 // 分からないと選べないので、engine 側で導出したラベルをそのまま option 文言へ付ける。
-const businessOpts = (items,value) => items.map(x=>{const depth=engine.businessSimulationDepth?.(x.id);return `<option value="${esc(x.id)}" ${String(x.id)===String(value)?'selected':''}>${esc(x.name)}${depth?`（${esc(depth.label)}）`:''}</option>`;}).join('');
+const businessOpts = (items,value) => items.map(x=>{const depth=engineModule.businessSimulationDepth(x.id);return `<option value="${esc(x.id)}" ${String(x.id)===String(value)?'selected':''}>${esc(x.name)}${depth?`（${esc(depth.label)}）`:''}</option>`;}).join('');
 const moneyInput = (id, value, label) => `<label class="field"><span>${esc(label)}</span><input id="${id}" inputmode="numeric" value="${value}"></label>`;
 
 const TABS = [
