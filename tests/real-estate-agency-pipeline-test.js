@@ -1,5 +1,7 @@
 'use strict';
 const assert=require('node:assert/strict');
+const fs=require('node:fs');
+const path=require('node:path');
 const {loadGame}=require('./harness');
 
 function lcg(seed=731){let value=seed>>>0;return()=>{value=(value*1664525+1013904223)>>>0;return value/2**32;};}
@@ -19,6 +21,16 @@ function scenario(seed=731){
 }
 
 assert.ok(loadGame({headless:true}).modules.realEstateAgencyPipeline,'pipeline module is wired');
+{
+  const pipeline=loadGame({headless:true}).modules.realEstateAgencyPipeline,open={businessID:'realEstateAgency',status:'open',brokeragePipeline:{activeDeals:[{}],capacity:10}},closed={businessID:'realEstateAgency',status:'closed',brokeragePipeline:{activeDeals:[{},{}],capacity:99}},preparing={businessID:'realEstateAgency',status:'preparing',brokeragePipeline:{activeDeals:[{}],capacity:88}};
+  const eligible=pipeline.eligibleStores([open,closed,preparing]);
+  assert.deepEqual(Array.from(eligible),[open],'weekly UI aggregation excludes stale closed and preparing stores');
+  assert.equal(eligible.reduce((sum,store)=>sum+store.brokeragePipeline.activeDeals.length,0),1);
+  assert.equal(eligible.reduce((sum,store)=>sum+store.brokeragePipeline.capacity,0),10);
+  const appSource=fs.readFileSync(path.join(__dirname,'..','js','app.js'),'utf8');
+  assert.match(appSource,/const eligible=__modules\.realEstateAgencyPipeline\?\.eligibleStores\(stores\)/,'business UI must derive one open-store set');
+  assert.match(appSource,/active=eligible\.reduce[\s\S]*capacity=eligible\.reduce/,'active and capacity must use the same eligible stores');
+}
 const first=scenario(),pipelineModule=first.loaded.modules.realEstateAgencyPipeline,business=first.game.business('realEstateAgency'),pref=first.game.pref(first.store.prefID),before={companyCash:first.game.g.companyCash,personalCash:first.game.g.personalCash,personalDebt:first.game.g.personalDebt,corp:JSON.stringify(first.game.g.personalRealEstateCorp)};
 let inquiries=0,closed=0,lost=0,volume=0,commission=0,maxActive=0;
 for(let i=0;i<208;i++){
