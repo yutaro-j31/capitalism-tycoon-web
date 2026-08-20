@@ -127,7 +127,28 @@ const newGame = (seed = 190826041) => loadGame({ random: lcg(seed) });
   assert.match(source, /businessOpts\s*=\s*\(items,value\)\s*=>[\s\S]{0,400}businessSimulationDepth/, 'businessOptsはengineの深度導出を使う');
   assert.doesNotMatch(source, /engine\.businessSimulationDepth\(b\.id\)/, '事業画面は存在しないTycoonEngineインスタンスメソッドを呼ばない');
   assert.match(source, /engineModule\.businessSimulationDepth\(b\.id\)/, '事業画面はengine moduleの深度導出関数を使う');
+
+  // businessSimulationDepth は engine モジュールのエクスポートであって TycoonEngine の
+  // インスタンスメソッドではない。この取り違えは #475 で2か所に入り、
+  //   businessFullCard  -> engine.businessSimulationDepth(b.id)   … 実行時に例外（#480で修正）
+  //   businessOpts      -> engine.businessSimulationDepth?.(x.id) … ?. により静かにundefined
+  // となり、後者は業種セレクト3か所の深度ラベルが出ないまま気づかれなかった。
+  // 特定の引数名に依存しない一般形で、全呼び出し箇所の受け手を固定する。
+  const callSites = source.match(/[A-Za-z_$][\w$]*\s*\??\.\s*businessSimulationDepth\s*(?:\?\.)?\(/g) || [];
+  assert.ok(callSites.length >= 2, `前提: app.js に呼び出し箇所がある（実測 ${callSites.length}件）`);
+  for (const site of callSites) {
+    assert.ok(site.startsWith('engineModule.'), `深度導出は engineModule 経由で呼ぶ（違反: ${site}）`);
+    assert.ok(!site.includes('?.'), `オプショナル呼び出しにしない。受け手を間違えても静かに失敗させない（違反: ${site}）`);
+  }
   assert.match(source, /businessDepthNote\(depth\)/, '業種カードに深度の注記を出す');
+}
+
+// 7b. 受け手の区別そのものを実測で固定する。ここが変わればソース側の規則も見直しが要る。
+{
+  const { modules, ctx } = newGame();
+  const engine = ctx.__ct_engine;
+  assert.equal(typeof modules.engine.businessSimulationDepth, 'function', 'モジュール側にエクスポートされている');
+  assert.equal(typeof engine.businessSimulationDepth, 'undefined', 'TycoonEngineインスタンスのメソッドではない');
 }
 
 // 8. css/app.css を触らずに済ませていること（バイト一致要件）。既存クラスだけで組む。
