@@ -16,7 +16,7 @@ function setupImprovementState() {
   state.selectedTab = 'home';
   state.stores.push({ id:'s1', businessID:'ramen', prefID:'tokyo', name:'本店', status:'open', quality:0, brand:0, condition:100, operatingHours:3, openingWeek:1, weeksToOpen:0 });
   state.supplySettingsByStoreID = { s1: { autoPolicy:'balanced' } };
-  state.week = 2;
+  state.week = 3; // openingWeek:1 から2週分の実トレード週が経過し、unit_economics/weekly_recapが完了する状態にする
   state.reports = [{ week:1, sales:1000000, profit:100000, expenses:700000 }, { week:2, sales:1200000, profit:150000, expenses:750000 }];
   state.lastReport = state.reports[1];
   return state;
@@ -37,25 +37,32 @@ assert.equal(a.displayMode, 'guide');
 assert.equal(a.current.id, 'dashboard');
 assert.equal(a.completedCount, 0);
 fresh.selectedTab = 'home';
-fresh.stores.push({ id:'s1', businessID:'ramen', prefID:'tokyo', name:'本店', status:'open', quality:0, brand:0, condition:100 });
-assert.equal(currentID(fresh), 'unit_economics');
+// openingWeek を明示する。準備期間ゼロで最初から'open'として作る点は元のfixtureと同じだが、
+// unit_economics / weekly_recap の完了は「店舗が開いてから経過した実トレード週数」基準に
+// なったため、以降は fresh.week を openingWeek 起点で進めながら段階を追う。
+fresh.stores.push({ id:'s1', businessID:'ramen', prefID:'tokyo', name:'本店', status:'open', quality:0, brand:0, condition:100, openingWeek: fresh.week });
+assert.equal(currentID(fresh), 'unit_economics', 'store open advances past first_store to unit_economics');
 fresh.supplySettingsByStoreID = { s1: { autoPolicy:'balanced' } };
-assert.equal(currentID(fresh), 'first_week');
-fresh.week = 2; fresh.reports = [{ week:1, sales:1000000, profit:100000, expenses:700000 }]; fresh.lastReport = fresh.reports[0];
+assert.equal(currentID(fresh), 'unit_economics', 'supply settings alone do not complete unit_economics before a trading week has passed');
+fresh.week += 1;
+fresh.reports = [{ week: fresh.week - 1, sales:1000000, profit:100000, expenses:700000 }];
+fresh.lastReport = fresh.reports[0];
 let m = foundingTutorial.build(fresh);
-assert.equal(currentID(fresh), 'weekly_recap', 'first report exposes weekly recap step');
-assert.equal(isDone(m, 'weekly_recap'), false, 'one report is not enough to complete weekly recap');
-fresh.reports.push({ week:2, sales:1200000, profit:150000, expenses:750000 }); fresh.lastReport = fresh.reports[1];
+assert.equal(currentID(fresh), 'weekly_recap', 'one trading week completes unit_economics and exposes weekly recap');
+assert.equal(isDone(m, 'unit_economics'), true, 'one trading week with supply settings completes unit_economics');
+assert.equal(isDone(m, 'weekly_recap'), false, 'one trading week is not enough to complete weekly recap');
+fresh.week += 1;
+fresh.reports.push({ week: fresh.week - 1, sales:1200000, profit:150000, expenses:750000 }); fresh.lastReport = fresh.reports[1];
 m = foundingTutorial.build(fresh);
-assert.equal(currentID(fresh), 'first_improvement', 'two reports move to improvement, not cash runway');
-assert.equal(isDone(m, 'weekly_recap'), true, 'two reports complete weekly recap');
+assert.equal(currentID(fresh), 'first_improvement', 'two trading weeks move to improvement, not cash runway');
+assert.equal(isDone(m, 'weekly_recap'), true, 'two trading weeks complete weekly recap');
 assert.equal(isDone(m, 'first_improvement'), false, 'reports alone do not complete improvement');
 fresh.businesses.find(b => b.id === 'ramen').brand += 2;
 m = foundingTutorial.build(fresh);
 assert.equal(currentID(fresh), 'cash_runway', 'actual business improvement exposes cash runway');
 assert.equal(isDone(m, 'first_improvement'), true);
 assert.equal(isDone(m, 'cash_runway'), false, 'cash runway is not completed by initial cash or two reports');
-fresh.week = 3; fresh.companyCash = 6000000; fresh.reports.push({ week:3, sales:1300000, profit:200000, expenses:700000 }); fresh.lastReport = fresh.reports[2];
+fresh.week += 1; fresh.companyCash = 6000000; fresh.reports.push({ week: fresh.week - 1, sales:1300000, profit:200000, expenses:700000 }); fresh.lastReport = fresh.reports[fresh.reports.length - 1];
 assert.equal(currentID(fresh), 'growth_step');
 fresh.stores.push({ id:'s2', businessID:'ramen', prefID:'tokyo', name:'2号店', status:'open' });
 assert.equal(currentID(fresh), 'organization');
