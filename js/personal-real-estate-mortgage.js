@@ -199,14 +199,17 @@ function foreclose(engine,asset){
   const state=engine.g;
   const proceeds=round(valueOf(asset)*FORECLOSURE_SALE_RATE);
   const outcome=settleOnSale(state,asset,proceeds);
-  state.personalCash=round(finite(state.personalCash)+outcome.net);
+  const taxOutcome=modules.personalRealEstateTaxes?.settleOnSale
+    ?modules.personalRealEstateTaxes.settleOnSale(state,asset,outcome.net)
+    :{paid:0,shortfall:0,net:outcome.net};
+  state.personalCash=round(finite(state.personalCash)+taxOutcome.net);
   asset.status='foreclosed';
   asset.foreclosedWeek=Math.floor(finite(state.week));
   asset.salePrice=proceeds;
   engine.notify(
     outcome.shortfall>0
       ?`${asset.name}が返済遅延により差し押さえられました。売却代金では返済しきれず、${outcome.shortfall.toLocaleString('ja-JP')}円が個人負債として残りました。`
-      :`${asset.name}が返済遅延により差し押さえられました。売却代金で残債を清算し、${outcome.net.toLocaleString('ja-JP')}円が手元に残りました。`,
+      :`${asset.name}が返済遅延により差し押さえられました。売却代金で残債を清算し、${taxOutcome.net.toLocaleString('ja-JP')}円が手元に残りました。`,
     'error');
   return outcome;
 }
