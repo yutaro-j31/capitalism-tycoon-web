@@ -14,6 +14,7 @@
     "./js/market.js",
     "./js/finance.js",
     "./js/real-estate-agency-pipeline.js",
+    "./js/convenience-merchandising.js",
     "./js/engine.js",
     "./js/player-media-advertising.js",
     "./js/store-equipment.js",
