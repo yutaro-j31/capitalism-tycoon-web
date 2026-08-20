@@ -19,20 +19,33 @@ function capacityFor(store,business){
   const mult=modules.storeEquipment?.capacityMultiplier?.(store)??1;
   return Math.max(150,Math.round(base*finite(mult,1)));
 }
-// 退会理由の内訳。基礎離脱（避けられない自然減）に、品質不足・設備の老朽化・競合圧力の
-// 3つの理由別成分を積み上げる。プレイヤーが「なぜ退会が多いのか」を読み取れるようにし、
-// 品質投資・改装（既存ボタン）と競合対応のどちらを優先すべきかの判断材料にする。
 const CHURN_BASE=.018;
+function legacyChurnRateFor(business,store){
+  const quality=finite(business?.quality,0),condition=finite(store?.condition,100);
+  return clamp(.055-quality*.0003-(condition-70)*.0006,.018,.11);
+}
+// 理由別成分は既存の総退会率を説明する attribution。競合圧力は内訳の配分だけを
+// 変え、総退会率自体は変えない。
 function churnBreakdownFor(business,store,localCompetition){
   const quality=finite(business?.quality,0),condition=finite(store?.condition,100),competition=clamp(localCompetition,0,1);
-  const qualityComponent=Math.max(0,(50-quality)*.0003);
-  const conditionComponent=Math.max(0,(70-condition)*.0006);
-  const competitionComponent=competition*.02;
-  const rawTotal=CHURN_BASE+qualityComponent+conditionComponent+competitionComponent;
-  const total=clamp(rawTotal,.018,.11);
-  return {total,base:CHURN_BASE,quality:qualityComponent,condition:conditionComponent,competition:competitionComponent};
+  const total=legacyChurnRateFor(business,store),base=Math.min(CHURN_BASE,total),remaining=Math.max(0,total-base);
+  const qualityWeight=Math.max(0,(100-quality)*.0003),conditionWeight=Math.max(0,(100-condition)*.0006),competitionWeight=competition*.02;
+  const weightSum=qualityWeight+conditionWeight+competitionWeight;
+  if(remaining===0||weightSum===0)return {total,base:total,quality:0,condition:0,competition:0};
+  const qualityComponent=remaining*qualityWeight/weightSum,conditionComponent=remaining*conditionWeight/weightSum;
+  const competitionComponent=Math.max(0,remaining-qualityComponent-conditionComponent);
+  return {total,base,quality:qualityComponent,condition:conditionComponent,competition:competitionComponent};
 }
-function churnRateFor(business,store,localCompetition){return churnBreakdownFor(business,store,localCompetition).total;}
+function churnRateFor(business,store){return legacyChurnRateFor(business,store);}
+function allocateChurnedByReason(churned,breakdown){
+  const keys=['quality','condition','competition','base'],result={quality:0,condition:0,competition:0,base:0};
+  if(churned<=0||breakdown.total<=0)return result;
+  const rows=keys.map((key,index)=>{const raw=churned*breakdown[key]/breakdown.total,floor=Math.floor(raw);result[key]=floor;return {key,index,remainder:raw-floor};});
+  let left=churned-keys.reduce((sum,key)=>sum+result[key],0);
+  rows.sort((a,b)=>b.remainder-a.remainder||a.index-b.index);
+  for(let i=0;i<left;i++)result[rows[i%rows.length].key]++;
+  return result;
+}
 function eligibleStores(stores){return (Array.isArray(stores)?stores:[]).filter(store=>store?.businessID===BUSINESS_ID&&store.status==='open');}
 function ensureStore(store){
   const raw=store.gymMembership&&typeof store.gymMembership==='object'?store.gymMembership:{};
@@ -49,14 +62,8 @@ function processStore(g,store,business,demand,inflation,localCompetition){
   const week=Math.max(1,integer(g?.week,1)),state=ensureStore(store);
   const capacity=capacityFor(store,business),breakdown=churnBreakdownFor(business,store,localCompetition);
   const churned=Math.round(state.members*breakdown.total);
-  // 退会数を理由別成分の比率で按分する（理由別の合計が総退会数に一致するように最後の枠で丸め誤差を吸収する）。
-  const churnedByReason={quality:0,condition:0,competition:0,base:0};
-  if(churned>0&&breakdown.total>0){
-    churnedByReason.quality=Math.round(churned*breakdown.quality/breakdown.total);
-    churnedByReason.condition=Math.round(churned*breakdown.condition/breakdown.total);
-    churnedByReason.competition=Math.round(churned*breakdown.competition/breakdown.total);
-    churnedByReason.base=Math.max(0,churned-churnedByReason.quality-churnedByReason.condition-churnedByReason.competition);
-  }
+  // largest-remainder方式で決定論的に配分し、合計を必ず総退会数と一致させる。
+  const churnedByReason=allocateChurnedByReason(churned,breakdown);
   const signups=Math.max(0,Math.round(finite(demand)*1.7));
   const beforeCap=Math.max(0,state.members-churned+signups);
   const members=Math.min(capacity,beforeCap);
@@ -70,5 +77,5 @@ function processStore(g,store,business,demand,inflation,localCompetition){
   for(const key of ['quality','condition','competition','base'])state.totals.churnedByReason[key]+=churnedByReason[key];
   return {sales:row.sales,variable:Math.round(variable)};
 }
-Object.assign(modules,{gymMembershipModel:Object.freeze({BUSINESS_ID,SCHEMA_VERSION,capacityFor,churnRateFor,churnBreakdownFor,eligibleStores,ensureStore,normalize,processStore})});
+Object.assign(modules,{gymMembershipModel:Object.freeze({BUSINESS_ID,SCHEMA_VERSION,capacityFor,legacyChurnRateFor,churnRateFor,churnBreakdownFor,allocateChurnedByReason,eligibleStores,ensureStore,normalize,processStore})});
 })();
