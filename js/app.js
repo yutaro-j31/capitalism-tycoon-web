@@ -213,13 +213,34 @@ function businessDepthNote(depth){
   const systems=depth.systems.map(s=>`<li><span>${esc(s.label)}</span><strong>${s.detailed?'詳細':'簡易'}</strong></li>`).join('');
   return `<p data-business-depth="${esc(depth.level)}">${badge(depth.label,tone)}</p><details class="learning-card"><summary>${esc(depth.summary)}</summary><ul class="reason-list">${systems}</ul></details>`;
 }
+// 業種カード（従来と同じ内容）。運営中の事業だけこの完全版を出す。
+function businessFullCard(b){
+  const g=engine.g;
+  const storesByBusiness=id=>g.stores.filter(s=>s.businessID===id);
+  const ss=storesByBusiness(b.id),profit=ss.reduce((a,s)=>a+s.lastProfit,0),depth=engine.businessSimulationDepth(b.id);return card(b.name,`${businessDepthNote(depth)}<div class="kpi-grid mini">${stat('価格',yen(b.price))}${stat('店舗',`${ss.length}店`)}${stat('週次利益',compactYen(profit))}${stat('品質/ブランド',`${b.quality.toFixed(0)} / ${b.brand.toFixed(0)}`)}</div><div class="meters"><label>品質 ${b.quality.toFixed(1)}${progress(b.quality)}</label><label>ブランド ${b.brand.toFixed(1)}${progress(b.brand)}</label><label>効率 ${b.efficiency.toFixed(1)}${progress(b.efficiency)}</label><label>DX ${b.dx.toFixed(1)}${progress(b.dx)}</label></div><div class="button-grid">${btn('品質投資','business-invest',{kind:'small',data:`data-id="${b.id}" data-kind="quality"`})}${btn('広告','business-invest',{kind:'small',data:`data-id="${b.id}" data-kind="brand"`})}${btn('効率化','business-invest',{kind:'small',data:`data-id="${b.id}" data-kind="efficiency"`})}${btn('DX','business-invest',{kind:'small',data:`data-id="${b.id}" data-kind="dx"`})}${btn('価格変更','business-price',{kind:'ghost small',data:`data-id="${b.id}"`})}</div>`,{subtitle:`初期出店費 ${compactYen(b.storeCost)} · ${depth.label}`});}
+// 未出店の業種は1行に圧縮する。ゲーム開始時は30業種すべてが「0店・週次利益¥0」の
+// 同じ見た目のカードとして並んでいて、どれが今出せるのかを画面から読み取れなかった。
+function businessIdleRow(row){
+  const tone=row.affordable?'good':'';
+  const note=row.affordable?`最低 ${compactYen(row.minimumUpfront)}`:`資金不足 あと${compactYen(row.shortfall)}`;
+  return `<button class="action-row" data-action="tab" data-tab="map" data-business-idle="${esc(row.businessID)}"><span>${esc(row.name)}${row.depthLevel!=='simple'?` ${badge('詳細','good')}`:''}</span><small>${esc(note)}</small><b aria-hidden="true">›</b></button>`;
+}
 function renderBusiness() {
   const g=engine.g;
-  const groups=[...new Set(g.businesses.map(b=>b.id.includes('Studio')||['gameStudio','appStudio','webAgency','videoStudio'].includes(b.id)?'IT・制作':b.storeCost>=10000000?'大型・専門':'店舗・サービス'))];
-  const storesByBusiness=id=>g.stores.filter(s=>s.businessID===id);
-  return `${card('事業ポートフォリオ',`<div class="business-selector"><select data-bind="selectedBusiness">${businessOpts(g.businesses,ui.selectedBusiness)}</select>${btn('FC本部を設置','start-franchise',{kind:'secondary',data:`data-id="${ui.selectedBusiness}"`})}</div>`,{subtitle:`全${g.businesses.length}業種・直営${g.stores.length}店舗`})}
-  ${groups.map(group=>`<section><h2 class="section-title">${group}</h2><div class="grid three">${g.businesses.filter(b=>(b.id.includes('Studio')||['gameStudio','appStudio','webAgency','videoStudio'].includes(b.id)?'IT・制作':b.storeCost>=10000000?'大型・専門':'店舗・サービス')===group).map(b=>{
-    const ss=storesByBusiness(b.id),profit=ss.reduce((a,s)=>a+s.lastProfit,0),depth=engine.businessSimulationDepth(b.id);return card(b.name,`${businessDepthNote(depth)}<div class="kpi-grid mini">${stat('価格',yen(b.price))}${stat('店舗',`${ss.length}店`)}${stat('週次利益',compactYen(profit))}${stat('品質/ブランド',`${b.quality.toFixed(0)} / ${b.brand.toFixed(0)}`)}</div><div class="meters"><label>品質 ${b.quality.toFixed(1)}${progress(b.quality)}</label><label>ブランド ${b.brand.toFixed(1)}${progress(b.brand)}</label><label>効率 ${b.efficiency.toFixed(1)}${progress(b.efficiency)}</label><label>DX ${b.dx.toFixed(1)}${progress(b.dx)}</label></div><div class="button-grid">${btn('品質投資','business-invest',{kind:'small',data:`data-id="${b.id}" data-kind="quality"`})}${btn('広告','business-invest',{kind:'small',data:`data-id="${b.id}" data-kind="brand"`})}${btn('効率化','business-invest',{kind:'small',data:`data-id="${b.id}" data-kind="efficiency"`})}${btn('DX','business-invest',{kind:'small',data:`data-id="${b.id}" data-kind="dx"`})}${btn('価格変更','business-price',{kind:'ghost small',data:`data-id="${b.id}"`})}</div>`,{subtitle:`初期出店費 ${compactYen(b.storeCost)} · ${depth.label}`});}).join('')}</div></section>`).join('')}
+  const portfolio=engine.businessPortfolio();
+  const c=portfolio.counts;
+  const operating=portfolio.operating.length
+    ? `<section><h2 class="section-title">運営中の事業（${c.operating}）</h2><div class="grid three">${portfolio.operating.map(r=>businessFullCard(g.businesses.find(b=>b.id===r.businessID))).join('')}</div></section>`
+    : `<section>${card('運営中の事業',empty('まだ出店していません。下の「出店できる業種」から選び、地図でテナントを決めます。'))}</section>`;
+  const affordable=portfolio.idle.filter(r=>r.affordable);
+  const locked=portfolio.idle.filter(r=>!r.affordable);
+  const idle=`<section><h2 class="section-title">未出店の業種（${c.idle}）</h2>${card('出店できる業種',
+      affordable.length?affordable.map(businessIdleRow).join(''):empty('いま出店できる業種はありません。資金を増やすと選べるようになります。'),
+      {subtitle:`${c.affordableIdle}／${c.idle}業種が現在の会社資金で出店可能`})}
+    ${locked.length?`<details class="learning-card"><summary>資金が足りない業種（${locked.length}）</summary>${locked.map(businessIdleRow).join('')}</details>`:''}</section>`;
+  return `${card('事業ポートフォリオ',`<div class="business-selector"><select data-bind="selectedBusiness">${businessOpts(g.businesses,ui.selectedBusiness)}</select>${btn('FC本部を設置','start-franchise',{kind:'secondary',data:`data-id="${ui.selectedBusiness}"`})}</div>`,{subtitle:`全${c.total}業種・運営中${c.operating}・直営${g.stores.length}店舗`})}
+  ${operating}
+  ${idle}
   ${renderMarketInsightSection()}
   ${renderProductSection()}
   ${renderFranchiseSection()}`;
