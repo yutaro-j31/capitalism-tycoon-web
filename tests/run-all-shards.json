@@ -70,7 +70,8 @@
     "test:workforce-long",
     "tests/save-storage-budget-test.js",
     "tests/personal-reit-market-link-test.js",
-    "tests/personal-real-estate-redevelopment-test.js"
+    "tests/personal-real-estate-redevelopment-test.js",
+    "tests/store-opening-estimate-test.js"
   ],
   "H": [
     "tests/stock-trade-panel-test.js",
