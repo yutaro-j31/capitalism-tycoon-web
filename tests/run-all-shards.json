@@ -87,6 +87,7 @@
     "test:finance-history",
     "tests/pe-pending-initiative-exit-lifecycle-test.js",
     "tests/pe-pending-initiative-transfer-lifecycle-test.js",
-    "tests/store-status-kpi-display-test.js"
+    "tests/store-status-kpi-display-test.js",
+    "tests/founding-tutorial-non-target-business-test.js"
   ]
 }
