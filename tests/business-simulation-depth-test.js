@@ -125,6 +125,8 @@ const newGame = (seed = 190826041) => loadGame({ random: lcg(seed) });
     '深度ラベルなしの素のoptsが業種セレクトに残っていない'
   );
   assert.match(source, /businessOpts\s*=\s*\(items,value\)\s*=>[\s\S]{0,400}businessSimulationDepth/, 'businessOptsはengineの深度導出を使う');
+  assert.doesNotMatch(source, /engine\.businessSimulationDepth\(b\.id\)/, '事業画面は存在しないTycoonEngineインスタンスメソッドを呼ばない');
+  assert.match(source, /engineModule\.businessSimulationDepth\(b\.id\)/, '事業画面はengine moduleの深度導出関数を使う');
   assert.match(source, /businessDepthNote\(depth\)/, '業種カードに深度の注記を出す');
 }
 
