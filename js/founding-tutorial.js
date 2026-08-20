@@ -21,8 +21,19 @@ const hasImprovement=g=>hasBusinessImprovement(g)||hasFinanceImprovement(g)||has
 const cashRunwayWeeks=g=>{const last=g?.lastReport||reports(g).slice(-1)[0]||{};const fixed=Math.max(1,nf(last.fixedCosts,nf(last.expenses)*0.35)+nf(g?.finance?.lastStatements?.profitAndLoss?.rent)+nf(g?.finance?.lastStatements?.profitAndLoss?.payroll));return nf(g?.companyCash)/fixed;};
 const hasOrganization=g=>Boolean(g?.hasHeadOffice)||Object.keys(obj(g?.departments)).length>0||arr(g?.workforceTeams).some(t=>!t?.storeID&&nf(t?.headcount)>0)||arr(g?.workforceProjects).some(p=>p&&p.status&&p.status!=='cancelled');
 const advanced=g=>Boolean(g?.publicCompany)||arr(g?.maSubsidiaries).length>0||arr(g?.subsidiaries).length>0||arr(g?.overseasSubsidiaries).length>0||nf(g?.totalAcquisitions)>0;
+// dashboard ステップのCTA（「CEO Dashboardを見る」）は targetTab:'home' で、
+// ホーム画面自体が既定タブのため、タップしても selectedTab が変化しない。完了条件が
+// 「selectedTabがhomeでなくなること」等の他行動の副作用に頼っていたため、CTAをタップした
+// だけでは永遠に完了せず、初心者が同じCTAを見続ける状態になっていた。
+// CTAが実際にタップされたことを明示的に記録し、それ自体を完了条件に加える。
+function acknowledgeDashboard(g){
+  if(!g||typeof g!=='object')return g;
+  if(!g.foundingTutorialProgress||typeof g.foundingTutorialProgress!=='object')g.foundingTutorialProgress={};
+  g.foundingTutorialProgress.dashboardAcknowledged=true;
+  return g;
+}
 const completed={
- dashboard:g=>Boolean(g?.configured)&&((g?.selectedTab&&g.selectedTab!=='home')||openStores(g).length>0||nf(g?.week)>1||arr(g?.completedMissionIDs).length>0),
+ dashboard:g=>Boolean(g?.configured)&&(Boolean(g?.foundingTutorialProgress?.dashboardAcknowledged)||(g?.selectedTab&&g.selectedTab!=='home')||openStores(g).length>0||nf(g?.week)>1||arr(g?.completedMissionIDs).length>0),
  first_store:g=>openStores(g).length>=1,
  unit_economics:g=>openStores(g).length>=1&&(hasInventory(g)||hasSupplyPlan(g)||arr(g?.supplyResultsByStoreID).length>0||Object.keys(obj(g?.supplyResultsByStoreID)).length>0),
  first_week:g=>nf(g?.week)>1||reports(g).length>0,
@@ -74,6 +85,6 @@ function firstStoreVariant(step,g){
     points:Object.freeze(['初期費用は店舗設備と保証金の合計です。','出店してから開店までは数週間かかります。'])});
 }
 function build(g){const done=STEPS.map(s=>Boolean(completed[s.id]?.(g)));const completedCount=done.filter(Boolean).length;const complete=completedCount===STEPS.length;const isAdvanced=advanced(g);const displayMode=complete?'complete':isAdvanced?'summary':'guide';const firstOpen=done.findIndex(v=>!v);const currentIndex=firstOpen<0?STEPS.length-1:firstOpen;const steps=STEPS.map((base,i)=>{const s=base.id==='first_store'?firstStoreVariant(base,g):base;const state=done[i]?'completed':displayMode==='summary'?'unavailable':i===currentIndex?'current':i<currentIndex?'blocked':'upcoming';return Object.freeze({...s,state,completed:done[i],current:displayMode==='guide'&&i===currentIndex&&!done[i],upcoming:displayMode==='guide'&&i>currentIndex&&!done[i]});});const currentStep=displayMode==='guide'?(steps[currentIndex]||steps[steps.length-1]):null;return Object.freeze({steps:Object.freeze(steps),completedCount,total:STEPS.length,progressLabel:`${completedCount}/${STEPS.length}`,complete,current:currentStep,displayMode,roleNote:'創業ガイドは固定順の学習用、Executive Secretaryは毎週の危険・機会の優先順位です。'});}
-exports.STEPS=STEPS;exports.build=build;exports._internals=Object.freeze({cashRunwayWeeks,hasImprovement,hasBusinessImprovement,hasStoreWorkforceImprovement,hasCorporateWorkforceImprovement,hasTrainingImprovement,hasOrganization,advanced});
+exports.STEPS=STEPS;exports.build=build;exports.acknowledgeDashboard=acknowledgeDashboard;exports._internals=Object.freeze({cashRunwayWeeks,hasImprovement,hasBusinessImprovement,hasStoreWorkforceImprovement,hasCorporateWorkforceImprovement,hasTrainingImprovement,hasOrganization,advanced});
 })(__modules.foundingTutorial={});
 })();
