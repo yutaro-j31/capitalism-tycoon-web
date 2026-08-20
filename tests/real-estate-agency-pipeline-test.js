@@ -22,6 +22,13 @@ function scenario(seed=731){
 
 assert.ok(loadGame({headless:true}).modules.realEstateAgencyPipeline,'pipeline module is wired');
 {
+  const mod=loadGame({headless:true}).modules.realEstateAgencyPipeline;
+  assert.notEqual(mod.commissionRateForSide('single'),mod.commissionRateForSide('double'),'single and double brokerage must have distinct economics');
+  assert.equal((mod.commissionRateForSide('single')+mod.commissionRateForSide('double'))/2,.06,'the expected blended yield preserves the calibrated 6% economics');
+  assert.equal(mod.sideForDeal(123,'deal-1','store-1'),mod.sideForDeal(123,'deal-1','store-1'),'same seed and deal identity derives the same side');
+  assert.ok(['single','double'].includes(mod.sideForDeal(123,'deal-1','store-1')),'derived side uses the supported schema');
+}
+{
   const pipeline=loadGame({headless:true}).modules.realEstateAgencyPipeline,open={businessID:'realEstateAgency',status:'open',brokeragePipeline:{activeDeals:[{}],capacity:10}},closed={businessID:'realEstateAgency',status:'closed',brokeragePipeline:{activeDeals:[{},{}],capacity:99}},preparing={businessID:'realEstateAgency',status:'preparing',brokeragePipeline:{activeDeals:[{}],capacity:88}};
   const eligible=pipeline.eligibleStores([open,closed,preparing]);
   assert.deepEqual(Array.from(eligible),[open],'weekly UI aggregation excludes stale closed and preparing stores');
@@ -30,24 +37,40 @@ assert.ok(loadGame({headless:true}).modules.realEstateAgencyPipeline,'pipeline m
   const appSource=fs.readFileSync(path.join(__dirname,'..','js','app.js'),'utf8');
   assert.match(appSource,/const eligible=__modules\.realEstateAgencyPipeline\?\.eligibleStores\(stores\)/,'business UI must derive one open-store set');
   assert.match(appSource,/active=eligible\.reduce[\s\S]*capacity=eligible\.reduce/,'active and capacity must use the same eligible stores');
+  assert.match(appSource,/片手 \/ 両手[\s\S]*累計 片手 \/ 両手/,'business UI explains weekly and cumulative brokerage-side outcomes');
 }
 const first=scenario(),pipelineModule=first.loaded.modules.realEstateAgencyPipeline,business=first.game.business('realEstateAgency'),pref=first.game.pref(first.store.prefID),before={companyCash:first.game.g.companyCash,personalCash:first.game.g.personalCash,personalDebt:first.game.g.personalDebt,corp:JSON.stringify(first.game.g.personalRealEstateCorp)};
-let inquiries=0,closed=0,lost=0,volume=0,commission=0,maxActive=0;
+let inquiries=0,closed=0,lost=0,volume=0,commission=0,singleClosed=0,doubleClosed=0,maxActive=0,week52=null;
 for(let i=0;i<208;i++){
   first.game.g.week++;const result=pipelineModule.processStore(first.game.g,first.store,business,pref),k=result.kpi;
   assert.ok(k&&Number.isFinite(k.inquiries),'weekly brokerage KPI exists');
-  inquiries+=k.inquiries;closed+=k.closedDeals;lost+=k.lostDeals;volume+=k.closedTransactionVolume;commission+=k.commissionRevenue;
+  assert.equal(k.commissionRevenue,k.singleCommissionRevenue+k.doubleCommissionRevenue,'commission equals the per-side closed-deal fee totals');
+  inquiries+=k.inquiries;closed+=k.closedDeals;lost+=k.lostDeals;volume+=k.closedTransactionVolume;commission+=k.commissionRevenue;singleClosed+=k.singleClosedDeals;doubleClosed+=k.doubleClosedDeals;
   maxActive=Math.max(maxActive,first.store.brokeragePipeline.activeDeals.length);
   assert.equal(result.sales,k.commissionRevenue,'only commission is returned as store revenue');
   if(k.closedTransactionVolume>0)assert.notEqual(k.closedTransactionVolume,k.commissionRevenue,'gross transaction volume is not revenue');
+  if(i===51)week52={inquiries,closed,lost,singleClosed,doubleClosed,closedTransactionVolume:volume,commissionRevenue:commission};
 }
 assert.ok(inquiries>0&&closed>0&&lost>0,'inquiries, closes, and losses are reachable');
+assert.ok(singleClosed>0&&doubleClosed>0,'both brokerage sides are reachable over 208 weeks');
+assert.equal(singleClosed+doubleClosed,closed,'side close counts reconcile to total closes');
+assert.ok(first.store.brokeragePipeline.activeDeals.every(deal=>['single','double'].includes(deal.side)),'every new active deal has a brokerage side');
 assert.ok(maxActive<=first.store.brokeragePipeline.capacity,'pipeline is capacity bounded');
 assert.ok(volume>commission&&commission>0,'commission is a fraction of transaction volume');
 assert.deepEqual({companyCash:first.game.g.companyCash,personalCash:first.game.g.personalCash,personalDebt:first.game.g.personalDebt,corp:JSON.stringify(first.game.g.personalRealEstateCorp)},before,'pipeline statistics do not move company or personal cash directly');
 
 first.game.save();const reloaded=first.loaded.engineModule.TycoonEngine.load();
 assert.deepEqual(reloaded.g.stores.find(s=>s.id===first.store.id).brokeragePipeline,first.store.brokeragePipeline,'save/reload preserves pipeline');
+
+const legacy=scenario(77);legacy.store.brokeragePipeline={activeDeals:[{id:'legacy-deal',storeID:legacy.store.id,createdWeek:legacy.game.g.week,askingValue:40_000_000}],totals:{}};
+legacy.game.normalize();legacy.store=legacy.game.g.stores.find(s=>s.id===legacy.store.id);const legacySide=legacy.store.brokeragePipeline.activeDeals[0].side;
+assert.ok(['single','double'].includes(legacySide),'old saves deterministically backfill a missing side');
+legacy.game.normalize();assert.equal(legacy.store.brokeragePipeline.activeDeals[0].side,legacySide,'legacy side backfill is stable across normalization');
+legacy.game.save();const legacyReloaded=legacy.loaded.engineModule.TycoonEngine.load();assert.equal(legacyReloaded.g.stores.find(s=>s.id===legacy.store.id).brokeragePipeline.activeDeals[0].side,legacySide,'legacy backfill survives save/reload');
+
+const economics=scenario(78);economics.game.g.week=10;economics.store.brokeragePipeline={activeDeals:[{id:'forced-single',storeID:economics.store.id,createdWeek:1,askingValue:40_000_000,side:'single'},{id:'forced-double',storeID:economics.store.id,createdWeek:1,askingValue:40_000_000,side:'double'}],totals:{}};
+const economicsRow=economics.loaded.modules.realEstateAgencyPipeline.processStore(economics.game.g,economics.store,economics.game.business('realEstateAgency'),economics.game.pref(economics.store.prefID)).kpi;
+assert.equal(economicsRow.commissionRevenue,economicsRow.singleCommissionRevenue+economicsRow.doubleCommissionRevenue,'weekly commission equals the sum of side-specific commissions');
 
 const malformed=scenario(91);malformed.store.brokeragePipeline={activeDeals:null,lastWeek:{inquiries:NaN},totals:'bad'};
 assert.doesNotThrow(()=>malformed.game.normalize());
@@ -76,4 +99,4 @@ assert.ok(bookedVolume>bookedRevenue,'ledger never books gross transaction volum
 assert.deepEqual({personalCash:accounting.game.g.personalCash,personalDebt:accounting.game.g.personalDebt,corp:JSON.stringify(accounting.game.g.personalRealEstateCorp)},accountBefore,'weekly accounting preserves personal accounts');
 assert.equal(accounting.loaded.modules.finance.validate(accounting.game.g).ok,true,accounting.loaded.modules.finance.validate(accounting.game.g).errors.join('\n'));
 
-console.log(JSON.stringify({weeks:208,inquiries,closed,lost,maxActive,closedTransactionVolume:volume,commissionRevenue:commission,closeRate:closed/inquiries},null,2));
+console.log(JSON.stringify({week52,week208:{inquiries,closed,lost,singleClosed,doubleClosed,maxActive,closedTransactionVolume:volume,commissionRevenue:commission,closeRate:closed/inquiries}},null,2));
