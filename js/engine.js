@@ -427,6 +427,47 @@ function mergeDefaults(target, defaults) {
   return target ?? defaults;
 }
 
+// Store earnings capitalised into companyValue().
+//
+// This used to be `max(0, lastProfit) * 52 * 4` -- one single week's profit annualised and
+// multiplied. Two problems followed from that, both measured on a fixed seed before this change:
+//   * The week a store opened, companyValue jumped by up to 461% in one step, and since
+//     companyCreditLimit() is companyValue * (.15 + credit/250), borrowing capacity reached 8.1x
+//     the capital actually invested in the store. "Open one store, wait for a good week, borrow
+//     against it" was strictly optimal.
+//   * A single lucky or unlucky demand roll moved companyValue by tens of percent week to week,
+//     because nothing averaged the noise out.
+//
+// Both are addressed without touching how profit itself is earned:
+//   * smoothedProfit is a running mean of the store's weekly profit (exact arithmetic mean for
+//     the first OBSERVATION_WEEKS, an exponential mean thereafter), so noise averages out.
+//   * maturity ramps the capitalised multiple from 0 to 1 over the store's first
+//     OBSERVATION_WEEKS of trading, so a store cannot capitalise a week it has not traded yet.
+// 13 weeks matches the quarter that finance.js already uses as its default reporting period.
+//
+// Saves written before this existed have no smoothedProfit; those stores fall back to lastProfit,
+// which is exactly the old numerator, so an old save loads at its previous valuation and
+// converges as weeks pass. saveVersion stays 9.
+const VALUATION_OBSERVATION_WEEKS = 13;
+function storeWeeksTraded(g, store) {
+  return Math.max(0, Math.floor(finite(g?.week, 1)) - Math.floor(finite(store?.openingWeek, finite(g?.week, 1))));
+}
+function storeNormalizedProfit(store) {
+  return finite(store?.smoothedProfit, finite(store?.lastProfit));
+}
+function storeEarningsValue(g, store) {
+  const maturity = clamp(storeWeeksTraded(g, store) / VALUATION_OBSERVATION_WEEKS, 0, 1);
+  return Math.max(0, storeNormalizedProfit(store)) * 52 * 4 * maturity;
+}
+// Called once per store per week, right after lastProfit is posted. Averaging over
+// min(weeksTraded, OBSERVATION_WEEKS) makes the first OBSERVATION_WEEKS an exact running mean
+// rather than a lagging exponential one, so a young store is not valued off a stale zero.
+function updateStoreSmoothedProfit(g, store) {
+  const window = Math.max(1, Math.min(storeWeeksTraded(g, store) + 1, VALUATION_OBSERVATION_WEEKS));
+  const previous = finite(store.smoothedProfit, finite(store.lastProfit));
+  store.smoothedProfit = previous + (finite(store.lastProfit) - previous) / window;
+}
+
 class TycoonEngine extends EventTarget {
   constructor(state = null) {
     super();
@@ -561,7 +602,7 @@ class TycoonEngine extends EventTarget {
   pref(id) { return this.g.prefs.find(x => x.id === id); }
   stock(id) { return this.g.market.find(x => x.id === id); }
   companyValue() {
-    const storeValue = this.g.stores.reduce((sum,s) => sum + Math.max(0, s.lastProfit) * 52 * 4 + this.business(s.businessID)?.storeCost * .5, 0);
+    const storeValue = this.g.stores.reduce((sum,s) => sum + storeEarningsValue(this.g, s) + this.business(s.businessID)?.storeCost * .5, 0);
     const propertyValue = this.g.properties.filter(p=>p.owner==='company').reduce((a,p)=>a+finite(p.value),0);
     const stocks = Object.entries(this.g.companyStocks).reduce((sum,[id,h])=>sum+(this.stock(id)?.price||0)*h.qty,0);
     const ventures = this.g.startups.reduce((sum,s)=>sum+s.valuation*finite(s.ownedCompany),0);
@@ -1419,7 +1460,7 @@ class TycoonEngine extends EventTarget {
       const postedMaintenance=Math.floor(Math.max(0,finite(repair+otherFixed)));
       if(isSupplyStore)supplyCogsNonCash+=postedVariable;
       const postedProfit=postedSales-postedVariable-postedRent-postedWage-postedMaintenance;
-      store.lastSales=postedSales;store.lastProfit=isSupplyStore?postedProfit:Math.floor(postedProfit);
+      store.lastSales=postedSales;store.lastProfit=isSupplyStore?postedProfit:Math.floor(postedProfit);updateStoreSmoothedProfit(this.g,store);
       financeStores.push({storeID:store.id,businessID:store.businessID,name:store.name,sales:postedSales,variable:postedVariable,rent:postedRent,wage:postedWage,repair:postedMaintenance,cogsCashEffect:(isSupplyStore?0:undefined)});
       storeCashDelta+=postedSales-(isSupplyStore?0:postedVariable)-postedRent-postedWage-postedMaintenance;
       store.condition=clamp(store.condition-rand(.1,1),40,100);sales+=postedSales;expenses+=postedVariable+postedRent+postedWage+postedMaintenance;}
@@ -1507,7 +1548,7 @@ function gameDate(week){
     fullLabel:`${year}年目 ${month}月${day}日`};
 }
 
-Object.assign(exports,{SAVE_KEY,SAVE_VERSION,clamp,finite,uuid,yen,compactYen,pct,rand,pick,gameDate,createInitialState,mergeDefaults,detectSaveVersion,migrateSave, normalizeStockPriceHistory,migrateUnversionedToV1,migrateV1ToV2,migrateV2ToV3,migrateV3ToV4,migrateV4ToV5,migrateV5ToV6,deepNormalizeState,validateMigratedState,TycoonEngine});
+Object.assign(exports,{VALUATION_OBSERVATION_WEEKS,storeWeeksTraded,storeNormalizedProfit,storeEarningsValue,SAVE_KEY,SAVE_VERSION,clamp,finite,uuid,yen,compactYen,pct,rand,pick,gameDate,createInitialState,mergeDefaults,detectSaveVersion,migrateSave, normalizeStockPriceHistory,migrateUnversionedToV1,migrateV1ToV2,migrateV2ToV3,migrateV3ToV4,migrateV4ToV5,migrateV5ToV6,deepNormalizeState,validateMigratedState,TycoonEngine});
 })(__modules.engine={},__modules.data,__modules.market,__modules.finance,__modules.supply,__modules.workforce,__modules.competitor);
 
 })();
