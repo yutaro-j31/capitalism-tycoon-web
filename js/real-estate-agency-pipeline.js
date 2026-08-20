@@ -5,14 +5,14 @@ if(!modules)throw new Error('runtime.js must be loaded before real-estate-agency
 if(modules.realEstateAgencyPipeline)throw new Error('real-estate-agency-pipeline.js already registered.');
 // A 50/50 mix keeps the expected fee yield at the previously calibrated 6%.
 const BUSINESS_ID='realEstateAgency',SCHEMA_VERSION=3,SINGLE_COMMISSION_RATE=.055,DOUBLE_COMMISSION_RATE=.065,DOUBLE_SIDE_RATE=.5,HISTORY_LIMIT=52;
-const SEGMENTS=Object.freeze(['residential','luxury','investment','corporate']);
+const SEGMENTS=Object.freeze(['residential','luxury','investment','corporateDeal']);
 // Weighted asking value (1.019x) and closing propensity (1.067x at a neutral cycle)
 // stay close to the pre-segment brokerage calibration while making deal types meaningful.
 const SEGMENT_CONFIG=Object.freeze({
   residential:Object.freeze({weight:.58,valueMultiplier:.8,closeMultiplier:1.14,expiryOffset:0,cycleSensitivity:1}),
   luxury:Object.freeze({weight:.14,valueMultiplier:1.45,closeMultiplier:.88,expiryOffset:3,cycleSensitivity:1}),
   investment:Object.freeze({weight:.18,valueMultiplier:1.12,closeMultiplier:1.08,expiryOffset:1,cycleSensitivity:2}),
-  corporate:Object.freeze({weight:.1,valueMultiplier:1.5,closeMultiplier:.88,expiryOffset:4,cycleSensitivity:1})
+  corporateDeal:Object.freeze({weight:.1,valueMultiplier:1.5,closeMultiplier:.88,expiryOffset:4,cycleSensitivity:1})
 });
 const finite=(value,fallback=0)=>Number.isFinite(Number(value))?Number(value):fallback;
 const clamp=(value,min,max)=>Math.min(max,Math.max(min,finite(value,min)));
@@ -20,9 +20,9 @@ const integer=(value,fallback=0)=>Math.max(0,Math.floor(finite(value,fallback)))
 const hash=(seed,salt)=>{let h=2166136261>>>0;for(const c of `${seed}:${salt}`){h^=c.charCodeAt(0);h=Math.imul(h,16777619)>>>0;}return h/4294967296;};
 const commissionRateForSide=side=>side==='double'?DOUBLE_COMMISSION_RATE:SINGLE_COMMISSION_RATE;
 const sideForDeal=(seed,dealID,storeID)=>hash(seed||1,`${storeID}:${dealID}:side`)<DOUBLE_SIDE_RATE?'double':'single';
-const segmentForDeal=(seed,dealID,storeID)=>{const roll=hash(seed||1,`${storeID}:${dealID}:segment`);let cumulative=0;for(const segment of SEGMENTS){cumulative+=SEGMENT_CONFIG[segment].weight;if(roll<cumulative)return segment;}return 'corporate';};
-const emptySegmentCounts=()=>({residential:0,luxury:0,investment:0,corporate:0});
-const sanitizeSegmentCounts=value=>{const counts=emptySegmentCounts();for(const segment of SEGMENTS)counts[segment]=integer(value?.[segment]);return counts;};
+const segmentForDeal=(seed,dealID,storeID)=>{const roll=hash(seed||1,`${storeID}:${dealID}:segment`);let cumulative=0;for(const segment of SEGMENTS){cumulative+=SEGMENT_CONFIG[segment].weight;if(roll<cumulative)return segment;}return 'corporateDeal';};
+const emptySegmentCounts=()=>({residential:0,luxury:0,investment:0,corporateDeal:0});
+const sanitizeSegmentCounts=value=>{const counts=emptySegmentCounts();for(const segment of SEGMENTS)counts[segment]=integer(segment==='corporateDeal'&&value?.corporateDeal===undefined?value?.corporate:value?.[segment]);return counts;};
 function marketIndicator(g){return clamp(finite(g?.realEstateCycle,1),.65,1.55);}
 function capacityFor(business){return Math.max(6,8+Math.floor(clamp(business?.efficiency,0,100)/5));}
 function eligibleStores(stores){return (Array.isArray(stores)?stores:[]).filter(store=>store?.businessID===BUSINESS_ID&&store.status==='open');}
@@ -30,7 +30,7 @@ function sanitizeDeal(deal,storeID,week,seed){
   if(!deal||typeof deal!=='object')return null;
   const id=typeof deal.id==='string'&&deal.id?deal.id:null;if(!id)return null;
   const side=deal.side==='single'||deal.side==='double'?deal.side:sideForDeal(seed,id,storeID);
-  const segment=SEGMENTS.includes(deal.segment)?deal.segment:segmentForDeal(seed,id,storeID);
+  const segment=deal.segment==='corporate'?'corporateDeal':SEGMENTS.includes(deal.segment)?deal.segment:segmentForDeal(seed,id,storeID);
   return {id,storeID,createdWeek:Math.min(week,Math.max(1,integer(deal.createdWeek,week))),askingValue:Math.max(1_000_000,integer(deal.askingValue,30_000_000)),side,segment};
 }
 function ensureStore(store,business,week,seed){
