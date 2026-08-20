@@ -10,8 +10,6 @@ const arr=v=>Array.isArray(v)?v:[];
 const obj=v=>v&&typeof v==='object'?v:{};
 const openStores=g=>arr(g?.stores).filter(s=>s&&s.status==='open');
 const reports=g=>arr(g?.reports).filter(r=>r&&Number.isFinite(Number(r.week))).slice().sort((a,b)=>nf(a.week)-nf(b.week));
-const hasInventory=g=>{const inventory=obj(g?.inventoryByStoreID);return Object.values(inventory).some(store=>Object.values(obj(store?.inventoryByBusinessID||store)).some(v=>nf(v)>0));};
-const hasSupplyPlan=g=>Object.keys(obj(g?.supplySettingsByStoreID)).length>0||arr(g?.purchaseOrders).some(o=>o&&o.orderStatus!=='cancelled');
 const hasBusinessImprovement=g=>arr(g?.businesses).some(b=>{const base=arr(MASTER.businesses).find(x=>x&&x.id===b?.id)||{};return nf(b?.quality)>nf(base.quality)||nf(b?.brand)>nf(base.brand)||nf(b?.efficiency)>nf(base.efficiency)||nf(b?.dx)>nf(base.dx)||nf(b?.price,nf(base.price))!==nf(base.price);});
 const hasFinanceImprovement=g=>arr(g?.finance?.transactions).some(t=>t&&['investBusiness','workforceInvest','productAction','overseasAction'].includes(t.sourceType));
 const hasStoreWorkforceImprovement=g=>arr(g?.workforceTeams).some(t=>{if(!t||!t.storeID||t.status==='removed'||t.status==='closed')return false;const headcount=nf(t.headcount),baseHeadcount=Number.isFinite(Number(t.baseHeadcount))?nf(t.baseHeadcount):headcount;const activeAddedCohort=arr(t.storePayrollCohorts).some(c=>c&&c.status==='active'&&nf(c.headcount)>0);return headcount>baseHeadcount||nf(t.onboardingHeadcount)>0||nf(t.trainingLevel)>0||activeAddedCohort;});
@@ -38,6 +36,15 @@ const advanced=g=>Boolean(g?.publicCompany)||arr(g?.maSubsidiaries).length>0||ar
 // 虚偽の完了ではない。またSTEPSの並び順でfirst_week（index3）はunit_economics（index2）より
 // 後ろにあるため、店舗が開くまではfirst_storeが、開いた直後はunit_economicsがcurrentを占有し、
 // first_weekが単独でcurrentとして表示されることは元々ない（この並び順自体は変更しない）。
+//
+// unit_economics の完了条件からは hasInventory/hasSupplyPlan 等の供給シグナルを外している。
+// これらは market.js/supply.js/workforce.js の TARGET_BUSINESS_IDS（現状 ramen のみ）に
+// しか存在せず、cafe 等29業種を最初の店舗にすると店舗が正常に稼働していても永久に
+// unit_economics が完了しなかった（実測で確認）。また、対象業種（ramen）についても
+// この供給シグナルは店舗が開いた瞬間（weeksSinceFirstOpen=0の週）に自動生成されており、
+// weeksSinceFirstOpen>=1のゲートが成立する時点では既に必ず真になっている。つまり非対象
+// 業種を詰ませるだけで、対象業種側に追加の意味のあるゲートを提供していなかった。
+// 削除しても対象業種側の挙動は変わらない。
 const firstOpenWeek=g=>{
   // 実際のゲームでは openStore() が openingWeek を必ず設定するが、手組みのstateや
   // 想定外の旧セーブでは status='open' なのに openingWeek が欠落している可能性がある。
@@ -67,7 +74,7 @@ function acknowledgeDashboard(g){
 const completed={
  dashboard:g=>Boolean(g?.configured)&&(Boolean(g?.foundingTutorialProgress?.dashboardAcknowledged)||(g?.selectedTab&&g.selectedTab!=='home')||openStores(g).length>0||nf(g?.week)>1||arr(g?.completedMissionIDs).length>0),
  first_store:g=>openStores(g).length>=1,
- unit_economics:g=>openStores(g).length>=1&&weeksSinceFirstOpen(g)>=1&&(hasInventory(g)||hasSupplyPlan(g)||arr(g?.supplyResultsByStoreID).length>0||Object.keys(obj(g?.supplyResultsByStoreID)).length>0),
+ unit_economics:g=>openStores(g).length>=1&&weeksSinceFirstOpen(g)>=1,
  first_week:g=>nf(g?.week)>1||reports(g).length>0,
  weekly_recap:g=>weeksSinceFirstOpen(g)>=2,
  first_improvement:g=>hasImprovement(g),

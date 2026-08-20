@@ -117,17 +117,16 @@ const isDone = (modules, g, id) => modules.foundingTutorial.build(g).steps.find(
   assert.equal(engine.g.stores.at(-1).status, 'preparing', '前提: この時点でまだ店舗は準備中');
 }
 
-// 6. 業種が非詳細シミュレーション対象（cafe等）でも、unit_economicsが必ず詰まないことは
-//    このPRの対象外。既存の挙動（永久に未完了）が変わっていないことだけ確認する
-//    （別の既知の問題として切り分けており、このPRでは触らない）。
+// 6. 業種が非詳細シミュレーション対象（cafe等）でも、unit_economicsは正しく完了する
+//    （別PRで修正済み。詳細は tests/founding-tutorial-non-target-business-test.js）。
 {
   const { modules, engine } = newGame();
   const tenant = engine.g.tenants.find(t => !t.occupiedBy);
   engine.openStore({ tenantID: tenant.id, businessID: 'cafe', name: 'カフェ', operatingHours: 3 });
   const store = engine.g.stores.at(-1);
   while (store.status !== 'open') engine.advanceWeek(false);
-  for (let i = 0; i < 8; i++) engine.advanceWeek(false);
-  assert.equal(isDone(modules, engine.g, 'unit_economics'), false, 'cafeなど非詳細業種ではunit_economicsが完了しない（既知・対象外、挙動は不変）');
+  engine.advanceWeek(false);
+  assert.equal(isDone(modules, engine.g, 'unit_economics'), true, 'cafeなど非詳細業種でもunit_economicsが完了する');
 }
 
 // 7. 手組みstateでopeningWeekが欠落していても詰まない（旧セーブ・不整合データへの防御）。
