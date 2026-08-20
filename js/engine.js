@@ -441,6 +441,12 @@ const SIMULATION_SYSTEMS = Object.freeze([
 ]);
 const SIMULATION_DEPTH_LABEL = Object.freeze({ detailed: '詳細シミュレーション', partial: '一部詳細', simple: '簡易シミュレーション' });
 
+// 30業種→主力5業種への一本化（PR #486）で新規出店の選択肢を絞った4業種
+// （5本目のproductVenturesはg.businessesに存在しないため対象外）。
+// js/app.jsのFOUNDABLE_BUSINESS_IDSと同じ内容を、UI層とengine層それぞれで保持する
+// （market/supply/workforceのTARGET_BUSINESS_IDSと同様、モジュールごとに独立して持つ既存の流儀に合わせる）。
+const FOUNDABLE_BUSINESS_IDS = Object.freeze(['ramen','conveni','gym','realEstateAgency']);
+
 function simulationTargetIDs(key) {
   const source = key === 'market' ? market : key === 'supply' ? supply : workforce;
   const ids = source?.TARGET_BUSINESS_IDS;
@@ -695,13 +701,17 @@ class TycoonEngine extends EventTarget {
     return 1;
   }
 
-  // 事業ポートフォリオの整理。ゲーム開始時、事業画面には30業種すべてが同じ見た目の
-  // 空カードとして並ぶ（全業種が 0店・週次利益¥0）。実際には初期資金8,000,000円で
-  // 出店できるのは16業種、詳細シミュレーション対象は1業種しかないのに、
-  // その差が画面から一切読み取れなかった。
+  // 事業ポートフォリオの整理。30業種→主力5業種（うち4業種はテナント出店、
+  // 1業種はproductVenturesとして別画面）への一本化（オーナー承認・PR #486）にあわせ、
+  // 未出店側（idle）は主力4業種のみに絞る。運営中（operating）は絞らない。
+  // 旧セーブが既に主力外の業種（例: cafe）で店舗を稼働させている場合、そこには
+  // 実際の資産・従業員・週次利益が乗っており、事業画面から見えなくすると
+  // プレイヤーが自分の店舗を操作できなくなってしまう。既存セーブ互換のため、
+  // 出店済みの業種は主力外でも運営中セクションに従来どおり表示し続ける。
   //
-  // ここでは運営中の事業と未出店の業種を分け、未出店側は「今すぐ出店できるか」で並べ替える。
-  // 業種そのものは1つも隠さない（資金が増えれば出店可能性は変わるため）。読み取り専用。
+  // FOUNDABLE_BUSINESS_IDSはUI（js/app.js）側の出店プルダウンの絞り込みと同じ4業種。
+  // 変更は表示側のみで、data.js・g.businesses・openStore()には手を入れていないため、
+  // 将来ここへ業種を足し戻すだけで再開放できる。読み取り専用。
   businessPortfolio() {
     const freeDeposits=(this.g.tenants||[]).filter(t=>!t.occupiedBy).map(t=>finite(t.deposit));
     const minimumDeposit=freeDeposits.length?Math.min(...freeDeposits):0;
@@ -721,17 +731,17 @@ class TycoonEngine extends EventTarget {
       });
     });
 
-    // 運営中はまず稼ぎ頭から見せる。
+    // 運営中はまず稼ぎ頭から見せる。主力外業種でも既に出店済みなら含める（旧セーブ互換）。
     const operating=rows.filter(r=>r.storeCount>0)
       .sort((a,b)=>b.weeklyProfit-a.weeklyProfit||a.businessID.localeCompare(b.businessID));
-    // 未出店は「今すぐ出店できるもの」を先に、その中では安い順。
-    const idle=rows.filter(r=>r.storeCount===0)
+    // 未出店は主力4業種のみを対象に、「今すぐ出店できるもの」を先に、その中では安い順。
+    const idle=rows.filter(r=>r.storeCount===0&&FOUNDABLE_BUSINESS_IDS.indexOf(r.businessID)>=0)
       .sort((a,b)=>(a.affordable===b.affordable?0:a.affordable?-1:1)
         ||a.minimumUpfront-b.minimumUpfront||a.businessID.localeCompare(b.businessID));
 
     return Object.freeze({
       operating:Object.freeze(operating),idle:Object.freeze(idle),
-      counts:Object.freeze({total:rows.length,operating:operating.length,idle:idle.length,
+      counts:Object.freeze({total:operating.length+idle.length,operating:operating.length,idle:idle.length,
         affordableIdle:idle.filter(r=>r.affordable).length}),
       minimumDeposit,hasFreeTenant:freeDeposits.length>0
     });
@@ -1714,7 +1724,7 @@ function gameDate(week){
     fullLabel:`${year}年目 ${month}月${day}日`};
 }
 
-Object.assign(exports,{SIMULATION_SYSTEMS,SIMULATION_DEPTH_LABEL,businessSimulationDepth,VALUATION_OBSERVATION_WEEKS,storeWeeksTraded,storeNormalizedProfit,storeEarningsValue,SAVE_KEY,SAVE_VERSION,clamp,finite,uuid,yen,compactYen,pct,rand,pick,gameDate,createInitialState,mergeDefaults,detectSaveVersion,migrateSave, normalizeStockPriceHistory,migrateUnversionedToV1,migrateV1ToV2,migrateV2ToV3,migrateV3ToV4,migrateV4ToV5,migrateV5ToV6,deepNormalizeState,validateMigratedState,TycoonEngine});
+Object.assign(exports,{SIMULATION_SYSTEMS,SIMULATION_DEPTH_LABEL,businessSimulationDepth,FOUNDABLE_BUSINESS_IDS,VALUATION_OBSERVATION_WEEKS,storeWeeksTraded,storeNormalizedProfit,storeEarningsValue,SAVE_KEY,SAVE_VERSION,clamp,finite,uuid,yen,compactYen,pct,rand,pick,gameDate,createInitialState,mergeDefaults,detectSaveVersion,migrateSave, normalizeStockPriceHistory,migrateUnversionedToV1,migrateV1ToV2,migrateV2ToV3,migrateV3ToV4,migrateV4ToV5,migrateV5ToV6,deepNormalizeState,validateMigratedState,TycoonEngine});
 })(__modules.engine={},__modules.data,__modules.market,__modules.finance,__modules.supply,__modules.workforce,__modules.competitor);
 
 })();
