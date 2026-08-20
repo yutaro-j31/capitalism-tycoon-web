@@ -45,7 +45,35 @@ const STEPS=Object.freeze([
  {id:'organization',order:9,title:'組織経営へ移行',targetTab:'office',targetSelector:'.office-grid,.workforce-card,[data-action="contract-office"]',buttonLabel:'本社・組織へ',description:'本社、部門、人材、疲労、プロジェクトを確認します。',points:['個人商店から、役割分担する会社へ移ります。','Executive Secretaryは以後も毎週の優先課題を案内します。']},
  {id:'graduation',order:10,title:'創業チュートリアル完了',targetTab:'missions',targetSelector:'.mission,.milestone-road',buttonLabel:'成長ロードマップへ',description:'複数週の実績と成長基盤を確認できました。',points:['今後はExecutive Secretaryで現在の優先課題を確認します。','中期目標は店舗網、組織、商品開発、IPO準備です。']}
 ].map(Object.freeze));
-function build(g){const done=STEPS.map(s=>Boolean(completed[s.id]?.(g)));const completedCount=done.filter(Boolean).length;const complete=completedCount===STEPS.length;const isAdvanced=advanced(g);const displayMode=complete?'complete':isAdvanced?'summary':'guide';const firstOpen=done.findIndex(v=>!v);const currentIndex=firstOpen<0?STEPS.length-1:firstOpen;const steps=STEPS.map((s,i)=>{const state=done[i]?'completed':displayMode==='summary'?'unavailable':i===currentIndex?'current':i<currentIndex?'blocked':'upcoming';return Object.freeze({...s,state,completed:done[i],current:displayMode==='guide'&&i===currentIndex&&!done[i],upcoming:displayMode==='guide'&&i>currentIndex&&!done[i]});});const currentStep=displayMode==='guide'?(steps[currentIndex]||steps[steps.length-1]):null;return Object.freeze({steps:Object.freeze(steps),completedCount,total:STEPS.length,progressLabel:`${completedCount}/${STEPS.length}`,complete,current:currentStep,displayMode,roleNote:'創業ガイドは固定順の学習用、Executive Secretaryは毎週の危険・機会の優先順位です。'});}
+// first_store ステップは「最初の店舗を確認」という固定文言だった。実測すると、これは
+// 2つの状況で誤った指示になっていた:
+//
+//   1. 店舗0件のプレイヤー（dashboardステップを終えた直後）に対して
+//      「最初の店舗を確認 / 客数、単価、原価、キャパシティを確認します」と表示される。
+//      確認すべき店舗がまだ存在しない。初回出店のCTAとして機能していなかった。
+//   2. 出店した直後の3〜8週（status='preparing'）も同じ文言が出続ける。
+//      プレイヤーは正しく行動したのに承認されず、まだ発生していない客数を確認しろと言われる。
+//
+// 完了条件（openStores>=1）は変更しない。進行到達性に影響を出さず、文言だけを状態に合わせる。
+const preparingStores=g=>arr(g?.stores).filter(s=>s&&s.status==='preparing');
+function firstStoreVariant(step,g){
+  if(openStores(g).length>0)return step;
+  const preparing=preparingStores(g);
+  if(preparing.length>0){
+    const weeks=Math.max(0,Math.ceil(Math.min(...preparing.map(s=>nf(s.openingWeek)))-nf(g?.week)));
+    return Object.freeze({...step,
+      title:weeks>0?`開業準備中・あと${weeks}週`:'まもなく開店',
+      buttonLabel:'準備中の店舗を見る',
+      description:'出店は完了しました。開店までは売上が立たないので、週を進めて開店を待ちます。',
+      points:Object.freeze(['開店までの週数は初期費用が大きい業種ほど長くなります。','準備中も家賃と人件費は発生しません。売上が立つのは開店後です。'])});
+  }
+  return Object.freeze({...step,
+    title:'最初の店舗を出す',
+    buttonLabel:'出店できる場所を見る',
+    description:'地図でテナントを選び、業種を決めて出店します。出店前に週次収支の試算を確認できます。',
+    points:Object.freeze(['初期費用は店舗設備と保証金の合計です。','出店してから開店までは数週間かかります。'])});
+}
+function build(g){const done=STEPS.map(s=>Boolean(completed[s.id]?.(g)));const completedCount=done.filter(Boolean).length;const complete=completedCount===STEPS.length;const isAdvanced=advanced(g);const displayMode=complete?'complete':isAdvanced?'summary':'guide';const firstOpen=done.findIndex(v=>!v);const currentIndex=firstOpen<0?STEPS.length-1:firstOpen;const steps=STEPS.map((base,i)=>{const s=base.id==='first_store'?firstStoreVariant(base,g):base;const state=done[i]?'completed':displayMode==='summary'?'unavailable':i===currentIndex?'current':i<currentIndex?'blocked':'upcoming';return Object.freeze({...s,state,completed:done[i],current:displayMode==='guide'&&i===currentIndex&&!done[i],upcoming:displayMode==='guide'&&i>currentIndex&&!done[i]});});const currentStep=displayMode==='guide'?(steps[currentIndex]||steps[steps.length-1]):null;return Object.freeze({steps:Object.freeze(steps),completedCount,total:STEPS.length,progressLabel:`${completedCount}/${STEPS.length}`,complete,current:currentStep,displayMode,roleNote:'創業ガイドは固定順の学習用、Executive Secretaryは毎週の危険・機会の優先順位です。'});}
 exports.STEPS=STEPS;exports.build=build;exports._internals=Object.freeze({cashRunwayWeeks,hasImprovement,hasBusinessImprovement,hasStoreWorkforceImprovement,hasCorporateWorkforceImprovement,hasTrainingImprovement,hasOrganization,advanced});
 })(__modules.foundingTutorial={});
 })();

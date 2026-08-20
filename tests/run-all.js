@@ -223,7 +223,8 @@ for (const [name, file] of [
   ['company-headcount-display', 'tests/company-headcount-display-test.js'],
   ['business-simulation-depth', 'tests/business-simulation-depth-test.js'],
   ['store-opening-estimate', 'tests/store-opening-estimate-test.js'],
-  ['business-portfolio-focus', 'tests/business-portfolio-focus-test.js']
+  ['business-portfolio-focus', 'tests/business-portfolio-focus-test.js'],
+  ['first-store-cta', 'tests/first-store-cta-test.js']
 ]) {
   const result = spawnSync('node', [file], {
     encoding: 'utf8',
