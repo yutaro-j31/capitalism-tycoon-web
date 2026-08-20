@@ -185,4 +185,94 @@ function scenario(seed = 190826041, difficulty = 'normal') {
   assert.match(appSource, /'set-merchandising-policy':engine\.changeMerchandisingPolicy\(kind\)/, '方針変更ボタンのアクションが配線されている');
 }
 
+// --- ドミナント戦略（同一都道府県への集中出店シナジー）---
+//
+// 実際のコンビニチェーンの立地戦略（共同配送・巡回効率化）を模し、同一都道府県に
+// 複数出店すると需要が伸び廃棄ロス率が下がる。新たな乱数消費は無い決定論的な導出で、
+// 単独出店（clusterCount=0）では従来の計算式と完全に一致することを固定する。
+
+// 13. clusterCountForは「同一都道府県・営業中・自分以外」のconveni店舗だけを数える
+//     （閉店/準備中の店舗、他業種、他都道府県は数えない）。
+{
+  const mod = loadGame({}).modules.convenienceMerchandising;
+  const target = { id: 's1', businessID: 'conveni', status: 'open', prefID: 'tokyo' };
+  const stores = [
+    target,
+    { id: 's2', businessID: 'conveni', status: 'open', prefID: 'tokyo' }, // 数える
+    { id: 's3', businessID: 'conveni', status: 'open', prefID: 'tokyo' }, // 数える
+    { id: 's4', businessID: 'conveni', status: 'closed', prefID: 'tokyo' }, // 閉店は数えない
+    { id: 's5', businessID: 'conveni', status: 'preparing', prefID: 'tokyo' }, // 準備中は数えない
+    { id: 's6', businessID: 'conveni', status: 'open', prefID: 'osaka' }, // 他都道府県は数えない
+    { id: 's7', businessID: 'ramen', status: 'open', prefID: 'tokyo' }, // 他業種は数えない
+  ];
+  assert.equal(mod.clusterCountFor({ stores }, target), 2, '同一都道府県・営業中・自分以外のconveniだけを数える');
+  assert.equal(mod.clusterCountFor({ stores: [target] }, target), 0, '自店のみなら0');
+}
+
+// 14. クラスターシナジーは需要を増やし廃棄ロス率を下げる。上限でクランプされる。
+{
+  const mod = loadGame({}).modules.convenienceMerchandising;
+  const business = { price: 540, unitCost: 335 };
+  const soloStore = { id: 's1', businessID: 'conveni', status: 'open', prefID: 'tokyo' };
+  const soloG = { week: 1, stores: [soloStore], conveniMerchandising: { policyID: 'standard' } };
+  const solo = mod.processStore(soloG, soloStore, business, 1000, 1);
+
+  const clusterStore = { id: 'c1', businessID: 'conveni', status: 'open', prefID: 'tokyo' };
+  // 上限（需要+10%＝5店分、廃棄ロス削減45%＝4.5店分）を確実に超える10店の兄弟店を用意し、
+  // クランプが実際に効いていることを境界値で検証する（4店程度では上限に届かず、
+  // Math.minを外しても偶然テストが通ってしまうため）。
+  const clusterStores = [clusterStore, ...Array.from({ length: 9 }, (_, i) => ({ id: `c${i + 2}`, businessID: 'conveni', status: 'open', prefID: 'tokyo' }))];
+  const clusterG = { week: 1, stores: clusterStores, conveniMerchandising: { policyID: 'standard' } };
+  const clustered = mod.processStore(clusterG, clusterStore, business, 1000, 1);
+
+  assert.ok(clustered.sales > solo.sales, '同一都道府県に複数出店すると単独出店より売上が増える');
+  const row = clusterG.conveniMerchandising.lastWeekByStoreID[clusterStore.id];
+  assert.equal(row.clusterCount, 9, '前提: 9店の兄弟店がある（上限を超える数）');
+  assert.equal(row.clusterDemandBonus, .10, '需要シナジーは上限(+10%)ちょうどでクランプされる（9店×2%=18%は超過）');
+  assert.equal(row.clusterWasteReduction, .45, '廃棄ロス削減は上限(45%)ちょうどでクランプされる（9店×10%=90%は超過）');
+
+  // 単独出店（clusterCount=0）は従来の計算式と完全に一致する（回帰防止）。
+  const expectedSoloSales = Math.round(Math.max(0, 1000 * business.price));
+  assert.equal(solo.sales, expectedSoloSales, '単独出店はクラスターシナジー導入前と同じ売上になる');
+}
+
+// 15. 同じ店舗配置なら同じ結果（決定論）。クラスターシナジーも新たな乱数を消費しない。
+{
+  const mod = loadGame({}).modules.convenienceMerchandising;
+  const source = fs.readFileSync(path.join(__dirname, '..', 'js', 'convenience-merchandising.js'), 'utf8');
+  assert.doesNotMatch(source, /Math\.random/, 'convenience-merchandising.js はMath.randomを使わない（クラスターシナジー追加後も同じ）');
+  const business = { price: 540, unitCost: 335 };
+  const makeStores = () => { const a = { id: 'a', businessID: 'conveni', status: 'open', prefID: 'tokyo' }; const b = { id: 'b', businessID: 'conveni', status: 'open', prefID: 'tokyo' }; return [a, b]; };
+  const storesA = makeStores(), storesB = makeStores();
+  const gA = { week: 3, stores: storesA, conveniMerchandising: { policyID: 'standard' } };
+  const gB = { week: 3, stores: storesB, conveniMerchandising: { policyID: 'standard' } };
+  const rowA = mod.processStore(gA, storesA[0], business, 1200, 1);
+  const rowB = mod.processStore(gB, storesB[0], business, 1200, 1);
+  assert.deepEqual(rowA, rowB, '同じ店舗配置・入力からは同じ結果が決定論的に得られる');
+}
+
+// 16. 208週の実プレイ: 同一都道府県に3店舗出店しても倒産しない
+//     （クラスターシナジーがバランスを崩さないことの直接検証）。
+{
+  const loaded = loadGame({ random: lcg(190826041) });
+  const engine = loaded.ctx.__ct_engine;
+  engine.g.configured = true;
+  engine.g.companyCash = 30_000_000;
+  const tenants = engine.g.tenants.filter(t => !t.occupiedBy && t.prefID === 'tokyo').slice(0, 3);
+  assert.equal(tenants.length, 3, '前提: 東京に空きテナントが3件ある');
+  for (const t of tenants) assert.equal(engine.openStore({ tenantID: t.id, businessID: 'conveni', name: 'コンビニ', operatingHours: 3 }), true);
+  const stores = engine.g.stores.filter(s => s.businessID === 'conveni');
+  while (stores.some(s => s.status !== 'open')) engine.advanceWeek(false);
+  for (let i = 0; i < 208 && !engine.g.gameOver; i++) engine.advanceWeek(false);
+  assert.equal(engine.g.gameOver, false, '同一都道府県に3店舗出店しても208週で倒産しない');
+  assert.ok(engine.g.companyCash > 0, '会社現金がプラスで推移する');
+}
+
+// 17. UI配線: ドミナント戦略のKPIが事業画面に表示される。
+{
+  const appSource = fs.readFileSync(path.join(__dirname, '..', 'js', 'app.js'), 'utf8');
+  assert.match(appSource, /maxCluster=rows\.reduce\(\(max,row\)=>Math\.max\(max,finite\(row\.clusterCount\)\),0\)/, 'ドミナント出店数の集計がある');
+  assert.match(appSource, /ドミナント出店/, 'ドミナント出店のKPI表示がある');
+}
+
 console.log('convenience merchandising tests passed');
