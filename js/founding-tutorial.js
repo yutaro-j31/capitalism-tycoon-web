@@ -21,6 +21,38 @@ const hasImprovement=g=>hasBusinessImprovement(g)||hasFinanceImprovement(g)||has
 const cashRunwayWeeks=g=>{const last=g?.lastReport||reports(g).slice(-1)[0]||{};const fixed=Math.max(1,nf(last.fixedCosts,nf(last.expenses)*0.35)+nf(g?.finance?.lastStatements?.profitAndLoss?.rent)+nf(g?.finance?.lastStatements?.profitAndLoss?.payroll));return nf(g?.companyCash)/fixed;};
 const hasOrganization=g=>Boolean(g?.hasHeadOffice)||Object.keys(obj(g?.departments)).length>0||arr(g?.workforceTeams).some(t=>!t?.storeID&&nf(t?.headcount)>0)||arr(g?.workforceProjects).some(p=>p&&p.status&&p.status!=='cancelled');
 const advanced=g=>Boolean(g?.publicCompany)||arr(g?.maSubsidiaries).length>0||arr(g?.subsidiaries).length>0||arr(g?.overseasSubsidiaries).length>0||nf(g?.totalAcquisitions)>0;
+// unit_economics と weekly_recap は「店舗が開いてから経過した週数」ではなく「ゲーム開始からの
+// 絶対週数・累計レポート数」で完了判定していた。出店には3〜8週の準備期間があり、first_store
+// 自身のCTA（PR #478の「開業準備中・あとN週」）に従って週送りするだけで、店舗が一度も稼働
+// していないのに次の条件が先に満たされてしまう。実測（第1〜4週、ramen出店）:
+//
+//   週3 準備中 reports=2  weekly_recap=✓（店舗は影も形も稼働していない。前週比較する中身が無い）
+//   週4 開店   unit_economics/weekly_recapが同時に✓（supply設定は出店の瞬間に自動生成されるため、
+//              プレイヤーが供給・価格画面を一度も見ないうちに完了扱いになる）
+//
+// 完了条件を「店舗が実際に開店してから経過した週数」基準に変え、各ステップが異なる週で
+// 完了するようにする。first_store（openStores>=1）は変更しない。
+//
+// first_weekはあえて変更していない。その条件（week>1||reports.length>0）は「週送りボタンを
+// 押したかどうか」を見ているだけで、準備期間中に押しても実際に押した事実に変わりはなく、
+// 虚偽の完了ではない。またSTEPSの並び順でfirst_week（index3）はunit_economics（index2）より
+// 後ろにあるため、店舗が開くまではfirst_storeが、開いた直後はunit_economicsがcurrentを占有し、
+// first_weekが単独でcurrentとして表示されることは元々ない（この並び順自体は変更しない）。
+const firstOpenWeek=g=>{
+  // 実際のゲームでは openStore() が openingWeek を必ず設定するが、手組みのstateや
+  // 想定外の旧セーブでは status='open' なのに openingWeek が欠落している可能性がある。
+  // buildは読み取り専用でgに書き戻せないため、フォールバックは「現在週」のような
+  // 呼び出しごとに動く値にしてはいけない（weeksSinceFirstOpenが常に0に固定され、
+  // 永久に完了しない詰み状態になる）。固定の起点（週1、＝ずっと前から開いていた扱い）に
+  // することで、g.weekが進むにつれて自然にweeksSinceFirstOpenも進む。
+  const weeks=arr(g?.stores).filter(s=>s).map(s=>{
+    const raw=nf(s.openingWeek,NaN);
+    if(Number.isFinite(raw)&&raw>0)return raw;
+    return s.status==='open'?1:0;
+  }).filter(w=>w>0);
+  return weeks.length?Math.min(...weeks):null;
+};
+const weeksSinceFirstOpen=g=>{const openWeek=firstOpenWeek(g);return openWeek==null?-1:nf(g?.week)-openWeek;};
 // dashboard ステップのCTA（「CEO Dashboardを見る」）は targetTab:'home' で、
 // ホーム画面自体が既定タブのため、タップしても selectedTab が変化しない。完了条件が
 // 「selectedTabがhomeでなくなること」等の他行動の副作用に頼っていたため、CTAをタップした
@@ -35,9 +67,9 @@ function acknowledgeDashboard(g){
 const completed={
  dashboard:g=>Boolean(g?.configured)&&(Boolean(g?.foundingTutorialProgress?.dashboardAcknowledged)||(g?.selectedTab&&g.selectedTab!=='home')||openStores(g).length>0||nf(g?.week)>1||arr(g?.completedMissionIDs).length>0),
  first_store:g=>openStores(g).length>=1,
- unit_economics:g=>openStores(g).length>=1&&(hasInventory(g)||hasSupplyPlan(g)||arr(g?.supplyResultsByStoreID).length>0||Object.keys(obj(g?.supplyResultsByStoreID)).length>0),
+ unit_economics:g=>openStores(g).length>=1&&weeksSinceFirstOpen(g)>=1&&(hasInventory(g)||hasSupplyPlan(g)||arr(g?.supplyResultsByStoreID).length>0||Object.keys(obj(g?.supplyResultsByStoreID)).length>0),
  first_week:g=>nf(g?.week)>1||reports(g).length>0,
- weekly_recap:g=>reports(g).length>=2,
+ weekly_recap:g=>weeksSinceFirstOpen(g)>=2,
  first_improvement:g=>hasImprovement(g),
  cash_runway:g=>reports(g).length>=3&&cashRunwayWeeks(g)>=4,
  growth_step:g=>openStores(g).length>=2||hasOrganization(g)||advanced(g)||arr(g?.completedMissionIDs).includes('mission_two_stores'),
