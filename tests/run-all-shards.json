@@ -54,6 +54,7 @@
     "tests/industry-event-response-plans-reachability-test.js",
     "tests/real-estate-building-depreciation-test.js",
     "tests/personal-real-estate-depreciation-test.js",
+    "tests/company-valuation-normalization-test.js",
     "tests/weekly-cashflow-bridge-test.js"
   ],
   "F": [
@@ -61,6 +62,7 @@
     "tests/exploration-smoke-test.js",
     "tests/menu-research-test.js",
     "tests/personal-real-estate-corp-test.js",
+    "tests/company-headcount-display-test.js",
     "tests/business-simulation-depth-test.js"
   ],
   "G": [
