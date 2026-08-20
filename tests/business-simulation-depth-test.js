@@ -113,12 +113,19 @@ const newGame = (seed = 190826041) => loadGame({ random: lcg(seed) });
 
 // 7. UI配線: 業種セレクト3か所すべてが深度ラベル付きのbusinessOptsを使っている。
 //    素のoptsに戻ると出店時点での開示が消えるので、ここで固定する。
+//    テナント出店のみ主力4業種へUI上で絞り込む変更が入ったため、
+//    事業ポートフォリオ・海外進出の2か所は従来どおりg.businessesを、
+//    テナント出店の1か所はfoundableBusinesses(g)を使う（後述のfoundable-business-scope-testで詳細を固定）。
 {
   const source = fs.readFileSync(path.join(__dirname, '..', 'js', 'app.js'), 'utf8');
 
   assert.equal(
-    (source.match(/businessOpts\(g\.businesses,ui\.selectedBusiness\)/g) || []).length, 3,
-    '業種セレクト3か所（テナント出店・事業ポートフォリオ・海外進出）がbusinessOptsを使う'
+    (source.match(/businessOpts\(g\.businesses,ui\.selectedBusiness\)/g) || []).length, 2,
+    '業種セレクト2か所（事業ポートフォリオ・海外進出）が全業種のbusinessOptsを使う'
+  );
+  assert.equal(
+    (source.match(/businessOpts\(foundableBusinesses\(g\),foundingID\)/g) || []).length, 1,
+    'テナント出店の1か所はfoundableBusinesses(g)で絞ったbusinessOptsを使う'
   );
   assert.equal(
     (source.match(/[^s]opts\(g\.businesses,ui\.selectedBusiness\)/g) || []).length, 0,
