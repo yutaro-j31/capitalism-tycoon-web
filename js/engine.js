@@ -695,6 +695,84 @@ class TycoonEngine extends EventTarget {
     return 1;
   }
 
+  // 出店前の収支試算。約400万円（設備＋保証金）を投じる判断を、開けてみるまで
+  // 何も分からない状態でさせないための読み取り専用の見積り。
+  //
+  // 需要式は advanceWeek() の非詳細業種と同じものをそのまま使う（30業種中28業種はこれが本番の式）。
+  // 唯一違うのは rand(.88,1.14) を消費しない点で、代わりにその両端を保守的〜楽観的の帯として返す。
+  // RNGを引かないので、この試算を何度呼んでも決定論の指紋は動かない。
+  //
+  // 詳細シミュレーション対象業種（market.TARGET_BUSINESS_IDS）は本番では market.calculateMarket()
+  // の客層別計算を通るため、この式は近似になる。その場合は approximate:true を立てて呼び出し側へ伝える。
+  estimateStoreOpening({tenantID,businessID,operatingHours=3}) {
+    const tenant=this.g.tenants.find(t=>t.id===tenantID);
+    const b=this.business(businessID);
+    if(!tenant||!b)return null;
+    const p=this.pref(tenant.prefID),a=p?this.area(p.areaID):null;
+    if(!p||!a)return null;
+
+    const hours=Math.max(1,Math.min(4,Math.floor(finite(operatingHours,3))));
+    const demandHours=[0,.45,.75,1,1.17][hours]||1;
+    const costHours=[0,.55,.8,1,1.24][hours]||1;
+    const crisisSales=this.g.macroCrisis?finite(this.g.macroCrisis.salesMultiplier,1):1;
+    const crisisCost=finite(this.g.macroCrisis?.costMultiplier,1);
+    const localCompetition=a.competition+this.competitorPressure(a.id,b.id);
+
+    // advanceWeek() の需要式から rand(.88,1.14) だけを抜いたもの。
+    let demand=b.demand*p.traffic*a.traffic*this.g.economy*this.g.season*this.fit(b,a)
+      *(1+b.quality/100)*(1+b.brand/90)*(1+b.dx/140)*(1-localCompetition*.55);
+    demand*=1+this.departmentEffect('dx')*.05+this.departmentEffect('marketing')*.03;
+    demand*=demandHours;
+    demand*=crisisSales;
+
+    // 新店は condition=100 なので repair は 0。fixed は需要に依存しないので帯の全ケースで共通。
+    const fixed=(b.fixedCost+p.rent+b.wage)*this.g.inflation*costHours*crisisCost;
+    const rent=p.rent*this.g.inflation*costHours*crisisCost;
+    const wage=b.wage*this.g.inflation*costHours*crisisCost;
+    const efficiencyDiscount=1-Math.min(.22,b.efficiency/260);
+    const operationsRelief=1+this.departmentEffect('operations')*.04;
+
+    const at=multiplier=>{
+      const units=Math.max(0,demand*multiplier);
+      const sales=Math.floor(Math.max(0,units*b.price*this.g.inflation));
+      const variable=Math.floor(Math.max(0,units*b.unitCost*this.g.inflation*efficiencyDiscount/operationsRelief));
+      return Object.freeze({units:Math.round(units*10)/10,sales,variable,
+        fixed:Math.floor(Math.max(0,fixed)),profit:sales-variable-Math.floor(Math.max(0,fixed))});
+    };
+    const conservative=at(.88),expected=at(1),optimistic=at(1.14);
+
+    const upfront=b.storeCost+tenant.deposit;
+    const weeksToOpen=b.storeCost>=15_000_000?8:b.storeCost>=7_000_000?5:3;
+    const paybackWeeks=expected.profit>0?Math.ceil(upfront/expected.profit):null;
+    const depth=businessSimulationDepth(businessID);
+
+    // 見積りの限界を呼び出し側へ明示する。実測（3業種×3シード）では、開店週のマクロを
+    // 揃えて比較すると実績は必ず帯の中に入るが、出店から開店までの3〜8週で
+    // 景気・季節・インフレが動くため、開店時点の実績は帯から外れうる。通常スタートでは
+    // economy 1.00→1.13 / season 1.00→1.07 / inflation 1.00→1.03 と上振れし、
+    // 固定費のレバレッジで週次利益は見積りの約2.5倍になった。下振れも同じだけ起こりうる。
+    const caveats=Object.freeze([
+      `帯は需要のばらつき（±14%）のみを表します。景気・季節・インフレの変動は含みません。`,
+      `開店は${weeksToOpen}週後です。それまでに景気や季節が動くと、実績は帯から上下どちらにも外れます。`
+    ].concat(depth.level!=='simple'
+      ? [`${b.name}は${depth.label}の対象です。実際の売上は客層別の市場計算で決まるため、この試算は近似です。`]
+      : []));
+
+    return Object.freeze({
+      tenantID,businessID,operatingHours:hours,
+      businessName:b.name,tenantName:tenant.name,prefName:p.name,
+      conservative,expected,optimistic,
+      breakdown:Object.freeze({rent:Math.floor(Math.max(0,rent)),wage:Math.floor(Math.max(0,wage)),
+        otherFixed:Math.floor(Math.max(0,fixed-rent-wage))}),
+      storeCost:b.storeCost,deposit:tenant.deposit,upfront,weeksToOpen,
+      companyCash:finite(this.g.companyCash),affordable:finite(this.g.companyCash)>=upfront,
+      cashAfterOpening:finite(this.g.companyCash)-upfront,
+      paybackWeeks,profitable:expected.profit>0,
+      approximate:depth.level!=='simple',
+      depthLabel:depth.label,caveats
+    });
+  }
+
   openStore({tenantID,businessID,name,operatingHours=3}) {
     const tenant = this.g.tenants.find(t=>t.id===tenantID);
     const business = this.business(businessID);
