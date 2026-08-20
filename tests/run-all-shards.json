@@ -53,6 +53,7 @@
     "tests/competitor-product-counter-reachability-test.js",
     "tests/industry-event-response-plans-reachability-test.js",
     "tests/real-estate-building-depreciation-test.js",
+    "tests/real-estate-agency-pipeline-test.js",
     "tests/personal-real-estate-depreciation-test.js",
     "tests/company-valuation-normalization-test.js",
     "tests/weekly-cashflow-bridge-test.js",
