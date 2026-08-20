@@ -211,7 +211,7 @@ const freeTenant = engine => engine.g.tenants.find(t => !t.occupiedBy);
 {
   const source = fs.readFileSync(path.join(__dirname, '..', 'js', 'app.js'), 'utf8');
 
-  assert.match(source, /storeOpeningEstimate\(t\.id,ui\.selectedBusiness\)/, 'テナントカードに試算を描画する');
+  assert.match(source, /storeOpeningEstimate\(t\.id,foundingID\)/, 'テナントカードに試算を描画する（foundingIDはselectedBusinessを主力業種の範囲に丸めたもの）');
   assert.match(source, /<select id="business-\$\{t\.id\}" data-bind="selectedBusiness">/, '業種セレクトがselectedBusinessに連動し、選び直すと試算が更新される');
   assert.match(source, /function storeOpeningEstimate\(tenantID,businessID\)\{[\s\S]{0,300}estimateStoreOpening/, '表示はengineの試算を使う（app.js側で再計算しない）');
   assert.match(source, /e\.caveats\.map/, '注意事項をUIに必ず出す');
