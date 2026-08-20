@@ -68,7 +68,8 @@
     "tests/company-headcount-display-test.js",
     "tests/business-simulation-depth-test.js",
     "tests/first-store-cta-test.js",
-    "tests/business-screen-tap-target-test.js"
+    "tests/business-screen-tap-target-test.js",
+    "tests/product-ventures-it-pillar-test.js"
   ],
   "G": [
     "tests/executive-dismissal-reachability-test.js",
