@@ -17,8 +17,19 @@ assert.match(app, /aria-live="polite"/, 'aria-live is present');
 assert.match(app, /aria-current="\$\{s\.current\?'step':'false'\}"/, 'current step is exposed');
 assert.match(app, /aria-label="創業ロードマップ詳細"/, 'details has accessible label');
 assert.match(app, /data-action="founding-tutorial-jump"/, 'read-only navigation button renders');
-assert.match(app, /case 'founding-tutorial-jump':engine\.g\.selectedTab=el\.dataset\.tab\|\|'home';render\(\);requestAnimationFrame/, 'jump only changes tab and focuses');
-assert.doesNotMatch(app.match(/case 'founding-tutorial-jump':[\s\S]*?break;/)[0], /engine\.save|advanceWeek|openStore|borrow|repay|hire|invest/, 'guide jump does not execute game actions or save');
+assert.match(app, /data-step="\$\{esc\(current\.id\)\}"/, 'CTA button exposes the current step id for the dashboard acknowledgement guard');
+// jump navigates for every step. The one deliberate exception is the dashboard step: its CTA
+// (targetTab:'home', the default tab) never changes selectedTab on tap, so its completion had no
+// way to fire from the tap itself -- players kept seeing the same CTA forever. The fix persists an
+// explicit acknowledgement flag, guarded to exactly that step, before the unconditional navigation.
+const jumpCaseBody = app.match(/case 'founding-tutorial-jump':[\s\S]*?break;/)[0];
+assert.match(
+  jumpCaseBody,
+  /if\(el\.dataset\.step==='dashboard'\)\{foundingTutorialModule\.acknowledgeDashboard\(engine\.g\);engine\.save\(\);\}engine\.g\.selectedTab=el\.dataset\.tab\|\|'home';render\(\);requestAnimationFrame/,
+  'dashboard step tap persists an explicit acknowledgement flag, then jump proceeds as before'
+);
+assert.doesNotMatch(jumpCaseBody, /advanceWeek|openStore|borrow|repay|hire|invest/, 'guide jump still never executes real game actions');
+assert.equal((jumpCaseBody.match(/engine\.save\(\)/g) || []).length, 1, 'the only save in guide jump is the guarded dashboard acknowledgement, not an unconditional one');
 assert.match(app, /Executive Secretary/, 'role split note is rendered');
 assert.match(css, /\.btn\.small\.founding-guide-cta\s*\{[^}]*min-height:44px/, 'founding guide CTA keeps a 44px tap target with enough specificity to override .btn.small');
 assert.match(css, /@media\(max-width:430px\)/, 'narrow iPhone width rule exists');
