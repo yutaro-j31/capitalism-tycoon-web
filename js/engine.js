@@ -427,6 +427,52 @@ function mergeDefaults(target, defaults) {
   return target ?? defaults;
 }
 
+// 業種ごとのシミュレーション深度。market / supply / workforce はそれぞれ TARGET_BUSINESS_IDS で
+// 詳細モデルの対象業種を絞っており（現状すべて ramen のみ）、対象外の業種は engine.js の
+// 旧売上式で動く。これは CLAUDE.md が定めた意図的な段階導入だが、出店を決める時点では
+// プレイヤーに一切開示されていなかった。ここでは3つのリストを実際に読んで深度を導出する。
+// リストを直接読むので、業種を1つずつ追加していけばラベルは自動的に追従する。
+//
+// 読み取り専用。ゲーム状態を参照せず、シミュレーションの挙動にも一切影響しない。
+const SIMULATION_SYSTEMS = Object.freeze([
+  Object.freeze({ key: 'market', label: '市場・需要', detail: '客層別の需要と価格弾力性を個別に計算します。' }),
+  Object.freeze({ key: 'supply', label: '仕入・在庫', detail: '原材料の発注・在庫・廃棄を管理します。' }),
+  Object.freeze({ key: 'workforce', label: '人員配置', detail: '店舗チームの採用・研修・疲労を管理します。' })
+]);
+const SIMULATION_DEPTH_LABEL = Object.freeze({ detailed: '詳細シミュレーション', partial: '一部詳細', simple: '簡易シミュレーション' });
+
+function simulationTargetIDs(key) {
+  const source = key === 'market' ? market : key === 'supply' ? supply : workforce;
+  const ids = source?.TARGET_BUSINESS_IDS;
+  return Array.isArray(ids) ? ids : [];
+}
+
+function businessSimulationDepth(businessID) {
+  const id = String(businessID ?? '');
+  const systems = SIMULATION_SYSTEMS.map(system => Object.freeze({
+    key: system.key,
+    label: system.label,
+    detail: system.detail,
+    detailed: simulationTargetIDs(system.key).indexOf(id) >= 0
+  }));
+  const detailedCount = systems.filter(system => system.detailed).length;
+  const level = detailedCount === 0 ? 'simple' : detailedCount === systems.length ? 'detailed' : 'partial';
+  const detailedLabels = systems.filter(system => system.detailed).map(system => system.label);
+  const summary = level === 'detailed'
+    ? `${detailedLabels.join('、')}まで詳細に再現されます。`
+    : level === 'partial'
+      ? `${detailedLabels.join('、')}のみ詳細で、それ以外は簡易式です。`
+      : '売上は簡易式で計算されます。客層・仕入・人員配置の個別管理はありません。';
+  return Object.freeze({
+    businessID: id,
+    systems: Object.freeze(systems),
+    detailedCount,
+    level,
+    label: SIMULATION_DEPTH_LABEL[level],
+    summary
+  });
+}
+
 class TycoonEngine extends EventTarget {
   constructor(state = null) {
     super();
@@ -1507,7 +1553,7 @@ function gameDate(week){
     fullLabel:`${year}年目 ${month}月${day}日`};
 }
 
-Object.assign(exports,{SAVE_KEY,SAVE_VERSION,clamp,finite,uuid,yen,compactYen,pct,rand,pick,gameDate,createInitialState,mergeDefaults,detectSaveVersion,migrateSave, normalizeStockPriceHistory,migrateUnversionedToV1,migrateV1ToV2,migrateV2ToV3,migrateV3ToV4,migrateV4ToV5,migrateV5ToV6,deepNormalizeState,validateMigratedState,TycoonEngine});
+Object.assign(exports,{SIMULATION_SYSTEMS,SIMULATION_DEPTH_LABEL,businessSimulationDepth,SAVE_KEY,SAVE_VERSION,clamp,finite,uuid,yen,compactYen,pct,rand,pick,gameDate,createInitialState,mergeDefaults,detectSaveVersion,migrateSave, normalizeStockPriceHistory,migrateUnversionedToV1,migrateV1ToV2,migrateV2ToV3,migrateV3ToV4,migrateV4ToV5,migrateV5ToV6,deepNormalizeState,validateMigratedState,TycoonEngine});
 })(__modules.engine={},__modules.data,__modules.market,__modules.finance,__modules.supply,__modules.workforce,__modules.competitor);
 
 })();
