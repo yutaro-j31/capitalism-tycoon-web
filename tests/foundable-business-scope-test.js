@@ -79,16 +79,17 @@ const appSource = fs.readFileSync(path.join(__dirname, '..', 'js', 'app.js'), 'u
 
   const p = engine.businessPortfolio();
   assert.ok(p.operating.some(r => r.businessID === 'cafe'), '既存セーブのcafe店舗は運営中として引き続き表示される');
-  assert.equal(p.counts.total, engine.g.businesses.length, 'businessPortfolioは引き続き全30業種を数える（P3の既存契約を壊さない）');
 }
 
-// 5. businessPortfolio()自体（「業種を1つも隠さない」という外部監査P3の既存契約）は
-//    このPRで一切変更していない。未出店側にも30業種すべてが残る。
+// 5. businessPortfolio()の未出店側は、後続PR（tests/business-portfolio-focus-test.js参照）で
+//    主力4業種のみへ絞られた。このPR時点（#486）では未出店側も全30業種のままだったが、
+//    その後オーナーの追加指示（事業画面自体も5業種に絞りたい）により変更された。
+//    ここでは詳細を重複させず、「運営中は絞らない」という本ファイルの主眼（block 3, 4）だけを
+//    固定し、未出店側の絞り込み仕様はbusiness-portfolio-focus-test.jsに委ねる。
 {
   const { engine } = newGame();
   const p = engine.businessPortfolio();
-  assert.equal(p.idle.length, engine.g.businesses.length, '開始直後は全30業種が未出店として一覧に残る（隠さない）');
-  assert.ok(p.idle.some(r => r.businessID === 'esportsFacility'), '対象外の業種（例: esportsFacility）も一覧からは消えていない');
+  assert.ok(!p.idle.some(r => r.businessID === 'esportsFacility'), '対象外の業種（例: esportsFacility）は未出店側の絞り込み後は表示されない（詳細はbusiness-portfolio-focus-test.js）');
 }
 
 // 6. 読み取り専用ヘルパーであること。foundableBusinesses/foundingBusinessIDの追加が

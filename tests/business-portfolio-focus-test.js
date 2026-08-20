@@ -1,19 +1,23 @@
 'use strict';
 
-// 事業画面の「0店舗業種の整理」（外部監査P3）。
+// 事業画面の「0店舗業種の整理」（外部監査P3）と、その後の30→5業種一本化（PR #486/本PR）。
 //
 // ゲーム開始時、事業画面には30業種すべてが同じ見た目の空カードとして並んでいた
-// （全業種が 0店・週次利益¥0・同一のプレースホルダKPI）。実測すると:
+// （全業種が 0店・週次利益¥0・同一のプレースホルダKPI）。P3ではengine.businessPortfolio()
+// が運営中と未出店を分け、未出店側を「今すぐ出店できるか」→「安い順」で並べ替えることで
+// 対応した（当時は業種を1つも隠さない設計だった）。
 //
-//   業種総数            30
-//   初期資金で出店可能  17（最安の空きテナントの保証金で判定）
-//   詳細シミュレーション 1（ramen のみ）
+// その後、オーナー承認のもと事業を主力5業種（①ラーメン②コンビニ③ジム④productVentures
+// ⑤不動産仲介）へ一本化する方針になり（PR #486で新規出店プルダウンを先に絞った）、
+// 本PRで事業画面自体（businessPortfolio）も主力4業種（④productVenturesはg.businessesに
+// 存在せず別画面のため対象外）のみを「未出店の業種」として表示するよう変更した。
 //
-// つまり「今なにを選べるのか」が画面から一切読み取れない状態だった。
+// 一方で「運営中の事業」は絞っていない。旧セーブが主力外の業種（例: cafe）で
+// 既に店舗を稼働させている場合、そこには実際の資産・従業員・週次利益が乗っており、
+// 事業画面から見えなくするとプレイヤーが自分の店舗を操作できなくなる。そのため
+// 出店済みの業種は主力外でも運営中セクションに従来どおり表示し続ける（既存セーブ互換）。
 //
-// engine.businessPortfolio() が運営中と未出店を分け、未出店側を「今すぐ出店できるか」
-// →「安い順」で並べ替える。業種そのものは1つも隠さない（資金が増えれば可否は変わるため）。
-// 表示は app.js が行い、計算はここに集約する。
+// 表示は app.js が行い、計算はここ（engine.businessPortfolio）に集約する。
 
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
@@ -31,18 +35,21 @@ function newGame(seed = 190826041) {
 
 const freeTenant = engine => engine.g.tenants.find(t => !t.occupiedBy);
 
-// 1. 開始時は全業種が未出店で、業種は1つも失われない。
+// 1. 開始時は主力4業種のみが未出店として表示される。データ自体（g.businesses）は
+//    引き続き30業種のままで、消えているのは表示だけ。
 {
   const { engine } = newGame();
   const p = engine.businessPortfolio();
+  const FOUNDABLE = ['ramen', 'conveni', 'gym', 'realEstateAgency'];
 
-  assert.equal(p.counts.total, engine.g.businesses.length, '業種総数が一致する');
+  assert.equal(engine.g.businesses.length, 30, '前提: データそのものは引き続き30業種を持つ');
   assert.equal(p.counts.operating, 0, '開始時は運営中が0');
-  assert.equal(p.counts.idle, engine.g.businesses.length, '開始時は全業種が未出店');
-  assert.equal(p.operating.length + p.idle.length, engine.g.businesses.length, '運営中と未出店の合計＝全業種（隠さない）');
+  assert.equal(p.counts.idle, FOUNDABLE.length, '開始時は主力4業種のみ未出店として表示される');
+  assert.equal(p.counts.total, p.operating.length + p.idle.length, 'totalは表示されている行数の合計');
 
-  const ids = new Set([...p.operating, ...p.idle].map(r => r.businessID));
-  for (const b of engine.g.businesses) assert.ok(ids.has(b.id), `${b.id}が欠落していない`);
+  const ids = new Set(p.idle.map(r => r.businessID));
+  assert.deepEqual([...ids].sort(), [...FOUNDABLE].sort(), '未出店側は主力4業種と完全に一致する');
+  assert.ok(!ids.has('cafe'), '主力外業種（例: cafe）は未出店側に表示されない');
 }
 
 // 2. 回帰の本体: 「今すぐ出店できる業種」が全体より明確に少なく、かつ判別できる。
@@ -107,7 +114,7 @@ const freeTenant = engine => engine.g.tenants.find(t => !t.occupiedBy);
   assert.equal(p.operating[0].openStoreCount, 1, '営業中店舗数が数えられる');
   assert.ok(p.operating[0].weeklyProfit !== 0, '運営中は実績の週次利益を持つ');
   assert.ok(!p.idle.some(r => r.businessID === 'ramen'), 'ramenは未出店側から外れる');
-  assert.equal(p.counts.total, engine.g.businesses.length, '総数は変わらない');
+  assert.equal(p.counts.total, 4, '主力4業種の合計は変わらない（ramenが未出店→運営中へ移っただけ）');
 }
 
 // 6. 閉店した店舗しか無い業種は未出店側に戻る（運営中に居座らない）。
@@ -209,6 +216,37 @@ const freeTenant = engine => engine.g.tenants.find(t => !t.occupiedBy);
       assert.ok(css.includes(`.${name}`), `事業画面が使う .${name} はcss/app.cssに既存`);
     }
   }
+}
+
+// 14. 旧セーブ互換の本体: 主力外業種（例: cafe）で既に店舗を稼働させている場合、
+//     運営中セクションには従来どおり表示される（隠さない）。未出店側には出てこない。
+{
+  const { engine } = newGame();
+  const tenant = freeTenant(engine);
+  engine.openStore({ tenantID: tenant.id, businessID: 'cafe', name: 'カフェ', operatingHours: 3 });
+  const store = engine.g.stores.at(-1);
+  while (engine.g.week < store.openingWeek + 2) engine.advanceWeek(false);
+
+  const p = engine.businessPortfolio();
+  assert.ok(p.operating.some(r => r.businessID === 'cafe'), '主力外でも出店済みなら運営中に表示される（既存セーブ互換）');
+  assert.ok(!p.idle.some(r => r.businessID === 'cafe'), '出店済みのcafeは未出店側には出てこない');
+}
+
+// 15. 主力外業種の店舗が全て閉店すると、P3までは未出店側に戻っていたが、
+//     本PR以降は主力外なので未出店側にも戻らず、事業画面から消える
+//     （store自体はg.storesに残り、地図タブ等では引き続き参照できる）。
+{
+  const { engine } = newGame();
+  const tenant = freeTenant(engine);
+  engine.openStore({ tenantID: tenant.id, businessID: 'cafe', name: 'カフェ', operatingHours: 3 });
+  const store = engine.g.stores.at(-1);
+  while (engine.g.week < store.openingWeek + 1) engine.advanceWeek(false);
+
+  assert.ok(engine.businessPortfolio().operating.some(r => r.businessID === 'cafe'), '前提: 運営中に表示されている');
+  store.status = 'closed';
+  const p = engine.businessPortfolio();
+  assert.ok(!p.operating.some(r => r.businessID === 'cafe'), '閉店すると運営中から外れる');
+  assert.ok(!p.idle.some(r => r.businessID === 'cafe'), '主力外なので未出店側にも戻らない');
 }
 
 console.log('business portfolio focus tests passed');
