@@ -38,7 +38,10 @@ function pathsFor(source, trigger) {
   return paths;
 }
 
-assert.equal(workflowFiles.length, 22, 'Phase 1 must retain all 22 workflow files');
+assert.equal(workflowFiles.length, 20, 'Phase 2A must retain exactly 20 workflow files');
+for (const file of ['ceo-dashboard.yml', 'founding-tutorial.yml']) {
+  assert.equal(workflowFiles.includes(file), false, `${file} must remain consolidated into canonical Test and iPhone WebKit Smoke`);
+}
 for (const file of workflowFiles) {
   assert(!readWorkflow(file).includes('js/pmi-100-day-loader.js'), `${file} must not reference the obsolete PMI loader`);
 }
@@ -54,7 +57,7 @@ assert.deepEqual(triggerBlock(strategy, 'push').filter(line => /branches:/.test(
 const difficulty = readWorkflow('phase6b3-diagnostic.yml');
 assert(!hasTrigger(difficulty, 'pull_request'), 'Difficulty Scenario Balance must not duplicate Release Readiness on PRs');
 assert(hasTrigger(difficulty, 'push') && hasTrigger(difficulty, 'schedule') && hasTrigger(difficulty, 'workflow_dispatch'), 'Difficulty full matrix must remain available on main, nightly, and manually');
-for (const file of ['ceo-dashboard.yml', 'founding-tutorial.yml', 'ma-integration.yml', 'ma-board-approval.yml']) {
+for (const file of ['ma-integration.yml', 'ma-board-approval.yml']) {
   const source = readWorkflow(file);
   assert(hasTrigger(source, 'workflow_dispatch'), `${file} must remain manually runnable`);
   for (const trigger of ['pull_request', 'push', 'schedule']) assert(!hasTrigger(source, trigger), `${file} must be manual-only (unexpected ${trigger})`);
@@ -89,4 +92,6 @@ for (const file of workflowFiles) {
   const source = readWorkflow(file);
   if (hasTrigger(source, 'push')) assert(isMainOnly(triggerBlock(source, 'push')), `${file} must not run on feature-branch pushes`);
 }
-console.log(`workflow trigger architecture contract: ${workflowFiles.length} workflows, ${scheduledStartsPerDay} scheduled starts/day`);
+const pullRequestWorkflows = workflowFiles.filter(file => hasTrigger(readWorkflow(file), 'pull_request'));
+assert.equal(pullRequestWorkflows.length, 8, 'Phase 2A must not change the eight PR-triggered workflows (two always-run plus six path-scoped)');
+console.log(`workflow trigger architecture contract: ${workflowFiles.length} workflows, ${scheduledStartsPerDay} scheduled starts/day, ${pullRequestWorkflows.length} PR-triggered workflows`);
