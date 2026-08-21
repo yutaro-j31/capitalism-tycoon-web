@@ -36,8 +36,8 @@
     "executedBy": ".github/workflows/iphone-webkit-smoke.yml"
   },
   "tests/iphone-playtest-webkit-test.js": {
-    "reason": "Executed outside the canonical run-all suite by .github/workflows/iphone-playtest-remediation.yml.",
-    "executedBy": ".github/workflows/iphone-playtest-remediation.yml"
+    "reason": "Executed outside the canonical run-all suite by the consolidated .github/workflows/iphone-webkit-smoke.yml executor.",
+    "executedBy": ".github/workflows/iphone-webkit-smoke.yml"
   },
   "tests/iphone-webkit-smoke-contract-test.js": {
     "reason": "Executed by the release delivery gate aggregator, which is invoked from release-readiness.yml.",

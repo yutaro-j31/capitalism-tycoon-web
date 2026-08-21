@@ -38,8 +38,8 @@ function pathsFor(source, trigger) {
   return paths;
 }
 
-assert.equal(workflowFiles.length, 18, 'Phase 2B must retain exactly 18 workflow files');
-for (const file of ['ceo-dashboard.yml', 'founding-tutorial.yml', 'ma-integration.yml', 'ma-board-approval.yml']) {
+assert.equal(workflowFiles.length, 16, 'Phase 2C must retain exactly 16 workflow files');
+for (const file of ['ceo-dashboard.yml', 'founding-tutorial.yml', 'ma-integration.yml', 'ma-board-approval.yml', 'iphone-playtest-remediation.yml', 'physical-iphone-playtest.yml']) {
   assert.equal(workflowFiles.includes(file), false, `${file} must remain absent after workflow consolidation`);
 }
 for (const file of workflowFiles) {
@@ -79,10 +79,13 @@ const pagesSmoke = readWorkflow('pages-deployment-smoke.yml');
 assert(/^name: Pages Deployment Smoke$/m.test(pagesSmoke), 'Pages Deployment Smoke name is a workflow_run contract');
 assert(hasTrigger(pagesSmoke, 'push') && hasTrigger(pagesSmoke, 'workflow_dispatch'), 'Pages Deployment Smoke triggers must remain intact');
 assert(readWorkflow('release-attestation-sync.yml').includes('Pages Deployment Smoke'), 'Release Attestation Sync must still reference Pages Deployment Smoke');
-for (const file of ['iphone-playtest-remediation.yml', 'physical-iphone-playtest.yml']) {
-  const source = readWorkflow(file);
-  assert(!hasTrigger(source, 'schedule'), `${file} must not consume a duplicate daily schedule`);
-  assert(hasTrigger(source, 'push') && pathsFor(source, 'push').length > 0 && hasTrigger(source, 'workflow_dispatch'), `${file} must retain path-scoped main and manual coverage`);
+const iphone = readWorkflow('iphone-webkit-smoke.yml');
+assert(!hasTrigger(iphone, 'pull_request'), 'iPhone consolidated executor must not consume pull-request runners');
+assert(hasTrigger(iphone, 'push') && isMainOnly(triggerBlock(iphone, 'push')), 'iPhone consolidated executor push must be main-only');
+assert.equal(pathsFor(iphone, 'push').length, 0, 'iPhone consolidated executor must retain broad main coverage');
+assert(hasTrigger(iphone, 'schedule') && hasTrigger(iphone, 'workflow_dispatch'), 'iPhone consolidated executor must retain nightly/manual coverage');
+for (const command of ['node tests/iphone-playtest-webkit-test.js', 'node tests/physical-iphone-playtest-test.js']) {
+  assert(iphone.includes(command), `iPhone consolidated executor must retain ${command}`);
 }
 let scheduledStartsPerDay = 0;
 for (const file of workflowFiles) {
@@ -101,5 +104,5 @@ for (const file of workflowFiles) {
   if (hasTrigger(source, 'push')) assert(isMainOnly(triggerBlock(source, 'push')), `${file} must not run on feature-branch pushes`);
 }
 const pullRequestWorkflows = workflowFiles.filter(file => hasTrigger(readWorkflow(file), 'pull_request'));
-assert.equal(pullRequestWorkflows.length, 8, 'Phase 2B must not change the eight PR-triggered workflows (two always-run plus six path-scoped)');
+assert.equal(pullRequestWorkflows.length, 8, 'Phase 2C must not change the eight PR-triggered workflows (two always-run plus six path-scoped)');
 console.log(`workflow trigger architecture contract: ${workflowFiles.length} workflows, ${scheduledStartsPerDay} scheduled starts/day, ${pullRequestWorkflows.length} PR-triggered workflows`);
