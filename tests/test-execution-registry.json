@@ -52,15 +52,15 @@
     "executedBy": ".github/workflows/ma-acquisition-financing.yml"
   },
   "tests/ma-board-approval-webkit-test.js": {
-    "reason": "Executed outside the canonical run-all suite by .github/workflows/ma-acquisition-financing.yml, .github/workflows/ma-board-approval.yml.",
+    "reason": "Executed outside the canonical run-all suite by .github/workflows/ma-acquisition-financing.yml.",
     "executedBy": ".github/workflows/ma-acquisition-financing.yml"
   },
   "tests/ma-deal-room-webkit-test.js": {
-    "reason": "Executed outside the canonical run-all suite by .github/workflows/ma-acquisition-financing.yml, .github/workflows/ma-board-approval.yml, .github/workflows/ma-deal-room.yml.",
+    "reason": "Executed outside the canonical run-all suite by .github/workflows/ma-acquisition-financing.yml, .github/workflows/ma-deal-room.yml.",
     "executedBy": ".github/workflows/ma-acquisition-financing.yml"
   },
   "tests/ma-integration-webkit-test.js": {
-    "reason": "Executed outside the canonical run-all suite by .github/workflows/ma-acquisition-financing.yml, .github/workflows/ma-board-approval.yml, .github/workflows/ma-integration.yml.",
+    "reason": "Executed outside the canonical run-all suite by .github/workflows/ma-acquisition-financing.yml.",
     "executedBy": ".github/workflows/ma-acquisition-financing.yml"
   },
   "tests/mobile-release-contract-test.js": {
@@ -124,7 +124,7 @@
     "executedBy": ".github/workflows/shareholder-activism.yml"
   },
   "tests/strategy-balance-matrix-test.js": {
-    "reason": "Executed outside the canonical run-all suite by .github/workflows/issue-294-executive-hiring-diagnostic.yml, .github/workflows/ma-acquisition-financing.yml, .github/workflows/ma-board-approval.yml, .github/workflows/strategy-balance.yml.",
+    "reason": "Executed outside the canonical run-all suite by .github/workflows/issue-294-executive-hiring-diagnostic.yml, .github/workflows/ma-acquisition-financing.yml, .github/workflows/strategy-balance.yml.",
     "executedBy": ".github/workflows/issue-294-executive-hiring-diagnostic.yml"
   },
   "tests/strategy-balance-pr-smoke-test.js": {

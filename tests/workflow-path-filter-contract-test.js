@@ -38,9 +38,9 @@ function pathsFor(source, trigger) {
   return paths;
 }
 
-assert.equal(workflowFiles.length, 20, 'Phase 2A must retain exactly 20 workflow files');
-for (const file of ['ceo-dashboard.yml', 'founding-tutorial.yml']) {
-  assert.equal(workflowFiles.includes(file), false, `${file} must remain consolidated into canonical Test and iPhone WebKit Smoke`);
+assert.equal(workflowFiles.length, 18, 'Phase 2B must retain exactly 18 workflow files');
+for (const file of ['ceo-dashboard.yml', 'founding-tutorial.yml', 'ma-integration.yml', 'ma-board-approval.yml']) {
+  assert.equal(workflowFiles.includes(file), false, `${file} must remain absent after workflow consolidation`);
 }
 for (const file of workflowFiles) {
   assert(!readWorkflow(file).includes('js/pmi-100-day-loader.js'), `${file} must not reference the obsolete PMI loader`);
@@ -57,16 +57,24 @@ assert.deepEqual(triggerBlock(strategy, 'push').filter(line => /branches:/.test(
 const difficulty = readWorkflow('phase6b3-diagnostic.yml');
 assert(!hasTrigger(difficulty, 'pull_request'), 'Difficulty Scenario Balance must not duplicate Release Readiness on PRs');
 assert(hasTrigger(difficulty, 'push') && hasTrigger(difficulty, 'schedule') && hasTrigger(difficulty, 'workflow_dispatch'), 'Difficulty full matrix must remain available on main, nightly, and manually');
-for (const file of ['ma-integration.yml', 'ma-board-approval.yml']) {
-  const source = readWorkflow(file);
-  assert(hasTrigger(source, 'workflow_dispatch'), `${file} must remain manually runnable`);
-  for (const trigger of ['pull_request', 'push', 'schedule']) assert(!hasTrigger(source, trigger), `${file} must be manual-only (unexpected ${trigger})`);
-}
 const comprehensiveMa = readWorkflow('ma-acquisition-financing.yml');
 assert(!hasTrigger(comprehensiveMa, 'pull_request'), 'M&A comprehensive gate must not duplicate canonical PR coverage');
 assert(hasTrigger(comprehensiveMa, 'push') && pathsFor(comprehensiveMa, 'push').length > 0, 'M&A comprehensive main push must use paths');
 assert(isMainOnly(triggerBlock(comprehensiveMa, 'push')), 'M&A comprehensive push must be main-only');
 assert(hasTrigger(comprehensiveMa, 'schedule') && hasTrigger(comprehensiveMa, 'workflow_dispatch'), 'M&A comprehensive nightly/manual coverage must remain');
+for (const command of [
+  'npm run test:ma-board-approval',
+  'npm run test:ma-integration',
+  'node tests/ma-board-approval-webkit-test.js',
+  'node tests/ma-integration-webkit-test.js',
+]) assert(comprehensiveMa.includes(command), `M&A comprehensive gate must retain ${command}`);
+const dealRoom = readWorkflow('ma-deal-room.yml');
+assert(hasTrigger(dealRoom, 'pull_request') && pathsFor(dealRoom, 'pull_request').length > 0, 'M&A Deal Room must retain its path-scoped PR gate');
+assert(hasTrigger(dealRoom, 'workflow_dispatch'), 'M&A Deal Room must remain manually runnable');
+for (const command of ['playwright@1.61.0', 'npx playwright install --with-deps webkit', 'node tests/ma-deal-room-webkit-test.js', 'actions/upload-artifact@v4', 'if-no-files-found: error']) {
+  assert(dealRoom.includes(command), `M&A Deal Room must retain ${command}`);
+}
+
 const pagesSmoke = readWorkflow('pages-deployment-smoke.yml');
 assert(/^name: Pages Deployment Smoke$/m.test(pagesSmoke), 'Pages Deployment Smoke name is a workflow_run contract');
 assert(hasTrigger(pagesSmoke, 'push') && hasTrigger(pagesSmoke, 'workflow_dispatch'), 'Pages Deployment Smoke triggers must remain intact');
@@ -93,5 +101,5 @@ for (const file of workflowFiles) {
   if (hasTrigger(source, 'push')) assert(isMainOnly(triggerBlock(source, 'push')), `${file} must not run on feature-branch pushes`);
 }
 const pullRequestWorkflows = workflowFiles.filter(file => hasTrigger(readWorkflow(file), 'pull_request'));
-assert.equal(pullRequestWorkflows.length, 8, 'Phase 2A must not change the eight PR-triggered workflows (two always-run plus six path-scoped)');
+assert.equal(pullRequestWorkflows.length, 8, 'Phase 2B must not change the eight PR-triggered workflows (two always-run plus six path-scoped)');
 console.log(`workflow trigger architecture contract: ${workflowFiles.length} workflows, ${scheduledStartsPerDay} scheduled starts/day, ${pullRequestWorkflows.length} PR-triggered workflows`);
