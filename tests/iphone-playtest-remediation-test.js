@@ -30,23 +30,34 @@ has(index,'./js/play-runtime-compat.js','production entry must load runtime comp
 has(index,'./js/iphone-playtest-fixes.js','production entry must load remediation JS');
 assert(index.indexOf('./js/play-runtime-compat.js')<index.indexOf('./js/iphone-playtest-fixes.js'),'runtime compatibility must load before iPhone enhancements');
 
-// WebKit and physical-device suites are deliberately excluded from pull requests.
-// The broad iPhone WebKit smoke runs on main, nightly, and manually; the focused
-// remediation and physical checklist suites run on path-filtered main pushes or manually.
-const workflowContracts={
- '.github/workflows/iphone-webkit-smoke.yml':{schedule:true,paths:false},
- '.github/workflows/iphone-playtest-remediation.yml':{schedule:false,paths:true},
- '.github/workflows/physical-iphone-playtest.yml':{schedule:false,paths:true}
-};
-for(const [workflow,contract] of Object.entries(workflowContracts)){
- const source=fs.readFileSync(workflow,'utf8');
- assert(!/^\s*pull_request\s*:/m.test(source),`${workflow} must not run on pull_request`);
- assert(/^\s*push\s*:/m.test(source),`${workflow} must retain main push coverage`);
- assert(/branches:\s*\[main\]/.test(source),`${workflow} push coverage must target main`);
- assert(/^\s*workflow_dispatch\s*:/m.test(source),`${workflow} must retain manual execution`);
- const pushBlock=source.match(/^  push:\s*\n((?: {4}.*(?:\n|$))*)/m)?.[1]||'';
- assert.equal(/^\s*schedule\s*:/m.test(source),contract.schedule,`${workflow} schedule trigger contract changed`);
- assert.equal(/^\s*paths\s*:/m.test(pushBlock),contract.paths,`${workflow} main push path-filter contract changed`);
+// Browser remediation and the physical checklist share the broad main/nightly/manual
+// iPhone executor. The deleted focused workflows must not silently return.
+const smokeWorkflow='.github/workflows/iphone-webkit-smoke.yml';
+const workflow=fs.readFileSync(smokeWorkflow,'utf8');
+for(const removed of ['.github/workflows/iphone-playtest-remediation.yml','.github/workflows/physical-iphone-playtest.yml']){
+ assert(!fs.existsSync(removed),`${removed} must remain consolidated into ${smokeWorkflow}`);
+}
+assert(!/^\s*pull_request\s*:/m.test(workflow),`${smokeWorkflow} must not run on pull_request`);
+assert(/^\s*push\s*:/m.test(workflow),`${smokeWorkflow} must retain main push coverage`);
+assert(/branches:\s*\[main\]/.test(workflow),`${smokeWorkflow} push coverage must target main`);
+assert(/^\s*schedule\s*:/m.test(workflow),`${smokeWorkflow} must retain daily coverage`);
+assert(/^\s*workflow_dispatch\s*:/m.test(workflow),`${smokeWorkflow} must retain manual execution`);
+const pushBlock=workflow.match(/^  push:\s*\n((?: {4}.*(?:\n|$))*)/m)?.[1]||'';
+assert(!/^\s*paths\s*:/m.test(pushBlock),`${smokeWorkflow} must retain broad main coverage`);
+for(const command of [
+ 'playwright@1.61.0',
+ 'npx playwright install --with-deps webkit',
+ 'node --check js/play-runtime-compat.js',
+ 'node --check js/iphone-playtest-fixes.js',
+ 'node --check js/physical-iphone-playtest.js',
+ 'node --check tests/iphone-playtest-webkit-test.js',
+ 'node tests/iphone-playtest-remediation-test.js',
+ 'node tests/iphone-playtest-webkit-test.js',
+ 'node tests/physical-iphone-playtest-test.js',
+ 'if-no-files-found: error'
+]) has(workflow,command,`${smokeWorkflow} must retain ${command}`);
+for(const artifact of ['artifacts/iphone-playtest-remediation','artifacts/physical-iphone-playtest']){
+ assert(new RegExp(`^ {12}${artifact}$`,'m').test(workflow),`${smokeWorkflow} upload must retain ${artifact}`);
 }
 
 // CSS equivalent of the all-modules wiring guard: every production CSS file must be
