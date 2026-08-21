@@ -48,5 +48,5 @@ jobs:
         with:
           name: release-readiness-${{ github.sha }}
           path: artifacts/release-readiness
-          if-no-files-found: warn
+          if-no-files-found: error
           retention-days: 7

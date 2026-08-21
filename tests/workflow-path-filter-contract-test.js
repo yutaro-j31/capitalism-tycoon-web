@@ -38,9 +38,12 @@ function pathsFor(source, trigger) {
   return paths;
 }
 
-assert.equal(workflowFiles.length, 16, 'Phase 2C must retain exactly 16 workflow files');
-for (const file of ['ceo-dashboard.yml', 'founding-tutorial.yml', 'ma-integration.yml', 'ma-board-approval.yml', 'iphone-playtest-remediation.yml', 'physical-iphone-playtest.yml']) {
+assert.equal(workflowFiles.length, 13, 'Phase 2D must retain exactly 13 workflow files');
+for (const file of ['ceo-dashboard.yml', 'founding-tutorial.yml', 'ma-integration.yml', 'ma-board-approval.yml', 'iphone-playtest-remediation.yml', 'physical-iphone-playtest.yml', 'pages-publication-attestation.yml', 'published-save-quota-contract.yml', 'release-attestation-contract.yml']) {
   assert.equal(workflowFiles.includes(file), false, `${file} must remain absent after workflow consolidation`);
+}
+for (const file of ['test.yml', 'release-readiness.yml', 'strategy-balance.yml', 'phase6b3-diagnostic.yml', 'iphone-webkit-smoke.yml', 'ma-deal-room.yml', 'ma-acquisition-financing.yml', 'pages-deployment-smoke.yml', 'release-attestation-sync.yml', 'release-candidate-tag.yml', 'issue-294-executive-hiring-diagnostic.yml', 'shareholder-activism.yml', 'exploration-1000-week.yml']) {
+  assert(workflowFiles.includes(file), `${file} must remain after Phase 2D consolidation`);
 }
 for (const file of workflowFiles) {
   assert(!readWorkflow(file).includes('js/pmi-100-day-loader.js'), `${file} must not reference the obsolete PMI loader`);
@@ -77,7 +80,10 @@ for (const command of ['playwright@1.61.0', 'npx playwright install --with-deps 
 
 const pagesSmoke = readWorkflow('pages-deployment-smoke.yml');
 assert(/^name: Pages Deployment Smoke$/m.test(pagesSmoke), 'Pages Deployment Smoke name is a workflow_run contract');
-assert(hasTrigger(pagesSmoke, 'push') && hasTrigger(pagesSmoke, 'workflow_dispatch'), 'Pages Deployment Smoke triggers must remain intact');
+assert(hasTrigger(pagesSmoke, 'push') && hasTrigger(pagesSmoke, 'schedule') && hasTrigger(pagesSmoke, 'workflow_dispatch'), 'Pages Deployment Smoke triggers must remain intact');
+assert(pagesSmoke.includes("cron: '17 4 * * *'"), 'Pages Deployment Smoke must inherit the daily publication attestation schedule');
+assert(pagesSmoke.includes("if: github.event_name != 'schedule'"), 'scheduled Pages checks must skip the full WebKit job');
+assert(pagesSmoke.includes('node scripts/verify-published-pages.js'), 'Pages Deployment Smoke must retain publication verification');
 assert(readWorkflow('release-attestation-sync.yml').includes('Pages Deployment Smoke'), 'Release Attestation Sync must still reference Pages Deployment Smoke');
 const iphone = readWorkflow('iphone-webkit-smoke.yml');
 assert(!hasTrigger(iphone, 'pull_request'), 'iPhone consolidated executor must not consume pull-request runners');
@@ -104,5 +110,5 @@ for (const file of workflowFiles) {
   if (hasTrigger(source, 'push')) assert(isMainOnly(triggerBlock(source, 'push')), `${file} must not run on feature-branch pushes`);
 }
 const pullRequestWorkflows = workflowFiles.filter(file => hasTrigger(readWorkflow(file), 'pull_request'));
-assert.equal(pullRequestWorkflows.length, 8, 'Phase 2C must not change the eight PR-triggered workflows (two always-run plus six path-scoped)');
+assert.equal(pullRequestWorkflows.length, 6, 'Phase 2D must retain six PR-triggered workflows after removing two duplicate contracts');
 console.log(`workflow trigger architecture contract: ${workflowFiles.length} workflows, ${scheduledStartsPerDay} scheduled starts/day, ${pullRequestWorkflows.length} PR-triggered workflows`);

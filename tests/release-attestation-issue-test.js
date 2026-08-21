@@ -109,6 +109,8 @@ try {
   fs.rmSync(temporaryRoot, { recursive: true, force: true });
 }
 
+const pagesWorkflow = fs.readFileSync(path.join(ROOT, '.github', 'workflows', 'pages-deployment-smoke.yml'), 'utf8');
+assert.match(pagesWorkflow, /^name: Pages Deployment Smoke$/m, 'workflow_run depends on the Pages Deployment Smoke name');
 const workflow = fs.readFileSync(path.join(ROOT, '.github', 'workflows', 'release-attestation-sync.yml'), 'utf8');
 assert.match(workflow, /^name: Release Attestation Sync$/m);
 assert.match(workflow, /^  workflow_run:$/m);
@@ -134,16 +136,17 @@ assert.match(workflow, /gh issue comment/);
 assert.match(workflow, /actions\/upload-artifact@v4/);
 assert.doesNotMatch(workflow, /git tag|git push/, 'attestation sync must never create or move a release tag');
 
-const focusedWorkflow = fs.readFileSync(path.join(ROOT, '.github', 'workflows', 'release-attestation-contract.yml'), 'utf8');
-assert.match(focusedWorkflow, /^name: Release Attestation Contract$/m);
-assert.match(focusedWorkflow, /^  pull_request:$/m);
-assert.match(focusedWorkflow, /^  contents: read$/m);
-assert.match(focusedWorkflow, /node tests\/release-attestation-issue-test\.js/);
-assert.match(focusedWorkflow, /release-attestation-contract\.log/);
-assert.match(focusedWorkflow, /actions\/upload-artifact@v4/);
-
 const deliveryGate = fs.readFileSync(path.join(ROOT, 'scripts', 'release-delivery-gate.js'), 'utf8');
-assert.match(deliveryGate, /tests\/release-attestation-issue-test\.js/,
-  'release attestation contract must remain in the canonical delivery gate');
+const readiness = fs.readFileSync(path.join(ROOT, '.github', 'workflows', 'release-readiness.yml'), 'utf8');
+assert.equal(fs.existsSync(path.join(ROOT, '.github', 'workflows', 'release-attestation-contract.yml')), false,
+  'dedicated release attestation workflow must remain consolidated');
+assert.equal((deliveryGate.match(/tests\/release-attestation-issue-test\.js/g) || []).length, 1,
+  'release attestation contract must run exactly once in the canonical delivery gate');
+assert.match(readiness, /node scripts\/release-delivery-gate\.js 2>&1 \| tee artifacts\/release-readiness\/delivery\.log/,
+  'Release Readiness must retain release attestation diagnostics in delivery.log');
+assert.match(readiness, /actions\/upload-artifact@v4/);
+assert.match(readiness, /artifacts\/release-readiness/);
+assert.match(readiness, /if-no-files-found: error/,
+  'Release Readiness diagnostics must fail if their prepared artifact directory disappears');
 
 console.log('release attestation issue synchronization checks passed');
