@@ -12,8 +12,6 @@ on:
       - 'tests/iphone-playtest-remediation-test.js'
       - 'tests/iphone-playtest-webkit-test.js'
       - '.github/workflows/iphone-playtest-remediation.yml'
-  schedule:
-    - cron: '50 2 * * *'
   workflow_dispatch:
 permissions:
   contents: read

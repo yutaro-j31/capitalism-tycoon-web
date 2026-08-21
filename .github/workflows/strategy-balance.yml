@@ -1,6 +1,7 @@
 name: Strategy Balance
 on:
   push:
+    branches: [main]
   pull_request:
     paths:
       - 'js/**'

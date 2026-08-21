@@ -1,35 +1,6 @@
 name: Founding Tutorial
 
 on:
-  push:
-    branches: [ main ]
-  pull_request:
-    paths:
-      - 'js/founding-tutorial.js'
-      - 'js/app.js'
-      - 'js/ceo-dashboard.js'
-      - 'js/engine.js'
-      - 'js/finance.js'
-      - 'js/save*.js'
-      - 'js/*normalize*.js'
-      - 'index.html'
-      - 'package.json'
-      - 'tests/harness.js'
-      - 'tests/run-all.js'
-      - 'css/app.css'
-      - 'css/**'
-      - 'tests/founding-tutorial-test.js'
-      - 'tests/founding-tutorial-ui-test.js'
-      - 'tests/founding-tutorial-webkit-test.js'
-      - 'tests/published-founding-tutorial-webkit-test.js'
-      - 'tests/founding-tutorial-workflow-test.js'
-      - 'tests/pages-deployment-smoke-test.js'
-      - '.github/workflows/iphone-webkit-smoke.yml'
-      - '.github/workflows/pages-deployment-smoke.yml'
-      - 'tests/fixtures/extracted-css-baseline.css'
-      - '.github/workflows/founding-tutorial.yml'
-  schedule:
-    - cron: '20 3 * * *'
   workflow_dispatch:
 
 permissions:

@@ -3,18 +3,9 @@ name: Difficulty Scenario Balance
   push:
     branches:
       - main
-  pull_request:
-    paths:
-      - 'js/**'
-      - 'index.html'
-      - 'package.json'
-      - 'tests/harness.js'
-      - 'tests/run-all.js'
-      - 'tests/strategy-balance-runner.js'
-      - 'tests/difficulty-scenario-*.js'
-      - '.github/workflows/phase6b3-diagnostic.yml'
   schedule:
     - cron: '15 2 * * *'
+  workflow_dispatch:
 jobs:
   balance-contract:
     runs-on: ubuntu-latest

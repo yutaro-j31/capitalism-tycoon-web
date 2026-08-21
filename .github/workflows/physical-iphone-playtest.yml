@@ -9,8 +9,6 @@ on:
       - 'js/physical-iphone-playtest.js'
       - 'tests/physical-iphone-playtest-test.js'
       - '.github/workflows/physical-iphone-playtest.yml'
-  schedule:
-    - cron: '5 3 * * *'
   workflow_dispatch:
 
 permissions:

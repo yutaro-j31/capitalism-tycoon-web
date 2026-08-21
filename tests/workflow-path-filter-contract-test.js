@@ -1,67 +1,36 @@
 'use strict';
 
-const assert = require('node:assert');
+const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
 
 const workflowRoot = path.resolve('.github/workflows');
-const alwaysRun = Object.freeze([
-  'test.yml',
-  'release-readiness.yml',
-]);
-// Workflows that still run on their own because they are either too slow for the
-// canonical suite or exercise a real WebKit browser. Everything else was absorbed
-// into the canonical suite, which runs unconditionally and therefore needs no path
-// filter to guarantee coverage.
-const scoped = Object.freeze([
-  'strategy-balance.yml',
-  'phase6b3-diagnostic.yml',
-  'founding-tutorial.yml',
-  'ma-integration.yml',
-  'ma-board-approval.yml',
-  'ma-acquisition-financing.yml',
-]);
+const workflowFiles = fs.readdirSync(workflowRoot).filter(file => /\.ya?ml$/.test(file)).sort();
+const readWorkflow = file => fs.readFileSync(path.join(workflowRoot, file), 'utf8');
+const hasTrigger = (source, trigger) => new RegExp(`^  ${trigger}:\\s*$`, 'm').test(source);
+const isMainOnly = block => block.some((line, index) =>
+  /branches:\s*\[\s*main\s*\]/.test(line)
+  || (/^    branches:\s*$/.test(line) && /^      -\s+main\s*$/.test(block[index + 1] || ''))
+);
 
-const sharedDependencyFiles = Object.freeze([
-  'js/engine.js',
-  'js/finance.js',
-  'js/save-v9.js',
-  'js/save-storage.js',
-  'js/save-storage-ui.js',
-  'js/save-import-atomic-guard.js',
-  // Virtual representative path: workflows must include js/** or a normalize glob.
-  'js/state-normalize.js',
-  'index.html',
-  'package.json',
-  'tests/harness.js',
-  'tests/run-all.js',
-]);
-
-function readWorkflow(file) {
-  const full = path.join(workflowRoot, file);
-  assert(fs.existsSync(full), `workflow missing: ${file}`);
-  return fs.readFileSync(full, 'utf8');
-}
-
-function pullRequestBlock(source) {
+function triggerBlock(source, trigger) {
   const lines = source.split(/\r?\n/);
-  const start = lines.findIndex(line => /^  pull_request:\s*$/.test(line));
-  assert(start >= 0, 'pull_request trigger missing');
+  const start = lines.findIndex(line => new RegExp(`^  ${trigger}:\\s*$`).test(line));
+  if (start < 0) return [];
   const block = [];
   for (let index = start + 1; index < lines.length; index += 1) {
-    const line = lines[index];
-    if (/^  [A-Za-z_][A-Za-z0-9_-]*:\s*$/.test(line) || /^jobs:\s*$/.test(line) || /^permissions:\s*$/.test(line)) break;
-    block.push(line);
+    if (/^  [A-Za-z_][A-Za-z0-9_-]*:\s*$/.test(lines[index]) || /^[A-Za-z_][A-Za-z0-9_-]*:\s*$/.test(lines[index])) break;
+    block.push(lines[index]);
   }
   return block;
 }
 
-function pullRequestPaths(source) {
-  const block = pullRequestBlock(source);
-  const pathsIndex = block.findIndex(line => /^    paths:\s*$/.test(line));
-  if (pathsIndex < 0) return [];
+function pathsFor(source, trigger) {
+  const block = triggerBlock(source, trigger);
+  const start = block.findIndex(line => /^    paths:\s*$/.test(line));
+  if (start < 0) return [];
   const paths = [];
-  for (let index = pathsIndex + 1; index < block.length; index += 1) {
+  for (let index = start + 1; index < block.length; index += 1) {
     const match = block[index].match(/^      -\s+['"]?(.+?)['"]?\s*$/);
     if (!match) break;
     paths.push(match[1]);
@@ -69,88 +38,55 @@ function pullRequestPaths(source) {
   return paths;
 }
 
-function globRegex(pattern) {
-  let output = '^';
-  for (let index = 0; index < pattern.length; index += 1) {
-    const char = pattern[index];
-    if (char === '*') {
-      if (pattern[index + 1] === '*') {
-        output += '.*';
-        index += 1;
-      } else {
-        output += '[^/]*';
-      }
-    } else if (char === '?') {
-      output += '[^/]';
-    } else {
-      output += char.replace(/[|\\{}()[\]^$+?.]/g, '\\$&');
-    }
+assert.equal(workflowFiles.length, 22, 'Phase 1 must retain all 22 workflow files');
+for (const file of workflowFiles) {
+  assert(!readWorkflow(file).includes('js/pmi-100-day-loader.js'), `${file} must not reference the obsolete PMI loader`);
+}
+for (const file of ['test.yml', 'release-readiness.yml']) {
+  const source = readWorkflow(file);
+  assert(hasTrigger(source, 'pull_request'), `${file} must remain an always-run pull-request workflow`);
+  assert.equal(pathsFor(source, 'pull_request').length, 0, `${file} pull_request must not have a paths filter`);
+}
+const strategy = readWorkflow('strategy-balance.yml');
+assert(hasTrigger(strategy, 'pull_request'), 'Strategy Balance must retain PR full-matrix coverage');
+assert(strategy.includes('npm run test:strategy-balance'), 'Strategy Balance must retain the full matrix command');
+assert.deepEqual(triggerBlock(strategy, 'push').filter(line => /branches:/.test(line)), ['    branches: [main]'], 'Strategy Balance push must be main-only');
+const difficulty = readWorkflow('phase6b3-diagnostic.yml');
+assert(!hasTrigger(difficulty, 'pull_request'), 'Difficulty Scenario Balance must not duplicate Release Readiness on PRs');
+assert(hasTrigger(difficulty, 'push') && hasTrigger(difficulty, 'schedule') && hasTrigger(difficulty, 'workflow_dispatch'), 'Difficulty full matrix must remain available on main, nightly, and manually');
+for (const file of ['ceo-dashboard.yml', 'founding-tutorial.yml', 'ma-integration.yml', 'ma-board-approval.yml']) {
+  const source = readWorkflow(file);
+  assert(hasTrigger(source, 'workflow_dispatch'), `${file} must remain manually runnable`);
+  for (const trigger of ['pull_request', 'push', 'schedule']) assert(!hasTrigger(source, trigger), `${file} must be manual-only (unexpected ${trigger})`);
+}
+const comprehensiveMa = readWorkflow('ma-acquisition-financing.yml');
+assert(!hasTrigger(comprehensiveMa, 'pull_request'), 'M&A comprehensive gate must not duplicate canonical PR coverage');
+assert(hasTrigger(comprehensiveMa, 'push') && pathsFor(comprehensiveMa, 'push').length > 0, 'M&A comprehensive main push must use paths');
+assert(isMainOnly(triggerBlock(comprehensiveMa, 'push')), 'M&A comprehensive push must be main-only');
+assert(hasTrigger(comprehensiveMa, 'schedule') && hasTrigger(comprehensiveMa, 'workflow_dispatch'), 'M&A comprehensive nightly/manual coverage must remain');
+const pagesSmoke = readWorkflow('pages-deployment-smoke.yml');
+assert(/^name: Pages Deployment Smoke$/m.test(pagesSmoke), 'Pages Deployment Smoke name is a workflow_run contract');
+assert(hasTrigger(pagesSmoke, 'push') && hasTrigger(pagesSmoke, 'workflow_dispatch'), 'Pages Deployment Smoke triggers must remain intact');
+assert(readWorkflow('release-attestation-sync.yml').includes('Pages Deployment Smoke'), 'Release Attestation Sync must still reference Pages Deployment Smoke');
+for (const file of ['iphone-playtest-remediation.yml', 'physical-iphone-playtest.yml']) {
+  const source = readWorkflow(file);
+  assert(!hasTrigger(source, 'schedule'), `${file} must not consume a duplicate daily schedule`);
+  assert(hasTrigger(source, 'push') && pathsFor(source, 'push').length > 0 && hasTrigger(source, 'workflow_dispatch'), `${file} must retain path-scoped main and manual coverage`);
+}
+let scheduledStartsPerDay = 0;
+for (const file of workflowFiles) {
+  for (const line of triggerBlock(readWorkflow(file), 'schedule')) {
+    const match = line.match(/cron:\s*['"]([^'"]+)['"]/);
+    if (!match) continue;
+    const [minute, hour] = match[1].split(/\s+/);
+    assert.notEqual(minute, '*', `${file} must not run more than hourly`);
+    scheduledStartsPerDay += hour === '*' ? 24 : hour.includes(',') ? hour.split(',').length : 1;
   }
-  return new RegExp(`${output}$`);
 }
-
-function covers(paths, file) {
-  return paths.some(pattern => globRegex(pattern).test(file));
-}
-
-const allWorkflowFiles = fs.readdirSync(workflowRoot).filter(file => /\.ya?ml$/.test(file));
-for (const file of allWorkflowFiles) {
+assert(scheduledStartsPerDay <= 6, `scheduled starts/day must be at most 6, got ${scheduledStartsPerDay}`);
+assert.equal(scheduledStartsPerDay, 4, 'Phase 1 architecture must schedule exactly four starts/day');
+for (const file of workflowFiles) {
   const source = readWorkflow(file);
-  assert(
-    !source.includes('js/pmi-100-day-loader.js'),
-    `${file} must not inspect or depend on the obsolete pmi-100-day-loader.js compatibility file`,
-  );
+  if (hasTrigger(source, 'push')) assert(isMainOnly(triggerBlock(source, 'push')), `${file} must not run on feature-branch pushes`);
 }
-
-for (const file of alwaysRun) {
-  const source = readWorkflow(file);
-  const paths = pullRequestPaths(source);
-  assert.equal(paths.length, 0, `${file} must remain an always-run pull-request check`);
-}
-
-const scopedPaths = new Map();
-for (const file of scoped) {
-  const source = readWorkflow(file);
-  const paths = pullRequestPaths(source);
-  assert(paths.length > 0, `${file} must define pull_request.paths`);
-  assert(covers(paths, `.github/workflows/${file}`), `${file} must trigger when its own YAML changes`);
-  for (const dependency of sharedDependencyFiles) {
-    assert(covers(paths, dependency), `${file} must cover shared dependency ${dependency}`);
-  }
-  scopedPaths.set(file, paths);
-}
-
-function workflowsFor(changedFile) {
-  return [
-    ...alwaysRun,
-    ...scoped.filter(file => covers(scopedPaths.get(file), changedFile)),
-  ];
-}
-
-const representative = {
-  docs: workflowsFor('docs/DEVELOPMENT_ROADMAP.md'),
-  ma: workflowsFor('js/ma-integration.js'),
-  dui: workflowsFor('css/d-ui.css'),
-  finance: workflowsFor('js/finance.js'),
-};
-
-assert(representative.docs.length <= 4, `docs-only PR should start at most four workflows, got ${representative.docs.length}`);
-assert(representative.ma.length <= 10, `M&A PR should start at most ten workflows, got ${representative.ma.length}`);
-assert(representative.dui.length <= 10, `D UI PR should start at most ten workflows, got ${representative.dui.length}`);
-assert.equal(representative.finance.length, alwaysRun.length + scoped.length, 'shared finance changes must run every scoped workflow');
-
-for (const file of [
-  'founding-tutorial.yml',
-  'ma-integration.yml',
-  'ma-board-approval.yml',
-  'ma-acquisition-financing.yml',
-]) {
-  const source = readWorkflow(file);
-  assert(source.includes("if: github.event_name != 'pull_request'"), `${file} must keep WebKit execution off pull requests`);
-  assert(/^  push:\s*$/m.test(source), `${file} must retain main push coverage`);
-  assert(/^  schedule:\s*$/m.test(source), `${file} must retain nightly coverage`);
-  assert(/^  workflow_dispatch:\s*$/m.test(source), `${file} must retain manual coverage`);
-}
-
-console.log(`WORKFLOW_PATH_FILTER_COUNTS ${JSON.stringify(representative)}`);
-console.log(`workflow path filter contract: ${scoped.length} scoped + ${alwaysRun.length} always-run workflows verified`);
+console.log(`workflow trigger architecture contract: ${workflowFiles.length} workflows, ${scheduledStartsPerDay} scheduled starts/day`);

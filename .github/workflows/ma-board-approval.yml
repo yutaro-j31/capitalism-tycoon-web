@@ -1,31 +1,7 @@
 name: M&A Board Approval
 on:
-  pull_request:
-    paths:
-      - 'js/ma-*.js'
-      - 'js/pmi-*.js'
-      - 'js/subsidiary-*.js'
-      - 'js/group-*.js'
-      - 'js/ceo-dashboard.js'
-      - 'js/engine.js'
-      - 'js/finance.js'
-      - 'js/save*.js'
-      - 'js/*normalize*.js'
-      - 'index.html'
-      - 'package.json'
-      - 'tests/harness.js'
-      - 'tests/run-all.js'
-      - 'tests/ma-*.js'
-      - 'tests/pmi-*.js'
-      - 'tests/subsidiary-*.js'
-      - 'tests/finance-ma-accounting-test.js'
-      - 'tests/v1-progression-gate-test.js'
-      - '.github/workflows/ma-board-approval.yml'
-  push:
-    branches: [main]
-  schedule:
-    - cron: '40 3 * * *'
   workflow_dispatch:
+
 permissions:
   contents: read
 concurrency:
