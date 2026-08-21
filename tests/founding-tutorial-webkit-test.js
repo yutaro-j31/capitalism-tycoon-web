@@ -147,9 +147,9 @@ async function setState(page, kind) {
       state.reports = Array.from({ length: count }, (_, index) => ({ week: index + 1, sales: 1_000_000 + index * 100_000, profit: 120_000 + index * 30_000, expenses: 700_000, fixedCosts: 500_000 }));
       state.lastReport = state.reports.at(-1);
     }
-    if (kind === 'weekly') { addStore(); addReports(1); }
-    if (kind === 'improvement') { addStore(); addReports(2); modules.workforce.storeAdjustment(state, state.stores[0], 1000); }
-    if (kind === 'cash') { addStore(); addReports(2); }
+    if (kind === 'weekly') { addStore(); addReports(2); }
+    if (kind === 'improvement') { addStore(); addReports(2); state.week = 3; modules.workforce.storeAdjustment(state, state.stores[0], 1000); }
+    if (kind === 'cash') { addStore(); addReports(2); state.week = 3; }
     if (kind === 'summary') { addReports(4); state.publicCompany = true; state.sharesOut = 100_000; state.companyDebt = 1_000_000; }
     if (kind === 'complete') {
       addStore(); addReports(3); state.companyCash = 8_000_000;
@@ -167,6 +167,8 @@ async function setState(page, kind) {
       game.normalize();
     }
     const model = modules.foundingTutorial.build(game.g);
+    if (kind === 'weekly' && model.current?.id !== 'weekly_recap') throw new Error(`weekly fixture did not reach weekly_recap: ${model.current?.id}`);
+    if (kind === 'improvement' && model.current?.id !== 'first_improvement') throw new Error(`improvement fixture did not reach first_improvement: ${model.current?.id}`);
     if (kind === 'cash' && model.current?.id !== 'cash_runway') throw new Error(`cash fixture did not reach cash_runway: ${model.current?.id}`);
     if (kind === 'complete' && model.displayMode !== 'complete') throw new Error(`complete fixture did not reach complete: ${model.displayMode}`);
     localStorage.setItem(key, JSON.stringify(game.g));
