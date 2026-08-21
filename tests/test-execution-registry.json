@@ -12,8 +12,8 @@
     "executedBy": ".github/workflows/iphone-webkit-smoke.yml"
   },
   "tests/ceo-dashboard-webkit-test.js": {
-    "reason": "Executed outside the canonical run-all suite by .github/workflows/ceo-dashboard.yml, .github/workflows/iphone-webkit-smoke.yml, .github/workflows/ma-acquisition-financing.yml, .github/workflows/ma-board-approval.yml.",
-    "executedBy": ".github/workflows/ceo-dashboard.yml"
+    "reason": "Executed outside the canonical suite by the consolidated iPhone WebKit smoke and M&A comprehensive gates.",
+    "executedBy": ".github/workflows/iphone-webkit-smoke.yml"
   },
   "tests/d-ui-webkit-test.js": {
     "reason": "Executed outside the canonical run-all suite by .github/workflows/iphone-webkit-smoke.yml.",
@@ -24,12 +24,12 @@
     "executedBy": ".github/workflows/phase6b3-diagnostic.yml"
   },
   "tests/difficulty-scenario-pr-smoke-test.js": {
-    "reason": "Executed outside the canonical run-all suite by .github/workflows/phase6b3-diagnostic.yml.",
-    "executedBy": ".github/workflows/phase6b3-diagnostic.yml"
+    "reason": "Executed on pull requests by the release balance gate through Release Readiness.",
+    "executedBy": "scripts/release-gate.js"
   },
   "tests/founding-tutorial-webkit-test.js": {
-    "reason": "Executed outside the canonical run-all suite by .github/workflows/founding-tutorial.yml, .github/workflows/iphone-webkit-smoke.yml.",
-    "executedBy": ".github/workflows/founding-tutorial.yml"
+    "reason": "Executed outside the canonical suite by the consolidated iPhone WebKit smoke gate.",
+    "executedBy": ".github/workflows/iphone-webkit-smoke.yml"
   },
   "tests/game-over-settings-webkit-test.js": {
     "reason": "Executed outside the canonical run-all suite by .github/workflows/iphone-webkit-smoke.yml.",
@@ -68,8 +68,8 @@
     "executedBy": "scripts/release-delivery-gate.js"
   },
   "tests/pages-deployment-smoke-test.js": {
-    "reason": "Executed outside the canonical run-all suite by .github/workflows/founding-tutorial.yml, .github/workflows/published-save-quota-contract.yml.",
-    "executedBy": ".github/workflows/founding-tutorial.yml"
+    "reason": "Executed outside the canonical suite by the published save quota contract workflow.",
+    "executedBy": ".github/workflows/published-save-quota-contract.yml"
   },
   "tests/play-entry-contract-test.js": {
     "reason": "Executed by the release delivery gate aggregator, which is invoked from release-readiness.yml.",
@@ -80,8 +80,8 @@
     "executedBy": ".github/workflows/iphone-webkit-smoke.yml"
   },
   "tests/published-founding-tutorial-webkit-test.js": {
-    "reason": "Executed outside the canonical run-all suite by .github/workflows/founding-tutorial.yml, .github/workflows/pages-deployment-smoke.yml.",
-    "executedBy": ".github/workflows/founding-tutorial.yml"
+    "reason": "Executed outside the canonical suite by Pages Deployment Smoke.",
+    "executedBy": ".github/workflows/pages-deployment-smoke.yml"
   },
   "tests/published-save-quota-contract-test.js": {
     "reason": "Executed outside the canonical run-all suite by .github/workflows/published-save-quota-contract.yml.",
@@ -128,8 +128,8 @@
     "executedBy": ".github/workflows/issue-294-executive-hiring-diagnostic.yml"
   },
   "tests/strategy-balance-pr-smoke-test.js": {
-    "reason": "Executed outside the canonical run-all suite by .github/workflows/strategy-balance.yml.",
-    "executedBy": ".github/workflows/strategy-balance.yml"
+    "reason": "Executed on pull requests by the release balance gate through Release Readiness.",
+    "executedBy": "scripts/release-gate.js"
   },
   "tests/test-registration-contract-test.js": {
     "reason": "Executed by the syntax check entry point, which runs as test:syntax inside the canonical suite.",

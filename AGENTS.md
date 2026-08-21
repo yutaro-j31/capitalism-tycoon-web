@@ -75,6 +75,29 @@ git diff --check
 git diff
 ```
 
+Treat a GitHub push as submission of a locally completed result, not as part of
+the development loop. The required order is: implement, run focused tests, run
+syntax/static checks, run risk-appropriate and repository-required local
+regressions, get every local check green, inspect the final diff, commit, push,
+then observe GitHub CI. If any local check is red, do not commit or push; diagnose,
+fix, and rerun it locally first.
+
+Do not make WIP commits or pushes, push merely to ask CI whether a change works,
+or make a series of pushes for small corrections. Never obtain green status by
+deleting tests, weakening assertions, skipping or unregistering coverage,
+dismissing a failure as flaky, or extending a timeout to hide it. Direct pushes
+to `main` and force-pushes remain prohibited.
+
+When only GitHub CI is red, identify the failed workflow and job, read its logs,
+find the environment difference, reproduce it locally, fix it, and restore local
+green before making what should normally be one additional push. Do not rerun a
+failed job without evidence; a rerun is appropriate only for a clearly documented
+GitHub infrastructure or transient failure.
+
+Before opening a PR, search for an open PR for the same feature and for the same
+branch, and compare the tree/diff when possible. Reuse an existing PR rather than
+creating a duplicate.
+
 Do not push additional commits to a branch while CI associated with the current `main`, the current working branch, or the current target PR is `queued` or `in_progress`. Repository-wide queued runs are not, by themselves, a push blocker.
 
 A run may be excluded from the push gate only when it is clearly a stale/ghost run: it belongs to an already-merged or otherwise inactive PR/branch, has shown no meaningful state change for at least 7 days, has no jobs attached when inspected, and GitHub will not normally cancel/force-cancel it because of a server-side run-state failure. Record the evidence before excluding such a run. Never use this exception for a run associated with the current `main`, working branch, or target PR.
