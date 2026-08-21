@@ -111,5 +111,5 @@ jobs:
             artifacts/ma-deal-room-webkit
             artifacts/ma-integration-webkit
             artifacts/ceo-dashboard-webkit
-          if-no-files-found: warn
+          if-no-files-found: error
           retention-days: 30
