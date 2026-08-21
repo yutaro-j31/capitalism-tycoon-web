@@ -4,7 +4,8 @@ const SCENARIOS = Object.freeze([
   { id:'ramen-bootstrap', businessID:'ramen', trait:'merchant', route:['fukuoka','osaka','tokyo','aichi','miyagi'], debt:false },
   { id:'cafe-bootstrap', businessID:'cafe', trait:'local', route:['okinawa','kyoto','tokyo','kanagawa','fukuoka'], debt:false },
   { id:'bakery-bootstrap', businessID:'bakery', trait:'merchant', route:['fukuoka','osaka','tokyo','aichi','miyagi'], debt:false },
-  { id:'conveni-leverage', businessID:'conveni', trait:'merchant', route:['fukuoka','aichi','tokyo','osaka','kanagawa'], debt:true },
+  // Pair the first two stores locally so this route exercises the conveni dominant-area trade-off before expanding nationally.
+  { id:'conveni-leverage', businessID:'conveni', trait:'merchant', route:['fukuoka','fukuoka','tokyo','osaka','kanagawa'], debt:true },
   { id:'bookstore-retail', businessID:'bookstore', trait:'local', route:['fukuoka','osaka','tokyo','aichi','kanagawa'], debt:true },
   { id:'beauty-service', businessID:'beautySalon', trait:'local', route:['fukuoka','aichi','tokyo','osaka','kanagawa'], debt:false },
   { id:'cleaning-bootstrap', businessID:'cleaning', trait:'merchant', route:['fukuoka','osaka','tokyo','aichi','kanagawa'], debt:false },
