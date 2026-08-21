@@ -41,7 +41,21 @@ function close(server) {
   assert.match(workflow, /^name: Pages Deployment Smoke$/m);
   assert.match(workflow, /push:\s*\n\s*branches:\s*\[ main \]/m, 'deployment smoke must run after main changes');
   assert.match(workflow, /workflow_dispatch:/, 'deployment smoke must support manual reruns');
+  assert.match(workflow, /^  schedule:\s*\n    - cron: '17 4 \* \* \*'$/m,
+    'deployment smoke must retain the daily publication attestation');
   assert.doesNotMatch(workflow, /pull_request:/, 'pull requests must not compare unpublished branch bytes with Pages');
+  assert.match(workflow, /^  verify-publication-attestation:$/m,
+    'deployment smoke must include the lightweight publication attestation job');
+  assert.match(workflow, /node-version: '20'/, 'publication attestation must retain Node 20');
+  assert.match(workflow, /node scripts\/verify-published-pages\.js/,
+    'publication attestation must execute the published-pages verifier');
+  for (const contract of [
+    "EXPECTED_SHA: ${{ github.sha }}",
+    "PAGES_VERIFY_ATTEMPTS: '16'",
+    "PAGES_VERIFY_DELAY_MS: '15000'"
+  ]) assert.ok(workflow.includes(contract), `publication attestation must retain ${contract}`);
+  assert.match(workflow, /^  verify-published-assets:\s*\n    if: github\.event_name != 'schedule'$/m,
+    'daily schedules must skip the full published WebKit suite');
   assert.match(workflow, /node scripts\/pages-deployment-smoke\.js/, 'workflow must execute the production verifier');
   assert.match(workflow, /cancel-in-progress: true/, 'stale deployment checks must be cancelled');
   assert.ok(fs.existsSync(path.join(ROOT, '.nojekyll')), 'exact static delivery requires .nojekyll');
