@@ -156,7 +156,7 @@ async function openDTab(page, tab) {
   await menu.waitFor({ state: 'hidden' });
 }
 
-async function main() {
+async function runAttempt(attempt) {
   fs.mkdirSync(ARTIFACT_DIR, { recursive: true });
   const publishedUrl = publishedTargetUrl();
   const server = publishedUrl ? null : staticServer();
@@ -164,7 +164,7 @@ async function main() {
   const targetMode = publishedUrl ? 'published-pages' : 'local-static';
   let browser;
   let page;
-  const diagnostics = { consoleErrors: [], pageErrors: [], failedRequests: [] };
+  const diagnostics = { consoleErrors: [], pageErrors: [], failedRequests: [], requiredAssetServerErrors: [] };
   const startedAt = new Date().toISOString();
 
   try {
@@ -181,6 +181,13 @@ async function main() {
     page.on('console', message => message.type() === 'error' && diagnostics.consoleErrors.push(message.text()));
     page.on('pageerror', error => diagnostics.pageErrors.push(error.message));
     page.on('requestfailed', request => diagnostics.failedRequests.push(`${request.method()} ${request.url()} ${request.failure()?.errorText || ''}`));
+    page.on('response', response => {
+      if (!publishedUrl || response.status() < 500 || response.status() > 599) return;
+      const resourceType = response.request().resourceType();
+      if (!['document', 'script', 'stylesheet'].includes(resourceType)) return;
+      if (new URL(response.url()).origin !== new URL(publishedUrl).origin) return;
+      diagnostics.requiredAssetServerErrors.push(`${response.status()} ${resourceType} ${response.url()}`);
+    });
 
     await page.goto(baseUrl, { waitUntil: 'networkidle', timeout: 30_000 });
     await page.locator('#setup-form').waitFor({ state: 'visible' });
@@ -244,10 +251,10 @@ async function main() {
 
     await mobileLayout(page);
     await page.screenshot({ path: path.join(ARTIFACT_DIR, 'iphone-webkit-smoke.png'), fullPage: true });
-    assert.deepEqual(diagnostics, { consoleErrors: [], pageErrors: [], failedRequests: [] });
+    assert.deepEqual(diagnostics, { consoleErrors: [], pageErrors: [], failedRequests: [], requiredAssetServerErrors: [] });
 
     writeResult({
-      status: 'passed', startedAt, completedAt: new Date().toISOString(),
+      status: 'passed', attempt, startedAt, completedAt: new Date().toISOString(),
       device: DEVICE_NAME, browser: 'WebKit', browserVersion: browser.version(),
       targetMode, targetUrl: publishedUrl ? releaseCandidate.deployment.url : baseUrl,
       weekAfterAdvances, saveVersion: restored.saveVersion
@@ -258,14 +265,30 @@ async function main() {
       try { await page.screenshot({ path: path.join(ARTIFACT_DIR, 'iphone-webkit-smoke-failure.png'), fullPage: true }); } catch (_) {}
     }
     writeResult({
-      status: 'failed', startedAt, completedAt: new Date().toISOString(),
+      status: 'failed', attempt, startedAt, completedAt: new Date().toISOString(),
       targetMode, targetUrl: publishedUrl ? releaseCandidate.deployment.url : baseUrl,
       error: error?.stack || String(error), ...diagnostics
     });
+    error.retryablePublishedAsset5xx = Boolean(publishedUrl && diagnostics.requiredAssetServerErrors.length);
     throw error;
   } finally {
     if (browser) await browser.close();
     if (server) await stopServer(server);
+  }
+}
+
+async function main() {
+  for (let attempt = 1; attempt <= 2; attempt += 1) {
+    try {
+      await runAttempt(attempt);
+      return;
+    } catch (error) {
+      if (attempt === 1 && error?.retryablePublishedAsset5xx === true) {
+        console.warn('Published Pages required asset returned HTTP 5xx; retrying WebKit smoke once.');
+        continue;
+      }
+      throw error;
+    }
   }
 }
 

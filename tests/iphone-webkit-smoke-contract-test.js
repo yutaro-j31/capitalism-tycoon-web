@@ -50,6 +50,17 @@ assert.match(smoke, /documentScrollWidth/);
 assert.match(smoke, /overflowX/);
 assert.match(smoke, /pageErrors/);
 assert.match(smoke, /consoleErrors/);
+assert.match(smoke, /requiredAssetServerErrors/);
+assert.match(smoke, /response\.status\(\) < 500 \|\| response\.status\(\) > 599/,
+  'published retry must be limited to HTTP 5xx');
+assert.match(smoke, /\['document', 'script', 'stylesheet'\]\.includes\(resourceType\)/,
+  'published retry must be limited to required asset types');
+assert.match(smoke, /new URL\(response\.url\(\)\)\.origin !== new URL\(publishedUrl\)\.origin/,
+  'published retry must be limited to the deployment origin');
+assert.match(smoke, /for \(let attempt = 1; attempt <= 2; attempt \+= 1\)/,
+  'published retry must allow at most one retry');
+assert.match(smoke, /attempt === 1 && error\?\.retryablePublishedAsset5xx === true/,
+  'only a first-attempt published required-asset 5xx may retry');
 assert.match(smoke, /published-pages/);
 assert.match(smoke, /must use the release-candidate deployment origin/);
 assert.match(smoke, /must use the release-candidate deployment path/);

@@ -89,5 +89,6 @@ jobs:
         with:
           name: published-iphone-webkit-smoke-${{ github.sha }}
           path: artifacts/published-iphone-webkit-smoke
-          if-no-files-found: warn
+          if-no-files-found: error
+          overwrite: true
           retention-days: 30

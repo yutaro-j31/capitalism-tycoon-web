@@ -100,6 +100,10 @@ function close(server) {
   const targetSyncWebKitIndex = workflow.indexOf('node tests/capital-allocation-recovery-webkit-test.js');
   const outcomeWebKitIndex = workflow.indexOf('node tests/capital-allocation-recovery-outcome-webkit-test.js');
   const uploadIndex = workflow.indexOf('Retain published WebKit evidence');
+  assert.match(workflow, /if-no-files-found: error/,
+    'published evidence is mandatory even when the browser step fails');
+  assert.match(workflow, /overwrite: true/,
+    'rerunning a Pages job must replace its same-name artifact');
   assert.ok(byteCheckIndex !== -1 && genericWebKitIndex > byteCheckIndex,
     'generic WebKit smoke must run only after exact Pages bytes match main');
   assert.ok(weeklyImpactIndex > genericWebKitIndex,
