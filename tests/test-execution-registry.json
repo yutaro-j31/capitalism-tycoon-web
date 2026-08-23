@@ -71,6 +71,10 @@
     "reason": "Executed by the release delivery gate aggregator, which is invoked from release-readiness.yml.",
     "executedBy": "scripts/release-delivery-gate.js"
   },
+  "tests/published-webkit-transient-retry-test.js": {
+    "reason": "Executed by the release delivery gate aggregator, which is invoked from release-readiness.yml.",
+    "executedBy": "scripts/release-delivery-gate.js"
+  },
   "tests/play-entry-contract-test.js": {
     "reason": "Executed by the release delivery gate aggregator, which is invoked from release-readiness.yml.",
     "executedBy": "scripts/release-delivery-gate.js"

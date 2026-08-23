@@ -6,6 +6,7 @@ const http = require('node:http');
 const path = require('node:path');
 const vm = require('node:vm');
 const { webkit, devices } = require('playwright');
+const { createDiagnostics, isPublishedTarget, observePageDiagnostics, runWithPublishedRetry } = require('./published-webkit-transient-retry');
 const { ROOT, loadGame } = require('./harness');
 
 const SAVE_KEY = 'capitalism_tycoon_web_v1';
@@ -188,9 +189,9 @@ async function assertInsideViewport(page, selector) {
   assert.ok(layout.left >= -2 && layout.right <= layout.viewportWidth + 2, `card escaped viewport: ${JSON.stringify(layout)}`);
 }
 
-async function main() {
+async function runAttempt(attempt) {
   fs.mkdirSync(OUT, { recursive:true });
-  const diagnostics = { consoleErrors:[], pageErrors:[], failedRequests:[] };
+  const diagnostics = createDiagnostics();
   const startedAt = new Date().toISOString();
   let server;
   let browser;
@@ -211,9 +212,7 @@ async function main() {
     const context = await browser.newContext({ ...devices[DEVICE_NAME], locale:'ja-JP', reducedMotion:'reduce', serviceWorkers:'block', timezoneId:'Asia/Tokyo' });
     await context.addInitScript(({ key, value }) => { if (!localStorage.getItem(key)) localStorage.setItem(key, value); }, { key:SAVE_KEY, value:fixture.save });
     page = await context.newPage();
-    page.on('console', message => message.type() === 'error' && diagnostics.consoleErrors.push(message.text()));
-    page.on('pageerror', error => diagnostics.pageErrors.push(error.message));
-    page.on('requestfailed', request => diagnostics.failedRequests.push(`${request.method()} ${request.url()} ${request.failure()?.errorText || ''}`));
+    observePageDiagnostics(page, { published: isPublishedTarget(baseUrl), targetUrl: baseUrl, diagnostics });
 
     stage = 'boot';
     await page.goto(baseUrl, { waitUntil:'networkidle', timeout:30_000 });
@@ -290,9 +289,9 @@ async function main() {
     await assertInsideViewport(page, '[data-capital-allocation-recovery-funding-outcome]');
 
     stage = 'evidence';
-    assert.deepEqual(diagnostics, { consoleErrors:[], pageErrors:[], failedRequests:[] });
+    assert.deepEqual(diagnostics, { consoleErrors:[], pageErrors:[], failedRequests:[], requiredAssetServerErrors:[] });
     fs.writeFileSync(RESULT_PATH, `${JSON.stringify({
-      status:'passed', stage, startedAt, completedAt:new Date().toISOString(),
+      status:'passed', attempt, published:isPublishedTarget(baseUrl), requiredAssetServerErrors:diagnostics.requiredAssetServerErrors, stage, startedAt, completedAt:new Date().toISOString(),
       device:DEVICE_NAME, browser:'WebKit', browserVersion:browser.version(),
       targetUrl:baseUrl, published:Boolean(TARGET_URL),
       scenario:fixture.scenario, targetScore:fixture.targetScore, pinnedOption:fixture.optionId,
@@ -304,16 +303,19 @@ async function main() {
   } catch (error) {
     if (page) { try { await page.screenshot({ path:path.join(OUT, 'capital-allocation-recovery-outcome-failure.png') }); } catch (_) {} }
     fs.writeFileSync(RESULT_PATH, `${JSON.stringify({
-      status:'failed', stage, startedAt, completedAt:new Date().toISOString(),
+      status:'failed', attempt, published:isPublishedTarget(baseUrl || TARGET_URL), stage, startedAt, completedAt:new Date().toISOString(),
       targetUrl:baseUrl || TARGET_URL || null, published:Boolean(TARGET_URL),
       fixture:fixture ? { scenario:fixture.scenario, targetScore:fixture.targetScore, optionId:fixture.optionId } : null,
       error:error?.stack || String(error), ...diagnostics
     }, null, 2)}\n`);
+    error.publishedWebKitDiagnostics = diagnostics;
     throw error;
   } finally {
     if (browser) await browser.close();
     if (server) await stopServer(server);
   }
 }
+
+async function main() { await runWithPublishedRetry({ published: isPublishedTarget(TARGET_URL), resultPath: RESULT_PATH, runAttempt }); }
 
 main().catch(error => { console.error(error?.stack || error); process.exit(1); });

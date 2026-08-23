@@ -12,6 +12,7 @@ const workflow = read('.github/workflows/iphone-webkit-smoke.yml');
 const pagesWorkflow = read('.github/workflows/pages-deployment-smoke.yml');
 const tagWorkflow = read('.github/workflows/release-candidate-tag.yml');
 const smoke = read('tests/iphone-webkit-smoke-test.js');
+const retryPolicy = read('tests/published-webkit-transient-retry.js');
 const deliveryGate = read('scripts/release-delivery-gate.js');
 const index = read('index.html');
 const mobileCss = read('css/mobile-release.css');
@@ -51,16 +52,17 @@ assert.match(smoke, /overflowX/);
 assert.match(smoke, /pageErrors/);
 assert.match(smoke, /consoleErrors/);
 assert.match(smoke, /requiredAssetServerErrors/);
-assert.match(smoke, /response\.status\(\) < 500 \|\| response\.status\(\) > 599/,
+assert.match(retryPolicy, /status < 500 \|\| status > 599/,
   'published retry must be limited to HTTP 5xx');
-assert.match(smoke, /\['document', 'script', 'stylesheet'\]\.includes\(resourceType\)/,
+assert.match(retryPolicy, /new Set\(\['document', 'script', 'stylesheet'\]\)/,
   'published retry must be limited to required asset types');
-assert.match(smoke, /new URL\(response\.url\(\)\)\.origin !== new URL\(publishedUrl\)\.origin/,
+assert.match(retryPolicy, /new URL\(responseUrl\)\.origin === new URL\(targetUrl\)\.origin/,
   'published retry must be limited to the deployment origin');
-assert.match(smoke, /for \(let attempt = 1; attempt <= 2; attempt \+= 1\)/,
+assert.match(retryPolicy, /const MAX_ATTEMPTS = 2/,
   'published retry must allow at most one retry');
-assert.match(smoke, /attempt === 1 && error\?\.retryablePublishedAsset5xx === true/,
+assert.match(retryPolicy, /published === true && attempt === 1 && diagnostics\.requiredAssetServerErrors\.length > 0/,
   'only a first-attempt published required-asset 5xx may retry');
+assert.match(smoke, /runWithPublishedRetry/, 'generic WebKit smoke must use the shared retry policy');
 assert.match(smoke, /published-pages/);
 assert.match(smoke, /must use the release-candidate deployment origin/);
 assert.match(smoke, /must use the release-candidate deployment path/);

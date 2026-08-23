@@ -104,6 +104,21 @@ function close(server) {
     'published evidence is mandatory even when the browser step fails');
   assert.match(workflow, /overwrite: true/,
     'rerunning a Pages job must replace its same-name artifact');
+  for (const file of [
+    'iphone-webkit-smoke-test.js',
+    'published-weekly-impact-webkit-test.js',
+    'published-founding-tutorial-webkit-test.js',
+    'capital-allocation-recovery-webkit-test.js',
+    'capital-allocation-recovery-outcome-webkit-test.js',
+    'published-save-quota-webkit-test.js'
+  ]) {
+    const source = fs.readFileSync(path.join(ROOT, 'tests', file), 'utf8');
+    assert.match(source, /published-webkit-transient-retry/, `${file} must import the shared retry policy`);
+    assert.match(source, /runWithPublishedRetry/, `${file} must execute through the shared retry policy`);
+    assert.ok((source.match(/runWithPublishedRetry/g) || []).length >= 2,
+      `${file} must both import and invoke the shared retry executor`);
+    assert.match(source, /observePageDiagnostics/, `${file} must collect HTTP response evidence`);
+  }
   assert.ok(byteCheckIndex !== -1 && genericWebKitIndex > byteCheckIndex,
     'generic WebKit smoke must run only after exact Pages bytes match main');
   assert.ok(weeklyImpactIndex > genericWebKitIndex,

@@ -13,6 +13,7 @@ const checks = [
   ['release candidate tag gate', 'tests/release-candidate-tag-gate-test.js', 30_000],
   ['recovery outcome attestation', 'tests/release-candidate-recovery-attestation-test.js', 30_000],
   ['iPhone WebKit smoke contract', 'tests/iphone-webkit-smoke-contract-test.js', 30_000],
+  ['published WebKit transient retry contract', 'tests/published-webkit-transient-retry-test.js', 30_000],
   ['release attestation sync', 'tests/release-attestation-issue-test.js', 30_000],
   ['save storage budget', 'tests/save-storage-budget-test.js', 300_000]
 ];
