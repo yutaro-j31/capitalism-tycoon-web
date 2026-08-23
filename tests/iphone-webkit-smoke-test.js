@@ -6,6 +6,7 @@ const http = require('node:http');
 const path = require('node:path');
 const { webkit, devices } = require('playwright');
 const releaseCandidate = require('../release-candidate.json');
+const { createDiagnostics, observePageDiagnostics, runWithPublishedRetry } = require('./published-webkit-transient-retry');
 
 const ROOT = path.resolve(__dirname, '..');
 const ARTIFACT_DIR = path.resolve(process.env.IPHONE_WEBKIT_ARTIFACT_DIR || path.join(ROOT, 'artifacts', 'iphone-webkit-smoke'));
@@ -164,7 +165,7 @@ async function runAttempt(attempt) {
   const targetMode = publishedUrl ? 'published-pages' : 'local-static';
   let browser;
   let page;
-  const diagnostics = { consoleErrors: [], pageErrors: [], failedRequests: [], requiredAssetServerErrors: [] };
+  const diagnostics = createDiagnostics();
   const startedAt = new Date().toISOString();
 
   try {
@@ -178,16 +179,7 @@ async function runAttempt(attempt) {
       timezoneId: 'Asia/Tokyo'
     });
     page = await context.newPage();
-    page.on('console', message => message.type() === 'error' && diagnostics.consoleErrors.push(message.text()));
-    page.on('pageerror', error => diagnostics.pageErrors.push(error.message));
-    page.on('requestfailed', request => diagnostics.failedRequests.push(`${request.method()} ${request.url()} ${request.failure()?.errorText || ''}`));
-    page.on('response', response => {
-      if (!publishedUrl || response.status() < 500 || response.status() > 599) return;
-      const resourceType = response.request().resourceType();
-      if (!['document', 'script', 'stylesheet'].includes(resourceType)) return;
-      if (new URL(response.url()).origin !== new URL(publishedUrl).origin) return;
-      diagnostics.requiredAssetServerErrors.push(`${response.status()} ${resourceType} ${response.url()}`);
-    });
+    observePageDiagnostics(page, { published: Boolean(publishedUrl), targetUrl: publishedUrl || baseUrl, diagnostics });
 
     await page.goto(baseUrl, { waitUntil: 'networkidle', timeout: 30_000 });
     await page.locator('#setup-form').waitFor({ state: 'visible' });
@@ -254,7 +246,7 @@ async function runAttempt(attempt) {
     assert.deepEqual(diagnostics, { consoleErrors: [], pageErrors: [], failedRequests: [], requiredAssetServerErrors: [] });
 
     writeResult({
-      status: 'passed', attempt, startedAt, completedAt: new Date().toISOString(),
+      status: 'passed', attempt, startedAt, completedAt: new Date().toISOString(), published: Boolean(publishedUrl), requiredAssetServerErrors: diagnostics.requiredAssetServerErrors,
       device: DEVICE_NAME, browser: 'WebKit', browserVersion: browser.version(),
       targetMode, targetUrl: publishedUrl ? releaseCandidate.deployment.url : baseUrl,
       weekAfterAdvances, saveVersion: restored.saveVersion
@@ -265,11 +257,11 @@ async function runAttempt(attempt) {
       try { await page.screenshot({ path: path.join(ARTIFACT_DIR, 'iphone-webkit-smoke-failure.png'), fullPage: true }); } catch (_) {}
     }
     writeResult({
-      status: 'failed', attempt, startedAt, completedAt: new Date().toISOString(),
+      status: 'failed', attempt, startedAt, completedAt: new Date().toISOString(), published: Boolean(publishedUrl),
       targetMode, targetUrl: publishedUrl ? releaseCandidate.deployment.url : baseUrl,
       error: error?.stack || String(error), ...diagnostics
     });
-    error.retryablePublishedAsset5xx = Boolean(publishedUrl && diagnostics.requiredAssetServerErrors.length);
+    error.publishedWebKitDiagnostics = diagnostics;
     throw error;
   } finally {
     if (browser) await browser.close();
@@ -278,18 +270,8 @@ async function runAttempt(attempt) {
 }
 
 async function main() {
-  for (let attempt = 1; attempt <= 2; attempt += 1) {
-    try {
-      await runAttempt(attempt);
-      return;
-    } catch (error) {
-      if (attempt === 1 && error?.retryablePublishedAsset5xx === true) {
-        console.warn('Published Pages required asset returned HTTP 5xx; retrying WebKit smoke once.');
-        continue;
-      }
-      throw error;
-    }
-  }
+  const published = Boolean(publishedTargetUrl());
+  await runWithPublishedRetry({ published, resultPath: path.join(ARTIFACT_DIR, 'result.json'), runAttempt });
 }
 
 main().catch(error => {

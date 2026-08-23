@@ -4,6 +4,7 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
 const { webkit, devices } = require('playwright');
+const { createDiagnostics, observePageDiagnostics, runWithPublishedRetry } = require('./published-webkit-transient-retry');
 
 const ROOT = path.resolve(__dirname, '..');
 const TARGET_URL = process.env.SAVE_QUOTA_TARGET_URL || 'https://yutaro-j31.github.io/capitalism-tycoon-web/';
@@ -18,11 +19,11 @@ function writeResult(value) {
   fs.writeFileSync(path.join(ARTIFACT_DIR, 'published-save-quota-result.json'), `${JSON.stringify(value, null, 2)}\n`);
 }
 
-async function main() {
+async function runAttempt(attempt) {
   fs.mkdirSync(ARTIFACT_DIR, { recursive: true });
   let browser;
   let page;
-  const diagnostics = { consoleErrors: [], pageErrors: [], failedRequests: [] };
+  const diagnostics = createDiagnostics();
   const startedAt = new Date().toISOString();
   let evidence = null;
 
@@ -36,9 +37,7 @@ async function main() {
       timezoneId: 'Asia/Tokyo'
     });
     page = await context.newPage();
-    page.on('console', message => message.type() === 'error' && diagnostics.consoleErrors.push(message.text()));
-    page.on('pageerror', error => diagnostics.pageErrors.push(error.message));
-    page.on('requestfailed', request => diagnostics.failedRequests.push(`${request.method()} ${request.url()} ${request.failure()?.errorText || ''}`));
+    observePageDiagnostics(page, { published: true, targetUrl: TARGET_URL, diagnostics });
 
     await page.goto(TARGET_URL, { waitUntil: 'networkidle', timeout: 45_000 });
     await page.evaluate(key => localStorage.removeItem(key), SAVE_KEY);
@@ -118,19 +117,22 @@ async function main() {
     assert.equal(reloaded.personalCash, evidence.personalCashBefore);
 
     await page.screenshot({ path: path.join(ARTIFACT_DIR, 'published-save-quota.png'), fullPage: true });
-    assert.deepEqual(diagnostics, { consoleErrors: [], pageErrors: [], failedRequests: [] });
-    writeResult({ status: 'passed', startedAt, completedAt: new Date().toISOString(), targetUrl: TARGET_URL, device: DEVICE_NAME, browser: 'WebKit', browserVersion: browser.version(), evidence, reloaded });
+    assert.deepEqual(diagnostics, { consoleErrors: [], pageErrors: [], failedRequests: [], requiredAssetServerErrors: [] });
+    writeResult({ status: 'passed', attempt, published: true, requiredAssetServerErrors: diagnostics.requiredAssetServerErrors, startedAt, completedAt: new Date().toISOString(), targetUrl: TARGET_URL, device: DEVICE_NAME, browser: 'WebKit', browserVersion: browser.version(), evidence, reloaded });
     console.log('Published iPhone save quota recovery WebKit smoke passed');
   } catch (error) {
     if (page) {
       try { await page.screenshot({ path: path.join(ARTIFACT_DIR, 'published-save-quota-failure.png'), fullPage: true }); } catch (_) {}
     }
-    writeResult({ status: 'failed', startedAt, completedAt: new Date().toISOString(), targetUrl: TARGET_URL, error: error?.stack || String(error), diagnostics, evidence });
+    writeResult({ status: 'failed', attempt, published: true, startedAt, completedAt: new Date().toISOString(), targetUrl: TARGET_URL, error: error?.stack || String(error), diagnostics, evidence });
+    error.publishedWebKitDiagnostics = diagnostics;
     throw error;
   } finally {
     if (browser) await browser.close();
   }
 }
+
+async function main() { await runWithPublishedRetry({ published: true, resultPath: path.join(ARTIFACT_DIR, 'published-save-quota-result.json'), runAttempt }); }
 
 main().catch(error => {
   console.error(error?.stack || error);
