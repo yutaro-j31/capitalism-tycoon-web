@@ -127,6 +127,10 @@ assert.match(workflow, /workflow_run\.head_repository\.full_name == github\.repo
 assert.match(workflow, /ref: \$\{\{ github\.event\.workflow_run\.head_sha \}\}/);
 assert.match(workflow, /commits\/main/);
 assert.match(workflow, /published-iphone-webkit-smoke-\$ATTESTED_SHA/);
+assert.match(workflow, /if \[ "\$ARTIFACT_COUNT" != "1" \]/,
+  'attestation sync must require exactly one published evidence artifact');
+assert.doesNotMatch(workflow, /ARTIFACT_COUNT[^\n]*(?:-ge|-gt)\s+1|ARTIFACT_COUNT[^\n]*!=\s*"0"/,
+  'attestation sync must not weaken exactly-one artifact validation');
 assert.match(workflow, /expired == false/);
 assert.match(workflow, /gh issue view/);
 assert.match(workflow, /node scripts\/release-attestation-issue\.js/);
