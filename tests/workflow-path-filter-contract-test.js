@@ -38,12 +38,27 @@ function pathsFor(source, trigger) {
   return paths;
 }
 
-assert.equal(workflowFiles.length, 13, 'Phase 2D must retain exactly 13 workflow files');
+function jobBlock(source, job) {
+  const lines = source.split(/\r?\n/);
+  const start = lines.findIndex(line => line === `  ${job}:`);
+  assert(start >= 0, `missing job: ${job}`);
+  const block = [];
+  for (let index = start + 1; index < lines.length; index += 1) {
+    if (/^  [A-Za-z0-9_-]+:\s*$/.test(lines[index])) break;
+    block.push(lines[index]);
+  }
+  return block.join('\n');
+}
+
+assert.equal(workflowFiles.length, 9, 'Phase 2E must retain exactly 9 workflow files');
 for (const file of ['ceo-dashboard.yml', 'founding-tutorial.yml', 'ma-integration.yml', 'ma-board-approval.yml', 'iphone-playtest-remediation.yml', 'physical-iphone-playtest.yml', 'pages-publication-attestation.yml', 'published-save-quota-contract.yml', 'release-attestation-contract.yml']) {
   assert.equal(workflowFiles.includes(file), false, `${file} must remain absent after workflow consolidation`);
 }
-for (const file of ['test.yml', 'release-readiness.yml', 'strategy-balance.yml', 'phase6b3-diagnostic.yml', 'iphone-webkit-smoke.yml', 'ma-deal-room.yml', 'ma-acquisition-financing.yml', 'pages-deployment-smoke.yml', 'release-attestation-sync.yml', 'release-candidate-tag.yml', 'issue-294-executive-hiring-diagnostic.yml', 'shareholder-activism.yml', 'exploration-1000-week.yml']) {
-  assert(workflowFiles.includes(file), `${file} must remain after Phase 2D consolidation`);
+for (const file of ['test.yml', 'release-readiness.yml', 'strategy-balance.yml', 'iphone-webkit-smoke.yml', 'ma-deal-room.yml', 'ma-acquisition-financing.yml', 'pages-deployment-smoke.yml', 'release-attestation-sync.yml', 'release-candidate-tag.yml']) {
+  assert(workflowFiles.includes(file), `${file} must remain after Phase 2E consolidation`);
+}
+for (const file of ['phase6b3-diagnostic.yml', 'exploration-1000-week.yml', 'issue-294-executive-hiring-diagnostic.yml', 'shareholder-activism.yml']) {
+  assert.equal(workflowFiles.includes(file), false, `${file} must be absent after Phase 2E consolidation`);
 }
 for (const file of workflowFiles) {
   assert(!readWorkflow(file).includes('js/pmi-100-day-loader.js'), `${file} must not reference the obsolete PMI loader`);
@@ -54,12 +69,45 @@ for (const file of ['test.yml', 'release-readiness.yml']) {
   assert.equal(pathsFor(source, 'pull_request').length, 0, `${file} pull_request must not have a paths filter`);
 }
 const strategy = readWorkflow('strategy-balance.yml');
+assert(/^name: Strategy Balance$/m.test(strategy), 'consolidated workflow must preserve its public name');
 assert(hasTrigger(strategy, 'pull_request'), 'Strategy Balance must retain PR full-matrix coverage');
 assert(strategy.includes('npm run test:strategy-balance'), 'Strategy Balance must retain the full matrix command');
 assert.deepEqual(triggerBlock(strategy, 'push').filter(line => /branches:/.test(line)), ['    branches: [main]'], 'Strategy Balance push must be main-only');
-const difficulty = readWorkflow('phase6b3-diagnostic.yml');
-assert(!hasTrigger(difficulty, 'pull_request'), 'Difficulty Scenario Balance must not duplicate Release Readiness on PRs');
-assert(hasTrigger(difficulty, 'push') && hasTrigger(difficulty, 'schedule') && hasTrigger(difficulty, 'workflow_dispatch'), 'Difficulty full matrix must remain available on main, nightly, and manually');
+assert(hasTrigger(strategy, 'push') && hasTrigger(strategy, 'schedule') && hasTrigger(strategy, 'workflow_dispatch'), 'consolidated balance workflow must retain main, nightly, and manual coverage');
+for (const mode of ['difficulty', 'strategy', 'diagnostics', 'exploration-smoke', 'exploration-full', 'core']) {
+  assert(triggerBlock(strategy, 'workflow_dispatch').some(line => line.trim() === `- ${mode}`), `workflow_dispatch must retain ${mode}`);
+}
+const strategyJob = jobBlock(strategy, 'strategy');
+assert(strategyJob.includes("github.event_name == 'push'") && strategyJob.includes("github.event_name == 'pull_request'"), 'strategy must run on main push and PR');
+assert(strategyJob.includes("inputs.mode == 'strategy'") && strategyJob.includes("inputs.mode == 'core'"), 'strategy/core manual modes must run strategy');
+assert(!strategyJob.includes("github.event_name == 'schedule'"), 'schedule must not run strategy');
+const diagnosticsJob = jobBlock(strategy, 'focused-diagnostics');
+assert(diagnosticsJob.includes("github.event_name == 'pull_request'") && diagnosticsJob.includes("inputs.mode == 'diagnostics'") && diagnosticsJob.includes("inputs.mode == 'core'"), 'PR and diagnostics/core manual modes must run focused diagnostics');
+assert(!diagnosticsJob.includes("github.event_name == 'push'") && !diagnosticsJob.includes("github.event_name == 'schedule'"), 'push and schedule must not run focused diagnostics');
+for (const job of ['difficulty-balance-contract', 'difficulty-matrix-shard']) {
+  const block = jobBlock(strategy, job);
+  assert(!block.includes("github.event_name == 'pull_request'"), `${job} must not run on PRs`);
+  assert(block.includes("github.event_name == 'push'") && block.includes("github.event_name == 'schedule'"), `${job} must run on main and schedule`);
+  assert(block.includes("inputs.mode == 'difficulty'") && block.includes("inputs.mode == 'core'"), `${job} must run in difficulty/core modes`);
+}
+const difficultyShard = jobBlock(strategy, 'difficulty-matrix-shard');
+assert.match(difficultyShard, /shard: \[0, 1, 2, 3, 4, 5\]/, 'difficulty must retain six shards');
+assert(difficultyShard.includes('DIFFICULTY_MATRIX_SHARD_COUNT: 6'), 'difficulty shard count env must remain six');
+const difficultyAggregate = jobBlock(strategy, 'difficulty-matrix-aggregate');
+assert(difficultyAggregate.includes('needs: difficulty-matrix-shard') && difficultyAggregate.includes("needs.difficulty-matrix-shard.result == 'success'"), 'difficulty aggregate must require successful shards');
+assert(difficultyAggregate.includes('merge-multiple: true') && difficultyAggregate.includes('node tests/difficulty-scenario-matrix-test.js'), 'difficulty aggregate must merge and validate all shards');
+const exploration = jobBlock(strategy, 'exploration');
+assert(exploration.includes("github.event_name == 'workflow_dispatch'") && exploration.includes("inputs.mode == 'exploration-smoke'") && exploration.includes("inputs.mode == 'exploration-full'"), 'exploration must be manual-only');
+assert(!exploration.includes("inputs.mode == 'core'") && !exploration.includes("github.event_name == 'push'") && !exploration.includes("github.event_name == 'pull_request'") && !exploration.includes("github.event_name == 'schedule'"), 'core, PR, main, and schedule must not run exploration');
+assert(exploration.includes("|| '[0]'") && exploration.includes('SHARD_COUNT: 39'), 'exploration smoke must allocate only shard zero out of 39');
+const explorationAggregate = jobBlock(strategy, 'exploration-aggregate');
+assert(explorationAggregate.includes('needs: exploration') && explorationAggregate.includes("needs.exploration.result == 'success'"), 'exploration aggregate must require successful shards');
+assert(explorationAggregate.includes("inputs.mode == 'exploration-full' && 'full' || 'smoke'"), 'exploration input must map explicitly to full/smoke artifacts');
+assert(explorationAggregate.includes('node tests/exploration-aggregate.js') && explorationAggregate.includes('exploratory-playtest-${{'), 'exploration aggregate and established artifact names must remain');
+for (const command of ['node tests/executives-department-assignments-test.js', 'node tests/prototype-overwrite-audit.js', 'npm run test:progression-balance --silent', 'node tests/shareholder-activism-test.js', 'node tests/shareholder-activism-reachability-test.js']) {
+  assert(diagnosticsJob.includes(command), `focused diagnostics must retain ${command}`);
+}
+assert(diagnosticsJob.includes('if: always()') && diagnosticsJob.includes('artifacts/prototype-overwrite-audit.json'), 'Issue #294 artifact must always be retained');
 const comprehensiveMa = readWorkflow('ma-acquisition-financing.yml');
 assert(!hasTrigger(comprehensiveMa, 'pull_request'), 'M&A comprehensive gate must not duplicate canonical PR coverage');
 assert(hasTrigger(comprehensiveMa, 'push') && pathsFor(comprehensiveMa, 'push').length > 0, 'M&A comprehensive main push must use paths');
@@ -110,5 +158,5 @@ for (const file of workflowFiles) {
   if (hasTrigger(source, 'push')) assert(isMainOnly(triggerBlock(source, 'push')), `${file} must not run on feature-branch pushes`);
 }
 const pullRequestWorkflows = workflowFiles.filter(file => hasTrigger(readWorkflow(file), 'pull_request'));
-assert.equal(pullRequestWorkflows.length, 6, 'Phase 2D must retain six PR-triggered workflows after removing two duplicate contracts');
+assert.equal(pullRequestWorkflows.length, 4, 'Phase 2E must retain four PR-triggered workflows');
 console.log(`workflow trigger architecture contract: ${workflowFiles.length} workflows, ${scheduledStartsPerDay} scheduled starts/day, ${pullRequestWorkflows.length} PR-triggered workflows`);
