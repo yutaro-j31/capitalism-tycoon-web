@@ -173,7 +173,7 @@ function scenario(seed = 190826041, difficulty = 'normal') {
   assert.match(appSource, /const modAPI=__modules\.gymMembershipModel;/, 'renderMembershipModelはgymMembershipModelを参照する');
 }
 
-// --- 退会理由の内訳（品質不足・設備の老朽化・競合圧力・自然減）---
+// --- 退会理由の内訳（品質不足・設備の老朽化・競合圧力・混雑・自然減）---
 
 // 13. PR baseの退会率をgridで固定し、競合圧力がtotalを変えないことを保証する。
 {
@@ -187,8 +187,8 @@ function scenario(seed = 190826041, difficulty = 'normal') {
       const expected = legacy(quality, condition);
       assert.ok(Math.abs(breakdown.total - expected) < 1e-12, `legacy total parity q=${quality} c=${condition} comp=${localCompetition}`);
       assert.ok(Math.abs(mod.churnRateFor({ quality }, { condition }, localCompetition) - expected) < 1e-12, 'churnRateForもlegacy式を維持する');
-      assert.ok(Math.abs(breakdown.base + breakdown.quality + breakdown.condition + breakdown.competition - breakdown.total) < 1e-12, '理由別rate合計はtotalと一致する');
-      for (const key of ['base', 'quality', 'condition', 'competition']) assert.ok(breakdown[key] >= 0, `${key} componentは非負`);
+      assert.ok(Math.abs(breakdown.base + breakdown.quality + breakdown.condition + breakdown.competition + breakdown.crowding - breakdown.total) < 1e-12, '理由別rate合計はtotalと一致する');
+      for (const key of ['base', 'quality', 'condition', 'competition', 'crowding']) assert.ok(breakdown[key] >= 0, `${key} componentは非負`);
       totals.push(breakdown.total); competitions.push(breakdown.competition);
     }
     assert.deepEqual(totals, [totals[0], totals[0], totals[0]], 'competitionを変えてもtotalは完全不変');
@@ -219,7 +219,7 @@ function scenario(seed = 190826041, difficulty = 'normal') {
     const store = { businessID: 'gym', gymMembership: { members: 10, totals: { churnedMembers: 5, churnedByReason } } };
     assert.doesNotThrow(() => mod.ensureStore(store));
     const normalized = store.gymMembership.totals.churnedByReason;
-    assert.deepEqual(Object.keys(normalized), ['quality', 'condition', 'competition', 'base']);
+    assert.deepEqual(Object.keys(normalized), ['quality', 'condition', 'competition', 'crowding', 'base']);
     assert.ok(Object.values(normalized).every(value => Number.isInteger(value) && value >= 0), 'malformed値は非負整数へ正規化される');
   }
 }
@@ -230,10 +230,10 @@ function scenario(seed = 190826041, difficulty = 'normal') {
   assert.match(engineSource, /gymMembershipModel\.processStore\(this\.g,store,b,demand,this\.g\.inflation,localCompetition\)/);
 }
 
-// 17. UIは4理由を表示し、広告・効率化が競合圧力や退会率を下げるという誤説明をしない。
+// 17. UIは5理由を表示し、広告・効率化が競合圧力や退会率を下げるという誤説明をしない。
 {
   const appSource = fs.readFileSync(path.join(__dirname, '..', 'js', 'app.js'), 'utf8');
-  for (const label of ['退会理由の内訳', '品質不足', '設備の老朽化', '競合圧力', '自然減']) assert.match(appSource, new RegExp(label));
+  for (const label of ['退会理由の内訳', '品質不足', '設備の老朽化', '競合圧力', '混雑', '自然減']) assert.match(appSource, new RegExp(label));
   assert.doesNotMatch(appSource, /競合圧力は広告・効率化で対処/);
   assert.doesNotMatch(appSource, /品質投資・効率化は退会率を下げ/);
   assert.match(appSource, /競合圧力は現在の地域・競合環境による影響度です/);

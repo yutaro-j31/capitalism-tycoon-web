@@ -48,7 +48,8 @@
     "tests/personal-real-estate-taxes-test.js",
     "tests/real-estate-cycle-state-collision-test.js",
     "tests/personal-real-estate-short-term-test.js",
-    "tests/menu-lifecycle-test.js"
+    "tests/menu-lifecycle-test.js",
+    "tests/gym-congestion-test.js"
   ],
   "E": [
     "tests/competitor-product-counter-reachability-test.js",
