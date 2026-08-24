@@ -234,6 +234,7 @@ for (const [name, file] of [
   ['foundable-business-scope', 'tests/foundable-business-scope-test.js'],
   ['product-ventures-it-pillar', 'tests/product-ventures-it-pillar-test.js'],
   ['convenience-merchandising', 'tests/convenience-merchandising-test.js'],
+  ['convenience-private-brand', 'tests/convenience-private-brand-test.js'],
   ['gym-membership-model', 'tests/gym-membership-model-test.js'],
   ['gym-congestion', 'tests/gym-congestion-test.js'],
   ['real-estate-agency-focus', 'tests/real-estate-agency-focus-test.js']

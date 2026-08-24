@@ -880,6 +880,22 @@ class TycoonEngine extends EventTarget {
     this.notify(`コンビニの品揃え構成を「${mod.policyFor(policyID).name}」に変更しました。`);
     this.save();this.emit();return true;
   }
+  startConveniencePrivateBrandDevelopment() {
+    const mod=globalThis.__capitalismTycoonModules?.convenienceMerchandising,mix=mod?.ensure(this.g),pb=mix?.privateBrand;
+    if(!mod||!pb)return this.fail('PB開発を開始できません。');
+    if(pb.unlocked)return this.fail('PB商品は開発済みです。');
+    if(pb.pending)return this.fail('PB商品を開発中です。');
+    if(!this.g.departments?.product)return this.fail('PB開発には商品開発部門が必要です。');
+    const cost=mod.PRIVATE_BRAND_DEVELOPMENT_COST;if(this.g.companyCash<cost)return this.fail(`PB開発には${yen(cost)}が必要です。`);
+    const week=Math.floor(finite(this.g.week)),resolveWeek=week+mod.PRIVATE_BRAND_DEVELOPMENT_WEEKS;this.g.companyCash-=cost;
+    finance.event(this.g,'otherOperating',cost,{cashEffect:-cost,profitEffect:-cost,sourceType:'conveniencePrivateBrandResearch',sourceID:'private-brand',operationID:`conveni-private-brand-w${week}`,idempotencyKey:`conveni-private-brand-w${week}`,description:'コンビニPB商品開発'});
+    pb.pending={committedWeek:week,resolveWeek};this.notify(`PB商品の開発を開始しました。完了は第${resolveWeek}週の予定です。`,'info');this.save();this.emit();return true;
+  }
+  changeConveniencePrivateBrandShare(share) {
+    const mod=globalThis.__capitalismTycoonModules?.convenienceMerchandising;
+    if(!mod?.setPrivateBrandShare(this.g,Number(share)))return this.fail('PB比率を変更できません。');
+    this.notify(`コンビニのPB比率を${Math.round(Number(share)*100)}%に変更しました。`);this.save();this.emit();return true;
+  }
   changeBrokerageFocus(focusID) {
     const mod=globalThis.__capitalismTycoonModules?.realEstateAgencyPipeline,b=this.business('realEstateAgency');
     if(!mod||!b||!mod.FOCUS_ORDER.includes(focusID))return this.fail('営業方針を変更できません。');
@@ -1624,7 +1640,7 @@ class TycoonEngine extends EventTarget {
     if(this.g.isCompanySold){this.g.week++;this.g.month=Math.floor((this.g.week-1)/4)+1;this.updatePersonalAssets();this.recordHistory(0,0);this.save();this.emit('week',{summary:null});return true;}
     if(this.g.autoManage)this.autoManage();
     this.g.week++;this.g.month=Math.floor((this.g.week-1)/4)+1;if(this.g.week%52===0)this.g.founderAge++;
-    supply.ensure(this.g);workforce.ensure(this.g);workforce.processWeekStart(this.g);workforce.generateCandidates(this.g);workforce.recompute(this.g);globalThis.__capitalismTycoonModules?.menuResearch?.resolvePending?.(this);const beginningCash=this.g.companyCash;this.updateMacro();this.updateMarket();this.updateProperties();this.updateStartups();this.updateCompetitors();this.updateCompetitorProducts();this.updateCounterCampaigns();this.updateDirectivesAndCampaigns();
+    supply.ensure(this.g);workforce.ensure(this.g);workforce.processWeekStart(this.g);workforce.generateCandidates(this.g);workforce.recompute(this.g);globalThis.__capitalismTycoonModules?.menuResearch?.resolvePending?.(this);globalThis.__capitalismTycoonModules?.convenienceMerchandising?.resolvePrivateBrandPending?.(this);const beginningCash=this.g.companyCash;this.updateMacro();this.updateMarket();this.updateProperties();this.updateStartups();this.updateCompetitors();this.updateCompetitorProducts();this.updateCounterCampaigns();this.updateDirectivesAndCampaigns();
     const product=this.updateProducts(),overseas=this.updateOverseas(),subs=this.updateSubsidiaries(),franchise=this.updateFranchise();this.updatePersonalAssets();
     for(const store of this.g.stores){if(store.status==='preparing'&&this.g.week>=store.openingWeek){store.status='open';store.weeksToOpen=0;this.g.news.unshift(`第${this.g.week}週：${store.name}が開店しました。`);}if(store.status==='open'&&supply.isTargetBusinessID(store.businessID))supply.ensureInitialProcurementForOpenStore(this.g,store,finance);}
     const spoilage=supply.spoil(this.g,finance);supply.receiveOrders(this.g,finance);supply.payables(this.g,finance);
