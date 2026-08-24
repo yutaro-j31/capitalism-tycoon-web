@@ -18,7 +18,7 @@ assert.match(bridge.code, /o&&s\)o\.remove\(\)/, 'bridge must remove the blockin
 assert.doesNotMatch(bridge.code, /localStorage|SAVE_KEY|saveVersion|gameOver\s*=/,
   'bridge must not rewrite save data, schema, or bankruptcy state');
 
-const workflow = fs.readFileSync(path.join(ROOT, '.github', 'workflows', 'iphone-webkit-smoke.yml'), 'utf8');
+const workflow = fs.readFileSync(path.join(ROOT, '.github', 'workflows', 'test.yml'), 'utf8');
 const browserTest = fs.readFileSync(path.join(ROOT, 'tests', 'game-over-settings-webkit-test.js'), 'utf8');
 assert.match(workflow, /node tests\/game-over-settings-webkit-test\.js/,
   'iPhone WebKit workflow must execute the bankruptcy settings regression');

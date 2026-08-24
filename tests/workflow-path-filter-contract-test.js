@@ -50,15 +50,15 @@ function jobBlock(source, job) {
   return block.join('\n');
 }
 
-assert.equal(workflowFiles.length, 7, 'Phase 2G must retain exactly 7 workflow files');
+assert.equal(workflowFiles.length, 6, 'Phase 2H must retain exactly 6 workflow files');
 for (const file of ['ceo-dashboard.yml', 'founding-tutorial.yml', 'ma-integration.yml', 'ma-board-approval.yml', 'iphone-playtest-remediation.yml', 'physical-iphone-playtest.yml', 'pages-publication-attestation.yml', 'published-save-quota-contract.yml', 'release-attestation-contract.yml']) {
   assert.equal(workflowFiles.includes(file), false, `${file} must remain absent after workflow consolidation`);
 }
-for (const file of ['test.yml', 'strategy-balance.yml', 'iphone-webkit-smoke.yml', 'ma-acquisition-financing.yml', 'pages-deployment-smoke.yml', 'release-attestation-sync.yml', 'release-candidate-tag.yml']) {
-  assert(workflowFiles.includes(file), `${file} must remain after Phase 2G consolidation`);
+for (const file of ['test.yml', 'strategy-balance.yml', 'ma-acquisition-financing.yml', 'pages-deployment-smoke.yml', 'release-attestation-sync.yml', 'release-candidate-tag.yml']) {
+  assert(workflowFiles.includes(file), `${file} must remain after Phase 2H consolidation`);
 }
-for (const file of ['phase6b3-diagnostic.yml', 'exploration-1000-week.yml', 'issue-294-executive-hiring-diagnostic.yml', 'shareholder-activism.yml', 'ma-deal-room.yml', 'release-readiness.yml']) {
-  assert.equal(workflowFiles.includes(file), false, `${file} must be absent after Phase 2G consolidation`);
+for (const file of ['phase6b3-diagnostic.yml', 'exploration-1000-week.yml', 'issue-294-executive-hiring-diagnostic.yml', 'shareholder-activism.yml', 'ma-deal-room.yml', 'release-readiness.yml', 'iphone-webkit-smoke.yml']) {
+  assert.equal(workflowFiles.includes(file), false, `${file} must be absent after Phase 2H consolidation`);
 }
 for (const file of workflowFiles) {
   assert(!readWorkflow(file).includes('js/pmi-100-day-loader.js'), `${file} must not reference the obsolete PMI loader`);
@@ -69,15 +69,21 @@ assert(hasTrigger(canonicalTest, 'pull_request'), 'Test must remain an always-ru
 assert.equal(pathsFor(canonicalTest, 'pull_request').length, 0, 'Test pull_request must not have a paths filter');
 assert(hasTrigger(canonicalTest, 'push') && isMainOnly(triggerBlock(canonicalTest, 'push')), 'Test push must remain main-only');
 assert(hasTrigger(canonicalTest, 'workflow_dispatch'), 'Test must inherit Release Readiness manual dispatch');
+assert(hasTrigger(canonicalTest, 'schedule') && triggerBlock(canonicalTest, 'schedule').includes("    - cron: '35 2 * * *'"), 'Test must inherit the exact iPhone nightly schedule');
+for (const mode of ['release-readiness', 'iphone-webkit']) {
+  assert(triggerBlock(canonicalTest, 'workflow_dispatch').some(line => line.trim() === `- ${mode}`), `Test manual dispatch must retain ${mode}`);
+}
+assert(triggerBlock(canonicalTest, 'workflow_dispatch').includes('        default: release-readiness'), 'manual dispatch must default to release readiness');
 for (const job of ['competitor-ai', 'product-innovation', 'capital-allocation', 'test-shard-contract', 'test-shards']) {
   const block = jobBlock(canonicalTest, job);
-  assert(block.includes("if: github.event_name != 'workflow_dispatch'"), `${job} must skip manual readiness dispatches while retaining PR/main coverage`);
+  assert(block.includes("github.event_name == 'push'") && block.includes("github.event_name == 'pull_request'"), `${job} must run on PR/main`);
+  assert(!block.includes("github.event_name == 'schedule'") && !block.includes("github.event_name == 'workflow_dispatch'"), `${job} must skip schedule/manual events`);
 }
 const canonicalAggregate = jobBlock(canonicalTest, 'test');
-assert(canonicalAggregate.includes("if: always() && github.event_name != 'workflow_dispatch'"), 'canonical aggregate must skip manual readiness dispatches');
+assert(canonicalAggregate.includes('if: always()') && canonicalAggregate.includes("github.event_name == 'push'") && canonicalAggregate.includes("github.event_name == 'pull_request'"), 'canonical aggregate must run on PR/main only');
 const readinessJob = jobBlock(canonicalTest, 'release-readiness');
-assert(readinessJob.includes("github.event_name == 'pull_request'") && readinessJob.includes("github.event_name == 'workflow_dispatch'"), 'release-readiness must run on PR and manual dispatch');
-assert(!readinessJob.includes("github.event_name == 'push'"), 'release-readiness must skip main pushes');
+assert(readinessJob.includes("github.event_name == 'pull_request'") && readinessJob.includes("github.event_name == 'workflow_dispatch'") && readinessJob.includes("inputs.mode == 'release-readiness'"), 'release-readiness must run on PR and its manual mode');
+assert(!readinessJob.includes("github.event_name == 'push'") && !readinessJob.includes("github.event_name == 'schedule'") && !readinessJob.includes("inputs.mode == 'iphone-webkit'"), 'release-readiness must skip main, schedule, and iPhone manual mode');
 for (const token of [
   'timeout-minutes: 15', 'contents: read', 'group: release-readiness-${{ github.event.pull_request.number || github.ref }}',
   'cancel-in-progress: true', 'node-version: 20', 'node scripts/release-gate.js',
@@ -85,6 +91,18 @@ for (const token of [
   'actions/upload-artifact@v4', 'if: always()', 'name: release-readiness-${{ github.sha }}',
   'path: artifacts/release-readiness', 'if-no-files-found: error', 'retention-days: 7'
 ]) assert(readinessJob.includes(token), `release-readiness job must retain ${token}`);
+const iphoneJob = jobBlock(canonicalTest, 'iphone-webkit-smoke');
+assert(iphoneJob.includes('name: iPhone WebKit Smoke'), 'iPhone job must retain its public identity');
+assert(iphoneJob.includes("github.event_name == 'push'") && iphoneJob.includes("github.event_name == 'schedule'") && iphoneJob.includes("inputs.mode == 'iphone-webkit'"), 'iPhone job must run on main, schedule, and iPhone manual mode');
+assert(!iphoneJob.includes("github.event_name == 'pull_request'") && !iphoneJob.includes("inputs.mode == 'release-readiness'"), 'iPhone job must skip PR and release-readiness manual mode');
+for (const token of [
+  'contents: read', 'group: iphone-webkit-smoke-${{ github.ref }}', 'cancel-in-progress: true',
+  'timeout-minutes: 15', "node-version: '22'", 'playwright@1.61.0',
+  'npx playwright install --with-deps webkit', 'node tests/iphone-playtest-webkit-test.js',
+  'node tests/physical-iphone-playtest-test.js', 'node tests/iphone-webkit-smoke-test.js',
+  'node tests/runtime-recovery-webkit-test.js', 'name: iphone-webkit-smoke-${{ github.sha }}',
+  'if: always()', 'if-no-files-found: error', 'retention-days: 30'
+]) assert(iphoneJob.includes(token), `iPhone WebKit job must retain ${token}`);
 const strategy = readWorkflow('strategy-balance.yml');
 assert(/^name: Strategy Balance$/m.test(strategy), 'consolidated workflow must preserve its public name');
 assert(hasTrigger(strategy, 'pull_request'), 'Strategy Balance must retain PR full-matrix coverage');
@@ -179,13 +197,8 @@ assert(pagesSmoke.includes("cron: '17 4 * * *'"), 'Pages Deployment Smoke must i
 assert(pagesSmoke.includes("if: github.event_name != 'schedule'"), 'scheduled Pages checks must skip the full WebKit job');
 assert(pagesSmoke.includes('node scripts/verify-published-pages.js'), 'Pages Deployment Smoke must retain publication verification');
 assert(readWorkflow('release-attestation-sync.yml').includes('Pages Deployment Smoke'), 'Release Attestation Sync must still reference Pages Deployment Smoke');
-const iphone = readWorkflow('iphone-webkit-smoke.yml');
-assert(!hasTrigger(iphone, 'pull_request'), 'iPhone consolidated executor must not consume pull-request runners');
-assert(hasTrigger(iphone, 'push') && isMainOnly(triggerBlock(iphone, 'push')), 'iPhone consolidated executor push must be main-only');
-assert.equal(pathsFor(iphone, 'push').length, 0, 'iPhone consolidated executor must retain broad main coverage');
-assert(hasTrigger(iphone, 'schedule') && hasTrigger(iphone, 'workflow_dispatch'), 'iPhone consolidated executor must retain nightly/manual coverage');
 for (const command of ['node tests/iphone-playtest-webkit-test.js', 'node tests/physical-iphone-playtest-test.js']) {
-  assert(iphone.includes(command), `iPhone consolidated executor must retain ${command}`);
+  assert(iphoneJob.includes(command), `iPhone consolidated executor must retain ${command}`);
 }
 let scheduledStartsPerDay = 0;
 for (const file of workflowFiles) {
@@ -204,5 +217,5 @@ for (const file of workflowFiles) {
   if (hasTrigger(source, 'push')) assert(isMainOnly(triggerBlock(source, 'push')), `${file} must not run on feature-branch pushes`);
 }
 const pullRequestWorkflows = workflowFiles.filter(file => hasTrigger(readWorkflow(file), 'pull_request'));
-assert.equal(pullRequestWorkflows.length, 3, 'Phase 2G must retain three PR-triggered workflows');
+assert.equal(pullRequestWorkflows.length, 3, 'Phase 2H must retain three PR-triggered workflows');
 console.log(`workflow trigger architecture contract: ${workflowFiles.length} workflows, ${scheduledStartsPerDay} scheduled starts/day, ${pullRequestWorkflows.length} PR-triggered workflows`);

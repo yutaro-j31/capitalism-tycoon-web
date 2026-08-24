@@ -9,7 +9,7 @@ const read = relative => fs.readFileSync(path.join(ROOT, relative), 'utf8');
 const crisisUI = read('js/player-crisis-ui.js');
 const creditorUI = read('js/player-crisis-creditor-ui.js');
 const turnaroundUI = read('js/player-turnaround-plan-ui.js');
-const workflow = read('.github/workflows/iphone-webkit-smoke.yml');
+const workflow = read('.github/workflows/test.yml');
 const regression = read('tests/two-store-iphone-webkit-test.js');
 
 assert.match(crisisUI, /function renderKey\(html\)/, 'canonical crisis UI must derive a stable render key');

@@ -7,7 +7,7 @@ const path = require('node:path');
 const root = path.resolve(__dirname, '..');
 const packageJson = JSON.parse(fs.readFileSync(path.join(root, 'package.json'), 'utf8'));
 const orchestrator = fs.readFileSync(path.join(root, 'scripts', 'release-all-gates.js'), 'utf8');
-const iphoneWorkflow = fs.readFileSync(path.join(root, '.github', 'workflows', 'iphone-webkit-smoke.yml'), 'utf8');
+const iphoneWorkflow = fs.readFileSync(path.join(root, '.github', 'workflows', 'test.yml'), 'utf8');
 const recoveryWebKitTest = path.join(root, 'tests', 'capital-allocation-recovery-webkit-test.js');
 const recoveryOutcomeWebKitTest = path.join(root, 'tests', 'capital-allocation-recovery-outcome-webkit-test.js');
 

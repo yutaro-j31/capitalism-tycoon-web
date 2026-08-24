@@ -32,14 +32,15 @@ assert(index.indexOf('./js/play-runtime-compat.js')<index.indexOf('./js/iphone-p
 
 // Browser remediation and the physical checklist share the broad main/nightly/manual
 // iPhone executor. The deleted focused workflows must not silently return.
-const smokeWorkflow='.github/workflows/iphone-webkit-smoke.yml';
+const smokeWorkflow='.github/workflows/test.yml';
 const workflow=fs.readFileSync(smokeWorkflow,'utf8');
 for(const removed of ['.github/workflows/iphone-playtest-remediation.yml','.github/workflows/physical-iphone-playtest.yml']){
  assert(!fs.existsSync(removed),`${removed} must remain consolidated into ${smokeWorkflow}`);
 }
-assert(!/^\s*pull_request\s*:/m.test(workflow),`${smokeWorkflow} must not run on pull_request`);
+assert(/github\.event_name == 'push'.*github\.event_name == 'schedule'.*inputs\.mode == 'iphone-webkit'/.test(workflow),`${smokeWorkflow} iPhone job must retain main, schedule, and manual coverage`);
+assert(!/iphone-webkit-smoke:[\s\S]*?if:[^\n]*pull_request/.test(workflow),`${smokeWorkflow} iPhone job must not run on pull_request`);
 assert(/^\s*push\s*:/m.test(workflow),`${smokeWorkflow} must retain main push coverage`);
-assert(/branches:\s*\[main\]/.test(workflow),`${smokeWorkflow} push coverage must target main`);
+assert(/branches:\s*\[\s*main\s*\]/.test(workflow),`${smokeWorkflow} push coverage must target main`);
 assert(/^\s*schedule\s*:/m.test(workflow),`${smokeWorkflow} must retain daily coverage`);
 assert(/^\s*workflow_dispatch\s*:/m.test(workflow),`${smokeWorkflow} must retain manual execution`);
 const pushBlock=workflow.match(/^  push:\s*\n((?: {4}.*(?:\n|$))*)/m)?.[1]||'';

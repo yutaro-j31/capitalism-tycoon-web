@@ -3,10 +3,20 @@ on:
   push:
     branches: [ main ]
   pull_request:
+  schedule:
+    - cron: '35 2 * * *'
   workflow_dispatch:
+    inputs:
+      mode:
+        type: choice
+        required: true
+        default: release-readiness
+        options:
+          - release-readiness
+          - iphone-webkit
 jobs:
   competitor-ai:
-    if: github.event_name != 'workflow_dispatch'
+    if: github.event_name == 'push' || github.event_name == 'pull_request'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -42,7 +52,7 @@ jobs:
           cat competitor-distress.log
           test "$(cat competitor-distress.status)" = "0"
   product-innovation:
-    if: github.event_name != 'workflow_dispatch'
+    if: github.event_name == 'push' || github.event_name == 'pull_request'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -51,7 +61,7 @@ jobs:
           node-version: '22'
       - run: npm run test:product-innovation
   capital-allocation:
-    if: github.event_name != 'workflow_dispatch'
+    if: github.event_name == 'push' || github.event_name == 'pull_request'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -110,7 +120,7 @@ jobs:
           done
           test "$(cat capital-allocation-logs/overall.status)" = "0"
   test-shard-contract:
-    if: github.event_name != 'workflow_dispatch'
+    if: github.event_name == 'push' || github.event_name == 'pull_request'
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
@@ -128,7 +138,7 @@ jobs:
       - name: Verify every browser-installing job is time-bounded
         run: node tests/workflow-browser-timeout-contract.js
   test-shards:
-    if: github.event_name != 'workflow_dispatch'
+    if: github.event_name == 'push' || github.event_name == 'pull_request'
     name: test-shard-${{ matrix.shard }}
     needs: test-shard-contract
     runs-on: ubuntu-latest
@@ -148,7 +158,7 @@ jobs:
         run: node tests/run-all-shard.js
   test:
     name: test
-    if: always() && github.event_name != 'workflow_dispatch'
+    if: always() && (github.event_name == 'push' || github.event_name == 'pull_request')
     needs: [test-shard-contract, test-shards]
     runs-on: ubuntu-latest
     steps:
@@ -158,7 +168,7 @@ jobs:
           test "${{ needs.test-shard-contract.result }}" = "success"
           test "${{ needs.test-shards.result }}" = "success"
   release-readiness:
-    if: github.event_name == 'pull_request' || github.event_name == 'workflow_dispatch'
+    if: github.event_name == 'pull_request' || (github.event_name == 'workflow_dispatch' && inputs.mode == 'release-readiness')
     permissions:
       contents: read
     concurrency:
@@ -201,3 +211,100 @@ jobs:
           path: artifacts/release-readiness
           if-no-files-found: error
           retention-days: 7
+  iphone-webkit-smoke:
+    name: iPhone WebKit Smoke
+    if: github.event_name == 'push' || github.event_name == 'schedule' || (github.event_name == 'workflow_dispatch' && inputs.mode == 'iphone-webkit')
+    permissions:
+      contents: read
+    concurrency:
+      group: iphone-webkit-smoke-${{ github.ref }}
+      cancel-in-progress: true
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      IPHONE_WEBKIT_ARTIFACT_DIR: artifacts/iphone-webkit-smoke
+      GAME_OVER_SETTINGS_ARTIFACT_DIR: artifacts/game-over-settings-webkit
+      D_UI_ARTIFACT_DIR: artifacts/d-ui-webkit
+      CEO_DASHBOARD_ARTIFACT_DIR: artifacts/ceo-dashboard-webkit
+      FOUNDING_TUTORIAL_ARTIFACT_DIR: artifacts/founding-tutorial-webkit
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install pinned Playwright runtime
+        run: npm install --no-save --no-package-lock playwright@1.61.0
+      - name: Install WebKit browser and system dependencies
+        run: npx playwright install --with-deps webkit
+      - name: Validate consolidated iPhone contracts
+        run: |
+          node --check js/play-runtime-compat.js
+          node --check js/iphone-playtest-fixes.js
+          node --check js/physical-iphone-playtest.js
+          node --check tests/iphone-playtest-webkit-test.js
+          node tests/iphone-playtest-remediation-test.js
+      - name: Exercise iPhone playtest remediation in WebKit
+        timeout-minutes: 3
+        shell: bash
+        run: |
+          mkdir -p artifacts/iphone-playtest-remediation
+          set -o pipefail
+          node tests/iphone-playtest-webkit-test.js 2>&1 | tee artifacts/iphone-playtest-remediation/webkit.log
+      - name: Validate physical iPhone playtest checklist
+        timeout-minutes: 2
+        shell: bash
+        run: |
+          mkdir -p artifacts/physical-iphone-playtest
+          set -o pipefail
+          node tests/physical-iphone-playtest-test.js 2>&1 | tee artifacts/physical-iphone-playtest/physical-iphone-test.log
+      - name: Run iPhone WebKit release smoke
+        timeout-minutes: 3
+        run: node tests/iphone-webkit-smoke-test.js
+      - name: Verify CEO dashboard on iPhone
+        timeout-minutes: 2
+        run: node tests/ceo-dashboard-webkit-test.js
+      - name: Verify founding tutorial on iPhone
+        timeout-minutes: 2
+        run: node tests/founding-tutorial-webkit-test.js
+      - name: Verify D UI desktop and iPhone layouts
+        timeout-minutes: 2
+        run: node tests/d-ui-webkit-test.js
+      - name: Verify recovery funding workflow on iPhone
+        timeout-minutes: 2
+        run: node tests/capital-allocation-recovery-webkit-test.js
+      - name: Verify recovery funding outcome on iPhone
+        timeout-minutes: 2
+        run: node tests/capital-allocation-recovery-outcome-webkit-test.js
+      - name: Verify bankruptcy settings recovery
+        timeout-minutes: 2
+        run: node tests/game-over-settings-webkit-test.js
+      - name: Verify two-store first-week advance
+        timeout-minutes: 2
+        run: node tests/two-store-iphone-webkit-test.js
+      - name: Verify release diagnostics recovery
+        timeout-minutes: 2
+        run: node tests/release-diagnostics-webkit-test.js
+      - name: Verify playtest report download
+        timeout-minutes: 2
+        run: node tests/playtest-report-webkit-test.js
+      - name: Verify boot failure recovery
+        timeout-minutes: 2
+        run: node tests/boot-recovery-webkit-test.js
+      - name: Verify uncaught runtime recovery
+        timeout-minutes: 2
+        run: node tests/runtime-recovery-webkit-test.js
+      - name: Retain WebKit smoke evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: iphone-webkit-smoke-${{ github.sha }}
+          path: |
+            artifacts/iphone-webkit-smoke
+            artifacts/game-over-settings-webkit
+            artifacts/d-ui-webkit
+            artifacts/ceo-dashboard-webkit
+            artifacts/founding-tutorial-webkit
+            artifacts/iphone-playtest-remediation
+            artifacts/physical-iphone-playtest
+          if-no-files-found: error
+          retention-days: 30
