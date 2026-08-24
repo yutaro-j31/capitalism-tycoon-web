@@ -7,7 +7,7 @@ if(!modules.playerCrisisUI?.__installed)throw new Error('player-crisis-ui.js mus
 if(modules.playerEngineBridge)throw new Error('player engine bridge is already registered.');
 const EngineClass=modules.engine.TycoonEngine;
 const finance=modules.finance;
-const VERSION=1,HISTORY_LIMIT=80,PROJECT_LIMIT=120;
+const VERSION=2,HISTORY_LIMIT=80,PROJECT_LIMIT=120,FOCUS_SHARE=.65;
 const ROADMAPS=Object.freeze([
   Object.freeze({id:'quality_refresh',name:'品質刷新',description:'UXと中核機能を再設計し、品質・課金転換率・継続率を改善します。',cost:4_000_000,weeks:8,departmentIDs:['product']}),
   Object.freeze({id:'growth_engine',name:'成長エンジン',description:'紹介導線と顧客獲得ループを構築し、認知・ブランド・市場規模を伸ばします。',cost:5_500_000,weeks:7,departmentIDs:['product','marketing']}),
@@ -35,6 +35,8 @@ function ensure(state){
     product.appliedPatentIDs=Array.isArray(product.appliedPatentIDs)?[...new Set(product.appliedPatentIDs.map(String))]:[];
     product.lastInnovationWeek=Math.max(0,integer(product.lastInnovationWeek));
   }
+  const focus=typeof state.productInnovationFocusID==='string'?productFor(state,state.productInnovationFocusID):null;
+  state.productInnovationFocusID=focus&&focus.status==='released'&&focus.origin!=='founderHome'&&focus.lifecycleStage!=='retired'?String(focus.id):null;
   for(const project of state.productRoadmaps){
     project.projectID=String(project.projectID||`roadmap-${state.nextProductRoadmapSeq++}`);
     project.productID=String(project.productID||'');
@@ -54,6 +56,22 @@ function ensure(state){
 }
 function activeRoadmap(state,productID){ensure(state);return state.productRoadmaps.find(x=>x.productID===String(productID)&&x.status==='active')||null;}
 function productFor(state,productID){return (state.productVentures||[]).find(x=>String(x.id)===String(productID))||null;}
+function productPortfolioAllocationSnapshot(state){
+  ensure(state);const rows=[],contenders=new Map();
+  for(const project of state.productRoadmaps.filter(x=>x.status==='active')){
+    const product=productFor(state,project.productID),template=roadmapTemplate(project.roadmapID),office=product&&product.origin!=='founderHome'&&product.status==='released'&&product.lifecycleStage!=='retired';
+    const requiredDepartments=office&&template?[...template.departmentIDs]:[];
+    const row={productID:String(project.productID),projectID:String(project.projectID),requiredDepartments,departmentShares:{},allocationFactor:1,focused:String(project.productID)===state.productInnovationFocusID};rows.push(row);
+    for(const departmentID of requiredDepartments){if(!contenders.has(departmentID))contenders.set(departmentID,[]);contenders.get(departmentID).push(row);}
+  }
+  for(const [departmentID,departmentRows] of contenders){
+    const focused=departmentRows.find(x=>x.focused),equal=1/departmentRows.length;
+    for(const row of departmentRows)row.departmentShares[departmentID]=focused&&departmentRows.length>1?(row===focused?FOCUS_SHARE:(1-FOCUS_SHARE)/(departmentRows.length-1)):equal;
+  }
+  for(const row of rows)if(row.requiredDepartments.length)row.allocationFactor=Math.min(...row.requiredDepartments.map(id=>row.departmentShares[id]));
+  return rows;
+}
+function roadmapAllocationFactor(state,project){return productPortfolioAllocationSnapshot(state).find(x=>x.projectID===String(project?.projectID))?.allocationFactor??1;}
 function history(state,type,text,extra={}){
   const row={week:integer(state.week,1),type,text:String(text||''),...extra};
   state.productInnovationHistory.unshift(row);
@@ -188,6 +206,12 @@ function installProductInnovation(){
     ensure(this.g);const product=productFor(this.g,productID);if(!product)return null;
     return {product,active:activeRoadmap(this.g,productID),completed:this.g.productRoadmaps.filter(x=>x.productID===String(productID)&&x.status==='completed'),options:options(this,productID),assignedPatentIDs:[...(product.appliedPatentIDs||[])]};
   };
+  proto.productPortfolioAllocationSnapshot=function(){return productPortfolioAllocationSnapshot(this.g);};
+  proto.setProductInnovationFocus=function(productID){return this.runTransaction(()=>{
+    ensure(this.g);const next=productID===null?null:String(productID||''),product=next?productFor(this.g,next):null;
+    if(next&&(!product||product.status!=='released'||product.origin==='founderHome'||product.lifecycleStage==='retired'))return this.fail('重点開発できる公開済みプロダクトが見つかりません。');
+    if(this.g.productInnovationFocusID===next)return false;this.g.productInnovationFocusID=next;this.notify(next?`${product.name}を重点開発に設定しました。`:'開発リソースを均等配分に戻しました。','success');return true;
+  });};
   proto.startProductInnovationRoadmap=function(productID,roadmapID){return this.runTransaction(()=>{
     ensure(this.g);const product=productFor(this.g,productID),template=roadmapTemplate(roadmapID);if(!product||!template)return this.fail('プロダクトまたは計画が見つかりません。');
     const option=options(this,productID).find(x=>x.id===roadmapID);if(!option?.canStart)return this.fail(option?.reasons?.[0]||'この計画は開始できません。');
@@ -213,7 +237,7 @@ function installProductInnovation(){
   });};
   proto.updateProductInnovationWeekly=function(){
     ensure(this.g);if(integer(this.g.lastProductInnovationWeek)===integer(this.g.week))return [];
-    this.g.lastProductInnovationWeek=integer(this.g.week);const completed=[];
+    this.g.lastProductInnovationWeek=integer(this.g.week);const completed=[],allocations=new Map(productPortfolioAllocationSnapshot(this.g).map(x=>[x.projectID,x.allocationFactor]));
     for(const project of this.g.productRoadmaps.filter(x=>x.status==='active')){
       if(integer(project.lastUpdatedWeek)===integer(this.g.week))continue;
       const product=productFor(this.g,project.productID),template=roadmapTemplate(project.roadmapID);if(!product||!template||product.status==='sold'){
@@ -221,7 +245,7 @@ function installProductInnovation(){
       }
       const solo=product.origin==='founderHome',departmentEffects=template.departmentIDs.map(id=>finite(this.departmentEffect?.(id),0)),departmentEffect=departmentEffects.length?departmentEffects.reduce((a,b)=>a+b,0)/departmentEffects.length:0;
       const founderTech=clamp(this.g.founderSkillTech,1,3),staffFactor=solo?1:workforceFactor(this.g,template.departmentIDs),teamFactor=clamp((solo?.68:.72)+departmentEffect*.24+founderTech*.09,.55,1.75)*staffFactor;
-      const speed=100/Math.max(1,finite(project.plannedWeeks,roadmapWeeks(product,template)))*teamFactor;project.progress=clamp(finite(project.progress)+speed,0,100);project.lastUpdatedWeek=integer(this.g.week);
+      const speed=100/Math.max(1,finite(project.plannedWeeks,roadmapWeeks(product,template)))*teamFactor*(allocations.get(project.projectID)??1);project.progress=clamp(finite(project.progress)+speed,0,100);project.lastUpdatedWeek=integer(this.g.week);
       if(project.progress>=100)completed.push(applyRoadmap(this,project,product,template));
     }
     return completed;
@@ -229,7 +253,7 @@ function installProductInnovation(){
   const baseUpdateFunnels=proto.updateProductFunnelsWeekly;
   proto.updateProductFunnelsWeekly=function(){const result=baseUpdateFunnels.call(this);this.updateProductInnovationWeekly();return result;};
   const baseSellProduct=proto.sellProduct;
-  proto.sellProduct=function(id){ensure(this.g);for(const project of this.g.productRoadmaps.filter(x=>x.productID===String(id)&&x.status==='active')){project.status='cancelled';project.cancelledWeek=integer(this.g.week);history(this.g,'roadmapCancelled',`${project.productName||'プロダクト'}の計画は事業売却により終了しました。`,{projectID:project.projectID,productID:project.productID,roadmapID:project.roadmapID});}return baseSellProduct.call(this,id);};
+  proto.sellProduct=function(id){ensure(this.g);for(const project of this.g.productRoadmaps.filter(x=>x.productID===String(id)&&x.status==='active')){project.status='cancelled';project.cancelledWeek=integer(this.g.week);history(this.g,'roadmapCancelled',`${project.productName||'プロダクト'}の計画は事業売却により終了しました。`,{projectID:project.projectID,productID:project.productID,roadmapID:project.roadmapID});}const result=baseSellProduct.call(this,id);ensure(this.g);return result;};
   Object.defineProperty(proto,'__productInnovationInstalled',{value:true});return true;
 }
 let activeEngine=null,bound=false;
@@ -238,15 +262,16 @@ function getEngine(){return activeEngine;}
 function renderKey(html){let hash=2166136261;const text=String(html||'');for(let i=0;i<text.length;i++){hash^=text.charCodeAt(i);hash=Math.imul(hash,16777619);}return (hash>>>0).toString(36);}
 function renderSection(instance=activeEngine){
   if(!instance||!instance.g?.configured||instance.g.selectedTab!=='business')return '';
-  ensure(instance.g);const products=(instance.g.productVentures||[]).filter(x=>x.status==='released');if(!products.length)return '';
+  ensure(instance.g);const products=(instance.g.productVentures||[]).filter(x=>x.status==='released'&&x.lifecycleStage!=='retired'),officeProducts=products.filter(x=>x.origin!=='founderHome'),allocations=new Map(productPortfolioAllocationSnapshot(instance.g).map(x=>[x.projectID,x]));if(!products.length)return '';
   const availablePatents=(instance.g.patentRecords||[]).filter(x=>!instance.g.productPatentAssignments[String(x.id)]);
   const rows=products.map(product=>{
     const snapshot=instance.productInnovationSnapshot(product.id),active=snapshot.active,assigned=(product.appliedPatentIDs||[]).length;
-    const plan=active?(()=>{const template=roadmapTemplate(active.roadmapID),pct=Math.round(clamp(active.progress,0,100));return `<div class="meters"><label>${esc(template?.name||active.roadmapID)} ${pct}%<div class="progress"><i style="width:${pct}%"></i></div><small>開始 第${integer(active.startedWeek)}週 · 投資 ${esc(compactYen(active.cost))}</small></label></div><button class="btn danger small" data-product-innovation-action="cancel" data-project-id="${esc(active.projectID)}">計画を中止</button>`;})():`<div class="button-grid">${snapshot.options.map(option=>`<button class="btn small" data-product-innovation-action="start" data-product-id="${esc(product.id)}" data-roadmap-id="${esc(option.id)}" ${option.canStart?'':`disabled title="${esc(option.reasons.join(' / '))}"`}>${esc(option.name)} · ${esc(compactYen(option.cost))}</button>`).join('')}</div>`;
+    const plan=active?(()=>{const template=roadmapTemplate(active.roadmapID),pct=Math.round(clamp(active.progress,0,100)),allocation=Math.round((allocations.get(active.projectID)?.allocationFactor??1)*100);return `<div class="meters"><label>${esc(template?.name||active.roadmapID)} ${pct}%<div class="progress"><i style="width:${pct}%"></i></div><small>開始 第${integer(active.startedWeek)}週 · 投資 ${esc(compactYen(active.cost))} · 開発配分 ${allocation}%</small></label></div><button class="btn danger small" data-product-innovation-action="cancel" data-project-id="${esc(active.projectID)}">計画を中止</button>`;})():`<div class="button-grid">${snapshot.options.map(option=>`<button class="btn small" data-product-innovation-action="start" data-product-id="${esc(product.id)}" data-roadmap-id="${esc(option.id)}" ${option.canStart?'':`disabled title="${esc(option.reasons.join(' / '))}"`}>${esc(option.name)} · ${esc(compactYen(option.cost))}</button>`).join('')}</div>`;
     const patents=availablePatents.slice(0,4).map(patent=>`<button class="btn ghost small" data-product-innovation-action="patent" data-product-id="${esc(product.id)}" data-patent-id="${esc(patent.id)}">${esc(patent.name)}を実装</button>`).join('');
     return `<article class="item product-innovation-item"><div><h3>${esc(product.name)} <span class="badge">革新Lv${integer(product.innovationLevel)}</span></h3><p>品質 ${finite(product.quality).toFixed(0)} · ブランド ${finite(product.brand).toFixed(0)} · 完了計画 ${integer(product.completedRoadmapCount)}件 · 実装特許 ${assigned}件</p></div>${plan}${patents?`<details class="learning-card"><summary>未実装特許を適用</summary><p>実装費は通常150万円、自宅開発プロダクトは40万円です。1件の特許は1プロダクトにのみ割り当てられます。</p><div class="button-row">${patents}</div></details>`:''}</article>`;
   }).join('');
-  const key=renderKey(rows);return `<section class="card product-innovation-panel" data-product-innovation-ui="1" data-product-innovation-render-key="${key}" aria-live="polite"><div class="card-head"><div><h2>プロダクト・イノベーション</h2><p>短期投資ではなく、複数週の開発計画と特許実装で競争優位を構築します。</p></div><span class="badge good">Phase 8A-3</span></div><div class="card-body"><div class="grid two">${rows}</div></div></section>`;
+  const focus=productFor(instance.g,instance.g.productInnovationFocusID),allocation=officeProducts.length>=2?`<div class="learning-card"><h3>開発リソース配分</h3><p>現在: ${focus?`重点 ${esc(focus.name)}`:'均等配分'}</p><div class="button-grid"><button class="btn small ${focus?'ghost':'primary'}" style="min-height:44px" data-product-innovation-action="focus" data-product-id="" ${focus?'':'disabled'}>均等配分${focus?'':'（選択中）'}</button>${officeProducts.map(product=>`<button class="btn small ${focus?.id===product.id?'primary':'ghost'}" style="min-height:44px" data-product-innovation-action="focus" data-product-id="${esc(product.id)}" ${focus?.id===product.id?'disabled':''}>${esc(product.name)}${focus?.id===product.id?'（重点）':''}</button>`).join('')}</div></div>`:'';
+  const key=renderKey(allocation+rows);return `<section class="card product-innovation-panel" data-product-innovation-ui="1" data-product-innovation-render-key="${key}" aria-live="polite"><div class="card-head"><div><h2>プロダクト・イノベーション</h2><p>短期投資ではなく、複数週の開発計画と特許実装で競争優位を構築します。</p></div><span class="badge good">Phase 8A-3</span></div><div class="card-body">${allocation}<div class="grid two">${rows}</div></div></section>`;
 }
 function existingRenderKey(node){return String(node?.getAttribute?.('data-product-innovation-render-key')||node?.dataset?.productInnovationRenderKey||'');}
 function enhance(){
@@ -258,7 +283,8 @@ function enhance(){
 function schedule(){enhance();}
 function handleClick(event){
   const target=event?.target?.closest?.('[data-product-innovation-action]');if(!target||target.disabled||!activeEngine)return false;event.preventDefault?.();event.stopPropagation?.();const action=String(target.dataset.productInnovationAction||'');let result=false;
-  if(action==='start'){
+  if(action==='focus')result=activeEngine.setProductInnovationFocus(target.dataset.productId?String(target.dataset.productId):null);
+  else if(action==='start'){
     const productID=String(target.dataset.productId||''),roadmapID=String(target.dataset.roadmapId||''),option=activeEngine.productInnovationOptions(productID).find(x=>x.id===roadmapID);if(!option?.canStart)return false;
     const product=productFor(activeEngine.g,productID),message=`${product?.name||'プロダクト'}で「${option.name}」を開始します。投資額${compactYen(option.cost)}、標準期間${option.weeks}週です。途中で中止しても返金されません。`;if(typeof globalThis.confirm==='function'&&!globalThis.confirm(message))return false;
     result=activeEngine.startProductInnovationRoadmap(productID,roadmapID);
@@ -273,7 +299,7 @@ function handleClick(event){
 let registeredEnhancerDefinition=null;
 function registerEnhancer(definition){if(registeredEnhancerDefinition)return registeredEnhancerDefinition;registeredEnhancerDefinition=definition;const registry=modules.uiEnhancerRegistry;if(registry?.registerUIEnhancer)return registry.registerUIEnhancer(definition);const key='__capitalismTycoonPendingUIEnhancers';const pending=Array.isArray(globalThis[key])?globalThis[key]:(globalThis[key]=[]);pending.push(definition);return definition;}
 function installUI(){if(typeof document==='undefined')return;const root=document.getElementById('app');if(root&&!bound){root.addEventListener('click',handleClick);bound=true;}registerEnhancer({id:'player-engine-bridge-product-innovation',enhance});}
-const productInnovation=Object.freeze({VERSION,HISTORY_LIMIT,PROJECT_LIMIT,ROADMAPS,ensure,activeRoadmap,options,roadmapCost,roadmapWeeks,missingDepartments,workforceFactor,applyRoadmap,applyPatent,validate,renderSection,enhance,handleClick,installProductInnovation,__installed:true});
+const productInnovation=Object.freeze({VERSION,HISTORY_LIMIT,PROJECT_LIMIT,FOCUS_SHARE,ROADMAPS,ensure,activeRoadmap,options,roadmapCost,roadmapWeeks,missingDepartments,workforceFactor,productPortfolioAllocationSnapshot,roadmapAllocationFactor,applyRoadmap,applyPatent,validate,renderSection,enhance,handleClick,installProductInnovation,__installed:true});
 modules.productInnovation=productInnovation;
 const baseLoad=EngineClass.load.bind(EngineClass);
 EngineClass.load=function(...args){installProductInnovation();const instance=bindEngine(baseLoad(...args));installUI();return instance;};
