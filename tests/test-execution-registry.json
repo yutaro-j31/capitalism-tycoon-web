@@ -1,23 +1,23 @@
 {
   "tests/boot-recovery-webkit-test.js": {
-    "reason": "Executed outside the canonical run-all suite by .github/workflows/iphone-webkit-smoke.yml, .github/workflows/release-candidate-tag.yml.",
-    "executedBy": ".github/workflows/iphone-webkit-smoke.yml"
+    "reason": "Executed outside the canonical run-all suite by the iPhone WebKit Smoke job in .github/workflows/test.yml, .github/workflows/release-candidate-tag.yml.",
+    "executedBy": ".github/workflows/test.yml"
   },
   "tests/capital-allocation-recovery-outcome-webkit-test.js": {
-    "reason": "Executed outside the canonical run-all suite by .github/workflows/iphone-webkit-smoke.yml, .github/workflows/pages-deployment-smoke.yml, .github/workflows/release-candidate-tag.yml.",
-    "executedBy": ".github/workflows/iphone-webkit-smoke.yml"
+    "reason": "Executed outside the canonical run-all suite by the iPhone WebKit Smoke job in .github/workflows/test.yml, .github/workflows/pages-deployment-smoke.yml, .github/workflows/release-candidate-tag.yml.",
+    "executedBy": ".github/workflows/test.yml"
   },
   "tests/capital-allocation-recovery-webkit-test.js": {
-    "reason": "Executed outside the canonical run-all suite by .github/workflows/iphone-webkit-smoke.yml, .github/workflows/pages-deployment-smoke.yml, .github/workflows/release-candidate-tag.yml.",
-    "executedBy": ".github/workflows/iphone-webkit-smoke.yml"
+    "reason": "Executed outside the canonical run-all suite by the iPhone WebKit Smoke job in .github/workflows/test.yml, .github/workflows/pages-deployment-smoke.yml, .github/workflows/release-candidate-tag.yml.",
+    "executedBy": ".github/workflows/test.yml"
   },
   "tests/ceo-dashboard-webkit-test.js": {
     "reason": "Executed outside the canonical suite by the consolidated iPhone WebKit smoke and M&A comprehensive gates.",
-    "executedBy": ".github/workflows/iphone-webkit-smoke.yml"
+    "executedBy": ".github/workflows/test.yml"
   },
   "tests/d-ui-webkit-test.js": {
-    "reason": "Executed outside the canonical run-all suite by .github/workflows/iphone-webkit-smoke.yml.",
-    "executedBy": ".github/workflows/iphone-webkit-smoke.yml"
+    "reason": "Executed outside the canonical run-all suite by the iPhone WebKit Smoke job in .github/workflows/test.yml.",
+    "executedBy": ".github/workflows/test.yml"
   },
   "tests/difficulty-scenario-matrix-test.js": {
     "reason": "Executed outside the canonical run-all suite by the consolidated Strategy Balance workflow.",
@@ -29,23 +29,23 @@
   },
   "tests/founding-tutorial-webkit-test.js": {
     "reason": "Executed outside the canonical suite by the consolidated iPhone WebKit smoke gate.",
-    "executedBy": ".github/workflows/iphone-webkit-smoke.yml"
+    "executedBy": ".github/workflows/test.yml"
   },
   "tests/game-over-settings-webkit-test.js": {
-    "reason": "Executed outside the canonical run-all suite by .github/workflows/iphone-webkit-smoke.yml.",
-    "executedBy": ".github/workflows/iphone-webkit-smoke.yml"
+    "reason": "Executed outside the canonical run-all suite by the iPhone WebKit Smoke job in .github/workflows/test.yml.",
+    "executedBy": ".github/workflows/test.yml"
   },
   "tests/iphone-playtest-webkit-test.js": {
-    "reason": "Executed outside the canonical run-all suite by the consolidated .github/workflows/iphone-webkit-smoke.yml executor.",
-    "executedBy": ".github/workflows/iphone-webkit-smoke.yml"
+    "reason": "Executed outside the canonical run-all suite by the consolidated the iPhone WebKit Smoke job in .github/workflows/test.yml executor.",
+    "executedBy": ".github/workflows/test.yml"
   },
   "tests/iphone-webkit-smoke-contract-test.js": {
     "reason": "Executed by the release delivery gate aggregator, invoked from the release-readiness job in .github/workflows/test.yml.",
     "executedBy": "scripts/release-delivery-gate.js"
   },
   "tests/iphone-webkit-smoke-test.js": {
-    "reason": "Executed outside the canonical run-all suite by .github/workflows/iphone-webkit-smoke.yml, .github/workflows/pages-deployment-smoke.yml, .github/workflows/release-candidate-tag.yml.",
-    "executedBy": ".github/workflows/iphone-webkit-smoke.yml"
+    "reason": "Executed outside the canonical run-all suite by the iPhone WebKit Smoke job in .github/workflows/test.yml, .github/workflows/pages-deployment-smoke.yml, .github/workflows/release-candidate-tag.yml.",
+    "executedBy": ".github/workflows/test.yml"
   },
   "tests/ma-acquisition-financing-webkit-test.js": {
     "reason": "Executed outside the canonical run-all suite by .github/workflows/ma-acquisition-financing.yml.",
@@ -80,8 +80,8 @@
     "executedBy": "scripts/release-delivery-gate.js"
   },
   "tests/playtest-report-webkit-test.js": {
-    "reason": "Executed outside the canonical run-all suite by .github/workflows/iphone-webkit-smoke.yml, .github/workflows/release-candidate-tag.yml.",
-    "executedBy": ".github/workflows/iphone-webkit-smoke.yml"
+    "reason": "Executed outside the canonical run-all suite by the iPhone WebKit Smoke job in .github/workflows/test.yml, .github/workflows/release-candidate-tag.yml.",
+    "executedBy": ".github/workflows/test.yml"
   },
   "tests/published-founding-tutorial-webkit-test.js": {
     "reason": "Executed outside the canonical suite by Pages Deployment Smoke.",
@@ -112,16 +112,16 @@
     "executedBy": "tests/static-check.js"
   },
   "tests/release-diagnostics-webkit-test.js": {
-    "reason": "Executed outside the canonical run-all suite by .github/workflows/iphone-webkit-smoke.yml.",
-    "executedBy": ".github/workflows/iphone-webkit-smoke.yml"
+    "reason": "Executed outside the canonical run-all suite by the iPhone WebKit Smoke job in .github/workflows/test.yml.",
+    "executedBy": ".github/workflows/test.yml"
   },
   "tests/release-gate-wiring-test.js": {
     "reason": "Executed by the release gate aggregator script.",
     "executedBy": "scripts/release-all-gates.js"
   },
   "tests/runtime-recovery-webkit-test.js": {
-    "reason": "Executed outside the canonical run-all suite by .github/workflows/iphone-webkit-smoke.yml, .github/workflows/release-candidate-tag.yml.",
-    "executedBy": ".github/workflows/iphone-webkit-smoke.yml"
+    "reason": "Executed outside the canonical run-all suite by the iPhone WebKit Smoke job in .github/workflows/test.yml, .github/workflows/release-candidate-tag.yml.",
+    "executedBy": ".github/workflows/test.yml"
   },
   "tests/shareholder-activism-reachability-test.js": {
     "reason": "Executed outside the canonical run-all suite by focused diagnostics in Strategy Balance.",
@@ -140,8 +140,8 @@
     "executedBy": "tests/syntax-check.js"
   },
   "tests/two-store-iphone-webkit-test.js": {
-    "reason": "Executed outside the canonical run-all suite by .github/workflows/iphone-webkit-smoke.yml.",
-    "executedBy": ".github/workflows/iphone-webkit-smoke.yml"
+    "reason": "Executed outside the canonical run-all suite by the iPhone WebKit Smoke job in .github/workflows/test.yml.",
+    "executedBy": ".github/workflows/test.yml"
   },
   "tests/workflow-path-filter-contract-test.js": {
     "reason": "Executed by the release gate script.",
