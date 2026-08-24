@@ -6,6 +6,9 @@ if(modules.realEstateAgencyPipeline)throw new Error('real-estate-agency-pipeline
 // A 50/50 mix keeps the expected fee yield at the previously calibrated 6%.
 const BUSINESS_ID='realEstateAgency',SCHEMA_VERSION=3,SINGLE_COMMISSION_RATE=.055,DOUBLE_COMMISSION_RATE=.065,DOUBLE_SIDE_RATE=.5,HISTORY_LIMIT=52;
 const SEGMENTS=Object.freeze(['residential','luxury','investment','corporateDeal']);
+const FOCUS_WEIGHT_MULTIPLIER=3;
+const FOCUS_ORDER=Object.freeze(['balanced',...SEGMENTS]);
+const FOCUSES=Object.freeze({balanced:Object.freeze({id:'balanced',name:'バランス営業'}),residential:Object.freeze({id:'residential',name:'一般住宅重視'}),luxury:Object.freeze({id:'luxury',name:'高級住宅重視'}),investment:Object.freeze({id:'investment',name:'投資物件重視'}),corporateDeal:Object.freeze({id:'corporateDeal',name:'法人案件重視'})});
 // Weighted asking value (1.019x) and closing propensity (1.067x at a neutral cycle)
 // stay close to the pre-segment brokerage calibration while making deal types meaningful.
 const SEGMENT_CONFIG=Object.freeze({
@@ -20,7 +23,9 @@ const integer=(value,fallback=0)=>Math.max(0,Math.floor(finite(value,fallback)))
 const hash=(seed,salt)=>{let h=2166136261>>>0;for(const c of `${seed}:${salt}`){h^=c.charCodeAt(0);h=Math.imul(h,16777619)>>>0;}return h/4294967296;};
 const commissionRateForSide=side=>side==='double'?DOUBLE_COMMISSION_RATE:SINGLE_COMMISSION_RATE;
 const sideForDeal=(seed,dealID,storeID)=>hash(seed||1,`${storeID}:${dealID}:side`)<DOUBLE_SIDE_RATE?'double':'single';
-const segmentForDeal=(seed,dealID,storeID)=>{const roll=hash(seed||1,`${storeID}:${dealID}:segment`);let cumulative=0;for(const segment of SEGMENTS){cumulative+=SEGMENT_CONFIG[segment].weight;if(roll<cumulative)return segment;}return 'corporateDeal';};
+const legacySegmentForDeal=(seed,dealID,storeID)=>{const roll=hash(seed||1,`${storeID}:${dealID}:segment`);let cumulative=0;for(const segment of SEGMENTS){cumulative+=SEGMENT_CONFIG[segment].weight;if(roll<cumulative)return segment;}return 'corporateDeal';};
+const focusFor=business=>FOCUSES[business?.brokerageFocusID]||FOCUSES.balanced;
+const segmentForDeal=(seed,dealID,storeID,focusID='balanced')=>{if(!SEGMENTS.includes(focusID))return legacySegmentForDeal(seed,dealID,storeID);const roll=hash(seed||1,`${storeID}:${dealID}:segment`),total=SEGMENTS.reduce((sum,segment)=>sum+SEGMENT_CONFIG[segment].weight*(segment===focusID?FOCUS_WEIGHT_MULTIPLIER:1),0);let cumulative=0;for(const segment of SEGMENTS){cumulative+=SEGMENT_CONFIG[segment].weight*(segment===focusID?FOCUS_WEIGHT_MULTIPLIER:1)/total;if(roll<cumulative)return segment;}return 'corporateDeal';};
 const emptySegmentCounts=()=>({residential:0,luxury:0,investment:0,corporateDeal:0});
 const sanitizeSegmentCounts=value=>{const counts=emptySegmentCounts();for(const segment of SEGMENTS)counts[segment]=integer(segment==='corporateDeal'&&value?.corporateDeal===undefined?value?.corporate:value?.[segment]);return counts;};
 function marketIndicator(g){return clamp(finite(g?.realEstateCycle,1),.65,1.55);}
@@ -61,7 +66,7 @@ function processStore(g,store,business,pref){
   const inquiryBase=(2+brand/12)*(finite(pref?.traffic,1))*(.72+cycle*.28)*(1+dx/250),inquiries=Math.max(0,Math.floor(inquiryBase+hash(g.seed||1,`${store.id}:inquiries:${week}`)*2));
   const available=Math.max(0,pipeline.capacity-pipeline.activeDeals.length),mandateChance=clamp(.34+brand*.002+quality*.0015+(cycle-1)*.12,.2,.68);let mandates=0;
   for(let i=0;i<inquiries&&mandates<available;i++)if(hash(g.seed||1,`${store.id}:mandate:${week}:${i}`)<mandateChance){
-    const id=`BRA-${store.id}-${week}-${i}`,segment=segmentForDeal(g.seed||1,id,store.id),marketValue=(18_000_000+hash(g.seed||1,`${id}:asking`)*52_000_000)*cycle*SEGMENT_CONFIG[segment].valueMultiplier;
+    const id=`BRA-${store.id}-${week}-${i}`,segment=segmentForDeal(g.seed||1,id,store.id,focusFor(business).id),marketValue=(18_000_000+hash(g.seed||1,`${id}:asking`)*52_000_000)*cycle*SEGMENT_CONFIG[segment].valueMultiplier;
     pipeline.activeDeals.push({id,storeID:store.id,createdWeek:week,askingValue:Math.round(marketValue),side:sideForDeal(g.seed||1,id,store.id),segment});mandates++;
   }
   const commissionRevenue=singleCommissionRevenue+doubleCommissionRevenue,conversionDenominator=closedDeals+lostDeals;
@@ -71,5 +76,5 @@ function processStore(g,store,business,pref){
   for(const segment of SEGMENTS)pipeline.totals.closedBySegment[segment]+=closedBySegment[segment];
   return {sales:commissionRevenue,variable:Math.round(commissionRevenue*.1),kpi:row};
 }
-modules.realEstateAgencyPipeline=Object.freeze({BUSINESS_ID,SCHEMA_VERSION,SINGLE_COMMISSION_RATE,DOUBLE_COMMISSION_RATE,DOUBLE_SIDE_RATE,HISTORY_LIMIT,SEGMENTS,SEGMENT_CONFIG,commissionRateForSide,sideForDeal,segmentForDeal,marketIndicator,capacityFor,eligibleStores,ensureStore,normalize,processStore});
+modules.realEstateAgencyPipeline=Object.freeze({BUSINESS_ID,SCHEMA_VERSION,SINGLE_COMMISSION_RATE,DOUBLE_COMMISSION_RATE,DOUBLE_SIDE_RATE,HISTORY_LIMIT,SEGMENTS,SEGMENT_CONFIG,FOCUS_WEIGHT_MULTIPLIER,FOCUS_ORDER,FOCUSES,commissionRateForSide,sideForDeal,legacySegmentForDeal,segmentForDeal,focusFor,marketIndicator,capacityFor,eligibleStores,ensureStore,normalize,processStore});
 })();

@@ -880,6 +880,12 @@ class TycoonEngine extends EventTarget {
     this.notify(`コンビニの品揃え構成を「${mod.policyFor(policyID).name}」に変更しました。`);
     this.save();this.emit();return true;
   }
+  changeBrokerageFocus(focusID) {
+    const mod=globalThis.__capitalismTycoonModules?.realEstateAgencyPipeline,b=this.business('realEstateAgency');
+    if(!mod||!b||!mod.FOCUS_ORDER.includes(focusID))return this.fail('営業方針を変更できません。');
+    if(mod.focusFor(b).id===focusID)return false;
+    b.brokerageFocusID=focusID;this.notify(`不動産仲介の営業方針を「${mod.FOCUSES[focusID].name}」に変更しました。`);this.save();this.emit();return true;
+  }
 
   contractOffice(officeID) {
     if(this.g.hasHeadOffice)return this.fail('すでに本社オフィスを契約しています。');
