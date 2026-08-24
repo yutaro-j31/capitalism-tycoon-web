@@ -97,7 +97,7 @@ function establishProductDepartment(engine) {
   assert.equal(loaded.getStoreMenuPlan(store.id).items.find(row => row.id === 'spicy').lifecycleStage, '成熟');
 }
 
-// Malformed and future timestamps fall back safely to full legacy novelty; unknown keys are bounded away.
+// Malformed and future timestamps fall back permanently to full legacy novelty; unknown keys are bounded away.
 {
   const malformedValues = [null, [], 'bad'];
   for (const completedWeekByID of malformedValues) {
@@ -113,8 +113,48 @@ function establishProductDepartment(engine) {
   engine.g.menuResearch = { unlockedIDs: ['classic', 'spicy'], pending: null, completedWeekByID: { spicy: Infinity, unknown: 1, chashu: -2, vegetable: NaN, value: 99 } };
   const plan = engine.getStoreMenuPlan(store.id);
   assert.equal(plan.items.find(row => row.id === 'spicy').noveltyMultiplier, 1);
-  assert.deepEqual(Object.keys(engine.g.menuResearch.completedWeekByID), ['value']);
-  assert.equal(modules.menuResearch.lifecycle(engine.g, 'value').isLegacy, true, 'future completion must use legacy fallback');
+  assert.deepEqual(Object.keys(engine.g.menuResearch.completedWeekByID), []);
+}
+
+// A future completion is deleted, so reaching that week cannot make corrupted data suddenly fresh.
+{
+  const { engine, modules } = game();
+  const store = ramenStore(engine);
+  engine.g.week = 20;
+  engine.g.menuResearch = { unlockedIDs: ['classic', 'spicy'], pending: null, completedWeekByID: { spicy: 99 } };
+  assert.equal(engine.getStoreMenuPlan(store.id).items.find(row => row.id === 'spicy').noveltyMultiplier, 1);
+  assert.equal(modules.menuResearch.lifecycle(engine.g, 'spicy').isLegacy, true);
+  assert.equal(Object.prototype.hasOwnProperty.call(engine.g.menuResearch.completedWeekByID, 'spicy'), false);
+  engine.g.week = 100;
+  assert.equal(modules.menuResearch.lifecycle(engine.g, 'spicy').isLegacy, true);
+  assert.equal(engine.getStoreMenuPlan(store.id).items.find(row => row.id === 'spicy').noveltyMultiplier, 1);
+}
+
+// A locked menu cannot reserve a completion week ahead of its legitimate research resolution.
+{
+  const { engine, modules } = game();
+  engine.g.week = 20;
+  engine.g.menuResearch = { unlockedIDs: ['classic'], pending: null, completedWeekByID: { spicy: 5 } };
+  modules.menuResearch.ensure(engine.g);
+  assert.equal(Object.prototype.hasOwnProperty.call(engine.g.menuResearch.completedWeekByID, 'spicy'), false);
+  establishProductDepartment(engine);
+  assert.equal(engine.startMenuResearch('spicy'), true);
+  const resolveWeek = engine.menuResearchPlan().pending.resolveWeek;
+  while (engine.g.week < resolveWeek) engine.advanceWeek(false);
+  assert.equal(engine.g.menuResearch.completedWeekByID.spicy, resolveWeek);
+}
+
+// Valid unlocked completion state is retained, while a legacy unlocked menu stays at full novelty.
+{
+  const { engine, modules } = game();
+  const store = ramenStore(engine);
+  engine.g.week = 20;
+  engine.g.menuResearch = { unlockedIDs: ['classic', 'spicy'], pending: null, completedWeekByID: { spicy: 10 } };
+  modules.menuResearch.ensure(engine.g);
+  assert.equal(engine.g.menuResearch.completedWeekByID.spicy, 10);
+  delete engine.g.menuResearch.completedWeekByID.spicy;
+  assert.equal(engine.getStoreMenuPlan(store.id).items.find(row => row.id === 'spicy').noveltyMultiplier, 1);
+  assert.equal(modules.menuResearch.lifecycle(engine.g, 'spicy').isLegacy, true);
 }
 
 // Lifecycle reads consume no Math.random calls.

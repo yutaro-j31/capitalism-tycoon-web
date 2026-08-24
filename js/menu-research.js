@@ -45,11 +45,11 @@ function ensure(state){
   r.unlockedIDs=r.unlockedIDs.filter(id=>MENU_CATALOG.some(def=>def.id===id));
   if(!r.pending||typeof r.pending!=='object'||!MENU_CATALOG.some(def=>def.id===r.pending.menuID))r.pending=null;
   const source=r.completedWeekByID;
-  const completed={};
+  const completed={},currentWeek=Number(state.week);
   if(source&&typeof source==='object'&&!Array.isArray(source))for(const def of MENU_CATALOG){
-    if(ALWAYS_UNLOCKED.includes(def.id)||!Object.prototype.hasOwnProperty.call(source,def.id))continue;
+    if(ALWAYS_UNLOCKED.includes(def.id)||!r.unlockedIDs.includes(def.id)||!Object.prototype.hasOwnProperty.call(source,def.id))continue;
     const week=Number(source[def.id]);
-    if(Number.isFinite(week)&&week>=0)completed[def.id]=Math.floor(week);
+    if(Number.isFinite(currentWeek)&&Number.isFinite(week)&&week>=0&&week<=currentWeek)completed[def.id]=Math.floor(week);
   }
   r.completedWeekByID=completed;
   return r;
