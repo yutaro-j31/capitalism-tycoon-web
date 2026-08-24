@@ -1,6 +1,13 @@
 name: M&A Acquisition Financing
 
 on:
+  pull_request:
+    paths:
+      - 'js/ma-deal-room.js'
+      - 'js/app.js'
+      - 'css/**'
+      - 'tests/ma-deal-room-test.js'
+      - '.github/workflows/ma-acquisition-financing.yml'
   push:
     branches: [main]
     paths:
@@ -27,13 +34,18 @@ on:
   schedule:
     - cron: '50 3 * * *'
   workflow_dispatch:
+    inputs:
+      mode:
+        description: M&A validation scope
+        type: choice
+        required: true
+        default: comprehensive
+        options:
+          - comprehensive
+          - deal-room
 
 permissions:
   contents: read
-
-concurrency:
-  group: ma-acquisition-financing-${{ github.event.pull_request.number || github.ref }}
-  cancel-in-progress: true
 
 env:
   MA_ACQUISITION_FINANCING_ARTIFACT_DIR: artifacts/ma-acquisition-financing-webkit
@@ -43,7 +55,14 @@ env:
   CEO_DASHBOARD_ARTIFACT_DIR: artifacts/ceo-dashboard-webkit
 
 jobs:
-  test:
+  comprehensive-ma:
+    if: >-
+      github.event_name == 'push' ||
+      github.event_name == 'schedule' ||
+      (github.event_name == 'workflow_dispatch' && inputs.mode == 'comprehensive')
+    concurrency:
+      group: ma-acquisition-financing-${{ github.ref }}
+      cancel-in-progress: true
     runs-on: ubuntu-latest
     timeout-minutes: 45
     steps:
@@ -84,15 +103,12 @@ jobs:
           node tests/executive-secretary-test.js
 
       - name: Install pinned Playwright runtime
-        if: github.event_name != 'pull_request'
         run: npm install --no-save --no-package-lock playwright@1.61.0
 
       - name: Install WebKit browser and system dependencies
-        if: github.event_name != 'pull_request'
         run: npx playwright install --with-deps webkit
 
       - name: iPhone WebKit smoke
-        if: github.event_name != 'pull_request'
         run: |
           node tests/ma-acquisition-financing-webkit-test.js
           node tests/ma-board-approval-webkit-test.js
@@ -102,7 +118,7 @@ jobs:
 
       - name: Upload M&A acquisition financing artifacts
         uses: actions/upload-artifact@v4
-        if: ${{ always() && github.event_name != 'pull_request' }}
+        if: always()
         with:
           name: ma-acquisition-financing-${{ github.sha }}
           path: |
@@ -113,3 +129,41 @@ jobs:
             artifacts/ceo-dashboard-webkit
           if-no-files-found: error
           retention-days: 30
+
+
+  deal-room:
+    if: >-
+      github.event_name == 'pull_request' ||
+      (github.event_name == 'workflow_dispatch' && inputs.mode == 'deal-room')
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - run: npm run test:ma-deal-room
+      - run: npm run test:ma-integration
+      - run: npm run test:finance-ma-accounting
+      - run: npm run test:save
+      - run: npm run test:migration
+      - run: npm run test:save-v9
+      - run: npm run test:week
+      - run: npm run test:transaction
+      - run: npm run test:syntax
+      - run: npm run test:javascript
+      - run: npm run test:modules
+      - run: npm run test:static
+      - run: npm run test:css
+      - name: Install pinned Playwright runtime
+        run: npm install --no-save --no-package-lock playwright@1.61.0
+      - name: Install WebKit browser and system dependencies
+        run: npx playwright install --with-deps webkit
+      - run: node tests/ma-deal-room-webkit-test.js
+      - name: Upload M&A Deal Room WebKit artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ma-deal-room-webkit
+          path: artifacts/ma-deal-room-webkit
+          if-no-files-found: error

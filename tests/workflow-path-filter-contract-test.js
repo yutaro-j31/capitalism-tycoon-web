@@ -50,14 +50,14 @@ function jobBlock(source, job) {
   return block.join('\n');
 }
 
-assert.equal(workflowFiles.length, 9, 'Phase 2E must retain exactly 9 workflow files');
+assert.equal(workflowFiles.length, 8, 'Phase 2F must retain exactly 8 workflow files');
 for (const file of ['ceo-dashboard.yml', 'founding-tutorial.yml', 'ma-integration.yml', 'ma-board-approval.yml', 'iphone-playtest-remediation.yml', 'physical-iphone-playtest.yml', 'pages-publication-attestation.yml', 'published-save-quota-contract.yml', 'release-attestation-contract.yml']) {
   assert.equal(workflowFiles.includes(file), false, `${file} must remain absent after workflow consolidation`);
 }
-for (const file of ['test.yml', 'release-readiness.yml', 'strategy-balance.yml', 'iphone-webkit-smoke.yml', 'ma-deal-room.yml', 'ma-acquisition-financing.yml', 'pages-deployment-smoke.yml', 'release-attestation-sync.yml', 'release-candidate-tag.yml']) {
+for (const file of ['test.yml', 'release-readiness.yml', 'strategy-balance.yml', 'iphone-webkit-smoke.yml', 'ma-acquisition-financing.yml', 'pages-deployment-smoke.yml', 'release-attestation-sync.yml', 'release-candidate-tag.yml']) {
   assert(workflowFiles.includes(file), `${file} must remain after Phase 2E consolidation`);
 }
-for (const file of ['phase6b3-diagnostic.yml', 'exploration-1000-week.yml', 'issue-294-executive-hiring-diagnostic.yml', 'shareholder-activism.yml']) {
+for (const file of ['phase6b3-diagnostic.yml', 'exploration-1000-week.yml', 'issue-294-executive-hiring-diagnostic.yml', 'shareholder-activism.yml', 'ma-deal-room.yml']) {
   assert.equal(workflowFiles.includes(file), false, `${file} must be absent after Phase 2E consolidation`);
 }
 for (const file of workflowFiles) {
@@ -109,22 +109,51 @@ for (const command of ['node tests/executives-department-assignments-test.js', '
 }
 assert(diagnosticsJob.includes('if: always()') && diagnosticsJob.includes('artifacts/prototype-overwrite-audit.json'), 'Issue #294 artifact must always be retained');
 const comprehensiveMa = readWorkflow('ma-acquisition-financing.yml');
-assert(!hasTrigger(comprehensiveMa, 'pull_request'), 'M&A comprehensive gate must not duplicate canonical PR coverage');
+assert(/^name: M&A Acquisition Financing$/m.test(comprehensiveMa), 'M&A Acquisition Financing must retain its public name');
+assert(hasTrigger(comprehensiveMa, 'pull_request'), 'consolidated M&A workflow must inherit the Deal Room PR gate');
+assert.deepEqual(pathsFor(comprehensiveMa, 'pull_request'), [
+  'js/ma-deal-room.js', 'js/app.js', 'css/**', 'tests/ma-deal-room-test.js', '.github/workflows/ma-acquisition-financing.yml'
+], 'Deal Room PR paths must move intact to the consolidated workflow');
 assert(hasTrigger(comprehensiveMa, 'push') && pathsFor(comprehensiveMa, 'push').length > 0, 'M&A comprehensive main push must use paths');
 assert(isMainOnly(triggerBlock(comprehensiveMa, 'push')), 'M&A comprehensive push must be main-only');
-assert(hasTrigger(comprehensiveMa, 'schedule') && hasTrigger(comprehensiveMa, 'workflow_dispatch'), 'M&A comprehensive nightly/manual coverage must remain');
-for (const command of [
-  'npm run test:ma-board-approval',
-  'npm run test:ma-integration',
-  'node tests/ma-board-approval-webkit-test.js',
-  'node tests/ma-integration-webkit-test.js',
-]) assert(comprehensiveMa.includes(command), `M&A comprehensive gate must retain ${command}`);
-const dealRoom = readWorkflow('ma-deal-room.yml');
-assert(hasTrigger(dealRoom, 'pull_request') && pathsFor(dealRoom, 'pull_request').length > 0, 'M&A Deal Room must retain its path-scoped PR gate');
-assert(hasTrigger(dealRoom, 'workflow_dispatch'), 'M&A Deal Room must remain manually runnable');
-for (const command of ['playwright@1.61.0', 'npx playwright install --with-deps webkit', 'node tests/ma-deal-room-webkit-test.js', 'actions/upload-artifact@v4', 'if-no-files-found: error']) {
-  assert(dealRoom.includes(command), `M&A Deal Room must retain ${command}`);
+for (const path of ['js/ma-*.js', 'js/pmi-*.js', 'js/subsidiary-*.js', 'js/group-*.js', 'tests/ma-*.js', 'tests/accounting-invariants-test.js']) {
+  assert(pathsFor(comprehensiveMa, 'push').includes(path), `M&A comprehensive push must retain ${path}`);
 }
+assert(hasTrigger(comprehensiveMa, 'schedule') && hasTrigger(comprehensiveMa, 'workflow_dispatch'), 'M&A comprehensive nightly/manual coverage must remain');
+for (const mode of ['comprehensive', 'deal-room']) {
+  assert(triggerBlock(comprehensiveMa, 'workflow_dispatch').some(line => line.trim() === `- ${mode}`), `M&A workflow_dispatch must retain ${mode}`);
+}
+const comprehensiveMaJob = jobBlock(comprehensiveMa, 'comprehensive-ma');
+assert(comprehensiveMaJob.includes("github.event_name == 'push'") && comprehensiveMaJob.includes("github.event_name == 'schedule'"), 'comprehensive M&A must run on push and schedule');
+assert(comprehensiveMaJob.includes("inputs.mode == 'comprehensive'") && !comprehensiveMaJob.includes("github.event_name == 'pull_request'"), 'comprehensive M&A must run only in comprehensive manual mode, never PR');
+assert(comprehensiveMaJob.includes('timeout-minutes: 45') && comprehensiveMaJob.includes("node-version: '22'"), 'comprehensive M&A must retain Node 22 and timeout 45');
+assert(comprehensiveMaJob.includes('concurrency:') && comprehensiveMaJob.includes('cancel-in-progress: true'), 'comprehensive M&A must retain cancellation semantics at job scope');
+for (const command of [
+  'npm run test:ma-acquisition-financing', 'npm run test:ma-board-approval', 'npm run test:ma-deal-room',
+  'npm run test:ma-integration', 'npm run test:ma-portfolio-summary', 'npm run test:ma-portfolio-summary-ui',
+  'npm run test:ceo-dashboard', 'npm run test:finance', 'npm run test:finance-ma-accounting',
+  'npm run test:accounting-invariants', 'npm run test:save', 'npm run test:migration', 'npm run test:save-v9',
+  'npm run test:week', 'npm run test:transaction', 'npm run test:syntax', 'npm run test:javascript',
+  'npm run test:modules', 'npm run test:static', 'npm run test:css', 'npm run test:progression-balance',
+  'npm run test:strategy-balance', 'node tests/v1-progression-gate-test.js', 'node tests/executive-secretary-test.js',
+  'node tests/ma-acquisition-financing-webkit-test.js', 'node tests/ma-board-approval-webkit-test.js',
+  'node tests/ma-deal-room-webkit-test.js', 'node tests/ma-integration-webkit-test.js', 'node tests/ceo-dashboard-webkit-test.js',
+  'ma-acquisition-financing-${{ github.sha }}', 'retention-days: 30', 'if-no-files-found: error'
+]) assert(comprehensiveMaJob.includes(command), `M&A comprehensive gate must retain ${command}`);
+const dealRoom = jobBlock(comprehensiveMa, 'deal-room');
+assert(dealRoom.includes("github.event_name == 'pull_request'") && dealRoom.includes("inputs.mode == 'deal-room'"), 'Deal Room must run on PR and deal-room manual mode');
+for (const forbidden of ["github.event_name == 'push'", "github.event_name == 'schedule'", "inputs.mode == 'comprehensive'", 'concurrency:']) {
+  assert(!dealRoom.includes(forbidden), `Deal Room must not inherit ${forbidden}`);
+}
+assert(dealRoom.includes('timeout-minutes: 15') && dealRoom.includes("node-version: '20'"), 'Deal Room must retain Node 20 and timeout 15');
+for (const command of [
+  'npm run test:ma-deal-room', 'npm run test:ma-integration', 'npm run test:finance-ma-accounting',
+  'npm run test:save', 'npm run test:migration', 'npm run test:save-v9', 'npm run test:week',
+  'npm run test:transaction', 'npm run test:syntax', 'npm run test:javascript', 'npm run test:modules',
+  'npm run test:static', 'npm run test:css', 'playwright@1.61.0', 'npx playwright install --with-deps webkit',
+  'node tests/ma-deal-room-webkit-test.js', 'actions/upload-artifact@v4', 'name: ma-deal-room-webkit',
+  'path: artifacts/ma-deal-room-webkit', 'if: always()', 'if-no-files-found: error'
+]) assert(dealRoom.includes(command), `Deal Room must retain ${command}`);
 
 const pagesSmoke = readWorkflow('pages-deployment-smoke.yml');
 assert(/^name: Pages Deployment Smoke$/m.test(pagesSmoke), 'Pages Deployment Smoke name is a workflow_run contract');
@@ -158,5 +187,5 @@ for (const file of workflowFiles) {
   if (hasTrigger(source, 'push')) assert(isMainOnly(triggerBlock(source, 'push')), `${file} must not run on feature-branch pushes`);
 }
 const pullRequestWorkflows = workflowFiles.filter(file => hasTrigger(readWorkflow(file), 'pull_request'));
-assert.equal(pullRequestWorkflows.length, 4, 'Phase 2E must retain four PR-triggered workflows');
+assert.equal(pullRequestWorkflows.length, 4, 'Phase 2F must retain four PR-triggered workflows');
 console.log(`workflow trigger architecture contract: ${workflowFiles.length} workflows, ${scheduledStartsPerDay} scheduled starts/day, ${pullRequestWorkflows.length} PR-triggered workflows`);
