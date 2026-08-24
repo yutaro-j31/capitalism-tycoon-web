@@ -37,14 +37,35 @@ function researchCost(def){
 }
 
 function ensure(state){
-  if(!state||typeof state!=='object')return {unlockedIDs:[...ALWAYS_UNLOCKED],pending:null};
+  if(!state||typeof state!=='object')return {unlockedIDs:[...ALWAYS_UNLOCKED],pending:null,completedWeekByID:{}};
   if(!state.menuResearch||typeof state.menuResearch!=='object')state.menuResearch={};
   const r=state.menuResearch;
   if(!Array.isArray(r.unlockedIDs))r.unlockedIDs=[];
   for(const id of ALWAYS_UNLOCKED)if(!r.unlockedIDs.includes(id))r.unlockedIDs.push(id);
   r.unlockedIDs=r.unlockedIDs.filter(id=>MENU_CATALOG.some(def=>def.id===id));
   if(!r.pending||typeof r.pending!=='object'||!MENU_CATALOG.some(def=>def.id===r.pending.menuID))r.pending=null;
+  const source=r.completedWeekByID;
+  const completed={},currentWeek=Number(state.week);
+  if(source&&typeof source==='object'&&!Array.isArray(source))for(const def of MENU_CATALOG){
+    if(ALWAYS_UNLOCKED.includes(def.id)||!r.unlockedIDs.includes(def.id)||!Object.prototype.hasOwnProperty.call(source,def.id))continue;
+    const week=Number(source[def.id]);
+    if(Number.isFinite(currentWeek)&&Number.isFinite(week)&&week>=0&&week<=currentWeek)completed[def.id]=Math.floor(week);
+  }
+  r.completedWeekByID=completed;
   return r;
+}
+
+function lifecycle(state,menuID){
+  const def=MENU_CATALOG.find(row=>row.id===menuID),r=ensure(state),currentWeek=Number(state?.week);
+  const completionWeek=r.completedWeekByID[menuID];
+  if(!def||!Number.isFinite(currentWeek)||!Number.isFinite(completionWeek)||completionWeek<0||completionWeek>currentWeek){
+    return Object.freeze({ageWeeks:null,multiplier:1,stage:null,isLegacy:true});
+  }
+  const ageWeeks=Math.max(0,Math.floor(currentWeek)-completionWeek);
+  if(ageWeeks<=3)return Object.freeze({ageWeeks,multiplier:1,stage:'新作',isLegacy:false});
+  if(ageWeeks<=12)return Object.freeze({ageWeeks,multiplier:.75,stage:'話題',isLegacy:false});
+  if(ageWeeks<=25)return Object.freeze({ageWeeks,multiplier:.45,stage:'定着',isLegacy:false});
+  return Object.freeze({ageWeeks,multiplier:.2,stage:'成熟',isLegacy:false});
 }
 
 function isUnlocked(state,menuID){
@@ -94,6 +115,7 @@ function resolvePending(engine){
   const def=MENU_CATALOG.find(row=>row.id===r.pending.menuID);
   if(def&&!r.unlockedIDs.includes(def.id)){
     r.unlockedIDs.push(def.id);
+    if(!Object.prototype.hasOwnProperty.call(r.completedWeekByID,def.id))r.completedWeekByID[def.id]=Math.floor(finite(r.pending.resolveWeek));
     engine.notify(`「${def.name}」の開発が完了し、メニューに追加できるようになりました。`,'success');
   }
   r.pending=null;
@@ -111,7 +133,7 @@ function install(){
 install();
 modules.menuResearch=Object.freeze({
   RESEARCH_DELAY_WEEKS,RESEARCH_BASE_COST,RESEARCH_POWER_RATE,ALWAYS_UNLOCKED,
-  researchCost,ensure,isUnlocked,plan,startResearch,resolvePending,install,
+  researchCost,ensure,isUnlocked,lifecycle,plan,startResearch,resolvePending,install,
   __installed:true
 });
 })();

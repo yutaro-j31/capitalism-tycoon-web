@@ -253,8 +253,8 @@ function menuPlan(state,store,business){
   const source=Array.isArray(store.menuItems)?store.menuItems:[];
   const valid=[{menuID:'classic'}];
   for(const item of source){if(!item||typeof item!=='object'||item.menuID==='classic'||seen.has(item.menuID)||!menuDefinition(item.menuID))continue;seen.add(item.menuID);valid.push({menuID:item.menuID,...(validPrice(item.priceOverride)?{priceOverride:item.priceOverride}:{})});}
-  const items=valid.map(item=>{const def=menuDefinition(item.menuID), overridden=item.menuID!=='classic'&&validPrice(item.priceOverride);return Object.freeze({...def,active:true,isClassic:item.menuID==='classic',isOverridden:overridden,priceOverride:overridden?item.priceOverride:null,effectivePrice:item.menuID==='classic'?base:(overridden?item.priceOverride:Math.round(base*def.priceMultiplier))});});
   const research=globalThis.__capitalismTycoonModules?.menuResearch;
+  const items=valid.map(item=>{const def=menuDefinition(item.menuID), overridden=item.menuID!=='classic'&&validPrice(item.priceOverride), lifecycle=research?.lifecycle?research.lifecycle(state,item.menuID):{ageWeeks:null,multiplier:1,stage:null,isLegacy:true};return Object.freeze({...def,noveltyDelta:def.noveltyDelta*lifecycle.multiplier,baseNoveltyDelta:def.noveltyDelta,noveltyMultiplier:lifecycle.multiplier,lifecycleStage:lifecycle.stage,ageWeeks:lifecycle.ageWeeks,isLegacyLifecycle:lifecycle.isLegacy,active:true,isClassic:item.menuID==='classic',isOverridden:overridden,priceOverride:overridden?item.priceOverride:null,effectivePrice:item.menuID==='classic'?base:(overridden?item.priceOverride:Math.round(base*def.priceMultiplier))});});
   const inactive=MENU_CATALOG.filter(def=>!seen.has(def.id)).map(def=>Object.freeze({...def,unlocked:research?research.isUnlocked(state,def.id):true}));
   return Object.freeze({storeID:String(store.id),basePrice:base,changeable:store.status==='open',items:Object.freeze(items),inactive:Object.freeze(inactive)});
 }
