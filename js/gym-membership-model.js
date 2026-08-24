@@ -83,7 +83,7 @@ function normalize(g){for(const store of Array.isArray(g?.stores)?g.stores:[])if
 // demandとinflationは呼び出し側（engine.js）が既存の環境要因（客足・景気・季節・品質/ブランド/DXの
 // 投資効果・営業時間・競合圧力）から算出した値をそのまま渡す。新たに乱数は消費しない。
 function processStore(g,store,business,demand,inflation,localCompetition){
-  if(!store||store.businessID!==BUSINESS_ID)return null;Math.random();
+  if(!store||store.businessID!==BUSINESS_ID)return null;
   const week=Math.max(1,integer(g?.week,1)),state=ensureStore(store);
   const strategy=strategyFor(store),physicalCapacity=capacityFor(store,business),capacity=effectiveCapacityFor(store,business),crowding=crowdingFor(store,business),breakdown=churnBreakdownFor(business,store,localCompetition);
   const churned=Math.round(state.members*breakdown.total);
