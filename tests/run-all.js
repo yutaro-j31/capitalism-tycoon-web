@@ -113,6 +113,7 @@ for (const [name, file] of [
   ['business-record-sanitizer', 'tests/business-record-sanitizer-test.js'],
   ['crisis-ui-observer-contract', 'tests/crisis-ui-observer-contract-test.js'],
   ['game-over-settings-ui', 'tests/game-over-settings-ui-test.js'],
+  ['gym-membership-strategy', 'tests/gym-membership-strategy-test.js'],
   ['macro-cycle', 'tests/macro-cycle-test.js'],
   ['player-turnaround-plan-ui', 'tests/player-turnaround-plan-ui-test.js'],
   ['product-lifecycle-determinism', 'tests/product-lifecycle-determinism-test.js'],
