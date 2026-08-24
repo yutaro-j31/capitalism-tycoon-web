@@ -20,8 +20,8 @@
     "executedBy": ".github/workflows/iphone-webkit-smoke.yml"
   },
   "tests/difficulty-scenario-matrix-test.js": {
-    "reason": "Executed outside the canonical run-all suite by .github/workflows/phase6b3-diagnostic.yml.",
-    "executedBy": ".github/workflows/phase6b3-diagnostic.yml"
+    "reason": "Executed outside the canonical run-all suite by the consolidated Strategy Balance workflow.",
+    "executedBy": ".github/workflows/strategy-balance.yml"
   },
   "tests/difficulty-scenario-pr-smoke-test.js": {
     "reason": "Executed on pull requests by the release balance gate through Release Readiness.",
@@ -124,12 +124,12 @@
     "executedBy": ".github/workflows/iphone-webkit-smoke.yml"
   },
   "tests/shareholder-activism-reachability-test.js": {
-    "reason": "Executed outside the canonical run-all suite by .github/workflows/shareholder-activism.yml.",
-    "executedBy": ".github/workflows/shareholder-activism.yml"
+    "reason": "Executed outside the canonical run-all suite by focused diagnostics in Strategy Balance.",
+    "executedBy": ".github/workflows/strategy-balance.yml"
   },
   "tests/strategy-balance-matrix-test.js": {
-    "reason": "Executed outside the canonical run-all suite by .github/workflows/issue-294-executive-hiring-diagnostic.yml, .github/workflows/ma-acquisition-financing.yml, .github/workflows/strategy-balance.yml.",
-    "executedBy": ".github/workflows/issue-294-executive-hiring-diagnostic.yml"
+    "reason": "Executed outside the canonical run-all suite by .github/workflows/ma-acquisition-financing.yml and .github/workflows/strategy-balance.yml.",
+    "executedBy": ".github/workflows/strategy-balance.yml"
   },
   "tests/strategy-balance-pr-smoke-test.js": {
     "reason": "Executed on pull requests by the release balance gate through Release Readiness.",

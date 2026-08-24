@@ -1,4 +1,5 @@
 name: Strategy Balance
+
 on:
   push:
     branches: [main]
@@ -13,9 +14,35 @@ on:
       - 'tests/strategy-balance-matrix-test.js'
       - 'tests/strategy-balance-pr-smoke-test.js'
       - 'tests/**/*strategy*'
+      - 'tests/executives-department-assignments-test.js'
+      - 'tests/prototype-overwrite-audit.js'
+      - 'tests/normal-start-ipo-balance-audit-test.js'
+      - 'tests/shareholder-activism-test.js'
+      - 'tests/shareholder-activism-reachability-test.js'
       - '.github/workflows/strategy-balance.yml'
+  schedule:
+    - cron: '15 2 * * *'
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: Select the balance or diagnostic suite
+        required: true
+        default: core
+        type: choice
+        options:
+          - difficulty
+          - strategy
+          - diagnostics
+          - exploration-smoke
+          - exploration-full
+          - core
+
 jobs:
-  strategy-balance:
+  strategy:
+    if: >-
+      github.event_name == 'push' ||
+      github.event_name == 'pull_request' ||
+      (github.event_name == 'workflow_dispatch' && (inputs.mode == 'strategy' || inputs.mode == 'core'))
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -23,3 +50,157 @@ jobs:
         with:
           node-version: '22'
       - run: npm run test:strategy-balance
+
+  focused-diagnostics:
+    if: >-
+      github.event_name == 'pull_request' ||
+      (github.event_name == 'workflow_dispatch' && (inputs.mode == 'diagnostics' || inputs.mode == 'core'))
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Executive hiring route regression
+        run: node tests/executives-department-assignments-test.js
+      - name: Prototype overwrite audit
+        run: node tests/prototype-overwrite-audit.js
+      - name: Progression Balance
+        run: npm run test:progression-balance --silent
+      - name: Shareholder activism lifecycle
+        run: node tests/shareholder-activism-test.js
+      - name: Shareholder activism reachability
+        run: node tests/shareholder-activism-reachability-test.js
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: issue-294-prototype-overwrite-audit
+          path: artifacts/prototype-overwrite-audit.json
+          if-no-files-found: warn
+          retention-days: 14
+
+  difficulty-balance-contract:
+    if: >-
+      github.event_name == 'push' ||
+      github.event_name == 'schedule' ||
+      (github.event_name == 'workflow_dispatch' && (inputs.mode == 'difficulty' || inputs.mode == 'core'))
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: node tests/difficulty-scenario-balance-test.js
+
+  difficulty-matrix-shard:
+    if: >-
+      github.event_name == 'push' ||
+      github.event_name == 'schedule' ||
+      (github.event_name == 'workflow_dispatch' && (inputs.mode == 'difficulty' || inputs.mode == 'core'))
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [0, 1, 2, 3, 4, 5]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Run difficulty matrix shard
+        env:
+          DIFFICULTY_MATRIX_SHARD_INDEX: ${{ matrix.shard }}
+          DIFFICULTY_MATRIX_SHARD_COUNT: 6
+          DIFFICULTY_MATRIX_OUTPUT: artifacts/difficulty-matrix/shard-${{ matrix.shard }}.json
+        run: node tests/difficulty-scenario-shard-runner.js
+      - name: Upload difficulty shard result
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: difficulty-matrix-shard-${{ matrix.shard }}
+          path: artifacts/difficulty-matrix/shard-${{ matrix.shard }}.json
+          if-no-files-found: error
+          retention-days: 7
+
+  difficulty-matrix-aggregate:
+    needs: difficulty-matrix-shard
+    if: >-
+      always() &&
+      needs.difficulty-matrix-shard.result == 'success' &&
+      (github.event_name == 'push' || github.event_name == 'schedule' ||
+       (github.event_name == 'workflow_dispatch' && (inputs.mode == 'difficulty' || inputs.mode == 'core')))
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: difficulty-matrix-shard-*
+          path: artifacts/difficulty-matrix
+          merge-multiple: true
+      - name: Validate complete difficulty matrix
+        env:
+          DIFFICULTY_MATRIX_AGGREGATE_DIR: artifacts/difficulty-matrix
+        run: node tests/difficulty-scenario-matrix-test.js
+
+  exploration:
+    if: >-
+      github.event_name == 'workflow_dispatch' &&
+      (inputs.mode == 'exploration-smoke' || inputs.mode == 'exploration-full')
+    runs-on: ubuntu-latest
+    timeout-minutes: 360
+    strategy:
+      fail-fast: false
+      max-parallel: 2
+      matrix:
+        shard: ${{ fromJSON(inputs.mode == 'exploration-full' && '[0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32,33,34,35,36,37,38]' || '[0]') }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Run 27 segmented exploration cases
+        env:
+          SHARD_INDEX: ${{ matrix.shard }}
+          SHARD_COUNT: 39
+          EXPLORATION_OUTPUT: artifacts/exploration-shard-${{ matrix.shard }}.jsonl
+        run: node tests/exploration-shard-runner.js
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: exploration-shard-${{ matrix.shard }}
+          path: artifacts/exploration-shard-${{ matrix.shard }}.jsonl
+          if-no-files-found: error
+          retention-days: 14
+
+  exploration-aggregate:
+    needs: exploration
+    if: >-
+      always() &&
+      needs.exploration.result == 'success' &&
+      github.event_name == 'workflow_dispatch' &&
+      (inputs.mode == 'exploration-smoke' || inputs.mode == 'exploration-full')
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: exploration-shard-*
+          path: artifacts/shards
+          merge-multiple: false
+      - name: Validate and aggregate exploration results
+        env:
+          EXPLORATION_MODE: ${{ inputs.mode == 'exploration-full' && 'full' || 'smoke' }}
+        run: node tests/exploration-aggregate.js artifacts/shards artifacts/exploratory-playtest
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: exploratory-playtest-${{ inputs.mode == 'exploration-full' && 'full' || 'smoke' }}
+          path: artifacts/exploratory-playtest
+          if-no-files-found: error
+          retention-days: 30

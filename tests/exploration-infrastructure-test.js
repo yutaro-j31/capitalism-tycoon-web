@@ -23,10 +23,12 @@ for (const rows of shards) {
   assert.equal(new Set(rows.map(row => row.playStyle)).size, 9);
   assert.equal(new Set(rows.map(row => row.seed)).size, 3);
 }
-const workflow = fs.readFileSync(path.join(__dirname, '..', '.github', 'workflows', 'exploration-1000-week.yml'), 'utf8');
-assert.match(workflow, /shard:\s*\[0, 1, 2,[\s\S]*38\]/);
+const workflow = fs.readFileSync(path.join(__dirname, '..', '.github', 'workflows', 'strategy-balance.yml'), 'utf8');
+assert.match(workflow, /\[0,1,2,[\s\S]*,38\]/);
 assert.match(workflow, /workflow_dispatch:/);
 assert.match(workflow, /fail-fast:\s*false/);
 assert.match(workflow, /max-parallel:\s*2/);
-assert.match(workflow, /aggregate:/);
+assert.match(workflow, /exploration-aggregate:/);
+assert.match(workflow, /inputs\.mode == 'exploration-full'[\s\S]*\|\| '\[0\]'/,
+  'smoke mode must allocate only shard zero');
 console.log('exploration infrastructure checks passed');
