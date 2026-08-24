@@ -11,7 +11,7 @@ const PRIVATE_BRAND_OPTIONS=Object.freeze({
   0:Object.freeze({share:0,demandMultiplier:1,unitCostMultiplier:1}),
   .15:Object.freeze({share:.15,demandMultiplier:1,unitCostMultiplier:.97}),
   .3:Object.freeze({share:.30,demandMultiplier:.985,unitCostMultiplier:.94}),
-  .45:Object.freeze({share:.45,demandMultiplier:.96,unitCostMultiplier:.91})
+  .45:Object.freeze({share:.45,demandMultiplier:.93,unitCostMultiplier:.91})
 });
 // 惣菜・弁当を強化すると客数・客単価は伸びるが、日配品は賞味期限が短く廃棄ロスが増える。
 // 定番・日用品重視は逆に伸びは鈍いが廃棄ロスをほぼゼロに抑えられる。全店舗共通の方針。
