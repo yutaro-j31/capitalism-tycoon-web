@@ -50,24 +50,41 @@ function jobBlock(source, job) {
   return block.join('\n');
 }
 
-assert.equal(workflowFiles.length, 8, 'Phase 2F must retain exactly 8 workflow files');
+assert.equal(workflowFiles.length, 7, 'Phase 2G must retain exactly 7 workflow files');
 for (const file of ['ceo-dashboard.yml', 'founding-tutorial.yml', 'ma-integration.yml', 'ma-board-approval.yml', 'iphone-playtest-remediation.yml', 'physical-iphone-playtest.yml', 'pages-publication-attestation.yml', 'published-save-quota-contract.yml', 'release-attestation-contract.yml']) {
   assert.equal(workflowFiles.includes(file), false, `${file} must remain absent after workflow consolidation`);
 }
-for (const file of ['test.yml', 'release-readiness.yml', 'strategy-balance.yml', 'iphone-webkit-smoke.yml', 'ma-acquisition-financing.yml', 'pages-deployment-smoke.yml', 'release-attestation-sync.yml', 'release-candidate-tag.yml']) {
-  assert(workflowFiles.includes(file), `${file} must remain after Phase 2E consolidation`);
+for (const file of ['test.yml', 'strategy-balance.yml', 'iphone-webkit-smoke.yml', 'ma-acquisition-financing.yml', 'pages-deployment-smoke.yml', 'release-attestation-sync.yml', 'release-candidate-tag.yml']) {
+  assert(workflowFiles.includes(file), `${file} must remain after Phase 2G consolidation`);
 }
-for (const file of ['phase6b3-diagnostic.yml', 'exploration-1000-week.yml', 'issue-294-executive-hiring-diagnostic.yml', 'shareholder-activism.yml', 'ma-deal-room.yml']) {
-  assert.equal(workflowFiles.includes(file), false, `${file} must be absent after Phase 2E consolidation`);
+for (const file of ['phase6b3-diagnostic.yml', 'exploration-1000-week.yml', 'issue-294-executive-hiring-diagnostic.yml', 'shareholder-activism.yml', 'ma-deal-room.yml', 'release-readiness.yml']) {
+  assert.equal(workflowFiles.includes(file), false, `${file} must be absent after Phase 2G consolidation`);
 }
 for (const file of workflowFiles) {
   assert(!readWorkflow(file).includes('js/pmi-100-day-loader.js'), `${file} must not reference the obsolete PMI loader`);
 }
-for (const file of ['test.yml', 'release-readiness.yml']) {
-  const source = readWorkflow(file);
-  assert(hasTrigger(source, 'pull_request'), `${file} must remain an always-run pull-request workflow`);
-  assert.equal(pathsFor(source, 'pull_request').length, 0, `${file} pull_request must not have a paths filter`);
+const canonicalTest = readWorkflow('test.yml');
+assert(/^name: Test$/m.test(canonicalTest), 'Test must retain its public workflow name');
+assert(hasTrigger(canonicalTest, 'pull_request'), 'Test must remain an always-run pull-request workflow');
+assert.equal(pathsFor(canonicalTest, 'pull_request').length, 0, 'Test pull_request must not have a paths filter');
+assert(hasTrigger(canonicalTest, 'push') && isMainOnly(triggerBlock(canonicalTest, 'push')), 'Test push must remain main-only');
+assert(hasTrigger(canonicalTest, 'workflow_dispatch'), 'Test must inherit Release Readiness manual dispatch');
+for (const job of ['competitor-ai', 'product-innovation', 'capital-allocation', 'test-shard-contract', 'test-shards']) {
+  const block = jobBlock(canonicalTest, job);
+  assert(block.includes("if: github.event_name != 'workflow_dispatch'"), `${job} must skip manual readiness dispatches while retaining PR/main coverage`);
 }
+const canonicalAggregate = jobBlock(canonicalTest, 'test');
+assert(canonicalAggregate.includes("if: always() && github.event_name != 'workflow_dispatch'"), 'canonical aggregate must skip manual readiness dispatches');
+const readinessJob = jobBlock(canonicalTest, 'release-readiness');
+assert(readinessJob.includes("github.event_name == 'pull_request'") && readinessJob.includes("github.event_name == 'workflow_dispatch'"), 'release-readiness must run on PR and manual dispatch');
+assert(!readinessJob.includes("github.event_name == 'push'"), 'release-readiness must skip main pushes');
+for (const token of [
+  'timeout-minutes: 15', 'contents: read', 'group: release-readiness-${{ github.event.pull_request.number || github.ref }}',
+  'cancel-in-progress: true', 'node-version: 20', 'node scripts/release-gate.js',
+  'node scripts/release-hardening-gate.js', 'node scripts/release-delivery-gate.js',
+  'actions/upload-artifact@v4', 'if: always()', 'name: release-readiness-${{ github.sha }}',
+  'path: artifacts/release-readiness', 'if-no-files-found: error', 'retention-days: 7'
+]) assert(readinessJob.includes(token), `release-readiness job must retain ${token}`);
 const strategy = readWorkflow('strategy-balance.yml');
 assert(/^name: Strategy Balance$/m.test(strategy), 'consolidated workflow must preserve its public name');
 assert(hasTrigger(strategy, 'pull_request'), 'Strategy Balance must retain PR full-matrix coverage');
@@ -187,5 +204,5 @@ for (const file of workflowFiles) {
   if (hasTrigger(source, 'push')) assert(isMainOnly(triggerBlock(source, 'push')), `${file} must not run on feature-branch pushes`);
 }
 const pullRequestWorkflows = workflowFiles.filter(file => hasTrigger(readWorkflow(file), 'pull_request'));
-assert.equal(pullRequestWorkflows.length, 4, 'Phase 2F must retain four PR-triggered workflows');
+assert.equal(pullRequestWorkflows.length, 3, 'Phase 2G must retain three PR-triggered workflows');
 console.log(`workflow trigger architecture contract: ${workflowFiles.length} workflows, ${scheduledStartsPerDay} scheduled starts/day, ${pullRequestWorkflows.length} PR-triggered workflows`);
