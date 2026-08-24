@@ -41,7 +41,7 @@ assert.ok(loadGame({headless:true}).modules.realEstateAgencyPipeline,'pipeline m
   assert.equal(eligible.reduce((sum,store)=>sum+store.brokeragePipeline.activeDeals.length,0),1);
   assert.equal(eligible.reduce((sum,store)=>sum+store.brokeragePipeline.capacity,0),10);
   const appSource=fs.readFileSync(path.join(__dirname,'..','js','app.js'),'utf8');
-  assert.match(appSource,/const eligible=__modules\.realEstateAgencyPipeline\?\.eligibleStores\(stores\)/,'business UI must derive one open-store set');
+  assert.match(appSource,/eligible=modAPI\?\.eligibleStores\(stores\)/,'business UI must derive one open-store set');
   assert.match(appSource,/active=eligible\.reduce[\s\S]*capacity=eligible\.reduce/,'active and capacity must use the same eligible stores');
   assert.match(appSource,/片手 \/ 両手[\s\S]*累計 片手 \/ 両手/,'business UI explains weekly and cumulative brokerage-side outcomes');
   assert.match(appSource,/案件タイプ（累計）[\s\S]*residential[\s\S]*luxury[\s\S]*investment[\s\S]*corporateDeal/,'business UI shows the cumulative segment mix');
