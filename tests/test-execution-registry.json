@@ -24,7 +24,7 @@
     "executedBy": ".github/workflows/strategy-balance.yml"
   },
   "tests/difficulty-scenario-pr-smoke-test.js": {
-    "reason": "Executed on pull requests by the release balance gate through Release Readiness.",
+    "reason": "Executed on pull requests by the release balance gate through the release-readiness job in Test.",
     "executedBy": "scripts/release-gate.js"
   },
   "tests/founding-tutorial-webkit-test.js": {
@@ -40,7 +40,7 @@
     "executedBy": ".github/workflows/iphone-webkit-smoke.yml"
   },
   "tests/iphone-webkit-smoke-contract-test.js": {
-    "reason": "Executed by the release delivery gate aggregator, which is invoked from release-readiness.yml.",
+    "reason": "Executed by the release delivery gate aggregator, invoked from the release-readiness job in .github/workflows/test.yml.",
     "executedBy": "scripts/release-delivery-gate.js"
   },
   "tests/iphone-webkit-smoke-test.js": {
@@ -64,19 +64,19 @@
     "executedBy": ".github/workflows/ma-acquisition-financing.yml"
   },
   "tests/mobile-release-contract-test.js": {
-    "reason": "Executed by the release delivery gate aggregator, which is invoked from release-readiness.yml.",
+    "reason": "Executed by the release delivery gate aggregator, invoked from the release-readiness job in .github/workflows/test.yml.",
     "executedBy": "scripts/release-delivery-gate.js"
   },
   "tests/pages-deployment-smoke-test.js": {
-    "reason": "Executed by the release delivery gate aggregator, which is invoked from release-readiness.yml.",
+    "reason": "Executed by the release delivery gate aggregator, invoked from the release-readiness job in .github/workflows/test.yml.",
     "executedBy": "scripts/release-delivery-gate.js"
   },
   "tests/published-webkit-transient-retry-test.js": {
-    "reason": "Executed by the release delivery gate aggregator, which is invoked from release-readiness.yml.",
+    "reason": "Executed by the release delivery gate aggregator, invoked from the release-readiness job in .github/workflows/test.yml.",
     "executedBy": "scripts/release-delivery-gate.js"
   },
   "tests/play-entry-contract-test.js": {
-    "reason": "Executed by the release delivery gate aggregator, which is invoked from release-readiness.yml.",
+    "reason": "Executed by the release delivery gate aggregator, invoked from the release-readiness job in .github/workflows/test.yml.",
     "executedBy": "scripts/release-delivery-gate.js"
   },
   "tests/playtest-report-webkit-test.js": {
@@ -88,7 +88,7 @@
     "executedBy": ".github/workflows/pages-deployment-smoke.yml"
   },
   "tests/published-save-quota-contract-test.js": {
-    "reason": "Executed by the release delivery gate aggregator, which is invoked from release-readiness.yml.",
+    "reason": "Executed by the release delivery gate aggregator, invoked from the release-readiness job in .github/workflows/test.yml.",
     "executedBy": "scripts/release-delivery-gate.js"
   },
   "tests/published-save-quota-webkit-test.js": {
@@ -100,11 +100,11 @@
     "executedBy": ".github/workflows/pages-deployment-smoke.yml"
   },
   "tests/release-candidate-recovery-attestation-test.js": {
-    "reason": "Executed by the release delivery gate aggregator, which is invoked from release-readiness.yml.",
+    "reason": "Executed by the release delivery gate aggregator, invoked from the release-readiness job in .github/workflows/test.yml.",
     "executedBy": "scripts/release-delivery-gate.js"
   },
   "tests/release-candidate-tag-gate-test.js": {
-    "reason": "Executed by the release delivery gate aggregator, which is invoked from release-readiness.yml.",
+    "reason": "Executed by the release delivery gate aggregator, invoked from the release-readiness job in .github/workflows/test.yml.",
     "executedBy": "scripts/release-delivery-gate.js"
   },
   "tests/release-diagnostics-ui-test.js": {
@@ -132,7 +132,7 @@
     "executedBy": ".github/workflows/strategy-balance.yml"
   },
   "tests/strategy-balance-pr-smoke-test.js": {
-    "reason": "Executed on pull requests by the release balance gate through Release Readiness.",
+    "reason": "Executed on pull requests by the release balance gate through the release-readiness job in Test.",
     "executedBy": "scripts/release-gate.js"
   },
   "tests/test-registration-contract-test.js": {
