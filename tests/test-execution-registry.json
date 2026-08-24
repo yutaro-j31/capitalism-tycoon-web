@@ -56,7 +56,7 @@
     "executedBy": ".github/workflows/ma-acquisition-financing.yml"
   },
   "tests/ma-deal-room-webkit-test.js": {
-    "reason": "Executed outside the canonical run-all suite by .github/workflows/ma-acquisition-financing.yml, .github/workflows/ma-deal-room.yml.",
+    "reason": "Executed outside the canonical run-all suite by .github/workflows/ma-acquisition-financing.yml.",
     "executedBy": ".github/workflows/ma-acquisition-financing.yml"
   },
   "tests/ma-integration-webkit-test.js": {
