@@ -36,14 +36,46 @@ const moduleFor = () => loadGame({}).modules.gymMembershipModel;
 
 // Existing equipment and efficiency investments relieve congestion at the same member count.
 {
-  const mod = moduleFor(), members = 500;
-  const level1 = makeStore(members, { level: 1 }), level8 = makeStore(members, { level: 8 }), efficient = { ...business, efficiency: 100 };
-  const baseline = mod.crowdingFor(level1, business), equipment = mod.crowdingFor(level8, business), efficiency = mod.crowdingFor(level1, efficient);
-  assert.ok(mod.capacityFor(level8, business) > mod.capacityFor(level1, business));
+  const modules = loadGame({}).modules, mod = modules.gymMembershipModel, members = 500;
+  const level1 = makeStore(members, { level: 1 }), levelMax = makeStore(members, { level: modules.storeEquipment.MAX_LEVEL }), efficient = { ...business, efficiency: 100 };
+  const baseline = mod.crowdingFor(level1, business), equipment = mod.crowdingFor(levelMax, business), efficiency = mod.crowdingFor(level1, efficient);
+  assert.equal(modules.storeEquipment.MAX_LEVEL, 5);
+  assert.ok(mod.capacityFor(levelMax, business) > mod.capacityFor(level1, business));
   assert.ok(equipment.occupancy < baseline.occupancy && equipment.extraChurnRate < baseline.extraChurnRate);
   assert.ok(mod.capacityFor(level1, efficient) > mod.capacityFor(level1, business));
   assert.ok(efficiency.occupancy < baseline.occupancy && efficiency.extraChurnRate < baseline.extraChurnRate);
-  console.log(`GYM_CONGESTION_INVESTMENT ${JSON.stringify({baseline:{capacity:mod.capacityFor(level1,business),...baseline,totalChurn:mod.churnRateFor(business,level1,.5)},equipment:{capacity:mod.capacityFor(level8,business),...equipment,totalChurn:mod.churnRateFor(business,level8,.5)},efficiency:{capacity:mod.capacityFor(level1,efficient),...efficiency,totalChurn:mod.churnRateFor(efficient,level1,.5)}})}`);
+  console.log(`GYM_CONGESTION_INVESTMENT ${JSON.stringify({baseline:{capacity:mod.capacityFor(level1,business),...baseline,totalChurn:mod.churnRateFor(business,level1,.5)},equipment:{capacity:mod.capacityFor(levelMax,business),...equipment,totalChurn:mod.churnRateFor(business,levelMax,.5)},efficiency:{capacity:mod.capacityFor(level1,efficient),...efficiency,totalChurn:mod.churnRateFor(efficient,level1,.5)}})}`);
+}
+
+// Crowding reduces signup conversion only above 80%, remains positive, and intensifies toward 100%.
+{
+  const mod = moduleFor();
+  assert.equal(mod.signupConversionFor(makeStore(300), business), 1);
+  assert.equal(mod.signupConversionFor(makeStore(400), business), 1);
+  const at90 = mod.signupConversionFor(makeStore(450), business), at100 = mod.signupConversionFor(makeStore(500), business);
+  assert.ok(at90 < 1 && at100 < at90 && at100 > 0);
+  for (const occupancy of [.6, .8]) {
+    const store = makeStore(500 * occupancy), legacySignups = Math.round(20 * 1.7);
+    mod.processStore({ week: 1, stores: [store] }, store, business, 20, 1, 0);
+    assert.equal(store.gymMembership.lastWeek.signups, legacySignups);
+  }
+  const crowded = makeStore(500);
+  mod.processStore({ week: 1, stores: [crowded] }, crowded, business, 100, 1, 0);
+  assert.ok(crowded.gymMembership.lastWeek.signups > 0);
+}
+
+// Capacity investments retain multi-week relief under sustained high demand instead of refilling permanently.
+{
+  const modules = loadGame({}).modules, mod = modules.gymMembershipModel;
+  const simulate = level => {
+    const store = makeStore(500, { level }), rows = [];
+    for (let week = 1; week <= 8; week++) { mod.processStore({ week, stores: [store] }, store, business, 300, 1, .5); rows.push(store.gymMembership.lastWeek); }
+    return rows;
+  };
+  const baseline = simulate(1), upgraded = simulate(modules.storeEquipment.MAX_LEVEL);
+  const average = rows => rows.reduce((sum, row) => sum + row.crowdingChurnRate, 0) / rows.length;
+  assert.ok(average(upgraded) < average(baseline) * .75);
+  assert.ok(upgraded.filter(row => row.occupancyBefore < .95).length >= 2);
 }
 
 // Churn reason allocation remains exact, deterministic, and includes crowding.

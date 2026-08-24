@@ -20,7 +20,7 @@ function capacityFor(store,business){
   return Math.max(150,Math.round(base*finite(mult,1)));
 }
 const CHURN_BASE=.018;
-const CROWDING_THRESHOLD=.8,CROWDING_MAX_CHURN=.018,MAX_TOTAL_CHURN=.13;
+const CROWDING_THRESHOLD=.8,CROWDING_MAX_CHURN=.018,MAX_TOTAL_CHURN=.13,CROWDING_SIGNUP_SLOPE=1.35,MIN_SIGNUP_CONVERSION=.05;
 function legacyChurnRateFor(business,store){
   const quality=finite(business?.quality,0),condition=finite(store?.condition,100);
   return clamp(.055-quality*.0003-(condition-70)*.0006,.018,.11);
@@ -32,6 +32,10 @@ function occupancyFor(store,business){
 function crowdingFor(store,business){
   const occupancy=occupancyFor(store,business),pressure=clamp((occupancy-CROWDING_THRESHOLD)/(1-CROWDING_THRESHOLD),0,1);
   return Object.freeze({occupancy,pressure,extraChurnRate:pressure*CROWDING_MAX_CHURN,stage:occupancy<.8?'快適':occupancy<.95?'混雑':'過密'});
+}
+function signupConversionFor(store,business){
+  const pressure=crowdingFor(store,business).pressure;
+  return pressure<=0?1:clamp(1-pressure*CROWDING_SIGNUP_SLOPE,MIN_SIGNUP_CONVERSION,1);
 }
 // 理由別成分は既存の総退会率を説明する attribution。競合圧力は内訳の配分だけを
 // 変え、総退会率自体は変えない。
@@ -74,7 +78,7 @@ function processStore(g,store,business,demand,inflation,localCompetition){
   const churned=Math.round(state.members*breakdown.total);
   // largest-remainder方式で決定論的に配分し、合計を必ず総退会数と一致させる。
   const churnedByReason=allocateChurnedByReason(churned,breakdown);
-  const signups=Math.max(0,Math.round(finite(demand)*1.7));
+  const signups=Math.max(0,Math.round(finite(demand)*1.7*signupConversionFor(store,business)));
   const beforeCap=Math.max(0,state.members-churned+signups);
   const members=Math.min(capacity,beforeCap);
   const lostSignups=Math.max(0,beforeCap-capacity);
@@ -88,5 +92,5 @@ function processStore(g,store,business,demand,inflation,localCompetition){
   for(const key of ['quality','condition','competition','crowding','base'])state.totals.churnedByReason[key]+=churnedByReason[key];
   return {sales:row.sales,variable:Math.round(variable)};
 }
-Object.assign(modules,{gymMembershipModel:Object.freeze({BUSINESS_ID,SCHEMA_VERSION,CROWDING_THRESHOLD,CROWDING_MAX_CHURN,MAX_TOTAL_CHURN,capacityFor,occupancyFor,crowdingFor,legacyChurnRateFor,churnRateFor,churnBreakdownFor,allocateChurnedByReason,eligibleStores,ensureStore,normalize,processStore})});
+Object.assign(modules,{gymMembershipModel:Object.freeze({BUSINESS_ID,SCHEMA_VERSION,CROWDING_THRESHOLD,CROWDING_MAX_CHURN,MAX_TOTAL_CHURN,CROWDING_SIGNUP_SLOPE,MIN_SIGNUP_CONVERSION,capacityFor,occupancyFor,crowdingFor,signupConversionFor,legacyChurnRateFor,churnRateFor,churnBreakdownFor,allocateChurnedByReason,eligibleStores,ensureStore,normalize,processStore})});
 })();
