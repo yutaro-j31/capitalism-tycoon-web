@@ -89,13 +89,21 @@ function processStore(g,store,business,demand,inflation,localCompetition){
   if(!store||store.businessID!==BUSINESS_ID)return null;
   const week=Math.max(1,integer(g?.week,1)),state=ensureStore(store);
   const strategy=strategyFor(store),physicalCapacity=capacityFor(store,business),capacity=effectiveCapacityFor(store,business),crowding=crowdingFor(store,business),breakdown=churnBreakdownFor(business,store,localCompetition);
-  const churned=Math.round(state.members*breakdown.total);
+  const naturalChurned=Math.round(state.members*breakdown.total);
   // largest-remainder方式で決定論的に配分し、合計を必ず総退会数と一致させる。
-  const churnedByReason=allocateChurnedByReason(churned,breakdown);
+  const churnedByReason=allocateChurnedByReason(naturalChurned,breakdown);
   const signups=Math.max(0,Math.round(finite(demand)*1.7*signupConversionFor(store,business)));
-  const beforeCap=Math.max(0,state.members-churned+signups);
-  const members=Math.min(capacity,beforeCap);
-  const lostSignups=Math.max(0,beforeCap-capacity);
+  // 実効定員は戦略変更（例: offPeak→standard/premium）で既存会員を抱えたまま即座に縮小し得る。
+  // 縮小分を新規入会の取りこぼし（lostSignups）に混入させると、その週signupsが0でも
+  // lostSignupsだけが増え、かつchurnedByReason/totals.churnedMembersに計上されない不整合が起きる。
+  // そのため既存会員側の強制退会（capacityExit）と新規入会の取りこぼしを明確に分け、
+  // capacityExitはbase（自然減）へ計上して総退会数の会計を一致させる。
+  const retained=Math.max(0,state.members-naturalChurned),capacityExit=Math.max(0,retained-capacity),retainedAfterCapacityExit=retained-capacityExit;
+  if(capacityExit>0)churnedByReason.base+=capacityExit;
+  const churned=naturalChurned+capacityExit;
+  const admittedSignups=Math.max(0,Math.min(signups,capacity-retainedAfterCapacityExit));
+  const members=retainedAfterCapacityExit+admittedSignups;
+  const lostSignups=Math.max(0,signups-admittedSignups);
   const arpu=effectiveMonthlyFeeFor(store,business)/4.33;
   const sales=Math.max(0,members*arpu*finite(inflation,1));
   const variable=Math.max(0,sales*strategy.variableCostRatio);
