@@ -31,7 +31,8 @@
     "tests/startup-deal-flow-refresh-test.js",
     "tests/vc-fund-lp-test.js",
     "tests/personal-investment-risk-model-test.js",
-    "tests/startup-secondary-sale-confirm-ui-test.js"
+    "tests/startup-secondary-sale-confirm-ui-test.js",
+    "tests/executive-payroll-annual-total-test.js"
   ],
   "D": [
     "test:stock",
