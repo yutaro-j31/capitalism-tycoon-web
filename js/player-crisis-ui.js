@@ -101,7 +101,10 @@ function render(state,instance=activeEngine){
  const bridgeSub=options.bridgeCooldownWeeksRemaining>0
   ?`再申請まで${integer(options.bridgeCooldownWeeksRemaining)}週`
   :`利用可能枠 ${compactYen(options.availableCredit)}`;
- const history=(state.playerCrisisActions?.history||[]).slice(-3).reverse().map(row=>`<div class="news-line">第${integer(row.week)}週 · ${row.type==='founderCapital'?'創業者資本注入':'緊急融資'} ${compactYen(row.amount)}</div>`).join('');
+ const sponsorSub=options.sponsorCooldownWeeksRemaining>0
+  ?`再申請まで${integer(options.sponsorCooldownWeeksRemaining)}週`
+  :`想定持分 ${(finite(options.sponsorEquity)*100).toFixed(1)}%`;
+ const history=(state.playerCrisisActions?.history||[]).slice(-3).reverse().map(row=>`<div class="news-line">第${integer(row.week)}週 · ${row.type==='founderCapital'?'創業者資本注入':row.type==='sponsorInjection'?'スポンサー出資':'緊急融資'} ${compactYen(row.amount)}</div>`).join('');
  const restructuring=restructuringSection(instance);
  const costReduction=costReductionSection(instance);
  return `${PANEL_START}<section class="card player-crisis-panel" id="player-crisis-panel" aria-live="polite">
@@ -116,6 +119,7 @@ function render(state,instance=activeEngine){
    <div class="grid two">
     <article class="item"><div><h3>創業者資金を注入</h3><p>個人資金を会社の資本へ振り替えます。利益や負債は発生しません。</p><label class="field"><span>注入額</span><input id="player-crisis-founder-amount" type="number" inputmode="numeric" min="10000" step="10000" value="${founderAmount}" ${options.canInjectFounder?'':'disabled'}></label></div><div class="item-metrics"><span>個人資金 ${compactYen(options.founderAvailable)}</span></div>${button('資本注入を実行','founder-capital',{disabled:!options.canInjectFounder||founderAmount<=0})}</article>
     <article class="item"><div><h3>緊急ブリッジローン</h3><p>既存与信枠の範囲で、必要準備額までの短期資金を調達します。</p></div><div class="item-metrics"><span>予定額 ${compactYen(options.bridgeAmount)}</span><span>${esc(bridgeSub)}</span></div>${button('緊急融資を申請','emergency-bridge',{kind:'secondary',disabled:!options.canRequestBridge})}</article>
+    <article class="item"><div><h3>スポンサー出資を受け入れる</h3><p>外部投資家から緊急出資を受け、新株を発行します。負債は増えませんが、創業者持分が大きく希薄化します。</p></div><div class="item-metrics"><span>予定額 ${compactYen(options.sponsorAmount)}</span><span>${esc(sponsorSub)}</span></div>${button('スポンサー出資を申請','sponsor-injection',{kind:'danger',disabled:!options.canRequestSponsor})}</article>
    </div>
    ${costReduction}
    ${restructuring}
@@ -167,7 +171,12 @@ function handleClick(event){
   const input=document.getElementById('player-crisis-founder-amount');
   result=activeEngine.injectFounderCapital(Number(input?.value));
  }else if(action==='emergency-bridge')result=activeEngine.requestEmergencyBridgeLoan();
- else if(action==='dispose-asset'){
+ else if(action==='sponsor-injection'){
+  const quote=activeEngine.crisisLiquidityOptions();
+  const message=`スポンサーから${compactYen(quote.sponsorAmount)}の出資を受け入れ、新株を発行して持分${(finite(quote.sponsorEquity)*100).toFixed(1)}%を割り当てます。創業者持分が大きく希薄化します。実行後は取り消せません。`;
+  if(typeof globalThis.confirm!=='function'||!globalThis.confirm(message))return false;
+  result=activeEngine.requestSponsorInjection();
+ }else if(action==='dispose-asset'){
   const type=String(target.dataset.dispositionType||''),id=String(target.dataset.dispositionId||'');
   const candidate=findDispositionCandidate(type,id);
   if(!candidate||typeof activeEngine.executeCrisisDisposition!=='function')return false;
