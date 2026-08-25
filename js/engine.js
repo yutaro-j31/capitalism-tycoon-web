@@ -902,6 +902,12 @@ class TycoonEngine extends EventTarget {
     if(mod.focusFor(b).id===focusID)return false;
     b.brokerageFocusID=focusID;this.notify(`不動産仲介の営業方針を「${mod.FOCUSES[focusID].name}」に変更しました。`);this.save();this.emit();return true;
   }
+  setGymMembershipStrategy(storeID,strategyID) {
+    const mod=globalThis.__capitalismTycoonModules?.gymMembershipModel,store=this.g.stores.find(row=>row.id===storeID);
+    if(!mod||!store||store.businessID!=='gym'||store.status!=='open'||!mod.STRATEGY_ORDER.includes(strategyID))return this.fail('会員プラン戦略を変更できません。');
+    const membership=mod.ensureStore(store);if(membership.membershipStrategy===strategyID)return false;
+    membership.membershipStrategy=strategyID;this.notify(`${store.name}の会員プランを「${mod.STRATEGIES[strategyID].name}」に変更しました。`);this.save();this.emit();return true;
+  }
 
   contractOffice(officeID) {
     if(this.g.hasHeadOffice)return this.fail('すでに本社オフィスを契約しています。');

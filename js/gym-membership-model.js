@@ -4,7 +4,13 @@
 const modules=globalThis.__capitalismTycoonModules;
 if(!modules)throw new Error('Capitalism Tycoon runtime.js must be loaded before gym-membership-model.js.');
 if(modules.gymMembershipModel)throw new Error('Capitalism Tycoon gym membership module is already registered.');
-const BUSINESS_ID='gym',SCHEMA_VERSION=1;
+const BUSINESS_ID='gym',SCHEMA_VERSION=2;
+const STRATEGY_ORDER=Object.freeze(['standard','offPeak','premium']);
+const STRATEGIES=Object.freeze({
+  standard:Object.freeze({id:'standard',name:'標準',feeMultiplier:1,signupMultiplier:1,capacityMultiplier:1,variableCostRatio:.22}),
+  offPeak:Object.freeze({id:'offPeak',name:'オフピーク',feeMultiplier:.9,signupMultiplier:1.08,capacityMultiplier:1.15,variableCostRatio:.22}),
+  premium:Object.freeze({id:'premium',name:'プレミアム',feeMultiplier:1.18,signupMultiplier:.74,capacityMultiplier:1,variableCostRatio:.30})
+});
 // 点売りの飲食・小売と違い、会員はいったん入会すると解約するまで毎週会費（business.price、
 // 月額として扱う）を払い続ける。品質・設備投資が離脱率を下げ、設備強化（既存のstoreEquipment
 // capacityMultiplier）が定員を上げる、という既存ボタンだけで完結するトレードオフにする。
@@ -19,6 +25,9 @@ function capacityFor(store,business){
   const mult=modules.storeEquipment?.capacityMultiplier?.(store)??1;
   return Math.max(150,Math.round(base*finite(mult,1)));
 }
+function strategyFor(store){const id=store?.gymMembership?.membershipStrategy;return STRATEGIES[id]||STRATEGIES.standard;}
+function effectiveCapacityFor(store,business){return Math.max(150,Math.round(capacityFor(store,business)*strategyFor(store).capacityMultiplier));}
+function effectiveMonthlyFeeFor(store,business){return Math.max(1,finite(business?.price,1))*strategyFor(store).feeMultiplier;}
 const CHURN_BASE=.018;
 const CROWDING_THRESHOLD=.8,CROWDING_MAX_CHURN=.018,MAX_TOTAL_CHURN=.13,CROWDING_SIGNUP_SLOPE=1.35,MIN_SIGNUP_CONVERSION=.05;
 function legacyChurnRateFor(business,store){
@@ -26,7 +35,7 @@ function legacyChurnRateFor(business,store){
   return clamp(.055-quality*.0003-(condition-70)*.0006,.018,.11);
 }
 function occupancyFor(store,business){
-  const capacity=capacityFor(store,business),members=integer(store?.gymMembership?.members);
+  const capacity=effectiveCapacityFor(store,business),members=integer(store?.gymMembership?.members);
   return capacity>0?clamp(members/capacity,0,1):0;
 }
 function crowdingFor(store,business){
@@ -35,7 +44,8 @@ function crowdingFor(store,business){
 }
 function signupConversionFor(store,business){
   const pressure=crowdingFor(store,business).pressure;
-  return pressure<=0?1:clamp(1-pressure*CROWDING_SIGNUP_SLOPE,MIN_SIGNUP_CONVERSION,1);
+  const crowdingConversion=pressure<=0?1:clamp(1-pressure*CROWDING_SIGNUP_SLOPE,MIN_SIGNUP_CONVERSION,1);
+  return crowdingConversion*strategyFor(store).signupMultiplier;
 }
 // 理由別成分は既存の総退会率を説明する attribution。競合圧力は内訳の配分だけを
 // 変え、総退会率自体は変えない。
@@ -44,11 +54,15 @@ function churnBreakdownFor(business,store,localCompetition){
   const legacyTotal=legacyChurnRateFor(business,store),base=Math.min(CHURN_BASE,legacyTotal),remaining=Math.max(0,legacyTotal-base);
   const qualityWeight=Math.max(0,(100-quality)*.0003),conditionWeight=Math.max(0,(100-condition)*.0006),competitionWeight=competition*.02;
   const weightSum=qualityWeight+conditionWeight+competitionWeight;
-  const crowding=Math.max(0,Math.min(crowdingFor(store,business).extraChurnRate,MAX_TOTAL_CHURN-legacyTotal)),total=legacyTotal+crowding;
-  if(remaining===0||weightSum===0)return {total,base:legacyTotal,quality:0,condition:0,competition:0,crowding};
+  const premiumQualityRaw=strategyFor(store).id==='premium'?Math.max(0,(70-quality)*.0008):0;
+  // premiumQualityも合計と同じMAX_TOTAL_CHURNの残り枠でcapする。ここをcapさずtotalだけをclampすると、
+  // 内訳（quality成分）の合計がtotalを超え、churnedByReasonの人数合計がchurned総数を超える契約違反になる。
+  const premiumQuality=Math.min(premiumQualityRaw,Math.max(0,MAX_TOTAL_CHURN-legacyTotal));
+  const crowding=Math.max(0,Math.min(crowdingFor(store,business).extraChurnRate,MAX_TOTAL_CHURN-legacyTotal-premiumQuality)),total=Math.min(MAX_TOTAL_CHURN,legacyTotal+premiumQuality+crowding);
+  if(remaining===0||weightSum===0)return {total,base:legacyTotal,quality:premiumQuality,condition:0,competition:0,crowding};
   const qualityComponent=remaining*qualityWeight/weightSum,conditionComponent=remaining*conditionWeight/weightSum;
   const competitionComponent=Math.max(0,remaining-qualityComponent-conditionComponent);
-  return {total,base,quality:qualityComponent,condition:conditionComponent,competition:competitionComponent,crowding};
+  return {total,base,quality:qualityComponent+premiumQuality,condition:conditionComponent,competition:competitionComponent,crowding};
 }
 function churnRateFor(business,store,localCompetition){return churnBreakdownFor(business,store,localCompetition).total;}
 function allocateChurnedByReason(churned,breakdown){
@@ -65,7 +79,7 @@ function ensureStore(store){
   const raw=store.gymMembership&&typeof store.gymMembership==='object'?store.gymMembership:{};
   const totals=raw.totals&&typeof raw.totals==='object'?raw.totals:{};
   const churnedByReason=totals.churnedByReason&&typeof totals.churnedByReason==='object'?totals.churnedByReason:{};
-  store.gymMembership={schemaVersion:SCHEMA_VERSION,members:integer(raw.members),lastWeek:raw.lastWeek&&typeof raw.lastWeek==='object'?raw.lastWeek:null,totals:{revenue:integer(totals.revenue),newMembers:integer(totals.newMembers),churnedMembers:integer(totals.churnedMembers),churnedByReason:{quality:integer(churnedByReason.quality),condition:integer(churnedByReason.condition),competition:integer(churnedByReason.competition),crowding:integer(churnedByReason.crowding),base:integer(churnedByReason.base)}}};
+  store.gymMembership={schemaVersion:SCHEMA_VERSION,membershipStrategy:STRATEGIES[raw.membershipStrategy]?raw.membershipStrategy:'standard',members:integer(raw.members),lastWeek:raw.lastWeek&&typeof raw.lastWeek==='object'?raw.lastWeek:null,totals:{revenue:integer(totals.revenue),newMembers:integer(totals.newMembers),churnedMembers:integer(totals.churnedMembers),churnedByReason:{quality:integer(churnedByReason.quality),condition:integer(churnedByReason.condition),competition:integer(churnedByReason.competition),crowding:integer(churnedByReason.crowding),base:integer(churnedByReason.base)}}};
   return store.gymMembership;
 }
 function normalize(g){for(const store of Array.isArray(g?.stores)?g.stores:[])if(store?.businessID===BUSINESS_ID&&store.gymMembership&&typeof store.gymMembership==='object')ensureStore(store);}
@@ -74,7 +88,7 @@ function normalize(g){for(const store of Array.isArray(g?.stores)?g.stores:[])if
 function processStore(g,store,business,demand,inflation,localCompetition){
   if(!store||store.businessID!==BUSINESS_ID)return null;
   const week=Math.max(1,integer(g?.week,1)),state=ensureStore(store);
-  const capacity=capacityFor(store,business),crowding=crowdingFor(store,business),breakdown=churnBreakdownFor(business,store,localCompetition);
+  const strategy=strategyFor(store),physicalCapacity=capacityFor(store,business),capacity=effectiveCapacityFor(store,business),crowding=crowdingFor(store,business),breakdown=churnBreakdownFor(business,store,localCompetition);
   const churned=Math.round(state.members*breakdown.total);
   // largest-remainder方式で決定論的に配分し、合計を必ず総退会数と一致させる。
   const churnedByReason=allocateChurnedByReason(churned,breakdown);
@@ -82,15 +96,15 @@ function processStore(g,store,business,demand,inflation,localCompetition){
   const beforeCap=Math.max(0,state.members-churned+signups);
   const members=Math.min(capacity,beforeCap);
   const lostSignups=Math.max(0,beforeCap-capacity);
-  const arpu=Math.max(1,finite(business?.price,1))/4.33;
+  const arpu=effectiveMonthlyFeeFor(store,business)/4.33;
   const sales=Math.max(0,members*arpu*finite(inflation,1));
-  const variable=Math.max(0,sales*VARIABLE_COST_RATIO);
+  const variable=Math.max(0,sales*strategy.variableCostRatio);
   state.members=members;
   const occupancyAfter=capacity>0?clamp(members/capacity,0,1):0;
-  const row={week,members,capacity,signups,churned,churnedByReason,lostSignups,sales:Math.round(sales),occupancyBefore:crowding.occupancy,occupancyAfter,crowdingStage:occupancyAfter<.8?'快適':occupancyAfter<.95?'混雑':'過密',crowdingChurnRate:breakdown.crowding};
+  const row={week,members,capacity,physicalCapacity,membershipStrategy:strategy.id,effectiveMonthlyFee:Math.round(effectiveMonthlyFeeFor(store,business)),variableCostRatio:strategy.variableCostRatio,signups,churned,churnedByReason,lostSignups,sales:Math.round(sales),occupancyBefore:crowding.occupancy,occupancyAfter,crowdingStage:occupancyAfter<.8?'快適':occupancyAfter<.95?'混雑':'過密',crowdingChurnRate:breakdown.crowding};
   state.lastWeek=row;state.totals.newMembers+=signups;state.totals.churnedMembers+=churned;state.totals.revenue+=row.sales;
   for(const key of ['quality','condition','competition','crowding','base'])state.totals.churnedByReason[key]+=churnedByReason[key];
   return {sales:row.sales,variable:Math.round(variable)};
 }
-Object.assign(modules,{gymMembershipModel:Object.freeze({BUSINESS_ID,SCHEMA_VERSION,CROWDING_THRESHOLD,CROWDING_MAX_CHURN,MAX_TOTAL_CHURN,CROWDING_SIGNUP_SLOPE,MIN_SIGNUP_CONVERSION,capacityFor,occupancyFor,crowdingFor,signupConversionFor,legacyChurnRateFor,churnRateFor,churnBreakdownFor,allocateChurnedByReason,eligibleStores,ensureStore,normalize,processStore})});
+Object.assign(modules,{gymMembershipModel:Object.freeze({BUSINESS_ID,SCHEMA_VERSION,STRATEGY_ORDER,STRATEGIES,CROWDING_THRESHOLD,CROWDING_MAX_CHURN,MAX_TOTAL_CHURN,CROWDING_SIGNUP_SLOPE,MIN_SIGNUP_CONVERSION,capacityFor,effectiveCapacityFor,effectiveMonthlyFeeFor,strategyFor,occupancyFor,crowdingFor,signupConversionFor,legacyChurnRateFor,churnRateFor,churnBreakdownFor,allocateChurnedByReason,eligibleStores,ensureStore,normalize,processStore})});
 })();
