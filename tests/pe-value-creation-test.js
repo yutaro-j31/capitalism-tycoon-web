@@ -205,14 +205,15 @@ function resolveInitiative(modules, engine) {
   assert.equal(reloaded.applyPEInitiative(reloadedDeal.id, 'talent'), true, 'ロード後も施策を打てる');
 }
 
-// 10. 既存の improvePEDeal は従来どおり動く（後方互換）。
+// 10. 旧 improvePEDeal は撤去済み（QA監査 C1: 回数制限のない複利増殖で無限に
+// 資産を増やせた）。復活していないことをネガティブテストで確認する。applyPEInitiative
+// が同じ役割をコンカレンシー上限・遅延付きで安全に代替している。
 {
   const { engine } = newGame();
   const deal = openDeal(engine);
-  const before = { s: deal.improvementScore, v: deal.currentValuation };
-  assert.equal(engine.improvePEDeal(deal.id), true, '旧APIは引き続き動く');
-  assert.equal(deal.improvementScore, before.s + 6, '旧APIの改善度は従来のまま');
-  assert.ok(Math.abs(deal.currentValuation - before.v * 1.05) < 1e-6, '旧APIの評価額は従来のまま');
+  assert.equal(typeof engine.improvePEDeal, 'undefined', 'improvePEDealは存在しない');
+  assert.equal(typeof engine.applyPEInitiative, 'function', '後継のapplyPEInitiativeは存在する');
+  assert.equal(deal.improvementScore, 20, '削除しただけでは既存案件の状態は変化しない');
 }
 
 // 11. plan() が UI に必要な情報を返す。
