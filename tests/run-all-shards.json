@@ -87,7 +87,8 @@
     "tests/store-opening-estimate-test.js",
     "tests/founding-dashboard-cta-test.js",
     "tests/founding-tutorial-skip-test.js",
-    "tests/gym-membership-model-test.js"
+    "tests/gym-membership-model-test.js",
+    "tests/real-estate-agency-capacity-visibility-test.js"
   ],
   "H": [
     "tests/stock-trade-panel-test.js",
