@@ -226,6 +226,7 @@ for (const [name, file] of [
   ['store-status-kpi-display', 'tests/store-status-kpi-display-test.js'],
   ['company-valuation-normalization', 'tests/company-valuation-normalization-test.js'],
   ['weekly-cashflow-bridge', 'tests/weekly-cashflow-bridge-test.js'],
+  ['quarterly-tax-accrual', 'tests/quarterly-tax-accrual-test.js'],
   ['company-headcount-display', 'tests/company-headcount-display-test.js'],
   ['business-simulation-depth', 'tests/business-simulation-depth-test.js'],
   ['store-opening-estimate', 'tests/store-opening-estimate-test.js'],
