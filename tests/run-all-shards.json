@@ -96,7 +96,8 @@
     "tests/gym-membership-model-test.js",
     "tests/real-estate-agency-capacity-visibility-test.js",
     "tests/product-invested-cost-test.js",
-    "tests/quarterly-tax-accrual-test.js"
+    "tests/quarterly-tax-accrual-test.js",
+    "tests/topbar-title-week-controls-clearance-test.js"
   ],
   "H": [
     "tests/stock-trade-panel-test.js",
