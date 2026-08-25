@@ -75,7 +75,8 @@
     "tests/business-simulation-depth-test.js",
     "tests/first-store-cta-test.js",
     "tests/business-screen-tap-target-test.js",
-    "tests/product-ventures-it-pillar-test.js"
+    "tests/product-ventures-it-pillar-test.js",
+    "tests/seasonal-menu-test.js"
   ],
   "G": [
     "tests/executive-dismissal-reachability-test.js",

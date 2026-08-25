@@ -216,6 +216,7 @@ for (const [name, file] of [
   ['pe-pending-initiative-transfer-lifecycle', 'tests/pe-pending-initiative-transfer-lifecycle-test.js'],
   ['menu-research', 'tests/menu-research-test.js'],
   ['menu-lifecycle', 'tests/menu-lifecycle-test.js'],
+  ['seasonal-menu', 'tests/seasonal-menu-test.js'],
   ['real-estate-building-depreciation', 'tests/real-estate-building-depreciation-test.js'],
   ['personal-real-estate-depreciation', 'tests/personal-real-estate-depreciation-test.js'],
   ['personal-reit-market-link', 'tests/personal-reit-market-link-test.js'],
