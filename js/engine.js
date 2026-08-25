@@ -1071,7 +1071,7 @@ class TycoonEngine extends EventTarget {
     if(!this.g.departments.product)return this.fail('商品開発部門が必要です。');const bp=PRODUCT_BLUEPRINTS.find(x=>x.id===blueprintID);if(!bp)return false;
     if(this.g.companyCash<bp.cost)return this.fail(`${yen(bp.cost)}が必要です。`);this.g.companyCash-=bp.cost;finance.event(this.g,'researchAndDevelopment',bp.cost,{cashEffect:-bp.cost,profitEffect:-bp.cost,assetEffect:0,sourceType:'launchProduct',sourceID:`${blueprintID}-${this.g.week}`,description:`${name||bp.name} 初期開発費`});
     this.g.productVentures.push({id:uuid(),blueprintID:bp.id,name:name||bp.name,category:bp.category,status:'developing',progress:0,weeksToLaunch:bp.weeks,
-      quality:20,brand:5,users:0,paidUsers:0,price:bp.price,serverCost:bp.serverCost,market:bp.market,risk:bp.risk,valuation:bp.cost,developmentCost:bp.cost,investedCost:0,revenue:0,cost:0,profit:0});
+      quality:20,brand:5,users:0,paidUsers:0,price:bp.price,serverCost:bp.serverCost,market:bp.market,risk:bp.risk,valuation:bp.cost,developmentCost:bp.cost,investedCost:bp.cost,revenue:0,cost:0,profit:0});
     this.notify(`${name||bp.name}の開発を開始しました。`,'success');this.save();this.emit();return true;
   }
   productAction(id,kind,amount) {
@@ -1080,11 +1080,12 @@ class TycoonEngine extends EventTarget {
     if(kind==='quality')p.quality=clamp(p.quality+Math.log10(1+amount/100000)*2,0,100);
     if(kind==='marketing')p.brand=clamp(p.brand+Math.log10(1+amount/100000)*2.2,0,100);
     if(kind==='development')p.progress=clamp(p.progress+amount/500000,0,100);
+    p.investedCost=finite(p.investedCost)+amount;
     this.notify(`${p.name}へ${yen(amount)}追加投資しました。`,'success');this.save();this.emit();return true;
   }
   sellProduct(id) {
     const i=this.g.productVentures.findIndex(x=>x.id===id);if(i<0)return false;const p=this.g.productVentures[i];const value=Math.max(p.valuation,p.profit*52*8);
-    this.g.companyCash+=value;finance.event(this.g,'assetSale',value,{cashEffect:value,assetEffect:-finite(p.investedCost||0),profitEffect:value-finite(p.investedCost||0),sourceType:'sellProduct',sourceID:id,description:`${p.name} 売却`});this.g.productVentures.splice(i,1);this.g.productExitCount++;this.notify(`${p.name}を${yen(value)}で売却しました。`,'success');this.save();this.emit();return true;
+    this.g.companyCash+=value;finance.event(this.g,'assetSale',value,{cashEffect:value,assetEffect:0,profitEffect:value,sourceType:'sellProduct',sourceID:id,description:`${p.name} 売却`});this.g.productVentures.splice(i,1);this.g.productExitCount++;this.notify(`${p.name}を${yen(value)}で売却しました。`,'success');this.save();this.emit();return true;
   }
 
   buyProperty(id,owner='company') {

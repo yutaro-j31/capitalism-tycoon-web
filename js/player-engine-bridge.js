@@ -231,6 +231,7 @@ function installProductInnovation(){
     const projectID=`product-roadmap-${this.g.nextProductRoadmapSeq++}`,project={projectID,productID:String(product.id),productName:product.name,roadmapID:template.id,roadmapName:template.name,status:'active',progress:0,cost:option.cost,plannedWeeks:option.weeks,departmentIDs:[...template.departmentIDs],startedWeek:integer(this.g.week,1),lastUpdatedWeek:0};
     this.g.companyCash-=option.cost;
     finance.event(this.g,'researchAndDevelopment',option.cost,{cashEffect:-option.cost,profitEffect:-option.cost,assetEffect:0,sourceType:'productInnovationRoadmap',sourceID:projectID,operationID:projectID,description:`${product.name} ${template.name}`});
+    product.investedCost=finite(product.investedCost)+option.cost;
     this.g.productRoadmaps.push(project);history(this.g,'roadmapStarted',`${product.name}で「${template.name}」を開始しました。`,{projectID,productID:product.id,roadmapID:template.id});
     this.notify(`${product.name}の${template.name}を開始しました。`,'success');return project;
   });};
@@ -244,6 +245,7 @@ function installProductInnovation(){
     if(this.g.productPatentAssignments[String(patent.id)])return this.fail('この特許はすでに別のプロダクトへ実装済みです。');
     const cost=patentImplementationCost(product);if(finite(this.g.companyCash)<cost)return this.fail('特許実装費用が不足しています。');
     this.g.companyCash-=cost;finance.event(this.g,'researchAndDevelopment',cost,{cashEffect:-cost,profitEffect:-cost,assetEffect:0,sourceType:'productPatentImplementation',sourceID:`${patent.id}-${product.id}`,operationID:`productPatent-${patent.id}`,description:`${product.name} ${patent.name}実装`});
+    product.investedCost=finite(product.investedCost)+cost;
     const summary=applyPatent(this,patent,product);product.appliedPatentIDs=[...new Set([...(product.appliedPatentIDs||[]),String(patent.id)])];patent.assignedProductID=String(product.id);patent.assignedWeek=integer(this.g.week,1);
     this.g.productPatentAssignments[String(patent.id)]={patentID:String(patent.id),patentName:patent.name,productID:String(product.id),productName:product.name,assignedWeek:integer(this.g.week,1),cost,summary};
     history(this.g,'patentAssigned',`${patent.name}を${product.name}へ実装しました。${summary}。`,{patentID:String(patent.id),productID:String(product.id)});this.notify(`${patent.name}を${product.name}へ実装しました。`,'success');return true;
