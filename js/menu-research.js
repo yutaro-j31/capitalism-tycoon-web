@@ -86,7 +86,8 @@ function plan(state){
     items:Object.freeze(MENU_CATALOG.filter(def=>!ALWAYS_UNLOCKED.includes(def.id)).map(def=>Object.freeze({
       id:def.id,name:def.name,strategyLabel:def.strategyLabel,
       unlocked:r.unlockedIDs.includes(def.id),
-      cost:researchCost(def)
+      cost:researchCost(def),
+      season:def.season||null
     })))
   });
 }

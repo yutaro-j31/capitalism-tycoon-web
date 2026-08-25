@@ -36,8 +36,16 @@ const MENU_CATALOG=Object.freeze([
   Object.freeze({id:'value',name:'お手頃ラーメン',priceMultiplier:.82,qualityDelta:-3,noveltyDelta:0,segmentFit:Object.freeze({price:.55,standard:.12}),recipeMultipliers:Object.freeze({ramen_toppings:.72,ramen_vegetables:.85}),strategyLabel:'価格重視向け'}),
   Object.freeze({id:'chashu',name:'特製チャーシューメン',priceMultiplier:1.35,qualityDelta:8,noveltyDelta:2,segmentFit:Object.freeze({quality:.55,brand:.18}),recipeMultipliers:Object.freeze({ramen_toppings:1.65}),strategyLabel:'品質重視向け'}),
   Object.freeze({id:'vegetable',name:'野菜たっぷりラーメン',priceMultiplier:1.18,qualityDelta:5,noveltyDelta:5,segmentFit:Object.freeze({standard:.18,quality:.22,brand:.12}),recipeMultipliers:Object.freeze({ramen_toppings:.65,ramen_vegetables:1.8}),strategyLabel:'日常・品質向け'}),
-  Object.freeze({id:'spicy',name:'旨辛限定麺',priceMultiplier:1.22,qualityDelta:3,noveltyDelta:12,segmentFit:Object.freeze({brand:.62,quality:.12}),recipeMultipliers:Object.freeze({ramen_soup:1.22}),strategyLabel:'流行向け'})
+  Object.freeze({id:'spicy',name:'旨辛限定麺',priceMultiplier:1.22,qualityDelta:3,noveltyDelta:12,segmentFit:Object.freeze({brand:.62,quality:.12}),recipeMultipliers:Object.freeze({ramen_soup:1.22}),strategyLabel:'流行向け'}),
+  Object.freeze({id:'chilled',name:'冷やし中華',priceMultiplier:1.12,qualityDelta:4,noveltyDelta:9,segmentFit:Object.freeze({convenience:.28,brand:.15}),recipeMultipliers:Object.freeze({ramen_vegetables:1.3,ramen_soup:.7}),strategyLabel:'夏季限定・利便性向け',season:'summer'}),
+  Object.freeze({id:'misoNikomi',name:'味噌煮込みラーメン',priceMultiplier:1.3,qualityDelta:7,noveltyDelta:7,segmentFit:Object.freeze({quality:.3,standard:.15}),recipeMultipliers:Object.freeze({ramen_soup:1.4,ramen_toppings:1.1}),strategyLabel:'冬季限定・品質重視向け',season:'winter'})
 ]);
+// 季節メニューは月(6-8月/12-2月)に応じてnoveltyDeltaへ倍率がかかる（lifecycleのnoveltyMultiplierと同じ
+// 「話題性を動かすだけで品質・価格・レシピは変えない」設計を踏襲）。旬の間は話題性が跳ね上がり、
+// season外に残しておくと沈む。既存のメニュー着脱ボタン（追加/メニューから外す）だけで対応できる
+// トレードオフにするため、新しいボタンは増やさない。
+const SEASON_MONTHS=Object.freeze({summer:Object.freeze([6,7,8]),winter:Object.freeze([12,1,2])});
+const SEASON_BONUS_MULTIPLIER=1.6,SEASON_PENALTY_MULTIPLIER=.3;
 const STORE_CONCEPT_CHANGE_COST=300000, STORE_CONCEPT_TRANSITION_WEEKS=2, DEFAULT_STORE_CONCEPT='balanced';
 const STORE_CONCEPTS=Object.freeze([
   Object.freeze({id:'balanced',name:'地域の定番',description:'偏りのない標準運営',capacityMultiplier:1,qualityDelta:0,serviceDelta:0,noveltyDelta:0,repeatRateDelta:0,segmentFit:Object.freeze({}),recipeMultipliers:Object.freeze({})}),
@@ -49,6 +57,16 @@ const STORE_CONCEPTS=Object.freeze([
 const finite=(value,fallback=0)=>Number.isFinite(Number(value))?Number(value):fallback;
 const clamp=(value,min,max)=>Math.max(min,Math.min(max,value));
 const yen=value=>`${Math.round(finite(value)).toLocaleString('ja-JP')}円`;
+// 乱数を消費しない純関数（週番号→月）で判定するため決定論を維持する。engine.jsのgameDate()と
+// 同じ暦（52週=1年、第1週=1月1日）を再利用し、季節の境界を独自に定義し直さない。
+function seasonalMultiplierFor(state,def){
+  if(!def?.season)return 1;
+  const months=SEASON_MONTHS[def.season];
+  if(!months)return 1;
+  const week=finite(state?.week,1),month=modules.engine.gameDate(week)?.month;
+  if(!Number.isFinite(month))return 1;
+  return months.includes(month)?SEASON_BONUS_MULTIPLIER:SEASON_PENALTY_MULTIPLIER;
+}
 
 function level(store){return Math.min(MAX_LEVEL,Math.max(1,Math.floor(finite(store?.level,1))));}
 function isMaxLevel(store){return level(store)>=MAX_LEVEL;}
@@ -254,8 +272,8 @@ function menuPlan(state,store,business){
   const valid=[{menuID:'classic'}];
   for(const item of source){if(!item||typeof item!=='object'||item.menuID==='classic'||seen.has(item.menuID)||!menuDefinition(item.menuID))continue;seen.add(item.menuID);valid.push({menuID:item.menuID,...(validPrice(item.priceOverride)?{priceOverride:item.priceOverride}:{})});}
   const research=globalThis.__capitalismTycoonModules?.menuResearch;
-  const items=valid.map(item=>{const def=menuDefinition(item.menuID), overridden=item.menuID!=='classic'&&validPrice(item.priceOverride), lifecycle=research?.lifecycle?research.lifecycle(state,item.menuID):{ageWeeks:null,multiplier:1,stage:null,isLegacy:true};return Object.freeze({...def,noveltyDelta:def.noveltyDelta*lifecycle.multiplier,baseNoveltyDelta:def.noveltyDelta,noveltyMultiplier:lifecycle.multiplier,lifecycleStage:lifecycle.stage,ageWeeks:lifecycle.ageWeeks,isLegacyLifecycle:lifecycle.isLegacy,active:true,isClassic:item.menuID==='classic',isOverridden:overridden,priceOverride:overridden?item.priceOverride:null,effectivePrice:item.menuID==='classic'?base:(overridden?item.priceOverride:Math.round(base*def.priceMultiplier))});});
-  const inactive=MENU_CATALOG.filter(def=>!seen.has(def.id)).map(def=>Object.freeze({...def,unlocked:research?research.isUnlocked(state,def.id):true}));
+  const items=valid.map(item=>{const def=menuDefinition(item.menuID), overridden=item.menuID!=='classic'&&validPrice(item.priceOverride), lifecycle=research?.lifecycle?research.lifecycle(state,item.menuID):{ageWeeks:null,multiplier:1,stage:null,isLegacy:true},seasonMultiplier=seasonalMultiplierFor(state,def);return Object.freeze({...def,noveltyDelta:def.noveltyDelta*lifecycle.multiplier*seasonMultiplier,baseNoveltyDelta:def.noveltyDelta,noveltyMultiplier:lifecycle.multiplier,lifecycleStage:lifecycle.stage,ageWeeks:lifecycle.ageWeeks,isLegacyLifecycle:lifecycle.isLegacy,season:def.season||null,seasonMultiplier,inSeason:def.season?seasonMultiplier>=1:null,active:true,isClassic:item.menuID==='classic',isOverridden:overridden,priceOverride:overridden?item.priceOverride:null,effectivePrice:item.menuID==='classic'?base:(overridden?item.priceOverride:Math.round(base*def.priceMultiplier))});});
+  const inactive=MENU_CATALOG.filter(def=>!seen.has(def.id)).map(def=>Object.freeze({...def,unlocked:research?research.isUnlocked(state,def.id):true,seasonMultiplier:seasonalMultiplierFor(state,def),inSeason:def.season?seasonalMultiplierFor(state,def)>=1:null}));
   return Object.freeze({storeID:String(store.id),basePrice:base,changeable:store.status==='open',items:Object.freeze(items),inactive:Object.freeze(inactive)});
 }
 function menuGate(engine,storeID,menuID,allowClassic=false){const store=(engine.g.stores||[]).find(row=>String(row.id)===String(storeID));if(!store)return {error:'店舗が見つかりません。'};if(store.businessID!=='ramen')return {error:'ラーメン店舗だけメニューを変更できます。'};if(store.status!=='open')return {error:'営業中の店舗だけメニューを変更できます。'};const def=menuDefinition(menuID);if(!def)return {error:'そのメニューは選べません。'};if(!allowClassic&&menuID==='classic')return {error:'定番ラーメンは外せません。'};return {store,def};}
