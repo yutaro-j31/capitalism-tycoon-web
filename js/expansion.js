@@ -45,6 +45,18 @@ const VERTICAL_INTEGRATION_OFFERS = [
   {id:'cloud-platform',name:'クラウド・サーバー基盤',businessID:'all',cost:150000000,weeklyCost:1100000,costReduction:.04,risk:.11}
 ];
 
+// productVentures.conversionRate is a persistent week-over-week accumulator, not recomputed
+// fresh from quality like churnRate is: `f.conversionRate += (quality - NEUTRAL) / 52000`. A
+// freshly-launched product starts at quality 20 and, even under sustained heavy investment,
+// takes roughly 90-100 weeks to cross the old neutral point of 50 -- so for close to half of a
+// 208-week playthrough conversionRate was guaranteed to erode every single week no matter how
+// well the product was actually being run, and the remaining weeks were spent clawing back
+// what was lost rather than growing. Neutral now matches the product's actual starting quality
+// (20, including founderHome's 18+founderSkillTech*5), so a brand-new product's conversion
+// rate holds steady from week one and any quality gained over that starting point compounds
+// immediately instead of only after crossing an arbitrary, distant threshold.
+const CONVERSION_QUALITY_NEUTRAL=20;
+
 const RD_PROJECTS = [
   {id:'food-process',name:'食品製造プロセス特許',field:'オペレーション',cost:18000000,weeks:18,effect:'unitCost',strength:.035,licenseIncome:90000},
   {id:'recommendation-ai',name:'需要予測AI特許',field:'AI',cost:26000000,weeks:22,effect:'demand',strength:.055,licenseIncome:150000},
@@ -640,7 +652,7 @@ function installExpansion(TycoonEngine){
   TycoonEngine.prototype.updateProductFunnelsWeekly=function(){
     const g=this.g;let adjustment=0,salesAdjustment=0,expenseAdjustment=0;
     for(const p of g.productVentures){const f=this.ensureProductFunnel(p);if(p.status!=='released')continue;const oldRevenue=n(p.revenue),oldCost=n(p.cost),solo=p.origin==='founderHome';if(!p.releaseWeek)p.releaseWeek=g.week;
-      const quality=clamp(p.quality,0,100),brand=clamp(p.brand,0,100),growth=clamp(brand/950+quality/1250+n(g.founderSkillTech)*.002-p.risk*.01,.003,solo?.07:.095);f.awareness=clamp(f.awareness+growth*(solo?.16:.12)-f.churnRate*.012,.01,1);const newUsers=Math.min(solo?550:25000,Math.max(8,p.market*f.awareness*growth/(solo?1800:1250)));f.registeredUsers=clamp(f.registeredUsers*(1-f.churnRate/5)+newUsers,0,solo?1200000:80000000);f.monthlyActiveUsers=f.registeredUsers*clamp(.35+quality/320-f.supportBurden*.07,.22,solo?.66:.82);f.conversionRate=clamp(f.conversionRate+(quality-50)/52000,.003,p.category==='EC'?.7:.18);f.paidUsers=f.monthlyActiveUsers*f.conversionRate;f.serverLoad=clamp(f.monthlyActiveUsers/Math.max(1000,n(p.serverCapacity,solo?5000:25000)),0,2);f.supportBurden=clamp(f.supportBurden+f.serverLoad*.007-.008,0,1.5);f.churnRate=clamp(.085-quality/2200+f.serverLoad*.01,.005,.25);if((p.category.includes('SaaS')||p.category.includes('FinTech'))&&quality>=50&&Math.random()<.04)f.b2bContracts+=1;
+      const quality=clamp(p.quality,0,100),brand=clamp(p.brand,0,100),growth=clamp(brand/950+quality/1250+n(g.founderSkillTech)*.002-p.risk*.01,.003,solo?.07:.095);f.awareness=clamp(f.awareness+growth*(solo?.16:.12)-f.churnRate*.012,.01,1);const newUsers=Math.min(solo?550:25000,Math.max(8,p.market*f.awareness*growth/(solo?1800:1250)));f.registeredUsers=clamp(f.registeredUsers*(1-f.churnRate/5)+newUsers,0,solo?1200000:80000000);f.monthlyActiveUsers=f.registeredUsers*clamp(.35+quality/320-f.supportBurden*.07,.22,solo?.66:.82);f.conversionRate=clamp(f.conversionRate+(quality-CONVERSION_QUALITY_NEUTRAL)/52000,.003,p.category==='EC'?.7:.18);f.paidUsers=f.monthlyActiveUsers*f.conversionRate;f.serverLoad=clamp(f.monthlyActiveUsers/Math.max(1000,n(p.serverCapacity,solo?5000:25000)),0,2);f.supportBurden=clamp(f.supportBurden+f.serverLoad*.007-.008,0,1.5);f.churnRate=clamp(.085-quality/2200+f.serverLoad*.01,.005,.25);if((p.category.includes('SaaS')||p.category.includes('FinTech'))&&quality>=50&&Math.random()<.04)f.b2bContracts+=1;
       const sub=f.paidUsers*Math.max(50,f.arpu)/4.33,ads=f.monthlyActiveUsers*(20+quality*.45)/4.33,b2b=f.b2bContracts*Math.max(10000,f.arpu*2)/4.33;const revenue=p.category==='EC'?ads*.2+sub*.5+f.monthlyActiveUsers*Math.max(18,f.arpu*.035)/4.33:p.category==='ゲーム'?ads*.65+sub:p.category.includes('SaaS')||p.category.includes('FinTech')?sub+b2b:sub+ads*.15;const server=(solo?3500:18000)+f.monthlyActiveUsers*n(p.serverCost,20000)/Math.max(1,p.market)*25+Math.max(0,f.serverLoad-1)*50000;const support=Math.max(0,f.monthlyActiveUsers-(solo?650:1800))*(solo?1.8:6.5)*(.3+f.supportBurden);const maintenance=Math.max(2500,n(p.valuation)* (solo?.0008:.0018));const payment=revenue*.035;const cost=server+support+maintenance+payment;
       p.users=Math.floor(f.registeredUsers);p.paidUsers=Math.floor(f.paidUsers);p.revenue=revenue;p.cost=cost;p.profit=revenue-cost;p.valuation=Math.max(1000000,p.valuation*(1+clamp(p.profit/Math.max(1,p.valuation),-.05,.08))+newUsers*200);f.lastUpdatedWeek=g.week;
       const delta=(revenue-cost)-(oldRevenue-oldCost);g.companyCash+=delta;adjustment+=delta;salesAdjustment+=revenue-oldRevenue;expenseAdjustment+=cost-oldCost;if(f.serverLoad>1.15&&Math.random()<.08){f.churnRate=clamp(f.churnRate+.004,.003,.28);const text=`${p.name}のサーバー負荷が高く、解約率が悪化。`;g.productFunnelEventLog.unshift(`第${g.week}週：${text}`);g.news.unshift(`第${g.week}週：${text}`);}}
@@ -711,7 +723,7 @@ function installExpansion(TycoonEngine){
   TycoonEngine.prototype.recordExpandedHistory=function(){const g=this.g;if(g.companyValueHistory.length){g.companyValueHistory[g.companyValueHistory.length-1]=this.companyValue();g.personalNetWorthHistory[g.personalNetWorthHistory.length-1]=this.personalNetWorth();if(g.lastReport){g.weeklySalesHistory[g.weeklySalesHistory.length-1]=g.lastReport.sales;g.weeklyProfitHistory[g.weeklyProfitHistory.length-1]=g.lastReport.profit;}}};
 }
 
-Object.assign(exports,{FOUNDER_TRAITS,FOUNDER_HOME_PRODUCTS,SUPPLIER_OFFERS,VERTICAL_INTEGRATION_OFFERS,RD_PROJECTS,PERSONAL_REAL_ESTATE_OFFERS,PERSONAL_REAL_ESTATE_RENEWAL_STRATEGIES,LUXURY_AUCTION_POOL,SUCCESSOR_CANDIDATES,installExpansion});
+Object.assign(exports,{FOUNDER_TRAITS,FOUNDER_HOME_PRODUCTS,SUPPLIER_OFFERS,VERTICAL_INTEGRATION_OFFERS,RD_PROJECTS,PERSONAL_REAL_ESTATE_OFFERS,PERSONAL_REAL_ESTATE_RENEWAL_STRATEGIES,LUXURY_AUCTION_POOL,SUCCESSOR_CANDIDATES,CONVERSION_QUALITY_NEUTRAL,installExpansion});
 })(__modules.expansion={});
 
 })();
