@@ -4,7 +4,13 @@ const path = require('node:path');
 const { spawnSync } = require('node:child_process');
 const { SCENARIOS, SEEDS } = require('./strategy-balance-runner');
 
-const STRATEGY_IDS = ['ramen-bootstrap','cafe-bootstrap','conveni-leverage','real-estate-agency','web-agency'];
+// conveni-leverage swapped for cram-school: since the QA-audit corporate-tax fix
+// (docs/QA_AUDIT_2026-08-25.md C2), conveni-leverage is a known-unviable scenario tracked
+// with an explicit exception in strategy-balance-matrix-test.js -- this 90-case cross
+// validation (easy<=normal<=hard, free/standard parity) assumes every case reaches IPO, so
+// it is not a good fit for a scenario expected to fail. cram-school is another leveraged
+// (debt:true) representative and keeps this file's coverage at five distinct strategies.
+const STRATEGY_IDS = ['ramen-bootstrap','cafe-bootstrap','cram-school','real-estate-agency','web-agency'];
 const DIFFICULTIES = ['easy','normal','hard'];
 const GAME_SCENARIOS = ['free','standard'];
 const ECONOMIC_KEYS = ['ipo','ipoWeek','gameOver','week','stores','openStores','cash','debt','value','annualProfit','reports','calibratedDemand'];

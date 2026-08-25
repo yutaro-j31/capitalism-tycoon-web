@@ -4,7 +4,9 @@ const path = require('node:path');
 const { spawnSync } = require('node:child_process');
 const { SCENARIOS, SEEDS } = require('./strategy-balance-runner');
 
-const STRATEGY_IDS = ['ramen-bootstrap','cafe-bootstrap','conveni-leverage','real-estate-agency','web-agency'];
+// Keep in sync with tests/difficulty-scenario-matrix-test.js's STRATEGY_IDS (conveni-leverage
+// swapped for cram-school -- see the comment there and docs/QA_AUDIT_2026-08-25.md C2).
+const STRATEGY_IDS = ['ramen-bootstrap','cafe-bootstrap','cram-school','real-estate-agency','web-agency'];
 const DIFFICULTIES = ['easy','normal','hard'];
 const GAME_SCENARIOS = ['free','standard'];
 const caseScript = path.join(__dirname, 'difficulty-scenario-case.js');

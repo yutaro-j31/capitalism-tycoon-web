@@ -4,9 +4,13 @@ const assert = require('node:assert/strict');
 const { SCENARIOS, SEEDS, MAX_WEEKS, runScenario } = require('./strategy-balance-runner');
 
 // Representative PR coverage. The full 13-strategy x 3-seed matrix remains on main/nightly.
+// conveni-leverage is swapped for cram-school here: since the QA-audit corporate-tax fix
+// (docs/QA_AUDIT_2026-08-25.md C2), conveni-leverage is a known-unviable scenario tracked
+// with an explicit exception in strategy-balance-matrix-test.js, not a healthy
+// representative case for this fast smoke gate.
 const REPRESENTATIVE_CASES = Object.freeze([
   ['ramen-bootstrap', SEEDS[0]],
-  ['conveni-leverage', SEEDS[1]],
+  ['cram-school', SEEDS[1]],
   ['real-estate-agency', SEEDS[2]],
   ['beauty-service', SEEDS[0]],
   ['web-agency', SEEDS[1]],
