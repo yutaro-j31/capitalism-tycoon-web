@@ -63,6 +63,7 @@
     "./js/player-crisis-creditor.js",
     "./js/player-debt-service.js",
     "./js/player-turnaround-plan.js",
+    "./js/player-crisis-turnaround-fund.js",
     "./js/player-crisis-creditor-ui.js",
     "./js/player-turnaround-plan-ui.js",
     "./js/player-turnaround-plan-report.js",
