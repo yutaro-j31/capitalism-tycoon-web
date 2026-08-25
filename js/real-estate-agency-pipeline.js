@@ -42,7 +42,7 @@ function ensureStore(store,business,week,seed){
   const raw=store.brokeragePipeline&&typeof store.brokeragePipeline==='object'?store.brokeragePipeline:{};
   const active=Array.isArray(raw.activeDeals)?raw.activeDeals.map(x=>sanitizeDeal(x,store.id,week,seed)).filter(Boolean):[];
   const capacity=capacityFor(business),totals=raw.totals&&typeof raw.totals==='object'?raw.totals:{};
-  store.brokeragePipeline={schemaVersion:SCHEMA_VERSION,capacity,activeDeals:active.slice(0,capacity),lastWeek:raw.lastWeek&&typeof raw.lastWeek==='object'?raw.lastWeek:null,totals:{inquiries:integer(totals.inquiries),mandates:integer(totals.mandates),closedDeals:integer(totals.closedDeals),singleClosedDeals:integer(totals.singleClosedDeals),doubleClosedDeals:integer(totals.doubleClosedDeals),closedBySegment:sanitizeSegmentCounts(totals.closedBySegment),lostDeals:integer(totals.lostDeals),closedTransactionVolume:integer(totals.closedTransactionVolume),commissionRevenue:integer(totals.commissionRevenue)},history:Array.isArray(raw.history)?raw.history.filter(x=>x&&typeof x==='object').slice(-HISTORY_LIMIT):[]};
+  store.brokeragePipeline={schemaVersion:SCHEMA_VERSION,capacity,activeDeals:active.slice(0,capacity),lastWeek:raw.lastWeek&&typeof raw.lastWeek==='object'?raw.lastWeek:null,totals:{inquiries:integer(totals.inquiries),mandates:integer(totals.mandates),closedDeals:integer(totals.closedDeals),singleClosedDeals:integer(totals.singleClosedDeals),doubleClosedDeals:integer(totals.doubleClosedDeals),closedBySegment:sanitizeSegmentCounts(totals.closedBySegment),lostDeals:integer(totals.lostDeals),closedTransactionVolume:integer(totals.closedTransactionVolume),commissionRevenue:integer(totals.commissionRevenue),capacityLostInquiries:integer(totals.capacityLostInquiries)},history:Array.isArray(raw.history)?raw.history.filter(x=>x&&typeof x==='object').slice(-HISTORY_LIMIT):[]};
   return store.brokeragePipeline;
 }
 function normalize(g){
@@ -64,15 +64,18 @@ function processStore(g,store,business,pref){
   }
   pipeline.activeDeals=survivors;
   const inquiryBase=(2+brand/12)*(finite(pref?.traffic,1))*(.72+cycle*.28)*(1+dx/250),inquiries=Math.max(0,Math.floor(inquiryBase+hash(g.seed||1,`${store.id}:inquiries:${week}`)*2));
-  const available=Math.max(0,pipeline.capacity-pipeline.activeDeals.length),mandateChance=clamp(.34+brand*.002+quality*.0015+(cycle-1)*.12,.2,.68);let mandates=0;
-  for(let i=0;i<inquiries&&mandates<available;i++)if(hash(g.seed||1,`${store.id}:mandate:${week}:${i}`)<mandateChance){
-    const id=`BRA-${store.id}-${week}-${i}`,segment=segmentForDeal(g.seed||1,id,store.id,focusFor(business).id),marketValue=(18_000_000+hash(g.seed||1,`${id}:asking`)*52_000_000)*cycle*SEGMENT_CONFIG[segment].valueMultiplier;
+  const available=Math.max(0,pipeline.capacity-pipeline.activeDeals.length),mandateChance=clamp(.34+brand*.002+quality*.0015+(cycle-1)*.12,.2,.68);let mandates=0,processedInquiries=0;
+  for(;processedInquiries<inquiries&&mandates<available;processedInquiries++)if(hash(g.seed||1,`${store.id}:mandate:${week}:${processedInquiries}`)<mandateChance){
+    const id=`BRA-${store.id}-${week}-${processedInquiries}`,segment=segmentForDeal(g.seed||1,id,store.id,focusFor(business).id),marketValue=(18_000_000+hash(g.seed||1,`${id}:asking`)*52_000_000)*cycle*SEGMENT_CONFIG[segment].valueMultiplier;
     pipeline.activeDeals.push({id,storeID:store.id,createdWeek:week,askingValue:Math.round(marketValue),side:sideForDeal(g.seed||1,id,store.id),segment});mandates++;
   }
+  // パイプラインが満杯（mandates>=available）で処理を打ち切った場合、残りの問い合わせは媒介化のチャンスすら
+  // 得られなかった。新たな乱数は消費せず、既に分かっている件数の差分だけで機会損失を可視化する。
+  const capacityLostInquiries=mandates>=available?Math.max(0,inquiries-processedInquiries):0;
   const commissionRevenue=singleCommissionRevenue+doubleCommissionRevenue,conversionDenominator=closedDeals+lostDeals;
-  const row={week,marketIndicator:cycle,inquiries,newMandates:mandates,activeDeals:pipeline.activeDeals.length,closedDeals,singleClosedDeals,doubleClosedDeals,closedBySegment,lostDeals,closedTransactionVolume,singleCommissionRevenue,doubleCommissionRevenue,commissionRevenue,conversionRate:conversionDenominator?closedDeals/conversionDenominator:0,averageCloseWeeks:closedDeals?totalCloseWeeks/closedDeals:0,capacity:pipeline.capacity};
+  const row={week,marketIndicator:cycle,inquiries,newMandates:mandates,capacityLostInquiries,activeDeals:pipeline.activeDeals.length,closedDeals,singleClosedDeals,doubleClosedDeals,closedBySegment,lostDeals,closedTransactionVolume,singleCommissionRevenue,doubleCommissionRevenue,commissionRevenue,conversionRate:conversionDenominator?closedDeals/conversionDenominator:0,averageCloseWeeks:closedDeals?totalCloseWeeks/closedDeals:0,capacity:pipeline.capacity};
   pipeline.lastWeek=row;pipeline.history.push(row);pipeline.history=pipeline.history.slice(-HISTORY_LIMIT);
-  for(const key of ['inquiries','closedDeals','singleClosedDeals','doubleClosedDeals','lostDeals','closedTransactionVolume','commissionRevenue'])pipeline.totals[key]+=row[key];pipeline.totals.mandates+=mandates;
+  for(const key of ['inquiries','closedDeals','singleClosedDeals','doubleClosedDeals','lostDeals','closedTransactionVolume','commissionRevenue','capacityLostInquiries'])pipeline.totals[key]+=row[key];pipeline.totals.mandates+=mandates;
   for(const segment of SEGMENTS)pipeline.totals.closedBySegment[segment]+=closedBySegment[segment];
   return {sales:commissionRevenue,variable:Math.round(commissionRevenue*.1),kpi:row};
 }
