@@ -50,6 +50,8 @@ assert.ok(html.includes('創業者資金を注入'));
 assert.ok(html.includes('緊急ブリッジローン'));
 assert.ok(html.includes('data-player-crisis-action="founder-capital"'));
 assert.ok(html.includes('data-player-crisis-action="emergency-bridge"'));
+assert.ok(html.includes('スポンサー出資'));
+assert.ok(html.includes('data-player-crisis-action="sponsor-injection"'));
 assert.ok(html.includes('-100.0万円'), 'actual negative company cash must be displayed');
 assert.ok(!html.includes('<img src=x'), 'crisis reason must be escaped');
 assert.ok(html.includes('&lt;img src=x onerror=alert(1)&gt;'));
@@ -99,6 +101,22 @@ const cooldownHtml = playerCrisisUI.render(bridgeGame.g, bridgeGame);
 assert.ok(cooldownHtml.includes('再申請まで13週'));
 assert.ok(/data-player-crisis-action="emergency-bridge" disabled/.test(cooldownHtml));
 
+const sponsorGame = makeCrisisGame({ propertyValue: 100_000_000 });
+playerCrisisUI.bindEngine(sponsorGame);
+const sponsorOptions = sponsorGame.crisisLiquidityOptions();
+assert.equal(sponsorOptions.canRequestSponsor, true);
+const sponsorSharesBefore = sponsorGame.g.sharesOut;
+const sponsorEvent = {
+  target: { closest: () => ({ dataset: { playerCrisisAction: 'sponsor-injection' } }) },
+  preventDefault(){}, stopPropagation(){}
+};
+assert.equal(playerCrisisUI.handleClick(sponsorEvent), true, 'harness confirm() stub always returns true');
+assert.ok(sponsorGame.g.sharesOut > sponsorSharesBefore, '新株発行が実行される');
+assert.equal(sponsorGame.g.playerCrisisActions.history.at(-1).type, 'sponsorInjection');
+assert.equal(finance.validate(sponsorGame.g).ok, true, finance.validate(sponsorGame.g).errors.join(' / '));
+const sponsorCooldownHtml = playerCrisisUI.render(sponsorGame.g, sponsorGame);
+assert.ok(/data-player-crisis-action="sponsor-injection" disabled/.test(sponsorCooldownHtml), 'クールダウン中はボタンが無効化される');
+
 bridgeGame.g.playerCrisis.status = 'stable';
 bridgeGame.g.playerCrisis.lastEvaluationWeek = bridgeGame.g.week;
 playerCrisisUI.bindEngine(bridgeGame);
@@ -110,5 +128,6 @@ const unknownEvent = { target: { closest: () => ({ dataset: { playerCrisisAction
 assert.equal(playerCrisisUI.handleClick(unknownEvent), false);
 assert.deepEqual(findStateIssues(founderGame.g), []);
 assert.deepEqual(findStateIssues(bridgeGame.g), []);
+assert.deepEqual(findStateIssues(sponsorGame.g), []);
 
 console.log('player crisis UI tests passed');
