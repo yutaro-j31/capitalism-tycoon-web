@@ -262,4 +262,45 @@ function scenario(seed = 190826041, difficulty = 'normal') {
   assert.match(appSource, /競合圧力は現在の地域・競合環境による影響度です/);
 }
 
+// 18. 実効定員が戦略変更で縮小しても、既存会員の強制退会は必ずchurned/churnedByReason/totalsへ
+// 計上され、lostSignups（今週入会取りこぼし）はその週のsignups以下に収まる（会計整合性の保存則）。
+{
+  const mod = loadGame({}).modules.gymMembershipModel;
+  const business = { price: 10000, quality: 60, efficiency: 0 };
+  const store = { id: 's1', businessID: 'gym', level: 1, condition: 90, gymMembership: { members: 0, membershipStrategy: 'offPeak' } };
+  mod.ensureStore(store);
+  const g = { week: 0, stores: [store] };
+  for (let week = 1; week <= 120; week++) { g.week = week; mod.processStore(g, store, business, 300, 1, .2); }
+  const beforeMembers = store.gymMembership.members, beforeChurnedTotal = store.gymMembership.totals.churnedMembers;
+  assert.ok(beforeMembers > 450, 'offPeakの実効定員まで会員が育っていること（standard/premiumの物理定員450超）');
+  store.gymMembership.membershipStrategy = 'premium';
+  g.week = 121;
+  mod.processStore(g, store, business, 0, 1, .2);
+  const row = store.gymMembership.lastWeek;
+  assert.equal(row.signups, 0, '需要0の週はsignupsも0');
+  assert.equal(row.lostSignups, 0, 'signupsが0ならlostSignupsも0（新規入会がないのに取りこぼしは発生しない）');
+  assert.equal(beforeMembers - row.members, row.churned, '定員縮小で失った会員数はchurnedへ正確に計上される');
+  assert.equal(Object.values(row.churnedByReason).reduce((a, v) => a + v, 0), row.churned, '内訳合計はchurnedと一致する');
+  assert.equal(store.gymMembership.totals.churnedMembers - beforeChurnedTotal, row.churned, '累計churnedMembersにも計上される');
+  assert.ok(row.members <= row.capacity, '会員数は新しい実効定員を超えない');
+
+  // 会員数保存則: members = 直前members - churned + (signups - lostSignups) を、成長・縮小どちらのケースでも保つ。
+  for (let trial = 0; trial < 200; trial++) {
+    const strategies = ['standard', 'offPeak', 'premium'];
+    const b2 = { price: 8000 + trial * 37 % 5000, quality: trial % 101, efficiency: trial % 50 };
+    const s2 = { id: 's2', businessID: 'gym', level: 1 + (trial % 5), condition: trial % 101, gymMembership: { members: 0, membershipStrategy: strategies[trial % 3] } };
+    mod.ensureStore(s2);
+    const g2 = { week: 0, stores: [s2] };
+    for (let week = 1; week <= 5 + (trial % 20); week++) { g2.week = week; mod.processStore(g2, s2, b2, 50 + (trial % 400), 1, (trial % 100) / 100); }
+    const membersBefore = s2.gymMembership.members;
+    s2.gymMembership.membershipStrategy = strategies[(trial + 1) % 3];
+    g2.week += 1;
+    mod.processStore(g2, s2, b2, trial % 2 === 0 ? 0 : trial % 200, 1, (trial % 100) / 100);
+    const r2 = s2.gymMembership.lastWeek, admitted = r2.signups - r2.lostSignups;
+    assert.equal(membersBefore - r2.churned + admitted, r2.members, `会員数保存則（trial ${trial}）`);
+    assert.ok(r2.lostSignups <= r2.signups, `lostSignupsはsignups以下（trial ${trial}）`);
+    assert.equal(Object.values(r2.churnedByReason).reduce((a, v) => a + v, 0), r2.churned, `内訳合計一致（trial ${trial}）`);
+  }
+}
+
 console.log('gym membership model tests passed');
