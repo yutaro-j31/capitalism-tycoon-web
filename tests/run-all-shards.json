@@ -79,7 +79,8 @@
     "tests/business-screen-tap-target-test.js",
     "tests/product-ventures-it-pillar-test.js",
     "tests/seasonal-menu-test.js",
-    "tests/product-funnel-conversion-test.js"
+    "tests/product-funnel-conversion-test.js",
+    "test:competitor-target-share"
   ],
   "G": [
     "tests/executive-dismissal-reachability-test.js",
