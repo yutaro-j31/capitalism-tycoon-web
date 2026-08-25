@@ -190,3 +190,28 @@ Adds workforceTeams, workforceCandidates, workforceTrainings, workforceProjects,
 ## Phase 5A 競合企業 AI
 
 saveVersion 8 では、ラーメン（`businessID === 'ramen'`）のみ `js/competitor.js` の決定論的な競合状態を利用する。既存 `competitors` は削除せず、v7→v8 で `competitorStates[]`、`competitorActions[]`、`competitorMarketResultsByPresenceID`、`competitorMarketResultsByCompetitorID` と採番フィールドを追加する。対象外業種は従来の静的競合処理を維持する。
+
+## saveVersion 9
+
+`js/save-v9.js` が導入するトップレベルのマイグレーションで、以降 `saveVersion` は
+9 で固定（CLAUDE.mdの不変条件）。2026-08時点の「5本柱を深掘りする」方針
+（`docs/gameplay-systems-roadmap.md`参照）に伴い、saveVersionそのものは
+9のまま、各業種の店舗レコード（`store`）に業種固有のネストしたstateが追加され続けている。
+これらは各モジュール内部で独自の`schemaVersion`を持ち、旧saveで欠落していても
+`ensureStore`系の関数が安全に正規化する（トップレベルの`saveVersion`とは別カウンタ）。
+
+- `store.gymMembership`（`js/gym-membership-model.js`、内部schemaVersion 2）:
+  `members`, `membershipStrategy`（standard/offPeak/premium）, `lastWeek`,
+  `totals.churnedByReason`（quality/condition/competition/crowding/base）等
+- `store.brokeragePipeline`（`js/real-estate-agency-pipeline.js`、内部schemaVersion 3）:
+  `activeDeals[]`（各dealに`side`=single/double、`segment`=residential/luxury/
+  investment/corporateDeal）、`totals.closedBySegment`、`totals.commissionByRepresentation`等。
+  `business.brokerageFocusID`で新規案件のsegment mixを調整（既存案件・close rate等には無関係）
+- `store.merchandising`相当（`js/convenience-merchandising.js`）: 品揃え構成・
+  ドミナント戦略のクラスタ状態・PB share等
+- `store.menuResearch`相当（`js/menu-research.js`）: メニューR&D進捗・
+  各menuのcompletionWeekを基にしたlifecycle novelty減衰
+- productVenturesの複数プロダクト開発リソース配分状態（部門を跨いだfocus指定）
+
+新しい業種向けフィールドを追加するときは、必ずこのファイルへ追記し、
+`docs/gameplay-systems-roadmap.md`の該当する柱の「実装済み」欄も同時に更新する。
