@@ -256,10 +256,11 @@ function scenario(seed = 190826041, difficulty = 'normal') {
 // 17. UIは5理由を表示し、広告・効率化が競合圧力や退会率を下げるという誤説明をしない。
 {
   const appSource = fs.readFileSync(path.join(__dirname, '..', 'js', 'app.js'), 'utf8');
-  for (const label of ['退会理由の内訳', '品質不足', '設備の老朽化', '競合圧力', '混雑', '自然減']) assert.match(appSource, new RegExp(label));
+  for (const label of ['退会理由の内訳', '品質不足', '設備の老朽化', '競合圧力', '混雑', '自然減', '会員入れ替わり']) assert.match(appSource, new RegExp(label));
   assert.doesNotMatch(appSource, /競合圧力は広告・効率化で対処/);
   assert.doesNotMatch(appSource, /品質投資・効率化は退会率を下げ/);
   assert.match(appSource, /競合圧力は現在の地域・競合環境による影響度です/);
+  assert.equal((appSource.match(/'set-gym-membership-strategy'/g) || []).length, 2, '会員入れ替わり追加が新しいアクションを増やしていない（既存の戦略切替action名2箇所のまま: btn呼び出しとdispatcher）');
 }
 
 // 18. 実効定員が戦略変更で縮小しても、既存会員の強制退会は必ずchurned/churnedByReason/totalsへ
@@ -301,6 +302,19 @@ function scenario(seed = 190826041, difficulty = 'normal') {
     assert.ok(r2.lostSignups <= r2.signups, `lostSignupsはsignups以下（trial ${trial}）`);
     assert.equal(Object.values(r2.churnedByReason).reduce((a, v) => a + v, 0), r2.churned, `内訳合計一致（trial ${trial}）`);
   }
+}
+
+// 19. 「会員入れ替わり」KPI = 累計退会数 / 現会員数（既存KPIカードの拡張。新規ボタンなし）。
+{
+  const { modules } = loadGame({});
+  const modAPI = modules.gymMembershipModel;
+  const store = { id: 's1', businessID: 'gym', status: 'open', name: '倍率店', gymMembership: { members: 200, totals: { churnedMembers: 900, churnedByReason: {} } } };
+  modAPI.ensureStore(store);
+  const app = fs.readFileSync(path.join(__dirname, '..', 'js', 'app.js'), 'utf8');
+  assert.match(app, /turnoverRatio\.toFixed\(1\)/, 'renderMembershipModel computes and formats the turnover ratio');
+  assert.match(app, /totalsChurned\/members/, 'turnover ratio is churned/current members, not a hand-picked constant');
+  // Direct computation check mirrors what renderMembershipModel does with this store's totals.
+  assert.equal(store.gymMembership.totals.churnedMembers / store.gymMembership.members, 4.5, '900名退会/現200名会員なら4.5回転');
 }
 
 console.log('gym membership model tests passed');
