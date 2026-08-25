@@ -69,19 +69,19 @@ CLAUDE.md記載のとおり、2026-08時点の開発方針は「約30業種を�
 - **Minimum core:** Competitors react to price cuts, market-share surges, and capacity races through real pricing, capacity, and market-share effects.
 - **Expansion candidates (decide after playtesting):** Additional rivalry personalities, regional tactics, and more complex escalation patterns.
 
-### 8A.2 Persistent competitor strategy — In progress
+### 8A.2 Persistent competitor strategy — Completed core
 
-- **Minimum core:** Persistent market-share memory, a target share, market priority, and one strategic investment decision that changes competitor behavior.
+- **Minimum core:** Persistent market-share memory, a target share, market priority, and one strategic investment decision that changes competitor behavior. Implemented in `js/competitor.js` (`STRATEGIES[*].targetShare`, `shareAmbition()`, wired into the price and brand/quality/capacity investment gates of `decide()`), covered by `tests/competitor-target-share-test.js`.
 - **Expansion candidates (decide after playtesting):** Multi-market optimization, strategy learning, and longer-horizon capital plans.
 
-### 8A.3 Multi-business competitor capital allocation
+### 8A.3 Multi-business competitor capital allocation — Completed core
 
-- **Minimum core:** A competitor allocates a finite investment budget between two businesses and produces measurably different growth outcomes.
+- **Minimum core:** A competitor allocates a finite investment budget between two businesses and produces measurably different growth outcomes. Implemented in `js/engine.js` (`COMPETITOR_GROUPS`, `ensureCompetitorGroups()`, `allocateCompetitorGroupBudgets()` share a fixed weight total across a competitor group's fronts, feeding into brand/quality/entry probability), covered by `tests/competitor-group-allocation-test.js` and `tests/competitor-group-allocation-reachability-test.js`. Note this lives in the `state.competitors`/`js/engine.js` roster, a separate data structure from the ramen-focused `js/competitor.js`/`state.competitorStates` engine — do not duplicate this into the latter.
 - **Expansion candidates (decide after playtesting):** Multi-region allocation, business disposal, and full portfolio optimization.
 
-### 8A.4 Competitor product competition
+### 8A.4 Competitor product competition — Completed core
 
-- **Minimum core:** A competitor launches one product that changes demand or market share and permits one player counter-positioning action.
+- **Minimum core:** A competitor launches one product that changes demand or market share and permits one player counter-positioning action. Implemented in `js/engine.js` (`updateCompetitorProducts()`/`launchCompetitorProduct()` for the rival launch, `COUNTER_CAMPAIGNS`/`launchCounterCampaign()` for the player's four response options), covered by `tests/competitor-product-counter-reachability-test.js`.
 - **Expansion candidates (decide after playtesting):** R&D races, imitation, product families, and brand-positioning strategies.
 
 ## Phase 8B: Products, R&D, and operations
@@ -154,10 +154,10 @@ CLAUDE.md記載のとおり、2026-08時点の開発方針は「約30業種を�
 
 ## Phase 8E: Capital allocation
 
-### 8E.1 Venture investing
+### 8E.1 Venture investing — Completed core
 
-- **Minimum core:** The player invests in one venture round, receives dilution-adjusted ownership, and reaches one exit or write-off outcome.
-- **Expansion candidates (decide after playtesting):** Fund strategy, follow-on reserves, portfolio construction, multiple rounds, and secondary sales.
+- **Minimum core:** The player invests in one venture round, receives dilution-adjusted ownership, and reaches one exit or write-off outcome. Implemented in `js/engine.js` on the personal side: `investStartup(id, amount, 'personal')` for the round, `closeStartupFundingRound()` for dilution-adjusted `ownedPersonal`, `listStartup()` (IPO exit, converts to `personalStocks`) and `writeOffStartup()` (write-off) for the outcomes. Also has follow-on reserves (`participateStartupFundingRound()`) and secondary sales (`js/expansion.js`'s `sellStartupSecondary()`), covered by `tests/startup-secondary-sale-test.js`, `tests/startup-secondary-integrity-test.js`, `tests/startup-due-diligence-test.js`, `tests/startup-deal-flow-refresh-test.js`. The separate `vc-fund` LP product (`tests/vc-fund-lp-test.js`) is a distinct, already-implemented fund-strategy expansion, not a duplicate of this core.
+- **Expansion candidates (decide after playtesting):** Portfolio construction and multiple concurrent rounds.
 
 ### 8E.2 M&A — Completed core
 
