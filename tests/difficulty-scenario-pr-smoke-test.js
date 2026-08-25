@@ -6,7 +6,10 @@ const caseScript = path.join(__dirname, 'difficulty-scenario-case.js');
 const CASES = Object.freeze([
   Object.freeze({ strategy:'ramen-bootstrap', difficulty:'easy', gameScenario:'free', seed:1797259521 }),
   Object.freeze({ strategy:'cafe-bootstrap', difficulty:'easy', gameScenario:'standard', seed:1797259778 }),
-  Object.freeze({ strategy:'conveni-leverage', difficulty:'normal', gameScenario:'free', seed:1797260035 }),
+  // conveni-leverage swapped for cram-school: see strategy-balance-pr-smoke-test.js and
+  // docs/QA_AUDIT_2026-08-25.md C2 -- conveni-leverage is a known-unviable scenario since
+  // the corporate-tax fix, tracked with an explicit exception in strategy-balance-matrix-test.js.
+  Object.freeze({ strategy:'cram-school', difficulty:'normal', gameScenario:'free', seed:1797260035 }),
   Object.freeze({ strategy:'real-estate-agency', difficulty:'normal', gameScenario:'standard', seed:1797259521 }),
   Object.freeze({ strategy:'web-agency', difficulty:'hard', gameScenario:'free', seed:1797259778 }),
   Object.freeze({ strategy:'ramen-bootstrap', difficulty:'hard', gameScenario:'standard', seed:1797260035 })
