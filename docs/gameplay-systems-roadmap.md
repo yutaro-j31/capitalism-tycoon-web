@@ -4,6 +4,64 @@ Development has returned to normal feature-delivery mode after the accounting, s
 
 Each roadmap item separates the playable minimum core from expansion candidates. The minimum core is completed and playtested before any candidate expansion is selected.
 
+## 5本柱の深掘り状況（2026-08-25 更新）
+
+CLAUDE.md記載のとおり、2026-08時点の開発方針は「約30業種を均等に薄く広げる」から
+「5本柱（ramen / conveni / gym / productVentures=IT企業 / realEstateAgency）を
+深掘りする」へ転換している。非主力業種は既存save/data互換のため削除しないが、
+新規出店UIは5本柱へ絞り、機能追加はここを優先する。
+
+### ramen（店舗経営ルートの起点）
+
+- **実装済み**: 1店舗複数メニュー・店舗価格からのメニュー価格派生・決定論的な
+  客セグメント別メニュー選択・共有販売能力・Supply加重レシピ（`js/market.js` 等）。
+  商品開発部門を経由したメニューR&D（費用＋3週間遅延、同時1件まで、`js/menu-research.js`）。
+  メニューlifecycle（開発直後の話題性が時間で減衰する。age 0-3週:100%→4-12週:75%→
+  13-25週:45%→26週以降:20%。減衰するのはnoveltyDeltaのみで品質・価格・レシピは不変。
+  旧saveでcompletion timestamp欠落済みのmenuはfull novelty維持）
+- **将来候補**: 季節メニュー、他業種カタログ（CLAUDE.mdの「全業種に一括で広げない」
+  方針の対象。1業種ずつ広げアンロック順を守る）
+
+### conveni（第2の柱）
+
+- **実装済み**: 品揃え構成×廃棄ロスのトレードオフ（`js/convenience-merchandising.js`）、
+  同一都道府県への集中出店シナジー（ドミナント戦略、+需要/-廃棄ロス、上限あり）、
+  プライベートブランド開発・shareポリシー（開発費・4週遅延、0/15/30/45%の4段階、
+  45%が全シナリオで一択にならないよう需要/原価トレードオフを調整済み）
+- **将来候補**: 現時点で明示的な次項目なし。プレイテスト後に判断
+
+### gym（第3の柱）
+
+- **実装済み**: 会員制サブスクリプションモデル（`js/gym-membership-model.js`、
+  business.unitCostを使わずVARIABLE_COST_RATIOベース）、退会理由内訳
+  （品質不足/設備の老朽化/競合圧力/自然減、largest-remainder方式で理由別人数合計が
+  総退会数と厳密一致）、混雑・入会取りこぼし（occupancy 80%超でsignup conversion低下、
+  総churn上限13%）、会員プラン戦略（standard/offPeak/premium、
+  戦略ダウングレード時の会員強制退会もchurned/churnedByReason/totalsへ正しく計上）
+- **将来候補**: gym trainer等の店舗別人員拡張（workforce正式拡張が前提、現時点では
+  workforce詳細モデルがramen限定のため見送り）
+
+### productVentures（IT企業、5本目の柱）
+
+- **実装済み**: 事業画面で「IT企業」として明示的に位置づけ。プロダクトファネル
+  （awareness/registration/MAU/paid/conversion/churn/ARPU）、サーバ負荷・サポート負担、
+  B2B展開、広告、UI改善、サーバ拡張、品質刷新/成長エンジン/プラットフォーム拡張/
+  エンタープライズ対応、保守・技術的負債・障害、sunset/retirement/recall、
+  複数プロダクトの本社部門を跨いだ開発リソース配分（department-aware allocation。
+  単一プロジェクトは既存挙動と完全一致、同一部門の複数プロジェクトは
+  focus指定で65/35等に配分、無料の並列スループット増加が起きないことを検証済み）
+- **将来候補**: 現時点で明示的な次項目なし。プレイテスト後に判断
+
+### realEstateAgency（第5の柱）
+
+- **実装済み**: 決定論的な案件パイプライン（`js/real-estate-agency-pipeline.js`、
+  hashベースで新たなRNG消費なし）、片手・両手仲介の区別（手数料率が異なる）、
+  4つの案件セグメント（residential/luxury/investment/corporateDeal、canonical IDは
+  corporateDeal。都道府県ごとに出やすいセグメントへ決定論的バイアス）、
+  営業重点方針（balanced/4セグメントの5ポリシー。新規案件のsegment mixのみに作用し、
+  close rate・deal value・capacity・inquiriesは変えない。全ポリシーで全セグメント到達可能）
+- **将来候補**: 現時点で明示的な次項目なし。プレイテスト後に判断
+
 ## Phase 8A: Competition and markets
 
 ### 8A.1 Reactive rivalry modes — Completed

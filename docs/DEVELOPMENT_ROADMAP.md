@@ -1,5 +1,12 @@
 # Capitalism TYCOON 開発ロードマップ
 
+> **退役済み（2026-08-25）**: この文書は2026-07時点、saveVersion 8時代の
+> Phase 0〜9構想であり、現在の開発方針の参照先ではない。開発は当時の
+> Phase 5A前後で「約30業種を均等に薄く広げる」路線から離れ、現在は
+> CLAUDE.md記載の「5本柱（ramen/conveni/gym/productVentures/realEstateAgency）を
+> 深掘りする」方針へ転換している。現状のフェーズ管理は
+> `docs/gameplay-systems-roadmap.md` を参照。本文は歴史的経緯の記録として残す。
+
 ## 全開発で守る方針
 
 - 既存機能を削除しない。
