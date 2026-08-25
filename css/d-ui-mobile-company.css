@@ -51,13 +51,17 @@
   /* The bar no longer reserves space, so give the reclaimed height back to the page. */
   body.d-ui-active{padding-bottom:env(safe-area-inset-bottom,0px)!important}
   .d-ui-active #app{padding-bottom:calc(16px + env(safe-area-inset-bottom,0px))!important}
-  .d-ui-active .screen{padding-bottom:calc(76px + env(safe-area-inset-bottom,0px))!important}
   /* Keep the help dock clear of the pill instead of the old bar. */
   .d-bottom-dock{bottom:calc(76px + env(safe-area-inset-bottom,0px))!important}
+  /* .screen's padding must clear the dock's top edge (dock bottom:76px + its own
+     48px height = 124px from the viewport bottom), not just the pill's 76px, or
+     the dock floats over the last row of content (QA監査 U1). +8px breathing room. */
+  .d-ui-active .screen{padding-bottom:calc(132px + env(safe-area-inset-bottom,0px))!important}
 }
 @media(max-width:820px){
   .iphone-browser-mode .d-sidebar{bottom:calc(88px + env(safe-area-inset-bottom,0px))!important}
   .iphone-browser-mode .d-bottom-dock{bottom:calc(152px + env(safe-area-inset-bottom,0px))!important}
   body.iphone-browser-mode.d-ui-active #app{padding-bottom:calc(92px + env(safe-area-inset-bottom,0px))!important}
-  body.iphone-browser-mode.d-ui-active .screen{padding-bottom:calc(152px + env(safe-area-inset-bottom,0px))!important}
+  /* Same fix as above: dock bottom:152px + 48px height = 200px, +8px gap. */
+  body.iphone-browser-mode.d-ui-active .screen{padding-bottom:calc(208px + env(safe-area-inset-bottom,0px))!important}
 }
