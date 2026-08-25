@@ -9,6 +9,25 @@ const innovation = modules.productInnovation;
 assert.ok(innovation?.__installed, 'product innovation module should register');
 assert.equal(engineModule.TycoonEngine.prototype.__productInnovationInstalled, true, 'engine extension should install before app load');
 assert.equal(innovation.ROADMAPS.length, 4, 'four strategic roadmaps should be available');
+assert.equal(innovation.ROADMAP_REPETITION_CAP, 5, 'repetition escalation must be capped');
+{
+  const baseCosts = { quality_refresh: 2_400_000, growth_engine: 3_300_000, scale_platform: 4_800_000, enterprise_suite: 5_700_000 };
+  for (const template of innovation.ROADMAPS) {
+    assert.equal(innovation.roadmapCost({ completedRoadmapCount: 0 }, template), baseCosts[template.id], `${template.id} base cost should be the reduced ~40% cut from the original 4.0M/5.5M/8.0M/9.5M`);
+  }
+  // Repetition escalation must still grow up to the cap and then stop -- unbounded compounding
+  // here is exactly the bug pattern the age-pressure cap fixed in js/product-lifecycle.js.
+  const template = innovation.ROADMAPS.find(x => x.id === 'quality_refresh');
+  const costAt = reps => innovation.roadmapCost({ completedRoadmapCount: reps }, template);
+  assert.equal(costAt(0), baseCosts.quality_refresh);
+  assert.ok(costAt(1) > costAt(0), 'cost should increase on the first repetition');
+  assert.ok(costAt(innovation.ROADMAP_REPETITION_CAP) > costAt(innovation.ROADMAP_REPETITION_CAP - 1), 'cost should still increase right up to the cap');
+  assert.equal(costAt(innovation.ROADMAP_REPETITION_CAP), costAt(innovation.ROADMAP_REPETITION_CAP + 1), 'cost must not increase past the cap');
+  assert.equal(costAt(innovation.ROADMAP_REPETITION_CAP), costAt(1000), 'even extreme repetition counts must not exceed the capped cost');
+  assert.equal(costAt(innovation.ROADMAP_REPETITION_CAP), Math.round(baseCosts.quality_refresh * (1 + innovation.ROADMAP_REPETITION_CAP * .08)));
+  // founderHome ("solo") products keep their existing 75%-off discount on top of the new base.
+  assert.equal(innovation.roadmapCost({ completedRoadmapCount: 0, origin: 'founderHome' }, template), Math.round(baseCosts.quality_refresh * .25));
+}
 
 const e = new engineModule.TycoonEngine();
 e.g.configured = true;

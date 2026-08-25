@@ -8,12 +8,25 @@ if(modules.playerEngineBridge)throw new Error('player engine bridge is already r
 const EngineClass=modules.engine.TycoonEngine;
 const finance=modules.finance;
 const VERSION=2,HISTORY_LIMIT=80,PROJECT_LIMIT=120,FOCUS_SHARE=.65;
+// A single productVenture realistically earns tens of thousands of yen per week even after
+// years of investment (208-week playtest: ~2.5万円-4万円/週 best case), so a roadmap priced at
+// several million yen must be repeatable a reasonable number of times from that revenue, not
+// only from an unrelated business line's cash. Base costs were cut ~40% (4.0M/5.5M/8.0M/9.5M
+// -> 2.4M/3.3M/4.8M/5.7M) to bring a full multi-roadmap arc within reach of a moderately
+// successful product's own trajectory while still keeping every roadmap pricier than the
+// equivalent amount of direct quality/marketing investment (js/engine.js productAction).
 const ROADMAPS=Object.freeze([
-  Object.freeze({id:'quality_refresh',name:'品質刷新',description:'UXと中核機能を再設計し、品質・課金転換率・継続率を改善します。',cost:4_000_000,weeks:8,departmentIDs:['product']}),
-  Object.freeze({id:'growth_engine',name:'成長エンジン',description:'紹介導線と顧客獲得ループを構築し、認知・ブランド・市場規模を伸ばします。',cost:5_500_000,weeks:7,departmentIDs:['product','marketing']}),
-  Object.freeze({id:'scale_platform',name:'基盤拡張',description:'サーバーと運用基盤を刷新し、処理能力・運用効率・サポート品質を改善します。',cost:8_000_000,weeks:10,departmentIDs:['dx']}),
-  Object.freeze({id:'enterprise_suite',name:'法人展開',description:'法人向け機能と営業パッケージを開発し、契約数・ARPU・評価額を伸ばします。',cost:9_500_000,weeks:12,departmentIDs:['product','marketing']})
+  Object.freeze({id:'quality_refresh',name:'品質刷新',description:'UXと中核機能を再設計し、品質・課金転換率・継続率を改善します。',cost:2_400_000,weeks:8,departmentIDs:['product']}),
+  Object.freeze({id:'growth_engine',name:'成長エンジン',description:'紹介導線と顧客獲得ループを構築し、認知・ブランド・市場規模を伸ばします。',cost:3_300_000,weeks:7,departmentIDs:['product','marketing']}),
+  Object.freeze({id:'scale_platform',name:'基盤拡張',description:'サーバーと運用基盤を刷新し、処理能力・運用効率・サポート品質を改善します。',cost:4_800_000,weeks:10,departmentIDs:['dx']}),
+  Object.freeze({id:'enterprise_suite',name:'法人展開',description:'法人向け機能と営業パッケージを開発し、契約数・ARPU・評価額を伸ばします。',cost:5_700_000,weeks:12,departmentIDs:['product','marketing']})
 ]);
+// Repeating a roadmap gets pricier (diminishing novelty), but uncapped this compounded forever
+// across ALL roadmap types combined -- by the 10th-15th repetition seen in a normal 208-week
+// playthrough it was already adding 80-120% on top of the base cost with no ceiling in sight.
+// Capping the repetition count keeps the "repeats cost more" intent while bounding the
+// escalation to a fixed +40% ceiling.
+const ROADMAP_REPETITION_CAP=5;
 const STATUS_SET=new Set(['active','completed','cancelled']);
 const finite=(v,d=0)=>Number.isFinite(Number(v))?Number(v):d;
 const clamp=(v,min,max)=>Math.max(min,Math.min(max,finite(v,min)));
@@ -83,7 +96,7 @@ function history(state,type,text,extra={}){
 }
 function roadmapCost(product,template){
   const solo=product?.origin==='founderHome';
-  const repetitions=Math.max(0,integer(product?.completedRoadmapCount));
+  const repetitions=Math.min(ROADMAP_REPETITION_CAP,Math.max(0,integer(product?.completedRoadmapCount)));
   return Math.round(template.cost*(solo?.25:1)*(1+repetitions*.08));
 }
 function roadmapWeeks(product,template){return template.weeks+(product?.origin==='founderHome'?3:0);}
@@ -299,7 +312,7 @@ function handleClick(event){
 let registeredEnhancerDefinition=null;
 function registerEnhancer(definition){if(registeredEnhancerDefinition)return registeredEnhancerDefinition;registeredEnhancerDefinition=definition;const registry=modules.uiEnhancerRegistry;if(registry?.registerUIEnhancer)return registry.registerUIEnhancer(definition);const key='__capitalismTycoonPendingUIEnhancers';const pending=Array.isArray(globalThis[key])?globalThis[key]:(globalThis[key]=[]);pending.push(definition);return definition;}
 function installUI(){if(typeof document==='undefined')return;const root=document.getElementById('app');if(root&&!bound){root.addEventListener('click',handleClick);bound=true;}registerEnhancer({id:'player-engine-bridge-product-innovation',enhance});}
-const productInnovation=Object.freeze({VERSION,HISTORY_LIMIT,PROJECT_LIMIT,FOCUS_SHARE,ROADMAPS,ensure,activeRoadmap,options,roadmapCost,roadmapWeeks,missingDepartments,workforceFactor,productPortfolioAllocationSnapshot,roadmapAllocationFactor,applyRoadmap,applyPatent,validate,renderSection,enhance,handleClick,installProductInnovation,__installed:true});
+const productInnovation=Object.freeze({VERSION,HISTORY_LIMIT,PROJECT_LIMIT,FOCUS_SHARE,ROADMAPS,ROADMAP_REPETITION_CAP,ensure,activeRoadmap,options,roadmapCost,roadmapWeeks,missingDepartments,workforceFactor,productPortfolioAllocationSnapshot,roadmapAllocationFactor,applyRoadmap,applyPatent,validate,renderSection,enhance,handleClick,installProductInnovation,__installed:true});
 modules.productInnovation=productInnovation;
 const baseLoad=EngineClass.load.bind(EngineClass);
 EngineClass.load=function(...args){installProductInnovation();const instance=bindEngine(baseLoad(...args));installUI();return instance;};
