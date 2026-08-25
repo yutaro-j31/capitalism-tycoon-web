@@ -10,6 +10,17 @@ const lifecycle = modules.productLifecycle;
 assert.ok(lifecycle?.__installed, 'product lifecycle module should register');
 assert.equal(engineModule.TycoonEngine.prototype.__productLifecycleInstalled, true);
 assert.equal(lifecycle.VERSION, 3);
+assert.equal(lifecycle.AGE_PRESSURE_CAP, 2.5);
+assert.equal(lifecycle.agePressureFor(12), 0, 'the first 12 weeks retain the legacy zero age pressure');
+assert.equal(lifecycle.agePressureFor(52), 40 / 30, 'young products retain the exact legacy curve');
+assert(lifecycle.agePressureFor(104) > lifecycle.agePressureFor(52), 'ageing pressure must remain meaningful');
+for (const age of [117, 156, 208, 520, 5000, Infinity, NaN]) {
+  const pressure = lifecycle.agePressureFor(age);
+  assert(Number.isFinite(pressure), `age pressure must be finite at ${age}`);
+  assert(pressure >= 0 && pressure <= lifecycle.AGE_PRESSURE_CAP, `age pressure must be capped at ${age}`);
+}
+assert.equal(lifecycle.agePressureFor(208), lifecycle.AGE_PRESSURE_CAP);
+assert.equal(lifecycle.agePressureFor(520), lifecycle.AGE_PRESSURE_CAP);
 
 const e = new engineModule.TycoonEngine();
 e.g.configured = true;
@@ -47,6 +58,43 @@ assert.equal(e.setProductMaintenancePolicy(product.id, 'intensive'), true);
 e.g.week = 4;
 e.updateProductLifecycleWeekly();
 assert.ok(product.technicalDebt < leanDebt, 'intensive maintenance should reduce debt');
+
+function controlledDebt(policy, { age = 208, load = 0.4, burden = 0.3, debt = 50 } = {}) {
+  product.maintenancePolicy = policy;
+  product.lifecycleAgeWeeks = age - 1;
+  product.technicalDebt = debt;
+  const funnel = e.ensureProductFunnel(product);
+  funnel.serverLoad = load;
+  funnel.supportBurden = burden;
+  e.g.week += 1;
+  e.g.companyCash = Math.max(e.g.companyCash, 100_000_000);
+  e.updateProductLifecycleWeekly();
+  return product.technicalDebt;
+}
+const intensiveOld = controlledDebt('intensive');
+const standardOld = controlledDebt('standard');
+const leanOld = controlledDebt('lean');
+assert(intensiveOld < 50, 'controlled intensive maintenance must reduce debt even at week 208');
+assert(standardOld > intensiveOld && leanOld > standardOld, 'policy risk ordering must remain lean > standard > intensive');
+assert(controlledDebt('intensive', { load: 2, burden: 1.5 }) > 50, 'high load and support burden can overwhelm intensive maintenance');
+assert(controlledDebt('lean', { age: 12 }) < controlledDebt('lean', { age: 208 }), 'old lean products must retain more age risk than young products');
+const repeatA = controlledDebt('intensive', { age: 520 });
+const repeatB = controlledDebt('intensive', { age: 520 });
+assert.equal(repeatA, repeatB, 'same lifecycle inputs must remain deterministic');
+product.maintenancePolicy = 'intensive';
+product.lifecycleAgeWeeks = 0;
+product.technicalDebt = 50;
+const controlledFunnel = e.ensureProductFunnel(product);
+controlledFunnel.serverLoad = 0.4;
+controlledFunnel.supportBurden = 0.3;
+let peakDebt = product.technicalDebt;
+for (let week = 1; week <= 208; week += 1) {
+  e.g.week += 1;
+  e.g.companyCash = Math.max(e.g.companyCash, 100_000_000);
+  e.updateProductLifecycleWeekly();
+  peakDebt = Math.max(peakDebt, product.technicalDebt);
+}
+assert(peakDebt < 100 && product.technicalDebt < 55, '208-week controlled intensive maintenance must not become age-doomed');
 
 product.technicalDebt = 90;
 product.maintenancePolicy = 'lean';
