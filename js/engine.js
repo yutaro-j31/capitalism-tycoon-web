@@ -1201,6 +1201,14 @@ class TycoonEngine extends EventTarget {
     sellShares=clamp(Math.floor(sellShares)||sellFloor,sellFloor,sellCeil);
     const newShares=Math.max(1,Math.round(this.g.sharesOut*.2)),companyRaise=this.g.stockPrice*newShares*.955,founderSale=this.g.stockPrice*sellShares*.955;
     this.g.sharesOut+=newShares;this.g.founderShares-=sellShares;this.g.companyCash+=companyRaise;this.g.personalCash+=founderSale;this.g.publicCompany=true;this.g.selectedListingMarket=market;
+    // The IPO primary offering raises real cash (companyRaise, above) with no matching
+    // liability, so it must be recorded as equity financing or finance.validate()'s
+    // asset=liability+equity identity breaks. operationID/idempotencyKey/sourceType are a
+    // documented contract (docs/PHASE6A_V1_PROGRESSION_GATE.md, tests/v1-progression-gate-test.js,
+    // tests/investment-route-ipo-reachability-test.js) -- keep them stable.
+    const ipoOperationID=`parent-ipo-${this.g.week}`;
+    finance.event(this.g,'equityFinancing',companyRaise,{cashEffect:companyRaise,equityEffect:companyRaise,sourceType:'parentCompanyIPO',sourceID:ipoOperationID,idempotencyKey:ipoOperationID,operationID:ipoOperationID,description:`${market} 親会社IPO公募増資`});
+    const ipoLedger=finance.ensureFinance(this.g);ipoLedger.balances.capitalSurplus=finite(ipoLedger.balances.capitalSurplus)+companyRaise;
     this.g.ticker=(this.g.companyName.replace(/[^A-Za-z]/g,'').slice(0,4).toUpperCase()||'CPTY');this.updateOwnershipRatios();
     this.g.market.push({id:this.g.ticker,name:this.g.companyName,sector:'コングロマリット',price:this.g.stockPrice,previous:this.g.stockPrice,dividendYield:0,volatility:.08,trend:.003,marketCap:this.g.stockPrice*this.g.sharesOut,per:20,pbr:2,issuedShares:this.g.sharesOut,dividendPerShare:0,shareholders:{創業者:this.g.founderOwnershipRatio},description:'プレイヤーが経営する企業',listingMarket:market,priceHistory:[{week:this.g.week, price:this.g.stockPrice}]});
     this.notify(`${market}へ上場しました。会社調達${yen(companyRaise)}、創業者売出収入${yen(founderSale)}。`,'success');this.evaluateProgression();this.save();this.emit();return true;
