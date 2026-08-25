@@ -84,6 +84,15 @@ function costReductionSection(instance){
  }).join('');
  return `<details class="learning-card crisis-cost-reduction-card" open><summary>固定費削減候補 · 最大週次削減 ${esc(compactYen(options.totalPotentialWeeklySavings))}</summary><p>将来の資金流出を抑える施策です。人員削減には退職関連費用が発生します。</p><div class="grid two">${rows}</div></details>`;
 }
+function turnaroundFundSection(instance){
+ if(typeof instance?.turnaroundFundOptions!=='function')return '';
+ const options=instance.turnaroundFundOptions();
+ if(options.status==='active'){
+  return `<details class="learning-card crisis-turnaround-fund-card" open><summary>事業再生ファンド再建期間中 · ${esc(options.fundName)}</summary><p>出資 ${esc(compactYen(options.investedAmount))} を受け入れ済みです。再建目標（資金繰り危機対応の目標現金・目標負債）を期限内に達成できないと、追加で持分${(finite(options.ratchetEquity)*100).toFixed(0)}%を譲渡します。</p></details>`;
+ }
+ if(!options.canAccept)return '';
+ return `<details class="learning-card crisis-turnaround-fund-card" open><summary>事業再生ファンド · ${esc(options.fundName)}</summary><p>他の手段では足りない場合の最終手段です。より多額の資金を、より不利な条件で受け入れます。</p><article class="item crisis-turnaround-fund-item"><div><h3>${esc(options.fundName)}の出資を受け入れる</h3><p>出資額 ${esc(compactYen(options.amount))} · 譲渡持分 ${(finite(options.equity)*100).toFixed(1)}% · 再建期限 ${integer(options.termWeeks)}週</p><p>期限内に再建目標を達成できないと、追加で持分${(finite(options.ratchetEquity)*100).toFixed(0)}%を無償で譲渡します。</p></div>${button('事業再生ファンドを受け入れる','turnaround-fund',{kind:'danger'})}</article></details>`;
+}
 function render(state,instance=activeEngine){
  if(!ready()||!state||!instance||typeof instance.crisisLiquidityOptions!=='function')return '';
  const snapshot=modules.playerCrisis.snapshot(state);
@@ -107,6 +116,7 @@ function render(state,instance=activeEngine){
  const history=(state.playerCrisisActions?.history||[]).slice(-3).reverse().map(row=>`<div class="news-line">第${integer(row.week)}週 · ${row.type==='founderCapital'?'創業者資本注入':row.type==='sponsorInjection'?'スポンサー出資':'緊急融資'} ${compactYen(row.amount)}</div>`).join('');
  const restructuring=restructuringSection(instance);
  const costReduction=costReductionSection(instance);
+ const turnaroundFund=turnaroundFundSection(instance);
  return `${PANEL_START}<section class="card player-crisis-panel" id="player-crisis-panel" aria-live="polite">
   <div class="card-head"><div><h2>資金繰り危機対応</h2><p>会社の流動性、猶予期間、利用可能な回復策を表示します。</p></div>${badge(status,statusKind(snapshot.status))}</div>
   <div class="card-body">
@@ -123,6 +133,7 @@ function render(state,instance=activeEngine){
    </div>
    ${costReduction}
    ${restructuring}
+   ${turnaroundFund}
    ${history?`<details class="learning-card"><summary>直近の危機対応履歴</summary>${history}</details>`:''}
   </div>
  </section>${PANEL_END}`;
@@ -176,6 +187,12 @@ function handleClick(event){
   const message=`スポンサーから${compactYen(quote.sponsorAmount)}の出資を受け入れ、新株を発行して持分${(finite(quote.sponsorEquity)*100).toFixed(1)}%を割り当てます。創業者持分が大きく希薄化します。実行後は取り消せません。`;
   if(typeof globalThis.confirm!=='function'||!globalThis.confirm(message))return false;
   result=activeEngine.requestSponsorInjection();
+ }else if(action==='turnaround-fund'){
+  if(typeof activeEngine.turnaroundFundOptions!=='function'||typeof activeEngine.acceptTurnaroundFund!=='function')return false;
+  const quote=activeEngine.turnaroundFundOptions();
+  const message=`${quote.fundName}から${compactYen(quote.amount)}の出資を受け入れ、持分${(finite(quote.equity)*100).toFixed(1)}%を譲渡します。${integer(quote.termWeeks)}週以内に再建目標を達成できない場合、追加で持分${(finite(quote.ratchetEquity)*100).toFixed(0)}%を無償で譲渡します。実行後は取り消せません。`;
+  if(typeof globalThis.confirm!=='function'||!globalThis.confirm(message))return false;
+  result=activeEngine.acceptTurnaroundFund();
  }else if(action==='dispose-asset'){
   const type=String(target.dataset.dispositionType||''),id=String(target.dataset.dispositionId||'');
   const candidate=findDispositionCandidate(type,id);
