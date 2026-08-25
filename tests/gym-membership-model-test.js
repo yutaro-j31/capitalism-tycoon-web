@@ -197,18 +197,41 @@ function scenario(seed = 190826041, difficulty = 'normal') {
 }
 
 // 14. largest-remainder配分は広い入力gridで非負整数かつ総退会数を厳密に保存する。
+// membershipStrategyでもパラメータ化する: premium戦略はchurnBreakdownForへ独自のquality成分
+// （premiumQuality）を積み増すため、standardだけのgridでは境界（quality/conditionが低くMAX_TOTAL_CHURNへ
+// 張り付くケース）を検出できない。
 {
   const mod = loadGame({}).modules.gymMembershipModel;
-  for (const members of [0, 1, 2, 7, 17, 53, 179, 499, 5000]) for (const quality of [0, 30, 60, 100]) for (const condition of [0, 60, 80, 100]) for (const localCompetition of [0, .3, 1]) {
+  for (const membershipStrategy of ['standard', 'offPeak', 'premium']) for (const members of [0, 1, 2, 7, 17, 53, 179, 400, 499, 5000]) for (const quality of [0, 10, 30, 60, 70, 100]) for (const condition of [0, 20, 60, 80, 100]) for (const localCompetition of [0, .3, 1]) {
     const business = { price: 7800, quality, efficiency: 0 };
-    const store = { id: 's1', businessID: 'gym', level: 1, condition, gymMembership: { members } };
+    const store = { id: 's1', businessID: 'gym', level: 1, condition, gymMembership: { members, membershipStrategy } };
     mod.processStore({ week: 1, stores: [store] }, store, business, 0, 1, localCompetition);
     const row = store.gymMembership.lastWeek, values = Object.values(row.churnedByReason);
-    assert.equal(values.reduce((sum, value) => sum + value, 0), row.churned, '理由別人数合計は総退会数と一致する');
+    assert.equal(values.reduce((sum, value) => sum + value, 0), row.churned, `理由別人数合計は総退会数と一致する（${membershipStrategy}, q${quality}, c${condition}, comp${localCompetition}, m${members}）`);
     assert.ok(values.every(value => Number.isInteger(value) && value >= 0), '理由別人数はすべて非負整数');
   }
   const breakdown = mod.churnBreakdownFor({ quality: 30 }, { condition: 60 }, .3);
   assert.deepEqual(mod.allocateChurnedByReason(37, breakdown), mod.allocateChurnedByReason(37, breakdown), '配分は決定論的');
+}
+
+// 14b. premium戦略の理由別成分合計は、MAX_TOTAL_CHURNへ張り付く場合でもtotalを超えない
+// （premiumQuality自体がMAX_TOTAL_CHURNの残り枠でcapされていることの直接検証）。
+{
+  const mod = loadGame({}).modules.gymMembershipModel;
+  for (const quality of [0, 5, 10, 20, 30, 50, 70, 100]) for (const condition of [0, 10, 30, 70, 100]) for (const localCompetition of [0, .3, 1]) {
+    const business = { quality, efficiency: 0 };
+    const store = { id: 's1', businessID: 'gym', level: 1, condition, gymMembership: { membershipStrategy: 'premium' } };
+    const breakdown = mod.churnBreakdownFor(business, store, localCompetition);
+    const componentSum = breakdown.base + breakdown.quality + breakdown.condition + breakdown.competition + breakdown.crowding;
+    assert.ok(componentSum <= breakdown.total + 1e-9, `premium成分合計がtotalを超えない（q${quality}, c${condition}, comp${localCompetition}）: sum=${componentSum}, total=${breakdown.total}`);
+    assert.ok(breakdown.total <= mod.MAX_TOTAL_CHURN + 1e-9, 'totalはMAX_TOTAL_CHURNを超えない');
+  }
+  // #516ドラフトで実際に契約違反を起こしていた具体値（quality=0, condition=0, members=400, premium）。
+  const repro = { business: { quality: 0, efficiency: 0 }, store: { id: 's1', businessID: 'gym', level: 1, condition: 0, gymMembership: { members: 400, membershipStrategy: 'premium' } } };
+  const breakdown = mod.churnBreakdownFor(repro.business, repro.store, 0);
+  assert.ok(breakdown.base + breakdown.quality + breakdown.condition + breakdown.competition + breakdown.crowding <= breakdown.total + 1e-9, 'quality=0/condition=0/premiumの再現ケースで成分合計がtotalを超えない');
+  const churned = Math.round(400 * breakdown.total), alloc = mod.allocateChurnedByReason(churned, breakdown);
+  assert.equal(alloc.quality + alloc.condition + alloc.competition + alloc.crowding + alloc.base, churned, '再現ケースで内訳人数合計が総退会数と一致する');
 }
 
 // 15. 欠落・null・primitive・部分欠落・非finiteな旧save内訳を安全な非負整数へ正規化する。

@@ -54,7 +54,10 @@ function churnBreakdownFor(business,store,localCompetition){
   const legacyTotal=legacyChurnRateFor(business,store),base=Math.min(CHURN_BASE,legacyTotal),remaining=Math.max(0,legacyTotal-base);
   const qualityWeight=Math.max(0,(100-quality)*.0003),conditionWeight=Math.max(0,(100-condition)*.0006),competitionWeight=competition*.02;
   const weightSum=qualityWeight+conditionWeight+competitionWeight;
-  const premiumQuality=strategyFor(store).id==='premium'?Math.max(0,(70-quality)*.0008):0;
+  const premiumQualityRaw=strategyFor(store).id==='premium'?Math.max(0,(70-quality)*.0008):0;
+  // premiumQualityも合計と同じMAX_TOTAL_CHURNの残り枠でcapする。ここをcapさずtotalだけをclampすると、
+  // 内訳（quality成分）の合計がtotalを超え、churnedByReasonの人数合計がchurned総数を超える契約違反になる。
+  const premiumQuality=Math.min(premiumQualityRaw,Math.max(0,MAX_TOTAL_CHURN-legacyTotal));
   const crowding=Math.max(0,Math.min(crowdingFor(store,business).extraChurnRate,MAX_TOTAL_CHURN-legacyTotal-premiumQuality)),total=Math.min(MAX_TOTAL_CHURN,legacyTotal+premiumQuality+crowding);
   if(remaining===0||weightSum===0)return {total,base:legacyTotal,quality:premiumQuality,condition:0,competition:0,crowding};
   const qualityComponent=remaining*qualityWeight/weightSum,conditionComponent=remaining*conditionWeight/weightSum;
