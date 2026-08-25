@@ -669,6 +669,7 @@ function installExpansion(TycoonEngine){
     // Mortgage payments come out AFTER this week's rent has landed, so a tenant paying on
     // time can cover the payment in the same week; a vacant month is what eats into cash.
     __modules.personalRealEstateMortgage?.processWeek(this);
+    __modules.personalStockMargin?.processWeek(this);
     if(g.familyTrustEstablished){const r=g.familyTrustCash*.0004;g.familyTrustCash+=r;}
     return adjustment;
   };
@@ -696,7 +697,7 @@ function installExpansion(TycoonEngine){
   const baseCompanyValue=TycoonEngine.prototype.companyValue;
   TycoonEngine.prototype.companyValue=function(){const base=baseCompanyValue.call(this),vertical=sum((this.g.verticalIntegrationAssets||[]).filter(x=>x.active).map(x=>x.cost*.65)),patents=sum((this.g.patentRecords||[]).map(x=>x.licenseIncome*52*5));return Math.max(0,base+vertical+patents);};
   const basePersonalNetWorth=TycoonEngine.prototype.personalNetWorth;
-  TycoonEngine.prototype.personalNetWorth=function(){const base=basePersonalNetWorth.call(this),pe=sum((this.g.peDeals||[]).filter(x=>x.status==='active'&&x.ownerAccount!=='company').map(x=>x.currentValuation)),angel=sum((this.g.angelInvestments||[]).filter(x=>x.status==='active').map(x=>x.investedAmount*x.multiple)),realEstate=sum((this.g.personalRealEstateHoldings||[]).filter(x=>x.status==='owned').map(x=>x.currentValue)),mortgageDebt=__modules.personalRealEstateMortgage?.totalDebt(this.g)||0,corpCash=n(this.g.personalRealEstateCorp?.cash),trust=n(this.g.familyTrustCash);return Math.max(0,base+pe+angel+realEstate-mortgageDebt+corpCash+trust);};
+  TycoonEngine.prototype.personalNetWorth=function(){const base=basePersonalNetWorth.call(this),pe=sum((this.g.peDeals||[]).filter(x=>x.status==='active'&&x.ownerAccount!=='company').map(x=>x.currentValuation)),angel=sum((this.g.angelInvestments||[]).filter(x=>x.status==='active').map(x=>x.investedAmount*x.multiple)),realEstate=sum((this.g.personalRealEstateHoldings||[]).filter(x=>x.status==='owned').map(x=>x.currentValue)),mortgageDebt=__modules.personalRealEstateMortgage?.totalDebt(this.g)||0,marginDebt=__modules.personalStockMargin?.balanceOf(this.g)||0,corpCash=n(this.g.personalRealEstateCorp?.cash),trust=n(this.g.familyTrustCash);return Math.max(0,base+pe+angel+realEstate-mortgageDebt-marginDebt+corpCash+trust);};
 
   const baseAdvance=TycoonEngine.prototype.advanceWeek;
   TycoonEngine.prototype.advanceWeek=function(showSummary=true){return this.runTransaction(()=>{

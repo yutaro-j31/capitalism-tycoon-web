@@ -208,6 +208,7 @@ for (const [name, file] of [
   ['sports-team-accounting', 'tests/sports-team-accounting-test.js'],
   ['sports-management', 'tests/sports-management-test.js'],
   ['personal-real-estate-mortgage', 'tests/personal-real-estate-mortgage-test.js'],
+  ['personal-stock-margin', 'tests/personal-stock-margin-test.js'],
   ['personal-real-estate-taxes', 'tests/personal-real-estate-taxes-test.js'],
   ['real-estate-cycle-state-collision', 'tests/real-estate-cycle-state-collision-test.js'],
   ['real-estate-agency-pipeline', 'tests/real-estate-agency-pipeline-test.js'],
