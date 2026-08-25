@@ -227,6 +227,7 @@ for (const [name, file] of [
   ['company-valuation-normalization', 'tests/company-valuation-normalization-test.js'],
   ['weekly-cashflow-bridge', 'tests/weekly-cashflow-bridge-test.js'],
   ['quarterly-tax-accrual', 'tests/quarterly-tax-accrual-test.js'],
+  ['mobile-dock-content-clearance', 'tests/mobile-dock-content-clearance-test.js'],
   ['executeipo-base-class-accounting', 'tests/executeipo-base-class-accounting-test.js'],
   ['executive-payroll-annual-total', 'tests/executive-payroll-annual-total-test.js'],
   ['company-headcount-display', 'tests/company-headcount-display-test.js'],

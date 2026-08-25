@@ -81,7 +81,8 @@
     "tests/product-ventures-it-pillar-test.js",
     "tests/seasonal-menu-test.js",
     "tests/product-funnel-conversion-test.js",
-    "test:competitor-target-share"
+    "test:competitor-target-share",
+    "tests/mobile-dock-content-clearance-test.js"
   ],
   "G": [
     "tests/executive-dismissal-reachability-test.js",
