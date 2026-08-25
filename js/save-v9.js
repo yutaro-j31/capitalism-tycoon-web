@@ -145,24 +145,10 @@ class TycoonEngineV9 extends BaseTycoonEngine{
   this._loadFailureReason='';
   this.normalize();this.save();this.emit();
  }
- executeIPO(market='東証グロース',sellShares=0){
-  if(this.g.publicCompany||this.ipoMissingReasons().length)return super.executeIPO(market,sellShares);
-  const multiple=market==='東証プライム'?1.25:market==='東証スタンダード'?1.1:1;
-  const projectedStockPrice=Math.max(100,this.companyValue()*multiple/Math.max(1,this.g.sharesOut));
-  // Must stay numerically identical to the primary-offering share count executeIPO()
-  // computes internally (engine.js), or this pre-recorded finance event diverges from the
-  // cash the base method actually injects into companyCash.
-  const projectedNewShares=Math.max(1,Math.round(this.g.sharesOut*.2));
-  const companyRaise=projectedStockPrice*projectedNewShares*.955;
-  const operationID=`parent-ipo-${this.g.week}`;
-  const ledger=finance.ensureFinance(this.g);
-  const exists=(ledger.transactions||[]).some(row=>row.operationID===operationID||row.idempotencyKey===operationID);
-  if(!exists){
-   finance.event(this.g,'equityFinancing',companyRaise,{cashEffect:companyRaise,equityEffect:companyRaise,sourceType:'parentCompanyIPO',sourceID:operationID,idempotencyKey:operationID,operationID,description:`${market} 親会社IPO公募増資`});
-   ledger.balances.capitalSurplus=finite(ledger.balances.capitalSurplus)+companyRaise;
-  }
-  return super.executeIPO(market,sellShares);
- }
+ // executeIPO() previously duplicated engine.js's primary-offering math here to pre-record
+ // the equity financing event, which risked drifting out of sync with the base calculation
+ // (see js/engine.js's executeIPO()). The base method now records the event itself using
+ // the exact companyRaise it applies to companyCash, so this class inherits it unchanged.
 }
 
 Object.assign(engine,{SAVE_VERSION,createInitialState,detectSaveVersion,validateMigratedState,migrateSave,migrateV8ToV9,sanitizeBusinessRecords,TycoonEngine:TycoonEngineV9,__saveV9Installed:true,__parentIPOFinanceInstalled:true,__parentIPOEquityBalanceInstalled:true});

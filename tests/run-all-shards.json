@@ -108,6 +108,7 @@
     "tests/pe-pending-initiative-transfer-lifecycle-test.js",
     "tests/store-status-kpi-display-test.js",
     "tests/founding-tutorial-non-target-business-test.js",
-    "tests/gym-membership-strategy-test.js"
+    "tests/gym-membership-strategy-test.js",
+    "tests/executeipo-base-class-accounting-test.js"
   ]
 }
