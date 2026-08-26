@@ -155,4 +155,47 @@ function buyHolding(engine) {
   assert.equal(calls, 0, '開始・キャンセルはMath.randomを消費しない');
 }
 
+// 8. getPersonalRealEstateRedevelopmentCancelPlan() must promise exactly what
+// cancelPersonalRealEstateRedevelopment() actually does, and never mutate state itself
+// (UIUX監査 2026-08-26 Finding B: 中止する手段が画面に存在しなかった)。
+{
+  const { engine } = newGame();
+  const holding = buyHolding(engine);
+  assert.equal(engine.getPersonalRealEstateRedevelopmentCancelPlan(holding.assetID), null, '未着工なら計画はnull');
+  engine.startPersonalRealEstateRedevelopment(holding.assetID, 'conversion');
+  for (let i = 0; i < 3; i++) engine.advanceWeek(false);
+
+  const snapshot = JSON.stringify(engine.g);
+  const plan = engine.getPersonalRealEstateRedevelopmentCancelPlan(holding.assetID);
+  engine.getPersonalRealEstateRedevelopmentCancelPlan(holding.assetID);
+  assert.equal(JSON.stringify(engine.g), snapshot, 'getPersonalRealEstateRedevelopmentCancelPlanは状態を変更してはならない');
+
+  assert.equal(plan.assetID, holding.assetID);
+  assert.equal(plan.projectLabel, '用途転換');
+  assert.equal(plan.weeksLeft, holding.redevelopmentCompleteWeek - engine.g.week, '残り週数はcompleteWeekと現在週の差と一致する');
+  assert.equal(plan.forfeitedCost, holding.redevelopmentCost, '予告する没収費用は実際のredevelopmentCostと一致する');
+  assert.equal(plan.forfeitedValueGain, holding.redevelopmentValueGain, '予告する没収評価額増加は実際のredevelopmentValueGainと一致する');
+
+  const cashBefore = engine.g.personalCash;
+  assert.equal(engine.cancelPersonalRealEstateRedevelopment(holding.assetID), true);
+  assert.equal(engine.g.personalCash, cashBefore, '予告どおり中止しても現金は動かない（返金なし）');
+  assert.equal(engine.getPersonalRealEstateRedevelopmentCancelPlan(holding.assetID), null, '中止後は計画がnullに戻る');
+}
+
+// 9. UI reachability: エンジンに実装があっても画面にボタンが無ければプレイヤーには
+// 存在しないのと同じ（tests/store-closure-plan-test.jsのFinding Aと同じパターン）。
+{
+  const fs = require('node:fs');
+  const path = require('node:path');
+  const app = fs.readFileSync(path.join(__dirname, '..', 'js', 'app.js'), 'utf8');
+  assert.match(app, /data-action="cancel-personal-re-redevelopment"|'cancel-personal-re-redevelopment'/, 'cancel-personal-re-redevelopment アクションが app.js に存在する');
+  assert.match(app, /case 'cancel-personal-re-redevelopment':/, 'cancel-personal-re-redevelopment がアクションスイッチで処理される');
+  assert.match(app, /function confirmCancelPersonalRedevelopment/, '実行前に結果を提示する確認ダイアログを経由する');
+  assert.doesNotMatch(
+    app,
+    /case 'cancel-personal-re-redevelopment':engine\.cancelPersonalRealEstateRedevelopment\(/,
+    'cancel-personal-re-redevelopment は確認なしで直接cancelPersonalRealEstateRedevelopment()を呼ばない'
+  );
+}
+
 console.log('personal real estate redevelopment tests passed');

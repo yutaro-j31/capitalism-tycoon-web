@@ -61,6 +61,19 @@ Engine.prototype.startPersonalRealEstateRedevelopment=function(assetID,projectID
   return true;
 };
 
+// cancelPersonalRealEstateRedevelopment() を実行したときに何が起きるかを、実行前にUIへ提示
+// するための読み取り専用の試算。状態は一切変更しない。start側で全額前払い済みのため、
+// 中止しても返金は無く、進行中の完了時評価額増加分も失われる。
+Engine.prototype.getPersonalRealEstateRedevelopmentCancelPlan=function(assetID){
+  const x=holding(this.g,assetID);
+  if(!inProgress(x))return null;
+  const project=PROJECTS[x.redevelopmentProjectID];
+  return Object.freeze({
+    assetID,name:x.name||'',projectLabel:project?.label||'開発・再開発',
+    weeksLeft:Math.max(0,finite(x.redevelopmentCompleteWeek)-finite(this.g.week)),
+    forfeitedCost:finite(x.redevelopmentCost),forfeitedValueGain:finite(x.redevelopmentValueGain)
+  });
+};
 Engine.prototype.cancelPersonalRealEstateRedevelopment=function(assetID){
   const x=holding(this.g,assetID);
   if(!inProgress(x))return false;
