@@ -257,7 +257,8 @@ const nodeTests = [
   ['gym-congestion', 'tests/gym-congestion-test.js'],
   ['real-estate-agency-focus', 'tests/real-estate-agency-focus-test.js'],
   ['real-estate-agency-capacity-visibility', 'tests/real-estate-agency-capacity-visibility-test.js'],
-  ['supply-material-cost-inflation', 'tests/supply-material-cost-inflation-test.js']
+  ['supply-material-cost-inflation', 'tests/supply-material-cost-inflation-test.js'],
+  ['store-closure-plan', 'tests/store-closure-plan-test.js']
 ];
 
 for (let i = 0; i < nodeTests.length; i++) {
