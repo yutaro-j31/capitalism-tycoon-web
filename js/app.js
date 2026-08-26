@@ -707,13 +707,25 @@ function showWeeklySummary(summary){if(!summary)return;const impact=dashboardMod
 
 function askMoney(title,defaultValue,callback){modal(`<h2>${esc(title)}</h2>${moneyInput('modal-money',defaultValue,'金額（円）')}<div class="modal-actions">${btn('キャンセル','close-modal',{kind:'ghost'})}<button class="btn primary" id="modal-ok">実行</button></div>`);$('#modal-ok').onclick=()=>{const v=Number($('#modal-money').value.replace(/,/g,''));closeModal();callback(v);};setTimeout(()=>$('#modal-money')?.select(),0);}
 function askText(title,label,defaultValue,callback){modal(`<h2>${esc(title)}</h2><label class="field"><span>${esc(label)}</span><input id="modal-text" value="${esc(defaultValue)}"></label><div class="modal-actions">${btn('キャンセル','close-modal',{kind:'ghost'})}<button class="btn primary" id="modal-ok">実行</button></div>`);$('#modal-ok').onclick=()=>{const v=$('#modal-text').value;closeModal();callback(v);};}
+// 出店の最終確認。マップ画面の試算(storeOpeningEstimate)と同じengine.estimateStoreOpening()を
+// 再利用し、店舗名入力だけだった旧askTextフローに費用・期待利益・出店後現金を再表示する。
+function confirmOpenStore(tenantID,businessID){
+  const defaultName=`${engine.g.companyName} ${engine.g.stores.length+1}号店`;
+  const e=engine.estimateStoreOpening({tenantID,businessID,operatingHours:3});
+  if(!e){askText('新店舗','店舗名',defaultName,name=>engine.openStore({tenantID,businessID,name,operatingHours:3}));return;}
+  const tone=!e.affordable?'danger':e.profitable?'good':'warn';
+  const verdict=!e.affordable?`資金不足（あと${compactYen(e.upfront-e.companyCash)}）`:e.profitable?`回収まで約${e.paybackWeeks}週`:'この条件では赤字見込み';
+  const band=`${compactYen(e.conservative.profit)} 〜 ${compactYen(e.optimistic.profit)}`;
+  modal(`<h2>出店の最終確認</h2><p>${esc(e.prefName)}・${esc(e.tenantName)}に${esc(e.businessName)}を出店します。</p><p>${badge(verdict,tone)}</p><div class="kpi-grid mini">${stat('週次利益（期待）',compactYen(e.expected.profit),`幅 ${band}`)}${stat('初期費用',compactYen(e.upfront),`設備${compactYen(e.storeCost)} + 保証金${compactYen(e.deposit)}`)}${stat('出店後の会社現金',compactYen(e.cashAfterOpening))}${stat('開店まで',`${e.weeksToOpen}週`)}</div><label class="field"><span>店舗名</span><input id="modal-text" value="${esc(defaultName)}"></label><div class="modal-actions">${btn('キャンセル','close-modal',{kind:'ghost'})}<button class="btn primary" id="modal-ok">この内容で出店する</button></div>`);
+  $('#modal-ok').onclick=()=>{const name=$('#modal-text').value;closeModal();engine.openStore({tenantID,businessID,name,operatingHours:3});};
+}
 
 function action(name,el){const id=el.dataset.id,kind=el.dataset.kind;
   switch(name){
     case 'tab': engine.g.selectedTab=el.dataset.tab;closeModal();engine.save();render();break;
     case 'advance-week':engine.advanceWeek(true);break;case 'advance-4':for(let i=0;i<4&&!engine.g.gameOver;i++)engine.advanceWeek(false);showWeeklySummary(engine.g.lastWeeklySummary);render();break;
     case 'close-modal':closeModal();break;
-    case 'open-store':{const businessID=$(`#business-${id}`).value;askText('新店舗','店舗名',`${engine.g.companyName} ${engine.g.stores.length+1}号店`,name=>engine.openStore({tenantID:id,businessID,name,operatingHours:3}));break;}
+    case 'open-store':{const businessID=$(`#business-${id}`).value;confirmOpenStore(id,businessID);break;}
     case 'contract-office':engine.contractOffice(id);break;case 'contract-branch-office':engine.contractBranchOffice(id);break;case 'close-branch-office':engine.closeBranchOffice(id);break;case 'cancel-office':confirmModal('オフィス契約解除','部門やCXOがいる場合は解除できません。','confirm-cancel-office');break;case 'confirm-cancel-office':engine.cancelOffice();closeModal();break;
     case 'buy-property-company':engine.buyProperty(id,'company');break;case 'buy-property-personal':engine.buyProperty(id,'personal');break;case 'sell-property':engine.sellProperty(id);break;
     case 'build-property':askText('土地開発','建物種別','本社ビル',v=>engine.buildOnLand(id,v));break;
