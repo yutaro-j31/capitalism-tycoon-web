@@ -32,7 +32,8 @@
     "tests/vc-fund-lp-test.js",
     "tests/personal-investment-risk-model-test.js",
     "tests/startup-secondary-sale-confirm-ui-test.js",
-    "tests/executive-payroll-annual-total-test.js"
+    "tests/executive-payroll-annual-total-test.js",
+    "tests/map-directory-open-state-persistence-test.js"
   ],
   "D": [
     "test:stock",
