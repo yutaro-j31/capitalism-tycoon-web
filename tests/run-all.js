@@ -13,12 +13,17 @@ const commands = [
 
 ];
 
-for (const command of commands) {
+for (let i = 0; i < commands.length; i++) {
+  const command = commands[i];
+  const startedAt = Date.now();
+  console.log(`[run-all ${i + 1}/${commands.length}] start ${command}`);
   const result = spawnSync('npm', ['run', command, '--silent'], {
     encoding: 'utf8',
     maxBuffer: 64 * 1024 * 1024,
     shell: false
   });
+  const elapsedSeconds = ((Date.now() - startedAt) / 1000).toFixed(1);
+  console.log(`[run-all ${i + 1}/${commands.length}] done ${command} in ${elapsedSeconds}s (exit ${result.status ?? `signal:${result.signal}`})`);
   if (result.status) {
     console.error(`::error title=Test suite failed::${command}`);
     if (result.stdout) process.stdout.write(result.stdout);
@@ -27,7 +32,7 @@ for (const command of commands) {
   }
 }
 
-for (const [name, file] of [
+const nodeTests = [
   ['bank-loans-covenants-accounting', 'tests/bank-loans-covenants-accounting-test.js'],
   ['exploration-infrastructure', 'tests/exploration-infrastructure-test.js'],
   ['founder-retirement', 'tests/founder-retirement-test.js'],
@@ -252,12 +257,19 @@ for (const [name, file] of [
   ['gym-congestion', 'tests/gym-congestion-test.js'],
   ['real-estate-agency-focus', 'tests/real-estate-agency-focus-test.js'],
   ['real-estate-agency-capacity-visibility', 'tests/real-estate-agency-capacity-visibility-test.js']
-]) {
+];
+
+for (let i = 0; i < nodeTests.length; i++) {
+  const [name, file] = nodeTests[i];
+  const startedAt = Date.now();
+  console.log(`[run-all node ${i + 1}/${nodeTests.length}] start ${name}`);
   const result = spawnSync('node', [file], {
     encoding: 'utf8',
     maxBuffer: 64 * 1024 * 1024,
     shell: false
   });
+  const elapsedSeconds = ((Date.now() - startedAt) / 1000).toFixed(1);
+  console.log(`[run-all node ${i + 1}/${nodeTests.length}] done ${name} in ${elapsedSeconds}s (exit ${result.status ?? `signal:${result.signal}`})`);
   if (result.status) {
     console.error(`::error title=Test suite failed::${name}`);
     if (result.stdout) process.stdout.write(result.stdout);
