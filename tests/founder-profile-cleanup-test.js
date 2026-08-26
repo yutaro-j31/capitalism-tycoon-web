@@ -67,15 +67,23 @@ function screen(tab, seed = 4242) {
   }
 }
 
-// 5. 内部状態は温存されている。出身地は地元信用・製品の初期ブランド・
-//    テナント探索の対象県に効くため、選択UIと結果表示も残す。
+// 5. 出身地は地元信用・製品の初期ブランド・テナント探索の対象県に効くため、
+//    内部状態・選択UI・結果表示すべて温存する。
 {
   const { engine } = screen('founder');
   assert(engine.g.founderHomePrefID, '出身地の内部値は保持される');
   assert(engine.g.founderHomePrefName, '出身地名の内部値は保持される');
   assert(typeof engine.g.localReputationByPref === 'object', '地元信用の内部値は保持される');
-  assert(Number.isFinite(engine.g.founderEnergy), '体力の内部値は保持される');
-  assert(Number.isFinite(engine.g.founderHealth), '健康の内部値は保持される');
+}
+
+// 5b. 体力・健康・集中力管理システムは2026-08-26に完全廃止（UI表示だけでなく
+//     内部状態・weekly処理・行動も撤去）。新規ゲームにはこれらのフィールド自体が
+//     存在しない（tests/founder-health-system-removal-test.js に詳細な回帰テストを分離）。
+{
+  const { engine } = screen('founder');
+  assert(!('founderEnergy' in engine.g), 'founderEnergyは新規ゲームに存在しない');
+  assert(!('founderHealth' in engine.g), 'founderHealthは新規ゲームに存在しない');
+  assert(!('founderFocus' in engine.g), 'founderFocusは新規ゲームに存在しない');
 }
 
 // 6. 非UIの既存呼び出しが出身地を省略しても既定値で開始できる。

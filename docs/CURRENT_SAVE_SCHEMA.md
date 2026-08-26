@@ -51,7 +51,7 @@
 
 `ensureExpansionDefaults`, `ensureCompletionDefaults`, `ensureParityDefaults` で補完される主な項目:
 
-- 創業者: `founderName`, `founderHomePrefID`, `founderHomePrefName`, `founderOriginCityName`, `founderTraitID`, `founderFocus`, `founderEnergy`, `founderSkillBusiness`, `founderSkillTech`, `founderSkillFinance`, `founderSkillNegotiation`, `founderHealth`, `founderEducationLevel`, `founderNetworkLevel`, `founderHomeLevel`, `founderHomeDeskSlots`, `founderHomeUsedSlots`, `founderHomeActionLog`, `localReputationByPref`, `recommendedTenantIDsFromHomeSearch`
+- 創業者: `founderName`, `founderHomePrefID`, `founderHomePrefName`, `founderOriginCityName`, `founderTraitID`, `founderSkillBusiness`, `founderSkillTech`, `founderSkillFinance`, `founderSkillNegotiation`, `founderEducationLevel`, `founderNetworkLevel`, `founderHomeLevel`, `founderHomeDeskSlots`, `founderHomeUsedSlots`, `founderHomeActionLog`, `localReputationByPref`, `recommendedTenantIDsFromHomeSearch`（創業者本人の体力・健康・集中力管理システム`founderHealth`/`founderEnergy`/`founderFocus`は2026-08-26に廃止。旧セーブに残っていても単純に無視される）
 - サプライチェーン: `supplierContracts`, `verticalIntegrationAssets`, `inventoryByBusinessID`, `supplyChainEvents`, `autoSpotProcurement`, `marketShareByBusinessID`, `customerSegmentsByBusinessID`
 - R&D/商品: `rdProjects`, `patentRecords`, `patentLicenseIncome`, `productFunnels`, `productFunnelEventLog`
 - 資本市場: `stockSplitHistory`, `ownershipHistory`, `activistCampaigns`, `shareholderTrust`, `shareholderEventLog`, `quarterlyStockResults`, `startupFundingHistory`, `startupQuarterlyReports`

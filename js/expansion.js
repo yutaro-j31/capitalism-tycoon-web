@@ -8,11 +8,11 @@ if(__modules.expansion)throw new Error('Capitalism Tycoon expansion module is al
 // Adds systems present in the Swift Playgrounds project that were missing or simplified.
 
 const FOUNDER_TRAITS = [
-  {id:'tech',name:'技術者肌',icon:'💻',detail:'プロダクト開発とR&Dが少し得意。',business:1.00,tech:1.25,finance:1.00,negotiation:1.00,localRep:20,focus:78,energy:68},
-  {id:'merchant',name:'商売上手',icon:'🏪',detail:'店舗・仕入れ・交渉が少し得意。',business:1.25,tech:1.00,finance:1.00,negotiation:1.15,localRep:23,focus:72,energy:72},
-  {id:'investor',name:'投資家気質',icon:'📈',detail:'金融・VC・M&A判断が少し得意。',business:1.00,tech:1.00,finance:1.30,negotiation:1.05,localRep:18,focus:72,energy:70},
-  {id:'local',name:'地元密着',icon:'🗾',detail:'地元の信用が高く、紹介が出やすい。',business:1.10,tech:1.00,finance:1.00,negotiation:1.15,localRep:32,focus:70,energy:76},
-  {id:'ambitious',name:'野心家',icon:'🔥',detail:'全分野に小さな成長補正。',business:1.08,tech:1.08,finance:1.08,negotiation:1.08,localRep:20,focus:86,energy:62}
+  {id:'tech',name:'技術者肌',icon:'💻',detail:'プロダクト開発とR&Dが少し得意。',business:1.00,tech:1.25,finance:1.00,negotiation:1.00,localRep:20},
+  {id:'merchant',name:'商売上手',icon:'🏪',detail:'店舗・仕入れ・交渉が少し得意。',business:1.25,tech:1.00,finance:1.00,negotiation:1.15,localRep:23},
+  {id:'investor',name:'投資家気質',icon:'📈',detail:'金融・VC・M&A判断が少し得意。',business:1.00,tech:1.00,finance:1.30,negotiation:1.05,localRep:18},
+  {id:'local',name:'地元密着',icon:'🗾',detail:'地元の信用が高く、紹介が出やすい。',business:1.10,tech:1.00,finance:1.00,negotiation:1.15,localRep:32},
+  {id:'ambitious',name:'野心家',icon:'🔥',detail:'全分野に小さな成長補正。',business:1.08,tech:1.08,finance:1.08,negotiation:1.08,localRep:20}
 ];
 
 const FOUNDER_HOME_PRODUCTS = [
@@ -178,9 +178,9 @@ function installExpansion(TycoonEngine){
       expansionVersion:2,
       founderName:g.playerName||'創業者',founderHomePrefID:pref.id,founderHomePrefName:pref.name,founderOriginCityName:`${pref.name}中央`,founderTraitID:'tech',
       currentFounderHomeRank:'familyHome',founderHomeLevel:1,founderHomeDeskSlots:1,founderHomeUsedSlots:0,founderHomeMonthlyCost:6000,
-      founderFocus:70,founderEnergy:70,founderSkillBusiness:1,founderSkillTech:1,founderSkillFinance:1,founderSkillNegotiation:1,
+      founderSkillBusiness:1,founderSkillTech:1,founderSkillFinance:1,founderSkillNegotiation:1,
       founderHomeActionLog:[],localReputationByPref:{},recommendedTenantIDsFromHomeSearch:[],lastFounderHomeEventWeek:0,lastStoreHuntWeek:0,
-      founderHealth:85,founderEducationLevel:50,founderNetworkLevel:40,successorReadiness:0,foundationEndowment:0,foundationReputation:0,lobbyInfluence:0,
+      founderEducationLevel:50,founderNetworkLevel:40,successorReadiness:0,foundationEndowment:0,foundationReputation:0,lobbyInfluence:0,
       supplierContracts:[],inventoryByBusinessID:{},supplyChainEvents:[],autoSpotProcurement:true,verticalIntegrationAssets:[],rdProjects:[],patentRecords:[],patentLicenseIncome:0,
       customerSegmentsByBusinessID:{},marketShareByBusinessID:{},productFunnels:{},productFunnelEventLog:[],
       quarterlyStockResults:{},shareholderEventLog:[],activistCampaigns:[],ownershipHistory:[],stockSplitHistory:[],founderShareSaleHistory:[],
@@ -236,7 +236,7 @@ function installExpansion(TycoonEngine){
     this.ensureExpansionDefaults();const p=this.pref(prefID)||this.g.prefs[0],trait=FOUNDER_TRAITS.find(x=>x.id===traitID)||FOUNDER_TRAITS[0];
     this.g.founderName=(name||this.g.playerName||'創業者').trim()||'創業者';this.g.playerName=this.g.founderName;
     this.g.founderHomePrefID=p.id;this.g.founderHomePrefName=p.name;this.g.founderOriginCityName=`${p.name}中央`;this.g.founderTraitID=trait.id;
-    this.g.founderFocus=trait.focus;this.g.founderEnergy=trait.energy;this.g.founderSkillBusiness=trait.business;this.g.founderSkillTech=trait.tech;this.g.founderSkillFinance=trait.finance;this.g.founderSkillNegotiation=trait.negotiation;
+    this.g.founderSkillBusiness=trait.business;this.g.founderSkillTech=trait.tech;this.g.founderSkillFinance=trait.finance;this.g.founderSkillNegotiation=trait.negotiation;
     this.g.localReputationByPref[p.id]=Math.max(n(this.g.localReputationByPref[p.id]),trait.localRep);
     this.g.founderHomeActionLog.unshift(`第${this.g.week}週：${p.name}出身の${trait.name}として起業人生を開始。`);
     if(notify)this.notify(`創業者プロフィールを${p.name}・${trait.name}に設定しました。`,'success');
@@ -256,7 +256,7 @@ function installExpansion(TycoonEngine){
     const cost=t.cost/(this.g.founderSkillTech||1);if(this.g.companyCash<cost)return this.fail(`開発には${Math.round(cost).toLocaleString()}円が必要です。`);
     this.g.companyCash-=cost;
     const product={id:uid(),blueprintID:t.id,name:t.name,category:t.category,status:'developing',progress:0,weeksToLaunch:t.weeks,quality:18+this.g.founderSkillTech*5,brand:4+this.g.localReputationByPref[this.g.founderHomePrefID]/10,users:0,paidUsers:0,price:t.price,serverCost:t.serverCost,market:t.market,risk:t.risk,valuation:cost,developmentCost:cost,investedCost:cost,revenue:0,cost:0,profit:0,origin:'founderHome',releaseWeek:null,serverCapacity:5000};
-    this.g.productVentures.push(product);this.ensureProductFunnel(product);this.refreshFounderHomeUsedSlots();this.g.founderEnergy=clamp(this.g.founderEnergy-10,0,100);
+    this.g.productVentures.push(product);this.ensureProductFunnel(product);this.refreshFounderHomeUsedSlots();
     this.g.founderHomeActionLog.unshift(`第${this.g.week}週：実家PCで「${t.name}」の開発を開始。`);this.notify(`${t.name}の個人開発を開始しました。`,'success');this.save();this.emit();return true;
   };
 
@@ -265,12 +265,11 @@ function installExpansion(TycoonEngine){
     const log=text=>{g.founderHomeActionLog.unshift(`第${g.week}週：${text}`);g.founderHomeActionLog=g.founderHomeActionLog.slice(0,80);};
     if(action==='storeHunt'){
       const candidates=g.tenants.filter(t=>t.prefID===prefID&&!t.occupiedBy).sort((a,b)=>b.traffic-a.traffic).slice(0,3);
-      g.recommendedTenantIDsFromHomeSearch=candidates.map(x=>x.id);g.lastStoreHuntWeek=g.week;g.founderEnergy=clamp(g.founderEnergy-7,0,100);g.localReputationByPref[prefID]=clamp(n(g.localReputationByPref[prefID])+1.2,0,100);log(`地元を歩き、${candidates.length}件の有望テナントを発見。`);
-    } else if(action==='studyBusiness'){g.founderSkillBusiness=clamp(g.founderSkillBusiness+.035,1,3);g.founderFocus=clamp(g.founderFocus-5,0,100);g.founderEducationLevel=clamp(g.founderEducationLevel+.8,0,100);log('経営書を読み、経営スキルが上昇。');
-    } else if(action==='studyTech'){g.founderSkillTech=clamp(g.founderSkillTech+.035,1,3);g.founderFocus=clamp(g.founderFocus-5,0,100);g.founderEducationLevel=clamp(g.founderEducationLevel+.8,0,100);log('技術学習を行い、技術スキルが上昇。');
-    } else if(action==='studyFinance'){g.founderSkillFinance=clamp(g.founderSkillFinance+.035,1,3);g.founderFocus=clamp(g.founderFocus-5,0,100);g.founderEducationLevel=clamp(g.founderEducationLevel+.8,0,100);log('財務分析を学び、金融スキルが上昇。');
-    } else if(action==='network'){g.founderSkillNegotiation=clamp(g.founderSkillNegotiation+.03,1,3);g.founderNetworkLevel=clamp(g.founderNetworkLevel+1.2,0,100);g.founderEnergy=clamp(g.founderEnergy-5,0,100);log('友人・先輩起業家と交流し、人脈と交渉力が上昇。');
-    } else if(action==='rest'){g.founderEnergy=clamp(g.founderEnergy+18,0,100);g.founderFocus=clamp(g.founderFocus+12,0,100);g.founderHealth=clamp(g.founderHealth+2,0,100);log('休息を取り、集中力と体力を回復。');
+      g.recommendedTenantIDsFromHomeSearch=candidates.map(x=>x.id);g.lastStoreHuntWeek=g.week;g.localReputationByPref[prefID]=clamp(n(g.localReputationByPref[prefID])+1.2,0,100);log(`地元を歩き、${candidates.length}件の有望テナントを発見。`);
+    } else if(action==='studyBusiness'){g.founderSkillBusiness=clamp(g.founderSkillBusiness+.035,1,3);g.founderEducationLevel=clamp(g.founderEducationLevel+.8,0,100);log('経営書を読み、経営スキルが上昇。');
+    } else if(action==='studyTech'){g.founderSkillTech=clamp(g.founderSkillTech+.035,1,3);g.founderEducationLevel=clamp(g.founderEducationLevel+.8,0,100);log('技術学習を行い、技術スキルが上昇。');
+    } else if(action==='studyFinance'){g.founderSkillFinance=clamp(g.founderSkillFinance+.035,1,3);g.founderEducationLevel=clamp(g.founderEducationLevel+.8,0,100);log('財務分析を学び、金融スキルが上昇。');
+    } else if(action==='network'){g.founderSkillNegotiation=clamp(g.founderSkillNegotiation+.03,1,3);g.founderNetworkLevel=clamp(g.founderNetworkLevel+1.2,0,100);log('友人・先輩起業家と交流し、人脈と交渉力が上昇。');
     } else if(action==='localEvent'){
       const events=['商店街の空き店舗','地元銀行の相談会','友人の副業案件','先輩起業家の助言','地元メディア'];const e=pick(events);
       if(e==='商店街の空き店舗')return this.founderHomeAction('storeHunt');
@@ -532,7 +531,7 @@ function installExpansion(TycoonEngine){
   TycoonEngine.prototype.personalRealEstateRenewalChance=function(a,ops,strategy){const proposed=Math.round(ops.contractWeeklyRent*(1+strategy.rentChange)),market=Math.max(1,n(a.weeklyRent,ops.contractWeeklyRent)),economy=(clamp(this.g.economy,.7,1.4)-1)*.18,condition=(ops.condition-75)*.004,overMarket=Math.max(0,proposed/market-1)*.9;return {proposed,chance:clamp(.77+economy+condition-overMarket+strategy.acceptanceBonus,.08,.98)};};
   TycoonEngine.prototype.offerPersonalRealEstateRenewal=function(id,strategyID){const a=this.g.personalRealEstateHoldings.find(x=>x.assetID===id&&x.status==='owned'),strategy=PERSONAL_REAL_ESTATE_RENEWAL_STRATEGIES.find(x=>x.id===strategyID);if(!a||!strategy)return false;const view=this.getPersonalRealEstateOperations(id);if(!view?.renewalAvailable)return false;const ops=personalRealEstateOps(a,this.g.week),decision=this.personalRealEstateRenewalChance(a,ops,strategy);ops.renewalStatus=deterministicUnit(a.assetID,ops.leaseEndsWeek,strategy.id,'renewal')<decision.chance?'accepted':'declined';ops.renewalStrategyID=strategy.id;ops.renewalProposedWeeklyRent=decision.proposed;ops.renewalDecisionChance=decision.chance;a.rentalOps=ops;this.notify(`${a.name}の契約更新は${ops.renewalStatus==='accepted'?'合意':'退去予定'}となりました。`,ops.renewalStatus==='accepted'?'success':'warning');this.save();this.emit();return true;};
   TycoonEngine.prototype.repairPersonalRealEstate=function(id){const a=this.g.personalRealEstateHoldings.find(x=>x.assetID===id&&x.status==='owned');if(!a)return false;const view=this.getPersonalRealEstateOperations(id),cost=view?.repairQuote;if(!(cost>0)||this.g.personalCash<cost)return false;const ops=personalRealEstateOps(a,this.g.week);this.g.personalCash-=cost;ops.condition=100;ops.repairExpenseTotal+=cost;ops.operatingExpenseTotal+=cost;ops.noiTotal-=cost;ops.lastOperatingExpense+=cost;ops.lastNOI-=cost;a.rentalOps=ops;this.notify(`${a.name}を修繕しました（${Math.round(cost).toLocaleString()}円）。`,'success');this.save();this.emit();return true;};
-  TycoonEngine.prototype.investFounder=function(kind){const specs={health:[500000,8],education:[800000,6],network:[600000,7],successor:[700000,5],foundation:[5000000,1],lobby:[4000000,1]},s=specs[kind];if(!s||this.g.personalCash<s[0])return this.fail('個人資金が不足しています。');this.g.personalCash-=s[0];if(kind==='health')this.g.founderHealth=clamp(this.g.founderHealth+s[1],0,100);if(kind==='education')this.g.founderEducationLevel=clamp(this.g.founderEducationLevel+s[1],0,100);if(kind==='network')this.g.founderNetworkLevel=clamp(this.g.founderNetworkLevel+s[1],0,100);if(kind==='successor')this.g.successorReadiness=clamp(this.g.successorReadiness+s[1],0,100);if(kind==='foundation'){this.g.foundationEndowment+=s[0];this.g.foundationReputation=clamp(this.g.foundationReputation+s[0]/5000000,0,100);}if(kind==='lobby')this.g.lobbyInfluence=clamp(this.g.lobbyInfluence+s[0]/4000000,0,100);this.save();this.emit();return true;};
+  TycoonEngine.prototype.investFounder=function(kind){const specs={education:[800000,6],network:[600000,7],successor:[700000,5],foundation:[5000000,1],lobby:[4000000,1]},s=specs[kind];if(!s||this.g.personalCash<s[0])return this.fail('個人資金が不足しています。');this.g.personalCash-=s[0];if(kind==='education')this.g.founderEducationLevel=clamp(this.g.founderEducationLevel+s[1],0,100);if(kind==='network')this.g.founderNetworkLevel=clamp(this.g.founderNetworkLevel+s[1],0,100);if(kind==='successor')this.g.successorReadiness=clamp(this.g.successorReadiness+s[1],0,100);if(kind==='foundation'){this.g.foundationEndowment+=s[0];this.g.foundationReputation=clamp(this.g.foundationReputation+s[0]/5000000,0,100);}if(kind==='lobby')this.g.lobbyInfluence=clamp(this.g.lobbyInfluence+s[0]/4000000,0,100);this.save();this.emit();return true;};
 
   TycoonEngine.prototype.refreshSportsMarket=function(){
     const positions=['投手','捕手','内野手','外野手','FW','MF','DF','GK'];const surnames=['佐藤','鈴木','高橋','田中','山本','中村','小林','加藤'];this.g.sportsDraftCandidates=Array.from({length:6},()=>({id:uid(),name:`${pick(surnames)} ${Math.floor(rand(10,99))}`,position:pick(positions),potential:rand(48,92),expectedSalary:rand(8000000,65000000)}));this.g.sportsTradeMarket=Array.from({length:6},()=>({id:uid(),playerName:`${pick(surnames)} ${Math.floor(rand(10,99))}`,position:pick(positions),askingPrice:rand(20000000,180000000),rating:rand(52,90)}));this.g.lastSportsMarketWeek=this.g.week;this.save();this.emit();return true;
@@ -624,7 +623,7 @@ function installExpansion(TycoonEngine){
   TycoonEngine.prototype.executeSuccession=function(){if(!this.g.successorCandidate||this.g.successorCandidate.readiness<70)return this.fail('後継者の準備度70以上が必要です。');this.g.founderGeneration+=1;this.g.founderAge=Math.max(27,Math.floor(rand(30,45)));this.g.playerName=this.g.successorCandidate.name;this.g.founderName=this.g.successorCandidate.name;this.g.serialEntrepreneurHistory.push({week:this.g.week,companyName:this.g.companyName,value:this.companyValue(),generation:this.g.founderGeneration-1});this.g.successorCandidate=null;this.g.successorReadiness=0;this.notify(`第${this.g.founderGeneration}世代へ経営承継しました。`,'success');this.save();this.emit();return true;};
 
   TycoonEngine.prototype.updateFounderExpandedWeekly=function(){
-    const g=this.g;const storeLoad=clamp(g.stores.length/220,0,.6);g.founderHealth=clamp(g.founderHealth-.15-storeLoad,0,100);g.founderEducationLevel=clamp(g.founderEducationLevel-.02,0,100);g.founderNetworkLevel=clamp(g.founderNetworkLevel-.01,0,100);g.founderEnergy=clamp(g.founderEnergy+2,0,100);g.founderFocus=clamp(g.founderFocus+1,0,100);
+    const g=this.g;g.founderEducationLevel=clamp(g.founderEducationLevel-.02,0,100);g.founderNetworkLevel=clamp(g.founderNetworkLevel-.01,0,100);
     if(g.week%4===0)g.personalCash-=g.founderHomeMonthlyCost;
     const value=this.personalNetWorth();const ranks=value>=1e10?'estate':value>=3e9?'executiveResidence':value>=1e9?'mansion':value>=3e8?'luxuryCondo':value>=1e8?'cityApartment':value>=3e7?'liveWorkOffice':value>=1e7?'oneRoom':'familyHome';g.currentFounderHomeRank=ranks;
   };
