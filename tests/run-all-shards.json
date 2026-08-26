@@ -68,7 +68,8 @@
     "tests/convenience-merchandising-test.js",
     "tests/convenience-private-brand-test.js",
     "tests/personal-stock-margin-test.js",
-    "test:player-crisis-turnaround-fund"
+    "test:player-crisis-turnaround-fund",
+    "tests/founder-health-system-removal-test.js"
   ],
   "F": [
     "tests/product-recall-reachability-runner.js",

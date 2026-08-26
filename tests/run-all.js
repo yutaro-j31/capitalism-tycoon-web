@@ -191,6 +191,7 @@ for (const [name, file] of [
   ['stock-trade-panel', 'tests/stock-trade-panel-test.js'],
   ['game-date-display', 'tests/game-date-display-test.js'],
   ['founder-profile-cleanup', 'tests/founder-profile-cleanup-test.js'],
+  ['founder-health-system-removal', 'tests/founder-health-system-removal-test.js'],
   ['investor-offer', 'tests/investor-offer-test.js'],
   ['store-zero-investment-founding', 'tests/store-zero-investment-founding-test.js'],
   ['investment-route-ipo-reachability', 'tests/investment-route-ipo-reachability-test.js'],
