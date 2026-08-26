@@ -102,6 +102,7 @@
     "tests/topbar-title-week-controls-clearance-test.js"
   ],
   "H": [
+    "tests/supply-material-cost-inflation-test.js",
     "tests/stock-trade-panel-test.js",
     "tests/save-storage-compaction-test.js",
     "test:procurement",
