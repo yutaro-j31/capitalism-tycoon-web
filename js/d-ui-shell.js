@@ -22,6 +22,7 @@ const ALL_NAV=[
 ];
 const MARKER_POSITIONS=[[18,23],[43,17],[66,27],[25,47],[54,48],[78,52],[37,70],[64,73],[15,67],[83,31]];
 let selectedEntity;
+let mapDirectoryOpen=null;
 
 const esc=value=>String(value??'').replace(/[&<>'"]/g,char=>({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[char]));
 const finite=value=>Number.isFinite(Number(value))?Number(value):0;
@@ -147,7 +148,13 @@ function renderMapWorkspace(screen,g){
   const chosen=selectedEntity===null?null:entities.find(entity=>entity.id===selectedEntity)||null;
   let directory=screen.querySelector(':scope > .d-map-directory');
   if(!directory){
-    const originals=[...screen.children];directory=document.createElement('details');directory.className='d-map-directory';directory.open=globalThis.innerWidth<960;directory.innerHTML='<summary>出店候補・不動産・オフィス一覧を開く</summary><div class="d-map-directory-body"></div>';
+    // app.js's render() replaces #screen's entire innerHTML on every state change (e.g. a
+    // select inside this directory firing 'change'), so this <details> element itself is
+    // rebuilt from scratch each time -- its own DOM `open` attribute never survives that.
+    // mapDirectoryOpen is a module-level variable (not part of #screen's DOM) that persists
+    // across those rebuilds, so the accordion stays open after the user opens it.
+    const originals=[...screen.children];directory=document.createElement('details');directory.className='d-map-directory';directory.open=mapDirectoryOpen===null?globalThis.innerWidth<960:mapDirectoryOpen;directory.innerHTML='<summary>出店候補・不動産・オフィス一覧を開く</summary><div class="d-map-directory-body"></div>';
+    directory.addEventListener('toggle',()=>{mapDirectoryOpen=directory.open;});
     const body=directory.querySelector('.d-map-directory-body');for(const node of originals)body.appendChild(node);screen.appendChild(directory);
   }
   let workspace=screen.querySelector(':scope > .d-map-workspace');
