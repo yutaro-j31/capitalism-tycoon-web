@@ -520,6 +520,10 @@ function updateStoreSmoothedProfit(g, store) {
   store.smoothedProfit = previous + (finite(store.lastProfit) - previous) / window;
 }
 
+// 閉店時に設備を売却できる割合。closeStore() の実処理と storeClosurePlan() の事前試算が
+// 同じ値を使うよう一元管理する（片方だけ変えると画面の予告と実際の入金がズレるため）。
+const STORE_CLOSURE_SALVAGE_RATE = .15;
+
 class TycoonEngine extends EventTarget {
   constructor(state = null) {
     super();
@@ -848,10 +852,31 @@ class TycoonEngine extends EventTarget {
     this.evaluateProgression(); this.save(); this.emit(); return true;
   }
 
+  // closeStore() を実行したときに何が起きるかを、実行前にUIへ提示するための読み取り専用の試算。
+  // 状態は一切変更しない。closeStore() と同じ STORE_CLOSURE_SALVAGE_RATE / 同じ保証金の扱いを参照する。
+  storeClosurePlan(storeID) {
+    const store=this.g.stores.find(s=>String(s.id)===String(storeID)); if(!store)return null;
+    const business=this.business(store.businessID);
+    const tenant=this.g.tenants.find(t=>t.id===store.tenantID);
+    // 設備は簿価ではなく storeCost に対する固定割合で売却される。
+    const proceeds=Math.floor(Math.max(0,finite(business?.storeCost)*STORE_CLOSURE_SALVAGE_RATE));
+    // 保証金は返還されない。現金は動かず、没収損として損益に落ちる（closeStore() の closeStoreDeposit）。
+    const forfeitedDeposit=Math.max(0,finite(tenant?.deposit));
+    return Object.freeze({
+      storeID:store.id,storeName:store.name||'',status:store.status,
+      businessName:business?.name||store.businessID,prefName:this.pref(store.prefID)?.name||'',
+      salvageRate:STORE_CLOSURE_SALVAGE_RATE,storeCost:finite(business?.storeCost),
+      proceeds,forfeitedDeposit,
+      // 閉店で実際に増える現金は設備売却分のみ。保証金は現金を伴わない損失。
+      netCashChange:proceeds,
+      weeklyProfit:finite(store.lastProfit),weeklySales:finite(store.lastSales)
+    });
+  }
+
   closeStore(id) {
     const index=this.g.stores.findIndex(s=>s.id===id); if(index<0)return false;
     const store=this.g.stores[index]; const tenant=this.g.tenants.find(t=>t.id===store.tenantID),deposit=finite(tenant?.deposit); if(tenant)tenant.occupiedBy=null;
-    const proceeds=(this.business(store.businessID)?.storeCost||0)*.15;
+    const proceeds=(this.business(store.businessID)?.storeCost||0)*STORE_CLOSURE_SALVAGE_RATE;
     this.g.companyCash+=proceeds; workforce.disposeStoreTeam(this.g,store.id); supply.disposeStoreSupply(this.g,store.id,finance); finance.disposeFixedAsset(this.g,store.id,proceeds); if(deposit>0)finance.event(this.g,'assetSale',deposit,{cashEffect:0,assetEffect:-deposit,profitEffect:-deposit,businessID:store.businessID,storeID:store.id,sourceType:'closeStoreDeposit',sourceID:store.id,operationID:`closeStoreDeposit-${store.id}-${this.g.week}`,description:`${store.name} 保証金没収損`}); this.g.stores.splice(index,1); this.notify(`${store.name}を閉店し、${yen(proceeds)}を回収しました。`,'warning');
     this.save();this.emit();return true;
   }

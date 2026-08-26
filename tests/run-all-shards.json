@@ -72,6 +72,7 @@
     "tests/founder-health-system-removal-test.js"
   ],
   "F": [
+    "tests/store-closure-plan-test.js",
     "tests/product-recall-reachability-runner.js",
     "tests/exploration-smoke-test.js",
     "tests/menu-research-test.js",
