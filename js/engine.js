@@ -1031,6 +1031,32 @@ class TycoonEngine extends EventTarget {
   dismissExecutive(role) {
     const e=this.g.executives[role];if(!e)return false;delete this.g.executives[role];this.notify(`${e.name}が退任しました。`,'warning');this.save();this.emit();return true;
   }
+  // 重役への業務委任（Coffee Inc 2化）。現時点で委任先の実処理を持つのはCFOのみ
+  // （資本配分方針のしきい値是正返済・経理部門の逼迫時採用）。新規の判断ロジックを
+  // 増やすのではなく、既にプレイヤーが手動実行できる resharing 済みの機能
+  // （executeCapitalAllocationThresholdDebtAction / hireDepartmentStaff）を
+  // 自動実行するだけなので、CFOの判断結果がプレイヤーの手動実行と食い違うことはない。
+  toggleExecutiveDelegation(role) {
+    const e=this.g.executives[role]; if(!e)return this.fail('該当の重役が在籍していません。');
+    e.delegated=!e.delegated;
+    this.notify(`${e.name}（${role}）への業務委任を${e.delegated?'有効':'無効'}にしました。`,e.delegated?'success':'info');
+    this.save();this.emit();return true;
+  }
+  processExecutiveDelegation() {
+    const cfo=this.g.executives.CFO; if(!cfo?.delegated)return;
+    if(this.g.publicCompany){
+      const preview=this.capitalAllocationThresholdDebtActionPreview?.();
+      if(preview?.canExecute)this.executeCapitalAllocationThresholdDebtAction?.(preview.policy);
+    }
+    if(this.g.departments.accounting){
+      const result=this.g.workforceResultsByDepartmentID?.accounting;
+      const hireCost=300000,reserve=8_000_000;
+      const usedCapacity=Object.values(this.g.departmentStaff).reduce((a,x)=>a+x,0)+Object.keys(this.g.executives).length;
+      if(result&&finite(result.utilization)>1&&this.g.companyCash>hireCost+reserve&&usedCapacity+1<=this.g.officeCapacity){
+        this.hireDepartmentStaff('accounting',1);
+      }
+    }
+  }
   establishBoard() {
     if(this.g.boardEstablished)return false;if(!this.g.executives.CEO||!this.g.executives.CFO)return this.fail('CEOとCFOが必要です。');
     if(this.g.companyCash<5_000_000)return this.fail('取締役会設置費500万円が必要です。');
@@ -1756,7 +1782,7 @@ class TycoonEngine extends EventTarget {
     this.recordHistory(sales,profit);this.evaluateProgression();this.generateRecurringEvents();
     if(this.g.companyCash<0){this.g.consecutiveNegativeCashWeeks=finite(this.g.consecutiveNegativeCashWeeks)+1;if(this.g.consecutiveNegativeCashWeeks>=2){this.g.gameOver=true;this.g.gameOverReason='会社現金が2週連続でマイナスになりました。';}}else this.g.consecutiveNegativeCashWeeks=0;
     const summary={...report,companyCash:this.g.companyCash,companyValue:this.companyValue(),personalNetWorth:this.personalNetWorth(),newNews:this.g.news.slice(0,5)};this.g.lastWeeklySummary=summary;
-    if (!this.inTransaction()) { this.normalize(); this.save(); this.emit('week',{summary:showSummary?summary:null}); }
+    if (!this.inTransaction()) { this.normalize(); this.save(); this.emit('week',{summary:showSummary?summary:null}); this.processExecutiveDelegation(); }
     return true;
   }
 
