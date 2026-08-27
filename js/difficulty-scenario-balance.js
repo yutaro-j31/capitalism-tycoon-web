@@ -9,7 +9,7 @@ if(!modules.engine.TycoonEngine.prototype.__completionInstalled||!modules.engine
 if(modules.difficultyScenarioBalance)throw new Error('difficulty scenario balance module is already registered.');
 const EngineClass=modules.engine.TycoonEngine,finance=modules.finance;
 const VERSION=1,STANDARD_TARGET_WEEK=208,HISTORY_LIMIT=24,LEGACY_BASE_CASH=8000000;
-const EASY_DEMAND_VERSION=1,EASY_DEMAND_MULTIPLIER=1.1,WEEKLY_CASH_ROUNDING_LIMIT=.05,ROUNDING_HISTORY_LIMIT=52,ROUNDING_ADJUSTMENT_PER_52_WEEKS=1,HARD_IPO_ANNUAL_PROFIT=25000000;
+const EASY_DEMAND_VERSION=1,EASY_DEMAND_MULTIPLIER=1.1,WEEKLY_CASH_ROUNDING_LIMIT=.05,ROUNDING_HISTORY_LIMIT=52,ROUNDING_ADJUSTMENT_PER_52_WEEKS=1,HARD_IPO_ANNUAL_PROFIT=20000000;
 const WARNING_WEEKS=Object.freeze([52,104,156,196,208]);
 const DIFFICULTY_PROFILES=Object.freeze({easy:Object.freeze({id:'easy',label:'やさしい',startingCash:12000000,startingCredit:70,crisisGraceWeeks:4}),normal:Object.freeze({id:'normal',label:'標準',startingCash:8000000,startingCredit:60,crisisGraceWeeks:3}),hard:Object.freeze({id:'hard',label:'ハード',startingCash:6000000,startingCredit:50,crisisGraceWeeks:2})});
 const SCENARIO_PROFILES=Object.freeze({free:Object.freeze({id:'free',label:'自由プレイ',targetIPOWeek:null}),standard:Object.freeze({id:'standard',label:'標準シナリオ',targetIPOWeek:STANDARD_TARGET_WEEK})});
@@ -107,7 +107,7 @@ const baseAdvanceWeek=EngineClass.prototype.advanceWeek;EngineClass.prototype.ad
 // Slow-opening routes could therefore land in a later favorable macro regime and reach the same 1,000万円
 // IPO profit gate before Normal. Keep Hard meaningfully harder through listing readiness without touching
 // operating demand, shared RNG, accounting, or the Easy/Normal contracts.
-const baseIPOMissingReasons=EngineClass.prototype.ipoMissingReasons;if(typeof baseIPOMissingReasons==='function')EngineClass.prototype.ipoMissingReasons=function(){let reasons=baseIPOMissingReasons.call(this);if(difficultyProfile(this.g?.difficulty).id!=='hard')return reasons;const annualProfit=(Array.isArray(this.g?.reports)?this.g.reports:[]).slice(-52).reduce((sum,row)=>sum+finite(row?.profit),0);if(annualProfit>=HARD_IPO_ANNUAL_PROFIT)return reasons;reasons=reasons.filter(reason=>reason!=='直近52週利益1,000万円');return [...reasons,'Hard：直近52週利益2,500万円'];};
+const baseIPOMissingReasons=EngineClass.prototype.ipoMissingReasons;if(typeof baseIPOMissingReasons==='function')EngineClass.prototype.ipoMissingReasons=function(){let reasons=baseIPOMissingReasons.call(this);if(difficultyProfile(this.g?.difficulty).id!=='hard')return reasons;const annualProfit=(Array.isArray(this.g?.reports)?this.g.reports:[]).slice(-52).reduce((sum,row)=>sum+finite(row?.profit),0);if(annualProfit>=HARD_IPO_ANNUAL_PROFIT)return reasons;reasons=reasons.filter(reason=>reason!=='直近52週利益1,000万円');return [...reasons,'Hard：直近52週利益2,000万円'];};
 const baseExecuteIPO=EngineClass.prototype.executeIPO;if(typeof baseExecuteIPO==='function')EngineClass.prototype.executeIPO=function(...args){return this.runTransaction(()=>{const result=baseExecuteIPO.apply(this,args);if(result)evaluate(this.g);return result;});};
 EngineClass.prototype.__difficultyScenarioBalanceInstalled=true;
 const activeEngine=modules.playerEngineBridge.getEngine();if(activeEngine){reconcileOpeningFinance(activeEngine.g);applyEasyDemand(activeEngine.g);ensure(activeEngine.g);ensureRoundingAudit(activeEngine.g);}
