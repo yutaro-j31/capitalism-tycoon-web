@@ -1,0 +1,13 @@
+/* Original, deterministic SVG scenery layered above the legacy map blocks. */
+.d-iso-city{position:absolute;inset:0;z-index:3;width:100%;height:100%;overflow:visible;pointer-events:none}
+.d-iso-building{stroke:hsla(var(--d-iso-hue),38%,22%,.62);stroke-width:1;stroke-linejoin:round}
+.d-iso-top{fill:hsl(var(--d-iso-hue),52%,76%)}
+.d-iso-left{fill:hsl(var(--d-iso-hue),45%,55%)}
+.d-iso-right{fill:hsl(var(--d-iso-hue),45%,39%)}
+.d-iso-window{stroke:rgba(232,248,255,.72);stroke-width:2;stroke-linecap:round}
+.d-iso-park{fill:#6d9b65;stroke:#b8c987;stroke-width:3}
+.d-iso-tree rect{fill:#704c32}.d-iso-tree circle{fill:#3f7c4d;stroke:#87af70;stroke-width:1}
+.d-iso-bridge{fill:#c5b28d;stroke:#5a4938;stroke-width:4}.d-iso-bridge rect{stroke-width:2}.d-iso-bridge path{fill:none}.d-iso-bridge line{stroke-width:5}
+.d-iso-car{fill:#e9b64d;stroke:#3d4650;stroke-width:1}.d-iso-car:nth-of-type(even){fill:#b9473f}
+@media(max-width:820px){.d-iso-building{stroke-width:1.5}.d-iso-window{stroke-width:2.5}.d-iso-tree:nth-of-type(even){display:none}}
+@media(forced-colors:active){.d-iso-city{opacity:.45}.d-iso-building,.d-iso-bridge,.d-iso-car{fill:CanvasText;stroke:Canvas}}
