@@ -260,7 +260,8 @@ const nodeTests = [
   ['supply-material-cost-inflation', 'tests/supply-material-cost-inflation-test.js'],
   ['store-closure-plan', 'tests/store-closure-plan-test.js'],
   ['department-closure-plan', 'tests/department-closure-plan-test.js'],
-  ['executive-delegation', 'tests/executive-delegation-test.js']
+  ['executive-delegation', 'tests/executive-delegation-test.js'],
+  ['customer-review-breakdown', 'tests/customer-review-breakdown-test.js']
 ];
 
 for (let i = 0; i < nodeTests.length; i++) {
