@@ -54,6 +54,23 @@
   docs/DEVELOPMENT_ROADMAP.md は2026-07時点の旧計画（saveVersion 8時代の
   Phase 0〜9構想）で退役済み。現状の参照先ではない
 
+# UIリスキン（D UI shell拡張）の方針
+- D UI shell（js/d-ui-shell.js / js/d-ui-context-tabs.js）を全画面共通の
+  最終的な見た目として採用し、画面単位で1PRずつ拡張する
+  （新しいデザイン言語を発明しない。参考にした他社ゲームの実際の
+  イラスト・アセットはトレース・複製しない。真似るのはレイアウト・
+  操作の流儀だけで、絵はすべてオリジナルにする）
+- 新しい見た目のCSSは css/d-ui-*.css の新規または既存ファイルにだけ書く。
+  css/app.css は触らない（tests/fixtures/extracted-css-baseline.css と
+  バイト一致必須）。例外は既存の --accent/--good/--warn/--danger 未定義変数の修正のみ
+- external enhancer registrations は79/79で上限に到達済み
+  （tests/startup-runtime-budget-test.js）。むやみに新しい registerUIEnhancer() を
+  増やさない。既存の 'd-ui-shell'/'d-ui-context-tabs' フックの enhance() を拡張するか、
+  マーカー選択・ドリルダウンのような動的な後処理が不要な画面は
+  app.js側のテンプレート文字列に d- プレフィックスのクラスを直接足すだけで
+  リスキンする（新規JSエンハンサーなし）
+- 進捗・技術的制約・Phase順序は docs/ui-redesign-roadmap.md で管理する
+
 # 創業ルート実装時の必須検証
 - 店舗経営ルートの既存到達性を壊さない。通常難易度で店舗創業から本社・多角化・IPOへ
   到達できる既存の進行テストを維持する
