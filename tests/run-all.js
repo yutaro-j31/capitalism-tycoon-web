@@ -51,6 +51,7 @@ const nodeTests = [
   ['convertible-bonds-dilution', 'tests/convertible-bonds-dilution-test.js'],
   ['corporate-bonds-ratings', 'tests/corporate-bonds-ratings-test.js'],
   ['d-ui-reference-fidelity', 'tests/d-ui-reference-fidelity-test.js'],
+  ['d-ui-map-detail', 'tests/d-ui-map-detail-test.js'],
   ['d-ui-shell', 'tests/d-ui-shell-test.js'],
   ['deterministic-economic-foundation', 'tests/deterministic-economic-foundation-test.js'],
   ['executive-dismissal-governance', 'tests/executive-dismissal-governance-test.js'],

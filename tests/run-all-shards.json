@@ -105,7 +105,8 @@
     "tests/real-estate-price-negotiation-test.js",
     "tests/product-invested-cost-test.js",
     "tests/quarterly-tax-accrual-test.js",
-    "tests/topbar-title-week-controls-clearance-test.js"
+    "tests/topbar-title-week-controls-clearance-test.js",
+    "tests/d-ui-map-detail-test.js"
   ],
   "H": [
     "tests/supply-material-cost-inflation-test.js",
