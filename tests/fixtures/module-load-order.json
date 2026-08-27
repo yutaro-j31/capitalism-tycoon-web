@@ -118,6 +118,7 @@
     "./js/real-estate-property-taxes.js",
     "./js/real-estate-mortgage-refinancing.js",
     "./js/real-estate-property-disposals.js",
+    "./js/real-estate-price-negotiation.js",
     "./js/real-estate-redevelopment-projects.js",
     "./js/real-estate-property-management.js",
     "./js/real-estate-property-maintenance.js",

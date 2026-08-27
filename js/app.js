@@ -207,7 +207,7 @@ function renderMap() {
     ${card(`${pref.name}のテナント`,tenants.map(t=>{const b=engine.business(t.businessID);const foundingID=foundingBusinessID(ui.selectedBusiness);return `<article class="item ${t.occupiedBy?'disabled':''}"><div><h3>${esc(t.name)}</h3><p>${b?.name||''}向け · ${t.size} · 交通量${t.traffic.toFixed(2)}</p></div><div class="item-metrics"><span>家賃 ${yen(t.rent)}/週</span><span>保証金 ${yen(t.deposit)}</span></div>${t.occupiedBy?badge(t.occupiedBy==='player'?'使用中':'競合使用中','warn'):`<div class="inline-form"><select id="business-${t.id}" data-bind="selectedBusiness">${businessOpts(foundableBusinesses(g),foundingID)}</select>${btn('出店','open-store',{kind:'primary small',data:`data-id="${t.id}"`})}</div>${storeOpeningEstimate(t.id,foundingID)}`}</article>`}).join('')||empty('空きテナントなし'))}
     ${card(`${pref.name}のオフィス`,offices.map(o=>{const branch=g.branchOffices.find(x=>x.officeID===o.id);return `<article class="item"><div><h3>${esc(o.name)} ${badge(o.grade)}</h3><p>定員${o.capacity}名 · 威信${o.prestige} · DX補正${pct(o.dxBonus)}</p></div><div class="item-metrics"><span>週額 ${yen(o.rent)}</span><span>保証金 ${yen(o.deposit)}</span></div>${o.id===g.contractedOfficeID?badge('本社','good'):branch?badge('支社契約中','good'):g.hasHeadOffice?btn('支社契約','contract-branch-office',{kind:'secondary small',data:`data-id="${o.id}"`}):btn('本社契約','contract-office',{kind:'secondary small',data:`data-id="${o.id}"`})}</article>`}).join(''))}
   </div>
-  ${card(`${pref.name}の不動産`,properties.map(p=>`<article class="item"><div><h3>${esc(p.name)}</h3><p>${p.kind} · ${num(p.landAreaSqm)}㎡ · 想定利回り${pct(p.yieldRate)}</p></div><div class="item-metrics"><span>価格 ${compactYen(p.price)}</span><span>週次賃料 ${yen(p.rentIncome)}</span></div>${p.owner?`${badge(p.owner==='company'?'会社保有':'個人保有','good')}${btn('売却','sell-property',{kind:'ghost small',data:`data-id="${p.id}"`})}`:`<div class="button-row">${btn('会社で購入','buy-property-company',{kind:'secondary small',data:`data-id="${p.id}"`})}${btn('個人で購入','buy-property-personal',{kind:'ghost small',data:`data-id="${p.id}"`})}</div>`}</article>`).join(''),{className:'wide'})}`;
+  ${card(`${pref.name}の不動産`,properties.map(p=>`<article class="item"><div><h3>${esc(p.name)}</h3><p>${p.kind} · ${num(p.landAreaSqm)}㎡ · 想定利回り${pct(p.yieldRate)}</p></div><div class="item-metrics"><span>価格 ${compactYen(p.price)}</span><span>週次賃料 ${yen(p.rentIncome)}</span></div>${p.owner?`${badge(p.owner==='company'?'会社保有':'個人保有','good')}${btn('売却','sell-property',{kind:'ghost small',data:`data-id="${p.id}"`})}`:`<div class="button-row">${btn('会社で購入','buy-property-company',{kind:'secondary small',data:`data-id="${p.id}"`})}${btn('個人で購入','buy-property-personal',{kind:'ghost small',data:`data-id="${p.id}"`})}${btn('会社で価格交渉','negotiate-property-company',{kind:'ghost small',data:`data-id="${p.id}"`})}${btn('個人で価格交渉','negotiate-property-personal',{kind:'ghost small',data:`data-id="${p.id}"`})}</div>`}</article>`).join(''),{className:'wide'})}`;
 }
 
 // 詳細シミュレーション対象かどうかを業種カードにも出す。対象システムを個別に並べるので、
@@ -760,6 +760,20 @@ function confirmCloseDepartment(id){
   modal(`<h2>部門閉鎖の最終確認</h2><p>${esc(c.name)}を閉鎖します。</p>${c.severance>0?badge('退職金の支払いが発生します','danger'):''}<div class="kpi-grid mini">${stat('在籍人員',`${c.headcount}名`)}${stat('退職金',compactYen(c.severance))}${stat('週次費の削減',compactYen(c.weeklyCost))}</div>${campaignNote}<p class="hint">閉鎖するとこの部門が解放していた機能は再び利用できなくなります。再設置には設置費が再度かかります。</p><div class="modal-actions">${btn('キャンセル','close-modal',{kind:'ghost'})}<button class="btn danger" id="modal-ok">閉鎖する</button></div>`);
   $('#modal-ok').onclick=()=>{closeModal();engine.closeDepartment(id);};
 }
+// 不動産の価格交渉。掲示価格に対する提示率ごとの提示額・合意確率目安を
+// engine.propertyPriceNegotiationOffers() の試算からそのまま表示する（新しい計算はしない）。
+// 決裂した場合のクールダウン週数は js/real-estate-price-negotiation.js の
+// DECLINE_COOLDOWN_WEEKS を参照し、UI側で数値を重複定義しない。
+function confirmPropertyNegotiation(id,owner){
+  const p=engine.g.properties.find(x=>x.id===id);
+  if(!p)return;
+  const offers=engine.propertyPriceNegotiationOffers?.(id)||[];
+  const cooldown=__modules.realEstatePriceNegotiation?.DECLINE_COOLDOWN_WEEKS||0;
+  const ownerLabel=owner==='company'?'会社':'個人';
+  const cashKey=owner==='company'?'companyCash':'personalCash';
+  const rows=offers.length?offers.map(o=>`<div class="item"><div><strong>掲示価格の${Math.round(o.ratio*100)}%で提示</strong><p>提示額 ${yen(o.offerPrice)} · 合意確率目安 ${Math.round(o.acceptanceChance*100)}%</p></div>${btn('この額で交渉','negotiate-property-price',{kind:'secondary small',data:`data-id="${esc(p.id)}" data-kind="${owner}:${o.ratio}"`,disabled:engine.g[cashKey]<o.offerPrice})}</div>`).join(''):`<p class="muted">前回の交渉決裂から間もないため、まだ再交渉できません。</p>`;
+  modal(`<h2>${esc(p.name)}の価格交渉（${ownerLabel}）</h2><p>掲示価格${yen(p.price)}より安く提示します。提示額が低いほど決裂しやすくなります。</p>${rows}<p class="hint">決裂すると${cooldown}週間はこの物件に再交渉できません（掲示価格での即時購入は引き続き可能です）。</p><div class="modal-actions">${btn('閉じる','close-modal',{kind:'ghost'})}</div>`);
+}
 
 function action(name,el){const id=el.dataset.id,kind=el.dataset.kind;
   switch(name){
@@ -768,7 +782,7 @@ function action(name,el){const id=el.dataset.id,kind=el.dataset.kind;
     case 'close-modal':closeModal();break;
     case 'open-store':{const businessID=$(`#business-${id}`).value;confirmOpenStore(id,businessID);break;}
     case 'contract-office':engine.contractOffice(id);break;case 'contract-branch-office':engine.contractBranchOffice(id);break;case 'close-branch-office':engine.closeBranchOffice(id);break;case 'cancel-office':confirmModal('オフィス契約解除','部門やCXOがいる場合は解除できません。','confirm-cancel-office');break;case 'confirm-cancel-office':engine.cancelOffice();closeModal();break;
-    case 'buy-property-company':engine.buyProperty(id,'company');break;case 'buy-property-personal':engine.buyProperty(id,'personal');break;case 'sell-property':engine.sellProperty(id);break;
+    case 'buy-property-company':engine.buyProperty(id,'company');break;case 'buy-property-personal':engine.buyProperty(id,'personal');break;case 'sell-property':engine.sellProperty(id);break;case 'negotiate-property-company':confirmPropertyNegotiation(id,'company');break;case 'negotiate-property-personal':confirmPropertyNegotiation(id,'personal');break;case 'negotiate-property-price':{const [owner,ratio]=kind.split(':');closeModal();engine.negotiatePropertyPrice(id,owner,Number(ratio));break;}
     case 'build-property':askText('土地開発','建物種別','本社ビル',v=>engine.buildOnLand(id,v));break;
     case 'business-invest':askMoney('事業投資',1000000,v=>engine.investBusiness(id,kind,v));break;case 'business-price':askMoney('価格変更',engine.business(id)?.price||1000,v=>engine.adjustPrice(id,v));break;case 'set-merchandising-policy':engine.changeMerchandisingPolicy(kind);break;case 'start-private-brand-development':engine.startConveniencePrivateBrandDevelopment();break;case 'set-private-brand-share':engine.changeConveniencePrivateBrandShare(Number(kind));break;case 'set-brokerage-focus':engine.changeBrokerageFocus(kind);break;case 'set-gym-membership-strategy':engine.setGymMembershipStrategy(id,kind);break;
     case 'start-franchise':engine.startFranchise(id);break;case 'recruit-franchise':askMoney('加盟店募集数',1,v=>engine.recruitFranchise(id,Math.max(1,Math.floor(v))));break;
