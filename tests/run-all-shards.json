@@ -74,6 +74,7 @@
   "F": [
     "tests/store-closure-plan-test.js",
     "tests/department-closure-plan-test.js",
+    "tests/executive-delegation-test.js",
     "tests/product-recall-reachability-runner.js",
     "tests/exploration-smoke-test.js",
     "tests/menu-research-test.js",

@@ -470,6 +470,28 @@ Manus や ChatGPT など他のツールで考えた案を持ち込む運用が�
   `corporatePayrollCohorts`が積み上がった状態でも予告と実際の支払いが
   ズレないことをテストで確認済み。
 
+### R11. Coffee Inc 2化 item 3の1本目 — 重役への業務委任トグル（2026-08-27）
+
+- **要望**: CI2のCFO画面には、銀行融資・新株発行・経理部門管理などの個別業務を
+  CFOに任せるかプレイヤー自身が判断するかのトグルが並んでいる。これを移植したい。
+- **実装方針**: 新しい判断ロジックを発明せず、既にプレイヤーが手動実行できる
+  機能を委任オン時に自動実行するだけに留めた（CLAUDE.mdの「既存の行動に、
+  意味のあるトレードオフを追加する」方針）。
+  - 銀行融資管理 → `engine.executeCapitalAllocationThresholdDebtAction()`
+    （既存の資本配分方針しきい値是正返済）を、`capitalAllocationThresholdDebtActionPreview().canExecute`
+    が真の週だけ自動実行
+  - 経理部門管理 → `engine.hireDepartmentStaff('accounting',1)`を、
+    accounting部門のutilizationが1を超え、資金に余裕がある週だけ自動実行
+  - **新株発行は対象外**: 会社側にはIPO以外で新株を発行して希薄化資金調達する
+    手動機能がそもそも存在しない。存在しない機能を委任トグルの対象にはできない
+    （委任は「既存の手動操作を代行する」ものであり、新しい資金調達手段を
+    発明するのは別の独立した機能追加になる）。ゲームとして必要になった時点で
+    別PRとして検討する
+- **実装**: `Engine.prototype.toggleExecutiveDelegation(role)`・
+  `processExecutiveDelegation()`（`advanceWeek()`末尾から呼び出し、
+  委任オフならstrict no-op）。UIはCFOの在籍カードにのみ「業務委任する」
+  トグルを表示（他の役職は委任先の実処理がまだ無いため意図的に非表示）。
+
 ---
 
 ## 着手順の見立て（2026-08-19 更新、R6のメニューR&Dまで反映）
