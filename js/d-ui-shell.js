@@ -145,26 +145,24 @@ function missionRows(g){
 function missionValue(value,kind){return kind==='money'?money(value):`${Math.max(0,Math.round(finite(value))).toLocaleString('ja-JP')}件`;}
 function isoCityBuildingsSVG(g){
   const prefID=g?.selectedPref||g?.founderHomePrefID||'national';
-  const zones=[
-    {name:'office',count:9,x:185,y:235,cols:3,spacingX:80,spacingY:54,hue:210,minHeight:82,heightSpan:72,width:42,depth:18},
-    {name:'mixed',count:9,x:470,y:260,cols:3,spacingX:74,spacingY:51,hue:38,minHeight:48,heightSpan:42,width:40,depth:17},
-    {name:'residential',count:9,x:695,y:286,cols:3,spacingX:68,spacingY:48,hue:26,minHeight:28,heightSpan:28,width:38,depth:16}
-  ];
-  const buildings=zones.flatMap(zone=>Array.from({length:zone.count},(_,index)=>{
-    const seed=hash(`${prefID}:iso-building:${zone.name}:${index}`);
+  // Mirror the immutable legacy block coordinates in this later SVG layer so each old grey
+  // silhouette receives a coloured isometric facade without hiding or changing the old DOM.
+  const legacyCoverage=Array.from({length:34},(_,index)=>{
+    const legacyX=7+(index*17)%84,legacyY=12+(index*23)%68,legacyHeight=18+(index*13)%58;
+    const zone=legacyX<38?{name:'office',hue:210,lift:58,width:46,depth:20}:legacyX<67?{name:'mixed',hue:38,lift:30,width:43,depth:18}:{name:'residential',hue:26,lift:10,width:40,depth:16};
+    const seed=hash(`${prefID}:iso-legacy-cover:${zone.name}:${index}`);
     const width=zone.width+(seed%7)-3;const depth=zone.depth+((seed>>>4)%5)-2;
-    const height=zone.minHeight+((seed>>>8)%zone.heightSpan);const hue=zone.hue+((seed>>>15)%9)-4;
-    const x=zone.x+(index%zone.cols)*zone.spacingX+((seed>>>19)%17)-8;
-    const y=zone.y+Math.floor(index/zone.cols)*zone.spacingY+((seed>>>23)%13)-6;
+    const height=legacyHeight+zone.lift+((seed>>>8)%9);const hue=zone.hue+((seed>>>15)%9)-4;
+    const x=legacyX*10+10;const y=legacyY*6+legacyHeight+8;
     const windows=2+((seed>>>27)%3);const topY=y-height;
     const windowLines=Array.from({length:windows},(_,windowIndex)=>{
       const lineY=topY+height*((windowIndex+1)/(windows+1));
       return `<line class="d-iso-window" x1="${x-width/2+6}" y1="${lineY}" x2="${x-2}" y2="${lineY+depth/2-2}"/><line class="d-iso-window" x1="${x+2}" y1="${lineY+depth/2-2}" x2="${x+width/2-6}" y2="${lineY}"/>`;
     }).join('');
-    return `<g class="d-iso-building d-iso-${zone.name}" style="--d-iso-hue:${hue}"><polygon class="d-iso-left" points="${x-width/2},${topY} ${x},${topY+depth/2} ${x},${y+depth/2} ${x-width/2},${y}"/><polygon class="d-iso-right" points="${x},${topY+depth/2} ${x+width/2},${topY} ${x+width/2},${y} ${x},${y+depth/2}"/><polygon class="d-iso-top" points="${x-width/2},${topY} ${x},${topY-depth/2} ${x+width/2},${topY} ${x},${topY+depth/2}"/>${windowLines}</g>`;
-  })).join('');
+    return `<g class="d-iso-building d-iso-legacy-cover d-iso-${zone.name}" style="--d-iso-hue:${hue}"><polygon class="d-iso-left" points="${x-width/2},${topY} ${x},${topY+depth/2} ${x},${y+depth/2} ${x-width/2},${y}"/><polygon class="d-iso-right" points="${x},${topY+depth/2} ${x+width/2},${topY} ${x+width/2},${y} ${x},${y+depth/2}"/><polygon class="d-iso-top" points="${x-width/2},${topY} ${x},${topY-depth/2} ${x+width/2},${topY} ${x},${topY+depth/2}"/>${windowLines}</g>`;
+  }).join('');
   const cars=Array.from({length:7},(_,index)=>{const seed=hash(`${prefID}:iso-car:${index}`);const x=105+(seed%760),y=390+((seed>>>10)%125);return `<g class="d-iso-car" transform="translate(${x} ${y})"><rect width="18" height="7" rx="2"/><rect x="5" y="-4" width="9" height="5" rx="1"/></g>`;}).join('');
-  return `<svg class="d-iso-city" viewBox="0 0 1000 600" preserveAspectRatio="none" aria-hidden="true"><g class="d-iso-parks"><path class="d-iso-park" d="M72 292l92-42 76 37-93 44zM730 442l91-42 67 33-91 43z"/>${[[112,281],[151,294],[188,279],[766,430],[805,444],[845,426]].map(([x,y])=>`<g class="d-iso-tree" transform="translate(${x} ${y})"><rect x="-2" y="4" width="4" height="12"/><circle cy="1" r="9"/><circle cx="-6" cy="4" r="6"/><circle cx="6" cy="4" r="6"/></g>`).join('')}</g>${buildings}<g class="d-iso-bridge"><rect x="22" y="483" width="250" height="10" rx="3"/><path d="M45 483V440M247 483V440M45 446Q146 506 247 446M45 446Q146 420 247 446"/><line x1="45" y1="440" x2="45" y2="505"/><line x1="247" y1="440" x2="247" y2="505"/></g>${cars}</svg>`;
+  return `<svg class="d-iso-city" viewBox="0 0 1000 600" preserveAspectRatio="none" aria-hidden="true"><g class="d-iso-parks"><path class="d-iso-park" d="M72 292l92-42 76 37-93 44zM730 442l91-42 67 33-91 43z"/>${[[112,281],[151,294],[188,279],[766,430],[805,444],[845,426]].map(([x,y])=>`<g class="d-iso-tree" transform="translate(${x} ${y})"><rect x="-2" y="4" width="4" height="12"/><circle cy="1" r="9"/><circle cx="-6" cy="4" r="6"/><circle cx="6" cy="4" r="6"/></g>`).join('')}</g>${legacyCoverage}<g class="d-iso-bridge"><rect x="22" y="483" width="250" height="10" rx="3"/><path d="M45 483V440M247 483V440M45 446Q146 506 247 446M45 446Q146 420 247 446"/><line x1="45" y1="440" x2="45" y2="505"/><line x1="247" y1="440" x2="247" y2="505"/></g>${cars}</svg>`;
 }
 function renderMapWorkspace(screen,g){
   const entities=mapEntities(g,screen);if(selectedEntity===undefined||(selectedEntity!==null&&!entities.some(entity=>entity.id===selectedEntity)))selectedEntity=entities[0]?.id||null;

@@ -18,6 +18,10 @@ for (const className of ['d-iso-city', 'd-iso-top', 'd-iso-left', 'd-iso-right',
   assert.ok(helper.includes(className), `${className} is emitted by the SVG renderer`);
 }
 assert.match(helper, /aria-hidden="true"/, 'decorative SVG is hidden from assistive technology');
+assert.match(helper, /const legacyCoverage=Array\.from\(\{length:34\}/, 'SVG creates one presentation facade for every legacy block position');
+assert.match(helper, /legacyX=7\+\(index\*17\)%84,legacyY=12\+\(index\*23\)%68,legacyHeight=18\+\(index\*13\)%58/, 'coverage mirrors the immutable legacy layout formula');
+assert.ok(helper.includes('d-iso-legacy-cover'), 'legacy-position facades have an explicit coverage class');
+assert.ok(helper.includes('${legacyCoverage}'), 'legacy-position facades are inserted into the SVG layer');
 
 assert.match(shell, /Array\.from\(\{length:34\}/, 'legacy 34-block generation remains present');
 assert.match(shell, /<div class="d-city-blocks">\$\{blocks\}<\/div>\$\{isoCityBuildingsSVG\(g\)\}\$\{positions/, 'SVG is inserted after legacy blocks and before map markers');
