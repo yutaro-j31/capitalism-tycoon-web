@@ -50,6 +50,29 @@ assert.match(script, /registerUIEnhancer\(\{id:'d-ui-context-tabs'/, 'context ta
 assert.match(shell, /registerUIEnhancer\(\{id:'d-ui-shell'/, 'D UI shell must use the central ordered enhancer pipeline');
 assert.doesNotMatch(script, /new MutationObserver|queueMicrotask|function schedule\(/, 'context tabs must not create an observer-driven rerender loop');
 assert.doesNotMatch(shell, /new MutationObserver|queueMicrotask|function schedule\(/, 'D UI shell must not create an observer-driven rerender loop');
+
+assert.match(script, /const NEWS_SECTIONS=Object\.freeze\(\[\['top','トップ'\],\['retail','小売'\],\['management','経営'\],\['stock','株式市場'\],\['politics','政治'\],\['sports','スポーツ'\]\]\)/, 'newspaper must expose the six approved section tabs');
+assert.match(script, /function newspaperArticles\(g,category\)[\s\S]*article\?\.category!==category/, 'newspaper sections must reuse existing structured weekly article categories');
+assert.match(script, /function retailNewsContent[\s\S]*newspaperArticles\(g,'競合'\)/, 'retail section must reuse the existing competitor newspaper category');
+assert.match(script, /function retailNewsContent[\s\S]*supplyChainEvents/, 'retail section must reuse existing supply events');
+assert.match(script, /function retailNewsContent[\s\S]*competitorEventLog/, 'retail section must reuse existing competitor event logs');
+assert.match(script, /function managementNewsContent[\s\S]*newspaperArticles\(g,'企業'\)/, 'management section must reuse the existing corporate newspaper category');
+assert.match(script, /function managementNewsContent[\s\S]*mediaActionLog[\s\S]*employeeComplaintLog[\s\S]*keyPersonnelEventLog/, 'management section must reuse existing management logs');
+assert.match(script, /stockNewsContent[\s\S]*shareholderEventLog[\s\S]*earningsEventLog/, 'stock section must reuse existing shareholder and earnings logs');
+assert.match(script, /function politicsNewsContent[\s\S]*newspaperArticles\(g,'市場'\)/, 'politics section must reuse the existing market newspaper category');
+assert.match(script, /function politicsNewsContent[\s\S]*macroHistory/, 'politics section must reuse existing macro history');
+assert.match(script, /function politicsNewsContent[\s\S]*industryEventHistory/, 'politics section must reuse existing industry event history');
+assert.match(script, /function politicsNewsContent[\s\S]*policyRate/, 'politics section must read the existing policy rate state');
+assert.match(script, /sportsNewsContent[\s\S]*sportsTeams[\s\S]*roster[\s\S]*sportsSaleOffers/, 'sports section must derive display-only news from existing sports state');
+assert.match(script, /aria-label="新聞の面"/, 'newspaper tabs must expose an accessible tablist label');
+assert.match(script, /aria-controls="d-news-section-panel"/, 'newspaper tabs must reference one tabpanel');
+assert.match(script, /data-d-news-section=/, 'newspaper tab buttons must expose a stable action target');
+assert.match(script, /function handleClick\(event\)[\s\S]*selectNews\(newsButton\.dataset\.dNewsSection,true\)/, 'newspaper tabs must be reachable from the existing delegated click handler');
+assert.match(script, /function handleKeydown\(event\)[\s\S]*NEWS_SECTIONS[\s\S]*ArrowRight[\s\S]*ArrowLeft[\s\S]*Home[\s\S]*End/, 'newspaper tabs must support keyboard tab navigation');
+assert.match(script, /enhance:context=>\{enhance\(false,context\);enhanceNews\(false,context\);/, 'newspaper enhancement must reuse the existing single enhancer registration');
+assert.doesNotMatch(script, /Math\.random/, 'newspaper section UI must not consume RNG');
+assert.doesNotMatch(script, /g\.(?:news|history|weeklyNewspaper|majorBusinessNews|shareholderEventLog|earningsEventLog|sportsTeams|sportsSaleOffers)\s*=/, 'newspaper section UI must remain read-only');
+
 assert.match(html, /capitalism_tycoon_web_v1|js\/save-v9\.js/, 'save compatibility contract must remain present');
 
 console.log('D UI context tabs contract passed');
