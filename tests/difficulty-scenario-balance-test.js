@@ -2,6 +2,7 @@ const assert = require('node:assert');
 const fs = require('node:fs');
 const path = require('node:path');
 const { loadGame, ROOT, findStateIssues } = require('./harness');
+const { SCENARIOS, SEEDS, MAX_WEEKS, runScenario } = require('./strategy-balance-runner');
 
 let seed = 0x6b300001;
 const random = () => {
@@ -20,6 +21,7 @@ assert.equal(balance.EASY_DEMAND_MULTIPLIER, 1.1);
 assert.equal(balance.WEEKLY_CASH_ROUNDING_LIMIT, .05);
 assert.equal(balance.ROUNDING_HISTORY_LIMIT, 52);
 assert.equal(balance.ROUNDING_ADJUSTMENT_PER_52_WEEKS, 1);
+assert.equal(balance.HARD_IPO_ANNUAL_PROFIT, 20_000_000);
 assert.equal(engineModule.SAVE_VERSION, 9);
 assert.equal(engineModule.SAVE_KEY, 'capitalism_tycoon_web_v1');
 
@@ -43,6 +45,36 @@ for (const [difficulty, expected] of Object.entries({ easy:[12_000_000,70,715], 
   else assert.equal(game.g.easyDifficultyDemandVersion, undefined);
   assert.equal(finance.validate(game.g).ok, true, finance.validate(game.g).errors.join(' / '));
   assert.equal(balance.validate(game.g), true);
+}
+
+const hardProfitGate = new engineModule.TycoonEngine();
+hardProfitGate.configure({ playerName:'Hard IPO監査', companyName:'Hard IPO監査', difficulty:'hard', scenario:'free' });
+hardProfitGate.g.reports = Array.from({ length:52 }, (_, index) => ({ week:index + 1, profit:300_000 }));
+assert.ok(hardProfitGate.ipoMissingReasons().includes('Hard：直近52週利益2,000万円'), 'Hard must keep the stronger IPO profit gate below 2,000万円');
+hardProfitGate.g.reports = Array.from({ length:52 }, (_, index) => ({ week:index + 1, profit:400_000 }));
+assert.equal(hardProfitGate.ipoMissingReasons().includes('Hard：直近52週利益2,000万円'), false, 'Hard IPO profit gate must clear at or above 2,000万円');
+const normalProfitGate = new engineModule.TycoonEngine();
+normalProfitGate.configure({ playerName:'Normal IPO監査', companyName:'Normal IPO監査', difficulty:'normal', scenario:'free' });
+normalProfitGate.g.reports = Array.from({ length:52 }, (_, index) => ({ week:index + 1, profit:400_000 }));
+assert.equal(normalProfitGate.ipoMissingReasons().includes('Hard：直近52週利益2,000万円'), false, 'Normal must retain the existing IPO contract');
+
+// This exact route/seed family has failed the push-only aggregate on main since PR #553:
+// Hard opened stores much later, landed in a favorable macro phase, then cleared the same IPO gate
+// before Normal. A first fix (2,500万円) overshot: cafe-bootstrap's trailing-52-week profit under Hard
+// plateaus around 1,800万円〜2,100万円 for this route and never reaches 2,500万円 within MAX_WEEKS, so Hard could
+// never IPO at all. 2,000万円 is calibrated against the actual per-seed profit trajectories (see
+// docs/feature-requests.md) to sit above every seed's pre-Normal-IPO-week profit level while still being
+// reached comfortably before MAX_WEEKS. Keep the production difficulty ordering pinned without weakening
+// the aggregate test.
+const cafeScenario = SCENARIOS.find(row => row.id === 'cafe-bootstrap');
+assert.ok(cafeScenario, 'cafe-bootstrap strategy scenario must exist');
+for (const matrixSeed of SEEDS) {
+  const normal = runScenario(cafeScenario, matrixSeed, { difficulty:'normal', gameScenario:'free' });
+  const hard = runScenario(cafeScenario, matrixSeed, { difficulty:'hard', gameScenario:'free' });
+  assert.equal(normal.ipo, true, `cafe-bootstrap/${matrixSeed}: Normal must still reach IPO`);
+  assert.equal(hard.ipo, true, `cafe-bootstrap/${matrixSeed}: Hard must still reach IPO`);
+  assert.ok(normal.ipoWeek <= hard.ipoWeek, `cafe-bootstrap/${matrixSeed}: Normal must not progress slower than Hard (${normal.ipoWeek} > ${hard.ipoWeek})`);
+  assert.ok(hard.ipoWeek <= MAX_WEEKS, `cafe-bootstrap/${matrixSeed}: Hard must still reach IPO by ${MAX_WEEKS}`);
 }
 
 const custom = engineModule.createInitialState({ configured:true, difficulty:'normal', scenario:'free' });
