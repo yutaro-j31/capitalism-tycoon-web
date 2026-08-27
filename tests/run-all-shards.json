@@ -101,6 +101,7 @@
     "tests/founding-tutorial-skip-test.js",
     "tests/gym-membership-model-test.js",
     "tests/real-estate-agency-capacity-visibility-test.js",
+    "tests/real-estate-price-negotiation-test.js",
     "tests/product-invested-cost-test.js",
     "tests/quarterly-tax-accrual-test.js",
     "tests/topbar-title-week-controls-clearance-test.js"

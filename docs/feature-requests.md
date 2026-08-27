@@ -525,6 +525,42 @@ Manus や ChatGPT など他のツールで考えた案を持ち込む運用が�
   新規の金融メカニクス）が必要と判断し、本アイテムの対象から外した。
   着手する場合は別PRとして設計から検討する
 
+### R13. Coffee Inc 2化 item 3の3本目（最後） — 不動産の価格交渉（2026-08-27）
+
+- **要望**: CI2の不動産購入では掲示価格そのままではなく、安く提示して交渉する
+  選択肢がある。これを移植したい。
+- **現状**: `engine.buyProperty(id,owner)`は掲示価格での即時購入のみで、
+  「安く提示して交渉する」という選択肢が存在しなかった。
+- **実装方針**: 新しい交渉AIは発明せず、他の不動産モジュール
+  （`real-estate-tenant-renewals.js`の更新交渉、`real-estate-property-disposals.js`
+  の売却査定）と同じ`hash01()`による決定論的な合意判定パターンをそのまま踏襲した。
+  既存の即時購入(`buyProperty`)はそのまま残し、掲示価格の70/80/90/95%で提示する
+  別の選択肢を追加するだけに留めた。対象は`g.properties`（会社/個人共通の
+  47都道府県カタログ）のみで、別カタログである個人不動産
+  （`personalRealEstateHoldings`, `buyPersonalRealEstate`）は対象外。
+- **副産物として発見した既存の会計バグ（本PRでは対象外）**: 交渉価格を
+  `finance.propertyBook()`に正しく反映させる過程で、`buyProperty()`（既存の
+  即時購入）にも潜在バグがあることが判明した。`propertyBook()`は
+  `p.realEstate.landBookValue`/`buildingBookValue`が数値であればそちらを
+  会社所有物件の簿価として優先するが、`buyProperty()`はこれらを更新しない。
+  週1・経済係数1.0の初期状態では掲示価格と簿価が一致するため表面化しないが、
+  経済サイクルが進み市場価格が簿価から乖離した状態（実測: 第51週で経済係数
+  0.966755）で`buyProperty()`を呼ぶと`finance.validate()`の資産=負債+純資産
+  恒等式が崩れることを確認した。本PRの`negotiatePropertyPrice()`では
+  取得価格に合わせて`landBookValue`/`buildingBookValue`を按分し直すことで
+  回避したが、`buyProperty()`自体の修正は「価格交渉」とは別のバグ修正であり、
+  CLAUDE.mdの1機能1PR方針に従い本PRの対象外とした。着手する場合は
+  `buyProperty()`側も同様に簿価を実際の取得価格へ同期させる修正が必要
+- **実装**: `js/real-estate-price-negotiation.js`（新規）。
+  `Engine.prototype.propertyPriceNegotiationOffers(id)`（読み取り専用の試算、
+  提示率ごとの提示額・合意確率目安を返す）と
+  `Engine.prototype.negotiatePropertyPrice(id,owner,offerRatio)`（実行）。
+  決裂すると4週間は同じ物件に再交渉できないクールダウンを設ける。UIは
+  `js/app.js`のマップ画面に「会社で価格交渉」「個人で価格交渉」ボタンを追加し、
+  実行前に確認モーダル（試算内容の提示）を経由する。
+  `tests/real-estate-price-negotiation-test.js`で決裂/合意双方のケース・
+  会社個人の資産分離・資金不足時の失敗・決定論・旧セーブ互換・UI到達性を検証。
+
 ---
 
 ## 着手順の見立て（2026-08-19 更新、R6のメニューR&Dまで反映）
