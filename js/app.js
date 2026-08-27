@@ -223,7 +223,35 @@ function businessDepthNote(depth){
 function businessFullCard(b){
   const g=engine.g;
   const storesByBusiness=id=>g.stores.filter(s=>s.businessID===id);
-  const ss=storesByBusiness(b.id),profit=ss.reduce((a,s)=>a+s.lastProfit,0),depth=engineModule.businessSimulationDepth(b.id),brokerage=b.id==='realEstateAgency'?renderBrokeragePipeline(ss):'',merchandising=b.id==='conveni'?renderMerchandisingMix(ss):'',membership=b.id==='gym'?renderMembershipModel(ss):'';const special=brokerage||merchandising||membership;return card(b.name,`${special||businessDepthNote(depth)}<div class="kpi-grid mini">${b.id==='realEstateAgency'?'':stat('価格',yen(b.price))}${stat('店舗',`${ss.length}店`)}${stat('週次利益',compactYen(profit))}${stat('品質/ブランド',`${b.quality.toFixed(0)} / ${b.brand.toFixed(0)}`)}</div><div class="meters"><label>品質 ${b.quality.toFixed(1)}${progress(b.quality)}</label><label>ブランド ${b.brand.toFixed(1)}${progress(b.brand)}</label><label>効率 ${b.efficiency.toFixed(1)}${progress(b.efficiency)}</label><label>DX ${b.dx.toFixed(1)}${progress(b.dx)}</label></div><div class="button-grid">${btn('品質投資','business-invest',{kind:'small',data:`data-id="${b.id}" data-kind="quality"`})}${btn('広告','business-invest',{kind:'small',data:`data-id="${b.id}" data-kind="brand"`})}${btn('効率化','business-invest',{kind:'small',data:`data-id="${b.id}" data-kind="efficiency"`})}${btn('DX','business-invest',{kind:'small',data:`data-id="${b.id}" data-kind="dx"`})}${b.id==='realEstateAgency'?'':btn('価格変更','business-price',{kind:'ghost small',data:`data-id="${b.id}"`})}</div>`,{subtitle:`初期出店費 ${compactYen(b.storeCost)} · ${b.id==='realEstateAgency'?'案件パイプライン':b.id==='gym'?'会員制サブスクリプション':depth.label}`});}
+  const ss=storesByBusiness(b.id),profit=ss.reduce((a,s)=>a+s.lastProfit,0),depth=engineModule.businessSimulationDepth(b.id),brokerage=b.id==='realEstateAgency'?renderBrokeragePipeline(ss):'',merchandising=b.id==='conveni'?renderMerchandisingMix(ss):'',membership=b.id==='gym'?renderMembershipModel(ss):'';const special=brokerage||merchandising||membership;const comparison=renderStoreComparisonTable(ss,g);return card(b.name,`${special||businessDepthNote(depth)}<div class="kpi-grid mini">${b.id==='realEstateAgency'?'':stat('価格',yen(b.price))}${stat('店舗',`${ss.length}店`)}${stat('週次利益',compactYen(profit))}${stat('品質/ブランド',`${b.quality.toFixed(0)} / ${b.brand.toFixed(0)}`)}</div><div class="meters"><label>品質 ${b.quality.toFixed(1)}${progress(b.quality)}</label><label>ブランド ${b.brand.toFixed(1)}${progress(b.brand)}</label><label>効率 ${b.efficiency.toFixed(1)}${progress(b.efficiency)}</label><label>DX ${b.dx.toFixed(1)}${progress(b.dx)}</label></div>${comparison}<div class="button-grid">${btn('品質投資','business-invest',{kind:'small',data:`data-id="${b.id}" data-kind="quality"`})}${btn('広告','business-invest',{kind:'small',data:`data-id="${b.id}" data-kind="brand"`})}${btn('効率化','business-invest',{kind:'small',data:`data-id="${b.id}" data-kind="efficiency"`})}${btn('DX','business-invest',{kind:'small',data:`data-id="${b.id}" data-kind="dx"`})}${b.id==='realEstateAgency'?'':btn('価格変更','business-price',{kind:'ghost small',data:`data-id="${b.id}"`})}</div>`,{subtitle:`初期出店費 ${compactYen(b.storeCost)} · ${b.id==='realEstateAgency'?'案件パイプライン':b.id==='gym'?'会員制サブスクリプション':depth.label}`});}
+// 店舗比較テーブル（Coffee Inc 2化 item 2）。複数店舗を持つ業種で「どの店舗が稼いでいて
+// どの店舗が苦戦しているか」を一目で比較できるようにする。新しい経営指標は作らず、
+// 既に全業種の店舗が持つstore.lastSales/lastProfitと、js/d-ui-shell.jsのstoreStatusLabel()
+// と同じ表記の状態ラベルをそのまま並べるだけ（純粋な読み取り専用テーブル、新規ボタンなし）。
+// 詳細な市場シミュレーション対象（現状ramenのみ、market.isTargetBusinessID）の店舗は
+// marketResultの満足度・市場シェアも追加列で表示する。1店舗以下では比較の意味が無いため
+// 何も表示しない。
+function storeComparisonStatusLabel(s,g){
+  if(s.status==='closed')return '閉店';
+  if(s.status==='preparing'){
+    const weeks=Math.max(0,Math.ceil(finite(s.openingWeek)-finite(g.week)));
+    return weeks>0?`開業準備中・あと${weeks}週`:'まもなく開業';
+  }
+  return '営業中';
+}
+function renderStoreComparisonTable(stores,g){
+  if(stores.length<2)return '';
+  const isTarget=marketModule.isTargetBusinessID(stores[0].businessID);
+  const rows=stores.map(s=>({
+    store:s,
+    status:storeComparisonStatusLabel(s,g),
+    sales:finite(s.lastSales),
+    profit:finite(s.lastProfit),
+    satisfaction:isTarget?s.marketResult?.customerSatisfaction:null,
+    share:isTarget?s.marketResult?.marketShare:null
+  })).sort((a,b)=>b.profit-a.profit);
+  return `<details class="learning-card" data-store-comparison open><summary>店舗別比較（${stores.length}店）</summary><div class="market-scroll"><table><thead><tr><th>店舗</th><th>状態</th><th>週次売上</th><th>週次利益</th>${isTarget?'<th>満足度</th><th>市場シェア</th>':''}</tr></thead><tbody>${rows.map(r=>`<tr><td>${esc(r.store.name)}</td><td>${esc(r.status)}</td><td>${compactYen(r.sales)}</td><td class="${r.profit>=0?'up':'down'}">${compactYen(r.profit)}</td>${isTarget?`<td>${Number.isFinite(r.satisfaction)?r.satisfaction.toFixed(1):'—'}</td><td>${Number.isFinite(r.share)?pct(r.share):'—'}</td>`:''}</tr>`).join('')}</tbody></table></div></details>`;
+}
 function renderMembershipModel(stores){
   const modAPI=__modules.gymMembershipModel;if(!modAPI)return '';
   const eligible=modAPI.eligibleStores(stores);for(const store of eligible)modAPI.ensureStore(store);const rows=eligible.map(s=>s.gymMembership?.lastWeek).filter(Boolean);

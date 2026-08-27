@@ -561,6 +561,31 @@ Manus や ChatGPT など他のツールで考えた案を持ち込む運用が�
   `tests/real-estate-price-negotiation-test.js`で決裂/合意双方のケース・
   会社個人の資産分離・資金不足時の失敗・決定論・旧セーブ互換・UI到達性を検証。
 
+### R14. Coffee Inc 2化ロードマップ item 2 — 店舗比較テーブル（2026-08-27）
+
+- **要望**: CI2には複数店舗を横並びで比較できるテーブルがある。これを移植したい。
+- **現状**: `businessFullCard()`（`js/app.js`）は業種合計の週次利益しか見せておらず、
+  同一業種で複数店舗を持つ場合に「どの店舗が稼いでいて、どの店舗が苦戦しているか」を
+  店舗単位で比較する手段が無かった。`renderMarketInsightSection()`も対象業種（ramen）の
+  店舗を個別カードとして並べるだけで、横並び比較のテーブルは存在しなかった。
+- **実装方針**: 新しい経営指標は発明しない。全業種の店舗が既に持つ
+  `store.lastSales`/`store.lastProfit`と、詳細な市場シミュレーション対象
+  （現状ramenのみ、`market.isTargetBusinessID`）の店舗が持つ
+  `store.marketResult.customerSatisfaction`/`marketShare`をそのまま並べるだけに
+  留めた。状態ラベルも`js/d-ui-shell.js`の`storeStatusLabel()`と同じ表記
+  （開業準備中・あと{n}週／営業中／閉店）に合わせ、画面ごとに用語が割れないようにした。
+  1店舗以下の業種では比較に意味が無いため何も表示しない。週次利益の降順でソートし、
+  赤字店舗は既存の`.down`クラスで着色（新しい色分けを増やさない）。
+  CSSは既存クラス（`learning-card`/`market-scroll`/`up`/`down`）だけで組み、
+  `css/app.css`は無変更（バイト完全一致要件を維持）。JS/テストからの参照フックには
+  クラスではなく`data-store-comparison`属性を使う（他の店舗詳細UIと同じ`data-*`慣習）。
+- **実装**: `js/app.js`の`renderStoreComparisonTable(stores,g)`・
+  `storeComparisonStatusLabel(s,g)`を`businessFullCard()`から呼び出し。
+  Playwrightでの実機確認で、複数店舗開店時に利益降順のソート・赤字店舗の着色・
+  対象業種での満足度/市場シェア列の表示（未計算時は—）・1店舗以下での非表示を
+  確認済み。`tests/store-comparison-table-test.js`でソースレベルの配線・
+  既存フィールド参照・CSSバイト一致要件を検証。
+
 ---
 
 ## 着手順の見立て（2026-08-19 更新、R6のメニューR&Dまで反映）

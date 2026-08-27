@@ -76,6 +76,7 @@
     "tests/department-closure-plan-test.js",
     "tests/executive-delegation-test.js",
     "tests/customer-review-breakdown-test.js",
+    "tests/store-comparison-table-test.js",
     "tests/product-recall-reachability-runner.js",
     "tests/exploration-smoke-test.js",
     "tests/menu-research-test.js",
