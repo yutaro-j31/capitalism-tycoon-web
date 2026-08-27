@@ -980,6 +980,30 @@ class TycoonEngine extends EventTarget {
     this.g.companyCash-=cost;finance.event(this.g,'payroll',cost,{cashEffect:-cost,profitEffect:-cost,sourceType:'hireDepartmentStaff',sourceID:`${id}-${this.g.week}`,description:'採用費'});workforce.addDepartmentHeadcount(this.g,id,count,{weeklySalaryPerPerson:65000,onboardingWeeks:1});
     this.notify(`${this.g.departments[id].name}で${count}名採用しました。`,'success');this.save();this.emit();return true;
   }
+  // closeDepartment() を実行したときに何が起きるかを、実行前にUIへ提示するための読み取り専用の
+  // 試算。状態は一切変更しない。退職金は closeDepartment() と同じ workforce.departmentSeverance()
+  // を参照するため、画面の予告と実際の支払いが食い違うことはない。
+  departmentClosurePlan(id) {
+    const d=this.g.departments[id]; if(!d)return null;
+    const severance=workforce.departmentSeverance(this.g,id);
+    const activeCampaignCount=this.g.departmentCampaigns.filter(c=>c.departmentID===id&&c.status==='active').length;
+    return Object.freeze({
+      departmentID:id,name:d.name||'',headcount:finite(this.g.departmentStaff[id]),
+      severance,weeklyCost:workforce.departmentWeeklyPayroll(this.g,id),activeCampaignCount
+    });
+  }
+  closeDepartment(id) {
+    const d=this.g.departments[id]; if(!d)return this.fail('部門がありません。');
+    const severance=workforce.departmentSeverance(this.g,id);
+    if(severance>0&&this.g.companyCash<severance)return this.fail(`退職金${yen(severance)}の支払いに資金が不足しています。`);
+    workforce.disposeDepartmentTeam(this.g,id);
+    for(const c of this.g.departmentCampaigns)if(c.departmentID===id&&c.status==='active')c.status='cancelled';
+    delete this.g.departments[id]; delete this.g.departmentStaff[id];
+    this.g.officeFloors=this.g.officeFloors.filter(f=>f.departmentID!==id);
+    if(severance>0){this.g.companyCash-=severance;finance.event(this.g,'headOfficeExpense',severance,{cashEffect:-severance,profitEffect:-severance,sourceType:'closeDepartment',sourceID:id,operationID:`closeDepartment-${id}-${this.g.week}`,description:`${d.name} 閉鎖・退職金`});}
+    this.notify(`${d.name}を閉鎖しました。`,'warning');
+    this.save();this.emit();return true;
+  }
   refreshExecutives() {
     if(!this.g.departments.hr)return this.fail('人事部門が必要です。');
     const cost=rand(500000,2000000);if(this.g.companyCash<cost)return this.fail('紹介費が不足しています。');this.g.companyCash-=cost;finance.event(this.g,'headOfficeExpense',cost,{cashEffect:-cost,profitEffect:-cost,sourceType:'refreshExecutives',sourceID:`executive-market-${this.g.week}`,description:'CXO候補紹介費'});
