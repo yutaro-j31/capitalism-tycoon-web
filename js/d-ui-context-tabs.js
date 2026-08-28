@@ -119,6 +119,85 @@ function selectNews(section,focus=true){
   return enhanceNews(focus);
 }
 
+function updateMarketPager(track,pager){
+  const cards=[...track.querySelectorAll('.market-row:not(.header)')];
+  if(!cards.length||!pager)return false;
+  const center=finite(track.scrollLeft)+finite(track.clientWidth)/2;
+  let active=0,distance=Infinity;
+  cards.forEach((card,index)=>{
+    const cardCenter=finite(card.offsetLeft)+finite(card.offsetWidth)/2;
+    const delta=Math.abs(cardCenter-center);
+    if(delta<distance){distance=delta;active=index;}
+  });
+  [...pager.querySelectorAll('[data-d-market-dot]')].forEach((dot,index)=>dot.classList.toggle('active',index===active));
+  pager.dataset.activeIndex=String(active);
+  return true;
+}
+function enhanceMarket(uiContext=null){
+  const screen=uiContext?.screen||document.querySelector('#screen[data-screen="market"]');
+  if(!screen||screen.dataset?.screen!=='market')return false;
+  const sectorSelect=screen.querySelector('select[data-bind="stockSector"]');
+  if(sectorSelect){
+    const sectorLabel=sectorSelect.closest('label');
+    if(sectorLabel&&!screen.querySelector('.d-market-sector-tabs')){
+      const tabs=document.createElement('div');
+      tabs.className='d-market-sector-tabs';
+      tabs.setAttribute('role','radiogroup');
+      tabs.setAttribute('aria-label','株式市場の業種');
+      [...sectorSelect.options].forEach(option=>{
+        const tab=document.createElement('label');
+        tab.className=`d-market-sector-tab${option.selected?' active':''}`;
+        const input=document.createElement('input');
+        input.type='radio';input.name='d-market-sector';input.value=option.value;input.dataset.bind='stockSector';input.checked=option.selected;
+        input.setAttribute('aria-label',option.textContent||option.value);
+        const text=document.createElement('span');text.textContent=option.textContent||option.value;
+        tab.append(input,text);tabs.append(tab);
+      });
+      sectorLabel.replaceWith(tabs);
+    }
+  }
+  const table=screen.querySelector('.market-table');
+  if(!table)return true;
+  table.classList.add('d-market-carousel');
+  table.setAttribute('aria-label','企業一覧');
+  const header=table.querySelector(':scope > .market-row.header');
+  if(header)header.setAttribute('aria-hidden','true');
+  let track=table.querySelector(':scope > .d-market-carousel-track');
+  if(!track){
+    const cards=[...table.querySelectorAll(':scope > .market-row:not(.header)')];
+    if(cards.length){
+      track=document.createElement('div');
+      track.className='d-market-carousel-track';
+      track.setAttribute('role','list');
+      track.setAttribute('aria-label','業種内の企業');
+      cards.forEach(card=>{card.setAttribute('role','listitem');card.setAttribute('aria-roledescription','企業カード');track.append(card);});
+      if(header)header.after(track);else table.prepend(track);
+      const pager=document.createElement('div');
+      pager.className='d-market-carousel-pager';
+      pager.setAttribute('aria-hidden','true');
+      cards.forEach((card,index)=>{
+        const dot=document.createElement('i');dot.dataset.dMarketDot=String(index);dot.classList.toggle('active',card.classList.contains('selected'));pager.append(dot);
+      });
+      const hint=document.createElement('div');
+      hint.className='d-market-carousel-hint';
+      hint.setAttribute('aria-hidden','true');
+      hint.innerHTML='<span>‹</span><b>左右にスワイプして他の企業を確認</b><span>›</span>';
+      table.append(pager,hint);
+      track.addEventListener('scroll',()=>updateMarketPager(track,pager),{passive:true});
+      updateMarketPager(track,pager);
+    }
+  }
+  const firstCard=track?.querySelector('.market-row:not(.header)');
+  const selectedCard=track?.querySelector('.market-row.selected');
+  if(track&&selectedCard&&selectedCard!==firstCard&&track.scrollLeft===0){
+    track.scrollLeft=Math.max(0,finite(selectedCard.offsetLeft)-(finite(track.clientWidth)-finite(selectedCard.offsetWidth))/2);
+    updateMarketPager(track,table.querySelector('.d-market-carousel-pager'));
+  }
+  const intro=screen.querySelector(':scope > .card:first-child');
+  if(intro&&table.previousElementSibling!==intro)intro.after(table);
+  return true;
+}
+
 function renderTabs(panel,context,focus=false){
   const oldTabs=panel.querySelector('.d-context-tabs');if(!oldTabs)return false;
   const active=TABS.some(([id])=>id===activeByStore.get(context.key))?activeByStore.get(context.key):'overview';activeByStore.set(context.key,active);
@@ -146,7 +225,7 @@ function handleKeydown(event){
   }
   const button=event.target?.closest?.('[data-d-context-tab]');if(!button)return false;const index=TABS.findIndex(([id])=>id===button.dataset.dContextTab);let next=index;if(event.key==='ArrowRight')next=(index+1)%TABS.length;else if(event.key==='ArrowLeft')next=(index-1+TABS.length)%TABS.length;else if(event.key==='Home')next=0;else if(event.key==='End')next=TABS.length-1;else return false;event.preventDefault();select(TABS[next][0],true);return true;
 }
-function install(){document.addEventListener('click',handleClick,true);document.addEventListener('keydown',handleKeydown,true);modules.uiEnhancerRegistry.registerUIEnhancer({id:'d-ui-context-tabs',enhance:context=>{enhance(false,context);enhanceNews(false,context);modules.playerMediaAdvertisingUI?.inject?.();}});return true;}
-modules.dUIContextTabs=Object.freeze({TABS,ACTIONS,NEWS_SECTIONS,selectedStore,panelContent,action,enhance,select,newspaperArticles,newsSectionContent,enhanceNews,selectNews,handleClick,handleKeydown,install,__installed:true});
+function install(){document.addEventListener('click',handleClick,true);document.addEventListener('keydown',handleKeydown,true);modules.uiEnhancerRegistry.registerUIEnhancer({id:'d-ui-context-tabs',enhance:context=>{enhance(false,context);enhanceNews(false,context);enhanceMarket(context);modules.playerMediaAdvertisingUI?.inject?.();}});return true;}
+modules.dUIContextTabs=Object.freeze({TABS,ACTIONS,NEWS_SECTIONS,selectedStore,panelContent,action,enhance,select,newspaperArticles,newsSectionContent,enhanceNews,selectNews,updateMarketPager,enhanceMarket,handleClick,handleKeydown,install,__installed:true});
 install();
 })();
