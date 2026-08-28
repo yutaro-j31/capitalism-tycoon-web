@@ -204,7 +204,7 @@ async function verifyIPhone(browser, base) {
   await assertNoRecovery(page, 'after iPhone bank navigation', errors);
 
   await verifyMarket(page, errors, 'iPhone');
-  await page.screenshot({ path: path.join(OUT, 'd-ui-market-iphone.png'), fullPage: true });
+  await page.screenshot({ path: path.join(OUT, 'd-ui-market-iphone.png'), fullPage: true, scale: 'css' });
   await assertNoRecovery(page, 'after iPhone market navigation', errors);
 
   await openCommandTab(page, 'settings');
