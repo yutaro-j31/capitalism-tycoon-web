@@ -165,6 +165,28 @@ async function verifyVenture(page, errors, layout) {
   await assertNoRecovery(page, `${layout} venture navigation`, errors);
 }
 
+async function verifyMA(page, errors, layout) {
+  await openCommandTab(page, 'ma');
+  await page.locator('#screen[data-screen="ma"]').waitFor();
+  assert.ok(await page.locator('#screen > .card').count() >= 5, `${layout}: M&A dashboard and portfolio cards must remain rendered`);
+  assert.equal(await page.locator('#screen [data-action="generate-ma"]').count(), 1, `${layout}: M&A target discovery action must remain reachable`);
+  assert.ok(await page.locator('#screen .ma-pmi-kpis .stat').count() >= 8, `${layout}: M&A dashboard must retain its KPI set`);
+  assert.equal(await page.locator('#screen > section > .section-title').count(), 1, `${layout}: M&A candidate section must remain rendered`);
+  assert.ok(await page.locator('#screen .empty').count() > 0, `${layout}: fresh-company M&A empty states must remain readable`);
+  if (layout === 'iPhone') {
+    const pageFits = await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1);
+    assert.ok(pageFits, 'iPhone M&A screen must not create page-level horizontal overflow');
+    const discoverBox = await page.locator('#screen [data-action="generate-ma"]').boundingBox();
+    assert.ok(discoverBox && discoverBox.height >= 44, `iPhone M&A discovery control must be at least 44px high, got ${discoverBox?.height}`);
+    const candidateGrid = page.locator('#screen > section > .grid.two');
+    if (await candidateGrid.count()) {
+      const columns = await candidateGrid.evaluate(node => getComputedStyle(node).gridTemplateColumns.split(' ').filter(Boolean).length);
+      assert.equal(columns, 1, 'iPhone M&A candidate grid must collapse to one column');
+    }
+  }
+  await assertNoRecovery(page, `${layout} M&A navigation`, errors);
+}
+
 async function verifyDesktop(browser, base) {
   const context = await browser.newContext({ viewport: { width: 1440, height: 900 }, locale: 'ja-JP', serviceWorkers: 'block' });
   const page = await context.newPage();
@@ -202,6 +224,9 @@ async function verifyDesktop(browser, base) {
 
   await verifyVenture(page, errors, 'desktop');
   await page.screenshot({ path: path.join(OUT, 'd-ui-venture-desktop.png'), fullPage: true });
+
+  await verifyMA(page, errors, 'desktop');
+  await page.screenshot({ path: path.join(OUT, 'd-ui-ma-desktop.png'), fullPage: true });
 
   await page.locator('#d-ui-sidebar [data-tab="map"]').click();
   await page.locator('.d-map-workspace').waitFor();
@@ -253,6 +278,10 @@ async function verifyIPhone(browser, base) {
   await verifyVenture(page, errors, 'iPhone');
   await page.screenshot({ path: path.join(OUT, 'd-ui-venture-iphone.png'), fullPage: true, scale: 'css' });
   await assertNoRecovery(page, 'after iPhone venture navigation', errors);
+
+  await verifyMA(page, errors, 'iPhone');
+  await page.screenshot({ path: path.join(OUT, 'd-ui-ma-iphone.png'), fullPage: true, scale: 'css' });
+  await assertNoRecovery(page, 'after iPhone M&A navigation', errors);
 
   await openCommandTab(page, 'settings');
   assert.ok(await page.locator('#screen .card').count() > 0, 'settings screen must remain usable from the mobile command menu');
