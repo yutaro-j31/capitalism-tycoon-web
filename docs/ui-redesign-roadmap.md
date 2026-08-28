@@ -66,7 +66,7 @@ ChatGPT/Codex等、Claude Code以外のツールで作業を引き継ぐ場合�
 - [x] Phase 1: マップ画面の密度強化（`js/d-ui-shell.js`の`renderMapWorkspace()`の
       建物ブロック描画部分をアイソメトリック立方体（屋根/左面/右面の3ポリゴン）に強化。
       窓の帯・ゾーン別色相・橋・公園の木を追加。マーカー配置ロジック・ドリルダウンは無変更）
-- [ ] Phase 2: 事業（business）画面のD UIリスキン（`js/app.js`の`businessFullCard()`等に
+- [x] Phase 2: 事業（business）画面のD UIリスキン（`js/app.js`の`businessFullCard()`等に
       アイコン＋週次利益の大きな数字表示のヒーロー、金色グラデーション枠を追加）
 - [ ] Phase 3以降: office（本社）→ bank（銀行）→ market（株式）→ 残りの画面
       （venture/M&A/overseas/assets/report/founder/strategy/media/legacy/missions/rivals/settings）
