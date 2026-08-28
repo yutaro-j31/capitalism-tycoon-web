@@ -95,10 +95,18 @@ async function verifyMarket(page, errors, layout) {
   await openCommandTab(page, 'market');
   await page.locator('#screen[data-screen="market"]').waitFor();
   assert.equal(await page.locator('#screen select[data-bind="selectedAccount"]').count(), 1, `${layout}: investment account selector must remain reachable`);
-  assert.equal(await page.locator('#screen select[data-bind="stockSector"]').count(), 1, `${layout}: stock sector selector must remain reachable`);
+  const sectorTabs = page.locator('#screen .d-market-sector-tabs');
+  assert.equal(await sectorTabs.count(), 1, `${layout}: stock sector tabs must remain reachable`);
+  const sectorInputs = sectorTabs.locator('input[data-bind="stockSector"]');
+  assert.ok(await sectorInputs.count() > 1, `${layout}: stock sector tabs must expose multiple sector choices`);
+  assert.equal(await sectorTabs.locator('input[data-bind="stockSector"]:checked').count(), 1, `${layout}: exactly one stock sector tab must stay selected`);
   assert.equal(await page.locator('#screen .stock-detail-card').count(), 1, `${layout}: selected stock detail must remain rendered`);
   assert.equal(await page.locator('#screen [data-stock-trade-panel]').count(), 1, `${layout}: selected stock trade panel must remain rendered`);
-  assert.ok(await page.locator('#screen .market-row:not(.header)').count() > 0, `${layout}: stock list must retain tradable rows`);
+  const track = page.locator('#screen .d-market-carousel-track');
+  assert.equal(await track.count(), 1, `${layout}: stock carousel track must remain rendered`);
+  const stockCards = track.locator('.market-row:not(.header)');
+  assert.ok(await stockCards.count() > 0, `${layout}: stock carousel must retain tradable company cards`);
+  assert.equal(await page.locator('#screen .d-market-carousel-pager').count(), 1, `${layout}: stock carousel pager must remain rendered`);
   for (const action of ['buy-stock','sell-stock','favorite-stock']) {
     assert.ok(await page.locator(`#screen [data-stock-trade-panel] [data-action="${action}"]`).count(), `${layout}: selected stock ${action} action must remain reachable`);
   }
@@ -106,12 +114,16 @@ async function verifyMarket(page, errors, layout) {
   if (layout === 'iPhone') {
     const pageFits = await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1);
     assert.ok(pageFits, 'iPhone market screen must not create page-level horizontal overflow');
-    const tableFits = await page.locator('#screen .market-table').evaluate(node => node.scrollWidth <= node.clientWidth + 1);
-    assert.ok(tableFits, 'iPhone market list must fit without the legacy horizontal scroller');
-    const firstRow = page.locator('#screen .market-row:not(.header)').first();
+    const sectorStyle = await sectorTabs.evaluate(node => ({ overflowX: getComputedStyle(node).overflowX, scrollWidth: node.scrollWidth, clientWidth: node.clientWidth }));
+    assert.ok(['auto','scroll'].includes(sectorStyle.overflowX), `iPhone sector tabs must provide internal horizontal scrolling, got ${sectorStyle.overflowX}`);
+    const trackStyle = await track.evaluate(node => ({ overflowX: getComputedStyle(node).overflowX, scrollSnapType: getComputedStyle(node).scrollSnapType, scrollWidth: node.scrollWidth, clientWidth: node.clientWidth }));
+    assert.ok(['auto','scroll'].includes(trackStyle.overflowX), `iPhone company carousel must provide internal horizontal scrolling, got ${trackStyle.overflowX}`);
+    assert.ok(trackStyle.scrollWidth > trackStyle.clientWidth + 1, `iPhone company carousel must contain horizontally swipeable cards: ${trackStyle.scrollWidth}px <= ${trackStyle.clientWidth}px`);
+    assert.ok(String(trackStyle.scrollSnapType).includes('x'), `iPhone company carousel must preserve horizontal scroll snap, got ${trackStyle.scrollSnapType}`);
+    const firstRow = stockCards.first();
     const rowStyle = await firstRow.evaluate(node => ({ display: getComputedStyle(node).display, width: node.getBoundingClientRect().width, parentWidth: node.parentElement.getBoundingClientRect().width }));
     assert.equal(rowStyle.display, 'grid', 'iPhone stock rows must render as D UI cards');
-    assert.ok(rowStyle.width <= rowStyle.parentWidth + 1, `iPhone stock row must fit its market table: ${rowStyle.width}px > ${rowStyle.parentWidth}px`);
+    assert.ok(rowStyle.width < rowStyle.parentWidth - 8, `iPhone stock card must leave the next company visibly peeking: ${rowStyle.width}px / ${rowStyle.parentWidth}px`);
     for (const selector of ['#screen [data-stock-trade-panel] .btn','#screen .chart-range .btn','#screen .market-row:not(.header) .button-row .btn']) {
       const controls = page.locator(selector);
       const count = await controls.count();
