@@ -91,6 +91,40 @@ async function verifyBank(page, errors, layout) {
   await assertNoRecovery(page, `${layout} bank navigation`, errors);
 }
 
+async function verifyMarket(page, errors, layout) {
+  await openCommandTab(page, 'market');
+  await page.locator('#screen[data-screen="market"]').waitFor();
+  assert.equal(await page.locator('#screen select[data-bind="selectedAccount"]').count(), 1, `${layout}: investment account selector must remain reachable`);
+  assert.equal(await page.locator('#screen select[data-bind="stockSector"]').count(), 1, `${layout}: stock sector selector must remain reachable`);
+  assert.equal(await page.locator('#screen .stock-detail-card').count(), 1, `${layout}: selected stock detail must remain rendered`);
+  assert.equal(await page.locator('#screen [data-stock-trade-panel]').count(), 1, `${layout}: selected stock trade panel must remain rendered`);
+  assert.ok(await page.locator('#screen .market-row:not(.header)').count() > 0, `${layout}: stock list must retain tradable rows`);
+  for (const action of ['buy-stock','sell-stock','favorite-stock']) {
+    assert.ok(await page.locator(`#screen [data-stock-trade-panel] [data-action="${action}"]`).count(), `${layout}: selected stock ${action} action must remain reachable`);
+  }
+  assert.equal(await page.locator('#screen .chart-range [data-action="stock-chart-range"]').count(), 4, `${layout}: all four chart ranges must remain reachable`);
+  if (layout === 'iPhone') {
+    const pageFits = await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1);
+    assert.ok(pageFits, 'iPhone market screen must not create page-level horizontal overflow');
+    const tableFits = await page.locator('#screen .market-table').evaluate(node => node.scrollWidth <= node.clientWidth + 1);
+    assert.ok(tableFits, 'iPhone market list must fit without the legacy horizontal scroller');
+    const firstRow = page.locator('#screen .market-row:not(.header)').first();
+    const rowStyle = await firstRow.evaluate(node => ({ display: getComputedStyle(node).display, width: node.getBoundingClientRect().width, parentWidth: node.parentElement.getBoundingClientRect().width }));
+    assert.equal(rowStyle.display, 'grid', 'iPhone stock rows must render as D UI cards');
+    assert.ok(rowStyle.width <= rowStyle.parentWidth + 1, `iPhone stock row must fit its market table: ${rowStyle.width}px > ${rowStyle.parentWidth}px`);
+    for (const selector of ['#screen [data-stock-trade-panel] .btn','#screen .chart-range .btn','#screen .market-row:not(.header) .button-row .btn']) {
+      const controls = page.locator(selector);
+      const count = await controls.count();
+      assert.ok(count > 0, `iPhone market control group must exist: ${selector}`);
+      for (let i=0;i<count;i+=1) {
+        const box = await controls.nth(i).boundingBox();
+        assert.ok(box && box.height >= 44, `iPhone market control must be at least 44px high: ${selector} = ${box?.height}`);
+      }
+    }
+  }
+  await assertNoRecovery(page, `${layout} market navigation`, errors);
+}
+
 async function verifyDesktop(browser, base) {
   const context = await browser.newContext({ viewport: { width: 1440, height: 900 }, locale: 'ja-JP', serviceWorkers: 'block' });
   const page = await context.newPage();
@@ -122,6 +156,9 @@ async function verifyDesktop(browser, base) {
 
   await verifyBank(page, errors, 'desktop');
   await page.screenshot({ path: path.join(OUT, 'd-ui-bank-desktop.png'), fullPage: true });
+
+  await verifyMarket(page, errors, 'desktop');
+  await page.screenshot({ path: path.join(OUT, 'd-ui-market-desktop.png'), fullPage: true });
 
   await page.locator('#d-ui-sidebar [data-tab="map"]').click();
   await page.locator('.d-map-workspace').waitFor();
@@ -165,6 +202,10 @@ async function verifyIPhone(browser, base) {
   assert.ok(noBankHorizontalOverflow, 'iPhone bank screen must not create page-level horizontal overflow');
   await page.screenshot({ path: path.join(OUT, 'd-ui-bank-iphone.png'), fullPage: true });
   await assertNoRecovery(page, 'after iPhone bank navigation', errors);
+
+  await verifyMarket(page, errors, 'iPhone');
+  await page.screenshot({ path: path.join(OUT, 'd-ui-market-iphone.png'), fullPage: true });
+  await assertNoRecovery(page, 'after iPhone market navigation', errors);
 
   await openCommandTab(page, 'settings');
   assert.ok(await page.locator('#screen .card').count() > 0, 'settings screen must remain usable from the mobile command menu');
