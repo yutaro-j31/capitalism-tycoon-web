@@ -44,6 +44,29 @@ async function assertNoRecovery(page, stage, errors) {
   }
 }
 
+async function openCommandTab(page, tab) {
+  await page.locator('[data-d-ui-action="toggle-menu"]').first().click();
+  await page.locator('#d-ui-command-menu.open').waitFor();
+  await page.locator(`#d-ui-command-menu [data-tab="${tab}"]`).click();
+  await page.locator('#screen').waitFor();
+  assert.equal(await page.locator('#d-ui-command-menu.open').count(), 0, 'command menu must close after navigation');
+}
+
+async function verifyOffice(page, errors, layout) {
+  await openCommandTab(page, 'office');
+  await page.locator('#screen[data-screen="office"]').waitFor();
+  const tabs = page.locator('#screen [data-action="office-tab"]');
+  assert.equal(await tabs.count(), 8, `${layout}: office screen must preserve eight subtabs`);
+  const overview = page.locator('#screen [data-action="office-tab"][data-id="overview"]');
+  assert.ok(await overview.count(), `${layout}: office overview tab must exist`);
+  await page.locator('#screen [data-action="office-tab"][data-id="departments"]').click();
+  await page.locator('#screen [data-action="office-tab"][data-id="departments"].active').waitFor();
+  await overview.click();
+  await page.locator('#screen [data-action="office-tab"][data-id="overview"].active').waitFor();
+  assert.ok(await page.locator('#screen .card').count() > 0, `${layout}: office overview must render cards even without a contracted HQ`);
+  await assertNoRecovery(page, `${layout} office navigation`, errors);
+}
+
 async function verifyDesktop(browser, base) {
   const context = await browser.newContext({ viewport: { width: 1440, height: 900 }, locale: 'ja-JP', serviceWorkers: 'block' });
   const page = await context.newPage();
@@ -66,14 +89,12 @@ async function verifyDesktop(browser, base) {
   await firstMarker.click();
   assert.ok((await page.locator('.d-context-panel h2').textContent()).trim().length > 0, 'selected marker must populate the context drawer');
 
-  await page.locator('[data-d-ui-action="toggle-menu"]').first().click();
-  await page.locator('#d-ui-command-menu.open').waitFor();
-  assert.ok(await page.locator('#d-ui-command-menu [data-tab]').count() >= 18, 'full command menu must preserve all game sections');
-  await page.locator('#d-ui-command-menu [data-tab="business"]').click();
-  await page.locator('#screen').waitFor();
-  assert.equal(await page.locator('#d-ui-command-menu.open').count(), 0, 'command menu must close after navigation');
+  await openCommandTab(page, 'business');
   assert.ok(await page.locator('#screen .card').count() > 0, 'existing business screen must remain rendered');
   await assertNoRecovery(page, 'after business navigation', errors);
+
+  await verifyOffice(page, errors, 'desktop');
+  await page.screenshot({ path: path.join(OUT, 'd-ui-office-desktop.png'), fullPage: true });
 
   await page.locator('#d-ui-sidebar [data-tab="map"]').click();
   await page.locator('.d-map-workspace').waitFor();
@@ -97,10 +118,18 @@ async function verifyIPhone(browser, base) {
   await page.locator('#d-ui-sidebar [data-tab="map"]').click();
   await page.locator('.d-map-workspace').waitFor();
   await page.locator('.d-map-stage').waitFor();
-  await page.locator('[data-d-ui-action="toggle-menu"]').first().click();
-  await page.locator('#d-ui-command-menu.open').waitFor();
-  await page.locator('#d-ui-command-menu [data-tab="settings"]').click();
-  await page.locator('#screen').waitFor();
+
+  await verifyOffice(page, errors, 'iPhone');
+  const firstOfficeTabBox = await page.locator('#screen [data-action="office-tab"]').first().boundingBox();
+  assert.ok(firstOfficeTabBox && firstOfficeTabBox.height >= 44, `iPhone office tab must be at least 44px high, got ${firstOfficeTabBox?.height}`);
+  const noHorizontalOverflow = await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1);
+  assert.ok(noHorizontalOverflow, 'iPhone office screen must not create page-level horizontal overflow');
+  await page.locator('#screen [data-action="office-tab"][data-id="departments"]').click();
+  await page.locator('#screen [data-action="office-tab"][data-id="departments"].active').waitFor();
+  await page.screenshot({ path: path.join(OUT, 'd-ui-office-iphone.png'), fullPage: true });
+  await assertNoRecovery(page, 'after iPhone office navigation', errors);
+
+  await openCommandTab(page, 'settings');
   assert.ok(await page.locator('#screen .card').count() > 0, 'settings screen must remain usable from the mobile command menu');
   await assertNoRecovery(page, 'after settings navigation', errors);
   await page.screenshot({ path: path.join(OUT, 'd-ui-iphone.png'), fullPage: true });
