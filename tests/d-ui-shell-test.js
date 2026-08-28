@@ -84,7 +84,7 @@ assert.match(script,/modules\.playerEngineBridge\.getEngine/,'D UI must reuse th
 assert.match(script,/data-action="tab"/,'D UI navigation must use the existing tab action contract');
 assert.match(script,/data-action="open-store"/,'D UI tenant action must preserve the existing open-store action');
 assert.match(script,/const isActive=button\.dataset\.tab===active/,'D UI navigation must derive current state from the active tab');
-assert.match(script,/if\(isActive\)button\.setAttribute\('aria-current','page'\);else button\.removeAttribute\('aria-current'\)/,'D UI navigation must expose and clear aria-current across rerenders');
+assert.match(script,/if\(isActive\)button\.setAttribute\('aria-current','page'\);else button\.removeAttribute\('aria-current','page'\)/,'D UI navigation must expose and clear aria-current across rerenders');
 assert.match(script,/if\(open\)menu\.querySelector\('\[data-d-ui-action="toggle-menu"\]'\)\?\.focus\(\)/,'opening the command menu must move focus into the dialog');
 assert.match(script,/setCommandMenu\(open,!open\)/,'pointer dismissal must restore focus to the menu trigger');
 assert.match(script,/setCommandMenu\(false,true\)/,'Escape dismissal must restore focus to the menu trigger');
@@ -134,5 +134,8 @@ assert.match(bankStyle, /\.button-row>\.btn\{[^}]*min-height:44px/, 'bank borrow
 assert.match(bankStyle, /@media\(max-width:820px\)\{[\s\S]*?\[data-screen="bank"\]>\.grid\.two\{grid-template-columns:1fr!important/, 'bank two-column grid must collapse to one column on iPhone');
 assert.match(bankStyle, /\.forecast>div\{[^}]*grid-template-columns:/, 'cashflow forecast must retain a structured readable row layout');
 assert.match(bankStyle, /\.forecast>div>strong\.down\{color:/, 'negative forecast cash must remain visually prominent');
+assert.match(bankStyle, /\.forecast\{[^}]*grid-template-columns:repeat\(4,minmax\(0,1fr\)\)[^}]*overflow:visible/, 'bank forecast must override the legacy eight-column scrolling grid');
+assert.match(bankStyle, /\.forecast>div>strong\{[^}]*white-space:nowrap[^}]*overflow-wrap:normal/, 'forecast ending cash must stay on one readable line');
+assert.match(bankStyle, /@media\(max-width:520px\)\{[\s\S]*?\[data-screen="bank"\] \.forecast\{grid-template-columns:repeat\(2,minmax\(0,1fr\)\)/, 'iPhone forecast must use a two-card responsive grid');
 
 console.log('D UI shell contract passed');
