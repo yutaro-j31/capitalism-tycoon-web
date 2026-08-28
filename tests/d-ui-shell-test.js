@@ -12,6 +12,7 @@ const registryPath = path.join(ROOT, 'js', 'ui-enhancer-registry.js');
 const stylePath = path.join(ROOT, 'css', 'd-ui.css');
 const officeStylePath = path.join(ROOT, 'css', 'd-ui-office.css');
 const bankStylePath = path.join(ROOT, 'css', 'd-ui-bank.css');
+const marketStylePath = path.join(ROOT, 'css', 'd-ui-market.css');
 const mobileStylePath = path.join(ROOT, 'css', 'd-ui-mobile-company.css');
 const appPath = path.join(ROOT, 'js', 'app.js');
 assert.ok(fs.existsSync(scriptPath), 'D UI shell script is required');
@@ -19,12 +20,14 @@ assert.ok(fs.existsSync(registryPath), 'UI enhancer registry script is required'
 assert.ok(fs.existsSync(stylePath), 'D UI stylesheet is required');
 assert.ok(fs.existsSync(officeStylePath), 'D UI office stylesheet is required');
 assert.ok(fs.existsSync(bankStylePath), 'D UI bank stylesheet is required');
+assert.ok(fs.existsSync(marketStylePath), 'D UI market stylesheet is required');
 const script = fs.readFileSync(scriptPath, 'utf8');
 const registryScript = fs.readFileSync(registryPath, 'utf8');
 const contextTabsScript = fs.readFileSync(path.join(ROOT, 'js', 'd-ui-context-tabs.js'), 'utf8');
 const style = fs.readFileSync(stylePath, 'utf8');
 const officeStyle = fs.readFileSync(officeStylePath, 'utf8');
 const bankStyle = fs.readFileSync(bankStylePath, 'utf8');
+const marketStyle = fs.readFileSync(marketStylePath, 'utf8');
 const mobileStyle = fs.readFileSync(mobileStylePath, 'utf8');
 const appScript = fs.readFileSync(appPath, 'utf8');
 
@@ -137,5 +140,24 @@ assert.match(bankStyle, /\.forecast>div>strong\.down\{color:/, 'negative forecas
 assert.match(bankStyle, /\.forecast\{[^}]*grid-template-columns:repeat\(4,minmax\(0,1fr\)\)[^}]*overflow:visible/, 'bank forecast must override the legacy eight-column scrolling grid');
 assert.match(bankStyle, /\.forecast>div>strong\{[^}]*white-space:nowrap[^}]*overflow-wrap:normal/, 'forecast ending cash must stay on one readable line');
 assert.match(bankStyle, /@media\(max-width:520px\)\{[\s\S]*?\[data-screen="bank"\] \.forecast\{grid-template-columns:repeat\(2,minmax\(0,1fr\)\)/, 'iPhone forecast must use a two-card responsive grid');
+
+// D UI Phase 5: market is a CSS-only extension of renderMarket()/renderStockDetail().
+assert.match(mobileStyle, /@import url\("\.\/d-ui-market\.css"\);/, 'market stylesheet must load from the D UI import chain');
+assert.match(marketStyle, /\[data-screen="market"\]/, 'market CSS must stay scoped to the market screen');
+assert.match(marketStyle, /var\(--d-gold2\)/, 'market reskin must reuse the existing D UI gold token');
+assert.doesNotMatch(marketStyle, /(?:^|[;{])\s*display\s*:\s*none\b/m, 'market reskin must not hide existing market information');
+assert.doesNotMatch(marketStyle, /\b(?:width|min-width|max-width)\s*:\s*100vw\b/, 'market reskin must not create page-level viewport overflow');
+assert.doesNotMatch(marketStyle, /Math\.random|MutationObserver|registerUIEnhancer/, 'market CSS must not add RNG, observers, or enhancers');
+assert.match(appScript, /function renderMarket\(\)/, 'existing renderMarket function must remain the source of market values');
+assert.match(appScript, /function renderStockDetail\(stock\)/, 'existing renderStockDetail must remain the source of stock detail values');
+assert.ok(appScript.includes('data-bind="selectedAccount"'), 'market must preserve personal/company account selection');
+for (const action of ['select-stock','buy-stock','sell-stock','favorite-stock','stock-chart-range']) assert.ok(appScript.includes(`'${action}'`), `market action ${action} must remain wired`);
+assert.match(marketStyle, /\.stock-detail-head>strong\{[^}]*font-size:clamp\(/, 'selected stock price must be promoted to a D UI hero value');
+assert.match(marketStyle, /\.stock-trade-panel \.button-row>\.btn\{[^}]*min-height:44px/, 'stock trade panel actions must keep a 44px tap target');
+assert.match(marketStyle, /\.chart-range>\.btn\{[^}]*min-height:44px/, 'chart range actions must keep a 44px tap target');
+assert.match(marketStyle, /@media\(max-width:820px\)\{[\s\S]*?\.market-row:not\(\.header\)\{display:grid;grid-template-columns:repeat\(2,minmax\(0,1fr\)\)/, 'iPhone stock rows must become readable two-column cards');
+assert.match(marketStyle, /\.market-row\.header\{position:static;display:flex;flex-wrap:wrap/, 'iPhone market header labels must remain visible instead of being hidden');
+assert.match(marketStyle, /\.market-table\{overflow:visible;border:0;background:transparent\}/, 'iPhone market table must not retain the legacy horizontal scroller');
+assert.match(marketStyle, /\.market-row:not\(\.header\)>\.button-row>\.btn\{[^}]*min-height:44px/, 'iPhone stock row actions must keep a 44px tap target');
 
 console.log('D UI shell contract passed');
