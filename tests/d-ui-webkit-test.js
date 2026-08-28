@@ -76,6 +76,18 @@ async function verifyBank(page, errors, layout) {
   assert.equal(await page.locator('#screen [data-action="repay-personal"]').count(), 1, `${layout}: personal repayment action must remain reachable`);
   assert.ok(await page.locator('#screen .forecast').count(), `${layout}: cashflow forecast must remain rendered`);
   assert.ok(await page.locator('#screen .forecast > div').count() > 0, `${layout}: cashflow forecast must retain forecast rows`);
+  if (layout === 'iPhone') {
+    const forecast = page.locator('#screen .forecast');
+    const forecastFits = await forecast.evaluate(node => node.scrollWidth <= node.clientWidth + 1);
+    assert.ok(forecastFits, 'iPhone bank forecast must fit its card without an internal horizontal scroller');
+    const endingCash = page.locator('#screen .forecast > div > strong').first();
+    const metrics = await endingCash.evaluate(node => {
+      const computed = getComputedStyle(node);
+      return { whiteSpace: computed.whiteSpace, height: node.getBoundingClientRect().height, fontSize: Number.parseFloat(computed.fontSize) };
+    });
+    assert.equal(metrics.whiteSpace, 'nowrap', 'iPhone forecast ending cash must remain on one line');
+    assert.ok(metrics.height <= metrics.fontSize * 1.7, `iPhone forecast ending cash must not wrap vertically: ${metrics.height}px at ${metrics.fontSize}px`);
+  }
   await assertNoRecovery(page, `${layout} bank navigation`, errors);
 }
 
