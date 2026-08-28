@@ -67,6 +67,18 @@ async function verifyOffice(page, errors, layout) {
   await assertNoRecovery(page, `${layout} office navigation`, errors);
 }
 
+async function verifyBank(page, errors, layout) {
+  await openCommandTab(page, 'bank');
+  await page.locator('#screen[data-screen="bank"]').waitFor();
+  assert.equal(await page.locator('#screen [data-action="borrow-company"]').count(), 1, `${layout}: company borrowing action must remain reachable`);
+  assert.equal(await page.locator('#screen [data-action="repay-company"]').count(), 1, `${layout}: company repayment action must remain reachable`);
+  assert.equal(await page.locator('#screen [data-action="borrow-personal"]').count(), 1, `${layout}: personal borrowing action must remain reachable`);
+  assert.equal(await page.locator('#screen [data-action="repay-personal"]').count(), 1, `${layout}: personal repayment action must remain reachable`);
+  assert.ok(await page.locator('#screen .forecast').count(), `${layout}: cashflow forecast must remain rendered`);
+  assert.ok(await page.locator('#screen .forecast > div').count() > 0, `${layout}: cashflow forecast must retain forecast rows`);
+  await assertNoRecovery(page, `${layout} bank navigation`, errors);
+}
+
 async function verifyDesktop(browser, base) {
   const context = await browser.newContext({ viewport: { width: 1440, height: 900 }, locale: 'ja-JP', serviceWorkers: 'block' });
   const page = await context.newPage();
@@ -96,6 +108,9 @@ async function verifyDesktop(browser, base) {
   await verifyOffice(page, errors, 'desktop');
   await page.screenshot({ path: path.join(OUT, 'd-ui-office-desktop.png'), fullPage: true });
 
+  await verifyBank(page, errors, 'desktop');
+  await page.screenshot({ path: path.join(OUT, 'd-ui-bank-desktop.png'), fullPage: true });
+
   await page.locator('#d-ui-sidebar [data-tab="map"]').click();
   await page.locator('.d-map-workspace').waitFor();
   await page.screenshot({ path: path.join(OUT, 'd-ui-desktop.png'), fullPage: true });
@@ -122,12 +137,22 @@ async function verifyIPhone(browser, base) {
   await verifyOffice(page, errors, 'iPhone');
   const firstOfficeTabBox = await page.locator('#screen [data-action="office-tab"]').first().boundingBox();
   assert.ok(firstOfficeTabBox && firstOfficeTabBox.height >= 44, `iPhone office tab must be at least 44px high, got ${firstOfficeTabBox?.height}`);
-  const noHorizontalOverflow = await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1);
-  assert.ok(noHorizontalOverflow, 'iPhone office screen must not create page-level horizontal overflow');
+  const noOfficeHorizontalOverflow = await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1);
+  assert.ok(noOfficeHorizontalOverflow, 'iPhone office screen must not create page-level horizontal overflow');
   await page.locator('#screen [data-action="office-tab"][data-id="departments"]').click();
   await page.locator('#screen [data-action="office-tab"][data-id="departments"].active').waitFor();
   await page.screenshot({ path: path.join(OUT, 'd-ui-office-iphone.png'), fullPage: true });
   await assertNoRecovery(page, 'after iPhone office navigation', errors);
+
+  await verifyBank(page, errors, 'iPhone');
+  for (const action of ['borrow-company','repay-company','borrow-personal','repay-personal']) {
+    const box = await page.locator(`#screen [data-action="${action}"]`).boundingBox();
+    assert.ok(box && box.height >= 44, `iPhone ${action} must be at least 44px high, got ${box?.height}`);
+  }
+  const noBankHorizontalOverflow = await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1);
+  assert.ok(noBankHorizontalOverflow, 'iPhone bank screen must not create page-level horizontal overflow');
+  await page.screenshot({ path: path.join(OUT, 'd-ui-bank-iphone.png'), fullPage: true });
+  await assertNoRecovery(page, 'after iPhone bank navigation', errors);
 
   await openCommandTab(page, 'settings');
   assert.ok(await page.locator('#screen .card').count() > 0, 'settings screen must remain usable from the mobile command menu');
