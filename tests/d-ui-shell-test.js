@@ -11,17 +11,20 @@ const scriptPath = path.join(ROOT, 'js', 'd-ui-shell.js');
 const registryPath = path.join(ROOT, 'js', 'ui-enhancer-registry.js');
 const stylePath = path.join(ROOT, 'css', 'd-ui.css');
 const officeStylePath = path.join(ROOT, 'css', 'd-ui-office.css');
+const bankStylePath = path.join(ROOT, 'css', 'd-ui-bank.css');
 const mobileStylePath = path.join(ROOT, 'css', 'd-ui-mobile-company.css');
 const appPath = path.join(ROOT, 'js', 'app.js');
 assert.ok(fs.existsSync(scriptPath), 'D UI shell script is required');
 assert.ok(fs.existsSync(registryPath), 'UI enhancer registry script is required');
 assert.ok(fs.existsSync(stylePath), 'D UI stylesheet is required');
 assert.ok(fs.existsSync(officeStylePath), 'D UI office stylesheet is required');
+assert.ok(fs.existsSync(bankStylePath), 'D UI bank stylesheet is required');
 const script = fs.readFileSync(scriptPath, 'utf8');
 const registryScript = fs.readFileSync(registryPath, 'utf8');
 const contextTabsScript = fs.readFileSync(path.join(ROOT, 'js', 'd-ui-context-tabs.js'), 'utf8');
 const style = fs.readFileSync(stylePath, 'utf8');
 const officeStyle = fs.readFileSync(officeStylePath, 'utf8');
+const bankStyle = fs.readFileSync(bankStylePath, 'utf8');
 const mobileStyle = fs.readFileSync(mobileStylePath, 'utf8');
 const appScript = fs.readFileSync(appPath, 'utf8');
 
@@ -115,5 +118,21 @@ assert.match(officeStyle, /\[data-screen="office"\] \.btn,[^}]*\.subtabs button\
 assert.match(officeStyle, /@media\(max-width:820px\)\{[\s\S]*?\[data-screen="office"\] \.grid\.two\{grid-template-columns:1fr!important/, 'office two-column grids must collapse to one column on iPhone');
 assert.match(officeStyle, /card:has\(\.btn\[data-action="cancel-office"\]\)/, 'office overview hero must reuse the existing cancel-office DOM contract');
 assert.match(officeStyle, /card:has\(\.btn\[data-action="workforce-invest"\]\)/, 'organization KPI hero must reuse the existing workforce-invest DOM contract');
+
+// D UI Phase 4: bank is a CSS-only extension of the existing renderBank() DOM.
+assert.match(mobileStyle, /@import url\("\.\/d-ui-bank\.css"\);/, 'bank stylesheet must load from the D UI import chain');
+assert.match(bankStyle, /\[data-screen="bank"\]/, 'bank CSS must stay scoped to the bank screen');
+assert.match(bankStyle, /var\(--d-gold2\)/, 'company bank styling must reuse the existing D UI gold token');
+assert.doesNotMatch(bankStyle, /(?:^|[;{])\s*display\s*:\s*none\b/m, 'bank reskin must not hide existing financial information');
+assert.doesNotMatch(bankStyle, /\b(?:width|min-width|max-width)\s*:\s*100vw\b/, 'bank reskin must not create page-level viewport overflow');
+assert.doesNotMatch(bankStyle, /Math\.random|MutationObserver|registerUIEnhancer/, 'bank CSS must not add RNG, observers, or enhancers');
+assert.match(appScript, /function renderBank\(\)/, 'existing renderBank function must remain the source of bank values');
+for (const action of ['borrow-company','repay-company','borrow-personal','repay-personal']) assert.ok(appScript.includes(`'${action}'`), `bank action ${action} must remain wired`);
+assert.match(bankStyle, /card:has\(\[data-action="borrow-company"\]\)/, 'company bank card must be identified from the existing borrow-company action');
+assert.match(bankStyle, /card:has\(\[data-action="borrow-personal"\]\)/, 'personal bank card must be identified from the existing borrow-personal action');
+assert.match(bankStyle, /\.button-row>\.btn\{[^}]*min-height:44px/, 'bank borrow and repayment actions must keep a 44px tap target');
+assert.match(bankStyle, /@media\(max-width:820px\)\{[\s\S]*?\[data-screen="bank"\]>\.grid\.two\{grid-template-columns:1fr!important/, 'bank two-column grid must collapse to one column on iPhone');
+assert.match(bankStyle, /\.forecast>div\{[^}]*grid-template-columns:/, 'cashflow forecast must retain a structured readable row layout');
+assert.match(bankStyle, /\.forecast>div>strong\.down\{color:/, 'negative forecast cash must remain visually prominent');
 
 console.log('D UI shell contract passed');
