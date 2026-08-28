@@ -22,6 +22,8 @@ const { ROOT } = require('./harness');
 
 const css = fs.readFileSync(path.join(ROOT, 'css', 'app.css'), 'utf8');
 const app = fs.readFileSync(path.join(ROOT, 'js', 'app.js'), 'utf8');
+const dUiMobile = fs.readFileSync(path.join(ROOT, 'css', 'd-ui-mobile-company.css'), 'utf8');
+const dUiBusiness = fs.readFileSync(path.join(ROOT, 'css', 'd-ui-business.css'), 'utf8');
 
 function ruleBody(selectorRegex, label) {
   const m = css.match(selectorRegex);
@@ -80,6 +82,39 @@ function ruleBody(selectorRegex, label) {
   const baseline = fs.readFileSync(path.join(ROOT, 'tests', 'fixtures', 'extracted-css-baseline.css'), 'utf8').replace(/\r\n?/g, '\n').trim();
   const current = css.replace(/\r\n?/g, '\n').trim();
   assert.equal(baseline, current, 'tests/fixtures/extracted-css-baseline.css がcss/app.cssと一致していない');
+}
+
+// 7. D UI Phase 2: 新しい事業画面CSSは既存D UIのload chainだけから読み込む。
+//    app.cssや新規enhancerを増やさず、business画面だけにスコープする。
+{
+  assert.match(dUiMobile, /@import url\("\.\/d-ui-business\.css"\);/, 'd-ui-business.css がD UI load chainへ登録されている');
+  assert.match(dUiBusiness, /\[data-screen="business"\]/, '新CSSはbusiness画面へスコープされている');
+  assert.match(dUiBusiness, /:has\(\.btn\[data-action="business-invest"\]\)/, '運営中の完全版カードだけを既存business-invest配線で識別する');
+}
+
+// 8. 既存KPIの「週次利益」を新しい値へ計算し直さず、businessFullCard()で既に
+//    末尾から2番目に出しているstatをヒーロー表示へ昇格する。
+{
+  assert.match(dUiBusiness, />\.kpi-grid\.mini>\.stat:nth-last-child\(2\)/, '週次利益KPIを既存DOM順のままヒーロー化する');
+  assert.match(dUiBusiness, /font-size:clamp\(30px,3vw,42px\)/, '週次利益を大きな数字で表示する');
+  assert.match(dUiBusiness, /var\(--d-gold2\)/, '既存D UIのゴールドtokenを再利用する');
+}
+
+// 9. 主力4業種は既存buttonのdata-idからアイコンを付ける。新しいbusiness stateや
+//    JSの分類処理は作らない。旧saveの主力外業種は汎用◆のまま表示できる。
+{
+  for (const id of ['ramen', 'conveni', 'gym', 'realEstateAgency']) {
+    assert.match(dUiBusiness, new RegExp(`data-id="${id}"`), `${id}: 既存data-idを使うアイコンselectorがある`);
+  }
+  assert.match(dUiBusiness, /h2::before\{content:"◆"/, '主力外の既存saveにも汎用アイコンfallbackがある');
+}
+
+// 10. CTAはPhase 2の見た目変更後も44pxを維持し、iPhoneではカード・操作列を
+//     1列/2列へ落として横スクロールを作らない。
+{
+  assert.match(dUiBusiness, />\.button-grid>\.btn\{min-height:44px/, '事業カードの主要CTAは44px以上');
+  assert.match(dUiBusiness, /@media\(max-width:820px\)\{[\s\S]*?\.grid\.three\{grid-template-columns:1fr!important/, 'iPhoneでは事業カードを1列化する');
+  assert.match(dUiBusiness, /\.button-grid\{grid-template-columns:repeat\(2,minmax\(0,1fr\)\)/, 'iPhoneでは操作ボタンを2列へ落とす');
 }
 
 console.log('business screen tap target tests passed');
