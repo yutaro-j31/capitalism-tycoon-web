@@ -10,13 +10,20 @@ const html = readIndex();
 const scriptPath = path.join(ROOT, 'js', 'd-ui-shell.js');
 const registryPath = path.join(ROOT, 'js', 'ui-enhancer-registry.js');
 const stylePath = path.join(ROOT, 'css', 'd-ui.css');
+const officeStylePath = path.join(ROOT, 'css', 'd-ui-office.css');
+const mobileStylePath = path.join(ROOT, 'css', 'd-ui-mobile-company.css');
+const appPath = path.join(ROOT, 'js', 'app.js');
 assert.ok(fs.existsSync(scriptPath), 'D UI shell script is required');
 assert.ok(fs.existsSync(registryPath), 'UI enhancer registry script is required');
 assert.ok(fs.existsSync(stylePath), 'D UI stylesheet is required');
+assert.ok(fs.existsSync(officeStylePath), 'D UI office stylesheet is required');
 const script = fs.readFileSync(scriptPath, 'utf8');
 const registryScript = fs.readFileSync(registryPath, 'utf8');
 const contextTabsScript = fs.readFileSync(path.join(ROOT, 'js', 'd-ui-context-tabs.js'), 'utf8');
 const style = fs.readFileSync(stylePath, 'utf8');
+const officeStyle = fs.readFileSync(officeStylePath, 'utf8');
+const mobileStyle = fs.readFileSync(mobileStylePath, 'utf8');
+const appScript = fs.readFileSync(appPath, 'utf8');
 
 assert.match(html, /<link[^>]+href="\.\/css\/d-ui\.css"/i, 'D UI stylesheet must load from index');
 assert.match(html, /<script[^>]+src="\.\/js\/d-ui-shell\.js"/i, 'D UI shell must load from index');
@@ -90,4 +97,23 @@ assert.doesNotMatch(script+style,/https?:\/\//,'D UI shell must not add remote r
 assert.match(style,/@media\(max-width:820px\)/,'D UI must include an iPhone layout');
 assert.match(style,/grid-template-columns:minmax\(480px,1fr\) 350px 300px/,'desktop D layout columns are missing');
 assert.match(style,/--d-gold:/,'D UI design tokens are missing');
+
+// D UI Phase 3: office is a CSS-only extension of the existing app.js office DOM.
+assert.match(mobileStyle, /@import url\("\.\/d-ui-office\.css"\);/, 'office stylesheet must load from the D UI import chain');
+assert.match(officeStyle, /\[data-screen="office"\]/, 'office CSS must stay scoped to the office screen');
+assert.match(officeStyle, /var\(--d-gold2\)/, 'office reskin must reuse the existing D UI gold token');
+assert.doesNotMatch(officeStyle, /(?:^|[;{])\s*display\s*:\s*none\b/m, 'office reskin must not hide existing information');
+assert.doesNotMatch(officeStyle, /\b(?:width|min-width|max-width)\s*:\s*100vw\b/, 'office reskin must not create page-level viewport overflow');
+assert.doesNotMatch(officeStyle, /Math\.random|MutationObserver|registerUIEnhancer/, 'office CSS must not add RNG, observers, or enhancers');
+assert.ok(appScript.includes('data-action=\\"office-tab\\"') || appScript.includes('data-action="office-tab"'), 'office subtabs must preserve the existing office-tab action wiring');
+for (const id of ['dashboard','overview','campus','departments','executives','keypeople','board','directives']) {
+  assert.ok(appScript.includes(`['${id}'`) || appScript.includes(`[\"${id}\"`) || appScript.includes(`'${id}'`), `office tab ${id} must remain present`);
+}
+assert.match(officeStyle, /\.subtabs\{[^}]*overflow-x:auto/, 'office subtab strip must own its horizontal scrolling');
+assert.match(officeStyle, /\.subtabs button\{[^}]*min-height:44px/, 'office subtabs must keep a 44px tap target');
+assert.match(officeStyle, /\[data-screen="office"\] \.btn,[^}]*\.subtabs button\{min-height:44px/, 'office action buttons must keep a 44px tap target');
+assert.match(officeStyle, /@media\(max-width:820px\)\{[\s\S]*?\[data-screen="office"\] \.grid\.two\{grid-template-columns:1fr!important/, 'office two-column grids must collapse to one column on iPhone');
+assert.match(officeStyle, /card:has\(\.btn\[data-action="cancel-office"\]\)/, 'office overview hero must reuse the existing cancel-office DOM contract');
+assert.match(officeStyle, /card:has\(\.btn\[data-action="workforce-invest"\]\)/, 'organization KPI hero must reuse the existing workforce-invest DOM contract');
+
 console.log('D UI shell contract passed');
