@@ -63,7 +63,7 @@ ChatGPT/Codex等、Claude Code以外のツールで作業を引き継ぐ場合�
 ## Phase進捗
 
 - [x] 前準備: CLAUDE.mdへの方針追加、本ファイルの新規作成
-- [ ] Phase 1: マップ画面の密度強化（`js/d-ui-shell.js`の`renderMapWorkspace()`の
+- [x] Phase 1: マップ画面の密度強化（`js/d-ui-shell.js`の`renderMapWorkspace()`の
       建物ブロック描画部分をアイソメトリック立方体（屋根/左面/右面の3ポリゴン）に強化。
       窓の帯・ゾーン別色相・橋・公園の木を追加。マーカー配置ロジック・ドリルダウンは無変更）
 - [ ] Phase 2: 事業（business）画面のD UIリスキン（`js/app.js`の`businessFullCard()`等に
