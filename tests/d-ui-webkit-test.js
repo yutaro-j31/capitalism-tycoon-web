@@ -187,6 +187,36 @@ async function verifyMA(page, errors, layout) {
   await assertNoRecovery(page, `${layout} M&A navigation`, errors);
 }
 
+async function verifyOverseas(page, errors, layout) {
+  await openCommandTab(page, 'overseas');
+  await page.locator('#screen[data-screen="overseas"]').waitFor();
+  assert.ok(await page.locator('#screen > .card').count() >= 2, `${layout}: overseas hero and subsidiary cards must remain rendered`);
+  const countryGrid = page.locator('#screen > .grid.three');
+  assert.equal(await countryGrid.count(), 1, `${layout}: overseas country grid must remain rendered`);
+  const countryCards = countryGrid.locator(':scope > .card');
+  const countryCount = await countryCards.count();
+  assert.ok(countryCount > 0, `${layout}: overseas screen must retain expansion countries`);
+  assert.equal(await page.locator('#screen [data-action="open-overseas"]').count(), countryCount, `${layout}: every overseas country must retain its establishment action`);
+  assert.equal(await page.locator('#screen select[id^="overseas-business-"]').count(), countryCount, `${layout}: every overseas country must retain its business selector`);
+  assert.ok(await page.locator('#screen > .card:last-child .empty').count() > 0, `${layout}: fresh-company overseas subsidiary empty state must remain readable`);
+  if (layout === 'iPhone') {
+    const pageFits = await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1);
+    assert.ok(pageFits, 'iPhone overseas screen must not create page-level horizontal overflow');
+    const columns = await countryGrid.evaluate(node => getComputedStyle(node).gridTemplateColumns.split(' ').filter(Boolean).length);
+    assert.equal(columns, 1, 'iPhone overseas country grid must collapse to one column');
+    for (const selector of ['#screen [data-action="open-overseas"]', '#screen select[id^="overseas-business-"]']) {
+      const controls = page.locator(selector);
+      const count = await controls.count();
+      assert.ok(count > 0, `iPhone overseas control group must exist: ${selector}`);
+      for (let i=0;i<count;i+=1) {
+        const box = await controls.nth(i).boundingBox();
+        assert.ok(box && box.height >= 44, `iPhone overseas control must be at least 44px high: ${selector} = ${box?.height}`);
+      }
+    }
+  }
+  await assertNoRecovery(page, `${layout} overseas navigation`, errors);
+}
+
 async function verifyDesktop(browser, base) {
   const context = await browser.newContext({ viewport: { width: 1440, height: 900 }, locale: 'ja-JP', serviceWorkers: 'block' });
   const page = await context.newPage();
@@ -227,6 +257,9 @@ async function verifyDesktop(browser, base) {
 
   await verifyMA(page, errors, 'desktop');
   await page.screenshot({ path: path.join(OUT, 'd-ui-ma-desktop.png'), fullPage: true });
+
+  await verifyOverseas(page, errors, 'desktop');
+  await page.screenshot({ path: path.join(OUT, 'd-ui-overseas-desktop.png'), fullPage: true });
 
   await page.locator('#d-ui-sidebar [data-tab="map"]').click();
   await page.locator('.d-map-workspace').waitFor();
@@ -282,6 +315,10 @@ async function verifyIPhone(browser, base) {
   await verifyMA(page, errors, 'iPhone');
   await page.screenshot({ path: path.join(OUT, 'd-ui-ma-iphone.png'), fullPage: true, scale: 'css' });
   await assertNoRecovery(page, 'after iPhone M&A navigation', errors);
+
+  await verifyOverseas(page, errors, 'iPhone');
+  await page.screenshot({ path: path.join(OUT, 'd-ui-overseas-iphone.png'), fullPage: true, scale: 'css' });
+  await assertNoRecovery(page, 'after iPhone overseas navigation', errors);
 
   await openCommandTab(page, 'settings');
   assert.ok(await page.locator('#screen .card').count() > 0, 'settings screen must remain usable from the mobile command menu');
