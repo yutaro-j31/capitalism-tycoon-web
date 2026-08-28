@@ -18,7 +18,7 @@ if (!html.includes('</html>') || !html.includes('</body>')) errors.push('body/ht
 const textFindings = checkRepository();
 for (const f of textFindings) errors.push(`${f.file}:${f.line}:${f.column} ${f.codePoint} ${f.reason}`);
 if (errors.length) { console.error(errors.join('\n')); process.exit(1); }
-for (const test of ['boot-recovery-test.js', 'release-diagnostics-ui-test.js', 'playtest-report-ui-test.js', 'd-ui-shell-test.js', 'runtime-recovery-ui-test.js']) {
+for (const test of ['boot-recovery-test.js', 'release-diagnostics-ui-test.js', 'playtest-report-ui-test.js', 'd-ui-shell-test.js', 'd-ui-venture-contract.js', 'runtime-recovery-ui-test.js']) {
   const result = spawnSync(process.execPath, [path.join(__dirname, test)], { stdio: 'inherit' });
   if (result.error) { console.error(result.error.message); process.exit(1); }
   if (result.status !== 0) process.exit(result.status || 1);

@@ -125,6 +125,34 @@ async function verifyMarket(page, errors, layout) {
   await assertNoRecovery(page, `${layout} market navigation`, errors);
 }
 
+async function verifyVenture(page, errors, layout) {
+  await openCommandTab(page, 'venture');
+  await page.locator('#screen[data-screen="venture"]').waitFor();
+  assert.ok(await page.locator('#screen > .card').count() >= 2, `${layout}: venture summary and subsidiary cards must remain rendered`);
+  const startupGrid = page.locator('#screen > .grid.two').first();
+  assert.ok(await startupGrid.count(), `${layout}: startup portfolio grid must remain rendered`);
+  const startupCards = startupGrid.locator(':scope > .card');
+  assert.ok(await startupCards.count() > 0, `${layout}: startup portfolio must retain investable companies`);
+  for (const action of ['invest-startup-company','invest-startup-personal']) {
+    assert.ok(await page.locator(`#screen [data-action="${action}"]`).count() > 0, `${layout}: venture ${action} action must remain reachable`);
+  }
+  if (layout === 'iPhone') {
+    const pageFits = await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1);
+    assert.ok(pageFits, 'iPhone venture screen must not create page-level horizontal overflow');
+    const firstCard = startupCards.first();
+    const cardMetrics = await firstCard.evaluate(node => ({ width: node.getBoundingClientRect().width, parentWidth: node.parentElement.getBoundingClientRect().width }));
+    assert.ok(cardMetrics.width <= cardMetrics.parentWidth + 1, `iPhone venture card must fit its grid: ${cardMetrics.width}px > ${cardMetrics.parentWidth}px`);
+    const controls = page.locator('#screen > .grid.two > .card .button-row .btn');
+    const count = await controls.count();
+    assert.ok(count > 0, 'iPhone venture startup controls must remain rendered');
+    for (let i=0;i<count;i+=1) {
+      const box = await controls.nth(i).boundingBox();
+      assert.ok(box && box.height >= 44, `iPhone venture control must be at least 44px high, got ${box?.height}`);
+    }
+  }
+  await assertNoRecovery(page, `${layout} venture navigation`, errors);
+}
+
 async function verifyDesktop(browser, base) {
   const context = await browser.newContext({ viewport: { width: 1440, height: 900 }, locale: 'ja-JP', serviceWorkers: 'block' });
   const page = await context.newPage();
@@ -159,6 +187,9 @@ async function verifyDesktop(browser, base) {
 
   await verifyMarket(page, errors, 'desktop');
   await page.screenshot({ path: path.join(OUT, 'd-ui-market-desktop.png'), fullPage: true });
+
+  await verifyVenture(page, errors, 'desktop');
+  await page.screenshot({ path: path.join(OUT, 'd-ui-venture-desktop.png'), fullPage: true });
 
   await page.locator('#d-ui-sidebar [data-tab="map"]').click();
   await page.locator('.d-map-workspace').waitFor();
@@ -206,6 +237,10 @@ async function verifyIPhone(browser, base) {
   await verifyMarket(page, errors, 'iPhone');
   await page.screenshot({ path: path.join(OUT, 'd-ui-market-iphone.png'), fullPage: true, scale: 'css' });
   await assertNoRecovery(page, 'after iPhone market navigation', errors);
+
+  await verifyVenture(page, errors, 'iPhone');
+  await page.screenshot({ path: path.join(OUT, 'd-ui-venture-iphone.png'), fullPage: true, scale: 'css' });
+  await assertNoRecovery(page, 'after iPhone venture navigation', errors);
 
   await openCommandTab(page, 'settings');
   assert.ok(await page.locator('#screen .card').count() > 0, 'settings screen must remain usable from the mobile command menu');
