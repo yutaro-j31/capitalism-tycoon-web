@@ -217,6 +217,51 @@ async function verifyOverseas(page, errors, layout) {
   await assertNoRecovery(page, `${layout} overseas navigation`, errors);
 }
 
+async function verifyAssets(page, errors, layout) {
+  await openCommandTab(page, 'assets');
+  await page.locator('#screen[data-screen="assets"]').waitFor();
+  const tabs = page.locator('#screen [data-action="asset-tab"]');
+  assert.equal(await tabs.count(), 4, `${layout}: assets screen must preserve four subtabs`);
+
+  await page.locator('#screen [data-action="asset-tab"][data-id="investment"]').click();
+  await page.locator('#screen [data-action="asset-tab"][data-id="investment"].active').waitFor();
+  assert.ok(await page.locator('#screen [data-action="buy-personal-investment"]').count() > 0, `${layout}: investment purchase actions must remain reachable`);
+
+  await page.locator('#screen [data-action="asset-tab"][data-id="luxury"]').click();
+  await page.locator('#screen [data-action="asset-tab"][data-id="luxury"].active').waitFor();
+  assert.ok(await page.locator('#screen [data-action="buy-luxury"]').count() > 0, `${layout}: luxury purchase actions must remain reachable`);
+
+  await page.locator('#screen [data-action="asset-tab"][data-id="sports"]').click();
+  await page.locator('#screen [data-action="asset-tab"][data-id="sports"].active').waitFor();
+  assert.ok(await page.locator('#screen [data-action="buy-team-personal"]').count() > 0, `${layout}: personal sports acquisition action must remain reachable`);
+  assert.ok(await page.locator('#screen [data-action="buy-team-company"]').count() > 0, `${layout}: company sports acquisition action must remain reachable`);
+
+  await page.locator('#screen [data-action="asset-tab"][data-id="investment"]').click();
+  await page.locator('#screen [data-action="asset-tab"][data-id="investment"].active').waitFor();
+
+  if (layout === 'iPhone') {
+    const pageFits = await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1);
+    assert.ok(pageFits, 'iPhone assets screen must not create page-level horizontal overflow');
+    const tabStrip = page.locator('#screen .subtabs');
+    const tabOverflow = await tabStrip.evaluate(node => getComputedStyle(node).overflowX);
+    assert.ok(['auto','scroll'].includes(tabOverflow), `iPhone asset tabs must remain internally scrollable, got ${tabOverflow}`);
+    const firstGrid = page.locator('#screen > .grid.two').first();
+    assert.ok(await firstGrid.count(), 'iPhone assets investment grid must remain rendered');
+    const columns = await firstGrid.evaluate(node => getComputedStyle(node).gridTemplateColumns.split(' ').filter(Boolean).length);
+    assert.equal(columns, 1, 'iPhone assets two-column content must collapse to one column');
+    for (const selector of ['#screen [data-action="asset-tab"]','#screen .btn']) {
+      const controls = page.locator(selector);
+      const count = await controls.count();
+      assert.ok(count > 0, `iPhone assets control group must exist: ${selector}`);
+      for (let i=0;i<count;i+=1) {
+        const box = await controls.nth(i).boundingBox();
+        assert.ok(box && box.height >= 44, `iPhone assets control must be at least 44px high: ${selector} = ${box?.height}`);
+      }
+    }
+  }
+  await assertNoRecovery(page, `${layout} assets navigation`, errors);
+}
+
 async function verifyDesktop(browser, base) {
   const context = await browser.newContext({ viewport: { width: 1440, height: 900 }, locale: 'ja-JP', serviceWorkers: 'block' });
   const page = await context.newPage();
@@ -260,6 +305,9 @@ async function verifyDesktop(browser, base) {
 
   await verifyOverseas(page, errors, 'desktop');
   await page.screenshot({ path: path.join(OUT, 'd-ui-overseas-desktop.png'), fullPage: true });
+
+  await verifyAssets(page, errors, 'desktop');
+  await page.screenshot({ path: path.join(OUT, 'd-ui-assets-desktop.png'), fullPage: true });
 
   await page.locator('#d-ui-sidebar [data-tab="map"]').click();
   await page.locator('.d-map-workspace').waitFor();
@@ -319,6 +367,10 @@ async function verifyIPhone(browser, base) {
   await verifyOverseas(page, errors, 'iPhone');
   await page.screenshot({ path: path.join(OUT, 'd-ui-overseas-iphone.png'), fullPage: true, scale: 'css' });
   await assertNoRecovery(page, 'after iPhone overseas navigation', errors);
+
+  await verifyAssets(page, errors, 'iPhone');
+  await page.screenshot({ path: path.join(OUT, 'd-ui-assets-iphone.png'), fullPage: true, scale: 'css' });
+  await assertNoRecovery(page, 'after iPhone assets navigation', errors);
 
   await openCommandTab(page, 'settings');
   assert.ok(await page.locator('#screen .card').count() > 0, 'settings screen must remain usable from the mobile command menu');
