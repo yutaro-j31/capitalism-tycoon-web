@@ -237,6 +237,8 @@ body.d-ui-active [data-screen="office"] .card:has(.btn[data-action="contribute-f
     radial-gradient(circle at 92% 10%,rgba(124,92,255,.10),transparent 38%),
     linear-gradient(150deg,var(--d2-office-surface),var(--d2-office-surface-2));
 }
+/* Gold remains a deliberately narrow prestige accent for the IPO / board milestone only. */
+body.d-ui-active [data-screen="office"] .card:has(.btn[data-action="execute-ipo"])>.card-head h2{color:var(--d-gold2)}
 body.d-ui-active [data-screen="office"] [data-action="establish-department"],
 body.d-ui-active [data-screen="office"] [data-action="hire-executive"],
 body.d-ui-active [data-screen="office"] [data-action="execute-ipo"],
