@@ -10,7 +10,7 @@ if(!modules.uiEnhancerRegistry?.registerUIEnhancer)throw new Error('app.js UI en
 if(modules.dUIShell)throw new Error('D UI shell is already registered.');
 
 const PRIMARY_NAV=[
-  ['map','◉','マップ'],['office','▥','本社'],['business','▣','店舗'],['bank','◈','資金調達'],
+  ['map','◉','マップ'],['office','▥','本社'],['business','▣','店舗'],['market','↗','株式市場'],['bank','◈','資金調達'],
   ['strategy','△','研究開発'],['founder','●','採用'],['home','✚','危機対応'],['report','▥','実績'],['missions','✓','目標']
 ];
 const DOCK_NAV=[['report','▤','レポート'],['home','◴','ダッシュボード'],['ma','▦','子会社'],['office','♟','取締役会'],['rivals','♛','ランキング'],['settings','?','ヘルプ']];
