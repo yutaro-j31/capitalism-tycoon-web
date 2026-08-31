@@ -1,5 +1,12 @@
 const fs=require('node:fs');
 const app=fs.readFileSync('js/app.js','utf8'), index=fs.readFileSync('index.html','utf8');
+const financeCss=fs.readFileSync('css/d-ui-finance.css','utf8');
+const mobileCss=fs.readFileSync('css/d-ui-mobile-company.css','utf8');
 for (const word of ['損益計算書','貸借対照表','キャッシュフロー計算書','運転資本','配当可能額','13週資金繰り予測','financePeriod']) if(!app.includes(word)) throw new Error(`${word} missing`);
 if(!index.includes('./js/finance.js')) throw new Error('finance script missing');
+if(!mobileCss.includes('@import url("./d-ui-finance.css");')) throw new Error('D UI finance stylesheet import missing');
+for (const contract of ['[data-screen="report"]','--d2-fin-violet:#7c5cff','#report-chart','.finance-table','.finance-row','.forecast','.history-table','min-height:44px','env(safe-area-inset-left,0px)','env(safe-area-inset-right,0px)','prefers-reduced-motion']) if(!financeCss.includes(contract)) throw new Error(`finance D UI v2 contract missing: ${contract}`);
+if(financeCss.includes('100vw')) throw new Error('finance D UI v2 must not introduce 100vw overflow');
+if(financeCss.includes('scrollbar-width:none')||financeCss.includes('::-webkit-scrollbar{display:none}')) throw new Error('finance D UI v2 must keep horizontal-scroll affordance visible');
+if(financeCss.includes(':first-child')||financeCss.includes(':nth-child')) throw new Error('finance D UI v2 must not depend on DOM ordering');
 console.log('finance UI static checks passed');
