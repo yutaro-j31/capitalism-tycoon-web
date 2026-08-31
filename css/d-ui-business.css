@@ -1,46 +1,226 @@
-/* D UI Phase 2: business screen reskin. Presentation only; no business state or calculations. */
-.d-ui-active [data-screen="business"]{--d-business-card:rgba(10,27,47,.96);--d-business-card2:rgba(14,36,60,.94);--d-business-soft:rgba(255,255,255,.035)}
-.d-ui-active [data-screen="business"]>.card:has(.business-selector){border:1px solid rgba(217,168,77,.34);background:linear-gradient(140deg,rgba(217,168,77,.09),rgba(10,28,48,.92));box-shadow:0 14px 34px rgba(0,0,0,.22)}
-.d-ui-active [data-screen="business"] .business-selector{display:grid;grid-template-columns:minmax(220px,1fr) auto;gap:10px;align-items:end}
-.d-ui-active [data-screen="business"] .section-title{margin:20px 2px 10px;color:var(--d-gold2);font-size:13px;letter-spacing:.08em}
+/* D UI v2: company / store management. Presentation only; no business state or calculations. */
+.d-ui-active [data-screen="business"]{
+  --d2-business-surface:rgba(8,20,39,.96);
+  --d2-business-elevated:rgba(14,30,54,.96);
+  --d2-business-border:rgba(128,157,196,.18);
+  --d2-business-violet:#8b7cff;
+  --d2-business-blue:#5b8cff;
+  --d2-business-cyan:#57d6e8;
+  --d2-business-text:#f6f8fc;
+  --d2-business-muted:#9fb0c7;
+  --d2-business-good:#65d6a7;
+  --d2-business-warn:#f2b85b;
+  --d2-business-danger:#ff737d;
+}
+
+.d-ui-active [data-screen="business"]>.card:has(.business-selector){
+  border:1px solid rgba(139,124,255,.28);
+  background:
+    radial-gradient(circle at 88% 10%,rgba(87,214,232,.12),transparent 34%),
+    linear-gradient(145deg,rgba(139,124,255,.11),rgba(8,20,39,.96) 62%);
+  box-shadow:0 18px 46px rgba(0,0,0,.26);
+}
+.d-ui-active [data-screen="business"]>.card:has(.business-selector) .card-head h2{color:var(--d2-business-text)}
+.d-ui-active [data-screen="business"]>.card:has(.business-selector) .card-head p{color:var(--d2-business-muted)}
+.d-ui-active [data-screen="business"] .business-selector{display:grid;grid-template-columns:minmax(220px,1fr) auto;gap:12px;align-items:end}
+.d-ui-active [data-screen="business"] .business-selector label{min-width:0}
+.d-ui-active [data-screen="business"] .business-selector select,
+.d-ui-active [data-screen="business"] .business-selector .btn{min-height:44px}
+.d-ui-active [data-screen="business"] .business-selector select{border-color:rgba(139,124,255,.28);background:rgba(5,15,31,.86)}
+
+.d-ui-active [data-screen="business"] .section-title{
+  margin:24px 2px 10px;
+  color:var(--d2-business-muted);
+  font-size:12px;
+  font-weight:800;
+  letter-spacing:.08em;
+  text-transform:none;
+}
 .d-ui-active [data-screen="business"] .grid.three{grid-template-columns:repeat(2,minmax(0,1fr));gap:14px}
-.d-ui-active [data-screen="business"] .card:has(.btn[data-action="business-invest"]){position:relative;overflow:hidden;border:1px solid transparent;background:linear-gradient(150deg,var(--d-business-card),var(--d-business-card2)) padding-box,linear-gradient(125deg,rgba(242,205,121,.88),rgba(217,168,77,.20) 58%,rgba(100,154,208,.14)) border-box;box-shadow:0 18px 42px rgba(0,0,0,.27)}
-.d-ui-active [data-screen="business"] .card:has(.btn[data-action="business-invest"])::after{content:"";position:absolute;right:-56px;top:-72px;width:170px;height:170px;border-radius:50%;background:radial-gradient(circle,rgba(217,168,77,.13),transparent 68%);pointer-events:none}
-.d-ui-active [data-screen="business"] .card:has(.btn[data-action="business-invest"])>.card-head{position:relative;z-index:1;padding-bottom:4px;border-bottom:1px solid rgba(217,168,77,.13)}
-.d-ui-active [data-screen="business"] .card:has(.btn[data-action="business-invest"])>.card-head h2{display:flex;align-items:center;gap:9px;color:#f6f4ee;font-size:16px}
-.d-ui-active [data-screen="business"] .card:has(.btn[data-action="business-invest"])>.card-head h2::before{content:"◆";display:inline-grid;place-items:center;width:38px;height:38px;flex:0 0 38px;border:1px solid rgba(242,205,121,.44);border-radius:11px;background:linear-gradient(145deg,rgba(217,168,77,.20),rgba(217,168,77,.05));color:var(--d-gold2);font-size:20px;box-shadow:inset 0 1px 0 rgba(255,255,255,.12)}
+
+.d-ui-active [data-screen="business"] .card:has(.btn[data-action="business-invest"]){
+  position:relative;
+  overflow:hidden;
+  border:1px solid transparent;
+  background:
+    linear-gradient(150deg,var(--d2-business-surface),var(--d2-business-elevated)) padding-box,
+    linear-gradient(130deg,rgba(139,124,255,.58),rgba(91,140,255,.20) 52%,rgba(87,214,232,.22)) border-box;
+  box-shadow:0 18px 42px rgba(0,0,0,.24);
+}
+.d-ui-active [data-screen="business"] .card:has(.btn[data-action="business-invest"])::after{
+  content:"";
+  position:absolute;
+  right:-64px;
+  top:-82px;
+  width:190px;
+  height:190px;
+  border-radius:50%;
+  background:radial-gradient(circle,rgba(87,214,232,.10),transparent 68%);
+  pointer-events:none;
+}
+.d-ui-active [data-screen="business"] .card:has(.btn[data-action="business-invest"])>.card-head{
+  position:relative;
+  z-index:1;
+  padding-bottom:8px;
+  border-bottom:1px solid var(--d2-business-border);
+}
+.d-ui-active [data-screen="business"] .card:has(.btn[data-action="business-invest"])>.card-head h2{
+  display:flex;
+  align-items:center;
+  gap:10px;
+  color:var(--d2-business-text);
+  font-size:16px;
+}
+.d-ui-active [data-screen="business"] .card:has(.btn[data-action="business-invest"])>.card-head h2::before{content:"◆"}
+.d-ui-active [data-screen="business"] .card:has(.btn[data-action="business-invest"])>.card-head h2::before{
+  content:"◆";
+  display:inline-grid;
+  place-items:center;
+  width:40px;
+  height:40px;
+  flex:0 0 40px;
+  border:1px solid rgba(139,124,255,.34);
+  border-radius:12px;
+  background:linear-gradient(145deg,rgba(139,124,255,.18),rgba(91,140,255,.08));
+  color:var(--d2-business-violet);
+  font-size:20px;
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.08);
+}
 .d-ui-active [data-screen="business"] .card:has(.btn[data-action="business-invest"][data-id="ramen"])>.card-head h2::before{content:"🍜"}
 .d-ui-active [data-screen="business"] .card:has(.btn[data-action="business-invest"][data-id="conveni"])>.card-head h2::before{content:"🏪"}
 .d-ui-active [data-screen="business"] .card:has(.btn[data-action="business-invest"][data-id="gym"])>.card-head h2::before{content:"🏋"}
 .d-ui-active [data-screen="business"] .card:has(.btn[data-action="business-invest"][data-id="realEstateAgency"])>.card-head h2::before{content:"🏙"}
-.d-ui-active [data-screen="business"] .card:has(.btn[data-action="business-invest"])>.card-body>.kpi-grid.mini{grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;margin-top:10px}
-.d-ui-active [data-screen="business"] .card:has(.btn[data-action="business-invest"])>.card-body>.kpi-grid.mini>.stat{min-width:0;border:1px solid rgba(168,194,224,.12);background:var(--d-business-soft)}
-.d-ui-active [data-screen="business"] .card:has(.btn[data-action="business-invest"])>.card-body>.kpi-grid.mini>.stat:nth-last-child(2){grid-column:1/-1;order:-1;min-height:104px;padding:15px 17px;border-color:rgba(217,168,77,.34);background:radial-gradient(circle at 88% 18%,rgba(242,205,121,.14),transparent 38%),linear-gradient(145deg,rgba(217,168,77,.13),rgba(9,27,47,.76));box-shadow:inset 0 1px 0 rgba(255,255,255,.05)}
-.d-ui-active [data-screen="business"] .card:has(.btn[data-action="business-invest"])>.card-body>.kpi-grid.mini>.stat:nth-last-child(2)>span{display:block;margin-bottom:7px;color:#aebed0;font-size:10px;letter-spacing:.08em}
-.d-ui-active [data-screen="business"] .card:has(.btn[data-action="business-invest"])>.card-body>.kpi-grid.mini>.stat:nth-last-child(2)>strong{display:block;color:var(--d-gold2);font-family:Georgia,"Times New Roman",serif;font-size:clamp(30px,3vw,42px);line-height:1.05;letter-spacing:-.025em}
-.d-ui-active [data-screen="business"] .card:has(.btn[data-action="business-invest"])>.card-body>.meters{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:7px;margin:11px 0}
-.d-ui-active [data-screen="business"] .card:has(.btn[data-action="business-invest"])>.card-body>.meters label{margin:0;padding:8px 10px;border:1px solid rgba(168,194,224,.11);border-radius:8px;background:rgba(255,255,255,.025);color:#aebed0;font-size:10px}
-.d-ui-active [data-screen="business"] .card:has(.btn[data-action="business-invest"])>.card-body>.meters .progress{margin-top:5px;background:rgba(255,255,255,.08)}
-.d-ui-active [data-screen="business"] .card:has(.btn[data-action="business-invest"])>.card-body>.meters .progress i{background:linear-gradient(90deg,#a87328,var(--d-gold2))}
-.d-ui-active [data-screen="business"] .card:has(.btn[data-action="business-invest"])>.card-body>.button-grid{grid-template-columns:repeat(5,minmax(0,1fr));gap:7px;margin-top:12px}
-.d-ui-active [data-screen="business"] .card:has(.btn[data-action="business-invest"])>.card-body>.button-grid>.btn{min-height:44px;border-color:rgba(217,168,77,.24);background:rgba(217,168,77,.07);color:#e9edf2}
-.d-ui-active [data-screen="business"] .card:has(.btn[data-action="business-invest"])>.card-body>.button-grid>.btn:hover,.d-ui-active [data-screen="business"] .card:has(.btn[data-action="business-invest"])>.card-body>.button-grid>.btn:focus-visible{border-color:rgba(242,205,121,.60);background:rgba(217,168,77,.15)}
-.d-ui-active [data-screen="business"] [data-store-comparison]{margin:10px 0;border-color:rgba(168,194,224,.14);background:rgba(3,13,25,.24)}
-.d-ui-active [data-screen="business"] [data-store-comparison]>summary{color:#d9e1ea;font-weight:700}
-.d-ui-active [data-screen="business"] .action-row{border-color:rgba(168,194,224,.12);background:rgba(255,255,255,.025)}
-.d-ui-active [data-screen="business"] .action-row:hover,.d-ui-active [data-screen="business"] .action-row:focus-visible{border-color:rgba(217,168,77,.42);background:rgba(217,168,77,.07)}
-@media(max-width:1100px){.d-ui-active [data-screen="business"] .grid.three{grid-template-columns:1fr}}
+
+.d-ui-active [data-screen="business"] .card:has(.btn[data-action="business-invest"])>.card-body>.kpi-grid.mini{
+  grid-template-columns:repeat(3,minmax(0,1fr));
+  gap:8px;
+  margin-top:12px;
+}
+.d-ui-active [data-screen="business"] .card:has(.btn[data-action="business-invest"])>.card-body>.kpi-grid.mini>.stat{
+  min-width:0;
+  border:1px solid var(--d2-business-border);
+  background:rgba(255,255,255,.025);
+}
+.d-ui-active [data-screen="business"] .card:has(.btn[data-action="business-invest"])>.card-body>.kpi-grid.mini>.stat span{color:var(--d2-business-muted)}
+.d-ui-active [data-screen="business"] .card:has(.btn[data-action="business-invest"])>.card-body>.kpi-grid.mini>.stat strong{font-variant-numeric:tabular-nums}
+.d-ui-active [data-screen="business"] .card:has(.btn[data-action="business-invest"])>.card-body>.kpi-grid.mini>.stat:nth-last-child(2){
+  grid-column:1/-1;
+  order:-1;
+  min-height:108px;
+  padding:16px 18px;
+  border-color:rgba(87,214,232,.24);
+  background:
+    radial-gradient(circle at 88% 18%,rgba(87,214,232,.12),transparent 38%),
+    linear-gradient(145deg,rgba(91,140,255,.13),rgba(8,20,39,.82));
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.05);
+}
+.d-ui-active [data-screen="business"] .card:has(.btn[data-action="business-invest"])>.card-body>.kpi-grid.mini>.stat:nth-last-child(2)>span{
+  display:block;
+  margin-bottom:8px;
+  color:var(--d2-business-muted);
+  font-size:10px;
+  letter-spacing:.08em;
+}
+.d-ui-active [data-screen="business"] .card:has(.btn[data-action="business-invest"])>.card-body>.kpi-grid.mini>.stat:nth-last-child(2)>strong{
+  display:block;
+  color:var(--d-gold2);
+  font-size:clamp(30px,3vw,42px);
+  line-height:1.05;
+  letter-spacing:-.025em;
+}
+
+.d-ui-active [data-screen="business"] .card:has(.btn[data-action="business-invest"])>.card-body>.meters{
+  display:grid;
+  grid-template-columns:repeat(2,minmax(0,1fr));
+  gap:8px;
+  margin:12px 0;
+}
+.d-ui-active [data-screen="business"] .card:has(.btn[data-action="business-invest"])>.card-body>.meters label{
+  margin:0;
+  padding:9px 10px;
+  border:1px solid var(--d2-business-border);
+  border-radius:10px;
+  background:rgba(255,255,255,.025);
+  color:var(--d2-business-muted);
+  font-size:11px;
+}
+.d-ui-active [data-screen="business"] .card:has(.btn[data-action="business-invest"])>.card-body>.meters .progress{margin-top:6px;background:rgba(255,255,255,.08)}
+.d-ui-active [data-screen="business"] .card:has(.btn[data-action="business-invest"])>.card-body>.meters .progress i{background:linear-gradient(90deg,var(--d2-business-blue),var(--d2-business-cyan))}
+
+.d-ui-active [data-screen="business"] .card:has(.btn[data-action="business-invest"])>.card-body>.button-grid{
+  grid-template-columns:repeat(5,minmax(0,1fr));
+  gap:8px;
+  margin-top:12px;
+}
+.d-ui-active [data-screen="business"] .card:has(.btn[data-action="business-invest"])>.card-body>.button-grid>.btn{min-height:44px}
+.d-ui-active [data-screen="business"] .card:has(.btn[data-action="business-invest"])>.card-body>.button-grid>.btn{
+  min-height:44px;
+  border-color:rgba(139,124,255,.24);
+  background:rgba(139,124,255,.07);
+  color:#edf1f7;
+}
+.d-ui-active [data-screen="business"] .card:has(.btn[data-action="business-invest"])>.card-body>.button-grid>.btn:hover,
+.d-ui-active [data-screen="business"] .card:has(.btn[data-action="business-invest"])>.card-body>.button-grid>.btn:focus-visible{
+  border-color:rgba(139,124,255,.58);
+  background:rgba(139,124,255,.15);
+}
+.d-ui-active [data-screen="business"] .card:has(.btn[data-action="business-invest"])>.card-body>.button-grid>.btn:focus-visible,
+.d-ui-active [data-screen="business"] .business-selector select:focus-visible,
+.d-ui-active [data-screen="business"] .action-row:focus-visible{outline:3px solid rgba(87,214,232,.66);outline-offset:2px}
+
+.d-ui-active [data-screen="business"] [data-store-comparison]{
+  margin:12px 0;
+  border-color:rgba(91,140,255,.20);
+  background:rgba(4,14,29,.42);
+}
+.d-ui-active [data-screen="business"] [data-store-comparison]>summary{
+  min-height:44px;
+  display:flex;
+  align-items:center;
+  color:#dce6f3;
+  font-weight:750;
+  cursor:pointer;
+}
+.d-ui-active [data-screen="business"] [data-store-comparison] .stat strong{font-variant-numeric:tabular-nums}
+
+.d-ui-active [data-screen="business"] .action-row{
+  min-height:52px;
+  border-color:var(--d2-business-border);
+  background:rgba(255,255,255,.025);
+}
+.d-ui-active [data-screen="business"] .action-row small{color:var(--d2-business-muted)}
+.d-ui-active [data-screen="business"] .action-row:hover,
+.d-ui-active [data-screen="business"] .action-row:focus-visible{
+  border-color:rgba(91,140,255,.42);
+  background:rgba(91,140,255,.08);
+}
+.d-ui-active [data-screen="business"] .badge.good{color:var(--d2-business-good)}
+.d-ui-active [data-screen="business"] .down{color:var(--d2-business-danger)}
+.d-ui-active [data-screen="business"] .up{color:var(--d2-business-good)}
+
+@media(max-width:1100px){
+  .d-ui-active [data-screen="business"] .grid.three{grid-template-columns:1fr}
+}
 @media(max-width:820px){
   .d-ui-active [data-screen="business"] .grid.three{grid-template-columns:1fr!important;gap:10px}
   .d-ui-active [data-screen="business"] .business-selector{grid-template-columns:1fr}
+  .d-ui-active [data-screen="business"] .business-selector select,
+  .d-ui-active [data-screen="business"] .business-selector .btn{width:100%;min-height:48px}
   .d-ui-active [data-screen="business"] .card:has(.btn[data-action="business-invest"])>.card-body>.kpi-grid.mini{grid-template-columns:repeat(2,minmax(0,1fr))}
-  .d-ui-active [data-screen="business"] .card:has(.btn[data-action="business-invest"])>.card-body>.kpi-grid.mini>.stat:nth-last-child(2){min-height:92px;padding:13px 14px}
+  .d-ui-active [data-screen="business"] .card:has(.btn[data-action="business-invest"])>.card-body>.kpi-grid.mini>.stat:nth-last-child(2){min-height:96px;padding:14px 15px}
   .d-ui-active [data-screen="business"] .card:has(.btn[data-action="business-invest"])>.card-body>.kpi-grid.mini>.stat:nth-last-child(2)>strong{font-size:32px}
   .d-ui-active [data-screen="business"] .card:has(.btn[data-action="business-invest"])>.card-body>.button-grid{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .d-ui-active [data-screen="business"] .card:has(.btn[data-action="business-invest"])>.card-body>.button-grid>.btn{min-height:48px}
   .d-ui-active [data-screen="business"] .card:has(.btn[data-action="business-invest"])>.card-body>.button-grid>.btn:last-child:nth-child(odd){grid-column:1/-1}
+  .d-ui-active [data-screen="business"] .action-row{min-height:56px}
 }
 @media(max-width:520px){
+  .d-ui-active [data-screen="business"]{padding-bottom:max(12px,env(safe-area-inset-bottom))}
   .d-ui-active [data-screen="business"] .card:has(.btn[data-action="business-invest"])>.card-head{padding-inline:12px}
   .d-ui-active [data-screen="business"] .card:has(.btn[data-action="business-invest"])>.card-body{padding-inline:12px}
   .d-ui-active [data-screen="business"] .card:has(.btn[data-action="business-invest"])>.card-body>.meters{grid-template-columns:1fr}
+  .d-ui-active [data-screen="business"] [data-store-comparison]{overflow-x:auto;-webkit-overflow-scrolling:touch}
+}
+@media(prefers-reduced-motion:reduce){
+  .d-ui-active [data-screen="business"] *{scroll-behavior:auto!important;transition-duration:.01ms!important;animation-duration:.01ms!important}
 }
