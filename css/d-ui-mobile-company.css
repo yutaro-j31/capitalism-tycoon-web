@@ -74,3 +74,85 @@
   /* Same fix as above: dock bottom:152px + 48px height = 200px, +8px gap. */
   body.iphone-browser-mode.d-ui-active .screen{padding-bottom:calc(208px + env(safe-area-inset-bottom,0px))!important}
 }
+
+/* D UI v2: persistent five-tab iPhone navigation. The existing sidebar DOM and
+   tab proxy remain the source of truth; this final override changes presentation
+   only. Low-frequency destinations stay in the command menu. */
+@media(max-width:820px){
+  body.d-ui-active #d-ui-sidebar{
+    position:fixed!important;z-index:84!important;
+    top:auto!important;left:0!important;right:0!important;bottom:0!important;
+    width:100%!important;height:calc(72px + env(safe-area-inset-bottom,0px))!important;
+    display:grid!important;grid-template-columns:minmax(0,4fr) minmax(0,1fr)!important;grid-template-rows:60px!important;
+    align-items:stretch!important;gap:0!important;
+    padding:4px max(4px,env(safe-area-inset-right,0px)) calc(8px + env(safe-area-inset-bottom,0px)) max(4px,env(safe-area-inset-left,0px))!important;
+    border:0!important;border-top:1px solid rgba(159,177,207,.18)!important;border-radius:0!important;
+    background:rgba(5,8,20,.985)!important;
+    box-shadow:0 -10px 34px rgba(0,0,0,.36)!important;
+    overflow:hidden!important;
+    backdrop-filter:blur(22px)!important;
+  }
+  body.d-ui-active #d-ui-sidebar nav{
+    grid-column:1!important;grid-row:1!important;
+    display:grid!important;grid-template-columns:repeat(4,minmax(0,1fr))!important;
+    align-items:stretch!important;gap:0!important;min-width:0!important;
+  }
+  body.d-ui-active #d-ui-sidebar .d-company-rank{display:none!important}
+  body.d-ui-active #d-ui-sidebar .d-nav-button{display:none!important}
+  body.d-ui-active #d-ui-sidebar .d-nav-button[data-tab="home"],
+  body.d-ui-active #d-ui-sidebar .d-nav-button[data-tab="report"],
+  body.d-ui-active #d-ui-sidebar .d-nav-button[data-tab="business"],
+  body.d-ui-active #d-ui-sidebar .d-nav-button[data-tab="market"]{
+    display:flex!important;flex-direction:column!important;justify-content:center!important;align-items:center!important;
+    width:auto!important;min-width:0!important;height:60px!important;min-height:60px!important;
+    margin:0!important;padding:4px 2px!important;gap:2px!important;flex:none!important;
+    border:0!important;border-radius:10px!important;background:transparent!important;
+    color:#9aa8bc!important;box-shadow:none!important;box-sizing:border-box!important;
+  }
+  body.d-ui-active #d-ui-sidebar .d-nav-button[data-tab="home"]{grid-column:1!important}
+  body.d-ui-active #d-ui-sidebar .d-nav-button[data-tab="report"]{grid-column:2!important}
+  body.d-ui-active #d-ui-sidebar .d-nav-button[data-tab="business"]{grid-column:3!important}
+  body.d-ui-active #d-ui-sidebar .d-nav-button[data-tab="market"]{grid-column:4!important}
+  body.d-ui-active #d-ui-sidebar .d-nav-button>i{display:none!important}
+  body.d-ui-active #d-ui-sidebar .d-nav-button>span{
+    display:grid!important;place-items:center!important;width:auto!important;height:24px!important;
+    color:inherit!important;font-size:0!important;line-height:1!important;
+  }
+  body.d-ui-active #d-ui-sidebar .d-nav-button>b{
+    display:block!important;color:inherit!important;font-size:0!important;font-weight:800!important;line-height:1.05!important;
+  }
+  body.d-ui-active #d-ui-sidebar .d-nav-button[data-tab="home"]>span::after{content:"⌂";font-size:20px}
+  body.d-ui-active #d-ui-sidebar .d-nav-button[data-tab="report"]>span::after{content:"▤";font-size:19px}
+  body.d-ui-active #d-ui-sidebar .d-nav-button[data-tab="business"]>span::after{content:"▣";font-size:19px}
+  body.d-ui-active #d-ui-sidebar .d-nav-button[data-tab="market"]>span::after{content:"↗";font-size:20px}
+  body.d-ui-active #d-ui-sidebar .d-nav-button[data-tab="home"]>b::after{content:"ホーム";font-size:10px}
+  body.d-ui-active #d-ui-sidebar .d-nav-button[data-tab="report"]>b::after{content:"財務";font-size:10px}
+  body.d-ui-active #d-ui-sidebar .d-nav-button[data-tab="business"]>b::after{content:"企業";font-size:10px}
+  body.d-ui-active #d-ui-sidebar .d-nav-button[data-tab="market"]>b::after{content:"市場";font-size:10px}
+  body.d-ui-active #d-ui-sidebar .d-nav-button.active{
+    color:#9a7cff!important;
+    background:linear-gradient(180deg,rgba(124,92,255,.16),rgba(124,92,255,.04))!important;
+    box-shadow:inset 0 2px 0 #7c5cff!important;
+  }
+  body.d-ui-active #d-ui-sidebar .d-menu-toggle{
+    grid-column:2!important;grid-row:1!important;align-self:stretch!important;
+    display:flex!important;flex-direction:column!important;align-items:center!important;justify-content:center!important;gap:2px!important;
+    width:auto!important;min-width:0!important;height:60px!important;min-height:60px!important;
+    margin:0!important;padding:4px 2px!important;
+    border:0!important;border-radius:10px!important;background:transparent!important;
+    color:#9aa8bc!important;font-size:0!important;box-sizing:border-box!important;
+  }
+  body.d-ui-active #d-ui-sidebar .d-menu-toggle::before{content:"☰";font-size:19px;line-height:24px}
+  body.d-ui-active #d-ui-sidebar .d-menu-toggle::after{content:"メニュー";font-size:10px;font-weight:800;line-height:1.05}
+  body.d-ui-active #d-ui-sidebar .d-menu-toggle[aria-expanded="true"]{
+    color:#9a7cff!important;background:linear-gradient(180deg,rgba(124,92,255,.16),rgba(124,92,255,.04))!important;
+    box-shadow:inset 0 2px 0 #7c5cff!important;
+  }
+  body.d-ui-active #d-ui-dock{display:none!important}
+  body.d-ui-active{padding-bottom:env(safe-area-inset-bottom,0px)!important}
+  body.d-ui-active #app{padding-bottom:calc(76px + env(safe-area-inset-bottom,0px))!important}
+  body.d-ui-active .screen{padding-bottom:calc(88px + env(safe-area-inset-bottom,0px))!important}
+  body.iphone-browser-mode.d-ui-active #d-ui-sidebar{bottom:76px!important}
+  body.iphone-browser-mode.d-ui-active #app{padding-bottom:calc(152px + env(safe-area-inset-bottom,0px))!important}
+  body.iphone-browser-mode.d-ui-active .screen{padding-bottom:calc(164px + env(safe-area-inset-bottom,0px))!important}
+}
