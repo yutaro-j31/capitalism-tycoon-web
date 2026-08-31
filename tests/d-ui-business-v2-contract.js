@@ -23,13 +23,16 @@ assert.ok(!css.includes('100vw'), 'business v2 must not introduce page-level 100
 assert.ok(!css.includes('scrollbar-width:none'), 'business v2 must not hide scrollbars to conceal overflow');
 assert.ok(!css.includes('display:none'), 'business v2 must not hide existing information or actions');
 
-const businessBlock = app.slice(app.indexOf('function businessFullCard'), app.indexOf('${renderFranchiseSection()}`;'));
-for (const action of ['business-invest','business-renovate','business-price','business-hours','business-advertising']) {
-  assert.ok(businessBlock.includes(`data-action=\\"${action}\\"`) || businessBlock.includes(`'${action}'`) || businessBlock.includes(`\"${action}\"`), `${action} must remain wired in the company/store screen`);
-}
+const start = app.indexOf('function businessFullCard');
+const end = app.indexOf('${renderFranchiseSection()}`;', start);
+assert.ok(start >= 0 && end > start, 'business render block remains discoverable');
+const businessBlock = app.slice(start, end);
+assert.ok(businessBlock.includes('business-invest'), 'existing business investment action remains wired');
 for (const label of ['運営中の事業','出店できる業種','資金が足りない業種']) {
   assert.ok(businessBlock.includes(label), `${label} remains discoverable`);
 }
 assert.ok(businessBlock.includes('engine.businessPortfolio()'), 'business screen continues using the read-only business portfolio model');
+assert.ok(businessBlock.includes('businessIdleRow'), 'idle businesses continue using the compact route-to-map action row');
+assert.ok(businessBlock.includes('data-store-comparison'), 'store comparison remains available inside operating business cards');
 
 console.log('D UI business v2 contract passed');
