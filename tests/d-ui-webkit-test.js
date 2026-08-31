@@ -45,7 +45,7 @@ async function assertNoRecovery(page, stage, errors) {
 }
 
 async function openCommandTab(page, tab) {
-  await page.locator('[data-d-ui-action="toggle-menu"]').first().click();
+  await page.locator('[data-d-ui-action="toggle-menu"]:visible').first().click();
   await page.locator('#d-ui-command-menu.open').waitFor();
   await page.locator(`#d-ui-command-menu [data-tab="${tab}"]`).click();
   await page.locator('#screen').waitFor();
@@ -328,9 +328,31 @@ async function verifyIPhone(browser, base) {
 
   const sidebarPosition = await page.locator('#d-ui-sidebar').evaluate(node => getComputedStyle(node).position);
   assert.equal(sidebarPosition, 'fixed', 'iPhone D navigation must remain fixed');
-  await page.locator('#d-ui-sidebar [data-tab="map"]').click();
+  assert.equal(await page.locator('#d-ui-sidebar .d-nav-button:visible').count(), 4, 'iPhone D navigation must expose exactly four direct route tabs plus the menu control');
+  assert.equal(await page.locator('#d-ui-dock:visible').count(), 0, 'legacy floating help dock must stay hidden behind the five-tab navigation');
+
+  for (const tab of ['home','report','business','market']) {
+    const control = page.locator(`#d-ui-sidebar [data-tab="${tab}"]`);
+    await control.waitFor();
+    const box = await control.boundingBox();
+    assert.ok(box && box.height >= 44, `iPhone ${tab} navigation control must be at least 44px high, got ${box?.height}`);
+    await control.click();
+    await page.locator(`#screen[data-screen="${tab}"]`).waitFor();
+    assert.equal(await control.getAttribute('aria-current'), 'page', `iPhone ${tab} navigation control must expose aria-current after navigation`);
+  }
+  const menuToggle = page.locator('#d-ui-sidebar .d-menu-toggle');
+  const menuBox = await menuToggle.boundingBox();
+  assert.ok(menuBox && menuBox.height >= 44, `iPhone menu navigation control must be at least 44px high, got ${menuBox?.height}`);
+  const noNavigationOverflow = await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1);
+  assert.ok(noNavigationOverflow, 'iPhone five-tab navigation must not create page-level horizontal overflow');
+
+  await menuToggle.click();
+  await page.locator('#d-ui-command-menu.open').waitFor();
+  assert.equal(await menuToggle.getAttribute('aria-expanded'), 'true', 'iPhone menu control must expose its expanded state');
+  await page.locator('#d-ui-command-menu [data-tab="map"]').click();
   await page.locator('.d-map-workspace').waitFor();
   await page.locator('.d-map-stage').waitFor();
+  assert.equal(await page.locator('#d-ui-command-menu.open').count(), 0, 'command menu must close after reaching the map');
 
   await verifyOffice(page, errors, 'iPhone');
   const firstOfficeTabBox = await page.locator('#screen [data-action="office-tab"]').first().boundingBox();
