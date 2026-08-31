@@ -28,7 +28,8 @@ for (const tab of ['property','investment','luxury','sports']) {
 for (const action of ['asset-tab','build-property','sell-property','buy-personal-investment','sell-personal-investment','buy-luxury','sell-luxury','buy-team-personal','buy-team-company','sell-team']) {
   assert.ok(appScript.includes(`'${action}'`), `asset action ${action} must remain wired`);
 }
-assert.match(assetsStyle, /subtabs button\{[^}]*min-height:44px/, 'asset subtabs must keep 44px tap targets');
+assert.match(assetsStyle, /button\[data-action="asset-tab"\]\{[^}]*min-height:44px/, 'asset subtabs must keep 44px tap targets through their stable action selector');
+assert.doesNotMatch(assetsStyle, />\.card:first-child \.subtabs/, 'asset subtabs must not depend on being inside the first screen child');
 assert.match(assetsStyle, /\.btn\.small,[^\n]*\.btn\{min-height:44px/, 'asset actions must keep 44px tap targets');
 assert.match(assetsStyle, /@media\(max-width:820px\)[\s\S]*grid-template-columns:1fr!important/, 'asset two-column layouts must collapse to one column on iPhone');
 console.log('D UI assets contract passed');
