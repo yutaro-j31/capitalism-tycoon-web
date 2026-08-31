@@ -147,7 +147,12 @@ async function main() {
     await page.locator('#setup-form').evaluate(form => form.requestSubmit());
     await page.locator('.topbar').waitFor({ state: 'visible', timeout: 20_000 });
 
-    await page.locator('#d-ui-sidebar [data-tab="map"]').click();
+    const menuToggle = page.locator('#d-ui-sidebar .d-menu-toggle');
+    await menuToggle.click();
+    await page.locator('#d-ui-command-menu.open').waitFor({ state: 'visible' });
+    await page.locator('#d-ui-command-menu [data-tab="map"]').click();
+    await page.locator('#screen[data-screen="map"]').waitFor({ state: 'visible' });
+    assert.equal(await page.locator('#d-ui-command-menu.open').count(), 0, 'command menu should close after navigating to the map');
     await page.locator('select[data-bind="selectedPref"]').selectOption('fukuoka');
     await openTenant(page, '福岡 駅前1階テナント', 'ramen', 'YTR 福岡駅前店', 1);
     await openTenant(page, '福岡 商店街角地テナント', 'ramen', 'YTR 福岡商店街店', 2);
