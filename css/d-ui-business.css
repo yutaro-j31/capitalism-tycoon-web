@@ -122,7 +122,7 @@
 }
 .d-ui-active [data-screen="business"] .card:has(.btn[data-action="business-invest"])>.card-body>.kpi-grid.mini>.stat:nth-last-child(2)>strong{
   display:block;
-  color:var(--d2-business-cyan);
+  color:var(--d-gold2);
   font-size:clamp(30px,3vw,42px);
   line-height:1.05;
   letter-spacing:-.025em;
