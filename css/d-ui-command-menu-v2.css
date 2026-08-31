@@ -1,0 +1,165 @@
+/* D UI v2 command menu: visual-only refinement of the existing deterministic navigation dialog. */
+body.d-ui-active .d-command-menu{
+  --d2-command-canvas:#050814;
+  --d2-command-surface:#0a1020;
+  --d2-command-surface-2:#0f1729;
+  --d2-command-line:rgba(159,177,207,.18);
+  --d2-command-violet:#7c5cff;
+  --d2-command-violet-hi:#9a7cff;
+  --d2-command-blue:#5c8dff;
+  --d2-command-cyan:#46c6e8;
+  padding:max(20px,env(safe-area-inset-top,0px)) max(20px,env(safe-area-inset-right,0px)) max(20px,env(safe-area-inset-bottom,0px)) max(20px,env(safe-area-inset-left,0px));
+  background:radial-gradient(circle at 78% 8%,rgba(70,198,232,.12),transparent 28%),radial-gradient(circle at 20% 0,rgba(124,92,255,.18),transparent 34%),rgba(2,5,14,.84);
+  backdrop-filter:blur(20px);
+}
+body.d-ui-active .d-command-panel{
+  width:min(960px,100%);
+  max-height:calc(100dvh - 40px);
+  overflow:auto;
+  overscroll-behavior:contain;
+  scrollbar-gutter:stable;
+  scrollbar-width:thin;
+  padding:22px;
+  border:1px solid var(--d2-command-line);
+  border-radius:22px;
+  background:linear-gradient(180deg,rgba(15,23,41,.98),rgba(5,8,20,.99));
+  box-shadow:0 34px 110px rgba(0,0,0,.68),inset 0 1px rgba(255,255,255,.035);
+}
+body.d-ui-active .d-command-head{
+  position:sticky;
+  top:-22px;
+  z-index:3;
+  gap:16px;
+  margin:-22px -22px 16px;
+  padding:20px 22px 14px;
+  border-bottom:1px solid var(--d2-command-line);
+  background:linear-gradient(180deg,rgba(10,16,32,.995),rgba(10,16,32,.96));
+  backdrop-filter:blur(18px);
+}
+body.d-ui-active .d-command-head strong{
+  color:#f4f7ff;
+  font-size:21px;
+  font-weight:850;
+  letter-spacing:.01em;
+}
+body.d-ui-active .d-command-head small{
+  display:block;
+  margin-top:4px;
+  color:#8f9db4;
+  font-size:11px;
+  letter-spacing:.02em;
+}
+body.d-ui-active .d-command-head button{
+  min-width:44px;
+  min-height:44px;
+  width:44px;
+  height:44px;
+  flex:0 0 44px;
+  border:1px solid rgba(124,92,255,.34);
+  border-radius:14px;
+  background:rgba(124,92,255,.09);
+  color:#dcd7ff;
+  transition:transform .14s ease,border-color .14s ease,background .14s ease;
+}
+body.d-ui-active .d-command-grid{
+  display:grid;
+  grid-template-columns:repeat(4,minmax(0,1fr));
+  gap:10px;
+}
+body.d-ui-active .d-command-grid .d-nav-button{
+  min-height:68px;
+  padding:11px 12px;
+  gap:10px;
+  border:1px solid var(--d2-command-line);
+  border-radius:14px;
+  background:linear-gradient(180deg,rgba(15,23,41,.92),rgba(9,14,27,.96));
+  color:#aebbd0;
+  box-shadow:inset 0 1px rgba(255,255,255,.025);
+  transition:transform .14s ease,border-color .14s ease,background .14s ease,color .14s ease,box-shadow .14s ease;
+}
+body.d-ui-active .d-command-grid .d-nav-button>span{
+  width:30px;
+  min-width:30px;
+  color:#8292ad;
+  font-size:20px;
+}
+body.d-ui-active .d-command-grid .d-nav-button>b{
+  min-width:0;
+  color:inherit;
+  font-size:12px;
+  font-weight:800;
+  line-height:1.25;
+}
+body.d-ui-active .d-command-grid .d-nav-button>i{
+  right:10px;
+  width:6px;
+  height:6px;
+  background:var(--d2-command-cyan);
+  box-shadow:0 0 12px rgba(70,198,232,.42);
+}
+body.d-ui-active .d-command-grid .d-nav-button.active{
+  border-color:rgba(154,124,255,.66);
+  background:linear-gradient(135deg,rgba(124,92,255,.22),rgba(92,141,255,.09));
+  color:#eeeaff;
+  box-shadow:inset 3px 0 0 var(--d2-command-violet),0 8px 24px rgba(35,25,90,.16);
+}
+body.d-ui-active .d-command-grid .d-nav-button.active>span{color:var(--d2-command-violet-hi)}
+body.d-ui-active .d-command-head button:hover,
+body.d-ui-active .d-command-grid .d-nav-button:hover{
+  transform:translateY(-1px);
+  border-color:rgba(154,124,255,.56);
+  background-color:rgba(124,92,255,.11);
+}
+body.d-ui-active .d-command-head button:focus-visible,
+body.d-ui-active .d-command-grid .d-nav-button:focus-visible{
+  outline:3px solid var(--d2-command-violet-hi)!important;
+  outline-offset:3px;
+  box-shadow:0 0 0 4px rgba(124,92,255,.2);
+}
+@media(max-width:820px){
+  body.d-ui-active .d-command-menu{
+    place-items:stretch;
+    padding:max(8px,env(safe-area-inset-top,0px)) max(8px,env(safe-area-inset-right,0px)) max(8px,env(safe-area-inset-bottom,0px)) max(8px,env(safe-area-inset-left,0px));
+  }
+  body.d-ui-active .d-command-panel{
+    width:100%;
+    max-height:calc(100dvh - max(16px,env(safe-area-inset-top,0px)) - max(16px,env(safe-area-inset-bottom,0px)));
+    padding:16px;
+    border-radius:18px;
+  }
+  body.d-ui-active .d-command-head{
+    top:-16px;
+    margin:-16px -16px 12px;
+    padding:16px 16px 12px;
+  }
+  body.d-ui-active .d-command-grid{grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
+  body.d-ui-active .d-command-grid .d-nav-button{min-height:64px;padding:9px 10px}
+}
+@media(max-width:390px){
+  body.d-ui-active .d-command-grid{gap:6px}
+  body.d-ui-active .d-command-grid .d-nav-button{min-height:60px;padding:8px}
+  body.d-ui-active .d-command-grid .d-nav-button>b{font-size:11px}
+}
+@media(hover:none),(pointer:coarse){
+  body.d-ui-active .d-command-head button,
+  body.d-ui-active .d-command-grid .d-nav-button{touch-action:manipulation;-webkit-tap-highlight-color:transparent}
+  body.d-ui-active .d-command-head button:hover,
+  body.d-ui-active .d-command-grid .d-nav-button:hover{transform:none}
+  body.d-ui-active .d-command-head button:active,
+  body.d-ui-active .d-command-grid .d-nav-button:active{filter:brightness(1.12)}
+}
+@media(prefers-reduced-motion:reduce){
+  body.d-ui-active .d-command-menu,
+  body.d-ui-active .d-command-panel,
+  body.d-ui-active .d-command-head button,
+  body.d-ui-active .d-command-grid .d-nav-button{animation:none!important;transition:none!important}
+}
+@media(forced-colors:active){
+  body.d-ui-active .d-command-panel{border:2px solid CanvasText;background:Canvas;color:CanvasText}
+  body.d-ui-active .d-command-head{border-color:CanvasText;background:Canvas}
+  body.d-ui-active .d-command-head button,
+  body.d-ui-active .d-command-grid .d-nav-button{border:2px solid ButtonText;background:Canvas;color:ButtonText}
+  body.d-ui-active .d-command-grid .d-nav-button.active{outline:3px solid Highlight;outline-offset:-3px}
+  body.d-ui-active .d-command-head button:focus-visible,
+  body.d-ui-active .d-command-grid .d-nav-button:focus-visible{outline:3px solid Highlight!important}
+}
