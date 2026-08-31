@@ -1,6 +1,7 @@
 @import url("./d-ui-home.css");
 @import url("./d-ui-finance.css");
 @import url("./d-ui-business.css");
+@import url("./d-ui-command-menu-v2.css");
 
 /* Runtime bridge: the screen-specific D UI v2 styles above are intentionally loaded through this already-linked stylesheet. */
 /* Phase 7B-2: interactive store detail tabs and contextual actions. */
