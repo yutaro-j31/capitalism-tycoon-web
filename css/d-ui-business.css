@@ -71,6 +71,7 @@
   color:var(--d2-business-text);
   font-size:16px;
 }
+.d-ui-active [data-screen="business"] .card:has(.btn[data-action="business-invest"])>.card-head h2::before{content:"◆"}
 .d-ui-active [data-screen="business"] .card:has(.btn[data-action="business-invest"])>.card-head h2::before{
   content:"◆";
   display:inline-grid;
