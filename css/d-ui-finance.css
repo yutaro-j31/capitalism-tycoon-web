@@ -1,0 +1,264 @@
+/* D UI v2 Finance / Report. Visual-only; existing accounting data remains the source of truth. */
+.d-ui-active [data-screen="report"]{
+  --d2-fin-canvas:#050814;
+  --d2-fin-surface:#0a1020;
+  --d2-fin-surface-2:#0f1729;
+  --d2-fin-border:rgba(159,177,207,.14);
+  --d2-fin-border-strong:rgba(159,177,207,.24);
+  --d2-fin-text:#f7f8fc;
+  --d2-fin-muted:#9eacc0;
+  --d2-fin-violet:#7c5cff;
+  --d2-fin-violet-hi:#9a7cff;
+  --d2-fin-blue:#5c8dff;
+  --d2-fin-cyan:#46c6e8;
+  --d2-fin-positive:#55d98b;
+  --d2-fin-negative:#ff6675;
+  --d2-fin-warning:#f2b84b;
+  min-width:0;
+  background:radial-gradient(circle at 88% 2%,rgba(92,141,255,.08),transparent 30%),linear-gradient(180deg,#060a16 0,#050814 100%);
+  color:var(--d2-fin-text);
+}
+.d-ui-active [data-screen="report"]>.card,
+.d-ui-active [data-screen="report"]>.grid,
+.d-ui-active [data-screen="report"]>.empty{
+  width:min(100%,1180px);
+  min-width:0;
+  margin-left:auto;
+  margin-right:auto;
+}
+.d-ui-active [data-screen="report"] .card{
+  min-width:0;
+  border:1px solid var(--d2-fin-border);
+  border-radius:16px;
+  background:linear-gradient(155deg,rgba(15,23,41,.98),rgba(8,14,28,.98));
+  box-shadow:0 12px 30px rgba(0,0,0,.19),inset 0 1px 0 rgba(255,255,255,.025);
+}
+.d-ui-active [data-screen="report"] .card:has(#report-chart){
+  position:relative;
+  overflow:hidden;
+  border-color:rgba(124,92,255,.3);
+  border-radius:20px;
+  background:radial-gradient(circle at 91% 4%,rgba(124,92,255,.18),transparent 34%),radial-gradient(circle at 5% 115%,rgba(70,198,232,.09),transparent 38%),linear-gradient(145deg,#111a31 0,#0b1223 58%,#080d19 100%);
+}
+.d-ui-active [data-screen="report"] .card:has(#report-chart)::before{
+  content:"FINANCIAL COMMAND CENTER";
+  display:block;
+  margin:0 0 5px;
+  color:var(--d2-fin-violet-hi);
+  font-size:10px;
+  font-weight:900;
+  letter-spacing:.13em;
+}
+.d-ui-active [data-screen="report"] .card:has(#report-chart) h2,
+.d-ui-active [data-screen="report"] .card:has(#report-chart) h3{
+  color:var(--d2-fin-text);
+  letter-spacing:-.018em;
+}
+.d-ui-active [data-screen="report"] .card:has(#report-chart) .muted,
+.d-ui-active [data-screen="report"] .card:has(#report-chart) p{color:var(--d2-fin-muted)}
+.d-ui-active [data-screen="report"] .filters{
+  display:grid;
+  grid-template-columns:repeat(2,minmax(0,1fr));
+  gap:10px;
+  align-items:end;
+  margin:12px 0;
+}
+.d-ui-active [data-screen="report"] .filters label{
+  min-width:0;
+  color:#8f9db2;
+  font-size:10px;
+  font-weight:800;
+  letter-spacing:.035em;
+}
+.d-ui-active [data-screen="report"] .filters select{
+  width:100%;
+  min-height:44px;
+  margin-top:5px;
+  padding:0 36px 0 12px;
+  border:1px solid rgba(159,177,207,.16);
+  border-radius:12px;
+  background:#0b1324;
+  color:var(--d2-fin-text);
+  font-variant-numeric:tabular-nums;
+}
+.d-ui-active [data-screen="report"] #report-chart{
+  width:100%;
+  max-width:100%;
+  min-height:210px;
+  border:1px solid rgba(92,141,255,.16);
+  border-radius:14px;
+  background:linear-gradient(180deg,rgba(92,141,255,.045),rgba(5,8,20,.26));
+}
+.d-ui-active [data-screen="report"] .grid{
+  align-items:start;
+  gap:12px;
+}
+.d-ui-active [data-screen="report"] .grid.three{grid-template-columns:repeat(3,minmax(0,1fr))}
+.d-ui-active [data-screen="report"] .grid.two{grid-template-columns:repeat(2,minmax(0,1fr))}
+.d-ui-active [data-screen="report"] .grid>.card{height:100%;margin:0}
+.d-ui-active [data-screen="report"] .card h2,
+.d-ui-active [data-screen="report"] .card h3{
+  color:var(--d2-fin-text);
+  font-weight:850;
+}
+.d-ui-active [data-screen="report"] .stat{
+  min-width:0;
+  border-color:rgba(159,177,207,.1);
+  border-radius:12px;
+  background:rgba(255,255,255,.024);
+  box-shadow:none;
+}
+.d-ui-active [data-screen="report"] .stat span{
+  color:#8493a8;
+  font-size:10px;
+  font-weight:750;
+}
+.d-ui-active [data-screen="report"] .stat strong{
+  color:var(--d2-fin-text);
+  font-variant-numeric:tabular-nums;
+  overflow-wrap:anywhere;
+}
+.d-ui-active [data-screen="report"] .kpi-grid.mini{
+  grid-template-columns:repeat(2,minmax(0,1fr));
+  gap:8px;
+}
+.d-ui-active [data-screen="report"] .card:has(.finance-table){
+  border-color:rgba(92,141,255,.2);
+  background:linear-gradient(155deg,rgba(14,23,42,.99),rgba(7,13,26,.99));
+}
+.d-ui-active [data-screen="report"] .finance-table{
+  min-width:0;
+  overflow:visible;
+  display:grid;
+  gap:0;
+}
+.d-ui-active [data-screen="report"] .finance-row{
+  min-width:0;
+  min-height:42px;
+  display:grid;
+  grid-template-columns:minmax(0,1fr) auto;
+  align-items:center;
+  gap:14px;
+  padding:9px 0;
+  border-bottom:1px solid rgba(159,177,207,.085);
+  white-space:normal;
+}
+.d-ui-active [data-screen="report"] .finance-row:last-child{border-bottom:0}
+.d-ui-active [data-screen="report"] .finance-row span{
+  min-width:0;
+  color:#a5b1c3;
+  line-height:1.35;
+  overflow-wrap:anywhere;
+}
+.d-ui-active [data-screen="report"] .finance-row strong{
+  color:#eef3fb;
+  font-weight:800;
+  font-variant-numeric:tabular-nums;
+  text-align:right;
+  white-space:nowrap;
+}
+.d-ui-active [data-screen="report"] .forecast{
+  display:grid;
+  gap:7px;
+  min-width:0;
+}
+.d-ui-active [data-screen="report"] .forecast>div{
+  min-width:0;
+  padding:11px 12px;
+  border:1px solid rgba(159,177,207,.1);
+  border-radius:12px;
+  background:rgba(255,255,255,.022);
+}
+.d-ui-active [data-screen="report"] .forecast>div>span{
+  color:#8594aa;
+  font-size:10px;
+  font-weight:800;
+}
+.d-ui-active [data-screen="report"] .forecast>div>strong{
+  display:block;
+  margin-top:3px;
+  color:var(--d2-fin-text);
+  font-size:16px;
+  font-variant-numeric:tabular-nums;
+}
+.d-ui-active [data-screen="report"] .forecast small{
+  margin-top:3px;
+  color:#77879d;
+  line-height:1.4;
+}
+.d-ui-active [data-screen="report"] .history-table{
+  min-width:0;
+  overflow-x:auto;
+  -webkit-overflow-scrolling:touch;
+  border:1px solid rgba(159,177,207,.09);
+  border-radius:12px;
+  background:rgba(255,255,255,.018);
+}
+.d-ui-active [data-screen="report"] .history-table>div{
+  min-width:540px;
+  display:grid;
+  grid-template-columns:90px repeat(3,minmax(110px,1fr));
+  align-items:center;
+  gap:10px;
+  min-height:42px;
+  padding:7px 12px;
+  border-bottom:1px solid rgba(159,177,207,.075);
+  color:#aab5c6;
+  font-variant-numeric:tabular-nums;
+}
+.d-ui-active [data-screen="report"] .history-table>div:last-child{border-bottom:0}
+.d-ui-active [data-screen="report"] .history-table strong{font-weight:850}
+.d-ui-active [data-screen="report"] .item{
+  min-width:0;
+  border-color:rgba(159,177,207,.1);
+  border-radius:12px;
+  background:rgba(255,255,255,.022);
+}
+.d-ui-active [data-screen="report"] .item strong{font-variant-numeric:tabular-nums}
+.d-ui-active [data-screen="report"] .badge{
+  border-color:rgba(92,141,255,.22);
+  background:rgba(92,141,255,.07);
+  color:#b8c9ef;
+}
+.d-ui-active [data-screen="report"] .badge.warn{
+  border-color:rgba(242,184,75,.28);
+  background:rgba(242,184,75,.07);
+  color:#f3cf82;
+}
+.d-ui-active [data-screen="report"] .up{color:var(--d2-fin-positive)!important}
+.d-ui-active [data-screen="report"] .down{color:var(--d2-fin-negative)!important}
+.d-ui-active [data-screen="report"] :focus-visible{
+  outline:3px solid rgba(154,124,255,.9);
+  outline-offset:3px;
+}
+@media(max-width:820px){
+  .d-ui-active [data-screen="report"]{
+    padding-left:max(10px,env(safe-area-inset-left,0px));
+    padding-right:max(10px,env(safe-area-inset-right,0px));
+  }
+  .d-ui-active [data-screen="report"]>.card,
+  .d-ui-active [data-screen="report"]>.grid,
+  .d-ui-active [data-screen="report"]>.empty{width:100%}
+  .d-ui-active [data-screen="report"] .grid.three,
+  .d-ui-active [data-screen="report"] .grid.two{grid-template-columns:minmax(0,1fr);gap:10px}
+  .d-ui-active [data-screen="report"] .card:has(#report-chart){border-radius:18px}
+  .d-ui-active [data-screen="report"] #report-chart{min-height:180px}
+  .d-ui-active [data-screen="report"] .finance-row{min-height:44px;gap:10px}
+  .d-ui-active [data-screen="report"] .forecast>div{min-height:56px}
+}
+@media(max-width:520px){
+  .d-ui-active [data-screen="report"] .filters{grid-template-columns:minmax(0,1fr)}
+  .d-ui-active [data-screen="report"] .filters select{min-height:44px}
+  .d-ui-active [data-screen="report"] .kpi-grid.mini{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .d-ui-active [data-screen="report"] .finance-row{grid-template-columns:minmax(0,1fr) minmax(92px,auto)}
+  .d-ui-active [data-screen="report"] .finance-row strong{font-size:13px}
+}
+@media(max-width:390px){
+  .d-ui-active [data-screen="report"] .kpi-grid.mini{gap:6px}
+  .d-ui-active [data-screen="report"] .finance-row{font-size:12px}
+}
+@media(prefers-reduced-motion:reduce){
+  .d-ui-active [data-screen="report"] *,
+  .d-ui-active [data-screen="report"] *::before,
+  .d-ui-active [data-screen="report"] *::after{transition:none!important;animation:none!important;scroll-behavior:auto!important}
+}

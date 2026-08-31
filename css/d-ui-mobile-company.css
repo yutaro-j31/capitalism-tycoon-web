@@ -1,6 +1,7 @@
 /* Keep company identity, current week, week controls, and settings reachable in compact D layouts. */
 @import url("./d-ui-reference-fidelity.css");
 @import url("./d-ui-home.css");
+@import url("./d-ui-finance.css");
 @import url("./d-ui-map-focus.css");
 @import url("./d-ui-map-depth.css");
 @import url("./d-ui-map-buildings.css");
