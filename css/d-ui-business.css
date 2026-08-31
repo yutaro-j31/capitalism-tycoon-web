@@ -152,6 +152,7 @@
   gap:8px;
   margin-top:12px;
 }
+.d-ui-active [data-screen="business"] .card:has(.btn[data-action="business-invest"])>.card-body>.button-grid>.btn{min-height:44px}
 .d-ui-active [data-screen="business"] .card:has(.btn[data-action="business-invest"])>.card-body>.button-grid>.btn{
   min-height:44px;
   border-color:rgba(139,124,255,.24);
