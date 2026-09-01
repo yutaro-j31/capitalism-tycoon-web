@@ -11,6 +11,7 @@ const strategyStyle = fs.readFileSync('css/d-ui-strategy.css', 'utf8');
 const rivalsStyle = fs.readFileSync('css/d-ui-rivals.css', 'utf8');
 const mediaStyle = fs.readFileSync('css/d-ui-media.css', 'utf8');
 const settingsStyle = fs.readFileSync('css/d-ui-settings.css', 'utf8');
+const missionsStyle = fs.readFileSync('css/d-ui-missions.css', 'utf8');
 const shell = fs.readFileSync('js/d-ui-shell.js', 'utf8');
 const app = fs.readFileSync('js/app.js', 'utf8');
 
@@ -195,6 +196,25 @@ for (const label of ['ゲーム設定','セーブ管理','セーブスロット'
 }
 for (const action of ['save-now','export-save','import-save','save-slot','load-slot','reset-game','company-buyout','restore-stored-save','dismiss-stored-save']) {
   assert.ok(app.includes(action), `Settings v2 must retain existing Settings action: ${action}`);
+}
+
+assert.ok(mobileStyle.includes('@import url("./d-ui-missions.css");'), 'runtime mobile/company chain must import the Missions stylesheet');
+assert.match(missionsStyle, /body\.d-ui-active \[data-screen="missions"\]\{/, 'Missions v2 must stay scoped to the active Missions screen');
+assert.match(missionsStyle, /--d2-missions-violet:#7c5cff/, 'Missions v2 must use the approved violet primary accent');
+assert.match(missionsStyle, /--d2-missions-blue:#5c8dff/, 'Missions v2 must retain the approved blue data accent');
+assert.match(missionsStyle, /--d2-missions-cyan:#46c6e8/, 'Missions v2 must retain the approved cyan secondary accent');
+assert.doesNotMatch(missionsStyle, /--d-gold/, 'Missions v2 must not reintroduce gold as a primary accent (prestige-only elsewhere)');
+// 完了ミッションはpositive、進行中はvioletで区別する。gold不使用でも状態が視覚的に分かることを固定する。
+assert.match(missionsStyle, /\.mission\.done>span\{[^}]*color:var\(--d2-missions-positive\)/, 'Completed missions must be distinguished with the positive accent, not gold');
+assert.match(missionsStyle, /safe-area-inset-bottom/, 'Missions v2 must respect iPhone safe areas');
+assert.match(missionsStyle, /prefers-reduced-motion:reduce/, 'Missions v2 motion must respect reduced-motion preferences');
+assert.match(missionsStyle, /forced-colors:active/, 'Missions v2 must remain legible in forced-colors mode');
+assert.doesNotMatch(missionsStyle, /(?:^|[;{])\s*display\s*:\s*none\b/m, 'Missions v2 must not hide existing Missions information or actions');
+assert.doesNotMatch(missionsStyle, /\b(?:width|min-width|max-width)\s*:\s*100vw\b/, 'Missions v2 must not create page-level viewport overflow');
+assert.doesNotMatch(missionsStyle, /scrollbar-width\s*:\s*none|::-webkit-scrollbar[^}]*display\s*:\s*none/s, 'Missions v2 must not hide scroll affordances');
+assert.doesNotMatch(missionsStyle, /https?:\/\//, 'Missions v2 must not add remote runtime assets');
+for (const label of ['ミッション','実績','長期目標','業界ランキング','受賞歴']) {
+  assert.ok(app.includes(label), `Missions v2 must retain Missions destination: ${label}`);
 }
 
 console.log('D UI v2 runtime stylesheet contract passed');
