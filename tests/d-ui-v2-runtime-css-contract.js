@@ -10,6 +10,7 @@ const founderStyle = fs.readFileSync('css/d-ui-founder.css', 'utf8');
 const strategyStyle = fs.readFileSync('css/d-ui-strategy.css', 'utf8');
 const rivalsStyle = fs.readFileSync('css/d-ui-rivals.css', 'utf8');
 const mediaStyle = fs.readFileSync('css/d-ui-media.css', 'utf8');
+const settingsStyle = fs.readFileSync('css/d-ui-settings.css', 'utf8');
 const shell = fs.readFileSync('js/d-ui-shell.js', 'utf8');
 const app = fs.readFileSync('js/app.js', 'utf8');
 
@@ -166,6 +167,34 @@ for (const label of ['広報・SNS','TYCOON WEEKLY','大型ビジネスニュー
 }
 for (const action of ['media-action','venture-forum','auction-bid']) {
   assert.ok(app.includes(action), `Media v2 must retain existing Media action: ${action}`);
+}
+
+assert.ok(mobileStyle.includes('@import url("./d-ui-settings.css");'), 'runtime mobile/company chain must import the Settings stylesheet');
+assert.match(settingsStyle, /body\.d-ui-active \[data-screen="settings"\]\{/, 'Settings v2 must stay scoped to the active Settings screen');
+assert.match(settingsStyle, /--d2-settings-violet:#7c5cff/, 'Settings v2 must use the approved violet primary accent');
+assert.match(settingsStyle, /--d2-settings-blue:#5c8dff/, 'Settings v2 must retain the approved blue data accent');
+assert.match(settingsStyle, /--d2-settings-cyan:#46c6e8/, 'Settings v2 must retain the approved cyan secondary accent');
+assert.doesNotMatch(settingsStyle, /--d-gold/, 'Settings v2 must not reintroduce gold as a primary accent (prestige-only elsewhere)');
+assert.match(settingsStyle, /\.btn\{min-height:44px;/, 'Settings buttons must preserve a 44px touch target');
+// 設定行はチェックボックス本体が22pxしかないので、ラベル行全体を44pxのタップ対象として固定する。
+assert.match(settingsStyle, /\.switch-row\{[^}]*min-height:44px;/, 'Settings toggle rows must expose a 44px touch target around the 22px checkbox');
+assert.match(settingsStyle, /\.field select,[^}]*min-height:44px;/, 'Settings select controls must preserve a 44px touch target');
+// セーブ容量不足の警告は css/app.css に .notice の定義が無く素の<div>だったため、ここで枠を与えている。
+assert.match(settingsStyle, /\.notice\.warning\{[^}]*border-color:rgba\(242,184,75/, 'Settings storage warning must be visibly flagged with the D UI v2 warning accent');
+assert.match(settingsStyle, /\.btn\.danger\{[^}]*rgba\(255,102,117/, 'Settings destructive actions must stay visually distinct with the negative accent');
+assert.match(settingsStyle, /safe-area-inset-bottom/, 'Settings v2 must respect iPhone safe areas');
+assert.match(settingsStyle, /prefers-reduced-motion:reduce/, 'Settings v2 motion must respect reduced-motion preferences');
+assert.match(settingsStyle, /forced-colors:active/, 'Settings v2 must remain legible in forced-colors mode');
+assert.match(settingsStyle, /focus-visible[\s\S]*--d2-settings-violet-hi/, 'Settings v2 keyboard focus must use the D UI v2 violet accent');
+assert.doesNotMatch(settingsStyle, /(?:^|[;{])\s*display\s*:\s*none\b/m, 'Settings v2 must not hide existing Settings information or actions');
+assert.doesNotMatch(settingsStyle, /\b(?:width|min-width|max-width)\s*:\s*100vw\b/, 'Settings v2 must not create page-level viewport overflow');
+assert.doesNotMatch(settingsStyle, /scrollbar-width\s*:\s*none|::-webkit-scrollbar[^}]*display\s*:\s*none/s, 'Settings v2 must not hide scroll affordances');
+assert.doesNotMatch(settingsStyle, /https?:\/\//, 'Settings v2 must not add remote runtime assets');
+for (const label of ['ゲーム設定','セーブ管理','セーブスロット','データ情報','危険な操作','会社売却・エンディング']) {
+  assert.ok(app.includes(label), `Settings v2 must retain Settings destination: ${label}`);
+}
+for (const action of ['save-now','export-save','import-save','save-slot','load-slot','reset-game','company-buyout','restore-stored-save','dismiss-stored-save']) {
+  assert.ok(app.includes(action), `Settings v2 must retain existing Settings action: ${action}`);
 }
 
 console.log('D UI v2 runtime stylesheet contract passed');

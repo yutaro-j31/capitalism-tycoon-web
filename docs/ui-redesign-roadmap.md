@@ -96,8 +96,16 @@ office より先に完了済み）。19画面中の現在の状況:
 - [x] media（メディア・広報） — D UI v2化済み（`css/d-ui-media.css`新規。
       広報・SNS/TYCOON WEEKLY/大型ビジネスニュース/広報履歴/ベンチャーフォーラム/
       高級品オークションを維持。gold不使用）
+- [x] settings（設定） — D UI v2化済み（`css/d-ui-settings.css`新規。ゲーム設定/セーブ管理/
+      セーブスロット/データ情報/危険な操作/会社売却・エンディングに加え、
+      `save-storage-ui.js`・`physical-iphone-playtest.js`が同画面へ注入する
+      セーブ容量・診断カードも共通クラス経由でカバー。
+      あわせて2点のiPhone実害を修正: ①`.switch-row`はチェックボックス本体が22pxしか
+      なかったのでラベル行全体を44pxのタップ対象に固定 ②`.notice`が`css/app.css`に
+      未定義で警告枠が素の`<div>`のままだったので、warningトークンで枠を与えた
+      （ventureが`.notice`を画面別に整えるのと同じ方式）。gold不使用）
 - [ ] missions（進行・目標）/ news（ニュース）/
-      settings（設定）/ legacy（承継） — 未着手。旧`.card`/`.kpi-grid`のまま
+      legacy（承継） — 未着手。旧`.card`/`.kpi-grid`のまま
 
 各PhaseはPhase 1・2と同じ型（新規`css/d-ui-<screen>.css`・既存クラス存在チェックの拡張・
 静的アサーションテスト・Playwrightスクラッチ確認・負のテスト2パターン）を反復する。
