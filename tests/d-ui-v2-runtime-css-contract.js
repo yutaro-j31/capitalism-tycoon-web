@@ -8,6 +8,7 @@ const commandStyle = fs.readFileSync('css/d-ui-command-menu-v2.css', 'utf8');
 const officeStyle = fs.readFileSync('css/d-ui-office.css', 'utf8');
 const founderStyle = fs.readFileSync('css/d-ui-founder.css', 'utf8');
 const strategyStyle = fs.readFileSync('css/d-ui-strategy.css', 'utf8');
+const rivalsStyle = fs.readFileSync('css/d-ui-rivals.css', 'utf8');
 const shell = fs.readFileSync('js/d-ui-shell.js', 'utf8');
 const app = fs.readFileSync('js/app.js', 'utf8');
 
@@ -120,6 +121,28 @@ for (const label of ['戦略システム','研究テーマ','特許ポートフ�
 }
 for (const action of ['strategy-tab','start-rd','license-patent','start-menu-research','supply-select-supplier','supply-policy','supply-safety','supply-emergency','vertical-integration']) {
   assert.ok(app.includes(action), `Strategy v2 must retain existing Strategy action: ${action}`);
+}
+
+assert.ok(mobileStyle.includes('@import url("./d-ui-rivals.css");'), 'runtime mobile/company chain must import the Rivals stylesheet');
+assert.match(rivalsStyle, /body\.d-ui-active \[data-screen="rivals"\]\{/, 'Rivals v2 must stay scoped to the active Rivals screen');
+assert.match(rivalsStyle, /--d2-rivals-violet:#7c5cff/, 'Rivals v2 must use the approved violet primary accent');
+assert.match(rivalsStyle, /--d2-rivals-blue:#5c8dff/, 'Rivals v2 must retain the approved blue data accent');
+assert.match(rivalsStyle, /--d2-rivals-cyan:#46c6e8/, 'Rivals v2 must retain the approved cyan secondary accent');
+assert.doesNotMatch(rivalsStyle, /--d-gold/, 'Rivals v2 must not reintroduce gold as a primary accent (prestige-only elsewhere)');
+assert.match(rivalsStyle, /\.btn\{[\s\S]*?min-height:44px;/, 'Rivals buttons must preserve a 44px touch target');
+assert.match(rivalsStyle, /safe-area-inset-bottom/, 'Rivals v2 must respect iPhone safe areas');
+assert.match(rivalsStyle, /prefers-reduced-motion:reduce/, 'Rivals v2 motion must respect reduced-motion preferences');
+assert.match(rivalsStyle, /forced-colors:active/, 'Rivals v2 must remain legible in forced-colors mode');
+assert.match(rivalsStyle, /focus-visible[\s\S]*--d2-rivals-violet-hi/, 'Rivals v2 keyboard focus must use the D UI v2 violet accent');
+assert.doesNotMatch(rivalsStyle, /(?:^|[;{])\s*display\s*:\s*none\b/m, 'Rivals v2 must not hide existing Rivals information or actions');
+assert.doesNotMatch(rivalsStyle, /\b(?:width|min-width|max-width)\s*:\s*100vw\b/, 'Rivals v2 must not create page-level viewport overflow');
+assert.doesNotMatch(rivalsStyle, /scrollbar-width\s*:\s*none|::-webkit-scrollbar[^}]*display\s*:\s*none/s, 'Rivals v2 must not hide scroll affordances');
+assert.doesNotMatch(rivalsStyle, /https?:\/\//, 'Rivals v2 must not add remote runtime assets');
+for (const label of ['競合の新製品と対抗','対抗手段','競合反撃システム','既存ライバル','競合イベント']) {
+  assert.ok(app.includes(label), `Rivals v2 must retain Rivals destination: ${label}`);
+}
+for (const action of ['counter-competitor-product','respond-rival']) {
+  assert.ok(app.includes(action), `Rivals v2 must retain existing Rivals action: ${action}`);
 }
 
 console.log('D UI v2 runtime stylesheet contract passed');
