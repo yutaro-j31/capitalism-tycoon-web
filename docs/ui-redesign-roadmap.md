@@ -84,7 +84,11 @@ office より先に完了済み）。19画面中の現在の状況:
 - [x] founder（創業者・採用） — D UI v2化済み（`css/d-ui-founder.css`新規、
       `.founder-hero`・自己投資・自宅個人開発・オルタナティブ投資=個人不動産/PE/
       エンジェルまで維持。gold不使用、violet/blue/cyanのみ）
-- [ ] strategy（戦略・研究開発）/ missions（進行・目標）/ rivals（競合）/ news（ニュース）/
+- [x] strategy（戦略・研究開発） — D UI v2化済み（`css/d-ui-strategy.css`新規、
+      supply/rd/segmentsの3サブタブ全てを1PRでカバー。仕入・在庫の`.supply-material-grid`、
+      垂直統合、R&D特許ポートフォリオ、メニュー開発、顧客セグメント`.segment-bar`の5区分を
+      violet/blue/cyan/positive/warningへ再配色。gold不使用）
+- [ ] missions（進行・目標）/ rivals（競合）/ news（ニュース）/
       settings（設定）/ media（メディア）/ legacy（承継） — 未着手。旧`.card`/`.kpi-grid`のまま
 
 各PhaseはPhase 1・2と同じ型（新規`css/d-ui-<screen>.css`・既存クラス存在チェックの拡張・
