@@ -125,22 +125,36 @@ office より先に完了済み）。19画面中の現在の状況:
       goldを使っていたため、missions.css の`.ending-record`と同じ方式でviolet/blueへ上書き。
       gold不使用）
 
-**19タブ中18画面（`.card`/`.kpi-grid`ベースのD UI v2チェックリスト対象）が完了**。
-残る`map`（出店マップ）は2026-08のD UI v2転換より前のPhase 1（アイソメトリック建物の
-密度強化）で別の視覚言語（建物ごとの`--d-iso-hue`による手続き的な配色、`.card`/`.kpi-grid`
-を使わない）として仕上げており、そもそもこのv2チェックリストの対象に含めていなかった。
-map画面をgold基調からviolet/blue/cyan基調へ転換するかどうかは別途判断する
-（現時点で明確なgold使用箇所は無く、視覚的な破綻もない）。
+- [x] map（出店マップ） — D UI v2化済み（`css/d-ui-map.css`新規、`css/d-ui-map-focus.css`の
+      フォーカスアウトラインもgold→violetへ修正）。マップは他18画面と異なり独自クラス
+      （`.d-map-workspace`/`.d-white-card`/`.d-context-panel`/`.d-map-directory`）で構成される
+      ため、`[data-screen="map"]`スコープで4色マーカー（出店済み店舗=blue/未出店テナント候補=
+      negative/オフィス候補=violet/不動産候補=cyan）・週間利益推移等の白背景オーバーレイ
+      カード3枚のダーク化・拠点詳細パネルのgold除去・ディレクトリ一覧（既存`.card`/`.item`）
+      を上書き。オーナー判断により**地形（地面・水面・建物の`--d-iso-hue`配色）は今回touchせず
+      現状維持**、**シェルchrome（トップバー・サイドバー・下部ドック）も他18画面とあわせて
+      現状のgold基調のまま維持**（画面単位v2化のスコープ外、方針転換するなら別PR）。
+      あわせて`g.properties`（既存の不動産売買機能）を新しい`realestate`エンティティ種別として
+      `mapEntities()`/`selectedDetail()`に追加し、地図上から直接「会社で購入」「個人で購入」
+      できる不動産候補マーカーを新設（既存の`buy-property-company`/`buy-property-personal`
+      アクションをそのまま再利用、会計・所有権ロジックは無変更）。
+
+**19タブ全て（`.card`/`.kpi-grid`ベースの18画面＋独自視覚言語のmap）がD UI v2化完了**。
+シェルchrome（トップバー・サイドバー・下部ドック）は19画面共通でgold基調のまま
+現状維持と決定（2026-09時点）。今後の色調転換はchrome全体・各画面中身の両方に
+影響する大規模な作業になることを実験で確認済み（ミッドトーン案でも1画面あたり
+十数箇所のハードコード色調整が必要）。着手する場合は別途、chrome単独PR→
+画面ごとの調整PRという段階的な計画とする。
 
 各PhaseはPhase 1・2と同じ型（新規`css/d-ui-<screen>.css`・既存クラス存在チェックの拡張・
 静的アサーションテスト・Playwrightスクラッチ確認・負のテスト2パターン）を反復する。
 次画面の選定は、この一覧の実装状況を実コードから再監査した上で、使用頻度・重要度・
 presentation-onlyでの変更安全性から判断する（このファイルの過去の優先順は当てにしない）。
 
-## 別枠の軽微な発見（本計画のスコープ外、将来の小さなクリーンアップ候補）
+## 別枠の軽微な発見（解消済み）
 
-- `css/app.css`の`--accent`/`--good`/`--warn`/`--danger`が`:root`で未定義のまま
-  4箇所で参照されている（無効値になっている）
-- `tests/d-ui-shell-test.js` / `tests/d-ui-context-tabs-test.js` /
-  `tests/d-ui-reference-fidelity-test.js`がどのシャード（B〜H）にも明示登録されておらず、
-  暗黙のシャードAに落ちている
+- ~~`css/app.css`の`--accent`/`--good`/`--warn`/`--danger`が`:root`で未定義~~
+  → PR #595で解消（既存の同義トークンへエイリアス）
+- ~~`tests/d-ui-shell-test.js` / `tests/d-ui-context-tabs-test.js` /
+  `tests/d-ui-reference-fidelity-test.js`が暗黙のシャードAに落ちている~~
+  → PR #596で解消（シャードC/E/Hへ明示割り当て）

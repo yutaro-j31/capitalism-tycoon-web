@@ -103,9 +103,11 @@ function mapEntities(g,screen){
   const tenantButtons=[...screen.querySelectorAll('button[data-action="open-store"]')].slice(0,6);
   const tenants=tenantButtons.map(button=>{const item=button.closest('.item');return {kind:'tenant',id:`tenant:${button.dataset.id}`,rawID:button.dataset.id,name:item?.querySelector('h3')?.textContent?.trim()||'出店候補',item,button};});
   const offices=[...screen.querySelectorAll('button[data-action="contract-office"],button[data-action="contract-branch-office"]')].slice(0,2).map(button=>({kind:'office',id:`office:${button.dataset.id}`,rawID:button.dataset.id,name:button.closest('.item')?.querySelector('h3')?.textContent?.trim()||'オフィス候補',item:button.closest('.item')}));
-  return [...stores,...tenants,...offices];
+  const realEstateButtons=[...screen.querySelectorAll('button[data-action="buy-property-company"]')].slice(0,6);
+  const realEstate=realEstateButtons.map(button=>{const property=(g.properties||[]).find(p=>String(p.id)===String(button.dataset.id));return {kind:'realestate',id:`realestate:${button.dataset.id}`,rawID:button.dataset.id,name:property?.name||button.closest('.item')?.querySelector('h3')?.textContent?.trim()||'不動産候補',property};});
+  return [...stores,...tenants,...offices,...realEstate];
 }
-function markerIcon(entity){return entity.kind==='store'?'▣':entity.kind==='office'?'△':'▤';}
+function markerIcon(entity){return entity.kind==='store'?'▣':entity.kind==='office'?'△':entity.kind==='realestate'?'◆':'▤';}
 // A store opened this week is 'preparing' until its openingWeek arrives (js/engine.js sets
 // status/openingWeek at openStore and flips to 'open' in the weekly loop). This panel used to
 // print 営業中 unconditionally, so a store still under construction looked like a trading store
@@ -132,6 +134,10 @@ function selectedDetail(entity,g){
   }
   const text=entity.item?.textContent?.replace(/\s+/g,' ').trim()||entity.name;
   if(entity.kind==='tenant')return `<div class="d-context-hero"><div class="d-store-visual tenant"><span>NEW LOCATION</span></div><div class="d-rating"><b>出店候補</b><span>★★★★☆</span></div></div><div class="d-context-tabs"><b>概要</b><span>商圏</span><span>費用</span></div><p class="d-context-copy">${esc(text)}</p><div class="d-context-metrics"><div><span>地域</span><strong>${esc(engine()?.pref?.(g.selectedPref)?.name||'選択地域')}</strong></div><div><span>状態</span><strong>契約可能</strong></div></div><button type="button" class="btn primary wide" data-action="open-store" data-id="${esc(entity.rawID)}">この場所に出店する</button>`;
+  if(entity.kind==='realestate'){
+    const property=entity.property||{};
+    return `<div class="d-context-hero"><div class="d-store-visual realestate"><span>FOR SALE</span></div><div class="d-rating"><b>売買可能</b><span>利回り${(finite(property.yieldRate)*100).toFixed(1)}%</span></div></div><div class="d-context-metrics"><div><span>価格</span><strong>${money(property.price)}</strong></div><div><span>週次賃料</span><strong>${money(property.rentIncome)}</strong></div><div><span>種別</span><strong>${esc(property.kind||'土地')}</strong></div><div><span>面積</span><strong>${finite(property.landAreaSqm).toLocaleString('ja-JP')}㎡</strong></div></div><div class="button-row"><button type="button" class="btn secondary" data-action="buy-property-company" data-id="${esc(entity.rawID)}">会社で購入</button><button type="button" class="btn ghost" data-action="buy-property-personal" data-id="${esc(entity.rawID)}">個人で購入</button></div>`;
+  }
   return `<div class="d-context-hero"><div class="d-store-visual office"><span>HEAD OFFICE</span></div><div class="d-rating"><b>本社候補</b><span>★★★★☆</span></div></div><p class="d-context-copy">${esc(text)}</p><button type="button" class="btn secondary wide" data-action="tab" data-tab="office">本社・組織画面へ</button>`;
 }
 function missionRows(g){

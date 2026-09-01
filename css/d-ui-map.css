@@ -1,0 +1,163 @@
+/* D UI v2: Map screen. Presentation only; no marker placement, entity, or deterministic-hash logic.
+   Terrain (city surface color, building --iso-hue palette, roads, water, parks) is intentionally
+   untouched here -- it represents the world, not UI chrome, and stays as-is (Phase B territory). */
+body.d-ui-active [data-screen="map"]{
+  --d2-map-canvas:#050814;
+  --d2-map-surface:#0a1020;
+  --d2-map-surface-2:#0f1729;
+  --d2-map-line:rgba(151,171,214,.17);
+  --d2-map-violet:#7c5cff;
+  --d2-map-violet-hi:#9a7cff;
+  --d2-map-blue:#5c8dff;
+  --d2-map-cyan:#46c6e8;
+  --d2-map-positive:#55d98b;
+  --d2-map-warning:#f2b84b;
+  --d2-map-negative:#ff6675;
+  --d2-map-text:#f3f6ff;
+  --d2-map-muted:#93a3bf;
+}
+body.d-ui-active [data-screen="map"] .d-map-workspace{background:var(--d2-map-surface);box-shadow:0 20px 52px rgba(0,0,0,.32)}
+
+/* map stage chrome (toolbar / zoom & filter tools). Terrain itself is untouched. */
+body.d-ui-active [data-screen="map"] .d-map-toolbar button,
+body.d-ui-active [data-screen="map"] .d-map-toolbar span{
+  border-color:rgba(124,92,255,.36);background:rgba(10,16,32,.80);
+}
+body.d-ui-active [data-screen="map"] .d-map-tools{border-color:rgba(124,92,255,.32);background:rgba(10,16,32,.84)}
+
+/* markers: 4-way semantic legend (store=blue, tenant candidate=negative, office candidate=violet, real estate=cyan) */
+body.d-ui-active [data-screen="map"] .d-map-marker.store{background:linear-gradient(180deg,#6f9cff,#3763c9)}
+body.d-ui-active [data-screen="map"] .d-map-marker.tenant{background:linear-gradient(180deg,#ff8f9b,#c33a4d)}
+body.d-ui-active [data-screen="map"] .d-map-marker.office{background:linear-gradient(180deg,#9a7cff,#5c3fc9)}
+body.d-ui-active [data-screen="map"] .d-map-marker.realestate{background:linear-gradient(180deg,#5fdcf5,#1f8fac)}
+body.d-ui-active [data-screen="map"] .d-map-marker.selected{outline-color:var(--d2-map-violet-hi);filter:drop-shadow(0 0 13px rgba(124,92,255,.85))}
+
+/* overlay cards: recolor from the white "paper card" look to the dark card idiom used elsewhere */
+body.d-ui-active [data-screen="map"] .d-map-overlay{background:var(--d2-map-surface-2)}
+body.d-ui-active [data-screen="map"] .d-white-card{
+  background:linear-gradient(150deg,rgba(15,23,41,.97),rgba(10,16,32,.97));
+  color:var(--d2-map-text);
+  box-shadow:0 14px 32px rgba(0,0,0,.24),inset 0 1px rgba(255,255,255,.03);
+}
+body.d-ui-active [data-screen="map"] .d-white-card h2{color:#f5f7ff}
+body.d-ui-active [data-screen="map"] .d-white-card header small{color:var(--d2-map-muted)}
+body.d-ui-active [data-screen="map"] .d-white-card header>b{color:var(--d2-map-positive)}
+body.d-ui-active [data-screen="map"] .d-profit-chart path{stroke:rgba(151,171,214,.20)}
+body.d-ui-active [data-screen="map"] .d-profit-chart polyline{stroke:var(--d2-map-positive)}
+body.d-ui-active [data-screen="map"] .d-profit-chart circle{fill:#0f1729;stroke:var(--d2-map-positive)}
+body.d-ui-active [data-screen="map"] .d-chart-card footer{color:#6b7893}
+body.d-ui-active [data-screen="map"] .d-mission-row{border-top-color:rgba(151,171,214,.13)}
+body.d-ui-active [data-screen="map"] .d-mission-row>span{border-color:var(--d2-map-violet);color:var(--d2-map-violet-hi)}
+body.d-ui-active [data-screen="map"] .d-mission-row.done>span{border-color:var(--d2-map-positive);color:var(--d2-map-positive)}
+body.d-ui-active [data-screen="map"] .d-mission-row strong{color:#eaf0ff}
+body.d-ui-active [data-screen="map"] .d-mission-row small{color:var(--d2-map-muted)}
+body.d-ui-active [data-screen="map"] .d-mission-row i{background:rgba(255,255,255,.08)}
+body.d-ui-active [data-screen="map"] .d-mission-row i em{background:linear-gradient(90deg,var(--d2-map-violet),var(--d2-map-cyan))}
+body.d-ui-active [data-screen="map"] .d-mission-card>button{color:var(--d2-map-violet-hi)}
+body.d-ui-active [data-screen="map"] .d-news-card>div{border-top-color:rgba(151,171,214,.13)}
+body.d-ui-active [data-screen="map"] .d-news-card>div>span{background:var(--d2-map-cyan)}
+body.d-ui-active [data-screen="map"] .d-news-card p{color:#d7e1ee}
+body.d-ui-active [data-screen="map"] .d-news-card small{color:var(--d2-map-muted)}
+body.d-ui-active [data-screen="map"] .d-news-card header button{color:var(--d2-map-violet-hi)}
+
+/* context panel (store / tenant / office / real-estate detail) */
+body.d-ui-active [data-screen="map"] .d-context-panel{
+  background:linear-gradient(180deg,#0a1020,#0d1930);
+}
+body.d-ui-active [data-screen="map"] .d-context-panel>header span{color:var(--d2-map-cyan)}
+body.d-ui-active [data-screen="map"] .d-context-panel>header button{color:var(--d2-map-muted)}
+body.d-ui-active [data-screen="map"] .d-store-visual{
+  background:linear-gradient(180deg,rgba(6,14,24,.10),rgba(6,14,24,.75)),
+    linear-gradient(130deg,#2e3f9e,#142637 55%,#1f8fac);
+}
+body.d-ui-active [data-screen="map"] .d-store-visual.tenant{
+  background:linear-gradient(180deg,rgba(6,14,24,.10),rgba(6,14,24,.75)),
+    linear-gradient(150deg,#c9384f,#3b1420 55%,#6b1e2c);
+}
+body.d-ui-active [data-screen="map"] .d-store-visual.office{
+  background:linear-gradient(180deg,rgba(6,14,24,.10),rgba(6,14,24,.75)),
+    linear-gradient(150deg,#5c3fc9,#221338 55%,#3a1f6b);
+}
+body.d-ui-active [data-screen="map"] .d-store-visual.realestate{
+  background:linear-gradient(180deg,rgba(6,14,24,.10),rgba(6,14,24,.75)),
+    linear-gradient(150deg,#1f8fac,#0d2a30 55%,#12475a);
+}
+body.d-ui-active [data-screen="map"] .d-rating span{color:var(--d2-map-warning)}
+body.d-ui-active [data-screen="map"] .d-context-tabs{border-top-color:rgba(151,171,214,.15);border-bottom-color:rgba(151,171,214,.15)}
+body.d-ui-active [data-screen="map"] .d-context-tabs>*{color:var(--d2-map-muted)}
+body.d-ui-active [data-screen="map"] .d-context-tabs b{box-shadow:inset 0 -2px 0 var(--d2-map-violet)}
+body.d-ui-active [data-screen="map"] .d-context-metrics{background:rgba(151,171,214,.14)}
+body.d-ui-active [data-screen="map"] .d-context-metrics>div{background:#0f1729}
+body.d-ui-active [data-screen="map"] .d-context-metrics span{color:#8496ac}
+body.d-ui-active [data-screen="map"] .d-context-metrics strong{color:#f4f7ff;font-variant-numeric:tabular-nums}
+body.d-ui-active [data-screen="map"] .d-context-copy{color:var(--d2-map-muted)}
+body.d-ui-active [data-screen="map"] .d-status-bars label>span{color:var(--d2-map-muted)}
+body.d-ui-active [data-screen="map"] .d-status-bars i em{background:linear-gradient(90deg,var(--d2-map-violet),var(--d2-map-cyan))}
+body.d-ui-active [data-screen="map"] .d-context-empty>span{color:var(--d2-map-violet)}
+body.d-ui-active [data-screen="map"] .d-context-panel .button-row{display:flex;gap:8px;margin:8px 12px 14px}
+body.d-ui-active [data-screen="map"] .d-context-panel .button-row .btn{flex:1 1 auto;min-height:44px;box-sizing:border-box}
+body.d-ui-active [data-screen="map"] .d-context-panel .btn.secondary{
+  border-color:rgba(92,141,255,.34);background:rgba(92,141,255,.14);color:#cfe0ff;
+}
+body.d-ui-active [data-screen="map"] .d-context-panel .btn.ghost{
+  border-color:rgba(151,171,214,.24);color:#c3cfe2;
+}
+
+/* directory accordion (store/tenant/property/office lists reuse existing .card/.item classes) */
+body.d-ui-active [data-screen="map"] .d-map-directory{background:rgba(10,16,32,.85)}
+body.d-ui-active [data-screen="map"] .d-map-directory>summary{color:var(--d2-map-violet-hi)}
+body.d-ui-active [data-screen="map"] .d-map-directory .card{
+  border:1px solid var(--d2-map-line);border-radius:16px;
+  background:linear-gradient(150deg,rgba(10,16,32,.96),rgba(15,23,41,.94));
+}
+body.d-ui-active [data-screen="map"] .d-map-directory .card>.card-head{border-bottom:1px solid rgba(151,171,214,.11)}
+body.d-ui-active [data-screen="map"] .d-map-directory .card>.card-head h2{color:#f5f7ff}
+body.d-ui-active [data-screen="map"] .d-map-directory .card>.card-head p,
+body.d-ui-active [data-screen="map"] .d-map-directory .muted{color:var(--d2-map-muted)}
+body.d-ui-active [data-screen="map"] .d-map-directory .item{
+  border-color:rgba(151,171,214,.13);border-radius:13px;
+  background:linear-gradient(145deg,rgba(255,255,255,.028),rgba(92,141,255,.018));
+}
+body.d-ui-active [data-screen="map"] .d-map-directory .item h3{color:#edf2ff}
+body.d-ui-active [data-screen="map"] .d-map-directory .item p{color:#9eacc4;overflow-wrap:anywhere}
+body.d-ui-active [data-screen="map"] .d-map-directory .item-metrics span{color:#c3cfe2}
+body.d-ui-active [data-screen="map"] .d-map-directory .btn.primary{
+  border-color:rgba(154,124,255,.42);
+  background:linear-gradient(135deg,var(--d2-map-violet),#6256d8 58%,#4d6ec8);color:#fff;
+}
+body.d-ui-active [data-screen="map"] .d-map-directory .btn.secondary{
+  border-color:rgba(92,141,255,.30);background:rgba(92,141,255,.14);color:#cfe0ff;
+}
+body.d-ui-active [data-screen="map"] .d-map-directory .btn.ghost{border-color:rgba(151,171,214,.22);color:#c3cfe2}
+body.d-ui-active [data-screen="map"] .d-map-directory .kpi-grid{gap:8px}
+body.d-ui-active [data-screen="map"] .d-map-directory .stat{
+  border:1px solid rgba(151,171,214,.14);border-radius:12px;
+  background:linear-gradient(145deg,rgba(255,255,255,.035),rgba(92,141,255,.025));
+}
+body.d-ui-active [data-screen="map"] .d-map-directory .stat span{color:#8fa0bd}
+body.d-ui-active [data-screen="map"] .d-map-directory .stat strong{color:#f4f7ff;font-variant-numeric:tabular-nums}
+body.d-ui-active [data-screen="map"] .d-map-directory .badge{border-color:rgba(151,171,214,.22);background:rgba(255,255,255,.03);color:#c3cfe2}
+body.d-ui-active [data-screen="map"] .d-map-directory .badge.good{color:#a8f0c6;border-color:rgba(85,217,139,.38);background:rgba(85,217,139,.10)}
+
+@media(max-width:1150px){
+  body.d-ui-active [data-screen="map"] .d-context-panel{background:linear-gradient(180deg,#0a1020,#0d1930)}
+}
+@media(max-width:820px){
+  body.d-ui-active [data-screen="map"] .d-map-directory .kpi-grid{grid-template-columns:repeat(2,minmax(0,1fr))}
+}
+@media(hover:none),(pointer:coarse){
+  body.d-ui-active [data-screen="map"] .d-map-directory .btn,
+  body.d-ui-active [data-screen="map"] .d-context-panel .btn{touch-action:manipulation;-webkit-tap-highlight-color:transparent}
+}
+@media(prefers-reduced-motion:reduce){
+  body.d-ui-active [data-screen="map"] .d-map-marker{transition:none}
+  body.d-ui-active [data-screen="map"] .d-map-directory .btn,
+  body.d-ui-active [data-screen="map"] .d-context-panel .btn{transition:none}
+}
+@media(forced-colors:active){
+  body.d-ui-active [data-screen="map"] .d-white-card,
+  body.d-ui-active [data-screen="map"] .d-map-directory .card,
+  body.d-ui-active [data-screen="map"] .d-map-directory .item{border:1px solid CanvasText;background:Canvas;color:CanvasText}
+  body.d-ui-active [data-screen="map"] .d-map-directory .btn:focus-visible,
+  body.d-ui-active [data-screen="map"] .d-context-panel .btn:focus-visible{outline:3px solid Highlight}
+}
