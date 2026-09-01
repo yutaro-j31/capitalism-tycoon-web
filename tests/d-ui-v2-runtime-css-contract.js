@@ -7,6 +7,7 @@ const mobileStyle = fs.readFileSync('css/d-ui-mobile-company.css', 'utf8');
 const commandStyle = fs.readFileSync('css/d-ui-command-menu-v2.css', 'utf8');
 const officeStyle = fs.readFileSync('css/d-ui-office.css', 'utf8');
 const founderStyle = fs.readFileSync('css/d-ui-founder.css', 'utf8');
+const strategyStyle = fs.readFileSync('css/d-ui-strategy.css', 'utf8');
 const shell = fs.readFileSync('js/d-ui-shell.js', 'utf8');
 const app = fs.readFileSync('js/app.js', 'utf8');
 
@@ -96,6 +97,29 @@ for (const label of ['創業者プロフィール','創業者ホーム','自宅�
 }
 for (const action of ['founder-action','upgrade-home','launch-home-product','founder-invest','buy-personal-re','sell-personal-re','create-pe','create-angel','exit-angel']) {
   assert.ok(app.includes(action), `Founder v2 must retain existing Founder action: ${action}`);
+}
+
+assert.ok(mobileStyle.includes('@import url("./d-ui-strategy.css");'), 'runtime mobile/company chain must import the Strategy stylesheet');
+assert.match(strategyStyle, /body\.d-ui-active \[data-screen="strategy"\]\{/, 'Strategy v2 must stay scoped to the active Strategy screen');
+assert.match(strategyStyle, /--d2-strategy-violet:#7c5cff/, 'Strategy v2 must use the approved violet primary accent');
+assert.match(strategyStyle, /--d2-strategy-blue:#5c8dff/, 'Strategy v2 must retain the approved blue data accent');
+assert.match(strategyStyle, /--d2-strategy-cyan:#46c6e8/, 'Strategy v2 must retain the approved cyan secondary accent');
+assert.doesNotMatch(strategyStyle, /--d-gold/, 'Strategy v2 must not reintroduce gold as a primary accent (prestige-only elsewhere)');
+assert.match(strategyStyle, /\.subtabs button\{[\s\S]*?min-height:44px;/, 'Strategy contextual tabs (supply/rd/segments) must preserve a 44px touch target');
+assert.match(strategyStyle, /overflow-x:auto/, 'Strategy contextual tabs must remain horizontally reachable on compact screens');
+assert.match(strategyStyle, /safe-area-inset-bottom/, 'Strategy v2 must respect iPhone safe areas');
+assert.match(strategyStyle, /prefers-reduced-motion:reduce/, 'Strategy v2 motion must respect reduced-motion preferences');
+assert.match(strategyStyle, /forced-colors:active/, 'Strategy v2 must remain legible in forced-colors mode');
+assert.match(strategyStyle, /focus-visible[\s\S]*--d2-strategy-violet-hi/, 'Strategy v2 keyboard focus must use the D UI v2 violet accent');
+assert.doesNotMatch(strategyStyle, /(?:^|[;{])\s*display\s*:\s*none\b/m, 'Strategy v2 must not hide existing Strategy information or actions');
+assert.doesNotMatch(strategyStyle, /\b(?:width|min-width|max-width)\s*:\s*100vw\b/, 'Strategy v2 must not create page-level viewport overflow');
+assert.doesNotMatch(strategyStyle, /scrollbar-width\s*:\s*none|::-webkit-scrollbar[^}]*display\s*:\s*none/s, 'Strategy v2 must not hide scroll affordances');
+assert.doesNotMatch(strategyStyle, /https?:\/\//, 'Strategy v2 must not add remote runtime assets');
+for (const label of ['戦略システム','研究テーマ','特許ポートフォリオ','業態別顧客セグメント・市場シェア','Phase 1C 仕入・原材料在庫','垂直統合','サプライチェーン履歴']) {
+  assert.ok(app.includes(label), `Strategy v2 must retain Strategy destination: ${label}`);
+}
+for (const action of ['strategy-tab','start-rd','license-patent','start-menu-research','supply-select-supplier','supply-policy','supply-safety','supply-emergency','vertical-integration']) {
+  assert.ok(app.includes(action), `Strategy v2 must retain existing Strategy action: ${action}`);
 }
 
 console.log('D UI v2 runtime stylesheet contract passed');
