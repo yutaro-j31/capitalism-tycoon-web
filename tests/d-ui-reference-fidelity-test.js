@@ -37,7 +37,7 @@ for(const commandMenuSafeAreaContract of ['.d-command-menu{place-items:stretch',
 for(const commandMenuFocusContract of ['.d-command-head button:focus-visible','.d-command-grid .d-nav-button:focus-visible','outline:3px solid #ffe097!important','outline-offset:3px','box-shadow:0 0 0 4px rgba(217,168,77,.18)']){
   assert.ok(override.includes(commandMenuFocusContract),`missing command-menu keyboard focus treatment: ${commandMenuFocusContract}`);
 }
-for(const mapMarkerFocusContract of ['.d-map-marker:focus-visible','outline:3px solid #ffe097!important','outline-offset:4px','box-shadow:0 0 0 5px rgba(3,11,19,.72),0 0 0 8px rgba(217,168,77,.24)','@media(prefers-reduced-motion:reduce){.d-map-marker:focus-visible{transform:translate(-50%,-50%)}}','@media(forced-colors:active){.d-map-marker:focus-visible{outline:3px solid Highlight!important']){
+for(const mapMarkerFocusContract of ['.d-map-marker:focus-visible','outline:3px solid #b9a6ff!important','outline-offset:4px','box-shadow:0 0 0 5px rgba(3,11,19,.72),0 0 0 8px rgba(124,92,255,.28)','@media(prefers-reduced-motion:reduce){.d-map-marker:focus-visible{transform:translate(-50%,-50%)}}','@media(forced-colors:active){.d-map-marker:focus-visible{outline:3px solid Highlight!important']){
   assert.ok(mapFocus.includes(mapMarkerFocusContract),`missing map-marker keyboard focus treatment: ${mapMarkerFocusContract}`);
 }
 for(const mapDepthContract of ['.d-city-surface::after','pointer-events:none','radial-gradient(ellipse at 50% 42%','.d-city-blocks i::before','.d-city-blocks i::after','filter:drop-shadow','background-blend-mode:screen','@media(max-width:820px)','@media(forced-colors:active)']){
