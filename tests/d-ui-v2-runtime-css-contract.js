@@ -12,6 +12,8 @@ const rivalsStyle = fs.readFileSync('css/d-ui-rivals.css', 'utf8');
 const mediaStyle = fs.readFileSync('css/d-ui-media.css', 'utf8');
 const settingsStyle = fs.readFileSync('css/d-ui-settings.css', 'utf8');
 const missionsStyle = fs.readFileSync('css/d-ui-missions.css', 'utf8');
+const newsStyle = fs.readFileSync('css/d-ui-news.css', 'utf8');
+const contextTabsScript = fs.readFileSync('js/d-ui-context-tabs.js', 'utf8');
 const shell = fs.readFileSync('js/d-ui-shell.js', 'utf8');
 const app = fs.readFileSync('js/app.js', 'utf8');
 
@@ -216,5 +218,37 @@ assert.doesNotMatch(missionsStyle, /https?:\/\//, 'Missions v2 must not add remo
 for (const label of ['ミッション','実績','長期目標','業界ランキング','受賞歴']) {
   assert.ok(app.includes(label), `Missions v2 must retain Missions destination: ${label}`);
 }
+
+assert.ok(mobileStyle.includes('@import url("./d-ui-news.css");'), 'runtime mobile/company chain must import the News stylesheet');
+assert.match(newsStyle, /body\.d-ui-active \[data-screen="news"\]\{/, 'News v2 must stay scoped to the active News screen');
+assert.match(newsStyle, /--d2-news-violet:#7c5cff/, 'News v2 must use the approved violet primary accent');
+assert.match(newsStyle, /--d2-news-blue:#5c8dff/, 'News v2 must retain the approved blue data accent');
+assert.match(newsStyle, /--d2-news-cyan:#46c6e8/, 'News v2 must retain the approved cyan secondary accent');
+assert.doesNotMatch(newsStyle, /--d-gold/, 'News v2 must not reintroduce gold as a primary accent (prestige-only elsewhere)');
+assert.match(newsStyle, /safe-area-inset-bottom/, 'News v2 must respect iPhone safe areas');
+assert.match(newsStyle, /prefers-reduced-motion:reduce/, 'News v2 motion must respect reduced-motion preferences');
+assert.match(newsStyle, /forced-colors:active/, 'News v2 must remain legible in forced-colors mode');
+assert.doesNotMatch(newsStyle, /(?:^|[;{])\s*display\s*:\s*none\b/m, 'News v2 must not hide existing News information');
+assert.doesNotMatch(newsStyle, /\b(?:width|min-width|max-width)\s*:\s*100vw\b/, 'News v2 must not create page-level viewport overflow');
+assert.doesNotMatch(newsStyle, /scrollbar-width\s*:\s*none|::-webkit-scrollbar[^}]*display\s*:\s*none/s, 'News v2 must not hide scroll affordances');
+assert.doesNotMatch(newsStyle, /https?:\/\//, 'News v2 must not add remote runtime assets');
+for (const label of ['ニュース履歴','週次経営履歴']) {
+  assert.ok(app.includes(label), `News v2 must retain News destination: ${label}`);
+}
+// enhanceNews()（js/d-ui-context-tabs.js）が実行時にnews画面のDOMを
+// TYCOON WEEKLY 6面タブへ丸ごと差し替えるため、renderNews()の素のHTMLは
+// 実際には画面に残らない。実際に表示される構造をここで固定する。
+assert.match(contextTabsScript, /data-d-news-sections/, 'News v2 must retain the TYCOON WEEKLY newspaper enhancer structure');
+for (const section of ['top','retail','management','stock','politics','sports']) {
+  assert.ok(contextTabsScript.includes(`'${section}'`) || contextTabsScript.includes(`"${section}"`), `News v2 must retain the TYCOON WEEKLY section: ${section}`);
+}
+// news画面限定のoverride: 共有.d-context-tabs[role=tablist]は店舗詳細ドリルダウン
+// （未移行）とも共用でgold定義のまま残っているが、news側だけviolet化する。
+assert.match(newsStyle, /\[data-screen="news"\] \.d-context-tabs\[role="tablist"\] button\[aria-selected="true"\]\{[^}]*color:var\(--d2-news-violet-hi\)/, 'News v2 must recolor the TYCOON WEEKLY active section tab to violet, not gold');
+assert.match(newsStyle, /\[data-screen="news"\] \.d-context-tabs\[role="tablist"\] button::after\{[^}]*background:var\(--d2-news-violet\)/, 'News v2 must recolor the TYCOON WEEKLY tab underline to violet, not gold');
+// 小売/経営/政治面の記事カード（articleRows()が出す.media-article）もnews画面側でカバーする。
+assert.match(newsStyle, /\[data-screen="news"\] \.media-article\{[^}]*border-bottom-color/, 'News v2 must restyle TYCOON WEEKLY article cards (retail/management/politics sections)');
+// 政治面のマクロKPI（politicsNewsContent()の.kpi-grid mini/.stat）もnews画面側でカバーする。
+assert.match(newsStyle, /\[data-screen="news"\] \.stat\{[^}]*border:1px solid rgba\(151,171,214,\.14\)/, 'News v2 must restyle TYCOON WEEKLY policy KPI stats (politics section)');
 
 console.log('D UI v2 runtime stylesheet contract passed');

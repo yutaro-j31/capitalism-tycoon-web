@@ -1,0 +1,88 @@
+/* D UI v2: News / weekly history screen. Presentation only; no news or history logging logic. */
+body.d-ui-active [data-screen="news"]{
+  --d2-news-canvas:#050814;
+  --d2-news-surface:#0a1020;
+  --d2-news-surface-2:#0f1729;
+  --d2-news-line:rgba(151,171,214,.17);
+  --d2-news-violet:#7c5cff;
+  --d2-news-violet-hi:#9a7cff;
+  --d2-news-blue:#5c8dff;
+  --d2-news-cyan:#46c6e8;
+  --d2-news-positive:#55d98b;
+  --d2-news-warning:#f2b84b;
+  --d2-news-negative:#ff6675;
+  --d2-news-text:#f3f6ff;
+  --d2-news-muted:#93a3bf;
+  min-width:0;
+  padding-bottom:max(22px,env(safe-area-inset-bottom));
+  color:var(--d2-news-text);
+  background:
+    radial-gradient(circle at 9% 0,rgba(124,92,255,.11),transparent 28rem),
+    radial-gradient(circle at 92% 8%,rgba(70,198,232,.07),transparent 24rem),
+    linear-gradient(180deg,rgba(5,8,20,.92),rgba(5,8,20,.28) 36rem,transparent);
+}
+body.d-ui-active [data-screen="news"] .card{
+  min-width:0;border:1px solid var(--d2-news-line);border-radius:16px;
+  background:linear-gradient(150deg,rgba(10,16,32,.96),rgba(15,23,41,.94));
+  box-shadow:0 16px 38px rgba(0,0,0,.20),inset 0 1px rgba(255,255,255,.025);
+}
+body.d-ui-active [data-screen="news"] .card>.card-head{border-bottom:1px solid rgba(151,171,214,.11)}
+body.d-ui-active [data-screen="news"] .card>.card-head h2{color:#f5f7ff;letter-spacing:-.015em}
+body.d-ui-active [data-screen="news"] .card>.card-head p,
+body.d-ui-active [data-screen="news"] .muted{color:var(--d2-news-muted)}
+body.d-ui-active [data-screen="news"] .news-line{
+  border-bottom-color:rgba(151,171,214,.13);color:#d7e1ee;
+}
+body.d-ui-active [data-screen="news"] .news-line.mono{
+  font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+  color:#c3cfe2;font-variant-numeric:tabular-nums;
+}
+body.d-ui-active [data-screen="news"] .news-line.warn{color:#ffd78e}
+
+/* TYCOON WEEKLY: enhanceNews()（js/d-ui-context-tabs.js）が実際にnews画面を
+   6面タブへ差し替えて描画する。共有クラス.d-context-tabs[role=tablist]は
+   店舗詳細ドリルダウン（未移行）とも共用のためgold定義のまま残っているが、
+   news画面限定でoverrideし、店舗詳細側には影響させない。 */
+body.d-ui-active [data-screen="news"] .d-context-tabs[role="tablist"]{border-bottom-color:rgba(151,171,214,.16)}
+body.d-ui-active [data-screen="news"] .d-context-tabs[role="tablist"] button{color:var(--d2-news-muted)}
+body.d-ui-active [data-screen="news"] .d-context-tabs[role="tablist"] button::after{background:var(--d2-news-violet)}
+body.d-ui-active [data-screen="news"] .d-context-tabs[role="tablist"] button[aria-selected="true"]{
+  color:var(--d2-news-violet-hi);background:rgba(124,92,255,.08);
+}
+body.d-ui-active [data-screen="news"] .d-context-tabs[role="tablist"] button:focus-visible{outline-color:rgba(154,124,255,.8)}
+
+/* 小売/経営/政治面（articleRows()）の記事カード */
+body.d-ui-active [data-screen="news"] .media-article{border-bottom-color:rgba(151,171,214,.13)}
+body.d-ui-active [data-screen="news"] .media-article h3{color:#edf2ff}
+body.d-ui-active [data-screen="news"] .media-article p{color:#9eacc4}
+
+/* 政治面の政策・マクロKPI（politicsNewsContent()） */
+body.d-ui-active [data-screen="news"] .kpi-grid,
+body.d-ui-active [data-screen="news"] .kpi-grid.mini{gap:8px}
+body.d-ui-active [data-screen="news"] .stat{
+  min-width:0;border:1px solid rgba(151,171,214,.14);border-radius:12px;
+  background:linear-gradient(145deg,rgba(255,255,255,.035),rgba(92,141,255,.025));
+}
+body.d-ui-active [data-screen="news"] .stat span{color:#8fa0bd}
+body.d-ui-active [data-screen="news"] .stat strong{color:#f4f7ff;overflow-wrap:anywhere;font-variant-numeric:tabular-nums}
+
+@media(max-width:820px){
+  body.d-ui-active [data-screen="news"]{padding-bottom:max(94px,calc(76px + env(safe-area-inset-bottom)))}
+  body.d-ui-active [data-screen="news"] .grid.two{grid-template-columns:1fr!important;gap:10px}
+}
+@media(max-width:520px){
+  body.d-ui-active [data-screen="news"] .card>.card-head,
+  body.d-ui-active [data-screen="news"] .card>.card-body{padding-inline:12px}
+  body.d-ui-active [data-screen="news"] .news-line,
+  body.d-ui-active [data-screen="news"] .media-article{overflow-wrap:anywhere}
+}
+@media(prefers-reduced-motion:reduce){
+  body.d-ui-active [data-screen="news"] .btn,
+  body.d-ui-active [data-screen="news"] .d-context-tabs[role="tablist"] button,
+  body.d-ui-active [data-screen="news"] .d-context-tabs[role="tablist"] button::after{transition:none}
+}
+@media(forced-colors:active){
+  body.d-ui-active [data-screen="news"] .card,
+  body.d-ui-active [data-screen="news"] .media-article,
+  body.d-ui-active [data-screen="news"] .stat{border:1px solid CanvasText;background:Canvas;color:CanvasText}
+}

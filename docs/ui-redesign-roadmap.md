@@ -107,7 +107,15 @@ office より先に完了済み）。19画面中の現在の状況:
 - [x] missions（進行・目標） — D UI v2化済み（`css/d-ui-missions.css`新規。ミッション/実績/
       長期目標/業界ランキング/受賞歴を維持。完了ミッションはpositive、進行中はvioletで
       区別し、gold不使用（従来`.mission>span`と`.ending-record>span`はgoldを使っていた）。
-- [ ] news（ニュース）/ legacy（承継） — 未着手。旧`.card`/`.kpi-grid`のまま
+- [x] news（ニュース） — D UI v2化済み（`css/d-ui-news.css`新規。実際の本番描画は
+      `js/app.js`の`renderNews()`ではなく`js/d-ui-context-tabs.js`の`enhanceNews()`が
+      screen全体をTYCOON WEEKLY 6面タブ（トップ/小売/経営/株式市場/政治/スポーツ）へ
+      丸ごと差し替えることをPlaywright調査で確認した上で対応。共有クラス
+      `.d-context-tabs[role="tablist"]`（店舗詳細ドリルダウンとも共用、未移行のため
+      gold定義のまま残置）はnews画面限定でoverrideしviolet化、店舗詳細側は無変更。
+      各面が使う`.media-article`（articleRows()）・`.kpi-grid mini`/`.stat`
+      （politicsNewsContent()の政策KPI）もnews画面側で新たにカバー。gold不使用）
+- [ ] legacy（承継） — 未着手。旧`.card`/`.kpi-grid`のまま
 
 各PhaseはPhase 1・2と同じ型（新規`css/d-ui-<screen>.css`・既存クラス存在チェックの拡張・
 静的アサーションテスト・Playwrightスクラッチ確認・負のテスト2パターン）を反復する。
