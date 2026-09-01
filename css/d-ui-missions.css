@@ -1,0 +1,96 @@
+/* D UI v2: Missions / achievements screen. Presentation only; no mission, achievement, or ranking logic. */
+body.d-ui-active [data-screen="missions"]{
+  --d2-missions-canvas:#050814;
+  --d2-missions-surface:#0a1020;
+  --d2-missions-surface-2:#0f1729;
+  --d2-missions-line:rgba(151,171,214,.17);
+  --d2-missions-violet:#7c5cff;
+  --d2-missions-violet-hi:#9a7cff;
+  --d2-missions-blue:#5c8dff;
+  --d2-missions-cyan:#46c6e8;
+  --d2-missions-positive:#55d98b;
+  --d2-missions-warning:#f2b84b;
+  --d2-missions-negative:#ff6675;
+  --d2-missions-text:#f3f6ff;
+  --d2-missions-muted:#93a3bf;
+  min-width:0;
+  padding-bottom:max(22px,env(safe-area-inset-bottom));
+  color:var(--d2-missions-text);
+  background:
+    radial-gradient(circle at 9% 0,rgba(124,92,255,.11),transparent 28rem),
+    radial-gradient(circle at 92% 8%,rgba(70,198,232,.07),transparent 24rem),
+    linear-gradient(180deg,rgba(5,8,20,.92),rgba(5,8,20,.28) 36rem,transparent);
+}
+body.d-ui-active [data-screen="missions"] .card{
+  min-width:0;border:1px solid var(--d2-missions-line);border-radius:16px;
+  background:linear-gradient(150deg,rgba(10,16,32,.96),rgba(15,23,41,.94));
+  box-shadow:0 16px 38px rgba(0,0,0,.20),inset 0 1px rgba(255,255,255,.025);
+}
+body.d-ui-active [data-screen="missions"] .card>.card-head{border-bottom:1px solid rgba(151,171,214,.11)}
+body.d-ui-active [data-screen="missions"] .card>.card-head h2{color:#f5f7ff;letter-spacing:-.015em}
+body.d-ui-active [data-screen="missions"] .card>.card-head p,
+body.d-ui-active [data-screen="missions"] .muted{color:var(--d2-missions-muted)}
+body.d-ui-active [data-screen="missions"] .kpi-grid,
+body.d-ui-active [data-screen="missions"] .grid.three{gap:8px}
+body.d-ui-active [data-screen="missions"] .stat{
+  min-width:0;border:1px solid rgba(151,171,214,.14);border-radius:12px;
+  background:linear-gradient(145deg,rgba(255,255,255,.035),rgba(92,141,255,.025));
+}
+body.d-ui-active [data-screen="missions"] .stat span{color:#8fa0bd}
+body.d-ui-active [data-screen="missions"] .stat strong{color:#f4f7ff;overflow-wrap:anywhere;font-variant-numeric:tabular-nums}
+
+/* ミッション行: 完了=positive、進行中=violet、未解放=mutedの3状態を色で明確化する。
+   goldはprestige限定（IPO/取締役会）としたD UI v2方針に合わせ、達成マークにgoldを使わない。 */
+body.d-ui-active [data-screen="missions"] .mission{border-bottom-color:rgba(151,171,214,.13)}
+body.d-ui-active [data-screen="missions"] .mission h3{color:#edf2ff}
+body.d-ui-active [data-screen="missions"] .mission p{color:#9eacc4}
+body.d-ui-active [data-screen="missions"] .mission>span{
+  border-color:rgba(151,171,214,.22);color:var(--d2-missions-violet-hi);
+  background:rgba(124,92,255,.08);
+}
+body.d-ui-active [data-screen="missions"] .mission.done>span{
+  color:var(--d2-missions-positive);border-color:rgba(85,217,139,.34);
+  background:rgba(85,217,139,.10);
+}
+body.d-ui-active [data-screen="missions"] .mission.done{opacity:.72}
+body.d-ui-active [data-screen="missions"] .badge{border-color:rgba(151,171,214,.22);background:rgba(255,255,255,.03);color:#c3cfe2}
+body.d-ui-active [data-screen="missions"] .badge.good{color:#a8f0c6;border-color:rgba(85,217,139,.38);background:rgba(85,217,139,.10)}
+
+body.d-ui-active [data-screen="missions"] .achievement{
+  border-bottom-color:rgba(151,171,214,.13);color:#dce4f2;
+}
+
+/* 受賞歴・業界ランキング（renderAwards()）。ending-record の背景・アイコン枠もgold不使用に統一 */
+body.d-ui-active [data-screen="missions"] .ending-record{border-bottom-color:rgba(151,171,214,.13)}
+body.d-ui-active [data-screen="missions"] .ending-record>span{
+  background:linear-gradient(145deg,rgba(124,92,255,.22),rgba(92,141,255,.10));
+}
+body.d-ui-active [data-screen="missions"] .ending-record h3{color:#edf2ff}
+body.d-ui-active [data-screen="missions"] .ending-record p{color:#9eacc4}
+
+@media(max-width:1100px){
+  body.d-ui-active [data-screen="missions"] .grid.three{grid-template-columns:repeat(2,minmax(0,1fr))}
+}
+@media(max-width:820px){
+  body.d-ui-active [data-screen="missions"]{padding-bottom:max(94px,calc(76px + env(safe-area-inset-bottom)))}
+  body.d-ui-active [data-screen="missions"] .grid.two,
+  body.d-ui-active [data-screen="missions"] .grid.three{grid-template-columns:1fr!important;gap:10px}
+}
+@media(max-width:520px){
+  body.d-ui-active [data-screen="missions"] .card>.card-head,
+  body.d-ui-active [data-screen="missions"] .card>.card-body{padding-inline:12px}
+  body.d-ui-active [data-screen="missions"] .mission,
+  body.d-ui-active [data-screen="missions"] .ending-record{overflow-wrap:anywhere}
+}
+@media(hover:none),(pointer:coarse){
+  body.d-ui-active [data-screen="missions"] .btn{touch-action:manipulation;-webkit-tap-highlight-color:transparent}
+}
+@media(prefers-reduced-motion:reduce){
+  body.d-ui-active [data-screen="missions"] .btn{transition:none}
+}
+@media(forced-colors:active){
+  body.d-ui-active [data-screen="missions"] .card,
+  body.d-ui-active [data-screen="missions"] .mission,
+  body.d-ui-active [data-screen="missions"] .ending-record{border:1px solid CanvasText;background:Canvas;color:CanvasText}
+  body.d-ui-active [data-screen="missions"] .btn:focus-visible{outline:3px solid Highlight}
+}
