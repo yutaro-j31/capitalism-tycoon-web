@@ -14,6 +14,8 @@ const settingsStyle = fs.readFileSync('css/d-ui-settings.css', 'utf8');
 const missionsStyle = fs.readFileSync('css/d-ui-missions.css', 'utf8');
 const newsStyle = fs.readFileSync('css/d-ui-news.css', 'utf8');
 const legacyStyle = fs.readFileSync('css/d-ui-legacy.css', 'utf8');
+const mapStyle = fs.readFileSync('css/d-ui-map.css', 'utf8');
+const mapFocusStyle = fs.readFileSync('css/d-ui-map-focus.css', 'utf8');
 const contextTabsScript = fs.readFileSync('js/d-ui-context-tabs.js', 'utf8');
 const shell = fs.readFileSync('js/d-ui-shell.js', 'utf8');
 const app = fs.readFileSync('js/app.js', 'utf8');
@@ -277,6 +279,46 @@ for (const label of ['経営承継・ファミリートラスト','引退と世�
 }
 for (const action of ['retire-founder','train-successor','execute-succession','appoint-successor','transfer-trust','establish-trust','download-result-card','new-company']) {
   assert.ok(app.includes(action), `Legacy v2 must retain existing Legacy action: ${action}`);
+}
+
+assert.ok(mobileStyle.includes('@import url("./d-ui-map.css");'), 'runtime mobile/company chain must import the Map stylesheet');
+assert.match(mapStyle, /body\.d-ui-active \[data-screen="map"\]\{/, 'Map v2 must stay scoped to the active Map screen');
+assert.match(mapStyle, /--d2-map-violet:#7c5cff/, 'Map v2 must use the approved violet primary accent');
+assert.match(mapStyle, /--d2-map-blue:#5c8dff/, 'Map v2 must retain the approved blue data accent');
+assert.match(mapStyle, /--d2-map-cyan:#46c6e8/, 'Map v2 must retain the approved cyan secondary accent');
+assert.doesNotMatch(mapStyle, /--d-gold/, 'Map v2 must not reintroduce gold as a primary accent (prestige-only elsewhere)');
+assert.doesNotMatch(mapFocusStyle, /#ffe097|rgba\(217,168,77/, 'Map marker focus-visible outline must not use gold (recolored to violet)');
+// 4種類のマーカー: 出店済み店舗=blue, 未出店テナント候補=negative(赤), オフィス候補=violet, 不動産候補(新設)=cyan
+assert.match(mapStyle, /\[data-screen="map"\] \.d-map-marker\.store\{background:linear-gradient\(180deg,#6f9cff/, 'Map v2 must color store markers blue');
+assert.match(mapStyle, /\[data-screen="map"\] \.d-map-marker\.tenant\{background:linear-gradient\(180deg,#ff8f9b/, 'Map v2 must color unopened tenant-candidate markers with the negative accent');
+assert.match(mapStyle, /\[data-screen="map"\] \.d-map-marker\.office\{background:linear-gradient\(180deg,#9a7cff/, 'Map v2 must color office-candidate markers violet');
+assert.match(mapStyle, /\[data-screen="map"\] \.d-map-marker\.realestate\{background:linear-gradient\(180deg,#5fdcf5/, 'Map v2 must color the new real-estate-candidate markers cyan');
+// 週間利益推移・ミッション・企業ニュースの白背景カードは他18画面と同じダークカードへ統一する
+assert.match(mapStyle, /\[data-screen="map"\] \.d-white-card\{[^}]*background:linear-gradient\(150deg,rgba\(15,23,41,\.97\)/, 'Map v2 must darken the overlay cards away from the white "paper card" look');
+assert.match(mapStyle, /\[data-screen="map"\] \.d-context-panel>header span\{color:var\(--d2-map-cyan\)\}/, 'Map v2 context panel header accent must not use gold');
+assert.match(mapStyle, /\[data-screen="map"\] \.d-context-tabs b\{box-shadow:inset 0 -2px 0 var\(--d2-map-violet\)\}/, 'Map v2 context panel active tab underline must use violet, not gold');
+assert.match(mapStyle, /\[data-screen="map"\] \.d-map-directory>summary\{color:var\(--d2-map-violet-hi\)\}/, 'Map v2 directory summary must use violet, not gold');
+// マップ画面はcss/d-ui.cssのシェルchrome（.d-map-workspace / .d-bottom-dock）が既にsafe-area対応済みで、
+// 他18画面のような画面固有padding-bottomは不要（レイアウト構造がfixed shell内で完結するため）。
+assert.match(mapStyle, /prefers-reduced-motion:reduce/, 'Map v2 motion must respect reduced-motion preferences');
+assert.match(mapStyle, /forced-colors:active/, 'Map v2 must remain legible in forced-colors mode');
+assert.doesNotMatch(mapStyle, /(?:^|[;{])\s*display\s*:\s*none\b/m, 'Map v2 must not hide existing Map information');
+assert.doesNotMatch(mapStyle, /\b(?:width|min-width|max-width)\s*:\s*100vw\b/, 'Map v2 must not create page-level viewport overflow');
+assert.doesNotMatch(mapStyle, /scrollbar-width\s*:\s*none|::-webkit-scrollbar[^}]*display\s*:\s*none/s, 'Map v2 must not hide scroll affordances');
+assert.doesNotMatch(mapStyle, /https?:\/\//, 'Map v2 must not add remote runtime assets');
+// terrain (city surface color, iso-hue building palette, roads/water/parks) is deliberately untouched in Phase A
+assert.doesNotMatch(mapStyle, /d-iso-|d-city-surface|d-water|d-road-grid/, 'Map v2 (Phase A) must not touch terrain rendering, only UI chrome');
+
+// real-estate candidate markers (new entity kind) must be wired into js/d-ui-shell.js
+assert.match(shell, /kind:'realestate'/, 'Map v2 must add a real-estate entity kind to mapEntities()');
+assert.match(shell, /buy-property-company/, 'Map v2 real-estate markers must reuse the existing buy-property-company action');
+assert.match(shell, /buy-property-personal/, 'Map v2 real-estate markers must reuse the existing buy-property-personal action');
+assert.match(shell, /entity\.kind===['"]realestate['"]/, 'Map v2 must render a dedicated context-panel detail view for real-estate candidates');
+for (const label of ['出店候補・不動産・オフィス一覧を開く']) {
+  assert.ok(shell.includes(label), `Map v2 must retain Map destination: ${label}`);
+}
+for (const action of ['open-store','contract-office','contract-branch-office']) {
+  assert.ok(shell.includes(action), `Map v2 must retain existing Map marker action: ${action}`);
 }
 
 console.log('D UI v2 runtime stylesheet contract passed');
