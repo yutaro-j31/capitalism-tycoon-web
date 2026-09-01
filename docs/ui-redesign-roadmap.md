@@ -68,12 +68,29 @@ ChatGPT/Codex等、Claude Code以外のツールで作業を引き継ぐ場合�
       窓の帯・ゾーン別色相・橋・公園の木を追加。マーカー配置ロジック・ドリルダウンは無変更）
 - [x] Phase 2: 事業（business）画面のD UIリスキン（`js/app.js`の`businessFullCard()`等に
       アイコン＋週次利益の大きな数字表示のヒーロー、金色グラデーション枠を追加）
-- [ ] Phase 3以降: office（本社）→ bank（銀行）→ market（株式）→ 残りの画面
-      （venture/M&A/overseas/assets/report/founder/strategy/media/legacy/missions/rivals/settings）
-      をプレイテストしながら優先度を判断
+
+**2026-08時点の追記（D UI v2への転換）**: 上記Phase 1・2の後、配色方針を
+「ダークネイビー×ゴールド全面」から「primary=violet/blue/cyan、goldはIPO・取締役会等
+prestige領域のみ」へ転換した（CLAUDE.mdの`D UI v2のデザインルール`参照）。
+以降のPhaseはこのD UI v2配色で実装しており、下記の「office→bank→market→...」という
+当初の順序どおりには進んでいない（bank/market/venture/M&A/overseas/assetsは
+office より先に完了済み）。19画面中の現在の状況:
+
+- [x] home（ホーム）/ report（財務）/ business（企業・店舗） / market（株式市場）
+      — 5タブナビの主要4タブ、D UI v2化済み
+- [x] office（本社・組織） — D UI v2化済み（8タブ・既存action維持）
+- [x] bank（資金調達）/ venture（VC投資）/ ma（M&A）/ overseas（海外）/ assets（資産・不動産）
+      — D UI v2化済み
+- [x] founder（創業者・採用） — D UI v2化済み（`css/d-ui-founder.css`新規、
+      `.founder-hero`・自己投資・自宅個人開発・オルタナティブ投資=個人不動産/PE/
+      エンジェルまで維持。gold不使用、violet/blue/cyanのみ）
+- [ ] strategy（戦略・研究開発）/ missions（進行・目標）/ rivals（競合）/ news（ニュース）/
+      settings（設定）/ media（メディア）/ legacy（承継） — 未着手。旧`.card`/`.kpi-grid`のまま
 
 各PhaseはPhase 1・2と同じ型（新規`css/d-ui-<screen>.css`・既存クラス存在チェックの拡張・
 静的アサーションテスト・Playwrightスクラッチ確認・負のテスト2パターン）を反復する。
+次画面の選定は、この一覧の実装状況を実コードから再監査した上で、使用頻度・重要度・
+presentation-onlyでの変更安全性から判断する（このファイルの過去の優先順は当てにしない）。
 
 ## 別枠の軽微な発見（本計画のスコープ外、将来の小さなクリーンアップ候補）
 
