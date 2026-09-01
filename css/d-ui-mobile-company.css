@@ -111,6 +111,13 @@
     margin:0!important;padding:4px 2px!important;gap:2px!important;flex:none!important;
     border:0!important;border-radius:10px!important;background:transparent!important;
     color:#9aa8bc!important;box-shadow:none!important;box-sizing:border-box!important;
+    /* PRIMARY_NAV order is map/office/business/market/... so business and market are placed
+       before home and report. Grid auto-placement walks items in DOM order, so once the cursor
+       has passed columns 3 and 4 it cannot return to columns 1 and 2 of the same row: home and
+       report were pushed onto an implicit second row and clipped away by the 70px bar
+       (overflow-y:hidden), leaving ホーム and 財務 untappable on iPhone. Pinning every route tab
+       to row 1 keeps the five-tab bar on a single row whatever order PRIMARY_NAV uses. */
+    grid-row:1!important;
   }
   body.d-ui-active #d-ui-sidebar .d-nav-button[data-tab="home"]{grid-column:1!important}
   body.d-ui-active #d-ui-sidebar .d-nav-button[data-tab="report"]{grid-column:2!important}
