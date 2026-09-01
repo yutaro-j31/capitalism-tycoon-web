@@ -9,6 +9,7 @@ const officeStyle = fs.readFileSync('css/d-ui-office.css', 'utf8');
 const founderStyle = fs.readFileSync('css/d-ui-founder.css', 'utf8');
 const strategyStyle = fs.readFileSync('css/d-ui-strategy.css', 'utf8');
 const rivalsStyle = fs.readFileSync('css/d-ui-rivals.css', 'utf8');
+const mediaStyle = fs.readFileSync('css/d-ui-media.css', 'utf8');
 const shell = fs.readFileSync('js/d-ui-shell.js', 'utf8');
 const app = fs.readFileSync('js/app.js', 'utf8');
 
@@ -143,6 +144,28 @@ for (const label of ['競合の新製品と対抗','対抗手段','競合反撃�
 }
 for (const action of ['counter-competitor-product','respond-rival']) {
   assert.ok(app.includes(action), `Rivals v2 must retain existing Rivals action: ${action}`);
+}
+
+assert.ok(mobileStyle.includes('@import url("./d-ui-media.css");'), 'runtime mobile/company chain must import the Media stylesheet');
+assert.match(mediaStyle, /body\.d-ui-active \[data-screen="media"\]\{/, 'Media v2 must stay scoped to the active Media screen');
+assert.match(mediaStyle, /--d2-media-violet:#7c5cff/, 'Media v2 must use the approved violet primary accent');
+assert.match(mediaStyle, /--d2-media-blue:#5c8dff/, 'Media v2 must retain the approved blue data accent');
+assert.match(mediaStyle, /--d2-media-cyan:#46c6e8/, 'Media v2 must retain the approved cyan secondary accent');
+assert.doesNotMatch(mediaStyle, /--d-gold/, 'Media v2 must not reintroduce gold as a primary accent (prestige-only elsewhere)');
+assert.match(mediaStyle, /\.btn\{[\s\S]*?min-height:44px;/, 'Media buttons must preserve a 44px touch target');
+assert.match(mediaStyle, /safe-area-inset-bottom/, 'Media v2 must respect iPhone safe areas');
+assert.match(mediaStyle, /prefers-reduced-motion:reduce/, 'Media v2 motion must respect reduced-motion preferences');
+assert.match(mediaStyle, /forced-colors:active/, 'Media v2 must remain legible in forced-colors mode');
+assert.match(mediaStyle, /focus-visible[\s\S]*--d2-media-violet-hi/, 'Media v2 keyboard focus must use the D UI v2 violet accent');
+assert.doesNotMatch(mediaStyle, /(?:^|[;{])\s*display\s*:\s*none\b/m, 'Media v2 must not hide existing Media information or actions');
+assert.doesNotMatch(mediaStyle, /\b(?:width|min-width|max-width)\s*:\s*100vw\b/, 'Media v2 must not create page-level viewport overflow');
+assert.doesNotMatch(mediaStyle, /scrollbar-width\s*:\s*none|::-webkit-scrollbar[^}]*display\s*:\s*none/s, 'Media v2 must not hide scroll affordances');
+assert.doesNotMatch(mediaStyle, /https?:\/\//, 'Media v2 must not add remote runtime assets');
+for (const label of ['広報・SNS','TYCOON WEEKLY','大型ビジネスニュース','広報履歴','ベンチャーフォーラム','高級品オークション']) {
+  assert.ok(app.includes(label), `Media v2 must retain Media destination: ${label}`);
+}
+for (const action of ['media-action','venture-forum','auction-bid']) {
+  assert.ok(app.includes(action), `Media v2 must retain existing Media action: ${action}`);
 }
 
 console.log('D UI v2 runtime stylesheet contract passed');
