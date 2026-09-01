@@ -3,10 +3,14 @@ const assert = require('node:assert/strict');
 
 const index = fs.readFileSync('index.html', 'utf8');
 const bridge = fs.readFileSync('css/d-ui-context-tabs.css', 'utf8');
+const mobileStyle = fs.readFileSync('css/d-ui-mobile-company.css', 'utf8');
 const commandStyle = fs.readFileSync('css/d-ui-command-menu-v2.css', 'utf8');
+const officeStyle = fs.readFileSync('css/d-ui-office.css', 'utf8');
 const shell = fs.readFileSync('js/d-ui-shell.js', 'utf8');
+const app = fs.readFileSync('js/app.js', 'utf8');
 
 assert.match(index, /href="\.\/css\/d-ui-context-tabs\.css"/, 'runtime must load the D UI stylesheet bridge');
+assert.match(index, /href="\.\/css\/d-ui-mobile-company\.css"/, 'runtime must load the D UI mobile/company stylesheet chain');
 const imports = [
   '@import url("./d-ui-home.css");',
   '@import url("./d-ui-finance.css");',
@@ -48,5 +52,27 @@ for (const label of ['VC投資','M&A','海外','資産・不動産','メディ�
 assert.match(shell, /role="dialog" aria-modal="true" aria-label="経営メニュー"/, 'command menu must preserve its accessible dialog contract');
 assert.match(shell, /event\.key!==['"]Tab['"]/, 'command menu must preserve its focus trap');
 assert.match(shell, /setCommandMenu\(false,true\)/, 'command menu dismissal must preserve focus restoration');
+
+assert.ok(mobileStyle.includes('@import url("./d-ui-office.css");'), 'runtime mobile/company chain must import the Office stylesheet');
+assert.match(officeStyle, /body\.d-ui-active \[data-screen="office"\]\{/, 'Office v2 must stay scoped to the active Office screen');
+assert.match(officeStyle, /--d2-office-violet:#7c5cff/, 'Office v2 must use the approved violet primary accent');
+assert.match(officeStyle, /--d2-office-blue:#5c8dff/, 'Office v2 must retain the approved blue data accent');
+assert.match(officeStyle, /--d2-office-cyan:#46c6e8/, 'Office v2 must retain the approved cyan secondary accent');
+assert.match(officeStyle, /\.subtabs button\{[\s\S]*?min-height:44px;/, 'Office contextual tabs must preserve a 44px touch target');
+assert.match(officeStyle, /overflow-x:auto/, 'Office contextual tabs must remain horizontally reachable on compact screens');
+assert.match(officeStyle, /safe-area-inset-bottom/, 'Office v2 must respect iPhone safe areas');
+assert.match(officeStyle, /prefers-reduced-motion:reduce/, 'Office v2 motion must respect reduced-motion preferences');
+assert.match(officeStyle, /forced-colors:active/, 'Office v2 must remain legible in forced-colors mode');
+assert.match(officeStyle, /focus-visible[\s\S]*--d2-office-violet-hi/, 'Office v2 keyboard focus must use the D UI v2 violet accent');
+assert.doesNotMatch(officeStyle, /(?:^|[;{])\s*display\s*:\s*none\b/m, 'Office v2 must not hide existing Office information or actions');
+assert.doesNotMatch(officeStyle, /\b(?:width|min-width|max-width)\s*:\s*100vw\b/, 'Office v2 must not create page-level viewport overflow');
+assert.doesNotMatch(officeStyle, /scrollbar-width\s*:\s*none|::-webkit-scrollbar[^}]*display\s*:\s*none/s, 'Office v2 must not hide scroll affordances');
+assert.doesNotMatch(officeStyle, /https?:\/\//, 'Office v2 must not add remote runtime assets');
+for (const label of ['組織','本社','2Dキャンパス','部門','CXO','重要社員','取締役会・IPO','指示・社内VC']) {
+  assert.ok(app.includes(label), `Office v2 must retain Office destination: ${label}`);
+}
+for (const action of ['office-tab','cancel-office','workforce-invest','establish-department','hire-executive','execute-ipo','approve-internal']) {
+  assert.ok(app.includes(action), `Office v2 must retain existing Office action: ${action}`);
+}
 
 console.log('D UI v2 runtime stylesheet contract passed');
