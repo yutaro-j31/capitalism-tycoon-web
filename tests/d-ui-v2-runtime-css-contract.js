@@ -13,6 +13,7 @@ const mediaStyle = fs.readFileSync('css/d-ui-media.css', 'utf8');
 const settingsStyle = fs.readFileSync('css/d-ui-settings.css', 'utf8');
 const missionsStyle = fs.readFileSync('css/d-ui-missions.css', 'utf8');
 const newsStyle = fs.readFileSync('css/d-ui-news.css', 'utf8');
+const legacyStyle = fs.readFileSync('css/d-ui-legacy.css', 'utf8');
 const contextTabsScript = fs.readFileSync('js/d-ui-context-tabs.js', 'utf8');
 const shell = fs.readFileSync('js/d-ui-shell.js', 'utf8');
 const app = fs.readFileSync('js/app.js', 'utf8');
@@ -250,5 +251,32 @@ assert.match(newsStyle, /\[data-screen="news"\] \.d-context-tabs\[role="tablist"
 assert.match(newsStyle, /\[data-screen="news"\] \.media-article\{[^}]*border-bottom-color/, 'News v2 must restyle TYCOON WEEKLY article cards (retail/management/politics sections)');
 // 政治面のマクロKPI（politicsNewsContent()の.kpi-grid mini/.stat）もnews画面側でカバーする。
 assert.match(newsStyle, /\[data-screen="news"\] \.stat\{[^}]*border:1px solid rgba\(151,171,214,\.14\)/, 'News v2 must restyle TYCOON WEEKLY policy KPI stats (politics section)');
+
+assert.ok(mobileStyle.includes('@import url("./d-ui-legacy.css");'), 'runtime mobile/company chain must import the Legacy stylesheet');
+assert.match(legacyStyle, /body\.d-ui-active \[data-screen="legacy"\]\{/, 'Legacy v2 must stay scoped to the active Legacy screen');
+assert.match(legacyStyle, /--d2-legacy-violet:#7c5cff/, 'Legacy v2 must use the approved violet primary accent');
+assert.match(legacyStyle, /--d2-legacy-blue:#5c8dff/, 'Legacy v2 must retain the approved blue data accent');
+assert.match(legacyStyle, /--d2-legacy-cyan:#46c6e8/, 'Legacy v2 must retain the approved cyan secondary accent');
+assert.doesNotMatch(legacyStyle, /--d-gold/, 'Legacy v2 must not reintroduce gold as a primary accent (prestige-only elsewhere)');
+// css/app.css の .progress i と .ending-record>span はgoldを使っているため、legacy画面限定で上書きする。
+assert.match(legacyStyle, /\[data-screen="legacy"\] \.progress i\{background:linear-gradient\(90deg,var\(--d2-legacy-violet\),var\(--d2-legacy-blue\),var\(--d2-legacy-cyan\)\)/, 'Legacy v2 must recolor the successor readiness bar away from gold');
+assert.match(legacyStyle, /\[data-screen="legacy"\] \.ending-record>span\{[^}]*background:linear-gradient\(145deg,rgba\(124,92,255/, 'Legacy v2 must recolor ending/hall-of-fame badges away from gold, consistent with Missions v2');
+// css/app.css に .check-list の定義が無く素の<ul>だったため、legacy画面側で最低限のリスト整形を与える。
+assert.match(legacyStyle, /\[data-screen="legacy"\] \.check-list\{[^}]*list-style:none/, 'Legacy v2 must style the retirement checklist (previously an unstyled bare <ul>)');
+assert.match(legacyStyle, /\.btn\{[\s\S]*?min-height:44px;/, 'Legacy buttons must preserve a 44px touch target');
+assert.match(legacyStyle, /safe-area-inset-bottom/, 'Legacy v2 must respect iPhone safe areas');
+assert.match(legacyStyle, /prefers-reduced-motion:reduce/, 'Legacy v2 motion must respect reduced-motion preferences');
+assert.match(legacyStyle, /forced-colors:active/, 'Legacy v2 must remain legible in forced-colors mode');
+assert.match(legacyStyle, /focus-visible[\s\S]*--d2-legacy-violet-hi/, 'Legacy v2 keyboard focus must use the D UI v2 violet accent');
+assert.doesNotMatch(legacyStyle, /(?:^|[;{])\s*display\s*:\s*none\b/m, 'Legacy v2 must not hide existing Legacy information or actions');
+assert.doesNotMatch(legacyStyle, /\b(?:width|min-width|max-width)\s*:\s*100vw\b/, 'Legacy v2 must not create page-level viewport overflow');
+assert.doesNotMatch(legacyStyle, /scrollbar-width\s*:\s*none|::-webkit-scrollbar[^}]*display\s*:\s*none/s, 'Legacy v2 must not hide scroll affordances');
+assert.doesNotMatch(legacyStyle, /https?:\/\//, 'Legacy v2 must not add remote runtime assets');
+for (const label of ['経営承継・ファミリートラスト','引退と世代交代','後継者','ファミリートラスト','エンディング・称号','殿堂記録','歴代会社・連続起業記録']) {
+  assert.ok(app.includes(label), `Legacy v2 must retain Legacy destination: ${label}`);
+}
+for (const action of ['retire-founder','train-successor','execute-succession','appoint-successor','transfer-trust','establish-trust','download-result-card','new-company']) {
+  assert.ok(app.includes(action), `Legacy v2 must retain existing Legacy action: ${action}`);
+}
 
 console.log('D UI v2 runtime stylesheet contract passed');

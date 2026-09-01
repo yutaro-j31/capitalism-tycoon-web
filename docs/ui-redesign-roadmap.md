@@ -115,7 +115,22 @@ office より先に完了済み）。19画面中の現在の状況:
       gold定義のまま残置）はnews画面限定でoverrideしviolet化、店舗詳細側は無変更。
       各面が使う`.media-article`（articleRows()）・`.kpi-grid mini`/`.stat`
       （politicsNewsContent()の政策KPI）もnews画面側で新たにカバー。gold不使用）
-- [ ] legacy（承継） — 未着手。旧`.card`/`.kpi-grid`のまま
+- [x] legacy（承継） — D UI v2化済み（`css/d-ui-legacy.css`新規。経営承継・
+      ファミリートラスト/引退と世代交代/後継者/ファミリートラスト/エンディング・称号/
+      殿堂記録/歴代会社・連続起業記録を維持。他画面と異なり、legacy画面だけを対象とする
+      JSエンハンサーの上書きは存在しない（`renderLegacy()`のHTMLがそのまま画面になる）ことを
+      Playwrightで確認済み。css/app.cssに定義の無かった`.check-list`（引退条件チェックリスト、
+      素の`<ul>`で既定の黒丸が付いていた）に最低限のリスト整形を追加。`.progress i`と
+      `.ending-record>span`（後継者準備度バー・エンディング称号アイコン）はcss/app.css側で
+      goldを使っていたため、missions.css の`.ending-record`と同じ方式でviolet/blueへ上書き。
+      gold不使用）
+
+**19タブ中18画面（`.card`/`.kpi-grid`ベースのD UI v2チェックリスト対象）が完了**。
+残る`map`（出店マップ）は2026-08のD UI v2転換より前のPhase 1（アイソメトリック建物の
+密度強化）で別の視覚言語（建物ごとの`--d-iso-hue`による手続き的な配色、`.card`/`.kpi-grid`
+を使わない）として仕上げており、そもそもこのv2チェックリストの対象に含めていなかった。
+map画面をgold基調からviolet/blue/cyan基調へ転換するかどうかは別途判断する
+（現時点で明確なgold使用箇所は無く、視覚的な破綻もない）。
 
 各PhaseはPhase 1・2と同じ型（新規`css/d-ui-<screen>.css`・既存クラス存在チェックの拡張・
 静的アサーションテスト・Playwrightスクラッチ確認・負のテスト2パターン）を反復する。
