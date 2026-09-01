@@ -6,6 +6,7 @@ const bridge = fs.readFileSync('css/d-ui-context-tabs.css', 'utf8');
 const mobileStyle = fs.readFileSync('css/d-ui-mobile-company.css', 'utf8');
 const commandStyle = fs.readFileSync('css/d-ui-command-menu-v2.css', 'utf8');
 const officeStyle = fs.readFileSync('css/d-ui-office.css', 'utf8');
+const founderStyle = fs.readFileSync('css/d-ui-founder.css', 'utf8');
 const shell = fs.readFileSync('js/d-ui-shell.js', 'utf8');
 const app = fs.readFileSync('js/app.js', 'utf8');
 
@@ -73,6 +74,28 @@ for (const label of ['組織','本社','2Dキャンパス','部門','CXO','重�
 }
 for (const action of ['office-tab','cancel-office','workforce-invest','establish-department','hire-executive','execute-ipo','approve-internal']) {
   assert.ok(app.includes(action), `Office v2 must retain existing Office action: ${action}`);
+}
+
+assert.ok(mobileStyle.includes('@import url("./d-ui-founder.css");'), 'runtime mobile/company chain must import the Founder stylesheet');
+assert.match(founderStyle, /body\.d-ui-active \[data-screen="founder"\]\{/, 'Founder v2 must stay scoped to the active Founder screen');
+assert.match(founderStyle, /--d2-founder-violet:#7c5cff/, 'Founder v2 must use the approved violet primary accent');
+assert.match(founderStyle, /--d2-founder-blue:#5c8dff/, 'Founder v2 must retain the approved blue data accent');
+assert.match(founderStyle, /--d2-founder-cyan:#46c6e8/, 'Founder v2 must retain the approved cyan secondary accent');
+assert.doesNotMatch(founderStyle, /--d-gold/, 'Founder v2 must not reintroduce gold as a primary accent (prestige-only elsewhere)');
+assert.match(founderStyle, /\.btn\{[\s\S]*?min-height:44px;/, 'Founder buttons must preserve a 44px touch target');
+assert.match(founderStyle, /safe-area-inset-bottom/, 'Founder v2 must respect iPhone safe areas');
+assert.match(founderStyle, /prefers-reduced-motion:reduce/, 'Founder v2 motion must respect reduced-motion preferences');
+assert.match(founderStyle, /forced-colors:active/, 'Founder v2 must remain legible in forced-colors mode');
+assert.match(founderStyle, /focus-visible[\s\S]*--d2-founder-violet-hi/, 'Founder v2 keyboard focus must use the D UI v2 violet accent');
+assert.doesNotMatch(founderStyle, /(?:^|[;{])\s*display\s*:\s*none\b/m, 'Founder v2 must not hide existing Founder information or actions');
+assert.doesNotMatch(founderStyle, /\b(?:width|min-width|max-width)\s*:\s*100vw\b/, 'Founder v2 must not create page-level viewport overflow');
+assert.doesNotMatch(founderStyle, /scrollbar-width\s*:\s*none|::-webkit-scrollbar[^}]*display\s*:\s*none/s, 'Founder v2 must not hide scroll affordances');
+assert.doesNotMatch(founderStyle, /https?:\/\//, 'Founder v2 must not add remote runtime assets');
+for (const label of ['創業者プロフィール','創業者ホーム','自宅から個人開発','自己投資','行動履歴','オルタナティブ投資','個人不動産','PE・エンジェル']) {
+  assert.ok(app.includes(label), `Founder v2 must retain Founder destination: ${label}`);
+}
+for (const action of ['founder-action','upgrade-home','launch-home-product','founder-invest','buy-personal-re','sell-personal-re','create-pe','create-angel','exit-angel']) {
+  assert.ok(app.includes(action), `Founder v2 must retain existing Founder action: ${action}`);
 }
 
 console.log('D UI v2 runtime stylesheet contract passed');
