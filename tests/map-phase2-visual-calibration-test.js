@@ -57,15 +57,19 @@ function repetitionCount(district, radius) {
   return { tilesWithRepeat, totalBuiltTiles: Object.keys(byKeyBuilt).length };
 }
 
+function requestedCategoryFor(cell) {
+  if (cell.zone === 'landmark' || cell.zone === 'road') return null;
+  const role = cell.templateRole;
+  if (!role || !MW.BUILT_ROLES.has(role)) return null;
+  const zoneRoles = MW.ROLE_CATEGORY[cell.zone];
+  if (!zoneRoles || !zoneRoles[role]) return null;
+  return MW.pickRoleCategory(zoneRoles[role], 'tokyo', cell.tileX, cell.tileY);
+}
+
 function categoryRequestCounts(district) {
   const counts = {};
   for (const cell of district.tiles) {
-    if (cell.zone === 'landmark' || cell.zone === 'road') continue;
-    const role = cell.templateRole;
-    if (!role || !MW.BUILT_ROLES.has(role)) continue;
-    const zoneRoles = MW.ROLE_CATEGORY[cell.zone];
-    if (!zoneRoles) continue;
-    const category = zoneRoles[role];
+    const category = requestedCategoryFor(cell);
     if (!category) continue;
     counts[category] = (counts[category] || 0) + 1;
   }
@@ -75,12 +79,7 @@ function categoryRequestCounts(district) {
 function fallbackSummary(district, idx) {
   const summary = {};
   for (const cell of district.tiles) {
-    if (cell.zone === 'landmark' || cell.zone === 'road') continue;
-    const role = cell.templateRole;
-    if (!role || !MW.BUILT_ROLES.has(role)) continue;
-    const zoneRoles = MW.ROLE_CATEGORY[cell.zone];
-    if (!zoneRoles) continue;
-    const requestedCategory = zoneRoles[role];
+    const requestedCategory = requestedCategoryFor(cell);
     if (!requestedCategory || !cell.spriteId) continue;
     const resolvedCategory = idx.byId[cell.spriteId].category;
     const bucket = summary[requestedCategory] = summary[requestedCategory] || { direct: 0, fallback: 0 };
@@ -128,11 +127,7 @@ check('no missing-category / open-space degradation anywhere in the full distric
   const district = buildTokyo(idx);
   let missing = 0;
   for (const cell of district.tiles) {
-    if (cell.zone === 'landmark' || cell.zone === 'road') continue;
-    const role = cell.templateRole;
-    if (!role || !MW.BUILT_ROLES.has(role)) continue;
-    const zoneRoles = MW.ROLE_CATEGORY[cell.zone];
-    if (!zoneRoles || !zoneRoles[role]) continue;
+    if (!requestedCategoryFor(cell)) continue;
     if (!cell.spriteId && cell.open) missing++;
   }
   assert.equal(missing, 0, `expected 0 missing-category cells, saw ${missing}`);
