@@ -33,21 +33,25 @@ code{font-size:11px;color:#bda9ff}
 /* city first, marker second: a 44px hit target around a small visual dot */
 .pin{position:absolute;transform:translate(-50%,-50%);width:44px;height:44px;padding:0;border:0;
   background:transparent;display:grid;place-items:center;cursor:pointer;-webkit-tap-highlight-color:transparent}
-.pin i{display:block;width:13px;height:13px;border-radius:50%;border:2px solid rgba(255,255,255,.9);
+.pin i{display:block;width:10px;height:10px;border-radius:50%;border:2px solid rgba(255,255,255,.9);
   box-shadow:0 1px 3px rgba(6,14,26,.6);transition:width .1s,height .1s}
 .pin.store i{background:#3763c9}
 .pin.tenant i{background:#c33a4d}
 .pin.office i{background:#5c3fc9}
 .pin.realestate i{background:#1f8fac}
 .pin.landmark i{background:#c9a13f}
-.pin.selected i{width:19px;height:19px;box-shadow:0 0 0 4px rgba(124,92,255,.42),0 1px 4px rgba(6,14,26,.6)}
+.pin.selected i{width:15px;height:15px;box-shadow:0 0 0 4px rgba(124,92,255,.42),0 1px 4px rgba(6,14,26,.6)}
 .pin:focus-visible i{outline:3px solid var(--violet-hi);outline-offset:3px}
 
 /* ---- Layer C: D UI v2 HUD ---- */
-.hud-top{position:absolute;top:8px;left:8px;display:flex;gap:5px;flex-wrap:wrap;max-width:calc(100% - 16px)}
-.chip{min-height:44px;min-width:44px;padding:6px 11px;border-radius:8px;border:1px solid var(--line);
+/* a compact single-row, horizontally-scrolling strip so the filter chips
+   stop covering the city; 44px targets and safe-area stay intact */
+.hud-top{position:absolute;top:8px;left:8px;right:8px;display:flex;gap:5px;flex-wrap:nowrap;
+  overflow-x:auto;-webkit-overflow-scrolling:touch;scrollbar-width:none;padding-bottom:2px}
+.hud-top::-webkit-scrollbar{display:none}
+.chip{flex:0 0 auto;min-height:44px;min-width:44px;padding:6px 11px;border-radius:8px;border:1px solid var(--line);
   background:rgba(8,14,26,.78);color:#c3cee0;font-size:11px;font-family:inherit;cursor:pointer;
-  -webkit-tap-highlight-color:transparent}
+  white-space:nowrap;-webkit-tap-highlight-color:transparent}
 .chip.on{border-color:rgba(124,92,255,.6);background:rgba(124,92,255,.22);color:#c7b6ff}
 .chip.static{cursor:default;color:var(--muted)}
 .legend{position:absolute;right:8px;top:8px;padding:7px 9px;border-radius:9px;border:1px solid var(--line);
@@ -159,16 +163,16 @@ li b{color:var(--text)}
     'WW..LLLL..RR',
     'WW..LLLL..RR',
     '............',
-    'CCCC......RR',
-    'CCCC......RR',
-    'CCCC......RR',
+    'CCCCCC....RR',
+    'CCCCCC....RR',
+    'CCCCCC....RR',
     '............',
     '.PPPPPPPPPP.',
     '.PPPPPPPPPP.',
     '............',
     'MMMM..XX..RR',
     'MMMM..XX..RR',
-    'MMMM......RR',
+    'MMMMMM....RR',
     '............'
   ];
   const USES = [['office', 'オフィス', '#5c3fc9'], ['commercial', '商業', '#c33a4d'],

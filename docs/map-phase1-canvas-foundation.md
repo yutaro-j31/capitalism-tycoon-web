@@ -145,6 +145,81 @@ manifestは届いたものをほぼそのまま採用したが、`zone`ではな
 すべてクリックし、カードが正しい街区・sprite ID・所有状態を表示すること、
 フィルタが用途で正しく絞り込むことを desktop / iPhone 相当の両方で確認した。
 
+## visual composition改善（2026-09-02）
+
+15 sprite構成のまま、Tokyo daytime visual targetへ寄せる密度・地割り・陰影の
+調整を行った。procedural buildingへは戻していない（sprite自体は無変更）。
+
+**選択・密度**:
+- `selectMapSprite()`に`excludeIds`を追加し、`buildDistrict()`が
+  `nearbySpriteIds(byKey, tileX, tileY, NO_REPEAT_RADIUS=2)`で直近2タイル
+  以内に使用済みのsprite idを渡すようにした。除外後も候補が残る場合のみ
+  除外を適用する（Math.random不使用、決定論を維持）。
+- `OPEN_RATE`（空き区画率）を`{cbd:8,commercial:10,residential:14,industrial:18}`
+  から`{cbd:4,commercial:5,residential:6,industrial:8}`へ引き下げ、
+  区画内の密度を上げた。
+- CBD行を4列→6列、南側の商業行を4列→6列へ拡張し、住宅帯との間の道路を
+  6タイル→4タイルへ短縮（公園の南北を隔てる道路帯・公園そのものの2行構成は
+  変更していない）。footprint>1の建物が隣接ゾーンへ視覚的にはみ出さないよう、
+  スクリーンショットで境界を確認してから採用した。
+
+**道路・地面**:
+- `classifyRoads()`を追加し、行・列いずれかが全域道路のタイルを
+  `roadPrimary`（主要道路）、それ以外を`secondary`として分類する
+  （純粋に配置データから決まる幾何判定で、乱数は使わない）。
+- 主要道路のみセンターラインの破線を描画し、副道路は
+  `SECONDARY_ROAD_WIDTH=0.52`で幅を狭めて再描画するようにした。
+- `paintTerrain()`に、建築可能タイルの道路側の縁へ`SIDEWALK`色の
+  インセットストロークを追加し、広場タイル（`cell.open`）には薄い
+  斜線パターンの舗装を追加した。
+
+**scale variation・landmark・陰影**:
+- `cell.scaleVariant`（`SCALE_VARIANTS=[0.94,1.0,1.06]`、タイル座標の
+  ハッシュで決定論的に選択）を`spriteRenderSize()`の幅計算へ適用し、
+  同一spriteの反復でも僅かな大小差が出るようにした（アスペクト比は維持、
+  歪ませない）。
+- `LANDMARK_SCALE_BONUS=1.3`を追加し、`category==='landmark'`のsprite
+  （Tokyo Tower）だけ通常の建物より1.3倍大きく描画する。
+- `paintContactShadow()`を追加し、`blitSprites()`が各spriteの描画直前に
+  半透明の楕円（`SHADOW_FILL='rgba(20,24,20,.22)'`）を接地点へ描くように
+  した。blur/filterは使わず、`fill()`1回のみの軽量な実装。
+
+**マーカー・HUD（`map-phase1-prototype.html`）**:
+- `.pin i`の見た目サイズを13px→10px（選択時19px→15px）へ縮小した。
+  `.pin`本体の44×44pxタップ領域は無変更（CITY FIRST / MARKER SECOND を維持）。
+- `.hud-top`のフィルターチップを`flex-wrap:wrap`から
+  `flex-wrap:nowrap; overflow-x:auto`の横スクロール1行へ変更し、
+  iPhone幅でチップが複数行に折り返してマップを覆っていた問題を解消した。
+  各チップの44px最小タップ領域は維持。
+
+`tests/map-canvas-foundation-test.js`へ、上記の決定論性・道路分類・
+scale variant・landmark拡大・contact shadow呼び出し・マーカー縮小・
+横スクロールチップを検証するアサーションを追加した（カテゴリH以降、
+「I: density, roads and shadow refinements」として区分）。
+
+## 実測（visual composition改善後・Chromium。desktop 900px / iPhone相当 390px・DPR3）
+
+| 指標 | desktop | iPhone |
+|---|---|---|
+| map全体 DOM node | 142 | 142 |
+| overlay DOM node | 29 | 29 |
+| sprite preload | 83.4ms | 66.9ms |
+| 初回 city 構築 | 45.5ms | 52.4ms |
+| cache命中の再描画 | 0.23ms | 0.07ms |
+| 選択変更の更新 | 1.60ms | 1.50ms |
+| sprite blit / placeholder | 35 / 0 | 35 / 0 |
+| city再構築回数（選択後） | 1（増えない） | 1 |
+
+sprite blit数が29→35へ増えた（密度増）一方、DOM nodeは142/29のまま変化していない
+（背景都市はCanvas 1枚のままで、密度を上げてもDOMは増えない）。
+
+負のテスト3パターンで検証済み: ① `LANDMARK_SCALE_BONUS`を1.0に戻すと
+landmarkサイズのアサーションが赤くなる、② `blitSprites`から
+`paintContactShadow`の呼び出しを外すと関数呼び出しのアサーションが赤くなる
+（ヘルパーの存在だけでなく実際の呼び出しを検証しているため定義だけ残しても
+検出できる）、③ `.pin i`のwidthを13pxへ戻すとマーカーサイズのアサーションが
+赤くなる。
+
 ## Phase 2 以降（このPRではやらない）
 
 - 東京全域 → 他県への拡張、40〜60 sprite

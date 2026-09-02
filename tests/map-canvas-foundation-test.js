@@ -36,16 +36,16 @@ const LAYOUT = [
   'WW..LLLL..RR',
   'WW..LLLL..RR',
   '............',
-  'CCCC......RR',
-  'CCCC......RR',
-  'CCCC......RR',
+  'CCCCCC....RR',
+  'CCCCCC....RR',
+  'CCCCCC....RR',
   '............',
   '.PPPPPPPPPP.',
   '.PPPPPPPPPP.',
   '............',
   'MMMM..XX..RR',
   'MMMM..XX..RR',
-  'MMMM......RR',
+  'MMMMMM....RR',
   '............'
 ];
 
@@ -268,9 +268,89 @@ assert.equal(fakeCanvas.style.width, '358px', 'the CSS size stays independent of
 
 assert.match(pageSource, /min-height:44px/, 'HUD controls must keep 44px tap targets');
 assert.match(pageSource, /\.pin\{[^}]*width:44px;height:44px/, 'pin hit targets must stay 44px even though the icon is small');
-assert.match(pageSource, /\.pin i\{[^}]*width:13px/, 'the pin icon itself must stay small so it does not cover the city');
+assert.match(pageSource, /\.pin i\{[^}]*width:10px/, 'the pin icon itself must stay small (shrunk from 13px) so it does not cover the city');
 assert.match(pageSource, /env\(safe-area-inset/, 'the page must respect the iPhone safe area');
 assert.doesNotMatch(pageSource, /\b(?:width|min-width|max-width)\s*:\s*100vw\b/, '100vw causes iPhone overflow');
+/* the filter chip row must scroll horizontally in a single line rather than
+   wrapping to multiple rows and covering the map */
+assert.match(pageSource, /\.hud-top\{[^}]*flex-wrap:nowrap[^}]*overflow-x:auto/,
+  'the HUD filter chips must be a single horizontally-scrolling row');
+assert.match(pageSource, /\.chip\{[^}]*min-height:44px/, 'filter chips must keep their 44px tap target while compact');
+
+/* ---------- I: density, roads and shadow refinements ---------- */
+/* requirement 1: adjacent tiles must not repeat the same sprite id when an
+   alternative exists in the pool */
+assert.match(rendererSource, /excludeIds/, 'sprite selection must support excluding nearby ids');
+const nearby = MapCanvas.nearbySpriteIds(districtA.byKey, 5, 5, MapCanvas.NO_REPEAT_RADIUS);
+assert.ok(nearby instanceof Set, 'nearbySpriteIds must return a Set of ids already placed close by');
+let adjacentRepeats = 0;
+for (const cell of districtA.tiles) {
+  if (!cell.spriteId) continue;
+  const around = MapCanvas.nearbySpriteIds(districtA.byKey, cell.tileX, cell.tileY, 1);
+  if (around.has(cell.spriteId)) adjacentRepeats++;
+}
+assert.ok(adjacentRepeats < districtA.tiles.filter(c => c.spriteId).length * 0.3,
+  `too many buildings repeat their immediate neighbour's sprite (${adjacentRepeats})`);
+
+/* requirement 2: the district should draw on most of the declared pool, not
+   a handful of favourites, once density is this high */
+const allUsedIds = new Set(districtA.tiles.filter(c => c.spriteId).map(c => c.spriteId));
+assert.ok(allUsedIds.size >= 10, `the district should use most of the 15 sprites, saw ${allUsedIds.size}`);
+
+/* requirement 3: scale variation is deterministic and stays within the
+   declared, non-distorting range */
+for (const cell of districtA.tiles) {
+  if (!cell.expectsBuilding) continue;
+  assert.ok(MapCanvas.SCALE_VARIANTS.includes(cell.scaleVariant),
+    `${cell.tileX},${cell.tileY}: scaleVariant must be one of ${MapCanvas.SCALE_VARIANTS}`);
+}
+const districtC = MapCanvas.buildDistrict({ layout: LAYOUT, index, prefID: 'tokyo' });
+assert.equal(
+  districtA.tiles.map(c => c.scaleVariant).join(','),
+  districtC.tiles.map(c => c.scaleVariant).join(','),
+  'scale variants must be deterministic for the same prefecture/layout'
+);
+
+/* requirement 5: secondary streets are classified and rendered narrower than
+   the primary boulevards that separate whole bands of the district */
+assert.match(rendererSource, /roadPrimary/, 'roads must be classified into primary/secondary');
+const roadCells = districtA.tiles.filter(c => c.zone === 'road');
+assert.ok(roadCells.some(c => c.roadPrimary), 'the district must have at least one primary boulevard');
+assert.ok(roadCells.some(c => !c.roadPrimary), 'the district must have at least one narrower secondary street');
+assert.match(rendererSource, /SECONDARY_ROAD_WIDTH/, 'secondary roads must render at a narrower inflate factor');
+
+/* requirement 7: a cheap contact shadow is painted under every blitted
+   sprite so buildings do not look like they float off the ground */
+assert.match(rendererSource, /function paintContactShadow/, 'sprites need a contact shadow helper');
+const blitSpritesSource = rendererSource.slice(
+  rendererSource.indexOf('function blitSprites'),
+  rendererSource.indexOf('function blitSprites') + 1200
+);
+assert.match(blitSpritesSource, /paintContactShadow\(/, 'blitSprites must actually call the contact shadow helper');
+assert.doesNotMatch(rendererSource, /paintContactShadow[\s\S]{0,400}\bblur\b/i,
+  'contact shadows must stay cheap: no blur/filter effects');
+const shadowStub = { fillCalls: 0 };
+const shadowCtx = {
+  fillStyle: '', beginPath() {}, ellipse() {}, fill() { shadowStub.fillCalls++; },
+  drawImage() {}, setTransform() {}, clearRect() {}, fillRect() {}, moveTo() {}, lineTo() {},
+  closePath() {}, stroke() {}, arc() {}, setLineDash() {}, fillText() {}, strokeStyle: '', lineWidth: 0, font: '', textAlign: ''
+};
+const shadowImages = {};
+for (const sprite of index.sprites) shadowImages[sprite.id] = { width: 200, height: 300 };
+MapCanvas.blitSprites(shadowCtx, districtA, transform, shadowImages, index, {});
+assert.ok(shadowStub.fillCalls > 0, 'blitting sprites must actually paint contact shadows, not just declare the helper');
+
+/* requirement 8: the Tokyo Tower landmark renders larger than an ordinary
+   1x1 building of the same footprint */
+const officeMeta = index.byId.office_glass_tower;
+const landmarkMeta = index.byId.landmark_tokyo_tower;
+const sameImage = { width: 200, height: 300 };
+const officeSize = MapCanvas.spriteRenderSize(sameImage, officeMeta, index.tile, MapCanvas.SPRITE_WIDTH_FACTOR, 1);
+const landmarkSize = MapCanvas.spriteRenderSize(sameImage, landmarkMeta, index.tile, MapCanvas.SPRITE_WIDTH_FACTOR, 1);
+assert.ok(landmarkSize.width > officeSize.width * 1.15,
+  'the landmark must render meaningfully larger than an ordinary building of the same footprint');
+assert.ok(MapCanvas.LANDMARK_SCALE_BONUS >= 1.2 && MapCanvas.LANDMARK_SCALE_BONUS <= 1.4,
+  'the landmark scale bonus must stay within the specified 1.2-1.4x range');
 assert.doesNotMatch(pageSource, /https?:\/\//, 'no CDN or remote assets');
 for (const forbidden of ['three.js', 'pixi', 'phaser']) {
   assert.ok(!pageSource.toLowerCase().includes(forbidden), `Phase 1 must not pull in ${forbidden}`);

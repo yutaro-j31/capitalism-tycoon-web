@@ -126,6 +126,14 @@
       if (scoped.length) pool = scoped;
     }
     if (!pool.length) return null;
+    /* avoid repeating a sprite that already sits nearby -- but only when
+       candidates remain after excluding it; with as few as one archetype in
+       a category (industrial today), forcing variety is impossible and the
+       exclusion must not empty the pool */
+    if (options.excludeIds && options.excludeIds.size) {
+      const varied = pool.filter(s => !options.excludeIds.has(s.id));
+      if (varied.length) pool = varied;
+    }
     const key = [
       options.prefID || 'unknown', zone, options.useType || '-', options.grade || '-',
       options.stableId || '-', options.tileX, options.tileY
@@ -236,6 +244,9 @@
     plaza: '#c4c3bc'
   };
   const KERB = '#cdcdc6';
+  const SIDEWALK = '#dad9d3';
+  const SECONDARY_ROAD_WIDTH = 0.52;
+  const PLAZA_PAVING = 'rgba(255,255,255,.28)';
 
   function tilePath(ctx, x, y, tile, inflate) {
     const hw = (tile.w / 2) * (inflate || 1);
@@ -264,6 +275,44 @@
           ctx.stroke();
         }
       }
+      /* a deliberately-open buildable plot reads as a small paved plaza
+         rather than bare zone-coloured ground: a light paving lattice,
+         Canvas primitives only */
+      if (cell.open) {
+        ctx.strokeStyle = PLAZA_PAVING;
+        ctx.lineWidth = 1;
+        for (const [ax, ay, bx, by] of [
+          [x - tile.w * 0.28, y, x, y - tile.h * 0.28],
+          [x, y - tile.h * 0.28, x + tile.w * 0.28, y],
+          [x + tile.w * 0.28, y, x, y + tile.h * 0.28],
+          [x, y + tile.h * 0.28, x - tile.w * 0.28, y]
+        ]) {
+          ctx.beginPath(); ctx.moveTo(ax, ay); ctx.lineTo(bx, by); ctx.stroke();
+        }
+      }
+    }
+    /* sidewalk: a light inset edge on the building side of every lot that
+       faces a road, separating "street" from "lot" without extra tiles */
+    for (const cell of district.tiles) {
+      if (!BUILDABLE.has(cell.zone)) continue;
+      const [x, y] = transform.toScreen(cell.tileX, cell.tileY);
+      const edges = [
+        [cell.tileX + 1, cell.tileY, [x + tile.w / 2, y], [x, y + tile.h / 2]],
+        [cell.tileX, cell.tileY + 1, [x, y + tile.h / 2], [x - tile.w / 2, y]],
+        [cell.tileX - 1, cell.tileY, [x - tile.w / 2, y], [x, y - tile.h / 2]],
+        [cell.tileX, cell.tileY - 1, [x, y - tile.h / 2], [x + tile.w / 2, y]]
+      ];
+      ctx.strokeStyle = SIDEWALK;
+      ctx.lineWidth = 3;
+      for (const [nx, ny, a, b] of edges) {
+        const neighbour = district.byKey[`${nx},${ny}`];
+        if (!neighbour || neighbour.zone !== 'road') continue;
+        const inset = 0.86;
+        ctx.beginPath();
+        ctx.moveTo(x + (a[0] - x) * inset, y + (a[1] - y) * inset);
+        ctx.lineTo(x + (b[0] - x) * inset, y + (b[1] - y) * inset);
+        ctx.stroke();
+      }
     }
   }
 
@@ -275,6 +324,16 @@
     for (const cell of district.tiles) {
       if (cell.zone !== 'road') continue;
       const [x, y] = transform.toScreen(cell.tileX, cell.tileY);
+      const w = cell.roadPrimary ? 1 : SECONDARY_ROAD_WIDTH;
+      /* a secondary street repaints a narrower carriageway over the tile;
+         the tile's own ground fill (SIDEWALK-adjacent building colour)
+         already shows through as the shoulder, widening the perceived
+         sidewalk without adding tiles */
+      if (!cell.roadPrimary) {
+        tilePath(ctx, x, y, tile, SECONDARY_ROAD_WIDTH);
+        ctx.fillStyle = GROUND.road;
+        ctx.fill();
+      }
       /* kerb along edges that face a block, so streets read as streets */
       const neighbours = [
         [cell.tileX + 1, cell.tileY, [x + tile.w / 2, y], [x, y + tile.h / 2]],
@@ -287,22 +346,28 @@
       for (const [nx, ny, a, b] of neighbours) {
         const zone = at(nx, ny);
         if (zone === 'road' || zone === null) continue;
+        const ia = [x + (a[0] - x) * w, y + (a[1] - y) * w];
+        const ib = [x + (b[0] - x) * w, y + (b[1] - y) * w];
         ctx.beginPath();
-        ctx.moveTo(a[0], a[1]);
-        ctx.lineTo(b[0], b[1]);
+        ctx.moveTo(ia[0], ia[1]);
+        ctx.lineTo(ib[0], ib[1]);
         ctx.stroke();
       }
       const alongX = at(cell.tileX - 1, cell.tileY) === 'road' || at(cell.tileX + 1, cell.tileY) === 'road';
       const alongY = at(cell.tileX, cell.tileY - 1) === 'road' || at(cell.tileX, cell.tileY + 1) === 'road';
-      ctx.strokeStyle = 'rgba(255,255,255,.72)';
-      ctx.lineWidth = 1.4;
-      ctx.setLineDash([6, 7]);
-      if (alongX && !alongY) {
-        ctx.beginPath(); ctx.moveTo(x - tile.w / 2, y - tile.h / 2); ctx.lineTo(x + tile.w / 2, y + tile.h / 2); ctx.stroke();
-      } else if (alongY && !alongX) {
-        ctx.beginPath(); ctx.moveTo(x + tile.w / 2, y - tile.h / 2); ctx.lineTo(x - tile.w / 2, y + tile.h / 2); ctx.stroke();
+      /* only primary avenues get a dashed centre line; a secondary street
+         reads as a narrow local lane instead */
+      if (cell.roadPrimary) {
+        ctx.strokeStyle = 'rgba(255,255,255,.72)';
+        ctx.lineWidth = 1.4;
+        ctx.setLineDash([6, 7]);
+        if (alongX && !alongY) {
+          ctx.beginPath(); ctx.moveTo(x - tile.w / 2, y - tile.h / 2); ctx.lineTo(x + tile.w / 2, y + tile.h / 2); ctx.stroke();
+        } else if (alongY && !alongX) {
+          ctx.beginPath(); ctx.moveTo(x + tile.w / 2, y - tile.h / 2); ctx.lineTo(x - tile.w / 2, y + tile.h / 2); ctx.stroke();
+        }
+        ctx.setLineDash([]);
       }
-      ctx.setLineDash([]);
     }
   }
 
@@ -371,12 +436,30 @@
    * docs/map-phase1-canvas-foundation.md); adjust here, not per-sprite.
    */
   const SPRITE_WIDTH_FACTOR = 1.62;
+  /* the Tokyo Tower landmark sprite is drawn larger than ordinary buildings
+     so it reads as a skyline anchor from the default view */
+  const LANDMARK_SCALE_BONUS = 1.3;
+  /* cheap contact shadow so a sprite's base doesn't look like it is floating
+     above the ground plane -- a single translucent ellipse, no blur/filter */
+  const SHADOW_FILL = 'rgba(20,24,20,.22)';
 
-  function spriteRenderSize(image, meta, tile, widthFactor) {
+  function spriteRenderSize(image, meta, tile, widthFactor, scaleVariant) {
     const footprint = meta.footprint || { w: 1, h: 1 };
-    const targetWidth = footprint.w * tile.w * widthFactor;
+    const variant = scaleVariant || 1;
+    const landmarkBonus = meta.category === 'landmark' ? LANDMARK_SCALE_BONUS : 1;
+    const targetWidth = footprint.w * tile.w * widthFactor * variant * landmarkBonus;
     const naturalAspect = (image.height && image.width) ? image.height / image.width : 1;
     return { width: targetWidth, height: targetWidth * naturalAspect };
+  }
+
+  function paintContactShadow(ctx, x, y, meta, width) {
+    const footprint = meta.footprint || { w: 1, h: 1 };
+    const rx = width * 0.24 * Math.max(1, footprint.w * 0.72);
+    const ry = rx * 0.34;
+    ctx.fillStyle = SHADOW_FILL;
+    ctx.beginPath();
+    ctx.ellipse(x, y + ry * 0.15, rx, ry, 0, 0, Math.PI * 2);
+    ctx.fill();
   }
 
   function blitSprites(ctx, district, transform, images, index, options) {
@@ -398,7 +481,10 @@
       }
       /* anchor is a fraction of the (rendered) image; it marks the tile's
          ground point, independent of the image's native pixel size */
-      const { width, height } = spriteRenderSize(image, meta, tile, widthFactor);
+      const { width, height } = spriteRenderSize(image, meta, tile, widthFactor, cell.scaleVariant);
+      if (settings.showShadows !== false) {
+        paintContactShadow(ctx, x, y, meta, width);
+      }
       ctx.drawImage(image, x - width * meta.anchor.x, y - height * meta.anchor.y, width, height);
       blitted++;
     }
@@ -417,8 +503,16 @@
   };
   const ZONE_USE = { cbd: 'office', commercial: 'commercial', residential: 'residential', industrial: 'industrial', landmark: 'landmark' };
   const BUILDABLE = new Set(['cbd', 'commercial', 'residential', 'industrial', 'landmark']);
-  /* share of buildable plots deliberately left open, so blocks are not solid */
-  const OPEN_RATE = { cbd: 8, commercial: 10, residential: 14, industrial: 18, landmark: 0 };
+  /* share of buildable plots deliberately left open, so blocks are not fully
+     solid -- kept low so the district reads as continuous rather than
+     island-like, per the Tokyo daytime visual target */
+  const OPEN_RATE = { cbd: 4, commercial: 5, residential: 6, industrial: 8, landmark: 0 };
+  /* how many tiles out a sprite id is considered "nearby" for the
+     no-repeat-adjacent rule (Chebyshev distance, i.e. a square neighbourhood) */
+  const NO_REPEAT_RADIUS = 2;
+  /* small, deterministic per-plot scale jitter so identical sprites don't
+     read as perfectly uniform copies; never distorts aspect ratio */
+  const SCALE_VARIANTS = [0.94, 1.0, 1.06];
 
   /*
    * Builds the tile model for a layout. Placement is data-driven: the caller
@@ -433,6 +527,45 @@
    * plain ground -- the large sprite is drawn once, from its origin tile,
    * covering the visual space of the whole footprint.
    */
+  /* Sprite ids already placed within `radius` tiles (Chebyshev) of (tileX,tileY),
+     scanning only cells the row-major pass has already resolved -- this stays a
+     pure function of already-committed state, so placement order never depends
+     on tiles not yet visited. */
+  function nearbySpriteIds(byKey, tileX, tileY, radius) {
+    const ids = new Set();
+    for (let dy = -radius; dy <= radius; dy++) {
+      for (let dx = -radius; dx <= radius; dx++) {
+        if (dx === 0 && dy === 0) continue;
+        const neighbour = byKey[`${tileX + dx},${tileY + dy}`];
+        if (neighbour && neighbour.spriteId) ids.add(neighbour.spriteId);
+      }
+    }
+    return ids;
+  }
+
+  /*
+   * A road tile is a "primary" avenue when it belongs to a road run that
+   * spans the full width or height of the district (the boulevards that
+   * separate whole bands of the layout); any other road tile is a narrower
+   * "secondary" street. Purely geometric, computed once from the authored
+   * layout -- no randomness involved.
+   */
+  function classifyRoads(rows, byKey) {
+    const primaryRows = new Set();
+    for (let y = 0; y < rows.length; y++) {
+      if ([...rows[y]].every(ch => ZONE_OF[ch] === 'road')) primaryRows.add(y);
+    }
+    const primaryCols = new Set();
+    for (let x = 0; x < rows[0].length; x++) {
+      if (rows.every(row => ZONE_OF[row[x]] === 'road')) primaryCols.add(x);
+    }
+    for (const key of Object.keys(byKey)) {
+      const cell = byKey[key];
+      if (cell.zone !== 'road') continue;
+      cell.roadPrimary = primaryRows.has(cell.tileY) || primaryCols.has(cell.tileX);
+    }
+  }
+
   function buildDistrict(options) {
     const rows = options.layout;
     const index = options.index;
@@ -447,6 +580,7 @@
         byKey[`${tileX},${tileY}`] = cell;
       }
     }
+    classifyRoads(rows, byKey);
     for (const cell of tiles) {
       if (!BUILDABLE.has(cell.zone) || cell.reserved) continue;
       const isSecondaryLandmarkPlot = cell.zone === 'landmark' &&
@@ -458,8 +592,10 @@
       cell.spriteId = selectMapSprite({
         index, prefID, zoneType: cell.zone, useType: ZONE_USE[cell.zone],
         tileX: cell.tileX, tileY: cell.tileY,
-        stableId: options.stableIds && options.stableIds[`${cell.tileX},${cell.tileY}`]
+        stableId: options.stableIds && options.stableIds[`${cell.tileX},${cell.tileY}`],
+        excludeIds: nearbySpriteIds(byKey, cell.tileX, cell.tileY, NO_REPEAT_RADIUS)
       });
+      cell.scaleVariant = SCALE_VARIANTS[hash(`${prefID}:scale:${cell.tileX}:${cell.tileY}`) % SCALE_VARIANTS.length];
       const meta = cell.spriteId && index.byId[cell.spriteId];
       const footprint = meta && meta.footprint;
       if (footprint && (footprint.w > 1 || footprint.h > 1)) {
@@ -625,7 +761,8 @@
     createTransform, fitTransform,
     loadSprites,
     paintTerrain, paintRoads, paintGreenery, drawPlaceholder, blitSprites, depthSorted,
-    buildDistrict, createCityLayer,
+    spriteRenderSize, SPRITE_WIDTH_FACTOR, LANDMARK_SCALE_BONUS, SCALE_VARIANTS,
+    buildDistrict, createCityLayer, nearbySpriteIds, NO_REPEAT_RADIUS,
     resolveDpr, sizeCanvas, MAX_DPR,
     overlayAnchors, PIN_SPECS,
     ZONE_LABEL, ZONE_USE, GROUND
