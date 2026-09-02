@@ -349,3 +349,46 @@ foundation時点の状態と比較、tokyo/32×28タイル）:
   hero/filler/background間の出現比率を作品としてどう調整するかは
   別途「Visual Calibration PR」として切り出す想定
 - `civic`カテゴリは依然として実asset0件のまま（6節参照）
+
+## 13. Visual Calibration pass（実施済み）
+
+P0完了後、asset追加ではなく既存P0/hero/legacy assetの**出現構造の計測・
+調整**として実施。詳細は`feat/map-phase2-visual-calibration`ブランチ・
+対応PR参照。
+
+**spawnWeightの実際の意味論（コード追跡＋実測で確定）**: `spawnWeight`は
+`selectSpriteForCategory`内で、`category`＋`district`から解決済みの
+sprite pool**内**での重み付き抽選にのみ使われる。どのroleがどの
+categoryを要求するかは`ROLE_CATEGORY[zone][role]`の固定lookupで決まり、
+hero:mid:small のタイル数比は`BLOCK_TEMPLATES`の各ブロック文字列内の
+H/S/X文字数で決まる（例: cbdは`'HSX.SZSSXZS.SZX.'` → H=1,S=6,X=3）。
+つまり**spawnWeightを変えてもhero建物の出現数自体は変わらない**
+（category内の「どのsprite画像が選ばれるか」が変わるだけ）。
+本passではこれをtests/map-phase2-visual-calibration-test.jsの
+「spawnWeight only shifts selection WITHIN a resolved category+district
+pool」で実際にmanifestのspawnWeightを操作して検証している。
+
+**唯一実施した調整**: `prototypes/map-world-preview.js`の
+Phase 2自身のsprite選択呼び出しで使う同一sprite除外半径を、Base
+（`map-canvas-renderer.js`）の`NO_REPEAT_RADIUS=2`のままではなく、
+Phase 2ローカルの`WORLD_NO_REPEAT_RADIUS=3`に拡張（Baseの定数・
+`buildDistrict()`自体は無変更）。P0でoffice.small/commercial.small/
+residential.lowが単一placeholderから6〜9種の実poolへ変わったことで、
+半径2のままでは同一spriteの近距離反復（tile-distance 3以内）が
+目立っていたため。10県集計の実測（変更後の実ファイルに対する計測）:
+半径3以内の同一sprite反復タイル数 1154→341（-70%）、半径2の副作用は
+220→277（悪化はしたがradius3ほどの規模ではない）。fallback発生数・
+district occupancy（cbd 62.5%/commercial 62.5%/residential 44.1%/
+premium 30.0%/industrial 26.7%）・全P0 sprite使用状況はP0時点から
+完全に不変（変更なし）。
+
+**優先度2〜5（fallback過多／特定sprite偏り／hero密度／district個性）
+は追加の調整不要と判断**: fallback発生数は元々0（P0で解消済み）、
+sprite選択の偏りは単一都市では発生するが10県集計では健全な範囲に
+収束（過剰な偏りではない）、hero密度・district個性は
+`map-phase2-preview.html`のPlaywright目視確認（1280×800 / iPhone
+390×844、複数district）で「heroは主役にならず普通の建物が主体、
+CBD/商業/住宅/工業が視覚的に区別できる、landmarkに余白がある、
+市松状の不自然さがない」ことを確認した上で、spawnWeightではこの
+比率自体を動かせない（上記の通り）ため、renderer再設計（本pass
+スコープ外）なしに追加できるレバーが無いと結論した。

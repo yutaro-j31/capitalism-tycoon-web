@@ -109,7 +109,8 @@
     "tests/quarterly-tax-accrual-test.js",
     "tests/topbar-title-week-controls-clearance-test.js",
     "tests/d-ui-map-detail-test.js",
-    "tests/map-phase2-p0-assets-test.js"
+    "tests/map-phase2-p0-assets-test.js",
+    "tests/map-phase2-visual-calibration-test.js"
   ],
   "H": [
     "tests/supply-material-cost-inflation-test.js",

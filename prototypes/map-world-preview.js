@@ -31,7 +31,25 @@
 
   const { hash, spriteRenderSize, SPRITE_WIDTH_FACTOR,
     paintTerrain, paintRoads, paintGreenery, drawPlaceholder, depthSorted,
-    ZONE_LABEL, ZONE_USE, GROUND, SCALE_VARIANTS, NO_REPEAT_RADIUS, nearbySpriteIds } = Base;
+    ZONE_LABEL, ZONE_USE, GROUND, SCALE_VARIANTS, nearbySpriteIds } = Base;
+  /*
+   * Phase 1's own NO_REPEAT_RADIUS (2) was tuned when Phase 2's category
+   * pools were mostly single-sprite placeholders, where a wider radius
+   * could not have helped (there was nothing else to pick). The P0 pass
+   * gave office.small/commercial.small/residential.low real 6-9-sprite
+   * pools, and measurement showed same-sprite repeats climbing sharply
+   * between radius 2 and 3 specifically in those categories (baseline,
+   * 10-prefecture total: 1154 tiles with a same-sprite neighbour within 3
+   * tiles). A wider *local* exclusion radius here -- Phase 2's own pass 2b
+   * only, Base's own buildDistrict()/NO_REPEAT_RADIUS is untouched --
+   * cuts that to 341 (-70%) with a small, measured radius-2 side effect
+   * (220 -> 277) and zero new missing/open-space degradations in any
+   * tested prefecture (selectSpriteForCategory's own "never empty the
+   * pool" guard already protects against that). Single-sprite categories
+   * (residential.mid, residential.premium, logistics) are unaffected
+   * either way -- there is nothing to exclude them in favour of yet.
+   */
+  const WORLD_NO_REPEAT_RADIUS = 3;
 
   /* ---------------- extra zone: premium residential ---------------- */
   const ZONE_LABEL2 = Object.assign({}, ZONE_LABEL, { premiumResidential: '高級住宅街' });
@@ -406,7 +424,7 @@
       const spriteId = roleCategory && selectSpriteForCategory(index2, {
         category: roleCategory, district, prefID,
         tileX: cell.tileX, tileY: cell.tileY,
-        excludeIds: nearbySpriteIds(byKey, cell.tileX, cell.tileY, NO_REPEAT_RADIUS)
+        excludeIds: nearbySpriteIds(byKey, cell.tileX, cell.tileY, WORLD_NO_REPEAT_RADIUS)
       });
       if (!spriteId) {
         /* no sprite available for this role/category even after the
