@@ -133,12 +133,21 @@ check('no missing-category / open-space degradation anywhere in the full distric
   assert.equal(missing, 0, `expected 0 missing-category cells, saw ${missing}`);
 });
 
-/* ---------------- 5. sprite distribution: all 20 P0 sprites used ---------------- */
+/*
+ * ---------------- 5. sprite distribution: all 20 P0 sprites used ----------------
+ * Scoped to P0's own 3 categories, not `!s.placeholder` -- the P1 pass
+ * later added its own non-placeholder sprites (civic/office.mid/
+ * residential.mid) to this same manifest. civic in particular has only 2
+ * winning slots per map out of 4 sprites, so "every non-placeholder sprite
+ * appears in a single Tokyo build" is not a fair contract for it (P1's own
+ * test file covers civic's usage with a multi-prefecture check instead).
+ */
+const P0_CATEGORIES = new Set(['office.small', 'commercial.small', 'residential.low']);
 check('all 20 P0 (non-placeholder) sprites are actually selected somewhere in a full Tokyo district build', () => {
   const idx = MW.indexCategoryManifest(manifest);
   const district = buildTokyo(idx);
   const used = new Set(district.tiles.map(t => t.spriteId).filter(Boolean));
-  const p0Ids = manifest.sprites.filter(s => !s.placeholder).map(s => s.id);
+  const p0Ids = manifest.sprites.filter(s => !s.placeholder && P0_CATEGORIES.has(s.category)).map(s => s.id);
   const unused = p0Ids.filter(id => !used.has(id));
   assert.deepEqual(unused, [], `unused P0 sprites: ${unused.join(', ')}`);
 });
@@ -233,9 +242,9 @@ check("Phase 1 foundation (map-canvas-renderer.js) is untouched by this pass", (
 });
 
 /* ---------------- 12. P0 asset regression (lightweight; full 23-check regression lives in map-phase2-p0-assets-test.js) ---------------- */
-check('P0 manifest shape is unchanged: 35 sprites total, 20 P0 (office.small=6/commercial.small=8/residential.low=6)', () => {
-  const p0 = manifest.sprites.filter(s => !s.placeholder);
-  assert.equal(manifest.sprites.length, 35);
+check("P0's own 20 sprites are unchanged within the manifest (office.small=6/commercial.small=8/residential.low=6; later passes may add rows on top, so the manifest total itself is not pinned here)", () => {
+  const p0 = manifest.sprites.filter(s => !s.placeholder && P0_CATEGORIES.has(s.category));
+  assert.ok(manifest.sprites.length >= 35, `expected at least 35 rows (15 legacy + 20 P0), saw ${manifest.sprites.length}`);
   assert.equal(p0.length, 20);
   const counts = {};
   for (const s of p0) counts[s.category] = (counts[s.category] || 0) + 1;
@@ -293,14 +302,16 @@ check('NEGATIVE: reverting WORLD_NO_REPEAT_RADIUS to 2 measurably worsens the ra
 /* ---------------- negative test 2: the "never empty the pool" guard is load-bearing ---------------- */
 check('NEGATIVE: excluding every sprite in a single-sprite category pool must NOT empty the selection (guards against a stricter-but-wrong exclusion rewrite)', () => {
   const idx = MW.indexCategoryManifest(manifest);
-  // residential.mid has exactly one sprite in this manifest (a legacy
-  // placeholder) -- confirm that premise, then prove the guard holds.
-  const pool = manifest.sprites.filter(s => s.category === 'residential.mid');
-  assert.equal(pool.length, 1, 'this test assumes residential.mid is still a single-sprite category; re-check if that changes');
+  // logistics has exactly one sprite in this manifest (a legacy
+  // placeholder, unaffected by P0/P1) -- confirm that premise, then prove
+  // the guard holds. (residential.mid was this test's original example,
+  // but the P1 pass gave it 4 more sprites, so it no longer fits.)
+  const pool = manifest.sprites.filter(s => s.category === 'logistics');
+  assert.equal(pool.length, 1, 'this test assumes logistics is still a single-sprite category; re-check if that changes');
   const onlyId = pool[0].id;
 
-  const withoutExclude = MW.selectSpriteForCategory(idx, { category: 'residential.mid', district: 'residential', prefID: PREF_ID, tileX: 3, tileY: 3 });
-  const withExcludeEverything = MW.selectSpriteForCategory(idx, { category: 'residential.mid', district: 'residential', prefID: PREF_ID, tileX: 3, tileY: 3, excludeIds: new Set([onlyId]) });
+  const withoutExclude = MW.selectSpriteForCategory(idx, { category: 'logistics', district: 'logistics', prefID: PREF_ID, tileX: 3, tileY: 3 });
+  const withExcludeEverything = MW.selectSpriteForCategory(idx, { category: 'logistics', district: 'logistics', prefID: PREF_ID, tileX: 3, tileY: 3, excludeIds: new Set([onlyId]) });
 
   assert.equal(withoutExclude, onlyId);
   assert.equal(withExcludeEverything, onlyId, 'excluding the only sprite in the pool must still return it, not null/undefined -- an empty pool means a missing building');

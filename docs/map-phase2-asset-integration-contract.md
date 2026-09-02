@@ -392,3 +392,105 @@ CBD/商業/住宅/工業が視覚的に区別できる、landmarkに余白があ
 市松状の不自然さがない」ことを確認した上で、spawnWeightではこの
 比率自体を動かせない（上記の通り）ため、renderer再設計（本pass
 スコープ外）なしに追加できるレバーが無いと結論した。
+
+## 14. P1 pass（実施済み）: civic / office.mid / residential.mid
+
+Visual Calibration完了後、P1として`civic`×4・`office.mid`×4・
+`residential.mid`×4（計12 sprite）を追加。asset追加に着手する前に、
+既存contractを再監査したところ、asset追加だけでは効果が出ない
+2つの到達性バグが見つかった:
+
+- **`office.mid`**: `ROLE_CATEGORY`上、cbdのS-roleは`office.small`を
+  直接要求し、`office.mid`は`CATEGORY_FALLBACK['office.small']`の
+  1段目としてのみ存在していた。P0で`office.small`に実asset 6種が入った
+  結果、そのfallbackは常に不発になり、`office.mid`へはどんな入力からも
+  到達不能になっていた（P0時点の「office.small 100% direct hit」が
+  裏付け）。修正: `ROLE_CATEGORY.cbd.S`を単一文字列から配列
+  `['office.small','office.small','office.small','office.mid']`に変え、
+  新設した`pickRoleCategory()`（既存hashを再利用、Math.random不使用）で
+  タイル位置ごとに3:1へ決定論的に振り分けるようにした。BLOCK_TEMPLATES・
+  district occupancyは無変更（cbdのS-roleタイル数自体は変わらず、
+  「どのcategoryを要求するか」だけが変わる）。
+- **`civic`**: `ROLE_CATEGORY`の全district（cbd/commercial/residential/
+  premiumResidential/industrial）を確認したが、`civic`をH/S/Xいずれの
+  要求先に指定している箇所がゼロで、`CATEGORY_FALLBACK`の参照先にも
+  なっていなかった。旧6節の「civic edgeはopenSpace.plazaで代替」という
+  記述は不正確で、実際にはcivicを要求するコード経路自体が存在しなかった。
+  修正: landmarkの専用block（bc=2）を挟む形で、park super-region内の
+  隣接block（bc=1, bc=3）に固定2箇所の「civic slot」を新設し、
+  `category:'civic', district:'civic'`を直接要求するようにした。
+  5つの計測対象district・`BLOCK_TEMPLATES`には一切触れない。civic asset
+  が存在しない状態では`selectSpriteForCategory`がnullを返すため
+  完全なno-op（既存のpark描画に完全一致）で、real assetが追加された
+  瞬間だけ有効化される設計にした。
+
+**asset監査**: asset packの`districtTagsSuggestion`は現行contractと
+2箇所ズレていたため上書きした（pack付属のmetadataを鵜呑みにしない、
+6節の方針通り）:
+- `civic`: pack提案は`['cbd','commercial','residential']`だったが、
+  civic-slotの実装では`district:'civic'`を要求するため、正しくは
+  `['civic']`
+- `residential.mid`: pack提案は`['commercial','residential']`のみで
+  `premiumResidential`が抜けていた。既存の`residential_midrise`行は
+  `premiumResidential`も持っており（`ROLE_CATEGORY.premiumResidential.S`
+  の実際の直接要求先）、抜けたままでは新規4種がpremiumResidential地区に
+  一切出現しなくなるため、3つとも付与した
+
+footprintTypeは12種とも1x1と判断した（pack提案は
+`review_for_1x1`/`review_for_1x1_or_2x1`のレビュー待ち）。
+`spriteRenderSize`の実際の計算式（`targetWidth = footprint.w * tile.w *
+widthFactor`、`height = targetWidth * (画像のheight/width比)`）で
+既存hero陣（office.hero 1x1: aspect 1.7〜2.4、2x2: aspect 1.2〜1.3）と
+新規12種のaspect比（1.0〜1.6）を比較し、1x1のままでも新規sprite群が
+既存heroより明確に小さく描画されることを確認した上での判断。
+anchorはpack付属の`anchorHint`をそのまま使わず、alpha閾値＋最小行幅
+（単一pixelの縁のアンチエイリアシングを誤検出しないよう）で独自に
+再計測した（1件、civic_01で当初の閾値なし計測が縁の1pxノイズを
+拾って大きくズレることを発見・修正済み。閾値ありの再計測はpackの
+anchorHintと概ね一致し、pack側も丁寧に計測されていたことを確認）。
+
+**効果の実測**（tokyo/32×28タイル、P1追加前後比較。10県集計は
+`tokyo/osaka/nagoya/fukuoka/sapporo/sendai/hiroshima/kobe/yokohama/kyoto`）:
+- civic: 0タイル→2タイル/map（10県で20タイル）。fallback 0、
+  missingCategoryCount 0。4種中2種のみ単一mapに出現（2 slot/4候補の
+  抽選構造上当然。8県サンプルでは4種とも出現を確認）
+- office.mid: タイル数は変わらず12（tokyo）/116（10県） --
+  request数自体は`ROLE_CATEGORY`の3:1split由来でsprite追加前から
+  固定。追加前は全タイルが唯一のlegacy sprite
+  （`office_wide_midrise`）に集中していたのが、追加後は5種
+  （legacy 1+新規4）に分散
+- residential.mid: 同様にタイル数19（tokyo）/196（10県）で不変、
+  legacy 1種→5種に分散
+- district occupancy（cbd 62.5%/commercial 62.5%/residential 44.1%/
+  premium 30.0%/industrial 26.7%）はP1追加前後で完全一致
+- radius3同一sprite反復（10県集計）: Visual Calibration直後の
+  341→（office.mid split単体を先行適用した中間状態で一時378へ悪化、
+  理由は後述）→P1 asset追加後は122（Calibration時点比でも-64%）。
+  中間状態で悪化した理由: 3:1splitを先に入れた時点ではoffice.mid側の
+  poolがlegacy 1種のみだったため、そこへ回された25%のタイルが
+  必然的に同一spriteへ集中していた。P1のoffice.mid/residential.mid
+  実asset追加でpoolが5種に増えたことで、この一時的な悪化を含めて
+  正味で大きく改善した
+- 全P0 sprite・全P1 sprite（civicは複数県サンプルで）使用済みを確認
+
+**Playwright目視確認**（1280×800 desktop / 390×844 iPhone、
+landmark隣接のcivic 2箇所へ個別pan、CBD・住宅街のwide shot）:
+civic 2棟とも公園内に自然に埋め込まれ、独立した小規模公共建築として
+はっきり判別できる（civic_04は赤十字マークのある診療所風、civic_01は
+モダンな白いコミュニティ施設風）。office.midはCBDでhero（青系タワー）
+と背景のoffice.small群の間に、見た目にも一段小さい中層オフィスとして
+自然に混在。residential.midは住宅地区で低層のresidential.lowと
+高級residential.premiumの間を埋める中層マンション群として視認できる。
+パフォーマンス実測はP0/Calibration時点から不変（DOM node数86、
+pan後もrebuildCount=1、水平オーバーフローなし、pinヒット領域44px）。
+
+**新規追加テスト**: `tests/map-phase2-p1-mid-civic-assets-test.js`
+（32 assertion、負のテスト2件込み）。既存の
+`tests/map-phase2-p0-assets-test.js`・
+`tests/map-phase2-visual-calibration-test.js`は、P1が`!s.placeholder`
+だけでは区別できない新規sprite群を追加したことに伴い、判定対象を
+「P0の3category限定」へ明示的に絞るよう修正した（アサーション自体は
+弱めていない。manifest総数を固定していた箇所は「35件以上（今後の
+passで増える前提）」へ変更し、P0自身の20件constraintはそのまま
+厳密に維持した）。`tests/run-all.js`・`tests/run-all-shards.json`
+（shard G）へ登録済み。
