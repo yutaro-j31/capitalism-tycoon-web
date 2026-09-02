@@ -160,4 +160,66 @@ assert.match(marketStyle, /\.market-row\.header\{position:static;display:flex;fl
 assert.match(marketStyle, /\.market-table\{overflow:visible;border:0;background:transparent\}/, 'iPhone market table must not retain the legacy horizontal scroller');
 assert.match(marketStyle, /\.market-row:not\(\.header\)>\.button-row>\.btn\{[^}]*min-height:44px/, 'iPhone stock row actions must keep a 44px tap target');
 
+// mapEntities() can return up to 20 entities (6 stores + 6 tenants + 2 offices + 6
+// real-estate listings), but MARKER_POSITIONS only had 10 base slots -- once `index`
+// wrapped past MARKER_POSITIONS.length two entities landed on the same base slot
+// (nudged apart by only a +/-3 hash shift), so their .d-map-marker buttons visually
+// overlapped and one permanently intercepted clicks meant for the other. This is what
+// broke tests/d-ui-webkit-test.js's desktop map click. markerPosition must now accept
+// the positions already placed this render and nudge later entities clear of them.
+assert.match(script, /function markerPositionsCollide\(/, 'marker collision-avoidance helper missing');
+assert.match(script, /function markerPosition\(id,index,occupied\)/, 'markerPosition must accept the occupied-positions list');
+assert.match(script, /const occupiedMarkerPositions=\[\];/, 'renderMapWorkspace must track marker positions already placed this render');
+assert.match(script, /markerPosition\(entity\.id,index,occupiedMarkerPositions\)/, 'marker rendering must route through the occupied-positions list');
+assert.match(script, /occupiedMarkerPositions\.push\(pos\);/, 'each placed marker must be added to the occupied list so later markers avoid it too');
+{
+  const extractFunction = name => {
+    const marker = `function ${name}(`;
+    const start = script.indexOf(marker);
+    assert.ok(start >= 0, `could not locate ${name} for extraction`);
+    const braceStart = script.indexOf('{', start);
+    assert.ok(braceStart >= 0, `could not locate body of ${name}`);
+    let depth = 0, index = braceStart;
+    for (; index < script.length; index += 1) {
+      if (script[index] === '{') depth += 1;
+      else if (script[index] === '}') { depth -= 1; if (depth === 0) break; }
+    }
+    assert.equal(depth, 0, `unbalanced braces while extracting ${name}`);
+    return script.slice(start, index + 1);
+  };
+  const extractConstLine = name => {
+    const match = new RegExp(`^const ${name}=.*;$`, 'm').exec(script);
+    assert.ok(match, `could not locate const ${name} for extraction`);
+    return match[0];
+  };
+  const markerSandbox = {};
+  vm.runInNewContext([
+    extractConstLine('MARKER_POSITIONS'),
+    extractConstLine('MARKER_GRID_X'),
+    extractConstLine('MARKER_GRID_Y'),
+    'const clamp=(value,min,max)=>Math.max(min,Math.min(max,value));',
+    extractFunction('hash'),
+    extractFunction('markerPositionsCollide'),
+    extractFunction('markerPosition'),
+    'markerSandbox.markerPosition=markerPosition;markerSandbox.markerPositionsCollide=markerPositionsCollide;',
+  ].join('\n'), { markerSandbox, Math, RegExp, String });
+  const { markerPosition: sandboxMarkerPosition, markerPositionsCollide: sandboxCollide } = markerSandbox;
+  assert.equal(sandboxCollide([50, 50], [55, 52]), true, 'nearby positions must be treated as colliding');
+  assert.equal(sandboxCollide([50, 50], [80, 50]), false, 'far-apart positions must not be treated as colliding');
+  // Regression check: the exact density that broke CI (up to 20 entities sharing the
+  // 10 MARKER_POSITIONS slots) must resolve with zero collisions across many different
+  // id combinations.
+  for (let trial = 0; trial < 200; trial += 1) {
+    const occupied = [];
+    for (let index = 0; index < 20; index += 1) {
+      const pos = sandboxMarkerPosition(`entity-trial-${trial}:${index}`, index, occupied);
+      assert.ok(!occupied.some(spot => sandboxCollide(pos, spot)), `trial ${trial} entity ${index} must not collide with any earlier entity, even after MARKER_POSITIONS wraps past index ${index}`);
+      occupied.push(pos);
+    }
+  }
+  const resolved = sandboxMarkerPosition('entity:test-id', 16, [[18, 23]]);
+  const resolvedAgain = sandboxMarkerPosition('entity:test-id', 16, [[18, 23]]);
+  assert.deepEqual(resolved, resolvedAgain, 'markerPosition must be a pure deterministic function of its inputs');
+}
+
 console.log('D UI shell contract passed');

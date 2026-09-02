@@ -33,7 +33,36 @@ function game(){return engine()?.g||null;}
 function tabButton(tab){return `<button type="button" data-action="tab" data-tab="${esc(tab[0])}" class="d-nav-button"><span>${tab[1]}</span><b>${esc(tab[2])}</b><i aria-hidden="true"></i></button>`;}
 function activeTab(){return game()?.selectedTab||document.querySelector('.tabs button.active')?.dataset?.tab||'home';}
 function hash(text){let value=2166136261;for(const char of String(text)){value^=char.codePointAt(0);value=Math.imul(value,16777619);}return value>>>0;}
-function markerPosition(id,index){const base=MARKER_POSITIONS[index%MARKER_POSITIONS.length];const shift=hash(id)%7;return [clamp(base[0]+(shift-3),8,90),clamp(base[1]+((shift*3)%7-3),10,82)];}
+function markerPositionsCollide(a,b){return Math.abs(a[0]-b[0])<8&&Math.abs(a[1]-b[1])<9;}
+// Grid spacing (9 on x, 10 on y) is deliberately wider than markerPositionsCollide's own
+// threshold so no two grid cells can collide with each other -- only with markers already
+// placed on the map. 9x7=63 cells comfortably covers mapEntities()'s worst case of 20
+// simultaneous markers (6 stores + 6 tenants + 2 offices + 6 real-estate listings).
+const MARKER_GRID_X=[12,21,30,39,48,57,66,75,84];
+const MARKER_GRID_Y=[14,24,34,44,54,64,74];
+/*
+ * MARKER_POSITIONS only has 10 base slots, but mapEntities() can return up to 20
+ * entities (6 stores + 6 tenants + 2 offices + 6 real-estate listings). Once `index`
+ * wraps past MARKER_POSITIONS.length, two entities land on the very same base slot
+ * (only nudged apart by a +/-3 hash shift), guaranteeing their markers visually overlap
+ * -- one of them then always wins pointer-events and the other becomes unclickable.
+ * `occupied` (every marker position already placed for this render) lets later entities
+ * nudge to the nearest still-clear grid cell instead of silently landing on top of an
+ * earlier one.
+ */
+function markerPosition(id,index,occupied){
+  const base=MARKER_POSITIONS[index%MARKER_POSITIONS.length];
+  const shift=hash(id)%7;
+  const preferred=[clamp(base[0]+(shift-3),8,90),clamp(base[1]+((shift*3)%7-3),10,82)];
+  if(!occupied||!occupied.some(spot=>markerPositionsCollide(preferred,spot)))return preferred;
+  const candidates=[];
+  for(const x of MARKER_GRID_X)for(const y of MARKER_GRID_Y)candidates.push([x,y]);
+  candidates.sort((a,b)=>((a[0]-preferred[0])**2+(a[1]-preferred[1])**2)-((b[0]-preferred[0])**2+(b[1]-preferred[1])**2));
+  for(const candidate of candidates){
+    if(!occupied.some(spot=>markerPositionsCollide(candidate,spot)))return candidate;
+  }
+  return preferred;
+}
 function reportSeries(g){
   const pools=[g?.reportHistory,g?.weeklyReports,g?.reports,g?.finance?.history,g?.financeHistory].filter(Array.isArray);
   for(const pool of pools){
@@ -186,7 +215,8 @@ function renderMapWorkspace(screen,g){
   }
   let workspace=screen.querySelector(':scope > .d-map-workspace');
   if(!workspace){workspace=document.createElement('section');workspace.className='d-map-workspace';screen.insertBefore(workspace,directory);}
-  const positions=entities.map((entity,index)=>{const pos=markerPosition(entity.id,index);return `<button type="button" class="d-map-marker ${entity.kind} ${entity.id===chosen?.id?'selected':''}" style="--x:${pos[0]}%;--y:${pos[1]}%" data-d-ui-marker="${esc(entity.id)}"><span>${markerIcon(entity)}</span><small>${esc(entity.name)}</small></button>`;}).join('');
+  const occupiedMarkerPositions=[];
+  const positions=entities.map((entity,index)=>{const pos=markerPosition(entity.id,index,occupiedMarkerPositions);occupiedMarkerPositions.push(pos);return `<button type="button" class="d-map-marker ${entity.kind} ${entity.id===chosen?.id?'selected':''}" style="--x:${pos[0]}%;--y:${pos[1]}%" data-d-ui-marker="${esc(entity.id)}"><span>${markerIcon(entity)}</span><small>${esc(entity.name)}</small></button>`;}).join('');
   const blocks=Array.from({length:34},(_,index)=>{const x=7+(index*17)%84,y=12+(index*23)%68,h=18+(index*13)%58;return `<i style="--x:${x}%;--y:${y}%;--h:${h}px"></i>`;}).join('');
   const missions=missionRows(g);const news=(g.news||[]).slice(0,3);
   workspace.innerHTML=`<div class="d-map-stage"><div class="d-map-toolbar"><button type="button">都市ビュー⌄</button><span>${esc(engine()?.pref?.(screen.querySelector('[data-bind="selectedPref"]')?.value)?.name||'全国')}</span></div><div class="d-city-surface"><div class="d-water"></div><div class="d-road-grid"></div><div class="d-city-blocks">${blocks}</div>${isoCityBuildingsSVG(g)}${positions||'<div class="d-no-markers">出店候補を読み込み中です</div>'}</div><div class="d-map-tools"><button type="button">◎</button><button type="button">☷<small>フィルター</small></button><button type="button">⌕<small>凡例</small></button><button type="button">−</button><button type="button">＋</button></div></div><div class="d-map-overlay"><article class="d-white-card d-chart-card"><header><div><h2>週間利益推移</h2><small>単位：円</small></div><b>${money(g.lastReport?.profit)}</b></header>${sparkline(reportSeries(g))}<footer><span>4週前</span><span>3週前</span><span>2週前</span><span>先週</span><span>今週</span></footer></article><article class="d-white-card d-mission-card"><header><h2>ミッション</h2><b>${missions.filter(item=>item[4]).length}/${missions.length}</b></header>${missions.map(item=>`<div class="d-mission-row ${item[4]?'done':''}"><span>${item[0]}</span><div><strong>${esc(item[1])}</strong><small>${missionValue(item[2],item[5])} / ${missionValue(item[3],item[5])}</small><i><em style="width:${clamp(item[2]/Math.max(1,item[3])*100,0,100)}%"></em></i></div></div>`).join('')}<button type="button" data-action="tab" data-tab="missions">すべてのミッションを見る ›</button></article><article class="d-white-card d-news-card"><header><h2>企業ニュース</h2><button type="button" data-action="tab" data-tab="news">すべて見る ↗</button></header>${news.length?news.map((item,index)=>`<div><span></span><p>${esc(item)}</p><small>${index+1}件前</small></div>`).join(''):'<p>新しいニュースはありません。</p>'}</article></div><aside class="d-context-panel"><header><div><span>●</span><h2>${esc(chosen?.name||'拠点詳細')}</h2></div><button type="button" data-d-ui-action="clear-selection" aria-label="拠点詳細を閉じる">×</button></header>${selectedDetail(chosen,g)}</aside>`;
