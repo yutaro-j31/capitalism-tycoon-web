@@ -34,13 +34,16 @@
   }
 
   /* ---------------- manifest ---------------- */
-  const SCALE_CLASSES = new Set(['xs', 's', 'm', 'l', 'xl']);
+  const SCALE_CLASSES = new Set(['xs', 's', 'm', 'l', 'xl', 'landmark']);
 
   /*
    * Returns { ok, errors, sprites }. An invalid entry is dropped rather than
    * throwing, so one bad row cannot take the whole map down; a structurally
    * invalid manifest (not an object, no sprite array) is rejected outright.
    */
+  /* the renderer owns tile geometry; an asset package need not declare it */
+  const DEFAULT_TILE = { w: 64, h: 32 };
+
   function validateManifest(manifest) {
     const errors = [];
     if (!manifest || typeof manifest !== 'object') {
@@ -49,9 +52,9 @@
     if (!Array.isArray(manifest.sprites)) {
       return { ok: false, errors: ['manifest.sprites must be an array'], sprites: [] };
     }
-    const tile = manifest.tile;
-    if (!tile || !(tile.w > 0) || !(tile.h > 0)) {
-      return { ok: false, errors: ['manifest.tile must declare positive w/h'], sprites: [] };
+    const tile = manifest.tile || DEFAULT_TILE;
+    if (!(tile.w > 0) || !(tile.h > 0)) {
+      return { ok: false, errors: ['manifest.tile must declare positive w/h when present'], sprites: [] };
     }
     const seen = new Set();
     const sprites = [];
@@ -65,7 +68,10 @@
         errors.push(`${label}: file must be a plain local filename`); continue;
       }
       if (!sprite.category || typeof sprite.category !== 'string') { errors.push(`${label}: category is required`); continue; }
-      if (!Array.isArray(sprite.zone) || !sprite.zone.length) { errors.push(`${label}: zone must be a non-empty array`); continue; }
+      /* accept either `zone` (Phase 1's own convention) or `zones` (the
+         asset pipeline's convention); normalise to `zone` everywhere else */
+      const zoneList = Array.isArray(sprite.zone) ? sprite.zone : Array.isArray(sprite.zones) ? sprite.zones : null;
+      if (!zoneList || !zoneList.length) { errors.push(`${label}: zone/zones must be a non-empty array`); continue; }
       const anchor = sprite.anchor;
       if (!anchor || !(anchor.x >= 0 && anchor.x <= 1) || !(anchor.y >= 0 && anchor.y <= 1)) {
         errors.push(`${label}: anchor x/y must be 0..1 fractions of the image`); continue;
@@ -78,7 +84,7 @@
       const weight = sprite.weight === undefined ? 1 : sprite.weight;
       if (!(weight > 0)) { errors.push(`${label}: weight must be positive`); continue; }
       seen.add(id);
-      sprites.push(Object.assign({}, sprite, { footprint, weight }));
+      sprites.push(Object.assign({}, sprite, { zone: zoneList, footprint, weight }));
     }
     return { ok: errors.length === 0, errors, sprites };
   }
@@ -94,8 +100,8 @@
     for (const zone of Object.keys(byZone)) byZone[zone].sort((a, b) => a.id.localeCompare(b.id));
     return {
       ok, errors, sprites, byId, byZone,
-      tile: (manifest && manifest.tile) || { w: 64, h: 32 },
-      set: (manifest && manifest.set) || 'phase1'
+      tile: (manifest && manifest.tile) || DEFAULT_TILE,
+      set: (manifest && manifest.set) || (manifest && manifest.phase) || 'phase1'
     };
   }
 
@@ -356,9 +362,27 @@
       .sort((a, b) => (a.tileX + a.tileY) - (b.tileX + b.tileY) || a.tileX - b.tileX);
   }
 
+  /*
+   * How wide a 1x1-footprint sprite renders relative to its tile. Real
+   * building art is drawn with roofline overhang and perspective splay, so a
+   * building is meant to run wider than its bare footprint diamond -- this
+   * is the tuned amount of that overhang, not a retina/DPR concern.
+   * Tuned against the Tokyo mini district screenshots (see
+   * docs/map-phase1-canvas-foundation.md); adjust here, not per-sprite.
+   */
+  const SPRITE_WIDTH_FACTOR = 1.62;
+
+  function spriteRenderSize(image, meta, tile, widthFactor) {
+    const footprint = meta.footprint || { w: 1, h: 1 };
+    const targetWidth = footprint.w * tile.w * widthFactor;
+    const naturalAspect = (image.height && image.width) ? image.height / image.width : 1;
+    return { width: targetWidth, height: targetWidth * naturalAspect };
+  }
+
   function blitSprites(ctx, district, transform, images, index, options) {
     const settings = options || {};
     const tile = index.tile;
+    const widthFactor = settings.spriteWidthFactor || SPRITE_WIDTH_FACTOR;
     let blitted = 0;
     let placeholders = 0;
     for (const cell of depthSorted(district)) {
@@ -372,9 +396,9 @@
         }
         continue;
       }
-      /* anchor is a fraction of the image; it marks the tile centre */
-      const width = image.width / (meta.pixelRatio || 2);
-      const height = image.height / (meta.pixelRatio || 2);
+      /* anchor is a fraction of the (rendered) image; it marks the tile's
+         ground point, independent of the image's native pixel size */
+      const { width, height } = spriteRenderSize(image, meta, tile, widthFactor);
       ctx.drawImage(image, x - width * meta.anchor.x, y - height * meta.anchor.y, width, height);
       blitted++;
     }
@@ -402,6 +426,12 @@
    * sprite id deterministically. `expectsBuilding` marks plots that should
    * carry artwork, so a missing file still renders a placeholder in the right
    * spot instead of a hole.
+   *
+   * A sprite with a footprint larger than 1x1 reserves the extra tiles it
+   * needs (toward +tileX/+tileY, so the reservation only ever touches cells
+   * this row-major scan has not assigned yet). A reserved cell renders as
+   * plain ground -- the large sprite is drawn once, from its origin tile,
+   * covering the visual space of the whole footprint.
    */
   function buildDistrict(options) {
     const rows = options.layout;
@@ -413,23 +443,47 @@
       for (let tileX = 0; tileX < rows[tileY].length; tileX++) {
         const zone = ZONE_OF[rows[tileY][tileX]] || 'plaza';
         const cell = { tileX, tileY, zone, zoneLabel: ZONE_LABEL[zone], use: ZONE_USE[zone] || null };
-        if (BUILDABLE.has(zone)) {
-          const isSecondaryLandmarkPlot = zone === 'landmark' &&
-            ((rows[tileY - 1] && rows[tileY - 1][tileX] === 'X') || rows[tileY][tileX - 1] === 'X');
-          const open = zone !== 'landmark' &&
-            hash(`${prefID}:open:${tileX}:${tileY}`) % 100 < (OPEN_RATE[zone] || 0);
-          if (!isSecondaryLandmarkPlot && !open) {
-            cell.expectsBuilding = true;
-            cell.spriteId = selectMapSprite({
-              index, prefID, zoneType: zone, useType: ZONE_USE[zone],
-              tileX, tileY, stableId: options.stableIds && options.stableIds[`${tileX},${tileY}`]
-            });
-          } else {
-            cell.open = true;
-          }
-        }
         tiles.push(cell);
         byKey[`${tileX},${tileY}`] = cell;
+      }
+    }
+    for (const cell of tiles) {
+      if (!BUILDABLE.has(cell.zone) || cell.reserved) continue;
+      const isSecondaryLandmarkPlot = cell.zone === 'landmark' &&
+        ((rows[cell.tileY - 1] && rows[cell.tileY - 1][cell.tileX] === 'X') || rows[cell.tileY][cell.tileX - 1] === 'X');
+      const open = cell.zone !== 'landmark' &&
+        hash(`${prefID}:open:${cell.tileX}:${cell.tileY}`) % 100 < (OPEN_RATE[cell.zone] || 0);
+      if (isSecondaryLandmarkPlot || open) { cell.open = true; continue; }
+      cell.expectsBuilding = true;
+      cell.spriteId = selectMapSprite({
+        index, prefID, zoneType: cell.zone, useType: ZONE_USE[cell.zone],
+        tileX: cell.tileX, tileY: cell.tileY,
+        stableId: options.stableIds && options.stableIds[`${cell.tileX},${cell.tileY}`]
+      });
+      const meta = cell.spriteId && index.byId[cell.spriteId];
+      const footprint = meta && meta.footprint;
+      if (footprint && (footprint.w > 1 || footprint.h > 1)) {
+        const claim = [];
+        let fits = true;
+        for (let dy = 0; dy < footprint.h && fits; dy++) {
+          for (let dx = 0; dx < footprint.w && fits; dx++) {
+            if (dx === 0 && dy === 0) continue;
+            const neighbour = byKey[`${cell.tileX + dx},${cell.tileY + dy}`];
+            if (!neighbour || neighbour.zone !== cell.zone || neighbour.reserved || BUILDABLE.has(neighbour.zone) === false) {
+              fits = false;
+              break;
+            }
+            claim.push(neighbour);
+          }
+        }
+        if (fits) {
+          for (const neighbour of claim) { neighbour.reserved = true; neighbour.occupiedBy = { tileX: cell.tileX, tileY: cell.tileY }; }
+          cell.footprint = footprint;
+        }
+        /* not enough room to reserve the full footprint: the sprite is
+           still drawn from this one tile (blitSprites always sizes it from
+           its own footprint), it just isn't given exclusive neighbours --
+           an edge-of-district compromise, not a placement bug. */
       }
     }
     return {
@@ -534,13 +588,27 @@
     { kind: 'landmark', zone: 'landmark', label: 'ランドマーク' }
   ];
 
+  /*
+   * Two pin kinds can legitimately share a zone (store/tenant both draw from
+   * 'commercial'), and picked independently they can land on neighbouring
+   * tiles -- close enough on a narrow iPhone canvas that their 44px hit
+   * targets overlap and one becomes untappable. MIN_PIN_TILE_SPACING keeps
+   * already-placed pins at arm's length; the exclusion is still a pure
+   * function of the deterministic candidate order, so placement stays
+   * reproducible.
+   */
+  const MIN_PIN_TILE_SPACING = 3;
+
   function overlayAnchors(district, transform, specs) {
     const list = specs || PIN_SPECS;
     const anchors = [];
     for (const spec of list) {
       const candidates = district.tiles.filter(cell => cell.zone === spec.zone && cell.expectsBuilding);
       if (!candidates.length) continue;
-      const cell = candidates[hash(`${district.prefID}:pin:${spec.kind}`) % candidates.length];
+      const spaced = candidates.filter(cell => anchors.every(a =>
+        Math.abs(a.tileX - cell.tileX) + Math.abs(a.tileY - cell.tileY) >= MIN_PIN_TILE_SPACING));
+      const pool = spaced.length ? spaced : candidates;
+      const cell = pool[hash(`${district.prefID}:pin:${spec.kind}`) % pool.length];
       const [cssX, cssY] = transform.toCss(cell.tileX, cell.tileY);
       anchors.push({
         kind: spec.kind, label: spec.label, zone: cell.zone, zoneLabel: cell.zoneLabel,

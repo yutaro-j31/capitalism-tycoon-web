@@ -94,6 +94,57 @@ city は `prefID / レイアウト / view box / dpr / 読込済みasset数` を�
 
 1枚欠けても白画面にはならず、そのプロットだけプレースホルダになる。
 
+## 実sprite統合（2026-09-02）
+
+外部制作の日中版sprite15種（`assets/map-sprites/phase1/sprites/`、計2.4MB）を統合した。
+`source_sprite_sheet.png`（2.4MB）と `asset_preview.jpg`（200KB）はランタイムに不要な
+参考資料のため、リポジトリには含めていない（README側も「source/reference限定、
+ランタイムは個別ファイルを使う」と明記済み）。
+
+manifestは届いたものをほぼそのまま採用したが、`zone`ではなく`zones`キーを使う
+届け先の命名規約に合わせて `validateManifest()` 側で両対応にした
+（`zones`を`zone`へ正規化、以後のコードは`zone`だけを見る）。`tile`ブロックの
+宣言も必須ではなくした（renderer側のタイル寸法をasset側が知る必要はないため）。
+
+**統合中に見つけて直したバグ2件**:
+1. **footprint>1の建物が隣接区画へ盛大にはみ出す** — `blitSprites`が常に
+   起点タイル（footprintの「奥」の角）を描画アンカーにしていたのに対し、
+   render幅は`footprint.w * tile.w * widthFactor`で計算するため、幅2区画・
+   高さ330px級の住宅タワーが公園を丸ごと隠す事故が発生した。区画予約
+   （`buildDistrict`内、決定論的・footprint分だけ+tileX/+tileY方向へ隣接区画を
+   確保）を追加し、公園ゾーンを道路で四方囲みにするレイアウト修正と合わせて解消。
+2. **同じzoneを共有するピン種別が隣接区画に乗って片方タップ不能** —
+   store/tenantは両方`commercial`ゾーンから独立に抽選していたため、隣接
+   タイルに決定論的に着地することがあり、390px幅のiPhoneでは44pxヒット
+   ターゲットが重なって片方が押せなくなっていた（Playwrightの実クリックで
+   検出）。`overlayAnchors`に`MIN_PIN_TILE_SPACING`（タイル距離3以上）を
+   導入し、既に配置済みのピンから離れた候補を優先するよう修正。
+
+**Tokyo mini districtレイアウトの調整**（12→12列×15行、3回チューニング）:
+- 1回目: CBDと住宅の間に1列の道路バッファを追加 → footprint2の建物には不十分で
+  公園が完全に隠れたまま
+- 2回目: 公園を専用の1行（四方を道路で囲む）に分離 → 可視化はしたが薄い帯で目立たず
+- 3回目: 公園を2行に拡張、CBD/商業の行数を3行に戻して密度を回復 → 公園・CBD高層感・
+  商業のネオン感・住宅のバルコニー/プール・物流倉庫・ランドマークがすべて
+  1画面内で判別可能な状態に到達
+
+## 実測（実sprite・Chromium。desktop 1200px / iPhone相当 390px・DPR3）
+
+| 指標 | desktop | iPhone |
+|---|---|---|
+| map全体 DOM node | 142 | 142 |
+| overlay DOM node | 29 | 29 |
+| sprite preload | 75.5ms | 62.0ms |
+| 初回 city 構築 | 71.0ms | 40.5ms |
+| cache命中の再描画 | 0.19ms | 0.06ms |
+| sprite blit / placeholder | 29 / 0 | 29 / 0 |
+| 横スクロール溢れ | 0 | 0 |
+| 最小タップ領域 | 44px | 44px |
+
+既存のproperty selection（5ピン種別：store/tenant/office/realestate/landmark）を
+すべてクリックし、カードが正しい街区・sprite ID・所有状態を表示すること、
+フィルタが用途で正しく絞り込むことを desktop / iPhone 相当の両方で確認した。
+
 ## Phase 2 以降（このPRではやらない）
 
 - 東京全域 → 他県への拡張、40〜60 sprite

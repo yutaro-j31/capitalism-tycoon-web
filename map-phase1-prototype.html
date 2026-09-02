@@ -86,11 +86,11 @@ li b{color:var(--text)}
 <body>
 <div class="wrap">
   <header>
-    <h1>マップ Phase 1 — Canvas + sprite renderer 基盤</h1>
-    <p>建物は<b>このコードでは一切描きません</b>。建物のvisual source of truthは
-      <code>assets/map-sprites/phase1/</code> のローカル画像で、本モジュールは
-      <b>配置・奥行き順・blit</b> のみ担当します。sprite未着のプロットは
-      <b>開発用プレースホルダ</b>（破線の区画枠＋asset ID）を表示します。仮ビルは生成しません。
+    <h1>マップ Phase 1 — 東京ミニ地区（実sprite統合）</h1>
+    <p>建物は<b>このコードでは一切描きません</b>。表示している建物は
+      すべて <code>assets/map-sprites/phase1/sprites/</code> の日中版ローカル画像15種で、
+      本モジュールは<b>配置・奥行き順・blit</b>のみ担当します。sprite未着のプロットが
+      残った場合だけ<b>開発用プレースホルダ</b>（破線の区画枠＋asset ID）を表示します。
       背景都市は<b>Canvas 1枚</b>、DOMになるのは操作対象のピンとHUDだけです。</p>
   </header>
 
@@ -159,9 +159,12 @@ li b{color:var(--text)}
     'WW..LLLL..RR',
     'WW..LLLL..RR',
     '............',
-    'CCCC..PPPPRR',
-    'CCCC..PPPPRR',
-    'CCCC..PPPPRR',
+    'CCCC......RR',
+    'CCCC......RR',
+    'CCCC......RR',
+    '............',
+    '.PPPPPPPPPP.',
+    '.PPPPPPPPPP.',
     '............',
     'MMMM..XX..RR',
     'MMMM..XX..RR',

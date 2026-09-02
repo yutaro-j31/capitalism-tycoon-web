@@ -36,9 +36,12 @@ const LAYOUT = [
   'WW..LLLL..RR',
   'WW..LLLL..RR',
   '............',
-  'CCCC..PPPPRR',
-  'CCCC..PPPPRR',
-  'CCCC..PPPPRR',
+  'CCCC......RR',
+  'CCCC......RR',
+  'CCCC......RR',
+  '............',
+  '.PPPPPPPPPP.',
+  '.PPPPPPPPPP.',
   '............',
   'MMMM..XX..RR',
   'MMMM..XX..RR',
@@ -68,7 +71,7 @@ assert.ok(rendererSource.includes('drawPlaceholder'),
 const index = MapCanvas.indexManifest(manifest);
 assert.ok(index.ok, `the committed manifest must be valid: ${index.errors.join('; ')}`);
 assert.ok(index.sprites.length >= 15, `Phase 1 declares at least 15 sprites, found ${index.sprites.length}`);
-for (const [category, minimum] of [['office', 5], ['commercial', 4], ['residential', 3], ['industrial', 2], ['landmark', 1]]) {
+for (const [category, minimum] of [['office', 5], ['commercial', 5], ['residential', 3], ['industrial', 1], ['landmark', 1]]) {
   const count = index.sprites.filter(s => s.category === category).length;
   assert.ok(count >= minimum, `category ${category} needs at least ${minimum} declared sprites, found ${count}`);
 }
@@ -137,6 +140,33 @@ for (const zone of ['cbd', 'commercial', 'residential', 'industrial', 'landmark'
 }
 assert.ok(perZone.cbd.size >= 3, 'the CBD must draw on several archetypes, not one repeated sprite');
 
+/* ---------- manifest field naming: accept the asset pipeline's `zones` key ---------- */
+const zonesKeyIndex = MapCanvas.indexManifest({
+  tile: { w: 64, h: 32 },
+  sprites: [{ id: 'a', file: 'a.png', category: 'office', zones: ['cbd'], anchor: { x: 0.5, y: 0.96 } }]
+});
+assert.ok(zonesKeyIndex.ok, 'a manifest using `zones` instead of `zone` must still validate');
+assert.deepEqual(zonesKeyIndex.byId.a.zone, ['cbd'], '`zones` must be normalised to `zone` for the rest of the pipeline');
+/* a manifest with neither a tile block nor a sprite scale still gets a usable default tile size */
+const noTileIndex = MapCanvas.indexManifest({ sprites: [] });
+assert.deepEqual(noTileIndex.tile, { w: 64, h: 32 }, 'an asset package need not declare tile geometry itself');
+
+/* ---------- footprint-aware placement: multi-tile buildings never overlap ---------- */
+const claimedBy = new Map();
+for (const cell of districtA.tiles) {
+  if (!cell.expectsBuilding && !cell.reserved) continue;
+  const owner = cell.expectsBuilding ? `${cell.tileX},${cell.tileY}` : `${cell.occupiedBy.tileX},${cell.occupiedBy.tileY}`;
+  const key = `${cell.tileX},${cell.tileY}`;
+  assert.ok(!claimedBy.has(key), `tile ${key} must be claimed by only one building, saw ${claimedBy.get(key)} and ${owner}`);
+  claimedBy.set(key, owner);
+}
+/* every reserved tile points back to a building that actually claimed it */
+for (const cell of districtA.tiles) {
+  if (!cell.reserved) continue;
+  const owner = districtA.byKey[`${cell.occupiedBy.tileX},${cell.occupiedBy.tileY}`];
+  assert.ok(owner && owner.expectsBuilding && owner.footprint, `reserved tile ${cell.tileX},${cell.tileY} must point to a real footprint owner`);
+}
+
 /* ---------- isometric transform + anchors ---------- */
 const transform = MapCanvas.fitTransform(districtA, 880, 560, index.tile, 200);
 assert.ok(transform.scale > 0 && transform.scale <= 1, 'the fitted scale must be a positive down-scale');
@@ -170,6 +200,16 @@ assert.equal(
   anchors.map(a => `${a.kind}:${a.tileX},${a.tileY}`).join('|'),
   'pin placement must be deterministic'
 );
+/* two pin kinds sharing a zone (store/tenant both draw from 'commercial')
+   must not land close enough to collide on a narrow iPhone canvas: their
+   44px hit targets need daylight between them */
+for (let i = 0; i < anchors.length; i++) {
+  for (let j = i + 1; j < anchors.length; j++) {
+    const tileDistance = Math.abs(anchors[i].tileX - anchors[j].tileX) + Math.abs(anchors[i].tileY - anchors[j].tileY);
+    assert.ok(tileDistance >= 3,
+      `pins ${anchors[i].kind} and ${anchors[j].kind} are only ${tileDistance} tiles apart and would overlap on a phone`);
+  }
+}
 
 /* ---------- E: selection must not rebuild the city ---------- */
 /* A minimal 2D context stub: the city layer must be driven purely by its
