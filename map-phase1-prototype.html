@@ -1,0 +1,324 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>マップ Phase 1 — Canvas + sprite 基盤</title>
+<style>
+:root{
+  --canvas:#050814;--surface:#0a1020;--surface2:#0f1729;--line:rgba(151,171,214,.18);
+  --violet:#7c5cff;--violet-hi:#9a7cff;--blue:#5c8dff;--cyan:#46c6e8;
+  --positive:#55d98b;--negative:#ff6675;--warning:#f2b84b;--gold:#e6c169;
+  --text:#f3f6ff;--muted:#93a3bf;
+  color-scheme:dark;
+}
+*{box-sizing:border-box}
+html,body{margin:0;background:linear-gradient(160deg,#050814,#03060e 78%);color:var(--text);
+  font-family:-apple-system,BlinkMacSystemFont,"Hiragino Sans","Yu Gothic UI",sans-serif;-webkit-text-size-adjust:100%}
+body{padding:max(12px,env(safe-area-inset-top)) max(12px,env(safe-area-inset-right)) max(16px,env(safe-area-inset-bottom)) max(12px,env(safe-area-inset-left))}
+.wrap{max-width:1120px;margin:0 auto;display:flex;flex-direction:column;gap:12px}
+h1{margin:0 0 4px;font-size:17px}
+header p{margin:0;font-size:12px;color:var(--muted);line-height:1.65}
+header b{color:var(--text)}
+code{font-size:11px;color:#bda9ff}
+
+/* ---- Layer A: canvas city ---- */
+.stage{position:relative;border:1px solid var(--line);border-radius:12px;overflow:hidden;
+  background:#c8d3dc;width:100%;max-width:880px;margin:0 auto}
+#city{display:block;touch-action:manipulation}
+
+/* ---- Layer B: interactive overlay ---- */
+.overlay{position:absolute;inset:0;pointer-events:none}
+.overlay>*{pointer-events:auto}
+/* city first, marker second: a 44px hit target around a small visual dot */
+.pin{position:absolute;transform:translate(-50%,-50%);width:44px;height:44px;padding:0;border:0;
+  background:transparent;display:grid;place-items:center;cursor:pointer;-webkit-tap-highlight-color:transparent}
+.pin i{display:block;width:10px;height:10px;border-radius:50%;border:2px solid rgba(255,255,255,.9);
+  box-shadow:0 1px 3px rgba(6,14,26,.6);transition:width .1s,height .1s}
+.pin.store i{background:#3763c9}
+.pin.tenant i{background:#c33a4d}
+.pin.office i{background:#5c3fc9}
+.pin.realestate i{background:#1f8fac}
+.pin.landmark i{background:#c9a13f}
+.pin.selected i{width:15px;height:15px;box-shadow:0 0 0 4px rgba(124,92,255,.42),0 1px 4px rgba(6,14,26,.6)}
+.pin:focus-visible i{outline:3px solid var(--violet-hi);outline-offset:3px}
+
+/* ---- Layer C: D UI v2 HUD ---- */
+/* a compact single-row, horizontally-scrolling strip so the filter chips
+   stop covering the city; 44px targets and safe-area stay intact */
+.hud-top{position:absolute;top:8px;left:8px;right:8px;display:flex;gap:5px;flex-wrap:nowrap;
+  overflow-x:auto;-webkit-overflow-scrolling:touch;scrollbar-width:none;padding-bottom:2px}
+.hud-top::-webkit-scrollbar{display:none}
+.chip{flex:0 0 auto;min-height:44px;min-width:44px;padding:6px 11px;border-radius:8px;border:1px solid var(--line);
+  background:rgba(8,14,26,.78);color:#c3cee0;font-size:11px;font-family:inherit;cursor:pointer;
+  white-space:nowrap;-webkit-tap-highlight-color:transparent}
+.chip.on{border-color:rgba(124,92,255,.6);background:rgba(124,92,255,.22);color:#c7b6ff}
+.chip.static{cursor:default;color:var(--muted)}
+.legend{position:absolute;right:8px;top:8px;padding:7px 9px;border-radius:9px;border:1px solid var(--line);
+  background:rgba(8,14,26,.78);display:flex;flex-direction:column;gap:4px}
+.legend span{display:flex;align-items:center;gap:6px;font-size:10.5px;color:#c8d2e2}
+.legend i{width:9px;height:9px;border-radius:50%}
+.card{position:absolute;left:8px;bottom:8px;width:min(248px,calc(100% - 16px));padding:9px 10px;
+  border-radius:10px;border:1px solid var(--line);background:rgba(8,14,26,.88);
+  display:flex;flex-direction:column;gap:7px}
+.card h2{margin:0;font-size:13px}
+.card .tag{align-self:flex-start;padding:2px 7px;border-radius:5px;background:rgba(124,92,255,.22);color:#c3b2ff;font-size:9.5px}
+.card dl{margin:0}
+.card dl div{display:flex;justify-content:space-between;gap:10px;padding:3px 0;
+  border-top:1px solid rgba(148,170,210,.13);font-size:11px}
+.card dt{color:var(--muted)}
+.card dd{margin:0;font-weight:600;text-align:right;word-break:break-all}
+.card p{margin:0;font-size:11.5px;color:var(--muted)}
+.banner{position:absolute;left:50%;top:8px;transform:translateX(-50%);padding:6px 11px;border-radius:8px;
+  border:1px solid rgba(242,184,75,.5);background:rgba(60,44,10,.86);color:#f4d99a;font-size:10.5px;max-width:64%}
+
+.panel{border:1px solid var(--line);border-radius:12px;
+  background:linear-gradient(150deg,rgba(15,23,41,.9),rgba(10,16,32,.92));padding:12px 14px}
+.panel h2{margin:0 0 9px;font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.06em}
+table{width:100%;border-collapse:collapse;font-size:12px}
+th,td{padding:5px 4px;border-bottom:1px solid rgba(148,170,210,.13);text-align:left;color:var(--muted)}
+th{font-size:10px;text-transform:uppercase;letter-spacing:.04em;color:#7d8ba3;font-weight:500}
+td b{color:var(--text);font-variant-numeric:tabular-nums}
+.cols{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+@media(max-width:760px){.cols{grid-template-columns:1fr}}
+ul{margin:0;padding-left:17px;font-size:12px;line-height:1.7;color:var(--muted)}
+li{margin-bottom:4px}
+li b{color:var(--text)}
+@media(max-width:560px){.legend{display:none}.card{left:6px;right:6px;bottom:6px;width:auto}.chip{padding:6px 8px}}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>マップ Phase 1 — 東京ミニ地区（実sprite統合）</h1>
+    <p>建物は<b>このコードでは一切描きません</b>。表示している建物は
+      すべて <code>assets/map-sprites/phase1/sprites/</code> の日中版ローカル画像15種で、
+      本モジュールは<b>配置・奥行き順・blit</b>のみ担当します。sprite未着のプロットが
+      残った場合だけ<b>開発用プレースホルダ</b>（破線の区画枠＋asset ID）を表示します。
+      背景都市は<b>Canvas 1枚</b>、DOMになるのは操作対象のピンとHUDだけです。</p>
+  </header>
+
+  <div class="stage">
+    <canvas id="city"></canvas>
+    <div class="overlay" id="overlay">
+      <div class="hud-top">
+        <button type="button" class="chip static" id="pref-chip">東京ミニ地区</button>
+        <button type="button" class="chip on" data-filter="all">全て</button>
+        <button type="button" class="chip" data-filter="office">オフィス</button>
+        <button type="button" class="chip" data-filter="commercial">商業</button>
+        <button type="button" class="chip" data-filter="residential">住宅</button>
+      </div>
+      <div class="legend" id="legend"></div>
+      <div class="card" id="card"><p>ピンを選択すると物件情報を表示します。</p></div>
+    </div>
+  </div>
+
+  <div class="cols">
+    <div class="panel">
+      <h2>計測（この端末で実測）</h2>
+      <table>
+        <tr><th>指標</th><th>実測</th><th>参考</th></tr>
+        <tr><td>map全体 DOM node</td><td><b id="m-dom">—</b></td><td>現行map 1,225</td></tr>
+        <tr><td>overlay DOM node</td><td><b id="m-overlay">—</b></td><td>—</td></tr>
+        <tr><td>背景都市の DOM node</td><td><b>1</b>（canvas）</td><td>現行 SVG 394</td></tr>
+        <tr><td>sprite preload</td><td><b id="m-load">—</b></td><td>—</td></tr>
+        <tr><td>初回 city 構築</td><td><b id="m-first">—</b></td><td>—</td></tr>
+        <tr><td>cache命中の再描画</td><td><b id="m-cached">—</b></td><td>現行 3.4ms</td></tr>
+        <tr><td>選択変更の更新</td><td><b id="m-select">—</b></td><td>現行は都市ごと再生成</td></tr>
+        <tr><td>city再構築回数</td><td><b id="m-misses">—</b></td><td>選択では増えない</td></tr>
+        <tr><td>devicePixelRatio</td><td><b id="m-dpr">—</b></td><td>上限2にclamp</td></tr>
+        <tr><td>sprite blit / placeholder</td><td><b id="m-blit">—</b></td><td>—</td></tr>
+      </table>
+    </div>
+    <div class="panel">
+      <h2>sprite が届いたら</h2>
+      <ul>
+        <li><b>コード変更なしで反映されます。</b><code>assets/map-sprites/phase1/</code> に manifest の
+          <code>file</code> 名でPNGを置くだけです。</li>
+        <li>manifest の <code>anchor</code>（画像内の接地点の割合）と <code>footprint</code> だけ
+          実画像に合わせて調整します。</li>
+        <li>1枚が欠けても白画面にはならず、そのプロットだけプレースホルダになります
+          （下の「読み込み状況」で確認できます）。</li>
+      </ul>
+      <h2 style="margin-top:12px">読み込み状況</h2>
+      <table><tr><th>manifest</th><th>状態</th></tr>
+        <tr><td>宣言済み sprite</td><td><b id="m-declared">—</b></td></tr>
+        <tr><td>読込成功</td><td><b id="m-loaded">—</b></td></tr>
+        <tr><td>未着（placeholder）</td><td><b id="m-failed">—</b></td></tr>
+        <tr><td>schema検証</td><td><b id="m-schema">—</b></td></tr>
+      </table>
+    </div>
+  </div>
+</div>
+
+<script src="./prototypes/map-canvas-renderer.js"></script>
+<script>
+(function () {
+  const PREF_ID = 'tokyo';
+  const ASSET_BASE = './assets/map-sprites/phase1';
+  /* Tokyo mini district: one character per tile.
+     C=CBD  M=commercial  R=residential  L=logistics  P=park  W=water  X=landmark  .=road */
+  const LAYOUT = [
+    'WW..LLLL..RR',
+    'WW..LLLL..RR',
+    'WW..LLLL..RR',
+    '............',
+    'CCCCCC....RR',
+    'CCCCCC....RR',
+    'CCCCCC....RR',
+    '............',
+    '.PPPPPPPPPP.',
+    '.PPPPPPPPPP.',
+    '............',
+    'MMMM..XX..RR',
+    'MMMM..XX..RR',
+    'MMMMMM....RR',
+    '............'
+  ];
+  const USES = [['office', 'オフィス', '#5c3fc9'], ['commercial', '商業', '#c33a4d'],
+    ['residential', '住宅', '#1f8fac'], ['industrial', '物流', '#3f8f7a'], ['landmark', 'ランドマーク', '#c9a13f']];
+
+  const canvas = document.getElementById('city');
+  const ctx = canvas.getContext('2d');
+  const overlay = document.getElementById('overlay');
+  const city = MapCanvas.createCityLayer();
+  const ASPECT = 560 / 880;
+
+  let index = null;
+  let images = {};
+  let district = null;
+  let transform = null;
+  let anchors = [];
+  let selected = null;
+  let filter = 'all';
+  let dpr = 1;
+
+  const createCanvas = (w, h) => {
+    const c = document.createElement('canvas');
+    c.width = w; c.height = h;
+    return c;
+  };
+
+  function layout() {
+    const cssWidth = canvas.parentElement.clientWidth;
+    const cssHeight = Math.round(cssWidth * ASPECT);
+    dpr = MapCanvas.sizeCanvas(canvas, cssWidth, cssHeight, window.devicePixelRatio);
+    transform = MapCanvas.fitTransform(district, cssWidth, cssHeight, index.tile, 200);
+    return { cssWidth, cssHeight };
+  }
+
+  function paintCity() {
+    const size = layout();
+    return city.present(ctx, district, transform, images, index, {
+      dpr, cssWidth: size.cssWidth, cssHeight: size.cssHeight,
+      createCanvas, sky: '#c8d3dc', placeholderLabels: true
+    });
+  }
+
+  function renderPins() {
+    overlay.querySelectorAll('.pin').forEach(node => node.remove());
+    anchors = MapCanvas.overlayAnchors(district, transform);
+    for (const anchor of anchors) {
+      if (filter !== 'all' && anchor.use !== filter) continue;
+      const button = document.createElement('button');
+      button.type = 'button';
+      button.className = `pin ${anchor.kind}${selected === anchor.kind ? ' selected' : ''}`;
+      button.style.left = `${(anchor.x / canvas.clientWidth) * 100}%`;
+      button.style.top = `${(anchor.y / canvas.clientHeight) * 100}%`;
+      button.setAttribute('aria-label', anchor.label);
+      button.setAttribute('aria-pressed', String(selected === anchor.kind));
+      button.innerHTML = '<i></i>';
+      button.addEventListener('click', () => select(anchor.kind));
+      overlay.appendChild(button);
+    }
+  }
+
+  function renderCard() {
+    const card = document.getElementById('card');
+    const anchor = anchors.find(a => a.kind === selected);
+    if (!anchor) { card.innerHTML = '<p>ピンを選択すると物件情報を表示します。</p>'; return; }
+    card.innerHTML =
+      `<span class="tag">${anchor.kind === 'store' ? '自社保有' : '候補'}</span>` +
+      `<h2>${anchor.label}</h2><dl>` +
+      `<div><dt>街区</dt><dd>${anchor.zoneLabel}</dd></div>` +
+      `<div><dt>区画</dt><dd>${anchor.tileX}, ${anchor.tileY}</dd></div>` +
+      `<div><dt>sprite</dt><dd>${anchor.spriteId || '—'}</dd></div>` +
+      `<div><dt>状態</dt><dd>${images[anchor.spriteId] ? '描画済み' : 'asset未着'}</dd></div></dl>`;
+  }
+
+  /* Selection must not rebuild the city: only the overlay is touched. */
+  function select(kind) {
+    const start = performance.now();
+    selected = kind;
+    renderPins();
+    renderCard();
+    document.getElementById('m-select').textContent = `${(performance.now() - start).toFixed(2)}ms`;
+    document.getElementById('m-misses').textContent = String(city.stats.cacheMisses);
+  }
+
+  function renderLegend() {
+    const counts = {};
+    for (const cell of district.tiles) if (cell.expectsBuilding && cell.use) counts[cell.use] = (counts[cell.use] || 0) + 1;
+    document.getElementById('legend').innerHTML = USES
+      .map(([key, label, colour]) => `<span><i style="background:${colour}"></i>${label} ${counts[key] || 0}</span>`).join('');
+  }
+
+  async function boot() {
+    const manifestResponse = await fetch(`${ASSET_BASE}/sprites.json`);
+    const manifest = await manifestResponse.json();
+    index = MapCanvas.indexManifest(manifest);
+    document.getElementById('m-schema').textContent = index.ok ? 'OK' : `${index.errors.length}件の不正行を除外`;
+    document.getElementById('m-declared').textContent = String(index.sprites.length);
+
+    district = MapCanvas.buildDistrict({ layout: LAYOUT, index, prefID: PREF_ID });
+
+    const loadStart = performance.now();
+    const result = await MapCanvas.loadSprites(index, ASSET_BASE);
+    images = result.images;
+    document.getElementById('m-load').textContent = `${(performance.now() - loadStart).toFixed(1)}ms`;
+    document.getElementById('m-loaded').textContent = String(result.loaded.length);
+    document.getElementById('m-failed').textContent = String(result.failed.length);
+    if (result.failed.length) {
+      const banner = document.createElement('div');
+      banner.className = 'banner';
+      banner.textContent = `sprite ${result.failed.length}/${index.sprites.length} 未着 — プレースホルダ表示中`;
+      overlay.appendChild(banner);
+    }
+
+    const firstStart = performance.now();
+    const stats = paintCity();
+    document.getElementById('m-first').textContent = `${(performance.now() - firstStart).toFixed(1)}ms`;
+    document.getElementById('m-blit').textContent = `${stats.blitted} / ${stats.placeholders}`;
+
+    renderPins();
+    renderCard();
+    renderLegend();
+
+    const cachedStart = performance.now();
+    for (let i = 0; i < 20; i++) paintCity();
+    document.getElementById('m-cached').textContent = `${((performance.now() - cachedStart) / 20).toFixed(2)}ms`;
+    document.getElementById('m-dpr').textContent = `${dpr} (raw ${window.devicePixelRatio || 1})`;
+    document.getElementById('m-misses').textContent = String(city.stats.cacheMisses);
+    document.getElementById('m-overlay').textContent = String(overlay.querySelectorAll('*').length);
+    document.getElementById('m-dom').textContent = String(document.querySelectorAll('*').length);
+
+    for (const chip of document.querySelectorAll('.chip[data-filter]')) {
+      chip.addEventListener('click', () => {
+        filter = chip.dataset.filter;
+        document.querySelectorAll('.chip[data-filter]').forEach(c => c.classList.toggle('on', c === chip));
+        renderPins();
+      });
+    }
+    window.addEventListener('resize', () => { paintCity(); renderPins(); }, { passive: true });
+    window.__mapPhase1Ready = true;
+  }
+
+  boot().catch(error => {
+    /* an asset or manifest failure must never leave a blank screen */
+    document.getElementById('card').innerHTML = `<p>マップの初期化に失敗しました: ${String(error && error.message || error)}</p>`;
+    window.__mapPhase1Ready = true;
+  });
+})();
+</script>
+</body>
+</html>
