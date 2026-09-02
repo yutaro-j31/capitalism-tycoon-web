@@ -1,0 +1,394 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>マップ Phase 2 プレビュー — pannable world（承認前・未実装）</title>
+<style>
+:root{
+  --canvas:#050814;--surface:#0a1020;--surface2:#0f1729;--line:rgba(151,171,214,.18);
+  --violet:#7c5cff;--violet-hi:#9a7cff;--blue:#5c8dff;--cyan:#46c6e8;
+  --positive:#55d98b;--negative:#ff6675;--warning:#f2b84b;--gold:#e6c169;
+  --text:#f3f6ff;--muted:#93a3bf;
+  color-scheme:dark;
+}
+*{box-sizing:border-box}
+html,body{margin:0;background:linear-gradient(160deg,#050814,#03060e 78%);color:var(--text);
+  font-family:-apple-system,BlinkMacSystemFont,"Hiragino Sans","Yu Gothic UI",sans-serif;-webkit-text-size-adjust:100%}
+body{padding:max(10px,env(safe-area-inset-top)) max(10px,env(safe-area-inset-right)) max(14px,env(safe-area-inset-bottom)) max(10px,env(safe-area-inset-left))}
+.wrap{max-width:1120px;margin:0 auto;display:flex;flex-direction:column;gap:10px}
+h1{margin:0 0 4px;font-size:16px}
+header p{margin:0;font-size:11.5px;color:var(--muted);line-height:1.6}
+header b{color:var(--text)}
+.notice{margin:0;padding:8px 10px;border-radius:8px;border:1px solid rgba(242,184,75,.4);
+  background:rgba(60,44,10,.55);color:#f4d99a;font-size:11px;line-height:1.6}
+
+/* ---- stage: fixed viewport, world panned inside it ---- */
+.stage{position:relative;border:1px solid var(--line);border-radius:12px;overflow:hidden;
+  background:#bfd0da;width:100%;height:min(78vh,640px);touch-action:none;-webkit-user-select:none;user-select:none}
+#city{display:block;position:absolute;left:0;top:0;touch-action:none}
+.stage.panning{cursor:grabbing}
+.stage{cursor:grab}
+
+.overlay{position:absolute;inset:0;pointer-events:none}
+.overlay>*{pointer-events:auto}
+.pin{position:absolute;transform:translate(-50%,-50%);width:44px;height:44px;padding:0;border:0;
+  background:transparent;display:grid;place-items:center;cursor:pointer;-webkit-tap-highlight-color:transparent}
+.pin i{display:block;width:10px;height:10px;border-radius:50%;border:2px solid rgba(255,255,255,.9);
+  box-shadow:0 1px 3px rgba(6,14,26,.6);transition:width .1s,height .1s}
+.pin.store i{background:#3763c9}
+.pin.tenant i{background:#c33a4d}
+.pin.office i{background:#5c3fc9}
+.pin.realestate i{background:#1f8fac}
+.pin.landmark i{background:#c9a13f}
+.pin.selected i{width:15px;height:15px;box-shadow:0 0 0 4px rgba(124,92,255,.42),0 1px 4px rgba(6,14,26,.6)}
+.pin:focus-visible i{outline:3px solid var(--violet-hi);outline-offset:3px}
+
+.hud-top{position:absolute;top:8px;left:8px;right:8px;display:flex;gap:5px;flex-wrap:nowrap;
+  overflow-x:auto;-webkit-overflow-scrolling:touch;scrollbar-width:none;padding-bottom:2px}
+.hud-top::-webkit-scrollbar{display:none}
+.chip{flex:0 0 auto;min-height:40px;min-width:40px;padding:5px 10px;border-radius:8px;border:1px solid var(--line);
+  background:rgba(8,14,26,.78);color:#c3cee0;font-size:11px;font-family:inherit;cursor:pointer;
+  white-space:nowrap;-webkit-tap-highlight-color:transparent}
+.chip.on{border-color:rgba(124,92,255,.6);background:rgba(124,92,255,.22);color:#c7b6ff}
+.chip.static{cursor:default;color:var(--muted)}
+.district-card{position:absolute;left:8px;bottom:8px;padding:6px 10px;border-radius:9px;border:1px solid var(--line);
+  background:rgba(8,14,26,.78);font-size:10.5px;color:#c8d2e2;max-width:150px;line-height:1.5}
+.district-card b{color:var(--text);display:block;font-size:11.5px;margin-bottom:2px}
+.card{position:absolute;right:8px;bottom:8px;width:min(220px,calc(100% - 170px));padding:8px 9px;
+  border-radius:10px;border:1px solid var(--line);background:rgba(8,14,26,.88);
+  display:flex;flex-direction:column;gap:6px}
+.card h2{margin:0;font-size:12px}
+.card .tag{align-self:flex-start;padding:2px 7px;border-radius:5px;background:rgba(124,92,255,.22);color:#c3b2ff;font-size:9px}
+.card dl{margin:0}
+.card dl div{display:flex;justify-content:space-between;gap:8px;padding:2px 0;
+  border-top:1px solid rgba(148,170,210,.13);font-size:10px}
+.card dt{color:var(--muted)}
+.card dd{margin:0;font-weight:600;text-align:right;word-break:break-all}
+.hint{position:absolute;left:50%;bottom:8px;transform:translateX(-50%);padding:5px 10px;border-radius:7px;
+  background:rgba(8,14,26,.7);color:#c3cee0;font-size:10px;pointer-events:none;transition:opacity .4s}
+.hint.hidden{opacity:0}
+
+.panel{border:1px solid var(--line);border-radius:12px;
+  background:linear-gradient(150deg,rgba(15,23,41,.9),rgba(10,16,32,.92));padding:11px 13px}
+.panel h2{margin:0 0 8px;font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.06em}
+table{width:100%;border-collapse:collapse;font-size:11.5px}
+th,td{padding:4px 4px;border-bottom:1px solid rgba(148,170,210,.13);text-align:left;color:var(--muted)}
+th{font-size:9.5px;text-transform:uppercase;letter-spacing:.04em;color:#7d8ba3;font-weight:500}
+td b{color:var(--text);font-variant-numeric:tabular-nums}
+@media(max-width:560px){.card{width:auto;left:8px;right:8px}.district-card{display:none}}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>マップ Phase 2 プレビュー — pannable world（未実装・承認待ち）</h1>
+    <p class="notice">これは<b>実装前の確認用プレビュー</b>です。まだPRにもindex.htmlにも含まれていません。
+      建物は引き続き<b>sprite画像のみ</b>（procedural生成はしていません）。ここでは
+      「Worldがviewportより大きい」「1本指/マウスドラッグでpanできる」「pan中にcity layoutを再構築しない」
+      という今回の核心UXが実際に動くかを見てもらうためのものです。</p>
+  </header>
+
+  <div class="stage" id="stage">
+    <canvas id="city"></canvas>
+    <div class="overlay" id="overlay">
+      <div class="hud-top">
+        <button type="button" class="chip static" id="pref-chip">東京 World Preview</button>
+        <button type="button" class="chip on" data-filter="all">全て</button>
+        <button type="button" class="chip" data-filter="office">オフィス</button>
+        <button type="button" class="chip" data-filter="commercial">商業</button>
+        <button type="button" class="chip" data-filter="residential">住宅</button>
+      </div>
+      <div class="district-card" id="district-card"></div>
+      <div class="card" id="card"><p style="margin:0;font-size:10.5px;color:var(--muted)">ピンを選択</p></div>
+      <div class="hint" id="hint">ドラッグして街を探索できます →</div>
+    </div>
+  </div>
+
+  <div class="panel">
+    <h2>計測（この端末で実測）</h2>
+    <table>
+      <tr><th>指標</th><th>実測</th></tr>
+      <tr><td>world / viewport 比率（幅・高さ）</td><td><b id="m-ratio">—</b></td></tr>
+      <tr><td>map全体 DOM node</td><td><b id="m-dom">—</b></td></tr>
+      <tr><td>overlay DOM node</td><td><b id="m-overlay">—</b></td></tr>
+      <tr><td>可視sprite数（culling後）</td><td><b id="m-visible">—</b></td></tr>
+      <tr><td>world全体: hero / filler / open plot</td><td><b id="m-density">—</b></td></tr>
+      <tr><td>初回 city 構築</td><td><b id="m-first">—</b></td></tr>
+      <tr><td>pan中の平均フレーム時間</td><td><b id="m-panavg">—</b></td></tr>
+      <tr><td>pan中の最悪フレーム時間</td><td><b id="m-panmax">—</b></td></tr>
+      <tr><td>pan中のcity layout再構築回数</td><td><b id="m-rebuilds">0（不変であるべき）</b></td></tr>
+      <tr><td>devicePixelRatio</td><td><b id="m-dpr">—</b></td></tr>
+    </table>
+  </div>
+</div>
+
+<script src="./prototypes/map-canvas-renderer.js"></script>
+<script src="./prototypes/map-world-preview.js"></script>
+<script>
+(function () {
+  const MW = window.MapWorldPreview;
+  const PREF_ID = 'tokyo';
+  /* Phase 2's own manifest (category taxonomy + district tags + spawn
+     weight; see docs/map-phase2-asset-integration-contract.md) lives here.
+     Its 15 current rows are placeholders for the existing Phase 1 sprites --
+     rather than duplicate those PNGs, the manifest's `file` values match
+     Phase 1's own filenames 1:1 and the actual image bytes are loaded from
+     Phase 1's directory (IMAGE_BASE), which stays the single canonical copy.
+     Phase 1's manifest/renderer/tests are untouched; this file only reads
+     from its asset directory. */
+  const ASSET_BASE = './assets/map-sprites/phase2';
+  const IMAGE_BASE = './assets/map-sprites/phase1';
+  const WORLD_COLS = 32, WORLD_ROWS = 28;
+  const PAN_THRESHOLD = 8; /* px: below this, a pointer gesture is a tap */
+
+  const stage = document.getElementById('stage');
+  const canvas = document.getElementById('city');
+  const ctx = canvas.getContext('2d');
+  const overlay = document.getElementById('overlay');
+
+  let index = null, images = {}, district = null;
+  let worldTransform = null, worldWidth = 0, worldHeight = 0, contentBounds = null;
+  const DEFAULT_SCALE = Number(new URLSearchParams(location.search).get('scale')) || 0.72;
+  let camera = { x: 0, y: 0 };
+  let dpr = 1;
+  let selected = null, filter = 'all';
+  let anchors = [];
+  let rebuildCount = 0;
+  let panFrameTimes = [];
+  let justPanned = false;
+
+  function cssSize() {
+    const rect = stage.getBoundingClientRect();
+    return { w: Math.round(rect.width), h: Math.round(rect.height) };
+  }
+
+  /*
+   * worldTransform.toScreen() is deliberately in raw, unscaled tile-space
+   * (see prototypes/map-world-preview.js); `scale` is applied once, at the
+   * end, by the canvas context transform. Camera position and the viewport
+   * size used for culling/clamping must therefore also be in that same raw
+   * space -- this converts the CSS-pixel viewport into it.
+   */
+  function rawViewport() {
+    const { w, h } = cssSize();
+    return { w: w / worldTransform.scale, h: h / worldTransform.scale };
+  }
+
+  function layoutCanvas() {
+    const { w, h } = cssSize();
+    dpr = MapCanvas.sizeCanvas(canvas, w, h, window.devicePixelRatio);
+    return { w, h };
+  }
+
+  function draw() {
+    const { w, h } = cssSize();
+    const rw = rawViewport();
+    const camTransform = MW.withCamera(worldTransform, camera);
+    /* the margin is how far a sprite can visually overhang its own tile in
+       RAW tile-space (independent of the display `scale`, since sprites are
+       also sized in that same raw space before the context transform
+       shrinks everything uniformly) -- not a CSS-pixel quantity */
+    const visible = MW.cullVisible(district, worldTransform, camera, rw.w, rw.h, 300);
+    const viewDistrict = { prefID: district.prefID, tiles: visible, byKey: district.byKey, cols: district.cols, rowsCount: district.rowsCount };
+    /* stage 1: clear + sky, in plain CSS-pixel space */
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    ctx.clearRect(0, 0, w, h);
+    ctx.fillStyle = '#bfd0da';
+    ctx.fillRect(0, 0, w, h);
+    /* stage 2: the city, in raw tile-space -- the context transform is what
+       actually applies the zoom, exactly like Base.createCityLayer.present() */
+    ctx.setTransform(dpr * worldTransform.scale, 0, 0, dpr * worldTransform.scale, 0, 0);
+    MW.paintTerrain(ctx, viewDistrict, camTransform, index.tile);
+    MW.paintSidewalkWidening(ctx, visible, camTransform, index.tile, district.byKey);
+    MW.paintWorldRoads(ctx, visible, camTransform, index.tile, district.byKey);
+    MW.paintCrosswalks(ctx, visible, camTransform, index.tile);
+    MW.paintOpenLots(ctx, visible, camTransform, index.tile, district.prefID);
+    MW.paintGreenery(ctx, viewDistrict, camTransform);
+    const stats = MW.blitWorldSprites(ctx, viewDistrict, camTransform, images, index, { placeholderLabels: false, spriteWidthFactor: 1.18 });
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
+    document.getElementById('m-visible').textContent = String(stats.blitted);
+    return stats;
+  }
+
+  function renderPins() {
+    overlay.querySelectorAll('.pin').forEach(node => node.remove());
+    const camTransform = MW.withCamera(worldTransform, camera);
+    for (const anchor of anchors) {
+      if (filter !== 'all' && anchor.use !== filter) continue;
+      const [cssX, cssY] = camTransform.toCss(anchor.tileX, anchor.tileY);
+      if (cssX < -40 || cssY < -40 || cssX > canvas.clientWidth + 40 || cssY > canvas.clientHeight + 40) continue;
+      const button = document.createElement('button');
+      button.type = 'button';
+      button.className = `pin ${anchor.kind}${selected === anchor.kind ? ' selected' : ''}`;
+      button.style.left = `${cssX}px`;
+      button.style.top = `${cssY}px`;
+      button.setAttribute('aria-label', anchor.label);
+      button.setAttribute('aria-pressed', String(selected === anchor.kind));
+      button.innerHTML = '<i></i>';
+      button.addEventListener('click', () => { if (justPanned) return; select(anchor.kind); });
+      overlay.appendChild(button);
+    }
+  }
+
+  function renderCard() {
+    const card = document.getElementById('card');
+    const anchor = anchors.find(a => a.kind === selected);
+    if (!anchor) { card.innerHTML = '<p style="margin:0;font-size:10.5px;color:var(--muted)">ピンを選択</p>'; return; }
+    card.innerHTML =
+      `<span class="tag">${anchor.kind === 'store' ? '自社保有' : '候補'}</span>` +
+      `<h2>${anchor.label}</h2><dl>` +
+      `<div><dt>街区</dt><dd>${anchor.zoneLabel}</dd></div>` +
+      `<div><dt>区画</dt><dd>${anchor.tileX}, ${anchor.tileY}</dd></div>` +
+      `<div><dt>sprite</dt><dd>${anchor.spriteId || '—'}</dd></div></dl>`;
+  }
+
+  function select(kind) {
+    selected = kind;
+    renderPins();
+    renderCard();
+  }
+
+  function renderDistrictCard() {
+    document.getElementById('district-card').innerHTML =
+      `<b>東京 World Preview</b>${WORLD_COLS}×${WORLD_ROWS}タイル<br>ドラッグで探索`;
+  }
+
+  function setCamera(next) {
+    const rw = rawViewport();
+    camera = MW.clampCameraToContent(next, worldTransform, district, rw.w, rw.h);
+  }
+
+  /* ---------------- pointer drag pan ---------------- */
+  /*
+   * Pointer capture must NOT be taken on pointerdown: once #stage captures
+   * the pointer, every later event for it -- including pointerup, and the
+   * synthetic click derived from it -- retargets to #stage instead of
+   * whatever was actually under the finger, which silently breaks tapping
+   * a .pin button (the click event never reaches it). Capture is only
+   * acquired once movement has crossed the tap/pan threshold and this is
+   * confirmed to be a drag, so a plain tap is untouched by it.
+   */
+  let dragState = null;
+  stage.addEventListener('pointerdown', ev => {
+    dragState = { pointerId: ev.pointerId, startX: ev.clientX, startY: ev.clientY, camStart: { x: camera.x, y: camera.y }, dragging: false, lastFrame: performance.now() };
+    document.getElementById('hint').classList.add('hidden');
+  });
+  stage.addEventListener('pointermove', ev => {
+    if (!dragState) return;
+    const dx = ev.clientX - dragState.startX;
+    const dy = ev.clientY - dragState.startY;
+    const dist = Math.hypot(dx, dy);
+    if (!dragState.dragging && dist > PAN_THRESHOLD) {
+      dragState.dragging = true;
+      stage.classList.add('panning');
+      stage.setPointerCapture(dragState.pointerId);
+    }
+    if (dragState.dragging) {
+      const now = performance.now();
+      /* dx/dy are CSS pixels (pointer movement); camera lives in raw
+         tile-space, so convert 1:1 finger tracking through the zoom scale */
+      setCamera({ x: dragState.camStart.x - dx / worldTransform.scale, y: dragState.camStart.y - dy / worldTransform.scale });
+      draw();
+      renderPins();
+      const frameMs = performance.now() - now;
+      panFrameTimes.push(frameMs);
+      dragState.lastFrame = now;
+    }
+  });
+  function endDrag(ev) {
+    if (!dragState) return;
+    if (dragState.dragging) {
+      justPanned = true;
+      setTimeout(() => { justPanned = false; }, 50);
+      if (panFrameTimes.length) {
+        const avg = panFrameTimes.reduce((a, b) => a + b, 0) / panFrameTimes.length;
+        const max = Math.max(...panFrameTimes);
+        document.getElementById('m-panavg').textContent = `${avg.toFixed(2)}ms (${panFrameTimes.length}frames)`;
+        document.getElementById('m-panmax').textContent = `${max.toFixed(2)}ms`;
+      }
+    }
+    stage.classList.remove('panning');
+    if (ev && ev.pointerId !== undefined) { try { stage.releasePointerCapture(ev.pointerId); } catch (e) {} }
+    dragState = null;
+  }
+  stage.addEventListener('pointerup', endDrag);
+  stage.addEventListener('pointercancel', endDrag);
+  stage.addEventListener('pointerleave', ev => { if (dragState && !dragState.dragging) endDrag(ev); });
+
+  async function boot() {
+    const manifestResponse = await fetch(`${ASSET_BASE}/sprites.json`);
+    const manifest = await manifestResponse.json();
+    index = MW.indexCategoryManifest(manifest);
+    if (!index.ok) console.warn('manifest validation errors', index.errors);
+
+    district = MW.buildWorldDistrict({ index2: index, prefID: PREF_ID, cols: WORLD_COLS, rows: WORLD_ROWS });
+    rebuildCount = 1;
+
+    const result = await MW.loadSprites(index, IMAGE_BASE);
+    images = result.images;
+
+    layoutCanvas();
+    const wt = MW.worldTransform(district, index.tile, DEFAULT_SCALE);
+    worldTransform = wt.transform;
+    worldWidth = wt.worldWidth;
+    worldHeight = wt.worldHeight;
+    contentBounds = wt.contentBounds;
+    const rw0 = rawViewport();
+    document.getElementById('m-ratio').textContent =
+      `${(worldWidth / rw0.w).toFixed(2)}x / ${(worldHeight / rw0.h).toFixed(2)}x (scale ${DEFAULT_SCALE})`;
+
+    /* start centred on the landmark, clamped to world edges */
+    const landmark = district.tiles.find(c => c.zone === 'landmark');
+    const [lx, ly] = worldTransform.toScreen(landmark.tileX, landmark.tileY);
+    setCamera({ x: lx - rw0.w / 2, y: ly - rw0.h / 2 });
+
+    const firstStart = performance.now();
+    draw();
+    document.getElementById('m-first').textContent = `${(performance.now() - firstStart).toFixed(1)}ms`;
+
+    const builtAll = district.tiles.filter(c => c.expectsBuilding);
+    const heroAll = builtAll.filter(c => !c.filler);
+    const fillerAll = builtAll.filter(c => c.filler);
+    const openAll = district.tiles.filter(c => c.open);
+    document.getElementById('m-density').textContent = `${heroAll.length} / ${fillerAll.length} / ${openAll.length}`;
+
+    anchors = MW.overlayAnchors(district, worldTransform);
+    renderPins();
+    renderCard();
+    renderDistrictCard();
+
+    document.getElementById('m-dpr').textContent = `${dpr} (raw ${window.devicePixelRatio || 1})`;
+    document.getElementById('m-overlay').textContent = String(overlay.querySelectorAll('*').length);
+    document.getElementById('m-dom').textContent = String(document.querySelectorAll('*').length);
+    document.getElementById('m-rebuilds').textContent = String(rebuildCount) + '（pan後も不変であるべき）';
+
+    for (const chip of document.querySelectorAll('.chip[data-filter]')) {
+      chip.addEventListener('click', () => {
+        filter = chip.dataset.filter;
+        document.querySelectorAll('.chip[data-filter]').forEach(c => c.classList.toggle('on', c === chip));
+        renderPins();
+      });
+    }
+    window.addEventListener('resize', () => { layoutCanvas(); draw(); renderPins(); }, { passive: true });
+    window.__mapPhase2Ready = true;
+    window.__mapPhase2 = {
+      panTo(worldTileX, worldTileY) {
+        const rw = rawViewport();
+        const [x, y] = worldTransform.toScreen(worldTileX, worldTileY);
+        setCamera({ x: x - rw.w / 2, y: y - rw.h / 2 });
+        draw(); renderPins();
+      },
+      debug() { return { camera, worldWidth, worldHeight, contentBounds, rawViewport: rawViewport(), scale: worldTransform.scale }; },
+      rebuildCount: () => rebuildCount
+    };
+  }
+
+  boot().catch(error => {
+    document.getElementById('card').innerHTML = `<p>初期化に失敗しました: ${String(error && error.message || error)}</p>`;
+    window.__mapPhase2Ready = true;
+  });
+})();
+</script>
+</body>
+</html>
