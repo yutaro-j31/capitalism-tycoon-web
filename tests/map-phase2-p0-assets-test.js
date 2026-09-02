@@ -22,10 +22,18 @@ function check(name, fn) {
   catch (e) { console.log('FAIL:', name, '--', e.message); fail++; }
 }
 
-const p0Sprites = manifest.sprites.filter(s => !s.placeholder);
+/*
+ * Scoped to P0's own 3 categories, not `!s.placeholder` -- the P1 pass
+ * (civic/office.mid/residential.mid) later added its own non-placeholder
+ * sprites to this same manifest, so "non-placeholder" alone no longer
+ * means "P0's sprites". Every check below is about P0's own 20 rows
+ * specifically; P1's rows have their own dedicated test file.
+ */
+const P0_CATEGORIES = new Set(['office.small', 'commercial.small', 'residential.low']);
+const p0Sprites = manifest.sprites.filter(s => !s.placeholder && P0_CATEGORIES.has(s.category));
 
-check('manifest has exactly 35 sprites (15 legacy placeholders + 20 P0)', () => {
-  assert.equal(manifest.sprites.length, 35);
+check('manifest contains P0\'s 20 sprites unchanged (15 legacy placeholders + 20 P0; later passes may add more rows on top)', () => {
+  assert.ok(manifest.sprites.length >= 35, `expected at least 35 rows (15 legacy + 20 P0), saw ${manifest.sprites.length}`);
   assert.equal(p0Sprites.length, 20);
 });
 

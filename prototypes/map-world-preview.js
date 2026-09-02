@@ -52,9 +52,9 @@
   const WORLD_NO_REPEAT_RADIUS = 3;
 
   /* ---------------- extra zone: premium residential ---------------- */
-  const ZONE_LABEL2 = Object.assign({}, ZONE_LABEL, { premiumResidential: '高級住宅街' });
-  const ZONE_USE2 = Object.assign({}, ZONE_USE, { premiumResidential: 'residential' });
-  const BUILDABLE2 = new Set(['cbd', 'commercial', 'residential', 'premiumResidential', 'industrial', 'landmark']);
+  const ZONE_LABEL2 = Object.assign({}, ZONE_LABEL, { premiumResidential: '高級住宅街', civic: '公共施設' });
+  const ZONE_USE2 = Object.assign({}, ZONE_USE, { premiumResidential: 'residential', civic: 'civic' });
+  const BUILDABLE2 = new Set(['cbd', 'commercial', 'residential', 'premiumResidential', 'industrial', 'landmark', 'civic']);
   const GROUND2 = Object.assign({}, GROUND, { premiumResidential: '#b9beac' });
 
   /*
@@ -198,18 +198,43 @@
     return pool[pool.length - 1].id;
   }
 
-  /* which category a block-template role asks for, per zone; the district
-     tag passed to selectSpriteForCategory (below) */
+  /*
+   * which category a block-template role asks for, per zone; the district
+   * tag passed to selectSpriteForCategory (below). A role entry may be a
+   * single category string (the common case) or an ARRAY of category
+   * strings, deterministically split by tile position (see
+   * pickRoleCategory below) -- used for cbd's S role only (P1 pass):
+   * CATEGORY_FALLBACK['office.small'] lists 'office.mid' as its first
+   * fallback, but that fallback only ever fires when office.small's own
+   * pool is completely empty. Since the P0 pass gave office.small 6 real
+   * sprites, that fallback path is now permanently dead -- office.mid can
+   * never be reached through it, no matter how many office.mid sprites
+   * exist. Splitting cbd's S role directly between the two (3:1, so
+   * office.mid reads as a minority "mid-rise layer" next to the small
+   * background buildings, not a replacement for them) is what actually
+   * makes an added office.mid asset appear in the city.
+   */
   const ROLE_CATEGORY = {
-    cbd: { H: 'office.hero', S: 'office.small', X: 'commercial.small' },
+    cbd: { H: 'office.hero', S: ['office.small', 'office.small', 'office.small', 'office.mid'], X: 'commercial.small' },
     commercial: { H: 'commercial.hero', S: 'commercial.small', X: 'residential.low' },
     residential: { H: 'residential.mid', S: 'residential.low' },
     premiumResidential: { H: 'residential.premium', S: 'residential.mid' },
     industrial: { H: 'logistics', S: 'logistics' }
   };
+  /*
+   * Deterministic split for an array-valued ROLE_CATEGORY entry (see above)
+   * -- same FNV-1a hash used everywhere else in this file, no RNG. A
+   * plain string entry is returned unchanged, so every other zone/role is
+   * untouched by this helper.
+   */
+  function pickRoleCategory(entry, prefID, tileX, tileY) {
+    if (!Array.isArray(entry)) return entry;
+    const idx = hash(`${prefID}:roleCategory:${tileX}:${tileY}`) % entry.length;
+    return entry[idx];
+  }
   const ZONE_DISTRICT_TAG = {
     cbd: 'cbd', commercial: 'commercial', residential: 'residential',
-    premiumResidential: 'premiumResidential', industrial: 'logistics', landmark: 'landmark'
+    premiumResidential: 'premiumResidential', industrial: 'logistics', landmark: 'landmark', civic: 'civic'
   };
 
   /*
@@ -380,13 +405,46 @@
     }
 
     /*
+     * Two fixed civic-building slots flank the landmark's own block, one
+     * block-column either side (bc=1 and bc=3; the landmark itself always
+     * sits at bc=2) -- still inside the park super-region (regionForBlock's
+     * bc 1..3 / br blockRows-2..blockRows-1 band), so this never touches
+     * the five occupancy-tracked districts (cbd/commercial/residential/
+     * premiumResidential/industrial) or BLOCK_TEMPLATES. Before this pass,
+     * `civic` was a taxonomy entry with NO requester anywhere -- not a
+     * role, not even a CATEGORY_FALLBACK target -- so adding civic sprites
+     * to the manifest alone would never place one; this is the minimal fix.
+     * It keeps the same graceful-degradation contract as everywhere else:
+     * selectSpriteForCategory returning null just leaves the cell as
+     * ordinary park (today's behaviour, unchanged), so this is a true
+     * no-op until real civic sprites exist in the manifest -- verified by
+     * tests/map-phase2-p1-mid-civic-assets-test.js against the current
+     * (civic-less) manifest.
+     */
+    const civicCells = [1, 3]
+      .map(bc => byKey[`${bc * STREET_PERIOD + Math.floor(STREET_PERIOD / 2)},${parkBlockCentreY}`])
+      .filter(cell => cell && cell.zone === 'park');
+    for (const cell of civicCells) {
+      const spriteId = selectSpriteForCategory(index2, {
+        category: 'civic', district: 'civic', prefID, tileX: cell.tileX, tileY: cell.tileY
+      });
+      if (!spriteId) continue; // no civic asset yet -- stays ordinary park
+      cell.zone = 'civic';
+      cell.zoneLabel = ZONE_LABEL2.civic;
+      cell.use = ZONE_USE2.civic;
+      cell.expectsBuilding = true;
+      cell.spriteId = spriteId;
+      cell.scaleVariant = SCALE_VARIANTS[hash(`${prefID}:scale:${cell.tileX}:${cell.tileY}`) % SCALE_VARIANTS.length];
+    }
+
+    /*
      * pass 2a: resolve every buildable cell's block-template role up front
      * (needs to exist for ALL cells before pass 2b, since footprint
      * reservation below must be able to check a not-yet-visited neighbour's
      * role -- row-major order alone can't guarantee that).
      */
     for (const cell of tiles) {
-      if (!BUILDABLE2.has(cell.zone) || cell.zone === 'landmark') continue;
+      if (!BUILDABLE2.has(cell.zone) || cell.zone === 'landmark' || cell.zone === 'civic') continue;
       const blockKey = `${Math.floor(cell.tileX / STREET_PERIOD)},${Math.floor(cell.tileY / STREET_PERIOD)}`;
       const localX = (cell.tileX % STREET_PERIOD) - 1;
       const localY = (cell.tileY % STREET_PERIOD) - 1;
@@ -419,7 +477,7 @@
         }
         continue;
       }
-      const roleCategory = (ROLE_CATEGORY[cell.zone] || {})[role];
+      const roleCategory = pickRoleCategory((ROLE_CATEGORY[cell.zone] || {})[role], prefID, cell.tileX, cell.tileY);
       const district = ZONE_DISTRICT_TAG[cell.zone] || cell.zone;
       const spriteId = roleCategory && selectSpriteForCategory(index2, {
         category: roleCategory, district, prefID,
@@ -822,7 +880,7 @@
     paintWorldRoads, paintCrosswalks, paintOpenLots, paintSidewalkWidening, blitWorldSprites,
     overlayAnchors: worldOverlayAnchors,
     validateCategoryManifest, indexCategoryManifest, selectSpriteForCategory,
-    CATEGORY_TAXONOMY, CATEGORY_FALLBACK, ROLE_CATEGORY, ZONE_DISTRICT_TAG,
+    CATEGORY_TAXONOMY, CATEGORY_FALLBACK, ROLE_CATEGORY, pickRoleCategory, ZONE_DISTRICT_TAG,
     ZONE_LABEL2, ZONE_USE2, GROUND2, STREET_PERIOD, BLOCK_TEMPLATES, BUILT_ROLES
   });
 

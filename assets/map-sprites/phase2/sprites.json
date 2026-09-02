@@ -14,7 +14,8 @@
     "no new artwork in this pass. Files are a local copy of assets/map-sprites/phase1/sprites/, not a reference,",
     "so this manifest never path-escapes into another phase's directory.",
     "Do not recolor or procedurally redraw these buildings. Deterministic selection only; no Math.random.",
-    "P0 pass (2026-09): 20 new non-placeholder office.small/commercial.small/residential.low sprites added under assets/map-sprites/phase2/sprites/p0/. These are Phase 2's own new art (no placeholder flag), unlike the original 15 Phase-1-canonical placeholder rows above. anchor values were measured from each PNG's actual alpha bottom-contact row/column, not assumed from a formula."
+    "P0 pass (2026-09): 20 new non-placeholder office.small/commercial.small/residential.low sprites added under assets/map-sprites/phase2/sprites/p0/. These are Phase 2's own new art (no placeholder flag), unlike the original 15 Phase-1-canonical placeholder rows above. anchor values were measured from each PNG's actual alpha bottom-contact row/column, not assumed from a formula.",
+    "P1 pass (2026-09): 12 new non-placeholder civic/office.mid/residential.mid sprites added under assets/map-sprites/phase2/sprites/p1/. civic's districtTags is 'civic' (not cbd/commercial/residential -- see ROLE_CATEGORY/ZONE_DISTRICT_TAG in prototypes/map-world-preview.js: two fixed slots beside the landmark's own block are the only requester for this category). residential.mid's districtTags include premiumResidential (the pack's own suggestion omitted it, but the existing legacy residential_midrise row already carries it as a real direct requester -- see docs section 11/13 and prototypes/map-world-preview.js ROLE_CATEGORY.premiumResidential.S). office.mid's cbd requests only exist because cbd's S role now splits 3:1 between office.small/office.mid (pickRoleCategory) -- CATEGORY_FALLBACK['office.small'] alone can never reach office.mid once office.small has real assets. anchor values were independently re-measured (alpha-threshold + minimum-row-width, to reject single-pixel anti-aliasing artifacts at the very bottom edge), not taken from the pack's anchorHint as-is."
   ],
   "sprites": [
     {
@@ -883,6 +884,302 @@
       "daytime": true,
       "prototype": true,
       "notes": "P0 ordinary background building (2026-09 asset pack). Anchor measured from actual alpha bottom-contact row, not the pack's formulaic anchorHint."
+    },
+    {
+      "id": "civic_01",
+      "file": "sprites/p1/civic/civic_01.png",
+      "category": "civic",
+      "footprintType": "1x1",
+      "footprint": {
+        "w": 1,
+        "h": 1
+      },
+      "anchor": {
+        "x": 0.556,
+        "y": 0.9801
+      },
+      "scaleClass": "s",
+      "tier": "background",
+      "districtTags": [
+        "civic"
+      ],
+      "spawnWeight": 8,
+      "drawLayer": "building",
+      "daytime": true,
+      "prototype": true,
+      "notes": "P1 mid-rise/civic building (2026-09 asset pack). Anchor independently re-measured from the actual alpha bottom-contact row (alpha-threshold + minimum-row-width, rejecting single-pixel anti-aliasing artifacts), not the pack anchorHint as-is."
+    },
+    {
+      "id": "civic_02",
+      "file": "sprites/p1/civic/civic_02.png",
+      "category": "civic",
+      "footprintType": "1x1",
+      "footprint": {
+        "w": 1,
+        "h": 1
+      },
+      "anchor": {
+        "x": 0.7284,
+        "y": 1
+      },
+      "scaleClass": "s",
+      "tier": "background",
+      "districtTags": [
+        "civic"
+      ],
+      "spawnWeight": 8,
+      "drawLayer": "building",
+      "daytime": true,
+      "prototype": true,
+      "notes": "P1 mid-rise/civic building (2026-09 asset pack). Anchor independently re-measured from the actual alpha bottom-contact row (alpha-threshold + minimum-row-width, rejecting single-pixel anti-aliasing artifacts), not the pack anchorHint as-is."
+    },
+    {
+      "id": "civic_03",
+      "file": "sprites/p1/civic/civic_03.png",
+      "category": "civic",
+      "footprintType": "1x1",
+      "footprint": {
+        "w": 1,
+        "h": 1
+      },
+      "anchor": {
+        "x": 0.4989,
+        "y": 0.9804
+      },
+      "scaleClass": "s",
+      "tier": "background",
+      "districtTags": [
+        "civic"
+      ],
+      "spawnWeight": 8,
+      "drawLayer": "building",
+      "daytime": true,
+      "prototype": true,
+      "notes": "P1 mid-rise/civic building (2026-09 asset pack). Anchor independently re-measured from the actual alpha bottom-contact row (alpha-threshold + minimum-row-width, rejecting single-pixel anti-aliasing artifacts), not the pack anchorHint as-is."
+    },
+    {
+      "id": "civic_04",
+      "file": "sprites/p1/civic/civic_04.png",
+      "category": "civic",
+      "footprintType": "1x1",
+      "footprint": {
+        "w": 1,
+        "h": 1
+      },
+      "anchor": {
+        "x": 0.5262,
+        "y": 0.9779
+      },
+      "scaleClass": "s",
+      "tier": "background",
+      "districtTags": [
+        "civic"
+      ],
+      "spawnWeight": 8,
+      "drawLayer": "building",
+      "daytime": true,
+      "prototype": true,
+      "notes": "P1 mid-rise/civic building (2026-09 asset pack). Anchor independently re-measured from the actual alpha bottom-contact row (alpha-threshold + minimum-row-width, rejecting single-pixel anti-aliasing artifacts), not the pack anchorHint as-is."
+    },
+    {
+      "id": "office_mid_01",
+      "file": "sprites/p1/office_mid/office_mid_01.png",
+      "category": "office.mid",
+      "footprintType": "1x1",
+      "footprint": {
+        "w": 1,
+        "h": 1
+      },
+      "anchor": {
+        "x": 0.5027,
+        "y": 0.9814
+      },
+      "scaleClass": "m",
+      "tier": "filler",
+      "districtTags": [
+        "cbd"
+      ],
+      "spawnWeight": 8,
+      "drawLayer": "building",
+      "daytime": true,
+      "prototype": true,
+      "notes": "P1 mid-rise/civic building (2026-09 asset pack). Anchor independently re-measured from the actual alpha bottom-contact row (alpha-threshold + minimum-row-width, rejecting single-pixel anti-aliasing artifacts), not the pack anchorHint as-is."
+    },
+    {
+      "id": "office_mid_02",
+      "file": "sprites/p1/office_mid/office_mid_02.png",
+      "category": "office.mid",
+      "footprintType": "1x1",
+      "footprint": {
+        "w": 1,
+        "h": 1
+      },
+      "anchor": {
+        "x": 0.6752,
+        "y": 1
+      },
+      "scaleClass": "m",
+      "tier": "filler",
+      "districtTags": [
+        "cbd"
+      ],
+      "spawnWeight": 8,
+      "drawLayer": "building",
+      "daytime": true,
+      "prototype": true,
+      "notes": "P1 mid-rise/civic building (2026-09 asset pack). Anchor independently re-measured from the actual alpha bottom-contact row (alpha-threshold + minimum-row-width, rejecting single-pixel anti-aliasing artifacts), not the pack anchorHint as-is."
+    },
+    {
+      "id": "office_mid_03",
+      "file": "sprites/p1/office_mid/office_mid_03.png",
+      "category": "office.mid",
+      "footprintType": "1x1",
+      "footprint": {
+        "w": 1,
+        "h": 1
+      },
+      "anchor": {
+        "x": 0.4762,
+        "y": 0.9795
+      },
+      "scaleClass": "m",
+      "tier": "filler",
+      "districtTags": [
+        "cbd"
+      ],
+      "spawnWeight": 8,
+      "drawLayer": "building",
+      "daytime": true,
+      "prototype": true,
+      "notes": "P1 mid-rise/civic building (2026-09 asset pack). Anchor independently re-measured from the actual alpha bottom-contact row (alpha-threshold + minimum-row-width, rejecting single-pixel anti-aliasing artifacts), not the pack anchorHint as-is."
+    },
+    {
+      "id": "office_mid_04",
+      "file": "sprites/p1/office_mid/office_mid_04.png",
+      "category": "office.mid",
+      "footprintType": "1x1",
+      "footprint": {
+        "w": 1,
+        "h": 1
+      },
+      "anchor": {
+        "x": 0.482,
+        "y": 0.979
+      },
+      "scaleClass": "m",
+      "tier": "filler",
+      "districtTags": [
+        "cbd"
+      ],
+      "spawnWeight": 8,
+      "drawLayer": "building",
+      "daytime": true,
+      "prototype": true,
+      "notes": "P1 mid-rise/civic building (2026-09 asset pack). Anchor independently re-measured from the actual alpha bottom-contact row (alpha-threshold + minimum-row-width, rejecting single-pixel anti-aliasing artifacts), not the pack anchorHint as-is."
+    },
+    {
+      "id": "residential_mid_01",
+      "file": "sprites/p1/residential_mid/residential_mid_01.png",
+      "category": "residential.mid",
+      "footprintType": "1x1",
+      "footprint": {
+        "w": 1,
+        "h": 1
+      },
+      "anchor": {
+        "x": 0.2358,
+        "y": 1
+      },
+      "scaleClass": "m",
+      "tier": "filler",
+      "districtTags": [
+        "residential",
+        "premiumResidential",
+        "commercial"
+      ],
+      "spawnWeight": 8,
+      "drawLayer": "building",
+      "daytime": true,
+      "prototype": true,
+      "notes": "P1 mid-rise/civic building (2026-09 asset pack). Anchor independently re-measured from the actual alpha bottom-contact row (alpha-threshold + minimum-row-width, rejecting single-pixel anti-aliasing artifacts), not the pack anchorHint as-is."
+    },
+    {
+      "id": "residential_mid_02",
+      "file": "sprites/p1/residential_mid/residential_mid_02.png",
+      "category": "residential.mid",
+      "footprintType": "1x1",
+      "footprint": {
+        "w": 1,
+        "h": 1
+      },
+      "anchor": {
+        "x": 0.3475,
+        "y": 1
+      },
+      "scaleClass": "m",
+      "tier": "filler",
+      "districtTags": [
+        "residential",
+        "premiumResidential",
+        "commercial"
+      ],
+      "spawnWeight": 8,
+      "drawLayer": "building",
+      "daytime": true,
+      "prototype": true,
+      "notes": "P1 mid-rise/civic building (2026-09 asset pack). Anchor independently re-measured from the actual alpha bottom-contact row (alpha-threshold + minimum-row-width, rejecting single-pixel anti-aliasing artifacts), not the pack anchorHint as-is."
+    },
+    {
+      "id": "residential_mid_03",
+      "file": "sprites/p1/residential_mid/residential_mid_03.png",
+      "category": "residential.mid",
+      "footprintType": "1x1",
+      "footprint": {
+        "w": 1,
+        "h": 1
+      },
+      "anchor": {
+        "x": 0.6676,
+        "y": 1
+      },
+      "scaleClass": "m",
+      "tier": "filler",
+      "districtTags": [
+        "residential",
+        "premiumResidential",
+        "commercial"
+      ],
+      "spawnWeight": 8,
+      "drawLayer": "building",
+      "daytime": true,
+      "prototype": true,
+      "notes": "P1 mid-rise/civic building (2026-09 asset pack). Anchor independently re-measured from the actual alpha bottom-contact row (alpha-threshold + minimum-row-width, rejecting single-pixel anti-aliasing artifacts), not the pack anchorHint as-is."
+    },
+    {
+      "id": "residential_mid_04",
+      "file": "sprites/p1/residential_mid/residential_mid_04.png",
+      "category": "residential.mid",
+      "footprintType": "1x1",
+      "footprint": {
+        "w": 1,
+        "h": 1
+      },
+      "anchor": {
+        "x": 0.6191,
+        "y": 0.9793
+      },
+      "scaleClass": "m",
+      "tier": "filler",
+      "districtTags": [
+        "residential",
+        "premiumResidential",
+        "commercial"
+      ],
+      "spawnWeight": 8,
+      "drawLayer": "building",
+      "daytime": true,
+      "prototype": true,
+      "notes": "P1 mid-rise/civic building (2026-09 asset pack). Anchor independently re-measured from the actual alpha bottom-contact row (alpha-threshold + minimum-row-width, rejecting single-pixel anti-aliasing artifacts), not the pack anchorHint as-is."
     }
   ]
 }
