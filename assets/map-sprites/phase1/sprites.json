@@ -1,0 +1,178 @@
+{
+  "schemaVersion": 1,
+  "set": "phase1",
+  "lighting": "daytime",
+  "tile": { "w": 64, "h": 32 },
+  "note": "Building artwork is produced outside this repository and dropped into this directory. The renderer never draws buildings itself; a missing file falls back to a development placeholder.",
+  "sprites": [
+    {
+      "id": "office-glass-tower-01",
+      "file": "office-glass-tower.png",
+      "category": "office",
+      "zone": ["cbd"],
+      "footprint": { "w": 1, "h": 1 },
+      "anchor": { "x": 0.5, "y": 0.92 },
+      "scaleClass": "xl",
+      "grade": ["premium", "prestige"],
+      "weight": 22
+    },
+    {
+      "id": "office-setback-tower-01",
+      "file": "office-setback-tower.png",
+      "category": "office",
+      "zone": ["cbd"],
+      "footprint": { "w": 1, "h": 1 },
+      "anchor": { "x": 0.5, "y": 0.92 },
+      "scaleClass": "xl",
+      "grade": ["premium", "standard"],
+      "weight": 20
+    },
+    {
+      "id": "office-podium-hq-01",
+      "file": "office-podium-hq.png",
+      "category": "office",
+      "zone": ["cbd"],
+      "footprint": { "w": 1, "h": 1 },
+      "anchor": { "x": 0.5, "y": 0.92 },
+      "scaleClass": "l",
+      "grade": ["prestige", "premium"],
+      "weight": 18
+    },
+    {
+      "id": "office-wide-midrise-01",
+      "file": "office-wide-midrise.png",
+      "category": "office",
+      "zone": ["cbd", "commercial"],
+      "footprint": { "w": 1, "h": 1 },
+      "anchor": { "x": 0.5, "y": 0.92 },
+      "scaleClass": "m",
+      "grade": ["standard"],
+      "weight": 22
+    },
+    {
+      "id": "office-stone-hq-01",
+      "file": "office-stone-hq.png",
+      "category": "office",
+      "zone": ["cbd"],
+      "footprint": { "w": 1, "h": 1 },
+      "anchor": { "x": 0.5, "y": 0.92 },
+      "scaleClass": "m",
+      "grade": ["prestige"],
+      "weight": 18
+    },
+
+    {
+      "id": "commercial-neon-block-01",
+      "file": "commercial-neon-block.png",
+      "category": "commercial",
+      "zone": ["commercial"],
+      "footprint": { "w": 1, "h": 1 },
+      "anchor": { "x": 0.5, "y": 0.92 },
+      "scaleClass": "m",
+      "grade": ["standard"],
+      "weight": 26
+    },
+    {
+      "id": "commercial-shopping-01",
+      "file": "commercial-shopping.png",
+      "category": "commercial",
+      "zone": ["commercial"],
+      "footprint": { "w": 1, "h": 1 },
+      "anchor": { "x": 0.5, "y": 0.92 },
+      "scaleClass": "m",
+      "grade": ["premium", "standard"],
+      "weight": 24
+    },
+    {
+      "id": "commercial-mixed-use-01",
+      "file": "commercial-mixed-use.png",
+      "category": "commercial",
+      "zone": ["commercial", "residential"],
+      "footprint": { "w": 1, "h": 1 },
+      "anchor": { "x": 0.5, "y": 0.92 },
+      "scaleClass": "s",
+      "grade": ["standard"],
+      "weight": 26
+    },
+    {
+      "id": "commercial-mainstreet-01",
+      "file": "commercial-mainstreet.png",
+      "category": "commercial",
+      "zone": ["commercial"],
+      "footprint": { "w": 1, "h": 1 },
+      "anchor": { "x": 0.5, "y": 0.92 },
+      "scaleClass": "s",
+      "grade": ["standard", "budget"],
+      "weight": 24
+    },
+
+    {
+      "id": "residential-apartment-01",
+      "file": "residential-apartment.png",
+      "category": "residential",
+      "zone": ["residential"],
+      "footprint": { "w": 1, "h": 1 },
+      "anchor": { "x": 0.5, "y": 0.92 },
+      "scaleClass": "m",
+      "grade": ["standard"],
+      "weight": 42
+    },
+    {
+      "id": "residential-premium-01",
+      "file": "residential-premium.png",
+      "category": "residential",
+      "zone": ["residential"],
+      "footprint": { "w": 1, "h": 1 },
+      "anchor": { "x": 0.5, "y": 0.92 },
+      "scaleClass": "m",
+      "grade": ["premium"],
+      "weight": 22
+    },
+    {
+      "id": "residential-lowrise-01",
+      "file": "residential-lowrise.png",
+      "category": "residential",
+      "zone": ["residential"],
+      "footprint": { "w": 1, "h": 1 },
+      "anchor": { "x": 0.5, "y": 0.92 },
+      "scaleClass": "xs",
+      "grade": ["standard", "budget"],
+      "weight": 36
+    },
+
+    {
+      "id": "industrial-warehouse-01",
+      "file": "industrial-warehouse.png",
+      "category": "industrial",
+      "zone": ["industrial"],
+      "footprint": { "w": 1, "h": 1 },
+      "anchor": { "x": 0.5, "y": 0.92 },
+      "scaleClass": "m",
+      "grade": ["standard"],
+      "weight": 62
+    },
+    {
+      "id": "industrial-logistics-01",
+      "file": "industrial-logistics.png",
+      "category": "industrial",
+      "zone": ["industrial"],
+      "footprint": { "w": 1, "h": 1 },
+      "anchor": { "x": 0.5, "y": 0.92 },
+      "scaleClass": "s",
+      "grade": ["standard"],
+      "weight": 38
+    },
+
+    {
+      "id": "landmark-tokyo-01",
+      "file": "landmark-tokyo.png",
+      "category": "landmark",
+      "zone": ["landmark"],
+      "footprint": { "w": 1, "h": 1 },
+      "anchor": { "x": 0.5, "y": 0.95 },
+      "scaleClass": "xl",
+      "grade": ["prestige"],
+      "weight": 100
+    }
+  ]
+}

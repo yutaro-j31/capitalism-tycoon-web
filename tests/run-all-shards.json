@@ -125,6 +125,7 @@
     "tests/founding-tutorial-non-target-business-test.js",
     "tests/gym-membership-strategy-test.js",
     "tests/executeipo-base-class-accounting-test.js",
-    "tests/d-ui-reference-fidelity-test.js"
+    "tests/d-ui-reference-fidelity-test.js",
+    "tests/map-canvas-foundation-test.js"
   ]
 }
