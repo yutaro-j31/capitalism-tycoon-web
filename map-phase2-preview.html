@@ -131,12 +131,15 @@ td b{color:var(--text);font-variant-numeric:tabular-nums}
   const PREF_ID = 'tokyo';
   /* Phase 2's own manifest (category taxonomy + district tags + spawn
      weight; see docs/map-phase2-asset-integration-contract.md) lives here.
-     Its 15 current rows are placeholders for the existing Phase 1 sprites --
+     Its original 15 rows are placeholders for the existing Phase 1 sprites --
      rather than duplicate those PNGs, the manifest's `file` values match
      Phase 1's own filenames 1:1 and the actual image bytes are loaded from
      Phase 1's directory (IMAGE_BASE), which stays the single canonical copy.
      Phase 1's manifest/renderer/tests are untouched; this file only reads
-     from its asset directory. */
+     from its asset directory. The P0 pass added real, non-placeholder art
+     (office.small/commercial.small/residential.low) that lives under Phase 2's
+     own directory instead -- boot() below loads each sprite from whichever
+     base its `placeholder` flag says it belongs to. */
   const ASSET_BASE = './assets/map-sprites/phase2';
   const IMAGE_BASE = './assets/map-sprites/phase1';
   const WORLD_COLS = 32, WORLD_ROWS = 28;
@@ -325,8 +328,17 @@ td b{color:var(--text);font-variant-numeric:tabular-nums}
     district = MW.buildWorldDistrict({ index2: index, prefID: PREF_ID, cols: WORLD_COLS, rows: WORLD_ROWS });
     rebuildCount = 1;
 
-    const result = await MW.loadSprites(index, IMAGE_BASE);
-    images = result.images;
+    /* Legacy (placeholder:true) rows still point at Phase 1's canonical PNGs;
+       real P0-and-later art (no placeholder flag) lives under Phase 2's own
+       directory instead. loadSprites() only accepts one basePath per call, so
+       split the manifest by that flag and load each half from its own base. */
+    const legacyIndex = Object.assign({}, index, { sprites: index.sprites.filter(sprite => sprite.placeholder) });
+    const newIndex = Object.assign({}, index, { sprites: index.sprites.filter(sprite => !sprite.placeholder) });
+    const [legacyResult, newResult] = await Promise.all([
+      MW.loadSprites(legacyIndex, IMAGE_BASE),
+      MW.loadSprites(newIndex, ASSET_BASE),
+    ]);
+    images = Object.assign({}, legacyResult.images, newResult.images);
 
     layoutCanvas();
     const wt = MW.worldTransform(district, index.tile, DEFAULT_SCALE);

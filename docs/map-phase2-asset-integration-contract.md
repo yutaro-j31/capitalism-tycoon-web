@@ -279,3 +279,73 @@ Canvas primitiveとして`openSpace.plaza`/`park`にベンチ・街灯を追加�
 - 5種のピン（store/tenant/office/realestate/landmark）のクリック選択（Playwright）
 - パフォーマンス（DOM node数・city再構築回数・pan frame time）が
   Phase 2A時点の実測から悪化していないこと
+
+## 11. P0 pass（2026-09、背景建物20種の実asset追加）
+
+6節の不足リスト最優先3項目（`office.small` / `commercial.small` /
+`residential.low`）を実装した。ChatGPT側で生成されたasset packを監査し、
+metadataは全て本contractのsource of truth（`ROLE_CATEGORY` /
+`FOOTPRINT_BY_TYPE` / `CATEGORY_TAXONOMY`）へ合わせ込んだ
+（`anchorHint`/`footprintType`はpack付属の推定値をそのまま使わず、
+実測・再計算し直した）。
+
+- `office.small` 6種、`commercial.small` 8種、`residential.low` 6種、
+  計20 sprite追加（manifest行数は15→35）
+- footprintTypeは全て`1x1`に統一（6節「今回の不足リストはすべて1x1想定」
+  の通り。pack付属の`footprint: "medium"`ラベルは画像の見た目サイズの
+  分類であり、タイル占有数とは無関係だったため上書きした）
+- `anchor`はpack付属の`anchorHint`（式による近似値）を採用せず、各PNGの
+  alphaチャンネルの実際の接地行/列から測定し直した（Pillowで最下段の
+  非透明ピクセルを検出し、その行のalpha加重x中心を接地点とした）
+- `districtTags`はROLE_CATEGORYから逆算: `office.small`→`['cbd']`、
+  `commercial.small`→`['cbd','commercial']`、
+  `residential.low`→`['commercial','residential']`
+  （pack付属の`office`/`mixedUse`/`roadsideRetail`等の独自タグは
+  本contractのdistrict語彙と一致しないため使わなかった）
+- `spawnWeight`は20種とも一律10（既存hero系の16〜22より低く設定。
+  今回はspawn比率のチューニングをスコープ外とし、次回Visual
+  Calibration passで見直す前提）
+- `tier`は`background`（`filler`と描画上は同じ扱いだが、この20種は
+  意図的に「ありふれた背景建物」であることを表す語彙として選んだ）
+
+**実asset本体の配置場所**: 4節で説明した通りPhase 1の15枚は
+`assets/map-sprites/phase1/`をcanonical sourceとして参照するだけだが、
+今回のP0の20枚は正真正銘の新規artのため
+`assets/map-sprites/phase2/sprites/p0/{office_small,commercial_small,
+residential_low}/`へ実体を置いた（Phase 1側との重複はSHA256で無しを確認）。
+
+**`map-phase2-preview.html`の対応（renderer本体は無変更）**: 従来の
+`boot()`は`MW.loadSprites(index, IMAGE_BASE)`という単一呼び出しで
+manifest全行をPhase 1のディレクトリから読んでいた（15行全てが
+`placeholder:true`だったため成立していた）。P0で`placeholder`のない
+実体行が初めて登場したため、`sprite.placeholder`の有無でmanifestを
+2分割し、`placeholder:true`の行は従来通り`IMAGE_BASE`（Phase 1）から、
+`placeholder`なしの行は`ASSET_BASE`（Phase 2自身のディレクトリ）から
+読むよう`boot()`内の画像ロード呼び出しだけを2回呼び出し+マージへ
+変更した。`prototypes/map-canvas-renderer.js`の`loadSprites()`自体・
+`selectSpriteForCategory`/`validateCategoryManifest`は無変更。
+
+**効果の実測**（`office.small`/`commercial.small`/`residential.low`の
+foundation時点の状態と比較、tokyo/32×28タイル）:
+- `office.small`: 0タイル→48タイル・distinct 6種（以前は全て
+  office.mid/hero へfallback）
+- `commercial.small`: 1sprite（`commercial_billboard`のみ）→9種、
+  72タイルに分散
+- `residential.low`: 0タイル→82タイル・distinct 6種（以前は全て
+  residential.mid/townhouseへfallback）
+- district別occupancy（cbd 62.5% / commercial 62.5% / residential
+  44.1% / premium 30.0% / industrial 26.7%）はP0追加前後で完全一致
+  （spawnWeight・block template・fallback chainのアルゴリズムは
+  一切変更していないため）
+- 「普通のbackground building」対「hero」の出現タイル数比は
+  約202:46（≒4.4:1）で、6節に掲げた「ありふれた1x1の不足」を
+  数値上も解消した
+
+## 12. 今後のP1/P2・Visual Calibration
+
+- P1（civic 3〜4種、office.mid追加、residential.mid追加）・P2
+  （openSpace系props）は本passの対象外。次のasset追加PRで扱う
+- 今回`spawnWeight`は一律10に固定した（意図的にチューニングしていない）。
+  hero/filler/background間の出現比率を作品としてどう調整するかは
+  別途「Visual Calibration PR」として切り出す想定
+- `civic`カテゴリは依然として実asset0件のまま（6節参照）
