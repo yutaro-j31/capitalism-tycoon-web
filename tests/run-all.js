@@ -54,6 +54,7 @@ const nodeTests = [
   ['d-ui-map-detail', 'tests/d-ui-map-detail-test.js'],
   ['map-canvas-foundation', 'tests/map-canvas-foundation-test.js'],
   ['map-phase2-p0-assets', 'tests/map-phase2-p0-assets-test.js'],
+  ['map-phase2-visual-calibration', 'tests/map-phase2-visual-calibration-test.js'],
   ['d-ui-shell', 'tests/d-ui-shell-test.js'],
   ['deterministic-economic-foundation', 'tests/deterministic-economic-foundation-test.js'],
   ['executive-dismissal-governance', 'tests/executive-dismissal-governance-test.js'],
