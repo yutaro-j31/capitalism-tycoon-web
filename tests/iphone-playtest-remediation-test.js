@@ -16,6 +16,83 @@ has(js,'input.focus({preventScroll:true})','money modal must synchronously focus
 has(js,"['business-invest','borrow-company','repay-company','borrow-personal','repay-personal']",'money actions must use shared iPhone modal');
 for(const action of ['filter','legend','zoom-out','zoom-reset','zoom-in','view'])has(js,`data-iphone-map-action=\"${action}\"`,`map action ${action} must exist`);
 for(const feature of ['iphone-store-cockpit','iphone-debt-ledger','iphone-crisis-compact','data-iphone-pref'])has(js,feature,`${feature} missing`);
+
+// js/d-ui-shell.js's mapEntities() already renders every unowned property in the
+// selected prefecture as a canonical .d-map-marker.realestate button. Synthesising a
+// second, independently-positioned .iphone-synthetic-marker.property for the same
+// property id duplicated every listing and -- since the two systems use different
+// position formulas and .iphone-synthetic-marker has a higher z-index (11 vs the real
+// marker's 5) -- could land the duplicate directly on top of a real marker, silently
+// making it unclickable. ensureSyntheticMapEntities must not reintroduce that
+// duplicate; only competitors (which have no canonical marker elsewhere) still get a
+// synthetic one, and it must be placed clear of every existing .d-map-marker.
+assert(!/class="iphone-synthetic-marker property"/.test(js),'a second, synthetic property marker must not be reintroduced (js/d-ui-shell.js already renders every unowned property as .d-map-marker.realestate)');
+assert(!/data-iphone-map-entity="property"/.test(js),'property synthetic markers must stay removed');
+has(js,'function positionsCollide(','collision-avoidance helper missing');
+has(js,'function findClearMarkerPosition(','clear-position search helper missing');
+has(js,'const occupied=Array.from(stage.querySelectorAll(\'.d-map-marker\'))','synthetic marker placement must seed occupied positions from real markers');
+assert(/competitors\.forEach\([^)]*\)=>\{const pos=findClearMarkerPosition\(/.test(js),'competitor synthetic markers must use findClearMarkerPosition');
+has(js,'occupied.push(pos)','each placed synthetic marker must be added to the occupied set so later markers avoid it too');
+{
+ const extractFunction=name=>{
+  const marker=`function ${name}(`;
+  const start=js.indexOf(marker);
+  assert(start>=0,`could not locate ${name} for extraction`);
+  const braceStart=js.indexOf('{',start);
+  assert(braceStart>=0,`could not locate body of ${name}`);
+  let depth=0,index=braceStart;
+  for(;index<js.length;index+=1){
+   if(js[index]==='{')depth+=1;
+   else if(js[index]==='}'){depth-=1;if(depth===0)break;}
+  }
+  assert(depth===0,`unbalanced braces while extracting ${name}`);
+  return js.slice(start,index+1);
+ };
+ const extractConstLine=name=>{
+  const match=new RegExp(`^const ${name}=.*;$`,'m').exec(js);
+  assert(match,`could not locate const ${name} for extraction`);
+  return match[0];
+ };
+ const sandbox={};
+ // eslint-disable-next-line no-new-func
+ new Function('sandbox',[
+  extractConstLine('MARKER_GRID_X'),
+  extractConstLine('MARKER_GRID_Y'),
+  extractFunction('stableHash'),
+  extractFunction('markerPosition'),
+  extractFunction('positionsCollide'),
+  extractFunction('findClearMarkerPosition'),
+  'Object.assign(sandbox,{stableHash,markerPosition,positionsCollide,findClearMarkerPosition});',
+ ].join('\n'))(sandbox);
+ const {positionsCollide,findClearMarkerPosition,markerPosition}=sandbox;
+ assert.equal(positionsCollide({x:50,y:50},{x:55,y:52}),true,'nearby positions must be treated as colliding');
+ assert.equal(positionsCollide({x:50,y:50},{x:80,y:50}),false,'far-apart positions must not be treated as colliding');
+ const occupiedNear=[{x:50,y:50}];
+ const resolved=findClearMarkerPosition('competitor:test-id',30,occupiedNear);
+ assert(!occupiedNear.some(spot=>positionsCollide(resolved,spot)),'findClearMarkerPosition must return a position clear of every occupied spot when one exists');
+ const resolvedAgain=findClearMarkerPosition('competitor:test-id',30,occupiedNear);
+ assert.deepEqual(resolved,resolvedAgain,'findClearMarkerPosition must be a pure deterministic function of its inputs');
+ // A field densely packed with markers on a fine grid still leaves this function
+ // returning a plain, well-formed position (graceful degradation, matching this
+ // codebase's fallback-to-open-space philosophy) rather than throwing or looping
+ // forever, even when no grid candidate is fully clear.
+ const denseOccupied=Array.from({length:60},(_,index)=>markerPosition(`blocker:${index}`,index));
+ const fallback=findClearMarkerPosition('competitor:crowded',30,denseOccupied);
+ assert(Number.isFinite(fallback.x)&&Number.isFinite(fallback.y),'findClearMarkerPosition must always return a finite position, even under a fully packed map');
+ // Realistic density check: 14 real markers (the production cap: up to 6 stores + 6
+ // tenants + 2 offices) plus up to 3 competitor markers must resolve with zero
+ // overlaps across many different id/position combinations -- this is the exact
+ // scenario that broke tests/d-ui-webkit-test.js's desktop map click.
+ for(let trial=0;trial<200;trial+=1){
+  const reals=Array.from({length:14},(_,index)=>markerPosition(`real-trial-${trial}:${index}`,index));
+  const occupied=reals.slice();
+  for(let index=0;index<3;index+=1){
+   const pos=findClearMarkerPosition(`competitor:trial-${trial}:${index}`,index+30,occupied);
+   assert(!occupied.some(spot=>positionsCollide(pos,spot)),`trial ${trial} competitor ${index} must not collide with any of the 14 real markers or earlier competitors`);
+   occupied.push(pos);
+  }
+ }
+}
 has(compat,'modules.playerDebtRefinancing?.__installed','compat bridge must only activate after debt refinancing is installed');
 has(compat,'compatibilityAlias:true','compat bridge marker missing');
 has(css,'top:auto!important','mobile navigation must clear conflicting top');

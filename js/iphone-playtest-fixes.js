@@ -43,6 +43,25 @@ function openMoneyModal(context){
 function interceptMoney(event){const target=event.target?.closest?.('[data-action]');if(!target)return false;const action=target.dataset.action;if(!['business-invest','borrow-company','repay-company','borrow-personal','repay-personal'].includes(action))return false;const context=moneyContext(action,target.dataset.id,target.dataset.kind);if(!context)return false;event.preventDefault();event.stopPropagation();event.stopImmediatePropagation?.();openMoneyModal(context);return true;}
 function stableHash(text){let value=2166136261;for(const char of String(text)){value^=char.codePointAt(0);value=Math.imul(value,16777619);}return value>>>0;}
 function markerPosition(key,index){const hash=stableHash(key);return {x:10+((hash+index*17)%80),y:16+(((hash>>>8)+index*23)%68)};}
+function positionsCollide(a,b){return Math.abs(a.x-b.x)<12&&Math.abs(a.y-b.y)<14;}
+function readMarkerPercent(el,prop){const value=parseFloat(el.style.getPropertyValue(prop));return Number.isFinite(value)?value:null;}
+// Grid spacing (13 on x, 15 on y) is deliberately wider than positionsCollide's own
+// threshold (12,14) so no two grid cells can collide with each other -- only with
+// markers already on the map. Candidates are tried nearest-to-the-preferred-spot
+// first so a nudge stays visually close to where the deterministic hash wanted it.
+const MARKER_GRID_X=[14,27,40,53,66,79];
+const MARKER_GRID_Y=[20,35,50,65,80];
+function findClearMarkerPosition(key,baseIndex,occupied){
+ const preferred=markerPosition(key,baseIndex);
+ if(!occupied.some(spot=>positionsCollide(preferred,spot)))return preferred;
+ const candidates=[];
+ for(const x of MARKER_GRID_X)for(const y of MARKER_GRID_Y)candidates.push({x,y});
+ candidates.sort((a,b)=>((a.x-preferred.x)**2+(a.y-preferred.y)**2)-((b.x-preferred.x)**2+(b.y-preferred.y)**2));
+ for(const candidate of candidates){
+  if(!occupied.some(spot=>positionsCollide(candidate,spot)))return candidate;
+ }
+ return preferred;
+}
 function ensureMapChrome(){
  if(activeTab()!=='map')return;const g=game(),screen=document.getElementById('screen'),stage=screen?.querySelector('.d-map-stage');if(!g||!screen||!stage)return;
  const original=screen.querySelector('.d-map-directory select[data-bind="selectedPref"]');const current=original?.value||g.selectedPref||g.founderHomePrefID;
@@ -70,10 +89,17 @@ function ensureCityDetail(stage,g,prefID){
 }
 function ensureSyntheticMapEntities(stage,g,prefID){
  stage.querySelectorAll('.iphone-synthetic-marker').forEach(node=>node.remove());
- const properties=(g.properties||[]).filter(item=>item.prefID===prefID&&!item.owner).slice(0,3);
+ // Properties are NOT synthesised here: js/d-ui-shell.js's own mapEntities() already
+ // renders every unowned property in this prefecture as a canonical .d-map-marker.realestate
+ // button (see realEstateButtons there). Adding a second, independently-positioned
+ // .iphone-synthetic-marker.property for the same property id duplicated every listing and,
+ // since the two systems use different position formulas, could land the duplicate directly
+ // on top of the real marker -- silently blocking clicks on it (and on any other .d-map-marker
+ // it happened to cover). Competitors have no such canonical marker elsewhere, so they still
+ // get a synthetic one, now placed clear of every existing .d-map-marker.
+ const occupied=Array.from(stage.querySelectorAll('.d-map-marker')).map(marker=>({x:readMarkerPercent(marker,'--x'),y:readMarkerPercent(marker,'--y')})).filter(spot=>spot.x!==null&&spot.y!==null);
  const competitors=(g.competitorStates||[]).flatMap(comp=>(comp.marketPresence||[]).filter(p=>p.active&&(!p.prefID||p.prefID===prefID)).slice(0,1).map(p=>({comp,p}))).slice(0,3);
- properties.forEach((property,index)=>{const pos=markerPosition(`property:${property.id}`,index+20);stage.insertAdjacentHTML('beforeend',`<button type="button" class="iphone-synthetic-marker property" style="--x:${pos.x}%;--y:${pos.y}%" data-iphone-map-entity="property" data-id="${esc(property.id)}" aria-label="${esc(property.name)}"><span>▧</span></button>`);});
- competitors.forEach(({comp},index)=>{const pos=markerPosition(`competitor:${comp.id}`,index+30);stage.insertAdjacentHTML('beforeend',`<button type="button" class="iphone-synthetic-marker competitor" style="--x:${pos.x}%;--y:${pos.y}%" data-iphone-map-entity="competitor" data-id="${esc(comp.id)}" aria-label="${esc(comp.name)}"><span>◆</span></button>`);});
+ competitors.forEach(({comp},index)=>{const pos=findClearMarkerPosition(`competitor:${comp.id}`,index+30,occupied);occupied.push(pos);stage.insertAdjacentHTML('beforeend',`<button type="button" class="iphone-synthetic-marker competitor" style="--x:${pos.x}%;--y:${pos.y}%" data-iphone-map-entity="competitor" data-id="${esc(comp.id)}" aria-label="${esc(comp.name)}"><span>◆</span></button>`);});
  stage.querySelectorAll('.d-map-marker').forEach(marker=>{marker.dataset.iphoneKind=marker.classList.contains('tenant')?'tenant':marker.classList.contains('office')?'office':'store';});
 }
 function applyMapFilters(stage){
