@@ -496,3 +496,79 @@ override and its cascade-order dependency on `d-ui-reference-fidelity.css`
 (with a negative test proving the override is load-bearing), and re-checks
 the no-district-rebuild-during-redraw, no-`Math.random`, and SAVE_KEY/
 saveVersion invariants this change must not disturb.
+
+## 13. Prefecture-switch canvas lifecycle + last legacy-toolbar removal
+
+Real iPhone playtesting of the merged production map (main
+`91ac0bf1a1b39aee49b65765119b0d51e12fa6aa`, after section 12's zoom-out
+calibration) found switching prefectures badly broken: a blank/mostly-
+background-colour canvas, a giant stretched fragment of the scenery, an
+unstable initial framing after the switch, and the legacy `.d-map-tools`
+bar (with its dead zoom-out/zoom-in buttons) reappearing at the bottom of
+the map. Two independent root causes, fixed together:
+
+**Root cause 1 — canvas backing-store lifecycle.** `js/d-ui-shell.js`'s
+`renderMapWorkspace()` rebuilds `.d-city-surface`'s innerHTML wholesale on
+every render (prefecture switch included), so a brand-new `<canvas
+class="d-phase2-canvas">` element replaces the old one every time.
+`js/map-phase2-canvas.js`'s `render()` cached `lastCssW`/`lastCssH`/
+`lastDpr` and skipped re-running `Base.sizeCanvas()` (which sets both the
+canvas's backing-store `width`/`height` AND its inline CSS `style.width`/
+`style.height`) whenever the CSS size matched the *previous* canvas's
+last-known size -- comparing only `cssW`/`cssH`, never canvas element
+identity. A same-size prefecture switch (the common case, since the
+viewport itself doesn't change size) hit that skip on the fresh element:
+`css/d-ui-map-phase2-canvas.css`'s `.d-phase2-canvas{width:100%;
+height:100%}` still gave it the right CSS *layout* box (so `cssW`/`cssH`
+read correctly via `getBoundingClientRect()`), but its *backing store*
+bitmap stayed at the browser's HTML canvas default of 300x150 -- a small
+fragment of the scenery stretched to fill the much larger real CSS box, or
+just the background fill colour, depending on where that tiny 300x150
+window happened to land relative to the drawn content. Fixed by adding
+`lastCanvasEl` to the cache: the skip now requires the SAME canvas element
+AND an unchanged CSS size, so a fresh element (regardless of whether its
+CSS size happens to match the old one) always gets `Base.sizeCanvas()`
+run. The "same canvas, same size" skip itself is preserved unchanged (a
+real pan/select/filter redraw on the SAME element still never resets the
+backing store), so PR C's pan-performance contract is untouched.
+
+**Root cause 2 — dead legacy toolbar.** `renderMapWorkspace()` still
+generated `.d-map-toolbar` (a decorative "都市ビュー⌄" button + prefecture
+name span) and `.d-map-tools` (`◎`/`☷`フィルター/`⌕`凡例/`−`/`＋`) on every
+render, even though none of those buttons have ever had a click handler in
+this file's `handleClick()` since PR D removed the legacy zoom mechanism
+they used to drive -- `.d-map-toolbar` was hidden by a pure CSS rule
+(`.iphone-map-enhanced .d-map-toolbar{display:none!important}`, safe
+regardless of JS timing), but `.d-map-tools` relied on `js/iphone-
+playtest-fixes.js`'s `ensureMapChrome()` enhancer running
+`oldTools.hidden=true` on it *after* every rebuild -- a JS-enhancer-
+timing-dependent window in which a freshly rebuilt `.d-map-tools` (dead
+buttons included) could be visible. That "generate dead markup, then hide
+it" pattern is exactly what PR D's production promotion (section 11) was
+supposed to have retired; it just hadn't been finished for these two
+elements. Fixed by deleting `.d-map-toolbar`/`.d-map-tools` from
+`renderMapWorkspace()`'s template entirely (not hiding them harder) --
+`js/iphone-playtest-fixes.js`'s real, already-unconditional-on-every-
+viewport `.iphone-map-nav`/`.iphone-map-tools`/`.iphone-map-popover`
+chrome (filter/legend/view, all wired) is the sole surviving map toolbar
+on both desktop and iPhone. The now-vacuous `oldTools.hidden=true` line
+and every now-dead `.d-map-toolbar`/`.d-map-tools` CSS selector (across
+`css/d-ui.css`, `css/d-ui-map.css`, `css/d-ui-reference-fidelity.css`,
+`css/iphone-playtest-fixes.css`) were removed alongside it.
+
+Both fixes are scale/lifecycle/markup-only: no `camera.zoom` field, no
+pinch zoom, no new gestures, no change to `DEFAULT_SCALE=0.44` or the
+`.d-map-marker` 48x60 hit target from section 12.
+
+New coverage: `tests/map-phase2-prefecture-switch-canvas-lifecycle-test.js`
+proves a fresh canvas element always gets its backing store (re)sized even
+when its CSS size matches the previous canvas's, that the same canvas at
+the same size still skips the resize (the performance contract), that a
+full Tokyo→Gunma→Saitama→Tokyo→Gunma→Saitama sequence on fresh canvases
+each ends with a correct non-default backing store and `DEFAULT_SCALE`
+unchanged at 0.44, that `.d-map-toolbar`/`.d-map-tools`/the dead zoom
+buttons are gone from the generated markup, and re-checks the no-district-
+rebuild-during-pan, no-placement-rebuild-in-`render()`, marker hit-target,
+no-`Math.random`, and SAVE_KEY/saveVersion invariants -- with two negative
+tests (reverting the canvas-identity cache; reintroducing `.d-map-tools`)
+proving both checks are load-bearing.

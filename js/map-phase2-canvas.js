@@ -195,7 +195,7 @@ function ensureAssetsLoaded(){
 
 /* ---- district cache: rebuilt only when the resolved prefecture changes ---- */
 let cachedDistrict=null,cachedPrefID=null,cachedTransform=null;
-let lastCssW=null,lastCssH=null,lastDpr=null;
+let lastCanvasEl=null,lastCssW=null,lastCssH=null,lastDpr=null;
 function ensureDistrict(index2,prefID){
   const MW=globalThis.MapWorldPreview;
   if(cachedDistrict&&cachedPrefID===prefID)return cachedDistrict;
@@ -416,13 +416,34 @@ function render(canvas,g){
     return;
   }
 
-  /* Skip the (unconditional, per Base.sizeCanvas) canvas.width/height
-     reassignment when the CSS size hasn't actually changed -- pan/select/
-     filter redraws happen far more often than real resizes, and
-     reassigning canvas.width to its own value still resets the backing
-     store per the HTML5 canvas spec. */
-  const dpr=(cssW===lastCssW&&cssH===lastCssH&&lastDpr)?lastDpr:Base.sizeCanvas(canvas,cssW,cssH,globalThis.devicePixelRatio);
-  lastCssW=cssW;lastCssH=cssH;lastDpr=dpr;
+  /*
+   * Skip the (unconditional, per Base.sizeCanvas) canvas.width/height
+   * reassignment when this is the SAME canvas element as last time AND its
+   * CSS size hasn't actually changed -- pan/select/filter redraws happen
+   * far more often than real resizes, and reassigning canvas.width to its
+   * own value still resets the backing store per the HTML5 canvas spec.
+   *
+   * The canvas-identity half of that check is load-bearing, not defensive:
+   * js/d-ui-shell.js's renderMapWorkspace() rebuilds .d-city-surface's
+   * innerHTML wholesale on every render (prefecture switch included), so a
+   * BRAND NEW <canvas> element replaces the old one. css/d-ui-map-phase2-
+   * canvas.css's .d-phase2-canvas{width:100%;height:100%} still gives that
+   * fresh element the right CSS layout box, so cssW/cssH above read
+   * correctly -- but a fresh <canvas> element's own backing store
+   * (canvas.width/height, the bitmap Base.sizeCanvas sets) starts at the
+   * HTML default of 300x150 regardless of its CSS size. Comparing only
+   * cssW/cssH against the previous canvas's last-known size let a
+   * same-size prefecture switch skip sizeCanvas() on the new element
+   * entirely, leaving its bitmap at 300x150 while every paint call below
+   * still assumed the real (much larger) cssW/cssH -- a small stretched
+   * fragment of the scenery, or just the background fill color, is what
+   * that produces once the browser scales that tiny bitmap up to the
+   * element's real CSS box. See tests/map-phase2-prefecture-switch-canvas-
+   * lifecycle-test.js.
+   */
+  const sameCanvas=canvas===lastCanvasEl;
+  const dpr=(sameCanvas&&cssW===lastCssW&&cssH===lastCssH&&lastDpr)?lastDpr:Base.sizeCanvas(canvas,cssW,cssH,globalThis.devicePixelRatio);
+  lastCanvasEl=canvas;lastCssW=cssW;lastCssH=cssH;lastDpr=dpr;
   const {index2,images}=assetsReady;
   const prefID=(g&&(g.selectedPref||g.founderHomePrefID))||FALLBACK_PREF_ID;
   const district=ensureDistrict(index2,prefID);

@@ -83,7 +83,9 @@ function ensureMapChrome(){
  let bar=stage.querySelector('.iphone-map-nav');if(!bar){bar=document.createElement('div');bar.className='iphone-map-nav';stage.appendChild(bar);}
  bar.innerHTML=`<label><span>都道府県</span><select data-iphone-pref>${(g.prefs||[]).map(pref=>`<option value="${esc(pref.id)}" ${String(pref.id)===String(current)?'selected':''}>${esc(pref.name)}</option>`).join('')}</select></label><button type="button" data-iphone-map-action="view">${state.mapPanel==='list'?'都市ビュー':'一覧ビュー'}</button>`;
  bar.querySelector('[data-iphone-pref]').addEventListener('change',event=>{const source=screen.querySelector('.d-map-directory select[data-bind="selectedPref"]');if(!source){toast('都道府県選択を読み込めませんでした。','error');return;}source.value=event.target.value;source.dispatchEvent(new Event('change',{bubbles:true}));});
- const oldTools=stage.querySelector('.d-map-tools');if(oldTools)oldTools.hidden=true;
+ // js/d-ui-shell.js's renderMapWorkspace() never generates .d-map-tools any
+ // more (map-phase2-prefecture-canvas-lifecycle PR) -- there is nothing left
+ // to hide here.
  let tools=stage.querySelector('.iphone-map-tools');if(!tools){tools=document.createElement('div');tools.className='iphone-map-tools';stage.appendChild(tools);}
  tools.innerHTML=`<button type="button" data-iphone-map-action="filter" aria-expanded="${state.mapPanel==='filter'}">☷<small>フィルター</small></button><button type="button" data-iphone-map-action="legend" aria-expanded="${state.mapPanel==='legend'}">⌕<small>凡例</small></button>`;
  let panel=stage.querySelector('.iphone-map-popover');if(!panel){panel=document.createElement('div');panel.className='iphone-map-popover';stage.appendChild(panel);}

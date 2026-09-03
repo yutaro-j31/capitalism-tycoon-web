@@ -18,13 +18,6 @@ body.d-ui-active [data-screen="map"]{
 }
 body.d-ui-active [data-screen="map"] .d-map-workspace{background:var(--d2-map-surface);box-shadow:0 20px 52px rgba(0,0,0,.32)}
 
-/* map stage chrome (toolbar / zoom & filter tools). Terrain itself is untouched. */
-body.d-ui-active [data-screen="map"] .d-map-toolbar button,
-body.d-ui-active [data-screen="map"] .d-map-toolbar span{
-  border-color:rgba(124,92,255,.36);background:rgba(10,16,32,.80);
-}
-body.d-ui-active [data-screen="map"] .d-map-tools{border-color:rgba(124,92,255,.32);background:rgba(10,16,32,.84)}
-
 /* markers: 4-way semantic legend (store=blue, tenant candidate=negative, office candidate=violet, real estate=cyan) */
 body.d-ui-active [data-screen="map"] .d-map-marker.store{background:linear-gradient(180deg,#6f9cff,#3763c9)}
 body.d-ui-active [data-screen="map"] .d-map-marker.tenant{background:linear-gradient(180deg,#ff8f9b,#c33a4d)}
