@@ -34,6 +34,7 @@ const shellSrc = fs.readFileSync(path.join(ROOT, 'js/d-ui-shell.js'), 'utf8');
 const panCss = fs.readFileSync(path.join(ROOT, 'css/d-ui-map-phase2-pan.css'), 'utf8');
 const rendererSrc = fs.readFileSync(path.join(ROOT, 'prototypes/map-canvas-renderer.js'), 'utf8');
 const worldSrc = fs.readFileSync(path.join(ROOT, 'prototypes/map-world-preview.js'), 'utf8');
+const profilesSrc = fs.readFileSync(path.join(ROOT, 'prototypes/map-prefecture-profiles.js'), 'utf8');
 
 /* ---------------- minimal but real EventTarget-shaped document stub ---------------- */
 function makeDocumentStub() {
@@ -119,6 +120,7 @@ function freshSandbox(options) {
   sandbox.__capitalismTycoonModules = {};
   vm.createContext(sandbox);
   vm.runInContext(rendererSrc, sandbox, { filename: 'map-canvas-renderer.js' });
+  vm.runInContext(profilesSrc, sandbox, { filename: 'map-prefecture-profiles.js' });
   vm.runInContext(worldSrc, sandbox, { filename: 'map-world-preview.js' });
   vm.runInContext(canvasSrc, sandbox, { filename: 'map-phase2-canvas.js' });
   sandbox.__rafCalls = () => rafCalls;

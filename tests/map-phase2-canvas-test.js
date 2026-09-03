@@ -41,6 +41,7 @@ const canvasSrc = fs.readFileSync(path.join(ROOT, 'js/map-phase2-canvas.js'), 'u
 const shellSrc = fs.readFileSync(path.join(ROOT, 'js/d-ui-shell.js'), 'utf8');
 const rendererSrc = fs.readFileSync(path.join(ROOT, 'prototypes/map-canvas-renderer.js'), 'utf8');
 const worldSrc = fs.readFileSync(path.join(ROOT, 'prototypes/map-world-preview.js'), 'utf8');
+const profilesSrc = fs.readFileSync(path.join(ROOT, 'prototypes/map-prefecture-profiles.js'), 'utf8');
 
 /*
  * Loads js/map-phase2-canvas.js into a fresh, isolated sandbox each time
@@ -65,6 +66,7 @@ function freshSandbox(options) {
   vm.createContext(sandbox);
   if (opts.withPrototypes) {
     vm.runInContext(rendererSrc, sandbox, { filename: 'map-canvas-renderer.js' });
+    vm.runInContext(profilesSrc, sandbox, { filename: 'map-prefecture-profiles.js' });
     vm.runInContext(worldSrc, sandbox, { filename: 'map-world-preview.js' });
   }
   sandbox.__capitalismTycoonModules = {};
@@ -225,7 +227,7 @@ async function main() {
   });
 
   await check('prototypes/map-canvas-renderer.js and prototypes/map-world-preview.js are lazy-loaded via <script> injection, not static <script> tags in index.html (they live under prototypes/, not js/, and tests/javascript-module-split-test.js treats index.html as an exact 1:1 inventory of js/*.js)', () => {
-    assert.match(canvasSrc, /PROTOTYPE_SCRIPTS=\['\.\/prototypes\/map-canvas-renderer\.js','\.\/prototypes\/map-world-preview\.js'\]/);
+    assert.match(canvasSrc, /PROTOTYPE_SCRIPTS=\['\.\/prototypes\/map-canvas-renderer\.js','\.\/prototypes\/map-prefecture-profiles\.js','\.\/prototypes\/map-world-preview\.js'\]/);
     assert.match(canvasSrc, /document\.createElement\('script'\)/);
     const indexSrc = fs.readFileSync(path.join(ROOT, 'index.html'), 'utf8');
     assert.doesNotMatch(indexSrc, /<script src="\.\/prototypes\//, 'prototypes/*.js must not be added as static <script> tags in index.html');

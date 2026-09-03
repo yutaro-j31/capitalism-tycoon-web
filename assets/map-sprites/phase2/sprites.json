@@ -385,6 +385,9 @@
       "districtTags": [
         "landmark"
       ],
+      "prefectureIds": [
+        "tokyo"
+      ],
       "spawnWeight": 1,
       "drawLayer": "building",
       "daytime": true,
