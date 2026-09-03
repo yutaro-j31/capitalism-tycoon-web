@@ -23,6 +23,17 @@ const ALL_NAV=[
 const MARKER_POSITIONS=[[18,23],[43,17],[66,27],[25,47],[54,48],[78,52],[37,70],[64,73],[15,67],[83,31]];
 let selectedEntity;
 let mapDirectoryOpen=null;
+/*
+ * PR B: non-persistent UI-only filter for Phase 2 markers (see docs/map-
+ * phase2-production-integration-audit.md section 6, PR B). Same lifetime
+ * pattern as mapDirectoryOpen above -- a module-level variable, not part
+ * of #screen's DOM (renderMapWorkspace rebuilds workspace.innerHTML on
+ * every call) and never written to g/save state. Only consulted when the
+ * modules.mapPhase2Canvas flag is on; legacy (flag-off) markers are never
+ * filtered by it.
+ */
+let mapFilterKind='all';
+const MAP_FILTER_KINDS=[['all','すべて'],['store','自社店舗'],['tenant','空きテナント'],['office','オフィス'],['realestate','不動産']];
 
 const esc=value=>String(value??'').replace(/[&<>'"]/g,char=>({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[char]));
 const finite=value=>Number.isFinite(Number(value))?Number(value):0;
@@ -200,8 +211,27 @@ function isoCityBuildingsSVG(g){
   return `<svg class="d-iso-city" viewBox="0 0 1000 600" preserveAspectRatio="none" aria-hidden="true"><g class="d-iso-parks"><path class="d-iso-park" d="M72 292l92-42 76 37-93 44zM730 442l91-42 67 33-91 43z"/>${[[112,281],[151,294],[188,279],[766,430],[805,444],[845,426]].map(([x,y])=>`<g class="d-iso-tree" transform="translate(${x} ${y})"><rect x="-2" y="4" width="4" height="12"/><circle cy="1" r="9"/><circle cx="-6" cy="4" r="6"/><circle cx="6" cy="4" r="6"/></g>`).join('')}</g>${legacyCoverage}<g class="d-iso-bridge"><rect x="22" y="483" width="250" height="10" rx="3"/><path d="M45 483V440M247 483V440M45 446Q146 506 247 446M45 446Q146 420 247 446"/><line x1="45" y1="440" x2="45" y2="505"/><line x1="247" y1="440" x2="247" y2="505"/></g>${cars}</svg>`;
 }
 function renderMapWorkspace(screen,g){
-  const entities=mapEntities(g,screen);if(selectedEntity===undefined||(selectedEntity!==null&&!entities.some(entity=>entity.id===selectedEntity)))selectedEntity=entities[0]?.id||null;
-  const chosen=selectedEntity===null?null:entities.find(entity=>entity.id===selectedEntity)||null;
+  const phase2On=Boolean(modules.mapPhase2Canvas?.isEnabled?.());
+  const legacyEntities=mapEntities(g,screen);
+  /*
+   * PR B: production marker/selection/filter wiring (see docs/map-phase2-
+   * production-integration-audit.md section 6, PR B). buildMapViewModel()
+   * is the sole production adapter -- no DOM scraping, no legacy
+   * mapEntities() reuse -- and placeEntityTiles() deterministically
+   * assigns each entity a world tile using the district this render's own
+   * Phase 2 canvas draw will use, so markers and canvas share one
+   * worldToScreen. `null` from placeEntityTiles means the district isn't
+   * built yet (assets/prototypes still loading), not "no entities".
+   */
+  const phase2ViewModel=phase2On?modules.mapPhase2Canvas.buildMapViewModel(g,engine()):null;
+  const phase2Placed=phase2ViewModel?modules.mapPhase2Canvas.placeEntityTiles(phase2ViewModel.entities,phase2ViewModel.prefID):null;
+  // Single selection source of truth: selectedEntity is validated against
+  // whichever entity list is actually driving the visible markers this
+  // render (legacy DOM-scrape when the flag is off, the Phase 2 view
+  // model when it's on) -- never two parallel selection states.
+  const activeEntities=phase2On?(phase2Placed||[]):legacyEntities;
+  if(selectedEntity===undefined||(selectedEntity!==null&&!activeEntities.some(entity=>entity.id===selectedEntity)))selectedEntity=activeEntities[0]?.id||null;
+  const chosen=selectedEntity===null?null:activeEntities.find(entity=>entity.id===selectedEntity)||null;
   let directory=screen.querySelector(':scope > .d-map-directory');
   if(!directory){
     // app.js's render() replaces #screen's entire innerHTML on every state change (e.g. a
@@ -216,7 +246,7 @@ function renderMapWorkspace(screen,g){
   let workspace=screen.querySelector(':scope > .d-map-workspace');
   if(!workspace){workspace=document.createElement('section');workspace.className='d-map-workspace';screen.insertBefore(workspace,directory);}
   const occupiedMarkerPositions=[];
-  const positions=entities.map((entity,index)=>{const pos=markerPosition(entity.id,index,occupiedMarkerPositions);occupiedMarkerPositions.push(pos);return `<button type="button" class="d-map-marker ${entity.kind} ${entity.id===chosen?.id?'selected':''}" style="--x:${pos[0]}%;--y:${pos[1]}%" data-d-ui-marker="${esc(entity.id)}"><span>${markerIcon(entity)}</span><small>${esc(entity.name)}</small></button>`;}).join('');
+  const positions=legacyEntities.map((entity,index)=>{const pos=markerPosition(entity.id,index,occupiedMarkerPositions);occupiedMarkerPositions.push(pos);return `<button type="button" class="d-map-marker ${entity.kind} ${entity.id===chosen?.id?'selected':''}" style="--x:${pos[0]}%;--y:${pos[1]}%" data-d-ui-marker="${esc(entity.id)}"><span>${markerIcon(entity)}</span><small>${esc(entity.name)}</small></button>`;}).join('');
   const blocks=Array.from({length:34},(_,index)=>{const x=7+(index*17)%84,y=12+(index*23)%68,h=18+(index*13)%58;return `<i style="--x:${x}%;--y:${y}%;--h:${h}px"></i>`;}).join('');
   const missions=missionRows(g);const news=(g.news||[]).slice(0,3);
   /*
@@ -227,13 +257,37 @@ function renderMapWorkspace(screen,g){
    * .d-water/.d-road-grid/.d-city-blocks/.d-iso-city imagery underneath,
    * without deleting it) and a <canvas> for Phase 2's own deterministic
    * scenery. Flag off (the default) emits neither -- byte-identical to
-   * this function before this change. Markers/selection/filter logic
-   * below (positions/mapEntities/selectedDetail) is untouched either way.
+   * this function before this change. Legacy positions/mapEntities()
+   * markup below is generated exactly as before either way; PR B only
+   * hides it via CSS (.d-map-marker:not([data-phase2-tile-x])) when the
+   * flag is on, alongside the new Phase 2 markers added below.
    */
-  const phase2On=Boolean(modules.mapPhase2Canvas?.isEnabled?.());
   const citySurfaceClass=phase2On?'d-city-surface d-city-surface-phase2':'d-city-surface';
   const phase2Canvas=phase2On?'<canvas class="d-phase2-canvas" aria-hidden="true"></canvas>':'';
-  workspace.innerHTML=`<div class="d-map-stage"><div class="d-map-toolbar"><button type="button">都市ビュー⌄</button><span>${esc(engine()?.pref?.(screen.querySelector('[data-bind="selectedPref"]')?.value)?.name||'全国')}</span></div><div class="${citySurfaceClass}">${phase2Canvas}<div class="d-water"></div><div class="d-road-grid"></div><div class="d-city-blocks">${blocks}</div>${isoCityBuildingsSVG(g)}${positions||'<div class="d-no-markers">出店候補を読み込み中です</div>'}</div><div class="d-map-tools"><button type="button">◎</button><button type="button">☷<small>フィルター</small></button><button type="button">⌕<small>凡例</small></button><button type="button">−</button><button type="button">＋</button></div></div><div class="d-map-overlay"><article class="d-white-card d-chart-card"><header><div><h2>週間利益推移</h2><small>単位：円</small></div><b>${money(g.lastReport?.profit)}</b></header>${sparkline(reportSeries(g))}<footer><span>4週前</span><span>3週前</span><span>2週前</span><span>先週</span><span>今週</span></footer></article><article class="d-white-card d-mission-card"><header><h2>ミッション</h2><b>${missions.filter(item=>item[4]).length}/${missions.length}</b></header>${missions.map(item=>`<div class="d-mission-row ${item[4]?'done':''}"><span>${item[0]}</span><div><strong>${esc(item[1])}</strong><small>${missionValue(item[2],item[5])} / ${missionValue(item[3],item[5])}</small><i><em style="width:${clamp(item[2]/Math.max(1,item[3])*100,0,100)}%"></em></i></div></div>`).join('')}<button type="button" data-action="tab" data-tab="missions">すべてのミッションを見る ›</button></article><article class="d-white-card d-news-card"><header><h2>企業ニュース</h2><button type="button" data-action="tab" data-tab="news">すべて見る ↗</button></header>${news.length?news.map((item,index)=>`<div><span></span><p>${esc(item)}</p><small>${index+1}件前</small></div>`).join(''):'<p>新しいニュースはありません。</p>'}</article></div><aside class="d-context-panel"><header><div><span>●</span><h2>${esc(chosen?.name||'拠点詳細')}</h2></div><button type="button" data-d-ui-action="clear-selection" aria-label="拠点詳細を閉じる">×</button></header>${selectedDetail(chosen,g)}</aside>`;
+  /*
+   * PR B markers: built from phase2Placed (the Phase 2 view model, already
+   * tile-placed above), not legacyEntities -- see the buildMapViewModel()/
+   * placeEntityTiles() comment above. Reuses the exact same .d-map-marker
+   * button markup/classes/data-d-ui-marker attribute as the legacy path
+   * so handleClick()'s existing marker-click handling needs no changes;
+   * only the position source differs (data-phase2-tile-x/y, resolved to
+   * --x/--y pixel values by modules.mapPhase2Canvas.render()'s
+   * positionMarkers() using the same camera the canvas itself just used).
+   */
+  let phase2MarkersHTML='';
+  if(phase2On){
+    if(!phase2Placed){
+      phase2MarkersHTML='<div class="d-no-markers">出店候補を読み込み中です</div>';
+    }else{
+      const filtered=mapFilterKind==='all'?phase2Placed:phase2Placed.filter(entity=>entity.kind===mapFilterKind);
+      const placeable=filtered.filter(entity=>entity.tileX!==null&&entity.tileY!==null);
+      phase2MarkersHTML=placeable.length
+        ?placeable.map(entity=>`<button type="button" class="d-map-marker ${entity.kind} ${entity.id===chosen?.id?'selected':''}" data-d-ui-marker="${esc(entity.id)}" data-phase2-tile-x="${entity.tileX}" data-phase2-tile-y="${entity.tileY}"><span>${markerIcon(entity)}</span><small>${esc(entity.name)}</small></button>`).join('')
+        :'<div class="d-no-markers">該当する拠点がありません</div>';
+    }
+  }
+  const filterChips=phase2On?`<div class="d-map-filter-chips">${MAP_FILTER_KINDS.map(([kind,label])=>`<button type="button" class="d-map-filter-chip ${mapFilterKind===kind?'active':''}" data-d-ui-action="map-filter" data-kind="${kind}">${esc(label)}</button>`).join('')}</div>`:'';
+  workspace.innerHTML=`<div class="d-map-stage"><div class="d-map-toolbar"><button type="button">都市ビュー⌄</button><span>${esc(engine()?.pref?.(screen.querySelector('[data-bind="selectedPref"]')?.value)?.name||'全国')}</span></div><div class="${citySurfaceClass}">${phase2Canvas}<div class="d-water"></div><div class="d-road-grid"></div><div class="d-city-blocks">${blocks}</div>${isoCityBuildingsSVG(g)}${positions||'<div class="d-no-markers">出店候補を読み込み中です</div>'}${phase2MarkersHTML}</div><div class="d-map-tools"><button type="button">◎</button><button type="button">☷<small>フィルター</small></button><button type="button">⌕<small>凡例</small></button><button type="button">−</button><button type="button">＋</button></div></div><div class="d-map-overlay"><article class="d-white-card d-chart-card"><header><div><h2>週間利益推移</h2><small>単位：円</small></div><b>${money(g.lastReport?.profit)}</b></header>${filterChips}${sparkline(reportSeries(g))}<footer><span>4週前</span><span>3週前</span><span>2週前</span><span>先週</span><span>今週</span></footer></article><article class="d-white-card d-mission-card"><header><h2>ミッション</h2><b>${missions.filter(item=>item[4]).length}/${missions.length}</b></header>${missions.map(item=>`<div class="d-mission-row ${item[4]?'done':''}"><span>${item[0]}</span><div><strong>${esc(item[1])}</strong><small>${missionValue(item[2],item[5])} / ${missionValue(item[3],item[5])}</small><i><em style="width:${clamp(item[2]/Math.max(1,item[3])*100,0,100)}%"></em></i></div></div>`).join('')}<button type="button" data-action="tab" data-tab="missions">すべてのミッションを見る ›</button></article><article class="d-white-card d-news-card"><header><h2>企業ニュース</h2><button type="button" data-action="tab" data-tab="news">すべて見る ↗</button></header>${news.length?news.map((item,index)=>`<div><span></span><p>${esc(item)}</p><small>${index+1}件前</small></div>`).join(''):'<p>新しいニュースはありません。</p>'}</article></div><aside class="d-context-panel"><header><div><span>●</span><h2>${esc(chosen?.name||'拠点詳細')}</h2></div><button type="button" data-d-ui-action="clear-selection" aria-label="拠点詳細を閉じる">×</button></header>${selectedDetail(chosen,g)}</aside>`;
   if(phase2On)modules.mapPhase2Canvas.render(workspace.querySelector('.d-phase2-canvas'),g);
 }
 function enhanceMap(g){
@@ -242,7 +296,7 @@ function enhanceMap(g){
   if(activeTab()!=='map')return;
   renderMapWorkspace(screen,g);
 }
-function renderKey(g){return [g.week,g.selectedTab,g.stores?.length,g.companyCash,g.lastReport?.profit,selectedEntity].join(':');}
+function renderKey(g){return [g.week,g.selectedTab,g.stores?.length,g.companyCash,g.lastReport?.profit,selectedEntity,mapFilterKind].join(':');}
 function enhance(force=false,context=null){
   const app=context?.app||document.getElementById('app');const g=context?.state||game();const e=context?.engine||engine();if(!app||!g)return false;
   if(document.getElementById('setup-form')){document.body.classList.remove('d-ui-active');return false;}
@@ -255,6 +309,7 @@ function handleClick(event){
   const action=event.target?.closest?.('[data-d-ui-action]')?.dataset?.dUiAction;
   if(action==='toggle-menu'){event.preventDefault();const open=!menu?.classList.contains('open');setCommandMenu(open,!open);return true;}
   if(action==='clear-selection'){event.preventDefault();selectedEntity=null;modules.uiEnhancerRegistry.runUIEnhancers();return true;}
+  if(action==='map-filter'){event.preventDefault();mapFilterKind=event.target.closest('[data-d-ui-action]').dataset.kind||'all';modules.uiEnhancerRegistry.runUIEnhancers();return true;}
   const marker=event.target?.closest?.('[data-d-ui-marker]');
   if(marker){event.preventDefault();selectedEntity=marker.dataset.dUiMarker;modules.uiEnhancerRegistry.runUIEnhancers();return true;}
   const tab=event.target?.closest?.('[data-action="tab"]');if(tab)setCommandMenu(false);

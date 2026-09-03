@@ -27,7 +27,7 @@ assert.doesNotMatch(script, /selectedTab\s*=/, 'context actions must delegate na
 assert.doesNotMatch(script, /companyCash\s*(?:\+=|-=|\*=|\/=|=)/, 'context tabs must not mutate company cash');
 assert.doesNotMatch(script, /lastProfit\s*=/, 'context tabs must not mutate store results');
 assert.match(shell, /let selectedEntity;/, 'map selection must distinguish initial state from an explicit dismissal');
-assert.match(shell, /selectedEntity===undefined\|\|\(selectedEntity!==null&&![\s\S]*entities\.some/, 'initial or stale selections may choose a valid default without overriding dismissal');
+assert.match(shell, /selectedEntity===undefined\|\|\(selectedEntity!==null&&![\s\S]*activeEntities\.some/, 'initial or stale selections may choose a valid default without overriding dismissal');
 assert.match(shell, /const chosen=selectedEntity===null\?null:/, 'an explicitly dismissed context panel must remain empty');
 assert.match(shell, /action==='clear-selection'[\s\S]*selectedEntity=null;modules\.uiEnhancerRegistry\.runUIEnhancers\(\)/, 'close control must rerun the ordered enhancer pipeline after dismissal');
 assert.match(shell, /data-d-ui-action="clear-selection" aria-label="拠点詳細を閉じる"/, 'close control must expose an accessible name');

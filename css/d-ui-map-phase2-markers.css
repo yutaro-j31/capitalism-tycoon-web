@@ -1,0 +1,25 @@
+/* PR B: production marker/selection/filter wiring (flag-gated).
+   Presentation only -- placement/collision/filter logic lives in
+   js/map-phase2-canvas.js and js/d-ui-shell.js. When the flag is on, the
+   legacy .d-map-marker buttons stay in the DOM (mapEntities()/positions
+   generation in renderMapWorkspace() is unchanged, not deleted) and are
+   only visually hidden here, by an attribute selector rather than a class,
+   so nothing about their own markup needs to change: Phase 2 markers carry
+   a data-phase2-tile-x attribute the legacy ones never do. When the flag
+   is off, .d-city-surface-phase2 never exists, so this rule never matches
+   anything and legacy markers render exactly as before this file existed. */
+.d-city-surface-phase2 .d-map-marker:not([data-phase2-tile-x]){display:none!important}
+
+/* Filter chip row, only ever emitted (by renderMapWorkspace()) when the
+   flag is on -- reuses the same --d-gold token css/d-ui.css already
+   defines for this screen. Non-persistent UI state only
+   (js/d-ui-shell.js's mapFilterKind); never written to save.
+   Deliberately placed inside .d-chart-card's own header, NOT
+   .d-map-toolbar/.d-map-tools: js/iphone-playtest-fixes.js's own
+   ensureMapChrome() unconditionally hides .d-map-toolbar (adds
+   .iphone-map-enhanced, see css/iphone-playtest-fixes.css) and replaces
+   .d-map-tools with its own chrome on every viewport, not just iPhone --
+   so anything placed in either would be invisible in production. */
+.d-map-filter-chips{display:flex;flex-wrap:wrap;gap:6px;margin:8px 0 0}
+.d-map-filter-chip{padding:7px 10px;min-height:32px;border:1px solid rgba(255,255,255,.24);border-radius:8px;background:rgba(4,13,23,.74);color:#eef3f7;font-size:11px;cursor:pointer}
+.d-map-filter-chip.active{background:var(--d-gold,#d9a84d);border-color:var(--d-gold,#d9a84d);color:#08101f;font-weight:700}
