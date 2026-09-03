@@ -278,6 +278,13 @@ async function verifyDesktop(browser, base) {
   await page.locator('.d-map-workspace').waitFor();
   await page.locator('.d-context-panel').waitFor();
   await page.locator('.d-map-directory').waitFor();
+  // The production map (js/d-ui-shell.js's renderMapWorkspace) places
+  // markers from modules.mapPhase2Canvas.placeEntityTiles(), which returns
+  // null -- rendering a "loading" placeholder instead of any .d-map-marker
+  // -- until Phase 2's district finishes an async prototypes/assets load
+  // (ensurePrototypesLoaded/ensureAssetsLoaded). Wait for that load to
+  // finish and markers to actually appear before asserting on them.
+  await page.waitForFunction(() => document.querySelectorAll('.d-map-marker').length > 0, null, { timeout: 10_000 });
   assert.ok(await page.locator('.d-map-marker').count() > 0, 'D map must expose at least one actionable marker');
 
   const firstMarker = page.locator('.d-map-marker').first();
