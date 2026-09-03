@@ -18,6 +18,7 @@ const mapStyle = fs.readFileSync('css/d-ui-map.css', 'utf8');
 const mapFocusStyle = fs.readFileSync('css/d-ui-map-focus.css', 'utf8');
 const contextTabsScript = fs.readFileSync('js/d-ui-context-tabs.js', 'utf8');
 const shell = fs.readFileSync('js/d-ui-shell.js', 'utf8');
+const mapPhase2Canvas = fs.readFileSync('js/map-phase2-canvas.js', 'utf8');
 const app = fs.readFileSync('js/app.js', 'utf8');
 
 assert.match(index, /href="\.\/css\/d-ui-context-tabs\.css"/, 'runtime must load the D UI stylesheet bridge');
@@ -309,15 +310,23 @@ assert.doesNotMatch(mapStyle, /https?:\/\//, 'Map v2 must not add remote runtime
 // terrain (city surface color, iso-hue building palette, roads/water/parks) is deliberately untouched in Phase A
 assert.doesNotMatch(mapStyle, /d-iso-|d-city-surface|d-water|d-road-grid/, 'Map v2 (Phase A) must not touch terrain rendering, only UI chrome');
 
-// real-estate candidate markers (new entity kind) must be wired into js/d-ui-shell.js
-assert.match(shell, /kind:'realestate'/, 'Map v2 must add a real-estate entity kind to mapEntities()');
+// real-estate candidate markers (new entity kind) must be wired into the production adapter
+// (js/map-phase2-canvas.js's buildMapViewModel() -- production promotion moved this off the
+// old DOM-scraped mapEntities() in js/d-ui-shell.js, which no longer exists)
+assert.match(mapPhase2Canvas, /kind:'realestate'/, 'Map v2 must include a real-estate entity kind in buildMapViewModel()');
 assert.match(shell, /buy-property-company/, 'Map v2 real-estate markers must reuse the existing buy-property-company action');
 assert.match(shell, /buy-property-personal/, 'Map v2 real-estate markers must reuse the existing buy-property-personal action');
 assert.match(shell, /entity\.kind===['"]realestate['"]/, 'Map v2 must render a dedicated context-panel detail view for real-estate candidates');
 for (const label of ['出店候補・不動産・オフィス一覧を開く']) {
   assert.ok(shell.includes(label), `Map v2 must retain Map destination: ${label}`);
 }
-for (const action of ['open-store','contract-office','contract-branch-office']) {
+// contract-office/contract-branch-office are no longer checked here: they were
+// only ever referenced by the deleted DOM-scraped mapEntities() office-button
+// query, not emitted by js/d-ui-shell.js itself; production office markers now
+// read g.rentalOffices directly via buildMapViewModel() and never look for
+// these action strings in the DOM at all. open-store remains real (still the
+// tenant marker's selectedDetail() action).
+for (const action of ['open-store']) {
   assert.ok(shell.includes(action), `Map v2 must retain existing Map marker action: ${action}`);
 }
 

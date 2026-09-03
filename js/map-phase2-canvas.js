@@ -1,24 +1,24 @@
-// PR A: production adapter foundation + feature flag + Phase 2 Canvas
-// background wiring. See docs/map-phase2-production-integration-audit.md.
+// Production Phase 2 map renderer: view-model adapter, deterministic entity
+// placement, Canvas city scenery, and pointer-drag pan/camera. This is the
+// sole map renderer -- PR D (see docs/map-phase2-production-integration-
+// audit.md) promoted it out of the PR A-C feature-flagged experiment and
+// removed the legacy DOM-scraped/procedural-city renderer it used to sit
+// beside.
 (function(){'use strict';
 if(!globalThis.__capitalismTycoonModules)throw new Error('runtime.js must be loaded before map-phase2-canvas.js.');
 const modules=globalThis.__capitalismTycoonModules;
 if(modules.mapPhase2Canvas)throw new Error('map-phase2-canvas.js is already registered.');
 
 /*
- * Marker/selection/filter wiring is PR B; this module only builds a pure,
- * read-only view model and draws Phase 2's deterministic city scenery
- * (terrain/roads/greenery/civic/office.mid/residential.mid/P0/P1 sprites/
- * landmark) into a <canvas> inside the existing production map shell.
+ * buildMapViewModel()/placeEntityTiles(): pure, read-only view-model
+ * adapter and deterministic entity placement (see the audit doc, PR B).
  * Reuses prototypes/map-canvas-renderer.js (window.MapCanvas) and
  * prototypes/map-world-preview.js (window.MapWorldPreview) as-is -- see
  * the audit doc for why a 4th hash()/placement implementation must not
  * be created here. They stay lazily loaded (see ensurePrototypesLoaded
  * below), not static <script> tags in index.html: those two files live
  * under prototypes/, not js/, and tests/javascript-module-split-test.js
- * treats index.html's script tags as an exact 1:1 inventory of js/*.js --
- * loading them on demand also means a flag-off page never pays their
- * parse/network cost at all.
+ * treats index.html's script tags as an exact 1:1 inventory of js/*.js.
  */
 
 const ASSET_BASE='./assets/map-sprites/phase2';
@@ -28,28 +28,6 @@ const PROTOTYPE_SCRIPTS=['./prototypes/map-canvas-renderer.js','./prototypes/map
 const WORLD_COLS=32,WORLD_ROWS=28;
 const DEFAULT_SCALE=0.72;
 const FALLBACK_PREF_ID='tokyo';
-
-/*
- * Feature flag: internal/dev-only, NOT game state. Read once per call from
- * the URL (?phase2MapCanvas=1/true/on), with an in-memory override for
- * console/dev toggling (setEnabledForDev). Never written to persistent
- * browser storage, the game's save key, or any g / engine field -- it
- * cannot survive a reload and cannot affect save compatibility.
- */
-let flagOverride=null;
-function urlFlagOn(){
-  try{
-    const params=new URLSearchParams(globalThis.location?.search||'');
-    const raw=params.get('phase2MapCanvas');
-    return raw==='1'||raw==='true'||raw==='on';
-  }catch(e){return false;}
-}
-function isEnabled(){
-  if(flagOverride!==null)return flagOverride;
-  if(typeof globalThis.__phase2MapCanvas==='boolean')return globalThis.__phase2MapCanvas;
-  return urlFlagOn();
-}
-function setEnabledForDev(value){flagOverride=value===null||value===undefined?null:Boolean(value);}
 
 /*
  * buildMapViewModel(): pure, read-only, deterministic. Reads
@@ -368,10 +346,9 @@ function positionMarkers(canvas,camTransform){
 
 /*
  * render(): synchronous, called from js/d-ui-shell.js's renderMapWorkspace()
- * only when isEnabled() is true, once per call with a fresh <canvas>
- * element (renderMapWorkspace rebuilds .d-city-surface's innerHTML
- * wholesale every time it runs, exactly like the legacy DOM/SVG layers
- * it sits beside -- there is nothing new to persist across renders other
+ * every render, once per call with a fresh <canvas> element
+ * (renderMapWorkspace rebuilds .d-city-surface's innerHTML wholesale every
+ * time it runs -- there is nothing new to persist across renders other
  * than the caches above). If the prototype renderer files or sprite
  * assets are not loaded yet, paints a neutral placeholder fill and kicks
  * off the load; once it resolves, forces the existing D UI shell
@@ -394,7 +371,25 @@ function render(canvas,g){
     ensurePrototypesLoaded().then(ensureAssetsLoaded).then(result=>{
       if(!result||assetsReady)return;
       assetsReady=result;
+      /*
+       * modules.dUIShell.enhance(true) is called directly (bypassing the
+       * shared registry) because it must force a redraw even though g
+       * itself hasn't changed -- only this module's own internal
+       * assetsReady flag has, which renderKey(g) has no way to see. That
+       * rebuilds .d-map-workspace's innerHTML wholesale (a fresh
+       * .d-map-stage/.d-map-tools/.d-city-surface), but a direct call to
+       * one enhancer's own enhance() does not run any OTHER registered
+       * enhancer -- so without the followup runUIEnhancers() call below,
+       * js/iphone-playtest-fixes.js's own registered enhancer (which hides
+       * the legacy .d-map-tools and builds the iPhone nav/tools/popover
+       * chrome, keyed off a data-iphone-map-key attribute on the stage
+       * element) would never re-run on this freshly rebuilt stage until
+       * some unrelated later click happened to trigger a full pass.
+       * runUIEnhancers() itself is safe to call here: this callback never
+       * runs while another enhancer pass is already in progress.
+       */
       modules.dUIShell?.enhance?.(true);
+      modules.uiEnhancerRegistry?.runUIEnhancers?.();
     }).catch(()=>{});
     return;
   }
@@ -432,7 +427,7 @@ function render(canvas,g){
 installPanHandlers();
 
 modules.mapPhase2Canvas=Object.freeze({
-  isEnabled,setEnabledForDev,buildMapViewModel,placeEntityTiles,render,consumeJustPanned,
+  buildMapViewModel,placeEntityTiles,render,consumeJustPanned,
   __installed:true
 });
 })();

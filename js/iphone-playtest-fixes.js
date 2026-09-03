@@ -3,10 +3,9 @@
 const modules=globalThis.__capitalismTycoonModules;
 if(!modules?.playerEngineBridge?.getEngine)return;
 if(modules.iphonePlaytestFixes)return;
-const state={selectedStoreID:null,storeTab:'overview',mapZoom:1,mapFilters:{store:true,tenant:true,office:true,competitor:true,property:true},mapPanel:null,scheduled:false};
+const state={selectedStoreID:null,storeTab:'overview',mapFilters:{store:true,tenant:true,office:true,competitor:true,property:true},mapPanel:null,scheduled:false};
 const esc=value=>String(value??'').replace(/[&<>\'"]/g,char=>({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[char]));
 const finite=(value,fallback=0)=>Number.isFinite(Number(value))?Number(value):fallback;
-const clamp=(value,min,max)=>Math.max(min,Math.min(max,value));
 const engine=()=>modules.playerEngineBridge.getEngine?.()||null;
 const game=()=>engine()?.g||null;
 const money=value=>modules.engine?.compactYen?modules.engine.compactYen(finite(value)):`${Math.round(finite(value)).toLocaleString('ja-JP')}円`;
@@ -62,10 +61,23 @@ function findClearMarkerPosition(key,baseIndex,occupied){
  }
  return preferred;
 }
+/*
+ * PR D (see docs/map-phase2-production-integration-audit.md section 6, PR
+ * D): the legacy per-viewport zoom-level state, its zoom-in/zoom-out/reset
+ * buttons, and the custom CSS property they drove were removed here. That
+ * property only ever scaled the legacy DOM/SVG city layers, and
+ * css/d-ui-map-phase2-pan.css already made .d-city-surface-phase2 (now the
+ * map's only surface) ignore it entirely -- so once Phase 2 became the
+ * sole renderer, these buttons visually did nothing at all, which is worse
+ * than not having them. ensureCityDetail() (a second, independent
+ * procedural-city layer competing with Phase 2's own Canvas scenery) was
+ * removed for the same reason: Phase 2's Canvas already draws
+ * terrain/roads/greenery for every prefecture.
+ */
 function ensureMapChrome(){
  if(activeTab()!=='map')return;const g=game(),screen=document.getElementById('screen'),stage=screen?.querySelector('.d-map-stage');if(!g||!screen||!stage)return;
  const original=screen.querySelector('.d-map-directory select[data-bind="selectedPref"]');const current=original?.value||g.selectedPref||g.founderHomePrefID;
- const mapKey=[current,state.mapZoom,state.mapPanel,Object.entries(state.mapFilters).map(row=>row.join(':')).join(','),g.week,(g.stores||[]).length,(g.properties||[]).length,(g.competitorStates||[]).length].join('|');
+ const mapKey=[current,state.mapPanel,Object.entries(state.mapFilters).map(row=>row.join(':')).join(','),g.week,(g.stores||[]).length,(g.properties||[]).length,(g.competitorStates||[]).length].join('|');
  if(stage.dataset.iphoneMapKey===mapKey)return;
  screen.classList.add('iphone-map-enhanced');
  let bar=stage.querySelector('.iphone-map-nav');if(!bar){bar=document.createElement('div');bar.className='iphone-map-nav';stage.appendChild(bar);}
@@ -73,25 +85,19 @@ function ensureMapChrome(){
  bar.querySelector('[data-iphone-pref]').addEventListener('change',event=>{const source=screen.querySelector('.d-map-directory select[data-bind="selectedPref"]');if(!source){toast('都道府県選択を読み込めませんでした。','error');return;}source.value=event.target.value;source.dispatchEvent(new Event('change',{bubbles:true}));});
  const oldTools=stage.querySelector('.d-map-tools');if(oldTools)oldTools.hidden=true;
  let tools=stage.querySelector('.iphone-map-tools');if(!tools){tools=document.createElement('div');tools.className='iphone-map-tools';stage.appendChild(tools);}
- tools.innerHTML=`<button type="button" data-iphone-map-action="filter" aria-expanded="${state.mapPanel==='filter'}">☷<small>フィルター</small></button><button type="button" data-iphone-map-action="legend" aria-expanded="${state.mapPanel==='legend'}">⌕<small>凡例</small></button><button type="button" data-iphone-map-action="zoom-out" aria-label="地図を縮小">−</button><button type="button" data-iphone-map-action="zoom-reset" aria-label="倍率をリセット">${Math.round(state.mapZoom*100)}%</button><button type="button" data-iphone-map-action="zoom-in" aria-label="地図を拡大">＋</button>`;
+ tools.innerHTML=`<button type="button" data-iphone-map-action="filter" aria-expanded="${state.mapPanel==='filter'}">☷<small>フィルター</small></button><button type="button" data-iphone-map-action="legend" aria-expanded="${state.mapPanel==='legend'}">⌕<small>凡例</small></button>`;
  let panel=stage.querySelector('.iphone-map-popover');if(!panel){panel=document.createElement('div');panel.className='iphone-map-popover';stage.appendChild(panel);}
  panel.hidden=!['filter','legend'].includes(state.mapPanel);
  if(state.mapPanel==='filter')panel.innerHTML=`<strong>表示する拠点</strong>${[['store','自社店舗'],['tenant','空きテナント'],['office','オフィス'],['competitor','競合店舗'],['property','不動産']].map(([id,label])=>`<label><input type="checkbox" data-iphone-filter="${id}" ${state.mapFilters[id]?'checked':''}>${label}</label>`).join('')}`;
  if(state.mapPanel==='legend')panel.innerHTML='<strong>凡例</strong><p><i class="legend store"></i>自社店舗</p><p><i class="legend tenant"></i>空きテナント</p><p><i class="legend office"></i>オフィス</p><p><i class="legend competitor"></i>競合</p><p><i class="legend property"></i>不動産</p>';
  panel.querySelectorAll('[data-iphone-filter]').forEach(box=>box.addEventListener('change',()=>{state.mapFilters[box.dataset.iphoneFilter]=box.checked;applyMapFilters(stage);}));
- stage.style.setProperty('--iphone-map-zoom',String(state.mapZoom));
- ensureSyntheticMapEntities(stage,g,current);applyMapFilters(stage);ensureCityDetail(stage,g,current);stage.dataset.iphoneMapKey=mapKey;
-}
-function ensureCityDetail(stage,g,prefID){
- let layer=stage.querySelector('.iphone-city-detail');if(!layer){layer=document.createElement('div');layer.className='iphone-city-detail';stage.appendChild(layer);}
- const pref=(g.prefs||[]).find(item=>String(item.id)===String(prefID));
- layer.innerHTML=`<span class="district commerce">商業地区</span><span class="district office">オフィス街</span><span class="district residential">住宅地区</span><span class="district park">中央公園</span><span class="city-label">${esc(pref?.name||'選択地域')}中央</span>${Array.from({length:18},(_,index)=>{const pos=markerPosition(`building:${prefID}:${index}`,index);const height=24+(stableHash(`${prefID}:${index}`)%58);return `<i style="--bx:${pos.x}%;--by:${pos.y}%;--bh:${height}px"></i>`;}).join('')}`;
+ ensureSyntheticMapEntities(stage,g,current);applyMapFilters(stage);stage.dataset.iphoneMapKey=mapKey;
 }
 function ensureSyntheticMapEntities(stage,g,prefID){
  stage.querySelectorAll('.iphone-synthetic-marker').forEach(node=>node.remove());
- // Properties are NOT synthesised here: js/d-ui-shell.js's own mapEntities() already
- // renders every unowned property in this prefecture as a canonical .d-map-marker.realestate
- // button (see realEstateButtons there). Adding a second, independently-positioned
+ // Properties are NOT synthesised here: js/map-phase2-canvas.js's own buildMapViewModel()
+ // already renders every unowned property in this prefecture as a canonical
+ // .d-map-marker.realestate button. Adding a second, independently-positioned
  // .iphone-synthetic-marker.property for the same property id duplicated every listing and,
  // since the two systems use different position formulas, could land the duplicate directly
  // on top of the real marker -- silently blocking clicks on it (and on any other .d-map-marker
@@ -109,9 +115,7 @@ function applyMapFilters(stage){
 function handleMapAction(event){const button=event.target?.closest?.('[data-iphone-map-action]');if(!button)return false;event.preventDefault();const action=button.dataset.iphoneMapAction;const screen=document.getElementById('screen'),stage=screen?.querySelector('.d-map-stage');if(!stage)return true;
  if(action==='view'){const directory=screen.querySelector('.d-map-directory');state.mapPanel=state.mapPanel==='list'?null:'list';if(directory){directory.open=state.mapPanel==='list';if(directory.open)directory.scrollIntoView({block:'start',behavior:'smooth'});}schedule();return true;}
  if(action==='filter'||action==='legend'){state.mapPanel=state.mapPanel===action?null:action;schedule();return true;}
- if(action==='zoom-in')state.mapZoom=clamp(Math.round((state.mapZoom+.1)*10)/10,.8,1.4);
- if(action==='zoom-out')state.mapZoom=clamp(Math.round((state.mapZoom-.1)*10)/10,.8,1.4);
- if(action==='zoom-reset')state.mapZoom=1;schedule();return true;
+ return true;
 }
 function handleSyntheticMarker(event){const marker=event.target?.closest?.('[data-iphone-map-entity]');if(!marker)return false;event.preventDefault();const g=game(),panel=document.querySelector('.d-context-panel');if(!g||!panel)return true;const type=marker.dataset.iphoneMapEntity,id=marker.dataset.id;
  if(type==='property'){const item=(g.properties||[]).find(row=>String(row.id)===String(id));panel.innerHTML=`<header><div><span>●</span><h2>${esc(item?.name||'不動産')}</h2></div></header><div class="iphone-entity-sheet"><strong>不動産候補</strong><p>${esc(item?.kind||'物件')}・評価額 ${money(item?.value||item?.price)}</p><p>想定賃料 ${money(item?.rentIncome)}/週</p><button class="btn primary wide" type="button" data-iphone-go-tab="assets">資産・不動産画面へ</button></div>`;}
