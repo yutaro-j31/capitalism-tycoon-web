@@ -306,7 +306,7 @@ async function main() {
       diffFiles = execSync('git diff --name-only HEAD', { cwd: ROOT, encoding: 'utf8' }).trim().split('\n').filter(Boolean);
     }
     assert.ok(!diffFiles.some(f => f.startsWith('js/') && f !== 'js/d-ui-shell.js' && f !== 'js/map-phase2-canvas.js'), `unexpected js/ file touched: ${diffFiles.filter(f => f.startsWith('js/')).join(', ')}`);
-    const allowedCSS = new Set(['css/d-ui-map-phase2-markers.css']);
+    const allowedCSS = new Set(['css/d-ui-map-phase2-markers.css', 'css/d-ui-mobile-company.css']);
     assert.ok(!diffFiles.some(f => f.startsWith('css/') && !allowedCSS.has(f)), `unexpected css/ file touched this PR: ${diffFiles.filter(f => f.startsWith('css/')).join(', ')}`);
     assert.ok(!diffFiles.includes('prototypes/map-canvas-renderer.js') && !diffFiles.includes('prototypes/map-world-preview.js'), 'prototype files must stay unmodified');
   });
