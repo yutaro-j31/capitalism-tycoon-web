@@ -26,7 +26,29 @@ const IMAGE_BASE='./assets/map-sprites/phase1';
 const MANIFEST_URL=`${ASSET_BASE}/sprites.json`;
 const PROTOTYPE_SCRIPTS=['./prototypes/map-canvas-renderer.js','./prototypes/map-world-preview.js'];
 const WORLD_COLS=32,WORLD_ROWS=28;
-const DEFAULT_SCALE=0.72;
+/*
+ * Initial-framing pull-back (Map Framing / Zoom-out Calibration). This
+ * constant is the sole projection scale for both the Canvas paint and
+ * marker placement (the transform.scale that render()'s ctx.setTransform
+ * and withCamera().toCss both apply uniformly) -- this pass still adds no
+ * separate per-viewport or gesture-driven zoom state. Lowering it here is
+ * a pure "pull the camera back" change: every other paint/placement/pan
+ * code path already reads scale from the resolved transform, not this
+ * constant directly, so nothing else needed to change to widen the
+ * initial view. At the previous 0.72 the initial iPhone view (390x844)
+ * showed roughly 1-2 of the world's 7 street-grid block-columns -- a
+ * close-up of one intersection, not a city overview. 0.44 was chosen by
+ * measuring the world's actual isometric content bounds (via
+ * MapWorldPreview.worldTransform against WORLD_COLS/WORLD_ROWS above) at
+ * the production map canvas's measured CSS width on both an iPhone 13
+ * viewport (374px) and a 1280x800 desktop viewport (520px): it puts
+ * roughly 3-4 block-columns in view on either, the "3-5 blocks" target,
+ * while the far taller-than-wide world content (its bounding box is
+ * roughly 2:1 width:height) means the shorter content height comfortably
+ * fits inside the taller portrait viewport at the same scale. See
+ * tests/map-phase2-framing-zoomout-test.js for the exact derivation.
+ */
+const DEFAULT_SCALE=0.44;
 const FALLBACK_PREF_ID='tokyo';
 
 /*

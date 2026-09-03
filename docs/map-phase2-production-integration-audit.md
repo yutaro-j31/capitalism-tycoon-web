@@ -429,3 +429,70 @@ The Tokyo 17-marker baseline PR B established and PR C confirmed
 game with 0 stores) is unchanged and is now this PR's own fixture contract
 (`tests/map-phase2-production-promotion-test.js`), not merely a flag-on
 observation.
+
+## 12. Map Framing / Zoom-out Calibration (initial-view pull-back)
+
+Real iPhone playtesting after PR D's merge found the initial map view too
+close: `js/map-phase2-canvas.js`'s `DEFAULT_SCALE=0.72` showed only 1-2 of
+the world's 7 street-grid block-columns on first paint (measured: ~1.9
+block-columns at the iPhone 13 viewport's 374px canvas width, ~2.6 at a
+1280x800 desktop's 520px canvas width) -- individually attractive
+buildings, but no sense of a city. Under the pre-promotion feature flag
+this was reachable only via `?phase2MapCanvas=1` in dev; production
+promotion (section 11) made it every player's very first map view.
+
+**Root cause**: `DEFAULT_SCALE` was tuned for a close-up, individual-
+building read, not an overview. It is the sole projection scale for both
+the Canvas paint (`render()`'s `ctx.setTransform(dpr*transform.scale,...)`)
+and marker placement (`withCamera().toCss`, which multiplies by
+`transform.scale` too) -- there was and is no separate `camera.zoom` field
+(the module-level `camera` stays `{x,y}` only, per PR C's contract).
+
+**Fix**: lowered `DEFAULT_SCALE` from `0.72` to `0.44` -- a pure
+projection-scale change, not a new zoom mechanism. Every other paint/
+placement/pan code path already reads scale from the resolved `transform`,
+so nothing else needed to change to widen the initial view; pan, tap,
+selection, filtering, and prefecture switching are all unaffected (same
+`tests/map-phase2-canvas-test.js` prefecture-rebuild-once contract and
+`tests/map-phase2-iphone-pan-webkit-test.js` pan/rAF-coalescing contract
+still pass unmodified). `0.44` was derived by calling the real
+`MapWorldPreview.buildWorldDistrict`/`worldTransform`/`STREET_PERIOD` (not
+a hand-rederived copy of that geometry) against the measured production
+canvas widths, landing both viewports in the "3-5 block-columns visible"
+target: ~3.1 block-columns at 374px (iPhone), ~4.3 at 520px (desktop). The
+world's content bounding box is roughly 2:1 (width:height), so the full
+street-grid height (all 6 block-rows) comfortably fits inside the taller
+portrait iPhone viewport at the same scale -- the pulled-back view reads as
+a full north-south city extent, not a cropped strip.
+
+**Marker-size rebalance**: pulling the camera back shrinks buildings/tiles
+but `.d-map-marker`'s own CSS size (`css/d-ui-reference-fidelity.css`,
+58x72px, fixed regardless of viewport) does not scale with the projection
+-- at the wider view, markers on nearby tiles started visually
+overlapping each other and dominating the now-smaller buildings beneath
+them. `css/d-ui-map-phase2-markers.css` (already imported after
+`d-ui-reference-fidelity.css` in `css/d-ui-mobile-company.css`, so it wins
+the same-specificity cascade tie) now overrides `.d-map-marker` to 48x60px
+-- a ~31% area reduction that keeps both dimensions comfortably above the
+44px iOS minimum tap target while visibly reducing marker crowding. This
+is a CSS-only, viewport-independent change (no new registerUIEnhancer, no
+new JS): the 79/79 external enhancer cap and MutationObserver-0 invariant
+are both unaffected.
+
+Entity-tile placement itself (`placeEntityTiles()`'s zone-restricted
+collision-avoidance linear probe, section "PR B" above) was intentionally
+left untouched -- some residual close-tile marker crowding near the
+landmark's commercial/CBD core is a pre-existing characteristic of that
+placement density (it was always there; the old 0.72 scale simply kept
+most of it off-screen), not something this PR's explicitly scale/size-only
+mandate extends to redesigning. The existing "no exact tile overlap"
+contract (`tests/map-phase2-production-promotion-test.js`) is about tile
+placement, not CSS pixel bounding boxes, and is unaffected either way.
+
+New coverage: `tests/map-phase2-framing-zoomout-test.js` pins
+`DEFAULT_SCALE`'s pulled-back value, the 3-5 block-column framing bar (with
+a negative test proving the pre-PR 0.72 value fails it), the marker-size
+override and its cascade-order dependency on `d-ui-reference-fidelity.css`
+(with a negative test proving the override is load-bearing), and re-checks
+the no-district-rebuild-during-redraw, no-`Math.random`, and SAVE_KEY/
+saveVersion invariants this change must not disturb.
