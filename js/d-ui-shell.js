@@ -311,7 +311,11 @@ function handleClick(event){
   if(action==='clear-selection'){event.preventDefault();selectedEntity=null;modules.uiEnhancerRegistry.runUIEnhancers();return true;}
   if(action==='map-filter'){event.preventDefault();mapFilterKind=event.target.closest('[data-d-ui-action]').dataset.kind||'all';modules.uiEnhancerRegistry.runUIEnhancers();return true;}
   const marker=event.target?.closest?.('[data-d-ui-marker]');
-  if(marker){event.preventDefault();selectedEntity=marker.dataset.dUiMarker;modules.uiEnhancerRegistry.runUIEnhancers();return true;}
+  // PR C: a pan-ending pointerup on a Phase 2 marker produces a synthetic
+  // click just like any other tap would; modules.mapPhase2Canvas.consumeJustPanned()
+  // is true only for the ~50ms right after a real drag ended, so a plain
+  // tap (no pan) is completely unaffected by this check.
+  if(marker){event.preventDefault();if(modules.mapPhase2Canvas?.consumeJustPanned?.())return true;selectedEntity=marker.dataset.dUiMarker;modules.uiEnhancerRegistry.runUIEnhancers();return true;}
   const tab=event.target?.closest?.('[data-action="tab"]');if(tab)setCommandMenu(false);
   return false;
 }

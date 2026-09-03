@@ -151,7 +151,16 @@ async function main() {
 
   /* ---------------- buildMapViewModel(): purity, no DOM scrape ---------------- */
   await check('buildMapViewModel reads g.stores/g.tenants/g.rentalOffices/g.properties directly, not the DOM', () => {
-    assert.doesNotMatch(canvasSrc, /document\.querySelector|document\.querySelectorAll|closest\(/, 'buildMapViewModel (or anything else in this file) must not scrape rendered DOM the way production mapEntities() does');
+    /*
+     * Scoped to buildMapViewModel()'s own body, not the whole file: PR C
+     * legitimately adds document.querySelector/event.target.closest calls
+     * elsewhere in this file (pan pointer-event delegation, resize
+     * handling) -- pure UI event-target lookups, not scraping production
+     * entity data out of rendered HTML the way legacy mapEntities() does.
+     * buildMapViewModel() itself must still never touch the DOM at all.
+     */
+    const viewModelBody = canvasSrc.split('function buildMapViewModel')[1].split('\nfunction ')[0];
+    assert.doesNotMatch(viewModelBody, /document\.querySelector|document\.querySelectorAll|closest\(/, 'buildMapViewModel must not scrape rendered DOM the way production mapEntities() does');
     assert.match(canvasSrc, /g&&g\.stores/);
     assert.match(canvasSrc, /g&&g\.tenants/);
     assert.match(canvasSrc, /g&&g\.rentalOffices/);
@@ -343,8 +352,9 @@ async function main() {
       "function buildMapViewModel(g,engineInstance){const scraped=document.querySelectorAll('button');"
     );
     assert.notEqual(withScrape, canvasSrc, 'source replace did not match -- test itself is broken');
+    const scrapedViewModelBody = withScrape.split('function buildMapViewModel')[1].split('\nfunction ')[0];
     assert.throws(() => {
-      assert.doesNotMatch(withScrape, /document\.querySelector|document\.querySelectorAll|closest\(/);
+      assert.doesNotMatch(scrapedViewModelBody, /document\.querySelector|document\.querySelectorAll|closest\(/);
     });
   });
 
