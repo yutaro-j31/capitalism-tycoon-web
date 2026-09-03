@@ -15,3 +15,21 @@
 .d-map-filter-chips{display:flex;flex-wrap:wrap;gap:6px;margin:8px 0 0}
 .d-map-filter-chip{padding:7px 10px;min-height:32px;border:1px solid rgba(255,255,255,.24);border-radius:8px;background:rgba(4,13,23,.74);color:#eef3f7;font-size:11px;cursor:pointer}
 .d-map-filter-chip.active{background:var(--d-gold,#d9a84d);border-color:var(--d-gold,#d9a84d);color:#08101f;font-weight:700}
+
+/*
+ * Map Framing / Zoom-out Calibration: js/map-phase2-canvas.js's
+ * DEFAULT_SCALE pull-back makes city tiles/buildings render noticeably
+ * smaller so more of the street grid fits on screen, but .d-map-marker's
+ * own CSS size (css/d-ui-reference-fidelity.css, 58x72) never scaled with
+ * it -- on the pulled-back view, markers placed on adjacent tiles started
+ * visually overlapping each other and dominating the now-smaller buildings
+ * beneath them. This file already sits later than d-ui-reference-
+ * fidelity.css in d-ui-mobile-company.css's @import order (see that
+ * file's list), so this same-specificity override wins on source order.
+ * 48x60 keeps both dimensions comfortably above the 44px iOS minimum tap
+ * target while cutting marker footprint by roughly 31% area versus 58x72.
+ */
+.d-map-marker{width:48px;height:60px}
+.d-map-marker span{font-size:22px}
+.d-map-marker small{top:57px}
+.d-map-marker:after{bottom:10px}
