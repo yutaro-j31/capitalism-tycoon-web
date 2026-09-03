@@ -111,7 +111,8 @@
     "tests/d-ui-map-detail-test.js",
     "tests/map-phase2-p0-assets-test.js",
     "tests/map-phase2-visual-calibration-test.js",
-    "tests/map-phase2-p1-mid-civic-assets-test.js"
+    "tests/map-phase2-p1-mid-civic-assets-test.js",
+    "tests/map-phase2-canvas-test.js"
   ],
   "H": [
     "tests/supply-material-cost-inflation-test.js",
