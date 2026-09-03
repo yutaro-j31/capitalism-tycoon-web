@@ -323,7 +323,7 @@ async function main() {
     assert.doesNotMatch(canvasSrc, /SAVE_KEY|saveVersion|localStorage/);
   });
 
-  await check('production files this pass touches match the PR A scope (index.html, module-load-order.json, js/d-ui-shell.js, js/map-phase2-canvas.js, css/d-ui-map-phase2-canvas.css, tests) -- prototypes/map-canvas-renderer.js and prototypes/map-world-preview.js content stays unmodified', () => {
+  await check('production files this pass touches match the PR A + PR B scope (index.html, module-load-order.json, js/d-ui-shell.js, js/map-phase2-canvas.js, css/d-ui-map-phase2-canvas.css, css/d-ui-map-phase2-markers.css, css/d-ui-mobile-company.css, tests) -- prototypes/map-canvas-renderer.js and prototypes/map-world-preview.js content stays unmodified', () => {
     const { execSync } = require('child_process');
     let diffFiles;
     try {
@@ -332,7 +332,7 @@ async function main() {
       diffFiles = execSync('git diff --name-only HEAD', { cwd: ROOT, encoding: 'utf8' }).trim().split('\n').filter(Boolean);
     }
     assert.ok(!diffFiles.some(f => f.startsWith('js/') && f !== 'js/d-ui-shell.js' && f !== 'js/map-phase2-canvas.js'), `unexpected js/ file touched: ${diffFiles.filter(f => f.startsWith('js/')).join(', ')}`);
-    const allowedCSS=new Set(['css/d-ui-map-phase2-canvas.css','css/d-ui-mobile-company.css']);
+    const allowedCSS=new Set(['css/d-ui-map-phase2-canvas.css','css/d-ui-map-phase2-markers.css','css/d-ui-mobile-company.css']);
     assert.ok(!diffFiles.some(f => f.startsWith('css/') && !allowedCSS.has(f)), `unexpected css/ file touched: ${diffFiles.filter(f => f.startsWith('css/')).join(', ')}`);
   });
 

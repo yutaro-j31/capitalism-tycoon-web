@@ -66,11 +66,94 @@ function buildMapViewModel(g,engineInstance){
   const prefID=(g&&(g.selectedPref||g.founderHomePrefID))||null;
   const businessName=id=>engineInstance&&engineInstance.business?engineInstance.business(id)?.name:undefined;
   const byPref=list=>(Array.isArray(list)?list:[]).filter(item=>!prefID||item.prefID===prefID);
-  const stores=byPref(g&&g.stores).map(store=>({id:`store:${store.id}`,kind:'store',sourceId:store.id,pref:store.prefID,label:store.name||businessName(store.businessID)||'直営店舗'}));
-  const tenants=byPref(g&&g.tenants).map(tenant=>({id:`tenant:${tenant.id}`,kind:'tenant',sourceId:tenant.id,pref:tenant.prefID,label:tenant.name||'出店候補'}));
-  const offices=byPref(g&&g.rentalOffices).map(office=>({id:`office:${office.id}`,kind:'office',sourceId:office.id,pref:office.prefID,label:office.name||'オフィス候補'}));
-  const properties=byPref(g&&g.properties).map(property=>({id:`realestate:${property.id}`,kind:'realestate',sourceId:property.id,pref:property.prefID,label:property.name||'不動産候補'}));
+  /*
+   * PR B extends each entity with a couple of legacy-shaped fields
+   * (rawID/name, and a raw store/property reference where one exists) so
+   * js/d-ui-shell.js's existing selectedDetail() -- built for production's
+   * own DOM-scraped mapEntities() -- can render a Phase 2 marker's detail
+   * card without any changes to selectedDetail() itself. The documented
+   * {id,kind,sourceId,pref,label} shape from PR A is unchanged; this is
+   * additive only.
+   */
+  const stores=byPref(g&&g.stores).map(store=>{
+    const label=store.name||businessName(store.businessID)||'直営店舗';
+    return {id:`store:${store.id}`,kind:'store',sourceId:store.id,pref:store.prefID,label,rawID:store.id,name:label,store};
+  });
+  const tenants=byPref(g&&g.tenants).map(tenant=>{
+    const label=tenant.name||'出店候補';
+    return {id:`tenant:${tenant.id}`,kind:'tenant',sourceId:tenant.id,pref:tenant.prefID,label,rawID:tenant.id,name:label};
+  });
+  const offices=byPref(g&&g.rentalOffices).map(office=>{
+    const label=office.name||'オフィス候補';
+    return {id:`office:${office.id}`,kind:'office',sourceId:office.id,pref:office.prefID,label,rawID:office.id,name:label};
+  });
+  const properties=byPref(g&&g.properties).map(property=>{
+    const label=property.name||'不動産候補';
+    return {id:`realestate:${property.id}`,kind:'realestate',sourceId:property.id,pref:property.prefID,label,rawID:property.id,name:label,property,propertyKind:property.kind};
+  });
   return {prefID,entities:[...stores,...tenants,...offices,...properties]};
+}
+
+/*
+ * PR B: deterministic tile placement for the 4 real entity kinds -- see
+ * docs/map-phase2-production-integration-audit.md section 6 (PR B).
+ * Building scenery and real markers are separate concepts: this never
+ * changes buildWorldDistrict()'s own city fabric, it only picks which
+ * already-generated zone-appropriate tile a given production entity's
+ * marker sits on.
+ */
+const ENTITY_KIND_DISTRICTS={store:['commercial','cbd'],tenant:['commercial','cbd'],office:['cbd']};
+/* g.properties' `kind` field is one of these 6 fixed Japanese labels (see
+   js/engine.js's makeProperties()) -- not a fabricated attribute. */
+const PROPERTY_KIND_DISTRICTS={
+  '商業ビル':['commercial'],'土地':['commercial','residential','industrial'],
+  '住宅':['residential'],'大型物件':['premiumResidential','commercial'],
+  '物流':['industrial'],'オフィス':['cbd']
+};
+function districtCandidatesFor(entity){
+  if(entity.kind==='realestate')return PROPERTY_KIND_DISTRICTS[entity.propertyKind]||['commercial','residential','industrial'];
+  return ENTITY_KIND_DISTRICTS[entity.kind]||['commercial'];
+}
+/*
+ * placeEntityTiles(): pure given an already-built district (buildWorldDistrict
+ * output, read via the same module-level cache render() uses -- see
+ * ensureDistrict below). Reuses window.MapCanvas's own FNV-1a hash() (via
+ * the Base binding closed over by ensureDistrict/render) -- no new hash
+ * implementation. Entities are resolved in a canonical (id-sorted) order
+ * so which entity keeps a hash-preferred tile on a collision never depends
+ * on the order the caller happened to pass entities in; the returned
+ * array preserves the caller's original order. Never calls into JavaScript's
+ * built-in random-number generator or any simulation RNG -- the only
+ * "randomness" is the reused pure hash.
+ * Returns null (not entities-with-null-tiles) if the district isn't built
+ * yet for this prefecture (assets/prototypes still loading).
+ */
+function placeEntityTiles(entities,prefID){
+  const Base=globalThis.MapCanvas;
+  if(!Base||!assetsReady)return null;
+  const district=ensureDistrict(assetsReady.index2,prefID);
+  const byZone=new Map();
+  for(const cell of district.tiles){
+    if(!byZone.has(cell.zone))byZone.set(cell.zone,[]);
+    byZone.get(cell.zone).push(cell);
+  }
+  const occupied=new Set();
+  const placements=new Map();
+  const canonicalOrder=[...entities].sort((a,b)=>a.id<b.id?-1:a.id>b.id?1:0);
+  for(const entity of canonicalOrder){
+    const eligible=districtCandidatesFor(entity).flatMap(zone=>byZone.get(zone)||[]);
+    if(!eligible.length){placements.set(entity.id,{tileX:null,tileY:null});continue;}
+    const seed=Base.hash(`${prefID}:marker:${entity.kind}:${entity.sourceId}`);
+    let picked=null;
+    for(let attempt=0;attempt<eligible.length;attempt++){
+      const cell=eligible[(seed+attempt)%eligible.length];
+      const key=`${cell.tileX},${cell.tileY}`;
+      if(!occupied.has(key)){occupied.add(key);picked=cell;break;}
+    }
+    if(!picked)picked=eligible[seed%eligible.length];
+    placements.set(entity.id,{tileX:picked.tileX,tileY:picked.tileY});
+  }
+  return entities.map(entity=>Object.assign({},entity,placements.get(entity.id)));
 }
 
 /* ---- lazy-load the two prototype renderer files (only once, only when
@@ -130,6 +213,27 @@ function initialCamera(district,transform,rawW,rawH){
 }
 
 /*
+ * PR B: positions the Phase 2 marker DOM (built by js/d-ui-shell.js with
+ * data-phase2-tile-x/y attributes, no position yet) using the exact same
+ * camTransform this render() call just used to paint the canvas -- a
+ * single shared worldToScreen for both, per the audit's PR B design.
+ * Markers stay real DOM <button> overlay elements (not drawn onto the
+ * canvas) for accessibility/hit-target/tooltip reasons -- this only ever
+ * sets their existing --x/--y custom properties (already consumed as
+ * plain left/top by css/d-ui.css's .d-map-marker rule for the legacy
+ * percentage-based layout; a pixel value works identically).
+ */
+function positionMarkers(canvas,camTransform){
+  const container=canvas.parentElement;if(!container)return;
+  for(const marker of container.querySelectorAll('[data-d-ui-marker][data-phase2-tile-x]')){
+    const tileX=Number(marker.dataset.phase2TileX),tileY=Number(marker.dataset.phase2TileY);
+    if(!Number.isFinite(tileX)||!Number.isFinite(tileY))continue;
+    const [x,y]=camTransform.toCss(tileX,tileY);
+    marker.style.setProperty('--x',`${x}px`);marker.style.setProperty('--y',`${y}px`);
+  }
+}
+
+/*
  * render(): synchronous, called from js/d-ui-shell.js's renderMapWorkspace()
  * only when isEnabled() is true, once per call with a fresh <canvas>
  * element (renderMapWorkspace rebuilds .d-city-surface's innerHTML
@@ -182,10 +286,11 @@ function render(canvas,g){
   MW.paintGreenery(ctx,viewDistrict,camTransform);
   MW.blitWorldSprites(ctx,viewDistrict,camTransform,images,index2,{placeholderLabels:false,spriteWidthFactor:1.18});
   ctx.setTransform(1,0,0,1,0,0);
+  positionMarkers(canvas,camTransform);
 }
 
 modules.mapPhase2Canvas=Object.freeze({
-  isEnabled,setEnabledForDev,buildMapViewModel,render,
+  isEnabled,setEnabledForDev,buildMapViewModel,placeEntityTiles,render,
   __installed:true
 });
 })();
