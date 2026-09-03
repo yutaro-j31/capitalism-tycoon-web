@@ -71,7 +71,8 @@
     "tests/personal-stock-margin-test.js",
     "test:player-crisis-turnaround-fund",
     "tests/founder-health-system-removal-test.js",
-    "tests/d-ui-context-tabs-test.js"
+    "tests/d-ui-context-tabs-test.js",
+    "tests/map-phase2-production-promotion-test.js"
   ],
   "F": [
     "tests/store-closure-plan-test.js",

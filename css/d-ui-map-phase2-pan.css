@@ -1,26 +1,14 @@
-/* PR C: iPhone pan / camera synchronization / WebKit hardening (flag-gated).
-   Presentation only -- camera/pointer-drag logic lives in
-   js/map-phase2-canvas.js. */
-
-/* The browser's own native touch scroll/zoom on the canvas would compete
-   with the custom pointer-drag pan (see js/map-phase2-canvas.js's
-   installPanHandlers()) -- disabling it here is what lets a single-finger
-   drag pan the map instead of scrolling the page underneath it. Scoped to
-   the canvas element itself, not .d-city-surface-phase2, so this has zero
-   effect anywhere the flag is off (the element is never emitted then). */
+/* Camera/pointer-drag pan (js/map-phase2-canvas.js). The browser's own
+   native touch scroll/zoom on the canvas would compete with the custom
+   pointer-drag pan (see installPanHandlers()) -- disabling it here is what
+   lets a single-finger drag pan the map instead of scrolling the page
+   underneath it. */
 .d-phase2-canvas{touch-action:none}
 
-/* STEP 10: js/iphone-playtest-fixes.js's ensureMapChrome() applies a
-   legacy transform:scale(var(--iphone-map-zoom,1)) to .d-city-surface (and
-   therefore everything inside it, canvas and markers included) on every
-   viewport it enhances the map on -- the very desync the production
-   integration audit flagged as a candidate bug (docs/map-phase2-
-   production-integration-audit.md section 8: applied to the city imagery
-   but not .d-map-marker, so zooming via that legacy control visibly
-   separates markers from the buildings/streets under them). Phase 2's own
-   camera (js/map-phase2-canvas.js) is the only zoom/pan mechanism that
-   may ever move .d-city-surface-phase2's content -- this override ensures
-   the legacy CSS transform can never additionally apply to it, regardless
-   of --iphone-map-zoom's value, without touching iphone-playtest-fixes.js
-   itself or its effect on the legacy (flag-off) path at all. */
-.iphone-map-enhanced .d-city-surface-phase2{transform:none!important}
+/* PR D removed js/iphone-playtest-fixes.js's legacy per-viewport zoom
+   mechanism entirely (see docs/map-phase2-production-integration-audit.md
+   section 6, PR D) -- Phase 2's own camera is now the only mechanism that
+   has ever moved .d-city-surface-phase2's content, so the isolation
+   override this file used to carry against that legacy transform (PR C)
+   is gone too: there is no longer a second transform source to isolate
+   from. */

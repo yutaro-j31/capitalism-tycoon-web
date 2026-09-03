@@ -184,20 +184,16 @@ async function main() {
   });
 
   /* ================= COUNT PARITY ================= */
-  await check('buildMapViewModel applies no artificial per-kind cap (unlike legacy mapEntities(), which slices to 6/6/2/6) -- Phase 2 reflects the full production state for the prefecture', () => {
+  await check('buildMapViewModel applies no artificial per-kind cap (production promotion removed the old DOM-scraped mapEntities(), which used to slice to 6/6/2/6) -- Phase 2 reflects the full production state for the prefecture', () => {
     const between = canvasSrc.split('function buildMapViewModel')[1].split('\nfunction ')[0];
-    assert.doesNotMatch(between, /\.slice\(/, 'buildMapViewModel must not cap entity counts the way DOM-scraped mapEntities() does');
+    assert.doesNotMatch(between, /\.slice\(/, 'buildMapViewModel must not cap entity counts');
   });
 
-  await check('legacy mapEntities() still caps stores/tenants/realestate at 6 and offices at 2 -- the documented, pre-existing source of any flag-off vs flag-on marker count difference', () => {
-    const mapEntitiesBody = shellSrc.split('function mapEntities(')[1].split('\nfunction ')[0];
-    assert.match(mapEntitiesBody, /\(g\.stores\|\|\[\]\)\.filter\([^)]*\)\.slice\(0,6\)/, 'stores must still be capped at 6');
-    assert.match(mapEntitiesBody, /tenantButtons=\[\.\.\.screen\.querySelectorAll\([^)]*\)\]\.slice\(0,6\)/, 'tenants must still be capped at 6');
-    assert.match(mapEntitiesBody, /\.slice\(0,2\)/, 'offices must still be capped at 2 by the legacy DOM scrape');
-    assert.match(mapEntitiesBody, /realEstateButtons=\[\.\.\.screen\.querySelectorAll\([^)]*\)\]\.slice\(0,6\)/, 'realestate must still be capped at 6');
+  await check('mapEntities() is fully gone from js/d-ui-shell.js -- production promotion removed the DOM-scraped legacy adapter and its 6/6/2/6 caps entirely, not just hid it', () => {
+    assert.doesNotMatch(shellSrc, /function mapEntities\(/);
   });
 
-  await check('count parity: for a prefecture within legacy\'s caps (<=6 stores/tenants/realestate, <=2 offices), Phase 2 and a same-cap-simulated legacy count match exactly per kind', async () => {
+  await check('count parity: buildMapViewModel\'s per-kind counts for a sample prefecture match the raw g.stores/g.tenants/g.rentalOffices/g.properties counts exactly (no cap, no DOM round-trip)', async () => {
     const { mod } = await readySandbox();
     const g = sampleG(); // tokyo: 2 stores, 1 tenant, 1 office, 1 property -- all within legacy's caps
     const vmResult = mod.buildMapViewModel(g, null);
@@ -209,8 +205,8 @@ async function main() {
   });
 
   /* ================= SELECTION ================= */
-  await check('renderMapWorkspace validates selectedEntity against a single activeEntities source (legacy list when flag off, Phase 2 view model when flag on) -- no parallel selection state', () => {
-    assert.match(shellSrc, /const activeEntities=phase2On\?\(phase2Placed\|\|\[\]\):legacyEntities;/);
+  await check('renderMapWorkspace validates selectedEntity against a single activeEntities source (the Phase 2 view model -- there is no second, legacy entity list any more)', () => {
+    assert.match(shellSrc, /const activeEntities=placed\|\|\[\];/);
     assert.match(shellSrc, /selectedEntity===undefined\|\|\(selectedEntity!==null&&!activeEntities\.some\(entity=>entity\.id===selectedEntity\)\)/);
     assert.match(shellSrc, /const chosen=selectedEntity===null\?null:activeEntities\.find\(entity=>entity\.id===selectedEntity\)\|\|null;/);
   });
@@ -221,8 +217,7 @@ async function main() {
     assert.match(shellSrc, /entity\.property\|\|\{\}/, 'realestate branch must still read entity.property as before');
   });
 
-  await check('Phase 2 markers reuse the exact same data-d-ui-marker attribute and handleClick() marker-click branch as legacy markers (no new click-handling code path)', () => {
-    assert.match(shellSrc, /data-d-ui-marker="\$\{esc\(entity\.id\)\}"[\s\S]{0,40}<span>\$\{markerIcon\(entity\)\}/, 'legacy marker markup');
+  await check('Phase 2 markers carry the same data-d-ui-marker attribute handleClick() has always used -- no new/second click-handling code path was added for production promotion', () => {
     assert.match(shellSrc, /data-d-ui-marker="\$\{esc\(entity\.id\)\}" data-phase2-tile-x="\$\{entity\.tileX\}" data-phase2-tile-y="\$\{entity\.tileY\}"/, 'phase2 marker markup');
     assert.match(shellSrc, /const marker=event\.target\?\.closest\?\.\('\[data-d-ui-marker\]'\)/, 'single shared marker-click handler');
   });
@@ -245,14 +240,14 @@ async function main() {
     assert.match(shellSrc, /action==='map-filter'\)\{event\.preventDefault\(\);mapFilterKind=event\.target\.closest\('\[data-d-ui-action\]'\)\.dataset\.kind\|\|'all';modules\.uiEnhancerRegistry\.runUIEnhancers\(\)/);
   });
 
-  await check('filter chips are only emitted when the flag is on (flag-off toolbar stays exactly as before)', () => {
-    assert.match(shellSrc, /const filterChips=phase2On\?`<div class="d-map-filter-chips">/);
+  await check('filter chips are always emitted (production promotion made Phase 2 unconditional)', () => {
+    assert.match(shellSrc, /const filterChips=`<div class="d-map-filter-chips">/);
   });
 
   /* ================= PREFECTURE ================= */
   await check('Phase 2 markers and Phase 2 city scenery derive prefID from the exact same buildMapViewModel() call (single production prefecture source)', () => {
-    assert.match(shellSrc, /const phase2ViewModel=phase2On\?modules\.mapPhase2Canvas\.buildMapViewModel\(g,engine\(\)\):null;/);
-    assert.match(shellSrc, /const phase2Placed=phase2ViewModel\?modules\.mapPhase2Canvas\.placeEntityTiles\(phase2ViewModel\.entities,phase2ViewModel\.prefID\):null;/);
+    assert.match(shellSrc, /const viewModel=modules\.mapPhase2Canvas\.buildMapViewModel\(g,engine\(\)\);/);
+    assert.match(shellSrc, /const placed=modules\.mapPhase2Canvas\.placeEntityTiles\(viewModel\.entities,viewModel\.prefID\);/);
   });
 
   await check('placeEntityTiles reflects a prefecture change: switching prefID yields different entities/placements without needing a special-cased reset', async () => {
@@ -268,25 +263,29 @@ async function main() {
     assert.ok(placedOsaka.every(e => e.pref === 'osaka'));
   });
 
-  /* ================= REGRESSION: flag-off parity ================= */
-  await check('flag-off: every PR B addition is gated behind phase2On (legacy markup/behavior stays exactly as PR A left it)', () => {
-    assert.match(shellSrc, /const phase2ViewModel=phase2On\?/);
-    assert.match(shellSrc, /const phase2Placed=phase2ViewModel\?/);
-    assert.match(shellSrc, /let phase2MarkersHTML='';\s*\n\s*if\(phase2On\)\{/);
-    assert.match(shellSrc, /const filterChips=phase2On\?/);
+  /* ================= REGRESSION: no legacy path remains (production promotion) ================= */
+  // The old "flag-off parity" section here tested that every PR B addition
+  // was gated behind phase2On and that the legacy DOM-scraped/hidden-by-CSS
+  // marker path still ran unconditionally underneath it. Production
+  // promotion deleted that legacy path outright rather than merely hiding
+  // it, so those checks are replaced with their direct opposite: proof the
+  // legacy identifiers/markup/CSS are actually gone, not just unreachable.
+  await check('no phase2On branching remains anywhere in js/d-ui-shell.js -- Phase 2 is unconditional', () => {
+    assert.doesNotMatch(shellSrc, /phase2On/);
   });
 
-  await check('legacy positions/mapEntities() markup generation is byte-identical to the PR A baseline -- still unconditional, still using legacyEntities/markerPosition', () => {
-    assert.match(shellSrc, /const legacyEntities=mapEntities\(g,screen\);/);
-    assert.match(shellSrc, /const positions=legacyEntities\.map\(\(entity,index\)=>\{const pos=markerPosition\(entity\.id,index,occupiedMarkerPositions\);/);
+  await check('legacy mapEntities()/markerPosition()/MARKER_POSITIONS marker-placement code is fully gone from js/d-ui-shell.js, not merely CSS-hidden', () => {
+    assert.doesNotMatch(shellSrc, /function mapEntities\(/);
+    assert.doesNotMatch(shellSrc, /function markerPosition\(/);
+    assert.doesNotMatch(shellSrc, /MARKER_POSITIONS/);
   });
 
-  await check('legacy markers are hidden (not deleted) via a CSS attribute selector when the flag is on -- css/d-ui-map-phase2-markers.css targets markers without data-phase2-tile-x', () => {
+  await check('the legacy hidden-marker CSS rule (which targeted markers without data-phase2-tile-x) is gone from css/d-ui-map-phase2-markers.css -- there is no legacy marker left to hide', () => {
     const css = fs.readFileSync(path.join(ROOT, 'css/d-ui-map-phase2-markers.css'), 'utf8');
-    assert.match(css, /\.d-city-surface-phase2 \.d-map-marker:not\(\[data-phase2-tile-x\]\)\{display:none!important\}/);
+    assert.doesNotMatch(css, /:not\(\[data-phase2-tile-x\]\)/);
   });
 
-  await check('js/d-ui-shell.js does not call modules.uiEnhancerRegistry.registerUIEnhancer a second time in PR B (still one registration, 79/79 cap unaffected)', () => {
+  await check('js/d-ui-shell.js does not call modules.uiEnhancerRegistry.registerUIEnhancer a second time (still one registration, 79/79 cap unaffected)', () => {
     const matches = shellSrc.match(/registerUIEnhancer\(/g) || [];
     assert.equal(matches.length, 1);
   });
@@ -297,19 +296,12 @@ async function main() {
     assert.doesNotMatch(added, /SAVE_KEY|saveVersion/);
   });
 
-  await check('production files this pass touches match the PR B scope -- no unexpected js/css files, prototypes/*.js content stays unmodified', () => {
-    const { execSync } = require('child_process');
-    let diffFiles;
-    try {
-      diffFiles = execSync('git diff --name-only origin/main...HEAD', { cwd: ROOT, encoding: 'utf8' }).trim().split('\n').filter(Boolean);
-    } catch (e) {
-      diffFiles = execSync('git diff --name-only HEAD', { cwd: ROOT, encoding: 'utf8' }).trim().split('\n').filter(Boolean);
-    }
-    assert.ok(!diffFiles.some(f => f.startsWith('js/') && f !== 'js/d-ui-shell.js' && f !== 'js/map-phase2-canvas.js'), `unexpected js/ file touched: ${diffFiles.filter(f => f.startsWith('js/')).join(', ')}`);
-    const allowedCSS = new Set(['css/d-ui-map-phase2-markers.css', 'css/d-ui-mobile-company.css']);
-    assert.ok(!diffFiles.some(f => f.startsWith('css/') && !allowedCSS.has(f)), `unexpected css/ file touched this PR: ${diffFiles.filter(f => f.startsWith('css/')).join(', ')}`);
-    assert.ok(!diffFiles.includes('prototypes/map-canvas-renderer.js') && !diffFiles.includes('prototypes/map-world-preview.js'), 'prototype files must stay unmodified');
-  });
+  // Note: this file's own PR-scope git-diff check was removed here for the
+  // same reason as tests/map-phase2-canvas-test.js -- it described PR B's
+  // small diff and no longer matches PR D's much larger production-
+  // promotion diff on the same branch. The current PR's scope check
+  // (including that prototypes/*.js stays unmodified) lives in
+  // tests/map-phase2-production-promotion-test.js.
 
   /* ================= NEGATIVE TESTS ================= */
   await check('NEGATIVE: if placeEntityTiles used Math.random instead of the reused hash, the RNG-purity check above would fail', () => {

@@ -14,19 +14,28 @@ has(js,'pattern="[0-9]*"','numeric pattern required');
 has(js,'enterkeyhint="done"','iPhone Done key required');
 has(js,'input.focus({preventScroll:true})','money modal must synchronously focus input');
 has(js,"['business-invest','borrow-company','repay-company','borrow-personal','repay-personal']",'money actions must use shared iPhone modal');
-for(const action of ['filter','legend','zoom-out','zoom-reset','zoom-in','view'])has(js,`data-iphone-map-action=\"${action}\"`,`map action ${action} must exist`);
+for(const action of ['filter','legend','view'])has(js,`data-iphone-map-action=\"${action}\"`,`map action ${action} must exist`);
+// zoom-out/zoom-reset/zoom-in were removed by production promotion: the legacy
+// per-viewport zoom mechanism they drove only ever scaled the legacy city
+// layers, and css/d-ui-map-phase2-pan.css already made the (now sole) Phase 2
+// map surface ignore it -- so once Phase 2 became the only renderer, these
+// buttons visibly did nothing. See docs/map-phase2-production-integration-
+// audit.md section 6, PR D.
+for(const removed of ['zoom-out','zoom-reset','zoom-in'])assert(!js.includes(`data-iphone-map-action="${removed}"`),`map action ${removed} must stay removed`);
 for(const feature of ['iphone-store-cockpit','iphone-debt-ledger','iphone-crisis-compact','data-iphone-pref'])has(js,feature,`${feature} missing`);
 
-// js/d-ui-shell.js's mapEntities() already renders every unowned property in the
-// selected prefecture as a canonical .d-map-marker.realestate button. Synthesising a
-// second, independently-positioned .iphone-synthetic-marker.property for the same
-// property id duplicated every listing and -- since the two systems use different
-// position formulas and .iphone-synthetic-marker has a higher z-index (11 vs the real
-// marker's 5) -- could land the duplicate directly on top of a real marker, silently
-// making it unclickable. ensureSyntheticMapEntities must not reintroduce that
-// duplicate; only competitors (which have no canonical marker elsewhere) still get a
-// synthetic one, and it must be placed clear of every existing .d-map-marker.
-assert(!/class="iphone-synthetic-marker property"/.test(js),'a second, synthetic property marker must not be reintroduced (js/d-ui-shell.js already renders every unowned property as .d-map-marker.realestate)');
+// js/map-phase2-canvas.js's buildMapViewModel() already renders every unowned
+// property in the selected prefecture as a canonical .d-map-marker.realestate
+// button. Synthesising a second, independently-positioned
+// .iphone-synthetic-marker.property for the same property id duplicated every
+// listing and -- since the two systems use different position formulas and
+// .iphone-synthetic-marker has a higher z-index (11 vs the real marker's 5) --
+// could land the duplicate directly on top of a real marker, silently making
+// it unclickable. ensureSyntheticMapEntities must not reintroduce that
+// duplicate; only competitors (which have no canonical marker elsewhere) still
+// get a synthetic one, and it must be placed clear of every existing
+// .d-map-marker.
+assert(!/class="iphone-synthetic-marker property"/.test(js),'a second, synthetic property marker must not be reintroduced (js/map-phase2-canvas.js already renders every unowned property as .d-map-marker.realestate)');
 assert(!/data-iphone-map-entity="property"/.test(js),'property synthetic markers must stay removed');
 has(js,'function positionsCollide(','collision-avoidance helper missing');
 has(js,'function findClearMarkerPosition(','clear-position search helper missing');

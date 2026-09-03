@@ -1,19 +1,27 @@
 'use strict';
 /*
- * Focused contract test for PR A -- production adapter foundation +
- * feature flag + Phase 2 Canvas background wiring
- * (js/map-phase2-canvas.js + the minimal flag hook it adds to
- * js/d-ui-shell.js's renderMapWorkspace()). See
- * docs/map-phase2-production-integration-audit.md for the design this
+ * Focused contract test for the Phase 2 production adapter foundation
+ * (js/map-phase2-canvas.js's buildMapViewModel/placeEntityTiles/render).
+ * See docs/map-phase2-production-integration-audit.md for the design this
  * implements.
  *
+ * Originally written for PR A (introduced the feature flag) and extended
+ * through PR C (pan). PR D (production promotion) removed the flag
+ * entirely -- Phase 2 is now the sole map renderer -- so this file's old
+ * isEnabled()/setEnabledForDev()/query-flag/flag-off-parity checks were
+ * removed along with the code they tested; that removal-contract coverage
+ * (no flag, no legacy renderer, always-on Phase 2) now lives in
+ * tests/map-phase2-production-promotion-test.js. What remains here is the
+ * adapter's own foundational behavior, unaffected by the promotion: pure
+ * view-model construction, no DOM scraping, no 4th hash implementation,
+ * and render()'s DPR/prefecture-switching/degrade-gracefully contract.
+ *
  * js/map-phase2-canvas.js touches document.* in exactly one place (lazy
- * <script> injection for the two prototypes/*.js files, gated so it is
- * only ever reached once the flag is on -- see ensurePrototypesLoaded).
- * It never queries or scrapes the DOM. That means it can still be loaded
- * and executed directly in a sandboxed vm context for most checks (with
- * a document stub only where the lazy-load path itself is exercised),
- * unlike js/d-ui-shell.js which stays regex-inspected as text.
+ * <script> injection for the two prototypes/*.js files -- see
+ * ensurePrototypesLoaded). It never queries or scrapes the DOM. That means
+ * it can still be loaded and executed directly in a sandboxed vm context
+ * for most checks, unlike js/d-ui-shell.js which stays regex-inspected as
+ * text.
  *
  * Run directly: node tests/map-phase2-canvas-test.js
  */
@@ -101,11 +109,18 @@ async function main() {
     const sandbox = freshSandbox();
     const mod = sandbox.__capitalismTycoonModules.mapPhase2Canvas;
     assert.ok(mod, 'not registered');
-    assert.equal(typeof mod.isEnabled, 'function');
-    assert.equal(typeof mod.setEnabledForDev, 'function');
     assert.equal(typeof mod.buildMapViewModel, 'function');
+    assert.equal(typeof mod.placeEntityTiles, 'function');
     assert.equal(typeof mod.render, 'function');
+    assert.equal(typeof mod.consumeJustPanned, 'function');
     assert.ok(mod.__installed);
+  });
+
+  await check('no feature flag remains: isEnabled/setEnabledForDev are gone from the module\'s public API (production promotion removed them)', () => {
+    const sandbox = freshSandbox();
+    const mod = sandbox.__capitalismTycoonModules.mapPhase2Canvas;
+    assert.equal(mod.isEnabled, undefined);
+    assert.equal(mod.setEnabledForDev, undefined);
   });
 
   await check('throws if registered twice (same guard pattern as every other module)', () => {
@@ -113,37 +128,7 @@ async function main() {
     assert.throws(() => vm.runInContext(canvasSrc, sandbox, { filename: 'map-phase2-canvas.js' }), /already registered/);
   });
 
-  /* ---------------- flag: default OFF, non-persistent ---------------- */
-  await check('flag defaults to OFF with no URL param', () => {
-    const sandbox = freshSandbox({ search: '' });
-    assert.equal(sandbox.__capitalismTycoonModules.mapPhase2Canvas.isEnabled(), false);
-  });
-
-  await check('flag turns ON via ?phase2MapCanvas=1 / true / on', () => {
-    for (const value of ['1', 'true', 'on']) {
-      const sandbox = freshSandbox({ search: `?phase2MapCanvas=${value}` });
-      assert.equal(sandbox.__capitalismTycoonModules.mapPhase2Canvas.isEnabled(), true, value);
-    }
-  });
-
-  await check('flag stays OFF for an unrecognised query value', () => {
-    const sandbox = freshSandbox({ search: '?phase2MapCanvas=maybe' });
-    assert.equal(sandbox.__capitalismTycoonModules.mapPhase2Canvas.isEnabled(), false);
-  });
-
-  await check('setEnabledForDev() overrides the URL, and null resets to URL-derived value', () => {
-    const sandbox = freshSandbox({ search: '' });
-    const mod = sandbox.__capitalismTycoonModules.mapPhase2Canvas;
-    assert.equal(mod.isEnabled(), false);
-    mod.setEnabledForDev(true);
-    assert.equal(mod.isEnabled(), true);
-    mod.setEnabledForDev(false);
-    assert.equal(mod.isEnabled(), false);
-    mod.setEnabledForDev(null);
-    assert.equal(mod.isEnabled(), false, 'should fall back to the URL-derived value after reset');
-  });
-
-  await check('the flag is never written to localStorage, SAVE_KEY, or any g/engine field anywhere in the file', () => {
+  await check('never persists anything to localStorage, SAVE_KEY, saveVersion, or any g/engine field anywhere in the file (read-only adapter)', () => {
     assert.doesNotMatch(canvasSrc, /localStorage/);
     assert.doesNotMatch(canvasSrc, /SAVE_KEY|saveVersion/);
     assert.doesNotMatch(canvasSrc, /\bg\.\w+\s*=(?!=)/, 'must never assign to a g.* field (read-only adapter)');
@@ -302,27 +287,21 @@ async function main() {
     MW.buildWorldDistrict = originalBuild;
   });
 
-  /* ---------------- flag-off parity: js/d-ui-shell.js ---------------- */
-  await check('renderMapWorkspace() only adds the phase2 canvas/class when the flag is on -- flag-off markup is untouched', () => {
-    assert.match(shellSrc, /mapPhase2Canvas\?\.isEnabled\?\.\(\)/, 'must check the flag defensively (optional chaining), never assume the module is loaded');
+  /* ---------------- js/d-ui-shell.js: still the only production caller ---------------- */
+  await check('renderMapWorkspace() always renders the Phase 2 canvas/class -- there is no flag branch left to check', () => {
+    assert.doesNotMatch(shellSrc, /mapPhase2Canvas\?\.isEnabled\?\.\(\)/, 'the flag check itself must be gone');
     assert.match(shellSrc, /d-city-surface-phase2/);
     assert.match(shellSrc, /d-phase2-canvas/);
+    assert.match(shellSrc, /modules\.mapPhase2Canvas\.buildMapViewModel\(g,engine\(\)\)/);
+    assert.match(shellSrc, /modules\.mapPhase2Canvas\.render\(workspace\.querySelector\('\.d-phase2-canvas'\),g\)/);
   });
 
-  await check('marker/selection/filter logic in js/d-ui-shell.js is untouched by this pass (still present, byte-identical to the audited baseline)', () => {
-    assert.match(shellSrc, /const MARKER_POSITIONS=\[\[18,23\],\[43,17\],\[66,27\],\[25,47\],\[54,48\],\[78,52\],\[37,70\],\[64,73\],\[15,67\],\[83,31\]\];/);
-    assert.match(shellSrc, /function mapEntities\(g,screen\)\{/);
-    assert.match(shellSrc, /function markerPosition\(id,index,occupied\)\{/);
+  await check('selectedDetail()/selection state in js/d-ui-shell.js are untouched by production promotion (still present, still the sole selection/detail contract)', () => {
     assert.match(shellSrc, /function selectedDetail\(entity,g\)\{/);
     assert.match(shellSrc, /let selectedEntity;/);
   });
 
-  await check('the legacy .d-city-blocks/isoCityBuildingsSVG markup generation is untouched (still called unconditionally, not deleted)', () => {
-    assert.match(shellSrc, /Array\.from\(\{length:34\}/);
-    assert.match(shellSrc, /isoCityBuildingsSVG\(g\)/);
-  });
-
-  await check('js/d-ui-shell.js does not call modules.uiEnhancerRegistry.registerUIEnhancer a second time for this pass (stays at one registration, the 79/79 cap is not affected)', () => {
+  await check('js/d-ui-shell.js registers with modules.uiEnhancerRegistry.registerUIEnhancer exactly once (the 79/79 cap is not affected by production promotion)', () => {
     const registrations = shellSrc.match(/registerUIEnhancer\(/g) || [];
     assert.equal(registrations.length, 1);
   });
@@ -332,18 +311,12 @@ async function main() {
     assert.doesNotMatch(canvasSrc, /SAVE_KEY|saveVersion|localStorage/);
   });
 
-  await check('production files this pass touches match the PR A + PR B scope (index.html, module-load-order.json, js/d-ui-shell.js, js/map-phase2-canvas.js, css/d-ui-map-phase2-canvas.css, css/d-ui-map-phase2-markers.css, css/d-ui-mobile-company.css, tests) -- prototypes/map-canvas-renderer.js and prototypes/map-world-preview.js content stays unmodified', () => {
-    const { execSync } = require('child_process');
-    let diffFiles;
-    try {
-      diffFiles = execSync('git diff --name-only origin/main...HEAD', { cwd: ROOT, encoding: 'utf8' }).trim().split('\n').filter(Boolean);
-    } catch (e) {
-      diffFiles = execSync('git diff --name-only HEAD', { cwd: ROOT, encoding: 'utf8' }).trim().split('\n').filter(Boolean);
-    }
-    assert.ok(!diffFiles.some(f => f.startsWith('js/') && f !== 'js/d-ui-shell.js' && f !== 'js/map-phase2-canvas.js'), `unexpected js/ file touched: ${diffFiles.filter(f => f.startsWith('js/')).join(', ')}`);
-    const allowedCSS=new Set(['css/d-ui-map-phase2-canvas.css','css/d-ui-map-phase2-markers.css','css/d-ui-mobile-company.css']);
-    assert.ok(!diffFiles.some(f => f.startsWith('css/') && !allowedCSS.has(f)), `unexpected css/ file touched: ${diffFiles.filter(f => f.startsWith('css/')).join(', ')}`);
-  });
+  // Note: this file's own "production files this pass touches match the
+  // PR scope" git-diff check was removed here -- it was written for PR A +
+  // PR B's small diff and no longer describes reality once PR D's much
+  // larger production-promotion diff lands on the same branch. The current
+  // PR's own scope check lives in tests/map-phase2-production-promotion-
+  // test.js instead, with its own up-to-date allowed-file list.
 
   /* ---------------- negative test 1: DOM scrape would be caught ---------------- */
   await check('NEGATIVE: if buildMapViewModel scraped the DOM like production mapEntities() does, the earlier DOM-scrape check would fail', () => {
@@ -358,11 +331,11 @@ async function main() {
     });
   });
 
-  /* ---------------- negative test 2: persisting the flag would be caught ---------------- */
-  await check('NEGATIVE: if the flag were persisted to localStorage, the earlier localStorage check would fail', () => {
+  /* ---------------- negative test 2: persisting adapter state would be caught ---------------- */
+  await check('NEGATIVE: if buildMapViewModel wrote to localStorage, the earlier no-persistence check would fail', () => {
     const withPersistence = canvasSrc.replace(
-      'function setEnabledForDev(value){',
-      "function setEnabledForDev(value){try{localStorage.setItem('phase2MapCanvas',String(value));}catch(e){}"
+      'function buildMapViewModel(g,engineInstance){',
+      "function buildMapViewModel(g,engineInstance){try{localStorage.setItem('phase2MapCanvas','1');}catch(e){}"
     );
     assert.notEqual(withPersistence, canvasSrc, 'source replace did not match -- test itself is broken');
     assert.throws(() => {

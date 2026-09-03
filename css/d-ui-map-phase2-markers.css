@@ -1,17 +1,9 @@
-/* PR B: production marker/selection/filter wiring (flag-gated).
-   Presentation only -- placement/collision/filter logic lives in
-   js/map-phase2-canvas.js and js/d-ui-shell.js. When the flag is on, the
-   legacy .d-map-marker buttons stay in the DOM (mapEntities()/positions
-   generation in renderMapWorkspace() is unchanged, not deleted) and are
-   only visually hidden here, by an attribute selector rather than a class,
-   so nothing about their own markup needs to change: Phase 2 markers carry
-   a data-phase2-tile-x attribute the legacy ones never do. When the flag
-   is off, .d-city-surface-phase2 never exists, so this rule never matches
-   anything and legacy markers render exactly as before this file existed. */
-.d-city-surface-phase2 .d-map-marker:not([data-phase2-tile-x]){display:none!important}
+/* Production marker/selection/filter wiring -- placement/collision/filter
+   logic lives in js/map-phase2-canvas.js and js/d-ui-shell.js. Every
+   .d-map-marker in the DOM is a Phase 2 marker (carries data-phase2-tile-x)
+   -- there is no legacy marker path left to hide. */
 
-/* Filter chip row, only ever emitted (by renderMapWorkspace()) when the
-   flag is on -- reuses the same --d-gold token css/d-ui.css already
+/* Filter chip row -- reuses the same --d-gold token css/d-ui.css already
    defines for this screen. Non-persistent UI state only
    (js/d-ui-shell.js's mapFilterKind); never written to save.
    Deliberately placed inside .d-chart-card's own header, NOT

@@ -355,13 +355,33 @@ async function main() {
     assert.match(panCss, /\.d-phase2-canvas\{touch-action:none\}/);
   });
 
-  /* ================= LEGACY --iphone-map-zoom ISOLATION ================= */
-  await check('the legacy --iphone-map-zoom CSS transform can never apply to the Phase 2 surface, isolating it from the audit\'s documented marker/imagery desync bug without touching iphone-playtest-fixes.js', () => {
-    assert.match(panCss, /\.iphone-map-enhanced \.d-city-surface-phase2\{transform:none!important\}/);
+  /* ================= LEGACY --iphone-map-zoom: fully removed (production promotion) ================= */
+  // PR C isolated Phase 2 from the legacy --iphone-map-zoom transform with
+  // a CSS override; production promotion (PR D) went further and removed
+  // the legacy zoom mechanism (js/iphone-playtest-fixes.js's state.mapZoom,
+  // its zoom-in/zoom-out/zoom-reset buttons, and every CSS rule reading
+  // --iphone-map-zoom) entirely, since it only ever scaled the legacy city
+  // layers PR D also deleted. With no transform source left to isolate
+  // from, PR C's override rule is gone too -- these checks now prove the
+  // whole legacy zoom path (mechanism, buttons, and the isolation rule that
+  // used to guard against it) is actually gone, not just neutralized.
+  await check('the legacy --iphone-map-zoom CSS custom property is set nowhere in js/iphone-playtest-fixes.js', () => {
+    const iphoneFixesJs = fs.readFileSync(path.join(ROOT, 'js/iphone-playtest-fixes.js'), 'utf8');
+    assert.doesNotMatch(iphoneFixesJs, /--iphone-map-zoom/);
+    assert.doesNotMatch(iphoneFixesJs, /mapZoom/);
   });
 
-  await check('flag-off: .d-city-surface-phase2 is never emitted (from PR A), so the legacy-zoom-isolation rule can never match anything when the flag is off -- zero effect on existing iPhone zoom behavior', () => {
-    assert.match(shellSrc, /const citySurfaceClass=phase2On\?'d-city-surface d-city-surface-phase2':'d-city-surface';/);
+  await check('no CSS rule anywhere reads --iphone-map-zoom any more, including PR C\'s own former isolation override', () => {
+    const iphoneFixesCss = fs.readFileSync(path.join(ROOT, 'css/iphone-playtest-fixes.css'), 'utf8');
+    assert.doesNotMatch(iphoneFixesCss, /--iphone-map-zoom/);
+    assert.doesNotMatch(panCss, /--iphone-map-zoom/);
+    assert.doesNotMatch(panCss, /transform:none!important/);
+  });
+
+  await check('the zoom-in/zoom-out/zoom-reset map actions are gone from js/iphone-playtest-fixes.js -- filter/legend/view remain', () => {
+    const iphoneFixesJs = fs.readFileSync(path.join(ROOT, 'js/iphone-playtest-fixes.js'), 'utf8');
+    for (const action of ['zoom-in', 'zoom-out', 'zoom-reset']) assert.doesNotMatch(iphoneFixesJs, new RegExp(`data-iphone-map-action="${action}"`));
+    for (const action of ['filter', 'legend', 'view']) assert.match(iphoneFixesJs, new RegExp(`data-iphone-map-action="${action}"`));
   });
 
   /* ================= RESIZE ================= */
@@ -387,9 +407,9 @@ async function main() {
     assert.doesNotMatch(canvasSrc, /function hash\(/);
   });
 
-  await check('legacy marker/selection/filter markup generation (PR B) is still present, unmodified by PR C', () => {
-    assert.match(shellSrc, /const positions=legacyEntities\.map\(\(entity,index\)=>\{const pos=markerPosition\(entity\.id,index,occupiedMarkerPositions\);/);
-    assert.match(shellSrc, /const activeEntities=phase2On\?\(phase2Placed\|\|\[\]\):legacyEntities;/);
+  await check('Phase 2 selection/filter wiring (PR B) is still present and unconditional after production promotion: single activeEntities source, no legacy list left beside it', () => {
+    assert.match(shellSrc, /const activeEntities=placed\|\|\[\];/);
+    assert.doesNotMatch(shellSrc, /legacyEntities/);
   });
 
   await check('17-marker Phase 2 baseline (PR B) is unaffected: buildMapViewModel still applies no artificial per-kind cap', () => {
@@ -402,25 +422,17 @@ async function main() {
     assert.equal(matches.length, 1);
   });
 
-  await check('production files this pass touches match the PR C scope -- no unexpected js/css files, prototypes/*.js content stays unmodified', () => {
-    const { execSync } = require('child_process');
-    let diffFiles;
-    try {
-      diffFiles = execSync('git diff --name-only origin/main...HEAD', { cwd: ROOT, encoding: 'utf8' }).trim().split('\n').filter(Boolean);
-    } catch (e) {
-      diffFiles = execSync('git diff --name-only HEAD', { cwd: ROOT, encoding: 'utf8' }).trim().split('\n').filter(Boolean);
-    }
-    assert.ok(!diffFiles.some(f => f.startsWith('js/') && f !== 'js/d-ui-shell.js' && f !== 'js/map-phase2-canvas.js'), `unexpected js/ file touched: ${diffFiles.filter(f => f.startsWith('js/')).join(', ')}`);
-    const allowedCSS = new Set(['css/d-ui-map-phase2-pan.css', 'css/d-ui-mobile-company.css']);
-    assert.ok(!diffFiles.some(f => f.startsWith('css/') && !allowedCSS.has(f)), `unexpected css/ file touched this PR: ${diffFiles.filter(f => f.startsWith('css/')).join(', ')}`);
-    assert.ok(!diffFiles.includes('prototypes/map-canvas-renderer.js') && !diffFiles.includes('prototypes/map-world-preview.js'), 'prototype files must stay unmodified');
-  });
+  // Note: this file's own PR-scope git-diff check was removed here for the
+  // same reason as tests/map-phase2-canvas-test.js -- it described PR C's
+  // small diff and no longer matches PR D's much larger production-
+  // promotion diff on the same branch. The current PR's scope check lives
+  // in tests/map-phase2-production-promotion-test.js.
 
   /* ================= NEGATIVE TESTS ================= */
-  await check('NEGATIVE: if the legacy zoom isolation rule were removed, the earlier CSS-isolation check would fail', () => {
-    const withoutRule = panCss.replace(".iphone-map-enhanced .d-city-surface-phase2{transform:none!important}", '');
-    assert.notEqual(withoutRule, panCss, 'sanity: replace must have matched');
-    assert.throws(() => assert.match(withoutRule, /\.iphone-map-enhanced \.d-city-surface-phase2\{transform:none!important\}/));
+  await check('NEGATIVE: if a CSS rule reading --iphone-map-zoom were reintroduced, the earlier removal check would fail', () => {
+    const withRule = panCss + '\n.iphone-map-enhanced .d-city-surface-phase2{transform:scale(var(--iphone-map-zoom,1))}';
+    assert.doesNotMatch(panCss, /--iphone-map-zoom/, 'sanity: real source has none');
+    assert.match(withRule, /--iphone-map-zoom/, 'mutated source must trip the same regex the real check above uses');
   });
 
   await check('NEGATIVE: if pan redraw were NOT rAF-coalesced (direct render() call instead of requestAnimationFrame scheduling), the scheduling check above would fail', () => {

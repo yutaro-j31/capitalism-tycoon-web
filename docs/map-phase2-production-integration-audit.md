@@ -314,3 +314,118 @@ proposed:
 Everything else in section 6's PR A description (scenery-only, markers/
 selection/filters untouched, legacy renderer left in place and just
 hidden, not deleted) matches what shipped.
+
+## 10. PR B/C implementation notes (actual, vs. section 6's plan)
+
+PR B shipped `buildMapViewModel()`'s marker/selection/filter extension and
+`placeEntityTiles()` (deterministic tile-space placement, reusing
+`prototypes/map-canvas-renderer.js`'s `hash()` via the `Base` binding --
+no 5th hash implementation) exactly as section 6 described: markers read
+directly off the view model's `tileX`/`tileY`, selection reuses
+production's `selectedEntity`/`selectedDetail()` pattern (extended with
+`rawID`/`name`/raw `store`/`property` references so `selectedDetail()`
+needed zero changes), and filter state (`mapFilterKind`) is hoisted to a
+shared, non-persistent module-level variable. Legacy DOM markers were kept
+generating and CSS-hidden (not deleted) under the flag, matching section
+6's staged-migration plan.
+
+PR C shipped one-finger pointer-drag pan and the persistent module-level
+camera (`resolveCamera()`), plus discovered and fixed two bugs during
+manual QA that section 6 didn't anticipate: (1) gating pan-start on the
+canvas element alone silently ignored drags starting on a marker button
+(markers are canvas siblings, not descendants); (2) the `pointerleave`
+safety net that cancels an abandoned pre-threshold drag was firing on any
+element-boundary crossing, not just leaving the map surface, wrongly
+canceling drags that started on a small marker. It also confirmed (matching
+section 8's candidate bug report) and isolated the flag-on Phase 2 surface
+from the legacy `--iphone-map-zoom` transform via a CSS override, without
+touching `iphone-playtest-fixes.js` itself.
+
+## 11. PR D: production promotion + legacy removal (final architecture)
+
+PR D executed section 6's PR D exactly as planned: the feature flag and
+every legacy renderer/placement path it used to sit beside are deleted
+outright (not merely hidden), leaving Phase 2 as the map's only renderer.
+Final production data flow:
+
+```
+production source of truth
+  g.stores / g.tenants / g.rentalOffices / g.properties / g.selectedPref
+        |
+        v
+  buildMapViewModel(g, engine)              js/map-phase2-canvas.js
+        |  {prefID, entities:[{id,kind,sourceId,pref,label,...}]}
+        v
+  placeEntityTiles(entities, prefID)        js/map-phase2-canvas.js
+        |  deterministic FNV-1a hash placement (Base.hash, reused --
+        |  no new hash implementation), canonical id-sorted resolution,
+        |  collision-avoidance linear probe over each entity's eligible
+        |  district tiles
+        v
+  Phase 2 world (buildWorldDistrict)        prototypes/map-world-preview.js
+        |  terrain/roads/greenery/civic/office.mid/residential.mid/
+        |  P0/P1 sprites/landmark -- scenery only, never reads production
+        |  state
+        v
+  shared camera (resolveCamera)             js/map-phase2-canvas.js
+        |  single {x,y} source of truth for both layers below; reset only
+        |  on prefecture change; pointer-drag pan mutates it directly
+        |
+        +--> Canvas paint (render)          js/map-phase2-canvas.js +
+        |      terrain/roads/greenery/sprites via the shared camTransform  prototypes/map-canvas-renderer.js
+        |
+        +--> DOM markers (positionMarkers)  js/map-phase2-canvas.js
+               --x/--y set via the SAME camTransform the canvas just used
+                 |
+                 v
+        js/d-ui-shell.js: handleClick() marker click -> selectedEntity
+                 |
+                 v
+        selectedDetail(chosen, g)           js/d-ui-shell.js (unmodified
+                                             by the whole A-D sequence)
+```
+
+`renderMapWorkspace()` (`js/d-ui-shell.js`) is now a single, unconditional
+path: it always emits `.d-city-surface.d-city-surface-phase2` with a
+`<canvas class="d-phase2-canvas">`, calls `buildMapViewModel()`/
+`placeEntityTiles()`/`render()` unconditionally, and always renders the
+filter chip row. There is no `phase2On` branch, no query-string flag
+(`?phase2MapCanvas=`), and no `isEnabled()`/`setEnabledForDev()` API left
+in `js/map-phase2-canvas.js`.
+
+**Removed** (not hidden -- deleted outright): `mapEntities()` (DOM-scraped
+legacy adapter, including its 6/6/2/6 per-kind caps),
+`markerPosition()`/`markerPositionsCollide()`/`MARKER_POSITIONS`/
+`MARKER_GRID_X`/`MARKER_GRID_Y` (legacy fixed-slot placement),
+`isoCityBuildingsSVG()` and the legacy 34-block `.d-city-blocks`
+generation (plus `.d-water`/`.d-road-grid`), `css/d-ui-map-buildings.css`
+(the isometric-city stylesheet, deleted as a file), the hidden-duplicate-
+marker CSS rule (nothing left to hide), and `js/iphone-playtest-fixes.js`'s
+legacy per-viewport zoom mechanism (`state.mapZoom`, its zoom-in/zoom-out/
+reset buttons, the `--iphone-map-zoom` CSS custom property, and PR C's own
+now-moot isolation override for it) and `ensureCityDetail()` (a second,
+independent procedural-city layer that would have competed with Phase 2's
+Canvas scenery). `js/d-ui-shell.js`'s own `hash()` (FNV-1a) became fully
+dead once both of its only callers (`markerPosition()`/
+`isoCityBuildingsSVG()`) were deleted, and was removed with them --
+consistent with this codebase's rule against duplicate hash
+implementations.
+
+**Deliberately retained** (audited, not redundant with Phase 2's 4
+production kinds): `js/iphone-playtest-fixes.js`'s competitor synthetic-
+marker path (`ensureSyntheticMapEntities()`'s competitor branch,
+`handleSyntheticMarker()`) -- competitors are not one of
+`buildMapViewModel()`'s 4 kinds (store/tenant/office/realestate), so
+nothing in Phase 2 covers them. Also retained in full: `ensureMapChrome()`'s
+pref-select/view-toggle/filter/legend chrome
+(`.iphone-map-nav`/`.iphone-map-tools`/`.iphone-map-popover`,
+`state.mapFilters`/`applyMapFilters()`) -- a separate, still-functioning
+navigation layer, not "procedural city" or "DOM-scraped marker placement,"
+and out of this PR's scope per the instruction not to do an unrelated full
+refactor of `iphone-playtest-fixes.js`.
+
+The Tokyo 17-marker baseline PR B established and PR C confirmed
+(tenant 8 + office 3 + realestate 6 = 17 placeable entities in a fresh
+game with 0 stores) is unchanged and is now this PR's own fixture contract
+(`tests/map-phase2-production-promotion-test.js`), not merely a flag-on
+observation.

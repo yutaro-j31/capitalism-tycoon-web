@@ -1,15 +1,5 @@
-/* PR A: Phase 2 Canvas background wiring (flag-gated).
+/* Phase 2 Canvas background (the production map's only renderer, see
+   docs/map-phase2-production-integration-audit.md section 6, PR D).
    Presentation only -- no marker placement, entity, or deterministic-hash
-   logic. .d-city-surface-phase2 is added to the markup by
-   js/d-ui-shell.js's renderMapWorkspace() ONLY when
-   modules.mapPhase2Canvas.isEnabled() is true; when the flag is off,
-   neither this class nor the <canvas> element it targets is ever emitted,
-   so flag-off output is byte-identical to before this file existed.
-   The legacy .d-water/.d-road-grid/.d-city-blocks/.d-iso-city nodes stay
-   in the DOM (not deleted -- see docs/map-phase2-production-integration-
-   audit.md section 5) and are only visually hidden while the flag is on. */
-.d-city-surface-phase2 .d-water,
-.d-city-surface-phase2 .d-road-grid,
-.d-city-surface-phase2 .d-city-blocks,
-.d-city-surface-phase2 .d-iso-city{display:none}
+   logic. */
 .d-phase2-canvas{position:absolute;inset:0;width:100%;height:100%;display:block}
