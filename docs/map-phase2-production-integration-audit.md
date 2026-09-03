@@ -291,3 +291,26 @@ decoration nobody outside `map-phase2-preview.html` can see yet.
   the buildings/streets they're meant to sit on. Flagging as a candidate
   bug report for a separate issue/PR, per instruction not to fix
   discoveries found during this audit inline with integration work.
+
+## 9. PR A implementation notes (actual, vs. section 6's plan)
+
+PR A shipped as `js/map-phase2-canvas.js` (not `map-phase2-adapter.js` as
+named in section 6 -- functionally the same module described there).
+Two deltas from section 6's suggestion, both stricter than what was
+proposed:
+
+- The flag (`phase2MapCanvasEnabled`, read as `?phase2MapCanvas=1/true/on`)
+  is **not** written to `localStorage` at all, in-memory override only via
+  `setEnabledForDev()` -- section 6 said "recommend a `localStorage`/URL-
+  param dev flag"; the actual governing instruction for this PR required
+  zero persistence, so the flag resets on every reload by design.
+- `prototypes/map-canvas-renderer.js`/`map-world-preview.js` are lazy-
+  loaded via runtime `<script>` injection (only on first flag-on render),
+  not bundled/rewritten into the new module and not added as static
+  `<script>` tags in `index.html` -- `tests/javascript-module-split-
+  test.js` treats `index.html`'s script tags as an exact 1:1 inventory of
+  `js/*.js`, and the two prototype files live under `prototypes/`.
+
+Everything else in section 6's PR A description (scenery-only, markers/
+selection/filters untouched, legacy renderer left in place and just
+hidden, not deleted) matches what shipped.
