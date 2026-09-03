@@ -195,6 +195,7 @@ function ensureAssetsLoaded(){
 
 /* ---- district cache: rebuilt only when the resolved prefecture changes ---- */
 let cachedDistrict=null,cachedPrefID=null,cachedTransform=null;
+let lastCssW=null,lastCssH=null,lastDpr=null;
 function ensureDistrict(index2,prefID){
   const MW=globalThis.MapWorldPreview;
   if(cachedDistrict&&cachedPrefID===prefID)return cachedDistrict;
@@ -210,6 +211,138 @@ function initialCamera(district,transform,rawW,rawH){
   if(!landmark)return {x:0,y:0};
   const [lx,ly]=transform.toScreen(landmark.tileX,landmark.tileY);
   return MW.clampCameraToContent({x:lx-rawW/2,y:ly-rawH/2},transform,district,rawW,rawH);
+}
+
+/*
+ * PR C: camera is the single, persistent {x,y} source of truth for both
+ * the Canvas paint and marker positioning (see docs/map-phase2-
+ * production-integration-audit.md section 6, PR C) -- there must never be
+ * a separate Canvas camera, marker camera, and CSS-zoom camera. PR A/B's
+ * render() recomputed a fresh landmark-centred camera on every single
+ * call, which silently undid any pan the instant anything else (a
+ * selection, a filter click) re-ran the enhancer; this module-level
+ * variable is what a pointer drag actually mutates, and render() now only
+ * (re)initialises it when the resolved prefecture changes (STEP 13:
+ * switching prefectures resets to a fresh, landmark-centred camera --
+ * the old position has no meaning in a different world) or on first
+ * paint. On every other call it is preserved and merely re-clamped
+ * (worldWidth/worldHeight/contentBounds do not change unless the world
+ * itself was rebuilt, but the viewport might have -- e.g. window resize).
+ */
+let camera=null,cameraPrefID=null;
+function resolveCamera(district,transform,prefID,rawW,rawH){
+  const MW=globalThis.MapWorldPreview;
+  if(!camera||cameraPrefID!==prefID){
+    camera=initialCamera(district,transform,rawW,rawH);
+    cameraPrefID=prefID;
+  }else{
+    camera=MW.clampCameraToContent(camera,transform,district,rawW,rawH);
+  }
+  return camera;
+}
+
+/*
+ * PR C: pointer-drag pan, ported from the already-working design in
+ * map-phase2-preview.html (pointer capture withheld until the tap/pan
+ * threshold is crossed, so a plain marker tap is never affected by it;
+ * justPanned briefly suppresses the synthetic click a drag-ending
+ * pointerup produces, so ending a pan on top of a marker never selects
+ * it). Delegated on document (installed once, at load time, like
+ * js/d-ui-shell.js's own click/keydown listeners) rather than re-attached
+ * to the <canvas> element every render -- renderMapWorkspace() rebuilds
+ * that element's innerHTML (and therefore the canvas itself) on every
+ * enhancer pass, so a per-element listener would need re-attaching each
+ * time anyway. Pointer Events are the sole gesture path (pointerdown/
+ * move/up/cancel, setPointerCapture) -- WebKit on iPhone has supported
+ * Pointer Events since Safari 13, and using only one event family avoids
+ * the double-firing risk of running both Pointer and Touch listeners on
+ * the same gesture.
+ */
+const PAN_THRESHOLD=8;
+let dragState=null,justPanned=false,lastG=null,pendingFrame=false;
+function consumeJustPanned(){
+  if(!justPanned)return false;
+  justPanned=false;
+  return true;
+}
+function schedulePanRedraw(canvas){
+  if(pendingFrame)return;
+  pendingFrame=true;
+  globalThis.requestAnimationFrame(()=>{pendingFrame=false;render(canvas,lastG);});
+}
+function onPointerDown(event){
+  if(dragState)return;
+  /*
+   * Gate on the shared .d-city-surface-phase2 container, not the canvas
+   * element alone -- Phase 2 markers are DOM siblings of the canvas (both
+   * direct children of .d-city-surface), not descendants of it, so a drag
+   * that starts on top of a marker button must still be able to pan (see
+   * map-phase2-preview.html's reference stage-level listener, which covers
+   * both canvas and marker overlay the same way). Tap-vs-pan disambiguation
+   * is handled entirely by PAN_THRESHOLD + deferred pointer capture below,
+   * never by excluding certain start targets.
+   */
+  const container=event.target?.closest?.('.d-city-surface-phase2');
+  const canvas=container?.querySelector?.('.d-phase2-canvas');
+  if(!canvas||!camera)return;
+  dragState={pointerId:event.pointerId,canvas,startX:event.clientX,startY:event.clientY,camStart:{x:camera.x,y:camera.y},dragging:false};
+}
+function onPointerMove(event){
+  if(!dragState||event.pointerId!==dragState.pointerId)return;
+  const dx=event.clientX-dragState.startX,dy=event.clientY-dragState.startY;
+  if(!dragState.dragging){
+    if(Math.hypot(dx,dy)<PAN_THRESHOLD)return;
+    dragState.dragging=true;
+    try{dragState.canvas.setPointerCapture(dragState.pointerId);}catch(e){}
+  }
+  const transform=cachedTransform;if(!transform)return;
+  camera={x:dragState.camStart.x-dx/transform.scale,y:dragState.camStart.y-dy/transform.scale};
+  schedulePanRedraw(dragState.canvas);
+}
+function endDrag(event){
+  if(!dragState||(event&&event.pointerId!==undefined&&event.pointerId!==dragState.pointerId))return;
+  if(dragState.dragging){
+    justPanned=true;
+    globalThis.setTimeout(()=>{justPanned=false;},50);
+    try{dragState.canvas.releasePointerCapture(dragState.pointerId);}catch(e){}
+  }
+  dragState=null;
+}
+function installPanHandlers(){
+  if(typeof document==='undefined'||typeof document.addEventListener!=='function')return;
+  document.addEventListener('pointerdown',onPointerDown,true);
+  document.addEventListener('pointermove',onPointerMove,true);
+  document.addEventListener('pointerup',endDrag,true);
+  document.addEventListener('pointercancel',endDrag,true);
+  /* pointerleave never bubbles, but a capture-phase document listener
+     still sees it on the way down to whatever element the pointer left --
+     this only matters pre-threshold (a pointerdown with no following
+     move before the pointer truly leaves the map surface), so a genuine
+     drag that has already captured the pointer is never affected by it.
+     Since a drag can legitimately start on top of a small marker button
+     (STEP 7), the pointer crossing that button's own edge onto a sibling
+     element (its icon span, the canvas, another part of the surface) must
+     NOT cancel the pending drag -- only relatedTarget landing outside the
+     whole .d-city-surface-phase2 container means the pointer actually left
+     the interactive map area. */
+  document.addEventListener('pointerleave',event=>{
+    if(!dragState||dragState.dragging||event.pointerId!==dragState.pointerId)return;
+    const stillInside=event.relatedTarget&&event.relatedTarget.closest?.('.d-city-surface-phase2');
+    if(!stillInside)dragState=null;
+  },true);
+  /*
+   * A resize (desktop window resize, or an iPhone orientation change) must
+   * re-clamp the camera against the new viewport and reposition markers,
+   * but must never rebuild the district or re-place entities -- render()
+   * already guarantees that (ensureDistrict()'s cache only keys off
+   * prefID, and placeEntityTiles() is never called from here at all).
+   */
+  if(typeof globalThis.addEventListener==='function'){
+    globalThis.addEventListener('resize',()=>{
+      const canvas=document.querySelector('.d-phase2-canvas');
+      if(canvas&&lastG)render(canvas,lastG);
+    },{passive:true});
+  }
 }
 
 /*
@@ -248,6 +381,7 @@ function positionMarkers(canvas,camTransform){
  */
 function render(canvas,g){
   if(!canvas)return;
+  lastG=g;
   const ctx=canvas.getContext('2d');if(!ctx)return;
   const rect=canvas.getBoundingClientRect();
   const cssW=Math.max(1,Math.round(rect.width)),cssH=Math.max(1,Math.round(rect.height));
@@ -265,13 +399,19 @@ function render(canvas,g){
     return;
   }
 
-  const dpr=Base.sizeCanvas(canvas,cssW,cssH,globalThis.devicePixelRatio);
+  /* Skip the (unconditional, per Base.sizeCanvas) canvas.width/height
+     reassignment when the CSS size hasn't actually changed -- pan/select/
+     filter redraws happen far more often than real resizes, and
+     reassigning canvas.width to its own value still resets the backing
+     store per the HTML5 canvas spec. */
+  const dpr=(cssW===lastCssW&&cssH===lastCssH&&lastDpr)?lastDpr:Base.sizeCanvas(canvas,cssW,cssH,globalThis.devicePixelRatio);
+  lastCssW=cssW;lastCssH=cssH;lastDpr=dpr;
   const {index2,images}=assetsReady;
   const prefID=(g&&(g.selectedPref||g.founderHomePrefID))||FALLBACK_PREF_ID;
   const district=ensureDistrict(index2,prefID);
   const transform=cachedTransform;
   const rawW=cssW/transform.scale,rawH=cssH/transform.scale;
-  const camera=initialCamera(district,transform,rawW,rawH);
+  const camera=resolveCamera(district,transform,prefID,rawW,rawH);
   const camTransform=MW.withCamera(transform,camera);
   const visible=MW.cullVisible(district,transform,camera,rawW,rawH,300);
   const viewDistrict={prefID:district.prefID,tiles:visible,byKey:district.byKey,cols:district.cols,rowsCount:district.rowsCount};
@@ -289,8 +429,10 @@ function render(canvas,g){
   positionMarkers(canvas,camTransform);
 }
 
+installPanHandlers();
+
 modules.mapPhase2Canvas=Object.freeze({
-  isEnabled,setEnabledForDev,buildMapViewModel,placeEntityTiles,render,
+  isEnabled,setEnabledForDev,buildMapViewModel,placeEntityTiles,render,consumeJustPanned,
   __installed:true
 });
 })();
