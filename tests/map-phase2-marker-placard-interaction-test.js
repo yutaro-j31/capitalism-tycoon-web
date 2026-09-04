@@ -461,6 +461,113 @@ async function main() {
     assert.equal(before.ox, after.ox, 'the applied placard offset must be pan-invariant');
   });
 
+  /* ================= CHROME EXCLUSION (repair for a real post-merge WebKit CI regression) =================
+   * Raising .d-map-marker's z-index above the iPhone chrome (the root-cause
+   * fix above) had an unintended side effect: a marker rendered ON TOP of
+   * .iphone-map-nav/.iphone-map-tools/.iphone-map-popover now blocks THEIR
+   * own tap instead. Confirmed by a real post-merge WebKit CI failure
+   * (tests/iphone-playtest-webkit-test.js timed out clicking
+   * [data-iphone-map-action="filter"]: "span ... from .d-city-surface-phase2
+   * subtree intercepts pointer events"). chromeExclusionRects() measures
+   * those controls' live DOM rects and positionMarkers() now routes every
+   * on-screen marker away from them using the same nudge search already
+   * built for viewport-edge-clamp collisions. */
+  function makeChromeStageCanvas({ canvasRect, chromeRect, marker }) {
+    const stage = {
+      querySelector(sel) {
+        if (sel === '.iphone-map-tools') return chromeRect ? { hidden: false, getBoundingClientRect: () => chromeRect } : null;
+        return null;
+      },
+    };
+    return {
+      getContext: () => new Proxy({}, { get: () => () => {}, set: () => true }),
+      getBoundingClientRect: () => canvasRect,
+      parentElement: { querySelectorAll: () => [marker] },
+      width: 0, height: 0, style: {},
+      closest(sel) { return sel === '.d-map-stage' ? stage : null; },
+    };
+  }
+
+  await check('a marker whose natural position collides with the live .iphone-map-tools rect is nudged clear of it, not left overlapping', async () => {
+    const { mod } = await readySandbox();
+    const marker = { dataset: { dUiMarker: 'tenant:t0', phase2TileX: '16', phase2TileY: '16', phase2OffsetX: '0', phase2OffsetY: '0' }, style: { setProperty(k, v) { this[k] = v; } } };
+    const canvasRect = { left: 0, top: 0, width: 300, height: 300 };
+    // First render with no chrome to learn this marker's natural (unclamped) --x/--y.
+    const plainCanvas = makeChromeStageCanvas({ canvasRect, chromeRect: null, marker });
+    mod.render(plainCanvas, { selectedPref: 'tokyo' });
+    const naturalX = parseFloat(marker.style['--x']), naturalY = parseFloat(marker.style['--y']);
+    assert.ok(Number.isFinite(naturalX) && Number.isFinite(naturalY), 'sanity: marker must have a resolved on-screen position');
+
+    // A chrome rect placed exactly over that natural position -- the real
+    // shape of the CI failure (a chrome control sitting where a marker
+    // would otherwise render).
+    const chromeRect = { left: naturalX - 20, top: naturalY - 20, right: naturalX + 20, bottom: naturalY + 20, width: 40, height: 40 };
+    const chromeCanvas = makeChromeStageCanvas({ canvasRect, chromeRect, marker });
+    mod.render(chromeCanvas, { selectedPref: 'tokyo' });
+    const x = parseFloat(marker.style['--x']), y = parseFloat(marker.style['--y']);
+    const MARKER_HALF_MATCH = canvasSrc.match(/const MARKER_CLAMP_HALF_W=(\d+),MARKER_CLAMP_HALF_H=(\d+);/);
+    assert.ok(MARKER_HALF_MATCH, 'could not locate MARKER_CLAMP_HALF_W/H in js/map-phase2-canvas.js');
+    const halfW = Number(MARKER_HALF_MATCH[1]), halfH = Number(MARKER_HALF_MATCH[2]);
+    const markerRect = { left: x - halfW, top: y - halfH, right: x + halfW, bottom: y + halfH };
+    assert.ok(!overlaps(markerRect, chromeRect), `marker rect ${JSON.stringify(markerRect)} must not overlap the chrome exclusion rect ${JSON.stringify(chromeRect)}`);
+  });
+
+  await check('a hidden or zero-sized .iphone-map-tools element is NOT treated as claimed space (matches ensureMapChrome()\'s own hidden-until-opened popover pattern)', async () => {
+    const { mod } = await readySandbox();
+    const marker = { dataset: { dUiMarker: 'tenant:t0', phase2TileX: '16', phase2TileY: '16', phase2OffsetX: '0', phase2OffsetY: '0' }, style: { setProperty(k, v) { this[k] = v; } } };
+    const canvasRect = { left: 0, top: 0, width: 300, height: 300 };
+    const plainCanvas = makeChromeStageCanvas({ canvasRect, chromeRect: null, marker });
+    mod.render(plainCanvas, { selectedPref: 'tokyo' });
+    const naturalX = parseFloat(marker.style['--x']), naturalY = parseFloat(marker.style['--y']);
+
+    const stage = {
+      querySelector(sel) {
+        if (sel !== '.iphone-map-tools') return null;
+        return { hidden: true, getBoundingClientRect: () => ({ left: naturalX - 20, top: naturalY - 20, right: naturalX + 20, bottom: naturalY + 20, width: 40, height: 40 }) };
+      },
+    };
+    const hiddenChromeCanvas = {
+      getContext: () => new Proxy({}, { get: () => () => {}, set: () => true }),
+      getBoundingClientRect: () => canvasRect,
+      parentElement: { querySelectorAll: () => [marker] },
+      width: 0, height: 0, style: {},
+      closest(sel) { return sel === '.d-map-stage' ? stage : null; },
+    };
+    mod.render(hiddenChromeCanvas, { selectedPref: 'tokyo' });
+    const x = parseFloat(marker.style['--x']), y = parseFloat(marker.style['--y']);
+    assert.equal(x, naturalX, 'a hidden chrome control must not nudge the marker away');
+    assert.equal(y, naturalY, 'a hidden chrome control must not nudge the marker away');
+  });
+
+  await check('a canvas mock without closest()/getBoundingClientRect() (the pre-existing pattern used by every OTHER test in this suite) still renders markers with no crash -- chromeExclusionRects() degrades to [] rather than throwing', async () => {
+    const { mod, canvas } = await readySandbox();
+    const marker = { dataset: { dUiMarker: 'tenant:t0', phase2TileX: '16', phase2TileY: '16', phase2OffsetX: '0', phase2OffsetY: '0' }, style: { setProperty(k, v) { this[k] = v; } } };
+    canvas.parentElement.querySelectorAll = () => [marker];
+    assert.equal(typeof canvas.closest, 'undefined', 'sanity: this is the plain mock other tests already rely on');
+    mod.render(canvas, { selectedPref: 'tokyo' });
+    assert.ok(Number.isFinite(parseFloat(marker.style['--x'])), 'marker must still resolve a position');
+  });
+
+  /* ================= NEGATIVE: CHROME EXCLUSION ================= */
+  await check('NEGATIVE: seeding `claimed` from an EMPTY exclusion list (i.e. not calling chromeExclusionRects() at all) would leave the marker overlapping the chrome rect -- proves the positive test above is non-vacuous', async () => {
+    const { mod } = await readySandbox();
+    const marker = { dataset: { dUiMarker: 'tenant:t0', phase2TileX: '16', phase2TileY: '16', phase2OffsetX: '0', phase2OffsetY: '0' }, style: { setProperty(k, v) { this[k] = v; } } };
+    const canvasRect = { left: 0, top: 0, width: 300, height: 300 };
+    const plainCanvas = makeChromeStageCanvas({ canvasRect, chromeRect: null, marker });
+    mod.render(plainCanvas, { selectedPref: 'tokyo' });
+    const naturalX = parseFloat(marker.style['--x']), naturalY = parseFloat(marker.style['--y']);
+    const chromeRect = { left: naturalX - 20, top: naturalY - 20, right: naturalX + 20, bottom: naturalY + 20, width: 40, height: 40 };
+    const MARKER_HALF_MATCH = canvasSrc.match(/const MARKER_CLAMP_HALF_W=(\d+),MARKER_CLAMP_HALF_H=(\d+);/);
+    const halfW = Number(MARKER_HALF_MATCH[1]), halfH = Number(MARKER_HALF_MATCH[2]);
+    const unclampedRect = { left: naturalX - halfW, top: naturalY - halfH, right: naturalX + halfW, bottom: naturalY + halfH };
+    assert.ok(overlaps(unclampedRect, chromeRect), 'sanity: without the fix, the marker\'s natural rect actually does collide with the chrome rect -- the fix above has real work to do');
+  });
+
+  await check('NEGATIVE: chromeExclusionRects must actually be wired into positionMarkers -- source no longer contains a call site is a real regression', () => {
+    const body = extractFunctionBody(canvasSrc, 'positionMarkers');
+    assert.match(body, /chromeExclusionRects\(canvas\)/, 'positionMarkers must seed `claimed` from chromeExclusionRects(canvas)');
+  });
+
   /* ================= REGRESSIONS ================= */
   await check('DEFAULT_SCALE stays 0.44 (PR #611/#612 initial-framing contract, untouched by this pass)', () => {
     assert.match(canvasSrc, /const DEFAULT_SCALE=0\.44;/);

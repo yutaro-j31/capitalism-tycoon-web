@@ -829,3 +829,60 @@ context fix breaks the "marker always wins the tap" comparison; and a
 camera-dependent `layoutMarkerPlacards` (using `camTransform`/`camera`
 instead of the raw world transform) would break pan-stability, which the
 real source's camera-independence check guards against.
+
+## 16. Chrome-exclusion repair (post-merge regression from section 15's own fix)
+
+Real post-merge CI incident: after section 15's fix merged, the
+`iPhone WebKit Smoke` job (`tests/iphone-playtest-webkit-test.js`) failed
+on `main` -- `page.locator('[data-iphone-map-action="filter"]').click()`
+timed out. The Playwright error log named the actual element intercepting
+the pointer event: a `.d-map-marker`'s own icon `<span aria-hidden="true">`,
+part of `.d-city-surface.d-city-surface-phase2`'s subtree.
+
+**Root cause**: raising `.d-map-marker`'s z-index to 25 (section 15's own
+tap-ability fix) had the side effect of also making markers out-rank the
+`.iphone-map-nav`/`.iphone-map-tools`/`.iphone-map-popover` chrome
+controls THEMSELVES -- legitimate, always-must-stay-tappable interactive
+elements, not just decorative siblings a marker is allowed to sit above.
+A marker that happened to render on top of one of these controls now
+blocked its tap instead of the other way around.
+
+**Fix**: `chromeExclusionRects(canvas)` (`js/map-phase2-canvas.js`) measures
+those three controls' live `getBoundingClientRect()` every render (skipping
+any that are missing/`hidden`/zero-sized), converted to canvas-relative
+coordinates via `canvas.getBoundingClientRect()` as a common origin (valid
+because `.d-phase2-canvas` is `inset:0` within `.d-city-surface`, itself
+`inset:0` within `.d-map-stage`). `positionMarkers()` now seeds its
+`claimed` rect list from these exclusion zones (previously empty at the
+start of every render) before placing any marker, so the SAME nudge search
+that already resolved viewport-edge-clamp collisions (section 15) also
+routes markers away from the chrome controls. Unlike
+`layoutMarkerPlacards()`'s own pan-invariant world-space search, this pass
+is deliberately render-time/viewport-dependent -- the chrome controls sit
+at fixed pixel offsets from the viewport edges, not tied to camera
+position, so recomputing it fresh every render (never cached) does not
+destabilize pan.
+
+A local Chromium dry-run (this repository has no WebKit binary available)
+reproducing the exact CI sequence (open a real store, switch to the map
+tab, click `[data-iphone-map-action="filter"]`) did not reproduce the
+original failure -- plausibly a WebKit-vs-Chromium text-metric/layout
+difference in exactly where a marker's placard lands, not something this
+sandbox can force deterministically. The regression itself was root-caused
+directly from the real CI failure's own Playwright interception log (not
+guessed), and the fix is verified by a Node-level unit test that
+constructs a canvas mock exposing the same `.closest('.d-map-stage')` /
+chrome-rect DOM shape `chromeExclusionRects()` reads, asserts a marker
+placed exactly under a synthetic `.iphone-map-tools` rect is nudged clear
+of it, and confirms (by reverting to the pre-fix source) that the same
+test fails without the fix.
+
+New coverage added to `tests/map-phase2-marker-placard-interaction-test.js`:
+a marker whose natural position collides with a live `.iphone-map-tools`
+rect is nudged clear of it; a hidden/zero-sized chrome element is NOT
+treated as claimed space; the pre-existing canvas mock pattern used by
+every other test in the suite (no `closest()`/`getBoundingClientRect()`)
+still renders without crashing (`chromeExclusionRects()` degrades to `[]`
+rather than throwing); and two negative tests (an empty exclusion list
+would leave the marker overlapping the chrome rect; `positionMarkers()`'s
+source must still call `chromeExclusionRects(canvas)`).
