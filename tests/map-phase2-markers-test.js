@@ -44,6 +44,7 @@ function freshSandbox(options) {
     Promise, Object, Array, Math, JSON, Date, Number, String, Map, Set,
     fetch: opts.fetch || (() => Promise.reject(new Error('fetch not stubbed'))),
     document: opts.document,
+    setTimeout, clearTimeout,
   };
   sandbox.globalThis = sandbox;
   sandbox.window = sandbox;
@@ -83,7 +84,7 @@ const MANIFEST = {
  */
 function readySandbox(options) {
   const sandbox = freshSandbox(Object.assign({
-    fetch: () => Promise.resolve({ json: () => Promise.resolve(MANIFEST) }),
+    fetch: () => Promise.resolve({ ok: true, json: () => Promise.resolve(MANIFEST) }),
     document: { head: { appendChild() {} }, createElement() { return { set src(v) {} }; } },
   }, options));
   const mod = sandbox.__capitalismTycoonModules.mapPhase2Canvas;
@@ -324,7 +325,7 @@ async function main() {
     // monkey-patching MapWorldPreview.buildWorldDistrict for one call via a
     // second, isolated sandbox with a district of exactly one commercial tile.
     const tinySandbox = freshSandbox({
-      fetch: () => Promise.resolve({ json: () => Promise.resolve(MANIFEST) }),
+      fetch: () => Promise.resolve({ ok: true, json: () => Promise.resolve(MANIFEST) }),
       document: { head: { appendChild() {} }, createElement() { return { set src(v) {} }; } },
     });
     const tinyMod = tinySandbox.__capitalismTycoonModules.mapPhase2Canvas;

@@ -250,7 +250,7 @@ function freshSandbox() {
   const sandbox = {
     console, devicePixelRatio: 2,
     Promise, Object, Array, Math, JSON, Date, Number, String, Map, Set,
-    fetch: () => Promise.resolve({ json: () => Promise.resolve(realManifest) }),
+    fetch: () => Promise.resolve({ ok: true, json: () => Promise.resolve(realManifest) }),
     document: { head: { appendChild() {} }, createElement() { return { set src(v) {} }; } },
     requestAnimationFrame: cb => { cb(); return 1; },
     setTimeout, clearTimeout,

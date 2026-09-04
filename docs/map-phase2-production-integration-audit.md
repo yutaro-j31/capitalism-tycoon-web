@@ -572,3 +572,105 @@ rebuild-during-pan, no-placement-rebuild-in-`render()`, marker hit-target,
 no-`Math.random`, and SAVE_KEY/saveVersion invariants -- with two negative
 tests (reverting the canvas-identity cache; reintroducing `.d-map-tools`)
 proving both checks are load-bearing.
+
+## 14. Lazy-load permanent-stuck-loading recovery
+
+A real iPhone on the production URL (after PR #613, main
+`14688893980c11a8adb785c9418f0b84ed6e80f8`) hit "出店候補を読み込み中です"
+forever on the map screen -- switching prefectures did nothing, the city
+never rendered. Confirmed from source, not guessed: `js/map-phase2-
+canvas.js`'s `ensureAssetsLoaded()` cached its `assetsPromise`/
+`manifestPromise` unconditionally, including on *failure* --
+`.catch(()=>null)` resolved `assetsPromise` to `null` forever once set, and
+`manifestPromise=manifestPromise||fetch(...)` never retried a *rejected*
+`manifestPromise` either (a rejected promise is still truthy). A single
+transient failure anywhere in the chain -- a lazy `<script>` failing to
+load, the manifest `fetch()` failing, an invalid manifest -- permanently
+prevented `assetsReady` from ever being set; every subsequent `render()`
+call (prefecture switch, tab re-entry, anything) kept hitting the same
+dead cached promise. This bug pre-dates PR #613 (introduced in PR #605,
+"gate Phase 2 Canvas background into production map") -- PR #613 didn't
+touch `ensureAssetsLoaded`/`manifestPromise`/`assetsPromise` at all (its
+only change to this file was adding the third lazy dependency to
+`PROTOTYPE_SCRIPTS`) -- but adding that third sequential lazy `<script>`
+before the manifest fetch can even start does widen the window a single
+real-network transient failure has to land in.
+
+Two independent, complementary gaps let this ship undetected:
+
+- `scripts/pages-deployment-smoke.js`'s `deploymentTargets()` only scanned
+  `index.html`'s literal `<script src>`/`<link href>` tags -- the Phase 2
+  map's lazy dependencies (3 prototype scripts + the sprite manifest +
+  every sprite it references) are intentionally *not* static tags (see
+  this file's own PR B section on why), so they were never checked against
+  the actual published GitHub Pages bytes at all.
+- `tests/iphone-webkit-smoke-test.js` (the only WebKit test that already
+  ran against the real published URL) never opens the map tab, so it could
+  never have caught this regardless of how the map behaved.
+
+**Fix: bounded-retry state machine.** `js/map-phase2-canvas.js` replaces
+the unconditionally-cached promises with an explicit `idle -> loading ->
+ready` (or `idle -> loading -> retry* -> error`) state machine
+(`loadState`/`loadAttempts`/`loadErrorDetail`, `MAX_LOAD_ATTEMPTS=3`,
+`LOAD_RETRY_DELAYS_MS=[500,1500]`): a failed attempt is retried a bounded
+number of times via a one-shot `setTimeout` per retry (never
+`setInterval`/polling), and once retries are exhausted the state becomes
+`'error'` with a stage-tagged diagnostic (`'prototype'` /
+`'manifest-fetch'` / `'manifest-validation'`, console-only -- never shown
+verbatim to the user). `ensurePrototypesLoaded()` is now idempotent under
+a partial-success retry: it only (re)loads whichever of the 3 scripts
+hasn't already set its own global, so a script that already succeeded
+before a later one failed is never re-fetched/re-executed. `getLoadState()`
+and `retryMapLoad()` are new exports; `js/d-ui-shell.js`'s
+`renderMapWorkspace()` reads `getLoadState()` when `placed` is `null` and
+shows either the existing loading text or, once `state==='error'`, an
+explicit `マップの読み込みに失敗しました` message with a real
+`.d-map-retry-btn` (>=44px, wired to `retryMapLoad()` via the existing
+`data-d-ui-action` click-delegation pattern) -- never an infinite,
+unrecoverable "読み込み中".
+
+**Fix: deployment-target coverage.** `deploymentTargets()` now also
+extracts `PROTOTYPE_SCRIPTS` directly from `js/map-phase2-canvas.js`'s own
+source (regex, the same technique several tests already use to read
+constants out of this browser-only file) -- a single source of truth, not
+a second hand-maintained list -- plus the sprite manifest and every sprite
+it references (split placeholder vs. production the same way
+`ensureAssetsLoaded()` does, phase1 vs. phase2 asset directories). This
+runs in the existing `verify-published-assets` CI job
+(`.github/workflows/pages-deployment-smoke.yml`), so a genuinely
+missing/stale published lazy dependency now fails deployment verification
+instead of shipping silently.
+
+**Fix: published WebKit map coverage.** New
+`tests/published-map-phase2-webkit-test.js` (added to the same CI job,
+following the established `published-*-webkit-test.js` pattern/shared
+retry helper) opens the map tab on the real published URL, waits
+(bounded, `MAP_READY_TIMEOUT_MS=20000`) for the loading placeholder to
+resolve, and asserts: no `.d-map-load-error` (the load actually
+succeeded), >=1 real marker, and the canvas sampled pixel data shows
+real variance (not a flat, unpainted background fill) -- then repeats
+across a Saitama→Tochigi→Gunma→Tokyo switching sequence. A test that
+merely checks "the page didn't crash" would not have caught the original
+incident; this one specifically distinguishes "still loading"/"error"
+from "actually rendered."
+
+New coverage: `tests/map-phase2-lazy-load-recovery-test.js` proves a
+healthy first attempt reaches `ready`; a first prototype-script failure,
+first manifest-fetch failure, and two consecutive manifest-fetch failures
+all recover via the bounded retry; an already-succeeded prototype script
+is never re-appended on a partial-failure retry; permanent failures at
+each stage (manifest fetch, HTTP 500, manifest validation, prototype
+script) all reach an explicit tagged `'error'` state within
+`MAX_LOAD_ATTEMPTS`, never stuck in `'loading'` forever;
+`retryMapLoad()` recovers from `'error'` once the underlying failure
+clears and is a no-op while a load is already in progress; the
+`js/d-ui-shell.js` error/retry UI wiring and its 44px tap target; no
+`setInterval` anywhere in the load path; and the new deployment-target
+coverage. Three negative tests: reverting to the old permanent-cache
+model leaves the map stuck even though a real retry would have succeeded
+(proves the state-machine fix is load-bearing); an index.html-only
+extraction misses the lazy prototype scripts and sprite manifest (proves
+the deployment-target fix is load-bearing); and a weak "page didn't
+crash" check would have passed while the map was permanently stuck
+(proves the published WebKit test's specific loading/error assertions
+are what actually catch this class of bug).

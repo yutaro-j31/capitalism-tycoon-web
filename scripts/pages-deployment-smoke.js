@@ -48,9 +48,59 @@ function extractAssetPaths(html) {
   return [...new Set(assets)];
 }
 
+/*
+ * js/map-phase2-canvas.js's PROTOTYPE_SCRIPTS array is the single source
+ * of truth for the map's lazy-loaded runtime dependencies (they are
+ * intentionally NOT static <script> tags in index.html -- see that file's
+ * own comment on why -- so extractAssetPaths() above, which only scans
+ * index.html, can never see them). This regex-extracts that same literal
+ * array from the production source instead of maintaining a second,
+ * easy-to-forget hardcoded copy here: whoever adds a 4th lazy dependency
+ * to PROTOTYPE_SCRIPTS gets it into deployment verification for free.
+ * This is the gap a real production incident exposed: CI was green (every
+ * check it ran actually passed) but these files were never checked
+ * against the published GitHub Pages bytes at all.
+ */
+function extractPrototypeScriptTargets(root = ROOT) {
+  const canvasSrc = fs.readFileSync(path.join(root, 'js/map-phase2-canvas.js'), 'utf8');
+  const match = canvasSrc.match(/const PROTOTYPE_SCRIPTS=\[([^\]]*)\]/);
+  if (!match) throw new Error('Unable to locate PROTOTYPE_SCRIPTS in js/map-phase2-canvas.js -- deployment target extraction is broken');
+  const items = [...match[1].matchAll(/'([^']+)'/g)].map(entry => entry[1]);
+  if (!items.length) throw new Error('PROTOTYPE_SCRIPTS parsed to an empty list -- deployment target extraction is broken');
+  return items.map(item => normalizeAssetPath(item)).filter(Boolean);
+}
+
+/*
+ * The Phase 2 sprite manifest is itself lazy-fetched (same reason as
+ * above), and every sprite it references is lazy-loaded in turn --
+ * js/map-phase2-canvas.js splits placeholder sprites (served from
+ * assets/map-sprites/phase1) from real P0/P1 art (assets/map-sprites/
+ * phase2) the same way ensureAssetsLoaded() does, so this mirrors that
+ * exact split rather than guessing a single base path.
+ */
+const MANIFEST_RELATIVE_PATH = 'assets/map-sprites/phase2/sprites.json';
+const PLACEHOLDER_SPRITE_BASE = 'assets/map-sprites/phase1';
+const PRODUCTION_SPRITE_BASE = 'assets/map-sprites/phase2';
+function extractManifestSpriteTargets(root = ROOT) {
+  const manifest = JSON.parse(fs.readFileSync(path.join(root, MANIFEST_RELATIVE_PATH), 'utf8'));
+  const targets = [MANIFEST_RELATIVE_PATH];
+  for (const sprite of manifest.sprites || []) {
+    if (!sprite || typeof sprite.file !== 'string') continue;
+    const base = sprite.placeholder ? PLACEHOLDER_SPRITE_BASE : PRODUCTION_SPRITE_BASE;
+    const relativePath = normalizeAssetPath(`${base}/${sprite.file}`);
+    if (relativePath) targets.push(relativePath);
+  }
+  return targets;
+}
+
 function deploymentTargets(root = ROOT) {
   const html = fs.readFileSync(path.join(root, 'index.html'), 'utf8');
-  return [...new Set(['index.html', 'play.html', 'release-candidate.json', ...extractAssetPaths(html)])];
+  return [...new Set([
+    'index.html', 'play.html', 'release-candidate.json',
+    ...extractAssetPaths(html),
+    ...extractPrototypeScriptTargets(root),
+    ...extractManifestSpriteTargets(root)
+  ])];
 }
 
 function readLocalAsset(root, relativePath) {
@@ -199,6 +249,8 @@ module.exports = {
   sha256,
   normalizeAssetPath,
   extractAssetPaths,
+  extractPrototypeScriptTargets,
+  extractManifestSpriteTargets,
   deploymentTargets,
   readLocalAsset,
   fetchBuffer,

@@ -69,7 +69,8 @@ function freshSandbox(sourceOverride) {
   const sandbox = {
     console, location: { search: '' }, devicePixelRatio: 2, URLSearchParams,
     Promise, Object, Array, Math, JSON, Date,
-    fetch: () => Promise.resolve({ json: () => Promise.resolve(manifest) }),
+    fetch: () => Promise.resolve({ ok: true, json: () => Promise.resolve(manifest) }),
+    setTimeout, clearTimeout,
   };
   sandbox.globalThis = sandbox;
   sandbox.window = sandbox;

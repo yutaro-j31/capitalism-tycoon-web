@@ -187,7 +187,21 @@ function renderMapWorkspace(screen,g){
   const missions=missionRows(g);const news=(g.news||[]).slice(0,3);
   let markersHTML='';
   if(!placed){
-    markersHTML='<div class="d-no-markers">出店候補を読み込み中です</div>';
+    /*
+     * placeEntityTiles() returning null means "assets/prototypes not ready
+     * yet" -- this used to always mean "still loading" (see
+     * js/map-phase2-canvas.js's old permanently-cached assetsPromise bug),
+     * but the map's own bounded-retry state machine can now also report
+     * 'error' once its retries are exhausted. Never show the technical
+     * stage/message from getLoadState().error to the user -- that's
+     * console-only diagnostics (see map-phase2-canvas.js's loadErrorDetail);
+     * here it's just "loading" vs a generic failure message with a real
+     * retry control, never an infinite "読み込み中".
+     */
+    const loadState=modules.mapPhase2Canvas.getLoadState?.()||{state:'loading'};
+    markersHTML=loadState.state==='error'
+      ?'<div class="d-no-markers d-map-load-error"><p>マップの読み込みに失敗しました</p><button type="button" class="d-map-retry-btn" data-d-ui-action="map-retry">再試行</button></div>'
+      :'<div class="d-no-markers">出店候補を読み込み中です</div>';
   }else{
     const filtered=mapFilterKind==='all'?placed:placed.filter(entity=>entity.kind===mapFilterKind);
     const placeable=filtered.filter(entity=>entity.tileX!==null&&entity.tileY!==null);
@@ -234,6 +248,7 @@ function handleClick(event){
   if(action==='toggle-menu'){event.preventDefault();const open=!menu?.classList.contains('open');setCommandMenu(open,!open);return true;}
   if(action==='clear-selection'){event.preventDefault();selectedEntity=null;modules.uiEnhancerRegistry.runUIEnhancers();return true;}
   if(action==='map-filter'){event.preventDefault();mapFilterKind=event.target.closest('[data-d-ui-action]').dataset.kind||'all';modules.uiEnhancerRegistry.runUIEnhancers();return true;}
+  if(action==='map-retry'){event.preventDefault();modules.mapPhase2Canvas?.retryMapLoad?.();modules.uiEnhancerRegistry.runUIEnhancers();return true;}
   const marker=event.target?.closest?.('[data-d-ui-marker]');
   // PR C: a pan-ending pointerup on a Phase 2 marker produces a synthetic
   // click just like any other tap would; modules.mapPhase2Canvas.consumeJustPanned()

@@ -87,6 +87,10 @@
     "reason": "Executed outside the canonical suite by Pages Deployment Smoke.",
     "executedBy": ".github/workflows/pages-deployment-smoke.yml"
   },
+  "tests/published-map-phase2-webkit-test.js": {
+    "reason": "Executed outside the canonical suite by Pages Deployment Smoke.",
+    "executedBy": ".github/workflows/pages-deployment-smoke.yml"
+  },
   "tests/published-save-quota-contract-test.js": {
     "reason": "Executed by the release delivery gate aggregator, invoked from the release-readiness job in .github/workflows/test.yml.",
     "executedBy": "scripts/release-delivery-gate.js"
