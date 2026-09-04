@@ -610,6 +610,40 @@ function buildClampNudgeOffsets(){
   return list;
 }
 const CLAMP_NUDGE_OFFSETS=buildClampNudgeOffsets();
+/*
+ * Exclusion zones for the real, always-must-stay-tappable iPhone chrome
+ * controls js/iphone-playtest-fixes.js's ensureMapChrome() renders as
+ * LATER SIBLINGS of .d-city-surface-phase2 inside .d-map-stage --
+ * .iphone-map-nav (prefecture select + view toggle), .iphone-map-tools
+ * (filter/legend toggles), .iphone-map-popover (their opened panel).
+ * Raising .d-map-marker's z-index above this chrome (the root-cause tap
+ * fix -- see css/d-ui-map-phase2-markers.css) means a marker that happens
+ * to render ON TOP of one of these controls now blocks ITS tap instead --
+ * confirmed by a real post-merge WebKit CI failure
+ * (tests/iphone-playtest-webkit-test.js timed out clicking the filter
+ * button: "span ... from .d-city-surface-phase2 subtree intercepts
+ * pointer events"). Measured live from the DOM every render (not
+ * hardcoded pixel guesses, which would drift the moment this chrome's own
+ * CSS changes) and converted into the same canvas-relative coordinate
+ * space positionMarkers() already uses -- .d-phase2-canvas is inset:0
+ * within .d-city-surface, itself inset:0 within .d-map-stage, so the
+ * canvas's own getBoundingClientRect() is a safe, always-available common
+ * origin for both.
+ */
+function chromeExclusionRects(canvas){
+  const stage=typeof canvas.closest==='function'?canvas.closest('.d-map-stage'):null;
+  if(!stage||typeof canvas.getBoundingClientRect!=='function')return [];
+  const origin=canvas.getBoundingClientRect();
+  const rects=[];
+  for(const selector of ['.iphone-map-nav','.iphone-map-tools','.iphone-map-popover']){
+    const el=stage.querySelector?.(selector);
+    if(!el||el.hidden||typeof el.getBoundingClientRect!=='function')continue;
+    const r=el.getBoundingClientRect();
+    if(!(r.width>0)||!(r.height>0))continue;
+    rects.push({left:r.left-origin.left,top:r.top-origin.top,right:r.right-origin.left,bottom:r.bottom-origin.top});
+  }
+  return rects;
+}
 function positionMarkers(canvas,camTransform,cssW,cssH){
   const container=canvas.parentElement;if(!container)return;
   const halfW=MARKER_CLAMP_HALF_W,halfH=MARKER_CLAMP_HALF_H;
@@ -636,59 +670,59 @@ function positionMarkers(canvas,camTransform,cssW,cssH){
     &&ax>=-PLACARD_W&&ax<=cssW+PLACARD_W&&ay>=-PLACARD_H&&ay<=cssH+PLACARD_H;
   const markerRect=(cx,cy)=>({left:cx-halfW,top:cy-halfH,right:cx+halfW,bottom:cy+halfH});
   /*
-   * Cross-marker clamp collision (the exact real-device bug a Chromium
-   * dry-run caught): layoutMarkerPlacards() spreads entities apart in
-   * pan-independent world-space, but that offset can legitimately push a
-   * near-edge marker's placard past the CURRENT viewport's bounds --
-   * clamping it back is correct (requirement E), but clamping several
-   * DIFFERENT markers independently can collapse them all onto the exact
-   * same boundary value, undoing the very separation just computed. This
-   * pass is therefore render-time/viewport-dependent by nature (unlike
-   * layoutMarkerPlacards()'s own collision search) -- that is fine, since
-   * it only ever nudges markers that ALREADY needed clamping for this
-   * viewport, and is recomputed fresh every render, never cached.
+   * claimed starts pre-seeded with the live iPhone-chrome exclusion
+   * rects (see chromeExclusionRects() above) so the SAME nudge search
+   * that resolves marker-vs-marker collisions also treats those controls
+   * as occupied space no marker may render on top of. Every on-screen
+   * marker (not just ones that needed viewport-edge clamping) is checked
+   * against `claimed`: a marker whose natural (or edge-clamped) position
+   * doesn't collide with anything is placed immediately and its own rect
+   * joins `claimed`, so later markers route around it too. This pass is
+   * deliberately render-time/viewport-dependent (unlike layoutMarker
+   * Placards()'s own pan-invariant world-space search) -- the chrome
+   * controls sit at fixed pixel offsets from the viewport edges, not tied
+   * to camera position, so this never destabilizes pan (see the
+   * dedicated pan-stability test), and it is recomputed fresh every
+   * render, never cached.
    */
-  const claimed=[];
-  const clampedMarkers=[];
+  const claimed=chromeExclusionRects(canvas);
+  const onScreen=[];
   for(const marker of container.querySelectorAll('[data-d-ui-marker][data-phase2-tile-x]')){
     const tileX=Number(marker.dataset.phase2TileX),tileY=Number(marker.dataset.phase2TileY);
     if(!Number.isFinite(tileX)||!Number.isFinite(tileY))continue;
     const [ax,ay]=camTransform.toCss(tileX,tileY);
     const dx=Number(marker.dataset.phase2OffsetX)||0,dy=Number(marker.dataset.phase2OffsetY)||0;
     const naturalX=ax+dx,naturalY=ay+dy;
-    const inBounds=Number.isFinite(cssW)&&Number.isFinite(cssH)
-      &&naturalX>=halfW&&naturalX<=Math.max(halfW,cssW-halfW)&&naturalY>=halfH&&naturalY<=Math.max(halfH,cssH-halfH);
-    if(inBounds||!anchorVisible(ax,ay)){
-      /* Already fine, or genuinely off-screen: leave layoutMarkerPlacards()'s
-         own offset untouched -- only markers that actually NEED clamping
-         go through the nudge search below, so a well-separated marker is
-         never disturbed by a neighbour that happens to need clamping. */
+    if(!anchorVisible(ax,ay)){
+      /* Genuinely off-screen: leave layoutMarkerPlacards()'s own offset
+         untouched and skip the collision search entirely -- it is
+         invisible either way ( .d-city-surface clips it), and nudging it
+         would only cost cycles without ever being seen. */
       marker.style.setProperty('--x',`${naturalX}px`);marker.style.setProperty('--y',`${naturalY}px`);
       marker.style.setProperty('--ox',`${naturalX-ax}px`);marker.style.setProperty('--oy',`${naturalY-ay}px`);
-      if(inBounds)claimed.push(markerRect(naturalX,naturalY));
       continue;
     }
-    clampedMarkers.push({marker,ax,ay,naturalX,naturalY});
+    onScreen.push({marker,ax,ay,baseX:clampX(naturalX),baseY:clampY(naturalY)});
   }
-  for(const {marker,ax,ay,naturalX,naturalY} of clampedMarkers){
-    const baseX=clampX(naturalX);
-    /*
-     * Nudge candidates start from the ALREADY-CLAMPED Y, not the raw
-     * naturalY -- naturalY can be arbitrarily far out of bounds (a large
-     * ring-search offset on a narrow canvas), and CLAMP_NUDGE_OFFSETS'
-     * bounded range would just clamp right back to the same boundary value
-     * every time if applied to naturalY directly. Starting from the
-     * boundary itself and nudging inward/outward from there is what
-     * actually varies the result.
-     */
-    const baseY=clampY(naturalY);
-    let chosenY=null;
-    for(const offset of CLAMP_NUDGE_OFFSETS){
-      const tryY=clampY(baseY+offset);
-      const rect=markerRect(baseX,tryY);
-      if(!claimed.some(other=>rectsOverlap(rect,other))){chosenY=tryY;claimed.push(rect);break;}
+  for(const {marker,ax,ay,baseX,baseY} of onScreen){
+    let chosenY=baseY,resolvedRect=markerRect(baseX,baseY);
+    if(claimed.some(other=>rectsOverlap(resolvedRect,other))){
+      /*
+       * Nudge candidates start from the already-clamped baseY, not a raw
+       * unclamped value -- an unbounded offset from a narrow-canvas
+       * ring-search result would just clamp back to the same boundary
+       * every time if the nudge started from there instead.
+       */
+      let found=false;
+      for(const offset of CLAMP_NUDGE_OFFSETS){
+        if(offset===0)continue;
+        const tryY=clampY(baseY+offset);
+        const rect=markerRect(baseX,tryY);
+        if(!claimed.some(other=>rectsOverlap(rect,other))){chosenY=tryY;resolvedRect=rect;found=true;break;}
+      }
+      if(!found)resolvedRect=markerRect(baseX,chosenY);
     }
-    if(chosenY===null){chosenY=baseY;claimed.push(markerRect(baseX,chosenY));}
+    claimed.push(resolvedRect);
     const x=baseX,y=chosenY;
     marker.style.setProperty('--x',`${x}px`);marker.style.setProperty('--y',`${y}px`);
     marker.style.setProperty('--ox',`${x-ax}px`);marker.style.setProperty('--oy',`${y-ay}px`);
