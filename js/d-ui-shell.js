@@ -106,6 +106,24 @@ function ensureNavigation(g){
   }
 }
 function markerIcon(entity){return entity.kind==='store'?'▣':entity.kind==='office'?'△':entity.kind==='realestate'?'◆':'▤';}
+/*
+ * Marker Interaction / Decluttering / Placard UX pass, requirement C: the
+ * label used to be the raw entity name (a tenant's own name, a property's
+ * own name, ...) -- informative once you already know what kind of pin
+ * you're looking at, but the whole point of a real-estate-style placard is
+ * to convey the CATEGORY at a glance without tapping first. realestate
+ * stays unified as "売物件" regardless of property.kind (土地/商業ビル/...)
+ * per spec -- a per-kind secondary line was judged not worth the added
+ * density. store keeps its own real name (more useful than a generic
+ * "自社店舗" once a player has more than one store; either was spec-
+ * acceptable).
+ */
+function placardLabel(entity){
+  if(entity.kind==='tenant')return 'テナント募集';
+  if(entity.kind==='office')return 'オフィス募集';
+  if(entity.kind==='realestate')return '売物件';
+  return entity.name||'自社店舗';
+}
 // A store opened this week is 'preparing' until its openingWeek arrives (js/engine.js sets
 // status/openingWeek at openStore and flips to 'open' in the weekly loop). This panel used to
 // print 営業中 unconditionally, so a store still under construction looked like a trading store
@@ -167,7 +185,15 @@ function renderMapWorkspace(screen,g){
    * (assets/prototypes still loading), not "no entities".
    */
   const viewModel=modules.mapPhase2Canvas.buildMapViewModel(g,engine());
-  const placed=modules.mapPhase2Canvas.placeEntityTiles(viewModel.entities,viewModel.prefID);
+  /*
+   * layoutMarkerPlacards() runs on placeEntityTiles()'s full, UNFILTERED
+   * result (before mapFilterKind below picks the visible subset) so
+   * hiding some markers via the filter chips never reshuffles where the
+   * ones that stay visible sit -- see js/map-phase2-canvas.js for the
+   * deterministic screen-space decluttering this adds.
+   */
+  let placed=modules.mapPhase2Canvas.placeEntityTiles(viewModel.entities,viewModel.prefID);
+  if(placed)placed=modules.mapPhase2Canvas.layoutMarkerPlacards(placed,viewModel.prefID);
   const activeEntities=placed||[];
   if(selectedEntity===undefined||(selectedEntity!==null&&!activeEntities.some(entity=>entity.id===selectedEntity)))selectedEntity=activeEntities[0]?.id||null;
   const chosen=selectedEntity===null?null:activeEntities.find(entity=>entity.id===selectedEntity)||null;
@@ -206,7 +232,7 @@ function renderMapWorkspace(screen,g){
     const filtered=mapFilterKind==='all'?placed:placed.filter(entity=>entity.kind===mapFilterKind);
     const placeable=filtered.filter(entity=>entity.tileX!==null&&entity.tileY!==null);
     markersHTML=placeable.length
-      ?placeable.map(entity=>`<button type="button" class="d-map-marker ${entity.kind} ${entity.id===chosen?.id?'selected':''}" data-d-ui-marker="${esc(entity.id)}" data-phase2-tile-x="${entity.tileX}" data-phase2-tile-y="${entity.tileY}"><span>${markerIcon(entity)}</span><small>${esc(entity.name)}</small></button>`).join('')
+      ?placeable.map(entity=>`<button type="button" class="d-map-marker ${entity.kind} ${entity.id===chosen?.id?'selected':''}" data-d-ui-marker="${esc(entity.id)}" data-phase2-tile-x="${entity.tileX}" data-phase2-tile-y="${entity.tileY}" data-phase2-offset-x="${entity.placardOffsetX||0}" data-phase2-offset-y="${entity.placardOffsetY||0}" aria-label="${esc(placardLabel(entity))}"><i class="d-map-marker-dot" aria-hidden="true"></i><span aria-hidden="true">${markerIcon(entity)}</span><small>${esc(placardLabel(entity))}</small></button>`).join('')
       :'<div class="d-no-markers">該当する拠点がありません</div>';
   }
   const filterChips=`<div class="d-map-filter-chips">${MAP_FILTER_KINDS.map(([kind,label])=>`<button type="button" class="d-map-filter-chip ${mapFilterKind===kind?'active':''}" data-d-ui-action="map-filter" data-kind="${kind}">${esc(label)}</button>`).join('')}</div>`;

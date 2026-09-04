@@ -157,6 +157,118 @@ function placeEntityTiles(entities,prefID){
 }
 
 /*
+ * layoutMarkerPlacards(): pure, deterministic screen-space decluttering for
+ * production Phase 2 markers (Marker Interaction / Decluttering / Placard
+ * UX pass). Called by js/d-ui-shell.js right after placeEntityTiles(), on
+ * its full, UNFILTERED result -- mapFilterKind hiding some markers must
+ * never reshuffle where the ones that remain visible sit.
+ *
+ * Runs entirely in the same camera-INDEPENDENT world-space transform
+ * ensureDistrict()/render() already use for canvas painting (transform.
+ * toScreen(), NOT camTransform.toCss(), which bakes in the live camera.x/y
+ * pan offset) -- so the layout this produces depends only on
+ * (prefID, each entity's already-assigned tileX/tileY), never on the
+ * current camera position. Two markers' anchors both translate by the
+ * exact same delta when the camera pans, so their RELATIVE positions --
+ * and therefore every collision this resolves -- are pan-invariant by
+ * construction; positionMarkers() below applies the camera translation
+ * uniformly on top of these offsets every render, so panning moves every
+ * placard by the same delta and never reshuffles this layout.
+ *
+ * Collision boxes (PLACARD_W x PLACARD_H) approximate a marker's actual
+ * rendered footprint (css/d-ui-map-phase2-markers.css's glyph + the
+ * always-visible label this same pass adds) at its largest breakpoint --
+ * deliberately conservative, so a real render is never TIGHTER than what
+ * this reserved.
+ */
+const PLACARD_W=108,PLACARD_H=86,PLACARD_GAP=8;
+/*
+ * Candidate offsets: candidate #1 is "no shift at all" (a marker with no
+ * neighbours keeps today's exact on-anchor position), followed by an
+ * expanding 8-compass ring search (N/NE/E/SE/S/SW/W/NW, ring 1..
+ * PLACARD_RING_COUNT, each ring PLACARD_W/H+PLACARD_GAP farther out).
+ * Diagonal candidates are fine here -- unlike an earlier axis-only design,
+ * css/d-ui-map-phase2-markers.css's .d-map-marker-dot leader is a plain dot
+ * at the true anchor (position:absolute + a translate(-ox,-oy) offset), not
+ * a rotated line, so it reads correctly for ANY direction. 6 rings x 8
+ * directions = 48 candidates beyond the on-anchor one: comfortably enough
+ * headroom for the densest real fixture seen in local verification (17
+ * markers clustered around one prefecture's landmark) to resolve without
+ * falling through to the last-resort branch below.
+ */
+const PLACARD_RING_COUNT=6;
+const PLACARD_DIRECTIONS=[[0,-1],[1,-1],[1,0],[1,1],[0,1],[-1,1],[-1,0],[-1,-1]];
+function buildPlacardCandidates(){
+  const list=[{dx:0,dy:0}];
+  for(let ring=1;ring<=PLACARD_RING_COUNT;ring++){
+    for(const [ux,uy] of PLACARD_DIRECTIONS)list.push({dx:ux*ring*(PLACARD_W+PLACARD_GAP),dy:uy*ring*(PLACARD_H+PLACARD_GAP)});
+  }
+  return list;
+}
+const PLACARD_CANDIDATES=buildPlacardCandidates();
+function placardRect(cx,cy){return {left:cx-PLACARD_W/2,top:cy-PLACARD_H/2,right:cx+PLACARD_W/2,bottom:cy+PLACARD_H/2};}
+function rectsOverlap(a,b){return a.left<b.right&&a.right>b.left&&a.top<b.bottom&&a.bottom>b.top;}
+function layoutMarkerPlacards(entities,prefID){
+  if(!assetsReady)return null;
+  ensureDistrict(assetsReady.index2,prefID);
+  const transform=cachedTransform;
+  const canonicalOrder=[...entities].sort((a,b)=>a.id<b.id?-1:a.id>b.id?1:0);
+  const claimed=[];
+  const offsets=new Map();
+  for(const entity of canonicalOrder){
+    if(entity.tileX===null||entity.tileX===undefined||entity.tileY===null||entity.tileY===undefined){offsets.set(entity.id,{dx:0,dy:0});continue;}
+    /*
+     * transform.toScreen() (see prototypes/map-world-preview.js's own
+     * worldTransform()) returns RAW, UNSCALED tile-space pixels -- the
+     * CSS-pixel conversion positionMarkers() below relies on is what
+     * multiplies by transform.scale (DEFAULT_SCALE). PLACARD_W/H are
+     * CSS-pixel sizes (they must match what css/d-ui-map-phase2-markers.css
+     * actually renders), so the anchor used for collision math must be
+     * scaled the exact same way -- comparing CSS-pixel boxes against raw
+     * unscaled coordinates silently under-detects collisions by a factor of
+     * 1/DEFAULT_SCALE (~2.3x at 0.44), which is exactly the real on-device
+     * bug a Chromium dry-run of this fix caught.
+     */
+    const [rawAx,rawAy]=transform.toScreen(entity.tileX,entity.tileY);
+    const ax=rawAx*transform.scale,ay=rawAy*transform.scale;
+    let chosen=null;
+    for(const candidate of PLACARD_CANDIDATES){
+      const rect=placardRect(ax+candidate.dx,ay+candidate.dy);
+      if(!claimed.some(other=>rectsOverlap(rect,other))){chosen=candidate;claimed.push(rect);break;}
+    }
+    /*
+     * Last resort (spec: never silently drop a marker, and this should be
+     * pathologically rare given PLACARD_CANDIDATES' 49 slots): every
+     * candidate collided with something already claimed. Pick whichever
+     * candidate overlaps the LEAST already-claimed area rather than
+     * blindly reusing candidate #1 -- two entities that both exhaust their
+     * candidates must not both fall back to the exact same {dx:0,dy:0}
+     * (spec: "単純に同じ位置へ重ねない"), and this stays fully deterministic
+     * (canonical entity order, no randomness).
+     */
+    if(!chosen){
+      let bestCandidate=PLACARD_CANDIDATES[0],bestOverlap=Infinity;
+      for(const candidate of PLACARD_CANDIDATES){
+        const rect=placardRect(ax+candidate.dx,ay+candidate.dy);
+        const totalOverlap=claimed.reduce((sum,other)=>{
+          const ow=Math.max(0,Math.min(rect.right,other.right)-Math.max(rect.left,other.left));
+          const oh=Math.max(0,Math.min(rect.bottom,other.bottom)-Math.max(rect.top,other.top));
+          return sum+ow*oh;
+        },0);
+        if(totalOverlap<bestOverlap){bestOverlap=totalOverlap;bestCandidate=candidate;}
+      }
+      chosen=bestCandidate;
+      claimed.push(placardRect(ax+chosen.dx,ay+chosen.dy));
+    }
+    offsets.set(entity.id,chosen);
+  }
+  return entities.map(entity=>{
+    const o=offsets.get(entity.id)||{dx:0,dy:0};
+    return Object.assign({},entity,{placardOffsetX:o.dx,placardOffsetY:o.dy});
+  });
+}
+
+/*
  * ---- lazy-load recovery (bounded-retry state machine) ----
  *
  * Real-device incident this fixes: a single transient failure anywhere in
@@ -455,15 +567,131 @@ function installPanHandlers(){
  * canvas) for accessibility/hit-target/tooltip reasons -- this only ever
  * sets their existing --x/--y custom properties (already consumed as
  * plain left/top by css/d-ui.css's .d-map-marker rule for the legacy
- * percentage-based layout; a pixel value works identically).
+ * percentage-based layout; a pixel value works identically). Also applies
+ * Requirement E's viewport clamp ("画面端ではviewport内へclamp") -- see the
+ * detailed comments inside positionMarkers() below for the clamp itself,
+ * why it only applies to on-screen anchors, and the cross-marker nudge
+ * that keeps several independently-clamped markers from collapsing onto
+ * the same boundary value. --ox/--oy record the ACTUAL applied placard
+ * offset (post-clamp/nudge), not the raw data-phase2-offset-x/y request,
+ * so .d-map-marker-dot (css/d-ui-map-phase2-markers.css) -- positioned as
+ * a child of the marker via translate(calc(-1*var(--ox)),calc(-1*var(--oy)))
+ * -- always lands back on the true tile anchor.
  */
-function positionMarkers(canvas,camTransform){
+/*
+ * Clamp margin: HALF of the marker's own smallest rendered footprint
+ * (css/d-ui-map-phase2-markers.css's <=520px breakpoint, 44x54 -- the iOS
+ * minimum tap target), not the full PLACARD_W/H collision box. The clamp's
+ * job is only to keep the tappable glyph on-screen; the wider label
+ * trailing off past the edge is a minor, acceptable cosmetic clip (
+ * .d-map-stage already has overflow:hidden), and using the much bigger
+ * placard box here would pull far more aggressively -- exactly what let
+ * unrelated markers' clamped positions collide with each other in the
+ * first Chromium dry-run of this fix.
+ */
+const MARKER_CLAMP_HALF_W=22,MARKER_CLAMP_HALF_H=27;
+/*
+ * Deterministic nudge offsets tried, in order, when the naturally-clamped
+ * position collides with an already-positioned marker (see the "cross-
+ * marker clamp collision" comment below) -- alternating +/-, growing by one
+ * button-height (2*MARKER_CLAMP_HALF_H+4px gap) each step. Bounded
+ * (CLAMP_NUDGE_STEP_COUNT steps each direction): if every one still
+ * collides, the last one is accepted anyway --
+ * this only runs for markers that ALREADY needed clamping (rare), so a
+ * residual overlap here is the same kind of "unavoidable extreme density"
+ * last resort layoutMarkerPlacards() itself allows, never an infinite
+ * search or a dropped marker.
+ */
+const CLAMP_NUDGE_STEP=MARKER_CLAMP_HALF_H*2+4;
+const CLAMP_NUDGE_STEP_COUNT=14;
+function buildClampNudgeOffsets(){
+  const list=[0];
+  for(let n=1;n<=CLAMP_NUDGE_STEP_COUNT;n++)list.push(n*CLAMP_NUDGE_STEP,-n*CLAMP_NUDGE_STEP);
+  return list;
+}
+const CLAMP_NUDGE_OFFSETS=buildClampNudgeOffsets();
+function positionMarkers(canvas,camTransform,cssW,cssH){
   const container=canvas.parentElement;if(!container)return;
+  const halfW=MARKER_CLAMP_HALF_W,halfH=MARKER_CLAMP_HALF_H;
+  const clamp=(value,min,max)=>Math.min(Math.max(value,min),max);
+  const clampX=x=>Number.isFinite(cssW)?clamp(x,halfW,Math.max(halfW,cssW-halfW)):x;
+  const clampY=y=>Number.isFinite(cssH)?clamp(y,halfH,Math.max(halfH,cssH-halfH)):y;
+  /*
+   * Requirement E ("画面端ではviewport内へclamp") only applies to a marker
+   * whose own BUILDING is actually visible -- clamping is meant to keep a
+   * near-edge placard from being cut off, not to relocate an entity whose
+   * tile is nowhere near the current camera view. layoutMarkerPlacards()'s
+   * collision search deliberately has no idea what the live viewport looks
+   * like (that is what keeps it pan-stable), so its offsets can legitimately
+   * point an off-screen marker's placard even farther off-screen -- clamping
+   * THAT back into view would drag unrelated off-screen entities into the
+   * same visible corner and manufacture brand-new collisions between
+   * markers that were never near each other, which is the exact real-device
+   * regression a Chromium dry-run of this fix caught. An anchor within one
+   * placard-width/height of the canvas box (not just strictly inside it) is
+   * treated as "visible enough to matter" so a placard whose OWN anchor is
+   * just past the edge still gets nudged fully into view.
+   */
+  const anchorVisible=(ax,ay)=>Number.isFinite(cssW)&&Number.isFinite(cssH)
+    &&ax>=-PLACARD_W&&ax<=cssW+PLACARD_W&&ay>=-PLACARD_H&&ay<=cssH+PLACARD_H;
+  const markerRect=(cx,cy)=>({left:cx-halfW,top:cy-halfH,right:cx+halfW,bottom:cy+halfH});
+  /*
+   * Cross-marker clamp collision (the exact real-device bug a Chromium
+   * dry-run caught): layoutMarkerPlacards() spreads entities apart in
+   * pan-independent world-space, but that offset can legitimately push a
+   * near-edge marker's placard past the CURRENT viewport's bounds --
+   * clamping it back is correct (requirement E), but clamping several
+   * DIFFERENT markers independently can collapse them all onto the exact
+   * same boundary value, undoing the very separation just computed. This
+   * pass is therefore render-time/viewport-dependent by nature (unlike
+   * layoutMarkerPlacards()'s own collision search) -- that is fine, since
+   * it only ever nudges markers that ALREADY needed clamping for this
+   * viewport, and is recomputed fresh every render, never cached.
+   */
+  const claimed=[];
+  const clampedMarkers=[];
   for(const marker of container.querySelectorAll('[data-d-ui-marker][data-phase2-tile-x]')){
     const tileX=Number(marker.dataset.phase2TileX),tileY=Number(marker.dataset.phase2TileY);
     if(!Number.isFinite(tileX)||!Number.isFinite(tileY))continue;
-    const [x,y]=camTransform.toCss(tileX,tileY);
+    const [ax,ay]=camTransform.toCss(tileX,tileY);
+    const dx=Number(marker.dataset.phase2OffsetX)||0,dy=Number(marker.dataset.phase2OffsetY)||0;
+    const naturalX=ax+dx,naturalY=ay+dy;
+    const inBounds=Number.isFinite(cssW)&&Number.isFinite(cssH)
+      &&naturalX>=halfW&&naturalX<=Math.max(halfW,cssW-halfW)&&naturalY>=halfH&&naturalY<=Math.max(halfH,cssH-halfH);
+    if(inBounds||!anchorVisible(ax,ay)){
+      /* Already fine, or genuinely off-screen: leave layoutMarkerPlacards()'s
+         own offset untouched -- only markers that actually NEED clamping
+         go through the nudge search below, so a well-separated marker is
+         never disturbed by a neighbour that happens to need clamping. */
+      marker.style.setProperty('--x',`${naturalX}px`);marker.style.setProperty('--y',`${naturalY}px`);
+      marker.style.setProperty('--ox',`${naturalX-ax}px`);marker.style.setProperty('--oy',`${naturalY-ay}px`);
+      if(inBounds)claimed.push(markerRect(naturalX,naturalY));
+      continue;
+    }
+    clampedMarkers.push({marker,ax,ay,naturalX,naturalY});
+  }
+  for(const {marker,ax,ay,naturalX,naturalY} of clampedMarkers){
+    const baseX=clampX(naturalX);
+    /*
+     * Nudge candidates start from the ALREADY-CLAMPED Y, not the raw
+     * naturalY -- naturalY can be arbitrarily far out of bounds (a large
+     * ring-search offset on a narrow canvas), and CLAMP_NUDGE_OFFSETS'
+     * bounded range would just clamp right back to the same boundary value
+     * every time if applied to naturalY directly. Starting from the
+     * boundary itself and nudging inward/outward from there is what
+     * actually varies the result.
+     */
+    const baseY=clampY(naturalY);
+    let chosenY=null;
+    for(const offset of CLAMP_NUDGE_OFFSETS){
+      const tryY=clampY(baseY+offset);
+      const rect=markerRect(baseX,tryY);
+      if(!claimed.some(other=>rectsOverlap(rect,other))){chosenY=tryY;claimed.push(rect);break;}
+    }
+    if(chosenY===null){chosenY=baseY;claimed.push(markerRect(baseX,chosenY));}
+    const x=baseX,y=chosenY;
     marker.style.setProperty('--x',`${x}px`);marker.style.setProperty('--y',`${y}px`);
+    marker.style.setProperty('--ox',`${x-ax}px`);marker.style.setProperty('--oy',`${y-ay}px`);
   }
 }
 
@@ -544,13 +772,13 @@ function render(canvas,g){
   MW.paintGreenery(ctx,viewDistrict,camTransform);
   MW.blitWorldSprites(ctx,viewDistrict,camTransform,images,index2,{placeholderLabels:false,spriteWidthFactor:1.18});
   ctx.setTransform(1,0,0,1,0,0);
-  positionMarkers(canvas,camTransform);
+  positionMarkers(canvas,camTransform,cssW,cssH);
 }
 
 installPanHandlers();
 
 modules.mapPhase2Canvas=Object.freeze({
-  buildMapViewModel,placeEntityTiles,render,consumeJustPanned,
+  buildMapViewModel,placeEntityTiles,layoutMarkerPlacards,render,consumeJustPanned,
   getLoadState,retryMapLoad,
   __installed:true
 });

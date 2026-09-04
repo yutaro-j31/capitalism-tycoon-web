@@ -44,3 +44,58 @@
 .d-map-load-error{display:flex;flex-direction:column;align-items:center;gap:10px;text-align:center;padding:0 16px}
 .d-map-retry-btn{min-width:44px;min-height:44px;padding:8px 20px;border:1px solid rgba(255,255,255,.32);border-radius:9px;background:rgba(4,13,23,.82);color:#eef3f7;font-size:13px;font-weight:600;cursor:pointer}
 .d-map-retry-btn:hover,.d-map-retry-btn:focus-visible{background:rgba(4,13,23,.95);outline:2px solid var(--d-gold,#d9a84d);outline-offset:2px}
+
+/*
+ * Marker Interaction / Decluttering / Placard UX pass. Root cause of the
+ * real-device "tap does nothing" bug (see docs/map-phase2-production-
+ * integration-audit.md): .d-city-surface (css/d-ui-reference-fidelity.css)
+ * used to carry a non-none `filter`, which forces an isolated stacking
+ * context onto that box (CSS Filter Effects spec) -- .d-map-marker's own
+ * z-index (css/d-ui.css) could then never out-rank a SIBLING of
+ * .d-city-surface-phase2 no matter how high it was set, because z-index
+ * only ever competes within the nearest ancestor stacking context.
+ * js/iphone-playtest-fixes.js's ensureMapChrome()/ensureSyntheticMapEntities()
+ * append exactly such siblings on EVERY viewport, not just iPhone (no
+ * @media gate on any of their selectors in css/iphone-playtest-fixes.css):
+ * .iphone-map-nav (z-index:18, a full-width top strip), .iphone-map-tools
+ * (z-index:18, bottom-left), .iphone-map-popover (z-index:19, opens over
+ * the bottom-left corner), and up to 3 .iphone-synthetic-marker.competitor
+ * markers (z-index:11) placed via a completely separate percentage-based
+ * grid with no idea where real markers actually render. Any real marker
+ * whose on-screen position happened to fall under one of those had its tap
+ * silently swallowed -- tests/iphone-playtest-remediation-test.js already
+ * documents a prior, narrower brush with this exact hazard (it removed a
+ * redundant synthetic PROPERTY marker for that reason) but left the
+ * general z-index ordering unfixed. The filter itself moved to
+ * .d-phase2-canvas (css/d-ui-map-phase2-canvas.css) -- a pixel-identical
+ * visual no-op for the rendered city, see that file's comment. With the
+ * forced stacking context gone, .d-map-marker's z-index now competes
+ * directly against the iPhone chrome above -- raised here so it always
+ * wins, on every device, deterministically (not "usually").
+ */
+.d-map-marker{z-index:25}
+
+/*
+ * Requirement C ("category textが常時読める"): the label used to be
+ * opacity:0 by default (css/d-ui-reference-fidelity.css), reachable only
+ * via :hover/:focus-visible/.selected -- states a player only reaches
+ * AFTER the very tap the label was meant to guide -- and fully
+ * display:none under <=820px (css/d-ui.css), i.e. every phone. Both are
+ * overridden unconditionally here (this file loads after both in
+ * d-ui-mobile-company.css's @import order, so this wins at equal
+ * specificity regardless of viewport).
+ */
+.d-map-marker small{display:block;opacity:1;transform:none;pointer-events:none;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:104px}
+
+/*
+ * Screen-space decluttering (layoutMarkerPlacards() in js/map-phase2-
+ * canvas.js). Marks the real building anchor whenever a marker's placard
+ * has been nudged away from it to avoid overlapping a neighbour --
+ * js/map-phase2-canvas.js's positionMarkers() sets --ox/--oy to the
+ * ACTUAL applied (post-viewport-clamp) offset every render, so the dot
+ * always lands back at the true tile position regardless of pan, filter,
+ * or edge clamping. A marker with no neighbours keeps its on-anchor
+ * position (--ox/--oy both 0px), so its dot sits directly under its own
+ * glyph -- visually inert, exactly as intended.
+ */
+.d-map-marker-dot{position:absolute;left:50%;top:50%;width:8px;height:8px;margin:-4px 0 0 -4px;border-radius:50%;background:#fff;border:1.5px solid rgba(4,13,23,.55);box-shadow:0 1px 3px rgba(0,0,0,.4);transform:translate(calc(-1*var(--ox,0px)),calc(-1*var(--oy,0px)));pointer-events:none}
