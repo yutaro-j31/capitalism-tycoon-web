@@ -674,3 +674,158 @@ the deployment-target fix is load-bearing); and a weak "page didn't
 crash" check would have passed while the map was permanently stuck
 (proves the published WebKit test's specific loading/error assertions
 are what actually catch this class of bug).
+
+## 15. Marker Interaction / Decluttering / Placard UX pass
+
+Real-device incident: on the actual production iPhone URL (post PR #613),
+markers were visible but tapping tenant/office/realestate markers often
+did nothing, and clusters of same-kind markers rendered almost fully
+overlapping (indistinguishable pins with no readable label).
+
+**Tap root cause (confirmed by reading the CSS/JS, not guessed).**
+`.d-city-surface` (`css/d-ui-reference-fidelity.css`) carried a non-`none`
+`filter`, which forces the browser to create an isolated stacking context
+for that box (CSS Filter Effects spec). `.d-map-marker`'s own `z-index`
+(`css/d-ui.css`) could therefore never out-rank a SIBLING of
+`.d-city-surface-phase2`, no matter how high it was set -- z-index only
+ever competes within the nearest ancestor stacking context.
+`js/iphone-playtest-fixes.js`'s `ensureMapChrome()`/
+`ensureSyntheticMapEntities()` append exactly such siblings, on EVERY
+viewport (no `@media` gate on any of their selectors, and `ensureMapChrome()`
+itself has no user-agent check -- confirmed by reading both files, this is
+not iPhone-only): `.iphone-map-nav` (z-index 18, a full-width top strip),
+`.iphone-map-tools` (18, bottom-left), `.iphone-map-popover` (19, opens
+over the bottom-left corner), and up to 3
+`.iphone-synthetic-marker.competitor` markers (11), placed via a
+completely separate percentage-based grid with no idea where real markers
+actually render. Any real marker whose on-screen position fell under one
+of those had its tap silently swallowed. `tests/iphone-playtest-
+remediation-test.js` already documents a prior, narrower brush with this
+exact hazard (it removed a redundant synthetic PROPERTY marker because it
+could land on top of a real marker and "silently make it unclickable") but
+left the general z-index ordering unfixed.
+
+**Fix**: moved the `filter` from `.d-city-surface` to `.d-phase2-canvas`
+(`css/d-ui-map-phase2-canvas.css`) -- a pixel-identical visual result,
+since canvas already paints over everything inside `.d-city-surface` from
+its very first placeholder fill onward, so this removes the forced
+stacking context without changing anything visible. With that gone,
+`.d-map-marker`'s z-index was raised (`css/d-ui-map-phase2-markers.css`,
+`z-index:25`) above every one of the iPhone-chrome z-indexes above, so a
+real marker now always wins the tap, on every device, deterministically.
+
+**Placard redesign (requirement C)**: the label (`.d-map-marker small`)
+used to be `opacity:0` by default, visible only on `:hover`/
+`:focus-visible`/`.selected` (states only reachable AFTER the tap it was
+meant to guide), and fully `display:none` under `<=820px` (i.e. every
+phone). Both overrides are unconditional now. Label content changed from
+the raw entity name to a fixed category label
+(`js/d-ui-shell.js`'s new `placardLabel()`): tenant -> `テナント募集`,
+office -> `オフィス募集`, realestate -> `売物件` (unified across all
+`property.kind` values per spec -- a per-kind secondary line was judged
+not worth the added density), store -> the store's own name (more useful
+than a generic label once a player has more than one store).
+
+**Screen-space decluttering**: new `layoutMarkerPlacards(entities,prefID)`
+in `js/map-phase2-canvas.js`, called by `renderMapWorkspace()` right after
+`placeEntityTiles()`, on its full UNFILTERED result (so `mapFilterKind`
+hiding some markers never reshuffles the ones that stay visible). Pure,
+deterministic: entities are processed in canonical (id-sorted) order,
+each trying a fixed, precomputed candidate list -- "no shift" first, then
+an expanding 8-compass ring search (`PLACARD_RING_COUNT=6` rings x 8
+directions = 48 more candidates) -- against a conservative `PLACARD_W x
+PLACARD_H` (108x86 CSS px) AABB collision box approximating a marker's
+rendered glyph+label footprint. If every candidate collides
+(pathological density), the candidate with the LEAST total overlap area
+is accepted rather than defaulting back to the identical `{0,0}` position
+(spec: never "単純に同じ位置へ重ねない"). This all runs in the SAME
+camera-independent world-space `transform.toScreen()` (not
+`camTransform.toCss()`, which bakes in the live `camera.x/y` pan offset)
+`ensureDistrict()`/`render()` already use for canvas painting -- two
+markers' anchors both translate by the identical delta when the camera
+pans, so their relative positions (and every collision resolved from
+them) are pan-invariant by construction. `positionMarkers()` applies the
+camera translation uniformly on top of the resulting offsets every
+render, so panning moves every placard by the same delta and never
+reshuffles the layout. The resulting `placardOffsetX/Y` are baked into
+each marker's `data-phase2-offset-x/y` attributes by `renderMapWorkspace()`;
+`positionMarkers()` (called every pan frame, not just on a full re-render)
+just reads them back -- the expensive collision search itself is never
+recomputed during a pan.
+
+Real anchor coordinates from `transform.toScreen()` are RAW, unscaled
+tile-space pixels (`toCss()` is what multiplies by `transform.scale` =
+`DEFAULT_SCALE`) -- an early version of this collision math compared
+CSS-pixel-sized boxes against those unscaled coordinates directly, which
+silently under-detects collisions by a factor of `1/DEFAULT_SCALE` (~2.3x
+at 0.44). This was caught only by a local Chromium dry-run against a real
+freshly-created company (not by the isolated Node unit test, whose
+generous synthetic fixture happened not to expose it) -- `layoutMarkerPlacards()`
+now scales the anchor the same way `toCss()` does before running collision
+math.
+
+**Leader**: `.d-map-marker-dot` (`css/d-ui-map-phase2-markers.css`), a
+small dot rendered as a child of the marker button, positioned via
+`transform:translate(calc(-1*var(--ox)),calc(-1*var(--oy)))` -- i.e.
+always at the TRUE tile anchor regardless of how far the placard itself
+has been nudged or clamped. A marker with no neighbours keeps its
+on-anchor position (`--ox`/`--oy` both `0px`), so its dot sits directly
+under its own glyph, visually inert. A plain dot (rather than a rotated
+connecting line) was chosen deliberately: every candidate offset is a
+free 2D vector (not axis-restricted), and a dot reads correctly for any
+direction with no rotation math, matching spec's explicit "stem / line /
+dot" list of equally-acceptable options.
+
+**Viewport clamp and its cross-marker interaction (requirement E)**: a
+marker's placard is clamped into `[0,cssW]x[0,cssH]` ONLY when its own
+tile ANCHOR is itself on-screen (within one placard-width/height of the
+canvas box) -- clamping is meant to keep a near-edge placard from being
+cut off, not to relocate an entity whose tile is nowhere near the current
+camera view. A first implementation clamped unconditionally and was
+caught by the same local Chromium dry-run: `layoutMarkerPlacards()`'s
+offsets can legitimately point a near-edge marker's placard well past the
+visible edge (it has no idea what the live viewport looks like -- that is
+what keeps it pan-stable), and clamping several such markers
+independently collapsed them all onto the identical boundary value,
+undoing the very separation just computed and manufacturing brand-new
+collisions between markers that were never near each other. The fix adds
+a second, deliberately viewport/render-time-dependent pass restricted to
+markers that actually needed clamping: each is nudged along the clamped
+edge (bounded, deterministic candidate offsets) against every
+already-positioned marker (clamped or not) before accepting a final
+position.
+
+**Known residual limitation**: local verification (a fresh company's own
+17-entity home-prefecture fixture -- 8 tenants / 3 offices / 6
+unowned-property listings, the same baseline `tests/map-phase2-
+production-promotion-test.js` already treats as this codebase's reference
+density) shows zero overlapping placards on a 1280x800 desktop viewport
+across repeated runs, and shows zero overlaps on a 390x844 iPhone
+viewport in the large majority of runs, but can occasionally show 1-2
+partially-overlapping (not fully-stacked) placards on the narrower iPhone
+viewport specifically, when this single worst-case density is combined
+with edge clamping. This is the explicitly spec-sanctioned "どうしても
+全件を同時表示できない高密度時" last-resort case, not the original bug
+(near-total stacking, "赤3枚・紫3枚がほぼ完全に重なる"), and does not
+affect tap-ability (fixed unconditionally by the z-index change above,
+independent of the decluttering algorithm's visual outcome). A proper
+fix (e.g. compact cluster indicators) was explicitly out of scope for
+this pass per spec ("clusterを導入する場合は...scopeが大きくなるので無理
+に入れない").
+
+New coverage: `tests/map-phase2-marker-placard-interaction-test.js`
+(root-cause z-index/stacking-context checks; always-visible placard label
+content; `layoutMarkerPlacards` determinism, order-independence, stability
+across a Tokyo->Osaka->Tokyo prefecture switch, and pan-invariance of the
+applied offset; the 17-marker fixture's screen-space non-overlap; a
+same-tile forced-collision case; viewport-clamp applicability; button
+semantics/aria-label/44px hit target; and regression checks for
+DEFAULT_SCALE, the Canvas backing-store cache, lazy-load recovery, filter
+chips, `selectedDetail()`, and Prefecture Identity file byte-equality).
+Three negative tests: a tile-only "same tile = collision" model (the old
+`placeEntityTiles` occupancy check) misses real screen-space overlaps
+this pass's rectangle check catches; reverting the z-index/stacking-
+context fix breaks the "marker always wins the tap" comparison; and a
+camera-dependent `layoutMarkerPlacards` (using `camTransform`/`camera`
+instead of the raw world transform) would break pan-stability, which the
+real source's camera-independence check guards against.

@@ -2,4 +2,21 @@
    docs/map-phase2-production-integration-audit.md section 6, PR D).
    Presentation only -- no marker placement, entity, or deterministic-hash
    logic. */
-.d-phase2-canvas{position:absolute;inset:0;width:100%;height:100%;display:block}
+/*
+ * filter moved here from css/d-ui-reference-fidelity.css's .d-city-surface
+ * (Marker Interaction / Decluttering / Placard UX pass). Canvas is the
+ * only thing ever actually visible inside .d-city-surface -- its own CSS
+ * background/pseudo-element gradients are always fully painted over by
+ * the canvas, from its very first placeholder fill onward -- so this is a
+ * pixel-identical visual no-op for the rendered city. The reason it moved:
+ * a non-none filter on a positioned box forces the browser to create an
+ * isolated stacking context for it (CSS Filter Effects spec), which used
+ * to trap every .d-map-marker's z-index inside .d-city-surface-phase2 --
+ * no z-index a marker could set would ever out-rank a SIBLING of that div
+ * (js/iphone-playtest-fixes.js's .iphone-map-nav/.iphone-map-tools/
+ * .iphone-map-popover/.iphone-synthetic-marker, all appended as later
+ * siblings on every viewport), silently swallowing taps on any real
+ * marker that happened to render underneath one. See css/d-ui-map-phase2-
+ * markers.css for the corresponding .d-map-marker{z-index:...} raise.
+ */
+.d-phase2-canvas{position:absolute;inset:0;width:100%;height:100%;display:block;filter:saturate(.92) contrast(1.05)}

@@ -250,7 +250,13 @@ async function main() {
   /* ================= PREFECTURE ================= */
   await check('Phase 2 markers and Phase 2 city scenery derive prefID from the exact same buildMapViewModel() call (single production prefecture source)', () => {
     assert.match(shellSrc, /const viewModel=modules\.mapPhase2Canvas\.buildMapViewModel\(g,engine\(\)\);/);
-    assert.match(shellSrc, /const placed=modules\.mapPhase2Canvas\.placeEntityTiles\(viewModel\.entities,viewModel\.prefID\);/);
+    // `let`, not `const`: the Marker Interaction / Decluttering / Placard UX
+    // pass reassigns `placed` in place to layoutMarkerPlacards()'s result
+    // (still derived from this exact placeEntityTiles() call) rather than
+    // introducing a second variable -- see the "const activeEntities=
+    // placed||[];" check below, unchanged.
+    assert.match(shellSrc, /let placed=modules\.mapPhase2Canvas\.placeEntityTiles\(viewModel\.entities,viewModel\.prefID\);/);
+    assert.match(shellSrc, /if\(placed\)placed=modules\.mapPhase2Canvas\.layoutMarkerPlacards\(placed,viewModel\.prefID\);/);
   });
 
   await check('placeEntityTiles reflects a prefecture change: switching prefID yields different entities/placements without needing a special-cased reset', async () => {

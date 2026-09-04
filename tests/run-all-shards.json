@@ -35,7 +35,8 @@
     "tests/executive-payroll-annual-total-test.js",
     "tests/map-directory-open-state-persistence-test.js",
     "tests/d-ui-shell-test.js",
-    "tests/map-phase2-framing-zoomout-test.js"
+    "tests/map-phase2-framing-zoomout-test.js",
+    "tests/map-phase2-marker-placard-interaction-test.js"
   ],
   "D": [
     "test:stock",
