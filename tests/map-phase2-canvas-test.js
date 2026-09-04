@@ -60,6 +60,7 @@ function freshSandbox(options) {
     URLSearchParams,
     Promise, Object, Array, Math, JSON, Date,
     fetch: opts.fetch || (() => Promise.reject(new Error('fetch not stubbed'))),
+    setTimeout, clearTimeout,
   };
   sandbox.globalThis = sandbox;
   sandbox.window = sandbox;
@@ -244,7 +245,7 @@ async function main() {
 
   await check('render() applies the DPR clamp (max 2) via the shared sizeCanvas/resolveDpr from window.MapCanvas', () => {
     const manifest = JSON.parse(fs.readFileSync(path.join(ROOT, 'assets/map-sprites/phase2/sprites.json'), 'utf8'));
-    const sandbox = freshSandbox({ withPrototypes: true, fetch: () => Promise.resolve({ json: () => Promise.resolve(manifest) }) });
+    const sandbox = freshSandbox({ withPrototypes: true, fetch: () => Promise.resolve({ ok: true, json: () => Promise.resolve(manifest) }) });
     sandbox.devicePixelRatio = 3; // above the MAX_DPR=2 clamp
     const mod = sandbox.__capitalismTycoonModules.mapPhase2Canvas;
     const calls = {};
@@ -256,7 +257,7 @@ async function main() {
 
   await check('render() paints a placeholder fill (no throw, no white screen) before sprite assets finish loading, and completes a full draw pass once they do', async () => {
     const manifest = JSON.parse(fs.readFileSync(path.join(ROOT, 'assets/map-sprites/phase2/sprites.json'), 'utf8'));
-    const sandbox = freshSandbox({ withPrototypes: true, fetch: () => Promise.resolve({ json: () => Promise.resolve(manifest) }) });
+    const sandbox = freshSandbox({ withPrototypes: true, fetch: () => Promise.resolve({ ok: true, json: () => Promise.resolve(manifest) }) });
     const mod = sandbox.__capitalismTycoonModules.mapPhase2Canvas;
     const calls = {};
     const canvas = stubCanvas(calls);
@@ -271,7 +272,7 @@ async function main() {
   /* ---------------- prefecture switching ---------------- */
   await check('render() rebuilds the district only when the resolved prefecture actually changes', async () => {
     const manifest = JSON.parse(fs.readFileSync(path.join(ROOT, 'assets/map-sprites/phase2/sprites.json'), 'utf8'));
-    const sandbox = freshSandbox({ withPrototypes: true, fetch: () => Promise.resolve({ json: () => Promise.resolve(manifest) }) });
+    const sandbox = freshSandbox({ withPrototypes: true, fetch: () => Promise.resolve({ ok: true, json: () => Promise.resolve(manifest) }) });
     const mod = sandbox.__capitalismTycoonModules.mapPhase2Canvas;
     const canvas = stubCanvas({});
     mod.render(canvas, { selectedPref: 'tokyo' }); // placeholder pass: kicks off async load, builds nothing yet

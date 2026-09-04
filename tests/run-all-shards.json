@@ -136,6 +136,7 @@
     "tests/gym-membership-strategy-test.js",
     "tests/executeipo-base-class-accounting-test.js",
     "tests/d-ui-reference-fidelity-test.js",
-    "tests/map-canvas-foundation-test.js"
+    "tests/map-canvas-foundation-test.js",
+    "tests/map-phase2-lazy-load-recovery-test.js"
   ]
 }

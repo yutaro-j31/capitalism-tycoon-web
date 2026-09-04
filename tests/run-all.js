@@ -63,6 +63,7 @@ const nodeTests = [
   ['map-phase2-framing-zoomout', 'tests/map-phase2-framing-zoomout-test.js'],
   ['map-phase2-prefecture-switch-canvas-lifecycle', 'tests/map-phase2-prefecture-switch-canvas-lifecycle-test.js'],
   ['map-prefecture-identity-regional-variation', 'tests/map-prefecture-identity-regional-variation-test.js'],
+  ['map-phase2-lazy-load-recovery', 'tests/map-phase2-lazy-load-recovery-test.js'],
   ['d-ui-shell', 'tests/d-ui-shell-test.js'],
   ['deterministic-economic-foundation', 'tests/deterministic-economic-foundation-test.js'],
   ['executive-dismissal-governance', 'tests/executive-dismissal-governance-test.js'],

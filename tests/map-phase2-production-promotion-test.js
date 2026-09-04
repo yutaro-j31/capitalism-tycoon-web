@@ -78,7 +78,7 @@ const MANIFEST = {
 
 function readySandbox(options) {
   const sandbox = freshSandbox(Object.assign({
-    fetch: () => Promise.resolve({ json: () => Promise.resolve(MANIFEST) }),
+    fetch: () => Promise.resolve({ ok: true, json: () => Promise.resolve(MANIFEST) }),
     document: { head: { appendChild() {} }, createElement() { return { set src(v) {} }; } },
   }, options));
   const mod = sandbox.__capitalismTycoonModules.mapPhase2Canvas;
@@ -147,7 +147,7 @@ async function main() {
   await check('the Phase 2 asset-load-complete callback also runs the shared enhancer registry (not just modules.dUIShell.enhance directly) -- otherwise js/iphone-playtest-fixes.js\'s registered enhancer never re-applies to the freshly rebuilt map DOM. This was previously only exercised behind the dev flag; production promotion makes it hit every real user\'s first map view, so it must be correct unconditionally', async () => {
     const registryCalls = [];
     const sandbox = freshSandbox({
-      fetch: () => Promise.resolve({ json: () => Promise.resolve(MANIFEST) }),
+      fetch: () => Promise.resolve({ ok: true, json: () => Promise.resolve(MANIFEST) }),
       document: { head: { appendChild() {} }, createElement() { return { set src(v) {} }; } },
     });
     sandbox.__capitalismTycoonModules.dUIShell = { enhance: () => { registryCalls.push('dUIShell.enhance'); } };

@@ -156,42 +156,143 @@ function placeEntityTiles(entities,prefID){
   return entities.map(entity=>Object.assign({},entity,placements.get(entity.id)));
 }
 
-/* ---- lazy-load the two prototype renderer files (only once, only when
-   render() is actually first called with the flag on) ---- */
-let prototypesPromise=null;
-function ensurePrototypesLoaded(){
-  if(globalThis.MapCanvas&&globalThis.MapPrefectureProfiles&&globalThis.MapWorldPreview)return Promise.resolve();
-  if(typeof document==='undefined')return Promise.reject(new Error('map-phase2-canvas: document unavailable'));
-  if(prototypesPromise)return prototypesPromise;
-  const loadScript=src=>new Promise((resolve,reject)=>{
+/*
+ * ---- lazy-load recovery (bounded-retry state machine) ----
+ *
+ * Real-device incident this fixes: a single transient failure anywhere in
+ * the load chain (a lazy prototype <script> failing to load, the manifest
+ * fetch failing, a bad/invalid manifest) used to be cached PERMANENTLY --
+ * the old ensureAssetsLoaded() set its module-level assetsPromise once and
+ * never reset it even on failure (its .catch(()=>null) just resolved to
+ * null forever), and manifestPromise had the same problem via its
+ * `manifestPromise||fetch(...)` guard (a REJECTED promise is still
+ * truthy, so it was never retried either). assetsReady would then never
+ * get set, and every subsequent render() call -- prefecture switch, tab
+ * re-entry, anything -- kept hitting the same dead cached promise. The
+ * map showed "出店候補を読み込み中です" (loading) forever with no way to
+ * recover short of a full page reload.
+ *
+ * This replaces that with a small idle/loading/ready/error state machine:
+ * a failed attempt is retried a bounded number of times (a one-shot
+ * setTimeout per retry -- never setInterval or unbounded polling), and
+ * once retries are exhausted the map surfaces an explicit error with a
+ * real retry control (js/d-ui-shell.js reads getLoadState()) instead of
+ * silently hanging. Each failure is tagged with which stage produced it
+ * (prototype script load, manifest fetch, manifest validation) so a real
+ * cause is never swallowed -- see loadErrorDetail below.
+ */
+const PROTOTYPE_GLOBALS=['MapCanvas','MapPrefectureProfiles','MapWorldPreview'];
+function loadScriptOnce(src){
+  return new Promise((resolve,reject)=>{
     const el=document.createElement('script');
     el.src=src;el.onload=()=>resolve();el.onerror=()=>reject(new Error(`map-phase2-canvas: failed to load ${src}`));
     document.head.appendChild(el);
   });
-  prototypesPromise=PROTOTYPE_SCRIPTS.reduce((chain,src)=>chain.then(()=>loadScript(src)),Promise.resolve())
-    .catch(error=>{prototypesPromise=null;throw error;});
-  return prototypesPromise;
+}
+/*
+ * Idempotent under a partial-success retry: only whichever of the 3 lazy
+ * scripts hasn't already set its own global gets (re)loaded -- if script 3
+ * failed after 1 and 2 already succeeded, a retry never re-fetches/
+ * re-executes the two that are already present. Dependency order (1, then
+ * 2, then 3) is still preserved via the sequential .then chain even when
+ * only a subset is missing, since PROTOTYPE_SCRIPTS/PROTOTYPE_GLOBALS stay
+ * index-aligned and whichever prefix already succeeded is always
+ * contiguous (script N+1 can never load before script N does).
+ */
+function ensurePrototypesLoaded(){
+  if(PROTOTYPE_GLOBALS.every(name=>globalThis[name]))return Promise.resolve();
+  if(typeof document==='undefined'){const e=new Error('map-phase2-canvas: document unavailable');e.stage='prototype';return Promise.reject(e);}
+  let chain=Promise.resolve();
+  PROTOTYPE_SCRIPTS.forEach((src,i)=>{
+    const globalName=PROTOTYPE_GLOBALS[i];
+    chain=chain.then(()=>{
+      if(globalThis[globalName])return;
+      return loadScriptOnce(src).catch(error=>{error.stage='prototype';throw error;});
+    });
+  });
+  return chain;
 }
 
-/* ---- sprite manifest + image cache (module-level, survives across re-renders) ---- */
-let manifestPromise=null;
-let assetsPromise=null;
+/* ---- sprite manifest + image cache ---- */
 let assetsReady=null;
+/*
+ * A single, un-cached attempt -- no module-level promise memoization here
+ * any more (that was the permanent-failure trap). attemptLoad() below owns
+ * all retry/caching policy; this function just tries once and rejects with
+ * a stage-tagged error on any failure so the caller can tell prototype
+ * script / manifest fetch / manifest validation failures apart.
+ */
 function ensureAssetsLoaded(){
   const MW=globalThis.MapWorldPreview;
-  if(!MW)return Promise.resolve(null);
-  if(assetsPromise)return assetsPromise;
-  manifestPromise=manifestPromise||fetch(MANIFEST_URL).then(res=>res.json());
-  assetsPromise=manifestPromise.then(manifest=>{
-    const index2=MW.indexCategoryManifest(manifest);
-    if(!index2.ok)return null;
-    const legacyIndex=Object.assign({},index2,{sprites:index2.sprites.filter(s=>s.placeholder)});
-    const newIndex=Object.assign({},index2,{sprites:index2.sprites.filter(s=>!s.placeholder)});
-    return Promise.all([MW.loadSprites(legacyIndex,IMAGE_BASE),MW.loadSprites(newIndex,ASSET_BASE)])
-      .then(([legacyResult,newResult])=>({index2,images:Object.assign({},legacyResult.images,newResult.images)}));
-  }).catch(()=>null);
-  return assetsPromise;
+  if(!MW){const e=new Error('map-phase2-canvas: MapWorldPreview unavailable');e.stage='prototype';return Promise.reject(e);}
+  return fetch(MANIFEST_URL)
+    .catch(error=>{error.stage='manifest-fetch';throw error;})
+    .then(res=>{
+      if(!res.ok){const e=new Error(`map-phase2-canvas: manifest HTTP ${res.status}`);e.stage='manifest-fetch';throw e;}
+      return res.json().catch(error=>{error.stage='manifest-fetch';throw error;});
+    })
+    .then(manifest=>{
+      const index2=MW.indexCategoryManifest(manifest);
+      if(!index2.ok){const e=new Error(`map-phase2-canvas: manifest validation failed (${index2.errors.slice(0,3).join('; ')})`);e.stage='manifest-validation';throw e;}
+      const legacyIndex=Object.assign({},index2,{sprites:index2.sprites.filter(s=>s.placeholder)});
+      const newIndex=Object.assign({},index2,{sprites:index2.sprites.filter(s=>!s.placeholder)});
+      return Promise.all([MW.loadSprites(legacyIndex,IMAGE_BASE),MW.loadSprites(newIndex,ASSET_BASE)])
+        .then(([legacyResult,newResult])=>({index2,images:Object.assign({},legacyResult.images,newResult.images)}));
+    });
 }
+
+/*
+ * idle -> loading -> ready, or idle -> loading -> (retry) -> ... -> error.
+ * loadErrorDetail is diagnostics only (stage + message, logged to console
+ * for developers) -- js/d-ui-shell.js never shows it verbatim to the user,
+ * only a generic "読み込みに失敗しました" + retry button (see getLoadState()).
+ */
+let loadState='idle';
+let loadAttempts=0;
+let loadErrorDetail=null;
+const MAX_LOAD_ATTEMPTS=3;
+const LOAD_RETRY_DELAYS_MS=[500,1500];
+function notifyMapReady(){
+  modules.dUIShell?.enhance?.(true);
+  modules.uiEnhancerRegistry?.runUIEnhancers?.();
+}
+function attemptLoad(){
+  loadState='loading';
+  ensurePrototypesLoaded()
+    .then(ensureAssetsLoaded)
+    .then(result=>{
+      assetsReady=result;
+      loadState='ready';
+      loadErrorDetail=null;
+      notifyMapReady();
+    })
+    .catch(error=>{
+      loadAttempts++;
+      loadErrorDetail={stage:error?.stage||'unknown',message:(error&&error.message)||String(error)};
+      if(typeof console!=='undefined'&&console.error)console.error('map-phase2-canvas: load attempt failed',loadErrorDetail);
+      if(loadAttempts<MAX_LOAD_ATTEMPTS){
+        const delay=LOAD_RETRY_DELAYS_MS[loadAttempts-1]??LOAD_RETRY_DELAYS_MS[LOAD_RETRY_DELAYS_MS.length-1];
+        globalThis.setTimeout(attemptLoad,delay);
+      }else{
+        loadState='error';
+        notifyMapReady();
+      }
+    });
+}
+/* Called from render() below every time assetsReady is still falsy --
+   only actually starts (or restarts) a load while idle, so this never
+   spawns concurrent load chains or duplicate network activity during an
+   in-progress attempt or its bounded retry backoff. */
+function ensureMapReady(){
+  if(loadState==='idle'){loadAttempts=0;attemptLoad();}
+}
+/* User-triggered retry after retries were exhausted (js/d-ui-shell.js's
+   "再試行" button) -- a no-op while already loading. */
+function retryMapLoad(){
+  if(loadState==='loading')return;
+  loadAttempts=0;loadErrorDetail=null;attemptLoad();
+}
+function getLoadState(){return {state:loadState,error:loadErrorDetail};}
 
 /* ---- district cache: rebuilt only when the resolved prefecture changes ---- */
 let cachedDistrict=null,cachedPrefID=null,cachedTransform=null;
@@ -372,11 +473,12 @@ function positionMarkers(canvas,camTransform){
  * (renderMapWorkspace rebuilds .d-city-surface's innerHTML wholesale every
  * time it runs -- there is nothing new to persist across renders other
  * than the caches above). If the prototype renderer files or sprite
- * assets are not loaded yet, paints a neutral placeholder fill and kicks
- * off the load; once it resolves, forces the existing D UI shell
- * enhancer to re-run (the same public entry point a marker click already
- * uses) so the city appears -- this never touches simulation state, only
- * asks the UI to redraw.
+ * assets are not loaded yet, paints a neutral placeholder fill and asks
+ * the bounded-retry state machine above to (re)start loading if it isn't
+ * already; notifyMapReady() (called from attemptLoad() on success or on
+ * final failure, not on every render) is what forces the existing D UI
+ * shell enhancer to re-run so the city -- or the error/retry UI -- appears.
+ * This never touches simulation state, only asks the UI to redraw.
  */
 function render(canvas,g){
   if(!canvas)return;
@@ -390,29 +492,7 @@ function render(canvas,g){
     if(Base){Base.sizeCanvas(canvas,cssW,cssH,globalThis.devicePixelRatio);}
     else{canvas.width=cssW;canvas.height=cssH;canvas.style.width=`${cssW}px`;canvas.style.height=`${cssH}px`;}
     ctx.setTransform(1,0,0,1,0,0);ctx.fillStyle='#bfd0da';ctx.fillRect(0,0,cssW,cssH);
-    ensurePrototypesLoaded().then(ensureAssetsLoaded).then(result=>{
-      if(!result||assetsReady)return;
-      assetsReady=result;
-      /*
-       * modules.dUIShell.enhance(true) is called directly (bypassing the
-       * shared registry) because it must force a redraw even though g
-       * itself hasn't changed -- only this module's own internal
-       * assetsReady flag has, which renderKey(g) has no way to see. That
-       * rebuilds .d-map-workspace's innerHTML wholesale (a fresh
-       * .d-map-stage/.d-map-tools/.d-city-surface), but a direct call to
-       * one enhancer's own enhance() does not run any OTHER registered
-       * enhancer -- so without the followup runUIEnhancers() call below,
-       * js/iphone-playtest-fixes.js's own registered enhancer (which hides
-       * the legacy .d-map-tools and builds the iPhone nav/tools/popover
-       * chrome, keyed off a data-iphone-map-key attribute on the stage
-       * element) would never re-run on this freshly rebuilt stage until
-       * some unrelated later click happened to trigger a full pass.
-       * runUIEnhancers() itself is safe to call here: this callback never
-       * runs while another enhancer pass is already in progress.
-       */
-      modules.dUIShell?.enhance?.(true);
-      modules.uiEnhancerRegistry?.runUIEnhancers?.();
-    }).catch(()=>{});
+    ensureMapReady();
     return;
   }
 
@@ -471,6 +551,7 @@ installPanHandlers();
 
 modules.mapPhase2Canvas=Object.freeze({
   buildMapViewModel,placeEntityTiles,render,consumeJustPanned,
+  getLoadState,retryMapLoad,
   __installed:true
 });
 })();

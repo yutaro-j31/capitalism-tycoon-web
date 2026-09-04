@@ -108,7 +108,7 @@ function freshSandbox(options) {
     devicePixelRatio: 1,
     URLSearchParams,
     Promise, Object, Array, Math, JSON, Date, Number, String, Map, Set,
-    fetch: opts.fetch || (() => Promise.resolve({ json: () => Promise.resolve(MANIFEST) })),
+    fetch: opts.fetch || (() => Promise.resolve({ ok: true, json: () => Promise.resolve(MANIFEST) })),
     requestAnimationFrame: cb => { rafCalls++; cb(); return rafCalls; },
     setTimeout, clearTimeout,
   };

@@ -7,6 +7,8 @@ const path = require('node:path');
 const {
   ROOT,
   extractAssetPaths,
+  extractPrototypeScriptTargets,
+  extractManifestSpriteTargets,
   deploymentTargets,
   normalizeAssetPath,
   verifyDeployment
@@ -36,6 +38,44 @@ function close(server) {
   const targets = deploymentTargets(ROOT);
   assert.ok(targets.includes('play.html'), 'cache-safe play entry must be included in deployment attestation');
   assert.ok(targets.length > 30, 'deployment attestation must cover the complete static runtime');
+
+  /*
+   * Real production incident this covers: js/map-phase2-canvas.js's Phase 2
+   * map dependencies (3 prototype scripts + the sprite manifest + every
+   * sprite it references) are intentionally lazy-loaded, never static
+   * <script>/<link> tags in index.html -- so extractAssetPaths() above,
+   * which only scans index.html, can never see them. CI was green while
+   * these files were never checked against the actual published GitHub
+   * Pages bytes at all. deploymentTargets() must include them.
+   */
+  const prototypeTargets = extractPrototypeScriptTargets(ROOT);
+  assert.deepEqual(prototypeTargets, [
+    'prototypes/map-canvas-renderer.js',
+    'prototypes/map-prefecture-profiles.js',
+    'prototypes/map-world-preview.js'
+  ], 'must extract exactly the lazy prototype scripts, in dependency order, from js/map-phase2-canvas.js');
+  for (const target of prototypeTargets) assert.ok(targets.includes(target), `deployment attestation must include ${target}`);
+
+  const spriteTargets = extractManifestSpriteTargets(ROOT);
+  assert.ok(spriteTargets.includes('assets/map-sprites/phase2/sprites.json'), 'the sprite manifest itself must be a deployment target');
+  const manifest = JSON.parse(fs.readFileSync(path.join(ROOT, 'assets/map-sprites/phase2/sprites.json'), 'utf8'));
+  assert.equal(spriteTargets.length, 1 + manifest.sprites.length, 'every sprite the manifest references must be a deployment target (manifest itself + N sprites)');
+  for (const target of spriteTargets) assert.ok(targets.includes(target), `deployment attestation must include ${target}`);
+  assert.ok(spriteTargets.some(target => target.startsWith('assets/map-sprites/phase1/')), 'placeholder sprites must resolve to the Phase 1 asset directory (matches ensureAssetsLoaded()\'s own IMAGE_BASE split)');
+  assert.ok(spriteTargets.some(target => target.startsWith('assets/map-sprites/phase2/')), 'non-placeholder sprites must resolve to the Phase 2 asset directory (matches ensureAssetsLoaded()\'s own ASSET_BASE split)');
+
+  await (async () => {
+    const canvasSrc = fs.readFileSync(path.join(ROOT, 'js/map-phase2-canvas.js'), 'utf8');
+    const os = require('node:os');
+    const scratchRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'pages-smoke-negative-'));
+    try {
+      fs.mkdirSync(path.join(scratchRoot, 'js'), { recursive: true });
+      fs.writeFileSync(path.join(scratchRoot, 'js', 'map-phase2-canvas.js'), canvasSrc.replace(/const PROTOTYPE_SCRIPTS=\[[^\]]*\]/, 'const PROTOTYPE_SCRIPTS=[]'));
+      assert.throws(() => extractPrototypeScriptTargets(scratchRoot), /empty list/, 'NEGATIVE: an emptied PROTOTYPE_SCRIPTS must fail extraction loudly, not silently produce 0 deployment targets');
+    } finally {
+      fs.rmSync(scratchRoot, { recursive: true, force: true });
+    }
+  })();
 
   const workflow = fs.readFileSync(path.join(ROOT, '.github', 'workflows', 'pages-deployment-smoke.yml'), 'utf8');
   assert.match(workflow, /^name: Pages Deployment Smoke$/m);

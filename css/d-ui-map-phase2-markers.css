@@ -33,3 +33,14 @@
 .d-map-marker span{font-size:22px}
 .d-map-marker small{top:57px}
 .d-map-marker:after{bottom:10px}
+
+/*
+ * Lazy-load recovery: explicit error state (js/map-phase2-canvas.js's
+ * bounded-retry state machine hitting 'error' after exhausting its
+ * retries) instead of the map hanging on "出店候補を読み込み中です" forever.
+ * .d-no-markers already centers its content over the city surface; this
+ * just adds a real, >=44px tap target retry control on top of that.
+ */
+.d-map-load-error{display:flex;flex-direction:column;align-items:center;gap:10px;text-align:center;padding:0 16px}
+.d-map-retry-btn{min-width:44px;min-height:44px;padding:8px 20px;border:1px solid rgba(255,255,255,.32);border-radius:9px;background:rgba(4,13,23,.82);color:#eef3f7;font-size:13px;font-weight:600;cursor:pointer}
+.d-map-retry-btn:hover,.d-map-retry-btn:focus-visible{background:rgba(4,13,23,.95);outline:2px solid var(--d-gold,#d9a84d);outline-offset:2px}
