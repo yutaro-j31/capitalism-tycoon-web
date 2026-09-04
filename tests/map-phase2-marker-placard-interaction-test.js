@@ -568,6 +568,42 @@ async function main() {
     assert.match(body, /chromeExclusionRects\(canvas\)/, 'positionMarkers must seed `claimed` from chromeExclusionRects(canvas)');
   });
 
+  /*
+   * js/d-ui-shell.js's 'd-ui-shell' enhancer always runs BEFORE this file's
+   * 'iphone-playtest-fixes' enhancer (see their registration order in
+   * index.html), and renderMapWorkspace() rebuilds .d-map-stage -- and
+   * calls modules.mapPhase2Canvas.render() to position every marker --
+   * from scratch on every map-tab render. That means the FIRST
+   * positionMarkers() pass for a freshly-built stage always runs before
+   * ensureMapChrome() (this file) has appended .iphone-map-nav/-tools/
+   * -popover, so chromeExclusionRects() has nothing to find on that pass
+   * no matter how correct it is in isolation. Confirmed by a real iPhone
+   * WebKit CI run against this exact chromeExclusionRects() fix (still
+   * failing) before this second fix was added: a marker positioned before
+   * the chrome existed continued to block the filter button's tap even
+   * with the exclusion-rect logic in place. ensureMapChrome() must
+   * re-trigger render() itself once the chrome exists, so
+   * positionMarkers() gets a second, chrome-aware pass.
+   */
+  await check('ensureMapChrome() re-triggers modules.mapPhase2Canvas.render() after building the chrome controls, so positionMarkers() gets a chrome-aware pass even on the very first render of a freshly-built .d-map-stage', () => {
+    const body = extractFunctionBody(iphoneJsSrc, 'ensureMapChrome');
+    assert.match(body, /modules\.mapPhase2Canvas\.render\(canvas,g\)/, 'ensureMapChrome must re-render markers after the chrome controls exist');
+    // sanity: the re-render call must come AFTER the chrome elements are
+    // actually built/finalized (stage.dataset.iphoneMapKey=mapKey is the
+    // last chrome-build statement), not before -- calling it earlier would
+    // just reproduce the exact bug this fix addresses.
+    const keyAssignIndex = body.indexOf('stage.dataset.iphoneMapKey=mapKey');
+    const rerenderIndex = body.indexOf('modules.mapPhase2Canvas');
+    assert.ok(keyAssignIndex >= 0 && rerenderIndex > keyAssignIndex, 'the re-render call must come after the chrome controls are finalized in the DOM');
+  });
+
+  await check('NEGATIVE: removing the re-render call from ensureMapChrome() (reverting to the single, chrome-unaware positionMarkers() pass) would fail the check above', () => {
+    const body = extractFunctionBody(iphoneJsSrc, 'ensureMapChrome');
+    const reverted = body.replace(/\s*const canvas=stage\.querySelector\('\.d-phase2-canvas'\);\s*\n\s*if\(canvas&&modules\.mapPhase2Canvas\?\.render\)modules\.mapPhase2Canvas\.render\(canvas,g\);\s*\n/, '\n');
+    assert.doesNotMatch(reverted, /modules\.mapPhase2Canvas\.render\(canvas,g\)/, 'sanity: the mutated source must actually lack the re-render call');
+    assert.match(body, /modules\.mapPhase2Canvas\.render\(canvas,g\)/, 'sanity: the real source must have it');
+  });
+
   /* ================= REGRESSIONS ================= */
   await check('DEFAULT_SCALE stays 0.44 (PR #611/#612 initial-framing contract, untouched by this pass)', () => {
     assert.match(canvasSrc, /const DEFAULT_SCALE=0\.44;/);

@@ -94,6 +94,25 @@ function ensureMapChrome(){
  if(state.mapPanel==='legend')panel.innerHTML='<strong>凡例</strong><p><i class="legend store"></i>自社店舗</p><p><i class="legend tenant"></i>空きテナント</p><p><i class="legend office"></i>オフィス</p><p><i class="legend competitor"></i>競合</p><p><i class="legend property"></i>不動産</p>';
  panel.querySelectorAll('[data-iphone-filter]').forEach(box=>box.addEventListener('change',()=>{state.mapFilters[box.dataset.iphoneFilter]=box.checked;applyMapFilters(stage);}));
  ensureSyntheticMapEntities(stage,g,current);applyMapFilters(stage);stage.dataset.iphoneMapKey=mapKey;
+ // js/d-ui-shell.js's renderMapWorkspace() (registered as the 'd-ui-shell'
+ // enhancer, which always runs before this file's 'iphone-playtest-fixes'
+ // enhancer -- see their registration order in index.html) rebuilds
+ // .d-map-stage from scratch and positions every marker BEFORE the chrome
+ // controls above exist in the DOM, every time this runs (the `mapKey`
+ // guard above only skips rebuilding chrome when the SAME .d-map-stage
+ // node persists -- a fresh renderMapWorkspace() call always produces a
+ // fresh .d-map-stage, so this line is always reached on that first pass).
+ // js/map-phase2-canvas.js's positionMarkers() reads the live chrome rects
+ // to keep markers from covering them, so the very first positioning pass
+ // for a new stage can never see them -- confirmed by a real iPhone WebKit
+ // CI failure where a marker positioned exactly under the filter button
+ // blocked its tap. Re-running render() now, with the chrome elements
+ // finally in place, lets positionMarkers() reposition markers away from
+ // them. Cheap to call twice per stage build: render()'s own canvas
+ // backing-store/district cache is keyed on canvas identity + prefID, both
+ // unchanged here.
+ const canvas=stage.querySelector('.d-phase2-canvas');
+ if(canvas&&modules.mapPhase2Canvas?.render)modules.mapPhase2Canvas.render(canvas,g);
 }
 function ensureSyntheticMapEntities(stage,g,prefID){
  stage.querySelectorAll('.iphone-synthetic-marker').forEach(node=>node.remove());

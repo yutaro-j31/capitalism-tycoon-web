@@ -886,3 +886,53 @@ still renders without crashing (`chromeExclusionRects()` degrades to `[]`
 rather than throwing); and two negative tests (an empty exclusion list
 would leave the marker overlapping the chrome rect; `positionMarkers()`'s
 source must still call `chromeExclusionRects(canvas)`).
+
+**Second real root cause, found by re-testing the `chromeExclusionRects()`
+fix itself against real WebKit (`workflow_dispatch` with `mode:
+iphone-webkit` on the fix branch, not waiting for a post-merge run) before
+merging**: the fix above did NOT resolve the original CI failure. The
+local Chromium dry-run's inability to reproduce the bug (noted above) was
+a real warning sign, not a coincidence -- the actual defect was an
+enhancer-ordering bug, not something a rendering-engine difference would
+explain either way.
+
+`js/d-ui-shell.js`'s `'d-ui-shell'` enhancer always runs before this
+file's `'iphone-playtest-fixes'` enhancer (fixed by their registration
+order in `index.html`, both driven by `js/ui-enhancer-registry.js`).
+`renderMapWorkspace()` (`'d-ui-shell'`) rebuilds `.d-map-stage` --
+including a brand new `<canvas>` and every marker -- from scratch on
+every map-tab render, and calls `modules.mapPhase2Canvas.render()`
+(which runs `positionMarkers()`) as part of that same rebuild. Only
+afterward does `ensureMapChrome()` (`'iphone-playtest-fixes'`) append
+`.iphone-map-nav`/`.iphone-map-tools`/`.iphone-map-popover` to that same
+(freshly built) stage. `chromeExclusionRects(canvas)` was correct in
+isolation, but the very first `positionMarkers()` pass for a new stage
+always ran before any chrome existed to exclude -- there was nothing for
+it to find yet. `ensureMapChrome()`'s own internal `stage.dataset.
+iphoneMapKey===mapKey` memoisation guard doesn't save this: a fresh
+`renderMapWorkspace()` call always produces a fresh `.d-map-stage`
+element with no `dataset.iphoneMapKey` of its own, so the guard never
+skips the (now correctly ordered) rebuild-and-reposition path on a stage
+that just got rebuilt.
+
+**Fix**: `ensureMapChrome()` now calls `modules.mapPhase2Canvas.render
+(canvas,g)` again immediately after finalizing the chrome elements
+(`stage.dataset.iphoneMapKey=mapKey`), so `positionMarkers()` gets a
+second, chrome-aware pass once the exclusion zones actually exist in the
+DOM. This adds no new `registerUIEnhancer()` call (still within the
+existing `'iphone-playtest-fixes'` hook) and does not touch pan (which
+calls `render()` directly via its own pointer-event handlers, independent
+of this enhancer cycle, and by then the chrome already exists from the
+first `enhance()` pass). Calling `render()` twice per stage build is
+cheap: its canvas backing-store/district cache is keyed on canvas
+identity + prefID, both unchanged between the two calls.
+
+Re-verification against real WebKit uses the same mechanism that caught
+the first fix's insufficiency: a `workflow_dispatch` run (`mode:
+iphone-webkit`) on the fix branch itself, before merging, rather than
+waiting for a post-merge run on `main` to find out. New static
+(regex-based, matching this file's established DOM-dependent test style)
+coverage in `tests/map-phase2-marker-placard-interaction-test.js`:
+`ensureMapChrome()` must call `modules.mapPhase2Canvas.render(canvas,g)`
+after (not before) finalizing the chrome elements, and a negative test
+confirming the check fails without that call.
