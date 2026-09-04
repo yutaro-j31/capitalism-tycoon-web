@@ -42,6 +42,7 @@ const referenceFidelityCssSrc = fs.readFileSync(path.join(ROOT, 'css/d-ui-refere
 const mobileCompanyCssSrc = fs.readFileSync(path.join(ROOT, 'css/d-ui-mobile-company.css'), 'utf8');
 const rendererSrc = fs.readFileSync(path.join(ROOT, 'prototypes/map-canvas-renderer.js'), 'utf8');
 const worldSrc = fs.readFileSync(path.join(ROOT, 'prototypes/map-world-preview.js'), 'utf8');
+const profilesSrc = fs.readFileSync(path.join(ROOT, 'prototypes/map-prefecture-profiles.js'), 'utf8');
 const manifest = JSON.parse(fs.readFileSync(path.join(ROOT, 'assets/map-sprites/phase2/sprites.json'), 'utf8'));
 
 function freshSandbox() {
@@ -54,6 +55,7 @@ function freshSandbox() {
   sandbox.window = sandbox;
   vm.createContext(sandbox);
   vm.runInContext(rendererSrc, sandbox, { filename: 'map-canvas-renderer.js' });
+  vm.runInContext(profilesSrc, sandbox, { filename: 'map-prefecture-profiles.js' });
   vm.runInContext(worldSrc, sandbox, { filename: 'map-world-preview.js' });
   sandbox.__capitalismTycoonModules = {};
   vm.runInContext(canvasSrc, sandbox, { filename: 'map-phase2-canvas.js' });

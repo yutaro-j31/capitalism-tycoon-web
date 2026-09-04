@@ -28,6 +28,9 @@
   const Base = (typeof module !== 'undefined' && module.exports)
     ? require('./map-canvas-renderer.js')
     : root.MapCanvas;
+  const Profiles = (typeof module !== 'undefined' && module.exports)
+    ? require('./map-prefecture-profiles.js')
+    : root.MapPrefectureProfiles;
 
   const { hash, spriteRenderSize, SPRITE_WIDTH_FACTOR,
     paintTerrain, paintRoads, paintGreenery, drawPlaceholder, depthSorted,
@@ -173,6 +176,25 @@
    * chain has no candidates -- the caller treats that as "no building here
    * yet", not an error.
    */
+  /*
+   * A sprite with no `prefectureIds`/`regionalTags` field is generic and
+   * usable everywhere (every existing sprite today). `prefectureIds`, when
+   * present, is an allow-list: the sprite is only eligible when
+   * options.prefID is in it -- this is what keeps landmark_tokyo_tower
+   * exclusive to Tokyo once the manifest marks it that way. `regionalTags`
+   * is the same idea at areaID (region) granularity, for future assets;
+   * no sprite in the manifest sets it yet, so it is currently a no-op.
+   */
+  function spriteAllowedForPrefecture(sprite, prefID, areaID) {
+    if (Array.isArray(sprite.prefectureIds) && sprite.prefectureIds.length) {
+      return sprite.prefectureIds.includes(prefID);
+    }
+    if (Array.isArray(sprite.regionalTags) && sprite.regionalTags.length) {
+      return !!areaID && sprite.regionalTags.includes(areaID);
+    }
+    return true;
+  }
+
   function selectSpriteForCategory(index2, options) {
     const category = options.category;
     const district = options.district;
@@ -180,7 +202,10 @@
     const chain = [category].concat(CATEGORY_FALLBACK[category] || []);
     let pool = null;
     for (const candidateCategory of chain) {
-      const candidates = index2.byCategoryDistrict[`${candidateCategory}:${district}`];
+      let candidates = index2.byCategoryDistrict[`${candidateCategory}:${district}`];
+      if (candidates && candidates.length) {
+        candidates = candidates.filter(s => spriteAllowedForPrefecture(s, options.prefID, options.areaID));
+      }
       if (candidates && candidates.length) { pool = candidates; break; }
     }
     if (!pool) return null;
@@ -287,10 +312,19 @@
     (x, y) => [x, y], (x, y) => [3 - y, x], (x, y) => [3 - x, 3 - y], (x, y) => [y, 3 - x],
     (x, y) => [3 - x, y], (x, y) => [y, x], (x, y) => [x, 3 - y], (x, y) => [3 - y, 3 - x]
   ];
-  function templateRoleFor(zone, prefID, blockKey, localX, localY) {
+  /*
+   * layoutSeed (not prefID directly) drives this -- see the "structural vs
+   * flavor" split in the module doc comment near regionForBlockSeeded()
+   * below. Since layoutSeed is 1:1 derived from prefID for every real
+   * prefecture, determinism per-prefecture is unaffected either way; using
+   * the profile's own seed instead of the raw id is what lets a test prove
+   * "same profile => same skeleton" independent of which prefID asked for
+   * it (see the negative test forcing all 47 profiles identical).
+   */
+  function templateRoleFor(zone, layoutSeed, blockKey, localX, localY) {
     const template = BLOCK_TEMPLATES[zone];
     if (!template) return '.';
-    const variant = hash(`${prefID}:blockVariant:${blockKey}`) % BLOCK_TRANSFORMS.length;
+    const variant = hash(`${layoutSeed}:blockVariant:${blockKey}`) % BLOCK_TRANSFORMS.length;
     const [tx, ty] = BLOCK_TRANSFORMS[variant](localX, localY);
     return template[ty * 4 + tx];
   }
@@ -326,13 +360,123 @@
    */
   const STREET_PERIOD = 5;
 
-  function regionForBlock(bc, br, blockCols, blockRows) {
-    if (bc >= blockCols - 2 && br <= 1) return 'premiumResidential';       // NE corner
-    if (bc <= 3 && br <= 1) return 'cbd';                                   // NW band (north-west toward centre)
-    if (bc >= blockCols - 2 && br >= blockRows - 2) return 'industrial';   // SE corner (logistics edge)
-    if (bc >= 1 && bc <= 3 && br >= blockRows - 2) return 'park';          // SW-centre park/civic/landmark
-    if (bc >= 1 && bc <= 4 && br >= 2 && br <= 3) return 'commercial';     // centre mixed-use core
-    return 'residential';                                                   // default fill (E / SE)
+  /*
+   * ---------------- prefecture identity / regional variation (2026-09) ----------------
+   * See docs/map-prefecture-identity.md for the full write-up. This replaces the previous
+   * fixed-corner regionForBlock(bc, br, blockCols, blockRows) -- a pure function of block
+   * position and grid size ONLY, with no prefecture input at all, which is why every one of
+   * the 47 prefectures used to produce a byte-identical zone skeleton (only sprite choice
+   * varied by prefecture, never the skeleton itself).
+   *
+   * Each of the 6 meta-zones (the 5 buildable districts plus 'park', the open-space/landmark
+   * region) gets one deterministic "anchor" block, placed by a weighted hash of the resolved
+   * profile's layoutSeed -- Layer 2 (regional archetype weights) + Layer 3 (the prefecture's
+   * own seed) from docs/map-prefecture-identity.md. A block is then assigned to whichever
+   * zone's anchor is "closest" after subtracting a weight bonus (a discrete weighted-Voronoi/
+   * power-diagram split): a zone with a higher profile weight claims a visibly larger
+   * catchment even from the same anchor distance, so prefectures sharing an archetype still
+   * end up with different capture-region *sizes* as well as different anchor *positions*.
+   *
+   * Kept deliberately out of scope (see CLAUDE.md's founding-route caution about scope
+   * explosion applied here to this feature instead): STREET_PERIOD / road-tier logic is
+   * untouched, so the PR #611/#612 camera "3-5 block-column" framing contract still holds for
+   * every prefecture regardless of how the interior zones are distributed.
+   */
+  const ZONE_KEYS = ['cbd', 'commercial', 'industrial', 'premiumResidential', 'park', 'residential'];
+  const ZONE_WEIGHT_FIELD = {
+    cbd: 'cbdWeight', commercial: 'commercialWeight', industrial: 'industrialWeight',
+    premiumResidential: 'premiumResidentialWeight', park: 'openSpaceWeight', residential: 'residentialWeight'
+  };
+  /* how strongly a zone's own weight lets it out-pull a nearer, lower-weight
+     neighbour for a shared block -- tuned so a weight-10 zone can reach
+     roughly as far as a weight-1 zone sitting 6 blocks closer */
+  const ANCHOR_WEIGHT_BONUS_SCALE = 0.6;
+  /* minimum Chebyshev block-distance the placer tries to keep between any
+     two zone anchors, as a fraction of the placeable span, so 6 anchors
+     spread across a small grid don't all cluster in one corner */
+  const ANCHOR_MIN_SEPARATION_FRACTION = 0.5;
+  const ANCHOR_PLACEMENT_ATTEMPTS = 12;
+
+  function weightForZone(profile, zone) {
+    const value = profile[ZONE_WEIGHT_FIELD[zone]];
+    return typeof value === 'number' && value > 0 ? value : 1;
+  }
+
+  /*
+   * One deterministic anchor block per zone, hash-seeded from
+   * profile.layoutSeed -- never calls into JavaScript's built-in
+   * random-number generator, never simulation RNG. Bounds stay inside the
+   * grid's interior (never the outermost block ring) so an anchor is never
+   * placed somewhere a fixed landmark/civic offset (see buildWorldDistrict
+   * below) could fall outside the grid.
+   */
+  function placeZoneAnchors(profile, blockCols, blockRows) {
+    const minBc = blockCols > 3 ? 1 : 0;
+    const maxBc = blockCols > 3 ? blockCols - 2 : blockCols - 1;
+    const minBr = blockRows > 3 ? 1 : 0;
+    const maxBr = blockRows > 3 ? blockRows - 2 : blockRows - 1;
+    const spanBc = Math.max(0, maxBc - minBc);
+    const spanBr = Math.max(0, maxBr - minBr);
+    const minSeparation = Math.max(1, Math.floor(Math.min(spanBc, spanBr) * ANCHOR_MIN_SEPARATION_FRACTION));
+    const anchors = {};
+    const placed = [];
+    for (const zone of ZONE_KEYS) {
+      let candidate = null;
+      for (let attempt = 0; attempt < ANCHOR_PLACEMENT_ATTEMPTS; attempt++) {
+        const bc = minBc + (hash(`${profile.layoutSeed}:anchor:${zone}:${attempt}:x`) % (spanBc + 1));
+        const br = minBr + (hash(`${profile.layoutSeed}:anchor:${zone}:${attempt}:y`) % (spanBr + 1));
+        if (attempt === 0) candidate = { bc, br }; // deterministic fallback if every attempt collides
+        const tooClose = placed.some(p => Math.max(Math.abs(p.bc - bc), Math.abs(p.br - br)) < minSeparation);
+        if (!tooClose) { candidate = { bc, br }; break; }
+      }
+      anchors[zone] = candidate;
+      placed.push(candidate);
+    }
+    return anchors;
+  }
+
+  function regionForBlockSeeded(bc, br, anchors, profile) {
+    let bestZone = ZONE_KEYS[0], bestScore = Infinity;
+    for (const zone of ZONE_KEYS) {
+      const anchor = anchors[zone];
+      const dist = Math.max(Math.abs(bc - anchor.bc), Math.abs(br - anchor.br));
+      const score = dist - weightForZone(profile, zone) * ANCHOR_WEIGHT_BONUS_SCALE;
+      if (score < bestScore) { bestScore = score; bestZone = zone; }
+    }
+    return bestZone;
+  }
+
+  /*
+   * Assigns every block once, then a repair pass guarantees each of the 6
+   * zones captured at least one block: with only a handful of candidate
+   * anchor slots on a small grid, an unlucky placement could in principle
+   * let a higher-weight zone's catchment fully absorb a lower-weight one's
+   * own anchor block. Density guardrails (docs/map-prefecture-identity.md)
+   * require every zone keep enough eligible tiles for marker placement, so
+   * this makes that a guarantee, not a probability.
+   */
+  function assignBlockZones(profile, blockCols, blockRows) {
+    const anchors = placeZoneAnchors(profile, blockCols, blockRows);
+    const assignment = new Map();
+    const counts = {};
+    for (const zone of ZONE_KEYS) counts[zone] = 0;
+    for (let br = 0; br < blockRows; br++) {
+      for (let bc = 0; bc < blockCols; bc++) {
+        const zone = regionForBlockSeeded(bc, br, anchors, profile);
+        assignment.set(`${bc},${br}`, zone);
+        counts[zone]++;
+      }
+    }
+    for (const zone of ZONE_KEYS) {
+      if (counts[zone] > 0) continue;
+      const anchor = anchors[zone];
+      const key = `${anchor.bc},${anchor.br}`;
+      const previousZone = assignment.get(key);
+      if (previousZone && previousZone !== zone) counts[previousZone]--;
+      assignment.set(key, zone);
+      counts[zone]++;
+    }
+    return { anchors, assignment };
   }
 
   function buildWorldDistrict(options) {
@@ -342,6 +486,13 @@
     const rowsCount = options.rows;
     const blockCols = Math.ceil(cols / STREET_PERIOD);
     const blockRows = Math.ceil(rowsCount / STREET_PERIOD);
+    /* Layer 2 (regional archetype weights) + Layer 3 (per-prefecture seed);
+       a caller (a negative test, e.g.) may pass an explicit options.profile
+       to override the real per-prefID lookup -- see docs/map-prefecture-
+       identity.md and the "same profile for every prefID" negative test. */
+    const profile = options.profile || (Profiles && Profiles.resolveProfile(prefID)) ||
+      { layoutSeed: `${prefID || 'unknown'}-layout`, cbdWeight: 3, commercialWeight: 3, residentialWeight: 6, premiumResidentialWeight: 2, industrialWeight: 2, openSpaceWeight: 6, highRiseBias: 0.2, greeneryBias: 0.5, landmarkPolicy: 'generic' };
+    const { anchors, assignment: blockZones } = assignBlockZones(profile, blockCols, blockRows);
 
     const tiles = [];
     const byKey = {};
@@ -355,17 +506,20 @@
         } else {
           const bc = Math.floor(tileX / STREET_PERIOD);
           const br = Math.floor(tileY / STREET_PERIOD);
-          zone = regionForBlock(bc, br, blockCols, blockRows);
+          zone = blockZones.get(`${bc},${br}`);
         }
         const cell = { tileX, tileY, zone, zoneLabel: ZONE_LABEL2[zone], use: ZONE_USE2[zone] || null };
         tiles.push(cell);
         byKey[`${tileX},${tileY}`] = cell;
       }
     }
-    /* one landmark tile, centred in the park super-block, isolated on all
-       four sides by park (never adjacent to a footprint>1 building) */
-    const parkBlockCentreX = 2 * STREET_PERIOD + Math.floor(STREET_PERIOD / 2);
-    const parkBlockCentreY = (blockRows - 2) * STREET_PERIOD + Math.floor(STREET_PERIOD / 2);
+    /* one landmark tile, centred on this prefecture's own seeded park
+       anchor block, isolated on all four sides by park (never adjacent to
+       a footprint>1 building) -- the anchor is always inside the grid's
+       interior (placeZoneAnchors), so this stays bounds-safe */
+    const parkAnchor = anchors.park;
+    const parkBlockCentreX = parkAnchor.bc * STREET_PERIOD + Math.floor(STREET_PERIOD / 2);
+    const parkBlockCentreY = parkAnchor.br * STREET_PERIOD + Math.floor(STREET_PERIOD / 2);
     const landmarkCell = byKey[`${parkBlockCentreX},${parkBlockCentreY}`];
     if (landmarkCell && landmarkCell.zone === 'park') {
       landmarkCell.zone = 'landmark';
@@ -396,32 +550,56 @@
        only ever has one archetype) so it is never treated as an ordinary
        open/building plot below */
     if (landmarkCell) {
-      landmarkCell.expectsBuilding = true;
-      landmarkCell.spriteId = selectSpriteForCategory(index2, {
+      /*
+       * Prefecture-exclusive landmark sprites (see selectSpriteForCategory's
+       * `prefectureIds` filtering below) mean the 'landmark' category pool
+       * is legitimately EMPTY for every prefecture without a dedicated
+       * asset -- today, every prefecture except Tokyo. Falling back to the
+       * generic 'civic' pool there (instead of leaving spriteId null, which
+       * would draw a dev placeholder box) is what fixes "a Tokyo-Tower-like
+       * landmark appears in Gunma/Saitama etc": Tokyo Tower is filtered out
+       * for every other prefecture, and civic_01..04 are the graceful,
+       * always-available fallback. expectsBuilding is only set once a real
+       * spriteId is resolved -- if even the civic pool is empty (a
+       * manifest with no civic sprites at all), the cell is left alone
+       * here and pass 2b naturally treats it as ordinary open plaza space
+       * (OPEN_TYPES_BY_ZONE has no 'landmark' entry, so it falls back to
+       * the ['plaza'] default) -- never a white screen or a broken asset
+       * path, matching the same "stays ordinary park" contract the civic
+       * cells below already had.
+       */
+      let landmarkSpriteId = selectSpriteForCategory(index2, {
         category: 'landmark', district: 'landmark', prefID,
         tileX: landmarkCell.tileX, tileY: landmarkCell.tileY
       });
-      landmarkCell.scaleVariant = SCALE_VARIANTS[hash(`${prefID}:scale:${landmarkCell.tileX}:${landmarkCell.tileY}`) % SCALE_VARIANTS.length];
+      if (!landmarkSpriteId) {
+        landmarkSpriteId = selectSpriteForCategory(index2, {
+          category: 'civic', district: 'civic', prefID,
+          tileX: landmarkCell.tileX, tileY: landmarkCell.tileY
+        });
+      }
+      if (landmarkSpriteId) {
+        landmarkCell.expectsBuilding = true;
+        landmarkCell.spriteId = landmarkSpriteId;
+        landmarkCell.scaleVariant = SCALE_VARIANTS[hash(`${prefID}:scale:${landmarkCell.tileX}:${landmarkCell.tileY}`) % SCALE_VARIANTS.length];
+      }
     }
 
     /*
-     * Two fixed civic-building slots flank the landmark's own block, one
-     * block-column either side (bc=1 and bc=3; the landmark itself always
-     * sits at bc=2) -- still inside the park super-region (regionForBlock's
-     * bc 1..3 / br blockRows-2..blockRows-1 band), so this never touches
-     * the five occupancy-tracked districts (cbd/commercial/residential/
-     * premiumResidential/industrial) or BLOCK_TEMPLATES. Before this pass,
-     * `civic` was a taxonomy entry with NO requester anywhere -- not a
-     * role, not even a CATEGORY_FALLBACK target -- so adding civic sprites
-     * to the manifest alone would never place one; this is the minimal fix.
-     * It keeps the same graceful-degradation contract as everywhere else:
+     * Two civic-building slots flank the landmark's own block, one
+     * block-column either side of the seeded park anchor's own bc (the
+     * landmark itself always sits at the anchor's bc) -- still inside the
+     * park super-region, so this never touches the five occupancy-tracked
+     * districts (cbd/commercial/residential/premiumResidential/industrial)
+     * or BLOCK_TEMPLATES. Before this pass, `civic` was a taxonomy entry
+     * with NO requester anywhere -- not a role, not even a
+     * CATEGORY_FALLBACK target -- so adding civic sprites to the manifest
+     * alone would never place one; this is the minimal fix. It keeps the
+     * same graceful-degradation contract as everywhere else:
      * selectSpriteForCategory returning null just leaves the cell as
-     * ordinary park (today's behaviour, unchanged), so this is a true
-     * no-op until real civic sprites exist in the manifest -- verified by
-     * tests/map-phase2-p1-mid-civic-assets-test.js against the current
-     * (civic-less) manifest.
+     * ordinary park (today's behaviour, unchanged).
      */
-    const civicCells = [1, 3]
+    const civicCells = [parkAnchor.bc - 1, parkAnchor.bc + 1]
       .map(bc => byKey[`${bc * STREET_PERIOD + Math.floor(STREET_PERIOD / 2)},${parkBlockCentreY}`])
       .filter(cell => cell && cell.zone === 'park');
     for (const cell of civicCells) {
@@ -448,7 +626,7 @@
       const blockKey = `${Math.floor(cell.tileX / STREET_PERIOD)},${Math.floor(cell.tileY / STREET_PERIOD)}`;
       const localX = (cell.tileX % STREET_PERIOD) - 1;
       const localY = (cell.tileY % STREET_PERIOD) - 1;
-      let role = templateRoleFor(cell.zone, prefID, blockKey, localX, localY);
+      let role = templateRoleFor(cell.zone, profile.layoutSeed, blockKey, localX, localY);
       if (landmarkCell) {
         const dist = Math.max(Math.abs(cell.tileX - landmarkCell.tileX), Math.abs(cell.tileY - landmarkCell.tileY));
         if (dist <= 3) role = applyLandmarkGradient(role, prefID, cell.tileX, cell.tileY, dist);
@@ -519,7 +697,37 @@
       }
     }
 
-    return { prefID, tiles, byKey, cols, rowsCount };
+    return {
+      prefID, tiles, byKey, cols, rowsCount,
+      profile, blockCols, blockRows,
+      /* plain-object copy (not the Map) so this survives a JSON round-trip
+         for anything that snapshots a district -- structuralLayoutSignature
+         and tests read this directly instead of re-deriving block zones */
+      blockZones: Object.fromEntries(blockZones),
+      landmarkTile: landmarkCell ? { tileX: landmarkCell.tileX, tileY: landmarkCell.tileY } : null
+    };
+  }
+
+  /*
+   * A deterministic fingerprint of a built district's *skeleton* -- block
+   * zone allocation, landmark position, and the per-tile block-template
+   * role sequence -- deliberately excluding spriteId/scaleVariant/openType
+   * (sprite-level "flavor" picks) so this can only read as different across
+   * prefectures when the actual city structure differs, not merely which
+   * building sprite got chosen. This is what STEP 8 / docs/map-prefecture-
+   * identity.md's structural-uniqueness contract is checked against: an
+   * implementation that only varies sprite IDs (geometry unchanged) would
+   * produce IDENTICAL signatures for every prefecture and correctly fail
+   * that test.
+   */
+  function structuralLayoutSignature(district) {
+    const blockPart = Object.keys(district.blockZones).sort().map(k => `${k}=${district.blockZones[k]}`).join(',');
+    const landmarkPart = district.landmarkTile ? `${district.landmarkTile.tileX}:${district.landmarkTile.tileY}` : 'none';
+    const rolePart = district.tiles
+      .filter(cell => cell.templateRole)
+      .map(cell => `${cell.tileX}:${cell.tileY}:${cell.templateRole}`)
+      .join(',');
+    return `${blockPart}|${landmarkPart}|${rolePart}`;
   }
 
   /*
@@ -881,7 +1089,8 @@
     overlayAnchors: worldOverlayAnchors,
     validateCategoryManifest, indexCategoryManifest, selectSpriteForCategory,
     CATEGORY_TAXONOMY, CATEGORY_FALLBACK, ROLE_CATEGORY, pickRoleCategory, ZONE_DISTRICT_TAG,
-    ZONE_LABEL2, ZONE_USE2, GROUND2, STREET_PERIOD, BLOCK_TEMPLATES, BUILT_ROLES
+    ZONE_LABEL2, ZONE_USE2, GROUND2, STREET_PERIOD, BLOCK_TEMPLATES, BUILT_ROLES,
+    structuralLayoutSignature, placeZoneAnchors, assignBlockZones, ZONE_KEYS
   });
 
   root.MapWorldPreview = api;

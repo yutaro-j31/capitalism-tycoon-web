@@ -24,7 +24,7 @@ if(modules.mapPhase2Canvas)throw new Error('map-phase2-canvas.js is already regi
 const ASSET_BASE='./assets/map-sprites/phase2';
 const IMAGE_BASE='./assets/map-sprites/phase1';
 const MANIFEST_URL=`${ASSET_BASE}/sprites.json`;
-const PROTOTYPE_SCRIPTS=['./prototypes/map-canvas-renderer.js','./prototypes/map-world-preview.js'];
+const PROTOTYPE_SCRIPTS=['./prototypes/map-canvas-renderer.js','./prototypes/map-prefecture-profiles.js','./prototypes/map-world-preview.js'];
 const WORLD_COLS=32,WORLD_ROWS=28;
 /*
  * Initial-framing pull-back (Map Framing / Zoom-out Calibration). This
@@ -160,7 +160,7 @@ function placeEntityTiles(entities,prefID){
    render() is actually first called with the flag on) ---- */
 let prototypesPromise=null;
 function ensurePrototypesLoaded(){
-  if(globalThis.MapCanvas&&globalThis.MapWorldPreview)return Promise.resolve();
+  if(globalThis.MapCanvas&&globalThis.MapPrefectureProfiles&&globalThis.MapWorldPreview)return Promise.resolve();
   if(typeof document==='undefined')return Promise.reject(new Error('map-phase2-canvas: document unavailable'));
   if(prototypesPromise)return prototypesPromise;
   const loadScript=src=>new Promise((resolve,reject)=>{

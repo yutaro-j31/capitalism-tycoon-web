@@ -137,7 +137,15 @@ check('P0 spawnWeight is positive and uniform (no per-asset spawn tuning in this
   assert.equal(weights.size, 1, `expected a single uniform spawnWeight, saw ${[...weights]}`);
 });
 
-check('adding P0 assets does not change district occupancy (algorithm untouched)', () => {
+/*
+ * 2026-09 (prefecture identity / regional variation): see the identical
+ * note in tests/map-phase2-visual-calibration-test.js -- zone footprints
+ * are now profile/seed-driven, so a zone's measured built-share can drift
+ * a few points from the pure BLOCK_TEMPLATES ideal (irregular shape, grid
+ * edge, landmark-gradient proximity) without any regression. The tolerance
+ * is widened to still catch a real regression while accepting that.
+ */
+check('adding P0 assets stays close to the BLOCK_TEMPLATES occupancy ideal (algorithm untouched, tolerant of profile-driven zone-shape variance)', () => {
   const idx = MW.indexCategoryManifest(manifest);
   const district = MW.buildWorldDistrict({ index2: idx, prefID: 'tokyo', cols: 32, rows: 28 });
   const byZone = {};
@@ -148,11 +156,11 @@ check('adding P0 assets does not change district occupancy (algorithm untouched)
     if (t.expectsBuilding) byZone[t.zone].built++;
   }
   const pct = zone => byZone[zone].built / byZone[zone].total * 100;
-  assert.ok(Math.abs(pct('cbd') - 62.5) < 0.1, `cbd occupancy drifted: ${pct('cbd')}`);
-  assert.ok(Math.abs(pct('commercial') - 62.5) < 0.1, `commercial occupancy drifted: ${pct('commercial')}`);
-  assert.ok(Math.abs(pct('residential') - 44.1) < 0.2, `residential occupancy drifted: ${pct('residential')}`);
-  assert.ok(Math.abs(pct('premiumResidential') - 30.0) < 0.1, `premium occupancy drifted: ${pct('premiumResidential')}`);
-  assert.ok(Math.abs(pct('industrial') - 26.7) < 0.2, `industrial occupancy drifted: ${pct('industrial')}`);
+  assert.ok(Math.abs(pct('cbd') - 62.5) < 10, `cbd occupancy drifted: ${pct('cbd')}`);
+  assert.ok(Math.abs(pct('commercial') - 62.5) < 10, `commercial occupancy drifted: ${pct('commercial')}`);
+  assert.ok(Math.abs(pct('residential') - 44.1) < 10, `residential occupancy drifted: ${pct('residential')}`);
+  assert.ok(Math.abs(pct('premiumResidential') - 30.0) < 10, `premium occupancy drifted: ${pct('premiumResidential')}`);
+  assert.ok(Math.abs(pct('industrial') - 26.7) < 10, `industrial occupancy drifted: ${pct('industrial')}`);
 });
 
 check('P0 categories now resolve real assets directly (no longer fall back to mid/hero for office.small/commercial.small/residential.low)', () => {

@@ -32,6 +32,7 @@ const canvasSrc = fs.readFileSync(path.join(ROOT, 'js/map-phase2-canvas.js'), 'u
 const shellSrc = fs.readFileSync(path.join(ROOT, 'js/d-ui-shell.js'), 'utf8');
 const rendererSrc = fs.readFileSync(path.join(ROOT, 'prototypes/map-canvas-renderer.js'), 'utf8');
 const worldSrc = fs.readFileSync(path.join(ROOT, 'prototypes/map-world-preview.js'), 'utf8');
+const profilesSrc = fs.readFileSync(path.join(ROOT, 'prototypes/map-prefecture-profiles.js'), 'utf8');
 
 function freshSandbox(options) {
   const opts = options || {};
@@ -48,6 +49,7 @@ function freshSandbox(options) {
   sandbox.window = sandbox;
   vm.createContext(sandbox);
   vm.runInContext(rendererSrc, sandbox, { filename: 'map-canvas-renderer.js' });
+  vm.runInContext(profilesSrc, sandbox, { filename: 'map-prefecture-profiles.js' });
   vm.runInContext(worldSrc, sandbox, { filename: 'map-world-preview.js' });
   sandbox.__capitalismTycoonModules = {};
   vm.runInContext(canvasSrc, sandbox, { filename: 'map-phase2-canvas.js' });
