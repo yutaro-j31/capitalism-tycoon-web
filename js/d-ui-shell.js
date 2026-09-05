@@ -148,13 +148,40 @@ function selectedDetail(entity,g){
     const status=storeStatusLabel(store,g);
     return `<div class="d-context-hero"><div class="d-store-visual"><span>TYCOON ${esc((business?.name||'STORE').toUpperCase())}</span></div><div class="d-rating"><b>${esc(status)}</b><span>★★★★★</span></div></div><div class="d-context-tabs"><b>概要</b><span>財務</span><span>スタッフ</span><span>商品</span></div><div class="d-context-metrics"><div><span>今週の売上</span><strong>${money(sales)}</strong></div><div><span>今週の利益</span><strong>${money(profit)}</strong></div><div><span>来客数</span><strong>${customers?customers.toLocaleString('ja-JP')+'人':'—'}</strong></div><div><span>満足度</span><strong>${satisfaction?satisfaction.toFixed(1):'—'} ★</strong></div></div><div class="d-status-bars">${[['集客力',store.brand??business?.brand??62],['サービス品質',store.quality??business?.quality??70],['商品魅力度',business?.quality??68],['運営効率',store.efficiency??business?.efficiency??72]].map(([label,value])=>`<label><span>${label}<b>${clamp(finite(value),0,100).toFixed(0)}%</b></span><i><em style="width:${clamp(finite(value),0,100)}%"></em></i></label>`).join('')}</div><button type="button" class="btn primary wide" data-action="tab" data-tab="business">店舗詳細を見る</button>`;
   }
-  const text=entity.item?.textContent?.replace(/\s+/g,' ').trim()||entity.name;
-  if(entity.kind==='tenant')return `<div class="d-context-hero"><div class="d-store-visual tenant"><span>NEW LOCATION</span></div><div class="d-rating"><b>出店候補</b><span>★★★★☆</span></div></div><div class="d-context-tabs"><b>概要</b><span>商圏</span><span>費用</span></div><p class="d-context-copy">${esc(text)}</p><div class="d-context-metrics"><div><span>地域</span><strong>${esc(engine()?.pref?.(g.selectedPref)?.name||'選択地域')}</strong></div><div><span>状態</span><strong>契約可能</strong></div></div><button type="button" class="btn primary wide" data-action="open-store" data-id="${esc(entity.rawID)}">この場所に出店する</button>`;
+  /*
+   * Every branch below reads the entity's own raw state object, which
+   * js/map-phase2-canvas.js's buildMapViewModel() attaches per kind. Only
+   * fields that genuinely exist in that state are rendered -- nothing is
+   * fabricated. In particular `rent` is a WEEKLY figure for both tenants and
+   * rental offices (js/engine.js stores office.rent as g.officeWeeklyCost and
+   * charges tenant rent once per simulated week), so it is labelled 週額, not
+   * 月額.
+   */
+  const prefLabel=id=>esc(engine()?.pref?.(id||g.selectedPref)?.name||'—');
+  if(entity.kind==='tenant'){
+    const tenant=entity.tenant||{};
+    const business=engine()?.business?.(tenant.businessID);
+    const occupied=Boolean(tenant.occupiedBy);
+    return `<div class="d-context-hero"><div class="d-store-visual tenant"><span>FOR LEASE</span></div><div class="d-rating"><b>テナント募集</b><span>${occupied?'契約済':'契約可能'}</span></div></div><h3 class="d-context-name">${esc(entity.name)}</h3><div class="d-context-metrics"><div><span>週額賃料</span><strong>${money(tenant.rent)}</strong></div><div><span>初期費用（保証金）</span><strong>${money(tenant.deposit)}</strong></div><div><span>都道府県</span><strong>${prefLabel(entity.pref)}</strong></div><div><span>商圏</span><strong>${esc(tenant.cityName||'—')}</strong></div><div><span>区画サイズ</span><strong>${esc(tenant.size||'—')}</strong></div><div><span>立地係数</span><strong>${tenant.traffic?finite(tenant.traffic).toFixed(2):'—'}</strong></div><div><span>想定業態</span><strong>${esc(business?.name||'—')}</strong></div><div><span>状態</span><strong>${occupied?'契約済':'契約可能'}</strong></div></div><button type="button" class="btn primary wide" data-action="open-store" data-id="${esc(entity.rawID)}">この場所に出店する</button>`;
+  }
   if(entity.kind==='realestate'){
     const property=entity.property||{};
-    return `<div class="d-context-hero"><div class="d-store-visual realestate"><span>FOR SALE</span></div><div class="d-rating"><b>売買可能</b><span>利回り${(finite(property.yieldRate)*100).toFixed(1)}%</span></div></div><div class="d-context-metrics"><div><span>価格</span><strong>${money(property.price)}</strong></div><div><span>週次賃料</span><strong>${money(property.rentIncome)}</strong></div><div><span>種別</span><strong>${esc(property.kind||'土地')}</strong></div><div><span>面積</span><strong>${finite(property.landAreaSqm).toLocaleString('ja-JP')}㎡</strong></div></div><div class="button-row"><button type="button" class="btn secondary" data-action="buy-property-company" data-id="${esc(entity.rawID)}">会社で購入</button><button type="button" class="btn ghost" data-action="buy-property-personal" data-id="${esc(entity.rawID)}">個人で購入</button></div>`;
+    const ownerLabel=property.owner==='company'?'自社保有':property.owner==='personal'?'個人保有':'売出中';
+    /* condition lives under property.realEstate, which js/real-estate.js only
+       materialises once a property is actually operated -- an unowned listing
+       legitimately has none, so it is omitted rather than invented. */
+    const condition=property.realEstate&&Number.isFinite(Number(property.realEstate.condition))?`${(finite(property.realEstate.condition)*100).toFixed(0)}%`:null;
+    return `<div class="d-context-hero"><div class="d-store-visual realestate"><span>FOR SALE</span></div><div class="d-rating"><b>売物件</b><span>利回り${(finite(property.yieldRate)*100).toFixed(1)}%</span></div></div><h3 class="d-context-name">${esc(entity.name)}</h3><div class="d-context-metrics"><div><span>売出価格</span><strong>${money(property.price)}</strong></div><div><span>週次賃料</span><strong>${money(property.rentIncome)}</strong></div><div><span>都道府県</span><strong>${prefLabel(entity.pref)}</strong></div><div><span>所在地</span><strong>${esc(property.cityName||'—')}</strong></div><div><span>物件種別</span><strong>${esc(property.kind||'土地')}</strong></div><div><span>面積</span><strong>${finite(property.landAreaSqm).toLocaleString('ja-JP')}㎡</strong></div><div><span>所有状態</span><strong>${ownerLabel}</strong></div>${condition?`<div><span>建物状態</span><strong>${condition}</strong></div>`:''}</div><div class="button-row"><button type="button" class="btn secondary" data-action="buy-property-company" data-id="${esc(entity.rawID)}">会社で購入</button><button type="button" class="btn ghost" data-action="buy-property-personal" data-id="${esc(entity.rawID)}">個人で購入</button></div>`;
   }
-  return `<div class="d-context-hero"><div class="d-store-visual office"><span>HEAD OFFICE</span></div><div class="d-rating"><b>本社候補</b><span>★★★★☆</span></div></div><p class="d-context-copy">${esc(text)}</p><button type="button" class="btn secondary wide" data-action="tab" data-tab="office">本社・組織画面へ</button>`;
+  const office=entity.office||{};
+  const contracted=Boolean(office.contracted);
+  /* contract-office is the same action js/app.js already routes to
+     engine.contractOffice(id); this panel reuses it rather than adding a
+     second leasing path. */
+  const officeAction=contracted
+    ?`<button type="button" class="btn secondary wide" data-action="tab" data-tab="office">本社・組織画面へ</button>`
+    :`<button type="button" class="btn primary wide" data-action="contract-office" data-id="${esc(entity.rawID)}">このオフィスを契約する</button>`;
+  return `<div class="d-context-hero"><div class="d-store-visual office"><span>HEAD OFFICE</span></div><div class="d-rating"><b>オフィス募集</b><span>${contracted?'契約中':`グレード${esc(office.grade||'—')}`}</span></div></div><h3 class="d-context-name">${esc(entity.name)}</h3><div class="d-context-metrics"><div><span>週額賃料</span><strong>${money(office.rent)}</strong></div><div><span>保証金</span><strong>${money(office.deposit)}</strong></div><div><span>都道府県</span><strong>${prefLabel(entity.pref)}</strong></div><div><span>所在地</span><strong>${esc(office.cityName||'—')}</strong></div><div><span>定員</span><strong>${office.capacity?`${finite(office.capacity).toLocaleString('ja-JP')}人`:'—'}</strong></div><div><span>グレード</span><strong>${esc(office.grade||'—')}</strong></div><div><span>ブランド</span><strong>${office.prestige?finite(office.prestige).toLocaleString('ja-JP'):'—'}</strong></div><div><span>状態</span><strong>${contracted?'契約中':'契約可能'}</strong></div></div>${officeAction}`;
 }
 function missionRows(g){
   const profit=finite(g.lastReport?.profit);const openStores=(g.stores||[]).filter(store=>store.status==='open').length;
@@ -267,6 +294,44 @@ function enhance(force=false,context=null){
   const key=renderKey(g);if(!force&&app.dataset.dUiKey===key&&document.getElementById('d-ui-sidebar'))return false;
   app.dataset.dUiKey=key;document.body.classList.add('d-ui-active');enhanceTopbar(g,e);ensureNavigation(g);enhanceMap(g);return true;
 }
+/*
+ * Below 1180px css/d-ui-reference-fidelity.css drops .d-context-panel out of
+ * its sticky desktop side column (position:static;grid-column:1/-1), so the
+ * panel renders AFTER the map stage and the three overlay cards -- on an
+ * iPhone that is roughly a full screen further down the page. Selecting a
+ * marker already rebuilt that panel correctly, but nothing about the visible
+ * viewport changed, which is why tapping a marker read as "nothing happened"
+ * on a real device even after the marker itself became tappable. Bringing the
+ * freshly rendered panel into view is what completes 看板をタップ -> 詳細を見る.
+ *
+ * Called after runUIEnhancers() has already re-rendered, so this always
+ * queries the NEW panel element (renderMapWorkspace rebuilds the workspace
+ * wholesale). No timers, no observers -- the re-render is synchronous.
+ */
+function revealContextPanel(){
+  if(typeof document==='undefined')return;
+  const panel=document.querySelector('.d-context-panel');
+  if(!panel||typeof panel.getBoundingClientRect!=='function'||typeof panel.scrollIntoView!=='function')return;
+  const viewportWidth=globalThis.innerWidth||0,viewportHeight=globalThis.innerHeight||0;
+  // Desktop keeps the panel beside the map, already on screen -- scrolling
+  // there would be gratuitous motion, so the stacked layout is the only case.
+  if(!viewportHeight||viewportWidth>1180)return;
+  /*
+   * Deliberately unconditional on the stacked layout rather than "only scroll
+   * when the panel looks off-screen". The panel's position is measured
+   * immediately after the workspace innerHTML was rebuilt, and the map canvas
+   * re-render that follows (js/iphone-playtest-fixes.js's ensureMapChrome()
+   * re-runs render() once its chrome exists) can still move it afterwards -- a
+   * one-shot "is it visible yet" check read that intermediate layout and
+   * skipped the scroll, which a Chromium run caught as the SECOND marker tap
+   * on an iPhone viewport leaving the detail ~300px below the fold. Scrolling
+   * every time is both simpler and deterministic, and on a phone it is the
+   * behaviour a player wants anyway: reaching a marker means scrolling back up
+   * to the map, so the detail has to come back into view on every tap.
+   */
+  const reduceMotion=globalThis.matchMedia?.('(prefers-reduced-motion: reduce)')?.matches;
+  panel.scrollIntoView({behavior:reduceMotion?'auto':'smooth',block:'start'});
+}
 function handleClick(event){
   const menu=document.getElementById('d-ui-command-menu');
   if(menu?.classList.contains('open')&&event.target===menu){event.preventDefault();setCommandMenu(false,true);return true;}
@@ -280,7 +345,7 @@ function handleClick(event){
   // click just like any other tap would; modules.mapPhase2Canvas.consumeJustPanned()
   // is true only for the ~50ms right after a real drag ended, so a plain
   // tap (no pan) is completely unaffected by this check.
-  if(marker){event.preventDefault();if(modules.mapPhase2Canvas?.consumeJustPanned?.())return true;selectedEntity=marker.dataset.dUiMarker;modules.uiEnhancerRegistry.runUIEnhancers();return true;}
+  if(marker){event.preventDefault();if(modules.mapPhase2Canvas?.consumeJustPanned?.())return true;selectedEntity=marker.dataset.dUiMarker;modules.uiEnhancerRegistry.runUIEnhancers();revealContextPanel();return true;}
   const tab=event.target?.closest?.('[data-action="tab"]');if(tab)setCommandMenu(false);
   return false;
 }

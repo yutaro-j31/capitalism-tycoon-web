@@ -95,6 +95,13 @@
 - external enhancer registrations の上限は79（startup-runtime-budget テスト）
 - CI実行中に追加pushをしない
 - 撤去作業は着手前に全箇所を grep する
+- map-critical asset（js/map-phase2-canvas.js / js/d-ui-shell.js /
+  js/iphone-playtest-fixes.js / css/d-ui-mobile-company.css /
+  css/iphone-playtest-fixes.css / d-ui-mobile-company.css が@importする
+  map系CSS / prototypes/*.js / sprites.json）を変更したら、同じ作業内で
+  `node scripts/stamp-asset-revision.js` を実行して `?rev=` を打ち直す。
+  revisionはこれら資産の内容ハッシュ（Date.now/Math.random/commit SHAは禁止）で、
+  tests/static-asset-cache-coherence-test.js が打ち直し忘れを赤で検出する
 - 1機能1PR。ブランチ名は feat/ fix/ ci/ refactor/ docs/ のいずれか
 
 # 既知の落とし穴

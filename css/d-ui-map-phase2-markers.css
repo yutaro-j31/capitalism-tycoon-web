@@ -3,6 +3,15 @@
    .d-map-marker in the DOM is a Phase 2 marker (carries data-phase2-tile-x)
    -- there is no legacy marker path left to hide. */
 
+/* Stamped by scripts/stamp-asset-revision.js. A stale cached copy of THIS
+   stylesheet is what makes markers render as the old abstract pins with no
+   placard label, so the published WebKit test reads this custom property back
+   and compares it against globalThis.__STATIC_ASSET_REVISION (set by
+   js/map-phase2-canvas.js) -- if the two disagree, the browser is running a
+   mixed generation of the map assets. Purely diagnostic: nothing reads it to
+   make a rendering decision. */
+:root{--d-map-asset-revision:"72f8704a495c"}
+
 /* Filter chip row -- reuses the same --d-gold token css/d-ui.css already
    defines for this screen. Non-persistent UI state only
    (js/d-ui-shell.js's mapFilterKind); never written to save.

@@ -6,9 +6,12 @@ const mapFocus=fs.readFileSync('css/d-ui-map-focus.css','utf8');
 const mapDepth=fs.readFileSync('css/d-ui-map-depth.css','utf8');
 const mobilePanels=fs.readFileSync('css/d-ui-mobile-panels.css','utf8');
 const loader=fs.readFileSync('css/d-ui-mobile-company.css','utf8');
-assert.match(loader,/@import url\("\.\/d-ui-reference-fidelity\.css"\);/,'reference fidelity stylesheet must load after the base D UI');
-assert.match(loader,/@import url\("\.\/d-ui-map-focus\.css"\);/,'map focus stylesheet must load after reference fidelity overrides');
-assert.match(loader,/@import url\("\.\/d-ui-map-depth\.css"\);/,'map depth stylesheet must load after focus overrides');
+// The optional ?rev= below is the deterministic cache-busting stamp from
+// scripts/asset-revision.js. The import must still exist, in this chain, at
+// this exact path -- only the content-derived revision may vary.
+assert.match(loader,/@import url\("\.\/d-ui-reference-fidelity\.css(?:\?rev=[0-9a-f]{12})?"\);/,'reference fidelity stylesheet must load after the base D UI');
+assert.match(loader,/@import url\("\.\/d-ui-map-focus\.css(?:\?rev=[0-9a-f]{12})?"\);/,'map focus stylesheet must load after reference fidelity overrides');
+assert.match(loader,/@import url\("\.\/d-ui-map-depth\.css(?:\?rev=[0-9a-f]{12})?"\);/,'map depth stylesheet must load after focus overrides');
 assert.match(loader,/@import url\("\.\/d-ui-mobile-panels\.css"\);/,'mobile panel carousel must load after map depth overrides');
 for(const selector of ['.d-topbar','.d-kpi-strip','.d-sidebar','.d-map-workspace','.d-city-surface','.d-map-marker','.d-map-overlay','.d-context-panel','.d-bottom-dock']){
   assert.ok(override.includes(selector),`missing reference fidelity selector: ${selector}`);

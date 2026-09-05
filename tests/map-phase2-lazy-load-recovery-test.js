@@ -69,14 +69,23 @@ function makeControllableDocument(sandbox, scriptOutcomes, appendCounts) {
       Object.defineProperty(el, 'src', {
         set(value) {
           this._src = value;
-          appendCounts[value] = (appendCounts[value] || 0) + 1;
-          const queue = scriptOutcomes[value] || ['ok'];
-          const index = Math.min(appendCounts[value] - 1, queue.length - 1);
+          /*
+           * Production now injects these with a deterministic ?rev= cache
+           * cache-busting stamp (scripts/asset-revision.js). This bookkeeping is
+           * about WHICH module was injected and HOW MANY times it was retried,
+           * so the stamp is stripped and the identity is what gets counted --
+           * otherwise every retry assertion below would key off a value that
+           * changes whenever any map asset's content changes.
+           */
+          const src = String(value).split(/[?#]/)[0];
+          appendCounts[src] = (appendCounts[src] || 0) + 1;
+          const queue = scriptOutcomes[src] || ['ok'];
+          const index = Math.min(appendCounts[src] - 1, queue.length - 1);
           const outcome = queue[index];
           queueMicrotask(() => {
             if (outcome === 'fail') { this.onerror && this.onerror(); return; }
-            const scriptIndex = PROTOTYPE_SCRIPTS.indexOf(value);
-            if (scriptIndex !== -1) vm.runInContext(PROTOTYPE_SOURCES[scriptIndex], sandbox, { filename: value });
+            const scriptIndex = PROTOTYPE_SCRIPTS.indexOf(src);
+            if (scriptIndex !== -1) vm.runInContext(PROTOTYPE_SOURCES[scriptIndex], sandbox, { filename: src });
             this.onload && this.onload();
           });
         },

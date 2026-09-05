@@ -154,7 +154,12 @@ const allCss=fs.readdirSync(cssRoot,{withFileTypes:true})
  .filter(entry=>entry.isFile()&&entry.name.endsWith('.css'))
  .map(entry=>entry.name)
  .sort();
-const linked=[...index.matchAll(/<link\b[^>]*href=["']\.\/css\/([^"']+\.css)["'][^>]*>/g)].map(match=>match[1]);
+// Both extractions below capture the PATH only and tolerate a trailing query,
+// because index.html and css/d-ui-mobile-company.css now carry deterministic
+// ?rev= cache-busting stamps on the map-critical stylesheets (see
+// scripts/asset-revision.js). The reachability contract itself is unchanged:
+// every production CSS file must still be reached from a link or an @import.
+const linked=[...index.matchAll(/<link\b[^>]*href=["']\.\/css\/([^"'?]+\.css)(?:\?[^"']*)?["'][^>]*>/g)].map(match=>match[1]);
 const reachable=new Set();
 const importEdges=[];
 function visit(file){
@@ -163,7 +168,7 @@ function visit(file){
  assert(fs.existsSync(full),`linked CSS file does not exist: css/${file}`);
  reachable.add(file);
  const source=fs.readFileSync(full,'utf8');
- for(const match of source.matchAll(/@import\s+(?:url\(\s*)?["']?([^"')\s]+\.css)["']?\s*\)?/g)){
+ for(const match of source.matchAll(/@import\s+(?:url\(\s*)?["']?([^"')\s?]+\.css)(?:\?[^"')\s]*)?["']?\s*\)?/g)){
   const imported=path.posix.normalize(path.posix.join(path.posix.dirname(file),match[1].replace(/^\.\//,'')));
   importEdges.push([file,imported]);
   visit(imported);

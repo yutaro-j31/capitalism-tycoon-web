@@ -79,10 +79,66 @@ async function assertCityPainted(page,label){
   return {markerCount,paint};
 }
 
+/*
+ * Cache coherence on the REAL published origin. js/map-phase2-canvas.js and
+ * css/d-ui-map-phase2-markers.css each report the revision they were stamped
+ * with (scripts/asset-revision.js). A browser that mixed generations -- fresh
+ * HTML plus a stale cached script or stylesheet, the failure that kept showing
+ * an old marker UI on a real device while GitHub Pages was serving correct
+ * bytes -- makes these two disagree.
+ */
+async function assertAssetRevisionCoherent(page,label){
+  const revisions=await page.evaluate(()=>({
+    js:globalThis.__STATIC_ASSET_REVISION||null,
+    css:getComputedStyle(document.documentElement).getPropertyValue('--d-map-asset-revision').trim().replace(/^"|"$/g,'')
+  }));
+  assert.match(String(revisions.js||''),/^[0-9a-f]{12}$/,`${label}: the published js/map-phase2-canvas.js reported no stamped asset revision (${JSON.stringify(revisions)})`);
+  assert.equal(revisions.css,revisions.js,`${label}: script and stylesheet are different generations (${JSON.stringify(revisions)}) -- the browser is running mixed map assets`);
+  return revisions;
+}
+
+/*
+ * 看板をタップ -> その物件の詳細. Picks a marker genuinely inside the visible
+ * city surface (positionMarkers() intentionally leaves off-camera markers
+ * outside it) and asserts the detail that comes back belongs to THAT entity
+ * and is actually on screen -- on the stacked iPhone layout the panel renders
+ * below the map, so "updated but invisible" is the exact reported symptom.
+ */
+async function assertMarkerOpensDetail(page,label){
+  const markerId=await page.evaluate(()=>{
+    const stage=document.querySelector('.d-city-surface-phase2')?.getBoundingClientRect();
+    if(!stage)return null;
+    for(const el of document.querySelectorAll('.d-map-marker')){
+      if(el.hidden)continue;
+      const r=el.getBoundingClientRect();
+      if(r.width&&r.left>=stage.left&&r.right<=stage.right&&r.top>=stage.top&&r.bottom<=stage.bottom)return el.dataset.dUiMarker;
+    }
+    return null;
+  });
+  if(!markerId)return null;
+  await page.locator(`.d-map-marker[data-d-ui-marker="${markerId}"]`).click({timeout:15000});
+  await page.waitForTimeout(400);
+  const detail=await page.evaluate(()=>{
+    const el=document.querySelector('.d-context-panel');
+    if(!el)return null;
+    const r=el.getBoundingClientRect();
+    return {selected:document.querySelector('.d-map-marker.selected')?.dataset.dUiMarker||null,
+      heading:el.querySelector('h2')?.textContent?.trim()||'',
+      html:el.innerHTML,top:r.top,bottom:r.bottom,viewportHeight:window.innerHeight};
+  });
+  assert.ok(detail,`${label}: no detail panel after tapping a marker`);
+  assert.equal(detail.selected,markerId,`${label}: tapping a marker must select that same marker`);
+  assert.ok(detail.heading.length>0,`${label}: the detail panel must name the tapped entity`);
+  const sourceId=markerId.slice(markerId.indexOf(':')+1);
+  if(!markerId.startsWith('store:'))assert.ok(detail.html.includes(`data-id="${sourceId}"`),`${label}: the detail action must carry the tapped entity's own id (${sourceId}), not another entity's`);
+  assert.ok(detail.top<detail.viewportHeight&&detail.bottom>0,`${label}: the detail must be visible after the tap (top=${Math.round(detail.top)}, viewport=${detail.viewportHeight})`);
+  return {markerId,heading:detail.heading};
+}
+
 async function runAttempt(attempt){
   fs.mkdirSync(ARTIFACT_DIR,{recursive:true});
   let browser,page;const diagnostics=createDiagnostics(),startedAt=new Date().toISOString();
-  const prefResults={};
+  const prefResults={},markerDetails={};let assetRevision=null;
   try{
     browser=await webkit.launch();
     const context=await browser.newContext({...devices[DEVICE_NAME],locale:'ja-JP',timezoneId:'Asia/Tokyo',reducedMotion:'reduce',serviceWorkers:'block'});
@@ -103,6 +159,8 @@ async function runAttempt(attempt){
     await openTab(page,'map');
     await assertRuntimeHealthy(page,'after opening map');
     prefResults.initial=await assertCityPainted(page,'initial map open (cold load)');
+    assetRevision=await assertAssetRevisionCoherent(page,'initial map open (cold load)');
+    markerDetails.initial=await assertMarkerOpensDetail(page,'initial map open (cold load)');
     await page.screenshot({path:path.join(ARTIFACT_DIR,'published-map-phase2-initial.png')});
 
     const prefSelect=page.locator('[data-iphone-pref]');
@@ -111,6 +169,8 @@ async function runAttempt(attempt){
       await prefSelect.selectOption(prefID);
       await assertRuntimeHealthy(page,`after switching to ${prefID}`);
       prefResults[prefID]=await assertCityPainted(page,`prefecture switch: ${prefID}`);
+      await assertAssetRevisionCoherent(page,`prefecture switch: ${prefID}`);
+      markerDetails[prefID]=await assertMarkerOpensDetail(page,`prefecture switch: ${prefID}`);
       assert.equal(await prefSelect.inputValue(),prefID,`prefecture select did not settle on ${prefID}`);
     }
     await page.screenshot({path:path.join(ARTIFACT_DIR,'published-map-phase2-final.png')});
@@ -118,11 +178,11 @@ async function runAttempt(attempt){
     const after=await game(page);
     assert.equal(after.saveVersion,SAVE_VERSION);
     assert.deepEqual(diagnostics,{consoleErrors:[],pageErrors:[],failedRequests:[],requiredAssetServerErrors:[]});
-    writeResult({status:'passed',attempt,published:true,requiredAssetServerErrors:diagnostics.requiredAssetServerErrors,startedAt,completedAt:new Date().toISOString(),targetUrl:TARGET_URL,device:DEVICE_NAME,browser:'WebKit',browserVersion:browser.version(),saveKey:SAVE_KEY,saveVersion:SAVE_VERSION,prefSequence:PREF_SEQUENCE,prefResults,...diagnostics});
+    writeResult({status:'passed',attempt,published:true,requiredAssetServerErrors:diagnostics.requiredAssetServerErrors,startedAt,completedAt:new Date().toISOString(),targetUrl:TARGET_URL,device:DEVICE_NAME,browser:'WebKit',browserVersion:browser.version(),saveKey:SAVE_KEY,saveVersion:SAVE_VERSION,prefSequence:PREF_SEQUENCE,prefResults,assetRevision,markerDetails,...diagnostics});
     console.log('Published Phase 2 map WebKit smoke passed');
   }catch(e){
     if(page)try{await page.screenshot({path:path.join(ARTIFACT_DIR,'published-map-phase2-failure.png')})}catch(_){}
-    writeResult({status:'failed',attempt,published:true,startedAt,completedAt:new Date().toISOString(),targetUrl:TARGET_URL,error:e.stack||String(e),prefResults,...diagnostics});
+    writeResult({status:'failed',attempt,published:true,startedAt,completedAt:new Date().toISOString(),targetUrl:TARGET_URL,error:e.stack||String(e),prefResults,assetRevision,markerDetails,...diagnostics});
     e.publishedWebKitDiagnostics=diagnostics;
     throw e;
   }finally{
