@@ -22,7 +22,10 @@ const mapPhase2Canvas = fs.readFileSync('js/map-phase2-canvas.js', 'utf8');
 const app = fs.readFileSync('js/app.js', 'utf8');
 
 assert.match(index, /href="\.\/css\/d-ui-context-tabs\.css"/, 'runtime must load the D UI stylesheet bridge');
-assert.match(index, /href="\.\/css\/d-ui-mobile-company\.css"/, 'runtime must load the D UI mobile/company stylesheet chain');
+// The optional ?rev= is the deterministic cache-busting stamp from
+// scripts/asset-revision.js; the stylesheet chain must still load from
+// exactly this path.
+assert.match(index, /href="\.\/css\/d-ui-mobile-company\.css(?:\?rev=[0-9a-f]{12})?"/, 'runtime must load the D UI mobile/company stylesheet chain');
 const imports = [
   '@import url("./d-ui-home.css");',
   '@import url("./d-ui-finance.css");',
@@ -282,7 +285,9 @@ for (const action of ['retire-founder','train-successor','execute-succession','a
   assert.ok(app.includes(action), `Legacy v2 must retain existing Legacy action: ${action}`);
 }
 
-assert.ok(mobileStyle.includes('@import url("./d-ui-map.css");'), 'runtime mobile/company chain must import the Map stylesheet');
+// Matches the path prefix only: this stylesheet carries a deterministic
+// ?rev= cache-busting stamp (scripts/asset-revision.js).
+assert.ok(/@import url\("\.\/d-ui-map\.css(?:\?rev=[0-9a-f]{12})?"\);/.test(mobileStyle), 'runtime mobile/company chain must import the Map stylesheet');
 assert.match(mapStyle, /body\.d-ui-active \[data-screen="map"\]\{/, 'Map v2 must stay scoped to the active Map screen');
 assert.match(mapStyle, /--d2-map-violet:#7c5cff/, 'Map v2 must use the approved violet primary accent');
 assert.match(mapStyle, /--d2-map-blue:#5c8dff/, 'Map v2 must retain the approved blue data accent');

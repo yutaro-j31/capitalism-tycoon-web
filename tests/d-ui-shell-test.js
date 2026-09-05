@@ -32,12 +32,17 @@ const mobileStyle = fs.readFileSync(mobileStylePath, 'utf8');
 const appScript = fs.readFileSync(appPath, 'utf8');
 
 assert.match(html, /<link[^>]+href="\.\/css\/d-ui\.css"/i, 'D UI stylesheet must load from index');
-assert.match(html, /<script[^>]+src="\.\/js\/d-ui-shell\.js"/i, 'D UI shell must load from index');
+// The deterministic ?rev= cache-busting stamp (scripts/asset-revision.js) is
+// optional here only because its value is derived from asset content; the
+// script must still be loaded from this exact path.
+assert.match(html, /<script[^>]+src="\.\/js\/d-ui-shell\.js(?:\?rev=[0-9a-f]{12})?"/i, 'D UI shell must load from index');
 const tutorialIndex = html.indexOf('src="./js/founding-tutorial.js"');
 const registryIndex = html.indexOf('src="./js/ui-enhancer-registry.js"');
 const appIndex = html.indexOf('src="./js/app.js"');
 const playtestIndex = html.indexOf('src="./js/playtest-report-ui.js"');
-const shellIndex = html.indexOf('src="./js/d-ui-shell.js"');
+// Prefix match (no closing quote): this asset carries a deterministic ?rev=
+// cache-busting stamp, and only its load ORDER is under test here.
+const shellIndex = html.indexOf('src="./js/d-ui-shell.js');
 const recoveryIndex = html.indexOf('src="./js/runtime-recovery-ui.js"');
 assert.ok(tutorialIndex !== -1 && registryIndex > tutorialIndex && appIndex > registryIndex, 'registry must load statically immediately before app.js');
 assert.ok(playtestIndex !== -1 && shellIndex > playtestIndex, 'D UI shell must load after playtest reporting');

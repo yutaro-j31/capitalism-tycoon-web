@@ -21,10 +21,20 @@ if(modules.mapPhase2Canvas)throw new Error('map-phase2-canvas.js is already regi
  * treats index.html's script tags as an exact 1:1 inventory of js/*.js.
  */
 
+/*
+ * Static-asset revision, stamped by scripts/stamp-asset-revision.js from the
+ * content of the map-critical asset set (see scripts/asset-revision.js). It is
+ * a pure diagnostic: published WebKit tests read it back to prove the browser
+ * is running ONE generation of the map assets rather than a mix of a fresh
+ * index.html and stale cached JS/CSS. It is never written to the save file or
+ * to any browser storage, and never becomes part of game state or the
+ * simulation.
+ */
+globalThis.__STATIC_ASSET_REVISION='72f8704a495c';
 const ASSET_BASE='./assets/map-sprites/phase2';
 const IMAGE_BASE='./assets/map-sprites/phase1';
-const MANIFEST_URL=`${ASSET_BASE}/sprites.json`;
-const PROTOTYPE_SCRIPTS=['./prototypes/map-canvas-renderer.js','./prototypes/map-prefecture-profiles.js','./prototypes/map-world-preview.js'];
+const MANIFEST_URL=`${ASSET_BASE}/sprites.json?rev=72f8704a495c`;
+const PROTOTYPE_SCRIPTS=['./prototypes/map-canvas-renderer.js?rev=72f8704a495c','./prototypes/map-prefecture-profiles.js?rev=72f8704a495c','./prototypes/map-world-preview.js?rev=72f8704a495c'];
 const WORLD_COLS=32,WORLD_ROWS=28;
 /*
  * Initial-framing pull-back (Map Framing / Zoom-out Calibration). This
@@ -79,13 +89,26 @@ function buildMapViewModel(g,engineInstance){
     const label=store.name||businessName(store.businessID)||'直営店舗';
     return {id:`store:${store.id}`,kind:'store',sourceId:store.id,pref:store.prefID,label,rawID:store.id,name:label,store};
   });
+  /*
+   * tenant/office carry their raw state object for the same reason store and
+   * property already do: js/d-ui-shell.js's selectedDetail() has no other way
+   * to reach g.tenants/g.rentalOffices, so without this a tapped tenant or
+   * office marker could only ever show its own name. That is exactly what
+   * production did -- the office card was a name plus a "go to the office
+   * screen" link, and the tenant card fell back to a legacy `entity.item`
+   * DOM-scrape field that buildMapViewModel has never set, so it always
+   * degraded to the name. Additive only: the documented
+   * {id,kind,sourceId,pref,label} shape is unchanged, and this stays a
+   * read-only reference to state the caller already owns (never a copy, never
+   * a mutation).
+   */
   const tenants=byPref(g&&g.tenants).map(tenant=>{
     const label=tenant.name||'出店候補';
-    return {id:`tenant:${tenant.id}`,kind:'tenant',sourceId:tenant.id,pref:tenant.prefID,label,rawID:tenant.id,name:label};
+    return {id:`tenant:${tenant.id}`,kind:'tenant',sourceId:tenant.id,pref:tenant.prefID,label,rawID:tenant.id,name:label,tenant};
   });
   const offices=byPref(g&&g.rentalOffices).map(office=>{
     const label=office.name||'オフィス候補';
-    return {id:`office:${office.id}`,kind:'office',sourceId:office.id,pref:office.prefID,label,rawID:office.id,name:label};
+    return {id:`office:${office.id}`,kind:'office',sourceId:office.id,pref:office.prefID,label,rawID:office.id,name:label,office};
   });
   const properties=byPref(g&&g.properties).map(property=>{
     const label=property.name||'不動産候補';

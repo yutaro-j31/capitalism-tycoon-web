@@ -36,7 +36,21 @@ function extractScripts(html = readIndex()) {
     const startLine = lineOf(html, m.index);
     if (parsedAttrs.src !== undefined) {
       const file = resolveLocalScript(parsedAttrs.src);
-      scripts.push({ attrs, parsedAttrs, src: parsedAttrs.src, file, code: fs.readFileSync(file, 'utf8'), startLine });
+      /*
+       * `src` is reported without its query string so every consumer keeps
+       * comparing module IDENTITY and ORDER, which is what the load-order
+       * contract is actually about. index.html now carries deterministic
+       * `?rev=` cache-busting stamps on the map-critical assets (see
+       * scripts/asset-revision.js); those must not turn
+       * './js/d-ui-shell.js' into a different module as far as
+       * tests/fixtures/module-load-order.json, the duplicate check, or the
+       * js/*.js 1:1 inventory check are concerned. resolveLocalScript()
+       * already strips the query to find the file on disk, so this only
+       * aligns the reported id with the file it actually resolved to. The
+       * raw attribute stays available as parsedAttrs.src.
+       */
+      const src = parsedAttrs.src.split(/[?#]/)[0];
+      scripts.push({ attrs, parsedAttrs, src, file, code: fs.readFileSync(file, 'utf8'), startLine });
     } else {
       scripts.push({ attrs, parsedAttrs, code: m[2], startLine });
     }

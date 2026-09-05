@@ -936,3 +936,96 @@ coverage in `tests/map-phase2-marker-placard-interaction-test.js`:
 `ensureMapChrome()` must call `modules.mapPhase2Canvas.render(canvas,g)`
 after (not before) finalizing the chrome elements, and a negative test
 confirming the check fails without that call.
+
+## 17. Static-asset cache coherence + marker tap -> entity detail
+
+Real-device report AFTER PR #615 and PR #616 had both merged and published:
+the production iPhone still showed the OLD abstract red/blue/purple pins with
+no placard text, taps still did nothing, and no property detail ever opened.
+
+**Why the previous fixes looked absent.** They were not absent -- the browser
+was never running them. `scripts/verify-published-pages.js` and
+`scripts/pages-deployment-smoke.js` both confirm GitHub Pages was serving
+bytes identical to `main`, so the server was correct throughout. The failure
+was entirely client-side: `index.html` referenced every asset by an
+unversioned URL (`./js/d-ui-shell.js`), while `play.html` redirects to
+`index.html` with a `Date.now()` `v=` parameter. The HTML was therefore
+reliably *fresh* and every JS/CSS file it pointed at was reliably served from
+whatever generation the browser had already cached -- exactly the
+"HTMLだけ新しい / d-ui-shell.jsだけ古い" split. Two asset classes were even
+further out of reach: the stylesheets reached only through
+`css/d-ui-mobile-company.css`'s `@import` list, and the `prototypes/*.js`
+runtime plus the sprite manifest that `js/map-phase2-canvas.js` injects at
+runtime -- `index.html`'s own cache state says nothing about either.
+
+**Fix (single deterministic revision).** `scripts/asset-revision.js` computes
+one revision as a content hash over the map-critical asset set and
+`scripts/stamp-asset-revision.js` stamps it onto every URL that reaches those
+assets: the direct `<script>`/`<link>` tags, the nested `@import` list, and
+`PROTOTYPE_SCRIPTS`/`MANIFEST_URL`. A content hash rather than a timestamp or
+a commit SHA because it must be deterministic (two machines stamping the same
+tree agree), self-invalidating (it changes exactly when real content changes,
+so a release cannot forget to bust a cache and an unrelated release cannot
+needlessly bust one), and recomputable by a test. A commit SHA is unusable:
+the stamp has to be committed, and the SHA does not exist until after the
+commit. Files that both contain a stamp and are themselves hashed are hashed
+in canonical form (stamp values blanked), which makes stamping an idempotent
+fixpoint instead of a self-referential loop.
+
+`css/app.css` is deliberately NOT versioned -- it is byte-frozen against
+`tests/fixtures/extracted-css-baseline.css`. Scope is the map-critical set;
+widening it is a separate change.
+
+**Two runtime diagnostics** make a mixed generation observable rather than
+inferred: `globalThis.__STATIC_ASSET_REVISION` (stamped into
+`js/map-phase2-canvas.js`) and `--d-map-asset-revision` (stamped into
+`css/d-ui-map-phase2-markers.css`). A stale script and a stale stylesheet are
+independently detectable because the two must agree. Both are inert -- never
+saved, never in browser storage, never part of game state.
+
+**Second, independent defect: the detail never had anything to show.**
+`buildMapViewModel()` attached the raw state object for `store` and
+`property` but not for `tenant` or `rentalOffice`. So even with fresh assets,
+tapping an office marker produced a generic card plus a "go to the office
+screen" link, and tapping a tenant fell back to a legacy `entity.item`
+DOM-scrape field that `buildMapViewModel` has never set -- it always degraded
+to the entity name. Both now carry their state (additive, exactly as
+`store`/`property` already did), and `selectedDetail()` renders real fields:
+tenant gets weekly rent, deposit, prefecture, trade area, size, traffic and
+intended business; office gets weekly rent, deposit, prefecture, location,
+capacity, grade and prestige; the property card gains prefecture, location,
+ownership state and (only when `property.realEstate` actually exists)
+building condition. Nothing is fabricated -- `rent` is labelled 週額 because
+`js/engine.js` stores `office.rent` as `g.officeWeeklyCost` and charges tenant
+rent per simulated week, so calling it 月額 would invent a number the state
+does not hold. Actions are the existing ones (`open-store`,
+`contract-office`, `buy-property-company`/`-personal`); no parallel leasing or
+selection state was introduced.
+
+**Third defect: the detail was invisible on a phone.** Below 1180px
+`css/d-ui-reference-fidelity.css` drops `.d-context-panel` out of its sticky
+desktop column, so it renders after the 520px-tall map stage and the three
+overlay cards -- roughly a screen further down. Selection updated it
+correctly and nothing visible moved, which is what made a working tap read as
+"nothing happened". `revealContextPanel()` brings the freshly rendered panel
+into view after a marker tap, on the stacked layout only, respecting
+`prefers-reduced-motion`, with no new `registerUIEnhancer()` call, no timers
+and no observers. It is deliberately unconditional rather than "scroll only
+when the panel looks off-screen": a Chromium run caught the one-shot
+visibility heuristic reading an intermediate layout (the chrome-triggered
+re-render from PR #616 still moves things afterwards) and skipping the scroll
+on the SECOND tap.
+
+New coverage: `tests/static-asset-cache-coherence-test.js` (revision
+determinism and content-sensitivity, the stamping fixpoint, full asset
+coverage, one shared revision across every map-critical URL, stamp currency,
+runtime diagnostics, `app.css`/SAVE_KEY/saveVersion invariants, plus four
+negative tests: an unversioned marker stylesheet, a drifted `d-ui-shell.js`
+revision, a stale committed stamp, an unversioned lazy prototype) and
+`tests/map-marker-detail-interaction-test.js` (each kind opens its own
+detail, executed against the real `selectedDetail()` source; identity match;
+the 週額 labelling; no fabricated fields; single selection path; the 8px
+tap/pan contract; the mobile reveal; PR #615/#616 non-regression; plus four
+more negative tests). `tests/published-map-phase2-webkit-test.js` now also
+asserts revision coherence and a marker-tap-opens-its-own-detail round trip
+against the real published URL on every prefecture in its sequence.

@@ -1,13 +1,13 @@
 /* Keep company identity, current week, week controls, and settings reachable in compact D layouts. */
-@import url("./d-ui-reference-fidelity.css");
+@import url("./d-ui-reference-fidelity.css?rev=72f8704a495c");
 @import url("./d-ui-home.css");
 @import url("./d-ui-finance.css");
-@import url("./d-ui-map-focus.css");
-@import url("./d-ui-map-depth.css");
-@import url("./d-ui-map.css");
-@import url("./d-ui-map-phase2-canvas.css");
-@import url("./d-ui-map-phase2-markers.css");
-@import url("./d-ui-map-phase2-pan.css");
+@import url("./d-ui-map-focus.css?rev=72f8704a495c");
+@import url("./d-ui-map-depth.css?rev=72f8704a495c");
+@import url("./d-ui-map.css?rev=72f8704a495c");
+@import url("./d-ui-map-phase2-canvas.css?rev=72f8704a495c");
+@import url("./d-ui-map-phase2-markers.css?rev=72f8704a495c");
+@import url("./d-ui-map-phase2-pan.css?rev=72f8704a495c");
 @import url("./d-ui-business.css");
 @import url("./d-ui-office.css");
 @import url("./d-ui-bank.css");

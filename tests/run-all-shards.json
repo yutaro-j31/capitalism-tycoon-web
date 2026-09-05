@@ -36,7 +36,8 @@
     "tests/map-directory-open-state-persistence-test.js",
     "tests/d-ui-shell-test.js",
     "tests/map-phase2-framing-zoomout-test.js",
-    "tests/map-phase2-marker-placard-interaction-test.js"
+    "tests/map-phase2-marker-placard-interaction-test.js",
+    "tests/map-marker-detail-interaction-test.js"
   ],
   "D": [
     "test:stock",
@@ -138,6 +139,7 @@
     "tests/executeipo-base-class-accounting-test.js",
     "tests/d-ui-reference-fidelity-test.js",
     "tests/map-canvas-foundation-test.js",
-    "tests/map-phase2-lazy-load-recovery-test.js"
+    "tests/map-phase2-lazy-load-recovery-test.js",
+    "tests/static-asset-cache-coherence-test.js"
   ]
 }

@@ -228,11 +228,20 @@ async function main() {
   });
 
   await check('prototypes/map-canvas-renderer.js and prototypes/map-world-preview.js are lazy-loaded via <script> injection, not static <script> tags in index.html (they live under prototypes/, not js/, and tests/javascript-module-split-test.js treats index.html as an exact 1:1 inventory of js/*.js)', () => {
-    assert.match(canvasSrc, /PROTOTYPE_SCRIPTS=\['\.\/prototypes\/map-canvas-renderer\.js','\.\/prototypes\/map-prefecture-profiles\.js','\.\/prototypes\/map-world-preview\.js'\]/);
+    // The three paths and their order are still asserted exactly; only the
+    // deterministic ?rev= cache-busting stamp each one now carries (see
+    // scripts/asset-revision.js) is allowed to vary, since its value is
+    // derived from asset content and changes on every real content change.
+    const stamp = '(?:\\?rev=[0-9a-f]{12})?';
+    assert.match(canvasSrc, new RegExp(
+      `PROTOTYPE_SCRIPTS=\\['\\./prototypes/map-canvas-renderer\\.js${stamp}',`
+      + `'\\./prototypes/map-prefecture-profiles\\.js${stamp}',`
+      + `'\\./prototypes/map-world-preview\\.js${stamp}'\\]`
+    ));
     assert.match(canvasSrc, /document\.createElement\('script'\)/);
     const indexSrc = fs.readFileSync(path.join(ROOT, 'index.html'), 'utf8');
     assert.doesNotMatch(indexSrc, /<script src="\.\/prototypes\//, 'prototypes/*.js must not be added as static <script> tags in index.html');
-    assert.match(indexSrc, /<script src="\.\/js\/map-phase2-canvas\.js">/);
+    assert.match(indexSrc, /<script src="\.\/js\/map-phase2-canvas\.js(?:\?rev=[0-9a-f]{12})?">/);
   });
 
   /* ---------------- render(): draws without throwing, degrades gracefully ---------------- */

@@ -65,6 +65,8 @@ const nodeTests = [
   ['map-prefecture-identity-regional-variation', 'tests/map-prefecture-identity-regional-variation-test.js'],
   ['map-phase2-lazy-load-recovery', 'tests/map-phase2-lazy-load-recovery-test.js'],
   ['map-phase2-marker-placard-interaction', 'tests/map-phase2-marker-placard-interaction-test.js'],
+  ['static-asset-cache-coherence', 'tests/static-asset-cache-coherence-test.js'],
+  ['map-marker-detail-interaction', 'tests/map-marker-detail-interaction-test.js'],
   ['d-ui-shell', 'tests/d-ui-shell-test.js'],
   ['deterministic-economic-foundation', 'tests/deterministic-economic-foundation-test.js'],
   ['executive-dismissal-governance', 'tests/executive-dismissal-governance-test.js'],

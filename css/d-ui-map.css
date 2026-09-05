@@ -84,6 +84,11 @@ body.d-ui-active [data-screen="map"] .d-context-metrics>div{background:#0f1729}
 body.d-ui-active [data-screen="map"] .d-context-metrics span{color:#8496ac}
 body.d-ui-active [data-screen="map"] .d-context-metrics strong{color:#f4f7ff;font-variant-numeric:tabular-nums}
 body.d-ui-active [data-screen="map"] .d-context-copy{color:var(--d2-map-muted)}
+/* The tapped entity's own name, restated inside the detail body. The panel
+   header already carries it, but on the stacked (<=1180px) layout the header
+   can sit above the scroll position the panel is revealed at, so repeating it
+   here is what confirms WHICH 売物件/テナント/オフィス the player opened. */
+body.d-ui-active [data-screen="map"] .d-context-name{margin:0;padding:0 12px 8px;font-size:15px;line-height:1.35;color:#eef3f7;font-weight:700}
 body.d-ui-active [data-screen="map"] .d-status-bars label>span{color:var(--d2-map-muted)}
 body.d-ui-active [data-screen="map"] .d-status-bars i em{background:linear-gradient(90deg,var(--d2-map-violet),var(--d2-map-cyan))}
 body.d-ui-active [data-screen="map"] .d-context-empty>span{color:var(--d2-map-violet)}
