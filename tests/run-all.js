@@ -67,6 +67,7 @@ const nodeTests = [
   ['map-phase2-marker-placard-interaction', 'tests/map-phase2-marker-placard-interaction-test.js'],
   ['static-asset-cache-coherence', 'tests/static-asset-cache-coherence-test.js'],
   ['map-marker-detail-interaction', 'tests/map-marker-detail-interaction-test.js'],
+  ['map-marker-anchor-integrity', 'tests/map-marker-anchor-integrity-test.js'],
   ['d-ui-shell', 'tests/d-ui-shell-test.js'],
   ['deterministic-economic-foundation', 'tests/deterministic-economic-foundation-test.js'],
   ['executive-dismissal-governance', 'tests/executive-dismissal-governance-test.js'],

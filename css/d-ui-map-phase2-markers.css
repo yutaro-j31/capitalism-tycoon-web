@@ -10,7 +10,7 @@
    js/map-phase2-canvas.js) -- if the two disagree, the browser is running a
    mixed generation of the map assets. Purely diagnostic: nothing reads it to
    make a rendering decision. */
-:root{--d-map-asset-revision:"72f8704a495c"}
+:root{--d-map-asset-revision:"79c20d4ed901"}
 
 /* Filter chip row -- reuses the same --d-gold token css/d-ui.css already
    defines for this screen. Non-persistent UI state only

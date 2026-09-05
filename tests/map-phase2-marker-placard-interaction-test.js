@@ -201,13 +201,17 @@ function ruleZIndex(css, selector) {
   return z;
 }
 
-// AABB collision box matching js/map-phase2-canvas.js's own PLACARD_W/H/GAP
-// -- extracted from source (not re-typed) so this test can never silently
-// drift from the constants the real collision search actually uses.
-const constMatch = canvasSrc.match(/const PLACARD_W=(\d+),PLACARD_H=(\d+),PLACARD_GAP=(\d+);/);
-assert.ok(constMatch, 'could not locate PLACARD_W/H/GAP constants in js/map-phase2-canvas.js');
-const PLACARD_W = Number(constMatch[1]), PLACARD_H = Number(constMatch[2]);
-function rectOf(cx, cy) { return { left: cx - PLACARD_W / 2, top: cy - PLACARD_H / 2, right: cx + PLACARD_W / 2, bottom: cy + PLACARD_H / 2 }; }
+// AABB collision box matching js/map-phase2-canvas.js's own marker box, and
+// the hard cap on how far a marker may sit from its building -- both
+// extracted from source (not re-typed) so this test can never silently drift
+// from the constants the real placement actually uses.
+const boxMatch = canvasSrc.match(/const MARKER_CLAMP_HALF_W=(\d+),MARKER_CLAMP_HALF_H=(\d+);/);
+assert.ok(boxMatch, 'could not locate MARKER_CLAMP_HALF_W/H in js/map-phase2-canvas.js');
+const HALF_W = Number(boxMatch[1]), HALF_H = Number(boxMatch[2]);
+const capMatch = canvasSrc.match(/const MAX_ANCHOR_OFFSET=(\d+);/);
+assert.ok(capMatch, 'could not locate MAX_ANCHOR_OFFSET in js/map-phase2-canvas.js');
+const MAX_ANCHOR_OFFSET = Number(capMatch[1]);
+function rectOf(cx, cy) { return { left: cx - HALF_W, top: cy - HALF_H, right: cx + HALF_W, bottom: cy + HALF_H }; }
 function overlaps(a, b) { return a.left < b.right && a.right > b.left && a.top < b.bottom && a.bottom > b.top; }
 
 async function main() {
@@ -335,7 +339,7 @@ async function main() {
     assert.deepStrictEqual(byId(laidOutTokyoA), byId(laidOutTokyoB));
   });
 
-  await check('no two placard rectangles overlap for the 17-marker Tokyo fixture (screen-space collision, not just tile difference)', async () => {
+  await check('ANCHOR INTEGRITY: every marker in the 17-marker Tokyo fixture stays within MAX_ANCHOR_OFFSET of its own building, and decluttering still separates most badges', async () => {
     const { sandbox, mod } = await readySandbox();
     const g = tokyoFixtureG();
     const vm1 = mod.buildMapViewModel(g, null);
@@ -366,11 +370,28 @@ async function main() {
       const ax = rawAx * wt.transform.scale, ay = rawAy * wt.transform.scale;
       return { id: e.id, rect: rectOf(ax + e.placardOffsetX, ay + e.placardOffsetY) };
     });
-    for (let i = 0; i < rects.length; i++) {
-      for (let j = i + 1; j < rects.length; j++) {
-        assert.ok(!overlaps(rects[i].rect, rects[j].rect), `${rects[i].id} and ${rects[j].id} placards overlap`);
-      }
+    /*
+     * The contract this replaced demanded that NO two boxes overlap, and an
+     * unbounded 6-ring search over a 108x86 placard box is what it took to
+     * satisfy that -- up to 696px of displacement, measured at 334px (64% of
+     * the canvas width) in a real desktop render, with markers landing
+     * nowhere near their buildings. Anchor integrity is the stronger and more
+     * meaningful guarantee: a marker may overlap a neighbour, but it may
+     * never stop pointing at its own building.
+     */
+    for (const e of placeable) {
+      const distance = Math.hypot(e.placardOffsetX, e.placardOffsetY);
+      assert.ok(distance <= MAX_ANCHOR_OFFSET + 0.001,
+        `${e.id} was displaced ${distance.toFixed(1)}px from its building, past the ${MAX_ANCHOR_OFFSET}px cap`);
     }
+    // Decluttering must still do real work: most badges end up separated.
+    let overlapping = 0;
+    for (let i = 0; i < rects.length; i++) {
+      for (let j = i + 1; j < rects.length; j++) if (overlaps(rects[i].rect, rects[j].rect)) overlapping += 1;
+    }
+    const pairs = rects.length * (rects.length - 1) / 2;
+    assert.ok(overlapping <= pairs * 0.15,
+      `${overlapping} of ${pairs} badge pairs overlap -- decluttering stopped doing useful work`);
   });
 
   await check('deterministic ordering has teeth: two entities placed on the SAME tile (would collide at offset {0,0}) never both keep {dx:0,dy:0}', async () => {

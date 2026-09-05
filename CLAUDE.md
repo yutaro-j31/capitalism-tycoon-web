@@ -102,6 +102,12 @@
   `node scripts/stamp-asset-revision.js` を実行して `?rev=` を打ち直す。
   revisionはこれら資産の内容ハッシュ（Date.now/Math.random/commit SHAは禁止）で、
   tests/static-asset-cache-coherence-test.js が打ち直し忘れを赤で検出する
+- production mapのmarkerは「その建物を指す」ことが最優先。marker位置を動かす
+  処理（decluttering / edge clamp / chrome回避）を足すときは必ず
+  MAX_ANCHOR_OFFSET（js/map-phase2-canvas.js）以内に収め、最終位置には
+  capToAnchor() を通す。実測でこの上限が無いと最大334px（canvas幅の64%）
+  ずれ、画面外の建物のmarkerが画面内へclampされる事故が起きた。
+  tests/map-marker-anchor-integrity-test.js が上限違反を赤で検出する
 - 1機能1PR。ブランチ名は feat/ fix/ ci/ refactor/ docs/ のいずれか
 
 # 既知の落とし穴
