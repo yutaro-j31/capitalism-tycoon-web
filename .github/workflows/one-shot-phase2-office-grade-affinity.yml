@@ -32,7 +32,7 @@ jobs:
               text = p.read_text()
               count = text.count(old)
               if count != 1:
-                  raise SystemExit(f'{path}: expected exactly one anchor, found {count}')
+                  raise SystemExit(f'{path}: expected exactly one anchor, found {count}: {old[:80]!r}')
               p.write_text(text.replace(old, new, 1))
 
           replace_once(
@@ -87,18 +87,14 @@ jobs:
               "  for (const grade of ['C', 'B', 'A']) entities.push({ id: `office:${grade}`, kind: 'office', sourceId: grade, officeGrade: grade });"
           )
 
-          replace_once(
-              'tests/map-marker-building-affinity-test.js',
-              """    const district = MW.buildWorldDistrict({ index2, prefID, cols: WORLD_COLS, rows: WORLD_ROWS });
-            for (const entity of placed) {""",
-              """    const district = MW.buildWorldDistrict({ index2, prefID, cols: WORLD_COLS, rows: WORLD_ROWS });
-            const surfaceCounts = {};
-            for (const cell of district.tiles) {
-              const surface = surfaceUnder(cell);
-              if (surface) surfaceCounts[surface] = (surfaceCounts[surface] || 0) + 1;
-            }
-            for (const entity of placed) {"""
-          )
+          district_line = "    const district = MW.buildWorldDistrict({ index2, prefID, cols: WORLD_COLS, rows: WORLD_ROWS });\n"
+          surface_count_block = district_line + """    const surfaceCounts = {};
+              for (const cell of district.tiles) {
+                const surface = surfaceUnder(cell);
+                if (surface) surfaceCounts[surface] = (surfaceCounts[surface] || 0) + 1;
+              }
+          """
+          replace_once('tests/map-marker-building-affinity-test.js', district_line, surface_count_block)
 
           replace_once(
               'tests/map-marker-building-affinity-test.js',
