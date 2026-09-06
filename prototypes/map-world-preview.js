@@ -995,11 +995,67 @@
   }
 
   /* ---------------- meaningful open space (Canvas primitives only) ---------------- */
+  function paintBench(ctx, x, y, flip) {
+    const dx = flip ? -1 : 1;
+    ctx.strokeStyle = '#6d5540';
+    ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.moveTo(x - 6 * dx, y - 2); ctx.lineTo(x + 5 * dx, y + 2); ctx.stroke();
+    ctx.strokeStyle = 'rgba(43,39,32,.5)';
+    ctx.lineWidth = 1.2;
+    ctx.beginPath(); ctx.moveTo(x - 4 * dx, y); ctx.lineTo(x - 4 * dx, y + 3); ctx.moveTo(x + 3 * dx, y + 2); ctx.lineTo(x + 3 * dx, y + 5); ctx.stroke();
+  }
+
+  function paintPlanter(ctx, x, y) {
+    ctx.fillStyle = '#8a7155';
+    ctx.fillRect(x - 4, y - 1, 8, 4);
+    ctx.fillStyle = '#557f42';
+    ctx.beginPath(); ctx.ellipse(x, y - 3, 4.5, 2.8, 0, 0, Math.PI * 2); ctx.fill();
+  }
+
+  function paintOpenMicroProps(ctx, cell, x, y, tile, prefID) {
+    const seed = hash(`${prefID}:openProp:${cell.tileX}:${cell.tileY}:${cell.openType}`);
+    const flip = (seed & 1) === 1;
+    if (cell.openType === 'plaza') {
+      paintBench(ctx, x - 7, y + 4, flip);
+      paintPlanter(ctx, x + 10, y - 2);
+    } else if (cell.openType === 'forecourt') {
+      ctx.fillStyle = '#6f7774';
+      for (const offset of [-7, 0, 7]) ctx.fillRect(x + offset - 1, y + 3 + offset * 0.35, 2, 5);
+      if ((seed >>> 2) % 3 !== 0) paintPlanter(ctx, x + (flip ? -12 : 12), y - 3);
+    } else if (cell.openType === 'pocketPark') {
+      paintBench(ctx, x + (flip ? -8 : 8), y + 7, flip);
+      ctx.fillStyle = '#789d55';
+      ctx.beginPath(); ctx.ellipse(x - 11, y + 1, 5, 2.5, 0, 0, Math.PI * 2); ctx.fill();
+    } else if (cell.openType === 'treeStrip') {
+      ctx.fillStyle = '#789d55';
+      ctx.beginPath(); ctx.ellipse(x + (flip ? -9 : 9), y + 3, 6, 2.3, 0, 0, Math.PI * 2); ctx.fill();
+    } else if (cell.openType === 'parking') {
+      ctx.strokeStyle = 'rgba(65,68,65,.55)';
+      ctx.lineWidth = 2;
+      for (const offset of [-0.4, 0, 0.4]) {
+        ctx.beginPath();
+        ctx.moveTo(x - tile.w * 0.24 + offset * tile.w, y + tile.h * 0.13);
+        ctx.lineTo(x - tile.w * 0.17 + offset * tile.w, y + tile.h * 0.17);
+        ctx.stroke();
+      }
+    } else if (cell.openType === 'loadingBay') {
+      const side = flip ? -1 : 1;
+      ctx.fillStyle = '#8b6946';
+      ctx.fillRect(x + side * 7 - 5, y - 2, 10, 6);
+      ctx.strokeStyle = 'rgba(58,47,36,.55)';
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.moveTo(x + side * 7 - 5, y - 2); ctx.lineTo(x + side * 7 + 5, y - 2);
+      ctx.lineTo(x + side * 7 + 5, y + 4); ctx.lineTo(x + side * 7 - 5, y + 4);
+      ctx.closePath(); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(x + side * 7, y - 2); ctx.lineTo(x + side * 7, y + 4); ctx.stroke();
+    }
+  }
+
   /*
-   * Base.paintTerrain already draws a light paving lattice on any cell.open
-   * tile (that IS the "plaza"/"forecourt" look). This adds the extra reading
-   * for the other open types, on top of that base treatment -- never a bare
-   * gap, but never a new sprite either.
+   * Base.paintTerrain supplies the paving lattice. This pass keeps the
+   * existing trees and bay markings, then adds one restrained, deterministic
+   * cluster of non-interactive primitives per visible open tile.
    */
   function paintOpenLots(ctx, visibleTiles, transform, tile, prefID) {
     for (const cell of visibleTiles) {
@@ -1029,8 +1085,7 @@
           ctx.stroke();
         }
       }
-      /* 'forecourt' and 'plaza' read from Base.paintTerrain's own paving
-         lattice on any cell.open tile -- no extra marks needed here */
+      paintOpenMicroProps(ctx, cell, x, y, tile, prefID);
     }
   }
 
@@ -1085,7 +1140,7 @@
 
   const api = Object.assign({}, Base, {
     buildWorldDistrict, worldTransform, withCamera, clampCameraToContent, cullVisible,
-    paintWorldRoads, paintCrosswalks, paintOpenLots, paintSidewalkWidening, blitWorldSprites,
+    paintWorldRoads, paintCrosswalks, paintOpenLots, paintOpenMicroProps, paintSidewalkWidening, blitWorldSprites,
     overlayAnchors: worldOverlayAnchors,
     validateCategoryManifest, indexCategoryManifest, selectSpriteForCategory,
     CATEGORY_TAXONOMY, CATEGORY_FALLBACK, ROLE_CATEGORY, pickRoleCategory, ZONE_DISTRICT_TAG,
