@@ -167,7 +167,7 @@ P2 props are **Canvas scenery**, not DOM interaction UI. They must be determinis
 
 Before adding props, inspect the current manifest, available assets, `map-world-preview`/world-generation code, and existing taxonomy so categories are based on actual inventory rather than assumptions. If dedicated prop sprites or building-level `propSlots` become necessary, treat that as a separate future PR rather than bundling it into a Canvas micro-props pass.
 
-Office grade/tier affinity and pinch zoom remain separate possible future PRs. Do not bundle either into a props PR unless the user explicitly changes scope.
+Office grade/tier affinity is part of the production marker-placement contract: C/B/A rental offices prefer office.small/office.mid/office.hero respectively when that tier exists, with deterministic legitimate office/mixed-use fallback when a regional fabric omits it. Pinch zoom remains a separate possible future PR; do not bundle it into unrelated map visual work unless the user explicitly changes scope.
 
 ## 6. Founding-route validation (only when that area changes)
 
