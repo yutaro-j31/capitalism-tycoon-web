@@ -1232,3 +1232,101 @@ overflowing store/tenant/office 400-deep in a scarce prefecture so the
 tables, the pin-smaller-than-button and >=44px-unclipped geometry, and four
 negative tests (reverting to zone selection, listing parkland, dropping the
 open-space guard, restoring the clip-path on the button).
+
+## 20. Marker visual density / selection UX calibration
+
+Follow-up to sections 18-19. With markers anchored to the right buildings, the
+remaining real-device complaint was that the map no longer read as a *map*:
+the pins plus their always-on category placards covered the street grid.
+
+### Root cause
+
+Section 15 ("requirement C") deliberately made every marker's label
+unconditionally visible -- `.d-map-marker small{display:block;opacity:1}`,
+overriding both the `opacity:0` default in `css/d-ui-reference-fidelity.css`
+and the `<=820px` `display:none` in `css/d-ui.css` -- so a player could read
+"テナント募集" without tapping. That solved discoverability and created a worse
+problem: on a 390px screen seventeen opaque plates sat over the city.
+
+Measured in Chromium on main (`2664e54`), Tokyo's 17-marker fixture, as a
+share of the visible map surface:
+
+| | desktop 1280x800 | iPhone 390x844 |
+| --- | --- | --- |
+| pin ink | 7.00% | 12.48% |
+| label ink | 10.29% | 18.36% |
+| **total marker ink** | **17.29%** | **30.84%** |
+| labels painted at rest | 17 / 17 | 17 / 17 |
+
+Nearly a third of the iPhone map was marker rather than city.
+
+### Fix
+
+**Default state is a bare pin.** `.d-map-marker small` returns to
+`display:none`, and a `(0,2,1)` rule reveals it for
+`.selected` / `:hover` / `:focus-visible` only. The `.selected` reveal
+out-ranks the `(0,1,1)` `@media(max-width:820px)` hide in `css/d-ui.css`, so
+the selected label appears on phones too -- which is the point.
+
+**The label now names the entity.** A selected placard renders the category on
+its own line (`placardLabel()`, unchanged) plus the entity's own name
+(`placardName()`, which returns `''` when the name would only repeat the
+category -- a store's category line already *is* its name). The visible label
+is `aria-hidden`; the button's accessible name comes from `markerAriaLabel()`,
+which carries category **and** name, so hiding the plate costs assistive
+technology nothing -- it gains the name for every marker.
+
+**The pin shrank again.** 34x42 -> **26x32** (-24% per axis, -42% area), and
+the button dropped to exactly **44x44** -- the iOS minimum held on both axes,
+every pixel tappable because the button stays `clip-path:none`. The inherited
+`★★★` decoration (a fixed three stars on every marker, carrying no
+information) is suppressed. `MARKER_CLAMP_HALF_W/H` follow the pin to 14/17
+and `DECLUTTER_STEP` to 18, so ring 2 (36px) still clears a head-on collision.
+
+### MAX_ANCHOR_OFFSET deliberately NOT tightened
+
+Tightening the cap looked attractive -- smaller pins need less room -- and was
+tried at 40. It silently broke chrome avoidance: `CLAMP_NUDGE_STEP` is bounded
+by the cap, so at 40 the nudge could only reach 34px, while escaping
+`.iphone-map-nav` (a full-width strip whose own button is `min-height:46px`)
+needs roughly `46/2 + MARKER_CLAMP_HALF_H` = 40px, and the taller real strip
+more. `tests/map-phase2-marker-placard-interaction-test.js`'s chrome-nudge
+check caught it immediately. The cap stays **56**: the pin shrinking is what
+reduces displacement in practice, the cap is what guarantees the marker still
+points at its building, and the nudge headroom is what keeps the iPhone filter
+tappable (the PR #616 regression). `tests/map-marker-density-selection-test.js`
+encodes that reasoning as an executable check.
+
+### Result
+
+| | desktop 1280x800 | iPhone 390x844 |
+| --- | --- | --- |
+| labels painted at rest | 17 -> **0** | 17 -> **0** |
+| pin ink | 7.00% -> **4.08%** | 12.48% -> **7.27%** |
+| label ink | 10.29% -> **0.00%** | 18.36% -> **0.00%** |
+| **total marker ink** | 17.29% -> **4.08%** | 30.84% -> **7.27%** |
+| hit target | 46x56 -> **44x44** (>=44 both axes) | same |
+| max anchor offset | within the 56px cap (25-51px measured) | within cap (10-51px) |
+
+Exactly one label is painted when exactly one marker is selected, verified
+per-marker (`labelPainted === selected` for every marker) rather than by a
+global count. Tapping still opens the correct entity's detail for tenant /
+office / realestate, through pan, filter, view toggle and
+Tokyo/Gunma/Saitama/Chiba switches; 0 console errors, 0 horizontal overflow.
+
+New coverage: `tests/map-marker-density-selection-test.js` (21 checks) --
+the 20-35% shrink band measured against the inherited size, the >=44px
+unclipped tap target, pin-smaller-than-button, anchor centring, star
+suppression, the label-free resting state, the selection/hover/focus reveal,
+the two-part label, `placardName`'s purity and no-repeat rule, the enriched
+accessible name, the collision box tracking the pin, the declutter ring
+arithmetic, the chrome-escape headroom that forbids tightening the cap, PR
+#617/#619 wiring left intact, and five negative tests (restoring always-on
+labels, a sub-44px button, deleting the `.selected` reveal, re-clipping the
+button, and a shrink too small to count).
+
+The two existing assertions that pinned the *old* always-on contract
+(`map-phase2-marker-placard-interaction-test.js`,
+`map-marker-detail-interaction-test.js`) are rewritten to the new one rather
+than deleted: each now asserts hidden-by-default AND the selected reveal AND
+that the base-file rules they override still exist.

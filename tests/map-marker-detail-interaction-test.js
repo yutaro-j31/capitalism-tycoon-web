@@ -297,9 +297,22 @@ check('the iPhone chrome controls and markers still stay out of each other\'s wa
   assert.match(read('css/d-ui-map-phase2-markers.css'), /\.d-map-marker\{z-index:25\}/, 'markers must still out-rank the surface');
 });
 
-check('placard labels stay unconditionally visible (PR #615 must not regress)', () => {
-  assert.match(read('css/d-ui-map-phase2-markers.css'), /\.d-map-marker small\{display:block;opacity:1/);
+/*
+ * PR #615 made every marker's label unconditionally visible. The density
+ * pass REVERSES that on purpose: on a 390px device a dozen always-on plates
+ * hid the street grid, so the label is now painted only for the marker the
+ * player is pointing at. What must not regress is that the label still
+ * EXISTS and still names the category -- checked here in the new form.
+ */
+check('placard labels are selection-scoped, and every category label still exists', () => {
+  const markersCss = read('css/d-ui-map-phase2-markers.css');
+  assert.match(markersCss, /\.d-map-marker small\{display:none/,
+    'the resting state must paint no label');
+  assert.match(markersCss, /\.d-map-marker\.selected small/,
+    'the selected marker must still get its label back');
   assert.match(shellSrc, /function placardLabel\(entity\)/);
+  assert.match(shellSrc, /function placardName\(entity\)/,
+    'the selected placard must be able to name the entity, not just its category');
   for (const label of ['テナント募集', 'オフィス募集', '売物件']) {
     assert.ok(shellSrc.includes(label), `${label} must still be a placard label`);
   }

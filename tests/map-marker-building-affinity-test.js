@@ -460,8 +460,12 @@ async function main() {
   });
 
   await check('NEGATIVE: putting the clip-path back on the button would collapse the pin and the tap target into one box again', () => {
-    const mutated = markersCss.replace('.d-map-marker{width:46px;height:56px;background:none;border:0;clip-path:none',
-      '.d-map-marker{width:46px;height:56px;background:none;border:0;clip-path:polygon(50% 0,93% 18%,93% 68%,50% 100%,7% 68%,7% 18%)');
+    // Read the real declarations out of the rule rather than hard-coding the
+    // sizes, so this mutation keeps applying as the geometry is re-tuned.
+    const rule = markersCss.match(/\.d-map-marker\{width:\d+px;height:\d+px[^}]*clip-path:none[^}]*\}/);
+    assert.ok(rule, 'the unclipped button rule must exist to mutate');
+    const mutated = markersCss.replace(rule[0],
+      rule[0].replace('clip-path:none', 'clip-path:polygon(50% 0,93% 18%,93% 68%,50% 100%,7% 68%,7% 18%)'));
     assert.notEqual(mutated, markersCss, 'sanity: the mutation must apply');
     assert.doesNotMatch(mutated, /\.d-map-marker\{[^}]*clip-path:none/,
       'mutated source must fail the same unclipped-button check the real check uses');

@@ -124,6 +124,16 @@
   テストにも効くので、pinの形は .d-map-marker:before に描き、button 自体は
   clip-path:none の44px以上の矩形のまま残す（両方を1つのboxにすると
   「見た目を小さくする」と「44pxを確保する」が両立しない）
+- marker のラベル（テナント募集/売物件/オフィス募集）は**選択時のみ**表示する。
+  全markerに常時表示すると街が見えなくなる（実測: iPhone 390pxで
+  marker+labelが地図面積の30.8%を占有していた。選択時のみにして7.3%）。
+  ラベルを消す代わりにpin本体を大きくしない。ラベル非表示の分の情報は
+  button の aria-label（種別＋名称）と詳細パネルが担保する。
+  tests/map-marker-density-selection-test.js が常時表示への逆戻りを赤で検出する
+- MAX_ANCHOR_OFFSET を安易に下げない。chrome回避ナッジ（CLAMP_NUDGE_STEP）の
+  到達距離はこの上限で決まり、.iphone-map-nav（min-height:46pxのボタンを含む
+  全幅ストリップ）を抜けるには約45px必要。56→40に下げるとナッジが34pxまでしか
+  届かず、PR #616 の「markerがfilterのタップを飲む」回帰が静かに再発する
 - 1機能1PR。ブランチ名は feat/ fix/ ci/ refactor/ docs/ のいずれか
 
 # 既知の落とし穴

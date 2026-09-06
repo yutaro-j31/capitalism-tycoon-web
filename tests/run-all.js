@@ -69,6 +69,7 @@ const nodeTests = [
   ['map-marker-detail-interaction', 'tests/map-marker-detail-interaction-test.js'],
   ['map-marker-anchor-integrity', 'tests/map-marker-anchor-integrity-test.js'],
   ['map-marker-building-affinity', 'tests/map-marker-building-affinity-test.js'],
+  ['map-marker-density-selection', 'tests/map-marker-density-selection-test.js'],
   ['d-ui-shell', 'tests/d-ui-shell-test.js'],
   ['deterministic-economic-foundation', 'tests/deterministic-economic-foundation-test.js'],
   ['executive-dismissal-governance', 'tests/executive-dismissal-governance-test.js'],

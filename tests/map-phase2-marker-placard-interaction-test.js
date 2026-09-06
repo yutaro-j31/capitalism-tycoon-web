@@ -253,13 +253,42 @@ async function main() {
     assert.doesNotMatch(extractFunctionBody(iphoneJsSrc, 'ensureMapChrome'), /navigator\.userAgent/);
   });
 
-  /* ================= ALWAYS-VISIBLE PLACARD LABEL ================= */
-  await check('the marker label is unconditionally visible (opacity:1, display:block) -- it used to be opacity:0 until hover/focus/selected and fully display:none under <=820px (every phone)', () => {
-    assert.match(markersCssSrc, /\.d-map-marker small\{display:block;opacity:1/);
-    // sanity: the OLD hover-reveal/mobile-hide rules this overrides are still in the base files
-    // (this test would be vacuous if they had been deleted instead of overridden).
+  /* ================= SELECTION-SCOPED PLACARD LABEL =================
+   * This pass REVERSES the earlier "always visible" requirement. Making
+   * every marker's category readable without tapping put a dozen opaque
+   * plates over the street grid on a 390px device, so the city underneath
+   * stopped being readable -- the opposite of what a map is for. The label
+   * is now painted only for the marker the player is pointing at.
+   * The checks below are the same contract inverted, not a relaxation:
+   * hidden by default is asserted, AND the selected reveal is asserted, AND
+   * the base files are still asserted untouched. */
+  await check('the marker label is hidden by default so the city stays readable, and is revealed only for the selected / hovered / keyboard-focused marker', () => {
+    assert.match(markersCssSrc, /\.d-map-marker small\{display:none/,
+      'the default state must paint no label at all');
+    assert.doesNotMatch(markersCssSrc.replace(/\/\*[\s\S]*?\*\//g, ''), /\.d-map-marker small\{display:block/,
+      'no unconditional always-on label rule may come back');
+    // Match against declarations only: the rule is also NAMED in a comment
+    // above it (a specificity note), and that comment would otherwise be
+    // what this regex found.
+    const markersCssRules = markersCssSrc.replace(/\/\*[\s\S]*?\*\//g, '');
+    const reveal = markersCssRules.match(/\.d-map-marker\.selected small[^{]*\{([^}]*)\}/);
+    assert.ok(reveal, 'the selected marker must have its own reveal rule');
+    assert.match(reveal[0], /\.d-map-marker\.selected small/, 'selection must be what reveals the label');
+    assert.match(reveal[1], /display:block/, 'the selected label must actually be painted');
+    // sanity: the base hover-reveal/mobile-hide rules are still in the base
+    // files (this test would be vacuous if they had been deleted).
     assert.match(referenceCssSrc, /\.d-map-marker small\{opacity:0/);
     assert.match(baseCssSrc, /\.d-map-marker small\{display:none\}/);
+  });
+
+  await check('the selected reveal out-ranks the <=820px display:none in css/d-ui.css, so a selected label appears on a phone too', () => {
+    // .d-map-marker.selected small is (0,2,1); the media-query rule it must
+    // beat is .d-map-marker small at (0,1,1). Media queries add no
+    // specificity, so the class-count comparison is the whole argument.
+    assert.match(baseCssSrc, /@media\(max-width:820px\)[\s\S]*\.d-map-marker small\{display:none\}/,
+      'sanity: the phone-hiding rule this must beat still exists');
+    assert.match(markersCssSrc, /\.d-map-marker\.selected small/,
+      'the reveal must be class-qualified (.selected), not a bare element selector');
   });
 
   await check('placardLabel() maps each kind to a fixed category label, matching acceptance criterion C', () => {
@@ -274,9 +303,14 @@ async function main() {
   await check('the marker template renders the placard label and dot, and keeps the exact data-d-ui-marker/data-phase2-tile-x/y click contract byte-for-byte', () => {
     assert.match(shellSrc, /data-d-ui-marker="\$\{esc\(entity\.id\)\}" data-phase2-tile-x="\$\{entity\.tileX\}" data-phase2-tile-y="\$\{entity\.tileY\}"/, 'unchanged marker click contract');
     assert.match(shellSrc, /data-phase2-offset-x="\$\{entity\.placardOffsetX\|\|0\}" data-phase2-offset-y="\$\{entity\.placardOffsetY\|\|0\}"/);
-    assert.match(shellSrc, /aria-label="\$\{esc\(placardLabel\(entity\)\)\}"/);
+    // The accessible name now carries category AND the entity's own name,
+    // because the visible label is no longer painted for every marker --
+    // assistive technology must not lose information the sighted default
+    // state also stopped showing.
+    assert.match(shellSrc, /aria-label="\$\{esc\(markerAriaLabel\(entity\)\)\}"/);
     assert.match(shellSrc, /<i class="d-map-marker-dot" aria-hidden="true"><\/i>/);
-    assert.match(shellSrc, /<small>\$\{esc\(placardLabel\(entity\)\)\}<\/small>/);
+    assert.match(shellSrc, /<small aria-hidden="true"><b>\$\{esc\(placardLabel\(entity\)\)\}<\/b>\$\{esc\(placardName\(entity\)\)\}<\/small>/,
+      'the selected placard must render the category and the entity name as two parts');
   });
 
   /* ================= ACCESSIBILITY ================= */
