@@ -103,6 +103,33 @@ check('the pin stays centred on the button centre, so shrinking it did not move 
   assert.match(pinRule, /transform:translate\(-50%,-50%\)/);
 });
 
+check('the category cascade cannot repaint the transparent 44px button behind the 26x32 pin', () => {
+  assert.match(markersRules,
+    /body\.d-ui-active \[data-screen="map"\] \.d-map-marker\.store,[\s\S]*?\.d-map-marker\.realestate\{background:none\}/,
+    'all four category selectors must clear the button at category-rule specificity');
+  assert.match(ruleFor('body.d-ui-active [data-screen="map"] .d-map-marker'), /background:none/);
+  assert.match(ruleFor('body.d-ui-active [data-screen="map"] .d-map-marker'), /filter:none/,
+    'the inherited large-button drop shadow must not reveal the hit target');
+});
+
+check('the glyph-to-pin ratio is readable without enlarging the resting pin', () => {
+  const glyphRule = ruleFor('.d-map-marker span');
+  const glyphSize = px(glyphRule, 'font-size');
+  assert.ok(glyphSize >= 16 && glyphSize <= 18, `glyph ${glyphSize}px should be readable but restrained`);
+  assert.match(glyphRule, /font-weight:800/);
+  assert.match(glyphRule, /text-shadow:/, 'glyph needs a dark edge over every category fill');
+  assert.equal(pinW, 26);
+  assert.equal(pinH, 32);
+});
+
+check('selected/focused pins get a bounded pin-only ring and stack above resting neighbours', () => {
+  const selected = ruleFor('body.d-ui-active [data-screen="map"] .d-map-marker.selected');
+  assert.match(selected, /z-index:27/);
+  assert.match(selected, /outline:none/, 'the 44px button must not expose a large selected outline');
+  assert.match(markersRules, /\.d-map-marker\.selected:before,[\s\S]*?\.d-map-marker:focus-visible:before\{[^}]*scale\(1\.08\)[^}]*border-color:#ffe39a[^}]*drop-shadow/,
+    'selection emphasis must stay on the small visible pin and work for keyboard focus');
+});
+
 check('the decorative "★★★" overlay is suppressed -- three fixed stars carry no information and are pure noise at this pin size', () => {
   assert.match(referenceCss, /content:"★★★"/, 'sanity: the inherited decoration still exists to suppress');
   assert.match(ruleFor('.d-map-marker:after'), /display:none/);
