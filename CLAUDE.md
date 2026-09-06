@@ -6,7 +6,7 @@
 
 ## 1. Game design direction
 
-The product is **資本主義ポケット TYCOON / Capitalism Tycoon Web**, a long-form browser management/capitalist simulation influenced by Capitalism / Capitalism Lab and Coffee Inc 2.
+The product is **資本主義ポケット TYCOON / Capitalism Tycoon Web**. The primary product/UX reference is **Coffee Inc 2**; Capitalism / Capitalism Lab mainly inform deeper economic, operating, and capital-allocation systems.
 
 Two founding routes are legitimate game designs:
 
@@ -163,9 +163,9 @@ After production integration, framing, lifecycle, regional identity, lazy-load/c
 - parking/service equipment
 - other small environmental scenery
 
-P2 props are **Canvas scenery**, not DOM interaction UI. They must be deterministic, reuse local sprites, preserve culling, avoid simulation RNG, avoid rebuilding the world during pan, and not increase DOM nodes. Their purpose is to make the city feel inhabited rather than merely populated with building sprites, and they may vary by prefecture profile.
+P2 props are **Canvas scenery**, not DOM interaction UI. They must be deterministic, preserve culling, avoid simulation RNG, avoid rebuilding the world during pan, and not increase DOM nodes. Use the **actual current asset inventory** where appropriate, and otherwise prefer low-cost deterministic Canvas primitives. Do **not** assume dedicated prop sprites or a `propSlots` system already exist.
 
-Before adding props, inspect the current manifest, available assets, `map-world-preview`/world-generation code, and existing taxonomy so categories are based on actual inventory rather than assumptions.
+Before adding props, inspect the current manifest, available assets, `map-world-preview`/world-generation code, and existing taxonomy so categories are based on actual inventory rather than assumptions. If dedicated prop sprites or building-level `propSlots` become necessary, treat that as a separate future PR rather than bundling it into a Canvas micro-props pass.
 
 Office grade/tier affinity and pinch zoom remain separate possible future PRs. Do not bundle either into a props PR unless the user explicitly changes scope.
 
