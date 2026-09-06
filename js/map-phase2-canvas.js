@@ -30,11 +30,11 @@ if(modules.mapPhase2Canvas)throw new Error('map-phase2-canvas.js is already regi
  * to any browser storage, and never becomes part of game state or the
  * simulation.
  */
-globalThis.__STATIC_ASSET_REVISION='022b9a75e3d2';
+globalThis.__STATIC_ASSET_REVISION='cfa95b033b8a';
 const ASSET_BASE='./assets/map-sprites/phase2';
 const IMAGE_BASE='./assets/map-sprites/phase1';
-const MANIFEST_URL=`${ASSET_BASE}/sprites.json?rev=022b9a75e3d2`;
-const PROTOTYPE_SCRIPTS=['./prototypes/map-canvas-renderer.js?rev=022b9a75e3d2','./prototypes/map-prefecture-profiles.js?rev=022b9a75e3d2','./prototypes/map-world-preview.js?rev=022b9a75e3d2'];
+const MANIFEST_URL=`${ASSET_BASE}/sprites.json?rev=cfa95b033b8a`;
+const PROTOTYPE_SCRIPTS=['./prototypes/map-canvas-renderer.js?rev=cfa95b033b8a','./prototypes/map-prefecture-profiles.js?rev=cfa95b033b8a','./prototypes/map-world-preview.js?rev=cfa95b033b8a'];
 const WORLD_COLS=32,WORLD_ROWS=28;
 /*
  * Initial-framing pull-back (Map Framing / Zoom-out Calibration). This
@@ -368,18 +368,18 @@ const MAX_ANCHOR_OFFSET=56;
  * accepted trade-off ("軽微な重なりは許容してもよいが、位置の
  * 意味を壊してはならない").
  *
- * The badge is .d-map-marker:before at 34x42 (css/d-ui-map-phase2-markers.
- * css); 36x44 here leaves a 1px margin on each side so two pins never touch.
- * The BUTTON around it stays 46x56 and fully tappable, so shrinking this
- * box shrinks how far markers push each other WITHOUT shrinking any tap
- * target -- the two were the same number only while a clip-path forced the
- * pin and the hit area to be one box.
+ * The badge is .d-map-marker:before at 26x32 (css/d-ui-map-phase2-markers.
+ * css); 28x34 here leaves a 1px margin on each side so two pins never touch.
+ * The BUTTON around it stays 44x44 -- the iOS minimum on both axes, fully
+ * tappable -- so shrinking this box shrinks how far markers push each other
+ * WITHOUT shrinking any tap target; the two were the same number only while
+ * a clip-path forced the pin and the hit area to be one box.
  */
-const MARKER_CLAMP_HALF_W=18,MARKER_CLAMP_HALF_H=22;
+const MARKER_CLAMP_HALF_W=14,MARKER_CLAMP_HALF_H=17;
 /* One ring must be able to clear a head-on collision inside the cap: two
-   pins sharing an anchor need 2*MARKER_CLAMP_HALF_H=44px of separation, so
-   ring 2 (48px) resolves it at well under MAX_ANCHOR_OFFSET. */
-const DECLUTTER_STEP=24;
+   pins sharing an anchor need 2*MARKER_CLAMP_HALF_H=34px of separation, so
+   ring 2 (36px) resolves it inside MAX_ANCHOR_OFFSET. */
+const DECLUTTER_STEP=18;
 const DECLUTTER_DIRECTIONS=[[0,-1],[1,-1],[1,0],[1,1],[0,1],[-1,1],[-1,0],[-1,-1]];
 /*
  * Candidate #1 is always "no shift at all", so a marker with no neighbour

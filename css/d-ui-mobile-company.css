@@ -1,13 +1,13 @@
 /* Keep company identity, current week, week controls, and settings reachable in compact D layouts. */
-@import url("./d-ui-reference-fidelity.css?rev=022b9a75e3d2");
+@import url("./d-ui-reference-fidelity.css?rev=cfa95b033b8a");
 @import url("./d-ui-home.css");
 @import url("./d-ui-finance.css");
-@import url("./d-ui-map-focus.css?rev=022b9a75e3d2");
-@import url("./d-ui-map-depth.css?rev=022b9a75e3d2");
-@import url("./d-ui-map.css?rev=022b9a75e3d2");
-@import url("./d-ui-map-phase2-canvas.css?rev=022b9a75e3d2");
-@import url("./d-ui-map-phase2-markers.css?rev=022b9a75e3d2");
-@import url("./d-ui-map-phase2-pan.css?rev=022b9a75e3d2");
+@import url("./d-ui-map-focus.css?rev=cfa95b033b8a");
+@import url("./d-ui-map-depth.css?rev=cfa95b033b8a");
+@import url("./d-ui-map.css?rev=cfa95b033b8a");
+@import url("./d-ui-map-phase2-canvas.css?rev=cfa95b033b8a");
+@import url("./d-ui-map-phase2-markers.css?rev=cfa95b033b8a");
+@import url("./d-ui-map-phase2-pan.css?rev=cfa95b033b8a");
 @import url("./d-ui-business.css");
 @import url("./d-ui-office.css");
 @import url("./d-ui-bank.css");

@@ -124,6 +124,28 @@ function placardLabel(entity){
   if(entity.kind==='realestate')return '売物件';
   return entity.name||'自社店舗';
 }
+/*
+ * The selected marker's second line: the entity's OWN name, so a selected
+ * placard says which 出店候補 / which 売物件 it is and not merely what kind
+ * of thing it is. Returns '' when the name would only repeat the category
+ * line -- placardLabel() already returns a store's own name, so a store
+ * would otherwise print it twice. Reads only fields buildMapViewModel
+ * already sets (name/label); never fabricates a value.
+ */
+function placardName(entity){
+  const name=(entity&&(entity.name||entity.label))||'';
+  return name===placardLabel(entity)?'':name;
+}
+/*
+ * Accessible name for the marker button. The visible label is now painted
+ * only for the selected/hovered/focused marker, so this is what assistive
+ * technology reads for every OTHER marker -- it must therefore carry both
+ * the category and the entity's own name, not just the category.
+ */
+function markerAriaLabel(entity){
+  const name=placardName(entity);
+  return name?`${placardLabel(entity)} ${name}`:placardLabel(entity);
+}
 // A store opened this week is 'preparing' until its openingWeek arrives (js/engine.js sets
 // status/openingWeek at openStore and flips to 'open' in the weekly loop). This panel used to
 // print 営業中 unconditionally, so a store still under construction looked like a trading store
@@ -259,7 +281,7 @@ function renderMapWorkspace(screen,g){
     const filtered=mapFilterKind==='all'?placed:placed.filter(entity=>entity.kind===mapFilterKind);
     const placeable=filtered.filter(entity=>entity.tileX!==null&&entity.tileY!==null);
     markersHTML=placeable.length
-      ?placeable.map(entity=>`<button type="button" class="d-map-marker ${entity.kind} ${entity.id===chosen?.id?'selected':''}" data-d-ui-marker="${esc(entity.id)}" data-phase2-tile-x="${entity.tileX}" data-phase2-tile-y="${entity.tileY}" data-phase2-offset-x="${entity.placardOffsetX||0}" data-phase2-offset-y="${entity.placardOffsetY||0}" aria-label="${esc(placardLabel(entity))}"><i class="d-map-marker-dot" aria-hidden="true"></i><span aria-hidden="true">${markerIcon(entity)}</span><small>${esc(placardLabel(entity))}</small></button>`).join('')
+      ?placeable.map(entity=>`<button type="button" class="d-map-marker ${entity.kind} ${entity.id===chosen?.id?'selected':''}" data-d-ui-marker="${esc(entity.id)}" data-phase2-tile-x="${entity.tileX}" data-phase2-tile-y="${entity.tileY}" data-phase2-offset-x="${entity.placardOffsetX||0}" data-phase2-offset-y="${entity.placardOffsetY||0}" aria-label="${esc(markerAriaLabel(entity))}"><i class="d-map-marker-dot" aria-hidden="true"></i><span aria-hidden="true">${markerIcon(entity)}</span><small aria-hidden="true"><b>${esc(placardLabel(entity))}</b>${esc(placardName(entity))}</small></button>`).join('')
       :'<div class="d-no-markers">該当する拠点がありません</div>';
   }
   const filterChips=`<div class="d-map-filter-chips">${MAP_FILTER_KINDS.map(([kind,label])=>`<button type="button" class="d-map-filter-chip ${mapFilterKind===kind?'active':''}" data-d-ui-action="map-filter" data-kind="${kind}">${esc(label)}</button>`).join('')}</div>`;
