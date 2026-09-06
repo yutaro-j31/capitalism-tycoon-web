@@ -10,7 +10,7 @@
    js/map-phase2-canvas.js) -- if the two disagree, the browser is running a
    mixed generation of the map assets. Purely diagnostic: nothing reads it to
    make a rendering decision. */
-:root{--d-map-asset-revision:"f8eca0b3e584"}
+:root{--d-map-asset-revision:"1c1eb6b8ac57"}
 
 /* Filter chip row -- reuses the same --d-gold token css/d-ui.css already
    defines for this screen. Non-persistent UI state only
@@ -60,11 +60,22 @@
  * guarantees the marker still points at its building.
  */
 .d-map-marker{width:44px;height:44px;background:none;border:0;clip-path:none;border-radius:10px}
-.d-map-marker:before{content:"";position:absolute;left:50%;top:50%;width:26px;height:32px;box-sizing:border-box;transform:translate(-50%,-50%);clip-path:polygon(50% 0,93% 18%,93% 68%,50% 100%,7% 68%,7% 18%);border:1.5px solid rgba(255,255,255,.72);background:linear-gradient(180deg,#2d8b62,#145a43)}
+.d-map-marker:before{content:"";position:absolute;left:50%;top:50%;width:26px;height:32px;box-sizing:border-box;transform:translate(-50%,-50%);clip-path:polygon(50% 0,93% 18%,93% 68%,50% 100%,7% 68%,7% 18%);border:1.5px solid rgba(255,255,255,.9);background:linear-gradient(180deg,#2d8b62,#145a43);filter:drop-shadow(0 1px 1.5px rgba(2,8,15,.9));transition:transform .14s ease,filter .14s ease,border-color .14s ease}
 /* The 4-way semantic legend lives on the button in css/d-ui-map.css at
    (0,4,1) specificity; re-point each kind's fill at the pin it now draws,
    matching that specificity so source order decides. */
-body.d-ui-active [data-screen="map"] .d-map-marker{background:none}
+/*
+ * Cascade repair: d-ui-map.css assigns each CATEGORY's gradient to the
+ * 44x44 button at higher specificity than the generic background:none
+ * above. That left a large rounded colour tile visible behind the intended
+ * 26x32 ::before pin. Repeat the same category specificity here so the
+ * interactive box is genuinely transparent in the computed style.
+ */
+body.d-ui-active [data-screen="map"] .d-map-marker{background:none;filter:none}
+body.d-ui-active [data-screen="map"] .d-map-marker.store,
+body.d-ui-active [data-screen="map"] .d-map-marker.tenant,
+body.d-ui-active [data-screen="map"] .d-map-marker.office,
+body.d-ui-active [data-screen="map"] .d-map-marker.realestate{background:none}
 body.d-ui-active [data-screen="map"] .d-map-marker.store:before{background:linear-gradient(180deg,#6f9cff,#3763c9)}
 body.d-ui-active [data-screen="map"] .d-map-marker.tenant:before{background:linear-gradient(180deg,#ff8f9b,#c33a4d)}
 body.d-ui-active [data-screen="map"] .d-map-marker.office:before{background:linear-gradient(180deg,#9a7cff,#5c3fc9)}
@@ -72,7 +83,7 @@ body.d-ui-active [data-screen="map"] .d-map-marker.realestate:before{background:
 /* Glyph sits above the pin (::before paints first) and is re-scaled for the
    26x32 pin. `position:relative` only establishes paint order against
    ::before -- the grid centring from css/d-ui.css still positions it. */
-.d-map-marker span{position:relative;font-size:14px}
+.d-map-marker span{position:relative;font-size:17px;font-weight:800;line-height:1;color:#fff;text-shadow:0 1px 2px rgba(2,8,15,.95)}
 /*
  * The inherited "★★★" decoration (css/d-ui-reference-fidelity.css) is a
  * fixed three stars on every marker regardless of the entity -- it carries
@@ -121,6 +132,9 @@ body.d-ui-active [data-screen="map"] .d-map-marker.realestate:before{background:
  * wins, on every device, deterministically (not "usually").
  */
 .d-map-marker{z-index:25}
+body.d-ui-active [data-screen="map"] .d-map-marker.selected{z-index:27;outline:none;filter:none}
+body.d-ui-active [data-screen="map"] .d-map-marker.selected:before,
+body.d-ui-active [data-screen="map"] .d-map-marker:focus-visible:before{transform:translate(-50%,-50%) scale(1.08);border-color:#ffe39a;filter:drop-shadow(0 0 3px rgba(255,213,116,.95)) drop-shadow(0 3px 2px rgba(2,8,15,.85))}
 
 /*
  * Label visibility: SELECTION-SCOPED, not always-on.
