@@ -1,7 +1,8 @@
 # AGENTS.md — Capitalism Tycoon Web
 
-This file defines repository-wide operating rules for Codex and other coding agents.
-It is intentionally concise. Before making any change, read the current repository state and the project-specific rules in `CLAUDE.md`.
+This file defines repository-wide operating rules for Codex and other coding agents. It is model-agnostic: do not assume every agent is GPT-6 Astra, GPT-5.6 Sol, Luna, Claude, or any other specific model.
+
+The goal is to provide the project constraints and the completion boundary without forcing every task through the same reading or validation sequence.
 
 ## 1. Project and source of truth
 
@@ -9,23 +10,21 @@ Repository: `yutaro-j31/capitalism-tycoon-web`
 
 Product: **資本主義ポケット TYCOON / Capitalism Tycoon Web** — a browser-first, long-form management/capitalist simulation inspired by Capitalism / Capitalism Lab and Coffee Inc 2, with iPhone Safari as the priority client.
 
-At the start of every task:
+For code-changing work, refresh repository state and treat current `origin/main` as the mainline source of truth. Inspect the implementation and tests that are relevant to the requested change before deciding what to modify. When GitHub access is available, also check for active PRs or CI failures in the same area so work is not duplicated or layered on top of unfinished changes.
 
-1. `git fetch --prune origin`
-2. Treat `origin/main` as the current mainline source of truth; do not assume local `main` is current.
-3. Read, at minimum:
-   - `CLAUDE.md`
-   - `docs/feature-requests.md`
-   - `docs/gameplay-systems-roadmap.md`
-   - `package.json`
-4. Inspect relevant implementation and tests before deciding what to change.
-5. Inspect open PRs, reviews, and CI state when GitHub access is available.
+Do **not** read every project document for every task. Use progressive disclosure:
 
-`CLAUDE.md` contains detailed project-specific invariants, known pitfalls, and validation rules. If this file and `CLAUDE.md` differ on a project-specific detail, follow the latest `CLAUDE.md` while preserving the safety rules below.
+- gameplay, progression, businesses, balance: relevant sections of `CLAUDE.md`, `docs/feature-requests.md`, and `docs/gameplay-systems-roadmap.md`
+- D UI or map work: relevant UI/map sections of `CLAUDE.md`, `docs/ui-redesign-roadmap.md`, and the current map implementation/tests; use `docs/map-phase2-production-integration-audit.md` when historical production-integration detail is needed
+- save, determinism, accounting, company/personal ownership: the corresponding sections of `CLAUDE.md` plus the affected save/accounting tests and implementation
+- CI/workflow work: the affected workflow, its contract tests, recent runs/logs, and the CI/runtime pitfalls in `CLAUDE.md`; read `package.json` only when scripts/dependencies are relevant
+- docs-only work: read the documents being changed and any directly referenced source of truth; runtime test suites are not automatically required
+
+`CLAUDE.md` is a legacy filename retained for compatibility. Its contents are project-specific design/runtime knowledge for **all** coding agents, not instructions to use Claude Code.
 
 ## 2. Non-negotiable invariants
 
-Preserve all of the following unless the user explicitly authorizes a dedicated migration and the repository rules are updated first:
+Preserve these unless the user explicitly authorizes a dedicated migration and the repository rules are updated as part of that migration:
 
 - `SAVE_KEY=capitalism_tycoon_web_v1`
 - `saveVersion=9`
@@ -35,223 +34,113 @@ Preserve all of the following unless the user explicitly authorizes a dedicated 
 - strict separation of company assets/cash from personal assets/cash
 - iPhone Safari usability and startup stability
 
-Never “fix” a failing test by weakening the contract. Do not:
+Never obtain green CI by weakening the contract. Do not delete or unregister tests, weaken assertions, add skips for legitimate failures, change production behavior solely to appease an incorrect test, or update deterministic/accounting fixtures without first proving the behavior change is intended.
 
-- delete tests to get green CI
-- weaken assertions
-- extend timeouts to hide regressions
-- unregister tests
-- add skips for legitimate failures
-- change production behavior solely to appease an incorrect test
-- update deterministic/accounting fixtures without first proving the behavior change is intended
+A timeout increase is not categorically forbidden, but it must not be used to hide a regression. A CI-only timeout-budget change is acceptable only when runtime evidence shows the normal workload is healthy but the configured timeout lacks reasonable variance headroom; document the measurements and keep the change in a dedicated CI PR.
 
-## 3. Git and PR safety
+## 3. Autonomy and completion boundary
 
-Use **1 feature / 1 PR**.
+For an implementation task, continue without asking for approval at each local step through:
 
-Allowed branch prefixes:
+- repository inspection relevant to the task
+- implementation
+- focused/risk-appropriate local validation
+- fixing failures caused by the requested change
+- rerunning the affected checks
+- final diff inspection
+- commit, branch push, and PR creation when the user has asked for implementation rather than audit-only work
 
-- `feat/`
-- `fix/`
-- `ci/`
-- `refactor/`
-- `docs/`
+Do not stop at the first working draft merely to request review if the requested completion condition includes validation and repair.
 
-Never:
+Do **not** autonomously:
 
+- merge to `main`
 - push directly to `main`
-- force-push
-- rewrite published branch history without explicit user authorization
-- auto-merge or merge to `main` autonomously
-- overwrite, reset, clean, or stash unknown changes merely to obtain a clean tree
+- force-push or rewrite published history
+- access or mutate production services/data unless the user explicitly authorizes that operation and the environment is known to be safe
+- overwrite, reset, clean, or stash unknown work just to obtain a clean tree
 
-Before creating a new branch, base it on current `origin/main`, not a stale local branch.
+If the requested task cannot be completed safely because a required environment, credential, destructive decision, or product choice is genuinely unavailable, stop at that boundary and report the blocker precisely.
 
-Before pushing, inspect:
+## 4. Git and PR discipline
 
-```bash
-git status --short
-git diff --check
-git diff
-```
+Use **1 feature / 1 PR**. Allowed branch prefixes are `feat/`, `fix/`, `ci/`, `refactor/`, and `docs/`.
 
-Treat a GitHub push as submission of a locally completed result, not as part of
-the development loop. The required order is: implement, run focused tests, run
-syntax/static checks, run risk-appropriate and repository-required local
-regressions, get every local check green, inspect the final diff, commit, push,
-then observe GitHub CI. If any local check is red, do not commit or push; diagnose,
-fix, and rerun it locally first.
+Base new work on current `origin/main`, not a stale local `main`. Reuse an existing PR for the same branch/feature instead of creating a duplicate.
 
-Do not make WIP commits or pushes, push merely to ask CI whether a change works,
-or make a series of pushes for small corrections. Never obtain green status by
-deleting tests, weakening assertions, skipping or unregistering coverage,
-dismissing a failure as flaky, or extending a timeout to hide it. Direct pushes
-to `main` and force-pushes remain prohibited.
+Before pushing a code change, inspect the working tree and final diff (`git status --short`, `git diff --check`, and the relevant diff). Push a locally validated result rather than using GitHub CI as the primary development loop.
 
-When only GitHub CI is red, identify the failed workflow and job, read its logs,
-find the environment difference, reproduce it locally, fix it, and restore local
-green before making what should normally be one additional push. Do not rerun a
-failed job without evidence; a rerun is appropriate only for a clearly documented
-GitHub infrastructure or transient failure.
+Do not push another commit to the **same active PR/working branch** while CI for that head is queued or in progress unless the user explicitly asks to supersede it. Unrelated `main` CI or unrelated repository-wide runs do not automatically block local work, branch creation, or a separate PR. For merge decisions, evaluate the target PR and current main state explicitly.
 
-Before opening a PR, search for an open PR for the same feature and for the same
-branch, and compare the tree/diff when possible. Reuse an existing PR rather than
-creating a duplicate.
+Treat a failed rerun as evidence, not ritual. Rerun unchanged CI only when there is concrete evidence of transient GitHub/browser-install infrastructure behavior or another documented flake; otherwise diagnose the failure.
 
-Do not push additional commits to a branch while CI associated with the current `main`, the current working branch, or the current target PR is `queued` or `in_progress`. Repository-wide queued runs are not, by themselves, a push blocker.
+## 5. Existing work before new work
 
-A run may be excluded from the push gate only when it is clearly a stale/ghost run: it belongs to an already-merged or otherwise inactive PR/branch, has shown no meaningful state change for at least 7 days, has no jobs attached when inspected, and GitHub will not normally cancel/force-cancel it because of a server-side run-state failure. Record the evidence before excluding such a run. Never use this exception for a run associated with the current `main`, working branch, or target PR.
+Before starting a new feature, determine whether an active PR, branch, regression, or partial implementation already covers the same area. Prefer, in order:
 
-## 4. Existing work comes before new work
+1. requested changes or real failures on the target active PR
+2. confirmed regression on `main`
+3. incomplete implementation that directly overlaps the requested task
+4. new work
 
-Before starting a new feature, check whether an existing PR, branch, or implementation already covers the same area.
+Do not create a parallel implementation of the same feature. Search the relevant code for existing APIs, state, UI hooks, tests, and similar company/personal-side logic before adding a new system.
 
-Priority order:
+Prefer a small reviewable vertical slice. For gameplay work this usually means connecting the necessary parts of `state -> engine -> gameplay effect -> minimal UI -> persistence/compatibility -> tests`, but do not force this template onto CSS-only, CI-only, or documentation tasks.
 
-1. requested changes on an existing PR
-2. failing CI on an existing active PR
-3. incomplete work on an active PR
-4. confirmed regression on `main`
-5. small fix needed to finish an almost-ready PR
-6. new feature work
+## 6. Domain rules
 
-Do not create parallel implementations of the same feature. Do not pile a large change onto files or state structures already being heavily modified by an active PR unless the work is intentionally part of that PR.
+### Gameplay
 
-Old PRs must not be closed, deleted, or treated as obsolete without checking whether their functionality already landed elsewhere.
+Prefer meaningful decision loops: `player choice -> trade-off/risk/cost -> state consequence -> visible feedback`. Keep progression staged and avoid shallow isolated stat buttons when existing systems can carry the decision.
 
-## 5. How to choose new work
+When logic is shared between company and personal systems, share calculation logic only where appropriate; keep ownership, balances, transactions, and state attribution separate.
 
-When no existing PR/CI/regression requires attention, use the current roadmap and feature-request log to select the next task.
+### Determinism, saves, and accounting
 
-Before implementation, search the repository (`rg`, `grep`, code search) for:
+Do not introduce unnecessary RNG consumption. Prefer deterministic derivation from existing identifiers/state when sufficient. In tests that require distinct random-derived IDs, use a deterministic sequence/LCG rather than a constant random function.
 
-- existing APIs
-- partial implementations
-- state fields
-- UI hooks
-- tests
-- similar company-side or personal-side systems
+New persistent state should normally support old saves through safe defaults while retaining `saveVersion=9`. Monetary changes must follow the existing accounting model and avoid duplicate recognition of cash, revenue, cost, assets, or liabilities.
 
-Do not reimplement something that already exists.
+### Browser/UI
 
-Prefer a small **vertical slice** that connects:
+iPhone Safari is the priority runtime. Avoid hover-only required interactions, horizontal overflow, sub-44px critical touch targets, unnecessary DOM growth, high-frequency observers/microtask loops, unstable dynamic loading, `document.write`, and heavy synchronous work on interaction paths.
 
-`state -> engine -> gameplay effect -> minimal UI -> save compatibility -> tests`
+Keep the production MutationObserver contract and enhancer budget defined by the current repository tests. Never claim a physical-iPhone test unless a physical iPhone was actually used.
 
-A single PR should deliver one reviewable gameplay improvement, bug fix, depth expansion, or infrastructure correction. Split large systems into successive PRs.
+### Modules/removal
 
-When priorities are otherwise equal, favor business operations and player decision depth over adding more isolated financial/governance surface area. The current game already has comparatively deep finance, M&A, real-estate, and governance systems; operations, products, stores, customers, supply, workforce, advertising, and competitive play generally deserve priority when the roadmap agrees.
+When adding a production JS module, update all wiring required by the current module-load contract. When adding a test, ensure it participates in the canonical path/shard configuration. Before removing production or compatibility code, search its references and loading/migration paths first.
 
-## 6. Gameplay implementation standard
+## 7. Validation by change risk
 
-Prefer mechanics with a real decision loop:
+Run the validation that proves the requested change; do not mechanically run every historical test category.
 
-`player choice -> trade-off/risk/cost -> game-state consequence -> visible feedback`
+- UI/map presentation or interaction: focused map/UI tests, syntax/static checks as relevant, and browser/WebKit verification when interaction/lifecycle behavior changes; maintain map asset stamping when a map-critical asset changes
+- gameplay/economic/state changes: focused subsystem tests plus save/determinism/accounting checks **when affected**; use reachability/208-week/long-run or occurrence-rate checks when the feature is probabilistic, progression-sensitive, or economically cumulative
+- CI/workflow changes: workflow syntax/contract tests and evidence from the affected workflow/job; gameplay long-run tests are not required unless the workflow change touches them
+- docs-only changes: validate references/claims that can be checked cheaply; no blanket runtime suite
 
-Avoid shallow mechanics that are only “press button -> stat +5%” when an equally small implementation can create meaningful alternatives or constraints.
+Negative/mutation tests are valuable for important new contracts, but they are not a universal requirement for every edit.
 
-Keep game progression staged. Do not indiscriminately enable all businesses or systems from the beginning when the design expects unlock progression.
+The local canonical suite is intentionally expensive. Use focused local validation and let canonical CI be the final full gate unless the task specifically requires a full local run.
 
-When sharing logic between company and personal systems, share calculation logic only where appropriate; keep ownership, balances, transactions, and state attribution separate.
+Never claim PASS for a command or environment that was not actually executed.
 
-## 7. Determinism, saves, and accounting
+## 8. Reporting
 
-### Determinism
+At completion, report only the evidence needed to review the task:
 
-Do not introduce unnecessary RNG consumption. If deterministic derivation from existing identifiers/state is sufficient, prefer it.
+- base/main SHA and branch
+- commit and PR
+- what changed
+- checks actually run and their results
+- any save/determinism/accounting/company-vs-personal/iPhone implications that are relevant
+- unresolved risk or unverified environment
 
-Do not use a constant random function such as `random: () => 0.42` in tests where IDs or repeated random calls must remain distinct; use a deterministic sequence/LCG when needed.
+Do not pad the report with irrelevant checklist items.
 
-If a deterministic baseline changes, inspect RNG call count, cash, transactions, accounting, and resulting state before deciding that a fixture update is correct.
+## 9. Scheduled/recurring Codex tasks
 
-### Saves
+Only when the task is explicitly recurring or scheduled, run one safe development cycle: refresh state, repair directly relevant active work first, otherwise choose one non-conflicting small task, implement and validate it, push a branch/PR when safe, and never merge autonomously.
 
-New optional state should normally support old saves through safe defaults/fallbacks while retaining `saveVersion=9`.
-
-Validate malformed or missing values where they can enter existing saves. Exercise save/load round trips for persistent features.
-
-### Accounting
-
-Trace every new monetary action through the existing accounting model. Prevent duplicate recognition of revenue, cost, asset, liability, or cash movements. Run the relevant accounting invariants whenever a feature changes economic flows.
-
-## 8. Browser and UI constraints
-
-iPhone Safari is the priority runtime.
-
-Avoid:
-
-- hover-only interactions
-- fixed-width layouts that require horizontal scrolling
-- tiny touch targets
-- unnecessary DOM proliferation
-- high-frequency observers or microtask loops
-- unstable dynamic script loading
-- `document.write`
-- heavy synchronous work on interaction paths
-
-Production startup must keep the repository's current MutationObserver contract. Use the existing UI enhancer registry (`registerUIEnhancer`) rather than introducing new startup MutationObservers. Search for both `new MutationObserver` and `new env.MutationObserver` when relevant.
-
-Never report “tested on physical iPhone” unless a physical iPhone test was actually performed.
-
-## 9. Modules, removal, and test registration
-
-When adding a new production JS module, update all required wiring in the same PR, including `index.html` and `tests/fixtures/module-load-order.json` where required by the current repository contract.
-
-When adding a test, confirm that it is registered in the canonical execution path/shard configuration. Do not leave a test file that canonical CI never executes.
-
-Before removing code, grep/search all references first. Check production loading, bridges, migrations, fixtures, tests, and compatibility paths before deleting anything.
-
-Do not revive obsolete assumptions around `play.html`, dynamic loaders, or old Safari workarounds without first reading the current implementation and `CLAUDE.md`.
-
-## 10. Validation strategy
-
-Use focused validation first. Do not automatically run the entire local canonical suite when the repository documents that it is excessively long; rely on focused tests locally and canonical CI for the final full gate unless the user specifically requests a full local run.
-
-Typical sequence:
-
-1. new/changed focused test
-2. syntax/static checks
-3. test-registration/module-wiring checks when applicable
-4. related existing subsystem tests
-5. save/load, determinism, transaction, and accounting checks when affected
-6. 208-week/long-run or reachability checks for gameplay/economic/event changes
-7. negative/mutation checks for important new behavioral contracts when practical
-
-For probabilistic or event features, verify reachability from normal play and sanity-check occurrence frequency across appropriate weeks/seeds.
-
-Never claim PASS for a command that was not actually run.
-
-## 11. Autonomous scheduled-development loop
-
-When invoked as a recurring/scheduled Codex task, perform one safe development cycle:
-
-1. refresh repository state and record `origin/main` SHA
-2. read this file and current `CLAUDE.md`
-3. inspect open PRs, reviews, and CI
-4. repair existing active work first if needed
-5. otherwise select one small, non-conflicting roadmap/feature-request vertical slice
-6. implement it
-7. run focused and risk-appropriate regression tests
-8. inspect the final diff
-9. commit on a non-main feature branch
-10. push only when the CI push gate is safe
-11. create or update a **Draft PR** when appropriate
-12. never merge autonomously
-
-If safe progress is blocked, stop instead of forcing the change through and report the blocker precisely.
-
-End each scheduled run with evidence:
-
-- `origin/main` SHA
-- mode (`NEW_FEATURE`, `EXISTING_PR_FIX`, `CI_FIX`, `BUG_FIX`, `AUDIT`, `BLOCKED`, or `NO_OP`)
-- selected task and why
-- branch
-- commit SHA
-- PR number/status
-- changed files
-- commands actually run and PASS/FAIL results
-- save/determinism/accounting/company-vs-personal/iPhone impact
-- unresolved risks or unverified items
-- single highest-priority next action
-
-The objective is not maximum code volume. The objective is to make one correct, reviewable, evidence-backed step toward a better game without damaging existing contracts.
+If safe progress is blocked, report the blocker rather than forcing the change through.
