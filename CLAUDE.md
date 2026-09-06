@@ -1,195 +1,226 @@
-# ゲームデザインの方向性
-- Capitalism（Capitalism II / Lab）と Coffee Inc 2 を合わせた
-  経営シミュレーションとして開発している
-- 創業経路は1本に固定しない。少なくとも次の2ルートを正式なゲームデザインとして許容する。
-  1. **店舗経営ルート**: ラーメン店などの実業から創業し、店舗運営を深めながら本社・本部を設立し、段階的に多角化する
-  2. **投資会社ルート**: 店舗を1店舗も保有しない状態から、会社資金を用いた株式投資・資本配分を中核事業として開始し、後から本社機能・他事業・M&A等へ拡張できる
-- 「ラーメン1店舗を持っていること」を全プレイヤー共通の進行前提にしない。
-  投資会社ルートを成立させるため、投資会社として必要な本社/投資機能の解放条件に
-  `minStores > 0` を必須条件として固定しない。店舗ゼロでも、投資会社として妥当な
-  コスト・資本・信用・進行条件を満たせば会社側の投資機能へ到達可能にする
-- ただし複数ルートを許容することは「全業種・全機能を最初から開放する」ことを意味しない。
-  各ルートには段階的アンロックを維持し、そのルートの中核プレイに必要な機能だけを
-  早期に利用可能にする。店舗経営ルートでは市場・供給・労働力・店舗運営、
-  投資会社ルートでは会社資金による投資・資本配分・リスク管理を中核にする
-- 創業ルートの実装で、旧PR #391 の巨大な `founding-routes-integration.js` や
-  `foundingRoute` state をそのまま復活させない。現在の state/API/unlock/progression を再監査し、
-  既存機能を活かした最小vertical sliceで実装する。明示的なroute stateが本当に必要かは
-  capability/unlock条件から導出できないかを先に検討する
-- 会社側の投資と個人投資は別物として扱う。投資会社ルートで利用するのは会社資金・
-  会社保有株式・会社ledgerであり、個人資金や個人保有株式を暗黙に混ぜない
-- market.js / supply.js / workforce.js の TARGET_BUSINESS_IDS が現在 ramen のみなのは、
-  店舗オペレーション詳細化がramenから始まっているための意図的な状態であり、
-  投資会社ルートを禁止する根拠にはしない。店舗業種を増やすときは
-  「全業種に一括で広げる」のではなく、アンロック順に1業種ずつ広げ、
-  そのたびに決定論の指紋（transaction-baseline / market-calibration）を更新する
-- 現状の実装比重は金融・M&A・不動産・ガバナンスに厚く、
-  事業オペレーション（市場・供給・労働力・店舗運営）が薄い。
-  機能追加の判断に迷ったらオペレーション側を優先する。
-  ただし、正式な創業ルートを成立させるために必要な最小限の金融/進行機能は例外とする
-- 同様に会社側の機能は厚く個人側は薄い（不動産は会社46モジュールに対し
-  個人は売買のみ、買収後の経営は会社PMI多数に対し個人PEは施策1種のみ）。
-  個人側を作るときは会社側の既存モデルを流用できないか先に確認する。
-  ただし「会社資産と個人資産の分離」は不変条件なので、共有するのは
-  計算ロジックだけにし、資産・現金の帰属は必ず分ける
-- オーナーが Manus や ChatGPT で考えた新要素を持ち込む運用がある。
-  提案を受けたら docs/feature-requests.md へ追記し、着手前に必ず
-  「現状どこまで実装済みか」を調べてから実装方針を立てる
-  （既存機能を新規実装として作り直す事故を防ぐため）
-- 2026-08時点の開発方針は「約30業種を均等に薄く広げる」から
-  「5本柱（ramen / conveni / gym / productVentures=IT企業 / realEstateAgency）を
-  深掘りする」へ転換した。新規出店UIも主力5業種へ絞る。非主力業種は
-  旧save/data互換のため削除しない。機能追加の優先度に迷ったら、新しい業種を
-  増やすより5本柱のどれかを深掘りする方を優先する
-  （店舗経営ルート・投資会社ルートという2ルート方針とは別軸で、
-  店舗経営ルート側の「どの業種を深く作るか」を絞り込む方針）
-- 5本柱の深掘りでも「新しいボタン・新しい巨大systemを増やす」より
-  「既存の行動や既存systemに、意味のあるトレードオフを追加する」ことを優先する
-  （例: gymの会員プラン戦略・混雑・退会理由内訳は既存ボタン（品質投資/改装/
-  効率化/設備強化）だけで完結させ、新規ボタンを増やしていない）
-- workforce詳細店舗モデル（TARGET_BUSINESS_IDS）は当面ramen限定のまま維持する。
-  gym trainer等の店舗別人員拡張は、既存モデルへ雑に給与systemを足すのではなく、
-  将来workforce正式拡張が必要になった時点で別PRとして扱う
-- 5本柱の進捗管理は docs/gameplay-systems-roadmap.md の「5本柱の深掘り状況」節で行う。
-  docs/DEVELOPMENT_ROADMAP.md は2026-07時点の旧計画（saveVersion 8時代の
-  Phase 0〜9構想）で退役済み。現状の参照先ではない
+# Capitalism Tycoon Web — project-specific rules and design knowledge
 
-# UIリスキン（D UI shell拡張）の方針
-- D UI shell（js/d-ui-shell.js / js/d-ui-context-tabs.js）を全画面共通の
-  最終的な見た目として採用し、画面単位で1PRずつ拡張する
-  （新しいデザイン言語を発明しない。参考にした他社ゲームの実際の
-  イラスト・アセットはトレース・複製しない。真似るのはレイアウト・
-  操作の流儀だけで、絵はすべてオリジナルにする）
-- 新しい見た目のCSSは css/d-ui-*.css の新規または既存ファイルにだけ書く。
-  css/app.css は触らない（tests/fixtures/extracted-css-baseline.css と
-  バイト一致必須）。例外は既存の --accent/--good/--warn/--danger 未定義変数の修正のみ
-- external enhancer registrations は79/79で上限に到達済み
-  （tests/startup-runtime-budget-test.js）。むやみに新しい registerUIEnhancer() を
-  増やさない。既存の 'd-ui-shell'/'d-ui-context-tabs' フックの enhance() を拡張するか、
-  マーカー選択・ドリルダウンのような動的な後処理が不要な画面は
-  app.js側のテンプレート文字列に d- プレフィックスのクラスを直接足すだけで
-  リスキンする（新規JSエンハンサーなし）
-- 進捗・技術的制約・Phase順序は docs/ui-redesign-roadmap.md で管理する
+> The filename `CLAUDE.md` is retained for compatibility with existing tooling/history. These rules apply to **all coding agents**, including Codex. Operational workflow lives in `AGENTS.md`; this file stores project-specific design contracts, runtime constraints, map contracts, and known pitfalls.
+>
+> Do not read every section for every task. Use the section relevant to the work, following the routing in `AGENTS.md`.
 
-# 創業ルート実装時の必須検証
-- 店舗経営ルートの既存到達性を壊さない。通常難易度で店舗創業から本社・多角化・IPOへ
-  到達できる既存の進行テストを維持する
-- 投資会社ルートは**店舗0件のまま開始・継続できること**をfocused/reachability testで証明する
-- 投資会社ルートで会社株式投資を行う場合、companyCash / companyStocks / finance ledgerだけが
-  動き、personalCash / personalStocksへ副作用がないことを検証する
-- 投資会社ルートの開始条件を緩和しても、全業種・M&A・不動産・ガバナンス等が
-  無条件に初期解放されないことをnegative testで確認する
-- 旧saveでは新しい創業ルート情報が存在しなくても安全に読み込めること。
-  saveVersionは9のまま維持する
-- 2ルートを同じseed/stateから検証する場合も不要なRNG消費を増やさず、決定論を維持する
+## 1. Game design direction
 
-# 絶対に守る不変条件
-- SAVE_KEY=capitalism_tycoon_web_v1 と saveVersion=9 を変更しない
-- 既存セーブ互換・決定論・会計整合性・会社資産と個人資産の分離を維持
-- テストを通すために本番挙動を変えない。テストを削除しない。
-  timeout-minutes を延長しない。アサーションを緩めない
-- 新規JSファイルを足したら index.html への追加と
-  tests/fixtures/module-load-order.json の更新を同じ作業内で行う
-- production起動経路の MutationObserver は0本を維持（registerUIEnhancer を使う。
-  new MutationObserver と new env.MutationObserver の両方をgrepする）
-- external enhancer registrations の上限は79（startup-runtime-budget テスト）
-- CI実行中に追加pushをしない
-- 撤去作業は着手前に全箇所を grep する
-- map-critical asset（js/map-phase2-canvas.js / js/d-ui-shell.js /
-  js/iphone-playtest-fixes.js / css/d-ui-mobile-company.css /
-  css/iphone-playtest-fixes.css / d-ui-mobile-company.css が@importする
-  map系CSS / prototypes/*.js / sprites.json）を変更したら、同じ作業内で
-  `node scripts/stamp-asset-revision.js` を実行して `?rev=` を打ち直す。
-  revisionはこれら資産の内容ハッシュ（Date.now/Math.random/commit SHAは禁止）で、
-  tests/static-asset-cache-coherence-test.js が打ち直し忘れを赤で検出する
-- production mapのmarkerは「その建物を指す」ことが最優先。marker位置を動かす
-  処理（decluttering / edge clamp / chrome回避）を足すときは必ず
-  MAX_ANCHOR_OFFSET（js/map-phase2-canvas.js）以内に収め、最終位置には
-  capToAnchor() を通す。実測でこの上限が無いと最大334px（canvas幅の64%）
-  ずれ、画面外の建物のmarkerが画面内へclampされる事故が起きた。
-  tests/map-marker-anchor-integrity-test.js が上限違反を赤で検出する
-- production mapのmarkerは「その建物であり得る」ことも守る。配置候補は
-  district zone ではなく、そのタイルに実際に置かれた**sprite category**
-  （建物が無いタイルは open space の種別）で選ぶ。許可表は
-  js/map-phase2-canvas.js の KIND_SURFACES / PROPERTY_KIND_SURFACES で、
-  列挙されていない surface は禁止（civic / landmark / 緑地 / 看板 /
-  footprint予約タイルにmarkerは載らない）。zone で選ぶと
-  ROLE_CATEGORY のクロスオーバー（commercial zoneのX infillが
-  residential.low、cbd zoneのX infillが commercial.small）と
-  open space が混ざり、実測でtenantの33%が建物の無い区画・18%が住宅に載った。
-  1 sprite だけ例外にしたいときは SPRITE_SURFACE_OVERRIDES を使う
-  （新しいcategoryを増やさない）。
-  tests/map-marker-building-affinity-test.js が許可表と実配置の両方を検証する
-- marker の見た目サイズとタップ領域は別物として扱う。clip-path はヒット
-  テストにも効くので、pinの形は .d-map-marker:before に描き、button 自体は
-  clip-path:none の44px以上の矩形のまま残す（両方を1つのboxにすると
-  「見た目を小さくする」と「44pxを確保する」が両立しない）
-- marker のラベル（テナント募集/売物件/オフィス募集）は**選択時のみ**表示する。
-  全markerに常時表示すると街が見えなくなる（実測: iPhone 390pxで
-  marker+labelが地図面積の30.8%を占有していた。選択時のみにして7.3%）。
-  ラベルを消す代わりにpin本体を大きくしない。ラベル非表示の分の情報は
-  button の aria-label（種別＋名称）と詳細パネルが担保する。
-  tests/map-marker-density-selection-test.js が常時表示への逆戻りを赤で検出する
-- MAX_ANCHOR_OFFSET を安易に下げない。chrome回避ナッジ（CLAMP_NUDGE_STEP）の
-  到達距離はこの上限で決まり、.iphone-map-nav（min-height:46pxのボタンを含む
-  全幅ストリップ）を抜けるには約45px必要。56→40に下げるとナッジが34pxまでしか
-  届かず、PR #616 の「markerがfilterのタップを飲む」回帰が静かに再発する
-- 1機能1PR。ブランチ名は feat/ fix/ ci/ refactor/ docs/ のいずれか
+The product is **資本主義ポケット TYCOON / Capitalism Tycoon Web**, a long-form browser management/capitalist simulation influenced by Capitalism / Capitalism Lab and Coffee Inc 2.
 
-# 既知の落とし穴
-- テストで random:()=>0.42 のような固定乱数を使うと uuid() が全部同じ値になり、
-  テナント376件のIDが1個に潰れる。決定論的LCGを使う
-- css-extraction-test.js は css/app.css と
-  tests/fixtures/extracted-css-baseline.css のバイト完全一致を要求する
-- 競合を増やすと tests/fixtures/transaction-baseline-v1.json の randomCalls がずれる。
-  会計・現金・取引数まで変わっていたらそれは指紋更新ではなくバグ
-- market-calibration は tokyo と osaka を使う。その2市場に競合を足すと赤くなる
-- シャード割り当ては tests/run-all-shards.json。B/C/Dに明示割り当てしない限り
-  シャードAに落ちるので、新規テストは軽いシャードへ明示割り当てする
-- tests/product-recall-reachability-runner.js は run-all.js ではなく
-  run-all-shard.js 内の runRegisteredNodeTest() で登録されている
-- iOS Safari はDOM未接続の a への click() と download 属性を無視する
-- canonical suite は4シャード並列・timeout 15分。**ランごとの振れ幅が大きく、
-  シャード間の差より大きい**。連続4ランの実測（2026-08-18）は
-  A 10分16秒〜12分11秒 / B 9分00秒〜14分07秒 / C 10分32秒〜13分26秒 /
-  D 7分42秒〜13分48秒 で、Dは中身を一切変えていないのに6分以上揺れた。
-  最悪ケースの余裕は53秒しかない。したがって
-  **1回の測定だけを見て「このシャードは軽い/重い」と判断しない**。
-  新規テストを足す前に直近の複数ランを見て、判断が割れるなら分散させる。
-  「最長はC」のような固定的な記述は当てにならない（実際その記述が古くなっていた）
-- CIの所要時間を読むときは、runnerの起動待ち（created_at→started_at、実測で最大
-  7分）とstepの実行時間を混同しない。timeout 15分がかかるのは後者だけなので、
-  「runが20分かかった」ことと「timeoutに近い」ことは別の話
-- CIワークフローが手前のステップでずっと落ちていると、その後のステップは
-  何週間もskippedのまま実行されず、奥に埋まった別の回帰が誰にも気づかれない。
-  「直近の失敗ログ」だけを見て原因を1つに決め打ちしない。1つ直すたびに
-  ジョブのstep一覧を見て、次のstepが新しく走り始めていないか確認する
-- push トリガーに paths: フィルタがあるworkflowは、フィルタ対象外のファイルを
-  何回直してもCI上で一切発火しない。赤いworkflowを直したら
-  workflow_dispatch で対象ブランチに対して手動発火し、実際に直ったか確認する
-- `npx playwright install --with-deps webkit` は**時々ダウンロードのまま固まる**。
-  通常1分20秒で終わるところが、2026-08-19の午前だけで4回ハングした
-  （M&A Integration ×2 / M&A Deal Room ×1 ＋ 1件は約2時間居座り）。
-  同じジョブを**変更なしで再実行すれば毎回成功する**ので、原因はコードではなく取得側。
-  ジョブに timeout-minutes が無いとGitHub既定の6時間ランナーを占有し続け、
-  「まだインストール中」と「詰んでいる」の区別がつかない。
-  ブラウザを入れるジョブには必ず job-level timeout-minutes を付ける
-  （`tests/workflow-browser-timeout-contract.js` が強制する）。
-  なお `ma-integration.yml` のWebKitステップは `if: github.event_name != 'pull_request'`
-  で**PRではスキップされ push/schedule でしか走らない**。PRが緑でもmainで固まりうるので、
-  この種のハングをPRのCIだけで判断しない
-- play.html は index.html への location.replace リダイレクトのみ（document.write
-  もfetchも使わない、iOS Safariでの不安定を避けるため）。「play.htmlのURLに
-  留まる」「スクリプトごとに?launch=トークンが付く」という前提のコードは古い。
-  Cache-bust の合図が必要な場合は search に v= があるかで判定する
-  （pathnameがplay.htmlのままになることは実行時には起きない）
-- ローカルの `main` ブランチは自動で最新化されない。`git checkout main` は
-  fetchしても更新しないので、他ブランチで作業した直後に main へ戻ると
-  作業ディレクトリのファイルが古い内容に巻き戻る。ブランチを跨ぐ前に必ず
-  `git fetch origin <branch> && git merge --ff-only origin/<branch>` で
-  ローカルブランチ自体を進めてから checkout する
+Two founding routes are legitimate game designs:
 
-# 検証手順
-単体テスト → 208週到達テスト → 発生率検証 →
-負のテスト（意図的に壊して赤くなることを2〜3パターン確認）→ 変更ファイル関連の個別テスト。
-npm test 全体は1時間級なので完走させない。最終判断はCIに委ねる。
+1. **Store/operator route** — begin with an operating business such as ramen, deepen store operations, establish HQ functions, then diversify.
+2. **Investment-company route** — begin without owning a store, use company capital for investment/capital allocation, then expand into HQ functions, other businesses, M&A, etc.
+
+Do not make “owns at least one ramen store” a universal progression prerequisite. Investment-company functionality must use **company cash, company holdings, and company ledger**, never silently personal cash/holdings.
+
+Do not interpret multiple founding routes as “unlock everything immediately.” Each route keeps staged progression. Prefer capability/unlock logic over resurrecting the old PR #391 monolithic `founding-routes-integration.js` or unnecessary `foundingRoute` state.
+
+The current operating-depth strategy is to deepen five pillars rather than spread shallow mechanics across every business type:
+
+- `ramen`
+- `conveni`
+- `gym`
+- `productVentures` (IT company)
+- `realEstateAgency`
+
+Non-core business data remains for save/data compatibility. When priorities are otherwise equal, deepen operations, customers, products, supply, workforce, advertising, competition, and meaningful player trade-offs before adding another isolated finance/governance surface.
+
+`market.js`, `supply.js`, and `workforce.js` being ramen-focused is an intentional staged state, not evidence that the investment-company route is forbidden. Expand detailed store operations deliberately, one area at a time, with the relevant deterministic fingerprints checked.
+
+`docs/gameplay-systems-roadmap.md` is the current gameplay depth tracker. `docs/DEVELOPMENT_ROADMAP.md` is a retired saveVersion-8-era plan and is not the current roadmap.
+
+## 2. Core invariants
+
+These are non-negotiable unless the user explicitly authorizes a dedicated migration:
+
+- `SAVE_KEY=capitalism_tycoon_web_v1`
+- `saveVersion=9`
+- backward compatibility with old saves
+- deterministic simulation
+- accounting integrity
+- complete separation of company assets/cash from personal assets/cash
+- no `Math.random()` in deterministic production simulation paths
+- UI rendering must not consume simulation RNG
+- iPhone Safari is the priority client
+- no direct push to `main`
+- no force-push
+- one feature/fix/infrastructure concern per PR
+- never delete tests, unregister tests, add fake skips, or weaken assertions to obtain green CI
+
+A timeout increase is prohibited **when it hides a regression**. A dedicated CI PR may increase a timeout when measured healthy runtime plus normal variance shows the existing budget is too tight; include measurements and investigate the bottleneck rather than changing only the number without evidence.
+
+## 3. D UI shell and browser runtime
+
+D UI (`js/d-ui-shell.js`, `js/d-ui-context-tabs.js`, and `css/d-ui-*.css`) is the production visual language. Extend it screen-by-screen; do not introduce a competing design system.
+
+Do not trace/copy third-party game artwork. Layout and interaction patterns may inspire the design, but assets must remain original.
+
+New visual styling belongs in `css/d-ui-*.css` unless an existing contract explicitly says otherwise. `css/app.css` is protected by byte-level extraction tests; do not casually edit it.
+
+The production startup MutationObserver count and external enhancer registration budget are guarded by tests. The current external enhancer budget is 79. Prefer extending existing D UI enhancer hooks or adding static `d-` classes where possible instead of creating more startup observers/enhancers.
+
+Never rely on hover as the only way to perform a required action on iPhone. Maintain usable touch targets, no horizontal overflow, and avoid unnecessary DOM proliferation or expensive synchronous interaction work.
+
+`play.html` is only a `location.replace` redirect to `index.html`. Do not revive assumptions that runtime remains on `play.html` or that every script receives a launch token.
+
+## 4. Phase 2 production map contract
+
+The production map architecture is:
+
+**Canvas 2D city + local sprite assets + DOM marker overlay + pannable world**
+
+Responsibilities:
+
+- Canvas: city background, roads, sidewalks, parks/open space, parcels, buildings, landmarks, scenery, shadows, greenery, non-interactive props
+- DOM: store/tenant/office/real-estate markers, selection, filters, taps, details, accessibility
+
+`Phase 2` is the only production renderer. Do not reintroduce the old procedural DOM/SVG map or legacy marker-slot path.
+
+### Camera / lifecycle
+
+Preserve the current camera/runtime contracts:
+
+- `DEFAULT_SCALE = 0.44`
+- DPR clamp max 2
+- Pointer Events
+- `PAN_THRESHOLD = 8px`
+- one-finger pan on iPhone and mouse drag on desktop
+- Canvas and DOM markers share the same world/camera transform
+- use requestAnimationFrame coalescing for pan updates
+- do not rebuild/regenerate the world while panning
+- prefecture change resets the camera
+- resize re-clamps the camera
+- a fresh canvas element must reinitialize its backing store even when CSS size is unchanged
+
+### Regional identity
+
+All 47 prefectures have deterministic regional profiles. Preserve structural variation between prefectures. Tokyo Tower is Tokyo-only; other prefectures use their own/generic regional composition.
+
+### Lazy loading / cache coherence
+
+Map lazy loading must have bounded retry and explicit error/retry state. Never leave production in permanent “loading” state after a failed manifest/assets promise.
+
+Map-critical assets use the content-hash revision/stamp mechanism. If any map-critical asset changes, run:
+
+`node scripts/stamp-asset-revision.js`
+
+The revision must be content-derived; do not use `Date.now()`, `Math.random()`, or commit SHA as the revision source.
+
+Map-critical assets include the production map renderer/shell/iPhone map fixes, the map CSS imported through `d-ui-mobile-company.css`, lazy prototypes, and `sprites.json`. `tests/static-asset-cache-coherence-test.js` guards mixed-generation release failures.
+
+### Marker/detail contracts
+
+Supported production detail flow includes:
+
+- store -> store detail
+- tenant -> tenant detail
+- office -> office detail
+- realestate -> property detail
+
+Keep existing `selectedEntity` / `selectedDetail()`-based behavior as the source of truth unless a dedicated redesign intentionally changes that model.
+
+Markers must satisfy both **anchor integrity** and **semantic building affinity**:
+
+- final marker displacement stays within `MAX_ANCHOR_OFFSET = 56`
+- marker movement paths finish through the existing anchor cap logic (`capToAnchor()` contract)
+- do not lower the cap casually: iPhone chrome avoidance needs enough nudge distance to clear `.iphone-map-nav`; lowering 56 to 40 previously reintroduced the filter-tap interception regression
+- choose marker candidates from the actual rendered sprite/open-space surface, not merely district zone
+- `KIND_SURFACES` / `PROPERTY_KIND_SURFACES` define allowed surfaces; unlisted surfaces are forbidden
+- use `SPRITE_SURFACE_OVERRIDES` for individual sprite exceptions instead of inventing a new category for one asset
+- civic, landmark, signage, reserved footprints, and green open-space surfaces must not accidentally host normal property markers unless the semantic table explicitly changes
+
+Visible marker size and hit target are separate concepts:
+
+- pin shape is drawn on `.d-map-marker:before`
+- the button itself remains unclipped (`clip-path:none`)
+- critical tap target must remain at least 44px on both axes
+- the current resting pin is intentionally visually small (26x32) so the city remains visible
+- marker labels are hidden at rest and shown for selected / hover / keyboard-focus states; do not return to always-on placards
+- accessible button naming carries category + entity name, so hiding the visible placard must not remove accessible identification
+
+Relevant regression tests include:
+
+- `tests/map-marker-anchor-integrity-test.js`
+- `tests/map-marker-building-affinity-test.js`
+- `tests/map-marker-density-selection-test.js`
+- `tests/map-marker-detail-interaction-test.js`
+- `tests/map-phase2-prefecture-switch-canvas-lifecycle-test.js`
+- `tests/map-prefecture-identity-regional-variation-test.js`
+- `tests/map-phase2-lazy-load-recovery-test.js`
+- `tests/static-asset-cache-coherence-test.js`
+- `tests/map-phase2-iphone-pan-webkit-test.js`
+
+## 5. Map asset development direction
+
+After production integration, framing, lifecycle, regional identity, lazy-load/cache coherence, marker anchoring, building affinity, and marker-density selection UX, the next visual-depth work may add **P2 environment props** such as:
+
+- streetlights
+- benches
+- planting/planters
+- signs
+- parking/service equipment
+- other small environmental scenery
+
+P2 props are **Canvas scenery**, not DOM interaction UI. They must be deterministic, reuse local sprites, preserve culling, avoid simulation RNG, avoid rebuilding the world during pan, and not increase DOM nodes. Their purpose is to make the city feel inhabited rather than merely populated with building sprites, and they may vary by prefecture profile.
+
+Before adding props, inspect the current manifest, available assets, `map-world-preview`/world-generation code, and existing taxonomy so categories are based on actual inventory rather than assumptions.
+
+Office grade/tier affinity and pinch zoom remain separate possible future PRs. Do not bundle either into a props PR unless the user explicitly changes scope.
+
+## 6. Founding-route validation (only when that area changes)
+
+When founding/progression work changes the two-route model, prove the affected contracts:
+
+- existing store/operator route remains reachable through normal progression
+- investment-company route can begin/continue with zero stores when intended
+- company investment changes company cash/holdings/ledger only, not personal assets
+- loosening investment-route gates does not unlock unrelated M&A/real-estate/governance/business systems unconditionally
+- old saves without new optional route information still load safely with `saveVersion=9`
+- deterministic validation does not add unnecessary RNG consumption
+
+Do not run these route-specific checks for unrelated CSS, map-prop, CI, or documentation changes.
+
+## 7. Known technical pitfalls
+
+Use only the pitfalls relevant to the task.
+
+### Determinism/tests
+
+- A test stub like `random:()=>0.42` can collapse UUID-derived IDs into duplicates; use a deterministic sequence/LCG when distinct values are required.
+- Changing competitor population can alter `tests/fixtures/transaction-baseline-v1.json` RNG call counts. If accounting/cash/transaction counts also move unexpectedly, treat that as a bug rather than blindly updating a fingerprint.
+- Market calibration uses Tokyo and Osaka; changes affecting those markets can legitimately move calibration, but investigate before updating fixtures.
+
+### Test registration / canonical shards
+
+Canonical execution currently spans **A-H (8 shards)**. `tests/run-all-shards.json` explicitly assigns B-H; unassigned entries fall into A. When adding an expensive test, inspect current shard distribution rather than assuming one shard is permanently light/heavy.
+
+Runner startup delay (`created_at -> started_at`) is not the same as job-step runtime for timeout analysis. Compare actual step duration before concluding a job is near timeout.
+
+### WebKit / CI
+
+`npx playwright install --with-deps webkit` has historically hung during browser download even when unchanged reruns later succeed. Browser-installing jobs must keep job-level timeout coverage as enforced by `tests/workflow-browser-timeout-contract.js`.
+
+A PR can be green while push/schedule-only WebKit steps remain untested. When a workflow gates WebKit on non-PR events, inspect the main/push run before declaring that path verified.
+
+If a workflow has `paths:` filters, editing a non-matching file will not trigger it. For a CI fix, verify the affected workflow through an event/dispatch that actually exercises the changed path.
+
+When a workflow has been failing early for a long time, later steps may never have executed. After fixing the first failure, inspect the newly reached steps rather than assuming there is only one latent issue.
+
+### Local branch state
+
+Fetching does not automatically advance a stale local `main`. Base work on current `origin/main` (or fast-forward local main explicitly) before branching.
+
+## 8. Validation guidance
+
+Do not use a universal sequence such as “unit -> 208-week -> occurrence-rate -> mutation -> all related tests” for every change.
+
+Choose validation by risk:
+
+- map/UI-only: focused map/UI tests + syntax/static as applicable + browser/WebKit when interaction/lifecycle changes
+- gameplay/economic/state: focused tests + save/determinism/accounting checks when affected + long-run/reachability/occurrence checks when the mechanic requires them
+- CI-only: workflow contract/syntax + measured execution of the affected job/workflow
+- docs-only: verify references and factual repository claims; no blanket runtime suite
+
+The full local canonical suite is expensive; focused local tests plus GitHub canonical CI are the normal final-gate strategy unless the task specifically requires a full local run.
