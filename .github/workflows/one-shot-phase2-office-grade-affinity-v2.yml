@@ -1,0 +1,205 @@
+name: One-shot Phase 2 office grade affinity v2
+
+on:
+  push:
+    branches:
+      - feat/phase2-office-grade-affinity
+
+permissions:
+  contents: write
+
+jobs:
+  implement:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          persist-credentials: true
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Apply implementation
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+
+          def repl(path, old, new):
+              p = Path(path)
+              text = p.read_text()
+              n = text.count(old)
+              if n != 1:
+                  raise SystemExit(f'{path}: anchor count {n}: {old[:120]!r}')
+              p.write_text(text.replace(old, new, 1))
+
+          repl(
+              'js/map-phase2-canvas.js',
+              "    return {id:`office:${office.id}`,kind:'office',sourceId:office.id,pref:office.prefID,label,rawID:office.id,name:label,office};",
+              "    return {id:`office:${office.id}`,kind:'office',sourceId:office.id,pref:office.prefID,label,rawID:office.id,name:label,office,officeGrade:office.grade};"
+          )
+
+          old_kind = '\n'.join([
+              'const KIND_SURFACES={',
+              "  store:{preferred:['commercial.small','commercial.mid','commercial.hero'],allowed:['office.small','office.mid']},",
+              "  tenant:{preferred:['commercial.small','commercial.mid','commercial.hero'],allowed:['office.small','office.mid','office.hero']},",
+              "  office:{preferred:['office.hero','office.mid','office.small'],allowed:['commercial.hero','commercial.mid']}",
+              '};'
+          ])
+          new_kind = '\n'.join([
+              'const KIND_SURFACES={',
+              "  store:{preferred:['commercial.small','commercial.mid','commercial.hero'],allowed:['office.small','office.mid']},",
+              "  tenant:{preferred:['commercial.small','commercial.mid','commercial.hero'],allowed:['office.small','office.mid','office.hero']},",
+              "  office:{preferred:['office.hero','office.mid','office.small'],allowed:['commercial.hero','commercial.mid']}",
+              '};',
+              '/*',
+              ' * Rental-office grade is real engine state: C=small HQ,',
+              ' * B=business center, A=premium tower. Prefer the matching visible',
+              ' * office tier when the regional city fabric contains it. A region',
+              ' * may intentionally omit a tier, so known grades retain a',
+              ' * deterministic legitimate office/mixed-use fallback instead of',
+              ' * inventing scenery or dropping the marker. Unknown future grades',
+              ' * retain the generic KIND_SURFACES.office rule above.',
+              ' */',
+              'const OFFICE_GRADE_SURFACES={',
+              "  C:{preferred:['office.small'],allowed:['office.mid','office.hero','commercial.mid','commercial.hero']},",
+              "  B:{preferred:['office.mid'],allowed:['office.small','office.hero','commercial.mid','commercial.hero']},",
+              "  A:{preferred:['office.hero'],allowed:['office.mid','office.small','commercial.hero','commercial.mid']}",
+              '};'
+          ])
+          repl('js/map-phase2-canvas.js', old_kind, new_kind)
+
+          old_rules = '\n'.join([
+              'function surfaceRulesFor(entity){',
+              "  if(entity.kind==='realestate')return PROPERTY_KIND_SURFACES[entity.propertyKind]||DEFAULT_PROPERTY_SURFACES;",
+              '  return KIND_SURFACES[entity.kind]||EMPTY_SURFACE_RULES;',
+              '}'
+          ])
+          new_rules = '\n'.join([
+              'function surfaceRulesFor(entity){',
+              "  if(entity.kind==='realestate')return PROPERTY_KIND_SURFACES[entity.propertyKind]||DEFAULT_PROPERTY_SURFACES;",
+              "  if(entity.kind==='office'&&entity.officeGrade)return OFFICE_GRADE_SURFACES[entity.officeGrade]||KIND_SURFACES.office;",
+              '  return KIND_SURFACES[entity.kind]||EMPTY_SURFACE_RULES;',
+              '}'
+          ])
+          repl('js/map-phase2-canvas.js', old_rules, new_rules)
+
+          repl(
+              'tests/map-marker-building-affinity-test.js',
+              "  for (let i = 0; i < 3; i++) entities.push({ id: `office:o${i}`, kind: 'office', sourceId: `o${i}` });",
+              "  for (const grade of ['C', 'B', 'A']) entities.push({ id: `office:${grade}`, kind: 'office', sourceId: grade, officeGrade: grade });"
+          )
+
+          survey_old = '\n'.join([
+              '    const placed = mod.placeEntityTiles(sampleEntities(), prefID);',
+              '    const district = MW.buildWorldDistrict({ index2, prefID, cols: WORLD_COLS, rows: WORLD_ROWS });',
+              '    for (const entity of placed) {'
+          ])
+          survey_new = '\n'.join([
+              '    const placed = mod.placeEntityTiles(sampleEntities(), prefID);',
+              '    const district = MW.buildWorldDistrict({ index2, prefID, cols: WORLD_COLS, rows: WORLD_ROWS });',
+              '    const surfaceCounts = {};',
+              '    for (const cell of district.tiles) {',
+              '      const surface = surfaceUnder(cell);',
+              '      if (surface) surfaceCounts[surface] = (surfaceCounts[surface] || 0) + 1;',
+              '    }',
+              '    for (const entity of placed) {'
+          ])
+          repl('tests/map-marker-building-affinity-test.js', survey_old, survey_new)
+
+          repl(
+              'tests/map-marker-building-affinity-test.js',
+              '        prefID, kind: entity.kind, propertyKind: entity.propertyKind,',
+              '        prefID, kind: entity.kind, propertyKind: entity.propertyKind, officeGrade: entity.officeGrade, surfaceCounts,'
+          )
+
+          checks = r'''
+
+            await check('office view-model preserves the real A/B/C rental-office grade without mutating state', () => {
+              const raw = { id: 'office-c', prefID: 'tokyo', name: '東京 スモールHQ', grade: 'C', rent: 12345 };
+              const g = { selectedPref: 'tokyo', stores: [], tenants: [], rentalOffices: [raw], properties: [] };
+              const view = mod.buildMapViewModel(g, null);
+              assert.equal(view.entities.length, 1);
+              assert.equal(view.entities[0].officeGrade, 'C');
+              assert.equal(view.entities[0].office, raw);
+              assert.equal(raw.grade, 'C');
+            });
+
+            await check('ACCEPTANCE 4b: C/B/A offices use small/mid/hero when available and legitimate fallback otherwise', () => {
+              const expected = { C: 'office.small', B: 'office.mid', A: 'office.hero' };
+              const legitimate = new Set(['office.small', 'office.mid', 'office.hero', 'commercial.mid', 'commercial.hero']);
+              let exact = 0;
+              for (const [grade, tier] of Object.entries(expected)) {
+                const sample = of(r => r.kind === 'office' && r.officeGrade === grade);
+                assert.ok(sample.length >= PREFS.length);
+                for (const row of sample) {
+                  if ((row.surfaceCounts[tier] || 0) > 0) {
+                    exact += 1;
+                    assert.equal(row.surface, tier, `${row.prefID}: grade ${grade} had ${tier} but landed on ${row.surface}`);
+                  } else {
+                    assert.ok(legitimate.has(row.surface), `${row.prefID}: grade ${grade} used invalid fallback ${row.surface}`);
+                  }
+                }
+              }
+              assert.ok(exact >= 20, `expected broad exact-tier coverage, got ${exact}`);
+            });
+
+            await check('unknown office grades keep the generic office affinity fallback', () => {
+              const placed = mod.placeEntityTiles([{ id: 'office:future', kind: 'office', sourceId: 'future', officeGrade: 'S' }], 'tokyo');
+              assert.equal(placed.length, 1);
+              assert.notEqual(placed[0].tileX, null);
+            });
+
+            await check('NEGATIVE: collapsing known office grades to hero is detected where expected stock exists', async () => {
+              const brokenSource = canvasSrc.replace(
+                /const OFFICE_GRADE_SURFACES=\{[\s\S]*?\n\};/,
+                "const OFFICE_GRADE_SURFACES={C:{preferred:['office.hero'],allowed:['office.mid','office.small']},B:{preferred:['office.hero'],allowed:['office.mid','office.small']},A:{preferred:['office.hero'],allowed:['office.mid','office.small']}};"
+              );
+              assert.notEqual(brokenSource, canvasSrc);
+              const broken = await readyFrom(brokenSource);
+              const brokenRows = await survey(broken.mod, broken.sandbox);
+              const expected = { C: 'office.small', B: 'office.mid', A: 'office.hero' };
+              const mismatches = brokenRows.filter(r => r.kind === 'office' && expected[r.officeGrade] && (r.surfaceCounts[expected[r.officeGrade]] || 0) > 0 && r.surface !== expected[r.officeGrade]);
+              assert.ok(mismatches.length > 0);
+            });
+          '''
+          anchor = "  await check('物流 property markers land on logistics stock or industrial open ground, never on shops or housing', () => {"
+          repl('tests/map-marker-building-affinity-test.js', anchor, checks + '\n\n' + anchor)
+
+          repl(
+              'CLAUDE.md',
+              'Office grade/tier affinity and pinch zoom remain separate possible future PRs. Do not bundle either into a props PR unless the user explicitly changes scope.',
+              'Office grade/tier affinity is part of the production marker-placement contract: C/B/A rental offices prefer office.small/office.mid/office.hero respectively when that tier exists, with deterministic legitimate office/mixed-use fallback when a regional fabric omits it. Pinch zoom remains a separate possible future PR; do not bundle it into unrelated map visual work unless the user explicitly changes scope.'
+          )
+          PY
+
+      - name: Restamp map-critical assets
+        run: node scripts/stamp-asset-revision.js
+
+      - name: Validate focused contracts
+        shell: bash
+        run: |
+          set -euxo pipefail
+          node --check js/map-phase2-canvas.js
+          node tests/map-marker-building-affinity-test.js
+          node tests/map-marker-anchor-integrity-test.js
+          node tests/map-marker-density-selection-test.js
+          node tests/map-marker-detail-interaction-test.js
+          node tests/map-phase2-prefecture-switch-canvas-lifecycle-test.js
+          node tests/map-phase2-lazy-load-recovery-test.js
+          node tests/static-asset-cache-coherence-test.js
+          git diff --check
+
+      - name: Commit implementation
+        shell: bash
+        run: |
+          set -euxo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git reset .github/workflows/one-shot-phase2-office-grade-affinity-v2.yml validation-office-affinity.txt || true
+          git status --short
+          git commit -m "feat: align office markers with office grades"
+          git push origin HEAD:${GITHUB_REF_NAME}
