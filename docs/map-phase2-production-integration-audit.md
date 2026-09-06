@@ -1029,3 +1029,95 @@ tap/pan contract; the mobile reveal; PR #615/#616 non-regression; plus four
 more negative tests). `tests/published-map-phase2-webkit-test.js` now also
 asserts revision coherence and a marker-tap-opens-its-own-detail round trip
 against the real published URL on every prefecture in its sequence.
+
+## 18. Marker anchor integrity (placement bounded to the real building)
+
+Real-device report after PR #617: tapping worked and the detail opened, but
+the red / blue / purple markers no longer sat on anything. They drifted away
+from plausible buildings, bunched toward the screen edges, and stopped
+communicating *which* property they meant.
+
+**Root cause, measured rather than inferred.** Instrumenting `main`
+(`f74331b`) in Chromium against Tokyo's 17-marker home-prefecture fixture:
+
+| | desktop 520x667 | iPhone 374x520 |
+|---|---|---|
+| markers displaced from their anchor | 15 / 17 | 14 / 17 |
+| worst displacement | 334px (**64% of canvas width**) | 150px (**40%**) |
+| median displacement | 94px | 103px |
+| off-canvas building drawn on-canvas | 3 | 6 |
+
+Three independent, individually unbounded displacement sources produced it:
+
+1. **The declutter search.** `layoutMarkerPlacards()` searched 6 rings of a
+   108x86 placard box, i.e. up to 696x564px. It moved the whole
+   `.d-map-marker` button -- `left:var(--x);top:var(--y)` -- so the badge a
+   player reads as "the marker" was what travelled, while only the 8px
+   `.d-map-marker-dot` was counter-translated back to the true anchor. The
+   earlier WebKit CI log from PR #616 recorded a live example:
+   `data-phase2-offset-x="-232" data-phase2-offset-y="188"`, which is exactly
+   ring 2 (2x116, 2x94).
+2. **The edge clamp.** Its gate accepted an anchor a full placard box
+   *outside* the canvas as "visible" and then clamped it back inside, so a
+   building that was not on screen still got a marker on screen.
+3. **The chrome-avoidance nudge** (PR #616) could walk 14 steps of 58px, 812px.
+
+The same instrumentation showed the crowding all of that was solving is mild:
+with every badge left exactly on its anchor only 6-7 of the 136 pairs overlap,
+and the two closest anchors are 14px (desktop) / 28px (iPhone) apart. The
+search was enormously over-scaled for the actual density.
+
+**Responsibility split (previously conflated).**
+
+- **world anchor** -- `tile -> transform.toScreen() * transform.scale`.
+  Camera-independent, and never modified by any placement pass.
+  `toScreen()` returns RAW unscaled tile-space pixels, so the multiply by
+  `transform.scale` before any CSS-pixel comparison is load-bearing.
+- **screen placement** -- `camTransform.toCss(tile)`, plus a bounded declutter
+  offset, plus a bounded edge clamp and chrome nudge, and then hard-capped.
+- **label layout** -- fixed in CSS relative to the badge, never moved
+  independently, so a label cannot drift away from the marker it names.
+- **leader dot** -- counter-translated by the applied offset, so the true
+  anchor stays marked whenever the badge moved at all.
+
+**The fix is one enforced invariant, not three separate promises.**
+`MAX_ANCHOR_OFFSET` (56px, ~15% of the iPhone canvas width, about one badge
+width) caps `|drawn position - true anchor|`, and `capToAnchor()` applies it
+as the LAST step of every render, after declutter, clamp and chrome nudge have
+all had their say. It shortens the offset vector rather than snapping back, so
+the direction the other passes chose is preserved as far as the cap allows.
+The declutter candidate set is bounded *by construction* -- candidates past
+the cap are filtered out, rather than a ring count needing to be kept in sync
+by hand -- and its collision box is now the marker's own badge (its tap
+target) instead of the badge-plus-label footprint. Overlapping labels are the
+accepted trade-off; a badge away from its building is not. The clamp gate is
+now the canvas itself, so an off-camera building simply has no visible marker
+(`.d-city-surface`'s `overflow:hidden` clips it).
+
+**Result, same instrumentation after the change:**
+
+| | desktop | iPhone |
+|---|---|---|
+| markers displaced | 15/17 -> **7/17** | 14/17 -> **4/17** |
+| worst displacement | 334px -> **56px (11%)** | 150px -> **56px (15%)** |
+| median displacement | 94px -> **0px** | 103px -> **0px** |
+| off-canvas building drawn on-canvas | 3 -> **1** | 6 -> **0** |
+
+Median displacement is zero: most markers now sit exactly on their building,
+and the single remaining desktop case is a building within the cap of the
+canvas edge, i.e. genuinely adjacent.
+
+New coverage: `tests/map-marker-anchor-integrity-test.js` (the cap's size
+relative to a phone canvas; candidates bounded by construction; `capToAnchor`
+shortening while preserving direction; end-to-end through `render()` that no
+marker exceeds the cap, including when a huge stale offset is fed in; the
+leader dot still recovering the true anchor; off-canvas buildings not pulled
+in; the clamp gate being the canvas itself; the chrome nudge bounded by the
+same cap; PR #616 chrome routing still working; determinism and camera
+independence; same-tile separation; raw-vs-scaled consistency; plus four
+negative tests -- the old 6-ring search violating the cap, dropping
+`capToAnchor`, restoring the margin-based clamp gate, and a stranded leader
+dot). `tests/map-phase2-marker-placard-interaction-test.js`'s old "no two
+placard rectangles overlap" assertion -- the requirement that justified the
+unbounded search in the first place -- is replaced by the anchor-integrity
+bound plus a "decluttering still separates most badges" budget.

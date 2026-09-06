@@ -30,11 +30,11 @@ if(modules.mapPhase2Canvas)throw new Error('map-phase2-canvas.js is already regi
  * to any browser storage, and never becomes part of game state or the
  * simulation.
  */
-globalThis.__STATIC_ASSET_REVISION='72f8704a495c';
+globalThis.__STATIC_ASSET_REVISION='79c20d4ed901';
 const ASSET_BASE='./assets/map-sprites/phase2';
 const IMAGE_BASE='./assets/map-sprites/phase1';
-const MANIFEST_URL=`${ASSET_BASE}/sprites.json?rev=72f8704a495c`;
-const PROTOTYPE_SCRIPTS=['./prototypes/map-canvas-renderer.js?rev=72f8704a495c','./prototypes/map-prefecture-profiles.js?rev=72f8704a495c','./prototypes/map-world-preview.js?rev=72f8704a495c'];
+const MANIFEST_URL=`${ASSET_BASE}/sprites.json?rev=79c20d4ed901`;
+const PROTOTYPE_SCRIPTS=['./prototypes/map-canvas-renderer.js?rev=79c20d4ed901','./prototypes/map-prefecture-profiles.js?rev=79c20d4ed901','./prototypes/map-world-preview.js?rev=79c20d4ed901'];
 const WORLD_COLS=32,WORLD_ROWS=28;
 /*
  * Initial-framing pull-back (Map Framing / Zoom-out Calibration). This
@@ -198,38 +198,106 @@ function placeEntityTiles(entities,prefID){
  * uniformly on top of these offsets every render, so panning moves every
  * placard by the same delta and never reshuffles this layout.
  *
- * Collision boxes (PLACARD_W x PLACARD_H) approximate a marker's actual
- * rendered footprint (css/d-ui-map-phase2-markers.css's glyph + the
- * always-visible label this same pass adds) at its largest breakpoint --
- * deliberately conservative, so a real render is never TIGHTER than what
- * this reserved.
+ * Collision boxes are the marker's own BADGE (its tap target), not the
+ * badge-plus-label footprint an earlier revision reserved. Separating tap
+ * targets is what decluttering is for; overlapping labels are an accepted
+ * cosmetic cost, whereas a badge far from its building destroys the marker's
+ * meaning. Every offset this produces is bounded by MAX_ANCHOR_OFFSET.
  */
-const PLACARD_W=108,PLACARD_H=86,PLACARD_GAP=8;
 /*
- * Candidate offsets: candidate #1 is "no shift at all" (a marker with no
- * neighbours keeps today's exact on-anchor position), followed by an
- * expanding 8-compass ring search (N/NE/E/SE/S/SW/W/NW, ring 1..
- * PLACARD_RING_COUNT, each ring PLACARD_W/H+PLACARD_GAP farther out).
- * Diagonal candidates are fine here -- unlike an earlier axis-only design,
- * css/d-ui-map-phase2-markers.css's .d-map-marker-dot leader is a plain dot
- * at the true anchor (position:absolute + a translate(-ox,-oy) offset), not
- * a rotated line, so it reads correctly for ANY direction. 6 rings x 8
- * directions = 48 candidates beyond the on-anchor one: comfortably enough
- * headroom for the densest real fixture seen in local verification (17
- * markers clustered around one prefecture's landmark) to resolve without
- * falling through to the last-resort branch below.
+ * ANCHOR INTEGRITY -- the single invariant this whole placement model exists
+ * to protect.
+ *
+ * A marker means "this building, here". Everything below may move a marker to
+ * keep it tappable and legible, but NOTHING may move it far enough that a
+ * player can no longer tell which building it belongs to. MAX_ANCHOR_OFFSET
+ * is the hard cap on |drawn position - true anchor|, in CSS pixels, and
+ * capToAnchor() below enforces it as the LAST step of every render, after
+ * every other adjustment has had its say. One enforced invariant, rather than
+ * trusting each contributing code path to behave.
+ *
+ * What this replaced, and why (measured on main f74331b, Tokyo's 17-marker
+ * home-prefecture fixture, via a Chromium instrumentation run):
+ *
+ *   - The previous decluttering searched 6 rings of a 108x86 placard box,
+ *     i.e. up to 696px horizontally and 564px vertically. On the measured
+ *     520px-wide desktop canvas 15 of 17 markers were displaced, the worst by
+ *     334px -- 64% of the canvas width. The badge a player reads as "the
+ *     marker" ended up nowhere near its building, and the only remaining
+ *     indication of the real position was an 8px dot.
+ *   - The viewport clamp treated an anchor up to a full placard OUTSIDE the
+ *     canvas as "visible" and then clamped it back inside, so a building that
+ *     is not on screen still got a marker drawn on screen: 3 of 17 on desktop
+ *     and 6 of 17 on the iPhone viewport.
+ *   - The chrome-avoidance nudge could travel 14 steps of 58px (812px).
+ *
+ * The same measurement showed the crowding those searches were solving is
+ * mild: with every badge left exactly on its anchor, only 6-7 of the 136
+ * pairs overlap at all, and the closest two anchors are 14px (desktop) /
+ * 28px (iPhone) apart. A cap of one badge-width is therefore ample to
+ * separate tap targets while keeping every marker unmistakably on its
+ * building.
+ *
+ * Responsibility split (the thing that was previously conflated):
+ *   world anchor  -- tile -> transform.toScreen() * transform.scale.
+ *                    Camera-independent, never modified by anything here.
+ *   screen placement -- camTransform.toCss(tile), plus a BOUNDED declutter
+ *                    offset, plus a bounded edge clamp and chrome nudge,
+ *                    finally hard-capped by capToAnchor().
+ *   label layout  -- fixed in CSS relative to the badge; never moved
+ *                    independently, so a label can never drift away from the
+ *                    marker it names.
+ *   leader dot    -- .d-map-marker-dot, counter-translated by the applied
+ *                    offset, so the TRUE anchor stays marked whenever the
+ *                    badge was nudged at all.
  */
-const PLACARD_RING_COUNT=6;
-const PLACARD_DIRECTIONS=[[0,-1],[1,-1],[1,0],[1,1],[0,1],[-1,1],[-1,0],[-1,-1]];
-function buildPlacardCandidates(){
+const MAX_ANCHOR_OFFSET=56;
+/*
+ * Collision box = the marker's own rendered badge (its tap target), NOT the
+ * badge-plus-label footprint the old placard box used. Decluttering exists to
+ * keep tap targets distinguishable; labels are allowed to overlap, which is
+ * the explicitly accepted trade-off ("軽微な重なりは許容してもよいが、位置の
+ * 意味を壊してはならない"). 44x54 is the smallest rendered marker size
+ * (css/d-ui-map-phase2-markers.css's <=520px breakpoint, the iOS minimum tap
+ * target).
+ */
+const MARKER_CLAMP_HALF_W=22,MARKER_CLAMP_HALF_H=27;
+const DECLUTTER_STEP=28;
+const DECLUTTER_DIRECTIONS=[[0,-1],[1,-1],[1,0],[1,1],[0,1],[-1,1],[-1,0],[-1,-1]];
+/*
+ * Candidate #1 is always "no shift at all", so a marker with no neighbour
+ * stays exactly on its building. The rest is an expanding 8-compass ring at
+ * DECLUTTER_STEP, with every candidate past MAX_ANCHOR_OFFSET discarded --
+ * that filter is what bounds the search by construction rather than by a ring
+ * count that has to be kept in sync by hand. Diagonals are fine: the leader
+ * dot is a dot, not a rotated line, so it reads correctly in any direction.
+ */
+function buildDeclutterCandidates(){
   const list=[{dx:0,dy:0}];
-  for(let ring=1;ring<=PLACARD_RING_COUNT;ring++){
-    for(const [ux,uy] of PLACARD_DIRECTIONS)list.push({dx:ux*ring*(PLACARD_W+PLACARD_GAP),dy:uy*ring*(PLACARD_H+PLACARD_GAP)});
+  for(let ring=1;ring*DECLUTTER_STEP<=MAX_ANCHOR_OFFSET;ring++){
+    for(const [ux,uy] of DECLUTTER_DIRECTIONS){
+      const dx=ux*ring*DECLUTTER_STEP,dy=uy*ring*DECLUTTER_STEP;
+      if(Math.hypot(dx,dy)<=MAX_ANCHOR_OFFSET)list.push({dx,dy});
+    }
   }
   return list;
 }
-const PLACARD_CANDIDATES=buildPlacardCandidates();
-function placardRect(cx,cy){return {left:cx-PLACARD_W/2,top:cy-PLACARD_H/2,right:cx+PLACARD_W/2,bottom:cy+PLACARD_H/2};}
+const DECLUTTER_CANDIDATES=buildDeclutterCandidates();
+/*
+ * The hard cap. Applied last, to whatever position every other adjustment
+ * arrived at, so no combination of declutter + edge clamp + chrome nudge can
+ * ever put a badge further than MAX_ANCHOR_OFFSET from its own building.
+ * Shortens the offset vector rather than snapping back to the anchor, so the
+ * direction the other passes chose (away from a neighbour, away from a chrome
+ * control) is preserved as far as the cap allows.
+ */
+function capToAnchor(x,y,ax,ay){
+  const dx=x-ax,dy=y-ay,distance=Math.hypot(dx,dy);
+  if(!(distance>MAX_ANCHOR_OFFSET))return [x,y];
+  const scale=MAX_ANCHOR_OFFSET/distance;
+  return [ax+dx*scale,ay+dy*scale];
+}
+function markerBox(cx,cy){return {left:cx-MARKER_CLAMP_HALF_W,top:cy-MARKER_CLAMP_HALF_H,right:cx+MARKER_CLAMP_HALF_W,bottom:cy+MARKER_CLAMP_HALF_H};}
 function rectsOverlap(a,b){return a.left<b.right&&a.right>b.left&&a.top<b.bottom&&a.bottom>b.top;}
 function layoutMarkerPlacards(entities,prefID){
   if(!assetsReady)return null;
@@ -244,8 +312,8 @@ function layoutMarkerPlacards(entities,prefID){
      * transform.toScreen() (see prototypes/map-world-preview.js's own
      * worldTransform()) returns RAW, UNSCALED tile-space pixels -- the
      * CSS-pixel conversion positionMarkers() below relies on is what
-     * multiplies by transform.scale (DEFAULT_SCALE). PLACARD_W/H are
-     * CSS-pixel sizes (they must match what css/d-ui-map-phase2-markers.css
+     * multiplies by transform.scale (DEFAULT_SCALE). The collision box is a
+     * CSS-pixel size (it must match what css/d-ui-map-phase2-markers.css
      * actually renders), so the anchor used for collision math must be
      * scaled the exact same way -- comparing CSS-pixel boxes against raw
      * unscaled coordinates silently under-detects collisions by a factor of
@@ -255,13 +323,13 @@ function layoutMarkerPlacards(entities,prefID){
     const [rawAx,rawAy]=transform.toScreen(entity.tileX,entity.tileY);
     const ax=rawAx*transform.scale,ay=rawAy*transform.scale;
     let chosen=null;
-    for(const candidate of PLACARD_CANDIDATES){
-      const rect=placardRect(ax+candidate.dx,ay+candidate.dy);
+    for(const candidate of DECLUTTER_CANDIDATES){
+      const rect=markerBox(ax+candidate.dx,ay+candidate.dy);
       if(!claimed.some(other=>rectsOverlap(rect,other))){chosen=candidate;claimed.push(rect);break;}
     }
     /*
      * Last resort (spec: never silently drop a marker, and this should be
-     * pathologically rare given PLACARD_CANDIDATES' 49 slots): every
+     * the bounded candidate set is small by design): every
      * candidate collided with something already claimed. Pick whichever
      * candidate overlaps the LEAST already-claimed area rather than
      * blindly reusing candidate #1 -- two entities that both exhaust their
@@ -270,9 +338,9 @@ function layoutMarkerPlacards(entities,prefID){
      * (canonical entity order, no randomness).
      */
     if(!chosen){
-      let bestCandidate=PLACARD_CANDIDATES[0],bestOverlap=Infinity;
-      for(const candidate of PLACARD_CANDIDATES){
-        const rect=placardRect(ax+candidate.dx,ay+candidate.dy);
+      let bestCandidate=DECLUTTER_CANDIDATES[0],bestOverlap=Infinity;
+      for(const candidate of DECLUTTER_CANDIDATES){
+        const rect=markerBox(ax+candidate.dx,ay+candidate.dy);
         const totalOverlap=claimed.reduce((sum,other)=>{
           const ow=Math.max(0,Math.min(rect.right,other.right)-Math.max(rect.left,other.left));
           const oh=Math.max(0,Math.min(rect.bottom,other.bottom)-Math.max(rect.top,other.top));
@@ -281,7 +349,7 @@ function layoutMarkerPlacards(entities,prefID){
         if(totalOverlap<bestOverlap){bestOverlap=totalOverlap;bestCandidate=candidate;}
       }
       chosen=bestCandidate;
-      claimed.push(placardRect(ax+chosen.dx,ay+chosen.dy));
+      claimed.push(markerBox(ax+chosen.dx,ay+chosen.dy));
     }
     offsets.set(entity.id,chosen);
   }
@@ -602,34 +670,20 @@ function installPanHandlers(){
  * -- always lands back on the true tile anchor.
  */
 /*
- * Clamp margin: HALF of the marker's own smallest rendered footprint
- * (css/d-ui-map-phase2-markers.css's <=520px breakpoint, 44x54 -- the iOS
- * minimum tap target), not the full PLACARD_W/H collision box. The clamp's
- * job is only to keep the tappable glyph on-screen; the wider label
- * trailing off past the edge is a minor, acceptable cosmetic clip (
- * .d-map-stage already has overflow:hidden), and using the much bigger
- * placard box here would pull far more aggressively -- exactly what let
- * unrelated markers' clamped positions collide with each other in the
- * first Chromium dry-run of this fix.
+ * Deterministic vertical nudges tried, in order, when a marker's position
+ * lands on one of the iPhone chrome controls (which must stay tappable, see
+ * chromeExclusionRects() below) or on an already-placed marker. Alternating
+ * +/-, and bounded by MAX_ANCHOR_OFFSET rather than by a hand-maintained step
+ * count: the previous 14 steps of 58px could travel 812px, which is precisely
+ * the kind of unbounded displacement that severed markers from their
+ * buildings. If no candidate clears the obstacle within the cap the last one
+ * is accepted anyway -- a residual overlap is the accepted trade-off, an
+ * unrecognisable position is not.
  */
-const MARKER_CLAMP_HALF_W=22,MARKER_CLAMP_HALF_H=27;
-/*
- * Deterministic nudge offsets tried, in order, when the naturally-clamped
- * position collides with an already-positioned marker (see the "cross-
- * marker clamp collision" comment below) -- alternating +/-, growing by one
- * button-height (2*MARKER_CLAMP_HALF_H+4px gap) each step. Bounded
- * (CLAMP_NUDGE_STEP_COUNT steps each direction): if every one still
- * collides, the last one is accepted anyway --
- * this only runs for markers that ALREADY needed clamping (rare), so a
- * residual overlap here is the same kind of "unavoidable extreme density"
- * last resort layoutMarkerPlacards() itself allows, never an infinite
- * search or a dropped marker.
- */
-const CLAMP_NUDGE_STEP=MARKER_CLAMP_HALF_H*2+4;
-const CLAMP_NUDGE_STEP_COUNT=14;
+const CLAMP_NUDGE_STEP=MARKER_CLAMP_HALF_H;
 function buildClampNudgeOffsets(){
   const list=[0];
-  for(let n=1;n<=CLAMP_NUDGE_STEP_COUNT;n++)list.push(n*CLAMP_NUDGE_STEP,-n*CLAMP_NUDGE_STEP);
+  for(let n=1;n*CLAMP_NUDGE_STEP<=MAX_ANCHOR_OFFSET;n++)list.push(n*CLAMP_NUDGE_STEP,-n*CLAMP_NUDGE_STEP);
   return list;
 }
 const CLAMP_NUDGE_OFFSETS=buildClampNudgeOffsets();
@@ -689,9 +743,17 @@ function positionMarkers(canvas,camTransform,cssW,cssH){
    * treated as "visible enough to matter" so a placard whose OWN anchor is
    * just past the edge still gets nudged fully into view.
    */
-  const anchorVisible=(ax,ay)=>Number.isFinite(cssW)&&Number.isFinite(cssH)
-    &&ax>=-PLACARD_W&&ax<=cssW+PLACARD_W&&ay>=-PLACARD_H&&ay<=cssH+PLACARD_H;
-  const markerRect=(cx,cy)=>({left:cx-halfW,top:cy-halfH,right:cx+halfW,bottom:cy+halfH});
+  /*
+   * ONLY a marker whose own building is genuinely inside the canvas may be
+   * clamped. The previous gate accepted an anchor up to a full placard box
+   * OUTSIDE the canvas and then clamped it back in, which drew a marker on
+   * screen for a building that was not on screen -- measured at 3 of 17
+   * markers on the desktop canvas and 6 of 17 on the iPhone canvas. A
+   * building that is off-camera must simply have no visible marker;
+   * .d-city-surface's overflow:hidden already clips it.
+   */
+  const anchorOnCanvas=(ax,ay)=>Number.isFinite(cssW)&&Number.isFinite(cssH)
+    &&ax>=0&&ax<=cssW&&ay>=0&&ay<=cssH;
   /*
    * claimed starts pre-seeded with the live iPhone-chrome exclusion
    * rects (see chromeExclusionRects() above) so the SAME nudge search
@@ -716,19 +778,20 @@ function positionMarkers(canvas,camTransform,cssW,cssH){
     const [ax,ay]=camTransform.toCss(tileX,tileY);
     const dx=Number(marker.dataset.phase2OffsetX)||0,dy=Number(marker.dataset.phase2OffsetY)||0;
     const naturalX=ax+dx,naturalY=ay+dy;
-    if(!anchorVisible(ax,ay)){
+    if(!anchorOnCanvas(ax,ay)){
       /* Genuinely off-screen: leave layoutMarkerPlacards()'s own offset
          untouched and skip the collision search entirely -- it is
          invisible either way ( .d-city-surface clips it), and nudging it
          would only cost cycles without ever being seen. */
-      marker.style.setProperty('--x',`${naturalX}px`);marker.style.setProperty('--y',`${naturalY}px`);
-      marker.style.setProperty('--ox',`${naturalX-ax}px`);marker.style.setProperty('--oy',`${naturalY-ay}px`);
+      const [offX,offY]=capToAnchor(naturalX,naturalY,ax,ay);
+      marker.style.setProperty('--x',`${offX}px`);marker.style.setProperty('--y',`${offY}px`);
+      marker.style.setProperty('--ox',`${offX-ax}px`);marker.style.setProperty('--oy',`${offY-ay}px`);
       continue;
     }
     onScreen.push({marker,ax,ay,baseX:clampX(naturalX),baseY:clampY(naturalY)});
   }
   for(const {marker,ax,ay,baseX,baseY} of onScreen){
-    let chosenY=baseY,resolvedRect=markerRect(baseX,baseY);
+    let chosenY=baseY,resolvedRect=markerBox(baseX,baseY);
     if(claimed.some(other=>rectsOverlap(resolvedRect,other))){
       /*
        * Nudge candidates start from the already-clamped baseY, not a raw
@@ -740,13 +803,20 @@ function positionMarkers(canvas,camTransform,cssW,cssH){
       for(const offset of CLAMP_NUDGE_OFFSETS){
         if(offset===0)continue;
         const tryY=clampY(baseY+offset);
-        const rect=markerRect(baseX,tryY);
+        const rect=markerBox(baseX,tryY);
         if(!claimed.some(other=>rectsOverlap(rect,other))){chosenY=tryY;resolvedRect=rect;found=true;break;}
       }
-      if(!found)resolvedRect=markerRect(baseX,chosenY);
+      if(!found)resolvedRect=markerBox(baseX,chosenY);
     }
-    claimed.push(resolvedRect);
-    const x=baseX,y=chosenY;
+    /*
+     * The cap is applied LAST, to whatever the declutter offset, the edge
+     * clamp and the chrome nudge jointly arrived at. That makes anchor
+     * integrity a property of the final rendered position rather than
+     * something each pass has to promise separately, and it is what the
+     * focused test asserts against every marker on every viewport.
+     */
+    const [x,y]=capToAnchor(baseX,chosenY,ax,ay);
+    claimed.push(markerBox(x,y));
     marker.style.setProperty('--x',`${x}px`);marker.style.setProperty('--y',`${y}px`);
     marker.style.setProperty('--ox',`${x-ax}px`);marker.style.setProperty('--oy',`${y-ay}px`);
   }
