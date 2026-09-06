@@ -128,6 +128,13 @@ check('selected/focused pins get a bounded pin-only ring and stack above resting
   assert.match(selected, /outline:none/, 'the 44px button must not expose a large selected outline');
   assert.match(markersRules, /\.d-map-marker\.selected:before,[\s\S]*?\.d-map-marker:focus-visible:before\{[^}]*scale\(1\.08\)[^}]*border-color:#ffe39a[^}]*drop-shadow/,
     'selection emphasis must stay on the small visible pin and work for keyboard focus');
+  const halo = markersRules.match(/\.d-map-marker\.selected:after,[\s\S]*?\.d-map-marker:focus-visible:after\{([^}]*)\}/);
+  assert.ok(halo, 'selected and keyboard-focused markers need the same static outer halo');
+  assert.match(halo[1], /width:34px;height:40px/, 'the halo must remain inside the 44px hit target');
+  assert.match(halo[1], /z-index:-1/, 'the halo must sit behind the pin and glyph');
+  assert.match(halo[1], /box-shadow:/, 'the selected silhouette needs contrast on a busy city');
+  assert.doesNotMatch(ruleFor('.d-map-marker:after'), /width:|height:|box-shadow:/,
+    'resting markers must not inherit selected-only emphasis');
 });
 
 check('the decorative "★★★" overlay is suppressed -- three fixed stars carry no information and are pure noise at this pin size', () => {
