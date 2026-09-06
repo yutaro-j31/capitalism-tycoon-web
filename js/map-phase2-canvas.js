@@ -30,11 +30,11 @@ if(modules.mapPhase2Canvas)throw new Error('map-phase2-canvas.js is already regi
  * to any browser storage, and never becomes part of game state or the
  * simulation.
  */
-globalThis.__STATIC_ASSET_REVISION='79c20d4ed901';
+globalThis.__STATIC_ASSET_REVISION='022b9a75e3d2';
 const ASSET_BASE='./assets/map-sprites/phase2';
 const IMAGE_BASE='./assets/map-sprites/phase1';
-const MANIFEST_URL=`${ASSET_BASE}/sprites.json?rev=79c20d4ed901`;
-const PROTOTYPE_SCRIPTS=['./prototypes/map-canvas-renderer.js?rev=79c20d4ed901','./prototypes/map-prefecture-profiles.js?rev=79c20d4ed901','./prototypes/map-world-preview.js?rev=79c20d4ed901'];
+const MANIFEST_URL=`${ASSET_BASE}/sprites.json?rev=022b9a75e3d2`;
+const PROTOTYPE_SCRIPTS=['./prototypes/map-canvas-renderer.js?rev=022b9a75e3d2','./prototypes/map-prefecture-profiles.js?rev=022b9a75e3d2','./prototypes/map-world-preview.js?rev=022b9a75e3d2'];
 const WORLD_COLS=32,WORLD_ROWS=28;
 /*
  * Initial-framing pull-back (Map Framing / Zoom-out Calibration). This
@@ -122,20 +122,124 @@ function buildMapViewModel(g,engineInstance){
  * docs/map-phase2-production-integration-audit.md section 6 (PR B).
  * Building scenery and real markers are separate concepts: this never
  * changes buildWorldDistrict()'s own city fabric, it only picks which
- * already-generated zone-appropriate tile a given production entity's
- * marker sits on.
+ * already-generated tile a given production entity's marker sits on.
+ *
+ * Marker/building affinity (this pass). Placement used to select by district
+ * ZONE only ('commercial', 'cbd', ...), which is not what a player sees. The
+ * zone decides which CATEGORY POOL a tile draws its sprite from, and those
+ * pools deliberately cross over -- prototypes/map-world-preview.js's
+ * ROLE_CATEGORY gives the commercial zone an 'X' infill role of
+ * residential.low and the cbd zone one of commercial.small -- and a zone's
+ * tiles include every plot the block template left as OPEN SPACE, which has
+ * no building on it at all. Selecting by zone therefore put "テナント募集" on
+ * apartment blocks and office towers, and put roughly a third of all markers
+ * on empty plazas and parks. Measured on main @8337024 across 5 prefectures:
+ * tenant 33% no building / 18% residential.low / 12% office.*; office 40% no
+ * building / 18% commercial.small; store 35% no building.
+ *
+ * So affinity is expressed against the SURFACE a player actually looks at --
+ * the sprite category really placed on that tile, or, for a tile with no
+ * building, what kind of open space it is. Every marker kind declares which
+ * surfaces it prefers and which it merely accepts; anything unlisted is
+ * forbidden, so civic buildings, the landmark, green space and footprint-
+ * reserved tiles can never host a marker.
  */
-const ENTITY_KIND_DISTRICTS={store:['commercial','cbd'],tenant:['commercial','cbd'],office:['cbd']};
-/* g.properties' `kind` field is one of these 6 fixed Japanese labels (see
-   js/engine.js's makeProperties()) -- not a fabricated attribute. */
-const PROPERTY_KIND_DISTRICTS={
-  '商業ビル':['commercial'],'土地':['commercial','residential','industrial'],
-  '住宅':['residential'],'大型物件':['premiumResidential','commercial'],
-  '物流':['industrial'],'オフィス':['cbd']
+const SURFACE_HARDSCAPE='open.hardscape';
+const SURFACE_GREEN='open.green';
+const SURFACE_INDUSTRIAL='open.industrial';
+/* prototypes/map-world-preview.js's OPEN_TYPES_BY_ZONE/GREEN_TYPES/
+   HARDSCAPE_TYPES/INDUSTRIAL_OPEN_TYPES vocabulary, grouped by what a plot
+   reads as. SURFACE_GREEN is deliberately in no kind's list: a pocket park
+   is not for sale and cannot be leased. */
+const OPEN_TYPE_SURFACES={
+  plaza:SURFACE_HARDSCAPE,forecourt:SURFACE_HARDSCAPE,
+  pocketPark:SURFACE_GREEN,treeStrip:SURFACE_GREEN,
+  parking:SURFACE_INDUSTRIAL,loadingBay:SURFACE_INDUSTRIAL
 };
-function districtCandidatesFor(entity){
-  if(entity.kind==='realestate')return PROPERTY_KIND_DISTRICTS[entity.propertyKind]||['commercial','residential','industrial'];
-  return ENTITY_KIND_DISTRICTS[entity.kind]||['commercial'];
+/*
+ * Per-sprite escape hatch for assets whose category is right but whose
+ * subject is not a tenantable building. Category-level rules are the norm;
+ * this exists so a single asset can be corrected without inventing a new
+ * category or reclassifying its neighbours. 'signage' appears in no kind's
+ * preferred/allowed list, so an overridden sprite simply stops being a
+ * candidate.
+ */
+const SPRITE_SURFACE_OVERRIDES={commercial_billboard:'signage'};
+/*
+ * store/tenant: a shop unit belongs in retail stock first, and is plausible
+ * in the lower floors of an office building; never on housing, a warehouse
+ * or bare ground.
+ * office: rental office stock belongs in office towers first, and is
+ * plausible inside a large mixed-use complex.
+ */
+const KIND_SURFACES={
+  store:{preferred:['commercial.small','commercial.mid','commercial.hero'],allowed:['office.small','office.mid']},
+  tenant:{preferred:['commercial.small','commercial.mid','commercial.hero'],allowed:['office.small','office.mid','office.hero']},
+  office:{preferred:['office.hero','office.mid','office.small'],allowed:['commercial.hero','commercial.mid']}
+};
+/* g.properties' `kind` field is one of these 6 fixed Japanese labels (see
+   js/engine.js's makeProperties()) -- not a fabricated attribute. Two of
+   them are LAND rather than a building ('郊外ロードサイド土地' and
+   '物流センター用地'), so those two are the only entries that prefer an
+   open plot; every other property kind must point at a real building. */
+const PROPERTY_KIND_SURFACES={
+  '商業ビル':{preferred:['commercial.hero','commercial.mid','commercial.small'],allowed:['office.mid','office.small']},
+  '土地':{preferred:[SURFACE_HARDSCAPE],allowed:[SURFACE_INDUSTRIAL]},
+  '住宅':{preferred:['residential.low','townhouse'],allowed:['residential.mid']},
+  '大型物件':{preferred:['residential.premium','commercial.hero'],allowed:['residential.mid','office.hero']},
+  '物流':{preferred:['logistics'],allowed:[SURFACE_INDUSTRIAL]},
+  'オフィス':{preferred:['office.hero','office.mid'],allowed:['office.small']}
+};
+/* An unknown property kind (a save written by a future build) falls back to
+   the commercial-building rule rather than to "anything", so the forbidden
+   surfaces stay forbidden even for data this build does not recognise. */
+const DEFAULT_PROPERTY_SURFACES=PROPERTY_KIND_SURFACES['商業ビル'];
+const EMPTY_SURFACE_RULES={preferred:[],allowed:[]};
+function surfaceRulesFor(entity){
+  if(entity.kind==='realestate')return PROPERTY_KIND_SURFACES[entity.propertyKind]||DEFAULT_PROPERTY_SURFACES;
+  return KIND_SURFACES[entity.kind]||EMPTY_SURFACE_RULES;
+}
+/*
+ * What a player sees on this tile. A built tile reports its sprite's own
+ * category (or its per-sprite override); an open plot reports which kind of
+ * open space it is. Everything else -- road, a tile reserved by a
+ * neighbour's 2x2 footprint, a plot with no resolved sprite -- reports null
+ * and is never a candidate.
+ */
+function surfaceOfCell(cell,byId){
+  if(!cell)return null;
+  if(cell.spriteId){
+    const override=SPRITE_SURFACE_OVERRIDES[cell.spriteId];
+    if(override)return override;
+    const meta=byId&&byId[cell.spriteId];
+    return meta?meta.category:null;
+  }
+  if(cell.open)return OPEN_TYPE_SURFACES[cell.openType]||null;
+  return null;
+}
+/*
+ * Fallback ladder, in order, so a scarce surface degrades predictably
+ * instead of silently landing on a forbidden building:
+ *   1. an unclaimed PREFERRED surface
+ *   2. an unclaimed ALLOWED surface
+ *   3. a PREFERRED surface already claimed by another marker
+ *   4. an ALLOWED surface already claimed by another marker
+ *   5. no map marker at all (tileX/tileY null -- the entity stays fully
+ *      reachable through the directory list, exactly as it already does
+ *      while the district is still loading)
+ * Steps 3-4 rank meaning above tile exclusivity on purpose: two markers on
+ * one correct building read far better than one marker on a warehouse, and
+ * layoutMarkerPlacards() already separates co-located markers within the
+ * MAX_ANCHOR_OFFSET cap. In practice a district carries 150-300 buildings
+ * against roughly 20 markers, so steps 3-5 are reached only by a district
+ * genuinely starved of a category.
+ */
+function pickUnclaimedCell(pool,seed,occupied){
+  for(let attempt=0;attempt<pool.length;attempt++){
+    const cell=pool[(seed+attempt)%pool.length];
+    if(!occupied.has(`${cell.tileX},${cell.tileY}`))return cell;
+  }
+  return null;
 }
 /*
  * placeEntityTiles(): pure given an already-built district (buildWorldDistrict
@@ -155,25 +259,29 @@ function placeEntityTiles(entities,prefID){
   const Base=globalThis.MapCanvas;
   if(!Base||!assetsReady)return null;
   const district=ensureDistrict(assetsReady.index2,prefID);
-  const byZone=new Map();
+  const byId=assetsReady.index2&&assetsReady.index2.byId;
+  /* Row-major over the cached district's own tile array, so pool order --
+     and therefore every pick below -- is stable across renders. */
+  const bySurface=new Map();
   for(const cell of district.tiles){
-    if(!byZone.has(cell.zone))byZone.set(cell.zone,[]);
-    byZone.get(cell.zone).push(cell);
+    const surface=surfaceOfCell(cell,byId);
+    if(!surface)continue;
+    if(!bySurface.has(surface))bySurface.set(surface,[]);
+    bySurface.get(surface).push(cell);
   }
   const occupied=new Set();
   const placements=new Map();
   const canonicalOrder=[...entities].sort((a,b)=>a.id<b.id?-1:a.id>b.id?1:0);
   for(const entity of canonicalOrder){
-    const eligible=districtCandidatesFor(entity).flatMap(zone=>byZone.get(zone)||[]);
-    if(!eligible.length){placements.set(entity.id,{tileX:null,tileY:null});continue;}
+    const rules=surfaceRulesFor(entity);
+    const preferred=rules.preferred.flatMap(surface=>bySurface.get(surface)||[]);
+    const allowed=rules.allowed.flatMap(surface=>bySurface.get(surface)||[]);
     const seed=Base.hash(`${prefID}:marker:${entity.kind}:${entity.sourceId}`);
-    let picked=null;
-    for(let attempt=0;attempt<eligible.length;attempt++){
-      const cell=eligible[(seed+attempt)%eligible.length];
-      const key=`${cell.tileX},${cell.tileY}`;
-      if(!occupied.has(key)){occupied.add(key);picked=cell;break;}
-    }
-    if(!picked)picked=eligible[seed%eligible.length];
+    const picked=pickUnclaimedCell(preferred,seed,occupied)||pickUnclaimedCell(allowed,seed,occupied)
+      ||(preferred.length?preferred[seed%preferred.length]:null)
+      ||(allowed.length?allowed[seed%allowed.length]:null);
+    if(!picked){placements.set(entity.id,{tileX:null,tileY:null});continue;}
+    occupied.add(`${picked.tileX},${picked.tileY}`);
     placements.set(entity.id,{tileX:picked.tileX,tileY:picked.tileY});
   }
   return entities.map(entity=>Object.assign({},entity,placements.get(entity.id)));
@@ -253,16 +361,25 @@ function placeEntityTiles(entities,prefID){
  */
 const MAX_ANCHOR_OFFSET=56;
 /*
- * Collision box = the marker's own rendered badge (its tap target), NOT the
- * badge-plus-label footprint the old placard box used. Decluttering exists to
- * keep tap targets distinguishable; labels are allowed to overlap, which is
- * the explicitly accepted trade-off ("軽微な重なりは許容してもよいが、位置の
- * 意味を壊してはならない"). 44x54 is the smallest rendered marker size
- * (css/d-ui-map-phase2-markers.css's <=520px breakpoint, the iOS minimum tap
- * target).
+ * Collision box = the marker's own VISIBLE badge, NOT the badge-plus-label
+ * footprint the old placard box used, and not the button's tap target
+ * either. Decluttering exists to keep the pins a player looks at
+ * distinguishable; labels are allowed to overlap, which is the explicitly
+ * accepted trade-off ("軽微な重なりは許容してもよいが、位置の
+ * 意味を壊してはならない").
+ *
+ * The badge is .d-map-marker:before at 34x42 (css/d-ui-map-phase2-markers.
+ * css); 36x44 here leaves a 1px margin on each side so two pins never touch.
+ * The BUTTON around it stays 46x56 and fully tappable, so shrinking this
+ * box shrinks how far markers push each other WITHOUT shrinking any tap
+ * target -- the two were the same number only while a clip-path forced the
+ * pin and the hit area to be one box.
  */
-const MARKER_CLAMP_HALF_W=22,MARKER_CLAMP_HALF_H=27;
-const DECLUTTER_STEP=28;
+const MARKER_CLAMP_HALF_W=18,MARKER_CLAMP_HALF_H=22;
+/* One ring must be able to clear a head-on collision inside the cap: two
+   pins sharing an anchor need 2*MARKER_CLAMP_HALF_H=44px of separation, so
+   ring 2 (48px) resolves it at well under MAX_ANCHOR_OFFSET. */
+const DECLUTTER_STEP=24;
 const DECLUTTER_DIRECTIONS=[[0,-1],[1,-1],[1,0],[1,1],[0,1],[-1,1],[-1,0],[-1,-1]];
 /*
  * Candidate #1 is always "no shift at all", so a marker with no neighbour

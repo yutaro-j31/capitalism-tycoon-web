@@ -108,6 +108,22 @@
   capToAnchor() を通す。実測でこの上限が無いと最大334px（canvas幅の64%）
   ずれ、画面外の建物のmarkerが画面内へclampされる事故が起きた。
   tests/map-marker-anchor-integrity-test.js が上限違反を赤で検出する
+- production mapのmarkerは「その建物であり得る」ことも守る。配置候補は
+  district zone ではなく、そのタイルに実際に置かれた**sprite category**
+  （建物が無いタイルは open space の種別）で選ぶ。許可表は
+  js/map-phase2-canvas.js の KIND_SURFACES / PROPERTY_KIND_SURFACES で、
+  列挙されていない surface は禁止（civic / landmark / 緑地 / 看板 /
+  footprint予約タイルにmarkerは載らない）。zone で選ぶと
+  ROLE_CATEGORY のクロスオーバー（commercial zoneのX infillが
+  residential.low、cbd zoneのX infillが commercial.small）と
+  open space が混ざり、実測でtenantの33%が建物の無い区画・18%が住宅に載った。
+  1 sprite だけ例外にしたいときは SPRITE_SURFACE_OVERRIDES を使う
+  （新しいcategoryを増やさない）。
+  tests/map-marker-building-affinity-test.js が許可表と実配置の両方を検証する
+- marker の見た目サイズとタップ領域は別物として扱う。clip-path はヒット
+  テストにも効くので、pinの形は .d-map-marker:before に描き、button 自体は
+  clip-path:none の44px以上の矩形のまま残す（両方を1つのboxにすると
+  「見た目を小さくする」と「44pxを確保する」が両立しない）
 - 1機能1PR。ブランチ名は feat/ fix/ ci/ refactor/ docs/ のいずれか
 
 # 既知の落とし穴
