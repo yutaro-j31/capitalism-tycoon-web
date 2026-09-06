@@ -282,9 +282,21 @@ async function main() {
   /* ================= ACCESSIBILITY ================= */
   await check('markers are real <button> elements (native button semantics) with an aria-label and a >=44px hit target on both dimensions', () => {
     assert.match(shellSrc, /placeable\.map\(entity=>`<button type="button" class="d-map-marker/);
-    const sizeMatch = markersCssSrc.match(/\.d-map-marker\{width:(\d+)px;height:(\d+)px\}/);
+    // The rule carries more declarations than width/height since the
+    // building-affinity pass separated the visible pin (::before) from the
+    // button's tap target, so match up to the next declaration rather than
+    // requiring the rule to end at `height`. The >=44px floor is unchanged.
+    const sizeMatch = markersCssSrc.match(/\.d-map-marker\{width:(\d+)px;height:(\d+)px[;}]/);
     assert.ok(sizeMatch, '.d-map-marker size rule must still exist');
     assert.ok(Number(sizeMatch[1]) >= 44 && Number(sizeMatch[2]) >= 44, 'hit target must stay >=44px both dimensions');
+    // A box >=44px only IS a >=44px tap target while nothing clips the
+    // button: clip-path clips hit testing too, so the shipped 48x60 hexagon
+    // was really ~41px wide at its widest. The pin's clip-path now lives on
+    // ::before, and the button itself must stay unclipped.
+    assert.match(markersCssSrc, /\.d-map-marker\{[^}]*clip-path:none/,
+      'the button must explicitly drop the inherited clip-path, or its real hit area is smaller than its box');
+    assert.match(markersCssSrc, /\.d-map-marker:before\{[^}]*clip-path:polygon/,
+      'the pin shape must be drawn by ::before so the visible badge can be smaller than the tap target');
   });
 
   /* ================= SCREEN-SPACE DECLUTTERING ================= */

@@ -148,7 +148,10 @@ async function main() {
 
   /* ================= marker size rebalance + hit target (STEP 6/7) ================= */
   await check(".d-map-marker's CSS footprint was shrunk in css/d-ui-map-phase2-markers.css to rebalance against the now-smaller pulled-back city, while both dimensions stay >= the 44px iOS minimum tap target", () => {
-    const sizeMatch = markersCssSrc.match(/\.d-map-marker\{width:(\d+)px;height:(\d+)px\}/);
+    // The rule carries further declarations since the building-affinity pass
+    // split the visible pin (::before) off the button, so match up to the next
+    // declaration instead of requiring the rule to end at `height`.
+    const sizeMatch = markersCssSrc.match(/\.d-map-marker\{width:(\d+)px;height:(\d+)px[;}]/);
     assert.ok(sizeMatch, '.d-map-marker size override must be present in css/d-ui-map-phase2-markers.css');
     const w = Number(sizeMatch[1]), h = Number(sizeMatch[2]);
     assert.ok(w >= 44 && h >= 44, `hit target too small: ${w}x${h}`);
@@ -156,6 +159,14 @@ async function main() {
     assert.ok(oldSizeMatch, 'sanity: css/d-ui-reference-fidelity.css must still define its own (now-overridden) base marker size');
     const oldW = Number(oldSizeMatch[1]), oldH = Number(oldSizeMatch[2]);
     assert.ok(w < oldW && h < oldH, `expected a real reduction from the reference-fidelity base (${oldW}x${oldH}), got ${w}x${h}`);
+    // What actually competes with the pulled-back city for visual weight is
+    // the drawn pin, not the (now transparent) button, so hold that to the
+    // same "really smaller" bar.
+    const pinMatch = markersCssSrc.match(/\.d-map-marker:before\{[^}]*width:(\d+)px;height:(\d+)px/);
+    assert.ok(pinMatch, 'the visible pin must declare its own size');
+    const pinW = Number(pinMatch[1]), pinH = Number(pinMatch[2]);
+    assert.ok(pinW < w && pinH < h, `the drawn pin (${pinW}x${pinH}) must be smaller than the tap target (${w}x${h})`);
+    assert.ok(pinW < oldW && pinH < oldH, `the drawn pin must also be smaller than the reference-fidelity base (${oldW}x${oldH})`);
   });
 
   await check('css/d-ui-map-phase2-markers.css is imported after css/d-ui-reference-fidelity.css in d-ui-mobile-company.css, so the new marker-size override actually wins the CSS cascade (same-specificity source-order tie)', () => {

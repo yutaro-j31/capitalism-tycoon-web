@@ -230,8 +230,11 @@ async function main() {
   });
 
   /* ================= marker hit target / css cascade still holds ================= */
-  await check('.d-map-marker stays 48x60 (>=44px hit target both dimensions) -- unaffected by this PR', () => {
-    const sizeMatch = markersCssSrc.match(/\.d-map-marker\{width:(\d+)px;height:(\d+)px\}/);
+  await check('.d-map-marker keeps a >=44px hit target on both dimensions -- unaffected by this PR', () => {
+    // Matched up to the next declaration rather than the rule's end: the
+    // building-affinity pass added more declarations to this rule. The >=44px
+    // floor below is what this check is actually about, and is unchanged.
+    const sizeMatch = markersCssSrc.match(/\.d-map-marker\{width:(\d+)px;height:(\d+)px[;}]/);
     assert.ok(sizeMatch, '.d-map-marker size override must still be present');
     const w = Number(sizeMatch[1]), h = Number(sizeMatch[2]);
     assert.ok(w >= 44 && h >= 44, `hit target too small: ${w}x${h}`);

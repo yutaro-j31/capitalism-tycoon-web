@@ -1121,3 +1121,114 @@ dot). `tests/map-phase2-marker-placard-interaction-test.js`'s old "no two
 placard rectangles overlap" assertion -- the requirement that justified the
 unbounded search in the first place -- is replaced by the anchor-integrity
 bound plus a "decluttering still separates most badges" budget.
+
+## 19. Marker / building affinity + badge-size vs tap-target separation
+
+Follow-up to section 18. With markers now pinned to their anchor, the real
+device showed the next problem: the anchor itself was chosen without regard to
+what is standing on it. "テナント募集" appeared on warehouses and apartment
+blocks, office candidates appeared on shops, and a large share of every kind
+floated over empty plazas.
+
+### Root cause
+
+`placeEntityTiles()` selected candidate tiles by district **zone**
+(`ENTITY_KIND_DISTRICTS` / `PROPERTY_KIND_DISTRICTS`). A zone is not what a
+player sees. It only decides which sprite category *pool* a tile draws from,
+and those pools deliberately cross over --
+`prototypes/map-world-preview.js`'s `ROLE_CATEGORY` gives the `commercial`
+zone an `X` infill role of `residential.low` and the `cbd` zone one of
+`commercial.small`. Worse, a zone's tile list also contains every plot the
+block template left as **open space**, which has no building at all, plus
+tiles reserved by a neighbour's 2x2 footprint.
+
+Measured on main (`8337024`) with the real 47-sprite manifest, 5 prefectures:
+
+| marker kind | no building at all | on housing | on the wrong commercial/office tier |
+| --- | --- | --- | --- |
+| tenant | 33% | 18% (`residential.low`) | 12% (`office.*`) |
+| store | 35% | 7% (`residential.low`) | 21% (`office.*`) |
+| office | 40% | -- | 18% (`commercial.small`) |
+| realestate | 52% | -- | mixed, unrelated to the property's own kind |
+
+### Fix: select by surface, not by zone
+
+Affinity is now expressed against the **surface** a player actually looks at:
+the sprite category really placed on that tile, or -- for a tile with no
+building -- which kind of open space it is (`open.hardscape` /
+`open.green` / `open.industrial`, grouped from that file's own
+`OPEN_TYPES_BY_ZONE` vocabulary). `surfaceOfCell()` resolves it; road,
+footprint-reserved and unresolved tiles report `null` and can never be
+candidates.
+
+Each kind declares a `preferred` and an `allowed` surface list
+(`KIND_SURFACES`, and `PROPERTY_KIND_SURFACES` keyed by `g.properties`' own
+six fixed labels). **Anything unlisted is forbidden**, so civic buildings,
+the landmark, parkland and signage host no markers at all. `土地` and `物流`
+are the only property kinds that prefer open ground, because they are the
+only two that are literally land ("郊外ロードサイド土地",
+"物流センター用地"); every other property kind must point at a building.
+
+`SPRITE_SURFACE_OVERRIDES` is the per-sprite escape hatch: it reclassifies
+`commercial_billboard` (a `commercial.small` asset that is a hoarding, not a
+leasable unit) to `signage`, which no kind lists. Single assets can be
+corrected without inventing a category or reclassifying their neighbours.
+
+Fallback ladder, in order: unclaimed preferred -> unclaimed allowed ->
+shared preferred -> shared allowed -> no map marker (the entity stays
+reachable through the directory list). Steps 3-4 rank meaning above tile
+exclusivity deliberately: two markers on one correct building read far better
+than one marker on a warehouse, and `layoutMarkerPlacards()` already
+separates co-located markers inside `MAX_ANCHOR_OFFSET`. A district carries
+150-300 buildings against roughly 20 markers, so those steps are reached only
+by a district genuinely starved of a category.
+
+Result, measured across 10 prefectures (230 markers, 0 unplaced,
+0 forbidden-surface violations):
+
+| marker | lands on |
+| --- | --- |
+| store / tenant | `commercial.*` only |
+| office | `office.*`, spilling to `commercial.hero/mid` only where office stock runs out (Gunma) |
+| 商業ビル | `commercial.*` |
+| 土地 | `open.hardscape` |
+| 住宅 | `residential.low` |
+| 大型物件 | `residential.premium` / `commercial.hero` |
+| 物流 | `logistics` |
+| オフィス | `office.*` |
+
+### Badge size vs tap target
+
+The pin's shape came from a `clip-path` on the button, and clip-path clips
+hit testing too -- so the visible badge and the tap target were forced to be
+one box, and 48x60 was the floor before the hexagon's waist fell under 44px.
+(At 48px wide that hexagon spans only ~41px, so the shipped tap target was
+already narrower than its box.)
+
+The two are now separate: the button is a plain unclipped **46x56**
+rectangle, every pixel tappable; the pin is drawn by `.d-map-marker:before`
+at **34x42**, centred on the button's centre -- which is exactly where
+`positionMarkers()` puts the tile anchor, so this changes size and nothing
+about anchoring. Visible badge area drops ~50%; the real tap target grows
+from a ~41px-wide hexagon to a full 46x56 rectangle. The 4-way colour legend
+moves from the button to the pin at matching specificity.
+
+`MARKER_CLAMP_HALF_W/H` drops 22/27 -> 18/22 so decluttering separates what a
+player sees rather than the invisible button, and `DECLUTTER_STEP` drops
+28 -> 24 so ring 2 (48px) clears a head-on collision inside the 56px cap.
+
+Measured in Chromium: hit box 46x56 and `clip-path: none` on both viewports;
+pin 34x42; anchor offset never above the cap (desktop max 48px, iPhone max
+53px across Tokyo/Gunma/Saitama/Chiba, view toggle, pan and filter); tap ->
+detail opens the correct entity in every case; 0 console errors; 0 horizontal
+overflow.
+
+New coverage: `tests/map-marker-building-affinity-test.js` (28 checks) --
+per-acceptance-criterion affinity across 10 prefectures, the forbidden-surface
+sweep, the live per-sprite override, determinism/order-independence/no-RNG,
+the city fabric staying byte-identical, the fallback ladder exercised by
+overflowing store/tenant/office 400-deep in a scarce prefecture so the
+`allowed` tier is genuinely reached, static invariants on both allow-list
+tables, the pin-smaller-than-button and >=44px-unclipped geometry, and four
+negative tests (reverting to zone selection, listing parkland, dropping the
+open-space guard, restoring the clip-path on the button).

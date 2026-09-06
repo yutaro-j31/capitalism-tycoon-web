@@ -58,7 +58,8 @@
     "tests/gym-congestion-test.js",
     "tests/real-estate-agency-focus-test.js",
     "tests/product-portfolio-allocation-test.js",
-    "tests/map-marker-anchor-integrity-test.js"
+    "tests/map-marker-anchor-integrity-test.js",
+    "tests/map-marker-building-affinity-test.js"
   ],
   "E": [
     "tests/competitor-product-counter-reachability-test.js",
