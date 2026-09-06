@@ -9,7 +9,7 @@ permissions:
   contents: write
 
 jobs:
-  implement:
+  diagnose:
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
@@ -20,7 +20,7 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 20
-      - name: Implement grade-aware office marker affinity
+      - name: Apply candidate implementation
         shell: bash
         run: |
           python3 - <<'PY'
@@ -50,13 +50,7 @@ jobs:
             tenant:{preferred:['commercial.small','commercial.mid','commercial.hero'],allowed:['office.small','office.mid','office.hero']},
             office:{preferred:['office.hero','office.mid','office.small'],allowed:['commercial.hero','commercial.mid']}
           };
-          /*
-           * Rental offices already carry a real grade in engine state:
-           * C=small HQ, B=business center, A=premium tower. Preserve the
-           * generic office rule above as the compatibility fallback for old
-           * or future data, but when a known grade exists prefer the visual
-           * building tier that communicates that grade to the player.
-           */
+          /* Rental-office grade affinity: C=small, B=mid, A=hero. */
           const OFFICE_GRADE_SURFACES={
             C:{preferred:['office.small'],allowed:['office.mid','office.hero','commercial.mid','commercial.hero']},
             B:{preferred:['office.mid'],allowed:['office.small','office.hero','commercial.mid','commercial.hero']},
@@ -82,7 +76,6 @@ jobs:
               "  for (let i = 0; i < 3; i++) entities.push({ id: `office:o${i}`, kind: 'office', sourceId: `o${i}` });",
               "  for (const grade of ['C', 'B', 'A']) entities.push({ id: `office:${grade}`, kind: 'office', sourceId: grade, officeGrade: grade });"
           )
-
           replace_once(
               'tests/map-marker-building-affinity-test.js',
               "        prefID, kind: entity.kind, propertyKind: entity.propertyKind,",
@@ -106,9 +99,7 @@ jobs:
               for (const [grade, surface] of Object.entries(expected)) {
                 const sample = of(r => r.kind === 'office' && r.officeGrade === grade);
                 assert.ok(sample.length >= PREFS.length, `expected one ${grade}-grade office per prefecture`);
-                for (const row of sample) {
-                  assert.equal(row.surface, surface, `${row.prefID}: grade ${grade} office landed on ${row.surface}`);
-                }
+                for (const row of sample) assert.equal(row.surface, surface, `${row.prefID}: grade ${grade} office landed on ${row.surface}`);
               }
             });
 
@@ -117,19 +108,6 @@ jobs:
               assert.equal(placed.length, 1);
               assert.notEqual(placed[0].tileX, null, 'future/unknown grade must remain placeable through generic office rules');
             });
-
-            await check('negative: collapsing all grades to hero preference is detected by the grade-affinity survey', async () => {
-              const brokenSource = canvasSrc.replace(
-                /const OFFICE_GRADE_SURFACES=\{[\s\S]*?\n\};/,
-                "const OFFICE_GRADE_SURFACES={C:{preferred:['office.hero'],allowed:['office.mid','office.small']},B:{preferred:['office.hero'],allowed:['office.mid','office.small']},A:{preferred:['office.hero'],allowed:['office.mid','office.small']}};"
-              );
-              assert.notEqual(brokenSource, canvasSrc, 'negative mutation must alter the grade table');
-              const broken = await readyFrom(brokenSource);
-              const brokenRows = await survey(broken.mod, broken.sandbox);
-              const expected = { C: 'office.small', B: 'office.mid', A: 'office.hero' };
-              const mismatches = brokenRows.filter(r => r.kind === 'office' && expected[r.officeGrade] && r.surface !== expected[r.officeGrade]);
-              assert.ok(mismatches.length > 0, 'grade-collapse mutation should produce at least one visible tier mismatch');
-            });
           '''
           anchor = """  await check('物流 property markers land on logistics stock or industrial open ground, never on shops or housing', () => {"""
           p = Path('tests/map-marker-building-affinity-test.js')
@@ -137,39 +115,27 @@ jobs:
           if text.count(anchor) != 1:
               raise SystemExit('test insertion anchor not unique')
           p.write_text(text.replace(anchor, grade_checks + '\n\n' + anchor, 1))
-
-          replace_once(
-              'CLAUDE.md',
-              "Office grade/tier affinity and pinch zoom remain separate possible future PRs. Do not bundle either into a props PR unless the user explicitly changes scope.",
-              "Office grade/tier affinity is part of the production marker-placement contract: C/B/A rental offices prefer office.small/office.mid/office.hero respectively, with deterministic compatibility fallback when the exact tier is unavailable. Pinch zoom remains a separate possible future PR; do not bundle it into unrelated map visual work unless the user explicitly changes scope."
-          )
           PY
-
-      - name: Restamp map-critical assets
+      - name: Restamp candidate
         run: node scripts/stamp-asset-revision.js
-
-      - name: Validate focused map contracts
+      - name: Capture diagnostics
         shell: bash
         run: |
-          set -euxo pipefail
-          node --check js/map-phase2-canvas.js
-          node tests/map-marker-building-affinity-test.js
-          node tests/map-marker-anchor-integrity-test.js
-          node tests/map-marker-density-selection-test.js
-          node tests/map-marker-detail-interaction-test.js
-          node tests/map-phase2-prefecture-switch-canvas-lifecycle-test.js
-          node tests/map-phase2-lazy-load-recovery-test.js
-          node tests/static-asset-cache-coherence-test.js
-          git diff --check
-
-      - name: Commit implementation to feature branch
-        shell: bash
-        run: |
-          set -euxo pipefail
+          set +e
+          {
+            echo '=== node --check js/map-phase2-canvas.js ==='
+            node --check js/map-phase2-canvas.js
+            echo "EXIT=$?"
+            echo
+            echo '=== node tests/map-marker-building-affinity-test.js ==='
+            node tests/map-marker-building-affinity-test.js
+            echo "EXIT=$?"
+          } > /tmp/office-affinity-validation.txt 2>&1
+          cat /tmp/office-affinity-validation.txt
+          git restore .
+          cp /tmp/office-affinity-validation.txt validation-office-affinity.txt
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add js/map-phase2-canvas.js tests/map-marker-building-affinity-test.js CLAUDE.md index.html css js prototypes assets scripts tests/fixtures 2>/dev/null || true
-          git add -u
-          git status --short
-          git commit -m "feat: align office markers with office grades"
+          git add validation-office-affinity.txt
+          git commit -m "ci: capture office affinity validation output"
           git push origin HEAD:${GITHUB_REF_NAME}
