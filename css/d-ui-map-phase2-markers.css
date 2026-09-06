@@ -10,7 +10,7 @@
    js/map-phase2-canvas.js) -- if the two disagree, the browser is running a
    mixed generation of the map assets. Purely diagnostic: nothing reads it to
    make a rendering decision. */
-:root{--d-map-asset-revision:"1c1eb6b8ac57"}
+:root{--d-map-asset-revision:"9e6bcd9ba9c9"}
 
 /* Filter chip row -- reuses the same --d-gold token css/d-ui.css already
    defines for this screen. Non-persistent UI state only
@@ -135,6 +135,15 @@ body.d-ui-active [data-screen="map"] .d-map-marker.realestate:before{background:
 body.d-ui-active [data-screen="map"] .d-map-marker.selected{z-index:27;outline:none;filter:none}
 body.d-ui-active [data-screen="map"] .d-map-marker.selected:before,
 body.d-ui-active [data-screen="map"] .d-map-marker:focus-visible:before{transform:translate(-50%,-50%) scale(1.08);border-color:#ffe39a;filter:drop-shadow(0 0 3px rgba(255,213,116,.95)) drop-shadow(0 3px 2px rgba(2,8,15,.85))}
+/*
+ * A static selected-only halo supplies the missing outer silhouette in a
+ * dense cluster. It stays inside the unchanged 44x44 hit box and behind the
+ * pin, so it neither moves the anchor nor adds resting-state map noise.
+ */
+body.d-ui-active [data-screen="map"] .d-map-marker.selected:after,
+body.d-ui-active [data-screen="map"] .d-map-marker:focus-visible:after{content:"";display:block;position:absolute;z-index:-1;left:50%;top:50%;bottom:auto;width:34px;height:40px;box-sizing:border-box;transform:translate(-50%,-50%);border:1.5px solid #ffe39a;border-radius:50%;background:rgba(4,13,23,.2);box-shadow:0 0 0 1px rgba(3,10,18,.82),0 0 7px rgba(255,213,116,.72);pointer-events:none}
+body.d-ui-active [data-screen="map"] .d-map-marker.selected span,
+body.d-ui-active [data-screen="map"] .d-map-marker:focus-visible span{text-shadow:0 0 3px rgba(255,227,154,.9),0 1px 2px rgba(2,8,15,.98)}
 
 /*
  * Label visibility: SELECTION-SCOPED, not always-on.
