@@ -30,11 +30,11 @@ if(modules.mapPhase2Canvas)throw new Error('map-phase2-canvas.js is already regi
  * to any browser storage, and never becomes part of game state or the
  * simulation.
  */
-globalThis.__STATIC_ASSET_REVISION='9e6bcd9ba9c9';
+globalThis.__STATIC_ASSET_REVISION='b51c57d4bdd7';
 const ASSET_BASE='./assets/map-sprites/phase2';
 const IMAGE_BASE='./assets/map-sprites/phase1';
-const MANIFEST_URL=`${ASSET_BASE}/sprites.json?rev=9e6bcd9ba9c9`;
-const PROTOTYPE_SCRIPTS=['./prototypes/map-canvas-renderer.js?rev=9e6bcd9ba9c9','./prototypes/map-prefecture-profiles.js?rev=9e6bcd9ba9c9','./prototypes/map-world-preview.js?rev=9e6bcd9ba9c9'];
+const MANIFEST_URL=`${ASSET_BASE}/sprites.json?rev=b51c57d4bdd7`;
+const PROTOTYPE_SCRIPTS=['./prototypes/map-canvas-renderer.js?rev=b51c57d4bdd7','./prototypes/map-prefecture-profiles.js?rev=b51c57d4bdd7','./prototypes/map-world-preview.js?rev=b51c57d4bdd7'];
 const WORLD_COLS=32,WORLD_ROWS=28;
 /*
  * Initial-framing pull-back (Map Framing / Zoom-out Calibration). This
@@ -108,7 +108,7 @@ function buildMapViewModel(g,engineInstance){
   });
   const offices=byPref(g&&g.rentalOffices).map(office=>{
     const label=office.name||'オフィス候補';
-    return {id:`office:${office.id}`,kind:'office',sourceId:office.id,pref:office.prefID,label,rawID:office.id,name:label,office};
+    return {id:`office:${office.id}`,kind:'office',sourceId:office.id,pref:office.prefID,label,rawID:office.id,name:label,office,officeGrade:office.grade};
   });
   const properties=byPref(g&&g.properties).map(property=>{
     const label=property.name||'不動産候補';
@@ -177,6 +177,20 @@ const KIND_SURFACES={
   tenant:{preferred:['commercial.small','commercial.mid','commercial.hero'],allowed:['office.small','office.mid','office.hero']},
   office:{preferred:['office.hero','office.mid','office.small'],allowed:['commercial.hero','commercial.mid']}
 };
+/*
+ * Rental-office grade is real engine state: C=small HQ,
+ * B=business center, A=premium tower. Prefer the matching visible
+ * office tier when the regional city fabric contains it. A region
+ * may intentionally omit a tier, so known grades retain a
+ * deterministic legitimate office/mixed-use fallback instead of
+ * inventing scenery or dropping the marker. Unknown future grades
+ * retain the generic KIND_SURFACES.office rule above.
+ */
+const OFFICE_GRADE_SURFACES={
+  C:{preferred:['office.small'],allowed:['office.mid','office.hero','commercial.mid','commercial.hero']},
+  B:{preferred:['office.mid'],allowed:['office.small','office.hero','commercial.mid','commercial.hero']},
+  A:{preferred:['office.hero'],allowed:['office.mid','office.small','commercial.hero','commercial.mid']}
+};
 /* g.properties' `kind` field is one of these 6 fixed Japanese labels (see
    js/engine.js's makeProperties()) -- not a fabricated attribute. Two of
    them are LAND rather than a building ('郊外ロードサイド土地' and
@@ -197,6 +211,7 @@ const DEFAULT_PROPERTY_SURFACES=PROPERTY_KIND_SURFACES['商業ビル'];
 const EMPTY_SURFACE_RULES={preferred:[],allowed:[]};
 function surfaceRulesFor(entity){
   if(entity.kind==='realestate')return PROPERTY_KIND_SURFACES[entity.propertyKind]||DEFAULT_PROPERTY_SURFACES;
+  if(entity.kind==='office'&&entity.officeGrade)return OFFICE_GRADE_SURFACES[entity.officeGrade]||KIND_SURFACES.office;
   return KIND_SURFACES[entity.kind]||EMPTY_SURFACE_RULES;
 }
 /*

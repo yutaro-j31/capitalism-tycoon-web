@@ -135,7 +135,7 @@ function sampleEntities() {
   const entities = [];
   for (let i = 0; i < 6; i++) entities.push({ id: `store:s${i}`, kind: 'store', sourceId: `s${i}` });
   for (let i = 0; i < 8; i++) entities.push({ id: `tenant:t${i}`, kind: 'tenant', sourceId: `t${i}` });
-  for (let i = 0; i < 3; i++) entities.push({ id: `office:o${i}`, kind: 'office', sourceId: `o${i}` });
+  for (const grade of ['C', 'B', 'A']) entities.push({ id: `office:${grade}`, kind: 'office', sourceId: grade, officeGrade: grade });
   for (const kind of PROPERTY_KINDS) entities.push({ id: `realestate:${kind}`, kind: 'realestate', sourceId: kind, propertyKind: kind });
   return entities;
 }
@@ -149,11 +149,16 @@ async function survey(mod, sandbox) {
   for (const prefID of PREFS) {
     const placed = mod.placeEntityTiles(sampleEntities(), prefID);
     const district = MW.buildWorldDistrict({ index2, prefID, cols: WORLD_COLS, rows: WORLD_ROWS });
+    const surfaceCounts = {};
+    for (const cell of district.tiles) {
+      const surface = surfaceUnder(cell);
+      if (surface) surfaceCounts[surface] = (surfaceCounts[surface] || 0) + 1;
+    }
     for (const entity of placed) {
       const cell = (entity.tileX === null || entity.tileX === undefined)
         ? null : district.byKey[`${entity.tileX},${entity.tileY}`];
       rows.push({
-        prefID, kind: entity.kind, propertyKind: entity.propertyKind,
+        prefID, kind: entity.kind, propertyKind: entity.propertyKind, officeGrade: entity.officeGrade, surfaceCounts,
         placed: cell !== null, cell, surface: surfaceUnder(cell),
       });
     }
@@ -206,6 +211,57 @@ async function main() {
     const offices = sample.filter(r => /^office\./.test(r.surface || '')).length;
     assert.ok(offices / sample.length >= 0.8, `only ${offices}/${sample.length} office markers on office stock`);
   });
+
+
+
+  await check('office view-model preserves the real A/B/C rental-office grade without mutating state', () => {
+    const raw = { id: 'office-c', prefID: 'tokyo', name: '東京 スモールHQ', grade: 'C', rent: 12345 };
+    const g = { selectedPref: 'tokyo', stores: [], tenants: [], rentalOffices: [raw], properties: [] };
+    const view = mod.buildMapViewModel(g, null);
+    assert.equal(view.entities.length, 1);
+    assert.equal(view.entities[0].officeGrade, 'C');
+    assert.equal(view.entities[0].office, raw);
+    assert.equal(raw.grade, 'C');
+  });
+
+  await check('ACCEPTANCE 4b: C/B/A offices use small/mid/hero when available and legitimate fallback otherwise', () => {
+    const expected = { C: 'office.small', B: 'office.mid', A: 'office.hero' };
+    const legitimate = new Set(['office.small', 'office.mid', 'office.hero', 'commercial.mid', 'commercial.hero']);
+    let exact = 0;
+    for (const [grade, tier] of Object.entries(expected)) {
+      const sample = of(r => r.kind === 'office' && r.officeGrade === grade);
+      assert.ok(sample.length >= PREFS.length);
+      for (const row of sample) {
+        if ((row.surfaceCounts[tier] || 0) > 0) {
+          exact += 1;
+          assert.equal(row.surface, tier, `${row.prefID}: grade ${grade} had ${tier} but landed on ${row.surface}`);
+        } else {
+          assert.ok(legitimate.has(row.surface), `${row.prefID}: grade ${grade} used invalid fallback ${row.surface}`);
+        }
+      }
+    }
+    assert.ok(exact >= 20, `expected broad exact-tier coverage, got ${exact}`);
+  });
+
+  await check('unknown office grades keep the generic office affinity fallback', () => {
+    const placed = mod.placeEntityTiles([{ id: 'office:future', kind: 'office', sourceId: 'future', officeGrade: 'S' }], 'tokyo');
+    assert.equal(placed.length, 1);
+    assert.notEqual(placed[0].tileX, null);
+  });
+
+  await check('NEGATIVE: collapsing known office grades to hero is detected where expected stock exists', async () => {
+    const brokenSource = canvasSrc.replace(
+      /const OFFICE_GRADE_SURFACES=\{[\s\S]*?\n\};/,
+      "const OFFICE_GRADE_SURFACES={C:{preferred:['office.hero'],allowed:['office.mid','office.small']},B:{preferred:['office.hero'],allowed:['office.mid','office.small']},A:{preferred:['office.hero'],allowed:['office.mid','office.small']}};"
+    );
+    assert.notEqual(brokenSource, canvasSrc);
+    const broken = await readyFrom(brokenSource);
+    const brokenRows = await survey(broken.mod, broken.sandbox);
+    const expected = { C: 'office.small', B: 'office.mid', A: 'office.hero' };
+    const mismatches = brokenRows.filter(r => r.kind === 'office' && expected[r.officeGrade] && (r.surfaceCounts[expected[r.officeGrade]] || 0) > 0 && r.surface !== expected[r.officeGrade]);
+    assert.ok(mismatches.length > 0);
+  });
+
 
   await check('物流 property markers land on logistics stock or industrial open ground, never on shops or housing', () => {
     for (const row of of(r => r.propertyKind === '物流')) {
