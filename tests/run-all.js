@@ -61,6 +61,7 @@ const nodeTests = [
   ['map-phase2-competitor-marker', 'tests/map-phase2-competitor-marker-test.js'],
   ['map-phase2-markers', 'tests/map-phase2-markers-test.js'],
   ['map-phase2-iphone-pan-webkit', 'tests/map-phase2-iphone-pan-webkit-test.js'],
+  ['map-phase2-iphone-scroll-filter-legend', 'tests/map-phase2-iphone-scroll-filter-legend-test.js'],
   ['map-phase2-pinch-zoom', 'tests/map-phase2-pinch-zoom-test.js'],
   ['map-phase2-production-promotion', 'tests/map-phase2-production-promotion-test.js'],
   ['map-phase2-framing-zoomout', 'tests/map-phase2-framing-zoomout-test.js'],
