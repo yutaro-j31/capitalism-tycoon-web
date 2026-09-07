@@ -545,6 +545,28 @@
       cell.intersection = cell.zone === 'road' &&
         (cell.tileX % SECONDARY_PERIOD === 0) && (cell.tileY % SECONDARY_PERIOD === 0);
     }
+    /*
+     * Cache sparse roadside scenery with the district instead of deriving it
+     * during paint/pan. Only secondary-or-wider, non-intersection road cells
+     * qualify; the primitive is drawn at the road edge, never on a parcel.
+     * Existing profile density gives metropolitan maps a slightly tighter
+     * cadence without introducing a second regional-data system.
+     */
+    const roadsideCadence = profile.highRiseBias >= 0.6 ? 5 : profile.highRiseBias >= 0.3 ? 6 : 7;
+    for (const cell of tiles) {
+      if (cell.zone !== 'road' || cell.roadTier === 'local' || cell.intersection) continue;
+      const alongX = cell.tileY % STREET_PERIOD === 0;
+      const alongCoordinate = alongX ? cell.tileX : cell.tileY;
+      const lineCoordinate = alongX ? cell.tileY : cell.tileX;
+      const cadenceSeed = hash(`${profile.layoutSeed}:roadsideLine:${alongX ? 'x' : 'y'}:${lineCoordinate}`);
+      const seed = hash(`${profile.layoutSeed}:roadside:${cell.tileX}:${cell.tileY}`);
+      if ((alongCoordinate + (cadenceSeed % roadsideCadence)) % roadsideCadence !== 0) continue;
+      const edge = (seed & 1) ? 1 : -1;
+      cell.environmentProps = [{ kind: 'streetlight', alongX, edge }];
+      if (cell.roadTier === 'arterial' && (seed >>> 4) % 9 === 0) {
+        cell.environmentProps.push({ kind: 'wayfindingSign', alongX, edge: -edge });
+      }
+    }
 
     /* the landmark tile resolves its own sprite directly (its category pool
        only ever has one archetype) so it is never treated as an ordinary
@@ -994,6 +1016,32 @@
     }
   }
 
+  /* Cached world-generation output only; pan merely paints visible cells. */
+  function paintRoadsideProps(ctx, visibleTiles, transform, tile) {
+    for (const cell of visibleTiles) {
+      if (!cell.environmentProps) continue;
+      const [x, y] = transform.toScreen(cell.tileX, cell.tileY);
+      for (const prop of cell.environmentProps) {
+        const edgeX = prop.alongX ? -prop.edge * tile.w * 0.20 : prop.edge * tile.w * 0.20;
+        const edgeY = tile.h * 0.18;
+        const px = x + edgeX, py = y + edgeY;
+        if (prop.kind === 'streetlight') {
+          ctx.strokeStyle = 'rgba(53,61,62,.82)';
+          ctx.lineWidth = 1.5;
+          ctx.beginPath(); ctx.moveTo(px, py); ctx.lineTo(px, py - 13); ctx.stroke();
+          ctx.fillStyle = '#f2d88a';
+          ctx.beginPath(); ctx.ellipse(px, py - 14, 3.2, 2.2, 0, 0, Math.PI * 2); ctx.fill();
+        } else if (prop.kind === 'wayfindingSign') {
+          ctx.fillStyle = '#416f78';
+          ctx.fillRect(px - 4, py - 12, 8, 5);
+          ctx.strokeStyle = 'rgba(245,247,238,.72)';
+          ctx.lineWidth = 1;
+          ctx.beginPath(); ctx.moveTo(px - 2.5, py - 9.5); ctx.lineTo(px + 2.5, py - 9.5); ctx.stroke();
+        }
+      }
+    }
+  }
+
   /* ---------------- meaningful open space (Canvas primitives only) ---------------- */
   function paintBench(ctx, x, y, flip) {
     const dx = flip ? -1 : 1;
@@ -1140,7 +1188,7 @@
 
   const api = Object.assign({}, Base, {
     buildWorldDistrict, worldTransform, withCamera, clampCameraToContent, cullVisible,
-    paintWorldRoads, paintCrosswalks, paintOpenLots, paintOpenMicroProps, paintSidewalkWidening, blitWorldSprites,
+    paintWorldRoads, paintCrosswalks, paintRoadsideProps, paintOpenLots, paintOpenMicroProps, paintSidewalkWidening, blitWorldSprites,
     overlayAnchors: worldOverlayAnchors,
     validateCategoryManifest, indexCategoryManifest, selectSpriteForCategory,
     CATEGORY_TAXONOMY, CATEGORY_FALLBACK, ROLE_CATEGORY, pickRoleCategory, ZONE_DISTRICT_TAG,

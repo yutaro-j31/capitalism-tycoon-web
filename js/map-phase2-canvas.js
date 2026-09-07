@@ -30,11 +30,11 @@ if(modules.mapPhase2Canvas)throw new Error('map-phase2-canvas.js is already regi
  * to any browser storage, and never becomes part of game state or the
  * simulation.
  */
-globalThis.__STATIC_ASSET_REVISION='b51c57d4bdd7';
+globalThis.__STATIC_ASSET_REVISION='89f30a5d4cf0';
 const ASSET_BASE='./assets/map-sprites/phase2';
 const IMAGE_BASE='./assets/map-sprites/phase1';
-const MANIFEST_URL=`${ASSET_BASE}/sprites.json?rev=b51c57d4bdd7`;
-const PROTOTYPE_SCRIPTS=['./prototypes/map-canvas-renderer.js?rev=b51c57d4bdd7','./prototypes/map-prefecture-profiles.js?rev=b51c57d4bdd7','./prototypes/map-world-preview.js?rev=b51c57d4bdd7'];
+const MANIFEST_URL=`${ASSET_BASE}/sprites.json?rev=89f30a5d4cf0`;
+const PROTOTYPE_SCRIPTS=['./prototypes/map-canvas-renderer.js?rev=89f30a5d4cf0','./prototypes/map-prefecture-profiles.js?rev=89f30a5d4cf0','./prototypes/map-world-preview.js?rev=89f30a5d4cf0'];
 const WORLD_COLS=32,WORLD_ROWS=28;
 /*
  * Initial-framing pull-back (Map Framing / Zoom-out Calibration). This
@@ -1027,6 +1027,7 @@ function render(canvas,g){
   MW.paintSidewalkWidening(ctx,visible,camTransform,index2.tile,district.byKey);
   MW.paintWorldRoads(ctx,visible,camTransform,index2.tile,district.byKey);
   MW.paintCrosswalks(ctx,visible,camTransform,index2.tile);
+  MW.paintRoadsideProps(ctx,visible,camTransform,index2.tile);
   MW.paintOpenLots(ctx,visible,camTransform,index2.tile,district.prefID);
   MW.paintGreenery(ctx,viewDistrict,camTransform);
   MW.blitWorldSprites(ctx,viewDistrict,camTransform,images,index2,{placeholderLabels:false,spriteWidthFactor:1.18});
