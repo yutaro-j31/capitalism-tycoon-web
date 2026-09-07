@@ -231,8 +231,8 @@ async function main() {
     assert.doesNotMatch(shellSrc.split("let mapFilterKind='all';")[1].split('\nfunction renderMapWorkspace')[0], /localStorage|SAVE_KEY|saveVersion/);
   });
 
-  await check('filter kinds match the minimum required set: all/store/tenant/office/realestate', () => {
-    assert.match(shellSrc, /const MAP_FILTER_KINDS=\[\['all','すべて'\],\['store','自社店舗'\],\['tenant','空きテナント'\],\['office','オフィス'\],\['realestate','不動産'\]\];/);
+  await check('filter kinds match the canonical set including competitors', () => {
+    for(const kind of ['all','store','tenant','office','realestate','competitor'])assert.match(shellSrc,new RegExp(`\\['${kind}'`));
   });
 
   await check('renderKey() includes mapFilterKind so a filter click actually triggers a re-render under enhance()\'s memoization', () => {

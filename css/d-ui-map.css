@@ -53,7 +53,7 @@ body.d-ui-active [data-screen="map"] .d-news-card p{color:#d7e1ee}
 body.d-ui-active [data-screen="map"] .d-news-card small{color:var(--d2-map-muted)}
 body.d-ui-active [data-screen="map"] .d-news-card header button{color:var(--d2-map-violet-hi)}
 
-/* context panel (store / tenant / office / real-estate detail) */
+/* context panel (store / tenant / office / real-estate / competitor detail) */
 body.d-ui-active [data-screen="map"] .d-context-panel{
   background:linear-gradient(180deg,#0a1020,#0d1930);
 }
@@ -74,6 +74,10 @@ body.d-ui-active [data-screen="map"] .d-store-visual.office{
 body.d-ui-active [data-screen="map"] .d-store-visual.realestate{
   background:linear-gradient(180deg,rgba(6,14,24,.10),rgba(6,14,24,.75)),
     linear-gradient(150deg,#1f8fac,#0d2a30 55%,#12475a);
+}
+body.d-ui-active [data-screen="map"] .d-store-visual.competitor{
+  background:linear-gradient(180deg,rgba(6,14,24,.10),rgba(6,14,24,.75)),
+    linear-gradient(150deg,#9c3b32,#35191b 55%,#6f3927);
 }
 body.d-ui-active [data-screen="map"] .d-rating span{color:var(--d2-map-warning)}
 body.d-ui-active [data-screen="map"] .d-context-tabs{border-top-color:rgba(151,171,214,.15);border-bottom-color:rgba(151,171,214,.15)}

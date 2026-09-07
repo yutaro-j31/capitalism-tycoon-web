@@ -10,7 +10,7 @@
    js/map-phase2-canvas.js) -- if the two disagree, the browser is running a
    mixed generation of the map assets. Purely diagnostic: nothing reads it to
    make a rendering decision. */
-:root{--d-map-asset-revision:"130a54236483"}
+:root{--d-map-asset-revision:"7bdf134cdb7e"}
 
 /* Filter chip row -- reuses the same --d-gold token css/d-ui.css already
    defines for this screen. Non-persistent UI state only
@@ -75,11 +75,13 @@ body.d-ui-active [data-screen="map"] .d-map-marker{background:none;filter:none}
 body.d-ui-active [data-screen="map"] .d-map-marker.store,
 body.d-ui-active [data-screen="map"] .d-map-marker.tenant,
 body.d-ui-active [data-screen="map"] .d-map-marker.office,
-body.d-ui-active [data-screen="map"] .d-map-marker.realestate{background:none}
+body.d-ui-active [data-screen="map"] .d-map-marker.realestate,
+body.d-ui-active [data-screen="map"] .d-map-marker.competitor{background:none}
 body.d-ui-active [data-screen="map"] .d-map-marker.store:before{background:linear-gradient(180deg,#6f9cff,#3763c9)}
 body.d-ui-active [data-screen="map"] .d-map-marker.tenant:before{background:linear-gradient(180deg,#ff8f9b,#c33a4d)}
 body.d-ui-active [data-screen="map"] .d-map-marker.office:before{background:linear-gradient(180deg,#9a7cff,#5c3fc9)}
 body.d-ui-active [data-screen="map"] .d-map-marker.realestate:before{background:linear-gradient(180deg,#5fdcf5,#1f8fac)}
+body.d-ui-active [data-screen="map"] .d-map-marker.competitor:before{background:linear-gradient(180deg,#e17b55,#9c3b32)}
 /* Glyph sits above the pin (::before paints first) and is re-scaled for the
    26x32 pin. `position:relative` only establishes paint order against
    ::before -- the grid centring from css/d-ui.css still positions it. */
@@ -112,19 +114,15 @@ body.d-ui-active [data-screen="map"] .d-map-marker.realestate:before{background:
  * z-index (css/d-ui.css) could then never out-rank a SIBLING of
  * .d-city-surface-phase2 no matter how high it was set, because z-index
  * only ever competes within the nearest ancestor stacking context.
- * js/iphone-playtest-fixes.js's ensureMapChrome()/ensureSyntheticMapEntities()
- * append exactly such siblings on EVERY viewport, not just iPhone (no
+ * js/iphone-playtest-fixes.js's ensureMapChrome() appends exactly such
+ * siblings on EVERY viewport, not just iPhone (no
  * @media gate on any of their selectors in css/iphone-playtest-fixes.css):
  * .iphone-map-nav (z-index:18, a full-width top strip), .iphone-map-tools
- * (z-index:18, bottom-left), .iphone-map-popover (z-index:19, opens over
- * the bottom-left corner), and up to 3 .iphone-synthetic-marker.competitor
- * markers (z-index:11) placed via a completely separate percentage-based
- * grid with no idea where real markers actually render. Any real marker
+ * (z-index:18, bottom-left), and .iphone-map-popover (z-index:30 while open
+ * so its controls win over dense markers). Any real marker
  * whose on-screen position happened to fall under one of those had its tap
  * silently swallowed -- tests/iphone-playtest-remediation-test.js already
- * documents a prior, narrower brush with this exact hazard (it removed a
- * redundant synthetic PROPERTY marker for that reason) but left the
- * general z-index ordering unfixed. The filter itself moved to
+ * documents a prior, narrower brush with this exact hazard. The filter itself moved to
  * .d-phase2-canvas (css/d-ui-map-phase2-canvas.css) -- a pixel-identical
  * visual no-op for the rendered city, see that file's comment. With the
  * forced stacking context gone, .d-map-marker's z-index now competes

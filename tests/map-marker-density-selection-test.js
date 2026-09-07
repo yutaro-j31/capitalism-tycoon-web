@@ -105,8 +105,8 @@ check('the pin stays centred on the button centre, so shrinking it did not move 
 
 check('the category cascade cannot repaint the transparent 44px button behind the 26x32 pin', () => {
   assert.match(markersRules,
-    /body\.d-ui-active \[data-screen="map"\] \.d-map-marker\.store,[\s\S]*?\.d-map-marker\.realestate\{background:none\}/,
-    'all four category selectors must clear the button at category-rule specificity');
+    /body\.d-ui-active \[data-screen="map"\] \.d-map-marker\.store,[\s\S]*?\.d-map-marker\.competitor\{background:none\}/,
+    'all five category selectors must clear the button at category-rule specificity');
   assert.match(ruleFor('body.d-ui-active [data-screen="map"] .d-map-marker'), /background:none/);
   assert.match(ruleFor('body.d-ui-active [data-screen="map"] .d-map-marker'), /filter:none/,
     'the inherited large-button drop shadow must not reveal the hit target');

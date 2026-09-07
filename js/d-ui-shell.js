@@ -32,7 +32,7 @@ let mapDirectoryOpen=null;
  * filtered by it.
  */
 let mapFilterKind='all';
-const MAP_FILTER_KINDS=[['all','すべて'],['store','自社店舗'],['tenant','空きテナント'],['office','オフィス'],['realestate','不動産']];
+const MAP_FILTER_KINDS=[['all','すべて'],['store','自社店舗'],['tenant','空きテナント'],['office','オフィス'],['realestate','不動産'],['competitor','競合']];
 
 const esc=value=>String(value??'').replace(/[&<>'"]/g,char=>({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[char]));
 const finite=value=>Number.isFinite(Number(value))?Number(value):0;
@@ -105,7 +105,7 @@ function ensureNavigation(g){
     if(isActive)button.setAttribute('aria-current','page');else button.removeAttribute('aria-current');
   }
 }
-function markerIcon(entity){return entity.kind==='store'?'▣':entity.kind==='office'?'△':entity.kind==='realestate'?'◆':'▤';}
+function markerIcon(entity){return entity.kind==='store'?'▣':entity.kind==='office'?'△':entity.kind==='realestate'?'◆':entity.kind==='competitor'?'✦':'▤';}
 /*
  * Marker Interaction / Decluttering / Placard UX pass, requirement C: the
  * label used to be the raw entity name (a tenant's own name, a property's
@@ -122,6 +122,7 @@ function placardLabel(entity){
   if(entity.kind==='tenant')return 'テナント募集';
   if(entity.kind==='office')return 'オフィス募集';
   if(entity.kind==='realestate')return '売物件';
+  if(entity.kind==='competitor')return '競合店舗';
   return entity.name||'自社店舗';
 }
 /*
@@ -194,6 +195,13 @@ function selectedDetail(entity,g){
        legitimately has none, so it is omitted rather than invented. */
     const condition=property.realEstate&&Number.isFinite(Number(property.realEstate.condition))?`${(finite(property.realEstate.condition)*100).toFixed(0)}%`:null;
     return `<div class="d-context-hero"><div class="d-store-visual realestate"><span>FOR SALE</span></div><div class="d-rating"><b>売物件</b><span>利回り${(finite(property.yieldRate)*100).toFixed(1)}%</span></div></div><h3 class="d-context-name">${esc(entity.name)}</h3><div class="d-context-metrics"><div><span>売出価格</span><strong>${money(property.price)}</strong></div><div><span>週次賃料</span><strong>${money(property.rentIncome)}</strong></div><div><span>都道府県</span><strong>${prefLabel(entity.pref)}</strong></div><div><span>所在地</span><strong>${esc(property.cityName||'—')}</strong></div><div><span>物件種別</span><strong>${esc(property.kind||'土地')}</strong></div><div><span>面積</span><strong>${finite(property.landAreaSqm).toLocaleString('ja-JP')}㎡</strong></div><div><span>所有状態</span><strong>${ownerLabel}</strong></div>${condition?`<div><span>建物状態</span><strong>${condition}</strong></div>`:''}</div><div class="button-row"><button type="button" class="btn secondary" data-action="buy-property-company" data-id="${esc(entity.rawID)}">会社で購入</button><button type="button" class="btn ghost" data-action="buy-property-personal" data-id="${esc(entity.rawID)}">個人で購入</button></div>`;
+  }
+  if(entity.kind==='competitor'){
+    const competitor=entity.competitor||{},presence=entity.presence||{};
+    const strategy=modules.competitor?.STRATEGIES?.[competitor.strategyID];
+    const status=String(competitor.lifecycleStatus||competitor.status||'active');
+    const statusLabel=modules.competitor?.dashboard?.STATUS_META?.[status]?.label||status;
+    return `<div class="d-context-hero"><div class="d-store-visual competitor"><span>MARKET RIVAL</span></div><div class="d-rating"><b>競合店舗</b><span>${esc(strategy?.name||statusLabel)}</span></div></div><h3 class="d-context-name">${esc(entity.name)}</h3><div class="d-context-metrics"><div><span>都道府県</span><strong>${prefLabel(entity.pref)}</strong></div><div><span>店舗数</span><strong>${finite(presence.storeCount).toLocaleString('ja-JP')}店</strong></div><div><span>販売能力</span><strong>${finite(presence.totalCapacity).toLocaleString('ja-JP')}</strong></div><div><span>販売価格</span><strong>${money(presence.price)}</strong></div><div><span>市場シェア</span><strong>${(clamp(finite(presence.currentWeekShare),0,1)*100).toFixed(1)}%</strong></div><div><span>週次利益</span><strong>${money(competitor.weeklyProfit)}</strong></div><div><span>現金</span><strong>${money(competitor.cash)}</strong></div><div><span>負債</span><strong>${money(competitor.debt)}</strong></div></div><button type="button" class="btn primary wide" data-action="tab" data-tab="rivals">競合分析画面へ</button>`;
   }
   const office=entity.office||{};
   const contracted=Boolean(office.contracted);

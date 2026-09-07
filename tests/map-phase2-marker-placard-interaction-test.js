@@ -13,14 +13,10 @@
  * box (CSS Filter Effects spec) -- .d-map-marker's own z-index could then
  * never out-rank a SIBLING of .d-city-surface-phase2, no matter how high it
  * was set. js/iphone-playtest-fixes.js's ensureMapChrome()/
- * ensureSyntheticMapEntities() append exactly such siblings on EVERY
- * viewport (.iphone-map-nav z:18, .iphone-map-tools z:18,
- * .iphone-map-popover z:19, up to 3 .iphone-synthetic-marker.competitor
- * z:11), so any real marker under one of them had its tap silently
- * swallowed. Fix: move the filter to .d-phase2-canvas (a pixel-identical
- * visual no-op, since canvas already paints over everything inside
- * .d-city-surface) and raise .d-map-marker's z-index above all of the
- * above.
+ * ensureMapChrome() appends such siblings on every viewport. The filter
+ * moved to .d-phase2-canvas and markers were raised above resting nav/tools.
+ * The open filter/legend popover intentionally outranks markers so its form
+ * controls remain operable even in the denser canonical marker set.
  *
  * Functional (decluttering/placard) checks run the real prototypes/*.js +
  * js/map-phase2-canvas.js in an isolated vm sandbox, same pattern as
@@ -226,23 +222,15 @@ async function main() {
     assert.match(canvasCssSrc, /\.d-phase2-canvas\{[^}]*filter:saturate\(\.92\) contrast\(1\.05\)/);
   });
 
-  await check('.d-map-marker\'s z-index now out-ranks every iPhone chrome overlay that used to swallow its taps (.iphone-map-nav/.iphone-map-tools/.iphone-map-popover/.iphone-synthetic-marker), on every viewport', () => {
+  await check('.d-map-marker outranks resting iPhone nav/tools, while the open filter popover outranks even a selected marker', () => {
     const markerZ = ruleZIndex(markersCssSrc, '.d-map-marker');
-    assert.ok(Number.isFinite(markerZ), '.d-map-marker must declare an explicit z-index');
-    for (const [selector, css] of [
-      ['.iphone-map-nav', iphoneCssSrc],
-      ['.iphone-map-tools', iphoneCssSrc],
-      ['.iphone-map-popover', iphoneCssSrc],
-      ['.iphone-synthetic-marker', iphoneCssSrc],
-    ]) {
-      const otherZ = ruleZIndex(css, selector);
-      assert.ok(Number.isFinite(otherZ), `${selector} must still declare a z-index (sanity: this test's own extraction works)`);
-      assert.ok(markerZ > otherZ, `.d-map-marker (z:${markerZ}) must out-rank ${selector} (z:${otherZ})`);
-    }
+    const selectedZ = ruleZIndex(markersCssSrc, 'body.d-ui-active [data-screen="map"] .d-map-marker.selected');
+    for (const selector of ['.iphone-map-nav', '.iphone-map-tools']) assert.ok(markerZ > ruleZIndex(iphoneCssSrc, selector));
+    assert.ok(ruleZIndex(iphoneCssSrc, '.iphone-map-popover') > selectedZ, 'popover controls must not be intercepted by dense markers');
   });
 
-  await check('.iphone-map-nav/.iphone-map-tools/.iphone-map-popover/.iphone-synthetic-marker still run on EVERY viewport (no @media gate, no user-agent check) -- the fix must cover desktop, not just iPhone', () => {
-    for (const selector of ['.iphone-map-nav{', '.iphone-map-tools{', '.iphone-map-popover{', '.iphone-synthetic-marker{']) {
+  await check('.iphone-map-nav/.iphone-map-tools/.iphone-map-popover still run on EVERY viewport (no @media gate, no user-agent check)', () => {
+    for (const selector of ['.iphone-map-nav{', '.iphone-map-tools{', '.iphone-map-popover{']) {
       assert.ok(iphoneCssSrc.includes(selector), `${selector} must still exist`);
     }
     // ensureMapChrome() itself is the load-bearing gate -- js/iphone-playtest-fixes.js's own
@@ -686,8 +674,8 @@ async function main() {
     assert.match(canvasSrc, /function retryMapLoad\(\)\{/);
   });
 
-  await check('filter chips (all/store/tenant/office/realestate) are untouched', () => {
-    assert.match(shellSrc, /const MAP_FILTER_KINDS=\[\['all','すべて'\],\['store','自社店舗'\],\['tenant','空きテナント'\],\['office','オフィス'\],\['realestate','不動産'\]\];/);
+  await check('filter chips include all canonical map kinds', () => {
+    for(const kind of ['store','tenant','office','realestate','competitor'])assert.match(shellSrc,new RegExp(`\\['${kind}'`));
   });
 
   await check('selectedDetail() is untouched (still the sole detail-panel contract)', () => {
@@ -737,7 +725,7 @@ async function main() {
   await check('NEGATIVE: reverting the z-index/stacking-context fix (marker z-index back to 5, filter back on .d-city-surface) makes the "marker always wins the tap" comparison fail', () => {
     const revertedMarkersCss = markersCssSrc.replace('.d-map-marker{z-index:25}', '.d-map-marker{z-index:5}');
     const markerZ = ruleZIndex(revertedMarkersCss, '.d-map-marker');
-    const popoverZ = ruleZIndex(iphoneCssSrc, '.iphone-map-popover');
+    const popoverZ = ruleZIndex(iphoneCssSrc, '.iphone-map-nav');
     assert.ok(markerZ < popoverZ, 'mutated source must actually trip the failure this negative test is checking for');
     // sanity: the REAL (unreverted) source passes this same comparison.
     const realMarkerZ = ruleZIndex(markersCssSrc, '.d-map-marker');
