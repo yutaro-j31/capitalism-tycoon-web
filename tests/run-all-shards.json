@@ -126,6 +126,7 @@
     "tests/map-phase2-competitor-marker-test.js",
     "tests/map-phase2-markers-test.js",
     "tests/map-phase2-iphone-pan-webkit-test.js",
+    "tests/map-phase2-iphone-scroll-filter-legend-test.js",
     "tests/map-phase2-pinch-zoom-test.js"
   ],
   "H": [

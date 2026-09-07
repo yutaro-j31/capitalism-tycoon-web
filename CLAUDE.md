@@ -86,7 +86,7 @@ Preserve the current camera/runtime contracts:
 - DPR clamp max 2
 - Pointer Events
 - `PAN_THRESHOLD = 8px`
-- one-finger pan on iPhone and mouse drag on desktop
+- horizontal-intent one-finger pan on iPhone and mouse drag on desktop; vertical iPhone swipes over the map remain native page scroll
 - two-finger Pointer Events pinch zoom keeps the focal world point under the gesture midpoint
 - Canvas and DOM markers share the same world/camera transform
 - use requestAnimationFrame coalescing for pan updates

@@ -294,11 +294,17 @@ assert.match(mapStyle, /--d2-map-blue:#5c8dff/, 'Map v2 must retain the approved
 assert.match(mapStyle, /--d2-map-cyan:#46c6e8/, 'Map v2 must retain the approved cyan secondary accent');
 assert.doesNotMatch(mapStyle, /--d-gold/, 'Map v2 must not reintroduce gold as a primary accent (prestige-only elsewhere)');
 assert.doesNotMatch(mapFocusStyle, /#ffe097|rgba\(217,168,77/, 'Map marker focus-visible outline must not use gold (recolored to violet)');
-// 4種類のマーカー: 出店済み店舗=blue, 未出店テナント候補=negative(赤), オフィス候補=violet, 不動産候補(新設)=cyan
-assert.match(mapStyle, /\[data-screen="map"\] \.d-map-marker\.store\{background:linear-gradient\(180deg,#6f9cff/, 'Map v2 must color store markers blue');
-assert.match(mapStyle, /\[data-screen="map"\] \.d-map-marker\.tenant\{background:linear-gradient\(180deg,#ff8f9b/, 'Map v2 must color unopened tenant-candidate markers with the negative accent');
-assert.match(mapStyle, /\[data-screen="map"\] \.d-map-marker\.office\{background:linear-gradient\(180deg,#9a7cff/, 'Map v2 must color office-candidate markers violet');
-assert.match(mapStyle, /\[data-screen="map"\] \.d-map-marker\.realestate\{background:linear-gradient\(180deg,#5fdcf5/, 'Map v2 must color the new real-estate-candidate markers cyan');
+// Marker palette values remain explicit tokens so the canonical pins and the
+// iPhone legend cannot drift apart while retaining the approved category hues.
+for (const [kind, top, bottom] of [
+  ['store', '#6f9cff', '#3763c9'], ['tenant', '#ff8f9b', '#c33a4d'],
+  ['office', '#9a7cff', '#5c3fc9'], ['realestate', '#5fdcf5', '#1f8fac'],
+  ['competitor', '#e17b55', '#9c3b32']
+]) {
+  assert.ok(mapStyle.includes(`--d2-marker-${kind}-top:${top}`), `${kind} marker top color must remain approved`);
+  assert.ok(mapStyle.includes(`--d2-marker-${kind}-bottom:${bottom}`), `${kind} marker bottom color must remain approved`);
+  if (kind !== 'competitor') assert.ok(mapStyle.includes(`.d-map-marker.${kind}{background:linear-gradient(180deg,var(--d2-marker-${kind}-top),var(--d2-marker-${kind}-bottom))}`), `${kind} marker must consume its canonical palette tokens`);
+}
 // 週間利益推移・ミッション・企業ニュースの白背景カードは他18画面と同じダークカードへ統一する
 assert.match(mapStyle, /\[data-screen="map"\] \.d-white-card\{[^}]*background:linear-gradient\(150deg,rgba\(15,23,41,\.97\)/, 'Map v2 must darken the overlay cards away from the white "paper card" look');
 assert.match(mapStyle, /\[data-screen="map"\] \.d-context-panel>header span\{color:var\(--d2-map-cyan\)\}/, 'Map v2 context panel header accent must not use gold');

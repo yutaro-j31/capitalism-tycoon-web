@@ -10,7 +10,7 @@
    js/map-phase2-canvas.js) -- if the two disagree, the browser is running a
    mixed generation of the map assets. Purely diagnostic: nothing reads it to
    make a rendering decision. */
-:root{--d-map-asset-revision:"7bdf134cdb7e"}
+:root{--d-map-asset-revision:"b7da4927e8f3"}
 
 /* Filter chip row -- reuses the same --d-gold token css/d-ui.css already
    defines for this screen. Non-persistent UI state only
@@ -77,11 +77,11 @@ body.d-ui-active [data-screen="map"] .d-map-marker.tenant,
 body.d-ui-active [data-screen="map"] .d-map-marker.office,
 body.d-ui-active [data-screen="map"] .d-map-marker.realestate,
 body.d-ui-active [data-screen="map"] .d-map-marker.competitor{background:none}
-body.d-ui-active [data-screen="map"] .d-map-marker.store:before{background:linear-gradient(180deg,#6f9cff,#3763c9)}
-body.d-ui-active [data-screen="map"] .d-map-marker.tenant:before{background:linear-gradient(180deg,#ff8f9b,#c33a4d)}
-body.d-ui-active [data-screen="map"] .d-map-marker.office:before{background:linear-gradient(180deg,#9a7cff,#5c3fc9)}
-body.d-ui-active [data-screen="map"] .d-map-marker.realestate:before{background:linear-gradient(180deg,#5fdcf5,#1f8fac)}
-body.d-ui-active [data-screen="map"] .d-map-marker.competitor:before{background:linear-gradient(180deg,#e17b55,#9c3b32)}
+body.d-ui-active [data-screen="map"] .d-map-marker.store:before{background:linear-gradient(180deg,var(--d2-marker-store-top),var(--d2-marker-store-bottom))}
+body.d-ui-active [data-screen="map"] .d-map-marker.tenant:before{background:linear-gradient(180deg,var(--d2-marker-tenant-top),var(--d2-marker-tenant-bottom))}
+body.d-ui-active [data-screen="map"] .d-map-marker.office:before{background:linear-gradient(180deg,var(--d2-marker-office-top),var(--d2-marker-office-bottom))}
+body.d-ui-active [data-screen="map"] .d-map-marker.realestate:before{background:linear-gradient(180deg,var(--d2-marker-realestate-top),var(--d2-marker-realestate-bottom))}
+body.d-ui-active [data-screen="map"] .d-map-marker.competitor:before{background:linear-gradient(180deg,var(--d2-marker-competitor-top),var(--d2-marker-competitor-bottom))}
 /* Glyph sits above the pin (::before paints first) and is re-scaled for the
    26x32 pin. `position:relative` only establishes paint order against
    ::before -- the grid centring from css/d-ui.css still positions it. */

@@ -1,8 +1,8 @@
-/* Camera pointer gestures (js/map-phase2-canvas.js). Native touch
-   scroll/page zoom on the shared surface would compete with one-finger map
-   pan and two-finger focal zoom. Scope the override to the map surface so
-   marker-start gestures are covered while the page remains scrollable. */
-.d-city-surface-phase2{touch-action:none}
+/* Let a one-finger vertical gesture that starts over the large map return to
+   native page scrolling. Pointer Events still receive horizontal gestures
+   for map pan, while multi-touch remains available for the bounded custom
+   pinch gesture. Scope this to the map only; page chrome keeps its defaults. */
+.d-city-surface-phase2{touch-action:pan-y}
 
 /* PR D removed js/iphone-playtest-fixes.js's legacy per-viewport zoom
    mechanism entirely (see docs/map-phase2-production-integration-audit.md

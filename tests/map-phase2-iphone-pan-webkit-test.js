@@ -353,8 +353,9 @@ async function main() {
     assert.doesNotThrow(() => freshSandbox({ document: { head: { appendChild() {} }, createElement() { return { set src(v) {} }; } } }));
   });
 
-  await check('touch-action:none on the shared Phase 2 surface so native touch scroll/zoom never competes with pan or marker-start pinch', () => {
-    assert.match(panCss, /\.d-city-surface-phase2\{touch-action:none\}/);
+  await check('touch-action:pan-y on the shared Phase 2 surface returns vertical swipes to page scroll while horizontal pan and pinch stay custom', () => {
+    assert.match(panCss, /\.d-city-surface-phase2\{touch-action:pan-y\}/);
+    assert.match(canvasSrc, /Math\.abs\(dy\)>Math\.abs\(dx\)\)\{dragState=null;gestureBlocked=true;return;\}/);
   });
 
   /* ================= LEGACY --iphone-map-zoom: fully removed (production promotion) ================= */

@@ -30,11 +30,11 @@ if(modules.mapPhase2Canvas)throw new Error('map-phase2-canvas.js is already regi
  * to any browser storage, and never becomes part of game state or the
  * simulation.
  */
-globalThis.__STATIC_ASSET_REVISION='7bdf134cdb7e';
+globalThis.__STATIC_ASSET_REVISION='b7da4927e8f3';
 const ASSET_BASE='./assets/map-sprites/phase2';
 const IMAGE_BASE='./assets/map-sprites/phase1';
-const MANIFEST_URL=`${ASSET_BASE}/sprites.json?rev=7bdf134cdb7e`;
-const PROTOTYPE_SCRIPTS=['./prototypes/map-canvas-renderer.js?rev=7bdf134cdb7e','./prototypes/map-prefecture-profiles.js?rev=7bdf134cdb7e','./prototypes/map-world-preview.js?rev=7bdf134cdb7e'];
+const MANIFEST_URL=`${ASSET_BASE}/sprites.json?rev=b7da4927e8f3`;
+const PROTOTYPE_SCRIPTS=['./prototypes/map-canvas-renderer.js?rev=b7da4927e8f3','./prototypes/map-prefecture-profiles.js?rev=b7da4927e8f3','./prototypes/map-world-preview.js?rev=b7da4927e8f3'];
 const WORLD_COLS=32,WORLD_ROWS=28;
 /*
  * Initial-framing pull-back (Map Framing / Zoom-out Calibration). This
@@ -787,6 +787,12 @@ function onPointerMove(event){
   const dx=event.clientX-dragState.startX,dy=event.clientY-dragState.startY;
   if(!dragState.dragging){
     if(Math.hypot(dx,dy)<PAN_THRESHOLD)return;
+    /* touch-action:pan-y gives WebKit ownership of a vertical swipe, normally
+       followed by pointercancel. Also make the intent explicit here so a
+       pre-cancel move can never nudge the camera: only horizontal-intent
+       one-pointer gestures become map pans. A second pointer that arrived
+       before intent resolution has already entered the pinch path above. */
+    if(Math.abs(dy)>Math.abs(dx)){dragState=null;gestureBlocked=true;return;}
     dragState.dragging=true;
     try{dragState.canvas.setPointerCapture(dragState.pointerId);}catch(e){}
   }
