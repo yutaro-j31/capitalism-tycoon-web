@@ -39,6 +39,10 @@
     "reason": "Executed outside the canonical run-all suite by the consolidated the iPhone WebKit Smoke job in .github/workflows/test.yml executor.",
     "executedBy": ".github/workflows/test.yml"
   },
+  "tests/iphone-toast-visible-nav-webkit-test.js": {
+    "reason": "Executed outside the canonical run-all suite by the iPhone WebKit Smoke job in .github/workflows/test.yml.",
+    "executedBy": ".github/workflows/test.yml"
+  },
   "tests/iphone-webkit-smoke-contract-test.js": {
     "reason": "Executed by the release delivery gate aggregator, invoked from the release-readiness job in .github/workflows/test.yml.",
     "executedBy": "scripts/release-delivery-gate.js"

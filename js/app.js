@@ -74,6 +74,7 @@ const TABS = [
 
 function toast(message, severity='info') {
   const el=document.createElement('div');el.className=`toast ${severity}`;el.textContent=message;toastRoot.appendChild(el);
+  globalThis.__capitalismTycoonModules?.iphonePlaytestFixes?.syncToastClearance?.(el);
   setTimeout(()=>el.classList.add('show'),10);setTimeout(()=>{el.classList.remove('show');setTimeout(()=>el.remove(),250)},3600);
 }
 function modal(content, className='') { modalRoot.innerHTML=`<div class="modal-backdrop" data-action="close-modal"><div class="modal ${className}" role="dialog" aria-modal="true" data-modal-panel>${content}</div></div>`; }

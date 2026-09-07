@@ -250,6 +250,9 @@ jobs:
           mkdir -p artifacts/iphone-playtest-remediation
           set -o pipefail
           node tests/iphone-playtest-webkit-test.js 2>&1 | tee artifacts/iphone-playtest-remediation/webkit.log
+      - name: Verify toast and fixed navigation geometry in WebKit
+        timeout-minutes: 2
+        run: node tests/iphone-toast-visible-nav-webkit-test.js
       - name: Validate physical iPhone playtest checklist
         timeout-minutes: 2
         shell: bash
@@ -305,6 +308,7 @@ jobs:
             artifacts/ceo-dashboard-webkit
             artifacts/founding-tutorial-webkit
             artifacts/iphone-playtest-remediation
+            artifacts/iphone-toast-visible-nav
             artifacts/physical-iphone-playtest
           if-no-files-found: error
           retention-days: 30
