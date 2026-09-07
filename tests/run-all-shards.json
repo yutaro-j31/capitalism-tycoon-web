@@ -128,6 +128,7 @@
     "tests/map-phase2-iphone-pan-webkit-test.js",
     "tests/map-phase2-iphone-scroll-filter-legend-test.js",
     "tests/map-phase2-tenant-detail-mobile-test.js",
+    "tests/iphone-toast-bottom-nav-clearance-test.js",
     "tests/map-phase2-pinch-zoom-test.js"
   ],
   "H": [
