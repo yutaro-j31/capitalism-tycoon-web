@@ -353,8 +353,8 @@ async function main() {
     assert.doesNotThrow(() => freshSandbox({ document: { head: { appendChild() {} }, createElement() { return { set src(v) {} }; } } }));
   });
 
-  await check('touch-action:none on .d-phase2-canvas so the browser\'s native touch scroll/zoom never competes with the custom pointer-drag pan', () => {
-    assert.match(panCss, /\.d-phase2-canvas\{touch-action:none\}/);
+  await check('touch-action:none on the shared Phase 2 surface so native touch scroll/zoom never competes with pan or marker-start pinch', () => {
+    assert.match(panCss, /\.d-city-surface-phase2\{touch-action:none\}/);
   });
 
   /* ================= LEGACY --iphone-map-zoom: fully removed (production promotion) ================= */

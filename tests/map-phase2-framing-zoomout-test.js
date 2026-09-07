@@ -12,7 +12,9 @@
  * and withCamera().toCss both already read -- there is still no separate
  * camera.zoom field) and rebalances .d-map-marker's CSS footprint
  * (css/d-ui-map-phase2-markers.css) so markers don't dominate/overlap the
- * now-smaller buildings beneath them. See
+ * now-smaller buildings beneath them. A later focused pinch-zoom change
+ * retained this value as the initial scale while adding bounded ephemeral
+ * UI zoom. See
  * docs/map-phase2-production-integration-audit.md section 12.
  *
  * This file focuses on what changed here; pan/tap/selection/prefecture-
@@ -90,16 +92,15 @@ async function main() {
   const DEFAULT_SCALE = Number(scaleMatch[1]);
   const OLD_DEFAULT_SCALE = 0.72; // the pre-this-PR value (PR A-D), kept only as a negative-test fixture
 
-  /* ================= no new zoom state: still a single scale, not camera.zoom ================= */
-  await check('no per-viewport or gesture-driven zoom state was introduced -- DEFAULT_SCALE stays the sole projection scale for both Canvas paint and marker placement (no pinch-zoom/gesture scope creep)', () => {
-    // Checks for a literal "camera" + "." + "zoom" field reference without
-    // spelling it out here -- this file's own explanatory prose (and
-    // map-phase2-canvas.js's own comments) legitimately discuss why that
-    // field does not exist, which would otherwise trip this same regex.
+  /* ================= initial framing remains the single default ================= */
+  await check('DEFAULT_SCALE remains the initial projection scale and zoom stays in the existing shared camera/transform path', () => {
     assert.doesNotMatch(canvasSrc, new RegExp(['camera', '\\.', 'zoom'].join('')));
     assert.doesNotMatch(canvasSrc, /\bzoom\s*:/);
-    assert.doesNotMatch(canvasSrc, /pinch|gesturestart|gesturechange/i);
-    // still exactly one `let camera=` declaration -- {x,y} only, per PR C's contract
+    assert.doesNotMatch(canvasSrc, /gesturestart|gesturechange/i);
+    assert.match(canvasSrc, /let camera=null,cameraPrefID=null,viewScale=DEFAULT_SCALE;/);
+    assert.match(canvasSrc, /worldTransform\(cachedDistrict,assetsReady\.index2\.tile,viewScale\)/);
+    // still exactly one `let camera=` declaration -- {x,y} remains the shared
+    // translation source while viewScale is the ephemeral projection scale.
     const cameraDecls = canvasSrc.match(/let camera=/g) || [];
     assert.equal(cameraDecls.length, 1);
   });

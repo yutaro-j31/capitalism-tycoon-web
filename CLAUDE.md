@@ -82,16 +82,17 @@ Responsibilities:
 
 Preserve the current camera/runtime contracts:
 
-- `DEFAULT_SCALE = 0.44`
+- bounded touch zoom: `MIN_SCALE = 0.36`, `DEFAULT_SCALE = 0.44`, `MAX_SCALE = 0.72`
 - DPR clamp max 2
 - Pointer Events
 - `PAN_THRESHOLD = 8px`
 - one-finger pan on iPhone and mouse drag on desktop
+- two-finger Pointer Events pinch zoom keeps the focal world point under the gesture midpoint
 - Canvas and DOM markers share the same world/camera transform
 - use requestAnimationFrame coalescing for pan updates
 - do not rebuild/regenerate the world while panning
-- prefecture change resets the camera
-- resize re-clamps the camera
+- prefecture change resets the camera and scale to `DEFAULT_SCALE`
+- resize keeps the current scale and re-clamps the camera
 - a fresh canvas element must reinitialize its backing store even when CSS size is unchanged
 
 ### Regional identity
@@ -167,7 +168,7 @@ P2 props are **Canvas scenery**, not DOM interaction UI. They must be determinis
 
 Before adding props, inspect the current manifest, available assets, `map-world-preview`/world-generation code, and existing taxonomy so categories are based on actual inventory rather than assumptions. If dedicated prop sprites or building-level `propSlots` become necessary, treat that as a separate future PR rather than bundling it into a Canvas micro-props pass.
 
-Office grade/tier affinity is part of the production marker-placement contract: C/B/A rental offices prefer office.small/office.mid/office.hero respectively when that tier exists, with deterministic legitimate office/mixed-use fallback when a regional fabric omits it. Pinch zoom remains a separate possible future PR; do not bundle it into unrelated map visual work unless the user explicitly changes scope.
+Office grade/tier affinity is part of the production marker-placement contract: C/B/A rental offices prefer office.small/office.mid/office.hero respectively when that tier exists, with deterministic legitimate office/mixed-use fallback when a regional fabric omits it.
 
 ## 6. Founding-route validation (only when that area changes)
 
