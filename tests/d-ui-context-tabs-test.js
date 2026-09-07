@@ -6,6 +6,13 @@ const shell = fs.readFileSync('js/d-ui-shell.js', 'utf8');
 const css = fs.readFileSync('css/d-ui-context-tabs.css', 'utf8');
 const html = fs.readFileSync('index.html', 'utf8');
 
+function resolveMapSelection(selectedEntity, activeEntities) {
+  const start = shell.indexOf('if(selectedEntity===undefined)');
+  const end = shell.indexOf('\n  const chosen=', start);
+  assert.ok(start >= 0 && end > start, 'canonical selection lifecycle block must be extractable');
+  return new Function('selectedEntity', 'activeEntities', `${shell.slice(start, end)};return selectedEntity;`)(selectedEntity, activeEntities);
+}
+
 assert.match(script, /const TABS=\[\['overview','概要'\],\['finance','財務'\],\['staff','スタッフ'\],\['product','商品'\]\]/, 'store detail tab set must remain complete');
 assert.match(script, /const ACTIONS=\{overview:\['business','店舗を管理'/, 'overview must link to canonical store management');
 assert.match(script, /finance:\['report','決算を確認'/, 'finance must link to canonical reports');
@@ -27,7 +34,12 @@ assert.doesNotMatch(script, /selectedTab\s*=/, 'context actions must delegate na
 assert.doesNotMatch(script, /companyCash\s*(?:\+=|-=|\*=|\/=|=)/, 'context tabs must not mutate company cash');
 assert.doesNotMatch(script, /lastProfit\s*=/, 'context tabs must not mutate store results');
 assert.match(shell, /let selectedEntity;/, 'map selection must distinguish initial state from an explicit dismissal');
-assert.match(shell, /selectedEntity===undefined\|\|\(selectedEntity!==null&&![\s\S]*activeEntities\.some/, 'initial or stale selections may choose a valid default without overriding dismissal');
+const selectionRows = [{ id: 'store:one' }, { id: 'office:two' }];
+assert.equal(resolveMapSelection(undefined, selectionRows), 'store:one', 'initial undefined selection may choose the first valid marker');
+assert.equal(resolveMapSelection('office:two', selectionRows), 'office:two', 'a still-valid selection must be retained');
+assert.equal(resolveMapSelection('tenant:leased', selectionRows), null, 'a stale selection must clear rather than jump to an unrelated marker');
+assert.equal(resolveMapSelection(null, selectionRows), null, 'explicit dismissal must remain dismissed');
+assert.notEqual(resolveMapSelection('tenant:leased', selectionRows), selectionRows[0].id, 'stale tenant removal must never auto-select the first unrelated entity');
 assert.match(shell, /const chosen=selectedEntity===null\?null:/, 'an explicitly dismissed context panel must remain empty');
 assert.match(shell, /action==='clear-selection'[\s\S]*selectedEntity=null;modules\.uiEnhancerRegistry\.runUIEnhancers\(\)/, 'close control must rerun the ordered enhancer pipeline after dismissal');
 assert.match(shell, /data-d-ui-action="clear-selection" aria-label="拠点詳細を閉じる"/, 'close control must expose an accessible name');

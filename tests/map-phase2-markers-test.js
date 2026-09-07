@@ -208,10 +208,18 @@ async function main() {
   });
 
   /* ================= SELECTION ================= */
-  await check('renderMapWorkspace validates selectedEntity against a single activeEntities source (the Phase 2 view model -- there is no second, legacy entity list any more)', () => {
+  await check('renderMapWorkspace applies the four-state canonical selection lifecycle against one activeEntities source', () => {
     assert.match(shellSrc, /const activeEntities=placed\|\|\[\];/);
-    assert.match(shellSrc, /selectedEntity===undefined\|\|\(selectedEntity!==null&&!activeEntities\.some\(entity=>entity\.id===selectedEntity\)\)/);
     assert.match(shellSrc, /const chosen=selectedEntity===null\?null:activeEntities\.find\(entity=>entity\.id===selectedEntity\)\|\|null;/);
+    const start=shellSrc.indexOf('if(selectedEntity===undefined)'),end=shellSrc.indexOf('\n  const chosen=',start);
+    assert.ok(start>=0&&end>start,'selection lifecycle block must remain directly executable');
+    const resolve=(selectedEntity,activeEntities)=>new Function('selectedEntity','activeEntities',`${shellSrc.slice(start,end)};return selectedEntity;`)(selectedEntity,activeEntities);
+    const entities=[{id:'store:one'},{id:'office:two'},{id:'competitor:three'},{id:'realestate:four'}];
+    assert.equal(resolve(undefined,entities),'store:one','initial undefined state may select a valid default');
+    assert.equal(resolve('office:two',entities),'office:two','a valid selected ID must survive');
+    assert.equal(resolve('tenant:leased',entities),null,'a stale tenant ID must clear');
+    assert.equal(resolve(null,entities),null,'explicit dismissal must stay null');
+    assert.ok(!entities.some(entity=>entity.id===resolve('tenant:leased',entities)),'stale selection must not jump to any unrelated active entity');
   });
 
   await check('selectedDetail() itself is unmodified by PR B -- Phase 2 entities are shaped to fit its existing contract, not the other way around', () => {
