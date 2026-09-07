@@ -1060,6 +1060,48 @@
     ctx.beginPath(); ctx.ellipse(x, y - 3, 4.5, 2.8, 0, 0, Math.PI * 2); ctx.fill();
   }
 
+  function paintLowBollards(ctx, x, y, count, spacing) {
+    ctx.fillStyle = '#8a7d55';
+    ctx.strokeStyle = 'rgba(55,59,55,.62)';
+    ctx.lineWidth = 1;
+    for (let i = 0; i < count; i++) {
+      const px = x + (i - (count - 1) / 2) * spacing;
+      ctx.fillRect(px - 1.5, y - 5, 3, 5);
+      ctx.beginPath(); ctx.moveTo(px - 1.5, y - 3.5); ctx.lineTo(px + 1.5, y - 3.5); ctx.stroke();
+    }
+  }
+
+  function paintUtilityCabinet(ctx, x, y) {
+    ctx.fillStyle = '#65706d';
+    ctx.fillRect(x - 4, y - 9, 8, 9);
+    ctx.strokeStyle = 'rgba(39,47,46,.7)';
+    ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.moveTo(x - 4, y - 6); ctx.lineTo(x + 4, y - 6); ctx.stroke();
+    ctx.fillStyle = '#aeb7a7';
+    ctx.fillRect(x + 1.5, y - 4.5, 1.5, 1.5);
+  }
+
+  function paintWheelStops(ctx, x, y, tile) {
+    ctx.strokeStyle = 'rgba(63,66,62,.76)';
+    ctx.lineWidth = 3;
+    for (const offset of [-0.4, 0, 0.4]) {
+      const px = x + offset * tile.w;
+      ctx.beginPath(); ctx.moveTo(px - 5, y); ctx.lineTo(px + 5, y + 3); ctx.stroke();
+    }
+  }
+
+  function paintServiceTrolley(ctx, x, y, flip) {
+    const side = flip ? -1 : 1;
+    ctx.fillStyle = '#66736e';
+    ctx.fillRect(x - 6, y - 5, 12, 6);
+    ctx.strokeStyle = 'rgba(43,49,47,.75)';
+    ctx.lineWidth = 1.2;
+    ctx.beginPath(); ctx.moveTo(x + side * 6, y - 5); ctx.lineTo(x + side * 9, y - 9); ctx.stroke();
+    ctx.fillStyle = '#39423f';
+    ctx.beginPath(); ctx.ellipse(x - 4, y + 2, 1.8, 1.2, 0, 0, Math.PI * 2); ctx.fill();
+    ctx.beginPath(); ctx.ellipse(x + 4, y + 2, 1.8, 1.2, 0, 0, Math.PI * 2); ctx.fill();
+  }
+
   function paintOpenMicroProps(ctx, cell, x, y, tile, prefID) {
     const seed = hash(`${prefID}:openProp:${cell.tileX}:${cell.tileY}:${cell.openType}`);
     const flip = (seed & 1) === 1;
@@ -1086,6 +1128,10 @@
         ctx.lineTo(x - tile.w * 0.17 + offset * tile.w, y + tile.h * 0.17);
         ctx.stroke();
       }
+      const variant = (seed >>> 3) % 3;
+      if (variant !== 2) paintWheelStops(ctx, x, y - tile.h * 0.04, tile);
+      if (variant === 0) paintLowBollards(ctx, x + (flip ? -17 : 17), y + 7, 2, 6);
+      if (variant === 1) paintUtilityCabinet(ctx, x + (flip ? -19 : 19), y + 6);
     } else if (cell.openType === 'loadingBay') {
       const side = flip ? -1 : 1;
       ctx.fillStyle = '#8b6946';
@@ -1097,6 +1143,13 @@
       ctx.lineTo(x + side * 7 + 5, y + 4); ctx.lineTo(x + side * 7 - 5, y + 4);
       ctx.closePath(); ctx.stroke();
       ctx.beginPath(); ctx.moveTo(x + side * 7, y - 2); ctx.lineTo(x + side * 7, y + 4); ctx.stroke();
+      ctx.strokeStyle = 'rgba(173,151,74,.66)';
+      ctx.lineWidth = 2.4;
+      ctx.beginPath(); ctx.moveTo(x - 19, y + 8); ctx.lineTo(x + 19, y + 8); ctx.stroke();
+      const variant = (seed >>> 3) % 3;
+      if (variant === 0) paintLowBollards(ctx, x - side * 15, y + 5, 2, 6);
+      if (variant === 1) paintServiceTrolley(ctx, x - side * 14, y + 3, flip);
+      if (variant === 2) paintUtilityCabinet(ctx, x - side * 18, y + 5);
     }
   }
 
