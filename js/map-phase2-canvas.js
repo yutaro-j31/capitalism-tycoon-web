@@ -30,11 +30,11 @@ if(modules.mapPhase2Canvas)throw new Error('map-phase2-canvas.js is already regi
  * to any browser storage, and never becomes part of game state or the
  * simulation.
  */
-globalThis.__STATIC_ASSET_REVISION='89f30a5d4cf0';
+globalThis.__STATIC_ASSET_REVISION='130a54236483';
 const ASSET_BASE='./assets/map-sprites/phase2';
 const IMAGE_BASE='./assets/map-sprites/phase1';
-const MANIFEST_URL=`${ASSET_BASE}/sprites.json?rev=89f30a5d4cf0`;
-const PROTOTYPE_SCRIPTS=['./prototypes/map-canvas-renderer.js?rev=89f30a5d4cf0','./prototypes/map-prefecture-profiles.js?rev=89f30a5d4cf0','./prototypes/map-world-preview.js?rev=89f30a5d4cf0'];
+const MANIFEST_URL=`${ASSET_BASE}/sprites.json?rev=130a54236483`;
+const PROTOTYPE_SCRIPTS=['./prototypes/map-canvas-renderer.js?rev=130a54236483','./prototypes/map-prefecture-profiles.js?rev=130a54236483','./prototypes/map-world-preview.js?rev=130a54236483'];
 const WORLD_COLS=32,WORLD_ROWS=28;
 /*
  * Initial-framing pull-back (Map Framing / Zoom-out Calibration). This
@@ -58,6 +58,12 @@ const WORLD_COLS=32,WORLD_ROWS=28;
  * fits inside the taller portrait viewport at the same scale. See
  * tests/map-phase2-framing-zoomout-test.js for the exact derivation.
  */
+/* 0.36 keeps roughly one extra street-grid column visible over the 0.44
+ * overview without reducing the city to specks on a 390px viewport. 0.72 is
+ * the former production close-up scale: detailed enough for a selected
+ * building, but still inside the sprite resolution/framing already exercised
+ * in production. Pinch is deliberately bounded to that measured range. */
+const MIN_SCALE=0.36,MAX_SCALE=0.72;
 const DEFAULT_SCALE=0.44;
 const FALLBACK_PREF_ID='tokyo';
 
@@ -638,6 +644,7 @@ function ensureDistrict(index2,prefID){
   const district=MW.buildWorldDistrict({index2,prefID,cols:WORLD_COLS,rows:WORLD_ROWS});
   const wt=MW.worldTransform(district,index2.tile,DEFAULT_SCALE);
   cachedDistrict=district;cachedPrefID=prefID;cachedTransform=wt.transform;
+  viewScale=DEFAULT_SCALE;
   return district;
 }
 
@@ -665,7 +672,7 @@ function initialCamera(district,transform,rawW,rawH){
  * (worldWidth/worldHeight/contentBounds do not change unless the world
  * itself was rebuilt, but the viewport might have -- e.g. window resize).
  */
-let camera=null,cameraPrefID=null;
+let camera=null,cameraPrefID=null,viewScale=DEFAULT_SCALE;
 function resolveCamera(district,transform,prefID,rawW,rawH){
   const MW=globalThis.MapWorldPreview;
   if(!camera||cameraPrefID!==prefID){
@@ -695,7 +702,8 @@ function resolveCamera(district,transform,prefID,rawW,rawH){
  * the same gesture.
  */
 const PAN_THRESHOLD=8;
-let dragState=null,justPanned=false,lastG=null,pendingFrame=false;
+let dragState=null,pinchState=null,gestureBlocked=false,justPanned=false,lastG=null,pendingFrame=false;
+const activePointers=new Map();
 function consumeJustPanned(){
   if(!justPanned)return false;
   justPanned=false;
@@ -706,8 +714,27 @@ function schedulePanRedraw(canvas){
   pendingFrame=true;
   globalThis.requestAnimationFrame(()=>{pendingFrame=false;render(canvas,lastG);});
 }
+function markGestureUsed(){
+  justPanned=true;
+  globalThis.setTimeout(()=>{justPanned=false;},50);
+}
+function pointerPoint(event){return {x:event.clientX,y:event.clientY};}
+function pinchMetrics(first,second){
+  return {midX:(first.x+second.x)/2,midY:(first.y+second.y)/2,distance:Math.hypot(second.x-first.x,second.y-first.y)};
+}
+function beginPinch(canvas){
+  if(pinchState||activePointers.size<2||!camera||!cachedTransform)return;
+  const entries=[...activePointers.entries()].slice(0,2);
+  const metrics=pinchMetrics(entries[0][1],entries[1][1]);
+  if(metrics.distance<1)return;
+  const rect=canvas.getBoundingClientRect();
+  const localX=metrics.midX-rect.left,localY=metrics.midY-rect.top;
+  pinchState={ids:entries.map(([id])=>id),canvas,startDistance:metrics.distance,startScale:viewScale,
+    worldX:camera.x+localX/viewScale,worldY:camera.y+localY/viewScale};
+  dragState=null;
+  for(const id of pinchState.ids){try{canvas.setPointerCapture(id);}catch(e){}}
+}
 function onPointerDown(event){
-  if(dragState)return;
   /*
    * Gate on the shared .d-city-surface-phase2 container, not the canvas
    * element alone -- Phase 2 markers are DOM siblings of the canvas (both
@@ -721,9 +748,30 @@ function onPointerDown(event){
   const container=event.target?.closest?.('.d-city-surface-phase2');
   const canvas=container?.querySelector?.('.d-phase2-canvas');
   if(!canvas||!camera)return;
+  if(activePointers.size>=2||activePointers.has(event.pointerId))return;
+  activePointers.set(event.pointerId,pointerPoint(event));
+  if(activePointers.size===2){beginPinch(canvas);return;}
+  if(gestureBlocked||dragState)return;
   dragState={pointerId:event.pointerId,canvas,startX:event.clientX,startY:event.clientY,camStart:{x:camera.x,y:camera.y},dragging:false};
 }
 function onPointerMove(event){
+  if(activePointers.has(event.pointerId))activePointers.set(event.pointerId,pointerPoint(event));
+  if(pinchState){
+    if(!pinchState.ids.includes(event.pointerId))return;
+    const first=activePointers.get(pinchState.ids[0]),second=activePointers.get(pinchState.ids[1]);
+    if(!first||!second)return;
+    const metrics=pinchMetrics(first,second);
+    const nextScale=Math.min(MAX_SCALE,Math.max(MIN_SCALE,pinchState.startScale*(metrics.distance/pinchState.startDistance)));
+    const rect=pinchState.canvas.getBoundingClientRect();
+    const localX=metrics.midX-rect.left,localY=metrics.midY-rect.top;
+    viewScale=nextScale;
+    cachedTransform=globalThis.MapWorldPreview.worldTransform(cachedDistrict,assetsReady.index2.tile,viewScale).transform;
+    const rawW=rect.width/viewScale,rawH=rect.height/viewScale;
+    camera=globalThis.MapWorldPreview.clampCameraToContent({x:pinchState.worldX-localX/viewScale,y:pinchState.worldY-localY/viewScale},cachedTransform,cachedDistrict,rawW,rawH);
+    schedulePanRedraw(pinchState.canvas);
+    event.preventDefault?.();
+    return;
+  }
   if(!dragState||event.pointerId!==dragState.pointerId)return;
   const dx=event.clientX-dragState.startX,dy=event.clientY-dragState.startY;
   if(!dragState.dragging){
@@ -736,13 +784,19 @@ function onPointerMove(event){
   schedulePanRedraw(dragState.canvas);
 }
 function endDrag(event){
-  if(!dragState||(event&&event.pointerId!==undefined&&event.pointerId!==dragState.pointerId))return;
-  if(dragState.dragging){
-    justPanned=true;
-    globalThis.setTimeout(()=>{justPanned=false;},50);
-    try{dragState.canvas.releasePointerCapture(dragState.pointerId);}catch(e){}
+  const pointerId=event&&event.pointerId;
+  if(pinchState&&pinchState.ids.includes(pointerId)){
+    for(const id of pinchState.ids){try{pinchState.canvas.releasePointerCapture(id);}catch(e){}}
+    pinchState=null;dragState=null;gestureBlocked=true;markGestureUsed();
+  }else if(dragState&&pointerId===dragState.pointerId){
+    if(dragState.dragging){markGestureUsed();try{dragState.canvas.releasePointerCapture(dragState.pointerId);}catch(e){}}
+    dragState=null;
   }
-  dragState=null;
+  if(pointerId!==undefined)activePointers.delete(pointerId);
+  if(activePointers.size===0){
+    if(gestureBlocked)markGestureUsed();
+    gestureBlocked=false;
+  }
 }
 function installPanHandlers(){
   if(typeof document==='undefined'||typeof document.addEventListener!=='function')return;

@@ -1,9 +1,8 @@
-/* Camera/pointer-drag pan (js/map-phase2-canvas.js). The browser's own
-   native touch scroll/zoom on the canvas would compete with the custom
-   pointer-drag pan (see installPanHandlers()) -- disabling it here is what
-   lets a single-finger drag pan the map instead of scrolling the page
-   underneath it. */
-.d-phase2-canvas{touch-action:none}
+/* Camera pointer gestures (js/map-phase2-canvas.js). Native touch
+   scroll/page zoom on the shared surface would compete with one-finger map
+   pan and two-finger focal zoom. Scope the override to the map surface so
+   marker-start gestures are covered while the page remains scrollable. */
+.d-city-surface-phase2{touch-action:none}
 
 /* PR D removed js/iphone-playtest-fixes.js's legacy per-viewport zoom
    mechanism entirely (see docs/map-phase2-production-integration-audit.md
