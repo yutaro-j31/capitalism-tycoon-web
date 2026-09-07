@@ -14,8 +14,20 @@ const activeTab=()=>game()?.selectedTab||document.querySelector('.tabs .active')
 function toast(message,severity='info'){
  const root=document.getElementById('toast-root');if(!root)return;
  const node=document.createElement('div');node.className=`toast ${severity}`;node.textContent=message;root.appendChild(node);
- requestAnimationFrame(()=>node.classList.add('show'));setTimeout(()=>{node.classList.remove('show');setTimeout(()=>node.remove(),250)},3200);
+ requestAnimationFrame(()=>{syncToastClearance(node);node.classList.add('show');});setTimeout(()=>{node.classList.remove('show');setTimeout(()=>node.remove(),250)},3200);
 }
+function syncToastClearance(toastNode){
+ const toast=toastNode?.classList?.contains('toast')?toastNode:document.querySelector('#toast-root .toast:last-child');
+ if(!toast||!Number.isFinite(globalThis.innerWidth)||globalThis.innerWidth>820||!document.body.classList.contains('d-ui-active'))return false;
+ const nav=document.querySelector('.d-sidebar'),style=nav&&getComputedStyle(nav);
+ if(!nav||style.display==='none'||style.visibility==='hidden'||Number(style.opacity)===0)return false;
+ const navRect=nav.getBoundingClientRect(),toastRect=toast.getBoundingClientRect();
+ if(navRect.width<=0||navRect.height<=0||toastRect.height<=0)return false;
+ toast.style.top=`${Math.max((globalThis.visualViewport?.offsetTop||0)+8,navRect.top-10-toastRect.height)}px`;
+ toast.style.bottom='auto';
+ return true;
+}
+function syncToastClearances(){document.querySelectorAll('#toast-root .toast').forEach(syncToastClearance);}
 function schedule(){const registry=modules.uiEnhancerRegistry;if(registry?.runUIEnhancers)return registry.runUIEnhancers();enhance();return true;}
 function parseAmount(value){const digits=String(value??'').replace(/[^0-9]/g,'');return digits?Number(digits):0;}
 function moneyContext(action,id,kind){
@@ -147,6 +159,6 @@ function handleGoTab(event){const button=event.target?.closest?.('[data-iphone-g
 function enhanceBrowserMode(){const ios=/iP(hone|od|ad)/.test(navigator.userAgent);document.body.classList.toggle('iphone-browser-mode',ios&&!navigator.standalone);document.body.classList.toggle('standalone-mode',Boolean(navigator.standalone));}
 function enhance(){enhanceBrowserMode();ensureCrisisPresentation();ensureMapChrome();ensureStoreCockpit();ensureDebtLedger();}
 function handleClick(event){if(interceptMoney(event))return;secretaryContext(event);selectStoreFromContext(event);if(handleMapAction(event))return;if(handleStoreAction(event))return;if(handleGoTab(event))return;const marker=event.target?.closest?.('.d-map-marker[data-d-ui-marker^="store:"]');if(marker)state.selectedStoreID=marker.dataset.dUiMarker.slice(6);}
-function install(){document.addEventListener('click',handleClick,true);document.addEventListener('change',handleStoreAction,true);const registry=modules.uiEnhancerRegistry;if(registry?.registerUIEnhancer)registry.registerUIEnhancer({id:'iphone-playtest-fixes',enhance});else enhance();globalThis.visualViewport?.addEventListener?.('resize',schedule);return true;}
-modules.iphonePlaytestFixes=Object.freeze({state,parseAmount,moneyContext,causeRows,enhance,install,__installed:true});install();
+function install(){document.addEventListener('click',handleClick,true);document.addEventListener('change',handleStoreAction,true);const registry=modules.uiEnhancerRegistry;if(registry?.registerUIEnhancer)registry.registerUIEnhancer({id:'iphone-playtest-fixes',enhance});else enhance();const syncViewport=()=>{schedule();syncToastClearances();};globalThis.visualViewport?.addEventListener?.('resize',syncViewport);globalThis.visualViewport?.addEventListener?.('scroll',syncToastClearances);globalThis.addEventListener?.('resize',syncToastClearances);return true;}
+modules.iphonePlaytestFixes=Object.freeze({state,parseAmount,moneyContext,causeRows,syncToastClearance,enhance,install,__installed:true});install();
 })();
