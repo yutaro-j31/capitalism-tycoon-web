@@ -18,6 +18,7 @@ assert.doesNotMatch(iphone,/\.toast\{[^}]*z-index/,'hotfix must resolve geometry
 assert.ok(html.indexOf('css/app.css')<html.indexOf('css/iphone-playtest-fixes.css'),'iPhone geometry must load after the app toast fallback');
 
 assert.match(iphoneJs,/function syncToastClearance\(toastNode\)\{/,'runtime must measure live toast/navigation geometry');
+assert.match(iphoneJs,/!Number\.isFinite\(globalThis\.innerWidth\)/,'non-browser engine fixtures must remain safe when canonical notifications fire');
 assert.match(iphoneJs,/const navRect=nav\.getBoundingClientRect\(\),toastRect=toast\.getBoundingClientRect\(\);/,'clearance must use actual DOM rectangles');
 assert.match(iphoneJs,/navRect\.top-10-toastRect\.height/,'toast must sit exactly 10px above the measured navigation');
 assert.match(iphoneJs,/style\.display==='none'\|\|style\.visibility==='hidden'\|\|Number\(style\.opacity\)===0/,'hidden navigation must never be treated as valid geometry');

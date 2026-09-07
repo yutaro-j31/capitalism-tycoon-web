@@ -18,7 +18,7 @@ function toast(message,severity='info'){
 }
 function syncToastClearance(toastNode){
  const toast=toastNode?.classList?.contains('toast')?toastNode:document.querySelector('#toast-root .toast:last-child');
- if(!toast||innerWidth>820||!document.body.classList.contains('d-ui-active'))return false;
+ if(!toast||!Number.isFinite(globalThis.innerWidth)||globalThis.innerWidth>820||!document.body.classList.contains('d-ui-active'))return false;
  const nav=document.querySelector('.d-sidebar'),style=nav&&getComputedStyle(nav);
  if(!nav||style.display==='none'||style.visibility==='hidden'||Number(style.opacity)===0)return false;
  const navRect=nav.getBoundingClientRect(),toastRect=toast.getBoundingClientRect();
