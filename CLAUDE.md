@@ -121,6 +121,10 @@ Supported production detail flow includes:
 - realestate -> property detail
 - competitor presence -> competitor detail
 
+A `tenant` marker represents a currently available lease opportunity only.
+Occupied tenants remain engine records but are represented on the map by their
+store, not by a misleading second “available tenant” marker.
+
 Keep existing `selectedEntity` / `selectedDetail()`-based behavior as the source of truth unless a dedicated redesign intentionally changes that model.
 
 Markers must satisfy both **anchor integrity** and **semantic building affinity**:
