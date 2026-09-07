@@ -185,7 +185,9 @@ function selectedDetail(entity,g){
     const tenant=entity.tenant||{};
     const business=engine()?.business?.(tenant.businessID);
     const occupied=Boolean(tenant.occupiedBy);
-    return `<div class="d-context-hero"><div class="d-store-visual tenant"><span>FOR LEASE</span></div><div class="d-rating"><b>テナント募集</b><span>${occupied?'契約済':'契約可能'}</span></div></div><h3 class="d-context-name">${esc(entity.name)}</h3><div class="d-context-metrics"><div><span>週額賃料</span><strong>${money(tenant.rent)}</strong></div><div><span>初期費用（保証金）</span><strong>${money(tenant.deposit)}</strong></div><div><span>都道府県</span><strong>${prefLabel(entity.pref)}</strong></div><div><span>商圏</span><strong>${esc(tenant.cityName||'—')}</strong></div><div><span>区画サイズ</span><strong>${esc(tenant.size||'—')}</strong></div><div><span>立地係数</span><strong>${tenant.traffic?finite(tenant.traffic).toFixed(2):'—'}</strong></div><div><span>想定業態</span><strong>${esc(business?.name||'—')}</strong></div><div><span>状態</span><strong>${occupied?'契約済':'契約可能'}</strong></div></div><button type="button" class="btn primary wide" data-action="open-store" data-id="${esc(entity.rawID)}">この場所に出店する</button>`;
+    const status=occupied?(tenant.occupiedBy==='player'?'自社利用中':'契約済'):'契約可能';
+    const action=occupied?'':`<button type="button" class="btn primary wide" data-action="open-store" data-id="${esc(entity.rawID)}">この場所に出店する</button>`;
+    return `<div class="d-context-hero"><div class="d-store-visual tenant"><span>${occupied?'OCCUPIED':'FOR LEASE'}</span></div><div class="d-rating"><b>${occupied?'入居中':'テナント募集'}</b><span>${status}</span></div></div><h3 class="d-context-name">${esc(entity.name)}</h3><div class="d-context-metrics"><div><span>週額賃料</span><strong>${money(tenant.rent)}</strong></div><div><span>初期費用（保証金）</span><strong>${money(tenant.deposit)}</strong></div><div><span>都道府県</span><strong>${prefLabel(entity.pref)}</strong></div><div><span>商圏</span><strong>${esc(tenant.cityName||'—')}</strong></div><div><span>区画サイズ</span><strong>${esc(tenant.size||'—')}</strong></div><div><span>立地係数</span><strong>${tenant.traffic?finite(tenant.traffic).toFixed(2):'—'}</strong></div><div><span>想定業態</span><strong>${esc(business?.name||'—')}</strong></div><div><span>状態</span><strong>${status}</strong></div></div>${action}`;
   }
   if(entity.kind==='realestate'){
     const property=entity.property||{};
@@ -252,7 +254,8 @@ function renderMapWorkspace(screen,g){
   let placed=modules.mapPhase2Canvas.placeEntityTiles(viewModel.entities,viewModel.prefID);
   if(placed)placed=modules.mapPhase2Canvas.layoutMarkerPlacards(placed,viewModel.prefID);
   const activeEntities=placed||[];
-  if(selectedEntity===undefined||(selectedEntity!==null&&!activeEntities.some(entity=>entity.id===selectedEntity)))selectedEntity=activeEntities[0]?.id||null;
+  if(selectedEntity===undefined)selectedEntity=activeEntities[0]?.id||null;
+  else if(selectedEntity!==null&&!activeEntities.some(entity=>entity.id===selectedEntity))selectedEntity=null;
   const chosen=selectedEntity===null?null:activeEntities.find(entity=>entity.id===selectedEntity)||null;
   let directory=screen.querySelector(':scope > .d-map-directory');
   if(!directory){

@@ -30,11 +30,11 @@ if(modules.mapPhase2Canvas)throw new Error('map-phase2-canvas.js is already regi
  * to any browser storage, and never becomes part of game state or the
  * simulation.
  */
-globalThis.__STATIC_ASSET_REVISION='b7da4927e8f3';
+globalThis.__STATIC_ASSET_REVISION='2fb6738628d5';
 const ASSET_BASE='./assets/map-sprites/phase2';
 const IMAGE_BASE='./assets/map-sprites/phase1';
-const MANIFEST_URL=`${ASSET_BASE}/sprites.json?rev=b7da4927e8f3`;
-const PROTOTYPE_SCRIPTS=['./prototypes/map-canvas-renderer.js?rev=b7da4927e8f3','./prototypes/map-prefecture-profiles.js?rev=b7da4927e8f3','./prototypes/map-world-preview.js?rev=b7da4927e8f3'];
+const MANIFEST_URL=`${ASSET_BASE}/sprites.json?rev=2fb6738628d5`;
+const PROTOTYPE_SCRIPTS=['./prototypes/map-canvas-renderer.js?rev=2fb6738628d5','./prototypes/map-prefecture-profiles.js?rev=2fb6738628d5','./prototypes/map-world-preview.js?rev=2fb6738628d5'];
 const WORLD_COLS=32,WORLD_ROWS=28;
 /*
  * Initial-framing pull-back (Map Framing / Zoom-out Calibration). This
@@ -108,7 +108,10 @@ function buildMapViewModel(g,engineInstance){
    * read-only reference to state the caller already owns (never a copy, never
    * a mutation).
    */
-  const tenants=byPref(g&&g.tenants).map(tenant=>{
+  /* A canonical tenant marker is a lease opportunity. Occupied tenants stay
+     in engine state for their store/rent lifecycle, but the corresponding
+     store marker represents that location once leased. */
+  const tenants=byPref(g&&g.tenants).filter(tenant=>!tenant.occupiedBy).map(tenant=>{
     const label=tenant.name||'出店候補';
     return {id:`tenant:${tenant.id}`,kind:'tenant',sourceId:tenant.id,pref:tenant.prefID,label,rawID:tenant.id,name:label,tenant};
   });
