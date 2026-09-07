@@ -119,6 +119,7 @@ Supported production detail flow includes:
 - tenant -> tenant detail
 - office -> office detail
 - realestate -> property detail
+- competitor presence -> competitor detail
 
 Keep existing `selectedEntity` / `selectedDetail()`-based behavior as the source of truth unless a dedicated redesign intentionally changes that model.
 

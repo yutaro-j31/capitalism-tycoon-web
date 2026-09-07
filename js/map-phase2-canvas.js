@@ -30,11 +30,11 @@ if(modules.mapPhase2Canvas)throw new Error('map-phase2-canvas.js is already regi
  * to any browser storage, and never becomes part of game state or the
  * simulation.
  */
-globalThis.__STATIC_ASSET_REVISION='130a54236483';
+globalThis.__STATIC_ASSET_REVISION='7bdf134cdb7e';
 const ASSET_BASE='./assets/map-sprites/phase2';
 const IMAGE_BASE='./assets/map-sprites/phase1';
-const MANIFEST_URL=`${ASSET_BASE}/sprites.json?rev=130a54236483`;
-const PROTOTYPE_SCRIPTS=['./prototypes/map-canvas-renderer.js?rev=130a54236483','./prototypes/map-prefecture-profiles.js?rev=130a54236483','./prototypes/map-world-preview.js?rev=130a54236483'];
+const MANIFEST_URL=`${ASSET_BASE}/sprites.json?rev=7bdf134cdb7e`;
+const PROTOTYPE_SCRIPTS=['./prototypes/map-canvas-renderer.js?rev=7bdf134cdb7e','./prototypes/map-prefecture-profiles.js?rev=7bdf134cdb7e','./prototypes/map-world-preview.js?rev=7bdf134cdb7e'];
 const WORLD_COLS=32,WORLD_ROWS=28;
 /*
  * Initial-framing pull-back (Map Framing / Zoom-out Calibration). This
@@ -69,7 +69,7 @@ const FALLBACK_PREF_ID='tokyo';
 
 /*
  * buildMapViewModel(): pure, read-only, deterministic. Reads
- * g.stores/g.tenants/g.rentalOffices/g.properties/g.selectedPref
+ * g.stores/g.tenants/g.rentalOffices/g.properties/g.competitorStates/g.selectedPref
  * directly -- NOT the DOM (unlike production's own mapEntities(), which
  * scrapes rendered legacy buttons for 3 of its 4 entity kinds; see the
  * audit doc's "duplication flags" section). Never mutates g/engine,
@@ -120,7 +120,17 @@ function buildMapViewModel(g,engineInstance){
     const label=property.name||'不動産候補';
     return {id:`realestate:${property.id}`,kind:'realestate',sourceId:property.id,pref:property.prefID,label,rawID:property.id,name:label,property,propertyKind:property.kind};
   });
-  return {prefID,entities:[...stores,...tenants,...offices,...properties]};
+  const terminalCompetitorStatuses=new Set(['inactive','bankrupt']);
+  const competitors=(Array.isArray(g&&g.competitorStates)?g.competitorStates:[])
+    .filter(competitor=>competitor&&competitor.competitorID&&competitor.active&&!terminalCompetitorStatuses.has(String(competitor.lifecycleStatus||''))&&!terminalCompetitorStatuses.has(String(competitor.status||'')))
+    .flatMap(competitor=>(Array.isArray(competitor.marketPresence)?competitor.marketPresence:[])
+      .filter(presence=>presence&&presence.active&&presence.presenceID&&presence.prefID===prefID)
+      .map(presence=>({
+        id:`competitor:${presence.presenceID}`,kind:'competitor',sourceId:presence.presenceID,
+        pref:presence.prefID,label:competitor.name||'競合企業',rawID:presence.presenceID,
+        name:competitor.name||'競合企業',competitorID:competitor.competitorID,competitor,presence
+      })));
+  return {prefID,entities:[...stores,...tenants,...offices,...properties,...competitors]};
 }
 
 /*
@@ -180,6 +190,7 @@ const SPRITE_SURFACE_OVERRIDES={commercial_billboard:'signage'};
  */
 const KIND_SURFACES={
   store:{preferred:['commercial.small','commercial.mid','commercial.hero'],allowed:['office.small','office.mid']},
+  competitor:{preferred:['commercial.small','commercial.mid','commercial.hero'],allowed:['office.small','office.mid']},
   tenant:{preferred:['commercial.small','commercial.mid','commercial.hero'],allowed:['office.small','office.mid','office.hero']},
   office:{preferred:['office.hero','office.mid','office.small'],allowed:['commercial.hero','commercial.mid']}
 };

@@ -123,6 +123,7 @@
     "tests/map-phase2-environment-micro-props-test.js",
     "tests/map-phase2-p1-mid-civic-assets-test.js",
     "tests/map-phase2-canvas-test.js",
+    "tests/map-phase2-competitor-marker-test.js",
     "tests/map-phase2-markers-test.js",
     "tests/map-phase2-iphone-pan-webkit-test.js",
     "tests/map-phase2-pinch-zoom-test.js"

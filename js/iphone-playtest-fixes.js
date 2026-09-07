@@ -40,27 +40,6 @@ function openMoneyModal(context){
  refresh();input.focus({preventScroll:true});input.select?.();return true;
 }
 function interceptMoney(event){const target=event.target?.closest?.('[data-action]');if(!target)return false;const action=target.dataset.action;if(!['business-invest','borrow-company','repay-company','borrow-personal','repay-personal'].includes(action))return false;const context=moneyContext(action,target.dataset.id,target.dataset.kind);if(!context)return false;event.preventDefault();event.stopPropagation();event.stopImmediatePropagation?.();openMoneyModal(context);return true;}
-function stableHash(text){let value=2166136261;for(const char of String(text)){value^=char.codePointAt(0);value=Math.imul(value,16777619);}return value>>>0;}
-function markerPosition(key,index){const hash=stableHash(key);return {x:10+((hash+index*17)%80),y:16+(((hash>>>8)+index*23)%68)};}
-function positionsCollide(a,b){return Math.abs(a.x-b.x)<12&&Math.abs(a.y-b.y)<14;}
-function readMarkerPercent(el,prop){const value=parseFloat(el.style.getPropertyValue(prop));return Number.isFinite(value)?value:null;}
-// Grid spacing (13 on x, 15 on y) is deliberately wider than positionsCollide's own
-// threshold (12,14) so no two grid cells can collide with each other -- only with
-// markers already on the map. Candidates are tried nearest-to-the-preferred-spot
-// first so a nudge stays visually close to where the deterministic hash wanted it.
-const MARKER_GRID_X=[14,27,40,53,66,79];
-const MARKER_GRID_Y=[20,35,50,65,80];
-function findClearMarkerPosition(key,baseIndex,occupied){
- const preferred=markerPosition(key,baseIndex);
- if(!occupied.some(spot=>positionsCollide(preferred,spot)))return preferred;
- const candidates=[];
- for(const x of MARKER_GRID_X)for(const y of MARKER_GRID_Y)candidates.push({x,y});
- candidates.sort((a,b)=>((a.x-preferred.x)**2+(a.y-preferred.y)**2)-((b.x-preferred.x)**2+(b.y-preferred.y)**2));
- for(const candidate of candidates){
-  if(!occupied.some(spot=>positionsCollide(candidate,spot)))return candidate;
- }
- return preferred;
-}
 /*
  * PR D (see docs/map-phase2-production-integration-audit.md section 6, PR
  * D): the legacy per-viewport zoom-level state, its zoom-in/zoom-out/reset
@@ -93,7 +72,7 @@ function ensureMapChrome(){
  if(state.mapPanel==='filter')panel.innerHTML=`<strong>表示する拠点</strong>${[['store','自社店舗'],['tenant','空きテナント'],['office','オフィス'],['competitor','競合店舗'],['property','不動産']].map(([id,label])=>`<label><input type="checkbox" data-iphone-filter="${id}" ${state.mapFilters[id]?'checked':''}>${label}</label>`).join('')}`;
  if(state.mapPanel==='legend')panel.innerHTML='<strong>凡例</strong><p><i class="legend store"></i>自社店舗</p><p><i class="legend tenant"></i>空きテナント</p><p><i class="legend office"></i>オフィス</p><p><i class="legend competitor"></i>競合</p><p><i class="legend property"></i>不動産</p>';
  panel.querySelectorAll('[data-iphone-filter]').forEach(box=>box.addEventListener('change',()=>{state.mapFilters[box.dataset.iphoneFilter]=box.checked;applyMapFilters(stage);}));
- ensureSyntheticMapEntities(stage,g,current);applyMapFilters(stage);stage.dataset.iphoneMapKey=mapKey;
+ applyMapFilters(stage);stage.dataset.iphoneMapKey=mapKey;
  // js/d-ui-shell.js's renderMapWorkspace() (registered as the 'd-ui-shell'
  // enhancer, which always runs before this file's 'iphone-playtest-fixes'
  // enhancer -- see their registration order in index.html) rebuilds
@@ -114,34 +93,14 @@ function ensureMapChrome(){
  const canvas=stage.querySelector('.d-phase2-canvas');
  if(canvas&&modules.mapPhase2Canvas?.render)modules.mapPhase2Canvas.render(canvas,g);
 }
-function ensureSyntheticMapEntities(stage,g,prefID){
- stage.querySelectorAll('.iphone-synthetic-marker').forEach(node=>node.remove());
- // Properties are NOT synthesised here: js/map-phase2-canvas.js's own buildMapViewModel()
- // already renders every unowned property in this prefecture as a canonical
- // .d-map-marker.realestate button. Adding a second, independently-positioned
- // .iphone-synthetic-marker.property for the same property id duplicated every listing and,
- // since the two systems use different position formulas, could land the duplicate directly
- // on top of the real marker -- silently blocking clicks on it (and on any other .d-map-marker
- // it happened to cover). Competitors have no such canonical marker elsewhere, so they still
- // get a synthetic one, now placed clear of every existing .d-map-marker.
- const occupied=Array.from(stage.querySelectorAll('.d-map-marker')).map(marker=>({x:readMarkerPercent(marker,'--x'),y:readMarkerPercent(marker,'--y')})).filter(spot=>spot.x!==null&&spot.y!==null);
- const competitors=(g.competitorStates||[]).flatMap(comp=>(comp.marketPresence||[]).filter(p=>p.active&&(!p.prefID||p.prefID===prefID)).slice(0,1).map(p=>({comp,p}))).slice(0,3);
- competitors.forEach(({comp},index)=>{const pos=findClearMarkerPosition(`competitor:${comp.id}`,index+30,occupied);occupied.push(pos);stage.insertAdjacentHTML('beforeend',`<button type="button" class="iphone-synthetic-marker competitor" style="--x:${pos.x}%;--y:${pos.y}%" data-iphone-map-entity="competitor" data-id="${esc(comp.id)}" aria-label="${esc(comp.name)}"><span>◆</span></button>`);});
- stage.querySelectorAll('.d-map-marker').forEach(marker=>{marker.dataset.iphoneKind=marker.classList.contains('tenant')?'tenant':marker.classList.contains('office')?'office':'store';});
-}
 function applyMapFilters(stage){
- stage.querySelectorAll('[data-iphone-kind]').forEach(marker=>{marker.hidden=!state.mapFilters[marker.dataset.iphoneKind];});
- stage.querySelectorAll('[data-iphone-map-entity]').forEach(marker=>{marker.hidden=!state.mapFilters[marker.dataset.iphoneMapEntity];});
+ const filterKind=marker=>marker.classList.contains('tenant')?'tenant':marker.classList.contains('office')?'office':marker.classList.contains('realestate')?'property':marker.classList.contains('competitor')?'competitor':'store';
+ stage.querySelectorAll('.d-map-marker').forEach(marker=>{const kind=filterKind(marker);marker.dataset.iphoneKind=kind;marker.hidden=!state.mapFilters[kind];});
 }
 function handleMapAction(event){const button=event.target?.closest?.('[data-iphone-map-action]');if(!button)return false;event.preventDefault();const action=button.dataset.iphoneMapAction;const screen=document.getElementById('screen'),stage=screen?.querySelector('.d-map-stage');if(!stage)return true;
  if(action==='view'){const directory=screen.querySelector('.d-map-directory');state.mapPanel=state.mapPanel==='list'?null:'list';if(directory){directory.open=state.mapPanel==='list';if(directory.open)directory.scrollIntoView({block:'start',behavior:'smooth'});}schedule();return true;}
  if(action==='filter'||action==='legend'){state.mapPanel=state.mapPanel===action?null:action;schedule();return true;}
  return true;
-}
-function handleSyntheticMarker(event){const marker=event.target?.closest?.('[data-iphone-map-entity]');if(!marker)return false;event.preventDefault();const g=game(),panel=document.querySelector('.d-context-panel');if(!g||!panel)return true;const type=marker.dataset.iphoneMapEntity,id=marker.dataset.id;
- if(type==='property'){const item=(g.properties||[]).find(row=>String(row.id)===String(id));panel.innerHTML=`<header><div><span>●</span><h2>${esc(item?.name||'不動産')}</h2></div></header><div class="iphone-entity-sheet"><strong>不動産候補</strong><p>${esc(item?.kind||'物件')}・評価額 ${money(item?.value||item?.price)}</p><p>想定賃料 ${money(item?.rentIncome)}/週</p><button class="btn primary wide" type="button" data-iphone-go-tab="assets">資産・不動産画面へ</button></div>`;}
- if(type==='competitor'){const comp=(g.competitorStates||[]).find(row=>String(row.id)===String(id));panel.innerHTML=`<header><div><span>●</span><h2>${esc(comp?.name||'競合企業')}</h2></div></header><div class="iphone-entity-sheet"><strong>${esc(comp?.status||'競合')}</strong><p>現金余力 ${money(comp?.cash)}・負債 ${money(comp?.debt)}</p><p>週次利益 ${money(comp?.weeklyProfit)}</p><button class="btn primary wide" type="button" data-iphone-go-tab="rivals">競合分析画面へ</button></div>`;}
- panel.scrollIntoView({block:'nearest'});return true;
 }
 function storeData(store){const g=game(),business=engine()?.business?.(store.businessID)||{},market=store.marketResult||g?.marketResultsByStoreID?.[store.id]||{},supply=g?.supplyResultsByStoreID?.[store.id]||{},tenant=(g?.tenants||[]).find(row=>row.id===store.tenantID)||{};const sales=finite(market.revenue,finite(store.lastSales));const profit=finite(store.lastProfit,finite(market.contributionMargin));const rent=finite(store.rent,finite(store.weeklyRent,finite(tenant.rent)));const payroll=finite(store.payroll,finite(store.weeklyPayroll));const variable=finite(market.variableCost,Math.max(0,sales-profit-rent-payroll));const reasons=Array.isArray(market.reasons)?market.reasons:[];return {g,business,market,supply,sales,profit,rent,payroll,variable,reasons,inventory:finite(store.inventory,finite(g?.inventoryByStoreID?.[store.id]?.quantity)),demand:finite(store.weeklyDemand,finite(market.demand)),lostDemand:finite(market.lostDemand),store};}
 function causeRows(data){const rows=[],sales=Math.max(1,data.sales);const reasonMap=new Map(data.reasons.map(row=>[row.label,finite(row.value)]));
@@ -187,7 +146,7 @@ function goTab(tab){const source=[...document.querySelectorAll('.d-source-tabs [
 function handleGoTab(event){const button=event.target?.closest?.('[data-iphone-go-tab]');if(!button)return false;event.preventDefault();if(!goTab(button.dataset.iphoneGoTab))toast('画面を開けませんでした。','error');return true;}
 function enhanceBrowserMode(){const ios=/iP(hone|od|ad)/.test(navigator.userAgent);document.body.classList.toggle('iphone-browser-mode',ios&&!navigator.standalone);document.body.classList.toggle('standalone-mode',Boolean(navigator.standalone));}
 function enhance(){enhanceBrowserMode();ensureCrisisPresentation();ensureMapChrome();ensureStoreCockpit();ensureDebtLedger();}
-function handleClick(event){if(interceptMoney(event))return;secretaryContext(event);selectStoreFromContext(event);if(handleMapAction(event))return;if(handleSyntheticMarker(event))return;if(handleStoreAction(event))return;if(handleGoTab(event))return;const marker=event.target?.closest?.('.d-map-marker[data-d-ui-marker^="store:"]');if(marker)state.selectedStoreID=marker.dataset.dUiMarker.slice(6);}
+function handleClick(event){if(interceptMoney(event))return;secretaryContext(event);selectStoreFromContext(event);if(handleMapAction(event))return;if(handleStoreAction(event))return;if(handleGoTab(event))return;const marker=event.target?.closest?.('.d-map-marker[data-d-ui-marker^="store:"]');if(marker)state.selectedStoreID=marker.dataset.dUiMarker.slice(6);}
 function install(){document.addEventListener('click',handleClick,true);document.addEventListener('change',handleStoreAction,true);const registry=modules.uiEnhancerRegistry;if(registry?.registerUIEnhancer)registry.registerUIEnhancer({id:'iphone-playtest-fixes',enhance});else enhance();globalThis.visualViewport?.addEventListener?.('resize',schedule);return true;}
-modules.iphonePlaytestFixes=Object.freeze({state,parseAmount,moneyContext,causeRows,markerPosition,enhance,install,__installed:true});install();
+modules.iphonePlaytestFixes=Object.freeze({state,parseAmount,moneyContext,causeRows,enhance,install,__installed:true});install();
 })();

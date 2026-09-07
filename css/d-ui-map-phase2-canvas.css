@@ -14,7 +14,7 @@
  * to trap every .d-map-marker's z-index inside .d-city-surface-phase2 --
  * no z-index a marker could set would ever out-rank a SIBLING of that div
  * (js/iphone-playtest-fixes.js's .iphone-map-nav/.iphone-map-tools/
- * .iphone-map-popover/.iphone-synthetic-marker, all appended as later
+ * .iphone-map-popover, all appended as later
  * siblings on every viewport), silently swallowing taps on any real
  * marker that happened to render underneath one. See css/d-ui-map-phase2-
  * markers.css for the corresponding .d-map-marker{z-index:...} raise.

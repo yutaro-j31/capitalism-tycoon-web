@@ -213,13 +213,13 @@ async function main() {
     assert.doesNotMatch(iphoneFixesSrc, /iphone-city-detail/);
   });
 
-  await check('the competitor synthetic-marker path is intentionally retained (not one of Phase 2\'s 4 production kinds, so it is not redundant with buildMapViewModel())', () => {
-    assert.match(iphoneFixesSrc, /class="iphone-synthetic-marker competitor"/);
-    assert.match(iphoneFixesSrc, /function handleSyntheticMarker\(/);
+  await check('the competitor synthetic-marker path is gone now that competitor presences are a canonical Phase 2 kind', () => {
+    assert.doesNotMatch(iphoneFixesSrc, /iphone-synthetic-marker|data-iphone-map-entity|function handleSyntheticMarker\(/);
+    assert.match(canvasSrc, /kind:'competitor'/);
   });
 
-  /* ================= 4-KIND PRODUCTION ADAPTER ================= */
-  await check('buildMapViewModel produces all 4 production entity kinds (store/tenant/office/realestate) directly from g fields, with no DOM scraping and no artificial per-kind cap', () => {
+  /* ================= 5-KIND PRODUCTION ADAPTER ================= */
+  await check('buildMapViewModel produces all 5 production entity kinds directly from g fields, with no DOM scraping and no artificial per-kind cap', () => {
     const viewModelBody = canvasSrc.split('function buildMapViewModel')[1].split('\nfunction ')[0];
     assert.doesNotMatch(viewModelBody, /document\.querySelector|document\.querySelectorAll|closest\(/);
     assert.doesNotMatch(viewModelBody, /\.slice\(/);
@@ -227,6 +227,7 @@ async function main() {
     assert.match(canvasSrc, /g&&g\.tenants/);
     assert.match(canvasSrc, /g&&g\.rentalOffices/);
     assert.match(canvasSrc, /g&&g\.properties/);
+    assert.match(canvasSrc, /g&&g\.competitorStates/);
   });
 
   /* ================= SELECTION / DETAIL / FILTER ================= */
@@ -235,14 +236,14 @@ async function main() {
     assert.match(shellSrc, /const chosen=selectedEntity===null\?null:activeEntities\.find\(entity=>entity\.id===selectedEntity\)\|\|null;/);
   });
 
-  await check('detail wiring: selectedDetail() is unmodified and still handles all 4 kinds', () => {
+  await check('detail wiring: selectedDetail() remains the sole detail path and handles all 5 kinds', () => {
     assert.match(shellSrc, /function selectedDetail\(entity,g\)\{/);
-    for (const kind of ['store', 'tenant', 'realestate']) assert.match(shellSrc, new RegExp(`entity\\.kind===['"]${kind}['"]`));
+    for (const kind of ['store', 'tenant', 'realestate', 'competitor']) assert.match(shellSrc, new RegExp(`entity\\.kind===['"]${kind}['"]`));
   });
 
-  await check('filter wiring: filter chips are always emitted (unconditional), and mapFilterKind covers all/store/tenant/office/realestate', () => {
+  await check('filter wiring: filter chips are always emitted and include canonical competitors', () => {
     assert.match(shellSrc, /const filterChips=`<div class="d-map-filter-chips">/);
-    assert.match(shellSrc, /const MAP_FILTER_KINDS=\[\['all','すべて'\],\['store','自社店舗'\],\['tenant','空きテナント'\],\['office','オフィス'\],\['realestate','不動産'\]\];/);
+    assert.match(shellSrc, /\['competitor','競合'\]/);
   });
 
   /* ================= PAN / CAMERA (cross-check; depth lives in the PR C test file) ================= */
