@@ -50,7 +50,7 @@ function runScenario(def,seed,{includeState=false,difficulty='normal',gameScenar
 
  function tenantFor(index){
   const prefID=def.route[index];
-  return game.g.tenants.filter(row=>row.prefID===prefID&&!row.occupiedBy).sort((a,b)=>b.traffic-a.traffic||a.deposit-b.deposit)[0];
+  return game.g.tenants.filter(row=>row.prefID===prefID&&!row.occupiedBy).sort((a,b)=>a.rent-b.rent||b.traffic-a.traffic)[0];
  }
  const firstTenant=tenantFor(0);
  const firstStoreCost=business.storeCost+Number(firstTenant?.deposit||0);
