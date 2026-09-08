@@ -95,11 +95,17 @@ function resolveTenantContractRent(tenant, pref) {
   return Number.isFinite(fallbackRent) && fallbackRent >= 0 ? fallbackRent : 0;
 }
 
-function getStoreContractRent(store, pref) {
+function getStoreContractRent(store, pref, state) {
   const contractRent = Number(store?.contractRent);
   if (Number.isFinite(contractRent) && contractRent >= 0) return contractRent;
   const legacyRent = Number(pref?.rent);
-  return Number.isFinite(legacyRent) && legacyRent >= 0 ? legacyRent : 0;
+  if (!Number.isFinite(legacyRent) || legacyRent < 0) return 0;
+  const hoursMultiplier = [0,.55,.8,1,1.24][store?.operatingHours || 3] || 1;
+  const inflation = Number.isFinite(Number(state?.inflation)) ? Number(state.inflation) : 1;
+  const crisisCost = Number.isFinite(Number(state?.macroCrisis?.costMultiplier)) ? Number(state.macroCrisis.costMultiplier) : 1;
+  // Match the legacy weekly ledger posting exactly: the old rent component was
+  // floored to integer yen only after all three live multipliers were applied.
+  return Math.floor(Math.max(0, legacyRent * inflation * hoursMultiplier * crisisCost));
 }
 
 function makeRentalOffices() {
@@ -579,7 +585,7 @@ class TycoonEngine extends EventTarget {
     this.g.businesses = (this.g.businesses || []).map(b => ({...b, price: Math.max(1,finite(b.price,100)), unitCost: Math.max(0,finite(b.unitCost)), demand: Math.max(1,finite(b.demand,10))}));
     this.g.stores = (this.g.stores || []).map(s => {
       const store={condition:100,lastSales:0,lastProfit:0,status:'open',openingWeek:this.g.week,weeksToOpen:0,operatingHours:3,marketResult:null,...s};
-      store.contractRent=getStoreContractRent(store,this.pref(store.prefID));
+      store.contractRent=getStoreContractRent(store,this.pref(store.prefID),this.g);
       return store;
     });
     globalThis.__capitalismTycoonModules?.realEstateAgencyPipeline?.normalize?.(this.g);

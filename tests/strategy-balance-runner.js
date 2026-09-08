@@ -62,7 +62,10 @@ function runScenario(def,seed,{includeState=false,difficulty='normal',gameScenar
   const tenant=tenantFor(index);
   if(!tenant)return false;
   const cost=business.storeCost+tenant.deposit;
-  const reserve=index===0?(def.debt?0:900000):3500000;
+  // Contract-specific rents make the cheapest lease a rational pre-suitability
+  // choice, but lower deposits must not turn that saving into reckless, earlier
+  // expansion. Keep enough liquidity for a plausible operating shock.
+  const reserve=index===0?(def.debt?0:900000):5000000;
   borrowFor(cost+reserve,`store-${index+1}`);
   if(game.g.companyCash<cost+reserve)return false;
   const result=game.openStore({tenantID:tenant.id,businessID:def.businessID,name:`${def.id}-${index+1}`,operatingHours:3});

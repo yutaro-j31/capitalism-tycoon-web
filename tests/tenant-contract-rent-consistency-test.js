@@ -33,13 +33,30 @@ for(const businessID of ['ramen','conveni','gym','realEstateAgency']){
  assert.equal(estimate.breakdown.rent,76543,`${businessID}: estimate`);assert.equal(store.contractRent,76543,`${businessID}: snapshot`);assert.equal(rentRow(engine,store).amount,76543,`${businessID}: ledger`);
 }
 
-// A v9-era legacy store keeps the old prefecture base without cash/deposit history changes.
-{
- const {modules,engine}=setup(900),tenant=engine.g.tenants.find(t=>!t.occupiedBy),pref=engine.pref(tenant.prefID);tenant.deposit=987654;
- assert.equal(engine.openStore({tenantID:tenant.id,businessID:'cafe',name:'legacy'}),true);const original=engine.g.stores.at(-1);delete original.contractRent;
- const saved=JSON.parse(JSON.stringify(engine.g)),cash=saved.companyCash,deposit=saved.tenants.find(t=>t.id===tenant.id).deposit;
+// A v9-era legacy store snapshots the exact effective rent that the old weekly
+// posting would have charged, without rewriting any historical or cash state.
+for(const row of [
+ {label:'normal hours',inflation:1,hours:3,crisis:1,expected:100000},
+ {label:'24 hours',inflation:1.10,hours:4,crisis:1,expected:136400},
+ {label:'short hours during crisis',inflation:1.05,hours:2,crisis:1.20,expected:100800}
+]){
+ const {modules,engine}=setup(900+row.hours),tenant=engine.g.tenants.find(t=>!t.occupiedBy),pref=engine.pref(tenant.prefID);
+ pref.rent=100000;tenant.deposit=987654;
+ assert.equal(engine.openStore({tenantID:tenant.id,businessID:'cafe',name:`legacy-${row.label}`,operatingHours:row.hours}),true);
+ const original=engine.g.stores.at(-1);delete original.contractRent;engine.g.inflation=row.inflation;
+ engine.g.macroCrisis=row.crisis===1?null:{kind:'migration fixture',weeks:20,salesMultiplier:1,costMultiplier:row.crisis};
+ engine.g.reports=[{week:0,profit:12345}];engine.g.history=[{week:0,cash:67890}];
+ engine.g.finance.transactions.push({id:'legacy-ledger-row',week:0,type:'expense',amount:1});
+ const saved=JSON.parse(JSON.stringify(engine.g));
+ const before={cash:saved.companyCash,deposit:saved.tenants.find(t=>t.id===tenant.id).deposit,reports:saved.reports,history:saved.history,ledger:saved.finance.transactions};
  const restored=new modules.engine.TycoonEngine(saved),store=restored.g.stores.find(s=>s.id===original.id);
- assert.equal(restored.g.saveVersion,9);assert.equal(store.contractRent,pref.rent);assert.equal(restored.g.companyCash,cash);assert.equal(restored.g.tenants.find(t=>t.id===tenant.id).deposit,deposit);
- const roundTrip=new modules.engine.TycoonEngine(JSON.parse(JSON.stringify(restored.g)));assert.equal(roundTrip.g.stores.find(s=>s.id===store.id).contractRent,pref.rent);
+ assert.equal(restored.g.saveVersion,9,`${row.label}: save version`);assert.equal(store.contractRent,row.expected,`${row.label}: legacy effective rent`);
+ assert.equal(restored.g.companyCash,before.cash,`${row.label}: cash`);assert.equal(restored.g.tenants.find(t=>t.id===tenant.id).deposit,before.deposit,`${row.label}: deposit`);
+ assert.equal(JSON.stringify(restored.g.reports),JSON.stringify(before.reports),`${row.label}: P/L history`);assert.equal(JSON.stringify(restored.g.history),JSON.stringify(before.history),`${row.label}: history`);assert.equal(JSON.stringify(restored.g.finance.transactions),JSON.stringify(before.ledger),`${row.label}: ledger history`);
+ const roundTrip=new modules.engine.TycoonEngine(JSON.parse(JSON.stringify(restored.g)));let roundTripStore=roundTrip.g.stores.find(s=>s.id===store.id);
+ roundTrip.g.inflation=9;roundTrip.g.macroCrisis={kind:'changed',weeks:20,salesMultiplier:1,costMultiplier:7};roundTripStore.operatingHours=4;roundTrip.normalize();roundTripStore=roundTrip.g.stores.find(s=>s.id===store.id);
+ assert.equal(roundTripStore.contractRent,row.expected,`${row.label}: idempotent reload and normalize`);
+ roundTripStore.status='open';roundTripStore.openingWeek=roundTrip.g.week;roundTripStore.weeksToOpen=0;roundTrip.advanceWeek(false);
+ assert.equal(rentRow(roundTrip,roundTripStore).amount,row.expected,`${row.label}: first migrated weekly posting`);
 }
 console.log('tenant contract rent consistency ok');
