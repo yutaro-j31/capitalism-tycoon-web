@@ -1,6 +1,6 @@
 'use strict';
 const assert=require('node:assert/strict');const fs=require('node:fs');const {loadGame}=require('./harness');
-let calls=0;const {modules,ctx}=loadGame({random:()=>{calls++;return .5}}),engine=ctx.__ct_engine,evaluate=modules.tenantSiteSuitability.evaluateTenantSuitability,pref=engine.pref('tokyo');
+let calls=0,seed=190826041;const {modules,ctx}=loadGame({random:()=>{calls++;seed=(Math.imul(seed,1664525)+1013904223)>>>0;return seed/2**32}}),engine=ctx.__ct_engine,evaluate=modules.tenantSiteSuitability.evaluateTenantSuitability,pref=engine.pref('tokyo');
 const base={traffic:pref.traffic,size:'M',businessID:'cafe'};
 calls=0;assert.deepEqual(evaluate(base,'ramen',pref),evaluate(base,'ramen',pref));assert.equal(calls,0,'evaluator consumes no RNG');
 assert.deepEqual(evaluate(base,'ramen',pref),evaluate({...base,businessID:'appStudio'},'ramen',pref),'legacy metadata is ignored');
