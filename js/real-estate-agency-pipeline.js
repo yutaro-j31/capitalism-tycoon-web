@@ -49,7 +49,7 @@ function normalize(g){
   const businesses=Array.isArray(g?.businesses)?g.businesses:[],business=businesses.find(x=>x?.id===BUSINESS_ID);
   for(const store of Array.isArray(g?.stores)?g.stores:[])if(store?.businessID===BUSINESS_ID&&store.brokeragePipeline&&typeof store.brokeragePipeline==='object')ensureStore(store,business,integer(g.week,1),g.seed);
 }
-function processStore(g,store,business,pref){
+function processStore(g,store,business,pref,siteMultiplier=1){
   if(!store||store.businessID!==BUSINESS_ID||store.status!=='open')return null;
   const week=Math.max(1,integer(g?.week,1)),pipeline=ensureStore(store,business,week,g?.seed),cycle=marketIndicator(g);
   const quality=clamp(business?.quality,0,100),brand=clamp(business?.brand,0,100),dx=clamp(business?.dx,0,100),efficiency=clamp(business?.efficiency,0,100);
@@ -63,7 +63,7 @@ function processStore(g,store,business,pref){
     else survivors.push(deal);
   }
   pipeline.activeDeals=survivors;
-  const inquiryBase=(2+brand/12)*(finite(pref?.traffic,1))*(.72+cycle*.28)*(1+dx/250),inquiries=Math.max(0,Math.floor(inquiryBase+hash(g.seed||1,`${store.id}:inquiries:${week}`)*2));
+  const inquiryBase=(2+brand/12)*(finite(pref?.traffic,1))*(.72+cycle*.28)*(1+dx/250)*clamp(siteMultiplier,.9,1.1),inquiries=Math.max(0,Math.floor(inquiryBase+hash(g.seed||1,`${store.id}:inquiries:${week}`)*2));
   const available=Math.max(0,pipeline.capacity-pipeline.activeDeals.length),mandateChance=clamp(.34+brand*.002+quality*.0015+(cycle-1)*.12,.2,.68);let mandates=0,processedInquiries=0;
   for(;processedInquiries<inquiries&&mandates<available;processedInquiries++)if(hash(g.seed||1,`${store.id}:mandate:${week}:${processedInquiries}`)<mandateChance){
     const id=`BRA-${store.id}-${week}-${processedInquiries}`,segment=segmentForDeal(g.seed||1,id,store.id,focusFor(business).id),marketValue=(18_000_000+hash(g.seed||1,`${id}:asking`)*52_000_000)*cycle*SEGMENT_CONFIG[segment].valueMultiplier;
