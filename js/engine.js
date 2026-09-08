@@ -212,7 +212,7 @@ function createInitialState(options = {}) {
     personalStocks: {}, companyStocks: {}, favoriteStockIds: [], realizedCompanyStockPL: 0, realizedPersonalStockPL: 0,
     subsidiaries: [], acquisitionTargets: [], maSubsidiaries: [], goodwillRecords: [], tenderOffers: [],
     totalAcquisitions: 0, totalMAGain: 0, totalImpairmentLoss: 0,
-    productVentures: [], productBuyoutOffers: [], productExitCount: 0,
+    productVentures: [], productBuyoutOffers: [], productExitCount: 0, formalProductLaunchCount: 0,
     franchiseStoresByBusinessID: {}, franchiseRoyaltyRateByBusinessID: {}, franchiseQualityByBusinessID: {}, franchiseTrustByBusinessID: {},
     overseasSubsidiaries: [], personalInvestments: [], luxuryAssets: [], sportsTeams: [], peDeals: [],
     cxoExecutives: [], executiveDirectives: [], departmentCampaigns: [], internalVentureProposals: [], internalVentures: [],
@@ -597,6 +597,10 @@ class TycoonEngine extends EventTarget {
     this.g.history = Array.isArray(this.g.history) ? this.g.history.slice(0,500) : [];
     this.g.reports = Array.isArray(this.g.reports) ? this.g.reports.slice(-520) : [];
     finance.ensureFinance(this.g);
+    const formalProductExists=(this.g.productVentures||[]).some(p=>p&&p.origin!=='founderHome');
+    const formalLaunchRecorded=this.g.finance.transactions.some(t=>t?.sourceType==='launchProduct'&&t?.category==='researchAndDevelopment');
+    const explicitLaunchCount=Number.isFinite(Number(this.g.formalProductLaunchCount))?Math.max(0,Math.floor(Number(this.g.formalProductLaunchCount))):0;
+    this.g.formalProductLaunchCount=Math.max(explicitLaunchCount,formalProductExists||formalLaunchRecorded?1:0);
     this.updateOwnershipRatios();
   }
 
@@ -991,8 +995,10 @@ class TycoonEngine extends EventTarget {
     // investment route has no use for), so this only widens eligibility for the two
     // departments the store-zero route's core loop and IPO goal depend on, and only while the
     // founder genuinely has zero stores.
-    const storeZeroInvestmentRoute=(id==='investment'||id==='accounting')&&this.g.stores.length===0;
-    if(this.g.stores.length<minStores&&!storeZeroInvestmentRoute)return this.fail(`店舗数${minStores}以上が必要です。`);
+    const zeroStores=this.g.stores.length===0,hasFormalDigitalBusiness=this.g.productVentures.some(p=>p&&p.origin!=='founderHome');
+    const storeZeroInvestmentRoute=(id==='investment'||id==='accounting')&&zeroStores;
+    const storeZeroDigitalRoute=zeroStores&&(id==='product'||(hasFormalDigitalBusiness&&['hr','marketing','dx'].includes(id)));
+    if(this.g.stores.length<minStores&&!storeZeroInvestmentRoute&&!storeZeroDigitalRoute)return this.fail(`店舗数${minStores}以上が必要です。`);
     if(this.g.companyCash<d.setupCost)return this.fail(`${yen(d.setupCost)}が必要です。`);
     const used=Object.keys(this.g.departments).length*8+Object.keys(this.g.executives).length;
     if(used+8>this.g.officeCapacity)return this.fail('オフィス定員が不足しています。');
@@ -1171,12 +1177,32 @@ class TycoonEngine extends EventTarget {
     this.notify(`${sub.name}を上場させ、${yen(proceeds)}を調達しました。`,'success');if(!this.inTransaction()){this.save();this.emit();}return true;
   }
 
+  createProductVentureFromBlueprint(bp,name=null) {
+    if(!bp||this.g.companyCash<bp.cost)return false;const productName=String(name||'').trim()||bp.name;
+    this.g.companyCash-=bp.cost;finance.event(this.g,'researchAndDevelopment',bp.cost,{cashEffect:-bp.cost,profitEffect:-bp.cost,assetEffect:0,sourceType:'launchProduct',sourceID:`${bp.id}-${this.g.week}`,description:`${productName} 初期開発費`});
+    this.g.productVentures.push({id:uuid(),blueprintID:bp.id,name:productName,category:bp.category,status:'developing',progress:0,weeksToLaunch:bp.weeks,
+      quality:20,brand:5,users:0,paidUsers:0,price:bp.price,serverCost:bp.serverCost,market:bp.market,risk:bp.risk,valuation:bp.cost,developmentCost:bp.cost,investedCost:bp.cost,revenue:0,cost:0,profit:0});
+    this.g.formalProductLaunchCount=Math.max(0,Math.floor(finite(this.g.formalProductLaunchCount)))+1;
+    this.notify(`${productName}の開発を開始しました。`,'success');this.save();this.emit();return true;
+  }
+  digitalBusinessFoundingStatus() {
+    const reasons=[];
+    if(this.g.stores.length!==0)reasons.push('店舗を持たない創業企業のみ利用できます。');
+    const launchHistory=(this.g.finance?.transactions||[]).some(t=>t?.sourceType==='launchProduct'&&t?.category==='researchAndDevelopment');
+    if(finite(this.g.formalProductLaunchCount)>0||launchHistory||this.g.productVentures.some(p=>p&&p.origin!=='founderHome'))reasons.push('創業時に利用できるのは最初の正式プロダクトだけです。');
+    if(this.g.departments.product)reasons.push('商品開発部門から通常のプロダクト開発を利用してください。');
+    return Object.freeze({available:reasons.length===0,reasons:Object.freeze(reasons)});
+  }
+  digitalBusinessFoundingPlan(blueprintID) {
+    const bp=PRODUCT_BLUEPRINTS.find(x=>x.id===blueprintID),status=this.digitalBusinessFoundingStatus(),reasons=[...status.reasons];
+    if(!bp)reasons.push('事業プランが見つかりません。');
+    if(bp&&this.g.companyCash<bp.cost)reasons.push(`${yen(bp.cost)}が必要です。`);
+    return Object.freeze({eligible:reasons.length===0,blueprint:bp||null,reasons:Object.freeze(reasons)});
+  }
+  foundDigitalBusiness(blueprintID,name=null) {const plan=this.digitalBusinessFoundingPlan(blueprintID);if(!plan.eligible)return this.fail(plan.reasons[0]);return this.createProductVentureFromBlueprint(plan.blueprint,name);}
   launchProduct(blueprintID,name=null) {
     if(!this.g.departments.product)return this.fail('商品開発部門が必要です。');const bp=PRODUCT_BLUEPRINTS.find(x=>x.id===blueprintID);if(!bp)return false;
-    if(this.g.companyCash<bp.cost)return this.fail(`${yen(bp.cost)}が必要です。`);this.g.companyCash-=bp.cost;finance.event(this.g,'researchAndDevelopment',bp.cost,{cashEffect:-bp.cost,profitEffect:-bp.cost,assetEffect:0,sourceType:'launchProduct',sourceID:`${blueprintID}-${this.g.week}`,description:`${name||bp.name} 初期開発費`});
-    this.g.productVentures.push({id:uuid(),blueprintID:bp.id,name:name||bp.name,category:bp.category,status:'developing',progress:0,weeksToLaunch:bp.weeks,
-      quality:20,brand:5,users:0,paidUsers:0,price:bp.price,serverCost:bp.serverCost,market:bp.market,risk:bp.risk,valuation:bp.cost,developmentCost:bp.cost,investedCost:bp.cost,revenue:0,cost:0,profit:0});
-    this.notify(`${name||bp.name}の開発を開始しました。`,'success');this.save();this.emit();return true;
+    if(this.g.companyCash<bp.cost)return this.fail(`${yen(bp.cost)}が必要です。`);return this.createProductVentureFromBlueprint(bp,name);
   }
   productAction(id,kind,amount) {
     const p=this.g.productVentures.find(x=>x.id===id);amount=Math.max(0,finite(amount));if(!p||amount<=0||this.g.companyCash<amount)return this.fail('資金が不足しています。');

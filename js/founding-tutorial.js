@@ -71,15 +71,18 @@ function acknowledgeDashboard(g){
   g.foundingTutorialProgress.dashboardAcknowledged=true;
   return g;
 }
+const formalProducts=g=>arr(g?.productVentures).filter(p=>p&&p.origin!=='founderHome');
+const digitalOnly=g=>openStores(g).length===0&&formalProducts(g).length>0;
+const formalLaunchWeek=g=>Math.min(...arr(g?.finance?.transactions).filter(t=>t?.sourceType==='launchProduct'&&t?.category==='researchAndDevelopment').map(t=>nf(t.week,1)),nf(g?.week,1));
 const completed={
  dashboard:g=>Boolean(g?.configured)&&(Boolean(g?.foundingTutorialProgress?.dashboardAcknowledged)||(g?.selectedTab&&g.selectedTab!=='home')||openStores(g).length>0||nf(g?.week)>1||arr(g?.completedMissionIDs).length>0),
- first_store:g=>openStores(g).length>=1,
- unit_economics:g=>openStores(g).length>=1&&weeksSinceFirstOpen(g)>=1,
+ first_store:g=>openStores(g).length>=1||formalProducts(g).length>0,
+ unit_economics:g=>digitalOnly(g)?formalProducts(g).some(p=>nf(p.progress)>0||p.status==='released'):openStores(g).length>=1&&weeksSinceFirstOpen(g)>=1,
  first_week:g=>nf(g?.week)>1||reports(g).length>0,
- weekly_recap:g=>weeksSinceFirstOpen(g)>=2,
- first_improvement:g=>hasImprovement(g),
+ weekly_recap:g=>digitalOnly(g)?reports(g).filter(r=>nf(r.week)>=formalLaunchWeek(g)).length>=2:weeksSinceFirstOpen(g)>=2,
+ first_improvement:g=>digitalOnly(g)?formalProducts(g).some(p=>nf(p.investedCost)>nf(p.developmentCost)||p.status==='released'):hasImprovement(g),
  cash_runway:g=>reports(g).length>=3&&cashRunwayWeeks(g)>=4,
- growth_step:g=>openStores(g).length>=2||hasOrganization(g)||advanced(g)||arr(g?.completedMissionIDs).includes('mission_two_stores'),
+ growth_step:g=>digitalOnly(g)?Boolean(g?.hasHeadOffice||g?.departments?.product||formalProducts(g).length>1):openStores(g).length>=2||hasOrganization(g)||advanced(g)||arr(g?.completedMissionIDs).includes('mission_two_stores'),
  organization:g=>hasOrganization(g)||advanced(g),
  graduation:g=>(hasOrganization(g)||advanced(g))&&reports(g).length>=3&&(openStores(g).length>=2||nf(g?.companyCash)>=7000000)&&nf(g?.companyCash)>=7000000
 };
@@ -108,6 +111,7 @@ const STEPS=Object.freeze([
 const preparingStores=g=>arr(g?.stores).filter(s=>s&&s.status==='preparing');
 function firstStoreVariant(step,g){
   if(openStores(g).length>0)return step;
+  if(arr(g?.productVentures).some(p=>p&&p.origin!=='founderHome'))return Object.freeze({...step,title:'IT・デジタル事業を開始',targetTab:'business',targetSelector:'.section-title,[data-action="product-action"]',buttonLabel:'プロダクトを見る',description:'店舗を持たない正式な会社事業として、プロダクトの開発と収益化を進めます。',points:Object.freeze(['開発費は会社資金から支払われます。','複数プロダクトには本社と商品開発部門が必要です。'])});
   const preparing=preparingStores(g);
   if(preparing.length>0){
     const weeks=Math.max(0,Math.ceil(Math.min(...preparing.map(s=>nf(s.openingWeek)))-nf(g?.week)));
@@ -123,7 +127,17 @@ function firstStoreVariant(step,g){
     description:'地図でテナントを選び、業種を決めて出店します。出店前に週次収支の試算を確認できます。',
     points:Object.freeze(['初期費用は店舗設備と保証金の合計です。','出店してから開店までは数週間かかります。'])});
 }
-function build(g){const done=STEPS.map(s=>Boolean(completed[s.id]?.(g)));const completedCount=done.filter(Boolean).length;const complete=completedCount===STEPS.length;const isAdvanced=advanced(g);const displayMode=complete?'complete':isAdvanced?'summary':'guide';const firstOpen=done.findIndex(v=>!v);const currentIndex=firstOpen<0?STEPS.length-1:firstOpen;const steps=STEPS.map((base,i)=>{const s=base.id==='first_store'?firstStoreVariant(base,g):base;const state=done[i]?'completed':displayMode==='summary'?'unavailable':i===currentIndex?'current':i<currentIndex?'blocked':'upcoming';return Object.freeze({...s,state,completed:done[i],current:displayMode==='guide'&&i===currentIndex&&!done[i],upcoming:displayMode==='guide'&&i>currentIndex&&!done[i]});});const currentStep=displayMode==='guide'?(steps[currentIndex]||steps[steps.length-1]):null;return Object.freeze({steps:Object.freeze(steps),completedCount,total:STEPS.length,progressLabel:`${completedCount}/${STEPS.length}`,complete,current:currentStep,displayMode,roleNote:'創業ガイドは固定順の学習用、Executive Secretaryは毎週の危険・機会の優先順位です。'});}
+function digitalStepVariant(step,g){
+  if(!digitalOnly(g))return step;
+  const variants={
+    unit_economics:{title:'プロダクト開発を確認',targetTab:'business',targetSelector:'.item-metrics,.progress',buttonLabel:'開発進捗を見る',description:'開発費、進捗、リリース予定を確認して1週進めます。'},
+    weekly_recap:{title:'デジタル事業の週間推移を読む',description:'開発開始後のレポートで現金とプロダクトの変化を確認します。'},
+    first_improvement:{title:'プロダクトを改善する',targetTab:'business',targetSelector:'[data-action="product-action"],[data-action="product-funnel"]',buttonLabel:'改善候補へ',description:'品質・集客投資、顧客ファネル、または正式リリースを次の改善につなげます。'},
+    growth_step:{title:'本社と商品開発部門へ拡大',targetTab:'office',targetSelector:'[data-action="contract-office"],[data-action="establish-department"]',buttonLabel:'本社・組織へ',description:'本社を契約し、商品開発部門を設置すると複数プロダクトへ拡大できます。'}
+  };return Object.freeze({...step,...(variants[step.id]||{})});
+}
+
+function build(g){const done=STEPS.map(s=>Boolean(completed[s.id]?.(g)));const completedCount=done.filter(Boolean).length;const complete=completedCount===STEPS.length;const isAdvanced=advanced(g);const displayMode=complete?'complete':isAdvanced?'summary':'guide';const firstOpen=done.findIndex(v=>!v);const currentIndex=firstOpen<0?STEPS.length-1:firstOpen;const steps=STEPS.map((base,i)=>{const s=digitalStepVariant(base.id==='first_store'?firstStoreVariant(base,g):base,g);const state=done[i]?'completed':displayMode==='summary'?'unavailable':i===currentIndex?'current':i<currentIndex?'blocked':'upcoming';return Object.freeze({...s,state,completed:done[i],current:displayMode==='guide'&&i===currentIndex&&!done[i],upcoming:displayMode==='guide'&&i>currentIndex&&!done[i]});});const currentStep=displayMode==='guide'?(steps[currentIndex]||steps[steps.length-1]):null;return Object.freeze({steps:Object.freeze(steps),completedCount,total:STEPS.length,progressLabel:`${completedCount}/${STEPS.length}`,complete,current:currentStep,displayMode,roleNote:'創業ガイドは固定順の学習用、Executive Secretaryは毎週の危険・機会の優先順位です。'});}
 exports.STEPS=STEPS;exports.build=build;exports.acknowledgeDashboard=acknowledgeDashboard;exports._internals=Object.freeze({cashRunwayWeeks,hasImprovement,hasBusinessImprovement,hasStoreWorkforceImprovement,hasCorporateWorkforceImprovement,hasTrainingImprovement,hasOrganization,advanced});
 })(__modules.foundingTutorial={});
 })();

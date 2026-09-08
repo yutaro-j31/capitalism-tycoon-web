@@ -105,12 +105,17 @@ function reachInvestmentDepartment(engine) {
   const office = cheapestOffice(engine);
   assert.equal(engine.contractOffice(office.id), true);
   assert.equal(engine.g.stores.length, 0);
-  for (const id of ['hr', 'product', 'operations', 'marketing', 'dx']) {
+  for (const id of ['hr', 'operations', 'marketing', 'dx']) {
     assert.equal(engine.establishDepartment(id), false, `店舗0件では${id}部門は依然として設置できない`);
     assert.equal(Boolean(engine.g.departments[id]), false);
   }
   assert.equal(engine.establishDepartment('investment'), true, '一方でinvestment部門は店舗0件でも設置できる');
   assert.equal(engine.establishDepartment('accounting'), true, 'accounting部門もIPO到達のため店舗0件で設置できる');
+}
+{
+  const { engine } = newGame();
+  assert.equal(engine.contractOffice(cheapestOffice(engine).id), true);
+  assert.equal(engine.establishDepartment('product'), true, '正式デジタル創業の意思を示すproduct部門は店舗0件でも設置できる');
 }
 
 // 3 & 4 & 5 & 6. Company stock purchase at store-zero: companyCash decreases,

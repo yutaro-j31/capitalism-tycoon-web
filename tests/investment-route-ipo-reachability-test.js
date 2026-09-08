@@ -40,7 +40,7 @@ assert.ok(office, 'head-office candidate must exist');
 assert.equal(game.contractOffice(office.id), true, 'head office must be contractible with zero stores');
 
 // 1. Store-operations departments stay blocked at store-zero (unchanged by this feature).
-for (const id of ['hr', 'product', 'operations', 'marketing', 'dx']) {
+for (const id of ['hr', 'operations', 'marketing', 'dx']) {
   assert.equal(game.establishDepartment(id), false, `store-zero must not unlock ${id}`);
 }
 // 2. investment and accounting are the two departments this route needs, and both are

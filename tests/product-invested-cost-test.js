@@ -89,10 +89,9 @@ function withEngine(seed = 606) {
   e.g.founderHomeDeskSlots = 2;
   e.g.localReputationByPref = e.g.localReputationByPref || {};
   e.g.localReputationByPref[e.g.founderHomePrefID] = e.g.localReputationByPref[e.g.founderHomePrefID] || 0;
-  assert.equal(e.launchFounderHomeProduct('reservationApp'), true);
+  assert.equal(e.launchFounderHomeProduct('reservationApp'), false);
   const product = e.g.productVentures.find(x => x.origin === 'founderHome');
-  assert.ok(product, 'テスト前提: 自宅開発プロダクトが作られる');
-  assert.equal(product.investedCost, 450_000, 'FOUNDER_HOME_PRODUCTSのcostがそのままinvestedCostの初期値になる（founderSkillTech=1のため割引なし）');
+  assert.equal(product, undefined, '廃止された自宅開発ルートは新規productを作成しない');
 }
 
 // 5. UI: a new 累計投資額 stat sits next to 週次利益 in both the developing and released

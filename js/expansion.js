@@ -251,13 +251,7 @@ function installExpansion(TycoonEngine){
   };
 
   TycoonEngine.prototype.launchFounderHomeProduct=function(templateID){
-    this.ensureExpansionDefaults();const t=FOUNDER_HOME_PRODUCTS.find(x=>x.id===templateID);if(!t)return false;
-    this.refreshFounderHomeUsedSlots();if(this.g.founderHomeUsedSlots>=this.g.founderHomeDeskSlots)return this.fail('作業机の空きがありません。自宅をアップグレードしてください。');
-    const cost=t.cost/(this.g.founderSkillTech||1);if(this.g.companyCash<cost)return this.fail(`開発には${Math.round(cost).toLocaleString()}円が必要です。`);
-    this.g.companyCash-=cost;
-    const product={id:uid(),blueprintID:t.id,name:t.name,category:t.category,status:'developing',progress:0,weeksToLaunch:t.weeks,quality:18+this.g.founderSkillTech*5,brand:4+this.g.localReputationByPref[this.g.founderHomePrefID]/10,users:0,paidUsers:0,price:t.price,serverCost:t.serverCost,market:t.market,risk:t.risk,valuation:cost,developmentCost:cost,investedCost:cost,revenue:0,cost:0,profit:0,origin:'founderHome',releaseWeek:null,serverCapacity:5000};
-    this.g.productVentures.push(product);this.ensureProductFunnel(product);this.refreshFounderHomeUsedSlots();
-    this.g.founderHomeActionLog.unshift(`第${this.g.week}週：実家PCで「${t.name}」の開発を開始。`);this.notify(`${t.name}の個人開発を開始しました。`,'success');this.save();this.emit();return true;
+    return this.fail('自宅開発ルートは廃止されました。IT・デジタル事業から開始してください。');
   };
 
   TycoonEngine.prototype.founderHomeAction=function(action){
