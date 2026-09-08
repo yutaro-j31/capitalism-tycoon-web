@@ -1185,13 +1185,17 @@ class TycoonEngine extends EventTarget {
     this.g.formalProductLaunchCount=Math.max(0,Math.floor(finite(this.g.formalProductLaunchCount)))+1;
     this.notify(`${productName}の開発を開始しました。`,'success');this.save();this.emit();return true;
   }
-  digitalBusinessFoundingPlan(blueprintID) {
-    const bp=PRODUCT_BLUEPRINTS.find(x=>x.id===blueprintID),reasons=[];
-    if(!bp)reasons.push('事業プランが見つかりません。');
+  digitalBusinessFoundingStatus() {
+    const reasons=[];
     if(this.g.stores.length!==0)reasons.push('店舗を持たない創業企業のみ利用できます。');
     const launchHistory=(this.g.finance?.transactions||[]).some(t=>t?.sourceType==='launchProduct'&&t?.category==='researchAndDevelopment');
     if(finite(this.g.formalProductLaunchCount)>0||launchHistory||this.g.productVentures.some(p=>p&&p.origin!=='founderHome'))reasons.push('創業時に利用できるのは最初の正式プロダクトだけです。');
     if(this.g.departments.product)reasons.push('商品開発部門から通常のプロダクト開発を利用してください。');
+    return Object.freeze({available:reasons.length===0,reasons:Object.freeze(reasons)});
+  }
+  digitalBusinessFoundingPlan(blueprintID) {
+    const bp=PRODUCT_BLUEPRINTS.find(x=>x.id===blueprintID),status=this.digitalBusinessFoundingStatus(),reasons=[...status.reasons];
+    if(!bp)reasons.push('事業プランが見つかりません。');
     if(bp&&this.g.companyCash<bp.cost)reasons.push(`${yen(bp.cost)}が必要です。`);
     return Object.freeze({eligible:reasons.length===0,blueprint:bp||null,reasons:Object.freeze(reasons)});
   }
