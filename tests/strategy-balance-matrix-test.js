@@ -4,17 +4,9 @@ const { spawnSync } = require('node:child_process');
 const { SCENARIOS, SEEDS, MAX_WEEKS } = require('./strategy-balance-runner');
 
 const caseScript = path.join(__dirname, 'strategy-balance-case.js');
-// QA監査(docs/QA_AUDIT_2026-08-25.md C2)の法人税修正（決算週に四半期累積利益へ正しく
-// 課税する）以降、conveni-leverage は一時3シード全てで「再建猶予期間内に資金不足を
-// 解消できませんでした」により破産するようになった。以前は決算週の単週利益にしか
-// 課税されない不具合のおかげで生き延びていた。続くC4(役員報酬の月割り計算修正、
-// 年13/12倍の過払いを是正)で支出が下がった結果、SEEDS[0]は生存可能に回復したが、
-// SEEDS[1]/SEEDS[2]は依然破産する。店舗数や法人体制構築のタイミング調整では改善
-// しない（むしろ悪化するケースもある）ことを確認済みのため、表面的なパラメータ調整
-// ではなくconveniの採算性そのものの再設計が必要な既知の課題として、seed単位で
-// 記録する。docs/QA_AUDIT_2026-08-25.md に追跡事項として記録済み。他の組み合わせは
-// 通常どおり厳格に検証する。
-const KNOWN_UNVIABLE = new Set(['conveni-leverage:1797259778', 'conveni-leverage:1797260035']);
+// Tenant-specific contracts make rent a real route choice. The runner now picks
+// the least-cost available lease, so all scenarios are held to the normal gates.
+const KNOWN_UNVIABLE = new Set();
 const results = [];
 for (const scenario of SCENARIOS) {
   for (const seed of SEEDS) {
