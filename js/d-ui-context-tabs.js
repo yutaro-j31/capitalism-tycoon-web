@@ -37,7 +37,7 @@ function panelContent(tab,context){
     const price=finite(store.price??business?.price);const quality=store.productQuality??business?.quality??68;const brand=store.brand??business?.brand??62;
     return metrics([['主力事業',business?.name||'店舗事業'],['販売価格',price?money(price):'—'],['商品品質',`${clamp(finite(quality),0,100).toFixed(0)}%`],['ブランド力',`${clamp(finite(brand),0,100).toFixed(0)}%`]])+bars([['商品魅力度',quality],['ブランド認知',brand]])+action(tab);
   }
-  return metrics([['今週の売上',money(sales)],['今週の利益',money(profit)],['来客数',customers?`${customers.toLocaleString('ja-JP')}人`:'—'],['満足度',satisfaction?`${satisfaction.toFixed(1)} ★`:'—']])+bars([['集客力',store.brand??business?.brand??62],['サービス品質',store.quality??business?.quality??70],['商品魅力度',business?.quality??68],['運営効率',store.efficiency??business?.efficiency??72]])+action(tab);
+  return metrics([['今週の売上',money(sales)],['今週の利益',money(profit)],['来客数',customers?`${Math.round(customers).toLocaleString('ja-JP')}人`:'—'],['満足度',satisfaction?`${satisfaction.toFixed(1)} ★`:'—']])+bars([['集客力',store.brand??business?.brand??62],['サービス品質',store.quality??business?.quality??70],['商品魅力度',business?.quality??68],['運営効率',store.efficiency??business?.efficiency??72]])+action(tab);
 }
 
 function list(value){return Array.isArray(value)?value:[];}
