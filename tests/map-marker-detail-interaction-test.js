@@ -156,13 +156,13 @@ check('realestate marker -> property detail: price, prefecture, kind, area, yiel
   assert.match(html, /data-action="buy-property-personal" data-id="p-1"/);
 });
 
-check('tenant marker -> truthful tenant detail: canonical base rent, deposit terms, location, reference traffic, and 出店 action', () => {
+check('tenant marker -> truthful tenant detail: listing rent, deposit terms, location, reference traffic, and 出店 action', () => {
   const html = selectedDetail(byKind('tenant'), GAME);
   assert.match(html, /テナント募集/);
   assert.ok(html.includes(esc(TENANT.name)));
-  assert.match(html, /基準週額賃料/);
-  assert.ok(html.includes(money(ENGINE_STUB.pref(TENANT.prefID).rent)), 'base rent must come from the canonical prefecture');
-  assert.ok(!html.includes(money(TENANT.rent)), 'legacy tenant.rent must not be presented as weekly economics');
+  assert.match(html, /募集週額賃料/);
+  assert.ok(html.includes(money(TENANT.rent)), 'listing rent must come from the selected tenant');
+  assert.ok(!html.includes(money(ENGINE_STUB.pref(TENANT.prefID).rent)), 'prefecture base rent must not be presented as this lease price');
   assert.match(html, /契約保証金（閉店時返還なし）/);
   assert.ok(html.includes(money(TENANT.deposit)), 'contract deposit must come from tenant state');
   assert.match(html, /東京都中央/, 'trade area must come from state');
@@ -176,7 +176,7 @@ check('tenant marker -> truthful tenant detail: canonical base rent, deposit ter
 check('legacy tenant list removes suggested business and size while using the same truthful labels', () => {
   const renderMapSource = extractFunction(appSrc, 'renderMap');
   assert.doesNotMatch(renderMapSource, /business\(t\.businessID\)|向け|t\.size|家賃 \$\{yen\(t\.rent\)\}/);
-  assert.match(renderMapSource, /基準週額賃料 \$\{yen\(pref\.rent\)\}/);
+  assert.match(renderMapSource, /募集週額賃料 \$\{yen\(t\.rent\)\}/);
   assert.match(renderMapSource, /契約保証金 \$\{yen\(t\.deposit\)\}（閉店時返還なし）/);
   assert.match(renderMapSource, /交通量（参考）/);
 });
@@ -209,11 +209,11 @@ check('store marker -> store detail keeps its existing path (sales, profit, cust
   assert.match(html, /4\.2/);
 });
 
-check('office rent stays weekly while tenant rent is explicitly the prefecture base figure', () => {
+check('office and tenant listings use their own weekly rents', () => {
   assert.match(selectedDetail(byKind('office'), GAME), /週額賃料/);
   const tenantHtml = selectedDetail(byKind('tenant'), GAME);
-  assert.match(tenantHtml, /基準週額賃料/);
-  assert.doesNotMatch(tenantHtml, /<span>週額賃料<\/span>/);
+  assert.match(tenantHtml, /募集週額賃料/);
+  assert.doesNotMatch(tenantHtml, /基準週額賃料/);
   assert.match(read('js/engine.js'), /officeWeeklyCost=office\.rent/);
 });
 

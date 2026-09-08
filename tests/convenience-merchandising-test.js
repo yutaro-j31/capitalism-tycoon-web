@@ -25,7 +25,9 @@ function scenario(seed = 190826041, difficulty = 'normal') {
   const engine = loaded.ctx.__ct_engine;
   engine.g.configured = true;
   engine.g.difficulty = difficulty;
-  const tenant = engine.g.tenants.find(t => !t.occupiedBy);
+  // Model a player opening in the purpose-listed convenience location rather
+  // than accidentally accepting the first (ramen) listing in master-data order.
+  const tenant = engine.g.tenants.find(t => !t.occupiedBy && t.businessID === 'conveni');
   assert.equal(engine.openStore({ tenantID: tenant.id, businessID: 'conveni', name: 'コンビニ1号店', operatingHours: 3 }), true);
   const store = engine.g.stores.at(-1);
   while (store.status !== 'open') engine.advanceWeek(false);
