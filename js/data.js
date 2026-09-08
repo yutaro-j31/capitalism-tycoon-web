@@ -1788,11 +1788,11 @@ const PRODUCT_BLUEPRINTS = [
 // intentionally kept beside the launch blueprints so balancing never becomes an unexplained
 // category-name switch spread across the weekly engine. Rates are weekly unless named monthly.
 const DIGITAL_PRODUCT_ECONOMICS = Object.freeze({
-  app:Object.freeze({model:'subscription',initialUsers:1500,initialAwareness:.07,baseAcquisition:260,baseConversion:.06,baseChurn:.025,monthlyActiveRate:.68,monthlyArpu:1200,fixedOperatingCost:45000,variableCostPerActive:3}),
-  game:Object.freeze({model:'game',initialUsers:4000,initialAwareness:.10,baseAcquisition:520,baseConversion:.055,baseChurn:.055,monthlyActiveRate:.62,monthlyArpu:1800,fixedOperatingCost:180000,variableCostPerActive:8,purchaseRate:.025,launchBoostWeeks:10}),
-  ec:Object.freeze({model:'commerce',initialUsers:2800,initialAwareness:.08,baseAcquisition:440,baseConversion:.035,baseChurn:.035,monthlyActiveRate:.64,monthlyArpu:0,fixedOperatingCost:250000,variableCostPerActive:4,averageOrderValue:4500,purchasesPerActive:.20,takeRate:.12,fulfillmentRate:.035}),
-  ai:Object.freeze({model:'enterprise',initialUsers:700,initialAwareness:.045,baseAcquisition:85,baseConversion:.075,baseChurn:.022,monthlyActiveRate:.74,monthlyArpu:24000,fixedOperatingCost:300000,variableCostPerActive:55}),
-  media:Object.freeze({model:'advertising',initialUsers:8500,initialAwareness:.12,baseAcquisition:1050,baseConversion:.018,baseChurn:.045,monthlyActiveRate:.72,monthlyArpu:600,fixedOperatingCost:190000,variableCostPerActive:3,monthlyAdArpu:90})
+  app:Object.freeze({model:'subscription',initialUsers:1500,initialAwareness:.07,baseAcquisition:260,baseConversion:.06,baseChurn:.025,monthlyActiveRate:.68,monthlyArpu:1200,fixedOperatingCost:45000,variableCostPerActive:3,maintenanceFloor:5000}),
+  game:Object.freeze({model:'game',initialUsers:4000,initialAwareness:.10,baseAcquisition:520,baseConversion:.055,baseChurn:.055,monthlyActiveRate:.62,monthlyArpu:1800,fixedOperatingCost:180000,variableCostPerActive:8,maintenanceFloor:20000,purchaseRate:.025,launchBoostWeeks:10}),
+  ec:Object.freeze({model:'commerce',initialUsers:2800,initialAwareness:.08,baseAcquisition:440,baseConversion:.035,baseChurn:.035,monthlyActiveRate:.64,monthlyArpu:0,fixedOperatingCost:250000,variableCostPerActive:4,maintenanceFloor:30000,averageOrderValue:4500,purchasesPerActive:.20,takeRate:.12,fulfillmentRate:.035}),
+  ai:Object.freeze({model:'enterprise',initialUsers:700,initialAwareness:.045,baseAcquisition:85,baseConversion:.075,baseChurn:.022,monthlyActiveRate:.74,monthlyArpu:24000,fixedOperatingCost:300000,variableCostPerActive:55,maintenanceFloor:50000}),
+  media:Object.freeze({model:'advertising',initialUsers:8500,initialAwareness:.12,baseAcquisition:1050,baseConversion:.018,baseChurn:.045,monthlyActiveRate:.72,monthlyArpu:600,fixedOperatingCost:190000,variableCostPerActive:3,maintenanceFloor:20000,monthlyAdArpu:90})
 });
 
 const LUXURY_OFFERS = [
