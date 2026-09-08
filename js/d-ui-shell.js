@@ -175,19 +175,19 @@ function selectedDetail(entity,g){
    * Every branch below reads the entity's own raw state object, which
    * js/map-phase2-canvas.js's buildMapViewModel() attaches per kind. Only
    * fields that genuinely exist in that state are rendered -- nothing is
-   * fabricated. In particular `rent` is a WEEKLY figure for both tenants and
-   * rental offices (js/engine.js stores office.rent as g.officeWeeklyCost and
-   * charges tenant rent once per simulated week), so it is labelled 週額, not
-   * 月額.
+   * fabricated. Rental-office rent is a weekly contract figure. Tenant weekly
+   * economics, however, use the canonical prefecture rent rather than the
+   * listing's legacy `tenant.rent`, so the tenant panel presents pref.rent as
+   * a base figure and leaves that compatibility metadata out of the UI.
    */
   const prefLabel=id=>esc(engine()?.pref?.(id||g.selectedPref)?.name||'—');
   if(entity.kind==='tenant'){
     const tenant=entity.tenant||{};
-    const business=engine()?.business?.(tenant.businessID);
+    const pref=engine()?.pref?.(tenant.prefID||entity.pref||g.selectedPref);
     const occupied=Boolean(tenant.occupiedBy);
     const status=occupied?(tenant.occupiedBy==='player'?'自社利用中':'契約済'):'契約可能';
     const action=occupied?'':`<button type="button" class="btn primary wide" data-action="open-store" data-id="${esc(entity.rawID)}">この場所に出店する</button>`;
-    return `<div class="d-context-hero"><div class="d-store-visual tenant"><span>${occupied?'OCCUPIED':'FOR LEASE'}</span></div><div class="d-rating"><b>${occupied?'入居中':'テナント募集'}</b><span>${status}</span></div></div><h3 class="d-context-name">${esc(entity.name)}</h3><div class="d-context-metrics"><div><span>週額賃料</span><strong>${money(tenant.rent)}</strong></div><div><span>初期費用（保証金）</span><strong>${money(tenant.deposit)}</strong></div><div><span>都道府県</span><strong>${prefLabel(entity.pref)}</strong></div><div><span>商圏</span><strong>${esc(tenant.cityName||'—')}</strong></div><div><span>区画サイズ</span><strong>${esc(tenant.size||'—')}</strong></div><div><span>立地係数</span><strong>${tenant.traffic?finite(tenant.traffic).toFixed(2):'—'}</strong></div><div><span>想定業態</span><strong>${esc(business?.name||'—')}</strong></div><div><span>状態</span><strong>${status}</strong></div></div>${action}`;
+    return `<div class="d-context-hero"><div class="d-store-visual tenant"><span>${occupied?'OCCUPIED':'FOR LEASE'}</span></div><div class="d-rating"><b>${occupied?'入居中':'テナント募集'}</b><span>${status}</span></div></div><h3 class="d-context-name">${esc(entity.name)}</h3><div class="d-context-metrics"><div><span>基準週額賃料</span><strong>${money(pref?.rent)}</strong></div><div><span>契約保証金（閉店時返還なし）</span><strong>${money(tenant.deposit)}</strong></div><div><span>都道府県</span><strong>${prefLabel(tenant.prefID||entity.pref)}</strong></div><div><span>商圏</span><strong>${esc(tenant.cityName||'—')}</strong></div><div><span>交通量（参考）</span><strong>${tenant.traffic?finite(tenant.traffic).toFixed(2):'—'}</strong></div><div><span>状態</span><strong>${status}</strong></div></div>${action}`;
   }
   if(entity.kind==='realestate'){
     const property=entity.property||{};
