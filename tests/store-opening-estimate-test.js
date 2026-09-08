@@ -103,8 +103,9 @@ const freeTenant = engine => engine.g.tenants.find(t => !t.occupiedBy);
   const expectedSales = Math.floor(Math.max(0, demand * b.price * g.inflation));
   const expectedVariable = Math.floor(Math.max(0, demand * b.unitCost * g.inflation
     * (1 - Math.min(.22, b.efficiency / 260)) / (1 + engine.departmentEffect('operations') * .04)));
-  const expectedFixed = Math.floor(Math.max(0, (b.fixedCost + p.rent + b.wage) * g.inflation * [0, .55, .8, 1, 1.24][3]
-    * (g.macroCrisis ? g.macroCrisis.costMultiplier : 1)));
+  const costMultiplier = g.inflation * [0, .55, .8, 1, 1.24][3]
+    * (g.macroCrisis ? g.macroCrisis.costMultiplier : 1);
+  const expectedFixed = Math.floor(Math.max(0, tenant.rent + (b.fixedCost + b.wage) * costMultiplier));
 
   const estimate = engine.estimateStoreOpening({ tenantID: tenant.id, businessID: 'cafe', operatingHours: 3 });
   assert.equal(estimate.expected.sales, expectedSales, '売上が需要式と厳密一致する');
@@ -124,7 +125,7 @@ const freeTenant = engine => engine.g.tenants.find(t => !t.occupiedBy);
   assert.equal(e.conservative.fixed, e.optimistic.fixed, '固定費は需要に依存しない');
 }
 
-// 4. 営業時間が需要と固定費の両方に効く。
+// 4. 営業時間は需要・人件費等へ効くが、契約家賃は固定される。
 {
   const { engine } = newGame();
   const tenant = freeTenant(engine);
@@ -133,6 +134,7 @@ const freeTenant = engine => engine.g.tenants.find(t => !t.occupiedBy);
 
   assert.ok(long.expected.sales > short.expected.sales, '長時間営業のほうが売上が大きい');
   assert.ok(long.expected.fixed > short.expected.fixed, '長時間営業のほうが固定費も大きい');
+  assert.equal(long.breakdown.rent, short.breakdown.rent, '契約家賃は営業時間に依存しない');
   assert.equal(short.operatingHours, 2, '営業時間がそのまま返る');
 }
 
