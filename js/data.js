@@ -1780,9 +1780,20 @@ const PRODUCT_BLUEPRINTS = [
   {id:'app',name:'業務支援アプリ',category:'SaaS',cost:6500000,weeks:12,price:1200,serverCost:150000,market:90000,risk:.13},
   {id:'game',name:'経営シミュレーションゲーム',category:'ゲーム',cost:9500000,weeks:16,price:1800,serverCost:220000,market:180000,risk:.20},
   {id:'ec',name:'地域ECプラットフォーム',category:'EC',cost:12000000,weeks:18,price:0,serverCost:340000,market:240000,risk:.18},
-  {id:'ai',name:'需要予測AI',category:'AI',cost:18000000,weeks:20,price:4800,serverCost:520000,market:140000,risk:.24},
+  {id:'ai',name:'需要予測AI',category:'AI',cost:18000000,weeks:20,price:24000,serverCost:520000,market:140000,risk:.24},
   {id:'media',name:'動画・ニュースメディア',category:'メディア',cost:8000000,weeks:14,price:600,serverCost:260000,market:320000,risk:.22}
 ];
+
+// Formal digital businesses have different customer and monetization loops. These values are
+// intentionally kept beside the launch blueprints so balancing never becomes an unexplained
+// category-name switch spread across the weekly engine. Rates are weekly unless named monthly.
+const DIGITAL_PRODUCT_ECONOMICS = Object.freeze({
+  app:Object.freeze({model:'subscription',initialUsers:1500,initialAwareness:.07,baseAcquisition:260,baseConversion:.06,baseChurn:.025,monthlyActiveRate:.68,monthlyArpu:1200,fixedOperatingCost:45000,variableCostPerActive:3}),
+  game:Object.freeze({model:'game',initialUsers:4000,initialAwareness:.10,baseAcquisition:520,baseConversion:.055,baseChurn:.055,monthlyActiveRate:.62,monthlyArpu:1800,fixedOperatingCost:180000,variableCostPerActive:8,purchaseRate:.025,launchBoostWeeks:10}),
+  ec:Object.freeze({model:'commerce',initialUsers:2800,initialAwareness:.08,baseAcquisition:440,baseConversion:.035,baseChurn:.035,monthlyActiveRate:.64,monthlyArpu:0,fixedOperatingCost:250000,variableCostPerActive:4,averageOrderValue:4500,purchasesPerActive:.20,takeRate:.12,fulfillmentRate:.035}),
+  ai:Object.freeze({model:'enterprise',initialUsers:700,initialAwareness:.045,baseAcquisition:85,baseConversion:.075,baseChurn:.022,monthlyActiveRate:.74,monthlyArpu:24000,fixedOperatingCost:300000,variableCostPerActive:55}),
+  media:Object.freeze({model:'advertising',initialUsers:8500,initialAwareness:.12,baseAcquisition:1050,baseConversion:.018,baseChurn:.045,monthlyActiveRate:.72,monthlyArpu:600,fixedOperatingCost:190000,variableCostPerActive:3,monthlyAdArpu:90})
+});
 
 const LUXURY_OFFERS = [
   {id:'watch',name:'ヴィンテージ腕時計',category:'時計',price:6500000,maintenancePerWeek:5000,rarity:3,statusEffect:'交渉力 +1'},
@@ -1824,7 +1835,7 @@ const MISSION_DEFS = [
   {id:'mission_conglomerate',title:'事業・不動産・子会社を保有する',reward:20000000,check:s=>s.stores.length>=5&&(s.properties||[]).some(p=>p.owner)&&(s.subsidiaries||[]).length>=1}
 ];
 
-Object.assign(exports,{MASTER,DEPARTMENT_UNLOCKS,PRODUCT_BLUEPRINTS,LUXURY_OFFERS,PERSONAL_INVESTMENT_OFFERS,OVERSEAS_COUNTRIES,SPORTS_TEAMS,MISSION_DEFS});
+Object.assign(exports,{MASTER,DEPARTMENT_UNLOCKS,PRODUCT_BLUEPRINTS,DIGITAL_PRODUCT_ECONOMICS,LUXURY_OFFERS,PERSONAL_INVESTMENT_OFFERS,OVERSEAS_COUNTRIES,SPORTS_TEAMS,MISSION_DEFS});
 })(__modules.data={});
 
 })();
