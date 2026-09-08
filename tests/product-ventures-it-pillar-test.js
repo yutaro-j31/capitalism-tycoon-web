@@ -22,14 +22,14 @@ const appSource = fs.readFileSync(path.join(__dirname, '..', 'js', 'app.js'), 'u
 
 // 1. セクション見出しが「IT企業」になっている。
 {
-  assert.match(appSource, /function renderProductSection\(\)\{const g=engine\.g;return `<section><h2 class="section-title">IT企業<\/h2>/, 'renderProductSectionの見出しはIT企業');
+  assert.match(appSource, /<h2 class="section-title">IT・デジタル事業<\/h2>/, 'renderProductSectionの見出しはIT・デジタル事業');
   assert.doesNotMatch(appSource, /自社プロダクト・新規事業/, '旧見出しが残っていない');
 }
 
 // 2. 5本目の柱であることを説明する subtitle が付いている。
 {
   const productIndex = appSource.indexOf("card('プロダクト開発',");
-  const subtitleIndex = appSource.indexOf("{subtitle:'主力5事業の1つ。アプリ・ゲーム・EC・AI・メディアを自社プロダクトとして開発・運営します。'}");
+  const subtitleIndex = appSource.indexOf("{subtitle:'アプリ・ゲーム・EC・AI・メディアを正式な会社事業として開発します。'}");
   assert.ok(productIndex >= 0 && subtitleIndex >= 0, '前提: 両方が存在する');
   assert.ok(subtitleIndex > productIndex && subtitleIndex - productIndex < 500, 'プロダクト開発カードに5本目の柱であることを説明するsubtitleがある');
 }
@@ -54,7 +54,8 @@ const appSource = fs.readFileSync(path.join(__dirname, '..', 'js', 'app.js'), 'u
 {
   assert.match(appSource, /PRODUCT_BLUEPRINTS\.map\(p=>/, 'PRODUCT_BLUEPRINTSの一覧描画ロジックは無変更');
   assert.match(appSource, /g\.productVentures\.map\(p=>card\(p\.name,/, 'productVenturesカードの描画ロジックは無変更');
-  assert.match(appSource, /btn\('開発開始','launch-product',/, '開発開始アクションの配線は無変更');
+  assert.match(appSource, /blueprintRows\('launch-product'\)/, '商品開発部門の通常開発導線を維持');
+  assert.match(appSource, /blueprintRows\('found-digital-business'\)/, '正式なデジタル創業導線を追加');
 }
 
 console.log('product ventures IT pillar tests passed');

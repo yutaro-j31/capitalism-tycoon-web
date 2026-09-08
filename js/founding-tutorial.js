@@ -73,7 +73,7 @@ function acknowledgeDashboard(g){
 }
 const completed={
  dashboard:g=>Boolean(g?.configured)&&(Boolean(g?.foundingTutorialProgress?.dashboardAcknowledged)||(g?.selectedTab&&g.selectedTab!=='home')||openStores(g).length>0||nf(g?.week)>1||arr(g?.completedMissionIDs).length>0),
- first_store:g=>openStores(g).length>=1,
+ first_store:g=>openStores(g).length>=1||arr(g?.productVentures).some(p=>p&&p.origin!=='founderHome'),
  unit_economics:g=>openStores(g).length>=1&&weeksSinceFirstOpen(g)>=1,
  first_week:g=>nf(g?.week)>1||reports(g).length>0,
  weekly_recap:g=>weeksSinceFirstOpen(g)>=2,
@@ -108,6 +108,7 @@ const STEPS=Object.freeze([
 const preparingStores=g=>arr(g?.stores).filter(s=>s&&s.status==='preparing');
 function firstStoreVariant(step,g){
   if(openStores(g).length>0)return step;
+  if(arr(g?.productVentures).some(p=>p&&p.origin!=='founderHome'))return Object.freeze({...step,title:'IT・デジタル事業を開始',targetTab:'business',targetSelector:'.section-title,[data-action="product-action"]',buttonLabel:'プロダクトを見る',description:'店舗を持たない正式な会社事業として、プロダクトの開発と収益化を進めます。',points:Object.freeze(['開発費は会社資金から支払われます。','複数プロダクトには本社と商品開発部門が必要です。'])});
   const preparing=preparingStores(g);
   if(preparing.length>0){
     const weeks=Math.max(0,Math.ceil(Math.min(...preparing.map(s=>nf(s.openingWeek)))-nf(g?.week)));

@@ -105,10 +105,10 @@ assert.doesNotMatch(founderStyle, /(?:^|[;{])\s*display\s*:\s*none\b/m, 'Founder
 assert.doesNotMatch(founderStyle, /\b(?:width|min-width|max-width)\s*:\s*100vw\b/, 'Founder v2 must not create page-level viewport overflow');
 assert.doesNotMatch(founderStyle, /scrollbar-width\s*:\s*none|::-webkit-scrollbar[^}]*display\s*:\s*none/s, 'Founder v2 must not hide scroll affordances');
 assert.doesNotMatch(founderStyle, /https?:\/\//, 'Founder v2 must not add remote runtime assets');
-for (const label of ['創業者プロフィール','創業者ホーム','自宅から個人開発','自己投資','行動履歴','オルタナティブ投資','個人不動産','PE・エンジェル']) {
+for (const label of ['創業者プロフィール','創業者ホーム','自己投資','行動履歴','オルタナティブ投資','個人不動産','PE・エンジェル']) {
   assert.ok(app.includes(label), `Founder v2 must retain Founder destination: ${label}`);
 }
-for (const action of ['founder-action','upgrade-home','launch-home-product','founder-invest','buy-personal-re','sell-personal-re','create-pe','create-angel','exit-angel']) {
+for (const action of ['founder-action','upgrade-home','founder-invest','buy-personal-re','sell-personal-re','create-pe','create-angel','exit-angel']) {
   assert.ok(app.includes(action), `Founder v2 must retain existing Founder action: ${action}`);
 }
 
