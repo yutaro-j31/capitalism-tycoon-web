@@ -50,7 +50,9 @@ function runScenario(def,seed,{includeState=false,difficulty='normal',gameScenar
 
  function tenantFor(index){
   const prefID=def.route[index];
-  return game.g.tenants.filter(row=>row.prefID===prefID&&!row.occupiedBy).sort((a,b)=>a.rent-b.rent||b.traffic-a.traffic)[0];
+  const candidates=game.g.tenants.filter(row=>row.prefID===prefID&&!row.occupiedBy);
+  if(!['ramen','conveni','gym','realEstateAgency'].includes(def.businessID))return candidates.sort((a,b)=>a.rent-b.rent||b.traffic-a.traffic)[0];
+  return candidates.map(tenant=>({tenant,estimate:game.estimateStoreOpening({tenantID:tenant.id,businessID:def.businessID,operatingHours:3})})).sort((a,b)=>b.estimate.expected.profit-a.estimate.expected.profit||a.estimate.upfront-b.estimate.upfront||a.tenant.rent-b.tenant.rent||a.tenant.name.localeCompare(b.tenant.name))[0]?.tenant;
  }
  const firstTenant=tenantFor(0);
  const firstStoreCost=business.storeCost+Number(firstTenant?.deposit||0);
