@@ -266,6 +266,7 @@ const nodeTests = [
   ['executive-payroll-annual-total', 'tests/executive-payroll-annual-total-test.js'],
   ['company-headcount-display', 'tests/company-headcount-display-test.js'],
   ['business-simulation-depth', 'tests/business-simulation-depth-test.js'],
+  ['tenant-site-suitability', 'tests/tenant-site-suitability-test.js'],
   ['store-opening-estimate', 'tests/store-opening-estimate-test.js'],
   ['tenant-contract-rent-consistency', 'tests/tenant-contract-rent-consistency-test.js'],
   ['business-portfolio-focus', 'tests/business-portfolio-focus-test.js'],

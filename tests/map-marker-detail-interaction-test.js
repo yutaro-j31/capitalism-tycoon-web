@@ -85,9 +85,9 @@ const ENGINE_STUB = {
   business: id => ({ ramen: { name: 'ラーメン店', quality: 70, brand: 62, efficiency: 72 } }[id] || null),
 };
 const selectedDetail = new Function(
-  'esc', 'money', 'finite', 'clamp', 'engine', 'storeStatusLabel',
+  'esc', 'money', 'finite', 'clamp', 'engine', 'storeStatusLabel', 'modules',
   `${extractFunction(shellSrc, 'selectedDetail')}; return selectedDetail;`
-)(esc, money, finite, clamp, () => ENGINE_STUB, () => '営業中');
+)(esc, money, finite, clamp, () => ENGINE_STUB, () => '営業中', {tenantSiteSuitability:{evaluateTenantSuitability:()=>({multiplier:1.07,grade:'A',trafficLabel:'高い',reasons:['交通量：高い','区画規模：標準']})}});
 
 /* ---------- fixtures shaped exactly like js/engine.js's factories ---------- */
 const TENANT = {
@@ -156,7 +156,7 @@ check('realestate marker -> property detail: price, prefecture, kind, area, yiel
   assert.match(html, /data-action="buy-property-personal" data-id="p-1"/);
 });
 
-check('tenant marker -> truthful tenant detail: listing rent, deposit terms, location, reference traffic, and 出店 action', () => {
+check('tenant marker -> truthful tenant detail: listing rent, deposit terms, location, site suitability, and 出店 action', () => {
   const html = selectedDetail(byKind('tenant'), GAME);
   assert.match(html, /テナント募集/);
   assert.ok(html.includes(esc(TENANT.name)));
@@ -166,19 +166,19 @@ check('tenant marker -> truthful tenant detail: listing rent, deposit terms, loc
   assert.match(html, /契約保証金（閉店時返還なし）/);
   assert.ok(html.includes(money(TENANT.deposit)), 'contract deposit must come from tenant state');
   assert.match(html, /東京都中央/, 'trade area must come from state');
-  assert.match(html, /交通量（参考）/);
+  assert.match(html, /物件交通量/);
   assert.match(html, /1\.39/, 'reference traffic must come from state');
-  assert.doesNotMatch(html, /想定業態|ラーメン店|区画サイズ|>S<|立地係数|立地適性|売上倍率/);
+  assert.doesNotMatch(html, /想定業態|ラーメン店|おすすめ業種|向け/);assert.match(html,/区画規模/);assert.match(html,/業態適性/);
   assert.match(html, /契約可能/);
   assert.match(html, /data-action="open-store" data-id="t-1"/, 'must reuse the existing tenant action, not a new leasing path');
 });
 
-check('legacy tenant list removes suggested business and size while using the same truthful labels', () => {
+check('legacy tenant list omits suggested business while showing meaningful size and traffic', () => {
   const renderMapSource = extractFunction(appSrc, 'renderMap');
-  assert.doesNotMatch(renderMapSource, /business\(t\.businessID\)|向け|t\.size|家賃 \$\{yen\(t\.rent\)\}/);
+  assert.doesNotMatch(renderMapSource, /business\(t\.businessID\)|向け|家賃 \$\{yen\(t\.rent\)\}/);assert.match(renderMapSource,/t\.size/);
   assert.match(renderMapSource, /募集週額賃料 \$\{yen\(t\.rent\)\}/);
   assert.match(renderMapSource, /契約保証金 \$\{yen\(t\.deposit\)\}（閉店時返還なし）/);
-  assert.match(renderMapSource, /交通量（参考）/);
+  assert.match(renderMapSource, /物件交通量/);
 });
 
 check('legacy compatibility metadata remains in tenant state and generation', () => {

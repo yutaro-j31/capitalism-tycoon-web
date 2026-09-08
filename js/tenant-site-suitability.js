@@ -1,0 +1,10 @@
+// Deterministic tenant-level demand opportunity shared by simulation, estimates, and UI.
+(function(){'use strict';
+const modules=globalThis.__capitalismTycoonModules;if(!modules)throw new Error('runtime.js must load first.');
+const CONFIG=Object.freeze({ramen:{trafficWeight:.70,sizeWeight:.30,sizes:{S:1,M:1.04,L:1.06}},conveni:{trafficWeight:.75,sizeWeight:.25,sizes:{S:.96,M:1.02,L:1.08}},gym:{trafficWeight:.30,sizeWeight:.70,sizes:{S:.85,M:1,L:1.15}},realEstateAgency:{trafficWeight:.40,sizeWeight:.60,sizes:{S:1.02,M:1.05,L:1}}});
+const clamp=(v,min,max)=>Math.min(max,Math.max(min,v));
+const neutral=()=>Object.freeze({multiplier:1,grade:'B',trafficRatio:1,trafficComponent:1,sizeComponent:1,trafficContribution:0,sizeContribution:0,trafficLabel:'標準',sizeLabel:'標準',reasons:Object.freeze(['標準的な物件条件'])});
+function evaluateTenantSuitability(tenant,businessID,pref){const c=CONFIG[businessID];if(!tenant||!c)return neutral();const tt=Number(tenant.traffic),pt=Number(pref?.traffic),valid=Number.isFinite(tt)&&tt>=0&&Number.isFinite(pt)&&pt>0,trafficRatio=valid?tt/pt:1,trafficComponent=valid?clamp(trafficRatio,.85,1.15):1,sizeComponent=c.sizes[tenant.size]||1,raw=1+(trafficComponent-1)*c.trafficWeight+(sizeComponent-1)*c.sizeWeight,multiplier=Math.round(clamp(raw,.9,1.1)*10000)/10000,grade=multiplier>=1.06?'A':multiplier<.98?'C':'B',trafficLabel=trafficComponent>=1.06?'高い':trafficComponent<=.94?'低い':'標準',sizeLabel=sizeComponent>=1.04?'適合':sizeComponent<=.96?'やや不利':'標準';return Object.freeze({multiplier,grade,trafficRatio,trafficComponent,sizeComponent,trafficContribution:(trafficComponent-1)*c.trafficWeight,sizeContribution:(sizeComponent-1)*c.sizeWeight,trafficLabel,sizeLabel,reasons:Object.freeze([`交通量：${trafficLabel}`,`区画規模：${sizeLabel}`])});}
+function forStore(state,store){const tenant=(state?.tenants||[]).find(t=>t.id===store?.tenantID),pref=(state?.prefs||[]).find(p=>p.id===(tenant?.prefID||store?.prefID));return evaluateTenantSuitability(tenant,store?.businessID,pref);}
+modules.tenantSiteSuitability=Object.freeze({CONFIG,evaluateTenantSuitability,forStore,neutral});
+})();

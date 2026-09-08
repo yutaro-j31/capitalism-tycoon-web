@@ -3,6 +3,7 @@
     "./js/boot-recovery.js",
     "./js/runtime.js",
     "./js/data.js",
+    "./js/tenant-site-suitability.js",
     "./js/workforce.js",
     "./js/supply.js",
     "./js/competitor.js",

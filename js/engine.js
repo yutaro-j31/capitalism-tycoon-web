@@ -803,13 +803,14 @@ class TycoonEngine extends EventTarget {
     const crisisSales=this.g.macroCrisis?finite(this.g.macroCrisis.salesMultiplier,1):1;
     const crisisCost=finite(this.g.macroCrisis?.costMultiplier,1);
     const localCompetition=a.competition+this.competitorPressure(a.id,b.id);
+    const siteSuitability=globalThis.__capitalismTycoonModules.tenantSiteSuitability.evaluateTenantSuitability(tenant,businessID,p);
 
     // advanceWeek() の需要式から rand(.88,1.14) だけを抜いたもの。
     let demand=b.demand*p.traffic*a.traffic*this.g.economy*this.g.season*this.fit(b,a)
       *(1+b.quality/100)*(1+b.brand/90)*(1+b.dx/140)*(1-localCompetition*.55);
     demand*=1+this.departmentEffect('dx')*.05+this.departmentEffect('marketing')*.03;
     demand*=demandHours;
-    demand*=crisisSales;
+    demand*=crisisSales*siteSuitability.multiplier;
 
     // 新店は condition=100 なので repair は 0。fixed は需要に依存しないので帯の全ケースで共通。
     const rent=resolveTenantContractRent(tenant,p);
@@ -846,7 +847,7 @@ class TycoonEngine extends EventTarget {
       : []));
 
     return Object.freeze({
-      tenantID,businessID,operatingHours:hours,
+      tenantID,businessID,operatingHours:hours,siteSuitability,
       businessName:b.name,tenantName:tenant.name,prefName:p.name,
       conservative,expected,optimistic,
       breakdown:Object.freeze({rent:Math.floor(Math.max(0,rent)),wage:Math.floor(Math.max(0,wage)),
@@ -1771,12 +1772,12 @@ class TycoonEngine extends EventTarget {
       const contractRent=getStoreContractRent(store,p),costMultiplier=this.g.inflation*([0,.55,.8,1,1.24][store.operatingHours||3]||1)*(this.g.macroCrisis?.costMultiplier||1);
       if(market.isTargetBusinessID(store.businessID)&&marketBatch.byStore[store.id]){rand(.88,1.14); // Preserve the legacy per-store demand RNG slot; deterministic market results intentionally ignore this value.
       let mr=marketBatch.byStore[store.id];mr=supply.applyConstraint(this.g,store,mr,finance);marketBatch.byStore[store.id]=mr;const extraStorePayroll=workforce.storeExtraPayroll(this.g,store.id);fixed=contractRent+(b.fixedCost+b.wage+extraStorePayroll)*costMultiplier;repair=Math.max(0,100-store.condition)*650;storeSales=mr.revenue;variable=mr.variableCost;store.marketResult={...mr};}
-      else if(store.businessID==='realEstateAgency'&&globalThis.__capitalismTycoonModules?.realEstateAgencyPipeline){rand(.88,1.14);const brokerage=globalThis.__capitalismTycoonModules.realEstateAgencyPipeline.processStore(this.g,store,b,p);storeSales=brokerage.sales;variable=brokerage.variable;fixed=contractRent+(b.fixedCost+b.wage)*costMultiplier;repair=Math.max(0,100-store.condition)*650;store.marketResult=null;}
+      else if(store.businessID==='realEstateAgency'&&globalThis.__capitalismTycoonModules?.realEstateAgencyPipeline){rand(.88,1.14);const brokerage=globalThis.__capitalismTycoonModules.realEstateAgencyPipeline.processStore(this.g,store,b,p,globalThis.__capitalismTycoonModules.tenantSiteSuitability.forStore(this.g,store).multiplier);storeSales=brokerage.sales;variable=brokerage.variable;fixed=contractRent+(b.fixedCost+b.wage)*costMultiplier;repair=Math.max(0,100-store.condition)*650;store.marketResult=null;}
       else if(store.businessID==='conveni'&&globalThis.__capitalismTycoonModules?.convenienceMerchandising){const localCompetition=a.competition+this.competitorPressure(a.id,b.id);let demand=b.demand*p.traffic*a.traffic*this.g.economy*this.g.season*this.fit(b,a)*(1+b.quality/100)*(1+b.brand/90)*(1+b.dx/140)*(1-localCompetition*.55)*rand(.88,1.14);
-      demand*=1+this.departmentEffect('dx')*.05+this.departmentEffect('marketing')*.03;demand*=[0,.45,.75,1,1.17][store.operatingHours||3]||1;if(this.g.macroCrisis)demand*=this.g.macroCrisis.salesMultiplier;
+      demand*=globalThis.__capitalismTycoonModules.tenantSiteSuitability.forStore(this.g,store).multiplier;demand*=1+this.departmentEffect('dx')*.05+this.departmentEffect('marketing')*.03;demand*=[0,.45,.75,1,1.17][store.operatingHours||3]||1;if(this.g.macroCrisis)demand*=this.g.macroCrisis.salesMultiplier;
       const merch=globalThis.__capitalismTycoonModules.convenienceMerchandising.processStore(this.g,store,b,demand,this.g.inflation);storeSales=merch.sales;variable=merch.variable;fixed=contractRent+(b.fixedCost+b.wage)*costMultiplier;repair=Math.max(0,100-store.condition)*650;store.marketResult=null;}
       else if(store.businessID==='gym'&&globalThis.__capitalismTycoonModules?.gymMembershipModel){const localCompetition=a.competition+this.competitorPressure(a.id,b.id);let demand=b.demand*p.traffic*a.traffic*this.g.economy*this.g.season*this.fit(b,a)*(1+b.quality/100)*(1+b.brand/90)*(1+b.dx/140)*(1-localCompetition*.55)*rand(.88,1.14);
-      demand*=1+this.departmentEffect('dx')*.05+this.departmentEffect('marketing')*.03;demand*=[0,.45,.75,1,1.17][store.operatingHours||3]||1;if(this.g.macroCrisis)demand*=this.g.macroCrisis.salesMultiplier;
+      demand*=globalThis.__capitalismTycoonModules.tenantSiteSuitability.forStore(this.g,store).multiplier;demand*=1+this.departmentEffect('dx')*.05+this.departmentEffect('marketing')*.03;demand*=[0,.45,.75,1,1.17][store.operatingHours||3]||1;if(this.g.macroCrisis)demand*=this.g.macroCrisis.salesMultiplier;
       const membership=globalThis.__capitalismTycoonModules.gymMembershipModel.processStore(this.g,store,b,demand,this.g.inflation,localCompetition);storeSales=membership.sales;variable=membership.variable;fixed=contractRent+(b.fixedCost+b.wage)*costMultiplier;repair=Math.max(0,100-store.condition)*650;store.marketResult=null;}
       else{const localCompetition=a.competition+this.competitorPressure(a.id,b.id);let demand=b.demand*p.traffic*a.traffic*this.g.economy*this.g.season*this.fit(b,a)*(1+b.quality/100)*(1+b.brand/90)*(1+b.dx/140)*(1-localCompetition*.55)*rand(.88,1.14);
       demand*=1+this.departmentEffect('dx')*.05+this.departmentEffect('marketing')*.03;demand*=[0,.45,.75,1,1.17][store.operatingHours||3]||1;if(this.g.macroCrisis)demand*=this.g.macroCrisis.salesMultiplier;
