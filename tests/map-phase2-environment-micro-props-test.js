@@ -56,6 +56,23 @@ check('micro-prop placement is deterministic for the same prefecture, tile, and 
   for (const type of TYPES) assert.equal(signature(type), signature(type), `${type} changed between paints`);
 });
 
+check('parking and loading areas receive deterministic equipment variation', () => {
+  for (const type of ['parking', 'loadingBay']) {
+    const variants = ['tokyo', 'osaka', 'hokkaido', 'okinawa'].map(prefID => signature(type, prefID));
+    assert.ok(new Set(variants).size >= 2, `${type} should vary in a controlled way across deterministic seeds`);
+  }
+});
+
+check('parking-only wheel stops and loading-only service equipment stay semantically scoped', () => {
+  const parking = signature('parking');
+  const loadingVariants = ['tokyo', 'osaka', 'hokkaido', 'okinawa'].map(prefID => signature('loadingBay', prefID)).join('|');
+  const nonIndustrial = ['plaza', 'forecourt', 'pocketPark', 'treeStrip'].map(type => signature(type)).join('|');
+  assert.match(parking, /rgba\(63,66,62,\.76\)/, 'parking should include wheel-stop geometry');
+  assert.match(loadingVariants, /#66736e|#65706d|#8a7d55/, 'loading bays should include service equipment');
+  assert.doesNotMatch(nonIndustrial, /rgba\(63,66,62,\.76\)|#66736e|#65706d/,
+    'parking/loading equipment escaped onto a green or civic open space');
+});
+
 check('paintOpenLots only visits the supplied visible tile list', () => {
   const ctx = recordingContext();
   MW.paintOpenLots(ctx, [cell('plaza')], transform, tile, 'tokyo');
@@ -106,6 +123,27 @@ check('streetlights and sparse wayfinding signs stay on eligible road edges in e
   assert.deepEqual([...kinds].sort(), ['streetlight', 'wayfindingSign']);
 });
 
+check('all prefectures produce finite, in-bounds industrial props without renderer exceptions', () => {
+  const index2 = MW.indexCategoryManifest(manifest);
+  const profiles = require(path.join(ROOT, 'prototypes/map-prefecture-profiles.js')).PREFECTURE_MAP_PROFILES;
+  for (const prefID of Object.keys(profiles)) {
+    const district = MW.buildWorldDistrict({ index2, prefID, cols: 32, rows: 28 });
+    for (const row of district.tiles) {
+      assert.ok(Number.isFinite(row.tileX) && Number.isFinite(row.tileY), `${prefID}: non-finite tile coordinate`);
+      assert.ok(row.tileX >= 0 && row.tileX < district.cols, `${prefID}: x escaped world bounds`);
+      assert.ok(row.tileY >= 0 && row.tileY < district.rowsCount, `${prefID}: y escaped world bounds`);
+    }
+    const industrial = district.tiles.filter(row => row.open && ['parking', 'loadingBay'].includes(row.openType));
+    const ctx = recordingContext();
+    MW.paintOpenLots(ctx, industrial, transform, tile, prefID);
+    for (const call of ctx.calls) {
+      for (const value of call.slice(1).filter(value => typeof value === 'number')) {
+        assert.ok(Number.isFinite(value), `${prefID}: renderer emitted a non-finite primitive`);
+      }
+    }
+  }
+});
+
 check('roadside painting is culled by its supplied visible list and uses Canvas primitives only', () => {
   const ctx = recordingContext();
   const visible = [{ tileX: 2, tileY: 3, environmentProps: [{ kind: 'streetlight', alongX: true, edge: 1 }] }];
@@ -119,6 +157,9 @@ check('marker/city structure contracts remain outside this visual-only change', 
   assert.match(canvasSource, /const MAX_ANCHOR_OFFSET=56;/);
   assert.match(canvasSource, /const DEFAULT_SCALE=0\.44;/);
   assert.doesNotMatch(source, /MAX_ANCHOR_OFFSET|MARKER_CLAMP|selectedEntity/);
+  const propBody = source.split('function paintBench')[1].split('/* ---------------- hero/filler-aware')[0];
+  assert.doesNotMatch(propBody, /createElement|appendChild|\.d-map-marker/,
+    'Canvas scenery must not add or mutate DOM markers');
 });
 
 if (!process.exitCode) console.log(`\n${pass} checks passed.`);
