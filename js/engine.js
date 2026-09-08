@@ -212,7 +212,7 @@ function createInitialState(options = {}) {
     personalStocks: {}, companyStocks: {}, favoriteStockIds: [], realizedCompanyStockPL: 0, realizedPersonalStockPL: 0,
     subsidiaries: [], acquisitionTargets: [], maSubsidiaries: [], goodwillRecords: [], tenderOffers: [],
     totalAcquisitions: 0, totalMAGain: 0, totalImpairmentLoss: 0,
-    productVentures: [], productBuyoutOffers: [], productExitCount: 0,
+    productVentures: [], productBuyoutOffers: [], productExitCount: 0, formalProductLaunchCount: 0,
     franchiseStoresByBusinessID: {}, franchiseRoyaltyRateByBusinessID: {}, franchiseQualityByBusinessID: {}, franchiseTrustByBusinessID: {},
     overseasSubsidiaries: [], personalInvestments: [], luxuryAssets: [], sportsTeams: [], peDeals: [],
     cxoExecutives: [], executiveDirectives: [], departmentCampaigns: [], internalVentureProposals: [], internalVentures: [],
@@ -1178,13 +1178,15 @@ class TycoonEngine extends EventTarget {
     this.g.companyCash-=bp.cost;finance.event(this.g,'researchAndDevelopment',bp.cost,{cashEffect:-bp.cost,profitEffect:-bp.cost,assetEffect:0,sourceType:'launchProduct',sourceID:`${bp.id}-${this.g.week}`,description:`${productName} 初期開発費`});
     this.g.productVentures.push({id:uuid(),blueprintID:bp.id,name:productName,category:bp.category,status:'developing',progress:0,weeksToLaunch:bp.weeks,
       quality:20,brand:5,users:0,paidUsers:0,price:bp.price,serverCost:bp.serverCost,market:bp.market,risk:bp.risk,valuation:bp.cost,developmentCost:bp.cost,investedCost:bp.cost,revenue:0,cost:0,profit:0});
+    this.g.formalProductLaunchCount=Math.max(0,Math.floor(finite(this.g.formalProductLaunchCount)))+1;
     this.notify(`${productName}の開発を開始しました。`,'success');this.save();this.emit();return true;
   }
   digitalBusinessFoundingPlan(blueprintID) {
     const bp=PRODUCT_BLUEPRINTS.find(x=>x.id===blueprintID),reasons=[];
     if(!bp)reasons.push('事業プランが見つかりません。');
     if(this.g.stores.length!==0)reasons.push('店舗を持たない創業企業のみ利用できます。');
-    if(this.g.productVentures.some(p=>p&&p.origin!=='founderHome'))reasons.push('創業時に利用できるのは最初の正式プロダクトだけです。');
+    const launchHistory=(this.g.finance?.transactions||[]).some(t=>t?.sourceType==='launchProduct'&&t?.category==='researchAndDevelopment');
+    if(finite(this.g.formalProductLaunchCount)>0||launchHistory||this.g.productVentures.some(p=>p&&p.origin!=='founderHome'))reasons.push('創業時に利用できるのは最初の正式プロダクトだけです。');
     if(this.g.departments.product)reasons.push('商品開発部門から通常のプロダクト開発を利用してください。');
     if(bp&&this.g.companyCash<bp.cost)reasons.push(`${yen(bp.cost)}が必要です。`);
     return Object.freeze({eligible:reasons.length===0,blueprint:bp||null,reasons:Object.freeze(reasons)});

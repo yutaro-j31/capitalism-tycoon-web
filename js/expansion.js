@@ -251,7 +251,6 @@ function installExpansion(TycoonEngine){
   };
 
   TycoonEngine.prototype.launchFounderHomeProduct=function(templateID){
-    this.ensureExpansionDefaults();
     return this.fail('自宅開発ルートは廃止されました。IT・デジタル事業から開始してください。');
   };
 
