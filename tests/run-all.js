@@ -98,6 +98,8 @@ const nodeTests = [
   ['formal-digital-business-founding', 'tests/formal-digital-business-founding-test.js'],
   ['formal-digital-founding-tutorial', 'tests/formal-digital-founding-tutorial-test.js'],
   ['formal-digital-business-playability', 'tests/formal-digital-business-playability-test.js'],
+  ['formal-digital-business-ui-eligibility', 'tests/formal-digital-business-ui-eligibility-test.js'],
+  ['formal-product-launch-count-v9', 'tests/formal-product-launch-count-v9-test.js'],
   ['normal-start-ipo-balance-audit', 'tests/normal-start-ipo-balance-audit-test.js'],
   ['playtest-report-ui', 'tests/playtest-report-ui-test.js'],
   ['pmi-100-day-plan', 'tests/pmi-100-day-plan-test.js'],

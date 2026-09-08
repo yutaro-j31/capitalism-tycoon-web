@@ -597,6 +597,10 @@ class TycoonEngine extends EventTarget {
     this.g.history = Array.isArray(this.g.history) ? this.g.history.slice(0,500) : [];
     this.g.reports = Array.isArray(this.g.reports) ? this.g.reports.slice(-520) : [];
     finance.ensureFinance(this.g);
+    const formalProductExists=(this.g.productVentures||[]).some(p=>p&&p.origin!=='founderHome');
+    const formalLaunchRecorded=this.g.finance.transactions.some(t=>t?.sourceType==='launchProduct'&&t?.category==='researchAndDevelopment');
+    const explicitLaunchCount=Number.isFinite(Number(this.g.formalProductLaunchCount))?Math.max(0,Math.floor(Number(this.g.formalProductLaunchCount))):0;
+    this.g.formalProductLaunchCount=Math.max(explicitLaunchCount,formalProductExists||formalLaunchRecorded?1:0);
     this.updateOwnershipRatios();
   }
 

@@ -1,0 +1,9 @@
+'use strict';
+const assert=require('node:assert/strict');const {loadGame}=require('./harness');let seed=991;const random=()=>((seed=Math.imul(seed,1664525)+1013904223)>>>0)/2**32;const {engineModule}=loadGame({random});
+const product={id:'old-formal',blueprintID:'app',name:'旧正式製品',category:'SaaS',status:'released',progress:100,weeksToLaunch:0,quality:20,brand:5,users:10,paidUsers:1,price:1200,serverCost:150000,market:90000,risk:.13,valuation:6500000,developmentCost:6500000,investedCost:6500000,revenue:1000,cost:100,profit:900};
+function oldState(products=[],count){const state=engineModule.createInitialState({configured:true});state.productVentures=products;if(count===undefined)delete state.formalProductLaunchCount;else state.formalProductLaunchCount=count;state.finance.transactions=[];return state;}
+const formal=new engineModule.TycoonEngine(oldState([product]));assert.equal(formal.g.saveVersion,9);assert.equal(formal.g.formalProductLaunchCount,1);formal.sellProduct('old-formal');assert.equal(formal.digitalBusinessFoundingPlan('app').eligible,false);
+const home=new engineModule.TycoonEngine(oldState([{...product,id:'old-home',origin:'founderHome'}]));assert.equal(home.g.formalProductLaunchCount,0);assert.equal(home.digitalBusinessFoundingPlan('app').eligible,true);
+const explicit=new engineModule.TycoonEngine(oldState([],1));assert.equal(explicit.g.formalProductLaunchCount,1);assert.equal(explicit.digitalBusinessFoundingPlan('app').eligible,false);
+const twice=new engineModule.TycoonEngine(JSON.parse(JSON.stringify(formal.g)));assert.equal(twice.g.formalProductLaunchCount,1);assert.equal(JSON.stringify(twice.g.productVentures),JSON.stringify(formal.g.productVentures));assert.equal(twice.g.saveVersion,9);
+console.log('formal product launch count v9 normalization passed');
