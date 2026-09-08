@@ -81,7 +81,7 @@ const clamp = (value, min, max) => Math.max(min, Math.min(max, value));
 const money = value => `¥${Math.round(finite(value)).toLocaleString('ja-JP')}`;
 
 const ENGINE_STUB = {
-  pref: id => ({ tokyo: { id: 'tokyo', name: '東京都' }, osaka: { id: 'osaka', name: '大阪府' } }[id] || null),
+  pref: id => ({ tokyo: { id: 'tokyo', name: '東京都', rent: 210000 }, osaka: { id: 'osaka', name: '大阪府', rent: 160000 } }[id] || null),
   business: id => ({ ramen: { name: 'ラーメン店', quality: 70, brand: 62, efficiency: 72 } }[id] || null),
 };
 const selectedDetail = new Function(
@@ -156,17 +156,37 @@ check('realestate marker -> property detail: price, prefecture, kind, area, yiel
   assert.match(html, /data-action="buy-property-personal" data-id="p-1"/);
 });
 
-check('tenant marker -> tenant detail: weekly rent, deposit, prefecture, trade area, size, traffic, business, and the existing 出店 action', () => {
+check('tenant marker -> truthful tenant detail: canonical base rent, deposit terms, location, reference traffic, and 出店 action', () => {
   const html = selectedDetail(byKind('tenant'), GAME);
   assert.match(html, /テナント募集/);
   assert.ok(html.includes(esc(TENANT.name)));
-  assert.ok(html.includes(money(TENANT.rent)), '賃料 must come from state');
-  assert.ok(html.includes(money(TENANT.deposit)), '初期費用 must come from state');
+  assert.match(html, /基準週額賃料/);
+  assert.ok(html.includes(money(ENGINE_STUB.pref(TENANT.prefID).rent)), 'base rent must come from the canonical prefecture');
+  assert.ok(!html.includes(money(TENANT.rent)), 'legacy tenant.rent must not be presented as weekly economics');
+  assert.match(html, /契約保証金（閉店時返還なし）/);
+  assert.ok(html.includes(money(TENANT.deposit)), 'contract deposit must come from tenant state');
   assert.match(html, /東京都中央/, 'trade area must come from state');
-  assert.match(html, /1\.39/, 'traffic/立地係数 must come from state');
-  assert.match(html, /ラーメン店/, 'the intended business must come from state');
+  assert.match(html, /交通量（参考）/);
+  assert.match(html, /1\.39/, 'reference traffic must come from state');
+  assert.doesNotMatch(html, /想定業態|ラーメン店|区画サイズ|>S<|立地係数|立地適性|売上倍率/);
   assert.match(html, /契約可能/);
   assert.match(html, /data-action="open-store" data-id="t-1"/, 'must reuse the existing tenant action, not a new leasing path');
+});
+
+check('legacy tenant list removes suggested business and size while using the same truthful labels', () => {
+  const renderMapSource = extractFunction(appSrc, 'renderMap');
+  assert.doesNotMatch(renderMapSource, /business\(t\.businessID\)|向け|t\.size|家賃 \$\{yen\(t\.rent\)\}/);
+  assert.match(renderMapSource, /基準週額賃料 \$\{yen\(pref\.rent\)\}/);
+  assert.match(renderMapSource, /契約保証金 \$\{yen\(t\.deposit\)\}（閉店時返還なし）/);
+  assert.match(renderMapSource, /交通量（参考）/);
+});
+
+check('legacy compatibility metadata remains in tenant state and generation', () => {
+  assert.equal(TENANT.businessID, 'ramen');
+  assert.equal(TENANT.size, 'S');
+  const engineSource = read('js/engine.js');
+  assert.match(engineSource, /name: `\$\{pref\.name\} \$\{label\}テナント`, businessID,/);
+  assert.match(engineSource, /rent, deposit: rent \* 8, traffic: pref\.traffic \* mult, size,/);
 });
 
 check('office marker -> office detail: weekly rent, deposit, capacity, grade, prestige, and the existing contract-office action', () => {
@@ -189,11 +209,11 @@ check('store marker -> store detail keeps its existing path (sales, profit, cust
   assert.match(html, /4\.2/);
 });
 
-check('rent is labelled 週額, matching what js/engine.js actually stores (office.rent becomes g.officeWeeklyCost)', () => {
-  // Labelling a weekly figure as monthly would be fabricating a number the
-  // state does not hold.
+check('office rent stays weekly while tenant rent is explicitly the prefecture base figure', () => {
   assert.match(selectedDetail(byKind('office'), GAME), /週額賃料/);
-  assert.match(selectedDetail(byKind('tenant'), GAME), /週額賃料/);
+  const tenantHtml = selectedDetail(byKind('tenant'), GAME);
+  assert.match(tenantHtml, /基準週額賃料/);
+  assert.doesNotMatch(tenantHtml, /<span>週額賃料<\/span>/);
   assert.match(read('js/engine.js'), /officeWeeklyCost=office\.rent/);
 });
 
