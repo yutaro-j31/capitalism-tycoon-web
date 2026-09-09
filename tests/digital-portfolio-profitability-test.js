@@ -44,6 +44,11 @@ function investIfAffordable(engine,product,kind,amount,result,buffer){
   result[kind==='quality'?'qualityInvestment':'marketingInvestment']+=amount;
   return true;
 }
+function productOperatingProfit(engine){
+  return engine.g.productVentures
+    .filter(row=>row.status==='released'&&row.status!=='sold')
+    .reduce((sum,row)=>sum+(Number(row.profit)||0),0);
+}
 function snapshot(engine,modules,result){
   const products=engine.g.productVentures.filter(row=>row.status!=='sold');
   const released=products.filter(row=>row.status==='released');
@@ -72,6 +77,7 @@ function snapshot(engine,modules,result){
     gameOverReason:engine.g.gameOverReason||'',
     borrowing:Math.round(result.borrowing),
     equityFunding:Math.round(result.equityFunding),
+    equityRefreshCount:result.equityRefreshCount,
     runwayBorrowCount:result.runwayBorrowCount
   };
 }
@@ -86,7 +92,7 @@ function run(strategy,maxWeeks=208){
   assert.equal(engineModule.SAVE_VERSION,9);
   const personalCash=engine.g.personalCash;
   const result={
-    strategy,initialCash:engine.g.companyCash,borrowing:0,equityFunding:0,runwayBorrowCount:0,qualityInvestment:0,marketingInvestment:0,
+    strategy,initialCash:engine.g.companyCash,borrowing:0,equityFunding:0,equityRefreshCount:0,runwayBorrowCount:0,qualityInvestment:0,marketingInvestment:0,
     exitProceeds:0,hqWeek:null,secondProductWeek:null,marketingDepartmentWeek:null,dxDepartmentWeek:null,
     fullCompanyBreakEvenWeek:null,investmentPaybackWeek:null,cumulativeOperatingProfit:0,
     committedInvestment:6_500_000,snapshots:{}
@@ -138,18 +144,27 @@ function run(strategy,maxWeeks=208){
       }
     }
 
-    if(engine.g.hasHeadOffice&&!media){
-      if(strategy==='hold'&&engine.g.week-lastOfferRefreshWeek>=13&&engine.g.companyCash<11_000_000){
+    // Equity is a real player-accessible scale-up tool once HQ exists. Limit the diagnostic
+    // to at most two fundraising rounds so survival cannot come from repeatedly refreshing
+    // offers forever; dilution remains the trade-off for retaining the first product.
+    if(strategy==='hold'&&engine.g.hasHeadOffice&&result.equityRefreshCount<2&&engine.g.week-lastOfferRefreshWeek>=13){
+      const needsGrowthCapital=!media&&engine.g.companyCash<11_000_000;
+      const needsRunway=!!media&&engine.g.companyCash<1_500_000;
+      if(needsGrowthCapital||needsRunway){
         assert.equal(engine.refreshInvestorOffers(),true,'production investor offer refresh');
+        result.equityRefreshCount++;
         lastOfferRefreshWeek=engine.g.week;
         for(const offer of engine.g.investorOffers.filter(row=>row.status==='pending'&&engine.g.week<=row.expiresWeek)){
           const before=engine.g.companyCash;
           assert.equal(engine.acceptInvestorOffer(offer.id),true,'production equity funding');
           result.equityFunding+=engine.g.companyCash-before;
-          if(engine.g.companyCash>=11_000_000)break;
+          if((!media&&engine.g.companyCash>=11_000_000)||(media&&engine.g.companyCash>=3_000_000))break;
         }
         financeOK(modules,engine,`equity week ${elapsed}`);
       }
+    }
+
+    if(engine.g.hasHeadOffice&&!media){
       const required=10_000_000;
       if(engine.g.companyCash+availableCredit(engine)>=required&&borrowFor(engine,required,result,'second product')){
         assert.equal(engine.launchProduct('media'),true,'production second product launch');
@@ -163,19 +178,30 @@ function run(strategy,maxWeeks=208){
     if(media?.status==='released'){
       const age=engine.g.week-media.releaseWeek;
       if(age===0||age===26){
-        investIfAffordable(engine,media,'quality',250_000,result,1_000_000);
-        investIfAffordable(engine,media,'marketing',250_000,result,1_000_000);
+        investIfAffordable(engine,media,'quality',250_000,result,1_500_000);
+        investIfAffordable(engine,media,'marketing',250_000,result,1_500_000);
       }
+
+      // Scale departments only after the products can economically carry the new recurring
+      // payroll. This is the player decision #639 is intended to create: product department
+      // unlocks product two, while marketing and DX are accretive later-stage capabilities.
+      const operatingProfit=productOperatingProfit(engine);
+      const currentPayroll=modules.workforce.weeklyPayroll(engine.g);
+      const currentOffice=engine.g.hasHeadOffice?engine.g.officeWeeklyCost:0;
       if(!engine.g.departments.marketing){
+        const postDepartmentFixed=currentPayroll+currentOffice+70_000;
+        const supported=operatingProfit>=postDepartmentFixed+50_000;
         const required=1_600_000+1_500_000;
-        if(engine.g.companyCash+availableCredit(engine)>=required&&borrowFor(engine,required,result,'marketing department')){
+        if(supported&&engine.g.companyCash+availableCredit(engine)>=required&&borrowFor(engine,required,result,'marketing department')){
           assert.equal(engine.establishDepartment('marketing'),true);
           result.committedInvestment+=1_600_000;
           result.marketingDepartmentWeek=elapsed;
         }
       }else if(!engine.g.departments.dx){
+        const postDepartmentFixed=currentPayroll+currentOffice+90_000;
+        const supported=operatingProfit>=postDepartmentFixed+100_000;
         const required=2_200_000+1_500_000;
-        if(engine.g.companyCash+availableCredit(engine)>=required&&borrowFor(engine,required,result,'DX department')){
+        if(supported&&engine.g.companyCash+availableCredit(engine)>=required&&borrowFor(engine,required,result,'DX department')){
           assert.equal(engine.establishDepartment('dx'),true);
           result.committedInvestment+=2_200_000;
           result.dxDepartmentWeek=elapsed;
@@ -217,6 +243,7 @@ const exit=run('exit');
 assert.ok(hold.secondProductWeek<208,'hold route scales before the end of four years');
 assert.equal(hold.exitProceeds,0,'hold route retains the first product');
 assert.ok(hold.equityFunding>=0&&hold.borrowing>0,'hold route uses player-accessible financing only');
+assert.ok(hold.equityRefreshCount<=2,'hold route does not rely on unlimited equity refreshes');
 assert.ok(hold.final.productCount>=2&&hold.final.companyCash>0,'retained-product portfolio survives');
 assert.ok(hold.fullCompanyBreakEvenWeek!==null&&hold.fullCompanyBreakEvenWeek<=208,`successful hold portfolio reaches sustained full-company break-even: ${JSON.stringify(hold)}`);
 assert.ok(exit.exitProceeds>0,'exit route retains its short-term funding advantage');
