@@ -122,9 +122,16 @@ function bigFund(score = 35, size = 30_000_000_000) {
   // Force a healthy cash pile so we can afford quality investment and expansion for the test.
   deal.portfolioCompany.cash = 500_000_000;
   const scoreBefore = deal.portfolioCompany.improvementScore;
-  ops.investQuality(e.g, fund.id, deal.id, 100_000_000); // 100M / 1M-per-point = +100 points, clamped to 100
-  assert.equal(deal.portfolioCompany.qualityInvestment, 100);
-  assert.ok(deal.portfolioCompany.cash < 500_000_000, 'investQuality must spend the portfolio company\'s own cash');
+  // T20の較正修正以降、品質1点の値段は企業価値に比例する（0.3%/点）。EV40億の会社なら
+  // 1点=1200万円なので、1億円では約8.3点しか買えない。上限まで上げるにはEVの30%が要る。
+  ops.investQuality(e.g, fund.id, deal.id, 100_000_000);
+  const pointsPerYen = 1 / (ops.QUALITY_COST_FRACTION_PER_POINT * 4_000_000_000);
+  assert.ok(Math.abs(deal.portfolioCompany.qualityInvestment - 100_000_000 * pointsPerYen) < 1e-6);
+  deal.portfolioCompany.cash = 4_000_000_000; // 上限まで買うにはEVの30%が要る
+  ops.investQuality(e.g, fund.id, deal.id, 4_000_000_000 * ops.QUALITY_COST_FRACTION_PER_POINT * 100);
+  assert.equal(deal.portfolioCompany.qualityInvestment, 100, '上限は100点で頭打ち');
+  assert.ok(deal.portfolioCompany.cash < 4_000_000_000, 'investQuality must spend the portfolio company\'s own cash');
+  assert.ok(deal.portfolioCompany.cash >= 0, 'investQuality must never spend more than the company has');
   const afterQuality = ops.computeImprovementScore(deal);
   assert.ok(afterQuality > scoreBefore, `quality investment must raise improvementScore: ${scoreBefore} -> ${afterQuality}`);
 

@@ -31,9 +31,15 @@ function unit(...p){return hash(p)/4294967295;}
 function between(a,b,...p){return a+(b-a)*unit(...p);}
 
 const PROFIT_HISTORY_LIMIT=260; // 5年分の週次履歴
-const QUALITY_UPKEEP_RATE=.02; // qualityInvestment 1ポイントあたり週次維持費（額はEV比ではなく素点なので小さく効く程度に較正）
-const QUALITY_INVESTMENT_COST_PER_POINT=1_000_000; // 100万円の追加投資でqualityInvestmentが1点上がる
+// T20（通し検証）で判明した較正の修正: 品質投資・出店・維持費はいずれも「会社の規模に対して」
+// 効くべきなのに、旧実装は素点や絶対額で扱っていた。100億円規模の会社でも1億円で品質を上限
+// まで買え（＝売上+50%が事実上タダ）、1店舗増やすと会社まるごと1社ぶんEBITDAが増える（＝EVの
+// 5%で100%増）という価格付けになっていたため、100年通すと資産が京のオーダーまで指数爆発した。
+// 3つとも企業価値・EBITDA比に置き換える。既定値（品質0・1店舗）では従来と完全に同じ挙動。
+const QUALITY_UPKEEP_RATE_OF_EBITDA=.10; // 品質を上限まで維持すると週次EBITDAの10%が維持費に消える
+const QUALITY_COST_FRACTION_PER_POINT=.003; // 品質1点＝企業価値の0.3%（上限100点で30%、回収に約4年）
 const EXPANSION_COST_FRACTION=.05; // 出店1件あたりの費用: 企業価値の5%
+const STORE_MARGINAL_EBITDA_SHARE=.08; // 1店舗の増分は元の会社のEBITDAの8%（EVの5%を約4年で回収）
 const BASELINE_SCORE=50,PROFIT_SCORE_WEIGHT=35,QUALITY_SCORE_WEIGHT=15,PROFIT_SCORE_EV_FRACTION=.10;
 // 経路3接続（設計書§6.5・§11）: 改善スコアが65を超えると業界での評判が上がり、次の独占案件に
 // つながる。失敗（従業員を切って売り抜け）は逆に評判を下げる。
@@ -178,6 +184,9 @@ function computeImprovementScore(deal){
   const qualityBonus=clamp(finite(pc.qualityInvestment)/100,0,1);
   return Math.round(clamp(BASELINE_SCORE+PROFIT_SCORE_WEIGHT*profitRatio+QUALITY_SCORE_WEIGHT*qualityBonus,0,100));
 }
+// 出店の増分（T20較正）。storeCount=1（買収したままの姿）が基準の1.0で、1店舗増えるごとに
+// 元の会社のEBITDAの STORE_MARGINAL_EBITDA_SHARE ぶんだけ上乗せされる。
+function storeScaleFactor(pc){return 1+Math.max(0,Math.floor(finite(pc?.storeCount,1))-1)*STORE_MARGINAL_EBITDA_SHARE;}
 // レバーの効きが遅れて出てくる度合い（0=まだ出ていない、1=出きった）。
 // delayWeeks 経つまでゼロ、その後 rampWeeks かけて線形に立ち上がる。決定論的で状態を持たない。
 function delayedProgress(setWeek,week,delayWeeks,rampWeeks){
@@ -223,10 +232,10 @@ function processDealWeek(fund,deal,week){
   // 案件数に対してチームが薄いほど鈍る、という設計書§4の方向性をここで反映する。
   // T18の完了条件「attention倍率は全レバーに一度だけ乗る」: 乗算はこの1行だけで、
   // leverFactors 側には一切入らないため、レバーを増やしても二重適用にならない。
-  const weeklyEBITDA=annualEBITDA/52*pc.storeCount*pf.attentionMultiplier(fund);
+  const weeklyEBITDA=annualEBITDA/52*storeScaleFactor(pc)*pf.attentionMultiplier(fund);
   const lever=leverFactors(pc,week);
   const noise=between(.92,1.08,'pe-portfolio-week',deal.id,week);
-  const upkeep=pc.qualityInvestment*QUALITY_UPKEEP_RATE*Math.max(1,finite(deal.enterpriseValue)/1_000_000_000);
+  const upkeep=clamp(finite(pc.qualityInvestment)/100,0,1)*QUALITY_UPKEEP_RATE_OF_EBITDA*weeklyEBITDA;
   const weeklyProfit=weeklyEBITDA*lever.revenueFactor*lever.costFactor*noise-upkeep;
   pc.cash=finite(pc.cash)+weeklyProfit;
   pc.weeklyRevenue=weeklyEBITDA*lever.revenueFactor*noise*2;
@@ -256,7 +265,9 @@ function investQuality(state,fundID,dealID,amount){
   const pc=deal.portfolioCompany;
   const spend=Math.max(0,Math.min(finite(amount),pc.cash));
   pc.cash-=spend;
-  pc.qualityInvestment=Math.min(100,pc.qualityInvestment+spend/QUALITY_INVESTMENT_COST_PER_POINT);
+  // 1点あたりの価格は企業価値に比例する（T20較正）。大きい会社の品質ほど上げるのに金がかかる。
+  const costPerPoint=Math.max(1,QUALITY_COST_FRACTION_PER_POINT*Math.max(0,finite(deal.enterpriseValue)));
+  pc.qualityInvestment=Math.min(100,pc.qualityInvestment+spend/costPerPoint);
   return deal;
 }
 // 出店。買収先自身のcashから支出する。
@@ -371,15 +382,18 @@ function exitPortfolioCompany(state,fundID,dealID,{method='sale',week,cutEmploye
   const score=pc.improvementScore;
   const exitMultiple=finite(deal.acquisitionMultiple,8)*(.7+score/100*.6);
   const annualEBITDA=finite(deal.enterpriseValue)/Math.max(1,finite(deal.acquisitionMultiple,8));
-  const exitEV=annualEBITDA*pc.storeCount*exitMultiple;
+  // 買い手が払うのはExit時点の実力（T18の6レバーの結果）に対して。削りすぎて遅れて客数を
+  // 失っていれば、その分そのまま売却価値が下がる — 経営の判断がExitで返ってくる。
+  const w1=Math.max(0,Math.floor(finite(week,state.week)));
+  const lever=leverFactors(pc,w1);
+  const exitEV=annualEBITDA*storeScaleFactor(pc)*lever.revenueFactor*lever.costFactor*exitMultiple;
   const proceeds=Math.max(0,exitEV+pc.cash);
   // T17: 回収額はそのまま fund.distributed に足すのではなく、ウォーターフォール
   // （元本返済 → ハードル → キャリー → 分配）を通す。共同投資分は共同投資家へ返り、
   // GPのキャリーは個人資産に入る（js/pe-fund.js settleExitProceeds）。
-  const w0=Math.max(0,Math.floor(finite(week,state.week)));
-  const settlement=pf.settleExitProceeds(state,fund,deal,proceeds,w0);
+  const settlement=pf.settleExitProceeds(state,fund,deal,proceeds,w1);
   deal.status='exited';
-  deal.exitedWeek=Math.max(0,Math.floor(finite(week,state.week)));
+  deal.exitedWeek=w1;
   deal.exitMethod=method;
   deal.exitProceeds=proceeds;
   deal.exitScore=score;
@@ -410,9 +424,10 @@ function install(){
 install();
 
 modules.pePortfolioOperations=Object.freeze({
-  PROFIT_HISTORY_LIMIT,QUALITY_UPKEEP_RATE,QUALITY_INVESTMENT_COST_PER_POINT,EXPANSION_COST_FRACTION,
+  PROFIT_HISTORY_LIMIT,EXPANSION_COST_FRACTION,
   BASELINE_SCORE,PROFIT_SCORE_WEIGHT,QUALITY_SCORE_WEIGHT,PROFIT_SCORE_EV_FRACTION,
   REPUTATION_THRESHOLD,REPUTATION_BONUS,REPUTATION_PENALTY_FOR_CUTS,
+  QUALITY_UPKEEP_RATE_OF_EBITDA,QUALITY_COST_FRACTION_PER_POINT,STORE_MARGINAL_EBITDA_SHARE,storeScaleFactor,
   PROCUREMENT_EBITDA_GAIN,PROCUREMENT_SAFE_LEVEL,PROCUREMENT_QUALITY_DRAG,PROCUREMENT_DELAY_WEEKS,PROCUREMENT_DRAG_RAMP_WEEKS,PROCUREMENT_COST_FRACTION,
   LABOR_EBITDA_GAIN,LABOR_SERVICE_DRAG,LABOR_WAGE_DRAG,LABOR_DELAY_WEEKS,LABOR_DRAG_RAMP_WEEKS,WAGE_MIN,WAGE_MAX,HEADCOUNT_MIN,HEADCOUNT_MAX,
   PRODUCT_MIX_RAMP_WEEKS,PRODUCT_MIX_MAX_GAIN,PRODUCT_MIX_COST_FRACTION,
