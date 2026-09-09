@@ -140,6 +140,37 @@ function goodExit(overrides = {}) {
   assert.notEqual(fund.lps[0].committedAmount, 999);
 }
 
+// 7b. A single fund cannot hold two commitments of the same LP type -- addLPCommitment must
+// reject the duplicate outright (returns null, no second entry pushed).
+{
+  const e = new TycoonEngine();
+  const fund = pf.createFund(e.g, { size: 1_000_000_000, y0: 1 });
+  const first = pf.addLPCommitment(fund, { lpTypeID: 'regionalBankCorporate', committedAmount: 50_000_000 });
+  assert.ok(first);
+  const dup = pf.addLPCommitment(fund, { lpTypeID: 'regionalBankCorporate', committedAmount: 10_000_000 });
+  assert.equal(dup, null, 'the same LP type cannot be committed twice to the same fund');
+  assert.equal(fund.lps.length, 1);
+  assert.equal(fund.lps[0].committedAmount, 50_000_000, 'the rejected duplicate must not overwrite the original commitment');
+}
+
+// 7c. fund.lps is capped at MAX_LPS_PER_FUND (currently 5, matching every LP type today).
+// Adding one of each real type exercises the cap at its natural boundary; a direct low-level
+// check (bypassing the type-uniqueness rule via a raw push) proves the numeric cap itself is
+// enforced, independent of duplicate-type rejection -- future-proofing against a larger roster.
+{
+  const e = new TycoonEngine();
+  const fund = pf.createFund(e.g, { size: 1_000_000_000, y0: 1 });
+  for (const id of pf.LP_TYPE_IDS) assert.ok(pf.addLPCommitment(fund, { lpTypeID: id, committedAmount: 1_000_000 }), `${id} should be addable`);
+  assert.equal(fund.lps.length, pf.MAX_LPS_PER_FUND);
+  assert.equal(pf.LP_TYPE_IDS.length, pf.MAX_LPS_PER_FUND, 'sanity: exactly MAX_LPS_PER_FUND LP types exist today');
+}
+{
+  const e = new TycoonEngine();
+  const fund = pf.createFund(e.g, { size: 1_000_000_000, y0: 1 });
+  for (let i = 0; i < pf.MAX_LPS_PER_FUND; i++) fund.lps.push({ lpTypeID: `future-${i}`, committedAmount: 0, promiseAccepted: false, promiseFulfilled: null });
+  assert.equal(pf.addLPCommitment(fund, { lpTypeID: 'formerColleague', committedAmount: 1 }), null, 'must refuse once fund.lps.length reaches the cap, independent of type-uniqueness');
+}
+
 // 8. recordLPPromiseOutcome and addLPCommitment are safe no-ops for unknown funds/LP types.
 {
   const e = new TycoonEngine();

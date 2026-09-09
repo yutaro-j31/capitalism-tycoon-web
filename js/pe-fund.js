@@ -194,7 +194,15 @@ function evaluateFund(state,fundID,evaluationWeek){
   fund.evaluatedWeek=week;
   state.peFirm.trackRecord.realizedDPI=dpi;
   const trackRecordAdded=deploymentRate>=NEXT_FUND_MIN_DEPLOYMENT;
-  if(trackRecordAdded)recordExit(state,{exitType:'fund',realizedAmount:fund.distributed,investedAmount:fund.size,foundedWeek:fund.y0,exitedWeek:week});
+  if(trackRecordAdded){
+    // 設計書: 未投資返却分（額面1.0x）はファンド全体のDPI(上のdpi/fundDPI)には含めるが、
+    // トラックレコードのスコア計算には一切加算しない。ここで使うMOICは、実際に投資に
+    // 回した分（fundDeployed）が生んだ回収額（distributed-undeployedReturned）だけを
+    // 分子・分母に使い、未投資分を除外する。
+    const deployedInvested=Math.max(1,fundDeployed(fund));
+    const deployedRealized=Math.max(0,finite(fund.distributed)-finite(fund.undeployedReturned));
+    recordExit(state,{exitType:'fund',realizedAmount:deployedRealized,investedAmount:deployedInvested,foundedWeek:fund.y0,exitedWeek:week});
+  }
   return {dpi,deploymentRate,irr:fundIRR(fund,week),trackRecordAdded};
 }
 // 次号を組成できる条件（設計書§3）: DPI 1.2倍以上 かつ 資金消化80%以上。最新のファンドが
@@ -228,6 +236,9 @@ const LP_TYPE_IDS=Object.freeze(Object.keys(LP_TYPES));
 // 破っても即ペナルティではなく、次号の調達額が目減りするだけ（設計書「守れないと次号で
 // 不利になるだけ」）。全履行なら1.0（ボーナスなし）、全不履行ならこの下限まで下がる。
 const PROMISE_BROKEN_FLOOR=.7;
+// ファンド1本あたりのLP件数上限。現状LP_TYPESは5種類しかないため同一タイプ拒否と
+// 実質同じ効果になるが、T14でLP面談UIが付く前に上限自体を明示しておく。
+const MAX_LPS_PER_FUND=5;
 
 function meetsLPCondition(state,lpTypeID){
   ensure(state);
@@ -249,8 +260,10 @@ function visibleLPTypes(state){
 // その分の金額が小さいだけ（金額そのものはUIが無いためcommittedAmountを呼び出し側が渡す）。
 function addLPCommitment(fund,{lpTypeID,committedAmount=0,promiseAccepted=false}={}){
   if(!fund||!LP_TYPES[lpTypeID])return null;
-  const commitment={lpTypeID,committedAmount:Math.max(0,finite(committedAmount)),promiseAccepted:Boolean(promiseAccepted)&&Boolean(LP_TYPES[lpTypeID].promiseID),promiseFulfilled:null};
   fund.lps=arr(fund.lps);
+  if(fund.lps.some(c=>c.lpTypeID===lpTypeID))return null; // 同一LPタイプは1ファンドにつき1件まで
+  if(fund.lps.length>=MAX_LPS_PER_FUND)return null; // ファンド1本あたりのLP件数上限
+  const commitment={lpTypeID,committedAmount:Math.max(0,finite(committedAmount)),promiseAccepted:Boolean(promiseAccepted)&&Boolean(LP_TYPES[lpTypeID].promiseID),promiseFulfilled:null};
   fund.lps.push(commitment);
   return commitment;
 }
@@ -389,7 +402,7 @@ modules.peFund=Object.freeze({
   requiredGPRatio,managementFeeRate,carryRate,hurdleRate,fundTermsForScore,formableFundSize,lpTrustMultiplier,
   exitQuality,computeTrackScore,recordExit,recordExitForCurrentCompany,
   fundContributed,fundDeployed,fundDeploymentRate,fundDPI,fundIRR,evaluateFund,canFormNextFund,
-  LP_TYPES,LP_TYPE_IDS,PROMISE_BROKEN_FLOOR,meetsLPCondition,visibleLPTypes,addLPCommitment,recordLPPromiseOutcome,promiseComplianceMultiplier,continuingLPCommitments,
+  LP_TYPES,LP_TYPE_IDS,PROMISE_BROKEN_FLOOR,MAX_LPS_PER_FUND,meetsLPCondition,visibleLPTypes,addLPCommitment,recordLPPromiseOutcome,promiseComplianceMultiplier,continuingLPCommitments,
   __installed:true
 });
 })();

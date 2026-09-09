@@ -150,6 +150,26 @@ function fundWith(size, investedAmount, cash, distributed) {
   assert.ok(pf.formableFundSize(e.g) > sizeBefore, 'the next fund ceiling must grow after a fund that clears both thresholds');
 }
 
+// 7d. Completion criterion: undeployed capital returned at par (1.0x) counts toward the
+// fund's overall DPI (see scenario 5) but must NOT be added to the track-record MOIC at all --
+// the track-record entry's realized/invested amounts must reflect only the deployed capital
+// and what IT actually returned, excluding the undeployed-and-returned slice entirely.
+{
+  const e = new TycoonEngine();
+  const fund = pf.createFund(e.g, { size: 1_000_000_000, y0: 1 });
+  fund.deals.push({ id: 'd1', investedAmount: 800_000_000 }); // 80% deployed -> clears the gate
+  fund.undeployedReturned = 200_000_000; // remaining 20% returned undeployed at par
+  fund.distributed = 1_600_000_000 + 200_000_000; // deals returned 2.0x their 800M, plus the par return
+  fund.cash = 0;
+  const result = pf.evaluateFund(e.g, fund.id, fund.y0 + pf.INVESTMENT_PERIOD_WEEKS);
+  assert.equal(result.trackRecordAdded, true, 'sanity: 80% deployment clears the track-record gate');
+  assert.ok(Math.abs(result.dpi - 1.8) < 1e-9, 'sanity: overall fund DPI includes the undeployed par return (1.8B/1B)');
+  const entry = e.g.peFirm.trackRecord.exits[e.g.peFirm.trackRecord.exits.length - 1];
+  assert.ok(Math.abs(entry.investedAmount - 800_000_000) < 1e-6, 'track-record invested amount must be the deployed capital only, not the full fund size');
+  assert.ok(Math.abs(entry.realizedAmount - 1_600_000_000) < 1e-6, 'track-record realized amount must exclude the undeployed-returned slice');
+  assert.ok(Math.abs(entry.personalMOIC - 2.0) < 1e-9, 'the track-record MOIC must be the deployed-capital multiple (2.0x), not the blended fund DPI (1.8x)');
+}
+
 // 8. evaluateFund updates trackRecord.realizedDPI and is safe to call for an unknown fund id.
 {
   const e = new TycoonEngine();
