@@ -648,7 +648,13 @@ function installExpansion(TycoonEngine){
       const quality=clamp(p.quality,0,100),brand=clamp(p.brand,0,100),economics=!solo&&DIGITAL_PRODUCT_ECONOMICS[p.blueprintID];let newUsers,revenue,cost;
       if(economics){
         if(n(f.registeredUsers)<=0&&n(p.users)>0){f.registeredUsers=n(p.users);f.monthlyActiveUsers=f.registeredUsers*economics.monthlyActiveRate;f.lastUpdatedWeek=g.week-1;}
-        const productDepartment=1+n(g.departments?.product&&this.departmentEffect('product'))*.10,marketingDepartment=1+n(g.departments?.marketing&&this.departmentEffect('marketing'))*.16,dxDepartment=1+n(g.departments?.dx&&this.departmentEffect('dx'))*.08,founder=1+n(g.founderSkillTech)*.025;
+        // Departments are shared portfolio capabilities: their payroll is paid once while the
+        // acquisition/cost benefit applies to every formal product.  At the old 10/16/8% rates,
+        // even two successful products could not recover the HQ + department fixed-cost stack,
+        // making sale of product one the economically dominant way to fund product two.  These
+        // deliberately modest rates keep one-product ROI negative, approach break-even at two,
+        // and let a well-run three-product portfolio earn back the shared organization.
+        const productDepartment=1+n(g.departments?.product&&this.departmentEffect('product'))*.25,marketingDepartment=1+n(g.departments?.marketing&&this.departmentEffect('marketing'))*.40,dxDepartment=1+n(g.departments?.dx&&this.departmentEffect('dx'))*.25,founder=1+n(g.founderSkillTech)*.025;
         const acquisitionStrength=(.55+f.awareness*4)*(.65+quality*.008)*(.70+brand*.014)*productDepartment*marketingDepartment*founder;
         f.awareness=clamp(f.awareness+.0015+(quality+brand)/25000+n(g.departments?.marketing&&this.departmentEffect('marketing'))*.0015-f.churnRate*.012,.01,1);
         const remainingMarket=Math.max(0,n(p.market)-n(f.registeredUsers));newUsers=Math.min(remainingMarket,Math.max(1,economics.baseAcquisition*acquisitionStrength));

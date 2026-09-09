@@ -37,7 +37,8 @@
     "tests/d-ui-shell-test.js",
     "tests/map-phase2-framing-zoomout-test.js",
     "tests/map-phase2-marker-placard-interaction-test.js",
-    "tests/map-marker-detail-interaction-test.js"
+    "tests/map-marker-detail-interaction-test.js",
+    "test:digital-portfolio-profitability"
   ],
   "D": [
     "test:stock",
