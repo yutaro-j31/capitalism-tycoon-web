@@ -144,13 +144,14 @@ function run(strategy,maxWeeks=208){
       }
     }
 
-    // Equity is a real player-accessible scale-up tool once HQ exists. Limit the diagnostic
-    // to at most two fundraising rounds so survival cannot come from repeatedly refreshing
-    // offers forever; dilution remains the trade-off for retaining the first product.
+    // Equity is a real player-accessible scale-up tool once HQ exists. Cap fundraising at two
+    // rounds: one can fund product two, the other can fund the marketing capability needed to
+    // grow the retained portfolio. This makes dilution a bounded alternative to selling app.
     if(strategy==='hold'&&engine.g.hasHeadOffice&&result.equityRefreshCount<2&&engine.g.week-lastOfferRefreshWeek>=13){
       const needsGrowthCapital=!media&&engine.g.companyCash<11_000_000;
-      const needsRunway=!!media&&engine.g.companyCash<1_500_000;
-      if(needsGrowthCapital||needsRunway){
+      const needsMarketingCapital=media?.status==='released'&&!engine.g.departments.marketing&&engine.g.companyCash<5_000_000;
+      const needsRunway=!!media&&engine.g.companyCash<1_000_000;
+      if(needsGrowthCapital||needsMarketingCapital||needsRunway){
         assert.equal(engine.refreshInvestorOffers(),true,'production investor offer refresh');
         result.equityRefreshCount++;
         lastOfferRefreshWeek=engine.g.week;
@@ -158,7 +159,8 @@ function run(strategy,maxWeeks=208){
           const before=engine.g.companyCash;
           assert.equal(engine.acceptInvestorOffer(offer.id),true,'production equity funding');
           result.equityFunding+=engine.g.companyCash-before;
-          if((!media&&engine.g.companyCash>=11_000_000)||(media&&engine.g.companyCash>=3_000_000))break;
+          const target=!media?11_000_000:needsMarketingCapital?5_000_000:3_000_000;
+          if(engine.g.companyCash>=target)break;
         }
         financeOK(modules,engine,`equity week ${elapsed}`);
       }
@@ -182,22 +184,24 @@ function run(strategy,maxWeeks=208){
         investIfAffordable(engine,media,'marketing',250_000,result,1_500_000);
       }
 
-      // Scale departments only after the products can economically carry the new recurring
-      // payroll. This is the player decision #639 is intended to create: product department
-      // unlocks product two, while marketing and DX are accretive later-stage capabilities.
       const operatingProfit=productOperatingProfit(engine);
       const currentPayroll=modules.workforce.weeklyPayroll(engine.g);
       const currentOffice=engine.g.hasHeadOffice?engine.g.officeWeeklyCost:0;
       if(!engine.g.departments.marketing){
-        const postDepartmentFixed=currentPayroll+currentOffice+70_000;
-        const supported=operatingProfit>=postDepartmentFixed+50_000;
-        const required=1_600_000+1_500_000;
-        if(supported&&engine.g.companyCash+availableCredit(engine)>=required&&borrowFor(engine,required,result,'marketing department')){
+        // Marketing is intentionally a growth investment: the second bounded equity round may
+        // finance setup before immediate break-even, provided a two-million-yen runway reserve
+        // remains. The department must then earn its keep through the production acquisition path.
+        const required=1_600_000+2_000_000;
+        const growthFunded=result.equityRefreshCount>=2||strategy==='exit';
+        if(growthFunded&&engine.g.companyCash+availableCredit(engine)>=required&&borrowFor(engine,required,result,'marketing department')){
           assert.equal(engine.establishDepartment('marketing'),true);
           result.committedInvestment+=1_600_000;
           result.marketingDepartmentWeek=elapsed;
+          financeOK(modules,engine,`marketing department week ${elapsed}`);
         }
       }else if(!engine.g.departments.dx){
+        // DX remains a later optimization: unlike marketing it is not installed until the
+        // existing portfolio can cover the extra recurring payroll with a safety margin.
         const postDepartmentFixed=currentPayroll+currentOffice+90_000;
         const supported=operatingProfit>=postDepartmentFixed+100_000;
         const required=2_200_000+1_500_000;
@@ -244,6 +248,7 @@ assert.ok(hold.secondProductWeek<208,'hold route scales before the end of four y
 assert.equal(hold.exitProceeds,0,'hold route retains the first product');
 assert.ok(hold.equityFunding>=0&&hold.borrowing>0,'hold route uses player-accessible financing only');
 assert.ok(hold.equityRefreshCount<=2,'hold route does not rely on unlimited equity refreshes');
+assert.ok(hold.marketingDepartmentWeek!==null,'retained-product portfolio reaches the marketing growth stage');
 assert.ok(hold.final.productCount>=2&&hold.final.companyCash>0,'retained-product portfolio survives');
 assert.ok(hold.fullCompanyBreakEvenWeek!==null&&hold.fullCompanyBreakEvenWeek<=208,`successful hold portfolio reaches sustained full-company break-even: ${JSON.stringify(hold)}`);
 assert.ok(exit.exitProceeds>0,'exit route retains its short-term funding advantage');
