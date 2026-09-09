@@ -315,6 +315,50 @@ function processFundsWeek(state,week){
   return state;
 }
 
+// PE mode T9 (docs/PE_MODE_TASKS.md / docs/PE_MODE_DESIGN.md §4, §9 失敗6): team headcount and
+// deal-slot capacity. Both are pure functions of a single fund (its locked-in size/terms.fee),
+// not of live global state, so they stay valid for a past/closed fund too.
+//
+// チーム上限は管理報酬から自動的に決まる（1人あたり年2000万円）。§9 失敗6の教訓により、
+// 機械的な計算をそのまま使わず60人で頭打ちにする（超過分の管理報酬は素直に利益になる —
+// この配分自体は既存のfinance.eventで会社/個人キャッシュに乗る一般の管理報酬計算の話であり、
+// ここでは「雇える人数」の算出のみを扱う）。
+const MANAGEMENT_FEE_PER_HEAD=20_000_000;
+const TEAM_CAP=60;
+// スロット数の上限を決める2要素（設計書§4）。下限投下額は「小型承継」帯の下限(§15)に合わせる。
+const MIN_TICKET_PER_DEAL=300_000_000;
+const MAX_DEAL_SHARE_OF_FUND=.25;
+const SLOT_CAP_ABSOLUTE=8;
+// 保有期間の最適解（設計書§2/§4）: 1号は再投資できず機会費用がゼロなので4年、2号以降は3年。
+const FIRST_FUND_HOLD_WEEKS=208; // 4年
+const LATER_FUND_HOLD_WEEKS=156; // 3年
+
+function teamCapacity(fund){
+  if(!fund)return 0;
+  const annualFee=Math.max(0,finite(fund.size)*finite(fund.terms?.fee));
+  return Math.max(0,Math.min(TEAM_CAP,Math.floor(annualFee/MANAGEMENT_FEE_PER_HEAD)));
+}
+// チーム人数から「同時に手が回る案件数」を導く（設計書§9 解決: 制約を資金からチームへ）。
+// 6人ごとに2枠ずつ増える段階制で、2→4→6→8で頭打ちにする（設計書§4の記述通り）。下限投下額
+// （MIN_TICKET_PER_DEAL）を満たせないほど小さいファンドでは、そちらが先に効く。
+function slotCapacity(fund){
+  if(!fund||finite(fund.size)<=0)return 0;
+  const team=teamCapacity(fund);
+  const teamDriven=team>0?2*Math.ceil(team/6):1;
+  const ticketDriven=Math.max(1,Math.floor(finite(fund.size)/MIN_TICKET_PER_DEAL));
+  return Math.max(1,Math.min(SLOT_CAP_ABSOLUTE,teamDriven,ticketDriven));
+}
+// LPの分散義務（設計書§4）: 1件あたりの投下額はファンド規模の25%まで。
+function maxSingleDealSize(fund){return Math.max(0,finite(fund?.size))*MAX_DEAL_SHARE_OF_FUND;}
+function activeDealCount(fund){return arr(fund?.deals).filter(d=>d&&d.status!=='exited').length;}
+// attention = チーム人数 ÷ 案件数（設計書§4）。1件に1人を割れないと改善が鈍る、という
+// 方向性のみが両文書で明記されている（正確な係数の指定はない）ため、ratio>=1で頭打ち・
+// ratio=0で半減という単調な較正をこのファイル独自に採用する。
+function attentionRatio(fund){return teamCapacity(fund)/Math.max(1,activeDealCount(fund));}
+function attentionMultiplier(fund){return fund?(.5+.5*clamp(attentionRatio(fund),0,1)):1;}
+// 保有期間の最適解（週）。fundIndexはstate.peFirm.funds内での0始まりの通し番号。
+function optimalHoldWeeks(fundIndex){return fundIndex<=0?FIRST_FUND_HOLD_WEEKS:LATER_FUND_HOLD_WEEKS;}
+
 function install(){
   const proto=EngineClass.prototype;
   if(proto.__peFundInstalled)return true;
@@ -403,6 +447,8 @@ modules.peFund=Object.freeze({
   exitQuality,computeTrackScore,recordExit,recordExitForCurrentCompany,
   fundContributed,fundDeployed,fundDeploymentRate,fundDPI,fundIRR,evaluateFund,canFormNextFund,
   LP_TYPES,LP_TYPE_IDS,PROMISE_BROKEN_FLOOR,MAX_LPS_PER_FUND,meetsLPCondition,visibleLPTypes,addLPCommitment,recordLPPromiseOutcome,promiseComplianceMultiplier,continuingLPCommitments,
+  MANAGEMENT_FEE_PER_HEAD,TEAM_CAP,MIN_TICKET_PER_DEAL,MAX_DEAL_SHARE_OF_FUND,SLOT_CAP_ABSOLUTE,FIRST_FUND_HOLD_WEEKS,LATER_FUND_HOLD_WEEKS,
+  teamCapacity,slotCapacity,maxSingleDealSize,activeDealCount,attentionRatio,attentionMultiplier,optimalHoldWeeks,
   __installed:true
 });
 })();
