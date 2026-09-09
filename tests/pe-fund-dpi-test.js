@@ -170,6 +170,25 @@ function fundWith(size, investedAmount, cash, distributed) {
   assert.ok(Math.abs(entry.personalMOIC - 2.0) < 1e-9, 'the track-record MOIC must be the deployed-capital multiple (2.0x), not the blended fund DPI (1.8x)');
 }
 
+// 7e. Completion criterion (T15 / 設計書§2・§12): formableFundSize never exceeds the absolute
+// 5兆円 ceiling, even for an enormous personal cash pile and a maxed-out track record.
+{
+  const e = new TycoonEngine();
+  e.g.personalCash = 100_000_000_000_000; // 100兆円
+  e.g.peFirm.trackRecord.score = 100;
+  assert.equal(pf.formableFundSize(e.g), pf.MAX_FUND_SIZE);
+  assert.equal(pf.MAX_FUND_SIZE, 5_000_000_000_000);
+}
+{
+  // Below the ceiling, the cap must not distort the ordinary formula.
+  const e = new TycoonEngine();
+  e.g.personalCash = 1_000_000_000;
+  e.g.peFirm.trackRecord.score = 5;
+  const formable = pf.formableFundSize(e.g);
+  assert.ok(formable < pf.MAX_FUND_SIZE);
+  assert.ok(Math.abs(formable - 2_800_000_000) / 2_800_000_000 < .05);
+}
+
 // 8. evaluateFund updates trackRecord.realizedDPI and is safe to call for an unknown fund id.
 {
   const e = new TycoonEngine();

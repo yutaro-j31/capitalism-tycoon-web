@@ -83,6 +83,10 @@ function ensure(state){
 // task doc's literal ones, not the design doc's illustrative table (which mixes in later
 // LP-trust history from its own simulation and doesn't reduce to one clean formula).
 const GP_COMMIT_FRACTION_OF_PERSONAL_CASH=.5;
+// ファンド1本の絶対上限（設計書§2/§12）: 逓減では100年の指数爆発を止められないと検証済みの
+// ため、規模そのものに天井を置く。天井到達後は複利ではなく単利的な成長に切り替わる
+// （複数ファンド運用・個人資産への流出でのみ資産が伸び続ける、というのが設計書の結論）。
+const MAX_FUND_SIZE=5_000_000_000_000;
 function requiredGPRatio(score){return clamp(.20-.18*Math.pow(clamp(score,0,100)/100,.7),.02,.20);}
 function managementFeeRate(score){return .015+.01*(clamp(score,0,100)/100);}
 function carryRate(score){return .15+.10*(clamp(score,0,100)/100);}
@@ -98,7 +102,8 @@ function formableFundSize(state){
   const gpBudget=Math.max(0,finite(state.personalCash))*GP_COMMIT_FRACTION_OF_PERSONAL_CASH;
   const funds=state.peFirm.funds,latestFund=funds[funds.length-1];
   const promiseMultiplier=latestFund?promiseComplianceMultiplier(latestFund):1;
-  return ratio>0?gpBudget/ratio*lpTrustMultiplier(state)*promiseMultiplier:0;
+  const raw=ratio>0?gpBudget/ratio*lpTrustMultiplier(state)*promiseMultiplier:0;
+  return Math.min(raw,MAX_FUND_SIZE);
 }
 
 // PE mode T6: a single exit's "quality" in [0,1], composited from MOIC, speed, and business
@@ -529,7 +534,7 @@ if(typeof document!=='undefined'&&typeof document.addEventListener==='function')
 }
 
 modules.peFund=Object.freeze({
-  FUND_TERM_WEEKS,INVESTMENT_PERIOD_WEEKS,GP_COMMIT_FRACTION_OF_PERSONAL_CASH,NEXT_FUND_MIN_DPI,NEXT_FUND_MIN_DEPLOYMENT,
+  FUND_TERM_WEEKS,INVESTMENT_PERIOD_WEEKS,GP_COMMIT_FRACTION_OF_PERSONAL_CASH,MAX_FUND_SIZE,NEXT_FUND_MIN_DPI,NEXT_FUND_MIN_DEPLOYMENT,
   ensure,ensureFund,createFund,processFundsWeek,install,installCompletionDependentHooks,
   requiredGPRatio,managementFeeRate,carryRate,hurdleRate,fundTermsForScore,formableFundSize,lpTrustMultiplier,
   exitQuality,computeTrackScore,recordExit,recordExitForCurrentCompany,
