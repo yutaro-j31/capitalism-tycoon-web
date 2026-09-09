@@ -295,7 +295,8 @@ const nodeTests = [
   ['department-closure-plan', 'tests/department-closure-plan-test.js'],
   ['executive-delegation', 'tests/executive-delegation-test.js'],
   ['customer-review-breakdown', 'tests/customer-review-breakdown-test.js'],
-  ['store-comparison-table', 'tests/store-comparison-table-test.js']
+  ['store-comparison-table', 'tests/store-comparison-table-test.js'],
+  ['pe-rivals', 'tests/pe-rivals-test.js']
 ];
 
 for (let i = 0; i < nodeTests.length; i++) {

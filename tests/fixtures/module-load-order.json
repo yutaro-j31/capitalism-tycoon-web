@@ -25,6 +25,7 @@
     "./js/save-v9.js",
     "./js/ma-integration.js",
     "./js/ma-deal-room.js",
+    "./js/pe-rivals.js",
     "./js/expansion.js",
     "./js/pe-value-creation.js",
     "./js/sports-management.js",

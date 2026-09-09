@@ -214,7 +214,7 @@ function createInitialState(options = {}) {
     totalAcquisitions: 0, totalMAGain: 0, totalImpairmentLoss: 0,
     productVentures: [], productBuyoutOffers: [], productExitCount: 0, formalProductLaunchCount: 0,
     franchiseStoresByBusinessID: {}, franchiseRoyaltyRateByBusinessID: {}, franchiseQualityByBusinessID: {}, franchiseTrustByBusinessID: {},
-    overseasSubsidiaries: [], personalInvestments: [], luxuryAssets: [], sportsTeams: [], peDeals: [],
+    overseasSubsidiaries: [], personalInvestments: [], luxuryAssets: [], sportsTeams: [], peDeals: [], peRivals: [],
     cxoExecutives: [], executiveDirectives: [], departmentCampaigns: [], internalVentureProposals: [], internalVentures: [],
     employeeSatisfaction: 55, employeeAbility: 50, wageLevel: 1, benefitLevel: 1, remoteWorkEnabled: false,
     organizationCulture: {morale:55, innovation:30, compliance:40, turnoverRate:.08},
