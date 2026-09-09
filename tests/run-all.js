@@ -298,7 +298,8 @@ const nodeTests = [
   ['store-comparison-table', 'tests/store-comparison-table-test.js'],
   ['pe-rivals', 'tests/pe-rivals-test.js'],
   ['pe-fund', 'tests/pe-fund-test.js'],
-  ['pe-fund-track-record', 'tests/pe-fund-track-record-test.js']
+  ['pe-fund-track-record', 'tests/pe-fund-track-record-test.js'],
+  ['pe-fund-dpi', 'tests/pe-fund-dpi-test.js']
 ];
 
 for (let i = 0; i < nodeTests.length; i++) {

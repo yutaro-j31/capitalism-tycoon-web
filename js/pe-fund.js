@@ -21,6 +21,9 @@ const arr=v=>Array.isArray(v)?v:[];
 // ファンド期間10年・投資期間5年（設計書§2）。週次エンジンなので週数で扱う。
 const FUND_TERM_WEEKS=520;
 const INVESTMENT_PERIOD_WEEKS=260;
+// PE mode T7: 次号組成の条件（設計書§3 関門3）。
+const NEXT_FUND_MIN_DPI=1.2;
+const NEXT_FUND_MIN_DEPLOYMENT=.8;
 
 function defaultTrackRecord(){return {score:0,exits:[],realizedDPI:0};}
 function defaultPeFirm(){return {trackRecord:defaultTrackRecord(),funds:[],ddSlotsPerYear:3,unlocked:false};}
@@ -78,9 +81,10 @@ function managementFeeRate(score){return .015+.01*(clamp(score,0,100)/100);}
 function carryRate(score){return .15+.10*(clamp(score,0,100)/100);}
 function hurdleRate(score){return .10-.02*(clamp(score,0,100)/100);}
 function fundTermsForScore(score){return {fee:managementFeeRate(score),carry:carryRate(score),hurdle:hurdleRate(score)};}
-// T7 replaces this with a real per-fund-performance multiplier; until any fund has been
-// evaluated there is no history to react to, so it stays neutral.
-function lpTrustMultiplier(state){ensure(state);const funds=state.peFirm.funds;for(let i=funds.length-1;i>=0;i--){const f=funds[i];if(Number.isFinite(f.dpiAtEvaluation))return f.dpiAtEvaluation>=1.2?1.12:f.dpiAtEvaluation>=1.0?.80:.55;}return 1;}
+// LP信頼度（設計書§3）: reacts to the most recently EVALUATED fund's DPI tier (set by T7's
+// evaluateFund below). Until any fund has been evaluated there is no history to react to, so
+// it stays neutral (1).
+function lpTrustMultiplier(state){ensure(state);const funds=state.peFirm.funds;for(let i=funds.length-1;i>=0;i--){const f=funds[i];if(Number.isFinite(f.dpiAtEvaluation))return f.dpiAtEvaluation>=NEXT_FUND_MIN_DPI?1.12:f.dpiAtEvaluation>=1.0?.80:.55;}return 1;}
 function formableFundSize(state){
   ensure(state);
   const ratio=requiredGPRatio(state.peFirm.trackRecord.score);
@@ -96,6 +100,10 @@ function formableFundSize(state){
 function exitQuality(exit){
   const moicQ=clamp((finite(exit.personalMOIC,1)-1)/2,0,1);
   const speedQ=clamp(1-(finite(exit.yearsElapsed,10)-1)/9,0,1);
+  // A fund-level track-record entry (T7's evaluateFund) has no employee/profit-streak
+  // concept of its own -- it is the fund's blended DPI, not one company -- so it is scored
+  // purely on MOIC and speed instead of diluting those with a fabricated quality signal.
+  if(exit.exitType==='fund')return moicQ*.6+speedQ*.4;
   const qualityQ=clamp(finite(exit.profitableWeekStreak)/260,0,1)*.7+clamp(finite(exit.employeeCount)/50,0,1)*.3;
   return moicQ*.4+speedQ*.2+qualityQ*.4;
 }
@@ -146,6 +154,58 @@ function createFund(state,{size=0,gpCommit=0,terms={fee:0,carry:0,hurdle:0},lps=
   ensureFund(fund,finite(state.week,1));
   state.peFirm.funds.push(fund);
   return fund;
+}
+
+// PE mode T7 (docs/PE_MODE_TASKS.md / docs/PE_MODE_DESIGN.md §3 関門3): DPI / IRR and the
+// next-fund formation gate. T5 calls a fund's entire size at formation, so "出資総額" is just
+// fund.size; fundDeployed reads state.peFirm.funds[].deals, which stays empty until a later
+// task can actually finance an acquisition from a fund -- tests exercise this by pushing
+// synthetic deal records directly.
+function fundContributed(fund){return Math.max(0,finite(fund?.size));}
+function fundDeployed(fund){return arr(fund?.deals).reduce((sum,d)=>sum+Math.max(0,finite(d?.investedAmount)),0);}
+function fundDeploymentRate(fund){const c=fundContributed(fund);return c>0?clamp(fundDeployed(fund)/c,0,1):0;}
+function fundDPI(fund){const c=fundContributed(fund);return c>0?Math.max(0,finite(fund.distributed))/c:0;}
+// Approximates IRR as the fund's compound annual growth rate (distributed/contributed over
+// elapsed years). This is not a true multi-cashflow XIRR, but neither doc's next-fund gate or
+// LP-trust tiers are defined in terms of IRR (both use DPI), so a closer approximation isn't
+// load-bearing for any tested behavior -- IRR here is informational.
+function fundIRR(fund,currentWeek){
+  const years=Math.max(1/52,(finite(currentWeek,fund.y0)-fund.y0)/52);
+  const dpi=fundDPI(fund);
+  return dpi>0?Math.pow(dpi,1/years)-1:-1;
+}
+// Evaluates a fund's current performance: records its DPI for js/pe-fund.js's own LP-trust
+// tiering (lpTrustMultiplier), and -- only when at least NEXT_FUND_MIN_DEPLOYMENT of its
+// capital was actually deployed -- feeds that performance into trackRecord (a fund that
+// mostly sat in cash and returned it undeployed does not get credited, per the task doc's
+// "資金消化80%未満だと実績が加算されない"). Callable at any time (no auto-trigger from
+// processFundsWeek yet -- there is no fund-financed deal-exit mechanic to react to until a
+// later task, so a test or a future "raise the next fund" action calls this on demand).
+function evaluateFund(state,fundID,evaluationWeek){
+  ensure(state);
+  const fund=state.peFirm.funds.find(f=>f.id===fundID);
+  if(!fund)return null;
+  const week=Math.max(fund.y0,finite(evaluationWeek,finite(state.week,fund.y0)));
+  const dpi=fundDPI(fund),deploymentRate=fundDeploymentRate(fund);
+  fund.dpiAtEvaluation=dpi;
+  fund.deploymentRateAtEvaluation=deploymentRate;
+  fund.evaluatedWeek=week;
+  state.peFirm.trackRecord.realizedDPI=dpi;
+  const trackRecordAdded=deploymentRate>=NEXT_FUND_MIN_DEPLOYMENT;
+  if(trackRecordAdded)recordExit(state,{exitType:'fund',realizedAmount:fund.distributed,investedAmount:fund.size,foundedWeek:fund.y0,exitedWeek:week});
+  return {dpi,deploymentRate,irr:fundIRR(fund,week),trackRecordAdded};
+}
+// 次号を組成できる条件（設計書§3）: DPI 1.2倍以上 かつ 資金消化80%以上。最新のファンドが
+// 評価済みならその値を、未評価ならその場で計算した現在値を使う。ファンドがまだ無ければ
+// Fund Iの話（T6の解禁条件のみ）。
+function canFormNextFund(state){
+  ensure(state);
+  const funds=state.peFirm.funds;
+  if(!funds.length)return state.peFirm.unlocked;
+  const latest=funds[funds.length-1];
+  const dpi=Number.isFinite(latest.dpiAtEvaluation)?latest.dpiAtEvaluation:fundDPI(latest);
+  const deploymentRate=Number.isFinite(latest.deploymentRateAtEvaluation)?latest.deploymentRateAtEvaluation:fundDeploymentRate(latest);
+  return dpi>=NEXT_FUND_MIN_DPI&&deploymentRate>=NEXT_FUND_MIN_DEPLOYMENT;
 }
 
 // PE mode T5: exit proceeds are distributed immediately and never reinvested (design doc §9
@@ -253,10 +313,11 @@ if(typeof document!=='undefined'&&typeof document.addEventListener==='function')
 }
 
 modules.peFund=Object.freeze({
-  FUND_TERM_WEEKS,INVESTMENT_PERIOD_WEEKS,GP_COMMIT_FRACTION_OF_PERSONAL_CASH,
+  FUND_TERM_WEEKS,INVESTMENT_PERIOD_WEEKS,GP_COMMIT_FRACTION_OF_PERSONAL_CASH,NEXT_FUND_MIN_DPI,NEXT_FUND_MIN_DEPLOYMENT,
   ensure,ensureFund,createFund,processFundsWeek,install,installCompletionDependentHooks,
   requiredGPRatio,managementFeeRate,carryRate,hurdleRate,fundTermsForScore,formableFundSize,lpTrustMultiplier,
   exitQuality,computeTrackScore,recordExit,recordExitForCurrentCompany,
+  fundContributed,fundDeployed,fundDeploymentRate,fundDPI,fundIRR,evaluateFund,canFormNextFund,
   __installed:true
 });
 })();
