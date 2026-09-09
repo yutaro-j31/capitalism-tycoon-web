@@ -69,6 +69,7 @@ function ensureFund(f,week){
   f.distributed=Math.max(0,finite(f.distributed,0));
   f.undeployedReturned=Math.max(0,finite(f.undeployedReturned,0));
   f.coinvestCommitted=Math.max(0,finite(f.coinvestCommitted,0));
+  f.coinvestReturned=Math.max(0,finite(f.coinvestReturned,0));
   f.investmentDeadlineWeek=f.y0+INVESTMENT_PERIOD_WEEKS;
   f.deadlineWeek=f.y0+FUND_TERM_WEEKS;
   f.status=f.status||'investing';
@@ -222,7 +223,7 @@ function fundIRR(fund,currentWeek){
 // "資金消化80%未満だと実績が加算されない"). Callable at any time (no auto-trigger from
 // processFundsWeek yet -- there is no fund-financed deal-exit mechanic to react to until a
 // later task, so a test or a future "raise the next fund" action calls this on demand).
-function evaluateFund(state,fundID,evaluationWeek){
+function evaluateFund(state,fundID,evaluationWeek,{recordTrackRecord=true}={}){
   ensure(state);
   const fund=state.peFirm.funds.find(f=>f.id===fundID);
   if(!fund)return null;
@@ -232,7 +233,10 @@ function evaluateFund(state,fundID,evaluationWeek){
   fund.deploymentRateAtEvaluation=deploymentRate;
   fund.evaluatedWeek=week;
   state.peFirm.trackRecord.realizedDPI=dpi;
-  const trackRecordAdded=deploymentRate>=NEXT_FUND_MIN_DEPLOYMENT;
+  // T17: evaluateFund は週次処理からも自動的に呼ばれるようになったため、トラックレコードへの
+  // 加算は「1ファンドにつき1回だけ」に制限する（recordTrackRecord:false の週次リフレッシュでは
+  // そもそも加算しない）。加算済みかどうかは fund.trackRecordExitID が持つ。
+  const trackRecordAdded=deploymentRate>=NEXT_FUND_MIN_DEPLOYMENT&&recordTrackRecord&&!fund.trackRecordExitID;
   if(trackRecordAdded){
     // 設計書: 未投資返却分（額面1.0x）はファンド全体のDPI(上のdpi/fundDPI)には含めるが、
     // トラックレコードのスコア計算には一切加算しない。ここで使うMOICは、実際に投資に
@@ -240,7 +244,8 @@ function evaluateFund(state,fundID,evaluationWeek){
     // 分子・分母に使い、未投資分を除外する。
     const deployedInvested=Math.max(1,fundDeployed(fund));
     const deployedRealized=Math.max(0,finite(fund.distributed)-finite(fund.undeployedReturned));
-    recordExit(state,{exitType:'fund',realizedAmount:deployedRealized,investedAmount:deployedInvested,foundedWeek:fund.y0,exitedWeek:week});
+    const entry=recordExit(state,{exitType:'fund',realizedAmount:deployedRealized,investedAmount:deployedInvested,foundedWeek:fund.y0,exitedWeek:week});
+    fund.trackRecordExitID=entry.id;
   }
   return {dpi,deploymentRate,irr:fundIRR(fund,week),trackRecordAdded};
 }
@@ -349,6 +354,10 @@ function processFundsWeek(state,week){
       fund.status='closed';
       fund.closedWeek=week;
     }
+    // T17: evaluateFund を週次処理から自動的に呼ぶ。通常週は DPI・資金消化率のリフレッシュ
+    // だけを行い（次号組成の関門とLP信頼度がこれを見る）、トラックレコードへの加算は
+    // ファンドが実際に終了した週だけ・1回だけ行う（evaluateFund側の once ガード）。
+    evaluateFund(state,fund.id,week,{recordTrackRecord:fund.status==='closed'});
     fund.lastProcessedWeek=week;
   }
   return state;
@@ -479,6 +488,70 @@ function recordCoinvestment(fund,amount){
   return used;
 }
 
+// PE mode T17 (docs/PE_MODE_TASKS.md / docs/PE_MODE_DESIGN.md §2・§14): Exit代金の分配。
+// これ以前は Exit の回収額をまるごと fund.distributed に足していただけで、元本返済・ハードル・
+// キャリーのどれも存在しなかった（Codex監査 PE-AUDIT-006）。ここが唯一の分配経路になる。
+//
+// お金の出どころと戻り先を明示する（T17の完了条件）:
+//   - deal.fundPortion    … ファンドの現金から出た分。回収額のうちこの持分に対応する部分は
+//                            キャリー控除後に fund.distributed（＝LP+GPへの分配）へ入る。
+//   - deal.coinvestPortion… 共同投資家（LP）が案件ごとに直接出した分。ファンドの現金は一切
+//                            通らない。回収額の対応部分はキャリー控除後に共同投資家へ戻り、
+//                            fund.coinvestReturned に累計だけを記録する。fund.cash にも
+//                            fund.distributed にも入らない（＝DPIを水増ししない）。
+//   - キャリー            … GP（プレイヤー個人）の報酬。state.personalCash に入る。会社の
+//                            現金（companyCash）にも会社の会計にも一切触れない。
+//
+// ウォーターフォール（1案件ぶん）:
+//   1. 回収額を投下額の比でファンド分／共同投資分に按分する
+//   2. それぞれ元本を返す
+//   3. 元本超過分のうちハードル（保有年数で複利）を超えた部分だけがキャリーの対象
+//   4. ファンド分はフルのキャリー率、共同投資分はその半分（COINVEST_CARRY_FACTOR）
+//   5. 残りをそれぞれの出し手へ返す
+// 二重徴収防止: 決済済みの案件（deal.settlement あり）は再決済しない。
+function settleExitProceeds(state,fund,deal,proceeds,week){
+  if(!state||!fund||!deal)return null;
+  ensure(state);
+  if(deal.settlement)return deal.settlement;
+  const gross=Math.max(0,finite(proceeds));
+  const fundPortion=Math.max(0,finite(deal.fundPortion));
+  const coinvestPortion=Math.max(0,finite(deal.coinvestPortion));
+  const invested=fundPortion+coinvestPortion;
+  const fundShare=invested>0?gross*fundPortion/invested:gross;
+  const coinvestShare=invested>0?gross*coinvestPortion/invested:0;
+  const w=Math.max(0,Math.floor(finite(week,finite(state.week,0))));
+  const years=Math.max(0,(w-finite(deal.acquiredWeek,w))/52);
+  const hurdle=Math.max(0,finite(fund.terms?.hurdle));
+  const hurdleFactor=Math.pow(1+hurdle,years)-1;
+  const fullCarry=Math.max(0,finite(fund.terms?.carry));
+
+  const fundProfit=Math.max(0,fundShare-fundPortion);
+  const fundHurdleAmount=fundPortion*hurdleFactor;
+  const fundCarry=Math.max(0,fundProfit-fundHurdleAmount)*fullCarry;
+  const coinvestProfit=Math.max(0,coinvestShare-coinvestPortion);
+  const coinvestHurdleAmount=coinvestPortion*hurdleFactor;
+  const coinvestCarry=Math.max(0,coinvestProfit-coinvestHurdleAmount)*fullCarry*COINVEST_CARRY_FACTOR;
+
+  const distributedToFund=Math.max(0,fundShare-fundCarry);
+  const returnedToCoinvestors=Math.max(0,coinvestShare-coinvestCarry);
+  const gpCarry=fundCarry+coinvestCarry;
+  fund.distributed=Math.max(0,finite(fund.distributed))+distributedToFund;
+  fund.coinvestReturned=Math.max(0,finite(fund.coinvestReturned))+returnedToCoinvestors;
+  if(gpCarry>0)state.personalCash=finite(state.personalCash)+gpCarry;
+  const settlement={
+    grossProceeds:gross,
+    fundShare,coinvestShare,
+    fundPrincipalReturned:Math.min(fundShare,fundPortion),
+    coinvestPrincipalReturned:Math.min(coinvestShare,coinvestPortion),
+    hurdleFactor,fundHurdleAmount,coinvestHurdleAmount,
+    fundCarry,coinvestCarry,gpCarry,
+    distributedToFund,returnedToCoinvestors,
+    settledWeek:w
+  };
+  deal.settlement=settlement;
+  return settlement;
+}
+
 function install(){
   const proto=EngineClass.prototype;
   if(proto.__peFundInstalled)return true;
@@ -570,7 +643,7 @@ modules.peFund=Object.freeze({
   MANAGEMENT_FEE_PER_HEAD,TEAM_CAP,MIN_TICKET_PER_DEAL,MAX_DEAL_SHARE_OF_FUND,SLOT_CAP_ABSOLUTE,FIRST_FUND_HOLD_WEEKS,LATER_FUND_HOLD_WEEKS,
   teamCapacity,slotCapacity,maxSingleDealSize,activeDealCount,attentionRatio,attentionMultiplier,optimalHoldWeeks,
   DD_SLOTS_BASE,DD_SLOTS_PER_PARTNER_DIVISOR,DD_YEAR_WEEKS,partnerCount,computeDDSlotsPerYear,ddSlotsPerYear,ddPeriodIndex,currentDDUsage,ddSlotsRemaining,consumeDDSlot,
-  COINVEST_CAP_MULTIPLE,COINVEST_CARRY_FACTOR,coinvestCapacity,coinvestCommitted,coinvestRemaining,annualManagementFee,planDealFinancing,recordCoinvestment,
+  COINVEST_CAP_MULTIPLE,COINVEST_CARRY_FACTOR,coinvestCapacity,coinvestCommitted,coinvestRemaining,annualManagementFee,planDealFinancing,recordCoinvestment,settleExitProceeds,
   __installed:true
 });
 })();

@@ -42,6 +42,7 @@
     "./js/pe-network.js",
     "./js/pe-portfolio-operations.js",
     "./js/pe-deal-supply.js",
+    "./js/pe-acquisition.js",
     "./js/parity.js",
     "./js/ceo-dashboard.js",
     "./js/executive-secretary.js",

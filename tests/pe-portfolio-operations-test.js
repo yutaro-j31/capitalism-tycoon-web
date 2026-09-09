@@ -175,8 +175,10 @@ function bigFund(score = 35, size = 30_000_000_000) {
 }
 
 // 7. Completion criterion: accounting separation -- acquiring, operating, and exiting a
-// portfolio company must NEVER touch the player's own companyCash/personalCash. Only
-// fund.cash / fund.distributed / fund.coinvestCommitted / portfolioCompany.cash move.
+// portfolio company must NEVER touch the player's own companyCash. Only fund.cash /
+// fund.distributed / fund.coinvestCommitted / portfolioCompany.cash move, plus (since T17)
+// the GP's carried interest, which is personal income by design and lands in personalCash --
+// the amount is exactly the settlement's gpCarry and nothing else.
 {
   const { e, fund } = bigFund();
   e.g.companyCash = 12_345_678;
@@ -190,7 +192,8 @@ function bigFund(score = 35, size = 30_000_000_000) {
   ops.expandPortfolioStore(e.g, fund.id, deal.id);
   ops.exitPortfolioCompany(e.g, fund.id, deal.id, { week: 21 });
   assert.equal(e.g.companyCash, companyCashBefore, 'companyCash must be completely untouched by portfolio operations');
-  assert.equal(e.g.personalCash, personalCashBefore, 'personalCash must be completely untouched by portfolio operations');
+  assert.ok(deal.exitSettlement, 'T17: an exit records its settlement');
+  assert.ok(Math.abs((e.g.personalCash - personalCashBefore) - deal.exitSettlement.gpCarry) < 1e-6, 'personalCash moves by exactly the GP carry and nothing else');
 }
 
 // 8. findFundAndDeal / ensure are safe on missing funds/deals.

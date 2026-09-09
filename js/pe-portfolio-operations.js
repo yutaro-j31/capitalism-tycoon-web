@@ -61,11 +61,13 @@ function ensureDeal(deal,week){
   if(deal.status==='active'&&deal.portfolioCompany)normalizePortfolioCompany(deal.portfolioCompany,week);
   return deal;
 }
-// 全ファンドの案件を正規化する（peFirm.funds[].deals[] のうち businessID を持つ = 5本柱系）。
+// 全ファンドの案件を正規化する（peFirm.funds[].deals[] のうち portfolioCompany を持つもの）。
+// T17でproduction pathから取得される案件は5本柱系(businessID)とは限らないため、判定は
+// businessIDではなく portfolioCompany の有無で行う。
 function ensure(state){
   pf.ensure(state);
   const week=Math.max(0,Math.floor(finite(state.week,0)));
-  for(const fund of state.peFirm.funds)for(const deal of arr(fund.deals))if(deal&&deal.businessID)ensureDeal(deal,week);
+  for(const fund of state.peFirm.funds)for(const deal of arr(fund.deals))if(deal&&deal.portfolioCompany)ensureDeal(deal,week);
   return state;
 }
 
@@ -145,7 +147,7 @@ function processDealWeek(fund,deal,week){
 function processPortfolioWeek(state,week){
   ensure(state);
   const w=Math.max(0,Math.floor(finite(week,state.week)));
-  for(const fund of state.peFirm.funds)for(const deal of arr(fund.deals))if(deal&&deal.businessID&&deal.status==='active')processDealWeek(fund,deal,w);
+  for(const fund of state.peFirm.funds)for(const deal of arr(fund.deals))if(deal&&deal.portfolioCompany&&deal.status==='active')processDealWeek(fund,deal,w);
   return state;
 }
 
@@ -189,12 +191,17 @@ function exitPortfolioCompany(state,fundID,dealID,{method='sale',week,cutEmploye
   const annualEBITDA=finite(deal.enterpriseValue)/Math.max(1,finite(deal.acquisitionMultiple,8));
   const exitEV=annualEBITDA*pc.storeCount*exitMultiple;
   const proceeds=Math.max(0,exitEV+pc.cash);
-  fund.distributed=finite(fund.distributed)+proceeds;
+  // T17: 回収額はそのまま fund.distributed に足すのではなく、ウォーターフォール
+  // （元本返済 → ハードル → キャリー → 分配）を通す。共同投資分は共同投資家へ返り、
+  // GPのキャリーは個人資産に入る（js/pe-fund.js settleExitProceeds）。
+  const w0=Math.max(0,Math.floor(finite(week,state.week)));
+  const settlement=pf.settleExitProceeds(state,fund,deal,proceeds,w0);
   deal.status='exited';
   deal.exitedWeek=Math.max(0,Math.floor(finite(week,state.week)));
   deal.exitMethod=method;
   deal.exitProceeds=proceeds;
   deal.exitScore=score;
+  deal.exitSettlement=settlement;
   const network=modules.peNetwork;
   if(network){
     network.ensure(state);
@@ -230,7 +237,7 @@ modules.pePortfolioOperations=Object.freeze({
   PROFIT_HISTORY_LIMIT,QUALITY_UPKEEP_RATE,QUALITY_INVESTMENT_COST_PER_POINT,EXPANSION_COST_FRACTION,
   BASELINE_SCORE,PROFIT_SCORE_WEIGHT,QUALITY_SCORE_WEIGHT,PROFIT_SCORE_EV_FRACTION,
   REPUTATION_THRESHOLD,REPUTATION_BONUS,REPUTATION_PENALTY_FOR_CUTS,
-  ensure,findFundAndDeal,acquirePillarCompany,computeImprovementScore,processDealWeek,processPortfolioWeek,
+  ensure,findFundAndDeal,defaultPortfolioCompany,normalizePortfolioCompany,acquirePillarCompany,computeImprovementScore,processDealWeek,processPortfolioWeek,
   setPriceMultiplier,investQuality,expandPortfolioStore,exitPortfolioCompany,install,
   __installed:true
 });
