@@ -132,11 +132,12 @@ function target(overrides = {}) {
   assert.deepEqual(pe.participatingRivals(engine.g, undefined, 1), []);
 }
 
-// 8. This task must not touch the existing single-competitor bidding flow.
+// 8. This module's own file still leaves js/ma-deal-room.js's legacy singular
+// deal.competingBid flow intact -- PE mode T2 (tests/ma-deal-room-competing-bids-test.js)
+// wires js/pe-rivals.js's roster into it for deal.competingBids without removing it.
 {
   const src = fs.readFileSync('js/ma-deal-room.js', 'utf8');
   assert.ok(src.includes('competingBid'), 'sanity: ma-deal-room.js still has the legacy competingBid flow');
-  assert.ok(!src.includes('peRivals'), 'ma-deal-room.js must not be wired to peRivals yet (that is a later task)');
 }
 
 // 9. No new Math.random()/Date.now()/randomUUID usage.
