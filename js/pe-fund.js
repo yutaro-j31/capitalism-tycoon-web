@@ -89,7 +89,9 @@ function formableFundSize(state){
   ensure(state);
   const ratio=requiredGPRatio(state.peFirm.trackRecord.score);
   const gpBudget=Math.max(0,finite(state.personalCash))*GP_COMMIT_FRACTION_OF_PERSONAL_CASH;
-  return ratio>0?gpBudget/ratio*lpTrustMultiplier(state):0;
+  const funds=state.peFirm.funds,latestFund=funds[funds.length-1];
+  const promiseMultiplier=latestFund?promiseComplianceMultiplier(latestFund):1;
+  return ratio>0?gpBudget/ratio*lpTrustMultiplier(state)*promiseMultiplier:0;
 }
 
 // PE mode T6: a single exit's "quality" in [0,1], composited from MOIC, speed, and business
@@ -208,6 +210,75 @@ function canFormNextFund(state){
   return dpi>=NEXT_FUND_MIN_DPI&&deploymentRate>=NEXT_FUND_MIN_DEPLOYMENT;
 }
 
+// PE mode T8 (docs/PE_MODE_TASKS.md / docs/PE_MODE_DESIGN.md §3 関門3): LP面談. This is
+// deliberately NOT a "decision" screen (§9 failure 7 found every LP-mix optimization reduces
+// to "raise the max regardless") -- it is progress visibility (which LPs are meetable),
+// evaluation of the last fund, and promise bookkeeping. Meet conditions follow the design
+// doc's table; each LP type's accompanying condition is a PROMISE (something the player can
+// accept or decline, never a hard constraint), except formerColleague/wealthyFamilyOffice,
+// whose rows describe a passive risk instead of an active promise to keep.
+const LP_TYPES=Object.freeze({
+  formerColleague:Object.freeze({id:'formerColleague',name:'元同僚・知人',scale:'小',meetConditionLabel:'実績不問',promiseID:null,promiseLabel:null,riskLabel:'失敗すると人間関係の記録が残る'}),
+  wealthyFamilyOffice:Object.freeze({id:'wealthyFamilyOffice',name:'富裕層・ファミリーオフィス',scale:'小〜中',meetConditionLabel:'Exit経験1回',promiseID:null,promiseLabel:null,riskLabel:'途中解約を言い出すことがある'}),
+  regionalBankCorporate:Object.freeze({id:'regionalBankCorporate',name:'地方銀行・事業会社',scale:'中',meetConditionLabel:'スコア30',promiseID:'localInvestment',promiseLabel:'地元企業へ2件以上投資する',riskLabel:null}),
+  pensionFund:Object.freeze({id:'pensionFund',name:'年金基金',scale:'大',meetConditionLabel:'DPI 1.2倍実績',promiseID:'quarterlyReporting',promiseLabel:'四半期報告を行う',riskLabel:null}),
+  universitySovereign:Object.freeze({id:'universitySovereign',name:'大学基金・政府系',scale:'最大',meetConditionLabel:'実現実績2本',promiseID:'investmentRestriction',promiseLabel:'投資対象を制約に従わせる',riskLabel:null})
+});
+const LP_TYPE_IDS=Object.freeze(Object.keys(LP_TYPES));
+// 破っても即ペナルティではなく、次号の調達額が目減りするだけ（設計書「守れないと次号で
+// 不利になるだけ」）。全履行なら1.0（ボーナスなし）、全不履行ならこの下限まで下がる。
+const PROMISE_BROKEN_FLOOR=.7;
+
+function meetsLPCondition(state,lpTypeID){
+  ensure(state);
+  const tr=state.peFirm.trackRecord;
+  if(lpTypeID==='formerColleague')return true;
+  if(lpTypeID==='wealthyFamilyOffice')return tr.exits.length>=1;
+  if(lpTypeID==='regionalBankCorporate')return tr.score>=30;
+  if(lpTypeID==='pensionFund')return state.peFirm.funds.some(f=>Number.isFinite(f.dpiAtEvaluation)&&f.dpiAtEvaluation>=NEXT_FUND_MIN_DPI);
+  if(lpTypeID==='universitySovereign')return tr.exits.length>=2;
+  return false;
+}
+// 進捗の可視化（画面6）: 会えるLPだけでなく、会えないLPも条件付きで返す。
+function visibleLPTypes(state){
+  ensure(state);
+  return LP_TYPE_IDS.map(id=>({...LP_TYPES[id],meetable:meetsLPCondition(state,id)}));
+}
+
+// 案件ではなくLPとの間の「約束」。断っても(promiseAccepted:false)ペナルティは無く、単に
+// その分の金額が小さいだけ（金額そのものはUIが無いためcommittedAmountを呼び出し側が渡す）。
+function addLPCommitment(fund,{lpTypeID,committedAmount=0,promiseAccepted=false}={}){
+  if(!fund||!LP_TYPES[lpTypeID])return null;
+  const commitment={lpTypeID,committedAmount:Math.max(0,finite(committedAmount)),promiseAccepted:Boolean(promiseAccepted)&&Boolean(LP_TYPES[lpTypeID].promiseID),promiseFulfilled:null};
+  fund.lps=arr(fund.lps);
+  fund.lps.push(commitment);
+  return commitment;
+}
+// 約束の達成状況を記録する。fulfilled=null (未評価) はそのまま、true/falseで確定させる。
+function recordLPPromiseOutcome(fund,lpTypeID,fulfilled){
+  if(!fund)return null;
+  const commitment=arr(fund.lps).find(c=>c.lpTypeID===lpTypeID&&c.promiseAccepted);
+  if(!commitment)return null;
+  commitment.promiseFulfilled=Boolean(fulfilled);
+  return commitment;
+}
+// 次号の調達額への反映（完了条件）。承諾した約束のうち何割を守れたかで1.0(全履行)〜
+// PROMISE_BROKEN_FLOOR(全不履行)を線形補間する。約束が無い/未評価ならニュートラル(1)。
+function promiseComplianceMultiplier(fund){
+  const accepted=arr(fund?.lps).filter(c=>c.promiseAccepted&&c.promiseFulfilled!==null);
+  if(!accepted.length)return 1;
+  const rate=accepted.filter(c=>c.promiseFulfilled).length/accepted.length;
+  return PROMISE_BROKEN_FLOOR+clamp(rate,0,1)*(1-PROMISE_BROKEN_FLOOR);
+}
+// 既存LPは自動継続（設計書）。前号のLP構成をそのまま次号の出発点として返す。実際に次号へ
+//引き継ぐかどうかは呼び出し側（将来のUI）が決める。
+function continuingLPCommitments(state){
+  ensure(state);
+  const funds=state.peFirm.funds;
+  if(!funds.length)return [];
+  return arr(funds[funds.length-1].lps).map(c=>({...c}));
+}
+
 // PE mode T5: exit proceeds are distributed immediately and never reinvested (design doc §9
 // failure 3) -- so weekly processing here only ever moves cash OUT of a fund (to distributed)
 // or advances its lifecycle status, it never adds cash back into fund.cash from a return.
@@ -318,6 +389,7 @@ modules.peFund=Object.freeze({
   requiredGPRatio,managementFeeRate,carryRate,hurdleRate,fundTermsForScore,formableFundSize,lpTrustMultiplier,
   exitQuality,computeTrackScore,recordExit,recordExitForCurrentCompany,
   fundContributed,fundDeployed,fundDeploymentRate,fundDPI,fundIRR,evaluateFund,canFormNextFund,
+  LP_TYPES,LP_TYPE_IDS,PROMISE_BROKEN_FLOOR,meetsLPCondition,visibleLPTypes,addLPCommitment,recordLPPromiseOutcome,promiseComplianceMultiplier,continuingLPCommitments,
   __installed:true
 });
 })();
