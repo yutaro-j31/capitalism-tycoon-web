@@ -16,9 +16,11 @@ const { TycoonEngine, SAVE_KEY, SAVE_VERSION } = engineModule;
   assert.equal(e.g.acquisitionTargets[0].dealStatus, 'available');
   assert.equal(e.openMADealRoom('legacy'), true);
   const d = e.g.maDealRooms[0];
+  assert.equal(e.advanceMADealRound(d.id), true); // PE mode T3: screening -> indication
   assert.equal(e.startMADueDiligence(d.id, 'screening'), true);
   e.g.week += 1; dr.processDealWeek(e.g, e.g.week);
   assert.equal(d.status, 'ready');
+  assert.equal(e.advanceMADealRound(d.id), true); // PE mode T3: ready -> final_bid
   assert.equal(e.submitMAOffer(d.id, { method: 'friendly', offerPrice: Math.min(250000000, Math.max(118000000, d.sellerAsk * 1.1, d.valuationBridge.recommendedMaximumPrice)) }), true);
   e.g.week += 1; dr.processDealWeek(e.g, e.g.week);
   const preservedBeforeSave = JSON.parse(JSON.stringify({ deal: e.g.maDealRooms[0], truth: e.g.maTargetTruthByID }));

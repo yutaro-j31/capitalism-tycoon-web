@@ -89,6 +89,7 @@ function advanceUntilCompetitor(e, deal, maxWeeks = 200) {
   const e = make(target());
   assert.equal(e.openMADealRoom('t-a'), true);
   const deal = e.g.maDealRooms[0];
+  assert.equal(e.advanceMADealRound(deal.id), true); // PE mode T3: screening -> indication
   assert.equal(e.startMADueDiligence(deal.id, 'financial'), true);
   tick(e, 2);
   assert.equal(deal.status, 'ready');
@@ -117,6 +118,7 @@ function advanceUntilCompetitor(e, deal, maxWeeks = 200) {
   const e = make(target());
   assert.equal(e.openMADealRoom('t-a'), true);
   const deal = e.g.maDealRooms[0];
+  assert.equal(e.advanceMADealRound(deal.id), true); // PE mode T3: screening -> indication
   assert.equal(e.startMADueDiligence(deal.id, 'financial'), true);
   tick(e, 2);
   deal.competingBid = { bidderID: 'bid-expire', bidderName: 'テスト用競合', method: 'friendly', price: 10_000_000, submittedWeek: e.g.week, expiresWeek: e.g.week + 1, status: 'active' };
