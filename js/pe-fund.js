@@ -26,7 +26,7 @@ const NEXT_FUND_MIN_DPI=1.2;
 const NEXT_FUND_MIN_DEPLOYMENT=.8;
 
 function defaultTrackRecord(){return {score:0,exits:[],realizedDPI:0};}
-function defaultPeFirm(){return {trackRecord:defaultTrackRecord(),funds:[],ddSlotsPerYear:3,unlocked:false};}
+function defaultPeFirm(){return {trackRecord:defaultTrackRecord(),funds:[],ddSlotsPerYear:3,ddUsage:{period:0,used:0},unlocked:false};}
 
 function ensureFund(f,week){
   if(!f)return f;
@@ -63,9 +63,15 @@ function ensure(state){
   pf.trackRecord.score=clamp(finite(pf.trackRecord.score),0,100);
   pf.trackRecord.realizedDPI=Math.max(0,finite(pf.trackRecord.realizedDPI));
   pf.funds=arr(pf.funds).slice(-20);
-  pf.ddSlotsPerYear=Math.max(1,Math.floor(finite(pf.ddSlotsPerYear,3)));
   pf.unlocked=Boolean(pf.unlocked);
   pf.funds.forEach(f=>ensureFund(f,finite(state.week,1)));
+  pf.ddUsage=pf.ddUsage&&typeof pf.ddUsage==='object'?pf.ddUsage:{period:0,used:0};
+  pf.ddUsage.period=Math.max(0,Math.floor(finite(pf.ddUsage.period,0)));
+  pf.ddUsage.used=Math.max(0,Math.floor(finite(pf.ddUsage.used,0)));
+  // ddSlotsPerYear is a derived value (パートナー数に連動、設計書§4/T10) recomputed on every
+  // normalize so it never goes stale relative to the current team; the stored field exists
+  // only so old T5-era saves (fixed at 3) and any code reading it directly see a valid number.
+  pf.ddSlotsPerYear=computeDDSlotsPerYear(state);
   if(!Number.isFinite(finite(state.currentCompanyFoundedInvestment,NaN)))state.currentCompanyFoundedInvestment=Math.max(1,finite(state.companyCash,8_000_000));
   return state;
 }
@@ -359,6 +365,44 @@ function attentionMultiplier(fund){return fund?(.5+.5*clamp(attentionRatio(fund)
 // 保有期間の最適解（週）。fundIndexはstate.peFirm.funds内での0始まりの通し番号。
 function optimalHoldWeeks(fundIndex){return fundIndex<=0?FIRST_FUND_HOLD_WEEKS:LATER_FUND_HOLD_WEEKS;}
 
+// PE mode T10 (docs/PE_MODE_TASKS.md / docs/PE_MODE_DESIGN.md §4): DD枠の有限化。
+// `ddSlotsPerYear = 3 + パートナー数/4`。パートナー数は現在アクティブ（未クローズ）な
+// ファンドのうち最大のチーム人数（T9のteamCapacity）を採用する -- ファンドを複数同時運用
+// しても、実際にDDを回せる頭数は最大のチームに律速される、という単純化。
+// 既存の DILIGENCE_SCOPES（confidence .40/.72/.94）はそのまま使う（設計書: 再調整不要）。
+const DD_SLOTS_BASE=3;
+const DD_SLOTS_PER_PARTNER_DIVISOR=4;
+const DD_YEAR_WEEKS=52;
+
+function partnerCount(state){
+  const funds=arr(state?.peFirm?.funds).filter(f=>f&&f.status!=='closed');
+  if(!funds.length)return 0;
+  return Math.max(...funds.map(teamCapacity));
+}
+function computeDDSlotsPerYear(state){return DD_SLOTS_BASE+Math.floor(partnerCount(state)/DD_SLOTS_PER_PARTNER_DIVISOR);}
+function ddSlotsPerYear(state){ensure(state);return state.peFirm.ddSlotsPerYear;}
+function ddPeriodIndex(week){return Math.floor(Math.max(0,finite(week,0))/DD_YEAR_WEEKS);}
+// 年次リセット（52週ごと）。同じ期に達した使用量はそのまま、期が変わればゼロに戻す。
+function currentDDUsage(state,week){
+  ensure(state);
+  const usage=state.peFirm.ddUsage;
+  const period=ddPeriodIndex(week);
+  if(usage.period!==period){usage.period=period;usage.used=0;}
+  return usage;
+}
+// 表示用（消費しない）: 現在の期であと何件精査に回せるか。
+function ddSlotsRemaining(state,week){const usage=currentDDUsage(state,week);return Math.max(0,ddSlotsPerYear(state)-usage.used);}
+// DD開始時に1枠消費する。枠が無ければ何も変えずfalseを返す（呼び出し側がDD開始を拒否する
+// 判断材料になる）。deal.dueDiligenceScope等の実際の精査フローとの結線は、精査対象の案件が
+// どのファンドに紐づくか（fundID）を決める仕組みがまだ無い（T11以降）ため、T7のDPI計算群と
+// 同様に、この段階では呼び出し可能な純粋な状態機械として提供する。
+function consumeDDSlot(state,week){
+  const usage=currentDDUsage(state,week);
+  if(usage.used>=ddSlotsPerYear(state))return false;
+  usage.used+=1;
+  return true;
+}
+
 function install(){
   const proto=EngineClass.prototype;
   if(proto.__peFundInstalled)return true;
@@ -449,6 +493,7 @@ modules.peFund=Object.freeze({
   LP_TYPES,LP_TYPE_IDS,PROMISE_BROKEN_FLOOR,MAX_LPS_PER_FUND,meetsLPCondition,visibleLPTypes,addLPCommitment,recordLPPromiseOutcome,promiseComplianceMultiplier,continuingLPCommitments,
   MANAGEMENT_FEE_PER_HEAD,TEAM_CAP,MIN_TICKET_PER_DEAL,MAX_DEAL_SHARE_OF_FUND,SLOT_CAP_ABSOLUTE,FIRST_FUND_HOLD_WEEKS,LATER_FUND_HOLD_WEEKS,
   teamCapacity,slotCapacity,maxSingleDealSize,activeDealCount,attentionRatio,attentionMultiplier,optimalHoldWeeks,
+  DD_SLOTS_BASE,DD_SLOTS_PER_PARTNER_DIVISOR,DD_YEAR_WEEKS,partnerCount,computeDDSlotsPerYear,ddSlotsPerYear,ddPeriodIndex,currentDDUsage,ddSlotsRemaining,consumeDDSlot,
   __installed:true
 });
 })();
