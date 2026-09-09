@@ -1738,7 +1738,7 @@ const MASTER = {
       "name": "商品開発部門",
       "desc": "商品開発を解放",
       "setupCost": 1800000,
-      "weeklyCost": 95000
+      "weeklyCost": 75000
     },
     {
       "id": "operations",
@@ -1752,14 +1752,14 @@ const MASTER = {
       "name": "宣伝部門",
       "desc": "広告投資を解放",
       "setupCost": 1600000,
-      "weeklyCost": 90000
+      "weeklyCost": 70000
     },
     {
       "id": "dx",
       "name": "技術部門",
       "desc": "DX投資を解放",
       "setupCost": 2200000,
-      "weeklyCost": 120000
+      "weeklyCost": 90000
     },
     {
       "id": "investment",

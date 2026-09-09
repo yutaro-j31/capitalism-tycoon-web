@@ -29,6 +29,12 @@ const DEMAND_CALIBRATIONS=Object.freeze({
  insuranceAgency:{from:42,to:12},
  maBroker:{from:5,to:1.8}
 });
+// Formal digital products pay the marketing department once at portfolio level. The funnel
+// engine already gives that shared capability a 0.40 coefficient; scaling only the department
+// effect while formal product funnels are updating makes the effective coefficient 0.55
+// (0.40 * 1.375) without changing store marketing, payroll, HQ cost, or legacy founder-home
+// products. This is a runtime calibration only, so it needs no persisted balance version.
+const DIGITAL_PRODUCT_MARKETING_EFFECT_SCALE=1.375;
 const finite=(value,fallback=0)=>Number.isFinite(Number(value))?Number(value):fallback;
 function apply(state){
  if(!state||finite(state.strategyBalanceVersion,0)>=VERSION)return false;
@@ -64,8 +70,23 @@ if(typeof baseReset==='function')EngineClass.prototype.reset=function(){
  if(apply(this.g)){this.save();this.emit();}
  return result;
 };
+const baseProductFunnels=EngineClass.prototype.updateProductFunnelsWeekly;
+if(typeof baseProductFunnels==='function')EngineClass.prototype.updateProductFunnelsWeekly=function(){
+ const hadOwnDepartmentEffect=Object.prototype.hasOwnProperty.call(this,'departmentEffect');
+ const baseDepartmentEffect=this.departmentEffect;
+ if(typeof baseDepartmentEffect!=='function')return baseProductFunnels.apply(this,arguments);
+ this.departmentEffect=function(id){
+  const effect=baseDepartmentEffect.call(this,id);
+  return id==='marketing'?effect*DIGITAL_PRODUCT_MARKETING_EFFECT_SCALE:effect;
+ };
+ try{return baseProductFunnels.apply(this,arguments);}
+ finally{
+  if(hadOwnDepartmentEffect)this.departmentEffect=baseDepartmentEffect;
+  else delete this.departmentEffect;
+ }
+};
 EngineClass.prototype.__strategyBalanceInstalled=true;
 const activeEngine=modules.playerEngineBridge?.getEngine?.();
 if(activeEngine)apply(activeEngine.g);
-modules.strategyBalance=Object.freeze({VERSION,DEMAND_CALIBRATIONS,apply,__installed:true});
+modules.strategyBalance=Object.freeze({VERSION,DEMAND_CALIBRATIONS,DIGITAL_PRODUCT_MARKETING_EFFECT_SCALE,apply,__installed:true});
 })();
