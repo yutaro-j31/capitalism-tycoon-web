@@ -247,6 +247,11 @@ function runOnce({ seed, skillID, weeks, sampleEvery = 520 }) {
     fundIHalved: funds[0] ? handles.modules.peFund.fundDPI(funds[0]) < 0.6 : false,
     peakFundSize,
     hitCeiling: peakFundSize >= handles.modules.peFund.MAX_FUND_SIZE - 1,
+    // T22: 実際に頭打ちになる規模は「市場が吸収できる規模」(marketAbsorbableFundSize)。
+    // MAX_FUND_SIZE(5兆) は指数爆発を止める絶対上限として残っているが、年4件×設計書§15の
+    // 帯では、その手前のこの規模で先に頭打ちになる。
+    absorbableCeiling: handles.modules.peFund.marketAbsorbableFundSize(),
+    plateauedAtAbsorbable: peakFundSize >= handles.modules.peFund.marketAbsorbableFundSize() - 1,
     acquisitions: funds.reduce((n, f) => n + f.deals.filter(d => d.portfolioCompany).length, 0),
     exits: funds.reduce((n, f) => n + f.deals.filter(d => d.status === 'exited').length, 0),
     monopolyDeals: (g.maDealHistory || []).length,
@@ -311,10 +316,17 @@ function report() {
   console.log('本スクリプトは production の週次エンジン(advanceWeek)と本番の入札・取得・経営・Exit経路のみを呼ぶ。\n');
   const runs = results.skills;
   const ids = ['expert', 'average', 'novice'].filter(id => runs[id]);
+  // 吸収上限は結果ファイルに無いこともある（この欄が追加される前の実行）。その場合は
+  // production の値をその場で読み直す。
+  let absorbable = ids.length ? runs[ids[0]].absorbableCeiling : NaN;
+  if (!Number.isFinite(absorbable)) {
+    try { absorbable = loadGame({ random: () => 0.5, isolatedLegacyIndex: true }).modules.peFund.marketAbsorbableFundSize(); } catch { absorbable = NaN; }
+  }
+  const plateaued = r => Number.isFinite(absorbable) && r.peakFundSize >= absorbable - 1;
   console.log('## A. 腕による差（同一ポリシー枠組み・判断の質だけが違う）');
   for (const id of ids) {
     const r = runs[id];
-    console.log(`- ${SKILLS[id].label}: ファンド${r.fundCount}本 / 取得${r.acquisitions}件 / Exit${r.exits}件 / 人脈${r.networkNodes} / 最大ファンド${yen(r.peakFundSize)} / 天井${r.hitCeiling ? '到達' : '未到達'} / 総資産${yen(r.totalAssets)} / 個人資産${yen(r.personalCash)} / Fund I DPI ${r.fundIDPI.toFixed(2)}`);
+    console.log(`- ${SKILLS[id].label}: ファンド${r.fundCount}本 / 取得${r.acquisitions}件 / Exit${r.exits}件 / 人脈${r.networkNodes} / 最大ファンド${yen(r.peakFundSize)} / 吸収上限${plateaued(r) ? '到達（頭打ち）' : '未到達'} / 絶対上限(5兆)${r.hitCeiling ? '到達' : '未到達'} / 総資産${yen(r.totalAssets)} / 個人資産${yen(r.personalCash)} / Fund I DPI ${r.fundIDPI.toFixed(2)}`);
   }
   if (ids.length === 3) {
     const ok = runs.expert.totalAssets >= runs.average.totalAssets && runs.average.totalAssets >= runs.novice.totalAssets;
@@ -353,7 +365,7 @@ function report() {
     const nonFinite = ids.flatMap(id => runs[id].nonFinite || []);
     console.log(`- セーブサイズ最大: ${(maxSave / 1024 / 1024).toFixed(2)}MB（上限5.00MB）: ${maxSave < 5 * 1024 * 1024 ? 'OK' : 'NG'}`);
     console.log(`- NaN / Infinity: ${nonFinite.length}件 ${nonFinite.length ? `例: ${nonFinite.slice(0, 5).join(', ')}` : ''}`);
-    console.log(`- ファンド1本の上限: 最大${yen(Math.max(...ids.map(id => runs[id].peakFundSize)))}（上限5.00兆円）`);
+    console.log(`- ファンド1本の規模: 最大${yen(Math.max(...ids.map(id => runs[id].peakFundSize)))} / 市場が吸収できる上限${Number.isFinite(absorbable) ? yen(absorbable) : 'n/a'} / 絶対上限5.00兆円`);
   }
 }
 

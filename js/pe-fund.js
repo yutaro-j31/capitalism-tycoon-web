@@ -123,6 +123,30 @@ function fundTermsForScore(score){return {fee:managementFeeRate(score),carry:car
 // evaluateFund below). Until any fund has been evaluated there is no history to react to, so
 // it stays neutral (1).
 function lpTrustMultiplier(state){ensure(state);const funds=state.peFirm.funds;for(let i=funds.length-1;i>=0;i--){const f=funds[i];if(Number.isFinite(f.dpiAtEvaluation))return f.dpiAtEvaluation>=NEXT_FUND_MIN_DPI?1.12:f.dpiAtEvaluation>=1.0?.80:.55;}return 1;}
+// T22: 市場が吸収できるファンド規模の上限。
+// 案件供給は年4件で固定（設計書§15）で、そのうち今のファンドの帯に合うのは一部だけ。
+// 投資期間5年のあいだに打てる件数 × 1件あたりに実際に出る金額 が、そのファンドが消化
+// できる金額の上限になる。これを超える規模を集めても資金消化率が上がらず、次号ゲート
+// （DPI 1.2倍以上 かつ 規模相応の消化率）を満たせなくなってファンドの梯子が恒久的に
+// 止まる — T20の通し検証で年20前後の停止として実際に観測された。
+// 現実のPEでも「打てる案件の量に対してファンドを大きくしすぎない」のが普通なので、
+// 集める額そのものをここで頭打ちにする。
+//
+// 1件あたりの金額はレバレッジ後の自己資金ではなく買収価格そのもの（取得経路は価格の全額を
+// ファンドの現金で払う）。帯の中の分布は対数一様なので、代表値は下限と上限の幾何平均。
+const ACQUISITION_PREMIUM_ESTIMATE=1.18; // 友好的買収のプレミアム（js/ma-deal-room.js OFFER_METHODS）
+function marketAbsorbableFundSize(){
+  const tiers=globalThis.__capitalismTycoonModules?.peIndustryTiers;
+  if(!tiers)return Infinity;
+  const ids=tiers.TIER_IDS;
+  if(!ids?.length)return Infinity;
+  // 規模が上がるほど打てる帯は絞られる（最終的に最大の帯だけになる）。その1帯ぶんの流量で見る。
+  const dealsInPeriod=tiers.DEALS_PER_YEAR*(INVESTMENT_PERIOD_WEEKS/52)/ids.length;
+  const top=ids.reduce((best,id)=>tiers.TIERS[id].sizeMax>tiers.TIERS[best].sizeMax?id:best,ids[0]);
+  const typicalPrice=Math.sqrt(tiers.TIERS[top].sizeMin*tiers.TIERS[top].sizeMax)*ACQUISITION_PREMIUM_ESTIMATE;
+  // NEXT_FUND_MIN_DEPLOYMENT で割る = 「消化率の要件を満たせる最大の規模」。
+  return dealsInPeriod*typicalPrice/NEXT_FUND_MIN_DEPLOYMENT;
+}
 function formableFundSize(state){
   ensure(state);
   const ratio=requiredGPRatio(state.peFirm.trackRecord.score);
@@ -130,7 +154,7 @@ function formableFundSize(state){
   const funds=state.peFirm.funds,latestFund=funds[funds.length-1];
   const promiseMultiplier=latestFund?promiseComplianceMultiplier(latestFund):1;
   const raw=ratio>0?gpBudget/ratio*lpTrustMultiplier(state)*promiseMultiplier:0;
-  return Math.min(raw,MAX_FUND_SIZE);
+  return Math.min(raw,MAX_FUND_SIZE,marketAbsorbableFundSize());
 }
 
 // PE mode T6: a single exit's "quality" in [0,1], composited from MOIC, speed, and business
@@ -270,7 +294,7 @@ function evaluateFund(state,fundID,evaluationWeek,{recordTrackRecord=true}={}){
   // T17: evaluateFund は週次処理からも自動的に呼ばれるようになったため、トラックレコードへの
   // 加算は「1ファンドにつき1回だけ」に制限する（recordTrackRecord:false の週次リフレッシュでは
   // そもそも加算しない）。加算済みかどうかは fund.trackRecordExitID が持つ。
-  const trackRecordAdded=deploymentRate>=NEXT_FUND_MIN_DEPLOYMENT&&recordTrackRecord&&!fund.trackRecordExitID;
+  const trackRecordAdded=deploymentRate>=requiredDeploymentRate(fund)&&recordTrackRecord&&!fund.trackRecordExitID;
   if(trackRecordAdded){
     // 設計書: 未投資返却分（額面1.0x）はファンド全体のDPI(上のdpi/fundDPI)には含めるが、
     // トラックレコードのスコア計算には一切加算しない。ここで使うMOICは、実際に投資に
@@ -283,9 +307,27 @@ function evaluateFund(state,fundID,evaluationWeek,{recordTrackRecord=true}={}){
   }
   return {dpi,deploymentRate,irr:fundIRR(fund,week),trackRecordAdded};
 }
-// 次号を組成できる条件（設計書§3）: DPI 1.2倍以上 かつ 資金消化80%以上。最新のファンドが
-// 評価済みならその値を、未評価ならその場で計算した現在値を使う。ファンドがまだ無ければ
-// Fund Iの話（T6の解禁条件のみ）。
+// T22: 次号ゲートの資金消化率の要件は、ファンドの規模に応じて段階的に緩める。
+// 案件供給は年4件で固定（設計書§15）なのに対しファンド規模は実績とともに伸びるため、
+// 大型ファンドほど期間内に消化しきれない。要件を80%で固定したままだと、規模が案件供給を
+// 追い越した瞬間に梯子が恒久的に止まる（T20検証で年20前後の停止として観測）。
+// DPI 1.2倍以上の要件は設計の核（実績が実現していないと次号は組めない）なので変えない。
+const DEPLOYMENT_RELAXATION_START=500_000_000_000;  // 5,000億円を超えたところから緩め始める
+const MIN_DEPLOYMENT_FLOOR=.35;                     // どれだけ大型でもここまでしか緩めない
+// 投資期間を終えたファンドは「もう消化する機会が無い」ので、さらに一段緩める。
+const CLOSED_PERIOD_DEPLOYMENT_FACTOR=.8;
+function requiredDeploymentRate(fund){
+  const size=Math.max(0,finite(fund?.size));
+  if(size<=DEPLOYMENT_RELAXATION_START)return NEXT_FUND_MIN_DEPLOYMENT;
+  // 規模が2倍になるごとに要件を線形に下げ、MIN_DEPLOYMENT_FLOOR で頭打ちにする。
+  const doublings=Math.log2(size/DEPLOYMENT_RELAXATION_START);
+  const relaxed=NEXT_FUND_MIN_DEPLOYMENT-(NEXT_FUND_MIN_DEPLOYMENT-MIN_DEPLOYMENT_FLOOR)*clamp(doublings/4,0,1);
+  const periodFactor=fund&&fund.status!=='investing'?CLOSED_PERIOD_DEPLOYMENT_FACTOR:1;
+  return Math.max(MIN_DEPLOYMENT_FLOOR,relaxed*periodFactor);
+}
+// 次号を組成できる条件（設計書§3）: DPI 1.2倍以上 かつ 資金消化が規模相応の水準以上。
+// 最新のファンドが評価済みならその値を、未評価ならその場で計算した現在値を使う。
+// ファンドがまだ無ければ Fund Iの話（T6の解禁条件のみ）。
 function canFormNextFund(state){
   ensure(state);
   const funds=state.peFirm.funds;
@@ -293,7 +335,7 @@ function canFormNextFund(state){
   const latest=funds[funds.length-1];
   const dpi=Number.isFinite(latest.dpiAtEvaluation)?latest.dpiAtEvaluation:fundDPI(latest);
   const deploymentRate=Number.isFinite(latest.deploymentRateAtEvaluation)?latest.deploymentRateAtEvaluation:fundDeploymentRate(latest);
-  return dpi>=NEXT_FUND_MIN_DPI&&deploymentRate>=NEXT_FUND_MIN_DEPLOYMENT;
+  return dpi>=NEXT_FUND_MIN_DPI&&deploymentRate>=requiredDeploymentRate(latest);
 }
 
 // PE mode T8 (docs/PE_MODE_TASKS.md / docs/PE_MODE_DESIGN.md §3 関門3): LP面談. This is
@@ -722,6 +764,7 @@ if(typeof document!=='undefined'&&typeof document.addEventListener==='function')
 
 modules.peFund=Object.freeze({
   FUND_TERM_WEEKS,INVESTMENT_PERIOD_WEEKS,GP_COMMIT_FRACTION_OF_PERSONAL_CASH,MAX_FUND_SIZE,NEXT_FUND_MIN_DPI,NEXT_FUND_MIN_DEPLOYMENT,
+  DEPLOYMENT_RELAXATION_START,MIN_DEPLOYMENT_FLOOR,CLOSED_PERIOD_DEPLOYMENT_FACTOR,requiredDeploymentRate,ACQUISITION_PREMIUM_ESTIMATE,marketAbsorbableFundSize,
   ensure,ensureFund,createFund,processFundsWeek,install,installCompletionDependentHooks,
   requiredGPRatio,managementFeeRate,carryRate,hurdleRate,fundTermsForScore,formableFundSize,lpTrustMultiplier,
   exitQuality,computeTrackScore,recordExit,recordExitForCurrentCompany,

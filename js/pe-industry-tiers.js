@@ -47,18 +47,33 @@ const TIER_IDS=Object.freeze(Object.keys(TIERS));
 // 810億=中型/大型/5本柱系）と一致するよう較正した、このファイル独自の実装。
 const TIER_FIT_LOWER_THRESHOLD=1;
 const TIER_FIT_UPPER_THRESHOLD=.5;
+// 1件あたりに必要な自己資金（帯の下限・上限を、その帯の標準的なレバレッジで割った額）。
+// 設計書§15の帯の表（Fund I 28億で pillar/smallSuccession が打てる、など）はこのLBO前提の
+// 数字なので、判定はレバレッジを効かせたままにする。
+// なお実際の取得（js/pe-acquisition.js）は買収価格の全額をファンドの現金で払う（借入は資金の
+// 出どころとしてはまだモデル化していない）ため、1件あたりの消化額は判定上の自己資金より
+// 大きい。この差はT22の「市場が吸収できる規模」の見積り（js/pe-fund.js）で扱う。
+function tierEquityRange(id){const t=TIERS[id];return {min:t.sizeMin/t.leverage,max:t.sizeMax/t.leverage};}
 function eligibleTiers(fund){
   const pf=modules.peFund;
   if(!fund||finite(fund.size)<=0)return [];
   const maxTicket=pf.maxSingleDealSize(fund);
   const slots=Math.max(1,pf.slotCapacity(fund));
   const avgTicket=finite(fund.size)/slots;
-  return TIER_IDS.filter(id=>{
-    const t=TIERS[id];
-    const equityMin=t.sizeMin/t.leverage;
-    const equityMax=t.sizeMax/t.leverage;
+  const fitted=TIER_IDS.filter(id=>{
+    const {min:equityMin,max:equityMax}=tierEquityRange(id);
     return equityMin<=maxTicket*TIER_FIT_LOWER_THRESHOLD&&equityMax>=avgTicket*TIER_FIT_UPPER_THRESHOLD;
   });
+  if(fitted.length)return fitted;
+  // T22: ここが空になると案件が1件も供給されず、資金消化率が上がらないため次号ゲート
+  // （消化80%以上）を二度と満たせなくなり、ファンドの梯子が恒久的に止まる（T20検証で
+  // 実際に年20前後で停止した）。帯が「小さすぎる」ために弾かれただけなら、現実には
+  // 大型ファンドでも一番大きい会社は買える — 1件あたりの効率が落ちるだけである。
+  // そこで、どの帯も適合しない場合は「買える中で最大の帯」へフォールバックする。
+  // 逆に資金が小さすぎてどの帯も買えない場合は、従来どおり空を返す（打つ手が無い）。
+  const affordable=TIER_IDS.filter(id=>tierEquityRange(id).min<=maxTicket*TIER_FIT_LOWER_THRESHOLD);
+  if(!affordable.length)return [];
+  return [affordable.reduce((best,id)=>tierEquityRange(id).max>tierEquityRange(best).max?id:best,affordable[0])];
 }
 
 // 年4件固定の案件供給（設計書 課題3・§2）。帯は年・連番から決定論的に選ぶ（一様分布）。
@@ -97,7 +112,7 @@ function generateAnnualDeals(state,year){
 
 modules.peIndustryTiers=Object.freeze({
   TIERS,TIER_IDS,TIER_FIT_LOWER_THRESHOLD,TIER_FIT_UPPER_THRESHOLD,DEALS_PER_YEAR,
-  eligibleTiers,pickTierID,generateDeal,marketPriceLevel,generateAnnualDeals,
+  tierEquityRange,eligibleTiers,pickTierID,generateDeal,marketPriceLevel,generateAnnualDeals,
   __installed:true
 });
 })();
