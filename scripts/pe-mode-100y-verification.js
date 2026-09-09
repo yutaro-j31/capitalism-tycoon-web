@@ -272,9 +272,11 @@ function runOnce({ seed, skillID, weeks, sampleEvery = 520 }) {
 function runSkillPart(skillID) {
   const results = loadResults();
   const started = Date.now();
-  const r = runOnce({ seed: 12345, skillID, weeks: WEEKS });
+  const seed = Number(argOf('seed', 12345));
+  const r = runOnce({ seed, skillID, weeks: WEEKS });
   results.years = YEARS;
-  results.skills[skillID] = { ...r, seconds: (Date.now() - started) / 1000 };
+  // 別seedの実行は上書きせず、seed付きの名前で並べて残す（同じ腕でも運で結果が変わることの確認用）。
+  results.skills[seed === 12345 ? skillID : `${skillID}@${seed}`] = { ...r, seconds: (Date.now() - started) / 1000 };
   saveResults(results);
   console.log(`${SKILLS[skillID].label}: ファンド${r.fundCount}本 / 取得${r.acquisitions}件 / Exit${r.exits}件 / 最大ファンド${yen(r.peakFundSize)} / 天井${r.hitCeiling ? '到達' : '未到達'} / 総資産${yen(r.totalAssets)} / Fund I DPI ${r.fundIDPI.toFixed(2)} / セーブ${(r.saveBytes / 1024 / 1024).toFixed(2)}MB / NaN・Inf ${r.nonFinite.length}件 / ${((Date.now() - started) / 1000).toFixed(0)}秒`);
 }

@@ -313,7 +313,8 @@ const nodeTests = [
   ['pe-portfolio-levers', 'tests/pe-portfolio-levers-test.js'],
   ['pe-network-sourcing', 'tests/pe-network-sourcing-test.js'],
   ['pe-fund-formation', 'tests/pe-fund-formation-test.js'],
-  ['pe-fund-ladder', 'tests/pe-fund-ladder-test.js']
+  ['pe-fund-ladder', 'tests/pe-fund-ladder-test.js'],
+  ['pe-return-calibration', 'tests/pe-return-calibration-test.js']
 ];
 
 for (let i = 0; i < nodeTests.length; i++) {

@@ -39,13 +39,24 @@ const PROFIT_HISTORY_LIMIT=260; // 5年分の週次履歴
 const QUALITY_UPKEEP_RATE_OF_EBITDA=.10; // 品質を上限まで維持すると週次EBITDAの10%が維持費に消える
 const QUALITY_COST_FRACTION_PER_POINT=.003; // 品質1点＝企業価値の0.3%（上限100点で30%、回収に約4年）
 const EXPANSION_COST_FRACTION=.05; // 出店1件あたりの費用: 企業価値の5%
-const STORE_MARGINAL_EBITDA_SHARE=.08; // 1店舗の増分は元の会社のEBITDAの8%（EVの5%を約4年で回収）
-const BASELINE_SCORE=50,PROFIT_SCORE_WEIGHT=35,QUALITY_SCORE_WEIGHT=15,PROFIT_SCORE_EV_FRACTION=.10;
+const STORE_MARGINAL_EBITDA_SHARE=.05; // T23: 1店舗の増分は元の会社のEBITDAの5%（EVの5%の回収に約7年。Exitまでに回収しきらない）
+const BASELINE_SCORE=50,PROFIT_SCORE_WEIGHT=35,QUALITY_SCORE_WEIGHT=15;
+// T23（再較正）: 改善スコアの「利益」側の物差し。T20実測では全案件がスコア100に張り付き、
+// Exit倍率の拡大が常に最大になっていた。保有中に企業価値の何割を現金で稼いだかを問う
+// 水準を上げ、満点は簡単には出ないようにする（下振れは増やさない。下限は据え置き）。
+const PROFIT_SCORE_EV_FRACTION=.50;
+// T23: 品質投資による売上増の上限。旧値は+50%で、しかも払える額なら誰でも上限まで買えた。
+// 上振れを抑えるため効果の天井だけを下げる（費用と維持費はT20の較正のまま）。
+const QUALITY_MAX_REVENUE_GAIN=.13;
 // 経路3接続（設計書§6.5・§11）: 改善スコアが65を超えると業界での評判が上がり、次の独占案件に
 // つながる。失敗（従業員を切って売り抜け）は逆に評判を下げる。
 const REPUTATION_THRESHOLD=65;
 const REPUTATION_BONUS=8;
 const REPUTATION_PENALTY_FOR_CUTS=15;
+// T23: Exit倍率＝取得倍率×(EXIT_MULTIPLE_FLOOR + スコア/100×EXIT_MULTIPLE_SCORE_SPAN)。
+// 下限(FLOOR)は据え置き、上側の幅(SPAN)だけを詰める＝最悪ケースを悪化させずに上振れを抑える。
+const EXIT_MULTIPLE_FLOOR=.80;
+const EXIT_MULTIPLE_SCORE_SPAN=.17;
 
 // PE mode T18 (docs/PE_MODE_TASKS.md): 買収先経営の6レバー化。
 // 6レバー = 価格 / 品質 / 拠点（出店と再編の両方向）/ 仕入れ・調達 / 人件費と人員 / 商品構成。
@@ -199,7 +210,7 @@ function delayedProgress(setWeek,week,delayWeeks,rampWeeks){
 function leverFactors(pc,week){
   // トップライン側
   const priceFactor=clamp(2-finite(pc.priceMultiplier,1),.3,1.6);
-  const qualityFactor=1+clamp(finite(pc.qualityInvestment)/200,0,.5);
+  const qualityFactor=1+clamp(finite(pc.qualityInvestment)/100,0,1)*QUALITY_MAX_REVENUE_GAIN;
   // 商品構成の刷新: 効果が出るまで2〜3年。プレイヤーが着手した週からの経過で立ち上がる。
   const mixProgress=clamp((finite(week)-finite(pc.productMixSetWeek,week))/PRODUCT_MIX_RAMP_WEEKS,0,1);
   const mixFactor=1+PRODUCT_MIX_MAX_GAIN*clamp(finite(pc.productMixLevel),0,1)*mixProgress;
@@ -380,13 +391,21 @@ function exitPortfolioCompany(state,fundID,dealID,{method='sale',week,cutEmploye
   if(!fund||!deal||deal.status!=='active')return null;
   const pc=deal.portfolioCompany;
   const score=pc.improvementScore;
-  const exitMultiple=finite(deal.acquisitionMultiple,8)*(.7+score/100*.6);
+  // T23: Exit時の倍率拡大の幅。旧値は 0.7〜1.3 倍で、スコアが張り付くと常に1.3倍の
+  // マルチプル拡大が乗っていた。上限を下げ、下限は上げる（上振れだけを抑え、最悪ケースは
+  // 悪化させない ＝ 救済導線の前提を壊さない）。
+  const exitMultiple=finite(deal.acquisitionMultiple,8)*(EXIT_MULTIPLE_FLOOR+score/100*EXIT_MULTIPLE_SCORE_SPAN);
   const annualEBITDA=finite(deal.enterpriseValue)/Math.max(1,finite(deal.acquisitionMultiple,8));
   // 買い手が払うのはExit時点の実力（T18の6レバーの結果）に対して。削りすぎて遅れて客数を
   // 失っていれば、その分そのまま売却価値が下がる — 経営の判断がExitで返ってくる。
   const w1=Math.max(0,Math.floor(finite(week,state.week)));
   const lever=leverFactors(pc,w1);
-  const exitEV=annualEBITDA*storeScaleFactor(pc)*lever.revenueFactor*lever.costFactor*exitMultiple;
+  // T23: 売却価格には売る時点の市況が乗る。買う側（案件の表面評価額）は既に同じ市況
+  // （T11 marketPriceLevel）で決まっているので、これで市況が入口と出口の両方に対称に効く。
+  // 不況期に買って好況期に売れば伸び、好況期に買って不況期に売れば縮む — 保有期間の判断が
+  // そのままリターンの分散になる。分散の源であって、悪い方に平均を寄せるための係数ではない。
+  const exitMarket=tiers.marketPriceLevel(finite(state.economy,1));
+  const exitEV=annualEBITDA*storeScaleFactor(pc)*lever.revenueFactor*lever.costFactor*exitMultiple*exitMarket;
   const proceeds=Math.max(0,exitEV+pc.cash);
   // T17: 回収額はそのまま fund.distributed に足すのではなく、ウォーターフォール
   // （元本返済 → ハードル → キャリー → 分配）を通す。共同投資分は共同投資家へ返り、
@@ -397,6 +416,7 @@ function exitPortfolioCompany(state,fundID,dealID,{method='sale',week,cutEmploye
   deal.exitMethod=method;
   deal.exitProceeds=proceeds;
   deal.exitScore=score;
+  deal.exitMarketLevel=exitMarket;
   deal.exitSettlement=settlement;
   if(cutEmployees)adjustIndustryReputation(state,deal,-REPUTATION_PENALTY_FOR_CUTS);
   else if(score>=REPUTATION_THRESHOLD)adjustIndustryReputation(state,deal,REPUTATION_BONUS);
@@ -425,7 +445,7 @@ install();
 
 modules.pePortfolioOperations=Object.freeze({
   PROFIT_HISTORY_LIMIT,EXPANSION_COST_FRACTION,
-  BASELINE_SCORE,PROFIT_SCORE_WEIGHT,QUALITY_SCORE_WEIGHT,PROFIT_SCORE_EV_FRACTION,
+  BASELINE_SCORE,PROFIT_SCORE_WEIGHT,QUALITY_SCORE_WEIGHT,PROFIT_SCORE_EV_FRACTION,QUALITY_MAX_REVENUE_GAIN,EXIT_MULTIPLE_FLOOR,EXIT_MULTIPLE_SCORE_SPAN,
   REPUTATION_THRESHOLD,REPUTATION_BONUS,REPUTATION_PENALTY_FOR_CUTS,
   QUALITY_UPKEEP_RATE_OF_EBITDA,QUALITY_COST_FRACTION_PER_POINT,STORE_MARGINAL_EBITDA_SHARE,storeScaleFactor,
   PROCUREMENT_EBITDA_GAIN,PROCUREMENT_SAFE_LEVEL,PROCUREMENT_QUALITY_DRAG,PROCUREMENT_DELAY_WEEKS,PROCUREMENT_DRAG_RAMP_WEEKS,PROCUREMENT_COST_FRACTION,
