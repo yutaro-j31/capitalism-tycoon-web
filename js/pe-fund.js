@@ -47,6 +47,7 @@ function ensureFund(f,week){
   f.undrawn=Math.max(0,finite(f.undrawn,0));
   f.distributed=Math.max(0,finite(f.distributed,0));
   f.undeployedReturned=Math.max(0,finite(f.undeployedReturned,0));
+  f.coinvestCommitted=Math.max(0,finite(f.coinvestCommitted,0));
   f.investmentDeadlineWeek=f.y0+INVESTMENT_PERIOD_WEEKS;
   f.deadlineWeek=f.y0+FUND_TERM_WEEKS;
   f.status=f.status||'investing';
@@ -403,6 +404,49 @@ function consumeDDSlot(state,week){
   return true;
 }
 
+// PE mode T12 (docs/PE_MODE_TASKS.md / docs/PE_MODE_DESIGN.md §14): 共同投資（コインベスト）。
+// LPが案件ごとに追加出資し、分散義務（25%上限）を超える大型案件を打てるようにする。枠は
+// ファンド規模の1倍まで（累計）。共同投資分のキャリーはフルの半分（設計書: ゼロにすると
+// 機能が死ぬ）。管理報酬は共同投資分にかからない（fund.sizeだけを基準にする既存の
+// annualManagementFee はそのままで成立する -- 明示的な純関数として切り出す）。
+const COINVEST_CAP_MULTIPLE=1;
+const COINVEST_CARRY_FACTOR=.5;
+
+function coinvestCapacity(fund){return Math.max(0,finite(fund?.size))*COINVEST_CAP_MULTIPLE;}
+function coinvestCommitted(fund){return Math.max(0,finite(fund?.coinvestCommitted));}
+function coinvestRemaining(fund){return Math.max(0,coinvestCapacity(fund)-coinvestCommitted(fund));}
+function annualManagementFee(fund){return Math.max(0,finite(fund?.size)*finite(fund?.terms?.fee));}
+// 案件ごとの選択（設計書§14「規模を取るか報酬率を取るかの交換」）:
+//   useCoinvest=false: 全額ファンドで打つ。25%上限までしか投下できず、超過分は打てない
+//     (rejectedAmount)。キャリーはフル。
+//   useCoinvest=true: 25%上限を超える分を共同投資で埋める（枠が尽きればそこで頭打ち）。
+//     共同投資分にはフルの半分のキャリーしか付かないため、案件全体のキャリーは
+//     ファンド持分とのブレンドになる。
+function planDealFinancing(fund,dealSize,useCoinvest){
+  const size=Math.max(0,finite(dealSize));
+  const cap=maxSingleDealSize(fund);
+  const fullCarry=finite(fund?.terms?.carry);
+  if(!useCoinvest||size<=cap){
+    const fundPortion=Math.min(size,cap);
+    return {fundPortion,coinvestPortion:0,rejectedAmount:Math.max(0,size-cap),blendedCarryRate:fullCarry};
+  }
+  const excess=size-cap;
+  const coinvestPortion=Math.min(excess,coinvestRemaining(fund));
+  const fundPortion=Math.min(size-coinvestPortion,cap);
+  const rejectedAmount=Math.max(0,size-fundPortion-coinvestPortion);
+  const halfCarry=fullCarry*COINVEST_CARRY_FACTOR;
+  const financed=fundPortion+coinvestPortion;
+  const blendedCarryRate=financed>0?(fundPortion*fullCarry+coinvestPortion*halfCarry)/financed:fullCarry;
+  return {fundPortion,coinvestPortion,rejectedAmount,blendedCarryRate};
+}
+// 実際に共同投資額を確定させる（枠を消費する）。枠を超える要求は自動的に切り詰める。
+function recordCoinvestment(fund,amount){
+  if(!fund)return 0;
+  const used=Math.max(0,Math.min(finite(amount),coinvestRemaining(fund)));
+  fund.coinvestCommitted=coinvestCommitted(fund)+used;
+  return used;
+}
+
 function install(){
   const proto=EngineClass.prototype;
   if(proto.__peFundInstalled)return true;
@@ -494,6 +538,7 @@ modules.peFund=Object.freeze({
   MANAGEMENT_FEE_PER_HEAD,TEAM_CAP,MIN_TICKET_PER_DEAL,MAX_DEAL_SHARE_OF_FUND,SLOT_CAP_ABSOLUTE,FIRST_FUND_HOLD_WEEKS,LATER_FUND_HOLD_WEEKS,
   teamCapacity,slotCapacity,maxSingleDealSize,activeDealCount,attentionRatio,attentionMultiplier,optimalHoldWeeks,
   DD_SLOTS_BASE,DD_SLOTS_PER_PARTNER_DIVISOR,DD_YEAR_WEEKS,partnerCount,computeDDSlotsPerYear,ddSlotsPerYear,ddPeriodIndex,currentDDUsage,ddSlotsRemaining,consumeDDSlot,
+  COINVEST_CAP_MULTIPLE,COINVEST_CARRY_FACTOR,coinvestCapacity,coinvestCommitted,coinvestRemaining,annualManagementFee,planDealFinancing,recordCoinvestment,
   __installed:true
 });
 })();
