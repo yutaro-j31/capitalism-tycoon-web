@@ -300,7 +300,10 @@ const nodeTests = [
   ['pe-fund', 'tests/pe-fund-test.js'],
   ['pe-fund-track-record', 'tests/pe-fund-track-record-test.js'],
   ['pe-fund-dpi', 'tests/pe-fund-dpi-test.js'],
-  ['pe-fund-lp', 'tests/pe-fund-lp-test.js']
+  ['pe-fund-lp', 'tests/pe-fund-lp-test.js'],
+  ['pe-fund-team-slots', 'tests/pe-fund-team-slots-test.js'],
+  ['pe-fund-dd-slots', 'tests/pe-fund-dd-slots-test.js'],
+  ['pe-industry-tiers', 'tests/pe-industry-tiers-test.js']
 ];
 
 for (let i = 0; i < nodeTests.length; i++) {

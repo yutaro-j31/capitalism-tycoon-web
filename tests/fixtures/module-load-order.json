@@ -38,6 +38,7 @@
     "./js/competitor-media.js",
     "./js/completion.js",
     "./js/pe-fund.js",
+    "./js/pe-industry-tiers.js",
     "./js/parity.js",
     "./js/ceo-dashboard.js",
     "./js/executive-secretary.js",
