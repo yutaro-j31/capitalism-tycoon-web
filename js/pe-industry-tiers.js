@@ -26,7 +26,6 @@ const clamp=(v,min=0,max=1)=>Math.max(min,Math.min(max,finite(v,min)));
 // order).
 function hash(parts){let h=2166136261;String(parts.join('|')).split('').forEach(c=>{h^=c.charCodeAt(0);h=Math.imul(h,16777619);});return h>>>0;}
 function unit(...p){return hash(p)/4294967295;}
-function between(a,b,...p){return a+(b-a)*unit(...p);}
 
 // 設計書§15の表。sizeMin/sizeMaxは企業価値(EV)、leverageは取得時の負債活用倍率。
 const TIERS=Object.freeze({
@@ -72,10 +71,16 @@ function eligibleTiers(fund){
 // which this FNV-1a chain spreads well even across a 1-character (2166136261 XOR chain) input
 // difference -- verified empirically to never collapse across a 200-year sample.
 function pickTierID(year,index){return TIER_IDS[hash(['pe-tier',year,index])%TIER_IDS.length];}
+// 帯内の企業価値を対数一様分布で引く。企業規模の分布は現実にも対数正規に近く偏っており、
+// 線形一様（between()そのまま）だと各帯の期待値が上限付近に張り付く（例: pillar帯
+// 20〜1,500億の線形平均は約760億で、Fund Iの現実的なチケットサイズ（設計書§15の例示
+// 「1件あたり9億」）から大きく外れる）。対数軸で引くことで、小型ファンドが帯の下限側の
+// 案件に出会える確率を現実的な水準まで引き上げる。
+function logBetween(min,max,...seed){const lo=Math.log(Math.max(1,min)),hi=Math.log(Math.max(1,max));return Math.exp(lo+(hi-lo)*unit(...seed));}
 function generateDeal(year,index){
   const tierID=pickTierID(year,index);
   const tier=TIERS[tierID];
-  const enterpriseValue=between(tier.sizeMin,tier.sizeMax,'pe-ev',year,index);
+  const enterpriseValue=logBetween(tier.sizeMin,tier.sizeMax,'pe-ev',year,index);
   const businessID=tier.businessIDs.length?tier.businessIDs[hash(['pe-biz',year,index])%tier.businessIDs.length]:null;
   return {id:`pe-deal-${year}-${index}`,year,index,tierID,tierName:tier.name,enterpriseValue,acquisitionMultiple:tier.acquisitionMultiple,leverage:tier.leverage,skillMultiplier:tier.skillMultiplier,exitOptions:tier.exitOptions,businessID};
 }
