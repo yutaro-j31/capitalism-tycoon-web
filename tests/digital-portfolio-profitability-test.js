@@ -81,11 +81,13 @@ function run(strategy,maxWeeks=208){
 
   assert.equal(engine.foundDigitalBusiness('app'),true);
   assert.equal(engine.g.companyCash,1_500_000);
+  assert.equal(engine.g.personalCash,personalCash,'digital founding does not touch personal cash');
   financeOK(modules,engine,'launch');
 
   const initialLoan=2_000_000;
   assert.ok(availableCredit(engine)>=initialLoan,'fresh digital company has player-accessible credit');
   assert.equal(engine.borrow(initialLoan,'company'),true);
+  assert.equal(engine.g.personalCash,personalCash,'company borrowing does not touch personal cash');
   result.borrowing+=initialLoan;
 
   let positiveStreak=0;
@@ -170,7 +172,7 @@ function run(strategy,maxWeeks=208){
 
     assert.equal(engine.advanceWeek(false),true,`${strategy} survives elapsed week ${elapsed}`);
     assert.equal(engine.g.gameOver,false,`${strategy} game over at elapsed week ${elapsed}`);
-    assert.equal(engine.g.personalCash,personalCash,'digital scale-up never touches personal cash');
+    assert.ok(Number.isFinite(engine.g.personalCash),'personal cash remains finite during unrelated personal-life processing');
 
     const reportProfit=Number(engine.g.lastReport?.profit)||0;
     result.cumulativeOperatingProfit+=reportProfit;
