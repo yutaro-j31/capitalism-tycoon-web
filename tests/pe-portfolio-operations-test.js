@@ -63,14 +63,14 @@ function bigFund(score = 35, size = 30_000_000_000) {
 {
   const { e, fund } = bigFund();
   const deal = ops.acquirePillarCompany(e.g, fund.id, { businessID: 'conveni', enterpriseValue: 3_000_000_000, week: 1 });
-  ops.processDealWeek(deal, 2);
+  ops.processDealWeek(fund, deal, 2);
   assert.notEqual(deal.portfolioCompany.weeklyProfit, 0);
   assert.equal(deal.portfolioCompany.lastProcessedWeek, 2);
   assert.equal(deal.portfolioCompany.profitHistory.length, 1);
-  ops.processDealWeek(deal, 2); // reprocessing the same week must be a no-op
+  ops.processDealWeek(fund, deal, 2); // reprocessing the same week must be a no-op
   assert.equal(deal.portfolioCompany.profitHistory.length, 1);
   const cashAfterOne = deal.portfolioCompany.cash;
-  ops.processDealWeek(deal, 3);
+  ops.processDealWeek(fund, deal, 3);
   assert.notEqual(deal.portfolioCompany.cash, cashAfterOne);
 }
 
@@ -79,12 +79,39 @@ function bigFund(score = 35, size = 30_000_000_000) {
 {
   const { e: e1, fund: f1 } = bigFund();
   const d1 = ops.acquirePillarCompany(e1.g, f1.id, { businessID: 'gym', enterpriseValue: 2_500_000_000, week: 1 });
-  ops.processDealWeek(d1, 5);
+  ops.processDealWeek(f1, d1, 5);
   const { e: e2, fund: f2 } = bigFund();
   const d2 = ops.acquirePillarCompany(e2.g, f2.id, { businessID: 'gym', enterpriseValue: 2_500_000_000, week: 1 });
-  ops.processDealWeek(d2, 5);
+  ops.processDealWeek(f2, d2, 5);
   assert.equal(d1.portfolioCompany.weeklyProfit, d2.portfolioCompany.weeklyProfit);
   assert.equal(d1.portfolioCompany.cash, d2.portfolioCompany.cash);
+}
+
+// 4b. Codex独立監査対応: T9's attentionMultiplier (team headcount ÷ active deal count) must
+// actually be connected to weekly EBITDA -- diluting a fund's attention across many concurrent
+// deals must measurably lower each deal's weeklyProfit relative to the same fund/deal
+// processed with attention undiluted, all else (price/quality/noise) held equal.
+{
+  const { e, fund } = bigFund();
+  const deal = ops.acquirePillarCompany(e.g, fund.id, { businessID: 'ramen', enterpriseValue: 2_500_000_000, week: 1 });
+  const focusedMultiplier = pf.attentionMultiplier(fund);
+  assert.equal(focusedMultiplier, 1, 'sanity: a single active deal must not dilute attention');
+  ops.processDealWeek(fund, deal, 2);
+  const focusedProfit = deal.portfolioCompany.weeklyProfit;
+
+  // Same fund, but now with enough other active deals pushed onto it directly (bypassing the
+  // acquisition flow, purely to manipulate activeDealCount for this isolated check) to dilute
+  // attention well below 1 -- reprocessing the SAME week-2 transition on a fresh identical
+  // deal must produce a strictly lower weeklyProfit.
+  const { e: e2, fund: fund2 } = bigFund();
+  const deal2 = ops.acquirePillarCompany(e2.g, fund2.id, { businessID: 'ramen', enterpriseValue: 2_500_000_000, week: 1 });
+  for (let i = 0; i < 40; i++) fund2.deals.push({ id: `filler-${i}`, businessID: null, status: 'active' });
+  const dilutedMultiplier = pf.attentionMultiplier(fund2);
+  assert.ok(dilutedMultiplier < focusedMultiplier, `attention must be diluted: ${dilutedMultiplier} should be < ${focusedMultiplier}`);
+  ops.processDealWeek(fund2, deal2, 2);
+  const dilutedProfit = deal2.portfolioCompany.weeklyProfit;
+  assert.ok(dilutedProfit < focusedProfit, `diluted attention must lower weeklyProfit: ${dilutedProfit} should be < ${focusedProfit}`);
+  assert.ok(Math.abs(dilutedProfit / focusedProfit - dilutedMultiplier / focusedMultiplier) < 1e-9, 'the profit ratio must match the attentionMultiplier ratio exactly (single multiplicative factor)');
 }
 
 // 5. Completion criterion: price/quality levers and store expansion visibly change future
@@ -157,7 +184,7 @@ function bigFund(score = 35, size = 30_000_000_000) {
   const companyCashBefore = e.g.companyCash, personalCashBefore = e.g.personalCash;
   const deal = ops.acquirePillarCompany(e.g, fund.id, { businessID: 'ramen', enterpriseValue: 5_000_000_000, week: 1, useCoinvest: true });
   assert.ok(deal);
-  for (let w = 2; w <= 20; w++) ops.processDealWeek(deal, w);
+  for (let w = 2; w <= 20; w++) ops.processDealWeek(fund, deal, w);
   ops.setPriceMultiplier(e.g, fund.id, deal.id, 1.2);
   ops.investQuality(e.g, fund.id, deal.id, 50_000_000);
   ops.expandPortfolioStore(e.g, fund.id, deal.id);

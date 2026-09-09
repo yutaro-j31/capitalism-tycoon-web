@@ -189,6 +189,35 @@ function fundWith(size, investedAmount, cash, distributed) {
   assert.ok(Math.abs(formable - 2_800_000_000) / 2_800_000_000 < .05);
 }
 
+// 7f. Codex独立監査対応: MAX_FUND_SIZE must be enforced at createFund()'s own final boundary
+// too, not only inside formableFundSize()'s recommendation -- a caller that constructs a fund
+// directly with an over-cap size (bypassing formableFundSize entirely) must still be clamped,
+// and fund.cash must never end up above fund.size as a result of the clamp.
+{
+  const e = new TycoonEngine();
+  const fund = pf.createFund(e.g, { size: pf.MAX_FUND_SIZE * 3, y0: 1 });
+  assert.equal(fund.size, pf.MAX_FUND_SIZE);
+  assert.equal(fund.cash, pf.MAX_FUND_SIZE, 'cash must be clamped in step with size, not left at the pre-clamp value');
+}
+// Load normalization (ensureFund, exercised here directly) must apply the same ceiling to an
+// old/corrupt save that already has an over-cap fund.size on disk.
+{
+  const e = new TycoonEngine();
+  const fund = pf.createFund(e.g, { size: 1_000_000_000, y0: 1 });
+  fund.size = pf.MAX_FUND_SIZE * 10;
+  fund.cash = pf.MAX_FUND_SIZE * 10;
+  pf.ensureFund(fund, 1);
+  assert.equal(fund.size, pf.MAX_FUND_SIZE);
+}
+
+// 7g. Codex独立監査対応: peFirm.funds is capped at 20 immediately after createFund's own
+// push, not only the next time ensure()/normalize() happens to run.
+{
+  const e = new TycoonEngine();
+  for (let i = 0; i < 25; i++) pf.createFund(e.g, { size: 1_000_000, y0: i + 1 });
+  assert.equal(e.g.peFirm.funds.length, 20, 'the array must already be capped right after the 25th createFund call, before any ensure()/normalize()');
+}
+
 // 8. evaluateFund updates trackRecord.realizedDPI and is safe to call for an unknown fund id.
 {
   const e = new TycoonEngine();

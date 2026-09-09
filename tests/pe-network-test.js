@@ -1,7 +1,7 @@
 'use strict';
 
 // PE mode T13 (docs/PE_MODE_TASKS.md): the 4-path sourcing network -- nodes, trust decay,
-// weekly action budget, and the 40% monopoly-share cap.
+// weekly action budget, and the per-deal 40%-ceilinged monopoly-sourcing probability.
 
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
@@ -108,30 +108,73 @@ const { TycoonEngine, pn } = load();
   assert.equal(strong.trust, 35);
 }
 
-// 9. Completion criterion: the rolling monopoly share never exceeds 40% even under a stream of
-// monopoly-heavy requests, once past the bootstrap sample size -- yet plenty are still granted
-// (the cap is not overly conservative).
+// 9. Codex独立監査対応: monopolyProbability is a per-node/per-path PROBABILITY (not a rolling
+// quota over past outcomes) -- trust below the threshold is 0, it scales with trust progress
+// from 60->100, and it is ALWAYS ceilinged at MAX_MONOPOLY_SHARE (40%) even for a path whose
+// own upperContributionShare exceeds 40% (longTermCultivation is .55).
 {
-  const e = new TycoonEngine();
-  let grantedCount = 0;
-  for (let i = 0; i < 200; i++) {
-    const entry = pn.recordDealSourced(e.g, { week: i, monopoly: true }); // always REQUEST monopoly
-    if (entry.monopoly) grantedCount++;
-    if (i >= pn.MONOPOLY_MIN_SAMPLE) {
-      assert.ok(pn.monopolyShare(e.g) <= pn.MAX_MONOPOLY_SHARE + 1e-9, `monopoly share must never exceed ${pn.MAX_MONOPOLY_SHARE} at iteration ${i}, got ${pn.monopolyShare(e.g)}`);
-    }
-  }
-  assert.ok(grantedCount > 0, 'the cap must not reject every single monopoly request');
-  assert.ok(grantedCount < 200, 'an unbroken stream of monopoly requests must eventually be throttled');
-}
-{
-  // A non-monopoly request is always recorded as such, regardless of window state.
-  const e = new TycoonEngine();
-  const entry = pn.recordDealSourced(e.g, { week: 1, monopoly: false });
-  assert.equal(entry.monopoly, false);
+  assert.equal(pn.monopolyProbability({ trust: 59, pathType: 'referrer' }), 0);
+  assert.equal(pn.monopolyProbability({ trust: 60, pathType: 'referrer' }), 0, 'exactly at the threshold, trustProgress is 0');
+  assert.equal(pn.monopolyProbability(null), 0);
+  // referrer (share .22) at trust 100 (trustProgress 1) -> .22, well under the 40% ceiling.
+  assert.ok(Math.abs(pn.monopolyProbability({ trust: 100, pathType: 'referrer' }) - .22) < 1e-9);
+  // referrer at the trust midpoint (80, trustProgress .5) -> .11.
+  assert.ok(Math.abs(pn.monopolyProbability({ trust: 80, pathType: 'referrer' }) - .11) < 1e-9);
+  // longTermCultivation (share .55) at trust 100 would calculate to .55 uncapped -- must be
+  // ceilinged at MAX_MONOPOLY_SHARE (.40), completion criterion: 独占確率が40%を超えない.
+  assert.equal(pn.monopolyProbability({ trust: 100, pathType: 'longTermCultivation' }), pn.MAX_MONOPOLY_SHARE);
+  assert.equal(pn.MAX_MONOPOLY_SHARE, .40);
 }
 
-// 10. Old save (no peNetwork field at all) loads safely and gets backfilled.
+// 10. rollMonopolySourcing: unknown node -> false, no state change. Below-threshold node ->
+// false (probability 0), trust untouched. A winning roll costs the same fixed trust as
+// bringMonopolyDeal (60 -> 35 style); a losing roll costs nothing.
+{
+  const e = new TycoonEngine();
+  assert.equal(pn.rollMonopolySourcing(e.g, 'does-not-exist', 1, 0), false);
+  const weak = pn.addNode(e.g, { sourceType: 'x', pathType: 'referrer', week: 1, trust: 30 });
+  assert.equal(pn.rollMonopolySourcing(e.g, weak.id, 1, 0), false);
+  assert.equal(weak.trust, 30, 'a probability-0 roll must not touch trust');
+}
+{
+  // A deterministic seed that is known to land under the node's probability -- scan a small
+  // range of dealSeed values for a guaranteed hit (hash-based, no Math.random()), then confirm
+  // the trust cost matches MONOPOLY_TRUST_COST exactly.
+  const e = new TycoonEngine();
+  const node = pn.addNode(e.g, { sourceType: 'y', pathType: 'longTermCultivation', week: 1, trust: 100 });
+  let won = false;
+  for (let seed = 0; seed < 50 && !won; seed++) {
+    node.trust = 100;
+    if (pn.rollMonopolySourcing(e.g, node.id, 1, seed)) { won = true; assert.equal(node.trust, 100 - pn.MONOPOLY_TRUST_COST); }
+  }
+  assert.ok(won, 'sanity: with probability .40 at least one of 50 seeds must win');
+}
+
+// 11. Determinism: the same (state snapshot, nodeID, week, dealSeed) must always resolve the
+// same way, and the outcome must approximate the calculated probability over many independent
+// deal seeds (statistical check that the ceiling is applied to the PROBABILITY itself, not
+// enforced after the fact against a history of outcomes).
+{
+  const TRIALS = 600;
+  const e = new TycoonEngine();
+  const node = pn.addNode(e.g, { sourceType: 'z', pathType: 'longTermCultivation', week: 1, trust: 100 });
+  const probability = pn.monopolyProbability(node); // .40, the ceiling (share .55 would exceed it)
+  let hits = 0;
+  for (let seed = 0; seed < TRIALS; seed++) {
+    node.trust = 100; // reset between trials to isolate the probability check from trust depletion
+    if (pn.rollMonopolySourcing(e.g, node.id, 1, seed)) hits++;
+  }
+  const empiricalRate = hits / TRIALS;
+  assert.ok(Math.abs(empiricalRate - probability) < .08, `empirical hit rate ${empiricalRate} must track the ceilinged probability ${probability}`);
+  // Re-running the exact same seed against a fresh, identically-set-up node must reproduce the
+  // exact same true/false outcome (pure function of the hash inputs).
+  node.trust = 100; // reset after the trial loop left it at whatever the last iteration produced
+  const e2 = new TycoonEngine();
+  const node2 = pn.addNode(e2.g, { sourceType: 'z', pathType: 'longTermCultivation', week: 1, trust: 100 });
+  assert.equal(pn.rollMonopolySourcing(e.g, node.id, 1, 7), pn.rollMonopolySourcing(e2.g, node2.id, 1, 7));
+}
+
+// 12. Old save (no peNetwork field at all) loads safely and gets backfilled.
 {
   const e = new TycoonEngine();
   delete e.g.peNetwork;
@@ -139,10 +182,17 @@ const { TycoonEngine, pn } = load();
   assert.deepEqual(e.g.peNetwork.nodes, []);
   assert.equal(e.g.peNetwork.weeklyActionsUsed, 0);
   assert.deepEqual(e.g.peNetwork.favorsOwed, []);
-  assert.deepEqual(e.g.peNetwork.dealSourcingLog, []);
+}
+// A save from before this fix (Codex独立監査対応) that still carries the now-removed rolling
+// quota's dealSourcingLog field must load without error -- the stale field is simply ignored.
+{
+  const e = new TycoonEngine();
+  e.g.peNetwork.dealSourcingLog = [{ week: 1, monopoly: true }];
+  pn.ensure(e.g);
+  assert.equal(e.g.peNetwork.nodes.length, 0, 'sanity: normalize did not throw on the stale field');
 }
 
-// 11. No new Math.random()/Date.now()/randomUUID usage.
+// 13. No new Math.random()/Date.now()/randomUUID usage.
 {
   const src = fs.readFileSync('js/pe-network.js', 'utf8');
   assert.ok(!src.includes('Math.random()'));

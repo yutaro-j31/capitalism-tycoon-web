@@ -28,15 +28,36 @@ const NEXT_FUND_MIN_DEPLOYMENT=.8;
 function defaultTrackRecord(){return {score:0,exits:[],realizedDPI:0};}
 function defaultPeFirm(){return {trackRecord:defaultTrackRecord(),funds:[],ddSlotsPerYear:3,ddUsage:{period:0,used:0},unlocked:false};}
 
+// LPコミットメント配列の共通正規化（Codex独立監査の指摘対応）: 同一lpTypeIDの重複除去
+// （先勝ち）と MAX_LPS_PER_FUND(5件) への切り詰めを1箇所に集約する。ensureFund（load正規化
+// とcreateFundの両方が通る）とaddLPCommitmentの両方がこの関数を経由することで、
+// create/load/addのどの書き込み経路からも同じ上限が効く。LP_TYPESに存在しないlpTypeIDの
+// エントリも無効として除外する。
+function normalizeLPs(list){
+  const out=[];
+  const seen=new Set();
+  for(const c of arr(list)){
+    if(!c||!LP_TYPES[c.lpTypeID]||seen.has(c.lpTypeID))continue;
+    seen.add(c.lpTypeID);
+    out.push({lpTypeID:c.lpTypeID,committedAmount:Math.max(0,finite(c.committedAmount)),promiseAccepted:Boolean(c.promiseAccepted)&&Boolean(LP_TYPES[c.lpTypeID].promiseID),promiseFulfilled:c.promiseFulfilled===true||c.promiseFulfilled===false?c.promiseFulfilled:null});
+    if(out.length>=MAX_LPS_PER_FUND)break;
+  }
+  return out;
+}
+
 function ensureFund(f,week){
   if(!f)return f;
-  f.lps=arr(f.lps);
+  f.lps=normalizeLPs(f.lps);
   f.deals=arr(f.deals).slice(-500);
   f.terms=f.terms&&typeof f.terms==='object'?f.terms:{fee:0,carry:0,hurdle:0};
   f.terms.fee=Math.max(0,finite(f.terms.fee));
   f.terms.carry=Math.max(0,finite(f.terms.carry));
   f.terms.hurdle=Math.max(0,finite(f.terms.hurdle));
-  f.size=Math.max(0,finite(f.size));
+  // MAX_FUND_SIZE（設計書§2/§12、5兆円の絶対上限）は formableFundSize() だけでなく、
+  // ここ（load正規化・createFundの両方が通る唯一の書き込み経路）でも強制する。
+  // formableFundSize経由でない直接のcreateFund呼び出しや、旧セーブの読み込みで
+  // 上限超過の値が紛れ込んでも、この行が最終的な境界になる。
+  f.size=Math.min(MAX_FUND_SIZE,Math.max(0,finite(f.size)));
   f.gpCommit=Math.max(0,finite(f.gpCommit));
   f.y0=Math.max(1,Math.floor(finite(f.y0,week)));
   // T5 simplification: the whole committed size is called at formation (cash=size,
@@ -164,9 +185,15 @@ function recordExitForCurrentCompany(state,exitType,realizedAmount){
 // created fund. y0 defaults to the current week.
 function createFund(state,{size=0,gpCommit=0,terms={fee:0,carry:0,hurdle:0},lps=[],y0}={}){
   ensure(state);
-  const fund={id:`pe-fund-${state.peFirm.funds.length+1}-${finite(state.week,1)}`,size:Math.max(0,finite(size)),gpCommit:Math.max(0,finite(gpCommit)),lps:arr(lps),terms:{...terms},y0:Math.max(1,Math.floor(finite(y0,finite(state.week,1)))),cash:Math.max(0,finite(size)),undrawn:0,distributed:0,deals:[],status:'investing'};
+  const cappedSize=Math.min(MAX_FUND_SIZE,Math.max(0,finite(size)));
+  const fund={id:`pe-fund-${state.peFirm.funds.length+1}-${finite(state.week,1)}`,size:cappedSize,gpCommit:Math.max(0,finite(gpCommit)),lps:arr(lps),terms:{...terms},y0:Math.max(1,Math.floor(finite(y0,finite(state.week,1)))),cash:cappedSize,undrawn:0,distributed:0,deals:[],status:'investing'};
   ensureFund(fund,finite(state.week,1));
   state.peFirm.funds.push(fund);
+  // Fix 3 (Codex独立監査): push直後にもファンド本数上限(20)を適用する。ensure()側の
+  // slice(-20)は次回normalize時にしか効かないため、createFund単体で20本目を超えて
+  // 積み上げてから一度もnormalizeを挟まずに次のcreateFundを呼ぶ経路（テスト・将来のUI）を
+  // 塞ぐには、この場でも即座に切り詰める必要がある。
+  state.peFirm.funds=state.peFirm.funds.slice(-20);
   return fund;
 }
 
@@ -272,7 +299,7 @@ function visibleLPTypes(state){
 // その分の金額が小さいだけ（金額そのものはUIが無いためcommittedAmountを呼び出し側が渡す）。
 function addLPCommitment(fund,{lpTypeID,committedAmount=0,promiseAccepted=false}={}){
   if(!fund||!LP_TYPES[lpTypeID])return null;
-  fund.lps=arr(fund.lps);
+  fund.lps=normalizeLPs(fund.lps); // 既存状態を先に重複除去・上限適用してから判定する
   if(fund.lps.some(c=>c.lpTypeID===lpTypeID))return null; // 同一LPタイプは1ファンドにつき1件まで
   if(fund.lps.length>=MAX_LPS_PER_FUND)return null; // ファンド1本あたりのLP件数上限
   const commitment={lpTypeID,committedAmount:Math.max(0,finite(committedAmount)),promiseAccepted:Boolean(promiseAccepted)&&Boolean(LP_TYPES[lpTypeID].promiseID),promiseFulfilled:null};
@@ -539,7 +566,7 @@ modules.peFund=Object.freeze({
   requiredGPRatio,managementFeeRate,carryRate,hurdleRate,fundTermsForScore,formableFundSize,lpTrustMultiplier,
   exitQuality,computeTrackScore,recordExit,recordExitForCurrentCompany,
   fundContributed,fundDeployed,fundDeploymentRate,fundDPI,fundIRR,evaluateFund,canFormNextFund,
-  LP_TYPES,LP_TYPE_IDS,PROMISE_BROKEN_FLOOR,MAX_LPS_PER_FUND,meetsLPCondition,visibleLPTypes,addLPCommitment,recordLPPromiseOutcome,promiseComplianceMultiplier,continuingLPCommitments,
+  LP_TYPES,LP_TYPE_IDS,PROMISE_BROKEN_FLOOR,MAX_LPS_PER_FUND,normalizeLPs,meetsLPCondition,visibleLPTypes,addLPCommitment,recordLPPromiseOutcome,promiseComplianceMultiplier,continuingLPCommitments,
   MANAGEMENT_FEE_PER_HEAD,TEAM_CAP,MIN_TICKET_PER_DEAL,MAX_DEAL_SHARE_OF_FUND,SLOT_CAP_ABSOLUTE,FIRST_FUND_HOLD_WEEKS,LATER_FUND_HOLD_WEEKS,
   teamCapacity,slotCapacity,maxSingleDealSize,activeDealCount,attentionRatio,attentionMultiplier,optimalHoldWeeks,
   DD_SLOTS_BASE,DD_SLOTS_PER_PARTNER_DIVISOR,DD_YEAR_WEEKS,partnerCount,computeDDSlotsPerYear,ddSlotsPerYear,ddPeriodIndex,currentDDUsage,ddSlotsRemaining,consumeDDSlot,

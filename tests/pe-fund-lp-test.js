@@ -164,11 +164,34 @@ function goodExit(overrides = {}) {
   assert.equal(fund.lps.length, pf.MAX_LPS_PER_FUND);
   assert.equal(pf.LP_TYPE_IDS.length, pf.MAX_LPS_PER_FUND, 'sanity: exactly MAX_LPS_PER_FUND LP types exist today');
 }
+// 7d. Codex独立監査対応: normalizeLPs() is the single shared choke point every write path
+// (create/load/add) now goes through. It must dedupe (keep the first occurrence) AND enforce
+// MAX_LPS_PER_FUND independent of dedup -- verified directly here by feeding it more entries
+// than the cap allows, using only real lpTypeIDs (an unknown lpTypeID is dropped entirely by
+// design, so it can no longer be used to simulate "a future larger roster" the way a raw-push
+// test against addLPCommitment once did).
 {
+  const doubled = [...pf.LP_TYPE_IDS, ...pf.LP_TYPE_IDS].map(id => ({ lpTypeID: id, committedAmount: 1 }));
+  const normalized = pf.normalizeLPs(doubled);
+  assert.equal(normalized.length, pf.MAX_LPS_PER_FUND, 'duplicates across the whole list must collapse before the cap is even reached');
+  assert.deepEqual(normalized.map(c => c.lpTypeID).sort(), [...pf.LP_TYPE_IDS].sort());
+}
+{
+  // An unknown lpTypeID must be dropped, not counted toward the cap.
+  const withUnknown = [{ lpTypeID: 'not-a-real-type', committedAmount: 999 }, { lpTypeID: 'formerColleague', committedAmount: 1 }];
+  const normalized = pf.normalizeLPs(withUnknown);
+  assert.equal(normalized.length, 1);
+  assert.equal(normalized[0].lpTypeID, 'formerColleague');
+}
+{
+  // ensureFund (and therefore createFund, and loading a save) must run LPs through the same
+  // normalizer: a fund constructed with a raw, over-cap, duplicate-laden lps array comes out
+  // deduped and capped.
   const e = new TycoonEngine();
-  const fund = pf.createFund(e.g, { size: 1_000_000_000, y0: 1 });
-  for (let i = 0; i < pf.MAX_LPS_PER_FUND; i++) fund.lps.push({ lpTypeID: `future-${i}`, committedAmount: 0, promiseAccepted: false, promiseFulfilled: null });
-  assert.equal(pf.addLPCommitment(fund, { lpTypeID: 'formerColleague', committedAmount: 1 }), null, 'must refuse once fund.lps.length reaches the cap, independent of type-uniqueness');
+  const messyLps = [...pf.LP_TYPE_IDS, ...pf.LP_TYPE_IDS, 'not-a-real-type'].map(id => ({ lpTypeID: id, committedAmount: 5 }));
+  const fund = pf.createFund(e.g, { size: 1_000_000_000, y0: 1, lps: messyLps });
+  assert.equal(fund.lps.length, pf.MAX_LPS_PER_FUND);
+  assert.deepEqual(fund.lps.map(c => c.lpTypeID).sort(), [...pf.LP_TYPE_IDS].sort());
 }
 
 // 8. recordLPPromiseOutcome and addLPCommitment are safe no-ops for unknown funds/LP types.

@@ -19,6 +19,11 @@ const finite=(v,f=0)=>Number.isFinite(Number(v))?Number(v):f;
 const clamp=(v,min=0,max=1)=>Math.max(min,Math.min(max,finite(v,min)));
 const arr=v=>Array.isArray(v)?v:[];
 
+// Same deterministic FNV-1a hash as js/ma-deal-room.js / js/pe-rivals.js / js/pe-industry-tiers.js
+// / js/pe-portfolio-operations.js.
+function hash(parts){let h=2166136261;String(parts.join('|')).split('').forEach(c=>{h^=c.charCodeAt(0);h=Math.imul(h,16777619);});return h>>>0;}
+function unit(...p){return hash(p)/4294967295;}
+
 const MAX_NODES=100;
 const WEEKLY_ACTIONS=2;
 // 減衰（設計書§6.5末尾）: 接触しないと週0.15低下（放置1年で約8ポイント）。紹介者経路は
@@ -30,13 +35,11 @@ const CONTACT_TRUST_GAIN=4;
 // 独占案件の持ち込み（設計書§6）: trust60以上で使え、使うと大きく下がる（60→35の例）。
 const MONOPOLY_TRUST_THRESHOLD=60;
 const MONOPOLY_TRUST_COST=25;
-// 独占比率の上限（設計書§6.5検証・採用値）。直近MONOPOLY_WINDOW件のソーシング実績のうち
-// 独占が占める割合がこれを超える要求は、公開入札扱い（monopoly:false）に強制変換する。
-// サンプルが少ないうちは長期比率を判定できないため、MONOPOLY_MIN_SAMPLE件に達するまでは
-// 素通しする（ブートストラップ期間）。
+// 独占確率の上限（設計書§6.5検証・採用値）: 「1案件あたりの独占確率上限」。旧実装は
+// 直近30件の実現比率に対する事後quotaだったが、これは設計書の記述と異なる挙動になる
+// （短期的に独占が連続しうる確率上限と、常に頭打ちがかかるquotaでは体感が変わる）ため、
+// 案件ごとに算出した確率をこの値でceilingする方式に作り直した（Codex独立監査対応）。
 const MAX_MONOPOLY_SHARE=.40;
-const MONOPOLY_WINDOW=30;
-const MONOPOLY_MIN_SAMPLE=5;
 
 // 4経路（設計書§6.5）。upperContributionShareは「上手・上限40%」時の経路別寄与の目安
 // （情報表示用。ソーシングの実際の経路選択ロジックはこのファイルでは扱わない）。
@@ -48,7 +51,7 @@ const PATH_TYPES=Object.freeze({
 });
 const PATH_TYPE_IDS=Object.freeze(Object.keys(PATH_TYPES));
 
-function defaultPeNetwork(){return {nodes:[],weeklyActionsUsed:0,weeklyActionsWeek:0,favorsOwed:[],dealSourcingLog:[]};}
+function defaultPeNetwork(){return {nodes:[],weeklyActionsUsed:0,weeklyActionsWeek:0,favorsOwed:[]};}
 function normalizeNode(n,week){
   if(!n)return n;
   n.pathType=PATH_TYPES[n.pathType]?n.pathType:'referrer';
@@ -67,7 +70,6 @@ function ensure(state){
   pn.weeklyActionsUsed=Math.max(0,Math.floor(finite(pn.weeklyActionsUsed,0)));
   pn.weeklyActionsWeek=Math.max(0,Math.floor(finite(pn.weeklyActionsWeek,0)));
   pn.favorsOwed=arr(pn.favorsOwed).slice(-50);
-  pn.dealSourcingLog=arr(pn.dealSourcingLog).slice(-MONOPOLY_WINDOW);
   return state;
 }
 
@@ -123,29 +125,33 @@ function bringMonopolyDeal(state,nodeID){
   node.trust=clamp(node.trust-MONOPOLY_TRUST_COST,0,100);
   return node;
 }
-// 直近MONOPOLY_WINDOW件に占める独占ソーシングの比率。
-function monopolyShare(state){
-  ensure(state);
-  const log=state.peNetwork.dealSourcingLog;
-  return log.length?log.filter(x=>x.monopoly).length/log.length:0;
+// 独占案件のソーシング確率（設計書§6.5、Codex独立監査対応）: 経路ごとの寄与上限
+// （PATH_TYPES[...].upperContributionShare）を基礎値とし、trustがMONOPOLY_TRUST_THRESHOLD
+// (60)から100に近づくほど確率が伸びる、経路由来の計算値を求める。この計算値を
+// MAX_MONOPOLY_SHARE(40%)で必ずceilingする（「1案件あたりの独占確率上限」という設計書の
+// 記述通り、ここで頭打ちがかかるのは個々の確率であって、過去の実現比率ではない）。
+// trust未満（60未満）のノードは確率0。
+function monopolyProbability(node){
+  if(!node||finite(node.trust)<MONOPOLY_TRUST_THRESHOLD)return 0;
+  const path=PATH_TYPES[node.pathType]||PATH_TYPES.referrer;
+  const trustProgress=clamp((finite(node.trust)-MONOPOLY_TRUST_THRESHOLD)/(100-MONOPOLY_TRUST_THRESHOLD),0,1);
+  const calculatedProbability=path.upperContributionShare*trustProgress;
+  return Math.min(MAX_MONOPOLY_SHARE,calculatedProbability);
 }
-// 案件のソーシング実績を記録する（完了条件: 独占比率が40%を超えない）。独占として記録する
-// ことで直近ウィンドウの比率が上限を超えてしまう場合は、公開入札扱い（monopoly:false）に
-// 強制変換する。比率の分母はMONOPOLY_MIN_SAMPLE未満に縮めない（サンプルが少ないうちから
-// 履歴を非独占で薄めて判定するため、立ち上がり数件だけ許可が連続して直後に比率超過する、
-// という急激な乱れを避けられる）。
-function recordDealSourced(state,{week=0,monopoly=false}={}){
+// 案件生成時に、このノードが今回独占案件を持ち込むかを、上のmonopolyProbability()に対する
+// 決定論的な抽選（週・ノードID・案件シードから導くハッシュ）で判定する。当たった場合は
+// bringMonopolyDeal と同じtrust消費（60→35など）を適用する。ノードが見つからない、または
+// 確率0の場合はfalseを返し、trustは変化しない。
+function rollMonopolySourcing(state,nodeID,week,dealSeed=0){
   ensure(state);
-  const pn=state.peNetwork;
-  let allowMonopoly=false;
-  if(monopoly){
-    const candidate=[...pn.dealSourcingLog,{monopoly:true}].slice(-MONOPOLY_WINDOW);
-    const denom=Math.max(MONOPOLY_MIN_SAMPLE,candidate.length);
-    allowMonopoly=(candidate.filter(x=>x.monopoly).length/denom)<=MAX_MONOPOLY_SHARE;
-  }
-  const entry={week:Math.max(0,Math.floor(finite(week,state.week))),monopoly:allowMonopoly};
-  pn.dealSourcingLog=[...pn.dealSourcingLog,entry].slice(-MONOPOLY_WINDOW);
-  return entry;
+  const node=state.peNetwork.nodes.find(n=>n.id===nodeID);
+  if(!node)return false;
+  const probability=monopolyProbability(node);
+  if(probability<=0)return false;
+  const roll=unit('pe-monopoly',nodeID,Math.max(0,Math.floor(finite(week,state.week))),dealSeed);
+  if(roll>=probability)return false;
+  node.trust=clamp(node.trust-MONOPOLY_TRUST_COST,0,100);
+  return true;
 }
 
 function install(){
@@ -170,9 +176,9 @@ install();
 
 modules.peNetwork=Object.freeze({
   MAX_NODES,WEEKLY_ACTIONS,GENERIC_DECAY_PER_WEEK,REFERRER_EXTRA_DECAY_PER_WEEK,CONTACT_TRUST_GAIN,
-  MONOPOLY_TRUST_THRESHOLD,MONOPOLY_TRUST_COST,MAX_MONOPOLY_SHARE,MONOPOLY_WINDOW,MONOPOLY_MIN_SAMPLE,
+  MONOPOLY_TRUST_THRESHOLD,MONOPOLY_TRUST_COST,MAX_MONOPOLY_SHARE,
   PATH_TYPES,PATH_TYPE_IDS,
-  ensure,addNode,decayRateForPath,decayWeek,weeklyActionsRemaining,contactNode,trustTier,bringMonopolyDeal,monopolyShare,recordDealSourced,install,
+  ensure,addNode,decayRateForPath,decayWeek,weeklyActionsRemaining,contactNode,trustTier,bringMonopolyDeal,monopolyProbability,rollMonopolySourcing,install,
   __installed:true
 });
 })();

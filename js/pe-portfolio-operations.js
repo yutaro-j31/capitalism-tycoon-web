@@ -120,11 +120,15 @@ function computeImprovementScore(deal){
   const qualityBonus=clamp(finite(pc.qualityInvestment)/100,0,1);
   return Math.round(clamp(BASELINE_SCORE+PROFIT_SCORE_WEIGHT*profitRatio+QUALITY_SCORE_WEIGHT*qualityBonus,0,100));
 }
-function processDealWeek(deal,week){
+function processDealWeek(fund,deal,week){
   const pc=deal.portfolioCompany;
   if(!pc||pc.lastProcessedWeek>=week)return;
   const annualEBITDA=finite(deal.enterpriseValue)/Math.max(1,finite(deal.acquisitionMultiple,8));
-  const weeklyEBITDA=annualEBITDA/52*pc.storeCount;
+  // T9のattention（チーム人数÷案件数）を、EBITDA成長計算に1回だけ乗算する（Codex独立監査
+  // 対応: 以前はteamCapacity/slotCapacityと並ぶT9の一角として計算されるだけで、実際の
+  // 経営結果には一切接続されていなかった）。1件に手が回っていれば頭打ち(倍率1.0)、
+  // 案件数に対してチームが薄いほど鈍る、という設計書§4の方向性をここで反映する。
+  const weeklyEBITDA=annualEBITDA/52*pc.storeCount*pf.attentionMultiplier(fund);
   // 価格を上げるほど数量が落ちる、という単純な弾力性（priceMultiplier=1.0を基準に線形）。
   const priceFactor=clamp(2-pc.priceMultiplier,.3,1.6);
   const qualityFactor=1+clamp(pc.qualityInvestment/200,0,.5);
@@ -141,7 +145,7 @@ function processDealWeek(deal,week){
 function processPortfolioWeek(state,week){
   ensure(state);
   const w=Math.max(0,Math.floor(finite(week,state.week)));
-  for(const fund of state.peFirm.funds)for(const deal of arr(fund.deals))if(deal&&deal.businessID&&deal.status==='active')processDealWeek(deal,w);
+  for(const fund of state.peFirm.funds)for(const deal of arr(fund.deals))if(deal&&deal.businessID&&deal.status==='active')processDealWeek(fund,deal,w);
   return state;
 }
 
