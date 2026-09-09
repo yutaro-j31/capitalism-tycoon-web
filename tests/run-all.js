@@ -311,7 +311,8 @@ const nodeTests = [
   ['pe-deal-supply', 'tests/pe-deal-supply-test.js'],
   ['pe-acquisition', 'tests/pe-acquisition-test.js'],
   ['pe-portfolio-levers', 'tests/pe-portfolio-levers-test.js'],
-  ['pe-network-sourcing', 'tests/pe-network-sourcing-test.js']
+  ['pe-network-sourcing', 'tests/pe-network-sourcing-test.js'],
+  ['pe-fund-formation', 'tests/pe-fund-formation-test.js']
 ];
 
 for (let i = 0; i < nodeTests.length; i++) {

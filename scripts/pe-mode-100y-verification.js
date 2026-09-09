@@ -130,18 +130,12 @@ function playWeek(handles, e, skill) {
   const pf = modules.peFund, ds = modules.peDealSupply, ops = modules.pePortfolioOperations, pa = modules.peAcquisition;
   const g = e.g;
 
-  // (1) ファンド組成: 1号は解禁されていれば、2号以降は本番のゲート(canFormNextFund)を通ったら。
-  //     どのスキルも同じゲートを通る。
+  // (1) ファンド組成: T21-2 の production アクション engine.formPEFund() をそのまま呼ぶ。
+  //     解禁判定・次号ゲート(canFormNextFund)・GP出資額・個人資産の充足判定はすべてその中。
+  //     どのスキルも同じアクション・同じゲートを通る。
   const funds = g.peFirm.funds;
   const latest = funds[funds.length - 1] || null;
-  const needsFund = !latest || (latest.status !== 'investing' && pf.canFormNextFund(g));
-  if (needsFund && pf.canFormNextFund(g)) {
-    const size = pf.formableFundSize(g);
-    if (size > 0) {
-      const score = g.peFirm.trackRecord.score;
-      pf.createFund(g, { size, gpCommit: size * pf.requiredGPRatio(score), terms: pf.fundTermsForScore(score), y0: g.week });
-    }
-  }
+  if (!latest || latest.status !== 'investing') e.formPEFund();
   const fund = funds.filter(f => f.status === 'investing').slice(-1)[0] || null;
 
   // (2) 案件を開く: 板に出ているPE案件のうち、まだ触っていないものを1件だけ開く。

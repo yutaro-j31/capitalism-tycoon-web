@@ -126,10 +126,12 @@ const ds = modules.peDealSupply, pf = modules.peFund, tiers = modules.peIndustry
 
   const slotsBefore = pf.ddSlotsRemaining(e.g, e.g.week);
   assert.ok(slotsBefore > 0);
-  assert.equal(e.startMADueDiligence(deal.id, 'screening'), false, 'a PE deal must refuse DD without a fundID');
+  // T21-3: fundID を省いた場合、稼働中のファンドが1本だけなら自動選択される（2本以上なら
+  // 拒否される。tests/pe-fund-formation-test.js 第8節で検証）。不正なIDは常に拒否。
   assert.equal(e.startMADueDiligence(deal.id, 'screening', 'no-such-fund'), false, 'an unknown fundID must be refused');
   fund.status = 'harvesting';
   assert.equal(e.startMADueDiligence(deal.id, 'screening', fund.id), false, 'a fund past its investment period must be refused');
+  assert.equal(e.startMADueDiligence(deal.id, 'screening'), false, 'with no investing fund at all, DD is refused even without a fundID');
   fund.status = 'investing';
   assert.equal(pf.ddSlotsRemaining(e.g, e.g.week), slotsBefore, 'no refused attempt may consume a DD slot');
 

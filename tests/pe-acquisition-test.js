@@ -204,8 +204,9 @@ function acceptOffer(e, deal, price) {
   assert.ok(pd.exitSettlement, 'Exitは決済結果を残す');
   assert.ok(fund.distributed > distributedBefore, 'Exit代金はファンドへ分配される');
   assert.equal(e.g.companyCash, companyBefore, 'Exit代金は会社の現金に入らない');
-  assert.ok(e.g.personalCash - personalBefore >= 0, 'GPのキャリーだけが個人資産に入る');
-  assert.ok(Math.abs((e.g.personalCash - personalBefore) - pd.exitSettlement.gpCarry) < 1);
+  // T21以降、個人資産に入るのは「キャリー」＋「GP出資持分に対する分配（元本と利益）」の2つ。
+  const expectedPersonal = pd.exitSettlement.gpCarry + pd.exitSettlement.gpPrincipalAndGain;
+  assert.ok(Math.abs((e.g.personalCash - personalBefore) - expectedPersonal) < 1, '個人資産の増加はキャリーとGP持分の合計と厳密に一致する');
   // Exit済みの案件はスロットを占有しない。
   assert.equal(pf.activeDealCount(fund), 0);
   assert.equal(e.exitPEPortfolioCompany(fund.id, pd.id, { method: 'sale' }), false, 'Exit済みの案件は再度Exitできない');

@@ -200,7 +200,9 @@ function bigFund(score = 35, size = 30_000_000_000) {
   ops.exitPortfolioCompany(e.g, fund.id, deal.id, { week: 21 });
   assert.equal(e.g.companyCash, companyCashBefore, 'companyCash must be completely untouched by portfolio operations');
   assert.ok(deal.exitSettlement, 'T17: an exit records its settlement');
-  assert.ok(Math.abs((e.g.personalCash - personalCashBefore) - deal.exitSettlement.gpCarry) < 1e-6, 'personalCash moves by exactly the GP carry and nothing else');
+  // T21: 個人資産に入るのはキャリーとGP出資持分への分配のみ（このフィクスチャは gpCommit=0 なので後者は0）。
+  const expectedPersonalMove = deal.exitSettlement.gpCarry + deal.exitSettlement.gpPrincipalAndGain;
+  assert.ok(Math.abs((e.g.personalCash - personalCashBefore) - expectedPersonalMove) < 1e-6, 'personalCash moves by exactly the GP carry plus the GP capital share and nothing else');
 }
 
 // 8. findFundAndDeal / ensure are safe on missing funds/deals.

@@ -64,7 +64,11 @@ const { TycoonEngine, pf } = load();
 {
   const e = new TycoonEngine();
   e.g.week = 100;
+  // T21: GP出資は個人資産から出るため、拠出できるだけの現金が要る（足りなければ組成は拒否される）。
+  e.g.personalCash = 1_000_000_000;
   const fund = pf.createFund(e.g, { size: 2_800_000_000, gpCommit: 500_000_000, terms: { fee: .016, carry: .16, hurdle: .10 } });
+  assert.equal(e.g.personalCash, 500_000_000, 'GP出資ぶんだけ個人資産が減る');
+  assert.equal(fund.lpContributed, 2_300_000_000, 'LP拠出は規模−GP出資');
   assert.equal(fund.size, 2_800_000_000);
   assert.equal(fund.gpCommit, 500_000_000);
   assert.equal(fund.y0, 100);

@@ -70,6 +70,11 @@ function ensureFund(f,week){
   f.undeployedReturned=Math.max(0,finite(f.undeployedReturned,0));
   f.coinvestCommitted=Math.max(0,finite(f.coinvestCommitted,0));
   f.coinvestReturned=Math.max(0,finite(f.coinvestReturned,0));
+  // T21: ファンドの現金がどこから来たかを明示する（保存則の検証に使う）。
+  // fund.cash の出どころは GP出資(gpCommit) と LP拠出(lpContributed) の2つだけ。
+  // 旧セーブ（T21以前に作られたファンド）は差分をLP拠出として補う。
+  f.lpContributed=Math.max(0,finite(f.lpContributed,Math.max(0,f.size-f.gpCommit)));
+  f.gpDistributed=Math.max(0,finite(f.gpDistributed,0));
   f.investmentDeadlineWeek=f.y0+INVESTMENT_PERIOD_WEEKS;
   f.deadlineWeek=f.y0+FUND_TERM_WEEKS;
   f.status=f.status||'investing';
@@ -184,10 +189,23 @@ function recordExitForCurrentCompany(state,exitType,realizedAmount){
 
 // Test/internal-only fund creation (no UI action yet -- see file header). Returns the
 // created fund. y0 defaults to the current week.
+// T21（会計整合性）: ファンド組成は1つのアトミックなトランザクション。
+// 設計書§3「GP出資は回収不能。失敗すれば個人資産も消える」の通り、GP出資は必ず
+// state.personalCash から出る。旧実装は fund.cash を作るだけで個人資産もLP資本も
+// 減らしておらず、無から現金が生まれていた（T20レポート§9-2 / Codex GAME-AUDIT-006）。
+//
+// 保存則: 組成の前後で
+//     personalCash_after + fund.cash === personalCash_before + fund.lpContributed
+// が厳密に成り立つ（LP拠出はプレイヤーの外から入る唯一の資金で、額を必ず記録する）。
+// 会社の現金（companyCash）はファンド組成に一切関与しない。
+// 個人資産が gpCommit に足りなければ何も変更せず null を返す。
 function createFund(state,{size=0,gpCommit=0,terms={fee:0,carry:0,hurdle:0},lps=[],y0}={}){
   ensure(state);
   const cappedSize=Math.min(MAX_FUND_SIZE,Math.max(0,finite(size)));
-  const fund={id:`pe-fund-${state.peFirm.funds.length+1}-${finite(state.week,1)}`,size:cappedSize,gpCommit:Math.max(0,finite(gpCommit)),lps:arr(lps),terms:{...terms},y0:Math.max(1,Math.floor(finite(y0,finite(state.week,1)))),cash:cappedSize,undrawn:0,distributed:0,deals:[],status:'investing'};
+  const commit=Math.max(0,Math.min(cappedSize,finite(gpCommit)));
+  if(finite(state.personalCash)<commit)return null; // 個人資産が足りなければ組成できない
+  state.personalCash=finite(state.personalCash)-commit;
+  const fund={id:`pe-fund-${state.peFirm.funds.length+1}-${finite(state.week,1)}`,size:cappedSize,gpCommit:commit,lpContributed:cappedSize-commit,gpDistributed:0,lps:arr(lps),terms:{...terms},y0:Math.max(1,Math.floor(finite(y0,finite(state.week,1)))),cash:cappedSize,undrawn:0,distributed:0,deals:[],status:'investing'};
   ensureFund(fund,finite(state.week,1));
   state.peFirm.funds.push(fund);
   // Fix 3 (Codex独立監査): push直後にもファンド本数上限(20)を適用する。ensure()側の
@@ -196,6 +214,22 @@ function createFund(state,{size=0,gpCommit=0,terms={fee:0,carry:0,hurdle:0},lps=
   // 塞ぐには、この場でも即座に切り詰める必要がある。
   state.peFirm.funds=state.peFirm.funds.slice(-20);
   return fund;
+}
+
+// T21: ファンドからの分配。LPとGPは出資比率どおりに分け合うので、GPの持分（gpCommit/size）は
+// プレイヤーの個人資産へ実際に戻る。これがGP出資の元本返済であり、キャリー（成功報酬）とは別物。
+// fund.distributed はファンド全体の分配額（DPIの分子）なので、GP持分を含めた総額を積む。
+function gpShareOfFund(fund){const size=Math.max(0,finite(fund?.size));return size>0?clamp(finite(fund?.gpCommit)/size,0,1):0;}
+function distributeToInvestors(state,fund,amount){
+  const gross=Math.max(0,finite(amount));
+  if(!fund||gross<=0)return 0;
+  fund.distributed=Math.max(0,finite(fund.distributed))+gross;
+  const gpPart=gross*gpShareOfFund(fund);
+  if(gpPart>0&&state){
+    fund.gpDistributed=Math.max(0,finite(fund.gpDistributed))+gpPart;
+    state.personalCash=finite(state.personalCash)+gpPart;
+  }
+  return gpPart;
 }
 
 // PE mode T7 (docs/PE_MODE_TASKS.md / docs/PE_MODE_DESIGN.md §3 関門3): DPI / IRR and the
@@ -346,11 +380,11 @@ function processFundsWeek(state,week){
     if(fund.lastProcessedWeek>=week){continue;}
     if(fund.status==='investing'&&week>=fund.investmentDeadlineWeek){
       // 投資期間終了。使い切れなかった資金は額面(1.0x)でLP・GPへ返す。
-      if(fund.cash>0){const returned=fund.cash;fund.distributed+=returned;fund.undeployedReturned+=returned;fund.cash=0;}
+      if(fund.cash>0){const returned=fund.cash;fund.cash=0;fund.undeployedReturned+=returned;distributeToInvestors(state,fund,returned);}
       fund.status='harvesting';
     }
     if(week>=fund.deadlineWeek&&fund.status!=='closed'){
-      if(fund.cash>0){const returned=fund.cash;fund.distributed+=returned;fund.undeployedReturned+=returned;fund.cash=0;}
+      if(fund.cash>0){const returned=fund.cash;fund.cash=0;fund.undeployedReturned+=returned;distributeToInvestors(state,fund,returned);}
       fund.status='closed';
       fund.closedWeek=week;
     }
@@ -535,7 +569,8 @@ function settleExitProceeds(state,fund,deal,proceeds,week){
   const distributedToFund=Math.max(0,fundShare-fundCarry);
   const returnedToCoinvestors=Math.max(0,coinvestShare-coinvestCarry);
   const gpCarry=fundCarry+coinvestCarry;
-  fund.distributed=Math.max(0,finite(fund.distributed))+distributedToFund;
+  // 分配（元本＋利益、キャリー控除後）。GPの出資持分ぶんは個人資産へ戻る（T21）。
+  const gpPrincipalAndGain=distributeToInvestors(state,fund,distributedToFund);
   fund.coinvestReturned=Math.max(0,finite(fund.coinvestReturned))+returnedToCoinvestors;
   if(gpCarry>0)state.personalCash=finite(state.personalCash)+gpCarry;
   const settlement={
@@ -545,11 +580,52 @@ function settleExitProceeds(state,fund,deal,proceeds,week){
     coinvestPrincipalReturned:Math.min(coinvestShare,coinvestPortion),
     hurdleFactor,fundHurdleAmount,coinvestHurdleAmount,
     fundCarry,coinvestCarry,gpCarry,
+    gpPrincipalAndGain,
     distributedToFund,returnedToCoinvestors,
     settledWeek:w
   };
   deal.settlement=settlement;
   return settlement;
+}
+
+// T21-2（GAME-AUDIT-001）: プレイヤーがファンドを組成する production アクション。
+// これ以前は createFund が test/internal 専用で、Fund I を作る経路がゲーム内に存在せず、
+// PE案件も供給されないためPEモード全体に入れなかった。
+//
+// 1つのトランザクションで、解禁判定 → 組成可能額 → GP出資額 → 報酬条件 → LP構成 → 資金移動
+// までを行う。Fund II 以降もこの同じ関数を通り、次号ゲート（canFormNextFund: DPI 1.2以上かつ
+// 資金消化80%以上）を満たす場合だけ実行できる。
+// 失敗時は state を一切変更せず、理由つきの結果を返す（呼び出し側がメッセージに使う）。
+function planFundFormation(state){
+  ensure(state);
+  const firm=state.peFirm;
+  if(!firm.unlocked)return {ok:false,reason:'locked',message:'PEファンドの組成にはExit経験が必要です。'};
+  if(firm.funds.length&&!canFormNextFund(state))return {ok:false,reason:'gate',message:'次号ファンドの組成条件（DPI 1.2倍以上・資金消化80%以上）を満たしていません。'};
+  const score=firm.trackRecord.score;
+  const size=formableFundSize(state);
+  const ratio=requiredGPRatio(score);
+  const gpCommit=size*ratio;
+  if(size<=0||gpCommit<=0)return {ok:false,reason:'size',message:'組成できる規模がありません。'};
+  if(finite(state.personalCash)<gpCommit)return {ok:false,reason:'gpCash',message:`GP出資${Math.round(gpCommit).toLocaleString('ja-JP')}円に対して個人資産が不足しています。`};
+  return {ok:true,size,gpCommit,ratio,score,terms:fundTermsForScore(score)};
+}
+// LP構成: 会える相手（前号からの継続を優先）にLP拠出分を均等に割り付ける。金額の交渉自体は
+// 設計書§9 失敗7の通り「最大額を取るだけの最適化」に落ちるため作らない。
+function buildLPCommitments(state,fund,{acceptPromises=false}={}){
+  const continuing=continuingLPCommitments(state).map(c=>c.lpTypeID);
+  const meetable=LP_TYPE_IDS.filter(id=>meetsLPCondition(state,id));
+  const ordered=[...continuing.filter(id=>meetable.includes(id)),...meetable.filter(id=>!continuing.includes(id))].slice(0,MAX_LPS_PER_FUND);
+  if(!ordered.length)return [];
+  const each=Math.max(0,finite(fund.lpContributed))/ordered.length;
+  return ordered.map(id=>addLPCommitment(fund,{lpTypeID:id,committedAmount:each,promiseAccepted:acceptPromises})).filter(Boolean);
+}
+function formFund(state,{acceptPromises=false}={}){
+  const plan=planFundFormation(state);
+  if(!plan.ok)return plan;
+  const fund=createFund(state,{size:plan.size,gpCommit:plan.gpCommit,terms:plan.terms,y0:finite(state.week,1)});
+  if(!fund)return {ok:false,reason:'gpCash',message:'GP出資に対して個人資産が不足しています。'};
+  buildLPCommitments(state,fund,{acceptPromises});
+  return {ok:true,fund,size:plan.size,gpCommit:plan.gpCommit};
 }
 
 function install(){
@@ -582,6 +658,17 @@ function install(){
       }
       return r;
     },'week',()=>({summary:showSummary?this.g.lastWeeklySummary:null}));
+  };
+  // T21-2: プレイヤー操作としてのファンド組成。表示用の見積り（formablePEFund）と、
+  // 実行（formPEFund）を分ける。
+  proto.formablePEFund=function(){return planFundFormation(this.g);};
+  proto.formPEFund=function(options={}){
+    const result=formFund(this.g,options);
+    if(!result.ok)return this.fail(result.message);
+    this.notify?.(`${Math.round(result.size/100_000_000).toLocaleString('ja-JP')}億円のPEファンドを組成しました。`,'success');
+    this.save();
+    this.emit();
+    return true;
   };
   Object.defineProperty(proto,'__peFundInstalled',{value:true});
   return true;
@@ -639,6 +726,7 @@ modules.peFund=Object.freeze({
   requiredGPRatio,managementFeeRate,carryRate,hurdleRate,fundTermsForScore,formableFundSize,lpTrustMultiplier,
   exitQuality,computeTrackScore,recordExit,recordExitForCurrentCompany,
   fundContributed,fundDeployed,fundDeploymentRate,fundDPI,fundIRR,evaluateFund,canFormNextFund,
+  gpShareOfFund,distributeToInvestors,planFundFormation,buildLPCommitments,formFund,
   LP_TYPES,LP_TYPE_IDS,PROMISE_BROKEN_FLOOR,MAX_LPS_PER_FUND,normalizeLPs,meetsLPCondition,visibleLPTypes,addLPCommitment,recordLPPromiseOutcome,promiseComplianceMultiplier,continuingLPCommitments,
   MANAGEMENT_FEE_PER_HEAD,TEAM_CAP,MIN_TICKET_PER_DEAL,MAX_DEAL_SHARE_OF_FUND,SLOT_CAP_ABSOLUTE,FIRST_FUND_HOLD_WEEKS,LATER_FUND_HOLD_WEEKS,
   teamCapacity,slotCapacity,maxSingleDealSize,activeDealCount,attentionRatio,attentionMultiplier,optimalHoldWeeks,

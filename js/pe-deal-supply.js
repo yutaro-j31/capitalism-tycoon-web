@@ -190,9 +190,20 @@ function rollMonopolySource(state,deal,week){
   return null;
 }
 
+// PE案件のDDに使うファンドの妥当性検査（T17の取得もこの判定を再利用する）。
 function investingFundByID(state,fundID){
   const fund=arr(state?.peFirm?.funds).find(f=>f?.id===fundID);
   return fund&&fund.status==='investing'?fund:null;
+}
+// 投資期間中のファンド一覧（UIの選択肢・自動選択の母集合）。
+function investingFunds(state){return arr(state?.peFirm?.funds).filter(f=>f?.status==='investing');}
+// T21-3（GAME-AUDIT-002）: どのファンドから投資するかの解決。明示指定が最優先で、指定が無い
+// 場合は稼働中のファンドが1本だけなら自動選択する。2本以上あるときはプレイヤーが選ぶべきなので
+// 自動では決めない。
+function resolveInvestingFund(state,fundID){
+  if(fundID)return investingFundByID(state,fundID);
+  const funds=investingFunds(state);
+  return funds.length===1?funds[0]:null;
 }
 
 function install(){
@@ -211,16 +222,22 @@ function install(){
     const target=deal&&arr(this.g.acquisitionTargets).find(x=>x.id===deal.targetID);
     if(!isPETarget(target))return baseStartDD.call(this,id,scopeID);
     ensure(this.g);
-    if(!fundID)return this.fail('PE案件の調査にはファンドの指定が必要です。');
-    const fund=investingFundByID(this.g,fundID);
-    if(!fund)return this.fail('投資期間中のファンドでのみ調査できます。');
+    // 稼働中のファンドが1本ならUIが指定しなくても自動で選ぶ（T21-3）。
+    const fund=resolveInvestingFund(this.g,fundID);
+    if(!fund){
+      const funds=investingFunds(this.g);
+      if(!funds.length)return this.fail('投資期間中のファンドがありません。');
+      if(!fundID&&funds.length>1)return this.fail('どのファンドから投資するかを選んでください。');
+      return this.fail('投資期間中のファンドでのみ調査できます。');
+    }
     // 枠の残りを先に見て、無ければ base を呼ばない（DD費用のキャッシュも動かさない）。
     if(pf.ddSlotsRemaining(this.g,this.g.week)<=0)return this.fail('今年の調査枠を使い切りました。');
     const started=baseStartDD.call(this,id,scopeID);
     // 枠の消費はDDが実際に始まったときだけ。base が落ちた場合は枠も減らない（atomic）。
     if(started!==true)return started;
     pf.consumeDDSlot(this.g,this.g.week);
-    deal.fundID=fundID;
+    // 以降の indication → final_bid → 取得はこの fundID を一貫して使う（T17のクロージング）。
+    deal.fundID=fund.id;
     this.save();
     this.emit();
     return true;
@@ -260,7 +277,7 @@ if(!install()&&typeof document!=='undefined'&&typeof document.addEventListener==
 
 modules.peDealSupply=Object.freeze({
   SUPPLY_INTERVAL_WEEKS,TARGET_LIFETIME_WEEKS,MAX_PE_TARGETS,MONOPOLY_PRICE_DISCOUNT,PILLAR_LABELS,TIER_INDUSTRIES,
-  ensure,isPETarget,activeInvestingFund,investingFundByID,buildTargetFromDeal,prunePETargets,processSupplyWeek,rollMonopolySource,install,
+  ensure,isPETarget,activeInvestingFund,investingFundByID,investingFunds,resolveInvestingFund,buildTargetFromDeal,prunePETargets,processSupplyWeek,rollMonopolySource,install,
   __installed:true
 });
 })();
