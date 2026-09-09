@@ -48,7 +48,9 @@ assert.ok(html.includes(`data-fund-id="${fund.id}"`));
   e2.g.selectedTab = 'pe-portfolio';
   e2.emit();
   const emptyHtml = ctx.document.getElementById('app').innerHTML;
-  assert.ok(emptyHtml.includes('買収済みの5本柱系企業はありません'));
+  // T18で画面が5本柱系だけでなく保有中の買収先すべてを扱うようになったため、空状態の文言も
+  // 「買収済みの企業はありません」に変わっている。
+  assert.ok(emptyHtml.includes('買収済みの企業はありません'));
   e2.g.peFirm.funds = savedFunds;
   e2.g.selectedTab = savedTab;
   e2.emit();
