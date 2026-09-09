@@ -10,7 +10,7 @@ if(!__modules.competitor)throw new Error('Capitalism Tycoon competitor module mu
 if(!__modules.finance)throw new Error('Capitalism Tycoon finance module must be loaded before engine.js.');
 if(__modules.engine)throw new Error('Capitalism Tycoon engine module is already registered.');
 (function(exports,data,market,finance,supply,workforce,competitor){
-const {MASTER,DEPARTMENT_UNLOCKS,PRODUCT_BLUEPRINTS,LUXURY_OFFERS,PERSONAL_INVESTMENT_OFFERS,OVERSEAS_COUNTRIES,SPORTS_TEAMS,MISSION_DEFS}=data;
+const {MASTER,DEPARTMENT_UNLOCKS,PRODUCT_BLUEPRINTS,DIGITAL_PRODUCT_ECONOMICS,LUXURY_OFFERS,PERSONAL_INVESTMENT_OFFERS,OVERSEAS_COUNTRIES,SPORTS_TEAMS,MISSION_DEFS}=data;
 const SAVE_KEY = 'capitalism_tycoon_web_v1';
 const SAVE_VERSION = 8;
 
@@ -1180,7 +1180,7 @@ class TycoonEngine extends EventTarget {
   createProductVentureFromBlueprint(bp,name=null) {
     if(!bp||this.g.companyCash<bp.cost)return false;const productName=String(name||'').trim()||bp.name;
     this.g.companyCash-=bp.cost;finance.event(this.g,'researchAndDevelopment',bp.cost,{cashEffect:-bp.cost,profitEffect:-bp.cost,assetEffect:0,sourceType:'launchProduct',sourceID:`${bp.id}-${this.g.week}`,description:`${productName} 初期開発費`});
-    this.g.productVentures.push({id:uuid(),blueprintID:bp.id,name:productName,category:bp.category,status:'developing',progress:0,weeksToLaunch:bp.weeks,
+    this.g.productVentures.push({id:uuid(),blueprintID:bp.id,name:productName,category:bp.category,status:'developing',progress:0,weeksToLaunch:bp.weeks,economicsVersion:1,
       quality:20,brand:5,users:0,paidUsers:0,price:bp.price,serverCost:bp.serverCost,market:bp.market,risk:bp.risk,valuation:bp.cost,developmentCost:bp.cost,investedCost:bp.cost,revenue:0,cost:0,profit:0});
     this.g.formalProductLaunchCount=Math.max(0,Math.floor(finite(this.g.formalProductLaunchCount)))+1;
     this.notify(`${productName}の開発を開始しました。`,'success');this.save();this.emit();return true;
@@ -1693,8 +1693,8 @@ class TycoonEngine extends EventTarget {
   }
   updateProducts() {
     let revenue=0,cost=0;
-    for(const p of this.g.productVentures){if(p.status==='developing'){const speed=2+this.departmentEffect('product')*2+this.departmentEffect('dx');p.progress=clamp(p.progress+speed,0,100);p.weeksToLaunch=Math.max(0,p.weeksToLaunch-1);cost+=p.serverCost*.25;if(p.progress>=100||p.weeksToLaunch<=0){p.status='released';p.users=Math.floor(200+p.quality*20+p.brand*10);this.g.productEvents.unshift(`${p.name}を正式リリースしました。`);}}
-      if(p.status==='released'){const churn=clamp(.08-p.quality/2000, .01,.12),newUsers=Math.max(0,Math.floor((p.brand*12+p.quality*5)*rand(.7,1.3)));p.users=Math.max(0,Math.floor(p.users*(1-churn)+newUsers));p.paidUsers=Math.floor(p.users*clamp(.02+p.quality/1500,.02,.18));const ads=p.blueprintID==='ec'||p.blueprintID==='media'?p.users*rand(8,30):0;p.revenue=p.paidUsers*p.price/4+ads;p.cost=p.serverCost+p.users*rand(2,12);p.profit=p.revenue-p.cost;p.valuation=Math.max(1_000_000,p.valuation*(1+clamp(p.profit/Math.max(1,p.valuation),-.05,.08))+newUsers*200);revenue+=p.revenue;cost+=p.cost;}}
+    for(const p of this.g.productVentures){if(p.status==='developing'){const speed=2+this.departmentEffect('product')*2+this.departmentEffect('dx');p.progress=clamp(p.progress+speed,0,100);p.weeksToLaunch=Math.max(0,p.weeksToLaunch-1);cost+=p.serverCost*.25;if(p.progress>=100||p.weeksToLaunch<=0){p.status='released';const economics=DIGITAL_PRODUCT_ECONOMICS?.[p.blueprintID];p.users=Math.floor(economics?.initialUsers||200+p.quality*20+p.brand*10);p.releaseWeek=this.g.week;this.g.productEvents.unshift(`${p.name}を正式リリースしました。`);}}
+      if(p.status==='released'){if(finite(p.economicsVersion)>=1){rand(.7,1.3);if(p.blueprintID==='ec'||p.blueprintID==='media')rand(8,30);rand(2,12);}else{const churn=clamp(.08-p.quality/2000, .01,.12),newUsers=Math.max(0,Math.floor((p.brand*12+p.quality*5)*rand(.7,1.3)));p.users=Math.max(0,Math.floor(p.users*(1-churn)+newUsers));p.paidUsers=Math.floor(p.users*clamp(.02+p.quality/1500,.02,.18));const ads=p.blueprintID==='ec'||p.blueprintID==='media'?p.users*rand(8,30):0;p.revenue=p.paidUsers*p.price/4+ads;p.cost=p.serverCost+p.users*rand(2,12);p.profit=p.revenue-p.cost;p.valuation=Math.max(1_000_000,p.valuation*(1+clamp(p.profit/Math.max(1,p.valuation),-.05,.08))+newUsers*200);}revenue+=p.revenue;cost+=p.cost;}}
     return {revenue,cost,profit:revenue-cost};
   }
   updateDirectivesAndCampaigns() {
