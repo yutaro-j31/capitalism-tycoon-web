@@ -64,12 +64,19 @@ function eligibleTiers(fund){
 
 // 年4件固定の案件供給（設計書 課題3・§2）。帯は年・連番から決定論的に選ぶ（一様分布）。
 // businessIDは5本柱系の帯にのみ設定される。
-function pickTierID(year,index){return TIER_IDS[Math.floor(unit('pe-tier',year,index)*TIER_IDS.length)];}
+// hash()%N (not unit()*N, i.e. not Math.floor of the top-bits-scaled fraction): when the only
+// varying input is a small sequential index (0..DEALS_PER_YEAR-1), the FNV prime step
+// (16777619) is a small fraction of the full 32-bit range, so unit()'s fractional value barely
+// moves between consecutive indices and Math.floor(unit()*N) can collapse onto the same bucket
+// for an entire year's deals. Taking the modulo of the raw hash instead uses the low-order bits,
+// which this FNV-1a chain spreads well even across a 1-character (2166136261 XOR chain) input
+// difference -- verified empirically to never collapse across a 200-year sample.
+function pickTierID(year,index){return TIER_IDS[hash(['pe-tier',year,index])%TIER_IDS.length];}
 function generateDeal(year,index){
   const tierID=pickTierID(year,index);
   const tier=TIERS[tierID];
   const enterpriseValue=between(tier.sizeMin,tier.sizeMax,'pe-ev',year,index);
-  const businessID=tier.businessIDs.length?tier.businessIDs[Math.floor(unit('pe-biz',year,index)*tier.businessIDs.length)]:null;
+  const businessID=tier.businessIDs.length?tier.businessIDs[hash(['pe-biz',year,index])%tier.businessIDs.length]:null;
   return {id:`pe-deal-${year}-${index}`,year,index,tierID,tierName:tier.name,enterpriseValue,acquisitionMultiple:tier.acquisitionMultiple,leverage:tier.leverage,skillMultiplier:tier.skillMultiplier,exitOptions:tier.exitOptions,businessID};
 }
 const DEALS_PER_YEAR=4;

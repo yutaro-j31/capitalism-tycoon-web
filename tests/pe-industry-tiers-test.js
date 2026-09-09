@@ -123,6 +123,22 @@ function fundWithScore(size, score) {
   assert.equal(ids.size, 4, 'the 4 deals within one year must have distinct ids');
 }
 
+// 6b. Regression: pickTierID must not collapse onto a single tier for a whole year's deals.
+// (The 4 deals only differ by a small sequential index (0..3); an earlier bug used
+// Math.floor(unit()*N), whose fractional step from that index alone is too small relative to
+// the FNV prime/32-bit-range ratio to reliably cross a bucket boundary -- verified over a
+// 200-year sample to always collapse under that formula. hash()%N does not.)
+{
+  const e = new TycoonEngine();
+  e.g.economy = 1;
+  let collapsedYears = 0;
+  for (let year = 1; year <= 200; year++) {
+    const tierIDs = new Set(tiers.generateAnnualDeals(e.g, year).map(d => d.tierID));
+    if (tierIDs.size === 1) collapsedYears++;
+  }
+  assert.equal(collapsedYears, 0, `pickTierID must not collapse all 4 deals onto one tier in any of 200 sampled years, got ${collapsedYears}`);
+}
+
 // 7. Each generated deal's enterpriseValue falls within its assigned tier's stated range.
 {
   const e = new TycoonEngine();
