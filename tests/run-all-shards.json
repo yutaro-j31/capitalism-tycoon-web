@@ -133,6 +133,10 @@
     "tests/map-phase2-pinch-zoom-test.js"
   ],
   "H": [
+    "tests/pe-fund-team-slots-test.js",
+    "tests/ma-deal-room-competing-bids-test.js",
+    "tests/ma-deal-room-round-structure-test.js",
+    "tests/ma-deal-room-seller-preferences-test.js",
     "tests/supply-material-cost-inflation-test.js",
     "tests/stock-trade-panel-test.js",
     "tests/save-storage-compaction-test.js",

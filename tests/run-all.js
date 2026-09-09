@@ -297,10 +297,14 @@ const nodeTests = [
   ['customer-review-breakdown', 'tests/customer-review-breakdown-test.js'],
   ['store-comparison-table', 'tests/store-comparison-table-test.js'],
   ['pe-rivals', 'tests/pe-rivals-test.js'],
+  ['ma-deal-room-competing-bids', 'tests/ma-deal-room-competing-bids-test.js'],
+  ['ma-deal-room-round-structure', 'tests/ma-deal-room-round-structure-test.js'],
+  ['ma-deal-room-seller-preferences', 'tests/ma-deal-room-seller-preferences-test.js'],
   ['pe-fund', 'tests/pe-fund-test.js'],
   ['pe-fund-track-record', 'tests/pe-fund-track-record-test.js'],
   ['pe-fund-dpi', 'tests/pe-fund-dpi-test.js'],
-  ['pe-fund-lp', 'tests/pe-fund-lp-test.js']
+  ['pe-fund-lp', 'tests/pe-fund-lp-test.js'],
+  ['pe-fund-team-slots', 'tests/pe-fund-team-slots-test.js']
 ];
 
 for (let i = 0; i < nodeTests.length; i++) {

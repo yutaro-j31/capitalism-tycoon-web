@@ -269,13 +269,17 @@ function applyInitiative(engine,dealID,initiativeID){
 // account's concurrency budget) is free again.
 function resolvePendingInitiatives(engine){
   const state=engine.g;
+  const attentionMultiplier=modules.peFund?.attentionImprovementMultiplier?.(state)??1;
   let resolvedAny=false;
   for(const deal of (state?.peDeals||[]).filter(row=>row.status==='active'&&row.pendingInitiative)){
     const pending=deal.pendingInitiative;
     if(finite(state.week)<finite(pending.resolveWeek))continue;
     const initiative=initiativeOf(pending.initiativeID);
-    deal.improvementScore=clamp(scoreOf(deal)+finite(pending.scoreDelta),0,MAX_SCORE);
-    deal.currentValuation=finite(deal.currentValuation)*(1+finite(pending.valuationDelta));
+    // T9: scarce PE-team attention slows positive value creation continuously below one
+    // person per active holding. Setbacks are not softened by understaffing.
+    const multiplier=finite(pending.scoreDelta)>0?attentionMultiplier:1;
+    deal.improvementScore=clamp(scoreOf(deal)+finite(pending.scoreDelta)*multiplier,0,MAX_SCORE);
+    deal.currentValuation=finite(deal.currentValuation)*(1+finite(pending.valuationDelta)*(finite(pending.valuationDelta)>0?attentionMultiplier:1));
     deal.pendingInitiative=null;
     engine.syncPESubsidiary?.(deal);
     engine.notify(

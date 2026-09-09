@@ -24,9 +24,25 @@ const INVESTMENT_PERIOD_WEEKS=260;
 // PE mode T7: 次号組成の条件（設計書§3 関門3）。
 const NEXT_FUND_MIN_DPI=1.2;
 const NEXT_FUND_MIN_DEPLOYMENT=.8;
+// T9 capacity economics. The GP is the first (implicit) member, while hires are kept in a
+// separate PE-only roster. Capacity is funded by the fund's existing annual fee term; this
+// does not create a company payroll or move cash between owner accounts.
+const TEAM_ANNUAL_COST=20_000_000;
+const TEAM_MAX=60;
+const SLOT_MAX=8;
+const CONCENTRATION_LIMIT=.25;
+const FUND_I_REFERENCE_SIZE=2_800_000_000;
+const TEAM_MEMBER_TYPES=Object.freeze(['investmentPartner','industryExpert','dispatchedCEO']);
 
 function defaultTrackRecord(){return {score:0,exits:[],realizedDPI:0};}
-function defaultPeFirm(){return {trackRecord:defaultTrackRecord(),funds:[],ddSlotsPerYear:3,unlocked:false};}
+function defaultPeFirm(){return {trackRecord:defaultTrackRecord(),funds:[],team:[],nextTeamMemberSeq:1,ddSlotsPerYear:3,unlocked:false};}
+
+function normalizeTeamMember(row){
+  if(!row||!TEAM_MEMBER_TYPES.includes(row.type))return null;
+  const id=String(row.id||'').trim();
+  if(!id)return null;
+  return {id,type:row.type};
+}
 
 function ensureFund(f,week){
   if(!f)return f;
@@ -63,6 +79,10 @@ function ensure(state){
   pf.trackRecord.score=clamp(finite(pf.trackRecord.score),0,100);
   pf.trackRecord.realizedDPI=Math.max(0,finite(pf.trackRecord.realizedDPI));
   pf.funds=arr(pf.funds).slice(-20);
+  const seen=new Set();
+  pf.team=arr(pf.team).map(normalizeTeamMember).filter(row=>row&&!seen.has(row.id)&&seen.add(row.id)).slice(0,TEAM_MAX-1);
+  const maxTeamSeq=pf.team.reduce((max,row)=>Math.max(max,Number(/^pe-team-(\d+)$/.exec(row.id)?.[1])||0),0);
+  pf.nextTeamMemberSeq=Math.max(maxTeamSeq+1,Math.floor(finite(pf.nextTeamMemberSeq,pf.team.length+1)),1);
   pf.ddSlotsPerYear=Math.max(1,Math.floor(finite(pf.ddSlotsPerYear,3)));
   pf.unlocked=Boolean(pf.unlocked);
   pf.funds.forEach(f=>ensureFund(f,finite(state.week,1)));
@@ -81,6 +101,46 @@ function managementFeeRate(score){return .015+.01*(clamp(score,0,100)/100);}
 function carryRate(score){return .15+.10*(clamp(score,0,100)/100);}
 function hurdleRate(score){return .10-.02*(clamp(score,0,100)/100);}
 function fundTermsForScore(score){return {fee:managementFeeRate(score),carry:carryRate(score),hurdle:hurdleRate(score)};}
+function annualManagementFee(fund){return Math.max(0,finite(fund?.size))*Math.max(0,finite(fund?.terms?.fee));}
+function teamCapacity(fund){return Math.min(TEAM_MAX,Math.max(1,Math.floor(annualManagementFee(fund)/TEAM_ANNUAL_COST)));}
+function externalHireCapacity(fund){return Math.max(0,teamCapacity(fund)-1);}
+function currentFund(state){ensure(state);return state.peFirm.funds[state.peFirm.funds.length-1]||null;}
+function teamSize(state,fund=currentFund(state)){ensure(state);return fund?1+Math.min(state.peFirm.team.length,externalHireCapacity(fund)):0;}
+function investmentPartnerCount(state,fund=currentFund(state)){ensure(state);const cap=externalHireCapacity(fund);return state.peFirm.team.slice(0,cap).filter(row=>row.type==='investmentPartner').length;}
+function addTeamMember(state,type){
+  ensure(state);
+  const fund=currentFund(state);
+  if(!fund||!TEAM_MEMBER_TYPES.includes(type)||state.peFirm.team.length>=externalHireCapacity(fund))return null;
+  const member={id:`pe-team-${state.peFirm.nextTeamMemberSeq++}`,type};
+  state.peFirm.team.push(member);
+  return member;
+}
+// The design gives exact slot tiers but no exact minimum-deployment equation. This scale
+// rule treats the implied minimum cheque as growing with sqrt(fund size): raw capacity is
+// 2*sqrt(size/Fund-I-size), then snaps down to 2/4/6/8. It reproduces the documented
+// 28/132/810 億 calibration without a per-fund magic-number lookup.
+function minimumDeploymentSize(fund){const size=Math.max(0,finite(fund?.size));return size>0?Math.sqrt(size*FUND_I_REFERENCE_SIZE)/2:0;}
+function baseSlotCapacity(fund){
+  const min=minimumDeploymentSize(fund),size=Math.max(0,finite(fund?.size));
+  const raw=min>0?Math.floor(size/min):0;
+  if(raw>=8)return 8;if(raw>=6)return 6;if(raw>=4)return 4;return Math.min(2,raw);
+}
+function slotCapacity(state,fund=currentFund(state)){return Math.min(SLOT_MAX,baseSlotCapacity(fund)+investmentPartnerCount(state,fund));}
+function activePortfolioDealCount(state){return arr(state?.peDeals).filter(row=>row?.status==='active').length;}
+function attention(state,deals=activePortfolioDealCount(state),fund=currentFund(state)){
+  const count=Math.max(0,Math.floor(finite(deals)));
+  return count===0?teamSize(state,fund):teamSize(state,fund)/count;
+}
+function attentionImprovementMultiplier(state,deals=activePortfolioDealCount(state),fund=currentFund(state)){
+  // Holdings created by the pre-fund legacy PE path retain their established behavior.
+  // T9 attention starts once an actual PE fund exists to provide a team capacity.
+  if(!fund)return 1;
+  const value=attention(state,deals,fund);
+  return value>=1?1:Math.max(0,value);
+}
+function availableSlots(state,fund=currentFund(state)){return Math.max(0,slotCapacity(state,fund)-activePortfolioDealCount(state));}
+function maximumInvestmentPerDeal(fund){return Math.max(0,finite(fund?.size))*CONCENTRATION_LIMIT;}
+function holdingPeriodYears(state,fund){ensure(state);const index=state.peFirm.funds.indexOf(fund);return index<=0?4:3;}
 // LP信頼度（設計書§3）: reacts to the most recently EVALUATED fund's DPI tier (set by T7's
 // evaluateFund below). Until any fund has been evaluated there is no history to react to, so
 // it stays neutral (1).
@@ -387,6 +447,9 @@ modules.peFund=Object.freeze({
   FUND_TERM_WEEKS,INVESTMENT_PERIOD_WEEKS,GP_COMMIT_FRACTION_OF_PERSONAL_CASH,NEXT_FUND_MIN_DPI,NEXT_FUND_MIN_DEPLOYMENT,
   ensure,ensureFund,createFund,processFundsWeek,install,installCompletionDependentHooks,
   requiredGPRatio,managementFeeRate,carryRate,hurdleRate,fundTermsForScore,formableFundSize,lpTrustMultiplier,
+  TEAM_ANNUAL_COST,TEAM_MAX,SLOT_MAX,CONCENTRATION_LIMIT,FUND_I_REFERENCE_SIZE,TEAM_MEMBER_TYPES,
+  annualManagementFee,teamCapacity,externalHireCapacity,currentFund,teamSize,investmentPartnerCount,addTeamMember,
+  minimumDeploymentSize,baseSlotCapacity,slotCapacity,activePortfolioDealCount,attention,attentionImprovementMultiplier,availableSlots,maximumInvestmentPerDeal,holdingPeriodYears,
   exitQuality,computeTrackScore,recordExit,recordExitForCurrentCompany,
   fundContributed,fundDeployed,fundDeploymentRate,fundDPI,fundIRR,evaluateFund,canFormNextFund,
   LP_TYPES,LP_TYPE_IDS,PROMISE_BROKEN_FLOOR,meetsLPCondition,visibleLPTypes,addLPCommitment,recordLPPromiseOutcome,promiseComplianceMultiplier,continuingLPCommitments,
