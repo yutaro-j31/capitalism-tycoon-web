@@ -1873,7 +1873,7 @@ class TycoonEngine extends EventTarget {
   }
   generateRecurringEvents() {
     if(this.g.week%13===0){this.g.news.unshift(`第${this.g.week}週：四半期決算を発表しました。`);if(this.g.boardEstablished)this.g.boardAgendas=[{id:uuid(),title:'成長投資枠の承認',detail:'次四半期の投資予算を決定',cost:5_000_000,effect:'成長',approved:false},{id:uuid(),title:'財務規律の強化',detail:'借入削減と信用改善',cost:2_000_000,effect:'信用',approved:false}];}
-    if(this.g.departments.investment&&this.g.acquisitionTargets.length<3&&this.g.week%8===0)this.generateMATargets(true);
+    if(this.g.departments.investment&&this.g.acquisitionTargets.filter(t=>!t?.peTierID).length<3&&this.g.week%8===0)this.generateMATargets(true);
     if(this.g.departments.product&&this.g.internalVentureProposals.length===0&&Math.random()<.08)this.proposeInternalVenture();
     if(!this.g.publicCompany&&this.g.hasHeadOffice&&this.g.week%6===0&&this.g.investorOffers.filter(o=>o.status==='pending').length<2)this.refreshInvestorOffers();
     for(const o of this.g.investorOffers)if(o.status==='pending'&&this.g.week>o.expiresWeek)o.status='expired';
