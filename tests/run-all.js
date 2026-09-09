@@ -305,7 +305,8 @@ const nodeTests = [
   ['pe-fund-dd-slots', 'tests/pe-fund-dd-slots-test.js'],
   ['pe-industry-tiers', 'tests/pe-industry-tiers-test.js'],
   ['pe-fund-coinvest', 'tests/pe-fund-coinvest-test.js'],
-  ['pe-network', 'tests/pe-network-test.js']
+  ['pe-network', 'tests/pe-network-test.js'],
+  ['pe-portfolio-operations', 'tests/pe-portfolio-operations-test.js']
 ];
 
 for (let i = 0; i < nodeTests.length; i++) {
