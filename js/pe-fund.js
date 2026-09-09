@@ -10,6 +10,7 @@
 (function(){
 const modules=globalThis.__capitalismTycoonModules;
 if(!modules?.engine?.TycoonEngine)throw new Error('Capitalism Tycoon engine module must load before pe-fund.js.');
+if(!modules?.completion)throw new Error('Capitalism Tycoon completion module must load before pe-fund.js.');
 if(modules.peFund)throw new Error('Capitalism Tycoon peFund module is already registered.');
 const EngineClass=modules.engine.TycoonEngine;
 
@@ -66,6 +67,77 @@ function ensure(state){
   return state;
 }
 
+// PE mode T6 (docs/PE_MODE_TASKS.md / docs/PE_MODE_DESIGN.md §3 関門2): GP出資・報酬条件.
+// GP commits GP_COMMIT_FRACTION_OF_PERSONAL_CASH of personal cash; the required GP ratio
+// falls (and the formable fund size rises) as trackRecord.score climbs. Formulas are the
+// task doc's literal ones, not the design doc's illustrative table (which mixes in later
+// LP-trust history from its own simulation and doesn't reduce to one clean formula).
+const GP_COMMIT_FRACTION_OF_PERSONAL_CASH=.5;
+function requiredGPRatio(score){return clamp(.20-.18*Math.pow(clamp(score,0,100)/100,.7),.02,.20);}
+function managementFeeRate(score){return .015+.01*(clamp(score,0,100)/100);}
+function carryRate(score){return .15+.10*(clamp(score,0,100)/100);}
+function hurdleRate(score){return .10-.02*(clamp(score,0,100)/100);}
+function fundTermsForScore(score){return {fee:managementFeeRate(score),carry:carryRate(score),hurdle:hurdleRate(score)};}
+// T7 replaces this with a real per-fund-performance multiplier; until any fund has been
+// evaluated there is no history to react to, so it stays neutral.
+function lpTrustMultiplier(state){ensure(state);const funds=state.peFirm.funds;for(let i=funds.length-1;i>=0;i--){const f=funds[i];if(Number.isFinite(f.dpiAtEvaluation))return f.dpiAtEvaluation>=1.2?1.12:f.dpiAtEvaluation>=1.0?.80:.55;}return 1;}
+function formableFundSize(state){
+  ensure(state);
+  const ratio=requiredGPRatio(state.peFirm.trackRecord.score);
+  const gpBudget=Math.max(0,finite(state.personalCash))*GP_COMMIT_FRACTION_OF_PERSONAL_CASH;
+  return ratio>0?gpBudget/ratio*lpTrustMultiplier(state):0;
+}
+
+// PE mode T6: a single exit's "quality" in [0,1], composited from MOIC, speed, and business
+// quality (profitable-week streak + headcount). Weights and curve shape are this file's own
+// calibration -- neither doc gives an exact formula, only the two testable bounds: a first
+// exit must land in [5,15], and the score must climb toward 100 with a longer, better track
+// record.
+function exitQuality(exit){
+  const moicQ=clamp((finite(exit.personalMOIC,1)-1)/2,0,1);
+  const speedQ=clamp(1-(finite(exit.yearsElapsed,10)-1)/9,0,1);
+  const qualityQ=clamp(finite(exit.profitableWeekStreak)/260,0,1)*.7+clamp(finite(exit.employeeCount)/50,0,1)*.3;
+  return moicQ*.4+speedQ*.2+qualityQ*.4;
+}
+function computeTrackScore(exits){
+  const list=arr(exits);
+  if(!list.length)return 0;
+  const n=list.length;
+  const ceilingFor=k=>k<=1?15:Math.min(100,15+(k-1)*20);
+  const ceiling=ceilingFor(n),floor=ceilingFor(n-1);
+  const avgQuality=list.reduce((sum,e)=>sum+exitQuality(e),0)/n;
+  return Math.round(clamp(floor+avgQuality*(ceiling-floor),0,100));
+}
+
+// Records one Exit (会社売却・IPO・子会社売却) into trackRecord.exits and refreshes the
+// composite score. Unlocks PE mode on the very first exit (設計書§3 関門1).
+function recordExit(state,{exitType,realizedAmount=0,investedAmount=1,foundedWeek=1,exitedWeek=1,profitableWeekStreak=0,employeeCount=0}={}){
+  ensure(state);
+  const investedSafe=Math.max(1,finite(investedAmount,1));
+  const personalMOIC=Math.max(0,finite(realizedAmount)/investedSafe);
+  const yearsElapsed=Math.max(1/52,(finite(exitedWeek)-finite(foundedWeek))/52);
+  const entry={id:`pe-exit-${state.peFirm.trackRecord.exits.length+1}-${finite(exitedWeek)}`,exitType:String(exitType||'unknown'),realizedAmount:Math.max(0,finite(realizedAmount)),investedAmount:investedSafe,personalMOIC,yearsElapsed,profitableWeekStreak:Math.max(0,finite(profitableWeekStreak)),employeeCount:Math.max(0,finite(employeeCount)),recordedWeek:Math.max(1,finite(state.week,1))};
+  state.peFirm.trackRecord.exits.push(entry);
+  state.peFirm.trackRecord.exits=state.peFirm.trackRecord.exits.slice(-200);
+  state.peFirm.trackRecord.score=computeTrackScore(state.peFirm.trackRecord.exits);
+  state.peFirm.unlocked=true;
+  return entry;
+}
+
+// Derives the 4 recorded items (設計書§3) from state for an exit of the CURRENT company
+// (whole-company buyout, or an IPO founder-share sale that doesn't end the company).
+function recordExitForCurrentCompany(state,exitType,realizedAmount){
+  ensure(state);
+  const foundedWeek=Math.max(1,finite(state.currentCompanyFoundedWeek,1));
+  const exitedWeek=Math.max(foundedWeek,finite(state.week,foundedWeek));
+  const investedAmount=Math.max(1,finite(state.currentCompanyFoundedInvestment,8_000_000));
+  const history=arr(state.weeklyProfitHistory);
+  let profitableWeekStreak=0;
+  for(let i=history.length-1;i>=0&&finite(history[i])>0;i--)profitableWeekStreak++;
+  const employeeCount=arr(state.workforceTeams).reduce((sum,t)=>sum+Math.max(0,finite(t?.headcount)),0);
+  return recordExit(state,{exitType,realizedAmount,investedAmount,foundedWeek,exitedWeek,profitableWeekStreak,employeeCount});
+}
+
 // Test/internal-only fund creation (no UI action yet -- see file header). Returns the
 // created fund. y0 defaults to the current week.
 function createFund(state,{size=0,gpCommit=0,terms={fee:0,carry:0,hurdle:0},lps=[],y0}={}){
@@ -104,6 +176,20 @@ function install(){
   if(proto.__peFundInstalled)return true;
   const baseNormalize=proto.normalize;
   proto.normalize=function(){const r=baseNormalize.call(this);ensure(this.g);return r;};
+  // executeIPO is a plain class method on TycoonEngine (js/engine.js), available immediately
+  // -- unlike recordCurrentCompany/configure/foundNewCompanyAfterBuyout below, which only
+  // exist once js/completion.js's exported installCompletion(TycoonEngine) actually runs (see
+  // installCompletionDependentHooks).
+  const baseExecuteIPO=proto.executeIPO;
+  proto.executeIPO=function(market,sellShares){
+    const before=finite(this.g.personalCash);
+    const r=baseExecuteIPO.call(this,market,sellShares);
+    if(r===true){
+      const founderSale=finite(this.g.personalCash)-before;
+      if(founderSale>0)recordExitForCurrentCompany(this.g,'ipo',founderSale);
+    }
+    return r;
+  };
   const baseAdvanceWeek=proto.advanceWeek;
   proto.advanceWeek=function(showSummary=true){
     return this.runTransaction(()=>{
@@ -121,9 +207,56 @@ function install(){
 }
 install();
 
+// PE mode T6: js/completion.js only *defines* installCompletion(TycoonEngine) -- app.js is
+// what actually calls it (alongside installMADealRoom etc.), late in the canonical script
+// order. recordCurrentCompany/configure/foundNewCompanyAfterBuyout do not exist on the
+// prototype until that call happens, so wrapping them here at pe-fund.js's own load time
+// would silently wrap `undefined` and then be clobbered when installCompletion runs afterward
+// and (re)defines them from scratch. js/pe-value-creation.js solves the identical problem
+// (there, waiting on installExpansion) the same way: defer to DOMContentLoaded, which in both
+// the real page and tests/harness.js's simulated one fires only after every synchronous
+// script -- app.js included -- has already run.
+function installCompletionDependentHooks(){
+  const proto=EngineClass.prototype;
+  if(proto.__peFundCompletionHooksInstalled)return true;
+  if(typeof proto.recordCurrentCompany!=='function'||typeof proto.foundNewCompanyAfterBuyout!=='function'||typeof proto.configure!=='function')return false;
+  // recordCurrentCompany is the one call site behind selling the whole company (会社売却).
+  // No existing action pays the founder personally for a *subsidiary* sale
+  // (sellMASubsidiary/ipoSubsidiary credit companyCash, not personalCash), so "子会社売却"
+  // has nothing to hook yet -- recordExit stays generic enough for a later task to call
+  // directly once/if such a flow is added.
+  const baseRecordCurrentCompany=proto.recordCurrentCompany;
+  proto.recordCurrentCompany=function(exitType,exitPrice=0,founderProceeds=0,note=''){
+    const r=baseRecordCurrentCompany.call(this,exitType,exitPrice,founderProceeds,note);
+    recordExitForCurrentCompany(this.g,exitType,founderProceeds);
+    return r;
+  };
+  const baseFoundNewCompanyAfterBuyout=proto.foundNewCompanyAfterBuyout;
+  proto.foundNewCompanyAfterBuyout=function(companyName,investment,mode){
+    const r=baseFoundNewCompanyAfterBuyout.call(this,companyName,investment,mode);
+    ensure(this.g);
+    this.g.currentCompanyFoundedInvestment=Math.max(1,finite(investment,this.g.companyCash));
+    return r;
+  };
+  const baseConfigure=proto.configure;
+  proto.configure=function(options){
+    const r=baseConfigure.call(this,options);
+    ensure(this.g);
+    this.g.currentCompanyFoundedInvestment=Math.max(1,finite(this.g.companyCash,8_000_000));
+    return r;
+  };
+  Object.defineProperty(proto,'__peFundCompletionHooksInstalled',{value:true});
+  return true;
+}
+if(typeof document!=='undefined'&&typeof document.addEventListener==='function'){
+  if(!EngineClass.prototype.__peFundCompletionHooksInstalled)document.addEventListener('DOMContentLoaded',installCompletionDependentHooks,{once:true});
+}
+
 modules.peFund=Object.freeze({
-  FUND_TERM_WEEKS,INVESTMENT_PERIOD_WEEKS,
-  ensure,ensureFund,createFund,processFundsWeek,install,
+  FUND_TERM_WEEKS,INVESTMENT_PERIOD_WEEKS,GP_COMMIT_FRACTION_OF_PERSONAL_CASH,
+  ensure,ensureFund,createFund,processFundsWeek,install,installCompletionDependentHooks,
+  requiredGPRatio,managementFeeRate,carryRate,hurdleRate,fundTermsForScore,formableFundSize,lpTrustMultiplier,
+  exitQuality,computeTrackScore,recordExit,recordExitForCurrentCompany,
   __installed:true
 });
 })();
