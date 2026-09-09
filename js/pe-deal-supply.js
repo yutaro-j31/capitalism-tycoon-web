@@ -205,10 +205,12 @@ function install(){
 
   const baseStartDD=proto.startMADueDiligence;
   proto.startMADueDiligence=function(id,scopeID,fundID){
-    ensure(this.g);
+    // 通常のM&A案件では state を一切触らない（ensure は既定値を書き込むので、失敗した
+    // 操作が状態を変えないという契約を壊さないよう、PE案件だと分かってから呼ぶ）。
     const deal=arr(this.g.maDealRooms).find(x=>x.id===id);
     const target=deal&&arr(this.g.acquisitionTargets).find(x=>x.id===deal.targetID);
     if(!isPETarget(target))return baseStartDD.call(this,id,scopeID);
+    ensure(this.g);
     if(!fundID)return this.fail('PE案件の調査にはファンドの指定が必要です。');
     const fund=investingFundByID(this.g,fundID);
     if(!fund)return this.fail('投資期間中のファンドでのみ調査できます。');

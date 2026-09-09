@@ -151,11 +151,15 @@ function install(){
 
   const baseComplete=proto.completeTargetAcquisition;
   proto.completeTargetAcquisition=function(args={}){
-    ds.ensure(this.g);
+    // PE案件だと分かるまで正規化しない。ds.ensure は state に既定値を書き込むため、
+    // 通常のM&Aが失敗しただけの呼び出しで state が変化してしまい、「失敗した操作は
+    // 状態を変えない」というアトミシティ契約（tests/ma-acquisition-financing-atomicity-test.js）
+    // を壊す。判定に必要なのは対象候補だけで、正規化は要らない。
     const deal=arr(this.g.maDealRooms).find(x=>x?.id===args.dealID);
     const targetIndex=arr(this.g.acquisitionTargets).findIndex(x=>x?.id===args.targetID);
     const target=targetIndex>=0?this.g.acquisitionTargets[targetIndex]:null;
     if(!ds.isPETarget(target))return baseComplete.call(this,args);
+    ds.ensure(this.g);
     const price=finite(args.approvedPrice);
     // 最終契約の前提条件は既存の経路とまったく同じものを課す（受諾済み・条件一致・期限内・未クローズ）。
     if(!deal||deal.status!=='accepted'||!deal.acceptedTerms||target.activeDealID!==deal.id||deal.targetID!==args.targetID||deal.acceptedTerms.method!==args.method||finite(deal.acceptedTerms.finalPrice)!==price||this.g.week>deal.acceptedTerms.closingDeadlineWeek||deal.closedWeek)return this.fail('最終契約を実行できません。');

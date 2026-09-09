@@ -25,6 +25,13 @@
 //   node scripts/pe-mode-100y-verification.js --years=20      … 短縮実行（開発中の確認用）
 //   node scripts/pe-mode-100y-verification.js --trials=60     … Fund I 分布の試行数
 //   node scripts/pe-mode-100y-verification.js --skip-distribution --skip-determinism
+//
+// 100年×複数本はまとめて回すと長時間かかるため、部分実行して結果を貯める使い方もできる:
+//   node scripts/pe-mode-100y-verification.js --part=skill --skill=expert
+//   node scripts/pe-mode-100y-verification.js --part=distribution --from=0 --to=20
+//   node scripts/pe-mode-100y-verification.js --part=determinism --run=1
+//   node scripts/pe-mode-100y-verification.js --part=report
+// 各実行の結果は --out（既定 .pe-t20-results.json）に貯まり、--part=report が最終集計を出す。
 'use strict';
 
 const path = require('node:path');
@@ -40,6 +47,17 @@ const WEEKS = YEARS * 52;
 const TRIALS = Math.max(1, Number(argOf('trials', 40)));
 const SKIP_DISTRIBUTION = argv.includes('--skip-distribution');
 const SKIP_DETERMINISM = argv.includes('--skip-determinism');
+const PART = argOf('part', 'all');
+// 途中結果の置き場は実行時の作業ファイルなので既定はtmp（リポジトリを汚さない）。
+// スクリプト本体はリポジトリ内にある（T20の要件）。
+const OUT = argOf('out', path.join(require('node:os').tmpdir(), 'pe-t20-results.json'));
+const fs = require('node:fs');
+
+// 部分実行の結果置き場（検証の途中結果。壊れていたら作り直す）。
+function loadResults() {
+  try { return JSON.parse(fs.readFileSync(OUT, 'utf8')); } catch { return { years: YEARS, skills: {}, distribution: [], determinism: {} }; }
+}
+function saveResults(r) { fs.writeFileSync(OUT, JSON.stringify(r, null, 2)); }
 
 const 億 = 1e8, 兆 = 1e12;
 const yen = v => Number.isFinite(v) ? (Math.abs(v) >= 兆 ? `${(v / 兆).toFixed(2)}兆円` : `${(v / 億).toFixed(1)}億円`) : String(v);
@@ -223,6 +241,9 @@ function runOnce({ seed, skillID, weeks, sampleEvery = 520 }) {
   const g = e.g;
   const funds = g.peFirm.funds;
   const save = JSON.stringify(g);
+  // 決定論の比較からは lastSaveDate（保存した実時刻。既存エンジンが常に書く表示用フィールドで
+  // シミュレーションには一切使われない）を除く。これだけは実行ごとに必ず変わる。
+  const comparable = JSON.stringify(g, (k, v) => (k === 'lastSaveDate' ? null : v));
   return {
     skillID, seed,
     week: g.week,
@@ -242,12 +263,111 @@ function runOnce({ seed, skillID, weeks, sampleEvery = 520 }) {
     samples,
     saveBytes: Buffer.byteLength(save, 'utf8'),
     nonFinite: scanNonFinite(g),
-    saveHash: require('node:crypto').createHash('sha256').update(save).digest('hex')
+    saveHash: require('node:crypto').createHash('sha256').update(comparable).digest('hex')
   };
 }
 
 // ---------------------------------------------------------------------------------------------
+// 部分実行（1回の実行が長くなりすぎないように分割する）。結果はOUTに貯まる。
+// ---------------------------------------------------------------------------------------------
+function runSkillPart(skillID) {
+  const results = loadResults();
+  const started = Date.now();
+  const r = runOnce({ seed: 12345, skillID, weeks: WEEKS });
+  results.years = YEARS;
+  results.skills[skillID] = { ...r, seconds: (Date.now() - started) / 1000 };
+  saveResults(results);
+  console.log(`${SKILLS[skillID].label}: ファンド${r.fundCount}本 / 取得${r.acquisitions}件 / Exit${r.exits}件 / 最大ファンド${yen(r.peakFundSize)} / 天井${r.hitCeiling ? '到達' : '未到達'} / 総資産${yen(r.totalAssets)} / Fund I DPI ${r.fundIDPI.toFixed(2)} / セーブ${(r.saveBytes / 1024 / 1024).toFixed(2)}MB / NaN・Inf ${r.nonFinite.length}件 / ${((Date.now() - started) / 1000).toFixed(0)}秒`);
+}
+function runDistributionPart(from, to) {
+  const results = loadResults();
+  for (let i = from; i < to; i++) {
+    const r = runOnce({ seed: 1000 + i * 7, skillID: 'average', weeks: 520, sampleEvery: 520 });
+    results.distribution = results.distribution.filter(x => x.index !== i);
+    results.distribution.push({ index: i, fundCount: r.fundCount, fundIDPI: r.fundIDPI, fundIHalved: r.fundIHalved, reachedFundII: r.reachedFundII });
+    saveResults(results);
+    console.log(`trial ${i}: ファンド${r.fundCount}本 / Fund I DPI ${r.fundIDPI.toFixed(2)}${r.fundIHalved ? ' (半減)' : ''}${r.reachedFundII ? ' / Fund II到達' : ''}`);
+  }
+}
+function runDeterminismPart(run) {
+  const results = loadResults();
+  const r = runOnce({ seed: 999, skillID: 'expert', weeks: WEEKS });
+  results.determinism[`run${run}`] = { saveHash: r.saveHash, totalAssets: r.totalAssets, week: r.week };
+  saveResults(results);
+  console.log(`determinism run${run}: sha256=${r.saveHash.slice(0, 32)} / 総資産${yen(r.totalAssets)}`);
+}
+// 部分実行を並列に回した場合、結果ファイルは複数になる。--inputs で並べて統合する。
+function mergeResults() {
+  const inputs = argOf('inputs', '');
+  const files = inputs ? inputs.split(',').map(f => f.trim()).filter(Boolean) : [OUT];
+  const merged = { years: YEARS, skills: {}, distribution: [], determinism: {} };
+  for (const file of files) {
+    let part;
+    try { part = JSON.parse(fs.readFileSync(file, 'utf8')); } catch { continue; }
+    merged.years = part.years || merged.years;
+    Object.assign(merged.skills, part.skills || {});
+    Object.assign(merged.determinism, part.determinism || {});
+    for (const d of part.distribution || []) if (!merged.distribution.some(x => x.index === d.index)) merged.distribution.push(d);
+  }
+  return merged;
+}
+function report() {
+  const results = mergeResults();
+  console.log(`# PE mode T20 通し検証 (production path) — ${results.years || YEARS}年`);
+  console.log('本スクリプトは production の週次エンジン(advanceWeek)と本番の入札・取得・経営・Exit経路のみを呼ぶ。\n');
+  const runs = results.skills;
+  const ids = ['expert', 'average', 'novice'].filter(id => runs[id]);
+  console.log('## A. 腕による差（同一ポリシー枠組み・判断の質だけが違う）');
+  for (const id of ids) {
+    const r = runs[id];
+    console.log(`- ${SKILLS[id].label}: ファンド${r.fundCount}本 / 取得${r.acquisitions}件 / Exit${r.exits}件 / 人脈${r.networkNodes} / 最大ファンド${yen(r.peakFundSize)} / 天井${r.hitCeiling ? '到達' : '未到達'} / 総資産${yen(r.totalAssets)} / 個人資産${yen(r.personalCash)} / Fund I DPI ${r.fundIDPI.toFixed(2)}`);
+  }
+  if (ids.length === 3) {
+    const ok = runs.expert.totalAssets >= runs.average.totalAssets && runs.average.totalAssets >= runs.novice.totalAssets;
+    console.log(`- 腕の序列: ${ok ? 'OK（上手 ≥ 普通 ≥ 下手）' : 'NG（逆転あり）'}`);
+    console.log(`- 下手の天井到達: ${runs.novice.hitCeiling ? 'NG（到達してしまった）' : 'OK（未到達）'}`);
+  }
+  for (const id of ids) {
+    const s2 = runs[id].samples || [];
+    const deltas = [];
+    for (let i = 1; i < s2.length; i++) deltas.push(s2[i].assets - s2[i - 1].assets);
+    const late = deltas.slice(Math.floor(deltas.length / 2));
+    if (late.length >= 2) {
+      const mean = late.reduce((a, b) => a + b, 0) / late.length;
+      const growth = late[0] !== 0 ? late[late.length - 1] / late[0] : NaN;
+      console.log(`- ${SKILLS[id].label} 後半の10年ごとの資産増分: 平均${yen(mean)} / 末期÷初期 ${Number.isFinite(growth) ? growth.toFixed(2) : 'n/a'}（1に近いほど線形）`);
+    }
+  }
+  const dist = results.distribution || [];
+  if (dist.length) {
+    const valid = dist.filter(d => d.fundCount >= 1);
+    console.log(`\n## B. Fund I の結果分布（${valid.length}シード × 10年、ポリシーは「普通」）`);
+    console.log(`- Fund I 半減(DPI<0.6)発生率: ${pct(valid.filter(d => d.fundIHalved).length / Math.max(1, valid.length))}（期待値 0〜1%）`);
+    console.log(`- Fund II 到達率: ${pct(valid.filter(d => d.reachedFundII).length / Math.max(1, valid.length))}（期待値 約85%）`);
+    const dpis = valid.map(d => d.fundIDPI).sort((a, b) => a - b);
+    if (dpis.length) console.log(`- Fund I DPI: 中央値 ${dpis[Math.floor(dpis.length / 2)].toFixed(2)} / 最小 ${dpis[0].toFixed(2)} / 最大 ${dpis[dpis.length - 1].toFixed(2)}`);
+  }
+  const det = results.determinism || {};
+  if (det.run1 && det.run2) {
+    console.log('\n## C. 決定論（同一seedの通し実行×2回）');
+    console.log(`- セーブのSHA-256一致: ${det.run1.saveHash === det.run2.saveHash ? 'OK' : 'NG'}`);
+    console.log(`  run1=${det.run1.saveHash.slice(0, 16)} / run2=${det.run2.saveHash.slice(0, 16)}`);
+  }
+  if (ids.length) {
+    console.log('\n## D. 絶対条件');
+    const maxSave = Math.max(...ids.map(id => runs[id].saveBytes));
+    const nonFinite = ids.flatMap(id => runs[id].nonFinite || []);
+    console.log(`- セーブサイズ最大: ${(maxSave / 1024 / 1024).toFixed(2)}MB（上限5.00MB）: ${maxSave < 5 * 1024 * 1024 ? 'OK' : 'NG'}`);
+    console.log(`- NaN / Infinity: ${nonFinite.length}件 ${nonFinite.length ? `例: ${nonFinite.slice(0, 5).join(', ')}` : ''}`);
+    console.log(`- ファンド1本の上限: 最大${yen(Math.max(...ids.map(id => runs[id].peakFundSize)))}（上限5.00兆円）`);
+  }
+}
+
 function main() {
+  if (PART === 'skill') return runSkillPart(argOf('skill', 'expert'));
+  if (PART === 'distribution') return runDistributionPart(Number(argOf('from', 0)), Number(argOf('to', TRIALS)));
+  if (PART === 'determinism') return runDeterminismPart(argOf('run', '1'));
+  if (PART === 'report') return report();
   const started = Date.now();
   console.log(`# PE mode T20 通し検証 (production path) — ${YEARS}年 = ${WEEKS}週`);
   console.log(`実行日時基準の乱数は使用しない（seed固定・決定論）。\n`);
@@ -309,4 +429,5 @@ function main() {
   console.log(`\n所要 ${((Date.now() - started) / 1000).toFixed(0)}秒`);
 }
 
-main();
+if (require.main === module) main();
+module.exports = { SKILLS, setupFirm, playWeek, runOnce, totalAssets };
