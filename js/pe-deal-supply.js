@@ -28,6 +28,8 @@ if(modules.peDealSupply)throw new Error('Capitalism Tycoon peDealSupply module i
 const EngineClass=modules.engine.TycoonEngine;
 const pf=modules.peFund,tiers=modules.peIndustryTiers,dealRoom=modules.maDealRoom;
 
+const network=modules.peNetwork;
+
 const finite=(v,f=0)=>Number.isFinite(Number(v))?Number(v):f;
 const clamp=(v,min=0,max=1)=>Math.max(min,Math.min(max,finite(v,min)));
 const arr=v=>Array.isArray(v)?v:[];
@@ -45,6 +47,11 @@ const SUPPLY_INTERVAL_WEEKS=13;
 const TARGET_LIFETIME_WEEKS=26;
 // 同時に板へ載るPE案件の上限（CLAUDE.md の配列上限方針）。
 const MAX_PE_TARGETS=8;
+// T19: 独占案件（設計書§5「3つの入り口」の3つ目）。人脈ノードが持ち込んだ案件は競争入札に
+// ならないぶん安く買える。割引はこのファイル独自の較正（設計書は「独占＝競らずに買える」と
+// しか書いていない）。独占が発生する確率そのものは js/pe-network.js の monopolyProbability()
+// が持ち、1案件あたり MAX_MONOPOLY_SHARE(40%) を超えない。
+const MONOPOLY_PRICE_DISCOUNT=.12;
 
 // 5本柱系（T11 pillar帯）の businessID → 表示名・ドメイン。
 const PILLAR_LABELS=Object.freeze({
@@ -155,12 +162,34 @@ function processSupplyWeek(state,week){
   if(state.acquisitionTargets.filter(isPETarget).length>=MAX_PE_TARGETS)return null;
   const target=buildTargetFromDeal(deal,w);
   if(state.acquisitionTargets.some(t=>t?.id===target.id))return null;
+  // T19: 人脈から独占案件として持ち込まれたなら、競らずに買える案件として板に載る。
+  const source=rollMonopolySource(state,deal,w);
+  if(source){
+    target.dealChannel='monopoly';
+    target.peSourceNodeID=source.id;
+    target.peSourcePathType=source.pathType;
+    target.valuation=finite(target.valuation)*(1-MONOPOLY_PRICE_DISCOUNT);
+    target.friendly=true;
+  }
   state.acquisitionTargets.push(target);
   dealRoom.initializeTarget?.(target,state);
   return target;
 }
 
 // PE案件のDDに使うファンドの妥当性検査（T17の取得もこの判定を再利用できるよう関数に出す）。
+// T19: この週の案件を、人脈経由の独占案件として持ち込めるノードを探す。ノードは配列順に
+// 決定論的に走査し、最初に抽選へ当たったノードが持ち込む（当たった時点でそのノードの
+// trustが消費される）。誰も当たらなければ通常のオークション案件のまま。
+function rollMonopolySource(state,deal,week){
+  if(!network)return null;
+  network.ensure(state);
+  for(const node of state.peNetwork.nodes){
+    if(network.monopolyProbability(node)<=0)continue;
+    if(network.rollMonopolySourcing(state,node.id,week,String(deal?.id||'')))return node;
+  }
+  return null;
+}
+
 function investingFundByID(state,fundID){
   const fund=arr(state?.peFirm?.funds).find(f=>f?.id===fundID);
   return fund&&fund.status==='investing'?fund:null;
@@ -228,8 +257,8 @@ if(!install()&&typeof document!=='undefined'&&typeof document.addEventListener==
 }
 
 modules.peDealSupply=Object.freeze({
-  SUPPLY_INTERVAL_WEEKS,TARGET_LIFETIME_WEEKS,MAX_PE_TARGETS,PILLAR_LABELS,TIER_INDUSTRIES,
-  ensure,isPETarget,activeInvestingFund,investingFundByID,buildTargetFromDeal,prunePETargets,processSupplyWeek,install,
+  SUPPLY_INTERVAL_WEEKS,TARGET_LIFETIME_WEEKS,MAX_PE_TARGETS,MONOPOLY_PRICE_DISCOUNT,PILLAR_LABELS,TIER_INDUSTRIES,
+  ensure,isPETarget,activeInvestingFund,investingFundByID,buildTargetFromDeal,prunePETargets,processSupplyWeek,rollMonopolySource,install,
   __installed:true
 });
 })();

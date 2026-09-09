@@ -882,7 +882,7 @@ function action(name,el){const id=el.dataset.id,kind=el.dataset.kind;
     case 'pe-portfolio-staffing':{const ops=globalThis.__capitalismTycoonModules?.pePortfolioOperations;const fundID=el.dataset.fundId;const found=ops?.findFundAndDeal(engine.g,fundID,id);if(found?.deal){const pc=found.deal.portfolioCompany;ops.setStaffing(engine.g,fundID,id,kind==='wage-up'?{wageLevel:(pc.wageLevel||1)+.1}:{headcountRatio:(pc.headcountRatio||1)-.1});}engine.save();render();break;}
     case 'pe-portfolio-product-mix':{const ops=globalThis.__capitalismTycoonModules?.pePortfolioOperations;const fundID=el.dataset.fundId;const found=ops?.findFundAndDeal(engine.g,fundID,id);if(found?.deal)ops.renewProductMix(engine.g,fundID,id,Math.min(1,(found.deal.portfolioCompany.productMixLevel||0)+.5));engine.save();render();break;}
     case 'pe-portfolio-consolidate':{const ops=globalThis.__capitalismTycoonModules?.pePortfolioOperations;ops?.consolidateSites(engine.g,el.dataset.fundId,id);engine.save();render();break;}
-    case 'pe-portfolio-exit':{const ops=globalThis.__capitalismTycoonModules?.pePortfolioOperations;ops?.exitPortfolioCompany(engine.g,el.dataset.fundId,id,{week:engine.g.week});engine.save();render();break;}
+    case 'pe-portfolio-exit':{engine.exitPEPortfolioCompany?.(el.dataset.fundId,id,{});render();break;}
     case 'company-buyout':confirmModal('会社売却','会社を売却すると事業経営は終了し、個人資産モードへ移行します。','confirm-buyout');break;case 'confirm-buyout':engine.acceptBuyoutOffer(1.2);closeModal();break;
   }
 }
