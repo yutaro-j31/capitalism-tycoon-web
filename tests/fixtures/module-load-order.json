@@ -37,6 +37,7 @@
     "./js/personal-real-estate-corp.js",
     "./js/competitor-media.js",
     "./js/completion.js",
+    "./js/pe-fund.js",
     "./js/parity.js",
     "./js/ceo-dashboard.js",
     "./js/executive-secretary.js",
