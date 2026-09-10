@@ -90,6 +90,7 @@ const CAPS = engineModule.LOG_ARRAY_CAPS;
   for (const file of ['js/expansion.js', 'js/completion.js', 'js/parity.js']) {
     const src = fs.readFileSync(path.join(root, file), 'utf8');
     assert.ok(src.includes('LOG_ARRAY_CAPS'), `${file} は js/engine.js の上限表を参照する`);
+    assert.equal(src.includes('??200'), false, `${file} は独立したfallback上限を持たない`);
   }
 }
 

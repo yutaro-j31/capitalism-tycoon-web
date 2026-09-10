@@ -297,7 +297,11 @@ function distributeToInvestors(state,fund,amount){
 // task can actually finance an acquisition from a fund -- tests exercise this by pushing
 // synthetic deal records directly.
 function fundContributed(fund){return Math.max(0,finite(fund?.size));}
-function fundDeployed(fund){return arr(fund?.deals).reduce((sum,d)=>sum+Math.max(0,finite(d?.investedAmount)),0);}
+// Fund deployment is the capital paid by the fund itself.  `investedAmount` is the total
+// acquisition cost and also includes the LP co-investment slice, so using it here would let
+// external co-investment inflate the fund's deployment gate and its track-record denominator.
+// Legacy deals predate the split and therefore continue to fall back to investedAmount.
+function fundDeployed(fund){return arr(fund?.deals).reduce((sum,d)=>sum+Math.max(0,finite(d?.fundPortion,d?.investedAmount)),0);}
 function fundDeploymentRate(fund){const c=fundContributed(fund);return c>0?clamp(fundDeployed(fund)/c,0,1):0;}
 function fundDPI(fund){const c=fundContributed(fund);return c>0?Math.max(0,finite(fund.distributed))/c:0;}
 // Approximates IRR as the fund's compound annual growth rate (distributed/contributed over

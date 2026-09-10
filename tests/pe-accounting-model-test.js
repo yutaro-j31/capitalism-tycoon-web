@@ -33,6 +33,9 @@ function engineWithCash() {
   assert.equal(fund.coinvestCash, 0, 'co-invest cash is not duplicated after seller payment');
   assert.equal(fund.coinvestContributed, coinvestInvestment, 'LP co-invest contribution is recorded once');
   assert.equal(fund.cash, 9_000_000_000, 'fund pays only its ownership slice');
+  fund.deals.push({ id: 'deployment-claim', investedAmount: fundInvestment + coinvestInvestment, fundPortion: fundInvestment, coinvestPortion: coinvestInvestment });
+  assert.equal(pf.fundDeployed(fund), fundInvestment, 'fund deployment excludes the external co-investment claim');
+  fund.deals.length = 0;
   assert.equal(e.g.companyCash, companyBefore, 'acquisition does not touch management-company cash');
 
   const deal = { id: 'ledger-deal', fundPortion: fundInvestment, coinvestPortion: coinvestInvestment, acquiredWeek: 1 };

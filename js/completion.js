@@ -1,7 +1,7 @@
 // Script boundary: js/completion.js (classic JavaScript)
 (function(){'use strict';
 // T25-2: 上限の出どころは js/engine.js の LOG_ARRAY_CAPS（週次normalizeでも同じ表が効く）。
-function cxLogCap(key){return globalThis.__capitalismTycoonModules?.engine?.LOG_ARRAY_CAPS?.[key]??200;}
+function cxLogCap(key){return globalThis.__capitalismTycoonModules.engine.LOG_ARRAY_CAPS[key];}
 
 if(!globalThis.__capitalismTycoonModules)throw new Error('Capitalism Tycoon runtime.js must be loaded before completion.js.');
 var __modules=globalThis.__capitalismTycoonModules;
