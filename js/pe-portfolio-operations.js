@@ -55,8 +55,13 @@ const REPUTATION_BONUS=8;
 const REPUTATION_PENALTY_FOR_CUTS=15;
 // T23: Exit倍率＝取得倍率×(EXIT_MULTIPLE_FLOOR + スコア/100×EXIT_MULTIPLE_SCORE_SPAN)。
 // 下限(FLOOR)は据え置き、上側の幅(SPAN)だけを詰める＝最悪ケースを悪化させずに上振れを抑える。
+// T26較正: 管理報酬を実際にファンドの現金から払うようにした結果（T26-2）、Fund I DPI中央値が
+// 1.35→1.27、Fund II到達率が86.1%→69.4%まで下がった（費用が増えたのだから下がること自体は
+// 正しい。§16.5矛盾4）。ただし下がり幅が設計range（DPI 1.3〜1.7・到達80〜90%）を割った。
+// T23の逆（下限は動かさず上限の幅だけを少し戻す）で補正する。半減率0.0%とスコアが低い側の
+// 挙動（FLOORそのもの）は不変。
 const EXIT_MULTIPLE_FLOOR=.80;
-const EXIT_MULTIPLE_SCORE_SPAN=.17;
+const EXIT_MULTIPLE_SCORE_SPAN=.25;
 
 // PE mode T18 (docs/PE_MODE_TASKS.md): 買収先経営の6レバー化。
 // 6レバー = 価格 / 品質 / 拠点（出店と再編の両方向）/ 仕入れ・調達 / 人件費と人員 / 商品構成。
