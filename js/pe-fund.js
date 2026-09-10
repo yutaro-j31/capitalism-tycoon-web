@@ -75,14 +75,26 @@ function ensureFund(f,week){
   f.distributed=Math.max(0,finite(f.distributed,0));
   f.undeployedReturned=Math.max(0,finite(f.undeployedReturned,0));
   f.coinvestCommitted=Math.max(0,finite(f.coinvestCommitted,0));
+  // T26: co-invest は案件ごとにLPからcallされる外部資金。cash残高と累計拠出を分けて、
+  // 「枠を使った」というメモだけで取得原価が生まれないようにする。
+  f.coinvestCash=Math.max(0,finite(f.coinvestCash,0));
+  f.coinvestContributed=Math.max(0,finite(f.coinvestContributed,f.coinvestCommitted));
   f.coinvestReturned=Math.max(0,finite(f.coinvestReturned,0));
   // T21: ファンドの現金がどこから来たかを明示する（保存則の検証に使う）。
   // fund.cash の出どころは GP出資(gpCommit) と LP拠出(lpContributed) の2つだけ。
   // 旧セーブ（T21以前に作られたファンド）は差分をLP拠出として補う。
   f.lpContributed=Math.max(0,finite(f.lpContributed,Math.max(0,f.size-f.gpCommit)));
-  f.managementFeePaid=Math.max(0,finite(f.managementFeePaid,0));
-  f.teamPayrollPaid=Math.max(0,finite(f.teamPayrollPaid,0));
   f.gpDistributed=Math.max(0,finite(f.gpDistributed,0));
+  f.lpDistributed=Math.max(0,finite(f.lpDistributed,Math.max(0,f.distributed-f.gpDistributed)));
+  f.gpCarryPaid=Math.max(0,finite(f.gpCarryPaid,0));
+  f.managementFeesPaid=Math.max(0,finite(f.managementFeesPaid,0));
+  f.managementFeeShortfall=Math.max(0,finite(f.managementFeeShortfall,0));
+  // T26-2: 管理報酬から払われた投資チームの人件費の累計（GP側の費用）。
+  f.teamPayrollPaid=Math.max(0,finite(f.teamPayrollPaid,0));
+  // T26以前のsaveにはperiod markerが無い。既に処理済みの周年を未払いとして遡及請求すると
+  // load直後に最大10年分が動くため、legacy fundはlastProcessedWeekまで支払済み扱いにする。
+  const legacyFeePeriod=Math.min(Math.floor(FUND_TERM_WEEKS/52),Math.max(0,Math.floor((finite(f.lastProcessedWeek,week)-f.y0)/52)));
+  f.lastManagementFeePeriod=Math.max(0,Math.floor(finite(f.lastManagementFeePeriod,legacyFeePeriod)));
   f.investmentDeadlineWeek=f.y0+INVESTMENT_PERIOD_WEEKS;
   f.deadlineWeek=f.y0+FUND_TERM_WEEKS;
   f.status=f.status||'investing';
@@ -251,7 +263,7 @@ function createFund(state,{size=0,gpCommit=0,terms={fee:0,carry:0,hurdle:0},lps=
   const commit=Math.max(0,Math.min(cappedSize,finite(gpCommit)));
   if(finite(state.personalCash)<commit)return null; // 個人資産が足りなければ組成できない
   state.personalCash=finite(state.personalCash)-commit;
-  const fund={id:`pe-fund-${state.peFirm.funds.length+1}-${finite(state.week,1)}`,size:cappedSize,gpCommit:commit,lpContributed:cappedSize-commit,gpDistributed:0,trackScoreAtFormation:finite(state.peFirm.trackRecord.score),lps:arr(lps),terms:{...terms},y0:Math.max(1,Math.floor(finite(y0,finite(state.week,1)))),cash:cappedSize,undrawn:0,distributed:0,deals:[],status:'investing'};
+  const fund={id:`pe-fund-${state.peFirm.funds.length+1}-${finite(state.week,1)}`,size:cappedSize,gpCommit:commit,lpContributed:cappedSize-commit,gpDistributed:0,lpDistributed:0,gpCarryPaid:0,managementFeesPaid:0,managementFeeShortfall:0,teamPayrollPaid:0,lastManagementFeePeriod:0,coinvestCash:0,coinvestContributed:0,trackScoreAtFormation:finite(state.peFirm.trackRecord.score),lps:arr(lps),terms:{...terms},y0:Math.max(1,Math.floor(finite(y0,finite(state.week,1)))),cash:cappedSize,undrawn:0,distributed:0,deals:[],status:'investing'};
   ensureFund(fund,finite(state.week,1));
   state.peFirm.funds.push(fund);
   // Fix 3 (Codex独立監査): push直後にもファンド本数上限(20)を適用する。ensure()側の
@@ -271,6 +283,7 @@ function distributeToInvestors(state,fund,amount){
   if(!fund||gross<=0)return 0;
   fund.distributed=Math.max(0,finite(fund.distributed))+gross;
   const gpPart=gross*gpShareOfFund(fund);
+  fund.lpDistributed=Math.max(0,finite(fund.lpDistributed))+(gross-gpPart);
   if(gpPart>0&&state){
     fund.gpDistributed=Math.max(0,finite(fund.gpDistributed))+gpPart;
     state.personalCash=finite(state.personalCash)+gpPart;
@@ -463,40 +476,48 @@ function continuingLPCommitments(state){
 // failure 3) -- so weekly processing here only ever moves cash OUT of a fund (to distributed)
 // or advances its lifecycle status, it never adds cash back into fund.cash from a return.
 // T26-2（設計書§4）: 管理報酬を現金として動かす。
-//   1. ファンドの現金から週次で引かれる（＝LPが負担する費用）
+//   1. ファンドの現金から引かれる（＝LPとGPが拠出済みの資金が負担する費用）
 //   2. GP（＝プレイヤーの会社。DD費用・アドバイザリー費用が既に会社負担なのでそこに揃える）の
-//      収益として companyCash に入る
-//   3. そこからチームの人件費（1人あたり年 MANAGEMENT_FEE_PER_HEAD）を払う
+//      収益として companyCash に入り、法人税の対象にもなる
+//   3. そこからチームの人件費（1人あたり年 MANAGEMENT_FEE_PER_HEAD＝2,000万円）を払う
 //   4. チーム上限（TEAM_CAP=60人）を超えた分の報酬は素直に会社の利益になる（設計書§4）
-// ファンドの現金が足りなければ払える分だけ（投資期間終了で未投資分を返した後は自然に止まる）。
-// 会計は既存の finance.event を通す（収益＝revenue / 人件費＝payroll）。
-// 課金は四半期ごと（実際のPEの管理報酬も四半期課金）。週次で課金すると finance の取引が
-// 1ファンドあたり年104件も積み上がり、100年でセーブサイズの上限(5MB)を超える（実測5.42MB）。
-const MANAGEMENT_FEE_INTERVAL_WEEKS=13;
-function processManagementFeeWeek(state,fund,week){
-  if(Math.floor(finite(week))%MANAGEMENT_FEE_INTERVAL_WEEKS!==0)return {fee:0,payroll:0};
+// 課金は年1回、ファンドの周年ごと。周年の番号（lastManagementFeePeriod）を永続化するので、
+// セーブ／ロードや同一週の再処理でも二重払いにならない。週次で課金すると finance の取引が
+// 1ファンドあたり年104件積み上がり、100年でセーブサイズの上限(5MB)を超える（実測5.42MB）。
+// ファンドの現金が足りなければ払える分だけ払い、未払金は発明せず shortfall として記録する。
+function processManagementFeePeriods(state,fund,week){
   const finance=modules.finance;
-  const quarterlyFee=Math.max(0,annualManagementFee(fund)/4);
-  const paidFee=Math.min(quarterlyFee,Math.max(0,finite(fund.cash)));
-  if(paidFee>0){
-    fund.cash=finite(fund.cash)-paidFee;
-    fund.managementFeePaid=Math.max(0,finite(fund.managementFeePaid))+paidFee;
-    state.companyCash=finite(state.companyCash)+paidFee;
-    const op=`pe-management-fee-${fund.id}-${week}`;
-    finance?.event?.(state,'revenue',paidFee,{week,cashEffect:paidFee,profitEffect:paidFee,sourceType:'peManagementFee',sourceID:fund.id,operationID:op,idempotencyKey:op,description:'PE管理報酬'});
+  const duePeriod=Math.min(Math.floor(FUND_TERM_WEEKS/52),Math.max(0,Math.floor((finite(week)-fund.y0)/52)));
+  let fee=0,payroll=0;
+  while(fund.lastManagementFeePeriod<duePeriod){
+    fund.lastManagementFeePeriod++;
+    const period=fund.lastManagementFeePeriod;
+    const due=Math.max(0,annualManagementFee(fund));
+    const paidFee=Math.min(Math.max(0,finite(fund.cash)),due);
+    fund.cash=Math.max(0,finite(fund.cash)-paidFee);
+    fund.managementFeesPaid=Math.max(0,finite(fund.managementFeesPaid))+paidFee;
+    fund.managementFeeShortfall=Math.max(0,finite(fund.managementFeeShortfall))+(due-paidFee);
+    if(paidFee>0){
+      state.companyCash=finite(state.companyCash)+paidFee;
+      state.quarterlyPretaxProfit=finite(state.quarterlyPretaxProfit)+paidFee;
+      const op=`pe-management-fee-${fund.id}-p${period}`;
+      finance?.event?.(state,'revenue',paidFee,{week,cashEffect:paidFee,profitEffect:paidFee,sourceType:'peManagementFee',sourceID:`${fund.id}-p${period}`,operationID:op,idempotencyKey:op,description:`${fund.id} 管理報酬`});
+    }
+    fee+=paidFee;
+    // チームは管理報酬で養われるので、報酬を取れなかった分だけ人件費も払えない（比例）。
+    // ファンドの現金が尽きた後（投資期間終了で未投資分を返した後）は自然にゼロになる。
+    const target=Math.max(0,teamCapacity(fund)*MANAGEMENT_FEE_PER_HEAD)*(due>0?paidFee/due:0);
+    const paidPayroll=Math.min(target,Math.max(0,finite(state.companyCash)));
+    if(paidPayroll>0){
+      state.companyCash=finite(state.companyCash)-paidPayroll;
+      state.quarterlyPretaxProfit=finite(state.quarterlyPretaxProfit)-paidPayroll;
+      fund.teamPayrollPaid=Math.max(0,finite(fund.teamPayrollPaid))+paidPayroll;
+      const op=`pe-team-payroll-${fund.id}-p${period}`;
+      finance?.event?.(state,'payroll',paidPayroll,{week,cashEffect:-paidPayroll,profitEffect:-paidPayroll,sourceType:'peTeamPayroll',sourceID:`${fund.id}-p${period}`,operationID:op,idempotencyKey:op,description:`${fund.id} 投資チーム人件費`});
+    }
+    payroll+=paidPayroll;
   }
-  // チームは管理報酬で養われるので、報酬を取れなかった分だけ人件費も払えない（比例）。
-  // ファンドの現金が尽きた後（投資期間終了で未投資分を返した後）は自然にゼロになる。
-  const feeRatio=quarterlyFee>0?paidFee/quarterlyFee:0;
-  const payrollTarget=Math.max(0,teamCapacity(fund)*MANAGEMENT_FEE_PER_HEAD/4)*feeRatio;
-  const paidPayroll=Math.min(payrollTarget,Math.max(0,finite(state.companyCash)));
-  if(paidPayroll>0){
-    state.companyCash=finite(state.companyCash)-paidPayroll;
-    fund.teamPayrollPaid=Math.max(0,finite(fund.teamPayrollPaid))+paidPayroll;
-    const op=`pe-team-payroll-${fund.id}-${week}`;
-    finance?.event?.(state,'payroll',paidPayroll,{week,cashEffect:-paidPayroll,profitEffect:-paidPayroll,sourceType:'peTeamPayroll',sourceID:fund.id,operationID:op,idempotencyKey:op,description:'PE投資チーム人件費'});
-  }
-  return {fee:paidFee,payroll:paidPayroll};
+  return {fee,payroll};
 }
 
 function processFundsWeek(state,week){
@@ -504,7 +525,7 @@ function processFundsWeek(state,week){
   for(const fund of state.peFirm.funds){
     if(fund.status==='closed'){fund.lastProcessedWeek=Math.max(fund.lastProcessedWeek,week);continue;}
     if(fund.lastProcessedWeek>=week){continue;}
-    processManagementFeeWeek(state,fund,week);
+    processManagementFeePeriods(state,fund,week);
     if(fund.status==='investing'&&week>=fund.investmentDeadlineWeek){
       // 投資期間終了。使い切れなかった資金は額面(1.0x)でLP・GPへ返す。
       if(fund.cash>0){const returned=fund.cash;fund.cash=0;fund.undeployedReturned+=returned;distributeToInvestors(state,fund,returned);}
@@ -642,14 +663,24 @@ function planDealFinancing(fund,dealSize,useCoinvest){
   return {fundPortion,coinvestPortion,rejectedAmount,blendedCarryRate};
 }
 // 実際に共同投資額を確定させる（枠を消費する）。枠を超える要求は自動的に切り詰める。
-// T26-1: state を渡すと、共同投資家からの流入を peFirm.coinvestContributed に記録する
-// （保存則の検証で「外から入った資金」として扱うため）。state 無しでも従来どおり動く。
+// T26-1: 共同投資家の資本を呼び込む唯一の経路。ファンド側の pool（coinvestCash）と、
+// ファーム全体の勘定（peFirm.coinvestContributed = 外から入った累計）の両方に記録する。
+// state は省略できる（枠の計算だけを試すテスト用）。その場合ファーム側の勘定は動かない。
 function recordCoinvestment(state,fund,amount){
   if(!fund)return 0;
   const used=Math.max(0,Math.min(finite(amount),coinvestRemaining(fund)));
   fund.coinvestCommitted=coinvestCommitted(fund)+used;
+  fund.coinvestContributed=Math.max(0,finite(fund.coinvestContributed))+used;
+  fund.coinvestCash=Math.max(0,finite(fund.coinvestCash))+used;
   if(state&&used>0){ensure(state);state.peFirm.coinvestContributed=Math.max(0,finite(state.peFirm.coinvestContributed))+used;}
   return used;
+}
+// 共同投資poolから売り手へ支払う唯一の経路。拠出記録だけを増やして取得することを防ぐ。
+function spendCoinvestment(fund,amount){
+  if(!fund)return 0;
+  const spent=Math.max(0,Math.min(finite(amount),Math.max(0,finite(fund.coinvestCash))));
+  fund.coinvestCash=Math.max(0,finite(fund.coinvestCash)-spent);
+  return spent;
 }
 
 // PE mode T17 (docs/PE_MODE_TASKS.md / docs/PE_MODE_DESIGN.md §2・§14): Exit代金の分配。
@@ -704,7 +735,7 @@ function settleExitProceeds(state,fund,deal,proceeds,week){
   // 共同投資家への返却は、ファンドの累計と共同投資家の勘定（残高）の両方に記録する（T26-1）。
   fund.coinvestReturned=Math.max(0,finite(fund.coinvestReturned))+returnedToCoinvestors;
   if(returnedToCoinvestors>0)state.peFirm.coinvestCapital=Math.max(0,finite(state.peFirm.coinvestCapital))+returnedToCoinvestors;
-  if(gpCarry>0)state.personalCash=finite(state.personalCash)+gpCarry;
+  if(gpCarry>0){state.personalCash=finite(state.personalCash)+gpCarry;fund.gpCarryPaid=Math.max(0,finite(fund.gpCarryPaid))+gpCarry;}
   const settlement={
     grossProceeds:gross,
     fundShare,coinvestShare,
@@ -865,7 +896,7 @@ modules.peFund=Object.freeze({
   MANAGEMENT_FEE_PER_HEAD,TEAM_CAP,MIN_TICKET_PER_DEAL,MAX_DEAL_SHARE_OF_FUND,SLOT_CAP_ABSOLUTE,FIRST_FUND_HOLD_WEEKS,LATER_FUND_HOLD_WEEKS,
   teamCapacity,slotCapacity,maxSingleDealSize,activeDealCount,attentionRatio,attentionMultiplier,optimalHoldWeeks,
   DD_SLOTS_BASE,DD_SLOTS_PER_PARTNER_DIVISOR,DD_YEAR_WEEKS,partnerCount,computeDDSlotsPerYear,ddSlotsPerYear,ddPeriodIndex,currentDDUsage,ddSlotsRemaining,consumeDDSlot,
-  COINVEST_CAP_MULTIPLE,COINVEST_CARRY_FACTOR,coinvestCapacity,coinvestCommitted,coinvestRemaining,annualManagementFee,MANAGEMENT_FEE_INTERVAL_WEEKS,processManagementFeeWeek,planDealFinancing,recordCoinvestment,settleExitProceeds,
+  COINVEST_CAP_MULTIPLE,COINVEST_CARRY_FACTOR,coinvestCapacity,coinvestCommitted,coinvestRemaining,annualManagementFee,processManagementFeePeriods,planDealFinancing,recordCoinvestment,spendCoinvestment,settleExitProceeds,
   __installed:true
 });
 })();

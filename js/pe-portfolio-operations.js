@@ -169,6 +169,8 @@ function acquirePillarCompany(state,fundID,{businessID,enterpriseValue,useCoinve
   const w=Math.max(0,Math.floor(finite(week,state.week)));
   fund.cash-=plan.fundPortion;
   const coinvestUsed=pf.recordCoinvestment(state,fund,plan.coinvestPortion);
+  // T26-1: 呼び込んだ共同投資資本は、ここで売り手へ払われる（record だけでは原価にならない）。
+  if(pf.spendCoinvestment(fund,coinvestUsed)!==coinvestUsed)throw new Error('共同投資poolの拠出額と取得支払額が一致しません。');
   const deal={
     id:`pe-deal-${fund.id}-${arr(fund.deals).length+1}-${w}`,
     businessID,tierID:'pillar',

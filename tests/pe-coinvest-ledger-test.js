@@ -117,21 +117,21 @@ function externalInflow(g) {
   const fundCashBefore = fund.cash;
   for (let w = 2; w <= 53; w++) pf.processFundsWeek(e.g, w);
   const annualFee = pf.annualManagementFee(fund);
-  assert.ok(Math.abs(fund.managementFeePaid - annualFee) < annualFee * .05, `1年で年額ぶんの報酬が動く（実測 ${Math.round(fund.managementFeePaid)} / 年額 ${Math.round(annualFee)}）`);
-  assert.ok(Math.abs((fundCashBefore - fund.cash) - fund.managementFeePaid) < 1, 'ファンドの現金は報酬ぶんだけ減る');
+  assert.ok(Math.abs(fund.managementFeesPaid - annualFee) < annualFee * .05, `1年で年額ぶんの報酬が動く（実測 ${Math.round(fund.managementFeesPaid)} / 年額 ${Math.round(annualFee)}）`);
+  assert.ok(Math.abs((fundCashBefore - fund.cash) - fund.managementFeesPaid) < 1, 'ファンドの現金は報酬ぶんだけ減る');
   const expectedPayroll = pf.teamCapacity(fund) * pf.MANAGEMENT_FEE_PER_HEAD;
   assert.ok(Math.abs(fund.teamPayrollPaid - expectedPayroll) < expectedPayroll * .05, `チーム人件費は1人あたり年${pf.MANAGEMENT_FEE_PER_HEAD}円（実測 ${Math.round(fund.teamPayrollPaid)} / 期待 ${expectedPayroll}）`);
-  assert.ok(Math.abs(e.g.companyCash - (fund.managementFeePaid - fund.teamPayrollPaid)) < 1, '会社に残るのは報酬−人件費');
+  assert.ok(Math.abs(e.g.companyCash - (fund.managementFeesPaid - fund.teamPayrollPaid)) < 1, '会社に残るのは報酬−人件費');
   // 設計書§4: チーム上限(60人)を超えた分の報酬は素直に利益になる。
   assert.equal(pf.teamCapacity(fund), pf.TEAM_CAP, 'この規模ではチームは上限に張り付く');
-  assert.ok(fund.managementFeePaid > fund.teamPayrollPaid, '超過分は会社の利益として残る');
+  assert.ok(fund.managementFeesPaid > fund.teamPayrollPaid, '超過分は会社の利益として残る');
 }
 
 // 6. 26-2: 会計は finance の取引として記録される（収益と人件費の両方）。
 {
   const e = firm({ companyCash: 0 });
   const fund = pf.createFund(e.g, { size: 50_000_000_000, gpCommit: 1_000_000_000, terms: { fee: .02, carry: .2, hurdle: .08 }, y0: 1 });
-  for (let w = 2; w <= 30; w++) pf.processFundsWeek(e.g, w); // 四半期課金なので13週目・26週目に課金される
+  for (let w = 2; w <= 106; w++) pf.processFundsWeek(e.g, w); // 周年課金なので2周年ぶん（y0+52 / y0+104）が課金される
   const tx = e.g.finance.transactions || [];
   const fees = tx.filter(t => t.sourceType === 'peManagementFee');
   const payrolls = tx.filter(t => t.sourceType === 'peTeamPayroll');
@@ -141,10 +141,12 @@ function externalInflow(g) {
   assert.equal(payrolls[0].category, 'payroll');
   assert.ok(fees[0].cashEffect > 0 && payrolls[0].cashEffect < 0);
   // 同じ週を二重に処理しても二重計上しない（idempotencyKey）。
+  assert.equal(fees.length, 2, '2周年ぶん課金される');
+  assert.equal(payrolls.length, 2);
   const before = tx.length;
   fund.lastProcessedWeek = 0;
-  pf.processFundsWeek(e.g, 26);
-  assert.equal((e.g.finance.transactions || []).length, before, '同じ週の報酬は二重計上されない');
+  pf.processFundsWeek(e.g, 106);
+  assert.equal((e.g.finance.transactions || []).length, before, '同じ周年の報酬は二重計上されない');
 }
 
 // 7. 26-2: ファンドの現金が尽きたら報酬は止まる（マイナスにならない）。
@@ -154,19 +156,19 @@ function externalInflow(g) {
   fund.cash = 1_000_000; // ほぼ空
   for (let w = 2; w <= 60; w++) pf.processFundsWeek(e.g, w);
   assert.ok(fund.cash >= 0, 'ファンドの現金がマイナスにならない');
-  assert.ok(fund.managementFeePaid <= 1_000_000 + 1, '払えるのは残高までl'.slice(0, -1));
+  assert.ok(fund.managementFeesPaid <= 1_000_000 + 1, '払えるのは残高までl'.slice(0, -1));
 }
 
-// 8. 26-0: ventureForumEvents に上限がある（push で積むので末尾＝最新を残す）。
+// 8. 26-0: ventureForumEvents に上限がある（unshift で積むので先頭＝最新を残す）。
 {
-  const caps = engineModule.LOG_ARRAY_TAIL_CAPS;
+  const caps = engineModule.LOG_ARRAY_CAPS;
   assert.ok(Number.isInteger(caps.ventureForumEvents) && caps.ventureForumEvents > 0);
   const e = firm();
   const cap = caps.ventureForumEvents;
   e.g.ventureForumEvents = Array.from({ length: cap + 40 }, (_, i) => ({ id: `f-${i}`, status: 'expired', expiresWeek: i }));
   e.normalize();
   assert.equal(e.g.ventureForumEvents.length, cap, '上限まで切り詰められる');
-  assert.equal(e.g.ventureForumEvents[cap - 1].id, `f-${cap + 39}`, '末尾＝最新が残る');
+  assert.equal(e.g.ventureForumEvents[0].id, 'f-0', '先頭＝最新が残る');
 }
 
 // 9. 決定論: 同じ操作列は同じ結果になる（報酬・共同投資の勘定を含めて）。

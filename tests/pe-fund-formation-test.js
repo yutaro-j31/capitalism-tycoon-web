@@ -124,15 +124,15 @@ function systemCash(g) {
   const e = setupFirm({});
   const fund = pf.createFund(e.g, { size: 10_000_000_000, gpCommit: 2_000_000_000, terms: { fee: .02, carry: .2, hurdle: .08 }, y0: 1 });
   const personalBefore = e.g.personalCash, cashInFund = fund.cash;
-  // 投資期間の全週を処理する（管理報酬は四半期ごとに課金されるので、途中の課金週も通す）。
+  // T26-2以降、管理報酬がファンドの現金から引かれる（会社＝GPへ移る）ので、未投資返却されるのは
+  // 「周年ごとの報酬を引いた残り」。周年課金なので投資期間(5年)ぶんの全週を通して確認する。
   for (let w = fund.y0 + 1; w <= fund.y0 + pf.INVESTMENT_PERIOD_WEEKS; w++) pf.processFundsWeek(e.g, w);
+  const fees = pf.annualManagementFee(fund) * 5;
   assert.equal(fund.status, 'harvesting');
   assert.equal(fund.cash, 0);
-  // T26-2以降、同じ週に管理報酬がファンドの現金から引かれる（会社＝GPへ移る）ので、
-  // 未投資返却されるのは「報酬を引いた残り」。返却額そのものは undeployedReturned が持つ。
-  assert.ok(fund.managementFeePaid > 0, '管理報酬が引かれている');
-  assert.ok(Math.abs(fund.undeployedReturned - (cashInFund - fund.managementFeePaid)) < 1, '返却額＝元の現金−管理報酬');
-  assert.ok(Math.abs((e.g.personalCash - personalBefore) - fund.undeployedReturned * .2) < 1, '未投資返却のうちGP持分は個人資産へ戻る');
+  assert.ok(Math.abs(fund.managementFeesPaid - fees) < 1, '投資期間の5周年ぶんの管理報酬が引かれている');
+  assert.ok(Math.abs(fund.undeployedReturned - (cashInFund - fees)) < 1, '返却額＝元の現金−管理報酬');
+  assert.ok(Math.abs((e.g.personalCash - personalBefore) - (cashInFund - fees) * .2) < 1, '管理報酬支払後の未投資返却からGP持分が個人資産へ戻る');
 }
 
 // 7. 完了条件: プレイヤー操作でFund Iを組成 → 案件が供給され → DDが開始でき → 取得まで到達する。
