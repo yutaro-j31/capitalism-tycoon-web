@@ -69,9 +69,15 @@ function acceptOffer(e, deal, price) {
   const { target, deal, price } = bidToAccepted(main, e, fund);
   const fundCashBefore = fund.cash, companyCashBefore = e.g.companyCash, subsBefore = e.g.maSubsidiaries.length, goodwillBefore = e.g.goodwillRecords.length;
   assert.equal(acceptOffer(e, deal, price), 'accepted');
-  const advisoryFee = companyCashBefore - e.g.companyCash; // アドバイザリー費用のみ（会社=GP法人負担）
-  assert.ok(advisoryFee >= 0 && advisoryFee <= 3_000_000, `advisory fee only, got ${advisoryFee}`);
+  // T26-2以降、週が進むあいだ会社（＝GP法人）は管理報酬も受け取るため、companyCash の差分は
+  // 「アドバイザリー費用 − 管理報酬 + チーム人件費」の混合になる。ここで固定したい不変条件は
+  //「取得価格が会社の現金から出ない」ことなので、それはクロージング前後の比較（下）で見る。
+  const advisoryFee = companyCashBefore - e.g.companyCash;
+  assert.ok(Math.abs(advisoryFee) < price * .01, `アドバイザリー費用と管理報酬の範囲を超えて会社の現金が動いた: ${advisoryFee}`);
   const companyCashAtClose = e.g.companyCash;
+  // T26-2以降、週が進むあいだ管理報酬もファンドの現金から引かれるので、取得ぶんの減少は
+  // クロージング直前の残高と比べる（クロージング自体は週を進めない）。
+  const fundCashAtClose = fund.cash;
   assert.equal(e.closeMADeal(deal.id), true, 'the PE close must succeed');
   assert.equal(deal.status, 'acquired');
   assert.equal(e.g.companyCash, companyCashAtClose, '取得価格は会社の現金から出てはならない');
@@ -85,7 +91,8 @@ function acceptOffer(e, deal, price) {
   assert.equal(pd.acquisitionPrice, price);
   assert.equal(pd.enterpriseValue, target.peEnterpriseValue, '保有中の企業価値は入札価格ではなく本来の企業価値');
   assert.ok(pd.portfolioCompany, 'the deal must carry an operating company');
-  assert.equal(Math.round(fundCashBefore - fund.cash), Math.round(pd.fundPortion), 'ファンドの現金は投下額ぶんだけ減る');
+  assert.equal(Math.round(fundCashAtClose - fund.cash), Math.round(pd.fundPortion), 'ファンドの現金は投下額ぶんだけ減る');
+  assert.ok(fundCashBefore > fund.cash, 'ファンドの現金は取得と管理報酬で減っている');
   assert.ok(pd.fundPortion > 0);
 }
 

@@ -94,7 +94,7 @@ function closeFundAcquisition(engine,{deal,target,targetIndex,price,week}){
   const {fund,plan}=check;
   const w=Math.max(0,Math.floor(finite(week,state.week)));
   fund.cash=finite(fund.cash)-plan.fundPortion;
-  const coinvestUsed=pf.recordCoinvestment(fund,plan.coinvestPortion);
+  const coinvestUsed=pf.recordCoinvestment(state,fund,plan.coinvestPortion);
   // T4の売り手条件（雇用・社名の維持）は、ここでポートフォリオ企業へ引き継がれる。
   // T18の人員削減・閉店レバーがこのフラグを見て禁止判定を行う（入札時の判断が数年後に返る）。
   const employmentPromise=Boolean(deal.acceptedTerms?.acceptedSellerTerm&&deal.acceptedTerms?.sellerTermID==='employmentContinuity');

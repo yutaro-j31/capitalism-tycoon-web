@@ -316,7 +316,8 @@ const nodeTests = [
   ['pe-fund-ladder', 'tests/pe-fund-ladder-test.js'],
   ['pe-return-calibration', 'tests/pe-return-calibration-test.js'],
   ['pe-fund-gate-rescue', 'tests/pe-fund-gate-rescue-test.js'],
-  ['log-array-caps', 'tests/log-array-caps-test.js']
+  ['log-array-caps', 'tests/log-array-caps-test.js'],
+  ['pe-coinvest-ledger', 'tests/pe-coinvest-ledger-test.js']
 ];
 
 for (let i = 0; i < nodeTests.length; i++) {

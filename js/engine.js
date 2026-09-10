@@ -329,15 +329,24 @@ function normalizeObjectMap(state, key, defaultValue = {}) {
 // 新しい書き込み経路が増えてもここで必ず切り詰まる）。
 // いずれも unshift（新しい順に積む）ので、先頭＝最新から LOG_ARRAY_CAP 件を残す。
 const LOG_ARRAY_CAP = 200;
+// unshift で積む（先頭が最新）配列。先頭から cap 件を残す。
 const LOG_ARRAY_CAPS = Object.freeze({
   shareholderEventLog: LOG_ARRAY_CAP,
   mediaActionLog: LOG_ARRAY_CAP,
   industryAwards: LOG_ARRAY_CAP
 });
+// T26-0: push で積む（末尾が最新）配列。末尾から cap 件を残す。方向を間違えると最新が消えるので
+// 表を分ける（`ventureForumEvents` は status/expiresWeek で絞って読まれるため、古い分の削除で問題ない）。
+const LOG_ARRAY_TAIL_CAPS = Object.freeze({
+  ventureForumEvents: LOG_ARRAY_CAP
+});
 function capLogArrays(state) {
   if (!state) return state;
   for (const [key, cap] of Object.entries(LOG_ARRAY_CAPS)) {
     if (Array.isArray(state[key]) && state[key].length > cap) state[key] = state[key].slice(0, cap);
+  }
+  for (const [key, cap] of Object.entries(LOG_ARRAY_TAIL_CAPS)) {
+    if (Array.isArray(state[key]) && state[key].length > cap) state[key] = state[key].slice(-cap);
   }
   return state;
 }
@@ -1934,7 +1943,7 @@ function gameDate(week){
     fullLabel:`${year}年目 ${month}月${day}日`};
 }
 
-Object.assign(exports,{LOG_ARRAY_CAP,LOG_ARRAY_CAPS,SIMULATION_SYSTEMS,SIMULATION_DEPTH_LABEL,businessSimulationDepth,FOUNDABLE_BUSINESS_IDS,VALUATION_OBSERVATION_WEEKS,storeWeeksTraded,storeNormalizedProfit,storeEarningsValue,SAVE_KEY,SAVE_VERSION,clamp,finite,uuid,yen,compactYen,pct,rand,pick,gameDate,createInitialState,mergeDefaults,detectSaveVersion,migrateSave, normalizeStockPriceHistory,migrateUnversionedToV1,migrateV1ToV2,migrateV2ToV3,migrateV3ToV4,migrateV4ToV5,migrateV5ToV6,deepNormalizeState,validateMigratedState,TycoonEngine});
+Object.assign(exports,{LOG_ARRAY_CAP,LOG_ARRAY_CAPS,LOG_ARRAY_TAIL_CAPS,SIMULATION_SYSTEMS,SIMULATION_DEPTH_LABEL,businessSimulationDepth,FOUNDABLE_BUSINESS_IDS,VALUATION_OBSERVATION_WEEKS,storeWeeksTraded,storeNormalizedProfit,storeEarningsValue,SAVE_KEY,SAVE_VERSION,clamp,finite,uuid,yen,compactYen,pct,rand,pick,gameDate,createInitialState,mergeDefaults,detectSaveVersion,migrateSave, normalizeStockPriceHistory,migrateUnversionedToV1,migrateV1ToV2,migrateV2ToV3,migrateV3ToV4,migrateV4ToV5,migrateV5ToV6,deepNormalizeState,validateMigratedState,TycoonEngine});
 })(__modules.engine={},__modules.data,__modules.market,__modules.finance,__modules.supply,__modules.workforce,__modules.competitor);
 
 })();

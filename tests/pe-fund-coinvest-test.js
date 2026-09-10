@@ -85,14 +85,16 @@ function fundOf(size, score) {
   assert.equal(plan.coinvestPortion, 1_000_000_000);
   assert.equal(plan.rejectedAmount, 1_750_000_000, 'a deal that exceeds fund cap + full coinvest capacity cannot be fully financed');
 
-  const used1 = pf.recordCoinvestment(fund, 600_000_000);
+  // state を渡さない呼び出し（枠の計算だけを見る）。共同投資家の勘定への記録は
+  // tests/pe-coinvest-ledger-test.js で検証する。
+  const used1 = pf.recordCoinvestment(null, fund, 600_000_000);
   assert.equal(used1, 600_000_000);
   assert.equal(pf.coinvestCommitted(fund), 600_000_000);
-  const used2 = pf.recordCoinvestment(fund, 600_000_000); // only 400M of capacity left
+  const used2 = pf.recordCoinvestment(null, fund, 600_000_000); // only 400M of capacity left
   assert.equal(used2, 400_000_000, 'recordCoinvestment must clamp to remaining capacity, not honor the full request');
   assert.equal(pf.coinvestCommitted(fund), 1_000_000_000);
   assert.equal(pf.coinvestRemaining(fund), 0);
-  assert.equal(pf.recordCoinvestment(fund, 1), 0, 'no capacity left at all');
+  assert.equal(pf.recordCoinvestment(null, fund, 1), 0, 'no capacity left at all');
 }
 
 // 7. Completion criterion / 設計書「管理報酬は共同投資分にはかからない」: annualManagementFee
@@ -100,7 +102,7 @@ function fundOf(size, score) {
 {
   const fund = fundOf(10_000_000_000, 35);
   const before = pf.annualManagementFee(fund);
-  pf.recordCoinvestment(fund, 9_000_000_000);
+  pf.recordCoinvestment(null, fund, 9_000_000_000);
   const after = pf.annualManagementFee(fund);
   assert.equal(before, after, 'management fee base must be unaffected by coinvest commitments');
   assert.ok(Math.abs(before - fund.size * fund.terms.fee) < 1e-6);
@@ -111,7 +113,7 @@ function fundOf(size, score) {
   assert.equal(pf.coinvestCapacity(null), 0);
   assert.equal(pf.coinvestRemaining(null), 0);
   assert.equal(pf.annualManagementFee(null), 0);
-  assert.equal(pf.recordCoinvestment(null, 100), 0);
+  assert.equal(pf.recordCoinvestment(null, null, 100), 0);
 }
 
 // 9. No new Math.random()/Date.now()/randomUUID usage.

@@ -168,7 +168,7 @@ function acquirePillarCompany(state,fundID,{businessID,enterpriseValue,useCoinve
   if(fund.cash<plan.fundPortion)return null; // 手元資金不足
   const w=Math.max(0,Math.floor(finite(week,state.week)));
   fund.cash-=plan.fundPortion;
-  const coinvestUsed=pf.recordCoinvestment(fund,plan.coinvestPortion);
+  const coinvestUsed=pf.recordCoinvestment(state,fund,plan.coinvestPortion);
   const deal={
     id:`pe-deal-${fund.id}-${arr(fund.deals).length+1}-${w}`,
     businessID,tierID:'pillar',

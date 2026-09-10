@@ -230,11 +230,26 @@ function playWeek(handles, e, skill, policy = {}) {
   }
 }
 
-// 総資産（個人 + 会社 + ファンドの未回収持分）。
-function totalAssets(g) {
+// T26-3: 指標を2つに分ける。旧 totalAssets はファンドの現金と投下額を丸ごと足していたため、
+// LPと共同投資家の持分を控除しておらず、プレイヤーの純資産ではなく運用資産(AUM)寄りだった
+// （Codex GAME-REAUDIT-006）。設計書§12の「100年後の総資産が兆のオーダー」は
+// **プレイヤー帰属純資産**で判定する。
+function fundNAV(f) {
+  return Math.max(0, Number(f.cash) || 0)
+    + (f.deals || []).reduce((s, d) => s + (d.status === 'active' ? Math.max(0, Number(d.investedAmount) || 0) + Math.max(0, Number(d.portfolioCompany?.cash) || 0) : 0), 0);
+}
+// プレイヤーに帰属する純資産: 個人資産 + 会社資産 + ファンドNAVのうちGP出資持分だけ。
+function playerNetWorth(handles, g) {
+  const pf = handles.modules.peFund;
   const funds = g.peFirm?.funds || [];
-  const fundNAV = funds.reduce((sum, f) => sum + Math.max(0, Number(f.cash) || 0) + (f.deals || []).reduce((s, d) => s + (d.status === 'active' ? Math.max(0, Number(d.investedAmount) || 0) + Math.max(0, Number(d.portfolioCompany?.cash) || 0) : 0), 0), 0);
-  return (Number(g.personalCash) || 0) + (Number(g.companyCash) || 0) + fundNAV;
+  const gpPart = funds.reduce((sum, f) => sum + fundNAV(f) * pf.gpShareOfFund(f), 0);
+  return (Number(g.personalCash) || 0) + (Number(g.companyCash) || 0) + gpPart;
+}
+// 運用資産(AUM): ファンド規模の合計 + 共同投資の拠出累計。プレイヤーのものではないが規模の指標。
+function assetsUnderManagement(g) {
+  const funds = g.peFirm?.funds || [];
+  return funds.reduce((sum, f) => sum + Math.max(0, Number(f.size) || 0), 0)
+    + Math.max(0, Number(g.peFirm?.coinvestContributed) || 0);
 }
 function scanNonFinite(value, pathStr = '$', out = [], seen = new Set()) {
   if (out.length >= 20) return out;
@@ -263,7 +278,7 @@ function runOnce({ seed, skillID, weeks, sampleEvery = 520 }) {
     for (const f of e.g.peFirm.funds) peakFundSize = Math.max(peakFundSize, Number(f.size) || 0);
     maxConcurrentFunds = Math.max(maxConcurrentFunds, e.g.peFirm.funds.filter(f => f.status !== 'closed').length);
     maxInvestingFunds = Math.max(maxInvestingFunds, e.g.peFirm.funds.filter(f => f.status === 'investing').length);
-    if ((w + 1) % sampleEvery === 0) samples.push({ week: e.g.week, assets: totalAssets(e.g) });
+    if ((w + 1) % sampleEvery === 0) samples.push({ week: e.g.week, assets: playerNetWorth(handles, e.g), aum: assetsUnderManagement(e.g) });
   }
   const g = e.g;
   const funds = g.peFirm.funds;
@@ -295,7 +310,12 @@ function runOnce({ seed, skillID, weeks, sampleEvery = 520 }) {
     networkNodes: (g.peNetwork?.nodes || []).length,
     personalCash: g.personalCash,
     companyCash: g.companyCash,
-    totalAssets: totalAssets(g),
+    playerNetWorth: playerNetWorth(handles, g),
+    aum: assetsUnderManagement(g),
+    coinvestContributed: Math.max(0, Number(g.peFirm?.coinvestContributed) || 0),
+    coinvestCapital: Math.max(0, Number(g.peFirm?.coinvestCapital) || 0),
+    managementFeePaid: (g.peFirm?.funds || []).reduce((s, f) => s + (Number(f.managementFeePaid) || 0), 0),
+    teamPayrollPaid: (g.peFirm?.funds || []).reduce((s, f) => s + (Number(f.teamPayrollPaid) || 0), 0),
     samples,
     saveBytes: Buffer.byteLength(save, 'utf8'),
     nonFinite: scanNonFinite(g),
@@ -315,7 +335,7 @@ function runSkillPart(skillID) {
   // 別seedの実行は上書きせず、seed付きの名前で並べて残す（同じ腕でも運で結果が変わることの確認用）。
   results.skills[seed === 12345 ? skillID : `${skillID}@${seed}`] = { ...r, seconds: (Date.now() - started) / 1000 };
   saveResults(results);
-  console.log(`${SKILLS[skillID].label}: ファンド${r.fundCount}本 / 同時最大${r.maxConcurrentFunds ?? "-"}本(投資中${r.maxInvestingFunds ?? "-"}本) / 救済${r.rescueExits ?? "-"}回 / 取得${r.acquisitions}件 / Exit${r.exits}件 / 最大ファンド${yen(r.peakFundSize)} / 天井${r.hitCeiling ? '到達' : '未到達'} / 総資産${yen(r.totalAssets)} / Fund I DPI ${r.fundIDPI.toFixed(2)} / セーブ${(r.saveBytes / 1024 / 1024).toFixed(2)}MB / NaN・Inf ${r.nonFinite.length}件 / ${((Date.now() - started) / 1000).toFixed(0)}秒`);
+  console.log(`${SKILLS[skillID].label}: ファンド${r.fundCount}本 / 同時最大${r.maxConcurrentFunds ?? "-"}本(投資中${r.maxInvestingFunds ?? "-"}本) / 救済${r.rescueExits ?? "-"}回 / 取得${r.acquisitions}件 / Exit${r.exits}件 / 最大ファンド${yen(r.peakFundSize)} / 天井${r.hitCeiling ? '到達' : '未到達'} / 純資産${yen(r.playerNetWorth)} / AUM${yen(r.aum)} / Fund I DPI ${r.fundIDPI.toFixed(2)} / セーブ${(r.saveBytes / 1024 / 1024).toFixed(2)}MB / NaN・Inf ${r.nonFinite.length}件 / ${((Date.now() - started) / 1000).toFixed(0)}秒`);
 }
 function runDistributionPart(from, to) {
   const results = loadResults();
@@ -330,9 +350,9 @@ function runDistributionPart(from, to) {
 function runDeterminismPart(run) {
   const results = loadResults();
   const r = runOnce({ seed: 999, skillID: 'expert', weeks: WEEKS });
-  results.determinism[`run${run}`] = { saveHash: r.saveHash, totalAssets: r.totalAssets, week: r.week };
+  results.determinism[`run${run}`] = { saveHash: r.saveHash, playerNetWorth: r.playerNetWorth, week: r.week };
   saveResults(results);
-  console.log(`determinism run${run}: sha256=${r.saveHash.slice(0, 32)} / 総資産${yen(r.totalAssets)}`);
+  console.log(`determinism run${run}: sha256=${r.saveHash.slice(0, 32)} / 純資産${yen(r.playerNetWorth)} / AUM${yen(r.aum)}`);
 }
 // 部分実行を並列に回した場合、結果ファイルは複数になる。--inputs で並べて統合する。
 function mergeResults() {
@@ -365,10 +385,10 @@ function report() {
   console.log('## A. 腕による差（同一ポリシー枠組み・判断の質だけが違う）');
   for (const id of ids) {
     const r = runs[id];
-    console.log(`- ${SKILLS[id].label}: ファンド${r.fundCount}本 / 同時最大${r.maxConcurrentFunds ?? "-"}本(投資中${r.maxInvestingFunds ?? "-"}本) / 救済${r.rescueExits ?? "-"}回 / 取得${r.acquisitions}件 / Exit${r.exits}件 / 人脈${r.networkNodes} / 最大ファンド${yen(r.peakFundSize)} / 吸収上限${plateaued(r) ? '到達（頭打ち）' : '未到達'} / 絶対上限${r.hitCeiling ? '到達' : '未到達'} / 総資産${yen(r.totalAssets)} / 個人資産${yen(r.personalCash)} / Fund I DPI ${r.fundIDPI.toFixed(2)}`);
+    console.log(`- ${SKILLS[id].label}: ファンド${r.fundCount}本 / 同時最大${r.maxConcurrentFunds ?? "-"}本(投資中${r.maxInvestingFunds ?? "-"}本) / 救済${r.rescueExits ?? "-"}回 / 取得${r.acquisitions}件 / Exit${r.exits}件 / 人脈${r.networkNodes} / 最大ファンド${yen(r.peakFundSize)} / 吸収上限${plateaued(r) ? '到達（頭打ち）' : '未到達'} / 絶対上限${r.hitCeiling ? '到達' : '未到達'} / 純資産${yen(r.playerNetWorth)} / AUM${yen(r.aum)} / 個人資産${yen(r.personalCash)} / Fund I DPI ${r.fundIDPI.toFixed(2)}`);
   }
   if (ids.length === 3) {
-    const ok = runs.expert.totalAssets >= runs.average.totalAssets && runs.average.totalAssets >= runs.novice.totalAssets;
+    const ok = runs.expert.playerNetWorth >= runs.average.playerNetWorth && runs.average.playerNetWorth >= runs.novice.playerNetWorth;
     console.log(`- 腕の序列: ${ok ? 'OK（上手 ≥ 普通 ≥ 下手）' : 'NG（逆転あり）'}`);
     console.log(`- 下手の天井到達: ${runs.novice.hitCeiling ? 'NG（到達してしまった）' : 'OK（未到達）'}`);
   }
@@ -380,7 +400,7 @@ function report() {
     if (late.length >= 2) {
       const mean = late.reduce((a, b) => a + b, 0) / late.length;
       const growth = late[0] !== 0 ? late[late.length - 1] / late[0] : NaN;
-      console.log(`- ${SKILLS[id].label} 後半の10年ごとの資産増分: 平均${yen(mean)} / 末期÷初期 ${Number.isFinite(growth) ? growth.toFixed(2) : 'n/a'}（1に近いほど線形）`);
+      console.log(`- ${SKILLS[id].label} 後半の10年ごとの純資産増分: 平均${yen(mean)} / 末期÷初期 ${Number.isFinite(growth) ? growth.toFixed(2) : 'n/a'}（1に近いほど線形）`);
     }
   }
   const dist = results.distribution || [];
@@ -426,9 +446,9 @@ function main() {
   for (const skillID of ['expert', 'average', 'novice']) {
     const r = runOnce({ seed: 12345, skillID, weeks: WEEKS });
     runs[skillID] = r;
-    console.log(`- ${SKILLS[skillID].label}: ファンド${r.fundCount}本 / 同時最大${r.maxConcurrentFunds}本(投資中${r.maxInvestingFunds}本) / 救済${r.rescueExits}回 / 取得${r.acquisitions}件 / Exit${r.exits}件 / 人脈${r.networkNodes} / 最大ファンド${yen(r.peakFundSize)} / 天井${r.hitCeiling ? '到達' : '未到達'} / 総資産${yen(r.totalAssets)} / Fund I DPI ${r.fundIDPI.toFixed(2)} / セーブ${(r.saveBytes / 1024 / 1024).toFixed(2)}MB / NaN・Inf ${r.nonFinite.length}件`);
+    console.log(`- ${SKILLS[skillID].label}: ファンド${r.fundCount}本 / 同時最大${r.maxConcurrentFunds}本(投資中${r.maxInvestingFunds}本) / 救済${r.rescueExits}回 / 取得${r.acquisitions}件 / Exit${r.exits}件 / 人脈${r.networkNodes} / 最大ファンド${yen(r.peakFundSize)} / 天井${r.hitCeiling ? '到達' : '未到達'} / 純資産${yen(r.playerNetWorth)} / AUM${yen(r.aum)} / Fund I DPI ${r.fundIDPI.toFixed(2)} / セーブ${(r.saveBytes / 1024 / 1024).toFixed(2)}MB / NaN・Inf ${r.nonFinite.length}件`);
   }
-  const orderOK = runs.expert.totalAssets >= runs.average.totalAssets && runs.average.totalAssets >= runs.novice.totalAssets;
+  const orderOK = runs.expert.playerNetWorth >= runs.average.playerNetWorth && runs.average.playerNetWorth >= runs.novice.playerNetWorth;
   console.log(`- 腕の序列: ${orderOK ? 'OK（上手 ≥ 普通 ≥ 下手）' : 'NG（逆転あり）'}`);
   console.log(`- 下手の天井到達: ${runs.novice.hitCeiling ? 'NG（到達してしまった）' : 'OK（未到達）'}`);
 
@@ -441,7 +461,7 @@ function main() {
     if (late.length >= 2) {
       const mean = late.reduce((a, b) => a + b, 0) / late.length;
       const growth = late.length >= 2 && late[0] !== 0 ? late[late.length - 1] / late[0] : NaN;
-      console.log(`- ${SKILLS[skillID].label} 後半の10年ごとの資産増分: 平均${yen(mean)} / 末期÷初期 ${Number.isFinite(growth) ? growth.toFixed(2) : 'n/a'}（1に近いほど線形・指数爆発なし）`);
+      console.log(`- ${SKILLS[skillID].label} 後半の10年ごとの純資産増分: 平均${yen(mean)} / 末期÷初期 ${Number.isFinite(growth) ? growth.toFixed(2) : 'n/a'}（1に近いほど線形・指数爆発なし）`);
     }
   }
 
@@ -478,4 +498,4 @@ function main() {
 }
 
 if (require.main === module) main();
-module.exports = { SKILLS, setupFirm, playWeek, runOnce, totalAssets };
+module.exports = { SKILLS, setupFirm, playWeek, runOnce, playerNetWorth, assetsUnderManagement };
