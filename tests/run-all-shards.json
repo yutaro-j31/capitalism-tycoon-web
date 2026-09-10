@@ -150,6 +150,7 @@
     "tests/d-ui-reference-fidelity-test.js",
     "tests/map-canvas-foundation-test.js",
     "tests/map-phase2-lazy-load-recovery-test.js",
-    "tests/static-asset-cache-coherence-test.js"
+    "tests/static-asset-cache-coherence-test.js",
+    "tests/pe-ui-phase1-test.js"
   ]
 }

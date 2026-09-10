@@ -1,0 +1,33 @@
+const assert=require('node:assert/strict');
+const fs=require('node:fs');
+const {load}=require('./ma-deal-room-test-helpers');
+
+const ui=fs.readFileSync('js/pe-ui.js','utf8');
+const css=fs.readFileSync('css/d-ui-pe.css','utf8');
+const html=fs.readFileSync('index.html','utf8');
+assert.match(html,/\.\/css\/d-ui-pe\.css/);
+assert.match(html,/\.\/js\/pe-ui\.js/);
+assert.match(ui,/\['fund','◫','ファンド'\],\['deals','◇','案件'\],\['portfolio','▦','保有'\],\['network','◎','人脈'\],\['record','▤','記録'\]/);
+assert.match(ui,/\[\['未投資資金',[\s\S]*\['残りスロット',[\s\S]*\['残りDD',[\s\S]*\['DPI'/);
+assert.match(ui,/pf\.fundDPI\(fund\)/);
+assert.match(ui,/pf\.ddSlotsRemaining\(state,state\.week\)/);
+assert.match(ui,/pf\.slotCapacity\(fund\)-pf\.activeDealCount\(fund\)/);
+assert.match(ui,/deadlineWeek\)-finite\(b\.deadlineWeek\)\|\|String\(a\.id\)\.localeCompare/);
+assert.match(ui,/competingBids\|\|\[\]\)\.filter\(b=>b\.status==='active'\)/);
+assert.match(ui,/★ 売り手が重視/);
+assert.match(ui,/data-pe-submit>入札する<\/button><button class="btn secondary" type="button" data-pe-drop>降りる/);
+assert.match(css,/\.pe-decision-row \.btn\{min-height:50px/);
+assert.match(css,/@media\(max-width:820px\)/);
+assert.doesNotMatch(ui,/Math\.random|Date\.now|performance\.now|randomUUID/);
+
+const {dr}=load();
+const state={week:12,companyReputation:50,executives:{},acquisitionTargets:[],maDealRooms:[],maTargetTruthByID:{},maDealHistory:[],news:[]};
+const target={id:'pe-ui-target',name:'地域食品',valuation:2_000_000_000,sales:1_500_000_000,operatingProfit:160_000_000,growth:.04,risk:.2,synergy:.08,friendly:true,sellerType:'founderRetirement',maCreatedWeek:12};
+state.acquisitionTargets.push(target);dr.ensure(state);dr.ensureTargetTruth(state,target);
+const deal={id:'pe-ui-deal',targetID:target.id,targetStableKey:target.maStableKey,status:'final_bid',deadlineWeek:20,diligenceLevel:'financial',diligenceConfidence:.65,sellerAsk:2_100_000_000,history:[],findings:[],offerRounds:[],competingBids:[]};
+state.maDealRooms.push(deal);
+const before=JSON.stringify(state),off=dr.recommendedOfferRange(state,target,deal,{acceptSellerTerm:false}),on=dr.recommendedOfferRange(state,target,deal,{acceptSellerTerm:true});
+assert.ok(on.recommendedMinimumPrice<off.recommendedMinimumPrice);
+assert.ok(on.recommendedMaximumPrice<off.recommendedMaximumPrice);
+assert.equal(JSON.stringify(state),before,'range preview must not mutate production state');
+console.log(`pe-ui-phase1-test: ok (${off.recommendedMinimumPrice}-${off.recommendedMaximumPrice} -> ${on.recommendedMinimumPrice}-${on.recommendedMaximumPrice})`);

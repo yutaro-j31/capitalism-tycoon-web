@@ -318,7 +318,8 @@ const nodeTests = [
   ['pe-return-calibration', 'tests/pe-return-calibration-test.js'],
   ['pe-fund-gate-rescue', 'tests/pe-fund-gate-rescue-test.js'],
   ['log-array-caps', 'tests/log-array-caps-test.js'],
-  ['pe-coinvest-ledger', 'tests/pe-coinvest-ledger-test.js']
+  ['pe-coinvest-ledger', 'tests/pe-coinvest-ledger-test.js'],
+  ['pe-ui-phase1', 'tests/pe-ui-phase1-test.js']
 ];
 
 for (let i = 0; i < nodeTests.length; i++) {
