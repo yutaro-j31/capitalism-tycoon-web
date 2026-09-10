@@ -85,7 +85,7 @@ const LABOR_DELAY_WEEKS=39;             // 3四半期遅れ
 const LABOR_DRAG_RAMP_WEEKS=52;
 const WAGE_MIN=.7,WAGE_MAX=1.3,HEADCOUNT_MIN=.6,HEADCOUNT_MAX=1.2;
 const PRODUCT_MIX_RAMP_WEEKS=130;       // 2.5年かけて効いてくる（設計書「2〜3年かかる」）
-const PRODUCT_MIX_MAX_GAIN=.35;         // 効きめ切ればトップライン+35%
+const PRODUCT_MIX_MAX_GAIN=.40;         // 効きめ切ればトップライン+40%（T26較正: 上振れを戻す）
 const PRODUCT_MIX_COST_FRACTION=.03;    // 刷新の一時費用: 水準1.0あたり企業価値の3%
 const CONSOLIDATION_STEP=1/3;           // 1回の再編で不採算拠点の1/3を閉じる
 const CONSOLIDATION_EBITDA_GAIN=.8;     // 不採算分を落とした分だけ利益率が上がる
