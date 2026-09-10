@@ -60,6 +60,11 @@ function loadResults() {
 function saveResults(r) { fs.writeFileSync(OUT, JSON.stringify(r, null, 2)); }
 
 const 億 = 1e8, 兆 = 1e12;
+// 救済導線1回ぶんの所要（設計書§10: 会社を作ってExitするのに4年）。
+const FOUNDING_CYCLE_WEEKS = 208;
+// 起業に振り向ける元手（個人資産に対する割合）。
+const FOUNDING_STAKE_FRACTION = .10;
+const finite = (v, f = 0) => Number.isFinite(Number(v)) ? Number(v) : f;
 const yen = v => Number.isFinite(v) ? (Math.abs(v) >= 兆 ? `${(v / 兆).toFixed(2)}兆円` : `${(v / 億).toFixed(1)}億円`) : String(v);
 const pct = v => `${(v * 100).toFixed(1)}%`;
 
@@ -79,7 +84,8 @@ const SKILLS = {
     headcount: 1.0,            // 人は切らない（評判を守る）
     productMix: 1.0,           // トップラインに早く仕込む
     mixAtWeek: 26,             // 取得から半年で着手（Exitまでに効き切る）
-    holdBonusWeeks: 0          // 最適保有期間で売る
+    holdBonusWeeks: 0,         // 最適保有期間で売る
+    foundingMOIC: 3.0          // 救済導線で起業した会社のExit倍率
   },
   average: {
     label: '普通',
@@ -89,7 +95,8 @@ const SKILLS = {
     headcount: 0.9,
     productMix: 0.5,
     mixAtWeek: 104,            // 着手が遅く、効き切る前にExitが来る
-    holdBonusWeeks: 26
+    holdBonusWeeks: 26,
+    foundingMOIC: 2.2
   },
   novice: {
     label: '下手',
@@ -99,7 +106,8 @@ const SKILLS = {
     headcount: 0.6,            // 人を切り、評判も失う
     productMix: 0,             // トップラインに何も仕込まない
     mixAtWeek: null,
-    holdBonusWeeks: -78        // 育つ前に売る
+    holdBonusWeeks: -78,       // 育つ前に売る
+    foundingMOIC: 1.4
   }
 };
 
@@ -125,17 +133,37 @@ function setupFirm(handles) {
 // ---------------------------------------------------------------------------------------------
 // 1週ぶんのプレイヤー判断。3スキルとも同じ手順を踏み、SKILLSの数値だけが違う。
 // ---------------------------------------------------------------------------------------------
-function playWeek(handles, e, skill) {
+// policy はポリシー側の作業メモ（救済導線の経過週など）。production の state には書かない。
+function playWeek(handles, e, skill, policy = {}) {
   const { modules } = handles;
   const pf = modules.peFund, ds = modules.peDealSupply, ops = modules.pePortfolioOperations, pa = modules.peAcquisition;
   const g = e.g;
 
   // (1) ファンド組成: T21-2 の production アクション engine.formPEFund() をそのまま呼ぶ。
   //     解禁判定・次号ゲート(canFormNextFund)・GP出資額・個人資産の充足判定はすべてその中。
-  //     どのスキルも同じアクション・同じゲートを通る。
+  //     どのスキルも同じアクション・同じゲートを通る。組める条件が揃っていれば常に組むので、
+  //     前号が投資期間中でも2本目を持てる（設計書§12「同時運用は自然に2本で頭打ち」の確認）。
   const funds = g.peFirm.funds;
   const latest = funds[funds.length - 1] || null;
-  if (!latest || latest.status !== 'investing') e.formPEFund();
+  if (e.formablePEFund().ok) e.formPEFund();
+
+  // (1b) 救済導線（設計書§10「2号を組めない年は起業に戻って会社を作りExitする（4年）」）。
+  //      起業パートそのもの（店舗経営→売却）はPEモードの外にあり、このスクリプトは店舗を
+  //      持たないPEファームを回しているため、ここでは「4年かけて会社を作りExitした」ことだけを
+  //      production の recordExit() で記録する。金額はスキル別のMOICで、元手は個人資産から出す。
+  //      ＝ 起業パートの結果を模した**ポリシー側のモデル**であり、起業パートの実測ではない。
+  const blocked = !funds.length ? false : !pf.canFormNextFund(g) && !funds.some(f => f.status === 'investing');
+  if (blocked && !policy.rescueStartedWeek) policy.rescueStartedWeek = g.week;
+  if (!blocked) policy.rescueStartedWeek = 0;
+  if (blocked && g.week - policy.rescueStartedWeek >= FOUNDING_CYCLE_WEEKS) {
+    const invested = Math.max(100_000_000, finite(g.personalCash) * FOUNDING_STAKE_FRACTION);
+    if (finite(g.personalCash) >= invested) {
+      const realized = invested * skill.foundingMOIC;
+      g.personalCash = finite(g.personalCash) - invested + realized;
+        pf.recordExit(g, { exitType: 'buyout', realizedAmount: realized, investedAmount: invested, foundedWeek: g.week - FOUNDING_CYCLE_WEEKS, exitedWeek: g.week, profitableWeekStreak: 208, employeeCount: 40 });
+    }
+    policy.rescueStartedWeek = g.week;
+  }
   const fund = funds.filter(f => f.status === 'investing').slice(-1)[0] || null;
 
   // (2) 案件を開く: 板に出ているPE案件のうち、まだ触っていないものを1件だけ開く。
@@ -225,11 +253,16 @@ function runOnce({ seed, skillID, weeks, sampleEvery = 520 }) {
   const skill = SKILLS[skillID];
   const e = setupFirm(handles);
   const samples = [];
+  const policy = { rescueStartedWeek: 0 };
   let peakFundSize = 0;
+  let maxConcurrentFunds = 0;   // 同時に走っているファンド数（設計書§12「2本で頭打ち」の確認）
+  let maxInvestingFunds = 0;
   for (let w = 0; w < weeks; w++) {
     e.advanceWeek(false);            // ← production の週次エンジン
-    playWeek(handles, e, skill);     // ← プレイヤーの判断だけ
+    playWeek(handles, e, skill, policy); // ← プレイヤーの判断だけ
     for (const f of e.g.peFirm.funds) peakFundSize = Math.max(peakFundSize, Number(f.size) || 0);
+    maxConcurrentFunds = Math.max(maxConcurrentFunds, e.g.peFirm.funds.filter(f => f.status !== 'closed').length);
+    maxInvestingFunds = Math.max(maxInvestingFunds, e.g.peFirm.funds.filter(f => f.status === 'investing').length);
     if ((w + 1) % sampleEvery === 0) samples.push({ week: e.g.week, assets: totalAssets(e.g) });
   }
   const g = e.g;
@@ -253,6 +286,10 @@ function runOnce({ seed, skillID, weeks, sampleEvery = 520 }) {
     absorbableCeiling: handles.modules.peFund.marketAbsorbableFundSize(),
     plateauedAtAbsorbable: peakFundSize >= handles.modules.peFund.marketAbsorbableFundSize() - 1,
     acquisitions: funds.reduce((n, f) => n + f.deals.filter(d => d.portfolioCompany).length, 0),
+    maxConcurrentFunds,
+    maxInvestingFunds,
+    // 救済導線（起業に戻ってExit）を使った回数。初期セットアップで与える1件を除く。
+    rescueExits: Math.max(0, (g.peFirm.trackRecord.exits || []).filter(x => x.exitType !== 'fund').length - 1),
     exits: funds.reduce((n, f) => n + f.deals.filter(d => d.status === 'exited').length, 0),
     monopolyDeals: (g.maDealHistory || []).length,
     networkNodes: (g.peNetwork?.nodes || []).length,
@@ -278,7 +315,7 @@ function runSkillPart(skillID) {
   // 別seedの実行は上書きせず、seed付きの名前で並べて残す（同じ腕でも運で結果が変わることの確認用）。
   results.skills[seed === 12345 ? skillID : `${skillID}@${seed}`] = { ...r, seconds: (Date.now() - started) / 1000 };
   saveResults(results);
-  console.log(`${SKILLS[skillID].label}: ファンド${r.fundCount}本 / 取得${r.acquisitions}件 / Exit${r.exits}件 / 最大ファンド${yen(r.peakFundSize)} / 天井${r.hitCeiling ? '到達' : '未到達'} / 総資産${yen(r.totalAssets)} / Fund I DPI ${r.fundIDPI.toFixed(2)} / セーブ${(r.saveBytes / 1024 / 1024).toFixed(2)}MB / NaN・Inf ${r.nonFinite.length}件 / ${((Date.now() - started) / 1000).toFixed(0)}秒`);
+  console.log(`${SKILLS[skillID].label}: ファンド${r.fundCount}本 / 同時最大${r.maxConcurrentFunds ?? "-"}本(投資中${r.maxInvestingFunds ?? "-"}本) / 救済${r.rescueExits ?? "-"}回 / 取得${r.acquisitions}件 / Exit${r.exits}件 / 最大ファンド${yen(r.peakFundSize)} / 天井${r.hitCeiling ? '到達' : '未到達'} / 総資産${yen(r.totalAssets)} / Fund I DPI ${r.fundIDPI.toFixed(2)} / セーブ${(r.saveBytes / 1024 / 1024).toFixed(2)}MB / NaN・Inf ${r.nonFinite.length}件 / ${((Date.now() - started) / 1000).toFixed(0)}秒`);
 }
 function runDistributionPart(from, to) {
   const results = loadResults();
@@ -328,7 +365,7 @@ function report() {
   console.log('## A. 腕による差（同一ポリシー枠組み・判断の質だけが違う）');
   for (const id of ids) {
     const r = runs[id];
-    console.log(`- ${SKILLS[id].label}: ファンド${r.fundCount}本 / 取得${r.acquisitions}件 / Exit${r.exits}件 / 人脈${r.networkNodes} / 最大ファンド${yen(r.peakFundSize)} / 吸収上限${plateaued(r) ? '到達（頭打ち）' : '未到達'} / 絶対上限(5兆)${r.hitCeiling ? '到達' : '未到達'} / 総資産${yen(r.totalAssets)} / 個人資産${yen(r.personalCash)} / Fund I DPI ${r.fundIDPI.toFixed(2)}`);
+    console.log(`- ${SKILLS[id].label}: ファンド${r.fundCount}本 / 同時最大${r.maxConcurrentFunds ?? "-"}本(投資中${r.maxInvestingFunds ?? "-"}本) / 救済${r.rescueExits ?? "-"}回 / 取得${r.acquisitions}件 / Exit${r.exits}件 / 人脈${r.networkNodes} / 最大ファンド${yen(r.peakFundSize)} / 吸収上限${plateaued(r) ? '到達（頭打ち）' : '未到達'} / 絶対上限${r.hitCeiling ? '到達' : '未到達'} / 総資産${yen(r.totalAssets)} / 個人資産${yen(r.personalCash)} / Fund I DPI ${r.fundIDPI.toFixed(2)}`);
   }
   if (ids.length === 3) {
     const ok = runs.expert.totalAssets >= runs.average.totalAssets && runs.average.totalAssets >= runs.novice.totalAssets;
@@ -367,10 +404,13 @@ function report() {
     const nonFinite = ids.flatMap(id => runs[id].nonFinite || []);
     console.log(`- セーブサイズ最大: ${(maxSave / 1024 / 1024).toFixed(2)}MB（上限5.00MB）: ${maxSave < 5 * 1024 * 1024 ? 'OK' : 'NG'}`);
     console.log(`- NaN / Infinity: ${nonFinite.length}件 ${nonFinite.length ? `例: ${nonFinite.slice(0, 5).join(', ')}` : ''}`);
-    console.log(`- ファンド1本の規模: 最大${yen(Math.max(...ids.map(id => runs[id].peakFundSize)))} / 市場が吸収できる上限${Number.isFinite(absorbable) ? yen(absorbable) : 'n/a'} / 絶対上限5.00兆円`);
+    let hardCap = NaN;
+    try { hardCap = loadGame({ random: () => 0.5, isolatedLegacyIndex: true }).modules.peFund.MAX_FUND_SIZE; } catch { hardCap = NaN; }
+    console.log(`- ファンド1本の規模: 最大${yen(Math.max(...ids.map(id => runs[id].peakFundSize)))} / 市場が吸収できる上限${Number.isFinite(absorbable) ? yen(absorbable) : 'n/a'} / 絶対上限${Number.isFinite(hardCap) ? yen(hardCap) : 'n/a'}`);
   }
 }
 
+function handlesForCap(){try{return loadGame({random:()=>0.5,isolatedLegacyIndex:true}).modules.peFund.MAX_FUND_SIZE;}catch{return NaN;}}
 function main() {
   if (PART === 'skill') return runSkillPart(argOf('skill', 'expert'));
   if (PART === 'distribution') return runDistributionPart(Number(argOf('from', 0)), Number(argOf('to', TRIALS)));
@@ -386,7 +426,7 @@ function main() {
   for (const skillID of ['expert', 'average', 'novice']) {
     const r = runOnce({ seed: 12345, skillID, weeks: WEEKS });
     runs[skillID] = r;
-    console.log(`- ${SKILLS[skillID].label}: ファンド${r.fundCount}本 / 取得${r.acquisitions}件 / Exit${r.exits}件 / 人脈${r.networkNodes} / 最大ファンド${yen(r.peakFundSize)} / 天井${r.hitCeiling ? '到達' : '未到達'} / 総資産${yen(r.totalAssets)} / Fund I DPI ${r.fundIDPI.toFixed(2)} / セーブ${(r.saveBytes / 1024 / 1024).toFixed(2)}MB / NaN・Inf ${r.nonFinite.length}件`);
+    console.log(`- ${SKILLS[skillID].label}: ファンド${r.fundCount}本 / 同時最大${r.maxConcurrentFunds}本(投資中${r.maxInvestingFunds}本) / 救済${r.rescueExits}回 / 取得${r.acquisitions}件 / Exit${r.exits}件 / 人脈${r.networkNodes} / 最大ファンド${yen(r.peakFundSize)} / 天井${r.hitCeiling ? '到達' : '未到達'} / 総資産${yen(r.totalAssets)} / Fund I DPI ${r.fundIDPI.toFixed(2)} / セーブ${(r.saveBytes / 1024 / 1024).toFixed(2)}MB / NaN・Inf ${r.nonFinite.length}件`);
   }
   const orderOK = runs.expert.totalAssets >= runs.average.totalAssets && runs.average.totalAssets >= runs.novice.totalAssets;
   console.log(`- 腕の序列: ${orderOK ? 'OK（上手 ≥ 普通 ≥ 下手）' : 'NG（逆転あり）'}`);
@@ -433,7 +473,7 @@ function main() {
   const nonFinite = Object.values(runs).flatMap(r => r.nonFinite);
   console.log(`- セーブサイズ最大: ${(maxSave / 1024 / 1024).toFixed(2)}MB（上限5.00MB）: ${maxSave < 5 * 1024 * 1024 ? 'OK' : 'NG'}`);
   console.log(`- NaN / Infinity: ${nonFinite.length}件 ${nonFinite.length ? `例: ${nonFinite.slice(0, 5).join(', ')}` : ''}`);
-  console.log(`- ファンド1本の上限: 最大${yen(Math.max(...Object.values(runs).map(r => r.peakFundSize)))}（上限5.00兆円）`);
+  console.log(`- ファンド1本の上限: 最大${yen(Math.max(...Object.values(runs).map(r => r.peakFundSize)))}（絶対上限${yen(handlesForCap())}）`);
   console.log(`\n所要 ${((Date.now() - started) / 1000).toFixed(0)}秒`);
 }
 

@@ -93,6 +93,9 @@ function ensure(state){
   pf.funds=arr(pf.funds).slice(-20);
   pf.unlocked=Boolean(pf.unlocked);
   pf.funds.forEach(f=>ensureFund(f,finite(state.week,1)));
+  // T24-1: 救済導線の基準点。T24以前のセーブには無いので、読み込み時点のスコアを基準にする
+  // （その時点から RESCUE_MIN_SCORE_GAIN 伸ばせば再開放される、という保守的な既定値）。
+  pf.funds.forEach(f=>{if(!Number.isFinite(Number(f.trackScoreAtFormation)))f.trackScoreAtFormation=finite(pf.trackRecord.score);});
   pf.ddUsage=pf.ddUsage&&typeof pf.ddUsage==='object'?pf.ddUsage:{period:0,used:0};
   pf.ddUsage.period=Math.max(0,Math.floor(finite(pf.ddUsage.period,0)));
   pf.ddUsage.used=Math.max(0,Math.floor(finite(pf.ddUsage.used,0)));
@@ -113,7 +116,14 @@ const GP_COMMIT_FRACTION_OF_PERSONAL_CASH=.5;
 // ファンド1本の絶対上限（設計書§2/§12）: 逓減では100年の指数爆発を止められないと検証済みの
 // ため、規模そのものに天井を置く。天井到達後は複利ではなく単利的な成長に切り替わる
 // （複数ファンド運用・個人資産への流出でのみ資産が伸び続ける、というのが設計書の結論）。
-const MAX_FUND_SIZE=5_000_000_000_000;
+//
+// T24-2: 5兆円 → 1兆円。設計書§12が5兆円を選んだ時点では、§15の業種帯（最大4,000億円）と
+// 年4件固定の供給では投資期間5年に1兆円弱しか消化できないことが検証されていなかった。
+// 5兆円のファンドは構造的に消化できず、次号ゲートの資金消化率を満たせないまま梯子が
+// 止まる（T20/T22で実測）。日本市場を舞台にしている以上、現実の世界最大級（2〜3兆円）に
+// 対して1兆円の方が実態にも近い。設計書§12の検証表にも1兆円の行（天井到達24年・
+// 100年後の個人資産2.19兆）が既にあり、その値を採用する。
+const MAX_FUND_SIZE=1_000_000_000_000;
 function requiredGPRatio(score){return clamp(.20-.18*Math.pow(clamp(score,0,100)/100,.7),.02,.20);}
 function managementFeeRate(score){return .015+.01*(clamp(score,0,100)/100);}
 function carryRate(score){return .15+.10*(clamp(score,0,100)/100);}
@@ -229,7 +239,7 @@ function createFund(state,{size=0,gpCommit=0,terms={fee:0,carry:0,hurdle:0},lps=
   const commit=Math.max(0,Math.min(cappedSize,finite(gpCommit)));
   if(finite(state.personalCash)<commit)return null; // 個人資産が足りなければ組成できない
   state.personalCash=finite(state.personalCash)-commit;
-  const fund={id:`pe-fund-${state.peFirm.funds.length+1}-${finite(state.week,1)}`,size:cappedSize,gpCommit:commit,lpContributed:cappedSize-commit,gpDistributed:0,lps:arr(lps),terms:{...terms},y0:Math.max(1,Math.floor(finite(y0,finite(state.week,1)))),cash:cappedSize,undrawn:0,distributed:0,deals:[],status:'investing'};
+  const fund={id:`pe-fund-${state.peFirm.funds.length+1}-${finite(state.week,1)}`,size:cappedSize,gpCommit:commit,lpContributed:cappedSize-commit,gpDistributed:0,trackScoreAtFormation:finite(state.peFirm.trackRecord.score),lps:arr(lps),terms:{...terms},y0:Math.max(1,Math.floor(finite(y0,finite(state.week,1)))),cash:cappedSize,undrawn:0,distributed:0,deals:[],status:'investing'};
   ensureFund(fund,finite(state.week,1));
   state.peFirm.funds.push(fund);
   // Fix 3 (Codex独立監査): push直後にもファンド本数上限(20)を適用する。ensure()側の
@@ -325,6 +335,29 @@ function requiredDeploymentRate(fund){
   const periodFactor=fund&&fund.status!=='investing'?CLOSED_PERIOD_DEPLOYMENT_FACTOR:1;
   return Math.max(MIN_DEPLOYMENT_FLOOR,relaxed*periodFactor);
 }
+// T24-1（救済導線の結線）: 設計書§10 の「2号を組めない年は起業に戻って会社を作りExitする」を
+// ゲートに接続する。これ以前は canFormNextFund が最新ファンドだけを見ており、クローズした
+// ファンドのDPIは二度と改善しないため、1本でもDPI 1.2を下回ると**恒久的に**次号を組めなく
+// なっていた（T23の較正後、普通のプレイヤーがFund Iで100年停止することを実測）。
+// 設計書が想定していたのは「15%が足踏みする」一時的な停滞であって、詰みではない。
+//
+// 再開放の条件（無条件にはしない。Exit1回で失敗を帳消しにできるとゲートの意味が消える）:
+//   1. その号を組成したあとに、ファンド評価ではない新しいExit（会社売却・IPO等）が
+//      RESCUE_MIN_NEW_EXITS 件以上ある ＝ 実際に起業パートへ戻って結果を出したこと
+//   2. トラックレコードのスコアが、その号の組成時点から RESCUE_MIN_SCORE_GAIN 以上伸びている
+//      （スコアが既に100なら min(100, ...) により「100のまま維持」が条件になる）
+const RESCUE_MIN_NEW_EXITS=2;
+const RESCUE_MIN_SCORE_GAIN=10;
+function newExitsSinceFund(state,fund){
+  return arr(state?.peFirm?.trackRecord?.exits).filter(e=>e&&e.exitType!=='fund'&&finite(e.recordedWeek)>finite(fund?.y0)).length;
+}
+function gateRescueAvailable(state,fund){
+  if(!state||!fund)return false;
+  if(newExitsSinceFund(state,fund)<RESCUE_MIN_NEW_EXITS)return false;
+  const required=Math.min(100,finite(fund.trackScoreAtFormation)+RESCUE_MIN_SCORE_GAIN);
+  return finite(state.peFirm.trackRecord.score)>=required;
+}
+
 // 次号を組成できる条件（設計書§3）: DPI 1.2倍以上 かつ 資金消化が規模相応の水準以上。
 // 最新のファンドが評価済みならその値を、未評価ならその場で計算した現在値を使う。
 // ファンドがまだ無ければ Fund Iの話（T6の解禁条件のみ）。
@@ -335,7 +368,9 @@ function canFormNextFund(state){
   const latest=funds[funds.length-1];
   const dpi=Number.isFinite(latest.dpiAtEvaluation)?latest.dpiAtEvaluation:fundDPI(latest);
   const deploymentRate=Number.isFinite(latest.deploymentRateAtEvaluation)?latest.deploymentRateAtEvaluation:fundDeploymentRate(latest);
-  return dpi>=NEXT_FUND_MIN_DPI&&deploymentRate>=requiredDeploymentRate(latest);
+  if(dpi>=NEXT_FUND_MIN_DPI&&deploymentRate>=requiredDeploymentRate(latest))return true;
+  // 通常のゲートに落ちても、起業パートで新しい実績を積んでいれば再挑戦できる（設計書§10）。
+  return gateRescueAvailable(state,latest);
 }
 
 // PE mode T8 (docs/PE_MODE_TASKS.md / docs/PE_MODE_DESIGN.md §3 関門3): LP面談. This is
@@ -769,6 +804,7 @@ modules.peFund=Object.freeze({
   requiredGPRatio,managementFeeRate,carryRate,hurdleRate,fundTermsForScore,formableFundSize,lpTrustMultiplier,
   exitQuality,computeTrackScore,recordExit,recordExitForCurrentCompany,
   fundContributed,fundDeployed,fundDeploymentRate,fundDPI,fundIRR,evaluateFund,canFormNextFund,
+  RESCUE_MIN_NEW_EXITS,RESCUE_MIN_SCORE_GAIN,newExitsSinceFund,gateRescueAvailable,
   gpShareOfFund,distributeToInvestors,planFundFormation,buildLPCommitments,formFund,
   LP_TYPES,LP_TYPE_IDS,PROMISE_BROKEN_FLOOR,MAX_LPS_PER_FUND,normalizeLPs,meetsLPCondition,visibleLPTypes,addLPCommitment,recordLPPromiseOutcome,promiseComplianceMultiplier,continuingLPCommitments,
   MANAGEMENT_FEE_PER_HEAD,TEAM_CAP,MIN_TICKET_PER_DEAL,MAX_DEAL_SHARE_OF_FUND,SLOT_CAP_ABSOLUTE,FIRST_FUND_HOLD_WEEKS,LATER_FUND_HOLD_WEEKS,

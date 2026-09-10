@@ -171,13 +171,17 @@ function fundWith(size, investedAmount, cash, distributed) {
 }
 
 // 7e. Completion criterion (T15 / 設計書§2・§12): formableFundSize never exceeds the absolute
-// 5兆円 ceiling, even for an enormous personal cash pile and a maxed-out track record.
+// ceiling, even for an enormous personal cash pile and a maxed-out track record.
+// T24で絶対上限は5兆円→1兆円（設計書§12。5兆円は§15の業種帯と年4件の供給では消化できない）。
+// T22以降はそれとは別に「市場が吸収できる規模」でも頭打ちになるため、実際に効くのはそちらが先。
 {
   const e = new TycoonEngine();
   e.g.personalCash = 100_000_000_000_000; // 100兆円
   e.g.peFirm.trackRecord.score = 100;
-  assert.equal(pf.formableFundSize(e.g), pf.MAX_FUND_SIZE);
-  assert.equal(pf.MAX_FUND_SIZE, 5_000_000_000_000);
+  assert.equal(pf.MAX_FUND_SIZE, 1_000_000_000_000);
+  const formable = pf.formableFundSize(e.g);
+  assert.ok(formable <= pf.MAX_FUND_SIZE, '絶対上限は必ず効く');
+  assert.equal(formable, Math.min(pf.MAX_FUND_SIZE, pf.marketAbsorbableFundSize()), '実際の頭打ちは2つの上限の小さい方');
 }
 {
   // Below the ceiling, the cap must not distort the ordinary formula.
