@@ -1,5 +1,5 @@
 // Script boundary: js/parity.js (classic JavaScript)
-(function(){'use strict';/* T25-2: ログ配列の上限は js/engine.js の LOG_ARRAY_CAPS が唯一の出どころ（週次normalizeでも同じ表が効く）。tests/text-safety-check.js が既存の絵文字を file:line:column で許可しているため、行番号を動かさないようこの行に収める。 */function pyLogCap(key){return globalThis.__capitalismTycoonModules?.engine?.LOG_ARRAY_CAPS?.[key]??200;}
+(function(){'use strict';/* T25-2: ログ配列の上限は js/engine.js の LOG_ARRAY_CAPS が唯一の出どころ（週次normalizeでも同じ表が効く）。tests/text-safety-check.js が既存の絵文字を file:line:column で許可しているため、行番号を動かさないようこの行に収める。 */function pyLogCap(key){return globalThis.__capitalismTycoonModules.engine.LOG_ARRAY_CAPS[key];}
 if(!globalThis.__capitalismTycoonModules)throw new Error('Capitalism Tycoon runtime.js must be loaded before parity.js.');
 var __modules=globalThis.__capitalismTycoonModules;
 if(__modules.parity)throw new Error('Capitalism Tycoon parity module is already registered.');

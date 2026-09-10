@@ -2,7 +2,7 @@
 (function(){'use strict';
 // T25-2: 追記され続けるログ配列の上限は js/engine.js の LOG_ARRAY_CAPS が唯一の出どころ。
 // 週次normalizeでも同じ表で切り詰められるので、ここは「書き込んだ直後にも効かせる」ための保険。
-function logCap(key){return globalThis.__capitalismTycoonModules?.engine?.LOG_ARRAY_CAPS?.[key]??200;}
+function logCap(key){return globalThis.__capitalismTycoonModules.engine.LOG_ARRAY_CAPS[key];}
 
 if(!globalThis.__capitalismTycoonModules)throw new Error('Capitalism Tycoon runtime.js must be loaded before expansion.js.');
 var __modules=globalThis.__capitalismTycoonModules;
