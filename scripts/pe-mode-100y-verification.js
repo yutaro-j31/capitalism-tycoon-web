@@ -324,6 +324,17 @@ function runOnce({ seed, skillID, weeks, sampleEvery = 520 }) {
   }
   const g = e.g;
   const funds = g.peFirm.funds;
+  const fundI = funds[0] || null;
+  const fundIDeals = fundI?.deals || [];
+  const fundIExits = fundIDeals.filter(d => d.status === 'exited');
+  const average = (rows, select) => rows.length ? rows.reduce((sum, row) => sum + finite(select(row)), 0) / rows.length : 0;
+  const fundIDPI = fundI ? handles.modules.peFund.fundDPI(fundI) : 0;
+  const fundIDeploymentRate = fundI ? handles.modules.peFund.fundDeploymentRate(fundI) : 0;
+  const fundIRequiredDeploymentRate = fundI ? handles.modules.peFund.requiredDeploymentRate(fundI) : 0;
+  const fundIGateFailures = fundI ? {
+    dpi: fundIDPI < handles.modules.peFund.NEXT_FUND_MIN_DPI,
+    deployment: fundIDeploymentRate < fundIRequiredDeploymentRate
+  } : { dpi: false, deployment: false };
   const exitedDeals = funds.flatMap(f => f.deals || []).filter(d => d.status === 'exited');
   const save = JSON.stringify(g);
   // 決定論の比較からは lastSaveDate（保存した実時刻。既存エンジンが常に書く表示用フィールドで
@@ -334,8 +345,19 @@ function runOnce({ seed, skillID, weeks, sampleEvery = 520 }) {
     week: g.week,
     fundCount: funds.length,
     reachedFundII: funds.length >= 2,
-    fundIDPI: funds[0] ? handles.modules.peFund.fundDPI(funds[0]) : 0,
-    fundIHalved: funds[0] ? handles.modules.peFund.fundDPI(funds[0]) < 0.6 : false,
+    fundIDPI,
+    fundIHalved: fundIDPI < 0.6,
+    fundIDeploymentRate,
+    fundIRequiredDeploymentRate,
+    fundIGateFailures,
+    fundIManagementFeesPaid: finite(fundI?.managementFeesPaid),
+    fundIManagementFeeRate: finite(fundI?.terms?.fee),
+    fundIManagementFeePeriods: finite(fundI?.lastManagementFeePeriod),
+    fundIManagementFeeBurden: finite(fundI?.size) > 0 ? finite(fundI?.managementFeesPaid) / finite(fundI?.size) : 0,
+    fundIAverageAcquisitionMultiple: average(fundIDeals, d => d.acquisitionMultiple),
+    fundIAverageExitMultiple: average(fundIExits, d => finite(d.acquisitionMultiple) * (handles.modules.pePortfolioOperations.EXIT_MULTIPLE_FLOOR + finite(d.exitScore) / 100 * handles.modules.pePortfolioOperations.EXIT_MULTIPLE_SCORE_SPAN)),
+    fundIAverageHoldingWeeks: average(fundIExits, d => finite(d.exitedWeek) - finite(d.acquiredWeek)),
+    fundIAverageImprovementScore: average(fundIExits, d => d.exitScore),
     peakFundSize,
     hitCeiling: peakFundSize >= handles.modules.peFund.MAX_FUND_SIZE - 1,
     // T22: 実際に頭打ちになる規模は「市場が吸収できる規模」(marketAbsorbableFundSize)。
@@ -394,7 +416,11 @@ function runDistributionPart(from, to) {
   for (let i = from; i < to; i++) {
     const r = runOnce({ seed: 1000 + i * 7, skillID: 'average', weeks: 520, sampleEvery: 520 });
     results.distribution = results.distribution.filter(x => x.index !== i);
-    results.distribution.push({ index: i, fundCount: r.fundCount, fundIDPI: r.fundIDPI, fundIHalved: r.fundIHalved, reachedFundII: r.reachedFundII, averageHoldingWeeks: r.averageHoldingWeeks });
+    results.distribution.push({ index: i, fundCount: r.fundCount, fundIDPI: r.fundIDPI, fundIHalved: r.fundIHalved, reachedFundII: r.reachedFundII, averageHoldingWeeks: r.averageHoldingWeeks,
+      fundIDeploymentRate: r.fundIDeploymentRate, fundIRequiredDeploymentRate: r.fundIRequiredDeploymentRate, fundIGateFailures: r.fundIGateFailures,
+      fundIManagementFeesPaid: r.fundIManagementFeesPaid, fundIManagementFeeRate: r.fundIManagementFeeRate, fundIManagementFeePeriods: r.fundIManagementFeePeriods, fundIManagementFeeBurden: r.fundIManagementFeeBurden,
+      fundIAverageAcquisitionMultiple: r.fundIAverageAcquisitionMultiple, fundIAverageExitMultiple: r.fundIAverageExitMultiple,
+      fundIAverageHoldingWeeks: r.fundIAverageHoldingWeeks, fundIAverageImprovementScore: r.fundIAverageImprovementScore });
     saveResults(results);
     console.log(`trial ${i}: ファンド${r.fundCount}本 / Fund I DPI ${r.fundIDPI.toFixed(2)}${r.fundIHalved ? ' (半減)' : ''}${r.reachedFundII ? ' / Fund II到達' : ''}`);
   }
@@ -468,6 +494,15 @@ function report() {
     }
     const holdings=valid.map(d=>finite(d.averageHoldingWeeks)).filter(Boolean);
     if(holdings.length)console.log(`- 平均保有期間: ${(holdings.reduce((a,b)=>a+b,0)/holdings.length/52).toFixed(2)}年`);
+    const failed=valid.filter(d=>!d.reachedFundII), reached=valid.filter(d=>d.reachedFundII);
+    const mean=(rows,key)=>rows.length?rows.reduce((sum,row)=>sum+finite(row[key]),0)/rows.length:0;
+    if(failed.length){
+      const dpiOnly=failed.filter(d=>d.fundIGateFailures?.dpi&&!d.fundIGateFailures?.deployment).length;
+      const deploymentOnly=failed.filter(d=>!d.fundIGateFailures?.dpi&&d.fundIGateFailures?.deployment).length;
+      const both=failed.filter(d=>d.fundIGateFailures?.dpi&&d.fundIGateFailures?.deployment).length;
+      console.log(`- Fund II非到達のゲート内訳: DPIのみ ${dpiOnly} / deploymentのみ ${deploymentOnly} / 両方 ${both}`);
+    }
+    for(const [label,rows] of [['到達',reached],['非到達',failed]])if(rows.length)console.log(`- ${label}: deployment ${(mean(rows,'fundIDeploymentRate')*100).toFixed(1)}% / 管理報酬 ${(mean(rows,'fundIManagementFeesPaid')/億).toFixed(1)}億円（元本比 ${(mean(rows,'fundIManagementFeeBurden')*100).toFixed(1)}%、料率 ${(mean(rows,'fundIManagementFeeRate')*100).toFixed(1)}%、${mean(rows,'fundIManagementFeePeriods').toFixed(1)}期） / 取得 ${mean(rows,'fundIAverageAcquisitionMultiple').toFixed(2)}x / Exit ${mean(rows,'fundIAverageExitMultiple').toFixed(2)}x / 保有 ${(mean(rows,'fundIAverageHoldingWeeks')/52).toFixed(2)}年 / 改善 ${mean(rows,'fundIAverageImprovementScore').toFixed(1)}点`);
   }
   const det = results.determinism || {};
   if (det.run1 && det.run2) {
