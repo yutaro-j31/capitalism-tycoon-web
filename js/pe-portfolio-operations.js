@@ -53,11 +53,17 @@ const QUALITY_MAX_REVENUE_GAIN=.13;
 const REPUTATION_THRESHOLD=65;
 const REPUTATION_BONUS=8;
 const REPUTATION_PENALTY_FOR_CUTS=15;
-// T23/T26後較正: Exit倍率＝取得倍率×(EXIT_MULTIPLE_FLOOR + スコア/100×EXIT_MULTIPLE_SCORE_SPAN)。
-// T26で実際のmanagement feeをfund cashから払うようになったため、下限(FLOOR)と会計は変えず、
-// 経営改善がExit価格へ反映される上側の幅(SPAN)だけを戻して実在コスト込みの収益性を較正する。
+// T23: Exit倍率＝取得倍率×(EXIT_MULTIPLE_FLOOR + スコア/100×EXIT_MULTIPLE_SCORE_SPAN)。
+// 下限(FLOOR)は据え置き、上側の幅(SPAN)だけを詰める＝最悪ケースを悪化させずに上振れを抑える。
+// FLOOR+SPAN<=1.05は「リターンはEBITDA成長から来る、マルチプル拡大では稼がせない」という
+// 設計思想そのものの表現であり、Fund II到達率などの数値目標を通すための調整弁ではない。
+// T26較正でこの幅を.25まで戻した（§16.5矛盾4）。Fund II到達率80〜90%という目標自体が
+// 管理報酬・共同投資を実装する前の古い目安値だと判明した後（§16.5矛盾4）、その古い目標へ
+// 届かせる目的でこの上限を.34まで緩める較正が別途試みられたが、「目標が古いと分かった
+// 直後にガードレールを3倍に緩める」という順序の誤りだったため差し戻した（§16.5矛盾6）。
+// 緩める場合は数値目標を通すためではなく、独立した設計判断としてこの値自体を議論すること。
 const EXIT_MULTIPLE_FLOOR=.80;
-const EXIT_MULTIPLE_SCORE_SPAN=.34;
+const EXIT_MULTIPLE_SCORE_SPAN=.25;
 
 // PE mode T18 (docs/PE_MODE_TASKS.md): 買収先経営の6レバー化。
 // 6レバー = 価格 / 品質 / 拠点（出店と再編の両方向）/ 仕入れ・調達 / 人件費と人員 / 商品構成。
@@ -81,7 +87,7 @@ const LABOR_DELAY_WEEKS=39;             // 3四半期遅れ
 const LABOR_DRAG_RAMP_WEEKS=52;
 const WAGE_MIN=.7,WAGE_MAX=1.3,HEADCOUNT_MIN=.6,HEADCOUNT_MAX=1.2;
 const PRODUCT_MIX_RAMP_WEEKS=130;       // 2.5年かけて効いてくる（設計書「2〜3年かかる」）
-const PRODUCT_MIX_MAX_GAIN=.35;         // 効きめ切ればトップライン+35%
+const PRODUCT_MIX_MAX_GAIN=.40;         // 効きめ切ればトップライン+40%（T26較正: 上振れを戻す）
 const PRODUCT_MIX_COST_FRACTION=.03;    // 刷新の一時費用: 水準1.0あたり企業価値の3%
 const CONSOLIDATION_STEP=1/3;           // 1回の再編で不採算拠点の1/3を閉じる
 const CONSOLIDATION_EBITDA_GAIN=.8;     // 不採算分を落とした分だけ利益率が上がる

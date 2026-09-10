@@ -87,6 +87,24 @@ Do not create a parallel implementation of the same feature. Search the relevant
 
 Prefer a small reviewable vertical slice. For gameplay work this usually means connecting the necessary parts of `state -> engine -> gameplay effect -> minimal UI -> persistence/compatibility -> tests`, but do not force this template onto CSS-only, CI-only, or documentation tasks.
 
+### PE mode: calibration and implementation ownership
+
+On branch `claude/pe-mode-tasks-t1-4ny4u6` (and any successor PE-mode branch), calibration and
+implementation of `js/pe-fund.js`, `js/pe-portfolio-operations.js`,
+`js/pe-deal-supply.js`/`pe-acquisition.js`/`pe-network-sourcing.js`, and
+`scripts/pe-mode-100y-verification.js` belong to the human's Claude Code session. Codex's role on
+this branch is **audit only**: find and report bugs/inconsistencies (including opening findings as
+comments or a `docs/PE_MODE_DESIGN.md` §16.5 note), but do not independently push a competing
+calibration, recalibration, or balance change to the same numbers Claude Code is actively tuning.
+This followed two rounds of Codex pushing an independent recalibration to this branch while a
+Claude Code calibration pass was in flight — including once loosening a deliberately strict test
+bound (`EXIT_MULTIPLE_FLOOR+EXIT_MULTIPLE_SCORE_SPAN<=1.05`) as a side effect of chasing a Fund II
+target that had already been judged stale — which produced conflicting commits, wasted
+verification runs, and a design-doc update built on numbers computed with a bug the same
+conflict later surfaced (`docs/PE_MODE_DESIGN.md` §16.5 矛盾5/6). If a genuine bug is found, report
+it (as an audit finding) rather than silently fixing the calibration constants yourself on this
+branch.
+
 ## 6. Domain rules
 
 ### Gameplay
