@@ -69,12 +69,24 @@ function ensureFund(f,week){
   f.distributed=Math.max(0,finite(f.distributed,0));
   f.undeployedReturned=Math.max(0,finite(f.undeployedReturned,0));
   f.coinvestCommitted=Math.max(0,finite(f.coinvestCommitted,0));
+  // T26: co-invest は案件ごとにLPからcallされる外部資金。cash残高と累計拠出を分けて、
+  // 「枠を使った」というメモだけで取得原価が生まれないようにする。
+  f.coinvestCash=Math.max(0,finite(f.coinvestCash,0));
+  f.coinvestContributed=Math.max(0,finite(f.coinvestContributed,f.coinvestCommitted));
   f.coinvestReturned=Math.max(0,finite(f.coinvestReturned,0));
   // T21: ファンドの現金がどこから来たかを明示する（保存則の検証に使う）。
   // fund.cash の出どころは GP出資(gpCommit) と LP拠出(lpContributed) の2つだけ。
   // 旧セーブ（T21以前に作られたファンド）は差分をLP拠出として補う。
   f.lpContributed=Math.max(0,finite(f.lpContributed,Math.max(0,f.size-f.gpCommit)));
   f.gpDistributed=Math.max(0,finite(f.gpDistributed,0));
+  f.lpDistributed=Math.max(0,finite(f.lpDistributed,Math.max(0,f.distributed-f.gpDistributed)));
+  f.gpCarryPaid=Math.max(0,finite(f.gpCarryPaid,0));
+  f.managementFeesPaid=Math.max(0,finite(f.managementFeesPaid,0));
+  f.managementFeeShortfall=Math.max(0,finite(f.managementFeeShortfall,0));
+  // T26以前のsaveにはperiod markerが無い。既に処理済みの周年を未払いとして遡及請求すると
+  // load直後に最大10年分が動くため、legacy fundはlastProcessedWeekまで支払済み扱いにする。
+  const legacyFeePeriod=Math.min(Math.floor(FUND_TERM_WEEKS/52),Math.max(0,Math.floor((finite(f.lastProcessedWeek,week)-f.y0)/52)));
+  f.lastManagementFeePeriod=Math.max(0,Math.floor(finite(f.lastManagementFeePeriod,legacyFeePeriod)));
   f.investmentDeadlineWeek=f.y0+INVESTMENT_PERIOD_WEEKS;
   f.deadlineWeek=f.y0+FUND_TERM_WEEKS;
   f.status=f.status||'investing';
@@ -239,7 +251,7 @@ function createFund(state,{size=0,gpCommit=0,terms={fee:0,carry:0,hurdle:0},lps=
   const commit=Math.max(0,Math.min(cappedSize,finite(gpCommit)));
   if(finite(state.personalCash)<commit)return null; // 個人資産が足りなければ組成できない
   state.personalCash=finite(state.personalCash)-commit;
-  const fund={id:`pe-fund-${state.peFirm.funds.length+1}-${finite(state.week,1)}`,size:cappedSize,gpCommit:commit,lpContributed:cappedSize-commit,gpDistributed:0,trackScoreAtFormation:finite(state.peFirm.trackRecord.score),lps:arr(lps),terms:{...terms},y0:Math.max(1,Math.floor(finite(y0,finite(state.week,1)))),cash:cappedSize,undrawn:0,distributed:0,deals:[],status:'investing'};
+  const fund={id:`pe-fund-${state.peFirm.funds.length+1}-${finite(state.week,1)}`,size:cappedSize,gpCommit:commit,lpContributed:cappedSize-commit,gpDistributed:0,lpDistributed:0,gpCarryPaid:0,managementFeesPaid:0,managementFeeShortfall:0,lastManagementFeePeriod:0,coinvestCash:0,coinvestContributed:0,trackScoreAtFormation:finite(state.peFirm.trackRecord.score),lps:arr(lps),terms:{...terms},y0:Math.max(1,Math.floor(finite(y0,finite(state.week,1)))),cash:cappedSize,undrawn:0,distributed:0,deals:[],status:'investing'};
   ensureFund(fund,finite(state.week,1));
   state.peFirm.funds.push(fund);
   // Fix 3 (Codex独立監査): push直後にもファンド本数上限(20)を適用する。ensure()側の
@@ -259,6 +271,7 @@ function distributeToInvestors(state,fund,amount){
   if(!fund||gross<=0)return 0;
   fund.distributed=Math.max(0,finite(fund.distributed))+gross;
   const gpPart=gross*gpShareOfFund(fund);
+  fund.lpDistributed=Math.max(0,finite(fund.lpDistributed))+(gross-gpPart);
   if(gpPart>0&&state){
     fund.gpDistributed=Math.max(0,finite(fund.gpDistributed))+gpPart;
     state.personalCash=finite(state.personalCash)+gpPart;
@@ -455,6 +468,23 @@ function processFundsWeek(state,week){
   for(const fund of state.peFirm.funds){
     if(fund.status==='closed'){fund.lastProcessedWeek=Math.max(fund.lastProcessedWeek,week);continue;}
     if(fund.lastProcessedWeek>=week){continue;}
+    // T26: 年次管理報酬はファンド（LP/GPが拠出済みのcash）が払い、GP法人である
+    // プレイヤー会社が受け取る。周年periodを永続化するためsave/loadや同一週の再処理でも
+    // 二重払いにならない。現金不足時に未払金を発明せず、実際に動かせるcashだけを払う。
+    const duePeriod=Math.min(Math.floor(FUND_TERM_WEEKS/52),Math.max(0,Math.floor((week-fund.y0)/52)));
+    while(fund.lastManagementFeePeriod<duePeriod){
+      fund.lastManagementFeePeriod++;
+      const due=annualManagementFee(fund);
+      const paid=Math.min(Math.max(0,finite(fund.cash)),due);
+      fund.cash=Math.max(0,finite(fund.cash)-paid);
+      fund.managementFeesPaid=Math.max(0,finite(fund.managementFeesPaid))+paid;
+      fund.managementFeeShortfall=Math.max(0,finite(fund.managementFeeShortfall))+(due-paid);
+      if(paid>0){
+        state.companyCash=finite(state.companyCash)+paid;
+        state.quarterlyPretaxProfit=finite(state.quarterlyPretaxProfit)+paid;
+        modules.finance?.event?.(state,'revenue',paid,{cashEffect:paid,profitEffect:paid,sourceType:'peManagementFee',sourceID:`${fund.id}-p${fund.lastManagementFeePeriod}`,idempotencyKey:`pe-management-fee-${fund.id}-p${fund.lastManagementFeePeriod}`,operationID:`pe-management-fee-${fund.id}-p${fund.lastManagementFeePeriod}`,week,description:`${fund.id} 管理報酬`});
+      }
+    }
     if(fund.status==='investing'&&week>=fund.investmentDeadlineWeek){
       // 投資期間終了。使い切れなかった資金は額面(1.0x)でLP・GPへ返す。
       if(fund.cash>0){const returned=fund.cash;fund.cash=0;fund.undeployedReturned+=returned;distributeToInvestors(state,fund,returned);}
@@ -596,7 +626,16 @@ function recordCoinvestment(fund,amount){
   if(!fund)return 0;
   const used=Math.max(0,Math.min(finite(amount),coinvestRemaining(fund)));
   fund.coinvestCommitted=coinvestCommitted(fund)+used;
+  fund.coinvestContributed=Math.max(0,finite(fund.coinvestContributed))+used;
+  fund.coinvestCash=Math.max(0,finite(fund.coinvestCash))+used;
   return used;
+}
+// 共同投資poolから売り手へ支払う唯一の経路。拠出記録だけを増やして取得することを防ぐ。
+function spendCoinvestment(fund,amount){
+  if(!fund)return 0;
+  const spent=Math.max(0,Math.min(finite(amount),Math.max(0,finite(fund.coinvestCash))));
+  fund.coinvestCash=Math.max(0,finite(fund.coinvestCash)-spent);
+  return spent;
 }
 
 // PE mode T17 (docs/PE_MODE_TASKS.md / docs/PE_MODE_DESIGN.md §2・§14): Exit代金の分配。
@@ -649,7 +688,7 @@ function settleExitProceeds(state,fund,deal,proceeds,week){
   // 分配（元本＋利益、キャリー控除後）。GPの出資持分ぶんは個人資産へ戻る（T21）。
   const gpPrincipalAndGain=distributeToInvestors(state,fund,distributedToFund);
   fund.coinvestReturned=Math.max(0,finite(fund.coinvestReturned))+returnedToCoinvestors;
-  if(gpCarry>0)state.personalCash=finite(state.personalCash)+gpCarry;
+  if(gpCarry>0){state.personalCash=finite(state.personalCash)+gpCarry;fund.gpCarryPaid=Math.max(0,finite(fund.gpCarryPaid))+gpCarry;}
   const settlement={
     grossProceeds:gross,
     fundShare,coinvestShare,
@@ -810,7 +849,7 @@ modules.peFund=Object.freeze({
   MANAGEMENT_FEE_PER_HEAD,TEAM_CAP,MIN_TICKET_PER_DEAL,MAX_DEAL_SHARE_OF_FUND,SLOT_CAP_ABSOLUTE,FIRST_FUND_HOLD_WEEKS,LATER_FUND_HOLD_WEEKS,
   teamCapacity,slotCapacity,maxSingleDealSize,activeDealCount,attentionRatio,attentionMultiplier,optimalHoldWeeks,
   DD_SLOTS_BASE,DD_SLOTS_PER_PARTNER_DIVISOR,DD_YEAR_WEEKS,partnerCount,computeDDSlotsPerYear,ddSlotsPerYear,ddPeriodIndex,currentDDUsage,ddSlotsRemaining,consumeDDSlot,
-  COINVEST_CAP_MULTIPLE,COINVEST_CARRY_FACTOR,coinvestCapacity,coinvestCommitted,coinvestRemaining,annualManagementFee,planDealFinancing,recordCoinvestment,settleExitProceeds,
+  COINVEST_CAP_MULTIPLE,COINVEST_CARRY_FACTOR,coinvestCapacity,coinvestCommitted,coinvestRemaining,annualManagementFee,planDealFinancing,recordCoinvestment,spendCoinvestment,settleExitProceeds,
   __installed:true
 });
 })();

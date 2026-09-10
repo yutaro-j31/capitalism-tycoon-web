@@ -2,7 +2,7 @@
 
 // T25-2 (docs/PE_MODE_TASKS.md): 週次で追記され続けるログ配列の上限.
 // `startupFundingHistory` は書き込み側の1箇所だけ slice が漏れていて100年セーブが4.6MB肥大した。
-// 同じ形の3件（shareholderEventLog / mediaActionLog / industryAwards）に上限を入れ、
+// 同じ形の4件（shareholderEventLog / mediaActionLog / industryAwards / ventureForumEvents）に上限を入れ、
 // (1) 週次normalizeで必ず切り詰まること (2) 全書き込み経路にも slice があること を固定する。
 
 const assert = require('node:assert/strict');
@@ -16,10 +16,10 @@ const main = loadGame({ random: makeRandom(17), isolatedLegacyIndex: true });
 const { engineModule } = main;
 const CAPS = engineModule.LOG_ARRAY_CAPS;
 
-// 1. 上限表が3件を網羅していて、値が正の整数であること。
+// 1. 上限表が4件を網羅していて、値が正の整数であること。
 {
   assert.ok(CAPS && typeof CAPS === 'object', 'LOG_ARRAY_CAPS が公開されている');
-  for (const key of ['shareholderEventLog', 'mediaActionLog', 'industryAwards']) {
+  for (const key of ['shareholderEventLog', 'mediaActionLog', 'industryAwards', 'ventureForumEvents']) {
     assert.ok(Number.isInteger(CAPS[key]) && CAPS[key] > 0, `${key} に上限がある`);
   }
   assert.equal(Object.isFrozen(CAPS), true, '上限表は凍結されている');
@@ -31,7 +31,7 @@ const CAPS = engineModule.LOG_ARRAY_CAPS;
   e.configure({ playerName: 'x', companyName: 'y', difficulty: 'normal' });
   for (const [key, cap] of Object.entries(CAPS)) {
     // 上限の3倍を積む。先頭が最新（unshiftで積まれる）という前提に合わせて 0 が最新。
-    e.g[key] = Array.from({ length: cap * 3 }, (_, i) => (key === 'industryAwards' ? { id: `a-${i}`, week: i, title: `t${i}`, kind: 'k' } : `line-${i}`));
+    e.g[key] = Array.from({ length: cap * 3 }, (_, i) => (key === 'industryAwards' ? { id: `a-${i}`, week: i, title: `t${i}`, kind: 'k' } : key === 'ventureForumEvents' ? { id: `forum-${i}`, status: 'expired', expiresWeek: i } : `line-${i}`));
     const newest = e.g[key][0];
     e.normalize();
     assert.equal(e.g[key].length, cap, `${key} は normalize で上限まで切り詰められる`);
@@ -44,7 +44,7 @@ const CAPS = engineModule.LOG_ARRAY_CAPS;
   const e = new engineModule.TycoonEngine();
   e.configure({ playerName: 'x', companyName: 'y', difficulty: 'normal' });
   for (const [key, cap] of Object.entries(CAPS)) {
-    e.g[key] = Array.from({ length: cap + 50 }, (_, i) => (key === 'industryAwards' ? { id: `a-${i}`, week: i, title: 't', kind: 'k' } : `line-${i}`));
+    e.g[key] = Array.from({ length: cap + 50 }, (_, i) => (key === 'industryAwards' ? { id: `a-${i}`, week: i, title: 't', kind: 'k' } : key === 'ventureForumEvents' ? { id: `forum-${i}`, status: 'expired', expiresWeek: i } : `line-${i}`));
   }
   e.advanceWeek(false);
   for (const [key, cap] of Object.entries(CAPS)) {
@@ -56,11 +56,12 @@ const CAPS = engineModule.LOG_ARRAY_CAPS;
 {
   const e = new engineModule.TycoonEngine();
   e.configure({ playerName: 'x', companyName: 'y', difficulty: 'normal' });
-  e.g.shareholderEventLog = Array.from({ length: 5000 }, (_, i) => `old-${i}`);
+  for (const [key, cap] of Object.entries(CAPS)) e.g[key] = Array.from({ length: cap + 500 }, (_, i) => key === 'ventureForumEvents' ? { id: `old-forum-${i}`, status: 'expired' } : `old-${i}`);
   const saved = JSON.parse(JSON.stringify(e.g));
   const loaded = new engineModule.TycoonEngine(saved);
-  assert.ok(loaded.g.shareholderEventLog.length <= CAPS.shareholderEventLog, '旧セーブは読み込み時に切り詰められる');
+  for (const [key, cap] of Object.entries(CAPS)) assert.ok(loaded.g[key].length <= cap, `${key} の旧セーブは読み込み時に切り詰められる`);
   assert.equal(loaded.g.shareholderEventLog[0], 'old-0', '最新側が残る');
+  assert.equal(loaded.g.ventureForumEvents[0].id, 'old-forum-0', 'ventureForumEvents も最新側が残る');
 }
 
 // 5. 全書き込み経路に slice があること（構造テスト）。
@@ -68,7 +69,7 @@ const CAPS = engineModule.LOG_ARRAY_CAPS;
 //    だったので、unshift している行には必ず同じ行に slice があることをソースで固定する。
 {
   const root = path.join(__dirname, '..');
-  const targets = { shareholderEventLog: ['js/expansion.js'], mediaActionLog: ['js/completion.js'], industryAwards: ['js/parity.js'] };
+  const targets = { shareholderEventLog: ['js/expansion.js'], mediaActionLog: ['js/completion.js'], industryAwards: ['js/parity.js'], ventureForumEvents: ['js/expansion.js'] };
   for (const [key, files] of Object.entries(targets)) {
     let writeSites = 0;
     for (const file of files) {

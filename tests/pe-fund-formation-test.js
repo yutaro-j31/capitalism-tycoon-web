@@ -125,10 +125,11 @@ function systemCash(g) {
   const fund = pf.createFund(e.g, { size: 10_000_000_000, gpCommit: 2_000_000_000, terms: { fee: .02, carry: .2, hurdle: .08 }, y0: 1 });
   const personalBefore = e.g.personalCash, cashInFund = fund.cash;
   pf.processFundsWeek(e.g, fund.y0 + pf.INVESTMENT_PERIOD_WEEKS);
+  const fees = pf.annualManagementFee(fund) * 5;
   assert.equal(fund.status, 'harvesting');
   assert.equal(fund.cash, 0);
-  assert.ok(Math.abs((e.g.personalCash - personalBefore) - cashInFund * .2) < 1, '未投資返却のうちGP持分は個人資産へ戻る');
-  assert.ok(Math.abs(fund.undeployedReturned - cashInFund) < 1);
+  assert.ok(Math.abs((e.g.personalCash - personalBefore) - (cashInFund - fees) * .2) < 1, '管理報酬支払後の未投資返却からGP持分が個人資産へ戻る');
+  assert.ok(Math.abs(fund.undeployedReturned - (cashInFund - fees)) < 1);
 }
 
 // 7. 完了条件: プレイヤー操作でFund Iを組成 → 案件が供給され → DDが開始でき → 取得まで到達する。

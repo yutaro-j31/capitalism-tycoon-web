@@ -120,12 +120,19 @@ function setupFirm(handles) {
   const { engineModule, modules } = handles;
   const e = new engineModule.TycoonEngine();
   e.configure({ playerName: 'GP', companyName: 'PEパートナーズ', difficulty: 'normal' });
+  // 検証中は各週のlocalStorage書き込み・UI通知だけを省く。週次エンジンと全transactionは
+  // production実装のままで、最終stateはrunOnce末尾で直接serializeして検証する。
+  e.save = () => true;
+  e.emit = () => {};
   e.g.departments.investment = { established: true };
   e.g.departmentStaff.investment = 9;
   e.g.executives.CSO = { role: 'CSO', skill: 80 };
   e.g.executives.CFO = { role: 'CFO', skill: 80 };
   e.g.companyCash = 50_000_000_000;
   e.g.personalCash = 30_000_000_000;
+  // validate()群は純粋なassertionでsimulation結果を変えないため、数千週×多数seedの計測では
+  // productionが備える検証省略フラグを使う（processor自体は一つも省略しない）。
+  e.g.skipWeeklyValidation = true;
   modules.peFund.recordExit(e.g, { exitType: 'buyout', realizedAmount: 200_000_000, investedAmount: 8_000_000, foundedWeek: 1, exitedWeek: 52, profitableWeekStreak: 260, employeeCount: 30 });
   return e;
 }
@@ -263,10 +270,20 @@ function runOnce({ seed, skillID, weeks, sampleEvery = 520 }) {
     for (const f of e.g.peFirm.funds) peakFundSize = Math.max(peakFundSize, Number(f.size) || 0);
     maxConcurrentFunds = Math.max(maxConcurrentFunds, e.g.peFirm.funds.filter(f => f.status !== 'closed').length);
     maxInvestingFunds = Math.max(maxInvestingFunds, e.g.peFirm.funds.filter(f => f.status === 'investing').length);
-    if ((w + 1) % sampleEvery === 0) samples.push({ week: e.g.week, assets: totalAssets(e.g) });
+    if ((w + 1) % sampleEvery === 0) samples.push({
+      week: e.g.week,
+      assets: totalAssets(e.g),
+      personalCash: finite(e.g.personalCash),
+      fundCount: e.g.peFirm.funds.length,
+      largestFund: e.g.peFirm.funds.reduce((max, f) => Math.max(max, finite(f.size)), 0),
+      managementFeesPaid: e.g.peFirm.funds.reduce((sum, f) => sum + finite(f.managementFeesPaid), 0),
+      carryPaid: e.g.peFirm.funds.reduce((sum, f) => sum + finite(f.gpCarryPaid), 0)
+    });
+    if(weeks>=5200&&(w+1)%520===0)console.error(`[progress] ${skillID} seed=${seed}: ${(w+1)/52}/${weeks/52} years`);
   }
   const g = e.g;
   const funds = g.peFirm.funds;
+  const exitedDeals = funds.flatMap(f => f.deals || []).filter(d => d.status === 'exited');
   const save = JSON.stringify(g);
   // 決定論の比較からは lastSaveDate（保存した実時刻。既存エンジンが常に書く表示用フィールドで
   // シミュレーションには一切使われない）を除く。これだけは実行ごとに必ず変わる。
@@ -295,6 +312,11 @@ function runOnce({ seed, skillID, weeks, sampleEvery = 520 }) {
     networkNodes: (g.peNetwork?.nodes || []).length,
     personalCash: g.personalCash,
     companyCash: g.companyCash,
+    managementFeesPaid: funds.reduce((sum, f) => sum + finite(f.managementFeesPaid), 0),
+    carryPaid: funds.reduce((sum, f) => sum + finite(f.gpCarryPaid), 0),
+    coinvestContributed: funds.reduce((sum, f) => sum + finite(f.coinvestContributed), 0),
+    coinvestReturned: funds.reduce((sum, f) => sum + finite(f.coinvestReturned), 0),
+    averageHoldingWeeks: exitedDeals.length ? exitedDeals.reduce((sum, d) => sum + Math.max(0, finite(d.exitedWeek) - finite(d.acquiredWeek)), 0) / exitedDeals.length : 0,
     totalAssets: totalAssets(g),
     samples,
     saveBytes: Buffer.byteLength(save, 'utf8'),
@@ -322,7 +344,7 @@ function runDistributionPart(from, to) {
   for (let i = from; i < to; i++) {
     const r = runOnce({ seed: 1000 + i * 7, skillID: 'average', weeks: 520, sampleEvery: 520 });
     results.distribution = results.distribution.filter(x => x.index !== i);
-    results.distribution.push({ index: i, fundCount: r.fundCount, fundIDPI: r.fundIDPI, fundIHalved: r.fundIHalved, reachedFundII: r.reachedFundII });
+    results.distribution.push({ index: i, fundCount: r.fundCount, fundIDPI: r.fundIDPI, fundIHalved: r.fundIHalved, reachedFundII: r.reachedFundII, averageHoldingWeeks: r.averageHoldingWeeks });
     saveResults(results);
     console.log(`trial ${i}: ファンド${r.fundCount}本 / Fund I DPI ${r.fundIDPI.toFixed(2)}${r.fundIHalved ? ' (半減)' : ''}${r.reachedFundII ? ' / Fund II到達' : ''}`);
   }
@@ -365,7 +387,7 @@ function report() {
   console.log('## A. 腕による差（同一ポリシー枠組み・判断の質だけが違う）');
   for (const id of ids) {
     const r = runs[id];
-    console.log(`- ${SKILLS[id].label}: ファンド${r.fundCount}本 / 同時最大${r.maxConcurrentFunds ?? "-"}本(投資中${r.maxInvestingFunds ?? "-"}本) / 救済${r.rescueExits ?? "-"}回 / 取得${r.acquisitions}件 / Exit${r.exits}件 / 人脈${r.networkNodes} / 最大ファンド${yen(r.peakFundSize)} / 吸収上限${plateaued(r) ? '到達（頭打ち）' : '未到達'} / 絶対上限${r.hitCeiling ? '到達' : '未到達'} / 総資産${yen(r.totalAssets)} / 個人資産${yen(r.personalCash)} / Fund I DPI ${r.fundIDPI.toFixed(2)}`);
+    console.log(`- ${SKILLS[id].label}: ファンド${r.fundCount}本 / 同時最大${r.maxConcurrentFunds ?? "-"}本(投資中${r.maxInvestingFunds ?? "-"}本) / 救済${r.rescueExits ?? "-"}回 / 取得${r.acquisitions}件 / Exit${r.exits}件 / 人脈${r.networkNodes} / 最大ファンド${yen(r.peakFundSize)} / 吸収上限${plateaued(r) ? '到達（頭打ち）' : '未到達'} / 絶対上限${r.hitCeiling ? '到達' : '未到達'} / 総資産${yen(r.totalAssets)} / 個人資産${yen(r.personalCash)} / 管理報酬${yen(r.managementFeesPaid)} / キャリー${yen(r.carryPaid)} / 共同投資 拠出${yen(r.coinvestContributed)}→返還${yen(r.coinvestReturned)} / Fund I DPI ${r.fundIDPI.toFixed(2)}`);
   }
   if (ids.length === 3) {
     const ok = runs.expert.totalAssets >= runs.average.totalAssets && runs.average.totalAssets >= runs.novice.totalAssets;
@@ -390,7 +412,12 @@ function report() {
     console.log(`- Fund I 半減(DPI<0.6)発生率: ${pct(valid.filter(d => d.fundIHalved).length / Math.max(1, valid.length))}（期待値 0〜1%）`);
     console.log(`- Fund II 到達率: ${pct(valid.filter(d => d.reachedFundII).length / Math.max(1, valid.length))}（期待値 約85%）`);
     const dpis = valid.map(d => d.fundIDPI).sort((a, b) => a - b);
-    if (dpis.length) console.log(`- Fund I DPI: 中央値 ${dpis[Math.floor(dpis.length / 2)].toFixed(2)} / 最小 ${dpis[0].toFixed(2)} / 最大 ${dpis[dpis.length - 1].toFixed(2)}`);
+    if (dpis.length) {
+      const q = p => dpis[Math.min(dpis.length - 1, Math.max(0, Math.floor((dpis.length - 1) * p)))];
+      console.log(`- Fund I DPI: 中央値 ${q(.5).toFixed(2)} / P10 ${q(.1).toFixed(2)} / P90 ${q(.9).toFixed(2)} / 最小 ${dpis[0].toFixed(2)} / 最大 ${dpis[dpis.length - 1].toFixed(2)}`);
+    }
+    const holdings=valid.map(d=>finite(d.averageHoldingWeeks)).filter(Boolean);
+    if(holdings.length)console.log(`- 平均保有期間: ${(holdings.reduce((a,b)=>a+b,0)/holdings.length/52).toFixed(2)}年`);
   }
   const det = results.determinism || {};
   if (det.run1 && det.run2) {

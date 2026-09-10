@@ -95,6 +95,8 @@ function closeFundAcquisition(engine,{deal,target,targetIndex,price,week}){
   const w=Math.max(0,Math.floor(finite(week,state.week)));
   fund.cash=finite(fund.cash)-plan.fundPortion;
   const coinvestUsed=pf.recordCoinvestment(fund,plan.coinvestPortion);
+  const coinvestPaid=pf.spendCoinvestment(fund,coinvestUsed);
+  if(coinvestPaid!==coinvestUsed)throw new Error('共同投資poolの拠出額と取得支払額が一致しません。');
   // T4の売り手条件（雇用・社名の維持）は、ここでポートフォリオ企業へ引き継がれる。
   // T18の人員削減・閉店レバーがこのフラグを見て禁止判定を行う（入札時の判断が数年後に返る）。
   const employmentPromise=Boolean(deal.acceptedTerms?.acceptedSellerTerm&&deal.acceptedTerms?.sellerTermID==='employmentContinuity');

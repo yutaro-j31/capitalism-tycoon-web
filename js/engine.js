@@ -332,7 +332,8 @@ const LOG_ARRAY_CAP = 200;
 const LOG_ARRAY_CAPS = Object.freeze({
   shareholderEventLog: LOG_ARRAY_CAP,
   mediaActionLog: LOG_ARRAY_CAP,
-  industryAwards: LOG_ARRAY_CAP
+  industryAwards: LOG_ARRAY_CAP,
+  ventureForumEvents: LOG_ARRAY_CAP
 });
 function capLogArrays(state) {
   if (!state) return state;
