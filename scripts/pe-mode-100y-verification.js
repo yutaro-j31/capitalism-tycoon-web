@@ -332,10 +332,9 @@ function runOnce({ seed, skillID, weeks, sampleEvery = 520 }) {
     personalCash: g.personalCash,
     companyCash: g.companyCash,
     // T26-3: 2つの指標を分けて残す。playerNetWorth がプレイヤーに帰属する純資産（§12の判定に使う）、
-    // aum は運用資産（LP・共同投資家の資本を含むので純資産ではない）。totalAssets は旧指標。
+    // aum は運用資産（LP・共同投資家の資本を含むので純資産ではない）。
     playerNetWorth: playerNetWorth(handles, g),
     aum: assetsUnderManagement(g),
-    totalAssets: totalAssets(g),
     managementFeesPaid: funds.reduce((sum, f) => sum + finite(f.managementFeesPaid), 0),
     managementFeeShortfall: funds.reduce((sum, f) => sum + finite(f.managementFeeShortfall), 0),
     teamPayrollPaid: funds.reduce((sum, f) => sum + finite(f.teamPayrollPaid), 0),
