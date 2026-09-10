@@ -241,9 +241,19 @@ function playWeek(handles, e, skill, policy = {}) {
 // LPと共同投資家の持分を控除しておらず、プレイヤーの純資産ではなく運用資産(AUM)寄りだった
 // （Codex GAME-REAUDIT-006）。設計書§12の「100年後の総資産が兆のオーダー」は
 // **プレイヤー帰属純資産**で判定する。
+//
+// FINAL-AUDIT-001: fundNAV が active deal の d.investedAmount（=fundPortion+coinvestPortion）
+// を丸ごと数えていたため、playerNetWorth がその全体にGP持分率を掛け、外部共同投資家の資産の
+// 一部までプレイヤー帰属純資産に混入していた。ファンド自身の持分（d.fundPortion）だけを数える。
+// legacy deal（T26-1以前、fundPortion を持たない）は js/pe-fund.js の fundDeployed() と同じ
+// 扱いで investedAmount へ fallback する。
 function fundNAV(f) {
   return Math.max(0, Number(f.cash) || 0)
-    + (f.deals || []).reduce((s, d) => s + (d.status === 'active' ? Math.max(0, Number(d.investedAmount) || 0) + Math.max(0, Number(d.portfolioCompany?.cash) || 0) : 0), 0);
+    + (f.deals || []).reduce((s, d) => {
+        if (d.status !== 'active') return s;
+        const own = Math.max(0, finite(d.fundPortion, d.investedAmount));
+        return s + own + Math.max(0, Number(d.portfolioCompany?.cash) || 0);
+      }, 0);
 }
 // プレイヤーに帰属する純資産: 個人資産 + 会社資産 + ファンドNAVのうちGP出資持分だけ。
 function playerNetWorth(handles, g) {
@@ -252,11 +262,22 @@ function playerNetWorth(handles, g) {
   const gpPart = funds.reduce((sum, f) => sum + fundNAV(f) * pf.gpShareOfFund(f), 0);
   return (Number(g.personalCash) || 0) + (Number(g.companyCash) || 0) + gpPart;
 }
-// 運用資産(AUM): ファンド規模の合計 + 共同投資の拠出累計。プレイヤーのものではないが規模の指標。
+// FINAL-AUDIT-002: 旧 assetsUnderManagement は「全保存ファンドのsize合計 + 共同投資の拠出累計」
+// で、クローズ済みファンドや返却済みの共同投資も含んでいた。時間とともに単調増加するだけの
+// 累計値のため、§12「天井後の推移が線形か」の判定に使うと必ず右肩上がりに見えてしまう。
+// 現在運用中（investing/harvesting）のものだけを数える「現在のAUM」に直し、旧来の累計値は
+// 別名の関数として残す（用途が違う数字であることを名前で示す）。
 function assetsUnderManagement(g) {
   const funds = g.peFirm?.funds || [];
+  const activeFundSize = funds.reduce((sum, f) => sum + (f.status !== 'closed' ? Math.max(0, Number(f.size) || 0) : 0), 0);
+  const outstandingCoinvest = Math.max(0, finite(g.peFirm?.coinvestContributed) - finite(g.peFirm?.coinvestCapital));
+  return activeFundSize + outstandingCoinvest;
+}
+// 累計組成額 + 累計共同投資額（クローズ済みファンド・返却済み共同投資も含む累計値。参考値）。
+function cumulativeCapitalRaised(g) {
+  const funds = g.peFirm?.funds || [];
   return funds.reduce((sum, f) => sum + Math.max(0, Number(f.size) || 0), 0)
-    + Math.max(0, Number(g.peFirm?.coinvestContributed) || 0);
+    + Math.max(0, finite(g.peFirm?.coinvestContributed));
 }
 function scanNonFinite(value, pathStr = '$', out = [], seen = new Set()) {
   if (out.length >= 20) return out;
@@ -291,6 +312,7 @@ function runOnce({ seed, skillID, weeks, sampleEvery = 520 }) {
       week: e.g.week,
       assets: playerNetWorth(handles, e.g),
       aum: assetsUnderManagement(e.g),
+      cumulativeCapitalRaised: cumulativeCapitalRaised(e.g),
       personalCash: finite(e.g.personalCash),
       fundCount: e.g.peFirm.funds.length,
       largestFund: e.g.peFirm.funds.reduce((max, f) => Math.max(max, finite(f.size)), 0),
@@ -332,9 +354,12 @@ function runOnce({ seed, skillID, weeks, sampleEvery = 520 }) {
     personalCash: g.personalCash,
     companyCash: g.companyCash,
     // T26-3: 2つの指標を分けて残す。playerNetWorth がプレイヤーに帰属する純資産（§12の判定に使う）、
-    // aum は運用資産（LP・共同投資家の資本を含むので純資産ではない）。
+    // aum は現在運用中の資産（LP・共同投資家の資本を含むので純資産ではない。クローズ済み
+    // ファンド・返却済み共同投資は含まない）。cumulativeCapitalRaised はこれまでの累計
+    // 組成額+共同投資拠出額で、時間とともに単調増加するので「推移が線形か」の判定には使わない。
     playerNetWorth: playerNetWorth(handles, g),
     aum: assetsUnderManagement(g),
+    cumulativeCapitalRaised: cumulativeCapitalRaised(g),
     managementFeesPaid: funds.reduce((sum, f) => sum + finite(f.managementFeesPaid), 0),
     managementFeeShortfall: funds.reduce((sum, f) => sum + finite(f.managementFeeShortfall), 0),
     teamPayrollPaid: funds.reduce((sum, f) => sum + finite(f.teamPayrollPaid), 0),
@@ -530,4 +555,4 @@ function main() {
 }
 
 if (require.main === module) main();
-module.exports = { SKILLS, setupFirm, playWeek, runOnce, playerNetWorth, assetsUnderManagement };
+module.exports = { SKILLS, setupFirm, playWeek, runOnce, playerNetWorth, assetsUnderManagement, cumulativeCapitalRaised };
