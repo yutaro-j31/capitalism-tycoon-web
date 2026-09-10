@@ -53,10 +53,11 @@ const QUALITY_MAX_REVENUE_GAIN=.13;
 const REPUTATION_THRESHOLD=65;
 const REPUTATION_BONUS=8;
 const REPUTATION_PENALTY_FOR_CUTS=15;
-// T23: Exit倍率＝取得倍率×(EXIT_MULTIPLE_FLOOR + スコア/100×EXIT_MULTIPLE_SCORE_SPAN)。
-// 下限(FLOOR)は据え置き、上側の幅(SPAN)だけを詰める＝最悪ケースを悪化させずに上振れを抑える。
+// T23/T26後較正: Exit倍率＝取得倍率×(EXIT_MULTIPLE_FLOOR + スコア/100×EXIT_MULTIPLE_SCORE_SPAN)。
+// T26で実際のmanagement feeをfund cashから払うようになったため、下限(FLOOR)と会計は変えず、
+// 経営改善がExit価格へ反映される上側の幅(SPAN)だけを戻して実在コスト込みの収益性を較正する。
 const EXIT_MULTIPLE_FLOOR=.80;
-const EXIT_MULTIPLE_SCORE_SPAN=.17;
+const EXIT_MULTIPLE_SCORE_SPAN=.34;
 
 // PE mode T18 (docs/PE_MODE_TASKS.md): 買収先経営の6レバー化。
 // 6レバー = 価格 / 品質 / 拠点（出店と再編の両方向）/ 仕入れ・調達 / 人件費と人員 / 商品構成。

@@ -569,6 +569,13 @@ DPI中央値1.26 / P10 1.06 / P90 1.52 / DPI 0.6未満0.0% / Fund II到達66.0% 
 1.64兆→1.93兆 / 1.40兆→1.25兆。最大saveは2.54MB（T25は2.656MB）。seed 999の100年runを
 2回行い、最終state SHA-256 `98d00750ddba5072d61a6ed2ced510a0...` の一致を確認した。
 
+## T26後. management fee込みのbalance再較正
+
+T26のcash accountingを維持したまま、Exit倍率の改善スコア側の幅だけを `0.17` → `0.34` に変更。
+36 fixed seeds × 10年のproduction実測はFund I DPI中央値1.41 / Fund II到達83.3% / DPI 0.6未満0.0%。
+非到達6 seedはDPIのみ3 / 資金消化のみ3 / 両方0だった。100年実測でも腕の序列、1兆円cap、
+救済経路、決定論、5MB save上限、NaN/Infinityなしを維持した。詳細は設計書§10 / §12 / §16.5。
+
 ---
 
 # 参照

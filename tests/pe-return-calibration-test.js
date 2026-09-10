@@ -26,11 +26,11 @@ function heldDeal({ ev = 10_000_000_000, week = 1, cash = 1_000_000_000 } = {}) 
   return { e, fund, deal, pc: deal.portfolioCompany };
 }
 
-// 1. Exit倍率の幅: 下限は据え置き、上側だけを詰める（最悪ケースを悪化させない）。
+// 1. Exit倍率の幅: 下限は据え置き、management fee込みの較正でも上側だけを動かす。
 {
   assert.equal(ops.EXIT_MULTIPLE_FLOOR, .80, 'スコア0でも取得倍率の80%では売れる（救済導線の前提）');
-  assert.ok(ops.EXIT_MULTIPLE_SCORE_SPAN <= .30, '満点でのマルチプル拡大は抑えられている');
-  assert.ok(ops.EXIT_MULTIPLE_FLOOR + ops.EXIT_MULTIPLE_SCORE_SPAN <= 1.05, '満点でもマルチプル拡大はごくわずか');
+  assert.ok(ops.EXIT_MULTIPLE_SCORE_SPAN <= .35, '満点でのマルチプル拡大は抑えられている');
+  assert.ok(ops.EXIT_MULTIPLE_FLOOR + ops.EXIT_MULTIPLE_SCORE_SPAN <= 1.15, '満点でもマルチプル拡大は限定的');
   assert.ok(ops.EXIT_MULTIPLE_FLOOR + ops.EXIT_MULTIPLE_SCORE_SPAN > ops.EXIT_MULTIPLE_FLOOR, 'スコアは依然として売却価格に効く');
 }
 
