@@ -54,7 +54,10 @@ function fundWithScore(size, score) {
 // 4. Completion criterion / 設計書§9 失敗6: even an enormous fund never exceeds the 60-person
 // cap, despite the raw (uncapped) computation implying far more.
 {
-  const fund = fundWithScore(5_000_000_000_000, 85); // 5兆円, the fund-size absolute ceiling
+  // 5兆円を要求するが、ensureFund が MAX_FUND_SIZE（T24-2以降は1兆円）へ切り詰めるので実際の
+  // size は1兆円になる。上限より大きい値を渡しても «上限のファンド» になることの確認も兼ねる。
+  const fund = fundWithScore(5_000_000_000_000, 85);
+  assert.equal(fund.size, pf.MAX_FUND_SIZE, '上限超過の要求は MAX_FUND_SIZE へ切り詰められる');
   const rawUncapped = Math.floor(fund.size * fund.terms.fee / pf.MANAGEMENT_FEE_PER_HEAD);
   assert.ok(rawUncapped > pf.TEAM_CAP, 'sanity: the raw computation must exceed the cap for this to be a meaningful test');
   assert.equal(pf.teamCapacity(fund), 60);

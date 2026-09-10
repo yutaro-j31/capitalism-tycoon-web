@@ -339,8 +339,8 @@ function runOnce({ seed, skillID, weeks, sampleEvery = 520 }) {
     peakFundSize,
     hitCeiling: peakFundSize >= handles.modules.peFund.MAX_FUND_SIZE - 1,
     // T22: 実際に頭打ちになる規模は「市場が吸収できる規模」(marketAbsorbableFundSize)。
-    // MAX_FUND_SIZE(5兆) は指数爆発を止める絶対上限として残っているが、年4件×設計書§15の
-    // 帯では、その手前のこの規模で先に頭打ちになる。
+    // MAX_FUND_SIZE(1兆。T24-2で5兆から変更) は指数爆発を止める絶対上限として残っているが、
+    // 年4件×設計書§15の帯では、その手前のこの規模で先に頭打ちになる。
     absorbableCeiling: handles.modules.peFund.marketAbsorbableFundSize(),
     plateauedAtAbsorbable: peakFundSize >= handles.modules.peFund.marketAbsorbableFundSize() - 1,
     acquisitions: funds.reduce((n, f) => n + f.deals.filter(d => d.portfolioCompany).length, 0),

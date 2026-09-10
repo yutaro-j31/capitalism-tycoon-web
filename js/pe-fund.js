@@ -59,7 +59,8 @@ function ensureFund(f,week){
   f.terms.fee=Math.max(0,finite(f.terms.fee));
   f.terms.carry=Math.max(0,finite(f.terms.carry));
   f.terms.hurdle=Math.max(0,finite(f.terms.hurdle));
-  // MAX_FUND_SIZE（設計書§2/§12、5兆円の絶対上限）は formableFundSize() だけでなく、
+  // MAX_FUND_SIZE（設計書§2/§12、1兆円の絶対上限。T24-2で5兆円から変更）は
+  // formableFundSize() だけでなく、
   // ここ（load正規化・createFundの両方が通る唯一の書き込み経路）でも強制する。
   // formableFundSize経由でない直接のcreateFund呼び出しや、旧セーブの読み込みで
   // 上限超過の値が紛れ込んでも、この行が最終的な境界になる。

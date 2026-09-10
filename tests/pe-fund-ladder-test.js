@@ -44,10 +44,15 @@ function fundOfSize(size, { score = 50, status = 'investing' } = {}) {
 {
   const small = fundOfSize(300_000_000_000).fund;   // 3,000億: 緩和開始前
   assert.equal(pf.requiredDeploymentRate(small), pf.NEXT_FUND_MIN_DEPLOYMENT, '緩和開始前は80%のまま');
-  const big = fundOfSize(2_000_000_000_000).fund;   // 2兆
-  const bigger = fundOfSize(pf.MAX_FUND_SIZE).fund; // 5兆
+  // T24-2で絶対上限が5兆円→1兆円になったため、上限を超える規模を渡しても ensureFund が
+  // 1兆円へ切り詰める。以前この節は 2兆 と MAX_FUND_SIZE を比べていたが、どちらも1兆円に
+  // 切り詰められるため「規模に対して単調」の検査が同値比較になって意味を失っていた
+  // （FINAL-AUDIT時に発見）。上限内で実際に異なる2つの規模で単調性を検査する。
+  const big = fundOfSize(600_000_000_000).fund;     // 6,000億: 緩和帯の途中
+  const bigger = fundOfSize(pf.MAX_FUND_SIZE).fund; // 1兆（絶対上限）
+  assert.ok(big.size < bigger.size, 'sanity: 単調性を検査する2つの規模は実際に異なること');
   assert.ok(pf.requiredDeploymentRate(big) < pf.NEXT_FUND_MIN_DEPLOYMENT, '大型ほど要件は緩む');
-  assert.ok(pf.requiredDeploymentRate(bigger) <= pf.requiredDeploymentRate(big), '規模に対して単調');
+  assert.ok(pf.requiredDeploymentRate(bigger) < pf.requiredDeploymentRate(big), '規模に対して単調に緩む');
   assert.ok(pf.requiredDeploymentRate(bigger) >= pf.MIN_DEPLOYMENT_FLOOR, '下限より下には行かない');
   // 投資期間を終えたファンドはさらに一段緩む（もう消化する機会が無い）。
   const closed = fundOfSize(2_000_000_000_000, { status: 'closed' }).fund;
