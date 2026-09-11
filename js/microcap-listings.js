@@ -24,6 +24,7 @@ function ensure(state){
   state.microcapMarket={nextSpawnWeek:next,listings,sequence};return state.microcapMarket;
 }
 function archetypeFor(state,sequence){const roll=unit('microcap',seedKey(state),'archetype',sequence);return ARCHETYPES.find(a=>roll<a.ceiling)||ARCHETYPES[ARCHETYPES.length-1];}
+function weeklyMovement(stock,week){return (unit('microcap-market',stock.id,Math.floor(finite(week,1)))*2-1)*finite(stock.volatility);}
 function buildListing(state,week,sequence){
   const key=seedKey(state),archetype=archetypeFor(state,sequence),valuation=integerBetween(100,190,'microcap',key,'valuation',sequence)*10_000_000;
   const noisy=unit('microcap',key,'signal-noise',sequence)<SIGNAL_NOISE,profitable=noisy?!archetype.profitable:archetype.profitable;
@@ -33,8 +34,8 @@ function buildListing(state,week,sequence){
 }
 function process(state,notify){
   const market=ensure(state),created=[];
-  while(finite(state.week,1)>=market.nextSpawnWeek){const week=market.nextSpawnWeek,sequence=market.sequence,built=buildListing(state,week,sequence);if(!state.market.some(stock=>stock.id===built.stock.id)){state.market.push(built.stock);market.listings.push(built.metadata);created.push(built.stock);}market.sequence+=1;market.nextSpawnWeek=week+intervalFor(state,market.sequence);}
+  while(finite(state.week,1)>=market.nextSpawnWeek){const week=market.nextSpawnWeek,sequence=market.sequence,built=buildListing(state,week,sequence);if(!state.market.some(stock=>stock.id===built.stock.id)){state.market.push(built.stock);if(state.quarterlyStockResults&&typeof state.quarterlyStockResults==='object')state.quarterlyStockResults[built.stock.id]=[];market.listings.push(built.metadata);created.push(built.stock);}market.sequence+=1;market.nextSpawnWeek=week+intervalFor(state,market.sequence);}
   market.listings=market.listings.slice(-HISTORY_LIMIT);created.forEach(stock=>notify?.(`${stock.name}（${stock.id}）が小型株市場へ新規上場しました。`,'info'));return created;
 }
-Object.assign(exports,{INTERVAL_MIN,INTERVAL_MAX,ISSUED_SHARES,HISTORY_LIMIT,SIGNAL_NOISE,ARCHETYPES,hash,unit,intervalFor,ensure,archetypeFor,buildListing,process});
+Object.assign(exports,{INTERVAL_MIN,INTERVAL_MAX,ISSUED_SHARES,HISTORY_LIMIT,SIGNAL_NOISE,ARCHETYPES,hash,unit,intervalFor,ensure,archetypeFor,weeklyMovement,buildListing,process});
 })(globalThis.__capitalismTycoonModules.microcapListings={});
