@@ -400,7 +400,10 @@ function handleKeydown(event){
 function install(){
   document.addEventListener('click',handleClick,true);
   document.addEventListener('keydown',handleKeydown,true);
-  modules.uiEnhancerRegistry.registerUIEnhancer({id:'d-ui-shell',enhance:context=>enhance(false,context)});
+  modules.uiEnhancerRegistry.registerUIEnhancer({id:'d-ui-shell',enhance:context=>{
+    enhance(false,context);
+    globalThis.CapitalismTycoonPEUI?.render?.();
+  }});
   return true;
 }
 modules.dUIShell=Object.freeze({PRIMARY_NAV,DOCK_NAV,ALL_NAV,money,reportSeries,sparkline,currentKpis,missionRows,missionValue,selectedDetail,renderMapWorkspace,setCommandMenu,enhance,handleClick,handleKeydown,install,__installed:true});

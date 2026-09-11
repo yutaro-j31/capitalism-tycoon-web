@@ -10,6 +10,8 @@ assert.match(html,/pe-ui-adapter\.js[^]*pe-ui\.js/,'adapter must load before com
 assert.doesNotMatch(component,/state\.|engine\.|peFirm|maDealRooms|__capitalismTycoonModules|modules\./,'components must only consume the normalized adapter contract');
 assert.doesNotMatch(component,/weeksRemaining\s*[<>=]/,'deadline thresholds belong in the adapter');
 assert.match(component,/investmentPeriod\.severity/,'deadline severity must come from adapter output');
+assert.doesNotMatch(adapterSource,/registerUIEnhancer|registerEnhancer/,'PE adapter must not add a duplicate startup enhancer');
+assert.match(fs.readFileSync('js/d-ui-shell.js','utf8'),/CapitalismTycoonPEUI\?\.render\?\.\(\)/,'PE UI must render through the existing D UI lifecycle');
 assert.match(component,/model\.dashboard/);assert.match(component,/model\.deals/);assert.match(component,/model\.bid/);
 assert.match(component,/data-pe-submit>入札する<\/button><button class="btn secondary" type="button" data-pe-drop>降りる/);
 assert.match(css,/\.pe-decision-row \.btn\{min-height:50px/);
