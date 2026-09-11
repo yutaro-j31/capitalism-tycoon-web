@@ -1,0 +1,16 @@
+const assert=require('node:assert/strict');
+const {loadGame}=require('./harness');
+function lcg(seed=1){let x=seed>>>0;return()=>((x=Math.imul(x,1664525)+1013904223>>>0)/4294967296);}
+const loaded=loadGame({random:lcg(1),headless:true}),{modules,ctx}=loaded,Engine=modules.engine.TycoonEngine;
+function setup(seed=1){ctx.Math.random=lcg(seed);const e=new Engine();e.configure({playerName:`P${seed}`,companyName:`C${seed}`,configured:true});e.g.companyCash=1e15;e.g.personalCash=1e15;return e;}
+function replay(seed,weeks=80){const e=setup(seed),startups=JSON.stringify(e.g.startups);for(let i=0;i<weeks;i++){e.g.week++;e.updateMarket();modules.microcapListings.process(e.g);}const rows=e.g.microcapMarket.listings.map(x=>({...x,prices:e.g.market.find(s=>s.id===x.stockID).priceHistory.map(p=>[p.week,p.price])}));assert.equal(JSON.stringify(e.g.startups),startups);return rows;}
+const a=replay(71),b=replay(71);assert.deepEqual(a,b);assert(a.length>3);
+const e=setup(9),micro=modules.microcapListings;
+const intervals=Array.from({length:2000},(_,i)=>micro.intervalFor(e.g,i));assert(intervals.every(x=>x>=8&&x<=18));assert(new Set(intervals).size>1);assert(Math.abs(intervals.reduce((x,y)=>x+y,0)/intervals.length-13)<.3);
+const counts=Object.fromEntries(micro.ARCHETYPES.map(x=>[x.id,0]));let noisy=0;for(let i=0;i<10000;i++){counts[micro.archetypeFor(e.g,i).id]++;noisy+=micro.buildListing(e.g,1,i).metadata.signalNoisy;}const expected={speculative:.55,steady:.28,quality:.12,breakout:.05};for(const [id,p] of Object.entries(expected))assert(Math.abs(counts[id]/10000-p)<.02,`${id} distribution`);assert(Math.abs(noisy/10000-.15)<.02);
+e.g.week=e.g.microcapMarket.nextSpawnWeek;const before=e.g.market.length;micro.process(e.g);assert.equal(e.g.market.length,before+1);const stock=e.g.market.at(-1);assert.equal(stock.issuedShares,1_000_000);assert(stock.marketCap>=1e9&&stock.marketCap<=1.9e9);assert.equal(stock.price*stock.issuedShares,stock.marketCap);const oldPrice=stock.price;e.updateMarket();assert.notEqual(stock.price,oldPrice);
+e.g.personalCash=1e15;assert(e.buyStock(stock.id,10_000_000,'personal'));assert.equal(e.g.personalStocks[stock.id].qty,50_000);assert(e.sellStock(stock.id,50_000,'personal'));assert.equal(e.g.personalStocks[stock.id],undefined);
+const legacy=JSON.parse(JSON.stringify(e.g));delete legacy.microcapMarket;const restored=new modules.engine.TycoonEngine(legacy);assert.equal(restored.g.saveVersion,9);assert(restored.g.microcapMarket.nextSpawnWeek>=restored.g.week+8&&restored.g.microcapMarket.nextSpawnWeek<=restored.g.week+18);
+for(let i=0;i<400;i++){restored.g.week=restored.g.microcapMarket.nextSpawnWeek;micro.process(restored.g);}assert.equal(restored.g.microcapMarket.listings.length,micro.HISTORY_LIMIT);assert(restored.g.market.length>micro.HISTORY_LIMIT,'history cap must not remove market stocks');
+const saved=JSON.parse(JSON.stringify(restored.g)),r1=new modules.engine.TycoonEngine(saved),r2=new modules.engine.TycoonEngine(saved);for(let i=0;i<20;i++){r1.g.week=r1.g.microcapMarket.nextSpawnWeek;micro.process(r1.g);r2.g.week=r2.g.microcapMarket.nextSpawnWeek;micro.process(r2.g);}assert.deepEqual(r1.g.microcapMarket,r2.g.microcapMarket);
+console.log('microcap listings ok');
