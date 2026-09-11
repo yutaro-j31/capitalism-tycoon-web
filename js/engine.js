@@ -786,12 +786,13 @@ class TycoonEngine extends EventTarget {
       const stores=(this.g.stores||[]).filter(s=>s.businessID===b.id&&s.status!=='closed');
       const open=stores.filter(s=>s.status==='open');
       const minimumUpfront=finite(b.storeCost)+minimumDeposit;
+      const startupLoan=b.id==='gym'?globalThis.__capitalismTycoonModules.bankLoansCovenants?.gymStartupQuote?.(this.g,minimumUpfront):null;
       return Object.freeze({
         businessID:b.id,name:b.name,storeCost:finite(b.storeCost),
         storeCount:stores.length,openStoreCount:open.length,
         weeklyProfit:open.reduce((a,s)=>a+finite(s.lastProfit),0),
-        minimumUpfront,affordable:freeDeposits.length>0&&cash>=minimumUpfront,
-        shortfall:Math.max(0,minimumUpfront-cash),
+        minimumUpfront,affordable:freeDeposits.length>0&&(cash>=minimumUpfront||Boolean(startupLoan?.eligible)),
+        shortfall:Math.max(0,minimumUpfront-cash),startupLoan,
         depthLevel:businessSimulationDepth(b.id).level
       });
     });
@@ -861,6 +862,7 @@ class TycoonEngine extends EventTarget {
     const conservative=at(.88),expected=at(1),optimistic=at(1.14);
 
     const upfront=b.storeCost+tenant.deposit;
+    const startupLoan=b.id==='gym'?globalThis.__capitalismTycoonModules.bankLoansCovenants?.gymStartupQuote?.(this.g,upfront):null;
     const weeksToOpen=b.storeCost>=15_000_000?8:b.storeCost>=7_000_000?5:3;
     const paybackWeeks=expected.profit>0?Math.ceil(upfront/expected.profit):null;
     const depth=businessSimulationDepth(businessID);
@@ -884,8 +886,9 @@ class TycoonEngine extends EventTarget {
       breakdown:Object.freeze({rent:Math.floor(Math.max(0,rent)),wage:Math.floor(Math.max(0,wage)),
         otherFixed:Math.floor(Math.max(0,fixed-rent-wage))}),
       storeCost:b.storeCost,deposit:tenant.deposit,upfront,weeksToOpen,
-      companyCash:finite(this.g.companyCash),affordable:finite(this.g.companyCash)>=upfront,
-      cashAfterOpening:finite(this.g.companyCash)-upfront,
+      companyCash:finite(this.g.companyCash),affordable:finite(this.g.companyCash)>=upfront||Boolean(startupLoan?.eligible),
+      cashAfterOpening:finite(this.g.companyCash)+(startupLoan?.eligible?startupLoan.principal:0)-upfront,
+      startupLoan,
       paybackWeeks,profitable:expected.profit>0,
       approximate:depth.level!=='simple',
       depthLabel:depth.label,caveats
@@ -898,6 +901,8 @@ class TycoonEngine extends EventTarget {
     if (!tenant || tenant.occupiedBy) return this.fail('選択したテナントは利用できません。');
     if (!business) return this.fail('業種が見つかりません。');
     const cost = business.storeCost + tenant.deposit;
+    let startupLoan=null;
+    if(this.g.companyCash<cost&&business.id==='gym')startupLoan=globalThis.__capitalismTycoonModules.bankLoansCovenants?.fundGymStartup?.(this.g,cost)||null;
     if (this.g.companyCash < cost) return this.fail(`出店には${yen(cost)}が必要です。`);
     this.g.companyCash -= cost; tenant.occupiedBy = 'player';
     const weeks = business.storeCost >= 15_000_000 ? 8 : business.storeCost >= 7_000_000 ? 5 : 3;
@@ -908,7 +913,7 @@ class TycoonEngine extends EventTarget {
     finance.addFixedAsset(this.g,{assetID:`store-${store.id}`,assetType:'storeEquipment',acquisitionCost:business.storeCost,usefulLifeWeeks:260,salvageValue:business.storeCost*.1,businessID,storeID:store.id});
     finance.event(this.g,'capitalExpenditure',business.storeCost,{cashEffect:-business.storeCost,assetEffect:business.storeCost,businessID,storeID:store.id,sourceType:'openStore',sourceID:store.id,description:`${store.name} 店舗設備`});
     finance.event(this.g,'otherInvesting',tenant.deposit,{cashEffect:-tenant.deposit,assetEffect:tenant.deposit,businessID,storeID:store.id,sourceType:'openStoreDeposit',sourceID:store.id,description:`${store.name} 保証金`});
-    this.notify(`${store.name}の出店準備を開始しました。開店まで${weeks}週。`,'success');
+    this.notify(`${store.name}の出店準備を開始しました。開店まで${weeks}週。${startupLoan?` ジム開業ローン${yen(startupLoan.principal)}（${startupLoan.term}週・年率${(startupLoan.annualRate*100).toFixed(2)}%）を実行しました。`:''}`,'success');
     this.evaluateProgression(); this.save(); this.emit(); return true;
   }
 
