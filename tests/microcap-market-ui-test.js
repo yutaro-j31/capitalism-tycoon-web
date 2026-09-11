@@ -1,0 +1,10 @@
+const assert=require('node:assert/strict');
+const {loadGame}=require('./harness');
+const {ctx,modules}=loadGame({random:()=>.42});const e=ctx.__ct_engine;e.configure({playerName:'UI確認',companyName:'UI確認社',configured:true});e.g.selectedTab='market';ctx.__ct_ui.showSetup=false;
+const base={sector:'小型株',price:1200,previous:1200,marketCap:1_200_000_000,per:0,pbr:2,issuedShares:1_000_000,shareholders:{},microcap:true,priceHistory:[{week:e.g.week,price:1200}]};
+e.g.market.push({...base,id:'MC-PROFIT',name:'黒字表示確認',microcapSignalProfitable:true,microcapFundamentallyProfitable:false,trend:-.003,volatility:.08},{...base,id:'MC-LOSS',name:'赤字表示確認',microcapSignalProfitable:false,microcapFundamentallyProfitable:true,trend:.011,volatility:.18});e.emit();
+const html=String(ctx.document.getElementById('app').innerHTML);const profit=html.slice(html.indexOf('MC-PROFIT'),html.indexOf('MC-LOSS')),loss=html.slice(html.indexOf('MC-LOSS'));
+assert(profit.includes('黒字'),'positive player-facing signal is rendered as 黒字');assert(loss.includes('赤字'),'negative player-facing signal is rendered as 赤字');
+for(const internal of ['speculative','steady','quality','breakout','trend','volatility'])assert(!html.includes(internal),`${internal} must not leak into player-facing market UI`);
+assert(html.includes('data-action="buy-stock"')&&html.includes('data-action="sell-stock"'),'existing stock controls remain available');
+console.log('microcap market UI contract ok');process.exit(0);

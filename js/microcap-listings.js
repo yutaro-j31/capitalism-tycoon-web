@@ -14,14 +14,20 @@ function finite(v,f=0){return Number.isFinite(Number(v))?Number(v):f;}
 function hash(parts){let h=2166136261;String(parts.join('|')).split('').forEach(c=>{h^=c.charCodeAt(0);h=Math.imul(h,16777619);});h^=h>>>16;h=Math.imul(h,0x7feb352d);h^=h>>>15;h=Math.imul(h,0x846ca68b);h^=h>>>16;return h>>>0;}
 function unit(...parts){return hash(parts)/4294967295;}
 function integerBetween(a,b,...parts){return Math.min(b,a+Math.floor(unit(...parts)*(b-a+1)));}
-function seedKey(state){return `${state.playerName||'創業者'}|${state.companyName||'ポケット商事'}`;}
+function deriveIdentity(state){
+  const startup=Array.isArray(state.startups)&&state.startups.find(row=>row?.id)?.id;
+  const competitor=Array.isArray(state.competitors)&&state.competitors.find(row=>row?.id)?.id;
+  return `market-${startup||'no-startup'}-${competitor||'no-competitor'}`;
+}
+function seedKey(state){return state.microcapMarket?.identity||deriveIdentity(state);}
 function intervalFor(state,sequence){return integerBetween(INTERVAL_MIN,INTERVAL_MAX,'microcap',seedKey(state),'interval',sequence);}
 function ensure(state){
   const raw=state.microcapMarket&&typeof state.microcapMarket==='object'?state.microcapMarket:{};
   const listings=Array.isArray(raw.listings)?raw.listings.slice(-HISTORY_LIMIT):[];
   const sequence=Math.max(listings.length,Math.floor(finite(raw.sequence,listings.length)));
-  const next=finite(raw.nextSpawnWeek,0)>0?Math.floor(raw.nextSpawnWeek):Math.floor(finite(state.week,1))+intervalFor(state,sequence);
-  state.microcapMarket={nextSpawnWeek:next,listings,sequence};return state.microcapMarket;
+  const identity=typeof raw.identity==='string'&&raw.identity?raw.identity:deriveIdentity(state);
+  const next=finite(raw.nextSpawnWeek,0)>0?Math.floor(raw.nextSpawnWeek):Math.floor(finite(state.week,1))+intervalFor({...state,microcapMarket:{...raw,identity}},sequence);
+  state.microcapMarket={identity,nextSpawnWeek:next,listings,sequence};return state.microcapMarket;
 }
 function archetypeFor(state,sequence){const roll=unit('microcap',seedKey(state),'archetype',sequence);return ARCHETYPES.find(a=>roll<a.ceiling)||ARCHETYPES[ARCHETYPES.length-1];}
 function weeklyMovement(stock,week){return (unit('microcap-market',stock.id,Math.floor(finite(week,1)))*2-1)*finite(stock.volatility);}
@@ -30,12 +36,12 @@ function buildListing(state,week,sequence){
   const noisy=unit('microcap',key,'signal-noise',sequence)<SIGNAL_NOISE,profitable=noisy?!archetype.profitable:archetype.profitable;
   const per=profitable?(archetype.profitable?archetype.per:integerBetween(12,18,'microcap',key,'noise-per',sequence)):0;
   const name=`${NAME_A[hash([key,'name-a',sequence])%NAME_A.length]}${NAME_B[hash([key,'name-b',sequence])%NAME_B.length]}`,id=`MC${String(hash([key,'ticker',sequence])).padStart(10,'0').slice(0,10)}`,price=valuation/ISSUED_SHARES;
-  return {stock:{id,name,sector:'小型株',price,previous:price,dividendYield:0,volatility:archetype.volatility,trend:archetype.trend,marketCap:valuation,per,pbr:2,issuedShares:ISSUED_SHARES,dividendPerShare:0,shareholders:{},description:'新興小型上場企業',listingMarket:'東証グロース',microcap:true,priceHistory:[{week,price}]},metadata:{week,stockID:id,valuation,archetype:archetype.id,trend:archetype.trend,volatility:archetype.volatility,profitable,signalNoisy:noisy}};
+  return {stock:{id,name,sector:'小型株',price,previous:price,dividendYield:0,volatility:archetype.volatility,trend:archetype.trend,marketCap:valuation,per,pbr:2,issuedShares:ISSUED_SHARES,dividendPerShare:0,shareholders:{},description:'新興小型上場企業',listingMarket:'東証グロース',microcap:true,microcapSignalProfitable:profitable,microcapFundamentallyProfitable:archetype.profitable,priceHistory:[{week,price}]},metadata:{week,stockID:id,valuation,archetype:archetype.id,trend:archetype.trend,volatility:archetype.volatility,profitable,signalNoisy:noisy}};
 }
 function process(state,notify){
   const market=ensure(state),created=[];
   while(finite(state.week,1)>=market.nextSpawnWeek){const week=market.nextSpawnWeek,sequence=market.sequence,built=buildListing(state,week,sequence);if(!state.market.some(stock=>stock.id===built.stock.id)){state.market.push(built.stock);if(state.quarterlyStockResults&&typeof state.quarterlyStockResults==='object')state.quarterlyStockResults[built.stock.id]=[];market.listings.push(built.metadata);created.push(built.stock);}market.sequence+=1;market.nextSpawnWeek=week+intervalFor(state,market.sequence);}
   market.listings=market.listings.slice(-HISTORY_LIMIT);created.forEach(stock=>notify?.(`${stock.name}（${stock.id}）が小型株市場へ新規上場しました。`,'info'));return created;
 }
-Object.assign(exports,{INTERVAL_MIN,INTERVAL_MAX,ISSUED_SHARES,HISTORY_LIMIT,SIGNAL_NOISE,ARCHETYPES,hash,unit,intervalFor,ensure,archetypeFor,weeklyMovement,buildListing,process});
+Object.assign(exports,{INTERVAL_MIN,INTERVAL_MAX,ISSUED_SHARES,HISTORY_LIMIT,SIGNAL_NOISE,ARCHETYPES,hash,unit,deriveIdentity,intervalFor,ensure,archetypeFor,weeklyMovement,buildListing,process});
 })(globalThis.__capitalismTycoonModules.microcapListings={});
