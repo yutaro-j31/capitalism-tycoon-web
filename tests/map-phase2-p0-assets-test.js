@@ -2,9 +2,9 @@
 /*
  * Focused contract test for the Phase 2 P0 background-building asset pass
  * (office.small / commercial.small / residential.low, 20 sprites). This is a
- * plain node script (not yet registered in tests/run-all.js -- prototypes/
- * and assets/map-sprites/phase2/ are still pre-integration, matching the
- * precedent set by the Phase 2 foundation commit's own contract-verify pass).
+ * canonical regression test registered in tests/run-all.js. The historical
+ * asset-pass scope guard is retained as an explicit opt-in check; canonical
+ * execution validates the durable P0 asset/runtime invariants only.
  * Run directly: node tests/map-phase2-p0-assets-test.js
  */
 const fs = require('fs');
@@ -244,21 +244,26 @@ check('no save-state reference (SAVE_KEY / saveVersion / localStorage) in the to
   assert.doesNotMatch(pageSrc, /SAVE_KEY|saveVersion|localStorage/);
 });
 
-check('production files untouched by this pass (index.html / js/ / css/ / prototypes/map-canvas-renderer.js)', () => {
-  const { execSync } = require('child_process');
-  let diffFiles;
-  try {
-    diffFiles = execSync('git diff --name-only origin/main...HEAD', { cwd: ROOT, encoding: 'utf8' }).trim().split('\n').filter(Boolean);
-  } catch (e) {
-    diffFiles = execSync('git diff --name-only HEAD', { cwd: ROOT, encoding: 'utf8' }).trim().split('\n').filter(Boolean);
-  }
+function verifyHistoricalAssetPassScope() {
+  const { execFileSync } = require('child_process');
+  const base = process.env.MAP_P0_HISTORICAL_SCOPE_BASE || 'origin/main';
+  const head = process.env.MAP_P0_HISTORICAL_SCOPE_HEAD || 'HEAD';
+  const diffFiles = execFileSync('git', ['diff', '--name-only', `${base}...${head}`], { cwd: ROOT, encoding: 'utf8' }).trim().split('\n').filter(Boolean);
   for (const f of diffFiles) {
     assert.ok(
       !f.startsWith('index.html') && !f.startsWith('js/') && !f.startsWith('css/') && f !== 'prototypes/map-canvas-renderer.js',
       `production/renderer-core file touched: ${f}`
     );
   }
-});
+}
+
+// This is a historical change-scope assertion, not a timeless regression invariant.
+// Opt in only when auditing an asset-only P0 pass against its intended base/head.
+if (process.env.MAP_P0_VERIFY_HISTORICAL_SCOPE === '1') {
+  check('production files untouched by the explicitly scoped historical P0 asset pass', verifyHistoricalAssetPassScope);
+} else {
+  console.log('INFO: historical P0 asset-pass scope check not requested; canonical P0 invariants remain active');
+}
 
 console.log(`\n${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);
