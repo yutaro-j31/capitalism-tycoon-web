@@ -416,7 +416,7 @@ function previewPortfolioExit(state,fundID,dealID,{method='sale',week}={}){
   return {ok:true,fundID,dealID,method,companyName:String(deal.companyName||deal.businessID||deal.tierID||deal.id),acquisitionPrice:Math.max(0,finite(deal.acquisitionPrice,investedAmount)),investedAmount,fundPortion:Math.max(0,finite(deal.fundPortion)),coinvestPortion:Math.max(0,finite(deal.coinvestPortion)),exitEnterpriseValue,portfolioCash,grossProceeds,holdingWeeks:Math.max(0,exitWeek-finite(deal.acquiredWeek,exitWeek)),optimalHoldingWeeks:pf.optimalHoldWeeks(fundIndex),currentMOIC:investedAmount>0?grossProceeds/investedAmount:0,exitMultiple,marketFactor,settlement:pf.calculateExitSettlement(fund,deal,grossProceeds,exitWeek),eligibility,reason:null};
 }
 
-// Exit（売却/IPO/自分で経営のうち、ここでは売却・IPOによる終了を扱う）。
+// Exit（現在productionで実装済みの売却による終了を扱う）。
 // 回収額はファンドへ即時分配（T5: Exit代金は再投資できない）。改善スコアが65を超えると
 // 業界での評判が上がり、従業員を切って売り抜けた場合は逆に評判が下がる（設計書§6.5・§11）。
 function exitPortfolioCompany(state,fundID,dealID,{method='sale',week,cutEmployees=false}={}){
