@@ -307,6 +307,7 @@ const nodeTests = [
   ['pe-fund-coinvest', 'tests/pe-fund-coinvest-test.js'],
   ['pe-network', 'tests/pe-network-test.js'],
   ['pe-portfolio-operations', 'tests/pe-portfolio-operations-test.js'],
+  ['pe-exit-preview', 'tests/pe-exit-preview-test.js'],
   ['pe-portfolio-ui', 'tests/pe-portfolio-ui-test.js'],
   ['pe-deal-supply', 'tests/pe-deal-supply-test.js'],
   ['pe-acquisition', 'tests/pe-acquisition-test.js'],
