@@ -13,15 +13,15 @@ assert.match(component,/investmentPeriod\.severity/,'deadline severity must come
 assert.doesNotMatch(adapterSource,/registerUIEnhancer|registerEnhancer/,'PE adapter must not add a duplicate startup enhancer');
 assert.match(fs.readFileSync('js/d-ui-shell.js','utf8'),/CapitalismTycoonPEUI\?\.render\?\.\(\)/,'PE UI must render through the existing D UI lifecycle');
 assert.match(component,/model\.dashboard/);assert.match(component,/model\.deals/);assert.match(component,/model\.bid/);
-assert.match(component,/data-pe-submit>入札する<\/button><button class="btn secondary" type="button" data-pe-drop>降りる/);
+assert.match(component,/decisionButtons\(d\.recommendDrop\)/,'bid buttons consume only the adapter recommendation');
 assert.match(css,/\.pe-decision-row \.btn\{min-height:50px/);
 assert.doesNotMatch(adapterSource,/Math\.random|Date\.now|performance\.now|randomUUID/);
 
 let state;
-const pf={NEXT_FUND_MIN_DPI:1.2,NEXT_FUND_MIN_DEPLOYMENT:.8,INVESTMENT_PERIOD_WEEKS:260,slotCapacity:()=>2,activeDealCount:()=>0,currentDDUsage:()=>({used:1}),ddSlotsPerYear:()=>3,ddSlotsRemaining:()=>2,fundDPI:()=>1.1,fundDeploymentRate:()=>.4,requiredDeploymentRate:()=>.8};
+const pf={NEXT_FUND_MIN_DPI:1.2,NEXT_FUND_MIN_DEPLOYMENT:.8,INVESTMENT_PERIOD_WEEKS:260,slotCapacity:()=>2,activeDealCount:()=>0,currentDDUsage:()=>({used:1}),ddSlotsPerYear:()=>3,ddSlotsRemaining:()=>2,fundDPI:()=>1.1,fundDeploymentRate:f=>1-f.cash/f.size,requiredDeploymentRate:()=>.8};
 const seller={founderRetirement:{name:'創業オーナー',wants:'雇用維持',termID:'employment',termLabel:'雇用を維持'}};
 const ma={activeStatuses:()=>new Set(['indication','final_bid']),SELLER_TYPES:seller,STATUS_LABELS:{indication:'意向表明',final_bid:'最終入札'},recommendedOfferRange:(_s,_t,_d,{acceptSellerTerm})=>({recommendedMinimumPrice:acceptSellerTerm?90:100,recommendedMaximumPrice:acceptSellerTerm?110:120,confidence:.65,sellerTermEquivalentDiscount:acceptSellerTerm?10:0})};
-globalThis.__capitalismTycoonModules={peFund:pf,maDealRoom:ma,pePortfolioOperations:{leverFactors:pc=>pc.sideEffect?{procurementDrag:.1,laborDrag:0,sideEffectFactor:.9}:{procurementDrag:0,laborDrag:0,sideEffectFactor:1}},peNetwork:{MONOPOLY_TRUST_THRESHOLD:60},playerEngineBridge:{getEngine:()=>state?{g:state}:null},dUIShell:{money:v=>`${v}円`},uiEnhancerRegistry:{registerUIEnhancer(){}}};
+globalThis.__capitalismTycoonModules={peFund:pf,maDealRoom:ma,pePortfolioOperations:{leverFactors:pc=>pc.sideEffect?{procurementDrag:.1,laborDrag:0,sideEffectFactor:.9}:{procurementDrag:0,laborDrag:0,sideEffectFactor:1}},peNetwork:{MONOPOLY_TRUST_THRESHOLD:60},playerEngineBridge:{getEngine:()=>state?{g:state}:null},peRivals:{ROSTER:[{id:'foreign-major',name:'外資系大手',aggressiveness:1.06},{id:'strategic-buyer',name:'事業会社',aggressiveness:1.12}]},dUIShell:{money:v=>`${v}円`},uiEnhancerRegistry:{registerUIEnhancer(){}}};
 delete require.cache[require.resolve('../js/pe-ui-adapter.js')];require('../js/pe-ui-adapter.js');const adapter=globalThis.CapitalismTycoonPEUIAdapter;
 assert.deepEqual(adapter.getPEUIData(),{unlocked:false,navigation:adapter.NAVIGATION,dashboard:null,deals:[],bid:null},'missing state must use safe defaults');
 state={week:240,peFirm:{unlocked:true,funds:[{id:'fund-1',size:1000,cash:600,status:'investing',investmentDeadlineWeek:260,deals:[]}]},acquisitionTargets:[{id:'final',name:'最終案件',industry:'物流',peTierID:'small',sellerType:'founderRetirement',dealStatus:'open',expiresWeek:243,activeDealID:'deal-final'},{id:'dd',name:'DD案件',industry:'食品',peTierID:'small',sellerType:'founderRetirement',dealStatus:'open',expiresWeek:245,activeDealID:'deal-dd'}],maDealRooms:[{id:'deal-final',targetID:'final',status:'final_bid',deadlineWeek:241,competingBids:[{bidderID:'r1',bidderName:'Rival',status:'active'}]},{id:'deal-dd',targetID:'dd',status:'indication',deadlineWeek:243,competingBids:[]}],peNetwork:{nodes:[]}};
@@ -31,6 +31,19 @@ assert.deepEqual(Object.keys(data.dashboard).sort(),['capital','dealCount','deci
 assert.deepEqual(data.dashboard.decisions.map(x=>x.priority),[1,2,3],'decisions must follow P1 > P2 > P3 and be capped');
 assert.equal(data.dashboard.decisions.length,3,'decision list must be capped at three');
 assert.equal(data.deals[0].participants[0].name,'Rival');assert.equal(data.bid.valuation.minimum,90);
+assert.equal(data.bid.recommendDrop,false,'a low bid without other risk signals keeps bid emphasized');
+assert.equal(adapter.getPEUIData({dealId:'deal-final',bidPrice:119}).bid.recommendDrop,false,'a merely high bid does not emphasize drop before deployment is met');
+assert.equal(adapter.getPEUIData({dealId:'deal-final',bidPrice:120}).bid.recommendDrop,true,'a bid at the recommended maximum is an overpay risk');
+state.maDealRooms[0].competingBids=[{bidderID:'ordinary-rival',bidderName:'外資系大手',status:'active'}];assert.equal(adapter.getPEUIData({dealId:'deal-final',bidPrice:100}).bid.recommendDrop,false,'a rival name alone never marks competition aggressive');
+state.maDealRooms[0].competingBids=[{bidderID:'foreign-major',bidderName:'名称変更後でも判定',status:'active'}];const aggressiveBid=adapter.getPEUIData({dealId:'deal-final',bidPrice:100}).bid;assert.equal(aggressiveBid.recommendDrop,true,'an aggressive participant ID emphasizes drop');assert.equal(aggressiveBid.participants[0].aggressiveness,1.06,'participant includes existing rival aggressiveness metadata');
+state.maDealRooms[0].competingBids=[];state.peFirm.funds[0].cash=200;assert.equal(adapter.getPEUIData({dealId:'deal-final',bidPrice:100}).bid.recommendDrop,false,'meeting the deployment gate alone does not emphasize drop');assert.equal(adapter.getPEUIData({dealId:'deal-final',bidPrice:114}).bid.recommendDrop,true,'deployment met plus a bid at 95% of maximum emphasizes drop');
+function deadlineSeverity(weeksRemaining,cash){state={week:100,peFirm:{unlocked:true,funds:[{id:'deadline-fund',size:1000,cash,status:'investing',investmentDeadlineWeek:100+weeksRemaining,deals:[]}]},peNetwork:{nodes:[]}};return adapter.getPEUIData().dashboard.investmentPeriod.severity;}
+assert.equal(deadlineSeverity(66,600),'normal','more than one quarter remains normal');
+assert.equal(deadlineSeverity(65,600),'warning','one quarter remaining and deployment below gate warns');
+assert.equal(deadlineSeverity(10,600),'warning','ten weeks remaining is still warning');
+assert.equal(deadlineSeverity(9,600),'critical','fewer than ten weeks remaining is critical');
+assert.equal(deadlineSeverity(9,200),'normal','meeting the deployment gate suppresses deadline pressure');
+assert.match(component,/資金消化条件未達 → 次号ファンド組成条件を満たせません/,'critical deadline states the formation gate consequence precisely');assert.match(component,/未投資 \${esc\(m\.capital\.undeployedLabel\)}/,'critical bar keeps undeployed capital as a separate fact');
 state={week:1,peFirm:{unlocked:true}};assert.doesNotThrow(()=>adapter.getPEUIData(),'legacy optional PE state must be safe');
 state={week:100,peFirm:{unlocked:true,funds:[{id:'fund-2',size:1000,cash:0,status:'investing',investmentDeadlineWeek:300,deals:[{id:'safe',status:'active',portfolioCompany:{sideEffect:false}},{id:'drag',name:'副作用案件',status:'active',portfolioCompany:{sideEffect:true}}]}]},peNetwork:{nodes:[{id:'near',sourceType:'地域銀行',trust:63,lastContactWeek:90},{id:'lost',sourceType:'会計士',trust:59,lastContactWeek:90}]}};
 const alerts=adapter.getPEUIData().dashboard.decisions;
