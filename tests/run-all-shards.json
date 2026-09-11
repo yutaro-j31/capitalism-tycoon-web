@@ -153,6 +153,7 @@
     "tests/static-asset-cache-coherence-test.js",
     "tests/pe-ui-phase1-test.js",
     "tests/pe-exit-preview-test.js",
-    "tests/pe-management-context-test.js"
+    "tests/pe-management-context-test.js",
+    "tests/pe-portfolio-weekly-settlement-test.js"
   ]
 }
