@@ -709,49 +709,46 @@ function spendCoinvestment(fund,amount){
 //   4. ファンド分はフルのキャリー率、共同投資分はその半分（COINVEST_CARRY_FACTOR）
 //   5. 残りをそれぞれの出し手へ返す
 // 二重徴収防止: 決済済みの案件（deal.settlement あり）は再決済しない。
-function settleExitProceeds(state,fund,deal,proceeds,week){
-  if(!state||!fund||!deal)return null;
-  ensure(state);
-  if(deal.settlement)return deal.settlement;
+function calculateExitSettlement(fund,deal,proceeds,week){
+  if(!fund||!deal)return null;
   const gross=Math.max(0,finite(proceeds));
   const fundPortion=Math.max(0,finite(deal.fundPortion));
   const coinvestPortion=Math.max(0,finite(deal.coinvestPortion));
   const invested=fundPortion+coinvestPortion;
   const fundShare=invested>0?gross*fundPortion/invested:gross;
   const coinvestShare=invested>0?gross*coinvestPortion/invested:0;
-  const w=Math.max(0,Math.floor(finite(week,finite(state.week,0))));
+  const w=Math.max(0,Math.floor(finite(week,finite(deal.acquiredWeek,0))));
   const years=Math.max(0,(w-finite(deal.acquiredWeek,w))/52);
   const hurdle=Math.max(0,finite(fund.terms?.hurdle));
   const hurdleFactor=Math.pow(1+hurdle,years)-1;
   const fullCarry=Math.max(0,finite(fund.terms?.carry));
-
   const fundProfit=Math.max(0,fundShare-fundPortion);
   const fundHurdleAmount=fundPortion*hurdleFactor;
   const fundCarry=Math.max(0,fundProfit-fundHurdleAmount)*fullCarry;
   const coinvestProfit=Math.max(0,coinvestShare-coinvestPortion);
   const coinvestHurdleAmount=coinvestPortion*hurdleFactor;
   const coinvestCarry=Math.max(0,coinvestProfit-coinvestHurdleAmount)*fullCarry*COINVEST_CARRY_FACTOR;
-
   const distributedToFund=Math.max(0,fundShare-fundCarry);
   const returnedToCoinvestors=Math.max(0,coinvestShare-coinvestCarry);
-  const gpCarry=fundCarry+coinvestCarry;
-  // 分配（元本＋利益、キャリー控除後）。GPの出資持分ぶんは個人資産へ戻る（T21）。
-  const gpPrincipalAndGain=distributeToInvestors(state,fund,distributedToFund);
-  // 共同投資家への返却は、ファンドの累計と共同投資家の勘定（残高）の両方に記録する（T26-1）。
-  fund.coinvestReturned=Math.max(0,finite(fund.coinvestReturned))+returnedToCoinvestors;
-  if(returnedToCoinvestors>0)state.peFirm.coinvestCapital=Math.max(0,finite(state.peFirm.coinvestCapital))+returnedToCoinvestors;
-  if(gpCarry>0){state.personalCash=finite(state.personalCash)+gpCarry;fund.gpCarryPaid=Math.max(0,finite(fund.gpCarryPaid))+gpCarry;}
-  const settlement={
-    grossProceeds:gross,
-    fundShare,coinvestShare,
+  return {
+    grossProceeds:gross,fundShare,coinvestShare,
     fundPrincipalReturned:Math.min(fundShare,fundPortion),
     coinvestPrincipalReturned:Math.min(coinvestShare,coinvestPortion),
     hurdleFactor,fundHurdleAmount,coinvestHurdleAmount,
-    fundCarry,coinvestCarry,gpCarry,
-    gpPrincipalAndGain,
-    distributedToFund,returnedToCoinvestors,
-    settledWeek:w
+    fundCarry,coinvestCarry,gpCarry:fundCarry+coinvestCarry,
+    gpPrincipalAndGain:distributedToFund*gpShareOfFund(fund),
+    distributedToFund,returnedToCoinvestors,settledWeek:w
   };
+}
+function settleExitProceeds(state,fund,deal,proceeds,week){
+  if(!state||!fund||!deal)return null;
+  ensure(state);
+  if(deal.settlement)return deal.settlement;
+  const settlement=calculateExitSettlement(fund,deal,proceeds,finite(week,finite(state.week,0)));
+  distributeToInvestors(state,fund,settlement.distributedToFund);
+  fund.coinvestReturned=Math.max(0,finite(fund.coinvestReturned))+settlement.returnedToCoinvestors;
+  if(settlement.returnedToCoinvestors>0)state.peFirm.coinvestCapital=Math.max(0,finite(state.peFirm.coinvestCapital))+settlement.returnedToCoinvestors;
+  if(settlement.gpCarry>0){state.personalCash=finite(state.personalCash)+settlement.gpCarry;fund.gpCarryPaid=Math.max(0,finite(fund.gpCarryPaid))+settlement.gpCarry;}
   deal.settlement=settlement;
   return settlement;
 }
@@ -901,7 +898,7 @@ modules.peFund=Object.freeze({
   MANAGEMENT_FEE_PER_HEAD,TEAM_CAP,MIN_TICKET_PER_DEAL,MAX_DEAL_SHARE_OF_FUND,SLOT_CAP_ABSOLUTE,FIRST_FUND_HOLD_WEEKS,LATER_FUND_HOLD_WEEKS,
   teamCapacity,slotCapacity,maxSingleDealSize,activeDealCount,attentionRatio,attentionMultiplier,optimalHoldWeeks,
   DD_SLOTS_BASE,DD_SLOTS_PER_PARTNER_DIVISOR,DD_YEAR_WEEKS,partnerCount,computeDDSlotsPerYear,ddSlotsPerYear,ddPeriodIndex,currentDDUsage,ddSlotsRemaining,consumeDDSlot,
-  COINVEST_CAP_MULTIPLE,COINVEST_CARRY_FACTOR,coinvestCapacity,coinvestCommitted,coinvestRemaining,annualManagementFee,processManagementFeePeriods,planDealFinancing,recordCoinvestment,spendCoinvestment,settleExitProceeds,
+  COINVEST_CAP_MULTIPLE,COINVEST_CARRY_FACTOR,coinvestCapacity,coinvestCommitted,coinvestRemaining,annualManagementFee,processManagementFeePeriods,planDealFinancing,recordCoinvestment,spendCoinvestment,calculateExitSettlement,settleExitProceeds,
   __installed:true
 });
 })();
