@@ -13,7 +13,7 @@ assert.match(component,/investmentPeriod\.severity/,'deadline severity must come
 assert.doesNotMatch(adapterSource,/registerUIEnhancer|registerEnhancer/,'PE adapter must not add a duplicate startup enhancer');
 assert.match(fs.readFileSync('js/d-ui-shell.js','utf8'),/CapitalismTycoonPEUI\?\.render\?\.\(\)/,'PE UI must render through the existing D UI lifecycle');
 assert.match(component,/model\.dashboard/);assert.match(component,/model\.deals/);assert.match(component,/model\.bid/);
-assert.match(component,/data-pe-submit>入札する<\/button><button class="btn secondary" type="button" data-pe-drop>降りる/);
+assert.match(component,/decisionButtons\(d\.recommendDrop\)/,'bid buttons consume only the adapter recommendation');
 assert.match(css,/\.pe-decision-row \.btn\{min-height:50px/);
 assert.doesNotMatch(adapterSource,/Math\.random|Date\.now|performance\.now|randomUUID/);
 
@@ -31,6 +31,10 @@ assert.deepEqual(Object.keys(data.dashboard).sort(),['capital','dealCount','deci
 assert.deepEqual(data.dashboard.decisions.map(x=>x.priority),[1,2,3],'decisions must follow P1 > P2 > P3 and be capped');
 assert.equal(data.dashboard.decisions.length,3,'decision list must be capped at three');
 assert.equal(data.deals[0].participants[0].name,'Rival');assert.equal(data.bid.valuation.minimum,90);
+assert.equal(data.bid.recommendDrop,false,'a low bid without other risk signals keeps bid emphasized');
+assert.equal(adapter.getPEUIData({dealId:'deal-final',bidPrice:119}).bid.recommendDrop,true,'a bid in the upper tenth of the range emphasizes drop');
+state.maDealRooms[0].competingBids=[{bidderID:'r2',bidderName:'外資系大手',status:'active'}];assert.equal(adapter.getPEUIData({dealId:'deal-final',bidPrice:100}).bid.recommendDrop,true,'an aggressive participant emphasizes drop');
+state.maDealRooms[0].competingBids=[];state.peFirm.funds[0].cash=200;assert.equal(adapter.getPEUIData({dealId:'deal-final',bidPrice:100}).bid.recommendDrop,true,'meeting the deployment gate emphasizes drop');
 function deadlineSeverity(weeksRemaining,cash){state={week:100,peFirm:{unlocked:true,funds:[{id:'deadline-fund',size:1000,cash,status:'investing',investmentDeadlineWeek:100+weeksRemaining,deals:[]}]},peNetwork:{nodes:[]}};return adapter.getPEUIData().dashboard.investmentPeriod.severity;}
 assert.equal(deadlineSeverity(66,600),'normal','more than one quarter remains normal');
 assert.equal(deadlineSeverity(65,600),'warning','one quarter remaining and deployment below gate warns');
