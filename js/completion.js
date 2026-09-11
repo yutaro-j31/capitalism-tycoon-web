@@ -1,5 +1,8 @@
 // Script boundary: js/completion.js (classic JavaScript)
 (function(){'use strict';
+// T25-2: 上限の出どころは js/engine.js の LOG_ARRAY_CAPS（週次normalizeでも同じ表が効く）。
+function cxLogCap(key){return globalThis.__capitalismTycoonModules.engine.LOG_ARRAY_CAPS[key];}
+
 if(!globalThis.__capitalismTycoonModules)throw new Error('Capitalism Tycoon runtime.js must be loaded before completion.js.');
 var __modules=globalThis.__capitalismTycoonModules;
 if(__modules.completion)throw new Error('Capitalism Tycoon completion module is already registered.');
@@ -128,7 +131,7 @@ function installCompletion(TycoonEngine){
 
   TycoonEngine.prototype.startMediaAction=function(kind){
     const a=MEDIA_ACTIONS.find(x=>x.id===kind);if(!a)return false;if(this.g.companyCash<a.cost)return this.fail('広報予算が不足しています。');this.g.companyCash-=a.cost;
-    this.g.mediaCampaigns.push({id:cxUID(),...cxCopy(a),status:'active',startedWeek:this.g.week,endWeek:this.g.week+a.weeks,progress:0});this.g.mediaActionLog.unshift(`第${this.g.week}週：${a.name}を開始。`);this.notify(`${a.name}を開始しました。`,'success');this.save();this.emit();return true;
+    this.g.mediaCampaigns.push({id:cxUID(),...cxCopy(a),status:'active',startedWeek:this.g.week,endWeek:this.g.week+a.weeks,progress:0});this.g.mediaActionLog.unshift(`第${this.g.week}週：${a.name}を開始。`);this.g.mediaActionLog=this.g.mediaActionLog.slice(0,cxLogCap('mediaActionLog'));this.notify(`${a.name}を開始しました。`,'success');this.save();this.emit();return true;
   };
 
   TycoonEngine.prototype.acceptProductBuyoutOffer=function(id){
@@ -170,7 +173,7 @@ function installCompletion(TycoonEngine){
     // Transport rebuild.
     for(const p of g.transportRebuildProjects.filter(x=>x.status==='active')){p.progress=cxClamp(p.progress+100/p.weeks,0,100);if(p.progress>=100){p.status='completed';p.completedWeek=g.week;const sub=[...g.maSubsidiaries,...g.subsidiaries].find(x=>x.id===p.subID);if(sub){sub.growth=cxNum(sub.growth)+p.growth;if('operatingProfit'in sub)sub.operatingProfit=cxNum(sub.operatingProfit)*(1+p.margin*5);sub.valuation=cxNum(sub.valuation)*(1+.08+p.growth);}g.transportRebuildLog.unshift(`第${g.week}週：${p.subName}の${p.name}が完了。`);g.news.unshift(`第${g.week}週：${p.subName}の交通・物流再編が完了しました。`);}}
     // Media and social reputation.
-    g.socialMediaHeat=cxClamp(g.socialMediaHeat*.94,0,1);for(const c of g.mediaCampaigns.filter(x=>x.status==='active')){c.progress=cxClamp(c.progress+100/Math.max(1,c.weeks),0,100);g.companyReputation=cxClamp(g.companyReputation+c.rep/Math.max(1,c.weeks),0,100);g.personalFame=cxClamp(g.personalFame+c.fame/Math.max(1,c.weeks),0,100);g.socialMediaReputation=cxClamp(g.socialMediaReputation+c.rep*.7/Math.max(1,c.weeks),0,100);g.socialMediaHeat=cxClamp(g.socialMediaHeat+c.heat/Math.max(1,c.weeks),0,1);if(g.week>=c.endWeek||c.progress>=100){c.status='completed';g.mediaActionLog.unshift(`第${g.week}週：${c.name}が完了。`);}}
+    g.socialMediaHeat=cxClamp(g.socialMediaHeat*.94,0,1);for(const c of g.mediaCampaigns.filter(x=>x.status==='active')){c.progress=cxClamp(c.progress+100/Math.max(1,c.weeks),0,100);g.companyReputation=cxClamp(g.companyReputation+c.rep/Math.max(1,c.weeks),0,100);g.personalFame=cxClamp(g.personalFame+c.fame/Math.max(1,c.weeks),0,100);g.socialMediaReputation=cxClamp(g.socialMediaReputation+c.rep*.7/Math.max(1,c.weeks),0,100);g.socialMediaHeat=cxClamp(g.socialMediaHeat+c.heat/Math.max(1,c.weeks),0,1);if(g.week>=c.endWeek||c.progress>=100){c.status='completed';g.mediaActionLog.unshift(`第${g.week}週：${c.name}が完了。`);g.mediaActionLog=g.mediaActionLog.slice(0,cxLogCap('mediaActionLog'));}}
     if(g.socialMediaHeat>.72&&Math.random()<.08){g.companyReputation=cxClamp(g.companyReputation-2.5,0,100);g.socialMediaReputation=cxClamp(g.socialMediaReputation-5,0,100);g.news.unshift(`第${g.week}週：SNSで批判が拡散し、企業評判が低下しました。`);}
     // Product acquisition offers.
     g.productBuyoutOffers.forEach(x=>{if(x.status==='pending'&&x.expiresWeek<g.week)x.status='expired';});if(!g.isCompanySold&&g.week-g.lastProductOfferGenerationWeek>=8&&g.productBuyoutOffers.filter(x=>x.status==='pending').length<3){const candidates=g.productVentures.filter(p=>p.status==='released'&&p.valuation>=10000000&&!g.productBuyoutOffers.some(o=>o.productID===p.id&&o.status==='pending'));if(candidates.length&&Math.random()<.16){const p=cxPick(candidates),amount=Math.max(p.valuation,p.profit*52*8)*cxRand(1.05,1.75);g.productBuyoutOffers.unshift({id:cxUID(),productID:p.id,productName:p.name,buyerName:cxPick(['大手IT企業','海外テック企業','事業会社CVC','PEファンド']),offerAmount:amount,premium:amount/Math.max(1,p.valuation)-1,createdWeek:g.week,expiresWeek:g.week+8,status:'pending'});g.lastProductOfferGenerationWeek=g.week;g.news.unshift(`第${g.week}週：${p.name}に${Math.round(amount).toLocaleString()}円の買収提案が届きました。`);}}

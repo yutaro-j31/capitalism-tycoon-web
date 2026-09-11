@@ -214,13 +214,13 @@ function createInitialState(options = {}) {
     totalAcquisitions: 0, totalMAGain: 0, totalImpairmentLoss: 0,
     productVentures: [], productBuyoutOffers: [], productExitCount: 0, formalProductLaunchCount: 0,
     franchiseStoresByBusinessID: {}, franchiseRoyaltyRateByBusinessID: {}, franchiseQualityByBusinessID: {}, franchiseTrustByBusinessID: {},
-    overseasSubsidiaries: [], personalInvestments: [], luxuryAssets: [], sportsTeams: [], peDeals: [],
+    overseasSubsidiaries: [], personalInvestments: [], luxuryAssets: [], sportsTeams: [], peDeals: [], peRivals: [],
     cxoExecutives: [], executiveDirectives: [], departmentCampaigns: [], internalVentureProposals: [], internalVentures: [],
     employeeSatisfaction: 55, employeeAbility: 50, wageLevel: 1, benefitLevel: 1, remoteWorkEnabled: false,
     organizationCulture: {morale:55, innovation:30, compliance:40, turnoverRate:.08},
     autoManage: false, autoManageStyle: 'balanced', autoExecutiveManagementEnabled: false,
     esgScore: 0, complianceLevel: 0, globalPrestige: 0, founderAge: 20, founderGeneration: 1,
-    macroCrisis: null, scheduledPayments: [],
+    macroCrisis: null, scheduledPayments: [], currentCompanyFoundedInvestment: 8_000_000,
     reports: [], lastReport: null, weeklySalesHistory: [], weeklyProfitHistory: [], companyValueHistory: [], personalNetWorthHistory: [],
     news: ['会社を設立しました。最初の店舗を探しましょう。'], history: [], competitorEvents: [], productEvents: [],
     activeMissionIDs: ['mission_setup'], completedMissionIDs: [], achievements: [], unlockedEndings: [],
@@ -323,6 +323,29 @@ function normalizeObjectMap(state, key, defaultValue = {}) {
   if (!isPlainObject(value)) throw new Error(`${key}はオブジェクトである必要があります。`);
 }
 
+// T25-2: 週次で追記され続けるログ配列の上限。書き込み側ごとにsliceを足す方式は
+// `startupFundingHistory` で実際に1箇所だけ漏れて100年セーブが4.6MB肥大した前例があるため、
+// 週次のnormalizeが必ず通るこの1箇所を最終的な境界にする（書き込み側にもsliceを置くが、
+// 新しい書き込み経路が増えてもここで必ず切り詰まる）。
+// いずれも unshift（新しい順に積む）ので、先頭＝最新から LOG_ARRAY_CAP 件を残す。
+const LOG_ARRAY_CAP = 200;
+// T26-0: ventureForumEvents を追加。元は push（末尾が最新）で積まれていたが、上限の方向を
+// 配列ごとに変えると「最新側を捨てる」取り違えが起きるので、書き込み側を unshift へ揃えて
+// この1つの表に集約する（status/expiresWeek で絞って読まれるので順序の反転は影響しない）。
+const LOG_ARRAY_CAPS = Object.freeze({
+  shareholderEventLog: LOG_ARRAY_CAP,
+  mediaActionLog: LOG_ARRAY_CAP,
+  industryAwards: LOG_ARRAY_CAP,
+  ventureForumEvents: LOG_ARRAY_CAP
+});
+function capLogArrays(state) {
+  if (!state) return state;
+  for (const [key, cap] of Object.entries(LOG_ARRAY_CAPS)) {
+    if (Array.isArray(state[key]) && state[key].length > cap) state[key] = state[key].slice(0, cap);
+  }
+  return state;
+}
+
 function deepNormalizeState(state) {
   for (const [key, kind] of Object.entries(ARRAY_ENTITY_KINDS)) normalizeArrayEntityList(state, key, kind);
   if (!Array.isArray(state.purchaseOrders)) state.purchaseOrders = [];
@@ -330,6 +353,7 @@ function deepNormalizeState(state) {
     if (state[key] === undefined || state[key] === null) state[key] = [];
     if (!Array.isArray(state[key])) throw new Error(`${key}は配列である必要があります。`);
   }
+  capLogArrays(state);
   for (const key of ['personalStocks','companyStocks']) normalizeHoldingMap(state, key);
   for (const key of ['departments','departmentStaff','franchiseStoresByBusinessID','franchiseRoyaltyRateByBusinessID','franchiseQualityByBusinessID','franchiseTrustByBusinessID','organizationCulture','settings','inventoryByBusinessID','inventoryByStoreID','supplySettingsByStoreID','supplyResultsByStoreID','supplyResultsByBusinessID','customerSegmentsByBusinessID','marketShareByBusinessID','productFunnels','quarterlyStockResults','startupFundingHistory','startupQuarterlyReports','localReputationByPref','hallOfRecords','expandedWeeklyAdjustments']) normalizeObjectMap(state, key);
   return state;
@@ -581,6 +605,9 @@ class TycoonEngine extends EventTarget {
 
   normalize() {
     this.g.saveVersion = SAVE_VERSION; supply.ensure(this.g); workforce.ensure(this.g); competitor.ensure(this.g); workforce.recompute(this.g);
+    // T25-2: 追記され続けるログ配列の上限。normalize は週送りでも毎回通るので、書き込み側の
+    // slice が将来漏れてもここが最終的な境界になる（LOG_ARRAY_CAPS が唯一の出どころ）。
+    capLogArrays(this.g);
     this.g.market = (this.g.market || []).map(s => { const stock={...s, price: Math.max(1, finite(s.price,100)), previous: Math.max(1,finite(s.previous,s.price))}; stock.priceHistory = normalizeStockPriceHistory(stock, this.g.week); return stock; });
     this.g.businesses = (this.g.businesses || []).map(b => ({...b, price: Math.max(1,finite(b.price,100)), unitCost: Math.max(0,finite(b.unitCost)), demand: Math.max(1,finite(b.demand,10))}));
     this.g.stores = (this.g.stores || []).map(s => {
@@ -1873,13 +1900,16 @@ class TycoonEngine extends EventTarget {
   }
   generateRecurringEvents() {
     if(this.g.week%13===0){this.g.news.unshift(`第${this.g.week}週：四半期決算を発表しました。`);if(this.g.boardEstablished)this.g.boardAgendas=[{id:uuid(),title:'成長投資枠の承認',detail:'次四半期の投資予算を決定',cost:5_000_000,effect:'成長',approved:false},{id:uuid(),title:'財務規律の強化',detail:'借入削減と信用改善',cost:2_000_000,effect:'信用',approved:false}];}
-    if(this.g.departments.investment&&this.g.acquisitionTargets.length<3&&this.g.week%8===0)this.generateMATargets(true);
+    if(this.g.departments.investment&&this.g.acquisitionTargets.filter(t=>!t?.peTierID).length<3&&this.g.week%8===0)this.generateMATargets(true);
     if(this.g.departments.product&&this.g.internalVentureProposals.length===0&&Math.random()<.08)this.proposeInternalVenture();
     if(!this.g.publicCompany&&this.g.hasHeadOffice&&this.g.week%6===0&&this.g.investorOffers.filter(o=>o.status==='pending').length<2)this.refreshInvestorOffers();
     for(const o of this.g.investorOffers)if(o.status==='pending'&&this.g.week>o.expiresWeek)o.status='expired';
     if(this.g.startups.filter(s=>s.alive&&!s.subsidiary&&!s.ipoStockID).length<3&&Math.random()<.02+this.g.founderNetworkLevel/2000)this.refreshStartupDealFlow();
     if(this.g.publicCompany&&this.companyValue()>1_000_000_000&&Math.random()<.005)this.g.news.unshift(`第${this.g.week}週：同業大手から自社買収の打診が届いています。`);
     if(this.g.news.length>300)this.g.news=this.g.news.slice(0,300);
+    // T25-2: news/history と同じ週次の切り詰めライン。normalize は週送りの経路（runTransaction）
+    // では必ず通るとは限らないため、ログ配列の上限はここでも毎週必ず適用する。
+    capLogArrays(this.g);
   }
 
   exportSave() {
@@ -1908,7 +1938,7 @@ function gameDate(week){
     fullLabel:`${year}年目 ${month}月${day}日`};
 }
 
-Object.assign(exports,{SIMULATION_SYSTEMS,SIMULATION_DEPTH_LABEL,businessSimulationDepth,FOUNDABLE_BUSINESS_IDS,VALUATION_OBSERVATION_WEEKS,storeWeeksTraded,storeNormalizedProfit,storeEarningsValue,SAVE_KEY,SAVE_VERSION,clamp,finite,uuid,yen,compactYen,pct,rand,pick,gameDate,createInitialState,mergeDefaults,detectSaveVersion,migrateSave, normalizeStockPriceHistory,migrateUnversionedToV1,migrateV1ToV2,migrateV2ToV3,migrateV3ToV4,migrateV4ToV5,migrateV5ToV6,deepNormalizeState,validateMigratedState,TycoonEngine});
+Object.assign(exports,{LOG_ARRAY_CAP,LOG_ARRAY_CAPS,SIMULATION_SYSTEMS,SIMULATION_DEPTH_LABEL,businessSimulationDepth,FOUNDABLE_BUSINESS_IDS,VALUATION_OBSERVATION_WEEKS,storeWeeksTraded,storeNormalizedProfit,storeEarningsValue,SAVE_KEY,SAVE_VERSION,clamp,finite,uuid,yen,compactYen,pct,rand,pick,gameDate,createInitialState,mergeDefaults,detectSaveVersion,migrateSave, normalizeStockPriceHistory,migrateUnversionedToV1,migrateV1ToV2,migrateV2ToV3,migrateV3ToV4,migrateV4ToV5,migrateV5ToV6,deepNormalizeState,validateMigratedState,TycoonEngine});
 })(__modules.engine={},__modules.data,__modules.market,__modules.finance,__modules.supply,__modules.workforce,__modules.competitor);
 
 })();

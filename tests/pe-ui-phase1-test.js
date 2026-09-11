@@ -1,0 +1,44 @@
+const assert=require('node:assert/strict');
+const fs=require('node:fs');
+const {load}=require('./ma-deal-room-test-helpers');
+
+const component=fs.readFileSync('js/pe-ui.js','utf8');
+const adapterSource=fs.readFileSync('js/pe-ui-adapter.js','utf8');
+const css=fs.readFileSync('css/d-ui-pe.css','utf8');
+const html=fs.readFileSync('index.html','utf8');
+assert.match(html,/pe-ui-adapter\.js[^]*pe-ui\.js/,'adapter must load before components');
+assert.doesNotMatch(component,/state\.|engine\.|peFirm|maDealRooms|__capitalismTycoonModules|modules\./,'components must only consume the normalized adapter contract');
+assert.doesNotMatch(component,/weeksRemaining\s*[<>=]/,'deadline thresholds belong in the adapter');
+assert.match(component,/investmentPeriod\.severity/,'deadline severity must come from adapter output');
+assert.doesNotMatch(adapterSource,/registerUIEnhancer|registerEnhancer/,'PE adapter must not add a duplicate startup enhancer');
+assert.match(fs.readFileSync('js/d-ui-shell.js','utf8'),/CapitalismTycoonPEUI\?\.render\?\.\(\)/,'PE UI must render through the existing D UI lifecycle');
+assert.match(component,/model\.dashboard/);assert.match(component,/model\.deals/);assert.match(component,/model\.bid/);
+assert.match(component,/data-pe-submit>入札する<\/button><button class="btn secondary" type="button" data-pe-drop>降りる/);
+assert.match(css,/\.pe-decision-row \.btn\{min-height:50px/);
+assert.doesNotMatch(adapterSource,/Math\.random|Date\.now|performance\.now|randomUUID/);
+
+let state;
+const pf={NEXT_FUND_MIN_DPI:1.2,NEXT_FUND_MIN_DEPLOYMENT:.8,INVESTMENT_PERIOD_WEEKS:260,slotCapacity:()=>2,activeDealCount:()=>0,currentDDUsage:()=>({used:1}),ddSlotsPerYear:()=>3,ddSlotsRemaining:()=>2,fundDPI:()=>1.1,fundDeploymentRate:()=>.4,requiredDeploymentRate:()=>.8};
+const seller={founderRetirement:{name:'創業オーナー',wants:'雇用維持',termID:'employment',termLabel:'雇用を維持'}};
+const ma={activeStatuses:()=>new Set(['indication','final_bid']),SELLER_TYPES:seller,STATUS_LABELS:{indication:'意向表明',final_bid:'最終入札'},recommendedOfferRange:(_s,_t,_d,{acceptSellerTerm})=>({recommendedMinimumPrice:acceptSellerTerm?90:100,recommendedMaximumPrice:acceptSellerTerm?110:120,confidence:.65,sellerTermEquivalentDiscount:acceptSellerTerm?10:0})};
+globalThis.__capitalismTycoonModules={peFund:pf,maDealRoom:ma,pePortfolioOperations:{leverFactors:pc=>pc.sideEffect?{procurementDrag:.1,laborDrag:0,sideEffectFactor:.9}:{procurementDrag:0,laborDrag:0,sideEffectFactor:1}},peNetwork:{MONOPOLY_TRUST_THRESHOLD:60},playerEngineBridge:{getEngine:()=>state?{g:state}:null},dUIShell:{money:v=>`${v}円`},uiEnhancerRegistry:{registerUIEnhancer(){}}};
+delete require.cache[require.resolve('../js/pe-ui-adapter.js')];require('../js/pe-ui-adapter.js');const adapter=globalThis.CapitalismTycoonPEUIAdapter;
+assert.deepEqual(adapter.getPEUIData(),{unlocked:false,navigation:adapter.NAVIGATION,dashboard:null,deals:[],bid:null},'missing state must use safe defaults');
+state={week:240,peFirm:{unlocked:true,funds:[{id:'fund-1',size:1000,cash:600,status:'investing',investmentDeadlineWeek:260,deals:[]}]},acquisitionTargets:[{id:'final',name:'最終案件',industry:'物流',peTierID:'small',sellerType:'founderRetirement',dealStatus:'open',expiresWeek:243,activeDealID:'deal-final'},{id:'dd',name:'DD案件',industry:'食品',peTierID:'small',sellerType:'founderRetirement',dealStatus:'open',expiresWeek:245,activeDealID:'deal-dd'}],maDealRooms:[{id:'deal-final',targetID:'final',status:'final_bid',deadlineWeek:241,competingBids:[{bidderID:'r1',bidderName:'Rival',status:'active'}]},{id:'deal-dd',targetID:'dd',status:'indication',deadlineWeek:243,competingBids:[]}],peNetwork:{nodes:[]}};
+const before=JSON.stringify(state),data=adapter.getPEUIData({dealId:'deal-final',acceptSellerTerm:true});
+assert.equal(JSON.stringify(state),before,'adaptation and bid preview must not mutate production state');
+assert.deepEqual(Object.keys(data.dashboard).sort(),['capital','dealCount','decisions','diligence','fund','investmentPeriod','performance','slots'].sort());
+assert.deepEqual(data.dashboard.decisions.map(x=>x.priority),[1,2,3],'decisions must follow P1 > P2 > P3 and be capped');
+assert.equal(data.dashboard.decisions.length,3,'decision list must be capped at three');
+assert.equal(data.deals[0].participants[0].name,'Rival');assert.equal(data.bid.valuation.minimum,90);
+state={week:1,peFirm:{unlocked:true}};assert.doesNotThrow(()=>adapter.getPEUIData(),'legacy optional PE state must be safe');
+state={week:100,peFirm:{unlocked:true,funds:[{id:'fund-2',size:1000,cash:0,status:'investing',investmentDeadlineWeek:300,deals:[{id:'safe',status:'active',portfolioCompany:{sideEffect:false}},{id:'drag',name:'副作用案件',status:'active',portfolioCompany:{sideEffect:true}}]}]},peNetwork:{nodes:[{id:'near',sourceType:'地域銀行',trust:63,lastContactWeek:90},{id:'lost',sourceType:'会計士',trust:59,lastContactWeek:90}]}};
+const alerts=adapter.getPEUIData().dashboard.decisions;
+assert.equal(alerts.filter(x=>x.type==='portfolioSideEffect').length,1,'actual leverFactors side effect must produce one P4 alert');
+assert.match(alerts.find(x=>x.type==='portfolioSideEffect').title,/副作用案件/,'side-effect-free portfolio must not be warned');
+assert.equal(alerts.find(x=>x.id==='p5-near').networkStatus,'approachingThreshold','P5 must warn before the production gate is lost');
+assert.equal(alerts.find(x=>x.id==='p5-lost').networkStatus,'lostThreshold','below-gate P5 must be stronger');
+assert.deepEqual(alerts.map(x=>x.priority),[4,5,5],'P4 must remain ahead of P5');
+
+const {dr}=load();const economic={week:12,companyReputation:50,executives:{},acquisitionTargets:[],maDealRooms:[],maTargetTruthByID:{},maDealHistory:[],news:[]},target={id:'pe-ui-target',name:'地域食品',valuation:2e9,sales:1.5e9,operatingProfit:1.6e8,growth:.04,risk:.2,synergy:.08,friendly:true,sellerType:'founderRetirement',maCreatedWeek:12};economic.acquisitionTargets.push(target);dr.ensure(economic);dr.ensureTargetTruth(economic,target);const deal={id:'pe-ui-deal',targetID:target.id,targetStableKey:target.maStableKey,status:'final_bid',deadlineWeek:20,diligenceLevel:'financial',diligenceConfidence:.65,sellerAsk:2.1e9,history:[],findings:[],offerRounds:[],competingBids:[]};economic.maDealRooms.push(deal);const snapshot=JSON.stringify(economic),off=dr.recommendedOfferRange(economic,target,deal),on=dr.recommendedOfferRange(economic,target,deal,{acceptSellerTerm:true});assert.ok(on.recommendedMinimumPrice<off.recommendedMinimumPrice);assert.equal(JSON.stringify(economic),snapshot);
+console.log('pe-ui-phase1-test: adapter contract, priority ordering, purity and production preview passed');

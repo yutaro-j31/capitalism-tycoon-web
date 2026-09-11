@@ -295,7 +295,31 @@ const nodeTests = [
   ['department-closure-plan', 'tests/department-closure-plan-test.js'],
   ['executive-delegation', 'tests/executive-delegation-test.js'],
   ['customer-review-breakdown', 'tests/customer-review-breakdown-test.js'],
-  ['store-comparison-table', 'tests/store-comparison-table-test.js']
+  ['store-comparison-table', 'tests/store-comparison-table-test.js'],
+  ['pe-rivals', 'tests/pe-rivals-test.js'],
+  ['pe-fund', 'tests/pe-fund-test.js'],
+  ['pe-fund-track-record', 'tests/pe-fund-track-record-test.js'],
+  ['pe-fund-dpi', 'tests/pe-fund-dpi-test.js'],
+  ['pe-fund-lp', 'tests/pe-fund-lp-test.js'],
+  ['pe-fund-team-slots', 'tests/pe-fund-team-slots-test.js'],
+  ['pe-fund-dd-slots', 'tests/pe-fund-dd-slots-test.js'],
+  ['pe-industry-tiers', 'tests/pe-industry-tiers-test.js'],
+  ['pe-fund-coinvest', 'tests/pe-fund-coinvest-test.js'],
+  ['pe-network', 'tests/pe-network-test.js'],
+  ['pe-portfolio-operations', 'tests/pe-portfolio-operations-test.js'],
+  ['pe-portfolio-ui', 'tests/pe-portfolio-ui-test.js'],
+  ['pe-deal-supply', 'tests/pe-deal-supply-test.js'],
+  ['pe-acquisition', 'tests/pe-acquisition-test.js'],
+  ['pe-portfolio-levers', 'tests/pe-portfolio-levers-test.js'],
+  ['pe-network-sourcing', 'tests/pe-network-sourcing-test.js'],
+  ['pe-fund-formation', 'tests/pe-fund-formation-test.js'],
+  ['pe-accounting-model', 'tests/pe-accounting-model-test.js'],
+  ['pe-fund-ladder', 'tests/pe-fund-ladder-test.js'],
+  ['pe-return-calibration', 'tests/pe-return-calibration-test.js'],
+  ['pe-fund-gate-rescue', 'tests/pe-fund-gate-rescue-test.js'],
+  ['log-array-caps', 'tests/log-array-caps-test.js'],
+  ['pe-coinvest-ledger', 'tests/pe-coinvest-ledger-test.js'],
+  ['pe-ui-phase1', 'tests/pe-ui-phase1-test.js']
 ];
 
 for (let i = 0; i < nodeTests.length; i++) {
