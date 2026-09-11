@@ -18,7 +18,7 @@ assert.match(css,/\.pe-decision-row \.btn\{min-height:50px/);
 assert.doesNotMatch(adapterSource,/Math\.random|Date\.now|performance\.now|randomUUID/);
 
 let state;
-const pf={NEXT_FUND_MIN_DPI:1.2,NEXT_FUND_MIN_DEPLOYMENT:.8,INVESTMENT_PERIOD_WEEKS:260,slotCapacity:()=>2,activeDealCount:()=>0,currentDDUsage:()=>({used:1}),ddSlotsPerYear:()=>3,ddSlotsRemaining:()=>2,fundDPI:()=>1.1,fundDeploymentRate:()=>.4,requiredDeploymentRate:()=>.8};
+const pf={NEXT_FUND_MIN_DPI:1.2,NEXT_FUND_MIN_DEPLOYMENT:.8,INVESTMENT_PERIOD_WEEKS:260,slotCapacity:()=>2,activeDealCount:()=>0,currentDDUsage:()=>({used:1}),ddSlotsPerYear:()=>3,ddSlotsRemaining:()=>2,fundDPI:()=>1.1,fundDeploymentRate:f=>1-f.cash/f.size,requiredDeploymentRate:()=>.8};
 const seller={founderRetirement:{name:'創業オーナー',wants:'雇用維持',termID:'employment',termLabel:'雇用を維持'}};
 const ma={activeStatuses:()=>new Set(['indication','final_bid']),SELLER_TYPES:seller,STATUS_LABELS:{indication:'意向表明',final_bid:'最終入札'},recommendedOfferRange:(_s,_t,_d,{acceptSellerTerm})=>({recommendedMinimumPrice:acceptSellerTerm?90:100,recommendedMaximumPrice:acceptSellerTerm?110:120,confidence:.65,sellerTermEquivalentDiscount:acceptSellerTerm?10:0})};
 globalThis.__capitalismTycoonModules={peFund:pf,maDealRoom:ma,pePortfolioOperations:{leverFactors:pc=>pc.sideEffect?{procurementDrag:.1,laborDrag:0,sideEffectFactor:.9}:{procurementDrag:0,laborDrag:0,sideEffectFactor:1}},peNetwork:{MONOPOLY_TRUST_THRESHOLD:60},playerEngineBridge:{getEngine:()=>state?{g:state}:null},dUIShell:{money:v=>`${v}円`},uiEnhancerRegistry:{registerUIEnhancer(){}}};
@@ -31,6 +31,13 @@ assert.deepEqual(Object.keys(data.dashboard).sort(),['capital','dealCount','deci
 assert.deepEqual(data.dashboard.decisions.map(x=>x.priority),[1,2,3],'decisions must follow P1 > P2 > P3 and be capped');
 assert.equal(data.dashboard.decisions.length,3,'decision list must be capped at three');
 assert.equal(data.deals[0].participants[0].name,'Rival');assert.equal(data.bid.valuation.minimum,90);
+function deadlineSeverity(weeksRemaining,cash){state={week:100,peFirm:{unlocked:true,funds:[{id:'deadline-fund',size:1000,cash,status:'investing',investmentDeadlineWeek:100+weeksRemaining,deals:[]}]},peNetwork:{nodes:[]}};return adapter.getPEUIData().dashboard.investmentPeriod.severity;}
+assert.equal(deadlineSeverity(66,600),'normal','more than one quarter remains normal');
+assert.equal(deadlineSeverity(65,600),'warning','one quarter remaining and deployment below gate warns');
+assert.equal(deadlineSeverity(10,600),'warning','ten weeks remaining is still warning');
+assert.equal(deadlineSeverity(9,600),'critical','fewer than ten weeks remaining is critical');
+assert.equal(deadlineSeverity(9,200),'normal','meeting the deployment gate suppresses deadline pressure');
+assert.match(component,/未投資.*のまま終了 → 次号実績にならず/,'critical deadline explains the track-record consequence');
 state={week:1,peFirm:{unlocked:true}};assert.doesNotThrow(()=>adapter.getPEUIData(),'legacy optional PE state must be safe');
 state={week:100,peFirm:{unlocked:true,funds:[{id:'fund-2',size:1000,cash:0,status:'investing',investmentDeadlineWeek:300,deals:[{id:'safe',status:'active',portfolioCompany:{sideEffect:false}},{id:'drag',name:'副作用案件',status:'active',portfolioCompany:{sideEffect:true}}]}]},peNetwork:{nodes:[{id:'near',sourceType:'地域銀行',trust:63,lastContactWeek:90},{id:'lost',sourceType:'会計士',trust:59,lastContactWeek:90}]}};
 const alerts=adapter.getPEUIData().dashboard.decisions;
