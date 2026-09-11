@@ -386,40 +386,51 @@ function consolidateSites(state,fundID,dealID){
   return deal;
 }
 
+
+const EXIT_METHODS=Object.freeze([
+  Object.freeze({id:'sale',label:'売却',implemented:true})
+]);
+function rawFundAndDeal(state,fundID,dealID){
+  const funds=arr(state?.peFirm?.funds),fund=funds.find(f=>f?.id===fundID)||null;
+  const deal=fund?arr(fund.deals).find(d=>d?.id===dealID)||null:null;
+  return {fund,deal,fundIndex:fund?funds.indexOf(fund):-1};
+}
+function exitCapabilities(state,fundID,dealID){
+  const {fund,deal}=rawFundAndDeal(state,fundID,dealID);
+  return EXIT_METHODS.map(method=>{
+    const reason=!fund?'fund-not-found':!deal?'deal-not-found':!deal.portfolioCompany?'portfolio-company-not-found':deal.status!=='active'?'deal-not-active':null;
+    return {id:method.id,label:method.label,implemented:method.implemented,eligible:reason===null,reason};
+  });
+}
+function previewPortfolioExit(state,fundID,dealID,{method='sale',week}={}){
+  const {fund,deal,fundIndex}=rawFundAndDeal(state,fundID,dealID),capability=exitCapabilities(state,fundID,dealID).find(x=>x.id===method);
+  const reason=capability?capability.reason:'method-not-supported';
+  const eligibility={eligible:Boolean(capability?.eligible),reason};
+  if(!eligibility.eligible)return {ok:false,fundID,dealID,method,eligibility,reason};
+  const pc=deal.portfolioCompany,score=finite(pc.improvementScore),exitMultiple=finite(deal.acquisitionMultiple,8)*(EXIT_MULTIPLE_FLOOR+score/100*EXIT_MULTIPLE_SCORE_SPAN);
+  const annualEBITDA=finite(deal.enterpriseValue)/Math.max(1,finite(deal.acquisitionMultiple,8));
+  const exitWeek=Math.max(0,Math.floor(finite(week,finite(state?.week))));
+  const lever=leverFactors(pc,exitWeek),marketFactor=tiers.marketPriceLevel(finite(state?.economy,1));
+  const exitEnterpriseValue=annualEBITDA*storeScaleFactor(pc)*lever.revenueFactor*lever.costFactor*exitMultiple*marketFactor;
+  const portfolioCash=finite(pc.cash),grossProceeds=Math.max(0,exitEnterpriseValue+portfolioCash),investedAmount=Math.max(0,finite(deal.investedAmount));
+  return {ok:true,fundID,dealID,method,companyName:String(deal.companyName||deal.businessID||deal.tierID||deal.id),acquisitionPrice:Math.max(0,finite(deal.acquisitionPrice,investedAmount)),investedAmount,fundPortion:Math.max(0,finite(deal.fundPortion)),coinvestPortion:Math.max(0,finite(deal.coinvestPortion)),exitEnterpriseValue,portfolioCash,grossProceeds,holdingWeeks:Math.max(0,exitWeek-finite(deal.acquiredWeek,exitWeek)),optimalHoldingWeeks:pf.optimalHoldWeeks(fundIndex),currentMOIC:investedAmount>0?grossProceeds/investedAmount:0,exitMultiple,marketFactor,settlement:pf.calculateExitSettlement(fund,deal,grossProceeds,exitWeek),eligibility,reason:null};
+}
+
 // Exit（売却/IPO/自分で経営のうち、ここでは売却・IPOによる終了を扱う）。
 // 回収額はファンドへ即時分配（T5: Exit代金は再投資できない）。改善スコアが65を超えると
 // 業界での評判が上がり、従業員を切って売り抜けた場合は逆に評判が下がる（設計書§6.5・§11）。
 function exitPortfolioCompany(state,fundID,dealID,{method='sale',week,cutEmployees=false}={}){
   const {fund,deal}=findFundAndDeal(state,fundID,dealID);
-  if(!fund||!deal||deal.status!=='active')return null;
-  const pc=deal.portfolioCompany;
-  const score=pc.improvementScore;
-  // T23: Exit時の倍率拡大の幅。旧値は 0.7〜1.3 倍で、スコアが張り付くと常に1.3倍の
-  // マルチプル拡大が乗っていた。上限を下げ、下限は上げる（上振れだけを抑え、最悪ケースは
-  // 悪化させない ＝ 救済導線の前提を壊さない）。
-  const exitMultiple=finite(deal.acquisitionMultiple,8)*(EXIT_MULTIPLE_FLOOR+score/100*EXIT_MULTIPLE_SCORE_SPAN);
-  const annualEBITDA=finite(deal.enterpriseValue)/Math.max(1,finite(deal.acquisitionMultiple,8));
-  // 買い手が払うのはExit時点の実力（T18の6レバーの結果）に対して。削りすぎて遅れて客数を
-  // 失っていれば、その分そのまま売却価値が下がる — 経営の判断がExitで返ってくる。
-  const w1=Math.max(0,Math.floor(finite(week,state.week)));
-  const lever=leverFactors(pc,w1);
-  // T23: 売却価格には売る時点の市況が乗る。買う側（案件の表面評価額）は既に同じ市況
-  // （T11 marketPriceLevel）で決まっているので、これで市況が入口と出口の両方に対称に効く。
-  // 不況期に買って好況期に売れば伸び、好況期に買って不況期に売れば縮む — 保有期間の判断が
-  // そのままリターンの分散になる。分散の源であって、悪い方に平均を寄せるための係数ではない。
-  const exitMarket=tiers.marketPriceLevel(finite(state.economy,1));
-  const exitEV=annualEBITDA*storeScaleFactor(pc)*lever.revenueFactor*lever.costFactor*exitMultiple*exitMarket;
-  const proceeds=Math.max(0,exitEV+pc.cash);
-  // T17: 回収額はそのまま fund.distributed に足すのではなく、ウォーターフォール
-  // （元本返済 → ハードル → キャリー → 分配）を通す。共同投資分は共同投資家へ返り、
-  // GPのキャリーは個人資産に入る（js/pe-fund.js settleExitProceeds）。
-  const settlement=pf.settleExitProceeds(state,fund,deal,proceeds,w1);
+  const preview=previewPortfolioExit(state,fundID,dealID,{method,week});
+  if(!fund||!deal||!preview.ok)return null;
+  const pc=deal.portfolioCompany,score=pc.improvementScore;
+  const settlement=pf.settleExitProceeds(state,fund,deal,preview.grossProceeds,preview.settlement.settledWeek);
   deal.status='exited';
-  deal.exitedWeek=w1;
+  deal.exitedWeek=preview.settlement.settledWeek;
   deal.exitMethod=method;
-  deal.exitProceeds=proceeds;
+  deal.exitProceeds=preview.grossProceeds;
   deal.exitScore=score;
-  deal.exitMarketLevel=exitMarket;
+  deal.exitMarketLevel=preview.marketFactor;
   deal.exitSettlement=settlement;
   if(cutEmployees)adjustIndustryReputation(state,deal,-REPUTATION_PENALTY_FOR_CUTS);
   else if(score>=REPUTATION_THRESHOLD)adjustIndustryReputation(state,deal,REPUTATION_BONUS);
@@ -454,9 +465,9 @@ modules.pePortfolioOperations=Object.freeze({
   PROCUREMENT_EBITDA_GAIN,PROCUREMENT_SAFE_LEVEL,PROCUREMENT_QUALITY_DRAG,PROCUREMENT_DELAY_WEEKS,PROCUREMENT_DRAG_RAMP_WEEKS,PROCUREMENT_COST_FRACTION,
   LABOR_EBITDA_GAIN,LABOR_SERVICE_DRAG,LABOR_WAGE_DRAG,LABOR_DELAY_WEEKS,LABOR_DRAG_RAMP_WEEKS,WAGE_MIN,WAGE_MAX,HEADCOUNT_MIN,HEADCOUNT_MAX,
   PRODUCT_MIX_RAMP_WEEKS,PRODUCT_MIX_MAX_GAIN,PRODUCT_MIX_COST_FRACTION,
-  CONSOLIDATION_STEP,CONSOLIDATION_EBITDA_GAIN,UNDERPERFORMING_MIN,UNDERPERFORMING_MAX,
+  CONSOLIDATION_STEP,CONSOLIDATION_EBITDA_GAIN,UNDERPERFORMING_MIN,UNDERPERFORMING_MAX,EXIT_METHODS,
   ensure,findFundAndDeal,defaultPortfolioCompany,normalizePortfolioCompany,acquirePillarCompany,computeImprovementScore,processDealWeek,processPortfolioWeek,
-  setPriceMultiplier,investQuality,expandPortfolioStore,exitPortfolioCompany,install,
+  setPriceMultiplier,investQuality,expandPortfolioStore,exitCapabilities,previewPortfolioExit,exitPortfolioCompany,install,
   delayedProgress,leverFactors,industryTagOf,adjustIndustryReputation,
   reformProcurement,setStaffing,renewProductMix,consolidateSites,
   __installed:true
