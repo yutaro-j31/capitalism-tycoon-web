@@ -18,7 +18,7 @@ const MASTER = {
       "brand": 10,
       "efficiency": 12,
       "dx": 0,
-      "storeCost": 3000000,
+      "storeCost": 1700000,
       "fixedCost": 67500,
       "wage": 52500
     },
