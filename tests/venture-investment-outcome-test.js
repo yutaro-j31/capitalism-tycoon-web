@@ -125,15 +125,30 @@ function nonOperating(loaded, engine) {
   assert.ok(listed, 'the venture is listed');
 
   const costBasis = holding.qty * holding.avg;
-  const proceeds = listed.price * holding.qty * 0.999;
-  const expectedGain = Math.round(proceeds - costBasis);
   const nonOperatingBefore = nonOperating(loaded, engine);
 
-  assert.ok(engine.sellStock(stockID, holding.qty, 'company'), 'the listed holding can be sold');
+  // A single sellStock() order is capped at a fraction of the issued shares (audit fix for
+  // an unbounded-quantity exploit around the 3%-per-order price-impact cap). This IPO's float
+  // is small (1,000,000 shares) relative to the venture holding, so a full exit now spans more
+  // than one order -- the same discipline a real player would face selling a whale position.
+  // Track actual per-tranche proceeds (price moves between tranches) instead of assuming one call.
+  let totalProceeds = 0;
+  let guard = 0;
+  while (engine.g.companyStocks[stockID]) {
+    guard++;
+    assert.ok(guard <= 10, 'the position should fully liquidate in a bounded number of orders');
+    const priceBeforeTranche = engine.g.market.find(row => row.id === stockID).price;
+    const qtyBeforeTranche = engine.g.companyStocks[stockID].qty;
+    assert.ok(engine.sellStock(stockID, qtyBeforeTranche, 'company'), 'the listed holding can be sold (possibly capped per order)');
+    const qtySold = qtyBeforeTranche - (engine.g.companyStocks[stockID]?.qty ?? 0);
+    totalProceeds += priceBeforeTranche * qtySold * 0.999;
+  }
+
+  const expectedGain = Math.round(totalProceeds - costBasis);
   const recognised = Math.round(nonOperating(loaded, engine) - nonOperatingBefore);
-  assert.equal(recognised, expectedGain, 'only the gain over the cost basis is recognised');
+  assert.equal(recognised, expectedGain, 'only the gain over the cost basis is recognised, summed across tranches');
   assert.ok(
-    recognised < Math.round(proceeds),
+    recognised < Math.round(totalProceeds),
     'the proceeds are not recognised as pure profit, which a zero cost basis would have caused'
   );
   assert.equal(balanceGap(loaded, engine), 0, 'selling keeps the sheet balanced');
