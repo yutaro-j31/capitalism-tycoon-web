@@ -179,6 +179,13 @@ function install(){
     this.emit();
     return true;
   };
+  // UIなどのread-only consumer向け。正規化やsaveを行わず、production helperの値を返す。
+  proto.getPEPortfolioExitCapabilities=function(fundID,dealID){
+    return ops.exitCapabilities(this.g,fundID,dealID);
+  };
+  proto.previewPEPortfolioExit=function(fundID,dealID,options={}){
+    return ops.previewPortfolioExit(this.g,fundID,dealID,{...options,week:options.week??this.g.week});
+  };
   // 保有中のポートフォリオ企業のExit（決済はjs/pe-fund.jsのウォーターフォールを通る）。
   proto.exitPEPortfolioCompany=function(fundID,dealID,options={}){
     ds.ensure(this.g);
