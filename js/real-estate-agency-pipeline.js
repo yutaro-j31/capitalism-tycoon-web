@@ -20,19 +20,20 @@ const SEGMENT_CONFIG=Object.freeze({
 const finite=(value,fallback=0)=>Number.isFinite(Number(value))?Number(value):fallback;
 const clamp=(value,min,max)=>Math.min(max,Math.max(min,finite(value,min)));
 const integer=(value,fallback=0)=>Math.max(0,Math.floor(finite(value,fallback)));
-// 立ち上げ期の人件費ランプアップ: 案件パイプラインは開店時ゼロ件から始まり、成約まで
-// 最短でも数週かかる（age>=1で初めて成約判定に入り、そこから確率的に成約する）。
-// 家賃・人件費は開店直後から満額発生するため、標準的な立地（トラフィックの高いテナント）
-// でも開店直後の数週間だけで現金危機（3週連続マイナスで支払不能）に陥りやすい。
-// これは案件成約率・手数料率・分散（山谷の起伏）とは無関係な「立ち上げ期特有の
-// 固定費と売上タイミングのミスマッチ」なので、人件費だけに有限・時限（RAMPUP_WEEKS後は
-// 満額）のランプアップを掛けて緩和する。新規の乱数消費はない。
-const WAGE_RAMPUP_WEEKS=16,WAGE_RAMPUP_MIN_RATIO=.35;
-function wageRampMultiplier(g,store){
+// 立ち上げ期の固定費ランプアップ: 案件パイプラインは開店時ゼロ件から始まり、成約まで
+// 最短でも数週かかる（age>=1で初めて成約判定に入り、そこから確率的に成約する。既定の
+// 業種パラメータでは新規案件は週1〜2件ペースでしか積み上がらない）。一方、家賃・人件費・
+// その他固定費は開店直後から満額発生するため、開店直後に投じる開業資金（設備＋保証金）を
+// 引いた残り現金は薄く、標準的な立地でも数週間で現金危機（3週連続マイナスで支払不能）に
+// 陥る。人件費だけを緩和しても家賃の比重が大きく足りなかった（実測で確認済み）ため、
+// 家賃・人件費・その他固定費のすべてに同じ倍率を掛ける。案件成約率・手数料率・案件価値の
+// 分散（山谷の起伏）には一切触れない。新規の乱数消費はない。RAMPUP_WEEKS後は通常どおり満額。
+const FOUNDING_RAMPUP_WEEKS=60,FOUNDING_RAMPUP_MIN_RATIO=.05;
+function foundingRampMultiplier(g,store){
   const week=Math.max(1,integer(g?.week,1)),openingWeek=Math.max(1,integer(store?.openingWeek,week));
   const weeksOpen=Math.max(0,week-openingWeek);
-  if(weeksOpen>=WAGE_RAMPUP_WEEKS)return 1;
-  return WAGE_RAMPUP_MIN_RATIO+(1-WAGE_RAMPUP_MIN_RATIO)*(weeksOpen/WAGE_RAMPUP_WEEKS);
+  if(weeksOpen>=FOUNDING_RAMPUP_WEEKS)return 1;
+  return FOUNDING_RAMPUP_MIN_RATIO+(1-FOUNDING_RAMPUP_MIN_RATIO)*(weeksOpen/FOUNDING_RAMPUP_WEEKS);
 }
 const hash=(seed,salt)=>{let h=2166136261>>>0;for(const c of `${seed}:${salt}`){h^=c.charCodeAt(0);h=Math.imul(h,16777619)>>>0;}return h/4294967296;};
 const commissionRateForSide=side=>side==='double'?DOUBLE_COMMISSION_RATE:SINGLE_COMMISSION_RATE;
@@ -93,5 +94,5 @@ function processStore(g,store,business,pref,siteMultiplier=1){
   for(const segment of SEGMENTS)pipeline.totals.closedBySegment[segment]+=closedBySegment[segment];
   return {sales:commissionRevenue,variable:Math.round(commissionRevenue*.1),kpi:row};
 }
-modules.realEstateAgencyPipeline=Object.freeze({BUSINESS_ID,SCHEMA_VERSION,SINGLE_COMMISSION_RATE,DOUBLE_COMMISSION_RATE,DOUBLE_SIDE_RATE,HISTORY_LIMIT,SEGMENTS,SEGMENT_CONFIG,FOCUS_WEIGHT_MULTIPLIER,FOCUS_ORDER,FOCUSES,WAGE_RAMPUP_WEEKS,WAGE_RAMPUP_MIN_RATIO,commissionRateForSide,sideForDeal,legacySegmentForDeal,segmentForDeal,focusFor,marketIndicator,capacityFor,wageRampMultiplier,eligibleStores,ensureStore,normalize,processStore});
+modules.realEstateAgencyPipeline=Object.freeze({BUSINESS_ID,SCHEMA_VERSION,SINGLE_COMMISSION_RATE,DOUBLE_COMMISSION_RATE,DOUBLE_SIDE_RATE,HISTORY_LIMIT,SEGMENTS,SEGMENT_CONFIG,FOCUS_WEIGHT_MULTIPLIER,FOCUS_ORDER,FOCUSES,FOUNDING_RAMPUP_WEEKS,FOUNDING_RAMPUP_MIN_RATIO,commissionRateForSide,sideForDeal,legacySegmentForDeal,segmentForDeal,focusFor,marketIndicator,capacityFor,foundingRampMultiplier,eligibleStores,ensureStore,normalize,processStore});
 })();

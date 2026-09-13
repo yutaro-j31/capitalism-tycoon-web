@@ -1842,15 +1842,18 @@ class TycoonEngine extends EventTarget {
       const b=this.business(store.businessID),p=this.pref(store.prefID),a=this.area(p.areaID);let storeSales,variable,fixed,repair;
       const contractRent=getStoreContractRent(store,p),costMultiplier=this.g.inflation*([0,.55,.8,1,1.24][store.operatingHours||3]||1)*(this.g.macroCrisis?.costMultiplier||1);
       // 不動産仲介は案件パイプラインが空の状態で開店するため、他業種と違い開店週から
-      // 満額の売上が立たない（成約には最短でも数週かかる）。一方で家賃・人件費は
-      // 開店直後から満額発生するため、契約書を積み上げている立ち上げ期だけ人件費に
-      // 有限のランプアップ緩和を掛ける。案件成約率・手数料率・分散（山谷の起伏）には
-      // 一切触れない。REAL_ESTATE_RAMPUP_WEEKS後は通常どおり満額。
-      const wageRampMultiplier=store.businessID==='realEstateAgency'&&globalThis.__capitalismTycoonModules?.realEstateAgencyPipeline
-        ?globalThis.__capitalismTycoonModules.realEstateAgencyPipeline.wageRampMultiplier(this.g,store):1;
+      // 満額の売上が立たない（成約には最短でも数週かかる）。一方で家賃・人件費・その他固定費は
+      // 開店直後から満額発生し、出店直後の残余現金は薄いため、標準的な立地でも開店から
+      // 数週間で現金危機（3週連続マイナスで支払不能）に陥る（実測で確認済み。人件費のみの
+      // 緩和では家賃の比重が大きく不足だった）。契約書を積み上げている立ち上げ期だけ
+      // 家賃・人件費・その他固定費すべてに同じ有限のランプアップ緩和を掛ける。
+      // 案件成約率・手数料率・案件価値の分散（山谷の起伏）には一切触れない。
+      // FOUNDING_RAMPUP_WEEKS後は通常どおり満額。
+      const foundingRampMultiplier=store.businessID==='realEstateAgency'&&globalThis.__capitalismTycoonModules?.realEstateAgencyPipeline
+        ?globalThis.__capitalismTycoonModules.realEstateAgencyPipeline.foundingRampMultiplier(this.g,store):1;
       if(market.isTargetBusinessID(store.businessID)&&marketBatch.byStore[store.id]){rand(.88,1.14); // Preserve the legacy per-store demand RNG slot; deterministic market results intentionally ignore this value.
       let mr=marketBatch.byStore[store.id];mr=supply.applyConstraint(this.g,store,mr,finance);marketBatch.byStore[store.id]=mr;const extraStorePayroll=workforce.storeExtraPayroll(this.g,store.id);fixed=contractRent+(b.fixedCost+b.wage+extraStorePayroll)*costMultiplier;repair=Math.max(0,100-store.condition)*650;storeSales=mr.revenue;variable=mr.variableCost;store.marketResult={...mr};}
-      else if(store.businessID==='realEstateAgency'&&globalThis.__capitalismTycoonModules?.realEstateAgencyPipeline){rand(.88,1.14);const brokerage=globalThis.__capitalismTycoonModules.realEstateAgencyPipeline.processStore(this.g,store,b,p,globalThis.__capitalismTycoonModules.tenantSiteSuitability.forStore(this.g,store).multiplier);storeSales=brokerage.sales;variable=brokerage.variable;fixed=contractRent+(b.fixedCost+b.wage*wageRampMultiplier)*costMultiplier;repair=Math.max(0,100-store.condition)*650;store.marketResult=null;}
+      else if(store.businessID==='realEstateAgency'&&globalThis.__capitalismTycoonModules?.realEstateAgencyPipeline){rand(.88,1.14);const brokerage=globalThis.__capitalismTycoonModules.realEstateAgencyPipeline.processStore(this.g,store,b,p,globalThis.__capitalismTycoonModules.tenantSiteSuitability.forStore(this.g,store).multiplier);storeSales=brokerage.sales;variable=brokerage.variable;fixed=(contractRent+(b.fixedCost+b.wage)*costMultiplier)*foundingRampMultiplier;repair=Math.max(0,100-store.condition)*650;store.marketResult=null;}
       else if(store.businessID==='conveni'&&globalThis.__capitalismTycoonModules?.convenienceMerchandising){const localCompetition=a.competition+this.competitorPressure(a.id,b.id);let demand=b.demand*p.traffic*a.traffic*this.g.economy*this.g.season*this.fit(b,a)*(1+b.quality/100)*(1+b.brand/90)*(1+b.dx/140)*(1-localCompetition*.55)*rand(.88,1.14);
       demand*=globalThis.__capitalismTycoonModules.tenantSiteSuitability.forStore(this.g,store).multiplier;demand*=1+this.departmentEffect('dx')*.05+this.departmentEffect('marketing')*.03;demand*=[0,.45,.75,1,1.17][store.operatingHours||3]||1;if(this.g.macroCrisis)demand*=this.g.macroCrisis.salesMultiplier;
       const merch=globalThis.__capitalismTycoonModules.convenienceMerchandising.processStore(this.g,store,b,demand,this.g.inflation);storeSales=merch.sales;variable=merch.variable;fixed=contractRent+(b.fixedCost+b.wage)*costMultiplier;repair=Math.max(0,100-store.condition)*650;store.marketResult=null;}
@@ -1862,8 +1865,8 @@ class TycoonEngine extends EventTarget {
       storeSales=Math.max(0,demand*b.price*this.g.inflation);variable=demand*b.unitCost*this.g.inflation*(1-Math.min(.22,b.efficiency/260))/(1+this.departmentEffect('operations')*.04);fixed=contractRent+(b.fixedCost+b.wage)*costMultiplier;repair=Math.max(0,100-store.condition)*650;
       store.marketResult=null;}
       const isSupplyStore=market.isTargetBusinessID(store.businessID);
-      const rentPart=contractRent;
-      const wagePart=(b.wage*wageRampMultiplier+(isSupplyStore?workforce.storeExtraPayroll(this.g,store.id):0))*this.g.inflation*([0,.55,.8,1,1.24][store.operatingHours||3]||1)*(this.g.macroCrisis?.costMultiplier||1);
+      const rentPart=contractRent*foundingRampMultiplier;
+      const wagePart=(b.wage+(isSupplyStore?workforce.storeExtraPayroll(this.g,store.id):0))*this.g.inflation*([0,.55,.8,1,1.24][store.operatingHours||3]||1)*(this.g.macroCrisis?.costMultiplier||1)*foundingRampMultiplier;
       const otherFixed=Math.max(0,fixed-rentPart-wagePart);
       const postedSales=Math.floor(Math.max(0,finite(storeSales)));
       const postedVariable=isSupplyStore?finite(variable):Math.floor(Math.max(0,finite(variable)));
