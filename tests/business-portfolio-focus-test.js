@@ -59,12 +59,14 @@ const freeTenant = engine => engine.g.tenants.find(t => !t.occupiedBy);
   const p = engine.businessPortfolio();
 
   assert.ok(p.counts.affordableIdle > 0, '出店できる業種が存在する');
-  assert.ok(p.counts.affordableIdle < p.counts.idle, '出店できる業種は全業種より少ない（区別に意味がある）');
+  assert.ok(p.idle.some(row=>row.startupLoan?.eligible), '現金不足でも専用ローンで出店できる業種が判別できる');
+  assert.ok(p.idle.some(row=>row.shortfall>0), '現金不足額はローン利用可能時も表示される');
 
   for (const row of p.idle) {
-    assert.equal(row.affordable, engine.g.companyCash >= row.minimumUpfront, `${row.businessID}: affordableは会社資金と最低必要額の比較と一致する`);
-    if (row.affordable) assert.equal(row.shortfall, 0, `${row.businessID}: 出店可能なら不足額0`);
-    else assert.equal(row.shortfall, row.minimumUpfront - engine.g.companyCash, `${row.businessID}: 不足額が読める`);
+    const cashAffordable = engine.g.companyCash >= row.minimumUpfront;
+    assert.equal(row.affordable, cashAffordable || Boolean(row.startupLoan?.eligible), `${row.businessID}: affordableは現金または対象業種専用ローンと一致する`);
+    if (cashAffordable) assert.equal(row.shortfall, 0, `${row.businessID}: 現金で出店可能なら不足額0`);
+    else assert.equal(row.shortfall, row.minimumUpfront - engine.g.companyCash, `${row.businessID}: 現金不足額が読める`);
   }
 }
 
@@ -150,10 +152,10 @@ const freeTenant = engine => engine.g.tenants.find(t => !t.occupiedBy);
 // 8. 資金が増えると出店できる業種が増える（判定が会社資金に追従する）。
 {
   const { engine } = newGame();
-  const before = engine.businessPortfolio().counts.affordableIdle;
+  const before = engine.businessPortfolio().idle.filter(row=>row.shortfall===0).length;
   engine.g.companyCash = 500_000_000;
   const after = engine.businessPortfolio();
-  assert.ok(after.counts.affordableIdle > before, '資金を増やすと出店できる業種が増える');
+  assert.ok(after.idle.filter(row=>row.shortfall===0).length > before, '資金を増やすと現金だけで出店できる業種が増える');
   assert.equal(after.counts.affordableIdle, after.counts.idle, '十分な資金なら全業種が出店可能になる');
 }
 
