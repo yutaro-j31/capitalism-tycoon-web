@@ -26,6 +26,7 @@ const POLICY_ORDER=Object.freeze(['standard','freshFocus','staples']);
 // シナジー（上限あり）。新規の乱数消費は無い（既存店舗数を数えるだけの決定論的な導出）。
 const CLUSTER_DEMAND_BONUS_PER_STORE=.02,CLUSTER_DEMAND_BONUS_MAX=.10;
 const CLUSTER_WASTE_REDUCTION_PER_STORE=.10,CLUSTER_WASTE_REDUCTION_MAX=.45;
+const SCALE_COST_REDUCTION_PER_STORE=.012,SCALE_COST_REDUCTION_MAX=.12;
 const finite=(value,fallback=0)=>Number.isFinite(Number(value))?Number(value):fallback;
 const integer=(value,fallback=0)=>Math.max(0,Math.floor(finite(value,fallback)));
 function policyFor(id){return POLICIES[id]||POLICIES.standard;}
@@ -66,20 +67,22 @@ function processStore(g,store,business,demand,inflation){
   const clusterCount=clusterCountFor(g,store);
   const clusterDemandBonus=Math.min(CLUSTER_DEMAND_BONUS_MAX,clusterCount*CLUSTER_DEMAND_BONUS_PER_STORE);
   const clusterWasteReduction=Math.min(CLUSTER_WASTE_REDUCTION_MAX,clusterCount*CLUSTER_WASTE_REDUCTION_PER_STORE);
+  const chainStoreCount=eligibleStores(g?.stores).length;
+  const scaleCostReduction=Math.min(SCALE_COST_REDUCTION_MAX,Math.max(0,chainStoreCount-1)*SCALE_COST_REDUCTION_PER_STORE);
   const legacyDemand=Math.max(0,finite(demand)*policy.demandMultiplier*(1+clusterDemandBonus));
   const adjustedDemand=pb.share===0?legacyDemand:legacyDemand*pb.demandMultiplier;
   const effectiveWasteRate=policy.wasteRate*(1-clusterWasteReduction);
   const price=Math.max(1,finite(business?.price,1));
   const sales=Math.max(0,adjustedDemand*price*finite(inflation,1));
   const wasteCost=Math.round(sales*effectiveWasteRate);
-  const merchandiseCost=Math.max(0,adjustedDemand*finite(business?.unitCost,1)*finite(inflation,1)*policy.marginMultiplier);
+  const merchandiseCost=Math.max(0,adjustedDemand*finite(business?.unitCost,1)*finite(inflation,1)*policy.marginMultiplier*(1-scaleCostReduction));
   const privateBrandCost=pb.share===0?merchandiseCost:merchandiseCost*pb.unitCostMultiplier;
   const privateBrandSavings=Math.max(0,Math.round(merchandiseCost-privateBrandCost));
   const variable=Math.max(0,privateBrandCost+wasteCost);
-  const row={week,policyID:policy.id,demand:Math.round(adjustedDemand),sales:Math.round(sales),wasteCost,clusterCount,clusterDemandBonus,clusterWasteReduction,privateBrandShare:pb.share,privateBrandDemandMultiplier:pb.demandMultiplier,privateBrandUnitCostMultiplier:pb.unitCostMultiplier,privateBrandSavings};
+  const row={week,policyID:policy.id,demand:Math.round(adjustedDemand),sales:Math.round(sales),wasteCost,clusterCount,clusterDemandBonus,clusterWasteReduction,chainStoreCount,scaleCostReduction,privateBrandShare:pb.share,privateBrandDemandMultiplier:pb.demandMultiplier,privateBrandUnitCostMultiplier:pb.unitCostMultiplier,privateBrandSavings};
   mix.lastWeekByStoreID[store.id]=row;
   mix.totals.revenue+=row.sales;mix.totals.wasteCost+=row.wasteCost;mix.totals.privateBrandSavings+=row.privateBrandSavings;
   return {sales:row.sales,variable:Math.round(variable)};
 }
-Object.assign(modules,{convenienceMerchandising:Object.freeze({BUSINESS_ID,SCHEMA_VERSION,POLICIES,POLICY_ORDER,PRIVATE_BRAND_DEVELOPMENT_COST,PRIVATE_BRAND_DEVELOPMENT_WEEKS,PRIVATE_BRAND_SHARES,PRIVATE_BRAND_OPTIONS,policyFor,privateBrandOption,clusterCountFor,ensure,normalize,setPolicy,setPrivateBrandShare,resolvePrivateBrandPending,eligibleStores,processStore})});
+Object.assign(modules,{convenienceMerchandising:Object.freeze({BUSINESS_ID,SCHEMA_VERSION,POLICIES,POLICY_ORDER,PRIVATE_BRAND_DEVELOPMENT_COST,PRIVATE_BRAND_DEVELOPMENT_WEEKS,PRIVATE_BRAND_SHARES,PRIVATE_BRAND_OPTIONS,SCALE_COST_REDUCTION_PER_STORE,SCALE_COST_REDUCTION_MAX,policyFor,privateBrandOption,clusterCountFor,ensure,normalize,setPolicy,setPrivateBrandShare,resolvePrivateBrandPending,eligibleStores,processStore})});
 })();

@@ -270,7 +270,19 @@ function scenario(seed = 190826041, difficulty = 'normal') {
   assert.ok(engine.g.companyCash > 0, '会社現金がプラスで推移する');
 }
 
-// 17. UI配線: ドミナント戦略のKPIが事業画面に表示される。
+// 17. チェーン全体の仕入れ効率は店舗数とともに改善するが、上限で止まる。
+{
+  const mod = loadGame({}).modules.convenienceMerchandising;
+  const business = { price: 540, unitCost: 335 };
+  const stores = Array.from({ length: 20 }, (_, i) => ({ id: `scale-${i}`, businessID: 'conveni', prefID: `p-${i}`, status: 'open' }));
+  const single = mod.processStore({ week: 1, stores: stores.slice(0, 1) }, stores[0], business, 1000, 1);
+  const chain = mod.processStore({ week: 1, stores }, stores[0], business, 1000, 1);
+  assert.ok(chain.variable < single.variable, '多店舗チェーンは共同仕入れで変動費が下がる');
+  assert.equal(mod.SCALE_COST_REDUCTION_MAX, .12, '仕入れ効率には有限の上限がある');
+  assert.equal(chain.variable, mod.processStore({ week: 1, stores }, stores[0], business, 1000, 1).variable, 'scale benefitは決定論的');
+}
+
+// 18. UI配線: ドミナント戦略のKPIが事業画面に表示される。
 {
   const appSource = fs.readFileSync(path.join(__dirname, '..', 'js', 'app.js'), 'utf8');
   assert.match(appSource, /maxCluster=rows\.reduce\(\(max,row\)=>Math\.max\(max,finite\(row\.clusterCount\)\),0\)/, 'ドミナント出店数の集計がある');
