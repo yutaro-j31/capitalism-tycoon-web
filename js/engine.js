@@ -203,7 +203,7 @@ function createInitialState(options = {}) {
     selectedArea: 'kanto', selectedPref: 'tokyo', selectedBusiness: 'ramen', selectedTab: 'home',
     businesses: master.businesses, areas: deepClone(MASTER.areas), prefs: deepClone(MASTER.prefs),
     stores: [], properties: makeProperties(), tenants: makeTenants(), rentalOffices: makeRentalOffices(),
-    market: master.market, startups: master.startups,
+    market: master.market, startups: master.startups, microcapMarket: {nextSpawnWeek:0, listings:[], sequence:0},
     executives: {}, executiveMarket: master.executives, competitors: buildCompetitorRoster(uuid),
     departments: {}, departmentStaff: {}, officeFloors: [],
     hasHeadOffice: false, officeLevel: 1, officeName: '小さな創業オフィス', officePrestige: 5,
@@ -610,7 +610,7 @@ class TycoonEngine extends EventTarget {
   }
 
   normalize() {
-    this.g.saveVersion = SAVE_VERSION; supply.ensure(this.g); workforce.ensure(this.g); competitor.ensure(this.g); workforce.recompute(this.g);
+    this.g.saveVersion = SAVE_VERSION; supply.ensure(this.g); workforce.ensure(this.g); competitor.ensure(this.g); globalThis.__capitalismTycoonModules?.microcapListings?.ensure?.(this.g); workforce.recompute(this.g);
     // T25-2: 追記され続けるログ配列の上限。normalize は週送りでも毎回通るので、書き込み側の
     // slice が将来漏れてもここが最終的な境界になる（LOG_ARRAY_CAPS が唯一の出どころ）。
     capLogArrays(this.g);
@@ -712,6 +712,7 @@ class TycoonEngine extends EventTarget {
     const next = createInitialState({playerName, companyName, difficulty, scenario, configured:true});
     const settings = this.g.settings;
     this.g = next; this.g.settings = settings;
+    globalThis.__capitalismTycoonModules?.microcapListings?.ensure?.(this.g);
     this._saveBlockedDueToLoadFailure = false;
     this._loadFailureReason = '';
     if (difficulty === 'easy') { this.g.companyCash += 4_000_000; this.g.companyCredit = 70; }
@@ -1470,7 +1471,7 @@ class TycoonEngine extends EventTarget {
   fail(message) { this.emit('notify',{message,severity:'error'}); return false; }
 
   updateMarket() {
-    for(const s of this.g.market){s.previous=s.price;let move=s.trend+(this.g.economy-1)*.018+rand(-s.volatility,s.volatility);if(s.id===this.g.ticker&&this.g.publicCompany){const last=this.g.lastReport?.profit||0;move+=clamp(last/Math.max(1,this.companyValue())*10,-.08,.08);}s.price=Math.max(10,s.price*(1+move));s.marketCap=s.price*Math.max(1,s.issuedShares||1);if(Number.isFinite(s.price)&&s.price>0){const history=normalizeStockPriceHistory(s,this.g.week).filter(r=>r.week!==this.g.week);history.push({week:this.g.week,price:s.price});s.priceHistory=history.slice(-260);}if(s.per>0)s.per=clamp(s.per*(1+move*.25),3,120);}
+    for(const s of this.g.market){s.previous=s.price;const microcapMove=s.microcap?globalThis.__capitalismTycoonModules?.microcapListings?.weeklyMovement?.(s,this.g.week):null;let move=s.trend+(this.g.economy-1)*.018+(Number.isFinite(microcapMove)?microcapMove:rand(-s.volatility,s.volatility));if(s.id===this.g.ticker&&this.g.publicCompany){const last=this.g.lastReport?.profit||0;move+=clamp(last/Math.max(1,this.companyValue())*10,-.08,.08);}s.price=Math.max(10,s.price*(1+move));s.marketCap=s.price*Math.max(1,s.issuedShares||1);if(Number.isFinite(s.price)&&s.price>0){const history=normalizeStockPriceHistory(s,this.g.week).filter(r=>r.week!==this.g.week);history.push({week:this.g.week,price:s.price});s.priceHistory=history.slice(-260);}if(s.per>0)s.per=clamp(s.per*(1+move*.25),3,120);}
     if(this.g.publicCompany){const own=this.stock(this.g.ticker);if(own){this.g.stockPrice=own.price;own.issuedShares=this.g.sharesOut;own.marketCap=own.price*this.g.sharesOut;}}
   }
   updateStartups() {
@@ -1824,7 +1825,7 @@ class TycoonEngine extends EventTarget {
     if(this.g.isCompanySold){this.g.week++;this.g.month=Math.floor((this.g.week-1)/4)+1;this.updatePersonalAssets();this.recordHistory(0,0);this.save();this.emit('week',{summary:null});return true;}
     if(this.g.autoManage)this.autoManage();
     this.g.week++;this.g.month=Math.floor((this.g.week-1)/4)+1;if(this.g.week%52===0)this.g.founderAge++;
-    supply.ensure(this.g);workforce.ensure(this.g);workforce.processWeekStart(this.g);workforce.generateCandidates(this.g);workforce.recompute(this.g);globalThis.__capitalismTycoonModules?.menuResearch?.resolvePending?.(this);globalThis.__capitalismTycoonModules?.convenienceMerchandising?.resolvePrivateBrandPending?.(this);const beginningCash=this.g.companyCash;this.updateMacro();this.updateMarket();this.updateProperties();this.updateStartups();this.updateCompetitors();this.updateCompetitorProducts();this.updateCounterCampaigns();this.updateDirectivesAndCampaigns();
+    supply.ensure(this.g);workforce.ensure(this.g);workforce.processWeekStart(this.g);workforce.generateCandidates(this.g);workforce.recompute(this.g);globalThis.__capitalismTycoonModules?.menuResearch?.resolvePending?.(this);globalThis.__capitalismTycoonModules?.convenienceMerchandising?.resolvePrivateBrandPending?.(this);const beginningCash=this.g.companyCash;this.updateMacro();this.updateMarket();globalThis.__capitalismTycoonModules?.microcapListings?.process?.(this.g,(message,severity)=>this.emit('notify',{message,severity}));this.updateProperties();this.updateStartups();this.updateCompetitors();this.updateCompetitorProducts();this.updateCounterCampaigns();this.updateDirectivesAndCampaigns();
     const product=this.updateProducts(),overseas=this.updateOverseas(),subs=this.updateSubsidiaries(),franchise=this.updateFranchise();this.updatePersonalAssets();
     for(const store of this.g.stores){if(store.status==='preparing'&&this.g.week>=store.openingWeek){store.status='open';store.weeksToOpen=0;this.g.news.unshift(`第${this.g.week}週：${store.name}が開店しました。`);}if(store.status==='open'&&supply.isTargetBusinessID(store.businessID))supply.ensureInitialProcurementForOpenStore(this.g,store,finance);}
     const spoilage=supply.spoil(this.g,finance);supply.receiveOrders(this.g,finance);supply.payables(this.g,finance);
