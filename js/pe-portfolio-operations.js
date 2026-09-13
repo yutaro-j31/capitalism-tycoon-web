@@ -236,9 +236,11 @@ function leverFactors(pc,week){
   const costFactor=procurementFactor*laborFactor*consolidationFactor;
   return {priceFactor,qualityFactor,mixFactor,mixProgress,procurementDrag,laborDrag,sideEffectFactor,revenueFactor,procurementFactor,laborFactor,consolidationFactor,costFactor};
 }
-function processDealWeek(fund,deal,week){
+// Pillar calculators must be pure: they return operating results and never settle cash or
+// update portfolio history. The generic calculator contains the exact pre-boundary formula.
+function calculateGenericPortfolioOperatingWeek(fund,deal,week){
   const pc=deal.portfolioCompany;
-  if(!pc||pc.lastProcessedWeek>=week)return;
+  if(!pc)return null;
   const annualEBITDA=finite(deal.enterpriseValue)/Math.max(1,finite(deal.acquisitionMultiple,8));
   // T9のattention（チーム人数÷案件数）を、EBITDA成長計算に1回だけ乗算する（Codex独立監査
   // 対応: 以前はteamCapacity/slotCapacityと並ぶT9の一角として計算されるだけで、実際の
@@ -251,12 +253,29 @@ function processDealWeek(fund,deal,week){
   const noise=between(.92,1.08,'pe-portfolio-week',deal.id,week);
   const upkeep=clamp(finite(pc.qualityInvestment)/100,0,1)*QUALITY_UPKEEP_RATE_OF_EBITDA*weeklyEBITDA;
   const weeklyProfit=weeklyEBITDA*lever.revenueFactor*lever.costFactor*noise-upkeep;
-  pc.cash=finite(pc.cash)+weeklyProfit;
-  pc.weeklyRevenue=weeklyEBITDA*lever.revenueFactor*noise*2;
-  pc.weeklyProfit=weeklyProfit;
-  pc.profitHistory=[...arr(pc.profitHistory),weeklyProfit].slice(-PROFIT_HISTORY_LIMIT);
+  return {week,source:'generic',revenue:weeklyEBITDA*lever.revenueFactor*noise*2,profit:weeklyProfit,components:{annualEBITDA,weeklyEBITDA,revenueFactor:lever.revenueFactor,costFactor:lever.costFactor,noise,upkeep}};
+}
+// Single dispatch point for future pillar-specific calculators. Until one is explicitly
+// registered in production, every deal falls back to the unchanged generic model.
+function resolvePortfolioOperatingCalculator(){return calculateGenericPortfolioOperatingWeek;}
+function calculatePortfolioOperatingWeek(fund,deal,week){return resolvePortfolioOperatingCalculator(deal)(fund,deal,week);}
+// The only writer for weekly portfolio operating results. The lastProcessedWeek gate makes
+// direct settlement and processPortfolioWeek exactly-once for a deal/week pair.
+function settlePortfolioOperatingWeek(deal,result){
+  const pc=deal?.portfolioCompany,week=finite(result?.week,-1);
+  if(!pc||!result||pc.lastProcessedWeek>=week)return false;
+  pc.cash=finite(pc.cash)+finite(result.profit);
+  pc.weeklyRevenue=finite(result.revenue);
+  pc.weeklyProfit=finite(result.profit);
+  pc.profitHistory=[...arr(pc.profitHistory),finite(result.profit)].slice(-PROFIT_HISTORY_LIMIT);
   pc.improvementScore=computeImprovementScore(deal);
   pc.lastProcessedWeek=week;
+  return true;
+}
+function processDealWeek(fund,deal,week){
+  const pc=deal.portfolioCompany;
+  if(!pc||pc.lastProcessedWeek>=week)return;
+  settlePortfolioOperatingWeek(deal,calculatePortfolioOperatingWeek(fund,deal,week));
 }
 function processPortfolioWeek(state,week){
   ensure(state);
@@ -466,7 +485,8 @@ modules.pePortfolioOperations=Object.freeze({
   LABOR_EBITDA_GAIN,LABOR_SERVICE_DRAG,LABOR_WAGE_DRAG,LABOR_DELAY_WEEKS,LABOR_DRAG_RAMP_WEEKS,WAGE_MIN,WAGE_MAX,HEADCOUNT_MIN,HEADCOUNT_MAX,
   PRODUCT_MIX_RAMP_WEEKS,PRODUCT_MIX_MAX_GAIN,PRODUCT_MIX_COST_FRACTION,
   CONSOLIDATION_STEP,CONSOLIDATION_EBITDA_GAIN,UNDERPERFORMING_MIN,UNDERPERFORMING_MAX,EXIT_METHODS,
-  ensure,findFundAndDeal,defaultPortfolioCompany,normalizePortfolioCompany,acquirePillarCompany,computeImprovementScore,processDealWeek,processPortfolioWeek,
+  ensure,findFundAndDeal,defaultPortfolioCompany,normalizePortfolioCompany,acquirePillarCompany,computeImprovementScore,
+  calculateGenericPortfolioOperatingWeek,resolvePortfolioOperatingCalculator,calculatePortfolioOperatingWeek,settlePortfolioOperatingWeek,processDealWeek,processPortfolioWeek,
   setPriceMultiplier,investQuality,expandPortfolioStore,exitCapabilities,previewPortfolioExit,exitPortfolioCompany,install,
   delayedProgress,leverFactors,industryTagOf,adjustIndustryReputation,
   reformProcurement,setStaffing,renewProductMix,consolidateSites,
