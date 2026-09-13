@@ -31,6 +31,9 @@ function unit(...p){return hash(p)/4294967295;}
 function between(a,b,...p){return a+(b-a)*unit(...p);}
 
 const PROFIT_HISTORY_LIMIT=260; // 5年分の週次履歴
+const PRODUCTION_SITE_SCHEMA_VERSION=1;
+const PRODUCTION_SITE_SALT='pe-production-site-v1';
+const PRODUCTION_PREF_SALT='pe-production-pref-v1';
 // T20（通し検証）で判明した較正の修正: 品質投資・出店・維持費はいずれも「会社の規模に対して」
 // 効くべきなのに、旧実装は素点や絶対額で扱っていた。100億円規模の会社でも1億円で品質を上限
 // まで買え（＝売上+50%が事実上タダ）、1店舗増やすと会社まるごと1社ぶんEBITDAが増える（＝EVの
@@ -124,6 +127,48 @@ function normalizePortfolioCompany(pc,week){
   pc.lastProcessedWeek=Math.max(0,Math.floor(finite(pc.lastProcessedWeek,week)));
   return pc;
 }
+function productionMasters(state){return {areas:arr(state?.areas),prefs:arr(state?.prefs)};}
+function validProductionSites(masters){
+  const byID=(a,b)=>a.id<b.id?-1:a.id>b.id?1:0;
+  const areas=arr(masters?.areas).filter(area=>typeof area?.id==='string'&&area.id).slice().sort(byID);
+  const areaIDs=new Set(areas.map(area=>area.id));
+  const prefs=arr(masters?.prefs).filter(pref=>typeof pref?.id==='string'&&pref.id&&areaIDs.has(pref.areaID)).slice().sort(byID);
+  const prefsByArea=new Map();
+  for(const pref of prefs){const rows=prefsByArea.get(pref.areaID)||[];rows.push(pref);prefsByArea.set(pref.areaID,rows);}
+  return {areas:areas.filter(area=>prefsByArea.has(area.id)),prefs,prefsByArea};
+}
+function isPillarDeal(deal){return tiers.TIERS.pillar.businessIDs.includes(deal?.businessID);}
+// Pure identity assignment only: no traffic, competition, demand, finance, or simulation RNG.
+function derivePortfolioProductionSite(deal,masters){
+  if(!deal?.id||!isPillarDeal(deal))return null;
+  const {areas,prefsByArea}=validProductionSites(masters);
+  if(!areas.length)return null;
+  const area=areas[hash([deal.id,deal.businessID,PRODUCTION_SITE_SALT])%areas.length];
+  const prefs=prefsByArea.get(area.id);
+  const pref=prefs[hash([deal.id,deal.businessID,area.id,PRODUCTION_PREF_SALT])%prefs.length];
+  return {schemaVersion:PRODUCTION_SITE_SCHEMA_VERSION,prefID:pref.id,areaID:area.id};
+}
+function isValidPortfolioProductionSite(site,masters){
+  if(!site||site.schemaVersion!==PRODUCTION_SITE_SCHEMA_VERSION)return false;
+  const area=arr(masters?.areas).find(row=>row?.id===site.areaID);
+  const pref=arr(masters?.prefs).find(row=>row?.id===site.prefID);
+  return Boolean(area&&pref&&pref.areaID===area.id);
+}
+function ensurePortfolioProductionSite(state,deal){
+  if(!deal?.portfolioCompany||!isPillarDeal(deal))return null;
+  const masters=productionMasters(state),current=deal.portfolioCompany.productionSite;
+  if(isValidPortfolioProductionSite(current,masters))return current;
+  const derived=derivePortfolioProductionSite(deal,masters);
+  if(derived)deal.portfolioCompany.productionSite=derived;
+  return derived;
+}
+// Deliberately bypasses findFundAndDeal(): this public read API never normalizes or mutates state.
+function getPortfolioProductionSite(state,fundID,dealID){
+  const fund=arr(state?.peFirm?.funds).find(row=>row?.id===fundID);
+  const deal=arr(fund?.deals).find(row=>row?.id===dealID);
+  const site=deal?.portfolioCompany?.productionSite;
+  return isValidPortfolioProductionSite(site,productionMasters(state))?{...site}:null;
+}
 function ensureDeal(deal,week){
   if(!deal)return deal;
   deal.status=deal.status==='exited'?'exited':'active';
@@ -141,7 +186,7 @@ function ensureDeal(deal,week){
 function ensure(state){
   pf.ensure(state);
   const week=Math.max(0,Math.floor(finite(state.week,0)));
-  for(const fund of state.peFirm.funds)for(const deal of arr(fund.deals))if(deal&&deal.portfolioCompany)ensureDeal(deal,week);
+  for(const fund of state.peFirm.funds)for(const deal of arr(fund.deals))if(deal&&deal.portfolioCompany){ensureDeal(deal,week);if(deal.status==='active')ensurePortfolioProductionSite(state,deal);}
   return state;
 }
 
@@ -183,6 +228,7 @@ function acquirePillarCompany(state,fundID,{businessID,enterpriseValue,useCoinve
     acquiredWeek:w,status:'active',
     portfolioCompany:defaultPortfolioCompany(w)
   };
+  ensurePortfolioProductionSite(state,deal);
   fund.deals=arr(fund.deals);
   fund.deals.push(deal);
   fund.deals=fund.deals.slice(-500);
@@ -478,6 +524,7 @@ install();
 
 modules.pePortfolioOperations=Object.freeze({
   PROFIT_HISTORY_LIMIT,EXPANSION_COST_FRACTION,
+  PRODUCTION_SITE_SCHEMA_VERSION,PRODUCTION_SITE_SALT,PRODUCTION_PREF_SALT,
   BASELINE_SCORE,PROFIT_SCORE_WEIGHT,QUALITY_SCORE_WEIGHT,PROFIT_SCORE_EV_FRACTION,QUALITY_MAX_REVENUE_GAIN,EXIT_MULTIPLE_FLOOR,EXIT_MULTIPLE_SCORE_SPAN,
   REPUTATION_THRESHOLD,REPUTATION_BONUS,REPUTATION_PENALTY_FOR_CUTS,
   QUALITY_UPKEEP_RATE_OF_EBITDA,QUALITY_COST_FRACTION_PER_POINT,STORE_MARGINAL_EBITDA_SHARE,storeScaleFactor,
@@ -485,7 +532,7 @@ modules.pePortfolioOperations=Object.freeze({
   LABOR_EBITDA_GAIN,LABOR_SERVICE_DRAG,LABOR_WAGE_DRAG,LABOR_DELAY_WEEKS,LABOR_DRAG_RAMP_WEEKS,WAGE_MIN,WAGE_MAX,HEADCOUNT_MIN,HEADCOUNT_MAX,
   PRODUCT_MIX_RAMP_WEEKS,PRODUCT_MIX_MAX_GAIN,PRODUCT_MIX_COST_FRACTION,
   CONSOLIDATION_STEP,CONSOLIDATION_EBITDA_GAIN,UNDERPERFORMING_MIN,UNDERPERFORMING_MAX,EXIT_METHODS,
-  ensure,findFundAndDeal,defaultPortfolioCompany,normalizePortfolioCompany,acquirePillarCompany,computeImprovementScore,
+  ensure,findFundAndDeal,defaultPortfolioCompany,normalizePortfolioCompany,productionMasters,derivePortfolioProductionSite,isValidPortfolioProductionSite,ensurePortfolioProductionSite,getPortfolioProductionSite,acquirePillarCompany,computeImprovementScore,
   calculateGenericPortfolioOperatingWeek,resolvePortfolioOperatingCalculator,calculatePortfolioOperatingWeek,settlePortfolioOperatingWeek,processDealWeek,processPortfolioWeek,
   setPriceMultiplier,investQuality,expandPortfolioStore,exitCapabilities,previewPortfolioExit,exitPortfolioCompany,install,
   delayedProgress,leverFactors,industryTagOf,adjustIndustryReputation,

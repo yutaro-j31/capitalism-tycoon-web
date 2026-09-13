@@ -126,6 +126,7 @@ function closeFundAcquisition(engine,{deal,target,targetIndex,price,week}){
     status:'active',
     portfolioCompany:ops.defaultPortfolioCompany(w)
   };
+  ops.ensurePortfolioProductionSite(state,portfolioDeal);
   fund.deals.push(portfolioDeal);
   fund.deals=fund.deals.slice(-MAX_DEALS_PER_FUND);
   state.acquisitionTargets.splice(targetIndex,1);
