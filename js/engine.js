@@ -571,6 +571,12 @@ function updateStoreSmoothedProfit(g, store) {
 // 同じ値を使うよう一元管理する（片方だけ変えると画面の予告と実際の入金がズレるため）。
 const STORE_CLOSURE_SALVAGE_RATE = .15;
 
+// 株式売買1回の注文で動かせる数量の上限（発行済株式数に対する比率）。buyStock()/sellStock()の
+// 株価インパクトは1取引あたり最大3%に固定されているが、旧実装は数量そのものに上限が無く、
+// 発行済株式数の何倍を1回の注文で指定してもインパクトは常に3%止まりで約定できてしまう抜け穴
+// だった（監査で発見）。発行済株式数の小さい新規上場株ほど、この抜け穴の影響が大きい。
+const STOCK_ORDER_MAX_SHARE_OF_ISSUED = .05;
+
 class TycoonEngine extends EventTarget {
   constructor(state = null) {
     super();
@@ -1127,22 +1133,28 @@ class TycoonEngine extends EventTarget {
 
   buyStock(stockID,qty,account='personal') {
     const stock=this.stock(stockID);qty=Math.max(0,Math.floor(qty));if(!stock||qty<1)return this.fail('数量が不正です。');
+    const maxQty=Math.max(0,Math.floor(finite(stock.issuedShares,0)*STOCK_ORDER_MAX_SHARE_OF_ISSUED));
+    if(maxQty<1)return this.fail('この銘柄は発行済株式数が少なく取引できません。');
+    const clamped=qty>maxQty;qty=Math.min(qty,maxQty);
     const cost=stock.price*qty*1.001;const cashKey=account==='company'?'companyCash':'personalCash';
     if(account==='company'&&!this.g.departments.investment)return this.fail('会社口座の株式投資には投資部門が必要です。');
     if(this.g[cashKey]<cost)return this.fail('資金が不足しています。');
     this.g[cashKey]-=cost;if(account==='company')finance.event(this.g,'investmentPurchase',cost,{cashEffect:-cost,assetEffect:cost,sourceType:'buyStock',sourceID:`${stockID}-${this.g.week}`,description:`${stock.name} 株式購入`});const key=account==='company'?'companyStocks':'personalStocks';const h=this.g[key][stockID]||{qty:0,avg:0};
     h.avg=(h.avg*h.qty+cost)/(h.qty+qty);h.qty+=qty;this.g[key][stockID]=h;
     stock.price*=1+Math.min(.03,qty/Math.max(1,stock.issuedShares)*.6);stock.marketCap=stock.price*stock.issuedShares;
-    this.notify(`${account==='company'?'会社':'個人'}口座で${stock.name}を${qty.toLocaleString()}株購入しました。`,'success');this.save();this.emit();return true;
+    this.notify(`${account==='company'?'会社':'個人'}口座で${stock.name}を${qty.toLocaleString()}株購入しました。${clamped?`（1回の注文上限${pct(STOCK_ORDER_MAX_SHARE_OF_ISSUED)}により数量を調整しました）`:''}`,'success');this.save();this.emit();return true;
   }
   sellStock(stockID,qty,account='personal') {
     const stock=this.stock(stockID);qty=Math.max(0,Math.floor(qty));const key=account==='company'?'companyStocks':'personalStocks';const h=this.g[key][stockID];
     if(!stock||!h||qty<1||h.qty<qty)return this.fail('売却可能株数を超えています。');
+    const maxQty=Math.max(0,Math.floor(finite(stock.issuedShares,0)*STOCK_ORDER_MAX_SHARE_OF_ISSUED));
+    if(maxQty<1)return this.fail('この銘柄は発行済株式数が少なく取引できません。');
+    const clamped=qty>maxQty;qty=Math.min(qty,maxQty);
     const proceeds=stock.price*qty*.999;const soldBook=h.avg*qty,profit=proceeds-soldBook;this.g[account==='company'?'companyCash':'personalCash']+=proceeds;if(account==='company')finance.event(this.g,'investmentSale',proceeds,{cashEffect:proceeds,assetEffect:-soldBook,profitEffect:profit,sourceType:'sellStock',sourceID:`${stockID}-${this.g.week}`,description:`${stock.name} 株式売却`});
     h.qty-=qty;if(h.qty===0)delete this.g[key][stockID];
     this.g[account==='company'?'realizedCompanyStockPL':'realizedPersonalStockPL']+=profit;
     stock.price*=1-Math.min(.03,qty/Math.max(1,stock.issuedShares)*.6);stock.marketCap=stock.price*stock.issuedShares;
-    this.notify(`${stock.name}を${qty.toLocaleString()}株売却しました。損益${yen(profit)}。`,profit>=0?'success':'warning');this.save();this.emit();return true;
+    this.notify(`${stock.name}を${qty.toLocaleString()}株売却しました。損益${yen(profit)}。${clamped?`（1回の注文上限${pct(STOCK_ORDER_MAX_SHARE_OF_ISSUED)}により数量を調整しました）`:''}`,profit>=0?'success':'warning');this.save();this.emit();return true;
   }
   toggleFavorite(stockID) {
     const a=this.g.favoriteStockIds;const i=a.indexOf(stockID);i>=0?a.splice(i,1):a.push(stockID);this.save();this.emit();

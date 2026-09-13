@@ -225,6 +225,7 @@ const nodeTests = [
   ['executive-secretary-ui', 'tests/executive-secretary-ui-test.js'],
   ['executive-secretary-purity', 'tests/executive-secretary-purity-test.js'],
   ['stock-trade-panel', 'tests/stock-trade-panel-test.js'],
+  ['stock-order-quantity-cap', 'tests/stock-order-quantity-cap-test.js'],
   ['game-date-display', 'tests/game-date-display-test.js'],
   ['founder-profile-cleanup', 'tests/founder-profile-cleanup-test.js'],
   ['founder-health-system-removal', 'tests/founder-health-system-removal-test.js'],
