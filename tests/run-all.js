@@ -274,6 +274,7 @@ const nodeTests = [
   ['business-simulation-depth', 'tests/business-simulation-depth-test.js'],
   ['tenant-site-suitability', 'tests/tenant-site-suitability-test.js'],
   ['store-opening-estimate', 'tests/store-opening-estimate-test.js'],
+  ['store-market-environment', 'tests/store-market-environment-test.js'],
   ['tenant-contract-rent-consistency', 'tests/tenant-contract-rent-consistency-test.js'],
   ['business-portfolio-focus', 'tests/business-portfolio-focus-test.js'],
   ['first-store-cta', 'tests/first-store-cta-test.js'],
