@@ -24,7 +24,7 @@ assert.ok(loadGame({headless:true}).modules.realEstateAgencyPipeline,'pipeline m
 {
   const mod=loadGame({headless:true}).modules.realEstateAgencyPipeline;
   assert.notEqual(mod.commissionRateForSide('single'),mod.commissionRateForSide('double'),'single and double brokerage must have distinct economics');
-  assert.equal((mod.commissionRateForSide('single')+mod.commissionRateForSide('double'))/2,.06,'the expected blended yield preserves the calibrated 6% economics');
+  assert.equal((mod.commissionRateForSide('single')+mod.commissionRateForSide('double'))/2,.045,'the expected blended yield preserves the rebalanced 4.5% economics');
   assert.equal(mod.sideForDeal(123,'deal-1','store-1'),mod.sideForDeal(123,'deal-1','store-1'),'same seed and deal identity derives the same side');
   assert.ok(['single','double'].includes(mod.sideForDeal(123,'deal-1','store-1')),'derived side uses the supported schema');
   assert.deepEqual(Array.from(mod.SEGMENTS),['residential','luxury','investment','corporateDeal'],'deal segment schema exposes the four supported types without ratio-like suffixes');

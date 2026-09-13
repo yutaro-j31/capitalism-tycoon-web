@@ -3,8 +3,8 @@
 const modules=globalThis.__capitalismTycoonModules;
 if(!modules)throw new Error('runtime.js must be loaded before real-estate-agency-pipeline.js.');
 if(modules.realEstateAgencyPipeline)throw new Error('real-estate-agency-pipeline.js already registered.');
-// A 50/50 mix keeps the expected fee yield at the previously calibrated 6%.
-const BUSINESS_ID='realEstateAgency',SCHEMA_VERSION=3,SINGLE_COMMISSION_RATE=.055,DOUBLE_COMMISSION_RATE=.065,DOUBLE_SIDE_RATE=.5,HISTORY_LIMIT=52;
+// A 50/50 mix yields 4.5%: single-side fees stay conservative while double-side deals retain meaningful upside.
+const BUSINESS_ID='realEstateAgency',SCHEMA_VERSION=3,SINGLE_COMMISSION_RATE=.03,DOUBLE_COMMISSION_RATE=.06,DOUBLE_SIDE_RATE=.5,HISTORY_LIMIT=52;
 const SEGMENTS=Object.freeze(['residential','luxury','investment','corporateDeal']);
 const FOCUS_WEIGHT_MULTIPLIER=3;
 const FOCUS_ORDER=Object.freeze(['balanced',...SEGMENTS]);
@@ -56,14 +56,15 @@ function processStore(g,store,business,pref,siteMultiplier=1){
   let closedDeals=0,singleClosedDeals=0,doubleClosedDeals=0,lostDeals=0,closedTransactionVolume=0,singleCommissionRevenue=0,doubleCommissionRevenue=0,totalCloseWeeks=0;const closedBySegment=emptySegmentCounts();
   const survivors=[];
   for(const deal of pipeline.activeDeals){
-    const age=Math.max(0,week-deal.createdWeek),config=SEGMENT_CONFIG[deal.segment],baseCloseChance=.18+quality*.0022+dx*.001+(cycle-1)*.18+efficiency*.0006,cycleAdjustment=(cycle-1)*.18*(config.cycleSensitivity-1),closeChance=clamp(baseCloseChance*config.closeMultiplier+cycleAdjustment,.08,.68);
+    const age=Math.max(0,week-deal.createdWeek),config=SEGMENT_CONFIG[deal.segment],baseCloseChance=.18+quality*.0022+dx*.001+(cycle-1)*.18+efficiency*.0006,cycleAdjustment=(cycle-1)*.18*(config.cycleSensitivity-1),ageRelief=Math.max(0,age-3)*.02,closeChance=clamp(baseCloseChance*config.closeMultiplier+cycleAdjustment+ageRelief,.08,.75);
     const closeRoll=hash(g.seed||1,`${store.id}:${deal.id}:close:${week}`),expiryWeeks=Math.max(6,14-Math.floor(efficiency/18)-Math.floor(dx/30)+config.expiryOffset);
     if(age>=1&&closeRoll<closeChance){const negotiation=.88+hash(g.seed||1,`${deal.id}:value:${week}`)*.2,transactionValue=Math.round(deal.askingValue*negotiation),fee=Math.round(transactionValue*commissionRateForSide(deal.side));closedDeals++;closedBySegment[deal.segment]++;closedTransactionVolume+=transactionValue;totalCloseWeeks+=age;if(deal.side==='double'){doubleClosedDeals++;doubleCommissionRevenue+=fee;}else{singleClosedDeals++;singleCommissionRevenue+=fee;}}
     else if(age>=expiryWeeks){lostDeals++;}
     else survivors.push(deal);
   }
   pipeline.activeDeals=survivors;
-  const inquiryBase=(2+brand/12)*(finite(pref?.traffic,1))*(.72+cycle*.28)*(1+dx/250)*clamp(siteMultiplier,.9,1.1),inquiries=Math.max(0,Math.floor(inquiryBase+hash(g.seed||1,`${store.id}:inquiries:${week}`)*2));
+  const branchCount=eligibleStores(g?.stores).length,networkOverlap=Math.max(.46,1-Math.max(0,branchCount-1)*.05);
+  const inquiryBase=(2+brand/12)*(finite(pref?.traffic,1))*(.72+cycle*.28)*(1+dx/250)*clamp(siteMultiplier,.9,1.1),inquiries=Math.max(0,Math.floor((inquiryBase+hash(g.seed||1,`${store.id}:inquiries:${week}`)*2)*networkOverlap));
   const available=Math.max(0,pipeline.capacity-pipeline.activeDeals.length),mandateChance=clamp(.34+brand*.002+quality*.0015+(cycle-1)*.12,.2,.68);let mandates=0,processedInquiries=0;
   for(;processedInquiries<inquiries&&mandates<available;processedInquiries++)if(hash(g.seed||1,`${store.id}:mandate:${week}:${processedInquiries}`)<mandateChance){
     const id=`BRA-${store.id}-${week}-${processedInquiries}`,segment=segmentForDeal(g.seed||1,id,store.id,focusFor(business).id),marketValue=(18_000_000+hash(g.seed||1,`${id}:asking`)*52_000_000)*cycle*SEGMENT_CONFIG[segment].valueMultiplier;
@@ -73,7 +74,7 @@ function processStore(g,store,business,pref,siteMultiplier=1){
   // 得られなかった。新たな乱数は消費せず、既に分かっている件数の差分だけで機会損失を可視化する。
   const capacityLostInquiries=mandates>=available?Math.max(0,inquiries-processedInquiries):0;
   const commissionRevenue=singleCommissionRevenue+doubleCommissionRevenue,conversionDenominator=closedDeals+lostDeals;
-  const row={week,marketIndicator:cycle,inquiries,newMandates:mandates,capacityLostInquiries,activeDeals:pipeline.activeDeals.length,closedDeals,singleClosedDeals,doubleClosedDeals,closedBySegment,lostDeals,closedTransactionVolume,singleCommissionRevenue,doubleCommissionRevenue,commissionRevenue,conversionRate:conversionDenominator?closedDeals/conversionDenominator:0,averageCloseWeeks:closedDeals?totalCloseWeeks/closedDeals:0,capacity:pipeline.capacity};
+  const row={week,marketIndicator:cycle,branchCount,networkOverlap,inquiries,newMandates:mandates,capacityLostInquiries,activeDeals:pipeline.activeDeals.length,closedDeals,singleClosedDeals,doubleClosedDeals,closedBySegment,lostDeals,closedTransactionVolume,singleCommissionRevenue,doubleCommissionRevenue,commissionRevenue,conversionRate:conversionDenominator?closedDeals/conversionDenominator:0,averageCloseWeeks:closedDeals?totalCloseWeeks/closedDeals:0,capacity:pipeline.capacity};
   pipeline.lastWeek=row;pipeline.history.push(row);pipeline.history=pipeline.history.slice(-HISTORY_LIMIT);
   for(const key of ['inquiries','closedDeals','singleClosedDeals','doubleClosedDeals','lostDeals','closedTransactionVolume','commissionRevenue','capacityLostInquiries'])pipeline.totals[key]+=row[key];pipeline.totals.mandates+=mandates;
   for(const segment of SEGMENTS)pipeline.totals.closedBySegment[segment]+=closedBySegment[segment];
