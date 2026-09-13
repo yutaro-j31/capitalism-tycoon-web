@@ -5,15 +5,22 @@ const { modules } = loadGame();
 const { createInitialState } = modules.engine;
 const market = modules.market;
 
+// Founding route rebalance (2026-09): ramen's unitCost/demand were retuned (js/data.js:
+// unitCost 300->257, demand 500->538) so standard play reaches a 1B-yen company value in a
+// 200-300-week window instead of ~500. That changes absolute yen figures and the margin rate
+// (lower unitCost -> higher contributionMarginRate) but not the underlying price/quality/brand
+// elasticity this test actually calibrates: every diffRate below is byte-identical to before the
+// retune, and every allowed/not-allowed verdict is unchanged. Regenerated via the same scenario()
+// function this file already defines.
 const EXPECTED = {
-  standard_single:{legacy:993361.72,newSales:1013384.15,diffAmount:20022.42,diffRate:0.020156,unitsSold:1101.5045,variableCost:322859.10,contributionMargin:690525.04,contributionMarginRate:0.681405,marketShare:0.550250,allowed:true},
-  advertising:{legacy:1092697.90,newSales:1057478.70,diffAmount:-35219.20,diffRate:-0.032231,unitsSold:1149.4334,variableCost:336907.41,contributionMargin:720571.29,contributionMarginRate:0.681405,marketShare:0.574193,allowed:true},
-  quality:{legacy:1077544.92,newSales:1127590.27,diffAmount:50045.35,diffRate:0.046444,unitsSold:1225.6416,variableCost:362751.82,contributionMargin:764838.45,contributionMarginRate:0.678295,marketShare:0.612262,allowed:true},
-  brand:{legacy:1192034.07,newSales:1101553.83,diffAmount:-90480.24,diffRate:-0.075904,unitsSold:1197.3411,variableCost:350949.52,contributionMargin:750604.31,contributionMarginRate:0.681405,marketShare:0.598125,allowed:true},
-  low_economy:{legacy:844357.47,newSales:861376.52,diffAmount:17019.06,diffRate:0.020156,unitsSold:936.2788,variableCost:274430.24,contributionMargin:586946.28,contributionMarginRate:0.681405,marketShare:0.550250,allowed:true},
-  high_economy:{legacy:1142365.98,newSales:1165391.77,diffAmount:23025.78,diffRate:0.020156,unitsSold:1266.7302,variableCost:371287.97,contributionMargin:794103.80,contributionMarginRate:0.681405,marketShare:0.550250,allowed:true},
-  different_pref_two:{legacy:1820828.47,newSales:1771473.73,diffAmount:-49354.75,diffRate:-0.027106,unitsSold:1925.5149,variableCost:564382.64,contributionMargin:1207091.08,contributionMarginRate:0.681405,marketShare:0.533984,allowed:true},
-  same_pref_two:{legacy:1986723.45,newSales:1295105.62,diffAmount:-691617.83,diffRate:-0.348120,unitsSold:1407.7235,variableCost:412614.15,contributionMargin:882491.47,contributionMarginRate:0.681405,marketShare:0.703220,allowed:false}
+  standard_single:{legacy:1068857.22,newSales:1090401.34,diffAmount:21544.13,diffRate:0.020156,unitsSold:1185.2188,variableCost:297602.91,contributionMargin:792798.43,contributionMarginRate:0.727070,marketShare:0.550250,allowed:true},
+  advertising:{legacy:1175742.94,newSales:1137847.08,diffAmount:-37895.85,diffRate:-0.032231,unitsSold:1236.7903,variableCost:310552.27,contributionMargin:827294.82,contributionMarginRate:0.727070,marketShare:0.574193,allowed:true},
+  quality:{legacy:1159438.34,newSales:1213287.13,diffAmount:53848.80,diffRate:0.046444,unitsSold:1318.7904,variableCost:334374.96,contributionMargin:878912.18,contributionMarginRate:0.724406,marketShare:0.612262,allowed:true},
+  brand:{legacy:1282628.66,newSales:1185271.92,diffAmount:-97356.74,diffRate:-0.075904,unitsSold:1288.3390,variableCost:323495.91,contributionMargin:861776.01,contributionMarginRate:0.727070,marketShare:0.598125,allowed:true},
+  low_economy:{legacy:908528.63,newSales:926841.14,diffAmount:18312.51,diffRate:0.020156,unitsSold:1007.4360,variableCost:252962.48,contributionMargin:673878.66,contributionMarginRate:0.727070,marketShare:0.550250,allowed:true},
+  high_economy:{legacy:1229185.80,newSales:1253961.54,diffAmount:24775.74,diffRate:0.020156,unitsSold:1363.0017,variableCost:342243.35,contributionMargin:911718.19,contributionMarginRate:0.727070,marketShare:0.550250,allowed:true},
+  different_pref_two:{legacy:1959211.44,newSales:1906105.73,diffAmount:-53105.71,diffRate:-0.027106,unitsSold:2071.8541,variableCost:520232.87,contributionMargin:1385872.86,contributionMarginRate:0.727070,marketShare:0.533984,allowed:true},
+  same_pref_two:{legacy:2137714.43,newSales:1393533.65,diffAmount:-744180.78,diffRate:-0.348120,unitsSold:1514.7105,variableCost:380336.72,contributionMargin:1013196.93,contributionMarginRate:0.727070,marketShare:0.703220,allowed:false}
 };
 
 function legacyStoreSales(s, store, rv = .5) {
