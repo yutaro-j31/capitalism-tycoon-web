@@ -13,7 +13,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        demand: [965, 970, 975]
+        demand: [966, 967, 968, 969]
     runs-on: ubuntu-24.04
     timeout-minutes: 15
     steps:
@@ -61,7 +61,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        ageScale: [0.01, 0.0125, 0.015]
+        ageScale: [0.017, 0.018, 0.019]
     runs-on: ubuntu-24.04
     timeout-minutes: 20
     steps:
@@ -81,7 +81,7 @@ jobs:
           s=p.read_text()
           old="ageRelief=Math.max(0,age-3)*.02,closeChance=clamp(baseCloseChance*config.closeMultiplier+cycleAdjustment+ageRelief,.08,.75)"
           assert old in s
-          s=s.replace(old,f"ageRelief=Math.max(0,age-3)*{scale},closeChance=clamp(baseCloseChance*config.closeMultiplier+cycleAdjustment+ageRelief,.08,.73)",1)
+          s=s.replace(old,f"ageRelief=Math.max(0,age-3)*{scale},closeChance=clamp(baseCloseChance*config.closeMultiplier+cycleAdjustment+ageRelief,.08,.74)",1)
           p.write_text(s)
           print('BROKERAGE_AGE_SCALE',scale)
           PY
