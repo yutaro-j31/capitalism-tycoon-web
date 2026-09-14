@@ -1,0 +1,37 @@
+name: Temporary Founding Rebuild Validation 5
+
+on:
+  push:
+    branches:
+      - tmp/founding-rebuild-validation-5
+
+permissions:
+  contents: read
+
+jobs:
+  focused:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: npm run test:syntax --silent
+      - run: npm run test:static --silent
+      - run: npm run test:modules --silent
+      - run: node tests/bank-loans-covenants-test.js
+      - run: node tests/store-opening-estimate-test.js
+      - run: node tests/gym-membership-model-test.js
+      - run: node tests/gym-membership-strategy-test.js
+      - run: node tests/real-estate-agency-pipeline-test.js
+      - run: node tests/real-estate-agency-founding-route-test.js
+      - run: node tests/real-estate-agency-capacity-visibility-test.js
+      - run: node tests/convenience-merchandising-test.js
+      - run: node tests/convenience-private-brand-test.js
+      - run: node tests/convenience-chain-scale-test.js
+      - run: npm run test:accounting-invariants --silent
+      - run: node tests/run-all-shard-matrix-test.js
+      - run: npm run test:transaction --silent
+      - run: npm run test:save --silent
+      - run: npm run test:migration --silent
