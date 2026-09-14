@@ -1,0 +1,13 @@
+'use strict';
+const fs=require('node:fs'),path=require('node:path'),assert=require('node:assert/strict');
+const cap=Number(process.env.CONVENI_DISCOUNT_CAP||0),perStore=Number(process.env.CONVENI_DISCOUNT_PER_STORE||0);
+const file=path.join(__dirname,'..','js','convenience-merchandising.js');let source=fs.readFileSync(file,'utf8');
+const anchor='const merchandiseCost=Math.max(0,adjustedDemand*finite(business?.unitCost,1)*finite(inflation,1)*policy.marginMultiplier);';assert.ok(source.includes(anchor));
+const repl=`const chainCount=(Array.isArray(g?.stores)?g.stores:[]).filter(s=>s&&s.id!==store.id&&s.businessID===BUSINESS_ID&&s.status==='open').length;const chainDiscount=Math.min(${cap},chainCount*${perStore});const merchandiseCost=Math.max(0,adjustedDemand*finite(business?.unitCost,1)*finite(inflation,1)*policy.marginMultiplier*(1-chainDiscount));`;
+fs.writeFileSync(file,source.replace(anchor,repl));
+const {loadGame}=require('./harness');const SEED=190826041;function lcg(seed=SEED){let s=seed>>>0;return()=>{s=(Math.imul(s,1664525)+1013904223)>>>0;return s/2**32;};}
+function tenantPool(e,id){const free=e.g.tenants.filter(t=>!t.occupiedBy),m=free.filter(t=>t.businessID===id);return(m.length?m:free).sort((a,b)=>b.traffic-a.traffic||String(a.id).localeCompare(String(b.id)));}
+function tryOpen(e,id){const t=tenantPool(e,id)[0];if(!t)return false;const b=e.business(id),cost=b.storeCost+t.deposit;if(e.g.companyCash<cost)return false;return e.openStore({tenantID:t.id,businessID:id,name:`${id}-${e.g.stores.length+1}`,operatingHours:3})===true;}
+function avg8(e){const h=e.g.weeklyProfitHistory.slice(-8);return h.length?h.reduce((a,n)=>a+n,0)/h.length:0;}
+function run(expand){const {ctx}=loadGame({random:lcg(),headless:true}),e=new ctx.__ct_headlessEngineClass();e.save=()=>{};e.configure({playerName:'Tester',companyName:'Conveni Co',difficulty:'normal',scenario:'free'});e.g.skipWeeklyValidation=true;const opened=tryOpen(e,'conveni');let week1B=null,minCash=e.g.companyCash;while(e.g.week<500&&!e.g.gameOver){e.advanceWeek(false);minCash=Math.min(minCash,e.g.companyCash);if(week1B===null&&e.companyValue()>=1e9)week1B=e.g.week;if(expand&&e.g.week%4===0&&avg8(e)>0){const t=tenantPool(e,'conveni')[0];if(t){const next=e.business('conveni').storeCost+t.deposit;if(e.g.companyCash>next*3)tryOpen(e,'conveni');}}}return{cap,perStore,expand,opened,week:e.g.week,gameOver:e.g.gameOver,weekReached1B:week1B,companyValue:e.companyValue(),companyCash:e.g.companyCash,storeCount:e.g.stores.filter(s=>s.businessID==='conveni').length,avgProfitLast8:avg8(e),minCash};}
+console.log(`FOUNDING_CONVENI_SCALE ${JSON.stringify(run(true))}`);console.log(`FOUNDING_CONVENI_ONE_STORE ${JSON.stringify(run(false))}`);
