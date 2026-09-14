@@ -75,6 +75,10 @@
     "reason": "Executed by the release delivery gate aggregator, invoked from the release-readiness job in .github/workflows/test.yml.",
     "executedBy": "scripts/release-delivery-gate.js"
   },
+  "tests/pe-ui-phase2-test.js": {
+    "reason": "Executed by the canonical PE UI Phase 1 regression entry, which is registered in tests/run-all.js.",
+    "executedBy": "tests/pe-ui-phase1-test.js"
+  },
   "tests/published-webkit-transient-retry-test.js": {
     "reason": "Executed by the release delivery gate aggregator, invoked from the release-readiness job in .github/workflows/test.yml.",
     "executedBy": "scripts/release-delivery-gate.js"
