@@ -9,7 +9,12 @@ permissions:
   contents: read
 
 jobs:
-  diagnostic:
+  term-calibration:
+    strategy:
+      fail-fast: false
+      matrix:
+        term: [130, 156, 182, 208]
+        expansion: [0, 1]
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
@@ -17,23 +22,42 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 22
-      - name: Patch startup cap for calibration only
-        run: node -e "const fs=require('fs');const p='js/bank-loans-covenants.js';let s=fs.readFileSync(p,'utf8');s=s.replace('GYM_STARTUP_MAX=5_500_000','GYM_STARTUP_MAX=9_500_000');fs.writeFileSync(p,s);"
-      - name: Patch historical finance snapshot reconstruction for calibration only
+      - name: Patch startup financing for calibration only
+        env:
+          TERM: ${{ matrix.term }}
+        run: |
+          node <<'NODE'
+          const fs=require('fs');
+          const p='js/bank-loans-covenants.js';
+          let s=fs.readFileSync(p,'utf8');
+          s=s.replace('GYM_STARTUP_MAX=5_500_000','GYM_STARTUP_MAX=9_500_000');
+          s=s.replace('GYM_STARTUP_TERM=104','GYM_STARTUP_TERM='+process.env.TERM);
+          const oldBalance="function bankLoanBalance(state){return activeFinanceLoans(state).filter(l=>l.sourceType==='bankLoansCovenants'||l.sourceType==='gymStartupLoan').reduce((sum,l)=>sum+integer(l.outstandingPrincipal),0);}";
+          const newBalance="function bankLoanBalance(state){return finance.ensureFinance(state).loans.filter(l=>l&&l.status!=='repaid'&&integer(l.outstandingPrincipal)>0&&(l.sourceType==='bankLoansCovenants'||l.sourceType==='gymStartupLoan')).reduce((sum,l)=>sum+integer(l.outstandingPrincipal),0);}";
+          if(!s.includes(oldBalance))throw new Error('bankLoanBalance contract changed');
+          s=s.replace(oldBalance,newBalance);
+          fs.writeFileSync(p,s);
+          NODE
+      - name: Patch finance accounting boundaries for calibration only
         run: |
           node <<'NODE'
           const fs=require('fs');
           const p='js/finance.js';
           let s=fs.readFileSync(p,'utf8');
-          const before="function rebuildSnapshotForWeek(g,week){const f=ensureFinance(g);week=Math.floor(n(week,g.week));const i=f.weeklySnapshots.findIndex(s=>s.week===week);const opening=i>=0?f.weeklySnapshots[i].openingCash:openingForWeek(f,week);return recordSnapshot(g,opening,week,week===Math.floor(n(g.week,1))?g.companyCash:(i>=0?f.weeklySnapshots[i].actualCompanyCash:null));}";
-          const after="function rebuildSnapshotForWeek(g,week){const f=ensureFinance(g);week=Math.floor(n(week,g.week));const i=f.weeklySnapshots.findIndex(s=>s.week===week);const opening=i>=0?f.weeklySnapshots[i].openingCash:openingForWeek(f,week),currentWeek=Math.floor(n(g.week,1)),reconstructed=r(opening+f.transactions.filter(t=>t.week===week).reduce((a,t)=>a+n(t.cashEffect),0)),actual=week===currentWeek?g.companyCash:(i>=0?f.weeklySnapshots[i].actualCompanyCash:reconstructed);return recordSnapshot(g,opening,week,actual);}";
-          if(!s.includes(before))throw new Error('finance rebuildSnapshotForWeek contract changed');
-          fs.writeFileSync(p,s.replace(before,after));
+          const oldSnapshot="function rebuildSnapshotForWeek(g,week){const f=ensureFinance(g);week=Math.floor(n(week,g.week));const i=f.weeklySnapshots.findIndex(s=>s.week===week);const opening=i>=0?f.weeklySnapshots[i].openingCash:openingForWeek(f,week);return recordSnapshot(g,opening,week,week===Math.floor(n(g.week,1))?g.companyCash:(i>=0?f.weeklySnapshots[i].actualCompanyCash:null));}";
+          const newSnapshot="function rebuildSnapshotForWeek(g,week){const f=ensureFinance(g);week=Math.floor(n(week,g.week));const i=f.weeklySnapshots.findIndex(s=>s.week===week);const opening=i>=0?f.weeklySnapshots[i].openingCash:openingForWeek(f,week),currentWeek=Math.floor(n(g.week,1)),reconstructed=r(opening+f.transactions.filter(t=>t.week===week).reduce((a,t)=>a+n(t.cashEffect),0)),actual=week===currentWeek?g.companyCash:(i>=0?f.weeklySnapshots[i].actualCompanyCash:reconstructed);return recordSnapshot(g,opening,week,actual);}";
+          if(!s.includes(oldSnapshot))throw new Error('rebuildSnapshotForWeek contract changed');
+          s=s.replace(oldSnapshot,newSnapshot);
+          const oldLoan="const loanTotal=r(f.loans.filter(l=>l.status==='active').reduce((a,l)=>a+n(l.outstandingPrincipal),0));";
+          const newLoan="const loanTotal=r(f.loans.filter(l=>l.status!=='repaid'&&n(l.outstandingPrincipal)>0).reduce((a,l)=>a+n(l.outstandingPrincipal),0));";
+          if(!s.includes(oldLoan))throw new Error('loan validation contract changed');
+          s=s.replace(oldLoan,newLoan);
+          fs.writeFileSync(p,s);
           NODE
-      - name: Run gym accounting diagnostic
+      - name: Run 500-week gym term calibration
         env:
           SEED: 190826041
           PRICE: 9000
-          ALLOW_EXPANSION: 1
+          ALLOW_EXPANSION: ${{ matrix.expansion }}
           HORIZON: 500
         run: node tests/tmp-gym-price-calibration.js
