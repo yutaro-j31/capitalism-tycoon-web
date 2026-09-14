@@ -1,8 +1,10 @@
 'use strict';
 
-// Production-harness calibration probe. The physical supply model owns ramen COGS, so the
-// production unitCost master value is kept at its calibrated 300-yen basis while nearby demand
-// candidates are measured in parallel. Overrides exist only in this test process.
+// Temporary production-harness calibration probe. The physical supply model owns ramen COGS,
+// so production unitCost stays on the calibrated 300-yen basis while we isolate the narrow
+// demand threshold that changes the standard-play expansion trajectory. Overrides exist only
+// in this test process; this probe will be replaced by the final regression once calibration
+// is complete.
 const assert=require('node:assert/strict');
 const {Worker,isMainThread,parentPort,workerData}=require('node:worker_threads');
 const {loadGame}=require('./harness');
@@ -33,20 +35,27 @@ function runStandardPlay({businessID='ramen',unitCost=300,demand,maxWeeks=301,al
   engine.save=()=>{};engine.configure({playerName:'Tester',companyName:`${businessID} Co`,difficulty:'normal',scenario:'free'});engine.g.skipWeeklyValidation=true;
   const business=engine.business(businessID);business.unitCost=unitCost;if(Number.isFinite(demand))business.demand=demand;
   const firstStoreOpened=tryOpenStore(engine,businessID);let weekReached1B=null;
+  const openingWeeks=firstStoreOpened?[engine.g.week]:[];
   while(engine.g.week<maxWeeks&&!engine.g.gameOver&&weekReached1B===null){
     engine.advanceWeek(false);if(engine.companyValue()>=1e9)weekReached1B=engine.g.week;
-    if(allowExpansion&&engine.g.week%4===0&&last8AvgProfit(engine)>0){const tenant=tenantPool(engine,businessID)[0];if(tenant){const nextCost=engine.business(businessID).storeCost+tenant.deposit;if(engine.g.companyCash>nextCost*3)tryOpenStore(engine,businessID);}}
+    if(allowExpansion&&engine.g.week%4===0&&last8AvgProfit(engine)>0){
+      const tenant=tenantPool(engine,businessID)[0];
+      if(tenant){
+        const nextCost=engine.business(businessID).storeCost+tenant.deposit;
+        if(engine.g.companyCash>nextCost*3){const before=engine.g.stores.length;if(tryOpenStore(engine,businessID)&&engine.g.stores.length>before)openingWeeks.push(engine.g.week);}
+      }
+    }
   }
-  return{businessID,unitCost:business.unitCost,demand:business.demand,week:engine.g.week,weekReached1B,firstStoreOpened,gameOver:engine.g.gameOver,companyValue:engine.companyValue(),companyCash:engine.g.companyCash,storeCount:engine.g.stores.filter(s=>s.businessID===businessID).length,avgProfitLast8:last8AvgProfit(engine)};
+  return{businessID,unitCost:business.unitCost,demand:business.demand,week:engine.g.week,weekReached1B,firstStoreOpened,gameOver:engine.g.gameOver,companyValue:engine.companyValue(),companyCash:engine.g.companyCash,storeCount:engine.g.stores.filter(s=>s.businessID===businessID).length,avgProfitLast8:last8AvgProfit(engine),openingWeeks};
 }
 function runWorker(data){return new Promise((resolve,reject)=>{const w=new Worker(__filename,{workerData:data});w.once('message',resolve);w.once('error',reject);w.once('exit',code=>{if(code)reject(new Error(`worker exited ${code}`));});});}
 if(!isMainThread){parentPort.postMessage(runStandardPlay(workerData));}
 else{
   (async()=>{
-    const candidates=[510,515,520,525,530,535].map(demand=>({businessID:'ramen',unitCost:300,demand,maxWeeks:301,seed:SEED}));
+    const candidates=[531,532,533,534].map(demand=>({businessID:'ramen',unitCost:300,demand,maxWeeks:301,seed:SEED}));
     const rows=await Promise.all(candidates.map(runWorker));
-    console.log(`FOUNDING_RAMEN_DEMAND_CALIBRATION ${JSON.stringify(rows)}`);
+    console.log(`FOUNDING_RAMEN_NARROW_THRESHOLD ${JSON.stringify(rows)}`);
     const inRange=rows.filter(row=>row.weekReached1B!==null&&row.weekReached1B>=200&&row.weekReached1B<=300);
-    assert.ok(inRange.length>0,`at least one demand candidate must reach 1B in [200,300]: ${JSON.stringify(rows.map(r=>({demand:r.demand,weekReached1B:r.weekReached1B,gameOver:r.gameOver})))}`);
+    assert.ok(inRange.length>0,`narrow demand candidates must reveal a 1B trajectory in [200,300] or confirm a discrete expansion cliff: ${JSON.stringify(rows.map(r=>({demand:r.demand,weekReached1B:r.weekReached1B,storeCount:r.storeCount,openingWeeks:r.openingWeeks,gameOver:r.gameOver})))}`);
   })().catch(error=>{console.error(error);process.exitCode=1;});
 }
