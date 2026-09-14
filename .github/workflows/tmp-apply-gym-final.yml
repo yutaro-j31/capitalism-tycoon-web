@@ -1,0 +1,76 @@
+name: Temporary Apply Final Gym Founding Patch
+
+on:
+  push:
+    branches:
+      - tmp/founding-gym-final-apply
+    paths:
+      - .github/workflows/tmp-apply-gym-final.yml
+
+permissions:
+  contents: write
+
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: tmp/founding-gym-final-apply
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Apply validated gym founding changes
+        run: |
+          node <<'NODE'
+          const fs=require('fs');
+
+          let p='js/bank-loans-covenants.js',s=fs.readFileSync(p,'utf8');
+          const oldBalance="function bankLoanBalance(state){return activeFinanceLoans(state).filter(l=>l.sourceType==='bankLoansCovenants'||l.sourceType==='gymStartupLoan').reduce((sum,l)=>sum+integer(l.outstandingPrincipal),0);}";
+          const newBalance="function bankLoanBalance(state){return finance.ensureFinance(state).loans.filter(l=>l&&l.status!=='repaid'&&integer(l.outstandingPrincipal)>0&&(l.sourceType==='bankLoansCovenants'||l.sourceType==='gymStartupLoan')).reduce((sum,l)=>sum+integer(l.outstandingPrincipal),0);}";
+          if(!s.includes(oldBalance))throw new Error('bankLoanBalance contract changed');
+          s=s.replace(oldBalance,newBalance);
+          const oldInstall="function install(){const proto=EngineClass.prototype;if(proto.__bankLoansCovenantsInstalled)return true;const baseNormalize=proto.normalize;";
+          const newInstall="function install(){const proto=EngineClass.prototype;if(proto.__bankLoansCovenantsInstalled)return true;const baseCompanyBorrowRate=proto.companyBorrowRate;proto.companyBorrowRate=function(){const base=typeof baseCompanyBorrowRate==='function'?finite(baseCompanyBorrowRate.call(this)):0,total=Math.max(0,finite(this.g?.companyDebt));if(total<=0)return base;const managed=Math.min(total,bankLoanBalance(this.g));return base*(total-managed)/total;};const baseNormalize=proto.normalize;";
+          if(!s.includes(oldInstall))throw new Error('bank install contract changed');
+          fs.writeFileSync(p,s.replace(oldInstall,newInstall));
+
+          p='js/finance.js';s=fs.readFileSync(p,'utf8');
+          const oldSnapshot="function rebuildSnapshotForWeek(g,week){const f=ensureFinance(g);week=Math.floor(n(week,g.week));const i=f.weeklySnapshots.findIndex(s=>s.week===week);const opening=i>=0?f.weeklySnapshots[i].openingCash:openingForWeek(f,week);return recordSnapshot(g,opening,week,week===Math.floor(n(g.week,1))?g.companyCash:(i>=0?f.weeklySnapshots[i].actualCompanyCash:null));}";
+          const newSnapshot="function rebuildSnapshotForWeek(g,week){const f=ensureFinance(g);week=Math.floor(n(week,g.week));const i=f.weeklySnapshots.findIndex(s=>s.week===week);const opening=i>=0?f.weeklySnapshots[i].openingCash:openingForWeek(f,week),currentWeek=Math.floor(n(g.week,1)),reconstructed=r(opening+f.transactions.filter(t=>t.week===week).reduce((a,t)=>a+n(t.cashEffect),0)),actual=week===currentWeek?g.companyCash:reconstructed;return recordSnapshot(g,opening,week,actual);}";
+          if(!s.includes(oldSnapshot))throw new Error('finance snapshot contract changed');
+          s=s.replace(oldSnapshot,newSnapshot);
+          const oldLoan="const loanTotal=r(f.loans.filter(l=>l.status==='active').reduce((a,l)=>a+n(l.outstandingPrincipal),0));";
+          const newLoan="const loanTotal=r(f.loans.filter(l=>l.status!=='repaid'&&n(l.outstandingPrincipal)>0).reduce((a,l)=>a+n(l.outstandingPrincipal),0));";
+          if(!s.includes(oldLoan))throw new Error('finance loan validation contract changed');
+          fs.writeFileSync(p,s.replace(oldLoan,newLoan));
+
+          p='js/data.js';s=fs.readFileSync(p,'utf8');
+          const oldGym='"id": "gym",\n      "name": "ジム",\n      "price": 7800,\n      "unitCost": 900,\n      "demand": 130,\n      "quality": 10,\n      "brand": 12,\n      "efficiency": 10,\n      "dx": 0,\n      "storeCost": 14000000,';
+          const newGym='"id": "gym",\n      "name": "ジム",\n      "price": 11550,\n      "unitCost": 900,\n      "demand": 130,\n      "quality": 10,\n      "brand": 12,\n      "efficiency": 10,\n      "dx": 0,\n      "storeCost": 10000000,';
+          if(!s.includes(oldGym))throw new Error('gym economics contract changed');
+          fs.writeFileSync(p,s.replace(oldGym,newGym));
+          NODE
+      - name: Focused regression
+        run: |
+          npm run test:syntax
+          npm run test:static
+          npm run test:modules
+          node tests/bank-loans-covenants-test.js
+          node tests/bank-loans-covenants-accounting-test.js
+          node tests/store-opening-estimate-test.js
+          npm run test:finance
+          npm run test:accounting-invariants
+          node tests/gym-membership-model-test.js
+          node tests/gym-strategy-test.js
+          npm run test:market-calibration
+      - name: Remove temporary workflow and commit tree
+        run: |
+          git rm .github/workflows/tmp-apply-gym-final.yml
+          git config user.name "ChatGPT Founding Rebuild"
+          git config user.email "actions@users.noreply.github.com"
+          git add js/bank-loans-covenants.js js/finance.js js/data.js
+          git diff --cached --check
+          git commit -m "fix: stabilize gym founding economics and finance"
+          git push origin HEAD:tmp/founding-gym-final-apply
