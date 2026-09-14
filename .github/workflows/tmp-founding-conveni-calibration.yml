@@ -1,0 +1,35 @@
+name: Temporary Founding Conveni Calibration
+
+on:
+  push:
+    branches:
+      - tmp/founding-conveni-calibration
+
+jobs:
+  calibrate:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - cap: '0'
+            perStore: '0'
+          - cap: '0.03'
+            perStore: '0.003'
+          - cap: '0.05'
+            perStore: '0.005'
+          - cap: '0.07'
+            perStore: '0.007'
+          - cap: '0.09'
+            perStore: '0.01'
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Measure conveni scale candidate
+        env:
+          CONVENI_DISCOUNT_CAP: ${{ matrix.cap }}
+          CONVENI_DISCOUNT_PER_STORE: ${{ matrix.perStore }}
+        run: node tests/tmp-founding-conveni-scale.js
