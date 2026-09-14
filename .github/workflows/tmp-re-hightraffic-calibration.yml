@@ -9,10 +9,11 @@ permissions:
   contents: read
 
 jobs:
-  six-deal-long-run:
+  deal-count-long-run:
     strategy:
       fail-fast: false
       matrix:
+        deals: [7, 8]
         seed: [190826100,190826101,190826102,190826103,190826104,190826105,190826106,190826107,190826108,190826109,190826110,190826111,190826112,190826113,190826114,190826115,190826116,190826117,190826118,190826119]
     runs-on: ubuntu-latest
     timeout-minutes: 8
@@ -21,8 +22,10 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 22
-      - name: Patch six founding deals for calibration only
-        run: node -e "const fs=require('fs');const p='js/real-estate-agency-pipeline.js';let s=fs.readFileSync(p,'utf8');s=s.replace('FOUNDING_INITIAL_DEALS=4','FOUNDING_INITIAL_DEALS=6');fs.writeFileSync(p,s);"
+      - name: Patch founding deal count for calibration only
+        env:
+          DEALS: ${{ matrix.deals }}
+        run: node -e "const fs=require('fs');const p='js/real-estate-agency-pipeline.js';let s=fs.readFileSync(p,'utf8');s=s.replace('FOUNDING_INITIAL_DEALS=4','FOUNDING_INITIAL_DEALS='+process.env.DEALS);fs.writeFileSync(p,s);"
       - name: Run 500-week high-traffic founding route
         env:
           SEED: ${{ matrix.seed }}
