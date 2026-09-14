@@ -1,0 +1,31 @@
+name: Temporary Gym Price Calibration
+
+on:
+  push:
+    branches:
+      - tmp/gym-price-calibration
+
+permissions:
+  contents: read
+
+jobs:
+  calibration:
+    strategy:
+      fail-fast: false
+      matrix:
+        price: [8500, 9000]
+        expansion: [0, 1]
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Run 500-week gym calibration
+        env:
+          SEED: 190826041
+          PRICE: ${{ matrix.price }}
+          ALLOW_EXPANSION: ${{ matrix.expansion }}
+          HORIZON: 500
+        run: node tests/tmp-gym-price-calibration.js
