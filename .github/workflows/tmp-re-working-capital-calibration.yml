@@ -10,7 +10,8 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        principal: [0, 1000000, 2000000, 3000000, 4000000]
+        principal: [2000000, 3000000]
+        grace: [0, 8, 12, 16, 24]
     runs-on: ubuntu-latest
     timeout-minutes: 8
     steps:
@@ -18,7 +19,8 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 22
-      - name: Measure RE working capital candidate
+      - name: Measure RE principal grace candidate
         env:
           WORKING_CAPITAL: ${{ matrix.principal }}
+          PRINCIPAL_GRACE_WEEKS: ${{ matrix.grace }}
         run: node tests/tmp-re-working-capital-calibration.js
