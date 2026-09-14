@@ -9,11 +9,11 @@ permissions:
   contents: read
 
 jobs:
-  founding-deal-screen:
+  working-capital-line:
     strategy:
       fail-fast: false
       matrix:
-        founding_deals: [7, 8]
+        line_cap: [2000000, 3000000, 4000000]
         seed: [190826100,190826101,190826102,190826103,190826104,190826105,190826106,190826107,190826108,190826109,190826110,190826111,190826112,190826113,190826114,190826115,190826116,190826117,190826118,190826119]
     runs-on: ubuntu-latest
     timeout-minutes: 10
@@ -22,21 +22,32 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 22
-      - name: Patch founding mandates for calibration only
-        env:
-          FOUNDING_DEALS: ${{ matrix.founding_deals }}
+      - name: Remove founding mandates for line calibration
         run: |
           node <<'NODE'
           const fs=require('fs');
           const p='js/real-estate-agency-pipeline.js';
           let s=fs.readFileSync(p,'utf8');
           const from='FOUNDING_INITIAL_DEALS=4';
-          const to='FOUNDING_INITIAL_DEALS='+process.env.FOUNDING_DEALS;
           if(!s.includes(from)) throw new Error('RE founding deal contract changed');
-          fs.writeFileSync(p,s.replace(from,to));
+          fs.writeFileSync(p,s.replace(from,'FOUNDING_INITIAL_DEALS=0'));
           NODE
-      - name: Run strict 500-week high-traffic founding route
+      - name: Patch historical finance snapshot for calibration only
+        run: |
+          node <<'NODE'
+          const fs=require('fs');
+          const p='js/finance.js';
+          let s=fs.readFileSync(p,'utf8');
+          const oldSnapshot="function rebuildSnapshotForWeek(g,week){const f=ensureFinance(g);week=Math.floor(n(week,g.week));const i=f.weeklySnapshots.findIndex(s=>s.week===week);const opening=i>=0?f.weeklySnapshots[i].openingCash:openingForWeek(f,week);return recordSnapshot(g,opening,week,week===Math.floor(n(g.week,1))?g.companyCash:(i>=0?f.weeklySnapshots[i].actualCompanyCash:null));}";
+          const newSnapshot="function rebuildSnapshotForWeek(g,week){const f=ensureFinance(g);week=Math.floor(n(week,g.week));const i=f.weeklySnapshots.findIndex(s=>s.week===week);const opening=i>=0?f.weeklySnapshots[i].openingCash:openingForWeek(f,week),currentWeek=Math.floor(n(g.week,1)),reconstructed=r(opening+f.transactions.filter(t=>t.week===week).reduce((a,t)=>a+n(t.cashEffect),0)),actual=week===currentWeek?g.companyCash:(i>=0?f.weeklySnapshots[i].actualCompanyCash:reconstructed);return recordSnapshot(g,opening,week,actual);}";
+          if(!s.includes(oldSnapshot))throw new Error('rebuildSnapshotForWeek contract changed');
+          fs.writeFileSync(p,s.replace(oldSnapshot,newSnapshot));
+          NODE
+      - name: Run strict 500-week high-traffic RE route
         env:
           SEED: ${{ matrix.seed }}
           HORIZON: 500
+          LINE_CAP: ${{ matrix.line_cap }}
+          CASH_FLOOR: 2000000
+          REPAY_TRIGGER: 4000000
         run: node tests/tmp-re-hightraffic-calibration.js
