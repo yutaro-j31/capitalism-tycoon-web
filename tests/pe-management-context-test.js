@@ -108,7 +108,13 @@ for(const [label,mutate,reason] of [
   assert.equal(randomCalls,callsBefore,'chained detached preview consumes no RNG');
 
   assert.strictEqual(ops.resolvePortfolioOperatingCalculator(deal),ops.calculateGenericPortfolioOperatingWeek,'weekly PE dispatch remains generic in this prerequisite');
-  assert.equal(engine.canOpenPEPortfolioManagement(fund.id,deal.id).capability.actionsEnabled,false,'gym management actions remain disabled');
+  // gym is the first (so far only) pillar business whose detached production bridge above is
+  // wired all the way to a player-facing management action -- see tests/pe-gym-management-actions-test.js.
+  assert.equal(engine.canOpenPEPortfolioManagement(fund.id,deal.id).capability.actionsEnabled,true,'gym management actions are enabled once the detached bridge exists');
+}
+{
+  const {engine,fund,deal}=fixture('conveni');
+  assert.equal(engine.canOpenPEPortfolioManagement(fund.id,deal.id).capability.actionsEnabled,false,'other supported pillars stay disabled until they have their own detached bridge');
 }
 {
   const {engine,fund,deal}=fixture('ramen'),before=plain(engine.g),callsBefore=randomCalls;
