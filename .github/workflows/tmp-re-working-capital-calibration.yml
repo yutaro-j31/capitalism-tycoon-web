@@ -1,0 +1,24 @@
+name: Temporary RE Working Capital Calibration
+
+on:
+  push:
+    branches:
+      - tmp/founding-re-financing-calibration
+
+jobs:
+  calibrate:
+    strategy:
+      fail-fast: false
+      matrix:
+        principal: [0, 1000000, 2000000, 3000000, 4000000]
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Measure RE working capital candidate
+        env:
+          WORKING_CAPITAL: ${{ matrix.principal }}
+        run: node tests/tmp-re-working-capital-calibration.js
