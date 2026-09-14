@@ -20,10 +20,10 @@ else{
     const ids=['ramen','conveni','gym','realEstateAgency'];
     const rows=await Promise.all(ids.map(id=>worker(id,{weeks:500,expand:true})));
     const results=Object.fromEntries(ids.map((id,index)=>[id,rows[index]]));
+    console.log(`FOUNDING_ROUTE_CALIBRATION ${JSON.stringify(results,(key,value)=>key==='profits'||key==='storeIDs'?undefined:value)}`);
     assert.ok(results.ramen.reached>=200&&results.ramen.reached<=300,`ramen reaches 1B in design range: ${results.ramen.reached}`);
     for(const [id,row] of Object.entries(results)){assert.equal(row.gameOver,false,`${id} survives 500 weeks`);assert.equal(row.week,500,`${id} reaches week 500`);assert.ok(row.last8.reduce((a,n)=>a+n,0)/8>=0,`${id} has no late structural loss`);}
     const [a,b]=await Promise.all([worker('conveni',{weeks:80}),worker('conveni',{weeks:80})]);
     assert.equal(JSON.stringify({cash:a.cash,value:a.value,stores:a.stores,storeIDs:a.storeIDs,profits:a.profits,reached:a.reached,gameOver:a.gameOver}),JSON.stringify({cash:b.cash,value:b.value,stores:b.stores,storeIDs:b.storeIDs,profits:b.profits,reached:b.reached,gameOver:b.gameOver}),'same founding actions are deterministic');
-    console.log(`FOUNDING_ROUTE_CALIBRATION ${JSON.stringify(results,(key,value)=>key==='profits'||key==='storeIDs'?undefined:value)}`);
   })().catch(error=>{console.error(error);process.exitCode=1;});
 }
