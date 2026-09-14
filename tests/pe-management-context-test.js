@@ -52,4 +52,73 @@ for(const [label,mutate,reason] of [
   const beforeCash=loaded.g.companyCash,business=loaded.business('ramen');
   assert.equal(loaded.adjustPrice('ramen',business.price+10),true);assert.equal(loaded.g.companyCash,beforeCash,'self gameplay behavior remains unchanged');
 }
+
+// Detached PE-gym production input: use the PE production site and shared market environment,
+// but never point the gym model at the player's self-company state or settle any PE cash here.
+{
+  const initial=context.defaultPEPortfolioGymOperatingState();
+  assert.equal(initial.schemaVersion,context.GYM_OPERATING_STATE_SCHEMA_VERSION);
+  assert.equal(initial.condition,modules.storeEquipment.FULL_CONDITION);
+  assert.equal(initial.level,1);
+  assert.equal(initial.operatingHours,modules.storeEquipment.DEFAULT_OPERATING_HOURS);
+  assert.equal(initial.gymMembership.schemaVersion,modules.gymMembershipModel.SCHEMA_VERSION);
+  assert.equal(initial.gymMembership.members,0);
+}
+{
+  const {engine,fund,deal}=fixture('gym');
+  // Deliberately distort the self-company gym record. The PE input must still start from the
+  // static production master so self price/quality/brand/DX choices cannot leak across owners.
+  const selfGym=engine.business('gym');selfGym.price*=3;selfGym.quality=99;selfGym.brand=91;selfGym.dx=77;
+  deal.portfolioCompany.priceMultiplier=1.25;
+  const before=plain(engine.g),callsBefore=randomCalls;
+  const input=engine.getPEPortfolioGymOperatingInput(fund.id,deal.id);
+  assert.equal(input.ok,true);assert.equal(input.source,'pe-gym-detached-production-input');
+  const site=ops.getPortfolioProductionSite(engine.g,fund.id,deal.id);equal(input.productionSite,site,'adapter uses persisted PE production site');
+  const pref=engine.g.prefs.find(row=>row.id===site.prefID),area=engine.g.areas.find(row=>row.id===site.areaID);
+  assert(pref&&area&&pref.areaID===area.id);
+  const expectedPressure=modules.storeMarketEnvironment.competitorPressure(engine.g.competitors,area.id,'gym');
+  assert.equal(input.competitorPressure,expectedPressure);
+  assert.equal(input.localCompetition,modules.storeMarketEnvironment.localCompetition(area,expectedPressure));
+  assert(Number.isFinite(input.demand)&&input.demand>0,'shared production demand is finite and positive');
+  const gymMaster=modules.data.MASTER.businesses.find(row=>row.id==='gym');
+  assert(gymMaster,'static gym business master exists');
+  assert.equal(input.business.price,gymMaster.price*1.25,'PE price lever maps onto the detached gym fee');
+  assert.equal(input.business.quality,gymMaster.quality,'self-company quality must not leak into detached PE input');
+  assert.equal(input.business.brand,gymMaster.brand,'self-company brand must not leak into detached PE input');
+  assert.equal(input.business.dx,gymMaster.dx,'self-company DX must not leak into detached PE input');
+  assert.notEqual(input.business.price,selfGym.price,'detached business does not alias self-company pricing');
+  assert.equal(input.portfolioLevers.qualityInvestment,deal.portfolioCompany.qualityInvestment,'unmapped PE levers remain explicit for the future calibrated calculator');
+  equal(engine.g,before,'building detached gym input is read-only');
+  assert.equal(randomCalls,callsBefore,'building detached gym input consumes no RNG');
+
+  const directStore=plain(input.store),directBusiness=plain(input.business);
+  const directResult=modules.gymMembershipModel.processStore({week:input.week},directStore,directBusiness,input.demand,input.inflation,input.localCompetition);
+  const preview=engine.previewPEPortfolioGymWeek(fund.id,deal.id);
+  assert.equal(preview.ok,true);assert.equal(preview.source,'pe-gym-detached-preview');
+  assert.equal(preview.sales,directResult.sales);assert.equal(preview.variable,directResult.variable);
+  equal(preview.nextOperatingState.gymMembership,directStore.gymMembership,'preview delegates to the production gym membership model');
+  assert(preview.membershipWeek&&preview.membershipWeek.members>0,'preview advances detached membership state');
+  equal(engine.g,before,'gym preview cannot mutate self company, PE cash, ledger, or saved portfolio state');
+  assert.equal(randomCalls,callsBefore,'gym preview consumes no RNG');
+
+  const next=engine.previewPEPortfolioGymWeek(fund.id,deal.id,{week:input.week+1,operatingState:preview.nextOperatingState});
+  assert.equal(next.ok,true);assert.equal(next.membershipWeek.week,input.week+1);
+  assert(next.nextOperatingState.gymMembership.members>=0);
+  equal(engine.g,before,'chained detached previews still do not persist or settle state');
+  assert.equal(randomCalls,callsBefore,'chained detached preview consumes no RNG');
+
+  assert.strictEqual(ops.resolvePortfolioOperatingCalculator(deal),ops.calculateGenericPortfolioOperatingWeek,'weekly PE dispatch remains generic in this prerequisite');
+  assert.equal(engine.canOpenPEPortfolioManagement(fund.id,deal.id).capability.actionsEnabled,false,'gym management actions remain disabled');
+}
+{
+  const {engine,fund,deal}=fixture('ramen'),before=plain(engine.g),callsBefore=randomCalls;
+  equal(engine.getPEPortfolioGymOperatingInput(fund.id,deal.id),{ok:false,reason:'not-gym',fundID:fund.id,dealID:deal.id});
+  equal(engine.g,before);assert.equal(randomCalls,callsBefore);
+}
+{
+  const {engine,fund,deal}=fixture('gym');delete deal.portfolioCompany.productionSite;
+  const before=plain(engine.g),callsBefore=randomCalls;
+  equal(engine.getPEPortfolioGymOperatingInput(fund.id,deal.id),{ok:false,reason:'production-site-missing',fundID:fund.id,dealID:deal.id});
+  equal(engine.g,before,'adapter does not lazily mutate a missing site');assert.equal(randomCalls,callsBefore);
+}
 console.log('PE management context foundation tests passed');
