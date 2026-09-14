@@ -9,12 +9,7 @@ permissions:
   contents: read
 
 jobs:
-  calibration:
-    strategy:
-      fail-fast: false
-      matrix:
-        price: [8500, 9000]
-        expansion: [0, 1]
+  diagnostic:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
@@ -33,13 +28,12 @@ jobs:
           const before="function rebuildSnapshotForWeek(g,week){const f=ensureFinance(g);week=Math.floor(n(week,g.week));const i=f.weeklySnapshots.findIndex(s=>s.week===week);const opening=i>=0?f.weeklySnapshots[i].openingCash:openingForWeek(f,week);return recordSnapshot(g,opening,week,week===Math.floor(n(g.week,1))?g.companyCash:(i>=0?f.weeklySnapshots[i].actualCompanyCash:null));}";
           const after="function rebuildSnapshotForWeek(g,week){const f=ensureFinance(g);week=Math.floor(n(week,g.week));const i=f.weeklySnapshots.findIndex(s=>s.week===week);const opening=i>=0?f.weeklySnapshots[i].openingCash:openingForWeek(f,week),currentWeek=Math.floor(n(g.week,1)),reconstructed=r(opening+f.transactions.filter(t=>t.week===week).reduce((a,t)=>a+n(t.cashEffect),0)),actual=week===currentWeek?g.companyCash:(i>=0?f.weeklySnapshots[i].actualCompanyCash:reconstructed);return recordSnapshot(g,opening,week,actual);}";
           if(!s.includes(before))throw new Error('finance rebuildSnapshotForWeek contract changed');
-          s=s.replace(before,after);
-          fs.writeFileSync(p,s);
+          fs.writeFileSync(p,s.replace(before,after));
           NODE
-      - name: Run 500-week gym calibration
+      - name: Run gym accounting diagnostic
         env:
           SEED: 190826041
-          PRICE: ${{ matrix.price }}
-          ALLOW_EXPANSION: ${{ matrix.expansion }}
+          PRICE: 9000
+          ALLOW_EXPANSION: 1
           HORIZON: 500
         run: node tests/tmp-gym-price-calibration.js
