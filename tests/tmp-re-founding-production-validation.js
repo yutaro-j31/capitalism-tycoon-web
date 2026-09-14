@@ -1,0 +1,9 @@
+'use strict';
+const assert=require('node:assert/strict');
+const {loadGame}=require('./harness');
+const SEED=Number(process.env.SEED||190826107),HORIZON=Number(process.env.HORIZON||500);
+function lcg(seed){let s=seed>>>0;return()=>{s=(Math.imul(s,1664525)+1013904223)>>>0;return s/2**32;};}
+const {ctx,modules}=loadGame({random:lcg(SEED),headless:true}),e=new ctx.__ct_headlessEngineClass();e.save=()=>{};e.emit=()=>{};e.configure({playerName:'Tester',companyName:'RE Co',difficulty:'normal',scenario:'free'});e.g.skipWeeklyValidation=true;e.g.seed=SEED;
+const tenant=e.g.tenants.filter(t=>!t.occupiedBy).sort((a,b)=>b.traffic-a.traffic||String(a.id).localeCompare(String(b.id))).find(t=>t.businessID==='realEstateAgency')||e.g.tenants.find(t=>!t.occupiedBy);assert.ok(tenant);assert.equal(e.openStore({tenantID:tenant.id,businessID:'realEstateAgency',name:'RE-1',operatingHours:3}),true);const store=e.g.stores.at(-1);let firstClose=null,closed=0,minCash=e.g.companyCash,maxActive=0,zeroCloseWeeks=0;while(e.g.week<HORIZON&&!e.g.gameOver){e.advanceWeek(false);minCash=Math.min(minCash,e.g.companyCash);const row=store.brokeragePipeline?.lastWeek;if(row){closed+=row.closedDeals;if(row.closedDeals===0)zeroCloseWeeks++;if(row.closedDeals&&firstClose===null)firstClose=e.g.week;maxActive=Math.max(maxActive,row.activeDeals||0);}const check=modules.finance.validate(e.g);assert.equal(check.ok,true,check.errors.join('\n'));}
+const foundingDeals=(store.brokeragePipeline?.history||[]).length?modules.realEstateAgencyPipeline.FOUNDING_INITIAL_DEALS:null;
+console.log('RE_FOUNDING_PRODUCTION',JSON.stringify({seed:SEED,horizon:HORIZON,survived:!e.g.gameOver,week:e.g.week,firstClose,closedDeals:closed,zeroCloseWeeks,minCash,endingCash:e.g.companyCash,companyDebt:e.g.companyDebt,maxActive,foundingDeals,activeDeals:store.brokeragePipeline?.activeDeals?.length||0,commissionRevenue:store.brokeragePipeline?.totals?.commissionRevenue||0,gameOverReason:e.g.gameOverReason||null}));
