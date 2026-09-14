@@ -13,8 +13,8 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        price: [10500, 10750, 11000, 11250, 11500]
-        store_cost: [8000000, 9000000, 10000000]
+        price: [11500, 11550, 11600, 11650, 11700]
+        store_cost: [10000000]
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
