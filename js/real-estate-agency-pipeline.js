@@ -4,7 +4,7 @@ const modules=globalThis.__capitalismTycoonModules;
 if(!modules)throw new Error('runtime.js must be loaded before real-estate-agency-pipeline.js.');
 if(modules.realEstateAgencyPipeline)throw new Error('real-estate-agency-pipeline.js already registered.');
 // A 50/50 mix keeps the expected fee yield at the previously calibrated 6%.
-const BUSINESS_ID='realEstateAgency',SCHEMA_VERSION=3,SINGLE_COMMISSION_RATE=.055,DOUBLE_COMMISSION_RATE=.065,DOUBLE_SIDE_RATE=.5,HISTORY_LIMIT=52;
+const BUSINESS_ID='realEstateAgency',SCHEMA_VERSION=3,SINGLE_COMMISSION_RATE=.055,DOUBLE_COMMISSION_RATE=.065,DOUBLE_SIDE_RATE=.5,HISTORY_LIMIT=52,FOUNDING_INITIAL_DEALS=2;
 const SEGMENTS=Object.freeze(['residential','luxury','investment','corporateDeal']);
 const FOCUS_WEIGHT_MULTIPLIER=3;
 const FOCUS_ORDER=Object.freeze(['balanced',...SEGMENTS]);
@@ -49,9 +49,20 @@ function normalize(g){
   const businesses=Array.isArray(g?.businesses)?g.businesses:[],business=businesses.find(x=>x?.id===BUSINESS_ID);
   for(const store of Array.isArray(g?.stores)?g.stores:[])if(store?.businessID===BUSINESS_ID&&store.brokeragePipeline&&typeof store.brokeragePipeline==='object')ensureStore(store,business,integer(g.week,1),g.seed);
 }
+function foundingStore(g,store){const rows=(Array.isArray(g?.stores)?g.stores:[]).filter(row=>row?.businessID===BUSINESS_ID).sort((a,b)=>integer(a?.openingWeek,Number.MAX_SAFE_INTEGER)-integer(b?.openingWeek,Number.MAX_SAFE_INTEGER)||String(a?.id||'').localeCompare(String(b?.id||'')));return rows[0]?.id===store?.id;}
+function seedFoundingPipeline(g,store,business,pipeline,week){
+  if(!pipeline||!foundingStore(g,store)||integer(store?.openingWeek)!==week||pipeline.activeDeals.length||pipeline.history.length||pipeline.lastWeek)return 0;
+  const cycle=marketIndicator(g),focusID=focusFor(business).id,count=Math.min(FOUNDING_INITIAL_DEALS,pipeline.capacity);
+  for(let i=0;i<count;i++){
+    const id=`BRA-FND-${store.id}-${i+1}`,segment=segmentForDeal(g?.seed||1,id,store.id,focusID),marketValue=(18_000_000+hash(g?.seed||1,`${id}:asking`)*52_000_000)*cycle*SEGMENT_CONFIG[segment].valueMultiplier;
+    pipeline.activeDeals.push({id,storeID:store.id,createdWeek:week,askingValue:Math.round(marketValue),side:sideForDeal(g?.seed||1,id,store.id),segment});
+  }
+  return count;
+}
 function processStore(g,store,business,pref,siteMultiplier=1){
   if(!store||store.businessID!==BUSINESS_ID||store.status!=='open')return null;
-  const week=Math.max(1,integer(g?.week,1)),pipeline=ensureStore(store,business,week,g?.seed),cycle=marketIndicator(g);
+  const week=Math.max(1,integer(g?.week,1)),hadPipeline=Boolean(store.brokeragePipeline&&typeof store.brokeragePipeline==='object'),pipeline=ensureStore(store,business,week,g?.seed),cycle=marketIndicator(g);
+  if(!hadPipeline)seedFoundingPipeline(g,store,business,pipeline,week);
   const quality=clamp(business?.quality,0,100),brand=clamp(business?.brand,0,100),dx=clamp(business?.dx,0,100),efficiency=clamp(business?.efficiency,0,100);
   let closedDeals=0,singleClosedDeals=0,doubleClosedDeals=0,lostDeals=0,closedTransactionVolume=0,singleCommissionRevenue=0,doubleCommissionRevenue=0,totalCloseWeeks=0;const closedBySegment=emptySegmentCounts();
   const survivors=[];
@@ -79,5 +90,5 @@ function processStore(g,store,business,pref,siteMultiplier=1){
   for(const segment of SEGMENTS)pipeline.totals.closedBySegment[segment]+=closedBySegment[segment];
   return {sales:commissionRevenue,variable:Math.round(commissionRevenue*.1),kpi:row};
 }
-modules.realEstateAgencyPipeline=Object.freeze({BUSINESS_ID,SCHEMA_VERSION,SINGLE_COMMISSION_RATE,DOUBLE_COMMISSION_RATE,DOUBLE_SIDE_RATE,HISTORY_LIMIT,SEGMENTS,SEGMENT_CONFIG,FOCUS_WEIGHT_MULTIPLIER,FOCUS_ORDER,FOCUSES,commissionRateForSide,sideForDeal,legacySegmentForDeal,segmentForDeal,focusFor,marketIndicator,capacityFor,eligibleStores,ensureStore,normalize,processStore});
+modules.realEstateAgencyPipeline=Object.freeze({BUSINESS_ID,SCHEMA_VERSION,SINGLE_COMMISSION_RATE,DOUBLE_COMMISSION_RATE,DOUBLE_SIDE_RATE,HISTORY_LIMIT,FOUNDING_INITIAL_DEALS,SEGMENTS,SEGMENT_CONFIG,FOCUS_WEIGHT_MULTIPLIER,FOCUS_ORDER,FOCUSES,commissionRateForSide,sideForDeal,legacySegmentForDeal,segmentForDeal,focusFor,marketIndicator,capacityFor,eligibleStores,ensureStore,normalize,foundingStore,seedFoundingPipeline,processStore});
 })();
