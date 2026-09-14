@@ -6,7 +6,7 @@ on:
       - tmp/re-founding-4deal-validation
 
 jobs:
-  seed-190826107:
+  regression:
     runs-on: ubuntu-latest
     timeout-minutes: 8
     steps:
@@ -14,8 +14,22 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 22
-      - name: Validate worst-case RE seed
+      - run: node tests/real-estate-agency-pipeline-test.js
+      - run: node tests/business-portfolio-focus-test.js
+  long-run:
+    strategy:
+      fail-fast: false
+      matrix:
+        seed: [190826100,190826101,190826102,190826103,190826104,190826105,190826106,190826107,190826108,190826109,190826110,190826111,190826112,190826113,190826114,190826115,190826116,190826117,190826118,190826119]
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Validate one-store 500-week route
         env:
-          SEED: 190826107
+          SEED: ${{ matrix.seed }}
           HORIZON: 500
         run: node tests/tmp-re-founding-production-validation.js
