@@ -9,35 +9,33 @@ permissions:
   contents: read
 
 jobs:
-  startup-cost-screen:
+  founding-deal-screen:
     strategy:
       fail-fast: false
       matrix:
-        store_cost: [3000000, 3500000, 4000000]
-        seed: [190826100,190826101,190826104,190826105,190826109,190826116,190826117]
+        founding_deals: [7, 8]
+        seed: [190826100,190826101,190826102,190826103,190826104,190826105,190826106,190826107,190826108,190826109,190826110,190826111,190826112,190826113,190826114,190826115,190826116,190826117,190826118,190826119]
     runs-on: ubuntu-latest
-    timeout-minutes: 8
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
           node-version: 22
-      - name: Patch RE startup economics for calibration only
+      - name: Patch founding mandates for calibration only
         env:
-          STORE_COST: ${{ matrix.store_cost }}
+          FOUNDING_DEALS: ${{ matrix.founding_deals }}
         run: |
           node <<'NODE'
           const fs=require('fs');
-          let p='js/real-estate-agency-pipeline.js',s=fs.readFileSync(p,'utf8');
-          s=s.replace('FOUNDING_INITIAL_DEALS=4','FOUNDING_INITIAL_DEALS=0');
-          fs.writeFileSync(p,s);
-          p='js/data.js';s=fs.readFileSync(p,'utf8');
-          const old='"id": "realEstateAgency",\n      "name": "不動産仲介",\n      "price": 85000,\n      "unitCost": 18000,\n      "demand": 34,\n      "quality": 8,\n      "brand": 11,\n      "efficiency": 10,\n      "dx": 0,\n      "storeCost": 4800000,';
-          const replacement=old.replace('"storeCost": 4800000','"storeCost": '+process.env.STORE_COST);
-          if(!s.includes(old))throw new Error('RE data contract changed');
-          fs.writeFileSync(p,s.replace(old,replacement));
+          const p='js/real-estate-agency-pipeline.js';
+          let s=fs.readFileSync(p,'utf8');
+          const from='FOUNDING_INITIAL_DEALS=4';
+          const to='FOUNDING_INITIAL_DEALS='+process.env.FOUNDING_DEALS;
+          if(!s.includes(from)) throw new Error('RE founding deal contract changed');
+          fs.writeFileSync(p,s.replace(from,to));
           NODE
-      - name: Run 500-week high-traffic founding route
+      - name: Run strict 500-week high-traffic founding route
         env:
           SEED: ${{ matrix.seed }}
           HORIZON: 500
