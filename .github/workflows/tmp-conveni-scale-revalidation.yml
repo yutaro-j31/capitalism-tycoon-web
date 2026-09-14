@@ -1,0 +1,36 @@
+name: Temporary Conveni Scale Revalidation
+
+on:
+  push:
+    branches:
+      - tmp/conveni-scale-revalidation
+
+jobs:
+  standard:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Validate 500-week standard expansion
+        env:
+          SEED: 190826041
+          HORIZON: 500
+          ALLOW_EXPANSION: 1
+        run: node tests/tmp-conveni-scale-revalidation.js
+  one-store:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Validate 500-week one-store route
+        env:
+          SEED: 190826041
+          HORIZON: 500
+          ALLOW_EXPANSION: 0
+        run: node tests/tmp-conveni-scale-revalidation.js
