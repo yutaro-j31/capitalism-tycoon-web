@@ -1,0 +1,24 @@
+name: Temporary Founding Rebuild Validation Exact
+
+on:
+  push:
+    branches:
+      - tmp/founding-rebuild-validation-exact
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Validate exact gym startup loan head
+        run: node tests/tmp-gym-startup-loan-validation.js
+      - name: Run bank loan regression
+        run: node tests/bank-loans-covenants-test.js
+      - name: Run store opening estimate regression
+        run: node tests/store-opening-estimate-test.js
+      - name: Run accounting invariants
+        run: node tests/accounting-invariants-test.js
