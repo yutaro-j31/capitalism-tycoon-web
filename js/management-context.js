@@ -55,10 +55,10 @@ function resolveManagementContext(engine){
   return target.ok?{ok:true,context,capability:{...target.capability}}:{ok:false,reason:target.reason,context,capability:target.capability?{...target.capability}:null};
 }
 
-// PE gym bridge foundation. This deliberately creates a DETACHED operating state instead of
-// pointing the gym model at engine.g.stores or the self-company business record. The next PE
-// pillar calculator can persist/settle this state explicitly; this foundation only proves the
-// production route and therefore cannot double-settle portfolio cash or mutate self-company data.
+// PE gym bridge foundation. It always works on detached store/business objects and never points
+// the gym model at the player's self-company stores or mutable business record. State-level
+// helpers are exposed because PE weekly settlement owns raw simulation state rather than an
+// engine instance; the engine methods below remain thin compatibility facades for UI callers.
 function normalizePEPortfolioGymOperatingState(raw){
   const source=raw&&typeof raw==='object'?raw:{};
   const equipment=modules.storeEquipment;
@@ -71,29 +71,32 @@ function normalizePEPortfolioGymOperatingState(raw){
   return {schemaVersion:GYM_OPERATING_STATE_SCHEMA_VERSION,condition,level,operatingHours,gymMembership:clone(detachedStore.gymMembership)};
 }
 function defaultPEPortfolioGymOperatingState(){return normalizePEPortfolioGymOperatingState(null);}
-function buildPEPortfolioGymOperatingInput(engine,fundID,dealID,{week,weeklyDemandMultiplier=1,operatingState}={}){
-  const state=engine?.g,target=portfolioTarget(state,fundID,dealID);
+function buildPEPortfolioGymOperatingInputForState(state,fundID,dealID,{week,weeklyDemandMultiplier=1,operatingState,priceMultiplierOverride,membershipStrategyOverride}={}){
+  const target=portfolioTarget(state,fundID,dealID);
   if(!target.ok)return {ok:false,reason:target.reason,fundID,dealID};
   if(target.deal.businessID!==GYM_BUSINESS_ID)return {ok:false,reason:'not-gym',fundID,dealID};
+  if(membershipStrategyOverride!==undefined&&!modules.gymMembershipModel.STRATEGY_ORDER.includes(membershipStrategyOverride))return {ok:false,reason:'invalid-membership-strategy-override',fundID,dealID};
   const site=modules.pePortfolioOperations.getPortfolioProductionSite(state,fundID,dealID);
   if(!site)return {ok:false,reason:'production-site-missing',fundID,dealID};
   const area=(state?.areas||[]).find(row=>row?.id===site.areaID),pref=(state?.prefs||[]).find(row=>row?.id===site.prefID);
   if(!area||!pref||pref.areaID!==area.id)return {ok:false,reason:'production-site-invalid',fundID,dealID};
-  // Use the static production business master, not engine.g.businesses: the latter contains the
-  // player's self-company price/quality/brand/DX investments and would leak self-company choices
-  // into a separately owned PE portfolio company.
+  // Use the static production business master, not state.businesses: the latter contains the
+  // player's self-company price/quality/brand/DX investments and would leak choices across owners.
   const master=(modules.data?.MASTER?.businesses||[]).find(row=>row?.id===GYM_BUSINESS_ID);
   if(!master)return {ok:false,reason:'gym-business-master-not-found',fundID,dealID};
   const normalized=normalizePEPortfolioGymOperatingState(operatingState);
+  if(membershipStrategyOverride!==undefined)normalized.gymMembership.membershipStrategy=membershipStrategyOverride;
   const detachedStore={
     id:`pe-gym-${dealID}`,businessID:GYM_BUSINESS_ID,status:'open',
     condition:normalized.condition,level:normalized.level,operatingHours:normalized.operatingHours,
     gymMembership:clone(normalized.gymMembership)
   };
-  // priceMultiplier already is the production PE price lever. Other PE levers stay explicit in
-  // portfolioLevers and are NOT translated into new gym coefficients here; doing so would invent
-  // a second economic model before the pillar-specific settlement PR is calibrated.
-  const detachedBusiness={...clone(master),price:Math.max(1,finite(master.price,1)*finite(target.portfolioCompany.priceMultiplier,1))};
+  // The override exists only for a same-state control calculation inside the PE gym weekly
+  // calculator. It never writes through to the deal. Normal callers use the production PE lever.
+  const priceMultiplier=priceMultiplierOverride===undefined
+    ?clamp(finite(target.portfolioCompany.priceMultiplier,1),.5,2)
+    :clamp(finite(priceMultiplierOverride,1),.5,2);
+  const detachedBusiness={...clone(master),price:Math.max(1,finite(master.price,1)*priceMultiplier)};
   const environment=modules.storeMarketEnvironment;
   const competitorPressure=environment.competitorPressure(state?.competitors,area.id,GYM_BUSINESS_ID);
   const localCompetition=environment.localCompetition(area,competitorPressure);
@@ -113,7 +116,7 @@ function buildPEPortfolioGymOperatingInput(engine,fundID,dealID,{week,weeklyDema
     productionSite:{...site},pref:{id:pref.id,areaID:pref.areaID,name:pref.name,traffic:finite(pref.traffic,1)},
     area:{id:area.id,name:area.name,traffic:finite(area.traffic,1),competition:finite(area.competition)},
     competitorPressure,localCompetition,demand,inflation:finite(state?.inflation,1),weeklyDemandMultiplier:multiplier,
-    store:detachedStore,business:detachedBusiness,operatingState:normalized,
+    store:detachedStore,business:detachedBusiness,operatingState:clone(normalized),
     portfolioLevers:{
       priceMultiplier:finite(target.portfolioCompany.priceMultiplier,1),qualityInvestment:finite(target.portfolioCompany.qualityInvestment),
       storeCount:Math.max(1,Math.floor(finite(target.portfolioCompany.storeCount,1))),procurementReform:finite(target.portfolioCompany.procurementReform),
@@ -122,8 +125,9 @@ function buildPEPortfolioGymOperatingInput(engine,fundID,dealID,{week,weeklyDema
     }
   };
 }
-function previewPEPortfolioGymWeek(engine,fundID,dealID,options={}){
-  const input=buildPEPortfolioGymOperatingInput(engine,fundID,dealID,options);
+function buildPEPortfolioGymOperatingInput(engine,fundID,dealID,options={}){return buildPEPortfolioGymOperatingInputForState(engine?.g,fundID,dealID,options);}
+function previewPEPortfolioGymWeekForState(state,fundID,dealID,options={}){
+  const input=buildPEPortfolioGymOperatingInputForState(state,fundID,dealID,options);
   if(!input.ok)return input;
   const store=clone(input.store),business=clone(input.business),runtime={week:input.week};
   const result=modules.gymMembershipModel.processStore(runtime,store,business,input.demand,input.inflation,input.localCompetition);
@@ -138,6 +142,7 @@ function previewPEPortfolioGymWeek(engine,fundID,dealID,options={}){
     operatingState:clone(input.operatingState),nextOperatingState,membershipWeek:clone(store.gymMembership?.lastWeek)
   };
 }
+function previewPEPortfolioGymWeek(engine,fundID,dealID,options={}){return previewPEPortfolioGymWeekForState(engine?.g,fundID,dealID,options);}
 
 const proto=EngineClass.prototype;
 proto.getManagementContext=function(){return getManagementContext(this);};
@@ -149,7 +154,8 @@ proto.getPEPortfolioGymOperatingInput=function(fundID,dealID,options){return bui
 proto.previewPEPortfolioGymWeek=function(fundID,dealID,options){return previewPEPortfolioGymWeek(this,fundID,dealID,options);};
 modules.managementContext=Object.freeze({
   supportedBusinessIDs,resolvePortfolioManagementCapability,canOpenPEPortfolioManagement,getManagementContext,openPEPortfolioManagement,closeManagementContext,resolveManagementContext,
-  GYM_BUSINESS_ID,GYM_OPERATING_STATE_SCHEMA_VERSION,defaultPEPortfolioGymOperatingState,normalizePEPortfolioGymOperatingState,buildPEPortfolioGymOperatingInput,previewPEPortfolioGymWeek,
+  GYM_BUSINESS_ID,GYM_OPERATING_STATE_SCHEMA_VERSION,defaultPEPortfolioGymOperatingState,normalizePEPortfolioGymOperatingState,
+  buildPEPortfolioGymOperatingInputForState,buildPEPortfolioGymOperatingInput,previewPEPortfolioGymWeekForState,previewPEPortfolioGymWeek,
   __installed:true
 });
 })();
