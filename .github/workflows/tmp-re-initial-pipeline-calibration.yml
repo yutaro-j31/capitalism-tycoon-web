@@ -1,0 +1,24 @@
+name: Temporary RE Initial Pipeline Calibration
+
+on:
+  push:
+    branches:
+      - tmp/re-initial-pipeline-calibration
+
+jobs:
+  calibrate:
+    strategy:
+      fail-fast: false
+      matrix:
+        initial_deals: [0, 1, 2, 3, 4]
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Measure RE initial pipeline candidate
+        env:
+          INITIAL_DEALS: ${{ matrix.initial_deals }}
+        run: node tests/tmp-re-initial-pipeline-calibration.js
