@@ -9,11 +9,11 @@ permissions:
   contents: read
 
 jobs:
-  ramen-price:
+  ramen-quality:
     strategy:
       fail-fast: false
       matrix:
-        price: [1400, 1425, 1440]
+        quality: [19, 20, 21]
     runs-on: ubuntu-24.04
     timeout-minutes: 15
     steps:
@@ -21,9 +21,9 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 22
-      - name: Apply accounting fix and ramen price candidate
+      - name: Apply accounting fix and ramen quality candidate
         env:
-          PRICE: ${{ matrix.price }}
+          QUALITY: ${{ matrix.quality }}
         run: |
           python - <<'PY'
           from pathlib import Path
@@ -33,13 +33,13 @@ jobs:
           assert old in s
           p.write_text(s.replace(old,"variable=mr.variableCost;",1))
           p=Path('js/data.js'); s=p.read_text()
-          s,n=re.subn(r'("id": "ramen",\s*"name": "ラーメン",\s*"price": )1450',r'\g<1>'+os.environ['PRICE'],s,count=1)
+          s,n=re.subn(r'("id": "ramen",\s*"name": "ラーメン",\s*"price": 1450,\s*"unitCost": 300,\s*"demand": 960,\s*"quality": )18',r'\g<1>'+os.environ['QUALITY'],s,count=1)
           assert n==1,n
           p.write_text(s)
           PY
       - name: Measure ramen route
         run: |
-          cat > tests/_ramen-price-candidate.js <<'JS'
+          cat > tests/_ramen-quality-candidate.js <<'JS'
           'use strict';
           const {loadGame}=require('./harness');
           function lcg(seed=190826041){let s=seed>>>0;return()=>{s=(Math.imul(s,1664525)+1013904223)>>>0;return s/2**32;};}
@@ -50,16 +50,16 @@ jobs:
           function open(){const t=tenant();if(!t)return false;const b=engine.business('ramen'),cost=b.storeCost+t.deposit;if(engine.g.stores.length&&engine.g.companyCash<=cost*3)return false;return engine.openStore({tenantID:t.id,businessID:'ramen',name:`ramen-${engine.g.stores.length+1}`,operatingHours:3});}
           open();
           while(engine.g.week<320&&!engine.g.gameOver){engine.advanceWeek(false);profits.push(engine.g.lastReport?.profit||0);if(reached===null&&engine.companyValue()>=1e9)reached=engine.g.week;if(engine.g.week%4===0&&profits.slice(-8).reduce((a,n)=>a+n,0)/Math.min(8,profits.length)>0)open();}
-          console.log('RAMEN_PRICE '+JSON.stringify({price:engine.business('ramen').price,reached,week:engine.g.week,gameOver:engine.g.gameOver,stores:engine.g.stores.length,cash:engine.g.companyCash,value:engine.companyValue()}));
+          console.log('RAMEN_QUALITY '+JSON.stringify({quality:engine.business('ramen').quality,reached,week:engine.g.week,gameOver:engine.g.gameOver,stores:engine.g.stores.length,cash:engine.g.companyCash,value:engine.companyValue()}));
           if(engine.g.gameOver)process.exitCode=1;
           JS
-          node tests/_ramen-price-candidate.js
+          node tests/_ramen-quality-candidate.js
 
-  brokerage-first-store-ramp:
+  brokerage-fee-ramp:
     strategy:
       fail-fast: false
       matrix:
-        config: [base, signal, legacy]
+        avgFee: [0.05, 0.0525, 0.055]
         seed: [190826041, 1797259521, 2806491037, 987654321, 123456789]
     runs-on: ubuntu-24.04
     timeout-minutes: 20
@@ -68,39 +68,28 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 22
-      - name: Apply first-store-only brokerage ramp candidate
+      - name: Apply mature brokerage economics and short ramp
         env:
-          CONFIG: ${{ matrix.config }}
+          AVG_FEE: ${{ matrix.avgFee }}
         run: |
           python - <<'PY'
           from pathlib import Path
           import os,re
-          config=os.environ['CONFIG']
+          avg=float(os.environ['AVG_FEE'])
+          single=avg-.015
+          double=avg+.015
           p=Path('js/real-estate-agency-pipeline.js'); s=p.read_text()
-          old="ageRelief=Math.max(0,age-3)*.02,closeChance=clamp(baseCloseChance*config.closeMultiplier+cycleAdjustment+ageRelief,.08,.75)"
-          assert old in s
+          s,n=re.subn(r'SINGLE_COMMISSION_RATE=\.03,DOUBLE_COMMISSION_RATE=\.06',f'SINGLE_COMMISSION_RATE={single:g},DOUBLE_COMMISSION_RATE={double:g}',s,count=1); assert n==1,n
+          old="ageRelief=Math.max(0,age-3)*.02,closeChance=clamp(baseCloseChance*config.closeMultiplier+cycleAdjustment+ageRelief,.08,.75)"; assert old in s
           s=s.replace(old,"closeChance=clamp(baseCloseChance*config.closeMultiplier+cycleAdjustment,.08,.68)",1)
-          if config=='legacy':
-            assert "SINGLE_COMMISSION_RATE=.03,DOUBLE_COMMISSION_RATE=.06" in s
-            s=s.replace("SINGLE_COMMISSION_RATE=.03,DOUBLE_COMMISSION_RATE=.06","SINGLE_COMMISSION_RATE=.055,DOUBLE_COMMISSION_RATE=.065",1)
-            old_overlap="const branchCount=eligibleStores(g?.stores).length,networkOverlap=Math.max(.46,1-Math.max(0,branchCount-1)*.05);"
-            assert old_overlap in s
-            s=s.replace(old_overlap,"const branchCount=eligibleStores(g?.stores).length,networkOverlap=1;",1)
-          marker="const integer=(value,fallback=0)=>Math.max(0,Math.floor(finite(value,fallback)));"
-          assert marker in s
-          ramp="""\nconst FOUNDING_RAMPUP_WEEKS=60,FOUNDING_RAMPUP_MIN_RATIO=.05;\nfunction foundingRampMultiplier(g,store){\n  const stores=(Array.isArray(g?.stores)?g.stores:[]).filter(row=>row?.businessID===BUSINESS_ID).slice().sort((a,b)=>integer(a.openingWeek)-integer(b.openingWeek)||String(a.id).localeCompare(String(b.id)));\n  if(!stores.length||stores[0].id!==store?.id)return 1;\n  const week=Math.max(1,integer(g?.week,1)),openingWeek=Math.max(1,integer(store?.openingWeek,week));\n  const weeksOpen=Math.max(0,week-openingWeek);\n  if(weeksOpen>=FOUNDING_RAMPUP_WEEKS)return 1;\n  return FOUNDING_RAMPUP_MIN_RATIO+(1-FOUNDING_RAMPUP_MIN_RATIO)*(weeksOpen/FOUNDING_RAMPUP_WEEKS);\n}"""
+          marker="const integer=(value,fallback=0)=>Math.max(0,Math.floor(finite(value,fallback)));"; assert marker in s
+          ramp="""\nconst FOUNDING_RAMPUP_WEEKS=16,FOUNDING_RAMPUP_MIN_RATIO=.5;\nfunction foundingRampMultiplier(g,store){\n  const week=Math.max(1,integer(g?.week,1)),openingWeek=Math.max(1,integer(store?.openingWeek,week));\n  const weeksOpen=Math.max(0,week-openingWeek);\n  if(weeksOpen>=FOUNDING_RAMPUP_WEEKS)return 1;\n  return FOUNDING_RAMPUP_MIN_RATIO+(1-FOUNDING_RAMPUP_MIN_RATIO)*(weeksOpen/FOUNDING_RAMPUP_WEEKS);\n}"""
           s=s.replace(marker,marker+ramp,1)
           old="FOCUSES,commissionRateForSide"; assert old in s
           s=s.replace(old,"FOCUSES,FOUNDING_RAMPUP_WEEKS,FOUNDING_RAMPUP_MIN_RATIO,commissionRateForSide",1)
           old="capacityFor,eligibleStores"; assert old in s
           s=s.replace(old,"capacityFor,foundingRampMultiplier,eligibleStores",1)
           p.write_text(s)
-
-          if config in ('signal','legacy'):
-            p=Path('js/data.js'); s=p.read_text()
-            pattern=r'("id": "realEstateAgency",\s*"name": "不動産仲介",\s*"price": 85000,\s*"unitCost": 18000,\s*"demand": 34,\s*"quality": )8(,\s*"brand": )11'
-            s,n=re.subn(pattern,r'\g<1>14\g<2>20',s,count=1); assert n==1,n
-            p.write_text(s)
 
           p=Path('js/engine.js'); s=p.read_text()
           old="variable=mr.variableCost*(store.businessID==='ramen'?Math.max(1,finite(b.price,920)/920):1);"; assert old in s
@@ -118,9 +107,9 @@ jobs:
       - name: Measure brokerage route
         env:
           SEED: ${{ matrix.seed }}
-          CONFIG: ${{ matrix.config }}
+          AVG_FEE: ${{ matrix.avgFee }}
         run: |
-          cat > tests/_brokerage-first-ramp.js <<'JS'
+          cat > tests/_brokerage-fee-ramp.js <<'JS'
           'use strict';
           const {loadGame}=require('./harness');
           const seed=Number(process.env.SEED);
@@ -132,7 +121,7 @@ jobs:
           function open(){const t=tenant();if(!t)return false;const b=engine.business('realEstateAgency'),cost=b.storeCost+t.deposit;if(engine.g.stores.length&&engine.g.companyCash<=cost*3)return false;return engine.openStore({tenantID:t.id,businessID:'realEstateAgency',name:`broker-${engine.g.stores.length+1}`,operatingHours:3});}
           open();
           while(engine.g.week<320&&!engine.g.gameOver){engine.advanceWeek(false);profits.push(engine.g.lastReport?.profit||0);if(reached===null&&engine.companyValue()>=1e9)reached=engine.g.week;if(engine.g.week%4===0&&profits.slice(-8).reduce((a,n)=>a+n,0)/Math.min(8,profits.length)>0)open();}
-          const row={config:process.env.CONFIG,seed,reached,week:engine.g.week,gameOver:engine.g.gameOver,stores:engine.g.stores.length,cash:engine.g.companyCash,value:engine.companyValue()};
-          console.log('BROKERAGE_FIRST_RAMP '+JSON.stringify(row));if(row.gameOver)process.exitCode=1;
+          const row={avgFee:Number(process.env.AVG_FEE),seed,reached,week:engine.g.week,gameOver:engine.g.gameOver,stores:engine.g.stores.length,cash:engine.g.companyCash,value:engine.companyValue()};
+          console.log('BROKERAGE_FEE_RAMP '+JSON.stringify(row));if(row.gameOver)process.exitCode=1;
           JS
-          node tests/_brokerage-first-ramp.js
+          node tests/_brokerage-fee-ramp.js
