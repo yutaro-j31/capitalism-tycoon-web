@@ -23,7 +23,45 @@ function parityFixture(businessID='gym',id='parity-deal'){
 }
 for(const businessID of ['ramen','conveni','gym','realEstateAgency','productVentures','non-pillar']){
   const {deal}=parityFixture(businessID,`fallback-${businessID}`);
-  assert.equal(ops.resolvePortfolioOperatingCalculator(deal),ops.calculateGenericPortfolioOperatingWeek,`${businessID} falls back to generic`);
+  assert.equal(ops.resolvePortfolioOperatingCalculator(deal),ops.calculateGenericPortfolioOperatingWeek,`${businessID} falls back to generic without production state`);
+}
+{
+  const engine=new engineModule.TycoonEngine();engine.configure({playerName:'Gym Calculator',companyName:'Detached PE Gym',difficulty:'normal'});
+  engine.g.companyCash=9_000_000_000;engine.g.personalCash=12_000_000_000;
+  pf.recordExit(engine.g,{exitType:'buyout',realizedAmount:200_000_000,investedAmount:8_000_000,foundedWeek:1,exitedWeek:52,profitableWeekStreak:260,employeeCount:30});
+  const fund=pf.createFund(engine.g,{size:10_000_000_000,gpCommit:1_000_000_000,terms:{fee:.02,carry:.2,hurdle:.08},y0:1});
+  const deal=ops.acquirePillarCompany(engine.g,fund.id,{businessID:'gym',enterpriseValue:2_000_000_000,useCoinvest:false,week:1});
+  assert(deal&&deal.portfolioCompany.productionSite,'gym deal has production site');
+  const before=plain(engine.g),callsBefore=randomCalls;
+  const generic=ops.calculateGenericPortfolioOperatingWeek(fund,deal,2);
+  const neutral=ops.calculatePortfolioOperatingWeek(fund,deal,2,engine.g);
+  assert.equal(ops.resolvePortfolioOperatingCalculator(deal,engine.g),ops.calculateGymPortfolioOperatingWeek,'production state dispatches gym calculator');
+  assert.equal(neutral.source,'gym');
+  assert.equal(neutral.revenue,generic.revenue,'default gym controls preserve calibrated generic revenue');
+  assert.equal(neutral.profit,generic.profit,'default gym controls preserve calibrated generic profit');
+  assert(neutral.nextOperatingState?.gymMembership?.lastWeek,'gym calculator returns detached next membership state');
+  assert.deepEqual(plain(engine.g),before,'gym calculation is pure before settlement');
+  assert.equal(randomCalls,callsBefore,'gym calculation consumes no simulation RNG');
+  const cashBefore=deal.portfolioCompany.cash;
+  assert.equal(ops.settlePortfolioOperatingWeek(deal,neutral),true);
+  assert.equal(deal.portfolioCompany.cash-cashBefore,neutral.profit);
+  assert.equal(deal.portfolioCompany.gymOperatingState.gymMembership.lastWeek.week,2,'single settlement persists the detached membership state');
+  assert.equal(ops.settlePortfolioOperatingWeek(deal,neutral),false,'gym weekly result cannot settle twice');
+  assert.equal(deal.portfolioCompany.cash-cashBefore,neutral.profit);
+
+  ops.setPriceMultiplier(engine.g,fund.id,deal.id,1.25);
+  const beforePriceCalc=plain(engine.g),callsBeforePrice=randomCalls;
+  const priced=ops.calculatePortfolioOperatingWeek(fund,deal,3,engine.g),oldGeneric=ops.calculateGenericPortfolioOperatingWeek(fund,deal,3);
+  assert.equal(priced.source,'gym');
+  assert(priced.components.gymSalesFactor>1,'higher PE gym fee raises production membership sales versus standard-price control');
+  assert(priced.components.gymContributionFactor>1,'higher PE gym fee raises production contribution versus standard-price control');
+  assert(priced.profit>oldGeneric.profit,'gym production fee economics replace the old inverse generic price response');
+  assert.deepEqual(plain(engine.g),beforePriceCalc,'priced gym calculation stays read-only');
+  assert.equal(randomCalls,callsBeforePrice,'priced gym calculation consumes no simulation RNG');
+  const persistedBefore=plain(deal.portfolioCompany.gymOperatingState);
+  assert.equal(ops.settlePortfolioOperatingWeek(deal,priced),true);
+  assert.equal(deal.portfolioCompany.gymOperatingState.gymMembership.lastWeek.week,3);
+  assert.notDeepEqual(plain(deal.portfolioCompany.gymOperatingState),persistedBefore,'next detached gym operating state advances only at settlement');
 }
 {
   const engine=new engineModule.TycoonEngine();engine.configure({playerName:'Settlement',companyName:'Isolation',difficulty:'normal'});
@@ -34,7 +72,11 @@ for(const businessID of ['ramen','conveni','gym','realEstateAgency','productVent
   const outside=plain({companyCash:engine.g.companyCash,personalCash:engine.g.personalCash,fundCash:fund.cash,distributed:fund.distributed,coinvestCapital:engine.g.peFirm.coinvestCapital,stores:engine.g.stores,businesses:engine.g.businesses,finance:engine.g.finance});
   const cashBefore=deals.map(deal=>deal.portfolioCompany.cash);ops.processPortfolioWeek(engine.g,2);
   deals.forEach((deal,index)=>{assert.equal(deal.portfolioCompany.lastProcessedWeek,2);assert.equal(deal.portfolioCompany.cash-cashBefore[index],deal.portfolioCompany.weeklyProfit);});
-  const afterFirst=deals.map(deal=>deal.portfolioCompany.cash);ops.processPortfolioWeek(engine.g,2);assert.deepEqual(deals.map(deal=>deal.portfolioCompany.cash),afterFirst,'multiple deals settle exactly once');
+  assert.equal(deals[0].portfolioCompany.gymOperatingState,undefined,'non-gym deal gets no gym state');
+  assert.equal(deals[1].portfolioCompany.gymOperatingState.gymMembership.lastWeek.week,2,'production loop dispatches and persists gym state');
+  const afterFirst=deals.map(deal=>deal.portfolioCompany.cash);const gymState=plain(deals[1].portfolioCompany.gymOperatingState);ops.processPortfolioWeek(engine.g,2);
+  assert.deepEqual(deals.map(deal=>deal.portfolioCompany.cash),afterFirst,'multiple deals settle exactly once');
+  assert.deepEqual(plain(deals[1].portfolioCompany.gymOperatingState),gymState,'same-week replay cannot advance gym membership twice');
   assert.deepEqual(plain({companyCash:engine.g.companyCash,personalCash:engine.g.personalCash,fundCash:fund.cash,distributed:fund.distributed,coinvestCapital:engine.g.peFirm.coinvestCapital,stores:engine.g.stores,businesses:engine.g.businesses,finance:engine.g.finance}),outside,'weekly settlement is isolated to target portfolio companies');
 }
 console.log('PE portfolio weekly single-settlement tests passed');
