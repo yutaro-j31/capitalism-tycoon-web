@@ -14,6 +14,9 @@ assert.match(phase1Css,/@import url\("\.\/d-ui-pe-phase2\.css"\)/,'Phase 2 visua
 assert.match(phase2Css,/\.pe-portfolio-summary/);
 assert.match(phase2Css,/\.pe-company-detail/);
 assert.match(phase2Css,/\.pe-exit-preview/);
+assert.match(phase2Css,/\.pe-holding-card footer \.btn\{min-height:44px\}/,'holding card actions must keep a 44px mobile tap target');
+assert.match(phase2Css,/\.pe-holding-card footer \.pe-card-link\{[^}]*min-height:44px/,'portfolio detail link must keep a 44px mobile tap target');
+assert.match(phase2Css,/\.pe-detail-head \.pe-back\{flex:0 0 44px\}/,'company detail back button must keep a 44px mobile tap target');
 assert.match(adapterSource,/previewPortfolioExit/,'adapter must delegate valuation preview to the production portfolio service');
 assert.match(adapterSource,/exitPortfolioCompany/,'adapter must delegate the write to the production portfolio service');
 assert.doesNotMatch(adapterSource,/Math\.random|Date\.now|performance\.now|randomUUID/,'Phase 2 adapter must remain deterministic');
@@ -105,4 +108,4 @@ portfolioOps.exitPortfolioCompany=()=>false;
 assert.equal(adapter.performPortfolio('exit',{fundID:'fund-p2',dealID:'holding-1'}),false);
 assert.equal(saveCalls,1,'failed Exit must never persist a false-positive mutation');
 
-console.log('pe-ui-phase2-test: portfolio normalization, disabled management boundary, Exit delegation and save semantics passed');
+console.log('pe-ui-phase2-test: portfolio normalization, disabled management boundary, Exit delegation, save semantics and mobile tap targets passed');
