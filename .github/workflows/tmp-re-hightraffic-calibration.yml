@@ -1,0 +1,32 @@
+name: Temporary RE High Traffic Calibration
+
+on:
+  push:
+    branches:
+      - tmp/re-hightraffic-calibration
+
+permissions:
+  contents: read
+
+jobs:
+  matrix:
+    strategy:
+      fail-fast: false
+      matrix:
+        deals: [4, 5, 6, 7, 8]
+    runs-on: ubuntu-latest
+    timeout-minutes: 6
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Patch founding deal count for calibration only
+        env:
+          DEALS: ${{ matrix.deals }}
+        run: node -e "const fs=require('fs');const p='js/real-estate-agency-pipeline.js';let s=fs.readFileSync(p,'utf8');s=s.replace('FOUNDING_INITIAL_DEALS=4','FOUNDING_INITIAL_DEALS='+process.env.DEALS);fs.writeFileSync(p,s);"
+      - name: Run bad-seed high-traffic founding route
+        env:
+          SEED: 190826107
+          HORIZON: 52
+        run: node tests/tmp-re-hightraffic-calibration.js
