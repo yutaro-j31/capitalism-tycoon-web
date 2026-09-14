@@ -24,6 +24,28 @@ jobs:
           node-version: 22
       - name: Disable seeded founding mandates for calibration only
         run: node -e "const fs=require('fs');const p='js/real-estate-agency-pipeline.js';let s=fs.readFileSync(p,'utf8');s=s.replace('FOUNDING_INITIAL_DEALS=4','FOUNDING_INITIAL_DEALS=0');fs.writeFileSync(p,s);"
+      - name: Patch finance snapshot accounting for calibration only
+        run: |
+          node <<'NODE'
+          const fs=require('fs');
+          const p='js/finance.js';
+          let s=fs.readFileSync(p,'utf8');
+          const oldSnapshot="function rebuildSnapshotForWeek(g,week){const f=ensureFinance(g);week=Math.floor(n(week,g.week));const i=f.weeklySnapshots.findIndex(s=>s.week===week);const opening=i>=0?f.weeklySnapshots[i].openingCash:openingForWeek(f,week);return recordSnapshot(g,opening,week,week===Math.floor(n(g.week,1))?g.companyCash:(i>=0?f.weeklySnapshots[i].actualCompanyCash:null));}";
+          const newSnapshot="function rebuildSnapshotForWeek(g,week){const f=ensureFinance(g);week=Math.floor(n(week,g.week));const i=f.weeklySnapshots.findIndex(s=>s.week===week);const opening=i>=0?f.weeklySnapshots[i].openingCash:openingForWeek(f,week),currentWeek=Math.floor(n(g.week,1)),reconstructed=r(opening+f.transactions.filter(t=>t.week===week).reduce((a,t)=>a+n(t.cashEffect),0)),actual=week===currentWeek?g.companyCash:(i>=0?f.weeklySnapshots[i].actualCompanyCash:reconstructed);return recordSnapshot(g,opening,week,actual);}";
+          if(!s.includes(oldSnapshot))throw new Error('rebuildSnapshotForWeek contract changed');
+          fs.writeFileSync(p,s.replace(oldSnapshot,newSnapshot));
+          NODE
+      - name: Remove revolver double interest for calibration only
+        run: |
+          node <<'NODE'
+          const fs=require('fs');
+          const p='js/engine.js';
+          let s=fs.readFileSync(p,'utf8');
+          const old="const officeCost=this.g.hasHeadOffice?this.g.officeWeeklyCost:0,interest=this.g.companyDebt*this.companyBorrowRate()/52;";
+          const replacement="const managedDebt=finance.ensureFinance(this.g).loans.filter(l=>l&&l.status!=='repaid'&&finite(l.outstandingPrincipal)>0&&l.sourceType==='reFoundingRevolver').reduce((sum,l)=>sum+finite(l.outstandingPrincipal),0);const officeCost=this.g.hasHeadOffice?this.g.officeWeeklyCost:0,interest=Math.max(0,this.g.companyDebt-managedDebt)*this.companyBorrowRate()/52;";
+          if(!s.includes(old))throw new Error('engine interest contract changed');
+          fs.writeFileSync(p,s.replace(old,replacement));
+          NODE
       - name: Run 500-week RE revolver calibration
         env:
           SEED: ${{ matrix.seed }}
