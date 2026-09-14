@@ -1,0 +1,36 @@
+name: Temporary Founding RE Production Validation
+
+on:
+  push:
+    branches:
+      - tmp/founding-rebuild-re-validation
+
+jobs:
+  regression:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: node tests/real-estate-agency-pipeline-test.js
+      - run: node tests/real-estate-agency-capacity-test.js
+      - run: node tests/business-portfolio-focus-test.js
+  long-run:
+    strategy:
+      fail-fast: false
+      matrix:
+        seed: [190826100,190826101,190826102,190826103,190826104,190826105,190826106,190826107,190826108,190826109]
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Validate one-store 500-week route
+        env:
+          SEED: ${{ matrix.seed }}
+          HORIZON: 500
+        run: node tests/tmp-re-founding-production-validation.js
