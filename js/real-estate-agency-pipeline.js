@@ -4,7 +4,7 @@ const modules=globalThis.__capitalismTycoonModules;
 if(!modules)throw new Error('runtime.js must be loaded before real-estate-agency-pipeline.js.');
 if(modules.realEstateAgencyPipeline)throw new Error('real-estate-agency-pipeline.js already registered.');
 // A 50/50 mix keeps the expected fee yield at the previously calibrated 6%.
-const BUSINESS_ID='realEstateAgency',SCHEMA_VERSION=3,SINGLE_COMMISSION_RATE=.055,DOUBLE_COMMISSION_RATE=.065,DOUBLE_SIDE_RATE=.5,HISTORY_LIMIT=52,FOUNDING_INITIAL_DEALS=2;
+const BUSINESS_ID='realEstateAgency',SCHEMA_VERSION=3,SINGLE_COMMISSION_RATE=.055,DOUBLE_COMMISSION_RATE=.065,DOUBLE_SIDE_RATE=.5,HISTORY_LIMIT=52,FOUNDING_INITIAL_DEALS=3;
 const SEGMENTS=Object.freeze(['residential','luxury','investment','corporateDeal']);
 const FOCUS_WEIGHT_MULTIPLIER=3;
 const FOCUS_ORDER=Object.freeze(['balanced',...SEGMENTS]);
