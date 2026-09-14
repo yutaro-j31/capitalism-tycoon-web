@@ -9,11 +9,11 @@ permissions:
   contents: read
 
 jobs:
-  ramen-demand:
+  ramen-store-cost:
     strategy:
       fail-fast: false
       matrix:
-        demand: [966, 967, 968, 969]
+        storeCost: [2000000, 2200000, 2400000, 2600000]
     runs-on: ubuntu-24.04
     timeout-minutes: 15
     steps:
@@ -21,27 +21,26 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 22
-      - name: Apply accounting root fix and demand candidate
+      - name: Apply accounting fix and ramen candidate
         env:
-          DEMAND: ${{ matrix.demand }}
+          STORE_COST: ${{ matrix.storeCost }}
         run: |
           python - <<'PY'
           from pathlib import Path
           import os,re
-          p=Path('js/engine.js')
-          s=p.read_text()
+          p=Path('js/engine.js'); s=p.read_text()
           old="variable=mr.variableCost*(store.businessID==='ramen'?Math.max(1,finite(b.price,920)/920):1);"
           assert old in s
           p.write_text(s.replace(old,"variable=mr.variableCost;",1))
-          p=Path('js/data.js')
-          s=p.read_text()
-          s,n=re.subn(r'("id": "ramen",\s*"name": "ラーメン",\s*"price": 1450,\s*"unitCost": 300,\s*"demand": )960',r'\g<1>'+os.environ['DEMAND'],s,count=1)
-          assert n==1,n
+          p=Path('js/data.js'); s=p.read_text()
+          pattern=r'("id": "ramen",\s*"name": "ラーメン",\s*"price": 1450,\s*"unitCost": 300,\s*"demand": )960(,\s*"quality": 18,\s*"brand": 10,\s*"efficiency": 12,\s*"dx": 0,\s*"storeCost": )1700000'
+          replacement=r'\g<1>970\g<2>'+os.environ['STORE_COST']
+          s,n=re.subn(pattern,replacement,s,count=1); assert n==1,n
           p.write_text(s)
           PY
       - name: Measure ramen route
         run: |
-          cat > tests/_ramen-demand-candidate.js <<'JS'
+          cat > tests/_ramen-cost-candidate.js <<'JS'
           'use strict';
           const {loadGame}=require('./harness');
           function lcg(seed=190826041){let s=seed>>>0;return()=>{s=(Math.imul(s,1664525)+1013904223)>>>0;return s/2**32;};}
@@ -52,16 +51,16 @@ jobs:
           function open(){const t=tenant();if(!t)return false;const b=engine.business('ramen'),cost=b.storeCost+t.deposit;if(engine.g.stores.length&&engine.g.companyCash<=cost*3)return false;return engine.openStore({tenantID:t.id,businessID:'ramen',name:`ramen-${engine.g.stores.length+1}`,operatingHours:3});}
           open();
           while(engine.g.week<320&&!engine.g.gameOver){engine.advanceWeek(false);profits.push(engine.g.lastReport?.profit||0);if(reached===null&&engine.companyValue()>=1e9)reached=engine.g.week;if(engine.g.week%4===0&&profits.slice(-8).reduce((a,n)=>a+n,0)/Math.min(8,profits.length)>0)open();}
-          console.log('RAMEN_DEMAND '+JSON.stringify({demand:engine.business('ramen').demand,reached,week:engine.g.week,gameOver:engine.g.gameOver,stores:engine.g.stores.length,cash:engine.g.companyCash,value:engine.companyValue()}));
+          console.log('RAMEN_STORE_COST '+JSON.stringify({storeCost:engine.business('ramen').storeCost,reached,week:engine.g.week,gameOver:engine.g.gameOver,stores:engine.g.stores.length,cash:engine.g.companyCash,value:engine.companyValue()}));
           if(engine.g.gameOver)process.exitCode=1;
           JS
-          node tests/_ramen-demand-candidate.js
+          node tests/_ramen-cost-candidate.js
 
-  brokerage-age:
+  brokerage-ramp:
     strategy:
       fail-fast: false
       matrix:
-        ageScale: [0.017, 0.018, 0.019]
+        seed: [190826041, 1797259521, 2806491037, 987654321, 123456789, 314159265, 271828182, 42424242, 135791113, 246810121]
     runs-on: ubuntu-24.04
     timeout-minutes: 20
     steps:
@@ -69,39 +68,74 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 22
-      - name: Apply brokerage age-relief candidate
-        env:
-          AGE_SCALE: ${{ matrix.ageScale }}
+      - name: Apply #654-style brokerage ramp candidate
         run: |
           python - <<'PY'
           from pathlib import Path
-          import os
-          scale=os.environ['AGE_SCALE']
-          p=Path('js/real-estate-agency-pipeline.js')
-          s=p.read_text()
+          import re
+          # Restore normal brokerage pipeline economics: no age rescue and no branch inquiry rewrite.
+          p=Path('js/real-estate-agency-pipeline.js'); s=p.read_text()
+          assert "SINGLE_COMMISSION_RATE=.03,DOUBLE_COMMISSION_RATE=.06" in s
+          s=s.replace("SINGLE_COMMISSION_RATE=.03,DOUBLE_COMMISSION_RATE=.06","SINGLE_COMMISSION_RATE=.055,DOUBLE_COMMISSION_RATE=.065",1)
           old="ageRelief=Math.max(0,age-3)*.02,closeChance=clamp(baseCloseChance*config.closeMultiplier+cycleAdjustment+ageRelief,.08,.75)"
           assert old in s
-          s=s.replace(old,f"ageRelief=Math.max(0,age-3)*{scale},closeChance=clamp(baseCloseChance*config.closeMultiplier+cycleAdjustment+ageRelief,.08,.74)",1)
+          s=s.replace(old,"closeChance=clamp(baseCloseChance*config.closeMultiplier+cycleAdjustment,.08,.68)",1)
+          old="const branchCount=eligibleStores(g?.stores).length,networkOverlap=Math.max(.46,1-Math.max(0,branchCount-1)*.05);"
+          assert old in s
+          s=s.replace(old,"const branchCount=eligibleStores(g?.stores).length,networkOverlap=1;",1)
+          marker="const integer=(value,fallback=0)=>Math.max(0,Math.floor(finite(value,fallback)));"
+          assert marker in s
+          ramp="""\nconst FOUNDING_RAMPUP_WEEKS=60,FOUNDING_RAMPUP_MIN_RATIO=.05;\nfunction foundingRampMultiplier(g,store){\n  const week=Math.max(1,integer(g?.week,1)),openingWeek=Math.max(1,integer(store?.openingWeek,week));\n  const weeksOpen=Math.max(0,week-openingWeek);\n  if(weeksOpen>=FOUNDING_RAMPUP_WEEKS)return 1;\n  return FOUNDING_RAMPUP_MIN_RATIO+(1-FOUNDING_RAMPUP_MIN_RATIO)*(weeksOpen/FOUNDING_RAMPUP_WEEKS);\n}"""
+          s=s.replace(marker,marker+ramp,1)
+          old="FOCUSES,commissionRateForSide"
+          assert old in s
+          s=s.replace(old,"FOCUSES,FOUNDING_RAMPUP_WEEKS,FOUNDING_RAMPUP_MIN_RATIO,commissionRateForSide",1)
+          old="capacityFor,eligibleStores"
+          assert old in s
+          s=s.replace(old,"capacityFor,foundingRampMultiplier,eligibleStores",1)
           p.write_text(s)
-          print('BROKERAGE_AGE_SCALE',scale)
+
+          # #654 calibrated first-store signal strength.
+          p=Path('js/data.js'); s=p.read_text()
+          pattern=r'("id": "realEstateAgency",\s*"name": "不動産仲介",\s*"price": 85000,\s*"unitCost": 18000,\s*"demand": 34,\s*"quality": )8(,\s*"brand": )11'
+          s,n=re.subn(pattern,r'\g<1>14\g<2>20',s,count=1); assert n==1,n
+          p.write_text(s)
+
+          # Accounting-safe ramen COGS plus brokerage fixed-cost ramp.
+          p=Path('js/engine.js'); s=p.read_text()
+          old="variable=mr.variableCost*(store.businessID==='ramen'?Math.max(1,finite(b.price,920)/920):1);"
+          assert old in s
+          s=s.replace(old,"variable=mr.variableCost;",1)
+          marker="const contractRent=getStoreContractRent(store,p),costMultiplier=this.g.inflation*([0,.55,.8,1,1.24][store.operatingHours||3]||1)*(this.g.macroCrisis?.costMultiplier||1);"
+          assert marker in s
+          s=s.replace(marker,marker+"\n      const foundingRampMultiplier=store.businessID==='realEstateAgency'&&globalThis.__capitalismTycoonModules?.realEstateAgencyPipeline?globalThis.__capitalismTycoonModules.realEstateAgencyPipeline.foundingRampMultiplier(this.g,store):1;",1)
+          old="fixed=contractRent+(b.fixedCost+b.wage)*costMultiplier;repair=Math.max(0,100-store.condition)*650;store.marketResult=null;}\n      else if(store.businessID==='conveni'"
+          assert old in s
+          s=s.replace(old,"fixed=(contractRent+(b.fixedCost+b.wage)*costMultiplier)*foundingRampMultiplier;repair=Math.max(0,100-store.condition)*650;store.marketResult=null;}\n      else if(store.businessID==='conveni'",1)
+          assert "const rentPart=contractRent;" in s
+          s=s.replace("const rentPart=contractRent;","const rentPart=contractRent*foundingRampMultiplier;",1)
+          old="const wagePart=(b.wage+(isSupplyStore?workforce.storeExtraPayroll(this.g,store.id):0))*this.g.inflation*([0,.55,.8,1,1.24][store.operatingHours||3]||1)*(this.g.macroCrisis?.costMultiplier||1);"
+          assert old in s
+          s=s.replace(old,old[:-1]+"*foundingRampMultiplier;",1)
+          p.write_text(s)
           PY
-      - name: Measure brokerage route across seeds
+      - name: Measure one brokerage seed
+        env:
+          SEED: ${{ matrix.seed }}
         run: |
-          cat > tests/_brokerage-age-candidate.js <<'JS'
+          cat > tests/_brokerage-ramp-candidate.js <<'JS'
           'use strict';
           const {loadGame}=require('./harness');
-          const seeds=[190826041,1797259521,2806491037];
-          function run(seed){
-            function lcg(value){let s=value>>>0;return()=>{s=(Math.imul(s,1664525)+1013904223)>>>0;return s/2**32;};}
-            const {ctx}=loadGame({random:lcg(seed),headless:true}),engine=new ctx.__ct_headlessEngineClass();
-            engine.save=()=>{};engine.configure({playerName:'Tester',companyName:'Broker Co',difficulty:'normal',scenario:'free'});engine.g.skipWeeklyValidation=true;
-            let reached=null;const profits=[];
-            const tenant=()=>engine.g.tenants.filter(t=>!t.occupiedBy).sort((a,b)=>{const score=t=>engine.pref(t.prefID).traffic*engine.area(engine.pref(t.prefID).areaID).traffic;return score(b)-score(a)||String(a.id).localeCompare(String(b.id));})[0];
-            function open(){const t=tenant();if(!t)return false;const b=engine.business('realEstateAgency'),cost=b.storeCost+t.deposit;if(engine.g.stores.length&&engine.g.companyCash<=cost*3)return false;return engine.openStore({tenantID:t.id,businessID:'realEstateAgency',name:`broker-${engine.g.stores.length+1}`,operatingHours:3});}
-            open();
-            while(engine.g.week<320&&!engine.g.gameOver){engine.advanceWeek(false);profits.push(engine.g.lastReport?.profit||0);if(reached===null&&engine.companyValue()>=1e9)reached=engine.g.week;if(engine.g.week%4===0&&profits.slice(-8).reduce((a,n)=>a+n,0)/Math.min(8,profits.length)>0)open();}
-            return {seed,reached,week:engine.g.week,gameOver:engine.g.gameOver,stores:engine.g.stores.length,cash:engine.g.companyCash,value:engine.companyValue()};
-          }
-          const rows=seeds.map(run);console.log('BROKERAGE_AGE_RESULTS '+JSON.stringify(rows));if(rows.some(r=>r.gameOver))process.exitCode=1;
+          const seed=Number(process.env.SEED);
+          function lcg(value){let s=value>>>0;return()=>{s=(Math.imul(s,1664525)+1013904223)>>>0;return s/2**32;};}
+          const {ctx}=loadGame({random:lcg(seed),headless:true}),engine=new ctx.__ct_headlessEngineClass();
+          engine.save=()=>{};engine.configure({playerName:'Tester',companyName:'Broker Co',difficulty:'normal',scenario:'free'});engine.g.skipWeeklyValidation=true;
+          let reached=null;const profits=[];
+          const tenant=()=>engine.g.tenants.filter(t=>!t.occupiedBy).sort((a,b)=>{const score=t=>engine.pref(t.prefID).traffic*engine.area(engine.pref(t.prefID).areaID).traffic;return score(b)-score(a)||String(a.id).localeCompare(String(b.id));})[0];
+          function open(){const t=tenant();if(!t)return false;const b=engine.business('realEstateAgency'),cost=b.storeCost+t.deposit;if(engine.g.stores.length&&engine.g.companyCash<=cost*3)return false;return engine.openStore({tenantID:t.id,businessID:'realEstateAgency',name:`broker-${engine.g.stores.length+1}`,operatingHours:3});}
+          open();
+          while(engine.g.week<320&&!engine.g.gameOver){engine.advanceWeek(false);profits.push(engine.g.lastReport?.profit||0);if(reached===null&&engine.companyValue()>=1e9)reached=engine.g.week;if(engine.g.week%4===0&&profits.slice(-8).reduce((a,n)=>a+n,0)/Math.min(8,profits.length)>0)open();}
+          const row={seed,reached,week:engine.g.week,gameOver:engine.g.gameOver,stores:engine.g.stores.length,cash:engine.g.companyCash,value:engine.companyValue()};
+          console.log('BROKERAGE_RAMP '+JSON.stringify(row));if(row.gameOver)process.exitCode=1;
           JS
-          node tests/_brokerage-age-candidate.js
+          node tests/_brokerage-ramp-candidate.js
