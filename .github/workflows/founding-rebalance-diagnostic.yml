@@ -13,9 +13,9 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        demand: [960, 980, 1000, 1020]
+        demand: [965, 970, 975]
     runs-on: ubuntu-24.04
-    timeout-minutes: 20
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -51,53 +51,43 @@ jobs:
           const tenant=()=>engine.g.tenants.filter(t=>!t.occupiedBy).sort((a,b)=>{const score=t=>engine.pref(t.prefID).traffic*engine.area(engine.pref(t.prefID).areaID).traffic;return score(b)-score(a)||String(a.id).localeCompare(String(b.id));})[0];
           function open(){const t=tenant();if(!t)return false;const b=engine.business('ramen'),cost=b.storeCost+t.deposit;if(engine.g.stores.length&&engine.g.companyCash<=cost*3)return false;return engine.openStore({tenantID:t.id,businessID:'ramen',name:`ramen-${engine.g.stores.length+1}`,operatingHours:3});}
           open();
-          while(engine.g.week<340&&!engine.g.gameOver){engine.advanceWeek(false);profits.push(engine.g.lastReport?.profit||0);if(reached===null&&engine.companyValue()>=1e9)reached=engine.g.week;if(engine.g.week%4===0&&profits.slice(-8).reduce((a,n)=>a+n,0)/Math.min(8,profits.length)>0)open();}
+          while(engine.g.week<320&&!engine.g.gameOver){engine.advanceWeek(false);profits.push(engine.g.lastReport?.profit||0);if(reached===null&&engine.companyValue()>=1e9)reached=engine.g.week;if(engine.g.week%4===0&&profits.slice(-8).reduce((a,n)=>a+n,0)/Math.min(8,profits.length)>0)open();}
           console.log('RAMEN_DEMAND '+JSON.stringify({demand:engine.business('ramen').demand,reached,week:engine.g.week,gameOver:engine.g.gameOver,stores:engine.g.stores.length,cash:engine.g.companyCash,value:engine.companyValue()}));
           if(engine.g.gameOver)process.exitCode=1;
           JS
           node tests/_ramen-demand-candidate.js
 
-  brokerage-variant:
+  brokerage-age:
     strategy:
       fail-fast: false
       matrix:
-        variant: [current, mild-age, no-age, legacy]
+        ageScale: [0.01, 0.0125, 0.015]
     runs-on: ubuntu-24.04
-    timeout-minutes: 25
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
           node-version: 22
-      - name: Apply brokerage candidate
+      - name: Apply brokerage age-relief candidate
         env:
-          VARIANT: ${{ matrix.variant }}
+          AGE_SCALE: ${{ matrix.ageScale }}
         run: |
           python - <<'PY'
           from pathlib import Path
           import os
-          variant=os.environ['VARIANT']
+          scale=os.environ['AGE_SCALE']
           p=Path('js/real-estate-agency-pipeline.js')
           s=p.read_text()
-          current_age="ageRelief=Math.max(0,age-3)*.02,closeChance=clamp(baseCloseChance*config.closeMultiplier+cycleAdjustment+ageRelief,.08,.75)"
-          assert current_age in s
-          if variant=='mild-age':
-            s=s.replace(current_age,"ageRelief=Math.max(0,age-4)*.005,closeChance=clamp(baseCloseChance*config.closeMultiplier+cycleAdjustment+ageRelief,.08,.70)",1)
-          elif variant in ('no-age','legacy'):
-            s=s.replace(current_age,"closeChance=clamp(baseCloseChance*config.closeMultiplier+cycleAdjustment,.08,.68)",1)
-          if variant=='legacy':
-            old="SINGLE_COMMISSION_RATE=.03,DOUBLE_COMMISSION_RATE=.06"
-            assert old in s
-            s=s.replace(old,"SINGLE_COMMISSION_RATE=.055,DOUBLE_COMMISSION_RATE=.065",1)
-            old="const branchCount=eligibleStores(g?.stores).length,networkOverlap=Math.max(.46,1-Math.max(0,branchCount-1)*.05);"
-            assert old in s
-            s=s.replace(old,"const branchCount=eligibleStores(g?.stores).length,networkOverlap=1;",1)
+          old="ageRelief=Math.max(0,age-3)*.02,closeChance=clamp(baseCloseChance*config.closeMultiplier+cycleAdjustment+ageRelief,.08,.75)"
+          assert old in s
+          s=s.replace(old,f"ageRelief=Math.max(0,age-3)*{scale},closeChance=clamp(baseCloseChance*config.closeMultiplier+cycleAdjustment+ageRelief,.08,.73)",1)
           p.write_text(s)
-          print('BROKERAGE_VARIANT',variant)
+          print('BROKERAGE_AGE_SCALE',scale)
           PY
       - name: Measure brokerage route across seeds
         run: |
-          cat > tests/_brokerage-candidate.js <<'JS'
+          cat > tests/_brokerage-age-candidate.js <<'JS'
           'use strict';
           const {loadGame}=require('./harness');
           const seeds=[190826041,1797259521,2806491037];
@@ -109,9 +99,9 @@ jobs:
             const tenant=()=>engine.g.tenants.filter(t=>!t.occupiedBy).sort((a,b)=>{const score=t=>engine.pref(t.prefID).traffic*engine.area(engine.pref(t.prefID).areaID).traffic;return score(b)-score(a)||String(a.id).localeCompare(String(b.id));})[0];
             function open(){const t=tenant();if(!t)return false;const b=engine.business('realEstateAgency'),cost=b.storeCost+t.deposit;if(engine.g.stores.length&&engine.g.companyCash<=cost*3)return false;return engine.openStore({tenantID:t.id,businessID:'realEstateAgency',name:`broker-${engine.g.stores.length+1}`,operatingHours:3});}
             open();
-            while(engine.g.week<340&&!engine.g.gameOver){engine.advanceWeek(false);profits.push(engine.g.lastReport?.profit||0);if(reached===null&&engine.companyValue()>=1e9)reached=engine.g.week;if(engine.g.week%4===0&&profits.slice(-8).reduce((a,n)=>a+n,0)/Math.min(8,profits.length)>0)open();}
+            while(engine.g.week<320&&!engine.g.gameOver){engine.advanceWeek(false);profits.push(engine.g.lastReport?.profit||0);if(reached===null&&engine.companyValue()>=1e9)reached=engine.g.week;if(engine.g.week%4===0&&profits.slice(-8).reduce((a,n)=>a+n,0)/Math.min(8,profits.length)>0)open();}
             return {seed,reached,week:engine.g.week,gameOver:engine.g.gameOver,stores:engine.g.stores.length,cash:engine.g.companyCash,value:engine.companyValue()};
           }
-          const rows=seeds.map(run);console.log('BROKERAGE_RESULTS '+JSON.stringify(rows));if(rows.some(r=>r.gameOver))process.exitCode=1;
+          const rows=seeds.map(run);console.log('BROKERAGE_AGE_RESULTS '+JSON.stringify(rows));if(rows.some(r=>r.gameOver))process.exitCode=1;
           JS
-          node tests/_brokerage-candidate.js
+          node tests/_brokerage-age-candidate.js
