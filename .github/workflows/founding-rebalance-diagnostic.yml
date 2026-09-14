@@ -1,0 +1,110 @@
+name: Founding Rebalance Diagnostic
+
+on:
+  push:
+    branches:
+      - feat/founding-route-rebalance
+
+permissions:
+  contents: read
+
+jobs:
+  diagnose:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Patch accounting-unsafe COGS multiplier and stale fixture
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          import json
+          p=Path('js/engine.js')
+          s=p.read_text()
+          old="variable=mr.variableCost*(store.businessID==='ramen'?Math.max(1,finite(b.price,920)/920):1);"
+          assert old in s
+          p.write_text(s.replace(old,"variable=mr.variableCost;",1))
+
+          p=Path('tests/fixtures/transaction-baseline-v1.json')
+          data=json.loads(p.read_text())
+          changed=0
+          def walk(x):
+            global changed
+            if isinstance(x,dict):
+              if x.get('id')=='ramen' and x.get('storeCost')==3000000:
+                x['storeCost']=1700000
+                changed+=1
+              for v in x.values(): walk(v)
+            elif isinstance(x,list):
+              for v in x: walk(v)
+          walk(data)
+          assert changed>0
+          p.write_text(json.dumps(data,ensure_ascii=False,indent=2,separators=(',', ': ')))
+          print('fixture ramen storeCost rows corrected:',changed)
+          PY
+
+      - name: Variant A focused contracts
+        continue-on-error: true
+        run: |
+          set +e
+          for cmd in \
+            "node tests/transaction-regression-test.js" \
+            "node tests/strategy-balance-matrix-test.js" \
+            "node tests/supply-material-cost-inflation-test.js" \
+            "node tests/company-valuation-normalization-test.js" \
+            "node tests/store-zero-investment-founding-test.js" \
+            "node tests/market-cannibalization-test.js"; do
+            echo "===== VARIANT A: $cmd ====="
+            eval "$cmd"
+            echo "EXIT=$?"
+          done
+          exit 0
+
+      - name: Apply accounting-safe ramen material-cost alignment
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          p=Path('js/supply.js')
+          s=p.read_text()
+          replacements={
+            "baseUnitCost:106":"baseUnitCost:167.07",
+            "baseUnitCost:99":"baseUnitCost:156.03",
+            "baseUnitCost:90":"baseUnitCost:141.85",
+            "baseUnitCost:37":"baseUnitCost:58.32",
+            "baseUnitCost:14":"baseUnitCost:22.07",
+          }
+          for old,new in replacements.items():
+            assert old in s, old
+            s=s.replace(old,new,1)
+          p.write_text(s)
+          PY
+
+      - name: Variant B focused contracts
+        continue-on-error: true
+        run: |
+          set +e
+          for cmd in \
+            "node tests/transaction-regression-test.js" \
+            "node tests/strategy-balance-matrix-test.js" \
+            "node tests/supply-material-cost-inflation-test.js" \
+            "node tests/company-valuation-normalization-test.js" \
+            "node tests/store-zero-investment-founding-test.js" \
+            "node tests/market-cannibalization-test.js"; do
+            echo "===== VARIANT B: $cmd ====="
+            eval "$cmd"
+            echo "EXIT=$?"
+          done
+          exit 0
+
+      - name: Variant B founding calibration
+        continue-on-error: true
+        run: |
+          node tests/founding-route-rebalance-test.js
+
+      - name: Show diagnostic diff
+        if: always()
+        run: git diff --check && git diff -- js/engine.js js/supply.js tests/fixtures/transaction-baseline-v1.json
