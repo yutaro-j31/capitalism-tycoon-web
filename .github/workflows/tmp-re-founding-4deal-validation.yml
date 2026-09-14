@@ -1,0 +1,21 @@
+name: Temporary RE Founding 4-Deal Validation
+
+on:
+  push:
+    branches:
+      - tmp/re-founding-4deal-validation
+
+jobs:
+  seed-190826107:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Validate worst-case RE seed
+        env:
+          SEED: 190826107
+          HORIZON: 500
+        run: node tests/tmp-re-founding-production-validation.js
