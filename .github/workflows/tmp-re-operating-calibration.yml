@@ -1,0 +1,59 @@
+name: Temporary RE Operating Calibration
+
+on:
+  push:
+    branches:
+      - tmp/re-operating-calibration
+
+permissions:
+  contents: read
+
+jobs:
+  operating-calibration:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - quality: 8
+            brand: 11
+          - quality: 10
+            brand: 13
+          - quality: 10
+            brand: 15
+          - quality: 12
+            brand: 13
+          - quality: 12
+            brand: 15
+          - quality: 14
+            brand: 17
+        seed: [190826100,190826101,190826104,190826105,190826109,190826116,190826117]
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Disable seeded founding mandates
+        run: node -e "const fs=require('fs');const p='js/real-estate-agency-pipeline.js';let s=fs.readFileSync(p,'utf8');s=s.replace('FOUNDING_INITIAL_DEALS=4','FOUNDING_INITIAL_DEALS=0');fs.writeFileSync(p,s);"
+      - name: Patch RE operating parameters for calibration only
+        env:
+          QUALITY: ${{ matrix.quality }}
+          BRAND: ${{ matrix.brand }}
+        run: |
+          node <<'NODE'
+          const fs=require('fs');
+          const p='js/data.js';
+          let s=fs.readFileSync(p,'utf8');
+          const marker='"id": "realEstateAgency"';
+          const start=s.indexOf(marker);if(start<0)throw new Error('RE master data missing');
+          const end=s.indexOf('    },',start);const block=s.slice(start,end);
+          if(!block.includes('"quality": 8')||!block.includes('"brand": 11'))throw new Error('RE quality/brand contract changed');
+          const patched=block.replace('"quality": 8','"quality": '+process.env.QUALITY).replace('"brand": 11','"brand": '+process.env.BRAND);
+          s=s.slice(0,start)+patched+s.slice(end);fs.writeFileSync(p,s);
+          NODE
+      - name: Run 500-week RE operating calibration
+        env:
+          SEED: ${{ matrix.seed }}
+          HORIZON: 500
+        run: node tests/tmp-re-operating-calibration.js
