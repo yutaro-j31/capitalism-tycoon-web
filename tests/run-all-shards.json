@@ -76,6 +76,7 @@
     "tests/foundable-business-scope-test.js",
     "tests/convenience-merchandising-test.js",
     "tests/convenience-private-brand-test.js",
+    "tests/convenience-chain-scale-test.js",
     "tests/personal-stock-margin-test.js",
     "test:player-crisis-turnaround-fund",
     "tests/founder-health-system-removal-test.js",
