@@ -1,0 +1,18 @@
+name: Temporary Founding Calibration
+on:
+  push:
+    branches:
+      - claude/founding-route-rebalance-aq46k1
+permissions:
+  contents: read
+jobs:
+  calibrate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Measure founding ramen candidates
+        run: node tests/founding-route-rebalance-test.js
