@@ -2,7 +2,7 @@ name: Temporary Founding Calibration
 on:
   push:
     branches:
-      - claude/founding-route-rebalance-aq46k1
+      - tmp/founding-maturity-calibration
 permissions:
   contents: read
 jobs:
