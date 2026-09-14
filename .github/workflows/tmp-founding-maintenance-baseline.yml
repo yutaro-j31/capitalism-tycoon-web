@@ -1,0 +1,27 @@
+name: Temporary Founding Maintenance Baseline
+
+on:
+  push:
+    branches:
+      - tmp/founding-maintenance-baseline
+
+jobs:
+  measure:
+    strategy:
+      fail-fast: false
+      matrix:
+        business: [ramen, conveni, gym, realEstateAgency]
+        expand: ['true', 'false']
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Measure founding route with maintenance
+        env:
+          BUSINESS_ID: ${{ matrix.business }}
+          EXPAND: ${{ matrix.expand }}
+          RENOVATE_THRESHOLD: '70'
+        run: node tests/tmp-founding-maintenance-baseline.js
