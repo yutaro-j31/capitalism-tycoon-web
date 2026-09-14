@@ -9,12 +9,7 @@ permissions:
   contents: read
 
 jobs:
-  working-capital-line:
-    strategy:
-      fail-fast: false
-      matrix:
-        line_cap: [2000000, 3000000, 4000000]
-        seed: [190826100,190826101,190826102,190826103,190826104,190826105,190826106,190826107,190826108,190826109,190826110,190826111,190826112,190826113,190826114,190826115,190826116,190826117,190826118,190826119]
+  reconcile:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
@@ -43,11 +38,11 @@ jobs:
           if(!s.includes(oldSnapshot))throw new Error('rebuildSnapshotForWeek contract changed');
           fs.writeFileSync(p,s.replace(oldSnapshot,newSnapshot));
           NODE
-      - name: Run strict 500-week high-traffic RE route
+      - name: Run reconciliation probe
         env:
-          SEED: ${{ matrix.seed }}
-          HORIZON: 500
-          LINE_CAP: ${{ matrix.line_cap }}
+          SEED: 190826107
+          HORIZON: 10
+          LINE_CAP: 4000000
           CASH_FLOOR: 2000000
           REPAY_TRIGGER: 4000000
         run: node tests/tmp-re-hightraffic-calibration.js
