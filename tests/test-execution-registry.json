@@ -107,6 +107,10 @@
     "reason": "Executed outside the canonical run-all suite by .github/workflows/pages-deployment-smoke.yml.",
     "executedBy": ".github/workflows/pages-deployment-smoke.yml"
   },
+  "tests/real-estate-agency-founding-route-test.js": {
+    "reason": "Executed by the canonical Test shard matrix through shard E in tests/run-all-shards.json.",
+    "executedBy": ".github/workflows/test.yml"
+  },
   "tests/release-candidate-recovery-attestation-test.js": {
     "reason": "Executed by the release delivery gate aggregator, invoked from the release-readiness job in .github/workflows/test.yml.",
     "executedBy": "scripts/release-delivery-gate.js"
