@@ -9,11 +9,7 @@ permissions:
   contents: read
 
 jobs:
-  material-scale:
-    strategy:
-      fail-fast: false
-      matrix:
-        scale: [1.8, 2.0, 2.2, 2.4, 2.6]
+  no-phantom-cogs:
     runs-on: ubuntu-24.04
     timeout-minutes: 30
     steps:
@@ -21,69 +17,7 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 22
-      - name: Apply accounting-safe engine and material-cost candidate
-        env:
-          SCALE: ${{ matrix.scale }}
-        run: |
-          python - <<'PY'
-          from pathlib import Path
-          import os,re
-          scale=float(os.environ['SCALE'])
-
-          p=Path('js/engine.js')
-          s=p.read_text()
-          old="variable=mr.variableCost*(store.businessID==='ramen'?Math.max(1,finite(b.price,920)/920):1);"
-          assert old in s
-          p.write_text(s.replace(old,"variable=mr.variableCost;",1))
-
-          p=Path('js/supply.js')
-          s=p.read_text()
-          bases={
-            'ramen_noodles':106,
-            'ramen_soup':99,
-            'ramen_toppings':90,
-            'ramen_vegetables':37,
-            'ramen_packaging':14,
-          }
-          for material,base in bases.items():
-            pattern=rf"(id:'{material}'[^\n]*?baseUnitCost:){base}(?=,)"
-            value=round(base*scale,2)
-            replacement=rf"\g<1>{value:g}"
-            s,n=re.subn(pattern,replacement,s,count=1)
-            assert n==1,(material,n)
-          p.write_text(s)
-          print('RAMEN_MATERIAL_SCALE',scale)
-          PY
-      - name: Production 500-week ramen calibration
-        run: |
-          cat > tests/_ramen-material-candidate.js <<'JS'
-          'use strict';
-          const {loadGame}=require('./harness');
-          function lcg(seed=190826041){let s=seed>>>0;return()=>{s=(Math.imul(s,1664525)+1013904223)>>>0;return s/2**32;};}
-          const {ctx}=loadGame({random:lcg(),headless:true}),engine=new ctx.__ct_headlessEngineClass();
-          engine.save=()=>{};engine.configure({playerName:'Tester',companyName:'ramen Co',difficulty:'normal',scenario:'free'});engine.g.skipWeeklyValidation=true;
-          let reached=null,minCash=engine.g.companyCash;const profits=[];
-          const tenant=()=>engine.g.tenants.filter(t=>!t.occupiedBy).sort((a,b)=>{const score=t=>engine.pref(t.prefID).traffic*engine.area(engine.pref(t.prefID).areaID).traffic;return score(b)-score(a)||String(a.id).localeCompare(String(b.id));})[0];
-          function open(){const t=tenant();if(!t)return false;const b=engine.business('ramen'),cost=b.storeCost+t.deposit;if(engine.g.stores.length&&engine.g.companyCash<=cost*3)return false;return engine.openStore({tenantID:t.id,businessID:'ramen',name:`ramen-${engine.g.stores.length+1}`,operatingHours:3});}
-          open();
-          while(engine.g.week<500&&!engine.g.gameOver){engine.advanceWeek(false);profits.push(engine.g.lastReport?.profit||0);minCash=Math.min(minCash,engine.g.companyCash);if(reached===null&&engine.companyValue()>=1e9)reached=engine.g.week;if(engine.g.week%4===0&&profits.slice(-8).reduce((a,n)=>a+n,0)/Math.min(8,profits.length)>0)open();}
-          console.log('RAMEN_MATERIAL_CANDIDATE '+JSON.stringify({reached,week:engine.g.week,gameOver:engine.g.gameOver,stores:engine.g.stores.length,cash:engine.g.companyCash,value:engine.companyValue(),minCash,last8avg:profits.slice(-8).reduce((a,n)=>a+n,0)/Math.min(8,profits.length)}));
-          JS
-          node tests/_ramen-material-candidate.js
-      - name: Long-run margin and accounting contracts
-        run: |
-          node tests/supply-material-cost-inflation-test.js
-          node tests/supplier-material-coverage-test.js
-
-  accounting-root-fix:
-    runs-on: ubuntu-24.04
-    timeout-minutes: 30
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 22
-      - name: Apply root accounting fix and correct stale fixture
+      - name: Apply accounting root fix and stale fixture correction
         run: |
           python - <<'PY'
           from pathlib import Path
@@ -102,7 +36,48 @@ jobs:
           p.write_text(s)
           print('corrected fixture rows',n)
           PY
-      - name: Focused accounting contracts
+      - name: Production 500-week ramen calibration
+        run: |
+          cat > tests/_ramen-no-phantom-cogs.js <<'JS'
+          'use strict';
+          const {loadGame}=require('./harness');
+          function lcg(seed=190826041){let s=seed>>>0;return()=>{s=(Math.imul(s,1664525)+1013904223)>>>0;return s/2**32;};}
+          const {ctx}=loadGame({random:lcg(),headless:true}),engine=new ctx.__ct_headlessEngineClass();
+          engine.save=()=>{};engine.configure({playerName:'Tester',companyName:'ramen Co',difficulty:'normal',scenario:'free'});engine.g.skipWeeklyValidation=true;
+          let reached=null,minCash=engine.g.companyCash;const profits=[];
+          const tenant=()=>engine.g.tenants.filter(t=>!t.occupiedBy).sort((a,b)=>{const score=t=>engine.pref(t.prefID).traffic*engine.area(engine.pref(t.prefID).areaID).traffic;return score(b)-score(a)||String(a.id).localeCompare(String(b.id));})[0];
+          function open(){const t=tenant();if(!t)return false;const b=engine.business('ramen'),cost=b.storeCost+t.deposit;if(engine.g.stores.length&&engine.g.companyCash<=cost*3)return false;return engine.openStore({tenantID:t.id,businessID:'ramen',name:`ramen-${engine.g.stores.length+1}`,operatingHours:3});}
+          open();
+          while(engine.g.week<500&&!engine.g.gameOver){engine.advanceWeek(false);profits.push(engine.g.lastReport?.profit||0);minCash=Math.min(minCash,engine.g.companyCash);if(reached===null&&engine.companyValue()>=1e9)reached=engine.g.week;if(engine.g.week%4===0&&profits.slice(-8).reduce((a,n)=>a+n,0)/Math.min(8,profits.length)>0)open();}
+          console.log('RAMEN_NO_PHANTOM_COGS '+JSON.stringify({reached,week:engine.g.week,gameOver:engine.g.gameOver,stores:engine.g.stores.length,cash:engine.g.companyCash,value:engine.companyValue(),minCash,last8avg:profits.slice(-8).reduce((a,n)=>a+n,0)/Math.min(8,profits.length)}));
+          JS
+          node tests/_ramen-no-phantom-cogs.js
+      - name: Measure long-run margin drift directly
+        run: |
+          cat > tests/_ramen-margin-drift.js <<'JS'
+          'use strict';
+          const {loadGame}=require('./harness');
+          let s=0x51a17e01>>>0;const random=()=>{s=(s*1664525+1013904223)>>>0;return s/2**32;};
+          const {engineModule}=loadGame({isolatedLegacyIndex:true,random});
+          const e=new engineModule.TycoonEngine();
+          e.configure({playerName:'Idle',companyName:'Idle Co',difficulty:'normal',scenario:'free',founderPrefID:'tokyo',founderTraitID:'merchant'});
+          e.g.companyCash+=1_000_000_000;
+          const tenant=e.g.tenants.find(t=>t.prefID==='tokyo'&&t.businessID==='ramen'&&!t.occupiedBy);
+          if(!e.openStore({tenantID:tenant.id,businessID:'ramen',name:'Idle Ramen',operatingHours:3}))throw new Error('open failed');
+          const points=[];
+          for(let i=0;i<1040&&!e.g.gameOver;i++){
+            e.advanceWeek(false);
+            if(e.g.week===261||e.g.week===521||e.g.week===781||e.g.week===1041){const st=e.g.stores[0];points.push({week:e.g.week,margin:st.lastProfit/st.lastSales,sales:st.lastSales,profit:st.lastProfit,inflation:e.g.inflation});}
+          }
+          console.log('RAMEN_MARGIN_DRIFT '+JSON.stringify(points));
+          if(e.g.gameOver)throw new Error('idle ramen bankrupt');
+          if(points.length<4)throw new Error('missing checkpoints');
+          const late=points.slice(1).map(p=>p.margin),range=Math.max(...late)-Math.min(...late);
+          if(range>0.08)throw new Error(`late margin drift range too large: ${range}`);
+          if(late[late.length-1]-late[0]>0.05)throw new Error(`late margin upward drift too large: ${late[late.length-1]-late[0]}`);
+          JS
+          node tests/_ramen-margin-drift.js
+      - name: Accounting and focused contracts
         run: |
           node tests/transaction-regression-test.js
           node tests/supplier-material-coverage-test.js
