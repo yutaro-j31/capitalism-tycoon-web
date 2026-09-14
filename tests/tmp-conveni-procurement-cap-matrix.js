@@ -1,0 +1,12 @@
+'use strict';
+const fs=require('node:fs');
+const path=require('node:path');
+const cap=Number(process.env.CAP||0.09);
+if(!Number.isFinite(cap)||cap<0||cap>.25)throw new Error(`invalid CAP ${process.env.CAP}`);
+const modulePath=path.join(__dirname,'..','js','convenience-merchandising.js');
+const source=fs.readFileSync(modulePath,'utf8');
+const replaced=source.replace(/CHAIN_UNIT_COST_DISCOUNT_MAX=\.09;/,`CHAIN_UNIT_COST_DISCOUNT_MAX=${cap};`);
+if(replaced===source)throw new Error('expected chain discount constant was not found');
+fs.writeFileSync(modulePath,replaced);
+process.env.ALLOW_EXPANSION='1';
+require('./tmp-conveni-scale-revalidation.js');
