@@ -3,6 +3,7 @@
 // Production-harness calibration probe. This intentionally keeps the real 200-300 week
 // requirement in place while measuring nearby ramen unit-cost candidates in parallel. The
 // candidate override exists only inside this test process; production data is not changed by it.
+// Temporary calibration probe; remove after the production parameter is selected.
 const assert=require('node:assert/strict');
 const {Worker,isMainThread,parentPort,workerData}=require('node:worker_threads');
 const {loadGame}=require('./harness');
