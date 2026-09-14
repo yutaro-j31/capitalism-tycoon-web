@@ -1,0 +1,27 @@
+name: Temporary Founding Rebuild Exact Validation
+
+on:
+  push:
+    branches:
+      - tmp/founding-rebuild-exact-validation
+
+jobs:
+  focused:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: npm run test:syntax --silent
+      - run: npm run test:static --silent
+      - run: npm run test:modules --silent
+      - run: node tests/bank-loans-covenants-test.js
+      - run: node tests/store-opening-estimate-test.js
+      - run: npm run test:accounting-invariants --silent
+      - run: node tests/real-estate-agency-pipeline-test.js
+      - run: node tests/real-estate-agency-founding-route-test.js
+      - run: node tests/real-estate-agency-capacity-visibility-test.js
+      - run: node tests/business-portfolio-focus-test.js
+      - run: node tests/run-all-shard-matrix-test.js
