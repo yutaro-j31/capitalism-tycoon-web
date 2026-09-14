@@ -1,0 +1,24 @@
+name: Temporary Founding Ramen Maintenance
+
+on:
+  push:
+    branches:
+      - tmp/founding-ramen-diagnostics
+
+jobs:
+  calibrate:
+    strategy:
+      fail-fast: false
+      matrix:
+        threshold: ['0','50','60','70','80']
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Measure ramen maintenance policy
+        env:
+          RENOVATE_THRESHOLD: ${{ matrix.threshold }}
+        run: node tests/tmp-founding-ramen-maintenance-calibration.js
