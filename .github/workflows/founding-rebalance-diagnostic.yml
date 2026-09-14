@@ -9,7 +9,7 @@ permissions:
   contents: read
 
 jobs:
-  diagnose:
+  accounting:
     runs-on: ubuntu-24.04
     timeout-minutes: 30
     steps:
@@ -17,12 +17,11 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 22
-
-      - name: Patch accounting-unsafe COGS multiplier and stale fixture
+      - name: Apply accounting-safe engine fix and correct stale fixture
         run: |
           python - <<'PY'
           from pathlib import Path
-          import json
+          import re
           p=Path('js/engine.js')
           s=p.read_text()
           old="variable=mr.variableCost*(store.businessID==='ramen'?Math.max(1,finite(b.price,920)/920):1);"
@@ -30,81 +29,71 @@ jobs:
           p.write_text(s.replace(old,"variable=mr.variableCost;",1))
 
           p=Path('tests/fixtures/transaction-baseline-v1.json')
-          data=json.loads(p.read_text())
-          changed=0
-          def walk(x):
-            global changed
-            if isinstance(x,dict):
-              if x.get('id')=='ramen' and x.get('storeCost')==3000000:
-                x['storeCost']=1700000
-                changed+=1
-              for v in x.values(): walk(v)
-            elif isinstance(x,list):
-              for v in x: walk(v)
-          walk(data)
-          assert changed>0
-          p.write_text(json.dumps(data,ensure_ascii=False,indent=2,separators=(',', ': ')))
-          print('fixture ramen storeCost rows corrected:',changed)
+          s=p.read_text()
+          pattern=r'("id": "ramen",(?:(?!"id": ).)*?"storeCost": )3000000'
+          s,n=re.subn(pattern,r'\g<1>1700000',s,flags=re.S)
+          assert n>0,n
+          p.write_text(s)
+          print('corrected ramen fixture rows',n)
           PY
-
-      - name: Variant A focused contracts
-        continue-on-error: true
+      - name: Accounting and regression contracts
         run: |
-          set +e
-          for cmd in \
-            "node tests/transaction-regression-test.js" \
-            "node tests/strategy-balance-matrix-test.js" \
-            "node tests/supply-material-cost-inflation-test.js" \
-            "node tests/company-valuation-normalization-test.js" \
-            "node tests/store-zero-investment-founding-test.js" \
-            "node tests/market-cannibalization-test.js"; do
-            echo "===== VARIANT A: $cmd ====="
-            eval "$cmd"
-            echo "EXIT=$?"
-          done
-          exit 0
+          node tests/transaction-regression-test.js
+          node tests/strategy-balance-matrix-test.js
+          node tests/supplier-material-coverage-test.js
+          node tests/company-valuation-normalization-test.js
+          node tests/store-zero-investment-founding-test.js
+          node tests/market-cannibalization-test.js
+          git diff --check
 
-      - name: Apply accounting-safe ramen material-cost alignment
+  ramen-candidate:
+    strategy:
+      fail-fast: false
+      matrix:
+        demand: [500, 510, 520, 530, 540]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Apply accounting-safe candidate
+        env:
+          DEMAND: ${{ matrix.demand }}
         run: |
           python - <<'PY'
           from pathlib import Path
-          p=Path('js/supply.js')
+          import os,re
+          p=Path('js/engine.js')
           s=p.read_text()
-          replacements={
-            "baseUnitCost:106":"baseUnitCost:167.07",
-            "baseUnitCost:99":"baseUnitCost:156.03",
-            "baseUnitCost:90":"baseUnitCost:141.85",
-            "baseUnitCost:37":"baseUnitCost:58.32",
-            "baseUnitCost:14":"baseUnitCost:22.07",
-          }
-          for old,new in replacements.items():
-            assert old in s, old
-            s=s.replace(old,new,1)
+          old="variable=mr.variableCost*(store.businessID==='ramen'?Math.max(1,finite(b.price,920)/920):1);"
+          assert old in s
+          p.write_text(s.replace(old,"variable=mr.variableCost;",1))
+
+          p=Path('js/data.js')
+          s=p.read_text()
+          pattern=r'("id": "ramen",\s*"name": "ラーメン",\s*"price": )1450(,\s*"unitCost": 300,\s*"demand": )960'
+          replacement=r'\g<1>920\g<2>'+os.environ['DEMAND']
+          s,n=re.subn(pattern,replacement,s,count=1)
+          assert n==1,n
           p.write_text(s)
           PY
-
-      - name: Variant B focused contracts
-        continue-on-error: true
+      - name: Write ramen-only production calibration
         run: |
-          set +e
-          for cmd in \
-            "node tests/transaction-regression-test.js" \
-            "node tests/strategy-balance-matrix-test.js" \
-            "node tests/supply-material-cost-inflation-test.js" \
-            "node tests/company-valuation-normalization-test.js" \
-            "node tests/store-zero-investment-founding-test.js" \
-            "node tests/market-cannibalization-test.js"; do
-            echo "===== VARIANT B: $cmd ====="
-            eval "$cmd"
-            echo "EXIT=$?"
-          done
-          exit 0
-
-      - name: Variant B founding calibration
-        continue-on-error: true
-        run: |
-          node tests/founding-route-rebalance-test.js
-
-      - name: Show diagnostic diff
-        if: always()
-        run: git diff --check && git diff -- js/engine.js js/supply.js tests/fixtures/transaction-baseline-v1.json
+          cat > tests/_ramen-candidate.js <<'JS'
+          'use strict';
+          const {loadGame}=require('./harness');
+          function lcg(seed=190826041){let s=seed>>>0;return()=>{s=(Math.imul(s,1664525)+1013904223)>>>0;return s/2**32;};}
+          const {ctx}=loadGame({random:lcg(),headless:true}),engine=new ctx.__ct_headlessEngineClass();
+          engine.save=()=>{};engine.configure({playerName:'Tester',companyName:'ramen Co',difficulty:'normal',scenario:'free'});engine.g.skipWeeklyValidation=true;
+          let reached=null,minCash=engine.g.companyCash;const profits=[];
+          const tenant=()=>engine.g.tenants.filter(t=>!t.occupiedBy).sort((a,b)=>{const score=t=>engine.pref(t.prefID).traffic*engine.area(engine.pref(t.prefID).areaID).traffic;return score(b)-score(a)||String(a.id).localeCompare(String(b.id));})[0];
+          function open(){const t=tenant();if(!t)return false;const b=engine.business('ramen'),cost=b.storeCost+t.deposit;if(engine.g.stores.length&&engine.g.companyCash<=cost*3)return false;return engine.openStore({tenantID:t.id,businessID:'ramen',name:`ramen-${engine.g.stores.length+1}`,operatingHours:3});}
+          open();
+          while(engine.g.week<500&&!engine.g.gameOver){engine.advanceWeek(false);profits.push(engine.g.lastReport?.profit||0);minCash=Math.min(minCash,engine.g.companyCash);if(reached===null&&engine.companyValue()>=1e9)reached=engine.g.week;if(engine.g.week%4===0&&profits.slice(-8).reduce((a,n)=>a+n,0)/Math.min(8,profits.length)>0)open();}
+          console.log('RAMEN_CANDIDATE '+JSON.stringify({demand:engine.business('ramen').demand,price:engine.business('ramen').price,reached,week:engine.g.week,gameOver:engine.g.gameOver,stores:engine.g.stores.length,cash:engine.g.companyCash,value:engine.companyValue(),minCash,last8avg:profits.slice(-8).reduce((a,n)=>a+n,0)/Math.min(8,profits.length)}));
+          JS
+          node tests/_ramen-candidate.js
+      - name: Long-run ramen margin contract
+        run: node tests/supply-material-cost-inflation-test.js
