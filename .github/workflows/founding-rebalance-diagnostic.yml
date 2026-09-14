@@ -13,7 +13,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        quality: [19, 20, 21]
+        quality: [18.25, 18.5, 18.75]
     runs-on: ubuntu-24.04
     timeout-minutes: 15
     steps:
@@ -54,74 +54,3 @@ jobs:
           if(engine.g.gameOver)process.exitCode=1;
           JS
           node tests/_ramen-quality-candidate.js
-
-  brokerage-fee-ramp:
-    strategy:
-      fail-fast: false
-      matrix:
-        avgFee: [0.05, 0.0525, 0.055]
-        seed: [190826041, 1797259521, 2806491037, 987654321, 123456789]
-    runs-on: ubuntu-24.04
-    timeout-minutes: 20
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 22
-      - name: Apply mature brokerage economics and short ramp
-        env:
-          AVG_FEE: ${{ matrix.avgFee }}
-        run: |
-          python - <<'PY'
-          from pathlib import Path
-          import os,re
-          avg=float(os.environ['AVG_FEE'])
-          single=avg-.015
-          double=avg+.015
-          p=Path('js/real-estate-agency-pipeline.js'); s=p.read_text()
-          s,n=re.subn(r'SINGLE_COMMISSION_RATE=\.03,DOUBLE_COMMISSION_RATE=\.06',f'SINGLE_COMMISSION_RATE={single:g},DOUBLE_COMMISSION_RATE={double:g}',s,count=1); assert n==1,n
-          old="ageRelief=Math.max(0,age-3)*.02,closeChance=clamp(baseCloseChance*config.closeMultiplier+cycleAdjustment+ageRelief,.08,.75)"; assert old in s
-          s=s.replace(old,"closeChance=clamp(baseCloseChance*config.closeMultiplier+cycleAdjustment,.08,.68)",1)
-          marker="const integer=(value,fallback=0)=>Math.max(0,Math.floor(finite(value,fallback)));"; assert marker in s
-          ramp="""\nconst FOUNDING_RAMPUP_WEEKS=16,FOUNDING_RAMPUP_MIN_RATIO=.5;\nfunction foundingRampMultiplier(g,store){\n  const week=Math.max(1,integer(g?.week,1)),openingWeek=Math.max(1,integer(store?.openingWeek,week));\n  const weeksOpen=Math.max(0,week-openingWeek);\n  if(weeksOpen>=FOUNDING_RAMPUP_WEEKS)return 1;\n  return FOUNDING_RAMPUP_MIN_RATIO+(1-FOUNDING_RAMPUP_MIN_RATIO)*(weeksOpen/FOUNDING_RAMPUP_WEEKS);\n}"""
-          s=s.replace(marker,marker+ramp,1)
-          old="FOCUSES,commissionRateForSide"; assert old in s
-          s=s.replace(old,"FOCUSES,FOUNDING_RAMPUP_WEEKS,FOUNDING_RAMPUP_MIN_RATIO,commissionRateForSide",1)
-          old="capacityFor,eligibleStores"; assert old in s
-          s=s.replace(old,"capacityFor,foundingRampMultiplier,eligibleStores",1)
-          p.write_text(s)
-
-          p=Path('js/engine.js'); s=p.read_text()
-          old="variable=mr.variableCost*(store.businessID==='ramen'?Math.max(1,finite(b.price,920)/920):1);"; assert old in s
-          s=s.replace(old,"variable=mr.variableCost;",1)
-          marker="const contractRent=getStoreContractRent(store,p),costMultiplier=this.g.inflation*([0,.55,.8,1,1.24][store.operatingHours||3]||1)*(this.g.macroCrisis?.costMultiplier||1);"; assert marker in s
-          s=s.replace(marker,marker+"\n      const foundingRampMultiplier=store.businessID==='realEstateAgency'&&globalThis.__capitalismTycoonModules?.realEstateAgencyPipeline?globalThis.__capitalismTycoonModules.realEstateAgencyPipeline.foundingRampMultiplier(this.g,store):1;",1)
-          old="fixed=contractRent+(b.fixedCost+b.wage)*costMultiplier;repair=Math.max(0,100-store.condition)*650;store.marketResult=null;}\n      else if(store.businessID==='conveni'"; assert old in s
-          s=s.replace(old,"fixed=(contractRent+(b.fixedCost+b.wage)*costMultiplier)*foundingRampMultiplier;repair=Math.max(0,100-store.condition)*650;store.marketResult=null;}\n      else if(store.businessID==='conveni'",1)
-          assert "const rentPart=contractRent;" in s
-          s=s.replace("const rentPart=contractRent;","const rentPart=contractRent*foundingRampMultiplier;",1)
-          old="const wagePart=(b.wage+(isSupplyStore?workforce.storeExtraPayroll(this.g,store.id):0))*this.g.inflation*([0,.55,.8,1,1.24][store.operatingHours||3]||1)*(this.g.macroCrisis?.costMultiplier||1);"; assert old in s
-          s=s.replace(old,old[:-1]+"*foundingRampMultiplier;",1)
-          p.write_text(s)
-          PY
-      - name: Measure brokerage route
-        env:
-          SEED: ${{ matrix.seed }}
-          AVG_FEE: ${{ matrix.avgFee }}
-        run: |
-          cat > tests/_brokerage-fee-ramp.js <<'JS'
-          'use strict';
-          const {loadGame}=require('./harness');
-          const seed=Number(process.env.SEED);
-          function lcg(value){let s=value>>>0;return()=>{s=(Math.imul(s,1664525)+1013904223)>>>0;return s/2**32;};}
-          const {ctx}=loadGame({random:lcg(seed),headless:true}),engine=new ctx.__ct_headlessEngineClass();
-          engine.save=()=>{};engine.configure({playerName:'Tester',companyName:'Broker Co',difficulty:'normal',scenario:'free'});engine.g.skipWeeklyValidation=true;
-          let reached=null;const profits=[];
-          const tenant=()=>engine.g.tenants.filter(t=>!t.occupiedBy).sort((a,b)=>{const score=t=>engine.pref(t.prefID).traffic*engine.area(engine.pref(t.prefID).areaID).traffic;return score(b)-score(a)||String(a.id).localeCompare(String(b.id));})[0];
-          function open(){const t=tenant();if(!t)return false;const b=engine.business('realEstateAgency'),cost=b.storeCost+t.deposit;if(engine.g.stores.length&&engine.g.companyCash<=cost*3)return false;return engine.openStore({tenantID:t.id,businessID:'realEstateAgency',name:`broker-${engine.g.stores.length+1}`,operatingHours:3});}
-          open();
-          while(engine.g.week<320&&!engine.g.gameOver){engine.advanceWeek(false);profits.push(engine.g.lastReport?.profit||0);if(reached===null&&engine.companyValue()>=1e9)reached=engine.g.week;if(engine.g.week%4===0&&profits.slice(-8).reduce((a,n)=>a+n,0)/Math.min(8,profits.length)>0)open();}
-          const row={avgFee:Number(process.env.AVG_FEE),seed,reached,week:engine.g.week,gameOver:engine.g.gameOver,stores:engine.g.stores.length,cash:engine.g.companyCash,value:engine.companyValue()};
-          console.log('BROKERAGE_FEE_RAMP '+JSON.stringify(row));if(row.gameOver)process.exitCode=1;
-          JS
-          node tests/_brokerage-fee-ramp.js
