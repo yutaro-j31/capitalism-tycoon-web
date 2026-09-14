@@ -3,6 +3,7 @@
 if(!globalThis.__capitalismTycoonModules)throw new Error('Capitalism Tycoon runtime.js must be loaded before engine.js.');
 var __modules=globalThis.__capitalismTycoonModules;
 if(!__modules.data)throw new Error('Capitalism Tycoon data module must be loaded before engine.js.');
+if(!__modules.storeMarketEnvironment)throw new Error('Capitalism Tycoon store-market-environment module must be loaded before engine.js.');
 if(!__modules.market)throw new Error('Capitalism Tycoon market module must be loaded before engine.js.');
 if(!__modules.workforce)throw new Error('Capitalism Tycoon workforce module must be loaded before engine.js.');
 if(!__modules.supply)throw new Error('Capitalism Tycoon supply module must be loaded before engine.js.');
@@ -11,6 +12,7 @@ if(!__modules.finance)throw new Error('Capitalism Tycoon finance module must be 
 if(__modules.engine)throw new Error('Capitalism Tycoon engine module is already registered.');
 (function(exports,data,market,finance,supply,workforce,competitor){
 const {MASTER,DEPARTMENT_UNLOCKS,PRODUCT_BLUEPRINTS,DIGITAL_PRODUCT_ECONOMICS,LUXURY_OFFERS,PERSONAL_INVESTMENT_OFFERS,OVERSEAS_COUNTRIES,SPORTS_TEAMS,MISSION_DEFS}=data;
+const storeMarketEnvironment=__modules.storeMarketEnvironment;
 const SAVE_KEY = 'capitalism_tycoon_web_v1';
 const SAVE_VERSION = 8;
 
@@ -763,14 +765,10 @@ class TycoonEngine extends EventTarget {
     const base=clamp(.35 + staff*.08 + finite(head?.skill)*.02, .35, 1.5); return clamp(base*workforce.departmentEffectMultiplier(this.g,id)+finite(this.g.departments[id]?.phase4ABonus),0,1.55);
   }
   competitorPressure(areaID,businessID) {
-    const total = this.g.competitors.filter(c=>c.areaID===areaID&&c.businessID===businessID).reduce((a,c)=>a+c.stores*(c.brand+c.quality)/12000,0);
-    return clamp(total,0,.35);
+    return storeMarketEnvironment.competitorPressure(this.g.competitors,areaID,businessID);
   }
   fit(business, area) {
-    if (business.id === 'ramen') return area.ramenFit;
-    if (business.id === 'cafe') return area.cafeFit;
-    if (business.id === 'conveni') return area.conveniFit;
-    return 1;
+    return storeMarketEnvironment.businessAreaFit(business,area);
   }
 
   // 事業ポートフォリオの整理。30業種→主力5業種（うち4業種はテナント出店、
@@ -840,15 +838,11 @@ class TycoonEngine extends EventTarget {
     const costHours=[0,.55,.8,1,1.24][hours]||1;
     const crisisSales=this.g.macroCrisis?finite(this.g.macroCrisis.salesMultiplier,1):1;
     const crisisCost=finite(this.g.macroCrisis?.costMultiplier,1);
-    const localCompetition=a.competition+this.competitorPressure(a.id,b.id);
+    const localCompetition=storeMarketEnvironment.localCompetition(a,this.competitorPressure(a.id,b.id));
     const siteSuitability=globalThis.__capitalismTycoonModules.tenantSiteSuitability.evaluateTenantSuitability(tenant,businessID,p);
 
     // advanceWeek() の需要式から rand(.88,1.14) だけを抜いたもの。
-    let demand=b.demand*p.traffic*a.traffic*this.g.economy*this.g.season*this.fit(b,a)
-      *(1+b.quality/100)*(1+b.brand/90)*(1+b.dx/140)*(1-localCompetition*.55);
-    demand*=1+this.departmentEffect('dx')*.05+this.departmentEffect('marketing')*.03;
-    demand*=demandHours;
-    demand*=crisisSales*siteSuitability.multiplier;
+    const demand=storeMarketEnvironment.storeDemand({baseDemand:b.demand,prefectureTraffic:p.traffic,areaTraffic:a.traffic,economy:this.g.economy,season:this.g.season,businessAreaFit:this.fit(b,a),quality:b.quality,brand:b.brand,dx:b.dx,localCompetition,weeklyDemandMultiplier:1,siteSuitabilityFactor:1,dxDepartmentEffect:this.departmentEffect('dx'),marketingDepartmentEffect:this.departmentEffect('marketing'),operatingHoursFactor:demandHours,macroSalesFactor:crisisSales*siteSuitability.multiplier});
 
     // 新店は condition=100 なので repair は 0。fixed は需要に依存しないので帯の全ケースで共通。
     const rent=resolveTenantContractRent(tenant,p);
@@ -1839,14 +1833,11 @@ class TycoonEngine extends EventTarget {
       if(market.isTargetBusinessID(store.businessID)&&marketBatch.byStore[store.id]){rand(.88,1.14); // Preserve the legacy per-store demand RNG slot; deterministic market results intentionally ignore this value.
       let mr=marketBatch.byStore[store.id];mr=supply.applyConstraint(this.g,store,mr,finance);marketBatch.byStore[store.id]=mr;const extraStorePayroll=workforce.storeExtraPayroll(this.g,store.id);fixed=contractRent+(b.fixedCost+b.wage+extraStorePayroll)*costMultiplier;repair=Math.max(0,100-store.condition)*650;storeSales=mr.revenue;variable=mr.variableCost;store.marketResult={...mr};}
       else if(store.businessID==='realEstateAgency'&&globalThis.__capitalismTycoonModules?.realEstateAgencyPipeline){rand(.88,1.14);const brokerage=globalThis.__capitalismTycoonModules.realEstateAgencyPipeline.processStore(this.g,store,b,p,globalThis.__capitalismTycoonModules.tenantSiteSuitability.forStore(this.g,store).multiplier);storeSales=brokerage.sales;variable=brokerage.variable;fixed=contractRent+(b.fixedCost+b.wage)*costMultiplier;repair=Math.max(0,100-store.condition)*650;store.marketResult=null;}
-      else if(store.businessID==='conveni'&&globalThis.__capitalismTycoonModules?.convenienceMerchandising){const localCompetition=a.competition+this.competitorPressure(a.id,b.id);let demand=b.demand*p.traffic*a.traffic*this.g.economy*this.g.season*this.fit(b,a)*(1+b.quality/100)*(1+b.brand/90)*(1+b.dx/140)*(1-localCompetition*.55)*rand(.88,1.14);
-      demand*=globalThis.__capitalismTycoonModules.tenantSiteSuitability.forStore(this.g,store).multiplier;demand*=1+this.departmentEffect('dx')*.05+this.departmentEffect('marketing')*.03;demand*=[0,.45,.75,1,1.17][store.operatingHours||3]||1;if(this.g.macroCrisis)demand*=this.g.macroCrisis.salesMultiplier;
+      else if(store.businessID==='conveni'&&globalThis.__capitalismTycoonModules?.convenienceMerchandising){const localCompetition=storeMarketEnvironment.localCompetition(a,this.competitorPressure(a.id,b.id));const demand=storeMarketEnvironment.storeDemand({baseDemand:b.demand,prefectureTraffic:p.traffic,areaTraffic:a.traffic,economy:this.g.economy,season:this.g.season,businessAreaFit:this.fit(b,a),quality:b.quality,brand:b.brand,dx:b.dx,localCompetition,weeklyDemandMultiplier:rand(.88,1.14),siteSuitabilityFactor:globalThis.__capitalismTycoonModules.tenantSiteSuitability.forStore(this.g,store).multiplier,dxDepartmentEffect:this.departmentEffect('dx'),marketingDepartmentEffect:this.departmentEffect('marketing'),operatingHoursFactor:[0,.45,.75,1,1.17][store.operatingHours||3]||1,macroSalesFactor:this.g.macroCrisis?this.g.macroCrisis.salesMultiplier:1});
       const merch=globalThis.__capitalismTycoonModules.convenienceMerchandising.processStore(this.g,store,b,demand,this.g.inflation);storeSales=merch.sales;variable=merch.variable;fixed=contractRent+(b.fixedCost+b.wage)*costMultiplier;repair=Math.max(0,100-store.condition)*650;store.marketResult=null;}
-      else if(store.businessID==='gym'&&globalThis.__capitalismTycoonModules?.gymMembershipModel){const localCompetition=a.competition+this.competitorPressure(a.id,b.id);let demand=b.demand*p.traffic*a.traffic*this.g.economy*this.g.season*this.fit(b,a)*(1+b.quality/100)*(1+b.brand/90)*(1+b.dx/140)*(1-localCompetition*.55)*rand(.88,1.14);
-      demand*=globalThis.__capitalismTycoonModules.tenantSiteSuitability.forStore(this.g,store).multiplier;demand*=1+this.departmentEffect('dx')*.05+this.departmentEffect('marketing')*.03;demand*=[0,.45,.75,1,1.17][store.operatingHours||3]||1;if(this.g.macroCrisis)demand*=this.g.macroCrisis.salesMultiplier;
+      else if(store.businessID==='gym'&&globalThis.__capitalismTycoonModules?.gymMembershipModel){const localCompetition=storeMarketEnvironment.localCompetition(a,this.competitorPressure(a.id,b.id));const demand=storeMarketEnvironment.storeDemand({baseDemand:b.demand,prefectureTraffic:p.traffic,areaTraffic:a.traffic,economy:this.g.economy,season:this.g.season,businessAreaFit:this.fit(b,a),quality:b.quality,brand:b.brand,dx:b.dx,localCompetition,weeklyDemandMultiplier:rand(.88,1.14),siteSuitabilityFactor:globalThis.__capitalismTycoonModules.tenantSiteSuitability.forStore(this.g,store).multiplier,dxDepartmentEffect:this.departmentEffect('dx'),marketingDepartmentEffect:this.departmentEffect('marketing'),operatingHoursFactor:[0,.45,.75,1,1.17][store.operatingHours||3]||1,macroSalesFactor:this.g.macroCrisis?this.g.macroCrisis.salesMultiplier:1});
       const membership=globalThis.__capitalismTycoonModules.gymMembershipModel.processStore(this.g,store,b,demand,this.g.inflation,localCompetition);storeSales=membership.sales;variable=membership.variable;fixed=contractRent+(b.fixedCost+b.wage)*costMultiplier;repair=Math.max(0,100-store.condition)*650;store.marketResult=null;}
-      else{const localCompetition=a.competition+this.competitorPressure(a.id,b.id);let demand=b.demand*p.traffic*a.traffic*this.g.economy*this.g.season*this.fit(b,a)*(1+b.quality/100)*(1+b.brand/90)*(1+b.dx/140)*(1-localCompetition*.55)*rand(.88,1.14);
-      demand*=1+this.departmentEffect('dx')*.05+this.departmentEffect('marketing')*.03;demand*=[0,.45,.75,1,1.17][store.operatingHours||3]||1;if(this.g.macroCrisis)demand*=this.g.macroCrisis.salesMultiplier;
+      else{const localCompetition=storeMarketEnvironment.localCompetition(a,this.competitorPressure(a.id,b.id));const demand=storeMarketEnvironment.storeDemand({baseDemand:b.demand,prefectureTraffic:p.traffic,areaTraffic:a.traffic,economy:this.g.economy,season:this.g.season,businessAreaFit:this.fit(b,a),quality:b.quality,brand:b.brand,dx:b.dx,localCompetition,weeklyDemandMultiplier:rand(.88,1.14),siteSuitabilityFactor:1,dxDepartmentEffect:this.departmentEffect('dx'),marketingDepartmentEffect:this.departmentEffect('marketing'),operatingHoursFactor:[0,.45,.75,1,1.17][store.operatingHours||3]||1,macroSalesFactor:this.g.macroCrisis?this.g.macroCrisis.salesMultiplier:1});
       storeSales=Math.max(0,demand*b.price*this.g.inflation);variable=demand*b.unitCost*this.g.inflation*(1-Math.min(.22,b.efficiency/260))/(1+this.departmentEffect('operations')*.04);fixed=contractRent+(b.fixedCost+b.wage)*costMultiplier;repair=Math.max(0,100-store.condition)*650;
       store.marketResult=null;}
       const isSupplyStore=market.isTargetBusinessID(store.businessID);
