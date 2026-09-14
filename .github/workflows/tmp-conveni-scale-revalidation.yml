@@ -6,7 +6,11 @@ on:
       - tmp/conveni-scale-revalidation
 
 jobs:
-  standard:
+  cap-matrix:
+    strategy:
+      fail-fast: false
+      matrix:
+        cap: [0.09, 0.12, 0.15, 0.18]
     runs-on: ubuntu-latest
     timeout-minutes: 8
     steps:
@@ -14,12 +18,12 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 22
-      - name: Validate 500-week standard expansion
+      - name: Validate 500-week standard expansion by procurement cap
         env:
           SEED: 190826041
           HORIZON: 500
-          ALLOW_EXPANSION: 1
-        run: node tests/tmp-conveni-scale-revalidation.js
+          CAP: ${{ matrix.cap }}
+        run: node tests/tmp-conveni-procurement-cap-matrix.js
   one-store:
     runs-on: ubuntu-latest
     timeout-minutes: 8
@@ -28,7 +32,7 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 22
-      - name: Validate 500-week one-store route
+      - name: Reconfirm single-store neutrality
         env:
           SEED: 190826041
           HORIZON: 500
