@@ -1,0 +1,18 @@
+name: Temporary Real Estate Agency Startup Diagnostic
+
+on:
+  push:
+    branches:
+      - tmp/founding-maintenance-baseline
+
+jobs:
+  diagnose:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Trace startup cash flow
+        run: node tests/tmp-real-estate-agency-startup-diagnostic.js
