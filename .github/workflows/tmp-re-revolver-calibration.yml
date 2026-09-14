@@ -13,7 +13,8 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        limit: [2000000, 3000000, 4000000]
+        limit: [3000000, 4000000, 5000000]
+        draw_end_week: [104, 156]
         seed: [190826100,190826101,190826104,190826105,190826109,190826116,190826117]
     runs-on: ubuntu-latest
     timeout-minutes: 8
@@ -50,5 +51,6 @@ jobs:
         env:
           SEED: ${{ matrix.seed }}
           LINE_LIMIT: ${{ matrix.limit }}
+          DRAW_END_WEEK: ${{ matrix.draw_end_week }}
           HORIZON: 500
         run: node tests/tmp-re-revolver-calibration.js
