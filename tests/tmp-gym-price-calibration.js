@@ -3,7 +3,7 @@ const assert=require('node:assert/strict');
 const {loadGame}=require('./harness');
 const SEED=Number(process.env.SEED||190826041),PRICE=Number(process.env.PRICE||8500),ALLOW_EXPANSION=process.env.ALLOW_EXPANSION!=='0',HORIZON=Number(process.env.HORIZON||500);
 function lcg(seed){let s=seed>>>0;return()=>{s=(Math.imul(s,1664525)+1013904223)>>>0;return s/2**32;};}
-function tenantPool(engine){return engine.g.tenants.filter(t=>!t.occupiedBy&&t.businessID==='gym').sort((a,b)=>b.traffic-a.traffic||String(a.id).localeCompare(String(b.id)));}
+function tenantPool(engine){return engine.g.tenants.filter(t=>!t.occupiedBy).sort((a,b)=>b.traffic-a.traffic||String(a.id).localeCompare(String(b.id)));}
 function openingCost(engine,tenant){return engine.business('gym').storeCost+tenant.deposit;}
 function openStore(engine){const tenant=tenantPool(engine)[0];if(!tenant)return false;return engine.openStore({tenantID:tenant.id,businessID:'gym',name:`gym-${engine.g.stores.length+1}`,operatingHours:3})===true;}
 function avg8(engine){const h=engine.g.weeklyProfitHistory.slice(-8);return h.length?h.reduce((a,n)=>a+Number(n||0),0)/h.length:0;}
