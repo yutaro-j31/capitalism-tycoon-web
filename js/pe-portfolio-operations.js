@@ -24,6 +24,7 @@ const pf=modules.peFund,tiers=modules.peIndustryTiers;
 const finite=(v,f=0)=>Number.isFinite(Number(v))?Number(v):f;
 const clamp=(v,min=0,max=1)=>Math.max(min,Math.min(max,finite(v,min)));
 const arr=v=>Array.isArray(v)?v:[];
+const clone=value=>value===undefined?undefined:value===null?null:JSON.parse(JSON.stringify(value));
 
 // Same deterministic FNV-1a hash as js/ma-deal-room.js / js/pe-rivals.js / js/pe-industry-tiers.js.
 function hash(parts){let h=2166136261;String(parts.join('|')).split('').forEach(c=>{h^=c.charCodeAt(0);h=Math.imul(h,16777619);});return h>>>0;}
@@ -301,10 +302,37 @@ function calculateGenericPortfolioOperatingWeek(fund,deal,week){
   const weeklyProfit=weeklyEBITDA*lever.revenueFactor*lever.costFactor*noise-upkeep;
   return {week,source:'generic',revenue:weeklyEBITDA*lever.revenueFactor*noise*2,profit:weeklyProfit,components:{annualEBITDA,weeklyEBITDA,revenueFactor:lever.revenueFactor,costFactor:lever.costFactor,noise,upkeep}};
 }
-// Single dispatch point for future pillar-specific calculators. Until one is explicitly
-// registered in production, every deal falls back to the unchanged generic model.
-function resolvePortfolioOperatingCalculator(){return calculateGenericPortfolioOperatingWeek;}
-function calculatePortfolioOperatingWeek(fund,deal,week){return resolvePortfolioOperatingCalculator(deal)(fund,deal,week);}
+// Gym keeps the calibrated EV-scaled PE earnings base, but replaces the generic price response
+// with the production membership model. A same-state control preview (standard strategy,
+// priceMultiplier 1.0) makes the default path exactly equal to the generic calculator, while
+// actual price/strategy choices flow through the real gym sales and variable-cost model.
+function calculateGymPortfolioOperatingWeek(fund,deal,week,state){
+  const bridge=modules.managementContext;
+  if(!state||deal?.businessID!=='gym'||!bridge?.previewPEPortfolioGymWeekForState)return calculateGenericPortfolioOperatingWeek(fund,deal,week);
+  const pc=deal?.portfolioCompany;
+  if(!pc)return null;
+  const operatingState=pc.gymOperatingState;
+  const actual=bridge.previewPEPortfolioGymWeekForState(state,fund.id,deal.id,{week,operatingState});
+  const control=bridge.previewPEPortfolioGymWeekForState(state,fund.id,deal.id,{week,operatingState,priceMultiplierOverride:1,membershipStrategyOverride:'standard'});
+  if(!actual?.ok||!control?.ok)return calculateGenericPortfolioOperatingWeek(fund,deal,week);
+  const generic=calculateGenericPortfolioOperatingWeek(fund,deal,week),lever=leverFactors(pc,week),components=generic.components;
+  const baseRevenueFactor=lever.priceFactor>0?lever.revenueFactor/lever.priceFactor:lever.revenueFactor;
+  const salesFactor=control.sales>0?actual.sales/control.sales:1;
+  const actualContribution=finite(actual.sales)-finite(actual.variable),controlContribution=finite(control.sales)-finite(control.variable);
+  const contributionFactor=controlContribution>0?actualContribution/controlContribution:1;
+  const revenue=components.weeklyEBITDA*baseRevenueFactor*salesFactor*components.noise*2;
+  const profit=components.weeklyEBITDA*baseRevenueFactor*components.costFactor*contributionFactor*components.noise-components.upkeep;
+  return {
+    week,source:'gym',revenue,profit,nextOperatingState:clone(actual.nextOperatingState),
+    components:{...components,revenueFactor:baseRevenueFactor,gymSalesFactor:salesFactor,gymContributionFactor:contributionFactor,replacedGenericPriceFactor:lever.priceFactor,gymSales:actual.sales,gymVariable:actual.variable,controlSales:control.sales,controlVariable:control.variable}
+  };
+}
+// Callers that do not provide simulation state retain the historical generic behavior. The
+// production weekly loop supplies state and therefore dispatches active gym pillar deals here.
+function resolvePortfolioOperatingCalculator(deal,state){
+  return state&&deal?.businessID==='gym'&&modules.managementContext?.previewPEPortfolioGymWeekForState?calculateGymPortfolioOperatingWeek:calculateGenericPortfolioOperatingWeek;
+}
+function calculatePortfolioOperatingWeek(fund,deal,week,state){return resolvePortfolioOperatingCalculator(deal,state)(fund,deal,week,state);}
 // The only writer for weekly portfolio operating results. The lastProcessedWeek gate makes
 // direct settlement and processPortfolioWeek exactly-once for a deal/week pair.
 function settlePortfolioOperatingWeek(deal,result){
@@ -314,19 +342,20 @@ function settlePortfolioOperatingWeek(deal,result){
   pc.weeklyRevenue=finite(result.revenue);
   pc.weeklyProfit=finite(result.profit);
   pc.profitHistory=[...arr(pc.profitHistory),finite(result.profit)].slice(-PROFIT_HISTORY_LIMIT);
+  if(deal.businessID==='gym'&&result.nextOperatingState)pc.gymOperatingState=clone(result.nextOperatingState);
   pc.improvementScore=computeImprovementScore(deal);
   pc.lastProcessedWeek=week;
   return true;
 }
-function processDealWeek(fund,deal,week){
+function processDealWeek(fund,deal,week,state){
   const pc=deal.portfolioCompany;
   if(!pc||pc.lastProcessedWeek>=week)return;
-  settlePortfolioOperatingWeek(deal,calculatePortfolioOperatingWeek(fund,deal,week));
+  settlePortfolioOperatingWeek(deal,calculatePortfolioOperatingWeek(fund,deal,week,state));
 }
 function processPortfolioWeek(state,week){
   ensure(state);
   const w=Math.max(0,Math.floor(finite(week,state.week)));
-  for(const fund of state.peFirm.funds)for(const deal of arr(fund.deals))if(deal&&deal.portfolioCompany&&deal.status==='active')processDealWeek(fund,deal,w);
+  for(const fund of state.peFirm.funds)for(const deal of arr(fund.deals))if(deal&&deal.portfolioCompany&&deal.status==='active')processDealWeek(fund,deal,w,state);
   return state;
 }
 
@@ -533,7 +562,7 @@ modules.pePortfolioOperations=Object.freeze({
   PRODUCT_MIX_RAMP_WEEKS,PRODUCT_MIX_MAX_GAIN,PRODUCT_MIX_COST_FRACTION,
   CONSOLIDATION_STEP,CONSOLIDATION_EBITDA_GAIN,UNDERPERFORMING_MIN,UNDERPERFORMING_MAX,EXIT_METHODS,
   ensure,findFundAndDeal,defaultPortfolioCompany,normalizePortfolioCompany,productionMasters,derivePortfolioProductionSite,isValidPortfolioProductionSite,ensurePortfolioProductionSite,getPortfolioProductionSite,acquirePillarCompany,computeImprovementScore,
-  calculateGenericPortfolioOperatingWeek,resolvePortfolioOperatingCalculator,calculatePortfolioOperatingWeek,settlePortfolioOperatingWeek,processDealWeek,processPortfolioWeek,
+  calculateGenericPortfolioOperatingWeek,calculateGymPortfolioOperatingWeek,resolvePortfolioOperatingCalculator,calculatePortfolioOperatingWeek,settlePortfolioOperatingWeek,processDealWeek,processPortfolioWeek,
   setPriceMultiplier,investQuality,expandPortfolioStore,exitCapabilities,previewPortfolioExit,exitPortfolioCompany,install,
   delayedProgress,leverFactors,industryTagOf,adjustIndustryReputation,
   reformProcurement,setStaffing,renewProductMix,consolidateSites,
