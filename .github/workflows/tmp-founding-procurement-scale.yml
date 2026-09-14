@@ -1,0 +1,37 @@
+name: Temporary Founding Procurement Scale
+
+on:
+  push:
+    branches:
+      - tmp/founding-main-calibration
+
+jobs:
+  calibrate:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - cap: '0'
+            perStore: '0'
+          - cap: '0.06'
+            perStore: '0.003'
+          - cap: '0.08'
+            perStore: '0.004'
+          - cap: '0.10'
+            perStore: '0.005'
+          - cap: '0.12'
+            perStore: '0.006'
+          - cap: '0.15'
+            perStore: '0.0075'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Measure ramen chain procurement candidate
+        env:
+          CHAIN_DISCOUNT_CAP: ${{ matrix.cap }}
+          CHAIN_DISCOUNT_PER_STORE: ${{ matrix.perStore }}
+        run: node tests/tmp-founding-procurement-scale-calibration.js
