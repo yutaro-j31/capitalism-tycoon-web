@@ -45,6 +45,7 @@ const nodeTests = [
   ['venture-investment-reachability', 'tests/venture-investment-reachability-test.js'],
   ['founder-retirement-reachability', 'tests/founder-retirement-reachability-test.js'],
   ['bank-loans-covenants', 'tests/bank-loans-covenants-test.js'],
+  ['bank-loans-covenants-default-consistency', 'tests/bank-loans-covenants-default-consistency-test.js'],
   ['boot-recovery', 'tests/boot-recovery-test.js'],
   ['competitor-price-direction-guard', 'tests/competitor-price-direction-guard-test.js'],
   ['competitor-process-week-fallback', 'tests/competitor-process-week-fallback-test.js'],
