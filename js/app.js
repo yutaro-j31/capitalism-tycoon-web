@@ -192,11 +192,11 @@ function storeOpeningEstimate(tenantID,businessID){
   const e=engine.estimateStoreOpening({tenantID,businessID,operatingHours:3});
   if(!e)return '';
   const tone=!e.affordable?'danger':e.profitable?'good':'warn';
-  const verdict=!e.affordable?`資金不足（あと${compactYen(e.upfront-e.companyCash)}）`:e.profitable?`回収まで約${e.paybackWeeks}週`:'この条件では赤字見込み';
+  const verdict=!e.affordable?`資金不足（あと${compactYen(e.upfront-e.companyCash)}）`:e.startupLoan?.eligible?`開業ローン利用で出店可能`:e.profitable?`回収まで約${e.paybackWeeks}週`:'この条件では赤字見込み';
   const band=`${compactYen(e.conservative.profit)} 〜 ${compactYen(e.optimistic.profit)}`,site=e.siteSuitability,impact=`${site.multiplier>=1?'+':''}${Math.round((site.multiplier-1)*100)}%`;
   return `<div data-store-opening-estimate="${esc(businessID)}">
     <p>${badge(verdict,tone)}</p>
-    <div class="kpi-grid mini">${stat('業態適性',site.grade,`需要補正 ${impact} · ${site.reasons.join(' / ')}`)}${stat('週次利益（期待）',compactYen(e.expected.profit),`幅 ${band}`)}${stat('週次売上（期待）',compactYen(e.expected.sales))}${stat('初期費用',compactYen(e.upfront),`設備${compactYen(e.storeCost)} + 保証金${compactYen(e.deposit)}`)}${stat('出店後の会社現金',compactYen(e.cashAfterOpening))}${stat('開店まで',`${e.weeksToOpen}週`)}${stat('投資回収',e.paybackWeeks?`約${e.paybackWeeks}週`:'—')}</div>
+    <div class="kpi-grid mini">${stat('業態適性',site.grade,`需要補正 ${impact} · ${site.reasons.join(' / ')}`)}${stat('週次利益（期待）',compactYen(e.expected.profit),`幅 ${band}`)}${stat('週次売上（期待）',compactYen(e.expected.sales))}${stat('初期費用',compactYen(e.upfront),`設備${compactYen(e.storeCost)} + 保証金${compactYen(e.deposit)}`)}${e.startupLoan?.eligible?stat('ジム開業ローン',compactYen(e.startupLoan.principal),`${e.startupLoan.term}週 · 年率${(e.startupLoan.annualRate*100).toFixed(2)}% · 週返済${compactYen(e.startupLoan.weeklyPayment)}`):''}${stat('出店後の会社現金',compactYen(e.cashAfterOpening))}${stat('開店まで',`${e.weeksToOpen}週`)}${stat('投資回収',e.paybackWeeks?`約${e.paybackWeeks}週`:'—')}</div>
     <details class="learning-card"><summary>試算の内訳と前提</summary><ul class="reason-list"><li><span>週次売上</span><strong>${compactYen(e.expected.sales)}</strong></li><li><span>変動費</span><strong>-${compactYen(e.expected.variable)}</strong></li><li><span>家賃</span><strong>-${compactYen(e.breakdown.rent)}</strong></li><li><span>人件費</span><strong>-${compactYen(e.breakdown.wage)}</strong></li><li><span>その他固定費</span><strong>-${compactYen(e.breakdown.otherFixed)}</strong></li></ul>${e.caveats.map(c=>`<p class="hint">${esc(c)}</p>`).join('')}</details>
   </div>`;
 }
@@ -801,9 +801,9 @@ function confirmOpenStore(tenantID,businessID){
   const e=engine.estimateStoreOpening({tenantID,businessID,operatingHours:3});
   if(!e){askText('新店舗','店舗名',defaultName,name=>engine.openStore({tenantID,businessID,name,operatingHours:3}));return;}
   const tone=!e.affordable?'danger':e.profitable?'good':'warn';
-  const verdict=!e.affordable?`資金不足（あと${compactYen(e.upfront-e.companyCash)}）`:e.profitable?`回収まで約${e.paybackWeeks}週`:'この条件では赤字見込み';
+  const verdict=!e.affordable?`資金不足（あと${compactYen(e.upfront-e.companyCash)}）`:e.startupLoan?.eligible?`開業ローン利用で出店可能`:e.profitable?`回収まで約${e.paybackWeeks}週`:'この条件では赤字見込み';
   const band=`${compactYen(e.conservative.profit)} 〜 ${compactYen(e.optimistic.profit)}`,site=e.siteSuitability,impact=`${site.multiplier>=1?'+':''}${Math.round((site.multiplier-1)*100)}%`;
-  modal(`<h2>出店の最終確認</h2><p>${esc(e.prefName)}・${esc(e.tenantName)}に${esc(e.businessName)}を出店します。</p><p>${badge(verdict,tone)}</p><div class="kpi-grid mini">${stat('業態適性',site.grade,`立地補正 ${impact}`)}${stat('週次利益（期待）',compactYen(e.expected.profit),`幅 ${band}`)}${stat('初期費用',compactYen(e.upfront),`設備${compactYen(e.storeCost)} + 保証金${compactYen(e.deposit)}`)}${stat('出店後の会社現金',compactYen(e.cashAfterOpening))}${stat('開店まで',`${e.weeksToOpen}週`)}</div><label class="field"><span>店舗名</span><input id="modal-text" value="${esc(defaultName)}"></label><div class="modal-actions">${btn('キャンセル','close-modal',{kind:'ghost'})}<button class="btn primary" id="modal-ok">この内容で出店する</button></div>`);
+  modal(`<h2>出店の最終確認</h2><p>${esc(e.prefName)}・${esc(e.tenantName)}に${esc(e.businessName)}を出店します。</p><p>${badge(verdict,tone)}</p><div class="kpi-grid mini">${stat('業態適性',site.grade,`立地補正 ${impact}`)}${stat('週次利益（期待）',compactYen(e.expected.profit),`幅 ${band}`)}${stat('初期費用',compactYen(e.upfront),`設備${compactYen(e.storeCost)} + 保証金${compactYen(e.deposit)}`)}${e.startupLoan?.eligible?stat('ジム開業ローン',compactYen(e.startupLoan.principal),`${e.startupLoan.term}週 · 年率${(e.startupLoan.annualRate*100).toFixed(2)}% · 週返済${compactYen(e.startupLoan.weeklyPayment)}`):''}${stat('出店後の会社現金',compactYen(e.cashAfterOpening))}${stat('開店まで',`${e.weeksToOpen}週`)}</div><label class="field"><span>店舗名</span><input id="modal-text" value="${esc(defaultName)}"></label><div class="modal-actions">${btn('キャンセル','close-modal',{kind:'ghost'})}<button class="btn primary" id="modal-ok">${e.startupLoan?.eligible?'ローンを組んで出店する':'この内容で出店する'}</button></div>`);
   $('#modal-ok').onclick=()=>{const name=$('#modal-text').value;closeModal();engine.openStore({tenantID,businessID,name,operatingHours:3});};
 }
 // 閉店の最終確認。confirmOpenStore()と対になる「やめる」側の導線で、実行前に結果を明示する。
