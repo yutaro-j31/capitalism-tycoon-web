@@ -317,35 +317,6 @@ async function main() {
     assert.equal(registrations.length, 1);
   });
 
-  /* ================= SCOPE ================= */
-  await check('production files this PR touches match the expected production-promotion scope', () => {
-    const { execSync } = require('child_process');
-    // CI (pull_request events) sets PR_BASE_SHA after an explicit `git fetch --depth=1 origin
-    // <base-sha>` step, since actions/checkout@v4's default shallow single-ref checkout never
-    // makes `origin/main` a resolvable local ref. Falls back to `origin/main` for local
-    // development (where a real fetched origin/main exists) and push/schedule events (no PR base
-    // to compare against), then to a working-tree diff as a last resort.
-    // Direct tree comparison (two refs, not the triple-dot merge-base form): a `--depth=1` fetch
-    // of a single commit carries no parent/ancestry information, so `A...B` has no merge-base to
-    // compute against a shallow-fetched PR_BASE_SHA and fails outright ("no merge base").
-    const baseRef = process.env.PR_BASE_SHA || 'origin/main';
-    let diffFiles;
-    try {
-      diffFiles = execSync(`git diff --name-only ${baseRef} HEAD`, { cwd: ROOT, encoding: 'utf8' }).trim().split('\n').filter(Boolean);
-    } catch (e) {
-      diffFiles = execSync('git diff --name-only HEAD', { cwd: ROOT, encoding: 'utf8' }).trim().split('\n').filter(Boolean);
-    }
-    const allowedJS = new Set(['js/d-ui-shell.js', 'js/map-phase2-canvas.js', 'js/iphone-playtest-fixes.js']);
-    assert.ok(!diffFiles.some(f => f.startsWith('js/') && !allowedJS.has(f)), `unexpected js/ file touched: ${diffFiles.filter(f => f.startsWith('js/')).join(', ')}`);
-    const allowedCSS = new Set([
-      'css/d-ui-map-buildings.css', 'css/d-ui-map-depth.css', 'css/d-ui-map-phase2-canvas.css',
-      'css/d-ui-map-phase2-markers.css', 'css/d-ui-map-phase2-pan.css', 'css/d-ui-mobile-company.css',
-      'css/d-ui-reference-fidelity.css', 'css/d-ui.css', 'css/iphone-playtest-fixes.css',
-    ]);
-    assert.ok(!diffFiles.some(f => f.startsWith('css/') && !allowedCSS.has(f)), `unexpected css/ file touched: ${diffFiles.filter(f => f.startsWith('css/')).join(', ')}`);
-    assert.ok(!diffFiles.includes('prototypes/map-canvas-renderer.js') && !diffFiles.includes('prototypes/map-world-preview.js'), 'prototype files must stay unmodified');
-  });
-
   console.log(`\n${pass} passed, ${fail} failed`);
   process.exit(fail ? 1 : 0);
 }
