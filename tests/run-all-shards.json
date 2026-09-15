@@ -61,7 +61,8 @@
     "tests/product-portfolio-allocation-test.js",
     "tests/map-marker-anchor-integrity-test.js",
     "tests/map-marker-building-affinity-test.js",
-    "tests/map-marker-density-selection-test.js"
+    "tests/map-marker-density-selection-test.js",
+    "tests/convenience-chain-scale-procurement-test.js"
   ],
   "E": [
     "tests/competitor-product-counter-reachability-test.js",
