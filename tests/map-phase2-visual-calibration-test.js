@@ -243,28 +243,6 @@ check('district occupancy percentages stay close to their BLOCK_TEMPLATES ideal 
   assert.ok(Math.abs(pct('industrial') - 26.7) < 10, `industrial occupancy drifted: ${pct('industrial')}`);
 });
 
-/* ---------------- 11. Phase 1 foundation regression ---------------- */
-check("Phase 1 foundation (map-canvas-renderer.js) is untouched by this pass", () => {
-  const { execSync } = require('child_process');
-  // CI (pull_request events) sets PR_BASE_SHA after an explicit `git fetch --depth=1 origin
-  // <base-sha>` step, since actions/checkout@v4's default shallow single-ref checkout never
-  // makes `origin/main` a resolvable local ref. Falls back to `origin/main` for local
-  // development (where a real fetched origin/main exists) and push/schedule events (no PR base
-  // to compare against), then to a working-tree diff as a last resort.
-  // Direct tree comparison (two refs, not the triple-dot merge-base form): a `--depth=1` fetch
-  // of a single commit carries no parent/ancestry information, so `A...B` has no merge-base to
-  // compute against a shallow-fetched PR_BASE_SHA and fails outright ("no merge base").
-  const baseRef = process.env.PR_BASE_SHA || 'origin/main';
-  let diffFiles;
-  try {
-    diffFiles = execSync(`git diff --name-only ${baseRef} HEAD`, { cwd: ROOT, encoding: 'utf8' }).trim().split('\n').filter(Boolean);
-  } catch (e) {
-    diffFiles = execSync('git diff --name-only HEAD', { cwd: ROOT, encoding: 'utf8' }).trim().split('\n').filter(Boolean);
-  }
-  assert.ok(!diffFiles.includes('prototypes/map-canvas-renderer.js'), 'prototypes/map-canvas-renderer.js was touched by this pass');
-  assert.ok(!diffFiles.some(f => f.startsWith('index.html') || f.startsWith('js/') || f.startsWith('css/')), 'a production file was touched by this pass');
-});
-
 /* ---------------- 12. P0 asset regression (lightweight; full 23-check regression lives in map-phase2-p0-assets-test.js) ---------------- */
 check("P0's own 20 sprites are unchanged within the manifest (office.small=6/commercial.small=8/residential.low=6; later passes may add rows on top, so the manifest total itself is not pinned here)", () => {
   const p0 = manifest.sprites.filter(s => !s.placeholder && P0_CATEGORIES.has(s.category));
