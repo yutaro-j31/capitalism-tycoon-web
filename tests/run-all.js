@@ -288,6 +288,7 @@ const nodeTests = [
   ['product-invested-cost', 'tests/product-invested-cost-test.js'],
   ['convenience-merchandising', 'tests/convenience-merchandising-test.js'],
   ['convenience-private-brand', 'tests/convenience-private-brand-test.js'],
+  ['convenience-chain-scale-procurement', 'tests/convenience-chain-scale-procurement-test.js'],
   ['gym-membership-model', 'tests/gym-membership-model-test.js'],
   ['gym-congestion', 'tests/gym-congestion-test.js'],
   ['real-estate-agency-focus', 'tests/real-estate-agency-focus-test.js'],

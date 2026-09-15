@@ -26,6 +26,12 @@ const POLICY_ORDER=Object.freeze(['standard','freshFocus','staples']);
 // シナジー（上限あり）。新規の乱数消費は無い（既存店舗数を数えるだけの決定論的な導出）。
 const CLUSTER_DEMAND_BONUS_PER_STORE=.02,CLUSTER_DEMAND_BONUS_MAX=.10;
 const CLUSTER_WASTE_REDUCTION_PER_STORE=.10,CLUSTER_WASTE_REDUCTION_MAX=.45;
+// Chain-scale procurement discount: nationwide (all prefectures, not just the same one as the
+// cluster bonus above) open conveni store count gives the chain more wholesale purchasing
+// leverage, lowering merchandise cost -- bounded and deterministic (counts existing stores only,
+// consumes no RNG). Counts *other* open conveni stores, so a lone first store gets zero discount
+// (it has no chain to negotiate with yet); the discount only grows as the chain actually expands.
+const CHAIN_SCALE_DISCOUNT_PER_STORE=.006,CHAIN_SCALE_DISCOUNT_MAX=.12;
 const finite=(value,fallback=0)=>Number.isFinite(Number(value))?Number(value):fallback;
 const integer=(value,fallback=0)=>Math.max(0,Math.floor(finite(value,fallback)));
 function policyFor(id){return POLICIES[id]||POLICIES.standard;}
@@ -34,8 +40,15 @@ function clusterCountFor(g,store){
   if(!store)return 0;
   return (Array.isArray(g?.stores)?g.stores:[]).filter(s=>s&&s.id!==store.id&&s.businessID===BUSINESS_ID&&s.status==='open'&&s.prefID===store.prefID).length;
 }
+function chainStoreCountFor(g,store){
+  if(!store)return 0;
+  return (Array.isArray(g?.stores)?g.stores:[]).filter(s=>s&&s.id!==store.id&&s.businessID===BUSINESS_ID&&s.status==='open').length;
+}
+function chainScaleDiscountFor(g,store){
+  return Math.min(CHAIN_SCALE_DISCOUNT_MAX,chainStoreCountFor(g,store)*CHAIN_SCALE_DISCOUNT_PER_STORE);
+}
 function ensure(g){
-  if(!g||typeof g!=='object')return {schemaVersion:SCHEMA_VERSION,policyID:'standard',privateBrand:{unlocked:false,pending:null,share:0},lastWeekByStoreID:{},totals:{revenue:0,wasteCost:0,privateBrandSavings:0}};
+  if(!g||typeof g!=='object')return {schemaVersion:SCHEMA_VERSION,policyID:'standard',privateBrand:{unlocked:false,pending:null,share:0},lastWeekByStoreID:{},totals:{revenue:0,wasteCost:0,privateBrandSavings:0,chainScaleSavings:0}};
   const raw=g.conveniMerchandising&&typeof g.conveniMerchandising==='object'?g.conveniMerchandising:{};
   const policyID=POLICIES[raw.policyID]?raw.policyID:'standard';
   const totals=raw.totals&&typeof raw.totals==='object'?raw.totals:{};
@@ -49,7 +62,7 @@ function ensure(g){
   const candidate=sourcePB.pending&&typeof sourcePB.pending==='object'?sourcePB.pending:null;
   const committedWeek=Number(candidate?.committedWeek),resolveWeek=Number(candidate?.resolveWeek),currentWeek=Number(g.week);
   const pending=!unlocked&&Number.isFinite(committedWeek)&&Number.isFinite(resolveWeek)&&Number.isFinite(currentWeek)&&committedWeek>=0&&committedWeek<=currentWeek&&resolveWeek===committedWeek+PRIVATE_BRAND_DEVELOPMENT_WEEKS&&resolveWeek>=currentWeek?{committedWeek:Math.floor(committedWeek),resolveWeek:Math.floor(resolveWeek)}:null;
-  g.conveniMerchandising={schemaVersion:SCHEMA_VERSION,policyID,privateBrand:{unlocked,pending,share},lastWeekByStoreID,totals:{revenue:integer(totals.revenue),wasteCost:integer(totals.wasteCost),privateBrandSavings:integer(totals.privateBrandSavings)}};
+  g.conveniMerchandising={schemaVersion:SCHEMA_VERSION,policyID,privateBrand:{unlocked,pending,share},lastWeekByStoreID,totals:{revenue:integer(totals.revenue),wasteCost:integer(totals.wasteCost),privateBrandSavings:integer(totals.privateBrandSavings),chainScaleSavings:integer(totals.chainScaleSavings)}};
   return g.conveniMerchandising;
 }
 function normalize(g){if(g&&typeof g==='object'&&g.conveniMerchandising)ensure(g);}
@@ -66,20 +79,24 @@ function processStore(g,store,business,demand,inflation){
   const clusterCount=clusterCountFor(g,store);
   const clusterDemandBonus=Math.min(CLUSTER_DEMAND_BONUS_MAX,clusterCount*CLUSTER_DEMAND_BONUS_PER_STORE);
   const clusterWasteReduction=Math.min(CLUSTER_WASTE_REDUCTION_MAX,clusterCount*CLUSTER_WASTE_REDUCTION_PER_STORE);
+  const chainStoreCount=chainStoreCountFor(g,store);
+  const chainScaleDiscount=chainScaleDiscountFor(g,store);
   const legacyDemand=Math.max(0,finite(demand)*policy.demandMultiplier*(1+clusterDemandBonus));
   const adjustedDemand=pb.share===0?legacyDemand:legacyDemand*pb.demandMultiplier;
   const effectiveWasteRate=policy.wasteRate*(1-clusterWasteReduction);
   const price=Math.max(1,finite(business?.price,1));
   const sales=Math.max(0,adjustedDemand*price*finite(inflation,1));
   const wasteCost=Math.round(sales*effectiveWasteRate);
-  const merchandiseCost=Math.max(0,adjustedDemand*finite(business?.unitCost,1)*finite(inflation,1)*policy.marginMultiplier);
+  const baseMerchandiseCost=Math.max(0,adjustedDemand*finite(business?.unitCost,1)*finite(inflation,1)*policy.marginMultiplier);
+  const merchandiseCost=baseMerchandiseCost*(1-chainScaleDiscount);
   const privateBrandCost=pb.share===0?merchandiseCost:merchandiseCost*pb.unitCostMultiplier;
   const privateBrandSavings=Math.max(0,Math.round(merchandiseCost-privateBrandCost));
+  const chainScaleSavings=Math.max(0,Math.round(baseMerchandiseCost-merchandiseCost));
   const variable=Math.max(0,privateBrandCost+wasteCost);
-  const row={week,policyID:policy.id,demand:Math.round(adjustedDemand),sales:Math.round(sales),wasteCost,clusterCount,clusterDemandBonus,clusterWasteReduction,privateBrandShare:pb.share,privateBrandDemandMultiplier:pb.demandMultiplier,privateBrandUnitCostMultiplier:pb.unitCostMultiplier,privateBrandSavings};
+  const row={week,policyID:policy.id,demand:Math.round(adjustedDemand),sales:Math.round(sales),wasteCost,clusterCount,clusterDemandBonus,clusterWasteReduction,chainStoreCount,chainScaleDiscount,chainScaleSavings,privateBrandShare:pb.share,privateBrandDemandMultiplier:pb.demandMultiplier,privateBrandUnitCostMultiplier:pb.unitCostMultiplier,privateBrandSavings};
   mix.lastWeekByStoreID[store.id]=row;
-  mix.totals.revenue+=row.sales;mix.totals.wasteCost+=row.wasteCost;mix.totals.privateBrandSavings+=row.privateBrandSavings;
+  mix.totals.revenue+=row.sales;mix.totals.wasteCost+=row.wasteCost;mix.totals.privateBrandSavings+=row.privateBrandSavings;mix.totals.chainScaleSavings+=row.chainScaleSavings;
   return {sales:row.sales,variable:Math.round(variable)};
 }
-Object.assign(modules,{convenienceMerchandising:Object.freeze({BUSINESS_ID,SCHEMA_VERSION,POLICIES,POLICY_ORDER,PRIVATE_BRAND_DEVELOPMENT_COST,PRIVATE_BRAND_DEVELOPMENT_WEEKS,PRIVATE_BRAND_SHARES,PRIVATE_BRAND_OPTIONS,policyFor,privateBrandOption,clusterCountFor,ensure,normalize,setPolicy,setPrivateBrandShare,resolvePrivateBrandPending,eligibleStores,processStore})});
+Object.assign(modules,{convenienceMerchandising:Object.freeze({BUSINESS_ID,SCHEMA_VERSION,POLICIES,POLICY_ORDER,PRIVATE_BRAND_DEVELOPMENT_COST,PRIVATE_BRAND_DEVELOPMENT_WEEKS,PRIVATE_BRAND_SHARES,PRIVATE_BRAND_OPTIONS,CHAIN_SCALE_DISCOUNT_PER_STORE,CHAIN_SCALE_DISCOUNT_MAX,policyFor,privateBrandOption,clusterCountFor,chainStoreCountFor,chainScaleDiscountFor,ensure,normalize,setPolicy,setPrivateBrandShare,resolvePrivateBrandPending,eligibleStores,processStore})});
 })();
