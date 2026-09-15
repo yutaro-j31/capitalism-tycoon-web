@@ -49,7 +49,7 @@ assert.ok(loadGame({headless:true}).modules.realEstateAgencyPipeline,'pipeline m
 const first=scenario(),pipelineModule=first.loaded.modules.realEstateAgencyPipeline,business=first.game.business('realEstateAgency'),pref=first.game.pref(first.store.prefID),before={companyCash:first.game.g.companyCash,personalCash:first.game.g.personalCash,personalDebt:first.game.g.personalDebt,corp:JSON.stringify(first.game.g.personalRealEstateCorp)};
 let inquiries=0,closed=0,lost=0,volume=0,commission=0,singleClosed=0,doubleClosed=0,maxActive=0,week52=null;const segmentClosed={residential:0,luxury:0,investment:0,corporateDeal:0},segmentSeen=new Set(),crossSeen=new Set();
 for(let i=0;i<208;i++){
-  first.game.g.week++;const result=pipelineModule.processStore(first.game.g,first.store,business,pref),k=result.kpi;
+  first.game.g.week++;const siteMultiplier=first.loaded.modules.tenantSiteSuitability.forStore(first.game.g,first.store).multiplier;const result=pipelineModule.processStore(first.game.g,first.store,business,pref,siteMultiplier),k=result.kpi;
   assert.ok(k&&Number.isFinite(k.inquiries),'weekly brokerage KPI exists');
   assert.equal(k.commissionRevenue,k.singleCommissionRevenue+k.doubleCommissionRevenue,'commission equals the per-side closed-deal fee totals');
   inquiries+=k.inquiries;closed+=k.closedDeals;lost+=k.lostDeals;volume+=k.closedTransactionVolume;commission+=k.commissionRevenue;singleClosed+=k.singleClosedDeals;doubleClosed+=k.doubleClosedDeals;
