@@ -103,7 +103,8 @@
     "tests/seasonal-menu-test.js",
     "tests/product-funnel-conversion-test.js",
     "test:competitor-target-share",
-    "tests/mobile-dock-content-clearance-test.js"
+    "tests/mobile-dock-content-clearance-test.js",
+    "tests/bank-loans-covenants-default-consistency-test.js"
   ],
   "G": [
     "tests/executive-dismissal-reachability-test.js",

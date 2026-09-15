@@ -9,7 +9,7 @@ if(modules.bankLoansCovenants)throw new Error('Capitalism Tycoon bankLoansCovena
 const EngineClass=modules.engine.TycoonEngine,bridge=modules.playerEngineBridge,finance=modules.finance,HISTORY_LIMIT=80;
 const GYM_STARTUP_MAX=5_500_000,GYM_STARTUP_RESERVE=1_000_000,GYM_STARTUP_TERM=104,GYM_STARTUP_RATE_PREMIUM=.03;
 const finite=(v,d=0)=>Number.isFinite(Number(v))?Number(v):d,integer=(v,d=0)=>Math.max(0,Math.floor(finite(v,d))),round6=v=>Number(finite(v).toFixed(6)),clamp=(v,a,b)=>Math.max(a,Math.min(b,finite(v,a))),yen=v=>`${Math.round(finite(v)).toLocaleString('ja-JP')}円`,esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
-function activeFinanceLoans(state){return finance.ensureFinance(state).loans.filter(l=>l&&l.status==='active');}
+function activeFinanceLoans(state){return finance.ensureFinance(state).loans.filter(l=>l&&l.status!=='repaid');}
 function bankLoanBalance(state){return activeFinanceLoans(state).filter(l=>l.sourceType==='bankLoansCovenants').reduce((sum,l)=>sum+integer(l.outstandingPrincipal),0);}
 function syncDerivedDebt(state){state.bankDebt=bankLoanBalance(state);return state.bankDebt;}
 function ensure(state){const box=state.bankFinancing&&typeof state.bankFinancing==='object'?state.bankFinancing:{};box.loans=Array.isArray(box.loans)?box.loans.filter(Boolean).slice(0,24):[];box.history=Array.isArray(box.history)?box.history.filter(Boolean).slice(-HISTORY_LIMIT):[];box.lastServiceWeek=Number.isFinite(Number(box.lastServiceWeek))?Number(box.lastServiceWeek):null;box.migrationVersion=integer(box.migrationVersion);state.bankFinancing=box;finance.ensureFinance(state);migrateLegacyLoans(state);syncDerivedDebt(state);return state;}
