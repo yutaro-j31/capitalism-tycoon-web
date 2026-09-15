@@ -149,12 +149,16 @@ jobs:
         shard: [A, B, C, D, E, F, G, H]
     steps:
       - uses: actions/checkout@v4
+      - name: Fetch PR base commit for scope-contract tests
+        if: github.event_name == 'pull_request'
+        run: git fetch --depth=1 origin ${{ github.event.pull_request.base.sha }}
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
       - name: Run canonical test shard ${{ matrix.shard }}
         env:
           TEST_SHARD: ${{ matrix.shard }}
+          PR_BASE_SHA: ${{ github.event_name == 'pull_request' && github.event.pull_request.base.sha || '' }}
         run: node tests/run-all-shard.js
   test:
     name: test
