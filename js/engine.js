@@ -496,6 +496,17 @@ const SIMULATION_DEPTH_LABEL = Object.freeze({ detailed: '詳細シミュレー�
 // （market/supply/workforceのTARGET_BUSINESS_IDSと同様、モジュールごとに独立して持つ既存の流儀に合わせる）。
 const FOUNDABLE_BUSINESS_IDS = Object.freeze(['ramen','conveni','gym','realEstateAgency']);
 
+// 開業ローンを持つ業種の見積り用ディスパッチャ。gym は開業費の不足分を立て替える枠、
+// realEstateAgency は開業費は足りるが開店直後の運転資金が尽きる問題への枠で、
+// 目的が異なるため商品も別（js/bank-loans-covenants.js）。見積りはRNGを引かない。
+function startupLoanQuoteFor(state, businessID, upfront) {
+  const bank = globalThis.__capitalismTycoonModules?.bankLoansCovenants;
+  if (!bank) return null;
+  if (businessID === 'gym') return bank.gymStartupQuote?.(state, upfront) || null;
+  if (businessID === 'realEstateAgency') return bank.agencyStartupQuote?.(state, upfront) || null;
+  return null;
+}
+
 function simulationTargetIDs(key) {
   const source = key === 'market' ? market : key === 'supply' ? supply : workforce;
   const ids = source?.TARGET_BUSINESS_IDS;
@@ -791,7 +802,7 @@ class TycoonEngine extends EventTarget {
       const stores=(this.g.stores||[]).filter(s=>s.businessID===b.id&&s.status!=='closed');
       const open=stores.filter(s=>s.status==='open');
       const minimumUpfront=finite(b.storeCost)+minimumDeposit;
-      const startupLoan=b.id==='gym'?globalThis.__capitalismTycoonModules.bankLoansCovenants?.gymStartupQuote?.(this.g,minimumUpfront):null;
+      const startupLoan=startupLoanQuoteFor(this.g,b.id,minimumUpfront);
       return Object.freeze({
         businessID:b.id,name:b.name,storeCost:finite(b.storeCost),
         storeCount:stores.length,openStoreCount:open.length,
@@ -863,7 +874,7 @@ class TycoonEngine extends EventTarget {
     const conservative=at(.88),expected=at(1),optimistic=at(1.14);
 
     const upfront=b.storeCost+tenant.deposit;
-    const startupLoan=b.id==='gym'?globalThis.__capitalismTycoonModules.bankLoansCovenants?.gymStartupQuote?.(this.g,upfront):null;
+    const startupLoan=startupLoanQuoteFor(this.g,b.id,upfront);
     const weeksToOpen=b.storeCost>=15_000_000?8:b.storeCost>=7_000_000?5:3;
     const paybackWeeks=expected.profit>0?Math.ceil(upfront/expected.profit):null;
     const depth=businessSimulationDepth(businessID);
@@ -903,7 +914,11 @@ class TycoonEngine extends EventTarget {
     if (!business) return this.fail('業種が見つかりません。');
     const cost = business.storeCost + tenant.deposit;
     let startupLoan=null;
-    if(this.g.companyCash<cost&&business.id==='gym')startupLoan=globalThis.__capitalismTycoonModules.bankLoansCovenants?.fundGymStartup?.(this.g,cost)||null;
+    const bank=globalThis.__capitalismTycoonModules.bankLoansCovenants;
+    if(this.g.companyCash<cost&&business.id==='gym')startupLoan=bank?.fundGymStartup?.(this.g,cost)||null;
+    // 仲介は出店自体は自己資金で足りるので「不足しているか」では判定しない。運転資金枠として、
+    // 開店後の手元資金が目標水準に満たない場合に実行する（枠側で1号店・序盤のみに制限）。
+    else if(business.id==='realEstateAgency')startupLoan=bank?.fundAgencyStartup?.(this.g,cost)||null;
     if (this.g.companyCash < cost) return this.fail(`出店には${yen(cost)}が必要です。`);
     this.g.companyCash -= cost; tenant.occupiedBy = 'player';
     const weeks = business.storeCost >= 15_000_000 ? 8 : business.storeCost >= 7_000_000 ? 5 : 3;
@@ -914,7 +929,7 @@ class TycoonEngine extends EventTarget {
     finance.addFixedAsset(this.g,{assetID:`store-${store.id}`,assetType:'storeEquipment',acquisitionCost:business.storeCost,usefulLifeWeeks:260,salvageValue:business.storeCost*.1,businessID,storeID:store.id});
     finance.event(this.g,'capitalExpenditure',business.storeCost,{cashEffect:-business.storeCost,assetEffect:business.storeCost,businessID,storeID:store.id,sourceType:'openStore',sourceID:store.id,description:`${store.name} 店舗設備`});
     finance.event(this.g,'otherInvesting',tenant.deposit,{cashEffect:-tenant.deposit,assetEffect:tenant.deposit,businessID,storeID:store.id,sourceType:'openStoreDeposit',sourceID:store.id,description:`${store.name} 保証金`});
-    this.notify(`${store.name}の出店準備を開始しました。開店まで${weeks}週。${startupLoan?` ジム開業ローン${yen(startupLoan.principal)}（${startupLoan.term}週・年率${(startupLoan.annualRate*100).toFixed(2)}%）を実行しました。`:''}`,'success');
+    this.notify(`${store.name}の出店準備を開始しました。開店まで${weeks}週。${startupLoan?` ${startupLoan.label||'開業ローン'}${yen(startupLoan.principal)}（${startupLoan.term}週・年率${(startupLoan.annualRate*100).toFixed(2)}%）を実行しました。`:''}`,'success');
     this.evaluateProgression(); this.save(); this.emit(); return true;
   }
 
