@@ -62,9 +62,10 @@ const freeTenant = engine => engine.g.tenants.find(t => !t.occupiedBy);
   assert.ok(p.counts.affordableIdle < p.counts.idle, '出店できる業種は全業種より少ない（区別に意味がある）');
 
   for (const row of p.idle) {
-    assert.equal(row.affordable, engine.g.companyCash >= row.minimumUpfront, `${row.businessID}: affordableは会社資金と最低必要額の比較と一致する`);
-    if (row.affordable) assert.equal(row.shortfall, 0, `${row.businessID}: 出店可能なら不足額0`);
-    else assert.equal(row.shortfall, row.minimumUpfront - engine.g.companyCash, `${row.businessID}: 不足額が読める`);
+    const cashAffordable = engine.g.companyCash >= row.minimumUpfront;
+    assert.equal(row.affordable, cashAffordable || Boolean(row.startupLoan?.eligible), `${row.businessID}: affordableは現金または対象業種専用ローンと一致する`);
+    if (cashAffordable) assert.equal(row.shortfall, 0, `${row.businessID}: 現金で出店可能なら不足額0`);
+    else assert.equal(row.shortfall, row.minimumUpfront - engine.g.companyCash, `${row.businessID}: 現金不足額が読める`);
   }
 }
 
