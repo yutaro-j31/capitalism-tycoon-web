@@ -313,6 +313,7 @@ const nodeTests = [
   ['pe-portfolio-weekly-settlement', 'tests/pe-portfolio-weekly-settlement-test.js'],
   ['pe-exit-preview', 'tests/pe-exit-preview-test.js'],
   ['pe-management-context', 'tests/pe-management-context-test.js'],
+  ['pe-gym-management-actions', 'tests/pe-gym-management-actions-test.js'],
   ['pe-portfolio-ui', 'tests/pe-portfolio-ui-test.js'],
   ['pe-deal-supply', 'tests/pe-deal-supply-test.js'],
   ['pe-acquisition', 'tests/pe-acquisition-test.js'],
@@ -325,7 +326,8 @@ const nodeTests = [
   ['pe-fund-gate-rescue', 'tests/pe-fund-gate-rescue-test.js'],
   ['log-array-caps', 'tests/log-array-caps-test.js'],
   ['pe-coinvest-ledger', 'tests/pe-coinvest-ledger-test.js'],
-  ['pe-ui-phase1', 'tests/pe-ui-phase1-test.js']
+  ['pe-ui-phase1', 'tests/pe-ui-phase1-test.js'],
+  ['pe-ui-phase2', 'tests/pe-ui-phase2-test.js']
 ];
 
 for (let i = 0; i < nodeTests.length; i++) {

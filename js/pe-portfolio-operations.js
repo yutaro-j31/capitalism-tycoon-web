@@ -366,6 +366,21 @@ function setPriceMultiplier(state,fundID,dealID,value){
   deal.portfolioCompany.priceMultiplier=clamp(finite(value,1),.5,2);
   return deal;
 }
+// gym専用: 会員プラン戦略レバー。自社の TycoonEngine.prototype.setGymMembershipStrategy に
+// 相当するPE版だが、書き込み先は store.gymMembership ではなく
+// deal.portfolioCompany.gymOperatingState（js/management-context.js の detached gym bridge が
+// 週次計算・決済で読み書きする場所）に限定する。state.stores / state.businesses には一切触れない。
+function setPortfolioGymMembershipStrategy(state,fundID,dealID,strategyID){
+  const {deal}=findFundAndDeal(state,fundID,dealID);
+  if(!deal||deal.status!=='active'||deal.businessID!=='gym')return null;
+  const bridge=modules.managementContext,model=modules.gymMembershipModel;
+  if(!bridge?.normalizePEPortfolioGymOperatingState||!model?.STRATEGY_ORDER?.includes(strategyID))return null;
+  const pc=deal.portfolioCompany;
+  const normalized=bridge.normalizePEPortfolioGymOperatingState(pc.gymOperatingState);
+  normalized.gymMembership.membershipStrategy=strategyID;
+  pc.gymOperatingState=normalized;
+  return deal;
+}
 // 品質投資レバー。ファンド持分ではなく買収先自身のcashから支出する（会計分離）。
 function investQuality(state,fundID,dealID,amount){
   const {deal}=findFundAndDeal(state,fundID,dealID);
@@ -563,7 +578,7 @@ modules.pePortfolioOperations=Object.freeze({
   CONSOLIDATION_STEP,CONSOLIDATION_EBITDA_GAIN,UNDERPERFORMING_MIN,UNDERPERFORMING_MAX,EXIT_METHODS,
   ensure,findFundAndDeal,defaultPortfolioCompany,normalizePortfolioCompany,productionMasters,derivePortfolioProductionSite,isValidPortfolioProductionSite,ensurePortfolioProductionSite,getPortfolioProductionSite,acquirePillarCompany,computeImprovementScore,
   calculateGenericPortfolioOperatingWeek,calculateGymPortfolioOperatingWeek,resolvePortfolioOperatingCalculator,calculatePortfolioOperatingWeek,settlePortfolioOperatingWeek,processDealWeek,processPortfolioWeek,
-  setPriceMultiplier,investQuality,expandPortfolioStore,exitCapabilities,previewPortfolioExit,exitPortfolioCompany,install,
+  setPriceMultiplier,setPortfolioGymMembershipStrategy,investQuality,expandPortfolioStore,exitCapabilities,previewPortfolioExit,exitPortfolioCompany,install,
   delayedProgress,leverFactors,industryTagOf,adjustIndustryReputation,
   reformProcurement,setStaffing,renewProductMix,consolidateSites,
   __installed:true
