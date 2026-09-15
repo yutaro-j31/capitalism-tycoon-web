@@ -246,9 +246,15 @@ check('district occupancy percentages stay close to their BLOCK_TEMPLATES ideal 
 /* ---------------- 11. Phase 1 foundation regression ---------------- */
 check("Phase 1 foundation (map-canvas-renderer.js) is untouched by this pass", () => {
   const { execSync } = require('child_process');
+  // CI (pull_request events) sets PR_BASE_SHA after an explicit `git fetch --depth=1 origin
+  // <base-sha>` step, since actions/checkout@v4's default shallow single-ref checkout never
+  // makes `origin/main` a resolvable local ref. Falls back to `origin/main` for local
+  // development (where a real fetched origin/main exists) and push/schedule events (no PR base
+  // to compare against), then to a working-tree diff as a last resort.
+  const baseRef = process.env.PR_BASE_SHA || 'origin/main';
   let diffFiles;
   try {
-    diffFiles = execSync('git diff --name-only origin/main...HEAD', { cwd: ROOT, encoding: 'utf8' }).trim().split('\n').filter(Boolean);
+    diffFiles = execSync(`git diff --name-only ${baseRef}...HEAD`, { cwd: ROOT, encoding: 'utf8' }).trim().split('\n').filter(Boolean);
   } catch (e) {
     diffFiles = execSync('git diff --name-only HEAD', { cwd: ROOT, encoding: 'utf8' }).trim().split('\n').filter(Boolean);
   }
