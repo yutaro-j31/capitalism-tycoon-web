@@ -29,7 +29,19 @@ const segmentForDeal=(seed,dealID,storeID,focusID='balanced')=>{if(!SEGMENTS.inc
 const emptySegmentCounts=()=>({residential:0,luxury:0,investment:0,corporateDeal:0});
 const sanitizeSegmentCounts=value=>{const counts=emptySegmentCounts();for(const segment of SEGMENTS)counts[segment]=integer(segment==='corporateDeal'&&value?.corporateDeal===undefined?value?.corporate:value?.[segment]);return counts;};
 function marketIndicator(g){return clamp(finite(g?.realEstateCycle,1),.65,1.55);}
-function capacityFor(business){return Math.max(6,8+Math.floor(clamp(business?.efficiency,0,100)/5));}
+// Pipeline slot capacity was purely a function of business.efficiency -- identical for every
+// store regardless of the tenant/prefecture it opened in. Measured: a high-traffic tenant's
+// inquiryBase (which already scales with the uncapped pref.traffic term, not just the ±10%
+// siteMultiplier band) generates ~2.2x the inquiries of a cheap tenant, but newMandates only
+// grew ~1.2x, because the shared ~8-10 slot capacity throttled it -- 36% of the high-traffic
+// site's weekly inquiries were thrown away as capacityLostInquiries (vs 15% for the cheap site).
+// This is why paying more rent for traffic didn't pay off: the pipeline couldn't hold enough
+// concurrent deals to convert the extra demand. siteMultiplier only ADDS slots (never removes
+// any), so a below-average site keeps the plain quality-based capacity and the already-viable
+// low-rent/low-traffic strategy is not penalized. Bounded at +4 slots (siteMultiplier arrives
+// pre-bounded to [.9,1.1] by tenantSiteSuitability) so this lever cannot dominate efficiency.
+function siteCapacityBonus(siteMultiplier){return Math.max(0,Math.min(4,Math.round((clamp(siteMultiplier,.9,1.1)-1)*40)));}
+function capacityFor(business,siteMultiplier=1){return Math.max(6,8+Math.floor(clamp(business?.efficiency,0,100)/5))+siteCapacityBonus(siteMultiplier);}
 function eligibleStores(stores){return (Array.isArray(stores)?stores:[]).filter(store=>store?.businessID===BUSINESS_ID&&store.status==='open');}
 function sanitizeDeal(deal,storeID,week,seed){
   if(!deal||typeof deal!=='object')return null;
@@ -38,20 +50,23 @@ function sanitizeDeal(deal,storeID,week,seed){
   const segment=deal.segment==='corporate'?'corporateDeal':SEGMENTS.includes(deal.segment)?deal.segment:segmentForDeal(seed,id,storeID);
   return {id,storeID,createdWeek:Math.min(week,Math.max(1,integer(deal.createdWeek,week))),askingValue:Math.max(1_000_000,integer(deal.askingValue,30_000_000)),side,segment};
 }
-function ensureStore(store,business,week,seed){
+function ensureStore(store,business,week,seed,siteMultiplier=1){
   const raw=store.brokeragePipeline&&typeof store.brokeragePipeline==='object'?store.brokeragePipeline:{};
   const active=Array.isArray(raw.activeDeals)?raw.activeDeals.map(x=>sanitizeDeal(x,store.id,week,seed)).filter(Boolean):[];
-  const capacity=capacityFor(business),totals=raw.totals&&typeof raw.totals==='object'?raw.totals:{};
+  const capacity=capacityFor(business,siteMultiplier),totals=raw.totals&&typeof raw.totals==='object'?raw.totals:{};
   store.brokeragePipeline={schemaVersion:SCHEMA_VERSION,capacity,activeDeals:active.slice(0,capacity),lastWeek:raw.lastWeek&&typeof raw.lastWeek==='object'?raw.lastWeek:null,totals:{inquiries:integer(totals.inquiries),mandates:integer(totals.mandates),closedDeals:integer(totals.closedDeals),singleClosedDeals:integer(totals.singleClosedDeals),doubleClosedDeals:integer(totals.doubleClosedDeals),closedBySegment:sanitizeSegmentCounts(totals.closedBySegment),lostDeals:integer(totals.lostDeals),closedTransactionVolume:integer(totals.closedTransactionVolume),commissionRevenue:integer(totals.commissionRevenue),capacityLostInquiries:integer(totals.capacityLostInquiries)},history:Array.isArray(raw.history)?raw.history.filter(x=>x&&typeof x==='object').slice(-HISTORY_LIMIT):[]};
   return store.brokeragePipeline;
 }
 function normalize(g){
   const businesses=Array.isArray(g?.businesses)?g.businesses:[],business=businesses.find(x=>x?.id===BUSINESS_ID);
-  for(const store of Array.isArray(g?.stores)?g.stores:[])if(store?.businessID===BUSINESS_ID&&store.brokeragePipeline&&typeof store.brokeragePipeline==='object')ensureStore(store,business,integer(g.week,1),g.seed);
+  for(const store of Array.isArray(g?.stores)?g.stores:[])if(store?.businessID===BUSINESS_ID&&store.brokeragePipeline&&typeof store.brokeragePipeline==='object'){
+    const siteMultiplier=globalThis.__capitalismTycoonModules?.tenantSiteSuitability?.forStore?.(g,store)?.multiplier??1;
+    ensureStore(store,business,integer(g.week,1),g.seed,siteMultiplier);
+  }
 }
 function processStore(g,store,business,pref,siteMultiplier=1){
   if(!store||store.businessID!==BUSINESS_ID||store.status!=='open')return null;
-  const week=Math.max(1,integer(g?.week,1)),pipeline=ensureStore(store,business,week,g?.seed),cycle=marketIndicator(g);
+  const week=Math.max(1,integer(g?.week,1)),pipeline=ensureStore(store,business,week,g?.seed,siteMultiplier),cycle=marketIndicator(g);
   const quality=clamp(business?.quality,0,100),brand=clamp(business?.brand,0,100),dx=clamp(business?.dx,0,100),efficiency=clamp(business?.efficiency,0,100);
   let closedDeals=0,singleClosedDeals=0,doubleClosedDeals=0,lostDeals=0,closedTransactionVolume=0,singleCommissionRevenue=0,doubleCommissionRevenue=0,totalCloseWeeks=0;const closedBySegment=emptySegmentCounts();
   const survivors=[];
