@@ -252,6 +252,7 @@ const nodeTests = [
   ['real-estate-cycle-state-collision', 'tests/real-estate-cycle-state-collision-test.js'],
   ['real-estate-agency-pipeline', 'tests/real-estate-agency-pipeline-test.js'],
   ['real-estate-agency-site-capacity', 'tests/real-estate-agency-site-capacity-test.js'],
+  ['real-estate-agency-credit-line', 'tests/real-estate-agency-credit-line-test.js'],
   ['personal-real-estate-short-term', 'tests/personal-real-estate-short-term-test.js'],
   ['pe-pending-initiative-exit-lifecycle', 'tests/pe-pending-initiative-exit-lifecycle-test.js'],
   ['pe-pending-initiative-transfer-lifecycle', 'tests/pe-pending-initiative-transfer-lifecycle-test.js'],

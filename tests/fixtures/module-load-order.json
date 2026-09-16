@@ -189,6 +189,7 @@
     "./js/new-business-research-projects.js",
     "./js/new-business-commercialization.js",
     "./js/bank-loans-covenants.js",
+    "./js/real-estate-agency-credit-line.js",
     "./js/corporate-bonds-ratings.js",
     "./js/convertible-bonds-dilution.js",
     "./js/preferred-shares-dividends.js",
