@@ -105,7 +105,8 @@
     "tests/product-funnel-conversion-test.js",
     "test:competitor-target-share",
     "tests/mobile-dock-content-clearance-test.js",
-    "tests/bank-loans-covenants-default-consistency-test.js"
+    "tests/bank-loans-covenants-default-consistency-test.js",
+    "tests/gym-startup-loan-workout-test.js"
   ],
   "G": [
     "tests/executive-dismissal-reachability-test.js",
