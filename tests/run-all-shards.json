@@ -83,7 +83,8 @@
     "tests/d-ui-context-tabs-test.js",
     "tests/map-phase2-production-promotion-test.js",
     "tests/map-phase2-prefecture-switch-canvas-lifecycle-test.js",
-    "tests/map-prefecture-identity-regional-variation-test.js"
+    "tests/map-prefecture-identity-regional-variation-test.js",
+    "tests/real-estate-agency-credit-line-test.js"
   ],
   "F": [
     "tests/store-closure-plan-test.js",
