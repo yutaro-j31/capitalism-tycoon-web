@@ -87,9 +87,15 @@ function fixture(businessID='gym'){
   assert.equal(context.resolvePortfolioManagementCapability(deal).actionsEnabled,true);
   assert.equal(engine.canOpenPEPortfolioManagement(fund.id,deal.id).capability.actionsEnabled,true);
 }
-for(const businessID of ['ramen','conveni','realEstateAgency','productVentures']){
+for(const businessID of ['ramen','realEstateAgency','productVentures']){
   const {deal}=fixture(businessID);
   assert.equal(context.resolvePortfolioManagementCapability(deal).actionsEnabled,false,`${businessID} must stay disabled until it has its own detached bridge`);
+}
+{
+  // conveni now has its own detached production bridge (see tests/pe-conveni-portfolio-bridge-test.js
+  // and tests/pe-conveni-bridge-208week-regression-test.js), same as gym above.
+  const {deal}=fixture('conveni');
+  assert.equal(context.resolvePortfolioManagementCapability(deal).actionsEnabled,true,'conveni has its own detached bridge now, same as gym');
 }
 
 // ---- end-to-end: management actions -> settled week -> 3-pool cash isolation --------------
