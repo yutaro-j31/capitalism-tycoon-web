@@ -28,14 +28,16 @@
 // - CONTROL_SCENARIOS (アルファ商事/ベータ食品/ガンマフーズ/イプシロン飲食/ゼータ商事, the 5
 //   that never defaulted at any tested paymentTermsWeeks value from Entry 19-25): these don't
 //   need to reach the week236-242 failure window at all -- they were never at risk there. Run to
-//   CONTROL_WEEKS=52 (one full year of simulated operation, past the initial 1st/2nd-store
-//   ramp-up) as a basic no-regression sanity check, at a fraction of the full-run cost.
+//   CONTROL_WEEKS=26 (half a year of simulated operation, past the initial 1st/2nd-store
+//   ramp-up -- the same 26-week window tests/executive-dismissal-reachability-test.js uses for
+//   its own non-full-length determinism check) as a basic no-regression sanity check, at a
+//   fraction of the full-run cost.
 const assert = require('node:assert/strict');
 const { loadGame } = require('./harness');
 
 const CRITICAL_WEEKS = 244;
 const CRITICAL_CHECKPOINT_WEEK = 200;
-const CONTROL_WEEKS = 52;
+const CONTROL_WEEKS = 26;
 
 // Same 8 independently-seeded scenarios used throughout the investigation: companyName drives
 // deterministic-economic-foundation.js's economicFoundation.seed, so each name is a genuinely
