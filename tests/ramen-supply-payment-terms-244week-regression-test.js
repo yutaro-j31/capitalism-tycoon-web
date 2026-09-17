@@ -1,5 +1,5 @@
 'use strict';
-// 208-week regression test for the js/supply.js payment-terms fix (Founding Route Rebalance
+// 244-week regression test for the js/supply.js payment-terms fix (Founding Route Rebalance
 // Final, PR E). Background (documented in founding-route-verification-log.md Entry 20-25):
 // under the pre-fix code, balanced_wholesale's nominal 2-week payment terms provided zero real
 // cash-flow float after delivery (paymentDueWeek was anchored on the order week, not the arrival
@@ -9,14 +9,20 @@
 // business gated by TARGET_BUSINESS_IDS=['ramen']): orders get blocked/shrunk for lack of cash,
 // inventory runs short, applyConstraint() caps sold units below demand, revenue collapses, and
 // the company goes bankrupt. 3 of 8 independently-seeded economic scenarios (distinct
-// economicFoundation.seed values, derived from companyName) were measured to default this way.
-// This test re-runs those same 8 scenarios for 208 weeks (the repo's established lighter-weight
-// regression horizon -- see CLAUDE.md section 8; the heavier 500-week validation is intentionally
-// not part of this gate) against the FIXED code and asserts none of them default any more.
+// economicFoundation.seed values, derived from companyName) were measured to default this way,
+// specifically between week236 and week242.
+//
+// This was originally written against a 208-week horizon (the repo's usual lighter-weight
+// regression convention -- see CLAUDE.md section 8; the heavier 500-week validation is
+// intentionally not part of this gate), but that cuts off *before* this specific failure mode's
+// week236-242 window: run against the reverted pre-fix code, none of the 8 scenarios default by
+// week208 either, so a 208-week horizon cannot actually distinguish fixed from broken here. 244
+// weeks (matching the horizon used throughout Entry 20-25's investigation) is the shortest
+// horizon that reliably reaches the failure window, so this test uses that instead.
 const assert = require('node:assert/strict');
 const { loadGame } = require('./harness');
 
-const WEEKS = 208;
+const WEEKS = 244;
 
 // Same 8 independently-seeded scenarios used throughout the investigation: companyName drives
 // deterministic-economic-foundation.js's economicFoundation.seed, so each name is a genuinely

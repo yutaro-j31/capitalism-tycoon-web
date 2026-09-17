@@ -1,12 +1,17 @@
 'use strict';
-// Negative/mutation counterpart to tests/ramen-supply-payment-terms-208week-regression-test.js
+// Negative/mutation counterpart to tests/ramen-supply-payment-terms-244week-regression-test.js
 // (Founding Route Rebalance Final, PR E). Proves the regression test actually detects the bug it
 // claims to guard against: this test reverts BOTH parts of the fix in an in-memory copy of
 // js/supply.js -- the real file on disk is never touched -- and confirms that, under the fully
 // reverted pre-PR-E code, at least one of the previously measured seeds (デルタ商会) still
-// defaults within 208 weeks. If this test ever starts passing (i.e. the reverted code no longer
+// defaults within 244 weeks. If this test ever starts passing (i.e. the reverted code no longer
 // reproduces the default), the positive regression test next to it has silently stopped being a
 // meaningful guard and both need to be re-examined.
+//
+// Uses a 244-week horizon, not the repo's usual 208-week regression convention: デルタ商会's
+// measured pre-fix default happens at week239 (founding-route-verification-log.md Entry 20-21),
+// past week208, so a 208-week run cannot reproduce it even under the fully reverted code (see
+// the 244-week regression test's header comment for the same correction).
 //
 // Both parts must be reverted together to reproduce the original failure: reverting only the
 // paymentDueWeek formula (back to the order-week-anchored g.week+terms) while leaving
@@ -82,10 +87,10 @@ function run(companyName, lcgSeed, weeks) {
 }
 
 // デルタ商会 (lcgSeed 190826041+3) defaulted at week239/243 under the pre-fix code
-// (founding-route-verification-log.md Entry 20-21). 208 weeks is comfortably past the point the
-// original downturn/default developed, matching the positive regression test's horizon.
-const r = run('デルタ商会', 190826041 + 3, 208);
+// (founding-route-verification-log.md Entry 20-21). 244 weeks matches the positive regression
+// test's horizon and comfortably covers the week239 default point.
+const r = run('デルタ商会', 190826041 + 3, 244);
 console.log(JSON.stringify(r));
-assert.equal(r.gameOver, true, `expected デルタ商会 to still default within 208 weeks under the reverted (pre-fix) paymentDueWeek formula, got: ${JSON.stringify(r)}`);
+assert.equal(r.gameOver, true, `expected デルタ商会 to still default within 244 weeks under the reverted (pre-fix) paymentDueWeek formula, got: ${JSON.stringify(r)}`);
 
 console.log('ramen supply payment terms negative test ok (reverted code still reproduces the default, confirming the regression test has real detection power)');
