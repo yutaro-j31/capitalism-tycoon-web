@@ -1,13 +1,22 @@
 'use strict';
 // Negative/mutation counterpart to tests/ramen-supply-payment-terms-208week-regression-test.js
 // (Founding Route Rebalance Final, PR E). Proves the regression test actually detects the bug it
-// claims to guard against: this test reverts js/supply.js's paymentDueWeek calculation back to
-// the pre-fix, order-week-anchored formula (paymentDueWeek = g.week + terms, instead of the fixed
-// g.week + leadTimeWeeks + terms) in an in-memory copy of the module -- the real file on disk is
-// never touched -- and confirms that, under that reverted logic, at least one of the previously
-// measured seeds (デルタ商会) still defaults within 208 weeks. If this test ever starts passing
-// (i.e. the reverted code no longer reproduces the default), the positive regression test next to
-// it has silently stopped being a meaningful guard and both need to be re-examined.
+// claims to guard against: this test reverts BOTH parts of the fix in an in-memory copy of
+// js/supply.js -- the real file on disk is never touched -- and confirms that, under the fully
+// reverted pre-PR-E code, at least one of the previously measured seeds (デルタ商会) still
+// defaults within 208 weeks. If this test ever starts passing (i.e. the reverted code no longer
+// reproduces the default), the positive regression test next to it has silently stopped being a
+// meaningful guard and both need to be re-examined.
+//
+// Both parts must be reverted together to reproduce the original failure: reverting only the
+// paymentDueWeek formula (back to the order-week-anchored g.week+terms) while leaving
+// balanced_wholesale's paymentTermsWeeks at the fixed value of 3 does NOT reproduce a default --
+// order+3 already exceeds the arrival week (order+leadTimeWeeks=order+2) by 1 week even under the
+// buggy formula, which is enough real post-arrival float to avoid the original death spiral (this
+// was confirmed by running the test with only the formula reverted: デルタ商会 survived to
+// week209 with finalCash=1653459). The genuine pre-fix condition measured in
+// founding-route-verification-log.md Entry 20-21 combined the order-week-anchored formula WITH
+// paymentTermsWeeks=2, which is what this test reverts to.
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
@@ -16,13 +25,19 @@ const { loadGameFromHtml, readIndex } = require('./harness');
 const ROOT = path.join(__dirname, '..');
 const SUPPLY_SOURCE = fs.readFileSync(path.join(ROOT, 'js', 'supply.js'), 'utf8');
 const SUPPLY_TAG = '<script src="./js/supply.js"></script>';
-const FIXED = 'paymentDueWeek:n(g.week)+lead+terms,paymentTermsWeeks:terms,';
-const PRE_FIX_BUGGY = 'paymentDueWeek:n(g.week)+terms,paymentTermsWeeks:terms,';
+const FIXED_DUE_WEEK = 'paymentDueWeek:n(g.week)+lead+terms,paymentTermsWeeks:terms,';
+const PRE_FIX_BUGGY_DUE_WEEK = 'paymentDueWeek:n(g.week)+terms,paymentTermsWeeks:terms,';
+const FIXED_TERMS = "leadTimeWeeks:2,reliability:.93,minimumOrderQuantity:50,maximumWeeklySupply:7000,paymentTermsWeeks:3,contractFee:9000";
+const PRE_FIX_BUGGY_TERMS = "leadTimeWeeks:2,reliability:.93,minimumOrderQuantity:50,maximumWeeklySupply:7000,paymentTermsWeeks:2,contractFee:9000";
 
-assert(SUPPLY_SOURCE.includes(FIXED), 'expected the fixed paymentDueWeek formula in js/supply.js; has it been reverted or refactored?');
-assert.equal(SUPPLY_SOURCE.split(FIXED).length - 1, 1, 'expected exactly one occurrence of the fixed paymentDueWeek formula');
+assert(SUPPLY_SOURCE.includes(FIXED_DUE_WEEK), 'expected the fixed paymentDueWeek formula in js/supply.js; has it been reverted or refactored?');
+assert.equal(SUPPLY_SOURCE.split(FIXED_DUE_WEEK).length - 1, 1, 'expected exactly one occurrence of the fixed paymentDueWeek formula');
+assert(SUPPLY_SOURCE.includes(FIXED_TERMS), 'expected balanced_wholesale paymentTermsWeeks=3 in js/supply.js; has it been reverted or refactored?');
+assert.equal(SUPPLY_SOURCE.split(FIXED_TERMS).length - 1, 1, 'expected exactly one occurrence of the fixed balanced_wholesale terms');
 
-const revertedSource = SUPPLY_SOURCE.replace(FIXED, PRE_FIX_BUGGY);
+const revertedSource = SUPPLY_SOURCE
+  .replace(FIXED_DUE_WEEK, PRE_FIX_BUGGY_DUE_WEEK)
+  .replace(FIXED_TERMS, PRE_FIX_BUGGY_TERMS);
 const html = readIndex().replace(SUPPLY_TAG, `<script>${revertedSource}</script>`);
 
 function lcg(seed) {
