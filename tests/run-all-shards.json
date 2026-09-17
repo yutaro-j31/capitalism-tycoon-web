@@ -18,10 +18,7 @@
     "tests/store-zero-investment-founding-test.js",
     "tests/sports-team-accounting-test.js",
     "tests/sports-management-test.js",
-    "tests/real-estate-agency-site-capacity-test.js",
-    "tests/supply-payment-due-week-arrival-basis-test.js",
-    "tests/ramen-supply-payment-terms-244week-regression-test.js",
-    "tests/ramen-supply-payment-terms-negative-test.js"
+    "tests/real-estate-agency-site-capacity-test.js"
   ],
   "C": [
     "test:long",
@@ -162,6 +159,9 @@
     "tests/pe-ui-phase1-test.js",
     "tests/pe-exit-preview-test.js",
     "tests/pe-management-context-test.js",
-    "tests/pe-portfolio-weekly-settlement-test.js"
+    "tests/pe-portfolio-weekly-settlement-test.js",
+    "tests/supply-payment-due-week-arrival-basis-test.js",
+    "tests/ramen-supply-payment-terms-244week-regression-test.js",
+    "tests/ramen-supply-payment-terms-negative-test.js"
   ]
 }
