@@ -327,10 +327,41 @@ function calculateGymPortfolioOperatingWeek(fund,deal,week,state){
     components:{...components,revenueFactor:baseRevenueFactor,gymSalesFactor:salesFactor,gymContributionFactor:contributionFactor,replacedGenericPriceFactor:lever.priceFactor,gymSales:actual.sales,gymVariable:actual.variable,controlSales:control.sales,controlVariable:control.variable}
   };
 }
+// Conveni keeps the same calibrated EV-scaled PE earnings base as gym, replacing the generic
+// price response with the production convenience-merchandising model (and, unlike gym, also
+// bringing in the cluster/chain-scale synergy effects that model has and the generic calculator
+// does not). Same same-state control-preview trick as gym: priceMultiplier 1.0 is the baseline,
+// so the default path is exactly the generic calculator and only an actual price choice diverges.
+function calculateConveniPortfolioOperatingWeek(fund,deal,week,state){
+  const bridge=modules.managementContext;
+  if(!state||deal?.businessID!=='conveni'||!bridge?.previewPEPortfolioConveniWeekForState)return calculateGenericPortfolioOperatingWeek(fund,deal,week);
+  const pc=deal?.portfolioCompany;
+  if(!pc)return null;
+  const operatingState=pc.conveniOperatingState;
+  const actual=bridge.previewPEPortfolioConveniWeekForState(state,fund.id,deal.id,{week,operatingState});
+  const control=bridge.previewPEPortfolioConveniWeekForState(state,fund.id,deal.id,{week,operatingState,priceMultiplierOverride:1});
+  if(!actual?.ok||!control?.ok)return calculateGenericPortfolioOperatingWeek(fund,deal,week);
+  const generic=calculateGenericPortfolioOperatingWeek(fund,deal,week),lever=leverFactors(pc,week),components=generic.components;
+  const baseRevenueFactor=lever.priceFactor>0?lever.revenueFactor/lever.priceFactor:lever.revenueFactor;
+  const salesFactor=control.sales>0?actual.sales/control.sales:1;
+  const actualContribution=finite(actual.sales)-finite(actual.variable),controlContribution=finite(control.sales)-finite(control.variable);
+  const contributionFactor=controlContribution>0?actualContribution/controlContribution:1;
+  const revenue=components.weeklyEBITDA*baseRevenueFactor*salesFactor*components.noise*2;
+  const profit=components.weeklyEBITDA*baseRevenueFactor*components.costFactor*contributionFactor*components.noise-components.upkeep;
+  return {
+    week,source:'conveni',revenue,profit,nextOperatingState:clone(actual.nextOperatingState),
+    components:{...components,revenueFactor:baseRevenueFactor,conveniSalesFactor:salesFactor,conveniContributionFactor:contributionFactor,replacedGenericPriceFactor:lever.priceFactor,conveniSales:actual.sales,conveniVariable:actual.variable,controlSales:control.sales,controlVariable:control.variable}
+  };
+}
 // Callers that do not provide simulation state retain the historical generic behavior. The
-// production weekly loop supplies state and therefore dispatches active gym pillar deals here.
+// production weekly loop supplies state and therefore dispatches active gym/conveni pillar deals
+// to their own detached production bridge here.
 function resolvePortfolioOperatingCalculator(deal,state){
-  return state&&deal?.businessID==='gym'&&modules.managementContext?.previewPEPortfolioGymWeekForState?calculateGymPortfolioOperatingWeek:calculateGenericPortfolioOperatingWeek;
+  if(!state)return calculateGenericPortfolioOperatingWeek;
+  const bridge=modules.managementContext;
+  if(deal?.businessID==='gym'&&bridge?.previewPEPortfolioGymWeekForState)return calculateGymPortfolioOperatingWeek;
+  if(deal?.businessID==='conveni'&&bridge?.previewPEPortfolioConveniWeekForState)return calculateConveniPortfolioOperatingWeek;
+  return calculateGenericPortfolioOperatingWeek;
 }
 function calculatePortfolioOperatingWeek(fund,deal,week,state){return resolvePortfolioOperatingCalculator(deal,state)(fund,deal,week,state);}
 // The only writer for weekly portfolio operating results. The lastProcessedWeek gate makes
@@ -343,6 +374,7 @@ function settlePortfolioOperatingWeek(deal,result){
   pc.weeklyProfit=finite(result.profit);
   pc.profitHistory=[...arr(pc.profitHistory),finite(result.profit)].slice(-PROFIT_HISTORY_LIMIT);
   if(deal.businessID==='gym'&&result.nextOperatingState)pc.gymOperatingState=clone(result.nextOperatingState);
+  if(deal.businessID==='conveni'&&result.nextOperatingState)pc.conveniOperatingState=clone(result.nextOperatingState);
   pc.improvementScore=computeImprovementScore(deal);
   pc.lastProcessedWeek=week;
   return true;
@@ -577,7 +609,7 @@ modules.pePortfolioOperations=Object.freeze({
   PRODUCT_MIX_RAMP_WEEKS,PRODUCT_MIX_MAX_GAIN,PRODUCT_MIX_COST_FRACTION,
   CONSOLIDATION_STEP,CONSOLIDATION_EBITDA_GAIN,UNDERPERFORMING_MIN,UNDERPERFORMING_MAX,EXIT_METHODS,
   ensure,findFundAndDeal,defaultPortfolioCompany,normalizePortfolioCompany,productionMasters,derivePortfolioProductionSite,isValidPortfolioProductionSite,ensurePortfolioProductionSite,getPortfolioProductionSite,acquirePillarCompany,computeImprovementScore,
-  calculateGenericPortfolioOperatingWeek,calculateGymPortfolioOperatingWeek,resolvePortfolioOperatingCalculator,calculatePortfolioOperatingWeek,settlePortfolioOperatingWeek,processDealWeek,processPortfolioWeek,
+  calculateGenericPortfolioOperatingWeek,calculateGymPortfolioOperatingWeek,calculateConveniPortfolioOperatingWeek,resolvePortfolioOperatingCalculator,calculatePortfolioOperatingWeek,settlePortfolioOperatingWeek,processDealWeek,processPortfolioWeek,
   setPriceMultiplier,setPortfolioGymMembershipStrategy,investQuality,expandPortfolioStore,exitCapabilities,previewPortfolioExit,exitPortfolioCompany,install,
   delayedProgress,leverFactors,industryTagOf,adjustIndustryReputation,
   reformProcurement,setStaffing,renewProductMix,consolidateSites,

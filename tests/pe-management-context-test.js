@@ -113,8 +113,41 @@ for(const [label,mutate,reason] of [
   assert.equal(engine.canOpenPEPortfolioManagement(fund.id,deal.id).capability.actionsEnabled,true,'gym management actions are enabled once the detached bridge exists');
 }
 {
-  const {engine,fund,deal}=fixture('conveni');
+  const {engine,fund,deal}=fixture('productVentures');
   assert.equal(engine.canOpenPEPortfolioManagement(fund.id,deal.id).capability.actionsEnabled,false,'other supported pillars stay disabled until they have their own detached bridge');
+}
+// Detached PE-conveni production input: same detachment discipline as gym above (see
+// tests/pe-conveni-portfolio-bridge-test.js for the full state-isolation/cluster-proxy coverage).
+// This block only confirms the input/preview plumbing mirrors gym's own read-only contract.
+{
+  const {engine,fund,deal}=fixture('conveni');
+  assert.equal(engine.canOpenPEPortfolioManagement(fund.id,deal.id).capability.actionsEnabled,true,'conveni management actions are enabled once its detached bridge exists');
+  // Deliberately distort the self-company conveni record. The PE input must still start from the
+  // static production master so self price/quality/brand/DX choices cannot leak across owners.
+  const selfConveni=engine.business('conveni');selfConveni.price*=3;selfConveni.quality=99;selfConveni.brand=91;selfConveni.dx=77;
+  deal.portfolioCompany.priceMultiplier=1.25;
+  const before=plain(engine.g),callsBefore=randomCalls;
+  const input=engine.getPEPortfolioConveniOperatingInput(fund.id,deal.id);
+  assert.equal(input.ok,true);assert.equal(input.source,'pe-conveni-detached-production-input');
+  const site=ops.getPortfolioProductionSite(engine.g,fund.id,deal.id);equal(input.productionSite,site,'adapter uses persisted PE production site');
+  const conveniMaster=modules.data.MASTER.businesses.find(row=>row.id==='conveni');
+  assert(conveniMaster,'static conveni business master exists');
+  assert.equal(input.business.price,conveniMaster.price*1.25,'PE price lever maps onto the detached conveni price');
+  assert.equal(input.business.quality,conveniMaster.quality,'self-company quality must not leak into detached PE input');
+  assert.notEqual(input.business.price,selfConveni.price,'detached business does not alias self-company pricing');
+  equal(engine.g,before,'building detached conveni input is read-only');
+  assert.equal(randomCalls,callsBefore,'building detached conveni input consumes no RNG');
+
+  const preview=engine.previewPEPortfolioConveniWeek(fund.id,deal.id);
+  assert.equal(preview.ok,true);assert.equal(preview.source,'pe-conveni-detached-preview');
+  assert(Number.isFinite(preview.sales)&&preview.sales>0,'detached conveni preview produces positive sales');
+  equal(engine.g,before,'conveni preview cannot mutate self company, PE cash, ledger, or saved portfolio state');
+  assert.equal(randomCalls,callsBefore,'conveni preview consumes no RNG');
+}
+{
+  const {engine,fund,deal}=fixture('gym'),before=plain(engine.g),callsBefore=randomCalls;
+  equal(engine.getPEPortfolioConveniOperatingInput(fund.id,deal.id),{ok:false,reason:'not-conveni',fundID:fund.id,dealID:deal.id});
+  equal(engine.g,before);assert.equal(randomCalls,callsBefore);
 }
 {
   const {engine,fund,deal}=fixture('ramen'),before=plain(engine.g),callsBefore=randomCalls;
