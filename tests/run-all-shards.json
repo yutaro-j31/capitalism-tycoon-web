@@ -18,7 +18,10 @@
     "tests/store-zero-investment-founding-test.js",
     "tests/sports-team-accounting-test.js",
     "tests/sports-management-test.js",
-    "tests/real-estate-agency-site-capacity-test.js"
+    "tests/real-estate-agency-site-capacity-test.js",
+    "tests/supply-payment-due-week-arrival-basis-test.js",
+    "tests/ramen-supply-payment-terms-244week-regression-test.js",
+    "tests/ramen-supply-payment-terms-negative-test.js"
   ],
   "C": [
     "test:long",
