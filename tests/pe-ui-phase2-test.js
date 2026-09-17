@@ -94,8 +94,9 @@ const gymMembershipModel={
 };
 globalThis.__capitalismTycoonModules={
   peFund:pf,maDealRoom:ma,pePortfolioOperations:portfolioOps,gymMembershipModel,
-  // Mirrors js/management-context.js's real resolvePortfolioManagementCapability(): only gym has
-  // a detached production bridge so far, so only gym deals resolve actionsEnabled:true.
+  // Mirrors js/management-context.js's real resolvePortfolioManagementCapability(): only this
+  // fixture's gym deal has a detached production bridge (ramen does not) -- conveni's own bridge
+  // (see tests/pe-conveni-ui-connection-test.js) is exercised in a separate, dedicated test file.
   managementContext:{canOpenPEPortfolioManagement:(_engine,fundID,dealID)=>{
     const deal=dealFor(dealID);
     if(!deal)return {ok:false,reason:'deal-not-found',capability:null};
@@ -128,7 +129,11 @@ assert.equal(model.portfolio.exitPreview.currentMOIC,3.2);
 const ramenModel=adapter.getPEUIData({portfolioDealId:'holding-2'});
 assert.equal(ramenModel.portfolio.selected.management.supported,true);
 assert.equal(ramenModel.portfolio.selected.management.actionsEnabled,false,'other supported pillars stay disabled until they have their own detached bridge');
-assert.equal(ramenModel.portfolio.selected.management.gym,null,'gym-only detail is not built for non-gym businesses');
+// portfolioManagementDetails() is business-agnostic now (see js/pe-ui-adapter.js): every deal
+// gets at least {priceMultiplier}, and only gym additionally gets membershipStrategy/strategies.
+// The ramen manage screen stays unreachable because manageView()'s guard checks actionsEnabled
+// only (still false for ramen here), not the presence of this field.
+assert.deepEqual(ramenModel.portfolio.selected.management.gym,{priceMultiplier:1},'non-gym businesses still get the business-agnostic price lever data, just no membership strategy');
 
 assert.match(uiSource,/data-pe-portfolio-manage/,'an enabled holding must expose a way to open the manage screen');
 assert.match(uiSource,/data-pe-manage-strategy/,'the manage screen must expose a membership strategy action');

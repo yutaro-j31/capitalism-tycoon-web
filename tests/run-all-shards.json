@@ -165,6 +165,7 @@
     "tests/pe-portfolio-weekly-settlement-test.js",
     "tests/pe-conveni-portfolio-bridge-test.js",
     "tests/pe-conveni-bridge-208week-regression-test.js",
-    "tests/pe-conveni-bridge-negative-test.js"
+    "tests/pe-conveni-bridge-negative-test.js",
+    "tests/pe-conveni-ui-connection-test.js"
   ]
 }
