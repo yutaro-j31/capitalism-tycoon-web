@@ -62,9 +62,10 @@ function lcg(seed) {
   // resolvePortfolioManagementCapability() directly (no UI involved) -- the source of truth the
   // manage screen's guard depends on.
   assert.equal(context.resolvePortfolioManagementCapability(deals.gym).actionsEnabled, true, 'gym keeps its detached bridge');
-  assert.equal(context.resolvePortfolioManagementCapability(deals.conveni).actionsEnabled, true, 'conveni now has its own detached bridge (PR #670)');
-  for (const businessID of ['ramen', 'realEstateAgency', 'productVentures']) {
-    assert.equal(context.resolvePortfolioManagementCapability(deals[businessID]).actionsEnabled, false, `${businessID} has no detached bridge yet and must stay disabled`);
+  assert.equal(context.resolvePortfolioManagementCapability(deals.conveni).actionsEnabled, true, 'conveni keeps its detached bridge');
+  assert.equal(context.resolvePortfolioManagementCapability(deals.ramen).actionsEnabled, true, 'ramen now has its detached market bridge');
+  for (const businessID of ['realEstateAgency', 'productVentures']) {
+    assert.equal(context.resolvePortfolioManagementCapability(deals[businessID]).actionsEnabled, false, `${businessID} has no player-facing detached bridge yet and must stay disabled`);
   }
 
   // portfolioManagementDetails() indirectly, via the real adapter.getPEUIData() -- the exact data
@@ -86,7 +87,7 @@ function lcg(seed) {
     }
     // actionsEnabled is what manageView()'s guard actually checks -- confirm it matches the
     // capability check above, independent of whatever portfolioManagementDetails() returned.
-    const expectedEnabled = businessID === 'gym' || businessID === 'conveni';
+    const expectedEnabled = businessID === 'gym' || businessID === 'conveni' || businessID === 'ramen';
     assert.equal(holding.management.actionsEnabled, expectedEnabled, `${businessID} actionsEnabled must match resolvePortfolioManagementCapability()`);
   }
 
@@ -96,12 +97,14 @@ function lcg(seed) {
   // the generic portfolio.setPriceMultiplier(), already business-agnostic -- this just proves the
   // adapter's own actionsEnabled re-check (defense in depth) now passes for conveni too).
   const before = { conveniPrice: deals.conveni.portfolioCompany.priceMultiplier, ramenPrice: deals.ramen.portfolioCompany.priceMultiplier };
-  assert.equal(modules.peUIAdapter.performPortfolio('setGymPriceMultiplier', { fundID: fund.id, dealID: deals.conveni.id, value: 1.6 }), true, 'the price action now succeeds for a conveni deal (actionsEnabled:true)');
+  assert.equal(modules.peUIAdapter.performPortfolio('setGymPriceMultiplier', { fundID: fund.id, dealID: deals.conveni.id, value: 1.6 }), true, 'the generic price action succeeds for a conveni deal (actionsEnabled:true)');
   assert.equal(deals.conveni.portfolioCompany.priceMultiplier, 1.6);
   assert.notEqual(deals.conveni.portfolioCompany.priceMultiplier, before.conveniPrice);
-  assert.equal(modules.peUIAdapter.performPortfolio('setGymPriceMultiplier', { fundID: fund.id, dealID: deals.ramen.id, value: 1.6 }), false, 'the price action still refuses a ramen deal (actionsEnabled:false)');
-  assert.equal(deals.ramen.portfolioCompany.priceMultiplier, before.ramenPrice, 'refused action must not mutate the ramen deal');
+  assert.equal(modules.peUIAdapter.performPortfolio('setGymPriceMultiplier', { fundID: fund.id, dealID: deals.ramen.id, value: 1.6 }), true, 'the generic price action now succeeds for a ramen deal (actionsEnabled:true)');
+  assert.equal(deals.ramen.portfolioCompany.priceMultiplier, 1.6, 'ramen price action mutates only the PE portfolio-company price multiplier');
+  assert.notEqual(deals.ramen.portfolioCompany.priceMultiplier, before.ramenPrice);
   assert.equal(modules.peUIAdapter.performPortfolio('setGymMembershipStrategy', { fundID: fund.id, dealID: deals.conveni.id, strategyID: 'premium' }), false, 'conveni has no membership-strategy lever, so this gym-only action must still refuse it even though actionsEnabled is true');
+  assert.equal(modules.peUIAdapter.performPortfolio('setGymMembershipStrategy', { fundID: fund.id, dealID: deals.ramen.id, strategyID: 'premium' }), false, 'ramen has no membership-strategy lever, so this gym-only action must still refuse it even though actionsEnabled is true');
 }
 
 console.log('PE conveni UI connection tests passed');
