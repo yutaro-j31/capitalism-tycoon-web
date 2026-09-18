@@ -32,11 +32,107 @@ function marketPotential(state,businessID,prefID){const b=(state.businesses||[])
 function utility(o,seg,avgPrice){const rel=(avgPrice-o.price)/Math.max(1,avgPrice);return rel*seg.priceSensitivity*1.8+(o.quality-50)/50*seg.qualitySensitivity+(o.brandTrust-45)/55*seg.brandSensitivity+(o.convenience-50)/50*seg.convenienceSensitivity+(o.serviceQuality-50)/50*seg.serviceSensitivity+(o.novelty-35)/65*seg.noveltySensitivity+(o.customerSatisfaction-50)/50*seg.loyaltySensitivity+o.repeatRate*seg.loyaltySensitivity;}
 function campaignUtility(state,o,segmentID){if(o.kind!=='player')return 0;const ads=globalThis.__capitalismTycoonModules?.playerMediaAdvertising;if(!ads)return 0;return ads.utilityBoost(state,o.business?.id,segmentID);}
 function softShares(items){const max=Math.max(...items.map(x=>x.u));const ex=items.map(x=>Math.exp(clamp(x.u-max,-50,50)));const den=Math.max(1e-12,sum(ex));return items.map((x,i)=>({...x,share:clamp(ex[i]/den,0,1)}));}
-function calculateMarket(state,stores){const businessID=stores[0]?.businessID,prefID=stores[0]?.prefID;const players=stores.map(s=>storeOffer(state,s));const comps=competitorOffers(state,businessID,prefID);const offers=players.concat(comps);const avgPrice=sum(comps.map(o=>o.price))/Math.max(1,comps.length);const potential=marketPotential(state,businessID,prefID);const results={marketKey:`${businessID}::${prefID}`,businessID,prefID,areaID:prefAreaID(state,prefID),marketPotential:potential,stores:{},competitors:comps,segments:[],ownUnitsSold:0,ownPotentialDemand:0,ownMarketShare:0,competitorResults:{},competitorSummary:{}};for(const seg of SEGMENTS){const demand=potential*seg.marketWeight;const referencePrice=businessID==='ramen'?920:avgPrice;const noBuy={id:'no-purchase',kind:'none',u:-.15+(avgPrice/Math.max(1,referencePrice)-1)*1.2};const scored=offers.map(o=>{const portfolio=o.kind==='player'?menuPortfolio(o,seg):null, adjusted=portfolio?{...o,price:portfolio.price,quality:clamp(o.quality+portfolio.quality,0,100),novelty:clamp(o.novelty+portfolio.novelty,0,100)}:o;const base=utility(adjusted,seg,avgPrice)+(portfolio?portfolio.fit:0)+(o.kind==='player'?finite(o.concept?.segmentFit?.[seg.id]):0),boost=campaignUtility(state,o,seg.id);return{id:o.id,kind:o.kind,offer:o,u:boost?base+boost:base,menuChoice:portfolio?.choice||null};}).concat(noBuy);const shares=softShares(scored);for(const row of shares){if(row.kind==='player'){const r=results.stores[row.id]||(results.stores[row.id]={storeID:row.id,potentialDemand:0,segmentShares:{},segmentUnits:{},offer:row.offer});const units=demand*row.share;r.potentialDemand+=units;r.segmentShares[seg.id]=row.share;r.segmentUnits[seg.id]=units;if(row.menuChoice){r.menuPotentialUnits=r.menuPotentialUnits||{};for(const choice of row.menuChoice)r.menuPotentialUnits[choice.item.id]=finite(r.menuPotentialUnits[choice.item.id])+units*choice.share;}}else if(row.kind==='competitor'){const r=results.competitorResults[row.id]||(results.competitorResults[row.id]={presenceID:row.offer.presenceID||row.id,competitorID:row.offer.competitorID||row.id,name:row.offer.name,potentialDemand:0,segmentShares:{},segmentUnits:{},offer:row.offer});const units=demand*row.share;r.potentialDemand+=units;r.segmentShares[seg.id]=row.share;r.segmentUnits[seg.id]=units;}}results.segments.push({id:seg.id,name:seg.name,demand,shares:Object.fromEntries(shares.map(x=>[x.id,x.share]))});}
- for(const r of Object.values(results.competitorResults)){const o=r.offer;const cap=finite(o.capacity,finite(o.stores,1)*525);const units=Math.min(r.potentialDemand,cap);const revenue=units*o.price*finite(state.inflation,1);const variableCost=units*finite(o.variableCostPerUnit,300)*finite(state.inflation,1);r.demandAllocatedUnits=r.potentialDemand;r.capacityLimitedUnits=Math.max(0,r.potentialDemand-cap);r.fulfilledUnits=units;r.lostDemand=Math.max(0,r.potentialDemand-units);r.revenue=revenue;r.variableCost=variableCost;r.contributionMargin=revenue-variableCost;r.contributionMarginRate=revenue>0?r.contributionMargin/revenue:0;r.demandMarketShare=potential>0?clamp(r.potentialDemand/potential,0,1):0;r.realizedMarketShare=potential>0?clamp(units/potential,0,1):0;r.marketShare=r.realizedMarketShare;r.customerSatisfaction=o.customerSatisfaction;r.repeatRate=o.repeatRate;r.price=o.price;r.quality=o.quality;r.brandAwareness=o.brandAwareness;r.storeCount=o.storeCount||o.stores||1;delete r.offer;const cs=results.competitorSummary[r.competitorID]||(results.competitorSummary[r.competitorID]={competitorID:r.competitorID,name:r.name,fulfilledUnits:0,revenue:0,marketShare:0});cs.fulfilledUnits+=units;cs.revenue+=revenue;cs.marketShare+=r.realizedMarketShare;} for(const r of Object.values(results.stores)){const o=r.offer;const units=Math.min(r.potentialDemand,o.capacity),ratio=r.potentialDemand>0?units/r.potentialDemand:1;let revenue=units*o.price*finite(state.inflation,1);if(o.activeMenuCount>1){const raw=o.menuPlan.items.map(item=>({menuID:item.id,name:item.name,effectivePrice:item.effectivePrice,units:finite(r.menuPotentialUnits?.[item.id])*ratio}));const total=sum(raw.map(x=>x.units));if(raw.length&&Math.abs(total-units)>1e-9)raw[0].units+=units-total;r.menuMix=raw.map(x=>({...x,share:units>0?x.units/units:0}));revenue=sum(r.menuMix.map(x=>x.units*x.effectivePrice))*finite(state.inflation,1);r.averageMenuPrice=units>0?revenue/finite(state.inflation,1)/units:o.price;r.menuRecipeMultipliers={};for(const material of ['ramen_noodles','ramen_soup','ramen_toppings','ramen_vegetables','ramen_packaging'])r.menuRecipeMultipliers[material]=sum(r.menuMix.map(x=>x.share*finite(o.menuPlan.items.find(i=>i.id===x.menuID)?.recipeMultipliers?.[material],1)))*finite(o.concept?.recipeMultipliers?.[material],1);r.activeMenuCount=o.activeMenuCount;r.menuComplexityMultiplier=o.menuComplexityMultiplier;}if(!r.menuRecipeMultipliers&&o.kind==='player'&&o.concept?.recipeMultipliers)r.menuRecipeMultipliers={...o.concept.recipeMultipliers};const variableCost=units*o.variableCostPerUnit*finite(state.inflation,1);r.unitsSold=units;r.effectiveCapacity=o.capacity;r.capacityUtilization=o.capacity>0?clamp(units/o.capacity,0,1):0;r.lostDemand=Math.max(0,r.potentialDemand-units);r.revenue=revenue;r.variableCost=variableCost;r.contributionMargin=revenue-variableCost;r.contributionMarginRate=revenue>0?r.contributionMargin/revenue:0;r.marketShare=potential>0?clamp(units/potential,0,1):0;r.customerSatisfaction=o.customerSatisfaction;r.repeatRate=o.repeatRate;r.price=o.price;r.quality=o.quality;r.brandAwareness=o.brandAwareness;r.brandTrust=o.brandTrust;r.convenience=o.convenience;r.serviceQuality=o.serviceQuality;r.novelty=o.novelty;if(o.workforceAdjustment)Object.assign(r,o.workforceAdjustment);r.reasons=buildReasons(state,r,results,avgPrice);delete r.offer;results.ownUnitsSold+=units;results.ownPotentialDemand+=r.potentialDemand;}results.ownMarketShare=potential>0?clamp(results.ownUnitsSold/potential,0,1):0;return validateMarketResult(results);}
+function campaignBoostTable(state,playerOffers){
+ const table={};
+ for(const o of playerOffers||[]){
+  const row={};
+  for(const seg of SEGMENTS)row[seg.id]=campaignUtility(state,o,seg.id);
+  table[o.id]=row;
+ }
+ return table;
+}
+// Pure allocation kernel: callers provide already-normalized offers plus scalar market context.
+// It never reads or writes the game state. This is the reusable boundary for detached runtimes.
+function calculateMarketFromOffers({businessID,prefID,areaID,marketPotential:potential,inflation=1,economy=1,playerOffers=[],competitorOffers:comps=[],campaignBoosts={}}={}){
+ const players=Array.isArray(playerOffers)?playerOffers:[];
+ const competitors=Array.isArray(comps)?comps:[];
+ const offers=players.concat(competitors);
+ const avgPrice=sum(competitors.map(o=>o.price))/Math.max(1,competitors.length);
+ const resolvedPotential=finite(potential,0),resolvedInflation=finite(inflation,1),resolvedEconomy=finite(economy,1);
+ const results={marketKey:`${businessID}::${prefID}`,businessID,prefID,areaID,marketPotential:resolvedPotential,stores:{},competitors,segments:[],ownUnitsSold:0,ownPotentialDemand:0,ownMarketShare:0,competitorResults:{},competitorSummary:{}};
+ for(const seg of SEGMENTS){
+  const demand=resolvedPotential*seg.marketWeight;
+  const referencePrice=businessID==='ramen'?920:avgPrice;
+  const noBuy={id:'no-purchase',kind:'none',u:-.15+(avgPrice/Math.max(1,referencePrice)-1)*1.2};
+  const scored=offers.map(o=>{
+   const portfolio=o.kind==='player'?menuPortfolio(o,seg):null;
+   const adjusted=portfolio?{...o,price:portfolio.price,quality:clamp(o.quality+portfolio.quality,0,100),novelty:clamp(o.novelty+portfolio.novelty,0,100)}:o;
+   const base=utility(adjusted,seg,avgPrice)+(portfolio?portfolio.fit:0)+(o.kind==='player'?finite(o.concept?.segmentFit?.[seg.id]):0);
+   const boost=finite(campaignBoosts?.[o.id]?.[seg.id],0);
+   return{id:o.id,kind:o.kind,offer:o,u:boost?base+boost:base,menuChoice:portfolio?.choice||null};
+  }).concat(noBuy);
+  const shares=softShares(scored);
+  for(const row of shares){
+   if(row.kind==='player'){
+    const r=results.stores[row.id]||(results.stores[row.id]={storeID:row.id,potentialDemand:0,segmentShares:{},segmentUnits:{},offer:row.offer});
+    const units=demand*row.share;
+    r.potentialDemand+=units;
+    r.segmentShares[seg.id]=row.share;
+    r.segmentUnits[seg.id]=units;
+    if(row.menuChoice){
+     r.menuPotentialUnits=r.menuPotentialUnits||{};
+     for(const choice of row.menuChoice)r.menuPotentialUnits[choice.item.id]=finite(r.menuPotentialUnits[choice.item.id])+units*choice.share;
+    }
+   }else if(row.kind==='competitor'){
+    const r=results.competitorResults[row.id]||(results.competitorResults[row.id]={presenceID:row.offer.presenceID||row.id,competitorID:row.offer.competitorID||row.id,name:row.offer.name,potentialDemand:0,segmentShares:{},segmentUnits:{},offer:row.offer});
+    const units=demand*row.share;
+    r.potentialDemand+=units;
+    r.segmentShares[seg.id]=row.share;
+    r.segmentUnits[seg.id]=units;
+   }
+  }
+  results.segments.push({id:seg.id,name:seg.name,demand,shares:Object.fromEntries(shares.map(x=>[x.id,x.share]))});
+ }
+ for(const r of Object.values(results.competitorResults)){
+  const o=r.offer;
+  const cap=finite(o.capacity,finite(o.stores,1)*525);
+  const units=Math.min(r.potentialDemand,cap);
+  const revenue=units*o.price*resolvedInflation;
+  const variableCost=units*finite(o.variableCostPerUnit,300)*resolvedInflation;
+  r.demandAllocatedUnits=r.potentialDemand;r.capacityLimitedUnits=Math.max(0,r.potentialDemand-cap);r.fulfilledUnits=units;r.lostDemand=Math.max(0,r.potentialDemand-units);r.revenue=revenue;r.variableCost=variableCost;r.contributionMargin=revenue-variableCost;r.contributionMarginRate=revenue>0?r.contributionMargin/revenue:0;r.demandMarketShare=resolvedPotential>0?clamp(r.potentialDemand/resolvedPotential,0,1):0;r.realizedMarketShare=resolvedPotential>0?clamp(units/resolvedPotential,0,1):0;r.marketShare=r.realizedMarketShare;r.customerSatisfaction=o.customerSatisfaction;r.repeatRate=o.repeatRate;r.price=o.price;r.quality=o.quality;r.brandAwareness=o.brandAwareness;r.storeCount=o.storeCount||o.stores||1;
+  delete r.offer;
+  const cs=results.competitorSummary[r.competitorID]||(results.competitorSummary[r.competitorID]={competitorID:r.competitorID,name:r.name,fulfilledUnits:0,revenue:0,marketShare:0});
+  cs.fulfilledUnits+=units;cs.revenue+=revenue;cs.marketShare+=r.realizedMarketShare;
+ }
+ for(const r of Object.values(results.stores)){
+  const o=r.offer;
+  const units=Math.min(r.potentialDemand,o.capacity),ratio=r.potentialDemand>0?units/r.potentialDemand:1;
+  let revenue=units*o.price*resolvedInflation;
+  if(o.activeMenuCount>1){
+   const raw=o.menuPlan.items.map(item=>({menuID:item.id,name:item.name,effectivePrice:item.effectivePrice,units:finite(r.menuPotentialUnits?.[item.id])*ratio}));
+   const total=sum(raw.map(x=>x.units));
+   if(raw.length&&Math.abs(total-units)>1e-9)raw[0].units+=units-total;
+   r.menuMix=raw.map(x=>({...x,share:units>0?x.units/units:0}));
+   revenue=sum(r.menuMix.map(x=>x.units*x.effectivePrice))*resolvedInflation;
+   r.averageMenuPrice=units>0?revenue/resolvedInflation/units:o.price;
+   r.menuRecipeMultipliers={};
+   for(const material of ['ramen_noodles','ramen_soup','ramen_toppings','ramen_vegetables','ramen_packaging'])r.menuRecipeMultipliers[material]=sum(r.menuMix.map(x=>x.share*finite(o.menuPlan.items.find(i=>i.id===x.menuID)?.recipeMultipliers?.[material],1)))*finite(o.concept?.recipeMultipliers?.[material],1);
+   r.activeMenuCount=o.activeMenuCount;r.menuComplexityMultiplier=o.menuComplexityMultiplier;
+  }
+  if(!r.menuRecipeMultipliers&&o.kind==='player'&&o.concept?.recipeMultipliers)r.menuRecipeMultipliers={...o.concept.recipeMultipliers};
+  const variableCost=units*o.variableCostPerUnit*resolvedInflation;
+  r.unitsSold=units;r.effectiveCapacity=o.capacity;r.capacityUtilization=o.capacity>0?clamp(units/o.capacity,0,1):0;r.lostDemand=Math.max(0,r.potentialDemand-units);r.revenue=revenue;r.variableCost=variableCost;r.contributionMargin=revenue-variableCost;r.contributionMarginRate=revenue>0?r.contributionMargin/revenue:0;r.marketShare=resolvedPotential>0?clamp(units/resolvedPotential,0,1):0;r.customerSatisfaction=o.customerSatisfaction;r.repeatRate=o.repeatRate;r.price=o.price;r.quality=o.quality;r.brandAwareness=o.brandAwareness;r.brandTrust=o.brandTrust;r.convenience=o.convenience;r.serviceQuality=o.serviceQuality;r.novelty=o.novelty;
+  if(o.workforceAdjustment)Object.assign(r,o.workforceAdjustment);
+  r.reasons=buildReasons({economy:resolvedEconomy},r,results,avgPrice);
+  delete r.offer;
+  results.ownUnitsSold+=units;results.ownPotentialDemand+=r.potentialDemand;
+ }
+ results.ownMarketShare=resolvedPotential>0?clamp(results.ownUnitsSold/resolvedPotential,0,1):0;
+ return validateMarketResult(results);
+}
+function calculateMarket(state,stores){
+ const businessID=stores[0]?.businessID,prefID=stores[0]?.prefID;
+ const players=stores.map(s=>storeOffer(state,s));
+ const comps=competitorOffers(state,businessID,prefID);
+ return calculateMarketFromOffers({
+  businessID,prefID,areaID:prefAreaID(state,prefID),marketPotential:marketPotential(state,businessID,prefID),
+  inflation:finite(state.inflation,1),economy:finite(state.economy,1),playerOffers:players,competitorOffers:comps,
+  campaignBoosts:campaignBoostTable(state,players)
+ });
+}
 function buildReasons(state,r,m,avgPrice){const out=[];out.push({label:'市場規模',value:m.marketPotential});out.push({label:'価格競争力',value:(avgPrice-r.price)/Math.max(1,avgPrice)});out.push({label:'品質',value:(r.quality-50)/50});out.push({label:'ブランド・広告認知',value:(r.brandAwareness-40)/60});out.push({label:'競合',value:-Math.min(.35,m.competitors.length*.03)});out.push({label:'販売能力不足',value:r.potentialDemand>0?-r.lostDemand/r.potentialDemand:0});out.push({label:'顧客満足度',value:(r.customerSatisfaction-50)/50});out.push({label:'リピート',value:r.repeatRate});out.push({label:'景気',value:finite(state.economy,1)-1});return out.filter(x=>Number.isFinite(x.value));}
 function calculateMarkets(state){const groups=groupTargetStores(state.stores);const result={byMarket:{},byStore:{},businessSummary:{},calculationCount:0};for(const stores of Object.values(groups)){const m=calculateMarket(state,stores);result.byMarket[m.marketKey]=m;result.calculationCount++;for(const [id,r] of Object.entries(m.stores))result.byStore[id]=r;}const seen={};for(const m of Object.values(result.byMarket)){const b=result.businessSummary[m.businessID]||(result.businessSummary[m.businessID]={businessID:m.businessID,unitsSold:0,marketPotential:0,marketShare:0});b.unitsSold+=m.ownUnitsSold;if(!seen[m.marketKey]){b.marketPotential+=m.marketPotential;seen[m.marketKey]=true;}}for(const b of Object.values(result.businessSummary))b.marketShare=b.marketPotential>0?clamp(b.unitsSold/b.marketPotential,0,1):0;return result;}
 function validateMarketResult(result){function walk(v){if(typeof v==='number'&&!Number.isFinite(v))throw new Error('Invalid market number');if(v&&typeof v==='object')for(const x of Object.values(v))walk(x);}walk(result);return result;}
-Object.assign(exports,{TARGET_BUSINESS_IDS,SEGMENTS,isTargetBusinessID,validateSegments,prefAreaID,marketKey,effectiveCapacity,storeMenuPlan,menuChoice,menuPortfolio,storeOffer,competitorOffers,marketPotential,utility,calculateMarket,calculateMarkets,validateMarketResult});
+Object.assign(exports,{TARGET_BUSINESS_IDS,SEGMENTS,isTargetBusinessID,validateSegments,prefAreaID,marketKey,effectiveCapacity,storeMenuPlan,menuChoice,menuPortfolio,storeOffer,competitorOffers,marketPotential,utility,calculateMarketFromOffers,calculateMarket,calculateMarkets,validateMarketResult});
 })(__modules.market={});
 })();
