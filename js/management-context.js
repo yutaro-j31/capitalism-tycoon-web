@@ -16,10 +16,12 @@ if(!modules?.gymMembershipModel)throw new Error('gym-membership-model.js must be
 if(!modules?.storeEquipment)throw new Error('store-equipment.js must be loaded before management-context.js.');
 if(!modules?.convenienceMerchandising)throw new Error('convenience-merchandising.js must be loaded before management-context.js.');
 if(!modules?.realEstateAgencyPipeline)throw new Error('real-estate-agency-pipeline.js must be loaded before management-context.js.');
+if(!modules?.market?.calculateMarketFromOffers)throw new Error('market.js pure allocation kernel must be loaded before management-context.js.');
 if(modules.managementContext)throw new Error('management context module is already registered.');
 const EngineClass=modules.engine.TycoonEngine;
 const SELF=Object.freeze({kind:'self'}),contexts=new WeakMap();
 const supportedBusinessIDs=Object.freeze([...modules.peIndustryTiers.TIERS.pillar.businessIDs]);
+const RAMEN_BUSINESS_ID='ramen';
 const GYM_BUSINESS_ID='gym',GYM_OPERATING_STATE_SCHEMA_VERSION=1;
 const CONVENI_BUSINESS_ID='conveni';
 const finite=(value,fallback=0)=>Number.isFinite(Number(value))?Number(value):fallback;
@@ -35,7 +37,7 @@ function resolvePortfolioManagementCapability(deal){
   // actions for them would let inputs (price, future levers) diverge from what the weekly
   // settlement actually simulates. Flip a business's actionsEnabled only once its own detached
   // production bridge exists, same as gym's.
-  const actionsEnabled=supported&&(businessID===GYM_BUSINESS_ID||businessID===CONVENI_BUSINESS_ID);
+  const actionsEnabled=supported&&(businessID===RAMEN_BUSINESS_ID||businessID===GYM_BUSINESS_ID||businessID===CONVENI_BUSINESS_ID);
   return {supported,pillar:supported?businessID:null,businessID:businessID||null,actionsEnabled,reason:supported?null:'unsupported-pillar'};
 }
 function portfolioTarget(state,fundID,dealID){
@@ -247,6 +249,100 @@ function previewPEPortfolioConveniWeekForState(state,fundID,dealID,options={}){
 }
 function previewPEPortfolioConveniWeek(engine,fundID,dealID,options={}){return previewPEPortfolioConveniWeekForState(engine?.g,fundID,dealID,options);}
 
+// PE ramen market bridge. Supply/inventory remains intentionally outside this bridge: the
+// production market kernel is reused for price elasticity + same-prefecture cannibalization while
+// procurement/working-capital stays in the calibrated generic PE model. Every object passed into
+// market.calculateMarketFromOffers() is detached from the player's real g/state.
+function detachedRamenCompetitorRuntime(state,master){
+  return {
+    week:finite(state?.week,1),selectedPref:state?.selectedPref||null,selectedArea:state?.selectedArea||null,
+    businesses:[clone(master)],prefs:clone(state?.prefs||[]),competitors:clone(state?.competitors||[]),
+    competitorStates:clone(state?.competitorStates||[]),competitorActions:clone(state?.competitorActions||[]),
+    competitorMarketResultsByPresenceID:clone(state?.competitorMarketResultsByPresenceID||{}),
+    competitorMarketResultsByCompetitorID:clone(state?.competitorMarketResultsByCompetitorID||{}),
+    competitorPerformanceHistoryByID:clone(state?.competitorPerformanceHistoryByID||{}),
+    competitorPresenceHistoryByID:clone(state?.competitorPresenceHistoryByID||{}),
+    nextCompetitorStateSeq:finite(state?.nextCompetitorStateSeq,1),nextCompetitorPresenceSeq:finite(state?.nextCompetitorPresenceSeq,1),
+    nextCompetitorActionSeq:finite(state?.nextCompetitorActionSeq,1),nextCompetitorInvestmentSeq:finite(state?.nextCompetitorInvestmentSeq,1),
+    competitorMigrationV8Applied:Boolean(state?.competitorMigrationV8Applied)
+  };
+}
+function ramenMarketPotentialForState(state,master,pref,area){
+  let value=finite(master?.demand,1)*finite(pref?.traffic,1)*finite(area?.traffic,1)*finite(state?.economy,1)*finite(state?.season,1)*finite(area?.ramenFit,1);
+  if(state?.macroCrisis)value*=finite(state.macroCrisis.salesMultiplier,1);
+  return clamp(value*2.05,0,10_000_000);
+}
+function ramenSyntheticOffer(master,pref,dealID,index,priceMultiplier){
+  const detachedStore={id:`pe-ramen-${dealID}-${index}`,businessID:RAMEN_BUSINESS_ID,status:'open',condition:100,level:1,operatingHours:3,prefID:pref.id};
+  const quality=clamp(finite(master?.quality),0,100),brandAwareness=clamp(finite(master?.brand),0,100);
+  const brandTrust=clamp(brandAwareness*.65+quality*.25,0,100);
+  const convenience=clamp(40+finite(pref?.traffic,1)*32+21,0,100);
+  const serviceQuality=clamp(45+50*.30+55*.18,0,100);
+  const novelty=clamp(finite(master?.dx)*.65+quality*.2,0,100);
+  const customerSatisfaction=clamp(35+quality*.32+serviceQuality*.25+brandTrust*.16,0,100);
+  const repeatRate=clamp(.12+customerSatisfaction/180+brandTrust/380,0,.88);
+  const variableCostPerUnit=finite(master?.unitCost)*(1+quality/1000)*(1-Math.min(.22,finite(master?.efficiency)/260));
+  const capacity=modules.market.effectiveCapacity(detachedStore,master,pref);
+  return {
+    id:detachedStore.id,kind:'player',price:Math.max(1,finite(master?.price,1)*priceMultiplier),
+    quality,brandAwareness,brandTrust,convenience,serviceQuality,novelty,capacity,variableCostPerUnit,
+    customerSatisfaction,repeatRate,activeMenuCount:1,menuPlan:null,menuComplexityMultiplier:1,
+    concept:{segmentFit:{},recipeMultipliers:{}}
+  };
+}
+function buildPEPortfolioRamenOperatingInputForState(state,fundID,dealID,{week,priceMultiplierOverride}={}){
+  const target=portfolioTarget(state,fundID,dealID);
+  if(!target.ok)return {ok:false,reason:target.reason,fundID,dealID};
+  if(target.deal.businessID!==RAMEN_BUSINESS_ID)return {ok:false,reason:'not-ramen',fundID,dealID};
+  const site=modules.pePortfolioOperations.getPortfolioProductionSite(state,fundID,dealID);
+  if(!site)return {ok:false,reason:'production-site-missing',fundID,dealID};
+  const area=(state?.areas||[]).find(row=>row?.id===site.areaID),pref=(state?.prefs||[]).find(row=>row?.id===site.prefID);
+  if(!area||!pref||pref.areaID!==area.id)return {ok:false,reason:'production-site-invalid',fundID,dealID};
+  const master=(modules.data?.MASTER?.businesses||[]).find(row=>row?.id===RAMEN_BUSINESS_ID);
+  if(!master)return {ok:false,reason:'ramen-business-master-not-found',fundID,dealID};
+  const resolvedWeek=Math.max(1,Math.floor(finite(week,state?.week||1)));
+  const priceMultiplier=priceMultiplierOverride===undefined
+    ?clamp(finite(target.portfolioCompany.priceMultiplier,1),.5,2)
+    :clamp(finite(priceMultiplierOverride,1),.5,2);
+  const storeCount=Math.max(1,Math.floor(finite(target.portfolioCompany.storeCount,1)));
+  const playerOffers=Array.from({length:storeCount},(_,index)=>ramenSyntheticOffer(master,pref,dealID,index,priceMultiplier));
+  const competitorRuntime=detachedRamenCompetitorRuntime(state,master);
+  const competitors=modules.market.competitorOffers(competitorRuntime,RAMEN_BUSINESS_ID,pref.id)||[];
+  return {
+    ok:true,source:'pe-ramen-detached-market-input',fundID,dealID,week:resolvedWeek,
+    productionSite:{...site},pref:{id:pref.id,areaID:pref.areaID,name:pref.name,traffic:finite(pref.traffic,1)},
+    area:{id:area.id,name:area.name,traffic:finite(area.traffic,1),ramenFit:finite(area.ramenFit,1)},
+    marketPotential:ramenMarketPotentialForState(state,master,pref,area),inflation:finite(state?.inflation,1),economy:finite(state?.economy,1),
+    playerOffers,competitorOffers:clone(competitors),campaignBoosts:{},
+    portfolioLevers:{
+      priceMultiplier:finite(target.portfolioCompany.priceMultiplier,1),qualityInvestment:finite(target.portfolioCompany.qualityInvestment),
+      storeCount,procurementReform:finite(target.portfolioCompany.procurementReform),wageLevel:finite(target.portfolioCompany.wageLevel,1),
+      headcountRatio:finite(target.portfolioCompany.headcountRatio,1),productMixLevel:finite(target.portfolioCompany.productMixLevel),
+      consolidatedRatio:finite(target.portfolioCompany.consolidatedRatio)
+    }
+  };
+}
+function buildPEPortfolioRamenOperatingInput(engine,fundID,dealID,options={}){return buildPEPortfolioRamenOperatingInputForState(engine?.g,fundID,dealID,options);}
+function previewPEPortfolioRamenWeekForState(state,fundID,dealID,options={}){
+  const input=buildPEPortfolioRamenOperatingInputForState(state,fundID,dealID,options);
+  if(!input.ok)return input;
+  const marketResult=modules.market.calculateMarketFromOffers({
+    businessID:RAMEN_BUSINESS_ID,prefID:input.pref.id,areaID:input.area.id,marketPotential:input.marketPotential,
+    inflation:input.inflation,economy:input.economy,playerOffers:clone(input.playerOffers),
+    competitorOffers:clone(input.competitorOffers),campaignBoosts:{}
+  });
+  const rows=Object.values(marketResult.stores||{});
+  const sales=rows.reduce((total,row)=>total+finite(row.revenue),0);
+  const variable=rows.reduce((total,row)=>total+finite(row.variableCost),0);
+  return {
+    ok:true,source:'pe-ramen-detached-market-preview',fundID,dealID,week:input.week,
+    sales,variable,profitBeforeFixed:sales-variable,marketPotential:input.marketPotential,
+    ownMarketShare:finite(marketResult.ownMarketShare),productionSite:{...input.productionSite},
+    storeResults:clone(marketResult.stores),competitorResults:clone(marketResult.competitorResults)
+  };
+}
+function previewPEPortfolioRamenWeek(engine,fundID,dealID,options={}){return previewPEPortfolioRamenWeekForState(engine?.g,fundID,dealID,options);}
+
 // PE realEstateAgency bridge (engine layer only -- resolvePortfolioManagementCapability() above
 // deliberately does NOT enable actionsEnabled for realEstateAgency yet; UI connection is left for
 // a follow-up PR, same as conveni's engine-first/UI-second split across #670/#671). Same
@@ -342,6 +438,8 @@ proto.canOpenPEPortfolioManagement=function(fundID,dealID){return canOpenPEPortf
 proto.openPEPortfolioManagement=function(fundID,dealID){return openPEPortfolioManagement(this,fundID,dealID);};
 proto.closeManagementContext=function(){return closeManagementContext(this);};
 proto.resolveManagementContext=function(){return resolveManagementContext(this);};
+proto.getPEPortfolioRamenOperatingInput=function(fundID,dealID,options){return buildPEPortfolioRamenOperatingInput(this,fundID,dealID,options);};
+proto.previewPEPortfolioRamenWeek=function(fundID,dealID,options){return previewPEPortfolioRamenWeek(this,fundID,dealID,options);};
 proto.getPEPortfolioGymOperatingInput=function(fundID,dealID,options){return buildPEPortfolioGymOperatingInput(this,fundID,dealID,options);};
 proto.previewPEPortfolioGymWeek=function(fundID,dealID,options){return previewPEPortfolioGymWeek(this,fundID,dealID,options);};
 proto.getPEPortfolioConveniOperatingInput=function(fundID,dealID,options){return buildPEPortfolioConveniOperatingInput(this,fundID,dealID,options);};
@@ -350,6 +448,7 @@ proto.getPEPortfolioRealEstateAgencyOperatingInput=function(fundID,dealID,option
 proto.previewPEPortfolioRealEstateAgencyWeek=function(fundID,dealID,options){return previewPEPortfolioRealEstateAgencyWeek(this,fundID,dealID,options);};
 modules.managementContext=Object.freeze({
   supportedBusinessIDs,resolvePortfolioManagementCapability,canOpenPEPortfolioManagement,getManagementContext,openPEPortfolioManagement,closeManagementContext,resolveManagementContext,
+  RAMEN_BUSINESS_ID,buildPEPortfolioRamenOperatingInputForState,buildPEPortfolioRamenOperatingInput,previewPEPortfolioRamenWeekForState,previewPEPortfolioRamenWeek,
   GYM_BUSINESS_ID,GYM_OPERATING_STATE_SCHEMA_VERSION,defaultPEPortfolioGymOperatingState,normalizePEPortfolioGymOperatingState,
   buildPEPortfolioGymOperatingInputForState,buildPEPortfolioGymOperatingInput,previewPEPortfolioGymWeekForState,previewPEPortfolioGymWeek,
   CONVENI_BUSINESS_ID,defaultPEPortfolioConveniOperatingState,normalizePEPortfolioConveniOperatingState,
