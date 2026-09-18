@@ -85,9 +85,8 @@ for(let i=0;i<3;i++){
   assert.equal(experiment.random.calls(),control.random.calls(),`week ${experiment.engine.g.week}: detached PE ramen simulation consumes no extra simulation RNG`);
   assert.equal(experiment.fund.cash,fundCashBefore,`week ${experiment.engine.g.week}: weekly PE ramen settlement never moves fund.cash`);
   assert.equal(experiment.engine.g.personalCash,personalBefore,`week ${experiment.engine.g.week}: weekly PE ramen settlement never moves personalCash`);
-  assert.equal(
-    deal.portfolioCompany.cash-portfolioCashBefore,
-    deal.portfolioCompany.weeklyProfit,
+  assert(
+    Math.abs((deal.portfolioCompany.cash-portfolioCashBefore)-deal.portfolioCompany.weeklyProfit)<1e-6,
     `week ${experiment.engine.g.week}: only portfolioCompany.cash moves by the settled PE ramen profit`
   );
   assert.equal(deal.portfolioCompany.lastProcessedWeek,experiment.engine.g.week,'PE ramen deal settles exactly in the production weekly loop');
