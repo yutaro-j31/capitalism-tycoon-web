@@ -12,7 +12,7 @@
 資本主義ポケット TYCOON / Capitalism Tycoon Web. Primary product/UX reference: **Coffee Inc 2**.
 Capitalism / Capitalism Lab inform the deeper economic, operating, and capital-allocation
 systems. Originated as a Swift Playgrounds project; this repo is the browser migration
-(`docs/GAME_SYSTEM_AUDIT.md` line 95).
+(`js/data.js` line 7: `// Generated from the supplied Swift Playgrounds project.`).
 
 Two legitimate founding routes (`CLAUDE.md` §1):
 
