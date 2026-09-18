@@ -96,6 +96,7 @@ const nodeTests = [
   ['ma-investment-committee', 'tests/ma-investment-committee-test.js'],
   ['new-business-commercialization', 'tests/new-business-commercialization-test.js'],
   ['new-business-market-analysis', 'tests/new-business-market-analysis-test.js'],
+  ['market-pure-allocation-kernel', 'tests/market-pure-allocation-kernel-test.js'],
   ['new-business-research-projects', 'tests/new-business-research-projects-test.js'],
   ['formal-digital-business-founding', 'tests/formal-digital-business-founding-test.js'],
   ['formal-digital-founding-tutorial', 'tests/formal-digital-founding-tutorial-test.js'],
