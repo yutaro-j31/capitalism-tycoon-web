@@ -15,6 +15,7 @@ if(!modules?.storeMarketEnvironment)throw new Error('store-market-environment.js
 if(!modules?.gymMembershipModel)throw new Error('gym-membership-model.js must be loaded before management-context.js.');
 if(!modules?.storeEquipment)throw new Error('store-equipment.js must be loaded before management-context.js.');
 if(!modules?.convenienceMerchandising)throw new Error('convenience-merchandising.js must be loaded before management-context.js.');
+if(!modules?.realEstateAgencyPipeline)throw new Error('real-estate-agency-pipeline.js must be loaded before management-context.js.');
 if(modules.managementContext)throw new Error('management context module is already registered.');
 const EngineClass=modules.engine.TycoonEngine;
 const SELF=Object.freeze({kind:'self'}),contexts=new WeakMap();
@@ -246,6 +247,95 @@ function previewPEPortfolioConveniWeekForState(state,fundID,dealID,options={}){
 }
 function previewPEPortfolioConveniWeek(engine,fundID,dealID,options={}){return previewPEPortfolioConveniWeekForState(engine?.g,fundID,dealID,options);}
 
+// PE realEstateAgency bridge (engine layer only -- resolvePortfolioManagementCapability() above
+// deliberately does NOT enable actionsEnabled for realEstateAgency yet; UI connection is left for
+// a follow-up PR, same as conveni's engine-first/UI-second split across #670/#671). Same
+// detachment discipline as gym/conveni: the production real-estate-agency-pipeline.js model is
+// never called with the real state. Unlike conveni, no synthetic sibling-store array is needed --
+// real-estate-agency-pipeline.js's capacityFor() depends only on business.efficiency and
+// siteMultiplier, never on sibling store counts (confirmed by reading the whole file: it has no
+// clusterCountFor/chainStoreCountFor-equivalent), so a single detached store is sufficient, same
+// as gym's bridge.
+const REAL_ESTATE_AGENCY_BUSINESS_ID='realEstateAgency';
+// real-estate-agency-pipeline.js's ensureStore() is itself the per-store sanitizer (unlike
+// convenience-merchandising.js, there is no separate company-wide ensure() to reuse), so this
+// just calls it directly on a throwaway detached store carrying the raw operating state.
+function normalizePEPortfolioRealEstateAgencyOperatingState(raw,week){
+  const w=Math.max(1,Math.floor(finite(week,1)));
+  const master=(modules.data?.MASTER?.businesses||[]).find(row=>row?.id===REAL_ESTATE_AGENCY_BUSINESS_ID)||{};
+  const detachedStore={id:'pe-realestate-normalize',businessID:REAL_ESTATE_AGENCY_BUSINESS_ID,status:'open',brokeragePipeline:raw&&typeof raw==='object'?clone(raw):undefined};
+  modules.realEstateAgencyPipeline.ensureStore(detachedStore,master,w,1,1);
+  return clone(detachedStore.brokeragePipeline);
+}
+function defaultPEPortfolioRealEstateAgencyOperatingState(){return normalizePEPortfolioRealEstateAgencyOperatingState(null,1);}
+function buildPEPortfolioRealEstateAgencyOperatingInputForState(state,fundID,dealID,{week,operatingState,priceMultiplierOverride}={}){
+  const target=portfolioTarget(state,fundID,dealID);
+  if(!target.ok)return {ok:false,reason:target.reason,fundID,dealID};
+  if(target.deal.businessID!==REAL_ESTATE_AGENCY_BUSINESS_ID)return {ok:false,reason:'not-realEstateAgency',fundID,dealID};
+  const site=modules.pePortfolioOperations.getPortfolioProductionSite(state,fundID,dealID);
+  if(!site)return {ok:false,reason:'production-site-missing',fundID,dealID};
+  const area=(state?.areas||[]).find(row=>row?.id===site.areaID),pref=(state?.prefs||[]).find(row=>row?.id===site.prefID);
+  if(!area||!pref||pref.areaID!==area.id)return {ok:false,reason:'production-site-invalid',fundID,dealID};
+  // Use the static production business master, not state.businesses: the latter contains the
+  // player's self-company price/quality/brand/DX investments and would leak choices across owners.
+  const master=(modules.data?.MASTER?.businesses||[]).find(row=>row?.id===REAL_ESTATE_AGENCY_BUSINESS_ID);
+  if(!master)return {ok:false,reason:'realEstateAgency-business-master-not-found',fundID,dealID};
+  const resolvedWeek=Math.max(1,Math.floor(finite(week,state?.week||1)));
+  const normalizedOperatingState=normalizePEPortfolioRealEstateAgencyOperatingState(operatingState,resolvedWeek);
+  // priceMultiplier is carried through for parity with gym/conveni's portfolioLevers and the same
+  // actual-vs-control wiring calculateRealEstateAgencyPortfolioOperatingWeek() uses below, but
+  // real-estate-agency-pipeline.js's processStore() never reads business.price -- a full-file grep
+  // confirms zero references anywhere in that file. Brokerage commission is a percentage of a
+  // randomly negotiated transaction value (hash()-driven, scaled by realEstateCycle and the
+  // segment's valueMultiplier), not a price-elastic demand model. So actual vs. control below
+  // resolve to byte-identical output regardless of priceMultiplier, and
+  // calculateRealEstateAgencyPortfolioOperatingWeek()'s salesFactor/contributionFactor are always
+  // exactly 1. This is intentional, not a bug: the price lever is wired for structural consistency
+  // with gym/conveni, but has no real effect on this business, because the underlying model has no
+  // price-elasticity concept at all. Do not "fix" this without changing the production model.
+  const priceMultiplier=priceMultiplierOverride===undefined
+    ?clamp(finite(target.portfolioCompany.priceMultiplier,1),.5,2)
+    :clamp(finite(priceMultiplierOverride,1),.5,2);
+  const detachedBusiness={...clone(master),price:Math.max(1,finite(master.price,1)*priceMultiplier)};
+  const detachedStore={id:`pe-realestate-${dealID}`,businessID:REAL_ESTATE_AGENCY_BUSINESS_ID,status:'open',brokeragePipeline:clone(normalizedOperatingState)};
+  return {
+    ok:true,source:'pe-realestate-detached-production-input',fundID,dealID,week:resolvedWeek,
+    productionSite:{...site},pref:{id:pref.id,areaID:pref.areaID,name:pref.name,traffic:finite(pref.traffic,1)},
+    area:{id:area.id,name:area.name,traffic:finite(area.traffic,1),competition:finite(area.competition)},
+    store:detachedStore,business:detachedBusiness,operatingState:normalizedOperatingState,
+    portfolioLevers:{
+      priceMultiplier:finite(target.portfolioCompany.priceMultiplier,1),qualityInvestment:finite(target.portfolioCompany.qualityInvestment),
+      storeCount:Math.max(1,Math.floor(finite(target.portfolioCompany.storeCount,1))),procurementReform:finite(target.portfolioCompany.procurementReform),
+      wageLevel:finite(target.portfolioCompany.wageLevel,1),headcountRatio:finite(target.portfolioCompany.headcountRatio,1),
+      productMixLevel:finite(target.portfolioCompany.productMixLevel),consolidatedRatio:finite(target.portfolioCompany.consolidatedRatio)
+    }
+  };
+}
+function buildPEPortfolioRealEstateAgencyOperatingInput(engine,fundID,dealID,options={}){return buildPEPortfolioRealEstateAgencyOperatingInputForState(engine?.g,fundID,dealID,options);}
+function previewPEPortfolioRealEstateAgencyWeekForState(state,fundID,dealID,options={}){
+  const input=buildPEPortfolioRealEstateAgencyOperatingInputForState(state,fundID,dealID,options);
+  if(!input.ok)return input;
+  const store=clone(input.store),business=clone(input.business);
+  // The detached runtime never aliases the real state: week/seed/realEstateCycle are copied
+  // primitive values (seed and realEstateCycle are shared macro-level indicators, same as gym/
+  // conveni already pulling state?.inflation/state?.macroCrisis -- not self-company-specific data),
+  // and store/business are fully detached objects -- never state.stores or state.businesses.
+  // real-estate-agency-pipeline.js's processStore() therefore cannot reach or mutate the player's
+  // self-company records (confirmed by reading it in full: it references only g.week/g.seed/
+  // g.realEstateCycle and writes only store.brokeragePipeline).
+  const runtime={week:input.week,seed:finite(state?.seed,1),realEstateCycle:finite(state?.realEstateCycle,1)};
+  const result=modules.realEstateAgencyPipeline.processStore(runtime,store,business,input.pref,1);
+  if(!result)return {ok:false,reason:'realEstateAgency-model-rejected-input',fundID,dealID};
+  return {
+    ok:true,source:'pe-realestate-detached-preview',fundID,dealID,week:input.week,
+    sales:finite(result.sales),variable:finite(result.variable),profitBeforeFixed:finite(result.sales)-finite(result.variable),
+    productionSite:{...input.productionSite},
+    operatingState:clone(input.operatingState),nextOperatingState:clone(store.brokeragePipeline),
+    kpi:clone(result.kpi)
+  };
+}
+function previewPEPortfolioRealEstateAgencyWeek(engine,fundID,dealID,options={}){return previewPEPortfolioRealEstateAgencyWeekForState(engine?.g,fundID,dealID,options);}
+
 const proto=EngineClass.prototype;
 proto.getManagementContext=function(){return getManagementContext(this);};
 proto.canOpenPEPortfolioManagement=function(fundID,dealID){return canOpenPEPortfolioManagement(this,fundID,dealID);};
@@ -256,12 +346,16 @@ proto.getPEPortfolioGymOperatingInput=function(fundID,dealID,options){return bui
 proto.previewPEPortfolioGymWeek=function(fundID,dealID,options){return previewPEPortfolioGymWeek(this,fundID,dealID,options);};
 proto.getPEPortfolioConveniOperatingInput=function(fundID,dealID,options){return buildPEPortfolioConveniOperatingInput(this,fundID,dealID,options);};
 proto.previewPEPortfolioConveniWeek=function(fundID,dealID,options){return previewPEPortfolioConveniWeek(this,fundID,dealID,options);};
+proto.getPEPortfolioRealEstateAgencyOperatingInput=function(fundID,dealID,options){return buildPEPortfolioRealEstateAgencyOperatingInput(this,fundID,dealID,options);};
+proto.previewPEPortfolioRealEstateAgencyWeek=function(fundID,dealID,options){return previewPEPortfolioRealEstateAgencyWeek(this,fundID,dealID,options);};
 modules.managementContext=Object.freeze({
   supportedBusinessIDs,resolvePortfolioManagementCapability,canOpenPEPortfolioManagement,getManagementContext,openPEPortfolioManagement,closeManagementContext,resolveManagementContext,
   GYM_BUSINESS_ID,GYM_OPERATING_STATE_SCHEMA_VERSION,defaultPEPortfolioGymOperatingState,normalizePEPortfolioGymOperatingState,
   buildPEPortfolioGymOperatingInputForState,buildPEPortfolioGymOperatingInput,previewPEPortfolioGymWeekForState,previewPEPortfolioGymWeek,
   CONVENI_BUSINESS_ID,defaultPEPortfolioConveniOperatingState,normalizePEPortfolioConveniOperatingState,
   buildPEPortfolioConveniOperatingInputForState,buildPEPortfolioConveniOperatingInput,previewPEPortfolioConveniWeekForState,previewPEPortfolioConveniWeek,
+  REAL_ESTATE_AGENCY_BUSINESS_ID,defaultPEPortfolioRealEstateAgencyOperatingState,normalizePEPortfolioRealEstateAgencyOperatingState,
+  buildPEPortfolioRealEstateAgencyOperatingInputForState,buildPEPortfolioRealEstateAgencyOperatingInput,previewPEPortfolioRealEstateAgencyWeekForState,previewPEPortfolioRealEstateAgencyWeek,
   __installed:true
 });
 })();

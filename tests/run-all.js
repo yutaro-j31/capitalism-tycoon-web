@@ -339,7 +339,10 @@ const nodeTests = [
   ['pe-coinvest-ledger', 'tests/pe-coinvest-ledger-test.js'],
   ['pe-ui-phase1', 'tests/pe-ui-phase1-test.js'],
   ['pe-ui-phase2', 'tests/pe-ui-phase2-test.js'],
-  ['pe-conveni-ui-connection', 'tests/pe-conveni-ui-connection-test.js']
+  ['pe-conveni-ui-connection', 'tests/pe-conveni-ui-connection-test.js'],
+  ['pe-realestate-agency-portfolio-bridge', 'tests/pe-realestate-agency-portfolio-bridge-test.js'],
+  ['pe-realestate-agency-bridge-208week-regression', 'tests/pe-realestate-agency-bridge-208week-regression-test.js'],
+  ['pe-realestate-agency-bridge-negative', 'tests/pe-realestate-agency-bridge-negative-test.js']
 ];
 
 for (let i = 0; i < nodeTests.length; i++) {

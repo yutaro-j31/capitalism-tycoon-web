@@ -353,14 +353,46 @@ function calculateConveniPortfolioOperatingWeek(fund,deal,week,state){
     components:{...components,revenueFactor:baseRevenueFactor,conveniSalesFactor:salesFactor,conveniContributionFactor:contributionFactor,replacedGenericPriceFactor:lever.priceFactor,conveniSales:actual.sales,conveniVariable:actual.variable,controlSales:control.sales,controlVariable:control.variable}
   };
 }
+// realEstateAgency keeps the same calibrated EV-scaled PE earnings base as gym/conveni, replacing
+// the generic price response with the production real-estate-agency-pipeline model. Same
+// same-state control-preview trick: priceMultiplierOverride 1.0 is the baseline. Unlike gym/
+// conveni, real-estate-agency-pipeline.js's processStore() never reads business.price (see the
+// comment in management-context.js's buildPEPortfolioRealEstateAgencyOperatingInputForState()),
+// so actual and control are byte-identical here and salesFactor/contributionFactor always resolve
+// to exactly 1 -- intentional, not a bug: this business's brokerage-commission model has no
+// price-elasticity concept to replace. Engine layer only: resolvePortfolioManagementCapability()
+// does not enable actionsEnabled for realEstateAgency yet, so no player-facing lever reaches this
+// path in production until a follow-up PR wires the UI.
+function calculateRealEstateAgencyPortfolioOperatingWeek(fund,deal,week,state){
+  const bridge=modules.managementContext;
+  if(!state||deal?.businessID!=='realEstateAgency'||!bridge?.previewPEPortfolioRealEstateAgencyWeekForState)return calculateGenericPortfolioOperatingWeek(fund,deal,week);
+  const pc=deal?.portfolioCompany;
+  if(!pc)return null;
+  const operatingState=pc.realEstateAgencyOperatingState;
+  const actual=bridge.previewPEPortfolioRealEstateAgencyWeekForState(state,fund.id,deal.id,{week,operatingState});
+  const control=bridge.previewPEPortfolioRealEstateAgencyWeekForState(state,fund.id,deal.id,{week,operatingState,priceMultiplierOverride:1});
+  if(!actual?.ok||!control?.ok)return calculateGenericPortfolioOperatingWeek(fund,deal,week);
+  const generic=calculateGenericPortfolioOperatingWeek(fund,deal,week),lever=leverFactors(pc,week),components=generic.components;
+  const baseRevenueFactor=lever.priceFactor>0?lever.revenueFactor/lever.priceFactor:lever.revenueFactor;
+  const salesFactor=control.sales>0?actual.sales/control.sales:1;
+  const actualContribution=finite(actual.sales)-finite(actual.variable),controlContribution=finite(control.sales)-finite(control.variable);
+  const contributionFactor=controlContribution>0?actualContribution/controlContribution:1;
+  const revenue=components.weeklyEBITDA*baseRevenueFactor*salesFactor*components.noise*2;
+  const profit=components.weeklyEBITDA*baseRevenueFactor*components.costFactor*contributionFactor*components.noise-components.upkeep;
+  return {
+    week,source:'realEstateAgency',revenue,profit,nextOperatingState:clone(actual.nextOperatingState),
+    components:{...components,revenueFactor:baseRevenueFactor,realEstateAgencySalesFactor:salesFactor,realEstateAgencyContributionFactor:contributionFactor,replacedGenericPriceFactor:lever.priceFactor,realEstateAgencySales:actual.sales,realEstateAgencyVariable:actual.variable,controlSales:control.sales,controlVariable:control.variable}
+  };
+}
 // Callers that do not provide simulation state retain the historical generic behavior. The
-// production weekly loop supplies state and therefore dispatches active gym/conveni pillar deals
-// to their own detached production bridge here.
+// production weekly loop supplies state and therefore dispatches active gym/conveni/
+// realEstateAgency pillar deals to their own detached production bridge here.
 function resolvePortfolioOperatingCalculator(deal,state){
   if(!state)return calculateGenericPortfolioOperatingWeek;
   const bridge=modules.managementContext;
   if(deal?.businessID==='gym'&&bridge?.previewPEPortfolioGymWeekForState)return calculateGymPortfolioOperatingWeek;
   if(deal?.businessID==='conveni'&&bridge?.previewPEPortfolioConveniWeekForState)return calculateConveniPortfolioOperatingWeek;
+  if(deal?.businessID==='realEstateAgency'&&bridge?.previewPEPortfolioRealEstateAgencyWeekForState)return calculateRealEstateAgencyPortfolioOperatingWeek;
   return calculateGenericPortfolioOperatingWeek;
 }
 function calculatePortfolioOperatingWeek(fund,deal,week,state){return resolvePortfolioOperatingCalculator(deal,state)(fund,deal,week,state);}
@@ -375,6 +407,7 @@ function settlePortfolioOperatingWeek(deal,result){
   pc.profitHistory=[...arr(pc.profitHistory),finite(result.profit)].slice(-PROFIT_HISTORY_LIMIT);
   if(deal.businessID==='gym'&&result.nextOperatingState)pc.gymOperatingState=clone(result.nextOperatingState);
   if(deal.businessID==='conveni'&&result.nextOperatingState)pc.conveniOperatingState=clone(result.nextOperatingState);
+  if(deal.businessID==='realEstateAgency'&&result.nextOperatingState)pc.realEstateAgencyOperatingState=clone(result.nextOperatingState);
   pc.improvementScore=computeImprovementScore(deal);
   pc.lastProcessedWeek=week;
   return true;
@@ -609,7 +642,7 @@ modules.pePortfolioOperations=Object.freeze({
   PRODUCT_MIX_RAMP_WEEKS,PRODUCT_MIX_MAX_GAIN,PRODUCT_MIX_COST_FRACTION,
   CONSOLIDATION_STEP,CONSOLIDATION_EBITDA_GAIN,UNDERPERFORMING_MIN,UNDERPERFORMING_MAX,EXIT_METHODS,
   ensure,findFundAndDeal,defaultPortfolioCompany,normalizePortfolioCompany,productionMasters,derivePortfolioProductionSite,isValidPortfolioProductionSite,ensurePortfolioProductionSite,getPortfolioProductionSite,acquirePillarCompany,computeImprovementScore,
-  calculateGenericPortfolioOperatingWeek,calculateGymPortfolioOperatingWeek,calculateConveniPortfolioOperatingWeek,resolvePortfolioOperatingCalculator,calculatePortfolioOperatingWeek,settlePortfolioOperatingWeek,processDealWeek,processPortfolioWeek,
+  calculateGenericPortfolioOperatingWeek,calculateGymPortfolioOperatingWeek,calculateConveniPortfolioOperatingWeek,calculateRealEstateAgencyPortfolioOperatingWeek,resolvePortfolioOperatingCalculator,calculatePortfolioOperatingWeek,settlePortfolioOperatingWeek,processDealWeek,processPortfolioWeek,
   setPriceMultiplier,setPortfolioGymMembershipStrategy,investQuality,expandPortfolioStore,exitCapabilities,previewPortfolioExit,exitPortfolioCompany,install,
   delayedProgress,leverFactors,industryTagOf,adjustIndustryReputation,
   reformProcurement,setStaffing,renewProductMix,consolidateSites,
