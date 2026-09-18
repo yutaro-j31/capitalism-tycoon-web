@@ -33,12 +33,10 @@ function utility(o,seg,avgPrice){const rel=(avgPrice-o.price)/Math.max(1,avgPric
 function campaignUtility(state,o,segmentID){if(o.kind!=='player')return 0;const ads=globalThis.__capitalismTycoonModules?.playerMediaAdvertising;if(!ads)return 0;return ads.utilityBoost(state,o.business?.id,segmentID);}
 function softShares(items){const max=Math.max(...items.map(x=>x.u));const ex=items.map(x=>Math.exp(clamp(x.u-max,-50,50)));const den=Math.max(1e-12,sum(ex));return items.map((x,i)=>({...x,share:clamp(ex[i]/den,0,1)}));}
 function campaignBoostTable(state,playerOffers){
- const table={};
- for(const o of playerOffers||[]){
-  const row={};
-  for(const seg of SEGMENTS)row[seg.id]=campaignUtility(state,o,seg.id);
-  table[o.id]=row;
- }
+ const offers=playerOffers||[],table={};
+ for(const o of offers)table[o.id]={};
+ // Preserve the legacy calculateMarket() call order: segment first, then player offer.
+ for(const seg of SEGMENTS)for(const o of offers)table[o.id][seg.id]=campaignUtility(state,o,seg.id);
  return table;
 }
 // Pure allocation kernel: callers provide already-normalized offers plus scalar market context.
