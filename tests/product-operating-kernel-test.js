@@ -37,9 +37,9 @@ const plain=value=>JSON.parse(JSON.stringify(value));
     week:20,founderSkillTech:1,
     departmentEffects:{product:0,marketing:0,dx:0}
   };
-  const inputBefore=plain(kernelInput),callsBefore=randomCalls;
+  const inputBefore=JSON.stringify(kernelInput),callsBefore=randomCalls;
   const expected=expansion.calculateFormalProductFunnelWeek(kernelInput);
-  assert.deepEqual(kernelInput,inputBefore,'formal product funnel kernel must not mutate its input');
+  assert.equal(JSON.stringify(kernelInput),inputBefore,'formal product funnel kernel must not mutate its input');
   assert.equal(randomCalls,callsBefore,'formal product funnel kernel consumes no RNG');
 
   const cashBefore=engine.g.companyCash;
@@ -80,9 +80,9 @@ const plain=value=>JSON.parse(JSON.stringify(value));
   const normalizedFunnel=plain(engine.g.productFunnels[product.id]);
   const policy=lifecycle.POLICIES.standard;
   const input={product:plain(normalizedProduct),funnel:plain(normalizedFunnel),policy,availableCash:engine.g.companyCash,week:engine.g.week};
-  const inputBefore=plain(input),callsBefore=randomCalls;
+  const inputBefore=JSON.stringify(input),callsBefore=randomCalls;
   const expected=lifecycle.calculateProductLifecycleBaseWeek(input);
-  assert.deepEqual(input,inputBefore,'lifecycle base kernel must not mutate product/funnel input');
+  assert.equal(JSON.stringify(input),inputBefore,'lifecycle base kernel must not mutate product/funnel input');
   assert.equal(randomCalls,callsBefore,'lifecycle base kernel consumes no RNG');
   assert.equal(expected.incidentEligible,false,'low-debt fixture avoids wrapper incident RNG');
 
