@@ -29,10 +29,18 @@ const plain=value=>JSON.parse(JSON.stringify(value));
   };
   engine.g.productVentures=[plain(product)];
   engine.g.productFunnels={[product.id]:plain(funnel)};
+  // The production funnel wrapper is itself wrapped by productInnovation/productLifecycle; both
+  // wrappers call their existing ensure() functions even when already processed this week.
+  // Normalize the fixture first so parity compares only the extracted operating transition.
+  engine.ensureProductInnovationDefaults();
+  engine.ensureProductLifecycleDefaults();
+  engine.g.lastProductInnovationWeek=20;
   engine.g.lastProductLifecycleWeek=20;
 
+  const normalizedProduct=plain(engine.g.productVentures[0]);
+  const normalizedFunnel=plain(engine.g.productFunnels[product.id]);
   const kernelInput={
-    product:plain(product),funnel:plain(funnel),
+    product:normalizedProduct,funnel:normalizedFunnel,
     economics:modules.data.DIGITAL_PRODUCT_ECONOMICS.app,
     week:20,founderSkillTech:1,
     departmentEffects:{product:0,marketing:0,dx:0}
