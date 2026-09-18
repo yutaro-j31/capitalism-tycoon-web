@@ -69,11 +69,47 @@ deal.portfolioCompany.storeCount=3;
 assert.deepEqual(selfFingerprint(experiment.engine,experiment.storeID),selfFingerprint(control.engine,control.storeID),'acquiring the PE ramen deal does not mutate self-company ramen demand/cash/inventory state');
 assert.equal(experiment.random.calls(),control.random.calls(),'PE ramen acquisition consumes no simulation RNG');
 
-for(let i=0;i<3;i++){
-  const fundCashBefore=experiment.fund.cash;
-  const personalBefore=experiment.engine.g.personalCash;
-  const portfolioCashBefore=deal.portfolioCompany.cash;
+// Isolate the accounting writer itself from unrelated weekly PE-fund fees. A direct ramen
+// calculate->settle must move only portfolioCompany.cash; fund/company/personal pools stay byte
+// identical. This is the precise four-pool accounting contract.
+const settlementWeek=experiment.engine.g.week+1;
+const selfBeforeDirect=plain(selfFingerprint(experiment.engine,experiment.storeID));
+const poolsBeforeDirect={
+  fundCash:experiment.fund.cash,
+  companyCash:experiment.engine.g.companyCash,
+  personalCash:experiment.engine.g.personalCash,
+  portfolioCash:deal.portfolioCompany.cash
+};
+const callsBeforeDirect=experiment.random.calls();
+const directResult=ops.calculatePortfolioOperatingWeek(experiment.fund,deal,settlementWeek,experiment.engine.g);
+assert.equal(directResult.source,'ramen');
+assert.equal(ops.settlePortfolioOperatingWeek(deal,directResult),true,'direct ramen result settles once');
+assert.equal(experiment.fund.cash,poolsBeforeDirect.fundCash,'direct PE ramen settlement never moves fund.cash');
+assert.equal(experiment.engine.g.companyCash,poolsBeforeDirect.companyCash,'direct PE ramen settlement never moves self companyCash');
+assert.equal(experiment.engine.g.personalCash,poolsBeforeDirect.personalCash,'direct PE ramen settlement never moves personalCash');
+assert(Math.abs((deal.portfolioCompany.cash-poolsBeforeDirect.portfolioCash)-directResult.profit)<1e-6,'direct PE ramen settlement moves only portfolioCompany.cash by profit');
+assert.deepEqual(selfFingerprint(experiment.engine,experiment.storeID),selfBeforeDirect,'direct PE ramen settlement cannot mutate self demand/inventory/supply/finance state');
+assert.equal(experiment.random.calls(),callsBeforeDirect,'direct PE ramen calculate/settle consumes no simulation RNG');
+assert.equal(experiment.random.calls(),control.random.calls(),'direct PE ramen calculate/settle does not desynchronize RNG from Control');
 
+// Advance the already-settled week. Self-company state must remain byte-identical and the PE deal
+// must not settle twice when the production weekly hook sees the same week.
+const portfolioAfterDirect=deal.portfolioCompany.cash;
+control.engine.advanceWeek(false);
+experiment.engine.advanceWeek(false);
+assert.deepEqual(
+  selfFingerprint(experiment.engine,experiment.storeID),
+  selfFingerprint(control.engine,control.storeID),
+  `week ${experiment.engine.g.week}: PE ramen simulation must not change self demand, company cash, inventory, purchase orders, supply state, or finance`
+);
+assert.equal(experiment.random.calls(),control.random.calls(),`week ${experiment.engine.g.week}: detached PE ramen simulation consumes no extra simulation RNG`);
+assert.equal(deal.portfolioCompany.cash,portfolioAfterDirect,'same-week production hook cannot double-settle the direct PE ramen result');
+assert.equal(deal.portfolioCompany.lastProcessedWeek,experiment.engine.g.week,'directly settled PE ramen week matches the production week');
+
+// Two further production weeks prove simultaneous self-company + PE simulation stays isolated while
+// the normal automatic PE settlement advances the portfolio company.
+for(let i=0;i<2;i++){
+  const portfolioCashBefore=deal.portfolioCompany.cash;
   control.engine.advanceWeek(false);
   experiment.engine.advanceWeek(false);
 
@@ -83,11 +119,9 @@ for(let i=0;i<3;i++){
     `week ${experiment.engine.g.week}: PE ramen simulation must not change self demand, company cash, inventory, purchase orders, supply state, or finance`
   );
   assert.equal(experiment.random.calls(),control.random.calls(),`week ${experiment.engine.g.week}: detached PE ramen simulation consumes no extra simulation RNG`);
-  assert.equal(experiment.fund.cash,fundCashBefore,`week ${experiment.engine.g.week}: weekly PE ramen settlement never moves fund.cash`);
-  assert.equal(experiment.engine.g.personalCash,personalBefore,`week ${experiment.engine.g.week}: weekly PE ramen settlement never moves personalCash`);
   assert(
     Math.abs((deal.portfolioCompany.cash-portfolioCashBefore)-deal.portfolioCompany.weeklyProfit)<1e-6,
-    `week ${experiment.engine.g.week}: only portfolioCompany.cash moves by the settled PE ramen profit`
+    `week ${experiment.engine.g.week}: automatic PE ramen settlement changes portfolioCompany.cash by weeklyProfit only`
   );
   assert.equal(deal.portfolioCompany.lastProcessedWeek,experiment.engine.g.week,'PE ramen deal settles exactly in the production weekly loop');
 }
