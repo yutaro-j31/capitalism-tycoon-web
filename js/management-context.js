@@ -2,9 +2,8 @@
 // Existing self-company management actions (adjustPrice/investBusiness/etc.) remain disabled for
 // PE contexts entirely -- they write to the shared state.businesses[]/state.stores[] records and
 // would leak across owners. PE-side management actions are enabled per business only once a
-// dedicated detached production bridge exists for it (see resolvePortfolioManagementCapability);
-// gym is the only one so far (js/pe-portfolio-operations.js's setPortfolioGymMembershipStrategy
-// plus the pre-existing setPriceMultiplier, both writing only to deal.portfolioCompany.*).
+// dedicated detached production bridge exists for it (see resolvePortfolioManagementCapability).
+// Ramen, gym and conveni now have such bridges; writes still terminate in deal.portfolioCompany.*.
 'use strict';
 (function(){
 const modules=globalThis.__capitalismTycoonModules;
@@ -31,12 +30,9 @@ function copyContext(context){return context?.kind==='pePortfolio'?{kind:'pePort
 function resolvePortfolioManagementCapability(deal){
   const businessID=typeof deal?.businessID==='string'?deal.businessID:'';
   const supported=supportedBusinessIDs.includes(businessID);
-  // gym is the only pillar business whose production-model bridge exists so far (the detached
-  // input/preview functions below). Every other supported business still resolves through the
-  // fully abstract calculateGenericPortfolioOperatingWeek(), so enabling player-facing management
-  // actions for them would let inputs (price, future levers) diverge from what the weekly
-  // settlement actually simulates. Flip a business's actionsEnabled only once its own detached
-  // production bridge exists, same as gym's.
+  // Player-facing actions are enabled only for pillar businesses whose weekly settlement is wired
+  // to a dedicated detached production bridge. Unsupported/incomplete pillars stay disabled so UI
+  // inputs can never diverge from the calculator that actually settles the PE company.
   const actionsEnabled=supported&&(businessID===RAMEN_BUSINESS_ID||businessID===GYM_BUSINESS_ID||businessID===CONVENI_BUSINESS_ID);
   return {supported,pillar:supported?businessID:null,businessID:businessID||null,actionsEnabled,reason:supported?null:'unsupported-pillar'};
 }
