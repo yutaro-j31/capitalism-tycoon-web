@@ -132,7 +132,7 @@ const plain=value=>JSON.parse(JSON.stringify(value));
   assert.equal(base.incidentEligible,true);
   const before=plain(base),callsBefore=randomCalls;
   const incident=lifecycle.applyProductLifecycleIncident(base);
-  assert.deepEqual(base,before,'incident kernel must not mutate the base result');
+  assert.deepEqual(plain(base),before,'incident kernel must not mutate the base result');
   assert.equal(randomCalls,callsBefore,'incident kernel consumes no RNG');
   assert.equal(incident.nextProduct.lifecycleIncidents,before.nextProduct.lifecycleIncidents+1);
   assert.equal(incident.nextProduct.quality,before.nextProduct.quality-1.5);
