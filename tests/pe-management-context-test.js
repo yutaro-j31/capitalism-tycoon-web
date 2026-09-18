@@ -20,11 +20,11 @@ equal(new engineModule.TycoonEngine().getManagementContext(),{kind:'self'},'defa
 {
   const {engine,fund,deal}=fixture(),before=structuredClone(engine.g),callsBefore=randomCalls;
   const capability=context.resolvePortfolioManagementCapability(deal);
-  equal(capability,{supported:true,pillar:'ramen',businessID:'ramen',actionsEnabled:false,reason:null});
+  equal(capability,{supported:true,pillar:'ramen',businessID:'ramen',actionsEnabled:true,reason:null});
   equal(engine.canOpenPEPortfolioManagement(fund.id,deal.id),{ok:true,capability});
   const opened=engine.openPEPortfolioManagement(fund.id,deal.id);
   assert.equal(opened.ok,true);equal(engine.getManagementContext(),{kind:'pePortfolio',fundID:fund.id,dealID:deal.id,businessID:'ramen',pillar:'ramen'});
-  assert.equal(engine.resolveManagementContext().capability.actionsEnabled,false,'existing self actions remain disabled in a PE context');
+  assert.equal(engine.resolveManagementContext().capability.actionsEnabled,true,'ramen management actions are enabled once the detached market bridge exists');
   equal(engine.g,before,'read/open only changes runtime context');
   assert.equal(randomCalls,callsBefore,'context lifecycle consumes no RNG');
   equal(engine.closeManagementContext(),{ok:true,context:{kind:'self'}});equal(engine.getManagementContext(),{kind:'self'});

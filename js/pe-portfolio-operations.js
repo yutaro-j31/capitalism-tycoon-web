@@ -302,6 +302,31 @@ function calculateGenericPortfolioOperatingWeek(fund,deal,week){
   const weeklyProfit=weeklyEBITDA*lever.revenueFactor*lever.costFactor*noise-upkeep;
   return {week,source:'generic',revenue:weeklyEBITDA*lever.revenueFactor*noise*2,profit:weeklyProfit,components:{annualEBITDA,weeklyEBITDA,revenueFactor:lever.revenueFactor,costFactor:lever.costFactor,noise,upkeep}};
 }
+// Ramen keeps the calibrated EV-scaled PE earnings base and generic non-price levers, but
+// replaces the generic inverse price factor with the real ramen softmax market response. The
+// market bridge runs the portfolio company's synthetic same-prefecture store batch against a
+// detached snapshot of world competitors. Supply/inventory is intentionally not connected here;
+// procurement remains the existing generic PE cost lever until a dedicated working-capital PR.
+function calculateRamenPortfolioOperatingWeek(fund,deal,week,state){
+  const bridge=modules.managementContext;
+  if(!state||deal?.businessID!=='ramen'||!bridge?.previewPEPortfolioRamenWeekForState)return calculateGenericPortfolioOperatingWeek(fund,deal,week);
+  const pc=deal?.portfolioCompany;
+  if(!pc)return null;
+  const actual=bridge.previewPEPortfolioRamenWeekForState(state,fund.id,deal.id,{week});
+  const control=bridge.previewPEPortfolioRamenWeekForState(state,fund.id,deal.id,{week,priceMultiplierOverride:1});
+  if(!actual?.ok||!control?.ok)return calculateGenericPortfolioOperatingWeek(fund,deal,week);
+  const generic=calculateGenericPortfolioOperatingWeek(fund,deal,week),lever=leverFactors(pc,week),components=generic.components;
+  const baseRevenueFactor=lever.priceFactor>0?lever.revenueFactor/lever.priceFactor:lever.revenueFactor;
+  const salesFactor=control.sales>0?actual.sales/control.sales:1;
+  const actualContribution=finite(actual.sales)-finite(actual.variable),controlContribution=finite(control.sales)-finite(control.variable);
+  const contributionFactor=controlContribution>0?actualContribution/controlContribution:1;
+  const revenue=components.weeklyEBITDA*baseRevenueFactor*salesFactor*components.noise*2;
+  const profit=components.weeklyEBITDA*baseRevenueFactor*components.costFactor*contributionFactor*components.noise-components.upkeep;
+  return {
+    week,source:'ramen',revenue,profit,
+    components:{...components,revenueFactor:baseRevenueFactor,ramenSalesFactor:salesFactor,ramenContributionFactor:contributionFactor,replacedGenericPriceFactor:lever.priceFactor,ramenSales:actual.sales,ramenVariable:actual.variable,controlSales:control.sales,controlVariable:control.variable,ramenMarketShare:actual.ownMarketShare}
+  };
+}
 // Gym keeps the calibrated EV-scaled PE earnings base, but replaces the generic price response
 // with the production membership model. A same-state control preview (standard strategy,
 // priceMultiplier 1.0) makes the default path exactly equal to the generic calculator, while
@@ -390,6 +415,7 @@ function calculateRealEstateAgencyPortfolioOperatingWeek(fund,deal,week,state){
 function resolvePortfolioOperatingCalculator(deal,state){
   if(!state)return calculateGenericPortfolioOperatingWeek;
   const bridge=modules.managementContext;
+  if(deal?.businessID==='ramen'&&bridge?.previewPEPortfolioRamenWeekForState)return calculateRamenPortfolioOperatingWeek;
   if(deal?.businessID==='gym'&&bridge?.previewPEPortfolioGymWeekForState)return calculateGymPortfolioOperatingWeek;
   if(deal?.businessID==='conveni'&&bridge?.previewPEPortfolioConveniWeekForState)return calculateConveniPortfolioOperatingWeek;
   if(deal?.businessID==='realEstateAgency'&&bridge?.previewPEPortfolioRealEstateAgencyWeekForState)return calculateRealEstateAgencyPortfolioOperatingWeek;
@@ -642,7 +668,7 @@ modules.pePortfolioOperations=Object.freeze({
   PRODUCT_MIX_RAMP_WEEKS,PRODUCT_MIX_MAX_GAIN,PRODUCT_MIX_COST_FRACTION,
   CONSOLIDATION_STEP,CONSOLIDATION_EBITDA_GAIN,UNDERPERFORMING_MIN,UNDERPERFORMING_MAX,EXIT_METHODS,
   ensure,findFundAndDeal,defaultPortfolioCompany,normalizePortfolioCompany,productionMasters,derivePortfolioProductionSite,isValidPortfolioProductionSite,ensurePortfolioProductionSite,getPortfolioProductionSite,acquirePillarCompany,computeImprovementScore,
-  calculateGenericPortfolioOperatingWeek,calculateGymPortfolioOperatingWeek,calculateConveniPortfolioOperatingWeek,calculateRealEstateAgencyPortfolioOperatingWeek,resolvePortfolioOperatingCalculator,calculatePortfolioOperatingWeek,settlePortfolioOperatingWeek,processDealWeek,processPortfolioWeek,
+  calculateGenericPortfolioOperatingWeek,calculateRamenPortfolioOperatingWeek,calculateGymPortfolioOperatingWeek,calculateConveniPortfolioOperatingWeek,calculateRealEstateAgencyPortfolioOperatingWeek,resolvePortfolioOperatingCalculator,calculatePortfolioOperatingWeek,settlePortfolioOperatingWeek,processDealWeek,processPortfolioWeek,
   setPriceMultiplier,setPortfolioGymMembershipStrategy,investQuality,expandPortfolioStore,exitCapabilities,previewPortfolioExit,exitPortfolioCompany,install,
   delayedProgress,leverFactors,industryTagOf,adjustIndustryReputation,
   reformProcurement,setStaffing,renewProductMix,consolidateSites,
