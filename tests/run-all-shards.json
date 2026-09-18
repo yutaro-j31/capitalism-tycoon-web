@@ -108,6 +108,7 @@
     "tests/product-ventures-it-pillar-test.js",
     "tests/seasonal-menu-test.js",
     "tests/product-funnel-conversion-test.js",
+    "tests/product-operating-kernel-test.js",
     "test:competitor-target-share",
     "tests/mobile-dock-content-clearance-test.js",
     "tests/bank-loans-covenants-default-consistency-test.js",
