@@ -428,6 +428,126 @@ function previewPEPortfolioRealEstateAgencyWeekForState(state,fundID,dealID,opti
 }
 function previewPEPortfolioRealEstateAgencyWeek(engine,fundID,dealID,options={}){return previewPEPortfolioRealEstateAgencyWeekForState(engine?.g,fundID,dealID,options);}
 
+// PE productVentures bridge (engine layer only). The portfolio company does not share
+// state.productVentures/productFunnels with the player's own company: it runs the extracted
+// production formal-product and lifecycle kernels against a detached, persisted operating state.
+// v1 deliberately uses the canonical formal SaaS blueprint ("app") as the neutral operating
+// archetype. Other PE levers stay on the existing generic PE path; only price replaces the old
+// generic inverse-price response here. Player-facing actions remain disabled until a follow-up UI PR.
+const PRODUCT_VENTURES_BUSINESS_ID='productVentures',PRODUCT_VENTURES_OPERATING_STATE_SCHEMA_VERSION=1,PRODUCT_VENTURES_BLUEPRINT_ID='app';
+function productVenturesProductionMaster(){
+  const blueprint=(modules.data?.PRODUCT_BLUEPRINTS||[]).find(row=>row?.id===PRODUCT_VENTURES_BLUEPRINT_ID);
+  const economics=modules.data?.DIGITAL_PRODUCT_ECONOMICS?.[PRODUCT_VENTURES_BLUEPRINT_ID];
+  return blueprint&&economics?{blueprint,economics}:null;
+}
+function normalizePEPortfolioProductVenturesOperatingState(raw,dealID='portfolio',week=1){
+  const master=productVenturesProductionMaster();
+  if(!master)return null;
+  const {blueprint,economics}=master,resolvedWeek=Math.max(1,Math.floor(finite(week,1)));
+  const source=raw&&typeof raw==='object'?clone(raw):{},savedProduct=source.product&&typeof source.product==='object'?clone(source.product):{},savedFunnel=source.funnel&&typeof source.funnel==='object'?clone(source.funnel):{};
+  const productID=`pe-product-${String(dealID||'portfolio')}`;
+  const product={
+    ...savedProduct,id:productID,blueprintID:PRODUCT_VENTURES_BLUEPRINT_ID,
+    name:String(savedProduct.name||'PE SaaS Platform'),category:blueprint.category,status:'released',origin:'office',economicsVersion:1,
+    quality:clamp(finite(savedProduct.quality,55),0,100),brand:clamp(finite(savedProduct.brand,45),0,100),
+    users:Math.max(0,Math.floor(finite(savedProduct.users,20_000))),paidUsers:Math.max(0,Math.floor(finite(savedProduct.paidUsers,0))),
+    price:Math.max(0,finite(blueprint.price)),serverCost:Math.max(0,finite(blueprint.serverCost)),serverCapacity:Math.max(1_000,finite(savedProduct.serverCapacity,100_000)),
+    market:Math.max(1,finite(blueprint.market)),risk:clamp(finite(blueprint.risk),0,1),
+    valuation:Math.max(1_000_000,finite(savedProduct.valuation,Math.max(100_000_000,finite(blueprint.cost)))),
+    developmentCost:Math.max(0,finite(savedProduct.developmentCost,blueprint.cost)),investedCost:Math.max(0,finite(savedProduct.investedCost,blueprint.cost)),
+    revenue:Math.max(0,finite(savedProduct.revenue)),cost:Math.max(0,finite(savedProduct.cost)),profit:finite(savedProduct.profit),
+    releaseWeek:Math.max(1,Math.floor(finite(savedProduct.releaseWeek,Math.max(1,resolvedWeek-52)))),
+    maintenancePolicy:'standard',technicalDebt:clamp(finite(savedProduct.technicalDebt,18),0,100),
+    lifecycleAgeWeeks:Math.max(0,Math.floor(finite(savedProduct.lifecycleAgeWeeks,52))),lifecycleIncidents:Math.max(0,Math.floor(finite(savedProduct.lifecycleIncidents))),
+    lifecycleStage:'active',lastInnovationWeek:Math.max(0,Math.floor(finite(savedProduct.lastInnovationWeek))),
+    lastMaintenanceWeek:Math.max(0,Math.floor(finite(savedProduct.lastMaintenanceWeek,Math.max(0,resolvedWeek-1)))),
+    sunsetStartWeek:0,sunsetWeeks:0,retiredWeek:0,retirementReason:''
+  };
+  const registeredUsers=clamp(finite(savedFunnel.registeredUsers,product.users),0,product.market);
+  const funnel={
+    ...savedFunnel,productID,
+    awareness:clamp(finite(savedFunnel.awareness,.20),.01,1),
+    registeredUsers,monthlyActiveUsers:Math.max(0,finite(savedFunnel.monthlyActiveUsers,registeredUsers*finite(economics.monthlyActiveRate,.55))),
+    paidUsers:Math.max(0,finite(savedFunnel.paidUsers,product.paidUsers)),
+    conversionRate:clamp(finite(savedFunnel.conversionRate,economics.baseConversion),.003,.7),conversionModifier:finite(savedFunnel.conversionModifier),
+    churnRate:clamp(finite(savedFunnel.churnRate,economics.baseChurn),.003,.28),churnModifier:finite(savedFunnel.churnModifier),
+    // Price is an external PE lever. Persist the neutral ARPU so changing the multiplier does not
+    // compound the previous week's multiplier into the next week's base price.
+    arpu:Math.max(0,finite(economics.monthlyArpu,blueprint.price)),
+    serverLoad:clamp(finite(savedFunnel.serverLoad,.10),0,2),supportBurden:clamp(finite(savedFunnel.supportBurden,.10),0,1.5),
+    b2bContracts:Math.max(0,Math.floor(finite(savedFunnel.b2bContracts))),organicTraffic:Math.max(0,finite(savedFunnel.organicTraffic)),
+    paidTraffic:Math.max(0,finite(savedFunnel.paidTraffic)),lastUpdatedWeek:Math.max(0,Math.floor(finite(savedFunnel.lastUpdatedWeek,Math.max(0,resolvedWeek-1))))
+  };
+  return {schemaVersion:PRODUCT_VENTURES_OPERATING_STATE_SCHEMA_VERSION,product,funnel};
+}
+function defaultPEPortfolioProductVenturesOperatingState(dealID='portfolio',week=1){return normalizePEPortfolioProductVenturesOperatingState(null,dealID,week);}
+function buildPEPortfolioProductVenturesOperatingInputForState(state,fundID,dealID,{week,operatingState,priceMultiplierOverride}={}){
+  const target=portfolioTarget(state,fundID,dealID);
+  if(!target.ok)return {ok:false,reason:target.reason,fundID,dealID};
+  if(target.deal.businessID!==PRODUCT_VENTURES_BUSINESS_ID)return {ok:false,reason:'not-productVentures',fundID,dealID};
+  const master=productVenturesProductionMaster();
+  if(!master||!modules.expansion?.calculateFormalProductFunnelWeek)return {ok:false,reason:'product-kernel-unavailable',fundID,dealID};
+  const resolvedWeek=Math.max(1,Math.floor(finite(week,state?.week||1)));
+  const rawState=operatingState===undefined?target.portfolioCompany.productVenturesOperatingState:operatingState;
+  const normalizedOperatingState=normalizePEPortfolioProductVenturesOperatingState(rawState,dealID,resolvedWeek);
+  if(!normalizedOperatingState)return {ok:false,reason:'product-master-unavailable',fundID,dealID};
+  const priceMultiplier=priceMultiplierOverride===undefined
+    ?clamp(finite(target.portfolioCompany.priceMultiplier,1),.5,2)
+    :clamp(finite(priceMultiplierOverride,1),.5,2);
+  const product=clone(normalizedOperatingState.product),funnel=clone(normalizedOperatingState.funnel);
+  const neutralPrice=Math.max(0,finite(master.blueprint.price)),neutralArpu=Math.max(0,finite(master.economics.monthlyArpu,neutralPrice));
+  product.price=neutralPrice*priceMultiplier;
+  funnel.arpu=neutralArpu*priceMultiplier;
+  return {
+    ok:true,source:'pe-product-ventures-detached-production-input',fundID,dealID,week:resolvedWeek,
+    product,funnel,economics:clone(master.economics),neutralPrice,neutralArpu,operatingState:clone(normalizedOperatingState),
+    portfolioLevers:{
+      priceMultiplier:finite(target.portfolioCompany.priceMultiplier,1),qualityInvestment:finite(target.portfolioCompany.qualityInvestment),
+      storeCount:Math.max(1,Math.floor(finite(target.portfolioCompany.storeCount,1))),procurementReform:finite(target.portfolioCompany.procurementReform),
+      wageLevel:finite(target.portfolioCompany.wageLevel,1),headcountRatio:finite(target.portfolioCompany.headcountRatio,1),
+      productMixLevel:finite(target.portfolioCompany.productMixLevel),consolidatedRatio:finite(target.portfolioCompany.consolidatedRatio)
+    }
+  };
+}
+function buildPEPortfolioProductVenturesOperatingInput(engine,fundID,dealID,options={}){return buildPEPortfolioProductVenturesOperatingInputForState(engine?.g,fundID,dealID,options);}
+function previewPEPortfolioProductVenturesWeekForState(state,fundID,dealID,options={}){
+  const input=buildPEPortfolioProductVenturesOperatingInputForState(state,fundID,dealID,options);
+  if(!input.ok)return input;
+  const lifecycle=modules.productLifecycle;
+  if(!lifecycle?.calculateProductLifecycleBaseWeek||!lifecycle?.POLICIES?.standard)return {ok:false,reason:'product-lifecycle-kernel-unavailable',fundID,dealID};
+  const funnelResult=modules.expansion.calculateFormalProductFunnelWeek({
+    product:clone(input.product),funnel:clone(input.funnel),economics:clone(input.economics),week:input.week,
+    departmentEffects:{product:0,marketing:0,dx:0},founderSkillTech:0
+  });
+  if(!funnelResult)return {ok:false,reason:'product-funnel-model-rejected-input',fundID,dealID};
+  // Lifecycle maintenance is included in the raw contribution ratio, but this detached raw model
+  // is not a second cash ledger. The calibrated PE result remains the only value settled into
+  // portfolioCompany.cash, so pass ample detached liquidity and account for maintenance once in
+  // "variable". Incident selection stays out of this engine-first PR to avoid introducing RNG.
+  const lifecycleResult=lifecycle.calculateProductLifecycleBaseWeek({
+    product:clone(funnelResult.nextProduct),funnel:clone(funnelResult.nextFunnel),policy:lifecycle.POLICIES.standard,
+    availableCash:Number.MAX_SAFE_INTEGER,week:input.week
+  });
+  if(!lifecycleResult)return {ok:false,reason:'product-lifecycle-model-rejected-input',fundID,dealID};
+  const nextProduct=clone(lifecycleResult.nextProduct),nextFunnel=clone(lifecycleResult.nextFunnel);
+  nextProduct.price=input.neutralPrice;
+  nextFunnel.arpu=input.neutralArpu;
+  const maintenance=Math.max(0,finite(lifecycleResult.payable)),sales=Math.max(0,finite(funnelResult.revenue)),variable=Math.max(0,finite(funnelResult.cost))+maintenance;
+  return {
+    ok:true,source:'pe-product-ventures-detached-preview',fundID,dealID,week:input.week,
+    sales,variable,profitBeforeFixed:sales-variable,maintenance,newUsers:Math.max(0,finite(funnelResult.newUsers)),
+    operatingState:clone(input.operatingState),
+    nextOperatingState:{schemaVersion:PRODUCT_VENTURES_OPERATING_STATE_SCHEMA_VERSION,product:nextProduct,funnel:nextFunnel},
+    kpi:{
+      registeredUsers:Math.max(0,finite(nextFunnel.registeredUsers)),monthlyActiveUsers:Math.max(0,finite(nextFunnel.monthlyActiveUsers)),
+      paidUsers:Math.max(0,finite(nextFunnel.paidUsers)),conversionRate:Math.max(0,finite(nextFunnel.conversionRate)),
+      churnRate:Math.max(0,finite(nextFunnel.churnRate)),technicalDebt:clamp(finite(nextProduct.technicalDebt),0,100),
+      lifecycleAgeWeeks:Math.max(0,Math.floor(finite(nextProduct.lifecycleAgeWeeks))),incidentEligible:Boolean(lifecycleResult.incidentEligible)
+    }
+  };
+}
+function previewPEPortfolioProductVenturesWeek(engine,fundID,dealID,options={}){return previewPEPortfolioProductVenturesWeekForState(engine?.g,fundID,dealID,options);}
+
 const proto=EngineClass.prototype;
 proto.getManagementContext=function(){return getManagementContext(this);};
 proto.canOpenPEPortfolioManagement=function(fundID,dealID){return canOpenPEPortfolioManagement(this,fundID,dealID);};
@@ -442,6 +562,8 @@ proto.getPEPortfolioConveniOperatingInput=function(fundID,dealID,options){return
 proto.previewPEPortfolioConveniWeek=function(fundID,dealID,options){return previewPEPortfolioConveniWeek(this,fundID,dealID,options);};
 proto.getPEPortfolioRealEstateAgencyOperatingInput=function(fundID,dealID,options){return buildPEPortfolioRealEstateAgencyOperatingInput(this,fundID,dealID,options);};
 proto.previewPEPortfolioRealEstateAgencyWeek=function(fundID,dealID,options){return previewPEPortfolioRealEstateAgencyWeek(this,fundID,dealID,options);};
+proto.getPEPortfolioProductVenturesOperatingInput=function(fundID,dealID,options){return buildPEPortfolioProductVenturesOperatingInput(this,fundID,dealID,options);};
+proto.previewPEPortfolioProductVenturesWeek=function(fundID,dealID,options){return previewPEPortfolioProductVenturesWeek(this,fundID,dealID,options);};
 modules.managementContext=Object.freeze({
   supportedBusinessIDs,resolvePortfolioManagementCapability,canOpenPEPortfolioManagement,getManagementContext,openPEPortfolioManagement,closeManagementContext,resolveManagementContext,
   RAMEN_BUSINESS_ID,buildPEPortfolioRamenOperatingInputForState,buildPEPortfolioRamenOperatingInput,previewPEPortfolioRamenWeekForState,previewPEPortfolioRamenWeek,
@@ -451,6 +573,9 @@ modules.managementContext=Object.freeze({
   buildPEPortfolioConveniOperatingInputForState,buildPEPortfolioConveniOperatingInput,previewPEPortfolioConveniWeekForState,previewPEPortfolioConveniWeek,
   REAL_ESTATE_AGENCY_BUSINESS_ID,defaultPEPortfolioRealEstateAgencyOperatingState,normalizePEPortfolioRealEstateAgencyOperatingState,
   buildPEPortfolioRealEstateAgencyOperatingInputForState,buildPEPortfolioRealEstateAgencyOperatingInput,previewPEPortfolioRealEstateAgencyWeekForState,previewPEPortfolioRealEstateAgencyWeek,
+  PRODUCT_VENTURES_BUSINESS_ID,PRODUCT_VENTURES_OPERATING_STATE_SCHEMA_VERSION,PRODUCT_VENTURES_BLUEPRINT_ID,
+  defaultPEPortfolioProductVenturesOperatingState,normalizePEPortfolioProductVenturesOperatingState,
+  buildPEPortfolioProductVenturesOperatingInputForState,buildPEPortfolioProductVenturesOperatingInput,previewPEPortfolioProductVenturesWeekForState,previewPEPortfolioProductVenturesWeek,
   __installed:true
 });
 })();
