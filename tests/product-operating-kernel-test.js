@@ -59,7 +59,9 @@ const plain=value=>JSON.parse(JSON.stringify(value));
   const actualProduct=engine.g.productVentures[0],actualFunnel=engine.g.productFunnels[product.id];
   assert.deepEqual(plain(actualProduct),plain(expected.nextProduct),'production formal product state must exactly match the pure kernel');
   assert.deepEqual(plain(actualFunnel),plain(expected.nextFunnel),'production formal funnel state must exactly match the pure kernel');
-  assert.equal(engine.g.companyCash-cashBefore,expected.adjustment,'production wrapper cash delta must equal kernel operating adjustment');
+  // Compare the final cash value directly. Subtracting a ~1e8 balance after the write introduces
+  // floating-point cancellation even when the wrapper added the exact kernel adjustment.
+  assert.equal(engine.g.companyCash,cashBefore+expected.adjustment,'production wrapper cash write must equal the exact kernel operating adjustment');
   assert.equal(result.adjustment,expected.adjustment);
   assert.equal(result.salesAdjustment,expected.salesAdjustment);
   assert.equal(result.expenseAdjustment,expected.expenseAdjustment);
