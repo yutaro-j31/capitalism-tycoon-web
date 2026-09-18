@@ -89,6 +89,10 @@ const plain=value=>JSON.parse(JSON.stringify(value));
   engine.g.productVentures=[plain(product)];
   engine.g.productFunnels={[product.id]:plain(funnel)};
   engine.ensureProductLifecycleDefaults();
+  // updateProductLifecycleWeekly() calls ensureProductFunnel(product) before invoking the pure
+  // lifecycle kernel. Mirror that wrapper pre-normalization so economicsVersion/funnel defaults
+  // are part of the expected input rather than misclassified as a lifecycle-kernel difference.
+  engine.ensureProductFunnel(engine.g.productVentures[0]);
 
   const normalizedProduct=plain(engine.g.productVentures[0]);
   const normalizedFunnel=plain(engine.g.productFunnels[product.id]);
