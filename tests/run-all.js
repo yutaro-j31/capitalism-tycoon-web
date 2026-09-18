@@ -290,6 +290,7 @@ const nodeTests = [
   ['foundable-business-scope', 'tests/foundable-business-scope-test.js'],
   ['product-ventures-it-pillar', 'tests/product-ventures-it-pillar-test.js'],
   ['product-funnel-conversion', 'tests/product-funnel-conversion-test.js'],
+  ['product-operating-kernel', 'tests/product-operating-kernel-test.js'],
   ['product-invested-cost', 'tests/product-invested-cost-test.js'],
   ['convenience-merchandising', 'tests/convenience-merchandising-test.js'],
   ['convenience-private-brand', 'tests/convenience-private-brand-test.js'],

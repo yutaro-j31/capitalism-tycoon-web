@@ -14,6 +14,7 @@ const AGE_PRESSURE_CAP=2.5;
 const STAGES=Object.freeze({active:'active',sunsetting:'sunsetting',retired:'retired'});
 const RECALL=Object.freeze({VERSION:1,HISTORY_LIMIT:52,RISK_WINDOW:8,COOLDOWN_WEEKS:52,UNRESOLVED_WEEKS:6,RESPONDED_WEEKS:2,UNRESOLVED_REVENUE_MULTIPLIER:.65,RESPONDED_REVENUE_MULTIPLIER:.88,MIN_AVERAGE_DEBT:78,MIN_RECENT_DEBT:82,MIN_AVERAGE_REVENUE:100_000});
 const finite=(v,d=0)=>Number.isFinite(Number(v))?Number(v):d;
+const clone=value=>value==null?value:JSON.parse(JSON.stringify(value));
 const clamp=(v,min,max)=>Math.max(min,Math.min(max,finite(v,min)));
 const integer=(v,d=0)=>Math.max(0,Math.floor(finite(v,d)));
 const esc=v=>String(v??'').replace(/[&<>'"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c]));
@@ -55,6 +56,44 @@ function productFor(state,id){return (state.productVentures||[]).find(x=>String(
 function history(state,type,text,extra={}){const row={week:integer(state.week,1),type,text:String(text||''),...extra};state.productLifecycleHistory.unshift(row);state.productLifecycleHistory=state.productLifecycleHistory.slice(0,HISTORY_LIMIT);state.news=Array.isArray(state.news)?state.news:[];state.news.unshift(`第${row.week}週：${row.text}`);state.news=state.news.slice(0,300);return row;}
 function recallHistory(state,type,recall,extra={}){const row=normalizeRecallHistory({week:integer(state.week,1),type,recallID:recall?.id,productID:recall?.productID,productName:recall?.productName,cumulativeLostRevenue:recall?.cumulativeLostRevenue,responded:recall?.responseStatus==='executed',...extra});state.productRecallHistory.unshift(row);state.productRecallHistory=state.productRecallHistory.slice(0,RECALL.HISTORY_LIMIT);return row;}
 function weeklyCost(product,policy){const revenue=Math.max(0,finite(product.revenue)),economics=modules.data?.DIGITAL_PRODUCT_ECONOMICS?.[product.blueprintID];const floor=product.origin==='founderHome'?20_000:Math.max(0,finite(economics?.maintenanceFloor,120_000));const stageRate=product.lifecycleStage===STAGES.sunsetting?.55:1;return Math.round(Math.max(floor*stageRate,revenue*policy.costRate*stageRate));}
+function calculateProductLifecycleBaseWeek({product,funnel=null,policy,availableCash=0,week=1}={}){
+  if(!product||!policy)return null;
+  const nextProduct=clone(product),nextFunnel=funnel?clone(funnel):null,resolvedWeek=Math.max(1,integer(week,1));
+  nextProduct.lifecycleAgeWeeks=integer(nextProduct.lifecycleAgeWeeks)+1;
+  const cost=weeklyCost(nextProduct,policy);
+  const payable=Math.min(Math.max(0,finite(availableCash)),cost);
+  const fundingGap=cost>0?1-payable/cost:0;
+  const load=clamp(nextFunnel?.serverLoad,0,2),burden=clamp(nextFunnel?.supportBurden,0,1.5),agePressure=agePressureFor(nextProduct.lifecycleAgeWeeks);
+  nextProduct.technicalDebt=clamp(finite(nextProduct.technicalDebt)+policy.debtDelta+fundingGap*6+load*1.4+burden*.8+agePressure,0,100);
+  nextProduct.lastMaintenanceWeek=resolvedWeek;
+  if(nextProduct.lifecycleStage===STAGES.sunsetting){
+    nextProduct.sunsetWeeks=integer(nextProduct.sunsetWeeks)+1;
+    nextProduct.revenue=Math.max(0,Math.round(finite(nextProduct.revenue)*.94));
+    nextProduct.users=Math.max(0,Math.round(finite(nextProduct.users)*.92));
+    nextProduct.paidUsers=Math.max(0,Math.round(finite(nextProduct.paidUsers)*.93));
+    if(nextFunnel){
+      nextFunnel.organicTraffic=Math.max(0,finite(nextFunnel.organicTraffic)*.88);
+      nextFunnel.paidTraffic=0;
+      nextFunnel.supportBurden=clamp(finite(nextFunnel.supportBurden,.1)-.015,0,1.5);
+    }
+  }
+  const incidentTechnicalDebt=nextProduct.technicalDebt;
+  const incidentChance=policy.qualityRisk+(incidentTechnicalDebt>=80?.35:incidentTechnicalDebt>=55?.12:0)+fundingGap*.3;
+  const incidentEligible=incidentTechnicalDebt>=55;
+  if(nextProduct.lastInnovationWeek===resolvedWeek)nextProduct.technicalDebt=clamp(nextProduct.technicalDebt-18,0,100);
+  return {week:resolvedWeek,nextProduct,nextFunnel,cost,payable,fundingGap,incidentTechnicalDebt,incidentChance,incidentEligible};
+}
+function applyProductLifecycleIncident(baseResult){
+  if(!baseResult)return null;
+  const result={...baseResult,nextProduct:clone(baseResult.nextProduct),nextFunnel:baseResult.nextFunnel?clone(baseResult.nextFunnel):null,incidentApplied:true};
+  result.nextProduct.lifecycleIncidents=integer(result.nextProduct.lifecycleIncidents)+1;
+  result.nextProduct.quality=clamp(finite(result.nextProduct.quality)-1.5,0,100);
+  if(result.nextFunnel){
+    result.nextFunnel.churnRate=clamp(finite(result.nextFunnel.churnRate,.08)+.003,.003,.28);
+    result.nextFunnel.supportBurden=clamp(finite(result.nextFunnel.supportBurden,.1)+.03,0,1.5);
+  }
+  return result;
+}
 function riskBand(debt){return debt>=80?'危機':debt>=55?'高':debt>=30?'中':'低';}
 function recallCandidate(state){return (state.productVentures||[]).filter(p=>p?.status==='released'&&p.lifecycleStage===STAGES.active).sort((a,b)=>finite(b.technicalDebt)-finite(a.technicalDebt)||finite(b.revenue)-finite(a.revenue)||String(a.id).localeCompare(String(b.id)))[0]||null;}
 function recordRecallRisk(instance){const state=ensure(instance.g),product=recallCandidate(state),week=integer(state.week,1),row=normalizeRecallRisk({week,productID:product?.id,productName:product?.name,maintenancePolicy:product?.maintenancePolicy,technicalDebt:product?.technicalDebt,revenue:product?.revenue,profit:product?.profit,quality:product?.quality});const index=state.productRecallRiskHistory.findIndex(x=>integer(x.week)===week);if(index>=0)state.productRecallRiskHistory[index]=row;else state.productRecallRiskHistory.push(row);state.productRecallRiskHistory=state.productRecallRiskHistory.slice(-RECALL.HISTORY_LIMIT);return row;}
@@ -82,14 +121,14 @@ function install(){
     ensure(this.g);if(integer(this.g.lastProductLifecycleWeek)===integer(this.g.week))return[];this.g.lastProductLifecycleWeek=integer(this.g.week);const incidents=[];let maintenanceCost=0;
     for(const product of (this.g.productVentures||[]).filter(x=>x.lifecycleStage===STAGES.retired)){product.revenue=0;product.users=0;product.paidUsers=0;const funnel=typeof this.ensureProductFunnel==='function'?this.ensureProductFunnel(product):null;if(funnel){funnel.organicTraffic=0;funnel.paidTraffic=0;funnel.supportBurden=0;}}
     for(const product of (this.g.productVentures||[]).filter(x=>x.status==='released'&&x.lifecycleStage!==STAGES.retired)){
-      product.lifecycleAgeWeeks=integer(product.lifecycleAgeWeeks)+1;const policy=POLICIES[product.maintenancePolicy]||POLICIES.standard,cost=weeklyCost(product,policy),funnel=typeof this.ensureProductFunnel==='function'?this.ensureProductFunnel(product):null;
-      const payable=Math.min(Math.max(0,finite(this.g.companyCash)),cost);if(payable>0){maintenanceCost+=payable;this.g.companyCash-=payable;finance.event(this.g,'researchAndDevelopment',payable,{cashEffect:-payable,profitEffect:-payable,assetEffect:0,sourceType:'productMaintenance',sourceID:String(product.id),operationID:`productMaintenance-${product.id}-${this.g.week}`,description:`${product.name} ${policy.name}`});}
-      const fundingGap=cost>0?1-payable/cost:0,load=clamp(funnel?.serverLoad,0,2),burden=clamp(funnel?.supportBurden,0,1.5),agePressure=agePressureFor(product.lifecycleAgeWeeks);
-      product.technicalDebt=clamp(finite(product.technicalDebt)+policy.debtDelta+fundingGap*6+load*1.4+burden*.8+agePressure,0,100);product.lastMaintenanceWeek=integer(this.g.week);
-      if(product.lifecycleStage===STAGES.sunsetting){product.sunsetWeeks=integer(product.sunsetWeeks)+1;product.revenue=Math.max(0,Math.round(finite(product.revenue)*.94));product.users=Math.max(0,Math.round(finite(product.users)*.92));product.paidUsers=Math.max(0,Math.round(finite(product.paidUsers)*.93));if(funnel){funnel.organicTraffic=Math.max(0,finite(funnel.organicTraffic)*.88);funnel.paidTraffic=0;funnel.supportBurden=clamp(finite(funnel.supportBurden,.1)-.015,0,1.5);}}
-      const debt=product.technicalDebt,incidentChance=policy.qualityRisk+(debt>=80?.35:debt>=55?.12:0)+fundingGap*.3;
-      if(debt>=55&&chance(incidentChance)){product.lifecycleIncidents=integer(product.lifecycleIncidents)+1;product.quality=clamp(finite(product.quality)-1.5,0,100);if(funnel){funnel.churnRate=clamp(finite(funnel.churnRate,.08)+.003,.003,.28);funnel.supportBurden=clamp(finite(funnel.supportBurden,.1)+.03,0,1.5);}const row=history(this.g,'maintenanceIncident',`${product.name}で保守障害が発生しました。品質が低下し、解約率とサポート負荷が上昇しました。`,{productID:String(product.id),technicalDebt:debt});incidents.push(row);}
-      if(product.lastInnovationWeek===integer(this.g.week))product.technicalDebt=clamp(product.technicalDebt-18,0,100);
+      const policy=POLICIES[product.maintenancePolicy]||POLICIES.standard,funnel=typeof this.ensureProductFunnel==='function'?this.ensureProductFunnel(product):null;
+      let result=calculateProductLifecycleBaseWeek({product,funnel,policy,availableCash:this.g.companyCash,week:this.g.week});
+      if(result.payable>0){maintenanceCost+=result.payable;this.g.companyCash-=result.payable;finance.event(this.g,'researchAndDevelopment',result.payable,{cashEffect:-result.payable,profitEffect:-result.payable,assetEffect:0,sourceType:'productMaintenance',sourceID:String(product.id),operationID:`productMaintenance-${product.id}-${this.g.week}`,description:`${product.name} ${policy.name}`});}
+      if(result.incidentEligible&&chance(result.incidentChance)){
+        result=applyProductLifecycleIncident(result);
+        const row=history(this.g,'maintenanceIncident',`${product.name}で保守障害が発生しました。品質が低下し、解約率とサポート負荷が上昇しました。`,{productID:String(product.id),technicalDebt:result.incidentTechnicalDebt});incidents.push(row);
+      }
+      Object.assign(product,result.nextProduct);if(funnel&&result.nextFunnel)Object.assign(funnel,result.nextFunnel);
     }
     incidents.maintenanceCost=maintenanceCost;return incidents;
   };
@@ -111,5 +150,5 @@ function handleClick(e){const t=e?.target?.closest?.('[data-product-lifecycle-ac
 let registeredEnhancerDefinition=null;
 function registerEnhancer(definition){if(registeredEnhancerDefinition)return registeredEnhancerDefinition;registeredEnhancerDefinition=definition;const registry=modules.uiEnhancerRegistry;if(registry?.registerUIEnhancer)return registry.registerUIEnhancer(definition);const key='__capitalismTycoonPendingUIEnhancers';const pending=Array.isArray(globalThis[key])?globalThis[key]:(globalThis[key]=[]);pending.push(definition);return definition;}
 function installUI(){if(typeof document==='undefined')return;const root=document.getElementById('app');if(root&&!bound){root.addEventListener('click',handleClick);bound=true;}registerEnhancer({id:'product-lifecycle',enhance});}
-install();installUI();modules.productLifecycle=Object.freeze({VERSION,POLICIES,STAGES,RECALL,AGE_PRESSURE_CAP,agePressureFor,ensure,weeklyCost,riskBand,recallCandidate,recordRecallRisk,recallReadiness,initialRecallCost,responseRecallCost,startRecall,applyRecallRevenueImpact,applyRecallFunnelImpact,advanceRecall,remainingRecallWeeks,recallSnapshot,validate,renderSection,enhance,__installed:true});
+install();installUI();modules.productLifecycle=Object.freeze({VERSION,POLICIES,STAGES,RECALL,AGE_PRESSURE_CAP,agePressureFor,ensure,weeklyCost,calculateProductLifecycleBaseWeek,applyProductLifecycleIncident,riskBand,recallCandidate,recordRecallRisk,recallReadiness,initialRecallCost,responseRecallCost,startRecall,applyRecallRevenueImpact,applyRecallFunnelImpact,advanceRecall,remainingRecallWeeks,recallSnapshot,validate,renderSection,enhance,__installed:true});
 })();

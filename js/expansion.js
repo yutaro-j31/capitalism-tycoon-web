@@ -166,6 +166,60 @@ function personalRealEstateOps(asset,week){
 function homeRankTitle(rank){return ({familyHome:'実家',oneRoom:'ワンルーム',liveWorkOffice:'小型オフィス兼自宅',cityApartment:'都市型マンション',luxuryCondo:'高級マンション',mansion:'邸宅',executiveResidence:'本社ビル上層階',estate:'大豪邸'})[rank]||'実家';}
 function homeRankIcon(rank){return ({familyHome:'🏠',oneRoom:'🚪',liveWorkOffice:'💻',cityApartment:'🏙️',luxuryCondo:'🌃',mansion:'🏛️',executiveResidence:'🏢',estate:'🏰'})[rank]||'🏠';}
 
+function calculateFormalProductFunnelWeek({product,funnel,economics,week,departmentEffects={},founderSkillTech=1}={}){
+  if(!product||!funnel||!economics)return null;
+  const nextProduct=copy(product),nextFunnel=copy(funnel),resolvedWeek=Math.max(1,Math.floor(n(week,1)));
+  const oldRevenue=n(nextProduct.revenue),oldCost=n(nextProduct.cost);
+  if(!nextProduct.releaseWeek)nextProduct.releaseWeek=resolvedWeek;
+  if(n(nextFunnel.registeredUsers)<=0&&n(nextProduct.users)>0){
+    nextFunnel.registeredUsers=n(nextProduct.users);
+    nextFunnel.monthlyActiveUsers=nextFunnel.registeredUsers*economics.monthlyActiveRate;
+    nextFunnel.lastUpdatedWeek=resolvedWeek-1;
+  }
+  const quality=clamp(nextProduct.quality,0,100),brand=clamp(nextProduct.brand,0,100);
+  const productDepartment=1+n(departmentEffects.product)*.25;
+  const marketingDepartment=1+n(departmentEffects.marketing)*.40;
+  const dxDepartment=1+n(departmentEffects.dx)*.25;
+  const founder=1+n(founderSkillTech)*.025;
+  const acquisitionStrength=(.55+nextFunnel.awareness*4)*(.65+quality*.008)*(.70+brand*.014)*productDepartment*marketingDepartment*founder;
+  nextFunnel.awareness=clamp(nextFunnel.awareness+.0015+(quality+brand)/25000+n(departmentEffects.marketing)*.0015-nextFunnel.churnRate*.012,.01,1);
+  const remainingMarket=Math.max(0,n(nextProduct.market)-n(nextFunnel.registeredUsers));
+  const newUsers=Math.min(remainingMarket,Math.max(1,economics.baseAcquisition*acquisitionStrength));
+  nextFunnel.churnRate=clamp(economics.baseChurn-quality*.00016+n(nextFunnel.churnModifier)+nextFunnel.serverLoad*.003,.006,.16);
+  nextFunnel.registeredUsers=clamp(nextFunnel.registeredUsers*(1-nextFunnel.churnRate)+newUsers,0,n(nextProduct.market));
+  nextFunnel.monthlyActiveUsers=nextFunnel.registeredUsers*clamp(economics.monthlyActiveRate+quality*.0012-nextFunnel.supportBurden*.035,.25,.88);
+  nextFunnel.conversionRate=clamp(economics.baseConversion+n(nextFunnel.conversionModifier)+(quality-CONVERSION_QUALITY_NEUTRAL)*.00065,.003,economics.model==='commerce'?.22:.28);
+  nextFunnel.paidUsers=nextFunnel.monthlyActiveUsers*nextFunnel.conversionRate;
+  nextFunnel.serverLoad=clamp(nextFunnel.monthlyActiveUsers/Math.max(1000,n(nextProduct.serverCapacity,25000)),0,2);
+  nextFunnel.supportBurden=clamp(nextFunnel.supportBurden+nextFunnel.serverLoad*.004-.006,0,1.5);
+  const subscription=nextFunnel.paidUsers*Math.max(0,n(nextFunnel.arpu,economics.monthlyArpu))/4.33;
+  const b2b=nextFunnel.b2bContracts*Math.max(25000,n(nextFunnel.arpu)*2)/4.33;
+  let revenue,cost;
+  if(economics.model==='game'){
+    const age=Math.max(0,resolvedWeek-nextProduct.releaseWeek),launchBoost=age<economics.launchBoostWeeks?1.8-age/economics.launchBoostWeeks*.8:1;
+    revenue=nextFunnel.monthlyActiveUsers*economics.purchaseRate*nextProduct.price*launchBoost+subscription*.18;
+  }else if(economics.model==='commerce'){
+    const gmv=nextFunnel.monthlyActiveUsers*economics.purchasesPerActive*economics.averageOrderValue;
+    revenue=gmv*economics.takeRate;
+    cost=economics.fixedOperatingCost+(nextFunnel.monthlyActiveUsers*economics.variableCostPerActive+gmv*economics.fulfillmentRate)/dxDepartment;
+  }else if(economics.model==='advertising')revenue=nextFunnel.monthlyActiveUsers*economics.monthlyAdArpu/4.33+subscription;
+  else revenue=subscription+b2b;
+  if(cost===undefined)cost=economics.fixedOperatingCost+(nextFunnel.monthlyActiveUsers*economics.variableCostPerActive)/dxDepartment+revenue*.035;
+  const revenueMultiple={subscription:5,game:2.5,commerce:2.2,enterprise:5.5,advertising:3}[economics.model]||3;
+  const userValue={subscription:180,game:90,commerce:120,enterprise:600,advertising:45}[economics.model]||100;
+  const target=Math.max(1_000_000,revenue*52*revenueMultiple+nextFunnel.registeredUsers*userValue+Math.max(0,revenue-cost)*52*2);
+  nextProduct.valuation=Math.max(1_000_000,nextProduct.valuation*.88+target*.12);
+  nextProduct.users=Math.floor(nextFunnel.registeredUsers);
+  nextProduct.paidUsers=Math.floor(nextFunnel.paidUsers);
+  nextProduct.revenue=revenue;nextProduct.cost=cost;nextProduct.profit=revenue-cost;
+  nextFunnel.lastUpdatedWeek=resolvedWeek;
+  return {
+    week:resolvedWeek,nextProduct,nextFunnel,newUsers,revenue,cost,profit:revenue-cost,
+    adjustment:(revenue-cost)-(oldRevenue-oldCost),salesAdjustment:revenue-oldRevenue,expenseAdjustment:cost-oldCost,
+    serverOverloadEligible:nextFunnel.serverLoad>1.15
+  };
+}
+
 function installExpansion(TycoonEngine){
   if(TycoonEngine.prototype.__fullExpansionInstalled)return;
   TycoonEngine.prototype.__fullExpansionInstalled=true;
@@ -651,34 +705,25 @@ function installExpansion(TycoonEngine){
     for(const p of g.productVentures){const f=this.ensureProductFunnel(p);if(p.status!=='released')continue;const oldRevenue=n(p.revenue),oldCost=n(p.cost),solo=p.origin==='founderHome';if(!p.releaseWeek)p.releaseWeek=g.week;
       const quality=clamp(p.quality,0,100),brand=clamp(p.brand,0,100),economics=!solo&&DIGITAL_PRODUCT_ECONOMICS[p.blueprintID];let newUsers,revenue,cost;
       if(economics){
-        if(n(f.registeredUsers)<=0&&n(p.users)>0){f.registeredUsers=n(p.users);f.monthlyActiveUsers=f.registeredUsers*economics.monthlyActiveRate;f.lastUpdatedWeek=g.week-1;}
         // Departments are shared portfolio capabilities: their payroll is paid once while the
-        // acquisition/cost benefit applies to every formal product.  At the old 10/16/8% rates,
-        // even two successful products could not recover the HQ + department fixed-cost stack,
-        // making sale of product one the economically dominant way to fund product two.  These
-        // deliberately modest rates keep one-product ROI negative, approach break-even at two,
-        // and let a well-run three-product portfolio earn back the shared organization.
-        const productDepartment=1+n(g.departments?.product&&this.departmentEffect('product'))*.25,marketingDepartment=1+n(g.departments?.marketing&&this.departmentEffect('marketing'))*.40,dxDepartment=1+n(g.departments?.dx&&this.departmentEffect('dx'))*.25,founder=1+n(g.founderSkillTech)*.025;
-        const acquisitionStrength=(.55+f.awareness*4)*(.65+quality*.008)*(.70+brand*.014)*productDepartment*marketingDepartment*founder;
-        f.awareness=clamp(f.awareness+.0015+(quality+brand)/25000+n(g.departments?.marketing&&this.departmentEffect('marketing'))*.0015-f.churnRate*.012,.01,1);
-        const remainingMarket=Math.max(0,n(p.market)-n(f.registeredUsers));newUsers=Math.min(remainingMarket,Math.max(1,economics.baseAcquisition*acquisitionStrength));
-        f.churnRate=clamp(economics.baseChurn-quality*.00016+n(f.churnModifier)+f.serverLoad*.003,.006,.16);
-        f.registeredUsers=clamp(f.registeredUsers*(1-f.churnRate)+newUsers,0,n(p.market));
-        f.monthlyActiveUsers=f.registeredUsers*clamp(economics.monthlyActiveRate+quality*.0012-f.supportBurden*.035,.25,.88);
-        f.conversionRate=clamp(economics.baseConversion+n(f.conversionModifier)+(quality-CONVERSION_QUALITY_NEUTRAL)*.00065,.003,economics.model==='commerce'?.22:.28);
-        f.paidUsers=f.monthlyActiveUsers*f.conversionRate;f.serverLoad=clamp(f.monthlyActiveUsers/Math.max(1000,n(p.serverCapacity,25000)),0,2);f.supportBurden=clamp(f.supportBurden+f.serverLoad*.004-.006,0,1.5);
-        const subscription=f.paidUsers*Math.max(0,n(f.arpu,economics.monthlyArpu))/4.33,b2b=f.b2bContracts*Math.max(25000,n(f.arpu)*2)/4.33;
-        if(economics.model==='game'){const age=Math.max(0,g.week-p.releaseWeek),launchBoost=age<economics.launchBoostWeeks?1.8-age/economics.launchBoostWeeks*.8:1;revenue=f.monthlyActiveUsers*economics.purchaseRate*p.price*launchBoost+subscription*.18;}
-        else if(economics.model==='commerce'){const gmv=f.monthlyActiveUsers*economics.purchasesPerActive*economics.averageOrderValue;revenue=gmv*economics.takeRate;cost=economics.fixedOperatingCost+(f.monthlyActiveUsers*economics.variableCostPerActive+gmv*economics.fulfillmentRate)/dxDepartment;}
-        else if(economics.model==='advertising')revenue=f.monthlyActiveUsers*economics.monthlyAdArpu/4.33+subscription;
-        else revenue=subscription+b2b;
-        if(cost===undefined)cost=economics.fixedOperatingCost+(f.monthlyActiveUsers*economics.variableCostPerActive)/dxDepartment+revenue*.035;
-        const revenueMultiple={subscription:5,game:2.5,commerce:2.2,enterprise:5.5,advertising:3}[economics.model]||3,userValue={subscription:180,game:90,commerce:120,enterprise:600,advertising:45}[economics.model]||100,target=Math.max(1_000_000,revenue*52*revenueMultiple+f.registeredUsers*userValue+Math.max(0,revenue-cost)*52*2);p.valuation=Math.max(1_000_000,p.valuation*.88+target*.12);
+        // acquisition/cost benefit applies to every formal product. The pure kernel receives only
+        // the normalized product/funnel plus scalar capability effects; all game-state writes,
+        // accounting and RNG remain in this wrapper.
+        const result=calculateFormalProductFunnelWeek({
+          product:p,funnel:f,economics,week:g.week,founderSkillTech:g.founderSkillTech,
+          departmentEffects:{
+            product:n(g.departments?.product&&this.departmentEffect('product')),
+            marketing:n(g.departments?.marketing&&this.departmentEffect('marketing')),
+            dx:n(g.departments?.dx&&this.departmentEffect('dx'))
+          }
+        });
+        Object.assign(p,result.nextProduct);Object.assign(f,result.nextFunnel);
+        newUsers=result.newUsers;revenue=result.revenue;cost=result.cost;
       }else{
         const growth=clamp(brand/950+quality/1250+n(g.founderSkillTech)*.002-p.risk*.01,.003,solo?.07:.095);f.awareness=clamp(f.awareness+growth*(solo?.16:.12)-f.churnRate*.012,.01,1);newUsers=Math.min(solo?550:25000,Math.max(8,p.market*f.awareness*growth/(solo?1800:1250)));f.registeredUsers=clamp(f.registeredUsers*(1-f.churnRate/5)+newUsers,0,solo?1200000:80000000);f.monthlyActiveUsers=f.registeredUsers*clamp(.35+quality/320-f.supportBurden*.07,.22,solo?.66:.82);f.conversionRate=clamp(f.conversionRate+(quality-CONVERSION_QUALITY_NEUTRAL)/52000,.003,p.category==='EC'?.7:.18);f.paidUsers=f.monthlyActiveUsers*f.conversionRate;f.serverLoad=clamp(f.monthlyActiveUsers/Math.max(1000,n(p.serverCapacity,solo?5000:25000)),0,2);f.supportBurden=clamp(f.supportBurden+f.serverLoad*.007-.008,0,1.5);f.churnRate=clamp(.085-quality/2200+f.serverLoad*.01,.005,.25);if((p.category.includes('SaaS')||p.category.includes('FinTech'))&&quality>=50&&Math.random()<.04)f.b2bContracts+=1;
         const sub=f.paidUsers*Math.max(50,f.arpu)/4.33,ads=f.monthlyActiveUsers*(20+quality*.45)/4.33,b2b=f.b2bContracts*Math.max(10000,f.arpu*2)/4.33;revenue=p.category==='EC'?ads*.2+sub*.5+f.monthlyActiveUsers*Math.max(18,f.arpu*.035)/4.33:p.category==='ゲーム'?ads*.65+sub:p.category.includes('SaaS')||p.category.includes('FinTech')?sub+b2b:sub+ads*.15;const server=(solo?3500:18000)+f.monthlyActiveUsers*n(p.serverCost,20000)/Math.max(1,p.market)*25+Math.max(0,f.serverLoad-1)*50000;const support=Math.max(0,f.monthlyActiveUsers-(solo?650:1800))*(solo?1.8:6.5)*(.3+f.supportBurden);const maintenance=Math.max(2500,n(p.valuation)* (solo?.0008:.0018));const payment=revenue*.035;cost=server+support+maintenance+payment;p.valuation=Math.max(1000000,p.valuation*(1+clamp((revenue-cost)/Math.max(1,p.valuation),-.05,.08))+newUsers*200);
       }
-      p.users=Math.floor(f.registeredUsers);p.paidUsers=Math.floor(f.paidUsers);p.revenue=revenue;p.cost=cost;p.profit=revenue-cost;f.lastUpdatedWeek=g.week;
+      if(!economics){p.users=Math.floor(f.registeredUsers);p.paidUsers=Math.floor(f.paidUsers);p.revenue=revenue;p.cost=cost;p.profit=revenue-cost;f.lastUpdatedWeek=g.week;}
       const delta=(revenue-cost)-(oldRevenue-oldCost);g.companyCash+=delta;adjustment+=delta;salesAdjustment+=revenue-oldRevenue;expenseAdjustment+=cost-oldCost;if(f.serverLoad>1.15&&Math.random()<.08){f.churnRate=clamp(f.churnRate+.004,.003,.28);const text=`${p.name}のサーバー負荷が高く、解約率が悪化。`;g.productFunnelEventLog.unshift(`第${g.week}週：${text}`);g.news.unshift(`第${g.week}週：${text}`);}}
     return {adjustment,salesAdjustment,expenseAdjustment};
   };
@@ -747,7 +792,7 @@ function installExpansion(TycoonEngine){
   TycoonEngine.prototype.recordExpandedHistory=function(){const g=this.g;if(g.companyValueHistory.length){g.companyValueHistory[g.companyValueHistory.length-1]=this.companyValue();g.personalNetWorthHistory[g.personalNetWorthHistory.length-1]=this.personalNetWorth();if(g.lastReport){g.weeklySalesHistory[g.weeklySalesHistory.length-1]=g.lastReport.sales;g.weeklyProfitHistory[g.weeklyProfitHistory.length-1]=g.lastReport.profit;}}};
 }
 
-Object.assign(exports,{FOUNDER_TRAITS,FOUNDER_HOME_PRODUCTS,SUPPLIER_OFFERS,VERTICAL_INTEGRATION_OFFERS,RD_PROJECTS,PERSONAL_REAL_ESTATE_OFFERS,PERSONAL_REAL_ESTATE_RENEWAL_STRATEGIES,LUXURY_AUCTION_POOL,SUCCESSOR_CANDIDATES,CONVERSION_QUALITY_NEUTRAL,DIGITAL_PRODUCT_ECONOMICS,installExpansion});
+Object.assign(exports,{FOUNDER_TRAITS,FOUNDER_HOME_PRODUCTS,SUPPLIER_OFFERS,VERTICAL_INTEGRATION_OFFERS,RD_PROJECTS,PERSONAL_REAL_ESTATE_OFFERS,PERSONAL_REAL_ESTATE_RENEWAL_STRATEGIES,LUXURY_AUCTION_POOL,SUCCESSOR_CANDIDATES,CONVERSION_QUALITY_NEUTRAL,DIGITAL_PRODUCT_ECONOMICS,calculateFormalProductFunnelWeek,installExpansion});
 })(__modules.expansion={});
 
 })();
