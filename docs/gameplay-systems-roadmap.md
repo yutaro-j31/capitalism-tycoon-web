@@ -193,9 +193,9 @@ CLAUDE.md記載のとおり、2026-08時点の開発方針は「約30業種を�
 - **Minimum core:** One recall crisis reduces sales and reputation, moves cash through `finance.event`, and offers one response action whose effect reaches the actual outcome.
 - **Expansion candidates (decide after playtesting):** Accounting fraud, cyber incidents, disasters, labor conflict, and succession failure. Their necessity is assessed only after the recall core is implemented and played.
 
-### 8F.4 Endgame — Core state exists but minimum-core completion remains to be verified
+### 8F.4 Endgame — Minimum core complete
 
-- **Minimum core:** Determine and display at least two endings from existing indicators such as company value and `legacyScore`, and record them in `endingRecords` and `unlockedEndings`.
+- **Minimum core:** Implemented. `js/completion.js`'s `ENDING_DEFS` (lines 34-41) defines six endings — `listed_founder`, `conglomerate`, `global_tycoon`, `capital_king`, `philanthropist`, `serial_founder` — each with its own `check(g,e)` condition against existing indicators (public-company status, subsidiary count, company value, personal net worth, foundation reputation/endowment, serial-founding count). Achieved endings are recorded in both `endingRecords` and `unlockedEndings` (line 162).
 - **Expansion candidates (decide after playtesting):** Post-ending continuation, generational succession, legacy objectives, family control, and professional-management routes.
 
 ## Delivery rule

@@ -29,7 +29,7 @@ Non-core business data remains for save/data compatibility. When priorities are 
 
 `market.js`, `supply.js`, and `workforce.js` being ramen-focused is an intentional staged state, not evidence that the investment-company route is forbidden. Expand detailed store operations deliberately, one area at a time, with the relevant deterministic fingerprints checked.
 
-`docs/gameplay-systems-roadmap.md` is the current gameplay depth tracker. `docs/DEVELOPMENT_ROADMAP.md` is a retired saveVersion-8-era plan and is not the current roadmap.
+`docs/gameplay-systems-roadmap.md` is the current gameplay depth tracker. `docs/DEVELOPMENT_ROADMAP.md` is a retired saveVersion-8-era plan and is not the current roadmap. `docs/GAME_OVERVIEW.md` is a short cross-cutting summary (concept, 5 pillars, PE/Microcap status, invariants, current state) that links out to these and other design docs for detail — read it first when orienting on the project as a whole.
 
 ## 2. Core invariants
 
