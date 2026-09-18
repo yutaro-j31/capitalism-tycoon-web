@@ -1,9 +1,13 @@
 'use strict';
 const assert=require('node:assert/strict');
-const {loadGame}=require('./harness');
+const fs=require('node:fs');
+const path=require('node:path');
+const vm=require('node:vm');
+const {loadGame,ROOT}=require('./harness');
 
 let randomCalls=0;
-const {engineModule,modules}=loadGame({random:()=>{randomCalls++;return 0.99;},isolatedLegacyIndex:true});
+const {ctx,engineModule,modules}=loadGame({random:()=>{randomCalls++;return 0.99;},isolatedLegacyIndex:true});
+vm.runInContext(fs.readFileSync(path.join(ROOT,'js/product-lifecycle.js'),'utf8'),ctx,{filename:'js/product-lifecycle.js'});
 const expansion=modules.expansion,lifecycle=modules.productLifecycle;
 const plain=value=>JSON.parse(JSON.stringify(value));
 
