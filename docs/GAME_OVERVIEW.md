@@ -1,0 +1,177 @@
+# Game Overview — Capitalism Tycoon Web
+
+> **This file is a status summary of the docs it links to, not a substitute for them.**
+> Detail lives in the linked files/sections; this file only summarizes. If this file and a
+> linked primary source disagree, **trust the primary source, not this file**, and report the
+> discrepancy to whoever is driving this PR, or to the user, so it can be fixed here. This file
+> is expected to drift as work lands — treat any staleness you find as a bug to flag, not as
+> evidence against the primary source.
+
+## 1. What the game is
+
+資本主義ポケット TYCOON / Capitalism Tycoon Web. Primary product/UX reference: **Coffee Inc 2**.
+Capitalism / Capitalism Lab inform the deeper economic, operating, and capital-allocation
+systems. Originated as a Swift Playgrounds project; this repo is the browser migration
+(`js/data.js` line 7: `// Generated from the supplied Swift Playgrounds project.`).
+
+Two legitimate founding routes (`CLAUDE.md` §1):
+
+1. **Store/operator route** — start with an operating business (e.g. ramen), deepen operations,
+   build HQ functions, then diversify.
+2. **Investment-company route** — start without owning a store, use company capital for
+   investment/capital allocation, then expand into HQ functions, M&A, etc. Must use company
+   cash/holdings/ledger, never personal, and does not unlock unrelated systems for free.
+
+See `docs/FOUNDING_ROUTE_REBALANCE_DESIGN.md` for the route-rebalancing design history.
+
+## 2. Ending conditions
+
+`js/completion.js`'s `ENDING_DEFS` (lines 34-41) defines six endings, each with its own
+`check(g,e)` condition: `listed_founder` (IPO), `conglomerate` (5+ subsidiaries),
+`global_tycoon` (company value ≥¥1兆), `capital_king` (personal net worth ≥¥1兆),
+`philanthropist` (foundation reputation ≥80 and endowment ≥¥10億), `serial_founder` (3+
+companies founded and exited). Achieved endings are recorded in `endingRecords` and
+`unlockedEndings` (line 162). See `docs/gameplay-systems-roadmap.md` §8F.4 for status —
+this is implemented, not a roadmap gap (§7 note below).
+
+## 3. The five pillars
+
+The current operating-depth strategy deepens five pillar businesses rather than spreading
+shallow mechanics across every business type (`CLAUDE.md` §1):
+
+- `ramen`, `conveni`, `gym`, `productVentures` (IT company), `realEstateAgency`
+
+Non-core business data (from the original six: ramen/cafe/conveni/apparel/gym/appStudio)
+remains for save/data compatibility only. Master economics (price/unit cost/base demand/store
+cost) live in `js/data.js` starting at line 12 (ramen) and line 40 (conveni), with gym and
+realEstateAgency further down the same file.
+
+Each pillar has a structurally distinct economic model, not a palette-swapped clone:
+
+- **ramen**: softmax discrete choice with same-market cannibalization (`js/market.js`)
+- **conveni**: chain-scale procurement discount and dominant-strategy same-prefecture
+  clustering, plus 4-tier private-brand development (`js/convenience-merchandising.js`)
+- **gym**: membership-stock model (`js/gym-membership-model.js`)
+- **realEstateAgency**: lumpy brokerage pipeline — most weeks run at a loss between deal
+  closings (`js/real-estate-agency-pipeline.js`, `js/real-estate-agency-credit-line.js`)
+- **productVentures**: product-lifecycle state machine (`js/product-lifecycle.js`)
+
+`market.js`/`supply.js`/`workforce.js` being ramen-focused is an intentional staged state
+(`CLAUDE.md` §1), not evidence the investment-company route is unsupported.
+
+## 4. PE mode
+
+Fund formation runs through 4 gates (Exit → GP commit → LP raise → terms) — see
+`docs/PE_MODE_DESIGN.md` §3 for the full flow. All T1-T26 tasks are implemented; the full task
+list with commit SHAs is in `docs/PE_MODE_TASKS.md`.
+
+**Confirmed settings** (`docs/PE_MODE_DESIGN.md` §2 table): Fund I size ¥28-30億, 4 bids/year,
+slots 2→8, team cap 60, DD budget 3 deals/year + partner-count/4, hold period 4yr (fund I) / 3yr
+(fund II+), **fund cap ¥1兆円** (lowered from an initial ¥5兆円 design — §12 walks through why
+¥5兆円 couldn't be absorbed by the deal-size bands in §15, and §16.5 "矛盾1" records the
+implementation-time contradiction that forced the change). §12's own later subsections
+("天井後の問題" through "100年の物語構造") still narrate the pre-change ¥5兆円 model as
+historical record; a note at the top of that span points back to §2/§16.5 for the current
+value. Personal-asset yield cap of 3%/year is **confirmed not implemented** (§12, "個人資産の
+利回りは年3%が上限" subsection) — it conflicts with existing real-estate (4.9-6.5%) and sports-
+team (42-43%) yields and was deliberately left as an unfixed cross-system balance issue.
+
+**UI**: Phase 1 (core UI) and Phase 2 (holdings/Exit UI) are both complete
+(`docs/PE_MODE_DESIGN.md` §7 for the screen-by-screen design).
+
+**PE management bridge status** (which pillar businesses can be actively managed once PE owns
+them, vs. falling back to the fully abstract generic EBITDA model) — `js/management-context.js`
+lines 28-39, `resolvePortfolioManagementCapability()`:
+
+| Business | Status |
+|---|---|
+| gym | Complete (original bridge, #655→#656→#658) |
+| conveni | Complete — engine layer (PR #670: detached runtime pattern against `js/convenience-merchandising.js`, unmodified) + UI layer (PR #671: `pe-ui-adapter.js`'s `portfolioManagementDetails()`, `pe-ui.js`'s `manageView()` guard generalized) |
+| realEstateAgency | Pre-investigation complete (`processStore()` confirmed detached-callable, zero engine RNG, writes only to `store.brokeragePipeline`); implementation not yet approved |
+| ramen | Not started — `market.js` batches all stores together, so a single-store pure-function extraction is a prerequisite and this is the heaviest lift of the four |
+| productVentures | Not started — the "manage a store weekly" bridge shape doesn't fit this business; needs its own design |
+
+A separate, independent bug: once PE unlocks, the D UI shell permanently overwrites
+`js/app.js`'s legacy business-agnostic `renderPePortfolio()` verification screen at `#screen`,
+regardless of which legacy tab is selected. This is unrelated to the bridge work above and is
+still unfixed.
+
+## 5. Microcap mode
+
+Runs independently of PE mode: deterministic small-cap listings spawn over an 8-18 week window
+with 4 archetypes (speculative 55%, steady 28%, quality 12%, breakout 5% — see
+`docs/MICROCAP_MODE_DESIGN.md` §3.2). Implemented via PR #648, after fixing a prerequisite order-
+quantity-cap bug (#645, §5 of that doc). Remaining, non-blocking: archetype ratios need
+recalibration against the real weekly engine rather than the standalone model used to design
+them, and the listing valuation-range distribution is not yet settled (§6 of that doc).
+
+## 6. Technical foundation
+
+Core invariants (`CLAUDE.md` §2, full list there — do not treat this as exhaustive):
+`SAVE_KEY=capitalism_tycoon_web_v1`, `saveVersion=9`, backward save compatibility,
+deterministic simulation (no `Math.random()` in production sim paths), UI never consumes
+simulation RNG, complete company/personal asset separation, iPhone Safari is the priority
+client, no direct push to `main`, no force-push, one concern per PR.
+
+D UI (`CLAUDE.md` §3) is the production visual language — the MutationObserver count and
+external-enhancer budget (currently 79) are test-guarded; extend existing hooks rather than
+adding new observers where possible.
+
+The production map (`CLAUDE.md` §4) is Canvas 2D city + local sprites + DOM marker overlay +
+pannable world — Phase 2 is the only production renderer; do not reintroduce the old DOM/SVG
+map.
+
+`js/` currently holds 203 modules. Canonical CI runs across shards A-H
+(`tests/run-all-shards.json` assigns B-H explicitly; unassigned tests fall into shard A) — see
+`tests/run-all.js` for the full registered test list rather than a count here, since it changes
+with every PR that adds tests.
+
+3-pool cash separation (`CLAUDE.md` §2): `fund.cash`, `company.cash`, `personalCash` are
+independent, plus a 4th pool for PE portfolio companies (`deal.portfolioCompany.cash`, written
+only by `settlePortfolioOperatingWeek()` in `js/pe-portfolio-operations.js`). The conservation
+identity `personalCash_after + fund.cash === personalCash_before + fund.lpContributed`
+(`docs/PE_MODE_TASKS.md` T21) holds across LP contribution/distribution flows.
+
+## 7. Current development status (as of this PR)
+
+**Recently completed** (this session):
+
+- **ramen's "death spiral" bankruptcy bug — fixed (PR #669, main `b8cfabfd`)**. Root cause:
+  `js/supply.js`'s `isImmediatePaymentOrder()`/order creation computed `paymentDueWeek` from the
+  order week rather than the arrival week, so any supplier with `leadTimeWeeks ≥
+  paymentTermsWeeks` (including the default `balanced_wholesale`) got zero real post-arrival
+  cash-flow float. This fed a procurement-blocked → inventory-shortage → sales-collapse spiral
+  that bankrupted multiple independent economic scenarios around week 236-242. Fix: (1)
+  `paymentDueWeek` now anchors on the arrival week (`js/supply.js` line 38,
+  `paymentDueWeek:n(g.week)+lead+terms`); (2) `balanced_wholesale.paymentTermsWeeks` raised 2→3
+  (`js/supply.js` line 19) — the combination is numerically equivalent to the raw terms=3
+  supplier value that a parameter sweep had shown was the minimum needed to clear all affected
+  scenarios with zero regression to healthy ones.
+- **gym startup-loan default spiral — fixed (PR #667, main `a68cdc60`)**. A gym startup loan
+  above a measured ~¥4.6-4.69M financing requirement structurally exceeded what a single store
+  could service, leading to covenant default and then a frozen, interest-only balance that
+  caused a second bankruptcy later. Reserve-proportional financing was measured across 4 formula
+  variants and found to have zero effect, so it was not used. Fix (`js/bank-loans-covenants.js`):
+  `gymStartupQuote()` now gates new-loan eligibility at
+  `GYM_STARTUP_ELIGIBILITY_REQUIRED_MAX` = ¥4,600,000 (line 17); a defaulted loan gets a
+  dedicated `serviceGymStartupWorkout()` repayment path instead of being permanently frozen.
+- **conveni's PE management bridge — complete** (PR #670 engine layer, PR #671 UI layer; see §4
+  table above).
+
+**In progress / awaiting approval**: realEstateAgency's PE management bridge (pre-investigation
+complete, implementation not yet approved — §4 above).
+
+**Not yet started**: PE management bridges for ramen and productVentures (§4 above); Microcap
+archetype recalibration against the real engine (§5 above); further pillar-specific operating
+depth beyond the current five (`market.js`/`supply.js`/`workforce.js` staying ramen-centric is
+intentional per §3 above, not a gap).
+
+## 8. Where to look next
+
+- Gameplay system-by-system status: `docs/gameplay-systems-roadmap.md`
+- PE mode design, settings, and task history: `docs/PE_MODE_DESIGN.md`, `docs/PE_MODE_TASKS.md`
+- Microcap mode design: `docs/MICROCAP_MODE_DESIGN.md`
+- Founding-route rebalancing history: `docs/FOUNDING_ROUTE_REBALANCE_DESIGN.md`
+- Project-wide rules, invariants, and known pitfalls: `CLAUDE.md`
+- Do **not** use `docs/DEVELOPMENT_ROADMAP.md` — it is a retired saveVersion-8-era plan
+  (`CLAUDE.md` §1).
