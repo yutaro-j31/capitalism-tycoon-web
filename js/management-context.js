@@ -3,7 +3,7 @@
 // PE contexts entirely -- they write to the shared state.businesses[]/state.stores[] records and
 // would leak across owners. PE-side management actions are enabled per business only once a
 // dedicated detached production bridge exists for it (see resolvePortfolioManagementCapability).
-// Ramen, gym and conveni now have such bridges; writes still terminate in deal.portfolioCompany.*.
+// Ramen, gym, conveni and productVentures now have such bridges; writes still terminate in deal.portfolioCompany.*.
 'use strict';
 (function(){
 const modules=globalThis.__capitalismTycoonModules;
@@ -33,7 +33,7 @@ function resolvePortfolioManagementCapability(deal){
   // Player-facing actions are enabled only for pillar businesses whose weekly settlement is wired
   // to a dedicated detached production bridge. Unsupported/incomplete pillars stay disabled so UI
   // inputs can never diverge from the calculator that actually settles the PE company.
-  const actionsEnabled=supported&&(businessID===RAMEN_BUSINESS_ID||businessID===GYM_BUSINESS_ID||businessID===CONVENI_BUSINESS_ID);
+  const actionsEnabled=supported&&(businessID===RAMEN_BUSINESS_ID||businessID===GYM_BUSINESS_ID||businessID===CONVENI_BUSINESS_ID||businessID==='productVentures');
   return {supported,pillar:supported?businessID:null,businessID:businessID||null,actionsEnabled,reason:supported?null:'unsupported-pillar'};
 }
 function portfolioTarget(state,fundID,dealID){

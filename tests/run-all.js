@@ -324,6 +324,7 @@ const nodeTests = [
   ['pe-exit-preview', 'tests/pe-exit-preview-test.js'],
   ['pe-management-context', 'tests/pe-management-context-test.js'],
   ['pe-product-ventures-portfolio-bridge', 'tests/pe-product-ventures-portfolio-bridge-test.js'],
+  ['pe-product-ventures-ui-connection', 'tests/pe-product-ventures-ui-connection-test.js'],
   ['pe-ramen-portfolio-bridge', 'tests/pe-ramen-portfolio-bridge-test.js'],
   ['pe-ramen-bridge-isolation-negative', 'tests/pe-ramen-bridge-isolation-negative-test.js'],
   ['pe-conveni-portfolio-bridge', 'tests/pe-conveni-portfolio-bridge-test.js'],

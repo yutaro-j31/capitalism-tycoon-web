@@ -64,9 +64,8 @@ function lcg(seed) {
   assert.equal(context.resolvePortfolioManagementCapability(deals.gym).actionsEnabled, true, 'gym keeps its detached bridge');
   assert.equal(context.resolvePortfolioManagementCapability(deals.conveni).actionsEnabled, true, 'conveni keeps its detached bridge');
   assert.equal(context.resolvePortfolioManagementCapability(deals.ramen).actionsEnabled, true, 'ramen now has its detached market bridge');
-  for (const businessID of ['realEstateAgency', 'productVentures']) {
-    assert.equal(context.resolvePortfolioManagementCapability(deals[businessID]).actionsEnabled, false, `${businessID} has no player-facing detached bridge yet and must stay disabled`);
-  }
+  assert.equal(context.resolvePortfolioManagementCapability(deals.productVentures).actionsEnabled, true, 'productVentures now has its detached production bridge connected to player-facing management');
+  assert.equal(context.resolvePortfolioManagementCapability(deals.realEstateAgency).actionsEnabled, false, 'realEstateAgency stays disabled until its separate UI connection PR');
 
   // portfolioManagementDetails() indirectly, via the real adapter.getPEUIData() -- the exact data
   // manageView() consumes to decide what to render.
@@ -87,7 +86,7 @@ function lcg(seed) {
     }
     // actionsEnabled is what manageView()'s guard actually checks -- confirm it matches the
     // capability check above, independent of whatever portfolioManagementDetails() returned.
-    const expectedEnabled = businessID === 'gym' || businessID === 'conveni' || businessID === 'ramen';
+    const expectedEnabled = businessID === 'gym' || businessID === 'conveni' || businessID === 'ramen' || businessID === 'productVentures';
     assert.equal(holding.management.actionsEnabled, expectedEnabled, `${businessID} actionsEnabled must match resolvePortfolioManagementCapability()`);
   }
 
