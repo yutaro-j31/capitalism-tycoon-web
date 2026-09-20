@@ -108,13 +108,17 @@ for(const [label,mutate,reason] of [
   assert.equal(randomCalls,callsBefore,'chained detached preview consumes no RNG');
 
   assert.strictEqual(ops.resolvePortfolioOperatingCalculator(deal),ops.calculateGenericPortfolioOperatingWeek,'weekly PE dispatch remains generic in this prerequisite');
-  // gym is the first (so far only) pillar business whose detached production bridge above is
-  // wired all the way to a player-facing management action -- see tests/pe-gym-management-actions-test.js.
+  // gym remains player-facing through its detached production bridge. Other pillars are enabled
+  // independently once their own detached bridge + UI connection is complete.
   assert.equal(engine.canOpenPEPortfolioManagement(fund.id,deal.id).capability.actionsEnabled,true,'gym management actions are enabled once the detached bridge exists');
 }
 {
   const {engine,fund,deal}=fixture('productVentures');
-  assert.equal(engine.canOpenPEPortfolioManagement(fund.id,deal.id).capability.actionsEnabled,false,'other supported pillars stay disabled until they have their own detached bridge');
+  assert.equal(engine.canOpenPEPortfolioManagement(fund.id,deal.id).capability.actionsEnabled,true,'productVentures management actions are enabled once its detached production bridge is connected');
+}
+{
+  const {engine,fund,deal}=fixture('realEstateAgency');
+  assert.equal(engine.canOpenPEPortfolioManagement(fund.id,deal.id).capability.actionsEnabled,false,'realEstateAgency remains disabled until its separate player-facing UI connection');
 }
 // Detached PE-conveni production input: same detachment discipline as gym above (see
 // tests/pe-conveni-portfolio-bridge-test.js for the full state-isolation/cluster-proxy coverage).
