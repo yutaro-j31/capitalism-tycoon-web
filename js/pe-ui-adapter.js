@@ -69,15 +69,18 @@ function performPortfolio(action,payload={}){
   const fundID=String(payload.fundID||''),dealID=String(payload.dealID||'');
   if(action==='exit')return saveSuccessful(engine,portfolio.exitPortfolioCompany(state,fundID,dealID,{method:'sale'}));
   if(!requireManagementCapability(engine,fundID,dealID))return false;
-  const found=portfolio.findFundAndDeal?.(state,fundID,dealID),pc=found?.deal?.portfolioCompany;
-  if(!pc)return false;
   // realEstateAgency's production brokerage pipeline never reads business.price. Reject the
   // legacy generic price action instead of accepting a player input that cannot affect settlement.
+  // Keep this lookup local to the price exception so the long-standing generic/gym price adapter
+  // contract does not acquire a new dependency on findFundAndDeal().
   if(action==='setGymPriceMultiplier'){
-    if(found.deal?.businessID==='realEstateAgency')return false;
+    const priceTarget=portfolio.findFundAndDeal?.(state,fundID,dealID);
+    if(priceTarget?.deal?.businessID==='realEstateAgency')return false;
     return saveSuccessful(engine,portfolio.setPriceMultiplier(state,fundID,dealID,payload.value));
   }
   if(action==='setGymMembershipStrategy')return saveSuccessful(engine,portfolio.setPortfolioGymMembershipStrategy(state,fundID,dealID,payload.strategyID));
+  const found=portfolio.findFundAndDeal?.(state,fundID,dealID),pc=found?.deal?.portfolioCompany;
+  if(!pc)return false;
   if(action==='investQuality')return saveSuccessful(engine,portfolio.investQuality(state,fundID,dealID,10_000_000));
   if(action==='reformProcurement')return saveSuccessful(engine,portfolio.reformProcurement(state,fundID,dealID,Math.min(1,finite(pc.procurementReform)+.25)));
   if(action==='setStaffing'){
