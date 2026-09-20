@@ -89,7 +89,8 @@
     "tests/real-estate-agency-credit-line-test.js",
     "tests/pe-realestate-agency-portfolio-bridge-test.js",
     "tests/pe-realestate-agency-bridge-208week-regression-test.js",
-    "tests/pe-realestate-agency-bridge-negative-test.js"
+    "tests/pe-realestate-agency-bridge-negative-test.js",
+    "tests/pe-realestate-agency-ui-connection-test.js"
   ],
   "F": [
     "tests/store-closure-plan-test.js",

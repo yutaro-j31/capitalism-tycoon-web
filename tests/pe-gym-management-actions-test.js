@@ -87,11 +87,7 @@ function fixture(businessID='gym'){
   assert.equal(context.resolvePortfolioManagementCapability(deal).actionsEnabled,true);
   assert.equal(engine.canOpenPEPortfolioManagement(fund.id,deal.id).capability.actionsEnabled,true);
 }
-{
-  const {deal}=fixture('realEstateAgency');
-  assert.equal(context.resolvePortfolioManagementCapability(deal).actionsEnabled,false,'realEstateAgency must stay disabled until its separate player-facing UI connection');
-}
-for(const businessID of ['ramen','conveni','productVentures']){
+for(const businessID of ['ramen','conveni','productVentures','realEstateAgency']){
   const {deal}=fixture(businessID);
   assert.equal(context.resolvePortfolioManagementCapability(deal).actionsEnabled,true,`${businessID} has its own detached production bridge connected to player-facing management`);
 }

@@ -65,7 +65,7 @@ function lcg(seed) {
   assert.equal(context.resolvePortfolioManagementCapability(deals.conveni).actionsEnabled, true, 'conveni keeps its detached bridge');
   assert.equal(context.resolvePortfolioManagementCapability(deals.ramen).actionsEnabled, true, 'ramen now has its detached market bridge');
   assert.equal(context.resolvePortfolioManagementCapability(deals.productVentures).actionsEnabled, true, 'productVentures now has its detached production bridge connected to player-facing management');
-  assert.equal(context.resolvePortfolioManagementCapability(deals.realEstateAgency).actionsEnabled, false, 'realEstateAgency stays disabled until its separate UI connection PR');
+  assert.equal(context.resolvePortfolioManagementCapability(deals.realEstateAgency).actionsEnabled, true, 'realEstateAgency now has its detached production bridge connected to player-facing management');
 
   // portfolioManagementDetails() indirectly, via the real adapter.getPEUIData() -- the exact data
   // manageView() consumes to decide what to render.
@@ -86,8 +86,9 @@ function lcg(seed) {
     }
     // actionsEnabled is what manageView()'s guard actually checks -- confirm it matches the
     // capability check above, independent of whatever portfolioManagementDetails() returned.
-    const expectedEnabled = businessID === 'gym' || businessID === 'conveni' || businessID === 'ramen' || businessID === 'productVentures';
+    const expectedEnabled = ['gym','conveni','ramen','productVentures','realEstateAgency'].includes(businessID);
     assert.equal(holding.management.actionsEnabled, expectedEnabled, `${businessID} actionsEnabled must match resolvePortfolioManagementCapability()`);
+    assert.equal(holding.management.priceEnabled, businessID !== 'realEstateAgency', `${businessID} price availability must match the production model`);
   }
 
   // The 6 generic PE levers (already confirmed business-agnostic in tests/pe-portfolio-weekly-settlement-test.js)

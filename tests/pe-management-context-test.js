@@ -118,7 +118,7 @@ for(const [label,mutate,reason] of [
 }
 {
   const {engine,fund,deal}=fixture('realEstateAgency');
-  assert.equal(engine.canOpenPEPortfolioManagement(fund.id,deal.id).capability.actionsEnabled,false,'realEstateAgency remains disabled until its separate player-facing UI connection');
+  assert.equal(engine.canOpenPEPortfolioManagement(fund.id,deal.id).capability.actionsEnabled,true,'realEstateAgency management actions are enabled once its detached production bridge is connected');
 }
 // Detached PE-conveni production input: same detachment discipline as gym above (see
 // tests/pe-conveni-portfolio-bridge-test.js for the full state-isolation/cluster-proxy coverage).

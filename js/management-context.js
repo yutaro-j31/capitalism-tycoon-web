@@ -33,7 +33,7 @@ function resolvePortfolioManagementCapability(deal){
   // Player-facing actions are enabled only for pillar businesses whose weekly settlement is wired
   // to a dedicated detached production bridge. Unsupported/incomplete pillars stay disabled so UI
   // inputs can never diverge from the calculator that actually settles the PE company.
-  const actionsEnabled=supported&&(businessID===RAMEN_BUSINESS_ID||businessID===GYM_BUSINESS_ID||businessID===CONVENI_BUSINESS_ID||businessID==='productVentures');
+  const actionsEnabled=supported&&(businessID===RAMEN_BUSINESS_ID||businessID===GYM_BUSINESS_ID||businessID===CONVENI_BUSINESS_ID||businessID==='productVentures'||businessID==='realEstateAgency');
   return {supported,pillar:supported?businessID:null,businessID:businessID||null,actionsEnabled,reason:supported?null:'unsupported-pillar'};
 }
 function portfolioTarget(state,fundID,dealID){
@@ -339,9 +339,8 @@ function previewPEPortfolioRamenWeekForState(state,fundID,dealID,options={}){
 }
 function previewPEPortfolioRamenWeek(engine,fundID,dealID,options={}){return previewPEPortfolioRamenWeekForState(engine?.g,fundID,dealID,options);}
 
-// PE realEstateAgency bridge (engine layer only -- resolvePortfolioManagementCapability() above
-// deliberately does NOT enable actionsEnabled for realEstateAgency yet; UI connection is left for
-// a follow-up PR, same as conveni's engine-first/UI-second split across #670/#671). Same
+// PE realEstateAgency bridge. resolvePortfolioManagementCapability() enables player-facing
+// management only after this detached production path has been proven safe. Same
 // detachment discipline as gym/conveni: the production real-estate-agency-pipeline.js model is
 // never called with the real state. Unlike conveni, no synthetic sibling-store array is needed --
 // real-estate-agency-pipeline.js's capacityFor() depends only on business.efficiency and

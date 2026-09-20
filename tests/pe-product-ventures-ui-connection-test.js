@@ -1,8 +1,8 @@
 'use strict';
 // PE productVentures UI connection regression.
-// Proves the detached production bridge can now be reached from the real PE D UI without
-// enabling the still-pending realEstateAgency management surface or leaking cash outside the
-// acquired portfolio company.
+// Proves the detached productVentures production bridge remains reachable from the real PE D UI
+// after the realEstateAgency bridge is connected, without leaking cash outside the acquired
+// portfolio company.
 const assert=require('node:assert/strict');
 const fs=require('node:fs');
 const vm=require('node:vm');
@@ -27,7 +27,7 @@ ops.ensure(engine.g);
 productDeal.portfolioCompany.cash=2_000_000_000;
 
 assert.equal(context.resolvePortfolioManagementCapability(productDeal).actionsEnabled,true,'productVentures player-facing management is enabled after the production bridge');
-assert.equal(context.resolvePortfolioManagementCapability(agencyDeal).actionsEnabled,false,'realEstateAgency remains UI-disabled in this PR');
+assert.equal(context.resolvePortfolioManagementCapability(agencyDeal).actionsEnabled,true,'realEstateAgency remains enabled after its detached production bridge is connected');
 
 let model=modules.peUIAdapter.getPEUIData({portfolioDealId:productDeal.id});
 let holding=model.portfolio.holdings.find(row=>row.dealID===productDeal.id);
