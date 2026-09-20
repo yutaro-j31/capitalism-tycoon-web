@@ -166,7 +166,7 @@
     "tests/pe-ui-phase1-test.js",
     "tests/pe-exit-preview-test.js",
     "tests/pe-management-context-test.js",
-    "tests/pe-product-ventures-portfolio-bridge-test.js",
+    "tests/pe-product-ventures-portfolio-bridge-test.js",\n    "tests/pe-product-ventures-ui-connection-test.js",
     "tests/pe-ramen-portfolio-bridge-test.js",
     "tests/pe-ramen-bridge-isolation-negative-test.js",
     "tests/pe-portfolio-weekly-settlement-test.js",
