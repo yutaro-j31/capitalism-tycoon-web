@@ -339,9 +339,8 @@ function previewPEPortfolioRamenWeekForState(state,fundID,dealID,options={}){
 }
 function previewPEPortfolioRamenWeek(engine,fundID,dealID,options={}){return previewPEPortfolioRamenWeekForState(engine?.g,fundID,dealID,options);}
 
-// PE realEstateAgency bridge (engine layer only -- resolvePortfolioManagementCapability() above
-// deliberately does NOT enable actionsEnabled for realEstateAgency yet; UI connection is left for
-// a follow-up PR, same as conveni's engine-first/UI-second split across #670/#671). Same
+// PE realEstateAgency bridge. resolvePortfolioManagementCapability() enables player-facing
+// management only after this detached production path has been proven safe. Same
 // detachment discipline as gym/conveni: the production real-estate-agency-pipeline.js model is
 // never called with the real state. Unlike conveni, no synthetic sibling-store array is needed --
 // real-estate-agency-pipeline.js's capacityFor() depends only on business.efficiency and
