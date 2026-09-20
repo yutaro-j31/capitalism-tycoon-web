@@ -33,7 +33,7 @@ function resolvePortfolioManagementCapability(deal){
   // Player-facing actions are enabled only for pillar businesses whose weekly settlement is wired
   // to a dedicated detached production bridge. Unsupported/incomplete pillars stay disabled so UI
   // inputs can never diverge from the calculator that actually settles the PE company.
-  const actionsEnabled=supported&&(businessID===RAMEN_BUSINESS_ID||businessID===GYM_BUSINESS_ID||businessID===CONVENI_BUSINESS_ID||businessID==='productVentures');
+  const actionsEnabled=supported&&(businessID===RAMEN_BUSINESS_ID||businessID===GYM_BUSINESS_ID||businessID===CONVENI_BUSINESS_ID||businessID==='productVentures'||businessID==='realEstateAgency');
   return {supported,pillar:supported?businessID:null,businessID:businessID||null,actionsEnabled,reason:supported?null:'unsupported-pillar'};
 }
 function portfolioTarget(state,fundID,dealID){
