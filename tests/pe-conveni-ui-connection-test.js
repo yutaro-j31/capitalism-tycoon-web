@@ -87,7 +87,8 @@ function lcg(seed) {
     // actionsEnabled is what manageView()'s guard actually checks -- confirm it matches the
     // capability check above, independent of whatever portfolioManagementDetails() returned.
     const expectedEnabled = ['gym','conveni','ramen','productVentures','realEstateAgency'].includes(businessID);
-    assert.equal(holding.management.actionsEnabled, expectedEnabled, `${businessID} actionsEnabled must match resolvePortfolioManagementCapability()`);\n    assert.equal(holding.management.priceEnabled, businessID !== 'realEstateAgency', `${businessID} price availability must match the production model`);
+    assert.equal(holding.management.actionsEnabled, expectedEnabled, `${businessID} actionsEnabled must match resolvePortfolioManagementCapability()`);
+    assert.equal(holding.management.priceEnabled, businessID !== 'realEstateAgency', `${businessID} price availability must match the production model`);
   }
 
   // The 6 generic PE levers (already confirmed business-agnostic in tests/pe-portfolio-weekly-settlement-test.js)
