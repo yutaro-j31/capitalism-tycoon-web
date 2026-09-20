@@ -37,7 +37,7 @@ pf.recordExit(engine.g,{exitType:'buyout',realizedAmount:200_000_000,investedAmo
 const fund=pf.createFund(engine.g,{size:10_000_000_000,gpCommit:1_000_000_000,terms:{fee:.02,carry:.2,hurdle:.08},y0:1});
 const deal=ops.acquirePillarCompany(engine.g,fund.id,{businessID:'productVentures',enterpriseValue:2_000_000_000,useCoinvest:false,week:1});
 assert(deal?.portfolioCompany,'productVentures PE deal acquired');
-assert.equal(context.resolvePortfolioManagementCapability(deal).actionsEnabled,false,'engine bridge must not expose player-facing productVentures actions yet');
+assert.equal(context.resolvePortfolioManagementCapability(deal).actionsEnabled,true,'productVentures player-facing actions are enabled once the detached production bridge is connected');
 
 // ---- Detached production input / pure preview --------------------------------------------------
 deal.portfolioCompany.priceMultiplier=1.35;
