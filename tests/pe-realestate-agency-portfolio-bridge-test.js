@@ -66,7 +66,7 @@ const plain = value => JSON.parse(JSON.stringify(value));
   const fund = pf.createFund(engine.g, { size: 10_000_000_000, gpCommit: 1_000_000_000, terms: { fee: .02, carry: .2, hurdle: .08 }, y0: 1 });
   const deal = ops.acquirePillarCompany(engine.g, fund.id, { businessID: 'realEstateAgency', enterpriseValue: 2_000_000_000, useCoinvest: false, week: engine.g.week });
   assert(deal && deal.portfolioCompany.productionSite, 'PE realEstateAgency deal acquired with a production site');
-  assert.equal(context.resolvePortfolioManagementCapability(deal).actionsEnabled, false, 'actionsEnabled must stay false for realEstateAgency -- UI connection is a follow-up PR, not this one');
+  assert.equal(context.resolvePortfolioManagementCapability(deal).actionsEnabled, true, 'actionsEnabled is true once the detached realEstateAgency bridge is connected to the player-facing management UI');
   deal.portfolioCompany.priceMultiplier = 1.7; // deliberately far from neutral; must have zero effect on the model (see section 2) and zero effect on the self-company
 
   const selfPipelineBefore = plain(store.brokeragePipeline);
@@ -102,10 +102,10 @@ const plain = value => JSON.parse(JSON.stringify(value));
   assert.deepEqual(plain(store.brokeragePipeline), selfPipelineAfterSelfWeek, 'settling the PE deal must never mutate the self-company store record');
 }
 
-// ---- Section 2: the price lever is wired but mathematically inert for this business --------------
+// ---- Section 2: the raw price multiplier is mathematically inert for this business ----------------
 // (js/real-estate-agency-pipeline.js's processStore() never reads business.price -- see the
 // comment in js/management-context.js's buildPEPortfolioRealEstateAgencyOperatingInputForState().
-// This is intentional: brokerage commission is a percentage of a randomly negotiated transaction
+// Player-facing UI/adapter code therefore blocks price changes; the underlying bridge test still\n// proves why that guard is necessary. Brokerage commission is a percentage of a negotiated transaction
 // value, not a price-elastic demand model. Proven directly here rather than only by code reading.)
 {
   const { engineModule, modules } = loadGame({ random: lcg(190826041 + 42), isolatedLegacyIndex: true });
