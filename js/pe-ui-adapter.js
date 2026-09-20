@@ -24,8 +24,9 @@ function holdingStatus(pc){const score=finite(pc?.improvementScore);if(score>=fi
 // Read-only view of the PE levers this UI can operate, business-agnostic. priceMultiplier is
 // sourced from deal.portfolioCompany.* for every business (never store.*). gym additionally gets
 // membershipStrategy/strategies -- the one PE lever with no generic equivalent (setPriceMultiplier
-// covers price for every business already; gym is still the only business with its own extra
-// lever, setPortfolioGymMembershipStrategy).
+// covers price for price-responsive businesses; realEstateAgency is explicitly excluded because
+// its production brokerage pipeline never reads business.price. gym is still the only business
+// with its own extra lever, setPortfolioGymMembershipStrategy).
 function portfolioManagementDetails(deal,pc){
   const details={priceMultiplier:Number.isFinite(Number(pc?.priceMultiplier))?Number(pc.priceMultiplier):1};
   if(deal?.businessID==='gym'){
