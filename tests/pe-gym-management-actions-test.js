@@ -87,13 +87,13 @@ function fixture(businessID='gym'){
   assert.equal(context.resolvePortfolioManagementCapability(deal).actionsEnabled,true);
   assert.equal(engine.canOpenPEPortfolioManagement(fund.id,deal.id).capability.actionsEnabled,true);
 }
-for(const businessID of ['realEstateAgency','productVentures']){
-  const {deal}=fixture(businessID);
-  assert.equal(context.resolvePortfolioManagementCapability(deal).actionsEnabled,false,`${businessID} must stay disabled until it has its own player-facing detached bridge`);
+{
+  const {deal}=fixture('realEstateAgency');
+  assert.equal(context.resolvePortfolioManagementCapability(deal).actionsEnabled,false,'realEstateAgency must stay disabled until its separate player-facing UI connection');
 }
-for(const businessID of ['ramen','conveni']){
+for(const businessID of ['ramen','conveni','productVentures']){
   const {deal}=fixture(businessID);
-  assert.equal(context.resolvePortfolioManagementCapability(deal).actionsEnabled,true,`${businessID} has its own detached production bridge now, same as gym`);
+  assert.equal(context.resolvePortfolioManagementCapability(deal).actionsEnabled,true,`${businessID} has its own detached production bridge connected to player-facing management`);
 }
 
 // ---- end-to-end: management actions -> settled week -> 3-pool cash isolation --------------
