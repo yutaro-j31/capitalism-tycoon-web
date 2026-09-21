@@ -166,6 +166,7 @@
     "tests/static-asset-cache-coherence-test.js",
     "tests/pe-ui-phase1-test.js",
     "tests/pe-ui-screen-ownership-test.js",
+    "tests/pe-lp-ddq-workflow-test.js",
     "tests/pe-exit-preview-test.js",
     "tests/pe-management-context-test.js",
     "tests/pe-product-ventures-portfolio-bridge-test.js",
