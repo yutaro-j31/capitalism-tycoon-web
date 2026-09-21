@@ -427,23 +427,37 @@ const PROMISE_BROKEN_FLOOR=.7;
 const MAX_LPS_PER_FUND=5;
 const LP_DDQ_MIN_WEEKS=2;
 const LP_DDQ_MAX_WEEKS=4;
+const LP_DDQ_FOLLOWUP_WEEKS=1;
+const LP_DDQ_RETRY_WEEKS=13;
 const LP_OUTREACH_LIMIT=20;
 
 function normalizeLPOutreach(list){
   const out=[];
   const seen=new Set();
+  const validStatus=new Set(['ddq','questions','followup','positive','declined']);
   for(const row of arr(list).slice().reverse()){
     if(!row||!LP_TYPES[row.lpTypeID]||seen.has(row.lpTypeID))continue;
     seen.add(row.lpTypeID);
     const requestedWeek=Math.max(0,Math.floor(finite(row.requestedWeek)));
     const responseWeek=Math.max(requestedWeek,Math.floor(finite(row.responseWeek,requestedWeek+LP_DDQ_MIN_WEEKS)));
-    const status=['ddq','positive'].includes(row.status)?row.status:'ddq';
-    out.push({lpTypeID:row.lpTypeID,status,requestedWeek,responseWeek,respondedWeek:status==='positive'?Math.max(responseWeek,Math.floor(finite(row.respondedWeek,responseWeek))):null});
+    const status=validStatus.has(row.status)?row.status:'ddq';
+    const respondedWeek=status==='followup'
+      ?Math.max(requestedWeek,Math.floor(finite(row.respondedWeek,row.questionAskedWeek??requestedWeek)))
+      :['questions','positive','declined'].includes(status)
+        ?Math.max(responseWeek,Math.floor(finite(row.respondedWeek,responseWeek))):null;
+    const retryWeek=status==='declined'?Math.max(respondedWeek,Math.floor(finite(row.retryWeek,respondedWeek+LP_DDQ_RETRY_WEEKS))):null;
+    out.push({
+      lpTypeID:row.lpTypeID,status,requestedWeek,responseWeek,respondedWeek,
+      scoreAtRequest:clamp(finite(row.scoreAtRequest),0,100),
+      attempt:Math.max(1,Math.floor(finite(row.attempt,1))),
+      questionAskedWeek:row.questionAskedWeek===null||row.questionAskedWeek===undefined?null:Math.max(0,Math.floor(finite(row.questionAskedWeek))),
+      answeredWeek:row.answeredWeek===null||row.answeredWeek===undefined?null:Math.max(0,Math.floor(finite(row.answeredWeek))),
+      retryWeek
+    });
     if(out.length>=LP_OUTREACH_LIMIT)break;
   }
   return out.reverse();
 }
-
 
 function meetsLPCondition(state,lpTypeID){
   ensure(state);
@@ -469,34 +483,83 @@ function lpOutreachRows(state){
     return {...meta,meetable:meetsLPCondition(state,id),outreach:outreach?{...outreach}:null};
   });
 }
+function lpDDQOutcome(row,{followup=false}={}){
+  const index=Math.max(0,LP_TYPE_IDS.indexOf(row?.lpTypeID));
+  const requestedWeek=Math.max(0,Math.floor(finite(row?.requestedWeek)));
+  const scoreBucket=Math.floor(clamp(finite(row?.scoreAtRequest),0,100)/10);
+  const attempt=Math.max(1,Math.floor(finite(row?.attempt,1)));
+  const signal=(index*3+requestedWeek+scoreBucket+(attempt-1)*2)%10;
+  if(followup)return ((signal+1)%5)===4?'declined':'positive';
+  if(signal<=5)return 'positive';
+  if(signal<=7)return 'questions';
+  return 'declined';
+}
 function solicitLP(state,lpTypeID,week=state?.week){
   ensure(state);
   if(!LP_TYPES[lpTypeID])return {ok:false,reason:'unknown-lp',message:'LPが見つかりません。'};
   if(!meetsLPCondition(state,lpTypeID))return {ok:false,reason:'locked',message:`${LP_TYPES[lpTypeID].meetConditionLabel}を満たす必要があります。`};
-  const existing=arr(state.peFirm.lpOutreach).find(row=>row.lpTypeID===lpTypeID);
-  if(existing?.status==='ddq')return {ok:false,reason:'pending',message:'DDQ回答待ちです。'};
-  if(existing?.status==='positive')return {ok:false,reason:'complete',message:'すでにDDQを通過しています。'};
   const requestedWeek=Math.max(0,Math.floor(finite(week,state.week)));
+  const existing=arr(state.peFirm.lpOutreach).find(row=>row.lpTypeID===lpTypeID);
+  if(existing?.status==='ddq'||existing?.status==='followup')return {ok:false,reason:'pending',message:'DDQ回答待ちです。'};
+  if(existing?.status==='questions')return {ok:false,reason:'questions',message:'追加質問への回答が必要です。'};
+  if(existing?.status==='positive')return {ok:false,reason:'complete',message:'すでにDDQを通過しています。'};
+  if(existing?.status==='declined'&&requestedWeek<finite(existing.retryWeek))return {ok:false,reason:'cooldown',message:`第${Math.floor(finite(existing.retryWeek))}週から再打診できます。`};
   const span=LP_DDQ_MAX_WEEKS-LP_DDQ_MIN_WEEKS+1;
   const wait=LP_DDQ_MIN_WEEKS+((LP_TYPE_IDS.indexOf(lpTypeID)+requestedWeek)%span);
-  const outreach={lpTypeID,status:'ddq',requestedWeek,responseWeek:requestedWeek+wait,respondedWeek:null};
+  const outreach={
+    lpTypeID,status:'ddq',requestedWeek,responseWeek:requestedWeek+wait,respondedWeek:null,
+    scoreAtRequest:finite(state.peFirm.trackRecord.score),attempt:Math.max(1,Math.floor(finite(existing?.attempt,0))+1),
+    questionAskedWeek:null,answeredWeek:null,retryWeek:null
+  };
   state.peFirm.lpOutreach=arr(state.peFirm.lpOutreach).filter(row=>row.lpTypeID!==lpTypeID);
   state.peFirm.lpOutreach.push(outreach);
   state.peFirm.lpOutreach=normalizeLPOutreach(state.peFirm.lpOutreach);
   return {ok:true,outreach:{...outreach}};
+}
+function answerLPQuestions(state,lpTypeID,week=state?.week){
+  ensure(state);
+  const row=arr(state.peFirm.lpOutreach).find(item=>item.lpTypeID===lpTypeID);
+  if(!row||row.status!=='questions')return {ok:false,reason:'no-questions',message:'回答が必要な追加質問はありません。'};
+  const w=Math.max(Math.floor(finite(row.respondedWeek)),Math.floor(finite(week,state.week)));
+  row.status='followup';
+  row.answeredWeek=w;
+  row.responseWeek=w+LP_DDQ_FOLLOWUP_WEEKS;
+  row.retryWeek=null;
+  return {ok:true,outreach:{...row}};
+}
+function lpResponseNews(state,row,w,outcome){
+  state.news=arr(state.news);
+  const name=LP_TYPES[row.lpTypeID].name;
+  const line=outcome==='positive'
+    ?`第${w}週：${name}からDDQ通過の回答が届きました。次回ファンド組成時のLP候補になります。`
+    :outcome==='questions'
+      ?`第${w}週：${name}からDDQの追加質問が届きました。追加資料を提出すると再審査されます。`
+      :`第${w}週：${name}から今回は見送りとの回答が届きました。第${row.retryWeek}週から再打診できます。`;
+  if(!state.news.includes(line))state.news.unshift(line);
+  state.news=state.news.slice(0,300);
 }
 function processLPOutreachWeek(state,week){
   ensure(state);
   const w=Math.max(0,Math.floor(finite(week,state.week)));
   let changed=0;
   for(const row of state.peFirm.lpOutreach){
-    if(row.status!=='ddq'||w<row.responseWeek)continue;
-    row.status='positive';
-    row.respondedWeek=w;
-    state.news=arr(state.news);
-    const line=`第${w}週：${LP_TYPES[row.lpTypeID].name}からDDQ通過の回答が届きました。次回ファンド組成時のLP候補になります。`;
-    if(!state.news.includes(line))state.news.unshift(line);
-    state.news=state.news.slice(0,300);
+    if(!['ddq','followup'].includes(row.status)||w<row.responseWeek)continue;
+    const outcome=lpDDQOutcome(row,{followup:row.status==='followup'});
+    if(outcome==='questions'){
+      row.status='questions';
+      row.respondedWeek=w;
+      row.questionAskedWeek=w;
+      row.retryWeek=null;
+    }else if(outcome==='positive'){
+      row.status='positive';
+      row.respondedWeek=w;
+      row.retryWeek=null;
+    }else{
+      row.status='declined';
+      row.respondedWeek=w;
+      row.retryWeek=w+LP_DDQ_RETRY_WEEKS;
+    }
+    lpResponseNews(state,row,w,outcome);
     changed++;
   }
   return changed;
@@ -900,6 +963,15 @@ function install(){
     this.emit();
     return true;
   };
+  proto.answerPELPQuestions=function(lpTypeID){
+    const result=answerLPQuestions(this.g,lpTypeID,this.g.week);
+    if(!result.ok)return this.fail(result.message);
+    const lp=LP_TYPES[lpTypeID];
+    this.notify?.(`${lp.name}へ追加資料を提出しました。最終回答は第${result.outreach.responseWeek}週に届きます。`,'success');
+    this.save();
+    this.emit();
+    return true;
+  };
   proto.formPEFund=function(options={}){
     const result=formFund(this.g,options);
     if(!result.ok)return this.fail(result.message);
@@ -967,7 +1039,7 @@ modules.peFund=Object.freeze({
   fundContributed,fundDeployed,fundDeploymentRate,fundDPI,fundIRR,evaluateFund,canFormNextFund,
   RESCUE_MIN_NEW_EXITS,RESCUE_MIN_SCORE_GAIN,newExitsSinceFund,gateRescueAvailable,
   gpShareOfFund,distributeToInvestors,planFundFormation,buildLPCommitments,formFund,
-  LP_TYPES,LP_TYPE_IDS,PROMISE_BROKEN_FLOOR,MAX_LPS_PER_FUND,LP_DDQ_MIN_WEEKS,LP_DDQ_MAX_WEEKS,normalizeLPs,normalizeLPOutreach,meetsLPCondition,visibleLPTypes,lpOutreachRows,solicitLP,processLPOutreachWeek,addLPCommitment,recordLPPromiseOutcome,promiseComplianceMultiplier,continuingLPCommitments,
+  LP_TYPES,LP_TYPE_IDS,PROMISE_BROKEN_FLOOR,MAX_LPS_PER_FUND,LP_DDQ_MIN_WEEKS,LP_DDQ_MAX_WEEKS,LP_DDQ_FOLLOWUP_WEEKS,LP_DDQ_RETRY_WEEKS,normalizeLPs,normalizeLPOutreach,meetsLPCondition,visibleLPTypes,lpOutreachRows,lpDDQOutcome,solicitLP,answerLPQuestions,processLPOutreachWeek,addLPCommitment,recordLPPromiseOutcome,promiseComplianceMultiplier,continuingLPCommitments,
   MANAGEMENT_FEE_PER_HEAD,TEAM_CAP,MIN_TICKET_PER_DEAL,MAX_DEAL_SHARE_OF_FUND,SLOT_CAP_ABSOLUTE,FIRST_FUND_HOLD_WEEKS,LATER_FUND_HOLD_WEEKS,
   teamCapacity,slotCapacity,maxSingleDealSize,activeDealCount,attentionRatio,attentionMultiplier,optimalHoldWeeks,
   DD_SLOTS_BASE,DD_SLOTS_PER_PARTNER_DIVISOR,DD_YEAR_WEEKS,partnerCount,computeDDSlotsPerYear,ddSlotsPerYear,ddPeriodIndex,currentDDUsage,ddSlotsRemaining,consumeDDSlot,
