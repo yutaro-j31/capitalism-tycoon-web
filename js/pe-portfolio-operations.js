@@ -702,8 +702,8 @@ function previewParentCompanyAcquisition(state,fundID,dealID,{week}={}){
   if(duplicate)return {ok:false,fundID,dealID,reason:'already-subsidiary'};
   const purchasePrice=Math.max(0,finite(preview.grossProceeds)),companyCash=Math.max(0,finite(state?.companyCash));
   if(purchasePrice<=0)return {ok:false,fundID,dealID,reason:'invalid-price',purchasePrice,companyCash,postCompanyCash:companyCash};
-  const finance=modules.finance,operationID=`pe-parent-acquisition-${dealID}`;
-  const alreadyBooked=arr(finance?.ensureFinance?.(state)?.transactions).some(t=>t?.idempotencyKey===operationID||t?.operationID===operationID);
+  const operationID=`pe-parent-acquisition-${dealID}`;
+  const alreadyBooked=arr(state?.finance?.transactions).some(t=>t?.idempotencyKey===operationID||t?.operationID===operationID);
   if(alreadyBooked)return {ok:false,fundID,dealID,reason:'already-booked',purchasePrice,companyCash,postCompanyCash:companyCash};
   const affordable=companyCash>=purchasePrice;
   return {
