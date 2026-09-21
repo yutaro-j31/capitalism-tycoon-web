@@ -50,6 +50,7 @@ const MAX_PE_TARGETS=8;
 const NETWORK_REFERRAL_TRUST_THRESHOLD=80;
 const NETWORK_REFERRAL_SEARCH_ATTEMPTS=8;
 const NETWORK_REFERRAL_SEED_OFFSET=1000;
+const NETWORK_REFERRAL_MIN_COMPETITION_MULTIPLIER=.25;
 // T19: 独占案件（設計書§5「3つの入り口」の3つ目）。人脈ノードが持ち込んだ案件は競争入札に
 // ならないぶん安く買える。割引はこのファイル独自の較正（設計書は「独占＝競らずに買える」と
 // しか書いていない）。独占が発生する確率そのものは js/pe-network.js の monopolyProbability()
@@ -156,32 +157,82 @@ function strongestReferralSource(state){
     .filter(node=>finite(node?.trust)>=NETWORK_REFERRAL_TRUST_THRESHOLD)
     .sort((a,b)=>finite(b.trust)-finite(a.trust)||String(a.id).localeCompare(String(b.id)))[0]||null;
 }
-function buildReferralDeal(state,fund,week,source){
-  if(!source)return null;
+function referralTrustProgress(source){
+  return clamp((finite(source?.trust)-NETWORK_REFERRAL_TRUST_THRESHOLD)/(100-NETWORK_REFERRAL_TRUST_THRESHOLD),0,1);
+}
+function referralInspectionCount(source){
+  return 1+Math.floor(referralTrustProgress(source)*(NETWORK_REFERRAL_SEARCH_ATTEMPTS-1)+1e-9);
+}
+function referralCompetitionMultiplier(trust){
+  const p=clamp((finite(trust)-NETWORK_REFERRAL_TRUST_THRESHOLD)/(100-NETWORK_REFERRAL_TRUST_THRESHOLD),0,1);
+  return 1-p*(1-NETWORK_REFERRAL_MIN_COMPETITION_MULTIPLIER);
+}
+function referralQualityScore(deal,week){
+  if(!deal)return -Infinity;
+  const target=buildTargetFromDeal(deal,week);
+  return finite(target.growth)*2+finite(target.synergy)-finite(target.risk)*1.25;
+}
+function referralCandidates(state,fund,week){
   const year=Math.floor(week/52),quarter=Math.floor((week%52)/SUPPLY_INTERVAL_WEEKS),eligible=new Set(tiers.eligibleTiers(fund));
-  const priceLevel=tiers.marketPriceLevel(finite(state?.economy,1)),distressed=finite(state?.economy,1)<1;
+  const priceLevel=tiers.marketPriceLevel(finite(state?.economy,1)),distressed=finite(state?.economy,1)<1,out=[];
   for(let attempt=0;attempt<NETWORK_REFERRAL_SEARCH_ATTEMPTS;attempt++){
     const index=NETWORK_REFERRAL_SEED_OFFSET+quarter*NETWORK_REFERRAL_SEARCH_ATTEMPTS+attempt;
     const deal={...tiers.generateDeal(year,index),priceLevel,distressed};
-    if(eligible.has(deal.tierID))return deal;
+    if(eligible.has(deal.tierID))out.push(deal);
   }
-  return null;
+  return out;
 }
-function addSuppliedTarget(state,deal,week,{channel='auction',source=null,allowMonopoly=false}={}){
+function buildReferralDeal(state,fund,week,source){
+  if(!source)return null;
+  const candidates=referralCandidates(state,fund,week);
+  if(!candidates.length)return null;
+  const baseline=candidates[0],limit=Math.min(candidates.length,referralInspectionCount(source));
+  if(limit<=1)return baseline;
+  // High Trust means access to more introductions, not a hidden numerical buff to the company.
+  // From the expanded deterministic pool choose only candidates that are at least as large as
+  // the old baseline, then maximize the existing growth/synergy/risk fundamentals. Because the
+  // baseline itself remains in the set, higher Trust can never make the referral smaller or lower
+  // quality than the Trust-80 behavior.
+  const pool=candidates.slice(0,limit).filter(deal=>finite(deal.enterpriseValue)>=finite(baseline.enterpriseValue));
+  return pool.reduce((best,deal)=>{
+    const q=referralQualityScore(deal,week),bq=referralQualityScore(best,week);
+    if(q!==bq)return q>bq?deal:best;
+    if(finite(deal.enterpriseValue)!==finite(best.enterpriseValue))return finite(deal.enterpriseValue)>finite(best.enterpriseValue)?deal:best;
+    return String(deal.id).localeCompare(String(best.id))<0?deal:best;
+  },baseline);
+}
+function addSuppliedTarget(state,deal,week,{channel='auction',source=null,sourceTrust=null,allowMonopoly=false}={}){
   if(!deal||state.acquisitionTargets.filter(isPETarget).length>=MAX_PE_TARGETS)return null;
   const target=buildTargetFromDeal(deal,week);
   if(state.acquisitionTargets.some(t=>t?.id===target.id))return null;
   if(channel==='network-referral'&&source){
+    const trustAtSupply=clamp(sourceTrust===null||sourceTrust===undefined?finite(source.trust):finite(sourceTrust,source.trust),0,100);
     target.dealChannel='network-referral';
     target.peSourceNodeID=source.id;
     target.peSourcePathType=source.pathType;
+    target.peSourceTrustAtSupply=trustAtSupply;
+    target.peNetworkQualityScore=referralQualityScore(deal,week);
+    target.peCompetitionMultiplier=referralCompetitionMultiplier(trustAtSupply);
+    target.peNetworkAccess=trustAtSupply>=90?'limited-auction':'referral';
     target.friendly=true;
+    // Reuse the canonical monopoly probability/cost instead of inventing a second exclusivity
+    // system. A winning roll turns this referral into true exclusivity (zero rival probability)
+    // while keeping dealChannel=network-referral so sourcing attribution remains intact.
+    if(network?.monopolyProbability?.(source)>0&&network.rollMonopolySourcing(state,source.id,week,`referral:${deal.id}`)){
+      target.peExclusiveReferral=true;
+      target.peNetworkAccess='exclusive';
+      target.peCompetitionMultiplier=0;
+      target.valuation=finite(target.valuation)*(1-MONOPOLY_PRICE_DISCOUNT);
+    }
   }else if(allowMonopoly){
     const monopolySource=rollMonopolySource(state,deal,week);
     if(monopolySource){
       target.dealChannel='monopoly';
       target.peSourceNodeID=monopolySource.id;
       target.peSourcePathType=monopolySource.pathType;
+      target.peSourceTrustAtSupply=clamp(finite(monopolySource.trust)+finite(network?.MONOPOLY_TRUST_COST),0,100);
+      target.peNetworkAccess='exclusive';
+      target.peCompetitionMultiplier=0;
       target.valuation=finite(target.valuation)*(1-MONOPOLY_PRICE_DISCOUNT);
       target.friendly=true;
     }
@@ -204,6 +255,7 @@ function processSupplyWeek(state,week){
   // Referral eligibility is fixed at the start of the supply cycle. A later monopoly conversion
   // may consume Trust, but it does not erase the referral already brought into this quarter.
   const referralSource=strongestReferralSource(state);
+  const referralTrustAtCycle=referralSource?finite(referralSource.trust):null;
   const eligible=new Set(tiers.eligibleTiers(fund));
   const deals=tiers.generateAnnualDeals(state,Math.floor(w/52));
   const deal=deals[Math.floor((w%52)/SUPPLY_INTERVAL_WEEKS)];
@@ -213,8 +265,11 @@ function processSupplyWeek(state,week){
 
   let referral=null;
   if(referralSource&&state.acquisitionTargets.filter(isPETarget).length<MAX_PE_TARGETS){
-    const referralDeal=buildReferralDeal(state,fund,w,referralSource);
-    referral=addSuppliedTarget(state,referralDeal,w,{channel:'network-referral',source:referralSource});
+    // The quality/competition tier is fixed from Trust at cycle start. A primary monopoly
+    // roll may consume the live node later in this same cycle, but it must not retroactively
+    // downgrade the referral opportunity that was already sourced.
+    const referralDeal=buildReferralDeal(state,fund,w,{...referralSource,trust:referralTrustAtCycle});
+    referral=addSuppliedTarget(state,referralDeal,w,{channel:'network-referral',source:referralSource,sourceTrust:referralTrustAtCycle});
   }
   return primary||referral;
 }
@@ -319,8 +374,8 @@ if(!install()&&typeof document!=='undefined'&&typeof document.addEventListener==
 }
 
 modules.peDealSupply=Object.freeze({
-  SUPPLY_INTERVAL_WEEKS,TARGET_LIFETIME_WEEKS,MAX_PE_TARGETS,MONOPOLY_PRICE_DISCOUNT,NETWORK_REFERRAL_TRUST_THRESHOLD,NETWORK_REFERRAL_SEARCH_ATTEMPTS,PILLAR_LABELS,TIER_INDUSTRIES,
-  ensure,isPETarget,activeInvestingFund,investingFundByID,investingFunds,resolveInvestingFund,buildTargetFromDeal,prunePETargets,strongestReferralSource,buildReferralDeal,processSupplyWeek,rollMonopolySource,install,
+  SUPPLY_INTERVAL_WEEKS,TARGET_LIFETIME_WEEKS,MAX_PE_TARGETS,MONOPOLY_PRICE_DISCOUNT,NETWORK_REFERRAL_TRUST_THRESHOLD,NETWORK_REFERRAL_SEARCH_ATTEMPTS,NETWORK_REFERRAL_MIN_COMPETITION_MULTIPLIER,PILLAR_LABELS,TIER_INDUSTRIES,
+  ensure,isPETarget,activeInvestingFund,investingFundByID,investingFunds,resolveInvestingFund,buildTargetFromDeal,prunePETargets,strongestReferralSource,referralTrustProgress,referralInspectionCount,referralCompetitionMultiplier,referralQualityScore,referralCandidates,buildReferralDeal,processSupplyWeek,rollMonopolySource,install,
   __installed:true
 });
 })();
