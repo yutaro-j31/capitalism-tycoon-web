@@ -3,6 +3,7 @@
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
+const vm = require('node:vm');
 const { ROOT } = require('./harness');
 
 const read = relative => fs.readFileSync(path.join(ROOT, relative), 'utf8');
@@ -12,6 +13,7 @@ const workflow = read('.github/workflows/test.yml');
 const pagesWorkflow = read('.github/workflows/pages-deployment-smoke.yml');
 const tagWorkflow = read('.github/workflows/release-candidate-tag.yml');
 const smoke = read('tests/iphone-webkit-smoke-test.js');
+const peOwnershipSmoke = read('tests/pe-ui-screen-ownership-webkit-test.js');
 const retryPolicy = read('tests/published-webkit-transient-retry.js');
 const deliveryGate = read('scripts/release-delivery-gate.js');
 const index = read('index.html');
@@ -55,7 +57,7 @@ for (const command of [
   'node tests/iphone-playtest-remediation-test.js', 'node tests/iphone-playtest-webkit-test.js',
   'node tests/physical-iphone-playtest-test.js', 'node tests/iphone-webkit-smoke-test.js',
   'node tests/ceo-dashboard-webkit-test.js', 'node tests/founding-tutorial-webkit-test.js',
-  'node tests/d-ui-webkit-test.js', 'node tests/capital-allocation-recovery-webkit-test.js',
+  'node tests/d-ui-webkit-test.js', 'node tests/pe-ui-screen-ownership-webkit-test.js', 'node tests/capital-allocation-recovery-webkit-test.js',
   'node tests/capital-allocation-recovery-outcome-webkit-test.js', 'node tests/game-over-settings-webkit-test.js',
   'node tests/two-store-iphone-webkit-test.js', 'node tests/release-diagnostics-webkit-test.js',
   'node tests/playtest-report-webkit-test.js', 'node tests/boot-recovery-webkit-test.js',
@@ -108,6 +110,19 @@ assert.match(smoke, /must use the release-candidate deployment path/);
 assert.match(smoke, /must not include a query string/);
 assert.match(smoke, /must not include a fragment/);
 assert.doesNotMatch(smoke, /chromium|firefox/, 'release mobile smoke must exercise WebKit only');
+assert.doesNotThrow(()=>new vm.Script(peOwnershipSmoke,{filename:'tests/pe-ui-screen-ownership-webkit-test.js'}),
+  'PE ownership WebKit regression must remain syntactically valid');
+assert.match(peOwnershipSmoke, /const \{webkit,devices\}=require\('playwright'\)/);
+assert.match(peOwnershipSmoke, /DEVICE_NAME='iPhone 13'/);
+assert.match(peOwnershipSmoke, /selectedTab='pe-portfolio'/);
+assert.match(peOwnershipSmoke, /CapitalismTycoonPEUI\.render\(\)/);
+assert.match(peOwnershipSmoke, /data-pe-view-root="fund"/);
+assert.match(peOwnershipSmoke, /data-pe-view-root="deals"/);
+assert.match(peOwnershipSmoke, /data-pe-view-root="portfolio"/);
+assert.match(peOwnershipSmoke, /data-pe-view-root="portfolio-manage"/);
+assert.match(peOwnershipSmoke, /inactive PE render must not overwrite real business DOM/);
+assert.match(peOwnershipSmoke, /PE UI must never overwrite the restored normal screen/);
+assert.doesNotMatch(peOwnershipSmoke, /chromium|firefox/, 'PE ownership browser regression must exercise WebKit only');
 
 const appCssIndex = index.indexOf('./css/app.css');
 const mobileCssIndex = index.indexOf('./css/mobile-release.css');
