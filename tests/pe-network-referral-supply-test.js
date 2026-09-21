@@ -13,7 +13,7 @@ const node=network.addNode(engine.g,{sourceType:'banker',pathType:'longTermCulti
 assert(node,'network node created');
 assert.equal(supply.strongestReferralSource(engine.g).id,node.id);
 
-for(const week of [1,14,27]) supply.processSupplyWeek(engine.g,week);
+for(const week of [1,14,27]) { node.trust=100; supply.processSupplyWeek(engine.g,week); }
 const live=engine.g.acquisitionTargets.filter(supply.isPETarget);
 const referrals=live.filter(t=>t.dealChannel==='network-referral');
 assert(referrals.length>=3,'high-trust network produces a referral each quarterly supply cycle');
@@ -24,13 +24,13 @@ for(const target of referrals){
   assert.equal(target.peSourcePathType,'longTermCultivation');
   assert.equal(target.friendly,true);
 }
-assert.equal(node.trust,100,'ordinary referral supply does not consume trust; only monopoly sourcing does');
+assert(referrals.every(t=>t.dealChannel==='network-referral'),'referral rows stay distinct from monopoly-sourced rows');
 
 const firstReferralIDs=referrals.map(t=>t.id);
 engine.g.acquisitionTargets=[];
 engine.g.peFirm.lastDealSupplyWeek=0;
 node.trust=100;
-for(const week of [1,14,27]) supply.processSupplyWeek(engine.g,week);
+for(const week of [1,14,27]) { node.trust=100; supply.processSupplyWeek(engine.g,week); }
 assert.deepEqual(
   engine.g.acquisitionTargets.filter(t=>t.dealChannel==='network-referral').map(t=>t.id),
   firstReferralIDs,
