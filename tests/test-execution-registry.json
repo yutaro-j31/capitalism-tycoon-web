@@ -79,9 +79,9 @@
     "reason": "Executed by the canonical PE UI Phase 1 regression entry, which is registered in tests/run-all.js.",
     "executedBy": "tests/pe-ui-phase1-test.js"
   },
-  "tests/published-webkit-transient-retry-test.js": {
-    "reason": "Executed by the release delivery gate aggregator, invoked from the release-readiness job in .github/workflows/test.yml.",
-    "executedBy": "scripts/release-delivery-gate.js"
+  "tests/pe-ui-screen-ownership-webkit-test.js": {
+    "reason": "Executed outside the canonical run-all suite by the iPhone WebKit Smoke job in .github/workflows/test.yml.",
+    "executedBy": ".github/workflows/test.yml"
   },
   "tests/play-entry-contract-test.js": {
     "reason": "Executed by the release delivery gate aggregator, invoked from the release-readiness job in .github/workflows/test.yml.",
@@ -106,6 +106,10 @@
   "tests/published-save-quota-webkit-test.js": {
     "reason": "Executed outside the canonical run-all suite by .github/workflows/pages-deployment-smoke.yml.",
     "executedBy": ".github/workflows/pages-deployment-smoke.yml"
+  },
+  "tests/published-webkit-transient-retry-test.js": {
+    "reason": "Executed by the release delivery gate aggregator, invoked from the release-readiness job in .github/workflows/test.yml.",
+    "executedBy": "scripts/release-delivery-gate.js"
   },
   "tests/published-weekly-impact-webkit-test.js": {
     "reason": "Executed outside the canonical run-all suite by .github/workflows/pages-deployment-smoke.yml.",

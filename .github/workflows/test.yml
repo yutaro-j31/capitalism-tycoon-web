@@ -276,6 +276,9 @@ jobs:
       - name: Verify D UI desktop and iPhone layouts
         timeout-minutes: 2
         run: node tests/d-ui-webkit-test.js
+      - name: Verify PE screen ownership in WebKit
+        timeout-minutes: 2
+        run: node tests/pe-ui-screen-ownership-webkit-test.js
       - name: Verify recovery funding workflow on iPhone
         timeout-minutes: 2
         run: node tests/capital-allocation-recovery-webkit-test.js
