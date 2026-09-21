@@ -345,6 +345,7 @@ const nodeTests = [
   ['pe-coinvest-ledger', 'tests/pe-coinvest-ledger-test.js'],
   ['pe-ui-phase1', 'tests/pe-ui-phase1-test.js'],
   ['pe-ui-phase2', 'tests/pe-ui-phase2-test.js'],
+  ['pe-ui-screen-ownership', 'tests/pe-ui-screen-ownership-test.js'],
   ['pe-conveni-ui-connection', 'tests/pe-conveni-ui-connection-test.js'],
   ['pe-d-ui-management-levers', 'tests/pe-d-ui-management-levers-test.js'],
   ['pe-realestate-agency-portfolio-bridge', 'tests/pe-realestate-agency-portfolio-bridge-test.js'],

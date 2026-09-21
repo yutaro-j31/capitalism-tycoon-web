@@ -12,6 +12,7 @@ const random=()=>{randomCalls+=1;randomState=(Math.imul(randomState,1664525)+101
 const {ctx,modules}=loadGame({random});
 const engine=ctx.__ct_engine;
 engine.configure({playerName:'D UI Lever Test',companyName:'Lever Test Co',difficulty:'normal'});
+engine.g.selectedTab='pe-portfolio';
 engine.g.companyCash=9_000_000_000;
 engine.g.personalCash=20_000_000_000;
 
