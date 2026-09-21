@@ -33,6 +33,7 @@ assert.equal(pf.processLPOutreachWeek(engine.g,row.outreach.responseWeek),1,'DDQ
 row=pf.lpOutreachRows(engine.g).find(x=>x.id==='wealthyFamilyOffice');
 assert.equal(row.outreach.status,'positive');
 assert.equal(row.outreach.respondedWeek,row.outreach.responseWeek);
+assert(engine.g.news.some(line=>line.includes('DDQ通過の回答が届きました')),'DDQ response is surfaced in game news');
 assert.equal(pf.processLPOutreachWeek(engine.g,row.outreach.responseWeek+1),0,'resolved DDQ is idempotent');
 assert.equal(engine.solicitPELP('wealthyFamilyOffice'),false,'completed LP cannot be duplicated');
 assert.equal(engine.g.peFirm.lpOutreach.filter(x=>x.lpTypeID==='wealthyFamilyOffice').length,1,'one canonical outreach row per LP type');
