@@ -1,0 +1,97 @@
+name: CI Hygiene
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/ci-hygiene.yml'
+      - '.github/workflows/test.yml'
+      - '.github/workflows/strategy-balance.yml'
+  pull_request:
+    types: [closed]
+  schedule:
+    - cron: '5 3 * * *'
+  workflow_dispatch:
+
+permissions:
+  actions: write
+  contents: read
+  pull-requests: read
+
+concurrency:
+  group: ci-hygiene
+  cancel-in-progress: false
+
+jobs:
+  cancel-stale-pr-runs:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Cancel queued or running jobs for closed PR branches
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const owner = context.repo.owner;
+            const repo = context.repo.repo;
+            const currentRunId = Number(context.runId);
+            const closedBranch =
+              context.eventName === 'pull_request'
+                ? context.payload.pull_request?.head?.ref ?? null
+                : null;
+
+            const openPulls = await github.paginate(github.rest.pulls.list, {
+              owner,
+              repo,
+              state: 'open',
+              per_page: 100,
+            });
+            const openBranches = new Set(openPulls.map((pr) => pr.head.ref));
+
+            let cancelled = 0;
+            const statuses = ['queued', 'in_progress'];
+
+            for (const status of statuses) {
+              const runs = await github.paginate(
+                github.rest.actions.listWorkflowRunsForRepo,
+                {
+                  owner,
+                  repo,
+                  status,
+                  per_page: 100,
+                },
+              );
+
+              for (const run of runs) {
+                if (Number(run.id) === currentRunId) continue;
+                if (run.event !== 'pull_request') continue;
+                if (!run.head_branch) continue;
+                if (openBranches.has(run.head_branch)) continue;
+
+                if (closedBranch && run.head_branch !== closedBranch) {
+                  continue;
+                }
+
+                core.info(
+                  `Cancelling ${run.name} #${run.run_number} (${run.status}) on ${run.head_branch}`,
+                );
+
+                try {
+                  await github.rest.actions.cancelWorkflowRun({
+                    owner,
+                    repo,
+                    run_id: run.id,
+                  });
+                  cancelled += 1;
+                } catch (error) {
+                  if (error.status === 409 || error.status === 404) {
+                    core.info(
+                      `Run ${run.id} was already completed or no longer cancellable.`,
+                    );
+                    continue;
+                  }
+                  throw error;
+                }
+              }
+            }
+
+            core.notice(`Cancelled ${cancelled} stale pull-request workflow run(s).`);
