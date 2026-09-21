@@ -493,6 +493,10 @@ function processLPOutreachWeek(state,week){
     if(row.status!=='ddq'||w<row.responseWeek)continue;
     row.status='positive';
     row.respondedWeek=w;
+    state.news=arr(state.news);
+    const line=`第${w}週：${LP_TYPES[row.lpTypeID].name}からDDQ通過の回答が届きました。次回ファンド組成時のLP候補になります。`;
+    if(!state.news.includes(line))state.news.unshift(line);
+    state.news=state.news.slice(0,300);
     changed++;
   }
   return changed;
