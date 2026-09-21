@@ -500,6 +500,55 @@ function setPortfolioGymMembershipStrategy(state,fundID,dealID,strategyID){
   pc.gymOperatingState=normalized;
   return deal;
 }
+// Player-facing action-cost preview. The preview reuses the exact production constants and
+// increments below so the UI cannot drift into a second pricing model.
+function previewManagementAction(state,fundID,dealID,action,{kind=''}={}){
+  const {deal}=rawFundAndDeal(state,fundID,dealID);
+  if(!deal||deal.status!=='active'||!deal.portfolioCompany)return {action,kind,executable:false,cost:0,portfolioCash:0,postCash:0,reason:'not-active'};
+  const pc=deal.portfolioCompany,cash=Math.max(0,finite(pc.cash)),ev=Math.max(0,finite(deal.enterpriseValue));
+  let cost=0,executable=true,reason=null;
+  if(action==='investQuality'){
+    executable=cash>0&&finite(pc.qualityInvestment)<100;
+    cost=executable?Math.min(10_000_000,cash):0;
+    if(!executable)reason=cash<=0?'cash':'maxed';
+  }else if(action==='reformProcurement'){
+    const next=Math.min(1,finite(pc.procurementReform)+.25),increase=Math.max(0,next-finite(pc.procurementReform));
+    cost=increase*PROCUREMENT_COST_FRACTION*ev;
+    executable=increase>0&&cost<=cash;
+    if(!executable)reason=increase<=0?'maxed':'cash';
+  }else if(action==='setStaffing'){
+    if(kind==='headcount-down'){
+      const next=clamp(finite(pc.headcountRatio,1)-.1,HEADCOUNT_MIN,HEADCOUNT_MAX);
+      executable=!deal.employmentPromise&&next<finite(pc.headcountRatio,1)-1e-9;
+      reason=!executable?(deal.employmentPromise?'employment-promise':'maxed'):null;
+    }else if(kind==='wage-up'){
+      const next=clamp(finite(pc.wageLevel,1)+.1,WAGE_MIN,WAGE_MAX);
+      executable=next>finite(pc.wageLevel,1)+1e-9;
+      reason=executable?null:'maxed';
+    }else{executable=false;reason='unsupported';}
+  }else if(action==='renewProductMix'){
+    const next=Math.min(1,finite(pc.productMixLevel)+.5),increase=Math.max(0,next-finite(pc.productMixLevel));
+    cost=increase*PRODUCT_MIX_COST_FRACTION*ev;
+    executable=increase>0&&cost<=cash;
+    if(!executable)reason=increase<=0?'maxed':'cash';
+  }else if(action==='consolidateSites'){
+    const remaining=Math.max(0,finite(pc.underperformingRatio)-finite(pc.consolidatedRatio));
+    executable=!deal.employmentPromise&&remaining>1e-9;
+    reason=!executable?(deal.employmentPromise?'employment-promise':'maxed'):null;
+  }else{executable=false;reason='unsupported';}
+  return {action,kind,executable,cost,portfolioCash:cash,postCash:Math.max(0,cash-cost),reason};
+}
+function previewManagementActions(state,fundID,dealID){
+  return {
+    investQuality:previewManagementAction(state,fundID,dealID,'investQuality'),
+    reformProcurement:previewManagementAction(state,fundID,dealID,'reformProcurement'),
+    headcountDown:previewManagementAction(state,fundID,dealID,'setStaffing',{kind:'headcount-down'}),
+    wageUp:previewManagementAction(state,fundID,dealID,'setStaffing',{kind:'wage-up'}),
+    renewProductMix:previewManagementAction(state,fundID,dealID,'renewProductMix'),
+    consolidateSites:previewManagementAction(state,fundID,dealID,'consolidateSites')
+  };
+}
+
 // 品質投資レバー。ファンド持分ではなく買収先自身のcashから支出する（会計分離）。
 function investQuality(state,fundID,dealID,amount){
   const {deal}=findFundAndDeal(state,fundID,dealID);
@@ -697,7 +746,7 @@ modules.pePortfolioOperations=Object.freeze({
   CONSOLIDATION_STEP,CONSOLIDATION_EBITDA_GAIN,UNDERPERFORMING_MIN,UNDERPERFORMING_MAX,EXIT_METHODS,
   ensure,findFundAndDeal,defaultPortfolioCompany,normalizePortfolioCompany,productionMasters,derivePortfolioProductionSite,isValidPortfolioProductionSite,ensurePortfolioProductionSite,getPortfolioProductionSite,acquirePillarCompany,computeImprovementScore,
   calculateGenericPortfolioOperatingWeek,calculateRamenPortfolioOperatingWeek,calculateGymPortfolioOperatingWeek,calculateConveniPortfolioOperatingWeek,calculateRealEstateAgencyPortfolioOperatingWeek,calculateProductVenturesPortfolioOperatingWeek,resolvePortfolioOperatingCalculator,calculatePortfolioOperatingWeek,settlePortfolioOperatingWeek,processDealWeek,processPortfolioWeek,
-  setPriceMultiplier,setPortfolioGymMembershipStrategy,investQuality,expandPortfolioStore,exitCapabilities,previewPortfolioExit,exitPortfolioCompany,install,
+  setPriceMultiplier,setPortfolioGymMembershipStrategy,previewManagementAction,previewManagementActions,investQuality,expandPortfolioStore,exitCapabilities,previewPortfolioExit,exitPortfolioCompany,install,
   delayedProgress,leverFactors,industryTagOf,adjustIndustryReputation,
   reformProcurement,setStaffing,renewProductMix,consolidateSites,
   __installed:true

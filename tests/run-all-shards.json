@@ -169,6 +169,7 @@
     "tests/pe-lp-ddq-workflow-test.js",
     "tests/pe-fund-capital-gates-ui-test.js",
     "tests/pe-network-referral-supply-test.js",
+    "tests/pe-portfolio-action-cost-preview-test.js",
     "tests/pe-exit-preview-test.js",
     "tests/pe-management-context-test.js",
     "tests/pe-product-ventures-portfolio-bridge-test.js",
