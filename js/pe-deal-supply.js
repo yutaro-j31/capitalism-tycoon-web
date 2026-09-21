@@ -47,6 +47,9 @@ const SUPPLY_INTERVAL_WEEKS=13;
 const TARGET_LIFETIME_WEEKS=26;
 // 同時に板へ載るPE案件の上限（CLAUDE.md の配列上限方針）。
 const MAX_PE_TARGETS=8;
+const NETWORK_REFERRAL_TRUST_THRESHOLD=80;
+const NETWORK_REFERRAL_SEARCH_ATTEMPTS=8;
+const NETWORK_REFERRAL_SEED_OFFSET=1000;
 // T19: 独占案件（設計書§5「3つの入り口」の3つ目）。人脈ノードが持ち込んだ案件は競争入札に
 // ならないぶん安く買える。割引はこのファイル独自の較正（設計書は「独占＝競らずに買える」と
 // しか書いていない）。独占が発生する確率そのものは js/pe-network.js の monopolyProbability()
@@ -146,6 +149,48 @@ function prunePETargets(state,week){
 // 週次の案件供給。SUPPLY_INTERVAL_WEEKS ごとに、その年の4件のうち1件を板へ載せる。
 // 投資期間中のファンドが無い、帯が今のファンド規模に合わない、板が上限に達している場合は
 // 何も供給しない（いずれも設計書の「ファンド規模に応じて打てる帯が変わる」に沿う）。
+function strongestReferralSource(state){
+  if(!network)return null;
+  network.ensure(state);
+  return [...state.peNetwork.nodes]
+    .filter(node=>finite(node?.trust)>=NETWORK_REFERRAL_TRUST_THRESHOLD)
+    .sort((a,b)=>finite(b.trust)-finite(a.trust)||String(a.id).localeCompare(String(b.id)))[0]||null;
+}
+function buildReferralDeal(state,fund,week,source){
+  if(!source)return null;
+  const year=Math.floor(week/52),quarter=Math.floor((week%52)/SUPPLY_INTERVAL_WEEKS),eligible=new Set(tiers.eligibleTiers(fund));
+  const priceLevel=tiers.marketPriceLevel(finite(state?.economy,1)),distressed=finite(state?.economy,1)<1;
+  for(let attempt=0;attempt<NETWORK_REFERRAL_SEARCH_ATTEMPTS;attempt++){
+    const index=NETWORK_REFERRAL_SEED_OFFSET+quarter*NETWORK_REFERRAL_SEARCH_ATTEMPTS+attempt;
+    const deal={...tiers.generateDeal(year,index),priceLevel,distressed};
+    if(eligible.has(deal.tierID))return deal;
+  }
+  return null;
+}
+function addSuppliedTarget(state,deal,week,{channel='auction',source=null,allowMonopoly=false}={}){
+  if(!deal||state.acquisitionTargets.filter(isPETarget).length>=MAX_PE_TARGETS)return null;
+  const target=buildTargetFromDeal(deal,week);
+  if(state.acquisitionTargets.some(t=>t?.id===target.id))return null;
+  if(channel==='network-referral'&&source){
+    target.dealChannel='network-referral';
+    target.peSourceNodeID=source.id;
+    target.peSourcePathType=source.pathType;
+    target.friendly=true;
+  }else if(allowMonopoly){
+    const monopolySource=rollMonopolySource(state,deal,week);
+    if(monopolySource){
+      target.dealChannel='monopoly';
+      target.peSourceNodeID=monopolySource.id;
+      target.peSourcePathType=monopolySource.pathType;
+      target.valuation=finite(target.valuation)*(1-MONOPOLY_PRICE_DISCOUNT);
+      target.friendly=true;
+    }
+  }
+  state.acquisitionTargets.push(target);
+  dealRoom.initializeTarget?.(target,state);
+  return target;
+}
+
 function processSupplyWeek(state,week){
   ensure(state);
   const w=Math.max(0,Math.floor(finite(week,state.week)));
@@ -155,25 +200,23 @@ function processSupplyWeek(state,week){
   if(w%SUPPLY_INTERVAL_WEEKS!==1)return null;
   const fund=activeInvestingFund(state);
   if(!fund)return null;
+
+  // Referral eligibility is fixed at the start of the supply cycle. A later monopoly conversion
+  // may consume Trust, but it does not erase the referral already brought into this quarter.
+  const referralSource=strongestReferralSource(state);
   const eligible=new Set(tiers.eligibleTiers(fund));
   const deals=tiers.generateAnnualDeals(state,Math.floor(w/52));
   const deal=deals[Math.floor((w%52)/SUPPLY_INTERVAL_WEEKS)];
-  if(!deal||!eligible.has(deal.tierID))return null;
-  if(state.acquisitionTargets.filter(isPETarget).length>=MAX_PE_TARGETS)return null;
-  const target=buildTargetFromDeal(deal,w);
-  if(state.acquisitionTargets.some(t=>t?.id===target.id))return null;
-  // T19: 人脈から独占案件として持ち込まれたなら、競らずに買える案件として板に載る。
-  const source=rollMonopolySource(state,deal,w);
-  if(source){
-    target.dealChannel='monopoly';
-    target.peSourceNodeID=source.id;
-    target.peSourcePathType=source.pathType;
-    target.valuation=finite(target.valuation)*(1-MONOPOLY_PRICE_DISCOUNT);
-    target.friendly=true;
+
+  let primary=null;
+  if(deal&&eligible.has(deal.tierID))primary=addSuppliedTarget(state,deal,w,{allowMonopoly:true});
+
+  let referral=null;
+  if(referralSource&&state.acquisitionTargets.filter(isPETarget).length<MAX_PE_TARGETS){
+    const referralDeal=buildReferralDeal(state,fund,w,referralSource);
+    referral=addSuppliedTarget(state,referralDeal,w,{channel:'network-referral',source:referralSource});
   }
-  state.acquisitionTargets.push(target);
-  dealRoom.initializeTarget?.(target,state);
-  return target;
+  return primary||referral;
 }
 
 // PE案件のDDに使うファンドの妥当性検査（T17の取得もこの判定を再利用できるよう関数に出す）。
@@ -276,8 +319,8 @@ if(!install()&&typeof document!=='undefined'&&typeof document.addEventListener==
 }
 
 modules.peDealSupply=Object.freeze({
-  SUPPLY_INTERVAL_WEEKS,TARGET_LIFETIME_WEEKS,MAX_PE_TARGETS,MONOPOLY_PRICE_DISCOUNT,PILLAR_LABELS,TIER_INDUSTRIES,
-  ensure,isPETarget,activeInvestingFund,investingFundByID,investingFunds,resolveInvestingFund,buildTargetFromDeal,prunePETargets,processSupplyWeek,rollMonopolySource,install,
+  SUPPLY_INTERVAL_WEEKS,TARGET_LIFETIME_WEEKS,MAX_PE_TARGETS,MONOPOLY_PRICE_DISCOUNT,NETWORK_REFERRAL_TRUST_THRESHOLD,NETWORK_REFERRAL_SEARCH_ATTEMPTS,PILLAR_LABELS,TIER_INDUSTRIES,
+  ensure,isPETarget,activeInvestingFund,investingFundByID,investingFunds,resolveInvestingFund,buildTargetFromDeal,prunePETargets,strongestReferralSource,buildReferralDeal,processSupplyWeek,rollMonopolySource,install,
   __installed:true
 });
 })();
