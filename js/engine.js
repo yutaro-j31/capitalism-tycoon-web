@@ -896,18 +896,20 @@ class TycoonEngine extends EventTarget {
     });
   }
 
-  openStore({tenantID,businessID,name,operatingHours=3}) {
+  openStore({tenantID,businessID,name,operatingHours=3,storeID=null}) {
     const tenant = this.g.tenants.find(t=>t.id===tenantID);
     const business = this.business(businessID);
     if (!tenant || tenant.occupiedBy) return this.fail('選択したテナントは利用できません。');
     if (!business) return this.fail('業種が見つかりません。');
+    const resolvedStoreID=storeID===null||storeID===undefined?null:String(storeID);
+    if(resolvedStoreID!==null&&this.g.stores.some(s=>String(s.id)===resolvedStoreID))return this.fail('店舗IDが重複しています。');
     const cost = business.storeCost + tenant.deposit;
     let startupLoan=null;
     if(this.g.companyCash<cost&&business.id==='gym')startupLoan=globalThis.__capitalismTycoonModules.bankLoansCovenants?.fundGymStartup?.(this.g,cost)||null;
     if (this.g.companyCash < cost) return this.fail(`出店には${yen(cost)}が必要です。`);
     this.g.companyCash -= cost; tenant.occupiedBy = 'player';
     const weeks = business.storeCost >= 15_000_000 ? 8 : business.storeCost >= 7_000_000 ? 5 : 3;
-    const store = {id:uuid(),businessID,prefID:tenant.prefID,name:name||`${this.g.companyName} ${this.g.stores.length+1}号店`,openedWeek:this.g.week,
+    const store = {id:resolvedStoreID??uuid(),businessID,prefID:tenant.prefID,name:name||`${this.g.companyName} ${this.g.stores.length+1}号店`,openedWeek:this.g.week,
       quality:business.quality,brand:business.brand,condition:100,lastSales:0,lastProfit:0,status:'preparing',openingWeek:this.g.week+weeks,weeksToOpen:weeks,
       tenantID,cityName:tenant.cityName,operatingHours:Number(operatingHours),contractRent:resolveTenantContractRent(tenant,this.pref(tenant.prefID))};
     this.g.stores.push(store);
@@ -1792,8 +1794,48 @@ class TycoonEngine extends EventTarget {
   }
   autoManage() {
     if(!this.g.executives.CEO)return;const reserve=this.g.autoManageStyle==='aggressive'?3_000_000:this.g.autoManageStyle==='defensive'?20_000_000:8_000_000;
+    this.autoManageStoreExpansion(reserve);
     if(this.g.companyCash>reserve+3_000_000&&this.g.week%4===0){const b=[...this.g.businesses].sort((a,b)=>b.brand+b.quality-(a.brand+a.quality))[0];this.investBusiness(b.id,'brand',Math.min(2_000_000,this.g.companyCash-reserve));}
     this.autoManageStoreDelegation();
+  }
+  // Company-wide auto management previously invested in brand and delegated operating hours,
+  // but never opened a store at all. That made "自動経営" incapable of expanding convenience,
+  // gym, or real-estate-agency operations (and in fact any business) regardless of cash.
+  //
+  // Reuse the canonical opening estimate + openStore settlement. No shadow accounting and no
+  // duplicate store-cost logic live here. Missing core businesses are prioritized before adding
+  // a second location, so automation diversifies beyond ramen instead of repeatedly selecting
+  // whichever business already has the strongest brand.
+  autoManageStoreExpansion(reserve=0) {
+    const style=this.g.autoManageStyle;
+    const interval=style==='aggressive'?4:style==='defensive'?26:13;
+    const week=Math.max(1,Math.floor(finite(this.g.week,1)));
+    if(week%interval!==0)return false;
+    const freeTenants=(this.g.tenants||[]).filter(t=>!t.occupiedBy);
+    if(!freeTenants.length)return false;
+    const activeCount=new Map(FOUNDABLE_BUSINESS_IDS.map(id=>[id,(this.g.stores||[]).filter(s=>s.businessID===id&&s.status!=='closed').length]));
+    const candidates=[];
+    for(const businessID of FOUNDABLE_BUSINESS_IDS){
+      for(const tenant of freeTenants){
+        const estimate=this.estimateStoreOpening({tenantID:tenant.id,businessID,operatingHours:3});
+        if(!estimate||!estimate.affordable||estimate.expected.profit<=0||estimate.cashAfterOpening<reserve)continue;
+        candidates.push({businessID,tenant,estimate,missing:(activeCount.get(businessID)||0)===0});
+      }
+    }
+    if(!candidates.length)return false;
+    candidates.sort((a,b)=>(a.missing===b.missing?0:a.missing?-1:1)
+      ||finite(b.estimate.siteSuitability?.multiplier)-finite(a.estimate.siteSuitability?.multiplier)
+      ||finite(b.estimate.expected?.profit)-finite(a.estimate.expected?.profit)
+      ||finite(a.estimate.paybackWeeks,Infinity)-finite(b.estimate.paybackWeeks,Infinity)
+      ||a.businessID.localeCompare(b.businessID)
+      ||String(a.tenant.stableKey||a.tenant.id).localeCompare(String(b.tenant.stableKey||b.tenant.id)));
+    const chosen=candidates[0];
+    const stableTenant=String(chosen.tenant.stableKey||chosen.tenant.id).replace(/[^a-zA-Z0-9_-]/g,'_');
+    return this.openStore({
+      tenantID:chosen.tenant.id,businessID:chosen.businessID,operatingHours:3,
+      name:`${this.g.companyName} 自動出店 ${chosen.businessID} ${week}週`,
+      storeID:`auto-store-${week}-${chosen.businessID}-${stableTenant}`
+    });
   }
   // Store-manager delegation: reuses the existing autoManage/autoManageStyle toggle (no new
   // top-level state) and the existing per-store workforce staffing snapshot instead of a
