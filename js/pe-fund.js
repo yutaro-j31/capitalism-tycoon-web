@@ -32,7 +32,7 @@ function defaultTrackRecord(){return {score:0,exits:[],realizedDPI:0};}
 //   coinvestCapital     … Exitで共同投資家へ返した額の残高（返却先の勘定）。プレイヤーは使えない
 // 旧実装は fund.coinvestCommitted / coinvestReturned の累計スカラーだけで、出資元と返却先の
 // 勘定が無く、資金の出入りを追跡できなかった（Codex GAME-REAUDIT-001）。
-function defaultPeFirm(){return {trackRecord:defaultTrackRecord(),funds:[],ddSlotsPerYear:3,ddUsage:{period:0,used:0},unlocked:false,coinvestContributed:0,coinvestCapital:0};}
+function defaultPeFirm(){return {trackRecord:defaultTrackRecord(),funds:[],ddSlotsPerYear:3,ddUsage:{period:0,used:0},unlocked:false,coinvestContributed:0,coinvestCapital:0,lpOutreach:[]};}
 
 // LPコミットメント配列の共通正規化（Codex独立監査の指摘対応）: 同一lpTypeIDの重複除去
 // （先勝ち）と MAX_LPS_PER_FUND(5件) への切り詰めを1箇所に集約する。ensureFund（load正規化
@@ -112,6 +112,7 @@ function ensure(state){
   pf.trackRecord.score=clamp(finite(pf.trackRecord.score),0,100);
   pf.trackRecord.realizedDPI=Math.max(0,finite(pf.trackRecord.realizedDPI));
   pf.funds=arr(pf.funds).slice(-20);
+  pf.lpOutreach=normalizeLPOutreach(pf.lpOutreach);
   pf.unlocked=Boolean(pf.unlocked);
   pf.funds.forEach(f=>ensureFund(f,finite(state.week,1)));
   // T24-1: 救済導線の基準点。T24以前のセーブには無いので、読み込み時点のスコアを基準にする
@@ -424,6 +425,25 @@ const PROMISE_BROKEN_FLOOR=.7;
 // ファンド1本あたりのLP件数上限。現状LP_TYPESは5種類しかないため同一タイプ拒否と
 // 実質同じ効果になるが、T14でLP面談UIが付く前に上限自体を明示しておく。
 const MAX_LPS_PER_FUND=5;
+const LP_DDQ_MIN_WEEKS=2;
+const LP_DDQ_MAX_WEEKS=4;
+const LP_OUTREACH_LIMIT=20;
+
+function normalizeLPOutreach(list){
+  const out=[];
+  const seen=new Set();
+  for(const row of arr(list).slice().reverse()){
+    if(!row||!LP_TYPES[row.lpTypeID]||seen.has(row.lpTypeID))continue;
+    seen.add(row.lpTypeID);
+    const requestedWeek=Math.max(0,Math.floor(finite(row.requestedWeek)));
+    const responseWeek=Math.max(requestedWeek,Math.floor(finite(row.responseWeek,requestedWeek+LP_DDQ_MIN_WEEKS)));
+    const status=['ddq','positive'].includes(row.status)?row.status:'ddq';
+    out.push({lpTypeID:row.lpTypeID,status,requestedWeek,responseWeek,respondedWeek:status==='positive'?Math.max(responseWeek,Math.floor(finite(row.respondedWeek,responseWeek))):null});
+    if(out.length>=LP_OUTREACH_LIMIT)break;
+  }
+  return out.reverse();
+}
+
 
 function meetsLPCondition(state,lpTypeID){
   ensure(state);
@@ -439,6 +459,43 @@ function meetsLPCondition(state,lpTypeID){
 function visibleLPTypes(state){
   ensure(state);
   return LP_TYPE_IDS.map(id=>({...LP_TYPES[id],meetable:meetsLPCondition(state,id)}));
+}
+
+function lpOutreachRows(state){
+  ensure(state);
+  const byID=new Map(arr(state.peFirm.lpOutreach).map(row=>[row.lpTypeID,row]));
+  return LP_TYPE_IDS.map(id=>{
+    const meta=LP_TYPES[id],outreach=byID.get(id)||null;
+    return {...meta,meetable:meetsLPCondition(state,id),outreach:outreach?{...outreach}:null};
+  });
+}
+function solicitLP(state,lpTypeID,week=state?.week){
+  ensure(state);
+  if(!LP_TYPES[lpTypeID])return {ok:false,reason:'unknown-lp',message:'LPが見つかりません。'};
+  if(!meetsLPCondition(state,lpTypeID))return {ok:false,reason:'locked',message:`${LP_TYPES[lpTypeID].meetConditionLabel}を満たす必要があります。`};
+  const existing=arr(state.peFirm.lpOutreach).find(row=>row.lpTypeID===lpTypeID);
+  if(existing?.status==='ddq')return {ok:false,reason:'pending',message:'DDQ回答待ちです。'};
+  if(existing?.status==='positive')return {ok:false,reason:'complete',message:'すでにDDQを通過しています。'};
+  const requestedWeek=Math.max(0,Math.floor(finite(week,state.week)));
+  const span=LP_DDQ_MAX_WEEKS-LP_DDQ_MIN_WEEKS+1;
+  const wait=LP_DDQ_MIN_WEEKS+((LP_TYPE_IDS.indexOf(lpTypeID)+requestedWeek)%span);
+  const outreach={lpTypeID,status:'ddq',requestedWeek,responseWeek:requestedWeek+wait,respondedWeek:null};
+  state.peFirm.lpOutreach=arr(state.peFirm.lpOutreach).filter(row=>row.lpTypeID!==lpTypeID);
+  state.peFirm.lpOutreach.push(outreach);
+  state.peFirm.lpOutreach=normalizeLPOutreach(state.peFirm.lpOutreach);
+  return {ok:true,outreach:{...outreach}};
+}
+function processLPOutreachWeek(state,week){
+  ensure(state);
+  const w=Math.max(0,Math.floor(finite(week,state.week)));
+  let changed=0;
+  for(const row of state.peFirm.lpOutreach){
+    if(row.status!=='ddq'||w<row.responseWeek)continue;
+    row.status='positive';
+    row.respondedWeek=w;
+    changed++;
+  }
+  return changed;
 }
 
 // 案件ではなくLPとの間の「約束」。断っても(promiseAccepted:false)ペナルティは無く、単に
@@ -819,7 +876,10 @@ function install(){
       const r=baseAdvanceWeek.call(this,false);
       if(r!==false){
         ensure(this.g);
-        if(this.g.peFirm.funds.length)for(let w=before+1;w<=finite(this.g.week);w++)processFundsWeek(this.g,w);
+        for(let w=before+1;w<=finite(this.g.week);w++){
+          processLPOutreachWeek(this.g,w);
+          if(this.g.peFirm.funds.length)processFundsWeek(this.g,w);
+        }
       }
       return r;
     },'week',()=>({summary:showSummary?this.g.lastWeeklySummary:null}));
@@ -827,6 +887,15 @@ function install(){
   // T21-2: プレイヤー操作としてのファンド組成。表示用の見積り（formablePEFund）と、
   // 実行（formPEFund）を分ける。
   proto.formablePEFund=function(){return planFundFormation(this.g);};
+  proto.solicitPELP=function(lpTypeID){
+    const result=solicitLP(this.g,lpTypeID,this.g.week);
+    if(!result.ok)return this.fail(result.message);
+    const lp=LP_TYPES[lpTypeID];
+    this.notify?.(`${lp.name}へ出資を打診しました。DDQ回答は第${result.outreach.responseWeek}週までに届きます。`,'success');
+    this.save();
+    this.emit();
+    return true;
+  };
   proto.formPEFund=function(options={}){
     const result=formFund(this.g,options);
     if(!result.ok)return this.fail(result.message);
@@ -894,7 +963,7 @@ modules.peFund=Object.freeze({
   fundContributed,fundDeployed,fundDeploymentRate,fundDPI,fundIRR,evaluateFund,canFormNextFund,
   RESCUE_MIN_NEW_EXITS,RESCUE_MIN_SCORE_GAIN,newExitsSinceFund,gateRescueAvailable,
   gpShareOfFund,distributeToInvestors,planFundFormation,buildLPCommitments,formFund,
-  LP_TYPES,LP_TYPE_IDS,PROMISE_BROKEN_FLOOR,MAX_LPS_PER_FUND,normalizeLPs,meetsLPCondition,visibleLPTypes,addLPCommitment,recordLPPromiseOutcome,promiseComplianceMultiplier,continuingLPCommitments,
+  LP_TYPES,LP_TYPE_IDS,PROMISE_BROKEN_FLOOR,MAX_LPS_PER_FUND,LP_DDQ_MIN_WEEKS,LP_DDQ_MAX_WEEKS,normalizeLPs,normalizeLPOutreach,meetsLPCondition,visibleLPTypes,lpOutreachRows,solicitLP,processLPOutreachWeek,addLPCommitment,recordLPPromiseOutcome,promiseComplianceMultiplier,continuingLPCommitments,
   MANAGEMENT_FEE_PER_HEAD,TEAM_CAP,MIN_TICKET_PER_DEAL,MAX_DEAL_SHARE_OF_FUND,SLOT_CAP_ABSOLUTE,FIRST_FUND_HOLD_WEEKS,LATER_FUND_HOLD_WEEKS,
   teamCapacity,slotCapacity,maxSingleDealSize,activeDealCount,attentionRatio,attentionMultiplier,optimalHoldWeeks,
   DD_SLOTS_BASE,DD_SLOTS_PER_PARTNER_DIVISOR,DD_YEAR_WEEKS,partnerCount,computeDDSlotsPerYear,ddSlotsPerYear,ddPeriodIndex,currentDDUsage,ddSlotsRemaining,consumeDDSlot,
