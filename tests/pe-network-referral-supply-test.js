@@ -32,8 +32,8 @@ engine.g.peFirm.lastDealSupplyWeek=0;
 node.trust=100;
 for(const week of [1,14,27]) { node.trust=100; supply.processSupplyWeek(engine.g,week); }
 assert.deepEqual(
-  engine.g.acquisitionTargets.filter(t=>t.dealChannel==='network-referral').map(t=>t.id),
-  firstReferralIDs,
+  [...engine.g.acquisitionTargets.filter(t=>t.dealChannel==='network-referral').map(t=>t.id)],
+  [...firstReferralIDs],
   'referral supply is deterministic for the same state and weeks'
 );
 
