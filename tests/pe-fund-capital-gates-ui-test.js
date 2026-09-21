@@ -21,6 +21,7 @@ engine.g.peFirm.trackRecord.exits.push(
   {id:'rescue-2',exitType:'ipo',recordedWeek:fund.y0+2}
 );
 engine.g.selectedTab='pe-portfolio';
+pf.ensure(engine.g); // Snapshot the canonical normalized production state, not raw test mutations.
 
 const before=JSON.stringify(engine.g);
 const model=modules.peUIAdapter.getPEUIData();
