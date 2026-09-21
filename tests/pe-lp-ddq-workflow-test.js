@@ -18,7 +18,7 @@ engine.emit=()=>{emits+=1;};
 
 assert.equal(engine.solicitPELP('wealthyFamilyOffice'),true,'meetable LP solicitation starts');
 assert.equal(saves,1,'solicitation saves once');
-assert.equal(emits,1,'solicitation emits once');
+assert.equal(emits,2,'solicitation emits notify plus the normal change event');
 let row=pf.lpOutreachRows(engine.g).find(x=>x.id==='wealthyFamilyOffice');
 assert.equal(row.outreach.status,'ddq');
 const wait=row.outreach.responseWeek-row.outreach.requestedWeek;
