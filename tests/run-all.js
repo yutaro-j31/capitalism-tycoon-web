@@ -313,6 +313,7 @@ const nodeTests = [
   ['pe-fund-track-record', 'tests/pe-fund-track-record-test.js'],
   ['pe-fund-dpi', 'tests/pe-fund-dpi-test.js'],
   ['pe-fund-lp', 'tests/pe-fund-lp-test.js'],
+  ['pe-lp-ddq-workflow', 'tests/pe-lp-ddq-workflow-test.js'],
   ['pe-fund-team-slots', 'tests/pe-fund-team-slots-test.js'],
   ['pe-fund-dd-slots', 'tests/pe-fund-dd-slots-test.js'],
   ['pe-industry-tiers', 'tests/pe-industry-tiers-test.js'],
