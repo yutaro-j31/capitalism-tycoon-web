@@ -13,6 +13,7 @@ pf.recordExit(engine.g,{exitType:'buyout',realizedAmount:200_000_000,investedAmo
 const fund=pf.createFund(engine.g,{size:10_000_000_000,gpCommit:1_000_000_000,terms:{fee:.02,carry:.2,hurdle:.08},y0:engine.g.week});
 assert(fund,'fund created');
 fund.cash=6_000_000_000;
+fund.deals=[{id:'capital-display-deal',status:'active',fundPortion:4_000_000_000,investedAmount:4_000_000_000}];
 fund.coinvestCommitted=2_000_000_000;
 fund.trackScoreAtFormation=10;
 engine.g.peFirm.trackRecord.score=20;
@@ -27,7 +28,9 @@ const before=JSON.stringify(engine.g);
 const model=modules.peUIAdapter.getPEUIData();
 assert.equal(JSON.stringify(engine.g),before,'capital/gate adaptation is read-only');
 const d=model.dashboard;
+assert.equal(d.capital.invested,4_000_000_000,'invested capital is derived from canonical fund deployment');
 assert.equal(d.capital.fundCash,6_000_000_000,'fund cash is the actual fund cash balance');
+assert.equal(d.capital.reserve,0,'active investing fund has no non-investable reserve while all fund cash is investable');
 assert.equal(d.capital.investableCash,6_000_000_000,'investing fund cash is available for new investments');
 assert.equal(d.capital.singleDealLimit,2_500_000_000,'single-deal limit respects the 25% diversification cap');
 assert.equal(d.capital.coinvestRemaining,8_000_000_000,'co-invest headroom is shown separately from fund cash');
@@ -42,6 +45,7 @@ fund.status='harvesting';
 const harvest=modules.peUIAdapter.getPEUIData().dashboard;
 assert.equal(harvest.capital.fundCash,6_000_000_000,'cash balance remains visible after investment period');
 assert.equal(harvest.capital.investableCash,0,'cash is not mislabelled as new-investment capacity after investment period');
+assert.equal(harvest.capital.reserve,6_000_000_000,'harvesting cash is explicitly surfaced as non-investable reserve');
 assert.equal(harvest.capital.singleDealLimit,0,'single-deal capacity is zero outside the investment period');
 assert.equal(harvest.capital.coinvestRemaining,0,'co-invest headroom is not presented as usable outside the investment period');
 
@@ -51,11 +55,36 @@ const document={addEventListener(){},querySelector(){return null;},getElementByI
 const uiContext=vm.createContext({console,document,CapitalismTycoonPEUIAdapter:modules.peUIAdapter});
 new vm.Script(fs.readFileSync('js/pe-ui.js','utf8'),{filename:'js/pe-ui.js'}).runInContext(uiContext);
 assert.equal(uiContext.CapitalismTycoonPEUI.render(),true,'fund D UI renders');
-for(const label of ['ファンド現金残高','新規投資余力','1案件上限','共同投資余力','通常ルート','救済ルート']){
+for(const label of ['投資済み','ファンド現金残高','新規投資余力','Reserve','1案件上限','共同投資余力','通常ルート','救済ルート']){
   assert.match(screen.innerHTML,new RegExp(label),`${label} is visible in the fund UI`);
 }
 assert.match(screen.innerHTML,/救済ルート達成/,'UI distinguishes rescue-route eligibility from the normal gate');
 assert.match(screen.innerHTML,/新規Exit 2\/2件/,'UI states the rescue exit requirement and current progress');
 assert.match(screen.innerHTML,/トラックレコード 20\/20点/,'UI states the rescue score requirement and current progress');
+
+fund.status='harvesting';
+const fund2=pf.createFund(engine.g,{size:4_000_000_000,gpCommit:400_000_000,terms:{fee:.02,carry:.2,hurdle:.08},y0:engine.g.week+1});
+assert(fund2,'Fund II created for comparison');
+fund2.cash=3_000_000_000;
+fund2.deals=[{id:'fund-2-display-deal',status:'active',fundPortion:1_000_000_000,investedAmount:1_000_000_000}];
+pf.ensure(engine.g);
+const beforeComparison=JSON.stringify(engine.g);
+const comparisonModel=modules.peUIAdapter.getPEUIData().dashboard;
+assert.equal(JSON.stringify(engine.g),beforeComparison,'fund comparison adaptation is read-only');
+assert.equal(comparisonModel.fund.ordinal,2,'latest fund is the active Fund II');
+assert.deepEqual([...comparisonModel.fundComparison.map(row=>row.ordinal)],[1,2],'comparison exposes Fund I and Fund II side by side');
+assert.equal(comparisonModel.fundComparison[0].invested,4_000_000_000);
+assert.equal(comparisonModel.fundComparison[0].investableCash,0);
+assert.equal(comparisonModel.fundComparison[0].reserve,6_000_000_000);
+assert.equal(comparisonModel.fundComparison[1].invested,1_000_000_000);
+assert.equal(comparisonModel.fundComparison[1].investableCash,3_000_000_000);
+assert.equal(comparisonModel.fundComparison[1].reserve,0);
+uiContext.CapitalismTycoonPEUI.render();
+assert.match(screen.innerHTML,/data-pe-fund-comparison/,'Fund capital comparison section renders');
+assert.match(screen.innerHTML,/data-pe-fund-summary="1"/,'Fund I summary renders');
+assert.match(screen.innerHTML,/data-pe-fund-summary="2"/,'Fund II summary renders');
+assert.match(screen.innerHTML,/現金残高/);
+assert.match(screen.innerHTML,/投資可能/);
+assert.match(screen.innerHTML,/Reserve/);
 
 console.log('PE fund capital and next-fund gate UI tests passed');
