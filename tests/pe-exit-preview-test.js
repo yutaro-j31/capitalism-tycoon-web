@@ -17,6 +17,11 @@ function fixture(){
   return {e,fund,deal};
 }
 assert.deepEqual(plain(ops.EXIT_METHODS),[{id:'sale',label:'売却',implemented:true},{id:'ipo',label:'IPO',implemented:true}],'production registers sale and IPO exit methods');
+assert.deepEqual(plain(ops.EXIT_BUYER_TYPES),[
+  {id:'market',label:'一般売却',minScore:0,minHoldWeeks:0},
+  {id:'strategic',label:'事業会社',minScore:60,minHoldWeeks:52},
+  {id:'secondaryPE',label:'Secondary Buyout',minScore:55,minHoldWeeks:104}
+],'sale buyer types are explicit and bounded');
 assert.equal(typeof engineModule.TycoonEngine.prototype.previewPEPortfolioExit,'function');
 assert.equal(typeof engineModule.TycoonEngine.prototype.getPEPortfolioExitCapabilities,'function');
 assert.equal(typeof engineModule.TycoonEngine.prototype.previewPEPortfolioExitScenarios,'function');
@@ -105,6 +110,46 @@ assert.equal(typeof engineModule.TycoonEngine.prototype.previewPEPortfolioExitSc
   deal.tierID='smallSuccession';
   assert.equal(e.getPEPortfolioExitCapabilities(fund.id,deal.id).find(row=>row.id==='ipo').reason,'ipo-not-supported');
   assert.equal(e.exitPEPortfolioCompany(fund.id,deal.id,{method:'ipo'}),false,'ineligible IPO never mutates the holding');
+}
+{
+  const {e,fund,deal}=fixture(),before=structuredClone(e.g),callsBefore=randomCalls;
+  const buyers=ops.exitBuyerCapabilities(e.g,fund.id,deal.id);
+  assert.deepEqual(plain(buyers.map(row=>row.id)),['market','strategic','secondaryPE']);
+  assert.ok(buyers.every(row=>row.eligible),'mature improved holding exposes all buyer types');
+  const market=e.previewPEPortfolioExit(fund.id,deal.id,{method:'sale',buyerType:'market'});
+  const strategic=e.previewPEPortfolioExit(fund.id,deal.id,{method:'sale',buyerType:'strategic'});
+  const secondary=e.previewPEPortfolioExit(fund.id,deal.id,{method:'sale',buyerType:'secondaryPE'});
+  assert.equal(market.buyerFactor,1,'generic market sale preserves the pre-#708 production price');
+  assert.equal(market.exitEnterpriseValue,market.referenceEnterpriseValue);
+  for(const row of [strategic,secondary]){
+    assert.equal(row.ok,true);
+    assert.ok(row.buyerFactor>=.90&&row.buyerFactor<=1.20,'deterministic quote stays bounded');
+    assert.ok(Math.abs(row.exitEnterpriseValue-row.referenceEnterpriseValue*row.buyerFactor)<1e-6,'buyer quote factor prices the same reference enterprise value');
+    assert.deepEqual(row.settlement,pf.calculateExitSettlement(fund,deal,row.grossProceeds,e.g.week),'buyer quote reuses canonical waterfall');
+  }
+  assert.equal(e.previewPEPortfolioExit(fund.id,deal.id,{method:'sale',buyerType:'strategic'}).buyerFactor,strategic.buyerFactor,'same holding gets the same buyer quote');
+  assert.deepEqual(plain(e.g),before,'buyer quote previews are read-only');
+  assert.equal(randomCalls,callsBefore,'buyer quote previews consume no RNG');
+
+  const companyBefore=e.g.companyCash,personalBefore=e.g.personalCash,distributedBefore=fund.distributed;
+  assert.equal(e.exitPEPortfolioCompany(fund.id,deal.id,{method:'sale',buyerType:'secondaryPE'}),true,'secondary buyout executes through canonical exit writer');
+  assert.equal(deal.exitBuyerType,'secondaryPE');
+  assert.equal(deal.exitBuyerLabel,'Secondary Buyout');
+  assert.equal(deal.exitBuyerFactor,secondary.buyerFactor);
+  assert.equal(deal.exitProceeds,secondary.grossProceeds);
+  assert.equal(fund.distributed-distributedBefore,secondary.settlement.distributedToFund);
+  assert.ok(Math.abs((e.g.personalCash-personalBefore)-(secondary.settlement.gpCarry+secondary.settlement.gpPrincipalAndGain))<1);
+  assert.equal(e.g.companyCash,companyBefore,'buyer-type sale never mixes proceeds into company cash');
+}
+{
+  const {e,fund,deal}=fixture();
+  deal.portfolioCompany.improvementScore=54;
+  assert.equal(ops.exitBuyerCapabilities(e.g,fund.id,deal.id).find(row=>row.id==='secondaryPE').reason,'buyer-score');
+  deal.portfolioCompany.improvementScore=70;
+  e.g.week=deal.acquiredWeek+103;
+  assert.equal(ops.exitBuyerCapabilities(e.g,fund.id,deal.id).find(row=>row.id==='secondaryPE').reason,'buyer-hold');
+  assert.equal(e.previewPEPortfolioExit(fund.id,deal.id,{method:'sale',buyerType:'unknown'}).reason,'buyer-not-supported');
+  assert.equal(e.exitPEPortfolioCompany(fund.id,deal.id,{method:'sale',buyerType:'unknown'}),false);
 }
 {
   const {e,fund,deal}=fixture();deal.status='exited';const before=structuredClone(e.g);
