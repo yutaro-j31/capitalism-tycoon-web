@@ -188,10 +188,10 @@ CLAUDE.md記載のとおり、2026-08時点の開発方針は「約30業種を�
 - **Minimum core:** Establish one overseas subsidiary whose local demand, FX translation, and repatriated cash change consolidated results.
 - **Expansion candidates (decide after playtesting):** Local partners, tax structuring, political risk, regulation, and multi-country portfolios.
 
-### 8F.3 Long-duration crises
+### 8F.3 Long-duration crises — Minimum core complete
 
-- **Minimum core:** One recall crisis reduces sales and reputation, moves cash through `finance.event`, and offers one response action whose effect reaches the actual outcome.
-- **Expansion candidates (decide after playtesting):** Accounting fraud, cyber incidents, disasters, labor conflict, and succession failure. Their necessity is assessed only after the recall core is implemented and played.
+- **Minimum core — implemented:** A bounded company recall crisis triggers deterministically for a mature company with a head office when it has a severely degraded open ramen/convenience store after the long-run threshold. The active crisis reduces the affected business's real demand during canonical weekly settlement and directly lowers company reputation. The player can execute one `自主回収・顧客補償` response: its cash cost is posted through `finance.event`, the real sales penalty improves from 40% to 15%, and the crisis resolves sooner. The minimum core is intentionally limited to one recall per company lifetime until playtesting justifies a recurring incident model. State/history normalization is save-compatible and bounded.
+- **Expansion candidates (decide after playtesting):** Accounting fraud, cyber incidents, disasters, labor conflict, succession failure, or a recurring/multi-incident recall model. Their necessity is assessed only after this recall core is played.
 
 ### 8F.4 Endgame — Minimum core complete
 

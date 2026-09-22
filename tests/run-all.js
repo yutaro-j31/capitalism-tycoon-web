@@ -90,6 +90,7 @@ const nodeTests = [
   ['group-holding-governance', 'tests/group-holding-governance-test.js'],
   ['hall-of-fame-generations', 'tests/hall-of-fame-generations-test.js'],
   ['industry-event-response-plans', 'tests/industry-event-response-plans-test.js'],
+  ['company-recall-crisis', 'tests/company-recall-crisis-test.js'],
   ['industry-specific-events', 'tests/industry-specific-events-test.js'],
   ['iphone-playtest-remediation', 'tests/iphone-playtest-remediation-test.js'],
   ['long-run-guidance', 'tests/long-run-guidance-test.js'],
