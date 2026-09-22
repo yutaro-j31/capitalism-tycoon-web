@@ -40,6 +40,11 @@ assert.equal(d.performance.rescue.currentScore,20);
 assert.equal(d.performance.rescue.requiredScore,20);
 assert.equal(d.performance.rescue.available,true,'rescue route is surfaced from production gate logic');
 assert.equal(d.performance.nextFundEligible,true,'next-fund eligibility includes the rescue route');
+assert.equal(d.performance.outlook.status.id,'both-short','current DPI and deployment shortfall are distinguished');
+assert.equal(d.performance.outlook.weeksRemaining,pf.INVESTMENT_PERIOD_WEEKS);
+assert.equal(d.performance.outlook.scheduledManagementFees,1_000_000_000,'five remaining annual management fees are deducted from the maturity cash estimate');
+assert.equal(d.performance.outlook.cashReturnEstimate,5_000_000_000);
+assert.equal(d.performance.outlook.projectedDPI,.5,'maturity reference DPI uses distributed proceeds plus fee-adjusted residual cash');
 
 fund.status='harvesting';
 const harvest=modules.peUIAdapter.getPEUIData().dashboard;
@@ -61,6 +66,33 @@ for(const label of ['投資済み','ファンド現金残高','新規投資余�
 assert.match(screen.innerHTML,/救済ルート達成/,'UI distinguishes rescue-route eligibility from the normal gate');
 assert.match(screen.innerHTML,/新規Exit 2\/2件/,'UI states the rescue exit requirement and current progress');
 assert.match(screen.innerHTML,/トラックレコード 20\/20点/,'UI states the rescue score requirement and current progress');
+assert.match(screen.innerHTML,/次号ファンド解禁見通し/,'next-fund outlook panel renders');
+assert.match(screen.innerHTML,/DPI・消化率とも不足/,'current blocker state is explicit');
+assert.match(screen.innerHTML,/満了時cash返却見込み/,'maturity cash return is visible');
+
+// A realistic post-exit Fund I can be below 1.20x today while already meeting deployment.
+// The adapter must show that scheduled fee-adjusted residual cash return can take it over the
+// gate at maturity without changing the production gate itself.
+const original={cash:fund.cash,deals:fund.deals,distributed:fund.distributed,lastManagementFeePeriod:fund.lastManagementFeePeriod,status:fund.status};
+fund.cash=2_000_000_000;
+fund.deals=[{id:'projection-deal',status:'exited',fundPortion:8_000_000_000,investedAmount:8_000_000_000}];
+fund.distributed=11_200_000_000;
+fund.lastManagementFeePeriod=0;
+fund.status='investing';
+const projectionBefore=JSON.stringify(engine.g);
+const projection=modules.peUIAdapter.getPEUIData().dashboard.performance.outlook;
+assert.equal(JSON.stringify(engine.g),projectionBefore,'next-fund outlook calculation is read-only');
+assert.equal(projection.currentDPI,1.12);
+assert.ok(Math.abs(projection.projectedDPI-1.22)<1e-9);
+assert.equal(projection.cashReturnEstimate,1_000_000_000);
+assert.equal(projection.status.id,'projected');
+assert.equal(projection.status.label,'満了時達成見込み');
+assert.equal(modules.peFund.canFormNextFund(engine.g),false,'forecast never changes the canonical current next-fund gate');
+uiContext.CapitalismTycoonPEUI.render();
+assert.match(screen.innerHTML,/満了時達成見込み/,'UI surfaces projected gate achievement');
+assert.match(screen.innerHTML,/1\.22x/,'UI shows the fee-adjusted maturity reference DPI');
+assert.match(screen.innerHTML,/追加投資・将来Exitは含まず/,'UI states the projection scope instead of presenting it as guaranteed');
+Object.assign(fund,original);
 
 fund.status='harvesting';
 const fund2=pf.createFund(engine.g,{size:4_000_000_000,gpCommit:400_000_000,terms:{fee:.02,carry:.2,hurdle:.08},y0:engine.g.week+1});
