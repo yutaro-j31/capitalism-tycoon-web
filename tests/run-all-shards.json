@@ -171,6 +171,7 @@
     "tests/pe-lp-ddq-workflow-test.js",
     "tests/pe-fund-capital-gates-ui-test.js",
     "tests/pe-fund-gp-commit-ui-test.js",
+    "tests/pe-full-playloop-test.js",
     "tests/pe-network-referral-supply-test.js",
     "tests/pe-portfolio-action-cost-preview-test.js",
     "tests/pe-parent-company-acquisition-test.js",
