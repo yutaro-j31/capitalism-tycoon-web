@@ -87,9 +87,9 @@ lines 28-39, `resolvePortfolioManagementCapability()`:
 |---|---|
 | gym | Complete (original bridge, #655→#656→#658) |
 | conveni | Complete — engine layer (PR #670: detached runtime pattern against `js/convenience-merchandising.js`, unmodified) + UI layer (PR #671: `pe-ui-adapter.js`'s `portfolioManagementDetails()`, `pe-ui.js`'s `manageView()` guard generalized) |
-| realEstateAgency | Pre-investigation complete (`processStore()` confirmed detached-callable, zero engine RNG, writes only to `store.brokeragePipeline`); implementation not yet approved |
-| ramen | Not started — `market.js` batches all stores together, so a single-store pure-function extraction is a prerequisite and this is the heaviest lift of the four |
-| productVentures | Not started — the "manage a store weekly" bridge shape doesn't fit this business; needs its own design |
+| realEstateAgency | Complete — engine layer (PR #673: detached runtime pattern against `js/real-estate-agency-pipeline.js`, unmodified; the price lever is intentionally a no-op since the pipeline never reads `business.price`) + UI layer (PR #681: `actionsEnabled` turned on, the inert price control hidden/rejected instead of exposed) |
+| ramen | Complete — engine + UI layer in one PR (#677: detached runtime pattern reusing `market.js`'s pure allocation kernel extracted in PR #676; `actionsEnabled` turned on in the same PR, so there is no separate ramen UI-connection PR the way conveni/realEstateAgency/productVentures have one) |
+| productVentures | Complete — engine layer (PR #679: detached bridge against the product/lifecycle kernels extracted in PR #678) + UI layer (PR #680: `actionsEnabled` turned on) |
 
 A separate, independent bug: once PE unlocks, the D UI shell permanently overwrites
 `js/app.js`'s legacy business-agnostic `renderPePortfolio()` verification screen at `#screen`,
@@ -157,14 +157,20 @@ identity `personalCash_after + fund.cash === personalCash_before + fund.lpContri
   dedicated `serviceGymStartupWorkout()` repayment path instead of being permanently frozen.
 - **conveni's PE management bridge — complete** (PR #670 engine layer, PR #671 UI layer; see §4
   table above).
+- **realEstateAgency's PE management bridge — complete** (PR #673 engine layer, PR #681 UI layer;
+  see §4 table above).
+- **ramen's PE management bridge — complete** (PR #677 engine + UI layer in one PR, built on the
+  pure allocation kernel extracted in PR #676; see §4 table above).
+- **productVentures's PE management bridge — complete** (PR #679 engine layer built on the
+  product/lifecycle kernels extracted in PR #678, PR #680 UI layer; see §4 table above).
 
-**In progress / awaiting approval**: realEstateAgency's PE management bridge (pre-investigation
-complete, implementation not yet approved — §4 above).
+All five pillars now have a complete PE management bridge (`resolvePortfolioManagementCapability()`
+returns `actionsEnabled:true` for all of ramen/gym/conveni/productVentures/realEstateAgency —
+§4 above).
 
-**Not yet started**: PE management bridges for ramen and productVentures (§4 above); Microcap
-archetype recalibration against the real engine (§5 above); further pillar-specific operating
-depth beyond the current five (`market.js`/`supply.js`/`workforce.js` staying ramen-centric is
-intentional per §3 above, not a gap).
+**Not yet started**: Microcap archetype recalibration against the real engine (§5 above); further
+pillar-specific operating depth beyond the current five (`market.js`/`supply.js`/`workforce.js`
+staying ramen-centric is intentional per §3 above, not a gap).
 
 ## 8. Where to look next
 
