@@ -719,6 +719,9 @@ function previewPortfolioExitScenario(state,fundID,dealID,horizonWeeks=0){
   if(!simFund||!simDeal)return {ok:false,fundID,dealID,horizonWeeks:horizon,targetWeek,reason:'clone-lookup'};
   for(let week=baseWeek+1;week<=targetWeek;week++){
     simulated.week=week;
+    // Mirror the production wrapper order: fund lifecycle (fees / maturity / cash return)
+    // settles before portfolio-company weekly operations for the same week.
+    pf.processFundsWeek(simulated,week);
     processDealWeek(simFund,simDeal,week,simulated);
   }
   simulated.week=targetWeek;
