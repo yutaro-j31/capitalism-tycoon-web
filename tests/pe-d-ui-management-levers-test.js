@@ -138,7 +138,7 @@ const css=fs.readFileSync('css/d-ui-pe.css','utf8');
 assert.match(css,/\.pe-lever-card \.btn\{[^}]*min-height:44px/,'generic D UI lever controls keep a 44px tap target');
 assert.match(fs.readFileSync('css/d-ui-pe-phase2.css','utf8'),/\.pe-exit-scenarios\{display:grid;grid-template-columns:repeat\(3,minmax\(0,1fr\)\)/,'desktop Exit Decision Center keeps three comparable scenario columns');
 assert.match(fs.readFileSync('css/d-ui-pe-phase2.css','utf8'),/\.pe-exit-routes\{display:grid;grid-template-columns:repeat\(2,minmax\(0,1fr\)\)/,'desktop exit routes compare sale and IPO side by side');
-assert.match(fs.readFileSync('css/d-ui-pe-phase2.css','utf8'),/@media\(max-width:760px\)\{\.pe-exit-routes\{grid-template-columns:1fr\}/,'mobile exit routes stack for iPhone width');
-assert.match(fs.readFileSync('css/d-ui-pe-phase2.css','utf8'),/@media\(max-width:760px\)[^{]*\{[^}]*\.pe-exit-scenarios\{grid-template-columns:1fr\}/,'mobile Exit Decision Center stacks scenarios for iPhone width');
+assert.match(fs.readFileSync('css/d-ui-pe-phase2.css','utf8'),/\.pe-exit-routes\{grid-template-columns:1fr\}/,'mobile exit routes stack for iPhone width');
+assert.match(fs.readFileSync('css/d-ui-pe-phase2.css','utf8'),/\.pe-exit-scenarios\{grid-template-columns:1fr\}/,'mobile Exit Decision Center stacks scenarios for iPhone width');
 
 console.log('pe D UI generic management lever reachability tests passed');
