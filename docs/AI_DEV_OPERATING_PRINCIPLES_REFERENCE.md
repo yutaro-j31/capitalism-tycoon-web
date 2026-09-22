@@ -74,6 +74,11 @@ disclosure、条件付き資料参照、decision boundaries、completion criteri
 | モデル更新 | 大きなモデル更新時はinstructions auditを実施し、各ルールをKEEP/CONDITIONAL/MOVE TO REFERENCE/REMOVEに分類する。いきなり一括削除せず、監査結果を人間が確認する。 |
 | 完了証拠 | 「done」だけを成果物にしない。変更差分、実行したテスト、結果、残存リスク、未実施項目を作業報告へ残し、完成判定を再現可能にする。 |
 
+> **注記**: 上表「自律ループ」「承認が必要な境界」の2行が示す区分（安全な反復の自動許可／
+> 破壊的操作の明示承認）の中核部分は、既に`AGENTS.md`§3「Autonomy and completion
+> boundary」で確定運用されている。本節は外部参考資料としての位置づけの説明であり、
+> 新規提案ではない。
+
 ## AI開発Gate（実装開始前/レビュー時）
 
 - この指示は常設である必要があるか。タスク固有ならtask prompt/referenceに
