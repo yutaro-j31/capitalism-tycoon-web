@@ -91,10 +91,27 @@ lines 28-39, `resolvePortfolioManagementCapability()`:
 | ramen | Complete — engine + UI layer in one PR (#677: detached runtime pattern reusing `market.js`'s pure allocation kernel extracted in PR #676; `actionsEnabled` turned on in the same PR, so there is no separate ramen UI-connection PR the way conveni/realEstateAgency/productVentures have one) |
 | productVentures | Complete — engine layer (PR #679: detached bridge against the product/lifecycle kernels extracted in PR #678) + UI layer (PR #680: `actionsEnabled` turned on) |
 
-A separate, independent bug: once PE unlocks, the D UI shell permanently overwrites
-`js/app.js`'s legacy business-agnostic `renderPePortfolio()` verification screen at `#screen`,
-regardless of which legacy tab is selected. This is unrelated to the bridge work above and is
-still unfixed.
+`js/app.js`'s legacy business-agnostic `renderPePortfolio()`/`renderPeFundFormation()`
+verification screen (`#screen`, `case 'pe-portfolio'` in `renderScreen()`) is **not dead code**.
+`js/pe-ui-adapter.js`'s `getPEUIData()` only lets the D UI shell take over `#screen` when
+`state.peFirm?.unlocked` is true (`active=state.selectedTab==='pe-portfolio'`, and
+`js/pe-ui.js`'s `render()` explicitly declines to touch `#screen` whenever `!model.unlocked`).
+Before the player's first Exit (`peFirm.unlocked===false`), the D UI shell backs off entirely, so
+this legacy screen is what actually renders and stays visible — showing "PEファンドの組成には
+Exit経験が必要です" and an empty portfolio list. `renderMA()`'s "買収先の経営（PE）" button has
+no `peFirm.unlocked` gate, so any player can reach this screen before ever unlocking PE; this was
+confirmed both by reading the gating logic directly and by reproducing it against a fresh
+pre-unlock game state via `tests/harness.js`'s full `loadGame()`. Once PE is unlocked, the D UI
+shell does take over `#screen` unconditionally whenever `selectedTab==='pe-portfolio'`, confirmed
+by the real-browser `tests/pe-ui-screen-ownership-webkit-test.js`. So the legacy screen is the
+only UI shown during the pre-unlock window, not an unreachable leftover — removing it without
+also addressing that window would regress this button to a dead end.
+
+Separately: `js/pe-portfolio-operations.js`'s `expandPortfolioStore()` (the "出店" lever) has no
+D UI entry point — `js/pe-ui-adapter.js`'s `performPortfolio()` never dispatches to it. Its only
+UI trigger is the legacy `case 'pe-portfolio-expand'` handler in `js/app.js`, reachable only
+through the pre-unlock screen above. Wiring it into D UI's generic management levers (`js/pe-ui.js`'s
+`genericManagementSection()`) is a separate, not-yet-scheduled task.
 
 ## 5. Microcap mode
 
