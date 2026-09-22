@@ -163,7 +163,7 @@ function saveSuccessful(engine,result){if(!result)return false;engine.save?.();r
 function performPortfolio(action,payload={}){
   const {engine,state}=current();if(!engine||!state||!portfolio)return false;
   const fundID=String(payload.fundID||''),dealID=String(payload.dealID||'');
-  if(action==='exit')return saveSuccessful(engine,portfolio.exitPortfolioCompany(state,fundID,dealID,{method:String(payload.method||'sale'),buyerID:payload.buyerID?String(payload.buyerID):null}));
+  if(action==='exit'){const options={method:String(payload.method||'sale')};if(payload.buyerID)options.buyerID=String(payload.buyerID);return saveSuccessful(engine,portfolio.exitPortfolioCompany(state,fundID,dealID,options));}
   if(action==='acquireIntoGroup')return engine.acquirePEPortfolioCompany?.(fundID,dealID)??false;
   if(!requireManagementCapability(engine,fundID,dealID))return false;
   // realEstateAgency's production brokerage pipeline never reads business.price. Reject the
