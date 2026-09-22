@@ -110,6 +110,10 @@ function closeFundAcquisition(engine,{deal,target,targetIndex,price,week}){
     sourceTargetID:target.id,
     sourceDealRoomID:deal.id,
     companyName:target.name,
+    // Exit buyer fit must survive acquisition. These are optional additive fields so legacy
+    // saves remain compatible; new holdings preserve the production M&A target fundamentals.
+    risk:Math.max(0,finite(target.risk)),
+    synergy:Math.max(0,finite(target.synergy)),
     // 企業価値は「その会社が本来持っている価値」(T11の生成値)であって、入札で払った金額では
     // ない。保有中のEBITDAもExit時の売却価値もこのenterpriseValueから導くので、高く買えば
     // 買うほどMOICが下がる — 入札で無理をした判断が3〜4年後に返ってくる、という因果を
