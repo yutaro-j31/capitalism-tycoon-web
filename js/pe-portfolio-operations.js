@@ -667,6 +667,11 @@ function consolidateSites(state,fundID,dealID){
 const EXIT_METHODS=Object.freeze([
   Object.freeze({id:'sale',label:'売却',implemented:true})
 ]);
+// Exit Decision Center: compare the current sale with two bounded hold scenarios.
+// Future operating results reuse the exact portfolio-company weekly calculator on a cloned
+// state. Macro/market conditions and player levers are held at their current values; no RNG,
+// save write, fund mutation, or player action is consumed by this read-only projection.
+const EXIT_DECISION_HORIZONS=Object.freeze([0,26,52]);
 function rawFundAndDeal(state,fundID,dealID){
   const funds=arr(state?.peFirm?.funds),fund=funds.find(f=>f?.id===fundID)||null;
   const deal=fund?arr(fund.deals).find(d=>d?.id===dealID)||null:null;
@@ -693,6 +698,56 @@ function previewPortfolioExit(state,fundID,dealID,{method='sale',week}={}){
   return {ok:true,fundID,dealID,method,companyName:String(deal.companyName||deal.businessID||deal.tierID||deal.id),acquisitionPrice:Math.max(0,finite(deal.acquisitionPrice,investedAmount)),investedAmount,fundPortion:Math.max(0,finite(deal.fundPortion)),coinvestPortion:Math.max(0,finite(deal.coinvestPortion)),exitEnterpriseValue,portfolioCash,grossProceeds,holdingWeeks:Math.max(0,exitWeek-finite(deal.acquiredWeek,exitWeek)),optimalHoldingWeeks:pf.optimalHoldWeeks(fundIndex),currentMOIC:investedAmount>0?grossProceeds/investedAmount:0,exitMultiple,marketFactor,settlement:pf.calculateExitSettlement(fund,deal,grossProceeds,exitWeek),eligibility,reason:null};
 }
 
+
+function annualizedDealIRR(moic,weeksHeld){
+  const multiple=Math.max(0,finite(moic)),weeks=Math.max(0,finite(weeksHeld));
+  if(multiple<=0||weeks<13)return null;
+  return Math.pow(multiple,52/weeks)-1;
+}
+function previewPortfolioExitScenario(state,fundID,dealID,horizonWeeks=0){
+  const horizon=Math.max(0,Math.floor(finite(horizonWeeks))),baseWeek=Math.max(0,Math.floor(finite(state?.week)));
+  const {fund,deal}=rawFundAndDeal(state,fundID,dealID);
+  if(!fund||!deal||deal.status!=='active'||!deal.portfolioCompany){
+    const reason=!fund?'fund-not-found':!deal?'deal-not-found':deal?.status!=='active'?'deal-not-active':'portfolio-company-not-found';
+    return {ok:false,fundID,dealID,horizonWeeks:horizon,targetWeek:baseWeek+horizon,reason};
+  }
+  const targetWeek=baseWeek+horizon;
+  if(Number.isFinite(Number(fund.deadlineWeek))&&targetWeek>finite(fund.deadlineWeek)){
+    return {ok:false,fundID,dealID,horizonWeeks:horizon,targetWeek,reason:'fund-term'};
+  }
+  const simulated=clone(state),located=rawFundAndDeal(simulated,fundID,dealID),simFund=located.fund,simDeal=located.deal;
+  if(!simFund||!simDeal)return {ok:false,fundID,dealID,horizonWeeks:horizon,targetWeek,reason:'clone-lookup'};
+  for(let week=baseWeek+1;week<=targetWeek;week++){
+    simulated.week=week;
+    // Mirror the production wrapper order: fund lifecycle (fees / maturity / cash return)
+    // settles before portfolio-company weekly operations for the same week.
+    pf.processFundsWeek(simulated,week);
+    processDealWeek(simFund,simDeal,week,simulated);
+  }
+  simulated.week=targetWeek;
+  const preview=previewPortfolioExit(simulated,fundID,dealID,{method:'sale',week:targetWeek});
+  if(!preview?.ok)return {ok:false,fundID,dealID,horizonWeeks:horizon,targetWeek,reason:preview?.reason||'preview'};
+  const contributed=Math.max(0,finite(pf.fundContributed(simFund))),distributedAfterExit=Math.max(0,finite(simFund.distributed))+Math.max(0,finite(preview.settlement?.distributedToFund)),projectedFundDPI=contributed>0?distributedAfterExit/contributed:0,deploymentRate=pf.fundDeploymentRate(simFund),deploymentGate=pf.requiredDeploymentRate(simFund),projectedNormalNextFundGate=projectedFundDPI>=pf.NEXT_FUND_MIN_DPI&&deploymentRate>=deploymentGate;
+  const personalCashProceeds=Math.max(0,finite(preview.settlement?.gpPrincipalAndGain))+Math.max(0,finite(preview.settlement?.gpCarry));
+  return {
+    ok:true,fundID,dealID,horizonWeeks:horizon,targetWeek,
+    label:horizon===0?'今売却':`+${horizon}週保有`,
+    assumptions:{macro:'current-static',levers:'current-unchanged',newActions:false},
+    exitEnterpriseValue:preview.exitEnterpriseValue,portfolioCash:preview.portfolioCash,grossProceeds:preview.grossProceeds,
+    holdingWeeks:preview.holdingWeeks,optimalHoldingWeeks:preview.optimalHoldingWeeks,moic:preview.currentMOIC,
+    irr:annualizedDealIRR(preview.currentMOIC,preview.holdingWeeks),exitMultiple:preview.exitMultiple,marketFactor:preview.marketFactor,
+    improvementScore:finite(simDeal.portfolioCompany?.improvementScore),weeklyProfit:finite(simDeal.portfolioCompany?.weeklyProfit),
+    settlement:preview.settlement,personalCashProceeds,projectedFundDPI,deploymentRate,deploymentGate,projectedNormalNextFundGate
+  };
+}
+function previewPortfolioExitScenarios(state,fundID,dealID,{horizons=EXIT_DECISION_HORIZONS}={}){
+  const requested=arr(horizons).map(v=>Math.max(0,Math.floor(finite(v)))).filter((v,i,a)=>a.indexOf(v)===i).slice(0,6);
+  return {
+    fundID,dealID,baseWeek:Math.max(0,Math.floor(finite(state?.week))),
+    assumptions:{macro:'current-static',levers:'current-unchanged',newActions:false},
+    scenarios:(requested.length?requested:EXIT_DECISION_HORIZONS).map(h=>previewPortfolioExitScenario(state,fundID,dealID,h))
+  };
+}
 
 function previewParentCompanyAcquisition(state,fundID,dealID,{week}={}){
   const preview=previewPortfolioExit(state,fundID,dealID,{method:'sale',week});
@@ -789,6 +844,7 @@ function install(){
   if(proto.__pePortfolioOperationsInstalled)return true;
   const baseNormalize=proto.normalize;
   proto.normalize=function(){const r=baseNormalize.call(this);ensure(this.g);return r;};
+  proto.previewPEPortfolioExitScenarios=function(fundID,dealID,options={}){return previewPortfolioExitScenarios(this.g,fundID,dealID,options);};
   proto.previewPEParentAcquisition=function(fundID,dealID,options={}){return previewParentCompanyAcquisition(this.g,fundID,dealID,{...options,week:options.week??this.g.week});};
   proto.acquirePEPortfolioCompany=function(fundID,dealID,options={}){
     return this.runTransaction(()=>{
@@ -822,10 +878,10 @@ modules.pePortfolioOperations=Object.freeze({
   PROCUREMENT_EBITDA_GAIN,PROCUREMENT_SAFE_LEVEL,PROCUREMENT_QUALITY_DRAG,PROCUREMENT_DELAY_WEEKS,PROCUREMENT_DRAG_RAMP_WEEKS,PROCUREMENT_COST_FRACTION,
   LABOR_EBITDA_GAIN,LABOR_SERVICE_DRAG,LABOR_WAGE_DRAG,LABOR_DELAY_WEEKS,LABOR_DRAG_RAMP_WEEKS,WAGE_MIN,WAGE_MAX,HEADCOUNT_MIN,HEADCOUNT_MAX,
   PRODUCT_MIX_RAMP_WEEKS,PRODUCT_MIX_MAX_GAIN,PRODUCT_MIX_COST_FRACTION,
-  CONSOLIDATION_STEP,CONSOLIDATION_EBITDA_GAIN,UNDERPERFORMING_MIN,UNDERPERFORMING_MAX,EXIT_METHODS,
+  CONSOLIDATION_STEP,CONSOLIDATION_EBITDA_GAIN,UNDERPERFORMING_MIN,UNDERPERFORMING_MAX,EXIT_METHODS,EXIT_DECISION_HORIZONS,
   ensure,findFundAndDeal,defaultPortfolioCompany,normalizePortfolioCompany,productionMasters,derivePortfolioProductionSite,isValidPortfolioProductionSite,ensurePortfolioProductionSite,getPortfolioProductionSite,acquirePillarCompany,computeImprovementScore,
   calculateGenericPortfolioOperatingWeek,calculateRamenPortfolioOperatingWeek,calculateGymPortfolioOperatingWeek,calculateConveniPortfolioOperatingWeek,calculateRealEstateAgencyPortfolioOperatingWeek,calculateProductVenturesPortfolioOperatingWeek,resolvePortfolioOperatingCalculator,calculatePortfolioOperatingWeek,settlePortfolioOperatingWeek,processDealWeek,processPortfolioWeek,
-  setPriceMultiplier,setPortfolioGymMembershipStrategy,previewManagementAction,previewManagementActions,investQuality,expandPortfolioStore,exitCapabilities,previewPortfolioExit,previewParentCompanyAcquisition,buildParentCompanySubsidiary,acquirePortfolioCompanyByParent,exitPortfolioCompany,install,
+  setPriceMultiplier,setPortfolioGymMembershipStrategy,previewManagementAction,previewManagementActions,investQuality,expandPortfolioStore,exitCapabilities,previewPortfolioExit,annualizedDealIRR,previewPortfolioExitScenario,previewPortfolioExitScenarios,previewParentCompanyAcquisition,buildParentCompanySubsidiary,acquirePortfolioCompanyByParent,exitPortfolioCompany,install,
   delayedProgress,leverFactors,industryTagOf,adjustIndustryReputation,
   reformProcurement,setStaffing,renewProductMix,consolidateSites,
   __installed:true
