@@ -270,6 +270,7 @@ const nodeTests = [
   ['store-status-kpi-display', 'tests/store-status-kpi-display-test.js'],
   ['company-valuation-normalization', 'tests/company-valuation-normalization-test.js'],
   ['weekly-cashflow-bridge', 'tests/weekly-cashflow-bridge-test.js'],
+  ['overseas-repatriation', 'tests/overseas-repatriation-test.js'],
   ['quarterly-tax-accrual', 'tests/quarterly-tax-accrual-test.js'],
   ['mobile-dock-content-clearance', 'tests/mobile-dock-content-clearance-test.js'],
   ['topbar-title-week-controls-clearance', 'tests/topbar-title-week-controls-clearance-test.js'],
