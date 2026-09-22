@@ -19,6 +19,7 @@ function fixture(){
 assert.deepEqual(plain(ops.EXIT_METHODS),[{id:'sale',label:'売却',implemented:true}],'only the production sale method is registered');
 assert.equal(typeof engineModule.TycoonEngine.prototype.previewPEPortfolioExit,'function');
 assert.equal(typeof engineModule.TycoonEngine.prototype.getPEPortfolioExitCapabilities,'function');
+assert.equal(typeof engineModule.TycoonEngine.prototype.previewPEPortfolioExitScenarios,'function');
 {
   const {e,fund,deal}=fixture(),before=structuredClone(e.g),callsBefore=randomCalls;
   const capabilities=e.getPEPortfolioExitCapabilities(fund.id,deal.id);
@@ -40,6 +41,39 @@ assert.equal(typeof engineModule.TycoonEngine.prototype.getPEPortfolioExitCapabi
   assert.equal(e.g.companyCash,companyBefore,'Exit never mixes proceeds into company cash');
   assert.equal(e.getPEPortfolioExitCapabilities(fund.id,deal.id)[0].eligible,false,'exited deals become ineligible');
   assert.equal(e.previewPEPortfolioExit(fund.id,deal.id,{method:'sale'}).reason,'deal-not-active');
+}
+{
+  const {e,fund,deal}=fixture(),before=structuredClone(e.g),callsBefore=randomCalls,baseWeek=e.g.week;
+  const center=e.previewPEPortfolioExitScenarios(fund.id,deal.id);
+  assert.deepEqual(center.scenarios.map(row=>row.horizonWeeks),[0,26,52],'decision center exposes the bounded timing choices');
+  assert.deepEqual(center.scenarios.map(row=>row.label),['今売却','+26週保有','+52週保有']);
+  assert.deepEqual(plain(e.g),before,'exit timing scenarios are read-only');
+  assert.equal(randomCalls,callsBefore,'exit timing scenarios consume no RNG');
+
+  const now=e.previewPEPortfolioExit(fund.id,deal.id,{method:'sale'});
+  assert.equal(center.scenarios[0].grossProceeds,now.grossProceeds,'now scenario is the canonical current exit preview');
+  assert.deepEqual(center.scenarios[0].settlement,now.settlement,'now scenario reuses the canonical waterfall');
+
+  const simulated=structuredClone(e.g);
+  const simulatedFund=simulated.peFirm.funds.find(row=>row.id===fund.id);
+  const simulatedDeal=simulatedFund.deals.find(row=>row.id===deal.id);
+  for(let week=baseWeek+1;week<=baseWeek+26;week++){simulated.week=week;ops.processDealWeek(simulatedFund,simulatedDeal,week,simulated);}
+  const manual26=ops.previewPortfolioExit(simulated,fund.id,deal.id,{method:'sale',week:baseWeek+26});
+  assert.equal(center.scenarios[1].grossProceeds,manual26.grossProceeds,'+26 weeks reuses the production weekly operating and exit calculations');
+  assert.equal(center.scenarios[1].improvementScore,simulatedDeal.portfolioCompany.improvementScore);
+  assert.deepEqual(center.scenarios[1].settlement,manual26.settlement);
+  assert.equal(center.scenarios[1].holdingWeeks,now.holdingWeeks+26);
+  assert.equal(center.scenarios[2].holdingWeeks,now.holdingWeeks+52);
+  assert.equal(center.scenarios[1].assumptions.macro,'current-static');
+  assert.equal(center.scenarios[1].assumptions.levers,'current-unchanged');
+  assert.equal(center.scenarios[1].assumptions.newActions,false);
+  assert.ok(Number.isFinite(center.scenarios[1].projectedFundDPI));
+  assert.equal(center.scenarios[1].projectedNormalNextFundGate,center.scenarios[1].projectedFundDPI>=pf.NEXT_FUND_MIN_DPI&&center.scenarios[1].deploymentRate>=center.scenarios[1].deploymentGate);
+
+  fund.deadlineWeek=baseWeek+10;
+  const capped=e.previewPEPortfolioExitScenarios(fund.id,deal.id,{horizons:[26]}).scenarios[0];
+  assert.equal(capped.ok,false);
+  assert.equal(capped.reason,'fund-term','scenario beyond the fund term is not presented as executable');
 }
 {
   const {e,fund,deal}=fixture(),before=structuredClone(e.g);
