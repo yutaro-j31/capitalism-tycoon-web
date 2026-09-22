@@ -30,6 +30,11 @@ engine.g.executives.CSO={role:'CSO',skill:85};
 engine.g.executives.CFO={role:'CFO',skill:85};
 engine.g.companyCash=50_000_000_000;
 engine.g.personalCash=30_000_000_000;
+// The fixture intentionally starts with a well-capitalized operating company. Rebase the
+// finance opening state after that setup mutation so the final invariant check measures PE
+// cash flows, not an artificial mismatch between configure()'s original opening cash and this
+// test-only starting balance.
+engine.g.finance=modules.finance.defaultFinanceState(engine.g);
 pf.recordExit(engine.g,{
   exitType:'buyout',realizedAmount:200_000_000,investedAmount:8_000_000,
   foundedWeek:1,exitedWeek:52,profitableWeekStreak:260,employeeCount:30
