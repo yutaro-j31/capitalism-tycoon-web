@@ -152,6 +152,7 @@
     "test:procurement",
     "test:supplier-coverage",
     "tests/macro-cycle-test.js",
+    "tests/company-recall-crisis-test.js",
     "test:supply-rng",
     "test:finance-history",
     "tests/pe-pending-initiative-exit-lifecycle-test.js",

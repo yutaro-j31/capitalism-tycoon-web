@@ -293,6 +293,15 @@ function businessIdleRow(row){
   const note=row.affordable?`最低 ${compactYen(row.minimumUpfront)}`:`資金不足 あと${compactYen(row.shortfall)}`;
   return `<button class="action-row" data-action="tab" data-tab="map" data-business-idle="${esc(row.businessID)}"><span>${esc(row.name)}${row.depthLevel!=='simple'?` ${badge('詳細','good')}`:''}</span><small>${esc(note)}</small><b aria-hidden="true">›</b></button>`;
 }
+function renderRecallCrisisSection(){
+  const crisis=globalThis.__capitalismTycoonModules?.companyRecallCrisis?.view?.(engine.g);
+  if(!crisis)return '';
+  const status=crisis.responded?'自主回収・補償対応中':'未対応';
+  const action=crisis.responded
+    ? `<span class="muted">対応済み。収束まであと${crisis.weeksRemaining}週。</span>`
+    : btn(`自主回収・補償 ${compactYen(crisis.responseCost)}`,'respond-recall-crisis',{kind:'primary',disabled:!crisis.canRespond});
+  return `<section data-company-recall-crisis><h2 class="section-title">重大インシデント</h2>${card('リコール危機',`<p><strong>${esc(crisis.businessName)}</strong>で品質問題が発生しています。現在の売上影響 -${Math.round(crisis.salesImpact*100)}%・評判低下 ${crisis.reputationWeeklyHit.toFixed(1)}pt/週。</p><div class="kpi-grid mini">${stat('状態',status)}${stat('収束まで',`${crisis.weeksRemaining}週`)}${stat('売上影響',`-${Math.round(crisis.salesImpact*100)}%`)}${stat('対応費用',compactYen(crisis.responseCost))}</div><div class="button-row">${action}</div>`,{subtitle:'自主回収・顧客補償を行うと売上への打撃と危機期間を縮小できます。'})}</section>`;
+}
 function renderBusiness() {
   const g=engine.g;
   const portfolio=engine.businessPortfolio();
@@ -307,6 +316,7 @@ function renderBusiness() {
       {subtitle:`${c.affordableIdle}／${c.idle}業種が現在の会社資金で出店可能`})}
     ${locked.length?`<details class="learning-card"><summary>資金が足りない業種（${locked.length}）</summary>${locked.map(businessIdleRow).join('')}</details>`:''}</section>`;
   return `${card('事業ポートフォリオ',`<div class="business-selector"><select data-bind="selectedBusiness">${businessOpts(g.businesses,ui.selectedBusiness)}</select>${btn('FC本部を設置','start-franchise',{kind:'secondary',data:`data-id="${ui.selectedBusiness}"`})}</div>`,{subtitle:`全${c.total}業種・運営中${c.operating}・直営${g.stores.length}店舗`})}
+  ${renderRecallCrisisSection()}
   ${operating}
   ${idle}
   ${renderProductSection()}
@@ -857,7 +867,7 @@ function action(name,el){const id=el.dataset.id,kind=el.dataset.kind;
     case 'contract-office':engine.contractOffice(id);break;case 'contract-branch-office':engine.contractBranchOffice(id);break;case 'close-branch-office':engine.closeBranchOffice(id);break;case 'cancel-office':confirmModal('オフィス契約解除','部門やCXOがいる場合は解除できません。','confirm-cancel-office');break;case 'confirm-cancel-office':engine.cancelOffice();closeModal();break;
     case 'buy-property-company':engine.buyProperty(id,'company');break;case 'buy-property-personal':engine.buyProperty(id,'personal');break;case 'sell-property':engine.sellProperty(id);break;case 'negotiate-property-company':confirmPropertyNegotiation(id,'company');break;case 'negotiate-property-personal':confirmPropertyNegotiation(id,'personal');break;case 'negotiate-property-price':{const [owner,ratio]=kind.split(':');closeModal();engine.negotiatePropertyPrice(id,owner,Number(ratio));break;}
     case 'build-property':askText('土地開発','建物種別','本社ビル',v=>engine.buildOnLand(id,v));break;
-    case 'business-invest':askMoney('事業投資',1000000,v=>engine.investBusiness(id,kind,v));break;case 'business-price':askMoney('価格変更',engine.business(id)?.price||1000,v=>engine.adjustPrice(id,v));break;case 'set-merchandising-policy':engine.changeMerchandisingPolicy(kind);break;case 'start-private-brand-development':engine.startConveniencePrivateBrandDevelopment();break;case 'set-private-brand-share':engine.changeConveniencePrivateBrandShare(Number(kind));break;case 'set-brokerage-focus':engine.changeBrokerageFocus(kind);break;case 'set-gym-membership-strategy':engine.setGymMembershipStrategy(id,kind);break;
+    case 'business-invest':askMoney('事業投資',1000000,v=>engine.investBusiness(id,kind,v));break;case 'business-price':askMoney('価格変更',engine.business(id)?.price||1000,v=>engine.adjustPrice(id,v));break;case 'respond-recall-crisis':engine.respondRecallCrisis?.();render();break;case 'set-merchandising-policy':engine.changeMerchandisingPolicy(kind);break;case 'start-private-brand-development':engine.startConveniencePrivateBrandDevelopment();break;case 'set-private-brand-share':engine.changeConveniencePrivateBrandShare(Number(kind));break;case 'set-brokerage-focus':engine.changeBrokerageFocus(kind);break;case 'set-gym-membership-strategy':engine.setGymMembershipStrategy(id,kind);break;
     case 'start-franchise':engine.startFranchise(id);break;case 'recruit-franchise':askMoney('加盟店募集数',1,v=>engine.recruitFranchise(id,Math.max(1,Math.floor(v))));break;
     case 'found-digital-business':askText('IT・デジタル事業を創業','プロダクト名',PRODUCT_BLUEPRINTS.find(p=>p.id===id)?.name||'',v=>engine.foundDigitalBusiness(id,v));break;case 'launch-product':askText('プロダクト開発','プロダクト名',PRODUCT_BLUEPRINTS.find(p=>p.id===id)?.name||'',v=>engine.launchProduct(id,v));break;case 'product-action':askMoney('プロダクト追加投資',2000000,v=>engine.productAction(id,kind,v));break;case 'sell-product':engine.sellProduct(id);break;
     case 'office-tab':ui.officeTab=id;render();break;case 'asset-tab':ui.assetTab=id;render();break;
