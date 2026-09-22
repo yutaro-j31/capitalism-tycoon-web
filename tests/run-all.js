@@ -319,6 +319,7 @@ const nodeTests = [
   ['pe-network-referral-supply', 'tests/pe-network-referral-supply-test.js'],
   ['pe-portfolio-action-cost-preview', 'tests/pe-portfolio-action-cost-preview-test.js'],
   ['pe-parent-company-acquisition', 'tests/pe-parent-company-acquisition-test.js'],
+  ['pe-parent-company-acquisition-negative', 'tests/pe-parent-company-acquisition-negative-test.js'],
   ['pe-fund-team-slots', 'tests/pe-fund-team-slots-test.js'],
   ['pe-fund-dd-slots', 'tests/pe-fund-dd-slots-test.js'],
   ['pe-industry-tiers', 'tests/pe-industry-tiers-test.js'],
