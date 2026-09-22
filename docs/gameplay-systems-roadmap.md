@@ -183,9 +183,9 @@ CLAUDE.md記載のとおり、2026-08時点の開発方針は「約30業種を�
 - **Current implemented expansion:** Development, tenant operations, collections, insurance, reserves, taxes, refinancing, redevelopment, maintenance, and property management.
 - **Expansion candidates (decide after playtesting):** REIT structures, portfolio-level asset allocation, and additional development formats.
 
-### 8F.2 Overseas expansion — Core state exists
+### 8F.2 Overseas expansion — Minimum core complete
 
-- **Minimum core:** Establish one overseas subsidiary whose local demand, FX translation, and repatriated cash change consolidated results.
+- **Minimum core — implemented:** Overseas subsidiaries retain positive weekly earnings locally instead of auto-sweeping them into parent-company cash. The retained balance stores both foreign-currency units and historical JPY book value, while the overseas screen shows current FX translation and unrealized FX difference. The player can repatriate 25%, 50%, or 100% to the parent; repatriation moves cash into `companyCash`, reduces the foreign retained-cash asset, and realizes the exact FX gain/loss through the canonical finance ledger. Negative overseas operating profit still reduces parent cash, preserving the pre-existing downside. Old saves normalize missing retained-cash fields to zero without a save-version bump.
 - **Expansion candidates (decide after playtesting):** Local partners, tax structuring, political risk, regulation, and multi-country portfolios.
 
 ### 8F.3 Long-duration crises — Minimum core complete

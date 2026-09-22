@@ -631,6 +631,18 @@ class TycoonEngine extends EventTarget {
     this.g.news = Array.isArray(this.g.news) ? this.g.news.slice(0,300) : [];
     this.g.history = Array.isArray(this.g.history) ? this.g.history.slice(0,500) : [];
     this.g.reports = Array.isArray(this.g.reports) ? this.g.reports.slice(-520) : [];
+    this.g.overseasSubsidiaries = (Array.isArray(this.g.overseasSubsidiaries)?this.g.overseasSubsidiaries:[]).map(x=>{
+      const country=OVERSEAS_COUNTRIES.find(c=>c.id===x.countryID);
+      const fx=Math.max(.0001,finite(country?.fx,1)*finite(this.g.exchangeRate,1));
+      const book=Math.max(0,finite(x.localCashBookJPY,0));
+      return {...x,
+        localCashBookJPY:book,
+        localCashForeign:Math.max(0,finite(x.localCashForeign,book/fx)),
+        totalRepatriatedJPY:Math.max(0,finite(x.totalRepatriatedJPY,0)),
+        lastRepatriationWeek:x.lastRepatriationWeek===null||x.lastRepatriationWeek===undefined?null:Math.max(1,Math.floor(finite(x.lastRepatriationWeek,1))),
+        lastFxRate:Math.max(.0001,finite(x.lastFxRate,fx))
+      };
+    });
     finance.ensureFinance(this.g);
     const formalProductExists=(this.g.productVentures||[]).some(p=>p&&p.origin!=='founderHome');
     const formalLaunchRecorded=this.g.finance.transactions.some(t=>t?.sourceType==='launchProduct'&&t?.category==='researchAndDevelopment');
@@ -735,7 +747,7 @@ class TycoonEngine extends EventTarget {
     const subsidiaries = this.g.subsidiaries.reduce((sum,s)=>sum+s.valuation*finite(s.ownership),0);
     const ma = this.g.maSubsidiaries.reduce((sum,s)=>sum+finite(s.valuation),0);
     const products = this.g.productVentures.reduce((sum,p)=>sum+finite(p.valuation),0);
-    const overseas = this.g.overseasSubsidiaries.reduce((sum,x)=>sum+finite(x.valuation),0);
+    const overseas = this.g.overseasSubsidiaries.reduce((sum,x)=>sum+finite(x.valuation)+Math.max(0,finite(x.localCashForeign))*this.overseasFxRate(x.countryID),0);
     // Company-owned teams are already carried as company fixed assets by finance.js's
     // otherFixedBook(); counting them here keeps companyValue consistent with the ledger.
     const sports = this.g.sportsTeams.filter(x=>x.owner==='company').reduce((a,x)=>a+finite(x.value),0);
@@ -1419,10 +1431,47 @@ class TycoonEngine extends EventTarget {
     const i=this.g.maSubsidiaries.findIndex(x=>x.id===id);if(i<0)return false;const s=this.g.maSubsidiaries[i],price=s.valuation*rand(.85,1.3),book=finite(s.identifiableNetAssetsBookValue)+finite(s.goodwillBookValue),gain=price-book;this.g.companyCash+=price;finance.event(this.g,'assetSale',price,{cashEffect:price,assetEffect:-book,profitEffect:gain,sourceType:'sellMASubsidiary',sourceID:id,description:`${s.name} 売却`});const gr=this.g.goodwillRecords.find(g=>g.id===s.goodwillRecordID);if(gr){gr.status='disposed';gr.carryingValue=0;gr.goodwillBookValue=0;}this.g.totalMAGain+=gain;this.g.maSubsidiaries.splice(i,1);this.notify(`${s.name}を${yen(price)}で売却しました。売却損益${yen(gain)}。`,gain>=0?'success':'warning');this.save();this.emit();return true;
   }
 
+  overseasFxRate(countryID) {
+    const country=OVERSEAS_COUNTRIES.find(x=>x.id===countryID);
+    return Math.max(.0001,finite(country?.fx,1)*finite(this.g.exchangeRate,1));
+  }
+  overseasRepatriationPreview(id,fraction=1) {
+    const x=this.g.overseasSubsidiaries.find(y=>y.id===id);
+    const share=Number(fraction);
+    if(!x||x.status!=='active'||!Number.isFinite(share)||share<=0||share>1)return {ok:false,reason:'invalid'};
+    const foreign=Math.max(0,finite(x.localCashForeign)),book=Math.max(0,finite(x.localCashBookJPY));
+    if(foreign<=0||book<=0)return {ok:false,reason:'empty'};
+    const fx=this.overseasFxRate(x.countryID),foreignAmount=foreign*share,bookAmount=book*share,proceedsJPY=foreignAmount*fx,fxGainLoss=proceedsJPY-bookAmount;
+    return {ok:true,id:x.id,fraction:share,fx,foreignAmount,bookAmount,proceedsJPY,fxGainLoss,cashAfter:this.g.companyCash+proceedsJPY};
+  }
+  repatriateOverseas(id,fraction=1) {
+    const preview=this.overseasRepatriationPreview(id,fraction);
+    if(!preview.ok)return this.fail(preview.reason==='empty'?'送金できる現地留保資金がありません。':'送金条件が不正です。');
+    const x=this.g.overseasSubsidiaries.find(y=>y.id===id);
+    return this.runTransaction(()=>{
+      x.localCashForeign=Math.max(0,finite(x.localCashForeign)-preview.foreignAmount);
+      x.localCashBookJPY=Math.max(0,finite(x.localCashBookJPY)-preview.bookAmount);
+      if(x.localCashForeign<1e-9)x.localCashForeign=0;
+      if(x.localCashBookJPY<1e-6)x.localCashBookJPY=0;
+      x.totalRepatriatedJPY=Math.max(0,finite(x.totalRepatriatedJPY))+preview.proceedsJPY;
+      x.lastRepatriationWeek=this.g.week;
+      x.lastFxRate=preview.fx;
+      this.g.companyCash+=preview.proceedsJPY;
+      finance.event(this.g,'investmentSale',preview.proceedsJPY,{
+        cashEffect:preview.proceedsJPY,profitEffect:preview.fxGainLoss,assetEffect:-preview.bookAmount,
+        businessID:x.businessID,sourceType:'overseasRepatriation',sourceID:x.id,
+        description:`${x.countryName} 現地留保資金の本社送金（為替差損益 ${yen(preview.fxGainLoss)}）`
+      });
+      finance.rebuildSnapshotForWeek?.(this.g,this.g.week);
+      this.notify(`${x.countryName}から本社へ${yen(preview.proceedsJPY)}を送金しました。為替差損益 ${yen(preview.fxGainLoss)}。`,preview.fxGainLoss>=0?'success':'warning');
+      return true;
+    });
+  }
+
   openOverseas(countryID,businessID) {
     if(!this.g.hasHeadOffice||!this.g.executives.CEO)return this.fail('本社とCEOが必要です。');const c=OVERSEAS_COUNTRIES.find(x=>x.id===countryID),b=this.business(businessID);if(!c||!b)return false;
     const cost=c.cost+b.storeCost*2;if(this.g.companyCash<cost)return this.fail(`${yen(cost)}が必要です。`);this.g.companyCash-=cost;finance.event(this.g,'assetPurchase',cost,{cashEffect:-cost,assetEffect:cost,businessID,sourceType:'openOverseas',sourceID:`${countryID}-${businessID}`,description:`${c.name} 現地法人`});
-    this.g.overseasSubsidiaries.push({id:uuid(),countryID:c.id,countryName:c.name,businessID:b.id,name:`${this.g.companyName} ${c.name}`,valuation:cost,acquisitionCost:cost,investedCost:cost,status:'preparing',openingWeek:this.g.week+8,lastRevenue:0,lastProfit:0,localization:20,brand:10,risk:c.risk});
+    this.g.overseasSubsidiaries.push({id:uuid(),countryID:c.id,countryName:c.name,businessID:b.id,name:`${this.g.companyName} ${c.name}`,valuation:cost,acquisitionCost:cost,investedCost:cost,status:'preparing',openingWeek:this.g.week+8,lastRevenue:0,lastProfit:0,localization:20,brand:10,risk:c.risk,localCashForeign:0,localCashBookJPY:0,totalRepatriatedJPY:0,lastRepatriationWeek:null,lastFxRate:this.overseasFxRate(c.id)});
     this.notify(`${c.name}現地法人の設立を開始しました。`,'success');this.save();this.emit();return true;
   }
   overseasAction(id,kind,amount) {
@@ -1754,9 +1803,32 @@ class TycoonEngine extends EventTarget {
     this.g.companyCash+=dividends;return {revenue,profit,dividends};
   }
   updateOverseas() {
-    let revenue=0,cost=0;
-    for(const x of this.g.overseasSubsidiaries){const c=OVERSEAS_COUNTRIES.find(y=>y.id===x.countryID),b=this.business(x.businessID);if(!c||!b)continue;if(x.status==='preparing'&&this.g.week>=x.openingWeek)x.status='active';if(x.status!=='active')continue;const demand=b.demand*c.demand*this.g.economy*(1+x.localization/150)*(1+x.brand/180)*rand(.75,1.25);x.lastRevenue=demand*b.price*this.g.exchangeRate;x.lastProfit=x.lastRevenue-demand*b.unitCost-b.fixedCost*2;revenue+=x.lastRevenue;cost+=x.lastRevenue-x.lastProfit;x.valuation=Math.max(1_000_000,x.valuation*(1+clamp(x.lastProfit/Math.max(1,x.valuation),-.04,.06)));if(Math.random()<x.risk*.01)x.lastProfit-=x.valuation*.02;}
-    return {revenue,cost,profit:revenue-cost};
+    let revenue=0,cost=0,retainedCash=0,parentCashLoss=0;
+    for(const x of this.g.overseasSubsidiaries){
+      const c=OVERSEAS_COUNTRIES.find(y=>y.id===x.countryID),b=this.business(x.businessID);
+      if(!c||!b)continue;
+      if(x.status==='preparing'&&this.g.week>=x.openingWeek)x.status='active';
+      if(x.status!=='active')continue;
+      const demand=b.demand*c.demand*this.g.economy*(1+x.localization/150)*(1+x.brand/180)*rand(.75,1.25);
+      x.lastRevenue=demand*b.price*this.g.exchangeRate;
+      x.lastProfit=x.lastRevenue-demand*b.unitCost-b.fixedCost*2;
+      const settledProfit=x.lastProfit,fx=this.overseasFxRate(x.countryID);
+      revenue+=x.lastRevenue;cost+=x.lastRevenue-settledProfit;
+      x.lastFxRate=fx;
+      if(settledProfit>0){
+        x.localCashForeign=Math.max(0,finite(x.localCashForeign))+settledProfit/fx;
+        x.localCashBookJPY=Math.max(0,finite(x.localCashBookJPY))+settledProfit;
+        retainedCash+=settledProfit;
+      }else if(settledProfit<0){
+        // Minimum core policy: accumulated foreign cash remains ring-fenced; operating losses
+        // are funded by the parent. This keeps the old downside on companyCash while making
+        // positive foreign earnings unavailable until the player explicitly repatriates them.
+        parentCashLoss+=-settledProfit;
+      }
+      x.valuation=Math.max(1_000_000,x.valuation*(1+clamp(settledProfit/Math.max(1,x.valuation),-.04,.06)));
+      if(Math.random()<x.risk*.01)x.lastProfit-=x.valuation*.02;
+    }
+    return {revenue,cost,profit:revenue-cost,retainedCash,parentCashLoss};
   }
   updatePersonalAssets() {
     // The /20 dampening made `risk` nearly inert: across a 10,000-trial 52-week Monte Carlo,
@@ -1909,8 +1981,8 @@ class TycoonEngine extends EventTarget {
     const officeCost=this.g.hasHeadOffice?this.g.officeWeeklyCost:0,interest=this.g.companyDebt*this.companyBorrowRate()/52;expenses+=execPayroll+deptCost+officeCost+interest;
     if(this.g.week%13===0){for(const [id,h] of Object.entries(this.g.companyStocks)){const s=this.stock(id);if(s&&id!==this.g.ticker)stockIncome+=h.qty*(s.dividendPerShare||s.price*s.dividendYield/4);}for(const [id,h] of Object.entries(this.g.personalStocks)){const s=this.stock(id);if(s&&id!==this.g.ticker)this.g.personalCash+=h.qty*(s.dividendPerShare||s.price*s.dividendYield/4)*.797;}if(this.g.publicCompany&&this.g.dividendPerShare>0){dividend=this.g.dividendPerShare*Math.max(0,this.g.sharesOut-this.g.treasuryBuybackShares);const founderGross=dividend*this.g.founderOwnershipRatio;this.g.personalCash+=founderGross*.797;expenses+=dividend;}}
     const projectRun=workforce.advanceProjects(this.g);const projectCost=finite(projectRun?.projectCost);expenses+=projectCost;const turnoverRun=workforce.updateEndOfWeek(this.g);const severanceCost=finite(turnoverRun?.turnoverCost);expenses+=severanceCost;supply.autoOrder(this.g);const operatingProfit=sales+rentIncome+stockIncome-expenses+subs.profit;this.g.quarterlyPretaxProfit=finite(this.g.quarterlyPretaxProfit)+operatingProfit;let tax=0;if(this.g.week%13===0){if(this.g.quarterlyPretaxProfit>0)tax=this.g.quarterlyPretaxProfit*.306;expenses+=tax;this.g.quarterlyPretaxProfit=0;}
-    const profit=sales+rentIncome+stockIncome-expenses+subs.profit;const weeklyCashDelta=profit+supplyCogsNonCash+finite(spoilage?.cost),nonStoreCashDelta=weeklyCashDelta-storeCashDelta;this.g.companyCash+=nonStoreCashDelta+storeCashDelta;this.g.companyCredit=clamp(this.g.companyCredit+(profit>=0?.15:-.3),0,100);this.g.companyReputation=clamp(this.g.companyReputation+(profit>0?.08:-.04),0,100);
-    finance.recordWeekly(this.g,{beginningCash,stores:financeStores,other:{productRevenue:product.revenue,overseasRevenue:overseas.revenue,subsRevenue:subs.revenue,franchiseRevenue:franchise,rentIncome,stockIncome,productCost:-product.cost,overseasCost:-overseas.cost,execPayroll:-execPayroll,deptCost:-deptCost,officeCost:-officeCost,projectCost:-projectCost,severanceCost:-severanceCost,propertyDepreciation:-propertyDepreciation,interest:-interest,taxExpense:-tax,taxPayment:-tax,dividend:-dividend,subsProfit:subs.profit}});
+    const profit=sales+rentIncome+stockIncome-expenses+subs.profit;const weeklyCashDelta=profit-finite(overseas.retainedCash)+supplyCogsNonCash+finite(spoilage?.cost),nonStoreCashDelta=weeklyCashDelta-storeCashDelta;this.g.companyCash+=nonStoreCashDelta+storeCashDelta;this.g.companyCredit=clamp(this.g.companyCredit+(profit>=0?.15:-.3),0,100);this.g.companyReputation=clamp(this.g.companyReputation+(profit>0?.08:-.04),0,100);
+    finance.recordWeekly(this.g,{beginningCash,stores:financeStores,other:{productRevenue:product.revenue,overseasRevenue:overseas.revenue,subsRevenue:subs.revenue,franchiseRevenue:franchise,rentIncome,stockIncome,productCost:-product.cost,overseasCost:-overseas.cost,overseasRetainedCash:-finite(overseas.retainedCash),execPayroll:-execPayroll,deptCost:-deptCost,officeCost:-officeCost,projectCost:-projectCost,severanceCost:-severanceCost,propertyDepreciation:-propertyDepreciation,interest:-interest,taxExpense:-tax,taxPayment:-tax,dividend:-dividend,subsProfit:subs.profit}});
     if(!this.g.skipWeeklyValidation){finance.validate(this.g);supply.validate(this.g);workforce.validate(this.g);competitor.validate(this.g);}
     const report={week:this.g.week,sales,expenses,rentIncome,stockIncome,interest,dividend,officeCost,spoilageExpense:finite(spoilage?.cost),profit,investmentPL:subs.profit,companyStockUnrealizedPL:this.unrealizedPL('company'),propertyDepreciation,tax};this.g.lastReport=report;this.g.reports.push(report);this.g.reports=this.g.reports.slice(-520);
     this.recordHistory(sales,profit);this.evaluateProgression();this.generateRecurringEvents();
