@@ -45,8 +45,8 @@ assert.equal(typeof engineModule.TycoonEngine.prototype.previewPEPortfolioExitSc
 {
   const {e,fund,deal}=fixture(),before=structuredClone(e.g),callsBefore=randomCalls,baseWeek=e.g.week;
   const center=e.previewPEPortfolioExitScenarios(fund.id,deal.id);
-  assert.deepEqual(center.scenarios.map(row=>row.horizonWeeks),[0,26,52],'decision center exposes the bounded timing choices');
-  assert.deepEqual(center.scenarios.map(row=>row.label),['今売却','+26週保有','+52週保有']);
+  assert.deepEqual(plain(center.scenarios.map(row=>row.horizonWeeks)),[0,26,52],'decision center exposes the bounded timing choices');
+  assert.deepEqual(plain(center.scenarios.map(row=>row.label)),['今売却','+26週保有','+52週保有']);
   assert.deepEqual(plain(e.g),before,'exit timing scenarios are read-only');
   assert.equal(randomCalls,callsBefore,'exit timing scenarios consume no RNG');
 
