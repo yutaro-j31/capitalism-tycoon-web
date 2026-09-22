@@ -315,6 +315,7 @@ const nodeTests = [
   ['pe-fund-lp', 'tests/pe-fund-lp-test.js'],
   ['pe-lp-ddq-workflow', 'tests/pe-lp-ddq-workflow-test.js'],
   ['pe-fund-capital-gates-ui', 'tests/pe-fund-capital-gates-ui-test.js'],
+  ['pe-fund-gp-commit-ui', 'tests/pe-fund-gp-commit-ui-test.js'],
   ['pe-network-referral-supply', 'tests/pe-network-referral-supply-test.js'],
   ['pe-portfolio-action-cost-preview', 'tests/pe-portfolio-action-cost-preview-test.js'],
   ['pe-parent-company-acquisition', 'tests/pe-parent-company-acquisition-test.js'],

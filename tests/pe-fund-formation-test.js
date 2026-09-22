@@ -51,6 +51,45 @@ function systemCash(g) {
   assert.equal(systemCash(e.g), systemBefore + fund.lpContributed, '系全体の現金は「LP拠出ぶんだけ」増える（無から生まれない）');
 }
 
+// 1b. プレイヤー指定のGP出資額。最大プランを比例縮小し、必要GP比率・保存則を維持する。
+{
+  const e = setupFirm({});
+  const before = JSON.stringify(e.g);
+  const maxPlan = e.formablePEFund();
+  assert.equal(maxPlan.ok,true);
+  assert.equal(maxPlan.maxGpCommit,maxPlan.gpCommit);
+  assert.equal(maxPlan.maxSize,maxPlan.size);
+  const chosen=maxPlan.maxGpCommit*.4;
+  const custom=e.formablePEFund({gpCommit:chosen});
+  assert.equal(JSON.stringify(e.g),before,'GP出資額のプレビューはread-only');
+  assert.equal(custom.ok,true);
+  assert.ok(Math.abs(custom.gpCommit-chosen)<1e-6);
+  assert.ok(Math.abs(custom.size/maxPlan.maxSize-.4)<1e-9,'Fund規模はGP出資額に比例して縮小');
+  assert.ok(Math.abs(custom.gpCommit/custom.size-custom.ratio)<1e-12,'必要GP比率は維持');
+  const personalBefore=e.g.personalCash,companyBefore=e.g.companyCash,systemBefore=systemCash(e.g);
+  assert.equal(e.formPEFund({gpCommit:chosen}),true);
+  const created=e.g.peFirm.funds[0];
+  assert.ok(Math.abs(created.gpCommit-chosen)<1e-6);
+  assert.ok(Math.abs(created.size-custom.size)<1e-6);
+  assert.ok(Math.abs(e.g.personalCash-(personalBefore-chosen))<1e-6);
+  assert.equal(e.g.companyCash,companyBefore);
+  assert.ok(Math.abs(systemCash(e.g)-(systemBefore+created.lpContributed))<1,'カスタムGP出資でも外部から増える現金はLP拠出だけ');
+}
+
+// 1c. 0円・負数・上限超過はアトミックに拒否する。
+{
+  for(const requested of [0,-1]){
+    const e=setupFirm({}),before=JSON.stringify({personal:e.g.personalCash,funds:e.g.peFirm.funds});
+    assert.equal(e.formablePEFund({gpCommit:requested}).ok,false);
+    assert.equal(e.formPEFund({gpCommit:requested}),false);
+    assert.equal(JSON.stringify({personal:e.g.personalCash,funds:e.g.peFirm.funds}),before);
+  }
+  const e=setupFirm({}),max=e.formablePEFund(),before=JSON.stringify({personal:e.g.personalCash,funds:e.g.peFirm.funds});
+  assert.equal(e.formablePEFund({gpCommit:max.maxGpCommit+1}).reason,'gpCommitMax');
+  assert.equal(e.formPEFund({gpCommit:max.maxGpCommit+1}),false);
+  assert.equal(JSON.stringify({personal:e.g.personalCash,funds:e.g.peFirm.funds}),before);
+}
+
 // 2. 完了条件: 個人資産が不足していると組成が拒否され、状態は一切変わらない。
 {
   const e = setupFirm({ personalCash: 0 });
@@ -89,12 +128,14 @@ function systemCash(g) {
   fundI.cash = 0;
   pf.distributeToInvestors(e.g, fundI, fundI.size * 1.5);
   assert.equal(pf.canFormNextFund(e.g), true);
+  const maxFundII=e.formablePEFund(),chosenFundII=maxFundII.gpCommit*.55;
   const personalBefore = e.g.personalCash, systemBefore = systemCash(e.g);
-  assert.equal(e.formPEFund(), true, 'ゲートを満たせば同じアクションでFund IIを組成できる');
+  assert.equal(e.formPEFund({gpCommit:chosenFundII}), true, 'ゲートを満たせば指定GP出資額でFund IIを組成できる');
   const fundII = e.g.peFirm.funds[1];
   assert.ok(fundII && fundII.id !== fundI.id);
-  assert.equal(e.g.personalCash, personalBefore - fundII.gpCommit, 'Fund IIのGP出資も個人資産から出る');
-  assert.equal(systemCash(e.g), systemBefore + fundII.lpContributed, 'Fund IIでも保存則が成り立つ');
+  assert.ok(Math.abs(fundII.gpCommit-chosenFundII)<1e-6,'Fund IIでも指定GP出資額が使われる');
+  assert.ok(Math.abs(e.g.personalCash-(personalBefore-chosenFundII))<1e-6, 'Fund IIのGP出資も個人資産から指定額だけ出る');
+  assert.ok(Math.abs(systemCash(e.g)-(systemBefore+fundII.lpContributed))<1, 'Fund IIでも保存則が成り立つ');
   assert.ok(fundII.lps.length > 0, 'LP構成が確定している');
   assert.ok(fundII.lps.length <= pf.MAX_LPS_PER_FUND);
 }
@@ -216,4 +257,10 @@ function systemCash(g) {
   assert.equal(run(freshLoad(91)), run(freshLoad(91)), '同一seedなら組成結果はバイト単位で一致する');
 }
 
+{
+  const fs=require('node:fs');
+  const appSource=fs.readFileSync('js/app.js','utf8');
+  assert.match(appSource,/data-pe-gp-commit/);
+  assert.match(appSource,/formPEFund\(\{gpCommit\}\)/);
+}
 console.log('pe fund formation tests passed');

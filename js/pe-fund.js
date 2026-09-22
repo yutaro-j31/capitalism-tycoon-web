@@ -885,18 +885,25 @@ function settleExitProceeds(state,fund,deal,proceeds,week){
 // までを行う。Fund II 以降もこの同じ関数を通り、次号ゲート（canFormNextFund: DPI 1.2以上かつ
 // 資金消化80%以上）を満たす場合だけ実行できる。
 // 失敗時は state を一切変更せず、理由つきの結果を返す（呼び出し側がメッセージに使う）。
-function planFundFormation(state){
+function planFundFormation(state,{gpCommit=null}={}){
   ensure(state);
   const firm=state.peFirm;
   if(!firm.unlocked)return {ok:false,reason:'locked',message:'PEファンドの組成にはExit経験が必要です。'};
   if(firm.funds.length&&!canFormNextFund(state))return {ok:false,reason:'gate',message:'次号ファンドの組成条件（DPI 1.2倍以上・資金消化80%以上）を満たしていません。'};
   const score=firm.trackRecord.score;
-  const size=formableFundSize(state);
+  const maxSize=formableFundSize(state);
   const ratio=requiredGPRatio(score);
-  const gpCommit=size*ratio;
-  if(size<=0||gpCommit<=0)return {ok:false,reason:'size',message:'組成できる規模がありません。'};
-  if(finite(state.personalCash)<gpCommit)return {ok:false,reason:'gpCash',message:`GP出資${Math.round(gpCommit).toLocaleString('ja-JP')}円に対して個人資産が不足しています。`};
-  return {ok:true,size,gpCommit,ratio,score,terms:fundTermsForScore(score)};
+  const maxGpCommit=maxSize*ratio;
+  const terms=fundTermsForScore(score);
+  if(maxSize<=0||maxGpCommit<=0)return {ok:false,reason:'size',message:'組成できる規模がありません。',maxSize,maxGpCommit,ratio,score,terms};
+  const specified=gpCommit!==null&&gpCommit!==undefined&&gpCommit!=='';
+  const requested=specified?Number(gpCommit):maxGpCommit;
+  if(!Number.isFinite(requested)||requested<=0)return {ok:false,reason:'gpCommit',message:'GP出資額は0円より大きい金額を指定してください。',maxSize,maxGpCommit,ratio,score,terms};
+  if(requested>maxGpCommit+1e-6)return {ok:false,reason:'gpCommitMax',message:`現在の実績ではGP出資は最大${Math.round(maxGpCommit).toLocaleString('ja-JP')}円までです。`,maxSize,maxGpCommit,requestedGpCommit:requested,ratio,score,terms};
+  const selectedGpCommit=requested;
+  const size=maxSize*(selectedGpCommit/maxGpCommit);
+  if(finite(state.personalCash)<selectedGpCommit)return {ok:false,reason:'gpCash',message:`GP出資${Math.round(selectedGpCommit).toLocaleString('ja-JP')}円に対して個人資産が不足しています。`,maxSize,maxGpCommit,requestedGpCommit:selectedGpCommit,ratio,score,terms};
+  return {ok:true,size,gpCommit:selectedGpCommit,ratio,score,terms,maxSize,maxGpCommit,customGpCommit:specified};
 }
 // LP構成: 会える相手（前号からの継続を優先）にLP拠出分を均等に割り付ける。金額の交渉自体は
 // 設計書§9 失敗7の通り「最大額を取るだけの最適化」に落ちるため作らない。
@@ -908,8 +915,8 @@ function buildLPCommitments(state,fund,{acceptPromises=false}={}){
   const each=Math.max(0,finite(fund.lpContributed))/ordered.length;
   return ordered.map(id=>addLPCommitment(fund,{lpTypeID:id,committedAmount:each,promiseAccepted:acceptPromises})).filter(Boolean);
 }
-function formFund(state,{acceptPromises=false}={}){
-  const plan=planFundFormation(state);
+function formFund(state,{acceptPromises=false,gpCommit=null}={}){
+  const plan=planFundFormation(state,{gpCommit});
   if(!plan.ok)return plan;
   const fund=createFund(state,{size:plan.size,gpCommit:plan.gpCommit,terms:plan.terms,y0:finite(state.week,1)});
   if(!fund)return {ok:false,reason:'gpCash',message:'GP出資に対して個人資産が不足しています。'};
@@ -953,7 +960,7 @@ function install(){
   };
   // T21-2: プレイヤー操作としてのファンド組成。表示用の見積り（formablePEFund）と、
   // 実行（formPEFund）を分ける。
-  proto.formablePEFund=function(){return planFundFormation(this.g);};
+  proto.formablePEFund=function(options={}){return planFundFormation(this.g,options);};
   proto.solicitPELP=function(lpTypeID){
     const result=solicitLP(this.g,lpTypeID,this.g.week);
     if(!result.ok)return this.fail(result.message);
