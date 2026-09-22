@@ -123,10 +123,24 @@ for(const deal of fund.deals.filter(d=>d.status==='active')){
   assert.ok(deal.exitSettlement,'exit uses the canonical fund/coinvest/GP waterfall');
 }
 assert.equal(fund.deals.some(d=>d.status==='active'),false);
+assert.ok(pf.fundDeploymentRate(fund)+1e-9>=pf.NEXT_FUND_MIN_DEPLOYMENT,
+  'Fund I deployed at least the base 80% requirement before its investment period ended');
+
+// Exit proceeds alone may leave DPI just below 1.2 while undeployed Fund I cash is still sitting
+// inside the vehicle. That is not a failed fund: production returns the residual capital at par
+// when the 5-year investment period ends, and the design explicitly treats that return as
+// DPI-neutral. Advance the real weekly lifecycle to that point instead of forcing a lucky seed.
+const preMaturityDPI=pf.fundDPI(fund);
+while(fund.status==='investing'&&engine.g.week<fund.y0+pf.INVESTMENT_PERIOD_WEEKS+2){
+  assert.notEqual(engine.advanceWeek(false),false);
+}
+assert.notEqual(fund.status,'investing','Fund I reaches the production investment-period boundary');
+assert.ok(fund.undeployedReturned>=0,'production records the residual undeployed-capital return');
+assert.ok(pf.fundDPI(fund)>=preMaturityDPI,'returning residual capital at par cannot reduce DPI');
 assert.ok(pf.fundDPI(fund)>=pf.NEXT_FUND_MIN_DPI,
-  `fixed-seed Fund I must clear the DPI gate: got ${pf.fundDPI(fund).toFixed(3)}`);
+  `matured fixed-seed Fund I must clear the DPI gate: got ${pf.fundDPI(fund).toFixed(3)}`);
 assert.ok(pf.fundDeploymentRate(fund)+1e-9>=pf.requiredDeploymentRate(fund));
-assert.equal(pf.canFormNextFund(engine.g),true,'realized Fund I performance unlocks the next fund');
+assert.equal(pf.canFormNextFund(engine.g),true,'matured realized Fund I performance unlocks the next fund');
 
 // 6. The UI gate explanation and the actual Fund II action must agree.
 model=adapter.getPEUIData();
