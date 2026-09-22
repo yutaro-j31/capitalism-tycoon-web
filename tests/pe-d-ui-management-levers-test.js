@@ -55,6 +55,25 @@ assert.match(screen.innerHTML,/data-pe-portfolio-manage=/,'portfolio D UI expose
 click('[data-pe-portfolio-manage]',{pePortfolioManage:deal.id});
 assert.match(screen.innerHTML,/data-pe-view-root="portfolio-manage"/,'manage transition renders the D UI management screen');
 
+// Exit Decision Center is reached through the real D UI transitions and exposes three
+// read-only timing scenarios without adding a second execution path.
+const stateBeforeExitCenter=JSON.stringify(engine.g),rngBeforeExitCenter=randomCalls;
+click('[data-pe-manage-back]');
+assert.match(screen.innerHTML,/data-pe-view-root="portfolio-detail"/,'management back returns to portfolio detail');
+click('[data-pe-portfolio-exit]',{pePortfolioExit:deal.id});
+assert.match(screen.innerHTML,/data-pe-view-root="portfolio-exit"/,'portfolio detail reaches the exit screen');
+assert.match(screen.innerHTML,/data-pe-exit-decision-center/,'exit decision center renders');
+for(const horizon of [0,26,52])assert.match(screen.innerHTML,new RegExp(`data-pe-exit-scenario="${horizon}"`),`exit scenario ${horizon} weeks renders`);
+assert.match(screen.innerHTML,/売却タイミング比較/);
+assert.match(screen.innerHTML,/現在の経営レバーを維持・マクロ環境は現在値で固定/);
+assert.match(screen.innerHTML,/今売却した場合の配分/);
+assert.match(screen.innerHTML,/自動的な売却推奨ではありません/);
+assert.equal(JSON.stringify(engine.g),stateBeforeExitCenter,'opening Exit Decision Center never mutates production state');
+assert.equal(randomCalls,rngBeforeExitCenter,'opening Exit Decision Center consumes no RNG');
+click('[data-pe-exit-cancel]');
+click('[data-pe-portfolio-manage]',{pePortfolioManage:deal.id});
+assert.match(screen.innerHTML,/data-pe-view-root="portfolio-manage"/,'exit cancel can return to management flow');
+
 // All five generic lever groups must be visible on the real D UI manage screen. Staffing has two
 // controls because headcount and wages are the two dimensions of the same lever group.
 for(const action of ['investQuality','reformProcurement','setStaffing','renewProductMix','consolidateSites']){
@@ -111,5 +130,7 @@ assert.match(screen.innerHTML,/data-pe-manage-lever="consolidateSites"[^>]*disab
 // Mobile/touch contract: every generic lever action retains a 44px minimum target.
 const css=fs.readFileSync('css/d-ui-pe.css','utf8');
 assert.match(css,/\.pe-lever-card \.btn\{[^}]*min-height:44px/,'generic D UI lever controls keep a 44px tap target');
+assert.match(fs.readFileSync('css/d-ui-pe-phase2.css','utf8'),/\.pe-exit-scenarios\{display:grid;grid-template-columns:repeat\(3,minmax\(0,1fr\)\)/,'desktop Exit Decision Center keeps three comparable scenario columns');
+assert.match(fs.readFileSync('css/d-ui-pe-phase2.css','utf8'),/@media\(max-width:760px\)\{\.pe-exit-scenarios\{grid-template-columns:1fr\}/,'mobile Exit Decision Center stacks scenarios for iPhone width');
 
 console.log('pe D UI generic management lever reachability tests passed');
