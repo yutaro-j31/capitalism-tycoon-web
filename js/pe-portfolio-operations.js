@@ -722,7 +722,7 @@ function exitBuyerOffers(state,fundID,dealID,{week}={}){
     const buyer=resolveExitBuyerOffer(state,deal,base.referenceEnterpriseValue,id,exitWeek);
     if(!buyer.eligible)return {...buyer,referenceEnterpriseValue:base.referenceEnterpriseValue,grossProceeds:0,currentMOIC:0,settlement:null};
     const p=previewPortfolioExit(state,fundID,dealID,{method:'sale',week:exitWeek,buyerID:id});
-    return {...buyer,referenceEnterpriseValue:base.referenceEnterpriseValue,grossProceeds:finite(p?.grossProceeds),exitEnterpriseValue:finite(p?.exitEnterpriseValue),currentMOIC:finite(p?.currentMOIC),settlement:p?.settlement||null};
+    return {...buyer,referenceEnterpriseValue:base.referenceEnterpriseValue,grossProceeds:finite(p?.grossProceeds),exitEnterpriseValue:finite(p?.exitEnterpriseValue),currentMOIC:finite(p?.currentMOIC),holdingWeeks:finite(p?.holdingWeeks),settlement:p?.settlement||null};
   });
 }
 function exitCapabilities(state,fundID,dealID){
