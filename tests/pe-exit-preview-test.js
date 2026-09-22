@@ -77,6 +77,38 @@ assert.equal(typeof engineModule.TycoonEngine.prototype.previewPEPortfolioExitSc
 }
 {
   const {e,fund,deal}=fixture(),before=structuredClone(e.g),callsBefore=randomCalls;
+  const offers=ops.exitBuyerOffers(e.g,fund.id,deal.id),again=ops.exitBuyerOffers(e.g,fund.id,deal.id);
+  assert.deepEqual(plain(offers),plain(again),'same holding produces identical buyer book');
+  assert.deepEqual(plain(e.g),before,'buyer offer preview is read-only');
+  assert.equal(randomCalls,callsBefore,'buyer offer preview consumes no RNG');
+  const secondary=offers.find(row=>row.id==='secondary-buyout'),strategic=offers.find(row=>row.id==='strategic-sale');
+  assert.equal(secondary.eligible,true);
+  assert.equal(strategic.eligible,true);
+  assert.equal(strategic.buyerFirmID,'strategic-buyer');
+  assert.equal(strategic.priceFactor,1.12,'strategic sale reuses the existing strategic-buyer aggressiveness');
+  assert.ok(secondary.priceFactor>=1,'secondary buyout never invents a discount below the existing baseline sale');
+  const baseline=e.previewPEPortfolioExit(fund.id,deal.id,{method:'sale'});
+  const secondaryPreview=e.previewPEPortfolioExit(fund.id,deal.id,{method:'sale',buyerID:'secondary-buyout'});
+  const strategicPreview=e.previewPEPortfolioExit(fund.id,deal.id,{method:'sale',buyerID:'strategic-sale'});
+  assert.equal(secondaryPreview.buyer.id,'secondary-buyout');
+  assert.equal(strategicPreview.buyer.id,'strategic-sale');
+  assert.ok(secondaryPreview.grossProceeds>=baseline.grossProceeds);
+  assert.ok(strategicPreview.grossProceeds>secondaryPreview.grossProceeds,'strategic buyer premium beats the eligible PE buyer in this fixture');
+  assert.deepEqual(strategicPreview.settlement,pf.calculateExitSettlement(fund,deal,strategicPreview.grossProceeds,e.g.week),'buyer-specific sale still uses canonical waterfall');
+
+  const companyBefore=e.g.companyCash,personalBefore=e.g.personalCash,distributedBefore=fund.distributed;
+  assert.equal(e.exitPEPortfolioCompany(fund.id,deal.id,{method:'sale',buyerID:'secondary-buyout'}),true);
+  assert.equal(deal.exitBuyerID,'secondary-buyout');
+  assert.equal(deal.exitBuyerFirmID,secondary.buyerFirmID);
+  assert.equal(deal.exitBuyerName,secondary.buyerName);
+  assert.equal(deal.exitPriceFactor,secondary.priceFactor);
+  assert.equal(deal.exitProceeds,secondaryPreview.grossProceeds);
+  assert.equal(fund.distributed-distributedBefore,secondaryPreview.settlement.distributedToFund);
+  assert.ok(Math.abs((e.g.personalCash-personalBefore)-(secondaryPreview.settlement.gpCarry+secondaryPreview.settlement.gpPrincipalAndGain))<1);
+  assert.equal(e.g.companyCash,companyBefore,'buyer-specific sale never mixes proceeds into company cash');
+}
+{
+  const {e,fund,deal}=fixture(),before=structuredClone(e.g),callsBefore=randomCalls;
   const sale=e.previewPEPortfolioExit(fund.id,deal.id,{method:'sale'}),ipo=e.previewPEPortfolioExit(fund.id,deal.id,{method:'ipo'});
   assert.equal(ipo.ok,true,'eligible pillar holding can preview an IPO exit');
   assert.equal(ipo.pricingDiscount,ops.IPO_EXIT_DISCOUNT);
