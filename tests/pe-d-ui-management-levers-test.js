@@ -62,6 +62,12 @@ click('[data-pe-manage-back]');
 assert.match(screen.innerHTML,/data-pe-view-root="portfolio-detail"/,'management back returns to portfolio detail');
 click('[data-pe-portfolio-exit]',{pePortfolioExit:deal.id});
 assert.match(screen.innerHTML,/data-pe-view-root="portfolio-exit"/,'portfolio detail reaches the exit screen');
+assert.match(screen.innerHTML,/data-pe-exit-route-comparison/,'exit route comparison renders');
+assert.match(screen.innerHTML,/Exitルート比較/);
+assert.match(screen.innerHTML,/売却 \/ IPO/);
+assert.match(screen.innerHTML,/data-pe-exit-route="sale"/,'sale route is visible');
+assert.match(screen.innerHTML,/IPO/,'IPO route is visible even when its current conditions are unmet');
+assert.match(screen.innerHTML,/改善スコア65以上が必要|52週以上の保有が必要/,'IPO route explains its current eligibility blocker');
 assert.match(screen.innerHTML,/data-pe-exit-decision-center/,'exit decision center renders');
 for(const horizon of [0,26,52])assert.match(screen.innerHTML,new RegExp(`data-pe-exit-scenario="${horizon}"`),`exit scenario ${horizon} weeks renders`);
 assert.match(screen.innerHTML,/売却タイミング比較/);
@@ -131,6 +137,8 @@ assert.match(screen.innerHTML,/data-pe-manage-lever="consolidateSites"[^>]*disab
 const css=fs.readFileSync('css/d-ui-pe.css','utf8');
 assert.match(css,/\.pe-lever-card \.btn\{[^}]*min-height:44px/,'generic D UI lever controls keep a 44px tap target');
 assert.match(fs.readFileSync('css/d-ui-pe-phase2.css','utf8'),/\.pe-exit-scenarios\{display:grid;grid-template-columns:repeat\(3,minmax\(0,1fr\)\)/,'desktop Exit Decision Center keeps three comparable scenario columns');
-assert.match(fs.readFileSync('css/d-ui-pe-phase2.css','utf8'),/@media\(max-width:760px\)\{\.pe-exit-scenarios\{grid-template-columns:1fr\}/,'mobile Exit Decision Center stacks scenarios for iPhone width');
+assert.match(fs.readFileSync('css/d-ui-pe-phase2.css','utf8'),/\.pe-exit-routes\{display:grid;grid-template-columns:repeat\(2,minmax\(0,1fr\)\)/,'desktop exit routes compare sale and IPO side by side');
+assert.match(fs.readFileSync('css/d-ui-pe-phase2.css','utf8'),/@media\(max-width:760px\)\{\.pe-exit-routes\{grid-template-columns:1fr\}/,'mobile exit routes stack for iPhone width');
+assert.match(fs.readFileSync('css/d-ui-pe-phase2.css','utf8'),/@media\(max-width:760px\)[^{]*\{[^}]*\.pe-exit-scenarios\{grid-template-columns:1fr\}/,'mobile Exit Decision Center stacks scenarios for iPhone width');
 
 console.log('pe D UI generic management lever reachability tests passed');
