@@ -37,6 +37,8 @@ function setup(){
 // Positive overseas earnings stay abroad and the canonical ledger offsets parent cash.
 {
   const {e,modules,x}=setup();
+  // Make the parent-side cash movement explicit instead of relying on fixture defaults.
+  e.g.officeWeeklyCost=2_000_000;
   const cashBefore=e.g.companyCash;
   assert.notEqual(e.advanceWeek(false),false);
   const live=e.g.overseasSubsidiaries.find(y=>y.id===x.id);
@@ -49,6 +51,8 @@ function setup(){
   assert.ok(Math.abs(overseasCashEffect)<1,'positive overseas earnings do not auto-sweep into parent cash');
   const retained=overseasRows.find(t=>t.sourceType==='weekly-overseasRetainedCash');
   assert.equal(retained.profitEffect,0,'retention is a balance-sheet transfer, not a second expense');
+  const office=rows.find(t=>t.sourceType==='weekly-officeCost');
+  assert.equal(office?.cashEffect,-2_000_000,'explicit parent office cost is posted independently');
   assert(e.g.companyCash<cashBefore,'normal parent costs still move parent cash independently');
   assert.equal(modules.finance.validate(e.g).ok,true,'retained foreign cash keeps BS/PL/CF consistent');
 }
