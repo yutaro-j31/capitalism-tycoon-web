@@ -57,7 +57,7 @@ assert.equal(typeof engineModule.TycoonEngine.prototype.previewPEPortfolioExitSc
   const simulated=structuredClone(e.g);
   const simulatedFund=simulated.peFirm.funds.find(row=>row.id===fund.id);
   const simulatedDeal=simulatedFund.deals.find(row=>row.id===deal.id);
-  for(let week=baseWeek+1;week<=baseWeek+26;week++){simulated.week=week;ops.processDealWeek(simulatedFund,simulatedDeal,week,simulated);}
+  for(let week=baseWeek+1;week<=baseWeek+26;week++){simulated.week=week;pf.processFundsWeek(simulated,week);ops.processDealWeek(simulatedFund,simulatedDeal,week,simulated);}
   const manual26=ops.previewPortfolioExit(simulated,fund.id,deal.id,{method:'sale',week:baseWeek+26});
   assert.equal(center.scenarios[1].grossProceeds,manual26.grossProceeds,'+26 weeks reuses the production weekly operating and exit calculations');
   assert.equal(center.scenarios[1].improvementScore,simulatedDeal.portfolioCompany.improvementScore);
