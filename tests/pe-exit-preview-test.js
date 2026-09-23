@@ -30,11 +30,21 @@ assert.equal(typeof engineModule.TycoonEngine.prototype.previewPEPortfolioExitSc
   assert.equal(randomCalls,callsBefore,'preview consumes no RNG');
   assert.equal(preview.companyName,'Preview Foods');assert.equal(preview.acquisitionPrice,deal.acquisitionPrice);assert.equal(preview.investedAmount,deal.investedAmount);
   assert.equal(preview.holdingWeeks,156);assert.equal(preview.optimalHoldingWeeks,pf.FIRST_FUND_HOLD_WEEKS);assert.equal(preview.currentMOIC,preview.grossProceeds/preview.investedAmount);
+  assert.ok(preview.attribution,'exit preview exposes a canonical attribution');
+  assert.equal(preview.attribution.entryEnterpriseValue,deal.enterpriseValue);
+  assert.equal(preview.attribution.acquisitionPrice,deal.acquisitionPrice);
+  assert.ok(Math.abs(preview.attribution.purchaseDiscountRate-((deal.enterpriseValue-deal.acquisitionPrice)/deal.enterpriseValue))<1e-12);
+  assert.ok(Math.abs(preview.attribution.reconciliationError)<1e-6,'attribution components exactly reconcile to gross proceeds minus acquisition price');
+  assert.ok(Math.abs(Object.values(preview.attribution.components).reduce((sum,value)=>sum+value,0)-preview.attribution.totalValueCreation)<1e-6);
+  assert.equal(preview.attribution.totalValueCreation,preview.grossProceeds-preview.acquisitionPrice);
+  assert.ok(preview.lpFeedback?.id,'preview supplies an LP feedback label without changing economics');
   assert.deepEqual(preview.settlement,pf.calculateExitSettlement(fund,deal,preview.grossProceeds,e.g.week),'preview reuses the pure production waterfall calculation');
   const companyBefore=e.g.companyCash,personalBefore=e.g.personalCash,distributedBefore=fund.distributed,coinvestBefore=fund.coinvestReturned;
   assert.equal(e.exitPEPortfolioCompany(fund.id,deal.id,{method:'sale'}),true);
   assert.equal(deal.exitProceeds,preview.grossProceeds,'execution records the exact preview proceeds');
   assert.deepEqual(deal.exitSettlement,preview.settlement,'execution records the exact preview settlement');
+  assert.deepEqual(deal.exitAttribution,preview.attribution,'execution freezes the exact preview attribution for post-exit review');
+  assert.deepEqual(deal.exitLPFeedback,preview.lpFeedback,'execution freezes the display-only LP feedback');
   assert.equal(fund.distributed-distributedBefore,preview.settlement.distributedToFund);
   assert.equal(fund.coinvestReturned-coinvestBefore,preview.settlement.returnedToCoinvestors);
   assert.ok(Math.abs((e.g.personalCash-personalBefore)-(preview.settlement.gpCarry+preview.settlement.gpPrincipalAndGain))<1);
@@ -94,6 +104,7 @@ assert.equal(typeof engineModule.TycoonEngine.prototype.previewPEPortfolioExitSc
   assert.equal(strategicPreview.buyer.id,'strategic-sale');
   assert.ok(secondaryPreview.grossProceeds>=baseline.grossProceeds);
   assert.ok(strategicPreview.grossProceeds>secondaryPreview.grossProceeds,'strategic buyer premium beats the eligible PE buyer in this fixture');
+  assert.ok(strategicPreview.attribution.components.routePricing>secondaryPreview.attribution.components.routePricing,'buyer premium is isolated in the route-pricing attribution bucket');
   assert.deepEqual(strategicPreview.settlement,pf.calculateExitSettlement(fund,deal,strategicPreview.grossProceeds,e.g.week),'buyer-specific sale still uses canonical waterfall');
 
   const companyBefore=e.g.companyCash,personalBefore=e.g.personalCash,distributedBefore=fund.distributed;
@@ -114,6 +125,7 @@ assert.equal(typeof engineModule.TycoonEngine.prototype.previewPEPortfolioExitSc
   assert.equal(ipo.pricingDiscount,ops.IPO_EXIT_DISCOUNT);
   assert.ok(Math.abs(ipo.exitEnterpriseValue-sale.referenceEnterpriseValue*(1-ops.IPO_EXIT_DISCOUNT))<1e-6,'IPO applies the canonical listing discount to the same reference enterprise value');
   assert.ok(ipo.grossProceeds<sale.grossProceeds,'IPO discount makes current IPO proceeds lower than an otherwise identical sale');
+  assert.ok(ipo.attribution.components.routePricing<0,'IPO listing discount is isolated as a negative route-pricing contribution');
   assert.deepEqual(ipo.settlement,pf.calculateExitSettlement(fund,deal,ipo.grossProceeds,e.g.week),'IPO reuses the canonical PE waterfall');
   assert.deepEqual(plain(e.g),before,'IPO preview is read-only');
   assert.equal(randomCalls,callsBefore,'IPO preview consumes no RNG');
@@ -143,5 +155,13 @@ assert.equal(typeof engineModule.TycoonEngine.prototype.previewPEPortfolioExitSc
   assert.equal(e.getPEPortfolioExitCapabilities(fund.id,deal.id)[0].reason,'deal-not-active');
   assert.equal(e.exitPEPortfolioCompany(fund.id,deal.id,{method:'sale'}),false,'ineligible deals are rejected by execution');
   assert.equal(e.g.companyCash,before.companyCash);assert.equal(e.g.personalCash,before.personalCash);assert.equal(fund.distributed,before.peFirm.funds.find(f=>f.id===fund.id).distributed);
+}
+{
+  const marketLed=ops.lpExitFeedback({totalValueCreation:100,purchaseDiscountRate:0,marketReliance:.6,operatingReliance:.2});
+  assert.equal(marketLed.id,'market-led');
+  const operatingLed=ops.lpExitFeedback({totalValueCreation:100,purchaseDiscountRate:0,marketReliance:.1,operatingReliance:.7});
+  assert.equal(operatingLed.id,'operating-led');
+  const expensive=ops.lpExitFeedback({totalValueCreation:100,purchaseDiscountRate:-.1,marketReliance:0,operatingReliance:.7});
+  assert.equal(expensive.id,'entry-premium','entry discipline warning takes precedence even when the eventual exit is profitable');
 }
 console.log('pe exit preview: purity, capabilities, parity, accounting, and determinism passed');
