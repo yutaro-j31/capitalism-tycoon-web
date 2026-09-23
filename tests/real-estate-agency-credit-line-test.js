@@ -44,6 +44,7 @@
 // that still exercises the behavior it checks (typically 10-26 weeks, enough to cover one
 // founding dry-spell-and-repay cycle), not the full 160-week horizon.
 const assert = require('node:assert/strict');
+const fs = require('node:fs');
 const { loadGame } = require('./harness');
 
 function lcg(seed = 190826041) { let s = seed >>> 0; return () => { s = (Math.imul(s, 1664525) + 1013904223) >>> 0; return s / 2 ** 32; }; }
@@ -179,6 +180,87 @@ function freshEngine(loaded) {
   // the founding dry spell (which resolves for these seeds well before week 20).
   assert.equal(survived, SEEDS.length, `expected all ${SEEDS.length} known-hard seeds to survive the founding dry spell, got ${survived}`);
   console.log(`7. multi-seed survival checkpoint: pass, ${survived}/${SEEDS.length} survived`);
+}
+
+// --- 8. Multi-store cushion scaling: the single-store baseline stays unchanged, each extra
+//        open realEstateAgency store adds the bounded per-store reserve, and unrelated/closed
+//        stores do not count. This locks PR #722's案B without running the 40-seed sweep in CI. ---
+{
+  const loaded = loadGame({ random: lcg(8) });
+  const mod = loaded.modules.realEstateAgencyCreditLine;
+  const state = loaded.modules.engine.createInitialState({ configured: true });
+  const store = (id, businessID = 'realEstateAgency', status = 'open') => ({ id, businessID, status });
+
+  state.stores = [store('rea-1')];
+  assert.equal(mod.openStoreCount(state), 1);
+  assert.equal(mod.cushionFor(state), mod.CUSHION, 'single-store baseline cushion must remain unchanged');
+  assert.equal(mod.repayFloorFor(state), mod.REPAY_FLOOR, 'single-store repay floor must remain backward-compatible');
+
+  state.stores.push(store('rea-2'));
+  assert.equal(mod.openStoreCount(state), 2);
+  assert.equal(mod.cushionFor(state), mod.CUSHION + mod.CUSHION_PER_STORE, 'second open store adds one per-store cushion increment');
+  assert.equal(mod.repayFloorFor(state), mod.cushionFor(state) * mod.REPAY_FLOOR_MULTIPLIER);
+
+  state.stores.push(store('gym-1', 'gym'), store('rea-closed', 'realEstateAgency', 'closed'));
+  assert.equal(mod.openStoreCount(state), 2, 'unrelated and closed stores must not change the real-estate cushion');
+  assert.equal(mod.cushionFor(state), mod.CUSHION + mod.CUSHION_PER_STORE);
+
+  state.stores = Array.from({ length: 30 }, (_, index) => store('rea-' + index));
+  assert.equal(mod.cushionFor(state), mod.CUSHION_MAX, 'large portfolios must stop at the bounded cushion ceiling');
+  assert.ok(mod.repayFloorFor(state) < mod.CAP, 'maximum repay floor must retain headroom below the finite credit cap');
+  console.log('8. multi-store cushion scaling + cap: pass');
+}
+
+// --- 9. Same-week rescue semantics: service() must make the cash non-negative before
+//        player-crisis evaluate() consumes this week's liquidity result. This is a lightweight
+//        deterministic version of the deep-trough condition that caused the old 2/40 failures. ---
+{
+  const loaded = loadGame({ random: lcg(9) });
+  const mod = loaded.modules.realEstateAgencyCreditLine;
+  const crisis = loaded.modules.playerCrisis;
+  const state = loaded.modules.engine.createInitialState({ configured: true });
+  state.week = 9;
+  state.stores = [
+    { id: 'rea-order-1', businessID: 'realEstateAgency', status: 'open' },
+    { id: 'rea-order-2', businessID: 'realEstateAgency', status: 'open' }
+  ];
+  state.companyCash = -900_000;
+  state.companyDebt = 0;
+  state.consecutiveNegativeCashWeeks = 1;
+  crisis.ensure(state);
+
+  const expectedCushion = mod.cushionFor(state);
+  const drawn = mod.service(state);
+  assert.ok(drawn > 0, 'deep trough must draw on the revolving line');
+  assert.equal(state.companyCash, expectedCushion, 'same-week service rescues cash exactly to the scaled cushion');
+  assert.ok(mod.outstandingBalance(state) > 0 && mod.outstandingBalance(state) <= mod.CAP);
+
+  const snapshot = crisis.evaluate(state);
+  assert.equal(state.consecutiveNegativeCashWeeks, 0, 'rescued week must not advance the legacy negative-cash counter');
+  assert.equal(snapshot.negativeCashWeeks, 0, 'rescued week must not advance the player-crisis negative-cash counter');
+  assert.notEqual(snapshot.status, 'distressed', 'same-week rescue must be visible to crisis evaluation');
+  assert.equal(state.gameOver, false);
+  assert.equal(state.gameOverReason || '', '');
+  console.log('9. same-week credit rescue precedes crisis accounting: pass');
+}
+
+// --- 10. Wiring/order contract: PR #722 deliberately uses the player-crisis pre-evaluate hook
+//         instead of script-tag reordering. Lock both registration and the main advanceWeek order
+//         so a future wrapper refactor cannot silently move service() back behind evaluate(). ---
+{
+  const crisisSource = fs.readFileSync('js/player-crisis.js', 'utf8');
+  const creditSource = fs.readFileSync('js/real-estate-agency-credit-line.js', 'utf8');
+  const transactionStart = crisisSource.indexOf('return this.runTransaction(()=>{');
+  const hookIndex = crisisSource.indexOf('runPreEvaluateHooks(this.g,this);', transactionStart);
+  const legacyIndex = crisisSource.indexOf('const legacyTriggered=', transactionStart);
+  const evaluateIndex = crisisSource.indexOf('const crisis=evaluate(this.g);', transactionStart);
+
+  assert.ok(transactionStart >= 0 && hookIndex > transactionStart, 'main weekly transaction must invoke pre-evaluate hooks');
+  assert.ok(legacyIndex > hookIndex, 'legacy game-over capture must happen after rescue hooks');
+  assert.ok(evaluateIndex > legacyIndex, 'player-crisis evaluation must happen after rescue hooks and legacy capture');
+  assert.match(creditSource, /modules\.playerCrisis\.registerPreEvaluateHook\(service\)/, 'credit-line service must remain registered on the pre-evaluate hook');
+  assert.doesNotMatch(creditSource, /const baseAdvanceWeek=EngineClass\.prototype\.advanceWeek/, 'credit line must not reintroduce its own outer advanceWeek wrapper');
+  console.log('10. pre-evaluate hook wiring/order contract: pass');
 }
 
 console.log('real-estate-agency-credit-line tests passed');
