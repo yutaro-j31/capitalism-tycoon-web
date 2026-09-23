@@ -123,8 +123,30 @@ assert.equal(comparisonModel.fundComparison[0].reserve,6_000_000_000);
 assert.equal(comparisonModel.fundComparison[1].invested,1_000_000_000);
 assert.equal(comparisonModel.fundComparison[1].investableCash,3_000_000_000);
 assert.equal(comparisonModel.fundComparison[1].reserve,0);
+assert.equal(comparisonModel.multiFund.investingCount,1,'Fund II is investing while Fund I harvests');
+assert.equal(comparisonModel.multiFund.harvestingCount,1);
+assert.equal(comparisonModel.multiFund.rows.length,2);
+assert.equal(comparisonModel.multiFund.sharedDD.remaining,pf.ddSlotsRemaining(engine.g,engine.g.week));
+assert.equal(comparisonModel.multiFund.rows[0].ordinal,1);
+assert.equal(comparisonModel.multiFund.rows[1].ordinal,2);
+
+// When both vehicles are investing, the adapter exposes both as explicit allocation choices for
+// a tier that fits both funds. This remains a read-only decision surface.
+fund.status='investing';
+const multiBefore=JSON.stringify(engine.g);
+const desk=modules.peUIAdapter.multiFundDesk(engine.g);
+const choices=modules.peUIAdapter.dealFundChoices(engine.g,{peTierID:'pillar'},{});
+assert.equal(JSON.stringify(engine.g),multiBefore,'multi-fund desk and allocation choices are read-only');
+assert.equal(desk.investingCount,2);
+assert.deepEqual(Array.from(choices,row=>row.ordinal),[1,2]);
+assert.ok(choices.every(row=>row.slotsRemaining>=0));
+assert.ok(choices.every(row=>row.singleDealLimit>=0));
 uiContext.CapitalismTycoonPEUI.render();
 assert.match(screen.innerHTML,/data-pe-fund-comparison/,'Fund capital comparison section renders');
+assert.match(screen.innerHTML,/data-pe-multi-fund-desk/,'Multi-Fund Desk renders');
+assert.match(screen.innerHTML,/複数ファンド運用/);
+assert.match(screen.innerHTML,/Firm-wide DD/);
+assert.match(screen.innerHTML,/全Fundで共用/);
 assert.match(screen.innerHTML,/data-pe-fund-summary="1"/,'Fund I summary renders');
 assert.match(screen.innerHTML,/data-pe-fund-summary="2"/,'Fund II summary renders');
 assert.match(screen.innerHTML,/現金残高/);
@@ -132,4 +154,6 @@ assert.match(screen.innerHTML,/投資可能/);
 assert.match(screen.innerHTML,/Reserve/);
 
 assert.match(fs.readFileSync('css/d-ui-pe.css','utf8'),/\.pe-promise-grid\{grid-template-columns:1fr\}/,'promise compliance cards stack on mobile');
+assert.match(fs.readFileSync('css/d-ui-pe.css','utf8'),/\.pe-multi-fund-grid\{grid-template-columns:1fr\}/,'multi-fund cards stack on mobile');
+assert.match(fs.readFileSync('css/d-ui-pe.css','utf8'),/\.pe-deal-fund-select select\{[^}]*min-height:44px/,'fund selector keeps an iPhone-safe tap target');
 console.log('PE fund capital and next-fund gate UI tests passed');
