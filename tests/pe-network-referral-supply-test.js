@@ -149,7 +149,7 @@ const propDeskBefore=modules.peUIAdapter.sourcingNetwork(engine.g);
 assert.equal(JSON.stringify(engine.g),propBefore,'proprietary desk preview is read-only');
 const propRowBefore=propDeskBefore.rows.find(row=>row.id===propNode.id);
 assert.equal(propRowBefore.canStartProprietary,true);
-assert.equal(propRowBefore.proprietaryProbability,supply.PROPRIETARY_MAX_SUCCESS);
+assert.ok(Math.abs(propRowBefore.proprietaryProbability-supply.PROPRIETARY_MAX_SUCCESS)<1e-12,'adapter preserves the capped proprietary probability within floating-point tolerance');
 assert.equal(modules.peUIAdapter.perform('startProprietary',{nodeID:propNode.id}),true,'Sourcing Desk starts production proprietary outreach');
 const campaign=engine.g.peFirm.proprietarySourcing.at(-1);
 assert.equal(campaign.nodeID,propNode.id);
