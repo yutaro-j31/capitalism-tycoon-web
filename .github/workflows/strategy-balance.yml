@@ -85,14 +85,13 @@ jobs:
           if-no-files-found: warn
           retention-days: 14
 
-  founding-route-baseline-audit:
+  founding-route-baseline-scope:
     if: >-
       github.event_name == 'pull_request' ||
       (github.event_name == 'workflow_dispatch' && inputs.mode == 'founding-baseline')
     runs-on: ubuntu-latest
-    timeout-minutes: 45
-    env:
-      NODE_OPTIONS: --max-old-space-size=4096
+    outputs:
+      run: ${{ steps.scope.outputs.run }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -111,22 +110,35 @@ jobs:
             run=true
           fi
           echo "run=$run" >> "$GITHUB_OUTPUT"
+
+  founding-route-baseline-audit:
+    needs: founding-route-baseline-scope
+    if: needs.founding-route-baseline-scope.outputs.run == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      matrix:
+        business: [ramen, conveni, gym, realEstateAgency]
+    env:
+      NODE_OPTIONS: --max-old-space-size=4096
+      FOUNDING_AUDIT_BUSINESS: ${{ matrix.business }}
+    steps:
+      - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
-        if: steps.scope.outputs.run == 'true'
         with:
           node-version: '22'
       - name: Run production founding-route baseline audit
-        if: steps.scope.outputs.run == 'true'
         shell: bash
         run: |
           mkdir -p artifacts/founding-route-baseline
           set -o pipefail
-          node tests/founding-route-postfix-baseline-audit.js 2>&1 | tee artifacts/founding-route-baseline/audit.log
+          node tests/founding-route-postfix-baseline-audit.js 2>&1 | tee artifacts/founding-route-baseline/audit-${{ matrix.business }}.log
       - name: Upload founding baseline evidence
-        if: always() && steps.scope.outputs.run == 'true'
+        if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: founding-route-baseline-${{ github.sha }}
+          name: founding-route-baseline-${{ matrix.business }}-${{ github.sha }}
           path: artifacts/founding-route-baseline
           if-no-files-found: error
           retention-days: 30
