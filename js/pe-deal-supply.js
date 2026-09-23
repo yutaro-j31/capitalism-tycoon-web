@@ -441,6 +441,7 @@ function processSupplyWeek(state,week){
   diagnostic.winningMonopolyNodeID=primary?.dealChannel==='monopoly'&&primary?.peSourceNodeID?String(primary.peSourceNodeID):null;
   diagnostic.boardCountAfter=state.acquisitionTargets.filter(isPETarget).length;
   diagnostic.outcome=primary?.dealChannel==='monopoly'?'monopoly-won'
+    :referral?.peNetworkAccess==='exclusive'?'referral-exclusive'
     :boardCountBefore>=MAX_PE_TARGETS?'board-full'
     :!diagnostic.primaryEligible?'tier-mismatch'
     :diagnostic.monopolyCandidateCount>0&&primary?'monopoly-missed'
