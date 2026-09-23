@@ -220,6 +220,23 @@ function goodExit(overrides = {}) {
   assert.equal(regional.promiseAccepted, true, 'per-LP promise decision reaches canonical fund state');
   assert.equal(sovereign.promiseAccepted, false);
   assert.ok(Math.abs(formed.fund.lps.reduce((sum,row)=>sum+row.committedAmount,0)-formed.fund.lpContributed)<1e-6);
+
+  // Promise decisions are a yes/no on obligations, never a lever on allocation: every LP gets
+  // exactly lpContributed / LP count. A sum-preserving skew toward promise-accepting LPs would
+  // still pass the totals above, so pin each row individually and against an all-declined fund.
+  const equalShare = formed.fund.lpContributed / formed.fund.lps.length;
+  for (const row of formed.fund.lps) assert.ok(Math.abs(row.committedAmount-equalShare)<1e-6, `${row.lpTypeID} receives the equal LP share regardless of its promise decision`);
+  for (const row of book.lps) assert.ok(Math.abs(row.committedAmount-book.lpContributed/book.lps.length)<1e-6, `${row.lpTypeID} book row shows the equal LP share`);
+  assert.deepEqual(formed.fund.lps.map(row=>[row.lpTypeID,row.committedAmount]), book.lps.map(row=>[row.lpTypeID,row.committedAmount]), 'writer allocates exactly what the Fundraising Book showed, per LP');
+
+  const declinedEngine = new TycoonEngine();
+  declinedEngine.g.personalCash = 30_000_000_000;
+  pf.recordExit(declinedEngine.g, goodExit());
+  pf.recordExit(declinedEngine.g, goodExit({ foundedWeek: 200, exitedWeek: 252 }));
+  const declined = pf.formFund(declinedEngine.g, { gpCommit: chosen, promiseDecisions: { regionalBankCorporate: false, pensionFund: false, universitySovereign: false } });
+  assert.equal(declined.ok, true);
+  assert.ok(declined.fund.lps.every(row=>!row.promiseAccepted), 'fixture declines every promise');
+  assert.deepEqual(formed.fund.lps.map(row=>[row.lpTypeID,row.committedAmount]), declined.fund.lps.map(row=>[row.lpTypeID,row.committedAmount]), 'per-LP amounts are identical whether promises are partly accepted or all declined');
 }
 
 // 7f. Legacy all-promises option remains compatible for non-UI callers.
