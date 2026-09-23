@@ -151,11 +151,19 @@ assert.match(screen.innerHTML,/LP FEEDBACK/);
 assert.match(screen.innerHTML,/取得価格差/);
 assert.match(screen.innerHTML,/オペレーション/);
 assert.match(screen.innerHTML,/市況/);
+const latestFeedback=modules.peUIAdapter.latestExitLPFeedback(engine.g);
+assert.equal(latestFeedback.dealID,deal2.id);
+assert.equal(latestFeedback.feedback.id,deal2.exitLPFeedback.id);
+assert.ok(Number.isFinite(latestFeedback.attribution.marketReliance));
 click('[data-pe-exit-result-back]');
 assert.match(screen.innerHTML,/data-pe-recent-exits/,'completed exits remain visible from the portfolio list');
 assert.match(screen.innerHTML,new RegExp('data-pe-exit-result="'+deal2.id+'"'),'recent exit exposes a review action');
 click('[data-pe-exit-result]',{peExitResult:deal2.id});
 assert.match(screen.innerHTML,/data-pe-view-root="portfolio-exit-result"/,'stored attribution can be reopened without recomputing an active exit preview');
+
+const uiSource=fs.readFileSync('js/pe-ui.js','utf8');
+assert.match(uiSource,/data-pe-fundraising-exit-feedback/,'fundraising book exposes the latest Exit LP feedback');
+assert.match(fs.readFileSync('css/d-ui-pe.css','utf8'),/\.pe-recent-exit-grid\{grid-template-columns:1fr\}/,'recent exits stack on iPhone width');
 
 const source=fs.readFileSync('js/pe-portfolio-operations.js','utf8');
 const added=source.slice(source.indexOf('function previewParentCompanyAcquisition'),source.indexOf('// Exit（現在production',source.indexOf('function previewParentCompanyAcquisition')));
