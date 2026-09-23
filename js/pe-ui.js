@@ -19,13 +19,14 @@ function fundCapitalComparison(rows){
 
 function fundraisingBookPanel(f){
   if(!f?.lps?.length)return '';
-  const t=f.terms||{};
+  const t=f.terms||{},last=f.latestExitFeedback;
+  const lastExit=last&&last.feedback?'<article class="pe-lp-exit-feedback '+esc(last.feedback.tone)+'" data-pe-fundraising-exit-feedback><small>LP FEEDBACK · LAST EXIT</small><h3>'+esc(last.feedback.headline)+'</h3><p>'+esc(last.companyName)+' · 第'+last.exitedWeek+'週Exit — '+esc(last.feedback.comment)+'</p><span>運用改善寄与 '+(Number(last.attribution?.operatingReliance||0)*100).toFixed(0)+'% · 市況依存 '+(Number(last.attribution?.marketReliance||0)*100).toFixed(0)+'% · 現在の調達条件には直接加算・減算しません。</span></article>':'';
   const lpRows=f.lps.map(row=>{
     const condition=row.promiseRuleLabel||row.promiseLabel||row.riskLabel||'追加条件なし';
     const promise=row.promiseID?'<label class="pe-fundraising-promise"><input type="checkbox" data-pe-promise-toggle="'+esc(row.id)+'" '+(row.promiseAccepted?'checked':'')+'><span>約束を受ける</span></label>':'<span class="pe-fundraising-passive">約束選択なし</span>';
     return '<article class="pe-fundraising-lp" data-pe-fundraising-lp="'+esc(row.id)+'"><header><div><small>'+esc(row.sourceLabel)+'</small><strong>'+esc(row.name)+'</strong></div><b>'+esc(row.committedAmountLabel)+'</b></header><p>'+esc(condition)+'</p>'+promise+'</article>';
   }).join('');
-  return '<section class="pe-fundraising-book" data-pe-fundraising-book><div class="pe-section-head"><div><small>FUNDRAISING BOOK</small><h3>LP Commitment & Terms</h3></div><span class="pe-status">'+f.lps.length+' LPs</span></div><div class="pe-fundraising-terms"><article><span>LP拠出</span><strong>'+esc(f.lpContributedLabel)+'</strong></article><article><span>Management Fee</span><strong>'+percentage(Number(t.fee||0)*100)+'</strong></article><article><span>Carry</span><strong>'+percentage(Number(t.carry||0)*100)+'</strong></article><article><span>Hurdle</span><strong>'+percentage(Number(t.hurdle||0)*100)+'</strong></article></div><div class="pe-fundraising-impact"><span>LP Trust '+Number(f.lpTrustMultiplier||1).toFixed(2)+'x</span><span>前号約束 '+Number(f.priorPromiseMultiplier||1).toFixed(2)+'x</span></div><div class="pe-fundraising-lps">'+lpRows+'</div><p class="pe-gate">約束を断っても直接ペナルティはありません。受けた約束を守れなかった場合だけ、次号ファンドの調達上限に影響します。</p></section>';
+  return '<section class="pe-fundraising-book" data-pe-fundraising-book><div class="pe-section-head"><div><small>FUNDRAISING BOOK</small><h3>LP Commitment & Terms</h3></div><span class="pe-status">'+f.lps.length+' LPs</span></div><div class="pe-fundraising-terms"><article><span>LP拠出</span><strong>'+esc(f.lpContributedLabel)+'</strong></article><article><span>Management Fee</span><strong>'+percentage(Number(t.fee||0)*100)+'</strong></article><article><span>Carry</span><strong>'+percentage(Number(t.carry||0)*100)+'</strong></article><article><span>Hurdle</span><strong>'+percentage(Number(t.hurdle||0)*100)+'</strong></article></div><div class="pe-fundraising-impact"><span>LP Trust '+Number(f.lpTrustMultiplier||1).toFixed(2)+'x</span><span>前号約束 '+Number(f.priorPromiseMultiplier||1).toFixed(2)+'x</span></div><div class="pe-fundraising-lps">'+lpRows+'</div>'+lastExit+'<p class="pe-gate">約束を断っても直接ペナルティはありません。受けた約束を守れなかった場合だけ、次号ファンドの調達上限に影響します。</p></section>';
 }
 function fundFormationPanel(f,{next=false}={}){
   if(!f)return '';
