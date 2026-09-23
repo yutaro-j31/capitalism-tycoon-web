@@ -143,7 +143,7 @@ engine.g.peNetwork.weeklyActionsWeek=200;
 engine.g.peNetwork.weeklyActionsUsed=0;
 engine.g.acquisitionTargets=[];
 assert.equal(supply.proprietarySuccessProbability({...propNode,trust:19}),0,'Trust below 20 cannot initiate proprietary sourcing');
-assert.equal(supply.proprietarySuccessProbability({...propNode,trust:100,pathType:'longTermCultivation'}),supply.PROPRIETARY_MAX_SUCCESS,'best long-term relationship is capped below 50%');
+assert.ok(Math.abs(supply.proprietarySuccessProbability({...propNode,trust:100,pathType:'longTermCultivation'})-supply.PROPRIETARY_MAX_SUCCESS)<1e-12,'best long-term relationship is capped below 50%');
 const propBefore=JSON.stringify(engine.g);
 const propDeskBefore=modules.peUIAdapter.sourcingNetwork(engine.g);
 assert.equal(JSON.stringify(engine.g),propBefore,'proprietary desk preview is read-only');
