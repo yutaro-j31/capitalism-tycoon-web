@@ -757,7 +757,64 @@ function previewPortfolioExit(state,fundID,dealID,{method='sale',week,buyerID=nu
   const pricingFactor=method==='sale'&&buyer?Math.max(0,finite(buyer.priceFactor,1)):1;
   const exitEnterpriseValue=referenceEnterpriseValue*(1-pricingDiscount)*pricingFactor;
   const portfolioCash=finite(pc.cash),grossProceeds=Math.max(0,exitEnterpriseValue+portfolioCash),investedAmount=Math.max(0,finite(deal.investedAmount));
-  return {ok:true,fundID,dealID,method,buyerID:buyer?.id||null,buyer:buyer?{id:buyer.id,label:buyer.label,buyerType:buyer.buyerType,buyerFirmID:buyer.buyerFirmID,buyerName:buyer.buyerName,priceFactor:pricingFactor}:null,companyName:String(deal.companyName||deal.businessID||deal.tierID||deal.id),acquisitionPrice:Math.max(0,finite(deal.acquisitionPrice,investedAmount)),investedAmount,fundPortion:Math.max(0,finite(deal.fundPortion)),coinvestPortion:Math.max(0,finite(deal.coinvestPortion)),referenceEnterpriseValue,pricingDiscount,pricingFactor,exitEnterpriseValue,portfolioCash,grossProceeds,holdingWeeks:Math.max(0,exitWeek-finite(deal.acquiredWeek,exitWeek)),optimalHoldingWeeks:pf.optimalHoldWeeks(fundIndex),currentMOIC:investedAmount>0?grossProceeds/investedAmount:0,exitMultiple,marketFactor,settlement:pf.calculateExitSettlement(fund,deal,grossProceeds,exitWeek),eligibility,reason:null};
+  const result={ok:true,fundID,dealID,method,buyerID:buyer?.id||null,buyer:buyer?{id:buyer.id,label:buyer.label,buyerType:buyer.buyerType,buyerFirmID:buyer.buyerFirmID,buyerName:buyer.buyerName,priceFactor:pricingFactor}:null,companyName:String(deal.companyName||deal.businessID||deal.tierID||deal.id),acquisitionPrice:Math.max(0,finite(deal.acquisitionPrice,investedAmount)),investedAmount,fundPortion:Math.max(0,finite(deal.fundPortion)),coinvestPortion:Math.max(0,finite(deal.coinvestPortion)),referenceEnterpriseValue,pricingDiscount,pricingFactor,exitEnterpriseValue,portfolioCash,grossProceeds,holdingWeeks:Math.max(0,exitWeek-finite(deal.acquiredWeek,exitWeek)),optimalHoldingWeeks:pf.optimalHoldWeeks(fundIndex),currentMOIC:investedAmount>0?grossProceeds/investedAmount:0,exitMultiple,marketFactor,settlement:pf.calculateExitSettlement(fund,deal,grossProceeds,exitWeek),eligibility,reason:null};
+  result.attribution=exitAttributionFromPreview(deal,result,exitWeek);
+  result.lpFeedback=lpExitFeedback(result.attribution);
+  return result;
+}
+
+// Exit Attribution is a pure decomposition of the exact production exit formula. Each stage
+// applies one factor at a time, so the components reconcile exactly to Gross Proceeds -
+// acquisitionPrice. No new valuation model, debt model, RNG, or cash mutation is introduced.
+function exitAttributionFromPreview(deal,preview,exitWeek){
+  if(!deal||!preview?.ok)return null;
+  const pc=deal.portfolioCompany||{},entryEnterpriseValue=Math.max(0,finite(deal.enterpriseValue,preview.acquisitionPrice));
+  const acquisitionPrice=Math.max(0,finite(preview.acquisitionPrice,preview.investedAmount)),acquisitionMultiple=Math.max(1,finite(deal.acquisitionMultiple,8));
+  const lever=leverFactors(pc,exitWeek),operatingFactor=storeScaleFactor(pc)*lever.revenueFactor*lever.costFactor;
+  const operatingEnterpriseValue=entryEnterpriseValue*operatingFactor;
+  const exitMultipleFactor=finite(preview.exitMultiple,acquisitionMultiple)/acquisitionMultiple;
+  const multipleEnterpriseValue=operatingEnterpriseValue*exitMultipleFactor;
+  const marketEnterpriseValue=multipleEnterpriseValue*Math.max(0,finite(preview.marketFactor,1));
+  const routePricingFactor=Math.max(0,1-finite(preview.pricingDiscount))*Math.max(0,finite(preview.pricingFactor,1));
+  const pricedEnterpriseValue=marketEnterpriseValue*routePricingFactor;
+  const components={
+    entryPricing:entryEnterpriseValue-acquisitionPrice,
+    operations:operatingEnterpriseValue-entryEnterpriseValue,
+    exitMultiple:multipleEnterpriseValue-operatingEnterpriseValue,
+    market:marketEnterpriseValue-multipleEnterpriseValue,
+    routePricing:pricedEnterpriseValue-marketEnterpriseValue,
+    portfolioCash:finite(preview.portfolioCash)
+  };
+  const reconciledValueCreation=Object.values(components).reduce((sum,value)=>sum+finite(value),0);
+  const totalValueCreation=finite(preview.grossProceeds)-acquisitionPrice;
+  const positiveValueCreation=Object.values(components).reduce((sum,value)=>sum+Math.max(0,finite(value)),0);
+  const marketReliance=positiveValueCreation>0?Math.max(0,components.market)/positiveValueCreation:0;
+  const operatingContributionPositive=Math.max(0,components.operations)+Math.max(0,components.exitMultiple);
+  const operatingReliance=positiveValueCreation>0?operatingContributionPositive/positiveValueCreation:0;
+  const purchaseDiscountRate=entryEnterpriseValue>0?(entryEnterpriseValue-acquisitionPrice)/entryEnterpriseValue:0;
+  return {
+    method:String(preview.method||'sale'),entryEnterpriseValue,acquisitionPrice,acquisitionMultiple,
+    purchaseDiscountRate,operatingFactor,operatingEnterpriseValue,exitMultiple:finite(preview.exitMultiple),
+    exitMultipleFactor,multipleEnterpriseValue,marketFactor:finite(preview.marketFactor,1),marketEnterpriseValue,
+    pricingDiscount:finite(preview.pricingDiscount),pricingFactor:finite(preview.pricingFactor,1),routePricingFactor,
+    exitEnterpriseValue:finite(preview.exitEnterpriseValue),portfolioCash:finite(preview.portfolioCash),
+    grossProceeds:finite(preview.grossProceeds),investedAmount:finite(preview.investedAmount),
+    holdingWeeks:finite(preview.holdingWeeks),moic:finite(preview.currentMOIC),
+    irr:annualizedDealIRR(preview.currentMOIC,preview.holdingWeeks),
+    components,totalValueCreation,reconciledValueCreation,
+    reconciliationError:reconciledValueCreation-totalValueCreation,
+    positiveValueCreation,marketReliance,operatingReliance
+  };
+}
+function lpExitFeedback(attribution){
+  const a=attribution;
+  if(!a)return {id:'unavailable',tone:'neutral',headline:'Exit分析なし',comment:'このExitには要因分解データがありません。'};
+  if(a.totalValueCreation<0)return {id:'loss',tone:'risk',headline:'LP: 元本毀損を精査',comment:'Exit損失が出ています。取得価格と価値創造施策の再現性を確認したい局面です。'};
+  if(a.purchaseDiscountRate<-.08)return {id:'entry-premium',tone:'risk',headline:'LP: 高値取得を注視',comment:'取得時に基準企業価値を8%以上上回って支払っています。Exitが成功しても取得規律を確認します。'};
+  if(a.marketReliance>=.5)return {id:'market-led',tone:'warning',headline:'LP: 市況寄与が大きい',comment:'プラスの価値創造の半分以上が市況要因です。次の案件でも再現できる運用改善かを見極めます。'};
+  if(a.operatingReliance>=.5)return {id:'operating-led',tone:'good',headline:'LP: 運用改善主導',comment:'価値創造の中心がオペレーションと改善スコア由来です。市況だけに依存しないExitです。'};
+  if(a.purchaseDiscountRate>=.08)return {id:'entry-discipline',tone:'good',headline:'LP: 取得規律が寄与',comment:'基準企業価値より8%以上安く取得できており、Entry時点の規律がリターンに寄与しています。'};
+  return {id:'balanced',tone:'neutral',headline:'LP: 複数要因で創出',comment:'取得価格・運用改善・市況・Exit条件が分散してリターンに寄与しています。'};
 }
 
 
@@ -872,6 +929,8 @@ function acquirePortfolioCompanyByParent(state,fundID,dealID,{week}={}){
   deal.exitScore=finite(deal.portfolioCompany?.improvementScore);
   deal.exitMarketLevel=plan.preview.marketFactor;
   deal.exitSettlement=settlement;
+  deal.exitAttribution=plan.preview.attribution?{...clone(plan.preview.attribution),method:'parent-company-acquisition'}:null;
+  deal.exitLPFeedback=plan.preview.lpFeedback?clone(plan.preview.lpFeedback):null;
   deal.convertedToSubsidiaryID=subsidiary.id;
 
   state.subsidiaries.push(subsidiary);
@@ -900,6 +959,8 @@ function exitPortfolioCompany(state,fundID,dealID,{method='sale',week,cutEmploye
   deal.exitScore=score;
   deal.exitMarketLevel=preview.marketFactor;
   deal.exitSettlement=settlement;
+  deal.exitAttribution=preview.attribution?clone(preview.attribution):null;
+  deal.exitLPFeedback=preview.lpFeedback?clone(preview.lpFeedback):null;
   if(cutEmployees)adjustIndustryReputation(state,deal,-REPUTATION_PENALTY_FOR_CUTS);
   else if(score>=REPUTATION_THRESHOLD)adjustIndustryReputation(state,deal,REPUTATION_BONUS);
   return deal;
@@ -947,7 +1008,7 @@ modules.pePortfolioOperations=Object.freeze({
   CONSOLIDATION_STEP,CONSOLIDATION_EBITDA_GAIN,UNDERPERFORMING_MIN,UNDERPERFORMING_MAX,IPO_EXIT_MIN_SCORE,IPO_EXIT_MIN_HOLD_WEEKS,IPO_EXIT_DISCOUNT,EXIT_BUYER_IDS,EXIT_METHODS,EXIT_DECISION_HORIZONS,
   ensure,findFundAndDeal,defaultPortfolioCompany,normalizePortfolioCompany,productionMasters,derivePortfolioProductionSite,isValidPortfolioProductionSite,ensurePortfolioProductionSite,getPortfolioProductionSite,acquirePillarCompany,computeImprovementScore,
   calculateGenericPortfolioOperatingWeek,calculateRamenPortfolioOperatingWeek,calculateGymPortfolioOperatingWeek,calculateConveniPortfolioOperatingWeek,calculateRealEstateAgencyPortfolioOperatingWeek,calculateProductVenturesPortfolioOperatingWeek,resolvePortfolioOperatingCalculator,calculatePortfolioOperatingWeek,settlePortfolioOperatingWeek,processDealWeek,processPortfolioWeek,
-  setPriceMultiplier,setPortfolioGymMembershipStrategy,previewManagementAction,previewManagementActions,investQuality,expandPortfolioStore,exitBuyerTarget,resolveExitBuyerOffer,exitBuyerOffers,exitCapabilities,previewPortfolioExit,annualizedDealIRR,previewPortfolioExitScenario,previewPortfolioExitScenarios,previewParentCompanyAcquisition,buildParentCompanySubsidiary,acquirePortfolioCompanyByParent,exitPortfolioCompany,install,
+  setPriceMultiplier,setPortfolioGymMembershipStrategy,previewManagementAction,previewManagementActions,investQuality,expandPortfolioStore,exitBuyerTarget,resolveExitBuyerOffer,exitBuyerOffers,exitCapabilities,previewPortfolioExit,exitAttributionFromPreview,lpExitFeedback,annualizedDealIRR,previewPortfolioExitScenario,previewPortfolioExitScenarios,previewParentCompanyAcquisition,buildParentCompanySubsidiary,acquirePortfolioCompanyByParent,exitPortfolioCompany,install,
   delayedProgress,leverFactors,industryTagOf,adjustIndustryReputation,
   reformProcurement,setStaffing,renewProductMix,consolidateSites,
   __installed:true
