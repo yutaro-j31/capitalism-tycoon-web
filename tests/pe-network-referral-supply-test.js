@@ -226,21 +226,25 @@ assert.ok(['monopoly-won','referral-exclusive','monopoly-missed','tier-mismatch'
 const cycleSnapshot=JSON.stringify(cycle);
 modules.peUIAdapter.sourcingNetwork(diagnosticState);
 assert.equal(JSON.stringify(diagnosticState.peFirm.lastSourcingCycle),cycleSnapshot,'visibility adaptation never mutates the production diagnostic');
+assert.equal(Array.isArray(diagnosticState.peFirm.lastSourcingCycle),false,'sourcing diagnostics stay bounded to one fixed object rather than an unbounded history');
 
 // Zero-state reason taxonomy is read-only and ordered by the player's most actionable blocker.
 const status=modules.peUIAdapter.exclusiveSourcingStatus;
-let zero=status(engine.g,{week:200,rows:[],liveTargets:[],nextSupplyWeeks:6,boardCapacity:8,hasInvestingFund:true,lastCycle:null});
+let zero=status(engine.g,{week:200,rows:[],liveTargets:[],nextSupplyWeeks:6,boardCapacity:8,hasInvestingFund:true,eligibleTierCount:1,lastCycle:null});
 assert.equal(zero.id,'no-network');
-zero=status(engine.g,{week:200,rows:[{id:'n1',sourceType:'Bank',trust:52,monopolyProbability:0}],liveTargets:[],nextSupplyWeeks:6,boardCapacity:8,hasInvestingFund:true,lastCycle:null});
+zero=status(engine.g,{week:200,rows:[{id:'n1',sourceType:'Bank',trust:100,monopolyProbability:.22}],liveTargets:[],nextSupplyWeeks:6,boardCapacity:8,hasInvestingFund:true,eligibleTierCount:0,lastCycle:null});
+assert.equal(zero.id,'no-eligible-tier','an investing fund with no accessible tier gets its own zero-state explanation');
+assert.match(zero.detail,/対象Tier/);
+zero=status(engine.g,{week:200,rows:[{id:'n1',sourceType:'Bank',trust:52,monopolyProbability:0}],liveTargets:[],nextSupplyWeeks:6,boardCapacity:8,hasInvestingFund:true,eligibleTierCount:1,lastCycle:null});
 assert.equal(zero.id,'trust');
 assert.equal(zero.trustGap,8);
 assert.equal(zero.contactsNeeded,2);
-zero=status(engine.g,{week:200,rows:[{id:'n1',sourceType:'Bank',trust:60,monopolyProbability:0}],liveTargets:[],nextSupplyWeeks:6,boardCapacity:8,hasInvestingFund:true,lastCycle:null});
+zero=status(engine.g,{week:200,rows:[{id:'n1',sourceType:'Bank',trust:60,monopolyProbability:0}],liveTargets:[],nextSupplyWeeks:6,boardCapacity:8,hasInvestingFund:true,eligibleTierCount:1,lastCycle:null});
 assert.equal(zero.id,'threshold-zero','Trust 60 unlocks the roll but does not falsely display a positive probability');
-zero=status(engine.g,{week:200,rows:[{id:'n1',sourceType:'Bank',trust:100,monopolyProbability:.22}],liveTargets:[],nextSupplyWeeks:6,boardCapacity:8,hasInvestingFund:true,lastCycle:{week:196,outcome:'monopoly-missed',monopolyCandidateCount:1}});
+zero=status(engine.g,{week:200,rows:[{id:'n1',sourceType:'Bank',trust:100,monopolyProbability:.22}],liveTargets:[],nextSupplyWeeks:6,boardCapacity:8,hasInvestingFund:true,eligibleTierCount:1,lastCycle:{week:196,outcome:'monopoly-missed',monopolyCandidateCount:1}});
 assert.equal(zero.id,'roll-missed');
 assert.match(zero.detail,/決定論的な案件判定/);
-zero=status(engine.g,{week:200,rows:[{id:'n1',sourceType:'Bank',trust:100,monopolyProbability:.22}],liveTargets:[{peNetworkAccess:'exclusive',dealChannel:'monopoly'}],nextSupplyWeeks:6,boardCapacity:8,hasInvestingFund:true,lastCycle:null});
+zero=status(engine.g,{week:200,rows:[{id:'n1',sourceType:'Bank',trust:100,monopolyProbability:.22}],liveTargets:[{peNetworkAccess:'exclusive',dealChannel:'monopoly'}],nextSupplyWeeks:6,boardCapacity:8,hasInvestingFund:true,eligibleTierCount:1,lastCycle:null});
 assert.equal(zero.id,'active');
 assert.equal(zero.channels.monopoly,1);
 
