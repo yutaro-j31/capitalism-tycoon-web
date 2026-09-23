@@ -151,6 +151,11 @@ assert.match(screen.innerHTML,/LP FEEDBACK/);
 assert.match(screen.innerHTML,/取得価格差/);
 assert.match(screen.innerHTML,/オペレーション/);
 assert.match(screen.innerHTML,/市況/);
+click('[data-pe-exit-result-back]');
+assert.match(screen.innerHTML,/data-pe-recent-exits/,'completed exits remain visible from the portfolio list');
+assert.match(screen.innerHTML,new RegExp('data-pe-exit-result="'+deal2.id+'"'),'recent exit exposes a review action');
+click('[data-pe-exit-result]',{peExitResult:deal2.id});
+assert.match(screen.innerHTML,/data-pe-view-root="portfolio-exit-result"/,'stored attribution can be reopened without recomputing an active exit preview');
 
 const source=fs.readFileSync('js/pe-portfolio-operations.js','utf8');
 const added=source.slice(source.indexOf('function previewParentCompanyAcquisition'),source.indexOf('// Exit（現在production',source.indexOf('function previewParentCompanyAcquisition')));
