@@ -188,17 +188,88 @@ propDesk=modules.peUIAdapter.sourcingNetwork(engine.g);
 assert.equal(propDesk.accessCounts.proprietary,1);
 assert.equal(propDesk.proprietary.rows.find(row=>row.id===campaignID).status,'success');
 
+// #716: quarterly supply records a bounded, balance-neutral diagnostic so the UI can explain
+// why the player currently has zero exclusive deals without predicting future deterministic rolls.
+const noFundState=JSON.parse(JSON.stringify(engine.g));
+noFundState.acquisitionTargets=[];
+noFundState.peFirm.lastDealSupplyWeek=0;
+for(const row of noFundState.peFirm.funds)row.status='harvesting';
+supply.processSupplyWeek(noFundState,209);
+assert.equal(noFundState.peFirm.lastSourcingCycle.outcome,'no-fund');
+assert.equal(noFundState.peFirm.lastSourcingCycle.week,209);
+assert.equal(noFundState.peFirm.lastSourcingCycle.investingFundCount,0);
+assert.equal(noFundState.acquisitionTargets.length,0,'diagnostic does not invent a deal when no fund can invest');
+
+const fullBoardState=JSON.parse(JSON.stringify(engine.g));
+fullBoardState.peFirm.lastDealSupplyWeek=0;
+for(const row of fullBoardState.peFirm.funds)row.status='investing';
+fullBoardState.acquisitionTargets=Array.from({length:supply.MAX_PE_TARGETS},(_,i)=>({
+  id:'diag-board-'+i,peTierID:'smallSuccession',expiresWeek:300,activeDealID:'diag-active-'+i
+}));
+supply.processSupplyWeek(fullBoardState,209);
+assert.equal(fullBoardState.peFirm.lastSourcingCycle.outcome,'board-full');
+assert.equal(fullBoardState.peFirm.lastSourcingCycle.boardCountBefore,supply.MAX_PE_TARGETS);
+assert.equal(fullBoardState.peFirm.lastSourcingCycle.boardCountAfter,supply.MAX_PE_TARGETS);
+
+const diagnosticState=JSON.parse(JSON.stringify(engine.g));
+diagnosticState.acquisitionTargets=[];
+diagnosticState.peFirm.lastDealSupplyWeek=0;
+for(const row of diagnosticState.peFirm.funds)row.status='investing';
+diagnosticState.peNetwork.nodes=[{id:'diag-source',sourceType:'Diagnostic Banker',pathType:'longTermCultivation',trust:100,createdWeek:1,lastContactWeek:1}];
+supply.processSupplyWeek(diagnosticState,209);
+const cycle=diagnosticState.peFirm.lastSourcingCycle;
+assert.equal(cycle.week,209);
+assert.equal(cycle.investingFundCount>0,true);
+assert.equal(cycle.monopolyCandidateCount,1);
+assert.ok(cycle.highestMonopolyProbability>0&&cycle.highestMonopolyProbability<=network.MAX_MONOPOLY_SHARE);
+assert.ok(['monopoly-won','referral-exclusive','monopoly-missed','tier-mismatch','auction','referral-only','no-deal'].includes(cycle.outcome));
+const cycleSnapshot=JSON.stringify(cycle);
+modules.peUIAdapter.sourcingNetwork(diagnosticState);
+assert.equal(JSON.stringify(diagnosticState.peFirm.lastSourcingCycle),cycleSnapshot,'visibility adaptation never mutates the production diagnostic');
+
+// Zero-state reason taxonomy is read-only and ordered by the player's most actionable blocker.
+const status=modules.peUIAdapter.exclusiveSourcingStatus;
+let zero=status(engine.g,{week:200,rows:[],liveTargets:[],nextSupplyWeeks:6,boardCapacity:8,hasInvestingFund:true,lastCycle:null});
+assert.equal(zero.id,'no-network');
+zero=status(engine.g,{week:200,rows:[{id:'n1',sourceType:'Bank',trust:52,monopolyProbability:0}],liveTargets:[],nextSupplyWeeks:6,boardCapacity:8,hasInvestingFund:true,lastCycle:null});
+assert.equal(zero.id,'trust');
+assert.equal(zero.trustGap,8);
+assert.equal(zero.contactsNeeded,2);
+zero=status(engine.g,{week:200,rows:[{id:'n1',sourceType:'Bank',trust:60,monopolyProbability:0}],liveTargets:[],nextSupplyWeeks:6,boardCapacity:8,hasInvestingFund:true,lastCycle:null});
+assert.equal(zero.id,'threshold-zero','Trust 60 unlocks the roll but does not falsely display a positive probability');
+zero=status(engine.g,{week:200,rows:[{id:'n1',sourceType:'Bank',trust:100,monopolyProbability:.22}],liveTargets:[],nextSupplyWeeks:6,boardCapacity:8,hasInvestingFund:true,lastCycle:{week:196,outcome:'monopoly-missed',monopolyCandidateCount:1}});
+assert.equal(zero.id,'roll-missed');
+assert.match(zero.detail,/決定論的な案件判定/);
+zero=status(engine.g,{week:200,rows:[{id:'n1',sourceType:'Bank',trust:100,monopolyProbability:.22}],liveTargets:[{peNetworkAccess:'exclusive',dealChannel:'monopoly'}],nextSupplyWeeks:6,boardCapacity:8,hasInvestingFund:true,lastCycle:null});
+assert.equal(zero.id,'active');
+assert.equal(zero.channels.monopoly,1);
+
+const referralLocked=modules.peUIAdapter.referralVisibility([{id:'r1',sourceType:'Bank',trust:79,referralEligible:false,referralInspectionCount:0,competitionMultiplier:1}]);
+assert.equal(referralLocked.unlocked,false);
+assert.equal(referralLocked.trustGap,1);
+const referralMax=modules.peUIAdapter.referralVisibility([{id:'r1',sourceType:'Bank',trust:100,referralEligible:true,referralInspectionCount:supply.NETWORK_REFERRAL_SEARCH_ATTEMPTS,competitionMultiplier:supply.NETWORK_REFERRAL_MIN_COMPETITION_MULTIPLIER}]);
+assert.equal(referralMax.unlocked,true);
+assert.equal(referralMax.inspectionCount,supply.NETWORK_REFERRAL_SEARCH_ATTEMPTS);
+assert.equal(referralMax.competitionMultiplier,supply.NETWORK_REFERRAL_MIN_COMPETITION_MULTIPLIER);
+
 const uiSource=fs.readFileSync('js/pe-ui.js','utf8');
 assert.match(uiSource,/data-pe-sourcing-desk/,'PE network tab renders the Sourcing Desk');
 assert.match(uiSource,/data-pe-network-contact/,'Sourcing Desk exposes the production contact action');
 assert.match(uiSource,/data-pe-proprietary-start/,'Sourcing Desk exposes player-initiated proprietary outreach');
 assert.match(uiSource,/data-pe-proprietary-pipeline/,'Sourcing Desk renders the long-horizon proprietary pipeline');
+assert.match(uiSource,/data-pe-exclusive-status/,'Sourcing Desk renders an explicit exclusive-deal zero state');
+assert.match(uiSource,/data-pe-referral-visibility/,'Sourcing Desk renders Referral unlock and quality visibility');
+assert.match(uiSource,/最高独占確率/);
+assert.match(uiSource,/次回通常供給/);
 assert.match(uiSource,/Trust 20 限定入札/);
 assert.match(uiSource,/40 DD内部情報/);
-assert.match(uiSource,/60 独占案件/);
+assert.match(uiSource,/60 独占判定解禁/);
 assert.match(uiSource,/80 Referral \/ 買い手紹介/);
 const peCss=fs.readFileSync('css/d-ui-pe.css','utf8');
 assert.match(peCss,/\.pe-sourcing-node \.btn\{[^}]*min-height:44px/,'Sourcing Desk contact keeps an iPhone-safe tap target');
+assert.match(peCss,/\.pe-exclusive-kpis\{[^}]*grid-template-columns:repeat\(4/,'desktop exclusive status shows four diagnostics');
+assert.match(peCss,/@media\(max-width:820px\)\{[^@]*\.pe-exclusive-kpis\{grid-template-columns:1fr 1fr\}/,'exclusive diagnostics collapse to two columns on iPhone width');
+assert.match(peCss,/\.pe-referral-visibility dl\{[^}]*grid-template-columns:repeat\(4/,'Referral visibility exposes four diagnostic fields');
 assert.match(peCss,/\.pe-sourcing-actions\{[^}]*grid-template-columns:1fr 1fr/,'desktop sourcing card exposes contact and proprietary actions side by side');
 assert.match(peCss,/@media\(max-width:520px\)\{[^@]*\.pe-sourcing-actions\{grid-template-columns:1fr\}/,'proprietary action stacks to a full-width iPhone tap target');
 assert.match(peCss,/@media\(max-width:820px\)\{[^@]*\.pe-proprietary-grid\{grid-template-columns:1fr\}/,'proprietary pipeline stacks on iPhone width');
