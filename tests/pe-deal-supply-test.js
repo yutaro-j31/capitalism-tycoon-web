@@ -238,7 +238,67 @@ const ds = modules.peDealSupply, pf = modules.peFund, tiers = modules.peIndustry
   if (first) assert.equal(peTargets(main, e).filter(t => t.id === first.id).length, 1, 'no duplicate target');
 }
 
-// 11. No new Math.random()/Date.now()/randomUUID usage.
+// 11. Multi-fund management: supply uses the union of every investing fund's eligible
+// tiers, while DD binds the deal to one explicit eligible fund when necessary.
+function cadenceForTier(tierID){
+  for(let year=0;year<20;year++)for(let quarter=0;quarter<4;quarter++){
+    if(tiers.generateDeal(year,quarter).tierID===tierID)return {year,quarter,week:year*52+quarter*ds.SUPPLY_INTERVAL_WEEKS+1};
+  }
+  throw new Error('could not find deterministic cadence for '+tierID);
+}
+function directFund(e,size){
+  return pf.createFund(e.g,{size,y0:e.g.week,terms:{fee:.02,carry:.2,hurdle:.08}});
+}
+{
+  const e=setupFirm(main);
+  const small=directFund(e,2_800_000_000),large=directFund(e,81_000_000_000);
+  const smallTiers=tiers.eligibleTiers(small),largeTiers=tiers.eligibleTiers(large);
+  assert.ok(smallTiers.includes('smallSuccession'),'Fund I-scale vehicle must reach small succession deals');
+  assert.ok(!largeTiers.includes('smallSuccession'),'large vehicle intentionally filters out too-small succession deals');
+  assert.ok(largeTiers.includes('largeCap'),'large vehicle must reach large-cap deals');
+  const union=ds.eligibleTierSetForFunds([small,large]);
+  for(const id of new Set([...smallTiers,...largeTiers]))assert.ok(union.has(id),'union must preserve '+id);
+
+  // The latest fund is the large one. Pre-#713 latest-fund-only supply would suppress this deal.
+  const cadence=cadenceForTier('smallSuccession');
+  e.g.week=cadence.week;
+  e.g.acquisitionTargets=[];
+  e.g.peFirm.lastDealSupplyWeek=cadence.week-1;
+  const supplied=ds.processSupplyWeek(e.g,cadence.week);
+  assert.ok(supplied,'an older still-investing fund can keep a valid tier in the pipeline');
+  assert.equal(supplied.peTierID,'smallSuccession');
+  const eligible=ds.eligibleInvestingFundsForTarget(e.g,supplied);
+  assert.deepEqual(Array.from(eligible,x=>x.id),[small.id],'only the small fund is eligible for this target');
+
+  assert.equal(e.openMADealRoom(supplied.id),true);
+  const deal=e.g.maDealRooms.find(row=>row.targetID===supplied.id);
+  const slotsBefore=pf.ddSlotsRemaining(e.g,e.g.week);
+  assert.equal(e.startMADueDiligence(deal.id,'screening',large.id),false,'wrong-size investing fund cannot claim the deal');
+  assert.equal(pf.ddSlotsRemaining(e.g,e.g.week),slotsBefore,'rejected fund allocation consumes no shared DD slot');
+  assert.equal(e.startMADueDiligence(deal.id,'screening',small.id),true);
+  assert.equal(deal.fundID,small.id,'chosen eligible fund stays attached to the deal');
+  assert.equal(pf.ddSlotsRemaining(e.g,e.g.week),slotsBefore-1);
+}
+{
+  const e=setupFirm(main);
+  const small=directFund(e,2_800_000_000),large=directFund(e,81_000_000_000);
+  const cadence=cadenceForTier('pillar');
+  e.g.week=cadence.week;
+  e.g.acquisitionTargets=[];
+  e.g.peFirm.lastDealSupplyWeek=cadence.week-1;
+  const supplied=ds.processSupplyWeek(e.g,cadence.week);
+  assert.ok(supplied&&supplied.peTierID==='pillar');
+  assert.equal(ds.eligibleInvestingFundsForTarget(e.g,supplied).length,2,'pillar deal can be allocated between both live funds');
+  assert.equal(e.openMADealRoom(supplied.id),true);
+  const deal=e.g.maDealRooms.find(row=>row.targetID===supplied.id);
+  const slotsBefore=pf.ddSlotsRemaining(e.g,e.g.week);
+  assert.equal(e.startMADueDiligence(deal.id,'screening'),false,'multiple eligible funds require an explicit player allocation');
+  assert.equal(pf.ddSlotsRemaining(e.g,e.g.week),slotsBefore);
+  assert.equal(e.startMADueDiligence(deal.id,'screening',large.id),true);
+  assert.equal(deal.fundID,large.id);
+}
+
+// 12. No new Math.random()/Date.now()/randomUUID usage.
 {
   const src = fs.readFileSync('js/pe-deal-supply.js', 'utf8');
   assert.ok(!src.includes('Math.random()'));
