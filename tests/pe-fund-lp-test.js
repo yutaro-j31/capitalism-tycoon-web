@@ -250,6 +250,10 @@ function goodExit(overrides = {}) {
   fund.deals.push({ id:'local-2', tierID:'smallSuccession', status:'active' });
   assert.equal(pf.refreshLPPromiseOutcomes(fund, fund.y0 + 40), 1);
   assert.equal(fund.lps.find(row=>row.lpTypeID==='regionalBankCorporate').promiseFulfilled, true);
+  const resolved=pf.promiseProgress(fund,'regionalBankCorporate',fund.y0+41);
+  assert.equal(resolved.status,'fulfilled');
+  assert.equal(resolved.progress,2,'resolved promise keeps its real 2/2 progress instead of collapsing to 1/1');
+  assert.equal(resolved.target,2);
 }
 {
   const e = new TycoonEngine();
