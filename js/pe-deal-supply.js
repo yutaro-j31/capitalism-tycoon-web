@@ -51,6 +51,21 @@ const NETWORK_REFERRAL_TRUST_THRESHOLD=80;
 const NETWORK_REFERRAL_SEARCH_ATTEMPTS=8;
 const NETWORK_REFERRAL_SEED_OFFSET=1000;
 const NETWORK_REFERRAL_MIN_COMPETITION_MULTIPLIER=.25;
+// Proprietary sourcing: player-initiated outreach to a company that is not currently for sale.
+// It consumes one of the canonical weekly network actions, then takes a full quarter to resolve.
+// Trust improves success probability, but even the best long-term relationship is capped below
+// 50% so this never becomes a deterministic extra-deal button.
+const PROPRIETARY_TRUST_THRESHOLD=20;
+const PROPRIETARY_OUTREACH_WEEKS=13;
+const PROPRIETARY_READY_GRACE_WEEKS=13;
+const PROPRIETARY_MAX_ACTIVE=3;
+const PROPRIETARY_HISTORY_LIMIT=24;
+const PROPRIETARY_SEARCH_ATTEMPTS=12;
+const PROPRIETARY_SEED_OFFSET=4000;
+const PROPRIETARY_BASE_SUCCESS=.10;
+const PROPRIETARY_TRUST_SUCCESS_SPAN=.25;
+const PROPRIETARY_LONG_TERM_BONUS=.10;
+const PROPRIETARY_MAX_SUCCESS=.45;
 // T19: 独占案件（設計書§5「3つの入り口」の3つ目）。人脈ノードが持ち込んだ案件は競争入札に
 // ならないぶん安く買える。割引はこのファイル独自の較正（設計書は「独占＝競らずに買える」と
 // しか書いていない）。独占が発生する確率そのものは js/pe-network.js の monopolyProbability()
@@ -95,6 +110,17 @@ function ensure(state){
   pf.ensure(state);
   state.acquisitionTargets=arr(state.acquisitionTargets);
   state.peFirm.lastDealSupplyWeek=Math.max(0,Math.floor(finite(state.peFirm.lastDealSupplyWeek,0)));
+  state.peFirm.proprietarySourcing=arr(state.peFirm.proprietarySourcing).slice(-PROPRIETARY_HISTORY_LIMIT).map(row=>({
+    id:String(row?.id||''),nodeID:String(row?.nodeID||''),sourceType:String(row?.sourceType||'人脈'),
+    sourcePathType:String(row?.sourcePathType||'referrer'),sourceTrust:clamp(finite(row?.sourceTrust),0,100),
+    startedWeek:Math.max(0,Math.floor(finite(row?.startedWeek))),responseWeek:Math.max(0,Math.floor(finite(row?.responseWeek))),
+    readyDeadlineWeek:Math.max(0,Math.floor(finite(row?.readyDeadlineWeek,row?.responseWeek))),
+    dealYear:Math.max(0,Math.floor(finite(row?.dealYear))),dealIndex:Math.max(0,Math.floor(finite(row?.dealIndex))),
+    tierID:String(row?.tierID||''),status:['pending','ready','success','declined'].includes(row?.status)?row.status:'pending',
+    successProbability:clamp(finite(row?.successProbability),0,PROPRIETARY_MAX_SUCCESS),outcomeRoll:clamp(finite(row?.outcomeRoll),0,1),
+    resolvedWeek:row?.resolvedWeek===null||row?.resolvedWeek===undefined?null:Math.max(0,Math.floor(finite(row.resolvedWeek))),
+    targetID:row?.targetID?String(row.targetID):null,reason:row?.reason?String(row.reason):null
+  }));
   return state;
 }
 
@@ -211,11 +237,105 @@ function buildReferralDeal(state,fund,week,source){
     return String(deal.id).localeCompare(String(best.id))<0?deal:best;
   },baseline);
 }
-function addSuppliedTarget(state,deal,week,{channel='auction',source=null,sourceTrust=null,allowMonopoly=false}={}){
+function proprietarySuccessProbability(source){
+  const trust=clamp(finite(source?.trust),0,100);
+  if(trust<PROPRIETARY_TRUST_THRESHOLD)return 0;
+  const progress=clamp((trust-PROPRIETARY_TRUST_THRESHOLD)/(100-PROPRIETARY_TRUST_THRESHOLD),0,1);
+  const pathBonus=source?.pathType==='longTermCultivation'?PROPRIETARY_LONG_TERM_BONUS:0;
+  return Math.min(PROPRIETARY_MAX_SUCCESS,PROPRIETARY_BASE_SUCCESS+PROPRIETARY_TRUST_SUCCESS_SPAN*progress+pathBonus);
+}
+function proprietaryCandidate(state,funds,week,source){
+  const eligible=eligibleTierSetForFunds(funds);
+  if(!eligible.size)return null;
+  const year=Math.floor(Math.max(0,finite(week))/52);
+  const base=PROPRIETARY_SEED_OFFSET+(hash(['pe-proprietary-candidate',source?.id||'',Math.floor(finite(week))])%10000)*PROPRIETARY_SEARCH_ATTEMPTS;
+  for(let attempt=0;attempt<PROPRIETARY_SEARCH_ATTEMPTS;attempt++){
+    const index=base+attempt,deal=tiers.generateDeal(year,index);
+    if(eligible.has(deal.tierID))return {dealYear:year,dealIndex:index,tierID:deal.tierID};
+  }
+  return null;
+}
+function activeProprietarySourcing(state){
+  return arr(state?.peFirm?.proprietarySourcing).filter(row=>row?.status==='pending'||row?.status==='ready');
+}
+function startProprietarySourcing(state,nodeID,week){
+  if(!state||!network)return {ok:false,reason:'network-unavailable',message:'人脈機能を利用できません。'};
+  const w=Math.max(0,Math.floor(finite(week,state.week))),rawNodes=arr(state?.peNetwork?.nodes).slice(-Math.max(1,Math.floor(finite(network.MAX_NODES,100)))),node=rawNodes.find(row=>row?.id===nodeID);
+  if(!node)return {ok:false,reason:'node-not-found',message:'人脈が見つかりません。'};
+  if(finite(node.trust)<PROPRIETARY_TRUST_THRESHOLD)return {ok:false,reason:'trust',message:`非売却企業への打診にはTrust ${PROPRIETARY_TRUST_THRESHOLD}以上が必要です。`};
+  const funds=activeInvestingFunds(state);
+  if(!funds.length)return {ok:false,reason:'fund',message:'投資期間中のファンドがありません。'};
+  const active=arr(state?.peFirm?.proprietarySourcing).filter(row=>row?.status==='pending'||row?.status==='ready');
+  if(active.length>=PROPRIETARY_MAX_ACTIVE)return {ok:false,reason:'capacity',message:'同時に進められるProprietary Sourcingは3件までです。'};
+  if(active.some(row=>row.nodeID===nodeID))return {ok:false,reason:'duplicate',message:'この人脈からはすでに案件化を進めています。'};
+  const candidate=proprietaryCandidate(state,funds,w,node);
+  if(!candidate)return {ok:false,reason:'tier',message:'現在のファンド規模で打診できる企業候補がありません。'};
+  const used=finite(state?.peNetwork?.weeklyActionsWeek)===w?Math.max(0,Math.floor(finite(state?.peNetwork?.weeklyActionsUsed))):0;
+  if(used>=finite(network.WEEKLY_ACTIONS,2))return {ok:false,reason:'actions',message:'今週の人脈アクションを使い切りました。'};
+  // All failure conditions above are read-only. Normalize/consume only after the action is known
+  // to be executable, preserving the repository's failed-action atomicity convention.
+  ensure(state);network.ensure(state);
+  const liveNode=state.peNetwork.nodes.find(row=>row?.id===nodeID);
+  if(!liveNode||!network.consumeWeeklyAction?.(state,w))return {ok:false,reason:'actions',message:'今週の人脈アクションを使い切りました。'};
+  liveNode.lastContactWeek=w;
+  const sourceNode=liveNode;
+  const successProbability=proprietarySuccessProbability(sourceNode);
+  const id=`pe-proprietary-${sourceNode.id}-w${w}-i${candidate.dealIndex}`;
+  const campaign={
+    id,nodeID:sourceNode.id,sourceType:String(sourceNode.sourceType||'人脈'),sourcePathType:String(sourceNode.pathType||'referrer'),
+    sourceTrust:finite(sourceNode.trust),startedWeek:w,responseWeek:w+PROPRIETARY_OUTREACH_WEEKS,
+    readyDeadlineWeek:w+PROPRIETARY_OUTREACH_WEEKS+PROPRIETARY_READY_GRACE_WEEKS,
+    dealYear:candidate.dealYear,dealIndex:candidate.dealIndex,tierID:candidate.tierID,status:'pending',
+    successProbability,outcomeRoll:unit('pe-proprietary-outcome',id),resolvedWeek:null,targetID:null,reason:null
+  };
+  state.peFirm.proprietarySourcing.push(campaign);
+  state.peFirm.proprietarySourcing=state.peFirm.proprietarySourcing.slice(-PROPRIETARY_HISTORY_LIMIT);
+  return {ok:true,campaign};
+}
+function proprietaryDealForCampaign(state,campaign){
+  const raw=tiers.generateDeal(campaign.dealYear,campaign.dealIndex);
+  return {...raw,priceLevel:tiers.marketPriceLevel(finite(state?.economy,1)),distressed:finite(state?.economy,1)<1};
+}
+function processProprietarySourcingWeek(state,week){
+  ensure(state);
+  const w=Math.max(0,Math.floor(finite(week,state.week))),resolved=[];
+  for(const campaign of state.peFirm.proprietarySourcing){
+    if(campaign.status==='pending'&&w>=campaign.responseWeek){
+      if(campaign.outcomeRoll>=campaign.successProbability){
+        campaign.status='declined';campaign.resolvedWeek=w;campaign.reason='owner-declined';resolved.push(campaign);continue;
+      }
+      campaign.status='ready';campaign.reason=null;
+    }
+    if(campaign.status!=='ready')continue;
+    if(w>campaign.readyDeadlineWeek){
+      campaign.status='declined';campaign.resolvedWeek=w;campaign.reason='window-expired';resolved.push(campaign);continue;
+    }
+    const deal=proprietaryDealForCampaign(state,campaign);
+    const eligibleFunds=activeInvestingFunds(state).filter(fund=>tiers.eligibleTiers(fund).includes(deal.tierID));
+    if(!eligibleFunds.length||state.acquisitionTargets.filter(isPETarget).length>=MAX_PE_TARGETS)continue;
+    const source={id:campaign.nodeID,pathType:campaign.sourcePathType,trust:campaign.sourceTrust};
+    const target=addSuppliedTarget(state,deal,w,{channel:'proprietary',source,sourceTrust:campaign.sourceTrust,proprietaryID:campaign.id});
+    if(!target)continue;
+    campaign.status='success';campaign.resolvedWeek=w;campaign.targetID=target.id;campaign.reason=null;resolved.push(campaign);
+  }
+  return resolved;
+}
+
+function addSuppliedTarget(state,deal,week,{channel='auction',source=null,sourceTrust=null,allowMonopoly=false,proprietaryID=null}={}){
   if(!deal||state.acquisitionTargets.filter(isPETarget).length>=MAX_PE_TARGETS)return null;
   const target=buildTargetFromDeal(deal,week);
   if(state.acquisitionTargets.some(t=>t?.id===target.id))return null;
-  if(channel==='network-referral'&&source){
+  if(channel==='proprietary'&&source){
+    const trustAtSupply=clamp(sourceTrust===null||sourceTrust===undefined?finite(source.trust):finite(sourceTrust,source.trust),0,100);
+    target.dealChannel='proprietary';
+    target.peSourceNodeID=source.id;
+    target.peSourcePathType=source.pathType;
+    target.peSourceTrustAtSupply=trustAtSupply;
+    target.peNetworkAccess='exclusive';
+    target.peCompetitionMultiplier=0;
+    target.peProprietarySourcingID=proprietaryID?String(proprietaryID):null;
+    target.friendly=true;
+  }else if(channel==='network-referral'&&source){
     const trustAtSupply=clamp(sourceTrust===null||sourceTrust===undefined?finite(source.trust):finite(sourceTrust,source.trust),0,100);
     target.dealChannel='network-referral';
     target.peSourceNodeID=source.id;
@@ -322,6 +442,14 @@ function install(){
   // exist on the prototype until then. Same deferral js/pe-fund.js uses for completion.js.
   if(typeof proto.startMADueDiligence!=='function')return false;
 
+  proto.startPEProprietarySourcing=function(nodeID){
+    const result=startProprietarySourcing(this.g,nodeID,this.g.week);
+    if(!result.ok)return this.fail(result.message||'Proprietary Sourcingを開始できません。');
+    this.save();
+    this.emit();
+    return true;
+  };
+
   const baseStartDD=proto.startMADueDiligence;
   proto.startMADueDiligence=function(id,scopeID,fundID){
     // 通常のM&A案件では state を一切触らない（ensure は既定値を書き込むので、失敗した
@@ -374,7 +502,7 @@ function install(){
     const r=baseAdvanceWeek.apply(this,args);
     if(r!==false){
       ensure(this.g);
-      for(let w=before+1;w<=finite(this.g.week);w++)processSupplyWeek(this.g,w);
+      for(let w=before+1;w<=finite(this.g.week);w++){processSupplyWeek(this.g,w);processProprietarySourcingWeek(this.g,w);}
     }
     return r;
   };
@@ -387,8 +515,8 @@ if(!install()&&typeof document!=='undefined'&&typeof document.addEventListener==
 }
 
 modules.peDealSupply=Object.freeze({
-  SUPPLY_INTERVAL_WEEKS,TARGET_LIFETIME_WEEKS,MAX_PE_TARGETS,MONOPOLY_PRICE_DISCOUNT,NETWORK_REFERRAL_TRUST_THRESHOLD,NETWORK_REFERRAL_SEARCH_ATTEMPTS,NETWORK_REFERRAL_MIN_COMPETITION_MULTIPLIER,PILLAR_LABELS,TIER_INDUSTRIES,
-  ensure,isPETarget,activeInvestingFund,activeInvestingFunds,eligibleTierSetForFunds,eligibleInvestingFundsForTarget,investingFundByID,investingFunds,resolveInvestingFund,buildTargetFromDeal,prunePETargets,strongestReferralSource,referralTrustProgress,referralInspectionCount,referralCompetitionMultiplier,referralQualityScore,referralCandidates,buildReferralDeal,processSupplyWeek,rollMonopolySource,install,
+  SUPPLY_INTERVAL_WEEKS,TARGET_LIFETIME_WEEKS,MAX_PE_TARGETS,MONOPOLY_PRICE_DISCOUNT,NETWORK_REFERRAL_TRUST_THRESHOLD,NETWORK_REFERRAL_SEARCH_ATTEMPTS,NETWORK_REFERRAL_MIN_COMPETITION_MULTIPLIER,PROPRIETARY_TRUST_THRESHOLD,PROPRIETARY_OUTREACH_WEEKS,PROPRIETARY_READY_GRACE_WEEKS,PROPRIETARY_MAX_ACTIVE,PROPRIETARY_HISTORY_LIMIT,PROPRIETARY_BASE_SUCCESS,PROPRIETARY_TRUST_SUCCESS_SPAN,PROPRIETARY_LONG_TERM_BONUS,PROPRIETARY_MAX_SUCCESS,PILLAR_LABELS,TIER_INDUSTRIES,
+  ensure,isPETarget,activeInvestingFund,activeInvestingFunds,eligibleTierSetForFunds,eligibleInvestingFundsForTarget,investingFundByID,investingFunds,resolveInvestingFund,buildTargetFromDeal,prunePETargets,strongestReferralSource,referralTrustProgress,referralInspectionCount,referralCompetitionMultiplier,referralQualityScore,referralCandidates,buildReferralDeal,proprietarySuccessProbability,proprietaryCandidate,activeProprietarySourcing,startProprietarySourcing,proprietaryDealForCampaign,processProprietarySourcingWeek,processSupplyWeek,rollMonopolySource,install,
   __installed:true
 });
 })();

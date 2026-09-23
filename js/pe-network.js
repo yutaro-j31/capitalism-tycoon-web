@@ -101,12 +101,16 @@ function weeklyActionsRemaining(state,week){
 }
 // 接触（面談・支援依頼への対応）。枠を1つ消費し、trustを上げ、減衰時計をリセットする。
 // 枠が無い/ノードが存在しなければ何もせずfalseを返す。
-function contactNode(state,nodeID,week){
+function consumeWeeklyAction(state,week){
   ensure(state);
   if(weeklyActionsRemaining(state,week)<=0)return false;
-  const node=state.peNetwork.nodes.find(n=>n.id===nodeID);
-  if(!node)return false;
   state.peNetwork.weeklyActionsUsed+=1;
+  return true;
+}
+function contactNode(state,nodeID,week){
+  ensure(state);
+  const node=state.peNetwork.nodes.find(n=>n.id===nodeID);
+  if(!node||!consumeWeeklyAction(state,week))return false;
   node.trust=clamp(node.trust+CONTACT_TRUST_GAIN,0,100);
   node.lastContactWeek=Math.max(0,Math.floor(finite(week,state.week)));
   return true;
@@ -178,7 +182,7 @@ modules.peNetwork=Object.freeze({
   MAX_NODES,WEEKLY_ACTIONS,GENERIC_DECAY_PER_WEEK,REFERRER_EXTRA_DECAY_PER_WEEK,CONTACT_TRUST_GAIN,
   MONOPOLY_TRUST_THRESHOLD,MONOPOLY_TRUST_COST,MAX_MONOPOLY_SHARE,
   PATH_TYPES,PATH_TYPE_IDS,
-  ensure,addNode,decayRateForPath,decayWeek,weeklyActionsRemaining,contactNode,trustTier,bringMonopolyDeal,monopolyProbability,rollMonopolySourcing,install,
+  ensure,addNode,decayRateForPath,decayWeek,weeklyActionsRemaining,consumeWeeklyAction,contactNode,trustTier,bringMonopolyDeal,monopolyProbability,rollMonopolySourcing,install,
   __installed:true
 });
 })();
