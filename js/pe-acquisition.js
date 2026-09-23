@@ -133,6 +133,9 @@ function closeFundAcquisition(engine,{deal,target,targetIndex,price,week}){
   ops.ensurePortfolioProductionSite(state,portfolioDeal);
   fund.deals.push(portfolioDeal);
   fund.deals=fund.deals.slice(-MAX_DEALS_PER_FUND);
+  // Promise compliance is derived from real acquisitions. Refresh immediately so a local
+  // investment milestone or a restricted large-cap breach is visible before the next week tick.
+  pf.refreshLPPromiseOutcomes?.(fund,w);
   state.acquisitionTargets.splice(targetIndex,1);
   deal.status='acquired';
   deal.closedWeek=w;
