@@ -1,0 +1,38 @@
+name: Founding Route Baseline Audit
+
+on:
+  pull_request:
+    paths:
+      - 'tests/founding-route-postfix-baseline-audit.js'
+      - '.github/workflows/founding-route-baseline-audit.yml'
+  workflow_dispatch:
+
+concurrency:
+  group: founding-route-baseline-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    env:
+      NODE_OPTIONS: --max-old-space-size=4096
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Run production founding-route baseline audit
+        shell: bash
+        run: |
+          mkdir -p artifacts/founding-route-baseline
+          set -o pipefail
+          node tests/founding-route-postfix-baseline-audit.js 2>&1 | tee artifacts/founding-route-baseline/audit.log
+      - name: Upload baseline evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: founding-route-baseline-${{ github.sha }}
+          path: artifacts/founding-route-baseline
+          if-no-files-found: error
+          retention-days: 30
