@@ -111,6 +111,28 @@ assert.equal(deskRow.access.id,'building');
 assert.equal(deskRow.access.nextTrust,20);
 assert.equal(deskRow.referralEligible,false);
 assert.equal(deskRow.canContact,true);
+assert.equal(deskRow.projectedTrust,trustBeforeContact===undefined?20:20);
+assert.equal(deskRow.projectedReferralEligible,false);
+assert.equal(deskRow.projectedMonopolyProbability,0);
+
+// One-contact projections reuse the canonical calculators without mutating state.
+deskNode.trust=60;
+const projectionStateBefore=JSON.stringify(engine.g);
+desk=modules.peUIAdapter.sourcingNetwork(engine.g);
+deskRow=desk.rows.find(row=>row.id===deskNode.id);
+assert.equal(JSON.stringify(engine.g),projectionStateBefore,'one-contact sourcing projection is read-only');
+assert.equal(deskRow.projectedTrust,64);
+assert(deskRow.projectedMonopolyProbability>deskRow.monopolyProbability,'Trust 60 -> 64 raises canonical monopoly probability above the threshold-zero state');
+assert.equal(deskRow.projectedMonopolyProbability,network.monopolyProbability({...deskNode,trust:64}),'projection uses canonical monopolyProbability');
+
+deskNode.trust=76;
+desk=modules.peUIAdapter.sourcingNetwork(engine.g);
+deskRow=desk.rows.find(row=>row.id===deskNode.id);
+assert.equal(deskRow.projectedTrust,80);
+assert.equal(deskRow.projectedReferralEligible,true,'one contact at Trust 76 previews Referral unlock');
+assert.equal(deskRow.projectedReferralInspectionCount,supply.referralInspectionCount({...deskNode,trust:80}));
+assert.equal(deskRow.projectedCompetitionMultiplier,supply.referralCompetitionMultiplier(80));
+deskNode.trust=16;
 
 const trustBeforeContact=deskNode.trust;
 assert.equal(modules.peUIAdapter.perform('contactNetwork',{nodeID:deskNode.id}),true,'Sourcing Desk contact reaches production contactPENetworkNode');
@@ -248,9 +270,13 @@ zero=status(engine.g,{week:200,rows:[{id:'n1',sourceType:'Bank',trust:100,monopo
 assert.equal(zero.id,'active');
 assert.equal(zero.channels.monopoly,1);
 
-const referralLocked=modules.peUIAdapter.referralVisibility([{id:'r1',sourceType:'Bank',trust:79,referralEligible:false,referralInspectionCount:0,competitionMultiplier:1}]);
+const referralLocked=modules.peUIAdapter.referralVisibility([{id:'r1',sourceType:'Bank',trust:76,referralEligible:false,referralInspectionCount:0,competitionMultiplier:1,projectedTrust:80,projectedReferralEligible:true,projectedReferralInspectionCount:1,projectedCompetitionMultiplier:1}]);
 assert.equal(referralLocked.unlocked,false);
-assert.equal(referralLocked.trustGap,1);
+assert.equal(referralLocked.trustGap,4);
+assert.equal(referralLocked.projectedTrust,80);
+assert.equal(referralLocked.projectedUnlocked,true);
+assert.equal(referralLocked.projectedInspectionCount,1);
+assert.equal(referralLocked.projectedCompetitionMultiplier,1);
 const referralMax=modules.peUIAdapter.referralVisibility([{id:'r1',sourceType:'Bank',trust:100,referralEligible:true,referralInspectionCount:supply.NETWORK_REFERRAL_SEARCH_ATTEMPTS,competitionMultiplier:supply.NETWORK_REFERRAL_MIN_COMPETITION_MULTIPLIER}]);
 assert.equal(referralMax.unlocked,true);
 assert.equal(referralMax.inspectionCount,supply.NETWORK_REFERRAL_SEARCH_ATTEMPTS);
@@ -263,6 +289,11 @@ assert.match(uiSource,/data-pe-proprietary-start/,'Sourcing Desk exposes player-
 assert.match(uiSource,/data-pe-proprietary-pipeline/,'Sourcing Desk renders the long-horizon proprietary pipeline');
 assert.match(uiSource,/data-pe-exclusive-status/,'Sourcing Desk renders an explicit exclusive-deal zero state');
 assert.match(uiSource,/data-pe-referral-visibility/,'Sourcing Desk renders Referral unlock and quality visibility');
+assert.match(uiSource,/data-pe-contact-preview/,'each sourcing node renders a one-contact read-only projection');
+assert.match(uiSource,/1回接触後/,'Sourcing Desk labels projected values explicitly');
+assert.match(uiSource,/projectedMonopolyProbability/,'node projection exposes the canonical post-contact monopoly probability');
+assert.match(uiSource,/projectedInspectionCount/,'Referral visibility compares current and post-contact inspection depth');
+assert.match(uiSource,/projectedCompetitionMultiplier/,'Referral visibility compares current and post-contact competition');
 assert.match(uiSource,/最高独占確率/);
 assert.match(uiSource,/次回通常供給/);
 assert.match(uiSource,/Trust 20 限定入札/);
