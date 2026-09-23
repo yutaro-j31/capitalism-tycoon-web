@@ -372,6 +372,52 @@ function addSuppliedTarget(state,deal,week,{channel='auction',source=null,source
   return target;
 }
 
+function previewSourcingCycle(state,week){
+  const w=Math.max(0,Math.floor(finite(week,state?.week)));
+  const scheduled=w%SUPPLY_INTERVAL_WEEKS===1;
+  const funds=activeInvestingFunds(state);
+  const liveBoard=arr(state?.acquisitionTargets).filter(target=>isPETarget(target)&&finite(target?.expiresWeek)>=w&&target?.dealStatus!=='withdrawn');
+  const result={
+    week:w,scheduled,fundCount:funds.length,boardCount:liveBoard.length,boardCapacity:MAX_PE_TARGETS,
+    eligibleTierCount:0,dealID:null,tierID:null,primaryEligible:false,
+    monopolyCandidates:[],primaryWinnerID:null,
+    referralSourceID:null,referralDealID:null,referralExclusive:false
+  };
+  if(!scheduled||!funds.length||liveBoard.length>=MAX_PE_TARGETS)return result;
+  const eligible=eligibleTierSetForFunds(funds);
+  result.eligibleTierCount=eligible.size;
+  const deals=tiers.generateAnnualDeals(state,Math.floor(w/52));
+  const deal=deals[Math.floor((w%52)/SUPPLY_INTERVAL_WEEKS)];
+  result.dealID=deal?.id?String(deal.id):null;
+  result.tierID=deal?.tierID?String(deal.tierID):null;
+  result.primaryEligible=Boolean(deal&&eligible.has(deal.tierID));
+  const nodes=arr(state?.peNetwork?.nodes);
+  if(result.primaryEligible&&deal){
+    result.monopolyCandidates=nodes.map(node=>{
+      const probability=Math.max(0,finite(network?.monopolyProbability?.(node)));
+      const roll=probability>0&&network?.monopolySourcingRollValue
+        ?network.monopolySourcingRollValue(node.id,w,String(deal.id))
+        :null;
+      return {id:String(node?.id||''),sourceType:String(node?.sourceType||'人脈'),trust:clamp(finite(node?.trust),0,100),probability,roll,hit:roll!==null&&roll<probability};
+    }).filter(row=>row.probability>0);
+    result.primaryWinnerID=result.monopolyCandidates.find(row=>row.hit)?.id||null;
+  }
+  const referralSource=[...nodes].filter(node=>finite(node?.trust)>=NETWORK_REFERRAL_TRUST_THRESHOLD)
+    .sort((a,b)=>finite(b?.trust)-finite(a?.trust)||String(a?.id||'').localeCompare(String(b?.id||'')))[0]||null;
+  if(referralSource){
+    result.referralSourceID=String(referralSource.id);
+    const referralDeal=buildReferralDeal(state,funds,w,{...referralSource,trust:finite(referralSource.trust)});
+    result.referralDealID=referralDeal?.id?String(referralDeal.id):null;
+    const referralCanFit=liveBoard.length+(result.primaryEligible?1:0)<MAX_PE_TARGETS;
+    const probability=Math.max(0,finite(network?.monopolyProbability?.(referralSource)));
+    if(referralCanFit&&referralDeal&&probability>0&&network?.monopolySourcingRollValue){
+      const roll=network.monopolySourcingRollValue(referralSource.id,w,`referral:${referralDeal.id}`);
+      result.referralExclusive=roll<probability;
+    }
+  }
+  return result;
+}
+
 function processSupplyWeek(state,week){
   ensure(state);
   const w=Math.max(0,Math.floor(finite(week,state.week)));
@@ -516,7 +562,7 @@ if(!install()&&typeof document!=='undefined'&&typeof document.addEventListener==
 
 modules.peDealSupply=Object.freeze({
   SUPPLY_INTERVAL_WEEKS,TARGET_LIFETIME_WEEKS,MAX_PE_TARGETS,MONOPOLY_PRICE_DISCOUNT,NETWORK_REFERRAL_TRUST_THRESHOLD,NETWORK_REFERRAL_SEARCH_ATTEMPTS,NETWORK_REFERRAL_MIN_COMPETITION_MULTIPLIER,PROPRIETARY_TRUST_THRESHOLD,PROPRIETARY_OUTREACH_WEEKS,PROPRIETARY_READY_GRACE_WEEKS,PROPRIETARY_MAX_ACTIVE,PROPRIETARY_HISTORY_LIMIT,PROPRIETARY_BASE_SUCCESS,PROPRIETARY_TRUST_SUCCESS_SPAN,PROPRIETARY_LONG_TERM_BONUS,PROPRIETARY_MAX_SUCCESS,PILLAR_LABELS,TIER_INDUSTRIES,
-  ensure,isPETarget,activeInvestingFund,activeInvestingFunds,eligibleTierSetForFunds,eligibleInvestingFundsForTarget,investingFundByID,investingFunds,resolveInvestingFund,buildTargetFromDeal,prunePETargets,strongestReferralSource,referralTrustProgress,referralInspectionCount,referralCompetitionMultiplier,referralQualityScore,referralCandidates,buildReferralDeal,proprietarySuccessProbability,proprietaryCandidate,activeProprietarySourcing,startProprietarySourcing,proprietaryDealForCampaign,processProprietarySourcingWeek,processSupplyWeek,rollMonopolySource,install,
+  ensure,isPETarget,activeInvestingFund,activeInvestingFunds,eligibleTierSetForFunds,eligibleInvestingFundsForTarget,investingFundByID,investingFunds,resolveInvestingFund,buildTargetFromDeal,prunePETargets,strongestReferralSource,referralTrustProgress,referralInspectionCount,referralCompetitionMultiplier,referralQualityScore,referralCandidates,buildReferralDeal,previewSourcingCycle,proprietarySuccessProbability,proprietaryCandidate,activeProprietarySourcing,startProprietarySourcing,proprietaryDealForCampaign,processProprietarySourcingWeek,processSupplyWeek,rollMonopolySource,install,
   __installed:true
 });
 })();

@@ -96,6 +96,80 @@ function sourcingAccess(trust){
   if(t>=20)return {id:'limited',label:'限定入札招待',nextTrust:40,nextLabel:'DD内部情報'};
   return {id:'building',label:'関係構築中',nextTrust:20,nextLabel:'限定入札招待'};
 }
+function referralVisibility(rows){
+  const threshold=Math.max(0,finite(supply?.NETWORK_REFERRAL_TRUST_THRESHOLD,80));
+  const source=rows.find(row=>row.referralEligible)||null,best=rows[0]||null,row=source||best;
+  const trust=row?finite(row.trust):0,gap=Math.max(0,threshold-trust),gain=Math.max(1,finite(network?.CONTACT_TRUST_GAIN,4));
+  const projectedTrust=Math.min(100,trust+gain);
+  const projected={trust:projectedTrust,referralInspectionCount:supply?.referralInspectionCount?finite(supply.referralInspectionCount({...row,trust:projectedTrust})):0,competitionMultiplier:supply?.referralCompetitionMultiplier?finite(supply.referralCompetitionMultiplier(projectedTrust),1):1};
+  return {
+    unlocked:Boolean(source),sourceID:source?.id||null,sourceName:source?.sourceType||null,trust,trustThreshold:threshold,trustGap:gap,
+    contactsNeeded:gap>0?Math.ceil(gap/gain):0,
+    inspectionCount:source?Math.max(0,finite(source.referralInspectionCount)):0,
+    maxInspectionCount:Math.max(1,finite(supply?.NETWORK_REFERRAL_SEARCH_ATTEMPTS,8)),
+    competitionMultiplier:source?Math.max(0,finite(source.competitionMultiplier,1)):1,
+    bestPossibleCompetitionMultiplier:Math.max(0,finite(supply?.NETWORK_REFERRAL_MIN_COMPETITION_MULTIPLIER,.25)),
+    projectedTrust,projectedInspectionCount:projected.referralInspectionCount,projectedCompetitionMultiplier:projected.competitionMultiplier,
+    nextAction:source
+      ?(trust>=100?'Trust 100: 候補精査と競争緩和が最大です。':'接触すると候補精査数が増え、競争倍率がさらに下がります。')
+      :(row?'Referral解禁までTrust '+gap.toFixed(0)+'（接触約'+Math.ceil(gap/gain)+'回）。':'人脈を作るとTrust 80でReferral供給が解禁されます。')
+  };
+}
+function exclusiveSourcingStatus(state,{week,rows,liveTargets,nextSupplyWeeks,boardCapacity,hasInvestingFund,cycle}){
+  const exclusiveTargets=liveTargets.filter(target=>target?.peNetworkAccess==='exclusive');
+  const channels={
+    monopoly:exclusiveTargets.filter(target=>target?.dealChannel==='monopoly').length,
+    referral:exclusiveTargets.filter(target=>target?.dealChannel==='network-referral').length,
+    proprietary:exclusiveTargets.filter(target=>target?.dealChannel==='proprietary').length
+  };
+  const bestTrustRow=rows[0]||null;
+  const bestProbabilityRow=rows.slice().sort((a,b)=>finite(b?.monopolyProbability)-finite(a?.monopolyProbability)||finite(b?.trust)-finite(a?.trust)||String(a?.id||'').localeCompare(String(b?.id||'')))[0]||null;
+  const threshold=Math.max(0,finite(network?.MONOPOLY_TRUST_THRESHOLD,60)),gain=Math.max(1,finite(network?.CONTACT_TRUST_GAIN,4));
+  const bestProbability=Math.max(0,finite(bestProbabilityRow?.monopolyProbability));
+  const displaySource=bestProbability>0?bestProbabilityRow:bestTrustRow;
+  const bestTrust=displaySource?finite(displaySource.trust):0,trustGap=Math.max(0,threshold-finite(bestTrustRow?.trust));
+  const projectedTrust=displaySource?Math.min(100,bestTrust+gain):0;
+  const projectedProbability=displaySource?Math.max(0,finite(network?.monopolyProbability?.({...displaySource,trust:projectedTrust}))):0;
+  let id='waiting',tone='neutral',headline='独占案件 0件',detail='独占判定は四半期の案件供給時に行われます。',nextAction='次回供給まで '+nextSupplyWeeks+'週。';
+  if(exclusiveTargets.length){
+    id='active';tone='good';headline='独占案件 '+exclusiveTargets.length+'件';
+    detail='Monopoly '+channels.monopoly+' · Referral独占 '+channels.referral+' · Proprietary '+channels.proprietary;
+    nextAction='案件ボードからDD・入札へ進めます。';
+  }else if(!hasInvestingFund){
+    id='no-fund';tone='risk';detail='投資期間中のFundがないため、通常の独占案件判定が行われません。';
+    nextAction='投資可能なFundを組成するか、次号Fundの投資期間を開始してください。';
+  }else if(liveTargets.length>=boardCapacity){
+    id='board-full';tone='warning';detail='PE案件ボードが上限 '+boardCapacity+'件に達しており、新しい案件を追加できません。';
+    nextAction='既存案件を進めてボード枠を空けてください。';
+  }else if(!rows.length){
+    id='no-network';tone='warning';detail='独占判定に使える人脈ノードがありません。';
+    nextAction='銀行・CXO・仕入先・テナント・Exitなどから人脈を作ってください。';
+  }else if(finite(bestTrustRow?.trust)<threshold){
+    const contacts=Math.ceil(trustGap/gain);
+    id='trust';tone='warning';detail='最高Trustは '+finite(bestTrustRow?.trust).toFixed(0)+'。通常の独占判定はTrust '+threshold+'から解禁されます。';
+    nextAction='あとTrust '+trustGap.toFixed(0)+'（接触約'+contacts+'回）。';
+  }else if(bestProbability<=0){
+    id='threshold-zero';tone='warning';detail='Trust '+threshold+'で独占判定は解禁済みですが、閾値ちょうどでは確率0%です。';
+    nextAction='1回接触するとTrust '+projectedTrust.toFixed(0)+' → 独占確率 '+(projectedProbability*100).toFixed(1)+'%。';
+  }else if(cycle?.scheduled&&cycle.primaryWinnerID===null&&!cycle.referralExclusive){
+    if(!cycle.primaryEligible){
+      id='tier-mismatch';tone='neutral';detail='今週の通常案件帯 '+String(cycle.tierID||'—')+' は投資中Fundの対象外で、通常Monopoly判定へ進みませんでした。';
+      nextAction=cycle.referralDealID?'Referral経路は別に判定済みです。次回通常供給まで13週。':'次回供給まで13週。';
+    }else{
+      id='roll-missed';tone='neutral';detail='今週は独占候補 '+cycle.monopolyCandidates.length+'件が判定対象でしたが、決定論的抽選では独占化しませんでした。';
+      nextAction='次回供給まで13週。最高現在確率 '+(bestProbability*100).toFixed(1)+'%。';
+    }
+  }else if(cycle?.scheduled&&(cycle.primaryWinnerID||cycle.referralExclusive)){
+    id='cycle-resolved';tone='neutral';detail='今週の判定では独占成立条件を満たしましたが、現在の案件ボードには残っていません。';
+    nextAction='すでに案件を進めた／終了した可能性があります。次回供給まで13週。';
+  }
+  return {
+    id,tone,headline,detail,nextAction,count:exclusiveTargets.length,channels,
+    bestSourceID:displaySource?.id||null,bestSourceName:displaySource?.sourceType||null,bestSourcePath:displaySource?.pathLabel||null,
+    bestTrust,bestProbability,trustThreshold:threshold,trustGap,projectedTrust,projectedProbability,nextSupplyWeeks,
+    cycle:cycle||null
+  };
+}
 function sourcingNetwork(state){
   const week=Math.max(0,Math.floor(finite(state?.week))),pn=state?.peNetwork&&typeof state.peNetwork==='object'?state.peNetwork:{nodes:[],weeklyActionsUsed:0,weeklyActionsWeek:0};
   const actionsTotal=Math.max(0,finite(network?.WEEKLY_ACTIONS,2)),actionsUsed=finite(pn.weeklyActionsWeek)===week?Math.max(0,Math.floor(finite(pn.weeklyActionsUsed))):0,actionsRemaining=Math.max(0,actionsTotal-actionsUsed);
@@ -126,10 +200,23 @@ function sourcingNetwork(state){
     const statusLabel=status==='pending'?'打診中':status==='ready'?'案件化成功・ボード待ち':status==='success'?'案件化成功':row?.reason==='window-expired'?'投資機会失効':'オーナー見送り';
     return {id:String(row?.id||''),nodeID:String(row?.nodeID||''),sourceType:String(row?.sourceType||'人脈'),sourcePathType:String(row?.sourcePathType||'referrer'),sourceTrust:finite(row?.sourceTrust),tierID:String(row?.tierID||''),startedWeek:finite(row?.startedWeek),responseWeek:finite(row?.responseWeek),status,statusLabel,weeksRemaining:remaining,successProbability:finite(row?.successProbability),targetID:row?.targetID?String(row.targetID):null,reason:row?.reason||null};
   });
+  const boardCapacity=Math.max(0,finite(supply?.MAX_PE_TARGETS,8));
+  const cycle=supply?.previewSourcingCycle?supply.previewSourcingCycle(state,week):null;
+  const exclusive=exclusiveSourcingStatus(state,{week,rows,liveTargets,nextSupplyWeeks:nextSupplyOffset,boardCapacity,hasInvestingFund,cycle});
+  const referralVisibilityModel=referralVisibility(rows);
   return {
     actionsTotal,actionsUsed,actionsRemaining,nodeCount:rows.length,bestTrust:rows[0]?.trust||0,referralSourceID:referral?.id||null,referralSourceName:referral?.sourceType||null,
-    nextSupplyWeeks:nextSupplyOffset,boardCount:liveTargets.length,boardCapacity:Math.max(0,finite(supply?.MAX_PE_TARGETS,8)),
-    accessCounts:{auction:liveTargets.filter(t=>!t.peNetworkAccess).length,referral:liveTargets.filter(t=>t.peNetworkAccess==='referral').length,limited:liveTargets.filter(t=>t.peNetworkAccess==='limited-auction').length,exclusive:liveTargets.filter(t=>t.peNetworkAccess==='exclusive').length,proprietary:liveTargets.filter(t=>t.dealChannel==='proprietary').length},
+    nextSupplyWeeks:nextSupplyOffset,boardCount:liveTargets.length,boardCapacity,
+    accessCounts:{
+      auction:liveTargets.filter(t=>!t.peNetworkAccess).length,
+      referral:liveTargets.filter(t=>t.peNetworkAccess==='referral').length,
+      limited:liveTargets.filter(t=>t.peNetworkAccess==='limited-auction').length,
+      exclusive:liveTargets.filter(t=>t.peNetworkAccess==='exclusive').length,
+      monopoly:liveTargets.filter(t=>t?.dealChannel==='monopoly').length,
+      exclusiveReferral:liveTargets.filter(t=>t?.dealChannel==='network-referral'&&t?.peNetworkAccess==='exclusive').length,
+      proprietary:liveTargets.filter(t=>t?.dealChannel==='proprietary').length
+    },
+    exclusive,referralVisibility:referralVisibilityModel,
     proprietary:{trustThreshold:proprietaryThreshold,outreachWeeks:Math.max(0,finite(supply?.PROPRIETARY_OUTREACH_WEEKS,13)),maxActive:Math.max(0,finite(supply?.PROPRIETARY_MAX_ACTIVE,3)),activeCount:activeCampaigns.length,hasInvestingFund,rows:proprietaryRows},
     rows
   };
@@ -329,6 +416,6 @@ function performPortfolio(action,payload={}){
   if(action==='consolidateSites')return saveSuccessful(engine,portfolio.consolidateSites(state,fundID,dealID));
   return false;
 }
-modules.peUIAdapter=Object.freeze({NAVIGATION,getPEUIData,perform,performPortfolio,preferDrop,dealFundChoices,multiFundDesk,latestExitLPFeedback,normalizePortfolio,normalizeExitPreview,normalizeExitAttribution,normalizeLPExitFeedback,normalizeExitedDeal,normalizeExitScenario,normalizeExitRoute,normalizeExitBuyerOffer,sourcingNetwork,thresholds:Object.freeze({DECISION_LIMIT,FINAL_BID_URGENT_WEEKS,INVESTMENT_RISK_FRACTION,DEADLINE_CRITICAL_WEEKS,DD_OPPORTUNITY_WEEKS,NETWORK_WARNING_MARGIN}),__installed:true});
+modules.peUIAdapter=Object.freeze({NAVIGATION,getPEUIData,perform,performPortfolio,preferDrop,dealFundChoices,multiFundDesk,latestExitLPFeedback,exclusiveSourcingStatus,referralVisibility,normalizePortfolio,normalizeExitPreview,normalizeExitAttribution,normalizeLPExitFeedback,normalizeExitedDeal,normalizeExitScenario,normalizeExitRoute,normalizeExitBuyerOffer,sourcingNetwork,thresholds:Object.freeze({DECISION_LIMIT,FINAL_BID_URGENT_WEEKS,INVESTMENT_RISK_FRACTION,DEADLINE_CRITICAL_WEEKS,DD_OPPORTUNITY_WEEKS,NETWORK_WARNING_MARGIN}),__installed:true});
 globalThis.CapitalismTycoonPEUIAdapter=modules.peUIAdapter;
 })();

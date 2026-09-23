@@ -146,13 +146,16 @@ function monopolyProbability(node){
 // 決定論的な抽選（週・ノードID・案件シードから導くハッシュ）で判定する。当たった場合は
 // bringMonopolyDeal と同じtrust消費（60→35など）を適用する。ノードが見つからない、または
 // 確率0の場合はfalseを返し、trustは変化しない。
+function monopolySourcingRollValue(nodeID,week,dealSeed=0){
+  return unit('pe-monopoly',nodeID,Math.max(0,Math.floor(finite(week))),dealSeed);
+}
 function rollMonopolySourcing(state,nodeID,week,dealSeed=0){
   ensure(state);
   const node=state.peNetwork.nodes.find(n=>n.id===nodeID);
   if(!node)return false;
   const probability=monopolyProbability(node);
   if(probability<=0)return false;
-  const roll=unit('pe-monopoly',nodeID,Math.max(0,Math.floor(finite(week,state.week))),dealSeed);
+  const roll=monopolySourcingRollValue(nodeID,week===undefined?state.week:week,dealSeed);
   if(roll>=probability)return false;
   node.trust=clamp(node.trust-MONOPOLY_TRUST_COST,0,100);
   return true;
@@ -182,7 +185,7 @@ modules.peNetwork=Object.freeze({
   MAX_NODES,WEEKLY_ACTIONS,GENERIC_DECAY_PER_WEEK,REFERRER_EXTRA_DECAY_PER_WEEK,CONTACT_TRUST_GAIN,
   MONOPOLY_TRUST_THRESHOLD,MONOPOLY_TRUST_COST,MAX_MONOPOLY_SHARE,
   PATH_TYPES,PATH_TYPE_IDS,
-  ensure,addNode,decayRateForPath,decayWeek,weeklyActionsRemaining,consumeWeeklyAction,contactNode,trustTier,bringMonopolyDeal,monopolyProbability,rollMonopolySourcing,install,
+  ensure,addNode,decayRateForPath,decayWeek,weeklyActionsRemaining,consumeWeeklyAction,contactNode,trustTier,bringMonopolyDeal,monopolyProbability,monopolySourcingRollValue,rollMonopolySourcing,install,
   __installed:true
 });
 })();
