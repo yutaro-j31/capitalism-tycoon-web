@@ -96,6 +96,56 @@ assert(exclusiveUI,'exclusive network deal reaches the PE adapter');
 assert.equal(exclusiveUI.sourcing.access,'exclusive');
 assert.equal(exclusiveUI.sourcing.competitionMultiplier,0);
 
+// Sourcing Desk exposes the existing production network as an actionable player system.
+const deskNode=network.addNode(engine.g,{sourceType:'Sourcing Desk Banker',pathType:'longTermCultivation',industryTag:'finance',trust:16,week:77});
+engine.g.week=77;
+engine.g.peNetwork.weeklyActionsWeek=77;
+engine.g.peNetwork.weeklyActionsUsed=0;
+const stateBeforeDesk=JSON.stringify(engine.g);
+let desk=modules.peUIAdapter.sourcingNetwork(engine.g);
+assert.equal(JSON.stringify(engine.g),stateBeforeDesk,'Sourcing Desk adaptation is read-only');
+assert.equal(desk.actionsRemaining,network.WEEKLY_ACTIONS);
+let deskRow=desk.rows.find(row=>row.id===deskNode.id);
+assert(deskRow,'new production network node appears in Sourcing Desk');
+assert.equal(deskRow.access.id,'building');
+assert.equal(deskRow.access.nextTrust,20);
+assert.equal(deskRow.referralEligible,false);
+assert.equal(deskRow.canContact,true);
+
+const trustBeforeContact=deskNode.trust;
+assert.equal(modules.peUIAdapter.perform('contactNetwork',{nodeID:deskNode.id}),true,'Sourcing Desk contact reaches production contactPENetworkNode');
+assert.equal(deskNode.trust,trustBeforeContact+network.CONTACT_TRUST_GAIN);
+desk=modules.peUIAdapter.sourcingNetwork(engine.g);
+assert.equal(desk.actionsRemaining,1,'one contact consumes one of the two weekly actions');
+assert.equal(modules.peUIAdapter.perform('contactNetwork',{nodeID:deskNode.id}),true);
+desk=modules.peUIAdapter.sourcingNetwork(engine.g);
+assert.equal(desk.actionsRemaining,0,'two contacts consume the weekly action budget');
+assert.equal(modules.peUIAdapter.perform('contactNetwork',{nodeID:deskNode.id}),false,'third contact in the same week is rejected by production');
+
+deskNode.trust=supply.NETWORK_REFERRAL_TRUST_THRESHOLD;
+desk=modules.peUIAdapter.sourcingNetwork(engine.g);
+deskRow=desk.rows.find(row=>row.id===deskNode.id);
+assert.equal(deskRow.referralEligible,true);
+assert.equal(deskRow.referralInspectionCount,1,'Trust 80 shows baseline referral inspection depth');
+assert.equal(deskRow.competitionMultiplier,1,'Trust 80 shows baseline referral competition');
+deskNode.trust=100;
+desk=modules.peUIAdapter.sourcingNetwork(engine.g);
+deskRow=desk.rows.find(row=>row.id===deskNode.id);
+assert.equal(deskRow.referralInspectionCount,supply.NETWORK_REFERRAL_SEARCH_ATTEMPTS,'Trust 100 visibly exposes full referral inspection depth');
+assert.equal(deskRow.competitionMultiplier,supply.NETWORK_REFERRAL_MIN_COMPETITION_MULTIPLIER,'Trust 100 visibly exposes reduced competition');
+assert.equal(deskRow.monopolyProbability,network.MAX_MONOPOLY_SHARE,'Trust 100 displays the canonical monopoly ceiling');
+
+const uiSource=fs.readFileSync('js/pe-ui.js','utf8');
+assert.match(uiSource,/data-pe-sourcing-desk/,'PE network tab renders the Sourcing Desk');
+assert.match(uiSource,/data-pe-network-contact/,'Sourcing Desk exposes the production contact action');
+assert.match(uiSource,/Trust 20 限定入札/);
+assert.match(uiSource,/40 DD内部情報/);
+assert.match(uiSource,/60 独占案件/);
+assert.match(uiSource,/80 Referral \/ 買い手紹介/);
+const peCss=fs.readFileSync('css/d-ui-pe.css','utf8');
+assert.match(peCss,/\.pe-sourcing-node \.btn\{[^}]*min-height:44px/,'Sourcing Desk contact keeps an iPhone-safe tap target');
+assert.match(peCss,/@media\(max-width:820px\)\{\.pe-sourcing-kpis\{grid-template-columns:1fr 1fr\}\.pe-sourcing-grid\{grid-template-columns:1fr\}/,'Sourcing Desk stacks node cards on iPhone width');
+
 const source=fs.readFileSync('js/pe-deal-supply.js','utf8');
 assert.doesNotMatch(source,/Math\.random\(\)|Date\.now\(\)|crypto\.randomUUID/,'referral supply adds no nondeterministic source');
 const roomSource=fs.readFileSync('js/ma-deal-room.js','utf8');
