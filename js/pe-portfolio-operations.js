@@ -535,6 +535,10 @@ function previewManagementAction(state,fundID,dealID,action,{kind=''}={}){
     const remaining=Math.max(0,finite(pc.underperformingRatio)-finite(pc.consolidatedRatio));
     executable=!deal.employmentPromise&&remaining>1e-9;
     reason=!executable?(deal.employmentPromise?'employment-promise':'maxed'):null;
+  }else if(action==='expandPortfolioStore'){
+    cost=EXPANSION_COST_FRACTION*ev;
+    executable=cost>0&&cost<=cash;
+    if(!executable)reason=cost<=0?'unsupported':'cash';
   }else{executable=false;reason='unsupported';}
   return {action,kind,executable,cost,portfolioCash:cash,postCash:Math.max(0,cash-cost),reason};
 }
@@ -545,7 +549,8 @@ function previewManagementActions(state,fundID,dealID){
     headcountDown:previewManagementAction(state,fundID,dealID,'setStaffing',{kind:'headcount-down'}),
     wageUp:previewManagementAction(state,fundID,dealID,'setStaffing',{kind:'wage-up'}),
     renewProductMix:previewManagementAction(state,fundID,dealID,'renewProductMix'),
-    consolidateSites:previewManagementAction(state,fundID,dealID,'consolidateSites')
+    consolidateSites:previewManagementAction(state,fundID,dealID,'consolidateSites'),
+    expandPortfolioStore:previewManagementAction(state,fundID,dealID,'expandPortfolioStore')
   };
 }
 
