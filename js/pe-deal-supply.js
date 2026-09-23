@@ -260,7 +260,7 @@ function activeProprietarySourcing(state){
 }
 function startProprietarySourcing(state,nodeID,week){
   if(!state||!network)return {ok:false,reason:'network-unavailable',message:'人脈機能を利用できません。'};
-  const w=Math.max(0,Math.floor(finite(week,state.week))),rawNodes=arr(state?.peNetwork?.nodes),node=rawNodes.find(row=>row?.id===nodeID);
+  const w=Math.max(0,Math.floor(finite(week,state.week))),rawNodes=arr(state?.peNetwork?.nodes).slice(-Math.max(1,Math.floor(finite(network.MAX_NODES,100)))),node=rawNodes.find(row=>row?.id===nodeID);
   if(!node)return {ok:false,reason:'node-not-found',message:'人脈が見つかりません。'};
   if(finite(node.trust)<PROPRIETARY_TRUST_THRESHOLD)return {ok:false,reason:'trust',message:`非売却企業への打診にはTrust ${PROPRIETARY_TRUST_THRESHOLD}以上が必要です。`};
   const funds=activeInvestingFunds(state);
@@ -443,7 +443,6 @@ function install(){
   if(typeof proto.startMADueDiligence!=='function')return false;
 
   proto.startPEProprietarySourcing=function(nodeID){
-    ensure(this.g);
     const result=startProprietarySourcing(this.g,nodeID,this.g.week);
     if(!result.ok)return this.fail(result.message||'Proprietary Sourcingを開始できません。');
     this.save();
