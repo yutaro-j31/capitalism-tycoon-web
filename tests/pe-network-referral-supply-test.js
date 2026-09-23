@@ -111,7 +111,7 @@ assert.equal(deskRow.access.id,'building');
 assert.equal(deskRow.access.nextTrust,20);
 assert.equal(deskRow.referralEligible,false);
 assert.equal(deskRow.canContact,true);
-assert.equal(deskRow.projectedTrust,trustBeforeContact===undefined?20:20);
+assert.equal(deskRow.projectedTrust,20);
 assert.equal(deskRow.projectedReferralEligible,false);
 assert.equal(deskRow.projectedMonopolyProbability,0);
 
