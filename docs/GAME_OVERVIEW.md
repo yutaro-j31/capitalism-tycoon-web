@@ -107,11 +107,13 @@ by the real-browser `tests/pe-ui-screen-ownership-webkit-test.js`. So the legacy
 only UI shown during the pre-unlock window, not an unreachable leftover — removing it without
 also addressing that window would regress this button to a dead end.
 
-Separately: `js/pe-portfolio-operations.js`'s `expandPortfolioStore()` (the "出店" lever) has no
-D UI entry point — `js/pe-ui-adapter.js`'s `performPortfolio()` never dispatches to it. Its only
-UI trigger is the legacy `case 'pe-portfolio-expand'` handler in `js/app.js`, reachable only
-through the pre-unlock screen above. Wiring it into D UI's generic management levers (`js/pe-ui.js`'s
-`genericManagementSection()`) is a separate, not-yet-scheduled task.
+The PE portfolio-company "出店" lever is connected to the production D UI in PR #719.
+`js/pe-ui-adapter.js` dispatches the player action to the existing
+`js/pe-portfolio-operations.js` `expandPortfolioStore()` writer, while the management screen
+shows the canonical expansion cost (5% of enterprise value), post-action portfolio cash, and
+cash-insufficient state before execution. The legacy `case 'pe-portfolio-expand'` path remains
+for the pre-unlock verification screen; the D UI path reuses the same production writer rather
+than introducing a second expansion implementation.
 
 ## 5. Microcap mode
 
