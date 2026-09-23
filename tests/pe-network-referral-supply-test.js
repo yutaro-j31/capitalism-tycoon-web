@@ -199,7 +199,7 @@ assert.match(uiSource,/60 独占案件/);
 assert.match(uiSource,/80 Referral \/ 買い手紹介/);
 const peCss=fs.readFileSync('css/d-ui-pe.css','utf8');
 assert.match(peCss,/\.pe-sourcing-node \.btn\{[^}]*min-height:44px/,'Sourcing Desk contact keeps an iPhone-safe tap target');
-assert.match(peCss,/\.pe-sourcing-actions\{grid-template-columns:1fr 1fr/,'desktop sourcing card exposes contact and proprietary actions side by side');
+assert.match(peCss,/\.pe-sourcing-actions\{[^}]*grid-template-columns:1fr 1fr/,'desktop sourcing card exposes contact and proprietary actions side by side');
 assert.match(peCss,/@media\(max-width:520px\)\{[^@]*\.pe-sourcing-actions\{grid-template-columns:1fr\}/,'proprietary action stacks to a full-width iPhone tap target');
 assert.match(peCss,/@media\(max-width:820px\)\{[^@]*\.pe-proprietary-grid\{grid-template-columns:1fr\}/,'proprietary pipeline stacks on iPhone width');
 assert.match(peCss,/@media\(max-width:820px\)\{[^@]*\.pe-sourcing-kpis\{grid-template-columns:1fr 1fr\}/,'Sourcing Desk KPI grid keeps the iPhone breakpoint');
