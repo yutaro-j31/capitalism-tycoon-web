@@ -167,23 +167,26 @@ assert.equal(propDesk.proprietary.rows.find(row=>row.id===campaign.id).weeksRema
 // Force the deterministic fixture onto the success side of the already-frozen probability so
 // the success transition and target metadata can be verified independently of one hash value.
 campaign.outcomeRoll=0;
+const campaignID=campaign.id,responseWeek=campaign.responseWeek;
 const rawPropDeal=supply.proprietaryDealForCampaign(engine.g,campaign);
-const expectedPropTarget=supply.buildTargetFromDeal(rawPropDeal,campaign.responseWeek);
-supply.processProprietarySourcingWeek(engine.g,campaign.responseWeek-1);
-assert.equal(campaign.status,'pending','campaign cannot resolve before its response week');
-supply.processProprietarySourcingWeek(engine.g,campaign.responseWeek);
-assert.equal(campaign.status,'success');
-const propTarget=engine.g.acquisitionTargets.find(t=>t.id===campaign.targetID);
+const expectedPropTarget=supply.buildTargetFromDeal(rawPropDeal,responseWeek);
+supply.processProprietarySourcingWeek(engine.g,responseWeek-1);
+let liveCampaign=engine.g.peFirm.proprietarySourcing.find(row=>row.id===campaignID);
+assert.equal(liveCampaign.status,'pending','campaign cannot resolve before its response week');
+supply.processProprietarySourcingWeek(engine.g,responseWeek);
+liveCampaign=engine.g.peFirm.proprietarySourcing.find(row=>row.id===campaignID);
+assert.equal(liveCampaign.status,'success','canonical state records a successful proprietary campaign');
+const propTarget=engine.g.acquisitionTargets.find(t=>t.id===liveCampaign.targetID);
 assert(propTarget,'successful proprietary outreach materializes one PE target');
 assert.equal(propTarget.dealChannel,'proprietary');
 assert.equal(propTarget.peNetworkAccess,'exclusive');
 assert.equal(propTarget.peCompetitionMultiplier,0,'successful proprietary outreach gets exclusive negotiation');
 assert.equal(propTarget.peSourceNodeID,propNode.id);
-assert.equal(propTarget.peProprietarySourcingID,campaign.id);
+assert.equal(propTarget.peProprietarySourcingID,campaignID);
 assert.equal(propTarget.valuation,expectedPropTarget.valuation,'proprietary outreach grants exclusivity but no hidden monopoly discount');
 propDesk=modules.peUIAdapter.sourcingNetwork(engine.g);
 assert.equal(propDesk.accessCounts.proprietary,1);
-assert.equal(propDesk.proprietary.rows.find(row=>row.id===campaign.id).status,'success');
+assert.equal(propDesk.proprietary.rows.find(row=>row.id===campaignID).status,'success');
 
 const uiSource=fs.readFileSync('js/pe-ui.js','utf8');
 assert.match(uiSource,/data-pe-sourcing-desk/,'PE network tab renders the Sourcing Desk');
