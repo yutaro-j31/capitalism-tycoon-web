@@ -75,10 +75,19 @@ const NAME_PREFIXES=Object.freeze(['第一','中央','日本','東洋','新和',
 
 function isPETarget(t){return Boolean(t&&t.peTierID);}
 // 投資期間中のファンド（新規取得ができるのはこれだけ）。複数あれば最新のものを使う。
+function activeInvestingFunds(state){return arr(state?.peFirm?.funds).filter(f=>f?.status==='investing');}
 function activeInvestingFund(state){
-  const funds=arr(state?.peFirm?.funds);
-  for(let i=funds.length-1;i>=0;i--)if(funds[i]?.status==='investing')return funds[i];
-  return null;
+  const funds=activeInvestingFunds(state);
+  return funds.length?funds[funds.length-1]:null;
+}
+function eligibleTierSetForFunds(funds){
+  const eligible=new Set();
+  for(const fund of arr(funds))for(const id of tiers.eligibleTiers(fund))eligible.add(id);
+  return eligible;
+}
+function eligibleInvestingFundsForTarget(state,target){
+  if(!isPETarget(target))return [];
+  return activeInvestingFunds(state).filter(fund=>tiers.eligibleTiers(fund).includes(target.peTierID));
 }
 
 function ensure(state){
@@ -172,8 +181,9 @@ function referralQualityScore(deal,week){
   const target=buildTargetFromDeal(deal,week);
   return finite(target.growth)*2+finite(target.synergy)-finite(target.risk)*1.25;
 }
-function referralCandidates(state,fund,week){
-  const year=Math.floor(week/52),quarter=Math.floor((week%52)/SUPPLY_INTERVAL_WEEKS),eligible=new Set(tiers.eligibleTiers(fund));
+function referralCandidates(state,fundOrFunds,week){
+  const funds=Array.isArray(fundOrFunds)?fundOrFunds:[fundOrFunds].filter(Boolean);
+  const year=Math.floor(week/52),quarter=Math.floor((week%52)/SUPPLY_INTERVAL_WEEKS),eligible=eligibleTierSetForFunds(funds);
   const priceLevel=tiers.marketPriceLevel(finite(state?.economy,1)),distressed=finite(state?.economy,1)<1,out=[];
   for(let attempt=0;attempt<NETWORK_REFERRAL_SEARCH_ATTEMPTS;attempt++){
     const index=NETWORK_REFERRAL_SEED_OFFSET+quarter*NETWORK_REFERRAL_SEARCH_ATTEMPTS+attempt;
@@ -249,14 +259,15 @@ function processSupplyWeek(state,week){
   state.peFirm.lastDealSupplyWeek=w;
   prunePETargets(state,w);
   if(w%SUPPLY_INTERVAL_WEEKS!==1)return null;
-  const fund=activeInvestingFund(state);
-  if(!fund)return null;
+  const funds=activeInvestingFunds(state);
+  if(!funds.length)return null;
 
-  // Referral eligibility is fixed at the start of the supply cycle. A later monopoly conversion
-  // may consume Trust, but it does not erase the referral already brought into this quarter.
+  // Multi-fund desk: deal supply is filtered against the union of every currently investing
+  // fund instead of silently using only the newest fund. A later DD action chooses the exact
+  // investing vehicle and that fundID stays attached through acquisition.
   const referralSource=strongestReferralSource(state);
   const referralTrustAtCycle=referralSource?finite(referralSource.trust):null;
-  const eligible=new Set(tiers.eligibleTiers(fund));
+  const eligible=eligibleTierSetForFunds(funds);
   const deals=tiers.generateAnnualDeals(state,Math.floor(w/52));
   const deal=deals[Math.floor((w%52)/SUPPLY_INTERVAL_WEEKS)];
 
@@ -265,10 +276,9 @@ function processSupplyWeek(state,week){
 
   let referral=null;
   if(referralSource&&state.acquisitionTargets.filter(isPETarget).length<MAX_PE_TARGETS){
-    // The quality/competition tier is fixed from Trust at cycle start. A primary monopoly
-    // roll may consume the live node later in this same cycle, but it must not retroactively
-    // downgrade the referral opportunity that was already sourced.
-    const referralDeal=buildReferralDeal(state,fund,w,{...referralSource,trust:referralTrustAtCycle});
+    // The referral candidate pool is also the union of all investing funds, so a mature Fund I
+    // harvesting alongside Fund II/III never suppresses a valid opportunity for another vehicle.
+    const referralDeal=buildReferralDeal(state,funds,w,{...referralSource,trust:referralTrustAtCycle});
     referral=addSuppliedTarget(state,referralDeal,w,{channel:'network-referral',source:referralSource,sourceTrust:referralTrustAtCycle});
   }
   return primary||referral;
@@ -294,13 +304,13 @@ function investingFundByID(state,fundID){
   return fund&&fund.status==='investing'?fund:null;
 }
 // 投資期間中のファンド一覧（UIの選択肢・自動選択の母集合）。
-function investingFunds(state){return arr(state?.peFirm?.funds).filter(f=>f?.status==='investing');}
+function investingFunds(state){return activeInvestingFunds(state);}
 // T21-3（GAME-AUDIT-002）: どのファンドから投資するかの解決。明示指定が最優先で、指定が無い
 // 場合は稼働中のファンドが1本だけなら自動選択する。2本以上あるときはプレイヤーが選ぶべきなので
 // 自動では決めない。
-function resolveInvestingFund(state,fundID){
-  if(fundID)return investingFundByID(state,fundID);
-  const funds=investingFunds(state);
+function resolveInvestingFund(state,fundID,target=null){
+  const funds=target?eligibleInvestingFundsForTarget(state,target):investingFunds(state);
+  if(fundID)return funds.find(f=>f.id===fundID)||null;
   return funds.length===1?funds[0]:null;
 }
 
@@ -321,11 +331,14 @@ function install(){
     if(!isPETarget(target))return baseStartDD.call(this,id,scopeID);
     ensure(this.g);
     // 稼働中のファンドが1本ならUIが指定しなくても自動で選ぶ（T21-3）。
-    const fund=resolveInvestingFund(this.g,fundID);
+    const eligibleFunds=eligibleInvestingFundsForTarget(this.g,target);
+    const fund=resolveInvestingFund(this.g,fundID,target);
     if(!fund){
       const funds=investingFunds(this.g);
       if(!funds.length)return this.fail('投資期間中のファンドがありません。');
-      if(!fundID&&funds.length>1)return this.fail('どのファンドから投資するかを選んでください。');
+      if(!eligibleFunds.length)return this.fail('この案件帯へ投資できるファンドがありません。');
+      if(!fundID&&eligibleFunds.length>1)return this.fail('どのファンドから投資するかを選んでください。');
+      if(fundID)return this.fail('選択したファンドではこの案件帯へ投資できません。');
       return this.fail('投資期間中のファンドでのみ調査できます。');
     }
     // 枠の残りを先に見て、無ければ base を呼ばない（DD費用のキャッシュも動かさない）。
@@ -375,7 +388,7 @@ if(!install()&&typeof document!=='undefined'&&typeof document.addEventListener==
 
 modules.peDealSupply=Object.freeze({
   SUPPLY_INTERVAL_WEEKS,TARGET_LIFETIME_WEEKS,MAX_PE_TARGETS,MONOPOLY_PRICE_DISCOUNT,NETWORK_REFERRAL_TRUST_THRESHOLD,NETWORK_REFERRAL_SEARCH_ATTEMPTS,NETWORK_REFERRAL_MIN_COMPETITION_MULTIPLIER,PILLAR_LABELS,TIER_INDUSTRIES,
-  ensure,isPETarget,activeInvestingFund,investingFundByID,investingFunds,resolveInvestingFund,buildTargetFromDeal,prunePETargets,strongestReferralSource,referralTrustProgress,referralInspectionCount,referralCompetitionMultiplier,referralQualityScore,referralCandidates,buildReferralDeal,processSupplyWeek,rollMonopolySource,install,
+  ensure,isPETarget,activeInvestingFund,activeInvestingFunds,eligibleTierSetForFunds,eligibleInvestingFundsForTarget,investingFundByID,investingFunds,resolveInvestingFund,buildTargetFromDeal,prunePETargets,strongestReferralSource,referralTrustProgress,referralInspectionCount,referralCompetitionMultiplier,referralQualityScore,referralCandidates,buildReferralDeal,processSupplyWeek,rollMonopolySource,install,
   __installed:true
 });
 })();

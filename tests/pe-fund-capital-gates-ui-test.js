@@ -131,5 +131,24 @@ assert.match(screen.innerHTML,/現金残高/);
 assert.match(screen.innerHTML,/投資可能/);
 assert.match(screen.innerHTML,/Reserve/);
 
+fund.status='investing';
+pf.ensure(engine.g);
+const multiBefore=JSON.stringify(engine.g);
+const multiModel=modules.peUIAdapter.getPEUIData().dashboard;
+assert.equal(JSON.stringify(engine.g),multiBefore,'multi-fund desk adaptation is read-only');
+assert.equal(multiModel.multiFund.investingCount,2,'two investing vehicles are shown concurrently');
+assert.equal(multiModel.multiFund.rows.length,2);
+assert.equal(multiModel.multiFund.rows[0].ordinal,1);
+assert.equal(multiModel.multiFund.rows[1].ordinal,2);
+assert.equal(multiModel.multiFund.sharedDD.total,pf.ddSlotsPerYear(engine.g));
+uiContext.CapitalismTycoonPEUI.render();
+assert.match(screen.innerHTML,/data-pe-multifund-desk/,'multi-fund management desk renders');
+assert.match(screen.innerHTML,/MULTI-FUND MANAGEMENT/);
+assert.match(screen.innerHTML,/共有DD枠/);
+
+const uiSource=fs.readFileSync('js/pe-ui.js','utf8');
+assert.match(uiSource,/data-pe-fund-select/,'deal board exposes an investing-fund selector');
+assert.match(uiSource,/fundID:deal\.dataset\.peFund\|\|undefined/,'DD action forwards the chosen fund ID');
+assert.match(fs.readFileSync('css/d-ui-pe.css','utf8'),/\.pe-multifund-grid\{grid-template-columns:1fr\}/,'multi-fund cards stack on mobile');
 assert.match(fs.readFileSync('css/d-ui-pe.css','utf8'),/\.pe-promise-grid\{grid-template-columns:1fr\}/,'promise compliance cards stack on mobile');
 console.log('PE fund capital and next-fund gate UI tests passed');
