@@ -194,6 +194,46 @@ function goodExit(overrides = {}) {
   assert.deepEqual(fund.lps.map(c => c.lpTypeID).sort(), [...pf.LP_TYPE_IDS].sort());
 }
 
+// 7e. Fundraising Book is a read-only projection of the exact writer: LP amounts add up to
+// LP capital, continuing/meetable ordering is preserved, and promise decisions are per-LP.
+{
+  const e = new TycoonEngine();
+  e.g.personalCash = 30_000_000_000;
+  pf.recordExit(e.g, goodExit());
+  pf.recordExit(e.g, goodExit({ foundedWeek: 200, exitedWeek: 252 }));
+  const max = pf.planFundFormation(e.g);
+  assert.equal(max.ok, true);
+  const chosen = max.maxGpCommit * .4;
+  const before = JSON.stringify(e.g);
+  const book = pf.fundraisingBook(e.g, { gpCommit: chosen, promiseDecisions: { regionalBankCorporate: true, universitySovereign: false } });
+  assert.equal(JSON.stringify(e.g), before, 'Fundraising Book must be read-only');
+  assert.equal(book.ok, true);
+  assert.ok(Math.abs(book.lps.reduce((sum,row)=>sum+row.committedAmount,0)-book.lpContributed)<1e-6, 'displayed LP commitments exactly fund LP capital');
+  assert.equal(book.lps.find(row=>row.lpTypeID==='regionalBankCorporate').promiseAccepted, true);
+  assert.equal(book.lps.find(row=>row.lpTypeID==='universitySovereign').promiseAccepted, false);
+  assert.equal(book.lps.find(row=>row.lpTypeID==='formerColleague').promiseAccepted, false, 'LP without a promise cannot be opted in');
+
+  const formed = pf.formFund(e.g, { gpCommit: chosen, promiseDecisions: { regionalBankCorporate: true, universitySovereign: false } });
+  assert.equal(formed.ok, true);
+  const regional = formed.fund.lps.find(row=>row.lpTypeID==='regionalBankCorporate');
+  const sovereign = formed.fund.lps.find(row=>row.lpTypeID==='universitySovereign');
+  assert.equal(regional.promiseAccepted, true, 'per-LP promise decision reaches canonical fund state');
+  assert.equal(sovereign.promiseAccepted, false);
+  assert.ok(Math.abs(formed.fund.lps.reduce((sum,row)=>sum+row.committedAmount,0)-formed.fund.lpContributed)<1e-6);
+}
+
+// 7f. Legacy all-promises option remains compatible for non-UI callers.
+{
+  const e = new TycoonEngine();
+  e.g.personalCash = 30_000_000_000;
+  pf.recordExit(e.g, goodExit());
+  pf.recordExit(e.g, goodExit({ foundedWeek: 200, exitedWeek: 252 }));
+  const formed = pf.formFund(e.g, { acceptPromises: true });
+  assert.equal(formed.ok, true);
+  assert.equal(formed.fund.lps.find(row=>row.lpTypeID==='regionalBankCorporate').promiseAccepted, true);
+  assert.equal(formed.fund.lps.find(row=>row.lpTypeID==='universitySovereign').promiseAccepted, true);
+}
+
 // 8. recordLPPromiseOutcome and addLPCommitment are safe no-ops for unknown funds/LP types.
 {
   const e = new TycoonEngine();
