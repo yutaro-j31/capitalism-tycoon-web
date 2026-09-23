@@ -9,26 +9,51 @@
 // once cash is comfortably above that cushion, fully revolving within a finite cap. It never
 // touches js/bank-loans-covenants.js's own bookkeeping (state.bankFinancing.loans), so it cannot
 // reach that module's covenant-breach/default path.
+//
+// Timing fix (multi-store expansion follow-up): this module used to wrap
+// EngineClass.prototype.advanceWeek() as its own outer layer, so its draw only ran AFTER
+// js/player-crisis.js's own advanceWeek wrapper -- including that week's grace-period
+// evaluate() -- had already read companyCash and possibly finalized gameOver. A 40-seed,
+// 160-week multi-store expansion re-measurement found 2/40 bankruptcies where the credit line
+// still had unused room under CAP at the moment of failure: the draw simply came one week too
+// late to stop that week's raw-negative cash from counting against the grace-period countdown.
+// This module now registers into js/player-crisis.js's registerPreEvaluateHook() instead, which
+// runs strictly before evaluate() reads cash for the week, so a successful draw here is visible
+// to that same week's grace-period decision instead of only cushioning the following week's
+// starting balance.
 (function(){'use strict';
 const modules=globalThis.__capitalismTycoonModules;
 if(!modules?.engine?.TycoonEngine)throw new Error('Capitalism Tycoon engine must be loaded before real-estate-agency-credit-line.js.');
 if(!modules?.finance)throw new Error('Capitalism Tycoon finance must be loaded before real-estate-agency-credit-line.js.');
 if(!modules?.playerCrisis?.__installed)throw new Error('Capitalism Tycoon playerCrisis must be loaded before real-estate-agency-credit-line.js.');
+if(typeof modules.playerCrisis.registerPreEvaluateHook!=='function')throw new Error('Capitalism Tycoon playerCrisis must expose registerPreEvaluateHook before real-estate-agency-credit-line.js.');
 if(modules.realEstateAgencyCreditLine)throw new Error('Capitalism Tycoon realEstateAgencyCreditLine module is already registered.');
-const EngineClass=modules.engine.TycoonEngine,finance=modules.finance;
+const finance=modules.finance;
 const BUSINESS_ID='realEstateAgency',SOURCE_TYPE='realEstateAgencyCreditLine';
 // Measured minimums: CAP=6,000,000 reaches 0/100 single-store bankruptcies in the founding-period
-// cluster (100-seed sweep); the 2 residual multi-store failures at this cap are a distinct,
-// out-of-scope late-game clustering risk (see founding-route-verification-log.md), not a
-// founding dry spell. CUSHION=1,200,000 (~2 weeks of the ~540,000/week dry-spell burn) is the
-// point past which a larger cushion stops reducing failures (600K -> 3/40, 1.2M -> 2/40,
-// 1.8M -> 2/40, same 2 seeds). REPAY_FLOOR leaves a full cushion of headroom after repaying so
-// the same week's repayment cannot immediately trigger a re-draw.
-const CAP=6_000_000,CUSHION=1_200_000,REPAY_FLOOR=CUSHION*2;
+// cluster (100-seed sweep). CUSHION (the single-store baseline, unchanged from the original
+// measurement) =1,200,000 (~2 weeks of the ~540,000/week dry-spell burn) is the point past which
+// a larger cushion stops reducing single-store failures (600K -> 3/40, 1.2M -> 2/40, 1.8M -> 2/40,
+// same 2 seeds -- see below, that residual was a timing bug, not a cushion-size problem).
+// REPAY_FLOOR_MULTIPLIER leaves a full cushion of headroom after repaying so the same week's
+// repayment cannot immediately trigger a re-draw.
+//
+// Multi-store scaling: aggregate dry-spell burn grows roughly with open store count (each store
+// contributes its own independent ~540,000/week worst case), so a fixed single-store cushion
+// gives progressively less coverage as a company expands. cushionFor()/repayFloorFor() scale the
+// cushion by CUSHION_PER_STORE for each store beyond the first, bounded by CUSHION_MAX so the
+// resulting repay floor (cushion*REPAY_FLOOR_MULTIPLIER) never approaches CAP. CUSHION/REPAY_FLOOR
+// remain exported as the unchanged single-store values for backward compatibility with existing
+// single-store callers/tests.
+const CAP=6_000_000,CUSHION=1_200_000,REPAY_FLOOR_MULTIPLIER=2,REPAY_FLOOR=CUSHION*REPAY_FLOOR_MULTIPLIER;
+const CUSHION_PER_STORE=100_000,CUSHION_MAX=2_400_000;
 const finite=(v,d=0)=>Number.isFinite(Number(v))?Number(v):d;
 function creditLineLoans(g){return finance.ensureFinance(g).loans.filter(l=>l&&l.sourceType===SOURCE_TYPE);}
 function outstandingBalance(g){return creditLineLoans(g).filter(l=>l.status==='active').reduce((a,l)=>a+finite(l.outstandingPrincipal),0);}
-function eligible(g){return (Array.isArray(g?.stores)?g.stores:[]).some(s=>s?.businessID===BUSINESS_ID&&s.status==='open');}
+function openStoreCount(g){return (Array.isArray(g?.stores)?g.stores:[]).filter(s=>s?.businessID===BUSINESS_ID&&s.status==='open').length;}
+function eligible(g){return openStoreCount(g)>0;}
+function cushionFor(g){const count=Math.max(1,openStoreCount(g));return Math.min(CUSHION_MAX,CUSHION+CUSHION_PER_STORE*(count-1));}
+function repayFloorFor(g){return cushionFor(g)*REPAY_FLOOR_MULTIPLIER;}
 function draw(g,amount){
   amount=Math.max(0,finite(amount));if(amount<=0)return 0;
   const f=finance.ensureFinance(g),week=finite(g.week,1),seq=finite(f.nextTransactionSeq,1),id=`realestate-credit-draw-${week}-${seq}`;
@@ -56,26 +81,21 @@ function repay(g,amount){
 }
 function service(g){
   if(!eligible(g))return 0;
+  const cushion=cushionFor(g),repayFloor=repayFloorFor(g);
   const outstanding=outstandingBalance(g),cash=finite(g.companyCash);
-  if(cash<CUSHION){
-    const room=Math.max(0,CAP-outstanding),need=Math.min(room,CUSHION-cash);
+  if(cash<cushion){
+    const room=Math.max(0,CAP-outstanding),need=Math.min(room,cushion-cash);
     return need>0?draw(g,need):0;
   }
-  if(cash>REPAY_FLOOR&&outstanding>0)return repay(g,Math.min(cash-REPAY_FLOOR,outstanding));
+  if(cash>repayFloor&&outstanding>0)return repay(g,Math.min(cash-repayFloor,outstanding));
   return 0;
 }
 function install(){
-  const proto=EngineClass.prototype;
-  if(proto.__realEstateAgencyCreditLineInstalled)return true;
-  const baseAdvanceWeek=proto.advanceWeek;
-  proto.advanceWeek=function(showSummary=true){
-    const result=baseAdvanceWeek.call(this,showSummary);
-    if(result!==false&&!this.g.gameOver&&service(this.g)!==0){this.save();this.emit();}
-    return result;
-  };
-  Object.defineProperty(proto,'__realEstateAgencyCreditLineInstalled',{value:true});
+  // registerPreEvaluateHook() is itself idempotent for the same function reference, and the
+  // top-of-file guard above already prevents this module from loading twice in one runtime.
+  modules.playerCrisis.registerPreEvaluateHook(service);
   return true;
 }
 install();
-modules.realEstateAgencyCreditLine=Object.freeze({BUSINESS_ID,SOURCE_TYPE,CAP,CUSHION,REPAY_FLOOR,eligible,outstandingBalance,draw,repay,service});
+modules.realEstateAgencyCreditLine=Object.freeze({BUSINESS_ID,SOURCE_TYPE,CAP,CUSHION,REPAY_FLOOR,REPAY_FLOOR_MULTIPLIER,CUSHION_PER_STORE,CUSHION_MAX,eligible,openStoreCount,cushionFor,repayFloorFor,outstandingBalance,draw,repay,service});
 })();
