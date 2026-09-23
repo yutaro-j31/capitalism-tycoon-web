@@ -275,14 +275,16 @@ function portfolioGenericLeverDetails(state,fund,deal,pc){
       headcountDown:normalizeCost(previews.headcountDown),
       wageUp:normalizeCost(previews.wageUp),
       renewProductMix:normalizeCost(previews.renewProductMix),
-      consolidateSites:normalizeCost(previews.consolidateSites)
+      consolidateSites:normalizeCost(previews.consolidateSites),
+      expandPortfolioStore:normalizeCost(previews.expandPortfolioStore)
     },
     canInvestQuality:Boolean(previews.investQuality?.executable),
     canReformProcurement:Boolean(previews.reformProcurement?.executable),
     canCutHeadcount:Boolean(previews.headcountDown?.executable),
     canRaiseWage:Boolean(previews.wageUp?.executable),
     canRenewProductMix:Boolean(previews.renewProductMix?.executable),
-    canConsolidate:Boolean(previews.consolidateSites?.executable)
+    canConsolidate:Boolean(previews.consolidateSites?.executable),
+    canExpandPortfolioStore:Boolean(previews.expandPortfolioStore?.executable)
   };
 }
 function normalizeParentAcquisition(state,fund,deal){
@@ -415,6 +417,7 @@ function performPortfolio(action,payload={}){
   }
   if(action==='renewProductMix')return saveSuccessful(engine,portfolio.renewProductMix(state,fundID,dealID,Math.min(1,finite(pc.productMixLevel)+.5)));
   if(action==='consolidateSites')return saveSuccessful(engine,portfolio.consolidateSites(state,fundID,dealID));
+  if(action==='expandPortfolioStore')return saveSuccessful(engine,portfolio.expandPortfolioStore(state,fundID,dealID));
   return false;
 }
 modules.peUIAdapter=Object.freeze({NAVIGATION,getPEUIData,perform,performPortfolio,preferDrop,dealFundChoices,multiFundDesk,latestExitLPFeedback,normalizeSourcingCycle,exclusiveSourcingStatus,referralVisibility,normalizePortfolio,normalizeExitPreview,normalizeExitAttribution,normalizeLPExitFeedback,normalizeExitedDeal,normalizeExitScenario,normalizeExitRoute,normalizeExitBuyerOffer,sourcingNetwork,thresholds:Object.freeze({DECISION_LIMIT,FINAL_BID_URGENT_WEEKS,INVESTMENT_RISK_FRACTION,DEADLINE_CRITICAL_WEEKS,DD_OPPORTUNITY_WEEKS,NETWORK_WARNING_MARGIN}),__installed:true});

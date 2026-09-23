@@ -1,7 +1,7 @@
 'use strict';
 // PE D UI generic management-lever reachability regression.
 // Proves the actual player-facing pe-ui.js click path reaches the real pe-ui-adapter and the
-// production pe-portfolio-operations writers for all five generic lever groups.
+// production pe-portfolio-operations writers for all six generic lever groups.
 const assert=require('node:assert/strict');
 const fs=require('node:fs');
 const vm=require('node:vm');
@@ -85,9 +85,9 @@ click('[data-pe-exit-cancel]');
 click('[data-pe-portfolio-manage]',{pePortfolioManage:deal.id});
 assert.match(screen.innerHTML,/data-pe-view-root="portfolio-manage"/,'exit cancel can return to management flow');
 
-// All five generic lever groups must be visible on the real D UI manage screen. Staffing has two
+// All six generic lever groups must be visible on the real D UI manage screen. Staffing has two
 // controls because headcount and wages are the two dimensions of the same lever group.
-for(const action of ['investQuality','reformProcurement','setStaffing','renewProductMix','consolidateSites']){
+for(const action of ['investQuality','reformProcurement','setStaffing','renewProductMix','consolidateSites','expandPortfolioStore']){
   assert.match(screen.innerHTML,new RegExp(`data-pe-manage-lever="${action}"`),`${action} is reachable from D UI`);
 }
 assert.match(screen.innerHTML,/data-pe-manage-kind="headcount-down"/,'staffing exposes headcount control');
@@ -124,13 +124,20 @@ click('[data-pe-manage-lever]',{peManageLever:'consolidateSites',peFund:fund.id,
 assert(pc.consolidatedRatio>consolidatedBefore,'site-restructuring D UI click reaches production consolidateSites');
 assert.equal(pc.closedSiteCount,1,'site restructuring records one closed site');
 
+const storesBefore=pc.storeCount;
+const cashBeforeExpansion=pc.cash;
+const expectedExpansionCost=deal.enterpriseValue*ops.EXPANSION_COST_FRACTION;
+click('[data-pe-manage-lever]',{peManageLever:'expandPortfolioStore',peFund:fund.id,peDeal:deal.id});
+assert.equal(pc.storeCount,storesBefore+1,'expansion D UI click reaches production expandPortfolioStore');
+assert.equal(cashBeforeExpansion-pc.cash,expectedExpansionCost,'expansion spends exactly 5% of EV from portfolio-company cash');
+
 assert.deepEqual(
   {companyCash:engine.g.companyCash,personalCash:engine.g.personalCash,fundCash:fund.cash},
   outsideBefore,
   'generic D UI management levers never touch self-company cash, personal cash, or fund cash'
 );
 assert.equal(randomCalls,rngBefore,'D UI management actions and rerenders consume no simulation RNG');
-assert.equal(saveCalls,6,'six successful controls across five generic lever groups persist exactly once each');
+assert.equal(saveCalls,7,'seven successful controls across six generic lever groups persist exactly once each');
 
 // Employment promises must disable the two destructive controls in the player-facing D UI.
 deal.employmentPromise=true;
