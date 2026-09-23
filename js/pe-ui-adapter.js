@@ -99,7 +99,9 @@ function sourcingAccess(trust){
 function sourcingNetwork(state){
   const week=Math.max(0,Math.floor(finite(state?.week))),pn=state?.peNetwork&&typeof state.peNetwork==='object'?state.peNetwork:{nodes:[],weeklyActionsUsed:0,weeklyActionsWeek:0};
   const actionsTotal=Math.max(0,finite(network?.WEEKLY_ACTIONS,2)),actionsUsed=finite(pn.weeklyActionsWeek)===week?Math.max(0,Math.floor(finite(pn.weeklyActionsUsed))):0,actionsRemaining=Math.max(0,actionsTotal-actionsUsed);
-  const referralThreshold=Math.max(0,finite(supply?.NETWORK_REFERRAL_TRUST_THRESHOLD,80));
+  const referralThreshold=Math.max(0,finite(supply?.NETWORK_REFERRAL_TRUST_THRESHOLD,80)),proprietaryThreshold=Math.max(0,finite(supply?.PROPRIETARY_TRUST_THRESHOLD,20));
+  const campaigns=arr(state?.peFirm?.proprietarySourcing),activeCampaigns=campaigns.filter(row=>row?.status==='pending'||row?.status==='ready');
+  const hasInvestingFund=Boolean(supply?.activeInvestingFunds?.(state)?.length);
   const rows=arr(pn.nodes).map(node=>{
     const trust=Math.max(0,Math.min(100,finite(node?.trust))),access=sourcingAccess(trust),path=network?.PATH_TYPES?.[node?.pathType],tier=network?.trustTier?.(node)||{};
     return {
@@ -110,15 +112,25 @@ function sourcingNetwork(state){
       referralInspectionCount:supply?.referralInspectionCount?Math.max(0,finite(supply.referralInspectionCount(node))):0,
       competitionMultiplier:supply?.referralCompetitionMultiplier?Math.max(0,finite(supply.referralCompetitionMultiplier(trust),1)):1,
       decayPerWeek:Math.max(0,finite(network?.decayRateForPath?.(node?.pathType))),weeksSinceContact:Math.max(0,week-Math.max(0,finite(node?.lastContactWeek))),
-      canContact:actionsRemaining>0,nextTrustPoints:access.nextTrust===null?0:Math.max(0,access.nextTrust-trust)
+      canContact:actionsRemaining>0,nextTrustPoints:access.nextTrust===null?0:Math.max(0,access.nextTrust-trust),
+      proprietaryProbability:Math.max(0,finite(supply?.proprietarySuccessProbability?.(node))),
+      proprietaryEligible:trust>=proprietaryThreshold,
+      proprietaryActive:activeCampaigns.some(row=>String(row.nodeID)===String(node?.id)),
+      canStartProprietary:actionsRemaining>0&&hasInvestingFund&&trust>=proprietaryThreshold&&activeCampaigns.length<Math.max(0,finite(supply?.PROPRIETARY_MAX_ACTIVE,3))&&!activeCampaigns.some(row=>String(row.nodeID)===String(node?.id))
     };
   }).sort((a,b)=>b.trust-a.trust||a.id.localeCompare(b.id));
   const referral=rows.find(row=>row.referralEligible)||null,liveTargets=arr(state?.acquisitionTargets).filter(target=>target?.peTierID&&finite(target?.expiresWeek)>=week);
   const nextSupplyOffset=((1-(week%13))+13)%13;
+  const proprietaryRows=campaigns.slice().sort((a,b)=>finite(b?.startedWeek)-finite(a?.startedWeek)||String(a?.id||'').localeCompare(String(b?.id||''))).slice(0,8).map(row=>{
+    const status=String(row?.status||'pending'),remaining=status==='pending'?Math.max(0,finite(row?.responseWeek)-week):status==='ready'?Math.max(0,finite(row?.readyDeadlineWeek)-week):0;
+    const statusLabel=status==='pending'?'打診中':status==='ready'?'案件化成功・ボード待ち':status==='success'?'案件化成功':row?.reason==='window-expired'?'投資機会失効':'オーナー見送り';
+    return {id:String(row?.id||''),nodeID:String(row?.nodeID||''),sourceType:String(row?.sourceType||'人脈'),sourcePathType:String(row?.sourcePathType||'referrer'),sourceTrust:finite(row?.sourceTrust),tierID:String(row?.tierID||''),startedWeek:finite(row?.startedWeek),responseWeek:finite(row?.responseWeek),status,statusLabel,weeksRemaining:remaining,successProbability:finite(row?.successProbability),targetID:row?.targetID?String(row.targetID):null,reason:row?.reason||null};
+  });
   return {
     actionsTotal,actionsUsed,actionsRemaining,nodeCount:rows.length,bestTrust:rows[0]?.trust||0,referralSourceID:referral?.id||null,referralSourceName:referral?.sourceType||null,
     nextSupplyWeeks:nextSupplyOffset,boardCount:liveTargets.length,boardCapacity:Math.max(0,finite(supply?.MAX_PE_TARGETS,8)),
-    accessCounts:{auction:liveTargets.filter(t=>!t.peNetworkAccess).length,referral:liveTargets.filter(t=>t.peNetworkAccess==='referral').length,limited:liveTargets.filter(t=>t.peNetworkAccess==='limited-auction').length,exclusive:liveTargets.filter(t=>t.peNetworkAccess==='exclusive').length},
+    accessCounts:{auction:liveTargets.filter(t=>!t.peNetworkAccess).length,referral:liveTargets.filter(t=>t.peNetworkAccess==='referral').length,limited:liveTargets.filter(t=>t.peNetworkAccess==='limited-auction').length,exclusive:liveTargets.filter(t=>t.peNetworkAccess==='exclusive').length,proprietary:liveTargets.filter(t=>t.dealChannel==='proprietary').length},
+    proprietary:{trustThreshold:proprietaryThreshold,outreachWeeks:Math.max(0,finite(supply?.PROPRIETARY_OUTREACH_WEEKS,13)),maxActive:Math.max(0,finite(supply?.PROPRIETARY_MAX_ACTIVE,3)),activeCount:activeCampaigns.length,hasInvestingFund,rows:proprietaryRows},
     rows
   };
 }
@@ -279,7 +291,7 @@ function normalizePortfolio(state,engine,{portfolioDealId=null,includeExitPrevie
   return {summary:{holdingCount:holdings.length,enterpriseValue,grossValue,totalInvested,unrealizedGain:grossValue-totalInvested,weightedMOIC:totalInvested>0?grossValue/totalInvested:0,personalCash:finite(state?.personalCash)},holdings,recentExits:recentExits.slice(0,12),selected,selectedExit,exitPreview:selected&&includeExitPreview?normalizeExitPreview(state,selected.fundID,selected.dealID):null};
 }
 function getPEUIData({dealId=null,acceptSellerTerm=false,bidPrice=null,portfolioDealId=null,includeExitPreview=false,gpCommit=null,promiseDecisions=null}={}){const {engine,state}=current();if(!state||!state.peFirm?.unlocked)return {unlocked:false,active:false,navigation:NAVIGATION,dashboard:null,deals:[],bid:null,portfolio:null,lpRelations:{rows:[],pending:0,positive:0}};const active=state.selectedTab==='pe-portfolio',deals=rawDeals(state).map(d=>normalizeDeal(state,d)),fund=activeFund(state),deploymentRatio=fund?pf.fundDeploymentRate(fund):0,deploymentGate=fund?pf.requiredDeploymentRate(fund):0,bid=dealId?normalizeDeal(state,rawDeals(state).find(d=>String(d.id)===String(dealId)),{acceptSellerTerm,bidPrice,deploymentRatio,deploymentGate}):null;return {unlocked:true,active,navigation:NAVIGATION,dashboard:dashboard(state,{gpCommit,promiseDecisions}),deals,bid,portfolio:normalizePortfolio(state,engine,{portfolioDealId,includeExitPreview}),sourcingNetwork:sourcingNetwork(state),lpRelations:lpRelations(state)};}
-function perform(action,payload={}){const {engine}=current();if(!engine)return false;const id=payload.dealId;if(action==='open')return engine.openMADealRoom(String(id).replace(/^target:/,''));if(action==='advance')return engine.advanceMADealRound(id);if(action==='dd')return engine.startMADueDiligence(id,'financial',payload.fundID||undefined);if(action==='bid')return engine.submitMAOffer(id,{method:'friendly',offerPrice:payload.price,acceptSellerTerm:payload.acceptSellerTerm});if(action==='drop')return engine.withdrawMADeal(id);if(action==='contactNetwork')return engine.contactPENetworkNode?.(payload.nodeID)??false;if(action==='solicitLP')return engine.solicitPELP?.(payload.lpTypeID)??false;if(action==='answerLPQuestions')return engine.answerPELPQuestions?.(payload.lpTypeID)??false;if(action==='formFund')return engine.formPEFund?.({gpCommit:payload.gpCommit,promiseDecisions:payload.promiseDecisions||null})??false;return false;}
+function perform(action,payload={}){const {engine}=current();if(!engine)return false;const id=payload.dealId;if(action==='open')return engine.openMADealRoom(String(id).replace(/^target:/,''));if(action==='advance')return engine.advanceMADealRound(id);if(action==='dd')return engine.startMADueDiligence(id,'financial',payload.fundID||undefined);if(action==='bid')return engine.submitMAOffer(id,{method:'friendly',offerPrice:payload.price,acceptSellerTerm:payload.acceptSellerTerm});if(action==='drop')return engine.withdrawMADeal(id);if(action==='contactNetwork')return engine.contactPENetworkNode?.(payload.nodeID)??false;if(action==='startProprietary')return engine.startPEProprietarySourcing?.(payload.nodeID)??false;if(action==='solicitLP')return engine.solicitPELP?.(payload.lpTypeID)??false;if(action==='answerLPQuestions')return engine.answerPELPQuestions?.(payload.lpTypeID)??false;if(action==='formFund')return engine.formPEFund?.({gpCommit:payload.gpCommit,promiseDecisions:payload.promiseDecisions||null})??false;return false;}
 // Management actions require actionsEnabled here as well as in the UI. This defense-in-depth gate
 // prevents stale/bypassed D UI calls from reaching production writes for pillars whose detached
 // operating bridge is not connected yet. Every write stays inside pePortfolioOperations.
