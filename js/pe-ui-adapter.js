@@ -31,7 +31,7 @@ function fundCapitalSnapshot(state,fund,index){
 function recentFundCapital(state){const funds=arr(state?.peFirm?.funds);return funds.map((fund,index)=>fundCapitalSnapshot(state,fund,index)).slice(-2);}
 function multiFundDesk(state){
   const money=modules.dUIShell.money,funds=arr(state?.peFirm?.funds),dd=pf.currentDDUsage(state,state?.week),rows=funds.map((fund,index)=>{
-    const activeDeals=pf.activeDealCount(fund),team=pf.teamCapacity(fund),slots=pf.slotCapacity(fund),cash=Math.max(0,finite(fund.cash)),investing=fund.status==='investing';
+    const activeDeals=typeof pf.activeDealCount==='function'?pf.activeDealCount(fund):arr(fund?.deals).filter(deal=>deal?.status!=='exited').length,team=typeof pf.teamCapacity==='function'?pf.teamCapacity(fund):0,slots=typeof pf.slotCapacity==='function'?pf.slotCapacity(fund):0,cash=Math.max(0,finite(fund.cash)),investing=fund.status==='investing';
     return {id:String(fund.id),ordinal:index+1,status:String(fund.status||'unknown'),size:finite(fund.size),sizeLabel:money(finite(fund.size)),teamCapacity:team,activeDeals,slotCapacity:slots,slotRemaining:Math.max(0,slots-activeDeals),cash,cashLabel:money(cash),investableCash:investing?cash:0,investableCashLabel:money(investing?cash:0),deploymentRatio:pf.fundDeploymentRate(fund),dpi:pf.fundDPI(fund)};
   });
   const live=rows.filter(row=>row.status!=='closed'),liveAUM=live.reduce((sum,row)=>sum+row.size,0);
