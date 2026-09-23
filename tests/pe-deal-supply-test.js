@@ -238,7 +238,53 @@ const ds = modules.peDealSupply, pf = modules.peFund, tiers = modules.peIndustry
   if (first) assert.equal(peTargets(main, e).filter(t => t.id === first.id).length, 1, 'no duplicate target');
 }
 
-// 11. No new Math.random()/Date.now()/randomUUID usage.
+// 11. Multi-fund supply uses the union of every investing vehicle's eligible tiers rather
+// than silently filtering only by the newest fund.
+{
+  const e = setupFirm(main);
+  e.g.peFirm.funds = [];
+  const oldFund = pf.createFund(e.g,{size:3_000_000_000,gpCommit:0,terms:pf.fundTermsForScore(20),y0:1});
+  const newFund = pf.createFund(e.g,{size:120_000_000_000,gpCommit:0,terms:pf.fundTermsForScore(40),y0:2});
+  const oldEligible = new Set(tiers.eligibleTiers(oldFund));
+  const newEligible = new Set(tiers.eligibleTiers(newFund));
+  const oldOnly = [...oldEligible].find(id=>!newEligible.has(id));
+  assert.ok(oldOnly,'test setup requires a tier eligible to the older fund but not the newest fund');
+  assert.deepEqual([...ds.activeInvestingFunds(e.g)].map(f=>f.id),[oldFund.id,newFund.id]);
+  assert.ok(ds.eligibleTierSetForFunds([oldFund,newFund]).has(oldOnly));
+  let match=null;
+  for(let year=0;year<200&&!match;year++){
+    const deals=tiers.generateAnnualDeals(e.g,year);
+    for(let q=0;q<deals.length;q++)if(deals[q].tierID===oldOnly){match={year,q,deal:deals[q]};break;}
+  }
+  assert.ok(match,'deterministic annual supply must eventually contain the older-fund-only tier');
+  const week=match.year*52+match.q*ds.SUPPLY_INTERVAL_WEEKS+1;
+  e.g.week=week;e.g.peFirm.lastDealSupplyWeek=week-1;e.g.acquisitionTargets=[];
+  const supplied=ds.processSupplyWeek(e.g,week);
+  assert.ok(supplied,'union eligibility must allow an opportunity that only the older investing fund can pursue');
+  assert.equal(supplied.peTierID,oldOnly);
+  assert.deepEqual(ds.eligibleInvestingFundsForTarget(e.g,supplied).map(f=>f.id),[oldFund.id]);
+}
+// 12. With two eligible investing funds the player must pick one at DD; the explicit fundID is
+// then persisted on the deal and follows the existing acquisition path.
+{
+  const e=setupFirm(main);
+  e.g.peFirm.funds=[];
+  const f1=pf.createFund(e.g,{size:20_000_000_000,gpCommit:0,terms:pf.fundTermsForScore(30),y0:1});
+  const f2=pf.createFund(e.g,{size:20_000_000_000,gpCommit:0,terms:pf.fundTermsForScore(30),y0:2});
+  const common=tiers.eligibleTiers(f1).find(id=>tiers.eligibleTiers(f2).includes(id));
+  assert.ok(common);
+  const synthetic=ds.buildTargetFromDeal({...tiers.generateDeal(9,1),tierID:common},e.g.week);
+  e.g.acquisitionTargets.push(synthetic);
+  modules.maDealRoom.initializeTarget?.(synthetic,e.g);
+  assert.equal(e.openMADealRoom(synthetic.id),true);
+  const deal=e.g.maDealRooms.find(d=>d.targetID===synthetic.id);
+  assert.equal(ds.eligibleInvestingFundsForTarget(e.g,synthetic).length,2);
+  assert.equal(e.startMADueDiligence(deal.id,'screening'),false,'ambiguous multi-fund DD requires an explicit vehicle');
+  assert.equal(e.startMADueDiligence(deal.id,'screening',f2.id),true);
+  assert.equal(deal.fundID,f2.id,'selected vehicle is frozen on the deal');
+}
+
+// 13. No new Math.random()/Date.now()/randomUUID usage.
 {
   const src = fs.readFileSync('js/pe-deal-supply.js', 'utf8');
   assert.ok(!src.includes('Math.random()'));
