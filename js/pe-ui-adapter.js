@@ -1,7 +1,7 @@
 // PE UI boundary: production internals enter here and leave as normalized, read-only data.
 (function(){'use strict';
 const modules=globalThis.__capitalismTycoonModules;if(!modules?.peFund||!modules?.maDealRoom)throw new Error('PE production modules must load before pe-ui-adapter.js.');
-const pf=modules.peFund,ma=modules.maDealRoom,portfolio=modules.pePortfolioOperations,management=modules.managementContext,network=modules.peNetwork,bridge=modules.playerEngineBridge,ACTIVE=new Set([...ma.activeStatuses()]);
+const pf=modules.peFund,ma=modules.maDealRoom,portfolio=modules.pePortfolioOperations,management=modules.managementContext,network=modules.peNetwork,supply=modules.peDealSupply,bridge=modules.playerEngineBridge,ACTIVE=new Set([...ma.activeStatuses()]);
 const NAVIGATION=Object.freeze([['fund','◫','ファンド'],['deals','◇','案件'],['portfolio','▦','保有'],['network','◎','人脈'],['record','▤','記録']]);
 const DECISION_LIMIT=3,FINAL_BID_URGENT_WEEKS=4,INVESTMENT_RISK_FRACTION=.25,DEADLINE_CRITICAL_WEEKS=10,DD_OPPORTUNITY_WEEKS=8,NETWORK_WARNING_MARGIN=5;
 const finite=v=>Number.isFinite(Number(v))?Number(v):0,arr=v=>Array.isArray(v)?v:[];
@@ -12,7 +12,14 @@ function rawDeals(state){const rooms=arr(state?.maDealRooms).filter(d=>ACTIVE.ha
 function actionFor(deal){return deal.status==='available'?{id:'open',label:'詳細を見る'}:deal.status==='screening'?{id:'advance',label:'意向表明へ'}:deal.status==='indication'?{id:'dd',label:'DDへ'}:deal.status==='ready'?{id:'advance',label:'最終入札へ'}:{id:'bid',label:'最終入札'};}
 function preferDrop(price,valuation,participants,deploymentRatio,deploymentGate){const maximum=finite(valuation?.maximum),bidPrice=finite(price),overpayRisk=bidPrice>=maximum,priceRisk=bidPrice>=maximum*.95,aggressiveCompetition=arr(participants).some(p=>p?.id==='foreign-major'||p?.id==='strategic-buyer'),deploymentMet=finite(deploymentRatio)>=finite(deploymentGate)&&finite(deploymentGate)>0;return overpayRisk||aggressiveCompetition||(deploymentMet&&priceRisk);}
 function normalizeParticipants(state,deal){const metadata=arr(modules.peRivals?.ROSTER).concat(arr(state?.peRivals)),byID=new Map(metadata.map(r=>[String(r?.id||''),r]));return arr(deal?.competingBids).filter(b=>b?.status==='active').map(b=>{const id=String(b.bidderID),rival=byID.get(id);return {id,name:String(b.bidderName||rival?.name||id),aggressiveness:finite(rival?.aggressiveness)};});}
-function normalizeDeal(state,deal,{acceptSellerTerm=false,bidPrice=null,deploymentRatio=0,deploymentGate=0}={}){const target=targetFor(state,deal),seller=ma.SELLER_TYPES[target?.sellerType],hasRoom=!String(deal?.id).startsWith('target:'),range=hasRoom&&target?ma.recommendedOfferRange(state,target,deal,{acceptSellerTerm:Boolean(acceptSellerTerm&&seller?.termID)}):null,participants=normalizeParticipants(state,deal);return {id:String(deal?.id||''),title:String(target?.name||'名称未設定'),industry:String(target?.industry||target?.type||'事業会社'),band:String(target?.peTierID||''),sellerType:{id:String(target?.sellerType||''),label:String(seller?.name||'売り手')},sellerPriorities:[{id:String(seller?.termID||'price'),label:String(seller?.wants||'価格条件'),importance:'primary'}],stage:{id:String(deal?.status||'available'),label:String(ma.STATUS_LABELS[deal?.status]||deal?.status||'未着手')},deadline:{weeksRemaining:Math.max(0,finite(deal?.deadlineWeek)-finite(state?.week)),urgency:finite(deal?.deadlineWeek)-finite(state?.week)<=FINAL_BID_URGENT_WEEKS?'urgent':'normal'},valuation:range?{minimum:range.recommendedMinimumPrice,maximum:range.recommendedMaximumPrice,confidence:range.confidence,termDiscount:range.sellerTermEquivalentDiscount}:null,participants,sourcingType:String(target?.dealChannel||'auction'),sourcing:{trust:Number.isFinite(Number(target?.peSourceTrustAtSupply))?finite(target.peSourceTrustAtSupply):null,access:String(target?.peNetworkAccess||target?.dealChannel||'auction'),qualityScore:Number.isFinite(Number(target?.peNetworkQualityScore))?finite(target.peNetworkQualityScore):null,competitionMultiplier:Number.isFinite(Number(target?.peCompetitionMultiplier))?finite(target.peCompetitionMultiplier):1},availableTerms:seller?.termID?[{id:seller.termID,label:seller.termLabel}]:[],selectedTerms:acceptSellerTerm&&seller?.termID?[seller.termID]:[],recommendDrop:range?preferDrop(bidPrice??range.recommendedMinimumPrice,{minimum:range.recommendedMinimumPrice,maximum:range.recommendedMaximumPrice},participants,deploymentRatio,deploymentGate):false,availableActions:[actionFor(deal)]};}
+function dealFundChoices(state,target,deal){
+  const money=modules.dUIShell.money,funds=typeof supply?.eligibleInvestingFundsForTarget==='function'?supply.eligibleInvestingFundsForTarget(state,target):[];
+  return funds.map(fund=>{
+    const index=arr(state?.peFirm?.funds).indexOf(fund),slots=Math.max(0,pf.slotCapacity(fund)-pf.activeDealCount(fund)),cash=Math.max(0,finite(fund.cash)),singleLimit=Math.min(cash,finite(pf.maxSingleDealSize(fund)));
+    return {id:String(fund.id),ordinal:index+1,label:`Fund ${index+1}`,size:finite(fund.size),sizeLabel:money(finite(fund.size)),cash,cashLabel:money(cash),singleDealLimit:singleLimit,singleDealLimitLabel:money(singleLimit),slotsRemaining:slots,deploymentRatio:pf.fundDeploymentRate(fund),selected:String(deal?.fundID||'')===String(fund.id)};
+  });
+}
+function normalizeDeal(state,deal,{acceptSellerTerm=false,bidPrice=null,deploymentRatio=0,deploymentGate=0}={}){const target=targetFor(state,deal),seller=ma.SELLER_TYPES[target?.sellerType],hasRoom=!String(deal?.id).startsWith('target:'),range=hasRoom&&target?ma.recommendedOfferRange(state,target,deal,{acceptSellerTerm:Boolean(acceptSellerTerm&&seller?.termID)}):null,participants=normalizeParticipants(state,deal),fundChoices=dealFundChoices(state,target,deal),assignedFundID=deal?.fundID?String(deal.fundID):null;return {id:String(deal?.id||''),title:String(target?.name||'名称未設定'),industry:String(target?.industry||target?.type||'事業会社'),band:String(target?.peTierID||''),sellerType:{id:String(target?.sellerType||''),label:String(seller?.name||'売り手')},sellerPriorities:[{id:String(seller?.termID||'price'),label:String(seller?.wants||'価格条件'),importance:'primary'}],stage:{id:String(deal?.status||'available'),label:String(ma.STATUS_LABELS[deal?.status]||deal?.status||'未着手')},deadline:{weeksRemaining:Math.max(0,finite(deal?.deadlineWeek)-finite(state?.week)),urgency:finite(deal?.deadlineWeek)-finite(state?.week)<=FINAL_BID_URGENT_WEEKS?'urgent':'normal'},valuation:range?{minimum:range.recommendedMinimumPrice,maximum:range.recommendedMaximumPrice,confidence:range.confidence,termDiscount:range.sellerTermEquivalentDiscount}:null,participants,fundChoices,assignedFundID,assignedFundLabel:assignedFundID?(fundChoices.find(row=>row.id===assignedFundID)?.label||assignedFundID):null,sourcingType:String(target?.dealChannel||'auction'),sourcing:{trust:Number.isFinite(Number(target?.peSourceTrustAtSupply))?finite(target.peSourceTrustAtSupply):null,access:String(target?.peNetworkAccess||target?.dealChannel||'auction'),qualityScore:Number.isFinite(Number(target?.peNetworkQualityScore))?finite(target.peNetworkQualityScore):null,competitionMultiplier:Number.isFinite(Number(target?.peCompetitionMultiplier))?finite(target.peCompetitionMultiplier):1},availableTerms:seller?.termID?[{id:seller.termID,label:seller.termLabel}]:[],selectedTerms:acceptSellerTerm&&seller?.termID?[seller.termID]:[],recommendDrop:range?preferDrop(bidPrice??range.recommendedMinimumPrice,{minimum:range.recommendedMinimumPrice,maximum:range.recommendedMaximumPrice},participants,deploymentRatio,deploymentGate):false,availableActions:[actionFor(deal)]};}
 function portfolioAlerts(state){const rows=[];for(const fund of arr(state?.peFirm?.funds))for(const deal of arr(fund?.deals)){const pc=deal?.portfolioCompany;if(deal?.status!=='active'||!pc)continue;const factors=portfolio?.leverFactors?.(pc,state?.week);if(!factors||!(finite(factors.procurementDrag)>0||finite(factors.laborDrag)>0||finite(factors.sideEffectFactor)<1))continue;const causes=[finite(factors.procurementDrag)>0?'仕入れ改革':null,finite(factors.laborDrag)>0?'人員・賃金施策':null].filter(Boolean).join('・');rows.push({id:`p4-${deal.id}`,type:'portfolioSideEffect',priority:4,deadlineWeeks:Infinity,urgency:'watch',eyebrow:'PORTFOLIO SIDE EFFECT',title:String(deal.name||deal.businessID||'保有先'),description:`${causes}の遅延副作用が進行中`,action:null});}return rows;}
 function networkAlerts(state){const gate=finite(network?.MONOPOLY_TRUST_THRESHOLD),approaching=gate+NETWORK_WARNING_MARGIN;return arr(state?.peNetwork?.nodes).filter(n=>finite(n?.lastContactWeek)<finite(state?.week)&&finite(n?.trust)<=approaching).map(n=>{const lost=finite(n.trust)<gate;return {id:`p5-${n.id}`,type:'network',priority:5,deadlineWeeks:Infinity,urgency:lost?'risk':'warning',eyebrow:lost?'NETWORK ACCESS LOST':'NETWORK AT RISK',title:String(n.sourceType||n.pathType||'人脈'),description:lost?`Trust ${finite(n.trust).toFixed(0)} · 独占案件アクセス条件を下回っています`:`Trust ${finite(n.trust).toFixed(0)} · 独占案件アクセス喪失が近づいています`,action:null,networkStatus:lost?'lostThreshold':'approachingThreshold'};});}
 function decisions(state,fund,deals,metrics){const rows=[];for(const d of deals)if(d.stage.id==='final_bid'&&d.deadline.weeksRemaining<=FINAL_BID_URGENT_WEEKS)rows.push({id:`p1-${d.id}`,type:'finalBid',priority:1,deadlineWeeks:d.deadline.weeksRemaining,urgency:'critical',eyebrow:'最終入札',title:d.title,description:`残り${d.deadline.weeksRemaining}週 · 売り手重視: ${d.sellerPriorities[0].label}`,action:{id:'bid',dealId:d.id,label:'入札を確認'}});if(fund&&metrics.investmentPeriod.severity!=='normal')rows.push({id:`p2-${fund.id}`,type:'deploymentRisk',priority:2,deadlineWeeks:metrics.investmentPeriod.weeksRemaining,urgency:'risk',eyebrow:'PROGRESSION RISK',title:`投資期間終了まで ${metrics.investmentPeriod.weeksRemaining}週`,description:`未投資 ${metrics.capital.undeployedLabel} · Deployment ${(metrics.capital.deploymentRatio*100).toFixed(0)}% / 条件 ${(metrics.performance.deploymentGate*100).toFixed(0)}%`,action:{id:'deals',label:'案件を見る'}});for(const d of deals)if(metrics.diligence.remaining>0&&d.stage.id==='indication'&&d.deadline.weeksRemaining<=DD_OPPORTUNITY_WEEKS)rows.push({id:`p3-${d.id}`,type:'ddOpportunity',priority:3,deadlineWeeks:d.deadline.weeksRemaining,urgency:'warning',eyebrow:'DD OPPORTUNITY',title:`DD枠が${metrics.diligence.remaining}件残っています`,description:`${d.title} · 期限まで${d.deadline.weeksRemaining}週`,action:{id:'dd',dealId:d.id,label:'DDを実行'}});return rows.concat(portfolioAlerts(state),networkAlerts(state)).sort((a,b)=>a.priority-b.priority||a.deadlineWeeks-b.deadlineWeeks||a.id.localeCompare(b.id)).slice(0,DECISION_LIMIT);}
@@ -22,16 +29,208 @@ function fundCapitalSnapshot(state,fund,index){
   return {id:String(fund?.id||''),ordinal:index+1,status:String(fund?.status||'unknown'),size:Math.max(0,finite(fund?.size)),sizeLabel:money(Math.max(0,finite(fund?.size))),invested,investedLabel:money(invested),fundCash:cash,fundCashLabel:money(cash),investableCash:investable,investableCashLabel:money(investable),reserve,reserveLabel:money(reserve),dpi:typeof pf.fundDPI==='function'?pf.fundDPI(fund):0,deploymentRatio:deployment};
 }
 function recentFundCapital(state){const funds=arr(state?.peFirm?.funds);return funds.map((fund,index)=>fundCapitalSnapshot(state,fund,index)).slice(-2);}
-function fundFormation(state,gpCommit=null){
-  const money=modules.dUIShell.money;
-  if(typeof pf.planFundFormation!=='function')return {available:false,ok:false,reason:'unavailable',message:'ファンド組成機能を利用できません。',personalCash:finite(state?.personalCash),personalCashLabel:money(finite(state?.personalCash))};
-  const maxPlan=pf.planFundFormation(state);
-  if(!maxPlan.ok)return {available:false,ok:false,reason:maxPlan.reason||'unavailable',message:String(maxPlan.message||'ファンドを組成できません。'),personalCash:finite(state?.personalCash),personalCashLabel:money(finite(state?.personalCash)),maxSize:0,maxSizeLabel:money(0),maxGpCommit:0,maxGpCommitLabel:money(0),selectedGpCommit:0,selectedGpCommitLabel:money(0),size:0,sizeLabel:money(0),ratio:0};
-  const selected=gpCommit===null||gpCommit===undefined||gpCommit===''?maxPlan.gpCommit:Number(gpCommit);
-  const plan=pf.planFundFormation(state,{gpCommit:selected});
-  return {available:true,ok:Boolean(plan.ok),reason:plan.reason||null,message:plan.ok?null:String(plan.message||'ファンドを組成できません。'),personalCash:finite(state?.personalCash),personalCashLabel:money(finite(state?.personalCash)),maxSize:finite(maxPlan.maxSize,maxPlan.size),maxSizeLabel:money(finite(maxPlan.maxSize,maxPlan.size)),maxGpCommit:finite(maxPlan.maxGpCommit,maxPlan.gpCommit),maxGpCommitLabel:money(finite(maxPlan.maxGpCommit,maxPlan.gpCommit)),selectedGpCommit:Number.isFinite(selected)?selected:0,selectedGpCommitLabel:money(Number.isFinite(selected)?selected:0),size:plan.ok?finite(plan.size):0,sizeLabel:money(plan.ok?finite(plan.size):0),ratio:finite(maxPlan.ratio),terms:maxPlan.terms||null};
+function multiFundDesk(state){
+  const money=modules.dUIShell.money,funds=arr(state?.peFirm?.funds),dd=typeof pf.currentDDUsage==='function'?pf.currentDDUsage(state,state?.week):{used:0},rows=funds.map((fund,index)=>{
+    const activeDeals=typeof pf.activeDealCount==='function'?pf.activeDealCount(fund):arr(fund?.deals).filter(deal=>deal?.status==='active').length;
+    const team=typeof pf.teamCapacity==='function'?pf.teamCapacity(fund):0;
+    const slots=typeof pf.slotCapacity==='function'?pf.slotCapacity(fund):0;
+    const cash=Math.max(0,finite(fund.cash)),investing=fund.status==='investing';
+    return {id:String(fund.id),ordinal:index+1,status:String(fund.status||'unknown'),size:finite(fund.size),sizeLabel:money(finite(fund.size)),teamCapacity:team,activeDeals,slotCapacity:slots,slotRemaining:Math.max(0,slots-activeDeals),cash,cashLabel:money(cash),investableCash:investing?cash:0,investableCashLabel:money(investing?cash:0),deploymentRatio:typeof pf.fundDeploymentRate==='function'?pf.fundDeploymentRate(fund):0,dpi:typeof pf.fundDPI==='function'?pf.fundDPI(fund):0};
+  });
+  const live=rows.filter(row=>row.status!=='closed'),liveAUM=live.reduce((sum,row)=>sum+row.size,0);
+  return {rows:rows.slice(-6),investingCount:rows.filter(row=>row.status==='investing').length,harvestingCount:rows.filter(row=>row.status==='harvesting').length,liveAUM,liveAUMLabel:money(liveAUM),sharedDD:{used:finite(dd?.used),total:typeof pf.ddSlotsPerYear==='function'?pf.ddSlotsPerYear(state):0,remaining:typeof pf.ddSlotsRemaining==='function'?pf.ddSlotsRemaining(state,state?.week):0}};
 }
-function dashboard(state,{gpCommit=null}={}){const fund=activeFund(state),deals=rawDeals(state).map(d=>normalizeDeal(state,d)),formation=fundFormation(state,gpCommit);if(!fund)return {fund:null,formation,investmentPeriod:{weeksRemaining:0,progress:0,isUrgent:false,severity:'normal'},capital:{undeployed:0,undeployedLabel:'0円',invested:0,investedLabel:'0円',fundCash:0,fundCashLabel:'0円',investableCash:0,investableCashLabel:'0円',reserve:0,reserveLabel:'0円',singleDealLimit:0,singleDealLimitLabel:'0円',coinvestRemaining:0,coinvestRemainingLabel:'0円',deploymentRatio:0},fundComparison:[],slots:{used:0,total:0,remaining:0},diligence:{used:0,total:0,remaining:0},performance:{dpi:0,nextFundDpiGate:pf.NEXT_FUND_MIN_DPI,deploymentGate:pf.NEXT_FUND_MIN_DEPLOYMENT,normalGateMet:false,nextFundEligible:false,rescue:{available:false,newExits:0,requiredExits:pf.RESCUE_MIN_NEW_EXITS||0,exitsRemaining:pf.RESCUE_MIN_NEW_EXITS||0,currentScore:finite(state?.peFirm?.trackRecord?.score),requiredScore:0,scoreRemaining:0}},decisions:[],dealCount:deals.length};const remaining=Math.max(0,finite(fund.investmentDeadlineWeek)-finite(state.week)),totalSlots=pf.slotCapacity(fund),usedSlots=pf.activeDealCount(fund),ddUsage=pf.currentDDUsage(state,state.week),dpi=pf.fundDPI(fund),deployment=pf.fundDeploymentRate(fund),deploymentGate=pf.requiredDeploymentRate(fund),fundIndex=arr(state.peFirm?.funds).indexOf(fund),snapshot=fundCapitalSnapshot(state,fund,fundIndex),fundCash=snapshot.fundCash,investableCash=snapshot.investableCash,singleDealLimit=Math.min(investableCash,typeof pf.maxSingleDealSize==='function'?finite(pf.maxSingleDealSize(fund)):0),coinvestRemaining=fund.status==='investing'&&typeof pf.coinvestRemaining==='function'?finite(pf.coinvestRemaining(fund)):0,money=modules.dUIShell.money,capital={undeployed:fundCash,undeployedLabel:money(fundCash),invested:snapshot.invested,investedLabel:snapshot.investedLabel,fundCash,fundCashLabel:snapshot.fundCashLabel,investableCash,investableCashLabel:snapshot.investableCashLabel,reserve:snapshot.reserve,reserveLabel:snapshot.reserveLabel,singleDealLimit,singleDealLimitLabel:money(singleDealLimit),coinvestRemaining,coinvestRemainingLabel:money(coinvestRemaining),deploymentRatio:deployment},diligence={used:ddUsage.used,total:pf.ddSlotsPerYear(state),remaining:pf.ddSlotsRemaining(state,state.week)},normalGateMet=dpi>=pf.NEXT_FUND_MIN_DPI&&deployment>=deploymentGate,newExits=typeof pf.newExitsSinceFund==='function'?finite(pf.newExitsSinceFund(state,fund)):0,requiredExits=finite(pf.RESCUE_MIN_NEW_EXITS),requiredScore=Math.min(100,finite(fund.trackScoreAtFormation)+finite(pf.RESCUE_MIN_SCORE_GAIN)),currentScore=finite(state.peFirm?.trackRecord?.score),rescue={available:typeof pf.gateRescueAvailable==='function'?Boolean(pf.gateRescueAvailable(state,fund)):false,newExits,requiredExits,exitsRemaining:Math.max(0,requiredExits-newExits),currentScore,requiredScore,scoreRemaining:Math.max(0,requiredScore-currentScore)},performance={dpi,nextFundDpiGate:pf.NEXT_FUND_MIN_DPI,deploymentGate,normalGateMet,nextFundEligible:typeof pf.canFormNextFund==='function'?Boolean(pf.canFormNextFund(state)):normalGateMet,rescue},model={formation,fund:{id:String(fund.id),name:String(fund.name||'Japan Growth Buyout Fund'),ordinal:fundIndex+1,size:finite(fund.size),sizeLabel:money(fund.size),status:String(fund.status)},investmentPeriod:investmentPeriod(remaining,deployment,deploymentGate),capital,fundComparison:recentFundCapital(state),slots:{used:usedSlots,total:totalSlots,remaining:Math.max(0,totalSlots-usedSlots)},diligence,performance,dealCount:deals.length};model.decisions=decisions(state,fund,deals,model);return model;}
+function latestExitLPFeedback(state){
+  let latest=null;
+  arr(state?.peFirm?.funds).forEach((fund,index)=>arr(fund?.deals).forEach(deal=>{
+    if(deal?.status!=='exited'||!deal?.exitAttribution)return;
+    const week=Math.max(0,finite(deal.exitedWeek));
+    if(!latest||week>latest.exitedWeek)latest={fundID:String(fund.id),fundOrdinal:index+1,dealID:String(deal.id),companyName:String(deal.companyName||businessLabel(deal.businessID)||deal.id),exitedWeek:week,attribution:normalizeExitAttribution(deal.exitAttribution),feedback:normalizeLPExitFeedback(deal.exitLPFeedback||portfolio?.lpExitFeedback?.(deal.exitAttribution))};
+  }));
+  return latest;
+}
+function fundFormation(state,gpCommit=null,promiseDecisions=null){
+  const money=modules.dUIShell.money;
+  if(typeof pf.planFundFormation!=='function')return {available:false,ok:false,reason:'unavailable',message:'ファンド組成機能を利用できません。',personalCash:finite(state?.personalCash),personalCashLabel:money(finite(state?.personalCash)),latestExitFeedback:latestExitLPFeedback(state)};
+  const maxPlan=pf.planFundFormation(state);
+  if(!maxPlan.ok)return {available:false,ok:false,reason:maxPlan.reason||'unavailable',message:String(maxPlan.message||'ファンドを組成できません。'),personalCash:finite(state?.personalCash),personalCashLabel:money(finite(state?.personalCash)),maxSize:0,maxSizeLabel:money(0),maxGpCommit:0,maxGpCommitLabel:money(0),selectedGpCommit:0,selectedGpCommitLabel:money(0),size:0,sizeLabel:money(0),ratio:0,lps:[],latestExitFeedback:latestExitLPFeedback(state)};
+  const selected=gpCommit===null||gpCommit===undefined||gpCommit===''?maxPlan.gpCommit:Number(gpCommit);
+  const plan=typeof pf.fundraisingBook==='function'?pf.fundraisingBook(state,{gpCommit:selected,promiseDecisions}):pf.planFundFormation(state,{gpCommit:selected});
+  const lps=arr(plan.lps).map(row=>({
+    id:String(row.lpTypeID||''),name:String(row.name||row.lpTypeID||''),scale:String(row.scale||''),source:String(row.source||'eligible'),
+    sourceLabel:row.source==='continuing'?'継続LP':row.source==='ddq-positive'?'DDQ通過':'面談条件達成',
+    committedAmount:finite(row.committedAmount),committedAmountLabel:money(finite(row.committedAmount)),
+    promiseID:row.promiseID?String(row.promiseID):null,promiseLabel:row.promiseLabel?String(row.promiseLabel):null,promiseRuleLabel:row.promiseRuleLabel?String(row.promiseRuleLabel):null,riskLabel:row.riskLabel?String(row.riskLabel):null,promiseAccepted:Boolean(row.promiseAccepted)
+  }));
+  return {available:true,ok:Boolean(plan.ok),reason:plan.reason||null,message:plan.ok?null:String(plan.message||'ファンドを組成できません。'),personalCash:finite(state?.personalCash),personalCashLabel:money(finite(state?.personalCash)),maxSize:finite(maxPlan.maxSize,maxPlan.size),maxSizeLabel:money(finite(maxPlan.maxSize,maxPlan.size)),maxGpCommit:finite(maxPlan.maxGpCommit,maxPlan.gpCommit),maxGpCommitLabel:money(finite(maxPlan.maxGpCommit,maxPlan.gpCommit)),selectedGpCommit:Number.isFinite(selected)?selected:0,selectedGpCommitLabel:money(Number.isFinite(selected)?selected:0),size:plan.ok?finite(plan.size):0,sizeLabel:money(plan.ok?finite(plan.size):0),ratio:finite(maxPlan.ratio),terms:plan.terms||maxPlan.terms||null,lpContributed:finite(plan.lpContributed),lpContributedLabel:money(finite(plan.lpContributed)),lpTrustMultiplier:finite(plan.lpTrustMultiplier,1),priorPromiseMultiplier:finite(plan.priorPromiseMultiplier,1),latestExitFeedback:latestExitLPFeedback(state),lps};
+}
+function nextFundOutlook(state,fund,{dpi=null,deployment=null,deploymentGate=null,remaining=null}={}){
+  const money=modules.dUIShell.money,size=Math.max(0,finite(fund?.size)),currentDPI=dpi===null?pf.fundDPI(fund):Math.max(0,finite(dpi)),currentDeployment=deployment===null?pf.fundDeploymentRate(fund):Math.max(0,finite(deployment)),requiredDeployment=deploymentGate===null?pf.requiredDeploymentRate(fund):Math.max(0,finite(deploymentGate)),weeksRemaining=remaining===null?Math.max(0,finite(fund?.investmentDeadlineWeek)-finite(state?.week)):Math.max(0,finite(remaining)),investing=fund?.status==='investing'&&weeksRemaining>0;
+  const feePeriodsAtMaturity=Math.max(0,Math.floor((finite(fund?.investmentDeadlineWeek)-finite(fund?.y0))/52)),paidFeePeriods=Math.max(0,Math.floor(finite(fund?.lastManagementFeePeriod))),remainingFeePeriods=investing?Math.max(0,feePeriodsAtMaturity-paidFeePeriods):0,annualFee=typeof pf.annualManagementFee==='function'?Math.max(0,finite(pf.annualManagementFee(fund))):0,currentCash=Math.max(0,finite(fund?.cash)),scheduledManagementFees=Math.min(currentCash,annualFee*remainingFeePeriods),cashReturnEstimate=investing?Math.max(0,currentCash-scheduledManagementFees):0,projectedDPI=investing&&size>0?Math.max(0,(Math.max(0,finite(fund?.distributed))+cashReturnEstimate)/size):currentDPI;
+  const dpiMet=currentDPI>=pf.NEXT_FUND_MIN_DPI,deploymentMet=currentDeployment>=requiredDeployment,projectedDpiMet=projectedDPI>=pf.NEXT_FUND_MIN_DPI;
+  let status={id:'dpi-short',label:'DPI不足',tone:'risk'},explanation='資金消化条件は達成していますが、現在DPIが次号条件を下回っています。';
+  if(dpiMet&&deploymentMet){status={id:'met',label:'条件達成',tone:'good'};explanation='DPIと資金消化率の通常ルート条件を満たしています。';}
+  else if(!dpiMet&&deploymentMet&&investing&&projectedDpiMet){status={id:'projected',label:'満了時達成見込み',tone:'warning'};explanation='資金消化条件は達成済みです。追加投資・将来Exitを織り込まず、予定管理報酬控除後の残余cash返却だけでDPI条件へ届く参考見込みです。';}
+  else if(dpiMet&&!deploymentMet){status={id:'deployment-short',label:'資金消化率不足',tone:'risk'};explanation='DPI条件は達成していますが、資金消化率が次号条件を下回っています。';}
+  else if(!dpiMet&&!deploymentMet){status={id:'both-short',label:'DPI・消化率とも不足',tone:'risk'};explanation='現在はDPIと資金消化率の両方が通常ルート条件を下回っています。';}
+  return {currentDPI,projectedDPI,projectedDpiMet,hasProjection:investing,weeksRemaining,currentDeployment,requiredDeployment,status,explanation,annualManagementFee:annualFee,remainingFeePeriods,scheduledManagementFees,scheduledManagementFeesLabel:money(scheduledManagementFees),cashReturnEstimate,cashReturnEstimateLabel:money(cashReturnEstimate)};
+}
+function promiseCompliance(state,fund){
+  const rows=typeof pf.fundPromiseProgress==='function'?pf.fundPromiseProgress(fund,state?.week):[];
+  const normalized=rows.map(row=>{
+    const meta=pf.LP_TYPES?.[row.lpTypeID]||{},status=String(row.status||'pending');
+    let detail='評価中';
+    if(row.promiseID==='localInvestment')detail=`${Math.max(0,finite(row.progress))}/${Math.max(0,finite(row.target))}件`;
+    else if(row.promiseID==='quarterlyReporting')detail=finite(row.progress)>0?`未払い ${modules.dUIShell.money(finite(row.progress))}`:'未払いなし';
+    else if(row.promiseID==='investmentRestriction')detail=`違反 ${Math.max(0,finite(row.progress))}件`;
+    return {id:String(row.lpTypeID),name:String(meta.name||row.lpTypeID),promiseID:String(row.promiseID||''),label:String(row.label||meta.promiseRuleLabel||meta.promiseLabel||''),status,statusLabel:status==='fulfilled'?'履行':status==='broken'?'不履行':'進行中',detail,fulfilled:row.fulfilled};
+  });
+  return {rows:normalized,accepted:normalized.length,fulfilled:normalized.filter(row=>row.status==='fulfilled').length,broken:normalized.filter(row=>row.status==='broken').length,pending:normalized.filter(row=>row.status==='pending').length,multiplier:typeof pf.promiseComplianceMultiplier==='function'?finite(pf.promiseComplianceMultiplier(fund),1):1};
+}
+function dashboard(state,{gpCommit=null,promiseDecisions=null}={}){const fund=activeFund(state),deals=rawDeals(state).map(d=>normalizeDeal(state,d)),formation=fundFormation(state,gpCommit,promiseDecisions);if(!fund)return {fund:null,formation,investmentPeriod:{weeksRemaining:0,progress:0,isUrgent:false,severity:'normal'},capital:{undeployed:0,undeployedLabel:'0円',invested:0,investedLabel:'0円',fundCash:0,fundCashLabel:'0円',investableCash:0,investableCashLabel:'0円',reserve:0,reserveLabel:'0円',singleDealLimit:0,singleDealLimitLabel:'0円',coinvestRemaining:0,coinvestRemainingLabel:'0円',deploymentRatio:0},fundComparison:[],multiFund:multiFundDesk(state),promiseCompliance:{rows:[],accepted:0,fulfilled:0,broken:0,pending:0,multiplier:1},slots:{used:0,total:0,remaining:0},diligence:{used:0,total:0,remaining:0},performance:{dpi:0,nextFundDpiGate:pf.NEXT_FUND_MIN_DPI,deploymentGate:pf.NEXT_FUND_MIN_DEPLOYMENT,normalGateMet:false,nextFundEligible:false,outlook:{currentDPI:0,projectedDPI:0,projectedDpiMet:false,hasProjection:false,weeksRemaining:0,currentDeployment:0,requiredDeployment:pf.NEXT_FUND_MIN_DEPLOYMENT,status:{id:'dpi-short',label:'DPI不足',tone:'risk'},explanation:'次号ファンド条件を確認してください。',annualManagementFee:0,remainingFeePeriods:0,scheduledManagementFees:0,scheduledManagementFeesLabel:'0円',cashReturnEstimate:0,cashReturnEstimateLabel:'0円'},rescue:{available:false,newExits:0,requiredExits:pf.RESCUE_MIN_NEW_EXITS||0,exitsRemaining:pf.RESCUE_MIN_NEW_EXITS||0,currentScore:finite(state?.peFirm?.trackRecord?.score),requiredScore:0,scoreRemaining:0}},decisions:[],dealCount:deals.length};const remaining=Math.max(0,finite(fund.investmentDeadlineWeek)-finite(state.week)),totalSlots=pf.slotCapacity(fund),usedSlots=pf.activeDealCount(fund),ddUsage=pf.currentDDUsage(state,state.week),dpi=pf.fundDPI(fund),deployment=pf.fundDeploymentRate(fund),deploymentGate=pf.requiredDeploymentRate(fund),fundIndex=arr(state.peFirm?.funds).indexOf(fund),snapshot=fundCapitalSnapshot(state,fund,fundIndex),fundCash=snapshot.fundCash,investableCash=snapshot.investableCash,singleDealLimit=Math.min(investableCash,typeof pf.maxSingleDealSize==='function'?finite(pf.maxSingleDealSize(fund)):0),coinvestRemaining=fund.status==='investing'&&typeof pf.coinvestRemaining==='function'?finite(pf.coinvestRemaining(fund)):0,money=modules.dUIShell.money,capital={undeployed:fundCash,undeployedLabel:money(fundCash),invested:snapshot.invested,investedLabel:snapshot.investedLabel,fundCash,fundCashLabel:snapshot.fundCashLabel,investableCash,investableCashLabel:snapshot.investableCashLabel,reserve:snapshot.reserve,reserveLabel:snapshot.reserveLabel,singleDealLimit,singleDealLimitLabel:money(singleDealLimit),coinvestRemaining,coinvestRemainingLabel:money(coinvestRemaining),deploymentRatio:deployment},diligence={used:ddUsage.used,total:pf.ddSlotsPerYear(state),remaining:pf.ddSlotsRemaining(state,state.week)},normalGateMet=dpi>=pf.NEXT_FUND_MIN_DPI&&deployment>=deploymentGate,newExits=typeof pf.newExitsSinceFund==='function'?finite(pf.newExitsSinceFund(state,fund)):0,requiredExits=finite(pf.RESCUE_MIN_NEW_EXITS),requiredScore=Math.min(100,finite(fund.trackScoreAtFormation)+finite(pf.RESCUE_MIN_SCORE_GAIN)),currentScore=finite(state.peFirm?.trackRecord?.score),rescue={available:typeof pf.gateRescueAvailable==='function'?Boolean(pf.gateRescueAvailable(state,fund)):false,newExits,requiredExits,exitsRemaining:Math.max(0,requiredExits-newExits),currentScore,requiredScore,scoreRemaining:Math.max(0,requiredScore-currentScore)},outlook=nextFundOutlook(state,fund,{dpi,deployment,deploymentGate,remaining}),performance={dpi,nextFundDpiGate:pf.NEXT_FUND_MIN_DPI,deploymentGate,normalGateMet,nextFundEligible:typeof pf.canFormNextFund==='function'?Boolean(pf.canFormNextFund(state)):normalGateMet,outlook,rescue},model={formation,fund:{id:String(fund.id),name:String(fund.name||'Japan Growth Buyout Fund'),ordinal:fundIndex+1,size:finite(fund.size),sizeLabel:money(fund.size),status:String(fund.status)},investmentPeriod:investmentPeriod(remaining,deployment,deploymentGate),capital,fundComparison:recentFundCapital(state),multiFund:multiFundDesk(state),promiseCompliance:promiseCompliance(state,fund),slots:{used:usedSlots,total:totalSlots,remaining:Math.max(0,totalSlots-usedSlots)},diligence,performance,dealCount:deals.length};model.decisions=decisions(state,fund,deals,model);return model;}
+function sourcingAccess(trust){
+  const t=finite(trust);
+  if(t>=80)return {id:'buyer-referral',label:'買い手紹介・Referral供給',nextTrust:null,nextLabel:null};
+  if(t>=60)return {id:'exclusive',label:'独占案件候補',nextTrust:80,nextLabel:'買い手紹介・Referral供給'};
+  if(t>=40)return {id:'insider',label:'DD内部情報',nextTrust:60,nextLabel:'独占案件候補'};
+  if(t>=20)return {id:'limited',label:'限定入札招待',nextTrust:40,nextLabel:'DD内部情報'};
+  return {id:'building',label:'関係構築中',nextTrust:20,nextLabel:'限定入札招待'};
+}
+function normalizeSourcingCycle(row){
+  if(!row||typeof row!=='object')return null;
+  return {
+    week:Math.max(0,Math.floor(finite(row.week))),outcome:String(row.outcome||'unknown'),
+    investingFundCount:Math.max(0,Math.floor(finite(row.investingFundCount))),eligibleTierCount:Math.max(0,Math.floor(finite(row.eligibleTierCount))),
+    boardCountBefore:Math.max(0,Math.floor(finite(row.boardCountBefore))),boardCountAfter:Math.max(0,Math.floor(finite(row.boardCountAfter))),
+    tierID:row.tierID?String(row.tierID):null,primaryEligible:Boolean(row.primaryEligible),
+    monopolyCandidateCount:Math.max(0,Math.floor(finite(row.monopolyCandidateCount))),
+    highestMonopolyProbability:Math.max(0,finite(row.highestMonopolyProbability)),
+    highestMonopolyNodeID:row.highestMonopolyNodeID?String(row.highestMonopolyNodeID):null,
+    highestMonopolySourceType:row.highestMonopolySourceType?String(row.highestMonopolySourceType):null,
+    winningMonopolyNodeID:row.winningMonopolyNodeID?String(row.winningMonopolyNodeID):null,
+    primaryTargetID:row.primaryTargetID?String(row.primaryTargetID):null,primaryChannel:row.primaryChannel?String(row.primaryChannel):null,
+    referralTargetID:row.referralTargetID?String(row.referralTargetID):null,referralChannel:row.referralChannel?String(row.referralChannel):null
+  };
+}
+function exclusiveSourcingStatus(state,{week,rows,liveTargets,nextSupplyWeeks,boardCapacity,hasInvestingFund,eligibleTierCount,lastCycle}){
+  const exclusiveTargets=liveTargets.filter(target=>target?.peNetworkAccess==='exclusive');
+  const channels={
+    monopoly:exclusiveTargets.filter(target=>target?.dealChannel==='monopoly').length,
+    referral:exclusiveTargets.filter(target=>target?.dealChannel==='network-referral').length,
+    proprietary:exclusiveTargets.filter(target=>target?.dealChannel==='proprietary').length
+  };
+  const bestTrustRow=rows[0]||null,bestProbabilityRow=rows.slice().sort((a,b)=>finite(b?.monopolyProbability)-finite(a?.monopolyProbability)||finite(b?.trust)-finite(a?.trust)||String(a?.id||'').localeCompare(String(b?.id||'')))[0]||null;
+  const bestProbability=Math.max(0,finite(bestProbabilityRow?.monopolyProbability));
+  const threshold=Math.max(0,finite(network?.MONOPOLY_TRUST_THRESHOLD,60));
+  const trustGap=bestTrustRow?Math.max(0,threshold-finite(bestTrustRow.trust)):threshold;
+  const contactsNeeded=bestTrustRow&&trustGap>0?Math.ceil(trustGap/Math.max(1,finite(network?.CONTACT_TRUST_GAIN,4))):0;
+  const displaySource=bestProbability>0?bestProbabilityRow:bestTrustRow;
+  let id='waiting',tone='neutral',headline='独占案件 0件',detail='次回の四半期案件供給で独占判定が行われます。',nextAction='次回供給まで '+nextSupplyWeeks+'週';
+  if(exclusiveTargets.length){
+    id='active';tone='good';headline='独占案件 '+exclusiveTargets.length+'件';
+    detail='Monopoly '+channels.monopoly+' · Referral独占 '+channels.referral+' · Proprietary '+channels.proprietary;
+    nextAction='案件ボードからDD・入札へ進めます。';
+  }else if(!hasInvestingFund){
+    id='no-fund';tone='risk';detail='投資期間中のファンドがないため、四半期供給の独占判定対象になりません。';
+    nextAction='投資可能なFundを組成するか、次号Fundの投資期間を開始してください。';
+  }else if(eligibleTierCount<=0){
+    id='no-eligible-tier';tone='warning';detail='投資中Fundはありますが、現在アクセスできる対象Tierがありません。通常供給と独占判定の対象がありません。';
+    nextAction='Fund規模・投資期間を確認し、対象Tierを持つ投資可能Fundを用意してください。';
+  }else if(liveTargets.length>=boardCapacity){
+    id='board-full';tone='warning';detail='PE案件ボードが上限 '+boardCapacity+'件に達しており、新しい案件を追加できません。';
+    nextAction='既存案件をDD・見送り・Exitへ進めてボード枠を空けてください。';
+  }else if(!rows.length){
+    id='no-network';tone='warning';detail='独占判定に使える人脈ノードがまだありません。';
+    nextAction='銀行・CXO・仕入先・テナント・Exitなどから人脈を作ってください。';
+  }else if(finite(bestTrustRow.trust)<threshold){
+    id='trust';tone='warning';detail='最高Trustは '+finite(bestTrustRow.trust).toFixed(0)+'。通常の独占判定はTrust '+threshold+'からです。';
+    nextAction='あとTrust '+trustGap.toFixed(0)+'（接触約'+contactsNeeded+'回が目安）。';
+  }else if(bestProbability<=0){
+    id='threshold-zero';tone='warning';detail='Trust '+threshold+'で独占判定は解禁されますが、閾値ちょうどでは確率0%。Trust上昇で確率が伸びます。';
+    nextAction='接触してTrustを上げてください。今週残り '+Math.max(0,finite(state?.peNetwork?.weeklyActionsWeek)===week?finite(network?.WEEKLY_ACTIONS,2)-finite(state?.peNetwork?.weeklyActionsUsed):finite(network?.WEEKLY_ACTIONS,2))+' action。';
+  }else if(lastCycle?.outcome==='monopoly-missed'){
+    id='roll-missed';tone='neutral';detail='前回（第'+lastCycle.week+'週）は独占候補 '+lastCycle.monopolyCandidateCount+'人がいましたが、決定論的な案件判定で独占化しませんでした。';
+    nextAction='次回供給まで '+nextSupplyWeeks+'週。最高現在確率 '+(bestProbability*100).toFixed(0)+'%。';
+  }else if(lastCycle?.outcome==='tier-mismatch'){
+    id='tier-mismatch';tone='neutral';detail='前回（第'+lastCycle.week+'週）の通常案件帯 '+String(lastCycle.tierID||'—')+' は、投資中Fundの対象帯と一致しませんでした。';
+    nextAction='次回供給まで '+nextSupplyWeeks+'週。Referral / Proprietaryは別経路で継続します。';
+  }else if(lastCycle?.outcome==='board-full'){
+    id='last-board-full';tone='warning';detail='前回（第'+lastCycle.week+'週）は案件ボード満杯で通常供給を追加できませんでした。';
+    nextAction='現在のボード枠を確認し、次回供給までに空きを確保してください。';
+  }else if(lastCycle?.outcome==='monopoly-won'){
+    id='last-won';tone='neutral';detail='前回（第'+lastCycle.week+'週）は独占案件を供給済みですが、現在のボード上には残っていません。';
+    nextAction='次回供給まで '+nextSupplyWeeks+'週。';
+  }else if(lastCycle?.outcome==='no-fund'){
+    id='last-no-fund';tone='warning';detail='前回（第'+lastCycle.week+'週）は投資期間中Fundがなく、案件供給がありませんでした。';
+    nextAction='現在はFundあり。次回供給まで '+nextSupplyWeeks+'週。';
+  }
+  return {id,tone,headline,detail,nextAction,count:exclusiveTargets.length,channels,bestTrust:displaySource?finite(displaySource.trust):0,bestSourceID:displaySource?.id||null,bestSourceName:displaySource?.sourceType||null,bestProbability,trustThreshold:threshold,trustGap,contactsNeeded,nextSupplyWeeks,eligibleTierCount,lastCycle};
+}
+function referralVisibility(rows){
+  const source=rows.find(row=>row.referralEligible)||null,best=rows[0]||null,threshold=Math.max(0,finite(supply?.NETWORK_REFERRAL_TRUST_THRESHOLD,80));
+  const row=source||best;
+  const trust=row?finite(row.trust):0,gap=Math.max(0,threshold-trust);
+  return {
+    unlocked:Boolean(source),sourceID:source?.id||null,sourceName:source?.sourceType||null,trust,trustThreshold:threshold,trustGap:gap,
+    inspectionCount:source?Math.max(0,finite(source.referralInspectionCount)):0,maxInspectionCount:Math.max(1,finite(supply?.NETWORK_REFERRAL_SEARCH_ATTEMPTS,8)),
+    competitionMultiplier:source?Math.max(0,finite(source.competitionMultiplier,1)):1,
+    projectedTrust:row?Math.max(0,finite(row.projectedTrust,trust)):trust,
+    projectedUnlocked:row?.projectedReferralEligible===undefined?Boolean(source):Boolean(row.projectedReferralEligible),
+    projectedInspectionCount:row?.projectedReferralEligible===undefined?(source?Math.max(0,finite(row.referralInspectionCount)):0):(row.projectedReferralEligible?Math.max(0,finite(row.projectedReferralInspectionCount)):0),
+    projectedCompetitionMultiplier:row?.projectedReferralEligible===undefined?(source?Math.max(0,finite(row.competitionMultiplier,1)):1):(row.projectedReferralEligible?Math.max(0,finite(row.projectedCompetitionMultiplier,1)):1),
+    bestPossibleCompetitionMultiplier:Math.max(0,finite(supply?.NETWORK_REFERRAL_MIN_COMPETITION_MULTIPLIER,.25)),
+    nextAction:source
+      ?(trust>=100?'Trust 100: 候補精査と競争緩和が最大です。':'Trustを上げると精査候補数が増え、競争倍率が下がります。')
+      :(row?'Referral解禁までTrust '+gap.toFixed(0)+'。':'人脈を作るとTrust 80でReferral供給が解禁されます。')
+  };
+}
+function sourcingNetwork(state){
+  const week=Math.max(0,Math.floor(finite(state?.week))),pn=state?.peNetwork&&typeof state.peNetwork==='object'?state.peNetwork:{nodes:[],weeklyActionsUsed:0,weeklyActionsWeek:0};
+  const actionsTotal=Math.max(0,finite(network?.WEEKLY_ACTIONS,2)),actionsUsed=finite(pn.weeklyActionsWeek)===week?Math.max(0,Math.floor(finite(pn.weeklyActionsUsed))):0,actionsRemaining=Math.max(0,actionsTotal-actionsUsed);
+  const referralThreshold=Math.max(0,finite(supply?.NETWORK_REFERRAL_TRUST_THRESHOLD,80)),proprietaryThreshold=Math.max(0,finite(supply?.PROPRIETARY_TRUST_THRESHOLD,20));
+  const campaigns=arr(state?.peFirm?.proprietarySourcing),activeCampaigns=campaigns.filter(row=>row?.status==='pending'||row?.status==='ready');
+  const investingFunds=supply?.activeInvestingFunds?.(state)||[],hasInvestingFund=Boolean(investingFunds.length);
+  const eligibleTierCount=supply?.eligibleTierSetForFunds?Math.max(0,supply.eligibleTierSetForFunds(investingFunds).size):0;
+  const rows=arr(pn.nodes).map(node=>{
+    const trust=Math.max(0,Math.min(100,finite(node?.trust))),access=sourcingAccess(trust),path=network?.PATH_TYPES?.[node?.pathType],tier=network?.trustTier?.(node)||{};
+    const contactGain=Math.max(0,finite(network?.CONTACT_TRUST_GAIN,4)),projectedTrust=Math.min(100,trust+contactGain),projectedNode={...node,trust:projectedTrust};
+    return {
+      id:String(node?.id||''),sourceType:String(node?.sourceType||'人脈'),pathType:String(node?.pathType||'referrer'),pathLabel:String(path?.name||node?.pathType||'紹介者'),
+      industryTag:node?.industryTag?String(node.industryTag):null,regionTag:node?.regionTag?String(node.regionTag):null,trust,
+      access,limitedAuctionInvite:Boolean(tier.limitedAuctionInvite),ddInsiderInfo:Boolean(tier.ddInsiderInfo),monopolyDeal:Boolean(tier.monopolyDeal),exitBuyerIntroduction:Boolean(tier.exitBuyerIntroduction),
+      monopolyProbability:Math.max(0,finite(network?.monopolyProbability?.(node))),referralEligible:trust>=referralThreshold,
+      referralInspectionCount:supply?.referralInspectionCount?Math.max(0,finite(supply.referralInspectionCount(node))):0,
+      competitionMultiplier:supply?.referralCompetitionMultiplier?Math.max(0,finite(supply.referralCompetitionMultiplier(trust),1)):1,
+      projectedTrust,projectedMonopolyProbability:Math.max(0,finite(network?.monopolyProbability?.(projectedNode))),
+      projectedReferralEligible:projectedTrust>=referralThreshold,
+      projectedReferralInspectionCount:supply?.referralInspectionCount?Math.max(0,finite(supply.referralInspectionCount(projectedNode))):0,
+      projectedCompetitionMultiplier:supply?.referralCompetitionMultiplier?Math.max(0,finite(supply.referralCompetitionMultiplier(projectedTrust),1)):1,
+      decayPerWeek:Math.max(0,finite(network?.decayRateForPath?.(node?.pathType))),weeksSinceContact:Math.max(0,week-Math.max(0,finite(node?.lastContactWeek))),
+      canContact:actionsRemaining>0,nextTrustPoints:access.nextTrust===null?0:Math.max(0,access.nextTrust-trust),
+      proprietaryProbability:Math.max(0,finite(supply?.proprietarySuccessProbability?.(node))),
+      proprietaryEligible:trust>=proprietaryThreshold,
+      proprietaryActive:activeCampaigns.some(row=>String(row.nodeID)===String(node?.id)),
+      canStartProprietary:actionsRemaining>0&&hasInvestingFund&&trust>=proprietaryThreshold&&activeCampaigns.length<Math.max(0,finite(supply?.PROPRIETARY_MAX_ACTIVE,3))&&!activeCampaigns.some(row=>String(row.nodeID)===String(node?.id))
+    };
+  }).sort((a,b)=>b.trust-a.trust||a.id.localeCompare(b.id));
+  const referral=rows.find(row=>row.referralEligible)||null,liveTargets=arr(state?.acquisitionTargets).filter(target=>target?.peTierID&&(target?.activeDealID||finite(target?.expiresWeek)>=week));
+  const rawNextSupplyOffset=((1-(week%13))+13)%13,nextSupplyOffset=rawNextSupplyOffset===0&&finite(state?.peFirm?.lastDealSupplyWeek)>=week?Math.max(1,finite(supply?.SUPPLY_INTERVAL_WEEKS,13)):rawNextSupplyOffset;
+  const boardCapacity=Math.max(0,finite(supply?.MAX_PE_TARGETS,8)),lastCycle=normalizeSourcingCycle(state?.peFirm?.lastSourcingCycle);
+  const proprietaryRows=campaigns.slice().sort((a,b)=>finite(b?.startedWeek)-finite(a?.startedWeek)||String(a?.id||'').localeCompare(String(b?.id||''))).slice(0,8).map(row=>{
+    const status=String(row?.status||'pending'),remaining=status==='pending'?Math.max(0,finite(row?.responseWeek)-week):status==='ready'?Math.max(0,finite(row?.readyDeadlineWeek)-week):0;
+    const statusLabel=status==='pending'?'打診中':status==='ready'?'案件化成功・ボード待ち':status==='success'?'案件化成功':row?.reason==='window-expired'?'投資機会失効':'オーナー見送り';
+    return {id:String(row?.id||''),nodeID:String(row?.nodeID||''),sourceType:String(row?.sourceType||'人脈'),sourcePathType:String(row?.sourcePathType||'referrer'),sourceTrust:finite(row?.sourceTrust),tierID:String(row?.tierID||''),startedWeek:finite(row?.startedWeek),responseWeek:finite(row?.responseWeek),status,statusLabel,weeksRemaining:remaining,successProbability:finite(row?.successProbability),targetID:row?.targetID?String(row.targetID):null,reason:row?.reason||null};
+  });
+  return {
+    actionsTotal,actionsUsed,actionsRemaining,nodeCount:rows.length,bestTrust:rows[0]?.trust||0,referralSourceID:referral?.id||null,referralSourceName:referral?.sourceType||null,
+    nextSupplyWeeks:nextSupplyOffset,boardCount:liveTargets.length,boardCapacity,
+    accessCounts:{auction:liveTargets.filter(t=>!t.peNetworkAccess).length,referral:liveTargets.filter(t=>t.peNetworkAccess==='referral').length,limited:liveTargets.filter(t=>t.peNetworkAccess==='limited-auction').length,exclusive:liveTargets.filter(t=>t.peNetworkAccess==='exclusive').length,proprietary:liveTargets.filter(t=>t.dealChannel==='proprietary').length},
+    exclusive:exclusiveSourcingStatus(state,{week,rows,liveTargets,nextSupplyWeeks:nextSupplyOffset,boardCapacity,hasInvestingFund,eligibleTierCount,lastCycle}),
+    referral:referralVisibility(rows),
+    proprietary:{trustThreshold:proprietaryThreshold,outreachWeeks:Math.max(0,finite(supply?.PROPRIETARY_OUTREACH_WEEKS,13)),maxActive:Math.max(0,finite(supply?.PROPRIETARY_MAX_ACTIVE,3)),activeCount:activeCampaigns.length,hasInvestingFund,rows:proprietaryRows},
+    rows
+  };
+}
 function lpRelations(state){
   const rows=typeof pf.lpOutreachRows==='function'?pf.lpOutreachRows(state):typeof pf.visibleLPTypes==='function'?pf.visibleLPTypes(state).map(row=>({...row,outreach:null})):[];
   const normalized=rows.map(row=>{
@@ -85,14 +284,16 @@ function portfolioGenericLeverDetails(state,fund,deal,pc){
       headcountDown:normalizeCost(previews.headcountDown),
       wageUp:normalizeCost(previews.wageUp),
       renewProductMix:normalizeCost(previews.renewProductMix),
-      consolidateSites:normalizeCost(previews.consolidateSites)
+      consolidateSites:normalizeCost(previews.consolidateSites),
+      expandPortfolioStore:normalizeCost(previews.expandPortfolioStore)
     },
     canInvestQuality:Boolean(previews.investQuality?.executable),
     canReformProcurement:Boolean(previews.reformProcurement?.executable),
     canCutHeadcount:Boolean(previews.headcountDown?.executable),
     canRaiseWage:Boolean(previews.wageUp?.executable),
     canRenewProductMix:Boolean(previews.renewProductMix?.executable),
-    canConsolidate:Boolean(previews.consolidateSites?.executable)
+    canConsolidate:Boolean(previews.consolidateSites?.executable),
+    canExpandPortfolioStore:Boolean(previews.expandPortfolioStore?.executable)
   };
 }
 function normalizeParentAcquisition(state,fund,deal){
@@ -105,10 +306,91 @@ function normalizeParentAcquisition(state,fund,deal){
   };
 }
 function normalizePortfolioHolding(state,engine,fund,deal,fundOrdinal){const pc=deal?.portfolioCompany;if(!pc||deal?.status!=='active')return null;const preview=portfolio?.previewPortfolioExit?.(state,fund.id,deal.id,{method:'sale'}),capability=management?.canOpenPEPortfolioManagement?.(engine,fund.id,deal.id),ok=Boolean(preview?.ok),moic=ok?finite(preview.currentMOIC):0,holdingWeeks=ok?finite(preview.holdingWeeks):Math.max(0,finite(state?.week)-finite(deal?.acquiredWeek));return {fundID:String(fund.id),fundOrdinal,fundName:String(fund.name||`Fund ${fundOrdinal}`),dealID:String(deal.id),companyName:String(preview?.companyName||deal.companyName||businessLabel(deal.businessID)),businessID:String(deal.businessID||''),industry:businessLabel(deal.businessID),acquiredWeek:Math.max(0,finite(deal.acquiredWeek)),holdingWeeks,optimalHoldingWeeks:ok?finite(preview.optimalHoldingWeeks):0,improvementScore:finite(pc.improvementScore),weeklyRevenue:finite(pc.weeklyRevenue),weeklyProfit:finite(pc.weeklyProfit),portfolioCash:finite(pc.cash),storeCount:Math.max(1,finite(pc.storeCount)),currentMOIC:moic,currentIRR:annualizedIRR(moic,holdingWeeks),acquisitionPrice:ok?finite(preview.acquisitionPrice):finite(deal.acquisitionPrice),investedAmount:ok?finite(preview.investedAmount):finite(deal.investedAmount),currentEnterpriseValue:ok?finite(preview.exitEnterpriseValue):0,grossProceeds:ok?finite(preview.grossProceeds):0,exitMultiple:ok?finite(preview.exitMultiple):0,marketFactor:ok?finite(preview.marketFactor):0,status:holdingStatus(pc),management:{supported:Boolean(capability?.capability?.supported),actionsEnabled:Boolean(capability?.capability?.actionsEnabled),priceEnabled:deal?.businessID!=='realEstateAgency',reason:String(capability?.reason||capability?.capability?.reason||'management-action-connection-pending'),gym:portfolioManagementDetails(deal,pc),levers:portfolioGenericLeverDetails(state,fund,deal,pc)},parentAcquisition:normalizeParentAcquisition(state,fund,deal),exit:{eligible:Boolean(preview?.eligibility?.eligible),reason:preview?.eligibility?.reason||preview?.reason||null}};}
-function normalizeExitPreview(state,fundID,dealID){const preview=portfolio?.previewPortfolioExit?.(state,fundID,dealID,{method:'sale'});if(!preview?.ok)return null;const s=preview.settlement||{},gpPrincipalAndGain=finite(s.gpPrincipalAndGain),gpCarry=finite(s.gpCarry);return {fundID:String(fundID),dealID:String(dealID),companyName:String(preview.companyName||dealID),method:String(preview.method||'sale'),acquisitionPrice:finite(preview.acquisitionPrice),investedAmount:finite(preview.investedAmount),fundPortion:finite(preview.fundPortion),coinvestPortion:finite(preview.coinvestPortion),exitEnterpriseValue:finite(preview.exitEnterpriseValue),portfolioCash:finite(preview.portfolioCash),grossProceeds:finite(preview.grossProceeds),holdingWeeks:finite(preview.holdingWeeks),optimalHoldingWeeks:finite(preview.optimalHoldingWeeks),currentMOIC:finite(preview.currentMOIC),currentIRR:annualizedIRR(preview.currentMOIC,preview.holdingWeeks),exitMultiple:finite(preview.exitMultiple),marketFactor:finite(preview.marketFactor),settlement:{fundShare:finite(s.fundShare),coinvestShare:finite(s.coinvestShare),fundPrincipalReturned:finite(s.fundPrincipalReturned),coinvestPrincipalReturned:finite(s.coinvestPrincipalReturned),fundCarry:finite(s.fundCarry),coinvestCarry:finite(s.coinvestCarry),gpCarry,gpPrincipalAndGain,personalCashProceeds:gpPrincipalAndGain+gpCarry,distributedToFund:finite(s.distributedToFund),returnedToCoinvestors:finite(s.returnedToCoinvestors),settledWeek:finite(s.settledWeek)},eligibility:{eligible:Boolean(preview.eligibility?.eligible),reason:preview.eligibility?.reason||null}};}
-function normalizePortfolio(state,engine,{portfolioDealId=null,includeExitPreview=false}={}){const holdings=[];arr(state?.peFirm?.funds).forEach((fund,index)=>arr(fund?.deals).forEach(deal=>{const row=normalizePortfolioHolding(state,engine,fund,deal,index+1);if(row)holdings.push(row);}));holdings.sort((a,b)=>b.currentEnterpriseValue-a.currentEnterpriseValue||a.companyName.localeCompare(b.companyName,'ja'));const totalInvested=holdings.reduce((sum,row)=>sum+row.investedAmount,0),grossValue=holdings.reduce((sum,row)=>sum+row.grossProceeds,0),enterpriseValue=holdings.reduce((sum,row)=>sum+row.currentEnterpriseValue,0),selected=portfolioDealId?holdings.find(row=>row.dealID===String(portfolioDealId))||null:null;return {summary:{holdingCount:holdings.length,enterpriseValue,grossValue,totalInvested,unrealizedGain:grossValue-totalInvested,weightedMOIC:totalInvested>0?grossValue/totalInvested:0,personalCash:finite(state?.personalCash)},holdings,selected,exitPreview:selected&&includeExitPreview?normalizeExitPreview(state,selected.fundID,selected.dealID):null};}
-function getPEUIData({dealId=null,acceptSellerTerm=false,bidPrice=null,portfolioDealId=null,includeExitPreview=false,gpCommit=null}={}){const {engine,state}=current();if(!state||!state.peFirm?.unlocked)return {unlocked:false,active:false,navigation:NAVIGATION,dashboard:null,deals:[],bid:null,portfolio:null,lpRelations:{rows:[],pending:0,positive:0}};const active=state.selectedTab==='pe-portfolio',deals=rawDeals(state).map(d=>normalizeDeal(state,d)),fund=activeFund(state),deploymentRatio=fund?pf.fundDeploymentRate(fund):0,deploymentGate=fund?pf.requiredDeploymentRate(fund):0,bid=dealId?normalizeDeal(state,rawDeals(state).find(d=>String(d.id)===String(dealId)),{acceptSellerTerm,bidPrice,deploymentRatio,deploymentGate}):null;return {unlocked:true,active,navigation:NAVIGATION,dashboard:dashboard(state,{gpCommit}),deals,bid,portfolio:normalizePortfolio(state,engine,{portfolioDealId,includeExitPreview}),lpRelations:lpRelations(state)};}
-function perform(action,payload={}){const {engine}=current();if(!engine)return false;const id=payload.dealId;if(action==='open')return engine.openMADealRoom(String(id).replace(/^target:/,''));if(action==='advance')return engine.advanceMADealRound(id);if(action==='dd')return engine.startMADueDiligence(id,'financial');if(action==='bid')return engine.submitMAOffer(id,{method:'friendly',offerPrice:payload.price,acceptSellerTerm:payload.acceptSellerTerm});if(action==='drop')return engine.withdrawMADeal(id);if(action==='solicitLP')return engine.solicitPELP?.(payload.lpTypeID)??false;if(action==='answerLPQuestions')return engine.answerPELPQuestions?.(payload.lpTypeID)??false;if(action==='formFund')return engine.formPEFund?.({gpCommit:payload.gpCommit})??false;return false;}
+function normalizeExitScenario(row){
+  if(!row)return null;
+  if(!row.ok)return {ok:false,horizonWeeks:finite(row.horizonWeeks),targetWeek:finite(row.targetWeek),reason:String(row.reason||'unavailable')};
+  const s=row.settlement||{},gpPrincipalAndGain=finite(s.gpPrincipalAndGain),gpCarry=finite(s.gpCarry);
+  return {ok:true,label:String(row.label||''),horizonWeeks:finite(row.horizonWeeks),targetWeek:finite(row.targetWeek),exitEnterpriseValue:finite(row.exitEnterpriseValue),portfolioCash:finite(row.portfolioCash),grossProceeds:finite(row.grossProceeds),holdingWeeks:finite(row.holdingWeeks),optimalHoldingWeeks:finite(row.optimalHoldingWeeks),moic:finite(row.moic),irr:Number.isFinite(Number(row.irr))?Number(row.irr)*100:null,exitMultiple:finite(row.exitMultiple),marketFactor:finite(row.marketFactor),improvementScore:finite(row.improvementScore),weeklyProfit:finite(row.weeklyProfit),personalCashProceeds:finite(row.personalCashProceeds),projectedFundDPI:finite(row.projectedFundDPI),deploymentRate:finite(row.deploymentRate),deploymentGate:finite(row.deploymentGate),projectedNormalNextFundGate:Boolean(row.projectedNormalNextFundGate),settlement:{fundShare:finite(s.fundShare),coinvestShare:finite(s.coinvestShare),gpCarry,gpPrincipalAndGain,distributedToFund:finite(s.distributedToFund),returnedToCoinvestors:finite(s.returnedToCoinvestors),settledWeek:finite(s.settledWeek)}};
+}
+function exitReasonLabel(reason){
+  if(reason==='ipo-not-supported')return 'この案件帯はIPO非対応';
+  if(reason==='ipo-score')return `改善スコア${portfolio?.IPO_EXIT_MIN_SCORE||65}以上が必要`;
+  if(reason==='ipo-hold')return `${portfolio?.IPO_EXIT_MIN_HOLD_WEEKS||52}週以上の保有が必要`;
+  if(reason==='deal-not-active')return '保有中の案件ではありません';
+  return reason?'実行条件未達':null;
+}
+function normalizeExitRoute(state,fundID,dealID,method){
+  const capability=portfolio?.exitCapabilities?.(state,fundID,dealID)?.find(row=>row.id===method)||null;
+  const preview=capability?.eligible?portfolio?.previewPortfolioExit?.(state,fundID,dealID,{method}):null;
+  if(!preview?.ok)return {id:String(method),label:String(capability?.label||method),eligible:false,reason:capability?.reason||preview?.reason||'unavailable',reasonLabel:exitReasonLabel(capability?.reason||preview?.reason||'unavailable')};
+  const s=preview.settlement||{},gpPrincipalAndGain=finite(s.gpPrincipalAndGain),gpCarry=finite(s.gpCarry);
+  return {id:String(method),label:String(capability?.label||method),eligible:true,reason:null,reasonLabel:null,referenceEnterpriseValue:finite(preview.referenceEnterpriseValue,preview.exitEnterpriseValue),pricingDiscount:finite(preview.pricingDiscount),exitEnterpriseValue:finite(preview.exitEnterpriseValue),portfolioCash:finite(preview.portfolioCash),grossProceeds:finite(preview.grossProceeds),moic:finite(preview.currentMOIC),irr:annualizedIRR(preview.currentMOIC,preview.holdingWeeks),holdingWeeks:finite(preview.holdingWeeks),personalCashProceeds:gpPrincipalAndGain+gpCarry,settlement:{fundShare:finite(s.fundShare),coinvestShare:finite(s.coinvestShare),gpCarry,gpPrincipalAndGain,distributedToFund:finite(s.distributedToFund),returnedToCoinvestors:finite(s.returnedToCoinvestors),settledWeek:finite(s.settledWeek)}};
+}
+function normalizeExitBuyerOffer(row){
+  if(!row)return null;
+  const s=row.settlement||{},gpPrincipalAndGain=finite(s.gpPrincipalAndGain),gpCarry=finite(s.gpCarry);
+  return {id:String(row.id||''),label:String(row.label||''),buyerType:String(row.buyerType||''),buyerFirmID:row.buyerFirmID?String(row.buyerFirmID):null,buyerName:String(row.buyerName||''),eligible:Boolean(row.eligible),reason:row.reason||null,priceFactor:finite(row.priceFactor,1),referenceEnterpriseValue:finite(row.referenceEnterpriseValue),exitEnterpriseValue:finite(row.exitEnterpriseValue),grossProceeds:finite(row.grossProceeds),moic:finite(row.currentMOIC),holdingWeeks:finite(row.holdingWeeks),irr:annualizedIRR(row.currentMOIC,finite(row.holdingWeeks)),personalCashProceeds:gpPrincipalAndGain+gpCarry,settlement:row.settlement?{fundShare:finite(s.fundShare),coinvestShare:finite(s.coinvestShare),gpCarry,gpPrincipalAndGain,distributedToFund:finite(s.distributedToFund),returnedToCoinvestors:finite(s.returnedToCoinvestors),settledWeek:finite(s.settledWeek)}:null};
+}
+function normalizeExitAttribution(row){
+  if(!row)return null;
+  const components=row.components||{};
+  return {
+    method:String(row.method||'sale'),entryEnterpriseValue:finite(row.entryEnterpriseValue),acquisitionPrice:finite(row.acquisitionPrice),
+    acquisitionMultiple:finite(row.acquisitionMultiple),purchaseDiscountRate:finite(row.purchaseDiscountRate),
+    operatingFactor:finite(row.operatingFactor,1),operatingEnterpriseValue:finite(row.operatingEnterpriseValue),
+    exitMultiple:finite(row.exitMultiple),exitMultipleFactor:finite(row.exitMultipleFactor,1),multipleEnterpriseValue:finite(row.multipleEnterpriseValue),
+    marketFactor:finite(row.marketFactor,1),marketEnterpriseValue:finite(row.marketEnterpriseValue),
+    pricingDiscount:finite(row.pricingDiscount),pricingFactor:finite(row.pricingFactor,1),routePricingFactor:finite(row.routePricingFactor,1),
+    exitEnterpriseValue:finite(row.exitEnterpriseValue),portfolioCash:finite(row.portfolioCash),grossProceeds:finite(row.grossProceeds),
+    investedAmount:finite(row.investedAmount),holdingWeeks:finite(row.holdingWeeks),moic:finite(row.moic),
+    irr:Number.isFinite(Number(row.irr))?Number(row.irr)*100:null,totalValueCreation:finite(row.totalValueCreation),
+    reconciliationError:finite(row.reconciliationError),positiveValueCreation:finite(row.positiveValueCreation),
+    marketReliance:finite(row.marketReliance),operatingReliance:finite(row.operatingReliance),
+    components:{
+      entryPricing:finite(components.entryPricing),operations:finite(components.operations),exitMultiple:finite(components.exitMultiple),
+      market:finite(components.market),routePricing:finite(components.routePricing),portfolioCash:finite(components.portfolioCash)
+    }
+  };
+}
+function normalizeLPExitFeedback(row){
+  if(!row)return null;
+  return {id:String(row.id||'balanced'),tone:String(row.tone||'neutral'),headline:String(row.headline||'LP Feedback'),comment:String(row.comment||'')};
+}
+function normalizeExitedDeal(fund,deal,fundOrdinal){
+  if(deal?.status!=='exited'||!deal?.exitAttribution)return null;
+  const attribution=normalizeExitAttribution(deal.exitAttribution),feedback=normalizeLPExitFeedback(deal.exitLPFeedback||portfolio?.lpExitFeedback?.(deal.exitAttribution));
+  return {
+    fundID:String(fund.id),fundOrdinal,fundName:String(fund.name||`Fund ${fundOrdinal}`),dealID:String(deal.id),
+    companyName:String(deal.companyName||businessLabel(deal.businessID)||deal.id),industry:businessLabel(deal.businessID),
+    exitMethod:String(deal.exitMethod||attribution?.method||'sale'),buyerName:deal.exitBuyerName?String(deal.exitBuyerName):null,
+    acquiredWeek:Math.max(0,finite(deal.acquiredWeek)),exitedWeek:Math.max(0,finite(deal.exitedWeek)),
+    grossProceeds:finite(deal.exitProceeds,attribution?.grossProceeds),moic:finite(attribution?.moic),irr:attribution?.irr??null,
+    holdingWeeks:finite(attribution?.holdingWeeks),attribution,feedback
+  };
+}
+function normalizeExitPreview(state,fundID,dealID){
+  const preview=portfolio?.previewPortfolioExit?.(state,fundID,dealID,{method:'sale'});if(!preview?.ok)return null;
+  const scenarios=portfolio?.previewPortfolioExitScenarios?.(state,fundID,dealID)?.scenarios||[];
+  const routes=(portfolio?.EXIT_METHODS||[{id:'sale'}]).map(method=>normalizeExitRoute(state,fundID,dealID,method.id));
+  const buyerOffers=(portfolio?.exitBuyerOffers?.(state,fundID,dealID)||[]).map(normalizeExitBuyerOffer).filter(Boolean);
+  const s=preview.settlement||{},gpPrincipalAndGain=finite(s.gpPrincipalAndGain),gpCarry=finite(s.gpCarry);
+  return {fundID:String(fundID),dealID:String(dealID),companyName:String(preview.companyName||dealID),method:String(preview.method||'sale'),acquisitionPrice:finite(preview.acquisitionPrice),investedAmount:finite(preview.investedAmount),fundPortion:finite(preview.fundPortion),coinvestPortion:finite(preview.coinvestPortion),exitEnterpriseValue:finite(preview.exitEnterpriseValue),portfolioCash:finite(preview.portfolioCash),grossProceeds:finite(preview.grossProceeds),holdingWeeks:finite(preview.holdingWeeks),optimalHoldingWeeks:finite(preview.optimalHoldingWeeks),currentMOIC:finite(preview.currentMOIC),currentIRR:annualizedIRR(preview.currentMOIC,preview.holdingWeeks),exitMultiple:finite(preview.exitMultiple),marketFactor:finite(preview.marketFactor),attribution:normalizeExitAttribution(preview.attribution),lpFeedback:normalizeLPExitFeedback(preview.lpFeedback),routes,buyerOffers,decisionCenter:{assumptionLabel:'現在の経営レバーを維持・マクロ環境は現在値で固定',scenarios:scenarios.map(normalizeExitScenario)},settlement:{fundShare:finite(s.fundShare),coinvestShare:finite(s.coinvestShare),fundPrincipalReturned:finite(s.fundPrincipalReturned),coinvestPrincipalReturned:finite(s.coinvestPrincipalReturned),fundCarry:finite(s.fundCarry),coinvestCarry:finite(s.coinvestCarry),gpCarry,gpPrincipalAndGain,personalCashProceeds:gpPrincipalAndGain+gpCarry,distributedToFund:finite(s.distributedToFund),returnedToCoinvestors:finite(s.returnedToCoinvestors),settledWeek:finite(s.settledWeek)},eligibility:{eligible:Boolean(preview.eligibility?.eligible),reason:preview.eligibility?.reason||null}};
+}
+function normalizePortfolio(state,engine,{portfolioDealId=null,includeExitPreview=false}={}){
+  const holdings=[],recentExits=[];
+  arr(state?.peFirm?.funds).forEach((fund,index)=>arr(fund?.deals).forEach(deal=>{
+    const holding=normalizePortfolioHolding(state,engine,fund,deal,index+1);if(holding)holdings.push(holding);
+    const exited=normalizeExitedDeal(fund,deal,index+1);if(exited)recentExits.push(exited);
+  }));
+  holdings.sort((a,b)=>b.currentEnterpriseValue-a.currentEnterpriseValue||a.companyName.localeCompare(b.companyName,'ja'));
+  recentExits.sort((a,b)=>b.exitedWeek-a.exitedWeek||b.grossProceeds-a.grossProceeds||a.companyName.localeCompare(b.companyName,'ja'));
+  const totalInvested=holdings.reduce((sum,row)=>sum+row.investedAmount,0),grossValue=holdings.reduce((sum,row)=>sum+row.grossProceeds,0),enterpriseValue=holdings.reduce((sum,row)=>sum+row.currentEnterpriseValue,0);
+  const selected=portfolioDealId?holdings.find(row=>row.dealID===String(portfolioDealId))||null:null;
+  const selectedExit=portfolioDealId?recentExits.find(row=>row.dealID===String(portfolioDealId))||null:null;
+  return {summary:{holdingCount:holdings.length,enterpriseValue,grossValue,totalInvested,unrealizedGain:grossValue-totalInvested,weightedMOIC:totalInvested>0?grossValue/totalInvested:0,personalCash:finite(state?.personalCash)},holdings,recentExits:recentExits.slice(0,12),selected,selectedExit,exitPreview:selected&&includeExitPreview?normalizeExitPreview(state,selected.fundID,selected.dealID):null};
+}
+function getPEUIData({dealId=null,acceptSellerTerm=false,bidPrice=null,portfolioDealId=null,includeExitPreview=false,gpCommit=null,promiseDecisions=null}={}){const {engine,state}=current();if(!state||!state.peFirm?.unlocked)return {unlocked:false,active:false,navigation:NAVIGATION,dashboard:null,deals:[],bid:null,portfolio:null,lpRelations:{rows:[],pending:0,positive:0}};const active=state.selectedTab==='pe-portfolio',deals=rawDeals(state).map(d=>normalizeDeal(state,d)),fund=activeFund(state),deploymentRatio=fund?pf.fundDeploymentRate(fund):0,deploymentGate=fund?pf.requiredDeploymentRate(fund):0,bid=dealId?normalizeDeal(state,rawDeals(state).find(d=>String(d.id)===String(dealId)),{acceptSellerTerm,bidPrice,deploymentRatio,deploymentGate}):null;return {unlocked:true,active,navigation:NAVIGATION,dashboard:dashboard(state,{gpCommit,promiseDecisions}),deals,bid,portfolio:normalizePortfolio(state,engine,{portfolioDealId,includeExitPreview}),sourcingNetwork:sourcingNetwork(state),lpRelations:lpRelations(state)};}
+function perform(action,payload={}){const {engine}=current();if(!engine)return false;const id=payload.dealId;if(action==='open')return engine.openMADealRoom(String(id).replace(/^target:/,''));if(action==='advance')return engine.advanceMADealRound(id);if(action==='dd')return engine.startMADueDiligence(id,'financial',payload.fundID||undefined);if(action==='bid')return engine.submitMAOffer(id,{method:'friendly',offerPrice:payload.price,acceptSellerTerm:payload.acceptSellerTerm});if(action==='drop')return engine.withdrawMADeal(id);if(action==='contactNetwork')return engine.contactPENetworkNode?.(payload.nodeID)??false;if(action==='startProprietary')return engine.startPEProprietarySourcing?.(payload.nodeID)??false;if(action==='solicitLP')return engine.solicitPELP?.(payload.lpTypeID)??false;if(action==='answerLPQuestions')return engine.answerPELPQuestions?.(payload.lpTypeID)??false;if(action==='formFund')return engine.formPEFund?.({gpCommit:payload.gpCommit,promiseDecisions:payload.promiseDecisions||null})??false;return false;}
 // Management actions require actionsEnabled here as well as in the UI. This defense-in-depth gate
 // prevents stale/bypassed D UI calls from reaching production writes for pillars whose detached
 // operating bridge is not connected yet. Every write stays inside pePortfolioOperations.
@@ -120,7 +402,7 @@ function saveSuccessful(engine,result){if(!result)return false;engine.save?.();r
 function performPortfolio(action,payload={}){
   const {engine,state}=current();if(!engine||!state||!portfolio)return false;
   const fundID=String(payload.fundID||''),dealID=String(payload.dealID||'');
-  if(action==='exit')return saveSuccessful(engine,portfolio.exitPortfolioCompany(state,fundID,dealID,{method:'sale'}));
+  if(action==='exit'){const options={method:String(payload.method||'sale')};if(payload.buyerID)options.buyerID=String(payload.buyerID);return saveSuccessful(engine,portfolio.exitPortfolioCompany(state,fundID,dealID,options));}
   if(action==='acquireIntoGroup')return engine.acquirePEPortfolioCompany?.(fundID,dealID)??false;
   if(!requireManagementCapability(engine,fundID,dealID))return false;
   // realEstateAgency's production brokerage pipeline never reads business.price. Reject the
@@ -144,8 +426,9 @@ function performPortfolio(action,payload={}){
   }
   if(action==='renewProductMix')return saveSuccessful(engine,portfolio.renewProductMix(state,fundID,dealID,Math.min(1,finite(pc.productMixLevel)+.5)));
   if(action==='consolidateSites')return saveSuccessful(engine,portfolio.consolidateSites(state,fundID,dealID));
+  if(action==='expandPortfolioStore')return saveSuccessful(engine,portfolio.expandPortfolioStore(state,fundID,dealID));
   return false;
 }
-modules.peUIAdapter=Object.freeze({NAVIGATION,getPEUIData,perform,performPortfolio,preferDrop,normalizePortfolio,normalizeExitPreview,thresholds:Object.freeze({DECISION_LIMIT,FINAL_BID_URGENT_WEEKS,INVESTMENT_RISK_FRACTION,DEADLINE_CRITICAL_WEEKS,DD_OPPORTUNITY_WEEKS,NETWORK_WARNING_MARGIN}),__installed:true});
+modules.peUIAdapter=Object.freeze({NAVIGATION,getPEUIData,perform,performPortfolio,preferDrop,dealFundChoices,multiFundDesk,latestExitLPFeedback,normalizeSourcingCycle,exclusiveSourcingStatus,referralVisibility,normalizePortfolio,normalizeExitPreview,normalizeExitAttribution,normalizeLPExitFeedback,normalizeExitedDeal,normalizeExitScenario,normalizeExitRoute,normalizeExitBuyerOffer,sourcingNetwork,thresholds:Object.freeze({DECISION_LIMIT,FINAL_BID_URGENT_WEEKS,INVESTMENT_RISK_FRACTION,DEADLINE_CRITICAL_WEEKS,DD_OPPORTUNITY_WEEKS,NETWORK_WARNING_MARGIN}),__installed:true});
 globalThis.CapitalismTycoonPEUIAdapter=modules.peUIAdapter;
 })();

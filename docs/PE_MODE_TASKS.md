@@ -9,6 +9,12 @@
 いた。実際にはその後、production path の結線と設計側の修正が必要になり T16〜T26 が追加された。
 追補は末尾の「フェーズE 以降（T16〜）」にある。各タスクの実装コミットも同じ表にある。
 
+**2026-09-23時点の注記: T1〜T26でこのファイル自体の更新は終了した。** 以降のPEモード機能追加
+（Exit Decision Center・IPO Exit・買い手ブック/Secondary Buyout・Sourcing Desk・Fundraising
+Book・LP約束の自動判定・複数ファンド管理・Exit要因分解・Proprietary Sourcing等、PR #705〜#716）
+は、このT番号方式では追跡されておらず、`docs/GAME_OVERVIEW.md`側で状況をまとめる方式に一本化
+された。以下のT1〜T26の記述は当時の実装記録として、削除せずそのまま残す。
+
 指示の例:
 ```
 docs/PE_MODE_TASKS.md の T3 を実装して。
@@ -568,6 +574,20 @@ DPI中央値1.26 / P10 1.06 / P90 1.52 / DPI 0.6未満0.0% / Fund II到達66.0% 
 0.074兆/0.051兆/0.041兆、carryは0.664兆/0.074兆/0.001兆、共同投資は拠出2.30兆→返還3.63兆 /
 1.64兆→1.93兆 / 1.40兆→1.25兆。最大saveは2.54MB（T25は2.656MB）。seed 999の100年runを
 2回行い、最終state SHA-256 `98d00750ddba5072d61a6ed2ced510a0...` の一致を確認した。
+
+## T26後. UX / gameplay expansion ledger
+
+T1〜T26のproduction core完成後に、設計書の積み残しを1機能1PRで解消する。これらはT1〜T26の
+会計・balanceを置き換えず、その上に追加する。
+
+| PR | 内容 | 状態 |
+|---|---|---|
+| #714 | Exit Attribution / LP Feedback。取得価格差・運用改善・Exit Multiple・市況・Buyer/IPO価格・Portfolio Cashを答え合わせ表示 | 実装済み |
+| #715 | Proprietary Sourcing。非売却企業への直接打診、13週待機、Trust連動・最大45%、成功時は独占交渉 | 実装済み |
+| #716 | Exclusive Sourcing Visibility。独占0件の理由、前回供給診断、Referral解禁距離・精査数を可視化 | 本変更 |
+
+次候補は設計書§11の残件である「投資先紹介の改善スコア65が腕と保有期間を混同する問題」の監査。
+balance変更が必要かは、まずproductionデータで分解してから決める。
 
 ## T26後. management fee込みのbalance再較正
 

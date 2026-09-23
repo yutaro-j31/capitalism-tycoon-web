@@ -90,6 +90,8 @@ function acceptOffer(e, deal, price) {
   assert.equal(pd.sourceTargetID, target.id);
   assert.equal(pd.acquisitionPrice, price);
   assert.equal(pd.enterpriseValue, target.peEnterpriseValue, '保有中の企業価値は入札価格ではなく本来の企業価値');
+  assert.equal(pd.risk, target.risk, '取得時のriskは将来のExit buyer適合判定へ引き継ぐ');
+  assert.equal(pd.synergy, target.synergy, '取得時のsynergyは将来のStrategic Buyer適合判定へ引き継ぐ');
   assert.ok(pd.portfolioCompany, 'the deal must carry an operating company');
   assert.equal(Math.round(fundCashAtClose - fund.cash), Math.round(pd.fundPortion), 'ファンドの現金は投下額ぶんだけ減る');
   assert.ok(fundCashBefore > fund.cash, 'ファンドの現金は取得と管理報酬で減っている');

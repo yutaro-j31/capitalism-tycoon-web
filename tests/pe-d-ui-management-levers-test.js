@@ -1,7 +1,7 @@
 'use strict';
 // PE D UI generic management-lever reachability regression.
 // Proves the actual player-facing pe-ui.js click path reaches the real pe-ui-adapter and the
-// production pe-portfolio-operations writers for all five generic lever groups.
+// production pe-portfolio-operations writers for all six generic lever groups.
 const assert=require('node:assert/strict');
 const fs=require('node:fs');
 const vm=require('node:vm');
@@ -55,9 +55,39 @@ assert.match(screen.innerHTML,/data-pe-portfolio-manage=/,'portfolio D UI expose
 click('[data-pe-portfolio-manage]',{pePortfolioManage:deal.id});
 assert.match(screen.innerHTML,/data-pe-view-root="portfolio-manage"/,'manage transition renders the D UI management screen');
 
-// All five generic lever groups must be visible on the real D UI manage screen. Staffing has two
+// Exit Decision Center is reached through the real D UI transitions and exposes three
+// read-only timing scenarios without adding a second execution path.
+const stateBeforeExitCenter=JSON.stringify(engine.g),rngBeforeExitCenter=randomCalls;
+click('[data-pe-manage-back]');
+assert.match(screen.innerHTML,/data-pe-view-root="portfolio-detail"/,'management back returns to portfolio detail');
+click('[data-pe-portfolio-exit]',{pePortfolioExit:deal.id});
+assert.match(screen.innerHTML,/data-pe-view-root="portfolio-exit"/,'portfolio detail reaches the exit screen');
+assert.match(screen.innerHTML,/data-pe-exit-route-comparison/,'exit route comparison renders');
+assert.match(screen.innerHTML,/Exitルート比較/);
+assert.match(screen.innerHTML,/売却 \/ IPO/);
+assert.match(screen.innerHTML,/data-pe-exit-route="sale"/,'sale route is visible');
+assert.match(screen.innerHTML,/data-pe-exit-buyer-panel/,'buyer offer book renders');
+assert.match(screen.innerHTML,/data-pe-exit-buyer-offer="secondary-buyout"/,'secondary buyout offer is visible');
+assert.match(screen.innerHTML,/data-pe-exit-buyer-offer="strategic-sale"/,'strategic buyer offer is visible');
+assert.match(screen.innerHTML,/data-pe-exit-buyer="secondary-buyout"/,'secondary buyout has an executable D UI action');
+assert.match(screen.innerHTML,/data-pe-exit-buyer="strategic-sale"/,'strategic sale has an executable D UI action');
+assert.match(screen.innerHTML,/IPO/,'IPO route is visible even when its current conditions are unmet');
+assert.match(screen.innerHTML,/改善スコア65以上が必要|52週以上の保有が必要/,'IPO route explains its current eligibility blocker');
+assert.match(screen.innerHTML,/data-pe-exit-decision-center/,'exit decision center renders');
+for(const horizon of [0,26,52])assert.match(screen.innerHTML,new RegExp(`data-pe-exit-scenario="${horizon}"`),`exit scenario ${horizon} weeks renders`);
+assert.match(screen.innerHTML,/売却タイミング比較/);
+assert.match(screen.innerHTML,/現在の経営レバーを維持・マクロ環境は現在値で固定/);
+assert.match(screen.innerHTML,/今売却した場合の配分/);
+assert.match(screen.innerHTML,/自動的な売却推奨ではありません/);
+assert.equal(JSON.stringify(engine.g),stateBeforeExitCenter,'opening Exit Decision Center never mutates production state');
+assert.equal(randomCalls,rngBeforeExitCenter,'opening Exit Decision Center consumes no RNG');
+click('[data-pe-exit-cancel]');
+click('[data-pe-portfolio-manage]',{pePortfolioManage:deal.id});
+assert.match(screen.innerHTML,/data-pe-view-root="portfolio-manage"/,'exit cancel can return to management flow');
+
+// All six generic lever groups must be visible on the real D UI manage screen. Staffing has two
 // controls because headcount and wages are the two dimensions of the same lever group.
-for(const action of ['investQuality','reformProcurement','setStaffing','renewProductMix','consolidateSites']){
+for(const action of ['investQuality','reformProcurement','setStaffing','renewProductMix','consolidateSites','expandPortfolioStore']){
   assert.match(screen.innerHTML,new RegExp(`data-pe-manage-lever="${action}"`),`${action} is reachable from D UI`);
 }
 assert.match(screen.innerHTML,/data-pe-manage-kind="headcount-down"/,'staffing exposes headcount control');
@@ -94,13 +124,20 @@ click('[data-pe-manage-lever]',{peManageLever:'consolidateSites',peFund:fund.id,
 assert(pc.consolidatedRatio>consolidatedBefore,'site-restructuring D UI click reaches production consolidateSites');
 assert.equal(pc.closedSiteCount,1,'site restructuring records one closed site');
 
+const storesBefore=pc.storeCount;
+const cashBeforeExpansion=pc.cash;
+const expectedExpansionCost=deal.enterpriseValue*ops.EXPANSION_COST_FRACTION;
+click('[data-pe-manage-lever]',{peManageLever:'expandPortfolioStore',peFund:fund.id,peDeal:deal.id});
+assert.equal(pc.storeCount,storesBefore+1,'expansion D UI click reaches production expandPortfolioStore');
+assert.equal(cashBeforeExpansion-pc.cash,expectedExpansionCost,'expansion spends exactly 5% of EV from portfolio-company cash');
+
 assert.deepEqual(
   {companyCash:engine.g.companyCash,personalCash:engine.g.personalCash,fundCash:fund.cash},
   outsideBefore,
   'generic D UI management levers never touch self-company cash, personal cash, or fund cash'
 );
 assert.equal(randomCalls,rngBefore,'D UI management actions and rerenders consume no simulation RNG');
-assert.equal(saveCalls,6,'six successful controls across five generic lever groups persist exactly once each');
+assert.equal(saveCalls,7,'seven successful controls across six generic lever groups persist exactly once each');
 
 // Employment promises must disable the two destructive controls in the player-facing D UI.
 deal.employmentPromise=true;
@@ -111,5 +148,11 @@ assert.match(screen.innerHTML,/data-pe-manage-lever="consolidateSites"[^>]*disab
 // Mobile/touch contract: every generic lever action retains a 44px minimum target.
 const css=fs.readFileSync('css/d-ui-pe.css','utf8');
 assert.match(css,/\.pe-lever-card \.btn\{[^}]*min-height:44px/,'generic D UI lever controls keep a 44px tap target');
+assert.match(fs.readFileSync('css/d-ui-pe-phase2.css','utf8'),/\.pe-exit-scenarios\{display:grid;grid-template-columns:repeat\(3,minmax\(0,1fr\)\)/,'desktop Exit Decision Center keeps three comparable scenario columns');
+assert.match(fs.readFileSync('css/d-ui-pe-phase2.css','utf8'),/\.pe-exit-buyers\{display:grid;grid-template-columns:repeat\(2,minmax\(0,1fr\)\)/,'desktop buyer book compares strategic and PE buyers');
+assert.match(fs.readFileSync('css/d-ui-pe-phase2.css','utf8'),/\.pe-exit-routes\{display:grid;grid-template-columns:repeat\(2,minmax\(0,1fr\)\)/,'desktop exit routes compare sale and IPO side by side');
+assert.match(fs.readFileSync('css/d-ui-pe-phase2.css','utf8'),/\.pe-exit-buyers\{grid-template-columns:1fr\}/,'mobile buyer offers stack for iPhone width');
+assert.match(fs.readFileSync('css/d-ui-pe-phase2.css','utf8'),/\.pe-exit-routes\{grid-template-columns:1fr\}/,'mobile exit routes stack for iPhone width');
+assert.match(fs.readFileSync('css/d-ui-pe-phase2.css','utf8'),/\.pe-exit-scenarios\{grid-template-columns:1fr\}/,'mobile Exit Decision Center stacks scenarios for iPhone width');
 
 console.log('pe D UI generic management lever reachability tests passed');

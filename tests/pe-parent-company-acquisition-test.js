@@ -72,6 +72,9 @@ assert.ok(Math.abs((engine.g.personalCash-personalBefore)-(plan.settlement.gpCar
 assert.equal(deal.status,'exited');
 assert.equal(deal.exitMethod,'parent-company-acquisition');
 assert.equal(deal.exitProceeds,plan.purchasePrice);
+assert.equal(deal.exitAttribution.method,'parent-company-acquisition');
+assert.ok(Math.abs(deal.exitAttribution.reconciliationError)<1e-6,'parent-company acquisition preserves exact exit attribution');
+assert.ok(deal.exitLPFeedback?.id,'parent-company acquisition stores LP feedback for review');
 
 const subs=engine.g.subsidiaries.filter(s=>s.sourcePEDealID===deal.id);
 assert.equal(subs.length,1,'PE holding transfers into exactly one normal subsidiary');
@@ -142,7 +145,25 @@ assert.doesNotMatch(screen.innerHTML,/data-pe-parent-acquire[^>]*disabled/,'fund
 click('[data-pe-parent-acquire]',{peFund:fund2.id,peDeal:deal2.id});
 assert.equal(deal2.status,'exited','D UI parent acquisition reaches production transfer');
 assert.equal(engine.g.subsidiaries.filter(s=>s.sourcePEDealID===deal2.id).length,1);
-assert.match(screen.innerHTML,/data-pe-view-root="portfolio"/,'after transfer D UI returns to active PE holdings list');
+assert.match(screen.innerHTML,/data-pe-view-root="portfolio-exit-result"/,'after transfer D UI opens the exit answer screen');
+assert.match(screen.innerHTML,/Exitの答え合わせ/);
+assert.match(screen.innerHTML,/LP FEEDBACK/);
+assert.match(screen.innerHTML,/取得価格差/);
+assert.match(screen.innerHTML,/オペレーション/);
+assert.match(screen.innerHTML,/市況/);
+const latestFeedback=modules.peUIAdapter.latestExitLPFeedback(engine.g);
+assert.equal(latestFeedback.dealID,deal2.id);
+assert.equal(latestFeedback.feedback.id,deal2.exitLPFeedback.id);
+assert.ok(Number.isFinite(latestFeedback.attribution.marketReliance));
+click('[data-pe-exit-result-back]');
+assert.match(screen.innerHTML,/data-pe-recent-exits/,'completed exits remain visible from the portfolio list');
+assert.match(screen.innerHTML,new RegExp('data-pe-exit-result="'+deal2.id+'"'),'recent exit exposes a review action');
+click('[data-pe-exit-result]',{peExitResult:deal2.id});
+assert.match(screen.innerHTML,/data-pe-view-root="portfolio-exit-result"/,'stored attribution can be reopened without recomputing an active exit preview');
+
+const uiSource=fs.readFileSync('js/pe-ui.js','utf8');
+assert.match(uiSource,/data-pe-fundraising-exit-feedback/,'fundraising book exposes the latest Exit LP feedback');
+assert.match(fs.readFileSync('css/d-ui-pe.css','utf8'),/\.pe-recent-exit-grid\{grid-template-columns:1fr\}/,'recent exits stack on iPhone width');
 
 const source=fs.readFileSync('js/pe-portfolio-operations.js','utf8');
 const added=source.slice(source.indexOf('function previewParentCompanyAcquisition'),source.indexOf('// Exit（現在production',source.indexOf('function previewParentCompanyAcquisition')));

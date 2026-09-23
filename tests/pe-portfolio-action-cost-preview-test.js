@@ -27,6 +27,7 @@ assert.equal(p.renewProductMix.cost,30_000_000,'+50pt product mix costs 0.5 * 3%
 assert.equal(p.headcountDown.cost,0);
 assert.equal(p.wageUp.cost,0);
 assert.equal(p.consolidateSites.cost,0);
+assert.equal(p.expandPortfolioStore.cost,100_000_000,'expansion costs 5% of EV');
 
 let before=pc.cash;
 assert(ops.investQuality(engine.g,fund.id,deal.id,10_000_000));
@@ -42,6 +43,13 @@ before=pc.cash;
 assert(ops.renewProductMix(engine.g,fund.id,deal.id,Math.min(1,pc.productMixLevel+.5)));
 assert.equal(before-pc.cash,p.renewProductMix.cost,'product-mix preview equals production spend');
 
+p=ops.previewManagementActions(engine.g,fund.id,deal.id);
+before=pc.cash;
+const storesBefore=pc.storeCount;
+assert(ops.expandPortfolioStore(engine.g,fund.id,deal.id));
+assert.equal(before-pc.cash,p.expandPortfolioStore.cost,'expansion preview equals production spend');
+assert.equal(pc.storeCount,storesBefore+1,'expansion writer increments store count exactly once');
+
 pc.cash=1_000_000;
 p=ops.previewManagementActions(engine.g,fund.id,deal.id);
 assert.equal(p.reformProcurement.executable,false);
@@ -50,6 +58,8 @@ assert.equal(p.renewProductMix.executable,false);
 assert.equal(p.renewProductMix.reason,'cash');
 assert.equal(p.investQuality.executable,true,'quality action remains executable as a partial spend');
 assert.equal(p.investQuality.cost,1_000_000,'partial quality spend preview matches writer semantics');
+assert.equal(p.expandPortfolioStore.executable,false);
+assert.equal(p.expandPortfolioStore.reason,'cash');
 
 let model=modules.peUIAdapter.getPEUIData({portfolioDealId:deal.id});
 const l=model.portfolio.selected.management.levers;
@@ -57,6 +67,9 @@ assert.equal(l.canReformProcurement,false,'adapter disables unaffordable procure
 assert.equal(l.costs.reformProcurement.reasonLabel,'買収先cash不足');
 assert.equal(l.costs.reformProcurement.cost,p.reformProcurement.cost);
 assert.equal(l.costs.investQuality.cost,1_000_000);
+assert.equal(l.canExpandPortfolioStore,false,'adapter disables unaffordable expansion');
+assert.equal(l.costs.expandPortfolioStore.reasonLabel,'買収先cash不足');
+assert.equal(l.costs.expandPortfolioStore.cost,100_000_000);
 
 const listeners=new Map();
 const screen={innerHTML:'',classList:{add(){},remove(){}}};
@@ -76,6 +89,8 @@ assert.match(screen.innerHTML,/費用 0\.01億円/,'partial 100万円 quality sp
 assert.match(screen.innerHTML,/実行後cash 0億円/,'post-action portfolio cash is visible');
 assert.match(screen.innerHTML,/買収先cash不足/,'unaffordable action shows the exact disable reason');
 assert.match(screen.innerHTML,/data-pe-manage-lever="reformProcurement"[^>]*disabled/,'unaffordable procurement action is disabled');
+assert.match(screen.innerHTML,/data-pe-manage-lever="expandPortfolioStore"[^>]*disabled/,'unaffordable expansion is disabled');
+assert.match(screen.innerHTML,/出店/,'management UI labels the expansion control');
 
 const source=fs.readFileSync('js/pe-portfolio-operations.js','utf8');
 assert.doesNotMatch(source,/Math\.random\(\)|Date\.now\(\)|crypto\.randomUUID/,'cost preview adds no nondeterminism');

@@ -152,16 +152,47 @@ function evaluate(state){
  return snapshot(state);
 }
 
+// Pre-evaluate hooks: run once per week, immediately after baseAdvanceWeek() (the raw weekly
+// tick, including its own legacy 2-consecutive-negative-week check) and strictly BEFORE
+// evaluate() reads state.companyCash for this week's grace-period decision. A module that can
+// inject cash to rescue a bad week (e.g. real-estate-agency-credit-line.js's revolving credit
+// line) registers here instead of wrapping advanceWeek() itself as an outer layer: an outer
+// wrapper only runs after evaluate() has already committed this week's grace-period countdown
+// (and possibly gameOver) using the pre-rescue cash figure, one week too late to prevent the
+// countdown from ticking on a week the rescue would otherwise have covered.
+const preEvaluateHooks=[];
+function registerPreEvaluateHook(fn){if(typeof fn==='function'&&preEvaluateHooks.indexOf(fn)<0)preEvaluateHooks.push(fn);}
+function runPreEvaluateHooks(state,engineInstance){for(const hook of preEvaluateHooks)hook(state,engineInstance);}
+
 const baseNormalize=EngineClass.prototype.normalize;
 EngineClass.prototype.normalize=function(){const result=baseNormalize.call(this);ensure(this.g);return result;};
 const baseSave=EngineClass.prototype.save;
 EngineClass.prototype.save=function(slot=null){ensure(this.g);return baseSave.call(this,slot);};
 const baseAdvanceWeek=EngineClass.prototype.advanceWeek;
 EngineClass.prototype.advanceWeek=function(showSummary=true){
- if(this.g.gameOver||this.g.isCompanySold)return baseAdvanceWeek.call(this,showSummary);
+ if(this.g.gameOver)return baseAdvanceWeek.call(this,showSummary);
+ if(this.g.isCompanySold){
+  // baseAdvanceWeek() already saves/emits its own abbreviated 'week' tick for a sold company
+  // (js/engine.js). Preserve that exactly; only additionally save/emit if a hook actually acted,
+  // matching the pre-fix behavior where the credit line's own wrapper (previously the outermost
+  // layer, so it always ran here too) could still draw/repay regardless of isCompanySold.
+  const result=baseAdvanceWeek.call(this,showSummary);
+  if(result!==false&&!this.g.gameOver&&preEvaluateHooks.length){
+   const before=JSON.stringify({cash:this.g.companyCash,debt:this.g.companyDebt});
+   runPreEvaluateHooks(this.g,this);
+   if(JSON.stringify({cash:this.g.companyCash,debt:this.g.companyDebt})!==before){this.save();this.emit('week',{summary:null});}
+  }
+  return result;
+ }
  return this.runTransaction(()=>{
   const result=baseAdvanceWeek.call(this,false);
   if(result===false)return result;
+  // Not gated on this.g.gameOver: baseAdvanceWeek()'s own legacy check may have already set it
+  // using this week's pre-rescue cash. A hook that rescues cash here lets evaluate() below see
+  // the rescued figure, which (via the legacyTriggered revocation immediately after) is exactly
+  // what un-triggers that premature legacy gameOver when the real grace-period status is not
+  // actually insolvent.
+  runPreEvaluateHooks(this.g,this);
   const legacyTriggered=this.g.gameOver&&this.g.gameOverReason===LEGACY_GAME_OVER_REASON;
   const crisis=evaluate(this.g);
   if(legacyTriggered&&crisis.status!=='insolvent'){this.g.gameOver=false;this.g.gameOverReason='';}
@@ -171,5 +202,5 @@ EngineClass.prototype.advanceWeek=function(showSummary=true){
 };
 EngineClass.prototype.__playerCrisisInstalled=true;
 
-modules.playerCrisis=Object.freeze({STATUSES,HISTORY_LIMIT,LEGACY_GAME_OVER_REASON,INSOLVENCY_REASON,graceForDifficulty,reserveThreshold,ensure,evaluate,snapshot,validate,__installed:true});
+modules.playerCrisis=Object.freeze({STATUSES,HISTORY_LIMIT,LEGACY_GAME_OVER_REASON,INSOLVENCY_REASON,graceForDifficulty,reserveThreshold,ensure,evaluate,snapshot,validate,registerPreEvaluateHook,__installed:true});
 })();

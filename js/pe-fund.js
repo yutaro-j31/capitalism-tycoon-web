@@ -414,9 +414,9 @@ function canFormNextFund(state){
 const LP_TYPES=Object.freeze({
   formerColleague:Object.freeze({id:'formerColleague',name:'元同僚・知人',scale:'小',meetConditionLabel:'実績不問',promiseID:null,promiseLabel:null,riskLabel:'失敗すると人間関係の記録が残る'}),
   wealthyFamilyOffice:Object.freeze({id:'wealthyFamilyOffice',name:'富裕層・ファミリーオフィス',scale:'小〜中',meetConditionLabel:'Exit経験1回',promiseID:null,promiseLabel:null,riskLabel:'途中解約を言い出すことがある'}),
-  regionalBankCorporate:Object.freeze({id:'regionalBankCorporate',name:'地方銀行・事業会社',scale:'中',meetConditionLabel:'スコア30',promiseID:'localInvestment',promiseLabel:'地元企業へ2件以上投資する',riskLabel:null}),
-  pensionFund:Object.freeze({id:'pensionFund',name:'年金基金',scale:'大',meetConditionLabel:'DPI 1.2倍実績',promiseID:'quarterlyReporting',promiseLabel:'四半期報告を行う',riskLabel:null}),
-  universitySovereign:Object.freeze({id:'universitySovereign',name:'大学基金・政府系',scale:'最大',meetConditionLabel:'実現実績2本',promiseID:'investmentRestriction',promiseLabel:'投資対象を制約に従わせる',riskLabel:null})
+  regionalBankCorporate:Object.freeze({id:'regionalBankCorporate',name:'地方銀行・事業会社',scale:'中',meetConditionLabel:'スコア30',promiseID:'localInvestment',promiseLabel:'地元企業へ2件以上投資する',promiseRuleLabel:'小型承継（smallSuccession）を2件以上取得',riskLabel:null}),
+  pensionFund:Object.freeze({id:'pensionFund',name:'年金基金',scale:'大',meetConditionLabel:'DPI 1.2倍実績',promiseID:'quarterlyReporting',promiseLabel:'四半期報告を行う',promiseRuleLabel:'管理報酬未払いを発生させず報告体制を維持',riskLabel:null}),
+  universitySovereign:Object.freeze({id:'universitySovereign',name:'大学基金・政府系',scale:'最大',meetConditionLabel:'実現実績2本',promiseID:'investmentRestriction',promiseLabel:'投資対象を制約に従わせる',promiseRuleLabel:'largeCap案件へ投資しない',riskLabel:null})
 });
 const LP_TYPE_IDS=Object.freeze(Object.keys(LP_TYPES));
 // 破っても即ペナルティではなく、次号の調達額が目減りするだけ（設計書「守れないと次号で
@@ -592,6 +592,49 @@ function promiseComplianceMultiplier(fund){
   const rate=accepted.filter(c=>c.promiseFulfilled).length/accepted.length;
   return PROMISE_BROKEN_FLOOR+clamp(rate,0,1)*(1-PROMISE_BROKEN_FLOOR);
 }
+const LOCAL_INVESTMENT_PROMISE_TARGET=2;
+function localInvestmentPromiseCount(fund){return arr(fund?.deals).filter(deal=>deal?.tierID==='smallSuccession').length;}
+function investmentRestrictionBreachCount(fund){return arr(fund?.deals).filter(deal=>deal?.tierID==='largeCap').length;}
+// Pure, live view of an accepted promise. The outcome is only persisted when it becomes
+// definitive: success/failure can resolve early when the condition is already certain, otherwise
+// the investment-period deadline finalizes it.
+function promiseProgress(fund,lpTypeID,week){
+  const meta=LP_TYPES[lpTypeID],commitment=arr(fund?.lps).find(row=>row.lpTypeID===lpTypeID);
+  if(!meta?.promiseID||!commitment?.promiseAccepted)return {lpTypeID,promiseID:meta?.promiseID||null,status:'not-accepted',fulfilled:null,progress:0,target:0,label:meta?.promiseRuleLabel||meta?.promiseLabel||null};
+  const w=Math.max(finite(fund?.y0),finite(week,fund?.lastProcessedWeek)),deadline=Math.max(finite(fund?.y0),finite(fund?.investmentDeadlineWeek)),stored=commitment.promiseFulfilled;
+  if(meta.promiseID==='localInvestment'){
+    const count=localInvestmentPromiseCount(fund),liveFulfilled=count>=LOCAL_INVESTMENT_PROMISE_TARGET,liveBroken=!liveFulfilled&&w>=deadline;
+    const fulfilled=stored===true?true:stored===false?false:liveFulfilled?true:liveBroken?false:null;
+    return {lpTypeID,promiseID:meta.promiseID,status:fulfilled===true?'fulfilled':fulfilled===false?'broken':'pending',fulfilled,progress:count,target:LOCAL_INVESTMENT_PROMISE_TARGET,label:meta.promiseRuleLabel};
+  }
+  if(meta.promiseID==='quarterlyReporting'){
+    const shortfall=Math.max(0,finite(fund?.managementFeeShortfall)),liveBroken=shortfall>0,liveFulfilled=!liveBroken&&w>=deadline;
+    const fulfilled=stored===true?true:stored===false?false:liveBroken?false:liveFulfilled?true:null;
+    return {lpTypeID,promiseID:meta.promiseID,status:fulfilled===true?'fulfilled':fulfilled===false?'broken':'pending',fulfilled,progress:shortfall,target:0,label:meta.promiseRuleLabel};
+  }
+  if(meta.promiseID==='investmentRestriction'){
+    const breaches=investmentRestrictionBreachCount(fund),liveBroken=breaches>0,liveFulfilled=!liveBroken&&w>=deadline;
+    const fulfilled=stored===true?true:stored===false?false:liveBroken?false:liveFulfilled?true:null;
+    return {lpTypeID,promiseID:meta.promiseID,status:fulfilled===true?'fulfilled':fulfilled===false?'broken':'pending',fulfilled,progress:breaches,target:0,label:meta.promiseRuleLabel};
+  }
+  return {lpTypeID,promiseID:meta.promiseID,status:stored===true?'fulfilled':stored===false?'broken':'pending',fulfilled:stored===true?true:stored===false?false:null,progress:0,target:0,label:meta.promiseRuleLabel||meta.promiseLabel};
+}
+function fundPromiseProgress(fund,week){
+  return arr(fund?.lps).filter(row=>row?.promiseAccepted).map(row=>promiseProgress(fund,row.lpTypeID,week));
+}
+function refreshLPPromiseOutcomes(fund,week){
+  if(!fund)return 0;
+  let changed=0;
+  for(const row of arr(fund.lps)){
+    if(!row?.promiseAccepted||row.promiseFulfilled!==null)continue;
+    const progress=promiseProgress(fund,row.lpTypeID,week);
+    if(progress.fulfilled===true||progress.fulfilled===false){
+      row.promiseFulfilled=progress.fulfilled;
+      changed++;
+    }
+  }
+  return changed;
+}
 // 既存LPは自動継続（設計書）。前号のLP構成をそのまま次号の出発点として返す。実際に次号へ
 //引き継ぐかどうかは呼び出し側（将来のUI）が決める。
 function continuingLPCommitments(state){
@@ -665,6 +708,7 @@ function processFundsWeek(state,week){
       fund.status='closed';
       fund.closedWeek=week;
     }
+    refreshLPPromiseOutcomes(fund,week);
     // T17: evaluateFund を週次処理から自動的に呼ぶ。通常週は DPI・資金消化率のリフレッシュ
     // だけを行い（次号組成の関門とLP信頼度がこれを見る）、トラックレコードへの加算は
     // ファンドが実際に終了した週だけ・1回だけ行う（evaluateFund側の once ガード）。
@@ -905,22 +949,50 @@ function planFundFormation(state,{gpCommit=null}={}){
   if(finite(state.personalCash)<selectedGpCommit)return {ok:false,reason:'gpCash',message:`GP出資${Math.round(selectedGpCommit).toLocaleString('ja-JP')}円に対して個人資産が不足しています。`,maxSize,maxGpCommit,requestedGpCommit:selectedGpCommit,ratio,score,terms};
   return {ok:true,size,gpCommit:selectedGpCommit,ratio,score,terms,maxSize,maxGpCommit,customGpCommit:specified};
 }
-// LP構成: 会える相手（前号からの継続を優先）にLP拠出分を均等に割り付ける。金額の交渉自体は
-// 設計書§9 失敗7の通り「最大額を取るだけの最適化」に落ちるため作らない。
-function buildLPCommitments(state,fund,{acceptPromises=false}={}){
+// LP構成: 金額配分は設計書§9 失敗7の通り自動のままにする。プレイヤーが選ぶのは
+// promise-bearing LPの約束を「受ける / 断る」だけ。既存LPを優先し、その後に現在会えるLPを並べる。
+function formationLPIDs(state){
   const continuing=continuingLPCommitments(state).map(c=>c.lpTypeID);
   const meetable=LP_TYPE_IDS.filter(id=>meetsLPCondition(state,id));
-  const ordered=[...continuing.filter(id=>meetable.includes(id)),...meetable.filter(id=>!continuing.includes(id))].slice(0,MAX_LPS_PER_FUND);
+  return [...continuing.filter(id=>meetable.includes(id)),...meetable.filter(id=>!continuing.includes(id))].slice(0,MAX_LPS_PER_FUND);
+}
+function promiseDecisionFor(lpTypeID,{acceptPromises=false,promiseDecisions=null}={}){
+  const meta=LP_TYPES[lpTypeID];
+  if(!meta?.promiseID)return false;
+  if(promiseDecisions&&typeof promiseDecisions==='object'&&Object.prototype.hasOwnProperty.call(promiseDecisions,lpTypeID))return Boolean(promiseDecisions[lpTypeID]);
+  return Boolean(acceptPromises);
+}
+// Read-only Fundraising Book. It uses the exact formation plan and exact LP allocation that the
+// writer below will use, so the UI never invents a separate fundraising model.
+function fundraisingBook(state,{gpCommit=null,acceptPromises=false,promiseDecisions=null}={}){
+  const plan=planFundFormation(state,{gpCommit});
+  if(!plan.ok)return {...plan,lpContributed:0,lps:[],lpTrustMultiplier:lpTrustMultiplier(state),priorPromiseMultiplier:state?.peFirm?.funds?.length?promiseComplianceMultiplier(state.peFirm.funds[state.peFirm.funds.length-1]):1};
+  const ids=formationLPIDs(state),lpContributed=Math.max(0,finite(plan.size)-finite(plan.gpCommit)),each=ids.length?lpContributed/ids.length:0;
+  const continuing=new Set(continuingLPCommitments(state).map(row=>row.lpTypeID));
+  const outreach=new Map(arr(state?.peFirm?.lpOutreach).map(row=>[row.lpTypeID,row]));
+  const rows=ids.map(id=>{
+    const meta=LP_TYPES[id],row=outreach.get(id)||null;
+    return {
+      lpTypeID:id,name:meta.name,scale:meta.scale,committedAmount:each,
+      source:continuing.has(id)?'continuing':row?.status==='positive'?'ddq-positive':'eligible',
+      outreachStatus:row?.status||null,promiseID:meta.promiseID,promiseLabel:meta.promiseLabel,promiseRuleLabel:meta.promiseRuleLabel||null,riskLabel:meta.riskLabel,
+      promiseAccepted:promiseDecisionFor(id,{acceptPromises,promiseDecisions})
+    };
+  });
+  return {...plan,lpContributed,lps:rows,lpTrustMultiplier:lpTrustMultiplier(state),priorPromiseMultiplier:state.peFirm.funds.length?promiseComplianceMultiplier(state.peFirm.funds[state.peFirm.funds.length-1]):1};
+}
+function buildLPCommitments(state,fund,{acceptPromises=false,promiseDecisions=null}={}){
+  const ordered=formationLPIDs(state);
   if(!ordered.length)return [];
   const each=Math.max(0,finite(fund.lpContributed))/ordered.length;
-  return ordered.map(id=>addLPCommitment(fund,{lpTypeID:id,committedAmount:each,promiseAccepted:acceptPromises})).filter(Boolean);
+  return ordered.map(id=>addLPCommitment(fund,{lpTypeID:id,committedAmount:each,promiseAccepted:promiseDecisionFor(id,{acceptPromises,promiseDecisions})})).filter(Boolean);
 }
-function formFund(state,{acceptPromises=false,gpCommit=null}={}){
+function formFund(state,{acceptPromises=false,promiseDecisions=null,gpCommit=null}={}){
   const plan=planFundFormation(state,{gpCommit});
   if(!plan.ok)return plan;
   const fund=createFund(state,{size:plan.size,gpCommit:plan.gpCommit,terms:plan.terms,y0:finite(state.week,1)});
   if(!fund)return {ok:false,reason:'gpCash',message:'GP出資に対して個人資産が不足しています。'};
-  buildLPCommitments(state,fund,{acceptPromises});
+  buildLPCommitments(state,fund,{acceptPromises,promiseDecisions});
   return {ok:true,fund,size:plan.size,gpCommit:plan.gpCommit};
 }
 
@@ -961,6 +1033,7 @@ function install(){
   // T21-2: プレイヤー操作としてのファンド組成。表示用の見積り（formablePEFund）と、
   // 実行（formPEFund）を分ける。
   proto.formablePEFund=function(options={}){return planFundFormation(this.g,options);};
+  proto.previewPEFundraising=function(options={}){return fundraisingBook(this.g,options);};
   proto.solicitPELP=function(lpTypeID){
     const result=solicitLP(this.g,lpTypeID,this.g.week);
     if(!result.ok)return this.fail(result.message);
@@ -1045,8 +1118,8 @@ modules.peFund=Object.freeze({
   exitQuality,computeTrackScore,recordExit,recordExitForCurrentCompany,
   fundContributed,fundDeployed,fundDeploymentRate,fundDPI,fundIRR,evaluateFund,canFormNextFund,
   RESCUE_MIN_NEW_EXITS,RESCUE_MIN_SCORE_GAIN,newExitsSinceFund,gateRescueAvailable,
-  gpShareOfFund,distributeToInvestors,planFundFormation,buildLPCommitments,formFund,
-  LP_TYPES,LP_TYPE_IDS,PROMISE_BROKEN_FLOOR,MAX_LPS_PER_FUND,LP_DDQ_MIN_WEEKS,LP_DDQ_MAX_WEEKS,LP_DDQ_FOLLOWUP_WEEKS,LP_DDQ_RETRY_WEEKS,normalizeLPs,normalizeLPOutreach,meetsLPCondition,visibleLPTypes,lpOutreachRows,lpDDQOutcome,solicitLP,answerLPQuestions,processLPOutreachWeek,addLPCommitment,recordLPPromiseOutcome,promiseComplianceMultiplier,continuingLPCommitments,
+  gpShareOfFund,distributeToInvestors,planFundFormation,formationLPIDs,promiseDecisionFor,fundraisingBook,buildLPCommitments,formFund,
+  LP_TYPES,LP_TYPE_IDS,PROMISE_BROKEN_FLOOR,LOCAL_INVESTMENT_PROMISE_TARGET,localInvestmentPromiseCount,investmentRestrictionBreachCount,promiseProgress,fundPromiseProgress,refreshLPPromiseOutcomes,MAX_LPS_PER_FUND,LP_DDQ_MIN_WEEKS,LP_DDQ_MAX_WEEKS,LP_DDQ_FOLLOWUP_WEEKS,LP_DDQ_RETRY_WEEKS,normalizeLPs,normalizeLPOutreach,meetsLPCondition,visibleLPTypes,lpOutreachRows,lpDDQOutcome,solicitLP,answerLPQuestions,processLPOutreachWeek,addLPCommitment,recordLPPromiseOutcome,promiseComplianceMultiplier,continuingLPCommitments,
   MANAGEMENT_FEE_PER_HEAD,TEAM_CAP,MIN_TICKET_PER_DEAL,MAX_DEAL_SHARE_OF_FUND,SLOT_CAP_ABSOLUTE,FIRST_FUND_HOLD_WEEKS,LATER_FUND_HOLD_WEEKS,
   teamCapacity,slotCapacity,maxSingleDealSize,activeDealCount,attentionRatio,attentionMultiplier,optimalHoldWeeks,
   DD_SLOTS_BASE,DD_SLOTS_PER_PARTNER_DIVISOR,DD_YEAR_WEEKS,partnerCount,computeDDSlotsPerYear,ddSlotsPerYear,ddPeriodIndex,currentDDUsage,ddSlotsRemaining,consumeDDSlot,

@@ -115,7 +115,8 @@
     "tests/mobile-dock-content-clearance-test.js",
     "tests/bank-loans-covenants-default-consistency-test.js",
     "tests/gym-startup-loan-workout-test.js",
-    "tests/ramen-supply-payment-terms-negative-test.js"
+    "tests/ramen-supply-payment-terms-negative-test.js",
+    "tests/pe-multi-fund-acquisition-negative-test.js"
   ],
   "G": [
     "tests/executive-dismissal-reachability-test.js",
