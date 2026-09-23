@@ -144,7 +144,8 @@ assert.match(uiSource,/60 独占案件/);
 assert.match(uiSource,/80 Referral \/ 買い手紹介/);
 const peCss=fs.readFileSync('css/d-ui-pe.css','utf8');
 assert.match(peCss,/\.pe-sourcing-node \.btn\{[^}]*min-height:44px/,'Sourcing Desk contact keeps an iPhone-safe tap target');
-assert.match(peCss,/@media\(max-width:820px\)\{\.pe-sourcing-kpis\{grid-template-columns:1fr 1fr\}\.pe-sourcing-grid\{grid-template-columns:1fr\}/,'Sourcing Desk stacks node cards on iPhone width');
+assert.match(peCss,/@media\(max-width:820px\)\{[^@]*\.pe-sourcing-kpis\{grid-template-columns:1fr 1fr\}/,'Sourcing Desk KPI grid keeps the iPhone breakpoint');
+assert.match(peCss,/@media\(max-width:820px\)\{[^@]*\.pe-sourcing-grid\{grid-template-columns:1fr\}/,'Sourcing Desk stacks node cards on iPhone width');
 
 const source=fs.readFileSync('js/pe-deal-supply.js','utf8');
 assert.doesNotMatch(source,/Math\.random\(\)|Date\.now\(\)|crypto\.randomUUID/,'referral supply adds no nondeterministic source');
