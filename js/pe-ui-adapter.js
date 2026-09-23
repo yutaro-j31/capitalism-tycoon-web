@@ -40,11 +40,20 @@ function multiFundDesk(state){
   const live=rows.filter(row=>row.status!=='closed'),liveAUM=live.reduce((sum,row)=>sum+row.size,0);
   return {rows:rows.slice(-6),investingCount:rows.filter(row=>row.status==='investing').length,harvestingCount:rows.filter(row=>row.status==='harvesting').length,liveAUM,liveAUMLabel:money(liveAUM),sharedDD:{used:finite(dd?.used),total:typeof pf.ddSlotsPerYear==='function'?pf.ddSlotsPerYear(state):0,remaining:typeof pf.ddSlotsRemaining==='function'?pf.ddSlotsRemaining(state,state?.week):0}};
 }
+function latestExitLPFeedback(state){
+  let latest=null;
+  arr(state?.peFirm?.funds).forEach((fund,index)=>arr(fund?.deals).forEach(deal=>{
+    if(deal?.status!=='exited'||!deal?.exitAttribution)return;
+    const week=Math.max(0,finite(deal.exitedWeek));
+    if(!latest||week>latest.exitedWeek)latest={fundID:String(fund.id),fundOrdinal:index+1,dealID:String(deal.id),companyName:String(deal.companyName||businessLabel(deal.businessID)||deal.id),exitedWeek:week,attribution:normalizeExitAttribution(deal.exitAttribution),feedback:normalizeLPExitFeedback(deal.exitLPFeedback||portfolio?.lpExitFeedback?.(deal.exitAttribution))};
+  }));
+  return latest;
+}
 function fundFormation(state,gpCommit=null,promiseDecisions=null){
   const money=modules.dUIShell.money;
-  if(typeof pf.planFundFormation!=='function')return {available:false,ok:false,reason:'unavailable',message:'ファンド組成機能を利用できません。',personalCash:finite(state?.personalCash),personalCashLabel:money(finite(state?.personalCash))};
+  if(typeof pf.planFundFormation!=='function')return {available:false,ok:false,reason:'unavailable',message:'ファンド組成機能を利用できません。',personalCash:finite(state?.personalCash),personalCashLabel:money(finite(state?.personalCash)),latestExitFeedback:latestExitLPFeedback(state)};
   const maxPlan=pf.planFundFormation(state);
-  if(!maxPlan.ok)return {available:false,ok:false,reason:maxPlan.reason||'unavailable',message:String(maxPlan.message||'ファンドを組成できません。'),personalCash:finite(state?.personalCash),personalCashLabel:money(finite(state?.personalCash)),maxSize:0,maxSizeLabel:money(0),maxGpCommit:0,maxGpCommitLabel:money(0),selectedGpCommit:0,selectedGpCommitLabel:money(0),size:0,sizeLabel:money(0),ratio:0,lps:[]};
+  if(!maxPlan.ok)return {available:false,ok:false,reason:maxPlan.reason||'unavailable',message:String(maxPlan.message||'ファンドを組成できません。'),personalCash:finite(state?.personalCash),personalCashLabel:money(finite(state?.personalCash)),maxSize:0,maxSizeLabel:money(0),maxGpCommit:0,maxGpCommitLabel:money(0),selectedGpCommit:0,selectedGpCommitLabel:money(0),size:0,sizeLabel:money(0),ratio:0,lps:[],latestExitFeedback:latestExitLPFeedback(state)};
   const selected=gpCommit===null||gpCommit===undefined||gpCommit===''?maxPlan.gpCommit:Number(gpCommit);
   const plan=typeof pf.fundraisingBook==='function'?pf.fundraisingBook(state,{gpCommit:selected,promiseDecisions}):pf.planFundFormation(state,{gpCommit:selected});
   const lps=arr(plan.lps).map(row=>({
@@ -53,7 +62,7 @@ function fundFormation(state,gpCommit=null,promiseDecisions=null){
     committedAmount:finite(row.committedAmount),committedAmountLabel:money(finite(row.committedAmount)),
     promiseID:row.promiseID?String(row.promiseID):null,promiseLabel:row.promiseLabel?String(row.promiseLabel):null,promiseRuleLabel:row.promiseRuleLabel?String(row.promiseRuleLabel):null,riskLabel:row.riskLabel?String(row.riskLabel):null,promiseAccepted:Boolean(row.promiseAccepted)
   }));
-  return {available:true,ok:Boolean(plan.ok),reason:plan.reason||null,message:plan.ok?null:String(plan.message||'ファンドを組成できません。'),personalCash:finite(state?.personalCash),personalCashLabel:money(finite(state?.personalCash)),maxSize:finite(maxPlan.maxSize,maxPlan.size),maxSizeLabel:money(finite(maxPlan.maxSize,maxPlan.size)),maxGpCommit:finite(maxPlan.maxGpCommit,maxPlan.gpCommit),maxGpCommitLabel:money(finite(maxPlan.maxGpCommit,maxPlan.gpCommit)),selectedGpCommit:Number.isFinite(selected)?selected:0,selectedGpCommitLabel:money(Number.isFinite(selected)?selected:0),size:plan.ok?finite(plan.size):0,sizeLabel:money(plan.ok?finite(plan.size):0),ratio:finite(maxPlan.ratio),terms:plan.terms||maxPlan.terms||null,lpContributed:finite(plan.lpContributed),lpContributedLabel:money(finite(plan.lpContributed)),lpTrustMultiplier:finite(plan.lpTrustMultiplier,1),priorPromiseMultiplier:finite(plan.priorPromiseMultiplier,1),lps};
+  return {available:true,ok:Boolean(plan.ok),reason:plan.reason||null,message:plan.ok?null:String(plan.message||'ファンドを組成できません。'),personalCash:finite(state?.personalCash),personalCashLabel:money(finite(state?.personalCash)),maxSize:finite(maxPlan.maxSize,maxPlan.size),maxSizeLabel:money(finite(maxPlan.maxSize,maxPlan.size)),maxGpCommit:finite(maxPlan.maxGpCommit,maxPlan.gpCommit),maxGpCommitLabel:money(finite(maxPlan.maxGpCommit,maxPlan.gpCommit)),selectedGpCommit:Number.isFinite(selected)?selected:0,selectedGpCommitLabel:money(Number.isFinite(selected)?selected:0),size:plan.ok?finite(plan.size):0,sizeLabel:money(plan.ok?finite(plan.size):0),ratio:finite(maxPlan.ratio),terms:plan.terms||maxPlan.terms||null,lpContributed:finite(plan.lpContributed),lpContributedLabel:money(finite(plan.lpContributed)),lpTrustMultiplier:finite(plan.lpTrustMultiplier,1),priorPromiseMultiplier:finite(plan.priorPromiseMultiplier,1),latestExitFeedback:latestExitLPFeedback(state),lps};
 }
 function nextFundOutlook(state,fund,{dpi=null,deployment=null,deploymentGate=null,remaining=null}={}){
   const money=modules.dUIShell.money,size=Math.max(0,finite(fund?.size)),currentDPI=dpi===null?pf.fundDPI(fund):Math.max(0,finite(dpi)),currentDeployment=deployment===null?pf.fundDeploymentRate(fund):Math.max(0,finite(deployment)),requiredDeployment=deploymentGate===null?pf.requiredDeploymentRate(fund):Math.max(0,finite(deploymentGate)),weeksRemaining=remaining===null?Math.max(0,finite(fund?.investmentDeadlineWeek)-finite(state?.week)):Math.max(0,finite(remaining)),investing=fund?.status==='investing'&&weeksRemaining>0;
@@ -308,6 +317,6 @@ function performPortfolio(action,payload={}){
   if(action==='consolidateSites')return saveSuccessful(engine,portfolio.consolidateSites(state,fundID,dealID));
   return false;
 }
-modules.peUIAdapter=Object.freeze({NAVIGATION,getPEUIData,perform,performPortfolio,preferDrop,dealFundChoices,multiFundDesk,normalizePortfolio,normalizeExitPreview,normalizeExitAttribution,normalizeLPExitFeedback,normalizeExitedDeal,normalizeExitScenario,normalizeExitRoute,normalizeExitBuyerOffer,sourcingNetwork,thresholds:Object.freeze({DECISION_LIMIT,FINAL_BID_URGENT_WEEKS,INVESTMENT_RISK_FRACTION,DEADLINE_CRITICAL_WEEKS,DD_OPPORTUNITY_WEEKS,NETWORK_WARNING_MARGIN}),__installed:true});
+modules.peUIAdapter=Object.freeze({NAVIGATION,getPEUIData,perform,performPortfolio,preferDrop,dealFundChoices,multiFundDesk,latestExitLPFeedback,normalizePortfolio,normalizeExitPreview,normalizeExitAttribution,normalizeLPExitFeedback,normalizeExitedDeal,normalizeExitScenario,normalizeExitRoute,normalizeExitBuyerOffer,sourcingNetwork,thresholds:Object.freeze({DECISION_LIMIT,FINAL_BID_URGENT_WEEKS,INVESTMENT_RISK_FRACTION,DEADLINE_CRITICAL_WEEKS,DD_OPPORTUNITY_WEEKS,NETWORK_WARNING_MARGIN}),__installed:true});
 globalThis.CapitalismTycoonPEUIAdapter=modules.peUIAdapter;
 })();
