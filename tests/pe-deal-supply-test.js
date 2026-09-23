@@ -298,7 +298,17 @@ function directFund(e,size){
   assert.equal(deal.fundID,large.id);
 }
 
-// 12. No new Math.random()/Date.now()/randomUUID usage.
+// 12. D UI exposes a fund selector only when allocation is a real player decision.
+{
+  const ui=fs.readFileSync('js/pe-ui.js','utf8'),css=fs.readFileSync('css/d-ui-pe.css','utf8');
+  assert.match(ui,/data-pe-fund-select/,'deal cards expose an explicit fund selector');
+  assert.match(ui,/Fundを選択/);
+  assert.match(ui,/draftFundByDeal/,'the selected fund stays in UI draft state until DD succeeds');
+  assert.match(ui,/fundID:draftFundByDeal\[id\]\|\|null/,'DD action forwards the exact chosen fund to the adapter');
+  assert.match(css,/\.pe-deal-fund-select select\{[^}]*min-height:44px/,'fund selector keeps a 44px iPhone tap target');
+}
+
+// 13. No new Math.random()/Date.now()/randomUUID usage.
 {
   const src = fs.readFileSync('js/pe-deal-supply.js', 'utf8');
   assert.ok(!src.includes('Math.random()'));
