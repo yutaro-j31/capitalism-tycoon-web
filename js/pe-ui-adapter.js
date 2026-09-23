@@ -112,7 +112,7 @@ function normalizeSourcingCycle(row){
     referralTargetID:row.referralTargetID?String(row.referralTargetID):null,referralChannel:row.referralChannel?String(row.referralChannel):null
   };
 }
-function exclusiveSourcingStatus(state,{week,rows,liveTargets,nextSupplyWeeks,boardCapacity,hasInvestingFund,lastCycle}){
+function exclusiveSourcingStatus(state,{week,rows,liveTargets,nextSupplyWeeks,boardCapacity,hasInvestingFund,eligibleTierCount,lastCycle}){
   const exclusiveTargets=liveTargets.filter(target=>target?.peNetworkAccess==='exclusive');
   const channels={
     monopoly:exclusiveTargets.filter(target=>target?.dealChannel==='monopoly').length,
@@ -133,6 +133,9 @@ function exclusiveSourcingStatus(state,{week,rows,liveTargets,nextSupplyWeeks,bo
   }else if(!hasInvestingFund){
     id='no-fund';tone='risk';detail='投資期間中のファンドがないため、四半期供給の独占判定対象になりません。';
     nextAction='投資可能なFundを組成するか、次号Fundの投資期間を開始してください。';
+  }else if(eligibleTierCount<=0){
+    id='no-eligible-tier';tone='warning';detail='投資中Fundはありますが、現在アクセスできる案件Tierがありません。通常供給と独占判定の対象がありません。';
+    nextAction='Fund規模・投資期間を確認し、対象Tierを持つ投資可能Fundを用意してください。';
   }else if(liveTargets.length>=boardCapacity){
     id='board-full';tone='warning';detail='PE案件ボードが上限 '+boardCapacity+'件に達しており、新しい案件を追加できません。';
     nextAction='既存案件をDD・見送り・Exitへ進めてボード枠を空けてください。';
@@ -161,7 +164,7 @@ function exclusiveSourcingStatus(state,{week,rows,liveTargets,nextSupplyWeeks,bo
     id='last-no-fund';tone='warning';detail='前回（第'+lastCycle.week+'週）は投資期間中Fundがなく、案件供給がありませんでした。';
     nextAction='現在はFundあり。次回供給まで '+nextSupplyWeeks+'週。';
   }
-  return {id,tone,headline,detail,nextAction,count:exclusiveTargets.length,channels,bestTrust:displaySource?finite(displaySource.trust):0,bestSourceID:displaySource?.id||null,bestSourceName:displaySource?.sourceType||null,bestProbability,trustThreshold:threshold,trustGap,contactsNeeded,nextSupplyWeeks,lastCycle};
+  return {id,tone,headline,detail,nextAction,count:exclusiveTargets.length,channels,bestTrust:displaySource?finite(displaySource.trust):0,bestSourceID:displaySource?.id||null,bestSourceName:displaySource?.sourceType||null,bestProbability,trustThreshold:threshold,trustGap,contactsNeeded,nextSupplyWeeks,eligibleTierCount,lastCycle};
 }
 function referralVisibility(rows){
   const source=rows.find(row=>row.referralEligible)||null,best=rows[0]||null,threshold=Math.max(0,finite(supply?.NETWORK_REFERRAL_TRUST_THRESHOLD,80));
@@ -182,7 +185,8 @@ function sourcingNetwork(state){
   const actionsTotal=Math.max(0,finite(network?.WEEKLY_ACTIONS,2)),actionsUsed=finite(pn.weeklyActionsWeek)===week?Math.max(0,Math.floor(finite(pn.weeklyActionsUsed))):0,actionsRemaining=Math.max(0,actionsTotal-actionsUsed);
   const referralThreshold=Math.max(0,finite(supply?.NETWORK_REFERRAL_TRUST_THRESHOLD,80)),proprietaryThreshold=Math.max(0,finite(supply?.PROPRIETARY_TRUST_THRESHOLD,20));
   const campaigns=arr(state?.peFirm?.proprietarySourcing),activeCampaigns=campaigns.filter(row=>row?.status==='pending'||row?.status==='ready');
-  const hasInvestingFund=Boolean(supply?.activeInvestingFunds?.(state)?.length);
+  const investingFunds=supply?.activeInvestingFunds?.(state)||[],hasInvestingFund=Boolean(investingFunds.length);
+  const eligibleTierCount=supply?.eligibleTierSetForFunds?Math.max(0,supply.eligibleTierSetForFunds(investingFunds).size):0;
   const rows=arr(pn.nodes).map(node=>{
     const trust=Math.max(0,Math.min(100,finite(node?.trust))),access=sourcingAccess(trust),path=network?.PATH_TYPES?.[node?.pathType],tier=network?.trustTier?.(node)||{};
     return {
@@ -200,7 +204,7 @@ function sourcingNetwork(state){
       canStartProprietary:actionsRemaining>0&&hasInvestingFund&&trust>=proprietaryThreshold&&activeCampaigns.length<Math.max(0,finite(supply?.PROPRIETARY_MAX_ACTIVE,3))&&!activeCampaigns.some(row=>String(row.nodeID)===String(node?.id))
     };
   }).sort((a,b)=>b.trust-a.trust||a.id.localeCompare(b.id));
-  const referral=rows.find(row=>row.referralEligible)||null,liveTargets=arr(state?.acquisitionTargets).filter(target=>target?.peTierID&&finite(target?.expiresWeek)>=week);
+  const referral=rows.find(row=>row.referralEligible)||null,liveTargets=arr(state?.acquisitionTargets).filter(target=>target?.peTierID&&(target?.activeDealID||finite(target?.expiresWeek)>=week));
   const rawNextSupplyOffset=((1-(week%13))+13)%13,nextSupplyOffset=rawNextSupplyOffset===0&&finite(state?.peFirm?.lastDealSupplyWeek)>=week?Math.max(1,finite(supply?.SUPPLY_INTERVAL_WEEKS,13)):rawNextSupplyOffset;
   const boardCapacity=Math.max(0,finite(supply?.MAX_PE_TARGETS,8)),lastCycle=normalizeSourcingCycle(state?.peFirm?.lastSourcingCycle);
   const proprietaryRows=campaigns.slice().sort((a,b)=>finite(b?.startedWeek)-finite(a?.startedWeek)||String(a?.id||'').localeCompare(String(b?.id||''))).slice(0,8).map(row=>{
@@ -212,7 +216,7 @@ function sourcingNetwork(state){
     actionsTotal,actionsUsed,actionsRemaining,nodeCount:rows.length,bestTrust:rows[0]?.trust||0,referralSourceID:referral?.id||null,referralSourceName:referral?.sourceType||null,
     nextSupplyWeeks:nextSupplyOffset,boardCount:liveTargets.length,boardCapacity,
     accessCounts:{auction:liveTargets.filter(t=>!t.peNetworkAccess).length,referral:liveTargets.filter(t=>t.peNetworkAccess==='referral').length,limited:liveTargets.filter(t=>t.peNetworkAccess==='limited-auction').length,exclusive:liveTargets.filter(t=>t.peNetworkAccess==='exclusive').length,proprietary:liveTargets.filter(t=>t.dealChannel==='proprietary').length},
-    exclusive:exclusiveSourcingStatus(state,{week,rows,liveTargets,nextSupplyWeeks:nextSupplyOffset,boardCapacity,hasInvestingFund,lastCycle}),
+    exclusive:exclusiveSourcingStatus(state,{week,rows,liveTargets,nextSupplyWeeks:nextSupplyOffset,boardCapacity,hasInvestingFund,eligibleTierCount,lastCycle}),
     referral:referralVisibility(rows),
     proprietary:{trustThreshold:proprietaryThreshold,outreachWeeks:Math.max(0,finite(supply?.PROPRIETARY_OUTREACH_WEEKS,13)),maxActive:Math.max(0,finite(supply?.PROPRIETARY_MAX_ACTIVE,3)),activeCount:activeCampaigns.length,hasInvestingFund,rows:proprietaryRows},
     rows
