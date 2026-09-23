@@ -211,15 +211,64 @@ function normalizeExitBuyerOffer(row){
   const s=row.settlement||{},gpPrincipalAndGain=finite(s.gpPrincipalAndGain),gpCarry=finite(s.gpCarry);
   return {id:String(row.id||''),label:String(row.label||''),buyerType:String(row.buyerType||''),buyerFirmID:row.buyerFirmID?String(row.buyerFirmID):null,buyerName:String(row.buyerName||''),eligible:Boolean(row.eligible),reason:row.reason||null,priceFactor:finite(row.priceFactor,1),referenceEnterpriseValue:finite(row.referenceEnterpriseValue),exitEnterpriseValue:finite(row.exitEnterpriseValue),grossProceeds:finite(row.grossProceeds),moic:finite(row.currentMOIC),holdingWeeks:finite(row.holdingWeeks),irr:annualizedIRR(row.currentMOIC,finite(row.holdingWeeks)),personalCashProceeds:gpPrincipalAndGain+gpCarry,settlement:row.settlement?{fundShare:finite(s.fundShare),coinvestShare:finite(s.coinvestShare),gpCarry,gpPrincipalAndGain,distributedToFund:finite(s.distributedToFund),returnedToCoinvestors:finite(s.returnedToCoinvestors),settledWeek:finite(s.settledWeek)}:null};
 }
+function normalizeExitAttribution(row){
+  if(!row)return null;
+  const components=row.components||{};
+  return {
+    method:String(row.method||'sale'),entryEnterpriseValue:finite(row.entryEnterpriseValue),acquisitionPrice:finite(row.acquisitionPrice),
+    acquisitionMultiple:finite(row.acquisitionMultiple),purchaseDiscountRate:finite(row.purchaseDiscountRate),
+    operatingFactor:finite(row.operatingFactor,1),operatingEnterpriseValue:finite(row.operatingEnterpriseValue),
+    exitMultiple:finite(row.exitMultiple),exitMultipleFactor:finite(row.exitMultipleFactor,1),multipleEnterpriseValue:finite(row.multipleEnterpriseValue),
+    marketFactor:finite(row.marketFactor,1),marketEnterpriseValue:finite(row.marketEnterpriseValue),
+    pricingDiscount:finite(row.pricingDiscount),pricingFactor:finite(row.pricingFactor,1),routePricingFactor:finite(row.routePricingFactor,1),
+    exitEnterpriseValue:finite(row.exitEnterpriseValue),portfolioCash:finite(row.portfolioCash),grossProceeds:finite(row.grossProceeds),
+    investedAmount:finite(row.investedAmount),holdingWeeks:finite(row.holdingWeeks),moic:finite(row.moic),
+    irr:Number.isFinite(Number(row.irr))?Number(row.irr)*100:null,totalValueCreation:finite(row.totalValueCreation),
+    reconciliationError:finite(row.reconciliationError),positiveValueCreation:finite(row.positiveValueCreation),
+    marketReliance:finite(row.marketReliance),operatingReliance:finite(row.operatingReliance),
+    components:{
+      entryPricing:finite(components.entryPricing),operations:finite(components.operations),exitMultiple:finite(components.exitMultiple),
+      market:finite(components.market),routePricing:finite(components.routePricing),portfolioCash:finite(components.portfolioCash)
+    }
+  };
+}
+function normalizeLPExitFeedback(row){
+  if(!row)return null;
+  return {id:String(row.id||'balanced'),tone:String(row.tone||'neutral'),headline:String(row.headline||'LP Feedback'),comment:String(row.comment||'')};
+}
+function normalizeExitedDeal(fund,deal,fundOrdinal){
+  if(deal?.status!=='exited'||!deal?.exitAttribution)return null;
+  const attribution=normalizeExitAttribution(deal.exitAttribution),feedback=normalizeLPExitFeedback(deal.exitLPFeedback||portfolio?.lpExitFeedback?.(deal.exitAttribution));
+  return {
+    fundID:String(fund.id),fundOrdinal,fundName:String(fund.name||`Fund ${fundOrdinal}`),dealID:String(deal.id),
+    companyName:String(deal.companyName||businessLabel(deal.businessID)||deal.id),industry:businessLabel(deal.businessID),
+    exitMethod:String(deal.exitMethod||attribution?.method||'sale'),buyerName:deal.exitBuyerName?String(deal.exitBuyerName):null,
+    acquiredWeek:Math.max(0,finite(deal.acquiredWeek)),exitedWeek:Math.max(0,finite(deal.exitedWeek)),
+    grossProceeds:finite(deal.exitProceeds,attribution?.grossProceeds),moic:finite(attribution?.moic),irr:attribution?.irr??null,
+    holdingWeeks:finite(attribution?.holdingWeeks),attribution,feedback
+  };
+}
 function normalizeExitPreview(state,fundID,dealID){
   const preview=portfolio?.previewPortfolioExit?.(state,fundID,dealID,{method:'sale'});if(!preview?.ok)return null;
   const scenarios=portfolio?.previewPortfolioExitScenarios?.(state,fundID,dealID)?.scenarios||[];
   const routes=(portfolio?.EXIT_METHODS||[{id:'sale'}]).map(method=>normalizeExitRoute(state,fundID,dealID,method.id));
   const buyerOffers=(portfolio?.exitBuyerOffers?.(state,fundID,dealID)||[]).map(normalizeExitBuyerOffer).filter(Boolean);
   const s=preview.settlement||{},gpPrincipalAndGain=finite(s.gpPrincipalAndGain),gpCarry=finite(s.gpCarry);
-  return {fundID:String(fundID),dealID:String(dealID),companyName:String(preview.companyName||dealID),method:String(preview.method||'sale'),acquisitionPrice:finite(preview.acquisitionPrice),investedAmount:finite(preview.investedAmount),fundPortion:finite(preview.fundPortion),coinvestPortion:finite(preview.coinvestPortion),exitEnterpriseValue:finite(preview.exitEnterpriseValue),portfolioCash:finite(preview.portfolioCash),grossProceeds:finite(preview.grossProceeds),holdingWeeks:finite(preview.holdingWeeks),optimalHoldingWeeks:finite(preview.optimalHoldingWeeks),currentMOIC:finite(preview.currentMOIC),currentIRR:annualizedIRR(preview.currentMOIC,preview.holdingWeeks),exitMultiple:finite(preview.exitMultiple),marketFactor:finite(preview.marketFactor),routes,buyerOffers,decisionCenter:{assumptionLabel:'現在の経営レバーを維持・マクロ環境は現在値で固定',scenarios:scenarios.map(normalizeExitScenario)},settlement:{fundShare:finite(s.fundShare),coinvestShare:finite(s.coinvestShare),fundPrincipalReturned:finite(s.fundPrincipalReturned),coinvestPrincipalReturned:finite(s.coinvestPrincipalReturned),fundCarry:finite(s.fundCarry),coinvestCarry:finite(s.coinvestCarry),gpCarry,gpPrincipalAndGain,personalCashProceeds:gpPrincipalAndGain+gpCarry,distributedToFund:finite(s.distributedToFund),returnedToCoinvestors:finite(s.returnedToCoinvestors),settledWeek:finite(s.settledWeek)},eligibility:{eligible:Boolean(preview.eligibility?.eligible),reason:preview.eligibility?.reason||null}};
+  return {fundID:String(fundID),dealID:String(dealID),companyName:String(preview.companyName||dealID),method:String(preview.method||'sale'),acquisitionPrice:finite(preview.acquisitionPrice),investedAmount:finite(preview.investedAmount),fundPortion:finite(preview.fundPortion),coinvestPortion:finite(preview.coinvestPortion),exitEnterpriseValue:finite(preview.exitEnterpriseValue),portfolioCash:finite(preview.portfolioCash),grossProceeds:finite(preview.grossProceeds),holdingWeeks:finite(preview.holdingWeeks),optimalHoldingWeeks:finite(preview.optimalHoldingWeeks),currentMOIC:finite(preview.currentMOIC),currentIRR:annualizedIRR(preview.currentMOIC,preview.holdingWeeks),exitMultiple:finite(preview.exitMultiple),marketFactor:finite(preview.marketFactor),attribution:normalizeExitAttribution(preview.attribution),lpFeedback:normalizeLPExitFeedback(preview.lpFeedback),routes,buyerOffers,decisionCenter:{assumptionLabel:'現在の経営レバーを維持・マクロ環境は現在値で固定',scenarios:scenarios.map(normalizeExitScenario)},settlement:{fundShare:finite(s.fundShare),coinvestShare:finite(s.coinvestShare),fundPrincipalReturned:finite(s.fundPrincipalReturned),coinvestPrincipalReturned:finite(s.coinvestPrincipalReturned),fundCarry:finite(s.fundCarry),coinvestCarry:finite(s.coinvestCarry),gpCarry,gpPrincipalAndGain,personalCashProceeds:gpPrincipalAndGain+gpCarry,distributedToFund:finite(s.distributedToFund),returnedToCoinvestors:finite(s.returnedToCoinvestors),settledWeek:finite(s.settledWeek)},eligibility:{eligible:Boolean(preview.eligibility?.eligible),reason:preview.eligibility?.reason||null}};
 }
-function normalizePortfolio(state,engine,{portfolioDealId=null,includeExitPreview=false}={}){const holdings=[];arr(state?.peFirm?.funds).forEach((fund,index)=>arr(fund?.deals).forEach(deal=>{const row=normalizePortfolioHolding(state,engine,fund,deal,index+1);if(row)holdings.push(row);}));holdings.sort((a,b)=>b.currentEnterpriseValue-a.currentEnterpriseValue||a.companyName.localeCompare(b.companyName,'ja'));const totalInvested=holdings.reduce((sum,row)=>sum+row.investedAmount,0),grossValue=holdings.reduce((sum,row)=>sum+row.grossProceeds,0),enterpriseValue=holdings.reduce((sum,row)=>sum+row.currentEnterpriseValue,0),selected=portfolioDealId?holdings.find(row=>row.dealID===String(portfolioDealId))||null:null;return {summary:{holdingCount:holdings.length,enterpriseValue,grossValue,totalInvested,unrealizedGain:grossValue-totalInvested,weightedMOIC:totalInvested>0?grossValue/totalInvested:0,personalCash:finite(state?.personalCash)},holdings,selected,exitPreview:selected&&includeExitPreview?normalizeExitPreview(state,selected.fundID,selected.dealID):null};}
+function normalizePortfolio(state,engine,{portfolioDealId=null,includeExitPreview=false}={}){
+  const holdings=[],recentExits=[];
+  arr(state?.peFirm?.funds).forEach((fund,index)=>arr(fund?.deals).forEach(deal=>{
+    const holding=normalizePortfolioHolding(state,engine,fund,deal,index+1);if(holding)holdings.push(holding);
+    const exited=normalizeExitedDeal(fund,deal,index+1);if(exited)recentExits.push(exited);
+  }));
+  holdings.sort((a,b)=>b.currentEnterpriseValue-a.currentEnterpriseValue||a.companyName.localeCompare(b.companyName,'ja'));
+  recentExits.sort((a,b)=>b.exitedWeek-a.exitedWeek||b.grossProceeds-a.grossProceeds||a.companyName.localeCompare(b.companyName,'ja'));
+  const totalInvested=holdings.reduce((sum,row)=>sum+row.investedAmount,0),grossValue=holdings.reduce((sum,row)=>sum+row.grossProceeds,0),enterpriseValue=holdings.reduce((sum,row)=>sum+row.currentEnterpriseValue,0);
+  const selected=portfolioDealId?holdings.find(row=>row.dealID===String(portfolioDealId))||null:null;
+  const selectedExit=portfolioDealId?recentExits.find(row=>row.dealID===String(portfolioDealId))||null:null;
+  return {summary:{holdingCount:holdings.length,enterpriseValue,grossValue,totalInvested,unrealizedGain:grossValue-totalInvested,weightedMOIC:totalInvested>0?grossValue/totalInvested:0,personalCash:finite(state?.personalCash)},holdings,recentExits:recentExits.slice(0,12),selected,selectedExit,exitPreview:selected&&includeExitPreview?normalizeExitPreview(state,selected.fundID,selected.dealID):null};
+}
 function getPEUIData({dealId=null,acceptSellerTerm=false,bidPrice=null,portfolioDealId=null,includeExitPreview=false,gpCommit=null,promiseDecisions=null}={}){const {engine,state}=current();if(!state||!state.peFirm?.unlocked)return {unlocked:false,active:false,navigation:NAVIGATION,dashboard:null,deals:[],bid:null,portfolio:null,lpRelations:{rows:[],pending:0,positive:0}};const active=state.selectedTab==='pe-portfolio',deals=rawDeals(state).map(d=>normalizeDeal(state,d)),fund=activeFund(state),deploymentRatio=fund?pf.fundDeploymentRate(fund):0,deploymentGate=fund?pf.requiredDeploymentRate(fund):0,bid=dealId?normalizeDeal(state,rawDeals(state).find(d=>String(d.id)===String(dealId)),{acceptSellerTerm,bidPrice,deploymentRatio,deploymentGate}):null;return {unlocked:true,active,navigation:NAVIGATION,dashboard:dashboard(state,{gpCommit,promiseDecisions}),deals,bid,portfolio:normalizePortfolio(state,engine,{portfolioDealId,includeExitPreview}),sourcingNetwork:sourcingNetwork(state),lpRelations:lpRelations(state)};}
 function perform(action,payload={}){const {engine}=current();if(!engine)return false;const id=payload.dealId;if(action==='open')return engine.openMADealRoom(String(id).replace(/^target:/,''));if(action==='advance')return engine.advanceMADealRound(id);if(action==='dd')return engine.startMADueDiligence(id,'financial',payload.fundID||undefined);if(action==='bid')return engine.submitMAOffer(id,{method:'friendly',offerPrice:payload.price,acceptSellerTerm:payload.acceptSellerTerm});if(action==='drop')return engine.withdrawMADeal(id);if(action==='contactNetwork')return engine.contactPENetworkNode?.(payload.nodeID)??false;if(action==='solicitLP')return engine.solicitPELP?.(payload.lpTypeID)??false;if(action==='answerLPQuestions')return engine.answerPELPQuestions?.(payload.lpTypeID)??false;if(action==='formFund')return engine.formPEFund?.({gpCommit:payload.gpCommit,promiseDecisions:payload.promiseDecisions||null})??false;return false;}
 // Management actions require actionsEnabled here as well as in the UI. This defense-in-depth gate
@@ -259,6 +308,6 @@ function performPortfolio(action,payload={}){
   if(action==='consolidateSites')return saveSuccessful(engine,portfolio.consolidateSites(state,fundID,dealID));
   return false;
 }
-modules.peUIAdapter=Object.freeze({NAVIGATION,getPEUIData,perform,performPortfolio,preferDrop,dealFundChoices,multiFundDesk,normalizePortfolio,normalizeExitPreview,normalizeExitScenario,normalizeExitRoute,normalizeExitBuyerOffer,sourcingNetwork,thresholds:Object.freeze({DECISION_LIMIT,FINAL_BID_URGENT_WEEKS,INVESTMENT_RISK_FRACTION,DEADLINE_CRITICAL_WEEKS,DD_OPPORTUNITY_WEEKS,NETWORK_WARNING_MARGIN}),__installed:true});
+modules.peUIAdapter=Object.freeze({NAVIGATION,getPEUIData,perform,performPortfolio,preferDrop,dealFundChoices,multiFundDesk,normalizePortfolio,normalizeExitPreview,normalizeExitAttribution,normalizeLPExitFeedback,normalizeExitedDeal,normalizeExitScenario,normalizeExitRoute,normalizeExitBuyerOffer,sourcingNetwork,thresholds:Object.freeze({DECISION_LIMIT,FINAL_BID_URGENT_WEEKS,INVESTMENT_RISK_FRACTION,DEADLINE_CRITICAL_WEEKS,DD_OPPORTUNITY_WEEKS,NETWORK_WARNING_MARGIN}),__installed:true});
 globalThis.CapitalismTycoonPEUIAdapter=modules.peUIAdapter;
 })();
