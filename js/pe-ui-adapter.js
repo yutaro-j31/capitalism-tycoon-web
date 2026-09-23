@@ -134,7 +134,7 @@ function exclusiveSourcingStatus(state,{week,rows,liveTargets,nextSupplyWeeks,bo
     id='no-fund';tone='risk';detail='投資期間中のファンドがないため、四半期供給の独占判定対象になりません。';
     nextAction='投資可能なFundを組成するか、次号Fundの投資期間を開始してください。';
   }else if(eligibleTierCount<=0){
-    id='no-eligible-tier';tone='warning';detail='投資中Fundはありますが、現在アクセスできる案件Tierがありません。通常供給と独占判定の対象がありません。';
+    id='no-eligible-tier';tone='warning';detail='投資中Fundはありますが、現在アクセスできる対象Tierがありません。通常供給と独占判定の対象がありません。';
     nextAction='Fund規模・投資期間を確認し、対象Tierを持つ投資可能Fundを用意してください。';
   }else if(liveTargets.length>=boardCapacity){
     id='board-full';tone='warning';detail='PE案件ボードが上限 '+boardCapacity+'件に達しており、新しい案件を追加できません。';
