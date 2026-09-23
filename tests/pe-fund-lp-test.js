@@ -234,6 +234,67 @@ function goodExit(overrides = {}) {
   assert.equal(formed.fund.lps.find(row=>row.lpTypeID==='universitySovereign').promiseAccepted, true);
 }
 
+// 7g. Promise compliance is derived from real fund activity and only finalizes when the
+// result is definitive.
+{
+  const e = new TycoonEngine();
+  const fund = pf.createFund(e.g, { size: 2_000_000_000, y0: 10 });
+  pf.addLPCommitment(fund, { lpTypeID: 'regionalBankCorporate', committedAmount: 100_000_000, promiseAccepted: true });
+  let progress = pf.promiseProgress(fund, 'regionalBankCorporate', fund.y0 + 20);
+  assert.equal(progress.status, 'pending');
+  assert.equal(progress.progress, 0);
+  fund.deals.push({ id:'local-1', tierID:'smallSuccession', status:'active' });
+  progress = pf.promiseProgress(fund, 'regionalBankCorporate', fund.y0 + 30);
+  assert.equal(progress.progress, 1);
+  assert.equal(progress.status, 'pending');
+  fund.deals.push({ id:'local-2', tierID:'smallSuccession', status:'active' });
+  assert.equal(pf.refreshLPPromiseOutcomes(fund, fund.y0 + 40), 1);
+  assert.equal(fund.lps.find(row=>row.lpTypeID==='regionalBankCorporate').promiseFulfilled, true);
+  const resolved=pf.promiseProgress(fund,'regionalBankCorporate',fund.y0+41);
+  assert.equal(resolved.status,'fulfilled');
+  assert.equal(resolved.progress,2,'resolved promise keeps its real 2/2 progress instead of collapsing to 1/1');
+  assert.equal(resolved.target,2);
+}
+{
+  const e = new TycoonEngine();
+  const fund = pf.createFund(e.g, { size: 2_000_000_000, y0: 10 });
+  pf.addLPCommitment(fund, { lpTypeID: 'regionalBankCorporate', committedAmount: 100_000_000, promiseAccepted: true });
+  fund.deals.push({ id:'local-only-one', tierID:'smallSuccession', status:'exited' });
+  assert.equal(pf.refreshLPPromiseOutcomes(fund, fund.investmentDeadlineWeek), 1);
+  assert.equal(fund.lps[0].promiseFulfilled, false, 'local-investment promise breaks at investment-period end if only one qualifying deal was made');
+}
+{
+  const e = new TycoonEngine();
+  const fund = pf.createFund(e.g, { size: 2_000_000_000, y0: 10 });
+  pf.addLPCommitment(fund, { lpTypeID: 'pensionFund', committedAmount: 100_000_000, promiseAccepted: true });
+  fund.managementFeeShortfall = 1;
+  assert.equal(pf.refreshLPPromiseOutcomes(fund, fund.y0 + 52), 1);
+  assert.equal(fund.lps[0].promiseFulfilled, false, 'reporting promise fails as soon as the reporting/management-fee budget has a shortfall');
+}
+{
+  const e = new TycoonEngine();
+  const fund = pf.createFund(e.g, { size: 2_000_000_000, y0: 10 });
+  pf.addLPCommitment(fund, { lpTypeID: 'pensionFund', committedAmount: 100_000_000, promiseAccepted: true });
+  assert.equal(pf.refreshLPPromiseOutcomes(fund, fund.investmentDeadlineWeek), 1);
+  assert.equal(fund.lps[0].promiseFulfilled, true, 'fully funded reporting promise completes at investment-period end');
+}
+{
+  const e = new TycoonEngine();
+  const fund = pf.createFund(e.g, { size: 2_000_000_000, y0: 10 });
+  pf.addLPCommitment(fund, { lpTypeID: 'universitySovereign', committedAmount: 100_000_000, promiseAccepted: true });
+  fund.deals.push({ id:'restricted-large', tierID:'largeCap', status:'active' });
+  assert.equal(pf.refreshLPPromiseOutcomes(fund, fund.y0 + 20), 1);
+  assert.equal(fund.lps[0].promiseFulfilled, false, 'largeCap acquisition immediately breaks the investment restriction promise');
+}
+{
+  const e = new TycoonEngine();
+  const fund = pf.createFund(e.g, { size: 2_000_000_000, y0: 10 });
+  pf.addLPCommitment(fund, { lpTypeID: 'universitySovereign', committedAmount: 100_000_000, promiseAccepted: true });
+  fund.deals.push({ id:'allowed-mid', tierID:'midCap', status:'active' });
+  assert.equal(pf.refreshLPPromiseOutcomes(fund, fund.investmentDeadlineWeek), 1);
+  assert.equal(fund.lps[0].promiseFulfilled, true);
+}
+
 // 8. recordLPPromiseOutcome and addLPCommitment are safe no-ops for unknown funds/LP types.
 {
   const e = new TycoonEngine();

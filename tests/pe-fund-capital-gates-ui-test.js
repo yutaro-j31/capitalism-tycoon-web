@@ -12,6 +12,7 @@ const pf=modules.peFund;
 pf.recordExit(engine.g,{exitType:'buyout',realizedAmount:200_000_000,investedAmount:8_000_000,foundedWeek:1,exitedWeek:52,profitableWeekStreak:260,employeeCount:30});
 const fund=pf.createFund(engine.g,{size:10_000_000_000,gpCommit:1_000_000_000,terms:{fee:.02,carry:.2,hurdle:.08},y0:engine.g.week});
 assert(fund,'fund created');
+pf.addLPCommitment(fund,{lpTypeID:'regionalBankCorporate',committedAmount:100_000_000,promiseAccepted:true});
 fund.cash=6_000_000_000;
 fund.deals=[{id:'capital-display-deal',status:'active',fundPortion:4_000_000_000,investedAmount:4_000_000_000}];
 fund.coinvestCommitted=2_000_000_000;
@@ -45,6 +46,10 @@ assert.equal(d.performance.outlook.weeksRemaining,pf.INVESTMENT_PERIOD_WEEKS);
 assert.equal(d.performance.outlook.scheduledManagementFees,1_000_000_000,'five remaining annual management fees are deducted from the maturity cash estimate');
 assert.equal(d.performance.outlook.cashReturnEstimate,5_000_000_000);
 assert.equal(d.performance.outlook.projectedDPI,.5,'maturity reference DPI uses distributed proceeds plus fee-adjusted residual cash');
+assert.equal(d.promiseCompliance.accepted,1);
+assert.equal(d.promiseCompliance.pending,1);
+assert.equal(d.promiseCompliance.rows[0].promiseID,'localInvestment');
+assert.equal(d.promiseCompliance.rows[0].detail,'0/2件');
 
 fund.status='harvesting';
 const harvest=modules.peUIAdapter.getPEUIData().dashboard;
@@ -69,6 +74,10 @@ assert.match(screen.innerHTML,/トラックレコード 20\/20点/,'UI states th
 assert.match(screen.innerHTML,/次号ファンド解禁見通し/,'next-fund outlook panel renders');
 assert.match(screen.innerHTML,/DPI・消化率とも不足/,'current blocker state is explicit');
 assert.match(screen.innerHTML,/満了時cash返却見込み/,'maturity cash return is visible');
+assert.match(screen.innerHTML,/data-pe-promise-compliance/,'LP promise compliance panel renders');
+assert.match(screen.innerHTML,/LP約束の履行状況/);
+assert.match(screen.innerHTML,/小型承継（smallSuccession）を2件以上取得/);
+assert.match(screen.innerHTML,/進行中/);
 
 // A realistic post-exit Fund I can be below 1.20x today while already meeting deployment.
 // The adapter must show that scheduled fee-adjusted residual cash return can take it over the
@@ -122,4 +131,5 @@ assert.match(screen.innerHTML,/現金残高/);
 assert.match(screen.innerHTML,/投資可能/);
 assert.match(screen.innerHTML,/Reserve/);
 
+assert.match(fs.readFileSync('css/d-ui-pe.css','utf8'),/\.pe-promise-grid\{grid-template-columns:1fr\}/,'promise compliance cards stack on mobile');
 console.log('PE fund capital and next-fund gate UI tests passed');
