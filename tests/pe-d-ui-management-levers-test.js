@@ -1,7 +1,7 @@
 'use strict';
 // PE D UI generic management-lever reachability regression.
 // Proves the actual player-facing pe-ui.js click path reaches the real pe-ui-adapter and the
-// production pe-portfolio-operations writers for all five generic lever groups.
+// production pe-portfolio-operations writers for all six generic lever groups.
 const assert=require('node:assert/strict');
 const fs=require('node:fs');
 const vm=require('node:vm');
@@ -85,7 +85,7 @@ click('[data-pe-exit-cancel]');
 click('[data-pe-portfolio-manage]',{pePortfolioManage:deal.id});
 assert.match(screen.innerHTML,/data-pe-view-root="portfolio-manage"/,'exit cancel can return to management flow');
 
-// All five generic lever groups must be visible on the real D UI manage screen. Staffing has two
+// All six generic lever groups must be visible on the real D UI manage screen. Staffing has two
 // controls because headcount and wages are the two dimensions of the same lever group.
 for(const action of ['investQuality','reformProcurement','setStaffing','renewProductMix','consolidateSites','expandPortfolioStore']){
   assert.match(screen.innerHTML,new RegExp(`data-pe-manage-lever="${action}"`),`${action} is reachable from D UI`);
