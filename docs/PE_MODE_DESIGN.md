@@ -560,6 +560,12 @@ GPの週次アクション枠: 2回
 
 ## 7. UI設計
 
+**2026-09-23時点の注記: この章はT26時点（Phase 1/Phase 2 UI）の設計を記す。** 以降の機能追加
+（Exit Decision Center・IPO Exit・買い手ブック/Secondary Buyout・Sourcing Desk・Fundraising
+Book・LP約束の自動判定・複数ファンド管理・Exit要因分解・Proprietary Sourcing等、PR #705〜#716）
+のUI設計・実装状況は`docs/GAME_OVERVIEW.md`を参照。以下は当時の設計記録として、削除せずそのまま
+残す。
+
 ### 前提（既存D UIの制約）
 
 - iPhone Safari が主要ターゲット。820px以下でボトムナビ、**表示は先頭5枠のみ**
