@@ -17,6 +17,7 @@ on:
       - 'tests/executives-department-assignments-test.js'
       - 'tests/prototype-overwrite-audit.js'
       - 'tests/normal-start-ipo-balance-audit-test.js'
+      - 'tests/founding-route-postfix-baseline-audit.js'
       - 'tests/shareholder-activism-test.js'
       - 'tests/shareholder-activism-reachability-test.js'
       - '.github/workflows/strategy-balance.yml'
@@ -35,6 +36,7 @@ on:
           - diagnostics
           - exploration-smoke
           - exploration-full
+          - founding-baseline
           - core
 
 concurrency:
@@ -82,6 +84,52 @@ jobs:
           path: artifacts/prototype-overwrite-audit.json
           if-no-files-found: warn
           retention-days: 14
+
+  founding-route-baseline-audit:
+    if: >-
+      github.event_name == 'pull_request' ||
+      (github.event_name == 'workflow_dispatch' && inputs.mode == 'founding-baseline')
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    env:
+      NODE_OPTIONS: --max-old-space-size=4096
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Check whether founding baseline audit changed
+        id: scope
+        shell: bash
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          run=false
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            run=true
+          elif git diff --name-only "$BASE_SHA" "$HEAD_SHA" | grep -Fxq 'tests/founding-route-postfix-baseline-audit.js'; then
+            run=true
+          fi
+          echo "run=$run" >> "$GITHUB_OUTPUT"
+      - uses: actions/setup-node@v4
+        if: steps.scope.outputs.run == 'true'
+        with:
+          node-version: '22'
+      - name: Run production founding-route baseline audit
+        if: steps.scope.outputs.run == 'true'
+        shell: bash
+        run: |
+          mkdir -p artifacts/founding-route-baseline
+          set -o pipefail
+          node tests/founding-route-postfix-baseline-audit.js 2>&1 | tee artifacts/founding-route-baseline/audit.log
+      - name: Upload founding baseline evidence
+        if: always() && steps.scope.outputs.run == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: founding-route-baseline-${{ github.sha }}
+          path: artifacts/founding-route-baseline
+          if-no-files-found: error
+          retention-days: 30
 
   difficulty-balance-contract:
     if: >-
