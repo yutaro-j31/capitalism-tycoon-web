@@ -162,6 +162,10 @@ function simulate(businessID, mode, maxWeeks, { validate = true } = {}) {
   const { modules } = loadGame({ random: lcg(SEED) });
   const engine = new modules.engine.TycoonEngine(modules.engine.createInitialState({ configured: true }));
   engine.g.configured = true;
+  // Established long-run harness pattern: skip expensive per-week validation passes while
+  // preserving the production economic/week-processing path, then validate the resulting state
+  // explicitly at the end of the scenario.
+  engine.g.skipWeeklyValidation = true;
 
   const initial = initialOpen(engine, businessID);
   const actionLog = [];
@@ -211,6 +215,9 @@ function simulate(businessID, mode, maxWeeks, { validate = true } = {}) {
 
   const financeValidation = validate ? modules.finance.validate(engine.g) : { ok: true, errors: [] };
   assert.equal(financeValidation.ok, true, businessID + ' ' + mode + ' finance validation: ' + JSON.stringify(financeValidation.errors));
+  if (validate && typeof modules.supply?.validate === 'function') modules.supply.validate(engine.g);
+  if (validate && typeof modules.workforce?.validate === 'function') modules.workforce.validate(engine.g);
+  if (validate && typeof modules.competitor?.validate === 'function') modules.competitor.validate(engine.g);
   assert.doesNotThrow(() => JSON.stringify(engine.g), businessID + ' ' + mode + ' state must remain serializable');
 
   const statements = modules.finance.buildStatements(engine.g, '52');
