@@ -569,6 +569,20 @@ DPI中央値1.26 / P10 1.06 / P90 1.52 / DPI 0.6未満0.0% / Fund II到達66.0% 
 1.64兆→1.93兆 / 1.40兆→1.25兆。最大saveは2.54MB（T25は2.656MB）。seed 999の100年runを
 2回行い、最終state SHA-256 `98d00750ddba5072d61a6ed2ced510a0...` の一致を確認した。
 
+## T26後. UX / gameplay expansion ledger
+
+T1〜T26のproduction core完成後に、設計書の積み残しを1機能1PRで解消する。これらはT1〜T26の
+会計・balanceを置き換えず、その上に追加する。
+
+| PR | 内容 | 状態 |
+|---|---|---|
+| #714 | Exit Attribution / LP Feedback。取得価格差・運用改善・Exit Multiple・市況・Buyer/IPO価格・Portfolio Cashを答え合わせ表示 | 実装済み |
+| #715 | Proprietary Sourcing。非売却企業への直接打診、13週待機、Trust連動・最大45%、成功時は独占交渉 | 実装済み |
+| #716 | Exclusive Sourcing Visibility。独占0件の理由、前回供給診断、Referral解禁距離・精査数を可視化 | 本変更 |
+
+次候補は設計書§11の残件である「投資先紹介の改善スコア65が腕と保有期間を混同する問題」の監査。
+balance変更が必要かは、まずproductionデータで分解してから決める。
+
 ## T26後. management fee込みのbalance再較正
 
 T26のcash accountingを維持したまま、Exit倍率の改善スコア側の幅だけを `0.17` → `0.34` に変更。
