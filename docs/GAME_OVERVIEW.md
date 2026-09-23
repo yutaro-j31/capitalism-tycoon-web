@@ -150,9 +150,13 @@ the unchanged deterministic production sourcing path.
 Runs independently of PE mode: deterministic small-cap listings spawn over an 8-18 week window
 with 4 archetypes (speculative 55%, steady 28%, quality 12%, breakout 5% — see
 `docs/MICROCAP_MODE_DESIGN.md` §3.2). Implemented via PR #648, after fixing a prerequisite order-
-quantity-cap bug (#645, §5 of that doc). Remaining, non-blocking: archetype ratios need
-recalibration against the real weekly engine rather than the standalone model used to design
-them, and the listing valuation-range distribution is not yet settled (§6 of that doc).
+quantity-cap bug (#645, §5 of that doc). Archetype ratios/trend/vol have been measured against
+the real weekly engine (50 independently-seeded scenarios x 1560 weeks, `advanceWeek()` via
+`tests/harness.js`); no code change was made to `js/microcap-listings.js`. The original
+design-doc target numbers were found to assume an unrecorded holding/selling rule that could not
+be reconciled with the measured distribution under any of the rules tested, and were superseded
+by the measured numbers (`docs/MICROCAP_MODE_DESIGN.md` §4.1). Remaining, non-blocking: the
+listing valuation-range distribution is not yet settled (§6 of that doc).
 
 ## 6. Technical foundation
 
@@ -220,14 +224,17 @@ identity `personalCash_after + fund.cash === personalCash_before + fund.lpContri
   Desk, Fundraising Book, automated LP promise compliance, multi-fund management, exit
   attribution, proprietary sourcing, and exclusive-sourcing explainability — all complete**
   (PR #705-#716). See §4 above for the detailed breakdown.
+- **Microcap archetype recalibration against the real engine — complete** (50 scenarios x 1560
+  weeks, `advanceWeek()` via `tests/harness.js`; no code change; see §5 above and
+  `docs/MICROCAP_MODE_DESIGN.md` §4.1).
 
 All five pillars now have a complete PE management bridge (`resolvePortfolioManagementCapability()`
 returns `actionsEnabled:true` for all of ramen/gym/conveni/productVentures/realEstateAgency —
 §4 above).
 
-**Not yet started**: Microcap archetype recalibration against the real engine (§5 above); further
-pillar-specific operating depth beyond the current five (`market.js`/`supply.js`/`workforce.js`
-staying ramen-centric is intentional per §3 above, not a gap).
+**Not yet started**: further pillar-specific operating depth beyond the current five
+(`market.js`/`supply.js`/`workforce.js` staying ramen-centric is intentional per §3 above, not a
+gap); Microcap's listing valuation-range distribution (§5 above).
 
 ## 8. Where to look next
 
