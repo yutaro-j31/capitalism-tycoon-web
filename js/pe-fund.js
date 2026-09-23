@@ -905,22 +905,50 @@ function planFundFormation(state,{gpCommit=null}={}){
   if(finite(state.personalCash)<selectedGpCommit)return {ok:false,reason:'gpCash',message:`GP出資${Math.round(selectedGpCommit).toLocaleString('ja-JP')}円に対して個人資産が不足しています。`,maxSize,maxGpCommit,requestedGpCommit:selectedGpCommit,ratio,score,terms};
   return {ok:true,size,gpCommit:selectedGpCommit,ratio,score,terms,maxSize,maxGpCommit,customGpCommit:specified};
 }
-// LP構成: 会える相手（前号からの継続を優先）にLP拠出分を均等に割り付ける。金額の交渉自体は
-// 設計書§9 失敗7の通り「最大額を取るだけの最適化」に落ちるため作らない。
-function buildLPCommitments(state,fund,{acceptPromises=false}={}){
+// LP構成: 金額配分は設計書§9 失敗7の通り自動のままにする。プレイヤーが選ぶのは
+// promise-bearing LPの約束を「受ける / 断る」だけ。既存LPを優先し、その後に現在会えるLPを並べる。
+function formationLPIDs(state){
   const continuing=continuingLPCommitments(state).map(c=>c.lpTypeID);
   const meetable=LP_TYPE_IDS.filter(id=>meetsLPCondition(state,id));
-  const ordered=[...continuing.filter(id=>meetable.includes(id)),...meetable.filter(id=>!continuing.includes(id))].slice(0,MAX_LPS_PER_FUND);
+  return [...continuing.filter(id=>meetable.includes(id)),...meetable.filter(id=>!continuing.includes(id))].slice(0,MAX_LPS_PER_FUND);
+}
+function promiseDecisionFor(lpTypeID,{acceptPromises=false,promiseDecisions=null}={}){
+  const meta=LP_TYPES[lpTypeID];
+  if(!meta?.promiseID)return false;
+  if(promiseDecisions&&typeof promiseDecisions==='object'&&Object.prototype.hasOwnProperty.call(promiseDecisions,lpTypeID))return Boolean(promiseDecisions[lpTypeID]);
+  return Boolean(acceptPromises);
+}
+// Read-only Fundraising Book. It uses the exact formation plan and exact LP allocation that the
+// writer below will use, so the UI never invents a separate fundraising model.
+function fundraisingBook(state,{gpCommit=null,acceptPromises=false,promiseDecisions=null}={}){
+  const plan=planFundFormation(state,{gpCommit});
+  if(!plan.ok)return {...plan,lpContributed:0,lps:[],lpTrustMultiplier:lpTrustMultiplier(state),priorPromiseMultiplier:state?.peFirm?.funds?.length?promiseComplianceMultiplier(state.peFirm.funds[state.peFirm.funds.length-1]):1};
+  const ids=formationLPIDs(state),lpContributed=Math.max(0,finite(plan.size)-finite(plan.gpCommit)),each=ids.length?lpContributed/ids.length:0;
+  const continuing=new Set(continuingLPCommitments(state).map(row=>row.lpTypeID));
+  const outreach=new Map(arr(state?.peFirm?.lpOutreach).map(row=>[row.lpTypeID,row]));
+  const rows=ids.map(id=>{
+    const meta=LP_TYPES[id],row=outreach.get(id)||null;
+    return {
+      lpTypeID:id,name:meta.name,scale:meta.scale,committedAmount:each,
+      source:continuing.has(id)?'continuing':row?.status==='positive'?'ddq-positive':'eligible',
+      outreachStatus:row?.status||null,promiseID:meta.promiseID,promiseLabel:meta.promiseLabel,riskLabel:meta.riskLabel,
+      promiseAccepted:promiseDecisionFor(id,{acceptPromises,promiseDecisions})
+    };
+  });
+  return {...plan,lpContributed,lps:rows,lpTrustMultiplier:lpTrustMultiplier(state),priorPromiseMultiplier:state.peFirm.funds.length?promiseComplianceMultiplier(state.peFirm.funds[state.peFirm.funds.length-1]):1};
+}
+function buildLPCommitments(state,fund,{acceptPromises=false,promiseDecisions=null}={}){
+  const ordered=formationLPIDs(state);
   if(!ordered.length)return [];
   const each=Math.max(0,finite(fund.lpContributed))/ordered.length;
-  return ordered.map(id=>addLPCommitment(fund,{lpTypeID:id,committedAmount:each,promiseAccepted:acceptPromises})).filter(Boolean);
+  return ordered.map(id=>addLPCommitment(fund,{lpTypeID:id,committedAmount:each,promiseAccepted:promiseDecisionFor(id,{acceptPromises,promiseDecisions})})).filter(Boolean);
 }
-function formFund(state,{acceptPromises=false,gpCommit=null}={}){
+function formFund(state,{acceptPromises=false,promiseDecisions=null,gpCommit=null}={}){
   const plan=planFundFormation(state,{gpCommit});
   if(!plan.ok)return plan;
   const fund=createFund(state,{size:plan.size,gpCommit:plan.gpCommit,terms:plan.terms,y0:finite(state.week,1)});
   if(!fund)return {ok:false,reason:'gpCash',message:'GP出資に対して個人資産が不足しています。'};
-  buildLPCommitments(state,fund,{acceptPromises});
+  buildLPCommitments(state,fund,{acceptPromises,promiseDecisions});
   return {ok:true,fund,size:plan.size,gpCommit:plan.gpCommit};
 }
 
@@ -961,6 +989,7 @@ function install(){
   // T21-2: プレイヤー操作としてのファンド組成。表示用の見積り（formablePEFund）と、
   // 実行（formPEFund）を分ける。
   proto.formablePEFund=function(options={}){return planFundFormation(this.g,options);};
+  proto.previewPEFundraising=function(options={}){return fundraisingBook(this.g,options);};
   proto.solicitPELP=function(lpTypeID){
     const result=solicitLP(this.g,lpTypeID,this.g.week);
     if(!result.ok)return this.fail(result.message);
@@ -1045,7 +1074,7 @@ modules.peFund=Object.freeze({
   exitQuality,computeTrackScore,recordExit,recordExitForCurrentCompany,
   fundContributed,fundDeployed,fundDeploymentRate,fundDPI,fundIRR,evaluateFund,canFormNextFund,
   RESCUE_MIN_NEW_EXITS,RESCUE_MIN_SCORE_GAIN,newExitsSinceFund,gateRescueAvailable,
-  gpShareOfFund,distributeToInvestors,planFundFormation,buildLPCommitments,formFund,
+  gpShareOfFund,distributeToInvestors,planFundFormation,formationLPIDs,promiseDecisionFor,fundraisingBook,buildLPCommitments,formFund,
   LP_TYPES,LP_TYPE_IDS,PROMISE_BROKEN_FLOOR,MAX_LPS_PER_FUND,LP_DDQ_MIN_WEEKS,LP_DDQ_MAX_WEEKS,LP_DDQ_FOLLOWUP_WEEKS,LP_DDQ_RETRY_WEEKS,normalizeLPs,normalizeLPOutreach,meetsLPCondition,visibleLPTypes,lpOutreachRows,lpDDQOutcome,solicitLP,answerLPQuestions,processLPOutreachWeek,addLPCommitment,recordLPPromiseOutcome,promiseComplianceMultiplier,continuingLPCommitments,
   MANAGEMENT_FEE_PER_HEAD,TEAM_CAP,MIN_TICKET_PER_DEAL,MAX_DEAL_SHARE_OF_FUND,SLOT_CAP_ABSOLUTE,FIRST_FUND_HOLD_WEEKS,LATER_FUND_HOLD_WEEKS,
   teamCapacity,slotCapacity,maxSingleDealSize,activeDealCount,attentionRatio,attentionMultiplier,optimalHoldWeeks,
