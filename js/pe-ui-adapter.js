@@ -175,9 +175,9 @@ function referralVisibility(rows){
     inspectionCount:source?Math.max(0,finite(source.referralInspectionCount)):0,maxInspectionCount:Math.max(1,finite(supply?.NETWORK_REFERRAL_SEARCH_ATTEMPTS,8)),
     competitionMultiplier:source?Math.max(0,finite(source.competitionMultiplier,1)):1,
     projectedTrust:row?Math.max(0,finite(row.projectedTrust,trust)):trust,
-    projectedUnlocked:Boolean(row?.projectedReferralEligible),
-    projectedInspectionCount:row?.projectedReferralEligible?Math.max(0,finite(row.projectedReferralInspectionCount)):0,
-    projectedCompetitionMultiplier:row?.projectedReferralEligible?Math.max(0,finite(row.projectedCompetitionMultiplier,1)):1,
+    projectedUnlocked:row?.projectedReferralEligible===undefined?Boolean(source):Boolean(row.projectedReferralEligible),
+    projectedInspectionCount:row?.projectedReferralEligible===undefined?(source?Math.max(0,finite(row.referralInspectionCount)):0):(row.projectedReferralEligible?Math.max(0,finite(row.projectedReferralInspectionCount)):0),
+    projectedCompetitionMultiplier:row?.projectedReferralEligible===undefined?(source?Math.max(0,finite(row.competitionMultiplier,1)):1):(row.projectedReferralEligible?Math.max(0,finite(row.projectedCompetitionMultiplier,1)):1),
     bestPossibleCompetitionMultiplier:Math.max(0,finite(supply?.NETWORK_REFERRAL_MIN_COMPETITION_MULTIPLIER,.25)),
     nextAction:source
       ?(trust>=100?'Trust 100: 候補精査と競争緩和が最大です。':'Trustを上げると精査候補数が増え、競争倍率が下がります。')
