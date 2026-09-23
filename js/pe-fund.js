@@ -601,22 +601,23 @@ function investmentRestrictionBreachCount(fund){return arr(fund?.deals).filter(d
 function promiseProgress(fund,lpTypeID,week){
   const meta=LP_TYPES[lpTypeID],commitment=arr(fund?.lps).find(row=>row.lpTypeID===lpTypeID);
   if(!meta?.promiseID||!commitment?.promiseAccepted)return {lpTypeID,promiseID:meta?.promiseID||null,status:'not-accepted',fulfilled:null,progress:0,target:0,label:meta?.promiseRuleLabel||meta?.promiseLabel||null};
-  if(commitment.promiseFulfilled===true)return {lpTypeID,promiseID:meta.promiseID,status:'fulfilled',fulfilled:true,progress:1,target:1,label:meta.promiseRuleLabel||meta.promiseLabel};
-  if(commitment.promiseFulfilled===false)return {lpTypeID,promiseID:meta.promiseID,status:'broken',fulfilled:false,progress:0,target:1,label:meta.promiseRuleLabel||meta.promiseLabel};
-  const w=Math.max(finite(fund?.y0),finite(week,fund?.lastProcessedWeek)),deadline=Math.max(finite(fund?.y0),finite(fund?.investmentDeadlineWeek));
+  const w=Math.max(finite(fund?.y0),finite(week,fund?.lastProcessedWeek)),deadline=Math.max(finite(fund?.y0),finite(fund?.investmentDeadlineWeek)),stored=commitment.promiseFulfilled;
   if(meta.promiseID==='localInvestment'){
-    const count=localInvestmentPromiseCount(fund),fulfilled=count>=LOCAL_INVESTMENT_PROMISE_TARGET,broken=!fulfilled&&w>=deadline;
-    return {lpTypeID,promiseID:meta.promiseID,status:fulfilled?'fulfilled':broken?'broken':'pending',fulfilled:fulfilled?true:broken?false:null,progress:count,target:LOCAL_INVESTMENT_PROMISE_TARGET,label:meta.promiseRuleLabel};
+    const count=localInvestmentPromiseCount(fund),liveFulfilled=count>=LOCAL_INVESTMENT_PROMISE_TARGET,liveBroken=!liveFulfilled&&w>=deadline;
+    const fulfilled=stored===true?true:stored===false?false:liveFulfilled?true:liveBroken?false:null;
+    return {lpTypeID,promiseID:meta.promiseID,status:fulfilled===true?'fulfilled':fulfilled===false?'broken':'pending',fulfilled,progress:count,target:LOCAL_INVESTMENT_PROMISE_TARGET,label:meta.promiseRuleLabel};
   }
   if(meta.promiseID==='quarterlyReporting'){
-    const shortfall=Math.max(0,finite(fund?.managementFeeShortfall)),broken=shortfall>0,fulfilled=!broken&&w>=deadline;
-    return {lpTypeID,promiseID:meta.promiseID,status:broken?'broken':fulfilled?'fulfilled':'pending',fulfilled:broken?false:fulfilled?true:null,progress:shortfall,target:0,label:meta.promiseRuleLabel};
+    const shortfall=Math.max(0,finite(fund?.managementFeeShortfall)),liveBroken=shortfall>0,liveFulfilled=!liveBroken&&w>=deadline;
+    const fulfilled=stored===true?true:stored===false?false:liveBroken?false:liveFulfilled?true:null;
+    return {lpTypeID,promiseID:meta.promiseID,status:fulfilled===true?'fulfilled':fulfilled===false?'broken':'pending',fulfilled,progress:shortfall,target:0,label:meta.promiseRuleLabel};
   }
   if(meta.promiseID==='investmentRestriction'){
-    const breaches=investmentRestrictionBreachCount(fund),broken=breaches>0,fulfilled=!broken&&w>=deadline;
-    return {lpTypeID,promiseID:meta.promiseID,status:broken?'broken':fulfilled?'fulfilled':'pending',fulfilled:broken?false:fulfilled?true:null,progress:breaches,target:0,label:meta.promiseRuleLabel};
+    const breaches=investmentRestrictionBreachCount(fund),liveBroken=breaches>0,liveFulfilled=!liveBroken&&w>=deadline;
+    const fulfilled=stored===true?true:stored===false?false:liveBroken?false:liveFulfilled?true:null;
+    return {lpTypeID,promiseID:meta.promiseID,status:fulfilled===true?'fulfilled':fulfilled===false?'broken':'pending',fulfilled,progress:breaches,target:0,label:meta.promiseRuleLabel};
   }
-  return {lpTypeID,promiseID:meta.promiseID,status:'pending',fulfilled:null,progress:0,target:0,label:meta.promiseRuleLabel||meta.promiseLabel};
+  return {lpTypeID,promiseID:meta.promiseID,status:stored===true?'fulfilled':stored===false?'broken':'pending',fulfilled:stored===true?true:stored===false?false:null,progress:0,target:0,label:meta.promiseRuleLabel||meta.promiseLabel};
 }
 function fundPromiseProgress(fund,week){
   return arr(fund?.lps).filter(row=>row?.promiseAccepted).map(row=>promiseProgress(fund,row.lpTypeID,week));
