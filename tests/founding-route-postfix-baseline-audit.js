@@ -6,6 +6,9 @@ const path = require('node:path');
 const { loadGame } = require('./harness');
 
 const BUSINESS_IDS = ['ramen', 'conveni', 'gym', 'realEstateAgency'];
+const REQUESTED_BUSINESS = String(process.env.FOUNDING_AUDIT_BUSINESS || '').trim();
+if (REQUESTED_BUSINESS && !BUSINESS_IDS.includes(REQUESTED_BUSINESS)) throw new Error('unknown FOUNDING_AUDIT_BUSINESS: ' + REQUESTED_BUSINESS);
+const AUDIT_IDS = REQUESTED_BUSINESS ? [REQUESTED_BUSINESS] : BUSINESS_IDS;
 const SEED = 190826041;
 const STANDARD_WEEKS = 500;
 const CONSERVATIVE_WEEKS = 500;
@@ -258,9 +261,9 @@ function determinismDigest(result) {
   };
 }
 
-const standard = BUSINESS_IDS.map(id => simulate(id, 'standard', STANDARD_WEEKS));
-const conservative = BUSINESS_IDS.map(id => simulate(id, 'conservative', CONSERVATIVE_WEEKS));
-const determinism = BUSINESS_IDS.map(businessID => {
+const standard = AUDIT_IDS.map(id => simulate(id, 'standard', STANDARD_WEEKS));
+const conservative = AUDIT_IDS.map(id => simulate(id, 'conservative', CONSERVATIVE_WEEKS));
+const determinism = AUDIT_IDS.map(businessID => {
   const a = simulate(businessID, 'standard', DETERMINISM_WEEKS, { validate: false });
   const b = simulate(businessID, 'standard', DETERMINISM_WEEKS, { validate: false });
   const left = determinismDigest(a);
@@ -271,6 +274,7 @@ const determinism = BUSINESS_IDS.map(businessID => {
 
 const result = {
   generatedFrom: 'production TycoonEngine via tests/harness.js',
+  requestedBusiness: REQUESTED_BUSINESS || null,
   approximationModel: false,
   seed: SEED,
   targetCompanyValue: TARGET_VALUE,
