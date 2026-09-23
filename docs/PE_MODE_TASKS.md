@@ -9,6 +9,12 @@
 いた。実際にはその後、production path の結線と設計側の修正が必要になり T16〜T26 が追加された。
 追補は末尾の「フェーズE 以降（T16〜）」にある。各タスクの実装コミットも同じ表にある。
 
+**2026-09-23時点の注記: T1〜T26でこのファイル自体の更新は終了した。** 以降のPEモード機能追加
+（Exit Decision Center・IPO Exit・買い手ブック/Secondary Buyout・Sourcing Desk・Fundraising
+Book・LP約束の自動判定・複数ファンド管理・Exit要因分解・Proprietary Sourcing等、PR #705〜#716）
+は、このT番号方式では追跡されておらず、`docs/GAME_OVERVIEW.md`側で状況をまとめる方式に一本化
+された。以下のT1〜T26の記述は当時の実装記録として、削除せずそのまま残す。
+
 指示の例:
 ```
 docs/PE_MODE_TASKS.md の T3 を実装して。

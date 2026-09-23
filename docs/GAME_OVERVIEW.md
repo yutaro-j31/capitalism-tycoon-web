@@ -63,7 +63,31 @@ Each pillar has a structurally distinct economic model, not a palette-swapped cl
 
 Fund formation runs through 4 gates (Exit → GP commit → LP raise → terms) — see
 `docs/PE_MODE_DESIGN.md` §3 for the full flow. All T1-T26 tasks are implemented; the full task
-list with commit SHAs is in `docs/PE_MODE_TASKS.md`.
+list with commit SHAs is in `docs/PE_MODE_TASKS.md`. `docs/PE_MODE_TASKS.md`/`docs/PE_MODE_DESIGN.md`
+stopped tracking new PE work after T26 (2026-08-13); everything below this point is tracked here
+instead.
+
+**Post-T26 feature additions (PR #705-#716)**: the Exit
+Decision Center (`previewPEPortfolioExitScenarios()`, #706) compares the current sale against two
+bounded hold scenarios (+26/+52 weeks) by replaying the exact weekly portfolio-company/fund
+calculators on a cloned state — read-only, no RNG. An IPO exit route (#707) was added alongside
+the original sale route, with its own eligibility gate (`IPO_EXIT_MIN_SCORE`, `IPO_EXIT_MIN_HOLD_WEEKS`)
+and listing discount (`IPO_EXIT_DISCOUNT`). A buyer book (#708) adds secondary-buyout and
+strategic-sale offers, each with its own price factor, reusing `js/pe-rivals.js`'s existing
+roster/eligibility logic rather than inventing new buyer entities. An interactive Sourcing Desk
+(#709) surfaces network-referral and monopoly-sourcing state for direct player action. A
+Fundraising Book (#711) makes LP promise acceptance a per-LP player choice (`promiseDecisions`)
+instead of an implicit accept-all/decline-all; LP promise compliance (#712) is then derived
+automatically from real fund activity (deal tier mix, reporting shortfalls) rather than a manual
+toggle. Multi-fund management (#713) lets deal supply and DD draw from the union of every
+currently-investing fund, with the specific vehicle frozen onto the deal at DD time
+(`deal.fundID`). Exit attribution (#714) decomposes each exit's value creation into
+entry-pricing/operations/exit-multiple/market/route-pricing components that reconcile exactly to
+gross proceeds minus acquisition price, paired with a derived LP-feedback label — both read-only
+and display-only. Proprietary sourcing (#715) adds a long-horizon (13-week response,
+capped-below-50% success probability), player-initiated outreach path to non-for-sale companies
+that shares the existing weekly network-action budget. #716 makes exclusive-sourcing status
+explainable in the UI without changing its underlying mechanics.
 
 **Confirmed settings** (`docs/PE_MODE_DESIGN.md` §2 table): Fund I size ¥28-30億, 4 bids/year,
 slots 2→8, team cap 60, DD budget 3 deals/year + partner-count/4, hold period 4yr (fund I) / 3yr
@@ -182,6 +206,14 @@ identity `personalCash_after + fund.cash === personalCash_before + fund.lpContri
   pure allocation kernel extracted in PR #676; see §4 table above).
 - **productVentures's PE management bridge — complete** (PR #679 engine layer built on the
   product/lifecycle kernels extracted in PR #678, PR #680 UI layer; see §4 table above).
+- **company recall crisis — minimum core complete** (PR #699). See
+  `docs/gameplay-systems-roadmap.md` §8F.3.
+- **overseas repatriation — minimum core complete** (PR #702). See
+  `docs/gameplay-systems-roadmap.md` §8F.2.
+- **PE mode Exit Decision Center, IPO exit, buyer book/Secondary Buyout, interactive Sourcing
+  Desk, Fundraising Book, automated LP promise compliance, multi-fund management, exit
+  attribution, proprietary sourcing, and exclusive-sourcing explainability — all complete**
+  (PR #705-#716). See §4 above for the detailed breakdown.
 
 All five pillars now have a complete PE management bridge (`resolvePortfolioManagementCapability()`
 returns `actionsEnabled:true` for all of ramen/gym/conveni/productVentures/realEstateAgency —
