@@ -259,27 +259,31 @@ function activeProprietarySourcing(state){
   return arr(state?.peFirm?.proprietarySourcing).filter(row=>row?.status==='pending'||row?.status==='ready');
 }
 function startProprietarySourcing(state,nodeID,week){
-  ensure(state);
-  if(!network)return {ok:false,reason:'network-unavailable',message:'人脈機能を利用できません。'};
-  network.ensure(state);
-  const w=Math.max(0,Math.floor(finite(week,state.week))),node=state.peNetwork.nodes.find(row=>row?.id===nodeID);
+  if(!state||!network)return {ok:false,reason:'network-unavailable',message:'人脈機能を利用できません。'};
+  const w=Math.max(0,Math.floor(finite(week,state.week))),rawNodes=arr(state?.peNetwork?.nodes),node=rawNodes.find(row=>row?.id===nodeID);
   if(!node)return {ok:false,reason:'node-not-found',message:'人脈が見つかりません。'};
   if(finite(node.trust)<PROPRIETARY_TRUST_THRESHOLD)return {ok:false,reason:'trust',message:`非売却企業への打診にはTrust ${PROPRIETARY_TRUST_THRESHOLD}以上が必要です。`};
   const funds=activeInvestingFunds(state);
   if(!funds.length)return {ok:false,reason:'fund',message:'投資期間中のファンドがありません。'};
-  const active=activeProprietarySourcing(state);
+  const active=arr(state?.peFirm?.proprietarySourcing).filter(row=>row?.status==='pending'||row?.status==='ready');
   if(active.length>=PROPRIETARY_MAX_ACTIVE)return {ok:false,reason:'capacity',message:'同時に進められるProprietary Sourcingは3件までです。'};
   if(active.some(row=>row.nodeID===nodeID))return {ok:false,reason:'duplicate',message:'この人脈からはすでに案件化を進めています。'};
   const candidate=proprietaryCandidate(state,funds,w,node);
   if(!candidate)return {ok:false,reason:'tier',message:'現在のファンド規模で打診できる企業候補がありません。'};
-  if(network.weeklyActionsRemaining(state,w)<=0)return {ok:false,reason:'actions',message:'今週の人脈アクションを使い切りました。'};
-  if(!network.consumeWeeklyAction?.(state,w))return {ok:false,reason:'actions',message:'今週の人脈アクションを使い切りました。'};
-  node.lastContactWeek=w;
-  const successProbability=proprietarySuccessProbability(node);
-  const id=`pe-proprietary-${node.id}-w${w}-i${candidate.dealIndex}`;
+  const used=finite(state?.peNetwork?.weeklyActionsWeek)===w?Math.max(0,Math.floor(finite(state?.peNetwork?.weeklyActionsUsed))):0;
+  if(used>=finite(network.WEEKLY_ACTIONS,2))return {ok:false,reason:'actions',message:'今週の人脈アクションを使い切りました。'};
+  // All failure conditions above are read-only. Normalize/consume only after the action is known
+  // to be executable, preserving the repository's failed-action atomicity convention.
+  ensure(state);network.ensure(state);
+  const liveNode=state.peNetwork.nodes.find(row=>row?.id===nodeID);
+  if(!liveNode||!network.consumeWeeklyAction?.(state,w))return {ok:false,reason:'actions',message:'今週の人脈アクションを使い切りました。'};
+  liveNode.lastContactWeek=w;
+  const sourceNode=liveNode;
+  const successProbability=proprietarySuccessProbability(sourceNode);
+  const id=`pe-proprietary-${sourceNode.id}-w${w}-i${candidate.dealIndex}`;
   const campaign={
-    id,nodeID:node.id,sourceType:String(node.sourceType||'人脈'),sourcePathType:String(node.pathType||'referrer'),
-    sourceTrust:finite(node.trust),startedWeek:w,responseWeek:w+PROPRIETARY_OUTREACH_WEEKS,
+    id,nodeID:sourceNode.id,sourceType:String(sourceNode.sourceType||'人脈'),sourcePathType:String(sourceNode.pathType||'referrer'),
+    sourceTrust:finite(sourceNode.trust),startedWeek:w,responseWeek:w+PROPRIETARY_OUTREACH_WEEKS,
     readyDeadlineWeek:w+PROPRIETARY_OUTREACH_WEEKS+PROPRIETARY_READY_GRACE_WEEKS,
     dealYear:candidate.dealYear,dealIndex:candidate.dealIndex,tierID:candidate.tierID,status:'pending',
     successProbability,outcomeRoll:unit('pe-proprietary-outcome',id),resolvedWeek:null,targetID:null,reason:null
