@@ -119,10 +119,12 @@ function exclusiveSourcingStatus(state,{week,rows,liveTargets,nextSupplyWeeks,bo
     referral:exclusiveTargets.filter(target=>target?.dealChannel==='network-referral').length,
     proprietary:exclusiveTargets.filter(target=>target?.dealChannel==='proprietary').length
   };
-  const best=rows[0]||null,bestProbability=rows.reduce((max,row)=>Math.max(max,finite(row?.monopolyProbability)),0);
+  const bestTrustRow=rows[0]||null,bestProbabilityRow=rows.slice().sort((a,b)=>finite(b?.monopolyProbability)-finite(a?.monopolyProbability)||finite(b?.trust)-finite(a?.trust)||String(a?.id||'').localeCompare(String(b?.id||'')))[0]||null;
+  const bestProbability=Math.max(0,finite(bestProbabilityRow?.monopolyProbability));
   const threshold=Math.max(0,finite(network?.MONOPOLY_TRUST_THRESHOLD,60));
-  const trustGap=best?Math.max(0,threshold-finite(best.trust)):threshold;
-  const contactsNeeded=best&&trustGap>0?Math.ceil(trustGap/Math.max(1,finite(network?.CONTACT_TRUST_GAIN,4))):0;
+  const trustGap=bestTrustRow?Math.max(0,threshold-finite(bestTrustRow.trust)):threshold;
+  const contactsNeeded=bestTrustRow&&trustGap>0?Math.ceil(trustGap/Math.max(1,finite(network?.CONTACT_TRUST_GAIN,4))):0;
+  const displaySource=bestProbability>0?bestProbabilityRow:bestTrustRow;
   let id='waiting',tone='neutral',headline='独占案件 0件',detail='次回の四半期案件供給で独占判定が行われます。',nextAction='次回供給まで '+nextSupplyWeeks+'週';
   if(exclusiveTargets.length){
     id='active';tone='good';headline='独占案件 '+exclusiveTargets.length+'件';
@@ -137,8 +139,8 @@ function exclusiveSourcingStatus(state,{week,rows,liveTargets,nextSupplyWeeks,bo
   }else if(!rows.length){
     id='no-network';tone='warning';detail='独占判定に使える人脈ノードがまだありません。';
     nextAction='銀行・CXO・仕入先・テナント・Exitなどから人脈を作ってください。';
-  }else if(finite(best.trust)<threshold){
-    id='trust';tone='warning';detail='最高Trustは '+finite(best.trust).toFixed(0)+'。通常の独占判定はTrust '+threshold+'からです。';
+  }else if(finite(bestTrustRow.trust)<threshold){
+    id='trust';tone='warning';detail='最高Trustは '+finite(bestTrustRow.trust).toFixed(0)+'。通常の独占判定はTrust '+threshold+'からです。';
     nextAction='あとTrust '+trustGap.toFixed(0)+'（接触約'+contactsNeeded+'回が目安）。';
   }else if(bestProbability<=0){
     id='threshold-zero';tone='warning';detail='Trust '+threshold+'で独占判定は解禁されますが、閾値ちょうどでは確率0%。Trust上昇で確率が伸びます。';
@@ -159,7 +161,7 @@ function exclusiveSourcingStatus(state,{week,rows,liveTargets,nextSupplyWeeks,bo
     id='last-no-fund';tone='warning';detail='前回（第'+lastCycle.week+'週）は投資期間中Fundがなく、案件供給がありませんでした。';
     nextAction='現在はFundあり。次回供給まで '+nextSupplyWeeks+'週。';
   }
-  return {id,tone,headline,detail,nextAction,count:exclusiveTargets.length,channels,bestTrust:best?finite(best.trust):0,bestSourceID:best?.id||null,bestSourceName:best?.sourceType||null,bestProbability,trustThreshold:threshold,trustGap,contactsNeeded,nextSupplyWeeks,lastCycle};
+  return {id,tone,headline,detail,nextAction,count:exclusiveTargets.length,channels,bestTrust:displaySource?finite(displaySource.trust):0,bestSourceID:displaySource?.id||null,bestSourceName:displaySource?.sourceType||null,bestProbability,trustThreshold:threshold,trustGap,contactsNeeded,nextSupplyWeeks,lastCycle};
 }
 function referralVisibility(rows){
   const source=rows.find(row=>row.referralEligible)||null,best=rows[0]||null,threshold=Math.max(0,finite(supply?.NETWORK_REFERRAL_TRUST_THRESHOLD,80));
