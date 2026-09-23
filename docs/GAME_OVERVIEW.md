@@ -115,6 +115,12 @@ cash-insufficient state before execution. The legacy `case 'pe-portfolio-expand'
 for the pre-unlock verification screen; the D UI path reuses the same production writer rather
 than introducing a second expansion implementation.
 
+The Sourcing Desk also previews the effect of **one additional network contact** without mutating
+state: projected Trust, monopoly probability, Referral unlock/inspection depth, and Referral
+competition multiplier are calculated from the existing canonical network/referral functions.
+The actual sourcing outcome remains governed by the saved `lastSourcingCycle` diagnostics and
+the unchanged deterministic production sourcing path.
+
 ## 5. Microcap mode
 
 Runs independently of PE mode: deterministic small-cap listings spawn over an 8-18 week window
