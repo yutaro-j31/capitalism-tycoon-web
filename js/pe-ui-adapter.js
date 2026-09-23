@@ -174,6 +174,10 @@ function referralVisibility(rows){
     unlocked:Boolean(source),sourceID:source?.id||null,sourceName:source?.sourceType||null,trust,trustThreshold:threshold,trustGap:gap,
     inspectionCount:source?Math.max(0,finite(source.referralInspectionCount)):0,maxInspectionCount:Math.max(1,finite(supply?.NETWORK_REFERRAL_SEARCH_ATTEMPTS,8)),
     competitionMultiplier:source?Math.max(0,finite(source.competitionMultiplier,1)):1,
+    projectedTrust:row?Math.max(0,finite(row.projectedTrust,trust)):trust,
+    projectedUnlocked:Boolean(row?.projectedReferralEligible),
+    projectedInspectionCount:row?.projectedReferralEligible?Math.max(0,finite(row.projectedReferralInspectionCount)):0,
+    projectedCompetitionMultiplier:row?.projectedReferralEligible?Math.max(0,finite(row.projectedCompetitionMultiplier,1)):1,
     bestPossibleCompetitionMultiplier:Math.max(0,finite(supply?.NETWORK_REFERRAL_MIN_COMPETITION_MULTIPLIER,.25)),
     nextAction:source
       ?(trust>=100?'Trust 100: 候補精査と競争緩和が最大です。':'Trustを上げると精査候補数が増え、競争倍率が下がります。')
@@ -189,6 +193,7 @@ function sourcingNetwork(state){
   const eligibleTierCount=supply?.eligibleTierSetForFunds?Math.max(0,supply.eligibleTierSetForFunds(investingFunds).size):0;
   const rows=arr(pn.nodes).map(node=>{
     const trust=Math.max(0,Math.min(100,finite(node?.trust))),access=sourcingAccess(trust),path=network?.PATH_TYPES?.[node?.pathType],tier=network?.trustTier?.(node)||{};
+    const contactGain=Math.max(0,finite(network?.CONTACT_TRUST_GAIN,4)),projectedTrust=Math.min(100,trust+contactGain),projectedNode={...node,trust:projectedTrust};
     return {
       id:String(node?.id||''),sourceType:String(node?.sourceType||'人脈'),pathType:String(node?.pathType||'referrer'),pathLabel:String(path?.name||node?.pathType||'紹介者'),
       industryTag:node?.industryTag?String(node.industryTag):null,regionTag:node?.regionTag?String(node.regionTag):null,trust,
@@ -196,6 +201,10 @@ function sourcingNetwork(state){
       monopolyProbability:Math.max(0,finite(network?.monopolyProbability?.(node))),referralEligible:trust>=referralThreshold,
       referralInspectionCount:supply?.referralInspectionCount?Math.max(0,finite(supply.referralInspectionCount(node))):0,
       competitionMultiplier:supply?.referralCompetitionMultiplier?Math.max(0,finite(supply.referralCompetitionMultiplier(trust),1)):1,
+      projectedTrust,projectedMonopolyProbability:Math.max(0,finite(network?.monopolyProbability?.(projectedNode))),
+      projectedReferralEligible:projectedTrust>=referralThreshold,
+      projectedReferralInspectionCount:supply?.referralInspectionCount?Math.max(0,finite(supply.referralInspectionCount(projectedNode))):0,
+      projectedCompetitionMultiplier:supply?.referralCompetitionMultiplier?Math.max(0,finite(supply.referralCompetitionMultiplier(projectedTrust),1)):1,
       decayPerWeek:Math.max(0,finite(network?.decayRateForPath?.(node?.pathType))),weeksSinceContact:Math.max(0,week-Math.max(0,finite(node?.lastContactWeek))),
       canContact:actionsRemaining>0,nextTrustPoints:access.nextTrust===null?0:Math.max(0,access.nextTrust-trust),
       proprietaryProbability:Math.max(0,finite(supply?.proprietarySuccessProbability?.(node))),
