@@ -121,6 +121,18 @@ function ensure(state){
     resolvedWeek:row?.resolvedWeek===null||row?.resolvedWeek===undefined?null:Math.max(0,Math.floor(finite(row.resolvedWeek))),
     targetID:row?.targetID?String(row.targetID):null,reason:row?.reason?String(row.reason):null
   }));
+  const d=state.peFirm.lastSourcingCycle;
+  state.peFirm.lastSourcingCycle=d&&typeof d==='object'?{
+    week:Math.max(0,Math.floor(finite(d.week))),outcome:String(d.outcome||'unknown'),
+    investingFundCount:Math.max(0,Math.floor(finite(d.investingFundCount))),eligibleTierCount:Math.max(0,Math.floor(finite(d.eligibleTierCount))),
+    boardCountBefore:Math.max(0,Math.floor(finite(d.boardCountBefore))),boardCountAfter:Math.max(0,Math.floor(finite(d.boardCountAfter))),
+    generatedDealID:d.generatedDealID?String(d.generatedDealID):null,tierID:d.tierID?String(d.tierID):null,primaryEligible:Boolean(d.primaryEligible),
+    monopolyCandidateCount:Math.max(0,Math.floor(finite(d.monopolyCandidateCount))),highestMonopolyProbability:clamp(finite(d.highestMonopolyProbability),0,1),
+    highestMonopolyNodeID:d.highestMonopolyNodeID?String(d.highestMonopolyNodeID):null,highestMonopolySourceType:d.highestMonopolySourceType?String(d.highestMonopolySourceType):null,
+    winningMonopolyNodeID:d.winningMonopolyNodeID?String(d.winningMonopolyNodeID):null,
+    primaryTargetID:d.primaryTargetID?String(d.primaryTargetID):null,primaryChannel:d.primaryChannel?String(d.primaryChannel):null,
+    referralTargetID:d.referralTargetID?String(d.referralTargetID):null,referralChannel:d.referralChannel?String(d.referralChannel):null
+  }:null;
   return state;
 }
 
@@ -379,8 +391,24 @@ function processSupplyWeek(state,week){
   state.peFirm.lastDealSupplyWeek=w;
   prunePETargets(state,w);
   if(w%SUPPLY_INTERVAL_WEEKS!==1)return null;
+
+  const boardCountBefore=state.acquisitionTargets.filter(isPETarget).length;
   const funds=activeInvestingFunds(state);
-  if(!funds.length)return null;
+  const monopolySources=arr(state?.peNetwork?.nodes).map(node=>({
+    id:String(node?.id||''),sourceType:String(node?.sourceType||'人脈'),probability:Math.max(0,finite(network?.monopolyProbability?.(node)))
+  })).filter(row=>row.probability>0).sort((a,b)=>b.probability-a.probability||a.id.localeCompare(b.id));
+  const diagnostic={
+    week:w,outcome:'unknown',investingFundCount:funds.length,eligibleTierCount:0,
+    boardCountBefore,boardCountAfter:boardCountBefore,generatedDealID:null,tierID:null,primaryEligible:false,
+    monopolyCandidateCount:monopolySources.length,highestMonopolyProbability:monopolySources[0]?.probability||0,
+    highestMonopolyNodeID:monopolySources[0]?.id||null,highestMonopolySourceType:monopolySources[0]?.sourceType||null,
+    winningMonopolyNodeID:null,primaryTargetID:null,primaryChannel:null,referralTargetID:null,referralChannel:null
+  };
+  if(!funds.length){
+    diagnostic.outcome='no-fund';
+    state.peFirm.lastSourcingCycle=diagnostic;
+    return null;
+  }
 
   // Multi-fund desk: deal supply is filtered against the union of every currently investing
   // fund instead of silently using only the newest fund. A later DD action chooses the exact
@@ -388,8 +416,12 @@ function processSupplyWeek(state,week){
   const referralSource=strongestReferralSource(state);
   const referralTrustAtCycle=referralSource?finite(referralSource.trust):null;
   const eligible=eligibleTierSetForFunds(funds);
+  diagnostic.eligibleTierCount=eligible.size;
   const deals=tiers.generateAnnualDeals(state,Math.floor(w/52));
   const deal=deals[Math.floor((w%52)/SUPPLY_INTERVAL_WEEKS)];
+  diagnostic.generatedDealID=deal?.id?String(deal.id):null;
+  diagnostic.tierID=deal?.tierID?String(deal.tierID):null;
+  diagnostic.primaryEligible=Boolean(deal&&eligible.has(deal.tierID));
 
   let primary=null;
   if(deal&&eligible.has(deal.tierID))primary=addSuppliedTarget(state,deal,w,{allowMonopoly:true});
@@ -401,6 +433,21 @@ function processSupplyWeek(state,week){
     const referralDeal=buildReferralDeal(state,funds,w,{...referralSource,trust:referralTrustAtCycle});
     referral=addSuppliedTarget(state,referralDeal,w,{channel:'network-referral',source:referralSource,sourceTrust:referralTrustAtCycle});
   }
+
+  diagnostic.primaryTargetID=primary?.id?String(primary.id):null;
+  diagnostic.primaryChannel=primary?.dealChannel?String(primary.dealChannel):null;
+  diagnostic.referralTargetID=referral?.id?String(referral.id):null;
+  diagnostic.referralChannel=referral?.dealChannel?String(referral.dealChannel):null;
+  diagnostic.winningMonopolyNodeID=primary?.dealChannel==='monopoly'&&primary?.peSourceNodeID?String(primary.peSourceNodeID):null;
+  diagnostic.boardCountAfter=state.acquisitionTargets.filter(isPETarget).length;
+  diagnostic.outcome=primary?.dealChannel==='monopoly'?'monopoly-won'
+    :boardCountBefore>=MAX_PE_TARGETS?'board-full'
+    :!diagnostic.primaryEligible?'tier-mismatch'
+    :diagnostic.monopolyCandidateCount>0&&primary?'monopoly-missed'
+    :primary?'auction'
+    :referral?'referral-only'
+    :'no-deal';
+  state.peFirm.lastSourcingCycle=diagnostic;
   return primary||referral;
 }
 
