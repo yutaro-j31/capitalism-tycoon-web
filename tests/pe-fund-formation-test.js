@@ -218,16 +218,21 @@ function systemCash(g) {
   assert.equal(ds.investingFunds(e.g).length, 2);
   assert.equal(ds.resolveInvestingFund(e.g, null), null, '2本あれば自動選択しない');
   assert.equal(ds.resolveInvestingFund(e.g, fundA.id).id, fundA.id, '明示指定は常に優先される');
-  let target = null;
-  for (let i = 0; i < 80 && !target; i++) { e.advanceWeek(false); target = e.g.acquisitionTargets.filter(ds.isPETarget).find(t => !t.activeDealID) || null; }
-  assert.ok(target);
+  let target = null, eligible = [];
+  for (let i = 0; i < 160 && eligible.length < 2; i++) {
+    e.advanceWeek(false);
+    target = e.g.acquisitionTargets.filter(ds.isPETarget).find(t => !t.activeDealID && ds.eligibleInvestingFundsForTarget(e.g,t).length>=2) || null;
+    eligible = target ? ds.eligibleInvestingFundsForTarget(e.g,target) : [];
+  }
+  assert.ok(target,'need a target eligible for both live funds');
+  assert.equal(eligible.length,2);
   assert.equal(e.openMADealRoom(target.id), true);
   const deal = e.g.maDealRooms.find(d => d.targetID === target.id);
   const slots = pf.ddSlotsRemaining(e.g, e.g.week);
-  assert.equal(e.startMADueDiligence(deal.id, 'screening'), false, '2本あるのに指定が無ければ拒否される');
+  assert.equal(e.startMADueDiligence(deal.id, 'screening'), false, '2本以上が案件に適格なら指定が無いDDは拒否される');
   assert.equal(pf.ddSlotsRemaining(e.g, e.g.week), slots, '拒否されたDDは枠を消費しない');
-  assert.equal(e.startMADueDiligence(deal.id, 'screening', e.g.peFirm.funds[1].id), true, '指定すれば開始できる');
-  assert.equal(deal.fundID, e.g.peFirm.funds[1].id);
+  assert.equal(e.startMADueDiligence(deal.id, 'screening', eligible[1].id), true, '適格なFundを指定すれば開始できる');
+  assert.equal(deal.fundID, eligible[1].id);
 }
 
 // 9. 旧セーブ互換: T21以前のファンド（lpContributed / gpDistributed が無い）を読み込んでも壊れない。
