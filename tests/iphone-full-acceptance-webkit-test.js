@@ -1,5 +1,6 @@
 'use strict';
 
+// Production-render acceptance: exercise the real D UI in WebKit, not a mocked DOM fixture.
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const http = require('node:http');
