@@ -249,6 +249,10 @@ function summaryFor(state){
   });
 }
 
+// Normalize the margin loan with the rest of the state, not lazily on first read (a UI render),
+// so its presence does not depend on how the engine was booted (#732).
+const baseNormalize=Engine.prototype.normalize;
+Engine.prototype.normalize=function(){baseNormalize.call(this);ensure(this.g);};
 Engine.prototype.getPersonalStockMarginQuotes=function(){return quotesFor(this.g);};
 Engine.prototype.getPersonalStockMargin=function(){return summaryFor(this.g);};
 Engine.prototype.borrowPersonalStockMargin=function(productID){return borrow(this,productID);};

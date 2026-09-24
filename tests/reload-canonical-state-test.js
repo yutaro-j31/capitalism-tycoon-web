@@ -59,13 +59,14 @@ function check(name, fn) {
 //    load) reload A's save in fresh runtimes; the same action sequence gives identical states.
 //    A save taken at a week boundary is canonical, so the states match right after the reload.
 //    A save taken right after a mid-week action (not normalized until the week closes) must
-//    still lead to the same future.
+//    still lead to the same future. The fork comes after week 10 so a luxury auction refresh
+//    (every 8 weeks) happens both before and after it.
 function fork(midWeekAction) {
   const rA = switchable(732), A = browserBoot(rA);
   A.configure({ playerName: 'Fork', companyName: 'Fork Co', difficulty: 'normal' });
   A.g.companyCash = 300_000_000;
   openRamen(A, '1号店');
-  for (let i = 0; i < 6; i++) assert.notEqual(A.advanceWeek(false), false);
+  for (let i = 0; i < 10; i++) assert.notEqual(A.advanceWeek(false), false);
   if (midWeekAction) openRamen(A, '2号店');
   const saved = saveOf(A);
   const rB = switchable(1), B = browserBoot(rB, saved);
@@ -87,37 +88,43 @@ function fork(midWeekAction) {
 check('fork at a week boundary: continuous play == browser reload == fully-loaded reload', () => fork(false));
 check('fork after a mid-week action: the same future after reload', () => fork(true));
 
-// 2. Boot paths: the browser-boot engine, a fully-loaded load() and a fully-loaded new engine all
-//    end up with the same state keys after founding, and use the same weekly pipeline.
-check('boot paths: browser boot, fully-loaded load() and fully-loaded new share the state keys', () => {
-  const B = browserBoot(lcg(11));
+// 2. Boot paths: an old, never-normalized save gets the same state keys whether the browser boots
+//    it (engine created in app.js, before most modules register) or a fully-loaded runtime loads
+//    it; continuous play has the same keys as its own reload; and product innovation is installed
+//    without anyone calling load(), so every runtime composes the browser's weekly pipeline.
+check('boot paths: browser boot, fully-loaded load() and continuous play share the state keys', () => {
   const full = fullLoad(lcg(11));
-  const L = full.TycoonEngine.load(), N = new full.TycoonEngine();
-  for (const engine of [B, L, N]) {
-    engine.configure({ playerName: 'Keys', companyName: 'Keys Co', difficulty: 'normal' });
-    assert.notEqual(engine.advanceWeek(false), false);
-  }
-  const keys = engine => Object.keys(engine.g).sort();
+  assert.equal(typeof full.TycoonEngine.prototype.updateProductInnovationWeekly, 'function', 'product innovation is installed before any load(), so the weekly pipeline matches the browser');
+  const keys = g => Object.keys(g).sort();
   const onlyIn = (x, y) => keys(x).filter(k => !keys(y).includes(k));
-  assert.deepEqual({ browserOnly: onlyIn(B, L), loadOnly: onlyIn(L, B) }, { browserOnly: [], loadOnly: [] }, 'browser boot vs fully-loaded load()');
-  assert.deepEqual({ newOnly: onlyIn(N, L), loadOnly: onlyIn(L, N) }, { newOnly: [], loadOnly: [] }, 'fully-loaded new vs fully-loaded load()');
-  assert.equal(typeof full.TycoonEngine.prototype.updateProductInnovationWeekly, 'function', 'product innovation is installed without load(), so the weekly pipeline matches the browser');
+  const legacy = JSON.stringify(full.loaded.modules.engine.createInitialState({ configured: true, playerName: 'Keys', companyName: 'Keys Co' }));
+  const booted = browserBoot(lcg(12), legacy).g, loaded = fullLoad(lcg(12), legacy).TycoonEngine.load().g;
+  assert.deepEqual({ browserOnly: onlyIn(booted, loaded), loadOnly: onlyIn(loaded, booted) }, { browserOnly: [], loadOnly: [] }, 'old save: browser boot vs fully-loaded load()');
+  const played = new full.TycoonEngine();
+  played.configure({ playerName: 'Keys', companyName: 'Keys Co', difficulty: 'normal' });
+  assert.notEqual(played.advanceWeek(false), false);
+  const reloaded = fullLoad(lcg(13), saveOf(played)).TycoonEngine.load().g;
+  assert.deepEqual({ playOnly: onlyIn(played.g, reloaded), reloadOnly: onlyIn(reloaded, played.g) }, { playOnly: [], reloadOnly: [] }, 'continuous play vs its reload');
 });
 
-// 3. normalize is idempotent and continuous play is already canonical at a week boundary.
-check('normalize: idempotent, and a no-op on a state at a week boundary', () => {
+// 3. normalize is idempotent, and continuous play is already canonical right after founding and
+//    at a week boundary.
+check('normalize: idempotent, and a no-op after founding and at a week boundary', () => {
   const E = browserBoot(lcg(21));
   E.configure({ playerName: 'Idem', companyName: 'Idem Co', difficulty: 'normal' });
+  const stable = label => {
+    const before = strip(E.g);
+    E.normalize();
+    const once = strip(E.g);
+    E.normalize();
+    const second = differences(once, strip(E.g)), first = differences(before, once);
+    assert.deepEqual(second.slice(0, 12), [], `${label}: a second normalize changes ${second.length} leaves`);
+    assert.deepEqual(first.slice(0, 12), [], `${label}: normalize changes ${first.length} leaves`);
+  };
+  stable('after founding');
   openRamen(E, '1号店');
   for (let i = 0; i < 8; i++) assert.notEqual(E.advanceWeek(false), false);
-  const atBoundary = strip(E.g);
-  E.normalize();
-  const once = strip(E.g);
-  E.normalize();
-  const twice = strip(E.g);
-  const first = differences(atBoundary, once), second = differences(once, twice);
-  assert.deepEqual(second.slice(0, 12), [], `a second normalize changes ${second.length} leaves`);
-  assert.deepEqual(first.slice(0, 12), [], `normalize changes ${first.length} leaves of a week-boundary state`);
+  stable('at a week boundary');
 });
 
 if (failures.length) {
