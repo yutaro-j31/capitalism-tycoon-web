@@ -14,6 +14,13 @@ const fy=w=>Math.floor((Math.max(1,Math.floor(n(w,1)))-1)/52)+1;
 const fq=w=>Math.floor(((Math.max(1,Math.floor(n(w,1)))-1)%52)/13)+1;
 function op(g,prefix='op',sourceType='',sourceID=''){const f=ensureFinance(g);const clean=v=>String(v||'').replace(/[^a-zA-Z0-9_-]+/g,'-').slice(0,40);return `${clean(prefix)}-w${Math.floor(n(g.week,1))}-seq${f.nextTransactionSeq}${sourceType?`-${clean(sourceType)}`:''}${sourceID?`-${clean(sourceID)}`:''}`;}
 function stockBook(g){return Object.entries((g.companyStocks&&typeof g.companyStocks==='object'&&!Array.isArray(g.companyStocks))?g.companyStocks:{}).reduce((a,[id,h])=>a+n(h.avg)*n(h.qty),0);}
+// A founder shareholder loan (#730) is the founder's claim on the company: principal and
+// interest the company pays on it go to the founder's personal cash, and the unpaid balance is
+// part of the founder's net worth.
+const FOUNDER_LOAN_SOURCE='founderShareholderLoan';
+function isFounderLoan(loan){return loan?.sourceType===FOUNDER_LOAN_SOURCE;}
+function founderLoanReceivable(g){return (Array.isArray(g?.finance?.loans)?g.finance.loans:[]).filter(l=>isFounderLoan(l)&&l.status==='active').reduce((a,l)=>a+Math.max(0,n(l.outstandingPrincipal)),0);}
+function settleLoanPrincipal(g,loan,paid){paid=Math.max(0,n(paid));if(!isFounderLoan(loan)||paid<=0)return 0;g.personalCash=n(g.personalCash)+paid;return paid;}
 function propertyBookOf(p){const re=p?.realEstate,hasBook=re&&Number.isFinite(Number(re.landBookValue))&&Number.isFinite(Number(re.buildingBookValue));return hasBook?n(re.landBookValue)+n(re.buildingBookValue):n(p?.purchasePrice||p?.price||p?.value);}
 function propertyBook(g){return (Array.isArray(g.properties)?g.properties:[]).filter(p=>p.owner==='company').reduce((a,p)=>a+propertyBookOf(p),0);}
 function subsidiaryBook(g){const vc=(Array.isArray(g.startups)?g.startups:[]).filter(s=>!s.subsidiary).reduce((a,s)=>a+n(s.totalInvestedCompany||0),0);return vc+(Array.isArray(g.subsidiaries)?g.subsidiaries:[]).reduce((a,s)=>a+n(s.carryingBookValue||s.investedCost||s.acquisitionPrice||s.totalInvestedCompany||0),0)+(Array.isArray(g.maSubsidiaries)?g.maSubsidiaries:[]).reduce((a,s)=>a+n(s.identifiableNetAssetsBookValue||0),0);}
@@ -71,6 +78,6 @@ function cashBridge(g,period='week'){
     other:r(operating-(netIncome+depreciation+workingCapital)),operating:r(operating),investing:r(investing),
     financing:r(financing),netCashChange:r(n(cf.netCashChange)),openingCash:r(n(cf.openingCash)),endingCash:r(n(cf.endingCash))};
 }
-Object.assign(exports,{cashBridge,CATEGORIES,propertyBookOf,ensureFinance,migrateFinanceState,event,op,addFixedAsset,disposeFixedAsset,recordWeekly,recordSnapshot,rebuildSnapshotForWeek,rebuildDirtySnapshots,buildStatements,validate,defaultFinanceState,rowsFor,snapsFor});
+Object.assign(exports,{cashBridge,CATEGORIES,propertyBookOf,FOUNDER_LOAN_SOURCE,isFounderLoan,founderLoanReceivable,settleLoanPrincipal,ensureFinance,migrateFinanceState,event,op,addFixedAsset,disposeFixedAsset,recordWeekly,recordSnapshot,rebuildSnapshotForWeek,rebuildDirtySnapshots,buildStatements,validate,defaultFinanceState,rowsFor,snapsFor});
 })(__modules.finance={});
 })();

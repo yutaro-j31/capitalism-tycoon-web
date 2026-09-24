@@ -779,7 +779,8 @@ class TycoonEngine extends EventTarget {
     // companyValue -- company money turning directly into personal assets.
     const sports = this.g.sportsTeams.filter(x=>x.owner!=='company').reduce((a,x)=>a+finite(x.value),0);
     const ventures = this.g.startups.reduce((sum,s)=>sum+s.valuation*finite(s.ownedPersonal),0);
-    return Math.max(0, this.g.personalCash - this.g.personalDebt + stocks + props + investments + lux + sports + ventures);
+    const founderLoan = finance.founderLoanReceivable(this.g);
+    return Math.max(0, this.g.personalCash - this.g.personalDebt + stocks + props + investments + lux + sports + ventures + founderLoan);
   }
   companyCreditLimit() { return Math.max(0, this.companyValue() * (.15 + this.g.companyCredit / 250)); }
   personalCreditLimit() { return Math.max(0, this.personalNetWorth() * .25 + 5_000_000); }
@@ -1342,7 +1343,7 @@ class TycoonEngine extends EventTarget {
   }
   repay(amount,account='company') {
     amount=Math.max(0,finite(amount));const debtKey=account==='company'?'companyDebt':'personalDebt',cashKey=account==='company'?'companyCash':'personalCash';amount=Math.min(amount,this.g[debtKey]);
-    if(this.g[cashKey]<amount)return this.fail('返済資金が不足しています。');this.g[cashKey]-=amount;this.g[debtKey]-=amount;if(account==='company'){this.g.companyCredit=clamp(this.g.companyCredit+amount/10_000_000,0,100);let remaining=amount;for(const loan of finance.ensureFinance(this.g).loans.filter(l=>l.status==='active')){const pay=Math.min(remaining,loan.outstandingPrincipal);loan.outstandingPrincipal-=pay;remaining-=pay;if(loan.outstandingPrincipal<=0){loan.outstandingPrincipal=0;loan.status='paid';}if(remaining<=0)break;}finance.event(this.g,'debtRepayment',amount,{cashEffect:-amount,liabilityEffect:-amount,sourceType:'repay',sourceID:`company-${this.g.week}-${amount}`,description:'会社借入返済'});}
+    if(this.g[cashKey]<amount)return this.fail('返済資金が不足しています。');this.g[cashKey]-=amount;this.g[debtKey]-=amount;if(account==='company'){this.g.companyCredit=clamp(this.g.companyCredit+amount/10_000_000,0,100);let remaining=amount;for(const loan of finance.ensureFinance(this.g).loans.filter(l=>l.status==='active')){const pay=Math.min(remaining,loan.outstandingPrincipal);loan.outstandingPrincipal-=pay;remaining-=pay;finance.settleLoanPrincipal(this.g,loan,pay);if(loan.outstandingPrincipal<=0){loan.outstandingPrincipal=0;loan.status='paid';}if(remaining<=0)break;}finance.event(this.g,'debtRepayment',amount,{cashEffect:-amount,liabilityEffect:-amount,sourceType:'repay',sourceID:`company-${this.g.week}-${amount}`,description:'会社借入返済'});}
     this.notify(`${yen(amount)}返済しました。`,'success');this.save();this.emit();return true;
   }
   // Issue #423 priority 3: a formal, always-available founder-to-company capital movement,
@@ -1993,7 +1994,7 @@ class TycoonEngine extends EventTarget {
     expenses+=propertyDepreciation;
     const execPayroll=this.g.week%4===0?Object.values(this.g.executives).reduce((a,e)=>a+finite(e.salary)/13,0):0;
     const deptCost=workforce.weeklyPayroll(this.g);
-    const officeCost=this.g.hasHeadOffice?this.g.officeWeeklyCost:0,interest=this.g.companyDebt*this.companyBorrowRate()/52;expenses+=execPayroll+deptCost+officeCost+interest;
+    const officeCost=this.g.hasHeadOffice?this.g.officeWeeklyCost:0,interest=this.g.companyDebt*this.companyBorrowRate()/52;expenses+=execPayroll+deptCost+officeCost+interest;const founderLoanShare=this.g.companyDebt>0?Math.min(1,finance.founderLoanReceivable(this.g)/this.g.companyDebt):0;if(founderLoanShare>0)this.g.personalCash+=interest*founderLoanShare;
     if(this.g.week%13===0){for(const [id,h] of Object.entries(this.g.companyStocks)){const s=this.stock(id);if(s&&id!==this.g.ticker)stockIncome+=h.qty*(s.dividendPerShare||s.price*s.dividendYield/4);}for(const [id,h] of Object.entries(this.g.personalStocks)){const s=this.stock(id);if(s&&id!==this.g.ticker)this.g.personalCash+=h.qty*(s.dividendPerShare||s.price*s.dividendYield/4)*.797;}if(this.g.publicCompany&&this.g.dividendPerShare>0){dividend=this.g.dividendPerShare*Math.max(0,this.g.sharesOut-this.g.treasuryBuybackShares);const founderGross=dividend*this.g.founderOwnershipRatio;this.g.personalCash+=founderGross*.797;expenses+=dividend;}}
     const projectRun=workforce.advanceProjects(this.g);const projectCost=finite(projectRun?.projectCost);expenses+=projectCost;const turnoverRun=workforce.updateEndOfWeek(this.g);const severanceCost=finite(turnoverRun?.turnoverCost);expenses+=severanceCost;supply.autoOrder(this.g);const operatingProfit=sales+rentIncome+stockIncome-expenses+subs.profit;this.g.quarterlyPretaxProfit=finite(this.g.quarterlyPretaxProfit)+operatingProfit;let tax=0;if(this.g.week%13===0){if(this.g.quarterlyPretaxProfit>0)tax=this.g.quarterlyPretaxProfit*.306;expenses+=tax;this.g.quarterlyPretaxProfit=0;}
     const profit=sales+rentIncome+stockIncome-expenses+subs.profit;const weeklyCashDelta=profit-finite(overseas.retainedCash)+supplyCogsNonCash+finite(spoilage?.cost),nonStoreCashDelta=weeklyCashDelta-storeCashDelta;this.g.companyCash+=nonStoreCashDelta+storeCashDelta;this.g.companyCredit=clamp(this.g.companyCredit+(profit>=0?.15:-.3),0,100);this.g.companyReputation=clamp(this.g.companyReputation+(profit>0?.08:-.04),0,100);
