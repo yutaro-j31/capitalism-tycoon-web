@@ -95,6 +95,8 @@ check('fork after a mid-week action: the same future after reload', () => fork(t
 check('boot paths: browser boot, fully-loaded load() and continuous play share the state keys', () => {
   const full = fullLoad(lcg(11));
   assert.equal(typeof full.TycoonEngine.prototype.updateProductInnovationWeekly, 'function', 'product innovation is installed before any load(), so the weekly pipeline matches the browser');
+  // The boundary must stay the outermost wrapper: a module wrapping these later would run after it.
+  for (const name of ['configure', 'advanceWeek']) assert.equal(full.TycoonEngine.prototype[name].__canonicalNormalizeBoundary, true, `${name} is wrapped by the canonical normalization boundary last`);
   const keys = g => Object.keys(g).sort();
   const onlyIn = (x, y) => keys(x).filter(k => !keys(y).includes(k));
   const legacy = JSON.stringify(full.loaded.modules.engine.createInitialState({ configured: true, playerName: 'Keys', companyName: 'Keys Co' }));
