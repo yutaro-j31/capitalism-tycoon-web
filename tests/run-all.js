@@ -130,6 +130,7 @@ const nodeTests = [
   ['weekly-cash-rounding-reconcile', 'tests/weekly-cash-rounding-reconcile-test.js'],
   ['founder-shareholder-loan-lender', 'tests/founder-shareholder-loan-lender-test.js'],
   ['property-insurance-loss-ledger', 'tests/property-insurance-loss-ledger-test.js'],
+  ['loan-single-interest', 'tests/loan-single-interest-test.js'],
   ['real-estate-redevelopment-projects', 'tests/real-estate-redevelopment-projects-test.js'],
   ['real-estate-rent-guarantee', 'tests/real-estate-rent-guarantee-test.js'],
   ['real-estate-rent-performance', 'tests/real-estate-rent-performance-test.js'],

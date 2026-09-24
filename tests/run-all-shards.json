@@ -68,6 +68,7 @@
     "tests/ramen-supply-payment-terms-244week-regression-test.js"
   ],
   "E": [
+    "tests/loan-single-interest-test.js",
     "tests/competitor-product-counter-reachability-test.js",
     "tests/industry-event-response-plans-reachability-test.js",
     "tests/real-estate-building-depreciation-test.js",
