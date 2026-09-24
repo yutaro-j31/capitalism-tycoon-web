@@ -185,7 +185,7 @@
     const loadedWeek = Number(loadedState?.week);
     if (!Number.isFinite(storedWeek)) return null;
     if (Number.isFinite(loadedWeek) && storedWeek <= loadedWeek) return null;
-    return { week: storedWeek, loadedWeek: Number.isFinite(loadedWeek) ? loadedWeek : 0, payload: stored };
+    return { key, week: storedWeek, loadedWeek: Number.isFinite(loadedWeek) ? loadedWeek : 0, payload: stored };
   }
 
   function status() {
