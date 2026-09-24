@@ -6,6 +6,9 @@ const vm=require('node:vm');
 const {ROOT,loadGame}=require('./harness');
 
 const source=fs.readFileSync(path.join(ROOT,'js','save-storage.js'),'utf8');
+const indexHtml=fs.readFileSync(path.join(ROOT,'index.html'),'utf8');
+assert.ok(indexHtml.indexOf('./js/save-storage-idb.js')>=0,'IDB storage module must be present in production index');
+assert.ok(indexHtml.indexOf('./js/save-storage-idb.js')<indexHtml.indexOf('./js/app.js'),'IDB storage module must register before app boot so newer-save recovery can start before player actions');
 assert.doesNotMatch(source,/SAVE_KEY\s*=\s*['"][^'"]+['"]/, 'quota layer must reuse the engine SAVE_KEY');
 assert.doesNotMatch(source,/saveVersion\s*:\s*10|SAVE_VERSION\s*=\s*10/, 'quota layer must not bump saveVersion');
 assert.doesNotMatch(source,/Math\.random|Date\.now\(/, 'quota compaction must be deterministic');
@@ -18,6 +21,31 @@ assert.ok(storage?.__installed,'save storage module must install');
 assert.equal(storage.SAVE_KEY,'capitalism_tycoon_web_v1');
 assert.equal(storage.SAVE_VERSION,9);
 assert.equal(engine.__quotaSafeSaveInstalled,true);
+
+// A main-save write must not race the asynchronous IDB recovery check or overwrite a
+// detected newer IDB-only branch before the player chooses restore/dismiss.
+const originalIDB=modules.saveStorageIDB;
+let recoveryStatus={available:true,hydrated:false};
+let recoveryWrites=0;
+modules.saveStorageIDB={
+  status:()=>({...recoveryStatus}),
+  writeSync:()=>{recoveryWrites++;return true;},
+  readSync:key=>ctx.localStorage.getItem(key),
+  removeSync:()=>true
+};
+const beforeRecoveryRaw=ctx.localStorage.getItem(storage.SAVE_KEY);
+assert.equal(engine.save(),false,'save must be blocked while IDB recovery is still hydrating');
+assert.equal(recoveryWrites,0,'blocked recovery save must not write IDB');
+assert.equal(ctx.localStorage.getItem(storage.SAVE_KEY),beforeRecoveryRaw,'blocked recovery save must not touch localStorage');
+recoveryStatus={available:true,hydrated:true};
+ctx.__capitalismTycoonPendingSave={key:storage.SAVE_KEY,week:99,loadedWeek:1,payload:'{}'};
+assert.equal(engine.save(),false,'save must be blocked while a newer IDB save awaits player choice');
+assert.equal(recoveryWrites,0,'pending recovery must not be overwritten');
+engine._saveStorageRecoveryBypass=true;
+assert.equal(engine.save(),true,'explicit recovery/import bypass must be able to persist the chosen save');
+engine._saveStorageRecoveryBypass=false;
+ctx.__capitalismTycoonPendingSave=null;
+modules.saveStorageIDB=originalIDB;
 
 engine.g.week=180;
 engine.g.companyCash=50_000_000;
