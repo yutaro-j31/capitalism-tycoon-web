@@ -670,23 +670,42 @@ class TycoonEngine extends EventTarget {
     this.dispatchEvent(new CustomEvent(type, {detail}));
   }
 
+  // Issue #734: the outermost transaction is atomic. It snapshots the state on entry (JSON, the
+  // same shape a save persists) and, when work throws or does not commit, restores this.g in place
+  // (the object identity other code holds is kept). Nested transactions share that boundary. Saves
+  // requested inside the transaction are deferred to one save after a successful commit, so a
+  // half-applied state never reaches storage; UI notices from fail()/notify() still show at once.
   runTransaction(work, eventType = 'change', detail = {}, shouldCommit = result => result !== false) {
     const previousDepth = this._transactionDepth || 0;
     const outer = previousDepth === 0;
+    const snapshot = outer ? JSON.stringify(this.g) : null;
+    if (outer) this._deferredSave = false;
     this._transactionDepth = previousDepth + 1;
     let result;
     try {
       result = work();
     } catch (error) {
       this._transactionDepth = previousDepth;
+      if (outer) this.restoreTransactionSnapshot(snapshot);
       throw error;
     }
     this._transactionDepth = previousDepth;
-    if (outer && shouldCommit(result)) {
-      this.save();
-      this.emit(eventType, typeof detail === 'function' ? detail(result) : detail);
+    if (!outer) return result;
+    if (!shouldCommit(result)) {
+      this.restoreTransactionSnapshot(snapshot);
+      return result;
     }
+    this._deferredSave = false;
+    this.save();
+    this.emit(eventType, typeof detail === 'function' ? detail(result) : detail);
     return result;
+  }
+
+  restoreTransactionSnapshot(snapshot) {
+    this._deferredSave = false;
+    const restored = JSON.parse(snapshot);
+    for (const key of Object.keys(this.g)) delete this.g[key];
+    Object.assign(this.g, restored);
   }
 
   inTransaction() {
@@ -700,6 +719,7 @@ class TycoonEngine extends EventTarget {
   }
 
   save(slot = null) {
+    if (!slot && this.inTransaction()) { this._deferredSave = true; return true; }
     if (!slot && this._saveBlockedDueToLoadFailure) {
       console.error('Save blocked because startup save migration failed', this._loadFailureReason || 'unknown load failure');
       return false;
