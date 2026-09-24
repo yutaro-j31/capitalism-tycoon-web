@@ -120,6 +120,7 @@
     "tests/pe-multi-fund-acquisition-negative-test.js"
   ],
   "G": [
+    "tests/property-insurance-loss-ledger-test.js",
     "tests/executive-dismissal-reachability-test.js",
     "test:workforce-long",
     "tests/save-storage-budget-test.js",
