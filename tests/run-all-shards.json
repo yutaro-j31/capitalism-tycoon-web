@@ -22,6 +22,7 @@
     "tests/real-estate-agency-site-capacity-test.js"
   ],
   "C": [
+    "tests/transaction-rollback-test.js",
     "test:long",
     "test:supply-long",
     "tests/exploration-style-test.js",

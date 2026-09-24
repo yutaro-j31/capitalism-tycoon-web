@@ -143,6 +143,8 @@ function install(){
  if(proto.__quotaSafeSaveInstalled)return true;
  const baseSave=proto.save;
  proto.save=function(slot=null){
+  // #734: a save requested inside a transaction is deferred to runTransaction's single commit save.
+  if(!slot&&this.inTransaction?.()){this._deferredSave=true;return true;}
   if(!slot&&this._saveBlockedDueToLoadFailure){
    console.error('Save blocked because startup save migration failed',this._loadFailureReason||'unknown load failure');
    return false;

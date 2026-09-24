@@ -670,23 +670,65 @@ class TycoonEngine extends EventTarget {
     this.dispatchEvent(new CustomEvent(type, {detail}));
   }
 
+  // Issue #734: the outermost transaction is atomic. It snapshots the state on entry (JSON, the
+  // same shape a save persists) and, when work throws or does not commit, restores this.g in place
+  // (the object identity other code holds is kept). Nested transactions share that boundary. Saves
+  // requested inside the transaction are deferred to one save after a successful commit, so a
+  // half-applied state never reaches storage; UI notices from fail()/notify() still show at once.
   runTransaction(work, eventType = 'change', detail = {}, shouldCommit = result => result !== false) {
     const previousDepth = this._transactionDepth || 0;
     const outer = previousDepth === 0;
+    const snapshot = outer ? JSON.stringify(this.g) : null;
+    const entryObjects = outer ? { ...this.g } : null;
+    if (outer) this._deferredSave = false;
     this._transactionDepth = previousDepth + 1;
     let result;
     try {
       result = work();
     } catch (error) {
       this._transactionDepth = previousDepth;
+      if (outer) this.restoreTransactionSnapshot(snapshot, entryObjects);
       throw error;
     }
     this._transactionDepth = previousDepth;
-    if (outer && shouldCommit(result)) {
-      this.save();
-      this.emit(eventType, typeof detail === 'function' ? detail(result) : detail);
+    if (!outer) return result;
+    if (!shouldCommit(result)) {
+      this.restoreTransactionSnapshot(snapshot, entryObjects);
+      return result;
     }
+    this._deferredSave = false;
+    this.save();
+    this.emit(eventType, typeof detail === 'function' ? detail(result) : detail);
     return result;
+  }
+
+  restoreTransactionSnapshot(snapshot, entryObjects = {}) {
+    this._deferredSave = false;
+    // Nothing changed: keep every object and value exactly as it is.
+    if (JSON.stringify(this.g) === snapshot) return;
+    // Reconcile in place so objects other code still references (a store, a product, a loan) keep
+    // their identity wherever they existed at transaction entry.
+    const reconcile = (target, source) => {
+      if (Array.isArray(source)) {
+        for (let i = 0; i < source.length; i++) target[i] = reconcileValue(target[i], source[i]);
+        target.length = source.length;
+        return target;
+      }
+      for (const key of Object.keys(target)) if (!Object.prototype.hasOwnProperty.call(source, key)) delete target[key];
+      for (const key of Object.keys(source)) target[key] = reconcileValue(target[key], source[key]);
+      return target;
+    };
+    const restored = JSON.parse(snapshot);
+    const reconcileValue = (current, value) => {
+      if (value && typeof value === 'object' && current && typeof current === 'object' && Array.isArray(current) === Array.isArray(value) && !Object.isFrozen(current) && Object.isExtensible(current)) return reconcile(current, value);
+      return value;
+    };
+    // A top-level section replaced inside the transaction gets its entry object back.
+    for (const key of Object.keys(restored)) {
+      const original = entryObjects[key];
+      if (original && typeof original === 'object' && this.g[key] !== original) this.g[key] = original;
+    }
+    reconcile(this.g, restored);
   }
 
   inTransaction() {
@@ -700,6 +742,7 @@ class TycoonEngine extends EventTarget {
   }
 
   save(slot = null) {
+    if (!slot && this.inTransaction()) { this._deferredSave = true; return true; }
     if (!slot && this._saveBlockedDueToLoadFailure) {
       console.error('Save blocked because startup save migration failed', this._loadFailureReason || 'unknown load failure');
       return false;
