@@ -679,6 +679,7 @@ class TycoonEngine extends EventTarget {
     const previousDepth = this._transactionDepth || 0;
     const outer = previousDepth === 0;
     const snapshot = outer ? JSON.stringify(this.g) : null;
+    const entryObjects = outer ? { ...this.g } : null;
     if (outer) this._deferredSave = false;
     this._transactionDepth = previousDepth + 1;
     let result;
@@ -686,13 +687,13 @@ class TycoonEngine extends EventTarget {
       result = work();
     } catch (error) {
       this._transactionDepth = previousDepth;
-      if (outer) this.restoreTransactionSnapshot(snapshot);
+      if (outer) this.restoreTransactionSnapshot(snapshot, entryObjects);
       throw error;
     }
     this._transactionDepth = previousDepth;
     if (!outer) return result;
     if (!shouldCommit(result)) {
-      this.restoreTransactionSnapshot(snapshot);
+      this.restoreTransactionSnapshot(snapshot, entryObjects);
       return result;
     }
     this._deferredSave = false;
@@ -701,11 +702,33 @@ class TycoonEngine extends EventTarget {
     return result;
   }
 
-  restoreTransactionSnapshot(snapshot) {
+  restoreTransactionSnapshot(snapshot, entryObjects = {}) {
     this._deferredSave = false;
+    // Nothing changed: keep every object and value exactly as it is.
+    if (JSON.stringify(this.g) === snapshot) return;
+    // Reconcile in place so objects other code still references (a store, a product, a loan) keep
+    // their identity wherever they existed at transaction entry.
+    const reconcile = (target, source) => {
+      if (Array.isArray(source)) {
+        for (let i = 0; i < source.length; i++) target[i] = reconcileValue(target[i], source[i]);
+        target.length = source.length;
+        return target;
+      }
+      for (const key of Object.keys(target)) if (!Object.prototype.hasOwnProperty.call(source, key)) delete target[key];
+      for (const key of Object.keys(source)) target[key] = reconcileValue(target[key], source[key]);
+      return target;
+    };
     const restored = JSON.parse(snapshot);
-    for (const key of Object.keys(this.g)) delete this.g[key];
-    Object.assign(this.g, restored);
+    const reconcileValue = (current, value) => {
+      if (value && typeof value === 'object' && current && typeof current === 'object' && Array.isArray(current) === Array.isArray(value) && !Object.isFrozen(current) && Object.isExtensible(current)) return reconcile(current, value);
+      return value;
+    };
+    // A top-level section replaced inside the transaction gets its entry object back.
+    for (const key of Object.keys(restored)) {
+      const original = entryObjects[key];
+      if (original && typeof original === 'object' && this.g[key] !== original) this.g[key] = original;
+    }
+    reconcile(this.g, restored);
   }
 
   inTransaction() {

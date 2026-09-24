@@ -142,4 +142,26 @@ const stored = loaded => loaded.ctx.__localStorageData.get('capitalism_tycoon_we
   assert.equal(g.executiveGovernance?.dismissalDecisions?.at(-1)?.outcome, 'rejected', 'the rejection is recorded');
 }
 
+// 8. References held across a failed transaction stay live (the rollback reconciles in place).
+{
+  const { engine } = newGame(741);
+  const finance = engine.g.finance, balances = engine.g.finance.balances, news = engine.g.news;
+  const cashBalance = JSON.stringify(balances);
+  assert.throws(() => engine.runTransaction(() => {
+    engine.g.finance.balances.accruedTaxes = 123;
+    engine.g.news.push('x');
+    engine.g.finance = { replaced: true };
+    throw new Error('late');
+  }));
+  assert.equal(engine.g.finance, finance, 'a replaced sub-object is reconciled back into the original object');
+  assert.equal(engine.g.finance.balances, balances);
+  assert.equal(JSON.stringify(balances), cashBalance, 'the held reference sees the restored values');
+  assert.equal(engine.g.news, news);
+  // A non-committing call that changed nothing keeps everything untouched.
+  const store = engine.g.stores, before = snap(engine.g);
+  assert.equal(engine.runTransaction(() => false), false);
+  assert.equal(engine.g.stores, store);
+  assert.equal(snap(engine.g), before);
+}
+
 console.log('transaction rollback tests passed');
