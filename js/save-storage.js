@@ -143,6 +143,26 @@ function install(){
  if(proto.__quotaSafeSaveInstalled)return true;
  const baseSave=proto.save;
  proto.save=function(slot=null){
+  if(!slot&&!this._saveStorageRecoveryBypass){
+   const recoveryStore=modules.saveStorageIDB;
+   const recoveryStatus=typeof recoveryStore?.status==='function'?recoveryStore.status():null;
+   const pendingRecovery=globalThis.__capitalismTycoonPendingSave;
+   const blockRecoverySave=(mode,message)=>{
+    this._lastSaveStorageInfo={ok:false,key:SAVE_KEY,slot:null,mode,message};
+    if(this._saveStorageRecoveryWarningMode!==mode){
+     this._saveStorageRecoveryWarningMode=mode;
+     notify(this,message,'warning');
+    }
+    return false;
+   };
+   if(recoveryStatus?.available&&!recoveryStatus.hydrated){
+    return blockRecoverySave('recovery-check-pending','端末内の新しいセーブを確認中です。確認が完了するまで上書きを停止しています。');
+   }
+   if(pendingRecovery&&(!pendingRecovery.key||pendingRecovery.key===SAVE_KEY)){
+    return blockRecoverySave('newer-save-pending',`第${Math.max(1,Math.floor(finite(pendingRecovery.week,1)))}週の新しい端末セーブが残っています。設定画面で読み込むか、無視するか選択するまで上書きを停止しています。`);
+   }
+  }
+  this._saveStorageRecoveryWarningMode=null;
   if(!slot&&this._saveBlockedDueToLoadFailure){
    console.error('Save blocked because startup save migration failed',this._loadFailureReason||'unknown load failure');
    return false;
