@@ -139,7 +139,7 @@ const stored = loaded => loaded.ctx.__localStorageData.get('capitalism_tycoon_we
   assert.equal(engine.dismissExecutiveWithReason('exec-high', 'underperformance'), false);
   assert.equal(g.companyCash, cash, 'no severance is paid');
   assert.ok(g.executiveManagement.executives.some(e => e.id === 'exec-high'));
-  assert.equal(g.executiveGovernance.dismissalDecisions.at(-1).outcome, 'rejected', 'the rejection is recorded');
+  assert.equal(g.executiveGovernance?.dismissalDecisions?.at(-1)?.outcome, 'rejected', 'the rejection is recorded');
 }
 
 console.log('transaction rollback tests passed');
