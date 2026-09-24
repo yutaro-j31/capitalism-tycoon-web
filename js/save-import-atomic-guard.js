@@ -3,6 +3,7 @@
 const modules=globalThis.__capitalismTycoonModules;
 const engineModule=modules?.engine;
 const storage=modules?.saveStorage;
+const durableStorage=modules?.saveStorageIDB;
 if(!engineModule?.TycoonEngine||!storage?.__installed)throw new Error('engine.js and save-storage.js must load before save-import-atomic-guard.js.');
 if(modules.saveImportAtomicGuard)return;
 const proto=engineModule.TycoonEngine.prototype;
@@ -28,32 +29,53 @@ function verifyPersistedSave(raw,currentState){
     return migrated?.ok===true&&criticalSaveFingerprint(migrated.state)===criticalSaveFingerprint(currentState);
   }catch(error){return false;}
 }
+function readAuthoritativeSave(){
+  try{
+    const raw=durableStorage?.readSync?.(SAVE_KEY);
+    if(typeof raw==='string'&&raw)return raw;
+  }catch(error){}
+  try{return globalThis.localStorage?.getItem?.(SAVE_KEY)??null;}catch(error){return null;}
+}
+function restorePersistentSave(durableRaw,localRaw){
+  try{
+    if(durableStorage?.writeSync){
+      if(durableRaw===null)durableStorage.removeSync?.(SAVE_KEY);
+      else durableStorage.writeSync(SAVE_KEY,durableRaw);
+    }
+  }catch(error){console.error('IndexedDB save rollback failed',error);}
+  try{
+    if(localRaw===null)globalThis.localStorage?.removeItem?.(SAVE_KEY);
+    else globalThis.localStorage?.setItem?.(SAVE_KEY,localRaw);
+  }catch(error){console.error('localStorage save rollback failed',error);}
+}
 proto.importSave=function atomicImportSave(text){
   const previousState=this.g;
   const previousBlocked=this._saveBlockedDueToLoadFailure;
   const previousReason=this._loadFailureReason;
   const previousSaveInfo=this._lastSaveStorageInfo;
-  let previousRaw=null;
-  try{previousRaw=globalThis.localStorage?.getItem?.(SAVE_KEY)??null;}catch(error){}
+  const previousBypass=this._saveStorageRecoveryBypass;
+  const previousDurableRaw=readAuthoritativeSave();
+  let previousLocalRaw=null;
+  try{previousLocalRaw=globalThis.localStorage?.getItem?.(SAVE_KEY)??null;}catch(error){}
   try{
     this._lastSaveStorageInfo=null;
+    this._saveStorageRecoveryBypass=true;
     const result=originalImport.call(this,text);
     if(this._lastSaveStorageInfo?.ok!==true)throw new Error('復元後のセーブを保存できませんでした。以前のセーブを維持しました。');
-    let persistedRaw=null;
-    try{persistedRaw=globalThis.localStorage?.getItem?.(SAVE_KEY)??null;}catch(error){throw new Error('復元後のセーブを確認できませんでした。以前のセーブを維持しました。');}
+    const persistedRaw=readAuthoritativeSave();
     if(!verifyPersistedSave(persistedRaw,this.g))throw new Error('復元後のセーブ検証に失敗しました。以前のセーブを維持しました。');
+    this._saveStorageRecoveryBypass=previousBypass;
     return result;
   }catch(error){
     this.g=previousState;
     this._saveBlockedDueToLoadFailure=previousBlocked;
     this._loadFailureReason=previousReason;
     this._lastSaveStorageInfo=previousSaveInfo;
-    if(previousRaw!==null){
-      try{globalThis.localStorage?.setItem?.(SAVE_KEY,previousRaw);}catch(restoreError){console.error('Persistent save rollback failed',restoreError);}
-    }
+    this._saveStorageRecoveryBypass=previousBypass;
+    restorePersistentSave(previousDurableRaw,previousLocalRaw);
     try{this.emit?.();}catch(ignore){}
     throw error;
   }
 };
-modules.saveImportAtomicGuard=Object.freeze({SAVE_KEY,criticalSaveFingerprint,verifyPersistedSave,__installed:true});
+modules.saveImportAtomicGuard=Object.freeze({SAVE_KEY,criticalSaveFingerprint,verifyPersistedSave,readAuthoritativeSave,restorePersistentSave,__installed:true});
 })();
