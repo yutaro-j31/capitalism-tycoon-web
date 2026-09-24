@@ -697,8 +697,12 @@ class TycoonEngine extends EventTarget {
       return result;
     }
     this._deferredSave = false;
+    const eventDetail = typeof detail === 'function' ? detail(result) : detail;
+    // Inside the canonical boundary (play-runtime-compat.js), the boundary normalizes after the
+    // whole wrapper chain and then performs this save and emit itself.
+    if (this._canonicalBoundaryCommits) { this._canonicalBoundaryCommits.push([eventType, eventDetail]); return result; }
     this.save();
-    this.emit(eventType, typeof detail === 'function' ? detail(result) : detail);
+    this.emit(eventType, eventDetail);
     return result;
   }
 

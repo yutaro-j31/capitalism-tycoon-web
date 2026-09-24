@@ -191,7 +191,8 @@
     current.governanceQuality = Number.isFinite(Number(current.governanceQuality))
       ? clamp(current.governanceQuality, 0, 100)
       : DEFAULT_GOVERNANCE_QUALITY;
-    current.lastResolutionWeek = Number.isFinite(Number(current.lastResolutionWeek))
+    // null means "never"; Number(null) is 0, so keep it as null for a stable (idempotent) normalize.
+    current.lastResolutionWeek = current.lastResolutionWeek != null && Number.isFinite(Number(current.lastResolutionWeek))
       ? integer(current.lastResolutionWeek)
       : null;
     current.nextResolutionID = Math.max(1, integer(current.nextResolutionID, 1));
