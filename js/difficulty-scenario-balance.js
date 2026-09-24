@@ -72,8 +72,13 @@ function roundingAdjustmentLimit(state){
 }
 function reconcileWeeklyCashRounding(state){
  if(!plain(state))return false;
- const f=ensureRoundingAudit(state),week=integer(state.week),snap=(Array.isArray(f.weeklySnapshots)?f.weeklySnapshots:[]).find(row=>integer(row.week)===week);
- if(!snap)return false;
+ const f=ensureRoundingAudit(state),week=integer(state.week);
+ if(!(Array.isArray(f.weeklySnapshots)?f.weeklySnapshots:[]).some(row=>integer(row.week)===week))return false;
+ // The stored snapshot can predate cash movements made later in the week (e.g. property tax
+ // posted by the parity layer); comparing against it and assigning its endingCash silently
+ // reverted those movements. Rebuild from this week's ledger and the current companyCash so
+ // only a genuine rounding difference is absorbed.
+ const snap=finance.rebuildSnapshotForWeek(state,week);
  const actual=finite(snap.actualCompanyCash,state.companyCash),ending=finite(snap.endingCash),difference=round2(actual-ending);
  if(Math.abs(difference)<.001||Math.abs(difference)>WEEKLY_CASH_ROUNDING_LIMIT)return false;
  const adjustment=round2(ending-actual);

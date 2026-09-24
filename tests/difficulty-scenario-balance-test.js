@@ -112,7 +112,9 @@ const roundingGame = new engineModule.TycoonEngine();
 roundingGame.configure({ playerName:'丸め監査', companyName:'丸め監査', difficulty:'normal', scenario:'free' });
 roundingGame.g.week = 52;
 const cashBeforeRounding = roundingGame.g.companyCash;
-roundingGame.g.finance.weeklySnapshots = [{ week:52, openingCash:cashBeforeRounding, endingCash:cashBeforeRounding-.02, actualCompanyCash:cashBeforeRounding, cashDifference:.02, operatingCashFlow:-.02, investingCashFlow:0, financingCashFlow:0, netCashChange:-.02 }];
+// The reconciliation rebuilds the week from the ledger (#751), so the sub-five-cent gap has to be
+// a real one between the ledger roll-forward (openingCash + this week's rows) and companyCash.
+roundingGame.g.finance.weeklySnapshots = [{ week:52, openingCash:cashBeforeRounding-.02, endingCash:cashBeforeRounding-.02, actualCompanyCash:cashBeforeRounding, cashDifference:.02, operatingCashFlow:-.02, investingCashFlow:0, financingCashFlow:0, netCashChange:-.02 }];
 assert.equal(balance.reconcileWeeklyCashRounding(roundingGame.g), true, 'sub-five-cent difference must be reconciled');
 assert.equal(roundingGame.g.companyCash, cashBeforeRounding-.02);
 assert.equal(roundingGame.g.finance.roundingAdjustmentTotal, -.02);

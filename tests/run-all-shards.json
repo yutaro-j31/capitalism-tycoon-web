@@ -94,6 +94,7 @@
     "tests/pe-realestate-agency-ui-connection-test.js"
   ],
   "F": [
+    "tests/weekly-cash-rounding-reconcile-test.js",
     "tests/store-closure-plan-test.js",
     "tests/department-closure-plan-test.js",
     "tests/executive-delegation-test.js",
