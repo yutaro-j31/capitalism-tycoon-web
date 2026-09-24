@@ -14,6 +14,7 @@ on:
         options:
           - release-readiness
           - iphone-webkit
+          - iphone-acceptance
 concurrency:
   group: test-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
@@ -215,6 +216,52 @@ jobs:
           path: artifacts/release-readiness
           if-no-files-found: error
           retention-days: 7
+  iphone-acceptance-playthrough:
+    name: iPhone Acceptance Playthrough
+    if: github.event_name == 'push' || github.event_name == 'pull_request' || (github.event_name == 'workflow_dispatch' && inputs.mode == 'iphone-acceptance')
+    permissions:
+      contents: read
+    concurrency:
+      group: iphone-acceptance-${{ github.event.pull_request.number || github.ref }}
+      cancel-in-progress: true
+    runs-on: ubuntu-latest
+    timeout-minutes: 18
+    env:
+      IPHONE_ACCEPTANCE_ARTIFACT_DIR: artifacts/iphone-acceptance
+      D_UI_ARTIFACT_DIR: artifacts/iphone-acceptance/pe
+      MA_DEAL_ROOM_ARTIFACT_DIR: artifacts/iphone-acceptance/ma-deal-room
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install pinned Playwright runtime
+        run: npm install --no-save --no-package-lock playwright@1.61.0
+      - name: Install WebKit browser and system dependencies
+        run: npx playwright install --with-deps webkit
+      - name: Validate iPhone acceptance scripts
+        run: |
+          node --check tests/iphone-full-acceptance-webkit-test.js
+          node --check tests/pe-ui-screen-ownership-webkit-test.js
+          node --check tests/ma-deal-room-webkit-test.js
+      - name: Play every primary game screen in iPhone WebKit
+        timeout-minutes: 5
+        run: node tests/iphone-full-acceptance-webkit-test.js
+      - name: Exercise PE ownership and management screens
+        timeout-minutes: 3
+        run: node tests/pe-ui-screen-ownership-webkit-test.js
+      - name: Exercise M&A deal-room flow
+        timeout-minutes: 5
+        run: node tests/ma-deal-room-webkit-test.js
+      - name: Retain iPhone acceptance screenshots and diagnostics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: iphone-acceptance-${{ github.sha }}
+          path: artifacts/iphone-acceptance
+          if-no-files-found: error
+          retention-days: 30
+
   iphone-webkit-smoke:
     name: iPhone WebKit Smoke
     if: github.event_name == 'push' || github.event_name == 'schedule' || (github.event_name == 'workflow_dispatch' && inputs.mode == 'iphone-webkit')
