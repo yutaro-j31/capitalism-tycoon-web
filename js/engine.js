@@ -90,6 +90,21 @@ function makeTenants() {
 // A signed store lease is a numeric snapshot. New contracts prefer the listing
 // rent; legacy stores are grandfathered from the prefecture rent used by the
 // pre-contract model. Neither path keeps a live reference to mutable metadata.
+// #729: the book value on the balance sheet is ownership-specific. real-estate.js derives
+// p.realEstate.landBookValue/buildingBookValue once from p.purchasePrice, so a sale clears them and a
+// purchase clears them again after resetting purchasePrice to the price actually paid; until
+// real-estate.js re-derives them, finance.propertyBookOf() falls back to that purchasePrice.
+function clearOwnershipBook(p) {
+  if (!p?.realEstate || typeof p.realEstate !== 'object') return;
+  delete p.realEstate.landBookValue; delete p.realEstate.buildingBookValue; delete p.realEstate.buildingOriginalCost;
+}
+// Pins the land/building split of a fresh acquisition so real-estate.js's re-derivation cannot
+// read a building built afterwards (tracked as its own finance fixed asset) as part of the price
+// paid: bare land is all land. Existing buildings keep real-estate.js's default split.
+function setAcquisitionSplit(p) {
+  if (p.buildingType) { delete p.landPurchasePrice; delete p.buildingPurchasePrice; return; }
+  p.landPurchasePrice = p.purchasePrice; p.buildingPurchasePrice = 0;
+}
 function resolveTenantContractRent(tenant, pref) {
   const listingRent = Number(tenant?.rent);
   if (Number.isFinite(listingRent) && listingRent >= 0) return listingRent;
@@ -1273,17 +1288,17 @@ class TycoonEngine extends EventTarget {
 
   buyProperty(id,owner='company') {
     const p=this.g.properties.find(x=>x.id===id);if(!p||p.owner)return false;const cashKey=owner==='company'?'companyCash':'personalCash';
-    if(this.g[cashKey]<p.price)return this.fail('購入資金が不足しています。');this.g[cashKey]-=p.price;p.owner=owner;p.purchasePrice=p.purchasePrice||p.price;p.bookValue=p.bookValue||p.price;if(owner==='company')finance.event(this.g,'assetPurchase',p.price,{cashEffect:-p.price,assetEffect:p.price,sourceType:'buyProperty',sourceID:id,description:`${p.name} 不動産取得`});
+    if(this.g[cashKey]<p.price)return this.fail('購入資金が不足しています。');this.g[cashKey]-=p.price;p.owner=owner;p.purchasePrice=p.price;p.bookValue=p.price;setAcquisitionSplit(p);clearOwnershipBook(p);if(owner==='company')finance.event(this.g,'assetPurchase',p.price,{cashEffect:-p.price,assetEffect:p.price,sourceType:'buyProperty',sourceID:id,description:`${p.name} 不動産取得`});
     this.notify(`${p.name}を${owner==='company'?'会社':'個人'}で購入しました。`,'success');this.save();this.emit();return true;
   }
   sellProperty(id) {
-    const p=this.g.properties.find(x=>x.id===id);if(!p||!p.owner)return false;const owner=p.owner,proceeds=p.value*.97,landBook=finite(p.purchasePrice||p.price||p.bookValue),buildings=(this.g.finance?.fixedAssets||[]).filter(a=>a.propertyID===id&&a.status==='active'),buildingBook=buildings.reduce((a,x)=>a+finite(x.bookValue||Math.max(0,finite(x.acquisitionCost)-finite(x.accumulatedDepreciation))),0),book=landBook+buildingBook;this.g[owner==='company'?'companyCash':'personalCash']+=proceeds;if(owner==='company'){for(const a of buildings){a.status='disposed';a.disposalWeek=this.g.week;a.disposalProceeds=0;a.disposalBookValue=finite(a.bookValue);a.disposalGainLoss=-finite(a.bookValue);a.bookValue=0;}finance.event(this.g,'assetSale',proceeds,{cashEffect:proceeds,assetEffect:-book,profitEffect:proceeds-book,sourceType:'sellProperty',sourceID:id,description:`${p.name} 不動産・建物売却`});}p.owner=null;p.bookValue=0;
+    const p=this.g.properties.find(x=>x.id===id);if(!p||!p.owner)return false;const owner=p.owner,proceeds=p.value*.97,landBook=finite(finance.propertyBookOf(p)),buildings=(this.g.finance?.fixedAssets||[]).filter(a=>a.propertyID===id&&a.status==='active'),buildingBook=buildings.reduce((a,x)=>a+finite(x.bookValue||Math.max(0,finite(x.acquisitionCost)-finite(x.accumulatedDepreciation))),0),book=landBook+buildingBook;this.g[owner==='company'?'companyCash':'personalCash']+=proceeds;if(owner==='company'){for(const a of buildings){a.status='disposed';a.disposalWeek=this.g.week;a.disposalProceeds=0;a.disposalBookValue=finite(a.bookValue);a.disposalGainLoss=-finite(a.bookValue);a.bookValue=0;}finance.event(this.g,'assetSale',proceeds,{cashEffect:proceeds,assetEffect:-book,profitEffect:proceeds-book,sourceType:'sellProperty',sourceID:id,description:`${p.name} 不動産・建物売却`});}p.owner=null;p.bookValue=0;p.depreciationPerWeek=0;p.buildingCost=0;clearOwnershipBook(p);
     this.notify(`${p.name}を${yen(proceeds)}で売却しました。`,'success');this.save();this.emit();return true;
   }
   buildOnLand(id,type='本社ビル') {
     const p=this.g.properties.find(x=>x.id===id);if(!p||p.owner!=='company'||p.kind!=='土地')return this.fail('会社所有の土地が必要です。');
     const costs={'本社ビル':80_000_000,'商業施設':120_000_000,'物流施設':150_000_000};const cost=costs[type]||80_000_000;
-    if(this.g.companyCash<cost)return this.fail(`${yen(cost)}が必要です。`);this.g.companyCash-=cost;p.buildingType=type;p.constructionWeeksRemaining=12;p.buildingScale=1;p.depreciationPerWeek=cost*.025/52;p.buildingCost=finite(p.buildingCost)+cost;p.bookValue=finite(p.purchasePrice||p.price||p.bookValue);finance.addFixedAsset(this.g,{assetID:`building-${id}-${this.g.week}-${Math.round(cost)}`,assetType:'building',propertyID:id,acquisitionCost:cost,usefulLifeWeeks:1040,salvageValue:cost*.2,businessID:null,storeID:null});finance.event(this.g,'capitalExpenditure',cost,{cashEffect:-cost,assetEffect:cost,sourceType:'buildOnLand',sourceID:id,description:`${p.name} ${type}建設`});
+    if(this.g.companyCash<cost)return this.fail(`${yen(cost)}が必要です。`);this.g.companyCash-=cost;p.buildingType=type;p.constructionWeeksRemaining=12;p.buildingScale=1;p.buildingCost=finite(p.buildingCost)+cost;p.bookValue=finite(p.purchasePrice||p.price||p.bookValue);finance.addFixedAsset(this.g,{assetID:`building-${id}-${this.g.week}-${Math.round(cost)}`,assetType:'building',propertyID:id,acquisitionCost:cost,usefulLifeWeeks:1040,salvageValue:cost*.2,businessID:null,storeID:null});finance.event(this.g,'capitalExpenditure',cost,{cashEffect:-cost,assetEffect:cost,sourceType:'buildOnLand',sourceID:id,description:`${p.name} ${type}建設`});
     this.notify(`${p.name}で${type}の建設を開始しました。`,'success');this.save();this.emit();return true;
   }
   buyLuxury(offerID) {
@@ -1974,7 +1989,7 @@ class TycoonEngine extends EventTarget {
       financeStores.push({storeID:store.id,businessID:store.businessID,name:store.name,sales:postedSales,variable:postedVariable,rent:postedRent,wage:postedWage,repair:postedMaintenance,cogsCashEffect:(isSupplyStore?0:undefined)});
       storeCashDelta+=postedSales-(isSupplyStore?0:postedVariable)-postedRent-postedWage-postedMaintenance;
       store.condition=clamp(store.condition-rand(.1,1),40,100);sales+=postedSales;expenses+=postedVariable+postedRent+postedWage+postedMaintenance;}
-    for(const p of this.g.properties){if(!p.owner)continue;const rent=p.rentIncome*clamp(this.g.economy,.75,1.25)*p.rentMultiplier*(1-p.vacancyRate);if(p.owner==='company')rentIncome+=rent;else this.g.personalCash+=rent;if(p.owner==='company')propertyDepreciation+=finite(p.depreciationPerWeek);}
+    for(const p of this.g.properties){if(!p.owner)continue;const rent=p.rentIncome*clamp(this.g.economy,.75,1.25)*p.rentMultiplier*(1-p.vacancyRate);if(p.owner==='company')rentIncome+=rent;else this.g.personalCash+=rent;}
     expenses+=propertyDepreciation;
     const execPayroll=this.g.week%4===0?Object.values(this.g.executives).reduce((a,e)=>a+finite(e.salary)/13,0):0;
     const deptCost=workforce.weeklyPayroll(this.g);
