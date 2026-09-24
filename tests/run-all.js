@@ -126,6 +126,7 @@ const nodeTests = [
   ['real-estate-property-management', 'tests/real-estate-property-management-test.js'],
   ['real-estate-property-taxes', 'tests/real-estate-property-taxes-test.js'],
   ['real-estate-property-tax-ledger', 'tests/real-estate-property-tax-ledger-test.js'],
+  ['property-lifecycle-ledger', 'tests/property-lifecycle-ledger-test.js'],
   ['real-estate-redevelopment-projects', 'tests/real-estate-redevelopment-projects-test.js'],
   ['real-estate-rent-guarantee', 'tests/real-estate-rent-guarantee-test.js'],
   ['real-estate-rent-performance', 'tests/real-estate-rent-performance-test.js'],
