@@ -1,12 +1,14 @@
 'use strict';
 
-// Issue #732 (P0-07): continuous play never normalized (configure/advanceWeek normalize only
-// outside a transaction, and module wrappers always run them inside one), the browser engine was
-// normalized before most modules registered, the weekly pipeline depended on whether
-// TycoonEngine.load() installed product innovation, the luxury auction pool was shuffled in
-// module memory, and normalize was not idempotent. Continuous play, browser reload and a
-// fully-loaded reload therefore produced different state shapes and different futures.
-// All three checks run (each reports on its own) against the full production script set.
+// Issue #732 (P0-07): continuous play never normalized (configure only normalizes outside a
+// transaction, and module wrappers always run it inside one), the browser engine was normalized
+// before most modules registered, the weekly pipeline depended on whether TycoonEngine.load()
+// installed product innovation, the luxury auction pool was shuffled in module memory, normalize
+// was not idempotent, and several normalizers re-derived values the weekly processing owns.
+// Continuous play, browser reload and a fully-loaded reload therefore produced different state
+// shapes and different futures. The founding state is normalized once; after that, each week's
+// processing must itself leave a state a reload's normalize does not change.
+// Every check runs (each reports on its own) against the full production script set.
 
 const assert = require('node:assert/strict');
 const { loadGame } = require('./harness');
@@ -95,8 +97,8 @@ check('fork after a mid-week action: the same future after reload', () => fork(t
 check('boot paths: browser boot, fully-loaded load() and continuous play share the state keys', () => {
   const full = fullLoad(lcg(11));
   assert.equal(typeof full.TycoonEngine.prototype.updateProductInnovationWeekly, 'function', 'product innovation is installed before any load(), so the weekly pipeline matches the browser');
-  // The boundary must stay the outermost wrapper: a module wrapping these later would run after it.
-  for (const name of ['configure', 'advanceWeek']) assert.equal(full.TycoonEngine.prototype[name].__canonicalNormalizeBoundary, true, `${name} is wrapped by the canonical normalization boundary last`);
+  // The founding boundary must stay the outermost configure wrapper: a later wrapper would run after it.
+  assert.equal(full.TycoonEngine.prototype.configure.__canonicalNormalizeBoundary, true, 'configure is wrapped by the canonical normalization boundary last');
   const keys = g => Object.keys(g).sort();
   const onlyIn = (x, y) => keys(x).filter(k => !keys(y).includes(k));
   const legacy = JSON.stringify(full.loaded.modules.engine.createInitialState({ configured: true, playerName: 'Keys', companyName: 'Keys Co' }));
@@ -109,28 +111,35 @@ check('boot paths: browser boot, fully-loaded load() and continuous play share t
   assert.deepEqual({ playOnly: onlyIn(played.g, reloaded), reloadOnly: onlyIn(reloaded, played.g) }, { playOnly: [], reloadOnly: [] }, 'continuous play vs its reload');
 });
 
-// 3. normalize is idempotent, and continuous play is already canonical right after founding and
-//    at a week boundary.
-check('normalize: idempotent, and a no-op after founding and at a week boundary', () => {
-  const E = browserBoot(lcg(21));
-  E.configure({ playerName: 'Idem', companyName: 'Idem Co', difficulty: 'normal' });
+// 3. normalize is idempotent, and continuous play is already canonical: right after founding, and at
+//    every week boundary of a multi-business game (ramen, conveni, gym, a property; 60 weeks, which
+//    covers an industry event, competitor text events and distress, and the week-53 budget cycle).
+//    The weekly advance itself is not normalized, so each week's processing must leave nothing for
+//    a reload's normalize to change.
+check('normalize: idempotent, and a no-op after founding and at every week boundary', () => {
+  const E = browserBoot(lcg(11));
+  E.configure({ playerName: 'W', companyName: 'W Co', difficulty: 'normal' });
+  const proto = Object.getPrototypeOf(E);
+  const normalizedCopy = g => { const copy = Object.create(proto); copy.g = JSON.parse(JSON.stringify(g)); proto.normalize.call(copy); return copy.g; };
   const stable = label => {
-    const before = strip(E.g);
-    E.normalize();
-    const once = strip(E.g);
-    E.normalize();
-    const second = differences(once, strip(E.g)), first = differences(before, once);
+    const once = normalizedCopy(E.g), first = differences(E.g, once), second = differences(once, normalizedCopy(once));
     assert.deepEqual(second.slice(0, 12), [], `${label}: a second normalize changes ${second.length} leaves`);
     assert.deepEqual(first.slice(0, 12), [], `${label}: normalize changes ${first.length} leaves`);
   };
   stable('after founding');
-  openRamen(E, '1号店');
+  E.g.companyCash = 5_000_000_000; E.g.personalCash = 1_000_000_000;
+  for (const businessID of ['ramen', 'conveni', 'gym', 'ramen']) {
+    const tenant = E.g.tenants.find(t => !t.occupiedBy);
+    assert.equal(E.openStore({ tenantID: tenant.id, businessID, name: businessID, operatingHours: 3 }), true);
+  }
+  const land = E.g.properties.find(p => !p.owner && p.price < 300_000_000);
+  assert.equal(E.buyProperty(land.id, 'company'), true);
   const store = E.g.stores[0], business = E.g.businesses[0], stores = E.g.stores;
-  for (let i = 0; i < 8; i++) assert.notEqual(E.advanceWeek(false), false);
-  // The weekly normalize reconciles in place: objects held across a week stay the live ones.
+  for (let i = 0; i < 60; i++) {
+    assert.notEqual(E.advanceWeek(false), false);
+    stable(`week ${E.g.week}`);
+  }
   assert.ok(E.g.stores === stores && E.g.stores[0] === store && E.g.businesses[0] === business, 'a store/business held across weeks is still the live object');
-  assert.equal(store.status, 'open');
-  stable('at a week boundary');
 });
 
 if (failures.length) {

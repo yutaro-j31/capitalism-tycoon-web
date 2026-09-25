@@ -11,13 +11,13 @@ modules.playRuntimeCompat=Object.freeze({
 });
 })();
 
-// Canonical normalization boundary (#732). The base configure/advanceWeek only normalize outside a
-// transaction, but module wrappers always run them inside one, so continuous play never normalized
-// while a reload did: the two produced different state shapes and futures. Normalization here must
-// run after the whole wrapper chain (a mid-chain normalize would rebuild g.businesses under
-// industry-specific-events' temporary modifiers and leak them), so this wraps configure/advanceWeek
-// last: on DOMContentLoaded, after the PE modules' own DOMContentLoaded wrappers (their scripts, and
-// so their listeners, come earlier). The committed transaction's save and emit are held until then.
+// Canonical normalization at founding (#732). The base configure only normalizes outside a
+// transaction, but module wrappers always run it inside one, so a new company started with a state
+// no reload would produce. This wraps configure last (on DOMContentLoaded, after the PE modules' own
+// DOMContentLoaded wrappers, whose scripts and so listeners come earlier), normalizes once after the
+// whole wrapper chain, then performs the committed transaction's save and emit. The weekly advance is
+// not normalized here: each week's processing itself keeps the state canonical, which
+// tests/reload-canonical-state-test.js asserts (normalize is a no-op at a week boundary).
 (function(){'use strict';
 const modules=globalThis.__capitalismTycoonModules;
 const proto=modules?.engine?.TycoonEngine?.prototype;
@@ -33,7 +33,7 @@ function boundary(name){
     catch(error){this._canonicalBoundaryCommits=null;if(commits.length)flush();throw error;}
     this._canonicalBoundaryCommits=null;
     if(!commits.length)return result;
-    if(this.g?.configured)this.normalizeInPlace();
+    if(this.g?.configured)this.normalize();
     flush();
     return result;
   };
@@ -43,7 +43,6 @@ function boundary(name){
 function install(){
   if(proto.__canonicalNormalizeBoundary)return;
   boundary('configure');
-  boundary('advanceWeek');
   Object.defineProperty(proto,'__canonicalNormalizeBoundary',{value:true});
 }
 if(typeof document!=='undefined'&&document.readyState==='loading'&&typeof document.addEventListener==='function')document.addEventListener('DOMContentLoaded',install,{once:true});

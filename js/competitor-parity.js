@@ -62,7 +62,7 @@ function syncEventLog(state){
  }
  state.competitorEventLog=state.competitorEventLog.filter(value=>typeof value==='string').slice(0,80);
 }
-function ensureCounterStates(state){
+function ensureCounterStates(state,{syncLog=true}={}){
  if(!Array.isArray(state.competitorStates))state.competitorStates=[];
  if(!Array.isArray(state.competitorCounterStates))state.competitorCounterStates=[];
  if(!Array.isArray(state.rivalResponseHistory))state.rivalResponseHistory=[];
@@ -85,7 +85,7 @@ function ensureCounterStates(state){
  }
  state.competitorCounterStates=counters.sort((a,b)=>String(a.competitorID).localeCompare(String(b.competitorID))).slice(0,COUNTER_LIMIT);
  state.rivalResponseHistory=state.rivalResponseHistory.filter(row=>row&&typeof row==='object').slice(-RESPONSE_HISTORY_LIMIT);
- syncEventLog(state);
+ if(syncLog)syncEventLog(state);
  return state.competitorCounterStates;
 }
 function findCounter(state,id){ensureCounterStates(state);return state.competitorCounterStates.find(row=>row.id===String(id)||row.competitorID===String(id))||null;}
@@ -106,9 +106,11 @@ function closeAcquiredCompany(state,company,week){
 function installCompatibility(TycoonEngine){
  if(TycoonEngine.prototype.__competitorParityCompatibilityInstalled)return;
  const baseEnsureParityDefaults=TycoonEngine.prototype.ensureParityDefaults;
- TycoonEngine.prototype.ensureParityDefaults=function(){const result=baseEnsureParityDefaults.call(this);if(!this.__usingCompetitorCounterStates)ensureCounterStates(this.g);return result;};
+ TycoonEngine.prototype.ensureParityDefaults=function(options={}){const result=baseEnsureParityDefaults.call(this,options);if(!this.__usingCompetitorCounterStates)ensureCounterStates(this.g,{syncLog:options.syncCompetitorLog!==false});return result;};
  const baseNormalize=TycoonEngine.prototype.normalize;
- TycoonEngine.prototype.normalize=function(){const result=baseNormalize.call(this);ensureCounterStates(this.g);return result;};
+ // normalize repairs the shape only: the event log is derived from the events during the week, so a
+ // reload must not derive new lines early (text events carry the current week, #732).
+ TycoonEngine.prototype.normalize=function(){const result=baseNormalize.call(this);ensureCounterStates(this.g,{syncLog:false});return result;};
  TycoonEngine.prototype.seedCompetitorCounterStates=function(){if(this.__usingCompetitorCounterStates)return this.g.competitorStates;return ensureCounterStates(this.g);};
  TycoonEngine.prototype.competitorPressureMultiplier=function(businessID,prefID){
   const area=this.pref(prefID)?.areaID;

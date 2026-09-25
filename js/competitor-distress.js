@@ -10,7 +10,7 @@ if(modules.competitor.__distressInstalled)throw new Error('competitor distress l
 
 const competitor=modules.competitor;
 const MAX_LIFECYCLE_HISTORY=104;
-const MAX_LIFECYCLE_EVENTS=160;
+const MAX_LIFECYCLE_EVENTS=160,COMPETITOR_EVENT_LIMIT=200;
 const LIFECYCLE_STATUSES=Object.freeze(['active','growing','defending','distressed','turnaround','recovered','withdrawing','inactive','bankrupt']);
 const TERMINAL_STATUSES=new Set(['inactive','bankrupt']);
 const GROWTH_ACTIONS=new Set(['brandInvestment','qualityInvestment','capacityExpansion','marketEntry']);
@@ -48,7 +48,9 @@ function ensurePlan(plan){
 }
 function ensureLifecycleState(state){
  if(!Array.isArray(state.competitorEvents))state.competitorEvents=[];
- state.competitorEvents=state.competitorEvents.filter(event=>event&&typeof event==='object').slice(-MAX_LIFECYCLE_EVENTS);
+ // The weekly writers also log plain-text events and competitor-projects keeps up to 200 (newest
+ // first), so normalize keeps both: dropping or trimming them here made a reload rewrite the list (#732).
+ state.competitorEvents=state.competitorEvents.filter(event=>(event&&typeof event==='object')||typeof event==='string').slice(-COMPETITOR_EVENT_LIMIT);
  for(const company of state.competitorStates||[]){
   const initial=LIFECYCLE_STATUSES.includes(company.lifecycleStatus)?company.lifecycleStatus:(LIFECYCLE_STATUSES.includes(company.status)?company.status:'active');
   company.lifecycleStatus=initial;

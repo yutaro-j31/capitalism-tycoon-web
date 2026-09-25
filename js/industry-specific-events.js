@@ -26,7 +26,9 @@ function refresh(instance){const state=ensure(instance.g),eventId=state.activeIn
 function withAppliedModifiers(instance,callback){const state=ensure(instance.g),map=refresh(instance),businesses=Array.isArray(state.businesses)?state.businesses:[],snapshots=[];for(const business of businesses){const m=map[business.id];if(!m)continue;snapshots.push([business,business.demand,business.unitCost]);business.demand=Math.max(0,finite(business.demand,1)*m.demand);business.unitCost=Math.max(0,finite(business.unitCost)*m.unitCost/m.supply);}try{return callback();}finally{for(const [business,demand,unitCost] of snapshots){business.demand=demand;business.unitCost=unitCost;}}}
 function validate(state){ensure(state);const errors=[];if(state.industrySpecificEventHistory.length>HISTORY_LIMIT)errors.push('industry-specific event history overflow');for(const [id,m] of Object.entries(state.industrySpecificModifiers)){if(!m||['demand','unitCost','regulation','technology','supply'].some(k=>!Number.isFinite(Number(m[k]))))errors.push(`invalid industry modifier: ${id}`);}return{ok:errors.length===0,errors};}
 const proto=EngineClass.prototype;
-const baseNormalize=proto.normalize;proto.normalize=function(){baseNormalize.call(this);ensure(this.g);refresh(this);};
+// normalize only repairs the shape: the modifiers are refreshed at the start of each advance, so a
+// reload must not refresh them early (an event starting mid-week shows from the next advance, #732).
+const baseNormalize=proto.normalize;proto.normalize=function(){baseNormalize.call(this);ensure(this.g);};
 const baseAdvance=proto.advanceWeek;proto.advanceWeek=function(){return withAppliedModifiers(this,()=>baseAdvance.apply(this,arguments));};
 proto.getIndustrySpecificModifiers=function(businessId){ensure(this.g);return this.g.industrySpecificModifiers[businessId]||modifiersFor(this.g.activeIndustryEvent?.id||null,businessId);};
 Object.defineProperty(proto,'__industrySpecificEventsInstalled',{value:true});
