@@ -98,6 +98,8 @@
     "tests/pe-realestate-agency-ui-connection-test.js"
   ],
   "F": [
+    "tests/simulation-rng-test.js",
+    "tests/simulation-determinism-contract-test.js",
     "tests/weekly-cash-rounding-reconcile-test.js",
     "tests/store-closure-plan-test.js",
     "tests/department-closure-plan-test.js",
