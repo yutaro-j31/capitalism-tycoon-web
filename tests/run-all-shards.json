@@ -40,8 +40,7 @@
     "tests/d-ui-shell-test.js",
     "tests/map-phase2-framing-zoomout-test.js",
     "tests/map-phase2-marker-placard-interaction-test.js",
-    "tests/map-marker-detail-interaction-test.js",
-    "tests/digital-portfolio-breakeven-seeds-test.js"
+    "tests/map-marker-detail-interaction-test.js"
   ],
   "D": [
     "tests/pe-value-creation-test.js",
@@ -65,7 +64,8 @@
     "tests/map-marker-density-selection-test.js",
     "tests/convenience-chain-scale-procurement-test.js",
     "tests/supply-payment-due-week-arrival-basis-test.js",
-    "tests/ramen-supply-payment-terms-244week-regression-test.js"
+    "tests/ramen-supply-payment-terms-244week-regression-test.js",
+    "tests/digital-portfolio-breakeven-seeds-test.js"
   ],
   "E": [
     "tests/loan-single-interest-test.js",
