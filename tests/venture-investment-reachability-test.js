@@ -6,10 +6,12 @@
 const assert = require('node:assert');
 const { loadGame } = require('./harness');
 
-// 0.15 sits above the 0.08 funding-round threshold and below the 0.25 failure threshold,
-// so a venture that exhausts its runway fails instead of being rescued by a new round.
-const FAILING_WORLD = 0.15;
+// Since #731 the weekly failure roll draws from the save's stream, not the host Math.random.
+// Each attempt positions that real stream with the reseed hook; the weekly loop still makes
+// the roll, so the test proves the write-off is reached by ordinary play. Seeds are tried in
+// order and the first world where the venture fails is used.
 const MAX_WEEKS = 60;
+const MAX_SEEDS = 16;
 
 function createEngine(loaded) {
   const engine = new loaded.engineModule.TycoonEngine();
@@ -35,9 +37,10 @@ function nonOperating(loaded, engine) {
   return loaded.modules.finance.buildStatements(engine.g, String(engine.g.week)).profitAndLoss.otherNonOperating;
 }
 
-function run() {
-  const loaded = loadGame({ headless: true, random: () => FAILING_WORLD });
+function run(seed) {
+  const loaded = loadGame({ headless: true, random: () => 0.5 });
   const engine = createEngine(loaded);
+  loaded.modules.simulationRng.reseed(engine.g, seed);
   const startup = engine.g.startups[0];
 
   assert.ok(engine.investStartup(startup.id, 25_000_000, 'company'), 'the company invests in a venture');
@@ -58,6 +61,7 @@ function run() {
   }
 
   return {
+    seed,
     failedWeek,
     invested,
     costBasisAfter: startup.totalInvestedCompany,
@@ -68,11 +72,16 @@ function run() {
   };
 }
 
-const result = run();
+let result = null;
+for (let seed = 1; seed <= MAX_SEEDS && !result; seed += 1) {
+  const attempt = run(seed);
+  if (attempt.failedWeek !== null) result = attempt;
+}
+result = result || { failedWeek: null };
 
 assert.ok(
   result.failedWeek !== null,
-  `a venture that runs out of runway must fail during ordinary play within ${MAX_WEEKS} weeks`
+  `a venture that runs out of runway must fail during ordinary play within ${MAX_WEEKS} weeks in one of ${MAX_SEEDS} seeded worlds`
 );
 assert.equal(result.costBasisAfter, 0, 'weekly play clears the cost basis when the venture fails');
 assert.equal(result.ownedAfter, 0, 'weekly play clears the stake when the venture fails');
@@ -85,11 +94,11 @@ assert.ok(result.balanced, 'the balance sheet survives the failure');
 assert.ok(result.ledgerValid, 'the ledger stays valid through the failure');
 
 // The same world must produce the same outcome every time.
-const again = run();
+const again = run(result.seed);
 assert.equal(again.failedWeek, result.failedWeek, 'the failure week is deterministic');
 assert.equal(again.recognised, result.recognised, 'the recognised loss is deterministic');
 
 console.log(
-  `venture write-off reachability: failed at week ${result.failedWeek}, ` +
+  `venture write-off reachability: seed ${result.seed} failed at week ${result.failedWeek}, ` +
   `loss ${result.recognised} recognised from a ${result.invested} cost basis`
 );

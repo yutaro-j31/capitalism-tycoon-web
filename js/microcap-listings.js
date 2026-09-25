@@ -17,7 +17,9 @@ function integerBetween(a,b,...parts){return Math.min(b,a+Math.floor(unit(...par
 function deriveIdentity(state){
   const startup=Array.isArray(state.startups)&&state.startups.find(row=>row?.id)?.id;
   const competitor=Array.isArray(state.competitors)&&state.competitors.find(row=>row?.id)?.id;
-  return `market-${startup||'no-startup'}-${competitor||'no-competitor'}`;
+  // Since #731 the catalogue IDs are stable, so a new game's identity also carries its stream seed.
+  const seed=state.simulationRng?.seed;
+  return `market-${startup||'no-startup'}-${competitor||'no-competitor'}${Number.isInteger(seed)?`-${seed.toString(36)}`:''}`;
 }
 function seedKey(state){return state.microcapMarket?.identity||deriveIdentity(state);}
 function intervalFor(state,sequence){return integerBetween(INTERVAL_MIN,INTERVAL_MAX,'microcap',seedKey(state),'interval',sequence);}

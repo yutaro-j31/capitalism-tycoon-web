@@ -48,6 +48,8 @@ function snapshot(g, randomCalls) {
     currentCompanySerial: g.currentCompanySerial,
     serialCompanyCount: g.serialCompanyCount,
     keyPersonnel: g.keyPersonnel,
+    // #731: the simulation draws from this save-held stream; its position is part of the baseline.
+    simulationRng: g.simulationRng,
   });
 }
 function assertCrisisSnapshot(engine, label) {

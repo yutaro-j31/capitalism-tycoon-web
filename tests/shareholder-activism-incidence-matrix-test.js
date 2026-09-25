@@ -41,7 +41,20 @@ assert.deepEqual(replay.checkpoint, first.checkpoint, `${requestedStyle} seed ${
 assert.equal(replay.ipoWeek, first.ipoWeek, `${requestedStyle} seed ${requestedSeed} reaches IPO deterministically`);
 assert.equal(first.campaignsByPath?.portfolioInefficiency||0,0,'store-operation controls cannot trigger the subsidiary portfolio path');
 if(requestedStyle==='balanced-returns')assert.equal(first.campaignCount,0,JSON.stringify(first));
-if(requestedStyle==='growth-reinvestment')assert.equal(first.campaignCount,0,JSON.stringify(first));
+// Growth reinvestment deploys its cash, so the capital-stagnation path never fires. A campaign it
+// does meet comes from the value-destruction path and only on real value destruction (#731: the
+// former "0 campaigns on this seed" held for this one seed only; seeds 2-3 already had them).
+if(requestedStyle==='growth-reinvestment'){
+  assert.equal(first.campaignsByPath?.capitalStagnation||0,0,JSON.stringify(first));
+  assert.equal(first.campaignCount,first.campaignsByPath?.valueDestruction||0,JSON.stringify(first));
+  if(first.campaignCount>0){
+    const d=first.firstCampaignDiagnostic||{};
+    assert.equal(d.triggerPath,'valueDestruction',JSON.stringify(d));
+    assert(d.valuePressure>=d.capitalThreshold,`value pressure reached the threshold: ${JSON.stringify(d)}`);
+    assert(d.companyValueEnd<d.companyValueStart,`company value fell: ${JSON.stringify(d)}`);
+    assert(d.averageHighDrawdown>0&&d.cumulativeUnderperformance>0,`the stock drew down and underperformed: ${JSON.stringify(d)}`);
+  }
+}
 if(requestedStyle==='cash-hoarder'){
   assert(first.campaignCount>=1,JSON.stringify(first));
   assert((first.campaignsByPath?.capitalStagnation||0)>=1,'cash hoarding remains reachable through capital stagnation');

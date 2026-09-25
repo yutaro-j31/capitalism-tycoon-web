@@ -210,9 +210,11 @@ function team(overrides = {}) {
   engine.buySportsTeam('basketball', 'personal');
   engine.g.personalInvestments = [];
   engine.g.luxuryAssets = [];
-  const before = calls;
+  // Since #731 the engine draws from the save's stream, never from the host Math.random.
+  const before = calls, drawsBefore = engine.g.simulationRng.draws;
   engine.updatePersonalAssets();
-  assert.equal(calls - before, 3, '球団1件あたりのMath.random消費は3回のままで、今回の追加はゼロ');
+  assert.equal(engine.g.simulationRng.draws - drawsBefore, 3, '球団1件あたりの乱数消費（セーブの乱数列）は3回のままで、今回の追加はゼロ');
+  assert.equal(calls - before, 0, 'the weekly asset update reads no host Math.random');
 }
 
 // 16. Determinism.

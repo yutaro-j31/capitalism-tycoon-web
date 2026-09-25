@@ -19,9 +19,8 @@ const clamp=(v,min,max)=>Math.max(min,Math.min(max,finite(v,min)));
 const integer=(v,d=0)=>Math.max(0,Math.floor(finite(v,d)));
 const esc=v=>String(v??'').replace(/[&<>'"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c]));
 const compactYen=modules.engine.compactYen||((v)=>`${Math.round(finite(v)).toLocaleString('ja-JP')}円`);
-const engineRand=typeof modules.engine.rand==='function'?modules.engine.rand:null;
-const seededRand=(min,max)=>engineRand?engineRand(min,max):min+(max-min)*.5;
-const chance=threshold=>seededRand(0,1)<threshold;
+// Incidents draw from the stream kept in the save, so the outcome follows the save, not the host (#731).
+const chance=(state,threshold)=>modules.simulationRng.next(state)<threshold;
 const agePressureFor=ageWeeks=>Math.min(AGE_PRESSURE_CAP,Math.max(0,integer(ageWeeks)-12)/30);
 function normalizeRecallRisk(row){return{week:integer(row?.week),productID:String(row?.productID||''),productName:String(row?.productName||''),maintenancePolicy:POLICIES[row?.maintenancePolicy]?row.maintenancePolicy:'',technicalDebt:clamp(row?.technicalDebt,0,100),revenue:Math.max(0,finite(row?.revenue)),profit:finite(row?.profit),quality:clamp(row?.quality,0,100)};}
 function normalizeRecallHistory(row){return{week:integer(row?.week),type:String(row?.type||''),recallID:String(row?.recallID||''),productID:String(row?.productID||''),productName:String(row?.productName||''),amount:Math.max(0,finite(row?.amount)),cumulativeLostRevenue:Math.max(0,finite(row?.cumulativeLostRevenue)),responded:Boolean(row?.responded),reason:String(row?.reason||'')};}
@@ -124,7 +123,7 @@ function install(){
       const policy=POLICIES[product.maintenancePolicy]||POLICIES.standard,funnel=typeof this.ensureProductFunnel==='function'?this.ensureProductFunnel(product):null;
       let result=calculateProductLifecycleBaseWeek({product,funnel,policy,availableCash:this.g.companyCash,week:this.g.week});
       if(result.payable>0){maintenanceCost+=result.payable;this.g.companyCash-=result.payable;finance.event(this.g,'researchAndDevelopment',result.payable,{cashEffect:-result.payable,profitEffect:-result.payable,assetEffect:0,sourceType:'productMaintenance',sourceID:String(product.id),operationID:`productMaintenance-${product.id}-${this.g.week}`,description:`${product.name} ${policy.name}`});}
-      if(result.incidentEligible&&chance(result.incidentChance)){
+      if(result.incidentEligible&&chance(this.g,result.incidentChance)){
         result=applyProductLifecycleIncident(result);
         const row=history(this.g,'maintenanceIncident',`${product.name}で保守障害が発生しました。品質が低下し、解約率とサポート負荷が上昇しました。`,{productID:String(product.id),technicalDebt:result.incidentTechnicalDebt});incidents.push(row);
       }

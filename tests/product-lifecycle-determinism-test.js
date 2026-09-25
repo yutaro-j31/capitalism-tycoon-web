@@ -17,6 +17,18 @@ function loadWithoutLifecycle(randomValue) {
   return loadGameFromHtml(html, { random: () => randomValue });
 }
 
+// The first seed whose stream starts below (low) or above (high) the incident chance of any product.
+function seedFor(rng, draw) {
+  for (let seed = 1; ; seed += 1) {
+    const probe = {};
+    rng.reseed(probe, seed);
+    const [value] = rng.peek(probe, 1);
+    if (draw === 'low' ? value < .001 : value > .999) return seed;
+  }
+}
+
+// Incidents draw from the save's stream (#731): a test positions that real stream with the reseed
+// hook, and the production chance() still consumes it, so the wiring stays under test.
 function build(randomValue, options = {}) {
   const { ctx, engineModule, modules } = loadWithoutLifecycle(randomValue);
   if (options.removeEngineRand) delete modules.engine.rand;
@@ -35,12 +47,18 @@ function build(randomValue, options = {}) {
   engine.ensureProductInnovationDefaults();
   engine.ensureProductLifecycleDefaults();
   if (options.throwOnRandom) ctx.Math.random = () => { throw new Error('unexpected nondeterministic random access'); };
+  const rng = modules.simulationRng;
+  rng.reseed(engine.g, seedFor(rng, options.draw || 'low'));
+  const expectedDraw = rng.peek(engine.g, 1)[0];
+  const drawsBefore = engine.g.simulationRng.draws;
   const saveVersion = engine.g.saveVersion;
   const weekBefore = 11;
   engine.g.week = weekBefore;
   const cashBefore = engine.g.companyCash;
   engine.g.week = 12;
   engine.updateProductLifecycleWeekly();
+  assert.equal(engine.g.simulationRng.draws, drawsBefore + 1, 'the incident roll consumes exactly one draw of the save stream');
+  assert.equal(engine.g.productLifecycleHistory.some(row => row.type === 'maintenanceIncident'), expectedDraw < .001, 'the positioned stream decides the incident');
   const validation = modules.productLifecycle.validate(engine.g);
   assert.equal(validation.ok, true, validation.errors.join('\n'));
   assert.equal(engineModule.SAVE_KEY, 'capitalism_tycoon_web_v1');
@@ -122,10 +140,12 @@ function riskRows(count, policy = 'lean', spike = false) {
   }));
 }
 
-assert.equal(build(0.01), build(0.01), 'same RNG path must produce identical lifecycle results');
-assert.notEqual(build(0.01), build(0.99), 'different RNG paths should control incident outcomes through the injected engine rand path');
-assert.equal(build(0.01, { removeEngineRand: true }), build(0.99, { removeEngineRand: true }), 'missing engine rand must use deterministic fixed fallback, not nondeterminism');
-assert.doesNotThrow(() => build(0.01, { removeEngineRand: true, throwOnRandom: true }), 'missing engine rand fallback must not access Math.random');
+assert.equal(build(0.01), build(0.01), 'same stream must produce identical lifecycle results');
+assert.notEqual(build(0.01, { draw: 'low' }), build(0.01, { draw: 'high' }), 'the save stream controls incident outcomes');
+assert.equal(build(0.01), build(0.99), 'the host Math.random no longer changes the outcome');
+assert.equal(build(0.01, { removeEngineRand: true }), build(0.99, { removeEngineRand: true }), 'the lifecycle does not depend on the engine rand export');
+assert.doesNotThrow(() => build(0.01, { removeEngineRand: true, throwOnRandom: true }), 'the lifecycle incident roll must not access Math.random');
+assert.doesNotThrow(() => build(0.01, { draw: 'high', throwOnRandom: true }), 'the lifecycle incident roll must not access Math.random');
 
 {
   const { engine, modules } = recallFixture();

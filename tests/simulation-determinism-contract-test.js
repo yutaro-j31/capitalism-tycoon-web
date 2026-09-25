@@ -16,14 +16,13 @@ const PATTERNS = { 'Math.random': /Math\.random\(/g, 'Date.now': /Date\.now\(/g,
 
 // Simulation sources still to migrate (#731). Each migration PR lowers these; PR5 empties the map.
 const SIMULATION_PENDING = {
-  'js/engine.js': { 'Math.random': 22, 'Date.now': 1, randomUUID: 1 },
   'js/expansion.js': { 'Math.random': 11, 'Date.now': 1, randomUUID: 1 },
   'js/completion.js': { 'Math.random': 8, 'Date.now': 1, randomUUID: 1 },
   'js/parity.js': { 'Math.random': 8, 'Date.now': 1, randomUUID: 1 },
 };
 // Wall-clock metadata and UI/diagnostics only (never simulation state).
 const NON_SIMULATION = {
-  'js/engine.js': { 'new Date': 2 }, // lastSaveDate
+  'js/engine.js': { 'new Date': 2, 'Math.random': 1 }, // lastSaveDate; configure's one entropy draw that seeds a new game's stream
   'js/save-storage.js': { 'new Date': 1 }, // save timestamp
   'js/app.js': { 'new Date': 1 }, // UI clock display
   'js/boot-recovery.js': { 'Date.now': 2, 'new Date': 1 },
