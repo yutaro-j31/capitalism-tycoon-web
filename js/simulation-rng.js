@@ -41,6 +41,9 @@ function next(state){const box=ensure(state);if(!box)throw new Error('simulation
 function range(state,min,max){return min+next(state)*(max-min);}
 function pick(state,items){return items[Math.floor(next(state)*items.length)];}
 function chance(state,probability){return next(state)<probability;}
+// Fisher-Yates on the stream: always items.length-1 draws. A sort with a random comparator is
+// not a shuffle and its draw count depends on the engine's sort algorithm (V8 vs JavaScriptCore).
+function shuffle(state,items){const out=Array.from(items);for(let i=out.length-1;i>0;i--){const j=Math.floor(next(state)*(i+1));const t=out[i];out[i]=out[j];out[j]=t;}return out;}
 // Deterministic entity IDs: a persisted counter, unique within the save.
 function nextID(state,prefix='sim'){const box=ensure(state);if(!box)throw new Error('simulationRng.nextID needs a game state.');const id=`${prefix}-s${box.nextID.toString(36)}`;box.nextID+=1;return id;}
 // Test hook: sets the seed and starting point of the real stream. Consumers keep drawing through
@@ -55,5 +58,5 @@ function reseed(state,seed,{skip=0}={}){
 function seedFromEntropy(value){const seed=Number.isFinite(value)?Math.floor(value*0x100000000)>>>0:0;return seed||FALLBACK_SEED;}
 // The next values the stream will produce, without consuming them.
 function peek(state,countToPeek=1){const box={...ensure(state)},values=[];for(let i=0;i<countToPeek;i++)values.push(step(box));return values;}
-modules.simulationRng=Object.freeze({VERSION,hash32,legacySeed,ensure,next,range,pick,chance,nextID,reseed,peek,seedFromEntropy});
+modules.simulationRng=Object.freeze({VERSION,hash32,legacySeed,ensure,next,range,pick,chance,nextID,reseed,peek,seedFromEntropy,shuffle});
 })();

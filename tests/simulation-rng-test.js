@@ -148,4 +148,45 @@ const runtime = seed => {
   assert.ok(rng.seedFromEntropy(0) > 0 && rng.seedFromEntropy(.999999) > 0);
 }
 
+// 9. #731 PR3: expansion.js draws and IDs come from the save stream too, and the luxury auction
+//    shuffles with Fisher-Yates on the stream (a random-comparator sort draws a number of values
+//    that depends on the engine's sort algorithm, so it differed between V8 and Safari).
+{
+  const { rng } = runtime(9);
+  const g = {};
+  rng.reseed(g, 4242);
+  const items = Array.from({ length: 12 }, (_, i) => i);
+  const shuffled = rng.shuffle(g, items);
+  assert.equal(g.simulationRng.draws, items.length - 1, 'a shuffle draws exactly n-1 values');
+  assert.deepEqual(Array.from(shuffled).sort((x, y) => x - y), items, 'a shuffle is a permutation');
+  assert.deepEqual(items, Array.from({ length: 12 }, (_, i) => i), 'the input is not mutated');
+  const again = {}; rng.reseed(again, 4242);
+  assert.deepEqual(Array.from(rng.shuffle(again, items)), Array.from(shuffled));
+
+  const hostile = seed => { const r = runtime(seed); vm.runInContext(`Date.now = () => ${seed}; crypto.randomUUID = () => 'host-${seed}';`, r.loaded.ctx); return r; };
+  // Runtime b sorts with a different, still correct and stable algorithm (insertion sort), as
+  // Safari's JavaScriptCore differs from V8: only a comparator-independent shuffle agrees.
+  const insertionSort = "Array.prototype.sort = function(cmp){ cmp = cmp || ((x, y) => String(x) < String(y) ? -1 : String(x) > String(y) ? 1 : 0); for (let i = 1; i < this.length; i++) { const v = this[i]; let j = i - 1; while (j >= 0 && cmp(this[j], v) > 0) { this[j + 1] = this[j]; j--; } this[j + 1] = v; } return this; };";
+  const a = hostile(31), b = hostile(97);
+  vm.runInContext(insertionSort, b.loaded.ctx);
+  const base = a.engine.createInitialState({ configured: true, companyName: 'Expansion Co', playerName: 'X' });
+  base.companyCash = 5_000_000_000; base.hasHeadOffice = true; base.week = 16; base.lastAuctionWeek = 0;
+  const play = r => {
+    const E = new r.engine.TycoonEngine(JSON.parse(JSON.stringify(base)));
+    E.save = () => {}; E.emit = () => {}; E.notify = () => {};
+    E.g.startups = E.g.startups.slice(0, 1);
+    const draws = E.g.simulationRng.draws;
+    E.refreshInvestorOffers();
+    E.refreshStartupDealFlow();
+    E.generateMediaWeekly();
+    assert.ok(E.g.simulationRng.draws > draws + 10, 'the expansion actions drew from the save stream');
+    return E.g;
+  };
+  const ga = play(a), gb = play(b);
+  const view = g => JSON.stringify({ offers: g.investorOffers, startups: g.startups, auction: g.luxuryAuctionListings, media: g.mediaEvents, stream: g.simulationRng });
+  assert.equal(view(ga), view(gb), 'expansion draws and IDs follow the save, not the host');
+  assert.equal(ga.luxuryAuctionListings.length, 3);
+  assert.ok(ga.luxuryAuctionListings.every(x => /^x-s[0-9a-z]+$/.test(x.id)), 'auction IDs come from the save counter');
+}
+
 console.log('simulation rng tests passed');
