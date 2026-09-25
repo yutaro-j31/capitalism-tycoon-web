@@ -200,7 +200,7 @@ Use only the pitfalls relevant to the task.
 
 ### Test registration / canonical shards
 
-Canonical execution currently spans **A-H (8 shards)**. `tests/run-all-shards.json` explicitly assigns B-H; unassigned entries fall into A. When adding an expensive test, inspect current shard distribution rather than assuming one shard is permanently light/heavy.
+Canonical execution currently spans **A-I (9 shards)**. `tests/run-all-shards.json` explicitly assigns B-I; unassigned entries fall into A. When adding an expensive test, inspect current shard distribution rather than assuming one shard is permanently light/heavy.
 
 Runner startup delay (`created_at -> started_at`) is not the same as job-step runtime for timeout analysis. Compare actual step duration before concluding a job is near timeout.
 

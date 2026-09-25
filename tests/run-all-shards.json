@@ -26,7 +26,6 @@
     "tests/transaction-rollback-test.js",
     "test:long",
     "test:supply-long",
-    "tests/exploration-style-test.js",
     "tests/founder-retirement-reachability-test.js",
     "tests/real-estate-insurance-claims-test.js",
     "tests/shareholder-value-destruction-incidence-matrix-test.js",
@@ -41,8 +40,7 @@
     "tests/d-ui-shell-test.js",
     "tests/map-phase2-framing-zoomout-test.js",
     "tests/map-phase2-marker-placard-interaction-test.js",
-    "tests/map-marker-detail-interaction-test.js",
-    "test:digital-portfolio-profitability"
+    "tests/map-marker-detail-interaction-test.js"
   ],
   "D": [
     "tests/pe-value-creation-test.js",
@@ -70,8 +68,6 @@
   ],
   "E": [
     "tests/loan-single-interest-test.js",
-    "tests/competitor-product-counter-reachability-test.js",
-    "tests/industry-event-response-plans-reachability-test.js",
     "tests/real-estate-building-depreciation-test.js",
     "tests/real-estate-agency-pipeline-test.js",
     "tests/personal-real-estate-depreciation-test.js",
@@ -199,5 +195,11 @@
     "tests/pe-conveni-bridge-negative-test.js",
     "tests/pe-conveni-ui-connection-test.js",
     "tests/pe-d-ui-management-levers-test.js"
+  ],
+  "I": [
+    "tests/competitor-product-counter-reachability-test.js",
+    "tests/industry-event-response-plans-reachability-test.js",
+    "test:digital-portfolio-profitability",
+    "tests/exploration-style-test.js"
   ]
 }

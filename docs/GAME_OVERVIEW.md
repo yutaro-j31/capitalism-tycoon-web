@@ -174,8 +174,8 @@ The production map (`CLAUDE.md` §4) is Canvas 2D city + local sprites + DOM mar
 pannable world — Phase 2 is the only production renderer; do not reintroduce the old DOM/SVG
 map.
 
-`js/` currently holds 203 modules. Canonical CI runs across shards A-H
-(`tests/run-all-shards.json` assigns B-H explicitly; unassigned tests fall into shard A) — see
+`js/` currently holds 203 modules. Canonical CI runs across shards A-I
+(`tests/run-all-shards.json` assigns B-I explicitly; unassigned tests fall into shard A) — see
 `tests/run-all.js` for the full registered test list rather than a count here, since it changes
 with every PR that adds tests.
 
