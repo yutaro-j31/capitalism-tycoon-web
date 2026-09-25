@@ -162,5 +162,9 @@
   "tests/workflow-path-filter-contract-test.js": {
     "reason": "Executed by the release gate script.",
     "executedBy": "scripts/release-gate.js"
+  },
+  "tests/iphone-full-acceptance-webkit-test.js": {
+    "reason": "Executed outside the canonical run-all suite by the dedicated iPhone Acceptance Playthrough job in .github/workflows/test.yml.",
+    "executedBy": ".github/workflows/test.yml"
   }
 }
