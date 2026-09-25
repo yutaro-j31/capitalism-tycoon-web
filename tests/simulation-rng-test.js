@@ -51,7 +51,8 @@ const runtime = seed => {
   const fresh = engine.createInitialState({ configured: true, companyName: 'Fresh', playerName: 'F' });
   assert.equal(fresh.simulationRng.version, rng.VERSION);
   assert.equal(fresh.simulationRng.seed, rng.legacySeed(fresh));
-  assert.equal(fresh.simulationRng.draws, 0);
+  // The initial executive market (age, gender) is the only thing drawn while a state is built.
+  assert.equal(fresh.simulationRng.draws, 2 * fresh.executiveMarket.length);
   // A save made before #731 (no stream) gets a seed derived from the save, not from the host.
   const legacy = engine.createInitialState({ configured: true, companyName: 'Legacy', playerName: 'L' });
   delete legacy.simulationRng;

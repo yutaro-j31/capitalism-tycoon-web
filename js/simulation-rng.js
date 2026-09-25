@@ -51,7 +51,9 @@ function reseed(state,seed,{skip=0}={}){
   for(let i=0;i<Math.max(0,Math.floor(skip));i++)next(state);
   return box;
 }
+// A new game's seed from one host entropy draw in [0,1); 0 and out-of-range values fall back.
+function seedFromEntropy(value){const seed=Number.isFinite(value)?Math.floor(value*0x100000000)>>>0:0;return seed||FALLBACK_SEED;}
 // The next values the stream will produce, without consuming them.
 function peek(state,countToPeek=1){const box={...ensure(state)},values=[];for(let i=0;i<countToPeek;i++)values.push(step(box));return values;}
-modules.simulationRng=Object.freeze({VERSION,hash32,legacySeed,ensure,next,range,pick,chance,nextID,reseed,peek});
+modules.simulationRng=Object.freeze({VERSION,hash32,legacySeed,ensure,next,range,pick,chance,nextID,reseed,peek,seedFromEntropy});
 })();
