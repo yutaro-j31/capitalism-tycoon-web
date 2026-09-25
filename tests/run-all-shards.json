@@ -1,5 +1,6 @@
 {
   "B": [
+    "tests/difficulty-scenario-balance-test.js",
     "tests/dividend-corporate-tax-test.js",
     "tests/founder-profile-cleanup-test.js",
     "tests/game-date-display-test.js",
