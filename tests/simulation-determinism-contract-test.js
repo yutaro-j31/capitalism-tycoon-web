@@ -16,7 +16,6 @@ const PATTERNS = { 'Math.random': /Math\.random\(/g, 'Date.now': /Date\.now\(/g,
 
 // Simulation sources still to migrate (#731). Each migration PR lowers these; PR5 empties the map.
 const SIMULATION_PENDING = {
-  'js/expansion.js': { 'Math.random': 11, 'Date.now': 1, randomUUID: 1 },
   'js/completion.js': { 'Math.random': 8, 'Date.now': 1, randomUUID: 1 },
   'js/parity.js': { 'Math.random': 8, 'Date.now': 1, randomUUID: 1 },
 };

@@ -6,7 +6,8 @@ const random=seq(); const {ctx}=loadGame({random}); const e=ctx.__ct_engine;
 e.configure({playerName:'A',companyName:'B',configured:true});
 const t=e.g.tenants.find(t=>t.businessID==='ramen'&&t.prefID==='tokyo'); e.g.stores.push({id:'r1',businessID:'ramen',prefID:'tokyo',status:'open',tenantID:t.id,condition:100,operatingHours:3});
 const c=e.g.tenants.find(t=>t.businessID==='cafe'&&t.prefID==='tokyo'); e.g.stores.push({id:'c1',businessID:'cafe',prefID:'tokyo',status:'open',tenantID:c.id,condition:100,operatingHours:3});
-const before=random.calls.length; e.advanceWeek(false); const used=random.calls.length-before;
+// Since #731 the week draws from the save's stream, so the fixture counts stream draws.
+const before=e.g.simulationRng.draws; e.advanceWeek(false); const used=e.g.simulationRng.draws-before;
 assert(used>=4, `expected at least demand+condition RNG for target and non-target stores, got ${used}`);
 assert(e.g.stores.find(s=>s.id==='r1').marketResult);
 assert.equal(e.g.stores.find(s=>s.id==='c1').marketResult,null);

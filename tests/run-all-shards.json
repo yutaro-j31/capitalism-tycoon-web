@@ -154,7 +154,6 @@
   "H": [
     "tests/founder-shareholder-loan-lender-test.js",
     "tests/reload-canonical-state-test.js",
-    "tests/supply-material-cost-inflation-test.js",
     "tests/stock-trade-panel-test.js",
     "tests/save-storage-compaction-test.js",
     "test:procurement",
@@ -201,5 +200,11 @@
     "tests/industry-event-response-plans-reachability-test.js",
     "test:digital-portfolio-profitability",
     "tests/exploration-style-test.js"
+  ],
+  "J": [
+    "tests/digital-portfolio-breakeven-seeds-test.js"
+  ],
+  "K": [
+    "tests/supply-material-cost-inflation-test.js"
   ]
 }

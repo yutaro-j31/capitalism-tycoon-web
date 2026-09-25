@@ -170,9 +170,10 @@ function newGame(seed = 260819909) {
   const engine = ctx.__ct_engine;
   engine.g.configured = true;
   engine.advanceWeek(false);
-  const first = calls;
+  // Since #731 the week draws from the save's stream rather than the host Math.random.
+  const first = engine.g.simulationRng.draws;
   engine.advanceWeek(false);
-  assert.ok(calls - first > 0, '週次処理は従来どおり乱数を消費する（消費ゼロになっていない）');
+  assert.ok(engine.g.simulationRng.draws - first > 0, '週次処理は従来どおり乱数を消費する（消費ゼロになっていない）');
 }
 
 // 11. Save/reload keeps both states on their own keys.
