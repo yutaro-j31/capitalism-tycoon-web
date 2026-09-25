@@ -44,8 +44,7 @@ function installParity(TycoonEngine){
   };
 
   const baseNormalize=TycoonEngine.prototype.normalize;
-  // normalize repairs the shape only; the competitor event log is derived during the week (#732).
-  TycoonEngine.prototype.normalize=function(){baseNormalize.call(this);this.ensureParityDefaults({syncCompetitorLog:false});};
+  TycoonEngine.prototype.normalize=function(){baseNormalize.call(this);this.ensureParityDefaults({syncCompetitorLog:false});}; // shape only: the competitor event log is derived during the week (#732)
   const baseConfigure=TycoonEngine.prototype.configure;
   TycoonEngine.prototype.configure=function(options={}){return this.runTransaction(()=>{const r=baseConfigure.call(this,options);this.ensureParityDefaults();return r;});};
 
