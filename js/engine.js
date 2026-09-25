@@ -710,22 +710,8 @@ class TycoonEngine extends EventTarget {
     this._deferredSave = false;
     // Nothing changed: keep every object and value exactly as it is.
     if (JSON.stringify(this.g) === snapshot) return;
-    this.reconcileStateInPlace(snapshot, entryObjects);
-  }
-
-  // Normalize, keeping object identity: the base normalize (and some module normalizers) rebuild
-  // sections such as stores/businesses/market as new objects, which would leave code holding a
-  // store or a business across the canonical weekly normalize (#732) with a detached object.
-  normalizeInPlace() {
-    const entryObjects = { ...this.g };
-    this.normalize();
-    this.reconcileStateInPlace(JSON.stringify(this.g), entryObjects);
-  }
-
-  // Makes this.g equal to the JSON snapshot while reusing the live objects: key by key and index by
-  // index, so objects other code still references (a store, a product, a loan) keep their identity
-  // wherever they exist in entryObjects' tree.
-  reconcileStateInPlace(snapshot, entryObjects = {}) {
+    // Reconcile in place so objects other code still references (a store, a product, a loan) keep
+    // their identity wherever they existed at transaction entry.
     const reconcile = (target, source) => {
       if (Array.isArray(source)) {
         for (let i = 0; i < source.length; i++) target[i] = reconcileValue(target[i], source[i]);
@@ -747,6 +733,39 @@ class TycoonEngine extends EventTarget {
       if (original && typeof original === 'object' && this.g[key] !== original) this.g[key] = original;
     }
     reconcile(this.g, restored);
+  }
+
+  // Normalize, keeping object identity: the base normalize (and some module normalizers) rebuild
+  // sections such as stores/businesses/market as new objects, which would leave code holding a
+  // store or a business across the canonical weekly normalize (#732) with a detached object.
+  // Compares object to object (no JSON round trip) and only descends where normalize produced a
+  // new object, so an unchanged state costs a walk of the top-level sections.
+  normalizeInPlace() {
+    const entryObjects = { ...this.g };
+    this.normalize();
+    const plain = value => value && typeof value === 'object' && !Object.isFrozen(value) && Object.isExtensible(value);
+    const adopt = (current, value) => {
+      if (current === value || !plain(current) || !plain(value) || Array.isArray(current) !== Array.isArray(value)) return value;
+      if (Array.isArray(value)) {
+        // An element that already is one of the live objects (kept, or moved by a filter) stays as
+        // it is; a live object is reused at most once, so a shifted index never overwrites it.
+        const prior = current.slice(), live = new Set(prior), used = new Set(value.filter(item => live.has(item)));
+        for (let i = 0; i < value.length; i++) {
+          const item = value[i], slot = prior[i];
+          if (live.has(item) || !plain(slot) || used.has(slot)) current[i] = item;
+          else { used.add(slot); current[i] = adopt(slot, item); }
+        }
+        current.length = value.length;
+        return current;
+      }
+      for (const key of Object.keys(current)) if (!Object.prototype.hasOwnProperty.call(value, key)) delete current[key];
+      for (const key of Object.keys(value)) current[key] = adopt(current[key], value[key]);
+      return current;
+    };
+    for (const key of Object.keys(this.g)) {
+      const original = entryObjects[key];
+      if (original !== undefined && original !== this.g[key]) this.g[key] = adopt(original, this.g[key]);
+    }
   }
 
   inTransaction() {

@@ -56,10 +56,13 @@ assert(deal && deal.portfolioCompany.productionSite, 'PE conveni deal acquired')
 deal.portfolioCompany.storeCount = 6;
 deal.portfolioCompany.priceMultiplier = 1.3;
 
+const selfRevenueBefore = Number(engine.g.conveniMerchandising?.totals?.revenue) || 0;
 engine.advanceWeek(false);
 const merch = engine.g.conveniMerchandising;
+const selfSalesThisWeek = Object.values(merch.lastWeekByStoreID).reduce((sum, row) => sum + (Number(row?.sales) || 0), 0);
+const totalsLeak = Math.round(merch.totals.revenue - selfRevenueBefore) !== Math.round(selfSalesThisWeek);
 const peKey = `pe-conveni-${deal.id}`;
-console.log(JSON.stringify({ selfStoreKeys: Object.keys(merch.lastWeekByStoreID), hasPEKey: Object.hasOwn(merch.lastWeekByStoreID, peKey), selfClusterCount: merch.lastWeekByStoreID[store.id]?.clusterCount }));
+console.log(JSON.stringify({ selfStoreKeys: Object.keys(merch.lastWeekByStoreID), hasPEKey: Object.hasOwn(merch.lastWeekByStoreID, peKey), selfClusterCount: merch.lastWeekByStoreID[store.id]?.clusterCount, totalsDelta: merch.totals.revenue - selfRevenueBefore, selfSalesThisWeek }));
 
 // The reverted (pre-detachment) code must reproduce the leak: the PE deal's synthetic store id
 // bleeds into the self-company's own conveniMerchandising bucket, and/or the self-company's own
@@ -67,9 +70,12 @@ console.log(JSON.stringify({ selfStoreKeys: Object.keys(merch.lastWeekByStoreID)
 // (clusterCountFor(state,store) now scans the real g.stores, which the reverted code never
 // isolated the PE deal's synthetic siblings from -- they were pushed nowhere, but the store
 // object itself was processed against the real g, so its own record's totals now double up
-// against the self-company's own bucket instead of a separate one).
+// against the self-company's own bucket instead of a separate one). The canonical weekly
+// normalize (#732) now drops a stray key again before the week returns, so the leak is also
+// checked where it cannot be scrubbed: the self-company totals grow by more than its own sales,
+// which pe-conveni-portfolio-bridge-test.js asserts never happens.
 assert(
-  Object.hasOwn(merch.lastWeekByStoreID, peKey) || Object.keys(merch.lastWeekByStoreID).length !== 1,
+  Object.hasOwn(merch.lastWeekByStoreID, peKey) || Object.keys(merch.lastWeekByStoreID).length !== 1 || totalsLeak,
   `expected the reverted (pre-fix) code to leak the PE deal into the self-company conveniMerchandising bucket, got: ${JSON.stringify(merch.lastWeekByStoreID)}`
 );
 
