@@ -44,7 +44,7 @@ function installParity(TycoonEngine){
   };
 
   const baseNormalize=TycoonEngine.prototype.normalize;
-  TycoonEngine.prototype.normalize=function(){baseNormalize.call(this);this.ensureParityDefaults({syncCompetitorLog:false});}; // shape only: the competitor event log is derived during the week (#732)
+  TycoonEngine.prototype.normalize=function(){baseNormalize.call(this);this.ensureParityDefaults();};
   const baseConfigure=TycoonEngine.prototype.configure;
   TycoonEngine.prototype.configure=function(options={}){return this.runTransaction(()=>{const r=baseConfigure.call(this,options);this.ensureParityDefaults();return r;});};
 

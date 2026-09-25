@@ -44,8 +44,7 @@ function sanitizeBusinessRecords(state){
 function upgradeState(state){
  sanitizeBusinessRecords(state);
  competitor.ensure(state);
- // Shape only: the event log is derived during the week, not on load/normalize (#732).
- if(typeof competitor.ensureCounterStates==='function')competitor.ensureCounterStates(state,{syncLog:false});
+ if(typeof competitor.ensureCounterStates==='function')competitor.ensureCounterStates(state);
  return stampV9(state);
 }
 function downgradeForBase(state){const copy=clone(state);copy.saveVersion=LEGACY_SAVE_VERSION;return copy;}
