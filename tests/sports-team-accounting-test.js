@@ -172,9 +172,11 @@ function newGame(seed = 260818001) {
   engine.buySportsTeam('basketball', 'company');
   engine.g.personalInvestments = [];
   engine.g.luxuryAssets = [];
-  const before = calls;
+  // Since #731 the engine draws from the save's stream, never from the host Math.random.
+  const before = calls, drawsBefore = engine.g.simulationRng.draws;
   engine.updatePersonalAssets();
-  assert.equal(calls - before, 3, '球団1件あたりのMath.random消費は勝敗・fanBase・value driftの3回のみで、台帳記帳による追加消費はゼロ');
+  assert.equal(engine.g.simulationRng.draws - drawsBefore, 3, '球団1件あたりの乱数消費（セーブの乱数列）は勝敗・fanBase・value driftの3回のみで、台帳記帳による追加消費はゼロ');
+  assert.equal(calls - before, 0, 'the weekly asset update reads no host Math.random');
 }
 
 // 12. Same week, same team, one row: the idempotency key stops a double charge if the weekly

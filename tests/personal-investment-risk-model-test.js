@@ -87,9 +87,11 @@ function simulateLossCount(engine, offer, trials, weeks = 52) {
     { id: 'a', name: 'bond', type: 'bond', principal: 1_000_000, currentValue: 1_000_000, weeklyReturn: .00035, risk: .01, carryRate: 0, purchasedWeek: 1, reinvest: true },
     { id: 'b', name: 'vc-fund', type: 'VC', principal: 15_000_000, currentValue: 15_000_000, weeklyReturn: .0026, risk: .13, carryRate: .20, purchasedWeek: 1, reinvest: true }
   ];
-  const before = calls;
+  // Since #731 the engine draws from the save's stream, never from the host Math.random.
+  const before = calls, drawsBefore = engine.g.simulationRng.draws;
   engine.updatePersonalAssets();
-  assert.equal(calls - before, 2, 'personalInvestments 1件につきMath.random()は1回のみ消費される（保有2件で+2）');
+  assert.equal(engine.g.simulationRng.draws - drawsBefore, 2, 'personalInvestments 1件につき乱数（セーブの乱数列）は1回のみ消費される（保有2件で+2）');
+  assert.equal(calls - before, 0, 'the weekly asset update reads no host Math.random');
 }
 
 // 4. End-to-end realism: buying an offer through the production action, advancing many weeks

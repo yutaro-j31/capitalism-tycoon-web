@@ -1,6 +1,6 @@
 {
   "configure": {
-    "randomCalls": 2472,
+    "randomCalls": 1,
     "week": 1,
     "month": 1,
     "companyCash": 8000000,
@@ -485,10 +485,17 @@
     "lastParityUpdateWeek": 0,
     "currentCompanySerial": 1,
     "serialCompanyCount": 1,
-    "keyPersonnel": []
+    "keyPersonnel": [],
+    "simulationRng": {
+      "seed": 920370032,
+      "state": 1424323308,
+      "draws": 12,
+      "nextID": 1,
+      "version": 1
+    }
   },
   "week1": {
-    "randomCalls": 2547,
+    "randomCalls": 6,
     "week": 2,
     "month": 1,
     "companyCash": 8000000,
@@ -990,8 +997,6 @@
     ],
     "news": [
       "第2週：成長マップ節目「実家起業」達成。",
-      "第2週：無人レジクラウドがSeries B資金調達を完了しました。",
-      "第2週：麺AIラボがSeries A資金調達を完了しました。",
       "第1週：Baseline Coを創業しました。",
       "会社を設立しました。最初の店舗を探しましょう。"
     ],
@@ -1015,8 +1020,6 @@
       "personalNetWorth": 2000000,
       "newNews": [
         "第2週：成長マップ節目「実家起業」達成。",
-        "第2週：無人レジクラウドがSeries B資金調達を完了しました。",
-        "第2週：麺AIラボがSeries A資金調達を完了しました。",
         "第1週：Baseline Coを創業しました。",
         "会社を設立しました。最初の店舗を探しましょう。"
       ]
@@ -1035,10 +1038,17 @@
     "lastParityUpdateWeek": 2,
     "currentCompanySerial": 1,
     "serialCompanyCount": 1,
-    "keyPersonnel": []
+    "keyPersonnel": [],
+    "simulationRng": {
+      "seed": 920370032,
+      "state": 217016865,
+      "draws": 77,
+      "nextID": 1,
+      "version": 1
+    }
   },
   "week12": {
-    "randomCalls": 3422,
+    "randomCalls": 220,
     "week": 13,
     "month": 4,
     "companyCash": 8000000,
@@ -1728,10 +1738,8 @@
     "news": [
       "第13週：四半期決算を発表しました。",
       "キーパーソン候補の紹介がありました。オフィスで採用できます。",
-      "第8週：観光カフェOSがSeries A資金調達を完了しました。",
+      "第5週：観光カフェOSがSeries A資金調達を完了しました。",
       "第2週：成長マップ節目「実家起業」達成。",
-      "第2週：無人レジクラウドがSeries B資金調達を完了しました。",
-      "第2週：麺AIラボがSeries A資金調達を完了しました。",
       "第1週：Baseline Coを創業しました。",
       "会社を設立しました。最初の店舗を探しましょう。"
     ],
@@ -1756,9 +1764,9 @@
       "newNews": [
         "第13週：四半期決算を発表しました。",
         "キーパーソン候補の紹介がありました。オフィスで採用できます。",
-        "第8週：観光カフェOSがSeries A資金調達を完了しました。",
+        "第5週：観光カフェOSがSeries A資金調達を完了しました。",
         "第2週：成長マップ節目「実家起業」達成。",
-        "第2週：無人レジクラウドがSeries B資金調達を完了しました。"
+        "第1週：Baseline Coを創業しました。"
       ]
     },
     "gameOver": false,
@@ -1775,10 +1783,17 @@
     "lastParityUpdateWeek": 13,
     "currentCompanySerial": 1,
     "serialCompanyCount": 1,
-    "keyPersonnel": []
+    "keyPersonnel": [],
+    "simulationRng": {
+      "seed": 920370032,
+      "state": 3548620703,
+      "draws": 787,
+      "nextID": 1,
+      "version": 1
+    }
   },
   "week52": {
-    "randomCalls": 6625,
+    "randomCalls": 875,
     "week": 53,
     "month": 14,
     "companyCash": 8000000,
@@ -3148,16 +3163,19 @@
     "news": [
       "第52週：四半期決算を発表しました。",
       "キーパーソン候補の紹介がありました。オフィスで採用できます。",
-      "第44週：大型ニュース「物流再編の波」",
       "第39週：四半期決算を発表しました。",
-      "キーパーソン候補の紹介がありました。オフィスで採用できます。",
+      "第36週：大型ニュース「消費者の節約志向」",
+      "第32週：大型ニュース「物流再編の波」",
+      "第30週：無人レジクラウドがSeries B資金調達を完了しました。",
       "第26週：四半期決算を発表しました。",
+      "第26週：麺AIラボがSeries A資金調達を完了しました。",
+      "第23週：大型ニュース「消費者の節約志向」",
+      "キーパーソン候補の紹介がありました。オフィスで採用できます。",
+      "第16週：大型ニュース「人材獲得競争が激化」",
       "第13週：四半期決算を発表しました。",
       "キーパーソン候補の紹介がありました。オフィスで採用できます。",
-      "第8週：観光カフェOSがSeries A資金調達を完了しました。",
+      "第5週：観光カフェOSがSeries A資金調達を完了しました。",
       "第2週：成長マップ節目「実家起業」達成。",
-      "第2週：無人レジクラウドがSeries B資金調達を完了しました。",
-      "第2週：麺AIラボがSeries A資金調達を完了しました。",
       "第1週：Baseline Coを創業しました。",
       "会社を設立しました。最初の店舗を探しましょう。"
     ],
@@ -3182,9 +3200,9 @@
       "newNews": [
         "第52週：四半期決算を発表しました。",
         "キーパーソン候補の紹介がありました。オフィスで採用できます。",
-        "第44週：大型ニュース「物流再編の波」",
         "第39週：四半期決算を発表しました。",
-        "キーパーソン候補の紹介がありました。オフィスで採用できます。"
+        "第36週：大型ニュース「消費者の節約志向」",
+        "第32週：大型ニュース「物流再編の波」"
       ]
     },
     "gameOver": false,
@@ -3201,6 +3219,13 @@
     "lastParityUpdateWeek": 53,
     "currentCompanySerial": 1,
     "serialCompanyCount": 1,
-    "keyPersonnel": []
+    "keyPersonnel": [],
+    "simulationRng": {
+      "seed": 920370032,
+      "state": 3068897712,
+      "draws": 3392,
+      "nextID": 1,
+      "version": 1
+    }
   }
 }
