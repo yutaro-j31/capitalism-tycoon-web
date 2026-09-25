@@ -107,4 +107,45 @@ const runtime = seed => {
   assert.equal(ids[35], 'store-s10');
 }
 
+// 7. #731 PR2: engine.js draws and IDs come from the save stream. The same save and the same
+//    engine actions give the same state in runtimes whose host Math.random, clock and UUID differ.
+{
+  const hostile = seed => { const r = runtime(seed); vm.runInContext(`Date.now = () => ${seed}; crypto.randomUUID = () => 'host-${seed}';`, r.loaded.ctx); return r; };
+  const a = hostile(21), b = hostile(83);
+  const base = a.engine.createInitialState({ configured: true, companyName: 'Engine Co', playerName: 'E' });
+  base.companyCash = 5_000_000_000;
+  base.departments = { hr: { level: 1 }, investment: { level: 1 }, product: { level: 1 } };
+  const play = r => {
+    const E = new r.engine.TycoonEngine(JSON.parse(JSON.stringify(base)));
+    E.save = () => {}; E.emit = () => {}; E.notify = () => {};
+    const draws = E.g.simulationRng.draws;
+    assert.equal(E.refreshExecutives(), true);
+    assert.equal(E.generateMATargets(true), true);
+    E.proposeInternalVenture();
+    assert.ok(E.g.simulationRng.draws > draws + 50, 'the engine actions drew from the save stream');
+    return E.g;
+  };
+  const ga = play(a), gb = play(b);
+  const view = g => JSON.stringify({ executives: g.executiveMarket, targets: g.acquisitionTargets, ventures: g.internalVentureProposals, cash: g.companyCash, stream: g.simulationRng });
+  assert.equal(view(ga), view(gb), 'engine draws and IDs follow the save, not the host');
+  assert.match(ga.acquisitionTargets[0].id, /^target-s[0-9a-z]+$/);
+  assert.equal(new Set(ga.acquisitionTargets.map(t => t.id)).size, 8);
+}
+
+// 8. A new game reads host entropy once, for its seed; the initial catalogue has stable IDs and
+//    leaves the ID counter untouched.
+{
+  const seedOf = seed => { const r = runtime(seed); const E = new r.engine.TycoonEngine(); E.configure({ playerName: 'N', companyName: 'New Co', difficulty: 'normal' }); return E.g; };
+  const g1 = seedOf(31), g2 = seedOf(31), g3 = seedOf(32);
+  assert.equal(g1.simulationRng.seed, g2.simulationRng.seed, 'the same entropy gives the same game');
+  assert.notEqual(g1.simulationRng.seed, g3.simulationRng.seed, 'a new game is seeded from host entropy');
+  assert.equal(JSON.stringify(g1.executiveMarket), JSON.stringify(g2.executiveMarket));
+  assert.equal(g1.simulationRng.nextID, 1, 'the initial catalogue does not use the ID counter');
+  assert.equal(JSON.stringify(g1.properties.map(p => p.id)), JSON.stringify(g3.properties.map(p => p.id)), 'catalogue IDs are stable');
+  for (const key of ['properties', 'tenants', 'rentalOffices', 'startups', 'executiveMarket', 'competitors']) assert.equal(new Set(g1[key].map(x => x.id)).size, g1[key].length, `${key} IDs are unique`);
+  const { rng } = runtime(8);
+  assert.equal(rng.seedFromEntropy(0), rng.seedFromEntropy(Number.NaN));
+  assert.ok(rng.seedFromEntropy(0) > 0 && rng.seedFromEntropy(.999999) > 0);
+}
+
 console.log('simulation rng tests passed');
