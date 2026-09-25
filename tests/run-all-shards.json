@@ -40,7 +40,8 @@
     "tests/d-ui-shell-test.js",
     "tests/map-phase2-framing-zoomout-test.js",
     "tests/map-phase2-marker-placard-interaction-test.js",
-    "tests/map-marker-detail-interaction-test.js"
+    "tests/map-marker-detail-interaction-test.js",
+    "tests/digital-portfolio-breakeven-seeds-test.js"
   ],
   "D": [
     "tests/pe-value-creation-test.js",
@@ -194,8 +195,7 @@
     "tests/pe-conveni-bridge-208week-regression-test.js",
     "tests/pe-conveni-bridge-negative-test.js",
     "tests/pe-conveni-ui-connection-test.js",
-    "tests/pe-d-ui-management-levers-test.js",
-    "tests/digital-portfolio-breakeven-seeds-test.js"
+    "tests/pe-d-ui-management-levers-test.js"
   ],
   "I": [
     "tests/competitor-product-counter-reachability-test.js",

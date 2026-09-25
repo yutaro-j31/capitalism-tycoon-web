@@ -52,30 +52,39 @@ const { loadGame } = require('./harness');
 // same isolated-core + one-time raw cash injection pattern as tests/long-run-test.js (documented
 // there as not a balance test).
 {
-  let s = 0x51a17e01 >>> 0;
-  const random = () => { s = (s * 1664525 + 1013904223) >>> 0; return s / 2 ** 32; };
-  const { engineModule } = loadGame({ isolatedLegacyIndex: true, random });
-  const { TycoonEngine } = engineModule;
-  const e = new TycoonEngine();
-  e.configure({ playerName: 'Idle', companyName: 'Idle Co', difficulty: 'normal', scenario: 'free', founderPrefID: 'tokyo', founderTraitID: 'merchant' });
-  e.g.companyCash += 1_000_000_000;
-  const tenant = e.g.tenants.find(t => t.prefID === 'tokyo' && t.businessID === 'ramen' && !t.occupiedBy);
-  assert.ok(e.openStore({ tenantID: tenant.id, businessID: 'ramen', name: 'Idle Ramen', operatingHours: 3 }), 'store must open');
-
-  const WEEKS = 520; // ~10 years, same scale as tests/long-run-test.js. At this exact seed/setup,
-  // margin measured 38.9% before this fix (never stops climbing after this point, reaching ~56%
-  // by year 25 and ~71% by year 99) versus 31.1% after it (stays in a bounded range from here on).
-  // 0.35 cleanly separates the two without needing a multi-minute, multi-decade run in CI.
-  for (let i = 0; i < WEEKS && !e.g.gameOver; i++) e.advanceWeek(false);
-  assert.ok(!e.g.gameOver, 'the idle store must not go bankrupt over the run');
-
-  const store = e.g.stores[0];
-  assert.ok(Number.isFinite(store.lastSales) && store.lastSales > 0, 'store must still be trading');
-  const margin = store.lastProfit / store.lastSales;
+  // Averaging the margin over years 6-10 across three seeds (the original seed plus two fixed in
+  // advance) replaces a single week's value: a single week varied by seed alone from 18.7% to
+  // 37.2% on main (#731 moved the simulation onto the save-held stream, which changed the path).
+  // Measured (this metric, these seeds): main 32.8%, #731 PR3 34.3%, and with the material price
+  // inflation removed from supply.createOrder() (the pre-fix behaviour) 39.8%.
+  // Over 25 years the margin still rises on main as well; that is tracked separately in #766.
+  const SEEDS = [0x51a17e01, 101, 202];
+  const WEEKS = 520; // ~10 years, same scale as tests/long-run-test.js.
+  const averages = SEEDS.map(seed => {
+    let s = seed >>> 0;
+    const random = () => { s = (s * 1664525 + 1013904223) >>> 0; return s / 2 ** 32; };
+    const { engineModule } = loadGame({ isolatedLegacyIndex: true, random });
+    const e = new engineModule.TycoonEngine();
+    e.configure({ playerName: 'Idle', companyName: 'Idle Co', difficulty: 'normal', scenario: 'free', founderPrefID: 'tokyo', founderTraitID: 'merchant' });
+    e.g.companyCash += 1_000_000_000;
+    const tenant = e.g.tenants.find(t => t.prefID === 'tokyo' && t.businessID === 'ramen' && !t.occupiedBy);
+    assert.ok(e.openStore({ tenantID: tenant.id, businessID: 'ramen', name: 'Idle Ramen', operatingHours: 3 }), 'store must open');
+    const margins = [];
+    for (let i = 0; i < WEEKS && !e.g.gameOver; i++) {
+      e.advanceWeek(false);
+      if (i >= WEEKS - 260) { const st = e.g.stores[0]; margins.push(st.lastProfit / st.lastSales); }
+    }
+    assert.ok(!e.g.gameOver, `seed ${seed}: the idle store must not go bankrupt over the run`);
+    const store = e.g.stores[0];
+    assert.ok(Number.isFinite(store.lastSales) && store.lastSales > 0, `seed ${seed}: store must still be trading`);
+    assert.ok(margins.every(Number.isFinite), `seed ${seed}: every weekly margin is finite`);
+    return margins.reduce((a, b) => a + b, 0) / margins.length;
+  });
+  const mean = averages.reduce((a, b) => a + b, 0) / averages.length;
   assert.ok(
-    margin < 0.35,
-    `unattended-store margin must not start drifting upward with inflation (got ${(margin * 100).toFixed(1)}% at week ${e.g.week}; ` +
-    `pre-fix this was already 38.9% here and kept climbing toward 70%+ by year 99)`
+    mean < 0.36,
+    `unattended-store margin must not drift upward with inflation (years 6-10 average across seeds ${(mean * 100).toFixed(1)}%: ` +
+    `${averages.map(x => (x * 100).toFixed(1)).join(' / ')}; without the material price inflation it measured 39.8%)`
   );
-  console.log(`supply material cost inflation: unattended ramen store margin stayed bounded at ${(margin * 100).toFixed(1)}% after ${e.g.week} weeks`);
+  console.log(`supply material cost inflation: unattended ramen store margin, years 6-10 average across ${SEEDS.length} seeds ${(mean * 100).toFixed(1)}% (${averages.map(x => (x * 100).toFixed(1)).join(' / ')})`);
 }
