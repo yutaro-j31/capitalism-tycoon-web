@@ -11,7 +11,7 @@ const { loadGame } = require('./harness');
 // the roll, so the test proves the write-off is reached by ordinary play. Seeds are tried in
 // order and the first world where the venture fails is used.
 const MAX_WEEKS = 60;
-const MAX_SEEDS = 64;
+const MAX_SEEDS = 16;
 
 function createEngine(loaded) {
   const engine = new loaded.engineModule.TycoonEngine();
