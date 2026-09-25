@@ -710,8 +710,22 @@ class TycoonEngine extends EventTarget {
     this._deferredSave = false;
     // Nothing changed: keep every object and value exactly as it is.
     if (JSON.stringify(this.g) === snapshot) return;
-    // Reconcile in place so objects other code still references (a store, a product, a loan) keep
-    // their identity wherever they existed at transaction entry.
+    this.reconcileStateInPlace(snapshot, entryObjects);
+  }
+
+  // Normalize, keeping object identity: the base normalize (and some module normalizers) rebuild
+  // sections such as stores/businesses/market as new objects, which would leave code holding a
+  // store or a business across the canonical weekly normalize (#732) with a detached object.
+  normalizeInPlace() {
+    const entryObjects = { ...this.g };
+    this.normalize();
+    this.reconcileStateInPlace(JSON.stringify(this.g), entryObjects);
+  }
+
+  // Makes this.g equal to the JSON snapshot while reusing the live objects: key by key and index by
+  // index, so objects other code still references (a store, a product, a loan) keep their identity
+  // wherever they exist in entryObjects' tree.
+  reconcileStateInPlace(snapshot, entryObjects = {}) {
     const reconcile = (target, source) => {
       if (Array.isArray(source)) {
         for (let i = 0; i < source.length; i++) target[i] = reconcileValue(target[i], source[i]);

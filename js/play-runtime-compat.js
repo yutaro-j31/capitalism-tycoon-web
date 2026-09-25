@@ -33,7 +33,7 @@ function boundary(name){
     catch(error){this._canonicalBoundaryCommits=null;if(commits.length)flush();throw error;}
     this._canonicalBoundaryCommits=null;
     if(!commits.length)return result;
-    if(this.g?.configured)this.normalize();
+    if(this.g?.configured)this.normalizeInPlace();
     flush();
     return result;
   };
