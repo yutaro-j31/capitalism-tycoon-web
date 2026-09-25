@@ -33,6 +33,9 @@ const compactYen = n => {
 };
 const pct = n => `${(finite(n) * 100).toFixed(1)}%`;
 const rand = (min, max) => min + Math.random() * (max - min);
+// A plain-text competitor event replaces an identical earlier one, as the next weekly dedupe
+// (competitor-terminal-compat.js) would, so the stored list is already canonical (#732).
+const logCompetitorText = (g, text) => { const i = g.competitorEvents.indexOf(text); if (i >= 0) g.competitorEvents.splice(i, 1); g.competitorEvents.unshift(text); };
 const pick = array => array[Math.floor(Math.random() * array.length)];
 
 function makeProperties() {
@@ -627,7 +630,10 @@ class TycoonEngine extends EventTarget {
   }
 
   normalize() {
-    this.g.saveVersion = SAVE_VERSION; supply.ensure(this.g); workforce.ensure(this.g); competitor.ensure(this.g); globalThis.__capitalismTycoonModules?.microcapListings?.ensure?.(this.g); workforce.recompute(this.g);
+    this.g.saveVersion = SAVE_VERSION; supply.ensure(this.g); workforce.ensure(this.g); competitor.ensure(this.g); globalThis.__capitalismTycoonModules?.microcapListings?.ensure?.(this.g);
+    // overtimeRisk is set last each week by completion.js (office usage model); recompute derives it
+    // from workforce teams instead, so keep the stored value: a reload must not change it (#732).
+    const overtimeRisk = this.g.overtimeRisk; workforce.recompute(this.g); if (Number.isFinite(overtimeRisk)) this.g.overtimeRisk = overtimeRisk;
     // T25-2: 追記され続けるログ配列の上限。normalize は週送りでも毎回通るので、書き込み側の
     // slice が将来漏れてもここが最終的な境界になる（LOG_ARRAY_CAPS が唯一の出どころ）。
     capLogArrays(this.g);
@@ -697,8 +703,12 @@ class TycoonEngine extends EventTarget {
       return result;
     }
     this._deferredSave = false;
+    const eventDetail = typeof detail === 'function' ? detail(result) : detail;
+    // Inside the canonical boundary (play-runtime-compat.js), the boundary normalizes after the
+    // whole wrapper chain and then performs this save and emit itself.
+    if (this._canonicalBoundaryCommits) { this._canonicalBoundaryCommits.push([eventType, eventDetail]); return result; }
     this.save();
-    this.emit(eventType, typeof detail === 'function' ? detail(result) : detail);
+    this.emit(eventType, eventDetail);
     return result;
   }
 
@@ -982,7 +992,7 @@ class TycoonEngine extends EventTarget {
     const weeks = business.storeCost >= 15_000_000 ? 8 : business.storeCost >= 7_000_000 ? 5 : 3;
     const store = {id:resolvedStoreID??uuid(),businessID,prefID:tenant.prefID,name:name||`${this.g.companyName} ${this.g.stores.length+1}号店`,openedWeek:this.g.week,
       quality:business.quality,brand:business.brand,condition:100,lastSales:0,lastProfit:0,status:'preparing',openingWeek:this.g.week+weeks,weeksToOpen:weeks,
-      tenantID,cityName:tenant.cityName,operatingHours:Number(operatingHours),contractRent:resolveTenantContractRent(tenant,this.pref(tenant.prefID))};
+      tenantID,cityName:tenant.cityName,operatingHours:Number(operatingHours),contractRent:resolveTenantContractRent(tenant,this.pref(tenant.prefID)),marketResult:null};
     this.g.stores.push(store);
     finance.addFixedAsset(this.g,{assetID:`store-${store.id}`,assetType:'storeEquipment',acquisitionCost:business.storeCost,usefulLifeWeeks:260,salvageValue:business.storeCost*.1,businessID,storeID:store.id});
     finance.event(this.g,'capitalExpenditure',business.storeCost,{cashEffect:-business.storeCost,assetEffect:business.storeCost,businessID,storeID:store.id,sourceType:'openStore',sourceID:store.id,description:`${store.name} 店舗設備`});
@@ -1726,7 +1736,7 @@ class TycoonEngine extends EventTarget {
     g.competitorProducts.unshift(product);
     if(g.competitorProducts.length>40)g.competitorProducts.length=40;
     g.lastCompetitorProductWeek=week;
-    g.competitorEvents.unshift(`${row.name}が新製品を投入しました。`);
+    logCompetitorText(g, `${row.name}が新製品を投入しました。`);
     g.news.unshift(`第${week}週：${row.name}が新製品を投入し、${this.business(row.businessID)?.name||row.businessID}市場の競争が激化しました。`);
     return product;
   }
@@ -1837,7 +1847,7 @@ class TycoonEngine extends EventTarget {
 
   updateCompetitors() {
     const allocations=this.allocateCompetitorGroupBudgets();
-    for(const c of this.g.competitors){const weight=allocations.get(c.id)??1;const profit=c.stores*rand(100000,450000);c.cash+=profit;c.brand=clamp(c.brand+rand(-.1,.5)*weight,0,100);c.quality=clamp(c.quality+rand(-.1,.4)*weight,0,100);if(c.cash>8_000_000&&Math.random()<.08*weight){c.stores++;c.cash-=rand(2_000_000,7_000_000);this.g.competitorEvents.unshift(`${c.name}が${this.area(c.areaID)?.name||''}で出店しました。`);}if(this.g.publicCompany&&Math.random()<.005){const spend=Math.min(c.cash*.1,5_000_000),qty=spend/Math.max(1,this.g.stockPrice);c.cash-=spend;c.ownedPlayerShares+=qty;this.g.competitorOwnedRatio=clamp(this.g.competitorOwnedRatio+qty/this.g.sharesOut,0,.49);}}
+    for(const c of this.g.competitors){const weight=allocations.get(c.id)??1;const profit=c.stores*rand(100000,450000);c.cash+=profit;c.brand=clamp(c.brand+rand(-.1,.5)*weight,0,100);c.quality=clamp(c.quality+rand(-.1,.4)*weight,0,100);if(c.cash>8_000_000&&Math.random()<.08*weight){c.stores++;c.cash-=rand(2_000_000,7_000_000);logCompetitorText(this.g, `${c.name}が${this.area(c.areaID)?.name||''}で出店しました。`);}if(this.g.publicCompany&&Math.random()<.005){const spend=Math.min(c.cash*.1,5_000_000),qty=spend/Math.max(1,this.g.stockPrice);c.cash-=spend;c.ownedPlayerShares+=qty;this.g.competitorOwnedRatio=clamp(this.g.competitorOwnedRatio+qty/this.g.sharesOut,0,.49);}}
     this.updateOwnershipRatios();
   }
   updateProducts() {

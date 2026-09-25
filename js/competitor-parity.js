@@ -180,5 +180,5 @@ const baseInstallParity=modules.parity.installParity;
 modules.parity.installParity=function(TycoonEngine){const result=baseInstallParity(TycoonEngine);installCompatibility(TycoonEngine);return result;};
 const baseValidate=competitor.validate;
 competitor.validate=function(state){baseValidate(state);validateCompatibility(state);return true;};
-Object.assign(competitor,{ensureCounterStates,eventText,validateParityCompatibility:validateCompatibility,installParityCompatibility:installCompatibility,__parityCompatibilityRegistered:true});
+Object.assign(competitor,{ensureCounterStates,syncEventLog,eventText,validateParityCompatibility:validateCompatibility,installParityCompatibility:installCompatibility,__parityCompatibilityRegistered:true});
 })();

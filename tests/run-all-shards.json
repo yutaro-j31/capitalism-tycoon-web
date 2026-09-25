@@ -1,5 +1,6 @@
 {
   "B": [
+    "tests/difficulty-scenario-balance-test.js",
     "tests/dividend-corporate-tax-test.js",
     "tests/founder-profile-cleanup-test.js",
     "tests/game-date-display-test.js",
@@ -154,6 +155,7 @@
   ],
   "H": [
     "tests/founder-shareholder-loan-lender-test.js",
+    "tests/reload-canonical-state-test.js",
     "tests/supply-material-cost-inflation-test.js",
     "tests/stock-trade-panel-test.js",
     "tests/save-storage-compaction-test.js",

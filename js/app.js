@@ -23,7 +23,14 @@ const {installParity,KEY_PERSON_ROLES}=parityModule;
 installExpansion(TycoonEngine);
 installCompletion(TycoonEngine);
 installParity(TycoonEngine);
+// Install product innovation here, not only inside TycoonEngine.load(), so every runtime (browser
+// boot, headless tests, later loads) composes the same weekly pipeline: macro-cycle.js decides where
+// to hook the macro update by whether updateProductInnovationWeekly exists when it installs (#732).
+globalThis.__capitalismTycoonModules.playerEngineBridge.installProductInnovation();
 const engine = TycoonEngine.load();
+// The engine is created before the modules below app.js register their normalize wrappers; once
+// every module is registered, normalize it again so a reloaded state has the canonical shape (#732).
+if(typeof document!=='undefined'&&document.readyState==='loading')document.addEventListener('DOMContentLoaded',()=>engine.normalize(),{once:true});
 // A save that only reached IndexedDB is invisible to the synchronous load above, so check
 // for one and offer it rather than letting the player continue from an older week.
 (function checkForNewerStoredSave(){
