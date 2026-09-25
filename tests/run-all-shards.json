@@ -92,7 +92,8 @@
     "tests/pe-realestate-agency-bridge-negative-test.js",
     "tests/pe-realestate-agency-ui-connection-test.js",
     "test:stock",
-    "tests/personal-real-estate-short-term-test.js"
+    "tests/personal-real-estate-short-term-test.js",
+    "tests/supply-material-cost-inflation-test.js"
   ],
   "F": [
     "tests/simulation-rng-test.js",
@@ -155,7 +156,6 @@
   "H": [
     "tests/founder-shareholder-loan-lender-test.js",
     "tests/reload-canonical-state-test.js",
-    "tests/supply-material-cost-inflation-test.js",
     "tests/stock-trade-panel-test.js",
     "tests/save-storage-compaction-test.js",
     "test:procurement",
