@@ -125,7 +125,11 @@ check('normalize: idempotent, and a no-op after founding and at a week boundary'
   };
   stable('after founding');
   openRamen(E, '1号店');
+  const store = E.g.stores[0], business = E.g.businesses[0], stores = E.g.stores;
   for (let i = 0; i < 8; i++) assert.notEqual(E.advanceWeek(false), false);
+  // The weekly normalize reconciles in place: objects held across a week stay the live ones.
+  assert.ok(E.g.stores === stores && E.g.stores[0] === store && E.g.businesses[0] === business, 'a store/business held across weeks is still the live object');
+  assert.equal(store.status, 'open');
   stable('at a week boundary');
 });
 
