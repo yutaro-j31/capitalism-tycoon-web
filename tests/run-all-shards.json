@@ -45,7 +45,6 @@
     "test:digital-portfolio-profitability"
   ],
   "D": [
-    "test:stock",
     "tests/pe-value-creation-test.js",
     "tests/pe-dual-ownership-test.js",
     "tests/store-equipment-test.js",
@@ -58,7 +57,6 @@
     "tests/personal-real-estate-mortgage-test.js",
     "tests/personal-real-estate-taxes-test.js",
     "tests/real-estate-cycle-state-collision-test.js",
-    "tests/personal-real-estate-short-term-test.js",
     "tests/menu-lifecycle-test.js",
     "tests/gym-congestion-test.js",
     "tests/real-estate-agency-focus-test.js",
@@ -95,9 +93,13 @@
     "tests/pe-realestate-agency-portfolio-bridge-test.js",
     "tests/pe-realestate-agency-bridge-208week-regression-test.js",
     "tests/pe-realestate-agency-bridge-negative-test.js",
-    "tests/pe-realestate-agency-ui-connection-test.js"
+    "tests/pe-realestate-agency-ui-connection-test.js",
+    "test:stock",
+    "tests/personal-real-estate-short-term-test.js"
   ],
   "F": [
+    "tests/simulation-rng-test.js",
+    "tests/simulation-determinism-contract-test.js",
     "tests/weekly-cash-rounding-reconcile-test.js",
     "tests/store-closure-plan-test.js",
     "tests/department-closure-plan-test.js",

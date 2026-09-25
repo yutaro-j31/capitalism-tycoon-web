@@ -134,6 +134,8 @@ const nodeTests = [
   ['dividend-corporate-tax', 'tests/dividend-corporate-tax-test.js'],
   ['transaction-rollback', 'tests/transaction-rollback-test.js'],
   ['reload-canonical-state', 'tests/reload-canonical-state-test.js'],
+  ['simulation-rng', 'tests/simulation-rng-test.js'],
+  ['simulation-determinism-contract', 'tests/simulation-determinism-contract-test.js'],
   ['real-estate-redevelopment-projects', 'tests/real-estate-redevelopment-projects-test.js'],
   ['real-estate-rent-guarantee', 'tests/real-estate-rent-guarantee-test.js'],
   ['real-estate-rent-performance', 'tests/real-estate-rent-performance-test.js'],

@@ -9,6 +9,7 @@ if(!__modules.workforce)throw new Error('Capitalism Tycoon workforce module must
 if(!__modules.supply)throw new Error('Capitalism Tycoon supply module must be loaded before engine.js.');
 if(!__modules.competitor)throw new Error('Capitalism Tycoon competitor module must be loaded before engine.js.');
 if(!__modules.finance)throw new Error('Capitalism Tycoon finance module must be loaded before engine.js.');
+if(!__modules.simulationRng)throw new Error('Capitalism Tycoon simulationRng module must be loaded before engine.js.');
 if(__modules.engine)throw new Error('Capitalism Tycoon engine module is already registered.');
 (function(exports,data,market,finance,supply,workforce,competitor){
 const {MASTER,DEPARTMENT_UNLOCKS,PRODUCT_BLUEPRINTS,DIGITAL_PRODUCT_ECONOMICS,LUXURY_OFFERS,PERSONAL_INVESTMENT_OFFERS,OVERSEAS_COUNTRIES,SPORTS_TEAMS,MISSION_DEFS}=data;
@@ -209,7 +210,7 @@ function buildCompetitorRoster(uuid){
 
 function createInitialState(options = {}) {
   const master = normalizeMasterData();
-  return {
+  const state = {
     saveVersion: SAVE_VERSION,
     week: 1, month: 1,
     playerName: options.playerName || '創業者', companyName: options.companyName || 'ポケット商事', ticker: 'CPTY',
@@ -248,6 +249,9 @@ function createInitialState(options = {}) {
     lastSaveDate: new Date().toISOString(), settings: {detailMode:'standard', sound:false, reducedMotion:false, autoSave:true},
     lastWeeklySummary: null, marketResultsByStoreID: {}, marketResultsByBusinessID: {}, lastMarketCalculationCount: 0, inventoryByStoreID:{}, purchaseOrders:[], supplySettingsByStoreID:{}, supplyResultsByStoreID:{}, supplyResultsByBusinessID:{}, nextPurchaseOrderSeq:1, nextInventoryLotSeq:1, nextSupplyEventSeq:1, finance: finance.defaultFinanceState({companyCash:8_000_000, companyDebt:0, week:1}), workforceTeams: [], workforceCandidates: [], workforceTrainings: [], workforceProjects: [], workforceResultsByDepartmentID: {}, workforceResultsByStoreID: {}, workforceSettings: {detailStoreBusinessIDs:['ramen']}, nextWorkforceTeamSeq: 1, nextCandidateSeq: 1, nextTrainingSeq: 1, nextProjectSeq: 1, nextWorkforceEventSeq: 1, competitorStates: [], competitorActions: [], competitorMarketResultsByPresenceID: {}, competitorMarketResultsByCompetitorID: {}, competitorSettings: {detailBusinessIDs:['ramen']}, nextCompetitorStateSeq: 1, nextCompetitorPresenceSeq: 1, nextCompetitorActionSeq: 1, nextCompetitorInvestmentSeq: 1, competitorMigrationV8Applied: false
   };
+  // Deterministic simulation stream and ID counter (#731).
+  __modules.simulationRng.ensure(state);
+  return state;
 }
 
 
@@ -630,7 +634,7 @@ class TycoonEngine extends EventTarget {
   }
 
   normalize() {
-    this.g.saveVersion = SAVE_VERSION; supply.ensure(this.g); workforce.ensure(this.g); competitor.ensure(this.g); globalThis.__capitalismTycoonModules?.microcapListings?.ensure?.(this.g);
+    this.g.saveVersion = SAVE_VERSION; supply.ensure(this.g); workforce.ensure(this.g); competitor.ensure(this.g); globalThis.__capitalismTycoonModules?.microcapListings?.ensure?.(this.g); __modules.simulationRng.ensure(this.g);
     // overtimeRisk is set last each week by completion.js (office usage model); recompute derives it
     // from workforce teams instead, so keep the stored value: a reload must not change it (#732).
     const overtimeRisk = this.g.overtimeRisk; workforce.recompute(this.g); if (Number.isFinite(overtimeRisk)) this.g.overtimeRisk = overtimeRisk;
