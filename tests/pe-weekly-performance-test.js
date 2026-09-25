@@ -149,9 +149,11 @@ function enableCompanyPE(engine, modules) {
   engine.g.configured = true;
   engine.g.personalCash = 500_000_000;
   engine.createPEDeal('テック', 20_000_000, 'personal');
-  const before = calls;
+  // Since #731 the draws come from the save's stream, never from the host Math.random.
+  const before = calls, drawsBefore = engine.g.simulationRng.draws;
   engine.updatePersonalExpandedWeekly();
-  assert.equal(calls - before, 1, '週次処理1件あたりのMath.random消費は既存のvaluation drift分(1回)のみで、週次業績の追加消費はゼロ');
+  assert.equal(engine.g.simulationRng.draws - drawsBefore, 1, '週次処理1件あたりの乱数消費（セーブの乱数列）は既存のvaluation drift分(1回)のみで、週次業績の追加消費はゼロ');
+  assert.equal(calls - before, 0, 'the weekly PE update reads no host Math.random');
 }
 
 // 10. Save/reload round trip: weeklyRevenue/weeklyProfit persist.

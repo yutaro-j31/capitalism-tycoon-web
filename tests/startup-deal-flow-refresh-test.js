@@ -71,6 +71,13 @@ function killAllStartups(engine) {
   const office = engine.g.rentalOffices.reduce((a, b) => (a.deposit < b.deposit ? a : b));
   assert.equal(engine.contractOffice(office.id), true);
   assert.equal(engine.establishDepartment('investment'), true);
+  // The candidate's ticket is drawn from the save's stream (#731), so it can exceed the cash a
+  // fresh company has left after the office and department. The founder funds the gap through
+  // the ledgered capital contribution: this test is about the candidate's shape, not about
+  // affordability, and the ledger must stay valid.
+  const gap = Math.max(0, added.minTicket - engine.g.companyCash) + 1_000_000;
+  engine.g.personalCash += gap;
+  assert.equal(engine.contributeFounderCapital(gap), true);
   const companyCashBefore = engine.g.companyCash, personalCashBefore = engine.g.personalCash;
   const personalStocksBefore = JSON.stringify(engine.g.personalStocks);
   assert.equal(engine.investStartup(added.id, added.minTicket, 'company'), true, '新規案件は既存のinvestStartupでそのまま投資できる');
