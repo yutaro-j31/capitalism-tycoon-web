@@ -64,8 +64,7 @@
     "tests/map-marker-density-selection-test.js",
     "tests/convenience-chain-scale-procurement-test.js",
     "tests/supply-payment-due-week-arrival-basis-test.js",
-    "tests/ramen-supply-payment-terms-244week-regression-test.js",
-    "tests/digital-portfolio-breakeven-seeds-test.js"
+    "tests/ramen-supply-payment-terms-244week-regression-test.js"
   ],
   "E": [
     "tests/loan-single-interest-test.js",
@@ -92,8 +91,7 @@
     "tests/pe-realestate-agency-bridge-negative-test.js",
     "tests/pe-realestate-agency-ui-connection-test.js",
     "test:stock",
-    "tests/personal-real-estate-short-term-test.js",
-    "tests/supply-material-cost-inflation-test.js"
+    "tests/personal-real-estate-short-term-test.js"
   ],
   "F": [
     "tests/simulation-rng-test.js",
@@ -202,5 +200,11 @@
     "tests/industry-event-response-plans-reachability-test.js",
     "test:digital-portfolio-profitability",
     "tests/exploration-style-test.js"
+  ],
+  "J": [
+    "tests/digital-portfolio-breakeven-seeds-test.js"
+  ],
+  "K": [
+    "tests/supply-material-cost-inflation-test.js"
   ]
 }
