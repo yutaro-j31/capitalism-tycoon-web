@@ -91,5 +91,6 @@ const fixturePath = path.join(__dirname, 'fixtures', 'transaction-baseline-v1.js
 const actual = runScenario();
 const expected = JSON.parse(fs.readFileSync(fixturePath, 'utf8'));
 const diff = firstDiff(actual, expected);
+if (diff) console.error('TRANSACTION_ACTUAL_BASELINE=' + JSON.stringify(actual));
 assert(!diff, `transaction deterministic regression mismatch: ${diff}`);
 console.log(JSON.stringify({ deterministicRegression: 'passed', crisisSnapshot: 'passed', points: Object.keys(actual), randomCallsAtWeek52: actual.week52.randomCalls }, null, 2));
