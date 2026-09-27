@@ -8,8 +8,7 @@ if(__modules.parity)throw new Error('Capitalism Tycoon parity module is already 
 // AI advisor, key personnel, earnings/shareholder reactions, competitor counterattacks and annual awards.
 const pyNum=(v,f=0)=>Number.isFinite(Number(v))?Number(v):f;
 const pyClamp=(v,min,max)=>Math.max(min,Math.min(max,pyNum(v,min)));
-const pyRng=__modules.simulationRng;
-const pyRand=(g,min,max)=>pyRng.range(g,min,max);
+const pyRng=__modules.simulationRng;const pyRand=(g,min,max)=>pyRng.range(g,min,max);
 const pyPick=(g,a)=>pyRng.pick(g,a);
 const pyUID=(g,prefix='p')=>pyRng.nextID(g,prefix);
 const pyCopy=v=>typeof structuredClone==='function'?structuredClone(v):JSON.parse(JSON.stringify(v));
