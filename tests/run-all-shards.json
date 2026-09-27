@@ -199,7 +199,8 @@
     "tests/competitor-product-counter-reachability-test.js",
     "tests/industry-event-response-plans-reachability-test.js",
     "test:digital-portfolio-profitability",
-    "tests/exploration-style-test.js"
+    "tests/exploration-style-test.js",
+    "tests/simulation-long-run-reload-fork-test.js"
   ],
   "J": [
     "tests/digital-portfolio-breakeven-seeds-test.js"
