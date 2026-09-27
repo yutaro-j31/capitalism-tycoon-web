@@ -14,11 +14,9 @@ const path = require('node:path');
 const ROOT = path.resolve(__dirname, '..');
 const PATTERNS = { 'Math.random': /Math\.random\(/g, 'Date.now': /Date\.now\(/g, randomUUID: /randomUUID/g, 'new Date': /new Date\(/g };
 
-// Simulation sources still to migrate (#731). Each migration PR lowers these; PR5 empties the map.
-const SIMULATION_PENDING = {
-  'js/completion.js': { 'Math.random': 8, 'Date.now': 1, randomUUID: 1 },
-  'js/parity.js': { 'Math.random': 8, 'Date.now': 1, randomUUID: 1 },
-};
+// #731 PR4 completed the production simulation migration. Any future simulation-path host
+// randomness is a contract failure; PR5 adds the long-run reload/fork acceptance proof.
+const SIMULATION_PENDING = {};
 // Wall-clock metadata and UI/diagnostics only (never simulation state).
 const NON_SIMULATION = {
   'js/engine.js': { 'new Date': 2, 'Math.random': 1 }, // lastSaveDate; configure's one entropy draw that seeds a new game's stream

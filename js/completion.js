@@ -12,9 +12,9 @@ if(__modules.completion)throw new Error('Capitalism Tycoon completion module is 
 
 const cxNum = (v,f=0) => Number.isFinite(Number(v)) ? Number(v) : f;
 const cxClamp = (v,min,max) => Math.max(min,Math.min(max,cxNum(v,min)));
-const cxRand = (min,max) => min + Math.random()*(max-min);
-const cxPick = arr => arr[Math.floor(Math.random()*arr.length)];
-const cxUID = () => globalThis.crypto?.randomUUID?.() ?? `c-${Date.now()}-${Math.random().toString(16).slice(2)}`;
+const cxRng = __modules.simulationRng; const cxRand = (g,min,max) => cxRng.range(g,min,max);
+const cxPick = (g,arr) => cxRng.pick(g,arr);
+const cxUID = (g,prefix='c') => cxRng.nextID(g,prefix);
 const cxCopy = v => typeof structuredClone==='function' ? structuredClone(v) : JSON.parse(JSON.stringify(v));
 const cxSum = arr => arr.reduce((a,b)=>a+cxNum(b),0);
 
@@ -81,7 +81,7 @@ function installCompletion(TycoonEngine){
     this.ensureCompletionDefaults();if(!this.g.hasHeadOffice)return this.fail('先に本社オフィスを契約してください。');const o=this.g.rentalOffices.find(x=>x.id===officeID);if(!o)return false;
     if(o.id===this.g.contractedOfficeID||o.contracted||this.g.branchOffices.some(x=>x.officeID===o.id))return this.fail('このオフィスは契約済みです。');
     if(this.g.companyCash<o.deposit)return this.fail('保証金が不足しています。');this.g.companyCash-=o.deposit;o.contracted=true;
-    this.g.branchOffices.push({id:cxUID(),officeID:o.id,name:o.name,prefID:o.prefID,grade:o.grade,capacity:o.capacity,rent:o.rent,deposit:o.deposit,prestige:o.prestige,openedWeek:this.g.week});
+    this.g.branchOffices.push({id:cxUID(this.g),officeID:o.id,name:o.name,prefID:o.prefID,grade:o.grade,capacity:o.capacity,rent:o.rent,deposit:o.deposit,prestige:o.prestige,openedWeek:this.g.week});
     this.g.officeCapacity+=o.capacity;this.g.officePrestige+=o.prestige*.25;this.notify(`${o.name}を支社オフィスとして契約しました。`,'success');this.save();this.emit();return true;
   };
   TycoonEngine.prototype.closeBranchOffice=function(id){
@@ -126,12 +126,12 @@ function installCompletion(TycoonEngine){
     const sub=[...this.g.maSubsidiaries,...this.g.subsidiaries].find(x=>x.id===subID),a=TRANSPORT_REBUILD_ACTIONS.find(x=>x.id===actionID);if(!sub||!a)return false;
     const label=`${sub.industry||sub.domain||sub.name}`;if(!/(物流|鉄道|航空|運輸|transport|logistics)/i.test(label))return this.fail('交通・物流系子会社が対象です。');
     if(this.g.transportRebuildProjects.some(x=>x.subID===subID&&x.status==='active'))return this.fail('再編プロジェクトが進行中です。');const cost=Math.max(5000000,cxNum(sub.valuation)*a.costRate);if(this.g.companyCash<cost)return this.fail('再編資金が不足しています。');
-    this.g.companyCash-=cost;this.g.transportRebuildProjects.push({id:cxUID(),subID,subName:sub.name,actionID:a.id,name:a.name,cost,weeks:a.weeks,progress:0,status:'active',growth:a.growth,margin:a.margin,startedWeek:this.g.week});this.notify(`${sub.name}で「${a.name}」を開始しました。`,'success');this.save();this.emit();return true;
+    this.g.companyCash-=cost;this.g.transportRebuildProjects.push({id:cxUID(this.g),subID,subName:sub.name,actionID:a.id,name:a.name,cost,weeks:a.weeks,progress:0,status:'active',growth:a.growth,margin:a.margin,startedWeek:this.g.week});this.notify(`${sub.name}で「${a.name}」を開始しました。`,'success');this.save();this.emit();return true;
   };
 
   TycoonEngine.prototype.startMediaAction=function(kind){
     const a=MEDIA_ACTIONS.find(x=>x.id===kind);if(!a)return false;if(this.g.companyCash<a.cost)return this.fail('広報予算が不足しています。');this.g.companyCash-=a.cost;
-    this.g.mediaCampaigns.push({id:cxUID(),...cxCopy(a),status:'active',startedWeek:this.g.week,endWeek:this.g.week+a.weeks,progress:0});this.g.mediaActionLog.unshift(`第${this.g.week}週：${a.name}を開始。`);this.g.mediaActionLog=this.g.mediaActionLog.slice(0,cxLogCap('mediaActionLog'));this.notify(`${a.name}を開始しました。`,'success');this.save();this.emit();return true;
+    this.g.mediaCampaigns.push({id:cxUID(this.g),...cxCopy(a),status:'active',startedWeek:this.g.week,endWeek:this.g.week+a.weeks,progress:0});this.g.mediaActionLog.unshift(`第${this.g.week}週：${a.name}を開始。`);this.g.mediaActionLog=this.g.mediaActionLog.slice(0,cxLogCap('mediaActionLog'));this.notify(`${a.name}を開始しました。`,'success');this.save();this.emit();return true;
   };
 
   TycoonEngine.prototype.acceptProductBuyoutOffer=function(id){
@@ -148,7 +148,7 @@ function installCompletion(TycoonEngine){
 
   TycoonEngine.prototype.recordCurrentCompany=function(exitType,exitPrice=0,founderProceeds=0,note=''){
     this.ensureCompletionDefaults();const serial=this.g.currentCompanySerial||1;if(this.g.pastCompanyRecords.some(x=>x.companySerial===serial&&x.exitType===exitType&&x.exitedWeek===this.g.week))return;
-    this.g.pastCompanyRecords.unshift({id:cxUID(),companySerial:serial,companyName:this.g.companyName,foundedWeek:this.g.currentCompanyFoundedWeek||1,exitedWeek:this.g.week,exitType,exitPrice,founderProceeds,peakCompanyValue:Math.max(this.companyValue(),exitPrice),finalStoreCount:this.g.stores.filter(x=>x.status==='open').length,finalProductCount:this.g.productVentures.length,finalSubsidiaryCount:this.g.subsidiaries.length+this.g.maSubsidiaries.length,note});this.g.pastCompanyRecords=this.g.pastCompanyRecords.slice(0,20);
+    this.g.pastCompanyRecords.unshift({id:cxUID(this.g),companySerial:serial,companyName:this.g.companyName,foundedWeek:this.g.currentCompanyFoundedWeek||1,exitedWeek:this.g.week,exitType,exitPrice,founderProceeds,peakCompanyValue:Math.max(this.companyValue(),exitPrice),finalStoreCount:this.g.stores.filter(x=>x.status==='open').length,finalProductCount:this.g.productVentures.length,finalSubsidiaryCount:this.g.subsidiaries.length+this.g.maSubsidiaries.length,note});this.g.pastCompanyRecords=this.g.pastCompanyRecords.slice(0,20);
   };
 
   TycoonEngine.prototype.foundNewCompanyAfterBuyout=function(companyName,investment,mode='store'){
@@ -168,17 +168,17 @@ function installCompletion(TycoonEngine){
     if(!g.isCompanySold){const branchCost=cxSum(g.branchOffices.map(x=>x.rent));if(branchCost){g.companyCash-=branchCost;companyAdjustment-=branchCost;expenseAdjustment+=branchCost;}
       const employees=this.officeEmployeeCount(),seats=Math.max(1,this.totalOfficeCapacity()),usage=employees/seats;g.overtimeRisk=cxClamp(.10+Math.max(0,usage-.72)*.95+(g.remoteWorkEnabled?-.08:0)+(g.employeeSatisfaction<45?.10:0),0,1);
       if(employees>0){g.employeeSatisfaction=cxClamp(g.employeeSatisfaction+(usage<.85?.05:-.12)-g.overtimeRisk*.08,0,100);g.organizationCulture.morale=cxClamp(g.organizationCulture.morale+(g.employeeSatisfaction-50)/1200-g.overtimeRisk*.05,0,100);}
-      if(employees>0&&g.week-g.lastEmployeeComplaintWeek>=6&&Math.random()<cxClamp(.08+g.overtimeRisk*.28+(usage>1?.22:0),.06,.5)){const texts=usage>1?['座席が足りず集中できません','会議室が不足しています']:g.overtimeRisk>.6?['残業が常態化しています','人員配置を見直してほしい']:g.remoteWorkEnabled?['リモート手当を整備してほしい','出社日ルールが曖昧です']:['評価制度を透明にしてほしい','研修機会を増やしてほしい'];g.employeeComplaintLog.unshift({id:cxUID(),week:g.week,text:cxPick(texts),type:usage>1?'capacity':g.overtimeRisk>.6?'overtime':'culture',severity:g.overtimeRisk>.7?'high':'medium',status:'open'});g.lastEmployeeComplaintWeek=g.week;g.news.unshift(`第${g.week}週：社員の声「${g.employeeComplaintLog[0].text}」`);}
+      if(employees>0&&g.week-g.lastEmployeeComplaintWeek>=6&&cxRng.next(g)<cxClamp(.08+g.overtimeRisk*.28+(usage>1?.22:0),.06,.5)){const texts=usage>1?['座席が足りず集中できません','会議室が不足しています']:g.overtimeRisk>.6?['残業が常態化しています','人員配置を見直してほしい']:g.remoteWorkEnabled?['リモート手当を整備してほしい','出社日ルールが曖昧です']:['評価制度を透明にしてほしい','研修機会を増やしてほしい'];g.employeeComplaintLog.unshift({id:cxUID(this.g),week:g.week,text:cxPick(g,texts),type:usage>1?'capacity':g.overtimeRisk>.6?'overtime':'culture',severity:g.overtimeRisk>.7?'high':'medium',status:'open'});g.lastEmployeeComplaintWeek=g.week;g.news.unshift(`第${g.week}週：社員の声「${g.employeeComplaintLog[0].text}」`);}
     }
     // Transport rebuild.
     for(const p of g.transportRebuildProjects.filter(x=>x.status==='active')){p.progress=cxClamp(p.progress+100/p.weeks,0,100);if(p.progress>=100){p.status='completed';p.completedWeek=g.week;const sub=[...g.maSubsidiaries,...g.subsidiaries].find(x=>x.id===p.subID);if(sub){sub.growth=cxNum(sub.growth)+p.growth;if('operatingProfit'in sub)sub.operatingProfit=cxNum(sub.operatingProfit)*(1+p.margin*5);sub.valuation=cxNum(sub.valuation)*(1+.08+p.growth);}g.transportRebuildLog.unshift(`第${g.week}週：${p.subName}の${p.name}が完了。`);g.news.unshift(`第${g.week}週：${p.subName}の交通・物流再編が完了しました。`);}}
     // Media and social reputation.
     g.socialMediaHeat=cxClamp(g.socialMediaHeat*.94,0,1);for(const c of g.mediaCampaigns.filter(x=>x.status==='active')){c.progress=cxClamp(c.progress+100/Math.max(1,c.weeks),0,100);g.companyReputation=cxClamp(g.companyReputation+c.rep/Math.max(1,c.weeks),0,100);g.personalFame=cxClamp(g.personalFame+c.fame/Math.max(1,c.weeks),0,100);g.socialMediaReputation=cxClamp(g.socialMediaReputation+c.rep*.7/Math.max(1,c.weeks),0,100);g.socialMediaHeat=cxClamp(g.socialMediaHeat+c.heat/Math.max(1,c.weeks),0,1);if(g.week>=c.endWeek||c.progress>=100){c.status='completed';g.mediaActionLog.unshift(`第${g.week}週：${c.name}が完了。`);g.mediaActionLog=g.mediaActionLog.slice(0,cxLogCap('mediaActionLog'));}}
-    if(g.socialMediaHeat>.72&&Math.random()<.08){g.companyReputation=cxClamp(g.companyReputation-2.5,0,100);g.socialMediaReputation=cxClamp(g.socialMediaReputation-5,0,100);g.news.unshift(`第${g.week}週：SNSで批判が拡散し、企業評判が低下しました。`);}
+    if(g.socialMediaHeat>.72&&cxRng.next(g)<.08){g.companyReputation=cxClamp(g.companyReputation-2.5,0,100);g.socialMediaReputation=cxClamp(g.socialMediaReputation-5,0,100);g.news.unshift(`第${g.week}週：SNSで批判が拡散し、企業評判が低下しました。`);}
     // Product acquisition offers.
-    g.productBuyoutOffers.forEach(x=>{if(x.status==='pending'&&x.expiresWeek<g.week)x.status='expired';});if(!g.isCompanySold&&g.week-g.lastProductOfferGenerationWeek>=8&&g.productBuyoutOffers.filter(x=>x.status==='pending').length<3){const candidates=g.productVentures.filter(p=>p.status==='released'&&p.valuation>=10000000&&!g.productBuyoutOffers.some(o=>o.productID===p.id&&o.status==='pending'));if(candidates.length&&Math.random()<.16){const p=cxPick(candidates),amount=Math.max(p.valuation,p.profit*52*8)*cxRand(1.05,1.75);g.productBuyoutOffers.unshift({id:cxUID(),productID:p.id,productName:p.name,buyerName:cxPick(['大手IT企業','海外テック企業','事業会社CVC','PEファンド']),offerAmount:amount,premium:amount/Math.max(1,p.valuation)-1,createdWeek:g.week,expiresWeek:g.week+8,status:'pending'});g.lastProductOfferGenerationWeek=g.week;g.news.unshift(`第${g.week}週：${p.name}に${Math.round(amount).toLocaleString()}円の買収提案が届きました。`);}}
+    g.productBuyoutOffers.forEach(x=>{if(x.status==='pending'&&x.expiresWeek<g.week)x.status='expired';});if(!g.isCompanySold&&g.week-g.lastProductOfferGenerationWeek>=8&&g.productBuyoutOffers.filter(x=>x.status==='pending').length<3){const candidates=g.productVentures.filter(p=>p.status==='released'&&p.valuation>=10000000&&!g.productBuyoutOffers.some(o=>o.productID===p.id&&o.status==='pending'));if(candidates.length&&cxRng.next(g)<.16){const p=cxPick(g,candidates),amount=Math.max(p.valuation,p.profit*52*8)*cxRand(g,1.05,1.75);g.productBuyoutOffers.unshift({id:cxUID(this.g),productID:p.id,productName:p.name,buyerName:cxPick(g,['大手IT企業','海外テック企業','事業会社CVC','PEファンド']),offerAmount:amount,premium:amount/Math.max(1,p.valuation)-1,createdWeek:g.week,expiresWeek:g.week+8,status:'pending'});g.lastProductOfferGenerationWeek=g.week;g.news.unshift(`第${g.week}週：${p.name}に${Math.round(amount).toLocaleString()}円の買収提案が届きました。`);}}
     // Inbound company buyout offers.
-    g.inboundBuyoutOffers.forEach(x=>{if(x.status==='pending'&&x.expiresWeek<g.week)x.status='expired';});const pending=this.pendingInboundBuyoutOffers();if(!g.isCompanySold&&pending.length<2&&g.week-g.lastInboundBuyoutOfferWeek>=40&&(g.publicCompany||this.companyValue()>=1e9)){let chance=.01+(g.publicCompany?0.006:0)+(this.companyValue()>=1e10?0.006:0)+(this.companyValue()>=1e11?0.006:0);if(Math.random()<Math.min(.035,chance)){const premium=cxRand(1.05,1.45),hostile=Math.random()<.28,bidder=cxPick([...g.competitors.map(x=>x.name),'大手投資ファンド','海外戦略ファンド','総合商社系ファンド']);g.inboundBuyoutOffers.unshift({id:cxUID(),bidderName:bidder,offerAmount:this.companyValue()*premium,premiumRate:premium,createdWeek:g.week,expiresWeek:g.week+8,hostile,status:'pending'});g.lastInboundBuyoutOfferWeek=g.week;g.news.unshift(`第${g.week}週：${bidder}から会社買収提案が届きました。`);}}
+    g.inboundBuyoutOffers.forEach(x=>{if(x.status==='pending'&&x.expiresWeek<g.week)x.status='expired';});const pending=this.pendingInboundBuyoutOffers();if(!g.isCompanySold&&pending.length<2&&g.week-g.lastInboundBuyoutOfferWeek>=40&&(g.publicCompany||this.companyValue()>=1e9)){let chance=.01+(g.publicCompany?0.006:0)+(this.companyValue()>=1e10?0.006:0)+(this.companyValue()>=1e11?0.006:0);if(cxRng.next(g)<Math.min(.035,chance)){const premium=cxRand(g,1.05,1.45),hostile=cxRng.next(g)<.28,bidder=cxPick(g,[...g.competitors.map(x=>x.name),'大手投資ファンド','海外戦略ファンド','総合商社系ファンド']);g.inboundBuyoutOffers.unshift({id:cxUID(this.g),bidderName:bidder,offerAmount:this.companyValue()*premium,premiumRate:premium,createdWeek:g.week,expiresWeek:g.week+8,hostile,status:'pending'});g.lastInboundBuyoutOfferWeek=g.week;g.news.unshift(`第${g.week}週：${bidder}から会社買収提案が届きました。`);}}
     // Campus milestones and endings.
     for(const m of this.growthMilestones().filter(x=>x.achieved)){if(!g.campusMilestoneIDs.includes(m.id)){g.campusMilestoneIDs.push(m.id);g.news.unshift(`第${g.week}週：成長マップ節目「${m.title}」達成。`);}}
     this.evaluateCompletionEndings();
