@@ -189,4 +189,70 @@ const runtime = seed => {
   assert.ok(ga.luxuryAuctionListings.every(x => /^x-s[0-9a-z]+$/.test(x.id)), 'auction IDs come from the save counter');
 }
 
+
+// 10. #731 PR4: completion.js and parity.js are on the same persisted stream. Their events,
+//     entity IDs and shuffle results are independent of host Math.random/time/UUID/sort.
+{
+  const hostile = seed => {
+    const r = runtime(seed);
+    vm.runInContext(`Date.now = () => ${seed}; crypto.randomUUID = () => 'host-${seed}';`, r.loaded.ctx);
+    return r;
+  };
+  const insertionSort = "Array.prototype.sort = function(cmp){ cmp = cmp || ((x, y) => String(x) < String(y) ? -1 : String(x) > String(y) ? 1 : 0); for (let i = 1; i < this.length; i++) { const v = this[i]; let j = i - 1; while (j >= 0 && cmp(this[j], v) > 0) { this[j + 1] = this[j]; j--; } this[j + 1] = v; } return this; };";
+  const a = hostile(41), b = hostile(109);
+  vm.runInContext(insertionSort, b.loaded.ctx);
+  const base = a.engine.createInitialState({ configured: true, companyName: 'Completion Parity Co', playerName: 'CP' });
+  base.companyCash = 5_000_000_000;
+  base.personalCash = 1_000_000_000;
+  base.week = 52;
+  base.hasHeadOffice = true;
+  base.officeCapacity = 1;
+  base.departmentStaff = { accounting: 3 };
+  base.lastEmployeeComplaintWeek = 0;
+  base.socialMediaHeat = .95;
+  base.lastProductOfferGenerationWeek = 0;
+  base.productVentures = [{ id: 'pv-deterministic', name: 'Det Product', status: 'released', valuation: 50_000_000, profit: 1_000_000 }];
+  base.publicCompany = true;
+  base.lastInboundBuyoutOfferWeek = 0;
+  base.founderOwnershipRatio = .8;
+
+  const play = r => {
+    const E = new r.engine.TycoonEngine(JSON.parse(JSON.stringify(base)));
+    E.save = () => {}; E.emit = () => {}; E.notify = () => {};
+    const before = E.g.simulationRng.draws;
+    assert.equal(E.startMediaAction('social'), true);
+    E.recordCurrentCompany('audit', 100_000_000, 50_000_000, 'rng migration');
+    const person = E.generateKeyPersonCandidate();
+    E.g.keyPersonnel.push(person);
+    assert.equal(E.trainKeyPerson(person.id), true);
+    E.runEarningsEventsIfNeeded(true);
+    E.seedCompetitorCounterStates();
+    E.updateCompletionWeekly();
+    E.updateParityWeekly();
+    assert.ok(E.g.simulationRng.draws > before + 20, 'completion/parity draw from the save stream');
+    assert.match(E.g.mediaCampaigns[0].id, /^c-s[0-9a-z]+$/);
+    assert.match(person.id, /^p-s[0-9a-z]+$/);
+    return E.g;
+  };
+  const ga = play(a), gb = play(b);
+  const view = g => JSON.stringify({
+    stream: g.simulationRng,
+    campaigns: g.mediaCampaigns,
+    records: g.pastCompanyRecords,
+    complaints: g.employeeComplaintLog,
+    productOffers: g.productBuyoutOffers,
+    inboundOffers: g.inboundBuyoutOffers,
+    personnel: g.keyPersonnel,
+    personnelEvents: g.keyPersonnelEventLog,
+    earnings: g.earningsEventLog,
+    competitors: g.competitorStates,
+    competitorEvents: g.competitorEventLog,
+    cash: g.companyCash,
+    reputation: g.companyReputation,
+    social: [g.socialMediaHeat, g.socialMediaReputation],
+    news: g.news.slice(0, 20)
+  });
+  assert.equal(view(ga), view(gb), 'completion/parity outcomes follow the save, not host entropy or sort');
+}
+
 console.log('simulation rng tests passed');
