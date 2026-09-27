@@ -230,8 +230,8 @@ const runtime = seed => {
     E.updateCompletionWeekly();
     E.updateParityWeekly();
     assert.ok(E.g.simulationRng.draws > before + 20, 'completion/parity draw from the save stream');
-    assert.match(E.g.mediaCampaigns[0].id, /^c-s[0-9a-z]+$/);
-    assert.match(person.id, /^p-s[0-9a-z]+$/);
+    assert.match(E.g.pastCompanyRecords[0].id, /^c-s[0-9a-z]+$/, 'completion persistent IDs come from the save counter');
+    assert.match(person.id, /^p-s[0-9a-z]+$/, 'parity persistent IDs come from the save counter');
     return E.g;
   };
   const ga = play(a), gb = play(b);
