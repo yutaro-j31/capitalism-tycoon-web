@@ -12,8 +12,7 @@ if(__modules.completion)throw new Error('Capitalism Tycoon completion module is 
 
 const cxNum = (v,f=0) => Number.isFinite(Number(v)) ? Number(v) : f;
 const cxClamp = (v,min,max) => Math.max(min,Math.min(max,cxNum(v,min)));
-const cxRng = __modules.simulationRng;
-const cxRand = (g,min,max) => cxRng.range(g,min,max);
+const cxRng = __modules.simulationRng; const cxRand = (g,min,max) => cxRng.range(g,min,max);
 const cxPick = (g,arr) => cxRng.pick(g,arr);
 const cxUID = (g,prefix='c') => cxRng.nextID(g,prefix);
 const cxCopy = v => typeof structuredClone==='function' ? structuredClone(v) : JSON.parse(JSON.stringify(v));
