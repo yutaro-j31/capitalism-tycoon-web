@@ -18,8 +18,9 @@ modules.playRuntimeCompat=Object.freeze({
 // the whole wrapper chain, then performs the committed transaction's save and emit:
 // - configure: one full normalize of the founding state.
 // - advanceWeek: no full normalize (too costly every week); each week's processing keeps the state
-//   canonical itself, and only the competitor event log, which normalize derives from the events,
-//   is derived once more after the last event of the week was written.
+//   canonical itself. After every mutation wrapper has finished, rebuild the final accounting
+//   snapshot, evaluate crisis state from final cash, validate the committed state, refresh the
+//   weekly summary, and only then derive the competitor event log.
 // tests/reload-canonical-state-test.js asserts normalize is a no-op at every week boundary.
 (function(){'use strict';
 const modules=globalThis.__capitalismTycoonModules;
@@ -43,10 +44,39 @@ function boundary(name,finish){
   Object.defineProperty(wrapped,'__canonicalNormalizeBoundary',{value:true});
   proto[name]=wrapped;
 }
+function finalizeWeekBoundary(){
+  const g=this.g;if(!g?.configured)return;
+  const finance=modules.finance;
+  if(!g.isCompanySold){
+    // Phase 1: every base/module mutation has finished.
+    finance?.rebuildSnapshotForWeek?.(g,g.week);
+
+    // Phase 2: liquidity crisis reads the final post-mutation cash figure.
+    const crisis=modules.playerCrisis?.finalizeWeek?.(g)||modules.playerCrisis?.evaluate?.(g)||null;
+
+    // Phase 3: this validation result is authoritative for the committed week.
+    if(!g.skipWeeklyValidation){
+      finance?.validate?.(g);
+      modules.supply?.validate?.(g);
+      modules.workforce?.validate?.(g);
+      modules.competitor?.validate?.(g);
+      modules.playerCrisis?.validate?.(g);
+    }
+
+    // The emitted summary must describe the final state, not the inner base-engine snapshot.
+    if(g.lastWeeklySummary){
+      g.lastWeeklySummary.companyCash=g.companyCash;
+      g.lastWeeklySummary.companyValue=typeof this.companyValue==='function'?this.companyValue():g.lastWeeklySummary.companyValue;
+      g.lastWeeklySummary.personalNetWorth=typeof this.personalNetWorth==='function'?this.personalNetWorth():g.lastWeeklySummary.personalNetWorth;
+      if(crisis)g.lastWeeklySummary.crisis=crisis;
+    }
+  }
+  modules.competitor?.syncEventLog?.(g);
+}
 function install(){
   if(proto.__canonicalNormalizeBoundary)return;
   boundary('configure',function(){this.normalize();});
-  boundary('advanceWeek',function(){modules.competitor?.syncEventLog?.(this.g);});
+  boundary('advanceWeek',finalizeWeekBoundary);
   Object.defineProperty(proto,'__canonicalNormalizeBoundary',{value:true});
 }
 if(typeof document!=='undefined'&&document.readyState==='loading'&&typeof document.addEventListener==='function')document.addEventListener('DOMContentLoaded',install,{once:true});
