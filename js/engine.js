@@ -1640,6 +1640,7 @@ class TycoonEngine extends EventTarget {
   }
 
   acceptBuyoutOffer(multiplier=1.2) {
+    if(this.g.isCompanySold)return this.fail('会社はすでに売却済みです。');
     if(this.g.publicCompany===false&&this.companyValue()<200_000_000)return this.fail('買収提案を受ける規模に達していません。');const value=this.companyValue()*multiplier,founderProceeds=value*this.g.founderOwnershipRatio;
     this.g.personalCash+=founderProceeds;this.g.isCompanySold=true;this.g.hasSeenCompanyBuyoutEnding=false;this.notify(`${this.g.companyName}を${yen(value)}で売却しました。創業者受取${yen(founderProceeds)}。`,'success');this.save();this.emit();return true;
   }
