@@ -1639,10 +1639,20 @@ class TycoonEngine extends EventTarget {
     this.g.internalVentures.push({...p,status:'developing',progress:0,valuation:p.requiredBudget,weeklyProfit:0});this.g.internalVentureProposals.splice(i,1);this.notify(`${p.name}を社内ベンチャーとして承認しました。`,'success');this.save();this.emit();return true;
   }
 
-  acceptBuyoutOffer(multiplier=1.2) {
+  completeCompanySale({exitPrice=0,founderProceeds=0,note='',showEnding=true}={}) {
     if(this.g.isCompanySold)return this.fail('会社はすでに売却済みです。');
+    const price=Math.max(0,finite(exitPrice)),proceeds=Math.max(0,finite(founderProceeds));
+    if(typeof this.recordCurrentCompany==='function')this.recordCurrentCompany('buyout',price,proceeds,note);
+    this.g.personalCash+=proceeds;
+    this.g.isCompanySold=true;
+    this.g.hasSeenCompanyBuyoutEnding=Boolean(showEnding);
+    if(this.g.hallOfRecords)this.g.hallOfRecords.maxCompanyBuyoutPrice=Math.max(finite(this.g.hallOfRecords.maxCompanyBuyoutPrice),price);
+    return {exitPrice:price,founderProceeds:proceeds};
+  }
+  acceptBuyoutOffer(multiplier=1.2) {
     if(this.g.publicCompany===false&&this.companyValue()<200_000_000)return this.fail('買収提案を受ける規模に達していません。');const value=this.companyValue()*multiplier,founderProceeds=value*this.g.founderOwnershipRatio;
-    this.g.personalCash+=founderProceeds;this.g.isCompanySold=true;this.g.hasSeenCompanyBuyoutEnding=false;this.notify(`${this.g.companyName}を${yen(value)}で売却しました。創業者受取${yen(founderProceeds)}。`,'success');this.save();this.emit();return true;
+    const sale=this.completeCompanySale({exitPrice:value,founderProceeds,note:'設定画面から売却',showEnding:false});if(!sale)return false;
+    this.notify(`${this.g.companyName}を${yen(sale.exitPrice)}で売却しました。創業者受取${yen(sale.founderProceeds)}。`,'success');this.save();this.emit();return true;
   }
 
   updateOwnershipRatios() {

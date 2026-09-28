@@ -134,6 +134,10 @@ function freshEngine() {
   assert.ok(scoreAfterFirst <= 15);
 
   e.g.week += 52;
+  e.g.isCompanySold = false;
+  e.g.hasSeenCompanyBuyoutEnding = false;
+  e.g.currentCompanySerial += 1;
+  e.g.companyName = 'テスト商事2';
   e.g.founderOwnershipRatio = 1;
   e.g.currentCompanyFoundedWeek = e.g.week - 52;
   e.g.weeklyProfitHistory = Array(260).fill(1);
