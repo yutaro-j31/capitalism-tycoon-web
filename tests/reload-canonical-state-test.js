@@ -116,6 +116,28 @@ check('boot paths: browser boot, fully-loaded load() and continuous play share t
 //    covers an industry event, competitor text events and distress, and the week-53 budget cycle).
 //    The weekly advance itself is not normalized, so each week's processing must leave nothing for
 //    a reload's normalize to change.
+check('normalize preserves completion-layer workforce scalars after team recompute', () => {
+  const loaded = fullLoad(lcg(731));
+  const E = new loaded.TycoonEngine();
+  E.configure({ playerName: 'Workforce', companyName: 'Workforce Co', difficulty: 'normal' });
+  E.g.workforceTeams = [{
+    teamID:'wf-test', departmentID:null, storeID:null, branchOfficeID:null, roleID:'store-ops',
+    headcount:2, managerHeadcount:0, onboardingHeadcount:0, availableHeadcount:2,
+    averageSkill:50, averageExperience:20, averageWeeklySalary:20000,
+    morale:42, fatigue:20, engagement:41, trainingLevel:0, remoteRatio:0,
+    weeklyCapacity:0, requiredWorkload:0, utilization:0, overtimeHours:0, backlog:0,
+    turnoverRisk:.08, onboardingBatches:[], storePayrollCohorts:[], corporatePayrollCohorts:[],
+    status:'active', createdWeek:E.g.week, lastUpdatedWeek:E.g.week
+  }];
+  E.g.employeeSatisfaction = 55.62575;
+  E.g.organizationCulture.morale = 57.25;
+  E.g.overtimeRisk = .31;
+  E.normalize();
+  assert.equal(E.g.employeeSatisfaction, 55.62575, 'reload normalize keeps completion satisfaction');
+  assert.equal(E.g.organizationCulture.morale, 57.25, 'reload normalize keeps completion morale');
+  assert.equal(E.g.overtimeRisk, .31, 'reload normalize keeps completion overtime risk');
+});
+
 check('normalize: idempotent, and a no-op after founding and at every week boundary', () => {
   const E = browserBoot(lcg(11));
   E.configure({ playerName: 'W', companyName: 'W Co', difficulty: 'normal' });
