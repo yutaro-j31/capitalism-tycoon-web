@@ -33,8 +33,11 @@ const openAndTrade=(engine,tenant,businessID='cafe',hours=3)=>{assert.equal(engi
  assert.equal(engine.openStore({tenantID:tenant.id,businessID:'cafe',name:'indexed-rent',operatingHours:3}),true);
  const store=engine.g.stores.at(-1);store.status='open';store.openingWeek=engine.g.week;store.weeksToOpen=0;
  assert.equal(store.contractRent,100000);assert.equal(store.contractInflationBase,1.25);
- engine.updateMacro=()=>{};engine.g.inflation=2.5;engine.g.week=store.openingWeek+51;
- engine.advanceWeek(false);
+ engine.updateMacro=()=>{};
+ // Advance through the actual weekly path rather than jumping the game clock. Several production
+ // wrappers maintain week-scoped state, so a clock jump is not a valid representation of a
+ // 52-week-old lease.
+ for(let i=0;i<52;i+=1){engine.g.inflation=2.5;assert.equal(engine.advanceWeek(false),true);}
  assert.equal(rentRow(engine,store).amount,200000,'post-year-one rent indexes by cumulative inflation from the signing baseline');
  assert.equal(store.contractRent,100000,'indexing must not rewrite the immutable contract base');
  assert.equal(store.contractInflationBase,1.25,'indexing must not rewrite the signing inflation baseline');
