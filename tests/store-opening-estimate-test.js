@@ -233,4 +233,79 @@ const freeTenant = engine => engine.g.tenants.find(t => !t.occupiedBy);
   }
 }
 
+// 12. 詳細市場（現在はramen）の2号店・3号店は、canonical marketで既存店の
+//     自己カニバリまで含めた「全店利益増分」を返す。マクロを進めず同一stateで実店舗を
+//     追加した場合のportfolio profit差と一致することを固定する。
+{
+  const { modules, engine } = newGame();
+  const groups = new Map();
+  for (const tenant of engine.g.tenants.filter(t => !t.occupiedBy)) {
+    const rows = groups.get(tenant.prefID) || [];
+    rows.push(tenant);
+    groups.set(tenant.prefID, rows);
+  }
+  const tenants = [...groups.values()].find(rows => rows.length >= 3);
+  assert.ok(tenants, '前提: 同一都道府県に3件以上の空きテナントがある');
+
+  function canonicalDetailedProfit() {
+    const stores = engine.g.stores.filter(s => s.status === 'open' && s.businessID === 'ramen' && s.prefID === tenants[0].prefID);
+    if (!stores.length) return 0;
+    const marketResult = modules.market.calculateMarket(engine.g, stores);
+    const b = engine.business('ramen');
+    let total = 0;
+    for (const store of stores) {
+      const mr = marketResult.stores[store.id];
+      const hours = [0,.55,.8,1,1.24][store.operatingHours || 3] || 1;
+      const costMultiplier = engine.g.inflation * hours * (engine.g.macroCrisis?.costMultiplier || 1);
+      const extraPayroll = modules.workforce.storeExtraPayroll(engine.g, store.id);
+      const fixed = store.contractRent + (b.fixedCost + b.wage + extraPayroll) * costMultiplier
+        + Math.max(0, 100 - store.condition) * 650;
+      total += Math.floor(Math.max(0, mr.revenue)) - mr.variableCost - Math.floor(Math.max(0, fixed));
+    }
+    return total;
+  }
+
+  for (let index = 0; index < 3; index++) {
+    const tenant = tenants[index];
+    const before = canonicalDetailedProfit();
+    const estimate = engine.estimateStoreOpening({ tenantID:tenant.id, businessID:'ramen', operatingHours:3 });
+    assert.ok(estimate.portfolioImpact, `${index + 1}号店: detailed portfolio impactが返る`);
+    assert.equal(estimate.decisionProfit, estimate.portfolioImpact.incrementalProfit, '出店判断利益は全店利益増分を使う');
+    assert.equal(estimate.portfolioImpact.beforeProfit, before, '出店前portfolio profitがcanonical市場と一致する');
+
+    assert.equal(engine.openStore({ tenantID:tenant.id, businessID:'ramen', name:`検証ラーメン${index + 1}`, operatingHours:3 }), true);
+    const opened = engine.g.stores.at(-1);
+    opened.status = 'open';
+    opened.openingWeek = engine.g.week;
+    opened.weeksToOpen = 0;
+
+    const after = canonicalDetailedProfit();
+    const actualIncrement = after - before;
+    assert.ok(Math.abs(estimate.portfolioImpact.incrementalProfit - actualIncrement) <= 1,
+      `${index + 1}号店: 見積増分${estimate.portfolioImpact.incrementalProfit}とcanonical実増分${actualIncrement}が一致する`);
+    assert.ok(Math.abs(estimate.portfolioImpact.afterProfit - after) <= 1, '出店後portfolio profitが一致する');
+    if (index >= 1) {
+      assert.ok(estimate.portfolioImpact.incrementalProfit <= estimate.portfolioImpact.candidateProfit + 1,
+        '2号店以降は新店単体利益だけを見ず、既存店への自己競合を差し引く');
+      assert.ok(estimate.portfolioImpact.cannibalizationLoss >= 0, 'カニバリ損失は非負で表示する');
+    }
+  }
+}
+
+// 13. 自動出店は詳細業種でも isolated expected.profit ではなく decisionProfit を
+//     gate / sort に使う。previewを作るだけでstate/RNGを動かさない契約も維持する。
+{
+  const { engine } = newGame();
+  const source = fs.readFileSync(path.join(__dirname, '..', 'js', 'engine.js'), 'utf8');
+  const autoBlock = source.slice(source.indexOf('autoManageStoreExpansion(reserve=0)'), source.indexOf('autoManageStoreDelegation()', source.indexOf('autoManageStoreExpansion(reserve=0)')));
+  assert.match(autoBlock, /estimate\.decisionProfit/, '自動出店gateはportfolio-aware decisionProfitを参照する');
+
+  const tenant = freeTenant(engine);
+  const before = JSON.stringify(engine.g);
+  const first = engine.estimateStoreOpening({ tenantID:tenant.id, businessID:'ramen', operatingHours:3 });
+  const second = engine.estimateStoreOpening({ tenantID:tenant.id, businessID:'ramen', operatingHours:3 });
+  assert.deepEqual(second.portfolioImpact, first.portfolioImpact, 'detailed portfolio previewも決定論');
+  assert.equal(JSON.stringify(engine.g), before, 'detailed portfolio previewはstateを変更しない');
+}
+
 console.log('store opening estimate tests passed');
