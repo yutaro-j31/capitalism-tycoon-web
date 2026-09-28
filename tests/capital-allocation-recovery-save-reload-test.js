@@ -82,7 +82,7 @@ function publicGame(modules) {
 function accountingSnapshot(game) {
   const property = game.g.properties.find(row => row.owner === 'company');
   const stockUnits = 1_000;
-  const stockAmount = game.stock('EXT').price * stockUnits * .999;
+  const stockAmount = modules.engine.stockOrderPlan(game.stock('EXT'), stockUnits, 'sell').cashAmount;
   const propertyAmount = property.value * .97;
   const borrowing = 50_000_000;
   const transactions = game.g.finance.transactions;

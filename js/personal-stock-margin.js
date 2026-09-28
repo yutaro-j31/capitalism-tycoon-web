@@ -28,6 +28,8 @@ const modules=globalThis.__capitalismTycoonModules;
 if(!modules.engine)throw new Error('engine.js must be loaded before personal-stock-margin.js.');
 if(modules.personalStockMargin)throw new Error('Personal stock margin is already registered.');
 const Engine=modules.engine.TycoonEngine;
+const stockOrderQuote=modules.engine.stockOrderQuote;
+if(typeof stockOrderQuote!=='function')throw new Error('engine.stockOrderQuote must load before personal-stock-margin.js.');
 
 // Ceilings are deliberately below what a broker calling itself "conservative" would offer in
 // reality, and MAINTENANCE_LTV sits well above both so a player who borrows to the standard
@@ -152,14 +154,16 @@ function prepay(engine,amount){
 function sellPersonalStockRaw(state,stockID,qty){
   const stock=(state.market||[]).find(s=>s.id===stockID);
   const holding=state.personalStocks?.[stockID];
-  if(!stock||!holding||qty<1||holding.qty<qty)return 0;
-  const proceeds=stock.price*qty*.999;
-  const profit=proceeds-holding.avg*qty;
+  if(!stock||!holding||qty<1)return 0;
+  const quote=stockOrderQuote(stock,Math.min(Math.floor(qty),Math.floor(finite(holding.qty))),'sell');
+  if(quote.filledQty<1)return 0;
+  const proceeds=quote.cashAmount;
+  const profit=proceeds-holding.avg*quote.filledQty;
   state.personalCash=round(finite(state.personalCash)+proceeds);
-  holding.qty-=qty;
+  holding.qty-=quote.filledQty;
   if(holding.qty<=0)delete state.personalStocks[stockID];
   state.realizedPersonalStockPL=round(finite(state.realizedPersonalStockPL)+profit);
-  stock.price*=1-Math.min(.03,qty/Math.max(1,stock.issuedShares)*.6);
+  stock.price=quote.quoteAfter;
   stock.marketCap=stock.price*stock.issuedShares;
   return proceeds;
 }
@@ -177,11 +181,16 @@ function liquidate(engine){
 
   let raised=0;
   for(const holding of holdings){
+    while(raised<loan.balance){
+      const stock=(state.market||[]).find(s=>s.id===holding.id);
+      const liveHolding=state.personalStocks?.[holding.id];
+      if(!stock||!(stock.price>0)||!liveHolding||finite(liveHolding.qty)<1)break;
+      const qty=Math.min(Math.floor(finite(liveHolding.qty)),Math.max(1,Math.ceil((loan.balance-raised)/stock.price)));
+      const proceeds=sellPersonalStockRaw(state,holding.id,qty);
+      if(proceeds<=0)break;
+      raised=round(raised+proceeds);
+    }
     if(raised>=loan.balance)break;
-    const stock=(state.market||[]).find(s=>s.id===holding.id);
-    if(!stock||!(stock.price>0))continue;
-    const qty=Math.min(holding.qty,Math.max(1,Math.ceil((loan.balance-raised)/stock.price)));
-    raised=round(raised+sellPersonalStockRaw(state,holding.id,qty));
   }
 
   const repaid=Math.min(loan.balance,raised);
