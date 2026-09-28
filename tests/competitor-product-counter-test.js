@@ -130,6 +130,32 @@ for (const type of ['price', 'advertising', 'quality', 'product']) {
   assert.equal(balanceGap(loaded, engine), 0, `${type} leaves the sheet balanced`);
 }
 
+// --- changing price during a price campaign survives expiry ---------------
+{
+  const { engine } = createEngine();
+  const row = engine.g.competitors[0];
+  const product = engine.launchCompetitorProduct(row);
+  const business = engine.business(row.businessID);
+  const definition = engine.counterCampaignOptions().find(option => option.id === 'price');
+
+  assert.ok(engine.launchCounterCampaign(product.id, 'price'), 'price campaign starts');
+  const campaign = engine.activeCounterCampaigns()[0];
+  engine.g.week = campaign.activatesWeek;
+  engine.updateCounterCampaigns();
+
+  const selectedUnderlyingPrice = 1_000;
+  business.price = Math.round(selectedUnderlyingPrice * definition.priceRatio);
+
+  engine.g.week = campaign.endsWeek;
+  engine.updateCounterCampaigns();
+
+  assert.equal(
+    business.price,
+    selectedUnderlyingPrice,
+    'expiry removes only the campaign multiplier and preserves the price chosen while active'
+  );
+}
+
 // --- one answer per product, and only affordable answers -----------------
 {
   const { engine } = createEngine();
