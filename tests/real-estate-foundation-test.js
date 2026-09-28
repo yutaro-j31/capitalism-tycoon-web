@@ -66,7 +66,7 @@ assert(Math.abs(sale.totalGain-(sale.landGain+sale.buildingGain))<2,'sale gain s
 assert(e.g.realEstate.sales.some(x=>x.saleID===sale.saleID),'sale history missing');
 const raw=JSON.parse(JSON.stringify(e.g));delete raw.realEstate;for(const p of raw.properties)delete p.realEstate;
 const migrated=new engineModule.TycoonEngine(raw);modules.realEstate.ensure(migrated.g);
-assert(migrated.g.realEstate.schemaVersion===3,'migration failed');
+assert(migrated.g.realEstate.schemaVersion===4,'migration failed');
 assert(migrated.g.realEstate.marketSchemaVersion===1,'market migration failed');
 assert(migrated.g.properties.every(p=>p.realEstate&&p.realEstate.regionID&&p.realEstate.propertyTypeID),'property market migration failed');
 assert(migrated.g.properties.every(p=>Number.isFinite(p.realEstate.landValue)&&Number.isFinite(p.realEstate.buildingValue)),'split valuation migration failed');
