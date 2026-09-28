@@ -146,6 +146,54 @@ const expectedDistressRatios = new Set([
 assert.ok(insolvencyIssues.every(issue => expectedDistressRatios.has(issue)), `unexpected insolvency state issue: ${insolvencyIssues.join(' / ')}`);
 for (const issue of expectedDistressRatios) assert.ok(insolvencyIssues.includes(issue), `expected finite distress ratio was not observed: ${issue}`);
 
+// #740: production weekly finalization must run after late cash-mutating wrappers.
+// Debt maturity is intentionally outside player-crisis's own transaction wrapper. At week 52,
+// quarterly CFO payroll leaves cash above the crisis reserve, then debt maturity reduces it below
+// the reserve. The final crisis state must therefore be WATCH in the same week, not one week late.
+{
+  const phaseState = engine.createInitialState({ configured: true });
+  phaseState.week = 51;
+  phaseState.companyCash = 20_000_000;
+  phaseState.companyDebt = 100_000_000;
+  phaseState.companyCredit = 60;
+  phaseState.policyRate = 0.005;
+  phaseState.executives.CFO = {
+    id:'phase-cfo', name:'Phase CFO', role:'CFO', rank:'A', skill:80,
+    salary:52_000_000, hired:true, hireWeek:1, delegated:false
+  };
+  phaseState.finance = modules.finance.defaultFinanceState(phaseState);
+  phaseState.finance.debtRefinancing = {
+    termWeeks:52, nextMaturityWeek:52, principalShare:.1, feeRate:.005,
+    status:'scheduled', lastProcessedWeek:-1, history:[]
+  };
+
+  const phaseGame = new engine.TycoonEngine(phaseState);
+  assert.equal(Object.getPrototypeOf(phaseGame).advanceWeek.__canonicalNormalizeBoundary, true,
+    'full production runtime must end at the canonical weekly boundary');
+  assert.equal(phaseGame.advanceWeek(false), true);
+  assert.equal(phaseGame.g.week, 52);
+
+  const maturity = phaseGame.g.finance.debtRefinancing.history.find(row => row.week === 52);
+  assert.ok(maturity, 'week 52 debt maturity must execute after the inner crisis wrapper');
+  assert.ok(maturity.principalPaid > 0, 'debt maturity must actually mutate cash');
+  assert.ok(phaseGame.g.companyCash < phaseGame.g.playerCrisis.reserveThreshold,
+    'late debt service must move final cash below the same-week crisis reserve');
+  assert.equal(phaseGame.g.playerCrisis.lastEvaluationWeek, 52);
+  assert.equal(phaseGame.g.playerCrisis.lastCash, phaseGame.g.companyCash,
+    'crisis evaluation must read final post-debt-service cash');
+  assert.equal(phaseGame.g.playerCrisis.status, 'watch',
+    'positive but sub-reserve final cash must become watch in the same week');
+  assert.equal(phaseGame.g.lastWeeklySummary.companyCash, phaseGame.g.companyCash,
+    'weekly summary must expose final post-wrapper cash');
+  assert.equal(phaseGame.g.lastWeeklySummary.crisis.status, 'watch',
+    'weekly summary must expose the final crisis state');
+
+  const recordedValidation = JSON.parse(JSON.stringify(phaseGame.g.finance.lastValidation));
+  const externalValidation = modules.finance.validate(phaseGame.g);
+  assert.deepEqual(recordedValidation, externalValidation,
+    'committed finance.lastValidation must equal an external validation of final state');
+}
+
 const saveGame = new engine.TycoonEngine(engine.createInitialState({ configured: true }));
 saveGame.g.week = 7;
 saveGame.g.companyCash = 2_000_000;
