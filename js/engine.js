@@ -129,6 +129,12 @@ function getStoreContractRent(store, pref, state) {
     const currentInflation = storeInflationIndex(state);
     const savedBase = Number(store?.contractInflationBase);
     const contractInflationBase = Number.isFinite(savedBase) && savedBase > 0 ? savedBase : currentInflation;
+    const openingWeek = Math.max(1, Math.floor(finite(store?.openingWeek, finite(store?.openedWeek, finite(state?.week, 1)))));
+    const currentWeek = Math.max(openingWeek, Math.floor(finite(state?.week, openingWeek)));
+    // Preserve the quoted nominal rent through the first operating year. After that, index the
+    // same immutable contract base by cumulative inflation instead of allowing a 25-year nominal
+    // rent freeze to mechanically widen store margins (#766).
+    if (currentWeek - openingWeek < 52) return contractRent;
     return contractRent * currentInflation / contractInflationBase;
   }
   const legacyRent = Number(pref?.rent);
