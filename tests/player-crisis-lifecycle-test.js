@@ -6,6 +6,13 @@ const random = () => {
   seed = (Math.imul(seed, 1664525) + 1013904223) >>> 0;
   return seed / 0x100000000;
 };
+function seededRandomForProduction(seedValue) {
+  let value = seedValue >>> 0;
+  return () => {
+    value = (Math.imul(value, 1664525) + 1013904223) >>> 0;
+    return value / 0x100000000;
+  };
+}
 const { ctx, modules } = loadGame({ random, isolatedLegacyIndex:true });
 const { engine, playerCrisis } = modules;
 
@@ -151,7 +158,10 @@ for (const issue of expectedDistressRatios) assert.ok(insolvencyIssues.includes(
 // quarterly CFO payroll leaves cash above the crisis reserve, then debt maturity reduces it below
 // the reserve. The final crisis state must therefore be WATCH in the same week, not one week late.
 {
-  const phaseState = engine.createInitialState({ configured: true });
+  const production = loadGame({ random: seededRandomForProduction(0x74000001) });
+  const productionEngine = production.engineModule;
+  const productionModules = production.modules;
+  const phaseState = productionEngine.createInitialState({ configured: true });
   phaseState.week = 51;
   phaseState.companyCash = 20_000_000;
   phaseState.companyDebt = 100_000_000;
@@ -161,13 +171,13 @@ for (const issue of expectedDistressRatios) assert.ok(insolvencyIssues.includes(
     id:'phase-cfo', name:'Phase CFO', role:'CFO', rank:'A', skill:80,
     salary:52_000_000, hired:true, hireWeek:1, delegated:false
   };
-  phaseState.finance = modules.finance.defaultFinanceState(phaseState);
+  phaseState.finance = productionModules.finance.defaultFinanceState(phaseState);
   phaseState.finance.debtRefinancing = {
     termWeeks:52, nextMaturityWeek:52, principalShare:.1, feeRate:.005,
     status:'scheduled', lastProcessedWeek:-1, history:[]
   };
 
-  const phaseGame = new engine.TycoonEngine(phaseState);
+  const phaseGame = new productionEngine.TycoonEngine(phaseState);
   assert.equal(Object.getPrototypeOf(phaseGame).advanceWeek.__canonicalNormalizeBoundary, true,
     'full production runtime must end at the canonical weekly boundary');
   assert.equal(phaseGame.advanceWeek(false), true);
@@ -189,7 +199,7 @@ for (const issue of expectedDistressRatios) assert.ok(insolvencyIssues.includes(
     'weekly summary must expose the final crisis state');
 
   const recordedValidation = JSON.parse(JSON.stringify(phaseGame.g.finance.lastValidation));
-  const externalValidation = modules.finance.validate(phaseGame.g);
+  const externalValidation = productionModules.finance.validate(phaseGame.g);
   assert.deepEqual(recordedValidation, externalValidation,
     'committed finance.lastValidation must equal an external validation of final state');
 }
