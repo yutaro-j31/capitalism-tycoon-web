@@ -35,8 +35,8 @@ const engine = TycoonEngine.load();
 // The engine is created before the modules below app.js register their normalize wrappers; once
 // every module is registered, normalize it again so a reloaded state has the canonical shape (#732).
 if(typeof document!=='undefined'&&document.readyState==='loading')document.addEventListener('DOMContentLoaded',()=>engine.normalize(),{once:true});
-// A save that only reached IndexedDB is invisible to the synchronous load above, so check
-// for one and offer it rather than letting the player continue from an older week.
+// Defense-in-depth for legacy/alternate boot paths: production browser boot already waited
+// for the durable cache above, so this should normally find nothing newer.
 (function checkForNewerStoredSave(){
   const store=globalThis.__capitalismTycoonModules?.saveStorageIDB;
   if(!store?.findNewerSave)return;
