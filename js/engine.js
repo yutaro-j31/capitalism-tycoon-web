@@ -643,9 +643,19 @@ class TycoonEngine extends EventTarget {
 
   normalize() {
     this.g.saveVersion = SAVE_VERSION; supply.ensure(this.g); workforce.ensure(this.g); competitor.ensure(this.g); globalThis.__capitalismTycoonModules?.microcapListings?.ensure?.(this.g); __modules.simulationRng.ensure(this.g);
-    // overtimeRisk is set last each week by completion.js (office usage model); recompute derives it
-    // from workforce teams instead, so keep the stored value: a reload must not change it (#732).
-    const overtimeRisk = this.g.overtimeRisk; workforce.recompute(this.g); if (Number.isFinite(overtimeRisk)) this.g.overtimeRisk = overtimeRisk;
+    // completion.js writes these scalar workforce outcomes after the workforce engine has already
+    // aggregated its team metrics for the week. A reload-time recompute must not roll those final
+    // week-end values back to the earlier team aggregate (#732/#731).
+    const overtimeRisk = this.g.overtimeRisk;
+    const employeeSatisfaction = this.g.employeeSatisfaction;
+    const organizationMorale = this.g.organizationCulture?.morale;
+    workforce.recompute(this.g);
+    if (Number.isFinite(overtimeRisk)) this.g.overtimeRisk = overtimeRisk;
+    if (Number.isFinite(employeeSatisfaction)) this.g.employeeSatisfaction = employeeSatisfaction;
+    if (Number.isFinite(organizationMorale)) {
+      this.g.organizationCulture = this.g.organizationCulture || {};
+      this.g.organizationCulture.morale = organizationMorale;
+    }
     // T25-2: 追記され続けるログ配列の上限。normalize は週送りでも毎回通るので、書き込み側の
     // slice が将来漏れてもここが最終的な境界になる（LOG_ARRAY_CAPS が唯一の出どころ）。
     capLogArrays(this.g);
