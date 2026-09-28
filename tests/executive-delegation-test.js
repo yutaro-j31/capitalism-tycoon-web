@@ -101,26 +101,47 @@ function hiredCFO(engine) {
   assert.equal(engine.g.departmentStaff.accounting, staffBefore + 1, '委任オンかつ逼迫していれば1名採用する');
 }
 
-// 5. advanceWeek()に統合されていること。委任オンのままゲームを進めてもクラッシュせず、
-// Math.randomを消費しない（決定論を維持する）。
+// 5. production path の advanceWeek() は複数module wrapper + runTransactionを通る。
+//    委任オンのCFOは、全wrapper完了後の外側commit boundaryで各週ちょうど1回だけ動く。
+//    ここでは委任直前だけ経理utilizationを逼迫状態に固定し、3週で3回のpass/3名採用を要求する。
 {
   const { modules } = loadGame();
   const engine = new modules.engine.TycoonEngine();
   engine.g.configured = true; engine.g.hasHeadOffice = true; engine.g.officeCapacity = 50; engine.g.companyCash = 100_000_000; engine.g.stores = [];
+  engine.g.finance = modules.finance.defaultFinanceState(engine.g);
   engine.g.workforceMigrationV7Applied = true;
   hiredCFO(engine);
   engine.toggleExecutiveDelegation('CFO');
   assert.ok(engine.establishDepartment('accounting'));
 
-  let calls = 0;
+  const originalDelegation = engine.processExecutiveDelegation.bind(engine);
+  let delegationPasses = 0;
+  engine.processExecutiveDelegation = function () {
+    delegationPasses++;
+    this.g.workforceResultsByDepartmentID.accounting = {
+      ...(this.g.workforceResultsByDepartmentID.accounting || {}),
+      departmentID: 'accounting',
+      utilization: 1.4
+    };
+    return originalDelegation();
+  };
+
+  const staffBefore = engine.g.departmentStaff.accounting;
+  let randomCalls = 0;
   const originalRandom = Math.random;
-  Math.random = () => { calls++; return originalRandom(); };
+  Math.random = () => { randomCalls++; return originalRandom(); };
   try {
-    for (let i = 0; i < 3; i++) assert.notEqual(engine.advanceWeek(false), false);
+    for (let i = 0; i < 3; i++) {
+      assert.notEqual(engine.advanceWeek(false), false);
+      assert.equal(delegationPasses, i + 1, `第${i + 1}週のproduction commitで委任passは1回だけ`);
+      assert.equal(engine.g.departmentStaff.accounting, staffBefore + i + 1, `第${i + 1}週に経理を1名だけ採用`);
+      const validation = modules.finance.validate(engine.g);
+      assert.equal(validation.ok, true, (validation.errors || []).join('\n'));
+    }
   } finally {
     Math.random = originalRandom;
   }
-  assert.equal(calls, 0, '重役への業務委任はMath.randomを消費しない');
+  assert.equal(randomCalls, 0, '重役への業務委任はMath.randomを消費しない');
 }
 
 // 6. 旧セーブ互換: `delegated`フィールドが存在しない在籍済みCFOでもクラッシュしない。
