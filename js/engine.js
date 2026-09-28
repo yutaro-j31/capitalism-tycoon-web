@@ -747,9 +747,18 @@ class TycoonEngine extends EventTarget {
     const entryObjects = outer ? { ...this.g } : null;
     if (outer) this._deferredSave = false;
     this._transactionDepth = previousDepth + 1;
-    let result;
+    let result, commit = null;
     try {
       result = work();
+      if (outer) {
+        commit = shouldCommit(result);
+        // Production advanceWeek is wrapped by several modules. The base engine therefore
+        // remains inside this outer transaction until every wrapper has finished. Run delegated
+        // executive work here, after the wrapper chain but before the atomic commit, so it is
+        // neither skipped by inTransaction() nor executed mid-chain. Direct/unwrapped advanceWeek
+        // keeps its legacy end-of-method fallback below.
+        if (commit && eventType === 'week' && this.g?.executives?.CFO?.delegated) this.processExecutiveDelegation();
+      }
     } catch (error) {
       this._transactionDepth = previousDepth;
       if (outer) this.restoreTransactionSnapshot(snapshot, entryObjects);
@@ -757,7 +766,7 @@ class TycoonEngine extends EventTarget {
     }
     this._transactionDepth = previousDepth;
     if (!outer) return result;
-    if (!shouldCommit(result)) {
+    if (!commit) {
       this.restoreTransactionSnapshot(snapshot, entryObjects);
       return result;
     }
