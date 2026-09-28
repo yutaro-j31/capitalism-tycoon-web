@@ -244,23 +244,29 @@ function freshEngine(loaded) {
   console.log('9. same-week credit rescue precedes crisis accounting: pass');
 }
 
-// --- 10. Wiring/order contract: PR #722 deliberately uses the player-crisis pre-evaluate hook
-//         instead of script-tag reordering. Lock both registration and the main advanceWeek order
-//         so a future wrapper refactor cannot silently move service() back behind evaluate(). ---
+// --- 10. Wiring/order contract: rescue service still runs in player-crisis's pre-evaluate hook,
+//         but #740 defers production crisis evaluation to play-runtime-compat after every outer
+//         cash-mutating wrapper. Lock both sides of that contract. ---
 {
   const crisisSource = fs.readFileSync('js/player-crisis.js', 'utf8');
+  const boundarySource = fs.readFileSync('js/play-runtime-compat.js', 'utf8');
   const creditSource = fs.readFileSync('js/real-estate-agency-credit-line.js', 'utf8');
   const transactionStart = crisisSource.indexOf('return this.runTransaction(()=>{');
   const hookIndex = crisisSource.indexOf('runPreEvaluateHooks(this.g,this);', transactionStart);
-  const legacyIndex = crisisSource.indexOf('const legacyTriggered=', transactionStart);
-  const evaluateIndex = crisisSource.indexOf('const crisis=evaluate(this.g);', transactionStart);
+  const deferIndex = crisisSource.indexOf('if(this._canonicalBoundaryCommits)', hookIndex);
+  const boundaryStart = boundarySource.indexOf('function finalizeWeekBoundary()');
+  const snapshotIndex = boundarySource.indexOf('rebuildSnapshotForWeek', boundaryStart);
+  const evaluateIndex = boundarySource.indexOf('playerCrisis?.finalizeWeek', boundaryStart);
+  const validateIndex = boundarySource.indexOf('finance?.validate', boundaryStart);
 
-  assert.ok(transactionStart >= 0 && hookIndex > transactionStart, 'main weekly transaction must invoke pre-evaluate hooks');
-  assert.ok(legacyIndex > hookIndex, 'legacy game-over capture must happen after rescue hooks');
-  assert.ok(evaluateIndex > legacyIndex, 'player-crisis evaluation must happen after rescue hooks and legacy capture');
+  assert.ok(transactionStart >= 0 && hookIndex > transactionStart, 'main weekly transaction must invoke rescue hooks');
+  assert.ok(deferIndex > hookIndex, 'production crisis evaluation must be deferred only after rescue hooks run');
+  assert.ok(boundaryStart >= 0 && snapshotIndex > boundaryStart, 'final boundary must rebuild accounting after all mutations');
+  assert.ok(evaluateIndex > snapshotIndex, 'final crisis evaluation must follow final accounting snapshot rebuild');
+  assert.ok(validateIndex > evaluateIndex, 'authoritative finance validation must follow final crisis evaluation');
   assert.match(creditSource, /modules\.playerCrisis\.registerPreEvaluateHook\(service\)/, 'credit-line service must remain registered on the pre-evaluate hook');
   assert.doesNotMatch(creditSource, /const baseAdvanceWeek=EngineClass\.prototype\.advanceWeek/, 'credit line must not reintroduce its own outer advanceWeek wrapper');
-  console.log('10. pre-evaluate hook wiring/order contract: pass');
+  console.log('10. rescue hook + final boundary wiring/order contract: pass');
 }
 
 console.log('real-estate-agency-credit-line tests passed');
