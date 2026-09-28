@@ -69,6 +69,15 @@ function finalizeWeekBoundary(){
       g.lastWeeklySummary.companyValue=typeof this.companyValue==='function'?this.companyValue():g.lastWeeklySummary.companyValue;
       g.lastWeeklySummary.personalNetWorth=typeof this.personalNetWorth==='function'?this.personalNetWorth():g.lastWeeklySummary.personalNetWorth;
       if(crisis)g.lastWeeklySummary.crisis=crisis;
+      // Finalization itself may add crisis news after inner wrappers already built newNews.
+      // Put the final state news first, but retain summary-only rows such as ordinary turnaround
+      // progress reports that deliberately do not enter the persistent news feed.
+      const finalNews=Array.isArray(g.news)?g.news.slice(0,5):[];
+      const summaryOnly=Array.isArray(g.lastWeeklySummary.newNews)?g.lastWeeklySummary.newNews:[];
+      g.lastWeeklySummary.newNews=[
+        ...finalNews,
+        ...summaryOnly.filter(row=>!finalNews.some(item=>String(item)===String(row)))
+      ].slice(0,5);
     }
   }
   modules.competitor?.syncEventLog?.(g);
