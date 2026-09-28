@@ -1009,7 +1009,7 @@ class TycoonEngine extends EventTarget {
     let sales=0,variable=0,fixed=0,profit=0;
     for(const store of rows){
       const result=calculated.stores?.[store.id];if(!result)continue;
-      const rent=getStoreContractRent(store,p,previewState),costMultiplier=previewState.inflation*costHoursByStore(store)*(previewState.macroCrisis?.costMultiplier||1),extraPayroll=workforce.storeExtraPayroll(previewState,store.id),storeFixed=rent+(b.fixedCost+b.wage+extraPayroll)*costMultiplier+Math.max(0,100-finite(store.condition,100))*650;
+      const rent=getStoreContractRent(store,p,previewState),costMultiplier=previewState.inflation*costHoursByStore(store)*(previewState.macroCrisis?.costMultiplier||1),extraPayroll=workforce.storeExtraPayroll(previewState,store.id),storeFixed=rent+(b.fixedCost+b.wage+extraPayroll)*costMultiplier+getStoreRepairCost(store,previewState);
       const storeSales=Math.floor(Math.max(0,finite(result.revenue))),storeVariable=finite(result.variableCost),storeFixedPosted=Math.floor(Math.max(0,finite(storeFixed))),storeProfit=storeSales-storeVariable-storeFixedPosted;
       byStore[store.id]=Object.freeze({sales:storeSales,variable:storeVariable,fixed:storeFixedPosted,profit:storeProfit});
       sales+=storeSales;variable+=storeVariable;fixed+=storeFixedPosted;profit+=storeProfit;
@@ -2166,7 +2166,7 @@ class TycoonEngine extends EventTarget {
     let sales=product.revenue+overseas.revenue+subs.revenue+franchise,expenses=product.cost+overseas.cost+finite(spoilage?.cost),supplyCogsNonCash=0,rentIncome=0,stockIncome=0,dividend=0,propertyDepreciation=0;
     for(const store of this.g.stores){if(store.status!=='open'){store.weeksToOpen=Math.max(0,store.openingWeek-this.g.week);continue;}
       const b=this.business(store.businessID),p=this.pref(store.prefID),a=this.area(p.areaID);let storeSales,variable,fixed,repair;
-      const contractRent=getStoreContractRent(store,p),costMultiplier=this.g.inflation*([0,.55,.8,1,1.24][store.operatingHours||3]||1)*(this.g.macroCrisis?.costMultiplier||1);
+      const contractRent=getStoreContractRent(store,p,this.g),costMultiplier=this.g.inflation*([0,.55,.8,1,1.24][store.operatingHours||3]||1)*(this.g.macroCrisis?.costMultiplier||1);
       if(market.isTargetBusinessID(store.businessID)&&marketBatch.byStore[store.id]){rand(this.g,.88,1.14); // Preserve the legacy per-store demand RNG slot; deterministic market results intentionally ignore this value.
       let mr=marketBatch.byStore[store.id];mr=supply.applyConstraint(this.g,store,mr,finance);marketBatch.byStore[store.id]=mr;const extraStorePayroll=workforce.storeExtraPayroll(this.g,store.id);fixed=contractRent+(b.fixedCost+b.wage+extraStorePayroll)*costMultiplier;repair=getStoreRepairCost(store,this.g);storeSales=mr.revenue;variable=mr.variableCost;store.marketResult={...mr};}
       else if(store.businessID==='realEstateAgency'&&globalThis.__capitalismTycoonModules?.realEstateAgencyPipeline){rand(this.g,.88,1.14);const brokerage=globalThis.__capitalismTycoonModules.realEstateAgencyPipeline.processStore(this.g,store,b,p,globalThis.__capitalismTycoonModules.tenantSiteSuitability.forStore(this.g,store).multiplier);storeSales=brokerage.sales;variable=brokerage.variable;fixed=contractRent+(b.fixedCost+b.wage)*costMultiplier;repair=getStoreRepairCost(store,this.g);store.marketResult=null;}
