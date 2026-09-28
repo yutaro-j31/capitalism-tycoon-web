@@ -204,10 +204,13 @@ function storeOpeningEstimate(tenantID,businessID){
   if(!e)return '';
   const tone=!e.affordable?'danger':e.profitable?'good':'warn';
   const verdict=!e.affordable?`資金不足（あと${compactYen(e.upfront-e.companyCash)}）`:e.startupLoan?.eligible?`開業ローン利用で出店可能`:e.profitable?`回収まで約${e.paybackWeeks}週`:'この条件では赤字見込み';
-  const band=`${compactYen(e.conservative.profit)} 〜 ${compactYen(e.optimistic.profit)}`,site=e.siteSuitability,impact=`${site.multiplier>=1?'+':''}${Math.round((site.multiplier-1)*100)}%`;
+  const band=`${compactYen(e.conservative.profit)} 〜 ${compactYen(e.optimistic.profit)}`,site=e.siteSuitability,impact=`${site.multiplier>=1?'+':''}${Math.round((site.multiplier-1)*100)}%`,portfolio=e.portfolioImpact;
+  const profitStats=portfolio
+    ?`${stat('全店利益増分',compactYen(portfolio.incrementalProfit),`出店前 ${compactYen(portfolio.beforeProfit)} → 出店後 ${compactYen(portfolio.afterProfit)}`)}${stat('新店単体利益',compactYen(portfolio.candidateProfit),`既存店カニバリ -${compactYen(portfolio.cannibalizationLoss)}`)}`
+    :stat('週次利益（期待）',compactYen(e.expected.profit),`幅 ${band}`);
   return `<div data-store-opening-estimate="${esc(businessID)}">
     <p>${badge(verdict,tone)}</p>
-    <div class="kpi-grid mini">${stat('業態適性',site.grade,`需要補正 ${impact} · ${site.reasons.join(' / ')}`)}${stat('週次利益（期待）',compactYen(e.expected.profit),`幅 ${band}`)}${stat('週次売上（期待）',compactYen(e.expected.sales))}${stat('初期費用',compactYen(e.upfront),`設備${compactYen(e.storeCost)} + 保証金${compactYen(e.deposit)}`)}${e.startupLoan?.eligible?stat('ジム開業ローン',compactYen(e.startupLoan.principal),`${e.startupLoan.term}週 · 年率${(e.startupLoan.annualRate*100).toFixed(2)}% · 週返済${compactYen(e.startupLoan.weeklyPayment)}`):''}${stat('出店後の会社現金',compactYen(e.cashAfterOpening))}${stat('開店まで',`${e.weeksToOpen}週`)}${stat('投資回収',e.paybackWeeks?`約${e.paybackWeeks}週`:'—')}</div>
+    <div class="kpi-grid mini">${stat('業態適性',site.grade,`需要補正 ${impact} · ${site.reasons.join(' / ')}`)}${profitStats}${stat('週次売上（期待）',compactYen(e.expected.sales))}${stat('初期費用',compactYen(e.upfront),`設備${compactYen(e.storeCost)} + 保証金${compactYen(e.deposit)}`)}${e.startupLoan?.eligible?stat('ジム開業ローン',compactYen(e.startupLoan.principal),`${e.startupLoan.term}週 · 年率${(e.startupLoan.annualRate*100).toFixed(2)}% · 週返済${compactYen(e.startupLoan.weeklyPayment)}`):''}${stat('出店後の会社現金',compactYen(e.cashAfterOpening))}${stat('開店まで',`${e.weeksToOpen}週`)}${stat('投資回収',e.paybackWeeks?`約${e.paybackWeeks}週`:'—')}</div>
     <details class="learning-card"><summary>試算の内訳と前提</summary><ul class="reason-list"><li><span>週次売上</span><strong>${compactYen(e.expected.sales)}</strong></li><li><span>変動費</span><strong>-${compactYen(e.expected.variable)}</strong></li><li><span>家賃</span><strong>-${compactYen(e.breakdown.rent)}</strong></li><li><span>人件費</span><strong>-${compactYen(e.breakdown.wage)}</strong></li><li><span>その他固定費</span><strong>-${compactYen(e.breakdown.otherFixed)}</strong></li></ul>${e.caveats.map(c=>`<p class="hint">${esc(c)}</p>`).join('')}</details>
   </div>`;
 }
