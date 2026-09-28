@@ -1810,7 +1810,13 @@ class TycoonEngine extends EventTarget {
   endCounterCampaign(campaign) {
     const definition=TycoonEngine.COUNTER_CAMPAIGNS[campaign.type],business=this.business(campaign.businessID);
     if(definition&&business&&campaign.applied){
-      if(definition.priceRatio!==1)business.price=Math.max(1,Math.round(finite(campaign.basePrice)));
+      // Remove only the temporary campaign multiplier. Restoring the absolute price captured
+      // at activation would erase any player/production price change made while the campaign
+      // was active (#743).
+      if(definition.priceRatio!==1){
+        const ratio=finite(definition.priceRatio,1);
+        if(ratio>0)business.price=Math.max(1,Math.round(finite(business.price)/ratio));
+      }
       business.brand=clamp(finite(business.brand)-definition.brandGain,0,100);
       business.quality=clamp(finite(business.quality)-definition.qualityGain,0,100);
     }
