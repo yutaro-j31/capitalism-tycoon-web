@@ -108,6 +108,7 @@ function hiredCFO(engine) {
   const { modules } = loadGame();
   const engine = new modules.engine.TycoonEngine();
   engine.g.configured = true; engine.g.hasHeadOffice = true; engine.g.officeCapacity = 50; engine.g.companyCash = 100_000_000; engine.g.stores = [];
+  engine.g.finance = modules.finance.defaultFinanceState(engine.g);
   engine.g.workforceMigrationV7Applied = true;
   hiredCFO(engine);
   engine.toggleExecutiveDelegation('CFO');
