@@ -55,7 +55,7 @@ assert(modules && typeof modules === 'object', 'registry missing');
 assert(ctx.loadCalls === 1, `TycoonEngine.load expected once, got ${ctx.loadCalls}`);
 assert(ctx.renderEvents === 1, `initial render expected once, got ${ctx.renderEvents}`);
 assert(modules.engine?.SAVE_VERSION === 9, 'save version contract drifted');
-assert(modules.realEstate?.VERSION === 3, 'real estate module version missing');
+assert(modules.realEstate?.VERSION === 4, 'real estate module version missing');
 for (const key of ['ensure','ensureProperty','processWeek','processLoans','processMarketWeek','eventDefinition','marketProfile','valuationParts','collateralCapacity','rentable']) assert(typeof modules.realEstate[key] === 'function', `realEstate.${key} missing`);
 assert(Object.keys(modules.realEstate.REGIONS||{}).length>=5,'regional market definitions missing');
 assert(Object.keys(modules.realEstate.PROPERTY_TYPES||{}).length>=7,'property type definitions missing');
