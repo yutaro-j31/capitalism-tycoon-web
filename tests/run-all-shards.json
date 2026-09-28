@@ -156,6 +156,7 @@
     "tests/reload-canonical-state-test.js",
     "tests/stock-trade-panel-test.js",
     "tests/save-storage-compaction-test.js",
+    "tests/save-storage-idb-authoritative-boot-test.js",
     "test:procurement",
     "test:supplier-coverage",
     "tests/macro-cycle-test.js",
