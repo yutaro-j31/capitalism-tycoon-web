@@ -55,13 +55,22 @@ function allocationFrom(selected,desiredAmount){
  const desired=Number.isFinite(Number(desiredAmount))?Math.max(0,finite(desiredAmount)):Number.POSITIVE_INFINITY;
  return{desiredAmount:desired,proceeds,marketValue,carryingValue,gainLoss:proceeds-carryingValue,marketValueChange:proceeds-marketValue,remaining:Number.isFinite(desired)?Math.max(0,desired-proceeds):null,selected,byKind};
 }
+function minimumSecurityUnitsForProceeds(source,target){
+ const maxUnits=Math.max(0,whole(source?.units));if(maxUnits<1)return{units:0,proceeds:0};
+ const desired=Math.max(0,finite(target));if(desired<=0)return{units:0,proceeds:0};
+ const quoteFor=units=>whole(stockOrderPlan({price:source.price,issuedShares:source.issuedShares},units,'sell').cashAmount);
+ let low=1,high=maxUnits;
+ if(quoteFor(high)<desired)return{units:high,proceeds:quoteFor(high)};
+ while(low<high){const mid=Math.floor((low+high)/2),proceeds=quoteFor(mid);if(proceeds>=desired)high=mid;else low=mid+1;}
+ return{units:low,proceeds:quoteFor(low)};
+}
 function allocateSources(sources,desiredAmount,maxPriority=2){
  const desired=Number.isFinite(Number(desiredAmount))?Math.max(0,finite(desiredAmount)):Number.POSITIVE_INFINITY,selected=[];let proceeds=0;
  for(const source of Array.isArray(sources)?sources:[]){
   if(source.priority>maxPriority||(Number.isFinite(desired)&&proceeds>=desired-.5))continue;
   let units=source.units,selectedProceeds=source.proceeds,selectedMarketValue=source.marketValue,selectedCarryingValue=source.carryingValue;
   const remaining=Number.isFinite(desired)?Math.max(0,desired-proceeds):Number.POSITIVE_INFINITY;
-  if(!source.discrete&&remaining<source.proceeds){units=Math.max(1,Math.min(source.units,Math.ceil(remaining/Math.max(.000001,source.unitProceeds))));selectedProceeds=source.kind==='securities'?whole(stockOrderPlan({price:source.price,issuedShares:source.issuedShares},units,'sell').cashAmount):whole(units*source.unitProceeds);selectedMarketValue=units*source.unitMarketValue;selectedCarryingValue=units*source.unitCarryingValue;}
+  if(!source.discrete&&remaining<source.proceeds){if(source.kind==='securities'){const fill=minimumSecurityUnitsForProceeds(source,remaining);units=fill.units;selectedProceeds=fill.proceeds;}else{units=Math.max(1,Math.min(source.units,Math.ceil(remaining/Math.max(.000001,source.unitProceeds))));selectedProceeds=whole(units*source.unitProceeds);}selectedMarketValue=units*source.unitMarketValue;selectedCarryingValue=units*source.unitCarryingValue;}
   if(selectedProceeds<=0)continue;
   selected.push({...source,selectedUnits:units,selectedProceeds,selectedMarketValue,selectedCarryingValue,selectedGainLoss:selectedProceeds-selectedCarryingValue});proceeds+=selectedProceeds;
  }
@@ -139,6 +148,6 @@ function schedule(){enhance();}
 let registeredEnhancerDefinition=null;
 function registerEnhancer(definition){if(registeredEnhancerDefinition)return registeredEnhancerDefinition;registeredEnhancerDefinition=definition;const registry=modules.uiEnhancerRegistry;if(registry?.registerUIEnhancer)return registry.registerUIEnhancer(definition);const key='__capitalismTycoonPendingUIEnhancers';const pending=Array.isArray(globalThis[key])?globalThis[key]:(globalThis[key]=[]);pending.push(definition);return definition;}
 function installUI(){if(typeof document==='undefined')return;const root=document.getElementById('app');registerEnhancer({id:'capital-allocation-recovery-funding',enhance:enhance});schedule();}
-modules.capitalAllocationRecoveryFunding=Object.freeze({DEFAULT_TARGETS,STOCK_FEE_RATE,PROPERTY_SALE_RATE,COMPOUND_SCENARIO,metricsFor,scoreForFunding,propertyCarryingValue,sourceInventory,allocationFrom,allocateSources,appendSource,debtCapacityAfter,minimumCashOnly,minimumBorrowing,summarizePlan,fundingPlan,fundingFrontier,renderKey,render,enhance,installUI,__installed:true});
+modules.capitalAllocationRecoveryFunding=Object.freeze({DEFAULT_TARGETS,STOCK_FEE_RATE,PROPERTY_SALE_RATE,COMPOUND_SCENARIO,metricsFor,scoreForFunding,propertyCarryingValue,sourceInventory,allocationFrom,minimumSecurityUnitsForProceeds,allocateSources,appendSource,debtCapacityAfter,minimumCashOnly,minimumBorrowing,summarizePlan,fundingPlan,fundingFrontier,renderKey,render,enhance,installUI,__installed:true});
 installUI();
 })(0);
