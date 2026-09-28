@@ -47,20 +47,18 @@ const { loadGame } = require('./harness');
 }
 
 // End-to-end regression guard: an unattended, never-reinvested ramen store must not show its
-// profit margin drift open-endedly over a multi-decade run -- COGS (supply.js, via the automatic
-// weekly supply.autoOrder()) and revenue (market.js) must inflate at comparable rates. Uses the
-// same isolated-core + one-time raw cash injection pattern as tests/long-run-test.js (documented
-// there as not a balance test).
+// profit margin drift open-endedly over a 25-year production run. Revenue, material COGS, payroll,
+// fixed cost, post-year-one contract rent and repair expense must remain on comparable nominal
+// inflation bases. This intentionally runs the real advanceWeek() composition rather than a
+// detached formula so future store-cost changes cannot silently reopen #766.
 {
-  // Averaging the margin over years 6-10 across three seeds (the original seed plus two fixed in
-  // advance) replaces a single week's value: a single week varied by seed alone from 18.7% to
-  // 37.2% on main (#731 moved the simulation onto the save-held stream, which changed the path).
-  // Measured (this metric, these seeds): main 32.8%, #731 PR3 34.3%, and with the material price
-  // inflation removed from supply.createOrder() (the pre-fix behaviour) 39.8%.
-  // Over 25 years the margin still rises on main as well; that is tracked separately in #766.
-  const SEEDS = [0x51a17e01, 101, 202];
-  const WEEKS = 520; // ~10 years, same scale as tests/long-run-test.js.
-  const averages = SEEDS.map(seed => {
+  // Two fixed seeds keep the test multi-path while limiting canonical CI cost. The previous
+  // 10-year guard could pass while margins accelerated during years 11-25, so compare five-year
+  // averages from years 6-10 and years 21-25 instead of one week or one early window.
+  const SEEDS = [0x51a17e01, 101];
+  const WEEKS = 1300; // 25 years at the game's 52-week year.
+  const WINDOW = 260; // five years.
+  const runs = SEEDS.map(seed => {
     let s = seed >>> 0;
     const random = () => { s = (s * 1664525 + 1013904223) >>> 0; return s / 2 ** 32; };
     const { engineModule } = loadGame({ isolatedLegacyIndex: true, random });
@@ -72,19 +70,35 @@ const { loadGame } = require('./harness');
     const margins = [];
     for (let i = 0; i < WEEKS && !e.g.gameOver; i++) {
       e.advanceWeek(false);
-      if (i >= WEEKS - 260) { const st = e.g.stores[0]; margins.push(st.lastProfit / st.lastSales); }
+      const st = e.g.stores[0];
+      margins.push(st.lastProfit / st.lastSales);
     }
     assert.ok(!e.g.gameOver, `seed ${seed}: the idle store must not go bankrupt over the run`);
     const store = e.g.stores[0];
     assert.ok(Number.isFinite(store.lastSales) && store.lastSales > 0, `seed ${seed}: store must still be trading`);
+    assert.equal(margins.length, WEEKS, `seed ${seed}: full 25-year margin history is required`);
     assert.ok(margins.every(Number.isFinite), `seed ${seed}: every weekly margin is finite`);
-    return margins.reduce((a, b) => a + b, 0) / margins.length;
+    const early = margins.slice(260, 520);
+    const late = margins.slice(WEEKS - WINDOW);
+    const average = rows => rows.reduce((a, b) => a + b, 0) / rows.length;
+    return { seed, early: average(early), late: average(late), inflation: e.g.inflation };
   });
-  const mean = averages.reduce((a, b) => a + b, 0) / averages.length;
+  const mean = key => runs.reduce((a, row) => a + row[key], 0) / runs.length;
+  const earlyMean = mean('early'), lateMean = mean('late');
   assert.ok(
-    mean < 0.36,
-    `unattended-store margin must not drift upward with inflation (years 6-10 average across seeds ${(mean * 100).toFixed(1)}%: ` +
-    `${averages.map(x => (x * 100).toFixed(1)).join(' / ')}; without the material price inflation it measured 39.8%)`
+    lateMean < 0.40,
+    `unattended-store late margin must stay bounded (years 21-25 mean ${(lateMean * 100).toFixed(1)}%: ${runs.map(x => (x.late * 100).toFixed(1)).join(' / ')})`
   );
-  console.log(`supply material cost inflation: unattended ramen store margin, years 6-10 average across ${SEEDS.length} seeds ${(mean * 100).toFixed(1)}% (${averages.map(x => (x * 100).toFixed(1)).join(' / ')})`);
+  assert.ok(
+    lateMean - earlyMean < 0.04,
+    `unattended-store margin must not structurally climb with inflation (years 6-10 ${(earlyMean * 100).toFixed(1)}% -> years 21-25 ${(lateMean * 100).toFixed(1)}%; per seed ${runs.map(x => `${(x.early * 100).toFixed(1)}->${(x.late * 100).toFixed(1)}`).join(' / ')})`
+  );
+  assert.ok(
+    runs.every(row => row.late < 0.43),
+    `no seed may retain the old 40%+ runaway tail (${runs.map(x => `seed ${x.seed}: ${(x.late * 100).toFixed(1)}%`).join(' / ')})`
+  );
+  console.log(
+    `supply material cost inflation: unattended ramen years 6-10 ${(earlyMean * 100).toFixed(1)}% -> years 21-25 ${(lateMean * 100).toFixed(1)}%; ` +
+    runs.map(x => `seed ${x.seed} ${(x.early * 100).toFixed(1)}->${(x.late * 100).toFixed(1)}% inflation ${x.inflation.toFixed(3)}`).join(' / ')
+  );
 }
