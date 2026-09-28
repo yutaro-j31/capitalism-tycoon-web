@@ -959,6 +959,45 @@ class TycoonEngine extends EventTarget {
     });
   }
 
+  detailedStorePortfolioProfit(businessID,prefID,stores=null) {
+    if(!market.isTargetBusinessID(businessID))return null;
+    const sourceRows=(Array.isArray(stores)?stores:this.g.stores||[]).filter(store=>store&&store.status==='open'&&store.businessID===businessID&&store.prefID===prefID);
+    if(!sourceRows.length)return Object.freeze({businessID,prefID,storeCount:0,sales:0,variable:0,fixed:0,profit:0,byStore:Object.freeze({})});
+
+    // market.calculateMarket() intentionally runs the full production offer pipeline, including
+    // workforce.storeAdjustment(), which may create/normalize a store team. A decision preview
+    // must therefore run on a detached state, never on this.g. Replace only this market's open
+    // stores in the clone so a hypothetical candidate is visible to createStoreTeam() exactly
+    // as a real opened store would be, while all unrelated state remains identical.
+    const previewState=deepClone(this.g);
+    previewState.stores=(previewState.stores||[]).filter(store=>!(store&&store.status==='open'&&store.businessID===businessID&&store.prefID===prefID));
+    previewState.stores.push(...deepClone(sourceRows));
+    const rows=previewState.stores.filter(store=>store&&store.status==='open'&&store.businessID===businessID&&store.prefID===prefID);
+    const b=(previewState.businesses||[]).find(x=>x.id===businessID),p=(previewState.prefs||[]).find(x=>x.id===prefID);if(!b||!p)return null;
+    const calculated=market.calculateMarket(previewState,rows),costHoursByStore=store=>[0,.55,.8,1,1.24][store.operatingHours||3]||1,byStore={};
+    let sales=0,variable=0,fixed=0,profit=0;
+    for(const store of rows){
+      const result=calculated.stores?.[store.id];if(!result)continue;
+      const rent=getStoreContractRent(store,p,previewState),costMultiplier=previewState.inflation*costHoursByStore(store)*(previewState.macroCrisis?.costMultiplier||1),extraPayroll=workforce.storeExtraPayroll(previewState,store.id),storeFixed=rent+(b.fixedCost+b.wage+extraPayroll)*costMultiplier+Math.max(0,100-finite(store.condition,100))*650;
+      const storeSales=Math.floor(Math.max(0,finite(result.revenue))),storeVariable=finite(result.variableCost),storeFixedPosted=Math.floor(Math.max(0,finite(storeFixed))),storeProfit=storeSales-storeVariable-storeFixedPosted;
+      byStore[store.id]=Object.freeze({sales:storeSales,variable:storeVariable,fixed:storeFixedPosted,profit:storeProfit});
+      sales+=storeSales;variable+=storeVariable;fixed+=storeFixedPosted;profit+=storeProfit;
+    }
+    return Object.freeze({businessID,prefID,storeCount:rows.length,sales,variable,fixed,profit,byStore:Object.freeze(byStore)});
+  }
+
+  detailedStoreOpeningPortfolioImpact({tenantID,businessID,operatingHours=3}) {
+    if(!market.isTargetBusinessID(businessID))return null;
+    const tenant=this.g.tenants.find(t=>t.id===tenantID),b=this.business(businessID);if(!tenant||!b)return null;
+    const prefID=tenant.prefID,hours=Math.max(1,Math.min(4,Math.floor(finite(operatingHours,3)))),current=(this.g.stores||[]).filter(store=>store.status==='open'&&store.businessID===businessID&&store.prefID===prefID);
+    const before=this.detailedStorePortfolioProfit(businessID,prefID,current);
+    const previewID=`__opening-preview__${businessID}__${String(tenantID)}`;
+    const candidate={id:previewID,businessID,prefID,name:'出店プレビュー',openedWeek:this.g.week,quality:b.quality,brand:b.brand,condition:100,lastSales:0,lastProfit:0,status:'open',openingWeek:this.g.week,weeksToOpen:0,tenantID,cityName:tenant.cityName,operatingHours:hours,contractRent:resolveTenantContractRent(tenant,this.pref(prefID)),marketResult:null};
+    const after=this.detailedStorePortfolioProfit(businessID,prefID,[...current,candidate]);
+    const candidateProfit=finite(after?.byStore?.[previewID]?.profit),incrementalProfit=finite(after?.profit)-finite(before?.profit),existingStoreProfitChange=incrementalProfit-candidateProfit;
+    return Object.freeze({businessID,prefID,currentStoreCount:current.length,projectedStoreCount:current.length+1,beforeProfit:finite(before?.profit),afterProfit:finite(after?.profit),incrementalProfit,candidateProfit,existingStoreProfitChange,cannibalizationLoss:Math.max(0,-existingStoreProfitChange)});
+  }
+
   // 出店前の収支試算。約400万円（設備＋保証金）を投じる判断を、開けてみるまで
   // 何も分からない状態でさせないための読み取り専用の見積り。
   //
@@ -1006,8 +1045,10 @@ class TycoonEngine extends EventTarget {
     const upfront=b.storeCost+tenant.deposit;
     const startupLoan=b.id==='gym'?globalThis.__capitalismTycoonModules.bankLoansCovenants?.gymStartupQuote?.(this.g,upfront):null;
     const weeksToOpen=b.storeCost>=15_000_000?8:b.storeCost>=7_000_000?5:3;
-    const paybackWeeks=expected.profit>0?Math.ceil(upfront/expected.profit):null;
     const depth=businessSimulationDepth(businessID);
+    const portfolioImpact=depth.level!=='simple'?this.detailedStoreOpeningPortfolioImpact({tenantID,businessID,operatingHours:hours}):null;
+    const decisionProfit=portfolioImpact?portfolioImpact.incrementalProfit:expected.profit;
+    const paybackWeeks=decisionProfit>0?Math.ceil(upfront/decisionProfit):null;
 
     // 見積りの限界を呼び出し側へ明示する。実測（3業種×3シード）では、開店週のマクロを
     // 揃えて比較すると実績は必ず帯の中に入るが、出店から開店までの3〜8週で
@@ -1018,7 +1059,7 @@ class TycoonEngine extends EventTarget {
       `帯は需要のばらつき（±14%）のみを表します。景気・季節・インフレの変動は含みません。`,
       `開店は${weeksToOpen}週後です。それまでに景気や季節が動くと、実績は帯から上下どちらにも外れます。`
     ].concat(depth.level!=='simple'
-      ? [`${b.name}は${depth.label}の対象です。実際の売上は客層別の市場計算で決まるため、この試算は近似です。`]
+      ? [`${b.name}は${depth.label}の対象です。新店単体の売上帯は近似ですが、出店判断には現在の客層別市場計算で既存店との自己競合まで反映した全店利益増分を使います。`]
       : []));
 
     return Object.freeze({
@@ -1031,7 +1072,7 @@ class TycoonEngine extends EventTarget {
       companyCash:finite(this.g.companyCash),affordable:finite(this.g.companyCash)>=upfront||Boolean(startupLoan?.eligible),
       cashAfterOpening:finite(this.g.companyCash)+(startupLoan?.eligible?startupLoan.principal:0)-upfront,
       startupLoan,
-      paybackWeeks,profitable:expected.profit>0,
+      paybackWeeks,profitable:decisionProfit>0,decisionProfit,portfolioImpact,
       approximate:depth.level!=='simple',
       depthLabel:depth.label,caveats
     });
@@ -2030,14 +2071,14 @@ class TycoonEngine extends EventTarget {
     for(const businessID of FOUNDABLE_BUSINESS_IDS){
       for(const tenant of freeTenants){
         const estimate=this.estimateStoreOpening({tenantID:tenant.id,businessID,operatingHours:3});
-        if(!estimate||!estimate.affordable||estimate.expected.profit<=0||estimate.cashAfterOpening<reserve)continue;
+        if(!estimate||!estimate.affordable||finite(estimate.decisionProfit,estimate.expected?.profit)<=0||estimate.cashAfterOpening<reserve)continue;
         candidates.push({businessID,tenant,estimate,missing:(activeCount.get(businessID)||0)===0});
       }
     }
     if(!candidates.length)return false;
     candidates.sort((a,b)=>(a.missing===b.missing?0:a.missing?-1:1)
       ||finite(b.estimate.siteSuitability?.multiplier)-finite(a.estimate.siteSuitability?.multiplier)
-      ||finite(b.estimate.expected?.profit)-finite(a.estimate.expected?.profit)
+      ||finite(b.estimate.decisionProfit,b.estimate.expected?.profit)-finite(a.estimate.decisionProfit,a.estimate.expected?.profit)
       ||finite(a.estimate.paybackWeeks,Infinity)-finite(b.estimate.paybackWeeks,Infinity)
       ||a.businessID.localeCompare(b.businessID)
       ||String(a.tenant.stableKey||a.tenant.id).localeCompare(String(b.tenant.stableKey||b.tenant.id)));
