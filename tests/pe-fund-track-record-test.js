@@ -164,4 +164,27 @@ function freshEngine() {
   assert.ok(!src.includes('randomUUID'));
 }
 
+// 11. Failed post-buyout refounding attempts are strict state no-ops. The PE completion hook
+//     must not update currentCompanyFoundedInvestment (or normalize PE state) when the canonical
+//     founding action rejects the request.
+{
+  const e = freshEngine();
+  e.g.currentCompanyFoundedInvestment = 12_345_678;
+
+  const beforeNotSold = JSON.stringify(e.g);
+  assert.equal(e.foundNewCompanyAfterBuyout('失敗会社A', 99_000_000, 'store'), false,
+    'refounding before a company sale must fail');
+  assert.equal(JSON.stringify(e.g), beforeNotSold,
+    'failed not-sold refounding must leave the complete save state unchanged');
+
+  e.g.isCompanySold = true;
+  e.g.personalCash = 5_000_000;
+  e.g.currentCompanyFoundedInvestment = 23_456_789;
+  const beforeInsufficientCash = JSON.stringify(e.g);
+  assert.equal(e.foundNewCompanyAfterBuyout('失敗会社B', 50_000_000, 'store'), false,
+    'refounding above personal cash must fail');
+  assert.equal(JSON.stringify(e.g), beforeInsufficientCash,
+    'failed insufficient-cash refounding must leave the complete save state unchanged');
+}
+
 console.log('pe fund track record tests passed');
