@@ -67,21 +67,28 @@ const { loadGame } = require('./harness');
     e.g.companyCash += 1_000_000_000;
     const tenant = e.g.tenants.find(t => t.prefID === 'tokyo' && t.businessID === 'ramen' && !t.occupiedBy);
     assert.ok(e.openStore({ tenantID: tenant.id, businessID: 'ramen', name: 'Idle Ramen', operatingHours: 3 }), 'store must open');
-    const margins = [];
+    const weeks = [];
     for (let i = 0; i < WEEKS && !e.g.gameOver; i++) {
       e.advanceWeek(false);
       const st = e.g.stores[0];
-      margins.push(st.lastProfit / st.lastSales);
+      weeks.push({ sales: st.lastSales, profit: st.lastProfit });
     }
     assert.ok(!e.g.gameOver, `seed ${seed}: the idle store must not go bankrupt over the run`);
     const store = e.g.stores[0];
     assert.ok(Number.isFinite(store.lastSales) && store.lastSales > 0, `seed ${seed}: store must still be trading`);
-    assert.equal(margins.length, WEEKS, `seed ${seed}: full 25-year margin history is required`);
-    assert.ok(margins.every(Number.isFinite), `seed ${seed}: every weekly margin is finite`);
-    const early = margins.slice(260, 520);
-    const late = margins.slice(WEEKS - WINDOW);
-    const average = rows => rows.reduce((a, b) => a + b, 0) / rows.length;
-    return { seed, early: average(early), late: average(late), inflation: e.g.inflation };
+    assert.equal(weeks.length, WEEKS, `seed ${seed}: full 25-year history is required`);
+    assert.ok(weeks.every(row => Number.isFinite(row.sales) && Number.isFinite(row.profit)), `seed ${seed}: weekly sales/profit must stay finite`);
+    const margin = rows => {
+      const sales = rows.reduce((a, row) => a + row.sales, 0);
+      const profit = rows.reduce((a, row) => a + row.profit, 0);
+      assert.ok(sales > 0, `seed ${seed}: each five-year window must contain positive sales`);
+      return profit / sales;
+    };
+    // Aggregate profit / aggregate sales is robust to legitimate zero-sales weeks; averaging
+    // individual weekly ratios would produce NaN for those weeks and overweight tiny-sales weeks.
+    const early = weeks.slice(260, 520);
+    const late = weeks.slice(WEEKS - WINDOW);
+    return { seed, early: margin(early), late: margin(late), inflation: e.g.inflation };
   });
   const mean = key => runs.reduce((a, row) => a + row[key], 0) / runs.length;
   const earlyMean = mean('early'), lateMean = mean('late');
