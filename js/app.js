@@ -13,7 +13,7 @@ if(!__modules.foundingTutorial)throw new Error('Capitalism Tycoon foundingTutori
 if(!__modules.expansion||!__modules.expansion.installExpansion)throw new Error('Capitalism Tycoon installExpansion must be loaded before app.js.');
 if(!__modules.completion||!__modules.completion.installCompletion)throw new Error('Capitalism Tycoon installCompletion must be loaded before app.js.');
 if(!__modules.parity||!__modules.parity.installParity)throw new Error('Capitalism Tycoon installParity must be loaded before app.js.');
-(function(engineModule,dataModule,marketModule,financeModule,supplyModule,expansionModule,completionModule,parityModule,secretaryModule,dashboardModule,foundingTutorialModule){
+(async function(engineModule,dataModule,marketModule,financeModule,supplyModule,expansionModule,completionModule,parityModule,secretaryModule,dashboardModule,foundingTutorialModule){
 const maIntegrationModule=globalThis.__capitalismTycoonModules?.maIntegration;if(maIntegrationModule?.installMAIntegration)maIntegrationModule.installMAIntegration(engineModule.TycoonEngine);const maDealRoomModule=globalThis.__capitalismTycoonModules?.maDealRoom;if(maDealRoomModule?.installMADealRoom)maDealRoomModule.installMADealRoom(engineModule.TycoonEngine);const maBoardApprovalModule=globalThis.__capitalismTycoonModules?.maBoardApproval;if(maBoardApprovalModule?.installMABoardApproval)maBoardApprovalModule.installMABoardApproval(engineModule.TycoonEngine);
 const {TycoonEngine,yen,compactYen,pct,finite}=engineModule;
 const {MASTER,PRODUCT_BLUEPRINTS,LUXURY_OFFERS,PERSONAL_INVESTMENT_OFFERS,OVERSEAS_COUNTRIES,SPORTS_TEAMS,MISSION_DEFS}=dataModule;
@@ -27,6 +27,10 @@ installParity(TycoonEngine);
 // boot, headless tests, later loads) composes the same weekly pipeline: macro-cycle.js decides where
 // to hook the macro update by whether updateProductInnovationWeekly exists when it installs (#732).
 globalThis.__capitalismTycoonModules.playerEngineBridge.installProductInnovation();
+// #726: when IndexedDB is available, do not construct the playable engine until the durable
+// cache is hydrated. In headless/non-IDB contexts this stays synchronous, preserving test boot.
+const bootStorage=globalThis.__capitalismTycoonModules?.saveStorageIDB;
+if(bootStorage?.status?.().available&&!bootStorage.status().hydrated)await bootStorage.hydrate();
 const engine = TycoonEngine.load();
 // The engine is created before the modules below app.js register their normalize wrappers; once
 // every module is registered, normalize it again so a reloaded state has the canonical shape (#732).
