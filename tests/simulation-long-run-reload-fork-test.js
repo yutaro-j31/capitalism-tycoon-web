@@ -61,9 +61,21 @@ function firstDiff(a, b, path = '$') {
   return null;
 }
 
+function comparableState(pair) {
+  const state = serializableState(pair.engine);
+  const storage = pair.run.loaded.modules.saveStorage;
+  assert(storage?.compactStateForStorage, 'production save-storage canonicalizer is installed');
+  // Production intentionally compacts archival history once saves become large. Compare both forks
+  // through that same normal-profile storage representation so quota-safe archival does not look
+  // like simulation nondeterminism. Core state, RNG position and accounting totals remain present.
+  const compacted = storage.compactStateForStorage(state, 'normal').state;
+  delete compacted.lastSaveDate;
+  return compacted;
+}
+
 function assertSame(a, b, label) {
-  const left = serializableState(a);
-  const right = serializableState(b);
+  const left = comparableState(a);
+  const right = comparableState(b);
   const diff = firstDiff(left, right);
   assert.equal(diff, null, `${label}; first diff=${JSON.stringify(diff)}`);
 }
@@ -73,7 +85,7 @@ function persistedSave(run, engine) {
   const saved = run.loaded.ctx.__localStorageData.get(KEY);
   assert.equal(typeof saved, 'string', 'engine.save() persisted the canonical save payload');
   assert(saved.length > 100, 'persisted save is non-empty');
-  return saved;
+  return { saved, mode: engine._lastSaveStorageInfo?.mode || 'base' };
 }
 
 function loadSaved(hostSeed, saved, alternateSort) {
@@ -117,7 +129,7 @@ function prepareCanonicalSave() {
   openStore(engine, 'gym', '決定論ジム');
 
   engine.normalize();
-  return persistedSave(run, engine);
+  return persistedSave(run, engine).saved;
 }
 
 function scriptedActions(engine, step) {
@@ -142,7 +154,7 @@ const seedSave = prepareCanonicalSave();
 let left = loadSaved(101, seedSave, false);
 let right = loadSaved(909, seedSave, true);
 
-assertSame(left.engine, right.engine, 'same save loads identically before long-run play');
+assertSame(left, right, 'same save loads identically before long-run play');
 const initialDraws = left.engine.g.simulationRng.draws;
 const checkpoints = [];
 
@@ -152,24 +164,24 @@ for (let step = 1; step <= WEEKS; step++) {
 
   assert.notEqual(left.engine.advanceWeek(false), false, `left week ${step} advances`);
   assert.notEqual(right.engine.advanceWeek(false), false, `right week ${step} advances`);
-  assertSame(left.engine, right.engine, `week ${step}: uninterrupted and reload branch diverged`);
+  assertSame(left, right, `week ${step}: uninterrupted and reload branch diverged`);
 
   if (step % RELOAD_EVERY === 0 && step < WEEKS) {
-    const beforeReload = serializableState(right.engine);
-    const saved = persistedSave(right.run, right.engine);
-    right = loadSaved(909 + step, saved, step % 40 === 0);
-    const afterReload = serializableState(right.engine);
+    const beforeReload = comparableState(right);
+    const persisted = persistedSave(right.run, right.engine);
+    right = loadSaved(909 + step, persisted.saved, step % 40 === 0);
+    const afterReload = comparableState(right);
     const reloadDiff = firstDiff(afterReload, beforeReload);
-    assert.equal(reloadDiff, null, `week ${step}: save/reload is state-preserving; first diff=${JSON.stringify(reloadDiff)}`);
-    assertSame(left.engine, right.engine, `week ${step}: fresh runtime reload stays on the same fork`);
-    checkpoints.push({ step, draws: right.engine.g.simulationRng.draws, nextID: right.engine.g.simulationRng.nextID });
+    assert.equal(reloadDiff, null, `week ${step}: save/reload preserves canonical simulation state; first diff=${JSON.stringify(reloadDiff)}`);
+    assertSame(left, right, `week ${step}: fresh runtime reload stays on the same fork`);
+    checkpoints.push({ step, storageMode: persisted.mode, draws: right.engine.g.simulationRng.draws, nextID: right.engine.g.simulationRng.nextID });
   }
 }
 
 assert(left.engine.g.simulationRng.draws > initialDraws + 500, 'long-run exercised the persisted RNG stream extensively');
 assert.equal(left.engine.g.simulationRng.draws, right.engine.g.simulationRng.draws, 'both forks consumed the same RNG draws');
 assert.equal(left.engine.g.simulationRng.nextID, right.engine.g.simulationRng.nextID, 'both forks allocated the same deterministic IDs');
-assertSame(left.engine, right.engine, '120-week final production states are identical');
+assertSame(left, right, '120-week final production states are identical');
 
 console.log(JSON.stringify({
   deterministicLongRun: 'passed',
@@ -179,5 +191,6 @@ console.log(JSON.stringify({
   initialDraws,
   finalDraws: left.engine.g.simulationRng.draws,
   finalNextID: left.engine.g.simulationRng.nextID,
-  checkpoints
+  checkpoints,
+  observedCompaction: checkpoints.some(x => x.storageMode !== 'raw' && x.storageMode !== 'base')
 }, null, 2));
