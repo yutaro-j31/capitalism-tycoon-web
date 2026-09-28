@@ -152,14 +152,10 @@ function evaluate(state){
  return snapshot(state);
 }
 
-// Pre-evaluate hooks: run once per week, immediately after baseAdvanceWeek() (the raw weekly
-// tick, including its own legacy 2-consecutive-negative-week check) and strictly BEFORE
-// evaluate() reads state.companyCash for this week's grace-period decision. A module that can
-// inject cash to rescue a bad week (e.g. real-estate-agency-credit-line.js's revolving credit
-// line) registers here instead of wrapping advanceWeek() itself as an outer layer: an outer
-// wrapper only runs after evaluate() has already committed this week's grace-period countdown
-// (and possibly gameOver) using the pre-rescue cash figure, one week too late to prevent the
-// countdown from ticking on a week the rescue would otherwise have covered.
+// Pre-evaluate hooks: rescue mutations still run immediately after the raw weekly tick so later
+// wrappers see the rescued cash/debt state. In the production browser path, crisis evaluation is
+// deferred further to play-runtime-compat's final weekly boundary, after debt/tax/other outer
+// wrappers have also finished. Non-canonical/minimal runtimes keep the local evaluation fallback.
 const preEvaluateHooks=[];
 function registerPreEvaluateHook(fn){if(typeof fn==='function'&&preEvaluateHooks.indexOf(fn)<0)preEvaluateHooks.push(fn);}
 function runPreEvaluateHooks(state,engineInstance){for(const hook of preEvaluateHooks)hook(state,engineInstance);}
