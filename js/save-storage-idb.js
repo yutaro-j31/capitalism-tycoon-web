@@ -165,11 +165,9 @@
     return pendingWrite;
   }
 
-  // The engine loads synchronously from localStorage before hydration can finish, so a save
-  // that only reached IndexedDB — which is exactly what happens once localStorage is full —
-  // would be invisible at boot. After hydration, compare what was loaded against what
-  // IndexedDB holds and report a newer one so the player can be asked, rather than silently
-  // continuing from an older week.
+  // Defense-in-depth for legacy/alternate boot paths that did not wait for hydration:
+  // compare the loaded state with the durable cache and surface any newer IndexedDB branch.
+  // Production app boot now awaits hydrate() before TycoonEngine.load() (#726).
   async function findNewerSave(loadedState, key = SAVE_KEY) {
     await hydrate();
     const stored = cache.get(key);
