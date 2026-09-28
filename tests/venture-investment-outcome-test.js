@@ -137,11 +137,10 @@ function nonOperating(loaded, engine) {
   while (engine.g.companyStocks[stockID]) {
     guard++;
     assert.ok(guard <= 10, 'the position should fully liquidate in a bounded number of orders');
-    const priceBeforeTranche = engine.g.market.find(row => row.id === stockID).price;
+    const cashBeforeTranche = engine.g.companyCash;
     const qtyBeforeTranche = engine.g.companyStocks[stockID].qty;
     assert.ok(engine.sellStock(stockID, qtyBeforeTranche, 'company'), 'the listed holding can be sold (possibly capped per order)');
-    const qtySold = qtyBeforeTranche - (engine.g.companyStocks[stockID]?.qty ?? 0);
-    totalProceeds += priceBeforeTranche * qtySold * 0.999;
+    totalProceeds += engine.g.companyCash - cashBeforeTranche;
   }
 
   const expectedGain = Math.round(totalProceeds - costBasis);
