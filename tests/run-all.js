@@ -40,6 +40,7 @@ const nodeTests = [
   ['competitor-group-allocation', 'tests/competitor-group-allocation-test.js'],
   ['competitor-product-counter', 'tests/competitor-product-counter-test.js'],
   ['save-storage-compaction', 'tests/save-storage-compaction-test.js'],
+  ['save-storage-idb-authoritative-boot', 'tests/save-storage-idb-authoritative-boot-test.js'],
   ['competitor-product-counter-reachability', 'tests/competitor-product-counter-reachability-test.js'],
   ['competitor-group-allocation-reachability', 'tests/competitor-group-allocation-reachability-test.js'],
   ['venture-investment-reachability', 'tests/venture-investment-reachability-test.js'],
