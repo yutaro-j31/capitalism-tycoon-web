@@ -70,7 +70,12 @@ assert.equal(completedGame.advanceWeek(false), true);
 const completedReport = completedGame.g.lastWeeklySummary.turnaroundPlanReport;
 assert.equal(completedReport.kind, 'completed');
 assert.equal(completedGame.g.playerTurnaroundPlan.status, 'completed');
-assert.equal(completedGame.g.news[0], playerTurnaroundPlanReport.message(completedReport));
+assert.ok(completedGame.g.news.includes(playerTurnaroundPlanReport.message(completedReport)),
+  'completed turnaround report remains in persistent news even when final crisis evaluation adds a later same-week transition');
+assert.equal(completedGame.g.lastWeeklySummary.newNews[0], completedGame.g.news[0],
+  'weekly summary starts with the authoritative final-state news ordering');
+assert.ok(completedGame.g.lastWeeklySummary.newNews.includes(playerTurnaroundPlanReport.message(completedReport)),
+  'weekly summary retains the completed turnaround report alongside the final crisis transition');
 const restoredCompleted = new engine.TycoonEngine(JSON.parse(JSON.stringify(completedGame.g)));
 assert.equal(restoredCompleted.g.playerTurnaroundPlan.status, 'completed');
 assert.equal(restoredCompleted.g.lastWeeklySummary.turnaroundPlanReport.kind, 'completed');
