@@ -21,6 +21,19 @@ function setup(seed = 1) {
   return e;
 }
 
+function setupWithFinance() {
+  const { engineModule, modules } = loadGame({ headless: true });
+  const e = new engineModule.TycoonEngine();
+  e.g.companyCash = 1_000_000_000_000;
+  e.g.personalCash = 1_000_000_000_000;
+  e.g.companyDebt = 0;
+  delete e.g.finance;
+  e.normalize();
+  e.g.configured = true;
+  e.g.departments.investment = { level: 1 };
+  return { e, finance: modules.finance };
+}
+
 // 1. Buying far more than the issued shares still caps at a bounded fraction, not the full request.
 {
   const e = setup();
@@ -119,4 +132,34 @@ function setup(seed = 1) {
   assert.ok(holding.qty <= e.g.sharesOut * 0.05 + 1, 'own-company purchases are capped the same as any other stock');
 }
 
-console.log('stock order quantity cap tests passed');
+// 7. P0-02 regression: repeated maximum-size same-week personal round trips cannot create cash.
+{
+  const e = setup();
+  const stock = e.g.market.find(s => s.id !== e.g.ticker);
+  const qty = Math.max(1, Math.floor(stock.issuedShares * 0.05));
+  const cashBefore = e.g.personalCash;
+  for (let i = 0; i < 8; i++) {
+    assert.ok(e.buyStock(stock.id, qty, 'personal'), `personal round trip ${i + 1}: buy succeeds`);
+    assert.ok(e.sellStock(stock.id, qty, 'personal'), `personal round trip ${i + 1}: sell succeeds`);
+  }
+  assert.ok(e.g.personalCash <= cashBefore, 'repeated personal buy -> sell round trips must not increase cash');
+  assert.ok(e.g.personalCash < cashBefore, 'fees/impact make the repeated personal round trip strictly loss-making');
+}
+
+// 8. The same no-arbitrage contract applies to the company account and keeps accounting valid.
+{
+  const { e, finance } = setupWithFinance();
+  const stock = e.g.market.find(s => s.id !== e.g.ticker);
+  const qty = Math.max(1, Math.floor(stock.issuedShares * 0.05));
+  const cashBefore = e.g.companyCash;
+  for (let i = 0; i < 8; i++) {
+    assert.ok(e.buyStock(stock.id, qty, 'company'), `company round trip ${i + 1}: buy succeeds`);
+    assert.ok(e.sellStock(stock.id, qty, 'company'), `company round trip ${i + 1}: sell succeeds`);
+  }
+  assert.ok(e.g.companyCash <= cashBefore, 'repeated company buy -> sell round trips must not increase cash');
+  assert.ok(e.g.companyCash < cashBefore, 'fees/impact make the repeated company round trip strictly loss-making');
+  const validation = finance.validate(e.g);
+  assert.equal(validation.ok, true, `company stock round trips keep finance valid: ${validation.errors.join(' / ')}`);
+}
+
+console.log('stock order quantity cap and round-trip no-arbitrage tests passed');
