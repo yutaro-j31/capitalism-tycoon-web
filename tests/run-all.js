@@ -279,6 +279,7 @@ const nodeTests = [
   ['menu-lifecycle', 'tests/menu-lifecycle-test.js'],
   ['seasonal-menu', 'tests/seasonal-menu-test.js'],
   ['real-estate-building-depreciation', 'tests/real-estate-building-depreciation-test.js'],
+  ['real-estate-land-book-classification', 'tests/real-estate-land-book-classification-test.js'],
   ['personal-real-estate-depreciation', 'tests/personal-real-estate-depreciation-test.js'],
   ['personal-reit-market-link', 'tests/personal-reit-market-link-test.js'],
   ['personal-real-estate-redevelopment', 'tests/personal-real-estate-redevelopment-test.js'],
