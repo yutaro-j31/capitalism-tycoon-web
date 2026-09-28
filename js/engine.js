@@ -961,14 +961,24 @@ class TycoonEngine extends EventTarget {
 
   detailedStorePortfolioProfit(businessID,prefID,stores=null) {
     if(!market.isTargetBusinessID(businessID))return null;
-    const b=this.business(businessID),p=this.pref(prefID);if(!b||!p)return null;
-    const rows=(Array.isArray(stores)?stores:this.g.stores||[]).filter(store=>store&&store.status==='open'&&store.businessID===businessID&&store.prefID===prefID);
-    if(!rows.length)return Object.freeze({businessID,prefID,storeCount:0,sales:0,variable:0,fixed:0,profit:0,byStore:Object.freeze({})});
-    const calculated=market.calculateMarket(this.g,rows),costHoursByStore=store=>[0,.55,.8,1,1.24][store.operatingHours||3]||1,byStore={};
+    const sourceRows=(Array.isArray(stores)?stores:this.g.stores||[]).filter(store=>store&&store.status==='open'&&store.businessID===businessID&&store.prefID===prefID);
+    if(!sourceRows.length)return Object.freeze({businessID,prefID,storeCount:0,sales:0,variable:0,fixed:0,profit:0,byStore:Object.freeze({})});
+
+    // market.calculateMarket() intentionally runs the full production offer pipeline, including
+    // workforce.storeAdjustment(), which may create/normalize a store team. A decision preview
+    // must therefore run on a detached state, never on this.g. Replace only this market's open
+    // stores in the clone so a hypothetical candidate is visible to createStoreTeam() exactly
+    // as a real opened store would be, while all unrelated state remains identical.
+    const previewState=deepClone(this.g);
+    previewState.stores=(previewState.stores||[]).filter(store=>!(store&&store.status==='open'&&store.businessID===businessID&&store.prefID===prefID));
+    previewState.stores.push(...deepClone(sourceRows));
+    const rows=previewState.stores.filter(store=>store&&store.status==='open'&&store.businessID===businessID&&store.prefID===prefID);
+    const b=(previewState.businesses||[]).find(x=>x.id===businessID),p=(previewState.prefs||[]).find(x=>x.id===prefID);if(!b||!p)return null;
+    const calculated=market.calculateMarket(previewState,rows),costHoursByStore=store=>[0,.55,.8,1,1.24][store.operatingHours||3]||1,byStore={};
     let sales=0,variable=0,fixed=0,profit=0;
     for(const store of rows){
       const result=calculated.stores?.[store.id];if(!result)continue;
-      const rent=getStoreContractRent(store,p,this.g),costMultiplier=this.g.inflation*costHoursByStore(store)*(this.g.macroCrisis?.costMultiplier||1),extraPayroll=workforce.storeExtraPayroll(this.g,store.id),storeFixed=rent+(b.fixedCost+b.wage+extraPayroll)*costMultiplier+Math.max(0,100-finite(store.condition,100))*650;
+      const rent=getStoreContractRent(store,p,previewState),costMultiplier=previewState.inflation*costHoursByStore(store)*(previewState.macroCrisis?.costMultiplier||1),extraPayroll=workforce.storeExtraPayroll(previewState,store.id),storeFixed=rent+(b.fixedCost+b.wage+extraPayroll)*costMultiplier+Math.max(0,100-finite(store.condition,100))*650;
       const storeSales=Math.floor(Math.max(0,finite(result.revenue))),storeVariable=finite(result.variableCost),storeFixedPosted=Math.floor(Math.max(0,finite(storeFixed))),storeProfit=storeSales-storeVariable-storeFixedPosted;
       byStore[store.id]=Object.freeze({sales:storeSales,variable:storeVariable,fixed:storeFixedPosted,profit:storeProfit});
       sales+=storeSales;variable+=storeVariable;fixed+=storeFixedPosted;profit+=storeProfit;
