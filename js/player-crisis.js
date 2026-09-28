@@ -164,6 +164,13 @@ const preEvaluateHooks=[];
 function registerPreEvaluateHook(fn){if(typeof fn==='function'&&preEvaluateHooks.indexOf(fn)<0)preEvaluateHooks.push(fn);}
 function runPreEvaluateHooks(state,engineInstance){for(const hook of preEvaluateHooks)hook(state,engineInstance);}
 
+function finalizeWeek(state){
+ const legacyTriggered=Boolean(state?.gameOver&&state?.gameOverReason===LEGACY_GAME_OVER_REASON);
+ const crisis=evaluate(state);
+ if(legacyTriggered&&crisis.status!=='insolvent'){state.gameOver=false;state.gameOverReason='';}
+ return crisis;
+}
+
 const baseNormalize=EngineClass.prototype.normalize;
 EngineClass.prototype.normalize=function(){const result=baseNormalize.call(this);ensure(this.g);return result;};
 const baseSave=EngineClass.prototype.save;
@@ -193,14 +200,20 @@ EngineClass.prototype.advanceWeek=function(showSummary=true){
   // what un-triggers that premature legacy gameOver when the real grace-period status is not
   // actually insolvent.
   runPreEvaluateHooks(this.g,this);
-  const legacyTriggered=this.g.gameOver&&this.g.gameOverReason===LEGACY_GAME_OVER_REASON;
-  const crisis=evaluate(this.g);
-  if(legacyTriggered&&crisis.status!=='insolvent'){this.g.gameOver=false;this.g.gameOverReason='';}
+  // Production has additional cash-mutating wrappers outside this crisis wrapper. When the
+  // canonical browser boundary is active, defer crisis evaluation until all of them have finished.
+  // Clear only the base engine's legacy two-negative-week game-over provisionally so those late
+  // mutation phases can still run; finalizeWeek() will set the authoritative insolvency outcome.
+  if(this._canonicalBoundaryCommits){
+   if(this.g.gameOver&&this.g.gameOverReason===LEGACY_GAME_OVER_REASON){this.g.gameOver=false;this.g.gameOverReason='';}
+   return result;
+  }
+  const crisis=finalizeWeek(this.g);
   if(this.g.lastWeeklySummary)this.g.lastWeeklySummary.crisis=crisis;
   return result;
  },'week',()=>({summary:showSummary?this.g.lastWeeklySummary:null}));
 };
 EngineClass.prototype.__playerCrisisInstalled=true;
 
-modules.playerCrisis=Object.freeze({STATUSES,HISTORY_LIMIT,LEGACY_GAME_OVER_REASON,INSOLVENCY_REASON,graceForDifficulty,reserveThreshold,ensure,evaluate,snapshot,validate,registerPreEvaluateHook,__installed:true});
+modules.playerCrisis=Object.freeze({STATUSES,HISTORY_LIMIT,LEGACY_GAME_OVER_REASON,INSOLVENCY_REASON,graceForDifficulty,reserveThreshold,ensure,evaluate,finalizeWeek,snapshot,validate,registerPreEvaluateHook,__installed:true});
 })();
