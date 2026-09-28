@@ -19,11 +19,25 @@ const openAndTrade=(engine,tenant,businessID='cafe',hours=3)=>{assert.equal(engi
  assert.equal(engine.g.finance.transactions.filter(row=>row.sourceType==='weekly-store-rent'&&row.storeID===store.id).length,1);
 }
 
-// Contract rent does not inherit operating-hours, inflation, or crisis multipliers.
+// The quoted base rent does not inherit operating-hours, signing-time inflation, or crisis multipliers during the first operating year.
 {
  const rents=[];
  for(const hours of [1,3,4]){const {engine}=setup(100+hours),tenant=engine.g.tenants.find(t=>!t.occupiedBy);tenant.rent=123456;tenant.deposit=tenant.rent*8;engine.g.inflation=2.4;engine.g.macroCrisis={salesMultiplier:.5,costMultiplier:3};const store=openAndTrade(engine,tenant,'cafe',hours);rents.push(rentRow(engine,store).amount);}
  assert.deepEqual(rents,[123456,123456,123456]);
+}
+
+// After the first operating year, the immutable contract base is indexed only by inflation since signing.
+{
+ const {engine}=setup(450),tenant=engine.g.tenants.find(t=>!t.occupiedBy&&t.businessID==='cafe');
+ tenant.rent=100000;tenant.deposit=tenant.rent*8;engine.g.inflation=1.25;
+ assert.equal(engine.openStore({tenantID:tenant.id,businessID:'cafe',name:'indexed-rent',operatingHours:3}),true);
+ const store=engine.g.stores.at(-1);store.status='open';store.openingWeek=engine.g.week;store.weeksToOpen=0;
+ assert.equal(store.contractRent,100000);assert.equal(store.contractInflationBase,1.25);
+ engine.updateMacro=()=>{};engine.g.inflation=2.5;engine.g.week=store.openingWeek+51;
+ engine.advanceWeek(false);
+ assert.equal(rentRow(engine,store).amount,200000,'post-year-one rent indexes by cumulative inflation from the signing baseline');
+ assert.equal(store.contractRent,100000,'indexing must not rewrite the immutable contract base');
+ assert.equal(store.contractInflationBase,1.25,'indexing must not rewrite the signing inflation baseline');
 }
 
 // Every currently foundable physical store path shares the same weekly rent posting.
