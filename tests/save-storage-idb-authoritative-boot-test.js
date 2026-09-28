@@ -120,7 +120,8 @@ function contextFor({ local, durable, withIDB = true }) {
   const localOnly = JSON.stringify({ saveVersion: 9, week: 7, companyCash: 700 });
   const fallback = contextFor({ local: { [SAVE_KEY]: localOnly }, durable: new Map(), withIDB: false }).context.__capitalismTycoonModules.saveStorageIDB;
   const fallbackResult = await fallback.hydrate();
-  assert.equal(fallbackResult.ok, false, 'unavailable IndexedDB falls back cleanly');
+  assert.equal(fallbackResult.ok, true, 'unavailable IndexedDB falls back cleanly');
+  assert.equal(fallbackResult.source, 'localstorage', 'fallback hydration reports localStorage as the source');
   assert.equal(JSON.parse(fallback.readSync(SAVE_KEY)).week, 7, 'localStorage remains authoritative when IDB is unavailable');
 
   console.log('save storage IDB authoritative boot tests passed');
