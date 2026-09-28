@@ -119,17 +119,30 @@ function resolveTenantContractRent(tenant, pref) {
   return Number.isFinite(fallbackRent) && fallbackRent >= 0 ? fallbackRent : 0;
 }
 
+function storeInflationIndex(state) {
+  const value = Number(state?.inflation);
+  return Number.isFinite(value) && value > 0 ? value : 1;
+}
 function getStoreContractRent(store, pref, state) {
   const contractRent = Number(store?.contractRent);
-  if (Number.isFinite(contractRent) && contractRent >= 0) return contractRent;
+  if (Number.isFinite(contractRent) && contractRent >= 0) {
+    const currentInflation = storeInflationIndex(state);
+    const savedBase = Number(store?.contractInflationBase);
+    const contractInflationBase = Number.isFinite(savedBase) && savedBase > 0 ? savedBase : currentInflation;
+    return contractRent * currentInflation / contractInflationBase;
+  }
   const legacyRent = Number(pref?.rent);
   if (!Number.isFinite(legacyRent) || legacyRent < 0) return 0;
   const hoursMultiplier = [0,.55,.8,1,1.24][store?.operatingHours || 3] || 1;
-  const inflation = Number.isFinite(Number(state?.inflation)) ? Number(state.inflation) : 1;
+  const inflation = storeInflationIndex(state);
   const crisisCost = Number.isFinite(Number(state?.macroCrisis?.costMultiplier)) ? Number(state.macroCrisis.costMultiplier) : 1;
-  // Match the legacy weekly ledger posting exactly: the old rent component was
-  // floored to integer yen only after all three live multipliers were applied.
+  // Match the legacy weekly ledger posting exactly when a pre-contract save is first normalized.
+  // That effective amount becomes the immutable contractRent base; only subsequent inflation
+  // movement is indexed from contractInflationBase (#766).
   return Math.floor(Math.max(0, legacyRent * inflation * hoursMultiplier * crisisCost));
+}
+function getStoreRepairCost(store, state) {
+  return Math.max(0, 100 - finite(store?.condition, 100)) * 650 * storeInflationIndex(state);
 }
 
 function makeRentalOffices() {
@@ -700,7 +713,10 @@ class TycoonEngine extends EventTarget {
     this.g.businesses = (this.g.businesses || []).map(b => ({...b, price: Math.max(1,finite(b.price,100)), unitCost: Math.max(0,finite(b.unitCost)), demand: Math.max(1,finite(b.demand,10))}));
     this.g.stores = (this.g.stores || []).map(s => {
       const store={condition:100,lastSales:0,lastProfit:0,status:'open',openingWeek:this.g.week,weeksToOpen:0,operatingHours:3,marketResult:null,...s};
-      store.contractRent=getStoreContractRent(store,this.pref(store.prefID),this.g);
+      const existingRent=Number(store.contractRent);
+      if(!Number.isFinite(existingRent)||existingRent<0)store.contractRent=getStoreContractRent(store,this.pref(store.prefID),this.g);
+      const existingInflationBase=Number(store.contractInflationBase);
+      if(!Number.isFinite(existingInflationBase)||existingInflationBase<=0)store.contractInflationBase=storeInflationIndex(this.g);
       return store;
     });
     globalThis.__capitalismTycoonModules?.realEstateAgencyPipeline?.normalize?.(this.g);
@@ -1001,7 +1017,7 @@ class TycoonEngine extends EventTarget {
     const prefID=tenant.prefID,hours=Math.max(1,Math.min(4,Math.floor(finite(operatingHours,3)))),current=(this.g.stores||[]).filter(store=>store.status==='open'&&store.businessID===businessID&&store.prefID===prefID);
     const before=this.detailedStorePortfolioProfit(businessID,prefID,current);
     const previewID=`__opening-preview__${businessID}__${String(tenantID)}`;
-    const candidate={id:previewID,businessID,prefID,name:'出店プレビュー',openedWeek:this.g.week,quality:b.quality,brand:b.brand,condition:100,lastSales:0,lastProfit:0,status:'open',openingWeek:this.g.week,weeksToOpen:0,tenantID,cityName:tenant.cityName,operatingHours:hours,contractRent:resolveTenantContractRent(tenant,this.pref(prefID)),marketResult:null};
+    const candidate={id:previewID,businessID,prefID,name:'出店プレビュー',openedWeek:this.g.week,quality:b.quality,brand:b.brand,condition:100,lastSales:0,lastProfit:0,status:'open',openingWeek:this.g.week,weeksToOpen:0,tenantID,cityName:tenant.cityName,operatingHours:hours,contractRent:resolveTenantContractRent(tenant,this.pref(prefID)),contractInflationBase:storeInflationIndex(this.g),marketResult:null};
     const after=this.detailedStorePortfolioProfit(businessID,prefID,[...current,candidate]);
     const candidateProfit=finite(after?.byStore?.[previewID]?.profit),incrementalProfit=finite(after?.profit)-finite(before?.profit),existingStoreProfitChange=incrementalProfit-candidateProfit;
     return Object.freeze({businessID,prefID,currentStoreCount:current.length,projectedStoreCount:current.length+1,beforeProfit:finite(before?.profit),afterProfit:finite(after?.profit),incrementalProfit,candidateProfit,existingStoreProfitChange,cannibalizationLoss:Math.max(0,-existingStoreProfitChange)});
@@ -1102,7 +1118,7 @@ class TycoonEngine extends EventTarget {
     const weeks = business.storeCost >= 15_000_000 ? 8 : business.storeCost >= 7_000_000 ? 5 : 3;
     const store = {id:resolvedStoreID??uuid(this.g,'store'),businessID,prefID:tenant.prefID,name:name||`${this.g.companyName} ${this.g.stores.length+1}号店`,openedWeek:this.g.week,
       quality:business.quality,brand:business.brand,condition:100,lastSales:0,lastProfit:0,status:'preparing',openingWeek:this.g.week+weeks,weeksToOpen:weeks,
-      tenantID,cityName:tenant.cityName,operatingHours:Number(operatingHours),contractRent:resolveTenantContractRent(tenant,this.pref(tenant.prefID)),marketResult:null};
+      tenantID,cityName:tenant.cityName,operatingHours:Number(operatingHours),contractRent:resolveTenantContractRent(tenant,this.pref(tenant.prefID)),contractInflationBase:storeInflationIndex(this.g),marketResult:null};
     this.g.stores.push(store);
     finance.addFixedAsset(this.g,{assetID:`store-${store.id}`,assetType:'storeEquipment',acquisitionCost:business.storeCost,usefulLifeWeeks:260,salvageValue:business.storeCost*.1,businessID,storeID:store.id});
     finance.event(this.g,'capitalExpenditure',business.storeCost,{cashEffect:-business.storeCost,assetEffect:business.storeCost,businessID,storeID:store.id,sourceType:'openStore',sourceID:store.id,description:`${store.name} 店舗設備`});
@@ -2146,14 +2162,14 @@ class TycoonEngine extends EventTarget {
       const b=this.business(store.businessID),p=this.pref(store.prefID),a=this.area(p.areaID);let storeSales,variable,fixed,repair;
       const contractRent=getStoreContractRent(store,p),costMultiplier=this.g.inflation*([0,.55,.8,1,1.24][store.operatingHours||3]||1)*(this.g.macroCrisis?.costMultiplier||1);
       if(market.isTargetBusinessID(store.businessID)&&marketBatch.byStore[store.id]){rand(this.g,.88,1.14); // Preserve the legacy per-store demand RNG slot; deterministic market results intentionally ignore this value.
-      let mr=marketBatch.byStore[store.id];mr=supply.applyConstraint(this.g,store,mr,finance);marketBatch.byStore[store.id]=mr;const extraStorePayroll=workforce.storeExtraPayroll(this.g,store.id);fixed=contractRent+(b.fixedCost+b.wage+extraStorePayroll)*costMultiplier;repair=Math.max(0,100-store.condition)*650;storeSales=mr.revenue;variable=mr.variableCost;store.marketResult={...mr};}
-      else if(store.businessID==='realEstateAgency'&&globalThis.__capitalismTycoonModules?.realEstateAgencyPipeline){rand(this.g,.88,1.14);const brokerage=globalThis.__capitalismTycoonModules.realEstateAgencyPipeline.processStore(this.g,store,b,p,globalThis.__capitalismTycoonModules.tenantSiteSuitability.forStore(this.g,store).multiplier);storeSales=brokerage.sales;variable=brokerage.variable;fixed=contractRent+(b.fixedCost+b.wage)*costMultiplier;repair=Math.max(0,100-store.condition)*650;store.marketResult=null;}
+      let mr=marketBatch.byStore[store.id];mr=supply.applyConstraint(this.g,store,mr,finance);marketBatch.byStore[store.id]=mr;const extraStorePayroll=workforce.storeExtraPayroll(this.g,store.id);fixed=contractRent+(b.fixedCost+b.wage+extraStorePayroll)*costMultiplier;repair=getStoreRepairCost(store,this.g);storeSales=mr.revenue;variable=mr.variableCost;store.marketResult={...mr};}
+      else if(store.businessID==='realEstateAgency'&&globalThis.__capitalismTycoonModules?.realEstateAgencyPipeline){rand(this.g,.88,1.14);const brokerage=globalThis.__capitalismTycoonModules.realEstateAgencyPipeline.processStore(this.g,store,b,p,globalThis.__capitalismTycoonModules.tenantSiteSuitability.forStore(this.g,store).multiplier);storeSales=brokerage.sales;variable=brokerage.variable;fixed=contractRent+(b.fixedCost+b.wage)*costMultiplier;repair=getStoreRepairCost(store,this.g);store.marketResult=null;}
       else if(store.businessID==='conveni'&&globalThis.__capitalismTycoonModules?.convenienceMerchandising){const localCompetition=storeMarketEnvironment.localCompetition(a,this.competitorPressure(a.id,b.id));const demand=storeMarketEnvironment.storeDemand({baseDemand:b.demand,prefectureTraffic:p.traffic,areaTraffic:a.traffic,economy:this.g.economy,season:this.g.season,businessAreaFit:this.fit(b,a),quality:b.quality,brand:b.brand,dx:b.dx,localCompetition,weeklyDemandMultiplier:rand(this.g,.88,1.14),siteSuitabilityFactor:globalThis.__capitalismTycoonModules.tenantSiteSuitability.forStore(this.g,store).multiplier,dxDepartmentEffect:this.departmentEffect('dx'),marketingDepartmentEffect:this.departmentEffect('marketing'),operatingHoursFactor:[0,.45,.75,1,1.17][store.operatingHours||3]||1,macroSalesFactor:this.g.macroCrisis?this.g.macroCrisis.salesMultiplier:1});
-      const merch=globalThis.__capitalismTycoonModules.convenienceMerchandising.processStore(this.g,store,b,demand,this.g.inflation);storeSales=merch.sales;variable=merch.variable;fixed=contractRent+(b.fixedCost+b.wage)*costMultiplier;repair=Math.max(0,100-store.condition)*650;store.marketResult=null;}
+      const merch=globalThis.__capitalismTycoonModules.convenienceMerchandising.processStore(this.g,store,b,demand,this.g.inflation);storeSales=merch.sales;variable=merch.variable;fixed=contractRent+(b.fixedCost+b.wage)*costMultiplier;repair=getStoreRepairCost(store,this.g);store.marketResult=null;}
       else if(store.businessID==='gym'&&globalThis.__capitalismTycoonModules?.gymMembershipModel){const localCompetition=storeMarketEnvironment.localCompetition(a,this.competitorPressure(a.id,b.id));const demand=storeMarketEnvironment.storeDemand({baseDemand:b.demand,prefectureTraffic:p.traffic,areaTraffic:a.traffic,economy:this.g.economy,season:this.g.season,businessAreaFit:this.fit(b,a),quality:b.quality,brand:b.brand,dx:b.dx,localCompetition,weeklyDemandMultiplier:rand(this.g,.88,1.14),siteSuitabilityFactor:globalThis.__capitalismTycoonModules.tenantSiteSuitability.forStore(this.g,store).multiplier,dxDepartmentEffect:this.departmentEffect('dx'),marketingDepartmentEffect:this.departmentEffect('marketing'),operatingHoursFactor:[0,.45,.75,1,1.17][store.operatingHours||3]||1,macroSalesFactor:this.g.macroCrisis?this.g.macroCrisis.salesMultiplier:1});
-      const membership=globalThis.__capitalismTycoonModules.gymMembershipModel.processStore(this.g,store,b,demand,this.g.inflation,localCompetition);storeSales=membership.sales;variable=membership.variable;fixed=contractRent+(b.fixedCost+b.wage)*costMultiplier;repair=Math.max(0,100-store.condition)*650;store.marketResult=null;}
+      const membership=globalThis.__capitalismTycoonModules.gymMembershipModel.processStore(this.g,store,b,demand,this.g.inflation,localCompetition);storeSales=membership.sales;variable=membership.variable;fixed=contractRent+(b.fixedCost+b.wage)*costMultiplier;repair=getStoreRepairCost(store,this.g);store.marketResult=null;}
       else{const localCompetition=storeMarketEnvironment.localCompetition(a,this.competitorPressure(a.id,b.id));const demand=storeMarketEnvironment.storeDemand({baseDemand:b.demand,prefectureTraffic:p.traffic,areaTraffic:a.traffic,economy:this.g.economy,season:this.g.season,businessAreaFit:this.fit(b,a),quality:b.quality,brand:b.brand,dx:b.dx,localCompetition,weeklyDemandMultiplier:rand(this.g,.88,1.14),siteSuitabilityFactor:1,dxDepartmentEffect:this.departmentEffect('dx'),marketingDepartmentEffect:this.departmentEffect('marketing'),operatingHoursFactor:[0,.45,.75,1,1.17][store.operatingHours||3]||1,macroSalesFactor:this.g.macroCrisis?this.g.macroCrisis.salesMultiplier:1});
-      storeSales=Math.max(0,demand*b.price*this.g.inflation);variable=demand*b.unitCost*this.g.inflation*(1-Math.min(.22,b.efficiency/260))/(1+this.departmentEffect('operations')*.04);fixed=contractRent+(b.fixedCost+b.wage)*costMultiplier;repair=Math.max(0,100-store.condition)*650;
+      storeSales=Math.max(0,demand*b.price*this.g.inflation);variable=demand*b.unitCost*this.g.inflation*(1-Math.min(.22,b.efficiency/260))/(1+this.departmentEffect('operations')*.04);fixed=contractRent+(b.fixedCost+b.wage)*costMultiplier;repair=getStoreRepairCost(store,this.g);
       store.marketResult=null;}
       const isSupplyStore=market.isTargetBusinessID(store.businessID);
       const rentPart=contractRent;
