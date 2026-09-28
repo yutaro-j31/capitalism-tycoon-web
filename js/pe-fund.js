@@ -1092,6 +1092,7 @@ function installCompletionDependentHooks(){
   const baseFoundNewCompanyAfterBuyout=proto.foundNewCompanyAfterBuyout;
   proto.foundNewCompanyAfterBuyout=function(companyName,investment,mode){
     const r=baseFoundNewCompanyAfterBuyout.call(this,companyName,investment,mode);
+    if(r!==true)return r;
     ensure(this.g);
     this.g.currentCompanyFoundedInvestment=Math.max(1,finite(investment,this.g.companyCash));
     return r;
