@@ -608,6 +608,26 @@ const STORE_CLOSURE_SALVAGE_RATE = .15;
 // 発行済株式数の何倍を1回の注文で指定してもインパクトは常に3%止まりで約定できてしまう抜け穴
 // だった（監査で発見）。発行済株式数の小さい新規上場株ほど、この抜け穴の影響が大きい。
 const STOCK_ORDER_MAX_SHARE_OF_ISSUED = .05;
+const STOCK_TRADE_FEE_RATE = .001;
+
+function stockOrderQuote(stock, qty, side='sell') {
+  const requestedQty=Math.max(0,Math.floor(finite(qty)));
+  const issuedShares=Math.max(0,finite(stock?.issuedShares,0));
+  const quoteBefore=Math.max(0,finite(stock?.price,0));
+  const maxQty=Math.max(0,Math.floor(issuedShares*STOCK_ORDER_MAX_SHARE_OF_ISSUED));
+  const filledQty=Math.min(requestedQty,maxQty);
+  const impact=filledQty>0?Math.min(.03,filledQty/Math.max(1,issuedShares)*.6):0;
+  const direction=side==='buy'?1:-1;
+  const quoteAfter=quoteBefore*(1+direction*impact);
+  const executionPrice=(quoteBefore+quoteAfter)/2;
+  const gross=executionPrice*filledQty;
+  // Yen cash movements are integer-valued. Bias rounding against the trader so rounding itself
+  // can never recreate a one-yen round-trip arbitrage at tiny order sizes.
+  const cashAmount=side==='buy'
+    ?Math.ceil(gross*(1+STOCK_TRADE_FEE_RATE))
+    :Math.floor(gross*(1-STOCK_TRADE_FEE_RATE));
+  return {side,requestedQty,filledQty,maxQty,issuedShares,quoteBefore,quoteAfter,executionPrice,impact,feeRate:STOCK_TRADE_FEE_RATE,gross,cashAmount};
+}
 
 class TycoonEngine extends EventTarget {
   constructor(state = null) {
@@ -1239,34 +1259,27 @@ class TycoonEngine extends EventTarget {
 
   buyStock(stockID,qty,account='personal') {
     const stock=this.stock(stockID);qty=Math.max(0,Math.floor(qty));if(!stock||qty<1)return this.fail('数量が不正です。');
-    const maxQty=Math.max(0,Math.floor(finite(stock.issuedShares,0)*STOCK_ORDER_MAX_SHARE_OF_ISSUED));
-    if(maxQty<1)return this.fail('この銘柄は発行済株式数が少なく取引できません。');
-    const clamped=qty>maxQty;qty=Math.min(qty,maxQty);
-    const impact=Math.min(.03,qty/Math.max(1,stock.issuedShares)*.6),quoteBefore=stock.price,quoteAfter=quoteBefore*(1+impact);
-    // Execute across the impact curve instead of filling the whole buy at the pre-impact quote.
-    // The arithmetic midpoint is the average fill for a linear price move; the existing 0.1% fee
-    // is applied on top. This removes the buy-low / sell-high same-week round-trip arbitrage (#727).
-    const executionPrice=(quoteBefore+quoteAfter)/2,cost=executionPrice*qty*1.001;const cashKey=account==='company'?'companyCash':'personalCash';
+    const quote=stockOrderQuote(stock,qty,'buy');
+    if(quote.maxQty<1)return this.fail('この銘柄は発行済株式数が少なく取引できません。');
+    const clamped=qty>quote.filledQty;qty=quote.filledQty;
+    const cost=quote.cashAmount;const cashKey=account==='company'?'companyCash':'personalCash';
     if(account==='company'&&!this.g.departments.investment)return this.fail('会社口座の株式投資には投資部門が必要です。');
     if(this.g[cashKey]<cost)return this.fail('資金が不足しています。');
     this.g[cashKey]-=cost;if(account==='company')finance.event(this.g,'investmentPurchase',cost,{cashEffect:-cost,assetEffect:cost,sourceType:'buyStock',sourceID:`${stockID}-${this.g.week}`,description:`${stock.name} 株式購入`});const key=account==='company'?'companyStocks':'personalStocks';const h=this.g[key][stockID]||{qty:0,avg:0};
     h.avg=(h.avg*h.qty+cost)/(h.qty+qty);h.qty+=qty;this.g[key][stockID]=h;
-    stock.price=quoteAfter;stock.marketCap=stock.price*stock.issuedShares;
+    stock.price=quote.quoteAfter;stock.marketCap=stock.price*stock.issuedShares;
     this.notify(`${account==='company'?'会社':'個人'}口座で${stock.name}を${qty.toLocaleString()}株購入しました。${clamped?`（1回の注文上限${pct(STOCK_ORDER_MAX_SHARE_OF_ISSUED)}により数量を調整しました）`:''}`,'success');this.save();this.emit();return true;
   }
   sellStock(stockID,qty,account='personal') {
     const stock=this.stock(stockID);qty=Math.max(0,Math.floor(qty));const key=account==='company'?'companyStocks':'personalStocks';const h=this.g[key][stockID];
     if(!stock||!h||qty<1||h.qty<qty)return this.fail('売却可能株数を超えています。');
-    const maxQty=Math.max(0,Math.floor(finite(stock.issuedShares,0)*STOCK_ORDER_MAX_SHARE_OF_ISSUED));
-    if(maxQty<1)return this.fail('この銘柄は発行済株式数が少なく取引できません。');
-    const clamped=qty>maxQty;qty=Math.min(qty,maxQty);
-    const impact=Math.min(.03,qty/Math.max(1,stock.issuedShares)*.6),quoteBefore=stock.price,quoteAfter=quoteBefore*(1-impact);
-    // Symmetric with buyStock(): sell execution spans the downward impact curve and pays the
-    // existing 0.1% fee, so reversing an order cannot monetize its own quote impact (#727).
-    const executionPrice=(quoteBefore+quoteAfter)/2,proceeds=executionPrice*qty*.999;const soldBook=h.avg*qty,profit=proceeds-soldBook;this.g[account==='company'?'companyCash':'personalCash']+=proceeds;if(account==='company')finance.event(this.g,'investmentSale',proceeds,{cashEffect:proceeds,assetEffect:-soldBook,profitEffect:profit,sourceType:'sellStock',sourceID:`${stockID}-${this.g.week}`,description:`${stock.name} 株式売却`});
+    const quote=stockOrderQuote(stock,qty,'sell');
+    if(quote.maxQty<1)return this.fail('この銘柄は発行済株式数が少なく取引できません。');
+    const clamped=qty>quote.filledQty;qty=quote.filledQty;
+    const proceeds=quote.cashAmount;const soldBook=h.avg*qty,profit=proceeds-soldBook;this.g[account==='company'?'companyCash':'personalCash']+=proceeds;if(account==='company')finance.event(this.g,'investmentSale',proceeds,{cashEffect:proceeds,assetEffect:-soldBook,profitEffect:profit,sourceType:'sellStock',sourceID:`${stockID}-${this.g.week}`,description:`${stock.name} 株式売却`});
     h.qty-=qty;if(h.qty===0)delete this.g[key][stockID];
     this.g[account==='company'?'realizedCompanyStockPL':'realizedPersonalStockPL']+=profit;
-    stock.price=quoteAfter;stock.marketCap=stock.price*stock.issuedShares;
+    stock.price=quote.quoteAfter;stock.marketCap=stock.price*stock.issuedShares;
     this.notify(`${stock.name}を${qty.toLocaleString()}株売却しました。損益${yen(profit)}。${clamped?`（1回の注文上限${pct(STOCK_ORDER_MAX_SHARE_OF_ISSUED)}により数量を調整しました）`:''}`,profit>=0?'success':'warning');this.save();this.emit();return true;
   }
   toggleFavorite(stockID) {
@@ -2160,7 +2173,7 @@ function gameDate(week){
     fullLabel:`${year}年目 ${month}月${day}日`};
 }
 
-Object.assign(exports,{LOG_ARRAY_CAP,LOG_ARRAY_CAPS,SIMULATION_SYSTEMS,SIMULATION_DEPTH_LABEL,businessSimulationDepth,FOUNDABLE_BUSINESS_IDS,VALUATION_OBSERVATION_WEEKS,storeWeeksTraded,storeNormalizedProfit,storeEarningsValue,SAVE_KEY,SAVE_VERSION,clamp,finite,uuid,yen,compactYen,pct,rand,pick,gameDate,createInitialState,mergeDefaults,detectSaveVersion,migrateSave, normalizeStockPriceHistory,migrateUnversionedToV1,migrateV1ToV2,migrateV2ToV3,migrateV3ToV4,migrateV4ToV5,migrateV5ToV6,deepNormalizeState,validateMigratedState,TycoonEngine});
+Object.assign(exports,{LOG_ARRAY_CAP,LOG_ARRAY_CAPS,SIMULATION_SYSTEMS,SIMULATION_DEPTH_LABEL,businessSimulationDepth,FOUNDABLE_BUSINESS_IDS,VALUATION_OBSERVATION_WEEKS,storeWeeksTraded,storeNormalizedProfit,storeEarningsValue,SAVE_KEY,SAVE_VERSION,STOCK_ORDER_MAX_SHARE_OF_ISSUED,STOCK_TRADE_FEE_RATE,stockOrderQuote,clamp,finite,uuid,yen,compactYen,pct,rand,pick,gameDate,createInitialState,mergeDefaults,detectSaveVersion,migrateSave, normalizeStockPriceHistory,migrateUnversionedToV1,migrateV1ToV2,migrateV2ToV3,migrateV3ToV4,migrateV4ToV5,migrateV5ToV6,deepNormalizeState,validateMigratedState,TycoonEngine});
 })(__modules.engine={},__modules.data,__modules.market,__modules.finance,__modules.supply,__modules.workforce,__modules.competitor);
 
 })();
