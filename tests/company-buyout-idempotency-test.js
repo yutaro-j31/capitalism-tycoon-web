@@ -19,16 +19,28 @@ function createGame() {
 {
   const engine = createGame();
   const personalBefore = engine.g.personalCash;
+  const recordsBefore = engine.g.pastCompanyRecords.length;
+  const peExitsBefore = engine.g.peFirm.trackRecord.exits.length;
+  assert.equal(engine.g.peFirm.unlocked, false, 'PE starts locked before the first whole-company exit');
 
-  assert.equal(engine.acceptBuyoutOffer(1.2), true, 'first buyout succeeds');
+  assert.equal(engine.acceptBuyoutOffer(1.2), true, 'first settings buyout succeeds');
   assert.equal(engine.g.isCompanySold, true, 'first buyout marks the company sold');
   assert.ok(engine.g.personalCash > personalBefore, 'first buyout credits founder proceeds once');
+  assert.equal(engine.g.pastCompanyRecords.length, recordsBefore + 1, 'settings buyout records exactly one company exit');
+  assert.equal(engine.g.pastCompanyRecords[0].exitType, 'buyout');
+  assert.equal(engine.g.peFirm.trackRecord.exits.length, peExitsBefore + 1, 'settings buyout records exactly one PE track-record exit');
+  assert.equal(engine.g.peFirm.trackRecord.exits.at(-1).exitType, 'buyout');
+  assert.equal(engine.g.peFirm.unlocked, true, 'settings buyout unlocks PE through the canonical exit hook');
 
   const personalAfterFirst = engine.g.personalCash;
+  const recordsAfterFirst = engine.g.pastCompanyRecords.length;
+  const peExitsAfterFirst = engine.g.peFirm.trackRecord.exits.length;
   const stateAfterFirst = JSON.stringify(engine.g);
 
   assert.equal(engine.acceptBuyoutOffer(9.9), false, 'second buyout is rejected regardless of multiplier');
   assert.equal(engine.g.personalCash, personalAfterFirst, 'second buyout cannot credit founder proceeds again');
+  assert.equal(engine.g.pastCompanyRecords.length, recordsAfterFirst, 'second buyout cannot add a second company exit record');
+  assert.equal(engine.g.peFirm.trackRecord.exits.length, peExitsAfterFirst, 'second buyout cannot add a second PE exit');
   assert.equal(JSON.stringify(engine.g), stateAfterFirst, 'second buyout is state-idempotent');
 }
 
