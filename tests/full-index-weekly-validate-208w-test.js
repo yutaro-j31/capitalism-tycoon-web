@@ -167,15 +167,29 @@ function setupRoute(route, index) {
     operatingHours:3
   }), true, `${route.businessID}: initial store opens`);
 
-  assert.equal(engine.g.companyCash, openingCash - upfront, `${route.businessID}: opening consumes exact upfront cash`);
   const openingRows = engine.g.finance.transactions.slice(openingTxIndex);
   const capex = openingRows.find(row => row.sourceType === 'openStore');
   const deposit = openingRows.find(row => row.sourceType === 'openStoreDeposit');
+  const missionRewards = openingRows.filter(row => row.sourceType === 'missionReward');
   assert(capex && deposit, `${route.businessID}: capex and deposit ledger rows exist`);
   assert.equal(capex.amount, business.storeCost, `${route.businessID}: capex amount is exact`);
   assert.equal(capex.cashEffect, -business.storeCost, `${route.businessID}: capex cash effect is exact`);
   assert.equal(deposit.amount, tenant.deposit, `${route.businessID}: deposit amount is exact`);
   assert.equal(deposit.cashEffect, -tenant.deposit, `${route.businessID}: deposit cash effect is exact`);
+
+  // openStore() also runs evaluateProgression() in the same production action. The first store can
+  // therefore earn a mission reward immediately. Treat that as part of the same atomic cash move
+  // instead of pretending the action is only capex + deposit.
+  const missionRewardCash = missionRewards.reduce((sum,row) => {
+    assert.equal(row.amount, row.cashEffect, `${route.businessID}: mission reward amount matches cash effect`);
+    assert.equal(row.profitEffect, row.amount, `${route.businessID}: mission reward profit effect is exact`);
+    return sum + Number(row.cashEffect || 0);
+  }, 0);
+  const ledgerCashEffect = openingRows.reduce((sum,row) => sum + Number(row.cashEffect || 0), 0);
+  assert.equal(engine.g.companyCash, openingCash - upfront + missionRewardCash,
+    `${route.businessID}: opening cash equals capex + deposit + same-action mission rewards`);
+  assert.equal(engine.g.companyCash - openingCash, ledgerCashEffect,
+    `${route.businessID}: all opening-action ledger cash effects reconcile exactly to companyCash`);
 
   const setupValidation = run.loaded.modules.finance.validate(engine.g);
   assert.equal(setupValidation.ok, true, `${route.businessID}: setup finance valid: ${(setupValidation.errors||[]).join(' / ')}`);
