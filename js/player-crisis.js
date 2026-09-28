@@ -152,17 +152,20 @@ function evaluate(state){
  return snapshot(state);
 }
 
-// Pre-evaluate hooks: run once per week, immediately after baseAdvanceWeek() (the raw weekly
-// tick, including its own legacy 2-consecutive-negative-week check) and strictly BEFORE
-// evaluate() reads state.companyCash for this week's grace-period decision. A module that can
-// inject cash to rescue a bad week (e.g. real-estate-agency-credit-line.js's revolving credit
-// line) registers here instead of wrapping advanceWeek() itself as an outer layer: an outer
-// wrapper only runs after evaluate() has already committed this week's grace-period countdown
-// (and possibly gameOver) using the pre-rescue cash figure, one week too late to prevent the
-// countdown from ticking on a week the rescue would otherwise have covered.
+// Pre-evaluate hooks: rescue mutations still run immediately after the raw weekly tick so later
+// wrappers see the rescued cash/debt state. In the production browser path, crisis evaluation is
+// deferred further to play-runtime-compat's final weekly boundary, after debt/tax/other outer
+// wrappers have also finished. Non-canonical/minimal runtimes keep the local evaluation fallback.
 const preEvaluateHooks=[];
 function registerPreEvaluateHook(fn){if(typeof fn==='function'&&preEvaluateHooks.indexOf(fn)<0)preEvaluateHooks.push(fn);}
 function runPreEvaluateHooks(state,engineInstance){for(const hook of preEvaluateHooks)hook(state,engineInstance);}
+
+function finalizeWeek(state){
+ const legacyTriggered=Boolean(state?.gameOver&&state?.gameOverReason===LEGACY_GAME_OVER_REASON);
+ const crisis=evaluate(state);
+ if(legacyTriggered&&crisis.status!=='insolvent'){state.gameOver=false;state.gameOverReason='';}
+ return crisis;
+}
 
 const baseNormalize=EngineClass.prototype.normalize;
 EngineClass.prototype.normalize=function(){const result=baseNormalize.call(this);ensure(this.g);return result;};
@@ -193,14 +196,20 @@ EngineClass.prototype.advanceWeek=function(showSummary=true){
   // what un-triggers that premature legacy gameOver when the real grace-period status is not
   // actually insolvent.
   runPreEvaluateHooks(this.g,this);
-  const legacyTriggered=this.g.gameOver&&this.g.gameOverReason===LEGACY_GAME_OVER_REASON;
-  const crisis=evaluate(this.g);
-  if(legacyTriggered&&crisis.status!=='insolvent'){this.g.gameOver=false;this.g.gameOverReason='';}
+  // Production has additional cash-mutating wrappers outside this crisis wrapper. When the
+  // canonical browser boundary is active, defer crisis evaluation until all of them have finished.
+  // Clear only the base engine's legacy two-negative-week game-over provisionally so those late
+  // mutation phases can still run; finalizeWeek() will set the authoritative insolvency outcome.
+  if(this._canonicalBoundaryCommits){
+   if(this.g.gameOver&&this.g.gameOverReason===LEGACY_GAME_OVER_REASON){this.g.gameOver=false;this.g.gameOverReason='';}
+   return result;
+  }
+  const crisis=finalizeWeek(this.g);
   if(this.g.lastWeeklySummary)this.g.lastWeeklySummary.crisis=crisis;
   return result;
  },'week',()=>({summary:showSummary?this.g.lastWeeklySummary:null}));
 };
 EngineClass.prototype.__playerCrisisInstalled=true;
 
-modules.playerCrisis=Object.freeze({STATUSES,HISTORY_LIMIT,LEGACY_GAME_OVER_REASON,INSOLVENCY_REASON,graceForDifficulty,reserveThreshold,ensure,evaluate,snapshot,validate,registerPreEvaluateHook,__installed:true});
+modules.playerCrisis=Object.freeze({STATUSES,HISTORY_LIMIT,LEGACY_GAME_OVER_REASON,INSOLVENCY_REASON,graceForDifficulty,reserveThreshold,ensure,evaluate,finalizeWeek,snapshot,validate,registerPreEvaluateHook,__installed:true});
 })();
