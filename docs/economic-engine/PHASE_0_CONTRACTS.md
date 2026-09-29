@@ -1,7 +1,7 @@
 # Economic Engine Phase 0 Contracts
 
-**Status: PROPOSED FOR GATE D APPROVAL**  
-**Validated repository baseline: `9b8bdc70eecca6e4caa059a3f44863b197b2b8b7`**  
+**Status: PROPOSED FOR GATE D APPROVAL — revised after independent Codex review**  
+**Validated repository baseline: `9adcbfe3d2da60b60efb4663be478ac3fcc67732`**  
 **Implementation permission: NO**
 
 This document turns the Phase 0 items in `ECONOMIC_ENGINE_ROADMAP.md` into explicit contracts. It is a specification only. It does not authorize Phase 1 implementation.
@@ -13,10 +13,10 @@ Phase 0 defines the semantics that later phases must share:
 - legal/economic entities
 - cash pools and ownership boundaries
 - economic terminology
-- material transaction shape
+- material operation / multi-leg posting shape
 - monetary precision and rounding
 - accounting/settlement boundaries
-- tick order and one-period lag
+- tick order and action-family timing
 - invariants
 - Control Ladder rights
 - founder net-worth treatment
