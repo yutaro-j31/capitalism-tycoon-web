@@ -127,6 +127,10 @@ Implementation starts from a refreshed, stable `main`.
 
 Measure the current game on a physical iPhone Safari environment.
 
+The canonical measurement procedure is:
+
+`docs/economic-engine/IPHONE_BASELINE_PROTOCOL.md`
+
 At minimum capture:
 
 - week-advance runtime
