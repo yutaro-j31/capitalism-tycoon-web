@@ -26,7 +26,7 @@ function newGame(seed = 190826041) {
   const { modules, ctx } = loadGame({ random: lcg(seed) });
   const engine = ctx.__ct_engine;
   engine.g.configured = true;
-  return { modules, engine };
+  return { modules, ctx, engine };
 }
 
 const freeTenant = engine => engine.g.tenants.find(t => !t.occupiedBy);
@@ -306,6 +306,86 @@ const freeTenant = engine => engine.g.tenants.find(t => !t.occupiedBy);
   const second = engine.estimateStoreOpening({ tenantID:tenant.id, businessID:'ramen', operatingHours:3 });
   assert.deepEqual(second.portfolioImpact, first.portfolioImpact, 'detailed portfolio previewも決定論');
   assert.equal(JSON.stringify(engine.g), before, 'detailed portfolio previewはstateを変更しない');
+}
+
+// 14〜16（#774）: 詳細業種の出店プレビューは、成長したセーブでも全状態を複製しない。
+//     自動出店は全業種×全空きテナントを試算するため、候補ごとに全状態を複製すると
+//     117週・約4.6MBのセーブで1回16秒かかっていた。財務の取引行を積んで同じ規模の
+//     セーブを短時間で作る（財務はプレビューが読まない部分なので、試算結果は変わらない）。
+function grownGame() {
+  const { modules, ctx, engine } = newGame();
+  engine.g.companyCash = 5_000_000_000;
+  const tenants = engine.g.tenants.filter(t => !t.occupiedBy && t.prefID === 'tokyo').slice(0, 6);
+  for (const [i, tenant] of tenants.entries()) {
+    assert.equal(engine.openStore({ tenantID:tenant.id, businessID:'ramen', name:`成長ラーメン${i + 1}`, operatingHours:3 }), true);
+    const opened = engine.g.stores.at(-1);
+    opened.status = 'open'; opened.openingWeek = engine.g.week; opened.weeksToOpen = 0;
+  }
+  const row = engine.g.finance.transactions.at(-1);
+  const padding = Array.from({ length: 12_000 }, (_, i) => ({ ...row, transactionID:`pad-${i}`, id:`pad-${i}` }));
+  engine.g.finance.transactions.push(...padding);
+  assert.ok(JSON.stringify(engine.g).length > 4_000_000, '前提: 成長したセーブ相当（4MB超）の状態');
+  return { modules, ctx, engine };
+}
+
+// 14. プレビューは structuredClone(engine.g)（全状態の複製）を一度も行わない。
+{
+  const { ctx, engine } = grownGame();
+  const tenant = engine.g.tenants.find(t => !t.occupiedBy && t.prefID === 'tokyo');
+  // The harness runtime has no structuredClone, so engine.js's deepClone() falls back to JSON.
+  // Installing one routes every deepClone() through this spy for the duration of the check.
+  const original = ctx.structuredClone;
+  let fullStateClones = 0, clones = 0;
+  ctx.structuredClone = value => { clones++; if (value === engine.g) fullStateClones++; return structuredClone(value); };
+  try {
+    const estimate = engine.estimateStoreOpening({ tenantID:tenant.id, businessID:'ramen', operatingHours:3 });
+    assert.ok(estimate.portfolioImpact, '前提: 既存店のある市場で詳細プレビューが走る');
+    assert.ok(estimate.portfolioImpact.currentStoreCount >= 6, '前提: 既存6店の自己競合を含む');
+  } finally {
+    ctx.structuredClone = original;
+  }
+  assert.ok(clones > 0, '前提: プレビューは deepClone() を経由して複製する');
+  assert.equal(fullStateClones, 0, '出店プレビューは全状態を複製しない（候補ごとの全状態複製が16秒の原因だった）');
+}
+
+// 15. 全空きテナントのラーメン試算（自動出店の走査と同じ件数）が上限時間内に終わる。
+//     実測（このフィクスチャ、ローカル）: 修正前 14,958ms / 修正後 約370ms。CIランナーの速度差（約1.6倍）を
+//     見込んでも修正後が十分下回り、修正前は必ず超える値にする。
+{
+  const { engine } = grownGame();
+  const free = engine.g.tenants.filter(t => !t.occupiedBy);
+  assert.ok(free.length >= 300, `前提: 空きテナントが300件以上ある（${free.length}件）`);
+  const started = process.hrtime.bigint();
+  for (const tenant of free) engine.estimateStoreOpening({ tenantID:tenant.id, businessID:'ramen', operatingHours:3 });
+  const elapsedMs = Number(process.hrtime.bigint() - started) / 1e6;
+  console.log(`store opening estimate: ramen previews for ${free.length} free tenants took ${elapsedMs.toFixed(0)}ms`);
+  assert.ok(elapsedMs < 6_000, `全空きテナントの詳細プレビューは6秒未満で終わる（${elapsedMs.toFixed(0)}ms）`);
+}
+
+// 16. プレビューが書き込むのは stores / workforce系 / competitor系 / menuResearch / next*Seq だけ。
+//     それ以外を凍結してもプレビューは例外なく動き、状態も変わらない。新しい書き込み先が
+//     増えた場合はここが赤になり、engine.js の PREVIEW_MUTABLE_KEY の更新が必要になる。
+{
+  const { engine } = newGame();
+  engine.g.companyCash = 5_000_000_000;
+  for (const [i, tenant] of engine.g.tenants.filter(t => !t.occupiedBy && t.prefID === 'osaka').slice(0, 3).entries()) {
+    assert.equal(engine.openStore({ tenantID:tenant.id, businessID:'ramen', name:`凍結検証${i + 1}`, operatingHours:3 }), true);
+    const opened = engine.g.stores.at(-1);
+    opened.status = 'open'; opened.openingWeek = engine.g.week; opened.weeksToOpen = 0;
+  }
+  const mutable = key => key === 'stores' || key === 'menuResearch' || /^(workforce|competitor)/.test(key) || /^next[A-Z]\w*Seq$/.test(key);
+  const deepFreeze = value => { if (value && typeof value === 'object' && !Object.isFrozen(value)) { Object.freeze(value); for (const child of Object.values(value)) deepFreeze(child); } return value; };
+  const before = JSON.stringify(engine.g);
+  for (const key of Object.keys(engine.g)) if (!mutable(key)) deepFreeze(engine.g[key]);
+  const tenants = [
+    ...engine.g.tenants.filter(t => !t.occupiedBy && t.prefID === 'osaka').slice(0, 2),
+    ...engine.g.tenants.filter(t => !t.occupiedBy && t.prefID !== 'osaka').slice(0, 3)
+  ];
+  for (const tenant of tenants) {
+    assert.doesNotThrow(() => engine.estimateStoreOpening({ tenantID:tenant.id, businessID:'ramen', operatingHours:3 }),
+      `${tenant.prefID}: 共有した状態に書き込まずにプレビューできる`);
+  }
+  assert.equal(JSON.stringify(engine.g), before, '凍結下のプレビュー後も状態は変わらない');
 }
 
 console.log('store opening estimate tests passed');

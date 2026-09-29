@@ -21,6 +21,21 @@ const deepClone = value => typeof structuredClone === 'function'
   ? structuredClone(value)
   : JSON.parse(JSON.stringify(value));
 
+// The store-opening preview runs market.calculateMarket() and workforce.storeExtraPayroll() on a
+// detached state. Those write only the stores, workforce, competitor and menu-research state and
+// the next*Seq counters, so only keys of those families are deep-copied; every other key is shared
+// read-only. tests/store-opening-estimate-test.js freezes the shared keys and checks that a
+// preview writes nothing else (#774).
+const PREVIEW_MUTABLE_KEY = key => key === 'stores' || key === 'menuResearch'
+  || /^(workforce|competitor)/.test(key) || /^next[A-Z]\w*Seq$/.test(key);
+const previewStateFor = state => {
+  const preview = { ...state };
+  for (const key of Object.keys(state)) {
+    if (PREVIEW_MUTABLE_KEY(key) && state[key] && typeof state[key] === 'object') preview[key] = deepClone(state[key]);
+  }
+  return preview;
+};
+
 const clamp = (n, min, max) => Math.max(min, Math.min(max, Number.isFinite(n) ? n : min));
 const finite = (n, fallback = 0) => Number.isFinite(Number(n)) ? Number(n) : fallback;
 // Simulation randomness and entity IDs come from the stream kept in the save (#731), so the same
@@ -978,7 +993,9 @@ class TycoonEngine extends EventTarget {
     // must therefore run on a detached state, never on this.g. Replace only this market's open
     // stores in the clone so a hypothetical candidate is visible to createStoreTeam() exactly
     // as a real opened store would be, while all unrelated state remains identical.
-    const previewState=deepClone(this.g);
+    // Only the state the pipeline writes is copied; the rest (finance alone is most of a grown
+    // save) is shared read-only, so a preview no longer costs a full-save clone (#774).
+    const previewState=previewStateFor(this.g);
     previewState.stores=(previewState.stores||[]).filter(store=>!(store&&store.status==='open'&&store.businessID===businessID&&store.prefID===prefID));
     previewState.stores.push(...deepClone(sourceRows));
     const rows=previewState.stores.filter(store=>store&&store.status==='open'&&store.businessID===businessID&&store.prefID===prefID);
@@ -999,7 +1016,11 @@ class TycoonEngine extends EventTarget {
     if(!market.isTargetBusinessID(businessID))return null;
     const tenant=this.g.tenants.find(t=>t.id===tenantID),b=this.business(businessID);if(!tenant||!b)return null;
     const prefID=tenant.prefID,hours=Math.max(1,Math.min(4,Math.floor(finite(operatingHours,3)))),current=(this.g.stores||[]).filter(store=>store.status==='open'&&store.businessID===businessID&&store.prefID===prefID);
-    const before=this.detailedStorePortfolioProfit(businessID,prefID,current);
+    // The pre-opening portfolio is the same for every tenant in this market, so the auto-expansion
+    // scan computes it once per business and prefecture instead of once per candidate tenant.
+    const beforeCache=this._portfolioBeforeCache,beforeKey=`${businessID}|${prefID}`;
+    const before=beforeCache?.get(beforeKey)||this.detailedStorePortfolioProfit(businessID,prefID,current);
+    beforeCache?.set(beforeKey,before);
     const previewID=`__opening-preview__${businessID}__${String(tenantID)}`;
     const candidate={id:previewID,businessID,prefID,name:'出店プレビュー',openedWeek:this.g.week,quality:b.quality,brand:b.brand,condition:100,lastSales:0,lastProfit:0,status:'open',openingWeek:this.g.week,weeksToOpen:0,tenantID,cityName:tenant.cityName,operatingHours:hours,contractRent:resolveTenantContractRent(tenant,this.pref(prefID)),marketResult:null};
     const after=this.detailedStorePortfolioProfit(businessID,prefID,[...current,candidate]);
@@ -2083,13 +2104,16 @@ class TycoonEngine extends EventTarget {
     if(!freeTenants.length)return false;
     const activeCount=new Map(FOUNDABLE_BUSINESS_IDS.map(id=>[id,(this.g.stores||[]).filter(s=>s.businessID===id&&s.status!=='closed').length]));
     const candidates=[];
-    for(const businessID of FOUNDABLE_BUSINESS_IDS){
-      for(const tenant of freeTenants){
-        const estimate=this.estimateStoreOpening({tenantID:tenant.id,businessID,operatingHours:3});
-        if(!estimate||!estimate.affordable||finite(estimate.decisionProfit,estimate.expected?.profit)<=0||estimate.cashAfterOpening<reserve)continue;
-        candidates.push({businessID,tenant,estimate,missing:(activeCount.get(businessID)||0)===0});
+    this._portfolioBeforeCache=new Map();
+    try{
+      for(const businessID of FOUNDABLE_BUSINESS_IDS){
+        for(const tenant of freeTenants){
+          const estimate=this.estimateStoreOpening({tenantID:tenant.id,businessID,operatingHours:3});
+          if(!estimate||!estimate.affordable||finite(estimate.decisionProfit,estimate.expected?.profit)<=0||estimate.cashAfterOpening<reserve)continue;
+          candidates.push({businessID,tenant,estimate,missing:(activeCount.get(businessID)||0)===0});
+        }
       }
-    }
+    }finally{this._portfolioBeforeCache=null;}
     if(!candidates.length)return false;
     candidates.sort((a,b)=>(a.missing===b.missing?0:a.missing?-1:1)
       ||finite(b.estimate.siteSuitability?.multiplier)-finite(a.estimate.siteSuitability?.multiplier)
