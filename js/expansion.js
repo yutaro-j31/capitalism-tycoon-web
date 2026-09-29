@@ -49,6 +49,10 @@ const VERTICAL_INTEGRATION_OFFERS = [
   {id:'cloud-platform',name:'クラウド・サーバー基盤',businessID:'all',cost:150000000,weeklyCost:1100000,costReduction:.04,risk:.11}
 ];
 
+// Vertical-integration investments are held as fixed assets and depreciated over ten years
+// (#795); before that they left company cash without any ledger record.
+const VERTICAL_INTEGRATION_USEFUL_LIFE_WEEKS=520;
+
 // productVentures.conversionRate is a persistent week-over-week accumulator, not recomputed
 // fresh from quality like churnRate is: `f.conversionRate += (quality - NEUTRAL) / 52000`. A
 // freshly-launched product starts at quality 20 and, even under sustained heavy investment,
@@ -347,18 +351,18 @@ function installExpansion(TycoonEngine){
   TycoonEngine.prototype.contractSupplier=function(offerID,businessID){
     this.ensureExpansionDefaults();const o=SUPPLIER_OFFERS.find(x=>x.id===offerID),stores=this.g.stores.filter(s=>s.businessID===businessID).length;if(!o)return false;
     if(stores<o.minStores)return this.fail(`${o.name}は同業態${o.minStores}店以上が条件です。`);if(this.g.companyCash<o.setupCost)return this.fail('契約金が不足しています。');
-    const old=this.g.supplierContracts.find(x=>x.businessID===businessID&&x.active);if(old)old.active=false;this.g.companyCash-=o.setupCost;this.g.supplierContracts.push({...copy(o),contractID:uid(this.g),businessID,active:true,startedWeek:this.g.week});
+    const old=this.g.supplierContracts.find(x=>x.businessID===businessID&&x.active);if(old)old.active=false;const contractID=uid(this.g);this.g.companyCash-=o.setupCost;__modules.finance.event(this.g,'otherOperating',o.setupCost,{cashEffect:-o.setupCost,profitEffect:-o.setupCost,businessID,sourceType:'contractSupplier',sourceID:contractID,description:`${o.name} 契約金`});this.g.supplierContracts.push({...copy(o),contractID,businessID,active:true,startedWeek:this.g.week});
     this.notify(`${this.business(businessID)?.name||businessID}で${o.name}と契約しました。`,'success');this.save();this.emit();return true;
   };
   TycoonEngine.prototype.cancelSupplier=function(contractID){const c=this.g.supplierContracts.find(x=>x.contractID===contractID);if(!c)return false;c.active=false;this.notify(`${c.name}との仕入契約を終了しました。`,'warning');this.save();this.emit();return true;};
 
   TycoonEngine.prototype.addVerticalIntegration=function(id){
     this.ensureExpansionDefaults();const o=VERTICAL_INTEGRATION_OFFERS.find(x=>x.id===id);if(!o)return false;if(this.g.verticalIntegrationAssets.some(x=>x.id===id&&x.active))return this.fail('導入済みです。');if(this.g.companyCash<o.cost)return this.fail('投資資金が不足しています。');
-    this.g.companyCash-=o.cost;this.g.verticalIntegrationAssets.push({...copy(o),assetID:uid(this.g),active:true,startedWeek:this.g.week,condition:100});this.notify(`サプライチェーン垂直統合「${o.name}」を開始しました。`,'success');this.save();this.emit();return true;
+    const assetID=uid(this.g);this.g.companyCash-=o.cost;__modules.finance.addFixedAsset(this.g,{assetID:`vertical-integration-${assetID}`,assetType:'verticalIntegration',acquisitionCost:o.cost,usefulLifeWeeks:VERTICAL_INTEGRATION_USEFUL_LIFE_WEEKS,businessID:o.businessID==='all'?null:o.businessID});__modules.finance.event(this.g,'capitalExpenditure',o.cost,{cashEffect:-o.cost,assetEffect:o.cost,sourceType:'addVerticalIntegration',sourceID:assetID,description:o.name});this.g.verticalIntegrationAssets.push({...copy(o),assetID,active:true,startedWeek:this.g.week,condition:100});this.notify(`サプライチェーン垂直統合「${o.name}」を開始しました。`,'success');this.save();this.emit();return true;
   };
   TycoonEngine.prototype.startRDProject=function(id){
     this.ensureExpansionDefaults();const o=RD_PROJECTS.find(x=>x.id===id);if(!o)return false;if(this.g.rdProjects.some(x=>x.id===id&&x.status==='researching')||this.g.patentRecords.some(x=>x.projectID===id))return this.fail('研究済みまたは進行中です。');if(!this.g.departments.product&&!this.g.departments.dx)return this.fail('商品開発部門またはDX部門が必要です。');if(this.g.companyCash<o.cost)return this.fail('研究資金が不足しています。');
-    this.g.companyCash-=o.cost;this.g.rdProjects.push({...copy(o),projectID:uid(this.g),progress:0,status:'researching',startedWeek:this.g.week});this.notify(`${o.name}の研究を開始しました。`,'success');this.save();this.emit();return true;
+    const projectID=uid(this.g);this.g.companyCash-=o.cost;__modules.finance.event(this.g,'researchAndDevelopment',o.cost,{cashEffect:-o.cost,profitEffect:-o.cost,sourceType:'startRDProject',sourceID:projectID,description:o.name});this.g.rdProjects.push({...copy(o),projectID,progress:0,status:'researching',startedWeek:this.g.week});this.notify(`${o.name}の研究を開始しました。`,'success');this.save();this.emit();return true;
   };
   TycoonEngine.prototype.licensePatent=function(id){const p=this.g.patentRecords.find(x=>x.id===id);if(!p)return false;p.licensed=!p.licensed;this.notify(`${p.name}のライセンス提供を${p.licensed?'開始':'停止'}しました。`);this.save();this.emit();return true;};
 
@@ -565,10 +569,10 @@ function installExpansion(TycoonEngine){
   };
 
   TycoonEngine.prototype.executeMBO=function(stockID){
-    const s=this.stock(stockID),h=this.g.companyStocks[stockID];if(!s||!h||h.qty/s.issuedShares<.5)return this.fail('会社口座で過半数保有が必要です。');const remaining=s.issuedShares-h.qty,cost=remaining*s.price*1.25;if(this.g.companyCash<cost)return this.fail('MBO資金が不足しています。');this.g.companyCash-=cost;this.g.companyStocks[stockID].qty=s.issuedShares;s.privateCompany=true;s.suspended=true;this.notify(`${s.name}のMBOを成立させました。`,'success');this.save();this.emit();return true;
+    const s=this.stock(stockID),h=this.g.companyStocks[stockID];if(!s||!h||h.qty/s.issuedShares<.5)return this.fail('会社口座で過半数保有が必要です。');const remaining=s.issuedShares-h.qty,cost=remaining*s.price*1.25;if(this.g.companyCash<cost)return this.fail('MBO資金が不足しています。');this.g.companyCash-=cost;__modules.finance.event(this.g,'investmentPurchase',cost,{cashEffect:-cost,assetEffect:cost,sourceType:'executeMBO',sourceID:`${stockID}-${this.g.week}`,description:`${s.name} MBO`});h.avg=(n(h.avg)*h.qty+cost)/s.issuedShares;this.g.companyStocks[stockID].qty=s.issuedShares;s.privateCompany=true;s.suspended=true;this.notify(`${s.name}のMBOを成立させました。`,'success');this.save();this.emit();return true;
   };
   TycoonEngine.prototype.activateDefense=function(kind){
-    if(!this.g.publicCompany)return this.fail('自社が上場していません。');const costs={poisonPill:12000000,whiteKnight:25000000,irCampaign:6000000},cost=costs[kind]||6000000;if(this.g.companyCash<cost)return this.fail('防衛資金が不足しています。');this.g.companyCash-=cost;const reduction={poisonPill:.05,whiteKnight:.09,irCampaign:.025}[kind]||.025;this.g.competitorOwnedRatio=clamp(this.g.competitorOwnedRatio-reduction,0,.49);this.g.companyReputation=clamp(this.g.companyReputation+(kind==='irCampaign'?2:0),0,100);this.g.shareholderEventLog.unshift(`第${this.g.week}週：買収防衛策「${kind}」を実行。`);this.g.shareholderEventLog=this.g.shareholderEventLog.slice(0,logCap('shareholderEventLog'));this.notify('買収防衛策を実行しました。','success');this.save();this.emit();return true;
+    if(!this.g.publicCompany)return this.fail('自社が上場していません。');const costs={poisonPill:12000000,whiteKnight:25000000,irCampaign:6000000},cost=costs[kind]||6000000;if(this.g.companyCash<cost)return this.fail('防衛資金が不足しています。');this.g.companyCash-=cost;__modules.finance.event(this.g,'headOfficeExpense',cost,{cashEffect:-cost,profitEffect:-cost,sourceType:'activateDefense',sourceID:`${kind}-${this.g.week}`,description:'買収防衛策'});const reduction={poisonPill:.05,whiteKnight:.09,irCampaign:.025}[kind]||.025;this.g.competitorOwnedRatio=clamp(this.g.competitorOwnedRatio-reduction,0,.49);this.g.companyReputation=clamp(this.g.companyReputation+(kind==='irCampaign'?2:0),0,100);this.g.shareholderEventLog.unshift(`第${this.g.week}週：買収防衛策「${kind}」を実行。`);this.g.shareholderEventLog=this.g.shareholderEventLog.slice(0,logCap('shareholderEventLog'));this.notify('買収防衛策を実行しました。','success');this.save();this.emit();return true;
   };
 
   TycoonEngine.prototype.syncPESubsidiary=function(deal){if(!deal||deal.ownerAccount!=='company'||deal.status!=='active')return null;const ownership=clamp(n(deal.ownershipRatio),.000001,1),id=`pe-subsidiary-${deal.id}`;let sub=this.g.subsidiaries.find(x=>x.id===id);if(!sub){sub={id,name:deal.targetName,industry:deal.industry,domain:deal.industry,status:'active',ownership,valuation:0,carryingBookValue:n(deal.ownerCostBasis),investedCost:n(deal.ownerCostBasis),acquisitionPrice:n(deal.ownerCostBasis),weeklyProfit:0,growth:0,risk:0,retainedEarnings:0,acquiredWeek:this.g.week,source:'pe',peDealID:deal.id,valuationManagedBy:'pe'};this.g.subsidiaries.push(sub);}sub.ownership=ownership;sub.valuation=n(deal.currentValuation)/ownership;sub.carryingBookValue=n(deal.ownerCostBasis);deal.subsidiaryID=id;return sub;};

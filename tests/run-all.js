@@ -201,6 +201,7 @@ const nodeTests = [
   ['stage-3-ui-screen-scope-regression', 'tests/stage-3-ui-screen-scope-regression-test.js'],
   ['v1-progression-gate', 'tests/v1-progression-gate-test.js'],
   ['treasury-prepayment', 'tests/treasury-prepayment-test.js'],
+  ['expansion-actions-ledger', 'tests/expansion-actions-ledger-test.js'],
   ['treasury-refinancing-policy', 'tests/treasury-refinancing-policy-test.js'],
   ['shareholder-returns', 'tests/shareholder-returns-test.js'],
   ['shareholder-activism', 'tests/shareholder-activism-test.js'],
