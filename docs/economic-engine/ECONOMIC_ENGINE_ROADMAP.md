@@ -1,10 +1,10 @@
 # Capitalism Tycoon Economic Engine Integration Roadmap
 
-**Status: DRAFT — v2 / Gate D remediation after independent Codex review**  
+**Status: DRAFT — v2 / Gate D second-review remediation in progress**  
 **Implementation baseline: NO**  
 **Gate C: COMPLETE — physical iPhone evidence accepted; #787 closed**  
 **Gate D tracker: #804 — IN PROGRESS**  
-**Repository baseline reviewed for Gate D: `9adcbfe3d2da60b60efb4663be478ac3fcc67732` (#805 and #799 included)**  
+**Repository baseline reviewed for Gate D: `694bc395df968e9e96fa5c3cc162f81acf797f27` (#807, #805 and #799 included)**  
 **Additional historical audit: completed against local baseline `849586c`**  
 **Gate D contract candidates:** `PHASE_0_CONTRACTS.md`, `ECONOMIC_ENGINE_DEPENDENCY_GRAPH.md`, `GATE_D_VALIDATION.md`  
 **Purpose: audited pre-implementation roadmap**
