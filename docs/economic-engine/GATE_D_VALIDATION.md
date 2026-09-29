@@ -2,7 +2,7 @@
 
 **Status: IN PROGRESS / NOT YET APPROVED**  
 **Gate C: COMPLETE / OWNER ACCEPTED**  
-**Validation baseline: `a77e7513b83a9a26ac2ead0423f2b7b5fc21f54c`**  
+**Validation baseline: `9b8bdc70eecca6e4caa059a3f44863b197b2b8b7`**  
 **Tracker: #804**
 
 ## 1. Purpose
@@ -123,23 +123,21 @@ Store/market/supply/workforce and other detailed systems already contain product
 
 Gate D conclusion: Phase 5 must adapt detailed systems into the shared industry layer without double-counting revenue, demand, capacity or cost.
 
-## 5. Open blocker: PR #799
+## 5. Save-authority remediation #799 — RESOLVED
 
-PR #799 is currently open and changes the production save-boot authority/reconciliation path associated with #726.
+PR #799 was merged as main `9b8bdc70eecca6e4caa059a3f44863b197b2b8b7`.
 
-At this validation point:
+The final Gate D main review includes its save-authority behavior:
 
-- PR #799 is mergeable;
-- its Test and Strategy Balance workflows are green;
-- it is based on the current Gate D baseline main;
-- it introduces per-save sequence comparison/reconciliation between IndexedDB and localStorage.
+- each persisted save copy carries optional transport metadata `saveSequence`;
+- IndexedDB and localStorage are compared and the newer copy is selected;
+- legacy saves fall back to lastSaveDate then week;
+- a full tie keeps IndexedDB;
+- the selected copy is reconciled back to the other store;
+- `saveSequence` is stripped from loaded/live simulation state;
+- `SAVE_KEY` and `saveVersion=9` remain unchanged.
 
-Because save authority is a repository-wide invariant and #799 is explicitly part of the #745 remediation lineage, Gate D must not claim **final latest-stable-main validation** until #799 is either:
-
-- merged and the docs are rechecked against the resulting main; or
-- intentionally closed/rejected with the final save authority documented.
-
-This docs PR may proceed because it does not change save/runtime authority.
+Gate D conclusion: this resolves the earlier stable-main blocker. Storage transport metadata must not become Economic Core state or enter deterministic economic state hashes.
 
 ## 6. Gate E remains separate
 
@@ -178,11 +176,11 @@ The companion `ECONOMIC_ENGINE_DEPENDENCY_GRAPH.md` defines phase dependencies a
 ## 8. Gate D completion checklist
 
 - [x] Gate C owner acceptance recorded
-- [x] latest-main architecture reviewed at `a77e7513...`
+- [x] final latest-main architecture reviewed at `9b8bdc70...`
 - [x] current document hierarchy/conflicts identified
 - [x] Phase 0 contract candidate written
 - [x] Economic Engine dependency graph candidate written
-- [ ] #799 resolved and final main revalidated
+- [x] #799 resolved and final main revalidated
 - [ ] independent Codex review against exact roadmap + contracts
 - [ ] review findings resolved
 - [ ] owner approves Phase 0 contracts
@@ -197,15 +195,13 @@ Until all unchecked items are complete:
 
 ## 9. Next sequence
 
-1. resolve #799;
-2. refresh this validation baseline to resulting stable main;
-3. run independent Codex review against:
+1. run independent Codex review against:
    - `ECONOMIC_ENGINE_ROADMAP.md`
    - `PHASE_0_CONTRACTS.md`
    - `ECONOMIC_ENGINE_DEPENDENCY_GRAPH.md`
    - latest relevant production implementation;
-4. resolve review findings;
-5. obtain owner Gate D approval;
-6. request Claude Code final #745 remediation attestation (Gate E);
-7. implement/accept Phase 0.5;
-8. only after remaining gates, consider Gate F / Phase 1.
+2. resolve review findings;
+3. obtain owner Gate D approval;
+4. request Claude Code final #745 remediation attestation (Gate E);
+5. implement/accept Phase 0.5;
+6. only after remaining gates, consider Gate F / Phase 1.
