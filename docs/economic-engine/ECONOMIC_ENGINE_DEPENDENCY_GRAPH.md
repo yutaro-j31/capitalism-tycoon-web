@@ -1,7 +1,7 @@
 # Economic Engine Dependency Graph
 
-**Status: PROPOSED FOR GATE D APPROVAL — revised after independent Codex review**  
-**Baseline: `9adcbfe3d2da60b60efb4663be478ac3fcc67732`**  
+**Status: PROPOSED FOR GATE D APPROVAL — second-review remediation applied**  
+**Baseline: `694bc395df968e9e96fa5c3cc162f81acf797f27`**  
 **Implementation permission: NO**
 
 This graph is normative for Economic Engine sequencing. Existing features may remain operational through adapters before their migration phase, but a later phase may not make an unmigrated subsystem authoritative early.
