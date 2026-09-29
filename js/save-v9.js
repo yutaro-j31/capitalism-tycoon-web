@@ -42,6 +42,8 @@ function sanitizeBusinessRecords(state){
  return state;
 }
 function upgradeState(state){
+ // saveSequence is storage metadata carried in the saved payload (#726), never simulation state.
+ if(state&&typeof state==='object')delete state.saveSequence;
  sanitizeBusinessRecords(state);
  competitor.ensure(state);
  if(typeof competitor.ensureCounterStates==='function')competitor.ensureCounterStates(state);

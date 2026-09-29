@@ -171,7 +171,8 @@ async function setState(page, kind) {
     if (kind === 'improvement' && model.current?.id !== 'first_improvement') throw new Error(`improvement fixture did not reach first_improvement: ${model.current?.id}`);
     if (kind === 'cash' && model.current?.id !== 'cash_runway') throw new Error(`cash fixture did not reach cash_runway: ${model.current?.id}`);
     if (kind === 'complete' && model.displayMode !== 'complete') throw new Error(`complete fixture did not reach complete: ${model.displayMode}`);
-    localStorage.setItem(key, JSON.stringify(game.g));
+    // Through the production save path, so both stores hold the fixture (#726).
+    if (!game.save()) throw new Error('production save failed'); return globalThis.__capitalismTycoonModules.saveStorageIDB.flush();
   }, { key: SAVE_KEY, kind });
   await page.reload({ waitUntil: 'networkidle' });
   await page.locator('[data-founding-guide="1"]').waitFor({ state: 'visible' });

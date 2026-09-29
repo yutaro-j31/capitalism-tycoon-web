@@ -32,6 +32,8 @@
   let unavailableReason = null;
   let pendingWrite = Promise.resolve();
   let lastWriteError = null;
+  let lastSequence = new Map();
+  let bootSelection = {};
 
   function indexedDBAvailable() {
     try {
@@ -109,6 +111,88 @@
     });
   }
 
+  // Which copy is newer (#726). Every save carries saveSequence, a counter that grows by one on
+  // each save of that key. Unlike lastSaveDate it does not depend on the device clock. A copy
+  // written before the counter existed is compared by lastSaveDate, then by week. On a full tie
+  // the durable (IndexedDB) copy is kept.
+  const SEQUENCE_PATTERN = /"saveSequence":(\d+)/;
+  function sequenceOf(payload) {
+    if (typeof payload !== 'string') return null;
+    const match = SEQUENCE_PATTERN.exec(payload);
+    return match ? Number(match[1]) : null;
+  }
+  function metaOf(payload) {
+    try {
+      const state = JSON.parse(payload);
+      if (!state || typeof state !== 'object') return null;
+      const savedAt = Date.parse(state.lastSaveDate);
+      const week = Number(state.week);
+      return { savedAt: Number.isFinite(savedAt) ? savedAt : -Infinity, week: Number.isFinite(week) ? week : -Infinity };
+    } catch (error) {
+      return null;
+    }
+  }
+  function newerCopy(durable, mirror) {
+    const hasDurable = typeof durable === 'string' && durable.length > 0;
+    const hasMirror = typeof mirror === 'string' && mirror.length > 0;
+    if (!hasMirror) return 'indexeddb';
+    if (!hasDurable) return 'localStorage';
+    if (durable === mirror) return 'indexeddb';
+    const durableSequence = sequenceOf(durable), mirrorSequence = sequenceOf(mirror);
+    if (durableSequence !== null && mirrorSequence !== null) return mirrorSequence > durableSequence ? 'localStorage' : 'indexeddb';
+    const durableMeta = metaOf(durable), mirrorMeta = metaOf(mirror);
+    if (!mirrorMeta) return 'indexeddb';
+    if (!durableMeta) return 'localStorage';
+    if (mirrorMeta.savedAt !== durableMeta.savedAt) return mirrorMeta.savedAt > durableMeta.savedAt ? 'localStorage' : 'indexeddb';
+    return mirrorMeta.week > durableMeta.week ? 'localStorage' : 'indexeddb';
+  }
+
+  function mirrorRead(key) {
+    try {
+      return localStorage.getItem(key);
+    } catch (error) {
+      return null;
+    }
+  }
+  function mirrorSaveKeys() {
+    const keys = [];
+    try {
+      for (let index = 0; index < localStorage.length; index += 1) {
+        const key = localStorage.key(index);
+        if (key === SAVE_KEY || (typeof key === 'string' && key.startsWith(SAVE_KEY + '_slot_'))) keys.push(key);
+      }
+    } catch (error) {}
+    return keys;
+  }
+  function noteSequence(key, sequence) {
+    if (Number.isFinite(sequence) && sequence > (lastSequence.get(key) || 0)) lastSequence.set(key, sequence);
+  }
+
+  // Boot the newer copy and write it back to the other store, so both hold the same save.
+  function reconcile() {
+    const selection = {};
+    for (const key of new Set([...cache.keys(), ...mirrorSaveKeys()])) {
+      const durable = cache.get(key), mirror = mirrorRead(key);
+      const source = newerCopy(durable, mirror);
+      const chosen = source === 'localStorage' ? mirror : durable;
+      if (source === 'localStorage') writeSync(key, mirror);
+      else if (mirror !== durable) {
+        try { localStorage.setItem(key, durable); } catch (error) {}
+      }
+      noteSequence(key, sequenceOf(chosen));
+      selection[key] = { source, sequence: sequenceOf(chosen) };
+    }
+    return selection;
+  }
+
+  // The next saveSequence for a key: one more than the highest seen in either store.
+  function nextSequence(key = SAVE_KEY) {
+    if (!lastSequence.has(key)) lastSequence.set(key, Math.max(sequenceOf(cache.get(key)) || 0, sequenceOf(mirrorRead(key)) || 0));
+    const next = lastSequence.get(key) + 1;
+    lastSequence.set(key, next);
+    return next;
+  }
+
   // Read every stored save into the synchronous cache. Called once before the app boots.
   async function hydrate() {
     if (hydrated) return { ok: true, source: 'cache', entries: cache.size };
@@ -119,6 +203,7 @@
         for (let index = 0; index < keys.length; index += 1) {
           if (typeof entries[index] === 'string') cache.set(String(keys[index]), entries[index]);
         }
+        bootSelection = reconcile();
       }
       hydrated = true;
       return { ok: true, source: entries ? 'indexeddb' : 'localstorage', entries: cache.size };
@@ -129,16 +214,12 @@
     }
   }
 
-  // Synchronous read used by the engine. IndexedDB first, then whatever localStorage holds,
-  // so an existing save written by an older build is still found on the first run.
+  // Synchronous read used by the engine. After hydrate() the cache holds the newer of the two
+  // copies; without IndexedDB (or before hydration) whatever localStorage holds is used.
   function readSync(key = SAVE_KEY) {
     const cached = cache.get(key);
     if (typeof cached === 'string' && cached.length) return cached;
-    try {
-      return localStorage.getItem(key);
-    } catch (error) {
-      return null;
-    }
+    return mirrorRead(key);
   }
 
   // Synchronous from the caller's point of view: the cache is updated at once and the
@@ -146,6 +227,7 @@
   // event rather than by blocking the game loop.
   function writeSync(key, payload) {
     cache.set(key, payload);
+    noteSequence(key, sequenceOf(payload));
     pendingWrite = pendingWrite
       .then(() => runTransaction('readwrite', store => store.put(payload, key)))
       .then(() => { lastWriteError = null; })
@@ -192,7 +274,8 @@
       available: indexedDBAvailable() && !unavailableReason,
       unavailableReason,
       cachedKeys: [...cache.keys()],
-      lastWriteError
+      lastWriteError,
+      bootSelection
     };
   }
 
@@ -203,6 +286,8 @@
     unavailableReason = null;
     pendingWrite = Promise.resolve();
     lastWriteError = null;
+    lastSequence = new Map();
+    bootSelection = {};
   }
 
   // Creates a fully separate durable backend for measurement tools.  The caller chooses a
@@ -272,6 +357,7 @@
   modules.saveStorageIDB = Object.freeze({
     DB_NAME, DB_VERSION, STORE_NAME, SAVE_KEY,
     hydrate, readSync, writeSync, removeSync, flush, status, findNewerSave, resetForTests, createIsolatedBackend,
+    nextSequence, sequenceOf, newerCopy,
     __installed: true
   });
 })();

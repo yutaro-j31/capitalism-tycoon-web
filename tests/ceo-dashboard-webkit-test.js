@@ -152,7 +152,8 @@ async function injectMAGovernanceFixture(page) {
     save.maDealRooms = [{id:'deal-1', targetID:'target-1', status:'accepted', deadlineWeek:save.week + 4, sellerAsk:120000000, diligenceLevel:'confirmatory', diligenceConfidence:.9, valuationBridge:{recommendedMaximumPrice:120000000}, findings:[], history:[]}];
     save.goodwillRecords = [{id:'gw-1', carryingValue:21600000, amount:30000000, status:'active'}];
     save.maSubsidiaries = [{id:'sub-1', name:'PMI危機子会社', status:'active', pmiStatus:'stalled', pmiHealth:30, pmiFriction:82, acquisitionMethod:'cash', domain:'SaaS', acquisitionPrice:90000000, identifiableNetAssetsBookValue:68400000, goodwillBookValue:30000000, goodwillRecordID:'gw-1', pmiWeeklySynergyProfit:400000, standaloneWeeklyProfit:600000, weeklyProfit:1000000, valuation:95000000}];
-    localStorage.setItem(key, JSON.stringify(save));
+    // Through the production save path, so both stores hold the fixture (#726).
+    const saved = globalThis.__capitalismTycoonModules.saveStorage.saveWithAdapter({ g: save }, { key }); if (!saved.ok) throw saved.error || new Error('production save failed'); return saved.flush();
   }, SAVE_KEY);
   await page.reload({ waitUntil: 'networkidle', timeout: 30_000 });
   await page.locator('[data-ceo-dashboard="1"]').waitFor({ state: 'visible', timeout: 20_000 });

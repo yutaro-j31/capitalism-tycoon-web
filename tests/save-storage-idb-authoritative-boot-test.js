@@ -91,7 +91,9 @@ function contextFor({ local, durable, withIDB = true }) {
     localStorage: {
       getItem: key => localMap.has(key) ? localMap.get(key) : null,
       setItem: (key, value) => localMap.set(key, String(value)),
-      removeItem: key => localMap.delete(key)
+      removeItem: key => localMap.delete(key),
+      get length() { return localMap.size; },
+      key: index => [...localMap.keys()][index] ?? null
     },
     __capitalismTycoonModules: {},
     globalThis: null
@@ -146,6 +148,71 @@ function prodSave(weeks, companyName) {
     const booted = Engine.load();
     assert.equal(booted.g.companyName, 'Durable Newer Co', 'the production engine boots the durable save, not the localStorage copy');
     assert.equal(booted.g.week, 9);
+  }
+
+  // #726 owner decision B: boot the newer copy and write it back to the other store.
+  // saveSequence decides; without it lastSaveDate, then week. A full tie keeps IndexedDB.
+  const bootCase = async (label, local, durablePayload) => {
+    const durableMap = new Map(durablePayload === undefined ? [] : [[SAVE_KEY, durablePayload]]);
+    const { context: ctx, localMap } = contextFor({ local: local === undefined ? {} : { [SAVE_KEY]: local }, durable: durableMap, withIDB: true });
+    const store = ctx.__capitalismTycoonModules.saveStorageIDB;
+    await store.hydrate();
+    await store.flush();
+    const booted = store.readSync(SAVE_KEY);
+    assert.equal(localMap.get(SAVE_KEY), booted, `${label}: localStorage holds the booted copy`);
+    assert.equal(durableMap.get(SAVE_KEY), booted, `${label}: IndexedDB holds the booted copy`);
+    return { booted: JSON.parse(booted), source: store.status().bootSelection[SAVE_KEY].source, store };
+  };
+  const copy = fields => JSON.stringify({ saveVersion: 9, companyCash: 1, ...fields });
+
+  let result = await bootCase('sequence beats week', copy({ week: 12, saveSequence: 9 }), copy({ week: 18, saveSequence: 5 }));
+  assert.equal(result.source, 'localStorage');
+  assert.equal(result.booted.saveSequence, 9, 'the higher saveSequence boots even with a lower week');
+  assert.equal(result.store.nextSequence(SAVE_KEY), 10, 'the next save continues after the highest sequence seen');
+  assert.equal(result.store.nextSequence(SAVE_KEY), 11, 'and keeps counting');
+
+  result = await bootCase('sequence beats clock', copy({ week: 12, saveSequence: 4, lastSaveDate: '2030-01-01T00:00:00.000Z' }), copy({ week: 12, saveSequence: 7, lastSaveDate: '2020-01-01T00:00:00.000Z' }));
+  assert.equal(result.source, 'indexeddb', 'a device clock set ahead does not win over a higher sequence');
+  assert.equal(result.booted.saveSequence, 7);
+
+  result = await bootCase('old saves: lastSaveDate', copy({ week: 10, lastSaveDate: '2026-09-02T00:00:00.000Z' }), copy({ week: 20, lastSaveDate: '2026-09-01T00:00:00.000Z' }));
+  assert.equal(result.source, 'localStorage', 'without saveSequence the later lastSaveDate boots');
+  assert.equal(result.booted.week, 10);
+
+  result = await bootCase('old saves: same date, week', copy({ week: 21, lastSaveDate: '2026-09-01T00:00:00.000Z' }), copy({ week: 20, lastSaveDate: '2026-09-01T00:00:00.000Z' }));
+  assert.equal(result.source, 'localStorage', 'with the same lastSaveDate the later week boots');
+
+  result = await bootCase('one side without sequence', copy({ week: 10, saveSequence: 3, lastSaveDate: '2026-09-01T00:00:00.000Z' }), copy({ week: 10, lastSaveDate: '2026-09-02T00:00:00.000Z' }));
+  assert.equal(result.source, 'indexeddb', 'when either copy lacks saveSequence, lastSaveDate decides');
+
+  result = await bootCase('full tie keeps IndexedDB', copy({ week: 10, saveSequence: 3, companyCash: 111 }), copy({ week: 10, saveSequence: 3, companyCash: 222 }));
+  assert.equal(result.source, 'indexeddb');
+  assert.equal(result.booted.companyCash, 222);
+
+  result = await bootCase('only localStorage (first run of this build)', copy({ week: 8, saveSequence: 2 }), undefined);
+  assert.equal(result.source, 'localStorage', 'a save only in localStorage is copied into IndexedDB');
+
+  result = await bootCase('only IndexedDB (localStorage cleared)', undefined, copy({ week: 8, saveSequence: 2 }));
+  assert.equal(result.source, 'indexeddb', 'a save only in IndexedDB is written back to localStorage');
+
+  // The production save stamps saveSequence into the payload only; the live state and a loaded
+  // state never carry it, so simulation state and determinism comparisons are unchanged.
+  {
+    const { loadGame } = require('./harness');
+    const game = loadGame({ headless: true });
+    const engine = new game.engineModule.TycoonEngine();
+    engine.configure({ playerName: 'Seq', companyName: 'Seq Co', difficulty: 'normal', scenario: 'free' });
+    engine.save();
+    const first = JSON.parse(game.ctx.__localStorageData.get(SAVE_KEY)).saveSequence;
+    engine.save();
+    const second = JSON.parse(game.ctx.__localStorageData.get(SAVE_KEY)).saveSequence;
+    assert.ok(Number.isInteger(first) && first >= 1, 'the saved payload carries saveSequence');
+    assert.equal(second, first + 1, 'each save increases saveSequence by one');
+    assert.equal('saveSequence' in engine.g, false, 'the live state does not keep saveSequence');
+    const reloaded = game.engineModule.TycoonEngine.load();
+    assert.equal('saveSequence' in reloaded.g, false, 'a loaded state does not carry saveSequence');
+    reloaded.save();
+    assert.equal(JSON.parse(game.ctx.__localStorageData.get(SAVE_KEY)).saveSequence, second + 1, 'a reloaded game continues the sequence');
   }
 
   console.log('save storage IDB authoritative boot tests passed');
