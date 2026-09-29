@@ -143,7 +143,8 @@ Specific gates:
 
 The following cycles are prohibited:
 
-- **base valuation** consumes completed accounting/ownership/debt/industry facts and is pure/read-only;
+- **base valuation** consumes completed accounting/ownership/debt/industry/market observations and is pure/read-only;
+- Phase 6 uses the pure calculation DAG: observations → Cost of Equity → after-tax Cost of Debt + capital structure → WACC → EV/asset value → Equity Value → immutable base snapshot;
 - allocation consumes the immutable base valuation snapshot;
 - allocation decisions cannot change the base valuation used to score themselves;
 - post-decision/public repricing may use committed decisions/signals, but cannot feed back into the same decision cycle;
