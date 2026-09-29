@@ -63,11 +63,11 @@ async function copy(data,env=globalThis){
 function renderCard(env=globalThis){
  const screen=env.document?.querySelector?.('[data-screen="settings"]');if(!screen)return false;
  let node=screen.querySelector?.('[data-physical-iphone-playtest]');
- if(node)return true;
+ if(node){modules.iphoneBaselineProbe?.renderCard?.(env);return true;}
  node=env.document.createElement('section');node.className='card';node.setAttribute('data-physical-iphone-playtest','');
  const rows=CHECKS.map(item=>`<label class="stat" style="display:flex;gap:12px;align-items:flex-start;min-height:44px"><input type="checkbox" data-physical-check="${esc(item.id)}" style="width:22px;height:22px;margin-top:2px"><span>${esc(item.label)}</span></label>`).join('');
  node.innerHTML=`<div class="card-head"><div><h2>物理iPhone試しプレイ</h2><p>RC1公開前の必須実機確認です。結果JSONはGitHub Issue #63の証跡として添付でき、ゲームセーブには保存しません。</p></div><span class="badge warn">Physical QA</span></div><div class="card-body"><div class="kpi-grid mini"><label class="stat"><span>iPhoneモデル</span><input type="text" placeholder="例: iPhone 15 Pro" data-physical-field="model"></label><label class="stat"><span>iOSバージョン</span><input type="text" inputmode="decimal" placeholder="例: 18.5" data-physical-field="ios"></label><label class="stat"><span>Safariバージョン</span><input type="text" inputmode="decimal" placeholder="例: 18.5" data-physical-field="safari"></label></div><div class="stack">${rows}</div><label class="stat"><span>気づいた点</span><textarea rows="4" placeholder="画面名、操作、発生した症状を記録。問題がなければ「問題なし」と入力" data-physical-field="notes"></textarea></label><div class="button-grid"><button class="btn primary" type="button" data-physical-action="download">結果JSONを書き出す</button><button class="btn secondary" type="button" data-physical-action="copy">結果をコピー</button></div><p class="muted" data-physical-summary aria-live="polite">0/${CHECKS.length}項目を確認済み</p></div>`;
- screen.appendChild(node);return true;
+ screen.appendChild(node);modules.iphoneBaselineProbe?.renderCard?.(env);return true;
 }
 function updateSummary(root){const count=Object.values(checklistState(root)).filter(Boolean).length,summary=root?.querySelector?.('[data-physical-summary]');if(summary)summary.textContent=`${count}/${CHECKS.length}項目を確認済み${count===CHECKS.length?'・RC確認完了':''}`;}
 async function handle(event,env=globalThis){

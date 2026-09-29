@@ -205,9 +205,73 @@
     lastWriteError = null;
   }
 
+  // Creates a fully separate durable backend for measurement tools.  The caller chooses a
+  // database and store that cannot alias the production save database; none of the production
+  // cache, key, pending-write chain, or fallback localStorage paths are shared.
+  function createIsolatedBackend({ databaseName, storeName, version = 1 } = {}) {
+    if (!databaseName || databaseName === DB_NAME) throw new Error('isolated storage requires a non-production database name');
+    if (!storeName || storeName === STORE_NAME) throw new Error('isolated storage requires a non-production store name');
+    let isolatedCache = new Map(), dbPromise = null, pending = Promise.resolve(), reason = null, ready = false, lastError = null;
+    function open() {
+      if (dbPromise) return dbPromise;
+      if (!indexedDBAvailable()) { reason = 'IndexedDB is not available in this browser context.'; return (dbPromise = Promise.resolve(null)); }
+      dbPromise = new Promise(resolve => {
+        let settled = false;
+        const finish = value => { if (!settled) { settled = true; resolve(value); } };
+        const timer = setTimeout(() => { reason = 'Benchmark IndexedDB did not respond in time.'; finish(null); }, 3000);
+        try {
+          const request = indexedDB.open(databaseName, version);
+          request.onupgradeneeded = () => { if (!request.result.objectStoreNames.contains(storeName)) request.result.createObjectStore(storeName); };
+          request.onsuccess = () => { clearTimeout(timer); finish(request.result); };
+          request.onerror = () => { clearTimeout(timer); reason = request.error?.message || 'Benchmark IndexedDB could not be opened.'; finish(null); };
+          request.onblocked = () => { clearTimeout(timer); reason = 'Benchmark IndexedDB is blocked by another tab.'; finish(null); };
+        } catch (error) { clearTimeout(timer); reason = error?.message || String(error); finish(null); }
+      });
+      return dbPromise;
+    }
+    function transaction(mode, work) {
+      return open().then(database => {
+        if (!database) return null;
+        return new Promise((resolve, reject) => {
+          let result = null;
+          const tx = database.transaction(storeName, mode);
+          tx.oncomplete = () => resolve(result); tx.onerror = () => reject(tx.error); tx.onabort = () => reject(tx.error);
+          try { const request = work(tx.objectStore(storeName)); if (request) request.onsuccess = () => { result = request.result; }; }
+          catch (error) { reject(error); }
+        });
+      });
+    }
+    async function hydrate() {
+      if (ready) return { ok: !reason, entries: isolatedCache.size };
+      try {
+        const values = await transaction('readonly', store => store.getAll());
+        const keys = await transaction('readonly', store => store.getAllKeys());
+        if (!Array.isArray(values) || !Array.isArray(keys)) throw new Error(reason || 'Benchmark durable storage unavailable.');
+        keys.forEach((key, index) => { if (typeof values[index] === 'string') isolatedCache.set(String(key), values[index]); });
+        ready = true; return { ok: true, entries: isolatedCache.size };
+      } catch (error) { reason = error?.message || String(error); ready = true; return { ok: false, reason, entries: 0 }; }
+    }
+    function readSync(key) { return isolatedCache.get(String(key)) ?? null; }
+    function writeSync(key, payload) {
+      isolatedCache.set(String(key), String(payload));
+      pending = pending.then(() => transaction('readwrite', store => store.put(String(payload), String(key))))
+        .then(result => { if (result === null && reason) throw new Error(reason); lastError = null; })
+        .catch(error => { lastError = error?.message || String(error); throw error; });
+      return true;
+    }
+    function removeSync(key) {
+      isolatedCache.delete(String(key));
+      pending = pending.then(() => transaction('readwrite', store => store.delete(String(key))));
+      return true;
+    }
+    const flush = () => pending;
+    const status = () => ({ hydrated: ready, available: indexedDBAvailable() && !reason, unavailableReason: reason, cachedKeys: [...isolatedCache.keys()], lastWriteError: lastError, databaseName, storeName });
+    return Object.freeze({ hydrate, readSync, writeSync, removeSync, flush, status, databaseName, storeName, __isolated: true });
+  }
+
   modules.saveStorageIDB = Object.freeze({
     DB_NAME, DB_VERSION, STORE_NAME, SAVE_KEY,
-    hydrate, readSync, writeSync, removeSync, flush, status, findNewerSave, resetForTests,
+    hydrate, readSync, writeSync, removeSync, flush, status, findNewerSave, resetForTests, createIsolatedBackend,
     __installed: true
   });
 })();

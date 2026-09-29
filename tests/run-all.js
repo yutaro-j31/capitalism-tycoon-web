@@ -195,6 +195,7 @@ const nodeTests = [
   ['startup-side-effects', 'tests/startup-side-effects-test.js'],
   ['startup-runtime-budget', 'tests/startup-runtime-budget-test.js'],
   ['physical-iphone-playtest', 'tests/physical-iphone-playtest-test.js'],
+  ['iphone-baseline-probe', 'tests/iphone-baseline-probe-test.js'],
   ['stage-3-ui-screen-scope-regression', 'tests/stage-3-ui-screen-scope-regression-test.js'],
   ['v1-progression-gate', 'tests/v1-progression-gate-test.js'],
   ['treasury-prepayment', 'tests/treasury-prepayment-test.js'],
