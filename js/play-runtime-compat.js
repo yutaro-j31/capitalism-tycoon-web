@@ -31,6 +31,7 @@ function boundary(name,finish){
   const wrapped=function(...args){
     if(this._canonicalBoundaryCommits||this.inTransaction?.())return base.apply(this,args);
     const commits=this._canonicalBoundaryCommits=[];
+    this._weekNewsHead=Array.isArray(this.g?.news)&&this.g.news.length?this.g.news[0]:null;
     const flush=()=>{this.save();for(const [eventType,detail] of commits)this.emit(eventType,detail);};
     let result;
     try{result=base.apply(this,args);}
@@ -43,6 +44,15 @@ function boundary(name,finish){
   };
   Object.defineProperty(wrapped,'__canonicalNormalizeBoundary',{value:true});
   proto[name]=wrapped;
+}
+// News is prepended and capped at the end, so the items added during a week are the ones in front
+// of the head the feed had when the week started.
+function newsAddedThisWeek(g,headAtWeekStart){
+  const news=Array.isArray(g.news)?g.news:[];
+  if(headAtWeekStart===undefined)return news.slice(0,5);
+  if(headAtWeekStart===null)return news.slice();
+  const index=news.indexOf(headAtWeekStart);
+  return index>=0?news.slice(0,index):news.slice(0,5);
 }
 function finalizeWeekBoundary(){
   const g=this.g;if(!g?.configured)return;
@@ -69,15 +79,13 @@ function finalizeWeekBoundary(){
       g.lastWeeklySummary.companyValue=typeof this.companyValue==='function'?this.companyValue():g.lastWeeklySummary.companyValue;
       g.lastWeeklySummary.personalNetWorth=typeof this.personalNetWorth==='function'?this.personalNetWorth():g.lastWeeklySummary.personalNetWorth;
       if(crisis)g.lastWeeklySummary.crisis=crisis;
-      // Finalization itself may add crisis news after inner wrappers already built newNews.
-      // Put the final state news first, but retain summary-only rows such as ordinary turnaround
-      // progress reports that deliberately do not enter the persistent news feed.
-      const finalNews=Array.isArray(g.news)?g.news.slice(0,5):[];
-      const summaryOnly=Array.isArray(g.lastWeeklySummary.newNews)?g.lastWeeklySummary.newNews:[];
-      g.lastWeeklySummary.newNews=[
-        ...finalNews,
-        ...summaryOnly.filter(row=>!finalNews.some(item=>String(item)===String(row)))
-      ].slice(0,5);
+      // Finalization may add news (a crisis status change) after the inner wrappers built newNews.
+      // Put only this week's additions that newNews lacks in front of it. Older news in g.news is
+      // not this week's and stays out; summary-only rows such as ordinary turnaround progress
+      // reports keep their place (#776).
+      const built=Array.isArray(g.lastWeeklySummary.newNews)?g.lastWeeklySummary.newNews:[];
+      const late=newsAddedThisWeek(g,this._weekNewsHead).filter(item=>!built.some(row=>String(row)===String(item)));
+      g.lastWeeklySummary.newNews=[...late,...built].slice(0,5);
     }
   }
   modules.competitor?.syncEventLog?.(g);
