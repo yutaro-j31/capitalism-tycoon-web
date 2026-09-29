@@ -130,30 +130,50 @@ for (const type of ['price', 'advertising', 'quality', 'product']) {
   assert.equal(balanceGap(loaded, engine), 0, `${type} leaves the sheet balanced`);
 }
 
-// --- changing price during a price campaign survives expiry ---------------
-{
+// --- a price the player sets during a price campaign is the final price -----
+// #780 (owner decision): whatever price the player enters while the campaign runs is kept as
+// entered when it ends. Only an untouched campaign price reverts, to the exact pre-campaign price.
+function priceCampaign() {
   const { engine } = createEngine();
   const row = engine.g.competitors[0];
   const product = engine.launchCompetitorProduct(row);
   const business = engine.business(row.businessID);
-  const definition = engine.counterCampaignOptions().find(option => option.id === 'price');
-
   assert.ok(engine.launchCounterCampaign(product.id, 'price'), 'price campaign starts');
   const campaign = engine.activeCounterCampaigns()[0];
-  engine.g.week = campaign.activatesWeek;
-  engine.updateCounterCampaigns();
-
-  const selectedUnderlyingPrice = 1_000;
-  business.price = Math.round(selectedUnderlyingPrice * definition.priceRatio);
-
-  engine.g.week = campaign.endsWeek;
-  engine.updateCounterCampaigns();
-
-  assert.equal(
-    business.price,
-    selectedUnderlyingPrice,
-    'expiry removes only the campaign multiplier and preserves the price chosen while active'
-  );
+  return { engine, business, campaign };
+}
+function activate({ engine, campaign }) { engine.g.week = campaign.activatesWeek; engine.updateCounterCampaigns(); }
+function expire({ engine, campaign }) { engine.g.week = campaign.endsWeek; engine.updateCounterCampaigns(); }
+{
+  // The player enters the discounted-looking 880: it stays 880, it is not scaled back up.
+  const run = priceCampaign(); activate(run);
+  run.business.price = 880;
+  expire(run);
+  assert.equal(run.business.price, 880, 'a price entered during the campaign is kept as entered');
+}
+{
+  const run = priceCampaign(); activate(run);
+  run.business.price = 1_234;
+  expire(run);
+  assert.equal(run.business.price, 1_234, 'any price entered during the campaign is the final price');
+}
+{
+  // Untouched: 904 is cut to 796; dividing back would give 905, the exact pre-campaign price is 904.
+  const run = priceCampaign();
+  run.business.price = 904;
+  activate(run);
+  assert.equal(run.business.price, 796, 'precondition: the campaign cut 904 to 796');
+  expire(run);
+  assert.equal(run.business.price, 904, 'an untouched campaign price returns exactly to the pre-campaign price');
+}
+{
+  // A campaign saved before campaignPrice was recorded still reverts when the price is untouched.
+  const run = priceCampaign();
+  run.business.price = 904;
+  activate(run);
+  delete run.campaign.campaignPrice;
+  expire(run);
+  assert.equal(run.business.price, 904, 'older saves without campaignPrice revert an untouched price');
 }
 
 // --- one answer per product, and only affordable answers -----------------

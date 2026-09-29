@@ -115,7 +115,7 @@ function createBrowserContext(options = {}) {
   URLStub.revokeObjectURL = () => {};
   class MutationObserverStub { constructor(callback){ this.callback=callback; startupMetrics.mutationObserverConstructed+=1; } observe(target,observeOptions){ startupMetrics.observeCalls+=1; if(observeOptions?.subtree===true)startupMetrics.subtreeObserveCalls+=1; } disconnect(){} takeRecords(){ return []; } }
   const context = { console, document, window: null, globalThis: null, localStorage: new StorageStub(storageHistory), sessionStorage: new StorageStub(sessionStorageHistory), __localStorageData: storage, __localStorageHistory: storageHistory, __sessionStorageHistory: sessionStorageHistory, __startupMetrics: startupMetrics,
-    navigator: { userAgent: 'node-test' }, location: { href: 'http://localhost/' }, crypto: { randomUUID: () => `test-${random().toString(16).slice(2)}` },
+    indexedDB: options.indexedDB, navigator: { userAgent: 'node-test' }, location: { href: 'http://localhost/' }, crypto: { randomUUID: () => `test-${random().toString(16).slice(2)}` },
     Blob: class Blob { constructor(parts, opts){ this.parts = parts; this.type = opts?.type || ''; this.size=Buffer.byteLength(this.parts.join('')); } async text(){ return this.parts.join(''); } },
     URL: URLStub, FormData: class { constructor(){ } entries(){ return []; } },
     EventTarget, Event, CustomEvent: global.CustomEvent || class CustomEvent extends Event { constructor(type, init={}){ super(type); this.detail = init.detail; } }, MutationObserver: MutationObserverStub,

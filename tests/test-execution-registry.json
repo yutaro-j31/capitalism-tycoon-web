@@ -170,5 +170,9 @@
   "tests/workflow-path-filter-contract-test.js": {
     "reason": "Executed by the release gate script.",
     "executedBy": "scripts/release-gate.js"
+  },
+  "tests/iphone-baseline-probe-webkit-test.js": {
+    "reason": "Focused physical-iPhone probe UI regression executed by its package script and before PR submission.",
+    "executedBy": "package.json"
   }
 }

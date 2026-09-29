@@ -1858,6 +1858,7 @@ class TycoonEngine extends EventTarget {
     if(!definition||!business)return;
     campaign.basePrice=finite(business.price);
     if(definition.priceRatio!==1)business.price=Math.max(1,Math.round(finite(business.price)*definition.priceRatio));
+    campaign.campaignPrice=finite(business.price);
     business.brand=clamp(finite(business.brand)+definition.brandGain,0,100);
     business.quality=clamp(finite(business.quality)+definition.qualityGain,0,100);
     campaign.applied=true;
@@ -1866,12 +1867,13 @@ class TycoonEngine extends EventTarget {
   endCounterCampaign(campaign) {
     const definition=TycoonEngine.COUNTER_CAMPAIGNS[campaign.type],business=this.business(campaign.businessID);
     if(definition&&business&&campaign.applied){
-      // Remove only the temporary campaign multiplier. Restoring the absolute price captured
-      // at activation would erase any player/production price change made while the campaign
-      // was active (#743).
+      // If the price is still the campaign price, the campaign cut ends and the pre-campaign price
+      // returns exactly. A price the player set while the campaign ran is their final price and
+      // stays as entered (#743, #780). Campaigns saved before campaignPrice was recorded compare
+      // against the cut they applied to basePrice.
       if(definition.priceRatio!==1){
-        const ratio=finite(definition.priceRatio,1);
-        if(ratio>0)business.price=Math.max(1,Math.round(finite(business.price)/ratio));
+        const campaignPrice=Number.isFinite(Number(campaign.campaignPrice))?Number(campaign.campaignPrice):Math.max(1,Math.round(finite(campaign.basePrice)*finite(definition.priceRatio,1)));
+        if(finite(business.price)===campaignPrice)business.price=Math.max(1,Math.round(finite(campaign.basePrice,business.price)));
       }
       business.brand=clamp(finite(business.brand)-definition.brandGain,0,100);
       business.quality=clamp(finite(business.quality)-definition.qualityGain,0,100);
