@@ -242,6 +242,8 @@ gap); Microcap's listing valuation-range distribution (§5 above).
 - PE mode design, settings, and task history: `docs/PE_MODE_DESIGN.md`, `docs/PE_MODE_TASKS.md`
 - Microcap mode design: `docs/MICROCAP_MODE_DESIGN.md`
 - Founding-route rebalancing history: `docs/FOUNDING_ROUTE_REBALANCE_DESIGN.md`
+- Long-term capital-allocation vision (not implemented; owner decisions and start conditions in Part 1):
+  `docs/CAPITAL_ALLOCATION_VISION.md`, with the reference-game research in `docs/REFERENCE_GAMES_RESEARCH.md`
 - Project-wide rules, invariants, and known pitfalls: `CLAUDE.md`
 - Do **not** use `docs/DEVELOPMENT_ROADMAP.md` — it is a retired saveVersion-8-era plan
   (`CLAUDE.md` §1).
