@@ -94,7 +94,10 @@ class TycoonEngineV9 extends BaseTycoonEngine{
  }
  static load(){
   try{
-   const raw=localStorage.getItem(SAVE_KEY);
+   // The production engine is this class, so this load() is the one app.js calls after it
+   // awaits IndexedDB hydration. Read through the durable store like the base class (#726).
+   const idb=globalThis.__capitalismTycoonModules?.saveStorageIDB;
+   const raw=idb?idb.readSync(SAVE_KEY):localStorage.getItem(SAVE_KEY);
    if(!raw)return new TycoonEngineV9(null);
    const migrated=migrateSave(JSON.parse(raw));
    if(!migrated.ok)throw new Error(`Save migration failed: ${migrated.errors.join('; ')}`);

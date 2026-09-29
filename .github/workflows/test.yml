@@ -347,6 +347,9 @@ jobs:
       - name: Verify boot failure recovery
         timeout-minutes: 2
         run: node tests/boot-recovery-webkit-test.js
+      - name: Verify IndexedDB-authoritative boot
+        timeout-minutes: 3
+        run: node tests/idb-authoritative-boot-webkit-test.js
       - name: Verify uncaught runtime recovery
         timeout-minutes: 2
         run: node tests/runtime-recovery-webkit-test.js

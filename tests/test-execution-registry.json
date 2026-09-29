@@ -35,6 +35,10 @@
     "reason": "Executed outside the canonical run-all suite by the iPhone WebKit Smoke job in .github/workflows/test.yml.",
     "executedBy": ".github/workflows/test.yml"
   },
+  "tests/idb-authoritative-boot-webkit-test.js": {
+    "reason": "Executed outside the canonical run-all suite by the iPhone WebKit Smoke job in .github/workflows/test.yml.",
+    "executedBy": ".github/workflows/test.yml"
+  },
   "tests/iphone-full-acceptance-webkit-test.js": {
     "reason": "Executed outside the canonical run-all suite by the iPhone Acceptance Playthrough job in .github/workflows/test.yml.",
     "executedBy": ".github/workflows/test.yml"

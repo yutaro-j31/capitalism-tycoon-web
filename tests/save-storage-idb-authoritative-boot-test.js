@@ -101,6 +101,16 @@ function contextFor({ local, durable, withIDB = true }) {
   return { context, localMap };
 }
 
+function prodSave(weeks, companyName) {
+  const { loadGame } = require('./harness');
+  const game = loadGame({ headless: true });
+  const engine = new game.engineModule.TycoonEngine();
+  engine.configure({ playerName: 'Boot', companyName, difficulty: 'normal', scenario: 'free' });
+  for (let week = 1; week < weeks; week++) engine.advanceWeek(false);
+  engine.save();
+  return game.ctx.__localStorageData.get(SAVE_KEY);
+}
+
 (async () => {
   const localOld = JSON.stringify({ saveVersion: 9, week: 12, companyCash: 1200 });
   const durableNew = JSON.stringify({ saveVersion: 9, week: 18, companyCash: 1800 });
@@ -123,6 +133,20 @@ function contextFor({ local, durable, withIDB = true }) {
   assert.equal(fallbackResult.ok, true, 'unavailable IndexedDB falls back cleanly');
   assert.equal(fallbackResult.source, 'localstorage', 'fallback hydration reports localStorage as the source');
   assert.equal(JSON.parse(fallback.readSync(SAVE_KEY)).week, 7, 'localStorage remains authoritative when IDB is unavailable');
+
+  // The engine app.js boots is the production class (TycoonEngineV9 from save-v9.js), not the
+  // base class in engine.js. Its load() must read through the durable store too: #770 changed
+  // only the base load(), so the real page kept booting the localStorage copy.
+  {
+    const { loadGame } = require('./harness');
+    const game = loadGame({ headless: true, localStorageInitial: { [SAVE_KEY]: prodSave(5, 'Local Older Co') } });
+    const Engine = game.engineModule.TycoonEngine;
+    assert.equal(Engine.name, 'TycoonEngineV9', 'precondition: the production engine class is the v9 subclass');
+    game.modules.saveStorageIDB.writeSync(SAVE_KEY, prodSave(9, 'Durable Newer Co'));
+    const booted = Engine.load();
+    assert.equal(booted.g.companyName, 'Durable Newer Co', 'the production engine boots the durable save, not the localStorage copy');
+    assert.equal(booted.g.week, 9);
+  }
 
   console.log('save storage IDB authoritative boot tests passed');
 })().catch(error => {
