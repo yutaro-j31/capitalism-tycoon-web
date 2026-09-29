@@ -48,8 +48,7 @@ const progressReport = progressGame.g.lastWeeklySummary.turnaroundPlanReport;
 assert.ok(progressReport);
 assert.equal(progressReport.kind, 'progress');
 assert.ok(progressReport.progress >= 0 && progressReport.progress <= 1);
-assert.ok(progressGame.g.lastWeeklySummary.newNews.includes(playerTurnaroundPlanReport.message(progressReport)),
-  'ordinary turnaround progress remains visible in the weekly summary even when later final-phase news is prepended');
+assert.equal(progressGame.g.lastWeeklySummary.newNews[0], playerTurnaroundPlanReport.message(progressReport));
 assert.ok(progressGame.g.history[0].includes('再建計画'));
 assert.ok(!progressGame.g.news.includes(playerTurnaroundPlanReport.message(progressReport)), 'ordinary progress must not flood news');
 const progressState = JSON.stringify(progressGame.g);
@@ -62,8 +61,7 @@ assert.equal(deadlineGame.advanceWeek(false), true);
 const deadlineReport = deadlineGame.g.lastWeeklySummary.turnaroundPlanReport;
 assert.equal(deadlineReport.kind, 'deadline');
 assert.equal(deadlineReport.weeksRemaining, 1);
-assert.ok(deadlineGame.g.news.includes(playerTurnaroundPlanReport.message(deadlineReport)),
-  'deadline report remains in persistent news regardless of same-week final-phase notification ordering');
+assert.equal(deadlineGame.g.news[0], playerTurnaroundPlanReport.message(deadlineReport));
 assert.ok(deadlineGame.g.lastWeeklySummary.newNews.includes(playerTurnaroundPlanReport.message(deadlineReport)),
   'deadline report remains visible in the weekly summary');
 
@@ -74,12 +72,12 @@ assert.equal(completedGame.advanceWeek(false), true);
 const completedReport = completedGame.g.lastWeeklySummary.turnaroundPlanReport;
 assert.equal(completedReport.kind, 'completed');
 assert.equal(completedGame.g.playerTurnaroundPlan.status, 'completed');
-assert.ok(completedGame.g.news.includes(playerTurnaroundPlanReport.message(completedReport)),
-  'completed turnaround report remains in persistent news even when final crisis evaluation adds a later same-week transition');
-assert.equal(completedGame.g.lastWeeklySummary.newNews[0], completedGame.g.news[0],
-  'weekly summary starts with the authoritative final-state news ordering');
-assert.ok(completedGame.g.lastWeeklySummary.newNews.includes(playerTurnaroundPlanReport.message(completedReport)),
-  'weekly summary retains the completed turnaround report alongside the final crisis transition');
+// Completing the plan restores cash, and the final weekly boundary (#740) records the crisis status
+// change in the same week, after the report. That change is the latest news; the report is next.
+assert.match(completedGame.g.news[0], /^第\d+週：会社状態が「安定」になりました。/, 'the same-week crisis recovery is the latest news');
+assert.equal(completedGame.g.news[1], playerTurnaroundPlanReport.message(completedReport));
+assert.deepEqual(completedGame.g.lastWeeklySummary.newNews.slice(0, 2), completedGame.g.news.slice(0, 2),
+  'the weekly summary shows the crisis recovery, then the completed plan');
 const restoredCompleted = new engine.TycoonEngine(JSON.parse(JSON.stringify(completedGame.g)));
 assert.equal(restoredCompleted.g.playerTurnaroundPlan.status, 'completed');
 assert.equal(restoredCompleted.g.lastWeeklySummary.turnaroundPlanReport.kind, 'completed');
@@ -90,8 +88,7 @@ assert.equal(failedGame.advanceWeek(false), true);
 const failedReport = failedGame.g.lastWeeklySummary.turnaroundPlanReport;
 assert.equal(failedReport.kind, 'failed');
 assert.equal(failedGame.g.playerTurnaroundPlan.status, 'failed');
-assert.ok(failedGame.g.news.includes(playerTurnaroundPlanReport.message(failedReport)),
-  'failed turnaround report remains in persistent news regardless of same-week final-phase notification ordering');
+assert.equal(failedGame.g.news[0], playerTurnaroundPlanReport.message(failedReport));
 assert.ok(failedGame.g.lastWeeklySummary.newNews.includes(playerTurnaroundPlanReport.message(failedReport)),
   'failed turnaround report remains visible in the weekly summary');
 

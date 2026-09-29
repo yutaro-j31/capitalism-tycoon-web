@@ -19,6 +19,21 @@ function adversePortfolioRows(count,options={}){return Array.from({length:count}
 {
  const e=engine();e.g.activistMarketPerformanceHistory=adverseRows(26);const p=mod.metrics(e.g);assert(p.valueDestructionPressure>=68,`sustained adverse path reaches threshold: ${p.valueDestructionPressure}`);const c=mod.startCampaign(e);assert(c&&c.triggerPath==='valueDestruction','sustained value destruction starts its own campaign');
 }
+// #768: the same sustained share-price weakness does not start a value-destruction campaign while
+// the company's own value rose over the last 13 weeks; it does when that value fell, and a save
+// with no valuation history keeps the share-price-only behaviour.
+{
+ const rising=engine();rising.g.activistMarketPerformanceHistory=adverseRows(26);rising.g.companyValueHistory=Array.from({length:13},(_,i)=>100_000_000+i*1_000_000);
+ assert(mod.metrics(rising.g).valueDestructionPressure>=68,'precondition: the share-price pressure alone reaches the threshold');
+ assert.equal(mod.startCampaign(rising),null,'rising company value blocks the value-destruction campaign');
+ assert.equal(rising.g.activeActivistCampaign,null,'no campaign is recorded when blocked');
+ const falling=engine();falling.g.activistMarketPerformanceHistory=adverseRows(26);falling.g.companyValueHistory=Array.from({length:13},(_,i)=>100_000_000-i*1_000_000);
+ const c=mod.startCampaign(falling);assert(c&&c.triggerPath==='valueDestruction','falling company value with the same share-price weakness starts the campaign');
+ const older=engine();older.g.activistMarketPerformanceHistory=adverseRows(26);older.g.companyValueHistory=[...Array.from({length:20},()=>50_000_000),...Array.from({length:13},(_,i)=>100_000_000-i*1_000_000)];
+ assert(mod.startCampaign(older)?.triggerPath==='valueDestruction','only the last 13 valuations decide, not an older low');
+ const unknown=engine();unknown.g.activistMarketPerformanceHistory=adverseRows(26);delete unknown.g.companyValueHistory;
+ assert(mod.startCampaign(unknown)?.triggerPath==='valueDestruction','without valuation history the share-price test decides');
+}
 {
  const e=engine();e.g.activistMarketPerformanceHistory=Array.from({length:26},(_,i)=>({week:74+i,price:i===25?50:100,referencePrice:100,rollingHigh:100,ownReturn:i===25?-.5:0,benchmarkReturn:0,relativeReturn:i===25?-.5:0,recoveryAction:false}));assert(mod.metrics(e.g).valueDestructionPressure<68,'one-week crash does not trigger persistent path');
 }

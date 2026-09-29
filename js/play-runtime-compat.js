@@ -18,31 +18,48 @@ modules.playRuntimeCompat=Object.freeze({
 // the whole wrapper chain, then performs the committed transaction's save and emit:
 // - configure: one full normalize of the founding state.
 // - advanceWeek: no full normalize (too costly every week); each week's processing keeps the state
-//   canonical itself. After every mutation wrapper has finished, rebuild the final accounting
-//   snapshot, evaluate crisis state from final cash, validate the committed state, refresh the
-//   weekly summary, and only then derive the competitor event log.
+//   canonical itself. The boundary opens the outermost 'week' transaction, so the whole wrapper
+//   chain is atomic (#776). After every mutation wrapper and the delegated executive work, and still
+//   inside that transaction, finalizeCommittedWeek() rebuilds the final accounting snapshot,
+//   evaluates crisis state from final cash, validates the committed state, refreshes the weekly
+//   summary and derives the competitor event log. tests/week-transaction-atomicity-test.js checks
+//   that a failure anywhere in the week rolls back both the state and the save.
 // tests/reload-canonical-state-test.js asserts normalize is a no-op at every week boundary.
 (function(){'use strict';
 const modules=globalThis.__capitalismTycoonModules;
 const proto=modules?.engine?.TycoonEngine?.prototype;
 if(!proto||proto.__canonicalNormalizeBoundary)return;
-function boundary(name,finish){
+function boundary(name,finish,weekTransaction=false){
   const base=proto[name];
+  // advanceWeek runs the whole wrapper chain inside one outer 'week' transaction opened here, so
+  // every wrapper's mutation and the final weekly finalization commit or roll back together (#776).
+  const nestedWeekDetail=function(result){const detail=this._nestedWeekDetail;this._nestedWeekDetail=null;return typeof detail==='function'?detail(result):(detail||{summary:null});};
   const wrapped=function(...args){
     if(this._canonicalBoundaryCommits||this.inTransaction?.())return base.apply(this,args);
     const commits=this._canonicalBoundaryCommits=[];
+    this._weekNewsHead=Array.isArray(this.g?.news)&&this.g.news.length?this.g.news[0]:null;
     const flush=()=>{this.save();for(const [eventType,detail] of commits)this.emit(eventType,detail);};
     let result;
-    try{result=base.apply(this,args);}
-    catch(error){this._canonicalBoundaryCommits=null;if(commits.length)flush();throw error;}
+    this._nestedWeekDetail=null;
+    try{result=weekTransaction?this.runTransaction(()=>base.apply(this,args),'week',nestedWeekDetail.bind(this)):base.apply(this,args);}
+    catch(error){this._canonicalBoundaryCommits=null;this._nestedWeekDetail=null;if(commits.length)flush();throw error;}
     this._canonicalBoundaryCommits=null;
     if(!commits.length)return result;
-    if(this.g?.configured)finish.call(this);
+    if(this.g?.configured&&finish)finish.call(this);
     flush();
     return result;
   };
   Object.defineProperty(wrapped,'__canonicalNormalizeBoundary',{value:true});
   proto[name]=wrapped;
+}
+// News is prepended and capped at the end, so the items added during a week are the ones in front
+// of the head the feed had when the week started.
+function newsAddedThisWeek(g,headAtWeekStart){
+  const news=Array.isArray(g.news)?g.news:[];
+  if(headAtWeekStart===undefined)return news.slice(0,5);
+  if(headAtWeekStart===null)return news.slice();
+  const index=news.indexOf(headAtWeekStart);
+  return index>=0?news.slice(0,index):news.slice(0,5);
 }
 function finalizeWeekBoundary(){
   const g=this.g;if(!g?.configured)return;
@@ -69,15 +86,13 @@ function finalizeWeekBoundary(){
       g.lastWeeklySummary.companyValue=typeof this.companyValue==='function'?this.companyValue():g.lastWeeklySummary.companyValue;
       g.lastWeeklySummary.personalNetWorth=typeof this.personalNetWorth==='function'?this.personalNetWorth():g.lastWeeklySummary.personalNetWorth;
       if(crisis)g.lastWeeklySummary.crisis=crisis;
-      // Finalization itself may add crisis news after inner wrappers already built newNews.
-      // Put the final state news first, but retain summary-only rows such as ordinary turnaround
-      // progress reports that deliberately do not enter the persistent news feed.
-      const finalNews=Array.isArray(g.news)?g.news.slice(0,5):[];
-      const summaryOnly=Array.isArray(g.lastWeeklySummary.newNews)?g.lastWeeklySummary.newNews:[];
-      g.lastWeeklySummary.newNews=[
-        ...finalNews,
-        ...summaryOnly.filter(row=>!finalNews.some(item=>String(item)===String(row)))
-      ].slice(0,5);
+      // Finalization may add news (a crisis status change) after the inner wrappers built newNews.
+      // Put only this week's additions that newNews lacks in front of it. Older news in g.news is
+      // not this week's and stays out; summary-only rows such as ordinary turnaround progress
+      // reports keep their place (#776).
+      const built=Array.isArray(g.lastWeeklySummary.newNews)?g.lastWeeklySummary.newNews:[];
+      const late=newsAddedThisWeek(g,this._weekNewsHead).filter(item=>!built.some(row=>String(row)===String(item)));
+      g.lastWeeklySummary.newNews=[...late,...built].slice(0,5);
     }
   }
   modules.competitor?.syncEventLog?.(g);
@@ -85,7 +100,8 @@ function finalizeWeekBoundary(){
 function install(){
   if(proto.__canonicalNormalizeBoundary)return;
   boundary('configure',function(){this.normalize();});
-  boundary('advanceWeek',finalizeWeekBoundary);
+  proto.finalizeCommittedWeek=finalizeWeekBoundary;
+  boundary('advanceWeek',null,true);
   Object.defineProperty(proto,'__canonicalNormalizeBoundary',{value:true});
 }
 if(typeof document!=='undefined'&&document.readyState==='loading'&&typeof document.addEventListener==='function')document.addEventListener('DOMContentLoaded',install,{once:true});
