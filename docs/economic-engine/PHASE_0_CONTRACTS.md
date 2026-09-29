@@ -1,7 +1,7 @@
 # Economic Engine Phase 0 Contracts
 
 **Status: PROPOSED FOR GATE D APPROVAL**  
-**Validated repository baseline: `a77e7513b83a9a26ac2ead0423f2b7b5fc21f54c`**  
+**Validated repository baseline: `9b8bdc70eecca6e4caa059a3f44863b197b2b8b7`**  
 **Implementation permission: NO**
 
 This document turns the Phase 0 items in `ECONOMIC_ENGINE_ROADMAP.md` into explicit contracts. It is a specification only. It does not authorize Phase 1 implementation.
@@ -454,7 +454,7 @@ The permanent harness hash must:
 - sort unordered economic collections by stable ID;
 - preserve ordered collections where order is economically meaningful;
 - include authoritative economic state, simulation RNG state and IDs/counters;
-- exclude DOM/UI state, wall-clock timestamps, diagnostic timing, caches that are re-derived, and benchmark-control metadata;
+- exclude DOM/UI state, wall-clock timestamps, diagnostic timing, caches that are re-derived, benchmark-control metadata, and storage-transport metadata such as `saveSequence`;
 - version the projection algorithm as `stateHashVersion`.
 
 A hash mismatch is diagnostic evidence; tests must still be able to produce a first semantic diff.
