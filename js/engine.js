@@ -150,6 +150,14 @@ function getStoreContractRent(store, pref, state) {
 function getStoreRepairCost(store, state) {
   return Math.max(0, 100 - finite(store?.condition, 100)) * 650 * storeInflationIndex(state);
 }
+function ensureStoreContractTerms(store, pref, state) {
+  if (!store || typeof store !== 'object') return store;
+  const existingRent = Number(store.contractRent);
+  if (!Number.isFinite(existingRent) || existingRent < 0) store.contractRent = getStoreContractRent(store, pref, state);
+  const existingInflationBase = Number(store.contractInflationBase);
+  if (!Number.isFinite(existingInflationBase) || existingInflationBase <= 0) store.contractInflationBase = storeInflationIndex(state);
+  return store;
+}
 
 function makeRentalOffices() {
   const result = [];
@@ -719,11 +727,7 @@ class TycoonEngine extends EventTarget {
     this.g.businesses = (this.g.businesses || []).map(b => ({...b, price: Math.max(1,finite(b.price,100)), unitCost: Math.max(0,finite(b.unitCost)), demand: Math.max(1,finite(b.demand,10))}));
     this.g.stores = (this.g.stores || []).map(s => {
       const store={condition:100,lastSales:0,lastProfit:0,status:'open',openingWeek:this.g.week,weeksToOpen:0,operatingHours:3,marketResult:null,...s};
-      const existingRent=Number(store.contractRent);
-      if(!Number.isFinite(existingRent)||existingRent<0)store.contractRent=getStoreContractRent(store,this.pref(store.prefID),this.g);
-      const existingInflationBase=Number(store.contractInflationBase);
-      if(!Number.isFinite(existingInflationBase)||existingInflationBase<=0)store.contractInflationBase=storeInflationIndex(this.g);
-      return store;
+      return ensureStoreContractTerms(store,this.pref(store.prefID),this.g);
     });
     globalThis.__capitalismTycoonModules?.realEstateAgencyPipeline?.normalize?.(this.g);
     globalThis.__capitalismTycoonModules?.convenienceMerchandising?.normalize?.(this.g);
@@ -2154,6 +2158,11 @@ class TycoonEngine extends EventTarget {
   advanceWeek(showSummary=true) {
     if(this.g.gameOver)return this.fail('会社は破綻状態です。');
     if(this.g.isCompanySold){this.g.week++;this.g.month=Math.floor((this.g.week-1)/4)+1;this.updatePersonalAssets();this.recordHistory(0,0);this.save();this.emit('week',{summary:null});return true;}
+    // Legacy v9 stores can lack contractRent/contractInflationBase. Snapshot those terms before
+    // week increment and updateMacro(), matching reload-time normalize() exactly. Otherwise a live
+    // state would price the first migrated week at post-macro inflation while a reloaded copy would
+    // freeze the pre-macro effective rent, breaking deterministic save/load replay.
+    for(const store of this.g.stores||[])ensureStoreContractTerms(store,this.pref(store.prefID),this.g);
     if(this.g.autoManage)this.autoManage();
     this.g.week++;this.g.month=Math.floor((this.g.week-1)/4)+1;if(this.g.week%52===0)this.g.founderAge++;
     supply.ensure(this.g);workforce.ensure(this.g);workforce.processWeekStart(this.g);workforce.generateCandidates(this.g);workforce.recompute(this.g);globalThis.__capitalismTycoonModules?.menuResearch?.resolvePending?.(this);globalThis.__capitalismTycoonModules?.convenienceMerchandising?.resolvePrivateBrandPending?.(this);const beginningCash=this.g.companyCash;this.updateMacro();this.updateMarket();globalThis.__capitalismTycoonModules?.microcapListings?.process?.(this.g,(message,severity)=>this.emit('notify',{message,severity}));this.updateProperties();this.updateStartups();this.updateCompetitors();this.updateCompetitorProducts();this.updateCounterCampaigns();this.updateDirectivesAndCampaigns();
