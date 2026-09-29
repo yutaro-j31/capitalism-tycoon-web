@@ -62,7 +62,7 @@ Important subtype rule:
 - **private/cash M&A** does not need Phase 9 stock-market cutover if its transaction, ownership, debt and valuation prerequisites are already authoritative;
 - **share-swap, hostile/public-market and other security-dependent M&A** requires the relevant Phase 9 security/corporate-action capabilities first.
 
-Phase 16 depends on mature entity/accounting/debt/ownership/treasury/consolidation foundations and the Banking-specific entry contract in `9. It does not mechanically require every optional PE/VC/real-estate feature to be complete if those systems are not part of the banking slice being enabled.
+Phase 16 depends on mature entity/accounting/debt/ownership/treasury/consolidation foundations and the Banking-specific entry contract in Section 9. It does not mechanically require every optional PE/VC/real-estate feature to be complete if those systems are not part of the banking slice being enabled.
 
 ## 2. Phase prerequisites and authority
 
