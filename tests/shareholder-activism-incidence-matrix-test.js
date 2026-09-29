@@ -42,8 +42,9 @@ assert.equal(replay.ipoWeek, first.ipoWeek, `${requestedStyle} seed ${requestedS
 assert.equal(first.campaignsByPath?.portfolioInefficiency||0,0,'store-operation controls cannot trigger the subsidiary portfolio path');
 if(requestedStyle==='balanced-returns')assert.equal(first.campaignCount,0,JSON.stringify(first));
 // Growth reinvestment deploys its cash, so the capital-stagnation path never fires. A campaign it
-// does meet comes from the value-destruction path, whose canonical signal is persistent listed-share
-// drawdown / benchmark underperformance rather than a required fall in enterprise value.
+// does meet comes from the value-destruction path and only on real value destruction (#731: the
+// former "0 campaigns on this seed" held for this one seed only; seeds 2-3 already had them). A
+// weak share price while the company's own value is rising is not value destruction (#768).
 if(requestedStyle==='growth-reinvestment'){
   assert.equal(first.campaignsByPath?.capitalStagnation||0,0,JSON.stringify(first));
   assert.equal(first.campaignCount,first.campaignsByPath?.valueDestruction||0,JSON.stringify(first));
@@ -51,6 +52,7 @@ if(requestedStyle==='growth-reinvestment'){
     const d=first.firstCampaignDiagnostic||{};
     assert.equal(d.triggerPath,'valueDestruction',JSON.stringify(d));
     assert(d.valuePressure>=d.capitalThreshold,`value pressure reached the threshold: ${JSON.stringify(d)}`);
+    assert(d.companyValueEnd<d.companyValueStart,`company value fell: ${JSON.stringify(d)}`);
     assert(d.averageHighDrawdown>0&&d.cumulativeUnderperformance>0,`the stock drew down and underperformed: ${JSON.stringify(d)}`);
     assert(d.persistenceRatio>0,`the listed-share weakness persisted through the measurement window: ${JSON.stringify(d)}`);
   }
