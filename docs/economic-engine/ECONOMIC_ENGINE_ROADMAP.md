@@ -414,16 +414,16 @@ Define at minimum:
 - Free Cash Flow
 - Deployable Capital
 
-#### 0C. Transaction contract
+#### 0C. Economic Operation / posting contract
 
-Define material transaction semantics and required legs.
+Define atomic operation semantics, multi-leg postings, account/instrument identity, idempotency and required family-specific legs.
 
 #### 0D. Tick / period contract
 
 Define:
 
 - phase order
-- one-period lag rules
+- action-family decision / commitment / recognition / due / settlement / effective timing
 - accounting-close boundary
 - valuation boundary
 - decision boundary
@@ -1724,18 +1724,18 @@ Approximate small-PR envelope from the additional audit:
 |---|---:|
 | Phase 0 specification | 2–3 |
 | Phase 0.5 harness | 3–4 |
-| Phase 1 ledger | 3–5 |
+| Phase 1 operation/ledger | 3–5 |
 | Phase 2 accounting | 3–5 |
 | Phase 3 ownership | 4–6 |
-| Phase 4 debt/WACC | 3–5 |
+| Phase 4 debt instruments / financing inputs | 3–5 |
 | Phase 5 industry | 4–6 |
-| Phase 6 allocation | 4–6 |
-| Phase 7 valuation | 3–5 |
+| Phase 6 base valuation | 3–5 |
+| Phase 7 allocation | 4–6 |
 | Phase 8 AI | 4–6 |
 | Phase 9 stocks | 3–5 |
 | Phase 10 M&A | 5–8 |
-| Phase 11 treasury | 3–5 |
-| Phase 12 consolidation | 4–7 |
+| Phase 11 legal-entity treasury settlement | 3–5 |
+| Phase 12 consolidation / group liquidity | 4–7 |
 | Phase 13 PE | 4–6 |
 | Phase 14 VC | 3–5 |
 | Phase 15 real estate | 2–4 |
@@ -1763,13 +1763,13 @@ The following must be resolved before Economic Engine implementation begins:
 6. resolve conflicting design documents
 7. approve entity taxonomy, including external/system counterparties
 8. approve monetary / rounding / accrual contract
-9. approve transaction contract and atomic-posting semantics
-10. approve tick order / period lag
+9. approve Economic Operation / multi-leg posting contract and atomic-settlement semantics
+10. approve tick order / action-family timing
 11. approve invariant catalog
 12. define Control Ladder rights table
 13. define founder net-worth anti-double-counting behavior
-14. define ledger retention / compaction budget
-15. define save-size budget
+14. define provisional retention/compaction measurement targets; Phase 0.5 must establish evidence-based budgets
+15. define provisional save/performance review markers; Phase 0.5 must establish scenario-tier budgets
 16. define deterministic state-hash strategy
 17. define versioned headless scenario schema and seed/scenario matrix
 18. define each existing feature's current source of truth, capability state, and migration authority
