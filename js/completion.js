@@ -80,14 +80,14 @@ function installCompletion(TycoonEngine){
   TycoonEngine.prototype.contractBranchOffice=function(officeID){
     this.ensureCompletionDefaults();if(!this.g.hasHeadOffice)return this.fail('先に本社オフィスを契約してください。');const o=this.g.rentalOffices.find(x=>x.id===officeID);if(!o)return false;
     if(o.id===this.g.contractedOfficeID||o.contracted||this.g.branchOffices.some(x=>x.officeID===o.id))return this.fail('このオフィスは契約済みです。');
-    if(this.g.companyCash<o.deposit)return this.fail('保証金が不足しています。');this.g.companyCash-=o.deposit;o.contracted=true;
-    this.g.branchOffices.push({id:cxUID(this.g),officeID:o.id,name:o.name,prefID:o.prefID,grade:o.grade,capacity:o.capacity,rent:o.rent,deposit:o.deposit,prestige:o.prestige,openedWeek:this.g.week});
+    if(this.g.companyCash<o.deposit)return this.fail('保証金が不足しています。');const branchID=cxUID(this.g);this.g.companyCash-=o.deposit;__modules.finance.event(this.g,'otherInvesting',o.deposit,{cashEffect:-o.deposit,assetEffect:o.deposit,sourceType:'contractBranchOffice',sourceID:branchID,description:`${o.name} 支社保証金`});o.contracted=true;
+    this.g.branchOffices.push({id:branchID,officeID:o.id,name:o.name,prefID:o.prefID,grade:o.grade,capacity:o.capacity,rent:o.rent,deposit:o.deposit,prestige:o.prestige,openedWeek:this.g.week});
     this.g.officeCapacity+=o.capacity;this.g.officePrestige+=o.prestige*.25;this.notify(`${o.name}を支社オフィスとして契約しました。`,'success');this.save();this.emit();return true;
   };
   TycoonEngine.prototype.closeBranchOffice=function(id){
     const i=this.g.branchOffices.findIndex(x=>x.id===id);if(i<0)return false;const b=this.g.branchOffices[i];const used=this.officeEmployeeCount(),nextCapacity=Math.max(0,this.g.officeCapacity-b.capacity);
     if(used>nextCapacity)return this.fail('在籍人数が残る定員を超えるため解約できません。');const o=this.g.rentalOffices.find(x=>x.id===b.officeID);if(o)o.contracted=false;
-    this.g.companyCash+=b.deposit*.6;this.g.officeCapacity=nextCapacity;this.g.branchOffices.splice(i,1);this.notify(`${b.name}を解約しました。`,'warning');this.save();this.emit();return true;
+    const refund=b.deposit*.6;this.g.companyCash+=refund;__modules.finance.event(this.g,'assetSale',refund,{cashEffect:refund,assetEffect:-b.deposit,profitEffect:refund-b.deposit,sourceType:'closeBranchOffice',sourceID:b.id,description:`${b.name} 保証金返還・解約損`});this.g.officeCapacity=nextCapacity;this.g.branchOffices.splice(i,1);this.notify(`${b.name}を解約しました。`,'warning');this.save();this.emit();return true;
   };
 
   TycoonEngine.prototype.officeFloorSnapshot=function(){
@@ -98,7 +98,7 @@ function installCompletion(TycoonEngine){
 
   TycoonEngine.prototype.resolveEmployeeComplaint=function(id,approach='invest'){
     const c=this.g.employeeComplaintLog.find(x=>x.id===id&&x.status==='open');if(!c)return false;const specs={invest:[1500000,7,-.08],listen:[300000,3,-.03],strict:[0,-2,.06]},s=specs[approach]||specs.listen;
-    if(this.g.companyCash<s[0])return this.fail('対応費用が不足しています。');this.g.companyCash-=s[0];this.g.employeeSatisfaction=cxClamp(this.g.employeeSatisfaction+s[1],0,100);this.g.organizationCulture.morale=cxClamp(this.g.organizationCulture.morale+s[1]*.7,0,100);this.g.overtimeRisk=cxClamp(this.g.overtimeRisk+s[2],0,1);c.status='resolved';c.resolvedWeek=this.g.week;c.approach=approach;this.notify(`社員の声「${c.text}」へ対応しました。`,'success');this.save();this.emit();return true;
+    if(this.g.companyCash<s[0])return this.fail('対応費用が不足しています。');this.g.companyCash-=s[0];if(s[0]>0)__modules.finance.event(this.g,'headOfficeExpense',s[0],{cashEffect:-s[0],profitEffect:-s[0],sourceType:'resolveEmployeeComplaint',sourceID:c.id,description:'社員の声への対応費'});this.g.employeeSatisfaction=cxClamp(this.g.employeeSatisfaction+s[1],0,100);this.g.organizationCulture.morale=cxClamp(this.g.organizationCulture.morale+s[1]*.7,0,100);this.g.overtimeRisk=cxClamp(this.g.overtimeRisk+s[2],0,1);c.status='resolved';c.resolvedWeek=this.g.week;c.approach=approach;this.notify(`社員の声「${c.text}」へ対応しました。`,'success');this.save();this.emit();return true;
   };
 
   TycoonEngine.prototype.campusBuildings=function(){
@@ -126,11 +126,11 @@ function installCompletion(TycoonEngine){
     const sub=[...this.g.maSubsidiaries,...this.g.subsidiaries].find(x=>x.id===subID),a=TRANSPORT_REBUILD_ACTIONS.find(x=>x.id===actionID);if(!sub||!a)return false;
     const label=`${sub.industry||sub.domain||sub.name}`;if(!/(物流|鉄道|航空|運輸|transport|logistics)/i.test(label))return this.fail('交通・物流系子会社が対象です。');
     if(this.g.transportRebuildProjects.some(x=>x.subID===subID&&x.status==='active'))return this.fail('再編プロジェクトが進行中です。');const cost=Math.max(5000000,cxNum(sub.valuation)*a.costRate);if(this.g.companyCash<cost)return this.fail('再編資金が不足しています。');
-    this.g.companyCash-=cost;this.g.transportRebuildProjects.push({id:cxUID(this.g),subID,subName:sub.name,actionID:a.id,name:a.name,cost,weeks:a.weeks,progress:0,status:'active',growth:a.growth,margin:a.margin,startedWeek:this.g.week});this.notify(`${sub.name}で「${a.name}」を開始しました。`,'success');this.save();this.emit();return true;
+    const projectID=cxUID(this.g);this.g.companyCash-=cost;__modules.finance.event(this.g,'headOfficeExpense',cost,{cashEffect:-cost,profitEffect:-cost,sourceType:'startTransportRebuild',sourceID:projectID,description:`${sub.name} ${a.name}`});this.g.transportRebuildProjects.push({id:projectID,subID,subName:sub.name,actionID:a.id,name:a.name,cost,weeks:a.weeks,progress:0,status:'active',growth:a.growth,margin:a.margin,startedWeek:this.g.week});this.notify(`${sub.name}で「${a.name}」を開始しました。`,'success');this.save();this.emit();return true;
   };
 
   TycoonEngine.prototype.startMediaAction=function(kind){
-    const a=MEDIA_ACTIONS.find(x=>x.id===kind);if(!a)return false;if(this.g.companyCash<a.cost)return this.fail('広報予算が不足しています。');this.g.companyCash-=a.cost;
+    const a=MEDIA_ACTIONS.find(x=>x.id===kind);if(!a)return false;if(this.g.companyCash<a.cost)return this.fail('広報予算が不足しています。');this.g.companyCash-=a.cost;__modules.finance.event(this.g,'advertising',a.cost,{cashEffect:-a.cost,profitEffect:-a.cost,sourceType:'startMediaAction',sourceID:a.id,description:a.name});
     this.g.mediaCampaigns.push({id:cxUID(this.g),...cxCopy(a),status:'active',startedWeek:this.g.week,endWeek:this.g.week+a.weeks,progress:0});this.g.mediaActionLog.unshift(`第${this.g.week}週：${a.name}を開始。`);this.g.mediaActionLog=this.g.mediaActionLog.slice(0,cxLogCap('mediaActionLog'));this.notify(`${a.name}を開始しました。`,'success');this.save();this.emit();return true;
   };
 
