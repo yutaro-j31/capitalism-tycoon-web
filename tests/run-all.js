@@ -320,6 +320,7 @@ const nodeTests = [
   ['real-estate-agency-focus', 'tests/real-estate-agency-focus-test.js'],
   ['real-estate-agency-capacity-visibility', 'tests/real-estate-agency-capacity-visibility-test.js'],
   ['supply-material-cost-inflation', 'tests/supply-material-cost-inflation-test.js'],
+  ['store-cost-inflation-25y', 'tests/store-cost-inflation-25y-test.js'],
   ['supply-payment-due-week-arrival-basis', 'tests/supply-payment-due-week-arrival-basis-test.js'],
   ['ramen-supply-payment-terms-244week-regression', 'tests/ramen-supply-payment-terms-244week-regression-test.js'],
   ['ramen-supply-payment-terms-negative', 'tests/ramen-supply-payment-terms-negative-test.js'],

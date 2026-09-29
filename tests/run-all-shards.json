@@ -212,5 +212,8 @@
   "K": [
     "tests/supply-material-cost-inflation-test.js",
     "tests/full-index-weekly-validate-208w-test.js"
+  ],
+  "L": [
+    "tests/store-cost-inflation-25y-test.js"
   ]
 }
