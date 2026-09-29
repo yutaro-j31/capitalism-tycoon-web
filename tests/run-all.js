@@ -135,6 +135,7 @@ const nodeTests = [
   ['loan-single-interest', 'tests/loan-single-interest-test.js'],
   ['dividend-corporate-tax', 'tests/dividend-corporate-tax-test.js'],
   ['transaction-rollback', 'tests/transaction-rollback-test.js'],
+  ['week-transaction-atomicity', 'tests/week-transaction-atomicity-test.js'],
   ['reload-canonical-state', 'tests/reload-canonical-state-test.js'],
   ['simulation-rng', 'tests/simulation-rng-test.js'],
   ['simulation-long-run-reload-fork', 'tests/simulation-long-run-reload-fork-test.js'],
