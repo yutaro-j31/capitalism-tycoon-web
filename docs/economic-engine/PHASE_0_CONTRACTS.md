@@ -33,42 +33,105 @@ Phase 0 does **not** replace current production writers. During Strangler migrat
 
 Every Economic Core entity has a deterministic stable ID. IDs are persisted or deterministically migrated; they must never depend on render order, wall-clock time, or host RNG.
 
+Entity identity is separated from role/status. `listedCompany`, `subsidiary`, and `portfolioCompany` are **not** mutually exclusive entity types.
+
 Required shape:
 
 ```text
 EconomicEntity {
   entityId
-  entityType
+  legalEntityKind
   legalName
   status
-  jurisdiction?      // optional gameplay metadata, not a source of randomness
-  parentEntityId?    // legal ownership parent when applicable
+  roles[]
+  listingStatus?
+  jurisdiction?
   metadata
 }
 ```
 
-An entity is not an account. An entity may own multiple accounts/assets. Cash belonging to one entity must never be represented as cash of another entity merely for UI convenience.
+An entity is not an account, security, debt instrument, property, or relationship. Those objects have their own stable identities and refer back to entities.
 
-### 2.2 Internal entity classes
+### 2.2 Legal entity kinds
 
-| Type | Meaning | Cash boundary |
+| legalEntityKind | Meaning | Cash boundary |
 |---|---|---|
 | `person` | Founder/player beneficial owner | personal cash/assets |
-| `operatingCompany` | Player or AI operating company | company cash/assets |
-| `holdingCompany` | Parent holding entity when introduced | own company cash/assets |
-| `subsidiary` | Separate legal company controlled by another entity | subsidiary cash/assets |
-| `listedCompany` | Company with public security/share class | issuer cash/assets |
-| `peFund` | PE investment vehicle | fund cash only |
-| `vcVehicle` | VC investment vehicle | vehicle cash only |
-| `portfolioCompany` | Company held by PE/VC | portfolio-company cash/assets |
-| `propertyVehicle` | Optional SPV for property ownership | vehicle cash/assets |
+| `company` | Operating or holding legal company | that company's cash/assets |
+| `fund` | PE/VC or other investment fund vehicle | fund cash/assets |
+| `propertyVehicle` | Property SPV where legally separate | vehicle cash/assets |
 | `bank` | Modeled bank from Phase 16 onward | bank cash/assets |
+| `trustOrEstate` | Trust/estate/family vehicle when beneficial ownership requires it | vehicle cash/assets |
 
-The PE management business is **not** the PE fund. Until a separate manager entity is introduced, the current player company may remain the management-company adapter: management fees belong to company cash, while carried interest follows the current personal-cash contract unless a later approved migration changes that rule.
+### 2.3 Orthogonal roles and statuses
 
-### 2.3 External/system counterparties
+Roles/statuses may overlap:
 
-Balanced economic transactions must support deterministic aggregate external counterparties:
+- `operatingCompany`
+- `holdingCompany`
+- `subsidiary`
+- `listedIssuer`
+- `portfolioCompany`
+- `peManager`
+- `generalPartner`
+- `vcManager`
+- `jointVenture`
+- `associate`
+- `propertyOwner`
+- `lender`
+- `borrower`
+
+A company may therefore be, for example, an operating company + listed issuer + subsidiary + portfolio company at the same time.
+
+Control/ownership relationships are edges, not entity kinds.
+
+### 2.4 Relationship identity
+
+Economic relationships that may affect settlement or control use stable IDs where needed:
+
+```text
+EconomicRelationship {
+  relationshipId
+  relationshipType
+  fromEntityId
+  toEntityId
+  effectivePeriod
+  terms
+}
+```
+
+Examples include parent/subsidiary control, LP commitment, intercompany loan, management agreement, trust beneficial interest, joint venture and security pledge.
+
+### 2.5 Securities, debt instruments and properties are not entities
+
+The Phase 0 identity model reserves stable IDs for:
+
+- `securityId` / `securityClassId`
+- `debtInstrumentId`
+- `propertyId`
+- `accountId`
+- `commitmentId`
+
+These objects always identify their legal owner/issuer/obligor through entity IDs.
+
+### 2.6 PE manager / GP boundary
+
+The PE management business is **not** the PE fund.
+
+The target model distinguishes:
+
+- management company / manager role
+- GP entity or GP economic account where required
+- PE fund vehicle
+- LP aggregate or individual LP entities when economically relevant
+- co-invest vehicle/counterparty
+- portfolio company
+
+During migration, the current player company may remain the manager adapter: management fees belong to company cash, while carried interest follows the current personal-cash contract until a later approved cutover explicitly changes it.
+
+### 2.7 External/system counterparties
+
+Balanced operations must support deterministic aggregate external counterparties:
 
 - `external:customer-market`
 - `external:supplier`
@@ -76,25 +139,29 @@ Balanced economic transactions must support deterministic aggregate external cou
 - `external:government-tax`
 - `external:shareholder`
 - `external:lender`
-- `external:buyer-seller`
+- `external:buyer`
+- `external:seller`
 - `external:lp-coinvestor`
+- `external:clearing-settlement`
 
-They do not need individual NPC persistence. IDs must be deterministic and scoped only as deeply as required to avoid double counting.
+They do not need individual NPC persistence. IDs must be deterministic and scoped only as deeply as required to prevent double counting and preserve settlement semantics.
 
-### 2.4 Cash-pool rule
+### 2.8 Cash-pool rule
 
 The following pools are mutually exclusive sources of truth:
 
 - founder/person cash
-- player company cash
-- subsidiary cash
-- PE fund cash
-- VC vehicle cash
-- portfolio-company cash
-- property-vehicle cash
-- bank cash
+- each company cash pool
+- each subsidiary cash pool
+- each PE/VC fund cash pool
+- each portfolio-company cash pool
+- each property-vehicle cash pool
+- each bank cash pool
+- restricted/escrow cash account owned by its legal entity
 
-A transfer between pools is a transaction. Reading another entity's cash as "available" is not a transfer.
+Restricted/escrow cash remains owned by the same legal entity but is a separate account and is not unrestricted deployable cash.
+
+A transfer between legal entities or between unrestricted/restricted accounts is an explicit posting. Reading another entity's cash as "available" is not a transfer.
 
 ## 3. Economic glossary
 
@@ -117,152 +184,236 @@ These definitions are normative for later Economic Engine phases.
 
 Derived metrics are projections; they do not create cash.
 
-## 4. Material transaction contract
+## 4. Material operation and posting contract
 
-### 4.1 Required fields
+### 4.1 Operation is the atomic unit
+
+A material economic action is represented by one `EconomicOperation` containing one or more postings/legs.
 
 ```text
-EconomicTransaction {
-  transactionId
+EconomicOperation {
   operationId
   idempotencyKey
+  operationType
   decisionPeriod?
-  effectivePeriod
-  type
-  fromEntityId
-  fromAccount
-  toEntityId
-  toAccount
-  amount
+  recognitionPeriod?
+  duePeriod?
+  settlementPeriod?
+  effectivePeriod?
+  status
+  schemaVersion
+  postings[]
+  metadata
+}
+```
+
+The operation, not an individual posting, is the atomic/idempotent settlement unit.
+
+### 4.2 Posting/leg shape
+
+```text
+EconomicPosting {
+  postingId
+  operationId
+  postingSequence
+  entityId
+  accountId
+  side
+  amount?
+  currency?
+  instrumentId?
+  securityClassId?
+  quantity?
+  counterpartyEntityId?
+  counterpartyRole?
+  relationshipId?
+  eliminationKey?
   metadata
 }
 ```
 
 Rules:
 
-- `amount` is always non-negative.
-- Direction is represented by `from*` and `to*`, never by a negative amount.
-- IDs must be deterministic for replayable commands.
-- `operationId` groups all legs belonging to one economic action.
-- `idempotencyKey` prevents double settlement of the same action.
-- metadata must be JSON-serializable and must not contain runtime object references.
-- one material economic event is posted exactly once.
+- monetary `amount` is non-negative; direction is carried by debit/credit, or one separately approved signed-delta convention;
+- security/instrument quantity changes are explicit, not hidden inside free-form metadata;
+- `postingSequence` is deterministic;
+- IDs must be deterministic for replayable commands;
+- metadata is JSON-serializable and contains no runtime object references;
+- one material economic operation settles exactly once;
+- a posting cannot independently commit outside its parent operation.
 
-### 4.2 Minimum transaction families
+### 4.3 Account and instrument taxonomy
 
-The kernel must be capable of representing:
+Before Phase 1 cutover, define a versioned account taxonomy sufficient to distinguish at least:
+
+- cash / restricted cash / escrow
+- receivable / payable / accrued expense / tax payable
+- inventory / fixed assets / intangible assets / goodwill
+- debt principal / accrued interest
+- share capital / additional paid-in capital / retained earnings / treasury stock
+- revenue / operating expense / interest / tax / dividend/distribution
+- fund capital accounts / return of capital / preferred return / carry where applicable
+- consolidation/elimination-only accounts or tags
+
+Debt and security identity is separate from the account taxonomy. A posting that changes a debt/security/property position references the stable instrument/security/property ID.
+
+### 4.4 Minimum operation families and required semantic legs
+
+The kernel must be capable of representing these families without hidden cash creation:
 
 - operating receipt/payment
 - payroll/rent/supplier/tax payment
-- debt borrowing
-- principal repayment
-- interest
+- debt borrowing, principal repayment, interest accrual/payment and fees
 - equity issuance
-- dividend/distribution
+- dividend declaration/payment/distribution/withholding
 - buyback
 - asset purchase/sale
-- intercompany transfer
-- M&A consideration and fees
+- intercompany loan/equity/dividend/service transfer
+- M&A consideration, fees, assumed debt, identifiable net assets and goodwill/bargain gain
 - fund contribution/capital call
-- fund distribution/return of capital/carry
+- fund distribution/return of capital/preferred return/carry/co-invest
 - external investment purchase/sale
 
-### 4.3 Atomicity
+Each family must define its required posting pattern before becoming executable. A family schema may add fields, but it cannot weaken operation atomicity, idempotency or conservation.
+
+### 4.5 Atomicity
 
 A material operation follows:
 
 ```text
-validate all required legs
+construct complete operation
+→ validate required postings and instruments
 → verify balances/constraints
 → verify idempotency
-→ mutate all authoritative legs
-→ post transaction(s)
+→ validate operation balance/conservation
+→ mutate all authoritative facts
+→ post all legs
 → run required invariant gate
-→ commit
-→ projection/update
-→ save/emit
+→ commit operation
+→ update projections
+→ durable save/public emit
 ```
 
-Failure before commit leaves the relevant economic state unchanged.
+Failure before commit leaves all authoritative economic state unchanged.
 
 No public emit or durable save may expose a partially settled operation.
 
-The current production `runTransaction()` mechanism is a useful rollback precedent, but Phase 1 Economic Transactions are a separate semantic contract and must not be treated as implemented merely because `runTransaction()` exists.
+The current production `runTransaction()` mechanism is a useful rollback precedent, but Phase 1 Economic Operations are a separate semantic contract and must not be treated as implemented merely because `runTransaction()` exists.
 
-### 4.4 External flows
+### 4.6 Corrections and reversals
 
-Money entering/leaving the modeled ownership graph must have an external counterparty. "Create cash" or "delete cash" without an explicit approved external-flow type is invalid.
+A committed operation is never silently edited in history.
+
+Where correction is required, create a deterministic correcting/reversing operation using `reversalOfOperationId` or equivalent versioned linkage, then post the corrected operation according to its family contract.
+
+### 4.7 External flows
+
+Money entering/leaving the modeled ownership graph must have an explicit external counterparty and operation family. "Create cash" or "delete cash" without an approved external-flow posting is invalid.
 
 ## 5. Monetary, rounding and close contract
 
-### 5.1 Authoritative unit during saveVersion 9 migration
+### 5.1 Numeric domains during saveVersion 9 migration
 
-The authoritative gameplay currency remains **JPY represented as finite JavaScript Number values**, quantized to **¥0.01** at new Economic Core material-transaction boundaries.
+The current saveVersion 9 representation remains JavaScript `Number`.
 
-Rationale:
+Different numeric domains must not be conflated:
 
-- current `finance.js` already quantizes accounting values to two decimal places;
-- existing saveVersion 9 states may contain fractional-yen values;
-- changing the persisted type to BigInt or forcing all existing cash to integer yen would be a separate save migration.
+- **monetary amounts settled/posting to accounts**: JPY, quantized to ¥0.01 at new Economic Core posting boundaries;
+- **share/security quantities**: integer units unless an approved security class explicitly allows fractions;
+- **rates/ratios/ownership/voting fractions/FX/internal weights**: finite values using separately defined precision;
+- **per-share/internal valuation prices**: precision defined by the relevant security/valuation contract, not automatically rounded to ¥0.01 at every intermediate step.
 
-Phase 1 must therefore not silently rewrite existing saves solely to change monetary representation.
+Existing saveVersion 9 states may contain fractional-yen values. Phase 1 must not silently rewrite existing saves solely to change representation.
 
-### 5.2 Rounding
+### 5.2 Safe monetary envelope
 
-For a positive transaction amount:
+For the temporary Number + ¥0.01 model, cent-quantized amounts must remain inside an approved exact-quantum envelope.
+
+At minimum:
+
+```text
+abs(amount * 100) <= Number.MAX_SAFE_INTEGER
+```
+
+must hold for authoritative monetary postings that rely on cent-exact integerization.
+
+Phase 0.5 must test reachable values across long-run and large-scale scenarios. If the approved scenario envelope can exceed cent-exact Number range, a dedicated representation decision/migration is required before that scale becomes authoritative.
+
+This is not permission to change `saveVersion=9` automatically.
+
+### 5.3 Rounding
+
+For an in-envelope positive monetary settlement amount:
 
 ```text
 roundMoney(x) = Math.round(x * 100) / 100
 ```
 
-Amounts are positive; debit/credit direction comes from the transaction legs.
+Rounding occurs at the defined recognition/settlement/posting boundary, not repeatedly in intermediate formulas.
 
-Rounding occurs at the economic settlement/posting boundary, not repeatedly in intermediate calculations unless a subsystem contract explicitly requires it.
+Family-specific rules must state whether rounding occurs per unit/per holder or on an aggregate before allocation.
 
-Share quantities are integer units unless a future approved security class explicitly supports fractions.
+### 5.4 Residual allocation
 
-### 5.3 Residuals
+No unexplained "reconciliation adjustment" may be inserted merely to force balance.
 
-No unexplained "reconciliation adjustment" may be inserted to make accounts balance.
+When exact allocation creates a residual:
 
-When an allocation mathematically produces a residual:
-
-- assign it deterministically to a named residual recipient/leg, or
-- persist an explicit rounding residual account/field,
-- document the rule,
+- use a documented deterministic allocation rule;
+- use stable entity/security IDs as tie-breakers;
+- post the residual to a named recipient/account where economically appropriate;
 - test conservation.
 
-### 5.4 Accounting tolerances
+Specific future contracts must cover, where applicable, dividend residuals, tax withholding residuals, FX translation reserves, fund waterfall residuals and integer share-allocation residuals.
 
-During the legacy-adapter period:
+### 5.5 Current legacy validation tolerances
 
-- current standalone `finance.validate()` compatibility tolerance remains **¥2**;
-- new Economic Core transaction legs themselves must reconcile to the **¥0.01 quantum**.
+The current production `finance.validate()` uses multiple compatibility tolerances. Gate D must not summarize all legacy validation as “¥2”.
 
-Phase 2 should reduce authoritative-core reconciliation to the monetary quantum wherever the migrated subsystem no longer depends on legacy tolerance.
+| Legacy check | Current compatibility tolerance |
+|---|---:|
+| Balance-sheet difference | ¥2 |
+| BS cash vs `companyCash` | ¥0.1 |
+| Cash-flow identity | ¥10 |
+| Period CF ending cash vs `companyCash` | ¥0.5 |
+| Weekly snapshot cash difference | ¥10 |
+| Weekly opening/previous ending roll-forward | ¥10 |
+| Archived finance opening-cash roll-forward | ¥10 |
+| Loan total vs `companyDebt` | ¥0.1 |
+| Retained-earnings roll-forward | ¥0.1 |
+| Negative balance guard | values below -¥0.1 fail |
 
-Tolerance is a validation allowance, not permission to fabricate cash.
+These are **legacy adapter tolerances**, not Economic Core posting tolerances.
 
-### 5.5 Accrual and cash settlement
+New Economic Core monetary operations must reconcile to the ¥0.01 posting quantum inside the approved Number envelope. Phase 2 must define separate close/projection/consolidation tolerances rather than inheriting the largest legacy tolerance.
 
-Recognition and cash settlement are separate events when economically different.
+Tolerance is a validation allowance, never permission to fabricate cash.
+
+### 5.6 Recognition, commitment, due date and cash settlement
+
+These are separate concepts:
+
+- `decisionPeriod`: when the decision is made;
+- `recognitionPeriod`: when the accounting event is recognized;
+- `duePeriod`: when the obligation becomes due;
+- `settlementPeriod`: when cash/instrument settlement occurs;
+- `effectivePeriod`: when a legal/operational state change becomes effective, if distinct.
 
 Examples:
 
-- revenue can be earned before collection;
-- tax expense can be recognized before tax payment;
-- interest can accrue before payment;
-- an approved acquisition can be committed before settlement.
+- revenue may be recognized before collection;
+- tax expense may be recognized before tax payment;
+- interest may accrue before payment;
+- an approved acquisition may create a commitment before legal close/cash settlement.
 
-The period contract must record which period recognizes the economic event and which period moves cash.
-
-### 5.6 Period values
+### 5.7 Period values
 
 Each accounting period has:
 
-- opening balances
-- period transactions/accruals
-- closing balances
+- opening balances;
+- recognized transactions/accruals;
+- due/settled operations;
+- closing balances.
 
 Closing balances of period N become opening balances of N+1 after the period is committed.
 
@@ -271,36 +422,50 @@ Closing balances of period N become opening balances of N+1 after the period is 
 The target weekly pipeline is:
 
 ```text
-0. Apply previously committed actions
-1. Advance calendar / establish period context
+0. Establish period/calendar context and opening snapshot
+1. Apply previously committed actions due in this period
 2. Macro state update
 3. Industry demand and exogenous supply update
 4. Operational capacity availability
 5. Market clearing / price and volume allocation
 6. Operations settlement
-7. Debt interest / principal / taxes
+7. Debt interest / principal / taxes: accrual and due settlement
 8. Standalone accounting close
 9. Standalone invariant gate
 10. Standalone derived metrics
 11. Group consolidation / intercompany eliminations
 12. Consolidated invariant gate
 13. Consolidated derived metrics
-14. Capital-allocation candidate generation
-15. Player / AI decisions
-16. Schedule next-period CapEx / financing / corporate actions
-17. Valuation
-18. Public market repricing
+14. Base/pure valuation snapshot used by decisions
+15. Capital-allocation candidate generation and scoring
+16. Player / AI decisions
+17. Create commitments / schedule future CapEx, financing and corporate actions
+18. Post-decision reporting valuation signals and public market repricing
 19. Progression / reports / diagnostics
 20. Normalize → atomic save snapshot → emit
 ```
 
 Before a phase exists, its slot is an explicit no-op, not an invitation for another subsystem to mutate in that slot.
 
-### 6.1 One-period lag
+The base valuation at step 14 is a pure/read-only decision input. Step 18 may update public market prices/signals after decisions, but may not feed those same-period outputs back into step 15/16.
 
-Capital allocation, buybacks, M&A, CapEx and financing decisions use the latest completed accounting information and pre-action valuation/market price.
+### 6.1 Action-family timing
 
-They are decided after close and settle in the later execution phase/period defined by the action contract.
+There is no universal assumption that every current user action immediately becomes next-period settlement.
+
+For each action family, the migration contract must declare:
+
+| Field | Meaning |
+|---|---|
+| decision timing | when user/AI can choose |
+| commitment timing | when an enforceable commitment is created |
+| recognition timing | accounting period |
+| settlement timing | when cash/instruments move |
+| effective timing | when ownership/capacity/control changes |
+| cancellation/expiry | whether/how a commitment may be cancelled |
+| legacy behavior | immediate/deferred production behavior before cutover |
+
+The target Economic Engine default for strategic capital-allocation decisions is to use the latest completed accounting information and pre-action/base valuation, then settle according to the action-family contract. Existing immediate production actions remain legacy-authoritative until their explicit cutover.
 
 No same-period fixed-point iteration is allowed without a separate approved specification.
 
@@ -308,13 +473,18 @@ No same-period fixed-point iteration is allowed without a separate approved spec
 
 Every weekly economic mutator must eventually declare:
 
-- phase
-- authoritative writer
-- adapter/projection
-- idempotency guard
-- retirement condition
+- execution phase;
+- authoritative writer;
+- adapter/projection;
+- idempotency guard;
+- input valuation snapshot/version if applicable;
+- retirement condition.
 
 No module/prototype wrapper may become an implicit second writer.
+
+### 6.3 Phase-registry characterization
+
+Before changing wrapper order, Phase 0.5 must snapshot the current production order and writer inventory so migration can prove intentional changes rather than accidentally changing load-order semantics.
 
 ## 7. Invariant catalog
 
@@ -323,23 +493,27 @@ The following IDs are normative targets for the permanent harness.
 | ID | Invariant |
 |---|---|
 | ECO-001 | all authoritative numeric economic values are finite |
-| ECO-002 | standalone Assets = Liabilities + Equity within the approved phase tolerance |
+| ECO-002 | standalone Assets = Liabilities + Equity within the approved phase-specific tolerance |
 | ECO-003 | internal cash transfer outflow equals inflow plus explicitly modeled fee/tax/loss legs |
 | ECO-004 | personal/company/subsidiary/fund/vehicle/bank cash boundaries never alias |
-| ECO-005 | one operation/idempotency key settles at most once |
-| ECO-006 | failed atomic transaction leaves authoritative economic state unchanged |
+| ECO-005 | one operation/idempotency key settles at most once within its valid replay lifetime |
+| ECO-006 | failed atomic operation leaves authoritative economic state unchanged |
 | ECO-007 | debt principal roll-forward reconciles borrowing, repayment and write-off/default events |
-| ECO-008 | dividend payer reduction equals recipient distributions + withholding/tax legs |
+| ECO-008 | dividend payer reduction equals recipient distributions + withholding/tax/residual legs |
 | ECO-009 | buyback cash, treasury/outstanding shares and holder ownership reconcile |
 | ECO-010 | issued = treasury + outstanding shares for each share class |
 | ECO-011 | no share/economic interest is beneficially owned twice |
 | ECO-012 | control rights derive deterministically from the approved ownership/control contract |
-| ECO-013 | M&A consideration, fees, debt, seller/buyer cash and target ownership commit atomically |
+| ECO-013 | M&A consideration, fees, debt, seller/buyer cash, acquired net assets, goodwill and target ownership commit atomically |
 | ECO-014 | intercompany transactions remain in standalone accounts and eliminate only in consolidated views |
 | ECO-015 | same state + command sequence + seed produces identical authoritative final state/hash |
-| ECO-016 | UI/render/shadow evaluation does not consume production simulation RNG |
+| ECO-016 | UI/render/report/preview/shadow evaluation does not consume production simulation RNG |
 | ECO-017 | projections/derived metrics cannot mutate source-of-truth cash, ownership or debt |
-| ECO-018 | transaction/history compaction preserves required accounting and idempotency evidence |
+| ECO-018 | transaction/history compaction preserves required accounting, replay and idempotency evidence |
+| ECO-019 | cent-quantized authoritative monetary postings remain inside the approved exact-quantum Number envelope until another representation is approved |
+| ECO-020 | every committed multi-leg operation satisfies its family-specific balance/conservation schema |
+| ECO-021 | authoritative security/debt/property IDs and next-ID counters remain unique and deterministic |
+| ECO-022 | base valuation used for a decision is immutable for that decision and cannot be rewritten by same-period post-decision repricing |
 
 ## 8. Control Ladder rights contract
 
@@ -349,11 +523,11 @@ The approved Control Ladder is:
 
 | Threshold | Crossing semantics | Gameplay right |
 |---|---|---|
-| 1% | ≥1% | minority shareholder action/proposal capability; ownership becomes strategically visible in the control UI |
-| 3% | ≥3% | enhanced minority rights: request extraordinary governance action / books-and-records style diligence capability |
-| 1/3 | >1/3 | block actions requiring the 2/3 special-resolution tier; takeover path becomes a control-critical action |
-| 1/2 | >1/2 | ordinary voting control; ability to control ordinary shareholder resolutions and board-control gameplay |
-| 2/3 | ≥2/3 | special-resolution control for merger/reorganization/charter-style actions supported by the game |
+| 1% | ≥1% | minority-shareholder capability tier; exact command entitlement defined before Phase 3 |
+| 3% | ≥3% | enhanced minority-rights tier; exact command entitlement defined before Phase 3 |
+| 1/3 | >1/3 | block actions requiring the 2/3 special-resolution tier; takeover path becomes control-critical |
+| 1/2 | >1/2 | ordinary voting control tier |
+| 2/3 | ≥2/3 | special-resolution control tier |
 | 90% | ≥90% | squeeze-out / wholly-owned conversion capability |
 
 Separate non-control markers:
@@ -363,17 +537,55 @@ Separate non-control markers:
 
 5% and 20% must never appear as Control Ladder stages.
 
-Economic ownership and voting control are separate. A future control resolver may model dispersed ownership or special voting rights, but it must never silently equate economic percentage with every control right.
+Economic ownership, voting ownership and control are separate. Before Phase 3, the security/control contract must define for every right:
 
-## 9. Founder net-worth contract
+- denominator: voting rights vs economic interest;
+- treatment of treasury/non-voting shares;
+- share-class/special-vote treatment;
+- joint/acting-in-concert holdings where modeled;
+- already-controlled subsidiary behavior;
+- exact command precondition and UI entitlement.
 
-### 9.1 Listed own-company stake
+The thresholds themselves are fixed owner decisions; only the command-level rights matrix remains to be finalized.
+
+## 9. Founder net-worth and security identity contract
+
+### 9.1 Minimum security identity
+
+The ownership model must support at least:
+
+```text
+SecurityClass {
+  securityClassId
+  issuerEntityId
+  classType
+  issuedQuantity
+  treasuryQuantity
+  votingRightsPerUnit
+  economicRightsPerUnit
+}
+
+SecurityHolding {
+  holdingId
+  securityClassId
+  registeredHolderEntityId
+  beneficialOwnerEntityId
+  beneficialFraction
+  quantity
+  sourceLot?
+  pledgeId?
+}
+```
+
+Indirect ownership is represented through entity/ownership edges rather than duplicating the same underlying share into multiple personal-asset rows.
+
+### 9.2 Listed own-company stake
 
 ```text
 founderOwnCompanyValue = marketPrice × founderBeneficialShares
 ```
 
-### 9.2 Private own-company stake
+### 9.3 Private own-company stake
 
 ```text
 founderOwnCompanyValue = EquityValue × founderEconomicOwnership × 0.70
@@ -381,83 +593,128 @@ founderOwnCompanyValue = EquityValue × founderEconomicOwnership × 0.70
 
 The valuation input is **Equity Value**, not Enterprise Value, so debt is not counted as founder wealth.
 
-### 9.3 Anti-double-counting
+### 9.4 Anti-double-counting and transitions
 
 - treasury shares are not founder-owned shares;
+- issued quantity must reconcile to treasury + uniquely allocated outstanding/external quantity;
 - own-company shares purchased personally are merged into founder beneficial ownership and are not also valued as a separate generic `personalStocks` line;
-- founder original shares and later purchased shares may retain origin metadata, but valuation occurs once per beneficial share;
-- a listed/unlisted transition changes valuation basis, not share identity;
-- pledged/margin-financed shares remain gross assets; the corresponding personal liability is deducted separately;
-- family/trust holdings count only to the extent the founder is the beneficial owner; spouse/family beneficial holdings are not automatically founder assets.
+- founder original shares and later purchased shares may retain source-lot metadata, but valuation occurs once per beneficial share;
+- IPO/private-public transition preserves security/beneficial ownership identity; only valuation basis and legal/public status change;
+- founder sale at IPO and new issuance are distinct operations;
+- pledged/margin-financed shares remain gross assets; the linked personal liability is deducted separately through `pledgeId`/liability linkage;
+- family/trust holdings count only to the founder's documented beneficial fraction; spouse/family beneficial holdings are not automatically founder assets;
+- multiple share classes use class-specific voting/economic rights.
 
-The future ownership registry is the canonical deduplication layer. Until Phase 3 cutover, adapters must prove that legacy representations reconcile to the canonical read model.
+The future ownership registry is the canonical deduplication layer. Until Phase 3 cutover, adapters must prove that legacy `founderShares`, personal holdings and other ownership representations reconcile to one canonical read model.
 
 ## 10. Deployable Capital contract
 
-Deployable Capital is calculated **per legal entity**.
+Deployable Capital is calculated **per legal entity** and is a liquidity decision metric, not an accounting asset.
+
+### 10.1 Base 13-week view
 
 For an operating company:
 
 ```text
 unrestricted cash
-- tax payable due within 13 weeks
+- tax payable contractually due within 13 weeks
 - scheduled debt principal/interest due within 13 weeks
 - minimum liquidity reserve
 - committed but unsettled economic actions due within 13 weeks
 - approved CapEx commitments due within 13 weeks
 - legally binding fund/capital commitments attributable to that entity within 13 weeks
-= Deployable Capital
+= Base Deployable Capital
 ```
+
+The 13-week horizon is retained as the compatibility/base liquidity view because current finance forecasting uses that horizon.
+
+### 10.2 Extended and stress views
+
+Phase 0.5 must also characterize at least:
+
+- 52-week/maturity-wall obligations;
+- callable/on-demand debt;
+- covenant-triggered acceleration/cure needs;
+- committed M&A/property/fund closings by contractual due date;
+- seasonal or stress minimum liquidity.
+
+The player/AI may therefore see a base deployable value plus extended/stress warnings rather than one supposedly complete 13-week number.
 
 Rules:
 
-- horizon: **13 weeks**, consistent with the current finance forecast/dividend horizon;
-- restricted PE/VC fund cash is never company Deployable Capital;
+- restricted PE/VC/escrow cash is never company unrestricted Deployable Capital;
 - subsidiary cash is unavailable to the parent until an allowed upstream/intercompany transfer actually settles;
 - borrowing capacity is displayed separately and is not cash;
-- approved-but-unpaid commitments are deducted once;
+- approved-but-unpaid commitments are deducted once according to due date;
 - negative result is reported as a funding gap, not clamped into fictional available cash;
 - personal Deployable Capital uses only personal cash/liabilities/commitments.
 
 ## 11. Retention, save-size and deterministic-hash contracts
 
-### 11.1 Journal retention
+### 11.1 Journal/idempotency retention — provisional until Phase 0.5
 
-The live detailed Economic Transaction journal is bounded.
+The Economic Operation journal must be bounded, but **5,000 is not yet an approved Economic Core normative cap**.
 
-Initial compatibility budget:
+Current production evidence:
 
-- no unbounded growth;
-- detailed live journal target cap: **5,000 entries per authoritative journal**, matching the current finance transaction guard as the migration baseline;
-- before older detail is compacted, required accounting aggregates/checkpoints and idempotency evidence must be retained;
-- compaction itself must be deterministic and invariant-preserving.
+- `finance.js` begins compaction above 5,000 legacy finance rows;
+- that compaction preserves financial aggregates;
+- it does not prove the correct retention period for future operation-level idempotency/replay evidence.
 
-Phase 0.5 may recommend a different measured cap, but changing it requires evidence and an explicit contract update.
+Phase 0.5 must measure operations and postings separately and propose:
 
-### 11.2 Save-size budget
+- live operation cap;
+- live posting cap;
+- retention by period/command lifetime;
+- deterministic compact checkpoint/watermark;
+- how idempotency/replay evidence survives detail compaction;
+- any probabilistic structure only if its false-positive behavior is explicitly acceptable.
 
-The accepted physical-iPhone Growth fixture is the benchmark reference.
+No unbounded idempotency-key set is allowed merely to avoid designing compaction.
 
-Rules:
+### 11.2 Save-size/performance targets — provisional measurement targets
 
-- Phase 0.5 records raw/stored bytes for versioned scenarios.
-- A later phase must not increase the same benchmark scenario's stored save size by more than **15%** without explicit review.
-- **10 MB stored** for the Gate C-style ~week117/~40-store reference is a warning budget, not a silent truncation threshold.
-- history growth must be bounded before raising the budget.
+The accepted physical-iPhone Gate C fixtures are reference measurements, not universal Economic Engine limits.
 
-### 11.3 Deterministic state hash
+Until Phase 0.5 calibrates scenario tiers:
 
-The permanent harness hash must:
+- **+15% stored-save growth** for the same benchmark scenario is a provisional review trigger, not an approved ceiling;
+- **10 MB stored** for the Gate C-style ~week117/~40-store reference is a provisional warning marker, not a device-safe guarantee or truncation threshold.
 
-- use a canonical JSON projection;
+Phase 0.5 records separately:
+
+- canonical/raw serialized bytes;
+- durable stored bytes;
+- localStorage mirror/fallback behavior;
+- JS string/structured-clone peak-memory proxy where measurable;
+- serialization/compaction/write/flush/load runtime;
+- scenario scale and history age.
+
+Final budgets must be scenario-tier-specific and evidence-based.
+
+### 11.3 Deterministic semantic state hash
+
+The permanent harness hash uses a **versioned authoritative allowlist/section registry**, not only an exclusion denylist.
+
+It must:
+
+- use canonical serialization;
 - sort object keys;
 - sort unordered economic collections by stable ID;
 - preserve ordered collections where order is economically meaningful;
-- include authoritative economic state, simulation RNG state and IDs/counters;
-- exclude DOM/UI state, wall-clock timestamps, diagnostic timing, caches that are re-derived, benchmark-control metadata, and storage-transport metadata such as `saveSequence`;
-- version the projection algorithm as `stateHashVersion`.
+- include authoritative economic state, pending/committed actions, simulation RNG state/call position, economically relevant market state, debt/tax accruals, compaction checkpoints, IDs and next-ID counters;
+- explicitly declare every included authoritative section for each `stateHashVersion`;
+- exclude DOM/UI state, wall-clock timestamps, diagnostic timing, benchmark-control metadata, re-derived caches and storage-transport metadata such as `saveSequence`;
+- forbid future game logic from depending on excluded wall-clock/storage metadata unless the hash contract is intentionally revised.
 
-A hash mismatch is diagnostic evidence; tests must still be able to produce a first semantic diff.
+A hash mismatch is diagnostic evidence; tests must also produce a first semantic diff.
+
+Required #799 parity cases include:
+
+- payloads differing only in `saveSequence` hash to the same economic state;
+- IndexedDB-newer and localStorage-newer boot paths converge to the same semantic hash when economic content is equal;
+- reconciliation write-back consumes no simulation RNG and changes no economic IDs/state;
+- legacy fallback metadata does not survive as authoritative economic state.
 
 ## 12. Versioned headless scenario contract
 
@@ -478,6 +735,22 @@ sourceMainSha
 ```
 
 Required scale controls support at least company counts 10/50/100/250/500/1000 and durations 1/10/50/100 years, with smoke/nightly/deep tiers rather than every Cartesian combination in ordinary CI.
+
+Before Phase 1 acceptance, the permanent harness must additionally support:
+
+- current production weekly wrapper/phase-order characterization;
+- authoritative-writer inventory;
+- versioned semantic state projection registry;
+- semantic first-diff reporting;
+- save/reload deterministic fork;
+- compacted-save/reload deterministic fork;
+- operation replay/idempotency tests;
+- deterministic failure/rollback mutation tests;
+- deterministic ID-allocation collision tests;
+- legacy adapter parity for cash, debt, ownership and standalone finance projections;
+- capability-aware explicit no-op phases;
+- Number monetary-envelope reachability probes;
+- raw/stored/peak-memory/runtime save metrics by scenario tier.
 
 ## 13. Migration authority rule
 
