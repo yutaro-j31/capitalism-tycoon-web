@@ -80,6 +80,11 @@ function assertSame(a, b, label) {
   assert.equal(diff, null, `${label}; first diff=${JSON.stringify(diff)}`);
 }
 
+function assertLedgerValid(pair, label) {
+  const validation = pair.run.loaded.modules.finance.validate(pair.engine.g);
+  assert.equal(validation.ok, true, `${label}: finance.validate: ${(validation.errors || []).join(' / ')}`);
+}
+
 function persistedSave(run, engine) {
   engine.save();
   const saved = run.loaded.ctx.__localStorageData.get(KEY);
@@ -112,8 +117,13 @@ function prepareCanonicalSave() {
 
   // From this point the save stream, not host entropy, defines the future.
   run.loaded.modules.simulationRng.reseed(engine.g, 0x731731);
-  engine.g.companyCash = 8_000_000_000;
-  engine.g.personalCash = 1_000_000_000;
+  // Company cash arrives through the founder's equity contribution so the company ledger stays
+  // valid. The personal pool is fixture cash, outside company accounting (#769).
+  const contribution = 8_000_000_000 - engine.g.companyCash;
+  engine.g.personalCash = 1_000_000_000 + contribution;
+  assert.equal(engine.contributeFounderCapital(contribution), true, 'the founder contribution funds the company');
+  assert.equal(engine.g.companyCash, 8_000_000_000, 'company cash after the contribution');
+  assert.equal(engine.g.personalCash, 1_000_000_000, 'personal cash after the contribution');
   engine.g.hasHeadOffice = true;
   engine.g.officeCapacity = 32;
   engine.g.departmentStaff = { ...(engine.g.departmentStaff || {}), accounting: 6, hr: 4, product: 5, investment: 4 };
@@ -129,6 +139,7 @@ function prepareCanonicalSave() {
   openStore(engine, 'gym', '決定論ジム');
 
   engine.normalize();
+  assertLedgerValid({ run, engine }, 'canonical setup');
   return persistedSave(run, engine).saved;
 }
 
@@ -155,6 +166,7 @@ let left = loadSaved(101, seedSave, false);
 let right = loadSaved(909, seedSave, true);
 
 assertSame(left, right, 'same save loads identically before long-run play');
+assertLedgerValid(left, 'loaded save');
 const initialDraws = left.engine.g.simulationRng.draws;
 const checkpoints = [];
 
@@ -174,6 +186,8 @@ for (let step = 1; step <= WEEKS; step++) {
     const reloadDiff = firstDiff(afterReload, beforeReload);
     assert.equal(reloadDiff, null, `week ${step}: save/reload preserves canonical simulation state; first diff=${JSON.stringify(reloadDiff)}`);
     assertSame(left, right, `week ${step}: fresh runtime reload stays on the same fork`);
+    assertLedgerValid(left, `week ${step}: uninterrupted fork`);
+    assertLedgerValid(right, `week ${step}: reloaded fork`);
     checkpoints.push({ step, storageMode: persisted.mode, draws: right.engine.g.simulationRng.draws, nextID: right.engine.g.simulationRng.nextID });
   }
 }
@@ -182,6 +196,8 @@ assert(left.engine.g.simulationRng.draws > initialDraws + 500, 'long-run exercis
 assert.equal(left.engine.g.simulationRng.draws, right.engine.g.simulationRng.draws, 'both forks consumed the same RNG draws');
 assert.equal(left.engine.g.simulationRng.nextID, right.engine.g.simulationRng.nextID, 'both forks allocated the same deterministic IDs');
 assertSame(left, right, '120-week final production states are identical');
+assertLedgerValid(left, 'week 120: uninterrupted fork');
+assertLedgerValid(right, 'week 120: reloaded fork');
 
 console.log(JSON.stringify({
   deterministicLongRun: 'passed',
