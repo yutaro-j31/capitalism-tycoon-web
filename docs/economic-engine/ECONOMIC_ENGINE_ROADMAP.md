@@ -4,7 +4,7 @@
 **Implementation baseline: NO**  
 **Gate C: COMPLETE — physical iPhone evidence accepted; #787 closed**  
 **Gate D tracker: #804 — IN PROGRESS**  
-**Repository baseline reviewed for Gate D: `a77e7513b83a9a26ac2ead0423f2b7b5fc21f54c` (provisional until #799 is resolved)**  
+**Repository baseline reviewed for Gate D: `9b8bdc70eecca6e4caa059a3f44863b197b2b8b7` (#799 included)**  
 **Additional historical audit: completed against local baseline `849586c`**  
 **Gate D contract candidates:** `PHASE_0_CONTRACTS.md`, `ECONOMIC_ENGINE_DEPENDENCY_GRAPH.md`, `GATE_D_VALIDATION.md`  
 **Purpose: audited pre-implementation roadmap**
