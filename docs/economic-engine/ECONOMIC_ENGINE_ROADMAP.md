@@ -344,6 +344,23 @@ Define legal/economic entities such as:
 - bank
 - property vehicle where needed
 
+##### External counterparties
+
+The entity model must also support aggregated external counterparties so balanced transactions can distinguish internal transfers from money entering or leaving the modeled ownership graph.
+
+Minimum external/system counterparty classes:
+
+- Customer / Market
+- Supplier
+- Employee
+- Government / Tax Authority
+- External Shareholder
+- External Lender
+- External Buyer / Seller
+- LP / Coinvestor
+
+These counterparties do not need to be persisted as individual NPCs. Aggregated deterministic counterparty IDs are sufficient, but every material transaction must identify both economic legs.
+
 #### 0B. Economic glossary
 
 Define at minimum:
@@ -407,6 +424,21 @@ Define:
 - family trust handling
 - anti-double-counting rules
 
+#### 0H. Monetary and close contract
+
+Before Ledger implementation, define:
+
+- authoritative monetary unit
+- whether authoritative cash values are integer yen or another internal minor unit
+- rounding points for interest, tax, ownership, valuation, fees, and distributions
+- withholding-tax treatment
+- residual rounding treatment
+- accrual versus cash-settlement timing
+- period-opening versus period-closing values
+- tolerance rules for accounting reconciliation
+
+Subsystem-specific rounding rules must not silently accumulate unexplained residuals over long simulations.
+
 ### Exit criteria
 
 All agents can interpret entities, transactions, ownership, period boundaries, and invariants consistently.
@@ -433,6 +465,17 @@ This is not a one-time phase. It becomes permanent infrastructure used by every 
 - regression comparison
 - JSON / CSV / Markdown reports
 - performance timing
+- versioned scenario schema
+- explicit engine capability declaration
+
+Each scenario should carry at least:
+
+- `harnessSchemaVersion`
+- `engineCapabilities`
+- `scenarioFeatures`
+- `expectedInvariants`
+
+The schema must evolve without invalidating historical benchmark scenarios unnecessarily.
 
 Candidate API shape:
 
@@ -517,6 +560,22 @@ EconomicTransaction {
 - transaction retention must be bounded
 - deterministic re-derivable metrics should not be persisted unnecessarily
 
+### Atomic posting requirements
+
+A balanced transaction is committed only after all required legs validate.
+
+Required properties:
+
+- all-or-nothing state mutation
+- operation ID and idempotency key
+- deterministic replay behavior
+- failed transaction leaves the relevant economic state unchanged
+- no save or public emit before transaction commit
+- projections update only from committed transactions
+- invariant validation runs at the defined transaction/close boundary
+
+The target is to prevent partial settlement such as cash changing while debt, ownership, consideration, or the receiving leg remains unposted.
+
 ### Exit criteria
 
 Company, personal, fund, and subsidiary material transfers can be reconciled through one entity-aware contract.
@@ -565,11 +624,17 @@ Create a shared ownership/control model for stocks, subsidiaries, M&A, PE, and V
 ### Target concepts
 
 - entity IDs
+- issuer identity
+- security / share-class identity
 - shares issued
 - treasury shares
 - outstanding shares
 - shareholder registry
+- holder identity
+- beneficial owner
 - ownership %
+- voting rights
+- economic rights
 - control rights
 - parent/subsidiary relationship
 - minority interest
@@ -691,6 +756,31 @@ Later adapters:
 - VC
 - real estate
 - banking
+
+### Capital-allocation capability gates
+
+A candidate has separate lifecycle capabilities:
+
+- modeled
+- scored
+- shadow-evaluated
+- player-visible
+- schedulable
+- executable
+
+These capabilities must not be treated as equivalent.
+
+Before Phase 9:
+
+- stock corporate actions such as dividend and buyback may be modeled/scored/shadow-evaluated
+- they must not be scheduled or executed through the Economic Core until the corresponding stock/corporate-action migration is complete
+
+Before Phase 10:
+
+- M&A may be modeled/scored/shadow-evaluated
+- it must not be scheduled or executed through the Economic Core until the M&A migration is complete
+
+A candidate may appear in comparative economics before its production settlement path is authoritative, but shadow evaluation must not mutate production state or consume production RNG.
 
 ### Candidate pipeline
 
@@ -824,7 +914,9 @@ Use:
 
 ### Exit criteria
 
-AI profiles behave differently over long runs but obey the same economic rules and accounting contracts as the player.
+AI profiles behave differently over long runs and obey the same economic rules and accounting contracts as the player.
+
+The AI allocator may execute only candidates whose corresponding migration capability is marked executable. Unmigrated candidates may remain shadow-scored only.
 
 ---
 
@@ -1137,7 +1229,28 @@ Progress through measured gates:
 → 1000
 ```
 
+Gate interpretation:
+
+- **100 companies** — initial production-scale acceptance target
+- **250 companies** — post-optimization scale gate
+- **500 companies** — high-density-world stretch gate
+- **1000 companies** — architecture feasibility target, not a fixed product requirement
+
+Each gate must evaluate together:
+
+- Node/headless p50 and p95
+- desktop-browser p50 and p95
+- physical iPhone Safari p50 and p95
+- peak/steady memory
+- save bytes
+- save/load latency
+- deterministic final hash
+- invariant failures = 0
+- UI virtualization/lazy-rendering behavior where relevant
+
 Do not promise 1000-company support before physical-device and production-path evidence.
+
+Web Workers are not an automatic remedy. First reduce avoidable work such as repeated linear lookup, unpartitioned market scans, unbounded history, dense AI cadence, and naive M&A target search.
 
 ---
 
@@ -1211,6 +1324,20 @@ Home
 → Advanced detail
 ```
 
+### Physical-device gates
+
+#### Baseline Gate
+
+Before Economic Engine implementation, capture current-production physical-iPhone metrics.
+
+#### Regression Gate
+
+After each major Economic Engine vertical slice, compare against the approved baseline and prior accepted build.
+
+#### Scale Gate
+
+Scale through the approved company-count targets independently of feature completion. Reaching 1000 companies is not required to continue every earlier phase.
+
 ### Physical-device metrics
 
 At minimum measure:
@@ -1260,6 +1387,36 @@ Temporary shadow mode is allowed:
 
 Never keep two authoritative writers for the same economic value for an extended period.
 
+Do not hide dual-write divergence with automatic reconciliation adjustments.
+
+### Per-feature migration authority contract
+
+Every migrated subsystem must declare:
+
+- current source of truth
+- shadow calculator
+- authoritative writer
+- save projection
+- UI projection
+- tick phase
+- idempotency guard
+- legacy adapter
+- legacy retirement condition
+
+Recommended lifecycle:
+
+```text
+Observe
+→ Shadow
+→ Cutover
+→ Projection
+→ Retire
+```
+
+During **Shadow**, the new core must not mutate authoritative production state.
+
+During **Cutover**, exactly one writer becomes authoritative.
+
 ---
 
 ## 10. Recommended migration order
@@ -1298,17 +1455,49 @@ Recommended target pipeline:
 6. Operations settlement
 7. Debt interest / principal / taxes
 8. Standalone accounting close
-9. Invariant gate
-10. Derived metrics: ROIC / leverage / liquidity
-11. Capital-allocation candidate generation
-12. Player / AI decisions
-13. Schedule CapEx / financing / corporate actions
-14. Valuation
-15. Public market repricing
-16. Group consolidation / eliminations
-17. Progression / reports / diagnostics
-18. Normalize → atomic save snapshot → emit
+9. Standalone invariant gate
+10. Standalone derived metrics: ROIC / leverage / liquidity
+11. Group consolidation / intercompany eliminations
+12. Consolidated invariant gate
+13. Consolidated derived metrics where applicable
+14. Capital-allocation candidate generation
+15. Player / AI decisions
+16. Schedule next-period CapEx / financing / corporate actions
+17. Valuation
+18. Public market repricing
+19. Progression / reports / diagnostics
+20. Normalize → atomic save snapshot → emit
 ```
+
+Before Phase 12 exists, consolidation-related phases are explicit no-ops.
+
+After Minimal Consolidation is introduced, consolidated metrics may feed group-level decisions and valuation only according to an approved valuation contract. Standalone legal-entity decisions must continue to use the correct standalone metrics.
+
+If a particular minimal-consolidation implementation is reporting-only, it must explicitly declare:
+
+- consolidated statements are reporting projections only
+- same-period consolidated results do not feed capital allocation
+- same-period consolidated results do not feed valuation or market repricing
+
+### One-period lag contract
+
+Capital allocation, buybacks, M&A, CapEx, and financing decisions use the latest completed accounting period and the pre-action valuation/market price.
+
+Decisions are scheduled after close and become effective in a later execution phase or period according to the approved transaction contract.
+
+Do not introduce same-period fixed-point iteration unless it is separately specified, justified, and tested.
+
+### Weekly subsystem declaration
+
+During Strangler migration, every weekly subsystem participating in economic state mutation must declare:
+
+- execution phase
+- authoritative writer
+- legacy adapter
+- idempotency guard
+- retirement condition
+
+This prevents module-load/prototype-wrapper order from silently reintroducing close-after-mutation or duplicate-posting behavior.
 
 This is a target architecture contract, not permission to rewrite `advanceWeek` in one PR.
 
@@ -1474,27 +1663,26 @@ The following must be resolved before Economic Engine implementation begins:
 2. obtain physical iPhone baseline
 3. validate v2 against latest main
 4. resolve conflicting design documents
-5. approve entity taxonomy
-6. approve transaction contract
-7. approve tick order / period lag
-8. approve invariant catalog
-9. define Control Ladder rights table
-10. define founder net-worth anti-double-counting behavior
-11. define ledger retention / compaction budget
-12. define save-size budget
-13. define deterministic state-hash strategy
-14. define headless seed/scenario matrix
-15. define each existing feature's current source of truth and migration order
-16. define Banking start gate
-17. explicitly approve conversion to `Implementation baseline: YES`
+5. approve entity taxonomy, including external/system counterparties
+6. approve monetary / rounding / accrual contract
+7. approve transaction contract and atomic-posting semantics
+8. approve tick order / period lag
+9. approve invariant catalog
+10. define Control Ladder rights table
+11. define founder net-worth anti-double-counting behavior
+12. define ledger retention / compaction budget
+13. define save-size budget
+14. define deterministic state-hash strategy
+15. define versioned headless scenario schema and seed/scenario matrix
+16. define each existing feature's current source of truth, capability state, and migration authority
+17. define Banking start gate
+18. explicitly approve conversion to `Implementation baseline: YES`
 
 ---
 
-## 17. Known document conflict to resolve
+## 17. Document consistency
 
-At v2 drafting time, PR #783 contained a Control Ladder list including 5% and 20%.
-
-This conflicts with the current owner-approved Roadmap rule:
+The previously identified PR #783 Control Ladder conflict was corrected on its branch to the owner-approved list:
 
 - 1%
 - 3%
@@ -1503,7 +1691,7 @@ This conflicts with the current owner-approved Roadmap rule:
 - 2/3
 - 90%
 
-Before Economic Engine implementation, all project documents must be aligned to the approved list.
+Before implementation starts, merged project documents must still be checked on latest `main` to ensure no stale 5% / 20% Control Ladder remains as an approved rule.
 
 ---
 
