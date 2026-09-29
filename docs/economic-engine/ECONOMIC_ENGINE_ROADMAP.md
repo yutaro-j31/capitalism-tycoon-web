@@ -1,30 +1,32 @@
 # Capitalism Tycoon Economic Engine Integration Roadmap
 
-**Status: DRAFT — v1**  
+**Status: DRAFT — v2**  
 **Implementation baseline: NO**  
-**Baseline audit / main: `849586cfcc2dddcd4148e468c3746f95a83018d2`**  
-**Purpose: pre-implementation roadmap for additional Economic Engine audit**
+**Repository baseline reviewed: `849586cfcc2dddcd4148e468c3746f95a83018d2`**  
+**Additional audit: completed against local baseline `849586c`**  
+**Purpose: audited pre-implementation roadmap**
 
-> IMPORTANT: This document is not yet an implementation source of truth.
+> IMPORTANT
 >
-> Before Economic Engine implementation:
-> 1. Complete the current remediation work.
-> 2. Measure the iPhone performance baseline on real hardware where required.
-> 3. Complete the Economic Engine additional audit based on the existing `849586c` audit.
-> 4. Update this document to Roadmap v2.
-> 5. Only Roadmap v2 or later may become the implementation baseline.
+> This document is the current design roadmap candidate, but it is **not yet permission to implement the Economic Engine**.
+>
+> Implementation may begin only after the explicit start gates in this document are satisfied and the owner approves conversion to an implementation baseline.
 
-## 1. Purpose
+---
+
+## 1. Product objective
 
 Introduce a Wall Street Raider-style capital-allocation economic engine beneath the existing Capitalism Tycoon systems without discarding the current game.
 
-Target structure:
+Target product synthesis:
 
 - Big Ambitions-style progression and delegation
 - Global Business Tycoon-style mobile information architecture
-- Wall Street Raider-style economic / capital-allocation engine
+- Wall Street Raider-style economic interconnection and capital allocation
 
-The objective is not to clone WSR. The objective is to make stores, businesses, stocks, M&A, PE, VC, real estate, subsidiaries, debt, and later banking operate inside one coherent economic reality.
+The goal is not to clone WSR or reproduce its internal formulas. The goal is to create a coherent independent economic engine in which operating businesses, stocks, M&A, PE, VC, real estate, debt, and later banking compete for capital inside one economic reality.
+
+---
 
 ## 2. Source-of-truth priority
 
@@ -33,22 +35,22 @@ When information conflicts, use this order:
 1. Explicit owner decisions
 2. Current repository / latest `main`
 3. `AGENTS.md` and `CLAUDE.md`
-4. Latest approved architecture documents
+4. Latest approved architecture contracts
 5. Latest approved roadmap
 6. Historical audits
 7. AI assumptions
 
-No agent may treat an old chat, audit, or model output as stronger evidence than the current repository.
+An old chat, audit, or model output must never override the current repository or an explicit owner decision.
+
+---
 
 ## 3. Confirmed owner decisions
 
-These decisions are already made and should not be reopened during the additional audit unless the owner explicitly changes them.
+These decisions are fixed unless the owner explicitly changes them.
 
 ### 3.1 Control Ladder
 
-Do not use simplified 5% / 20% / 51% / 80% thresholds.
-
-Use the Japanese Companies Act-based Control Ladder using these thresholds:
+Use the Japanese Companies Act-based Control Ladder:
 
 - 1%
 - 3%
@@ -57,7 +59,9 @@ Use the Japanese Companies Act-based Control Ladder using these thresholds:
 - 2/3
 - 90%
 
-The exact in-game rights attached to each threshold must be specified separately before implementation.
+Do **not** use 5% / 20% / 51% / 80% as the Control Ladder.
+
+The exact gameplay rights attached to each approved threshold must be defined in Phase 0 before implementation.
 
 ### 3.2 Founder net worth
 
@@ -75,20 +79,22 @@ The same share or economic value must never be counted twice.
 
 ### 3.3 Ending
 
-Keep the ending condition:
+The ending remains:
 
 **Personal net worth = ¥1 trillion**
 
 ### 3.4 Determinism
 
-Determinism work from #731 is treated as already completed.
+Determinism work from #731 is treated as completed baseline infrastructure.
 
-Economic Engine changes must preserve the existing deterministic contract and must not introduce simulation-path usage of:
+Economic Engine work must preserve:
 
-- `Math.random()`
-- uncontrolled real-time clock dependence
-- nondeterministic iteration or ordering
-- UI-driven simulation RNG consumption
+- no `Math.random()` in deterministic production simulation paths
+- no uncontrolled real-time clock dependence
+- stable deterministic ordering
+- UI rendering must not consume simulation RNG
+- replayable economic actions
+- stable tie-breaking
 
 ### 3.5 Out of scope
 
@@ -99,25 +105,29 @@ Do not add these systems as part of the current Economic Engine program:
 - swaps
 - crypto assets
 
-They are not required to achieve the intended capital-allocation depth.
+They are not required for the intended capital-allocation depth.
 
-## 4. Development start gates
+---
 
-No new Economic Engine gameplay implementation begins until all required gates are satisfied.
+## 4. Implementation start gates
 
-### Gate A — current remediation work
+Economic Engine gameplay implementation must not begin until all required gates are satisfied.
 
-Finish the currently active remediation work first.
+### Gate A — current remediation work complete
 
-### Gate B — stable main
+The currently active remediation work must be completed first.
 
-Economic Engine work starts from a stable current `main`.
+At the time v2 was drafted, PR #782 remained open and was not treated as complete.
 
-### Gate C — iPhone baseline
+### Gate B — stable current main
 
-Measure the existing game before major Economic Engine integration.
+Implementation starts from a refreshed, stable `main`.
 
-At minimum capture, where technically measurable:
+### Gate C — physical iPhone baseline
+
+Measure the current game on a physical iPhone Safari environment.
+
+At minimum capture:
 
 - week-advance runtime
 - startup / initial load
@@ -125,131 +135,145 @@ At minimum capture, where technically measurable:
 - load runtime
 - save size
 - memory trend or practical proxy
-- important iPhone Safari rendering/runtime regressions
+- foreground/background resume behavior
+- thermal-throttling behavior where practical
 
 Measured values must be labelled **measured**. Estimates must be labelled **estimated**.
 
-## 5. Core design principle — One Economic Reality
+### Gate D — v2 validation complete
 
-Do not implement finance, operating companies, PE, VC, M&A, real estate, and later banking as isolated mini-games.
+Before implementation:
 
-They should share a common foundation:
+- validate this v2 roadmap against latest `main`
+- resolve document conflicts
+- approve Phase 0 contracts
+- approve the Economic Engine dependency graph
 
+### Gate E — explicit owner approval
+
+Only after the owner approves may this document, or a successor revision, be marked:
+
+`Implementation baseline: YES`
+
+---
+
+## 5. Core principle — One Economic Reality
+
+Do not implement operating companies, finance, PE, VC, M&A, real estate, and banking as disconnected mini-games.
+
+They should converge on shared economic primitives:
+
+- entities
 - cash
 - accounting
 - ownership
 - debt
-- capital
-- valuation
+- cost of capital
 - industry state
+- capital allocation
+- valuation
 - market state
 
 Example:
 
 ```text
-Store profit
-  ↓
+Store / business profit
+        ↓
 Company cash
-  ├─ Organic growth
-  ├─ Debt repayment
-  ├─ Dividend
-  ├─ Buyback
-  ├─ M&A
-  ├─ Strategic investment
-  ├─ PE / VC
-  └─ Real estate
+        ├─ Organic growth
+        ├─ CapEx
+        ├─ Debt repayment
+        ├─ Cash reserve
+        ├─ Dividend
+        ├─ Buyback
+        ├─ M&A
+        ├─ PE / VC
+        └─ Real estate
 ```
 
-## 6. Economic spine
+---
 
-Target dependency direction:
+## 6. Economic architecture principles
 
-```text
-MACRO
-  ↓
-INDUSTRY
-  ↓
-OPERATIONS
-  ↓
-ACCOUNTING
-  ↓
-CAPITAL STRUCTURE
-  ↓
-CAPITAL ALLOCATION
-  ↓
-OWNERSHIP / CORPORATE ACTIONS
-  ↓
-VALUATION
-  ↓
-MARKET
-  ↓
-NEXT PERIOD
-```
+### 6.1 Shared economics, not necessarily one giant state class
 
-The additional audit must validate whether this ordering fits the existing codebase and identify any circular dependencies.
+Player companies and AI companies should share:
 
-## 7. Capital Allocation Core
+- accounting rules
+- financing cost logic
+- valuation logic
+- industry economics
+- capital-allocation candidate economics
+- ownership/control rules
+- corporate-action settlement rules
 
-Player-controlled and AI-controlled companies should ultimately allocate capital among competing uses such as:
+They do **not** need identical UI state or identical detailed operational representation.
 
-- organic growth
-- new stores
-- CapEx
-- R&D
-- marketing
-- debt repayment
-- cash reserve
-- dividend
-- buyback
-- M&A
-- strategic investment
-- PE
-- VC
-- real estate
+### 6.2 Aggregate and detailed models may coexist
 
-The same underlying capital should compete across uses whenever economically appropriate. Avoid creating unrelated special-purpose currencies merely to simplify implementation.
+Core industries may retain detailed operational systems.
 
-## 8. Deployable Capital
+Non-core industries may use aggregate company × industry models.
 
-Candidate concept:
+Never count the same demand, revenue, supply, or cost through both detailed and aggregate models simultaneously.
 
-```text
-Cash
-- Tax payable
-- Near-term debt maturity
-- Minimum liquidity
-- Existing commitments
-- Approved CapEx
-- Fund commitments
-= Deployable Capital
-```
+### 6.3 Decision and execution are separate
 
-The final formula is not approved in v1. The additional audit must determine which components already exist, how they are represented, and which should be added.
+Where economically appropriate:
 
-## 9. Economic invariants
+- decisions are made using period-close information
+- actions become effective in a later phase or next period
+- cash settlement is explicit
+- accounting close happens at a defined boundary
+
+This avoids same-tick circularity.
+
+---
+
+## 7. Economic transaction principle
+
+Material transactions must become attributable to explicit legal/economic entities.
+
+Each material transfer should identify at minimum:
+
+- transaction ID
+- operation / idempotency ID
+- period
+- transaction type
+- source entity
+- source account
+- destination entity
+- destination account
+- amount
+- metadata
+
+The initial target is a **game-oriented balanced transaction kernel**, not a complete IFRS/JGAAP bookkeeping system.
+
+---
+
+## 8. Economic invariants
 
 These are non-negotiable design targets.
 
-### 9.1 Accounting
+### Accounting
 
 ```text
 Assets = Liabilities + Equity
 ```
 
-### 9.2 Cash movement
+within the approved rounding tolerance.
 
-Every material cash movement must be attributable to:
+### Cash conservation
 
-- source
-- destination
-- amount
-- transaction type
-- period
-- entity
+For internal transfers:
 
-No unexplained creation or destruction of money.
+```text
+source decrease = destination increase
+```
 
-### 9.3 Asset separation
+except for explicitly modeled fees, taxes, losses, issuance, or external flows.
+
+### Asset separation
 
 Strictly separate:
 
@@ -260,50 +284,67 @@ Strictly separate:
 - VC fund cash/assets
 - bank cash/assets
 
-### 9.4 Ownership
+### Shares and ownership
 
-- no share may be owned twice
-- ownership must remain consistent with shares outstanding
-- control and economic ownership should not be silently conflated
+- no share may be counted as owned twice
+- ownership must reconcile with issued / treasury / outstanding shares
+- control rights must be derived deterministically
+- economic ownership and control must not be silently conflated
 
-### 9.5 Valuation
+### Debt
 
-The same economic value must not be counted more than once in personal or group net worth.
+Debt repayment must reduce the correct cash account and the correct principal.
 
-### 9.6 M&A
+### Dividend
 
-Buyer, seller, target, debt, consideration, ownership, and fees must reconcile as one coherent transaction.
+Payer, recipient, tax/withholding, and consolidation effects must reconcile exactly once.
 
-## 10. Agent-independent working method
+### Buyback
 
-Every coding agent should follow the same general sequence:
+Cash, treasury/outstanding shares, ownership, and per-share metrics must remain consistent.
 
-1. Refresh latest `main`.
-2. Read relevant project rules and only the relevant design documents.
-3. Identify the affected module(s).
-4. Inspect existing tests.
-5. Identify applicable economic invariants.
-6. Produce a scoped implementation plan.
-7. Make the smallest coherent change.
-8. Run focused unit tests.
-9. Run invariant/property tests where relevant.
-10. Run long-run regression/simulation tests where relevant.
-11. Verify save compatibility.
-12. Verify determinism.
-13. Verify mobile regression risk.
-14. Run required CI.
+### M&A
 
-The roadmap must be usable by ChatGPT, Codex, Claude Code, or another coding agent. Project artifacts and contracts are the source of truth, not the identity of the model.
+Buyer, seller, target, debt, consideration, fees, ownership, and goodwill must reconcile atomically.
+
+### Consolidation
+
+Intercompany transactions must remain visible in standalone accounts and be eliminated only in consolidated views.
+
+### Determinism
+
+Same state + same commands + same seed must produce the same result.
+
+### Non-finite safety
+
+Economic state must never contain unexplained NaN or Infinity values.
 
 ---
 
-# Phase 0 — Economic Foundation Specification
+# Phase 0 — Economic Specification and Contracts
 
 ## Goal
 
-Freeze the vocabulary, causal model, transaction taxonomy, and invariants before major implementation.
+Define the engine contracts before changing economic source-of-truth logic.
 
-### 0A. Economic glossary
+### Deliverables
+
+#### 0A. Entity taxonomy
+
+Define legal/economic entities such as:
+
+- person
+- operating company
+- holding company
+- subsidiary
+- listed company
+- PE fund
+- VC vehicle
+- portfolio company
+- bank
+- property vehicle where needed
+
+#### 0B. Economic glossary
 
 Define at minimum:
 
@@ -320,288 +361,90 @@ Define at minimum:
 - Equity Value
 - Net Debt
 - Free Cash Flow
+- Deployable Capital
 
-### 0B. Economic causality map
+#### 0C. Transaction contract
 
-Example:
+Define material transaction semantics and required legs.
+
+#### 0D. Tick / period contract
+
+Define:
+
+- phase order
+- one-period lag rules
+- accounting-close boundary
+- valuation boundary
+- decision boundary
+- settlement boundary
+- persistence boundary
+
+#### 0E. Invariant catalog
+
+Convert the important invariants in §8 into machine-testable contracts.
+
+#### 0F. Control Ladder rights table
+
+Map the approved thresholds:
+
+- 1%
+- 3%
+- 1/3
+- 1/2
+- 2/3
+- 90%
+
+to specific gameplay rights.
+
+#### 0G. Founder net-worth contract
+
+Define:
+
+- listed own-company valuation
+- unlisted own-company valuation
+- treatment of treasury shares
+- treatment of individually purchased own-company shares
+- family trust handling
+- anti-double-counting rules
+
+### Exit criteria
+
+All agents can interpret entities, transactions, ownership, period boundaries, and invariants consistently.
+
+---
+
+# Phase 0.5 — Permanent Headless Harness
+
+## Goal
+
+Create a permanent simulation and benchmarking harness **before** major Economic Engine implementation.
+
+This is not a one-time phase. It becomes permanent infrastructure used by every later phase.
+
+### Required capabilities
+
+- deterministic scenario creation
+- explicit seed
+- scenario size controls
+- UI-free economic tick execution
+- metric probes
+- invariant runner
+- deterministic state hash
+- regression comparison
+- JSON / CSV / Markdown reports
+- performance timing
+
+Candidate API shape:
 
 ```text
-Interest rate ↑
-→ Cost of debt ↑
-→ WACC ↑
-→ Investment threshold ↑
-→ CapEx ↓
-→ Capacity growth ↓
+createScenario(...)
+stepEconomicTick(...)
+runScenario(...)
+snapshotMetrics(...)
+assertEconomicInvariants(...)
 ```
 
-### 0C. Transaction taxonomy
-
-Specify transactions such as:
-
-- sale
-- payroll
-- CapEx
-- debt draw
-- debt repayment
-- dividend
-- buyback
-- acquisition
-- equity issue
-- intercompany loan
-- capital contribution
-
-### 0D. Economic invariant specification
-
-Convert important invariants into machine-testable contracts where practical.
-
-### Exit criteria
-
-Agents can interpret the same economic concepts, money flows, and causal relationships consistently.
-
----
-
-# Phase 1 — Unified Accounting / Ledger
-
-## Goal
-
-Create or validate one coherent accounting/money-movement foundation for the economic engine.
-
-Target surfaces:
-
-- Income Statement
-- Balance Sheet
-- Cash Flow
-- transaction / ledger representation
-
-Requirements:
-
-- company and personal cash remain strictly separated
-- no double counting
-- money conservation where applicable
-- explicit modeled exceptions for taxes, fees, write-offs, issuance, etc.
-
-Candidate tests:
-
-- Assets = Liabilities + Equity
-- dividend conservation
-- debt repayment
-- CapEx
-- revenue
-- expense
-- transfer
-- M&A settlement
-
-### Exit criteria
-
-Long-run simulation produces zero accounting invariant violations in the validated test envelope.
-
----
-
-# Phase 2 — Unified Ownership / Control
-
-## Goal
-
-Unify stocks, subsidiaries, M&A, PE, and VC around one ownership/control model.
-
-Target concepts:
-
-- shares outstanding
-- ownership %
-- control rights
-- Control Ladder
-- parent/subsidiary relationships
-- minority interests
-- public/private ownership
-
-The owner-approved Japanese Companies Act Control Ladder must be used.
-
-### Exit criteria
-
-The same ownership model can represent:
-
-- player
-- holding company
-- subsidiary
-- public company
-- PE fund
-- portfolio company
-- VC vehicle
-- startup
-
-without duplicating incompatible ownership systems.
-
----
-
-# Phase 3 — Debt / Interest / Cost of Capital
-
-## Goal
-
-Treat debt as capital structure rather than only emergency financing.
-
-Target concepts:
-
-- principal
-- interest
-- maturity
-- refinancing
-- Cost of Debt
-- credit risk
-- WACC
-- ROIC
-
-Core decision:
-
-```text
-ROIC vs WACC
-```
-
-### Exit criteria
-
-Interest-rate changes propagate rationally through financing cost, investment decisions, earnings, and valuation.
-
----
-
-# Phase 4 — Industry Supply / Demand
-
-## Goal
-
-Connect company operations and investment decisions to competitive industry state.
-
-Candidate industry state:
-
-- demand
-- capacity
-- supply
-- utilization
-- competition
-- pricing power
-- growth
-
-Core feedback:
-
-```text
-CapEx
-→ Capacity
-→ Supply
-→ Price / utilization
-→ Margin
-→ ROIC
-→ Next-period CapEx
-```
-
-### Exit criteria
-
-Overinvestment by companies can create excess capacity and lower margins; underinvestment can create scarcity and stronger pricing power.
-
----
-
-# Phase 5 — Capital Allocation Engine
-
-## Goal
-
-Make capital allocation a central decision system.
-
-Candidate allocation choices:
-
-- organic growth
-- new stores
-- CapEx
-- R&D
-- marketing
-- debt repayment
-- reserve
-- dividend
-- buyback
-- M&A
-
-Later integrations may include:
-
-- PE
-- VC
-- real estate
-- banking
-
-Evaluation dimensions may include:
-
-- expected return
-- ROIC
-- WACC
-- risk
-- liquidity
-- duration
-- leverage
-- strategic fit
-- synergy
-- management capacity
-- industry cycle
-- opportunity cost
-
-### Exit criteria
-
-The optimal decision is context-sensitive; gameplay must not collapse into simply selecting the numerically highest displayed return.
-
----
-
-# Phase 6 — Valuation Engine
-
-## Goal
-
-Derive company value from economic state rather than arbitrary isolated multipliers.
-
-Target concepts:
-
-- Enterprise Value
-- Equity Value
-- Net Debt
-- earnings
-- cash flow
-- growth
-- risk
-- industry multiple
-- interest-rate environment
-
-Do not copy WSR formulas. Build an independent model appropriate to Capitalism Tycoon.
-
-### Exit criteria
-
-Operational improvement, leverage, growth, interest rates, and industry cycle affect valuation in explainable ways.
-
----
-
-# Phase 7 — AI Capital Allocation
-
-## Goal
-
-Make AI companies capital allocators subject to the same economic rules.
-
-Runtime policy:
-
-Do not call an LLM every simulation tick.
-
-Prefer deterministic utility/scoring functions.
-
-Candidate personalities:
-
-- Conservative
-- Growth
-- Acquirer
-- Value
-- Defensive
-- Leveraged
-
-### Exit criteria
-
-Different AI profiles create different long-run behavior while obeying the same accounting and economic rules as the player.
-
----
-
-# Phase 8 — Headless Simulation & Calibration
-
-## Goal
-
-Validate the economic engine outside the UI and establish measured scaling limits.
-
-Candidate simulation matrix:
+### Scale matrix
 
 Company counts:
 
@@ -619,136 +462,569 @@ Durations:
 - 50 years
 - 100 years
 
-Metrics:
+Do not require every combination in ordinary CI. Define smoke, nightly/manual, and deep-audit tiers.
 
-- bankruptcy rate
-- ROIC
-- WACC
-- Debt / EBITDA
-- margins
-- revenue growth
-- industry concentration
-- M&A frequency
-- wealth distribution
-- survival rate
-- cash levels
+### Metrics
 
-Detect pathologies such as:
+Track where applicable:
 
-- infinite growth
-- unexplained cash creation
-- debt spiral
-- M&A spam
-- inevitable monopoly
-- universal bankruptcy
-- buyback dominance
-- dividend dominance
-- growth dominance
-
-### Rule
-
-Do not promise 1,000-company support before measurement.
+- tick p50 / p95 / p99 / max
+- accounting close time
+- allocation time
+- AI decision time
+- valuation time
+- serialization time
+- save size
+- heap / RSS proxy
+- transaction/history growth
+- invariant failures
+- deterministic final hash
 
 ### Exit criteria
 
-Validated simulation envelopes and explicit measured performance limits are documented.
+A stable harness exists before Accounting/Ownership source-of-truth migration begins.
 
 ---
 
-# Phase 9 — Group Treasury / Consolidated Accounting
+# Phase 1 — Entity-aware Unified Ledger Foundation
 
 ## Goal
 
-Support economic groups rather than disconnected legal entities.
+Introduce a shared material-transaction journal without rewriting the entire game into full formal accounting.
 
-Group Treasury should make visible per-entity:
+### Initial transaction model
 
-- cash
-- debt
-- available/deployable capital
-- commitments
+```text
+EconomicTransaction {
+  transactionId
+  operationId
+  period
+  type
+  fromEntityId
+  fromAccount
+  toEntityId
+  toAccount
+  amount
+  metadata
+}
+```
 
-Candidate transactions:
+### Design rules
+
+- material inter-entity transfers use balanced legs
+- existing company finance may initially be a projection/adapter
+- no long-term dual-authoritative cash systems
+- transaction retention must be bounded
+- deterministic re-derivable metrics should not be persisted unnecessarily
+
+### Exit criteria
+
+Company, personal, fund, and subsidiary material transfers can be reconciled through one entity-aware contract.
+
+---
+
+# Phase 2 — Standalone Accounting Hardening
+
+## Goal
+
+Harden standalone company accounting on top of the transaction/entity contracts.
+
+### Target
+
+- Income Statement
+- Balance Sheet
+- Cash Flow
+- debt reconciliation
+- dividend reconciliation
+- buyback reconciliation
+- asset acquisition
+- transaction idempotency
+
+### Invariants included in completion gate
+
+- BS identity
+- cash roll-forward
+- debt roll-forward
+- dividend conservation
+- buyback consistency
+- no duplicate material transaction
+- no non-finite values
+
+### Exit criteria
+
+Validated long-run scenarios show zero accounting-invariant violations inside the approved test envelope.
+
+---
+
+# Phase 3 — Ownership and Control
+
+## Goal
+
+Create a shared ownership/control model for stocks, subsidiaries, M&A, PE, and VC.
+
+### Target concepts
+
+- entity IDs
+- shares issued
+- treasury shares
+- outstanding shares
+- shareholder registry
+- ownership %
+- control rights
+- parent/subsidiary relationship
+- minority interest
+- private/public company state
+
+### Required owner rules
+
+Use only the approved Control Ladder.
+
+Implement founder net-worth anti-double-counting contract.
+
+### Exit criteria
+
+The same ownership foundation can represent listed shares, subsidiaries, PE portfolio ownership, VC stakes, and founder ownership.
+
+---
+
+# Phase 4 — Debt and Cost of Capital
+
+## Goal
+
+Treat debt as capital structure.
+
+### Target
+
+- principal
+- maturity
+- interest
+- refinancing
+- default state
+- Cost of Debt
+- leverage metrics
+- WACC
+- ROIC comparison
+
+### Core decision signal
+
+```text
+ROIC vs Cost of Capital
+```
+
+### Exit criteria
+
+Interest-rate and leverage changes propagate consistently into earnings, financing constraints, capital-allocation economics, and valuation inputs.
+
+---
+
+# Phase 5 — Aggregate Industry Supply / Demand
+
+## Goal
+
+Create a shared economic layer that allows investment to affect industry conditions.
+
+### Minimum industry model
+
+Industry:
+
+- base demand
+- trend/growth
+- cyclical sensitivity
+- price elasticity
+- capacity lead time
+- depreciation
+
+Company × Industry position:
+
+- capacity
+- utilization
+- unit cost
+- price index
+- brand/quality moat
+- capex pipeline
+- invested capital
+
+Core loop:
+
+```text
+CapEx
+→ Capacity
+→ Effective Supply
+→ Utilization / Price
+→ Margin
+→ ROIC
+→ Next-period CapEx attractiveness
+```
+
+### Deep-industry rule
+
+Detailed store/operations models may override or feed the aggregate layer, but the same sales/capacity must not be counted twice.
+
+### Exit criteria
+
+Overinvestment can create excess capacity and margin pressure; underinvestment can create scarcity and pricing power.
+
+---
+
+# Phase 6 — Shared Capital Allocation Kernel
+
+## Goal
+
+Make capital allocation the central economic decision engine.
+
+### Candidate set
+
+- reserve
+- organic growth
+- new stores
+- CapEx
+- R&D
+- marketing
+- debt repayment
+- dividend
+- buyback
+- M&A
+
+Later adapters:
+
+- PE
+- VC
+- real estate
+- banking
+
+### Candidate pipeline
+
+```text
+Economic observations
+→ Candidate generation
+→ Feasibility / constraints
+→ Expected economics
+→ Deterministic score / comparison
+→ Decision
+→ Scheduled execution
+```
+
+### Evaluation dimensions
+
+- expected return
+- ROIC
+- WACC
+- risk
+- leverage
+- liquidity
+- duration
+- strategic fit
+- synergy
+- management capacity
+- industry cycle
+- opportunity cost
+
+### Exit criteria
+
+No single action is universally dominant across validated scenarios.
+
+---
+
+# Phase 7 — Valuation Engine
+
+## Goal
+
+Create a shared valuation service grounded in economic state.
+
+### Separate layers
+
+#### Private valuation
+
+Used for:
+
+- private companies
+- founder net worth
+- private M&A
+- VC/PE contexts
+
+#### Public market repricing
+
+Used for:
+
+- listed companies
+- public market price updates
+- buyback/dividend market effects
+
+### Inputs may include
+
+- earnings
+- free cash flow
+- growth
+- leverage
+- industry conditions
+- risk
+- interest rates
+- market multiple
+- liquidity where appropriate
+
+### Circularity guard
+
+Do not allow same-tick price changes caused by a decision to recursively change the same decision.
+
+### Exit criteria
+
+Operational improvement, leverage, growth, rates, and industry cycle affect value in explainable and deterministic ways.
+
+---
+
+# Phase 8 — AI Company Capital Allocator
+
+## Goal
+
+Make AI companies capital allocators using the same shared economics.
+
+### Runtime policy
+
+Do not call an LLM every simulation tick.
+
+Use deterministic candidate generation and scoring.
+
+### Recommended pipeline
+
+```text
+Observations
+→ Candidate Generator
+→ Feasibility Filter
+→ Deterministic Utility Score
+→ Stable Tie-break
+→ Planned Action
+→ Later Execution
+```
+
+### Personality
+
+Represent personality primarily as weights, not separate rule systems.
+
+Candidate profiles:
+
+- Conservative
+- Growth
+- Acquirer
+- Value
+- Defensive
+- Leveraged
+
+### Performance rules
+
+Avoid naive O(N²) target search.
+
+Use:
+
+- industry/size indexes
+- shortlist limits
+- sparse/quarterly decision cadence
+- trigger-based evaluation
+- top-K target selection
+- cached shared metrics
+
+### Exit criteria
+
+AI profiles behave differently over long runs but obey the same economic rules and accounting contracts as the player.
+
+---
+
+# Phase 9 — Stocks and Corporate Actions Migration
+
+## Goal
+
+Move listed-equity behavior onto the shared ownership, accounting, valuation, and transaction foundations.
+
+### Target
+
+- issuance
+- dilution
+- dividends
+- buybacks
+- shareholder updates
+- treasury shares
+- founder ownership
+- Control Ladder consequences
+- market repricing integration
+
+### Exit criteria
+
+Stocks are no longer economically disconnected from issuing-company fundamentals and ownership.
+
+---
+
+# Phase 10 — M&A Migration
+
+## Goal
+
+Move M&A onto the shared transaction, debt, valuation, and ownership contracts.
+
+### Target
+
+- target valuation
+- financing
+- consideration
+- partial/full acquisition
+- buyer/seller settlement
+- target debt
+- goodwill
+- atomic rollback
+- ownership/control transition
+
+### Exit criteria
+
+M&A settlement reconciles cash, debt, ownership, consideration, and goodwill exactly once.
+
+---
+
+# Phase 11 — Group Treasury
+
+## Goal
+
+Allow group-level capital management without mixing legal-entity cash.
+
+### Minimum transfers
 
 - dividend
 - capital contribution
 - intercompany loan
+- loan repayment
 - cash sweep
+- management fee where applicable
 
-Consolidation targets:
+### Rules
 
-- standalone IS
-- standalone BS
-- consolidated IS
-- consolidated BS
-- minority interests
-- intercompany elimination
+- fund cash is not holding-company cash
+- subsidiary cash is not automatically parent free cash
+- intercompany loans have lender and borrower balances
+- transfers must flow through the shared transaction contract
 
 ### Exit criteria
 
-The player can manage a group as an economic empire without silently mixing legal-entity cash.
+The group can allocate capital across entities while preserving legal/economic separation.
 
 ---
 
-# Phase 10 — Existing Feature Migration
+# Phase 12 — Minimal Consolidated Accounting
 
 ## Goal
 
-Connect existing systems to the Economic Core incrementally.
+Provide game-useful group accounts without implementing full IFRS/JGAAP.
 
-Candidate migration targets:
+### Minimum scope
 
-- stores
-- businesses
-- stocks
-- M&A
-- subsidiaries
-- PE
-- VC
-- real estate
+- standalone statements remain authoritative per entity
+- controlled subsidiaries aggregate line by line
+- intercompany loans eliminated in consolidated view
+- intercompany dividends eliminated
+- relevant intercompany revenue eliminated where modeled
+- minority interest
+- goodwill
+- equity-method summary for non-controlled affiliates
 
-### Rule
+### Explicitly not required initially
 
-Do not migrate all existing systems in one PR or one release-sized change.
+- full purchase-price allocation
+- deferred tax complexity
+- OCI
+- complex step acquisitions
+- complete cross-holding accounting
 
-Temporary adapters are acceptable when they preserve correctness, save compatibility, and determinism.
+### Exit criteria
 
----
-
-# Phase 11 — Advanced M&A
-
-Candidate systems:
-
-- friendly acquisition
-- tender offer
-- hostile acquisition
-- merger
-- MBO
-- LBO
-- asset sale
-- spin-off
-- restructuring
-- strategic sale
-- IPO exit
-- secondary buyout
-
-Post-acquisition choices may include:
-
-- hold
-- integrate
-- restructure
-- sell assets
-- invest
-- reduce debt
-- exit
+Standalone and consolidated views reconcile without double counting.
 
 ---
 
-# Phase 12 — Banking
+# Phase 13 — PE Integration
 
-Only begin after the Economic Core is stable.
+## Goal
 
-Candidate bank balance sheet:
+Connect existing PE systems to the shared Economic Core.
+
+### Target
+
+- fund entity
+- LP commitments
+- GP commitment
+- fund cash
+- capital calls
+- portfolio ownership
+- acquisition settlement
+- portfolio-company accounting
+- management fees
+- distributions
+- carry
+- NAV / DPI / TVPI
+- exits
+
+### Exit criteria
+
+PE no longer depends on isolated accounting rules that conflict with shared ownership/ledger logic.
+
+---
+
+# Phase 14 — VC Integration
+
+## Goal
+
+Move VC/minority startup ownership onto the shared ownership, valuation, and transaction foundations.
+
+### Target
+
+- funding rounds
+- dilution
+- follow-on
+- private valuation
+- minority stakes
+- IPO
+- acquisition exit
+
+### Exit criteria
+
+VC holdings reconcile with the same ownership and valuation rules used elsewhere.
+
+---
+
+# Phase 15 — Real Estate Integration
+
+## Goal
+
+Make real estate compete with other uses of capital while preserving existing operational detail.
+
+### Target
+
+- return metrics
+- debt
+- liquidity
+- duration
+- risk
+- capital-allocation candidate adapter
+
+### Exit criteria
+
+Real estate can be compared meaningfully against business expansion, debt repayment, M&A, PE/VC, and reserves.
+
+---
+
+# Phase 16 — Banking Gate and Banking
+
+Banking is deliberately late.
+
+## Required start gate
+
+Do not begin Banking until all are true:
+
+- debt/default invariants stable
+- entity-aware ledger stable
+- ownership stable
+- Group Treasury stable
+- minimal consolidation stable
+- long-run headless regression stable
+- agreed company-count performance target achieved
+- save-size budget respected
+- explicit owner approval
+
+### Candidate banking scope
 
 Assets:
 
@@ -761,60 +1037,170 @@ Assets:
 Liabilities:
 
 - deposits
-- funding
+- wholesale funding where needed
 
 Equity:
 
 - bank capital
 
-Economic connection:
+### Exit criteria
+
+Banking participates in credit allocation without creating a parallel economic universe.
+
+---
+
+# Continuous Track A — Invariant / Property Testing
+
+Invariant testing begins with Phase 0 and continues through every later phase.
+
+Priority areas:
+
+- accounting
+- cash conservation
+- entity separation
+- shares
+- ownership
+- debt
+- dividend
+- buyback
+- M&A atomicity
+- consolidation
+- idempotency
+- determinism
+- non-finite state
+
+Property-based tests should focus on pure economic transitions, not indiscriminately on UI.
+
+Failed generated scenarios should preserve seed/scenario data for deterministic reproduction.
+
+---
+
+# Continuous Track B — Headless Long-run Simulation
+
+The Phase 0.5 harness remains active throughout development.
+
+Use tiered runs:
+
+### Fast CI
+
+Small scenarios and invariant smoke tests.
+
+### Extended CI / manual
+
+Medium company counts and multi-year runs.
+
+### Deep audit
+
+Long-run 50–100 year simulations and larger populations.
+
+Every major economic-source-of-truth migration should produce before/after metrics.
+
+---
+
+# Continuous Track C — Performance
+
+Measure, do not assume.
+
+Important hotspots identified by the additional audit:
+
+- repeated linear `filter/find`
+- whole-market / whole-company scans
+- M&A target search
+- per-company retained history
+- full-state serialization
+- prototype-wrapper execution complexity
+- UI rendering of large company lists
+
+Synthetic Node evidence from the additional audit showed that naive scaling is not safe:
+
+| Companies | Synthetic 1 tick | State JSON | Serialization |
+|---:|---:|---:|---:|
+| 10 | ~24 ms | ~0.41 MiB | ~6 ms |
+| 50 | ~69 ms | ~0.69 MiB | ~16 ms |
+| 100 | ~182 ms | ~1.03 MiB | ~22 ms |
+| 250 | ~433 ms | ~2.13 MiB | ~66 ms |
+| 500 | ~811 ms | ~3.93 MiB | ~134 ms |
+| 1000 | ~1.53 s | ~7.53 MiB | ~210 ms |
+
+These are **synthetic Linux/Node measurements**, not iPhone production performance.
+
+They are hotspot evidence only.
+
+### Scaling strategy
+
+Progress through measured gates:
 
 ```text
-Bank credit
-→ Company investment
-→ Industry capacity
-→ Economic outcomes
+100
+→ 250
+→ 500
+→ 1000
 ```
 
----
-
-# Phase 13 — PE / VC Deep Integration
-
-## PE
-
-Integrate with the shared economic model:
-
-- fund cash
-- LP commitments
-- GP commitment
-- capital calls
-- portfolio ownership
-- debt
-- NAV
-- DPI
-- TVPI
-- exit
-
-## VC
-
-Candidate integration:
-
-- funding rounds
-- dilution
-- growth
-- follow-on investment
-- IPO
-- acquisition exit
+Do not promise 1000-company support before physical-device and production-path evidence.
 
 ---
 
-# Phase 14 — Mobile Capital Allocation UX
+# Continuous Track D — Calibration
 
-## Goal
+Automate:
 
-Expose Economic Engine depth on iPhone without copying the WSR desktop terminal.
+- deterministic seed matrices
+- parameter sweeps
+- metric aggregation
+- percentile output
+- baseline comparison
+- pathology detection
+- report generation
 
-Candidate information hierarchy:
+Do not automate:
+
+- production parameter commits
+- owner target-range changes
+- invariant fixes through balance tuning
+
+Workflow:
+
+```text
+Simulation
+→ Measurement
+→ Invariant Check
+→ Pathology Detection
+→ Diagnosis
+→ Proposed Adjustment
+→ Human/Owner Review
+→ Dedicated Balance PR
+```
+
+Track at minimum:
+
+- bankruptcy rate
+- survival curve
+- ROIC
+- WACC
+- Debt / EBITDA
+- margins
+- utilization
+- market concentration
+- M&A frequency
+- dividend/buyback frequency
+- cash / revenue
+- negative equity rate
+- founder net-worth progression
+
+---
+
+# Continuous Track E — Mobile UX / Physical iPhone Performance
+
+Mobile is not a final polish phase.
+
+Each major vertical slice must preserve iPhone usability and performance.
+
+### UI direction
+
+Do not copy WSR's desktop terminal UI.
+
+Use progressive disclosure:
 
 ```text
 Home
@@ -825,149 +1211,200 @@ Home
 → Advanced detail
 ```
 
-Core Capital Allocation screen may show:
+### Physical-device metrics
 
-- Deployable Capital
-- existing commitments
-- opportunities
-- expected return
-- risk
-- duration
-- strategic fit
+At minimum measure:
 
-The production D UI remains the repository's visual language.
+- week advance p50 / p95 / p99
+- long tasks
+- input responsiveness
+- save/load latency
+- memory trend
+- background/foreground resume
+- thermal throttling
+- UI open/closed comparison
+
+Performance thresholds are engineering budgets, not immutable product rules. Any proposed threshold must be identified as a target until validated.
 
 ---
 
-# Phase 15 — Delegation / Automation
+## 9. Migration strategy — Strangler pattern
 
-Use progression to reduce operational burden as the company grows.
+Do not rewrite all existing systems at once.
 
-Candidate hierarchy:
+Use:
 
 ```text
-Store Manager
-→ Area Manager
-→ Business Head
-→ COO / CFO
-→ Subsidiary CEO
-→ Player
+Legacy state/actions
+        ↓
+Adapter
+        ↓
+Economic command / transaction
+        ↓
+Economic Core
+        ↓
+Projection to existing UI/save fields
 ```
 
-Target player progression:
+### Shadow migration rule
+
+Temporary shadow mode is allowed:
+
+1. old calculation remains authoritative
+2. new calculation runs in shadow
+3. compare results
+4. resolve differences
+5. switch source of truth
+6. keep old side as read-only adapter if required
+7. remove old authority later
+
+Never keep two authoritative writers for the same economic value for an extended period.
+
+---
+
+## 10. Recommended migration order
+
+1. Entity / transaction semantics
+2. Ledger
+3. Standalone accounting
+4. Ownership / shares
+5. Debt / cost of capital
+6. Industry economics
+7. Capital allocation
+8. Valuation
+9. AI allocator
+10. Stocks / corporate actions
+11. M&A
+12. Group Treasury
+13. Consolidation
+14. PE
+15. VC
+16. Real Estate
+17. Banking
+
+---
+
+## 11. Tick architecture target
+
+Recommended target pipeline:
 
 ```text
-Founder
-→ Operator
-→ CEO
-→ Group CEO
-→ Capital Allocator
+0. Apply previously committed actions
+1. Advance calendar / establish period context
+2. Macro state update
+3. Industry demand and exogenous supply update
+4. Operational capacity availability
+5. Market clearing / price and volume allocation
+6. Operations settlement
+7. Debt interest / principal / taxes
+8. Standalone accounting close
+9. Invariant gate
+10. Derived metrics: ROIC / leverage / liquidity
+11. Capital-allocation candidate generation
+12. Player / AI decisions
+13. Schedule CapEx / financing / corporate actions
+14. Valuation
+15. Public market repricing
+16. Group consolidation / eliminations
+17. Progression / reports / diagnostics
+18. Normalize → atomic save snapshot → emit
 ```
 
-Prefer policy-based automation to opaque full automation.
+This is a target architecture contract, not permission to rewrite `advanceWeek` in one PR.
+
+Migration should preserve existing behavior through adapters while phase boundaries are introduced incrementally.
 
 ---
 
-# Phase 16 — Endgame Economic Depth
+## 12. Deployable Capital
 
-Candidate late-game systems:
+Candidate definition:
 
-- mega M&A
-- conglomerate restructuring
-- banking empire
-- PE empire
-- global market cycles
-- succession / legacy
-- corporate breakups
+```text
+Cash
+- Tax payable
+- Near-term debt maturity
+- Minimum liquidity
+- Existing commitments
+- Approved CapEx
+- Fund commitments
+= Deployable Capital
+```
 
-The confirmed ending condition remains:
+This formula is **not yet final**.
 
-**Personal net worth = ¥1 trillion**
+Phase 0 must define:
+
+- exact components
+- entity scope
+- period horizon
+- treatment of restricted fund cash
+- approved-but-not-paid commitments
+- intercompany availability rules
 
 ---
 
-# 11. Performance gates
+## 13. AI architecture
 
-After major phases, measure relevant performance before adding additional complexity.
+Use LLMs for:
 
-Track where applicable:
+- design
+- implementation assistance
+- test generation
+- benchmark analysis
+- audit
+- calibration diagnosis
 
-- week advance
-- long-run simulation throughput
-- save size
-- save/load runtime
-- memory
-- iPhone Safari runtime/rendering
+Do not require an LLM for routine in-game company decisions.
 
-If performance degrades materially, architecture correction takes priority over stacking additional systems.
+Runtime AI should be deterministic and explainable.
 
-# 12. Save compatibility
+### Standard development workflow
 
-Non-negotiable current contracts include:
+#### ChatGPT
 
-- `SAVE_KEY=capitalism_tycoon_web_v1`
-- `saveVersion=9`
-- backward compatibility
+- Economic Architect
+- causal model
+- specification
+- invariant definition
+- roadmap/dependency design
+- PR review
+- CI/evidence interpretation
 
-No schema-breaking implementation without an explicit migration.
+#### Codex
 
-# 13. Property / invariant testing targets
+- repository investigation
+- implementation
+- refactor
+- tests
+- benchmark harness
+- long-run simulation
+- regression diagnosis
+- PR creation
 
-Normal unit tests are necessary but insufficient.
+#### Optional independent reviewer
 
-Candidate invariant coverage:
+Claude / Claude Code / another model / human reviewer may be used for high-risk independent review.
 
-## Accounting
+Availability of a third model must not be a completion dependency.
 
-`Assets = Liabilities + Equity`
+---
 
-## Shares
-
-`owned shares <= shares outstanding`
-
-## Ownership
-
-ownership/control relationships remain internally consistent.
-
-## Cash
-
-money movements reconcile.
-
-## Debt
-
-repayment reduces cash and principal correctly.
-
-## Dividend
-
-company cash decreases and shareholder value/cash is credited exactly once as specified.
-
-## Buyback
-
-cash and share count change consistently.
-
-## M&A
-
-consideration, debt, ownership, and seller/buyer effects reconcile.
-
-## Consolidation
-
-intercompany transactions are not double counted.
-
-# 14. Agent handoff contract
+## 14. Agent handoff contract
 
 Every agent should leave enough evidence for another agent to continue safely.
 
-## Before work
+### Before work
 
 Record:
 
-- main SHA
+- refreshed main SHA
 - related PRs
 - relevant files
 - existing tests
 - known risks
 
-## Work scope
+### Work scope
 
 Record:
 
@@ -975,8 +1412,9 @@ Record:
 - non-goals
 - invariants
 - dependencies
+- source of truth
 
-## After work
+### After work
 
 Record:
 
@@ -989,73 +1427,125 @@ Record:
 - performance impact
 - recommended next task
 
-# 15. Model independence
+The roadmap is model-independent.
 
-The roadmap is not owned by ChatGPT, Codex, Claude Code, or any other model.
+---
 
-Any agent taking over work must re-check:
+## 15. PR decomposition guidance
 
-1. repository state
-2. applicable tests
-3. approved specifications
-4. approved roadmap
+Approximate small-PR envelope from the additional audit:
 
-before trusting previous-agent summaries.
+| Area | Approx. PRs |
+|---|---:|
+| Phase 0 specification | 2–3 |
+| Phase 0.5 harness | 3–4 |
+| Phase 1 ledger | 3–5 |
+| Phase 2 accounting | 3–5 |
+| Phase 3 ownership | 4–6 |
+| Phase 4 debt/WACC | 3–5 |
+| Phase 5 industry | 4–6 |
+| Phase 6 allocation | 4–6 |
+| Phase 7 valuation | 3–5 |
+| Phase 8 AI | 4–6 |
+| Phase 9 stocks | 3–5 |
+| Phase 10 M&A | 5–8 |
+| Phase 11 treasury | 3–5 |
+| Phase 12 consolidation | 4–7 |
+| Phase 13 PE | 4–6 |
+| Phase 14 VC | 3–5 |
+| Phase 15 real estate | 2–4 |
+| Phase 16 banking | 6–10 |
 
-# 16. Roadmap v1 next step
+Indicative total:
 
-Do **not** start implementation from this v1 document.
+**~60–100 small PRs**
 
-Next step:
+This is a planning range, not a delivery commitment.
 
-**Economic Engine Additional Audit**
+Repository evidence may reduce or increase the final count.
 
-Use the existing audit baseline at main `849586c`. Do not repeat the entire prior audit from scratch.
+---
 
-Focus on areas that require additional work:
+## 16. P0 before implementation
 
-1. Headless Simulation Architecture
-2. Property-based / Economic Invariant Testing
-3. AI Company Utility Function
-4. Industry Supply / Demand Model
-5. Automated Calibration
-6. Economic Tick Architecture
-7. Unified Ledger feasibility
-8. Group Treasury feasibility
-9. Consolidated Accounting feasibility
-10. Economic Core performance
-11. Existing-system migration strategy
-12. Codex-centered development workflow
+The following must be resolved before Economic Engine implementation begins:
 
-# 17. Roadmap v2 gate
+1. complete current remediation work
+2. obtain physical iPhone baseline
+3. validate v2 against latest main
+4. resolve conflicting design documents
+5. approve entity taxonomy
+6. approve transaction contract
+7. approve tick order / period lag
+8. approve invariant catalog
+9. define Control Ladder rights table
+10. define founder net-worth anti-double-counting behavior
+11. define ledger retention / compaction budget
+12. define save-size budget
+13. define deterministic state-hash strategy
+14. define headless seed/scenario matrix
+15. define each existing feature's current source of truth and migration order
+16. define Banking start gate
+17. explicitly approve conversion to `Implementation baseline: YES`
 
-After the additional audit, revise this document.
+---
 
-Roadmap v2 must resolve at least:
+## 17. Known document conflict to resolve
 
-- final phase order
-- phase dependencies
-- which phases merge or split
-- implementation prerequisites
-- P0 technical debt
-- migration strategy
-- expected PR decomposition
-- performance measurement strategy
-- headless-simulation scale
-- AI architecture
-- calibration strategy
+At v2 drafting time, PR #783 contained a Control Ladder list including 5% and 20%.
 
-Only after owner approval may a later revision be marked:
+This conflicts with the current owner-approved Roadmap rule:
 
-`Implementation baseline: YES`
+- 1%
+- 3%
+- 1/3
+- 1/2
+- 2/3
+- 90%
+
+Before Economic Engine implementation, all project documents must be aligned to the approved list.
+
+---
+
+## 18. Known performance evidence and limitations
+
+The additional audit successfully verified existing determinism/accounting/market/competitor/PE/M&A tests on its local baseline.
+
+It also produced a synthetic scaling benchmark.
+
+However:
+
+- no physical iPhone benchmark was run
+- the 1000-company result was not a full-production week
+- 100–1000 companies were not run for 100 full production years
+- browser IndexedDB, rendering, GC, and thermal behavior were not included
+
+Therefore, performance capability claims remain gated on measurement.
+
+---
+
+## 19. Roadmap completion definition
+
+Roadmap v2 is considered architecturally validated only after:
+
+- latest-main review
+- independent Codex review against this exact v2 text
+- document conflict resolution
+- owner approval
+
+Even then, implementation remains blocked until the start gates in §4 are satisfied.
+
+---
 
 # Final design principle
 
-The target is not "more features."
+The target is not feature count.
 
-The target is a game in which the player repeatedly makes meaningful decisions about where limited capital should go, while stores, operating companies, securities, M&A, PE, VC, real estate, debt, and eventually banking remain part of one coherent economic reality.
+The target is a coherent game in which limited capital must be allocated across competing opportunities, and those decisions affect operations, ownership, financing, valuation, competition, and long-term wealth through shared economic rules.
 
-As the player's empire grows, the amount of manual operation should not simply grow with it. The player's decision layer should rise:
+As the empire grows, manual work should not scale linearly with company size.
+
+The player's decision layer should rise:
 
 ```text
 Founder
