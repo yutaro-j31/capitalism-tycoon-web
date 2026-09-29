@@ -3,7 +3,7 @@
 > **この文書の位置づけ**
 >
 > - 2026-09-29 時点の**長期構想**です。記載されている Deal Book・Control Ladder・Entity Registry などは**どれも実装されていません**。
-> - **Economic Engine Gate D supersession:** Economic Engineの実装順序・tick順序・取引/会計契約・monetary precisionについては、`docs/economic-engine/ECONOMIC_ENGINE_ROADMAP.md`、`PHASE_0_CONTRACTS.md`、`ECONOMIC_ENGINE_DEPENDENCY_GRAPH.md` を優先します。本文中の旧「Allocation→Valuation」順序、旧weekly phase案、`整数円化してBS差0円`目標、旧P1/P2フェーズ番号は歴史的設計入力であり、Economic Engineの実装契約ではありません。
+> - **Economic Engine Gate D supersession:** Economic Engineの実装順序・tick順序・取引/会計契約・monetary precisionについては、`docs/economic-engine/ECONOMIC_ENGINE_ROADMAP.md`、`PHASE_0_CONTRACTS.md`、`ECONOMIC_ENGINE_DEPENDENCY_GRAPH.md` を優先します。本文中の旧「Allocation→Valuation」順序、旧weekly phase案、`整数円化してBS差0円`目標、旧P1/P2フェーズ番号、旧save-size/performance閾値・想定は歴史的設計入力であり、Economic Engineの実装契約ではありません。Economic Engineのsave/performance budgetはPhase 0.5の実測で確定します。
 > - 現在のゲームプレイ深掘りの進捗管理は `docs/gameplay-systems-roadmap.md`、全体の要約は `docs/GAME_OVERVIEW.md` を正とします。この文書は、それらを置き換えるものではありません。
 > - 本文の「第2部 監査報告」は `main` @ `849586c`（#781）時点のコードを読んで書いたものです。その後のコード変更で記述が古くなっている可能性があります。着手するときは、該当箇所を必ず最新の `main` で再確認してください。
 > - 3作品（Wall Street Raider / Big Ambitions / Global Business Tycoon）の調査まとめは `docs/REFERENCE_GAMES_RESEARCH.md` にあります。
