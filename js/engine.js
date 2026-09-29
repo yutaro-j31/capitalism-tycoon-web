@@ -787,6 +787,10 @@ class TycoonEngine extends EventTarget {
     const snapshot = outer ? JSON.stringify(this.g) : null;
     const entryObjects = outer ? { ...this.g } : null;
     if (outer) this._deferredSave = false;
+    // The first nested week transaction (player-crisis.js inside the canonical boundary) hands its
+    // event detail to the outer one, which emits it once the whole week has committed. Deeper week
+    // transactions (parity.js, ma-deal-room.js) do not replace it (#776).
+    if (!outer && eventType === 'week' && this._nestedWeekDetail == null) this._nestedWeekDetail = detail;
     this._transactionDepth = previousDepth + 1;
     let result, commit = null;
     try {
@@ -799,6 +803,11 @@ class TycoonEngine extends EventTarget {
         // neither skipped by inTransaction() nor executed mid-chain. Direct/unwrapped advanceWeek
         // keeps its legacy end-of-method fallback below.
         if (commit && eventType === 'week' && this.g?.executives?.CFO?.delegated) this.processExecutiveDelegation();
+        // The canonical boundary (play-runtime-compat.js) finalizes the week here: accounting
+        // snapshot, crisis state, validation and the weekly summary. It runs after every wrapper
+        // and the delegated work, and still inside the transaction, so an exception rolls the
+        // whole week back instead of leaving an advanced but unfinalized week (#776).
+        if (commit && eventType === 'week' && typeof this.finalizeCommittedWeek === 'function') this.finalizeCommittedWeek();
       }
     } catch (error) {
       this._transactionDepth = previousDepth;
