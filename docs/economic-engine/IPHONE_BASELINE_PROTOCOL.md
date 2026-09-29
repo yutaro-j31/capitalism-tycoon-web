@@ -212,45 +212,68 @@ This is a practical thermal-throttling indicator, not a low-level CPU thermal me
 
 ## 5. Required benchmark scenarios
 
-Do not use only one arbitrary personal save.
+The probe must support at least the following two required scenarios.
 
-### Scenario 1 — Fresh production game
+### Scenario 1 — Clone of the current production save
+
+Purpose:
+
+- measure the user's actual current game complexity
+- compare physical-iPhone behavior against the exact save the user is playing
+- preserve live-state safety by benchmarking only a detached clone
+
+Requirements:
+
+- clone/migrate the current save into the benchmark engine
+- never benchmark directly on the live authoritative engine
+- record the source week, store count, raw save bytes, stored save bytes, and active save-storage mode
+- prove the live save/state is unchanged after the run
+
+### Scenario 2 — Growth comparison fixture: approximately week 117 / 40 stores
+
+Purpose:
+
+- provide a stable heavy-save comparison point
+- compare the physical-iPhone result with the existing Node reference measurements
+
+Required target characteristics:
+
+- approximately **week 117**
+- approximately **40 stores**
+- fixture/save shape comparable to the existing Node benchmark
+- record the exact actual week, store count, and save bytes used by the physical run
+
+Existing Node reference values to preserve in the comparison report:
+
+- 1-store case: **252 ms**
+- ~40-store case: **1,193 ms**
+- reported save size: **6.65 MB**
+
+These Node values are comparison references only; they are not iPhone pass/fail thresholds.
+
+The physical-iPhone fixture must record actual bytes rather than assuming the reported 6.65 MB maps to a particular MB/MiB convention.
+
+### Optional Scenario 3 — Fresh/light production game
 
 Purpose:
 
 - startup floor
-- baseline UI load
-- low-complexity week advance
+- low-complexity week-advance floor
 - save/load floor
 
-Use a newly configured game with deterministic benchmark setup where possible.
+This scenario is optional for Gate C if Scenarios 1 and 2 are completed successfully.
 
-### Scenario 2 — Representative operating company
+### Scenario versioning
 
-Purpose:
+Every benchmark scenario must be versioned and should carry at least:
 
-- current normal gameplay cost
-
-Should contain representative current production systems such as:
-
-- multiple stores
-- employees/workforce
-- inventory/supply where applicable
-- finance history
-- market/competitor state
-- at least one meaningful investment/asset feature
-
-The exact fixture must be versioned once implemented.
-
-### Scenario 3 — Mature/heavy save
-
-Purpose:
-
-- expose save serialization, history, and late-game UI/simulation cost
-
-Target a save near the upper range already considered healthy by current save-budget rules.
-
-The benchmark fixture must not exceed production-supported save limits simply to manufacture a stress result.
+- `scenarioId`
+- `scenarioVersion`
+- `sourceWeek`
+- `storeCount`
+- `rawSaveBytes`
+- `storedSaveBytes`
+- `expectedInvariants`
 
 ---
 
@@ -265,12 +288,49 @@ A measurement-only instrument may be added before Gate C execution, provided it 
 - no Economic Engine feature implementation
 - no production RNG consumption from benchmark-only work
 - no mutation of the player's authoritative live state during detached benchmarks
-- no extra save/emit from detached benchmark state
 - benchmark result can be copied/exported as JSON
 - benchmark version is recorded
 - exact main SHA/build identity is recorded
 - benchmark fixture/schema is versioned
 - raw samples are retained in the result, not only averages
+
+### Production-equivalent save-path requirement
+
+**Measured week-advance time must include the save work that production performs at the end of a normal committed week.**
+
+This is mandatory because save/serialization/storage work is a material part of the current end-to-end CPU/runtime cost.
+
+A measured week sample therefore includes, as applicable:
+
+1. the normal production simulation/week pipeline
+2. finance snapshot rebuild / sanitation performed by the production save path
+3. production-equivalent compaction/profile selection
+4. JSON serialization
+5. the same storage-layer processing used by production
+6. the isolated benchmark durable write
+7. completion/flush of that isolated durable write when the production storage layer is asynchronous
+
+The benchmark must not report a simulation-only week as the physical Gate C week-advance result.
+
+### Isolated benchmark storage
+
+The benchmark must exercise the real save-processing path against a **separate benchmark storage namespace/location**.
+
+It must never use, overwrite, remove, hydrate from, or otherwise touch:
+
+- production `SAVE_KEY = capitalism_tycoon_web_v1`
+- the production save record
+- production save slots
+- the production IndexedDB save key/record
+
+Preferred design:
+
+- reuse the production serialization/compaction/storage logic through an injectable benchmark storage adapter
+- use a benchmark-only IndexedDB database/object store and benchmark-only key/namespace
+- if a localStorage mirror is required to reproduce the production path, use a benchmark-only key that is never equal to or derived as a slot of the production `SAVE_KEY`
+- clean up benchmark-only records after the measurement session
+
+The benchmark implementation should share production save logic rather than copy/paste a second save algorithm that can drift.
 
 The instrument is infrastructure for Gate C, not an Economic Engine feature.
 
@@ -282,49 +342,72 @@ If a cloned engine/state is used for week-advance timing:
 
 1. clone/migrate from a known state
 2. ensure benchmark state is not the live authoritative engine
-3. suppress or redirect persistence
+3. route benchmark persistence to the isolated benchmark storage adapter
 4. suppress public UI events from the detached engine
-5. do not alter localStorage/IndexedDB authoritative save
-6. do not consume the live simulation RNG stream
-7. run invariant checks after benchmark advances
-8. verify live-state deterministic hash/equivalent snapshot is unchanged before vs after benchmark
-9. discard detached state after measurement
+5. do not alter the production localStorage/IndexedDB authoritative save
+6. do not read/write/remove the production `SAVE_KEY` as part of the benchmark
+7. do not consume the live simulation RNG stream
+8. include the production-equivalent save/serialization/compaction/storage path in measured week time
+9. await benchmark durable-write completion/flush before stopping the measured week timer
+10. run invariant checks after benchmark advances
+11. verify live-state deterministic hash/equivalent snapshot is unchanged before vs after benchmark
+12. verify production save bytes/content are unchanged before vs after benchmark
+13. discard detached state and clean benchmark-only storage after measurement
 
-A benchmark that changes the player's real game is invalid.
+A benchmark that changes the player's real game or production save is invalid.
 
 ---
 
 ## 8. Sample protocol
 
-For each benchmark scenario:
+For each required benchmark scenario:
 
 ### Startup
 
 - 5 cold launches where practical
 - 10 warm reloads
 
-### Week advance
+### Week advance — end-to-end production-equivalent
 
-- 10 warmup advances on detached benchmark state
+- 10 warmup detached advances
 - 100 measured advances where device stability permits
-- retain every sample
+- each measured advance includes production-equivalent save processing and isolated durable storage completion
+- retain every raw sample
 - calculate p50 / p95 / p99 / max
+- record simulation-only and save/storage sub-timings separately when instrumentation can do so without changing the measured production-equivalent total
+
+The primary comparison number is the **end-to-end week + save total**.
 
 If 100 samples are impractical for a production-state test, use a smaller clearly labelled sample and do not claim a p99 from insufficient data.
 
 ### Save
 
-- 20 measured saves where safe
-- retain raw samples
+- 20 measured isolated benchmark saves where safe
+- use the production-equivalent save-processing path
+- retain raw serialization / compaction / storage / flush sub-timings where available
+- never write the production save
 
 ### Reload/load
 
-- 10 measured reload/load cycles where practical
+- 10 measured benchmark load cycles where practical
+- load from the isolated benchmark storage location
+- do not hydrate the live engine from benchmark data
 
 ### Sustained run
 
-- compare first 20 vs last 20 week-advance samples
+- compare first 20 vs last 20 end-to-end week samples
 - note thermal state and any browser reload/crash
+
+### Node comparison report
+
+For Scenario 2, the final baseline artifact must display side-by-side:
+
+- Node reference: 1 store = 252 ms
+- Node reference: ~40 stores = 1,193 ms
+- Node reference reported save size = 6.65 MB
+- Physical iPhone measured week p50/p95/p99/max
+- Physical fixture exact week/store count/save bytes
+- measurement-method differences, if any
 
 ---
 
