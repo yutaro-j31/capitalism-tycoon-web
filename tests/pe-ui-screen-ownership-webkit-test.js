@@ -57,7 +57,9 @@ async function installFixture(page){
     deal.portfolioCompany.weeklyRevenue=8_000_000;
     deal.portfolioCompany.weeklyProfit=1_500_000;
     game.normalize();
-    localStorage.setItem(key,JSON.stringify(game.g));
+    // Through the production save path, so both stores hold the fixture (#726).
+    if(!game.save())throw new Error('production save failed');
+    return globalThis.__capitalismTycoonModules.saveStorageIDB.flush();
     function assertFixture(ok,message){if(!ok)throw new Error(message);}
   },SAVE_KEY);
   await page.reload({waitUntil:'networkidle'});
@@ -124,7 +126,8 @@ async function main(){
     await page.evaluate(key=>{
       const engine=globalThis.__capitalismTycoonModules.playerEngineBridge.getEngine();
       engine.g.selectedTab='business';
-      localStorage.setItem(key,JSON.stringify(engine.g));
+      if(!engine.save())throw new Error('production save failed');
+      return globalThis.__capitalismTycoonModules.saveStorageIDB.flush();
     },SAVE_KEY);
     await page.reload({waitUntil:'networkidle'});
     await page.locator('#screen[data-screen="business"]').waitFor({state:'visible'});

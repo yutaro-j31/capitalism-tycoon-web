@@ -61,7 +61,7 @@ for (const command of [
   'node tests/capital-allocation-recovery-outcome-webkit-test.js', 'node tests/game-over-settings-webkit-test.js',
   'node tests/two-store-iphone-webkit-test.js', 'node tests/release-diagnostics-webkit-test.js',
   'node tests/playtest-report-webkit-test.js', 'node tests/boot-recovery-webkit-test.js',
-  'node tests/runtime-recovery-webkit-test.js'
+  'node tests/runtime-recovery-webkit-test.js', 'node tests/save-newest-copy-boot-webkit-test.js'
 ]) assert(iphoneJob.includes(command), `iPhone job must retain ${command}`);
 for (const artifactPath of [
   'artifacts/iphone-webkit-smoke', 'artifacts/game-over-settings-webkit', 'artifacts/d-ui-webkit',

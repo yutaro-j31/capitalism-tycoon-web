@@ -35,6 +35,10 @@
     "reason": "Executed outside the canonical run-all suite by the iPhone WebKit Smoke job in .github/workflows/test.yml.",
     "executedBy": ".github/workflows/test.yml"
   },
+  "tests/iphone-baseline-probe-webkit-test.js": {
+    "reason": "Focused physical-iPhone probe UI regression executed by its package script and before PR submission.",
+    "executedBy": "package.json"
+  },
   "tests/iphone-full-acceptance-webkit-test.js": {
     "reason": "Executed outside the canonical run-all suite by the iPhone Acceptance Playthrough job in .github/workflows/test.yml.",
     "executedBy": ".github/workflows/test.yml"
@@ -143,6 +147,10 @@
     "reason": "Executed outside the canonical run-all suite by the iPhone WebKit Smoke job in .github/workflows/test.yml, .github/workflows/release-candidate-tag.yml.",
     "executedBy": ".github/workflows/test.yml"
   },
+  "tests/save-newest-copy-boot-webkit-test.js": {
+    "reason": "Executed outside the canonical run-all suite by the iPhone WebKit Smoke job in .github/workflows/test.yml.",
+    "executedBy": ".github/workflows/test.yml"
+  },
   "tests/shareholder-activism-reachability-test.js": {
     "reason": "Executed outside the canonical run-all suite by focused diagnostics in Strategy Balance.",
     "executedBy": ".github/workflows/strategy-balance.yml"
@@ -166,9 +174,5 @@
   "tests/workflow-path-filter-contract-test.js": {
     "reason": "Executed by the release gate script.",
     "executedBy": "scripts/release-gate.js"
-  },
-  "tests/iphone-baseline-probe-webkit-test.js": {
-    "reason": "Focused physical-iPhone probe UI regression executed by its package script and before PR submission.",
-    "executedBy": "package.json"
   }
 }

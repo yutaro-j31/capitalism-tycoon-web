@@ -90,7 +90,8 @@ async function main() {
       state.gameOver = true;
       state.gameOverReason = '会社現金が2週連続でマイナスになりました。';
       state.selectedTab = 'home';
-      localStorage.setItem(key, JSON.stringify(state));
+      // Through the production save path, so both stores hold the fixture (#726).
+      const saved = globalThis.__capitalismTycoonModules.saveStorage.saveWithAdapter({ g: state }, { key }); if (!saved.ok) throw saved.error || new Error('production save failed'); return saved.flush();
     }, SAVE_KEY);
     await page.reload({ waitUntil: 'networkidle', timeout: 30_000 });
 

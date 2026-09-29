@@ -155,7 +155,29 @@ function saveWithAdapter(instance,{slot=null,key=null,backend=null,mirrorStorage
  timings.snapshotRebuildMs=Math.max(0,clock()-mark);
  instance.g.lastSaveDate=savedAt||new Date().toISOString();
  const resolvedKey=key||(slot?`${SAVE_KEY}_slot_${slot}`:SAVE_KEY);
- let raw;
+ const targetBackend=backend===null?modules.saveStorageIDB:backend;
+ const mirror=mirrorStorage===null?globalThis.localStorage:mirrorStorage;
+ // #726: saveSequence grows by one on every save of this key and decides which copy boots. It
+ // lives only in the stored payload: it is removed from the live state once the payload exists,
+ // so the simulation state (and every determinism comparison of it) never contains it.
+ instance.g.saveSequence=nextSaveSequence(targetBackend,mirror,resolvedKey);
+ try{return writeCandidates(instance,{slot,resolvedKey,targetBackend,mirror,timings,clock});}
+ finally{delete instance.g.saveSequence;}
+}
+
+const fallbackSequences=new Map();
+function nextSaveSequence(backend,mirror,key){
+ if(typeof backend?.nextSequence==='function')return backend.nextSequence(key);
+ if(!fallbackSequences.has(key)){
+  let stored=null;try{stored=mirror?.getItem?.(key)??null;}catch(_){}
+  const match=typeof stored==='string'?/"saveSequence":(\d+)/.exec(stored):null;
+  fallbackSequences.set(key,match?Number(match[1]):0);
+ }
+ const next=fallbackSequences.get(key)+1;fallbackSequences.set(key,next);return next;
+}
+
+function writeCandidates(instance,{slot,resolvedKey,targetBackend,mirror,timings,clock}){
+ let raw,mark;
  mark=clock();
  try{raw=JSON.stringify(instance.g);}catch(error){return {ok:false,key:resolvedKey,mode:'serialize-error',error,timings};}
  timings.serializationMs=Math.max(0,clock()-mark);
@@ -165,8 +187,6 @@ function saveWithAdapter(instance,{slot=null,key=null,backend=null,mirrorStorage
  mark=clock();
  for(const mode of ['normal','emergency','critical']){const compacted=storagePayload(instance.g,mode);add(mode,compacted.payload,compacted.transactionSummary);}
  timings.compactionMs=Math.max(0,clock()-mark);
- const targetBackend=backend===null?modules.saveStorageIDB:backend;
- const mirror=mirrorStorage===null?globalThis.localStorage:mirrorStorage;
  let lastError=null;
  for(const candidate of candidates){
   try{
