@@ -483,7 +483,7 @@ All agents can interpret entities, transactions, ownership, period boundaries, a
 
 ## Goal
 
-Create a permanent simulation and benchmarking harness **before** major Economic Engine implementation.
+Create permanent simulation, characterization and benchmarking infrastructure **before** Economic Engine source-of-truth migration.
 
 This is not a one-time phase. It becomes permanent infrastructure used by every later phase.
 
@@ -495,12 +495,23 @@ This is not a one-time phase. It becomes permanent infrastructure used by every 
 - UI-free economic tick execution
 - metric probes
 - invariant runner
-- deterministic state hash
+- versioned authoritative semantic state hash/projection registry
+- semantic first-diff reporting
 - regression comparison
 - JSON / CSV / Markdown reports
 - performance timing
 - versioned scenario schema
 - explicit engine capability declaration
+- current production weekly wrapper/phase-order characterization
+- authoritative-writer inventory
+- save/reload deterministic fork
+- compacted-save/reload deterministic fork
+- operation replay/idempotency tests
+- deterministic rollback/failure tests
+- deterministic ID-allocation collision tests
+- legacy adapter parity for cash, debt, ownership and standalone finance
+- monetary Number-envelope reachability probes
+- separate raw/stored/peak-memory/runtime persistence measurements
 
 Each scenario should carry at least:
 
@@ -508,6 +519,8 @@ Each scenario should carry at least:
 - `engineCapabilities`
 - `scenarioFeatures`
 - `expectedInvariants`
+- `stateHashVersion`
+- `sourceMainSha`
 
 The schema must evolve without invalidating historical benchmark scenarios unnecessarily.
 
@@ -519,6 +532,8 @@ stepEconomicTick(...)
 runScenario(...)
 snapshotMetrics(...)
 assertEconomicInvariants(...)
+semanticStateHash(...)
+diffSemanticState(...)
 ```
 
 ### Scale matrix
@@ -549,76 +564,83 @@ Track where applicable:
 - accounting close time
 - allocation time
 - AI decision time
-- valuation time
-- serialization time
-- save size
-- heap / RSS proxy
-- transaction/history growth
+- base valuation time
+- public repricing time
+- serialization / compaction / durable-write / load time
+- raw and stored save size
+- peak-memory/RSS practical proxy
+- operation/posting/history growth
 - invariant failures
 - deterministic final hash
+- maximum monetary magnitude / exact-quantum envelope headroom
 
 ### Exit criteria
 
-A stable harness exists before Accounting/Ownership source-of-truth migration begins.
+A stable permanent harness exists before Phase 1 source-of-truth migration begins, and it can characterize current production behavior as well as future capability-aware phases.
 
-**Phase 1 may not begin until this Phase 0.5 exit criterion is met.**
+**Phase 1 may not begin until this Phase 0.5 exit criterion is met and accepted.**
 
-In addition, the Hard Phase 1 entry gate in §4 must be satisfied, including the Claude Code completion record on Issue #745.
+In addition, the Hard Phase 1 entry gate in `4 must be satisfied, including the Claude Code completion record on Issue #745.
 
----
-
-# Phase 1 — Entity-aware Unified Ledger Foundation
+# Phase 1 — Entity-aware Operation / Ledger Foundation
 
 ## Goal
 
-Introduce a shared material-transaction journal without rewriting the entire game into full formal accounting.
+Introduce the shared operation/posting contract without rewriting the entire game into full formal accounting.
 
-### Initial transaction model
+### Initial operation model
+
+Phase 1 follows `PHASE_0_CONTRACTS.md`:
 
 ```text
-EconomicTransaction {
-  transactionId
+EconomicOperation {
   operationId
-  period
-  type
-  fromEntityId
-  fromAccount
-  toEntityId
-  toAccount
-  amount
+  idempotencyKey
+  operationType
+  decisionPeriod?
+  recognitionPeriod?
+  duePeriod?
+  settlementPeriod?
+  effectivePeriod?
+  postings[]
   metadata
 }
 ```
 
+Each posting identifies its entity/account and, where applicable, security/debt/property instrument and quantity.
+
 ### Design rules
 
-- material inter-entity transfers use balanced legs
-- existing company finance may initially be a projection/adapter
+- material multi-leg actions commit as one atomic operation
+- existing company finance may initially remain a projection/adapter
 - no long-term dual-authoritative cash systems
-- transaction retention must be bounded
+- operation/posting retention must be bounded and preserve required replay/idempotency evidence
 - deterministic re-derivable metrics should not be persisted unnecessarily
+- each executable operation family defines required legs before cutover
+- fund/subsidiary/PE/VC/real-estate legacy systems may be **read-only reconciled** to the common schema before their later authoritative cutover; Phase 1 does not silently take over their settlement writers
 
 ### Atomic posting requirements
 
-A balanced transaction is committed only after all required legs validate.
+An operation is committed only after all required postings, instruments, constraints and idempotency conditions validate.
 
 Required properties:
 
 - all-or-nothing state mutation
-- operation ID and idempotency key
+- deterministic operation/posting IDs and ordering
 - deterministic replay behavior
-- failed transaction leaves the relevant economic state unchanged
-- no save or public emit before transaction commit
-- projections update only from committed transactions
-- invariant validation runs at the defined transaction/close boundary
+- failed operation leaves relevant authoritative economic state unchanged
+- no save or public emit before operation commit
+- projections update only from committed operations
+- invariant validation runs at the defined operation/close boundary
+- corrections use explicit reversal/correction operations rather than rewriting committed history
 
-The target is to prevent partial settlement such as cash changing while debt, ownership, consideration, or the receiving leg remains unposted.
+The target is to prevent partial settlement such as cash changing while debt, ownership, consideration, security quantity or receiving legs remain unposted.
 
 ### Exit criteria
 
-Company, personal, fund, and subsidiary material transfers can be reconciled through one entity-aware contract.
-
----
+- company/personal cut-over slices can settle through the shared operation contract;
+- fund/subsidiary/other later-phase domains can be represented and reconciled through **read-only adapters** without becoming premature authoritative writers;
+- operation atomicity/idempotency/rollback is covered by the permanent harness.
 
 # Phase 2 — Standalone Accounting Hardening
 
@@ -690,35 +712,47 @@ The same ownership foundation can represent listed shares, subsidiaries, PE port
 
 ---
 
-# Phase 4 — Debt and Cost of Capital
+# Phase 4 — Debt Instruments and Cost-of-Capital Inputs
 
 ## Goal
 
-Treat debt as capital structure.
+Make debt a canonical instrument and provide the financing inputs later used by shared valuation and capital allocation.
 
-### Target
+### Target debt model
 
-- principal
-- maturity
-- interest
+- debt instrument ID
+- borrower / lender entity
+- principal / outstanding principal
+- currency
+- maturity / schedule
+- interest basis/rate/reset
+- accrued interest
 - refinancing
-- default state
+- seniority/security
+- covenant/default/workout state
+- fees/OID where modeled
+- callable/putable status where modeled
+
+### Derived inputs
+
 - Cost of Debt
 - leverage metrics
-- WACC
-- ROIC comparison
+- liquidity/debt-service metrics
+- tax shield inputs
+
+Full **WACC** is not made authoritative merely by Phase 4: its Cost of Equity / valuation inputs are finalized through the Phase 6 base-valuation foundation.
 
 ### Core decision signal
 
 ```text
-ROIC vs Cost of Capital
+ROIC vs applicable Cost of Capital
 ```
+
+becomes fully available once the required Phase 6 valuation/cost-of-equity inputs exist.
 
 ### Exit criteria
 
-Interest-rate and leverage changes propagate consistently into earnings, financing constraints, capital-allocation economics, and valuation inputs.
-
----
+Debt principal, accruals, interest-rate and leverage changes propagate consistently into standalone accounting and provide deterministic inputs for financing constraints and later valuation/allocation.
 
 # Phase 5 — Aggregate Industry Supply / Demand
 
@@ -769,11 +803,61 @@ Overinvestment can create excess capacity and margin pressure; underinvestment c
 
 ---
 
-# Phase 6 — Shared Capital Allocation Kernel
+# Phase 6 — Shared Base Valuation Foundation
 
 ## Goal
 
-Make capital allocation the central economic decision engine.
+Create pure/read-only shared valuation primitives **before** capital-allocation scoring depends on them.
+
+### Base valuation snapshot
+
+The Phase 6 valuation service consumes completed authoritative facts such as:
+
+- earnings / free cash flow
+- invested capital / ROIC
+- growth
+- debt/leverage
+- ownership/security state
+- industry conditions
+- risk
+- interest rates / Cost of Debt
+- Cost of Equity / WACC inputs
+- market multiple/liquidity inputs where applicable
+
+It produces an immutable, versioned **base valuation snapshot** for a decision cycle.
+
+### Layers
+
+#### Private / intrinsic valuation
+
+Used for:
+
+- private companies
+- founder own-company net worth
+- private M&A
+- PE/VC contexts
+- capital-allocation opportunity comparison
+
+#### Public valuation input
+
+Produces intrinsic/public reference value and other inputs used later by Phase 9 market/corporate-action logic.
+
+### Purity / circularity guard
+
+- base valuation is read-only and cannot mutate accounting, ownership, debt or industry state;
+- a decision is scored against one immutable base valuation snapshot;
+- same-period post-decision repricing cannot rewrite the snapshot used to make that decision;
+- no fixed-point loop is introduced.
+
+### Exit criteria
+
+Operational improvement, leverage, growth, rates and industry cycle affect base value in explainable and deterministic ways, and Phase 7 can consume the service without calling legacy valuation formulas independently.
+
+# Phase 7 — Shared Capital Allocation Kernel
+
+## Goal
+
+Make capital allocation the central decision engine using completed accounting facts and the Phase 6 immutable base valuation snapshot.
 
 ### Candidate set
 
@@ -810,33 +894,37 @@ These capabilities must not be treated as equivalent.
 
 Before Phase 9:
 
-- stock corporate actions such as dividend and buyback may be modeled/scored/shadow-evaluated
-- they must not be scheduled or executed through the Economic Core until the corresponding stock/corporate-action migration is complete
+- stock corporate actions such as dividend and buyback may be modeled/scored/shadow-evaluated;
+- they must not execute through the Economic Core until the corresponding public-security/corporate-action capability is authoritative.
 
 Before Phase 10:
 
-- M&A may be modeled/scored/shadow-evaluated
-- it must not be scheduled or executed through the Economic Core until the M&A migration is complete
+- M&A may be modeled/scored/shadow-evaluated;
+- execution waits for the applicable M&A subtype migration; private/cash M&A does not require unrelated public-stock authority, while security-dependent deals do.
 
-A candidate may appear in comparative economics before its production settlement path is authoritative, but shadow evaluation must not mutate production state or consume production RNG.
+PE/VC/real-estate may be modeled/scored earlier, but their settlement remains legacy until their later cutover.
+
+Shadow evaluation must not mutate production state or consume production RNG.
 
 ### Candidate pipeline
 
 ```text
-Economic observations
+Completed economic observations
+→ Phase 6 base valuation snapshot
 → Candidate generation
 → Feasibility / constraints
 → Expected economics
 → Deterministic score / comparison
 → Decision
-→ Scheduled execution
+→ Commitment / scheduled execution
 ```
 
 ### Evaluation dimensions
 
 - expected return
 - ROIC
-- WACC
+- WACC / relevant cost of capital
+- value creation vs base valuation
 - risk
 - leverage
 - liquidity
@@ -849,56 +937,7 @@ Economic observations
 
 ### Exit criteria
 
-No single action is universally dominant across validated scenarios.
-
----
-
-# Phase 7 — Valuation Engine
-
-## Goal
-
-Create a shared valuation service grounded in economic state.
-
-### Separate layers
-
-#### Private valuation
-
-Used for:
-
-- private companies
-- founder net worth
-- private M&A
-- VC/PE contexts
-
-#### Public market repricing
-
-Used for:
-
-- listed companies
-- public market price updates
-- buyback/dividend market effects
-
-### Inputs may include
-
-- earnings
-- free cash flow
-- growth
-- leverage
-- industry conditions
-- risk
-- interest rates
-- market multiple
-- liquidity where appropriate
-
-### Circularity guard
-
-Do not allow same-tick price changes caused by a decision to recursively change the same decision.
-
-### Exit criteria
-
-Operational improvement, leverage, growth, rates, and industry cycle affect value in explainable and deterministic ways.
-
----
+No single action is universally dominant across validated scenarios, scoring is deterministic, and decisions never depend on same-period repricing caused by themselves.
 
 # Phase 8 — AI Company Capital Allocator
 
@@ -1006,11 +1045,11 @@ M&A settlement reconciles cash, debt, ownership, consideration, and goodwill exa
 
 ---
 
-# Phase 11 — Group Treasury
+# Phase 11 — Legal-Entity Group Treasury Settlement
 
 ## Goal
 
-Allow group-level capital management without mixing legal-entity cash.
+Standardize intercompany funding and settlement without yet pretending that consolidation-aware group optimization exists.
 
 ### Minimum transfers
 
@@ -1018,38 +1057,48 @@ Allow group-level capital management without mixing legal-entity cash.
 - capital contribution
 - intercompany loan
 - loan repayment
-- cash sweep
-- management fee where applicable
+- cash sweep where legally/contractually allowed
+- management/service fee where applicable
 
 ### Rules
 
 - fund cash is not holding-company cash
 - subsidiary cash is not automatically parent free cash
-- intercompany loans have lender and borrower balances
-- transfers must flow through the shared transaction contract
+- restricted cash remains restricted
+- intercompany loans have lender/borrower instruments and balances
+- transfers flow through the shared operation/posting contract
+- Phase 11 may settle legal-entity transfers, but may not optimize group liquidity using NCI/elimination/consolidation information not yet available
 
 ### Exit criteria
 
-The group can allocate capital across entities while preserving legal/economic separation.
+Legal-entity group transfers settle consistently while preserving entity separation and producing the inputs Phase 12 needs for elimination-aware group reporting/optimization.
 
----
-
-# Phase 12 — Minimal Consolidated Accounting
+# Phase 12 — Minimal Consolidation and Group Liquidity Optimization
 
 ## Goal
 
-Provide game-useful group accounts without implementing full IFRS/JGAAP.
+Provide game-useful group accounts and only then enable consolidation-aware treasury optimization.
 
 ### Minimum scope
 
-- standalone statements remain authoritative per entity
+- standalone statements remain authoritative per legal entity
 - controlled subsidiaries aggregate line by line
 - intercompany loans eliminated in consolidated view
 - intercompany dividends eliminated
-- relevant intercompany revenue eliminated where modeled
-- minority interest
+- relevant intercompany revenue/expense eliminated where modeled
+- minority/non-controlling interest
 - goodwill
 - equity-method summary for non-controlled affiliates
+- elimination keys/relationships reconcile to standalone operations
+
+### Group-liquidity layer
+
+After the minimum consolidated/NCI/elimination read model is valid:
+
+- calculate group liquidity/deployable-capital views;
+- distinguish legally trapped/restricted/subsidiary cash;
+- model NCI leakage and transfer constraints;
+- optimize group funding without rewriting standalone books.
 
 ### Explicitly not required initially
 
@@ -1061,9 +1110,7 @@ Provide game-useful group accounts without implementing full IFRS/JGAAP.
 
 ### Exit criteria
 
-Standalone and consolidated views reconcile without double counting.
-
----
+Standalone and consolidated views reconcile without double counting, and group-level liquidity decisions use consolidation-aware information without changing standalone legal-entity accounting history.
 
 # Phase 13 — PE Integration
 
@@ -1142,17 +1189,34 @@ Banking is deliberately late.
 
 ## Required start gate
 
-Do not begin Banking until all are true:
+Do not begin Banking until all relevant prerequisites are explicitly accepted:
 
-- debt/default invariants stable
-- entity-aware ledger stable
-- ownership stable
-- Group Treasury stable
-- minimal consolidation stable
-- long-run headless regression stable
-- agreed company-count performance target achieved
-- save-size budget respected
+- entity/account and multi-leg operation model stable
+- standalone accounting stable
+- canonical debt/default/recovery model stable
+- ownership/control stable
+- legal-entity treasury settlement stable
+- minimum consolidation boundary stable
+- permanent long-run harness stable
+- agreed company/counterparty performance target achieved
+- scenario-tier save/performance budgets established
+- monetary representation proven safe for the intended bank balance-sheet scale, or a migration approved
 - explicit owner approval
+
+Banking also requires approved contracts for:
+
+- deposit liabilities and withdrawals
+- lending/origination/servicing
+- interest accrual/payment
+- credit loss/default/recovery/workout
+- provisioning/allowances
+- liquidity and maturity mismatch
+- capital/equity constraints
+- tax/accounting close
+- consolidation boundary with owner/group
+- scalable deterministic external/interbank counterparties
+
+PE/VC/real-estate completion is required only where the particular banking slice depends on those migrated assets/borrowers; Phase 16 is not mechanically blocked by unrelated optional feature work.
 
 ### Candidate banking scope
 
@@ -1176,8 +1240,6 @@ Equity:
 ### Exit criteria
 
 Banking participates in credit allocation without creating a parallel economic universe.
-
----
 
 # Continuous Track A — Invariant / Property Testing
 
@@ -1459,19 +1521,19 @@ During **Cutover**, exactly one writer becomes authoritative.
 
 ## 10. Recommended migration order
 
-1. Entity / transaction semantics
-2. Ledger
+1. Entity / operation / posting semantics
+2. Operation ledger
 3. Standalone accounting
 4. Ownership / shares
-5. Debt / cost of capital
+5. Debt instruments / financing inputs
 6. Industry economics
-7. Capital allocation
-8. Valuation
+7. Base valuation foundation
+8. Capital allocation
 9. AI allocator
 10. Stocks / corporate actions
-11. M&A
-12. Group Treasury
-13. Consolidation
+11. M&A by subtype
+12. Legal-entity Treasury settlement
+13. Consolidation + group liquidity optimization
 14. PE
 15. VC
 16. Real Estate
@@ -1484,25 +1546,25 @@ During **Cutover**, exactly one writer becomes authoritative.
 Recommended target pipeline:
 
 ```text
-0. Apply previously committed actions
-1. Advance calendar / establish period context
+0. Establish calendar / period context and opening snapshot
+1. Apply previously committed actions due this period
 2. Macro state update
 3. Industry demand and exogenous supply update
 4. Operational capacity availability
 5. Market clearing / price and volume allocation
 6. Operations settlement
-7. Debt interest / principal / taxes
+7. Debt interest / principal / taxes: accrual and due settlement
 8. Standalone accounting close
 9. Standalone invariant gate
 10. Standalone derived metrics: ROIC / leverage / liquidity
 11. Group consolidation / intercompany eliminations
 12. Consolidated invariant gate
 13. Consolidated derived metrics where applicable
-14. Capital-allocation candidate generation
-15. Player / AI decisions
-16. Schedule next-period CapEx / financing / corporate actions
-17. Valuation
-18. Public market repricing
+14. Base/pure valuation snapshot
+15. Capital-allocation candidate generation and scoring
+16. Player / AI decisions
+17. Create commitments / schedule future actions
+18. Post-decision valuation signals / public market repricing
 19. Progression / reports / diagnostics
 20. Normalize → atomic save snapshot → emit
 ```
@@ -1517,13 +1579,15 @@ If a particular minimal-consolidation implementation is reporting-only, it must 
 - same-period consolidated results do not feed capital allocation
 - same-period consolidated results do not feed valuation or market repricing
 
-### One-period lag contract
+### Action-family timing / lag contract
 
-Capital allocation, buybacks, M&A, CapEx, and financing decisions use the latest completed accounting period and the pre-action valuation/market price.
+Strategic capital-allocation decisions use the latest completed accounting period and the immutable base valuation snapshot created before the decision.
 
-Decisions are scheduled after close and become effective in a later execution phase or period according to the approved transaction contract.
+Each action family must separately define decision, commitment, recognition, due, settlement and effective timing. The target architecture does **not** assume every legacy immediate action already follows a one-period lag.
 
-Do not introduce same-period fixed-point iteration unless it is separately specified, justified, and tested.
+Until a family is cut over, its current production timing remains authoritative through the legacy adapter. After cutover, the approved family contract controls scheduling/settlement.
+
+Do not introduce same-period fixed-point iteration. Post-decision/public repricing cannot recursively change the base valuation used by the same decision.
 
 ### Weekly subsystem declaration
 
@@ -1533,6 +1597,7 @@ During Strangler migration, every weekly subsystem participating in economic sta
 - authoritative writer
 - legacy adapter
 - idempotency guard
+- input valuation snapshot/version where applicable
 - retirement condition
 
 This prevents module-load/prototype-wrapper order from silently reintroducing close-after-mutation or duplicate-posting behavior.
@@ -1558,16 +1623,9 @@ Cash
 = Deployable Capital
 ```
 
-This formula is **not yet final**.
+The approved Phase 0 contract defines this as a **13-week base liquidity view**, supplemented by 52-week/maturity-wall and stress views. It also defines treatment of restricted cash, commitments, callable/covenant-accelerated obligations and intercompany availability.
 
-Phase 0 must define:
-
-- exact components
-- entity scope
-- period horizon
-- treatment of restricted fund cash
-- approved-but-not-paid commitments
-- intercompany availability rules
+The authoritative details live in `docs/economic-engine/PHASE_0_CONTRACTS.md`; this summary must not be used to reintroduce a single-horizon shortcut.
 
 ---
 
