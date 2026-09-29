@@ -149,6 +149,7 @@ const nodeTests = [
   ['real-estate-risk-mitigation', 'tests/real-estate-risk-mitigation-test.js'],
   ['real-estate-safety-certification', 'tests/real-estate-safety-certification-test.js'],
   ['real-estate-security-deposits', 'tests/real-estate-security-deposits-test.js'],
+  ['key-person-ledger', 'tests/key-person-ledger-test.js'],
   ['real-estate-tenant-collections', 'tests/real-estate-tenant-collections-test.js'],
   ['real-estate-tenant-contracts', 'tests/real-estate-tenant-contracts-test.js'],
   ['real-estate-tenant-leasing', 'tests/real-estate-tenant-leasing-test.js'],
