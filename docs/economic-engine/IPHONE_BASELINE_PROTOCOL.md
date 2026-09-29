@@ -503,16 +503,33 @@ A completed baseline should produce a machine-readable JSON artifact with at lea
   "scenario": {
     "id": "...",
     "version": 1,
-    "week": 1
+    "week": 117,
+    "storeCount": 40,
+    "rawSaveBytes": 0,
+    "storedSaveBytes": 0
   },
   "startupMs": [],
-  "weekAdvanceMs": [],
-  "saveMs": [],
-  "loadMs": [],
+  "weekAdvanceEndToEndMs": [],
+  "weekAdvanceSubtimings": {
+    "simulationMs": [],
+    "snapshotRebuildMs": [],
+    "compactionMs": [],
+    "serializationMs": [],
+    "storageEnqueueMs": [],
+    "durableFlushMs": []
+  },
+  "isolatedSaveMs": [],
+  "isolatedLoadMs": [],
   "save": {
     "bytes": 0,
     "originalBytes": 0,
-    "mode": "..."
+    "mode": "...",
+    "storageNamespace": "benchmark-only"
+  },
+  "nodeReference": {
+    "oneStoreWeekMs": 252,
+    "fortyStoreWeekMs": 1193,
+    "reportedSaveSize": "6.65 MB"
   },
   "resume": {
     "passed": true,
