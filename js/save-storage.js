@@ -138,6 +138,49 @@ function notify(instance,message,severity='warning'){
  try{instance.emit?.('notify',{message,severity});}catch(_){}
 }
 
+function nowMs(){return globalThis.performance?.now?.()||0;}
+
+// Shared production save processor.  The physical-iPhone probe injects an isolated backend and
+// mirror, while normal gameplay uses the defaults below.  Keeping candidate selection and
+// compaction here prevents the benchmark from becoming a second, drifting save implementation.
+function saveWithAdapter(instance,{slot=null,key=null,backend=null,mirrorStorage=null,savedAt=null,clock=nowMs}={}){
+ if(!instance||!instance.g)return {ok:false,error:new Error('save engine/state is required')};
+ if(!slot&&instance.inTransaction?.()){instance._deferredSave=true;return {ok:true,deferred:true,timings:{}};}
+ if(!slot&&instance._saveBlockedDueToLoadFailure)return {ok:false,blocked:true,timings:{}};
+ const timings={snapshotRebuildMs:0,compactionMs:0,serializationMs:0,storageEnqueueMs:0};
+ let mark=clock();
+ modules.engine.sanitizeBusinessRecords?.(instance.g);
+ if(instance.g&&typeof instance.g==='object')instance.g.saveVersion=SAVE_VERSION;
+ modules.finance.rebuildDirtySnapshots?.(instance.g);
+ timings.snapshotRebuildMs=Math.max(0,clock()-mark);
+ instance.g.lastSaveDate=savedAt||new Date().toISOString();
+ const resolvedKey=key||(slot?`${SAVE_KEY}_slot_${slot}`:SAVE_KEY);
+ let raw;
+ mark=clock();
+ try{raw=JSON.stringify(instance.g);}catch(error){return {ok:false,key:resolvedKey,mode:'serialize-error',error,timings};}
+ timings.serializationMs=Math.max(0,clock()-mark);
+ const candidates=[],seen=new Set();
+ const add=(mode,payload,summary=null)=>{if(!seen.has(payload)){seen.add(payload);candidates.push({mode,payload,summary});}};
+ if(raw.length<=RAW_COMPACTION_THRESHOLD)add('raw',raw,null);
+ mark=clock();
+ for(const mode of ['normal','emergency','critical']){const compacted=storagePayload(instance.g,mode);add(mode,compacted.payload,compacted.transactionSummary);}
+ timings.compactionMs=Math.max(0,clock()-mark);
+ const targetBackend=backend===null?modules.saveStorageIDB:backend;
+ const mirror=mirrorStorage===null?globalThis.localStorage:mirrorStorage;
+ let lastError=null;
+ for(const candidate of candidates){
+  try{
+   mark=clock();
+   const durableHolding=Boolean(targetBackend)&&targetBackend.status().available&&targetBackend.writeSync(resolvedKey,candidate.payload);
+   if(mirror?.setItem)try{mirror.setItem(resolvedKey,candidate.payload);}catch(error){if(!durableHolding||!isQuotaError(error))throw error;}
+   timings.storageEnqueueMs+=Math.max(0,clock()-mark);
+   const info={ok:true,key:resolvedKey,slot,mode:candidate.mode,bytes:candidate.payload.length*2,originalBytes:raw.length*2,transactions:candidate.summary||null,savedAt:instance.g.lastSaveDate};
+   return {...info,payload:candidate.payload,raw,timings,flush:()=>targetBackend?.flush?.()||Promise.resolve()};
+  }catch(error){lastError=error;if(!isQuotaError(error))break;}
+ }
+ return {ok:false,key:resolvedKey,slot,mode:'failed',error:lastError,originalBytes:raw.length*2,savedAt:instance.g.lastSaveDate,timings};
+}
+
 function install(){
  const proto=EngineClass.prototype;
  if(proto.__quotaSafeSaveInstalled)return true;
@@ -149,53 +192,18 @@ function install(){
    console.error('Save blocked because startup save migration failed',this._loadFailureReason||'unknown load failure');
    return false;
   }
-  modules.engine.sanitizeBusinessRecords?.(this.g);
-  if(this.g&&typeof this.g==='object')this.g.saveVersion=SAVE_VERSION;
-  modules.finance.rebuildDirtySnapshots?.(this.g);
-  this.g.lastSaveDate=new Date().toISOString();
-  const key=slot?`${SAVE_KEY}_slot_${slot}`:SAVE_KEY;
-  let raw;
-  try{raw=JSON.stringify(this.g);}catch(error){
-   this._lastSaveStorageInfo={ok:false,key,mode:'serialize-error',message:error?.message||String(error)};
-   console.error('Save serialization failed',error);
-   notify(this,'セーブデータの作成に失敗しました。JSONバックアップを保存してください。','error');
-   this.emit?.('save-error',{slot,error,reason:'serialize'});
-   return false;
+  const result=saveWithAdapter(this,{slot});
+  this._lastSaveStorageInfo={ok:result.ok,key:result.key,slot,mode:result.mode,bytes:result.bytes,originalBytes:result.originalBytes,transactions:result.transactions||null,savedAt:result.savedAt,message:result.error?.message};
+  if(result.ok){
+   this.emit?.('saved',{slot,storageMode:result.mode,storageBytes:result.bytes,originalStorageBytes:result.originalBytes});
+   if((result.mode==='emergency'||result.mode==='critical')&&this._saveStorageWarningMode!==result.mode){this._saveStorageWarningMode=result.mode;notify(this,'端末容量に合わせて古い履歴を整理し、セーブを継続しました。会社・個人資産と会計累計は保持されています。','warning');}
+   return true;
   }
-  const candidates=[];
-  const seen=new Set();
-  const add=(mode,payload,summary=null)=>{if(seen.has(payload))return;seen.add(payload);candidates.push({mode,payload,summary});};
-  if(raw.length<=RAW_COMPACTION_THRESHOLD)add('raw',raw,null);
-  for(const mode of ['normal','emergency','critical']){
-   const compacted=storagePayload(this.g,mode);
-   add(mode,compacted.payload,compacted.transactionSummary);
-  }
-  let lastError=null;
-  for(const candidate of candidates){
-   try{
-    // IndexedDB carries the save; localStorage is written too while the payload still fits
-    // so older builds keep reading it, but running out of that quota is no longer fatal.
-    const idb=modules.saveStorageIDB;
-    const idbHolding=Boolean(idb)&&idb.status().available&&idb.writeSync(key,candidate.payload);
-    try{localStorage.setItem(key,candidate.payload);}
-    catch(mirrorError){if(!idbHolding||!isQuotaError(mirrorError))throw mirrorError;}
-    const info={ok:true,key,slot,mode:candidate.mode,bytes:candidate.payload.length*2,originalBytes:raw.length*2,transactions:candidate.summary||null,savedAt:this.g.lastSaveDate};
-    this._lastSaveStorageInfo=info;
-    this.emit?.('saved',{slot,storageMode:candidate.mode,storageBytes:info.bytes,originalStorageBytes:info.originalBytes});
-    if((candidate.mode==='emergency'||candidate.mode==='critical')&&this._saveStorageWarningMode!==candidate.mode){
-     this._saveStorageWarningMode=candidate.mode;
-     notify(this,'端末容量に合わせて古い履歴を整理し、セーブを継続しました。会社・個人資産と会計累計は保持されています。','warning');
-    }
-    return true;
-   }catch(error){
-    lastError=error;
-    if(!isQuotaError(error))break;
-   }
-  }
-  this._lastSaveStorageInfo={ok:false,key,slot,mode:'failed',message:lastError?.message||String(lastError||'storage write failed'),originalBytes:raw.length*2,savedAt:this.g.lastSaveDate};
-  console.error('Save storage failed without replacing the previous save',lastError);
+  if(result.blocked){console.error('Save blocked because startup save migration failed',this._loadFailureReason||'unknown load failure');return false;}
+  if(result.mode==='serialize-error'){console.error('Save serialization failed',result.error);notify(this,'セーブデータの作成に失敗しました。JSONバックアップを保存してください。','error');this.emit?.('save-error',{slot,error:result.error,reason:'serialize'});return false;}
+  console.error('Save storage failed without replacing the previous save',result.error);
   notify(this,'iPhoneの保存容量が不足してセーブできませんでした。以前のセーブは残っています。JSONバックアップを保存してください。','error');
-  this.emit?.('save-error',{slot,error:lastError,reason:isQuotaError(lastError)?'quota':'storage'});
+  this.emit?.('save-error',{slot,error:result.error,reason:isQuotaError(result.error)?'quota':'storage'});
   return false;
  };
  Object.defineProperty(proto,'__quotaSafeSaveInstalled',{value:true});
@@ -207,6 +215,6 @@ function install(){
 
 function getActiveEngine(){return activeEngine;}
 
-modules.saveStorage=Object.freeze({SAVE_KEY,SAVE_VERSION,RAW_COMPACTION_THRESHOLD,PROFILES,isQuotaError,compactUntouchedRecords,isUntouchedProperty,archiveTransactions,compactStateForStorage,storagePayload,install,getActiveEngine,__installed:true});
+modules.saveStorage=Object.freeze({SAVE_KEY,SAVE_VERSION,RAW_COMPACTION_THRESHOLD,PROFILES,isQuotaError,compactUntouchedRecords,isUntouchedProperty,archiveTransactions,compactStateForStorage,storagePayload,saveWithAdapter,install,getActiveEngine,__installed:true});
 install();
 })();
