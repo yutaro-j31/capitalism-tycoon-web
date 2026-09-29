@@ -24,6 +24,7 @@ const NON_SIMULATION = {
   'js/app.js': { 'new Date': 1 }, // UI clock display
   'js/boot-recovery.js': { 'Date.now': 2, 'new Date': 1 },
   'js/physical-iphone-playtest.js': { 'new Date': 1 },
+  'js/iphone-baseline-probe.js': { 'Date.now': 1, 'new Date': 2 }, // measurement clock/metadata and week-derived detached save timestamp
   'js/playtest-report-ui.js': { 'Date.now': 1, 'new Date': 3 },
   'js/release-diagnostics-ui.js': { 'Date.now': 2, 'new Date': 1 },
   'js/runtime-recovery-ui.js': { 'Date.now': 1, 'new Date': 1 },
