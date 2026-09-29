@@ -242,11 +242,15 @@ jobs:
       - name: Validate iPhone acceptance scripts
         run: |
           node --check tests/iphone-full-acceptance-webkit-test.js
+          node --check tests/iphone-baseline-probe-webkit-test.js
           node --check tests/pe-ui-screen-ownership-webkit-test.js
           node --check tests/ma-deal-room-webkit-test.js
       - name: Play every primary game screen in iPhone WebKit
         timeout-minutes: 5
         run: node tests/iphone-full-acceptance-webkit-test.js
+      - name: Verify Gate C lifecycle probe in iPhone WebKit
+        timeout-minutes: 3
+        run: node tests/iphone-baseline-probe-webkit-test.js
       - name: Exercise PE ownership and management screens
         timeout-minutes: 3
         run: node tests/pe-ui-screen-ownership-webkit-test.js
@@ -258,7 +262,9 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: iphone-acceptance-${{ github.sha }}
-          path: artifacts/iphone-acceptance
+          path: |
+            artifacts/iphone-acceptance
+            artifacts/iphone-baseline-probe
           if-no-files-found: error
           retention-days: 30
 
