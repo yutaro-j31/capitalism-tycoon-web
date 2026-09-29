@@ -554,6 +554,7 @@ The following IDs are normative targets for the permanent harness.
 | ECO-020 | every committed multi-leg operation satisfies its family-specific balance/conservation schema |
 | ECO-021 | authoritative security/debt/property IDs and next-ID counters remain unique and deterministic |
 | ECO-022 | base valuation used for a decision is immutable for that decision and cannot be rewritten by same-period post-decision repricing |
+| ECO-023 | after a slice/family cutover, every authoritative mutation caused by an operation is derivable from its validated postings; hidden direct mutation is forbidden |
 
 ## 8. Control Ladder rights contract
 
