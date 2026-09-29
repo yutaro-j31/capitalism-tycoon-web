@@ -82,7 +82,8 @@ function publicGame(modules) {
 function accountingSnapshot(game) {
   const property = game.g.properties.find(row => row.owner === 'company');
   const stockUnits = 1_000;
-  const stockAmount = modules.engine.stockOrderPlan(game.stock('EXT'), stockUnits, 'sell').cashAmount;
+  // #771: 1,000 EXT (price 10,000, 1,000,000 issued): impact 0.06%, quote 10,000 -> 9,994, execution 9,997, gross 9,997,000, proceeds floor(9,997,000*0.999) = 9,987,003 (independent of engine.stockOrderPlan).
+  const stockAmount = 9_987_003;
   const propertyAmount = property.value * .97;
   const borrowing = 50_000_000;
   const transactions = game.g.finance.transactions;
