@@ -1,7 +1,7 @@
 # Economic Engine Phase 0 Contracts
 
-**Status: PROPOSED FOR GATE D APPROVAL — revised after independent Codex review**  
-**Validated repository baseline: `9adcbfe3d2da60b60efb4663be478ac3fcc67732`**  
+**Status: PROPOSED FOR GATE D APPROVAL — second-review remediation applied**  
+**Validated repository baseline: `694bc395df968e9e96fa5c3cc162f81acf797f27`**  
 **Implementation permission: NO**
 
 This document turns the Phase 0 items in `ECONOMIC_ENGINE_ROADMAP.md` into explicit contracts. It is a specification only. It does not authorize Phase 1 implementation.
