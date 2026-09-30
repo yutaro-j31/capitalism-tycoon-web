@@ -1,8 +1,9 @@
 # Gate D Validation — Economic Engine Roadmap v2
 
-**Status: IN PROGRESS / FINAL REMEDIATION SYNCED TO LATEST MAIN**  
+**Status: READY FOR OWNER APPROVAL / FINAL INDEPENDENT CODEX REVIEW PASS**  
 **Gate C: COMPLETE / OWNER ACCEPTED**  
-**Current reviewed main: `62a9b15be50918bced82e4072d03fc306c0b51da`**  
+**Gate D independent review baseline: `23a4858fa0fb8c28e1c17abfe7f342cb108b6e6a`**  
+**Current repository main at bookkeeping update: `f97fe2b041421a81637fea6c333f4e79186ac85b`**  
 **Tracker: #804**  
 **Implementation baseline: NO**
 
@@ -25,16 +26,21 @@ Gate D approval still does **not** authorize Phase 1.
 
 ## 2. Current repository state
 
-Latest-main verification before this sync:
+Repository state at this bookkeeping update:
 
-- main: `62a9b15be50918bced82e4072d03fc306c0b51da`
+- current main: `f97fe2b041421a81637fea6c333f4e79186ac85b`
+- Gate D final independent review baseline: `23a4858fa0fb8c28e1c17abfe7f342cb108b6e6a`
 - #808: merged as `7fbfae1eca229ba35fb080fc4607dd7fa2894807`
 - #820: merged as `192748568d53186d1db15646cd76f3ea6cfb2dbb`
 - #823: merged as `62a9b15be50918bced82e4072d03fc306c0b51da`
+- #809: merged as `23a4858fa0fb8c28e1c17abfe7f342cb108b6e6a`
+- #824 / #816 world-ranking fix: merged as `f97fe2b041421a81637fea6c333f4e79186ac85b`
 - #819: closed as superseded by #820
 - #804: open
 - #745: open
-- open PRs at the verification point: #809 only
+- open PRs at the bookkeeping point: #827 only
+
+The final Independent Codex review intentionally remains fixed to `23a4858...`. The one commit between that reviewed SHA and current main is #824, whose diff is limited to global-company-ranking code/tests and does not modify the Economic Engine contracts or Gate D documents. Therefore the later unrelated gameplay change does not invalidate the fixed Gate D review baseline.
 
 Repository invariants remain:
 
@@ -160,6 +166,33 @@ Remaining accepted findings:
 
 No new P0 finding was reported.
 
+### Final Focused Independent Codex Closure Review
+
+Reviewed exact post-#809 SHA:
+
+`23a4858fa0fb8c28e1c17abfe7f342cb108b6e6a`
+
+Verdict: **PASS**
+
+Closure result:
+
+- GD2-001: CLOSED
+- GD2-002: CLOSED
+- GD2-003: CLOSED
+- GD2-004: CLOSED
+- GD2-005: CLOSED
+- GD2-006: CLOSED
+- new P0 blockers: none
+- new P1 blockers: none
+- Phase 0 contracts: internally coherent
+- dependency graph: internally coherent
+- Gate D architecture: ready for owner approval
+- Phase 1 authorization: **NO**
+
+The reviewer checked out the exact SHA in detached-HEAD mode and ran focused local regression checks covering seed provenance, legacy-ledger reconciliation, save boot/migration, finance/accounting invariants, simulation determinism, deterministic economic foundation and transaction regressions; all passed. The reviewer could not independently query live GitHub CI because the review environment had no `origin` remote and HTTPS access was blocked by proxy 403. Separately, the exact SHA's GitHub workflows were verified green before the review: Test, Strategy Balance, Pages Deployment Smoke, pages build/deployment and Release Attestation Sync.
+
+The remaining `GATE_D_VALIDATION.md` drift identified by the reviewer is bookkeeping-only: #809 merge state and final-review completion could not be reflected inside #809 before it merged. This update resolves that status drift without changing the reviewed architecture.
+
 ## 7. Final second-review remediation contract
 
 ### 7.1 Economic Operation/posting
@@ -252,9 +285,9 @@ Codex reviews, ChatGPT cross-checks, runtime remediation PRs and merged Gate D d
 - [x] #820 RNG/macro seed-root correction merged
 - [x] #823 Phase 0.5 seed-provenance regression merged
 - [x] #809 docs synchronized conceptually with #808/#820/#823 latest-main behavior
-- [ ] #809 updated branch includes latest-main ancestry and CI is green
-- [ ] #809 merged
-- [ ] final focused Codex closure check against the exact post-#809 latest main
+- [x] #809 updated branch included latest-main ancestry and CI was green
+- [x] #809 merged as `23a4858fa0fb8c28e1c17abfe7f342cb108b6e6a`
+- [x] final focused Independent Codex closure review completed against exact `23a4858fa0fb8c28e1c17abfe7f342cb108b6e6a` — PASS
 - [ ] owner approves Phase 0 contracts
 - [ ] owner approves dependency graph
 - [ ] owner approves Gate D completion
@@ -267,11 +300,10 @@ Until every remaining item is complete:
 
 ## 10. Next sequence
 
-1. finish latest-main synchronization of #809 and rerun CI;
-2. merge #809 only after CI/review is green;
-3. run a final focused Codex closure review against the exact merged latest main;
-4. resolve any new P0/P1 blocker if found;
-5. obtain owner Gate D approval;
-6. request Claude Code final #745 remediation attestation (Gate E);
-7. complete and accept the full Phase 0.5 Permanent Headless Harness;
-8. satisfy Gate F and all remaining Phase 1 entry gates.
+1. obtain owner approval of the Phase 0 contracts;
+2. obtain owner approval of the dependency graph;
+3. obtain owner approval of Gate D completion;
+4. request Claude Code final #745 full-remediation completion attestation (Gate E);
+5. complete and accept the full Phase 0.5 Permanent Headless Harness;
+6. satisfy Gate F and all remaining Phase 1 entry gates;
+7. only then create a fresh Phase 1 implementation branch from the latest stable main.
