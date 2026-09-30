@@ -37,11 +37,14 @@ const newer = e.g.peFirm.funds[1];
 assert.equal(ds.investingFunds(e.g).map(f => f.id).join(','), [older.id, newer.id].join(','), 'two investing funds coexist');
 assert.equal(ds.activeInvestingFund(e.g).id, newer.id, 'fixture: the newest investing fund is NOT the one we select');
 
-// Wait for a PE target the OLDER fund is allowed to buy.
+// Wait for a PE target the OLDER fund is allowed to buy. #812: deal sizes are independent draws per
+// deal and per game, so a supplied target can exceed the fund's per-deal limit even with
+// co-investment; such an offer is correctly refused, so also require the quote to fit the fund.
+const fitsOlder = t => pf.planDealFinancing(older, Math.ceil(e.calculateMAAcquisitionPrice(t, 'friendly').minimumPrice * 1.02), true).rejectedAmount === 0;
 let target = null;
 for (let i = 0; i < 120 && !target; i++) {
   e.advanceWeek(false);
-  target = e.g.acquisitionTargets.filter(ds.isPETarget).find(t => !t.activeDealID && ds.eligibleInvestingFundsForTarget(e.g, t).some(f => f.id === older.id)) || null;
+  target = e.g.acquisitionTargets.filter(ds.isPETarget).find(t => !t.activeDealID && ds.eligibleInvestingFundsForTarget(e.g, t).some(f => f.id === older.id) && fitsOlder(t)) || null;
 }
 assert.ok(target, 'deterministic supply must bring a target the older fund can pursue');
 assert.equal(older.status, 'investing', 'older fund is still inside its investment period');
