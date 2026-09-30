@@ -49,6 +49,7 @@ const nodeTests = [
   ['bank-loans-covenants', 'tests/bank-loans-covenants-test.js'],
   ['bank-loans-covenants-default-consistency', 'tests/bank-loans-covenants-default-consistency-test.js'],
   ['gym-startup-loan-workout', 'tests/gym-startup-loan-workout-test.js'],
+  ['gym-startup-hard-founding', 'tests/gym-startup-hard-founding-test.js'],
   ['boot-recovery', 'tests/boot-recovery-test.js'],
   ['competitor-price-direction-guard', 'tests/competitor-price-direction-guard-test.js'],
   ['competitor-process-week-fallback', 'tests/competitor-process-week-fallback-test.js'],
