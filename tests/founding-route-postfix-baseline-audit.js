@@ -32,9 +32,14 @@ function average(rows) {
   return rows.length ? rows.reduce((sum, value) => sum + Number(value || 0), 0) / rows.length : 0;
 }
 
-function highestTrafficTenant(engine) {
+// Owner decision (#745): pick from the business's own tenants, as a player opening that business would. The
+// audit used to pick the busiest tenant of any type; for gym that was an apparel tenant whose deposit pushed
+// the shortfall past the gym startup loan limit, although every gym tenant can open on Normal. Businesses
+// with no tenants of their own type (realEstateAgency) keep choosing from every tenant.
+function highestTrafficTenant(engine, businessID) {
+  const ownType = engine.g.tenants.some(row => row.businessID === businessID);
   return engine.g.tenants
-    .filter(row => !row.occupiedBy)
+    .filter(row => !row.occupiedBy && (!ownType || row.businessID === businessID))
     .sort((a, b) => Number(b.traffic || 0) - Number(a.traffic || 0) || Number(a.deposit || 0) - Number(b.deposit || 0) || String(a.id).localeCompare(String(b.id)))[0] || null;
 }
 
@@ -43,7 +48,7 @@ function upfrontFor(engine, tenant, businessID) {
 }
 
 function initialOpen(engine, businessID) {
-  const tenant = highestTrafficTenant(engine);
+  const tenant = highestTrafficTenant(engine, businessID);
   if (!tenant) return { opened: false, reason: 'no-tenant', ordinaryBorrowing: 0, startupLoan: null, upfront: 0, tenantID: null, tenantTraffic: null };
 
   const upfront = upfrontFor(engine, tenant, businessID);
@@ -92,7 +97,7 @@ function maybeExpand(engine, businessID, elapsedWeek, actionLog) {
   if (recentAverageProfit(engine) <= 0) return false;
   if (!engine.g.stores.length || engine.g.stores.some(store => store.status !== 'open')) return false;
 
-  const tenant = highestTrafficTenant(engine);
+  const tenant = highestTrafficTenant(engine, businessID);
   if (!tenant) return false;
   const upfront = upfrontFor(engine, tenant, businessID);
   if (!(Number(engine.g.companyCash || 0) > upfront * 3)) return false;
@@ -297,4 +302,12 @@ const outDir = path.join(__dirname, '..', 'artifacts', 'founding-route-baseline'
 fs.mkdirSync(outDir, { recursive: true });
 fs.writeFileSync(path.join(outDir, 'audit.json'), JSON.stringify(result, null, 2) + '\n');
 console.log('FOUNDING_ROUTE_POSTFIX_BASELINE ' + JSON.stringify(result));
+// #745: a founding route that cannot open its first store has no baseline to measure. The audit used to
+// report success with 0 stores and 0 weeks (gym), so check that every route actually opened. This runs
+// after the evidence is written, so a failure still uploads it.
+for (const run of [...standard, ...conservative]) {
+  const i = run.initial || {};
+  assert.equal(i.opened, true, `${run.businessID} (${run.mode}) must open its first store: ${JSON.stringify({ reason: i.reason, tenantID: i.tenantID, upfront: i.upfront, ordinaryBorrowing: i.ordinaryBorrowing, startupLoan: i.startupLoan })}`);
+  assert.ok(Number(run.final?.elapsedWeeks) > 0, `${run.businessID} (${run.mode}) must run past the opening week`);
+}
 console.log('founding route post-fix baseline audit completed');
