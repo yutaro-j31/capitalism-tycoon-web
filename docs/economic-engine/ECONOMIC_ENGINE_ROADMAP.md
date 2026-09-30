@@ -1,10 +1,10 @@
 # Capitalism Tycoon Economic Engine Integration Roadmap
 
-**Status: DRAFT — v2 / Gate D second-review remediation in progress**  
+**Status: DRAFT — v2 / Gate D final remediation sync in progress**  
 **Implementation baseline: NO**  
 **Gate C: COMPLETE — physical iPhone evidence accepted; #787 closed**  
 **Gate D tracker: #804 — IN PROGRESS**  
-**Repository baseline reviewed for Gate D: `694bc395df968e9e96fa5c3cc162f81acf797f27` (#807, #805 and #799 included)**  
+**Repository baseline reviewed for Gate D: `62a9b15be50918bced82e4072d03fc306c0b51da` (#808, #820, #823 included; #807/#805/#799 ancestors)**  
 **Additional historical audit: completed against local baseline `849586c`**  
 **Gate D contract candidates:** `PHASE_0_CONTRACTS.md`, `ECONOMIC_ENGINE_DEPENDENCY_GRAPH.md`, `GATE_D_VALIDATION.md`  
 **Purpose: audited pre-implementation roadmap**
@@ -508,7 +508,12 @@ This is not a one-time phase. It becomes permanent infrastructure used by every 
 ### Required capabilities
 
 - deterministic scenario creation
-- explicit seed
+- explicit requested scenario seed injected into persisted `simulationRng.seed`
+- seed provenance from request → persisted simulation root → subsystem seed root → outcome path
+- seed-diversity and stochastic-path-diversity checks before statistical aggregation
+- nuisance-input invariance for company name/ticker/player/fixture labels
+- exact replay for fixed persisted simulation state
+- separate classification of legacy persisted-subsystem-seed runs
 - scenario size controls
 - UI-free economic tick execution
 - metric probes
@@ -536,11 +541,21 @@ Each scenario should carry at least:
 - `harnessSchemaVersion`
 - `engineCapabilities`
 - `scenarioFeatures`
+- `requestedScenarioSeed`
+- `simulationRngSeed`
+- `simulationRngVersion`
+- `simulationRngDrawsAtStart`
+- `simulationRngDrawsAtEnd`
+- `subsystemSeedRoots`
+- `scenarioIdentityFields`
+- `outcomePathSignature`
 - `expectedInvariants`
 - `stateHashVersion`
 - `sourceMainSha`
 
 The schema must evolve without invalidating historical benchmark scenarios unnecessarily.
+
+The normative seed-provenance and nuisance-independence rules are defined in `PHASE_0_5_SEED_VALIDATION.md`. A seed sweep that varies nominal seeds but does not vary persisted `simulationRng.seed` or the stochastic path under study is invalid evidence and must fail before medians, hit rates, percentiles or balance conclusions are calculated.
 
 Candidate API shape:
 
