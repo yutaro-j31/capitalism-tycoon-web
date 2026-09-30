@@ -225,7 +225,7 @@ function referralCandidates(state,fundOrFunds,week){
   const priceLevel=tiers.marketPriceLevel(finite(state?.economy,1)),distressed=finite(state?.economy,1)<1,out=[];
   for(let attempt=0;attempt<NETWORK_REFERRAL_SEARCH_ATTEMPTS;attempt++){
     const index=NETWORK_REFERRAL_SEED_OFFSET+quarter*NETWORK_REFERRAL_SEARCH_ATTEMPTS+attempt;
-    const deal={...tiers.generateDeal(year,index),priceLevel,distressed};
+    const deal={...tiers.generateDeal(year,index,tiers.gameSeed(state)),priceLevel,distressed};
     if(eligible.has(deal.tierID))out.push(deal);
   }
   return out;
@@ -262,7 +262,7 @@ function proprietaryCandidate(state,funds,week,source){
   const year=Math.floor(Math.max(0,finite(week))/52);
   const base=PROPRIETARY_SEED_OFFSET+(hash(['pe-proprietary-candidate',source?.id||'',Math.floor(finite(week))])%10000)*PROPRIETARY_SEARCH_ATTEMPTS;
   for(let attempt=0;attempt<PROPRIETARY_SEARCH_ATTEMPTS;attempt++){
-    const index=base+attempt,deal=tiers.generateDeal(year,index);
+    const index=base+attempt,deal=tiers.generateDeal(year,index,tiers.gameSeed(state));
     if(eligible.has(deal.tierID))return {dealYear:year,dealIndex:index,tierID:deal.tierID};
   }
   return null;
@@ -305,7 +305,7 @@ function startProprietarySourcing(state,nodeID,week){
   return {ok:true,campaign};
 }
 function proprietaryDealForCampaign(state,campaign){
-  const raw=tiers.generateDeal(campaign.dealYear,campaign.dealIndex);
+  const raw=tiers.generateDeal(campaign.dealYear,campaign.dealIndex,tiers.gameSeed(state));
   return {...raw,priceLevel:tiers.marketPriceLevel(finite(state?.economy,1)),distressed:finite(state?.economy,1)<1};
 }
 function processProprietarySourcingWeek(state,week){

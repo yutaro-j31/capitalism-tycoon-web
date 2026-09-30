@@ -25,7 +25,6 @@ const clamp=(v,min=0,max=1)=>Math.max(min,Math.min(max,finite(v,min)));
 // existing hash pattern instead of the simulation-RNG call, and never change its consumption
 // order).
 function hash(parts){let h=2166136261;String(parts.join('|')).split('').forEach(c=>{h^=c.charCodeAt(0);h=Math.imul(h,16777619);});return h>>>0;}
-function unit(...p){return hash(p)/4294967295;}
 
 // 設計書§15の表。sizeMin/sizeMaxは企業価値(EV)、leverageは取得時の負債活用倍率。
 const TIERS=Object.freeze({
@@ -78,25 +77,28 @@ function eligibleTiers(fund){
 
 // 年4件固定の案件供給（設計書 課題3・§2）。帯は年・連番から決定論的に選ぶ（一様分布）。
 // businessIDは5本柱系の帯にのみ設定される。
-// hash()%N (not unit()*N, i.e. not Math.floor of the top-bits-scaled fraction): when the only
-// varying input is a small sequential index (0..DEALS_PER_YEAR-1), the FNV prime step
-// (16777619) is a small fraction of the full 32-bit range, so unit()'s fractional value barely
-// moves between consecutive indices and Math.floor(unit()*N) can collapse onto the same bucket
-// for an entire year's deals. Taking the modulo of the raw hash instead uses the low-order bits,
-// which this FNV-1a chain spreads well even across a 1-character (2166136261 XOR chain) input
-// difference -- verified empirically to never collapse across a 200-year sample.
-function pickTierID(year,index){return TIER_IDS[hash(['pe-tier',year,index])%TIER_IDS.length];}
+// Deal draws (#812). hash() alone barely moves its top bits when only the index at the end of the
+// key changes, so all of a year's deals sat at almost the same point in their size bands (adjacent
+// correlation 0.92), and the key had no game seed, so every game got the same deals. The draws
+// below add the game's stored simulation seed and the murmur3 finalizer.
+// Tiers keep one deal per tier in every block of DEALS_PER_YEAR consecutive indices (what
+// hash()%N happened to give, and what keeps an eligible deal in front of every fund each year);
+// only the order within a block is drawn, per game. Owner decision on #812.
+function dealUnit(seed,...parts){let h=hash([seed,...parts]);h^=h>>>16;h=Math.imul(h,0x85ebca6b)>>>0;h^=h>>>13;h=Math.imul(h,0xc2b2ae35)>>>0;h^=h>>>16;return (h>>>0)/4294967296;}
+function gameSeed(state){return state?.simulationRng?.seed||state?.seed||1;}
+function tierOrder(year,block,seed){const order=[...TIER_IDS];for(let i=order.length-1;i>0;i--){const j=Math.floor(dealUnit(seed,'pe-tier-order',year,block,i)*(i+1));[order[i],order[j]]=[order[j],order[i]];}return order;}
+function pickTierID(year,index,seed=1){const n=TIER_IDS.length;return tierOrder(year,Math.floor(index/n),seed)[((index%n)+n)%n];}
 // 帯内の企業価値を対数一様分布で引く。企業規模の分布は現実にも対数正規に近く偏っており、
 // 線形一様（between()そのまま）だと各帯の期待値が上限付近に張り付く（例: pillar帯
 // 20〜1,500億の線形平均は約760億で、Fund Iの現実的なチケットサイズ（設計書§15の例示
 // 「1件あたり9億」）から大きく外れる）。対数軸で引くことで、小型ファンドが帯の下限側の
 // 案件に出会える確率を現実的な水準まで引き上げる。
-function logBetween(min,max,...seed){const lo=Math.log(Math.max(1,min)),hi=Math.log(Math.max(1,max));return Math.exp(lo+(hi-lo)*unit(...seed));}
-function generateDeal(year,index){
-  const tierID=pickTierID(year,index);
+function logBetween(min,max,u){const lo=Math.log(Math.max(1,min)),hi=Math.log(Math.max(1,max));return Math.exp(lo+(hi-lo)*u);}
+function generateDeal(year,index,seed=1){
+  const tierID=pickTierID(year,index,seed);
   const tier=TIERS[tierID];
-  const enterpriseValue=logBetween(tier.sizeMin,tier.sizeMax,'pe-ev',year,index);
-  const businessID=tier.businessIDs.length?tier.businessIDs[hash(['pe-biz',year,index])%tier.businessIDs.length]:null;
+  const enterpriseValue=logBetween(tier.sizeMin,tier.sizeMax,dealUnit(seed,'pe-ev',year,index));
+  const businessID=tier.businessIDs.length?tier.businessIDs[Math.floor(dealUnit(seed,'pe-biz',year,index)*tier.businessIDs.length)]:null;
   return {id:`pe-deal-${year}-${index}`,year,index,tierID,tierName:tier.name,enterpriseValue,acquisitionMultiple:tier.acquisitionMultiple,leverage:tier.leverage,skillMultiplier:tier.skillMultiplier,exitOptions:tier.exitOptions,businessID};
 }
 const DEALS_PER_YEAR=4;
@@ -107,12 +109,12 @@ function generateAnnualDeals(state,year){
   const economy=finite(state?.economy,1);
   const priceLevel=marketPriceLevel(economy);
   const distressed=economy<1;
-  return Array.from({length:DEALS_PER_YEAR},(_,i)=>({...generateDeal(year,i),priceLevel,distressed}));
+  return Array.from({length:DEALS_PER_YEAR},(_,i)=>({...generateDeal(year,i,gameSeed(state)),priceLevel,distressed}));
 }
 
 modules.peIndustryTiers=Object.freeze({
   TIERS,TIER_IDS,TIER_FIT_LOWER_THRESHOLD,TIER_FIT_UPPER_THRESHOLD,DEALS_PER_YEAR,
-  tierEquityRange,eligibleTiers,pickTierID,generateDeal,marketPriceLevel,generateAnnualDeals,
+  tierEquityRange,eligibleTiers,gameSeed,pickTierID,generateDeal,marketPriceLevel,generateAnnualDeals,
   __installed:true
 });
 })();

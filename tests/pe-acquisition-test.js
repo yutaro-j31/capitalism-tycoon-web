@@ -33,10 +33,17 @@ function formFund(handles, e) {
   return p.createFund(e.g, { size, gpCommit: size * p.requiredGPRatio(e.g.peFirm.trackRecord.score), terms: p.fundTermsForScore(e.g.peFirm.trackRecord.score), y0: e.g.week });
 }
 function peTargets(handles, e) { return e.g.acquisitionTargets.filter(handles.modules.peDealSupply.isPETarget); }
+// #812: deal sizes are independent draws per deal and per game, so the first supplied target can be
+// larger than this fund may buy (1件あたりファンドの25%). Such an offer is correctly refused; these
+// tests need a deal the fund can buy, so pick the first target whose quote fits the fund.
+function fitsFund(handles, e, fund, target, priceFactor) {
+  const price = Math.ceil(e.calculateMAAcquisitionPrice(target, 'friendly').minimumPrice * priceFactor);
+  return handles.modules.peFund.planDealFinancing(fund, price, false).rejectedAmount === 0;
+}
 // 供給 → ディールルーム → DD → 受諾 まで進めた状態を返す。
 function bidToAccepted(handles, e, fund, { priceFactor = 1.02 } = {}) {
   let target = null;
-  for (let i = 0; i < 80 && !target; i++) { e.advanceWeek(false); target = peTargets(handles, e)[0] || null; }
+  for (let i = 0; i < 80 && !target; i++) { e.advanceWeek(false); target = peTargets(handles, e).find(t => fitsFund(handles, e, fund, t, priceFactor)) || null; }
   assert.ok(target, 'sanity: a PE target must be supplied');
   assert.equal(e.openMADealRoom(target.id), true);
   const deal = e.g.maDealRooms.find(d => d.targetID === target.id);
