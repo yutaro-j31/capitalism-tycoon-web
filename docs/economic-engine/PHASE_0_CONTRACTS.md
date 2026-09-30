@@ -1,7 +1,7 @@
 # Economic Engine Phase 0 Contracts
 
-**Status: PROPOSED FOR GATE D APPROVAL — revised after independent Codex review**  
-**Validated repository baseline: `9adcbfe3d2da60b60efb4663be478ac3fcc67732`**  
+**Status: PROPOSED FOR GATE D APPROVAL — second-review remediation + latest-main sync applied**  
+**Validated repository baseline: `62a9b15be50918bced82e4072d03fc306c0b51da` (#808, #820, #823 included)**  
 **Implementation permission: NO**
 
 This document turns the Phase 0 items in `ECONOMIC_ENGINE_ROADMAP.md` into explicit contracts. It is a specification only. It does not authorize Phase 1 implementation.
@@ -188,7 +188,7 @@ Derived metrics are projections; they do not create cash.
 
 ### 4.1 Operation is the atomic unit
 
-A material economic action is represented by one `EconomicOperation` containing one or more postings/legs.
+A material economic action is represented by one `EconomicOperation` containing one or more validated postings.
 
 ```text
 EconomicOperation {
@@ -200,6 +200,8 @@ EconomicOperation {
   duePeriod?
   settlementPeriod?
   effectivePeriod?
+  reversalOfOperationId?
+  correctionOfOperationId?
   status
   schemaVersion
   postings[]
@@ -208,6 +210,8 @@ EconomicOperation {
 ```
 
 The operation, not an individual posting, is the atomic/idempotent settlement unit.
+
+A committed operation is immutable. Corrections are new operations linked through `reversalOfOperationId` / `correctionOfOperationId`.
 
 ### 4.2 Posting/leg shape
 
@@ -218,12 +222,15 @@ EconomicPosting {
   postingSequence
   entityId
   accountId
-  side
+  side                  // debit | credit for monetary/accounting legs
   amount?
   currency?
+  debtInstrumentId?
   instrumentId?
   securityClassId?
-  quantity?
+  propertyId?
+  assetId?
+  quantityDelta?        // signed position change; + increase, - decrease
   counterpartyEntityId?
   counterpartyRole?
   relationshipId?
@@ -234,15 +241,45 @@ EconomicPosting {
 
 Rules:
 
-- monetary `amount` is non-negative; direction is carried by debit/credit, or one separately approved signed-delta convention;
-- security/instrument quantity changes are explicit, not hidden inside free-form metadata;
-- `postingSequence` is deterministic;
+- `side` is exactly `debit` or `credit` for monetary/accounting postings;
+- monetary `amount` is non-negative; debit/credit supplies accounting direction;
+- `quantityDelta` is signed and supplies direction for security/unit/position changes;
+- an indivisible property may use a deterministic ownership unit such as +1/-1, but the operation must also identify `propertyId`;
+- debt principal changes identify `debtInstrumentId`; security changes identify `securityClassId`; property changes identify `propertyId`;
+- position/quantity changes are first-class fields and must not be hidden in free-form metadata;
+- `postingSequence` is deterministic and stable under replay;
 - IDs must be deterministic for replayable commands;
 - metadata is JSON-serializable and contains no runtime object references;
 - one material economic operation settles exactly once;
 - a posting cannot independently commit outside its parent operation.
 
-### 4.3 Account and instrument taxonomy
+### 4.3 Balance and conservation rules
+
+For each committed operation:
+
+- for every currency, total monetary debits equal total monetary credits after explicit FX/fee/tax/rounding-residual legs;
+- external counterparties are represented by explicit postings rather than by unbalanced internal cash mutation;
+- security-class quantity changes reconcile issuer issuance/cancellation, treasury movement, holder movement and any approved external aggregate holder;
+- debt-principal movement reconciles borrower liability and lender/internal-or-external counterparty position where modeled;
+- property/asset ownership transfer reconciles the former owner/external seller and new owner;
+- fund capital-account movements reconcile investor/LP/GP/coinvest interests and fund-side capital accounts;
+- any approved residual is deterministic and uses the residual rules in §5.
+
+An operation family may impose stronger invariants but may not weaken these rules.
+
+### 4.4 No hidden authoritative mutation after cutover
+
+For an Economic Core slice/family that has completed cutover:
+
+> Every authoritative cash, account, debt-instrument, security quantity/ownership, property/asset ownership and fund-capital mutation caused by the operation must be derivable from the validated operation and its postings.
+
+The settlement reducer applies validated postings to authoritative state. It must not perform an additional unposted authoritative mutation.
+
+Allowed non-posting updates are limited to deterministic projections, caches, diagnostics or other explicitly non-authoritative derived state.
+
+Before cutover, legacy writers may continue their existing direct mutations behind read-only adapters. This exception ends for that slice when the Economic Core becomes its authoritative writer.
+
+### 4.5 Account and instrument taxonomy
 
 Before Phase 1 cutover, define a versioned account taxonomy sufficient to distinguish at least:
 
@@ -255,39 +292,42 @@ Before Phase 1 cutover, define a versioned account taxonomy sufficient to distin
 - fund capital accounts / return of capital / preferred return / carry where applicable
 - consolidation/elimination-only accounts or tags
 
-Debt and security identity is separate from the account taxonomy. A posting that changes a debt/security/property position references the stable instrument/security/property ID.
+Debt, security and property identities are separate from the account taxonomy. A posting that changes one of those positions references the applicable stable ID.
 
-### 4.4 Minimum operation families and required semantic legs
+### 4.6 Minimum required operation-family schemas
 
-The kernel must be capable of representing these families without hidden cash creation:
+Before any family becomes executable through the Economic Core, its schema must include at least the following semantic movements.
 
-- operating receipt/payment
-- payroll/rent/supplier/tax payment
-- debt borrowing, principal repayment, interest accrual/payment and fees
-- equity issuance
-- dividend declaration/payment/distribution/withholding
-- buyback
-- asset purchase/sale
-- intercompany loan/equity/dividend/service transfer
-- M&A consideration, fees, assumed debt, identifiable net assets and goodwill/bargain gain
-- fund contribution/capital call
-- fund distribution/return of capital/preferred return/carry/co-invest
-- external investment purchase/sale
+| Family | Minimum required movements |
+|---|---|
+| Operating receipt/payment | payer/recipient cash, revenue/expense or receivable/payable settlement as applicable |
+| Debt borrowing | borrower cash increase, borrower debt-principal increase, lender/external-lender corresponding position; fees separately posted |
+| Interest accrual/payment | interest expense/income, accrued interest payable/receivable, later cash settlement |
+| Principal repayment | borrower debt-principal decrease + cash decrease; lender/internal-or-external position + cash increase as applicable |
+| Equity issuance | issuer cash/consideration, share-capital/APIC effect, issued quantity increase, holder quantity increase |
+| Dividend | declaration/payable where modeled, retained-earnings/equity effect, holder entitlement snapshot, cash payment, withholding/tax, residual |
+| Buyback | issuer cash decrease, selling-holder/external-holder quantity decrease, treasury quantity increase; issued quantity unchanged unless a separate cancellation operation follows |
+| Share cancellation | treasury quantity decrease and issued quantity decrease with required equity/accounting effect |
+| Asset/property purchase/sale | buyer/seller or external cash/consideration, asset/property ownership transfer, book-value/gain-loss/fee effects where applicable |
+| Intercompany transfer | both legal entities' cash/accounts plus legal characterization: loan, equity, dividend or service fee; elimination key where applicable |
+| M&A | consideration and fees, buyer/seller settlement, ownership/control transfer, target debt treatment, acquired net assets/investment basis and goodwill/bargain-gain treatment required by the approved deal type |
+| Fund contribution/capital call | investor/LP/GP/coinvest cash decrease, fund cash increase, matching fund capital-account/interests |
+| Fund distribution | fund cash decrease, investor/LP/GP/coinvest cash increase, explicit classification among return of capital/preferred return/profit/carry/tax |
+| External investment purchase/sale | purchaser/seller cash, security/instrument/property position movement and realized gain/loss/fee legs where applicable |
 
-Each family must define its required posting pattern before becoming executable. A family schema may add fields, but it cannot weaken operation atomicity, idempotency or conservation.
+These are minimum semantic schemas, not a requirement to implement every family in Phase 1. A later phase can extend its family schema before cutover.
 
-### 4.5 Atomicity
+### 4.7 Atomicity
 
 A material operation follows:
 
 ```text
 construct complete operation
-→ validate required postings and instruments
-→ verify balances/constraints
+→ validate required family schema / postings / instruments
+→ verify balances and constraints
 → verify idempotency
-→ validate operation balance/conservation
-→ mutate all authoritative facts
-→ post all legs
+→ validate monetary and position conservation
+→ apply postings through the authoritative settlement reducer
 → run required invariant gate
 → commit operation
 → update projections
@@ -300,15 +340,15 @@ No public emit or durable save may expose a partially settled operation.
 
 The current production `runTransaction()` mechanism is a useful rollback precedent, but Phase 1 Economic Operations are a separate semantic contract and must not be treated as implemented merely because `runTransaction()` exists.
 
-### 4.6 Corrections and reversals
+### 4.8 Corrections and reversals
 
 A committed operation is never silently edited in history.
 
-Where correction is required, create a deterministic correcting/reversing operation using `reversalOfOperationId` or equivalent versioned linkage, then post the corrected operation according to its family contract.
+Where correction is required, create a deterministic correcting/reversing operation using the explicit operation linkage fields, then post the corrected operation according to its family contract.
 
-### 4.7 External flows
+### 4.9 External flows
 
-Money entering/leaving the modeled ownership graph must have an explicit external counterparty and operation family. "Create cash" or "delete cash" without an approved external-flow posting is invalid.
+Money or positions entering/leaving the modeled ownership graph must have an explicit external counterparty and operation family. "Create cash", "delete cash" or silently create/delete a security/property position without an approved external-flow posting is invalid.
 
 ## 5. Monetary, rounding and close contract
 
@@ -514,6 +554,7 @@ The following IDs are normative targets for the permanent harness.
 | ECO-020 | every committed multi-leg operation satisfies its family-specific balance/conservation schema |
 | ECO-021 | authoritative security/debt/property IDs and next-ID counters remain unique and deterministic |
 | ECO-022 | base valuation used for a decision is immutable for that decision and cannot be rewritten by same-period post-decision repricing |
+| ECO-023 | after a slice/family cutover, every authoritative mutation caused by an operation is derivable from its validated postings; hidden direct mutation is forbidden |
 
 ## 8. Control Ladder rights contract
 
@@ -546,7 +587,7 @@ Economic ownership, voting ownership and control are separate. Before Phase 3, t
 - already-controlled subsidiary behavior;
 - exact command precondition and UI entitlement.
 
-The thresholds themselves are fixed owner decisions; only the command-level rights matrix remains to be finalized.
+The thresholds themselves are fixed owner decisions. Phase 0 fixes the threshold framework and requires the denominator/share-class/control semantics above; the exact command-level rights matrix is a **Phase 3 entry contract** and must be approved before any Phase 3 ownership/control capability becomes executable.
 
 ## 9. Founder net-worth and security identity contract
 
@@ -726,13 +767,31 @@ scenarioId
 scenarioVersion
 engineCapabilities
 scenarioFeatures
-seed
+requestedScenarioSeed
+simulationRngSeed
+simulationRngVersion
+simulationRngDrawsAtStart
+simulationRngDrawsAtEnd
+subsystemSeedRoots[]
+scenarioIdentityFields
 size
 duration
 expectedInvariants
 stateHashVersion
 sourceMainSha
+outcomePathSignature
 ```
+
+For a new-game stochastic scenario:
+
+```text
+requestedScenarioSeed === state.simulationRng.seed
+```
+
+is a pre-statistics invariant. A multi-seed sweep is invalid if nominal/requested seeds vary but the persisted simulation seed or the stochastic path being measured collapses to one repeated path.
+
+The detailed seed-provenance contract is normative Phase 0.5 input:
+`docs/economic-engine/PHASE_0_5_SEED_VALIDATION.md`.
 
 Required scale controls support at least company counts 10/50/100/250/500/1000 and durations 1/10/50/100 years, with smoke/nightly/deep tiers rather than every Cartesian combination in ordinary CI.
 
@@ -750,7 +809,14 @@ Before Phase 1 acceptance, the permanent harness must additionally support:
 - legacy adapter parity for cash, debt, ownership and standalone finance projections;
 - capability-aware explicit no-op phases;
 - Number monetary-envelope reachability probes;
-- raw/stored/peak-memory/runtime save metrics by scenario tier.
+- raw/stored/peak-memory/runtime save metrics by scenario tier;
+- explicit injection of requested scenario seeds into persisted `simulationRng.seed`;
+- seed-diversity and stochastic-path-diversity checks **before** aggregate balance statistics are accepted;
+- nuisance-input invariance checks proving company name/ticker/player/fixture labels do not secretly select stochastic paths;
+- exact replay checks for fixed persisted simulation state;
+- separate classification of new-game seed-root runs versus legacy saves that preserve older persisted subsystem seeds.
+
+A deterministic subsystem may consume the main persisted `simulationRng` stream or derive keyed/read-only randomness from `simulationRng.seed`, but another identity field must not silently become an entropy root unless an approved economic contract explicitly requires it.
 
 ## 13. Migration authority rule
 
