@@ -88,6 +88,7 @@ const nodeTests = [
   ['executive-review-variance-draws', 'tests/executive-review-variance-draws-test.js'],
   ['executives-department-assignments', 'tests/executives-department-assignments-test.js'],
   ['global-company-ranking-goals', 'tests/global-company-ranking-goals-test.js'],
+  ['global-company-ranking-shift-draws', 'tests/global-company-ranking-shift-draws-test.js'],
   ['group-capital-allocation-execution', 'tests/group-capital-allocation-execution-test.js'],
   ['group-capital-allocation-plan', 'tests/group-capital-allocation-plan-test.js'],
   ['group-holding-governance', 'tests/group-holding-governance-test.js'],
