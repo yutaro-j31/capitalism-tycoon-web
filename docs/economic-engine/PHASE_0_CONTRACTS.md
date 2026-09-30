@@ -1,7 +1,7 @@
 # Economic Engine Phase 0 Contracts
 
-**Status: PROPOSED FOR GATE D APPROVAL — second-review remediation applied**  
-**Validated repository baseline: `694bc395df968e9e96fa5c3cc162f81acf797f27`**  
+**Status: PROPOSED FOR GATE D APPROVAL — second-review remediation + latest-main sync applied**  
+**Validated repository baseline: `62a9b15be50918bced82e4072d03fc306c0b51da` (#808, #820, #823 included)**  
 **Implementation permission: NO**
 
 This document turns the Phase 0 items in `ECONOMIC_ENGINE_ROADMAP.md` into explicit contracts. It is a specification only. It does not authorize Phase 1 implementation.
@@ -767,13 +767,31 @@ scenarioId
 scenarioVersion
 engineCapabilities
 scenarioFeatures
-seed
+requestedScenarioSeed
+simulationRngSeed
+simulationRngVersion
+simulationRngDrawsAtStart
+simulationRngDrawsAtEnd
+subsystemSeedRoots[]
+scenarioIdentityFields
 size
 duration
 expectedInvariants
 stateHashVersion
 sourceMainSha
+outcomePathSignature
 ```
+
+For a new-game stochastic scenario:
+
+```text
+requestedScenarioSeed === state.simulationRng.seed
+```
+
+is a pre-statistics invariant. A multi-seed sweep is invalid if nominal/requested seeds vary but the persisted simulation seed or the stochastic path being measured collapses to one repeated path.
+
+The detailed seed-provenance contract is normative Phase 0.5 input:
+`docs/economic-engine/PHASE_0_5_SEED_VALIDATION.md`.
 
 Required scale controls support at least company counts 10/50/100/250/500/1000 and durations 1/10/50/100 years, with smoke/nightly/deep tiers rather than every Cartesian combination in ordinary CI.
 
@@ -791,7 +809,14 @@ Before Phase 1 acceptance, the permanent harness must additionally support:
 - legacy adapter parity for cash, debt, ownership and standalone finance projections;
 - capability-aware explicit no-op phases;
 - Number monetary-envelope reachability probes;
-- raw/stored/peak-memory/runtime save metrics by scenario tier.
+- raw/stored/peak-memory/runtime save metrics by scenario tier;
+- explicit injection of requested scenario seeds into persisted `simulationRng.seed`;
+- seed-diversity and stochastic-path-diversity checks **before** aggregate balance statistics are accepted;
+- nuisance-input invariance checks proving company name/ticker/player/fixture labels do not secretly select stochastic paths;
+- exact replay checks for fixed persisted simulation state;
+- separate classification of new-game seed-root runs versus legacy saves that preserve older persisted subsystem seeds.
+
+A deterministic subsystem may consume the main persisted `simulationRng` stream or derive keyed/read-only randomness from `simulationRng.seed`, but another identity field must not silently become an entropy root unless an approved economic contract explicitly requires it.
 
 ## 13. Migration authority rule
 
