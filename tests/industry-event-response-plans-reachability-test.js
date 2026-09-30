@@ -46,8 +46,13 @@ function pickFinite(source, keys) {
   return null;
 }
 
+const SETTLEMENT_WEEKS = 8;
+
 function measuredOutcome(seed, planType) {
-  const { loaded, engine } = advanceToFirstEvent(seed, planType || 'no-plan-control');
+  // Every plan and the control run the same game (same seed and company name), so the comparison sees only
+  // the plan. The economy used to be seeded from the company name, and a different name per plan gave each
+  // run its own economy, which made a plan with no effect look effective (supply hedge on ramen, #812).
+  const { loaded, engine } = advanceToFirstEvent(seed, 'Response Plan Comparison Co');
   const eventId = engine.g.activeIndustryEvent.id;
   const business = engine.g.businesses.find(row => row.id === 'ramen');
   const store = engine.g.stores[0];
@@ -71,7 +76,6 @@ function measuredOutcome(seed, planType) {
   const cashBeforeWeek = engine.g.companyCash;
   assert.notEqual(engine.advanceWeek(false), false, 'post-selection week advances normally');
   const operatingCashDelta = engine.g.companyCash - cashBeforeWeek;
-  const adjustedFinalCash = engine.g.companyCash + cost;
   const marketResult = engine.g.marketResultsByStoreID?.[store.id] || store.marketResult || {};
   const supplyResult = engine.g.supplyResultsByStoreID?.[store.id] || {};
   const customers = pickFinite(marketResult, ['customers','customerCount','visitors','units','quantity','demandUnits']);
@@ -86,6 +90,10 @@ function measuredOutcome(seed, planType) {
     baseDemand, appliedDemand, appliedUnitCost, demandInput, customers, sales, grossCost, profit, operatingCashDelta
   };
   console.log(`response-plan-trace ${JSON.stringify(trace)}`);
+  // Ramen ingredients are bought on credit (3-week terms), so a hedge on purchase prices reaches cash only when
+  // the orders placed during the event are paid. Compare cash over a window that covers those payments.
+  for (let k = 1; k < SETTLEMENT_WEEKS; k += 1) assert.notEqual(engine.advanceWeek(false), false, 'settlement weeks advance normally');
+  const adjustedFinalCash = engine.g.companyCash + cost;
   return {
     ...trace,
     cost,
@@ -165,6 +173,7 @@ for (const result of [demand, supply, technology]) {
 }
 assert(demand.appliedDemand > demand.baseDemand, 'demand defense changes business demand before weekly sales calculation');
 assert(supply.appliedUnitCost < supply.baseDemand || supply.grossCost !== control.grossCost, 'supply hedge changes effective cost input or realized cost');
+assert(supply.adjustedFinalCash > control.adjustedFinalCash, `supply hedge lowers ingredient purchase costs: ${supply.adjustedFinalCash} vs control ${control.adjustedFinalCash}`);
 
 const full = runLifecycle(seed, 208);
 const deterministicA = runLifecycle(seed, 86);
