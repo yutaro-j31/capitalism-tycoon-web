@@ -356,6 +356,7 @@ const nodeTests = [
   ['pe-portfolio-operations', 'tests/pe-portfolio-operations-test.js'],
   ['pe-portfolio-production-site', 'tests/pe-portfolio-production-site-test.js'],
   ['pe-portfolio-weekly-settlement', 'tests/pe-portfolio-weekly-settlement-test.js'],
+  ['pe-portfolio-noise-draws', 'tests/pe-portfolio-noise-draws-test.js'],
   ['pe-exit-preview', 'tests/pe-exit-preview-test.js'],
   ['pe-management-context', 'tests/pe-management-context-test.js'],
   ['pe-product-ventures-portfolio-bridge', 'tests/pe-product-ventures-portfolio-bridge-test.js'],

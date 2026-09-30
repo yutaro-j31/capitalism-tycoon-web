@@ -11,15 +11,19 @@ function parityFixture(businessID='gym',id='parity-deal'){
   const fund={size:0,terms:{fee:0},team:{partners:1,principals:1,associates:2},deals:[deal]};
   return {fund,deal,pc};
 }
+// Week-80 figures for the parity fixture. #812 made the weekly profit noise an independent draw: the
+// noise for this deal and week is 1.0003839974 (it was 0.9684798281), and revenue and profit moved by
+// exactly that factor (was 5033986.5342206545 / 3644245.189303519). The cash change is compared with
+// the same float addition the settlement does (cash + profit), which rounds in the last digit.
 {
   const {fund,deal,pc}=parityFixture(),before=plain({fund,deal}),callsBefore=randomCalls;
   const result=ops.calculatePortfolioOperatingWeek(fund,deal,80);
   assert.deepEqual(plain({fund,deal}),before,'calculation is pure');assert.equal(randomCalls,callsBefore,'calculation consumes no RNG');
-  assert.equal(result.week,80);assert.equal(result.source,'generic');assert.equal(result.revenue,5033986.5342206545);assert.equal(result.profit,3644245.189303519);
+  assert.equal(result.week,80);assert.equal(result.source,'generic');assert.equal(result.revenue,5199818.7531460365);assert.equal(result.profit,3768109.916921017);
   const cashBefore=pc.cash;assert.equal(ops.settlePortfolioOperatingWeek(deal,result),true);
-  assert.equal(pc.weeklyRevenue,5033986.5342206545);assert.equal(pc.weeklyProfit,3644245.189303519);assert.equal(pc.cash-cashBefore,3644245.189303519);assert.equal(pc.improvementScore,55);
-  assert.equal(ops.settlePortfolioOperatingWeek(deal,result),false,'same result cannot settle twice');assert.equal(pc.cash-cashBefore,3644245.189303519);
-  ops.processDealWeek(fund,deal,80);assert.equal(pc.cash-cashBefore,3644245.189303519,'same-week process is also idempotent');
+  assert.equal(pc.weeklyRevenue,5199818.7531460365);assert.equal(pc.weeklyProfit,3768109.916921017);assert.equal(pc.cash-cashBefore,(cashBefore+3768109.916921017)-cashBefore);assert.equal(pc.improvementScore,55);
+  assert.equal(ops.settlePortfolioOperatingWeek(deal,result),false,'same result cannot settle twice');assert.equal(pc.cash-cashBefore,(cashBefore+3768109.916921017)-cashBefore);
+  ops.processDealWeek(fund,deal,80);assert.equal(pc.cash-cashBefore,(cashBefore+3768109.916921017)-cashBefore,'same-week process is also idempotent');
 }
 for(const businessID of ['ramen','conveni','gym','realEstateAgency','productVentures','non-pillar']){
   const {deal}=parityFixture(businessID,`fallback-${businessID}`);
@@ -33,7 +37,7 @@ for(const businessID of ['ramen','conveni','gym','realEstateAgency','productVent
   const deal=ops.acquirePillarCompany(engine.g,fund.id,{businessID:'gym',enterpriseValue:2_000_000_000,useCoinvest:false,week:1});
   assert(deal&&deal.portfolioCompany.productionSite,'gym deal has production site');
   const before=plain(engine.g),callsBefore=randomCalls;
-  const generic=ops.calculateGenericPortfolioOperatingWeek(fund,deal,2);
+  const generic=ops.calculateGenericPortfolioOperatingWeek(fund,deal,2,engine.g);
   const neutral=ops.calculatePortfolioOperatingWeek(fund,deal,2,engine.g);
   assert.equal(ops.resolvePortfolioOperatingCalculator(deal,engine.g),ops.calculateGymPortfolioOperatingWeek,'production state dispatches gym calculator');
   assert.equal(neutral.source,'gym');
@@ -51,7 +55,7 @@ for(const businessID of ['ramen','conveni','gym','realEstateAgency','productVent
 
   ops.setPriceMultiplier(engine.g,fund.id,deal.id,1.25);
   const beforePriceCalc=plain(engine.g),callsBeforePrice=randomCalls;
-  const priced=ops.calculatePortfolioOperatingWeek(fund,deal,3,engine.g),oldGeneric=ops.calculateGenericPortfolioOperatingWeek(fund,deal,3);
+  const priced=ops.calculatePortfolioOperatingWeek(fund,deal,3,engine.g),oldGeneric=ops.calculateGenericPortfolioOperatingWeek(fund,deal,3,engine.g);
   assert.equal(priced.source,'gym');
   assert(priced.components.gymSalesFactor>1,'higher PE gym fee raises production membership sales versus standard-price control');
   assert(priced.components.gymContributionFactor>1,'higher PE gym fee raises production contribution versus standard-price control');
@@ -71,7 +75,7 @@ for(const businessID of ['ramen','conveni','gym','realEstateAgency','productVent
   const deal=ops.acquirePillarCompany(engine.g,fund.id,{businessID:'conveni',enterpriseValue:2_000_000_000,useCoinvest:false,week:1});
   assert(deal&&deal.portfolioCompany.productionSite,'conveni deal has production site');
   const before=plain(engine.g),callsBefore=randomCalls;
-  const generic=ops.calculateGenericPortfolioOperatingWeek(fund,deal,2);
+  const generic=ops.calculateGenericPortfolioOperatingWeek(fund,deal,2,engine.g);
   const neutral=ops.calculatePortfolioOperatingWeek(fund,deal,2,engine.g);
   assert.equal(ops.resolvePortfolioOperatingCalculator(deal,engine.g),ops.calculateConveniPortfolioOperatingWeek,'production state dispatches conveni calculator');
   assert.equal(neutral.source,'conveni');
@@ -89,7 +93,7 @@ for(const businessID of ['ramen','conveni','gym','realEstateAgency','productVent
 
   ops.setPriceMultiplier(engine.g,fund.id,deal.id,1.25);
   const beforePriceCalc=plain(engine.g),callsBeforePrice=randomCalls;
-  const priced=ops.calculatePortfolioOperatingWeek(fund,deal,3,engine.g),oldGeneric=ops.calculateGenericPortfolioOperatingWeek(fund,deal,3);
+  const priced=ops.calculatePortfolioOperatingWeek(fund,deal,3,engine.g),oldGeneric=ops.calculateGenericPortfolioOperatingWeek(fund,deal,3,engine.g);
   assert.equal(priced.source,'conveni');
   assert(priced.components.conveniSalesFactor>1,'higher PE conveni price raises production merchandising sales versus standard-price control');
   assert.deepEqual(plain(engine.g),beforePriceCalc,'priced conveni calculation stays read-only');
