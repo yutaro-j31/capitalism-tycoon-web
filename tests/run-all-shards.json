@@ -73,6 +73,7 @@
     "tests/real-estate-building-depreciation-test.js",
     "tests/real-estate-land-book-classification-test.js",
     "tests/real-estate-agency-pipeline-test.js",
+    "tests/real-estate-agency-pipeline-draws-test.js",
     "tests/personal-real-estate-depreciation-test.js",
     "tests/company-valuation-normalization-test.js",
     "tests/weekly-cashflow-bridge-test.js",

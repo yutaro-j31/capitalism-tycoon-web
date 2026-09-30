@@ -13,7 +13,11 @@ const loaded=()=>loadGame({headless:true});
 // Balanced uses the exact pre-feature cumulative-weight algorithm for individual identities.
 {
  const mod=loaded().modules.realEstateAgencyPipeline;
- assert.equal(mod.segmentForDeal(4242,'deal-109','store-a','balanced'),'residential','pre-feature main identity at the residential boundary must remain exact');
+ // Identities on either side of the residential boundary (cumulative weight .58). #802 added a
+ // finalizer to the pipeline hash, so the IDs that sit on the boundary changed: deal-15 rolls
+ // .57891 and deal-256 rolls .58086 (deal-109 rolled .57843 before the finalizer).
+ assert.equal(mod.segmentForDeal(4242,'deal-15','store-a','balanced'),'residential','identity just below the residential boundary must remain exact');
+ assert.equal(mod.segmentForDeal(4242,'deal-256','store-a','balanced'),'luxury','identity just above the residential boundary must remain exact');
  for(const seed of [1,77,731,9999])for(const store of ['s1','tokyo-main','branch-3'])for(let i=0;i<50;i++){
   const id=`deal-${i}`;assert.equal(mod.segmentForDeal(seed,id,store,'balanced'),mod.legacySegmentForDeal(seed,id,store));
  }
