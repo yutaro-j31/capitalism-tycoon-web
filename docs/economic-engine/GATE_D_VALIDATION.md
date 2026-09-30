@@ -1,9 +1,9 @@
 # Gate D Validation — Economic Engine Roadmap v2
 
-**Status: READY FOR OWNER APPROVAL / FINAL INDEPENDENT CODEX REVIEW PASS**  
+**Status: COMPLETE / OWNER APPROVED**  
 **Gate C: COMPLETE / OWNER ACCEPTED**  
 **Gate D independent review baseline: `23a4858fa0fb8c28e1c17abfe7f342cb108b6e6a`**  
-**Current repository main at bookkeeping update: `f97fe2b041421a81637fea6c333f4e79186ac85b`**  
+**Gate D owner-approval baseline: `d2ccba060c18e117afa4ab3c2eee095f81aad311`**  
 **Tracker: #804**  
 **Implementation baseline: NO**
 
@@ -288,22 +288,24 @@ Codex reviews, ChatGPT cross-checks, runtime remediation PRs and merged Gate D d
 - [x] #809 updated branch included latest-main ancestry and CI was green
 - [x] #809 merged as `23a4858fa0fb8c28e1c17abfe7f342cb108b6e6a`
 - [x] final focused Independent Codex closure review completed against exact `23a4858fa0fb8c28e1c17abfe7f342cb108b6e6a` — PASS
-- [ ] owner approves Phase 0 contracts
-- [ ] owner approves dependency graph
-- [ ] owner approves Gate D completion
+- [x] owner approves Phase 0 contracts
+- [x] owner approves dependency graph
+- [x] owner approves Gate D completion
 
-Until every remaining item is complete:
+Gate D is complete and owner approved.
 
-- Gate D remains open;
+This completion does **not** authorize Phase 1:
+
 - `Implementation baseline: NO` remains unchanged;
-- Phase 1 must not begin.
+- Gate E / #745 remains required;
+- the full Phase 0.5 Permanent Headless Harness must be completed and accepted;
+- Gate F and all remaining Phase 1 entry gates must be satisfied;
+- Phase 1 must not begin before those gates are complete.
 
 ## 10. Next sequence
 
-1. obtain owner approval of the Phase 0 contracts;
-2. obtain owner approval of the dependency graph;
-3. obtain owner approval of Gate D completion;
-4. request Claude Code final #745 full-remediation completion attestation (Gate E);
-5. complete and accept the full Phase 0.5 Permanent Headless Harness;
-6. satisfy Gate F and all remaining Phase 1 entry gates;
-7. only then create a fresh Phase 1 implementation branch from the latest stable main.
+1. request Claude Code final #745 full-remediation completion attestation (Gate E);
+2. resolve any attestation gap found by Claude Code;
+3. complete and accept the full Phase 0.5 Permanent Headless Harness;
+4. satisfy Gate F and all remaining Phase 1 entry gates;
+5. only then create a fresh Phase 1 implementation branch from the latest stable main.
