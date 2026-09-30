@@ -82,6 +82,7 @@ const nodeTests = [
   ['map-marker-density-selection', 'tests/map-marker-density-selection-test.js'],
   ['d-ui-shell', 'tests/d-ui-shell-test.js'],
   ['deterministic-economic-foundation', 'tests/deterministic-economic-foundation-test.js'],
+  ['economic-foundation-draws', 'tests/economic-foundation-draws-test.js'],
   ['executive-dismissal-governance', 'tests/executive-dismissal-governance-test.js'],
   ['executive-retirement-succession', 'tests/executive-retirement-succession-test.js'],
   ['executive-reviews-succession-board', 'tests/executive-reviews-succession-board-test.js'],
