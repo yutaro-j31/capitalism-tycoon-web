@@ -7,6 +7,14 @@ if(modules.realEstateAgencyPipeline)throw new Error('real-estate-agency-pipeline
 const BUSINESS_ID='realEstateAgency',SCHEMA_VERSION=3,SINGLE_COMMISSION_RATE=.055,DOUBLE_COMMISSION_RATE=.065,DOUBLE_SIDE_RATE=.5,HISTORY_LIMIT=52;
 const SEGMENTS=Object.freeze(['residential','luxury','investment','corporateDeal']);
 const FOCUS_WEIGHT_MULTIPLIER=3;
+// The close and mandate chances were tuned while each deal effectively got one close roll for its
+// whole life and a store's weekly inquiries became mandates all together or not at all (#802).
+// With independent rolls the same chances close about 95% of deals instead of about 42% and earn
+// about four times as much. Scaling both keeps a single store close to its pre-fix figures (24
+// seeds, 104 weeks: commission 1.09M/week vs 1.11M, close rate 47% vs 42%, 11.1 vs 11.6 deals in
+// the pipeline). Scaling only the close chance kept the pipeline full and lost 41% of inquiries;
+// scaling only the mandate chance left the pipeline nearly empty.
+const CLOSE_PACE=.2,MANDATE_PACE=.6;
 const FOCUS_ORDER=Object.freeze(['balanced',...SEGMENTS]);
 const FOCUSES=Object.freeze({balanced:Object.freeze({id:'balanced',name:'バランス営業'}),residential:Object.freeze({id:'residential',name:'一般住宅重視'}),luxury:Object.freeze({id:'luxury',name:'高級住宅重視'}),investment:Object.freeze({id:'investment',name:'投資物件重視'}),corporateDeal:Object.freeze({id:'corporateDeal',name:'法人案件重視'})});
 // Weighted asking value (1.019x) and closing propensity (1.067x at a neutral cycle)
@@ -20,7 +28,16 @@ const SEGMENT_CONFIG=Object.freeze({
 const finite=(value,fallback=0)=>Number.isFinite(Number(value))?Number(value):fallback;
 const clamp=(value,min,max)=>Math.min(max,Math.max(min,finite(value,min)));
 const integer=(value,fallback=0)=>Math.max(0,Math.floor(finite(value,fallback)));
-const hash=(seed,salt)=>{let h=2166136261>>>0;for(const c of `${seed}:${salt}`){h^=c.charCodeAt(0);h=Math.imul(h,16777619)>>>0;}return h/4294967296;};
+// FNV-1a alone leaves its top bits almost unchanged when only the last characters of the key
+// change, and every roll key here ends in the week or an inquiry index. Without the murmur3
+// finalizer a deal got nearly the same close roll every week (median change 0.0039), so it either
+// closed at once or held a pipeline slot until it expired, and a store's inquiries in one week all
+// became mandates or none did (#802).
+const hash=(seed,salt)=>{let h=2166136261>>>0;for(const c of `${seed}:${salt}`){h^=c.charCodeAt(0);h=Math.imul(h,16777619)>>>0;}h^=h>>>16;h=Math.imul(h,0x85ebca6b)>>>0;h^=h>>>13;h=Math.imul(h,0xc2b2ae35)>>>0;h^=h>>>16;return (h>>>0)/4294967296;};
+// The game's own seed, so two games do not see the same deals. g.seed is never set, so every game
+// used 1 and a store's deals depended only on its ID and the week (#802). Reading the stored seed
+// does not draw from the stream.
+const seedOf=g=>g?.simulationRng?.seed||g?.seed||1;
 const commissionRateForSide=side=>side==='double'?DOUBLE_COMMISSION_RATE:SINGLE_COMMISSION_RATE;
 const sideForDeal=(seed,dealID,storeID)=>hash(seed||1,`${storeID}:${dealID}:side`)<DOUBLE_SIDE_RATE?'double':'single';
 const legacySegmentForDeal=(seed,dealID,storeID)=>{const roll=hash(seed||1,`${storeID}:${dealID}:segment`);let cumulative=0;for(const segment of SEGMENTS){cumulative+=SEGMENT_CONFIG[segment].weight;if(roll<cumulative)return segment;}return 'corporateDeal';};
@@ -61,28 +78,28 @@ function normalize(g){
   const businesses=Array.isArray(g?.businesses)?g.businesses:[],business=businesses.find(x=>x?.id===BUSINESS_ID);
   for(const store of Array.isArray(g?.stores)?g.stores:[])if(store?.businessID===BUSINESS_ID&&store.brokeragePipeline&&typeof store.brokeragePipeline==='object'){
     const siteMultiplier=globalThis.__capitalismTycoonModules?.tenantSiteSuitability?.forStore?.(g,store)?.multiplier??1;
-    ensureStore(store,business,integer(g.week,1),g.seed,siteMultiplier);
+    ensureStore(store,business,integer(g.week,1),seedOf(g),siteMultiplier);
   }
 }
 function processStore(g,store,business,pref,siteMultiplier=1){
   if(!store||store.businessID!==BUSINESS_ID||store.status!=='open')return null;
-  const week=Math.max(1,integer(g?.week,1)),pipeline=ensureStore(store,business,week,g?.seed,siteMultiplier),cycle=marketIndicator(g);
+  const week=Math.max(1,integer(g?.week,1)),pipeline=ensureStore(store,business,week,seedOf(g),siteMultiplier),cycle=marketIndicator(g);
   const quality=clamp(business?.quality,0,100),brand=clamp(business?.brand,0,100),dx=clamp(business?.dx,0,100),efficiency=clamp(business?.efficiency,0,100);
   let closedDeals=0,singleClosedDeals=0,doubleClosedDeals=0,lostDeals=0,closedTransactionVolume=0,singleCommissionRevenue=0,doubleCommissionRevenue=0,totalCloseWeeks=0;const closedBySegment=emptySegmentCounts();
   const survivors=[];
   for(const deal of pipeline.activeDeals){
-    const age=Math.max(0,week-deal.createdWeek),config=SEGMENT_CONFIG[deal.segment],baseCloseChance=.18+quality*.0022+dx*.001+(cycle-1)*.18+efficiency*.0006,cycleAdjustment=(cycle-1)*.18*(config.cycleSensitivity-1),closeChance=clamp(baseCloseChance*config.closeMultiplier+cycleAdjustment,.08,.68);
-    const closeRoll=hash(g.seed||1,`${store.id}:${deal.id}:close:${week}`),expiryWeeks=Math.max(6,14-Math.floor(efficiency/18)-Math.floor(dx/30)+config.expiryOffset);
-    if(age>=1&&closeRoll<closeChance){const negotiation=.88+hash(g.seed||1,`${deal.id}:value:${week}`)*.2,transactionValue=Math.round(deal.askingValue*negotiation),fee=Math.round(transactionValue*commissionRateForSide(deal.side));closedDeals++;closedBySegment[deal.segment]++;closedTransactionVolume+=transactionValue;totalCloseWeeks+=age;if(deal.side==='double'){doubleClosedDeals++;doubleCommissionRevenue+=fee;}else{singleClosedDeals++;singleCommissionRevenue+=fee;}}
+    const age=Math.max(0,week-deal.createdWeek),config=SEGMENT_CONFIG[deal.segment],baseCloseChance=.18+quality*.0022+dx*.001+(cycle-1)*.18+efficiency*.0006,cycleAdjustment=(cycle-1)*.18*(config.cycleSensitivity-1),closeChance=clamp(baseCloseChance*config.closeMultiplier+cycleAdjustment,.08,.68)*CLOSE_PACE;
+    const closeRoll=hash(seedOf(g),`${store.id}:${deal.id}:close:${week}`),expiryWeeks=Math.max(6,14-Math.floor(efficiency/18)-Math.floor(dx/30)+config.expiryOffset);
+    if(age>=1&&closeRoll<closeChance){const negotiation=.88+hash(seedOf(g),`${deal.id}:value:${week}`)*.2,transactionValue=Math.round(deal.askingValue*negotiation),fee=Math.round(transactionValue*commissionRateForSide(deal.side));closedDeals++;closedBySegment[deal.segment]++;closedTransactionVolume+=transactionValue;totalCloseWeeks+=age;if(deal.side==='double'){doubleClosedDeals++;doubleCommissionRevenue+=fee;}else{singleClosedDeals++;singleCommissionRevenue+=fee;}}
     else if(age>=expiryWeeks){lostDeals++;}
     else survivors.push(deal);
   }
   pipeline.activeDeals=survivors;
-  const inquiryBase=(2+brand/12)*(finite(pref?.traffic,1))*(.72+cycle*.28)*(1+dx/250)*clamp(siteMultiplier,.9,1.1),inquiries=Math.max(0,Math.floor(inquiryBase+hash(g.seed||1,`${store.id}:inquiries:${week}`)*2));
-  const available=Math.max(0,pipeline.capacity-pipeline.activeDeals.length),mandateChance=clamp(.34+brand*.002+quality*.0015+(cycle-1)*.12,.2,.68);let mandates=0,processedInquiries=0;
-  for(;processedInquiries<inquiries&&mandates<available;processedInquiries++)if(hash(g.seed||1,`${store.id}:mandate:${week}:${processedInquiries}`)<mandateChance){
-    const id=`BRA-${store.id}-${week}-${processedInquiries}`,segment=segmentForDeal(g.seed||1,id,store.id,focusFor(business).id),marketValue=(18_000_000+hash(g.seed||1,`${id}:asking`)*52_000_000)*cycle*SEGMENT_CONFIG[segment].valueMultiplier;
-    pipeline.activeDeals.push({id,storeID:store.id,createdWeek:week,askingValue:Math.round(marketValue),side:sideForDeal(g.seed||1,id,store.id),segment});mandates++;
+  const inquiryBase=(2+brand/12)*(finite(pref?.traffic,1))*(.72+cycle*.28)*(1+dx/250)*clamp(siteMultiplier,.9,1.1),inquiries=Math.max(0,Math.floor(inquiryBase+hash(seedOf(g),`${store.id}:inquiries:${week}`)*2));
+  const available=Math.max(0,pipeline.capacity-pipeline.activeDeals.length),mandateChance=clamp(.34+brand*.002+quality*.0015+(cycle-1)*.12,.2,.68)*MANDATE_PACE;let mandates=0,processedInquiries=0;
+  for(;processedInquiries<inquiries&&mandates<available;processedInquiries++)if(hash(seedOf(g),`${store.id}:mandate:${week}:${processedInquiries}`)<mandateChance){
+    const id=`BRA-${store.id}-${week}-${processedInquiries}`,segment=segmentForDeal(seedOf(g),id,store.id,focusFor(business).id),marketValue=(18_000_000+hash(seedOf(g),`${id}:asking`)*52_000_000)*cycle*SEGMENT_CONFIG[segment].valueMultiplier;
+    pipeline.activeDeals.push({id,storeID:store.id,createdWeek:week,askingValue:Math.round(marketValue),side:sideForDeal(seedOf(g),id,store.id),segment});mandates++;
   }
   // パイプラインが満杯（mandates>=available）で処理を打ち切った場合、残りの問い合わせは媒介化のチャンスすら
   // 得られなかった。新たな乱数は消費せず、既に分かっている件数の差分だけで機会損失を可視化する。
@@ -94,5 +111,5 @@ function processStore(g,store,business,pref,siteMultiplier=1){
   for(const segment of SEGMENTS)pipeline.totals.closedBySegment[segment]+=closedBySegment[segment];
   return {sales:commissionRevenue,variable:Math.round(commissionRevenue*.1),kpi:row};
 }
-modules.realEstateAgencyPipeline=Object.freeze({BUSINESS_ID,SCHEMA_VERSION,SINGLE_COMMISSION_RATE,DOUBLE_COMMISSION_RATE,DOUBLE_SIDE_RATE,HISTORY_LIMIT,SEGMENTS,SEGMENT_CONFIG,FOCUS_WEIGHT_MULTIPLIER,FOCUS_ORDER,FOCUSES,commissionRateForSide,sideForDeal,legacySegmentForDeal,segmentForDeal,focusFor,marketIndicator,capacityFor,eligibleStores,ensureStore,normalize,processStore});
+modules.realEstateAgencyPipeline=Object.freeze({BUSINESS_ID,SCHEMA_VERSION,CLOSE_PACE,MANDATE_PACE,SINGLE_COMMISSION_RATE,DOUBLE_COMMISSION_RATE,DOUBLE_SIDE_RATE,HISTORY_LIMIT,SEGMENTS,SEGMENT_CONFIG,FOCUS_WEIGHT_MULTIPLIER,FOCUS_ORDER,FOCUSES,commissionRateForSide,sideForDeal,legacySegmentForDeal,segmentForDeal,focusFor,marketIndicator,capacityFor,eligibleStores,ensureStore,normalize,processStore});
 })();

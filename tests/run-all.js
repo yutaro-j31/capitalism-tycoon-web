@@ -275,6 +275,7 @@ const nodeTests = [
   ['personal-real-estate-taxes', 'tests/personal-real-estate-taxes-test.js'],
   ['real-estate-cycle-state-collision', 'tests/real-estate-cycle-state-collision-test.js'],
   ['real-estate-agency-pipeline', 'tests/real-estate-agency-pipeline-test.js'],
+  ['real-estate-agency-pipeline-draws', 'tests/real-estate-agency-pipeline-draws-test.js'],
   ['real-estate-agency-site-capacity', 'tests/real-estate-agency-site-capacity-test.js'],
   ['real-estate-agency-credit-line', 'tests/real-estate-agency-credit-line-test.js'],
   ['personal-real-estate-short-term', 'tests/personal-real-estate-short-term-test.js'],
