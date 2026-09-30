@@ -67,7 +67,7 @@ deal.portfolioCompany.storeCount=3;
 deal.portfolioCompany.priceMultiplier=1;
 {
   const before=plain(engine.g),callsBefore=randomCalls;
-  const generic=ops.calculateGenericPortfolioOperatingWeek(fund,deal,2);
+  const generic=ops.calculateGenericPortfolioOperatingWeek(fund,deal,2,engine.g);
   const neutral=ops.calculatePortfolioOperatingWeek(fund,deal,2,engine.g);
   assert.strictEqual(ops.resolvePortfolioOperatingCalculator(deal,engine.g),ops.calculateRamenPortfolioOperatingWeek,'production state dispatches the ramen market calculator');
   assert.equal(neutral.source,'ramen');
@@ -83,7 +83,7 @@ deal.portfolioCompany.priceMultiplier=1.35;
 {
   const before=plain(engine.g),callsBefore=randomCalls;
   const priced=ops.calculatePortfolioOperatingWeek(fund,deal,3,engine.g);
-  const pricedGeneric=ops.calculateGenericPortfolioOperatingWeek(fund,deal,3);
+  const pricedGeneric=ops.calculateGenericPortfolioOperatingWeek(fund,deal,3,engine.g);
   assert.equal(priced.source,'ramen');
   assert(Math.abs(priced.components.ramenSalesFactor-1)>1e-9,'production ramen price elasticity changes sales versus neutral control');
   assert.equal(priced.components.replacedGenericPriceFactor,ops.leverFactors(deal.portfolioCompany,3).priceFactor,'ramen calculator explicitly replaces the generic price factor');
