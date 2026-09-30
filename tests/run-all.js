@@ -85,6 +85,7 @@ const nodeTests = [
   ['executive-dismissal-governance', 'tests/executive-dismissal-governance-test.js'],
   ['executive-retirement-succession', 'tests/executive-retirement-succession-test.js'],
   ['executive-reviews-succession-board', 'tests/executive-reviews-succession-board-test.js'],
+  ['executive-review-variance-draws', 'tests/executive-review-variance-draws-test.js'],
   ['executives-department-assignments', 'tests/executives-department-assignments-test.js'],
   ['global-company-ranking-goals', 'tests/global-company-ranking-goals-test.js'],
   ['global-company-ranking-shift-draws', 'tests/global-company-ranking-shift-draws-test.js'],
