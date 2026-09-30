@@ -31,7 +31,19 @@ g.maSubsidiaries = [{ id: 'sub-a', status: 'active' }, { id: 'sub-b', status: 'a
 assert.equal(mod.companyScore(g), base + 2 * 45, 'two active M&A subsidiaries add 45 points each; a sold one adds none');
 g.maSubsidiaries = [];
 
-// 3. Through normal weekly progression the recorded score is the real one, not 0.
+// 3. Owner decision (#816): prestige is a recorded reward and does not feed the score (it made top25 cascade
+//    to top1 within two weeks), and the base is 1600, so a 1500-point company is not 1st in any week.
+{
+  const before = mod.companyScore(g);
+  g.globalRanking = { ...(g.globalRanking || {}), prestige: 185 };
+  assert.equal(mod.companyScore(g), before, 'prestige does not change the score');
+  assert.equal(mod.RANK_BASE, 1600);
+  const week = g.week;
+  for (let w = 1; w <= 104; w++) { g.week = w; assert.ok(mod.rankFor(g, 1500) > 1, `week ${w}: a 1500-point company is not 1st`); assert.equal(mod.rankFor(g, 1630), 1, `week ${w}: 1630 points is 1st`); }
+  g.week = week;
+}
+
+// 4. Through normal weekly progression the recorded score is the real one, not 0.
 for (let i = 0; i < 4; i++) engine.advanceWeek(false);
 assert.ok(g.globalRanking.score > 0, `the weekly ranking records a real score (${g.globalRanking.score})`);
 assert.equal(g.globalRanking.score, g.globalRanking.history.at(-1).score);
