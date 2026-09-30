@@ -115,6 +115,9 @@ class TycoonEngineV9 extends BaseTycoonEngine{
  normalize(){
   super.normalize();
   upgradeState(this.g);
+  // Every load path (boot, save slot, import) normalizes the migrated state; a ledger written
+  // before LEDGER_COVERAGE_VERSION is reconciled here once.
+  finance.reconcileLegacyLedger(this.g);
   return this.g;
  }
  save(slot=null){
