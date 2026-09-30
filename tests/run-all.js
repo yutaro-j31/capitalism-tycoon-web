@@ -260,6 +260,7 @@ const nodeTests = [
   ['founder-capital-movement', 'tests/founder-capital-movement-test.js'],
   ['completion-actions-ledger', 'tests/completion-actions-ledger-test.js'],
   ['legacy-ledger-reconciliation', 'tests/legacy-ledger-reconciliation-test.js'],
+  ['player-crisis-restructuring-atomicity', 'tests/player-crisis-restructuring-atomicity-test.js'],
   ['startup-deal-flow-refresh', 'tests/startup-deal-flow-refresh-test.js'],
   ['startup-due-diligence', 'tests/startup-due-diligence-test.js'],
   ['vc-fund-lp', 'tests/vc-fund-lp-test.js'],

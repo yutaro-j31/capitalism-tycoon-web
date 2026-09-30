@@ -108,6 +108,9 @@ function execute(instance,type,id){
  if(!eligible(instance))return instance.fail('資産整理は資金繰り注意・危機・再建・回復確認中のみ実行できます。');
  const candidate=findCandidate(instance,type,id);
  if(!candidate)return instance.fail('売却・閉鎖対象が見つかりません。');
+ // One transaction, like creditor negotiation: a failure after the sale (for example validation)
+ // restores the store, property or product, company cash and the action sequence (#806).
+ return instance.runTransaction(()=>{
  const state=instance.g,previousStatus=status(state),actionState=ensure(state),seq=actionState.nextActionSeq++,actionID=`pcr-${seq}`,operationID=`player-crisis-restructuring-${actionID}`,cashBefore=finite(state.companyCash);
  let result=false;
  if(type==='store')result=instance.closeStore(id);
@@ -124,7 +127,8 @@ function execute(instance,type,id){
  validate(state);
  const financeResult=finance.validate(state);
  if(financeResult?.ok===false)throw new Error(financeResult.errors.join(' / '));
- instance.save();instance.emit();return true;
+ return true;
+ });
 }
 
 function activeCorporateCohorts(team){
@@ -191,6 +195,9 @@ function executeCost(instance,type,id){
  if(!eligible(instance))return instance.fail('固定費削減は資金繰り注意・危機・再建・回復確認中のみ実行できます。');
  const candidate=findCostCandidate(instance,type,id);
  if(!candidate)return instance.fail('固定費削減対象が見つかりません。');
+ // One transaction: a failure after the cut (validation, a missing team) restores the project or
+ // headcount, company cash and the action sequence (#806).
+ return instance.runTransaction(()=>{
  const state=instance.g,previousStatus=status(state),actionState=ensure(state),seq=actionState.nextActionSeq++,actionID=`pcr-${seq}`,operationID=`player-crisis-cost-${actionID}`,cashBefore=finite(state.companyCash);
  let result=false;
  if(type==='pauseProject')result=workforce.setProjectStatus(state,id,'paused');
@@ -211,7 +218,8 @@ function executeCost(instance,type,id){
  if(workforceResult?.ok===false)throw new Error(workforceResult.errors.join(' / '));
  const financeResult=finance.validate(state);
  if(financeResult?.ok===false)throw new Error(financeResult.errors.join(' / '));
- instance.save();instance.emit();return true;
+ return true;
+ });
 }
 
 function validate(state){
