@@ -30,6 +30,12 @@ const clone=value=>value===undefined?undefined:value===null?null:JSON.parse(JSON
 function hash(parts){let h=2166136261;String(parts.join('|')).split('').forEach(c=>{h^=c.charCodeAt(0);h=Math.imul(h,16777619);});return h>>>0;}
 function unit(...p){return hash(p)/4294967295;}
 function between(a,b,...p){return a+(b-a)*unit(...p);}
+// The weekly profit noise needs an independent draw each week. hash() alone barely moves its top
+// bits when only the week at the end of the key changes (lag-1 correlation 0.88), so a deal kept
+// nearly the same noise for its whole holding, and the key had no game seed, so every game saw the
+// same noise. This adds the game's stored simulation seed (read only, no draw) and the murmur3
+// finalizer (#812). Identity draws (production site, underperforming ratio) keep hash()/unit().
+function weeklyUnit(state,...p){let h=hash([state?.simulationRng?.seed||state?.seed||1,...p]);h^=h>>>16;h=Math.imul(h,0x85ebca6b)>>>0;h^=h>>>13;h=Math.imul(h,0xc2b2ae35)>>>0;h^=h>>>16;return (h>>>0)/4294967296;}
 
 const PROFIT_HISTORY_LIMIT=260; // 5年分の週次履歴
 const PRODUCTION_SITE_SCHEMA_VERSION=1;
@@ -285,7 +291,7 @@ function leverFactors(pc,week){
 }
 // Pillar calculators must be pure: they return operating results and never settle cash or
 // update portfolio history. The generic calculator contains the exact pre-boundary formula.
-function calculateGenericPortfolioOperatingWeek(fund,deal,week){
+function calculateGenericPortfolioOperatingWeek(fund,deal,week,state){
   const pc=deal.portfolioCompany;
   if(!pc)return null;
   const annualEBITDA=finite(deal.enterpriseValue)/Math.max(1,finite(deal.acquisitionMultiple,8));
@@ -297,7 +303,7 @@ function calculateGenericPortfolioOperatingWeek(fund,deal,week){
   // leverFactors 側には一切入らないため、レバーを増やしても二重適用にならない。
   const weeklyEBITDA=annualEBITDA/52*storeScaleFactor(pc)*pf.attentionMultiplier(fund);
   const lever=leverFactors(pc,week);
-  const noise=between(.92,1.08,'pe-portfolio-week',deal.id,week);
+  const noise=.92+(1.08-.92)*weeklyUnit(state,'pe-portfolio-week',deal.id,week);
   const upkeep=clamp(finite(pc.qualityInvestment)/100,0,1)*QUALITY_UPKEEP_RATE_OF_EBITDA*weeklyEBITDA;
   const weeklyProfit=weeklyEBITDA*lever.revenueFactor*lever.costFactor*noise-upkeep;
   return {week,source:'generic',revenue:weeklyEBITDA*lever.revenueFactor*noise*2,profit:weeklyProfit,components:{annualEBITDA,weeklyEBITDA,revenueFactor:lever.revenueFactor,costFactor:lever.costFactor,noise,upkeep}};
@@ -309,13 +315,13 @@ function calculateGenericPortfolioOperatingWeek(fund,deal,week){
 // procurement remains the existing generic PE cost lever until a dedicated working-capital PR.
 function calculateRamenPortfolioOperatingWeek(fund,deal,week,state){
   const bridge=modules.managementContext;
-  if(!state||deal?.businessID!=='ramen'||!bridge?.previewPEPortfolioRamenWeekForState)return calculateGenericPortfolioOperatingWeek(fund,deal,week);
+  if(!state||deal?.businessID!=='ramen'||!bridge?.previewPEPortfolioRamenWeekForState)return calculateGenericPortfolioOperatingWeek(fund,deal,week,state);
   const pc=deal?.portfolioCompany;
   if(!pc)return null;
   const actual=bridge.previewPEPortfolioRamenWeekForState(state,fund.id,deal.id,{week});
   const control=bridge.previewPEPortfolioRamenWeekForState(state,fund.id,deal.id,{week,priceMultiplierOverride:1});
-  if(!actual?.ok||!control?.ok)return calculateGenericPortfolioOperatingWeek(fund,deal,week);
-  const generic=calculateGenericPortfolioOperatingWeek(fund,deal,week),lever=leverFactors(pc,week),components=generic.components;
+  if(!actual?.ok||!control?.ok)return calculateGenericPortfolioOperatingWeek(fund,deal,week,state);
+  const generic=calculateGenericPortfolioOperatingWeek(fund,deal,week,state),lever=leverFactors(pc,week),components=generic.components;
   const baseRevenueFactor=lever.priceFactor>0?lever.revenueFactor/lever.priceFactor:lever.revenueFactor;
   const salesFactor=control.sales>0?actual.sales/control.sales:1;
   const actualContribution=finite(actual.sales)-finite(actual.variable),controlContribution=finite(control.sales)-finite(control.variable);
@@ -333,14 +339,14 @@ function calculateRamenPortfolioOperatingWeek(fund,deal,week,state){
 // actual price/strategy choices flow through the real gym sales and variable-cost model.
 function calculateGymPortfolioOperatingWeek(fund,deal,week,state){
   const bridge=modules.managementContext;
-  if(!state||deal?.businessID!=='gym'||!bridge?.previewPEPortfolioGymWeekForState)return calculateGenericPortfolioOperatingWeek(fund,deal,week);
+  if(!state||deal?.businessID!=='gym'||!bridge?.previewPEPortfolioGymWeekForState)return calculateGenericPortfolioOperatingWeek(fund,deal,week,state);
   const pc=deal?.portfolioCompany;
   if(!pc)return null;
   const operatingState=pc.gymOperatingState;
   const actual=bridge.previewPEPortfolioGymWeekForState(state,fund.id,deal.id,{week,operatingState});
   const control=bridge.previewPEPortfolioGymWeekForState(state,fund.id,deal.id,{week,operatingState,priceMultiplierOverride:1,membershipStrategyOverride:'standard'});
-  if(!actual?.ok||!control?.ok)return calculateGenericPortfolioOperatingWeek(fund,deal,week);
-  const generic=calculateGenericPortfolioOperatingWeek(fund,deal,week),lever=leverFactors(pc,week),components=generic.components;
+  if(!actual?.ok||!control?.ok)return calculateGenericPortfolioOperatingWeek(fund,deal,week,state);
+  const generic=calculateGenericPortfolioOperatingWeek(fund,deal,week,state),lever=leverFactors(pc,week),components=generic.components;
   const baseRevenueFactor=lever.priceFactor>0?lever.revenueFactor/lever.priceFactor:lever.revenueFactor;
   const salesFactor=control.sales>0?actual.sales/control.sales:1;
   const actualContribution=finite(actual.sales)-finite(actual.variable),controlContribution=finite(control.sales)-finite(control.variable);
@@ -359,14 +365,14 @@ function calculateGymPortfolioOperatingWeek(fund,deal,week,state){
 // so the default path is exactly the generic calculator and only an actual price choice diverges.
 function calculateConveniPortfolioOperatingWeek(fund,deal,week,state){
   const bridge=modules.managementContext;
-  if(!state||deal?.businessID!=='conveni'||!bridge?.previewPEPortfolioConveniWeekForState)return calculateGenericPortfolioOperatingWeek(fund,deal,week);
+  if(!state||deal?.businessID!=='conveni'||!bridge?.previewPEPortfolioConveniWeekForState)return calculateGenericPortfolioOperatingWeek(fund,deal,week,state);
   const pc=deal?.portfolioCompany;
   if(!pc)return null;
   const operatingState=pc.conveniOperatingState;
   const actual=bridge.previewPEPortfolioConveniWeekForState(state,fund.id,deal.id,{week,operatingState});
   const control=bridge.previewPEPortfolioConveniWeekForState(state,fund.id,deal.id,{week,operatingState,priceMultiplierOverride:1});
-  if(!actual?.ok||!control?.ok)return calculateGenericPortfolioOperatingWeek(fund,deal,week);
-  const generic=calculateGenericPortfolioOperatingWeek(fund,deal,week),lever=leverFactors(pc,week),components=generic.components;
+  if(!actual?.ok||!control?.ok)return calculateGenericPortfolioOperatingWeek(fund,deal,week,state);
+  const generic=calculateGenericPortfolioOperatingWeek(fund,deal,week,state),lever=leverFactors(pc,week),components=generic.components;
   const baseRevenueFactor=lever.priceFactor>0?lever.revenueFactor/lever.priceFactor:lever.revenueFactor;
   const salesFactor=control.sales>0?actual.sales/control.sales:1;
   const actualContribution=finite(actual.sales)-finite(actual.variable),controlContribution=finite(control.sales)-finite(control.variable);
@@ -390,14 +396,14 @@ function calculateConveniPortfolioOperatingWeek(fund,deal,week,state){
 // path in production until a follow-up PR wires the UI.
 function calculateRealEstateAgencyPortfolioOperatingWeek(fund,deal,week,state){
   const bridge=modules.managementContext;
-  if(!state||deal?.businessID!=='realEstateAgency'||!bridge?.previewPEPortfolioRealEstateAgencyWeekForState)return calculateGenericPortfolioOperatingWeek(fund,deal,week);
+  if(!state||deal?.businessID!=='realEstateAgency'||!bridge?.previewPEPortfolioRealEstateAgencyWeekForState)return calculateGenericPortfolioOperatingWeek(fund,deal,week,state);
   const pc=deal?.portfolioCompany;
   if(!pc)return null;
   const operatingState=pc.realEstateAgencyOperatingState;
   const actual=bridge.previewPEPortfolioRealEstateAgencyWeekForState(state,fund.id,deal.id,{week,operatingState});
   const control=bridge.previewPEPortfolioRealEstateAgencyWeekForState(state,fund.id,deal.id,{week,operatingState,priceMultiplierOverride:1});
-  if(!actual?.ok||!control?.ok)return calculateGenericPortfolioOperatingWeek(fund,deal,week);
-  const generic=calculateGenericPortfolioOperatingWeek(fund,deal,week),lever=leverFactors(pc,week),components=generic.components;
+  if(!actual?.ok||!control?.ok)return calculateGenericPortfolioOperatingWeek(fund,deal,week,state);
+  const generic=calculateGenericPortfolioOperatingWeek(fund,deal,week,state),lever=leverFactors(pc,week),components=generic.components;
   const baseRevenueFactor=lever.priceFactor>0?lever.revenueFactor/lever.priceFactor:lever.revenueFactor;
   const salesFactor=control.sales>0?actual.sales/control.sales:1;
   const actualContribution=finite(actual.sales)-finite(actual.variable),controlContribution=finite(control.sales)-finite(control.variable);
@@ -416,14 +422,14 @@ function calculateRealEstateAgencyPortfolioOperatingWeek(fund,deal,week,state){
 // actual and control are byte-identical so the historical generic PE baseline is preserved.
 function calculateProductVenturesPortfolioOperatingWeek(fund,deal,week,state){
   const bridge=modules.managementContext;
-  if(!state||deal?.businessID!=='productVentures'||!bridge?.previewPEPortfolioProductVenturesWeekForState)return calculateGenericPortfolioOperatingWeek(fund,deal,week);
+  if(!state||deal?.businessID!=='productVentures'||!bridge?.previewPEPortfolioProductVenturesWeekForState)return calculateGenericPortfolioOperatingWeek(fund,deal,week,state);
   const pc=deal?.portfolioCompany;
   if(!pc)return null;
   const operatingState=pc.productVenturesOperatingState;
   const actual=bridge.previewPEPortfolioProductVenturesWeekForState(state,fund.id,deal.id,{week,operatingState});
   const control=bridge.previewPEPortfolioProductVenturesWeekForState(state,fund.id,deal.id,{week,operatingState,priceMultiplierOverride:1});
-  if(!actual?.ok||!control?.ok)return calculateGenericPortfolioOperatingWeek(fund,deal,week);
-  const generic=calculateGenericPortfolioOperatingWeek(fund,deal,week),lever=leverFactors(pc,week),components=generic.components;
+  if(!actual?.ok||!control?.ok)return calculateGenericPortfolioOperatingWeek(fund,deal,week,state);
+  const generic=calculateGenericPortfolioOperatingWeek(fund,deal,week,state),lever=leverFactors(pc,week),components=generic.components;
   const baseRevenueFactor=lever.priceFactor>0?lever.revenueFactor/lever.priceFactor:lever.revenueFactor;
   const salesFactor=control.sales>0?actual.sales/control.sales:1;
   const actualContribution=finite(actual.sales)-finite(actual.variable),controlContribution=finite(control.sales)-finite(control.variable);

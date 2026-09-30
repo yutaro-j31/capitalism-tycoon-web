@@ -133,7 +133,7 @@ const plain = value => JSON.parse(JSON.stringify(value));
   const calc = ops.calculateRealEstateAgencyPortfolioOperatingWeek(fund, deal, 5, engine.g);
   assert.equal(calc.components.realEstateAgencySalesFactor, 1, 'salesFactor is always exactly 1 for realEstateAgency');
   assert.equal(calc.components.realEstateAgencyContributionFactor, 1, 'contributionFactor is always exactly 1 for realEstateAgency');
-  const generic = ops.calculateGenericPortfolioOperatingWeek(fund, deal, 5);
+  const generic = ops.calculateGenericPortfolioOperatingWeek(fund, deal, 5, engine.g);
   assert.equal(calc.revenue, generic.revenue, 'with salesFactor pinned to 1, realEstateAgency revenue equals the calibrated generic baseline regardless of priceMultiplier');
   assert.equal(calc.profit, generic.profit, 'same for profit');
 }
