@@ -115,6 +115,7 @@ const nodeTests = [
   ['real-estate-capex-actuals', 'tests/real-estate-capex-actuals-test.js'],
   ['real-estate-capex-roi', 'tests/real-estate-capex-roi-test.js'],
   ['real-estate-complete-cycle', 'tests/real-estate-complete-cycle-test.js'],
+  ['real-estate-complete-cycle-draws', 'tests/real-estate-complete-cycle-draws-test.js'],
   ['real-estate-development', 'tests/real-estate-development-test.js'],
   ['real-estate-foundation', 'tests/real-estate-foundation-test.js'],
   ['real-estate-insurance-claims', 'tests/real-estate-insurance-claims-test.js'],
