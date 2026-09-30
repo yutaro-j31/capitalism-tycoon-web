@@ -1,10 +1,10 @@
 # Capitalism Tycoon Economic Engine Integration Roadmap
 
-**Status: DRAFT — v2 / Gate D remediation after independent Codex review**  
+**Status: DRAFT — v2 / Gate D final remediation sync in progress**  
 **Implementation baseline: NO**  
 **Gate C: COMPLETE — physical iPhone evidence accepted; #787 closed**  
 **Gate D tracker: #804 — IN PROGRESS**  
-**Repository baseline reviewed for Gate D: `9adcbfe3d2da60b60efb4663be478ac3fcc67732` (#805 and #799 included)**  
+**Repository baseline reviewed for Gate D: `62a9b15be50918bced82e4072d03fc306c0b51da` (#808, #820, #823 included; #807/#805/#799 ancestors)**  
 **Additional historical audit: completed against local baseline `849586c`**  
 **Gate D contract candidates:** `PHASE_0_CONTRACTS.md`, `ECONOMIC_ENGINE_DEPENDENCY_GRAPH.md`, `GATE_D_VALIDATION.md`  
 **Purpose: audited pre-implementation roadmap**
@@ -64,7 +64,7 @@ Use the Japanese Companies Act-based Control Ladder:
 
 Do **not** use 5% / 20% / 51% / 80% as the Control Ladder.
 
-The exact gameplay rights attached to each approved threshold must be defined in Phase 0 before implementation.
+Phase 0 fixes the thresholds and the denominator/share-class/control framework. Exact command-level gameplay entitlements are a **Phase 3 entry contract** and must be approved before any Phase 3 ownership/control capability becomes executable.
 
 ### 3.2 Founder net worth
 
@@ -363,24 +363,38 @@ Define the engine contracts before changing economic source-of-truth logic.
 
 ### Deliverables
 
-#### 0A. Entity taxonomy
+#### 0A. Entity / role / relationship taxonomy
 
-Define legal/economic entities such as:
+Define stable legal entity kinds separately from overlapping roles/statuses.
+
+Legal entity kinds include at minimum:
 
 - person
+- company
+- fund
+- property vehicle where legally separate
+- bank
+- trust/estate/family vehicle where required
+
+Roles/statuses may overlap and include:
+
 - operating company
 - holding company
 - subsidiary
-- listed company
-- PE fund
-- VC vehicle
-- portfolio company
-- bank
-- property vehicle where needed
+- listed issuer
+- PE/VC portfolio company
+- PE/VC manager / GP
+- JV / associate
+- lender / borrower
+- property owner
+
+Ownership/control/management/LP/intercompany/trust/pledge relationships are stable relationship edges, not substitute entity types.
+
+Securities, debt instruments, properties/assets and accounts have their own stable IDs and refer to legal entities.
 
 ##### External counterparties
 
-The entity model must also support aggregated external counterparties so balanced transactions can distinguish internal transfers from money entering or leaving the modeled ownership graph.
+The model must support deterministic aggregated external counterparties so balanced operations can distinguish internal transfers from economic flows entering or leaving the modeled ownership graph.
 
 Minimum external/system counterparty classes:
 
@@ -390,10 +404,12 @@ Minimum external/system counterparty classes:
 - Government / Tax Authority
 - External Shareholder
 - External Lender
-- External Buyer / Seller
+- External Buyer
+- External Seller
 - LP / Coinvestor
+- Clearing / Settlement
 
-These counterparties do not need to be persisted as individual NPCs. Aggregated deterministic counterparty IDs are sufficient, but every material transaction must identify both economic legs.
+These counterparties do not need to be persisted as individual NPCs. Aggregated deterministic IDs are sufficient, but every material operation must identify all required monetary and position legs.
 
 #### 0B. Economic glossary
 
@@ -434,9 +450,9 @@ Define:
 
 Convert the important invariants in §8 into machine-testable contracts.
 
-#### 0F. Control Ladder rights table
+#### 0F. Control Ladder framework
 
-Map the approved thresholds:
+Lock the approved thresholds:
 
 - 1%
 - 3%
@@ -445,7 +461,7 @@ Map the approved thresholds:
 - 2/3
 - 90%
 
-to specific gameplay rights.
+Phase 0 also defines the denominator/share-class/treasury/non-voting/joint-control framework. The **exact command/UI entitlement matrix is not a Gate D completion item**; it is a Phase 3 entry contract that must be approved before Phase 3 control capabilities become executable.
 
 #### 0G. Founder net-worth contract
 
@@ -460,22 +476,24 @@ Define:
 
 #### 0H. Monetary and close contract
 
-Before Ledger implementation, define:
+Record and enforce the Gate D-approved migration contract:
 
-- authoritative monetary unit
-- whether authoritative cash values are integer yen or another internal minor unit
-- rounding points for interest, tax, ownership, valuation, fees, and distributions
+- saveVersion 9 remains JavaScript Number during the current migration
+- authoritative monetary postings use the ¥0.01 quantum inside the approved exact-quantum envelope
+- rates, ratios, FX, security quantities and valuation-price precision are separate numeric domains
+- rounding points for interest, tax, fees, distributions and family-specific allocations
 - withholding-tax treatment
-- residual rounding treatment
-- accrual versus cash-settlement timing
+- deterministic residual-allocation treatment
+- recognition / due / settlement timing
 - period-opening versus period-closing values
-- tolerance rules for accounting reconciliation
+- invariant-specific legacy adapter tolerances versus new Economic Core posting tolerances
+- Phase 0.5 monetary-range reachability gate before larger-scale authority
 
 Subsystem-specific rounding rules must not silently accumulate unexplained residuals over long simulations.
 
 ### Exit criteria
 
-All agents can interpret entities, transactions, ownership, period boundaries, and invariants consistently.
+All agents can interpret entities, operations/postings, ownership, period boundaries, numeric domains and invariants consistently.
 
 ---
 
@@ -490,7 +508,12 @@ This is not a one-time phase. It becomes permanent infrastructure used by every 
 ### Required capabilities
 
 - deterministic scenario creation
-- explicit seed
+- explicit requested scenario seed injected into persisted `simulationRng.seed`
+- seed provenance from request → persisted simulation root → subsystem seed root → outcome path
+- seed-diversity and stochastic-path-diversity checks before statistical aggregation
+- nuisance-input invariance for company name/ticker/player/fixture labels
+- exact replay for fixed persisted simulation state
+- separate classification of legacy persisted-subsystem-seed runs
 - scenario size controls
 - UI-free economic tick execution
 - metric probes
@@ -518,11 +541,21 @@ Each scenario should carry at least:
 - `harnessSchemaVersion`
 - `engineCapabilities`
 - `scenarioFeatures`
+- `requestedScenarioSeed`
+- `simulationRngSeed`
+- `simulationRngVersion`
+- `simulationRngDrawsAtStart`
+- `simulationRngDrawsAtEnd`
+- `subsystemSeedRoots`
+- `scenarioIdentityFields`
+- `outcomePathSignature`
 - `expectedInvariants`
 - `stateHashVersion`
 - `sourceMainSha`
 
 The schema must evolve without invalidating historical benchmark scenarios unnecessarily.
+
+The normative seed-provenance and nuisance-independence rules are defined in `PHASE_0_5_SEED_VALIDATION.md`. A seed sweep that varies nominal seeds but does not vary persisted `simulationRng.seed` or the stochastic path under study is invalid evidence and must fail before medians, hit rates, percentiles or balance conclusions are calculated.
 
 Candidate API shape:
 
@@ -580,7 +613,7 @@ A stable permanent harness exists before Phase 1 source-of-truth migration begin
 
 **Phase 1 may not begin until this Phase 0.5 exit criterion is met and accepted.**
 
-In addition, the Hard Phase 1 entry gate in `4 must be satisfied, including the Claude Code completion record on Issue #745.
+In addition, the Hard Phase 1 entry gate in §4 must be satisfied, including the Claude Code completion record on Issue #745.
 
 # Phase 1 — Entity-aware Operation / Ledger Foundation
 
@@ -657,7 +690,7 @@ Harden standalone company accounting on top of the transaction/entity contracts.
 - dividend reconciliation
 - buyback reconciliation
 - asset acquisition
-- transaction idempotency
+- operation idempotency
 
 ### Invariants included in completion gate
 
@@ -825,6 +858,23 @@ The Phase 6 valuation service consumes completed authoritative facts such as:
 - market multiple/liquidity inputs where applicable
 
 It produces an immutable, versioned **base valuation snapshot** for a decision cycle.
+
+### Pure Phase 6 calculation DAG
+
+Within Phase 6, calculation order is explicit and acyclic:
+
+```text
+completed accounting / ownership / debt / industry / market observations
+→ risk inputs + Cost of Equity
+→ after-tax Cost of Debt + capital structure
+→ WACC
+→ enterprise / asset valuation
+→ net debt / senior-claim bridge
+→ Equity Value
+→ immutable base valuation snapshot
+```
+
+No step in this DAG mutates the observations it consumes. WACC is derived before valuation formulas that require WACC; valuation output does not feed back into Cost of Equity or the same snapshot's capital structure.
 
 ### Layers
 
@@ -1766,7 +1816,7 @@ The following must be resolved before Economic Engine implementation begins:
 9. approve Economic Operation / multi-leg posting contract and atomic-settlement semantics
 10. approve tick order / action-family timing
 11. approve invariant catalog
-12. define Control Ladder rights table
+12. approve Control Ladder thresholds plus denominator/share-class/control framework; exact command/UI entitlements are a Phase 3 entry contract
 13. define founder net-worth anti-double-counting behavior
 14. define provisional retention/compaction measurement targets; Phase 0.5 must establish evidence-based budgets
 15. define provisional save/performance review markers; Phase 0.5 must establish scenario-tier budgets

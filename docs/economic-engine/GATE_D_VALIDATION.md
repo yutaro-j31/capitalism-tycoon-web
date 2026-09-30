@@ -1,41 +1,40 @@
 # Gate D Validation — Economic Engine Roadmap v2
 
-**Status: IN PROGRESS / FIRST INDEPENDENT CODEX REVIEW REMEDIATED IN THIS BRANCH / SECOND REVIEW REQUIRED**  
+**Status: IN PROGRESS / FINAL REMEDIATION SYNCED TO LATEST MAIN**  
 **Gate C: COMPLETE / OWNER ACCEPTED**  
-**Validation baseline: `9adcbfe3d2da60b60efb4663be478ac3fcc67732`**  
+**Current reviewed main: `62a9b15be50918bced82e4072d03fc306c0b51da`**  
 **Tracker: #804**  
 **Implementation baseline: NO**
 
 ## 1. Purpose
 
-Gate D validates the Economic Engine roadmap against the actual repository before source-of-truth implementation begins.
+Gate D validates the Economic Engine specification against the real repository before any Economic Core source-of-truth migration begins.
 
-Required outputs:
+Gate D requires:
 
 1. latest-main validation
-2. document conflict resolution
-3. Phase 0 contracts
-4. dependency graph
-5. independent Codex review against the exact documents
-6. resolution of review findings
-7. second independent review of the corrected exact documents
+2. document conflict/supersession resolution
+3. coherent Phase 0 contracts
+4. coherent dependency graph
+5. independent review
+6. remediation of review findings
+7. final verification against the exact merged documents and fresh repository state
 8. owner approval
 
-## 2. Repository state reviewed
+Gate D approval still does **not** authorize Phase 1.
 
-Live GitHub verification against the baseline confirmed:
+## 2. Current repository state
 
-- main: `9adcbfe3d2da60b60efb4663be478ac3fcc67732`
-- open PRs at the verification point: 0
+Latest-main verification before this sync:
+
+- main: `62a9b15be50918bced82e4072d03fc306c0b51da`
+- #808: merged as `7fbfae1eca229ba35fb080fc4607dd7fa2894807`
+- #820: merged as `192748568d53186d1db15646cd76f3ea6cfb2dbb`
+- #823: merged as `62a9b15be50918bced82e4072d03fc306c0b51da`
+- #819: closed as superseded by #820
 - #804: open
 - #745: open
-- #805: merged as the baseline SHA
-- #799: merged as `9b8bdc70eecca6e4caa059a3f44863b197b2b8b7` and contained in the baseline
-- main `Test`: success
-- main `Strategy Balance`: success
-- main `Pages Deployment Smoke`: success
-- pages build/deployment: success
-- Release Attestation Sync: success
+- open PRs at the verification point: #809 only
 
 Repository invariants remain:
 
@@ -45,24 +44,60 @@ Repository invariants remain:
 - company/personal/fund/entity cash separation
 - iPhone Safari priority
 
-The repaired production week boundary provides outer transaction/rollback safety, but that mechanism is not itself the future Economic Operation ledger.
+## 3. Relevant production changes since the second Codex review
 
-## 3. Current production facts relevant to Gate D
+### 3.1 #808 — legacy-save finance reconciliation
 
-### 3.1 Finance/accounting
+#808 repaired legacy saves written before #796–#798 where historical cash movement could exist without matching finance-ledger rows.
 
-`js/finance.js` already provides:
+Gate D implication:
 
-- categorized finance events
-- transaction/operation IDs
-- snapshots/statements
-- bounded legacy transaction compaction
-- finance validation
-- debt/fixed-asset projections
+- legacy finance adapter behavior now includes an explicit reconciliation/normalization path for affected old saves;
+- this does not authorize a new Economic Core writer;
+- save key/version remain unchanged;
+- Phase 0/1 contracts must continue to distinguish compatibility repair from future operation-ledger authority.
 
-It is a migration asset, not the final cross-entity kernel.
+The previous Gate D blocker “wait for #808 disposition” is resolved because #808 is merged.
 
-Current legacy validation tolerances are **not one universal ¥2 tolerance**:
+### 3.2 #820 — simulation RNG becomes the new-game macro seed root
+
+#820 corrected two deterministic-randomness defects:
+
+1. keyed weekly macro draws were insufficiently de-correlated;
+2. new-game economic-foundation seed had been derived from company identity rather than the persisted simulation RNG seed.
+
+Current new-game rule:
+
+```text
+economicFoundation.seed ← state.simulationRng.seed
+```
+
+A saved legacy economic-foundation seed remains preserved for backward compatibility.
+
+This matters to Phase 0.5 because a nominal multi-seed experiment can be invalid if changing “test seed” does not actually change the persisted simulation seed/root used by the subsystem under study.
+
+### 3.3 #823 — Phase 0.5 seed-provenance regression gate
+
+#823 added:
+
+- `docs/economic-engine/PHASE_0_5_SEED_VALIDATION.md`
+- `tests/phase0-5-seed-provenance-test.js`
+- registration in `tests/run-all.js`
+
+The executable regression currently proves:
+
+1. requested new-game scenario seed becomes persisted `simulationRng.seed`;
+2. new-game `economicFoundation.seed` derives from that persisted seed;
+3. multiple seeds with fixed identity produce distinct macro paths;
+4. fixed seed with different company/ticker/player labels produces the same macro path;
+5. keyed economic-foundation draws do not consume the main simulation RNG stream;
+6. exact replay holds for the same explicit seed.
+
+The Phase 0.5 roadmap/contracts now incorporate these rules as permanent harness requirements.
+
+## 4. Production accounting facts retained by Gate D
+
+Current legacy `finance.validate()` uses multiple compatibility tolerances:
 
 | Check | Current tolerance |
 |---|---:|
@@ -74,49 +109,77 @@ Current legacy validation tolerances are **not one universal ¥2 tolerance**:
 | archived cash roll-forward | ¥10 |
 | debt / retained earnings | ¥0.1 |
 
-These values are adapter compatibility behavior only.
+These are legacy-adapter compatibility values, not Economic Core posting tolerances.
 
-### 3.2 Transaction retention
+Current `finance.js` still uses bounded legacy-history compaction. The legacy threshold is not an Economic Core retention budget; Phase 0.5 must measure operation/posting/idempotency retention separately.
 
-Current `finance.js` compacts detailed legacy transactions above 5,000 rows while preserving aggregate financial totals.
+## 5. Historical-document supersession
 
-It does **not** prove that 5,000 is the correct Economic Core operation/posting retention limit, and it does not provide a permanent historical idempotency-key index.
+For Economic Engine implementation, Gate D docs override conflicting historical assumptions in `docs/CAPITAL_ALLOCATION_VISION.md`, including:
 
-Therefore 5,000 is now a Phase 0.5 measurement input, not a normative Economic Core cap.
+- old Allocation → Valuation order
+- old weekly phase order
+- historical integer-yen / zero-BS-difference target
+- old P1/P2 numbering
+- historical save/performance thresholds or assumptions
 
-### 3.3 Ownership
+## 6. Independent review history
 
-Current ownership remains fragmented across:
+### First Independent Codex Review
 
-- `founderShares` / founder ownership ratios
-- personal/company stock holdings
-- subsidiaries / listed subsidiaries
-- startups / VC ownership
-- M&A subsidiaries/targets
-- PE fund/deal/portfolio representations
-- competitor ownership
+Reviewed main `9adcbfe3...`.
 
-Current `personalNetWorth()` does not yet consistently include founder own-company equity. The owner rule remains a future migration requirement, not a description of current behavior.
+Verdict: **BLOCK**
 
-### 3.4 Saves / #799
+Major findings included:
 
-Merged #799 establishes:
+- GD-001: single-transfer transaction contract insufficient
+- GD-002: Allocation/Valuation dependency cycle
+- entity-role ambiguity
+- tolerance/precision/retention ambiguities
+- timing/ownership/treasury/banking contract gaps
 
-- optional persisted `saveSequence` transport metadata
-- newest-copy selection across IndexedDB/localStorage
-- legacy fallback to lastSaveDate then week
-- IDB tie preference
-- reconciliation/write-back to the other store
-- stripping `saveSequence` from loaded/live simulation state
-- unchanged SAVE_KEY / saveVersion
+PR #807 remediated those findings and merged as `694bc395...`.
 
-Conclusion: `saveSequence` is transport metadata and is excluded from the semantic Economic state hash.
+### Second Independent Codex Review
 
-## 4. Document consistency / supersession
+Reviewed exact merged main `694bc395...`.
 
-### 4.1 Control Ladder
+Verdict: **PASS WITH CHANGES**
 
-The approved Control Ladder remains:
+Remaining accepted findings:
+
+| ID | Severity | Resolution carried by #809 |
+|---|---|---|
+| GD2-001 | P1 | signed quantity movement, property/debt/security identity, reversal/correction fields, per-currency balance, minimum family schemas, no-hidden-authoritative-mutation rule |
+| GD2-002 | P1 | Phase 0 fixes Control Ladder framework; exact command/UI entitlements become a Phase 3 entry contract |
+| GD2-003 | P2 | explicit Phase 6 Cost of Equity → WACC → EV/Equity Value pure DAG |
+| GD2-004 | P2 | validation record refresh |
+| GD2-005 | P3 | explicit historical save/performance supersession |
+| GD2-006 | P3 | roadmap/reference/terminology cleanup |
+
+No new P0 finding was reported.
+
+## 7. Final second-review remediation contract
+
+### 7.1 Economic Operation/posting
+
+The corrected contract requires:
+
+- `EconomicOperation` as the atomic/idempotent unit;
+- explicit reversal/correction linkage;
+- debit/credit monetary postings;
+- signed quantity changes;
+- debt/security/property/asset stable identity;
+- per-currency monetary balance;
+- security/debt/property/fund position conservation;
+- minimum semantic schemas for material operation families;
+- after cutover, authoritative mutations caused by an operation must be derivable from validated postings;
+- hidden direct mutation is forbidden for cut-over facts.
+
+### 7.2 Control Ladder boundary
+
+Fixed thresholds:
 
 - 1%
 - 3%
@@ -125,170 +188,73 @@ The approved Control Ladder remains:
 - 2/3
 - 90%
 
-5% is a disclosure marker and 20% is an accounting/equity-method marker. Neither is a Control Ladder stage.
+5% remains disclosure-only; 20% remains accounting/equity-method-only.
 
-### 4.2 Capital Allocation Vision
+Phase 0 fixes the threshold and denominator/share-class/control framework.
 
-`docs/CAPITAL_ALLOCATION_VISION.md` remains product/UX/long-term design input.
+Exact command/UI entitlements are a **Phase 3 entry contract** and must be approved before Phase 3 control capability becomes executable.
 
-For Economic Engine implementation, the following historical content is explicitly superseded by the Gate D documents:
-
-- the old Allocation-before-Valuation phase ordering
-- the old weekly phase ordering
-- the historical “integer yen / zero BS difference” target
-- old P1/P2 phase numbering and dependency ordering
-- historical save/performance targets that are not Phase 0.5 measured budgets
-
-A supersession note is added directly to that document in this remediation branch.
-
-### 4.3 Retired roadmap
-
-`docs/DEVELOPMENT_ROADMAP.md` remains historical saveVersion-8-era context and cannot override Economic Engine Gate D.
-
-### 4.4 Domain documents
-
-PE, Microcap, finance, founding-route and other domain docs remain useful only where they do not conflict with:
-
-1. explicit owner decisions
-2. latest main
-3. AGENTS.md / CLAUDE.md
-4. approved Economic Engine contracts
-
-## 5. First Independent Codex Review
-
-The first independent Codex review examined main `9adcbfe3...` locally and returned:
-
-**Overall verdict: BLOCK**
-
-Its environment could not query live GitHub, so it could not independently verify open PR/CI/#804/#745. ChatGPT subsequently verified those live facts against GitHub.
-
-### 5.1 Resolved environment-only finding
-
-**GD-003** — live repository state unavailable to Codex.
-
-Resolution: live GitHub state was independently checked after the review. No hidden open PRs were present at that point; #804/#745 remained open; #799/#805 were merged; main workflows were green.
-
-GD-003 is therefore not a remaining architecture blocker.
-
-### 5.2 Accepted architecture findings and remediation
-
-| ID | Severity | Resolution in corrected Gate D docs |
-|---|---|---|
-| GD-001 | P0 | Replace single from/to transaction row with atomic `EconomicOperation` + multi-leg postings; add account/instrument identity and family-required posting schemas. |
-| GD-002 | P0 | Move pure/base shared valuation before allocation scoring: Phase 6 Base Valuation, Phase 7 Allocation; separate post-decision/public repricing. |
-| GD-004 | P1 | Separate legal entity kind from orthogonal roles/statuses; add relationship identity and manager/GP semantics. |
-| GD-005 | P1 | Record current legacy tolerance by invariant instead of calling all legacy finance “¥2”. |
-| GD-006 | P1 | Add Number + ¥0.01 exact-quantum envelope and Phase 0.5 reachability gate. |
-| GD-007 | P1 | Define period context first and action-family decision/commitment/recognition/due/settlement/effective timing. |
-| GD-008 | P1 | Make journal/idempotency retention evidence-driven; 5,000 becomes provisional measurement input. |
-| GD-009 | P1 | Phase 1 fund/subsidiary/later-phase scope is read-only reconciliation until explicit later cutover. |
-| GD-010 | P1 | Add minimum security class/holding/beneficial owner/pledge identity and IPO/dedup rules. |
-| GD-011 | P2 | 13 weeks remains base liquidity view; add 52-week/maturity-wall and stress views. |
-| GD-012 | P2 | +15% save growth and 10 MB become provisional Phase 0.5 review/warning markers, not normative limits. |
-| GD-013 | P2 | Split Phase 11 legal-entity Treasury settlement from Phase 12 consolidation-aware group liquidity optimization. |
-| GD-014 | P2 | Add Banking-specific entry contract. |
-| GD-015 | P2 | Add explicit section-level supersession for historical vision ordering/precision assumptions. |
-| GD-016 | P3 | Keep thresholds fixed, but require command-level voting/economic denominator/right matrix before Phase 3 implementation. |
-
-## 6. Corrected architecture decisions
-
-### 6.1 Multi-leg Economic Operation
-
-The atomic unit is now the **operation**, not a one-row transfer.
-
-Required concepts include:
-
-- operation ID / idempotency key
-- deterministic posting sequence
-- entity + account per posting
-- debit/credit or one approved signed-delta convention
-- currency where relevant
-- instrument/security/property identity
-- quantity where relevant
-- counterparty/relationship/elimination identity
-- recognition/due/settlement/effective periods
-- explicit reversal/correction linkage
-
-Debt, equity, dividend, buyback, M&A and fund settlement must each define required posting patterns before execution cutover.
-
-### 6.2 Corrected phase order
-
-The corrected central chain is:
+### 7.3 Phase 6 valuation DAG
 
 ```text
-Phase 5 Industry
-→ Phase 6 Base Valuation
-→ Phase 7 Capital Allocation
-→ Phase 8 AI
+completed accounting / ownership / debt / industry / market observations
+→ Cost of Equity
+→ after-tax Cost of Debt + capital structure
+→ WACC
+→ enterprise / asset valuation
+→ net debt / senior-claim bridge
+→ Equity Value
+→ immutable base valuation snapshot
 ```
 
-Allocation consumes an immutable base valuation snapshot. Post-decision/public repricing cannot feed back into the same decision.
+The DAG is pure/read-only and does not reintroduce a same-period allocation/valuation fixed point.
 
-### 6.3 Debt / WACC split
+### 7.4 Phase 0.5 stochastic validation
 
-Phase 4 owns canonical debt instruments and Cost-of-Debt/financing inputs.
+For a new-game stochastic scenario:
 
-Full WACC becomes authoritative only after Phase 6 supplies the Cost-of-Equity / valuation inputs.
+```text
+requestedScenarioSeed
+→ persisted state.simulationRng.seed
+→ documented subsystem root/substream
+→ actual stochastic path
+```
 
-### 6.4 Treasury / consolidation split
+must be auditable.
 
-Phase 11:
-- legal-entity transfer settlement only
+Before aggregate statistics are accepted, the harness must prove:
 
-Phase 12:
-- consolidation/eliminations/NCI/equity-method views
-- then group liquidity optimization
+- seed provenance;
+- intended persisted-seed diversity;
+- stochastic-path diversity;
+- exact replay for fixed persisted state;
+- nuisance-input invariance for identity/label fields that should not control randomness;
+- legacy persisted-subsystem-seed compatibility is measured separately from new-game calibration.
 
-### 6.5 M&A dependency by subtype
-
-Private/cash M&A does not wait for unrelated public-stock cutover if its operation/ownership/debt/valuation prerequisites are authoritative.
-
-Share-swap/public/hostile/security-dependent paths require the relevant Phase 9 capability.
-
-### 6.6 Monetary representation
-
-Number + ¥0.01 remains a **migration compatibility representation**, not an assertion of unlimited future exactness.
-
-Phase 0.5 must test the reachable monetary envelope. If the intended scale can exceed cent-exact Number range, a dedicated representation migration decision is required before that scale becomes authoritative.
-
-## 7. Phase 0.5 strengthened exit criteria
-
-Before Phase 1, the permanent harness must support:
-
-- production wrapper/phase-order characterization
-- writer inventory
-- versioned semantic hash projection registry
-- semantic first-diff
-- save/reload deterministic fork
-- compacted-save/reload deterministic fork
-- operation replay/idempotency
-- rollback mutation tests
-- deterministic ID collision tests
-- adapter parity for cash/debt/ownership/standalone finance
-- capability-aware explicit no-op phases
-- Number monetary-envelope reachability
-- raw/stored/peak-memory/runtime persistence metrics
+The normative detail is `PHASE_0_5_SEED_VALIDATION.md`.
 
 ## 8. Gate E remains separate
 
-Issue #745 still requires the owner-mandated **Claude Code full-remediation completion attestation after Gate D**.
+Issue #745 still requires the owner-mandated **Claude Code full-remediation completion attestation after Gate D owner approval**.
 
-Individual checkmarks, merged remediation PRs, this Codex review, or ChatGPT's cross-check do not satisfy Gate E.
+Codex reviews, ChatGPT cross-checks, runtime remediation PRs and merged Gate D docs do not substitute for that attestation.
 
 ## 9. Gate D completion checklist
 
 - [x] Gate C owner acceptance recorded
-- [x] live repository state validated at `9adcbfe3...`
-- [x] current document hierarchy/conflicts identified
-- [x] initial Phase 0 contracts written
-- [x] initial dependency graph written
-- [x] #799 resolved and included
-- [x] first independent Codex review completed
-- [x] first-review findings triaged against live repository evidence
-- [x] accepted GD-001–GD-016 corrections incorporated in this remediation branch
-- [ ] corrective docs PR merged to main
-- [ ] second independent Codex review against the **corrected merged exact documents**
-- [ ] second-review blockers resolved, if any
+- [x] initial Phase 0 contracts/dependency graph
+- [x] #799 save boot remediation included
+- [x] first Independent Codex review
+- [x] first-review remediation merged via #807
+- [x] second Independent Codex review against merged #807
+- [x] GD2-001..006 remediation authored in #809
+- [x] #808 legacy-save finance remediation merged
+- [x] #820 RNG/macro seed-root correction merged
+- [x] #823 Phase 0.5 seed-provenance regression merged
+- [x] #809 docs synchronized conceptually with #808/#820/#823 latest-main behavior
+- [ ] #809 updated branch includes latest-main ancestry and CI is green
+- [ ] #809 merged
+- [ ] final focused Codex closure check against the exact post-#809 latest main
 - [ ] owner approves Phase 0 contracts
 - [ ] owner approves dependency graph
 - [ ] owner approves Gate D completion
@@ -301,10 +267,11 @@ Until every remaining item is complete:
 
 ## 10. Next sequence
 
-1. merge the corrective Gate D docs PR only after CI/review is green;
-2. run a second independent Codex review against the corrected merged documents and fresh latest main;
-3. resolve any remaining blocker;
-4. obtain owner Gate D approval;
-5. request Claude Code final #745 remediation attestation (Gate E);
-6. implement/accept Phase 0.5;
-7. only after all remaining gates, consider Gate F / Phase 1.
+1. finish latest-main synchronization of #809 and rerun CI;
+2. merge #809 only after CI/review is green;
+3. run a final focused Codex closure review against the exact merged latest main;
+4. resolve any new P0/P1 blocker if found;
+5. obtain owner Gate D approval;
+6. request Claude Code final #745 remediation attestation (Gate E);
+7. complete and accept the full Phase 0.5 Permanent Headless Harness;
+8. satisfy Gate F and all remaining Phase 1 entry gates.

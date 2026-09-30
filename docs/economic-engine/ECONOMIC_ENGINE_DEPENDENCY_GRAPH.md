@@ -1,7 +1,7 @@
 # Economic Engine Dependency Graph
 
-**Status: PROPOSED FOR GATE D APPROVAL — revised after independent Codex review**  
-**Baseline: `9adcbfe3d2da60b60efb4663be478ac3fcc67732`**  
+**Status: PROPOSED FOR GATE D APPROVAL — second-review remediation + latest-main sync applied**  
+**Baseline: `62a9b15be50918bced82e4072d03fc306c0b51da` (#808, #820, #823 included)**  
 **Implementation permission: NO**
 
 This graph is normative for Economic Engine sequencing. Existing features may remain operational through adapters before their migration phase, but a later phase may not make an unmigrated subsystem authoritative early.
@@ -143,7 +143,8 @@ Specific gates:
 
 The following cycles are prohibited:
 
-- **base valuation** consumes completed accounting/ownership/debt/industry facts and is pure/read-only;
+- **base valuation** consumes completed accounting/ownership/debt/industry/market observations and is pure/read-only;
+- Phase 6 uses the pure calculation DAG: observations → Cost of Equity → after-tax Cost of Debt + capital structure → WACC → EV/asset value → Equity Value → immutable base snapshot;
 - allocation consumes the immutable base valuation snapshot;
 - allocation decisions cannot change the base valuation used to score themselves;
 - post-decision/public repricing may use committed decisions/signals, but cannot feed back into the same decision cycle;
@@ -159,7 +160,12 @@ Phase 0.5 remains between approved contracts and Phase 1.
 
 Its mandatory exit capabilities include:
 
-- deterministic scenario creation and explicit seed;
+- deterministic scenario creation with explicit requested seed;
+- requested seed → persisted `simulationRng.seed` provenance;
+- seed-diversity and stochastic-path-diversity gates before statistical aggregation;
+- nuisance-input invariance so company name/ticker/player/fixture labels do not become hidden entropy sources;
+- exact replay for fixed persisted simulation state;
+- separate handling of legacy persisted subsystem seeds;
 - current production weekly wrapper/phase-order characterization;
 - authoritative-writer inventory;
 - invariant runner;
@@ -173,6 +179,8 @@ Its mandatory exit capabilities include:
 - capability-aware explicit no-op phases;
 - performance/save-size/peak-memory proxies;
 - monetary Number-envelope reachability tests.
+
+The normative seed-provenance detail lives in `PHASE_0_5_SEED_VALIDATION.md`.
 
 The harness is permanent infrastructure, not disposable test code.
 
