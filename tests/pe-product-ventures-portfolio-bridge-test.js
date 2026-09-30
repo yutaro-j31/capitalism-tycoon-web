@@ -87,7 +87,7 @@ deal.portfolioCompany.priceMultiplier=1.35;
 deal.portfolioCompany.priceMultiplier=1;
 {
   const before=plain(engine.g),callsBefore=randomCalls;
-  const generic=ops.calculateGenericPortfolioOperatingWeek(fund,deal,2);
+  const generic=ops.calculateGenericPortfolioOperatingWeek(fund,deal,2,engine.g);
   const neutral=ops.calculatePortfolioOperatingWeek(fund,deal,2,engine.g);
   assert.strictEqual(ops.resolvePortfolioOperatingCalculator(deal,engine.g),ops.calculateProductVenturesPortfolioOperatingWeek,'production state dispatches the productVentures calculator');
   assert.equal(neutral.source,'productVentures');
@@ -104,7 +104,7 @@ deal.portfolioCompany.priceMultiplier=1.35;
   const selfBefore=plain({products:engine.g.productVentures,funnels:engine.g.productFunnels});
   const companyCashBefore=engine.g.companyCash,pcCashBefore=deal.portfolioCompany.cash,callsBefore=randomCalls;
   const priced=ops.calculatePortfolioOperatingWeek(fund,deal,3,engine.g);
-  const pricedGeneric=ops.calculateGenericPortfolioOperatingWeek(fund,deal,3);
+  const pricedGeneric=ops.calculateGenericPortfolioOperatingWeek(fund,deal,3,engine.g);
   assert.equal(priced.source,'productVentures');
   assert(priced.components.productVenturesSalesFactor>1,'production SaaS price response replaces generic inverse-price response');
   assert(priced.components.productVenturesContributionFactor>1,'production SaaS contribution responds to price');

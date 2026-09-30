@@ -55,13 +55,14 @@ function runWeeks({ fund, deal }, from, to) {
   assert.notEqual(move({ headcountRatio: .8 }).laborFactor, 1, 'レバー5: 人件費と人員');
   assert.notEqual(move({ productMixLevel: 1, productMixSetWeek: 1 }).mixFactor, 1, 'レバー6: 商品構成');
   assert.notEqual(move({ consolidatedRatio: .1 }).consolidationFactor, 1, 'レバー3b: 拠点再編');
-  // レバー3a（出店）は storeCount としてEBITDAに直接掛かる。
-  const { fund, deal } = heldDeal();
-  ops.processDealWeek(fund, deal, 2);
-  const oneStore = deal.portfolioCompany.weeklyProfit;
-  deal.portfolioCompany.storeCount = 2;
-  ops.processDealWeek(fund, deal, 3);
-  assert.ok(deal.portfolioCompany.weeklyProfit > oneStore, 'レバー3a: 出店');
+  // レバー3a（出店）は storeCount としてEBITDAに直接掛かる。同じ週の同じ案件を 1 店と 2 店で比べる
+  // （週ごとの揺れは #812 で週ごとに独立になったので、別の週どうしでは出店の効果と混ざる）。
+  const one = heldDeal(), two = heldDeal();
+  assert.equal(two.deal.id, one.deal.id, 'precondition: the two fixtures are the same deal');
+  two.deal.portfolioCompany.storeCount = 2;
+  ops.processDealWeek(one.fund, one.deal, 3);
+  ops.processDealWeek(two.fund, two.deal, 3);
+  assert.ok(two.deal.portfolioCompany.weeklyProfit > one.deal.portfolioCompany.weeklyProfit, 'レバー3a: 出店');
 }
 
 // 2. 設計意図: コスト側（仕入れ・人件費）は即効、トップライン側（商品構成）は2〜3年かかる。
