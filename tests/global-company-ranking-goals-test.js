@@ -34,10 +34,10 @@ const state = {
   week: 50,
   companyName: 'テスト商事',
   ticker: 'TST',
-  cash: 1_000_000_000,
+  companyCash: 1_000_000_000,
   cumulativeProfit: 500_000_000,
   personalCash: 300_000,
-  subsidiaries: [{}],
+  maSubsidiaries: [{ status: 'active' }],
   executiveManagement: { executives: [{}, {}] }
 };
 const personal = state.personalCash;
@@ -57,21 +57,21 @@ assert.strictEqual(same.score, result.score);
 const rich = {
   week: 1,
   companyName: '世界企業',
-  cash: 1e15,
+  companyCash: 1e15,
   cumulativeProfit: 1e14,
-  subsidiaries: Array(20).fill({}),
+  maSubsidiaries: Array(20).fill({ status: 'active' }),
   executiveManagement: { executives: Array(6).fill({}) }
 };
 const richResult = mod.process(rich);
 assert.strictEqual(richResult.rank, 1);
 assert(rich.globalRanking.completedGoalIds.includes('top1'));
 assert(rich.globalRanking.prestige >= 185);
-const before = { cash: rich.cash, profit: rich.cumulativeProfit };
+const before = { companyCash: rich.companyCash, profit: rich.cumulativeProfit };
 const achievedPrestige = rich.globalRanking.prestige;
 const achievedGoals = [...rich.globalRanking.completedGoalIds];
 rich.week = 2;
 mod.process(rich);
-assert.deepStrictEqual({ cash: rich.cash, profit: rich.cumulativeProfit }, before);
+assert.deepStrictEqual({ companyCash: rich.companyCash, profit: rich.cumulativeProfit }, before);
 assert.strictEqual(rich.globalRanking.prestige, achievedPrestige, '完了済み目標の名声を二重付与しない');
 assert.deepStrictEqual([...rich.globalRanking.completedGoalIds], achievedGoals);
 
@@ -104,12 +104,12 @@ const makeLongRunState = () => ({
   week: 1,
   companyName: '長期検証商事',
   ticker: 'LONG',
-  cash: 987_654_321,
+  companyCash: 987_654_321,
   cumulativeProfit: 123_456_789,
   personalCash: 7_654_321,
   totalAssets: 1_500_000_000,
   personalAssets: 9_000_000,
-  subsidiaries: [{}],
+  maSubsidiaries: [{ status: 'active' }],
   executiveManagement: { executives: [{}, {}] }
 });
 const advanceContinuously = (target, weeks) => {
@@ -133,7 +133,7 @@ const rankingSnapshot = target => jsonValue({
   completedGoalIds: target.globalRanking.completedGoalIds,
   history: target.globalRanking.history,
   lastProcessedWeek: target.globalRanking.lastProcessedWeek,
-  cash: target.cash,
+  companyCash: target.companyCash,
   personalCash: target.personalCash,
   totalAssets: target.totalAssets,
   personalAssets: target.personalAssets,
@@ -171,14 +171,14 @@ assert.deepStrictEqual(jsonValue(continuous.globalRanking.completedGoalIds), goa
 
 assert.deepStrictEqual(
   {
-    cash: continuous.cash,
+    companyCash: continuous.companyCash,
     personalCash: continuous.personalCash,
     totalAssets: continuous.totalAssets,
     personalAssets: continuous.personalAssets,
     cumulativeProfit: continuous.cumulativeProfit
   },
   {
-    cash: 987_654_321,
+    companyCash: 987_654_321,
     personalCash: 7_654_321,
     totalAssets: 1_500_000_000,
     personalAssets: 9_000_000,
