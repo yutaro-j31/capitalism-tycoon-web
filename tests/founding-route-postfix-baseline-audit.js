@@ -297,4 +297,12 @@ const outDir = path.join(__dirname, '..', 'artifacts', 'founding-route-baseline'
 fs.mkdirSync(outDir, { recursive: true });
 fs.writeFileSync(path.join(outDir, 'audit.json'), JSON.stringify(result, null, 2) + '\n');
 console.log('FOUNDING_ROUTE_POSTFIX_BASELINE ' + JSON.stringify(result));
+// #745: a founding route that cannot open its first store has no baseline to measure. The audit used to
+// report success with 0 stores and 0 weeks (gym), so check that every route actually opened. This runs
+// after the evidence is written, so a failure still uploads it.
+for (const run of [...standard, ...conservative]) {
+  const i = run.initial || {};
+  assert.equal(i.opened, true, `${run.businessID} (${run.mode}) must open its first store: ${JSON.stringify({ reason: i.reason, tenantID: i.tenantID, upfront: i.upfront, ordinaryBorrowing: i.ordinaryBorrowing, startupLoan: i.startupLoan })}`);
+  assert.ok(Number(run.final?.elapsedWeeks) > 0, `${run.businessID} (${run.mode}) must run past the opening week`);
+}
 console.log('founding route post-fix baseline audit completed');
