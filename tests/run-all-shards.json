@@ -127,7 +127,8 @@
     "tests/pe-multi-fund-acquisition-negative-test.js",
     "tests/phase0-5-harness-core-test.js",
     "tests/phase0-5-persistence-replay-test.js",
-    "tests/new-business-spinout-finite-state-test.js"
+    "tests/new-business-spinout-finite-state-test.js",
+    "tests/new-business-spinout-legacy-backfill-test.js"
   ],
   "G": [
     "tests/property-insurance-loss-ledger-test.js",
