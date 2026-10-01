@@ -65,6 +65,9 @@ for (const evidence of [
 // 2. Persistence/replay keeps RNG and deterministic ID position aligned.
 assert.equal(report.replayEvidence.rngParity, true);
 assert.equal(report.replayEvidence.nextIDParity, true);
+assert.equal(report.replayEvidence.pathSignatureMatch, true);
+assert.equal(report.replayEvidence.leftInvariantResult.ok, true);
+assert.equal(report.replayEvidence.rightInvariantResult.ok, true);
 assert.equal(report.persistenceEvidence.saveReloadFork.rngParity, true);
 assert.equal(report.persistenceEvidence.saveReloadFork.nextIDParity, true);
 assert.equal(report.persistenceEvidence.compactedSaveReloadFork.rngParity, true);
