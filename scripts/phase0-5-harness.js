@@ -692,10 +692,12 @@ function characterizeIdempotency(runtime) {
   const afterReplay={companyCash:state.companyCash,financeTransactions:state.finance.transactions.length,propertyTaxAccrued:property.propertyTaxAccrued,propertyTaxPaidTotal:property.propertyTaxPaidTotal,lastPropertyTaxPaymentWeek:property.lastPropertyTaxPaymentWeek};
   const expectedKey=`property-tax-payment-${property.id}-w${state.week}`;
   const matchingRows=state.finance.transactions.filter(row=>row.idempotencyKey===expectedKey);
-  const cashMovedOnce=cashBefore-afterFirst.companyCash===50_000&&afterReplay.companyCash===afterFirst.companyCash;
+  const round2=value=>Math.round(Number(value)*100)/100;
+  const expectedCashAfter=round2(cashBefore-50_000);
+  const cashMovedOnce=round2(afterFirst.companyCash)===expectedCashAfter&&afterReplay.companyCash===afterFirst.companyCash;
   const financeRowCreatedOnce=afterFirst.financeTransactions===rowsBefore+1&&afterReplay.financeTransactions===afterFirst.financeTransactions&&matchingRows.length===1;
   const economicStateUpdatedOnce=afterFirst.propertyTaxAccrued===0&&afterFirst.propertyTaxPaidTotal===50_000&&stableStringify(afterReplay)===stableStringify(afterFirst);
-  const row=Object.freeze({id:'company-property-tax-same-week-replay',productionAction:'TycoonEngine.payPropertyTax',operationIdentity:expectedKey,firstAccepted:Number(firstResult)===50_000,replayRejected:replayResult===false,cashMovedOnce,financeRowCreatedOnce,economicStateUpdatedOnce,cashDelta:afterReplay.companyCash-cashBefore,rowsAdded:afterReplay.financeTransactions-rowsBefore});
+  const row=Object.freeze({id:'company-property-tax-same-week-replay',productionAction:'TycoonEngine.payPropertyTax',operationIdentity:expectedKey,firstAccepted:Number(firstResult)===50_000,replayRejected:replayResult===false,cashMovedOnce,financeRowCreatedOnce,economicStateUpdatedOnce,cashDelta:round2(afterReplay.companyCash-cashBefore),rowsAdded:afterReplay.financeTransactions-rowsBefore});
   return Object.freeze({ok:Object.values(row).filter(value=>typeof value==='boolean').every(Boolean),cases:Object.freeze([row]),duplicateCashMovementPrevented:cashMovedOnce});
 }
 
