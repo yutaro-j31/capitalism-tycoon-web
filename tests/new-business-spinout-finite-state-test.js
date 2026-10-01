@@ -59,7 +59,8 @@ function spinout(engine) {
   assert.equal(sub.weeklyProfit, 0);
   assert.equal(sub.standaloneWeeklyProfit, 0);
   assert.equal(sub.retainedEarnings, 0);
-  assert.equal(sub.valuation, sub.enterpriseValue);
+  assert.equal(sub.valuation, 1_000_000);
+  assert(sub.enterpriseValue > sub.valuation, 'planning enterprise value must remain available');
   assert(Number.isFinite(engine.g.companyCash));
   assert(Number.isFinite(engine.companyValue()));
   assert.equal(engine.g.personalCash, personalCash);
