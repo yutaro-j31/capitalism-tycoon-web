@@ -70,6 +70,7 @@ assert.deepEqual([...scenario.expectedInvariants], [
 // 2. Core report contains the mandatory machine-readable provenance and capabilities.
 const report = phase05.runScenario(scenario, { sourceMainSha: SOURCE_SHA });
 assert.equal(report.reportSchemaVersion, 3);
+assert(report.scenarioFeatures.includes('json-report-v3'));
 assert.equal(report.harnessSchemaVersion, 1);
 assert.equal(report.sourceMainSha, SOURCE_SHA);
 assert.equal(report.requestedScenarioSeed, BASE_SEED);
