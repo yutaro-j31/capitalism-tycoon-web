@@ -339,6 +339,8 @@ function runScenario(scenarioInput, options = {}) {
   const state = runtime.engine.g;
   const initialSemanticStateHash = semanticStateHash(state, runtime.scenario.stateHashVersion);
   const simulationRngDrawsAtStart = Number(state.simulationRng.draws);
+  const initialMetrics = snapshotMetrics(runtime);
+  const initialPathObservation = pathObservation(runtime);
   const ticks = [];
 
   for (let i = 0; i < runtime.scenario.durationWeeks; i++) ticks.push(stepEconomicTick(runtime));
@@ -346,7 +348,7 @@ function runScenario(scenarioInput, options = {}) {
   const finalState = runtime.engine.g;
   const roots = subsystemSeedRoots(runtime.loaded, finalState);
   const pathRows = [
-    pathObservation(runtime),
+    initialPathObservation,
     ...ticks.map(row => row.pathObservation)
   ];
   const outcomePathSignature = sha256(stableStringify(pathRows));
@@ -377,7 +379,7 @@ function runScenario(scenarioInput, options = {}) {
     semanticProjectionId: projectionFor(runtime.scenario.stateHashVersion).id,
     initialSemanticStateHash,
     finalSemanticStateHash: semanticStateHash(finalState, runtime.scenario.stateHashVersion),
-    initialMetrics: ticks.length ? null : snapshotMetrics(runtime),
+    initialMetrics,
     finalMetrics: snapshotMetrics(runtime),
     tickCount: ticks.length,
     tickSemanticHashes: Object.freeze(ticks.map(row => row.semanticStateHash))
