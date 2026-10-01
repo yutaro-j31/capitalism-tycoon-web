@@ -69,7 +69,7 @@ assert.deepEqual([...scenario.expectedInvariants], [
 
 // 2. Core report contains the mandatory machine-readable provenance and capabilities.
 const report = phase05.runScenario(scenario, { sourceMainSha: SOURCE_SHA });
-assert.equal(report.reportSchemaVersion, 2);
+assert.equal(report.reportSchemaVersion, 3);
 assert.equal(report.harnessSchemaVersion, 1);
 assert.equal(report.sourceMainSha, SOURCE_SHA);
 assert.equal(report.requestedScenarioSeed, BASE_SEED);
@@ -92,7 +92,9 @@ assert.equal(report.engineCapabilities.deterministicSimulationRng, true);
 assert.equal(report.engineCapabilities.financeValidation, true);
 // P0.5-1 owns the core capability contract. Later slices may legitimately promote additional
 // capability flags from false to true; keep only still-unimplemented later-phase claims pinned here.
-assert.equal(report.engineCapabilities.csvReport, false);
+assert.equal(report.engineCapabilities.csvReport, true);
+assert.equal(report.engineCapabilities.markdownReport, true);
+assert.equal(report.engineCapabilities.performanceDistributionReport, true);
 assert.equal(report.engineCapabilities.markdownReport, false);
 assert.equal(report.engineCapabilities.multiCompanyScaleMatrix, false);
 assert.equal(report.engineCapabilities.performanceDistributionReport, false);
