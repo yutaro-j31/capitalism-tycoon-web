@@ -33,6 +33,11 @@ const benchmarkInput = {
 const report = phase05.runBenchmarkScenario(benchmarkInput, { sourceMainSha: SOURCE_SHA, clock });
 
 assert.equal(report.reportSchemaVersion, 3);
+assert(report.scenarioFeatures.includes('json-report-v3'));
+assert.equal(report.stateHashVersion, 1);
+assert.equal(report.simulationRngVersion > 0, true);
+assert.equal(report.simulationRngDrawsAtStart <= report.simulationRngDrawsAtEnd, true);
+assert(report.subsystemSeedRoots.some(row => row.subsystem === 'simulationRng'));
 assert.equal(report.tickPerformance.count, 2);
 assert.deepEqual(report.persistenceCheckpoints.map(row => row.week), [2]);
 for (const value of Object.values(report.tickPerformance).filter(value => typeof value === 'number')) {
