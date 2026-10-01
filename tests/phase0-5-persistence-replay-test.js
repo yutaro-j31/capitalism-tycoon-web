@@ -31,7 +31,7 @@ assert.deepEqual(
 
 // 1. P0.5-2 emits one machine-readable characterization report.
 const report = phase05.runPersistenceCharacterization(scenario(), { sourceMainSha: SOURCE_SHA });
-assert.equal(report.reportSchemaVersion, 2);
+assert.equal(report.reportSchemaVersion, 3);
 assert.equal(report.harnessSchemaVersion, 1);
 assert.equal(report.sourceMainSha, SOURCE_SHA);
 assert.equal(report.requestedScenarioSeed, SEED);
