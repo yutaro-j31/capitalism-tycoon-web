@@ -985,6 +985,21 @@ function runBenchmarkScenario(input = {}, options = {}) {
   const initialSemanticStateHash = semanticStateHash(runtime.engine.g, scenario.stateHashVersion);
   const initialMetrics = snapshotMetrics(runtime);
   const pathRows = [pathObservation(runtime)];
+  const persistenceCheckpoints = [];
+
+  const capturePersistenceCheckpoint = week => {
+    // Persistence benchmarking uses a fresh runtime loaded from the current authoritative state.
+    // This preserves the production save/load path while keeping benchmark instrumentation read-only
+    // with respect to the measured simulation runtime.
+    const persistenceRuntime = createRuntimeFromPersistedState(
+      scenario,
+      JSON.stringify(runtime.engine.g),
+      { ...options, sourceMainSha: runtime.sourceMainSha }
+    );
+    const metrics = benchmarkPersistence(persistenceRuntime, clock);
+    persistenceCheckpoints.push(Object.freeze({ week, metrics }));
+    return metrics;
+  };
 
   for (let index = 0; index < scenario.durationWeeks; index++) {
     const start = clock();
@@ -994,17 +1009,14 @@ function runBenchmarkScenario(input = {}, options = {}) {
     latencies.push(elapsed);
     pathRows.push(tick.pathObservation);
     memoryPeakBytes = Math.max(memoryPeakBytes, memoryProxy(runtime.engine.g, latencies).totalProxyBytes);
+    const completedWeekCount = index + 1;
+    if (completedWeekCount % tier.persistenceEveryWeeks === 0) capturePersistenceCheckpoint(completedWeekCount);
   }
 
-  // Persistence benchmarking uses a fresh runtime loaded from the final authoritative state.
-  // This preserves the production save/load path while keeping benchmark instrumentation read-only
-  // with respect to the measured simulation runtime.
-  const persistenceRuntime = createRuntimeFromPersistedState(
-    scenario,
-    JSON.stringify(runtime.engine.g),
-    { ...options, sourceMainSha: runtime.sourceMainSha }
-  );
-  const persistencePerformance = benchmarkPersistence(persistenceRuntime, clock);
+  if (!persistenceCheckpoints.length || persistenceCheckpoints[persistenceCheckpoints.length - 1].week !== scenario.durationWeeks) {
+    capturePersistenceCheckpoint(scenario.durationWeeks);
+  }
+  const persistencePerformance = persistenceCheckpoints[persistenceCheckpoints.length - 1].metrics;
 
   const memoryEndProbe = memoryProxy(runtime.engine.g, latencies);
   memoryPeakBytes = Math.max(memoryPeakBytes, memoryEndProbe.totalProxyBytes);
@@ -1049,6 +1061,7 @@ function runBenchmarkScenario(input = {}, options = {}) {
     engineCapabilities: runtime.engineCapabilities,
     tickPerformance: summarizeDistribution(latencies),
     persistencePerformance,
+    persistenceCheckpoints: Object.freeze(persistenceCheckpoints),
     memoryProxy: Object.freeze({
       startBytes: memoryStart.totalProxyBytes,
       peakBytes: memoryPeakBytes,
