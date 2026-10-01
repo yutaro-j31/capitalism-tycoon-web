@@ -23,8 +23,8 @@ function founderLoanReceivable(g){return (Array.isArray(g?.finance?.loans)?g.fin
 function settleLoanPrincipal(g,loan,paid){paid=Math.max(0,n(paid));if(!isFounderLoan(loan)||paid<=0)return 0;g.personalCash=n(g.personalCash)+paid;return paid;}
 // Loans that bank-loans-covenants.js services itself (contractual interest + principal every
 // week) must not also carry the engine's generic interest on companyDebt (#735). A defaulted or
-// workout gym loan is not serviced there, so it stays in the generic pool: one charge either way.
-const INDIVIDUALLY_SERVICED_SOURCES=new Set(['bankLoansCovenants','gymStartupLoan']);
+// workout gym/property loan is not serviced there, so it stays in the generic pool: one charge either way.
+const INDIVIDUALLY_SERVICED_SOURCES=new Set(['bankLoansCovenants','gymStartupLoan','propertySecuredLoan']);
 function individuallyServicedPrincipal(g){return (Array.isArray(g?.finance?.loans)?g.finance.loans:[]).filter(l=>INDIVIDUALLY_SERVICED_SOURCES.has(l?.sourceType)&&l.status==='active').reduce((a,l)=>a+Math.max(0,n(l.outstandingPrincipal)),0);}
 function propertyBookOf(p){const re=p?.realEstate,hasBook=re&&Number.isFinite(Number(re.landBookValue))&&Number.isFinite(Number(re.buildingBookValue));return hasBook?n(re.landBookValue)+n(re.buildingBookValue):n(p?.purchasePrice||p?.price||p?.value);}
 function propertyBook(g){return (Array.isArray(g.properties)?g.properties:[]).filter(p=>p.owner==='company').reduce((a,p)=>a+propertyBookOf(p),0);}
