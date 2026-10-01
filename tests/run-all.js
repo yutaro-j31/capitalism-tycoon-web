@@ -110,6 +110,7 @@ const nodeTests = [
   ['ma-investment-committee', 'tests/ma-investment-committee-test.js'],
   ['new-business-commercialization', 'tests/new-business-commercialization-test.js'],
   ['new-business-spinout-finite-state', 'tests/new-business-spinout-finite-state-test.js'],
+  ['new-business-spinout-legacy-backfill', 'tests/new-business-spinout-legacy-backfill-test.js'],
   ['new-business-market-analysis', 'tests/new-business-market-analysis-test.js'],
   ['market-pure-allocation-kernel', 'tests/market-pure-allocation-kernel-test.js'],
   ['new-business-research-projects', 'tests/new-business-research-projects-test.js'],
