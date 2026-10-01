@@ -98,6 +98,7 @@ const nodeTests = [
   ['global-company-ranking-shift-draws', 'tests/global-company-ranking-shift-draws-test.js'],
   ['global-company-ranking-score-inputs', 'tests/global-company-ranking-score-inputs-test.js'],
   ['group-capital-allocation-execution', 'tests/group-capital-allocation-execution-test.js'],
+  ['group-capital-allocation-accounting', 'tests/group-capital-allocation-accounting-test.js'],
   ['group-capital-allocation-plan', 'tests/group-capital-allocation-plan-test.js'],
   ['group-holding-governance', 'tests/group-holding-governance-test.js'],
   ['hall-of-fame-generations', 'tests/hall-of-fame-generations-test.js'],
