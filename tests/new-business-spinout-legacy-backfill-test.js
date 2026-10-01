@@ -17,7 +17,8 @@ function legacySpinout(){
 }
 
 {
-  const { ctx, engine }=loadGame();
+  const { ctx }=loadGame();
+  const engine=ctx.__ct_engine;
   const mod=ctx.__capitalismTycoonModules.newBusinessCommercialization;
   engine.g.companyCash=462_959_970;
   engine.g.maSubsidiaries=[legacySpinout()];
@@ -40,7 +41,8 @@ function legacySpinout(){
 }
 
 {
-  const { ctx, engine }=loadGame();
+  const { ctx }=loadGame();
+  const engine=ctx.__ct_engine;
   const mod=ctx.__capitalismTycoonModules.newBusinessCommercialization;
   engine.g.companyCash=400_000_000;
   engine.g.maSubsidiaries=[{
@@ -60,7 +62,8 @@ function legacySpinout(){
 }
 
 {
-  const { ctx, engine }=loadGame();
+  const { ctx }=loadGame();
+  const engine=ctx.__ct_engine;
   const mod=ctx.__capitalismTycoonModules.newBusinessCommercialization;
   const row=legacySpinout();
   engine.g.companyCash=null;
@@ -72,7 +75,8 @@ function legacySpinout(){
 }
 
 {
-  const { ctx, engine }=loadGame();
+  const { ctx }=loadGame();
+  const engine=ctx.__ct_engine;
   const mod=ctx.__capitalismTycoonModules.newBusinessCommercialization;
   const ordinary={id:'ma-normal',status:'active',weeklyProfit:-100_000_000_000};
   engine.g.companyCash=300_000_000;
