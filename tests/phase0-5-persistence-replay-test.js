@@ -6,7 +6,7 @@ const phase05 = require('../scripts/phase0-5-harness');
 const SOURCE_SHA = '89abcdef0123456789abcdef0123456789abcdef';
 const SEED = 0x50520021;
 
-function scenario(id = 'persistence-replay') {
+function scenario(id = 'persistence-characterization') {
   return phase05.createScenario({
     scenarioId: id,
     requestedScenarioSeed: SEED,
@@ -22,150 +22,142 @@ function scenario(id = 'persistence-replay') {
   });
 }
 
-function fundedRuntime(id = 'persistence-replay') {
-  const runtime = phase05.createRuntime(scenario(id), { sourceMainSha: SOURCE_SHA });
-  runtime.engine.g.personalCash += 5_000_000;
-  assert.equal(runtime.engine.contributeFounderCapital(2_000_000), true, 'founder contribution must use production path');
-  assert.equal(runtime.engine.borrow(500_000, 'company'), true, 'company borrowing must use production path');
-  for (let i = 0; i < 4; i++) phase05.stepEconomicTick(runtime);
-  assert.equal(phase05.assertEconomicInvariants(runtime).ok, true);
-  return runtime;
+// 0. Finite-state probe is deterministic and domain-neutral.
+assert.deepEqual(phase05.findNonFiniteNumbers({ currentRatio: 21, quickRatio: 21 }), []);
+assert.deepEqual(
+  phase05.findNonFiniteNumbers({ finite: 1, nested: [2, Number.POSITIVE_INFINITY] }),
+  [{ path: '$.nested[1]', value: 'Infinity' }]
+);
+
+// 1. P0.5-2 emits one machine-readable characterization report.
+const report = phase05.runPersistenceCharacterization(scenario(), { sourceMainSha: SOURCE_SHA });
+assert.equal(report.reportSchemaVersion, 2);
+assert.equal(report.harnessSchemaVersion, 1);
+assert.equal(report.sourceMainSha, SOURCE_SHA);
+assert.equal(report.requestedScenarioSeed, SEED);
+assert.equal(report.simulationRngSeed, SEED);
+assert.equal(report.ok, true, JSON.stringify(report));
+
+assert.equal(report.engineCapabilities.saveReloadFork, true);
+assert.equal(report.engineCapabilities.compactedSaveReloadFork, true);
+assert.equal(report.engineCapabilities.operationReplayProbe, true);
+assert.equal(report.engineCapabilities.deterministicRollbackProbe, true);
+assert.equal(report.engineCapabilities.deterministicIdProbe, true);
+assert.equal(report.engineCapabilities.legacyAdapterParityProbe, true);
+assert.equal(report.engineCapabilities.legacySeedClassification, true);
+assert.equal(report.engineCapabilities.csvReport, false);
+assert.equal(report.engineCapabilities.markdownReport, false);
+assert.equal(report.engineCapabilities.multiCompanyScaleMatrix, false);
+assert.equal(report.engineCapabilities.performanceDistributionReport, false);
+
+for (const evidence of [
+  report.replayEvidence,
+  report.persistenceEvidence.saveReloadFork,
+  report.persistenceEvidence.compactedSaveReloadFork,
+  report.rollbackEvidence,
+  report.idempotencyEvidence,
+  report.idAllocationEvidence,
+  report.legacyAdapterParity
+]) {
+  assert.equal(evidence.ok, true, JSON.stringify(evidence));
 }
 
-// 0. Finite-state must be domain-neutral: large but finite ratios are valid; NaN/Infinity are not.
-{
-  assert.deepEqual(phase05.findNonFiniteNumbers({ currentRatio: 21, quickRatio: 21 }), []);
-  assert.ok(phase05.findNonFiniteNumbers({ bad: Infinity }).some(row => row.includes('non-finite')));
+// 2. Persistence/replay keeps RNG and deterministic ID position aligned.
+assert.equal(report.replayEvidence.rngParity, true);
+assert.equal(report.replayEvidence.nextIDParity, true);
+assert.equal(report.persistenceEvidence.saveReloadFork.rngParity, true);
+assert.equal(report.persistenceEvidence.saveReloadFork.nextIDParity, true);
+assert.equal(report.persistenceEvidence.compactedSaveReloadFork.rngParity, true);
+assert.equal(report.persistenceEvidence.compactedSaveReloadFork.nextIDParity, true);
+assert.equal(report.persistenceEvidence.saveReloadFork.finalSemanticDiff, null);
+assert.equal(report.persistenceEvidence.compactedSaveReloadFork.finalPersistenceDiff, null);
+
+// 3. False-return and throw/rethrow roll back every material component.
+assert.deepEqual(
+  report.rollbackEvidence.cases.map(row => [row.id, row.rethrown]),
+  [['full-mutation-return-false', false], ['full-mutation-throw-rethrow', true]]
+);
+for (const rollbackCase of report.rollbackEvidence.cases) {
+  assert.equal(rollbackCase.semanticStateRestored, true);
+  assert(Object.values(rollbackCase.components).every(Boolean), JSON.stringify(rollbackCase));
 }
 
-// 1. Production save -> fresh TycoonEngineV9.load() fork, then exact replay under different host entropy.
+// 4. Production property-tax action proves material idempotency.
+assert.equal(report.idempotencyEvidence.cases.length, 1);
+assert.equal(report.idempotencyEvidence.duplicateCashMovementPrevented, true);
+const taxEvidence = report.idempotencyEvidence.cases[0];
+assert.equal(taxEvidence.productionAction, 'TycoonEngine.payPropertyTax');
+assert.equal(taxEvidence.firstAccepted, true);
+assert.equal(taxEvidence.replayRejected, true);
+assert.equal(taxEvidence.cashMovedOnce, true);
+assert.equal(taxEvidence.financeRowCreatedOnce, true);
+assert.equal(taxEvidence.economicStateUpdatedOnce, true);
+assert.equal(taxEvidence.cashDelta, -50_000);
+assert.equal(taxEvidence.rowsAdded, 1);
+
+// 5. Deterministic IDs characterize the actual monotonic persisted-counter contract.
+assert.equal(report.idAllocationEvidence.unique, true);
+assert.equal(report.idAllocationEvidence.samePersistedStateSameSequence, true);
+assert.equal(report.idAllocationEvidence.reloadContinuity, true);
+assert.equal(report.idAllocationEvidence.rollbackPreservedCounter, true);
+assert.equal(new Set(report.idAllocationEvidence.sequence).size, report.idAllocationEvidence.sequence.length);
+
+// 6. Legacy adapter parity is a named PASS/FAIL invariant registry.
+assert.equal(report.legacyAdapterParity.companyCash.ok, true);
+assert.equal(report.legacyAdapterParity.debt.ok, true);
+assert.equal(report.legacyAdapterParity.ownership.ok, true);
+assert.equal(report.legacyAdapterParity.standaloneFinance.ok, true);
+assert(report.legacyAdapterParity.invariants.every(row => row.ok), JSON.stringify(report.legacyAdapterParity.invariants));
+for (const id of [
+  'company-cash-vs-balance-sheet',
+  'company-debt-vs-active-loans',
+  'founder-shares-within-outstanding',
+  'treasury-shares-nonnegative',
+  'market-issued-shares-reconcile',
+  'external-ownership-ratio-reconcile',
+  'cash-flow-ending-vs-authoritative-cash',
+  'cash-flow-rollforward',
+  'finance-validate'
+]) assert(report.legacyAdapterParity.invariants.some(row => row.id === id), `missing parity invariant ${id}`);
+
+// 7. New-game runs remain eligible for calibration aggregation.
+assert.equal(report.runClassification, 'new-game-seed-root');
+assert.equal(report.includeInCalibrationAggregation, true);
+
+// 8. Persisted subsystem seeds stay distinct and are excluded from new-game calibration.
 {
-  const source = fundedRuntime('production-save-fork');
-  const persisted = phase05.persistRuntime(source, {
-    mode: 'production-auto',
-    savedAt: '2000-01-02T03:04:05.000Z'
-  });
-  assert.ok(['raw', 'normal', 'emergency', 'critical'].includes(persisted.storageMode));
-  assert.ok(persisted.payload.length > 100);
-
-  const left = phase05.loadRuntimeFromPayload(source, persisted.payload, { hostEntropy: 0.11 });
-  const right = phase05.loadRuntimeFromPayload(source, persisted.payload, { hostEntropy: 0.91 });
-  const comparison = persisted.storageMode === 'raw' ? 'semantic' : 'compacted';
-
-  phase05.assertForkEquivalent(left, right, { comparison, profile: 'normal' });
-  const checkpoints = phase05.advanceForkPair(left, right, 4, { comparison, profile: 'normal' });
-  assert.equal(checkpoints.length, 4);
-  assert.equal(left.engine.g.simulationRng.draws, right.engine.g.simulationRng.draws);
-  assert.equal(left.engine.g.simulationRng.nextID, right.engine.g.simulationRng.nextID);
-}
-
-// 2. Forced production compaction -> fresh load remains equivalent under the persistence projection.
-{
-  const source = fundedRuntime('compacted-save-fork');
-  const parityBefore = phase05.snapshotLegacyAdapterParity(source);
-  const persisted = phase05.persistRuntime(source, {
-    mode: 'compacted',
-    profile: 'normal',
-    savedAt: '2000-02-03T04:05:06.000Z'
-  });
-  assert.equal(persisted.storageMode, 'compacted-normal');
-  assert.ok(persisted.bytes < persisted.originalBytes, 'normal compaction should reduce this production-state payload');
-
-  const reloaded = phase05.loadRuntimeFromPayload(source, persisted.payload, { hostEntropy: 0.73 });
-  phase05.assertForkEquivalent(source, reloaded, { comparison: 'compacted', profile: 'normal' });
-  assert.deepEqual(
-    phase05.snapshotLegacyAdapterParity(reloaded),
-    parityBefore,
-    'cash, debt, ownership and standalone finance views must survive compaction/load'
-  );
-
-  const checkpoints = phase05.advanceForkPair(source, reloaded, 3, { comparison: 'compacted', profile: 'normal' });
-  assert.equal(checkpoints.length, 3);
-}
-
-// 3. Replaying an operation with the same idempotency key must not mutate state a second time.
-{
-  const runtime = phase05.createRuntime(scenario('idempotency'), { sourceMainSha: SOURCE_SHA });
-  const operation = current => current.loaded.modules.finance.event(current.engine.g, 'otherOperating', 0, {
-    cashEffect: 0,
-    profitEffect: 0,
-    sourceType: 'phase0-5-idempotency-probe',
-    sourceID: 'probe',
-    operationID: 'phase0-5-idempotency-probe',
-    idempotencyKey: 'phase0-5-idempotency-probe',
-    description: 'Phase 0.5 idempotency characterization'
-  });
-  const result = phase05.probeIdempotentOperation(runtime, operation);
-  assert.equal(result.ok, true);
-  assert.notEqual(result.beforeHash, result.firstHash, 'first execution must create evidence');
-  assert.equal(result.firstHash, result.secondHash, 'replay must be a no-op');
-}
-
-// 4. Both a false return and a thrown failure restore cash, ledger and RNG/ID allocation exactly.
-{
-  const falseRuntime = phase05.createRuntime(scenario('rollback-false'), { sourceMainSha: SOURCE_SHA });
-  const falseResult = phase05.probeDeterministicRollback(falseRuntime, current => {
-    current.engine.g.companyCash += 123_456;
-    current.loaded.modules.simulationRng.next(current.engine.g);
-    current.loaded.modules.simulationRng.nextID(current.engine.g, 'rollback');
-  });
-  assert.equal(falseResult.ok, true);
-  assert.equal(falseResult.threw, false);
-  assert.equal(falseResult.beforeHash, falseResult.afterHash);
-
-  const throwRuntime = phase05.createRuntime(scenario('rollback-throw'), { sourceMainSha: SOURCE_SHA });
-  const throwResult = phase05.probeDeterministicRollback(throwRuntime, current => {
-    current.engine.g.companyDebt += 987_654;
-    current.loaded.modules.simulationRng.next(current.engine.g);
-    current.loaded.modules.simulationRng.nextID(current.engine.g, 'rollback');
-  }, { throwError: true });
-  assert.equal(throwResult.ok, true);
-  assert.equal(throwResult.threw, true);
-  assert.equal(throwResult.beforeHash, throwResult.afterHash);
-}
-
-// 5. Deterministic ID allocation is collision-free and replays identically from the same save.
-{
-  const source = fundedRuntime('id-allocation');
-  const persisted = phase05.persistRuntime(source, { mode: 'production-auto', savedAt: '2000-03-04T05:06:07.000Z' });
-  const left = phase05.loadRuntimeFromPayload(source, persisted.payload, { hostEntropy: 0.2 });
-  const right = phase05.loadRuntimeFromPayload(source, persisted.payload, { hostEntropy: 0.8 });
-  const leftIds = phase05.probeDeterministicIds(left, { prefix: 'phase05', count: 32 });
-  const rightIds = phase05.probeDeterministicIds(right, { prefix: 'phase05', count: 32 });
-  assert.deepEqual(leftIds, rightIds);
-  assert.equal(new Set(leftIds).size, leftIds.length);
-}
-
-// 6. A persisted legacy subsystem seed is classified separately and is not silently overwritten.
-{
-  const source = phase05.createRuntime(scenario('legacy-subsystem-seed'), { sourceMainSha: SOURCE_SHA });
-  source.loaded.modules.deterministicEconomicFoundation.ensure(source.engine.g);
-  const simulationSeed = source.engine.g.simulationRng.seed;
+  const runtime = phase05.createRuntime(scenario('legacy-subsystem-seed'), { sourceMainSha: SOURCE_SHA });
+  runtime.loaded.modules.deterministicEconomicFoundation.ensure(runtime.engine.g);
+  const simulationSeed = runtime.engine.g.simulationRng.seed;
   let legacySeed = (simulationSeed + 0x12345) >>> 0;
   if (!legacySeed) legacySeed = 1;
-  source.engine.g.economicFoundation.seed = legacySeed;
-  const payload = JSON.stringify(source.engine.g);
-  const reloaded = phase05.loadRuntimeFromPayload(source, payload, { hostEntropy: 0.44 });
-  const classification = phase05.classifySeedProvenance(reloaded.loaded, reloaded.engine.g);
+  runtime.engine.g.economicFoundation.seed = legacySeed;
+  const payload = JSON.stringify(runtime.engine.g);
+  const reloaded = phase05.createRuntimeFromPersistedState(runtime.scenario, payload, {
+    sourceMainSha: SOURCE_SHA,
+    hostEntropy: 0.44
+  });
+  const classification = phase05.classifySeedProvenance(reloaded);
   assert.equal(classification.classification, 'legacy-persisted-subsystem-seed');
+  assert.equal(classification.includeInCalibrationAggregation, false);
   assert.equal(reloaded.engine.g.simulationRng.seed, simulationSeed);
   assert.equal(reloaded.engine.g.economicFoundation.seed, legacySeed);
-  assert.ok(classification.roots.some(row => row.subsystem === 'economicFoundation' && row.classification === 'legacy-persisted-subsystem-seed'));
 }
 
-// 7. Capabilities must advertise only the P0.5-2 evidence now actually implemented.
+// 9. Evidence probes used as reads do not mutate authoritative state.
 {
-  const runtime = phase05.createRuntime(scenario('capabilities'), { sourceMainSha: SOURCE_SHA });
-  const caps = runtime.engineCapabilities;
-  assert.equal(caps.saveReloadFork, true);
-  assert.equal(caps.compactedSaveReloadFork, true);
-  assert.equal(caps.operationReplayProbe, true);
-  assert.equal(caps.deterministicRollbackProbe, true);
-  assert.equal(caps.deterministicIdProbe, true);
-  assert.equal(caps.legacyAdapterParityProbe, true);
-  assert.equal(caps.legacySeedClassification, true);
-  assert.equal(caps.csvReport, false);
-  assert.equal(caps.performanceDistributionReport, false);
+  const runtime = phase05.createRuntime(scenario('read-only-probes'), { sourceMainSha: SOURCE_SHA });
+  runtime.loaded.modules.deterministicEconomicFoundation.ensure(runtime.engine.g);
+  const before = JSON.stringify(runtime.engine.g);
+  phase05.snapshotMetrics(runtime);
+  phase05.semanticStateHash(runtime.engine.g);
+  phase05.classifySeedProvenance(runtime);
+  phase05.snapshotLegacyAdapterParity(runtime);
+  assert.equal(JSON.stringify(runtime.engine.g), before, 'read-only evidence probes must not mutate production state');
+
+  const divergent = JSON.parse(before);
+  divergent.companyCash += 1;
+  assert.equal(phase05.diffSemanticState(runtime.engine.g, divergent).path, '$.companyCash');
 }
 
 console.log('Phase 0.5 persistence/replay/failure characterization tests passed');
