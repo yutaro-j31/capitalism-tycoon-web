@@ -129,6 +129,7 @@
     "tests/phase0-5-persistence-replay-test.js",
     "tests/save-v9-corrupted-critical-cash-isolation-test.js",
     "tests/new-business-spinout-finite-state-test.js",
+    "tests/new-business-research-accounting-test.js",
     "tests/new-business-spinout-valuation-exploit-test.js",
     "tests/new-business-spinout-legacy-backfill-test.js"
   ],
