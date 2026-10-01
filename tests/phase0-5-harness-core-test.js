@@ -95,6 +95,8 @@ assert.equal(report.engineCapabilities.financeValidation, true);
 assert.equal(report.engineCapabilities.csvReport, true);
 assert.equal(report.engineCapabilities.markdownReport, true);
 assert.equal(report.engineCapabilities.performanceDistributionReport, true);
+assert.equal(report.engineCapabilities.scenarioTierControl, true);
+assert.equal(report.engineCapabilities.multiSeedMatrix, true);
 assert.equal(report.engineCapabilities.markdownReport, false);
 assert.equal(report.engineCapabilities.multiCompanyScaleMatrix, false);
 assert.equal(report.engineCapabilities.performanceDistributionReport, false);
