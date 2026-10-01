@@ -87,6 +87,7 @@ const nodeTests = [
   ['phase0-5-seed-provenance', 'tests/phase0-5-seed-provenance-test.js'],
   ['phase0-5-harness-core', 'tests/phase0-5-harness-core-test.js'],
   ['phase0-5-persistence-replay', 'tests/phase0-5-persistence-replay-test.js'],
+  ['save-v9-corrupted-critical-cash-isolation', 'tests/save-v9-corrupted-critical-cash-isolation-test.js'],
   ['phase0-5-harness-reporting', 'tests/phase0-5-harness-reporting-test.js'],
   ['executive-candidate-seed-provenance', 'tests/executive-candidate-seed-provenance-test.js'],
   ['executive-dismissal-governance', 'tests/executive-dismissal-governance-test.js'],

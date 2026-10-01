@@ -20,6 +20,20 @@ const SAVE_KEY=engine.SAVE_KEY;
 const clone=value=>typeof structuredClone==='function'?structuredClone(value):JSON.parse(JSON.stringify(value));
 const plain=value=>Boolean(value&&typeof value==='object'&&!Array.isArray(value));
 const finite=(value,fallback=0)=>Number.isFinite(Number(value))?Number(value):fallback;
+const CRITICAL_MONEY_FIELDS=Object.freeze(['companyCash','personalCash','companyDebt']);
+
+function validateRawCriticalMoneyFields(raw){
+ if(!plain(raw))return {ok:false,errors:['Corrupted save: root is not an object.']};
+ const errors=[];
+ for(const key of CRITICAL_MONEY_FIELDS){
+  if(!(key in raw))continue;
+  const value=raw[key];
+  if(value===null)errors.push(`Corrupted save: ${key} is null.`);
+  else if(typeof value!=='number'||!Number.isFinite(value))errors.push(`Corrupted save: ${key} is not a finite number.`);
+ }
+ return {ok:errors.length===0,errors};
+}
+function assertRawCriticalMoneyFields(raw){const result=validateRawCriticalMoneyFields(raw);if(!result.ok)throw new Error(result.errors.join(' '));return raw;}
 
 function detectSaveVersion(raw){
  if(!plain(raw))return {ok:false,version:null,error:'セーブデータのルートはオブジェクトである必要があります。'};
@@ -101,7 +115,8 @@ class TycoonEngineV9 extends BaseTycoonEngine{
    const idb=globalThis.__capitalismTycoonModules?.saveStorageIDB;
    const raw=idb?idb.readSync(SAVE_KEY):localStorage.getItem(SAVE_KEY);
    if(!raw)return new TycoonEngineV9(null);
-   const migrated=migrateSave(JSON.parse(raw));
+   const parsed=assertRawCriticalMoneyFields(JSON.parse(raw));
+   const migrated=migrateSave(parsed);
    if(!migrated.ok)throw new Error(`Save migration failed: ${migrated.errors.join('; ')}`);
    return new TycoonEngineV9(migrated.state);
   }catch(error){
@@ -137,7 +152,8 @@ class TycoonEngineV9 extends BaseTycoonEngine{
   const raw=localStorage.getItem(`${SAVE_KEY}_slot_${slot}`);
   if(!raw)return false;
   try{
-   const migrated=migrateSave(JSON.parse(raw));
+   const parsed=assertRawCriticalMoneyFields(JSON.parse(raw));
+   const migrated=migrateSave(parsed);
    if(!migrated.ok){console.error('Slot save migration failed',migrated.errors);return false;}
    this.g=migrated.state;
    this._saveBlockedDueToLoadFailure=false;
@@ -146,7 +162,8 @@ class TycoonEngineV9 extends BaseTycoonEngine{
   }catch(error){console.error('Slot save migration failed',error);return false;}
  }
  importSave(text){
-  const migrated=migrateSave(JSON.parse(text));
+  const parsed=assertRawCriticalMoneyFields(JSON.parse(text));
+  const migrated=migrateSave(parsed);
   if(!migrated.ok)throw new Error(migrated.errors.join(' / ')||'セーブデータ形式が不正です。');
   this.g=migrated.state;
   this._saveBlockedDueToLoadFailure=false;
@@ -159,5 +176,5 @@ class TycoonEngineV9 extends BaseTycoonEngine{
  // the exact companyRaise it applies to companyCash, so this class inherits it unchanged.
 }
 
-Object.assign(engine,{SAVE_VERSION,createInitialState,detectSaveVersion,validateMigratedState,migrateSave,migrateV8ToV9,sanitizeBusinessRecords,TycoonEngine:TycoonEngineV9,__saveV9Installed:true,__parentIPOFinanceInstalled:true,__parentIPOEquityBalanceInstalled:true});
+Object.assign(engine,{SAVE_VERSION,createInitialState,detectSaveVersion,validateRawCriticalMoneyFields,validateMigratedState,migrateSave,migrateV8ToV9,sanitizeBusinessRecords,TycoonEngine:TycoonEngineV9,__saveV9Installed:true,__parentIPOFinanceInstalled:true,__parentIPOEquityBalanceInstalled:true});
 })();
