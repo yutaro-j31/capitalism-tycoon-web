@@ -31,7 +31,7 @@ assert.deepEqual(
 
 // 1. P0.5-2 emits one machine-readable characterization report.
 const report = phase05.runPersistenceCharacterization(scenario(), { sourceMainSha: SOURCE_SHA });
-assert.equal(report.reportSchemaVersion, 2);
+assert.equal(report.reportSchemaVersion, 3);
 assert.equal(report.harnessSchemaVersion, 1);
 assert.equal(report.sourceMainSha, SOURCE_SHA);
 assert.equal(report.requestedScenarioSeed, SEED);
@@ -45,10 +45,12 @@ assert.equal(report.engineCapabilities.deterministicRollbackProbe, true);
 assert.equal(report.engineCapabilities.deterministicIdProbe, true);
 assert.equal(report.engineCapabilities.legacyAdapterParityProbe, true);
 assert.equal(report.engineCapabilities.legacySeedClassification, true);
-assert.equal(report.engineCapabilities.csvReport, false);
-assert.equal(report.engineCapabilities.markdownReport, false);
+assert.equal(report.engineCapabilities.csvReport, true);
+assert.equal(report.engineCapabilities.markdownReport, true);
 assert.equal(report.engineCapabilities.multiCompanyScaleMatrix, false);
-assert.equal(report.engineCapabilities.performanceDistributionReport, false);
+assert.equal(report.engineCapabilities.performanceDistributionReport, true);
+assert.equal(report.engineCapabilities.scenarioTierControl, true);
+assert.equal(report.engineCapabilities.multiSeedMatrix, true);
 
 for (const evidence of [
   report.replayEvidence,

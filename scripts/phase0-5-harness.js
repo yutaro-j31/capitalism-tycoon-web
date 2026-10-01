@@ -5,7 +5,7 @@ const childProcess = require('node:child_process');
 const { ROOT, loadGame } = require('../tests/harness');
 
 const HARNESS_SCHEMA_VERSION = 1;
-const REPORT_SCHEMA_VERSION = 2;
+const REPORT_SCHEMA_VERSION = 3;
 const STATE_HASH_VERSION = 1;
 const MAX_CORE_WEEKS = 5200;
 const DEFAULT_EXPECTED_INVARIANTS = Object.freeze([
@@ -17,6 +17,11 @@ const DEFAULT_EXPECTED_INVARIANTS = Object.freeze([
 
 const VALID_DIFFICULTIES = new Set(['easy', 'normal', 'hard']);
 const VALID_GAME_SCENARIOS = new Set(['free', 'standard']);
+const HARNESS_TIERS = Object.freeze({
+  smoke: Object.freeze({ durationWeeks: 12, seedCount: 2, persistenceEveryWeeks: 6, executionSurface: 'pull-request' }),
+  nightly: Object.freeze({ durationWeeks: 520, seedCount: 4, persistenceEveryWeeks: 52, executionSurface: 'scheduled-or-manual' }),
+  deepAudit: Object.freeze({ durationWeeks: 2600, seedCount: 8, persistenceEveryWeeks: 104, executionSurface: 'manual-only' })
+});
 
 function isUint32(value) {
   return Number.isInteger(value) && value > 0 && value <= 0xffffffff;
@@ -156,7 +161,7 @@ function createScenario(input = {}) {
       'ui-free-production-week',
       'finance-validation',
       'semantic-state-hash-v1',
-      'json-report-v2'
+      'json-report-v3'
     ]),
     scenarioSize: Object.freeze({
       playerCompanies,
@@ -185,10 +190,12 @@ function declareEngineCapabilities(loaded) {
     deterministicIdProbe: true,
     legacyAdapterParityProbe: true,
     legacySeedClassification: true,
-    csvReport: false,
-    markdownReport: false,
+    csvReport: true,
+    markdownReport: true,
     multiCompanyScaleMatrix: false,
-    performanceDistributionReport: false
+    performanceDistributionReport: true,
+    scenarioTierControl: true,
+    multiSeedMatrix: true
   });
 }
 
@@ -856,6 +863,388 @@ function runScenario(scenarioInput, options = {}) {
   });
 }
 
+
+function resolveTier(name = 'smoke') {
+  const tier = HARNESS_TIERS[name];
+  if (!tier) throw new Error(`Unknown Phase 0.5 harness tier: ${name}`);
+  return tier;
+}
+
+function summarizeDistribution(samples) {
+  if (!Array.isArray(samples) || samples.length === 0) throw new Error('Performance distribution requires at least one sample.');
+  const sorted = samples.map(Number).sort((a, b) => a - b);
+  if (sorted.some(value => !Number.isFinite(value) || value <= 0)) throw new Error('Performance samples must be finite and positive.');
+  const nearestRank = percentile => sorted[Math.max(0, Math.ceil(percentile * sorted.length) - 1)];
+  return Object.freeze({
+    count: sorted.length,
+    p50Ms: nearestRank(0.50),
+    p95Ms: nearestRank(0.95),
+    p99Ms: nearestRank(0.99),
+    maxMs: sorted[sorted.length - 1],
+    meanMs: sorted.reduce((sum, value) => sum + value, 0) / sorted.length,
+    percentileAlgorithm: 'nearest-rank'
+  });
+}
+
+function summarizeValueDistribution(samples) {
+  if (!Array.isArray(samples) || samples.length === 0) throw new Error('Numeric distribution requires at least one sample.');
+  const sorted = samples.map(Number).sort((a, b) => a - b);
+  if (sorted.some(value => !Number.isFinite(value) || value <= 0)) throw new Error('Numeric samples must be finite and positive.');
+  const nearestRank = percentile => sorted[Math.max(0, Math.ceil(percentile * sorted.length) - 1)];
+  return Object.freeze({
+    count: sorted.length,
+    p50: nearestRank(0.50),
+    p95: nearestRank(0.95),
+    p99: nearestRank(0.99),
+    max: sorted[sorted.length - 1],
+    mean: sorted.reduce((sum, value) => sum + value, 0) / sorted.length,
+    percentileAlgorithm: 'nearest-rank'
+  });
+}
+
+function estimatedStorageBytes(payload) {
+  return String(payload).length * 2;
+}
+
+function memoryProxy(state, retained = null) {
+  const authoritativeStateBytes = estimatedStorageBytes(JSON.stringify(state));
+  const retainedResultBytes = retained == null ? 0 : estimatedStorageBytes(stableStringify(retained));
+  return Object.freeze({
+    authoritativeStateBytes,
+    retainedResultBytes,
+    totalProxyBytes: authoritativeStateBytes + retainedResultBytes,
+    kind: 'serialized-state-proxy-not-browser-rss'
+  });
+}
+
+const MONETARY_KEY = /(cash|debt|price|cost|revenue|profit|income|expense|asset|liabilit|equity|value|amount|salary|wage|rent|tax|dividend|principal|interest|book)/i;
+
+function scanMonetaryEnvelope(state) {
+  let observedMaximumAbsoluteMonetaryValue = 0;
+  let observedUnsafeIntegerCount = 0;
+  let observedNonFiniteCount = 0;
+  const walk = (value, key = '', seen = new WeakSet()) => {
+    if (typeof value === 'number' && MONETARY_KEY.test(key)) {
+      if (!Number.isFinite(value)) observedNonFiniteCount += 1;
+      else {
+        observedMaximumAbsoluteMonetaryValue = Math.max(observedMaximumAbsoluteMonetaryValue, Math.abs(value));
+        if (Number.isInteger(value) && !Number.isSafeInteger(value)) observedUnsafeIntegerCount += 1;
+      }
+      return;
+    }
+    if (!value || typeof value !== 'object' || seen.has(value)) return;
+    seen.add(value);
+    if (Array.isArray(value)) value.forEach(entry => walk(entry, key, seen));
+    else for (const childKey of Object.keys(value).sort()) walk(value[childKey], childKey, seen);
+  };
+  walk(state);
+  const magnitudes = [1e6, 1e9, 1e12, 1e15, Number.MAX_SAFE_INTEGER, Number.MAX_SAFE_INTEGER + 1];
+  const probeCases = magnitudes.map(value => Object.freeze({
+    value,
+    finite: Number.isFinite(value),
+    safeInteger: Number.isSafeInteger(value),
+    productionRounded: Math.round(value * 100) / 100
+  }));
+  return Object.freeze({
+    safeIntegerCeiling: Number.MAX_SAFE_INTEGER,
+    observedMaximumAbsoluteMonetaryValue,
+    observedUnsafeIntegerCount,
+    observedNonFiniteCount,
+    probeCases: Object.freeze(probeCases)
+  });
+}
+
+function benchmarkPersistence(runtime, clock) {
+  const storage = runtime.loaded.modules.saveStorage;
+  let mark = clock();
+  const rawPayload = JSON.stringify(runtime.engine.g);
+  const serializationMs = Math.max(0, clock() - mark);
+  mark = clock();
+  const compacted = storage.compactStateForStorage(runtime.engine.g, 'normal');
+  const compactedPayload = JSON.stringify(compacted.state);
+  const compactionMs = Math.max(0, clock() - mark);
+  mark = clock();
+  createRuntimeFromPersistedState(runtime.scenario, compactedPayload, { sourceMainSha: runtime.sourceMainSha });
+  const loadMs = Math.max(0, clock() - mark);
+  const saved = storage.saveWithAdapter(runtime.engine, { savedAt: '2000-01-01T00:00:00.000Z', clock });
+  if (!saved.ok) throw new Error('Production saveWithAdapter failed during benchmark.');
+  const rawSaveBytes = estimatedStorageBytes(rawPayload);
+  const compactedSaveBytes = estimatedStorageBytes(compactedPayload);
+  const storedSaveBytes = Number(saved.bytes);
+  if ([serializationMs, compactionMs, loadMs].some(value => !Number.isFinite(value) || value <= 0)) {
+    throw new Error('Persistence timings must be finite and positive.');
+  }
+  return Object.freeze({
+    serializationMs,
+    compactionMs,
+    loadMs,
+    rawSaveBytes,
+    compactedSaveBytes,
+    storedSaveBytes,
+    rawCodeUnits: rawPayload.length,
+    storedCodeUnits: saved.payload.length,
+    compactionRatio: compactedSaveBytes / rawSaveBytes,
+    encodingAssumption: 'UTF-16-compatible production budget: codeUnits * 2',
+    storageMode: saved.mode
+  });
+}
+
+function runBenchmarkScenario(input = {}, options = {}) {
+  const tierName = String(input.tier || options.tier || 'smoke');
+  const tier = resolveTier(tierName);
+  const scenario = createScenario({ ...input, durationWeeks: input.durationWeeks ?? input.weeks ?? tier.durationWeeks });
+  const runtime = createRuntime(scenario, options);
+  const clock = options.clock || (() => performance.now());
+  const memoryStart = memoryProxy(runtime.engine.g);
+  let memoryPeakBytes = memoryStart.totalProxyBytes;
+  const latencies = [];
+  const initialSemanticStateHash = semanticStateHash(runtime.engine.g, scenario.stateHashVersion);
+  const simulationRngDrawsAtStart = Number(runtime.engine.g.simulationRng.draws);
+  const initialMetrics = snapshotMetrics(runtime);
+  const pathRows = [pathObservation(runtime)];
+  const persistenceCheckpoints = [];
+
+  const capturePersistenceCheckpoint = week => {
+    // Persistence benchmarking uses a fresh runtime loaded from the current authoritative state.
+    // This preserves the production save/load path while keeping benchmark instrumentation read-only
+    // with respect to the measured simulation runtime.
+    const persistenceRuntime = createRuntimeFromPersistedState(
+      scenario,
+      JSON.stringify(runtime.engine.g),
+      { ...options, sourceMainSha: runtime.sourceMainSha }
+    );
+    const metrics = benchmarkPersistence(persistenceRuntime, clock);
+    persistenceCheckpoints.push(Object.freeze({ week, metrics }));
+    memoryPeakBytes = Math.max(
+      memoryPeakBytes,
+      memoryProxy(runtime.engine.g, { latencies, persistenceCheckpoints }).totalProxyBytes
+    );
+    return metrics;
+  };
+
+  for (let index = 0; index < scenario.durationWeeks; index++) {
+    const start = clock();
+    const tick = stepEconomicTick(runtime);
+    const elapsed = Math.max(0, clock() - start);
+    if (!Number.isFinite(elapsed)) throw new Error('Tick timing must be finite.');
+    latencies.push(elapsed);
+    pathRows.push(tick.pathObservation);
+    memoryPeakBytes = Math.max(memoryPeakBytes, memoryProxy(runtime.engine.g, latencies).totalProxyBytes);
+    const completedWeekCount = index + 1;
+    if (completedWeekCount % tier.persistenceEveryWeeks === 0) capturePersistenceCheckpoint(completedWeekCount);
+  }
+
+  if (!persistenceCheckpoints.length || persistenceCheckpoints[persistenceCheckpoints.length - 1].week !== scenario.durationWeeks) {
+    capturePersistenceCheckpoint(scenario.durationWeeks);
+  }
+  const persistencePerformance = persistenceCheckpoints[persistenceCheckpoints.length - 1].metrics;
+
+  const memoryEndProbe = memoryProxy(runtime.engine.g, { latencies, persistenceCheckpoints });
+  memoryPeakBytes = Math.max(memoryPeakBytes, memoryEndProbe.totalProxyBytes);
+  const roots = subsystemSeedRoots(runtime.loaded, runtime.engine.g);
+  const runClassification = roots.some(row => row.classification === 'legacy-persisted-subsystem-seed')
+    ? 'legacy-persisted-subsystem-seed'
+    : 'new-game-seed-root';
+  const invariants = assertEconomicInvariants(runtime, scenario.expectedInvariants);
+  const characterization = options.includeCharacterization === false
+    ? null
+    : runPersistenceCharacterization(scenario, options);
+
+  return Object.freeze({
+    reportSchemaVersion: REPORT_SCHEMA_VERSION,
+    harnessSchemaVersion: HARNESS_SCHEMA_VERSION,
+    sourceMainSha: runtime.sourceMainSha,
+    scenarioId: scenario.scenarioId,
+    scenarioFeatures: scenario.scenarioFeatures,
+    scenarioSize: scenario.scenarioSize,
+    scenarioIdentityFields: scenario.scenarioIdentityFields,
+    tier: tierName,
+    tierDefinition: tier,
+    requestedScenarioSeed: scenario.requestedScenarioSeed,
+    simulationRngSeed: Number(runtime.engine.g.simulationRng.seed),
+    simulationRngVersion: Number(runtime.engine.g.simulationRng.version),
+    simulationRngState: Number(runtime.engine.g.simulationRng.state),
+    simulationRngDrawsAtStart,
+    simulationRngDrawsAtEnd: Number(runtime.engine.g.simulationRng.draws),
+    simulationRngNextID: Number(runtime.engine.g.simulationRng.nextID),
+    subsystemSeedRoots: Object.freeze(roots),
+    stateHashVersion: scenario.stateHashVersion,
+    expectedInvariants: scenario.expectedInvariants,
+    runClassification,
+    includeInCalibrationAggregation: runClassification === 'new-game-seed-root',
+    durationWeeks: scenario.durationWeeks,
+    difficulty: scenario.difficulty,
+    tickCount: latencies.length,
+    initialMetrics,
+    finalMetrics: snapshotMetrics(runtime),
+    initialSemanticStateHash,
+    finalSemanticStateHash: semanticStateHash(runtime.engine.g, scenario.stateHashVersion),
+    outcomePathSignature: sha256(stableStringify(pathRows)),
+    invariantResult: invariants,
+    replayEvidence: characterization?.replayEvidence || null,
+    persistenceEvidence: characterization?.persistenceEvidence || null,
+    rollbackEvidence: characterization?.rollbackEvidence || null,
+    idempotencyEvidence: characterization?.idempotencyEvidence || null,
+    idAllocationEvidence: characterization?.idAllocationEvidence || null,
+    legacyAdapterParity: characterization?.legacyAdapterParity || null,
+    engineCapabilities: runtime.engineCapabilities,
+    tickPerformance: summarizeDistribution(latencies),
+    persistencePerformance,
+    persistenceCheckpoints: Object.freeze(persistenceCheckpoints),
+    memoryProxy: Object.freeze({
+      startBytes: memoryStart.totalProxyBytes,
+      peakBytes: memoryPeakBytes,
+      endBytes: memoryEndProbe.totalProxyBytes,
+      kind: memoryStart.kind
+    }),
+    monetaryEnvelope: scanMonetaryEnvelope(runtime.engine.g)
+  });
+}
+
+const CSV_COLUMNS = Object.freeze([
+  'reportSchemaVersion','harnessSchemaVersion','sourceMainSha','scenarioId','tier','requestedScenarioSeed','simulationRngSeed','runClassification','includeInCalibrationAggregation','durationWeeks','difficulty','tickCount','finalCompanyCash','finalPersonalCash','finalCompanyDebt','finalStoreCount','simulationRngDrawsAtEnd','simulationRngNextID','outcomePathSignature','finalSemanticStateHash','invariantPass','tickP50Ms','tickP95Ms','tickP99Ms','tickMaxMs','serializationMs','compactionMs','loadMs','rawSaveBytes','storedSaveBytes','compactionRatio','memoryProxyStartBytes','memoryProxyPeakBytes','memoryProxyEndBytes'
+]);
+
+function flattenReport(report) {
+  return {
+    ...report,
+    finalCompanyCash: report.finalMetrics?.companyCash,
+    finalPersonalCash: report.finalMetrics?.personalCash,
+    finalCompanyDebt: report.finalMetrics?.companyDebt,
+    finalStoreCount: report.finalMetrics?.storeCount,
+    invariantPass: report.invariantResult?.ok,
+    tickP50Ms: report.tickPerformance?.p50Ms,
+    tickP95Ms: report.tickPerformance?.p95Ms,
+    tickP99Ms: report.tickPerformance?.p99Ms,
+    tickMaxMs: report.tickPerformance?.maxMs,
+    serializationMs: report.persistencePerformance?.serializationMs,
+    compactionMs: report.persistencePerformance?.compactionMs,
+    loadMs: report.persistencePerformance?.loadMs,
+    rawSaveBytes: report.persistencePerformance?.rawSaveBytes,
+    storedSaveBytes: report.persistencePerformance?.storedSaveBytes,
+    compactionRatio: report.persistencePerformance?.compactionRatio,
+    memoryProxyStartBytes: report.memoryProxy?.startBytes,
+    memoryProxyPeakBytes: report.memoryProxy?.peakBytes,
+    memoryProxyEndBytes: report.memoryProxy?.endBytes
+  };
+}
+
+function csvCell(value) {
+  const text = value == null ? '' : String(value);
+  return /[",\r\n]/.test(text) ? `"${text.replace(/"/g, '""')}"` : text;
+}
+
+function formatCsvReport(reportOrReports) {
+  const reports = Array.isArray(reportOrReports) ? reportOrReports : [reportOrReports];
+  return [CSV_COLUMNS.join(','), ...reports.map(report => {
+    const row = flattenReport(report);
+    return CSV_COLUMNS.map(column => csvCell(row[column])).join(',');
+  })].join('\n') + '\n';
+}
+
+function pass(value) {
+  return value === true ? 'PASS' : value === false ? 'FAIL' : 'N/A';
+}
+
+function formatMarkdownReport(report) {
+  const caps = Object.keys(report.engineCapabilities || {})
+    .sort()
+    .map(key => `| ${key} | ${report.engineCapabilities[key] === true ? 'implemented' : 'not implemented'} |`)
+    .join('\n');
+  return `# Phase 0.5 Harness Report
+
+## Provenance
+
+- Source SHA: \`${report.sourceMainSha}\`
+- Harness/report schema: ${report.harnessSchemaVersion}/${report.reportSchemaVersion}
+- Tier: ${report.tier}
+- Scenario: ${report.scenarioId}
+- Seed: ${report.requestedScenarioSeed}
+- Difficulty: ${report.difficulty}
+
+## Determinism
+
+- Outcome path signature: \`${report.outcomePathSignature}\`
+- Semantic hash: \`${report.finalSemanticStateHash}\`
+- RNG state/draws/nextID: ${report.simulationRngState}/${report.simulationRngDrawsAtEnd}/${report.simulationRngNextID}
+- Replay/persistence: ${pass(report.replayEvidence?.ok)}/${pass(report.persistenceEvidence?.saveReloadFork?.ok)}
+
+## Invariants
+
+- Finance and finite state: ${pass(report.invariantResult?.ok)}
+- Persistence: ${pass(report.persistenceEvidence?.saveReloadFork?.ok)}
+- Rollback: ${pass(report.rollbackEvidence?.ok)}
+- Idempotency: ${pass(report.idempotencyEvidence?.ok)}
+- Legacy parity: ${pass(report.legacyAdapterParity?.ok)}
+
+## Performance
+
+- Ticks: ${report.tickPerformance.count}
+- p50/p95/p99/max/mean ms: ${report.tickPerformance.p50Ms}/${report.tickPerformance.p95Ms}/${report.tickPerformance.p99Ms}/${report.tickPerformance.maxMs}/${report.tickPerformance.meanMs}
+
+## Persistence
+
+- Raw/compacted/stored bytes: ${report.persistencePerformance.rawSaveBytes}/${report.persistencePerformance.compactedSaveBytes}/${report.persistencePerformance.storedSaveBytes}
+- Compaction ratio: ${report.persistencePerformance.compactionRatio}
+- Serialization/compaction/load ms: ${report.persistencePerformance.serializationMs}/${report.persistencePerformance.compactionMs}/${report.persistencePerformance.loadMs}
+
+## Memory
+
+- Start/peak/end proxy bytes: ${report.memoryProxy.startBytes}/${report.memoryProxy.peakBytes}/${report.memoryProxy.endBytes}
+- Limitation: ${report.memoryProxy.kind}
+
+## Classification
+
+- Seed classification: ${report.runClassification}
+- Calibration aggregation: ${report.includeInCalibrationAggregation ? 'included' : 'excluded'}
+
+## Capability matrix
+
+| Capability | Status |
+|---|---|
+${caps}
+`;
+}
+
+function aggregateBenchmarkReports(reports) {
+  const ordered = [...reports].sort((a, b) => {
+    const seedDelta = a.requestedScenarioSeed - b.requestedScenarioSeed;
+    if (seedDelta) return seedDelta;
+    const left = String(a.scenarioId);
+    const right = String(b.scenarioId);
+    return left < right ? -1 : left > right ? 1 : 0;
+  });
+  const eligible = ordered.filter(report => report.includeInCalibrationAggregation);
+  const uniqueSeedCount = new Set(ordered.map(report => report.requestedScenarioSeed)).size;
+  const uniquePathSignatureCount = new Set(eligible.map(report => report.outcomePathSignature)).size;
+  return Object.freeze({
+    reportSchemaVersion: REPORT_SCHEMA_VERSION,
+    runs: Object.freeze(ordered),
+    aggregate: Object.freeze({
+      runCount: ordered.length,
+      eligibleCalibrationRuns: eligible.length,
+      excludedLegacyRuns: ordered.length - eligible.length,
+      uniqueSeedCount,
+      uniquePathSignatureCount,
+      uniqueFinalHashCount: new Set(eligible.map(report => report.finalSemanticStateHash)).size,
+      pathDiversityRatio: eligible.length ? uniquePathSignatureCount / eligible.length : 0,
+      performance: eligible.length ? summarizeDistribution(eligible.map(report => report.tickPerformance.meanMs)) : null,
+      saveSize: eligible.length ? summarizeValueDistribution(eligible.map(report => report.persistencePerformance.storedSaveBytes)) : null
+    })
+  });
+}
+
+function runScenarioMatrix(input = {}, options = {}) {
+  const tierName = String(input.tier || 'smoke');
+  resolveTier(tierName);
+  const seeds = [...(input.seeds || [])].map(Number).sort((a, b) => a - b);
+  if (!seeds.length || seeds.some(seed => !isUint32(seed))) throw new Error('Scenario matrix requires non-zero uint32 seeds.');
+  return aggregateBenchmarkReports(seeds.map(seed => runBenchmarkScenario(
+    { ...input, tier: tierName, requestedScenarioSeed: seed, scenarioId: `${input.scenarioId || tierName}-seed-${seed}` },
+    { ...options, includeCharacterization: false }
+  )));
+}
+
 function formatJsonReport(report) {
   return JSON.stringify(canonicalize(report), null, 2);
 }
@@ -869,13 +1258,16 @@ function parseCli(argv) {
     const value = argv[i + 1] && !argv[i + 1].startsWith('--') ? argv[++i] : true;
     args[key] = value;
   }
-  if (args.seed == null) throw new Error('CLI requires --seed <non-zero uint32>.');
+  if (args.seed == null && args.seeds == null) throw new Error('CLI requires --seed or --seeds.');
   return {
-    requestedScenarioSeed: Number(args.seed),
-    durationWeeks: args.weeks == null ? 4 : Number(args.weeks),
+    requestedScenarioSeed: args.seed == null ? undefined : Number(args.seed),
+    seeds: args.seeds == null ? null : String(args.seeds).split(',').map(Number),
+    durationWeeks: args.weeks == null ? undefined : Number(args.weeks),
     difficulty: args.difficulty || 'normal',
     gameScenario: args.scenario || 'free',
-    scenarioId: args.id || `cli-seed-${args.seed}`,
+    scenarioId: args.id || 'cli',
+    tier: args.tier || 'smoke',
+    format: String(args.format || 'json').toLowerCase(),
     scenarioIdentityFields: {
       companyName: args['company-name'] || 'Phase 0.5 Company',
       ticker: args.ticker || 'P05',
@@ -887,8 +1279,14 @@ function parseCli(argv) {
 
 if (require.main === module) {
   try {
-    const scenario = parseCli(process.argv.slice(2));
-    process.stdout.write(formatJsonReport(runScenario(scenario)) + '\n');
+    const cli = parseCli(process.argv.slice(2));
+    const report = cli.seeds ? runScenarioMatrix(cli) : runBenchmarkScenario(cli);
+    const output = cli.format === 'csv'
+      ? formatCsvReport(report.runs || report)
+      : cli.format === 'markdown'
+        ? (report.runs ? report.runs.map(formatMarkdownReport).join('\n') : formatMarkdownReport(report))
+        : formatJsonReport(report) + '\n';
+    process.stdout.write(output);
   } catch (error) {
     console.error(error.stack || error.message);
     process.exit(1);
@@ -902,6 +1300,8 @@ module.exports = Object.freeze({
   MAX_CORE_WEEKS,
   DEFAULT_EXPECTED_INVARIANTS,
   SEMANTIC_PROJECTION_REGISTRY,
+  HARNESS_TIERS,
+  CSV_COLUMNS,
   createScenario,
   declareEngineCapabilities,
   projectSemanticState,
@@ -932,7 +1332,19 @@ module.exports = Object.freeze({
   runPersistenceCharacterization,
   stepEconomicTick,
   runScenario,
+  resolveTier,
+  summarizeDistribution,
+  summarizeValueDistribution,
+  estimatedStorageBytes,
+  memoryProxy,
+  scanMonetaryEnvelope,
+  benchmarkPersistence,
+  runBenchmarkScenario,
+  aggregateBenchmarkReports,
+  runScenarioMatrix,
   formatJsonReport,
+  formatCsvReport,
+  formatMarkdownReport,
   resolveSourceMainSha,
   stableStringify
 });

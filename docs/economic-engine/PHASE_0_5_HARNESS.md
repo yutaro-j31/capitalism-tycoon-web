@@ -1,6 +1,6 @@
 # Phase 0.5 Permanent Headless Harness
 
-**Status: CORE IMPLEMENTATION — P0.5-1**  
+**Status: REPORTING / PERFORMANCE / SCALE IMPLEMENTATION — P0.5-3**  
 **Tracker: #833**  
 **Implementation baseline: NO**  
 **Phase 1 authorization: NO**
@@ -39,10 +39,14 @@ P0.5-1 provides:
 Current versions:
 
 - harness schema: `1`
-- report schema: `2`
+- report schema: `3`
 - semantic state hash/projection: `1` / `production-state-v1`
 
-Report schema 2 is additive: all schema-1 core fields retain their meanings, while P0.5-2 adds persistence, replay, rollback, idempotency, deterministic-ID, adapter-parity, and seed-classification evidence through `runPersistenceCharacterization(...)`. State-hash projection v1 is unchanged.\n\nVersion 1 semantic projection includes the full JSON-safe production simulation state except `lastSaveDate`, which is wall-clock save metadata rather than deterministic simulation state.
+Report schema 2 is additive: all schema-1 core fields retain their meanings, while P0.5-2 adds persistence, replay, rollback, idempotency, deterministic-ID, adapter-parity, and seed-classification evidence through `runPersistenceCharacterization(...)`. State-hash projection v1 is unchanged.
+
+Report schema 3 is additive over schema 2. It adds benchmark tier provenance, tick latency distribution, persistence timings and sizes, persistence checkpoint evidence, a serialized-state memory proxy, and monetary Number-envelope characterization. Semantic projection v1 remains unchanged.
+
+Version 1 semantic projection includes the full JSON-safe production simulation state except `lastSaveDate`, which is wall-clock save metadata rather than deterministic simulation state.
 
 Changing projection semantics requires a new state-hash version. Existing benchmark evidence must not silently change meaning.
 
@@ -56,6 +60,47 @@ The deterministic-ID report characterizes only contracts implemented by producti
 - the sampled sequence contains no duplicate IDs
 
 It does not claim a collision fallback that production does not implement. Legacy adapter parity emits named PASS/FAIL invariants for company cash versus B/S cash, company debt versus active loan principal, ownership/share reconciliation, cash-flow ending cash and cash roll-forward.
+
+## P0.5-3 reporting and measurement contracts
+
+`runBenchmarkScenario(...)` executes the production `advanceWeek` wrapper and measures each tick
+with an injectable monotonic clock (default: `performance.now()`). Timing never enters simulation
+state, hashes, RNG input, or economic decisions. Percentiles use **nearest rank**: after numeric
+ascending sort, percentile `p` is item `ceil(p * count)` (with a minimum rank of one).
+
+`formatCsvReport(...)` uses the frozen `CSV_COLUMNS` order and RFC-style double-quote escaping.
+`formatMarkdownReport(...)` emits deterministic Provenance, Determinism, Invariants, Performance,
+Persistence, Memory, Classification, and Capability matrix sections. Neither formatter adds a
+clock timestamp.
+
+Save sizes follow the production quota convention: JavaScript string code units multiplied by
+two, described in reports as `UTF-16-compatible production budget: codeUnits * 2`. Serialization,
+normal-profile `compactStateForStorage`, production fresh-runtime load, and `saveWithAdapter` are
+measured separately. Measurements are baselines, not performance SLAs; only missing, zero/negative,
+or non-finite instrumentation is a correctness failure in P0.5-3.
+
+The memory measurement is a deterministic practical proxy: serialized authoritative-state bytes
+plus retained benchmark-result bytes. It is **not** Node RSS, browser heap, or physical-iPhone
+memory use and is not a hard resource budget.
+
+The monetary envelope scans monetary-looking production fields without mutation and reports the
+maximum absolute observed value, unsafe integer count, non-finite count, and fixed probes from
+`1e6` through the `Number.MAX_SAFE_INTEGER` boundary. It characterizes the current Number and
+two-decimal rounding behavior; it does not introduce Decimal/int64 behavior.
+
+## Benchmark tiers and CI placement
+
+| Tier | Weeks | Seeds | Persistence interval | Intended surface |
+|---|---:|---:|---:|---|
+| `smoke` | 12 | 2 | 6 weeks | pull-request canonical tests |
+| `nightly` | 520 | 4 | 52 weeks | scheduled or manual npm script |
+| `deepAudit` | 2600 | 8 | 104 weeks | manual-only npm script |
+
+The engine still supports one detailed player company. Tiers scale only production-safe duration,
+seed count, and persistence cadence; `runBenchmarkScenario(...)` executes isolated production persistence
+checkpoints at that cadence and always captures the final week. `multiCompanyScaleMatrix` remains false. Canonical PR shards
+run only small smoke fixtures. `npm run harness:phase0-5:nightly` and
+`npm run harness:phase0-5:deep-audit` expose the heavier tiers without adding them to PR CI.
 
 ## Deterministic scenario seed injection
 
@@ -134,14 +179,19 @@ P0.5-2 now implements and advertises:
 - legacy adapter parity probe
 - legacy persisted-subsystem-seed classification
 
-Still not implemented:
+P0.5-3 now additionally implements and advertises:
 
 - CSV report
 - Markdown report
-- multi-company scale matrix
 - performance distribution report
+- scenario tier control
+- multi-seed matrix
 
-A later phase must not infer those capabilities merely because the core runner exists.
+Still not implemented:
+
+- multi-company scale matrix
+
+A later phase must not infer that capability merely because the benchmark tiers exist.
 
 ## CLI
 
