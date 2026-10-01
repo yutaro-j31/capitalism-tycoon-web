@@ -908,9 +908,12 @@ class TycoonEngine extends EventTarget {
     this.save(); this.emit();
   }
 
-  configure({playerName, companyName, difficulty='normal', scenario='free'}) {
-    // The only host entropy a game reads: the seed of a new game's stream, drawn once here (#731).
-    const next = createInitialState({playerName, companyName, difficulty, scenario, configured:true, seed:simRng.seedFromEntropy(Math.random())});
+  configure({playerName, companyName, difficulty='normal', scenario='free', simulationSeed=null}) {
+    // Normal gameplay still draws host entropy exactly once. Phase 0.5 may inject an explicit persisted
+    // simulation seed so deterministic scenarios exercise the same production configure path without
+    // depending on host entropy. createInitialState()/simulationRng.reseed validate the supplied uint32.
+    const seed = simulationSeed == null ? simRng.seedFromEntropy(Math.random()) : simulationSeed;
+    const next = createInitialState({playerName, companyName, difficulty, scenario, configured:true, seed});
     const settings = this.g.settings;
     this.g = next; this.g.settings = settings;
     globalThis.__capitalismTycoonModules?.microcapListings?.ensure?.(this.g);
