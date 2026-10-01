@@ -157,7 +157,8 @@
     "tests/map-phase2-tenant-detail-mobile-test.js",
     "tests/iphone-toast-bottom-nav-clearance-test.js",
     "tests/map-phase2-pinch-zoom-test.js",
-    "tests/phase0-5-harness-reporting-test.js"
+    "tests/phase0-5-harness-reporting-test.js",
+    "tests/group-capital-allocation-accounting-test.js"
   ],
   "H": [
     "tests/founder-shareholder-loan-lender-test.js",
