@@ -886,6 +886,22 @@ function summarizeDistribution(samples) {
   });
 }
 
+function summarizeValueDistribution(samples) {
+  if (!Array.isArray(samples) || samples.length === 0) throw new Error('Numeric distribution requires at least one sample.');
+  const sorted = samples.map(Number).sort((a, b) => a - b);
+  if (sorted.some(value => !Number.isFinite(value) || value <= 0)) throw new Error('Numeric samples must be finite and positive.');
+  const nearestRank = percentile => sorted[Math.max(0, Math.ceil(percentile * sorted.length) - 1)];
+  return Object.freeze({
+    count: sorted.length,
+    p50: nearestRank(0.50),
+    p95: nearestRank(0.95),
+    p99: nearestRank(0.99),
+    max: sorted[sorted.length - 1],
+    mean: sorted.reduce((sum, value) => sum + value, 0) / sorted.length,
+    percentileAlgorithm: 'nearest-rank'
+  });
+}
+
 function estimatedStorageBytes(payload) {
   return String(payload).length * 2;
 }
@@ -999,6 +1015,10 @@ function runBenchmarkScenario(input = {}, options = {}) {
     );
     const metrics = benchmarkPersistence(persistenceRuntime, clock);
     persistenceCheckpoints.push(Object.freeze({ week, metrics }));
+    memoryPeakBytes = Math.max(
+      memoryPeakBytes,
+      memoryProxy(runtime.engine.g, { latencies, persistenceCheckpoints }).totalProxyBytes
+    );
     return metrics;
   };
 
@@ -1019,7 +1039,7 @@ function runBenchmarkScenario(input = {}, options = {}) {
   }
   const persistencePerformance = persistenceCheckpoints[persistenceCheckpoints.length - 1].metrics;
 
-  const memoryEndProbe = memoryProxy(runtime.engine.g, latencies);
+  const memoryEndProbe = memoryProxy(runtime.engine.g, { latencies, persistenceCheckpoints });
   memoryPeakBytes = Math.max(memoryPeakBytes, memoryEndProbe.totalProxyBytes);
   const roots = subsystemSeedRoots(runtime.loaded, runtime.engine.g);
   const runClassification = roots.some(row => row.classification === 'legacy-persisted-subsystem-seed')
@@ -1209,7 +1229,7 @@ function aggregateBenchmarkReports(reports) {
       uniqueFinalHashCount: new Set(eligible.map(report => report.finalSemanticStateHash)).size,
       pathDiversityRatio: eligible.length ? uniquePathSignatureCount / eligible.length : 0,
       performance: eligible.length ? summarizeDistribution(eligible.map(report => report.tickPerformance.meanMs)) : null,
-      saveSize: eligible.length ? summarizeDistribution(eligible.map(report => report.persistencePerformance.storedSaveBytes)) : null
+      saveSize: eligible.length ? summarizeValueDistribution(eligible.map(report => report.persistencePerformance.storedSaveBytes)) : null
     })
   });
 }
@@ -1314,6 +1334,7 @@ module.exports = Object.freeze({
   runScenario,
   resolveTier,
   summarizeDistribution,
+  summarizeValueDistribution,
   estimatedStorageBytes,
   memoryProxy,
   scanMonetaryEnvelope,
