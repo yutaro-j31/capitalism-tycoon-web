@@ -34,6 +34,7 @@ const report = phase05.runBenchmarkScenario(benchmarkInput, { sourceMainSha: SOU
 
 assert.equal(report.reportSchemaVersion, 3);
 assert.equal(report.tickPerformance.count, 2);
+assert.deepEqual(report.persistenceCheckpoints.map(row => row.week), [2]);
 for (const value of Object.values(report.tickPerformance).filter(value => typeof value === 'number')) {
   assert(Number.isFinite(value) && value >= 0);
 }
