@@ -32,6 +32,12 @@ function fundedRuntime(id = 'persistence-replay') {
   return runtime;
 }
 
+// 0. Finite-state must be domain-neutral: large but finite ratios are valid; NaN/Infinity are not.
+{
+  assert.deepEqual(phase05.findNonFiniteNumbers({ currentRatio: 21, quickRatio: 21 }), []);
+  assert.ok(phase05.findNonFiniteNumbers({ bad: Infinity }).some(row => row.includes('non-finite')));
+}
+
 // 1. Production save -> fresh TycoonEngineV9.load() fork, then exact replay under different host entropy.
 {
   const source = fundedRuntime('production-save-fork');
