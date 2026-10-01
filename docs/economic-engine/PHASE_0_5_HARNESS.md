@@ -42,7 +42,11 @@ Current versions:
 - report schema: `3`
 - semantic state hash/projection: `1` / `production-state-v1`
 
-Report schema 2 is additive: all schema-1 core fields retain their meanings, while P0.5-2 adds persistence, replay, rollback, idempotency, deterministic-ID, adapter-parity, and seed-classification evidence through `runPersistenceCharacterization(...)`. State-hash projection v1 is unchanged.\n\nVersion 1 semantic projection includes the full JSON-safe production simulation state except `lastSaveDate`, which is wall-clock save metadata rather than deterministic simulation state.
+Report schema 2 is additive: all schema-1 core fields retain their meanings, while P0.5-2 adds persistence, replay, rollback, idempotency, deterministic-ID, adapter-parity, and seed-classification evidence through `runPersistenceCharacterization(...)`. State-hash projection v1 is unchanged.
+
+Report schema 3 is additive over schema 2. It adds benchmark tier provenance, tick latency distribution, persistence timings and sizes, persistence checkpoint evidence, a serialized-state memory proxy, and monetary Number-envelope characterization. Semantic projection v1 remains unchanged.
+
+Version 1 semantic projection includes the full JSON-safe production simulation state except `lastSaveDate`, which is wall-clock save metadata rather than deterministic simulation state.
 
 Changing projection semantics requires a new state-hash version. Existing benchmark evidence must not silently change meaning.
 
