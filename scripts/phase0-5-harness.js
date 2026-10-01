@@ -178,8 +178,13 @@ function declareEngineCapabilities(loaded) {
     financeValidation: typeof loaded.modules.finance?.validate === 'function',
     semanticHashVersions: Object.freeze(Object.keys(SEMANTIC_PROJECTION_REGISTRY).map(Number)),
     jsonReport: true,
-    saveReloadFork: false,
-    compactedSaveReloadFork: false,
+    saveReloadFork: true,
+    compactedSaveReloadFork: true,
+    operationReplayProbe: true,
+    deterministicRollbackProbe: true,
+    deterministicIdProbe: true,
+    legacyAdapterParityProbe: true,
+    legacySeedClassification: true,
     csvReport: false,
     markdownReport: false,
     multiCompanyScaleMatrix: false,
@@ -299,6 +304,221 @@ function createRuntime(scenarioInput, options = {}) {
   if (!invariants.ok) throw new Error(`Initial Phase 0.5 invariants failed: ${invariants.errors.join(' / ')}`);
 
   return runtime;
+}
+
+
+function makeMemoryStorage(initial = {}) {
+  const data = new Map(Object.entries(initial));
+  return {
+    data,
+    getItem(key) { return data.has(String(key)) ? data.get(String(key)) : null; },
+    setItem(key, value) { data.set(String(key), String(value)); },
+    removeItem(key) { data.delete(String(key)); }
+  };
+}
+
+function persistRuntime(runtime, options = {}) {
+  const mode = String(options.mode || 'production-auto');
+  const savedAt = String(options.savedAt || '2000-01-01T00:00:00.000Z');
+  const storage = runtime.loaded.modules.saveStorage;
+  if (!storage?.saveWithAdapter || !storage?.storagePayload) throw new Error('Production save-storage adapter is unavailable.');
+
+  if (mode === 'production-auto') {
+    const mirror = makeMemoryStorage();
+    const result = storage.saveWithAdapter(runtime.engine, {
+      backend: false,
+      mirrorStorage: mirror,
+      savedAt
+    });
+    if (!result?.ok || typeof result.payload !== 'string') {
+      throw new Error(`Production save failed: ${result?.error?.message || result?.mode || 'unknown'}`);
+    }
+    return Object.freeze({
+      payload: result.payload,
+      storageMode: result.mode,
+      bytes: Number(result.bytes || result.payload.length * 2),
+      originalBytes: Number(result.originalBytes || result.payload.length * 2),
+      profile: null
+    });
+  }
+
+  if (mode === 'compacted') {
+    const profile = String(options.profile || 'normal');
+    const state = cloneJson(runtime.engine.g);
+    state.lastSaveDate = savedAt;
+    const result = storage.storagePayload(state, profile);
+    return Object.freeze({
+      payload: result.payload,
+      storageMode: `compacted-${profile}`,
+      bytes: result.payload.length * 2,
+      originalBytes: JSON.stringify(state).length * 2,
+      profile
+    });
+  }
+
+  throw new Error(`Unsupported persistence mode: ${mode}`);
+}
+
+function loadRuntimeFromPayload(parentRuntime, payload, options = {}) {
+  if (!parentRuntime?.scenario || typeof payload !== 'string') throw new Error('A parent runtime and serialized payload are required.');
+  const key = parentRuntime.loaded.engineModule.SAVE_KEY;
+  const hostEntropy = Number.isFinite(Number(options.hostEntropy)) ? Number(options.hostEntropy) : 0.25;
+  const loaded = loadGame({
+    headless: true,
+    random: () => hostEntropy,
+    localStorageInitial: { [key]: payload }
+  });
+  const engine = loaded.engineModule.TycoonEngine.load();
+  if (!engine?.g?.configured) throw new Error('Persisted Phase 0.5 runtime did not load as a configured game.');
+  const runtime = {
+    scenario: parentRuntime.scenario,
+    loaded,
+    engine,
+    sourceMainSha: parentRuntime.sourceMainSha,
+    engineCapabilities: declareEngineCapabilities(loaded)
+  };
+  const invariants = assertEconomicInvariants(runtime, runtime.scenario.expectedInvariants);
+  if (!invariants.ok) throw new Error(`Reloaded Phase 0.5 invariants failed: ${invariants.errors.join(' / ')}`);
+  return runtime;
+}
+
+function projectPersistenceComparableState(runtime, profile = 'normal') {
+  const storage = runtime.loaded.modules.saveStorage;
+  const compacted = storage.compactStateForStorage(runtime.engine.g, profile).state;
+  delete compacted.lastSaveDate;
+  delete compacted.saveSequence;
+  return compacted;
+}
+
+function diffPersistenceState(leftRuntime, rightRuntime, profile = 'normal') {
+  return firstDiff(
+    canonicalize(projectPersistenceComparableState(leftRuntime, profile)),
+    canonicalize(projectPersistenceComparableState(rightRuntime, profile))
+  );
+}
+
+function assertForkEquivalent(leftRuntime, rightRuntime, options = {}) {
+  const comparison = String(options.comparison || 'semantic');
+  const diff = comparison === 'compacted'
+    ? diffPersistenceState(leftRuntime, rightRuntime, options.profile || 'normal')
+    : diffSemanticState(leftRuntime.engine.g, rightRuntime.engine.g, leftRuntime.scenario.stateHashVersion);
+  if (diff) throw new Error(`Phase 0.5 fork divergence (${comparison}): ${JSON.stringify(diff)}`);
+  return Object.freeze({
+    ok: true,
+    comparison,
+    profile: comparison === 'compacted' ? String(options.profile || 'normal') : null,
+    leftHash: semanticStateHash(leftRuntime.engine.g, leftRuntime.scenario.stateHashVersion),
+    rightHash: semanticStateHash(rightRuntime.engine.g, rightRuntime.scenario.stateHashVersion)
+  });
+}
+
+function advanceForkPair(leftRuntime, rightRuntime, weeks, options = {}) {
+  const count = Math.max(0, Math.floor(Number(weeks)));
+  const checkpoints = [];
+  for (let step = 1; step <= count; step++) {
+    stepEconomicTick(leftRuntime);
+    stepEconomicTick(rightRuntime);
+    const equivalence = assertForkEquivalent(leftRuntime, rightRuntime, options);
+    checkpoints.push({
+      step,
+      week: Number(leftRuntime.engine.g.week),
+      comparison: equivalence.comparison,
+      leftHash: equivalence.leftHash,
+      rightHash: equivalence.rightHash
+    });
+  }
+  return Object.freeze(checkpoints);
+}
+
+function snapshotLegacyAdapterParity(runtime) {
+  const state = runtime.engine.g;
+  const finance = runtime.loaded.modules.finance;
+  const validation = finance.validate(state);
+  const statements = finance.buildStatements(state, '52');
+  return canonicalize({
+    companyCash: Number(state.companyCash),
+    personalCash: Number(state.personalCash),
+    companyDebt: Number(state.companyDebt),
+    sharesOut: Number(state.sharesOut),
+    founderShares: Number(state.founderShares),
+    treasuryBuybackShares: Number(state.treasuryBuybackShares),
+    founderOwnershipRatio: Number(state.founderOwnershipRatio),
+    externalShareholderRatio: Number(state.externalShareholderRatio),
+    competitorOwnedRatio: Number(state.competitorOwnedRatio),
+    financeValid: validation.ok === true,
+    balanceSheet: {
+      totalAssets: Number(statements.balanceSheet?.assets?.totalAssets ?? statements.balanceSheet?.totalAssets ?? 0),
+      totalLiabilities: Number(statements.balanceSheet?.liabilities?.totalLiabilities ?? statements.balanceSheet?.totalLiabilities ?? 0),
+      totalEquity: Number(statements.balanceSheet?.equity?.totalEquity ?? statements.balanceSheet?.totalEquity ?? 0),
+      cashAndDeposits: Number(statements.balanceSheet?.assets?.cashAndDeposits ?? 0)
+    },
+    cashFlow: {
+      openingCash: Number(statements.cashFlow?.openingCash ?? 0),
+      netCashChange: Number(statements.cashFlow?.netCashChange ?? 0),
+      endingCash: Number(statements.cashFlow?.endingCash ?? 0)
+    },
+    profitAndLoss: {
+      revenue: Number(statements.profitAndLoss?.revenue ?? 0),
+      netIncome: Number(statements.profitAndLoss?.netIncome ?? 0)
+    }
+  });
+}
+
+function classifySeedProvenance(loaded, state) {
+  const roots = subsystemSeedRoots(loaded, state);
+  return Object.freeze({
+    classification: roots.some(row => row.classification === 'legacy-persisted-subsystem-seed')
+      ? 'legacy-persisted-subsystem-seed'
+      : 'new-game-seed-root',
+    roots: Object.freeze(roots)
+  });
+}
+
+function probeIdempotentOperation(runtime, operation) {
+  if (typeof operation !== 'function') throw new Error('operation callback is required.');
+  const beforeHash = semanticStateHash(runtime.engine.g, runtime.scenario.stateHashVersion);
+  const firstResult = operation(runtime);
+  const firstHash = semanticStateHash(runtime.engine.g, runtime.scenario.stateHashVersion);
+  const secondResult = operation(runtime);
+  const secondHash = semanticStateHash(runtime.engine.g, runtime.scenario.stateHashVersion);
+  const ok = firstHash === secondHash;
+  if (!ok) {
+    throw new Error(`Operation replay was not idempotent: ${firstHash} != ${secondHash}`);
+  }
+  return Object.freeze({ ok, beforeHash, firstHash, secondHash, firstResult, secondResult });
+}
+
+function probeDeterministicRollback(runtime, mutator, options = {}) {
+  if (typeof mutator !== 'function') throw new Error('rollback mutator callback is required.');
+  const before = cloneJson(runtime.engine.g);
+  const beforeHash = semanticStateHash(before, runtime.scenario.stateHashVersion);
+  let threw = false;
+  try {
+    runtime.engine.runTransaction(() => {
+      mutator(runtime);
+      if (options.throwError) throw new Error('phase0-5-rollback-probe');
+      return false;
+    }, 'phase0-5-probe');
+  } catch (error) {
+    if (!options.throwError || error.message !== 'phase0-5-rollback-probe') throw error;
+    threw = true;
+  }
+  const diff = diffSemanticState(before, runtime.engine.g, runtime.scenario.stateHashVersion);
+  if (diff) throw new Error(`Rollback probe left a state mutation: ${JSON.stringify(diff)}`);
+  return Object.freeze({
+    ok: true,
+    threw,
+    beforeHash,
+    afterHash: semanticStateHash(runtime.engine.g, runtime.scenario.stateHashVersion)
+  });
+}
+
+function probeDeterministicIds(runtime, options = {}) {
+  const prefix = String(options.prefix || 'phase05');
+  const count = Math.max(1, Math.floor(Number(options.count || 16)));
+  const ids = Array.from({ length: count }, () => runtime.loaded.modules.simulationRng.nextID(runtime.engine.g, prefix));
+  if (new Set(ids).size !== ids.length) throw new Error('Deterministic ID probe generated a collision.');
+  return Object.freeze(ids);
 }
 
 function pathObservation(runtime) {
@@ -440,6 +660,17 @@ module.exports = Object.freeze({
   snapshotMetrics,
   assertEconomicInvariants,
   createRuntime,
+  persistRuntime,
+  loadRuntimeFromPayload,
+  projectPersistenceComparableState,
+  diffPersistenceState,
+  assertForkEquivalent,
+  advanceForkPair,
+  snapshotLegacyAdapterParity,
+  classifySeedProvenance,
+  probeIdempotentOperation,
+  probeDeterministicRollback,
+  probeDeterministicIds,
   stepEconomicTick,
   runScenario,
   formatJsonReport,
