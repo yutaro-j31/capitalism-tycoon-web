@@ -93,7 +93,8 @@ two-decimal rounding behavior; it does not introduce Decimal/int64 behavior.
 | `deepAudit` | 2600 | 8 | 104 weeks | manual-only npm script |
 
 The engine still supports one detailed player company. Tiers scale only production-safe duration,
-seed count, and persistence cadence; `multiCompanyScaleMatrix` remains false. Canonical PR shards
+seed count, and persistence cadence; `runBenchmarkScenario(...)` executes isolated production persistence
+checkpoints at that cadence and always captures the final week. `multiCompanyScaleMatrix` remains false. Canonical PR shards
 run only small smoke fixtures. `npm run harness:phase0-5:nightly` and
 `npm run harness:phase0-5:deep-audit` expose the heavier tiers without adding them to PR CI.
 
