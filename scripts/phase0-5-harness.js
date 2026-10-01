@@ -156,7 +156,7 @@ function createScenario(input = {}) {
       'ui-free-production-week',
       'finance-validation',
       'semantic-state-hash-v1',
-      'json-report-v1'
+      'json-report-v2'
     ]),
     scenarioSize: Object.freeze({
       playerCompanies,
@@ -607,13 +607,22 @@ function replayScenario(scenarioInput, options = {}) {
   const comparison=persisted.storageMode==='raw'?'semantic':'compacted';
   const checkpoints=advanceForkPair(left,right,Math.max(1,Math.floor(Number(options.replayWeeks??3))),{comparison,profile:'normal'});
   const finalDiff=comparison==='compacted'?diffPersistenceState(left,right,'normal'):diffSemanticState(left.engine.g,right.engine.g,scenario.stateHashVersion);
+  const leftInvariantResult=assertEconomicInvariants(left,scenario.expectedInvariants);
+  const rightInvariantResult=assertEconomicInvariants(right,scenario.expectedInvariants);
+  const leftPathSignature=sha256(stableStringify(checkpoints.map(row=>({week:row.week,hash:row.leftHash}))));
+  const rightPathSignature=sha256(stableStringify(checkpoints.map(row=>({week:row.week,hash:row.rightHash}))));
   return Object.freeze({
-    ok:finalDiff===null,
+    ok:finalDiff===null&&leftInvariantResult.ok&&rightInvariantResult.ok&&leftPathSignature===rightPathSignature,
     storageMode:persisted.storageMode,
     comparison,
     finalDiff,
     leftHash:semanticStateHash(left.engine.g,scenario.stateHashVersion),
     rightHash:semanticStateHash(right.engine.g,scenario.stateHashVersion),
+    leftPathSignature,
+    rightPathSignature,
+    pathSignatureMatch:leftPathSignature===rightPathSignature,
+    leftInvariantResult,
+    rightInvariantResult,
     rngParity:stableStringify(left.engine.g.simulationRng)===stableStringify(right.engine.g.simulationRng),
     nextIDParity:left.engine.g.simulationRng.nextID===right.engine.g.simulationRng.nextID,
     checkpoints
@@ -629,6 +638,7 @@ function characterizeRollback(runtime) {
     const beforeComponents={
       companyCash:runtime.engine.g.companyCash,
       personalCash:runtime.engine.g.personalCash,
+      companyDebt:runtime.engine.g.companyDebt,
       financeTransactions:runtime.engine.g.finance.transactions.length,
       stores:stableStringify(runtime.engine.g.stores),
       simulationRng:stableStringify(runtime.engine.g.simulationRng),
@@ -639,6 +649,7 @@ function characterizeRollback(runtime) {
     const work=()=>{
       runtime.engine.g.companyCash-=111;
       runtime.engine.g.personalCash-=222;
+      runtime.engine.g.companyDebt+=333;
       finance.event(runtime.engine.g,'otherOperating',111,{cashEffect:-111,profitEffect:-111,sourceType:'phase05Rollback',idempotencyKey:`phase05-rollback-${id}`,operationID:`phase05-rollback-${id}`});
       runtime.engine.g.stores.push({id:`phase05-partial-${id}`,businessID:'ramen'});
       rng.next(runtime.engine.g);
@@ -651,6 +662,7 @@ function characterizeRollback(runtime) {
     const components={
       companyCash:runtime.engine.g.companyCash===beforeComponents.companyCash,
       personalCash:runtime.engine.g.personalCash===beforeComponents.personalCash,
+      companyDebt:runtime.engine.g.companyDebt===beforeComponents.companyDebt,
       financeTransactions:runtime.engine.g.finance.transactions.length===beforeComponents.financeTransactions,
       storesOrAssets:stableStringify(runtime.engine.g.stores)===beforeComponents.stores,
       simulationRng:stableStringify(runtime.engine.g.simulationRng)===beforeComponents.simulationRng,
