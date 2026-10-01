@@ -125,7 +125,8 @@
     "tests/gym-startup-hard-founding-test.js",
     "tests/ramen-supply-payment-terms-negative-test.js",
     "tests/pe-multi-fund-acquisition-negative-test.js",
-    "tests/phase0-5-harness-core-test.js"
+    "tests/phase0-5-harness-core-test.js",
+    "tests/phase0-5-persistence-replay-test.js"
   ],
   "G": [
     "tests/property-insurance-loss-ledger-test.js",
