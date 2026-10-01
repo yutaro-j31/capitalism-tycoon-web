@@ -98,9 +98,7 @@ assert.equal(report.engineCapabilities.markdownReport, true);
 assert.equal(report.engineCapabilities.performanceDistributionReport, true);
 assert.equal(report.engineCapabilities.scenarioTierControl, true);
 assert.equal(report.engineCapabilities.multiSeedMatrix, true);
-assert.equal(report.engineCapabilities.markdownReport, false);
 assert.equal(report.engineCapabilities.multiCompanyScaleMatrix, false);
-assert.equal(report.engineCapabilities.performanceDistributionReport, false);
 assert.ok(report.subsystemSeedRoots.some(row => row.subsystem === 'simulationRng' && row.seed === BASE_SEED));
 assert.ok(report.subsystemSeedRoots.some(row => row.subsystem === 'economicFoundation' && row.seed === BASE_SEED));
 
