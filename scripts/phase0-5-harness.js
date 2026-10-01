@@ -161,7 +161,7 @@ function createScenario(input = {}) {
       'ui-free-production-week',
       'finance-validation',
       'semantic-state-hash-v1',
-      'json-report-v2'
+      'json-report-v3'
     ]),
     scenarioSize: Object.freeze({
       playerCompanies,
