@@ -86,6 +86,7 @@ const nodeTests = [
   ['economic-foundation-draws', 'tests/economic-foundation-draws-test.js'],
   ['phase0-5-seed-provenance', 'tests/phase0-5-seed-provenance-test.js'],
   ['phase0-5-harness-core', 'tests/phase0-5-harness-core-test.js'],
+  ['phase0-5-persistence-replay', 'tests/phase0-5-persistence-replay-test.js'],
   ['executive-candidate-seed-provenance', 'tests/executive-candidate-seed-provenance-test.js'],
   ['executive-dismissal-governance', 'tests/executive-dismissal-governance-test.js'],
   ['executive-retirement-succession', 'tests/executive-retirement-succession-test.js'],
