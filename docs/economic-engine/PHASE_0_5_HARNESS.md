@@ -39,12 +39,23 @@ P0.5-1 provides:
 Current versions:
 
 - harness schema: `1`
-- report schema: `1`
+- report schema: `2`
 - semantic state hash/projection: `1` / `production-state-v1`
 
-Version 1 semantic projection includes the full JSON-safe production simulation state except `lastSaveDate`, which is wall-clock save metadata rather than deterministic simulation state.
+Report schema 2 is additive: all schema-1 core fields retain their meanings, while P0.5-2 adds persistence, replay, rollback, idempotency, deterministic-ID, adapter-parity, and seed-classification evidence through `runPersistenceCharacterization(...)`. State-hash projection v1 is unchanged.\n\nVersion 1 semantic projection includes the full JSON-safe production simulation state except `lastSaveDate`, which is wall-clock save metadata rather than deterministic simulation state.
 
 Changing projection semantics requires a new state-hash version. Existing benchmark evidence must not silently change meaning.
+
+P0.5-2 evidence uses isolated fresh runtimes. Rollback cases mutate company and personal cash, finance rows, stores, RNG draws/state, and the deterministic ID counter before both a `false` return and a thrown/rethrown failure. Idempotency evidence calls the production `TycoonEngine.payPropertyTax` action twice for the same property and week, proving that cash, the finance row, and property-tax state move only once.
+
+The deterministic-ID report characterizes only contracts implemented by production:
+
+- the same persisted state yields the same sampled sequence
+- a reload continues at the same next ID
+- transaction rollback restores the counter
+- the sampled sequence contains no duplicate IDs
+
+It does not claim a collision fallback that production does not implement. Legacy adapter parity emits named PASS/FAIL invariants for company cash versus B/S cash, company debt versus active loan principal, ownership/share reconciliation, cash-flow ending cash and cash roll-forward.
 
 ## Deterministic scenario seed injection
 
