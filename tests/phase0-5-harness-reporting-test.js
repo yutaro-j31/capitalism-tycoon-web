@@ -21,6 +21,10 @@ assert.deepEqual(distribution, {
 });
 assert.throws(() => phase05.summarizeDistribution([]), /at least one/);
 assert.throws(() => phase05.summarizeDistribution([1, 0]), /positive/);
+assert.deepEqual(
+  phase05.summarizeValueDistribution([100, 200, 300]),
+  { count: 3, p50: 200, p95: 300, p99: 300, max: 300, mean: 200, percentileAlgorithm: 'nearest-rank' }
+);
 
 let now = 0;
 const clock = () => { now += 0.25; return now; };
@@ -112,6 +116,8 @@ const excluded = phase05.aggregateBenchmarkReports([
 ]);
 assert.equal(excluded.aggregate.eligibleCalibrationRuns, 1);
 assert.equal(excluded.aggregate.excludedLegacyRuns, 1);
+assert.equal(typeof matrix.aggregate.saveSize.p50, 'number');
+assert.equal(matrix.aggregate.saveSize.p50Ms, undefined);
 
 console.log(JSON.stringify({
   reporting: 'passed',
