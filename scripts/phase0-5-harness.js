@@ -983,6 +983,7 @@ function runBenchmarkScenario(input = {}, options = {}) {
   let memoryPeakBytes = memoryStart.totalProxyBytes;
   const latencies = [];
   const initialSemanticStateHash = semanticStateHash(runtime.engine.g, scenario.stateHashVersion);
+  const simulationRngDrawsAtStart = Number(runtime.engine.g.simulationRng.draws);
   const initialMetrics = snapshotMetrics(runtime);
   const pathRows = [pathObservation(runtime)];
   const persistenceCheckpoints = [];
@@ -1034,13 +1035,21 @@ function runBenchmarkScenario(input = {}, options = {}) {
     harnessSchemaVersion: HARNESS_SCHEMA_VERSION,
     sourceMainSha: runtime.sourceMainSha,
     scenarioId: scenario.scenarioId,
+    scenarioFeatures: scenario.scenarioFeatures,
+    scenarioSize: scenario.scenarioSize,
+    scenarioIdentityFields: scenario.scenarioIdentityFields,
     tier: tierName,
     tierDefinition: tier,
     requestedScenarioSeed: scenario.requestedScenarioSeed,
     simulationRngSeed: Number(runtime.engine.g.simulationRng.seed),
+    simulationRngVersion: Number(runtime.engine.g.simulationRng.version),
     simulationRngState: Number(runtime.engine.g.simulationRng.state),
+    simulationRngDrawsAtStart,
     simulationRngDrawsAtEnd: Number(runtime.engine.g.simulationRng.draws),
     simulationRngNextID: Number(runtime.engine.g.simulationRng.nextID),
+    subsystemSeedRoots: Object.freeze(roots),
+    stateHashVersion: scenario.stateHashVersion,
+    expectedInvariants: scenario.expectedInvariants,
     runClassification,
     includeInCalibrationAggregation: runClassification === 'new-game-seed-root',
     durationWeeks: scenario.durationWeeks,
