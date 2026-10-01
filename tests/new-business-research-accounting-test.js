@@ -61,8 +61,8 @@ assert.deepEqual({
   profitEffect: -COST,
   assetEffect: 0,
   sourceType: 'newBusinessResearch',
-  operationID: `new-business-research-${engine.g.week}-${CANDIDATE_ID}`,
-  idempotencyKey: `new-business-research-${engine.g.week}-${CANDIDATE_ID}`
+  operationID: `new-business-research-research-${engine.g.week}-${CANDIDATE_ID}`,
+  idempotencyKey: `new-business-research-research-${engine.g.week}-${CANDIDATE_ID}`
 });
 
 const statementsAfter = finance.buildStatements(engine.g, 'week');
