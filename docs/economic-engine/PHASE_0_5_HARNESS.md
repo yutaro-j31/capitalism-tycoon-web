@@ -113,10 +113,18 @@ The path signature fingerprints economic observations across ticks and is theref
 
 Reports explicitly declare what the harness can and cannot yet prove.
 
-P0.5-1 declares these as not yet implemented:
+P0.5-2 now implements and advertises:
 
-- save/reload fork
-- compacted-save/reload fork
+- production save/reload fork
+- compacted-save/reload fork through a production compaction-equivalence projection
+- operation replay/idempotency probe
+- deterministic rollback/failure probe
+- deterministic ID-allocation probe
+- legacy adapter parity probe
+- legacy persisted-subsystem-seed classification
+
+Still not implemented:
+
 - CSV report
 - Markdown report
 - multi-company scale matrix
@@ -138,7 +146,19 @@ An explicit seed is mandatory.
 
 ### P0.5-2
 
-Persistence, replay, rollback/failure, ID-collision and legacy adapter characterization.
+Implemented in the persistence/replay slice:
+- `persistRuntime(...)`
+- `loadRuntimeFromPayload(...)`
+- `assertForkEquivalent(...)`
+- `advanceForkPair(...)`
+- `snapshotLegacyAdapterParity(...)`
+- `classifySeedProvenance(...)`
+- `probeIdempotentOperation(...)`
+- `probeDeterministicRollback(...)`
+- `probeDeterministicIds(...)`
+
+Raw/production-auto saves use `saveStorage.saveWithAdapter()` and fresh `TycoonEngineV9.load()`.
+Forced compacted forks use `saveStorage.storagePayload()` / `compactStateForStorage()` on both sides for persistence-equivalence comparison, so intentional archival compaction is not misclassified as simulation nondeterminism.
 
 ### P0.5-3
 
