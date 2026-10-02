@@ -12,6 +12,14 @@ const VERSION=1,FALLBACK_SEED=0x9e3779b9;
 const uint32=value=>Number.isInteger(value)&&value>=0&&value<=0xffffffff;
 const count=value=>Number.isSafeInteger(value)&&value>=0;
 function hash32(text){let h=2166136261;for(const c of String(text)){h^=c.codePointAt(0);h=Math.imul(h,16777619);}return h>>>0;}
+// Economic decisions that must not move with unrelated stream draws are keyed from the persisted
+// root seed. Callers must supply stable economic identifiers (never labels or UI state).
+function keyedUnit(state,decisionType,...identifiers){
+  const box=ensure(state);
+  return hash32([box.seed,decisionType,...identifiers].map(value=>String(value??'')).join('|'))/4294967296;
+}
+// Locale-independent code-unit ordering for economic tie-breaks.
+function stableCompare(left,right){const a=String(left??''),b=String(right??'');return a<b?-1:a>b?1:0;}
 // A save made before #731 has no stream: derive its seed from the save itself, never from the host.
 function legacySeed(state){
   const week=Number.isFinite(Number(state?.week))?Math.floor(Number(state.week)):1;
@@ -58,5 +66,5 @@ function reseed(state,seed,{skip=0}={}){
 function seedFromEntropy(value){const seed=Number.isFinite(value)?Math.floor(value*0x100000000)>>>0:0;return seed||FALLBACK_SEED;}
 // The next values the stream will produce, without consuming them.
 function peek(state,countToPeek=1){const box={...ensure(state)},values=[];for(let i=0;i<countToPeek;i++)values.push(step(box));return values;}
-modules.simulationRng=Object.freeze({VERSION,hash32,legacySeed,ensure,next,range,pick,chance,nextID,reseed,peek,seedFromEntropy,shuffle});
+modules.simulationRng=Object.freeze({VERSION,hash32,keyedUnit,stableCompare,legacySeed,ensure,next,range,pick,chance,nextID,reseed,peek,seedFromEntropy,shuffle});
 })();
