@@ -22,7 +22,7 @@ assert.ok(ui?.__installed,'save storage UI must install');
 for(const name of ['backupFilename','downloadBackup','ensureImportInput','importSizeError','importBackupFile','handleRecoveryClick','handleImportChange'])assert.equal(typeof ui[name],'function',`${name} missing`);
 assert.equal(ui.MAX_IMPORT_BYTES,8*1024*1024,'iPhone import limit must stay explicit and testable');
 
-const instance={g:{week:88,saveVersion:9,companyCash:123456,personalCash:654321,stores:[{id:'store-1'}]},saveCalls:0,save(){this.saveCalls++;return true;}};
+const instance={g:{week:88,saveVersion:9,companyCash:123456,personalCash:654321,companyDebt:0,personalDebt:0,stores:[{id:'store-1'}]},saveCalls:0,save(){this.saveCalls++;return true;}};
 assert.equal(ui.backupFilename(instance),'capitalism-tycoon-backup-week-88.json');
 let clicked=false,removed=false,revoked='',appended=null,blob=null;
 class BlobStub{constructor(parts,opts){this.parts=parts;this.type=opts?.type;blob=this;}}
