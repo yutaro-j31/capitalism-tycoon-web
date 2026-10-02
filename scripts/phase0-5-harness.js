@@ -7,6 +7,7 @@ const { ROOT, loadGame } = require('../tests/harness');
 const HARNESS_SCHEMA_VERSION = 1;
 const REPORT_SCHEMA_VERSION = 3;
 const STATE_HASH_VERSION = 1;
+const SEMANTIC_HASH_V2 = 2;
 const MAX_CORE_WEEKS = 5200;
 const DEFAULT_EXPECTED_INVARIANTS = Object.freeze([
   'finance.validate',
@@ -47,6 +48,12 @@ function sha256(value) {
   return crypto.createHash('sha256').update(String(value)).digest('hex');
 }
 
+let semanticV2ModuleCache;
+function semanticV2Module() {
+  if (!semanticV2ModuleCache) semanticV2ModuleCache = loadGame({ headless: true, random: () => 0.5 }).modules.semanticHashV2;
+  return semanticV2ModuleCache;
+}
+
 const SEMANTIC_PROJECTION_REGISTRY = Object.freeze({
   [STATE_HASH_VERSION]: Object.freeze({
     id: 'production-state-v1',
@@ -55,6 +62,19 @@ const SEMANTIC_PROJECTION_REGISTRY = Object.freeze({
       const projected = cloneJson(state);
       delete projected.lastSaveDate;
       return projected;
+    }
+  }),
+  [SEMANTIC_HASH_V2]: Object.freeze({
+    id: 'economic-state-v2',
+    description: 'Canonical economically authoritative state excluding presentation, cache, diagnostic, identity-label, and storage metadata.',
+    project(state) {
+      return semanticV2Module().semanticProjectionV2(state);
+    },
+    serialize(projected) {
+      return semanticV2Module().canonicalSerializeV2(projected);
+    },
+    hash(serialized) {
+      return semanticV2Module().hashSerializedV2(serialized);
     }
   })
 });
@@ -70,7 +90,9 @@ function projectSemanticState(state, version = STATE_HASH_VERSION) {
 }
 
 function semanticStateHash(state, version = STATE_HASH_VERSION) {
-  return sha256(stableStringify(projectSemanticState(state, version)));
+  const projection = projectionFor(version);
+  const serialized = projection.serialize ? projection.serialize(projection.project(state)) : stableStringify(projection.project(state));
+  return projection.hash ? projection.hash(serialized) : sha256(serialized);
 }
 
 function firstDiff(left, right, path = '$') {
@@ -147,6 +169,8 @@ function createScenario(input = {}) {
 
   const identity = normalizeIdentity(input.scenarioIdentityFields || input.identity || input);
   const expectedInvariants = Object.freeze([...(input.expectedInvariants || DEFAULT_EXPECTED_INVARIANTS)].map(String));
+  const stateHashVersion = Number(input.stateHashVersion ?? STATE_HASH_VERSION);
+  projectionFor(stateHashVersion);
 
   return Object.freeze({
     harnessSchemaVersion: HARNESS_SCHEMA_VERSION,
@@ -160,7 +184,7 @@ function createScenario(input = {}) {
       'production-configure-path',
       'ui-free-production-week',
       'finance-validation',
-      'semantic-state-hash-v1',
+      `semantic-state-hash-v${stateHashVersion}`,
       'json-report-v3'
     ]),
     scenarioSize: Object.freeze({
@@ -168,7 +192,7 @@ function createScenario(input = {}) {
       competitorRoster: 'production'
     }),
     expectedInvariants,
-    stateHashVersion: STATE_HASH_VERSION
+    stateHashVersion
   });
 }
 
@@ -1297,6 +1321,7 @@ module.exports = Object.freeze({
   HARNESS_SCHEMA_VERSION,
   REPORT_SCHEMA_VERSION,
   STATE_HASH_VERSION,
+  SEMANTIC_HASH_V2,
   MAX_CORE_WEEKS,
   DEFAULT_EXPECTED_INVARIANTS,
   SEMANTIC_PROJECTION_REGISTRY,

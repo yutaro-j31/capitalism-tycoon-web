@@ -40,7 +40,8 @@ Current versions:
 
 - harness schema: `1`
 - report schema: `3`
-- semantic state hash/projection: `1` / `production-state-v1`
+- semantic state hash/projection: `1` / `production-state-v1` (compatibility default), and explicit
+  `2` / `economic-state-v2`
 
 Report schema 2 is additive: all schema-1 core fields retain their meanings, while P0.5-2 adds persistence, replay, rollback, idempotency, deterministic-ID, adapter-parity, and seed-classification evidence through `runPersistenceCharacterization(...)`. State-hash projection v1 is unchanged.
 
@@ -49,6 +50,16 @@ Report schema 3 is additive over schema 2. It adds benchmark tier provenance, ti
 Version 1 semantic projection includes the full JSON-safe production simulation state except `lastSaveDate`, which is wall-clock save metadata rather than deterministic simulation state.
 
 Changing projection semantics requires a new state-hash version. Existing benchmark evidence must not silently change meaning.
+
+GF-009 adds projection v2 as an explicit scenario selection (`stateHashVersion: 2`) without
+changing the v1 default. V2 is an allowlisted economic fingerprint: it includes calendar/macro/RNG,
+cash and financing, ownership, operating entities and assets, economically active projects and
+commitments, economic geography, histories that record realized outcomes, and deterministic ID
+counters. It excludes transient selection/panel state, display identity and labels, reports/news,
+caches/diagnostics, and save metadata. Entity-set arrays (for example stores, properties,
+competitors, and loans) sort non-mutatingly by durable IDs; chronological transactions and other
+history/queue arrays preserve order. Its typed canonical serialization distinguishes `NaN`, both
+infinities, `null`, and `undefined`, and uses code-unit key/ID comparison rather than locale rules.
 
 P0.5-2 evidence uses isolated fresh runtimes. Rollback cases mutate company and personal cash, finance rows, stores, RNG draws/state, and the deterministic ID counter before both a `false` return and a thrown/rethrown failure. Idempotency evidence calls the production `TycoonEngine.payPropertyTax` action twice for the same property and week, proving that cash, the finance row, and property-tax state move only once.
 

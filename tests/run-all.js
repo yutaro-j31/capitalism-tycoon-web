@@ -167,6 +167,7 @@ const nodeTests = [
   ['digital-portfolio-breakeven-seeds', 'tests/digital-portfolio-breakeven-seeds-test.js'],
   ['simulation-determinism-contract', 'tests/simulation-determinism-contract-test.js'],
   ['gf-008-broader-determinism', 'tests/gf-008-broader-determinism-test.js'],
+  ['gf-009-semantic-hash-v2', 'tests/gf-009-semantic-hash-v2-test.js'],
   ['gf-012-preference-isolation', 'tests/gf-012-preference-isolation-test.js'],
   ['real-estate-redevelopment-projects', 'tests/real-estate-redevelopment-projects-test.js'],
   ['real-estate-rent-guarantee', 'tests/real-estate-rent-guarantee-test.js'],
