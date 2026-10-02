@@ -131,6 +131,7 @@
     "tests/save-write-critical-money-guard-test.js",
     "tests/new-business-spinout-finite-state-test.js",
     "tests/new-business-project-identity-test.js",
+    "tests/new-business-research-project-cap-test.js",
     "tests/new-business-research-accounting-test.js",
     "tests/new-business-spinout-valuation-exploit-test.js",
     "tests/new-business-spinout-legacy-backfill-test.js",
