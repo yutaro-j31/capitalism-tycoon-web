@@ -76,9 +76,14 @@ function sanitizeBusinessRecords(state){
  state.businesses=state.businesses.filter(business=>plain(business)&&typeof business.id==='string'&&business.id.trim().length>0);
  return state;
 }
+function adaptLegacyCompanyCash(state){
+ if(plain(state)&&!Object.prototype.hasOwnProperty.call(state,'companyCash')&&typeof state.cash==='number'&&Number.isFinite(state.cash))state.companyCash=state.cash;
+ return state;
+}
 function upgradeState(state){
  // saveSequence is storage metadata carried in the saved payload (#726), never simulation state.
  if(state&&typeof state==='object')delete state.saveSequence;
+ adaptLegacyCompanyCash(state);
  sanitizeBusinessRecords(state);
  competitor.ensure(state);
  if(typeof competitor.ensureCounterStates==='function')competitor.ensureCounterStates(state);
@@ -95,7 +100,8 @@ function migrateV8ToV9(rawState){
  const detected=detectSaveVersion(rawState);
  if(!detected.ok)return {ok:false,state:null,version:detected.version,errors:[detected.error]};
  if(detected.version!==LEGACY_SAVE_VERSION)return {ok:false,state:null,version:detected.version,errors:[`saveVersion ${LEGACY_SAVE_VERSION} からのみv9へ直接移行できます。`]};
- const migrated=baseMigrateSave(rawState);
+ const source=adaptLegacyCompanyCash(clone(rawState));
+ const migrated=baseMigrateSave(source);
  if(!migrated.ok)return {ok:false,state:null,version:detected.version,errors:migrated.errors||['セーブデータ移行に失敗しました。']};
  return {ok:true,state:upgradeState(clone(migrated.state)),version:SAVE_VERSION,errors:[]};
 }
@@ -109,7 +115,8 @@ function migrateSave(rawState){
    if(!validation.ok)return {ok:false,state:null,version:SAVE_VERSION,errors:validation.errors};
    return {ok:true,state,version:SAVE_VERSION,errors:[]};
   }
-  const migrated=baseMigrateSave(rawState);
+  const source=adaptLegacyCompanyCash(clone(rawState));
+  const migrated=baseMigrateSave(source);
   if(!migrated.ok)return {ok:false,state:null,version:detected.version,errors:migrated.errors||['セーブデータ移行に失敗しました。']};
   return {ok:true,state:upgradeState(clone(migrated.state)),version:SAVE_VERSION,errors:[]};
  }catch(error){return {ok:false,state:null,version:detected.version,errors:[error?.message||String(error)]};}
@@ -197,5 +204,5 @@ class TycoonEngineV9 extends BaseTycoonEngine{
  // the exact companyRaise it applies to companyCash, so this class inherits it unchanged.
 }
 
-Object.assign(engine,{SAVE_VERSION,CRITICAL_MONEY_FIELDS,createInitialState,detectSaveVersion,validateRawCriticalMoneyFields,validateCriticalMoneyState,assertCriticalMoneyState,validateMigratedState,migrateSave,migrateV8ToV9,sanitizeBusinessRecords,TycoonEngine:TycoonEngineV9,__saveV9Installed:true,__parentIPOFinanceInstalled:true,__parentIPOEquityBalanceInstalled:true});
+Object.assign(engine,{SAVE_VERSION,CRITICAL_MONEY_FIELDS,createInitialState,detectSaveVersion,validateRawCriticalMoneyFields,validateCriticalMoneyState,assertCriticalMoneyState,validateMigratedState,migrateSave,migrateV8ToV9,adaptLegacyCompanyCash,sanitizeBusinessRecords,TycoonEngine:TycoonEngineV9,__saveV9Installed:true,__parentIPOFinanceInstalled:true,__parentIPOEquityBalanceInstalled:true});
 })();

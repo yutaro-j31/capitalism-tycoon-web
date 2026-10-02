@@ -12,13 +12,13 @@ vm.runInNewContext(source,context);
 const api=context.globalThis.__capitalismTycoonModules.longRunGuidance;
 const clone=value=>JSON.parse(JSON.stringify(value));
 const protectedSnapshot=value=>({
-  companyCash:value.cash??value.companyCash,
+  companyCash:value.companyCash,
   personalCash:value.personalCash,
   companyAssets:clone({buildings:value.buildings,companyStocks:value.companyStocks,subsidiaries:value.subsidiaries,properties:(value.properties||[]).filter(row=>row.owner==='company')}),
   personalAssets:clone({luxuryAssets:value.luxuryAssets,personalStocks:value.personalStocks,properties:(value.properties||[]).filter(row=>row.owner==='personal')}),
   finance:clone(value.finance)
 });
-let s={week:1,cash:100,personalCash:55,cumulativeProfit:-1,globalRanking:{currentRank:500},hallOfFame:{generation:1},buildings:[{id:'b1'}],companyStocks:{AAA:2},personalStocks:{BBB:3},subsidiaries:[{id:'sub1'}],properties:[{id:'cp',owner:'company'},{id:'pp',owner:'personal'}],luxuryAssets:[{id:'watch'}],finance:{cumulativeRevenue:999}};
+let s={week:1,companyCash:100,personalCash:55,cumulativeProfit:-1,globalRanking:{currentRank:500},hallOfFame:{generation:1},buildings:[{id:'b1'}],companyStocks:{AAA:2},personalStocks:{BBB:3},subsidiaries:[{id:'sub1'}],properties:[{id:'cp',owner:'company'},{id:'pp',owner:'personal'}],luxuryAssets:[{id:'watch'}],finance:{cumulativeRevenue:999}};
 api.ensure(s);
 assert.strictEqual(s.longRunGuidance.lastProcessedWeek,null);
 api.process(s);
@@ -31,7 +31,7 @@ assert(s.longRunGuidance.completed.includes('first-profit'));
 const restored=clone(s);api.ensure(restored);
 assert.deepStrictEqual(clone(restored.longRunGuidance),clone(s.longRunGuidance));
 
-const legacySameWeek={week:7,cash:1,personalCash:2,cumulativeProfit:1,globalRanking:{currentRank:90},hallOfFame:{generation:2},longRunGuidance:{completed:['advance-week'],dismissed:false,lastProcessedWeek:'7',history:[{week:7,unlocked:['advance-week']}]}};
+const legacySameWeek={week:7,companyCash:1,personalCash:2,cumulativeProfit:1,globalRanking:{currentRank:90},hallOfFame:{generation:2},longRunGuidance:{completed:['advance-week'],dismissed:false,lastProcessedWeek:'7',history:[{week:7,unlocked:['advance-week']}]}};
 const legacySameWeekBefore=JSON.stringify(legacySameWeek);
 assert.strictEqual(api.process(legacySameWeek),false,'numeric-string legacy week marker must prevent same-week reprocessing');
 assert.strictEqual(legacySameWeek.longRunGuidance.lastProcessedWeek,7);
