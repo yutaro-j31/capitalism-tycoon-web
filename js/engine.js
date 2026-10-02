@@ -808,6 +808,9 @@ class TycoonEngine extends EventTarget {
         // and the delegated work, and still inside the transaction, so an exception rolls the
         // whole week back instead of leaving an advanced but unfinalized week (#776).
         if (commit && eventType === 'week' && typeof this.finalizeCommittedWeek === 'function') this.finalizeCommittedWeek();
+        // A week is not allowed to commit an economic state that JSON would silently turn into
+        // null. The outer transaction's existing catch path restores the exact pre-week snapshot.
+        if (commit && eventType === 'week') __modules.engine.assertCriticalMoneyState?.(this.g);
       }
     } catch (error) {
       this._transactionDepth = previousDepth;
@@ -2301,6 +2304,7 @@ class TycoonEngine extends EventTarget {
   }
 
   exportSave() {
+    __modules.engine.assertCriticalMoneyState?.(this.g);
     return new Blob([JSON.stringify(this.g,null,2)],{type:'application/json'});
   }
   importSave(text) {

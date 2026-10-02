@@ -147,6 +147,8 @@ function saveWithAdapter(instance,{slot=null,key=null,backend=null,mirrorStorage
  if(!instance||!instance.g)return {ok:false,error:new Error('save engine/state is required')};
  if(!slot&&instance.inTransaction?.()){instance._deferredSave=true;return {ok:true,deferred:true,timings:{}};}
  if(!slot&&instance._saveBlockedDueToLoadFailure)return {ok:false,blocked:true,timings:{}};
+ try{modules.engine.assertCriticalMoneyState(instance.g);}
+ catch(error){return {ok:false,blocked:true,reason:'nonfinite-critical-money',error,timings:{}};}
  const timings={snapshotRebuildMs:0,compactionMs:0,serializationMs:0,storageEnqueueMs:0};
  let mark=clock();
  modules.engine.sanitizeBusinessRecords?.(instance.g);
@@ -213,11 +215,17 @@ function install(){
    return false;
   }
   const result=saveWithAdapter(this,{slot});
-  this._lastSaveStorageInfo={ok:result.ok,key:result.key,slot,mode:result.mode,bytes:result.bytes,originalBytes:result.originalBytes,transactions:result.transactions||null,savedAt:result.savedAt,message:result.error?.message};
+  this._lastSaveStorageInfo={ok:result.ok,key:result.key,slot,mode:result.mode,reason:result.reason,bytes:result.bytes,originalBytes:result.originalBytes,transactions:result.transactions||null,savedAt:result.savedAt,message:result.error?.message};
   if(result.ok){
    this.emit?.('saved',{slot,storageMode:result.mode,storageBytes:result.bytes,originalStorageBytes:result.originalBytes});
    if((result.mode==='emergency'||result.mode==='critical')&&this._saveStorageWarningMode!==result.mode){this._saveStorageWarningMode=result.mode;notify(this,'端末容量に合わせて古い履歴を整理し、セーブを継続しました。会社・個人資産と会計累計は保持されています。','warning');}
    return true;
+  }
+  if(result.reason==='nonfinite-critical-money'){
+   console.error('Save blocked because runtime critical money is invalid',result.error);
+   notify(this,'会社・個人の資金または借入残高が不正なため保存を中止しました。以前のセーブは保持されています。','error');
+   this.emit?.('save-error',{slot,error:result.error,reason:'nonfinite-critical-money'});
+   return false;
   }
   if(result.blocked){console.error('Save blocked because startup save migration failed',this._loadFailureReason||'unknown load failure');return false;}
   if(result.mode==='serialize-error'){console.error('Save serialization failed',result.error);notify(this,'セーブデータの作成に失敗しました。JSONバックアップを保存してください。','error');this.emit?.('save-error',{slot,error:result.error,reason:'serialize'});return false;}
