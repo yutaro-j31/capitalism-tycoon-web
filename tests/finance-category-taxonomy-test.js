@@ -1,0 +1,20 @@
+'use strict';
+const assert=require('node:assert/strict');
+const {loadGame}=require('./harness');
+const {scanSource,scanProduction}=require('./finance-category-taxonomy-scanner');
+const {modules}=loadGame(),finance=modules.finance,canonical=new Set(finance.CATEGORIES),aliases=finance.FINANCE_CATEGORY_ALIASES;
+assert.equal(canonical.size,32,'canonical taxonomy count is an explicit contract');
+for(const category of canonical){const state={week:4,companyCash:0,companyDebt:0},row=finance.event(state,category,1,{sourceType:'taxonomy-test',sourceID:category});assert.equal(row.category,category);assert.equal(row.originalCategory,undefined);}
+for(const [source,target] of Object.entries(aliases)){assert.ok(canonical.has(target),`${source} must resolve to canonical`);const state={week:5,companyCash:0,companyDebt:0},row=finance.event(state,source,1,{sourceType:'alias-test',sourceID:source});assert.equal(row.category,target,`${source} alias`);assert.equal(row.originalCategory,source);assert.equal(row.categoryResolution,'alias');}
+const cfState={week:6,companyCash:115,companyDebt:0};
+finance.event(cfState,'propertyRentIncome',40,{cashEffect:40,profitEffect:40,sourceType:'cf-test',sourceID:'operating'});
+finance.event(cfState,'propertyDisposalProceeds',50,{cashEffect:50,profitEffect:5,sourceType:'cf-test',sourceID:'investing'});
+finance.event(cfState,'propertyMortgageProceeds',25,{cashEffect:25,liabilityEffect:25,sourceType:'cf-test',sourceID:'financing'});
+const cashFlow=finance.buildStatements(cfState,'week').cashFlow;assert.equal(cashFlow.operatingCashFlow,40);assert.equal(cashFlow.investingCashFlow,50);assert.equal(cashFlow.financingCashFlow,25);
+const strictState={week:7,companyCash:0,companyDebt:0};finance.setCategoryValidationMode('strict');assert.throws(()=>finance.event(strictState,'totallyUnknownFinanceCategory',1),/Unknown finance category/);assert.equal(finance.ensureFinance(strictState).transactions.length,0);finance.setCategoryValidationMode('compatibility');
+const compatibilityState={week:8,companyCash:3,companyDebt:0},fallback=finance.event(compatibilityState,'legacyMysteryCategory',3,{cashEffect:3,sourceType:'legacy-module',sourceID:'legacy-1'});assert.equal(fallback.category,'otherOperating');assert.equal(fallback.originalCategory,'legacyMysteryCategory');assert.equal(fallback.categoryResolution,'compatibilityFallback');const diagnostic=compatibilityState.finance.unknownCategoryDiagnostics[0];assert.deepEqual({category:diagnostic.category,count:diagnostic.occurrenceCount,first:diagnostic.firstWeek,latest:diagnostic.latestWeek,sourceType:diagnostic.sourceType,sourceID:diagnostic.sourceID},{category:'legacyMysteryCategory',count:1,first:8,latest:8,sourceType:'legacy-module',sourceID:'legacy-1'});
+const loadedCompatibility=JSON.parse(JSON.stringify(compatibilityState));finance.ensureFinance(loadedCompatibility);assert.equal(JSON.stringify(loadedCompatibility.finance.unknownCategoryDiagnostics),JSON.stringify(compatibilityState.finance.unknownCategoryDiagnostics));
+const historical={week:9,companyCash:0,companyDebt:0,finance:finance.defaultFinanceState({week:9,companyCash:0,companyDebt:0})};historical.finance.transactions.push({transactionID:'historical-1',category:'historicalUnmappedCategory',week:1,amount:1,cashEffect:0,profitEffect:0});finance.ensureFinance(historical);assert.equal(historical.finance.transactions[0].category,'historicalUnmappedCategory');
+const rngState={week:10,companyCash:0,companyDebt:0,simulationRng:{seed:123,state:456,draws:17}},beforeRng=JSON.stringify(rngState.simulationRng);finance.event(rngState,'marketing',2,{cashEffect:-2,profitEffect:-2});assert.equal(JSON.stringify(rngState.simulationRng),beforeRng);
+const approved=new Set([...canonical,...Object.keys(aliases)]);assert.deepEqual(scanProduction(approved),[]);assert.match(scanSource('js/fixture.js',"finance.event(g,'totallyUnknownFinanceCategory',1,{});",approved)[0],/totallyUnknownFinanceCategory/);
+console.log(`finance category taxonomy checks passed (${canonical.size} canonical, ${Object.keys(aliases).length} aliases)`);
