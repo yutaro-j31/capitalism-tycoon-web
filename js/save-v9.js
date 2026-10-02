@@ -20,7 +20,28 @@ const SAVE_KEY=engine.SAVE_KEY;
 const clone=value=>typeof structuredClone==='function'?structuredClone(value):JSON.parse(JSON.stringify(value));
 const plain=value=>Boolean(value&&typeof value==='object'&&!Array.isArray(value));
 const finite=(value,fallback=0)=>Number.isFinite(Number(value))?Number(value):fallback;
-const CRITICAL_MONEY_FIELDS=Object.freeze(['companyCash','personalCash','companyDebt']);
+const CRITICAL_MONEY_FIELDS=Object.freeze(['companyCash','personalCash','companyDebt','personalDebt']);
+
+function criticalMoneyError(errors){
+ const error=new Error(errors.map(row=>row.message).join(' '));
+ error.name='CriticalMoneyValidationError';
+ error.reason='nonfinite-critical-money';
+ error.fields=errors.map(row=>row.field);
+ return error;
+}
+function validateCriticalMoneyState(state){
+ const errors=[];
+ for(const field of CRITICAL_MONEY_FIELDS){
+  const value=state?.[field];
+  if(typeof value!=='number'||!Number.isFinite(value))errors.push({field,value,message:`Runtime state: ${field} is not a finite number.`});
+ }
+ return {ok:errors.length===0,errors};
+}
+function assertCriticalMoneyState(state){
+ const result=validateCriticalMoneyState(state);
+ if(!result.ok)throw criticalMoneyError(result.errors);
+ return state;
+}
 
 function validateRawCriticalMoneyFields(raw){
  if(!plain(raw))return {ok:false,errors:['Corrupted save: root is not an object.']};
@@ -176,5 +197,5 @@ class TycoonEngineV9 extends BaseTycoonEngine{
  // the exact companyRaise it applies to companyCash, so this class inherits it unchanged.
 }
 
-Object.assign(engine,{SAVE_VERSION,createInitialState,detectSaveVersion,validateRawCriticalMoneyFields,validateMigratedState,migrateSave,migrateV8ToV9,sanitizeBusinessRecords,TycoonEngine:TycoonEngineV9,__saveV9Installed:true,__parentIPOFinanceInstalled:true,__parentIPOEquityBalanceInstalled:true});
+Object.assign(engine,{SAVE_VERSION,CRITICAL_MONEY_FIELDS,createInitialState,detectSaveVersion,validateRawCriticalMoneyFields,validateCriticalMoneyState,assertCriticalMoneyState,validateMigratedState,migrateSave,migrateV8ToV9,sanitizeBusinessRecords,TycoonEngine:TycoonEngineV9,__saveV9Installed:true,__parentIPOFinanceInstalled:true,__parentIPOEquityBalanceInstalled:true});
 })();
