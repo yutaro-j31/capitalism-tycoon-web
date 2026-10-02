@@ -18,7 +18,7 @@ const finite=(v,f=0)=>Number.isFinite(Number(v))?Number(v):f;
 const sum=a=>a.reduce((x,y)=>x+y,0);
 function isTargetBusinessID(id){return TARGET_BUSINESS_IDS.indexOf(id)>=0;}
 function validateSegments(){const total=sum(SEGMENTS.map(s=>s.marketWeight));return Math.abs(total-1)<.000001&&new Set(SEGMENTS.map(s=>`${s.priceSensitivity}/${s.qualitySensitivity}/${s.brandSensitivity}/${s.convenienceSensitivity}`)).size===SEGMENTS.length;}
-function prefAreaID(state,prefID){return (state.prefs||[]).find(p=>p.id===prefID)?.areaID||state.selectedArea||null;}
+function prefAreaID(state,prefID){return (state.prefs||[]).find(p=>p.id===prefID)?.areaID||null;}
 function marketKey(store){return `${store.businessID}::${store.prefID}`;}
 function groupTargetStores(stores){const groups={};for(const s of stores||[]){if(s.status==='open'&&isTargetBusinessID(s.businessID)){const k=marketKey(s);(groups[k]||(groups[k]=[])).push(s);}}return groups;}
 function effectiveCapacity(store,business,pref){if(Object.prototype.hasOwnProperty.call(store,'capacity')&&store.capacity!==null&&store.capacity!==undefined){return Math.max(0,finite(store.capacity,0));}

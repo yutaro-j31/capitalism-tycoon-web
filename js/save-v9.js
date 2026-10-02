@@ -84,6 +84,9 @@ function upgradeState(state){
  // saveSequence is storage metadata carried in the saved payload (#726), never simulation state.
  if(state&&typeof state==='object')delete state.saveSequence;
  adaptLegacyCompanyCash(state);
+ // GF-012: saves written before companyHQPrefID existed (including existing v9 saves)
+ // inherit persisted founder geography; transient UI selection is never an economic fallback.
+ if(plain(state)&&!state.companyHQPrefID&&state.founderHomePrefID)state.companyHQPrefID=state.founderHomePrefID;
  sanitizeBusinessRecords(state);
  competitor.ensure(state);
  if(typeof competitor.ensureCounterStates==='function')competitor.ensureCounterStates(state);

@@ -183,7 +183,7 @@ function selectedDetail(entity,g){
   const prefLabel=id=>esc(engine()?.pref?.(id||g.selectedPref)?.name||'—');
   if(entity.kind==='tenant'){
     const tenant=entity.tenant||{};
-    const pref=engine()?.pref?.(tenant.prefID||entity.pref||g.selectedPref);
+    const pref=engine()?.pref?.(tenant.prefID||entity.pref||g.companyHQPrefID||g.founderHomePrefID);
     const occupied=Boolean(tenant.occupiedBy);
     const status=occupied?(tenant.occupiedBy==='player'?'自社利用中':'契約済'):'契約可能';
     const businessID=['ramen','conveni','gym','realEstateAgency'].includes(g.selectedBusiness)?g.selectedBusiness:'ramen';const suitability=modules.tenantSiteSuitability.evaluateTenantSuitability(tenant,businessID,pref);const impact=`${suitability.multiplier>=1?'+':''}${Math.round((suitability.multiplier-1)*100)}%`;

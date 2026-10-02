@@ -34,7 +34,7 @@ function shareAmbition(state,c,p,s){
  return clamp(target-observed,-SHARE_AMBITION_LIMIT,SHARE_AMBITION_LIMIT);
 }
 function strategyID(s){if(s==='低価格型'||s==='low')return'low_price';if(s==='品質型'||s==='品質重視'||s==='quality')return'quality';if(s==='ブランド型'||s==='広告重視'||s==='brand')return'brand';if(s==='利便性型'||s==='出店攻勢'||s==='convenience')return'convenience';return'balanced';}
-function prefForArea(state,areaID,seed){const prefs=(state.prefs||[]).filter(p=>p.areaID===areaID);return (prefs.length?prefs[Math.abs(hash(seed||areaID))%prefs.length]?.id:null)||state.selectedPref||'tokyo';}
+function prefForArea(state,areaID,seed){const prefs=(state.prefs||[]).filter(p=>p.areaID===areaID);return (prefs.length?prefs[Math.abs(hash(seed||areaID))%prefs.length]?.id:null)||state.companyHQPrefID||state.founderHomePrefID||'tokyo';}
 function hash(s){s=String(s);let h=2166136261;for(let i=0;i<s.length;i++){h^=s.charCodeAt(i);h=Math.imul(h,16777619);}return h|0;}
 function legacyPrice(c,i){const b=(MASTER.businesses||[]).find(x=>x.id===c.businessID)||{};const ref=c.businessID==='ramen'?920:finite(b.price,1);const m={low_price:.90,quality:1.08,brand:1.12,convenience:1.02,balanced:1}[strategyID(c.strategy)]||1;return Math.max(1,Math.round(ref*m*(1+(i%3-1)*.025)));}
 function objectMap(value){return value&&typeof value==='object'&&!Array.isArray(value)?value:{};}

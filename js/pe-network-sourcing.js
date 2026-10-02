@@ -54,6 +54,9 @@ const SOURCE_TYPES=Object.freeze({
 
 // 同じ相手を二重に人脈へ入れない（同じ銀行支店から何度借りても支店長は1人）。
 function hasSource(state,sourceKey){return arr(state?.peNetwork?.nodes).some(n=>n?.sourceKey===sourceKey);}
+// PE relationship geography is an economic attribute, never the currently viewed map prefecture.
+// Entity/action geography wins; company-scoped actions use the persisted headquarters.
+function companyPrefID(state){return state?.companyHQPrefID||state?.founderHomePrefID||null;}
 // 供給源からノードを1つ作る。既に同じ相手が居れば何もしない。
 function addSourcedNode(state,{sourceKey,sourceType,pathType,industryTag=null,regionTag=null,week,trustRange}={}){
   if(!state||!sourceKey)return null;
@@ -71,24 +74,26 @@ function addSourcedNode(state,{sourceKey,sourceType,pathType,industryTag=null,re
 
 // 設計書§6.5の表の6行。呼び出し側（下のフック）が引数だけを渡す。
 function onSupplierContract(state,{offerID,businessID,week}={}){
-  return addSourcedNode(state,{sourceKey:`supplier:${offerID}:${businessID}`,sourceType:SOURCE_TYPES.supplier,pathType:'longTermCultivation',industryTag:businessID||null,regionTag:state?.selectedPref||null,week});
+  const regionTag=companyPrefID(state);if(!regionTag)return null;
+  return addSourcedNode(state,{sourceKey:`supplier:${offerID}:${businessID}`,sourceType:SOURCE_TYPES.supplier,pathType:'longTermCultivation',industryTag:businessID||null,regionTag,week});
 }
 function onTenantContract(state,{tenantID,prefID,week}={}){
-  return addSourcedNode(state,{sourceKey:`tenant:${tenantID}`,sourceType:SOURCE_TYPES.buildingOwner,pathType:'longTermCultivation',industryTag:'realEstate',regionTag:prefID||state?.selectedPref||null,week});
+  if(!prefID)return null;
+  return addSourcedNode(state,{sourceKey:`tenant:${tenantID}`,sourceType:SOURCE_TYPES.buildingOwner,pathType:'longTermCultivation',industryTag:'realEstate',regionTag:prefID,week});
 }
 function onBankLoan(state,{account='company',prefID,week}={}){
-  const region=prefID||state?.selectedPref||'unknown';
+  const region=prefID||(account==='company'?companyPrefID(state):state?.founderHomePrefID)||null;if(!region)return null;
   return addSourcedNode(state,{sourceKey:`bank:${account}:${region}`,sourceType:SOURCE_TYPES.bankBranchManager,pathType:'referrer',industryTag:'finance',regionTag:region,week});
 }
 function onExecutiveHire(state,{candidateID,role,week}={}){
   const industry=EXECUTIVE_BACKGROUND_INDUSTRIES[hash(['pe-exec-background',String(candidateID||role||'')])%EXECUTIVE_BACKGROUND_INDUSTRIES.length];
-  return addSourcedNode(state,{sourceKey:`executive:${candidateID}`,sourceType:SOURCE_TYPES.formerExecutive,pathType:'referrer',industryTag:industry,regionTag:state?.selectedPref||null,week});
+  return addSourcedNode(state,{sourceKey:`executive:${candidateID}`,sourceType:SOURCE_TYPES.formerExecutive,pathType:'referrer',industryTag:industry,regionTag:companyPrefID(state),week});
 }
 function onPortfolioExit(state,{dealID,industryTag,week}={}){
-  return addSourcedNode(state,{sourceKey:`portfolio:${dealID}`,sourceType:SOURCE_TYPES.portfolioManagement,pathType:'portfolioReferral',industryTag:industryTag||null,regionTag:state?.selectedPref||null,week});
+  return addSourcedNode(state,{sourceKey:`portfolio:${dealID}`,sourceType:SOURCE_TYPES.portfolioManagement,pathType:'portfolioReferral',industryTag:industryTag||null,regionTag:companyPrefID(state),week});
 }
 function onIPO(state,{market,week}={}){
-  return addSourcedNode(state,{sourceKey:`ipo:${market}`,sourceType:SOURCE_TYPES.ipoUnderwriter,pathType:'referrer',industryTag:'finance',regionTag:state?.selectedPref||null,week,trustRange:[UNDERWRITER_TRUST_MIN,UNDERWRITER_TRUST_MAX]});
+  return addSourcedNode(state,{sourceKey:`ipo:${market}`,sourceType:SOURCE_TYPES.ipoUnderwriter,pathType:'referrer',industryTag:'finance',regionTag:companyPrefID(state),week,trustRange:[UNDERWRITER_TRUST_MIN,UNDERWRITER_TRUST_MAX]});
 }
 
 function install(){
@@ -116,7 +121,7 @@ function install(){
   const baseBorrow=proto.borrow;
   proto.borrow=function(amount,account='company'){
     const r=baseBorrow.call(this,amount,account);
-    if(r!==false)onBankLoan(this.g,{account,prefID:this.g.selectedPref,week:this.g.week});
+    if(r!==false)onBankLoan(this.g,{account,prefID:account==='company'?companyPrefID(this.g):this.g.founderHomePrefID,week:this.g.week});
     return r;
   };
 
@@ -170,7 +175,7 @@ if(!install()&&typeof document!=='undefined'&&typeof document.addEventListener==
 modules.peNetworkSourcing=Object.freeze({
   INITIAL_TRUST_MIN,INITIAL_TRUST_MAX,UNDERWRITER_TRUST_MIN,UNDERWRITER_TRUST_MAX,
   SOURCE_TYPES,EXECUTIVE_BACKGROUND_INDUSTRIES,
-  hasSource,addSourcedNode,onSupplierContract,onTenantContract,onBankLoan,onExecutiveHire,onPortfolioExit,onIPO,install,
+  hasSource,companyPrefID,addSourcedNode,onSupplierContract,onTenantContract,onBankLoan,onExecutiveHire,onPortfolioExit,onIPO,install,
   __installed:true
 });
 })();
