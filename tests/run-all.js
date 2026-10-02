@@ -55,6 +55,7 @@ const nodeTests = [
   ['boot-recovery', 'tests/boot-recovery-test.js'],
   ['competitor-price-direction-guard', 'tests/competitor-price-direction-guard-test.js'],
   ['competitor-process-week-fallback', 'tests/competitor-process-week-fallback-test.js'],
+  ['gf-002-financing-mode0', 'tests/gf-002-financing-mode0-test.js'],
   ['convertible-bonds-dilution', 'tests/convertible-bonds-dilution-test.js'],
   ['corporate-bonds-ratings', 'tests/corporate-bonds-ratings-test.js'],
   ['d-ui-reference-fidelity', 'tests/d-ui-reference-fidelity-test.js'],

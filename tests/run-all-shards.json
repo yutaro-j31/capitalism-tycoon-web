@@ -135,7 +135,8 @@
     "tests/new-business-research-accounting-test.js",
     "tests/new-business-spinout-valuation-exploit-test.js",
     "tests/new-business-spinout-legacy-backfill-test.js",
-    "tests/internal-venture-book-value-accounting-test.js"
+    "tests/internal-venture-book-value-accounting-test.js",
+    "tests/gf-002-financing-mode0-test.js"
   ],
   "G": [
     "tests/property-insurance-loss-ledger-test.js",
