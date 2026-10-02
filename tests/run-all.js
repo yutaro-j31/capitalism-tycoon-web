@@ -33,6 +33,7 @@ for (let i = 0; i < commands.length; i++) {
 }
 
 const nodeTests = [
+  ['real-estate-construction-in-progress', 'tests/real-estate-construction-in-progress-test.js'],
   ['bank-loans-covenants-accounting', 'tests/bank-loans-covenants-accounting-test.js'],
   ['exploration-infrastructure', 'tests/exploration-infrastructure-test.js'],
   ['founder-retirement', 'tests/founder-retirement-test.js'],

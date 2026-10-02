@@ -1516,7 +1516,7 @@ class TycoonEngine extends EventTarget {
   }
   sellProperty(id) {
     const p=this.g.properties.find(x=>x.id===id);if(!p||!p.owner)return false;const owner=p.owner,proceeds=p.value*.97,landBook=finite(finance.propertyBookOf(p)),buildings=(this.g.finance?.fixedAssets||[]).filter(a=>a.propertyID===id&&a.status==='active'),buildingBook=buildings.reduce((a,x)=>a+finite(x.bookValue||Math.max(0,finite(x.acquisitionCost)-finite(x.accumulatedDepreciation))),0),book=landBook+buildingBook;this.g[owner==='company'?'companyCash':'personalCash']+=proceeds;if(owner==='company'){for(const a of buildings){a.status='disposed';a.disposalWeek=this.g.week;a.disposalProceeds=0;a.disposalBookValue=finite(a.bookValue);a.disposalGainLoss=-finite(a.bookValue);a.bookValue=0;}finance.event(this.g,'assetSale',proceeds,{cashEffect:proceeds,assetEffect:-book,profitEffect:proceeds-book,sourceType:'sellProperty',sourceID:id,description:`${p.name} 不動産・建物売却`});}p.owner=null;p.bookValue=0;p.depreciationPerWeek=0;p.buildingCost=0;clearOwnershipBook(p);
-    this.notify(`${p.name}を${yen(proceeds)}で売却しました。`,'success');this.save();this.emit();return true;
+    this.notify(`${p.name}を${yen(proceeds)}で売却しました。`,'success');if(!this.inTransaction()){this.save();this.emit();}return true;
   }
   buildOnLand(id,type='本社ビル') {
     const p=this.g.properties.find(x=>x.id===id);if(!p||p.owner!=='company'||p.kind!=='土地')return this.fail('会社所有の土地が必要です。');
