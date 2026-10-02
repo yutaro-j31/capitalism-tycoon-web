@@ -145,6 +145,7 @@ const nodeTests = [
   ['real-estate-portfolio-dashboard', 'tests/real-estate-portfolio-dashboard-test.js'],
   ['real-estate-price-negotiation', 'tests/real-estate-price-negotiation-test.js'],
   ['real-estate-property-disposals', 'tests/real-estate-property-disposals-test.js'],
+  ['canonical-property-disposition', 'tests/canonical-property-disposition-test.js'],
   ['real-estate-property-insurance', 'tests/real-estate-property-insurance-test.js'],
   ['real-estate-property-maintenance', 'tests/real-estate-property-maintenance-test.js'],
   ['real-estate-property-management', 'tests/real-estate-property-management-test.js'],
