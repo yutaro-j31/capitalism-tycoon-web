@@ -528,6 +528,10 @@ function migrateSave(rawState) {
     if (version === 6) { state = workforce.migrateV7(state); version = 7; }
     if (version === 7) { competitor.ensure(state); state.saveVersion = 8; version = 8; }
     if (version !== SAVE_VERSION) throw new Error(`未対応のsaveVersionです: ${version}`);
+    // GF-012 compatibility: preserve the legacy founder geography as company HQ before
+    // mergeDefaults can apply the new-game Tokyo default. Never derive economic geography
+    // from transient selectedPref/selectedArea during save migration.
+    if (!state.companyHQPrefID && state.founderHomePrefID) state.companyHQPrefID = state.founderHomePrefID;
     state = mergeDefaults(state, createInitialState({configured:false}));
     deepNormalizeState(state);
     const validation = validateMigratedState(state);
