@@ -66,6 +66,12 @@ for(const selectedPref of ['tokyo','fukuoka']){
   modules.competitor.ensure(legacy);assert.equal(legacy.competitorStates[0].marketPresence[0].prefID,'osaka');
 }
 
+// Legacy saves created before companyHQPrefID existed must preserve founder geography.
+const legacySave=clone(base);delete legacySave.companyHQPrefID;legacySave.founderHomePrefID='osaka';legacySave.selectedPref='tokyo';legacySave.selectedArea='kanto';
+const migratedLegacy=new TycoonEngine(legacySave);
+assert.equal(migratedLegacy.g.companyHQPrefID,'osaka','legacy founder geography must backfill company HQ before defaults');
+assert.equal(migratedLegacy.g.founderHomePrefID,'osaka');
+
 // Focused static contract: economic modules may not consult transient geography. The RNG bridge
 // and configure-time explicit founding capture are intentionally outside this list.
 const forbidden={
