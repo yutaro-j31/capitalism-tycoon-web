@@ -271,7 +271,7 @@ function createInitialState(options = {}) {
     publicCompany: false, sharesOut: 10_000, founderShares: 10_000, stockPrice: 0,
     dividendPerShare: 0, treasuryBuybackShares: 0, selectedListingMarket: '東証グロース',
     externalShareholderRatio: 0, founderOwnershipRatio: 1, competitorOwnedRatio: 0,
-    selectedArea: 'kanto', selectedPref: 'tokyo', selectedBusiness: 'ramen', selectedTab: 'home',
+    selectedArea: 'kanto', selectedPref: 'tokyo', selectedBusiness: 'ramen', selectedTab: 'home', companyHQPrefID:'tokyo',
     businesses: master.businesses, areas: deepClone(MASTER.areas), prefs: deepClone(MASTER.prefs),
     stores: [], properties: makeProperties(), tenants: makeTenants(), rentalOffices: makeRentalOffices(),
     market: master.market, startups: master.startups, microcapMarket: {nextSpawnWeek:0, listings:[], sequence:0},
@@ -325,15 +325,18 @@ function createDefaultEntityID(kind, index) {
 
 function entityDefaults(kind, entity = {}, index = 0, state = {}) {
   const week = finite(state.week, 1);
+  // Compatibility defaults use authoritative, stable geography. Map selections are transient UI.
+  const legacyPrefID = state.companyHQPrefID || state.founderHomePrefID || 'tokyo';
+  const legacyAreaID = (state.prefs || []).find(pref => pref.id === legacyPrefID)?.areaID || 'kanto';
   const base = {
-    store: {id:createDefaultEntityID('store', index), businessID:'ramen', prefID:state.selectedPref || 'tokyo', name:`店舗${index + 1}`, openedWeek:week, quality:0, brand:0, condition:100, lastSales:0, lastProfit:0, status:'open', openingWeek:week, weeksToOpen:0, tenantID:null, cityName:'', operatingHours:3, marketResult:null},
+    store: {id:createDefaultEntityID('store', index), businessID:'ramen', prefID:legacyPrefID, name:`店舗${index + 1}`, openedWeek:week, quality:0, brand:0, condition:100, lastSales:0, lastProfit:0, status:'open', openingWeek:week, weeksToOpen:0, tenantID:null, cityName:'', operatingHours:3, marketResult:null},
     business: {id:createDefaultEntityID('business', index), name:'事業', category:'未分類', price:100, unitCost:0, fixedCost:0, storeCost:0, demand:1, quality:0, brand:0, efficiency:0, dx:0, segmentFit:{}},
-    property: {id:createDefaultEntityID('property', index), prefID:state.selectedPref || 'tokyo', name:`不動産${index + 1}`, kind:'不動産', price:0, value:0, rentIncome:0, owner:null, basePrice:0, cityName:'', yieldRate:0, economySensitivity:0, canBuildHQ:false, hqBuilt:false, landAreaSqm:0, buildingType:'', buildingScale:0, constructionWeeksRemaining:0, rentMultiplier:1, vacancyRate:0, maintenanceCost:0, standardRentIncome:0, depreciationPerWeek:0, buildingLevel:0, buildingMaxLevel:10, buildingQuality:0},
-    tenant: {id:createDefaultEntityID('tenant', index), prefID:state.selectedPref || 'tokyo', cityName:'', name:`テナント${index + 1}`, businessID:'ramen', rent:0, deposit:0, traffic:1, size:'M', occupiedBy:null, expiresWeek:week + 24},
-    rentalOffice: {id:createDefaultEntityID('office', index), prefID:state.selectedPref || 'tokyo', cityName:'', name:`オフィス${index + 1}`, grade:'C', rent:0, deposit:0, capacity:0, prestige:0, dxBonus:0, contracted:false},
+    property: {id:createDefaultEntityID('property', index), prefID:legacyPrefID, name:`不動産${index + 1}`, kind:'不動産', price:0, value:0, rentIncome:0, owner:null, basePrice:0, cityName:'', yieldRate:0, economySensitivity:0, canBuildHQ:false, hqBuilt:false, landAreaSqm:0, buildingType:'', buildingScale:0, constructionWeeksRemaining:0, rentMultiplier:1, vacancyRate:0, maintenanceCost:0, standardRentIncome:0, depreciationPerWeek:0, buildingLevel:0, buildingMaxLevel:10, buildingQuality:0},
+    tenant: {id:createDefaultEntityID('tenant', index), prefID:legacyPrefID, cityName:'', name:`テナント${index + 1}`, businessID:'ramen', rent:0, deposit:0, traffic:1, size:'M', occupiedBy:null, expiresWeek:week + 24},
+    rentalOffice: {id:createDefaultEntityID('office', index), prefID:legacyPrefID, cityName:'', name:`オフィス${index + 1}`, grade:'C', rent:0, deposit:0, capacity:0, prestige:0, dxBonus:0, contracted:false},
     market: {id:createDefaultEntityID('stock', index), name:'銘柄', sector:'', price:100, previous:100, dividend:0, volatility:.05, marketCap:0, issuedShares:1, shareholders:{}, priceHistory:[]},
     startup: {id:createDefaultEntityID('startup', index), name:'スタートアップ', domain:'', stage:'Seed', valuation:0, growth:0, risk:.2, ownedCompany:0, ownedPersonal:0, alive:true, subsidiary:false, totalInvestedCompany:0, totalInvestedPersonal:0, ddNegotiatedOwnedCompany:0, ddNegotiatedOwnedPersonal:0, productProgress:.25, runwayWeeks:52, reports:[], fundingRound:'Seed', fundingOpen:true},
-    competitor: {id:createDefaultEntityID('competitor', index), name:'競合', areaID:state.selectedArea || 'kanto', businessID:'ramen', stores:0, brand:0, quality:0, ownedPlayerShares:0},
+    competitor: {id:createDefaultEntityID('competitor', index), name:'競合', areaID:legacyAreaID, businessID:'ramen', stores:0, brand:0, quality:0, ownedPlayerShares:0},
     executiveMarket: {id:createDefaultEntityID('executive', index), name:'CXO候補', role:'CFO', skill:0, salary:0, desiredSalary:0, desiredSO:0, hired:false, negotiated:false, offeredSalary:0, offeredSO:0, acceptedOffer:false, rejectedOffer:false, age:40, gender:'unknown'},
     subsidiary: {id:createDefaultEntityID('subsidiary', index), name:'子会社', domain:'', industry:'', valuation:0, status:'active', weeklyProfit:0, growth:0, risk:0, ownership:1, retainedEarnings:0, acquiredWeek:week},
     acquisitionTarget: {id:createDefaultEntityID('target', index), name:'買収候補', industry:'', synergy:1, revenue:0, profit:0, valuation:0, askingPrice:0, cultureFit:50, risk:0, expiresWeek:week + 12},

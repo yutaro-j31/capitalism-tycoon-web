@@ -238,7 +238,7 @@ function installExpansion(TycoonEngine){
 
   TycoonEngine.prototype.ensureExpansionDefaults=function(){
     const g=this.g;
-    const pref=this.pref?.(g.selectedPref)||g.prefs?.[0]||{id:'tokyo',name:'東京'};
+    const pref=this.pref?.(g.companyHQPrefID||g.founderHomePrefID)||g.prefs?.[0]||{id:'tokyo',name:'東京'};
     const defaults={
       expansionVersion:2,
       founderName:g.playerName||'創業者',founderHomePrefID:pref.id,founderHomePrefName:pref.name,founderOriginCityName:`${pref.name}中央`,founderTraitID:'tech',
@@ -299,7 +299,7 @@ function installExpansion(TycoonEngine){
 
   TycoonEngine.prototype.setFounderOrigin=function(prefID,traitID,name=null,notify=true){
     this.ensureExpansionDefaults();const p=this.pref(prefID)||this.g.prefs[0],trait=FOUNDER_TRAITS.find(x=>x.id===traitID)||FOUNDER_TRAITS[0];
-    this.g.founderName=(name||this.g.playerName||'創業者').trim()||'創業者';this.g.playerName=this.g.founderName;
+    this.g.founderName=(name||this.g.playerName||'創業者').trim()||'創業者';this.g.playerName=this.g.founderName;this.g.companyHQPrefID=p.id;
     this.g.founderHomePrefID=p.id;this.g.founderHomePrefName=p.name;this.g.founderOriginCityName=`${p.name}中央`;this.g.founderTraitID=trait.id;
     this.g.founderSkillBusiness=trait.business;this.g.founderSkillTech=trait.tech;this.g.founderSkillFinance=trait.finance;this.g.founderSkillNegotiation=trait.negotiation;
     this.g.localReputationByPref[p.id]=Math.max(n(this.g.localReputationByPref[p.id]),trait.localRep);
