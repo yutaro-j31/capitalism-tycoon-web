@@ -251,6 +251,7 @@ const nodeTests = [
   ['capital-allocation-production-wiring', 'tests/capital-allocation-production-wiring-test.js'],
   ['ma-exit-readiness', 'tests/ma-exit-readiness-test.js'],
   ['internal-venture-business', 'tests/internal-venture-business-test.js'],
+  ['internal-venture-book-value-accounting', 'tests/internal-venture-book-value-accounting-test.js'],
   ['subsidiary-ipo-preparation', 'tests/subsidiary-ipo-preparation-test.js'],
   ['listed-subsidiary-market', 'tests/listed-subsidiary-market-test.js'],
   ['listed-subsidiary-portfolio-dashboard', 'tests/listed-subsidiary-portfolio-dashboard-test.js'],
