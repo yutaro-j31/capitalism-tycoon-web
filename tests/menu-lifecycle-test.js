@@ -10,6 +10,9 @@ function game(seed = 314159) {
   const engine = ctx.__ct_engine;
   engine.g.configured = true;
   engine.g.companyCash = 50_000_000;
+  // Synthetic fixture capital: make it the accounting opening baseline rather than an
+  // unledgered cash mutation that GF-010 correctly rejects on the first advanced week.
+  engine.g.finance = modules.finance.defaultFinanceState(engine.g);
   return { modules, ctx, engine };
 }
 function ramenStore(engine, id = 'lifecycle-store') {
