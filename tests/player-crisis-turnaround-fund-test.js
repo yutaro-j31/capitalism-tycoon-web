@@ -50,8 +50,20 @@ function configuredCrisisGame({ seed = 11 } = {}) {
   const loaded = loadGame({ random: lcg(seed), headless: true });
   const e = new loaded.engineModule.TycoonEngine();
   e.configure({ playerName: 'P', companyName: 'C', difficulty: 'normal', scenario: 'free' });
-  e.g.companyCash = -4_000_000;
-  e.g.finance = loaded.modules.finance.defaultFinanceState(e.g);
+  // Enter distress through an accounted operating loss rather than an unledgered direct-cash
+  // fixture mutation. GF-010 correctly rejects the old fixture's ¥7m cash/ledger divergence.
+  const targetCash = -4_000_000;
+  const crisisLoss = targetCash - e.g.companyCash;
+  e.g.companyCash = targetCash;
+  loaded.modules.finance.event(e.g, 'otherOperating', Math.abs(crisisLoss), {
+    cashEffect: crisisLoss,
+    profitEffect: crisisLoss,
+    sourceType: 'testCrisisFixture',
+    sourceID: 'configured-crisis-loss',
+    operationID: 'configured-crisis-loss',
+    idempotencyKey: 'configured-crisis-loss',
+    description: 'GF-010 configured crisis fixture loss'
+  });
   e.advanceWeek(false);
   return { loaded, e };
 }
