@@ -112,6 +112,22 @@ assert.notEqual(spinout.after.balanceSheet.assets.subsidiariesAndAffiliates - sp
 }
 
 {
+  const { engine, finance } = prepare('gf-001c-capacity');
+  engine.g.newBusinesses = Array.from({ length: 20 }, (_, index) => ({
+    id: `existing-${index}`, name: `Existing ${index}`, status: 'operating', commercializationCarryingValue: 1_000_000
+  }));
+  const before = JSON.stringify(engine.g);
+  const assetsBefore = finance.buildStatements(engine.g, 'week').balanceSheet.assets.otherFixedAssets;
+  assert.equal(engine.commercializeNewBusiness({ id: 'gf-001c-capacity', startWeek: 4 }, 'launch'), false);
+  assert.equal(JSON.stringify(engine.g), before, 'full launch portfolio rejects without dropping a capitalized asset');
+  assert.equal(finance.buildStatements(engine.g, 'week').balanceSheet.assets.otherFixedAssets, assetsBefore);
+  assert.equal(engine.g.newBusinesses.length, 20);
+  assert.equal(rows(engine.g).length, 0);
+  engine.normalize();
+  assert.equal(engine.g.newBusinesses.length, 20, 'normalize preserves all capitalized launch records');
+}
+
+{
   const { engine } = prepare('gf-001c-duplicate');
   assert.equal(engine.commercializeNewBusiness({ id: 'gf-001c-duplicate', startWeek: 4 }, 'launch'), true);
   const after = JSON.stringify(engine.g);
