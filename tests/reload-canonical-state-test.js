@@ -44,7 +44,8 @@ const openRamen = (engine, name) => {
   assert.equal(engine.openStore({ tenantID: tenant.id, businessID: 'ramen', name, operatingHours: 3 }), true);
 };
 // Browser boot: the engine app.js creates while the later modules are still loading.
-const browserBoot = (random, saved) => loadGame({ random, ...(saved ? { localStorageInitial: { [KEY]: saved } } : {}) }).ctx.__ct_engine;
+const browserRuntime = (random, saved) => loadGame({ random, ...(saved ? { localStorageInitial: { [KEY]: saved } } : {}) });
+const browserBoot = (random, saved) => browserRuntime(random, saved).ctx.__ct_engine;
 // Fully-loaded runtime (how most tests build engines).
 const fullLoad = (random, saved) => {
   const loaded = loadGame({ headless: true, random, ...(saved ? { localStorageInitial: { [KEY]: saved } } : {}) });
@@ -64,9 +65,10 @@ function check(name, fn) {
 //    still lead to the same future. The fork comes after week 10 so a luxury auction refresh
 //    (every 8 weeks) happens both before and after it.
 function fork(midWeekAction) {
-  const rA = switchable(732), A = browserBoot(rA);
+  const rA = switchable(732), runtimeA = browserRuntime(rA), A = runtimeA.ctx.__ct_engine;
   A.configure({ playerName: 'Fork', companyName: 'Fork Co', difficulty: 'normal' });
   A.g.companyCash = 300_000_000;
+  A.g.finance = runtimeA.modules.finance.defaultFinanceState(A.g);
   openRamen(A, '1号店');
   for (let i = 0; i < 10; i++) assert.notEqual(A.advanceWeek(false), false);
   if (midWeekAction) openRamen(A, '2号店');
@@ -139,7 +141,7 @@ check('normalize preserves completion-layer workforce scalars after team recompu
 });
 
 check('normalize: idempotent, and a no-op after founding and at every week boundary', () => {
-  const E = browserBoot(lcg(11));
+  const runtimeE = browserRuntime(lcg(11)), E = runtimeE.ctx.__ct_engine;
   E.configure({ playerName: 'W', companyName: 'W Co', difficulty: 'normal' });
   const proto = Object.getPrototypeOf(E);
   const normalizedCopy = g => { const copy = Object.create(proto); copy.g = JSON.parse(JSON.stringify(g)); proto.normalize.call(copy); return copy.g; };
@@ -150,6 +152,7 @@ check('normalize: idempotent, and a no-op after founding and at every week bound
   };
   stable('after founding');
   E.g.companyCash = 5_000_000_000; E.g.personalCash = 1_000_000_000;
+  E.g.finance = runtimeE.modules.finance.defaultFinanceState(E.g);
   for (const businessID of ['ramen', 'conveni', 'gym', 'ramen']) {
     const tenant = E.g.tenants.find(t => !t.occupiedBy);
     assert.equal(E.openStore({ tenantID: tenant.id, businessID, name: businessID, operatingHours: 3 }), true);
