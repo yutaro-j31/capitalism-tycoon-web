@@ -114,6 +114,7 @@ const nodeTests = [
   ['long-run-guidance', 'tests/long-run-guidance-test.js'],
   ['ma-investment-committee', 'tests/ma-investment-committee-test.js'],
   ['new-business-commercialization', 'tests/new-business-commercialization-test.js'],
+  ['new-business-commercialization-accounting', 'tests/new-business-commercialization-accounting-test.js'],
   ['new-business-spinout-finite-state', 'tests/new-business-spinout-finite-state-test.js'],
   ['new-business-spinout-valuation-exploit', 'tests/new-business-spinout-valuation-exploit-test.js'],
   ['new-business-spinout-legacy-backfill', 'tests/new-business-spinout-legacy-backfill-test.js'],
