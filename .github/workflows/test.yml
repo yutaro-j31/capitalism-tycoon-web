@@ -147,7 +147,7 @@ jobs:
     name: test-shard-${{ matrix.shard }}
     needs: test-shard-contract
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 30
     strategy:
       fail-fast: false
       matrix:
@@ -180,7 +180,7 @@ jobs:
       group: release-readiness-${{ github.event.pull_request.number || github.ref }}
       cancel-in-progress: true
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4

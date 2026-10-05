@@ -98,6 +98,7 @@
     "tests/personal-real-estate-short-term-test.js"
   ],
   "F": [
+    "tests/gf-010-finance-validation-enforcement-test.js",
     "tests/gf-009-semantic-hash-v2-test.js",
     "tests/gf-008-broader-determinism-test.js",
     "tests/simulation-rng-test.js",

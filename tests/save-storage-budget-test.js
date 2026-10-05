@@ -32,6 +32,9 @@ engine.configure({
 });
 engine.g.companyCash += CASH_BUFFER;
 engine.g.personalCash += CASH_BUFFER;
+// The buffer is synthetic fixture capital used only to keep the long storage audit solvent.
+// Treat the completed fixture as the opening accounting baseline.
+engine.g.finance = initial.modules.finance.defaultFinanceState(engine.g);
 
 for (let index = 0; index < AUDIT_WEEKS; index += 1) {
   const beforeWeek = engine.g.week;

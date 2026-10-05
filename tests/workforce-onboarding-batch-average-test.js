@@ -6,6 +6,8 @@ function scenario(order){
   e.g.configured=true;e.g.hasHeadOffice=true;e.g.officeCapacity=100;e.g.companyCash=100000000;
   e.g.departments.hr={...modules.data.MASTER.departments.find(d=>d.id==='hr'),established:true};
   e.g.departmentStaff.hr=2;
+  e.g.finance=modules.finance.defaultFinanceState(e.g);
+  e.g.finance.ledgerCoverageVersion=modules.finance.LEDGER_COVERAGE_VERSION;
   modules.workforce.migrateV7(e.g);
   const team=e.g.workforceTeams.find(t=>t.departmentID==='hr'&&!t.storeID);
   team.averageSkill=50;team.averageExperience=20;team.morale=55;team.remoteRatio=.2;

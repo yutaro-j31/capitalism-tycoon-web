@@ -29,6 +29,60 @@ modules.playRuntimeCompat=Object.freeze({
 const modules=globalThis.__capitalismTycoonModules;
 const proto=modules?.engine?.TycoonEngine?.prototype;
 if(!proto||proto.__canonicalNormalizeBoundary)return;
+const FINANCE_VALIDATION_FAILED='finance-validation-failed';
+const FINANCE_VALIDATOR_THREW='finance-validator-threw';
+const WEEK_EXECUTION_ORDER=Object.freeze([
+  'weekly-production-wrappers',
+  'delegated-executive-actions',
+  'critical-money-finite-guard',
+  'finance-snapshot-finalization',
+  'liquidity-crisis-finalization',
+  'finance-validation',
+  'supporting-invariant-validation',
+  'weekly-summary-finalization',
+  'transaction-commit',
+  'persistence'
+]);
+function validationCause(error){return String(error?.message||error||'finance.validate threw');}
+function validationReasons(result){return Array.isArray(result?.errors)&&result.errors.length?result.errors.map(String):['finance.validate returned a non-success result'];}
+function financeValidationError(instance,code,reasons,cause){
+  const g=instance.g,hash=modules.semanticHashV2?.semanticHashV2;
+  const diagnostic=Object.freeze({
+    code,
+    stage:'finance-validation',
+    week:Number(g?.week),
+    cause:String(cause||reasons[0]),
+    reasons:Object.freeze(reasons.slice()),
+    seed:Number(g?.simulationRng?.seed),
+    rngState:Number(g?.simulationRng?.state),
+    rngDraws:Number(g?.simulationRng?.draws),
+    preWeekSemanticHashV2:instance._preWeekSemanticHashV2||null,
+    failureSemanticHashV2:typeof hash==='function'?hash(g):null
+  });
+  const error=new Error(`${code}: ${diagnostic.cause}`);
+  error.name='FinanceValidationBoundaryError';error.code=code;error.stage=diagnostic.stage;error.financeValidation=diagnostic;
+  return error;
+}
+function recordFinanceValidationFailure(instance,diagnostic){
+  const previous=instance.financeValidationFailure;
+  const occurrence=Object.freeze({...diagnostic,reasons:Object.freeze([...(diagnostic.reasons||[])])});
+  instance.financeValidationFailure=Object.freeze({
+    code:occurrence.code,
+    stage:occurrence.stage,
+    firstWeek:previous?.firstWeek??occurrence.week,
+    latestWeek:occurrence.week,
+    count:(previous?.count||0)+1,
+    firstCause:previous?.firstCause??occurrence.cause,
+    latestCause:occurrence.cause,
+    firstFailure:previous?.firstFailure||occurrence,
+    latestFailure:occurrence,
+    seed:occurrence.seed,
+    rngState:occurrence.rngState,
+    rngDraws:occurrence.rngDraws,
+    preWeekSemanticHashV2:occurrence.preWeekSemanticHashV2,
+    failureSemanticHashV2:occurrence.failureSemanticHashV2
+  });
+}
 function boundary(name,finish,weekTransaction=false){
   const base=proto[name];
   // advanceWeek runs the whole wrapper chain inside one outer 'week' transaction opened here, so
@@ -37,13 +91,21 @@ function boundary(name,finish,weekTransaction=false){
   const wrapped=function(...args){
     if(this._canonicalBoundaryCommits||this.inTransaction?.())return base.apply(this,args);
     const commits=this._canonicalBoundaryCommits=[];
+    if(weekTransaction)this._preWeekSemanticHashV2=modules.semanticHashV2?.semanticHashV2?.(this.g)||null;
     this._weekNewsHead=Array.isArray(this.g?.news)&&this.g.news.length?this.g.news[0]:null;
     const flush=()=>{this.save();for(const [eventType,detail] of commits)this.emit(eventType,detail);};
     let result;
     this._nestedWeekDetail=null;
     try{result=weekTransaction?this.runTransaction(()=>base.apply(this,args),'week',nestedWeekDetail.bind(this)):base.apply(this,args);}
-    catch(error){this._canonicalBoundaryCommits=null;this._nestedWeekDetail=null;if(commits.length)flush();throw error;}
+    catch(error){
+      this._canonicalBoundaryCommits=null;this._nestedWeekDetail=null;
+      if(error?.financeValidation)recordFinanceValidationFailure(this,error.financeValidation);
+      else if(commits.length)flush();
+      this._preWeekSemanticHashV2=null;
+      throw error;
+    }
     this._canonicalBoundaryCommits=null;
+    this._preWeekSemanticHashV2=null;
     if(!commits.length)return result;
     if(this.g?.configured&&finish)finish.call(this);
     flush();
@@ -73,7 +135,10 @@ function finalizeWeekBoundary(){
 
     // Phase 3: this validation result is authoritative for the committed week.
     if(!g.skipWeeklyValidation){
-      finance?.validate?.(g);
+      let financeResult;
+      try{financeResult=finance?.validate?.(g);}
+      catch(error){throw financeValidationError(this,FINANCE_VALIDATOR_THREW,[validationCause(error)],validationCause(error));}
+      if(financeResult?.ok!==true)throw financeValidationError(this,FINANCE_VALIDATION_FAILED,validationReasons(financeResult),validationReasons(financeResult)[0]);
       modules.supply?.validate?.(g);
       modules.workforce?.validate?.(g);
       modules.competitor?.validate?.(g);
@@ -104,6 +169,11 @@ function install(){
   boundary('advanceWeek',null,true);
   Object.defineProperty(proto,'__canonicalNormalizeBoundary',{value:true});
 }
+modules.financeValidationBoundary=Object.freeze({
+  FAILURE_CODE:FINANCE_VALIDATION_FAILED,
+  EXCEPTION_CODE:FINANCE_VALIDATOR_THREW,
+  WEEK_EXECUTION_ORDER
+});
 if(typeof document!=='undefined'&&document.readyState==='loading'&&typeof document.addEventListener==='function')document.addEventListener('DOMContentLoaded',install,{once:true});
 else install();
 })();

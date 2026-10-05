@@ -25,10 +25,12 @@ const RESULT_PREFIX = 'STORE_COST_INFLATION_25Y_RESULT ';
 function runSeed(seed) {
   let s = seed >>> 0;
   const random = () => { s = (s * 1664525 + 1013904223) >>> 0; return s / 2 ** 32; };
-  const { engineModule } = loadGame({ isolatedLegacyIndex: true, random });
+  const { engineModule, modules } = loadGame({ isolatedLegacyIndex: true, random });
   const e = new engineModule.TycoonEngine();
   e.configure({ playerName: 'Idle', companyName: 'Idle Co', difficulty: 'normal', scenario: 'free', founderPrefID: 'tokyo', founderTraitID: 'merchant' });
   e.g.companyCash += 1_000_000_000;
+  e.g.finance = modules.finance.defaultFinanceState(e.g);
+  e.g.finance.ledgerCoverageVersion = modules.finance.LEDGER_COVERAGE_VERSION;
   const tenant = e.g.tenants.find(t => t.prefID === 'tokyo' && t.businessID === 'ramen' && !t.occupiedBy);
   assert.ok(e.openStore({ tenantID: tenant.id, businessID: 'ramen', name: 'Idle Ramen', operatingHours: 3 }), 'store must open');
   const weeks = [];

@@ -122,7 +122,6 @@ function scenario(seed = 190826041, difficulty = 'normal') {
 //    同じ回帰を踏まないことを直接確認する。
 {
   const { engine } = scenario();
-  engine.g.companyCash = 8_000_000; // 初期資金のまま（現実的な厳しさで検証する）
   let sawSales = false;
   for (let i = 0; i < 208 && !engine.g.gameOver; i++) {
     engine.advanceWeek(false);
@@ -260,6 +259,8 @@ function scenario(seed = 190826041, difficulty = 'normal') {
   const engine = loaded.ctx.__ct_engine;
   engine.g.configured = true;
   engine.g.companyCash = 30_000_000;
+  engine.g.finance = loaded.modules.finance.defaultFinanceState(engine.g);
+  engine.g.finance.ledgerCoverageVersion = loaded.modules.finance.LEDGER_COVERAGE_VERSION;
   const tenants = engine.g.tenants.filter(t => !t.occupiedBy && t.prefID === 'tokyo').slice(0, 3);
   assert.equal(tenants.length, 3, '前提: 東京に空きテナントが3件ある');
   for (const t of tenants) assert.equal(engine.openStore({ tenantID: t.id, businessID: 'conveni', name: 'コンビニ', operatingHours: 3 }), true);

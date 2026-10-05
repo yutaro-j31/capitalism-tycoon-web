@@ -22,6 +22,8 @@ function newGame(seed = 260819801) {
   const engine = ctx.__ct_engine;
   engine.g.configured = true;
   engine.g.companyCash = 50_000_000;
+  engine.g.finance = modules.finance.defaultFinanceState(engine.g);
+  engine.g.finance.ledgerCoverageVersion = modules.finance.LEDGER_COVERAGE_VERSION;
   return { modules, ctx, engine };
 }
 

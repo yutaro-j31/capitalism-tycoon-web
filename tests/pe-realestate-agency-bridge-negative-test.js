@@ -62,6 +62,8 @@ const engine = ctx.__ct_engine;
 engine.configure({ playerName: 'Negative Test', companyName: 'Reverted RE Isolation', difficulty: 'normal' });
 engine.g.companyCash = 9_000_000_000;
 engine.g.personalCash = 12_000_000_000;
+engine.g.finance = modules.finance.defaultFinanceState(engine.g);
+engine.g.finance.ledgerCoverageVersion = modules.finance.LEDGER_COVERAGE_VERSION;
 assert(tryOpenRealEstateAgency(engine), 'self-company realEstateAgency store opens');
 const store = engine.g.stores.find(s => s.businessID === 'realEstateAgency');
 while (store.status !== 'open') engine.advanceWeek(false);

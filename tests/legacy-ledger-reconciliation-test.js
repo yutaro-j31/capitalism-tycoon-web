@@ -33,6 +33,17 @@ function legacySave({ spendThisWeek = false } = {}) {
   engine.g.hasHeadOffice = true;
   engine.g.officeCapacity = 32;
   const office = engine.g.rentalOffices.find(o => !o.contracted && o.id !== engine.g.contractedOfficeID);
+
+  // Build six valid weeks with the current engine first. GF-010 must remain authoritative: this
+  // fixture never asks production advanceWeek() to commit an invalid state.
+  for (let week = 0; week < 6; week++) assert.notEqual(engine.advanceWeek(false), false);
+  const snapshotsBeforeLegacyMutation = plain(engine.g.finance.weeklySnapshots);
+  assert.ok(snapshotsBeforeLegacyMutation.length >= 2, 'precondition: valid history has at least two weekly snapshots');
+
+  // Now convert the valid state into the shape of a save written before #796-#798. Those versions
+  // let these actions move company cash without finance.event(). The non-finance state changes are
+  // produced by the real actions, while the historical finance discontinuity is encoded directly
+  // in the serialized fixture rather than bypassing the current weekly validation boundary.
   const realEvent = modules.finance.event;
   const cashBefore = engine.g.companyCash, rowsBefore = engine.g.finance.transactions.length;
   modules.finance.event = () => null;
@@ -46,18 +57,31 @@ function legacySave({ spendThisWeek = false } = {}) {
     modules.finance.event = realEvent;
   }
   const unrecorded = cashBefore - engine.g.companyCash;
-  assert.equal(unrecorded, MEDIA + office.deposit + COMPLAINT, 'precondition: the three actions moved company cash');
+  assert.equal(unrecorded, MEDIA + office.deposit + COMPLAINT, 'precondition: the three legacy actions moved company cash');
   assert.equal(engine.g.finance.transactions.length, rowsBefore, 'precondition: and wrote no ledger rows');
-  for (let week = 0; week < 6; week++) assert.notEqual(engine.advanceWeek(false), false);
+
+  // Model that the missing-ledger cash movement happened before the second saved snapshot. Shift
+  // that snapshot and every later cash checkpoint by the same amount, leaving the first snapshot
+  // untouched. This creates exactly one historical opening-cash discontinuity without ever
+  // committing an invalid current week through production code.
+  const historicalWeek = engine.g.finance.weeklySnapshots[1].week;
+  for (let i = 1; i < engine.g.finance.weeklySnapshots.length; i++) {
+    const snapshot = engine.g.finance.weeklySnapshots[i];
+    snapshot.openingCash -= unrecorded;
+    snapshot.endingCash -= unrecorded;
+    snapshot.actualCompanyCash -= unrecorded;
+    snapshot.cashDifference = snapshot.actualCompanyCash - snapshot.endingCash;
+  }
+
   if (spendThisWeek) {
-    // Also spend in the saved week itself, after its last ledger row.
+    // Also encode a missing-ledger spend in the saved week itself. reconcileLegacyLedger() should
+    // distinguish this current-snapshot gap from the historical discontinuity above.
     modules.finance.event = () => null;
     try { assert.equal(engine.startMediaAction('social'), true); } finally { modules.finance.event = realEvent; }
   }
   delete engine.g.finance.ledgerCoverageVersion;
-  return { payload: JSON.stringify(engine.g), deposit: office.deposit, unrecorded, modules };
+  return { payload: JSON.stringify(engine.g), deposit: office.deposit, unrecorded, historicalWeek, modules };
 }
-
 function load(payload, seed = 1) {
   const loaded = loadGame({ headless: true, random: lcg(seed) });
   loaded.ctx.__localStorageData.set(SAVE_KEY, payload);
@@ -90,7 +114,7 @@ const first = load(legacy.payload);
     reconciledWeek: saved.week,
     cashGap: -legacy.unrecorded,
     equityAdjustment: -expenses,
-    snapshotAdjustments: [{ week: 2, withinWeek: false, amount: -legacy.unrecorded }]
+    snapshotAdjustments: [{ week: legacy.historicalWeek, withinWeek: false, amount: -legacy.unrecorded }]
   });
   assert.equal(f.openingCash, saved.finance.openingCash - legacy.unrecorded, 'the unrecorded cash is restated in the opening balance');
   assert.equal(f.balances.priorPeriodAdjustments, -expenses, 'the unrecorded expenses are a prior-period adjustment');
@@ -162,7 +186,7 @@ const first = load(legacy.payload);
     reconciledWeek: raw.week,
     cashGap: -(within.unrecorded + MEDIA),
     equityAdjustment: -(expenses + MEDIA),
-    snapshotAdjustments: [{ week: 2, withinWeek: false, amount: -within.unrecorded }, { week: raw.week, withinWeek: true, amount: -MEDIA }]
+    snapshotAdjustments: [{ week: within.historicalWeek, withinWeek: false, amount: -within.unrecorded }, { week: raw.week, withinWeek: true, amount: -MEDIA }]
   });
   assert.equal(engine.g.companyCash, raw.companyCash, 'company cash is unchanged');
 }

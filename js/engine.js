@@ -814,10 +814,11 @@ class TycoonEngine extends EventTarget {
         // snapshot, crisis state, validation and the weekly summary. It runs after every wrapper
         // and the delegated work, and still inside the transaction, so an exception rolls the
         // whole week back instead of leaving an advanced but unfinalized week (#776).
-        if (commit && eventType === 'week' && typeof this.finalizeCommittedWeek === 'function') this.finalizeCommittedWeek();
         // A week is not allowed to commit an economic state that JSON would silently turn into
-        // null. The outer transaction's existing catch path restores the exact pre-week snapshot.
+        // null. Keep this independent GF3-016 guard ahead of richer accounting validation so its
+        // stable nonfinite-critical-money policy remains authoritative for malformed money.
         if (commit && eventType === 'week') __modules.engine.assertCriticalMoneyState?.(this.g);
+        if (commit && eventType === 'week' && typeof this.finalizeCommittedWeek === 'function') this.finalizeCommittedWeek();
       }
     } catch (error) {
       this._transactionDepth = previousDepth;
