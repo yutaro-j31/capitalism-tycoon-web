@@ -46,6 +46,22 @@ function crisisGame({ cash = -3_000_000, propertyValue = 100_000_000, seed = 7 }
 // Fully configured game, for multi-week runs where the finance ledger must stay consistent.
 // (The hand-built fixture above drifts over many advanceWeek() calls regardless of this feature,
 // so long-horizon accounting is checked here instead.)
+function accountTestCashTo(loaded, e, targetCash, sourceID) {
+  const delta = Number(targetCash) - Number(e.g.companyCash);
+  if (Math.abs(delta) < 0.005) return null;
+  e.g.companyCash = Number(targetCash);
+  const txn = loaded.modules.finance.event(e.g, 'otherOperating', Math.abs(delta), {
+    cashEffect: delta,
+    profitEffect: delta,
+    sourceType: 'test-turnaround-cash-adjustment',
+    sourceID,
+    operationID: `test-turnaround-cash-${sourceID}-w${e.g.week}`,
+    description: 'GF-010 test fixture accounted cash adjustment'
+  });
+  loaded.modules.finance.rebuildSnapshotForWeek(e.g, e.g.week);
+  return txn;
+}
+
 function configuredCrisisGame({ seed = 11 } = {}) {
   const loaded = loadGame({ random: lcg(seed), headless: true });
   const e = new loaded.engineModule.TycoonEngine();
@@ -128,7 +144,8 @@ function configuredCrisisGame({ seed = 11 } = {}) {
   const { loaded, e } = crisisGame();
   e.acceptTurnaroundFund();
   const ratioAfterAccept = e.g.founderOwnershipRatio, sharesAfterAccept = e.g.sharesOut;
-  e.g.companyCash = e.turnaroundPlanSnapshot().targetCash + 1_000_000; // genuine recovery
+  const recovery = accountTestCashTo(loaded, e, e.turnaroundPlanSnapshot().targetCash + 1_000_000, 'success-recovery');
+  assert.equal(recovery.cashEffect, 7_000_000, '成功経路の人工回復は¥7mを明示的に会計記帳する');
   e.advanceWeek(false);
   assert.equal(e.turnaroundPlanSnapshot().status, 'completed');
   assert.equal(e.turnaroundFundSnapshot().status, 'exited');
@@ -144,7 +161,10 @@ function configuredCrisisGame({ seed = 11 } = {}) {
   e.acceptTurnaroundFund();
   const ratioAfterAccept = e.g.founderOwnershipRatio, sharesAfterAccept = e.g.sharesOut;
   const heldCash = e.g.companyCash;
-  for (let week = 0; week < 12; week++) { e.g.companyCash = heldCash; e.advanceWeek(false); } // never earns it back
+  for (let week = 0; week < 12; week++) {
+    accountTestCashTo(loaded, e, heldCash, `failure-hold-${week}`);
+    e.advanceWeek(false);
+  } // never earns it back
   assert.equal(e.turnaroundPlanSnapshot().status, 'failed');
   const snapshot = e.turnaroundFundSnapshot();
   assert.equal(snapshot.status, 'ratcheted');
