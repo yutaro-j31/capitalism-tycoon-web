@@ -28,6 +28,8 @@ function run(difficulty) {
   engine.g.difficulty = difficulty;
   engine.g.companyName = 'Front Pressure Co';
   engine.g.companyCash = 400_000_000;
+  engine.g.finance = loaded.modules.finance.defaultFinanceState(engine.g);
+  engine.g.finance.ledgerCoverageVersion = loaded.modules.finance.LEDGER_COVERAGE_VERSION;
 
   const prefsInArea = new Set(
     engine.g.prefs.filter(pref => pref.areaID === CONTESTED_AREA).map(pref => pref.id)
