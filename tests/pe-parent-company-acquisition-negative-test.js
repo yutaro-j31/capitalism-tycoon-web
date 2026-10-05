@@ -22,6 +22,8 @@ function setup(source, randomSeed) {
   engine.configure({ playerName: 'Negative Test', companyName: 'Reverted Parent Acquisition', difficulty: 'normal' });
   engine.g.companyCash = 9_000_000_000;
   engine.g.personalCash = 12_000_000_000;
+  engine.g.finance = modules.finance.defaultFinanceState(engine.g);
+  engine.g.finance.ledgerCoverageVersion = modules.finance.LEDGER_COVERAGE_VERSION;
   const pf = modules.peFund, ops = modules.pePortfolioOperations;
   pf.recordExit(engine.g, { exitType: 'buyout', realizedAmount: 200_000_000, investedAmount: 8_000_000, foundedWeek: 1, exitedWeek: 52, profitableWeekStreak: 260, employeeCount: 30 });
   const fund = pf.createFund(engine.g, { size: 10_000_000_000, gpCommit: 1_000_000_000, terms: { fee: .02, carry: .2, hurdle: .08 }, y0: 1 });
