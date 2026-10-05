@@ -92,7 +92,7 @@ const readinessJob = jobBlock(canonicalTest, 'release-readiness');
 assert(readinessJob.includes("github.event_name == 'pull_request'") && readinessJob.includes("github.event_name == 'workflow_dispatch'") && readinessJob.includes("inputs.mode == 'release-readiness'"), 'release-readiness must run on PR and its manual mode');
 assert(!readinessJob.includes("github.event_name == 'push'") && !readinessJob.includes("github.event_name == 'schedule'") && !readinessJob.includes("inputs.mode == 'iphone-webkit'"), 'release-readiness must skip main, schedule, and iPhone manual mode');
 for (const token of [
-  'timeout-minutes: 15', 'contents: read', 'group: release-readiness-${{ github.event.pull_request.number || github.ref }}',
+  'timeout-minutes: 30', 'contents: read', 'group: release-readiness-${{ github.event.pull_request.number || github.ref }}',
   'cancel-in-progress: true', 'node-version: 20', 'node scripts/release-gate.js',
   'node scripts/release-hardening-gate.js', 'node scripts/release-delivery-gate.js',
   'actions/upload-artifact@v4', 'if: always()', 'name: release-readiness-${{ github.sha }}',
