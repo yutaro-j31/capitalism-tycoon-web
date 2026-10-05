@@ -7,6 +7,7 @@ const SEED = 0x83900001;
 const PROJECT_ID = 'spinout-finite-project';
 const NUMERIC_FIELDS = [
   'investmentBookValue',
+  'commercializationCarryingValue',
   'enterpriseValue',
   'valuation',
   'operatingProfit',
@@ -64,7 +65,12 @@ function spinout(engine) {
   assert(Number.isFinite(engine.g.companyCash));
   assert(Number.isFinite(engine.companyValue()));
   assert.equal(engine.g.personalCash, personalCash);
-  assert.equal(engine.g.finance.transactions.length, financeRows, 'GF2-001 must not add an accounting posting');
+  assert.equal(engine.g.finance.transactions.length, financeRows + 1, 'commercialization adds one authoritative accounting posting');
+  const posting = engine.g.finance.transactions.at(-1);
+  assert.equal(posting.category, 'assetPurchase');
+  assert.equal(posting.cashEffect, -15_000_000);
+  assert.equal(posting.assetEffect, 15_000_000);
+  assert.equal(posting.profitEffect, 0);
   assert.equal(engine.g.simulationRng.draws, rngDraws, 'spinout initialization must not consume RNG');
   return sub;
 }
