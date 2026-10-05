@@ -108,6 +108,8 @@ function unlockedResearch(extra = {}) {
 {
   const { engine, modules } = game();
   const store = ramenStore(engine, 'rd-store', [{ menuID: 'classic' }]);
+  engine.g.finance = modules.finance.defaultFinanceState(engine.g);
+  engine.g.finance.ledgerCoverageVersion = modules.finance.LEDGER_COVERAGE_VERSION;
   assert.equal(engine.addStoreMenuItem(store.id, 'chilled'), false, '商品開発部門が無ければ追加できない');
   establishProductDepartment(engine);
   assert.equal(engine.addStoreMenuItem(store.id, 'chilled'), false, '未研究のメニューは追加できない');
