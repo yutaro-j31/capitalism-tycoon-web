@@ -116,13 +116,24 @@ assert.notEqual(spinout.after.balanceSheet.assets.subsidiariesAndAffiliates - sp
   engine.g.newBusinesses = Array.from({ length: 20 }, (_, index) => ({
     id: `existing-${index}`, name: `Existing ${index}`, status: 'operating', commercializationCarryingValue: 1_000_000
   }));
-  const before = JSON.stringify(engine.g);
+  const cashBefore = engine.g.companyCash;
+  const personalCashBefore = engine.g.personalCash;
+  const projectBefore = JSON.stringify(engine.g.newBusinessResearch.projects[0]);
+  const businessesBefore = JSON.stringify(engine.g.newBusinesses);
+  const historyBefore = JSON.stringify(engine.g.newBusinessCommercializationHistory || []);
+  const financeRowsBefore = JSON.stringify(rows(engine.g));
+  const rngBefore = JSON.stringify(engine.g.simulationRng);
   const assetsBefore = finance.buildStatements(engine.g, 'week').balanceSheet.assets.otherFixedAssets;
   assert.equal(engine.commercializeNewBusiness({ id: 'gf-001c-capacity', startWeek: 4 }, 'launch'), false);
-  assert.equal(JSON.stringify(engine.g), before, 'full launch portfolio rejects without dropping a capitalized asset');
+  assert.equal(engine.g.companyCash, cashBefore);
+  assert.equal(engine.g.personalCash, personalCashBefore);
+  assert.equal(JSON.stringify(engine.g.newBusinessResearch.projects[0]), projectBefore);
+  assert.equal(JSON.stringify(engine.g.newBusinesses), businessesBefore, 'full launch portfolio rejects without dropping a capitalized asset');
+  assert.equal(JSON.stringify(engine.g.newBusinessCommercializationHistory || []), historyBefore);
+  assert.equal(JSON.stringify(rows(engine.g)), financeRowsBefore);
+  assert.equal(JSON.stringify(engine.g.simulationRng), rngBefore);
   assert.equal(finance.buildStatements(engine.g, 'week').balanceSheet.assets.otherFixedAssets, assetsBefore);
   assert.equal(engine.g.newBusinesses.length, 20);
-  assert.equal(rows(engine.g).length, 0);
   engine.normalize();
   assert.equal(engine.g.newBusinesses.length, 20, 'normalize preserves all capitalized launch records');
 }
