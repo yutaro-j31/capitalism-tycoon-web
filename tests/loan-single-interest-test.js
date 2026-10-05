@@ -87,6 +87,9 @@ function assertContractualOnly(engine, finance, loan, label, weeks) {
 {
   const { engine, finance, bank } = newGame(738, 0);
   assert.ok(bank.fundGymStartup(engine.g, 3_000_000));
+  // Direct fixture funding posts a week-1 finance event outside the normal action lifecycle.
+  // Seal that historical boundary while cash is still exactly the funded ¥4m.
+  finance.rebuildSnapshotForWeek(engine.g, engine.g.week);
   const loan = engine.g.finance.loans.find(l => l.sourceType === 'gymStartupLoan');
   loan.status = 'defaulted';
   const from = engine.g.finance.transactions.length;
