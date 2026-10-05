@@ -42,6 +42,8 @@ const isDone = (modules, g, id) => modules.foundingTutorial.build(g).steps.find(
   for (const businessID of ['cafe', 'conveni', 'bookstore', 'gym', 'izakaya']) {
     const { modules, engine } = newGame();
     engine.g.companyCash = 500_000_000; // gym等の高額業種でも初期資金で出店できるようにする
+    engine.g.finance = modules.finance.defaultFinanceState(engine.g);
+    engine.g.finance.ledgerCoverageVersion = modules.finance.LEDGER_COVERAGE_VERSION;
     const tenant = engine.g.tenants.find(t => !t.occupiedBy);
     assert.equal(engine.openStore({ tenantID: tenant.id, businessID, name: '検証店', operatingHours: 3 }), true, `${businessID}: 出店できる`);
     const store = engine.g.stores.at(-1);
