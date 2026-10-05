@@ -69,6 +69,7 @@ function fork(midWeekAction) {
   A.configure({ playerName: 'Fork', companyName: 'Fork Co', difficulty: 'normal' });
   A.g.companyCash = 300_000_000;
   A.g.finance = runtimeA.modules.finance.defaultFinanceState(A.g);
+  A.g.finance.ledgerCoverageVersion = runtimeA.modules.finance.LEDGER_COVERAGE_VERSION;
   openRamen(A, '1号店');
   for (let i = 0; i < 10; i++) assert.notEqual(A.advanceWeek(false), false);
   if (midWeekAction) openRamen(A, '2号店');
@@ -153,6 +154,7 @@ check('normalize: idempotent, and a no-op after founding and at every week bound
   stable('after founding');
   E.g.companyCash = 5_000_000_000; E.g.personalCash = 1_000_000_000;
   E.g.finance = runtimeE.modules.finance.defaultFinanceState(E.g);
+  E.g.finance.ledgerCoverageVersion = runtimeE.modules.finance.LEDGER_COVERAGE_VERSION;
   for (const businessID of ['ramen', 'conveni', 'gym', 'ramen']) {
     const tenant = E.g.tenants.find(t => !t.occupiedBy);
     assert.equal(E.openStore({ tenantID: tenant.id, businessID, name: businessID, operatingHours: 3 }), true);
