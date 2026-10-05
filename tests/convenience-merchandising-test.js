@@ -122,7 +122,6 @@ function scenario(seed = 190826041, difficulty = 'normal') {
 //    同じ回帰を踏まないことを直接確認する。
 {
   const { engine } = scenario();
-  engine.g.companyCash = 8_000_000; // 初期資金のまま（現実的な厳しさで検証する）
   let sawSales = false;
   for (let i = 0; i < 208 && !engine.g.gameOver; i++) {
     engine.advanceWeek(false);
