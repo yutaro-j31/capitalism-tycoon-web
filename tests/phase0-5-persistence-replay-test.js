@@ -44,6 +44,7 @@ assert.equal(report.engineCapabilities.operationReplayProbe, true);
 assert.equal(report.engineCapabilities.deterministicRollbackProbe, true);
 assert.equal(report.engineCapabilities.deterministicIdProbe, true);
 assert.equal(report.engineCapabilities.legacyAdapterParityProbe, true);
+assert.equal(report.engineCapabilities.entityAwareLegacyReadModel, true);
 assert.equal(report.engineCapabilities.legacySeedClassification, true);
 assert.equal(report.engineCapabilities.csvReport, true);
 assert.equal(report.engineCapabilities.markdownReport, true);
@@ -112,6 +113,9 @@ assert.equal(report.legacyAdapterParity.companyCash.ok, true);
 assert.equal(report.legacyAdapterParity.debt.ok, true);
 assert.equal(report.legacyAdapterParity.ownership.ok, true);
 assert.equal(report.legacyAdapterParity.standaloneFinance.ok, true);
+assert.equal(report.legacyAdapterParity.entityAwareReadModel.ok, true);
+assert.equal(report.legacyAdapterParity.entityAwareReadModel.readModelVersion, 1);
+assert.deepEqual([...report.legacyAdapterParity.entityAwareReadModel.entityIds], ['entity:company:player', 'entity:person:founder']);
 assert(report.legacyAdapterParity.invariants.every(row => row.ok), JSON.stringify(report.legacyAdapterParity.invariants));
 for (const id of [
   'company-cash-vs-balance-sheet',
@@ -122,7 +126,18 @@ for (const id of [
   'external-ownership-ratio-reconcile',
   'cash-flow-ending-vs-authoritative-cash',
   'cash-flow-rollforward',
-  'finance-validate'
+  'finance-validate',
+  'entity-read-company-cash',
+  'entity-read-personal-cash',
+  'entity-read-company-debt',
+  'entity-read-personal-debt',
+  'entity-read-company-loan-principal',
+  'entity-read-founder-loan-receivable',
+  'entity-read-founder-shares',
+  'entity-read-treasury-shares',
+  'entity-read-external-shareholder-ratio',
+  'entity-read-company-market-holdings',
+  'entity-read-personal-market-holdings'
 ]) assert(report.legacyAdapterParity.invariants.some(row => row.id === id), `missing parity invariant ${id}`);
 
 // 7. New-game runs remain eligible for calibration aggregation.
