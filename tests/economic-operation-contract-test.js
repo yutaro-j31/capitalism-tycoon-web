@@ -189,7 +189,7 @@ assert.throws(() => core.roundMoney(Number.MAX_SAFE_INTEGER), /envelope/);
   delete missingSecurityClass.postings[0].securityClassId;
   assert.ok(hasCode(core.validateOperation(missingSecurityClass), 'POSTING_POSITION_REFERENCE_REQUIRED'));
 
-  for (const accountId of ['asset:debt-receivable','liability:debt-principal','asset:property','asset:fixed-assets','asset:intangible-assets']) {
+  for (const accountId of ['asset:debt-receivable','liability:debt-principal','asset:property','asset:fixed-assets','asset:intangible-assets','equity:share-capital','equity:treasury-stock']) {
     const missingReference = JSON.parse(JSON.stringify(op));
     missingReference.postings[0].accountId = accountId;
     delete missingReference.postings[0].securityClassId;
