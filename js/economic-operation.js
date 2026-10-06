@@ -54,6 +54,9 @@ const POSITION_REFERENCE_BY_ACCOUNT=Object.freeze({
   'equity:share-capital':Object.freeze(['securityClassId']),
   'equity:treasury-stock':Object.freeze(['securityClassId'])
 });
+const INTEGER_SECURITY_QUANTITY_ACCOUNTS=new Set([
+  'asset:security-investment','equity:share-capital','equity:treasury-stock'
+]);
 const MONEY_MINOR_UNITS=100;
 const MAX_SAFE_MONEY_MINOR_UNITS=Number.MAX_SAFE_INTEGER;
 const SIDE_SET=new Set(['debit','credit']);
@@ -276,8 +279,13 @@ function validatePosting(posting,index,operationId,errors,balances,postingIds,se
     const requiredReferences=POSITION_REFERENCE_BY_ACCOUNT[posting.accountId];
     if(!requiredReferences){
       addError(errors,'POSTING_QUANTITY_ACCOUNT_UNSUPPORTED',`${path}.accountId`,'quantityDelta is only valid for approved position accounts');
-    }else if(!requiredReferences.some(field=>nonEmptyString(posting[field]))){
-      addError(errors,'POSTING_POSITION_REFERENCE_REQUIRED',path,`quantity posting for ${posting.accountId} requires ${requiredReferences.join(' or ')}`);
+    }else{
+      if(!requiredReferences.some(field=>nonEmptyString(posting[field]))){
+        addError(errors,'POSTING_POSITION_REFERENCE_REQUIRED',path,`quantity posting for ${posting.accountId} requires ${requiredReferences.join(' or ')}`);
+      }
+      if(INTEGER_SECURITY_QUANTITY_ACCOUNTS.has(posting.accountId)&&!Number.isSafeInteger(posting.quantityDelta)){
+        addError(errors,'POSTING_SECURITY_QUANTITY_INVALID',`${path}.quantityDelta`,'share/security quantityDelta must be a safe integer until the security class explicitly supports fractions');
+      }
     }
   }
   if(nonEmptyString(posting.counterpartyEntityId)&&posting.counterpartyEntityId.startsWith('external:')&&!EXTERNAL_ENTITY_ID_SET.has(posting.counterpartyEntityId)){
