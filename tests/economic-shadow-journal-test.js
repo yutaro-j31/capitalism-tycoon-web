@@ -126,13 +126,15 @@ assert.equal(journal.evidence(hydrated).receiptCount,1);
 // operations must remain strictly newer than the checkpoint.
 {
   const wrongReceipt=JSON.parse(serialized);
-  wrongReceipt.receipts[0].sequence=wrongReceipt.checkpoint.compactedThroughSequence+1;
+  wrongReceipt.receipts[0].sequence=wrongReceipt.nextSequence;
+  wrongReceipt.nextSequence+=1;
   assert.throws(
     ()=>journal.hydrate(JSON.stringify(wrongReceipt)),
     /compacted receipts must not be newer/
   );
 
   const wrongLive=JSON.parse(serialized);
+  wrongLive.receipts=[];
   wrongLive.liveOperations[0].sequence=wrongLive.checkpoint.compactedThroughSequence;
   assert.throws(
     ()=>journal.hydrate(JSON.stringify(wrongLive)),
