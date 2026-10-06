@@ -1,19 +1,22 @@
 # Capitalism Tycoon Economic Engine Integration Roadmap
 
-**Status: DRAFT — v2 / Gate D final remediation sync in progress**  
-**Implementation baseline: NO**  
+**Status: APPROVED IMPLEMENTATION BASELINE — Phase 1 authorized**  
+**Implementation baseline: YES**  
 **Gate C: COMPLETE — physical iPhone evidence accepted; #787 closed**  
-**Gate D tracker: #804 — IN PROGRESS**  
-**Repository baseline reviewed for Gate D: `62a9b15be50918bced82e4072d03fc306c0b51da` (#808, #820, #823 included; #807/#805/#799 ancestors)**  
+**Gate D: COMPLETE / OWNER APPROVED — #804**  
+**Gate E: COMPLETE — #745 remediation attestation accepted**  
+**Phase 0.5: COMPLETE / ACCEPTED — #833 closed**  
+**Gate F: OWNER APPROVED — 2026-10-06**  
+**Gate F approval baseline: `1d88be9518ad21ad1e8ec3b88335020bed7d3797`**  
 **Additional historical audit: completed against local baseline `849586c`**  
 **Gate D contract candidates:** `PHASE_0_CONTRACTS.md`, `ECONOMIC_ENGINE_DEPENDENCY_GRAPH.md`, `GATE_D_VALIDATION.md`  
-**Purpose: audited pre-implementation roadmap**
+**Purpose: approved implementation roadmap and migration authority**
 
 > IMPORTANT
 >
-> This document is the current design roadmap candidate, but it is **not yet permission to implement the Economic Engine**.
+> This document is the approved Economic Engine implementation roadmap.
 >
-> Implementation may begin only after the explicit start gates in this document are satisfied and the owner approves conversion to an implementation baseline.
+> Gates A–F and Phase 0.5 were accepted before Phase 1 authorization. Later phases and individual source-of-truth cutovers remain subject to the dependency, migration-authority, invariant, and owner-gate rules defined below.
 
 ---
 
