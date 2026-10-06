@@ -279,6 +279,12 @@ function compareLegacyParity(state,readModel=snapshot(state)){
   const rootMetadataParity=readModel.readModelVersion===READ_MODEL_VERSION
     &&readModel.source==='legacy-authoritative-state'
     &&readModel.period?.week===finiteOr(state.week,1,'week');
+  const entityIds=Array.isArray(readModel.entities)
+    ? readModel.entities.map(row=>row?.entity?.entityId).sort(compareText)
+    : [];
+  const entitySetParity=entityIds.length===2
+    &&entityIds[0]===PLAYER_COMPANY_ENTITY_ID
+    &&entityIds[1]===FOUNDER_ENTITY_ID;
   const companyEntityParity=compareEntityRecord(state,company,'company');
   const founderEntityParity=compareEntityRecord(state,founder,'founder');
   const companyAccountParity=compareAccountRows(state,company,'company');
@@ -307,6 +313,7 @@ function compareLegacyParity(state,readModel=snapshot(state)){
     .reduce((sum,row)=>sum+finiteOr(row.outstandingPrincipal,0,'finance.loans.outstandingPrincipal'),0);
   const checks=[
     {id:'entity-read-root-metadata',ok:rootMetadataParity},
+    {id:'entity-read-entity-set',ok:entitySetParity},
     {id:'entity-read-company-entity',ok:companyEntityParity},
     {id:'entity-read-founder-entity',ok:founderEntityParity},
     {id:'entity-read-company-account-bindings',ok:companyAccountBindings},
