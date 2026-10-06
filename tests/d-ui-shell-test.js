@@ -182,6 +182,9 @@ assert.doesNotMatch(script, /MARKER_POSITIONS/, 'the legacy fixed-slot marker ta
 assert.match(script, /const HISTORY_STATE_KEY='capitalismTycoonTab'/, 'D UI shell must use a namespaced browser-history state key');
 assert.match(script, /globalThis\.history\.pushState/, 'tab drill-down must push browser history without replacing the production tab action');
 assert.match(script, /globalThis\.history\.replaceState/, 'current production tab must seed browser history');
+assert.match(script, /let historyTab=null/, 'history reconciliation must remember the last rendered production route');
+assert.match(script, /function reconcileTabHistory\(tab=activeTab\(\)\)/, 'non-tab route actions must be reconciled into browser history after render');
+assert.match(script, /reconcileTabHistory\(activeTab\(\)\)/, 'every rendered top-level route transition must pass through history reconciliation');
 assert.match(script, /globalThis\.addEventListener\?\.\('popstate',handlePopstate\)/, 'browser Back/Forward must restore production tabs');
 assert.match(script, /source\.click\(\)/, 'popstate restoration must reuse the existing production tab action rather than duplicate navigation state');
 assert.match(script, /\['pe-portfolio','◫','PEポートフォリオ'\]/, 'PE Portfolio must be a restorable long-tail production route in ALL_NAV');
