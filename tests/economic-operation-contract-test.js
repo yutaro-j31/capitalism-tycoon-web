@@ -1,11 +1,26 @@
 'use strict';
 
 const assert = require('node:assert/strict');
+const fs = require('node:fs');
+const path = require('node:path');
 const { loadGame } = require('./harness');
 
 function errorCodes(result) { return new Set(result.errors.map(error => error.code)); }
 function hasCode(result, code) { return errorCodes(result).has(code); }
-function clone(value) { return JSON.parse(JSON.stringify(value)); }
+const source = fs.readFileSync(path.join(__dirname, '..', 'js', 'economic-operation.js'), 'utf8');
+for (const [label, pattern] of [
+  ['host RNG', /Math\\.random\\s*\\(/],
+  ['wall clock', /Date\\.now\\s*\\(/],
+  ['simulation RNG', /simulationRng/],
+  ['localStorage', /localStorage/],
+  ['sessionStorage', /sessionStorage/],
+  ['save call', /\\.save\\s*\\(/],
+  ['emit call', /\\.emit\\s*\\(/],
+  ['company cash writer', /companyCash\\s*=/],
+  ['personal cash writer', /personalCash\\s*=/]
+]) {
+  assert.equal(pattern.test(source), false, `shadow operation foundation must not depend on ${label}`);
+}
 
 const loaded = loadGame({ headless: true });
 const core = loaded.modules.economicOperation;
