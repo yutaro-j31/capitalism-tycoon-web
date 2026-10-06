@@ -1,10 +1,11 @@
 # Economic Engine Phase 0 Contracts
 
-**Status: PROPOSED FOR GATE D APPROVAL — second-review remediation + latest-main sync applied**  
-**Validated repository baseline: `62a9b15be50918bced82e4072d03fc306c0b51da` (#808, #820, #823 included)**  
-**Implementation permission: NO**
+**Status: APPROVED — Gate D contract baseline**  
+**Validated Gate D repository baseline: `62a9b15be50918bced82e4072d03fc306c0b51da` (#808, #820, #823 included)**  
+**Gate F approval baseline: `1d88be9518ad21ad1e8ec3b88335020bed7d3797`**  
+**Implementation permission: PHASE 1 AUTHORIZED**
 
-This document turns the Phase 0 items in `ECONOMIC_ENGINE_ROADMAP.md` into explicit contracts. It is a specification only. It does not authorize Phase 1 implementation.
+This document turns the Phase 0 items in `ECONOMIC_ENGINE_ROADMAP.md` into explicit contracts. Phase 1 implementation is authorized by the later Gate F owner approval recorded on #833; this contract does not independently authorize later-phase or subsystem source-of-truth cutovers.
 
 ## 1. Scope and non-goals
 
