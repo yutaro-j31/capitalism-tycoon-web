@@ -385,4 +385,48 @@ assert.equal(JSON.stringify(modelAgain),JSON.stringify(model),'same authoritativ
 
 assert.throws(()=>adapter.snapshot({...state,companyCash:Number.POSITIVE_INFINITY}),/companyCash must be a finite number/);
 
+// Supported engine path: a personal purchase of the player's listed ticker is merged into
+// founder beneficial ownership and never remains as a generic personal stock holding.
+{
+  const runtime=loadGame({headless:true});
+  const e=new runtime.engineModule.TycoonEngine();
+  e.g.personalCash=1_000_000_000_000;
+  e.g.publicCompany=true;
+  e.g.sharesOut=1_000_000;
+  e.g.founderShares=600_000;
+  e.g.treasuryBuybackShares=0;
+  e.g.externalShareholderRatio=0.4;
+  e.g.stockPrice=1_000;
+  let own=e.g.market.find(row=>row.id===e.g.ticker);
+  if(!own){
+    own={
+      id:e.g.ticker,
+      name:e.g.companyName,
+      price:e.g.stockPrice,
+      previous:e.g.stockPrice,
+      issuedShares:e.g.sharesOut,
+      marketCap:e.g.stockPrice*e.g.sharesOut,
+      dividendYield:0,
+      volatility:.05,
+      priceHistory:[]
+    };
+    e.g.market.push(own);
+  }else{
+    own.issuedShares=e.g.sharesOut;
+    own.price=e.g.stockPrice;
+    own.marketCap=own.price*own.issuedShares;
+  }
+  const legacyFounderShares=e.g.founderShares;
+  assert.equal(e.buyStock(e.g.ticker,10_000,'personal'),true);
+  const purchased=e.g.personalStocks[e.g.ticker].qty;
+  assert(purchased>0);
+  const projected=runtime.modules.economicReadModel.snapshot(e.g);
+  const projectedFounder=Array.from(projected.entities).find(row=>row.entity.entityId===runtime.modules.economicReadModel.FOUNDER_ENTITY_ID);
+  assert.equal(projected.ownership.legacyFounderShares,legacyFounderShares);
+  assert.equal(projected.ownership.personallyAcquiredOwnShares,purchased);
+  assert.equal(projected.ownership.founderBeneficialShares,legacyFounderShares+purchased);
+  assert.equal(Array.from(projectedFounder.marketHoldings).some(row=>row.instrumentId===e.g.ticker),false);
+  assert.equal(runtime.modules.economicReadModel.compareLegacyParity(e.g,projected).ok,true);
+}
+
 console.log('economic read-only legacy adapter tests passed');
