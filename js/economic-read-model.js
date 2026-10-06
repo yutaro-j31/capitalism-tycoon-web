@@ -179,6 +179,45 @@ function compareHoldings(source,rows,expectedEntityId){
   }
   return true;
 }
+function compareDebtInstruments(sourceLoans,rows){
+  if(!Array.isArray(sourceLoans)||!Array.isArray(rows))return false;
+  const expected=sourceLoans
+    .filter(row=>row&&String(row.status||'active')!=='repaid')
+    .slice()
+    .sort((a,b)=>compareText(a.loanID,b.loanID));
+  if(expected.length!==rows.length)return false;
+  for(let index=0;index<expected.length;index++){
+    const loan=expected[index],row=rows[index];
+    if(row.entityId!==PLAYER_COMPANY_ENTITY_ID)return false;
+    if(row.debtInstrumentId!==String(loan.loanID))return false;
+    if(row.outstandingPrincipal!==finiteOr(loan.outstandingPrincipal,0,`finance.loans[${index}].outstandingPrincipal`))return false;
+    if(row.principal!==finiteOr(loan.principal,0,`finance.loans[${index}].principal`))return false;
+    if(row.interestRate!==finiteOr(loan.interestRate,0,`finance.loans[${index}].interestRate`))return false;
+    if(row.status!==String(loan.status||'active'))return false;
+    if(row.sourceType!==String(loan.sourceType||'legacyFinance'))return false;
+    if(row.sourceID!==(loan.sourceID==null?null:String(loan.sourceID)))return false;
+    if(row.currency!==CURRENCY)return false;
+  }
+  return true;
+}
+function compareFounderReceivables(companyDebtRows,rows){
+  if(!Array.isArray(companyDebtRows)||!Array.isArray(rows))return false;
+  const expected=companyDebtRows
+    .filter(row=>row?.sourceType===modules.finance.FOUNDER_LOAN_SOURCE)
+    .slice()
+    .sort((a,b)=>compareText(a.debtInstrumentId,b.debtInstrumentId));
+  const actual=rows.slice().sort((a,b)=>compareText(a?.debtInstrumentId,b?.debtInstrumentId));
+  if(expected.length!==actual.length)return false;
+  for(let index=0;index<expected.length;index++){
+    const debt=expected[index],receivable=actual[index];
+    if(receivable?.entityId!==FOUNDER_ENTITY_ID)return false;
+    if(receivable?.counterpartyEntityId!==PLAYER_COMPANY_ENTITY_ID)return false;
+    if(receivable?.debtInstrumentId!==debt.debtInstrumentId)return false;
+    if(receivable?.outstandingPrincipal!==debt.outstandingPrincipal)return false;
+    if(receivable?.currency!==CURRENCY)return false;
+  }
+  return true;
+}
 function compareLegacyParity(state,readModel=snapshot(state)){
   if(!readModel||readModel.readModelVersion!==READ_MODEL_VERSION)throw new TypeError('Unsupported economic read-model version.');
   const company=entityById(readModel,PLAYER_COMPANY_ENTITY_ID);
@@ -192,6 +231,11 @@ function compareLegacyParity(state,readModel=snapshot(state)){
   const founderAccountBindings=(founder.accountBalances||[]).every(row=>row?.entityId===FOUNDER_ENTITY_ID);
   const companyDebtBindings=(company.debtInstruments||[]).every(row=>row?.entityId===PLAYER_COMPANY_ENTITY_ID);
   const founderDebtBindings=(founder.debtReceivables||[]).every(row=>row?.entityId===FOUNDER_ENTITY_ID&&row?.counterpartyEntityId===PLAYER_COMPANY_ENTITY_ID);
+  const companyDebtInstrumentParity=compareDebtInstruments(state.finance?.loans||[],company.debtInstruments||[]);
+  const founderReceivableInstrumentParity=compareFounderReceivables(company.debtInstruments||[],founder.debtReceivables||[]);
+  const ownershipBindings=readModel.ownership?.issuerEntityId===PLAYER_COMPANY_ENTITY_ID
+    &&readModel.ownership?.founderEntityId===FOUNDER_ENTITY_ID
+    &&readModel.ownership?.securityClassId===PLAYER_COMPANY_COMMON_SECURITY_CLASS_ID;
   const loanPrincipal=(company.debtInstruments||[]).reduce((sum,row)=>sum+finite(row.outstandingPrincipal,'debtInstruments.outstandingPrincipal'),0);
   const founderReceivable=(founder.debtReceivables||[]).reduce((sum,row)=>sum+finite(row.outstandingPrincipal,'debtReceivables.outstandingPrincipal'),0);
   const expectedFounderReceivable=(state.finance?.loans||[])
@@ -205,12 +249,16 @@ function compareLegacyParity(state,readModel=snapshot(state)){
     {id:'entity-read-company-debt',ok:companyDebtRow?.amount===finite(state.companyDebt,'companyDebt')},
     {id:'entity-read-personal-debt',ok:personalDebtRow?.amount===finite(state.personalDebt,'personalDebt')},
     {id:'entity-read-company-debt-instrument-bindings',ok:companyDebtBindings},
-    {id:'entity-read-company-loan-principal',ok:companyDebtBindings&&Math.abs(loanPrincipal-finite(state.companyDebt,'companyDebt'))<=LEGACY_DEBT_TOLERANCE,authoritative:finite(state.companyDebt,'companyDebt'),adapter:loanPrincipal},
+    {id:'entity-read-company-debt-instruments',ok:companyDebtInstrumentParity},
+    {id:'entity-read-company-loan-principal',ok:companyDebtBindings&&companyDebtInstrumentParity&&Math.abs(loanPrincipal-finite(state.companyDebt,'companyDebt'))<=LEGACY_DEBT_TOLERANCE,authoritative:finite(state.companyDebt,'companyDebt'),adapter:loanPrincipal},
     {id:'entity-read-founder-debt-receivable-bindings',ok:founderDebtBindings},
-    {id:'entity-read-founder-loan-receivable',ok:founderDebtBindings&&founderReceivable===expectedFounderReceivable,authoritative:expectedFounderReceivable,adapter:founderReceivable},
-    {id:'entity-read-founder-shares',ok:readModel.ownership.founderEntityId===FOUNDER_ENTITY_ID&&readModel.ownership.issuerEntityId===PLAYER_COMPANY_ENTITY_ID&&readModel.ownership.founderShares===finiteOr(state.founderShares,0,'founderShares')},
-    {id:'entity-read-treasury-shares',ok:readModel.ownership.issuerEntityId===PLAYER_COMPANY_ENTITY_ID&&readModel.ownership.treasuryShares===finiteOr(state.treasuryBuybackShares,0,'treasuryBuybackShares')},
-    {id:'entity-read-external-shareholder-ratio',ok:readModel.ownership.issuerEntityId===PLAYER_COMPANY_ENTITY_ID&&readModel.ownership.externalShareholderRatio===finiteOr(state.externalShareholderRatio,0,'externalShareholderRatio')},
+    {id:'entity-read-founder-debt-receivable-instruments',ok:founderReceivableInstrumentParity},
+    {id:'entity-read-founder-loan-receivable',ok:founderDebtBindings&&founderReceivableInstrumentParity&&founderReceivable===expectedFounderReceivable,authoritative:expectedFounderReceivable,adapter:founderReceivable},
+    {id:'entity-read-ownership-bindings',ok:ownershipBindings},
+    {id:'entity-read-shares-out',ok:ownershipBindings&&readModel.ownership.legacySharesOut===finiteOr(state.sharesOut,0,'sharesOut')},
+    {id:'entity-read-founder-shares',ok:ownershipBindings&&readModel.ownership.founderShares===finiteOr(state.founderShares,0,'founderShares')},
+    {id:'entity-read-treasury-shares',ok:ownershipBindings&&readModel.ownership.treasuryShares===finiteOr(state.treasuryBuybackShares,0,'treasuryBuybackShares')},
+    {id:'entity-read-external-shareholder-ratio',ok:ownershipBindings&&readModel.ownership.externalShareholderRatio===finiteOr(state.externalShareholderRatio,0,'externalShareholderRatio')},
     {id:'entity-read-company-market-holdings',ok:compareHoldings(state.companyStocks,company.marketHoldings,PLAYER_COMPANY_ENTITY_ID)},
     {id:'entity-read-personal-market-holdings',ok:compareHoldings(state.personalStocks,founder.marketHoldings,FOUNDER_ENTITY_ID)}
   ].map(row=>Object.freeze(row));
