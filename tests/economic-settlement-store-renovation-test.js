@@ -37,6 +37,7 @@ function newGame(seed=883){
   const loaded=loadGame({random:lcg(seed)});
   const engine=loaded.ctx.__ct_engine;
   engine.g.companyCash=500_000_000;
+  engine.g.finance=loaded.modules.finance.defaultFinanceState(engine.g);
   return {loaded,modules:loaded.modules,ctx:loaded.ctx,engine};
 }
 function openRamenStore(engine){
