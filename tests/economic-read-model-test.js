@@ -140,6 +140,7 @@ const parity=adapter.compareLegacyParity(state,model);
 assert.equal(parity.ok,true,JSON.stringify(parity));
 for(const id of [
   'entity-read-root-metadata',
+  'entity-read-entity-set',
   'entity-read-company-entity',
   'entity-read-founder-entity',
   'entity-read-company-account-bindings',
@@ -171,6 +172,10 @@ assert.equal(JSON.stringify(state),before,'parity diagnostics must not mutate au
 const wrongRootMetadata=adapter.compareLegacyParity(state,{...model,period:{week:model.period.week+1}});
 assert.equal(wrongRootMetadata.ok,false);
 assert.equal(Array.from(wrongRootMetadata.checks).find(row=>row.id==='entity-read-root-metadata').ok,false);
+
+const duplicateEntitySet=adapter.compareLegacyParity(state,{...model,entities:[company,founder,company]});
+assert.equal(duplicateEntitySet.ok,false);
+assert.equal(Array.from(duplicateEntitySet.checks).find(row=>row.id==='entity-read-entity-set').ok,false);
 
 const wrongCompanyKind={
   ...company,
