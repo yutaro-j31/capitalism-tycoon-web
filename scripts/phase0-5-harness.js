@@ -206,6 +206,7 @@ function declareEngineCapabilities(loaded) {
     deterministicSimulationRng: Boolean(loaded.modules.simulationRng?.ensure),
     financeValidation: typeof loaded.modules.finance?.validate === 'function',
     entityAwareLegacyReadModel: typeof loaded.modules.economicReadModel?.snapshot === 'function',
+    shadowOperationJournal: typeof loaded.modules.economicShadowJournal?.append === 'function',
     semanticHashVersions: Object.freeze(Object.keys(SEMANTIC_PROJECTION_REGISTRY).map(Number)),
     jsonReport: true,
     saveReloadFork: true,
@@ -746,6 +747,122 @@ function characterizeIdempotency(runtime) {
   return Object.freeze({ok:Object.values(row).filter(value=>typeof value==='boolean').every(Boolean),cases:Object.freeze([row]),duplicateCashMovementPrevented:cashMovedOnce});
 }
 
+function makeShadowHarnessOperation(runtime,sequence,period,amount=sequence*1000) {
+  const core=runtime.loaded.modules.economicOperation;
+  const operationId=`phase1-shadow-${sequence}`;
+  const operation={
+    schemaVersion:core.SCHEMA_VERSION,
+    operationId,
+    idempotencyKey:`phase1-shadow-key-${sequence}`,
+    operationType:'shadow:harness-payment',
+    decisionPeriod:period,
+    settlementPeriod:period,
+    status:'committed',
+    metadata:{fixture:'phase0-5-shadow-journal',sequence},
+    postings:[
+      {
+        postingId:`${operationId}:0`,
+        operationId,
+        postingSequence:0,
+        entityId:'entity:company:player',
+        accountId:'expense:operating',
+        side:'debit',
+        amount,
+        currency:'JPY',
+        metadata:{fixture:'expense'}
+      },
+      {
+        postingId:`${operationId}:1`,
+        operationId,
+        postingSequence:1,
+        entityId:'entity:company:player',
+        accountId:'asset:cash',
+        side:'credit',
+        amount,
+        currency:'JPY',
+        metadata:{fixture:'cash'}
+      }
+    ]
+  };
+  const validation=core.validateOperation(operation);
+  if(!validation.ok)throw new Error(`Phase 0.5 shadow operation fixture is invalid: ${JSON.stringify(validation.errors)}`);
+  return operation;
+}
+
+function characterizeShadowJournal(runtime) {
+  const shadow=runtime.loaded.modules.economicShadowJournal;
+  if(!shadow?.createJournal||!shadow?.append||!shadow?.serialize||!shadow?.hydrate) {
+    throw new Error('Phase 1 shadow operation journal is unavailable.');
+  }
+  const beforeHash=semanticStateHash(runtime.engine.g,runtime.scenario.stateHashVersion);
+  const limits={liveOperationCap:2,livePostingCap:4,receiptCap:4,idempotencyWindowPeriods:3};
+  let journal=shadow.createJournal(limits);
+  for(let sequence=1;sequence<=3;sequence++) {
+    journal=shadow.append(journal,makeShadowHarnessOperation(runtime,sequence,sequence),{currentPeriod:sequence}).journal;
+  }
+  const compactedEvidence=shadow.evidence(journal);
+  const payload=shadow.serialize(journal);
+  const reloaded=shadow.hydrate(payload);
+  const reloadStable=shadow.serialize(reloaded)===payload;
+  const duplicate=shadow.append(reloaded,makeShadowHarnessOperation(runtime,1,1),{currentPeriod:3});
+  const duplicateAfterReload=duplicate.status==='duplicate'&&shadow.serialize(duplicate.journal)===payload;
+
+  let conflictRejected=false;
+  try{
+    const conflict=makeShadowHarnessOperation(runtime,99,3,99000);
+    conflict.idempotencyKey='phase1-shadow-key-1';
+    shadow.append(reloaded,conflict,{currentPeriod:3});
+  }catch(error){conflictRejected=/identity conflict/.test(String(error?.message||error));}
+
+  const afterExpiry=shadow.append(reloaded,makeShadowHarnessOperation(runtime,4,10),{currentPeriod:10}).journal;
+  const expiredReceiptRetired=afterExpiry.receipts.length===0
+    &&afterExpiry.checkpoint.compactedOperationCount===2
+    &&afterExpiry.checkpoint.compactedPostingCount===4;
+
+  let twin=shadow.createJournal(limits);
+  for(let sequence=1;sequence<=3;sequence++) {
+    twin=shadow.append(twin,makeShadowHarnessOperation(runtime,sequence,sequence),{currentPeriod:sequence}).journal;
+  }
+  const deterministicReplay=shadow.serialize(twin)===payload
+    &&shadow.evidence(twin).journalDigest===compactedEvidence.journalDigest;
+
+  const tightLimits={liveOperationCap:1,livePostingCap:2,receiptCap:1,idempotencyWindowPeriods:100};
+  let tight=shadow.createJournal(tightLimits);
+  tight=shadow.append(tight,makeShadowHarnessOperation(runtime,21,1),{currentPeriod:1}).journal;
+  tight=shadow.append(tight,makeShadowHarnessOperation(runtime,22,2),{currentPeriod:2}).journal;
+  const tightBefore=shadow.serialize(tight);
+  let capacityFailClosed=false;
+  try{shadow.append(tight,makeShadowHarnessOperation(runtime,23,3),{currentPeriod:3});}
+  catch(error){capacityFailClosed=/receipt capacity exhausted/.test(String(error?.message||error))&&shadow.serialize(tight)===tightBefore;}
+
+  const afterHash=semanticStateHash(runtime.engine.g,runtime.scenario.stateHashVersion);
+  const authoritativeStateUnchanged=beforeHash===afterHash;
+  const ok=compactedEvidence.bounded
+    &&compactedEvidence.checkpoint.compactedOperationCount===1
+    &&compactedEvidence.receiptCount===1
+    &&reloadStable
+    &&duplicateAfterReload
+    &&conflictRejected
+    &&expiredReceiptRetired
+    &&deterministicReplay
+    &&capacityFailClosed
+    &&authoritativeStateUnchanged;
+  return Object.freeze({
+    ok,
+    limits:Object.freeze({...limits}),
+    compactedEvidence,
+    reloadStable,
+    duplicateAfterReload,
+    conflictRejected,
+    expiredReceiptRetired,
+    deterministicReplay,
+    capacityFailClosed,
+    authoritativeStateUnchanged,
+    beforeHash,
+    afterHash
+  });
+}
+
 function characterizeIdAllocation(runtime) {
   const rng=runtime.loaded.modules.simulationRng;
   const payload=JSON.stringify(runtime.engine.g);
@@ -792,6 +909,7 @@ function runPersistenceCharacterization(scenarioInput, options = {}) {
   });
   const rollbackEvidence=characterizeRollback(isolated());
   const idempotencyEvidence=characterizeIdempotency(isolated());
+  const shadowJournalEvidence=characterizeShadowJournal(isolated());
   const idAllocationEvidence=characterizeIdAllocation(isolated());
   const legacyAdapterParity=characterizeLegacyAdapterParity(isolated());
   const provenance=classifySeedProvenance(runtime);
@@ -810,9 +928,10 @@ function runPersistenceCharacterization(scenarioInput, options = {}) {
     persistenceEvidence,
     rollbackEvidence,
     idempotencyEvidence,
+    shadowJournalEvidence,
     idAllocationEvidence,
     legacyAdapterParity,
-    ok:replayEvidence.ok&&persistenceEvidence.saveReloadFork.ok&&persistenceEvidence.compactedSaveReloadFork.ok&&rollbackEvidence.ok&&idempotencyEvidence.ok&&idAllocationEvidence.ok&&legacyAdapterParity.ok
+    ok:replayEvidence.ok&&persistenceEvidence.saveReloadFork.ok&&persistenceEvidence.compactedSaveReloadFork.ok&&rollbackEvidence.ok&&idempotencyEvidence.ok&&shadowJournalEvidence.ok&&idAllocationEvidence.ok&&legacyAdapterParity.ok
   });
 }
 
@@ -1367,6 +1486,7 @@ module.exports = Object.freeze({
   probeDeterministicIds,
   characterizeRollback,
   characterizeIdempotency,
+  characterizeShadowJournal,
   characterizeIdAllocation,
   runPersistenceCharacterization,
   stepEconomicTick,
