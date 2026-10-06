@@ -209,6 +209,10 @@ function inspectPlainDataRecord(value,path,kind,errors){
       addError(errors,`${kind}_ACCESSOR_PROPERTY`,`${path}.${key}`,`${kind.toLowerCase()} properties must be own data properties, not accessors`);
       continue;
     }
+    if(!descriptor.enumerable){
+      addError(errors,`${kind}_NON_ENUMERABLE_PROPERTY`,`${path}.${key}`,`${kind.toLowerCase()} properties must be enumerable JSON properties`);
+      continue;
+    }
     record[key]=descriptor.value;
   }
   return record;
