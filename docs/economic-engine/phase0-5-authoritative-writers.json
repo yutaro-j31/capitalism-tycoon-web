@@ -1,0 +1,2051 @@
+{
+  "method": "lexical-candidate-discovery-plus-maintained-review",
+  "categories": {
+    "companyCash": [
+      {
+        "file": "js/app.js",
+        "tokens": [
+          "companyCash"
+        ]
+      },
+      {
+        "file": "js/bank-loans-covenants.js",
+        "tokens": [
+          "companyCash"
+        ]
+      },
+      {
+        "file": "js/board-governance-resolution.js",
+        "tokens": [
+          "companyCash"
+        ]
+      },
+      {
+        "file": "js/capital-allocation-recovery-funding-readiness.js",
+        "tokens": [
+          "companyCash"
+        ]
+      },
+      {
+        "file": "js/capital-allocation-recovery-funding-reconciliation.js",
+        "tokens": [
+          "companyCash"
+        ]
+      },
+      {
+        "file": "js/capital-allocation-recovery-funding.js",
+        "tokens": [
+          "companyCash"
+        ]
+      },
+      {
+        "file": "js/capital-allocation-score.js",
+        "tokens": [
+          "companyCash"
+        ]
+      },
+      {
+        "file": "js/ceo-dashboard.js",
+        "tokens": [
+          "companyCash"
+        ]
+      },
+      {
+        "file": "js/company-recall-crisis.js",
+        "tokens": [
+          "companyCash"
+        ]
+      },
+      {
+        "file": "js/competitor-parity.js",
+        "tokens": [
+          "companyCash"
+        ]
+      },
+      {
+        "file": "js/completion.js",
+        "tokens": [
+          "companyCash"
+        ]
+      },
+      {
+        "file": "js/convertible-bonds-dilution.js",
+        "tokens": [
+          "companyCash"
+        ]
+      },
+      {
+        "file": "js/corporate-bonds-ratings.js",
+        "tokens": [
+          "companyCash"
+        ]
+      },
+      {
+        "file": "js/d-ui-shell.js",
+        "tokens": [
+          "companyCash"
+        ]
+      },
+      {
+        "file": "js/difficulty-scenario-balance.js",
+        "tokens": [
+          "companyCash"
+        ]
+      },
+      {
+        "file": "js/engine.js",
+        "tokens": [
+          "companyCash"
+        ]
+      },
+      {
+        "file": "js/executive-reviews-succession-board.js",
+        "tokens": [
+          "companyCash"
+        ]
+      },
+      {
+        "file": "js/executive-secretary.js",
+        "tokens": [
+          "companyCash"
+        ]
+      },
+      {
+        "file": "js/executives-department-assignments.js",
+        "tokens": [
+          "companyCash"
+        ]
+      },
+      {
+        "file": "js/expansion.js",
+        "tokens": [
+          "companyCash"
+        ]
+      },
+      {
+        "file": "js/finance.js",
+        "tokens": [
+          "companyCash"
+        ]
+      },
+      {
+        "file": "js/founding-tutorial.js",
+        "tokens": [
+          "companyCash"
+        ]
+      },
+      {
+        "file": "js/global-company-ranking-goals.js",
+        "tokens": [
+          "companyCash"
+        ]
+      },
+      {
+        "file": "js/group-capital-allocation-actions.js",
+        "tokens": [
+          "companyCash"
+        ]
+      },
+      {
+        "file": "js/group-capital-allocation-execution.js",
+        "tokens": [
+          "companyCash"
+        ]
+      },
+      {
+        "file": "js/group-capital-allocation-plan.js",
+        "tokens": [
+          "companyCash"
+        ]
+      },
+      {
+        "file": "js/group-restructuring-candidates.js",
+        "tokens": [
+          "companyCash"
+        ]
+      },
+      {
+        "file": "js/group-restructuring-progress.js",
+        "tokens": [
+          "companyCash"
+        ]
+      },
+      {
+        "file": "js/industry-event-response-plans.js",
+        "tokens": [
+          "companyCash"
+        ]
+      },
+      {
+        "file": "js/inter-subsidiary-synergy-allocation.js",
+        "tokens": [
+          "companyCash"
+        ]
+      },
+      {
+        "file": "js/internal-venture-business.js",
+        "tokens": [
+          "companyCash"
+        ]
+      },
+      {
+        "file": "js/iphone-baseline-probe.js",
+        "tokens": [
+          "companyCash"
+        ]
+      },
+      {
+        "file": "js/iphone-playtest-fixes.js",
+        "tokens": [
+          "companyCash"
+        ]
+      },
+      {
+        "file": "js/listed-subsidiary-control-actions.js",
+        "tokens": [
+          "companyCash"
+        ]
+      },
+      {
+        "file": "js/listed-subsidiary-follow-on-offering.js",
+        "tokens": [
+          "companyCash"
+        ]
+      },
+      {
+        "file": "js/listed-subsidiary-market.js",
+        "tokens": [
+          "companyCash"
+        ]
+      },
+      {
+        "file": "js/long-run-guidance.js",
+        "tokens": [
+          "companyCash"
+        ]
+      },
+      {
+        "file": "js/ma-acquisition-financing.js",
+        "tokens": [
+          "companyCash"
+        ]
+      },
+      {
+        "file": "js/ma-board-approval.js",
+        "tokens": [
+          "companyCash"
+        ]
+      },
+      {
+        "file": "js/ma-deal-room.js",
+        "tokens": [
+          "companyCash"
+        ]
+      },
+      {
+        "file": "js/ma-integration.js",
+        "tokens": [
+          "companyCash"
+        ]
+      },
+      {
+        "file": "js/menu-research.js",
+        "tokens": [
+          "companyCash"
+        ]
+      },
+      {
+        "file": "js/new-business-commercialization.js",
+        "tokens": [
+          "companyCash"
+        ]
+      },
+      {
+        "file": "js/new-business-research-projects.js",
+        "tokens": [
+          "companyCash"
+        ]
+      },
+      {
+        "file": "js/parity.js",
+        "tokens": [
+          "companyCash"
+        ]
+      },
+      {
+        "file": "js/pe-acquisition.js",
+        "tokens": [
+          "companyCash"
+        ]
+      },
+      {
+        "file": "js/pe-fund.js",
+        "tokens": [
+          "companyCash"
+        ]
+      },
+      {
+        "file": "js/pe-portfolio-operations.js",
+        "tokens": [
+          "companyCash"
+        ]
+      },
+      {
+        "file": "js/pe-ui-adapter.js",
+        "tokens": [
+          "companyCash"
+        ]
+      },
+      {
+        "file": "js/pe-ui.js",
+        "tokens": [
+          "companyCash"
+        ]
+      },
+      {
+        "file": "js/pe-value-creation.js",
+        "tokens": [
+          "companyCash"
+        ]
+      },
+      {
+        "file": "js/personal-real-estate-corp.js",
+        "tokens": [
+          "companyCash"
+        ]
+      },
+      {
+        "file": "js/play-runtime-compat.js",
+        "tokens": [
+          "companyCash"
+        ]
+      },
+      {
+        "file": "js/player-crisis-actions.js",
+        "tokens": [
+          "companyCash"
+        ]
+      },
+      {
+        "file": "js/player-crisis-creditor.js",
+        "tokens": [
+          "companyCash"
+        ]
+      },
+      {
+        "file": "js/player-crisis-restructuring.js",
+        "tokens": [
+          "companyCash"
+        ]
+      },
+      {
+        "file": "js/player-crisis-turnaround-fund.js",
+        "tokens": [
+          "companyCash"
+        ]
+      },
+      {
+        "file": "js/player-crisis-ui.js",
+        "tokens": [
+          "companyCash"
+        ]
+      },
+      {
+        "file": "js/player-crisis.js",
+        "tokens": [
+          "companyCash"
+        ]
+      },
+      {
+        "file": "js/player-debt-service.js",
+        "tokens": [
+          "companyCash"
+        ]
+      },
+      {
+        "file": "js/player-engine-bridge.js",
+        "tokens": [
+          "companyCash"
+        ]
+      },
+      {
+        "file": "js/player-media-advertising.js",
+        "tokens": [
+          "companyCash"
+        ]
+      },
+      {
+        "file": "js/player-turnaround-plan-ui.js",
+        "tokens": [
+          "companyCash"
+        ]
+      },
+      {
+        "file": "js/player-turnaround-plan.js",
+        "tokens": [
+          "companyCash"
+        ]
+      },
+      {
+        "file": "js/pmi-100-day-plan.js",
+        "tokens": [
+          "companyCash"
+        ]
+      },
+      {
+        "file": "js/preferred-shares-dividends.js",
+        "tokens": [
+          "companyCash"
+        ]
+      },
+      {
+        "file": "js/product-lifecycle.js",
+        "tokens": [
+          "companyCash"
+        ]
+      },
+      {
+        "file": "js/real-estate-agency-credit-line.js",
+        "tokens": [
+          "companyCash"
+        ]
+      },
+      {
+        "file": "js/real-estate-capex-actuals.js",
+        "tokens": [
+          "companyCash"
+        ]
+      },
+      {
+        "file": "js/real-estate-capex-roi.js",
+        "tokens": [
+          "companyCash"
+        ]
+      },
+      {
+        "file": "js/real-estate-complete-cycle.js",
+        "tokens": [
+          "companyCash"
+        ]
+      },
+      {
+        "file": "js/real-estate-development.js",
+        "tokens": [
+          "companyCash"
+        ]
+      },
+      {
+        "file": "js/real-estate-insurance-claims.js",
+        "tokens": [
+          "companyCash"
+        ]
+      },
+      {
+        "file": "js/real-estate-mortgage-refinancing.js",
+        "tokens": [
+          "companyCash"
+        ]
+      },
+      {
+        "file": "js/real-estate-price-negotiation.js",
+        "tokens": [
+          "companyCash"
+        ]
+      },
+      {
+        "file": "js/real-estate-property-disposals.js",
+        "tokens": [
+          "companyCash"
+        ]
+      },
+      {
+        "file": "js/real-estate-property-insurance.js",
+        "tokens": [
+          "companyCash"
+        ]
+      },
+      {
+        "file": "js/real-estate-property-maintenance.js",
+        "tokens": [
+          "companyCash"
+        ]
+      },
+      {
+        "file": "js/real-estate-property-management.js",
+        "tokens": [
+          "companyCash"
+        ]
+      },
+      {
+        "file": "js/real-estate-property-taxes.js",
+        "tokens": [
+          "companyCash"
+        ]
+      },
+      {
+        "file": "js/real-estate-redevelopment-projects.js",
+        "tokens": [
+          "companyCash"
+        ]
+      },
+      {
+        "file": "js/real-estate-rent-guarantee.js",
+        "tokens": [
+          "companyCash"
+        ]
+      },
+      {
+        "file": "js/real-estate-risk-mitigation.js",
+        "tokens": [
+          "companyCash"
+        ]
+      },
+      {
+        "file": "js/real-estate-safety-certification.js",
+        "tokens": [
+          "companyCash"
+        ]
+      },
+      {
+        "file": "js/real-estate-security-deposits.js",
+        "tokens": [
+          "companyCash"
+        ]
+      },
+      {
+        "file": "js/real-estate-tenant-collections.js",
+        "tokens": [
+          "companyCash"
+        ]
+      },
+      {
+        "file": "js/real-estate-tenant-contracts.js",
+        "tokens": [
+          "companyCash"
+        ]
+      },
+      {
+        "file": "js/real-estate-tenant-leasing.js",
+        "tokens": [
+          "companyCash"
+        ]
+      },
+      {
+        "file": "js/real-estate-tenant-operations.js",
+        "tokens": [
+          "companyCash"
+        ]
+      },
+      {
+        "file": "js/real-estate-tenant-renewals.js",
+        "tokens": [
+          "companyCash"
+        ]
+      },
+      {
+        "file": "js/real-estate-ui.js",
+        "tokens": [
+          "companyCash"
+        ]
+      },
+      {
+        "file": "js/real-estate.js",
+        "tokens": [
+          "companyCash"
+        ]
+      },
+      {
+        "file": "js/save-import-atomic-guard.js",
+        "tokens": [
+          "companyCash"
+        ]
+      },
+      {
+        "file": "js/save-v9.js",
+        "tokens": [
+          "companyCash"
+        ]
+      },
+      {
+        "file": "js/semantic-hash-v2.js",
+        "tokens": [
+          "companyCash"
+        ]
+      },
+      {
+        "file": "js/shareholder-activism.js",
+        "tokens": [
+          "companyCash"
+        ]
+      },
+      {
+        "file": "js/shareholder-returns.js",
+        "tokens": [
+          "companyCash"
+        ]
+      },
+      {
+        "file": "js/store-equipment.js",
+        "tokens": [
+          "companyCash"
+        ]
+      },
+      {
+        "file": "js/subsidiary-integration-synergy.js",
+        "tokens": [
+          "companyCash"
+        ]
+      },
+      {
+        "file": "js/subsidiary-ipo-preparation.js",
+        "tokens": [
+          "companyCash"
+        ]
+      },
+      {
+        "file": "js/subsidiary-ipo-secondary-sale.js",
+        "tokens": [
+          "companyCash"
+        ]
+      },
+      {
+        "file": "js/subsidiary-relisting-options.js",
+        "tokens": [
+          "companyCash"
+        ]
+      },
+      {
+        "file": "js/supply.js",
+        "tokens": [
+          "companyCash"
+        ]
+      },
+      {
+        "file": "js/treasury-prepayment.js",
+        "tokens": [
+          "companyCash"
+        ]
+      },
+      {
+        "file": "js/workforce.js",
+        "tokens": [
+          "companyCash"
+        ]
+      }
+    ],
+    "companyDebt": [
+      {
+        "file": "js/app.js",
+        "tokens": [
+          "companyDebt"
+        ]
+      },
+      {
+        "file": "js/bank-loans-covenants.js",
+        "tokens": [
+          "companyDebt"
+        ]
+      },
+      {
+        "file": "js/board-governance-resolution.js",
+        "tokens": [
+          "companyDebt"
+        ]
+      },
+      {
+        "file": "js/capital-allocation-recovery-funding-readiness.js",
+        "tokens": [
+          "companyDebt"
+        ]
+      },
+      {
+        "file": "js/capital-allocation-recovery-funding-reconciliation.js",
+        "tokens": [
+          "companyDebt"
+        ]
+      },
+      {
+        "file": "js/capital-allocation-recovery-funding.js",
+        "tokens": [
+          "companyDebt"
+        ]
+      },
+      {
+        "file": "js/capital-allocation-score.js",
+        "tokens": [
+          "companyDebt"
+        ]
+      },
+      {
+        "file": "js/ceo-dashboard.js",
+        "tokens": [
+          "companyDebt"
+        ]
+      },
+      {
+        "file": "js/engine.js",
+        "tokens": [
+          "companyDebt"
+        ]
+      },
+      {
+        "file": "js/executive-secretary.js",
+        "tokens": [
+          "companyDebt"
+        ]
+      },
+      {
+        "file": "js/finance.js",
+        "tokens": [
+          "companyDebt"
+        ]
+      },
+      {
+        "file": "js/iphone-baseline-probe.js",
+        "tokens": [
+          "companyDebt"
+        ]
+      },
+      {
+        "file": "js/iphone-playtest-fixes.js",
+        "tokens": [
+          "companyDebt"
+        ]
+      },
+      {
+        "file": "js/ma-acquisition-financing.js",
+        "tokens": [
+          "companyDebt"
+        ]
+      },
+      {
+        "file": "js/ma-board-approval.js",
+        "tokens": [
+          "companyDebt"
+        ]
+      },
+      {
+        "file": "js/parity.js",
+        "tokens": [
+          "companyDebt"
+        ]
+      },
+      {
+        "file": "js/player-crisis-actions.js",
+        "tokens": [
+          "companyDebt"
+        ]
+      },
+      {
+        "file": "js/player-crisis-creditor.js",
+        "tokens": [
+          "companyDebt"
+        ]
+      },
+      {
+        "file": "js/player-crisis-ui.js",
+        "tokens": [
+          "companyDebt"
+        ]
+      },
+      {
+        "file": "js/player-crisis.js",
+        "tokens": [
+          "companyDebt"
+        ]
+      },
+      {
+        "file": "js/player-debt-service.js",
+        "tokens": [
+          "companyDebt"
+        ]
+      },
+      {
+        "file": "js/player-turnaround-plan-ui.js",
+        "tokens": [
+          "companyDebt"
+        ]
+      },
+      {
+        "file": "js/player-turnaround-plan.js",
+        "tokens": [
+          "companyDebt"
+        ]
+      },
+      {
+        "file": "js/real-estate-agency-credit-line.js",
+        "tokens": [
+          "companyDebt"
+        ]
+      },
+      {
+        "file": "js/real-estate-complete-cycle.js",
+        "tokens": [
+          "companyDebt"
+        ]
+      },
+      {
+        "file": "js/real-estate-property-disposals.js",
+        "tokens": [
+          "companyDebt"
+        ]
+      },
+      {
+        "file": "js/real-estate.js",
+        "tokens": [
+          "companyDebt"
+        ]
+      },
+      {
+        "file": "js/save-v9.js",
+        "tokens": [
+          "companyDebt"
+        ]
+      },
+      {
+        "file": "js/semantic-hash-v2.js",
+        "tokens": [
+          "companyDebt"
+        ]
+      },
+      {
+        "file": "js/treasury-prepayment.js",
+        "tokens": [
+          "companyDebt"
+        ]
+      },
+      {
+        "file": "js/treasury-refinancing-policy.js",
+        "tokens": [
+          "companyDebt"
+        ]
+      }
+    ],
+    "financeAccountingAuthority": [
+      {
+        "file": "js/app.js",
+        "tokens": [
+          "finance.event"
+        ]
+      },
+      {
+        "file": "js/bank-loans-covenants.js",
+        "tokens": [
+          "finance.event"
+        ]
+      },
+      {
+        "file": "js/capital-allocation-recovery-funding-readiness.js",
+        "tokens": [
+          "finance.transactions"
+        ]
+      },
+      {
+        "file": "js/capital-allocation-recovery-funding-reconciliation.js",
+        "tokens": [
+          "finance.transactions"
+        ]
+      },
+      {
+        "file": "js/capital-allocation-score.js",
+        "tokens": [
+          "finance.transactions"
+        ]
+      },
+      {
+        "file": "js/company-recall-crisis.js",
+        "tokens": [
+          "rebuildSnapshotForWeek"
+        ]
+      },
+      {
+        "file": "js/competitor-parity.js",
+        "tokens": [
+          "finance.event"
+        ]
+      },
+      {
+        "file": "js/completion.js",
+        "tokens": [
+          "finance.event",
+          "recordSnapshot"
+        ]
+      },
+      {
+        "file": "js/difficulty-scenario-balance.js",
+        "tokens": [
+          "rebuildSnapshotForWeek"
+        ]
+      },
+      {
+        "file": "js/engine.js",
+        "tokens": [
+          "finance.event",
+          "finance.transactions",
+          "rebuildSnapshotForWeek",
+          "recordSnapshot"
+        ]
+      },
+      {
+        "file": "js/executive-reviews-succession-board.js",
+        "tokens": [
+          "finance.event",
+          "rebuildSnapshotForWeek"
+        ]
+      },
+      {
+        "file": "js/executives-department-assignments.js",
+        "tokens": [
+          "finance.event",
+          "rebuildSnapshotForWeek"
+        ]
+      },
+      {
+        "file": "js/expansion.js",
+        "tokens": [
+          "finance.event",
+          "recordSnapshot"
+        ]
+      },
+      {
+        "file": "js/finance.js",
+        "tokens": [
+          "rebuildSnapshotForWeek",
+          "recordSnapshot"
+        ]
+      },
+      {
+        "file": "js/group-capital-allocation-execution.js",
+        "tokens": [
+          "finance.event"
+        ]
+      },
+      {
+        "file": "js/group-restructuring-candidates.js",
+        "tokens": [
+          "finance.event"
+        ]
+      },
+      {
+        "file": "js/group-restructuring-progress.js",
+        "tokens": [
+          "finance.event",
+          "finance.transactions"
+        ]
+      },
+      {
+        "file": "js/industry-event-response-plans.js",
+        "tokens": [
+          "rebuildSnapshotForWeek"
+        ]
+      },
+      {
+        "file": "js/inter-subsidiary-synergy-allocation.js",
+        "tokens": [
+          "finance.event"
+        ]
+      },
+      {
+        "file": "js/internal-venture-business.js",
+        "tokens": [
+          "finance.event"
+        ]
+      },
+      {
+        "file": "js/listed-subsidiary-control-actions.js",
+        "tokens": [
+          "finance.event"
+        ]
+      },
+      {
+        "file": "js/listed-subsidiary-follow-on-offering.js",
+        "tokens": [
+          "finance.event"
+        ]
+      },
+      {
+        "file": "js/listed-subsidiary-market.js",
+        "tokens": [
+          "finance.event"
+        ]
+      },
+      {
+        "file": "js/ma-acquisition-financing.js",
+        "tokens": [
+          "finance.event"
+        ]
+      },
+      {
+        "file": "js/menu-research.js",
+        "tokens": [
+          "finance.event"
+        ]
+      },
+      {
+        "file": "js/new-business-commercialization.js",
+        "tokens": [
+          "finance.event"
+        ]
+      },
+      {
+        "file": "js/new-business-research-projects.js",
+        "tokens": [
+          "finance.event"
+        ]
+      },
+      {
+        "file": "js/parity.js",
+        "tokens": [
+          "finance.event",
+          "recordSnapshot"
+        ]
+      },
+      {
+        "file": "js/pe-fund.js",
+        "tokens": [
+          "finance.event"
+        ]
+      },
+      {
+        "file": "js/pe-portfolio-operations.js",
+        "tokens": [
+          "finance.event"
+        ]
+      },
+      {
+        "file": "js/play-runtime-compat.js",
+        "tokens": [
+          "rebuildSnapshotForWeek"
+        ]
+      },
+      {
+        "file": "js/player-crisis-actions.js",
+        "tokens": [
+          "finance.event"
+        ]
+      },
+      {
+        "file": "js/player-crisis-restructuring.js",
+        "tokens": [
+          "finance.event"
+        ]
+      },
+      {
+        "file": "js/player-crisis-turnaround-fund.js",
+        "tokens": [
+          "finance.event"
+        ]
+      },
+      {
+        "file": "js/player-debt-service.js",
+        "tokens": [
+          "finance.event",
+          "rebuildSnapshotForWeek"
+        ]
+      },
+      {
+        "file": "js/player-engine-bridge.js",
+        "tokens": [
+          "finance.event"
+        ]
+      },
+      {
+        "file": "js/player-media-advertising.js",
+        "tokens": [
+          "finance.event"
+        ]
+      },
+      {
+        "file": "js/product-lifecycle.js",
+        "tokens": [
+          "finance.event"
+        ]
+      },
+      {
+        "file": "js/real-estate-agency-credit-line.js",
+        "tokens": [
+          "finance.event"
+        ]
+      },
+      {
+        "file": "js/real-estate-price-negotiation.js",
+        "tokens": [
+          "finance.event"
+        ]
+      },
+      {
+        "file": "js/shareholder-returns.js",
+        "tokens": [
+          "finance.event",
+          "rebuildSnapshotForWeek"
+        ]
+      },
+      {
+        "file": "js/sports-management.js",
+        "tokens": [
+          "finance.event"
+        ]
+      },
+      {
+        "file": "js/store-equipment.js",
+        "tokens": [
+          "finance.event"
+        ]
+      },
+      {
+        "file": "js/subsidiary-integration-synergy.js",
+        "tokens": [
+          "finance.event"
+        ]
+      },
+      {
+        "file": "js/subsidiary-ipo-preparation.js",
+        "tokens": [
+          "finance.event"
+        ]
+      },
+      {
+        "file": "js/subsidiary-ipo-secondary-sale.js",
+        "tokens": [
+          "finance.event"
+        ]
+      },
+      {
+        "file": "js/subsidiary-relisting-options.js",
+        "tokens": [
+          "finance.event"
+        ]
+      },
+      {
+        "file": "js/supply.js",
+        "tokens": [
+          "finance.event"
+        ]
+      },
+      {
+        "file": "js/treasury-prepayment.js",
+        "tokens": [
+          "finance.event",
+          "rebuildSnapshotForWeek"
+        ]
+      }
+    ],
+    "ownershipShares": [
+      {
+        "file": "js/app.js",
+        "tokens": [
+          "externalShareholderRatio",
+          "founderShares",
+          "treasuryBuybackShares"
+        ]
+      },
+      {
+        "file": "js/capital-allocation-score.js",
+        "tokens": [
+          "sharesOut"
+        ]
+      },
+      {
+        "file": "js/ceo-dashboard.js",
+        "tokens": [
+          "sharesOut",
+          "treasuryBuybackShares"
+        ]
+      },
+      {
+        "file": "js/convertible-bonds-dilution.js",
+        "tokens": [
+          "sharesOut"
+        ]
+      },
+      {
+        "file": "js/engine.js",
+        "tokens": [
+          "externalShareholderRatio",
+          "founderShares",
+          "sharesOut",
+          "treasuryBuybackShares"
+        ]
+      },
+      {
+        "file": "js/executive-secretary.js",
+        "tokens": [
+          "sharesOut",
+          "treasuryBuybackShares"
+        ]
+      },
+      {
+        "file": "js/expansion.js",
+        "tokens": [
+          "externalShareholderRatio",
+          "founderShares",
+          "sharesOut",
+          "treasuryBuybackShares"
+        ]
+      },
+      {
+        "file": "js/ma-acquisition-financing.js",
+        "tokens": [
+          "externalShareholderRatio",
+          "founderShares",
+          "sharesOut",
+          "treasuryBuybackShares"
+        ]
+      },
+      {
+        "file": "js/ma-board-approval.js",
+        "tokens": [
+          "sharesOut"
+        ]
+      },
+      {
+        "file": "js/ma-deal-room.js",
+        "tokens": [
+          "externalShareholderRatio",
+          "sharesOut"
+        ]
+      },
+      {
+        "file": "js/parity.js",
+        "tokens": [
+          "sharesOut"
+        ]
+      },
+      {
+        "file": "js/player-crisis-actions.js",
+        "tokens": [
+          "sharesOut"
+        ]
+      },
+      {
+        "file": "js/player-crisis-turnaround-fund.js",
+        "tokens": [
+          "sharesOut"
+        ]
+      },
+      {
+        "file": "js/semantic-hash-v2.js",
+        "tokens": [
+          "externalShareholderRatio",
+          "founderShares",
+          "sharesOut",
+          "treasuryBuybackShares"
+        ]
+      },
+      {
+        "file": "js/shareholder-activism.js",
+        "tokens": [
+          "founderShares",
+          "sharesOut",
+          "treasuryBuybackShares"
+        ]
+      },
+      {
+        "file": "js/shareholder-returns.js",
+        "tokens": [
+          "founderShares",
+          "sharesOut",
+          "treasuryBuybackShares"
+        ]
+      }
+    ],
+    "peFundCash": [
+      {
+        "file": "js/pe-ui-adapter.js",
+        "tokens": [
+          "fundCash"
+        ]
+      },
+      {
+        "file": "js/pe-ui.js",
+        "tokens": [
+          "fundCash"
+        ]
+      }
+    ],
+    "personalCash": [
+      {
+        "file": "js/app.js",
+        "tokens": [
+          "personalCash"
+        ]
+      },
+      {
+        "file": "js/completion.js",
+        "tokens": [
+          "personalCash"
+        ]
+      },
+      {
+        "file": "js/engine.js",
+        "tokens": [
+          "personalCash"
+        ]
+      },
+      {
+        "file": "js/expansion.js",
+        "tokens": [
+          "personalCash"
+        ]
+      },
+      {
+        "file": "js/finance.js",
+        "tokens": [
+          "personalCash"
+        ]
+      },
+      {
+        "file": "js/iphone-baseline-probe.js",
+        "tokens": [
+          "personalCash"
+        ]
+      },
+      {
+        "file": "js/iphone-playtest-fixes.js",
+        "tokens": [
+          "personalCash"
+        ]
+      },
+      {
+        "file": "js/pe-acquisition.js",
+        "tokens": [
+          "personalCash"
+        ]
+      },
+      {
+        "file": "js/pe-fund.js",
+        "tokens": [
+          "personalCash"
+        ]
+      },
+      {
+        "file": "js/pe-portfolio-operations.js",
+        "tokens": [
+          "personalCash"
+        ]
+      },
+      {
+        "file": "js/pe-ui-adapter.js",
+        "tokens": [
+          "personalCash"
+        ]
+      },
+      {
+        "file": "js/pe-ui.js",
+        "tokens": [
+          "personalCash"
+        ]
+      },
+      {
+        "file": "js/pe-value-creation.js",
+        "tokens": [
+          "personalCash"
+        ]
+      },
+      {
+        "file": "js/personal-real-estate-corp.js",
+        "tokens": [
+          "personalCash"
+        ]
+      },
+      {
+        "file": "js/personal-real-estate-mortgage.js",
+        "tokens": [
+          "personalCash"
+        ]
+      },
+      {
+        "file": "js/personal-real-estate-redevelopment.js",
+        "tokens": [
+          "personalCash"
+        ]
+      },
+      {
+        "file": "js/personal-real-estate-short-term.js",
+        "tokens": [
+          "personalCash"
+        ]
+      },
+      {
+        "file": "js/personal-real-estate-taxes.js",
+        "tokens": [
+          "personalCash"
+        ]
+      },
+      {
+        "file": "js/personal-stock-margin.js",
+        "tokens": [
+          "personalCash"
+        ]
+      },
+      {
+        "file": "js/player-crisis-actions.js",
+        "tokens": [
+          "personalCash"
+        ]
+      },
+      {
+        "file": "js/real-estate-capex-actuals.js",
+        "tokens": [
+          "personalCash"
+        ]
+      },
+      {
+        "file": "js/real-estate-capex-roi.js",
+        "tokens": [
+          "personalCash"
+        ]
+      },
+      {
+        "file": "js/real-estate-complete-cycle.js",
+        "tokens": [
+          "personalCash"
+        ]
+      },
+      {
+        "file": "js/real-estate-development.js",
+        "tokens": [
+          "personalCash"
+        ]
+      },
+      {
+        "file": "js/real-estate-insurance-claims.js",
+        "tokens": [
+          "personalCash"
+        ]
+      },
+      {
+        "file": "js/real-estate-mortgage-refinancing.js",
+        "tokens": [
+          "personalCash"
+        ]
+      },
+      {
+        "file": "js/real-estate-price-negotiation.js",
+        "tokens": [
+          "personalCash"
+        ]
+      },
+      {
+        "file": "js/real-estate-property-disposals.js",
+        "tokens": [
+          "personalCash"
+        ]
+      },
+      {
+        "file": "js/real-estate-property-insurance.js",
+        "tokens": [
+          "personalCash"
+        ]
+      },
+      {
+        "file": "js/real-estate-property-maintenance.js",
+        "tokens": [
+          "personalCash"
+        ]
+      },
+      {
+        "file": "js/real-estate-property-management.js",
+        "tokens": [
+          "personalCash"
+        ]
+      },
+      {
+        "file": "js/real-estate-property-taxes.js",
+        "tokens": [
+          "personalCash"
+        ]
+      },
+      {
+        "file": "js/real-estate-redevelopment-projects.js",
+        "tokens": [
+          "personalCash"
+        ]
+      },
+      {
+        "file": "js/real-estate-rent-guarantee.js",
+        "tokens": [
+          "personalCash"
+        ]
+      },
+      {
+        "file": "js/real-estate-risk-mitigation.js",
+        "tokens": [
+          "personalCash"
+        ]
+      },
+      {
+        "file": "js/real-estate-safety-certification.js",
+        "tokens": [
+          "personalCash"
+        ]
+      },
+      {
+        "file": "js/real-estate-security-deposits.js",
+        "tokens": [
+          "personalCash"
+        ]
+      },
+      {
+        "file": "js/real-estate-tenant-collections.js",
+        "tokens": [
+          "personalCash"
+        ]
+      },
+      {
+        "file": "js/real-estate-tenant-contracts.js",
+        "tokens": [
+          "personalCash"
+        ]
+      },
+      {
+        "file": "js/real-estate-tenant-leasing.js",
+        "tokens": [
+          "personalCash"
+        ]
+      },
+      {
+        "file": "js/real-estate-tenant-operations.js",
+        "tokens": [
+          "personalCash"
+        ]
+      },
+      {
+        "file": "js/real-estate-tenant-renewals.js",
+        "tokens": [
+          "personalCash"
+        ]
+      },
+      {
+        "file": "js/real-estate-ui.js",
+        "tokens": [
+          "personalCash"
+        ]
+      },
+      {
+        "file": "js/real-estate.js",
+        "tokens": [
+          "personalCash"
+        ]
+      },
+      {
+        "file": "js/save-import-atomic-guard.js",
+        "tokens": [
+          "personalCash"
+        ]
+      },
+      {
+        "file": "js/save-v9.js",
+        "tokens": [
+          "personalCash"
+        ]
+      },
+      {
+        "file": "js/semantic-hash-v2.js",
+        "tokens": [
+          "personalCash"
+        ]
+      }
+    ],
+    "propertyEconomicState": [
+      {
+        "file": "js/app.js",
+        "tokens": [
+          "personalRealEstateHoldings",
+          "properties"
+        ]
+      },
+      {
+        "file": "js/capital-allocation-recovery-funding-options.js",
+        "tokens": [
+          "properties"
+        ]
+      },
+      {
+        "file": "js/capital-allocation-recovery-funding-readiness.js",
+        "tokens": [
+          "properties"
+        ]
+      },
+      {
+        "file": "js/capital-allocation-recovery-funding-reconciliation.js",
+        "tokens": [
+          "properties"
+        ]
+      },
+      {
+        "file": "js/capital-allocation-recovery-funding.js",
+        "tokens": [
+          "properties"
+        ]
+      },
+      {
+        "file": "js/completion.js",
+        "tokens": [
+          "personalRealEstateHoldings",
+          "properties"
+        ]
+      },
+      {
+        "file": "js/data.js",
+        "tokens": [
+          "properties"
+        ]
+      },
+      {
+        "file": "js/engine.js",
+        "tokens": [
+          "personalRealEstateHoldings",
+          "properties"
+        ]
+      },
+      {
+        "file": "js/expansion.js",
+        "tokens": [
+          "personalRealEstateHoldings",
+          "properties"
+        ]
+      },
+      {
+        "file": "js/finance.js",
+        "tokens": [
+          "properties"
+        ]
+      },
+      {
+        "file": "js/iphone-playtest-fixes.js",
+        "tokens": [
+          "properties"
+        ]
+      },
+      {
+        "file": "js/map-phase2-canvas.js",
+        "tokens": [
+          "properties"
+        ]
+      },
+      {
+        "file": "js/personal-real-estate-corp.js",
+        "tokens": [
+          "personalRealEstateHoldings",
+          "properties"
+        ]
+      },
+      {
+        "file": "js/personal-real-estate-mortgage.js",
+        "tokens": [
+          "personalRealEstateHoldings"
+        ]
+      },
+      {
+        "file": "js/personal-real-estate-redevelopment.js",
+        "tokens": [
+          "personalRealEstateHoldings",
+          "properties"
+        ]
+      },
+      {
+        "file": "js/personal-real-estate-short-term.js",
+        "tokens": [
+          "personalRealEstateHoldings"
+        ]
+      },
+      {
+        "file": "js/personal-real-estate-taxes.js",
+        "tokens": [
+          "personalRealEstateHoldings"
+        ]
+      },
+      {
+        "file": "js/player-crisis-restructuring.js",
+        "tokens": [
+          "properties"
+        ]
+      },
+      {
+        "file": "js/player-crisis-ui.js",
+        "tokens": [
+          "properties"
+        ]
+      },
+      {
+        "file": "js/real-estate-capex-actuals.js",
+        "tokens": [
+          "properties"
+        ]
+      },
+      {
+        "file": "js/real-estate-capex-roi.js",
+        "tokens": [
+          "properties"
+        ]
+      },
+      {
+        "file": "js/real-estate-complete-cycle-ui.js",
+        "tokens": [
+          "properties"
+        ]
+      },
+      {
+        "file": "js/real-estate-complete-cycle.js",
+        "tokens": [
+          "properties"
+        ]
+      },
+      {
+        "file": "js/real-estate-development.js",
+        "tokens": [
+          "properties"
+        ]
+      },
+      {
+        "file": "js/real-estate-insurance-claims.js",
+        "tokens": [
+          "properties"
+        ]
+      },
+      {
+        "file": "js/real-estate-insurance-risk.js",
+        "tokens": [
+          "properties"
+        ]
+      },
+      {
+        "file": "js/real-estate-maintenance-reserves-ui.js",
+        "tokens": [
+          "properties"
+        ]
+      },
+      {
+        "file": "js/real-estate-mortgage-refinancing-ui.js",
+        "tokens": [
+          "properties"
+        ]
+      },
+      {
+        "file": "js/real-estate-mortgage-refinancing.js",
+        "tokens": [
+          "properties"
+        ]
+      },
+      {
+        "file": "js/real-estate-portfolio-dashboard.js",
+        "tokens": [
+          "properties",
+          "propertyTaxAccrued"
+        ]
+      },
+      {
+        "file": "js/real-estate-price-negotiation.js",
+        "tokens": [
+          "personalRealEstateHoldings",
+          "properties"
+        ]
+      },
+      {
+        "file": "js/real-estate-property-disposals-ui.js",
+        "tokens": [
+          "properties"
+        ]
+      },
+      {
+        "file": "js/real-estate-property-disposals.js",
+        "tokens": [
+          "properties"
+        ]
+      },
+      {
+        "file": "js/real-estate-property-insurance-ui.js",
+        "tokens": [
+          "properties"
+        ]
+      },
+      {
+        "file": "js/real-estate-property-insurance.js",
+        "tokens": [
+          "properties"
+        ]
+      },
+      {
+        "file": "js/real-estate-property-maintenance-ui.js",
+        "tokens": [
+          "properties"
+        ]
+      },
+      {
+        "file": "js/real-estate-property-maintenance.js",
+        "tokens": [
+          "properties"
+        ]
+      },
+      {
+        "file": "js/real-estate-property-management-ui.js",
+        "tokens": [
+          "properties"
+        ]
+      },
+      {
+        "file": "js/real-estate-property-management.js",
+        "tokens": [
+          "properties"
+        ]
+      },
+      {
+        "file": "js/real-estate-property-taxes-ui.js",
+        "tokens": [
+          "properties",
+          "propertyTaxAccrued"
+        ]
+      },
+      {
+        "file": "js/real-estate-property-taxes.js",
+        "tokens": [
+          "properties",
+          "propertyTaxAccrued"
+        ]
+      },
+      {
+        "file": "js/real-estate-redevelopment-projects-ui.js",
+        "tokens": [
+          "properties"
+        ]
+      },
+      {
+        "file": "js/real-estate-redevelopment-projects.js",
+        "tokens": [
+          "properties"
+        ]
+      },
+      {
+        "file": "js/real-estate-rent-guarantee.js",
+        "tokens": [
+          "properties"
+        ]
+      },
+      {
+        "file": "js/real-estate-rent-performance.js",
+        "tokens": [
+          "properties"
+        ]
+      },
+      {
+        "file": "js/real-estate-rent-pricing.js",
+        "tokens": [
+          "properties"
+        ]
+      },
+      {
+        "file": "js/real-estate-risk-mitigation.js",
+        "tokens": [
+          "properties"
+        ]
+      },
+      {
+        "file": "js/real-estate-safety-certification.js",
+        "tokens": [
+          "properties"
+        ]
+      },
+      {
+        "file": "js/real-estate-tenant-collections.js",
+        "tokens": [
+          "properties"
+        ]
+      },
+      {
+        "file": "js/real-estate-tenant-contracts.js",
+        "tokens": [
+          "properties"
+        ]
+      },
+      {
+        "file": "js/real-estate-tenant-leasing.js",
+        "tokens": [
+          "properties"
+        ]
+      },
+      {
+        "file": "js/real-estate-tenant-operations.js",
+        "tokens": [
+          "properties"
+        ]
+      },
+      {
+        "file": "js/real-estate-tenant-renewals.js",
+        "tokens": [
+          "properties"
+        ]
+      },
+      {
+        "file": "js/real-estate-ui.js",
+        "tokens": [
+          "properties"
+        ]
+      },
+      {
+        "file": "js/real-estate.js",
+        "tokens": [
+          "properties"
+        ]
+      },
+      {
+        "file": "js/save-storage.js",
+        "tokens": [
+          "properties"
+        ]
+      },
+      {
+        "file": "js/semantic-hash-v2.js",
+        "tokens": [
+          "properties"
+        ]
+      }
+    ],
+    "subsidiaryCarryingValues": [
+      {
+        "file": "js/app.js",
+        "tokens": [
+          "bookValue"
+        ]
+      },
+      {
+        "file": "js/capital-allocation-recovery-funding-options.js",
+        "tokens": [
+          "carryingValue"
+        ]
+      },
+      {
+        "file": "js/capital-allocation-recovery-funding-readiness.js",
+        "tokens": [
+          "carryingValue"
+        ]
+      },
+      {
+        "file": "js/capital-allocation-recovery-funding.js",
+        "tokens": [
+          "bookValue",
+          "carryingValue"
+        ]
+      },
+      {
+        "file": "js/engine.js",
+        "tokens": [
+          "bookValue",
+          "carryingValue"
+        ]
+      },
+      {
+        "file": "js/expansion.js",
+        "tokens": [
+          "bookValue"
+        ]
+      },
+      {
+        "file": "js/finance.js",
+        "tokens": [
+          "bookValue",
+          "carryingValue"
+        ]
+      },
+      {
+        "file": "js/group-restructuring-candidates.js",
+        "tokens": [
+          "bookValue"
+        ]
+      },
+      {
+        "file": "js/internal-venture-business.js",
+        "tokens": [
+          "bookValue"
+        ]
+      },
+      {
+        "file": "js/listed-subsidiary-market.js",
+        "tokens": [
+          "bookValue"
+        ]
+      },
+      {
+        "file": "js/listed-subsidiary-portfolio-dashboard.js",
+        "tokens": [
+          "bookValue"
+        ]
+      },
+      {
+        "file": "js/ma-deal-room.js",
+        "tokens": [
+          "carryingValue"
+        ]
+      },
+      {
+        "file": "js/ma-exit-readiness.js",
+        "tokens": [
+          "bookValue",
+          "carryingValue"
+        ]
+      },
+      {
+        "file": "js/ma-portfolio-summary-ui.js",
+        "tokens": [
+          "bookValue"
+        ]
+      },
+      {
+        "file": "js/ma-portfolio-summary.js",
+        "tokens": [
+          "carryingValue"
+        ]
+      },
+      {
+        "file": "js/personal-real-estate-redevelopment.js",
+        "tokens": [
+          "bookValue"
+        ]
+      },
+      {
+        "file": "js/real-estate-complete-cycle.js",
+        "tokens": [
+          "bookValue"
+        ]
+      },
+      {
+        "file": "js/real-estate-development.js",
+        "tokens": [
+          "bookValue"
+        ]
+      },
+      {
+        "file": "js/real-estate-price-negotiation.js",
+        "tokens": [
+          "bookValue"
+        ]
+      },
+      {
+        "file": "js/real-estate-property-disposals.js",
+        "tokens": [
+          "bookValue"
+        ]
+      },
+      {
+        "file": "js/real-estate-redevelopment-projects.js",
+        "tokens": [
+          "bookValue"
+        ]
+      },
+      {
+        "file": "js/subsidiary-ipo-secondary-sale.js",
+        "tokens": [
+          "bookValue"
+        ]
+      },
+      {
+        "file": "js/supply.js",
+        "tokens": [
+          "bookValue"
+        ]
+      }
+    ]
+  },
+  "status": "declared-and-reviewed",
+  "limitations": "Lexical discovery identifies candidates; reviewer declarations establish intended authority and finance/accounting tests verify behavior."
+}

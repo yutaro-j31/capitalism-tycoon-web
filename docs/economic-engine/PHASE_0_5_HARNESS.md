@@ -241,3 +241,56 @@ CSV/Markdown output, performance timing, persistence sizing, memory proxy, monet
 Permanent pre-statistics acceptance gates, writer/phase characterization, final evidence report and owner acceptance.
 
 Phase 1 remains blocked until #833 is complete and accepted together with the remaining entry gates.
+
+## P0.5-4 acceptance gate
+
+The authoritative acceptance entry point is `scripts/phase0-5-acceptance.js`. It composes the
+existing scenario, semantic-v2, persistence/replay, benchmark, invariant, and tier infrastructure;
+it does not implement another simulation path. The gate is fail-closed: every required gate must
+be present and true or the process exits non-zero.
+
+```bash
+npm run test:phase0-5-acceptance
+npm run harness:phase0-5:acceptance
+node scripts/phase0-5-acceptance.js --tier nightly --seeds 83951617,83951618,83951619,83951620
+node scripts/phase0-5-acceptance.js --tier deepAudit --seeds 83951617,83951618,83951619,83951620,83951621,83951622,83951623,83951624
+```
+
+A successful run writes `artifacts/phase0-5-acceptance/acceptance.json` (machine evidence) and
+`acceptance.md` (review summary). `metadata.generatedAt` is non-semantic metadata: it is excluded
+from state, path signatures, semantic hashes, and gate decisions. The JSON records source-main SHA,
+capabilities, tier, requested seeds and persisted roots, all gate results, classifications,
+semantic hashes, performance/save-size measurements, the Number envelope, overall status, and
+explicit failed gate codes.
+
+The PR smoke tier uses two seeds and covers seed/path diversity, nuisance identity invariance,
+exact/save-reload/compacted replay, rollback, legacy/new-game separation, the GF-010 canonical
+weekly phase-order boundary, authoritative-writer inventory, and economic invariants. Scheduled
+nightly and manual deep-audit invocations use the existing larger tiers. Legacy saves which retain
+persisted subsystem seeds remain supported but are explicitly excluded from clean new-game
+calibration aggregation.
+
+### Maintained characterizations
+
+`financeValidationBoundary.WEEK_EXECUTION_ORDER` is the production-owned GF-010 characterization.
+Acceptance consumes that exported order and compares it with the reviewed boundary contract; it
+does not execute a second order. Any economically relevant change requires an intentional update
+to production, this acceptance expectation, tests, and reviewer approval.
+
+`docs/economic-engine/phase0-5-authoritative-writers.json` is the reviewed candidate inventory for
+cash, debt, ownership, PE/fund cash, carrying values, property state, and finance authority.
+Lexical discovery is deliberately described as candidate discovery, not proof of accounting
+correctness. Declarations plus finance/accounting tests provide the verification layers. To refresh:
+
+```bash
+node scripts/phase0-5-acceptance.js --refresh-writers
+npm run test:phase0-5-acceptance
+```
+
+Review every added/removed candidate and its authority before committing the refreshed file. An
+unexplained production writer changes the discovered hash and fails acceptance.
+
+This evidence does **not** record owner acceptance, accept Gate F, set Implementation baseline to
+YES, or authorize Phase 1. Those remain separate owner/CTO decisions. Issue #833's P0.5-2 and
+P0.5-3 checkboxes are stale relative to merged implementation; this document records current code
+without rewriting tracker history.

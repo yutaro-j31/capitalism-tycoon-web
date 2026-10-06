@@ -1,0 +1,17 @@
+'use strict';
+const assert=require('node:assert/strict');
+const acceptance=require('../scripts/phase0-5-acceptance');
+const SOURCE_SHA='0123456789abcdef0123456789abcdef01234567';
+const report=acceptance.runAcceptance({tier:'smoke',weeks:2,seeds:[0x50540001,0x50540002],sourceMainSha:SOURCE_SHA,generatedAt:'2000-01-01T00:00:00.000Z'});
+assert.equal(report.overallAcceptanceStatus,'PASS');
+assert.equal(report.sourceMainSha,SOURCE_SHA);
+assert.deepEqual(report.testedSeeds,report.persistedSimulationRngRoots);
+for(const code of ['SEED_DIVERSITY','PATH_DIVERSITY','NUISANCE_INVARIANCE','REPLAY','CALIBRATION_CLASSIFICATION','WEEKLY_PHASE_ORDER','AUTHORITATIVE_WRITER_INVENTORY','ECONOMIC_INVARIANTS'])assert.equal(report.gates[code].ok,true,code);
+assert.equal(report.failedGates.length,0);
+assert.equal(report.classification.calibrationIncludes,'new-game-only');
+assert.match(acceptance.formatMarkdown(report),/does not declare owner acceptance/);
+const phase=acceptance.verifyPhaseOrder();assert.deepEqual(phase.actual,acceptance.REQUIRED_PHASE_ORDER);
+assert.equal(acceptance.verifyWriterInventory().ok,true);
+// Fail-closed contracts: repeated nominal roots and absent stochastic diversity cannot pass.
+assert.throws(()=>acceptance.runAcceptance({tier:'smoke',weeks:1,seeds:[0x50540001,0x50540001],sourceMainSha:SOURCE_SHA}),/SEED_DIVERSITY|PATH_DIVERSITY/);
+console.log('Phase 0.5 acceptance gate tests passed');
