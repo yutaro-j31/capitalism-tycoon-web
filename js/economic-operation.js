@@ -50,7 +50,9 @@ const POSITION_REFERENCE_BY_ACCOUNT=Object.freeze({
   'liability:debt-principal':Object.freeze(['debtInstrumentId']),
   'asset:property':Object.freeze(['propertyId']),
   'asset:fixed-assets':Object.freeze(['assetId']),
-  'asset:intangible-assets':Object.freeze(['assetId'])
+  'asset:intangible-assets':Object.freeze(['assetId']),
+  'equity:share-capital':Object.freeze(['securityClassId']),
+  'equity:treasury-stock':Object.freeze(['securityClassId'])
 });
 const MONEY_MINOR_UNITS=100;
 const MAX_SAFE_MONEY_MINOR_UNITS=Number.MAX_SAFE_INTEGER;
