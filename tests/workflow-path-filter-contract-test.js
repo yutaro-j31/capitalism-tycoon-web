@@ -154,8 +154,9 @@ const comprehensiveMa = readWorkflow('ma-acquisition-financing.yml');
 assert(/^name: M&A Acquisition Financing$/m.test(comprehensiveMa), 'M&A Acquisition Financing must retain its public name');
 assert(hasTrigger(comprehensiveMa, 'pull_request'), 'consolidated M&A workflow must inherit the Deal Room PR gate');
 assert.deepEqual(pathsFor(comprehensiveMa, 'pull_request'), [
-  'js/ma-deal-room.js', 'js/app.js', 'css/**', 'tests/ma-deal-room-test.js', '.github/workflows/ma-acquisition-financing.yml'
-], 'Deal Room PR paths must move intact to the consolidated workflow');
+  'js/ma-deal-room.js', 'js/ceo-dashboard.js', 'js/app.js', 'css/**', 'tests/ma-deal-room-test.js',
+  'tests/ceo-dashboard-webkit-test.js', '.github/workflows/ma-acquisition-financing.yml'
+], 'Deal Room PR paths and CEO Dashboard WebKit coverage must remain explicit in the consolidated workflow');
 assert(hasTrigger(comprehensiveMa, 'push') && pathsFor(comprehensiveMa, 'push').length > 0, 'M&A comprehensive main push must use paths');
 assert(isMainOnly(triggerBlock(comprehensiveMa, 'push')), 'M&A comprehensive push must be main-only');
 for (const path of ['js/ma-*.js', 'js/pmi-*.js', 'js/subsidiary-*.js', 'js/group-*.js', 'tests/ma-*.js', 'tests/accounting-invariants-test.js']) {
@@ -193,8 +194,9 @@ for (const command of [
   'npm run test:save', 'npm run test:migration', 'npm run test:save-v9', 'npm run test:week',
   'npm run test:transaction', 'npm run test:syntax', 'npm run test:javascript', 'npm run test:modules',
   'npm run test:static', 'npm run test:css', 'playwright@1.61.0', 'npx playwright install --with-deps webkit',
-  'node tests/ma-deal-room-webkit-test.js', 'actions/upload-artifact@v4', 'name: ma-deal-room-webkit',
-  'path: artifacts/ma-deal-room-webkit', 'if: always()', 'if-no-files-found: error'
+  'node tests/ma-deal-room-webkit-test.js', 'node tests/ceo-dashboard-webkit-test.js', 'actions/upload-artifact@v4',
+  'name: ma-deal-room-webkit', 'path: artifacts/ma-deal-room-webkit', 'name: ceo-dashboard-webkit-pr',
+  'path: artifacts/ceo-dashboard-webkit', 'if: always()', 'if-no-files-found: error'
 ]) assert(dealRoom.includes(command), `Deal Room must retain ${command}`);
 
 const pagesSmoke = readWorkflow('pages-deployment-smoke.yml');
