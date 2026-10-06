@@ -22,12 +22,12 @@ const WRITER_FIELDS = Object.freeze({
   financeAccountingAuthority: ['finance.transactions','finance.event','recordSnapshot','rebuildSnapshotForWeek']
 });
 const EXACT_WRITER_RULES = Object.freeze({
-  peFundCash: Object.freeze([{path:'fund.cash',pattern:/\\bfund\\.cash\\s*(?:\\+\\+|--|[+\\-*/]?=)/}]),
+  peFundCash: Object.freeze([{path:'fund.cash',pattern:/\bfund\.cash\s*(?:\+\+|--|[+*/-]?=)/}]),
   pePortfolioCompanyCash: Object.freeze([
-    {path:'portfolioCompany.cash',pattern:/\\bportfolioCompany\\.cash\\s*(?:\\+\\+|--|[+\\-*/]?=)/},
-    {path:'pc.cash',pattern:/\\bpc\\.cash\\s*(?:\\+\\+|--|[+\\-*/]?=)/}
+    {path:'portfolioCompany.cash',pattern:/\bportfolioCompany\.cash\s*(?:\+\+|--|[+*/-]?=)/},
+    {path:'pc.cash',pattern:/\bpc\.cash\s*(?:\+\+|--|[+*/-]?=)/}
   ]),
-  subsidiaryCarryingValues: Object.freeze([{path:'carryingBookValue',pattern:/\\bcarryingBookValue\\s*(?:\\+\\+|--|[+\\-*/]?=|:)/}])
+  subsidiaryCarryingValues: Object.freeze([{path:'carryingBookValue',pattern:/\bcarryingBookValue\s*(?:\+\+|--|[+*/-]?=|:)/}])
 });
 function hash(value){return crypto.createHash('sha256').update(value).digest('hex');}
 function gate(code, ok, details){return Object.freeze({code,ok:Boolean(ok),details});}
