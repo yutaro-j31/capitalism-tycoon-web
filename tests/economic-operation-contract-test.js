@@ -209,6 +209,14 @@ assert.throws(() => core.roundMoney(Number.MAX_SAFE_INTEGER), /envelope/);
   delete missingSecurityClass.postings[0].securityClassId;
   assert.ok(hasCode(core.validateOperation(missingSecurityClass), 'POSTING_POSITION_REFERENCE_REQUIRED'));
 
+  const fractionalSecurity = JSON.parse(JSON.stringify(op));
+  fractionalSecurity.postings[0].quantityDelta = 0.5;
+  assert.ok(hasCode(core.validateOperation(fractionalSecurity), 'POSTING_SECURITY_QUANTITY_INVALID'));
+
+  const unsafeSecurity = JSON.parse(JSON.stringify(op));
+  unsafeSecurity.postings[0].quantityDelta = Number.MAX_SAFE_INTEGER + 1;
+  assert.ok(hasCode(core.validateOperation(unsafeSecurity), 'POSTING_SECURITY_QUANTITY_INVALID'));
+
   const quantityOnCash = JSON.parse(JSON.stringify(op));
   quantityOnCash.postings[0].accountId = 'asset:cash';
   delete quantityOnCash.postings[0].securityClassId;
