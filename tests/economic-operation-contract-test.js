@@ -257,6 +257,12 @@ assert.throws(() => core.roundMoney(Number.MAX_SAFE_INTEGER), /envelope/);
   assert.ok(hasCode(core.validateOperation(classNested), 'METADATA_NOT_PLAIN_JSON'));
   assert.throws(() => JSON.stringify(classNested), /BigInt|serialize/i, 'fixture must prove the class instance is unsafe to stringify');
 
+  const wrongPrototypeArray = [];
+  Object.setPrototypeOf(wrongPrototypeArray, Date.prototype);
+  const badArray = validOperation();
+  badArray.metadata.bad = wrongPrototypeArray;
+  assert.ok(hasCode(core.validateOperation(badArray), 'METADATA_NOT_PLAIN_JSON'));
+
   const forgedProto = Object.create(null);
   forgedProto.constructor = Object;
   forgedProto.toJSON = function toJSON() { return 1n; };
