@@ -157,7 +157,7 @@ async function injectMAGovernanceFixture(page) {
     // Mirror production completeTargetAcquisition(): cash leaves the parent, the acquisition is
     // posted to the authoritative finance journal, then identifiable net assets + goodwill are
     // recognized. Keeping all three legs makes the synthetic dashboard fixture finance-valid.
-    assert.ok(save.companyCash >= purchasePrice, 'CEO dashboard M&A fixture must be affordable');
+    if (!(save.companyCash >= purchasePrice)) throw new Error('CEO dashboard M&A fixture must be affordable');
     save.companyCash -= purchasePrice;
     const acquisitionOperationID = 'ceo-dashboard-webkit-fixture-acquisition';
     const acquisitionEvent = globalThis.__capitalismTycoonModules.finance.event(save, 'acquisition', purchasePrice, {
