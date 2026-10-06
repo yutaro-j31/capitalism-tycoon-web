@@ -190,7 +190,7 @@ assert.match(html, /#d-ui-dock \[data-action="tab"\],#d-ui-command-menu \[data-a
 assert.doesNotMatch(html, /\.d-source-tabs \[data-tab="settings"\][\s\S]{0,120}removeAttribute\('data-action'\)/, 'hidden production Settings must retain its authoritative data-action source even when PE replaces the visible dock');
 assert.match(script, /d-current-location/, 'compact header must expose the current production location');
 assert.match(script, /d-kpi-company-cash/, 'compact header must explicitly identify company cash');
-assert.match(appScript, /engine\.configure\(Object\.fromEntries\(fd\.entries\(\)\)\);engine\.g\.selectedTab='map';engine\.save\(\);render\(\)/, 'new production games must enter the City Map while existing saves retain their saved selectedTab');
+assert.match(appScript, /engine\.configure\(Object\.fromEntries\(fd\.entries\(\)\)\);const initialPref=engine\.g\.companyHQPrefID\|\|engine\.g\.founderHomePrefID\|\|'tokyo';ui\.selectedPref=initialPref;engine\.g\.selectedPref=initialPref;engine\.g\.selectedTab='map';engine\.save\(\);render\(\)/, 'new production games must enter the City Map at the configured founder\/HQ prefecture while existing saves retain their saved selectedTab');
 assert.match(appScript, /\['pe-portfolio','💼','PE'\]/, 'PE Portfolio must have an authoritative production TABS source route for MENU proxy and browser history restoration');
 assert.doesNotMatch(script, /WEEK 184|128\.4M/, 'City Lab demo numbers must never enter the production shell');
 for (const tab of ['home','map','business','office','market','venture','ma','overseas','assets','bank','report','founder','strategy','media','legacy','missions','rivals','news','pe-portfolio','settings']) {
