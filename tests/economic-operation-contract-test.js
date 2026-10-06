@@ -9,15 +9,15 @@ function errorCodes(result) { return new Set(result.errors.map(error => error.co
 function hasCode(result, code) { return errorCodes(result).has(code); }
 const source = fs.readFileSync(path.join(__dirname, '..', 'js', 'economic-operation.js'), 'utf8');
 for (const [label, pattern] of [
-  ['host RNG', /Math\\.random\\s*\\(/],
-  ['wall clock', /Date\\.now\\s*\\(/],
+  ['host RNG', /Math\.random\s*\(/],
+  ['wall clock', /Date\.now\s*\(/],
   ['simulation RNG', /simulationRng/],
   ['localStorage', /localStorage/],
   ['sessionStorage', /sessionStorage/],
-  ['save call', /\\.save\\s*\\(/],
-  ['emit call', /\\.emit\\s*\\(/],
-  ['company cash writer', /companyCash\\s*=/],
-  ['personal cash writer', /personalCash\\s*=/]
+  ['save call', /\.save\s*\(/],
+  ['emit call', /\.emit\s*\(/],
+  ['company cash writer', /companyCash\s*=/],
+  ['personal cash writer', /personalCash\s*=/]
 ]) {
   assert.equal(pattern.test(source), false, `shadow operation foundation must not depend on ${label}`);
 }
@@ -43,6 +43,9 @@ const entity = {
   metadata: { source: 'legacy-player-company' }
 };
 assert.equal(core.validateEntity(entity).ok, true, JSON.stringify(core.validateEntity(entity).errors));
+
+const reservedExternalEntity = { ...entity, entityId: 'external:typo' };
+assert.ok(hasCode(core.validateEntity(reservedExternalEntity), 'EXTERNAL_ENTITY_ID_UNKNOWN'));
 
 function validOperation() {
   return {
@@ -95,6 +98,10 @@ function validOperation() {
     debitMinorUnits: 123456789,
     creditMinorUnits: 123456789
   });
+  assert.deepEqual(JSON.parse(JSON.stringify(result.entityCurrencyBalances['entity:company:player'].JPY)), {
+    debitMinorUnits: 123456789,
+    creditMinorUnits: 123456789
+  });
 }
 
 // 2. Currency balance fails closed.
@@ -103,7 +110,20 @@ function validOperation() {
   op.postings[1].amount -= 1;
   const result = core.validateOperation(op);
   assert.equal(result.ok, false);
-  assert.ok(hasCode(result, 'OPERATION_CURRENCY_UNBALANCED'));
+  assert.ok(hasCode(result, 'OPERATION_ENTITY_CURRENCY_UNBALANCED'));
+}
+
+// Equal global currency totals must not let one legal entity offset another.
+{
+  const op = validOperation();
+  op.postings[1].entityId = 'entity:person:founder';
+  const result = core.validateOperation(op);
+  assert.equal(result.ok, false);
+  assert.ok(hasCode(result, 'OPERATION_ENTITY_CURRENCY_UNBALANCED'));
+  assert.deepEqual(JSON.parse(JSON.stringify(result.currencyBalances.JPY)), {
+    debitMinorUnits: 123456789,
+    creditMinorUnits: 123456789
+  }, 'global diagnostic totals may balance while entity books do not');
 }
 
 // 3. Monetary domain rejects negative, non-finite, sub-cent and out-of-envelope values.
@@ -226,6 +246,38 @@ assert.throws(() => core.roundMoney(Number.MAX_SAFE_INTEGER), /envelope/);
   classNested.metadata.bad = new BadMetadata();
   assert.ok(hasCode(core.validateOperation(classNested), 'METADATA_NOT_PLAIN_JSON'));
   assert.throws(() => JSON.stringify(classNested), /BigInt|serialize/i, 'fixture must prove the class instance is unsafe to stringify');
+
+  const forgedProto = Object.create(null);
+  forgedProto.constructor = Object;
+  forgedProto.toJSON = function toJSON() { return 1n; };
+  const forgedMetadata = Object.create(forgedProto);
+  forgedMetadata.value = 1;
+  const forged = validOperation();
+  forged.metadata = forgedMetadata;
+  assert.ok(hasCode(core.validateOperation(forged), 'METADATA_NOT_PLAIN_JSON'));
+  assert.throws(() => JSON.stringify(forged), /BigInt|serialize/i);
+
+  const hiddenToJSON = { value: 1 };
+  Object.defineProperty(hiddenToJSON, 'toJSON', {
+    value() { return 1n; },
+    enumerable: false
+  });
+  const hidden = validOperation();
+  hidden.metadata = hiddenToJSON;
+  assert.ok(hasCode(core.validateOperation(hidden), 'METADATA_NON_ENUMERABLE_PROPERTY'));
+  assert.throws(() => JSON.stringify(hidden), /BigInt|serialize/i);
+
+  let getterExecuted = false;
+  const accessorMetadata = {};
+  Object.defineProperty(accessorMetadata, 'value', {
+    enumerable: true,
+    get() { getterExecuted = true; throw new Error('metadata getter must never execute'); }
+  });
+  const accessor = validOperation();
+  accessor.metadata = accessorMetadata;
+  const accessorResult = core.validateOperation(accessor);
+  assert.ok(hasCode(accessorResult, 'METADATA_ACCESSOR_PROPERTY'));
+  assert.equal(getterExecuted, false, 'metadata validation must inspect descriptors without executing getters');
 }
 
 // 8. Validation is pure: no input mutation, game-state mutation, RNG draw or finance-row write.
