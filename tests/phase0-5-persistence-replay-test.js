@@ -148,11 +148,16 @@ for (const id of [
   'entity-read-ownership-bindings',
   'entity-read-ownership-source-paths',
   'entity-read-public-company-status',
-  'entity-read-shares-out',
-  'entity-read-founder-shares',
+  'entity-read-issued-shares',
   'entity-read-treasury-shares',
-  'entity-read-external-shareholder-ratio',
+  'entity-read-outstanding-shares',
+  'entity-read-legacy-founder-shares',
+  'entity-read-personally-acquired-own-shares',
+  'entity-read-founder-beneficial-shares',
+  'entity-read-ownership-conservation',
+  'entity-read-legacy-external-shareholder-ratio',
   'entity-read-company-market-holdings',
+  'entity-read-personal-own-share-dedup',
   'entity-read-personal-market-holdings'
 ]) assert(report.legacyAdapterParity.invariants.some(row => row.id === id), `missing parity invariant ${id}`);
 
