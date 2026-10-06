@@ -11,7 +11,15 @@ assert.equal(report.failedGates.length,0);
 assert.equal(report.classification.calibrationIncludes,'new-game-only');
 assert.match(acceptance.formatMarkdown(report),/does not declare owner acceptance/);
 const phase=acceptance.verifyPhaseOrder();assert.deepEqual(phase.actual,acceptance.REQUIRED_PHASE_ORDER);
-assert.equal(acceptance.verifyWriterInventory().ok,true);
+const inventory=acceptance.verifyWriterInventory();
+assert.equal(inventory.ok,true,JSON.stringify(inventory,null,2));
+assert.ok(inventory.exactAuthorityCounts.peFundCash>=2,'PE fund cash must have exact production writers');
+assert.ok(inventory.exactAuthorityCounts.pePortfolioCompanyCash>=1,'PE portfolio cash must have exact production writers');
+assert.ok(inventory.exactAuthorityCounts.subsidiaryCarryingValues>=1,'subsidiary carrying value must have exact production writers');
+const missingFundWriter=acceptance.verifyWriterInventory({omitFiles:['js/pe-fund.js']});
+assert.equal(missingFundWriter.ok,false,'omitting pe-fund.js must fail writer inventory');
+const missingCarryingWriter=acceptance.verifyWriterInventory({omitFiles:['js/listed-subsidiary-control-actions.js']});
+assert.equal(missingCarryingWriter.ok,false,'omitting a carryingBookValue writer must fail writer inventory');
 // Fail-closed contracts: repeated nominal roots and absent stochastic diversity cannot pass.
 assert.throws(()=>acceptance.runAcceptance({tier:'smoke',weeks:1,seeds:[0x50540001,0x50540001],sourceMainSha:SOURCE_SHA}),/SEED_DIVERSITY|PATH_DIVERSITY/);
 console.log('Phase 0.5 acceptance gate tests passed');
