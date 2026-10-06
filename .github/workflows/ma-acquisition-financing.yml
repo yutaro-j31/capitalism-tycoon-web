@@ -163,12 +163,17 @@ jobs:
         run: npx playwright install --with-deps webkit
       - run: node tests/ma-deal-room-webkit-test.js
       - run: node tests/ceo-dashboard-webkit-test.js
-      - name: Upload M&A Deal Room / CEO Dashboard WebKit artifacts
+      - name: Upload M&A Deal Room WebKit artifact
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: ma-deal-room-ceo-dashboard-webkit
-          path: |
-            artifacts/ma-deal-room-webkit
-            artifacts/ceo-dashboard-webkit
+          name: ma-deal-room-webkit
+          path: artifacts/ma-deal-room-webkit
+          if-no-files-found: error
+      - name: Upload CEO Dashboard WebKit artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ceo-dashboard-webkit-pr
+          path: artifacts/ceo-dashboard-webkit
           if-no-files-found: error
