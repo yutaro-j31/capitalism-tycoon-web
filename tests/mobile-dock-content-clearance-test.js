@@ -40,6 +40,7 @@ assert.match(mobile, /env\(safe-area-inset-top,0px\)/, 'compact header must resp
 assert.match(mobile, /env\(safe-area-inset-bottom,0px\)/, 'bottom dock must respect the bottom safe area');
 assert.match(mobile, /\.d-kpi-strip \.d-kpi-company-cash\{[\s\S]*?min-height:44px!important/, 'company cash must remain visible in the compact header');
 assert.match(mobile, /\.d-advance\{[\s\S]*?min-height:44px!important/, 'week advance must retain a 44px touch target');
+assert.match(mobile, /\.d-speed button\[data-action="advance-4"\]\{[\s\S]*?min-height:44px!important/, 'four-week advance must remain visible with a 44px touch target');
 
 function px(source, pattern, label) {
   const match = source.match(pattern);
