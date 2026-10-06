@@ -178,4 +178,23 @@ assert.match(marketStyle, /\.market-row:not\(\.header\)>\.button-row>\.btn\{[^}]
 assert.doesNotMatch(script, /function markerPositionsCollide\(/, 'the legacy fixed-slot collision helper must be gone');
 assert.doesNotMatch(script, /MARKER_POSITIONS/, 'the legacy fixed-slot marker table must be gone');
 
+
+assert.match(script, /const HISTORY_STATE_KEY='capitalismTycoonTab'/, 'D UI shell must use a namespaced browser-history state key');
+assert.match(script, /globalThis\.history\.pushState/, 'tab drill-down must push browser history without replacing the production tab action');
+assert.match(script, /globalThis\.history\.replaceState/, 'current production tab must seed browser history');
+assert.match(script, /globalThis\.addEventListener\?\.\('popstate',handlePopstate\)/, 'browser Back/Forward must restore production tabs');
+assert.match(script, /source\.click\(\)/, 'popstate restoration must reuse the existing production tab action rather than duplicate navigation state');
+assert.match(script, /\['pe-portfolio','◫','PEポートフォリオ'\]/, 'PE Portfolio must be a restorable long-tail production route in ALL_NAV');
+assert.match(script, /\.d-source-tabs \[data-action="tab"\]\[data-tab\]/, 'popstate restoration must use the stable hidden production TABS source');
+assert.match(html, /#d-ui-dock \[data-action="tab"\],#d-ui-command-menu \[data-action="tab"\]/, 'dock Settings must be scrubbed into the same proxy path as every other D UI route');
+assert.doesNotMatch(html, /\.d-source-tabs \[data-tab="settings"\][\s\S]{0,120}removeAttribute\('data-action'\)/, 'hidden production Settings must retain its authoritative data-action source even when PE replaces the visible dock');
+assert.match(script, /d-current-location/, 'compact header must expose the current production location');
+assert.match(script, /d-kpi-company-cash/, 'compact header must explicitly identify company cash');
+assert.match(appScript, /engine\.configure\(Object\.fromEntries\(fd\.entries\(\)\)\);const initialPref=engine\.g\.companyHQPrefID\|\|engine\.g\.founderHomePrefID\|\|'tokyo';ui\.selectedPref=initialPref;engine\.g\.selectedPref=initialPref;engine\.g\.selectedTab='map';engine\.save\(\);render\(\)/, 'new production games must enter the City Map at the configured founder\/HQ prefecture while existing saves retain their saved selectedTab');
+assert.match(appScript, /\['pe-portfolio','💼','PE'\]/, 'PE Portfolio must have an authoritative production TABS source route for MENU proxy and browser history restoration');
+assert.doesNotMatch(script, /WEEK 184|128\.4M/, 'City Lab demo numbers must never enter the production shell');
+for (const tab of ['home','map','business','office','market','venture','ma','overseas','assets','bank','report','founder','strategy','media','legacy','missions','rivals','news','pe-portfolio','settings']) {
+  assert.ok(script.includes(`['${tab}'`), `long-tail production destination ${tab} must remain reachable through the shell/menu`);
+}
+
 console.log('D UI shell contract passed');
