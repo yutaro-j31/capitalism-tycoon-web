@@ -213,8 +213,8 @@ function normalizeJournal(value){
 }
 function serialize(journal){return JSON.stringify(normalizeJournal(journal));}
 function hydrate(payload){
-  const value=typeof payload==='string'?JSON.parse(payload):cloneJson(payload);
-  return normalizeJournal(value);
+  if(typeof payload!=='string')throw new TypeError('shadow journal hydrate requires a JSON string payload.');
+  return normalizeJournal(JSON.parse(payload));
 }
 function recordIdentity(record){
   return {
