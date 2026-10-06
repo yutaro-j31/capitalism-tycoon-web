@@ -152,6 +152,7 @@ for(const id of [
   'entity-read-founder-debt-receivable-instruments',
   'entity-read-founder-loan-receivable',
   'entity-read-ownership-bindings',
+  'entity-read-public-company-status',
   'entity-read-shares-out',
   'entity-read-founder-shares',
   'entity-read-treasury-shares',
@@ -223,6 +224,14 @@ const wrongHoldingBinding=adapter.compareLegacyParity(state,{...model,entities:[
 assert.equal(wrongHoldingBinding.ok,false);
 assert.equal(Array.from(wrongHoldingBinding.checks).find(row=>row.id==='entity-read-company-market-holdings').ok,false);
 
+const wrongHoldingCurrencyCompany={
+  ...company,
+  marketHoldings:Array.from(company.marketHoldings).map((row,index)=>index===0?{...row,currency:'USD'}:row)
+};
+const wrongHoldingCurrency=adapter.compareLegacyParity(state,{...model,entities:[wrongHoldingCurrencyCompany,founder]});
+assert.equal(wrongHoldingCurrency.ok,false);
+assert.equal(Array.from(wrongHoldingCurrency.checks).find(row=>row.id==='entity-read-company-market-holdings').ok,false);
+
 const wrongOwnership=adapter.compareLegacyParity(state,{
   ...model,
   ownership:{...model.ownership,issuerEntityId:adapter.FOUNDER_ENTITY_ID}
@@ -238,6 +247,17 @@ const wrongSharesOut=adapter.compareLegacyParity(state,{
 });
 assert.equal(wrongSharesOut.ok,false);
 assert.equal(Array.from(wrongSharesOut.checks).find(row=>row.id==='entity-read-shares-out').ok,false);
+
+const wrongListingStatus=adapter.compareLegacyParity(state,{
+  ...model,
+  ownership:{...model.ownership,publicCompany:false}
+});
+assert.equal(wrongListingStatus.ok,false);
+assert.equal(Array.from(wrongListingStatus.checks).find(row=>row.id==='entity-read-public-company-status').ok,false);
+
+const duplicateLoanState=JSON.parse(JSON.stringify(state));
+duplicateLoanState.finance.loans.push({...duplicateLoanState.finance.loans[0],sourceID:'duplicate-source'});
+assert.throws(()=>adapter.snapshot(duplicateLoanState),/duplicate active loanID: loan-z-bank/);
 
 const modelAgain=adapter.snapshot(state);
 assert.equal(JSON.stringify(modelAgain),JSON.stringify(model),'same authoritative state must produce identical ordered read model');
