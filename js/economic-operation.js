@@ -79,22 +79,36 @@ function validateEntityReference(value,path,requiredCode,errors){
     addError(errors,'EXTERNAL_ENTITY_ID_UNKNOWN',path,'external entity ID is not in the approved aggregate counterparty registry');
   }
 }
-function isNativeConstructorForPrototype(proto,name){
-  if(!proto||!Object.prototype.hasOwnProperty.call(proto,'constructor'))return false;
-  const ctor=proto.constructor;
-  if(typeof ctor!=='function'||ctor.name!==name||ctor.prototype!==proto)return false;
+function isNativeConstructorForPrototype(proto){
+  if(!proto)return false;
+  let descriptor;
+  try{descriptor=Object.getOwnPropertyDescriptor(proto,'constructor');}
+  catch{return false;}
+  if(!descriptor||!Object.prototype.hasOwnProperty.call(descriptor,'value'))return false;
+  const ctor=descriptor.value;
+  if(typeof ctor!=='function')return false;
+  let prototypeDescriptor;
+  try{prototypeDescriptor=Object.getOwnPropertyDescriptor(ctor,'prototype');}
+  catch{return false;}
+  if(!prototypeDescriptor||prototypeDescriptor.value!==proto)return false;
   try{return Function.prototype.toString.call(ctor).includes('[native code]');}
   catch{return false;}
 }
 function isPlainJsonObject(value){
-  if(value==null||Object.prototype.toString.call(value)!=='[object Object]')return false;
-  const proto=Object.getPrototypeOf(value);
+  if(value===null||typeof value!=='object'||Array.isArray(value))return false;
+  let proto;
+  try{proto=Object.getPrototypeOf(value);}
+  catch{return false;}
   if(proto===null)return true;
-  return Object.getPrototypeOf(proto)===null&&isNativeConstructorForPrototype(proto,'Object');
+  try{return Object.getPrototypeOf(proto)===null&&isNativeConstructorForPrototype(proto);}
+  catch{return false;}
 }
 function isPlainJsonArray(value){
   if(!Array.isArray(value))return false;
-  return isNativeConstructorForPrototype(Object.getPrototypeOf(value),'Array');
+  let proto;
+  try{proto=Object.getPrototypeOf(value);}
+  catch{return false;}
+  return isNativeConstructorForPrototype(proto);
 }
 function validateJsonValue(value,path,errors,seen){
   const type=typeof value;
@@ -148,7 +162,7 @@ function validateJsonValue(value,path,errors,seen){
   seen.delete(value);
 }
 function validateMetadata(value,path,errors){
-  if(value==null||Array.isArray(value)||Object.prototype.toString.call(value)!=='[object Object]'){
+  if(value===null||typeof value!=='object'||Array.isArray(value)){
     addError(errors,'METADATA_REQUIRED',path,'metadata must be a JSON object');
     return;
   }
@@ -257,7 +271,9 @@ function validatePosting(posting,index,operationId,errors,balances,postingIds,se
   for(const field of OPTIONAL_ID_FIELDS)validateOptionalString(posting[field],`${path}.${field}`,'POSTING_REFERENCE_INVALID',errors);
   if(hasQuantity&&Number.isFinite(posting.quantityDelta)){
     const requiredReferences=POSITION_REFERENCE_BY_ACCOUNT[posting.accountId];
-    if(requiredReferences&&!requiredReferences.some(field=>nonEmptyString(posting[field]))){
+    if(!requiredReferences){
+      addError(errors,'POSTING_QUANTITY_ACCOUNT_UNSUPPORTED',`${path}.accountId`,'quantityDelta is only valid for approved position accounts');
+    }else if(!requiredReferences.some(field=>nonEmptyString(posting[field]))){
       addError(errors,'POSTING_POSITION_REFERENCE_REQUIRED',path,`quantity posting for ${posting.accountId} requires ${requiredReferences.join(' or ')}`);
     }
   }
