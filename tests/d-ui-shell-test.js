@@ -189,6 +189,7 @@ assert.match(script, /#d-ui-dock \[data-action="tab"\]\[data-tab\]/, 'popstate r
 assert.match(script, /d-current-location/, 'compact header must expose the current production location');
 assert.match(script, /d-kpi-company-cash/, 'compact header must explicitly identify company cash');
 assert.match(appScript, /engine\.configure\(Object\.fromEntries\(fd\.entries\(\)\)\);engine\.g\.selectedTab='map';engine\.save\(\);render\(\)/, 'new production games must enter the City Map while existing saves retain their saved selectedTab');
+assert.match(appScript, /\['pe-portfolio','💼','PE'\]/, 'PE Portfolio must have an authoritative production TABS source route for MENU proxy and browser history restoration');
 assert.doesNotMatch(script, /WEEK 184|128\.4M/, 'City Lab demo numbers must never enter the production shell');
 for (const tab of ['home','map','business','office','market','venture','ma','overseas','assets','bank','report','founder','strategy','media','legacy','missions','rivals','news','pe-portfolio','settings']) {
   assert.ok(script.includes(`['${tab}'`), `long-tail production destination ${tab} must remain reachable through the shell/menu`);
