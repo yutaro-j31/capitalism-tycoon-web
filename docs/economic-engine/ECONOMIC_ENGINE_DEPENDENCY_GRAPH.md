@@ -1,8 +1,9 @@
 # Economic Engine Dependency Graph
 
-**Status: PROPOSED FOR GATE D APPROVAL — second-review remediation + latest-main sync applied**  
-**Baseline: `62a9b15be50918bced82e4072d03fc306c0b51da` (#808, #820, #823 included)**  
-**Implementation permission: NO**
+**Status: APPROVED — Phase 1 active**  
+**Gate D baseline: `62a9b15be50918bced82e4072d03fc306c0b51da` (#808, #820, #823 included)**  
+**Gate F approval baseline: `1d88be9518ad21ad1e8ec3b88335020bed7d3797`**  
+**Implementation permission: PHASE 1 AUTHORIZED**
 
 This graph is normative for Economic Engine sequencing. Existing features may remain operational through adapters before their migration phase, but a later phase may not make an unmigrated subsystem authoritative early.
 
