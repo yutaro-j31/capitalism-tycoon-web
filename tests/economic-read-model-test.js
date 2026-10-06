@@ -113,15 +113,21 @@ assert.equal(companyDebt.amount,state.companyDebt);
 assert.equal(personalCash.amount,state.personalCash);
 assert.equal(personalDebt.amount,state.personalDebt);
 assert.equal(companyCash.numericDomain,'legacy-number','legacy read models must not silently cent-quantize existing saves');
+assert(Array.from(company.accountBalances).every(row=>row.entityId===adapter.PLAYER_COMPANY_ENTITY_ID));
+assert(Array.from(founder.accountBalances).every(row=>row.entityId===adapter.FOUNDER_ENTITY_ID));
 
 assert.deepEqual(Array.from(company.debtInstruments).map(row=>row.debtInstrumentId),['loan-a-founder','loan-z-bank']);
 assert.deepEqual(Array.from(founder.debtReceivables).map(row=>row.debtInstrumentId),['loan-a-founder']);
 assert.equal(founder.debtReceivables[0].outstandingPrincipal,40_000);
+assert(Array.from(company.debtInstruments).every(row=>row.entityId===adapter.PLAYER_COMPANY_ENTITY_ID));
+assert(Array.from(founder.debtReceivables).every(row=>row.entityId===adapter.FOUNDER_ENTITY_ID&&row.counterpartyEntityId===adapter.PLAYER_COMPANY_ENTITY_ID));
 
 assert.deepEqual(Array.from(company.marketHoldings).map(row=>row.instrumentId),['AAA','ZZZ']);
 assert.deepEqual(Array.from(founder.marketHoldings).map(row=>row.instrumentId),['AAA','ZZZ']);
 assert.deepEqual(Array.from(company.marketHoldings).map(row=>row.quantity),[1,2]);
 assert.deepEqual(Array.from(founder.marketHoldings).map(row=>row.quantity),[4,3]);
+assert(Array.from(company.marketHoldings).every(row=>row.entityId===adapter.PLAYER_COMPANY_ENTITY_ID));
+assert(Array.from(founder.marketHoldings).every(row=>row.entityId===adapter.FOUNDER_ENTITY_ID));
 
 assert.equal(model.ownership.securityClassId,adapter.PLAYER_COMPANY_COMMON_SECURITY_CLASS_ID);
 assert.equal(model.ownership.legacySharesOut,1_000);
@@ -133,11 +139,15 @@ assert.equal(model.ownership.publicCompany,true);
 const parity=adapter.compareLegacyParity(state,model);
 assert.equal(parity.ok,true,JSON.stringify(parity));
 for(const id of [
+  'entity-read-company-account-bindings',
+  'entity-read-founder-account-bindings',
   'entity-read-company-cash',
   'entity-read-personal-cash',
   'entity-read-company-debt',
   'entity-read-personal-debt',
+  'entity-read-company-debt-instrument-bindings',
   'entity-read-company-loan-principal',
+  'entity-read-founder-debt-receivable-bindings',
   'entity-read-founder-loan-receivable',
   'entity-read-founder-shares',
   'entity-read-treasury-shares',
@@ -155,6 +165,49 @@ const tampered={...model,entities:[tamperedCompany,founder]};
 const mismatch=adapter.compareLegacyParity(state,tampered);
 assert.equal(mismatch.ok,false);
 assert.equal(Array.from(mismatch.checks).find(row=>row.id==='entity-read-company-cash').ok,false);
+
+const wrongCashBindingCompany={
+  ...company,
+  accountBalances:Array.from(company.accountBalances).map(row=>row.accountId==='asset:cash'?{...row,entityId:adapter.FOUNDER_ENTITY_ID}:row)
+};
+const wrongCashBinding=adapter.compareLegacyParity(state,{...model,entities:[wrongCashBindingCompany,founder]});
+assert.equal(wrongCashBinding.ok,false);
+assert.equal(Array.from(wrongCashBinding.checks).find(row=>row.id==='entity-read-company-account-bindings').ok,false);
+assert.equal(Array.from(wrongCashBinding.checks).find(row=>row.id==='entity-read-company-cash').ok,false);
+
+const wrongDebtBindingCompany={
+  ...company,
+  debtInstruments:Array.from(company.debtInstruments).map((row,index)=>index===0?{...row,entityId:adapter.FOUNDER_ENTITY_ID}:row)
+};
+const wrongDebtBinding=adapter.compareLegacyParity(state,{...model,entities:[wrongDebtBindingCompany,founder]});
+assert.equal(wrongDebtBinding.ok,false);
+assert.equal(Array.from(wrongDebtBinding.checks).find(row=>row.id==='entity-read-company-debt-instrument-bindings').ok,false);
+assert.equal(Array.from(wrongDebtBinding.checks).find(row=>row.id==='entity-read-company-loan-principal').ok,false);
+
+const wrongReceivableFounder={
+  ...founder,
+  debtReceivables:Array.from(founder.debtReceivables).map(row=>({...row,counterpartyEntityId:adapter.FOUNDER_ENTITY_ID}))
+};
+const wrongReceivableBinding=adapter.compareLegacyParity(state,{...model,entities:[company,wrongReceivableFounder]});
+assert.equal(wrongReceivableBinding.ok,false);
+assert.equal(Array.from(wrongReceivableBinding.checks).find(row=>row.id==='entity-read-founder-debt-receivable-bindings').ok,false);
+assert.equal(Array.from(wrongReceivableBinding.checks).find(row=>row.id==='entity-read-founder-loan-receivable').ok,false);
+
+const wrongHoldingCompany={
+  ...company,
+  marketHoldings:Array.from(company.marketHoldings).map((row,index)=>index===0?{...row,entityId:adapter.FOUNDER_ENTITY_ID}:row)
+};
+const wrongHoldingBinding=adapter.compareLegacyParity(state,{...model,entities:[wrongHoldingCompany,founder]});
+assert.equal(wrongHoldingBinding.ok,false);
+assert.equal(Array.from(wrongHoldingBinding.checks).find(row=>row.id==='entity-read-company-market-holdings').ok,false);
+
+const wrongOwnership=adapter.compareLegacyParity(state,{
+  ...model,
+  ownership:{...model.ownership,issuerEntityId:adapter.FOUNDER_ENTITY_ID}
+});
+assert.equal(wrongOwnership.ok,false);
+assert.equal(Array.from(wrongOwnership.checks).find(row=>row.id==='entity-read-founder-shares').ok,false);
+assert.equal(Array.from(wrongOwnership.checks).find(row=>row.id==='entity-read-treasury-shares').ok,false);
 
 const modelAgain=adapter.snapshot(state);
 assert.equal(JSON.stringify(modelAgain),JSON.stringify(model),'same authoritative state must produce identical ordered read model');
