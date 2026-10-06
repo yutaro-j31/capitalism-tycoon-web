@@ -356,6 +356,26 @@ assert.throws(() => core.roundMoney(Number.MAX_SAFE_INTEGER), /envelope/);
     delete Object.prototype.postingId;
   }
 
+  const nonEnumerableOperation = validOperation();
+  Object.defineProperty(nonEnumerableOperation, 'operationId', {
+    enumerable: false,
+    configurable: true,
+    value: nonEnumerableOperation.operationId
+  });
+  const nonEnumerableOperationResult = core.validateOperation(nonEnumerableOperation);
+  assert.equal(nonEnumerableOperationResult.ok, false);
+  assert.ok(hasCode(nonEnumerableOperationResult, 'OPERATION_NON_ENUMERABLE_PROPERTY'));
+
+  const nonEnumerablePosting = validOperation();
+  Object.defineProperty(nonEnumerablePosting.postings[0], 'postingId', {
+    enumerable: false,
+    configurable: true,
+    value: nonEnumerablePosting.postings[0].postingId
+  });
+  const nonEnumerablePostingResult = core.validateOperation(nonEnumerablePosting);
+  assert.equal(nonEnumerablePostingResult.ok, false);
+  assert.ok(hasCode(nonEnumerablePostingResult, 'POSTING_NON_ENUMERABLE_PROPERTY'));
+
   let operationGetterExecuted = false;
   const accessorOperation = validOperation();
   Object.defineProperty(accessorOperation, 'operationId', {
