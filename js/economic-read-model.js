@@ -85,12 +85,14 @@ function companyDebtInstruments(state){
   const loans=state.finance?.loans;
   if(loans===undefined||loans===null)return Object.freeze([]);
   if(!Array.isArray(loans))throw new TypeError('finance.loans must be an array.');
-  const rows=[];
+  const rows=[],seenDebtInstrumentIds=new Set();
   for(let index=0;index<loans.length;index++){
     const loan=loans[index];
     if(!loan||typeof loan!=='object'||Array.isArray(loan))throw new TypeError(`finance.loans[${index}] must be an object.`);
     if(String(loan.status||'active')==='repaid')continue;
     if(typeof loan.loanID!=='string'||!loan.loanID.trim())throw new TypeError(`finance.loans[${index}].loanID must be a non-empty string.`);
+    if(seenDebtInstrumentIds.has(loan.loanID))throw new TypeError(`finance.loans contains duplicate active loanID: ${loan.loanID}`);
+    seenDebtInstrumentIds.add(loan.loanID);
     rows.push({
       entityId:PLAYER_COMPANY_ENTITY_ID,
       debtInstrumentId:loan.loanID,
@@ -176,6 +178,8 @@ function compareHoldings(source,rows,expectedEntityId){
     if(row.instrumentId!==key)return false;
     if(row.quantity!==finiteOr(holding.qty,0,`holding.${key}.qty`))return false;
     if(row.averageCost!==finiteOr(holding.avg,0,`holding.${key}.avg`))return false;
+    if(row.currency!==CURRENCY)return false;
+    if(row.sourcePath!==`${expectedEntityId===PLAYER_COMPANY_ENTITY_ID?'companyStocks':'personalStocks'}.${key}`)return false;
   }
   return true;
 }
@@ -255,6 +259,7 @@ function compareLegacyParity(state,readModel=snapshot(state)){
     {id:'entity-read-founder-debt-receivable-instruments',ok:founderReceivableInstrumentParity},
     {id:'entity-read-founder-loan-receivable',ok:founderDebtBindings&&founderReceivableInstrumentParity&&founderReceivable===expectedFounderReceivable,authoritative:expectedFounderReceivable,adapter:founderReceivable},
     {id:'entity-read-ownership-bindings',ok:ownershipBindings},
+    {id:'entity-read-public-company-status',ok:ownershipBindings&&readModel.ownership.publicCompany===Boolean(state.publicCompany)&&company.entity.listingStatus===(state.publicCompany?'listed':'private')},
     {id:'entity-read-shares-out',ok:ownershipBindings&&readModel.ownership.legacySharesOut===finiteOr(state.sharesOut,0,'sharesOut')},
     {id:'entity-read-founder-shares',ok:ownershipBindings&&readModel.ownership.founderShares===finiteOr(state.founderShares,0,'founderShares')},
     {id:'entity-read-treasury-shares',ok:ownershipBindings&&readModel.ownership.treasuryShares===finiteOr(state.treasuryBuybackShares,0,'treasuryBuybackShares')},
