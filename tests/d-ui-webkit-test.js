@@ -372,6 +372,18 @@ async function verifyIPhone(browser, base) {
   assert.equal(await page.locator('#d-ui-sidebar [data-tab="map"]').getAttribute('aria-current'), 'page', 'browser Back must restore Map through the production tab action');
   await page.evaluate(() => history.forward());
   await page.locator('#screen[data-screen="business"]').waitFor();
+
+  await openCommandTab(page, 'home');
+  await page.locator('#screen[data-screen="home"]').waitFor();
+  const directJump = page.locator('[data-action="founding-tutorial-jump"]').first();
+  await directJump.waitFor();
+  const directTarget = await directJump.getAttribute('data-tab');
+  assert.ok(directTarget, 'founding tutorial must expose a direct top-level route jump');
+  await directJump.click();
+  await page.locator(`#screen[data-screen="${directTarget}"]`).waitFor();
+  await page.evaluate(() => history.back());
+  await page.locator('#screen[data-screen="home"]').waitFor();
+
   const menuToggle = page.locator('#d-ui-sidebar .d-menu-toggle');
   const menuBox = await menuToggle.boundingBox();
   assert.ok(menuBox && menuBox.height >= 44, `iPhone menu navigation control must be at least 44px high, got ${menuBox?.height}`);
