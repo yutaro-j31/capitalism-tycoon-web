@@ -28,12 +28,20 @@ function server() {
   });
 }
 
-async function createCompany(page, suffix) {
+async function createCompany(page, suffix, options = {}) {
   await page.goto(page.baseURL, { waitUntil: 'networkidle' });
   await page.locator('#setup-form input[name="playerName"]').fill(`D UI Tester ${suffix}`);
   await page.locator('#setup-form input[name="companyName"]').fill(`D UI Company ${suffix}`);
+  let founderPrefID = null;
+  if (options.nonTokyoOrigin) {
+    const origin = page.locator('#setup-form select[name="founderPrefID"]');
+    const values = await origin.locator('option').evaluateAll(nodes => nodes.map(node => node.value));
+    founderPrefID = values.find(value => value && value !== 'tokyo') || values[0] || null;
+    if (founderPrefID) await origin.selectOption(founderPrefID);
+  }
   await page.locator('#setup-form').evaluate(form => form.requestSubmit());
   await page.locator('.d-kpi-strip').waitFor();
+  return founderPrefID;
 }
 
 async function assertNoRecovery(page, stage, errors) {
@@ -330,10 +338,12 @@ async function verifyIPhone(browser, base) {
   const errors = [];
   page.on('pageerror', error => { const text=String(error.message || error); errors.push(text); DIAGNOSTICS.push(`iphone pageerror: ${text}`); });
   page.on('console', message => { if(message.type()==='error')DIAGNOSTICS.push(`iphone console: ${message.text()}`); });
-  await createCompany(page, 'iphone');
+  const founderPrefID = await createCompany(page, 'iphone', { nonTokyoOrigin: true });
   await page.locator('#d-ui-sidebar').waitFor();
 
   await page.locator('#screen[data-screen="map"]').waitFor();
+  assert.ok(founderPrefID && founderPrefID !== 'tokyo', 'iPhone acceptance must exercise a non-Tokyo founder origin');
+  assert.equal(await page.locator('#screen select[data-bind="selectedPref"]').inputValue(), founderPrefID, 'map-first entry must initialize to the configured founder/HQ prefecture');
   const sidebarPosition = await page.locator('#d-ui-sidebar').evaluate(node => getComputedStyle(node).position);
   assert.equal(sidebarPosition, 'fixed', 'iPhone D navigation must remain fixed');
   const directTabs = await page.locator('#d-ui-sidebar .d-nav-button:visible').evaluateAll(nodes => nodes.map(node => node.dataset.tab));
