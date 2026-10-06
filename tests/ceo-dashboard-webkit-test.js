@@ -148,10 +148,28 @@ async function injectMAGovernanceFixture(page) {
     const save = JSON.parse(localStorage.getItem(key));
     save.selectedTab = 'home';
     save.departments = {...(save.departments || {}), investment: {id:'investment', name:'投資部門'}};
-    save.acquisitionTargets = [{id:'target-1', name:'PMI危機テック', domain:'SaaS', sales:120000000, operatingProfit:18000000, valuation:120000000, growth:.18, synergy:.22, risk:.2, expiresWeek:save.week + 12, dealStatus:'accepted'}];
-    save.maDealRooms = [{id:'deal-1', targetID:'target-1', status:'accepted', deadlineWeek:save.week + 4, sellerAsk:120000000, diligenceLevel:'confirmatory', diligenceConfidence:.9, valuationBridge:{recommendedMaximumPrice:120000000}, findings:[], history:[]}];
-    save.goodwillRecords = [{id:'gw-1', carryingValue:21600000, amount:30000000, status:'active'}];
-    save.maSubsidiaries = [{id:'sub-1', name:'PMI危機子会社', status:'active', pmiStatus:'stalled', pmiHealth:30, pmiFriction:82, acquisitionMethod:'cash', domain:'SaaS', acquisitionPrice:90000000, identifiableNetAssetsBookValue:68400000, goodwillBookValue:30000000, goodwillRecordID:'gw-1', pmiWeeklySynergyProfit:400000, standaloneWeeklyProfit:600000, weeklyProfit:1000000, valuation:95000000}];
+    const purchasePrice = 4_000_000;
+    const identifiableNetAssets = 3_000_000;
+    const goodwill = purchasePrice - identifiableNetAssets;
+    const target = {id:'target-1', name:'PMI危機テック', domain:'SaaS', sales:12000000, operatingProfit:1800000, valuation:identifiableNetAssets, growth:.18, synergy:.22, risk:.2, expiresWeek:save.week + 12, dealStatus:'accepted'};
+    save.acquisitionTargets = [target];
+    save.maDealRooms = [{id:'deal-1', targetID:'target-1', status:'accepted', deadlineWeek:save.week + 4, sellerAsk:purchasePrice, diligenceLevel:'confirmatory', diligenceConfidence:.9, valuationBridge:{recommendedMaximumPrice:purchasePrice}, findings:[], history:[]}];
+    // Mirror production completeTargetAcquisition(): cash leaves the parent, the acquisition is
+    // posted to the authoritative finance journal, then identifiable net assets + goodwill are
+    // recognized. Keeping all three legs makes the synthetic dashboard fixture finance-valid.
+    if (!(save.companyCash >= purchasePrice)) throw new Error('CEO dashboard M&A fixture must be affordable');
+    save.companyCash -= purchasePrice;
+    const acquisitionOperationID = 'ceo-dashboard-webkit-fixture-acquisition';
+    const acquisitionEvent = globalThis.__capitalismTycoonModules.finance.event(save, 'acquisition', purchasePrice, {
+      week: save.week, cashEffect: -purchasePrice, assetEffect: purchasePrice,
+      sourceType: 'ceoDashboardWebKitFixture', sourceID: target.id,
+      operationID: acquisitionOperationID, idempotencyKey: acquisitionOperationID,
+      description: 'CEO Dashboard WebKit M&A fixture acquisition'
+    });
+    if (!acquisitionEvent) throw new Error('CEO dashboard M&A fixture acquisition was not posted');
+    save.goodwillRecords = [{id:'gw-1', carryingValue:goodwill, goodwillBookValue:goodwill, amount:goodwill, status:'active'}];
+    // Production completeTargetAcquisition() spreads target economics into the subsidiary.
+    save.maSubsidiaries = [{...target, id:'sub-1', name:'PMI危機子会社', status:'active', pmiStatus:'stalled', pmiHealth:30, pmiFriction:82, acquisitionMethod:'cash', acquisitionPrice:purchasePrice, identifiableNetAssetsBookValue:identifiableNetAssets, goodwillBookValue:goodwill, goodwillRecordID:'gw-1', pmiWeeklySynergyProfit:40000, standaloneWeeklyProfit:60000, weeklyProfit:100000, valuation:3_500_000}];
     // Through the production save path, so both stores hold the fixture (#726).
     const saved = globalThis.__capitalismTycoonModules.saveStorage.saveWithAdapter({ g: save }, { key }); if (!saved.ok) throw saved.error || new Error('production save failed'); return saved.flush();
   }, SAVE_KEY);
@@ -213,6 +231,10 @@ async function inspectMAGovernance(page) {
 
 async function inspectWeeklyImpactRecap(page, expectedPrevious) {
   const saveBefore = await savedGame(page);
+  assert.ok(Number.isFinite(saveBefore?.companyCash), 'weekly recap fixture must start with finite companyCash');
+  for (const sub of saveBefore?.maSubsidiaries || []) {
+    assert.ok(Number.isFinite(sub.sales), `M&A subsidiary sales must be finite before weekly tick: ${sub.id || sub.name}`);
+  }
   await page.locator('[data-action="advance-week"]').click();
   const modal = page.locator('.summary-modal');
   await modal.waitFor({ state: 'visible', timeout: 20_000 });
