@@ -197,8 +197,17 @@ function normalizeJournal(value){
   if(nextSequence<=maxSequence)throw new TypeError('journal.nextSequence must exceed all retained/compacted sequences.');
   const latestPeriod=nonNegativeInteger(value.latestPeriod,'journal.latestPeriod');
   if(checkpoint.compactedOperationCount===0&&checkpoint.chainDigest!==EMPTY_CHAIN_DIGEST)throw new TypeError('empty checkpoint must use the empty chain digest.');
+  if(checkpoint.compactedOperationCount===0&&(
+    checkpoint.compactedPostingCount!==0
+    ||checkpoint.compactedThroughSequence!==0
+    ||checkpoint.compactedThroughPeriod!==0
+    ||receipts.length!==0
+  ))throw new TypeError('empty checkpoint cannot retain compacted counts, sequence, period, or receipts.');
   if(checkpoint.compactedOperationCount>0&&checkpoint.compactedThroughSequence===0)throw new TypeError('non-empty checkpoint requires compactedThroughSequence.');
-  if(ordered.some(row=>row.sequence<=checkpoint.compactedThroughSequence))throw new TypeError('retained journal sequences must be newer than compactedThroughSequence.');
+  if(checkpoint.compactedOperationCount>0&&checkpoint.chainDigest===EMPTY_CHAIN_DIGEST)throw new TypeError('non-empty checkpoint requires a non-empty chain digest.');
+  if(checkpoint.compactedOperationCount!==checkpoint.compactedThroughSequence)throw new TypeError('checkpoint compactedOperationCount must match compactedThroughSequence.');
+  if(receipts.some(row=>row.sequence>checkpoint.compactedThroughSequence))throw new TypeError('compacted receipts must not be newer than compactedThroughSequence.');
+  if(liveOperations.some(row=>row.sequence<=checkpoint.compactedThroughSequence))throw new TypeError('live operation sequences must be newer than compactedThroughSequence.');
   if(latestPeriod<checkpoint.compactedThroughPeriod)throw new TypeError('journal.latestPeriod precedes compactedThroughPeriod.');
   if(ordered.some(row=>row.operationPeriod>latestPeriod))throw new TypeError('journal.latestPeriod precedes a retained operation period.');
   return deepFreeze({
