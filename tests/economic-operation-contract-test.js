@@ -315,7 +315,109 @@ assert.throws(() => core.roundMoney(Number.MAX_SAFE_INTEGER), /envelope/);
   assert.equal(toStringTagExecuted, false, 'metadata validation must not invoke Symbol.toStringTag');
 }
 
-// 8. Validation is pure: no input mutation, game-state mutation, RNG draw or finance-row write.
+// 8. Operation/posting records must use own data properties; inherited values and accessors fail closed.
+{
+  const inheritedOperation = Object.create(validOperation());
+  const inheritedOperationResult = core.validateOperation(inheritedOperation);
+  assert.equal(inheritedOperationResult.ok, false);
+  assert.ok(hasCode(inheritedOperationResult, 'OPERATION_NOT_PLAIN_RECORD'));
+
+  const inheritedPosting = validOperation();
+  inheritedPosting.postings[0] = Object.create(inheritedPosting.postings[0]);
+  const inheritedPostingResult = core.validateOperation(inheritedPosting);
+  assert.equal(inheritedPostingResult.ok, false);
+  assert.ok(hasCode(inheritedPostingResult, 'POSTING_NOT_PLAIN_RECORD'));
+
+  const missingOwnOperationId = validOperation();
+  delete missingOwnOperationId.operationId;
+  Object.defineProperty(Object.prototype, 'operationId', {
+    configurable: true,
+    value: 'op-inherited-from-object-prototype'
+  });
+  try {
+    const result = core.validateOperation(missingOwnOperationId);
+    assert.equal(result.ok, false);
+    assert.ok(hasCode(result, 'OPERATION_ID_REQUIRED'), 'inherited operationId must not satisfy the required field');
+  } finally {
+    delete Object.prototype.operationId;
+  }
+
+  const missingOwnPostingId = validOperation();
+  delete missingOwnPostingId.postings[0].postingId;
+  Object.defineProperty(Object.prototype, 'postingId', {
+    configurable: true,
+    value: 'post-inherited-from-object-prototype'
+  });
+  try {
+    const result = core.validateOperation(missingOwnPostingId);
+    assert.equal(result.ok, false);
+    assert.ok(hasCode(result, 'POSTING_ID_REQUIRED'), 'inherited postingId must not satisfy the required field');
+  } finally {
+    delete Object.prototype.postingId;
+  }
+
+  let operationGetterExecuted = false;
+  const accessorOperation = validOperation();
+  Object.defineProperty(accessorOperation, 'operationId', {
+    enumerable: true,
+    configurable: true,
+    get() {
+      operationGetterExecuted = true;
+      throw new Error('operation getter must never execute');
+    }
+  });
+  const accessorOperationResult = core.validateOperation(accessorOperation);
+  assert.equal(accessorOperationResult.ok, false);
+  assert.ok(hasCode(accessorOperationResult, 'OPERATION_ACCESSOR_PROPERTY'));
+  assert.equal(operationGetterExecuted, false, 'operation validation must inspect descriptors without executing getters');
+
+  let postingGetterExecuted = false;
+  const accessorPosting = validOperation();
+  Object.defineProperty(accessorPosting.postings[0], 'postingId', {
+    enumerable: true,
+    configurable: true,
+    get() {
+      postingGetterExecuted = true;
+      throw new Error('posting getter must never execute');
+    }
+  });
+  const accessorPostingResult = core.validateOperation(accessorPosting);
+  assert.equal(accessorPostingResult.ok, false);
+  assert.ok(hasCode(accessorPostingResult, 'POSTING_ACCESSOR_PROPERTY'));
+  assert.equal(postingGetterExecuted, false, 'posting validation must inspect descriptors without executing getters');
+
+  let postingsGetterExecuted = false;
+  const accessorPostings = validOperation();
+  Object.defineProperty(accessorPostings, 'postings', {
+    enumerable: true,
+    configurable: true,
+    get() {
+      postingsGetterExecuted = true;
+      throw new Error('postings getter must never execute');
+    }
+  });
+  const accessorPostingsResult = core.validateOperation(accessorPostings);
+  assert.equal(accessorPostingsResult.ok, false);
+  assert.ok(hasCode(accessorPostingsResult, 'OPERATION_ACCESSOR_PROPERTY'));
+  assert.equal(postingsGetterExecuted, false, 'operation postings getter must never execute');
+
+  let postingElementGetterExecuted = false;
+  const accessorPostingElement = validOperation();
+  Object.defineProperty(accessorPostingElement.postings, '0', {
+    enumerable: true,
+    configurable: true,
+    get() {
+      postingElementGetterExecuted = true;
+      throw new Error('posting array element getter must never execute');
+    }
+  });
+  const accessorPostingElementResult = core.validateOperation(accessorPostingElement);
+  assert.equal(accessorPostingElementResult.ok, false);
+  assert.ok(hasCode(accessorPostingElementResult, 'OPERATION_POSTINGS_ACCESSOR_ELEMENT'));
+  assert.equal(postingElementGetterExecuted, false, 'posting-array validation must inspect descriptors without executing getters');
+}
+
+// 9. Validation is pure: no input mutation, game-state mutation, RNG draw or finance-row write.
 {
   const engine = new loaded.engineModule.TycoonEngine();
   const op = validOperation();
