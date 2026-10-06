@@ -47,6 +47,46 @@ assert.equal(core.validateEntity(entity).ok, true, JSON.stringify(core.validateE
 const reservedExternalEntity = { ...entity, entityId: 'external:typo' };
 assert.ok(hasCode(core.validateEntity(reservedExternalEntity), 'EXTERNAL_ENTITY_ID_UNKNOWN'));
 
+const inheritedEntity = Object.create(entity);
+const inheritedEntityResult = core.validateEntity(inheritedEntity);
+assert.equal(inheritedEntityResult.ok, false);
+assert.ok(hasCode(inheritedEntityResult, 'ENTITY_NOT_PLAIN_RECORD'));
+
+let entityGetterExecuted = false;
+const accessorEntity = { ...entity };
+Object.defineProperty(accessorEntity, 'entityId', {
+  enumerable: true,
+  configurable: true,
+  get() {
+    entityGetterExecuted = true;
+    throw new Error('entity getter must never execute');
+  }
+});
+const accessorEntityResult = core.validateEntity(accessorEntity);
+assert.equal(accessorEntityResult.ok, false);
+assert.ok(hasCode(accessorEntityResult, 'ENTITY_ACCESSOR_PROPERTY'));
+assert.equal(entityGetterExecuted, false, 'entity validation must inspect own descriptors without executing getters');
+
+let entityRoleGetterExecuted = false;
+const accessorEntityRole = { ...entity, roles: ['operatingCompany'] };
+Object.defineProperty(accessorEntityRole.roles, '0', {
+  enumerable: true,
+  configurable: true,
+  get() {
+    entityRoleGetterExecuted = true;
+    throw new Error('entity role getter must never execute');
+  }
+});
+const accessorEntityRoleResult = core.validateEntity(accessorEntityRole);
+assert.equal(accessorEntityRoleResult.ok, false);
+assert.ok(hasCode(accessorEntityRoleResult, 'ENTITY_ROLES_ACCESSOR_ELEMENT'));
+assert.equal(entityRoleGetterExecuted, false, 'entity role validation must inspect descriptors without executing getters');
+
+const extraEntity = { ...entity, toJSON() { return {}; } };
+const extraEntityResult = core.validateEntity(extraEntity);
+assert.equal(extraEntityResult.ok, false);
+assert.ok(hasCode(extraEntityResult, 'ENTITY_FIELD_UNKNOWN'));
+
 function validOperation() {
   return {
     schemaVersion: 1,
@@ -317,6 +357,30 @@ assert.throws(() => core.roundMoney(Number.MAX_SAFE_INTEGER), /envelope/);
 
 // 8. Operation/posting records must use own data properties; inherited values and accessors fail closed.
 {
+  const extraOperation = validOperation();
+  extraOperation.extra = 1n;
+  const extraOperationResult = core.validateOperation(extraOperation);
+  assert.equal(extraOperationResult.ok, false);
+  assert.ok(hasCode(extraOperationResult, 'OPERATION_FIELD_UNKNOWN'));
+
+  const toJsonOperation = validOperation();
+  toJsonOperation.toJSON = () => ({});
+  const toJsonOperationResult = core.validateOperation(toJsonOperation);
+  assert.equal(toJsonOperationResult.ok, false);
+  assert.ok(hasCode(toJsonOperationResult, 'OPERATION_FIELD_UNKNOWN'));
+
+  const extraPosting = validOperation();
+  extraPosting.postings[0].extra = 1n;
+  const extraPostingResult = core.validateOperation(extraPosting);
+  assert.equal(extraPostingResult.ok, false);
+  assert.ok(hasCode(extraPostingResult, 'POSTING_FIELD_UNKNOWN'));
+
+  const toJsonPosting = validOperation();
+  toJsonPosting.postings[0].toJSON = () => ({});
+  const toJsonPostingResult = core.validateOperation(toJsonPosting);
+  assert.equal(toJsonPostingResult.ok, false);
+  assert.ok(hasCode(toJsonPostingResult, 'POSTING_FIELD_UNKNOWN'));
+
   const inheritedOperation = Object.create(validOperation());
   const inheritedOperationResult = core.validateOperation(inheritedOperation);
   assert.equal(inheritedOperationResult.ok, false);

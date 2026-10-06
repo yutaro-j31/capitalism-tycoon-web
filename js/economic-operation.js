@@ -67,6 +67,17 @@ const OPTIONAL_ID_FIELDS=Object.freeze([
 const OPTIONAL_PERIOD_FIELDS=Object.freeze([
   'decisionPeriod','recognitionPeriod','duePeriod','settlementPeriod','effectivePeriod'
 ]);
+const ENTITY_FIELD_SET=new Set([
+  'entityId','legalEntityKind','legalName','status','roles','listingStatus','jurisdiction','metadata'
+]);
+const OPERATION_FIELD_SET=new Set([
+  'schemaVersion','operationId','idempotencyKey','operationType',
+  ...OPTIONAL_PERIOD_FIELDS,'status','reversalOfOperationId','correctionOfOperationId','metadata','postings'
+]);
+const POSTING_FIELD_SET=new Set([
+  'postingId','operationId','postingSequence','entityId','accountId','side','amount','currency','quantityDelta','metadata',
+  ...OPTIONAL_ID_FIELDS
+]);
 
 function addError(errors,code,path,message){errors.push(Object.freeze({code,path,message}));}
 function nonEmptyString(value){return typeof value==='string'&&value.trim().length>0;}
@@ -217,6 +228,57 @@ function inspectPlainDataRecord(value,path,kind,errors){
   }
   return record;
 }
+function validateAllowedRecordFields(record,path,kind,allowedFields,errors){
+  for(const key of Object.keys(record)){
+    if(!allowedFields.has(key)){
+      addError(errors,`${kind}_FIELD_UNKNOWN`,`${path}.${key}`,`${kind.toLowerCase()} property is not in the approved schema`);
+    }
+  }
+}
+function inspectPlainDataArray(value,path,kind,errors){
+  if(!isPlainJsonArray(value)){
+    addError(errors,`${kind}_NOT_PLAIN_ARRAY`,path,`${kind.toLowerCase()} must use the native Array prototype`);
+    return null;
+  }
+  let symbols,names;
+  try{
+    symbols=Object.getOwnPropertySymbols(value);
+    names=Object.getOwnPropertyNames(value);
+  }catch{
+    addError(errors,`${kind}_DESCRIPTOR_INSPECTION_FAILED`,path,`${kind.toLowerCase()} descriptors could not be inspected safely`);
+    return null;
+  }
+  if(symbols.length)addError(errors,`${kind}_SYMBOL_KEY`,path,`${kind.toLowerCase()} must not contain symbol-keyed properties`);
+  const lengthDescriptor=Object.getOwnPropertyDescriptor(value,'length');
+  const length=lengthDescriptor&&Object.prototype.hasOwnProperty.call(lengthDescriptor,'value')?lengthDescriptor.value:0;
+  const rows=new Array(length);
+  for(let i=0;i<length;i++){
+    let descriptor;
+    try{descriptor=Object.getOwnPropertyDescriptor(value,String(i));}
+    catch{
+      addError(errors,`${kind}_DESCRIPTOR_INSPECTION_FAILED`,`${path}[${i}]`,`${kind.toLowerCase()} element descriptor could not be inspected safely`);
+      continue;
+    }
+    if(!descriptor){
+      addError(errors,`${kind}_HOLE`,`${path}[${i}]`,`${kind.toLowerCase()} must be a dense array of own data properties`);
+      continue;
+    }
+    if(!Object.prototype.hasOwnProperty.call(descriptor,'value')){
+      addError(errors,`${kind}_ACCESSOR_ELEMENT`,`${path}[${i}]`,`${kind.toLowerCase()} elements must be own data properties, not accessors`);
+      continue;
+    }
+    if(!descriptor.enumerable){
+      addError(errors,`${kind}_NON_ENUMERABLE_ELEMENT`,`${path}[${i}]`,`${kind.toLowerCase()} elements must be enumerable JSON properties`);
+      continue;
+    }
+    rows[i]=descriptor.value;
+  }
+  for(const key of names){
+    if(key==='length'||/^(?:0|[1-9]\d*)$/.test(key))continue;
+    addError(errors,`${kind}_ARRAY_EXTRA_PROPERTY`,`${path}.${key}`,`${kind.toLowerCase()} arrays must not contain non-index properties`);
+  }
+  return rows;
+}
 function inspectPostingArray(value,path,errors){
   if(!isPlainJsonArray(value)){
     addError(errors,'OPERATION_POSTINGS_NOT_PLAIN_ARRAY',path,'postings must use the native Array prototype');
@@ -278,33 +340,38 @@ function roundMoney(value){
 function isKnownAccount(accountId){return nonEmptyString(accountId)&&ACCOUNT_ID_SET.has(accountId);}
 function validateEntity(entity){
   const errors=[];
-  if(!entity||typeof entity!=='object'||Array.isArray(entity)){
-    addError(errors,'ENTITY_REQUIRED','entity','entity must be an object');
+  const e=inspectPlainDataRecord(entity,'entity','ENTITY',errors);
+  if(!e){
     return Object.freeze({ok:false,errors:Object.freeze(errors)});
   }
-  validateEntityReference(entity.entityId,'entity.entityId','ENTITY_ID_REQUIRED',errors);
-  if(!LEGAL_ENTITY_KINDS.includes(entity.legalEntityKind))addError(errors,'ENTITY_KIND_INVALID','entity.legalEntityKind','legalEntityKind is not approved');
-  validateRequiredString(entity.legalName,'entity.legalName','ENTITY_NAME_REQUIRED',errors);
-  validateRequiredString(entity.status,'entity.status','ENTITY_STATUS_REQUIRED',errors);
-  if(!Array.isArray(entity.roles))addError(errors,'ENTITY_ROLES_INVALID','entity.roles','roles must be an array');
+  validateAllowedRecordFields(e,'entity','ENTITY',ENTITY_FIELD_SET,errors);
+  validateEntityReference(e.entityId,'entity.entityId','ENTITY_ID_REQUIRED',errors);
+  if(!LEGAL_ENTITY_KINDS.includes(e.legalEntityKind))addError(errors,'ENTITY_KIND_INVALID','entity.legalEntityKind','legalEntityKind is not approved');
+  validateRequiredString(e.legalName,'entity.legalName','ENTITY_NAME_REQUIRED',errors);
+  validateRequiredString(e.status,'entity.status','ENTITY_STATUS_REQUIRED',errors);
+  if(!Array.isArray(e.roles))addError(errors,'ENTITY_ROLES_INVALID','entity.roles','roles must be an array');
   else{
-    const seen=new Set();
-    for(let i=0;i<entity.roles.length;i++){
-      const role=entity.roles[i];
-      if(!nonEmptyString(role))addError(errors,'ENTITY_ROLE_INVALID',`entity.roles[${i}]`,'role must be a non-empty string');
-      else if(seen.has(role))addError(errors,'ENTITY_ROLE_DUPLICATE',`entity.roles[${i}]`,'role must not be duplicated');
-      else seen.add(role);
+    const roles=inspectPlainDataArray(e.roles,'entity.roles','ENTITY_ROLES',errors);
+    if(roles){
+      const seen=new Set();
+      for(let i=0;i<roles.length;i++){
+        const role=roles[i];
+        if(!nonEmptyString(role))addError(errors,'ENTITY_ROLE_INVALID',`entity.roles[${i}]`,'role must be a non-empty string');
+        else if(seen.has(role))addError(errors,'ENTITY_ROLE_DUPLICATE',`entity.roles[${i}]`,'role must not be duplicated');
+        else seen.add(role);
+      }
     }
   }
-  validateOptionalString(entity.listingStatus,'entity.listingStatus','ENTITY_LISTING_STATUS_INVALID',errors);
-  validateOptionalString(entity.jurisdiction,'entity.jurisdiction','ENTITY_JURISDICTION_INVALID',errors);
-  validateMetadata(entity.metadata,'entity.metadata',errors);
+  validateOptionalString(e.listingStatus,'entity.listingStatus','ENTITY_LISTING_STATUS_INVALID',errors);
+  validateOptionalString(e.jurisdiction,'entity.jurisdiction','ENTITY_JURISDICTION_INVALID',errors);
+  validateMetadata(e.metadata,'entity.metadata',errors);
   return Object.freeze({ok:errors.length===0,errors:Object.freeze(errors)});
 }
 function validatePosting(posting,index,operationId,errors,balances,postingIds,sequences){
   const path=`operation.postings[${index}]`;
   const p=inspectPlainDataRecord(posting,path,'POSTING',errors);
   if(!p)return null;
+  validateAllowedRecordFields(p,path,'POSTING',POSTING_FIELD_SET,errors);
   validateRequiredString(p.postingId,`${path}.postingId`,'POSTING_ID_REQUIRED',errors);
   if(nonEmptyString(p.postingId)){
     if(postingIds.has(p.postingId))addError(errors,'POSTING_ID_DUPLICATE',`${path}.postingId`,'postingId must be unique within an operation');
@@ -380,6 +447,7 @@ function validateOperation(operation){
   if(!o){
     return Object.freeze({ok:false,errors:Object.freeze(errors),entityCurrencyBalances:Object.freeze(Object.create(null)),currencyBalances:Object.freeze(Object.create(null))});
   }
+  validateAllowedRecordFields(o,'operation','OPERATION',OPERATION_FIELD_SET,errors);
   if(o.schemaVersion!==SCHEMA_VERSION)addError(errors,'OPERATION_SCHEMA_VERSION_INVALID','operation.schemaVersion',`schemaVersion must equal ${SCHEMA_VERSION}`);
   validateRequiredString(o.operationId,'operation.operationId','OPERATION_ID_REQUIRED',errors);
   validateRequiredString(o.idempotencyKey,'operation.idempotencyKey','OPERATION_IDEMPOTENCY_KEY_REQUIRED',errors);
