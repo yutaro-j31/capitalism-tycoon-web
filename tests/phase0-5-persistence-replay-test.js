@@ -138,6 +138,7 @@ for (const id of [
   'entity-read-founder-debt-receivable-instruments',
   'entity-read-founder-loan-receivable',
   'entity-read-ownership-bindings',
+  'entity-read-public-company-status',
   'entity-read-shares-out',
   'entity-read-founder-shares',
   'entity-read-treasury-shares',
