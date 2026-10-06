@@ -18,8 +18,10 @@ assert.ok(inventory.exactAuthorityCounts.pePortfolioCompanyCash>=1,'PE portfolio
 assert.ok(inventory.exactAuthorityCounts.subsidiaryCarryingValues>=1,'subsidiary carrying value must have exact production writers');
 const missingFundWriter=acceptance.verifyWriterInventory({omitFiles:['js/pe-fund.js']});
 assert.equal(missingFundWriter.ok,false,'omitting pe-fund.js must fail writer inventory');
+assert.equal(missingFundWriter.exactAuthorityHashMatch,false,'PE fund writer omission must fail exact-authority hash');
 const missingCarryingWriter=acceptance.verifyWriterInventory({omitFiles:['js/listed-subsidiary-control-actions.js']});
 assert.equal(missingCarryingWriter.ok,false,'omitting a carryingBookValue writer must fail writer inventory');
+assert.equal(missingCarryingWriter.exactAuthorityHashMatch,false,'carryingBookValue writer omission must fail exact-authority hash');
 // Fail-closed contracts: repeated nominal roots and absent stochastic diversity cannot pass.
 assert.throws(()=>acceptance.runAcceptance({tier:'smoke',weeks:1,seeds:[0x50540001,0x50540001],sourceMainSha:SOURCE_SHA}),/SEED_DIVERSITY|PATH_DIVERSITY/);
 console.log('Phase 0.5 acceptance gate tests passed');
