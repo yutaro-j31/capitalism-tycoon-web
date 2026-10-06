@@ -75,9 +75,12 @@ function verifyWriterInventory(options={}){
   const declared=JSON.parse(fs.readFileSync(INVENTORY_PATH,'utf8'));
   const expected=canonicalInventory(declared);
   const discoveredHash=hash(JSON.stringify(discovered)),declaredHash=hash(JSON.stringify(expected));
+  const lexicalDiscoveredHash=hash(JSON.stringify(discovered.categories)),lexicalDeclaredHash=hash(JSON.stringify(expected.categories));
+  const exactAuthorityDiscoveredHash=hash(JSON.stringify(discovered.exactAuthority)),exactAuthorityDeclaredHash=hash(JSON.stringify(expected.exactAuthority));
+  const lexicalHashMatch=lexicalDiscoveredHash===lexicalDeclaredHash,exactAuthorityHashMatch=exactAuthorityDiscoveredHash===exactAuthorityDeclaredHash;
   const exactAuthorityCounts=Object.fromEntries(Object.entries(discovered.exactAuthority).map(([key,rows])=>[key,rows.length]));
   const requiredExactCoverage=Object.keys(EXACT_WRITER_RULES).every(key=>exactAuthorityCounts[key]>0);
-  return Object.freeze({ok:discoveredHash===declaredHash&&requiredExactCoverage,discoveredHash,declaredHash,method:discovered.method,status:declared.status,limitations:declared.limitations,categoryCounts:Object.fromEntries(Object.entries(discovered.categories).map(([key,rows])=>[key,rows.length])),exactAuthorityCounts,exactAuthority:discovered.exactAuthority,requiredExactCoverage});
+  return Object.freeze({ok:discovered.method===declared.method&&lexicalHashMatch&&exactAuthorityHashMatch&&requiredExactCoverage,discoveredHash,declaredHash,lexicalDiscoveredHash,lexicalDeclaredHash,lexicalHashMatch,exactAuthorityDiscoveredHash,exactAuthorityDeclaredHash,exactAuthorityHashMatch,method:discovered.method,status:declared.status,limitations:declared.limitations,categoryCounts:Object.fromEntries(Object.entries(discovered.categories).map(([key,rows])=>[key,rows.length])),exactAuthorityCounts,exactAuthority:discovered.exactAuthority,requiredExactCoverage});
 }
 function verifyPhaseOrder(){
   const loaded=loadGame({headless:true,random:()=>0.5});
