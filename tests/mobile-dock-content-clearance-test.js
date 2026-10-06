@@ -31,7 +31,7 @@ for (const [tab, column] of [['map', 1], ['business', 2], ['market', 3], ['repor
 for (const [tab, label] of [['map','MAP'],['business','企業'],['market','市場'],['report','財務']]) {
   assert.match(mobile, new RegExp(`\\[data-tab="${tab}"\\]>b::after\\{content:"${label}"`), `mobile ${tab} tab must expose the ${label} label`);
 }
-assert.match(mobile, /\.d-menu-toggle::after\{content:"メニュー"/, 'fifth mobile slot must be labelled メニュー');
+assert.match(mobile, /\.d-menu-toggle::after\{content:"MENU"/, 'fifth mobile slot must be labelled MENU');
 assert.match(mobile, /\.d-nav-button\.active\{[\s\S]*?color:#9a7cff!important;[\s\S]*?box-shadow:inset 0 2px 0 #7c5cff!important/, 'normal mobile active navigation must use the violet interaction accent');
 assert.match(mobile, /\.d-menu-toggle\[aria-expanded="true"\]\{[\s\S]*?color:#9a7cff!important/, 'open menu state must use the same violet interaction accent');
 assert.match(mobile, /#d-ui-dock\{display:none!important\}/, 'legacy floating help dock must not compete with the five-tab iPhone navigation');
