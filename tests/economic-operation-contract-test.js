@@ -140,7 +140,7 @@ assert.throws(() => core.roundMoney(Number.MAX_SAFE_INTEGER), /envelope/);
   assert.ok(hasCode(core.validateOperation(reversed), 'POSTING_ORDER_INVALID'));
 }
 
-// 5. Unknown account and parent-operation mismatch fail.
+// 5. Unknown account, parent-operation mismatch and mistyped external IDs fail closed.
 {
   const unknown = validOperation();
   unknown.postings[0].accountId = 'asset:not-approved';
@@ -149,9 +149,18 @@ assert.throws(() => core.roundMoney(Number.MAX_SAFE_INTEGER), /envelope/);
   const mismatch = validOperation();
   mismatch.postings[0].operationId = 'other-operation';
   assert.ok(hasCode(core.validateOperation(mismatch), 'POSTING_OPERATION_MISMATCH'));
+
+  const badExternal = validOperation();
+  badExternal.postings[0].counterpartyEntityId = 'external:government-tx';
+  assert.ok(hasCode(core.validateOperation(badExternal), 'EXTERNAL_ENTITY_ID_UNKNOWN'));
+
+  const badExternalEntity = validOperation();
+  badExternalEntity.postings[0].entityId = 'external:unknown-market';
+  assert.ok(hasCode(core.validateOperation(badExternalEntity), 'EXTERNAL_ENTITY_ID_UNKNOWN'));
 }
 
-// 6. A quantity-only position leg does not require fake monetary side/currency fields.
+// 6. A quantity-only position leg does not require fake monetary side/currency fields, but it
+//    does require the stable identity appropriate to its position account.
 {
   const op = {
     schemaVersion: 1,
@@ -175,9 +184,23 @@ assert.throws(() => core.roundMoney(Number.MAX_SAFE_INTEGER), /envelope/);
   const result = core.validateOperation(op);
   assert.equal(result.ok, true, JSON.stringify(result.errors));
   assert.deepEqual(Object.keys(result.currencyBalances), []);
+
+  const missingSecurityClass = JSON.parse(JSON.stringify(op));
+  delete missingSecurityClass.postings[0].securityClassId;
+  assert.ok(hasCode(core.validateOperation(missingSecurityClass), 'POSTING_POSITION_REFERENCE_REQUIRED'));
+
+  for (const accountId of ['asset:debt-receivable','liability:debt-principal','asset:property','asset:fixed-assets','asset:intangible-assets']) {
+    const missingReference = JSON.parse(JSON.stringify(op));
+    missingReference.postings[0].accountId = accountId;
+    delete missingReference.postings[0].securityClassId;
+    assert.ok(
+      hasCode(core.validateOperation(missingReference), 'POSTING_POSITION_REFERENCE_REQUIRED'),
+      `${accountId} quantity change must carry its stable position identity`
+    );
+  }
 }
 
-// 7. Metadata rejects circular, executable and non-finite values.
+// 7. Metadata rejects circular, executable, non-finite and prototype-bearing class values.
 {
   const circular = validOperation();
   circular.metadata.loop = circular.metadata;
@@ -190,6 +213,19 @@ assert.throws(() => core.roundMoney(Number.MAX_SAFE_INTEGER), /envelope/);
   const nonFinite = validOperation();
   nonFinite.metadata.bad = NaN;
   assert.ok(hasCode(core.validateOperation(nonFinite), 'METADATA_NON_FINITE'));
+
+  class BadMetadata {
+    constructor() { this.value = 1; }
+    toJSON() { return 1n; }
+  }
+  const classRoot = validOperation();
+  classRoot.metadata = new BadMetadata();
+  assert.ok(hasCode(core.validateOperation(classRoot), 'METADATA_NOT_PLAIN_JSON'));
+
+  const classNested = validOperation();
+  classNested.metadata.bad = new BadMetadata();
+  assert.ok(hasCode(core.validateOperation(classNested), 'METADATA_NOT_PLAIN_JSON'));
+  assert.throws(() => JSON.stringify(classNested), /BigInt|serialize/i, 'fixture must prove the class instance is unsafe to stringify');
 }
 
 // 8. Validation is pure: no input mutation, game-state mutation, RNG draw or finance-row write.
