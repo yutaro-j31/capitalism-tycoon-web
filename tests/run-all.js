@@ -93,6 +93,7 @@ const nodeTests = [
   ['save-v9-corrupted-critical-cash-isolation', 'tests/save-v9-corrupted-critical-cash-isolation-test.js'],
   ['save-write-critical-money-guard', 'tests/save-write-critical-money-guard-test.js'],
   ['phase0-5-harness-reporting', 'tests/phase0-5-harness-reporting-test.js'],
+  ['phase0-5-acceptance-gate', 'tests/phase0-5-acceptance-gate-test.js'],
   ['executive-candidate-seed-provenance', 'tests/executive-candidate-seed-provenance-test.js'],
   ['executive-dismissal-governance', 'tests/executive-dismissal-governance-test.js'],
   ['executive-retirement-succession', 'tests/executive-retirement-succession-test.js'],

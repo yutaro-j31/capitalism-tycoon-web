@@ -15,6 +15,8 @@ on:
           - release-readiness
           - iphone-webkit
           - iphone-acceptance
+          - phase0.5-nightly
+          - phase0.5-deep-audit
 concurrency:
   group: test-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
@@ -172,6 +174,59 @@ jobs:
         run: |
           test "${{ needs.test-shard-contract.result }}" = "success"
           test "${{ needs.test-shards.result }}" = "success"
+  phase0-5-acceptance:
+    name: Phase 0.5 Acceptance Smoke
+    if: github.event_name == 'push' || github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Run fail-closed Phase 0.5 acceptance gate
+        env:
+          SOURCE_MAIN_SHA: ${{ github.event.pull_request.base.sha || github.sha }}
+        run: node scripts/phase0-5-acceptance.js --tier smoke --source-main-sha "$SOURCE_MAIN_SHA"
+      - name: Upload acceptance evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: phase0-5-acceptance-${{ github.sha }}
+          path: artifacts/phase0-5-acceptance
+          if-no-files-found: error
+          retention-days: 14
+  phase0-5-extended-acceptance:
+    name: Phase 0.5 Extended Acceptance
+    if: github.event_name == 'schedule' || (github.event_name == 'workflow_dispatch' && (inputs.mode == 'phase0.5-nightly' || inputs.mode == 'phase0.5-deep-audit'))
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Run extended acceptance matrix
+        env:
+          SOURCE_MAIN_SHA: ${{ github.sha }}
+        shell: bash
+        run: |
+          if [ "${{ inputs.mode }}" = "phase0.5-deep-audit" ]; then
+            node scripts/phase0-5-acceptance.js --tier deepAudit --seeds 83951617,83951618,83951619,83951620,83951621,83951622,83951623,83951624
+          else
+            node scripts/phase0-5-acceptance.js --tier nightly --seeds 83951617,83951618,83951619,83951620
+          fi
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: phase0-5-extended-acceptance-${{ github.sha }}
+          path: artifacts/phase0-5-acceptance
+          if-no-files-found: error
+          retention-days: 30
   release-readiness:
     if: github.event_name == 'pull_request' || (github.event_name == 'workflow_dispatch' && inputs.mode == 'release-readiness')
     permissions:
