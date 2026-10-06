@@ -29,7 +29,7 @@ assert.equal(core.SCHEMA_VERSION, 1);
 assert.equal(core.ACCOUNT_TAXONOMY_VERSION, 1);
 assert.ok(core.LEGAL_ENTITY_KINDS.includes('company'));
 assert.equal(core.EXTERNAL_ENTITY_IDS.seller, 'external:seller');
-assert.deepEqual(core.MONETARY_CURRENCIES, ['JPY']);
+assert.deepEqual(Array.from(core.MONETARY_CURRENCIES), ['JPY']);
 assert.ok(core.isKnownAccount('asset:cash'));
 assert.equal(core.isKnownAccount('asset:not-real'), false);
 
