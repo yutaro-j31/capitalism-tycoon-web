@@ -5,7 +5,9 @@
 **Gate D independent review baseline: `23a4858fa0fb8c28e1c17abfe7f342cb108b6e6a`**  
 **Gate D owner-approval baseline: `d2ccba060c18e117afa4ab3c2eee095f81aad311`**  
 **Tracker: #804**  
-**Implementation baseline: NO**
+**Later gates: Gate E COMPLETE; Phase 0.5 ACCEPTED; Gate F OWNER APPROVED 2026-10-06**  
+**Gate F approval baseline: `1d88be9518ad21ad1e8ec3b88335020bed7d3797`**  
+**Implementation baseline: YES — Phase 1 authorized**
 
 ## 1. Purpose
 
@@ -22,7 +24,7 @@ Gate D requires:
 7. final verification against the exact merged documents and fresh repository state
 8. owner approval
 
-Gate D approval still does **not** authorize Phase 1.
+Gate D approval alone did **not** authorize Phase 1. Phase 1 was subsequently authorized only after Gate E, Phase 0.5, and Gate F owner approval were completed.
 
 ## 2. Current repository state
 
