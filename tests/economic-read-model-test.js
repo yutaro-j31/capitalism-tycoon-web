@@ -139,8 +139,13 @@ assert.equal(model.ownership.publicCompany,true);
 const parity=adapter.compareLegacyParity(state,model);
 assert.equal(parity.ok,true,JSON.stringify(parity));
 for(const id of [
+  'entity-read-root-metadata',
+  'entity-read-company-entity',
+  'entity-read-founder-entity',
   'entity-read-company-account-bindings',
   'entity-read-founder-account-bindings',
+  'entity-read-company-account-rows',
+  'entity-read-founder-account-rows',
   'entity-read-company-cash',
   'entity-read-personal-cash',
   'entity-read-company-debt',
@@ -152,6 +157,7 @@ for(const id of [
   'entity-read-founder-debt-receivable-instruments',
   'entity-read-founder-loan-receivable',
   'entity-read-ownership-bindings',
+  'entity-read-ownership-source-paths',
   'entity-read-public-company-status',
   'entity-read-shares-out',
   'entity-read-founder-shares',
@@ -161,6 +167,26 @@ for(const id of [
   'entity-read-personal-market-holdings'
 ])assert.equal(Array.from(parity.checks).some(row=>row.id===id&&row.ok),true,`missing passing parity check ${id}`);
 assert.equal(JSON.stringify(state),before,'parity diagnostics must not mutate authoritative state');
+
+const wrongRootMetadata=adapter.compareLegacyParity(state,{...model,period:{week:model.period.week+1}});
+assert.equal(wrongRootMetadata.ok,false);
+assert.equal(Array.from(wrongRootMetadata.checks).find(row=>row.id==='entity-read-root-metadata').ok,false);
+
+const wrongCompanyKind={
+  ...company,
+  entity:{...company.entity,legalEntityKind:'person'}
+};
+const wrongCompanyKindParity=adapter.compareLegacyParity(state,{...model,entities:[wrongCompanyKind,founder]});
+assert.equal(wrongCompanyKindParity.ok,false);
+assert.equal(Array.from(wrongCompanyKindParity.checks).find(row=>row.id==='entity-read-company-entity').ok,false);
+
+const wrongFounderKind={
+  ...founder,
+  entity:{...founder.entity,legalEntityKind:'company'}
+};
+const wrongFounderKindParity=adapter.compareLegacyParity(state,{...model,entities:[company,wrongFounderKind]});
+assert.equal(wrongFounderKindParity.ok,false);
+assert.equal(Array.from(wrongFounderKindParity.checks).find(row=>row.id==='entity-read-founder-entity').ok,false);
 
 const tamperedCompany={
   ...company,
@@ -179,6 +205,15 @@ const wrongCashBinding=adapter.compareLegacyParity(state,{...model,entities:[wro
 assert.equal(wrongCashBinding.ok,false);
 assert.equal(Array.from(wrongCashBinding.checks).find(row=>row.id==='entity-read-company-account-bindings').ok,false);
 assert.equal(Array.from(wrongCashBinding.checks).find(row=>row.id==='entity-read-company-cash').ok,false);
+
+const wrongAccountSemanticsCompany={
+  ...company,
+  accountBalances:Array.from(company.accountBalances).map(row=>row.accountId==='asset:cash'?{...row,currency:'USD',sourcePath:'personalCash',numericDomain:'minor-units'}:row)
+};
+const wrongAccountSemantics=adapter.compareLegacyParity(state,{...model,entities:[wrongAccountSemanticsCompany,founder]});
+assert.equal(wrongAccountSemantics.ok,false);
+assert.equal(Array.from(wrongAccountSemantics.checks).find(row=>row.id==='entity-read-company-account-rows').ok,false);
+assert.equal(Array.from(wrongAccountSemantics.checks).find(row=>row.id==='entity-read-company-cash').ok,false);
 
 const wrongDebtBindingCompany={
   ...company,
@@ -216,6 +251,22 @@ assert.equal(wrongCompanyInstrument.ok,false);
 assert.equal(Array.from(wrongCompanyInstrument.checks).find(row=>row.id==='entity-read-company-debt-instruments').ok,false);
 assert.equal(Array.from(wrongCompanyInstrument.checks).find(row=>row.id==='entity-read-company-loan-principal').ok,false);
 
+const wrongDebtProvenanceCompany={
+  ...company,
+  debtInstruments:Array.from(company.debtInstruments).map((row,index)=>index===0?{...row,sourcePath:'finance.loans[999]'}:row)
+};
+const wrongDebtProvenance=adapter.compareLegacyParity(state,{...model,entities:[wrongDebtProvenanceCompany,founder]});
+assert.equal(wrongDebtProvenance.ok,false);
+assert.equal(Array.from(wrongDebtProvenance.checks).find(row=>row.id==='entity-read-company-debt-instruments').ok,false);
+
+const wrongReceivableProvenanceFounder={
+  ...founder,
+  debtReceivables:Array.from(founder.debtReceivables).map(row=>({...row,sourcePath:'finance.loans[999]'}))
+};
+const wrongReceivableProvenance=adapter.compareLegacyParity(state,{...model,entities:[company,wrongReceivableProvenanceFounder]});
+assert.equal(wrongReceivableProvenance.ok,false);
+assert.equal(Array.from(wrongReceivableProvenance.checks).find(row=>row.id==='entity-read-founder-debt-receivable-instruments').ok,false);
+
 const wrongHoldingCompany={
   ...company,
   marketHoldings:Array.from(company.marketHoldings).map((row,index)=>index===0?{...row,entityId:adapter.FOUNDER_ENTITY_ID}:row)
@@ -240,6 +291,13 @@ assert.equal(wrongOwnership.ok,false);
 assert.equal(Array.from(wrongOwnership.checks).find(row=>row.id==='entity-read-ownership-bindings').ok,false);
 assert.equal(Array.from(wrongOwnership.checks).find(row=>row.id==='entity-read-founder-shares').ok,false);
 assert.equal(Array.from(wrongOwnership.checks).find(row=>row.id==='entity-read-treasury-shares').ok,false);
+
+const wrongOwnershipProvenance=adapter.compareLegacyParity(state,{
+  ...model,
+  ownership:{...model.ownership,sourcePaths:{...model.ownership.sourcePaths,founderShares:'personalStocks'}}
+});
+assert.equal(wrongOwnershipProvenance.ok,false);
+assert.equal(Array.from(wrongOwnershipProvenance.checks).find(row=>row.id==='entity-read-ownership-source-paths').ok,false);
 
 const wrongSharesOut=adapter.compareLegacyParity(state,{
   ...model,
