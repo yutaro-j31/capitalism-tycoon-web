@@ -185,7 +185,9 @@ assert.match(script, /globalThis\.history\.replaceState/, 'current production ta
 assert.match(script, /globalThis\.addEventListener\?\.\('popstate',handlePopstate\)/, 'browser Back/Forward must restore production tabs');
 assert.match(script, /source\.click\(\)/, 'popstate restoration must reuse the existing production tab action rather than duplicate navigation state');
 assert.match(script, /\['pe-portfolio','◫','PEポートフォリオ'\]/, 'PE Portfolio must be a restorable long-tail production route in ALL_NAV');
-assert.match(script, /#d-ui-dock \[data-action="tab"\]\[data-tab\]/, 'popstate restoration must include the dock fallback used by the scrubbed Settings tab');
+assert.match(script, /\.d-source-tabs \[data-action="tab"\]\[data-tab\]/, 'popstate restoration must use the stable hidden production TABS source');
+assert.match(html, /#d-ui-dock \[data-action="tab"\],#d-ui-command-menu \[data-action="tab"\]/, 'dock Settings must be scrubbed into the same proxy path as every other D UI route');
+assert.doesNotMatch(html, /\.d-source-tabs \[data-tab="settings"\][\s\S]{0,120}removeAttribute\('data-action'\)/, 'hidden production Settings must retain its authoritative data-action source even when PE replaces the visible dock');
 assert.match(script, /d-current-location/, 'compact header must expose the current production location');
 assert.match(script, /d-kpi-company-cash/, 'compact header must explicitly identify company cash');
 assert.match(appScript, /engine\.configure\(Object\.fromEntries\(fd\.entries\(\)\)\);engine\.g\.selectedTab='map';engine\.save\(\);render\(\)/, 'new production games must enter the City Map while existing saves retain their saved selectedTab');
