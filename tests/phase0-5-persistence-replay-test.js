@@ -128,6 +128,7 @@ for (const id of [
   'cash-flow-rollforward',
   'finance-validate',
   'entity-read-root-metadata',
+  'entity-read-entity-set',
   'entity-read-company-entity',
   'entity-read-founder-entity',
   'entity-read-company-account-bindings',
