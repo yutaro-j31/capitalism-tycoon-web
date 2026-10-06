@@ -165,6 +165,53 @@ function snapshot(state){
 function entityById(readModel,entityId){
   return readModel.entities.find(row=>row?.entity?.entityId===entityId)||null;
 }
+function sameOrderedStrings(actual,expected){
+  return Array.isArray(actual)&&actual.length===expected.length&&actual.every((value,index)=>value===expected[index]);
+}
+function compareEntityRecord(state,entity,kind){
+  const row=entity?.entity;
+  if(!row)return false;
+  if(kind==='company'){
+    const expectedRoles=state.publicCompany?['operatingCompany','listedIssuer']:['operatingCompany'];
+    return row.entityId===PLAYER_COMPANY_ENTITY_ID
+      &&row.legalEntityKind==='company'
+      &&row.legalName===String(state.companyName||'Player Company')
+      &&row.status===(state.isCompanySold?'sold':'active')
+      &&sameOrderedStrings(row.roles,expectedRoles)
+      &&row.listingStatus===(state.publicCompany?'listed':'private')
+      &&row.jurisdiction==='JP'
+      &&row.metadata?.source==='legacy-authoritative-state';
+  }
+  return row.entityId===FOUNDER_ENTITY_ID
+    &&row.legalEntityKind==='person'
+    &&row.legalName===String(state.playerName||'Founder')
+    &&row.status==='active'
+    &&sameOrderedStrings(row.roles,['founder','shareholder'])
+    &&row.listingStatus==='not-applicable'
+    &&row.jurisdiction==='JP'
+    &&row.metadata?.source==='legacy-authoritative-state';
+}
+function compareAccountRows(state,entity,kind){
+  const rows=entity?.accountBalances;
+  if(!Array.isArray(rows)||rows.length!==2)return false;
+  const company=kind==='company';
+  const entityId=company?PLAYER_COMPANY_ENTITY_ID:FOUNDER_ENTITY_ID;
+  const specs=[
+    {accountId:'asset:cash',sourcePath:company?'companyCash':'personalCash'},
+    {accountId:'liability:debt-principal',sourcePath:company?'companyDebt':'personalDebt'}
+  ];
+  for(const spec of specs){
+    const matches=rows.filter(row=>row?.accountId===spec.accountId);
+    if(matches.length!==1)return false;
+    const row=matches[0];
+    if(row.entityId!==entityId)return false;
+    if(row.currency!==CURRENCY)return false;
+    if(row.amount!==finite(state[spec.sourcePath],spec.sourcePath))return false;
+    if(row.sourcePath!==spec.sourcePath)return false;
+    if(row.numericDomain!=='legacy-number')return false;
+  }
+  return true;
+}
 function balanceRowByAccount(entity,accountId,expectedEntityId){
   const row=entity?.accountBalances?.find(candidate=>candidate.accountId===accountId);
   return row&&row.entityId===expectedEntityId?row:null;
@@ -186,12 +233,12 @@ function compareHoldings(source,rows,expectedEntityId){
 function compareDebtInstruments(sourceLoans,rows){
   if(!Array.isArray(sourceLoans)||!Array.isArray(rows))return false;
   const expected=sourceLoans
-    .filter(row=>row&&String(row.status||'active')!=='repaid')
-    .slice()
-    .sort((a,b)=>compareText(a.loanID,b.loanID));
+    .map((loan,sourceIndex)=>({loan,sourceIndex}))
+    .filter(entry=>entry.loan&&String(entry.loan.status||'active')!=='repaid')
+    .sort((a,b)=>compareText(a.loan.loanID,b.loan.loanID));
   if(expected.length!==rows.length)return false;
   for(let index=0;index<expected.length;index++){
-    const loan=expected[index],row=rows[index];
+    const {loan,sourceIndex}=expected[index],row=rows[index];
     if(row.entityId!==PLAYER_COMPANY_ENTITY_ID)return false;
     if(row.debtInstrumentId!==String(loan.loanID))return false;
     if(row.outstandingPrincipal!==finiteOr(loan.outstandingPrincipal,0,`finance.loans[${index}].outstandingPrincipal`))return false;
@@ -201,6 +248,7 @@ function compareDebtInstruments(sourceLoans,rows){
     if(row.sourceType!==String(loan.sourceType||'legacyFinance'))return false;
     if(row.sourceID!==(loan.sourceID==null?null:String(loan.sourceID)))return false;
     if(row.currency!==CURRENCY)return false;
+    if(row.sourcePath!==`finance.loans[${sourceIndex}]`)return false;
   }
   return true;
 }
@@ -219,6 +267,7 @@ function compareFounderReceivables(companyDebtRows,rows){
     if(receivable?.debtInstrumentId!==debt.debtInstrumentId)return false;
     if(receivable?.outstandingPrincipal!==debt.outstandingPrincipal)return false;
     if(receivable?.currency!==CURRENCY)return false;
+    if(receivable?.sourcePath!==debt.sourcePath)return false;
   }
   return true;
 }
@@ -227,6 +276,13 @@ function compareLegacyParity(state,readModel=snapshot(state)){
   const company=entityById(readModel,PLAYER_COMPANY_ENTITY_ID);
   const founder=entityById(readModel,FOUNDER_ENTITY_ID);
   if(!company||!founder)throw new TypeError('Economic read model must contain company and founder entities.');
+  const rootMetadataParity=readModel.readModelVersion===READ_MODEL_VERSION
+    &&readModel.source==='legacy-authoritative-state'
+    &&readModel.period?.week===finiteOr(state.week,1,'week');
+  const companyEntityParity=compareEntityRecord(state,company,'company');
+  const founderEntityParity=compareEntityRecord(state,founder,'founder');
+  const companyAccountParity=compareAccountRows(state,company,'company');
+  const founderAccountParity=compareAccountRows(state,founder,'founder');
   const companyCashRow=balanceRowByAccount(company,'asset:cash',PLAYER_COMPANY_ENTITY_ID);
   const companyDebtRow=balanceRowByAccount(company,'liability:debt-principal',PLAYER_COMPANY_ENTITY_ID);
   const personalCashRow=balanceRowByAccount(founder,'asset:cash',FOUNDER_ENTITY_ID);
@@ -240,18 +296,27 @@ function compareLegacyParity(state,readModel=snapshot(state)){
   const ownershipBindings=readModel.ownership?.issuerEntityId===PLAYER_COMPANY_ENTITY_ID
     &&readModel.ownership?.founderEntityId===FOUNDER_ENTITY_ID
     &&readModel.ownership?.securityClassId===PLAYER_COMPANY_COMMON_SECURITY_CLASS_ID;
+  const ownershipSourcePaths=readModel.ownership?.sourcePaths?.legacySharesOut==='sharesOut'
+    &&readModel.ownership?.sourcePaths?.founderShares==='founderShares'
+    &&readModel.ownership?.sourcePaths?.treasuryShares==='treasuryBuybackShares'
+    &&readModel.ownership?.sourcePaths?.externalShareholderRatio==='externalShareholderRatio';
   const loanPrincipal=(company.debtInstruments||[]).reduce((sum,row)=>sum+finite(row.outstandingPrincipal,'debtInstruments.outstandingPrincipal'),0);
   const founderReceivable=(founder.debtReceivables||[]).reduce((sum,row)=>sum+finite(row.outstandingPrincipal,'debtReceivables.outstandingPrincipal'),0);
   const expectedFounderReceivable=(state.finance?.loans||[])
     .filter(row=>row&&String(row.status||'active')!=='repaid'&&row.sourceType===modules.finance.FOUNDER_LOAN_SOURCE)
     .reduce((sum,row)=>sum+finiteOr(row.outstandingPrincipal,0,'finance.loans.outstandingPrincipal'),0);
   const checks=[
+    {id:'entity-read-root-metadata',ok:rootMetadataParity},
+    {id:'entity-read-company-entity',ok:companyEntityParity},
+    {id:'entity-read-founder-entity',ok:founderEntityParity},
     {id:'entity-read-company-account-bindings',ok:companyAccountBindings},
     {id:'entity-read-founder-account-bindings',ok:founderAccountBindings},
-    {id:'entity-read-company-cash',ok:companyCashRow?.amount===finite(state.companyCash,'companyCash')},
-    {id:'entity-read-personal-cash',ok:personalCashRow?.amount===finite(state.personalCash,'personalCash')},
-    {id:'entity-read-company-debt',ok:companyDebtRow?.amount===finite(state.companyDebt,'companyDebt')},
-    {id:'entity-read-personal-debt',ok:personalDebtRow?.amount===finite(state.personalDebt,'personalDebt')},
+    {id:'entity-read-company-account-rows',ok:companyAccountParity},
+    {id:'entity-read-founder-account-rows',ok:founderAccountParity},
+    {id:'entity-read-company-cash',ok:companyAccountParity&&companyCashRow?.amount===finite(state.companyCash,'companyCash')},
+    {id:'entity-read-personal-cash',ok:founderAccountParity&&personalCashRow?.amount===finite(state.personalCash,'personalCash')},
+    {id:'entity-read-company-debt',ok:companyAccountParity&&companyDebtRow?.amount===finite(state.companyDebt,'companyDebt')},
+    {id:'entity-read-personal-debt',ok:founderAccountParity&&personalDebtRow?.amount===finite(state.personalDebt,'personalDebt')},
     {id:'entity-read-company-debt-instrument-bindings',ok:companyDebtBindings},
     {id:'entity-read-company-debt-instruments',ok:companyDebtInstrumentParity},
     {id:'entity-read-company-loan-principal',ok:companyDebtBindings&&companyDebtInstrumentParity&&Math.abs(loanPrincipal-finite(state.companyDebt,'companyDebt'))<=LEGACY_DEBT_TOLERANCE,authoritative:finite(state.companyDebt,'companyDebt'),adapter:loanPrincipal},
@@ -259,7 +324,8 @@ function compareLegacyParity(state,readModel=snapshot(state)){
     {id:'entity-read-founder-debt-receivable-instruments',ok:founderReceivableInstrumentParity},
     {id:'entity-read-founder-loan-receivable',ok:founderDebtBindings&&founderReceivableInstrumentParity&&founderReceivable===expectedFounderReceivable,authoritative:expectedFounderReceivable,adapter:founderReceivable},
     {id:'entity-read-ownership-bindings',ok:ownershipBindings},
-    {id:'entity-read-public-company-status',ok:ownershipBindings&&readModel.ownership.publicCompany===Boolean(state.publicCompany)&&company.entity.listingStatus===(state.publicCompany?'listed':'private')},
+    {id:'entity-read-ownership-source-paths',ok:ownershipSourcePaths},
+    {id:'entity-read-public-company-status',ok:ownershipBindings&&companyEntityParity&&readModel.ownership.publicCompany===Boolean(state.publicCompany)},
     {id:'entity-read-shares-out',ok:ownershipBindings&&readModel.ownership.legacySharesOut===finiteOr(state.sharesOut,0,'sharesOut')},
     {id:'entity-read-founder-shares',ok:ownershipBindings&&readModel.ownership.founderShares===finiteOr(state.founderShares,0,'founderShares')},
     {id:'entity-read-treasury-shares',ok:ownershipBindings&&readModel.ownership.treasuryShares===finiteOr(state.treasuryBuybackShares,0,'treasuryBuybackShares')},
