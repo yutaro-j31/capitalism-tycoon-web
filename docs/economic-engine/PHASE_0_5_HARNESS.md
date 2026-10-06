@@ -277,10 +277,16 @@ Acceptance consumes that exported order and compares it with the reviewed bounda
 does not execute a second order. Any economically relevant change requires an intentional update
 to production, this acceptance expectation, tests, and reviewer approval.
 
-`docs/economic-engine/phase0-5-authoritative-writers.json` is the reviewed candidate inventory for
-cash, debt, ownership, PE/fund cash, carrying values, property state, and finance authority.
-Lexical discovery is deliberately described as candidate discovery, not proof of accounting
-correctness. Declarations plus finance/accounting tests provide the verification layers. To refresh:
+`docs/economic-engine/phase0-5-authoritative-writers.json` keeps two distinct evidence layers.
+`categories` is the broad lexical candidate inventory for cash, debt, ownership, PE/fund cash,
+carrying values, property state, and finance authority; it is intentionally over-inclusive and may
+contain read-only/reference files. `exactAuthority` separately records exact production mutation
+evidence for reviewed high-risk state paths, currently including `fund.cash`, PE portfolio-company
+cash, and `carryingBookValue`. Acceptance compares both snapshots independently and requires every
+exact-authority category to remain non-empty. Negative tests omit known real writers and require the
+exact-authority hash to fail, so snapshot self-consistency alone cannot produce PASS. Finance and
+accounting regressions remain the behavioral verification layer; this inventory is not a Phase 1
+ledger-authority proof. To refresh:
 
 ```bash
 node scripts/phase0-5-acceptance.js --refresh-writers
