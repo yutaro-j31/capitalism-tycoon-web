@@ -52,7 +52,8 @@ function operationContractEvidence(runtime){
         accountId:'expense:operating',
         side:'debit',
         amount:100,
-        currency:'JPY'
+        currency:'JPY',
+        metadata:{}
       },
       {
         postingId:id+':1',
@@ -62,7 +63,8 @@ function operationContractEvidence(runtime){
         accountId:'asset:cash',
         side:'credit',
         amount:100,
-        currency:'JPY'
+        currency:'JPY',
+        metadata:{}
       }
     ]
   };
