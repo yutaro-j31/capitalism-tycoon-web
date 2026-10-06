@@ -207,6 +207,7 @@ function declareEngineCapabilities(loaded) {
     financeValidation: typeof loaded.modules.finance?.validate === 'function',
     entityAwareLegacyReadModel: typeof loaded.modules.economicReadModel?.snapshot === 'function',
     shadowOperationJournal: typeof loaded.modules.economicShadowJournal?.append === 'function',
+    limitedStoreRenovationSettlement: typeof loaded.modules.economicSettlement?.settleStoreRenovation === 'function',
     semanticHashVersions: Object.freeze(Object.keys(SEMANTIC_PROJECTION_REGISTRY).map(Number)),
     jsonReport: true,
     saveReloadFork: true,
@@ -863,6 +864,56 @@ function characterizeShadowJournal(runtime) {
   });
 }
 
+function characterizeLimitedCutover(runtime) {
+  const settlement=runtime.loaded.modules.economicSettlement;
+  const core=runtime.loaded.modules.economicOperation;
+  if(!settlement?.buildStoreRenovationOperation||!settlement?.settleStoreRenovation) {
+    throw new Error('Phase 1 limited store renovation settlement is unavailable.');
+  }
+  const runtimeBeforeHash=semanticStateHash(runtime.engine.g,runtime.scenario.stateHashVersion);
+  const syntheticState={week:17,companyCash:1_000_000};
+  const syntheticStore={id:'phase1-cutover-store',businessID:'ramen',condition:40};
+  const cost=390_000;
+  const operation=settlement.buildStoreRenovationOperation(syntheticState,syntheticStore,cost);
+  const validation=core.validateOperation(operation);
+  const twin=settlement.buildStoreRenovationOperation({...syntheticState}, {...syntheticStore}, cost);
+  const deterministicOperation=stableStringify(operation)===stableStringify(twin);
+  const result=settlement.settleStoreRenovation(syntheticState,operation);
+  const cashMovedOnce=result.applied===true
+    &&result.companyCashBefore===1_000_000
+    &&result.companyCashAfter===610_000
+    &&syntheticState.companyCash===610_000;
+  const exactShape=operation.operationType===settlement.STORE_RENOVATION_OPERATION_TYPE
+    &&operation.postings.length===2
+    &&operation.postings[0].accountId==='expense:operating'
+    &&operation.postings[0].side==='debit'
+    &&operation.postings[1].accountId==='asset:cash'
+    &&operation.postings[1].side==='credit'
+    &&operation.postings.every(row=>row.entityId===settlement.PLAYER_COMPANY_ENTITY_ID&&row.currency==='JPY'&&row.amount===cost);
+  let unsupportedRejected=false;
+  try{
+    const wrong=JSON.parse(JSON.stringify(operation));
+    wrong.operationType='company:unsupported';
+    settlement.settleStoreRenovation({companyCash:1_000_000},wrong);
+  }catch(error){unsupportedRejected=/Unsupported EconomicOperation type/.test(String(error?.message||error));}
+  const runtimeAfterHash=semanticStateHash(runtime.engine.g,runtime.scenario.stateHashVersion);
+  const authoritativeRuntimeUnchanged=runtimeBeforeHash===runtimeAfterHash;
+  const ok=validation.ok===true&&deterministicOperation&&cashMovedOnce&&exactShape&&unsupportedRejected&&authoritativeRuntimeUnchanged;
+  return Object.freeze({
+    ok,
+    operationType:operation.operationType,
+    operationId:operation.operationId,
+    idempotencyKey:operation.idempotencyKey,
+    deterministicOperation,
+    cashMovedOnce,
+    exactShape,
+    unsupportedRejected,
+    authoritativeRuntimeUnchanged,
+    runtimeBeforeHash,
+    runtimeAfterHash
+  });
+}
+
 function characterizeIdAllocation(runtime) {
   const rng=runtime.loaded.modules.simulationRng;
   const payload=JSON.stringify(runtime.engine.g);
@@ -910,6 +961,7 @@ function runPersistenceCharacterization(scenarioInput, options = {}) {
   const rollbackEvidence=characterizeRollback(isolated());
   const idempotencyEvidence=characterizeIdempotency(isolated());
   const shadowJournalEvidence=characterizeShadowJournal(isolated());
+  const limitedCutoverEvidence=characterizeLimitedCutover(isolated());
   const idAllocationEvidence=characterizeIdAllocation(isolated());
   const legacyAdapterParity=characterizeLegacyAdapterParity(isolated());
   const provenance=classifySeedProvenance(runtime);
@@ -929,9 +981,10 @@ function runPersistenceCharacterization(scenarioInput, options = {}) {
     rollbackEvidence,
     idempotencyEvidence,
     shadowJournalEvidence,
+    limitedCutoverEvidence,
     idAllocationEvidence,
     legacyAdapterParity,
-    ok:replayEvidence.ok&&persistenceEvidence.saveReloadFork.ok&&persistenceEvidence.compactedSaveReloadFork.ok&&rollbackEvidence.ok&&idempotencyEvidence.ok&&shadowJournalEvidence.ok&&idAllocationEvidence.ok&&legacyAdapterParity.ok
+    ok:replayEvidence.ok&&persistenceEvidence.saveReloadFork.ok&&persistenceEvidence.compactedSaveReloadFork.ok&&rollbackEvidence.ok&&idempotencyEvidence.ok&&shadowJournalEvidence.ok&&limitedCutoverEvidence.ok&&idAllocationEvidence.ok&&legacyAdapterParity.ok
   });
 }
 
@@ -1487,6 +1540,7 @@ module.exports = Object.freeze({
   characterizeRollback,
   characterizeIdempotency,
   characterizeShadowJournal,
+  characterizeLimitedCutover,
   characterizeIdAllocation,
   runPersistenceCharacterization,
   stepEconomicTick,
