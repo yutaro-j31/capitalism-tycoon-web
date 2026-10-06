@@ -18,12 +18,12 @@ const EMPTY_CHAIN_DIGEST='0000000000000000';
 function compareText(a,b){a=String(a);b=String(b);return a<b?-1:a>b?1:0;}
 function nonNegativeInteger(value,path){
   const number=Number(value);
-  if(!Number.isInteger(number)||number<0)throw new TypeError(`${path} must be a non-negative integer.`);
+  if(!Number.isSafeInteger(number)||number<0)throw new TypeError(`${path} must be a non-negative safe integer.`);
   return number;
 }
 function positiveInteger(value,path){
   const number=Number(value);
-  if(!Number.isInteger(number)||number<1)throw new TypeError(`${path} must be a positive integer.`);
+  if(!Number.isSafeInteger(number)||number<1)throw new TypeError(`${path} must be a positive safe integer.`);
   return number;
 }
 function plainObject(value){return Boolean(value)&&typeof value==='object'&&!Array.isArray(value);}
@@ -198,6 +198,9 @@ function normalizeJournal(value){
   const latestPeriod=nonNegativeInteger(value.latestPeriod,'journal.latestPeriod');
   if(checkpoint.compactedOperationCount===0&&checkpoint.chainDigest!==EMPTY_CHAIN_DIGEST)throw new TypeError('empty checkpoint must use the empty chain digest.');
   if(checkpoint.compactedOperationCount>0&&checkpoint.compactedThroughSequence===0)throw new TypeError('non-empty checkpoint requires compactedThroughSequence.');
+  if(ordered.some(row=>row.sequence<=checkpoint.compactedThroughSequence))throw new TypeError('retained journal sequences must be newer than compactedThroughSequence.');
+  if(latestPeriod<checkpoint.compactedThroughPeriod)throw new TypeError('journal.latestPeriod precedes compactedThroughPeriod.');
+  if(ordered.some(row=>row.operationPeriod>latestPeriod))throw new TypeError('journal.latestPeriod precedes a retained operation period.');
   return deepFreeze({
     journalSchemaVersion:JOURNAL_SCHEMA_VERSION,
     limits:{...limits},
@@ -231,6 +234,7 @@ function append(journalInput,operationInput,options={}){
   const journal=normalizeJournal(journalInput);
   const currentPeriod=nonNegativeInteger(options.currentPeriod,'currentPeriod');
   if(currentPeriod<journal.latestPeriod)throw new RangeError('currentPeriod must be monotonic for the shadow journal.');
+  validateOperationForJournal(operationInput);
   const operation=cloneJson(operationInput);
   validateOperationForJournal(operation);
   const operationDigest=digestOperation(operation);
@@ -248,6 +252,8 @@ function append(journalInput,operationInput,options={}){
   if(postingCount>journal.limits.livePostingCap)throw new RangeError('operation posting count exceeds livePostingCap.');
   const anchorPeriod=operationPeriod(operation,currentPeriod);
   const retentionUntilPeriod=anchorPeriod+journal.limits.idempotencyWindowPeriods;
+  if(!Number.isSafeInteger(retentionUntilPeriod))throw new RangeError('idempotency retention period exceeds the safe integer envelope.');
+  if(!Number.isSafeInteger(journal.nextSequence+1))throw new RangeError('journal sequence exceeds the safe integer envelope.');
   const entry={
     sequence:journal.nextSequence,
     operation,
