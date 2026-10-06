@@ -59,6 +59,8 @@ const INTEGER_SECURITY_QUANTITY_ACCOUNTS=new Set([
 ]);
 const MONEY_MINOR_UNITS=100;
 const MAX_SAFE_MONEY_MINOR_UNITS=Number.MAX_SAFE_INTEGER;
+const MONETARY_CURRENCIES=Object.freeze(['JPY']);
+const MONETARY_CURRENCY_SET=new Set(MONETARY_CURRENCIES);
 const SIDE_SET=new Set(['debit','credit']);
 const OPTIONAL_ID_FIELDS=Object.freeze([
   'debtInstrumentId','instrumentId','securityClassId','propertyId','assetId',
@@ -93,6 +95,18 @@ function validateEntityReference(value,path,requiredCode,errors){
     addError(errors,'EXTERNAL_ENTITY_ID_UNKNOWN',path,'external entity ID is not in the approved aggregate counterparty registry');
   }
 }
+function prototypeChainHasSerializationHook(proto){
+  let current=proto;
+  while(current!==null){
+    let descriptor;
+    try{descriptor=Object.getOwnPropertyDescriptor(current,'toJSON');}
+    catch{return true;}
+    if(descriptor)return true;
+    try{current=Object.getPrototypeOf(current);}
+    catch{return true;}
+  }
+  return false;
+}
 function isNativeConstructorForPrototype(proto,expectedName){
   if(!proto||!['Object','Array'].includes(expectedName))return false;
   let descriptor;
@@ -117,15 +131,18 @@ function isPlainJsonObject(value){
   try{proto=Object.getPrototypeOf(value);}
   catch{return false;}
   if(proto===null)return true;
-  try{return Object.getPrototypeOf(proto)===null&&isNativeConstructorForPrototype(proto,'Object');}
-  catch{return false;}
+  try{
+    return !prototypeChainHasSerializationHook(proto)
+      &&Object.getPrototypeOf(proto)===null
+      &&isNativeConstructorForPrototype(proto,'Object');
+  }catch{return false;}
 }
 function isPlainJsonArray(value){
   if(!Array.isArray(value))return false;
   let proto;
   try{proto=Object.getPrototypeOf(value);}
   catch{return false;}
-  return isNativeConstructorForPrototype(proto,'Array');
+  return !prototypeChainHasSerializationHook(proto)&&isNativeConstructorForPrototype(proto,'Array');
 }
 function validateJsonValue(value,path,errors,seen){
   const type=typeof value;
@@ -403,8 +420,11 @@ function validatePosting(posting,index,operationId,errors,balances,postingIds,se
     }
     if(!SIDE_SET.has(p.side))addError(errors,'POSTING_SIDE_INVALID',`${path}.side`,'monetary posting side must be debit or credit');
     validateRequiredString(p.currency,`${path}.currency`,'POSTING_CURRENCY_REQUIRED',errors);
+    if(nonEmptyString(p.currency)&&!MONETARY_CURRENCY_SET.has(p.currency)){
+      addError(errors,'POSTING_CURRENCY_UNSUPPORTED',`${path}.currency`,'currency is outside the approved Economic Core monetary domain');
+    }
     const minor=moneyMinorUnits(p.amount);
-    if(minor!=null&&SIDE_SET.has(p.side)&&nonEmptyString(p.currency)&&nonEmptyString(p.entityId)){
+    if(minor!=null&&SIDE_SET.has(p.side)&&MONETARY_CURRENCY_SET.has(p.currency)&&nonEmptyString(p.entityId)){
       let byCurrency=balances.get(p.entityId);
       if(!byCurrency){byCurrency=new Map();balances.set(p.entityId,byCurrency);}
       const row=byCurrency.get(p.currency)||{debit:0,credit:0,overflow:false};
@@ -520,6 +540,7 @@ Object.assign(exports,{
   ACCOUNT_IDS,
   MONEY_MINOR_UNITS,
   MAX_SAFE_MONEY_MINOR_UNITS,
+  MONETARY_CURRENCIES,
   roundMoney,
   isKnownAccount,
   validateEntity,

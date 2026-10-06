@@ -29,6 +29,7 @@ assert.equal(core.SCHEMA_VERSION, 1);
 assert.equal(core.ACCOUNT_TAXONOMY_VERSION, 1);
 assert.ok(core.LEGAL_ENTITY_KINDS.includes('company'));
 assert.equal(core.EXTERNAL_ENTITY_IDS.seller, 'external:seller');
+assert.deepEqual(core.MONETARY_CURRENCIES, ['JPY']);
 assert.ok(core.isKnownAccount('asset:cash'));
 assert.equal(core.isKnownAccount('asset:not-real'), false);
 
@@ -164,6 +165,16 @@ function validOperation() {
     debitMinorUnits: 123456789,
     creditMinorUnits: 123456789
   }, 'global diagnostic totals may balance while entity books do not');
+}
+
+for (const currency of ['JYP', 'USD']) {
+  const op = validOperation();
+  op.postings[0].currency = currency;
+  op.postings[1].currency = currency;
+  const result = core.validateOperation(op);
+  assert.equal(result.ok, false, `${currency} must be rejected outside the approved JPY domain`);
+  assert.ok(hasCode(result, 'POSTING_CURRENCY_UNSUPPORTED'));
+  assert.equal(result.currencyBalances[currency], undefined, 'unsupported currencies must not enter balance diagnostics');
 }
 
 // 3. Monetary domain rejects negative, non-finite, sub-cent and out-of-envelope values.
@@ -353,6 +364,38 @@ assert.throws(() => core.roundMoney(Number.MAX_SAFE_INTEGER), /envelope/);
   const taggedResult = core.validateOperation(tagged);
   assert.ok(hasCode(taggedResult, 'METADATA_SYMBOL_KEY'));
   assert.equal(toStringTagExecuted, false, 'metadata validation must not invoke Symbol.toStringTag');
+ 
+  const previousObjectToJSON = Object.getOwnPropertyDescriptor(Object.prototype, 'toJSON');
+  Object.defineProperty(Object.prototype, 'toJSON', {
+    configurable: true,
+    value() { return 1n; }
+  });
+  try {
+    const pollutedObjectPrototype = validOperation();
+    const pollutedObjectResult = core.validateOperation(pollutedObjectPrototype);
+    assert.equal(pollutedObjectResult.ok, false);
+    assert.ok(hasCode(pollutedObjectResult, 'OPERATION_NOT_PLAIN_RECORD'));
+    assert.throws(() => JSON.stringify(pollutedObjectPrototype), /BigInt|serialize/i);
+  } finally {
+    if(previousObjectToJSON)Object.defineProperty(Object.prototype, 'toJSON', previousObjectToJSON);
+    else delete Object.prototype.toJSON;
+  }
+
+  const previousArrayToJSON = Object.getOwnPropertyDescriptor(Array.prototype, 'toJSON');
+  Object.defineProperty(Array.prototype, 'toJSON', {
+    configurable: true,
+    value() { return 1n; }
+  });
+  try {
+    const pollutedArrayPrototype = validOperation();
+    const pollutedArrayResult = core.validateOperation(pollutedArrayPrototype);
+    assert.equal(pollutedArrayResult.ok, false);
+    assert.ok(hasCode(pollutedArrayResult, 'OPERATION_POSTINGS_NOT_PLAIN_ARRAY'));
+    assert.throws(() => JSON.stringify(pollutedArrayPrototype), /BigInt|serialize/i);
+  } finally {
+    if(previousArrayToJSON)Object.defineProperty(Array.prototype, 'toJSON', previousArrayToJSON);
+    else delete Array.prototype.toJSON;
+  }
 }
 
 // 8. Operation/posting records must use own data properties; inherited values and accessors fail closed.
