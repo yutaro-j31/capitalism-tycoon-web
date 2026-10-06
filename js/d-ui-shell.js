@@ -23,6 +23,7 @@ const ALL_NAV=[
 let selectedEntity;
 let mapDirectoryOpen=null;
 let historySyncing=false;
+let historyTab=null;
 const HISTORY_STATE_KEY='capitalismTycoonTab';
 /*
  * PR B: non-persistent UI-only filter for Phase 2 markers (see docs/map-
@@ -55,16 +56,25 @@ function historyState(tab){
 }
 function syncHistoryEntry(tab=activeTab()){
   if(!tab||typeof globalThis.history?.replaceState!=='function')return false;
+  historyTab=tab;
   if(globalThis.history.state?.[HISTORY_STATE_KEY]===tab)return false;
   globalThis.history.replaceState(historyState(tab),'',globalThis.location?.href||undefined);
   return true;
 }
 function pushTabHistory(tab){
-  const current=activeTab();
+  const current=historyTab||activeTab();
   if(historySyncing||!tab||tab===current||typeof globalThis.history?.pushState!=='function')return false;
   syncHistoryEntry(current);
   globalThis.history.pushState(historyState(tab),'',globalThis.location?.href||undefined);
+  historyTab=tab;
   return true;
+}
+function reconcileTabHistory(tab=activeTab()){
+  if(!tab)return false;
+  if(historySyncing){historyTab=tab;return false;}
+  if(historyTab===null)return syncHistoryEntry(tab);
+  if(tab!==historyTab)return pushTabHistory(tab);
+  return syncHistoryEntry(tab);
 }
 function handlePopstate(event){
   const tab=event?.state?.[HISTORY_STATE_KEY];
@@ -357,9 +367,9 @@ function enhanceMap(g){
 function renderKey(g){return [g.week,g.selectedTab,g.stores?.length,g.companyCash,g.lastReport?.profit,selectedEntity,mapFilterKind].join(':');}
 function enhance(force=false,context=null){
   const app=context?.app||document.getElementById('app');const g=context?.state||game();const e=context?.engine||engine();if(!app||!g)return false;
-  if(document.getElementById('setup-form')){document.body.classList.remove('d-ui-active');return false;}
+  if(document.getElementById('setup-form')){document.body.classList.remove('d-ui-active');historyTab=null;return false;}
   const key=renderKey(g);if(!force&&app.dataset.dUiKey===key&&document.getElementById('d-ui-sidebar'))return false;
-  app.dataset.dUiKey=key;document.body.classList.add('d-ui-active');enhanceTopbar(g,e);ensureNavigation(g);syncHistoryEntry(activeTab());enhanceMap(g);return true;
+  app.dataset.dUiKey=key;document.body.classList.add('d-ui-active');enhanceTopbar(g,e);ensureNavigation(g);reconcileTabHistory(activeTab());enhanceMap(g);return true;
 }
 /*
  * Below 1180px css/d-ui-reference-fidelity.css drops .d-context-panel out of
@@ -440,6 +450,6 @@ function install(){
   }});
   return true;
 }
-modules.dUIShell=Object.freeze({PRIMARY_NAV,DOCK_NAV,ALL_NAV,money,reportSeries,sparkline,currentKpis,currentLocation,missionRows,missionValue,selectedDetail,renderMapWorkspace,setCommandMenu,syncHistoryEntry,pushTabHistory,handlePopstate,enhance,handleClick,handleKeydown,install,__installed:true});
+modules.dUIShell=Object.freeze({PRIMARY_NAV,DOCK_NAV,ALL_NAV,money,reportSeries,sparkline,currentKpis,currentLocation,missionRows,missionValue,selectedDetail,renderMapWorkspace,setCommandMenu,syncHistoryEntry,pushTabHistory,reconcileTabHistory,handlePopstate,enhance,handleClick,handleKeydown,install,__installed:true});
 install();
 })();
