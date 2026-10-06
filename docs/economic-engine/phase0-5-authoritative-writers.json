@@ -93,6 +93,12 @@
         ]
       },
       {
+        "file": "js/economic-read-model.js",
+        "tokens": [
+          "companyCash"
+        ]
+      },
+      {
         "file": "js/engine.js",
         "tokens": [
           "companyCash"
@@ -683,6 +689,12 @@
         ]
       },
       {
+        "file": "js/economic-read-model.js",
+        "tokens": [
+          "companyDebt"
+        ]
+      },
+      {
         "file": "js/engine.js",
         "tokens": [
           "companyDebt"
@@ -1159,6 +1171,15 @@
         ]
       },
       {
+        "file": "js/economic-read-model.js",
+        "tokens": [
+          "externalShareholderRatio",
+          "founderShares",
+          "sharesOut",
+          "treasuryBuybackShares"
+        ]
+      },
+      {
         "file": "js/engine.js",
         "tokens": [
           "externalShareholderRatio",
@@ -1272,6 +1293,12 @@
       },
       {
         "file": "js/completion.js",
+        "tokens": [
+          "personalCash"
+        ]
+      },
+      {
+        "file": "js/economic-read-model.js",
         "tokens": [
           "personalCash"
         ]

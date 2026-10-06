@@ -91,6 +91,7 @@ assert.equal(report.engineCapabilities.canonicalNormalizeBoundary, true);
 assert.equal(report.engineCapabilities.explicitSimulationSeedConfigure, true);
 assert.equal(report.engineCapabilities.deterministicSimulationRng, true);
 assert.equal(report.engineCapabilities.financeValidation, true);
+assert.equal(report.engineCapabilities.entityAwareLegacyReadModel, true);
 // P0.5-1 owns the core capability contract. Later slices may legitimately promote additional
 // capability flags from false to true; keep only still-unimplemented later-phase claims pinned here.
 assert.equal(report.engineCapabilities.csvReport, true);

@@ -205,6 +205,7 @@ function declareEngineCapabilities(loaded) {
     explicitSimulationSeedConfigure: true,
     deterministicSimulationRng: Boolean(loaded.modules.simulationRng?.ensure),
     financeValidation: typeof loaded.modules.finance?.validate === 'function',
+    entityAwareLegacyReadModel: typeof loaded.modules.economicReadModel?.snapshot === 'function',
     semanticHashVersions: Object.freeze(Object.keys(SEMANTIC_PROJECTION_REGISTRY).map(Number)),
     jsonReport: true,
     saveReloadFork: true,
@@ -486,8 +487,14 @@ function advanceForkPair(leftRuntime, rightRuntime, weeks, options = {}) {
 function snapshotLegacyAdapterParity(runtime) {
   const state = runtime.engine.g;
   const finance = runtime.loaded.modules.finance;
+  const economicReadModel = runtime.loaded.modules.economicReadModel;
+  if (!economicReadModel?.snapshot || !economicReadModel?.compareLegacyParity) {
+    throw new Error('Phase 1 entity-aware legacy read model is unavailable.');
+  }
   const validation = finance.validate(state);
   const statements = finance.buildStatements(state, '52');
+  const entityAwareProjection = economicReadModel.snapshot(state);
+  const entityAwareParity = economicReadModel.compareLegacyParity(state, entityAwareProjection);
   const activeLoanDebt = (state.finance?.loans || [])
     .filter(row => row?.status === 'active')
     .reduce((sum, row) => sum + Number(row.outstandingPrincipal || 0), 0);
@@ -510,7 +517,8 @@ function snapshotLegacyAdapterParity(runtime) {
     { id:'external-ownership-ratio-reconcile', ok:Math.abs(Number(state.externalShareholderRatio||0)-expectedExternalRatio)<=1e-9, authoritative:expectedExternalRatio, adapter:Number(state.externalShareholderRatio||0) },
     { id:'cash-flow-ending-vs-authoritative-cash', ok:Math.abs(cfEnding-Number(state.companyCash))<=0.5, authoritative:Number(state.companyCash), adapter:cfEnding },
     { id:'cash-flow-rollforward', ok:Math.abs((cfOpening+cfChange)-cfEnding)<=0.5, expectedEndingCash:cfOpening+cfChange, actualEndingCash:cfEnding },
-    { id:'finance-validate', ok:validation.ok===true, errors:Object.freeze([...(validation.errors||[])]) }
+    { id:'finance-validate', ok:validation.ok===true, errors:Object.freeze([...(validation.errors||[])]) },
+    ...entityAwareParity.checks
   ];
   const companyCashCheck=invariants.find(row=>row.id==='company-cash-vs-balance-sheet');
   const debtCheck=invariants.find(row=>row.id==='company-debt-vs-active-loans');
@@ -522,7 +530,13 @@ function snapshotLegacyAdapterParity(runtime) {
     companyCash:Object.freeze({ok:companyCashCheck.ok,authoritative:Number(state.companyCash),statement:bsCash}),
     debt:Object.freeze({ok:debtCheck.ok,authoritative:Number(state.companyDebt||0),instruments:activeLoanDebt}),
     ownership:Object.freeze({ok:ownershipChecks.every(row=>row.ok),sharesOut,founderShares,treasuryShares,externalRatio:expectedExternalRatio,checks:Object.freeze(ownershipChecks)}),
-    standaloneFinance:Object.freeze({ok:standaloneChecks.every(row=>row.ok),errors:Object.freeze([...(validation.errors||[])]),endingCashDifference:cfEnding-Number(state.companyCash),rollforwardDifference:(cfOpening+cfChange)-cfEnding})
+    standaloneFinance:Object.freeze({ok:standaloneChecks.every(row=>row.ok),errors:Object.freeze([...(validation.errors||[])]),endingCashDifference:cfEnding-Number(state.companyCash),rollforwardDifference:(cfOpening+cfChange)-cfEnding}),
+    entityAwareReadModel:Object.freeze({
+      ok:entityAwareParity.ok,
+      readModelVersion:entityAwareProjection.readModelVersion,
+      entityIds:Object.freeze(entityAwareProjection.entities.map(row=>row.entity.entityId)),
+      checks:entityAwareParity.checks
+    })
   });
 }
 

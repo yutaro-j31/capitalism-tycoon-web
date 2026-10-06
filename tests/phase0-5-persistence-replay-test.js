@@ -44,6 +44,7 @@ assert.equal(report.engineCapabilities.operationReplayProbe, true);
 assert.equal(report.engineCapabilities.deterministicRollbackProbe, true);
 assert.equal(report.engineCapabilities.deterministicIdProbe, true);
 assert.equal(report.engineCapabilities.legacyAdapterParityProbe, true);
+assert.equal(report.engineCapabilities.entityAwareLegacyReadModel, true);
 assert.equal(report.engineCapabilities.legacySeedClassification, true);
 assert.equal(report.engineCapabilities.csvReport, true);
 assert.equal(report.engineCapabilities.markdownReport, true);
@@ -112,6 +113,9 @@ assert.equal(report.legacyAdapterParity.companyCash.ok, true);
 assert.equal(report.legacyAdapterParity.debt.ok, true);
 assert.equal(report.legacyAdapterParity.ownership.ok, true);
 assert.equal(report.legacyAdapterParity.standaloneFinance.ok, true);
+assert.equal(report.legacyAdapterParity.entityAwareReadModel.ok, true);
+assert.equal(report.legacyAdapterParity.entityAwareReadModel.readModelVersion, 1);
+assert.deepEqual([...report.legacyAdapterParity.entityAwareReadModel.entityIds], ['entity:company:player', 'entity:person:founder']);
 assert(report.legacyAdapterParity.invariants.every(row => row.ok), JSON.stringify(report.legacyAdapterParity.invariants));
 for (const id of [
   'company-cash-vs-balance-sheet',
@@ -122,7 +126,39 @@ for (const id of [
   'external-ownership-ratio-reconcile',
   'cash-flow-ending-vs-authoritative-cash',
   'cash-flow-rollforward',
-  'finance-validate'
+  'finance-validate',
+  'entity-read-root-metadata',
+  'entity-read-entity-set',
+  'entity-read-company-entity',
+  'entity-read-founder-entity',
+  'entity-read-company-account-bindings',
+  'entity-read-founder-account-bindings',
+  'entity-read-company-account-rows',
+  'entity-read-founder-account-rows',
+  'entity-read-company-cash',
+  'entity-read-personal-cash',
+  'entity-read-company-debt',
+  'entity-read-personal-debt',
+  'entity-read-company-debt-instrument-bindings',
+  'entity-read-company-debt-instruments',
+  'entity-read-company-loan-principal',
+  'entity-read-founder-debt-receivable-bindings',
+  'entity-read-founder-debt-receivable-instruments',
+  'entity-read-founder-loan-receivable',
+  'entity-read-ownership-bindings',
+  'entity-read-ownership-source-paths',
+  'entity-read-public-company-status',
+  'entity-read-issued-shares',
+  'entity-read-treasury-shares',
+  'entity-read-outstanding-shares',
+  'entity-read-legacy-founder-shares',
+  'entity-read-personally-acquired-own-shares',
+  'entity-read-founder-beneficial-shares',
+  'entity-read-ownership-conservation',
+  'entity-read-legacy-external-shareholder-ratio',
+  'entity-read-company-market-holdings',
+  'entity-read-personal-own-share-dedup',
+  'entity-read-personal-market-holdings'
 ]) assert(report.legacyAdapterParity.invariants.some(row => row.id === id), `missing parity invariant ${id}`);
 
 // 7. New-game runs remain eligible for calibration aggregation.
