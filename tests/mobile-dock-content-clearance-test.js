@@ -35,6 +35,9 @@ assert.match(mobile, /\.d-menu-toggle::after\{content:"MENU"/, 'fifth mobile slo
 assert.match(mobile, /\.d-nav-button\.active\{[\s\S]*?color:#9a7cff!important;[\s\S]*?box-shadow:inset 0 2px 0 #7c5cff!important/, 'normal mobile active navigation must use the violet interaction accent');
 assert.match(mobile, /\.d-menu-toggle\[aria-expanded="true"\]\{[\s\S]*?color:#9a7cff!important/, 'open menu state must use the same violet interaction accent');
 assert.match(mobile, /#d-ui-dock\{display:none!important\}/, 'legacy floating help dock must not compete with the five-tab iPhone navigation');
+assert.match(mobile, /:has\(#screen\.pe-active\) #d-ui-sidebar nav\{[\s\S]*?grid-template-columns:repeat\(5,minmax\(0,1fr\)\)!important/, 'PE mode must retain all five production PE navigation destinations on iPhone');
+assert.match(mobile, /:has\(#screen\.pe-active\) #d-ui-sidebar \.d-nav-button\[data-pe-view\]\{[\s\S]*?display:flex!important[\s\S]*?min-height:60px!important/, 'PE mode controls must remain visible and tappable on iPhone');
+assert.match(mobile, /:has\(#screen\.pe-active\) #d-ui-sidebar \.d-menu-toggle\{display:none!important\}/, 'PE mode must devote the five-slot dock to Fund, Deals, Portfolio, Network, and Record');
 
 assert.match(mobile, /env\(safe-area-inset-top,0px\)/, 'compact header must respect the top safe area');
 assert.match(mobile, /env\(safe-area-inset-bottom,0px\)/, 'bottom dock must respect the bottom safe area');
