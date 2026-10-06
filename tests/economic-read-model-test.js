@@ -55,6 +55,8 @@ Object.assign(state,{
     AAA:{qty:4,avg:12}
   }
 });
+state.personalStocks[state.ticker]={qty:25,avg:900};
+state.externalShareholderRatio=1-(state.founderShares/Math.max(1,state.sharesOut-state.treasuryBuybackShares));
 state.finance.loans=[
   {
     loanID:'loan-z-bank',
@@ -130,11 +132,20 @@ assert(Array.from(company.marketHoldings).every(row=>row.entityId===adapter.PLAY
 assert(Array.from(founder.marketHoldings).every(row=>row.entityId===adapter.FOUNDER_ENTITY_ID));
 
 assert.equal(model.ownership.securityClassId,adapter.PLAYER_COMPANY_COMMON_SECURITY_CLASS_ID);
-assert.equal(model.ownership.legacySharesOut,1_000);
-assert.equal(model.ownership.founderShares,600);
+assert.equal(model.ownership.issuedShares,1_000);
 assert.equal(model.ownership.treasuryShares,100);
-assert.equal(model.ownership.externalShareholderRatio,0.4);
+assert.equal(model.ownership.outstandingShares,900);
+assert.equal(model.ownership.legacyFounderShares,600);
+assert.equal(model.ownership.personallyAcquiredOwnShares,25);
+assert.equal(model.ownership.personallyAcquiredOwnSharesAverageCost,900);
+assert.equal(model.ownership.founderBeneficialShares,625);
+assert.equal(model.ownership.nonFounderBeneficialShares,275);
+assert.equal(model.ownership.founderBeneficialRatio,625/900);
+assert.equal(model.ownership.nonFounderBeneficialRatio,275/900);
+assert.equal(model.ownership.legacyExternalShareholderRatio,state.externalShareholderRatio);
 assert.equal(model.ownership.publicCompany,true);
+assert.equal(model.ownership.sourcePaths.personallyAcquiredOwnShares,`personalStocks.${state.ticker}`);
+assert.equal(Array.from(founder.marketHoldings).some(row=>row.instrumentId===state.ticker),false,'own-company personal shares must not remain in generic holdings');
 
 const parity=adapter.compareLegacyParity(state,model);
 assert.equal(parity.ok,true,JSON.stringify(parity));
@@ -160,11 +171,16 @@ for(const id of [
   'entity-read-ownership-bindings',
   'entity-read-ownership-source-paths',
   'entity-read-public-company-status',
-  'entity-read-shares-out',
-  'entity-read-founder-shares',
+  'entity-read-issued-shares',
   'entity-read-treasury-shares',
-  'entity-read-external-shareholder-ratio',
+  'entity-read-outstanding-shares',
+  'entity-read-legacy-founder-shares',
+  'entity-read-personally-acquired-own-shares',
+  'entity-read-founder-beneficial-shares',
+  'entity-read-ownership-conservation',
+  'entity-read-legacy-external-shareholder-ratio',
   'entity-read-company-market-holdings',
+  'entity-read-personal-own-share-dedup',
   'entity-read-personal-market-holdings'
 ])assert.equal(Array.from(parity.checks).some(row=>row.id===id&&row.ok),true,`missing passing parity check ${id}`);
 assert.equal(JSON.stringify(state),before,'parity diagnostics must not mutate authoritative state');
@@ -294,22 +310,64 @@ const wrongOwnership=adapter.compareLegacyParity(state,{
 });
 assert.equal(wrongOwnership.ok,false);
 assert.equal(Array.from(wrongOwnership.checks).find(row=>row.id==='entity-read-ownership-bindings').ok,false);
-assert.equal(Array.from(wrongOwnership.checks).find(row=>row.id==='entity-read-founder-shares').ok,false);
+assert.equal(Array.from(wrongOwnership.checks).find(row=>row.id==='entity-read-founder-beneficial-shares').ok,false);
 assert.equal(Array.from(wrongOwnership.checks).find(row=>row.id==='entity-read-treasury-shares').ok,false);
 
 const wrongOwnershipProvenance=adapter.compareLegacyParity(state,{
   ...model,
-  ownership:{...model.ownership,sourcePaths:{...model.ownership.sourcePaths,founderShares:'personalStocks'}}
+  ownership:{...model.ownership,sourcePaths:{...model.ownership.sourcePaths,legacyFounderShares:'personalStocks'}}
 });
 assert.equal(wrongOwnershipProvenance.ok,false);
 assert.equal(Array.from(wrongOwnershipProvenance.checks).find(row=>row.id==='entity-read-ownership-source-paths').ok,false);
 
 const wrongSharesOut=adapter.compareLegacyParity(state,{
   ...model,
-  ownership:{...model.ownership,legacySharesOut:model.ownership.legacySharesOut+1}
+  ownership:{...model.ownership,issuedShares:model.ownership.issuedShares+1}
 });
 assert.equal(wrongSharesOut.ok,false);
-assert.equal(Array.from(wrongSharesOut.checks).find(row=>row.id==='entity-read-shares-out').ok,false);
+assert.equal(Array.from(wrongSharesOut.checks).find(row=>row.id==='entity-read-issued-shares').ok,false);
+
+const wrongPersonalOwnQuantity=adapter.compareLegacyParity(state,{
+  ...model,
+  ownership:{...model.ownership,personallyAcquiredOwnShares:model.ownership.personallyAcquiredOwnShares+1}
+});
+assert.equal(wrongPersonalOwnQuantity.ok,false);
+assert.equal(Array.from(wrongPersonalOwnQuantity.checks).find(row=>row.id==='entity-read-personally-acquired-own-shares').ok,false);
+
+const wrongBeneficialShares=adapter.compareLegacyParity(state,{
+  ...model,
+  ownership:{...model.ownership,founderBeneficialShares:model.ownership.founderBeneficialShares+1}
+});
+assert.equal(wrongBeneficialShares.ok,false);
+assert.equal(Array.from(wrongBeneficialShares.checks).find(row=>row.id==='entity-read-founder-beneficial-shares').ok,false);
+assert.equal(Array.from(wrongBeneficialShares.checks).find(row=>row.id==='entity-read-ownership-conservation').ok,false);
+
+const duplicatedOwnHoldingFounder={
+  ...founder,
+  marketHoldings:[
+    ...Array.from(founder.marketHoldings),
+    {
+      entityId:adapter.FOUNDER_ENTITY_ID,
+      instrumentId:state.ticker,
+      quantity:25,
+      averageCost:900,
+      currency:'JPY',
+      sourcePath:`personalStocks.${state.ticker}`
+    }
+  ]
+};
+const duplicatedOwnHolding=adapter.compareLegacyParity(state,{...model,entities:[company,duplicatedOwnHoldingFounder]});
+assert.equal(duplicatedOwnHolding.ok,false);
+assert.equal(Array.from(duplicatedOwnHolding.checks).find(row=>row.id==='entity-read-personal-own-share-dedup').ok,false);
+assert.equal(Array.from(duplicatedOwnHolding.checks).find(row=>row.id==='entity-read-personal-market-holdings').ok,false);
+
+const noOwnHoldingState=JSON.parse(JSON.stringify(state));
+delete noOwnHoldingState.personalStocks[noOwnHoldingState.ticker];
+const noOwnHoldingModel=adapter.snapshot(noOwnHoldingState);
+assert.equal(noOwnHoldingModel.ownership.personallyAcquiredOwnShares,0);
+assert.equal(noOwnHoldingModel.ownership.founderBeneficialShares,noOwnHoldingState.founderShares);
+assert.equal(Array.from(noOwnHoldingModel.entities).find(row=>row.entity.entityId===adapter.FOUNDER_ENTITY_ID).marketHoldings.some(row=>row.instrumentId===noOwnHoldingState.ticker),false);
+assert.equal(adapter.compareLegacyParity(noOwnHoldingState,noOwnHoldingModel).ok,true);
 
 const wrongListingStatus=adapter.compareLegacyParity(state,{
   ...model,
