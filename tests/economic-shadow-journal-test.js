@@ -122,6 +122,32 @@ assert.equal(journal.evidence(hydrated).liveOperationCount,2);
 assert.equal(journal.evidence(hydrated).livePostingCount,4);
 assert.equal(journal.evidence(hydrated).receiptCount,1);
 
+// Compacted receipts belong to the checkpointed sequence range, while live
+// operations must remain strictly newer than the checkpoint.
+{
+  const wrongReceipt=JSON.parse(serialized);
+  wrongReceipt.receipts[0].sequence=wrongReceipt.checkpoint.compactedThroughSequence+1;
+  assert.throws(
+    ()=>journal.hydrate(JSON.stringify(wrongReceipt)),
+    /compacted receipts must not be newer/
+  );
+
+  const wrongLive=JSON.parse(serialized);
+  wrongLive.liveOperations[0].sequence=wrongLive.checkpoint.compactedThroughSequence;
+  assert.throws(
+    ()=>journal.hydrate(JSON.stringify(wrongLive)),
+    /live operation sequences must be newer/
+  );
+
+  const impossibleEmpty=journal.createJournal(limits);
+  const tamperedEmpty=JSON.parse(journal.serialize(impossibleEmpty));
+  tamperedEmpty.checkpoint.compactedPostingCount=1;
+  assert.throws(
+    ()=>journal.hydrate(JSON.stringify(tamperedEmpty)),
+    /empty checkpoint cannot retain compacted counts/
+  );
+}
+
 const beforeDuplicate=journal.serialize(hydrated);
 const duplicate=journal.append(hydrated,operation(1),{currentPeriod:3});
 assert.equal(duplicate.status,'duplicate');
