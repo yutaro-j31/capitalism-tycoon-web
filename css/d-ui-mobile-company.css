@@ -198,7 +198,7 @@
     color:#9aa8bc!important;font-size:0!important;box-sizing:border-box!important;
   }
   body.d-ui-active #d-ui-sidebar .d-menu-toggle::before{content:"☰";font-size:19px;line-height:24px}
-  body.d-ui-active #d-ui-sidebar .d-menu-toggle::after{content:"メニュー";font-size:10px;font-weight:800;line-height:1.05}
+  body.d-ui-active #d-ui-sidebar .d-menu-toggle::after{content:"MENU";font-size:10px;font-weight:800;line-height:1.05}
   body.d-ui-active #d-ui-sidebar .d-menu-toggle[aria-expanded="true"]{
     color:#9a7cff!important;background:linear-gradient(180deg,rgba(124,92,255,.16),rgba(124,92,255,.04))!important;
     box-shadow:inset 0 2px 0 #7c5cff!important;
