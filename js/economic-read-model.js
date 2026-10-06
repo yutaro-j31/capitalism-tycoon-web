@@ -163,14 +163,16 @@ function snapshot(state){
 function entityById(readModel,entityId){
   return readModel.entities.find(row=>row?.entity?.entityId===entityId)||null;
 }
-function balanceByAccount(entity,accountId){
-  return entity?.accountBalances?.find(row=>row.accountId===accountId)?.amount;
+function balanceRowByAccount(entity,accountId,expectedEntityId){
+  const row=entity?.accountBalances?.find(candidate=>candidate.accountId===accountId);
+  return row&&row.entityId===expectedEntityId?row:null;
 }
-function compareHoldings(source,rows){
+function compareHoldings(source,rows,expectedEntityId){
   const keys=Object.keys(source||{}).sort(compareText);
   if(keys.length!==(rows?.length||0))return false;
   for(let index=0;index<keys.length;index++){
     const key=keys[index],holding=source[key]||{},row=rows[index];
+    if(row.entityId!==expectedEntityId)return false;
     if(row.instrumentId!==key)return false;
     if(row.quantity!==finiteOr(holding.qty,0,`holding.${key}.qty`))return false;
     if(row.averageCost!==finiteOr(holding.avg,0,`holding.${key}.avg`))return false;
@@ -182,23 +184,35 @@ function compareLegacyParity(state,readModel=snapshot(state)){
   const company=entityById(readModel,PLAYER_COMPANY_ENTITY_ID);
   const founder=entityById(readModel,FOUNDER_ENTITY_ID);
   if(!company||!founder)throw new TypeError('Economic read model must contain company and founder entities.');
+  const companyCashRow=balanceRowByAccount(company,'asset:cash',PLAYER_COMPANY_ENTITY_ID);
+  const companyDebtRow=balanceRowByAccount(company,'liability:debt-principal',PLAYER_COMPANY_ENTITY_ID);
+  const personalCashRow=balanceRowByAccount(founder,'asset:cash',FOUNDER_ENTITY_ID);
+  const personalDebtRow=balanceRowByAccount(founder,'liability:debt-principal',FOUNDER_ENTITY_ID);
+  const companyAccountBindings=(company.accountBalances||[]).every(row=>row?.entityId===PLAYER_COMPANY_ENTITY_ID);
+  const founderAccountBindings=(founder.accountBalances||[]).every(row=>row?.entityId===FOUNDER_ENTITY_ID);
+  const companyDebtBindings=(company.debtInstruments||[]).every(row=>row?.entityId===PLAYER_COMPANY_ENTITY_ID);
+  const founderDebtBindings=(founder.debtReceivables||[]).every(row=>row?.entityId===FOUNDER_ENTITY_ID&&row?.counterpartyEntityId===PLAYER_COMPANY_ENTITY_ID);
   const loanPrincipal=(company.debtInstruments||[]).reduce((sum,row)=>sum+finite(row.outstandingPrincipal,'debtInstruments.outstandingPrincipal'),0);
   const founderReceivable=(founder.debtReceivables||[]).reduce((sum,row)=>sum+finite(row.outstandingPrincipal,'debtReceivables.outstandingPrincipal'),0);
   const expectedFounderReceivable=(state.finance?.loans||[])
     .filter(row=>row&&String(row.status||'active')!=='repaid'&&row.sourceType===modules.finance.FOUNDER_LOAN_SOURCE)
     .reduce((sum,row)=>sum+finiteOr(row.outstandingPrincipal,0,'finance.loans.outstandingPrincipal'),0);
   const checks=[
-    {id:'entity-read-company-cash',ok:balanceByAccount(company,'asset:cash')===finite(state.companyCash,'companyCash')},
-    {id:'entity-read-personal-cash',ok:balanceByAccount(founder,'asset:cash')===finite(state.personalCash,'personalCash')},
-    {id:'entity-read-company-debt',ok:balanceByAccount(company,'liability:debt-principal')===finite(state.companyDebt,'companyDebt')},
-    {id:'entity-read-personal-debt',ok:balanceByAccount(founder,'liability:debt-principal')===finite(state.personalDebt,'personalDebt')},
-    {id:'entity-read-company-loan-principal',ok:Math.abs(loanPrincipal-finite(state.companyDebt,'companyDebt'))<=LEGACY_DEBT_TOLERANCE,authoritative:finite(state.companyDebt,'companyDebt'),adapter:loanPrincipal},
-    {id:'entity-read-founder-loan-receivable',ok:founderReceivable===expectedFounderReceivable,authoritative:expectedFounderReceivable,adapter:founderReceivable},
-    {id:'entity-read-founder-shares',ok:readModel.ownership.founderShares===finiteOr(state.founderShares,0,'founderShares')},
-    {id:'entity-read-treasury-shares',ok:readModel.ownership.treasuryShares===finiteOr(state.treasuryBuybackShares,0,'treasuryBuybackShares')},
-    {id:'entity-read-external-shareholder-ratio',ok:readModel.ownership.externalShareholderRatio===finiteOr(state.externalShareholderRatio,0,'externalShareholderRatio')},
-    {id:'entity-read-company-market-holdings',ok:compareHoldings(state.companyStocks,company.marketHoldings)},
-    {id:'entity-read-personal-market-holdings',ok:compareHoldings(state.personalStocks,founder.marketHoldings)}
+    {id:'entity-read-company-account-bindings',ok:companyAccountBindings},
+    {id:'entity-read-founder-account-bindings',ok:founderAccountBindings},
+    {id:'entity-read-company-cash',ok:companyCashRow?.amount===finite(state.companyCash,'companyCash')},
+    {id:'entity-read-personal-cash',ok:personalCashRow?.amount===finite(state.personalCash,'personalCash')},
+    {id:'entity-read-company-debt',ok:companyDebtRow?.amount===finite(state.companyDebt,'companyDebt')},
+    {id:'entity-read-personal-debt',ok:personalDebtRow?.amount===finite(state.personalDebt,'personalDebt')},
+    {id:'entity-read-company-debt-instrument-bindings',ok:companyDebtBindings},
+    {id:'entity-read-company-loan-principal',ok:companyDebtBindings&&Math.abs(loanPrincipal-finite(state.companyDebt,'companyDebt'))<=LEGACY_DEBT_TOLERANCE,authoritative:finite(state.companyDebt,'companyDebt'),adapter:loanPrincipal},
+    {id:'entity-read-founder-debt-receivable-bindings',ok:founderDebtBindings},
+    {id:'entity-read-founder-loan-receivable',ok:founderDebtBindings&&founderReceivable===expectedFounderReceivable,authoritative:expectedFounderReceivable,adapter:founderReceivable},
+    {id:'entity-read-founder-shares',ok:readModel.ownership.founderEntityId===FOUNDER_ENTITY_ID&&readModel.ownership.issuerEntityId===PLAYER_COMPANY_ENTITY_ID&&readModel.ownership.founderShares===finiteOr(state.founderShares,0,'founderShares')},
+    {id:'entity-read-treasury-shares',ok:readModel.ownership.issuerEntityId===PLAYER_COMPANY_ENTITY_ID&&readModel.ownership.treasuryShares===finiteOr(state.treasuryBuybackShares,0,'treasuryBuybackShares')},
+    {id:'entity-read-external-shareholder-ratio',ok:readModel.ownership.issuerEntityId===PLAYER_COMPANY_ENTITY_ID&&readModel.ownership.externalShareholderRatio===finiteOr(state.externalShareholderRatio,0,'externalShareholderRatio')},
+    {id:'entity-read-company-market-holdings',ok:compareHoldings(state.companyStocks,company.marketHoldings,PLAYER_COMPANY_ENTITY_ID)},
+    {id:'entity-read-personal-market-holdings',ok:compareHoldings(state.personalStocks,founder.marketHoldings,FOUNDER_ENTITY_ID)}
   ].map(row=>Object.freeze(row));
   return Object.freeze({
     ok:checks.every(row=>row.ok),
