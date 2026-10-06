@@ -178,4 +178,21 @@ assert.match(marketStyle, /\.market-row:not\(\.header\)>\.button-row>\.btn\{[^}]
 assert.doesNotMatch(script, /function markerPositionsCollide\(/, 'the legacy fixed-slot collision helper must be gone');
 assert.doesNotMatch(script, /MARKER_POSITIONS/, 'the legacy fixed-slot marker table must be gone');
 
+
+assert.match(script, /const HISTORY_STATE_KEY='capitalismTycoonTab'/, 'D UI shell must use a namespaced browser-history state key');
+assert.match(script, /globalThis\.history\.pushState/, 'tab drill-down must push browser history without replacing the production tab action');
+assert.match(script, /globalThis\.history\.replaceState/, 'current production tab must seed browser history');
+assert.match(script, /globalThis\.addEventListener\?\.\('popstate',handlePopstate\)/, 'browser Back/Forward must restore production tabs');
+assert.match(script, /source\.click\(\)/, 'popstate restoration must reuse the existing production tab action rather than duplicate navigation state');
+assert.match(script, /\['pe-portfolio','◫','PEポートフォリオ'\]/, 'PE Portfolio must be a restorable long-tail production route in ALL_NAV');
+assert.match(script, /#d-ui-dock \[data-action="tab"\]\[data-tab\]/, 'popstate restoration must include the dock fallback used by the scrubbed Settings tab');
+assert.match(script, /d-current-location/, 'compact header must expose the current production location');
+assert.match(script, /d-kpi-company-cash/, 'compact header must explicitly identify company cash');
+assert.match(appScript, /engine\.configure\(Object\.fromEntries\(fd\.entries\(\)\)\);engine\.g\.selectedTab='map';engine\.save\(\);render\(\)/, 'new production games must enter the City Map while existing saves retain their saved selectedTab');
+assert.match(appScript, /\['pe-portfolio','💼','PE'\]/, 'PE Portfolio must have an authoritative production TABS source route for MENU proxy and browser history restoration');
+assert.doesNotMatch(script, /WEEK 184|128\.4M/, 'City Lab demo numbers must never enter the production shell');
+for (const tab of ['home','map','business','office','market','venture','ma','overseas','assets','bank','report','founder','strategy','media','legacy','missions','rivals','news','pe-portfolio','settings']) {
+  assert.ok(script.includes(`['${tab}'`), `long-tail production destination ${tab} must remain reachable through the shell/menu`);
+}
+
 console.log('D UI shell contract passed');
