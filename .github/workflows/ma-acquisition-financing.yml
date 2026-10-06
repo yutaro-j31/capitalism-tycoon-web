@@ -4,9 +4,11 @@ on:
   pull_request:
     paths:
       - 'js/ma-deal-room.js'
+      - 'js/ceo-dashboard.js'
       - 'js/app.js'
       - 'css/**'
       - 'tests/ma-deal-room-test.js'
+      - 'tests/ceo-dashboard-webkit-test.js'
       - '.github/workflows/ma-acquisition-financing.yml'
   push:
     branches: [main]
@@ -160,10 +162,13 @@ jobs:
       - name: Install WebKit browser and system dependencies
         run: npx playwright install --with-deps webkit
       - run: node tests/ma-deal-room-webkit-test.js
-      - name: Upload M&A Deal Room WebKit artifact
+      - run: node tests/ceo-dashboard-webkit-test.js
+      - name: Upload M&A Deal Room / CEO Dashboard WebKit artifacts
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: ma-deal-room-webkit
-          path: artifacts/ma-deal-room-webkit
+          name: ma-deal-room-ceo-dashboard-webkit
+          path: |
+            artifacts/ma-deal-room-webkit
+            artifacts/ceo-dashboard-webkit
           if-no-files-found: error
