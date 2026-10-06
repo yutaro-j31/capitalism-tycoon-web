@@ -146,9 +146,13 @@ for(const id of [
   'entity-read-company-debt',
   'entity-read-personal-debt',
   'entity-read-company-debt-instrument-bindings',
+  'entity-read-company-debt-instruments',
   'entity-read-company-loan-principal',
   'entity-read-founder-debt-receivable-bindings',
+  'entity-read-founder-debt-receivable-instruments',
   'entity-read-founder-loan-receivable',
+  'entity-read-ownership-bindings',
+  'entity-read-shares-out',
   'entity-read-founder-shares',
   'entity-read-treasury-shares',
   'entity-read-external-shareholder-ratio',
@@ -193,6 +197,24 @@ assert.equal(wrongReceivableBinding.ok,false);
 assert.equal(Array.from(wrongReceivableBinding.checks).find(row=>row.id==='entity-read-founder-debt-receivable-bindings').ok,false);
 assert.equal(Array.from(wrongReceivableBinding.checks).find(row=>row.id==='entity-read-founder-loan-receivable').ok,false);
 
+const wrongReceivableInstrumentFounder={
+  ...founder,
+  debtReceivables:Array.from(founder.debtReceivables).map(row=>({...row,debtInstrumentId:'loan-nonexistent'}))
+};
+const wrongReceivableInstrument=adapter.compareLegacyParity(state,{...model,entities:[company,wrongReceivableInstrumentFounder]});
+assert.equal(wrongReceivableInstrument.ok,false);
+assert.equal(Array.from(wrongReceivableInstrument.checks).find(row=>row.id==='entity-read-founder-debt-receivable-instruments').ok,false);
+assert.equal(Array.from(wrongReceivableInstrument.checks).find(row=>row.id==='entity-read-founder-loan-receivable').ok,false);
+
+const wrongCompanyInstrumentCompany={
+  ...company,
+  debtInstruments:Array.from(company.debtInstruments).map((row,index)=>index===0?{...row,debtInstrumentId:'loan-nonexistent'}:row)
+};
+const wrongCompanyInstrument=adapter.compareLegacyParity(state,{...model,entities:[wrongCompanyInstrumentCompany,founder]});
+assert.equal(wrongCompanyInstrument.ok,false);
+assert.equal(Array.from(wrongCompanyInstrument.checks).find(row=>row.id==='entity-read-company-debt-instruments').ok,false);
+assert.equal(Array.from(wrongCompanyInstrument.checks).find(row=>row.id==='entity-read-company-loan-principal').ok,false);
+
 const wrongHoldingCompany={
   ...company,
   marketHoldings:Array.from(company.marketHoldings).map((row,index)=>index===0?{...row,entityId:adapter.FOUNDER_ENTITY_ID}:row)
@@ -206,8 +228,16 @@ const wrongOwnership=adapter.compareLegacyParity(state,{
   ownership:{...model.ownership,issuerEntityId:adapter.FOUNDER_ENTITY_ID}
 });
 assert.equal(wrongOwnership.ok,false);
+assert.equal(Array.from(wrongOwnership.checks).find(row=>row.id==='entity-read-ownership-bindings').ok,false);
 assert.equal(Array.from(wrongOwnership.checks).find(row=>row.id==='entity-read-founder-shares').ok,false);
 assert.equal(Array.from(wrongOwnership.checks).find(row=>row.id==='entity-read-treasury-shares').ok,false);
+
+const wrongSharesOut=adapter.compareLegacyParity(state,{
+  ...model,
+  ownership:{...model.ownership,legacySharesOut:model.ownership.legacySharesOut+1}
+});
+assert.equal(wrongSharesOut.ok,false);
+assert.equal(Array.from(wrongSharesOut.checks).find(row=>row.id==='entity-read-shares-out').ok,false);
 
 const modelAgain=adapter.snapshot(state);
 assert.equal(JSON.stringify(modelAgain),JSON.stringify(model),'same authoritative state must produce identical ordered read model');
