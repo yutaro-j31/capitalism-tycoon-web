@@ -1,5 +1,5 @@
 {
-  "method": "lexical-candidate-discovery-plus-maintained-review",
+  "method": "lexical-candidate-discovery-plus-exact-authority-v2",
   "categories": {
     "companyCash": [
       {
@@ -2047,5 +2047,127 @@
     ]
   },
   "status": "declared-and-reviewed",
-  "limitations": "Lexical discovery identifies candidates; reviewer declarations establish intended authority and finance/accounting tests verify behavior."
+  "limitations": "Lexical discovery identifies candidates only. exactAuthority separately records production mutation evidence for reviewed economic paths; finance/accounting tests remain the behavioral verification layer.",
+  "exactAuthority": {
+    "peFundCash": [
+      {
+        "file": "js/pe-acquisition.js",
+        "paths": [
+          "fund.cash"
+        ]
+      },
+      {
+        "file": "js/pe-fund.js",
+        "paths": [
+          "fund.cash"
+        ]
+      },
+      {
+        "file": "js/pe-portfolio-operations.js",
+        "paths": [
+          "fund.cash"
+        ]
+      }
+    ],
+    "pePortfolioCompanyCash": [
+      {
+        "file": "js/pe-portfolio-operations.js",
+        "paths": [
+          "pc.cash"
+        ]
+      }
+    ],
+    "subsidiaryCarryingValues": [
+      {
+        "file": "js/competitor-parity.js",
+        "paths": [
+          "carryingBookValue"
+        ]
+      },
+      {
+        "file": "js/engine.js",
+        "paths": [
+          "carryingBookValue"
+        ]
+      },
+      {
+        "file": "js/expansion.js",
+        "paths": [
+          "carryingBookValue"
+        ]
+      },
+      {
+        "file": "js/group-capital-allocation-execution.js",
+        "paths": [
+          "carryingBookValue"
+        ]
+      },
+      {
+        "file": "js/group-restructuring-candidates.js",
+        "paths": [
+          "carryingBookValue"
+        ]
+      },
+      {
+        "file": "js/group-restructuring-progress.js",
+        "paths": [
+          "carryingBookValue"
+        ]
+      },
+      {
+        "file": "js/inter-subsidiary-synergy-allocation.js",
+        "paths": [
+          "carryingBookValue"
+        ]
+      },
+      {
+        "file": "js/internal-venture-business.js",
+        "paths": [
+          "carryingBookValue"
+        ]
+      },
+      {
+        "file": "js/listed-subsidiary-control-actions.js",
+        "paths": [
+          "carryingBookValue"
+        ]
+      },
+      {
+        "file": "js/listed-subsidiary-follow-on-offering.js",
+        "paths": [
+          "carryingBookValue"
+        ]
+      },
+      {
+        "file": "js/listed-subsidiary-market.js",
+        "paths": [
+          "carryingBookValue"
+        ]
+      },
+      {
+        "file": "js/pe-portfolio-operations.js",
+        "paths": [
+          "carryingBookValue"
+        ]
+      },
+      {
+        "file": "js/subsidiary-integration-synergy.js",
+        "paths": [
+          "carryingBookValue"
+        ]
+      },
+      {
+        "file": "js/subsidiary-ipo-secondary-sale.js",
+        "paths": [
+          "carryingBookValue"
+        ]
+      },
+      {
+        "file": "js/subsidiary-relisting-options.js",
+        "paths": [
+          "carryingBookValue"
+        ]
+      }
+    ]
+  }
 }

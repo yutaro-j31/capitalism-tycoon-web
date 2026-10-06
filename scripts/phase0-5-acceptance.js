@@ -21,11 +21,22 @@ const WRITER_FIELDS = Object.freeze({
   propertyEconomicState: ['properties','personalRealEstateHoldings','propertyTaxAccrued'],
   financeAccountingAuthority: ['finance.transactions','finance.event','recordSnapshot','rebuildSnapshotForWeek']
 });
+const EXACT_WRITER_RULES = Object.freeze({
+  peFundCash: Object.freeze([{path:'fund.cash',pattern:/\bfund\.cash\s*(?:\+\+|--|[+*/-]?=)/}]),
+  pePortfolioCompanyCash: Object.freeze([
+    {path:'portfolioCompany.cash',pattern:/\bportfolioCompany\.cash\s*(?:\+\+|--|[+*/-]?=)/},
+    {path:'pc.cash',pattern:/\bpc\.cash\s*(?:\+\+|--|[+*/-]?=)/}
+  ]),
+  subsidiaryCarryingValues: Object.freeze([{path:'carryingBookValue',pattern:/\bcarryingBookValue\s*(?:\+\+|--|[+*/-]?=|:)/}])
+});
 function hash(value){return crypto.createHash('sha256').update(value).digest('hex');}
 function gate(code, ok, details){return Object.freeze({code,ok:Boolean(ok),details});}
-function discoverAuthoritativeWriters(){
-  const files=fs.readdirSync(path.join(ROOT,'js')).filter(name=>name.endsWith('.js')).sort();
-  const categories={};
+function sourceFiles(options={}){
+  const omitted=new Set((options.omitFiles||[]).map(String));
+  return fs.readdirSync(path.join(ROOT,'js')).filter(name=>name.endsWith('.js')).sort().filter(name=>!omitted.has(`js/${name}`));
+}
+function discoverAuthoritativeWriters(options={}){
+  const files=sourceFiles(options),categories={};
   for(const [category,tokens] of Object.entries(WRITER_FIELDS)){
     const rows=[];
     for(const file of files){
@@ -35,20 +46,41 @@ function discoverAuthoritativeWriters(){
     }
     categories[category]=rows;
   }
-  return Object.freeze({method:'lexical-candidate-discovery-plus-maintained-review',categories});
+  return Object.freeze({method:'lexical-candidate-discovery-plus-exact-authority-v2',categories});
+}
+function discoverExactAuthority(options={}){
+  const files=sourceFiles(options),categories={};
+  for(const [category,rules] of Object.entries(EXACT_WRITER_RULES)){
+    const rows=[];
+    for(const file of files){
+      const source=fs.readFileSync(path.join(ROOT,'js',file),'utf8');
+      const paths=rules.filter(rule=>rule.pattern.test(source)).map(rule=>rule.path);
+      if(paths.length)rows.push({file:`js/${file}`,paths:[...new Set(paths)].sort()});
+    }
+    categories[category]=rows;
+  }
+  return Object.freeze({method:'exact-production-mutation-discovery-v1',categories});
 }
 function canonicalInventory(value){
   const categories={};
   for(const category of Object.keys(value.categories||{}).sort())categories[category]=[...value.categories[category]].map(row=>({file:row.file,tokens:[...row.tokens].sort()})).sort((a,b)=>a.file<b.file?-1:a.file>b.file?1:0);
-  return {method:value.method,categories};
+  const exactAuthority={};
+  for(const category of Object.keys(value.exactAuthority||{}).sort())exactAuthority[category]=[...value.exactAuthority[category]].map(row=>({file:row.file,paths:[...row.paths].sort()})).sort((a,b)=>a.file<b.file?-1:a.file>b.file?1:0);
+  return {method:value.method,categories,exactAuthority};
 }
 function verifyWriterInventory(options={}){
-  const discovered=canonicalInventory(discoverAuthoritativeWriters());
-  if(options.refresh){fs.writeFileSync(INVENTORY_PATH,JSON.stringify({...discovered,status:'declared-and-reviewed',limitations:'Lexical discovery identifies candidates; reviewer declarations establish intended authority and finance/accounting tests verify behavior.'},null,2)+'\n');}
+  const lexical=discoverAuthoritativeWriters(options),exact=discoverExactAuthority(options);
+  const discovered=canonicalInventory({method:lexical.method,categories:lexical.categories,exactAuthority:exact.categories});
+  if(options.refresh){fs.writeFileSync(INVENTORY_PATH,JSON.stringify({...discovered,status:'declared-and-reviewed',limitations:'Lexical discovery identifies candidates only. exactAuthority separately records production mutation evidence for reviewed economic paths; finance/accounting tests remain the behavioral verification layer.'},null,2)+'\n');}
   const declared=JSON.parse(fs.readFileSync(INVENTORY_PATH,'utf8'));
   const expected=canonicalInventory(declared);
   const discoveredHash=hash(JSON.stringify(discovered)),declaredHash=hash(JSON.stringify(expected));
-  return Object.freeze({ok:discoveredHash===declaredHash,discoveredHash,declaredHash,method:discovered.method,status:declared.status,limitations:declared.limitations,categoryCounts:Object.fromEntries(Object.entries(discovered.categories).map(([key,rows])=>[key,rows.length]))});
+  const lexicalDiscoveredHash=hash(JSON.stringify(discovered.categories)),lexicalDeclaredHash=hash(JSON.stringify(expected.categories));
+  const exactAuthorityDiscoveredHash=hash(JSON.stringify(discovered.exactAuthority)),exactAuthorityDeclaredHash=hash(JSON.stringify(expected.exactAuthority));
+  const lexicalHashMatch=lexicalDiscoveredHash===lexicalDeclaredHash,exactAuthorityHashMatch=exactAuthorityDiscoveredHash===exactAuthorityDeclaredHash;
+  const exactAuthorityCounts=Object.fromEntries(Object.entries(discovered.exactAuthority).map(([key,rows])=>[key,rows.length]));
+  const requiredExactCoverage=Object.keys(EXACT_WRITER_RULES).every(key=>exactAuthorityCounts[key]>0);
+  return Object.freeze({ok:discovered.method===declared.method&&lexicalHashMatch&&exactAuthorityHashMatch&&requiredExactCoverage,discoveredHash,declaredHash,lexicalDiscoveredHash,lexicalDeclaredHash,lexicalHashMatch,exactAuthorityDiscoveredHash,exactAuthorityDeclaredHash,exactAuthorityHashMatch,method:discovered.method,status:declared.status,limitations:declared.limitations,categoryCounts:Object.fromEntries(Object.entries(discovered.categories).map(([key,rows])=>[key,rows.length])),exactAuthorityCounts,exactAuthority:discovered.exactAuthority,requiredExactCoverage});
 }
 function verifyPhaseOrder(){
   const loaded=loadGame({headless:true,random:()=>0.5});
@@ -84,4 +116,4 @@ function runAcceptance(options={}){
 function formatMarkdown(report){return `# Phase 0.5 Acceptance Evidence\n\n- Source main SHA: \`${report.sourceMainSha}\`\n- Tier: ${report.scenarioTier}\n- Overall: **${report.overallAcceptanceStatus}**\n- Seeds / persisted roots: ${report.testedSeeds.join(', ')} / ${report.persistedSimulationRngRoots.join(', ')}\n- Classification: clean new-game only; legacy fixtures excluded from calibration\n\n## Gates\n\n${Object.values(report.gates).map(row=>`- ${row.ok?'PASS':'FAIL'} \`${row.code}\``).join('\n')}\n\n## Review boundary\n\nThis evidence does not declare owner acceptance, Gate F acceptance, an implementation baseline, or Phase 1 authorization.\n`;}
 function parse(argv){const out={};for(let i=0;i<argv.length;i++){if(!argv[i].startsWith('--'))continue;const k=argv[i].slice(2),v=argv[i+1]&&!argv[i+1].startsWith('--')?argv[++i]:true;out[k]=v;}return out;}
 if(require.main===module){try{const args=parse(process.argv.slice(2));if(args['refresh-writers']){verifyWriterInventory({refresh:true});process.stdout.write(`Refreshed ${path.relative(ROOT,INVENTORY_PATH)}\n`);process.exit(0);}const report=runAcceptance({tier:args.tier||'smoke',weeks:args.weeks&&Number(args.weeks),seeds:args.seeds&&String(args.seeds).split(',').map(Number),sourceMainSha:args['source-main-sha']});const dir=path.resolve(ROOT,args['output-dir']||'artifacts/phase0-5-acceptance');fs.mkdirSync(dir,{recursive:true});fs.writeFileSync(path.join(dir,'acceptance.json'),phase05.formatJsonReport(report)+'\n');fs.writeFileSync(path.join(dir,'acceptance.md'),formatMarkdown(report));process.stdout.write(`${report.overallAcceptanceStatus}: ${dir}\n`);}catch(error){if(error.report)console.error(phase05.formatJsonReport(error.report));console.error(error.stack||error.message);process.exit(1);}}
-module.exports=Object.freeze({ACCEPTANCE_SCHEMA_VERSION,REQUIRED_PHASE_ORDER,WRITER_FIELDS,discoverAuthoritativeWriters,verifyWriterInventory,verifyPhaseOrder,runAcceptance,formatMarkdown});
+module.exports=Object.freeze({ACCEPTANCE_SCHEMA_VERSION,REQUIRED_PHASE_ORDER,WRITER_FIELDS,EXACT_WRITER_RULES,discoverAuthoritativeWriters,discoverExactAuthority,verifyWriterInventory,verifyPhaseOrder,runAcceptance,formatMarkdown});
