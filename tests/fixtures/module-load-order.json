@@ -2,6 +2,7 @@
   "scripts": [
     "./js/boot-recovery.js",
     "./js/runtime.js",
+    "./js/economic-operation.js",
     "./js/data.js",
     "./js/tenant-site-suitability.js",
     "./js/store-market-environment.js",
