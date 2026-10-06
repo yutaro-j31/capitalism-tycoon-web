@@ -350,13 +350,13 @@ function validatePosting(posting,index,operationId,errors,balances,postingIds,se
   }
 
   if(hasQuantity&&(!Number.isFinite(p.quantityDelta)))addError(errors,'POSTING_QUANTITY_NON_FINITE',`${path}.quantityDelta`,'quantityDelta must be finite');
-  for(const field of OPTIONAL_ID_FIELDS)validateOptionalString(posting[field],`${path}.${field}`,'POSTING_REFERENCE_INVALID',errors);
+  for(const field of OPTIONAL_ID_FIELDS)validateOptionalString(p[field],`${path}.${field}`,'POSTING_REFERENCE_INVALID',errors);
   if(hasQuantity&&Number.isFinite(p.quantityDelta)){
     const requiredReferences=POSITION_REFERENCE_BY_ACCOUNT[p.accountId];
     if(!requiredReferences){
       addError(errors,'POSTING_QUANTITY_ACCOUNT_UNSUPPORTED',`${path}.accountId`,'quantityDelta is only valid for approved position accounts');
     }else{
-      if(!requiredReferences.some(field=>nonEmptyString(posting[field]))){
+      if(!requiredReferences.some(field=>nonEmptyString(p[field]))){
         addError(errors,'POSTING_POSITION_REFERENCE_REQUIRED',path,`quantity posting for ${p.accountId} requires ${requiredReferences.join(' or ')}`);
       }
       if(INTEGER_SECURITY_QUANTITY_ACCOUNTS.has(p.accountId)&&!Number.isSafeInteger(p.quantityDelta)){
@@ -376,20 +376,20 @@ function validateOperation(operation){
   if(!o){
     return Object.freeze({ok:false,errors:Object.freeze(errors),entityCurrencyBalances:Object.freeze(Object.create(null)),currencyBalances:Object.freeze(Object.create(null))});
   }
-  if(o.schemaVersion!==SCHEMA_VERSION)addError(errors,'OPERATION_SCHEMA_VERSION_INVALID','o.schemaVersion',`schemaVersion must equal ${SCHEMA_VERSION}`);
-  validateRequiredString(o.operationId,'o.operationId','OPERATION_ID_REQUIRED',errors);
-  validateRequiredString(o.idempotencyKey,'o.idempotencyKey','OPERATION_IDEMPOTENCY_KEY_REQUIRED',errors);
-  validateRequiredString(o.operationType,'o.operationType','OPERATION_TYPE_REQUIRED',errors);
-  validateRequiredString(o.status,'o.status','OPERATION_STATUS_REQUIRED',errors);
+  if(o.schemaVersion!==SCHEMA_VERSION)addError(errors,'OPERATION_SCHEMA_VERSION_INVALID','operation.schemaVersion',`schemaVersion must equal ${SCHEMA_VERSION}`);
+  validateRequiredString(o.operationId,'operation.operationId','OPERATION_ID_REQUIRED',errors);
+  validateRequiredString(o.idempotencyKey,'operation.idempotencyKey','OPERATION_IDEMPOTENCY_KEY_REQUIRED',errors);
+  validateRequiredString(o.operationType,'operation.operationType','OPERATION_TYPE_REQUIRED',errors);
+  validateRequiredString(o.status,'operation.status','OPERATION_STATUS_REQUIRED',errors);
   for(const field of OPTIONAL_PERIOD_FIELDS){
     const value=o[field];
-    if(value!=null&&(!Number.isInteger(value)||value<0))addError(errors,'OPERATION_PERIOD_INVALID',`o.${field}`,'period must be a non-negative integer when provided');
+    if(value!=null&&(!Number.isInteger(value)||value<0))addError(errors,'OPERATION_PERIOD_INVALID',`operation.${field}`,'period must be a non-negative integer when provided');
   }
-  validateOptionalString(o.reversalOfOperationId,'o.reversalOfOperationId','OPERATION_LINK_INVALID',errors);
-  validateOptionalString(o.correctionOfOperationId,'o.correctionOfOperationId','OPERATION_LINK_INVALID',errors);
+  validateOptionalString(o.reversalOfOperationId,'operation.reversalOfOperationId','OPERATION_LINK_INVALID',errors);
+  validateOptionalString(o.correctionOfOperationId,'operation.correctionOfOperationId','OPERATION_LINK_INVALID',errors);
   if(o.reversalOfOperationId===o.operationId||o.correctionOfOperationId===o.operationId)addError(errors,'OPERATION_SELF_REFERENCE','operation','operation cannot reverse or correct itself');
   if(o.reversalOfOperationId&&o.correctionOfOperationId)addError(errors,'OPERATION_LINK_AMBIGUOUS','operation','operation cannot be both a reversal and correction');
-  validateMetadata(o.metadata,'o.metadata',errors);
+  validateMetadata(o.metadata,'operation.metadata',errors);
 
   const postings=inspectPostingArray(o.postings,'operation.postings',errors);
   if(!postings||postings.length===0){
