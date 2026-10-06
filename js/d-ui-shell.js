@@ -22,6 +22,8 @@ const ALL_NAV=[
 ];
 let selectedEntity;
 let mapDirectoryOpen=null;
+let historySyncing=false;
+const HISTORY_STATE_KEY='capitalismTycoonTab';
 /*
  * PR B: non-persistent UI-only filter for Phase 2 markers (see docs/map-
  * phase2-production-integration-audit.md section 6, PR B). Same lifetime
@@ -42,6 +44,37 @@ function engine(){return modules.playerEngineBridge.getEngine?.()||null;}
 function game(){return engine()?.g||null;}
 function tabButton(tab){return `<button type="button" data-action="tab" data-tab="${esc(tab[0])}" class="d-nav-button"><span>${tab[1]}</span><b>${esc(tab[2])}</b><i aria-hidden="true"></i></button>`;}
 function activeTab(){return game()?.selectedTab||document.querySelector('.tabs button.active')?.dataset?.tab||'home';}
+function currentLocation(g){
+  const prefID=g?.selectedPref||g?.companyHQPrefID||g?.founderHomePrefID;
+  return engine()?.pref?.(prefID)?.name||'全国';
+}
+function historyState(tab){
+  const current=globalThis.history?.state;
+  const base=current&&typeof current==='object'&&!Array.isArray(current)?current:{};
+  return Object.assign({},base,{[HISTORY_STATE_KEY]:tab});
+}
+function syncHistoryEntry(tab=activeTab()){
+  if(!tab||typeof globalThis.history?.replaceState!=='function')return false;
+  if(globalThis.history.state?.[HISTORY_STATE_KEY]===tab)return false;
+  globalThis.history.replaceState(historyState(tab),'',globalThis.location?.href||undefined);
+  return true;
+}
+function pushTabHistory(tab){
+  const current=activeTab();
+  if(historySyncing||!tab||tab===current||typeof globalThis.history?.pushState!=='function')return false;
+  syncHistoryEntry(current);
+  globalThis.history.pushState(historyState(tab),'',globalThis.location?.href||undefined);
+  return true;
+}
+function handlePopstate(event){
+  const tab=event?.state?.[HISTORY_STATE_KEY];
+  if(!tab||tab===activeTab()||!ALL_NAV.some(row=>row[0]===tab))return false;
+  const source=[...document.querySelectorAll('.d-source-tabs [data-action="tab"][data-tab]')].find(button=>button.dataset.tab===tab);
+  if(!source)return false;
+  historySyncing=true;
+  try{source.click();}finally{historySyncing=false;}
+  return true;
+}
 function reportSeries(g){
   const pools=[g?.reportHistory,g?.weeklyReports,g?.reports,g?.finance?.history,g?.financeHistory].filter(Array.isArray);
   for(const pool of pools){
@@ -61,7 +94,7 @@ function currentKpis(g,e){
   const companyValue=finite(e?.companyValue?.());const personal=finite(e?.personalNetWorth?.());const profit=finite(g?.lastReport?.profit);
   return [
     ['総資産','▦',money(companyValue+personal),companyValue+personal>0?'▲ 企業・個人合計':'—'],
-    ['現金','▰',money(g?.companyCash),g?.companyCash>=0?'▲ 手元流動性':'▼ 資金危機'],
+    ['会社現金','▰',money(g?.companyCash),g?.companyCash>=0?'▲ 手元流動性':'▼ 資金危機'],
     ['週間利益','↗',money(profit),profit>=0?'▲ 黒字':'▼ 赤字'],
     ['企業価値','◔',money(companyValue),g?.publicCompany?'上場企業':'未上場'],
     ['株価','▥',g?.publicCompany?`¥ ${finite(g?.stockPrice).toLocaleString('ja-JP',{maximumFractionDigits:0})}`:'—',g?.publicCompany?String(g?.ticker||'公開市場'):'IPO前']
@@ -71,9 +104,9 @@ function enhanceTopbar(g,e){
   const topbar=document.querySelector('.topbar');if(!topbar)return;
   topbar.classList.add('d-topbar');
   const brand=topbar.querySelector('.brand');
-  if(brand)brand.innerHTML=`<div class="d-brand-crest">¥</div><div><h1>資本主義ポケット TYCOON <em>D</em></h1><p>${esc(g.companyName)} · ${esc(g.playerName)}</p></div>`;
+  if(brand)brand.innerHTML=`<div class="d-brand-crest">¥</div><div><h1>資本主義ポケット TYCOON <em>D</em></h1><p><span class="d-current-location">${esc(currentLocation(g))}</span><span class="d-current-company">${esc(g.companyName)}</span></p></div>`;
   const stats=topbar.querySelector('.top-stats');
-  if(stats){stats.className='top-stats d-kpi-strip';stats.innerHTML=currentKpis(g,e).map(item=>`<div class="d-kpi"><span class="d-kpi-icon">${item[1]}</span><div><small>${esc(item[0])}</small><strong>${esc(item[2])}</strong><em class="${item[3].startsWith('▼')?'down':'up'}">${esc(item[3])}</em></div></div>`).join('');}
+  if(stats){stats.className='top-stats d-kpi-strip';stats.innerHTML=currentKpis(g,e).map((item,index)=>`<div class="d-kpi${index===1?' d-kpi-company-cash':''}"><span class="d-kpi-icon">${item[1]}</span><div><small>${esc(item[0])}</small><strong>${esc(item[2])}</strong><em class="${item[3].startsWith('▼')?'down':'up'}">${esc(item[3])}</em></div></div>`).join('');}
   const controls=topbar.querySelector('.week-controls');
   if(controls)controls.innerHTML=`<div class="d-date"><span>▣ ${esc(modules.engine.gameDate(g.week).label)} · 第${finite(g.week)}週</span><small>${modules.engine.gameDate(g.week).year}年目</small></div><div class="d-speed" aria-label="進行速度"><button type="button" disabled>◀</button><button type="button" disabled>Ⅱ</button><button type="button" data-action="advance-4" aria-label="4週進める">▶▶</button></div><button type="button" class="btn primary d-advance" data-action="advance-week">一週進める <b>»</b></button>`;
 }
@@ -326,7 +359,7 @@ function enhance(force=false,context=null){
   const app=context?.app||document.getElementById('app');const g=context?.state||game();const e=context?.engine||engine();if(!app||!g)return false;
   if(document.getElementById('setup-form')){document.body.classList.remove('d-ui-active');return false;}
   const key=renderKey(g);if(!force&&app.dataset.dUiKey===key&&document.getElementById('d-ui-sidebar'))return false;
-  app.dataset.dUiKey=key;document.body.classList.add('d-ui-active');enhanceTopbar(g,e);ensureNavigation(g);enhanceMap(g);return true;
+  app.dataset.dUiKey=key;document.body.classList.add('d-ui-active');enhanceTopbar(g,e);ensureNavigation(g);syncHistoryEntry(activeTab());enhanceMap(g);return true;
 }
 /*
  * Below 1180px css/d-ui-reference-fidelity.css drops .d-context-panel out of
@@ -380,7 +413,7 @@ function handleClick(event){
   // is true only for the ~50ms right after a real drag ended, so a plain
   // tap (no pan) is completely unaffected by this check.
   if(marker){event.preventDefault();if(modules.mapPhase2Canvas?.consumeJustPanned?.())return true;selectedEntity=marker.dataset.dUiMarker;modules.uiEnhancerRegistry.runUIEnhancers();revealContextPanel();return true;}
-  const tab=event.target?.closest?.('[data-action="tab"]');if(tab)setCommandMenu(false);
+  const tab=event.target?.closest?.('[data-action="tab"]');if(tab){setCommandMenu(false);pushTabHistory(tab.dataset.tab);}
   return false;
 }
 function handleKeydown(event){
@@ -400,12 +433,13 @@ function handleKeydown(event){
 function install(){
   document.addEventListener('click',handleClick,true);
   document.addEventListener('keydown',handleKeydown,true);
+  globalThis.addEventListener?.('popstate',handlePopstate);
   modules.uiEnhancerRegistry.registerUIEnhancer({id:'d-ui-shell',enhance:context=>{
     enhance(false,context);
     globalThis.CapitalismTycoonPEUI?.render?.();
   }});
   return true;
 }
-modules.dUIShell=Object.freeze({PRIMARY_NAV,DOCK_NAV,ALL_NAV,money,reportSeries,sparkline,currentKpis,missionRows,missionValue,selectedDetail,renderMapWorkspace,setCommandMenu,enhance,handleClick,handleKeydown,install,__installed:true});
+modules.dUIShell=Object.freeze({PRIMARY_NAV,DOCK_NAV,ALL_NAV,money,reportSeries,sparkline,currentKpis,currentLocation,missionRows,missionValue,selectedDetail,renderMapWorkspace,setCommandMenu,syncHistoryEntry,pushTabHistory,handlePopstate,enhance,handleClick,handleKeydown,install,__installed:true});
 install();
 })();
