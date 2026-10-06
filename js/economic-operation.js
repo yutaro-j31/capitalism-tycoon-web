@@ -79,7 +79,18 @@ function validateEntityReference(value,path,requiredCode,errors){
     addError(errors,'EXTERNAL_ENTITY_ID_UNKNOWN',path,'external entity ID is not in the approved aggregate counterparty registry');
   }
 }
-function isNativeConstructorForPrototype(proto){
+function isNativeConstructorForPrototype(proto,expectedName){
+  if(!proto)return false;
+  let descriptor;
+  try{descriptor=Object.getOwnPropertyDescriptor(proto,'constructor');}
+  catch{return false;}
+  if(!descriptor||!Object.prototype.hasOwnProperty.call(descriptor,'value'))return false;
+  const ctor=descriptor.value;
+  if(typeof ctor!=='function')return false;
+  let source;
+  try{source=Function.prototype.toString.call(ctor);}
+  catch{return false;}
+  const escapedName=String(expectedName).replace(/[.*+?^$\{\}()|[\]\\]/g,'\\function isNativeConstructorForPrototype(proto){
   if(!proto)return false;
   let descriptor;
   try{descriptor=Object.getOwnPropertyDescriptor(proto,'constructor');}
@@ -109,6 +120,110 @@ function isPlainJsonArray(value){
   try{proto=Object.getPrototypeOf(value);}
   catch{return false;}
   return isNativeConstructorForPrototype(proto);
+}
+');
+  if(!(new RegExp(`^function\\s+${escapedName}\\s*\\([^)]*\\)\\s*\\{\\s*\\[native code\\]\\s*\\}// Script boundary: js/economic-operation.js (classic JavaScript)
+(function(){'use strict';
+if(!globalThis.__capitalismTycoonModules)throw new Error('Capitalism Tycoon runtime.js must be loaded before economic-operation.js.');
+var __modules=globalThis.__capitalismTycoonModules;
+if(__modules.economicOperation)throw new Error('Capitalism Tycoon economicOperation module is already registered.');
+(function(exports){
+const SCHEMA_VERSION=1;
+const ACCOUNT_TAXONOMY_VERSION=1;
+const LEGAL_ENTITY_KINDS=Object.freeze(['person','company','fund','propertyVehicle','bank','trustOrEstate']);
+const EXTERNAL_ENTITY_IDS=Object.freeze({
+  customerMarket:'external:customer-market',
+  supplier:'external:supplier',
+  employee:'external:employee',
+  governmentTax:'external:government-tax',
+  shareholder:'external:shareholder',
+  lender:'external:lender',
+  buyer:'external:buyer',
+  seller:'external:seller',
+  lpCoinvestor:'external:lp-coinvestor',
+  clearingSettlement:'external:clearing-settlement'
+});
+const ACCOUNT_TAXONOMY=Object.freeze({
+  version:ACCOUNT_TAXONOMY_VERSION,
+  assets:Object.freeze([
+    'asset:cash','asset:restricted-cash','asset:escrow-cash','asset:accounts-receivable',
+    'asset:inventory','asset:fixed-assets','asset:intangible-assets','asset:goodwill',
+    'asset:security-investment','asset:debt-receivable','asset:property'
+  ]),
+  liabilities:Object.freeze([
+    'liability:accounts-payable','liability:accrued-expense','liability:tax-payable',
+    'liability:debt-principal','liability:accrued-interest'
+  ]),
+  equity:Object.freeze([
+    'equity:share-capital','equity:additional-paid-in-capital','equity:retained-earnings',
+    'equity:treasury-stock','equity:dividend-distribution'
+  ]),
+  income:Object.freeze(['income:revenue','income:interest','income:investment','income:other']),
+  expenses:Object.freeze(['expense:operating','expense:interest','expense:tax','expense:depreciation']),
+  fund:Object.freeze(['fund:capital','fund:return-of-capital','fund:preferred-return','fund:carry']),
+  elimination:Object.freeze(['elimination:intercompany'])
+});
+const ACCOUNT_IDS=Object.freeze(Object.entries(ACCOUNT_TAXONOMY)
+  .filter(([key])=>key!=='version')
+  .flatMap(([,ids])=>ids));
+const ACCOUNT_ID_SET=new Set(ACCOUNT_IDS);
+const EXTERNAL_ENTITY_ID_SET=new Set(Object.values(EXTERNAL_ENTITY_IDS));
+const POSITION_REFERENCE_BY_ACCOUNT=Object.freeze({
+  'asset:security-investment':Object.freeze(['securityClassId']),
+  'asset:debt-receivable':Object.freeze(['debtInstrumentId']),
+  'liability:debt-principal':Object.freeze(['debtInstrumentId']),
+  'asset:property':Object.freeze(['propertyId']),
+  'asset:fixed-assets':Object.freeze(['assetId']),
+  'asset:intangible-assets':Object.freeze(['assetId']),
+  'equity:share-capital':Object.freeze(['securityClassId']),
+  'equity:treasury-stock':Object.freeze(['securityClassId'])
+});
+const MONEY_MINOR_UNITS=100;
+const MAX_SAFE_MONEY_MINOR_UNITS=Number.MAX_SAFE_INTEGER;
+const SIDE_SET=new Set(['debit','credit']);
+const OPTIONAL_ID_FIELDS=Object.freeze([
+  'debtInstrumentId','instrumentId','securityClassId','propertyId','assetId',
+  'counterpartyEntityId','counterpartyRole','relationshipId','eliminationKey'
+]);
+const OPTIONAL_PERIOD_FIELDS=Object.freeze([
+  'decisionPeriod','recognitionPeriod','duePeriod','settlementPeriod','effectivePeriod'
+]);
+
+function addError(errors,code,path,message){errors.push(Object.freeze({code,path,message}));}
+function nonEmptyString(value){return typeof value==='string'&&value.trim().length>0;}
+function validateRequiredString(value,path,code,errors){
+  if(!nonEmptyString(value))addError(errors,code,path,'must be a non-empty string');
+}
+function validateOptionalString(value,path,code,errors){
+  if(value!=null&&!nonEmptyString(value))addError(errors,code,path,'must be a non-empty string when provided');
+}
+function validateEntityReference(value,path,requiredCode,errors){
+  validateRequiredString(value,path,requiredCode,errors);
+  if(nonEmptyString(value)&&value.startsWith('external:')&&!EXTERNAL_ENTITY_ID_SET.has(value)){
+    addError(errors,'EXTERNAL_ENTITY_ID_UNKNOWN',path,'external entity ID is not in the approved aggregate counterparty registry');
+  }
+}
+)).test(source))return false;
+  let prototypeDescriptor;
+  try{prototypeDescriptor=Object.getOwnPropertyDescriptor(ctor,'prototype');}
+  catch{return false;}
+  return Boolean(prototypeDescriptor&&prototypeDescriptor.value===proto);
+}
+function isPlainJsonObject(value){
+  if(value===null||typeof value!=='object'||Array.isArray(value))return false;
+  let proto;
+  try{proto=Object.getPrototypeOf(value);}
+  catch{return false;}
+  if(proto===null)return true;
+  try{return Object.getPrototypeOf(proto)===null&&isNativeConstructorForPrototype(proto,'Object');}
+  catch{return false;}
+}
+function isPlainJsonArray(value){
+  if(!Array.isArray(value))return false;
+  let proto;
+  try{proto=Object.getPrototypeOf(value);}
+  catch{return false;}
+  return isNativeConstructorForPrototype(proto,'Array');
 }
 function validateJsonValue(value,path,errors,seen){
   const type=typeof value;
