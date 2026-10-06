@@ -99,6 +99,12 @@
         ]
       },
       {
+        "file": "js/economic-settlement.js",
+        "tokens": [
+          "companyCash"
+        ]
+      },
+      {
         "file": "js/engine.js",
         "tokens": [
           "companyCash"
@@ -2199,6 +2205,14 @@
         "file": "js/subsidiary-relisting-options.js",
         "paths": [
           "carryingBookValue"
+        ]
+      }
+    ],
+    "limitedStoreRenovationCompanyCash": [
+      {
+        "file": "js/economic-settlement.js",
+        "paths": [
+          "state.companyCash (store renovation EconomicOperation settlement)"
         ]
       }
     ]

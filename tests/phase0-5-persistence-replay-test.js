@@ -46,6 +46,7 @@ assert.equal(report.engineCapabilities.deterministicIdProbe, true);
 assert.equal(report.engineCapabilities.legacyAdapterParityProbe, true);
 assert.equal(report.engineCapabilities.entityAwareLegacyReadModel, true);
 assert.equal(report.engineCapabilities.shadowOperationJournal, true);
+assert.equal(report.engineCapabilities.limitedStoreRenovationSettlement, true);
 assert.equal(report.engineCapabilities.legacySeedClassification, true);
 assert.equal(report.engineCapabilities.csvReport, true);
 assert.equal(report.engineCapabilities.markdownReport, true);
@@ -61,6 +62,7 @@ for (const evidence of [
   report.rollbackEvidence,
   report.idempotencyEvidence,
   report.shadowJournalEvidence,
+  report.limitedCutoverEvidence,
   report.idAllocationEvidence,
   report.legacyAdapterParity
 ]) {
@@ -117,14 +119,24 @@ assert.equal(report.shadowJournalEvidence.capacityFailClosed, true);
 assert.equal(report.shadowJournalEvidence.authoritativeStateUnchanged, true);
 assert.equal(report.shadowJournalEvidence.beforeHash, report.shadowJournalEvidence.afterHash);
 
-// 6. Deterministic IDs characterize the actual monotonic persisted-counter contract.
+// 6. Phase 1 first limited cutover is deterministic and constrained to store renovation cash settlement.
+assert.equal(report.limitedCutoverEvidence.ok, true, JSON.stringify(report.limitedCutoverEvidence));
+assert.equal(report.limitedCutoverEvidence.operationType, 'company:store-renovation');
+assert.equal(report.limitedCutoverEvidence.deterministicOperation, true);
+assert.equal(report.limitedCutoverEvidence.cashMovedOnce, true);
+assert.equal(report.limitedCutoverEvidence.exactShape, true);
+assert.equal(report.limitedCutoverEvidence.unsupportedRejected, true);
+assert.equal(report.limitedCutoverEvidence.authoritativeRuntimeUnchanged, true);
+assert.equal(report.limitedCutoverEvidence.runtimeBeforeHash, report.limitedCutoverEvidence.runtimeAfterHash);
+
+// 7. Deterministic IDs characterize the actual monotonic persisted-counter contract.
 assert.equal(report.idAllocationEvidence.unique, true);
 assert.equal(report.idAllocationEvidence.samePersistedStateSameSequence, true);
 assert.equal(report.idAllocationEvidence.reloadContinuity, true);
 assert.equal(report.idAllocationEvidence.rollbackPreservedCounter, true);
 assert.equal(new Set(report.idAllocationEvidence.sequence).size, report.idAllocationEvidence.sequence.length);
 
-// 7. Legacy adapter parity is a named PASS/FAIL invariant registry.
+// 8. Legacy adapter parity is a named PASS/FAIL invariant registry.
 assert.equal(report.legacyAdapterParity.companyCash.ok, true);
 assert.equal(report.legacyAdapterParity.debt.ok, true);
 assert.equal(report.legacyAdapterParity.ownership.ok, true);
@@ -177,11 +189,11 @@ for (const id of [
   'entity-read-personal-market-holdings'
 ]) assert(report.legacyAdapterParity.invariants.some(row => row.id === id), `missing parity invariant ${id}`);
 
-// 8. New-game runs remain eligible for calibration aggregation.
+// 9. New-game runs remain eligible for calibration aggregation.
 assert.equal(report.runClassification, 'new-game-seed-root');
 assert.equal(report.includeInCalibrationAggregation, true);
 
-// 9. Persisted subsystem seeds stay distinct and are excluded from new-game calibration.
+// 10. Persisted subsystem seeds stay distinct and are excluded from new-game calibration.
 {
   const runtime = phase05.createRuntime(scenario('legacy-subsystem-seed'), { sourceMainSha: SOURCE_SHA });
   runtime.loaded.modules.deterministicEconomicFoundation.ensure(runtime.engine.g);
@@ -201,7 +213,7 @@ assert.equal(report.includeInCalibrationAggregation, true);
   assert.equal(reloaded.engine.g.economicFoundation.seed, legacySeed);
 }
 
-// 10. Evidence probes used as reads do not mutate authoritative state.
+// 11. Evidence probes used as reads do not mutate authoritative state.
 {
   const runtime = phase05.createRuntime(scenario('read-only-probes'), { sourceMainSha: SOURCE_SHA });
   runtime.loaded.modules.deterministicEconomicFoundation.ensure(runtime.engine.g);

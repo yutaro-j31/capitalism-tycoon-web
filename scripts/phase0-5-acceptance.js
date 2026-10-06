@@ -27,7 +27,10 @@ const EXACT_WRITER_RULES = Object.freeze({
     {path:'portfolioCompany.cash',pattern:/\bportfolioCompany\.cash\s*(?:\+\+|--|[+*/-]?=)/},
     {path:'pc.cash',pattern:/\bpc\.cash\s*(?:\+\+|--|[+*/-]?=)/}
   ]),
-  subsidiaryCarryingValues: Object.freeze([{path:'carryingBookValue',pattern:/\bcarryingBookValue\s*(?:\+\+|--|[+*/-]?=|:)/}])
+  subsidiaryCarryingValues: Object.freeze([{path:'carryingBookValue',pattern:/\bcarryingBookValue\s*(?:\+\+|--|[+*/-]?=|:)/}]),
+  limitedStoreRenovationCompanyCash: Object.freeze([
+    {path:'state.companyCash (store renovation EconomicOperation settlement)',pattern:/function settleStoreRenovation\(state,operation\)[\s\S]{0,2500}\bstate\.companyCash\s*=/}
+  ])
 });
 function hash(value){return crypto.createHash('sha256').update(value).digest('hex');}
 function gate(code, ok, details){return Object.freeze({code,ok:Boolean(ok),details});}
@@ -80,7 +83,8 @@ function verifyWriterInventory(options={}){
   const lexicalHashMatch=lexicalDiscoveredHash===lexicalDeclaredHash,exactAuthorityHashMatch=exactAuthorityDiscoveredHash===exactAuthorityDeclaredHash;
   const exactAuthorityCounts=Object.fromEntries(Object.entries(discovered.exactAuthority).map(([key,rows])=>[key,rows.length]));
   const requiredExactCoverage=Object.keys(EXACT_WRITER_RULES).every(key=>exactAuthorityCounts[key]>0);
-  return Object.freeze({ok:discovered.method===declared.method&&lexicalHashMatch&&exactAuthorityHashMatch&&requiredExactCoverage,discoveredHash,declaredHash,lexicalDiscoveredHash,lexicalDeclaredHash,lexicalHashMatch,exactAuthorityDiscoveredHash,exactAuthorityDeclaredHash,exactAuthorityHashMatch,method:discovered.method,status:declared.status,limitations:declared.limitations,categoryCounts:Object.fromEntries(Object.entries(discovered.categories).map(([key,rows])=>[key,rows.length])),exactAuthorityCounts,exactAuthority:discovered.exactAuthority,requiredExactCoverage});
+  const limitedCutoverSingleWriter=exactAuthorityCounts.limitedStoreRenovationCompanyCash===1;
+  return Object.freeze({ok:discovered.method===declared.method&&lexicalHashMatch&&exactAuthorityHashMatch&&requiredExactCoverage&&limitedCutoverSingleWriter,discoveredHash,declaredHash,lexicalDiscoveredHash,lexicalDeclaredHash,lexicalHashMatch,exactAuthorityDiscoveredHash,exactAuthorityDeclaredHash,exactAuthorityHashMatch,method:discovered.method,status:declared.status,limitations:declared.limitations,categoryCounts:Object.fromEntries(Object.entries(discovered.categories).map(([key,rows])=>[key,rows.length])),exactAuthorityCounts,exactAuthority:discovered.exactAuthority,requiredExactCoverage,limitedCutoverSingleWriter});
 }
 function verifyPhaseOrder(){
   const loaded=loadGame({headless:true,random:()=>0.5});

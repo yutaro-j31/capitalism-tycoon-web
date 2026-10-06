@@ -9,6 +9,8 @@ if(!modules.engine)throw new Error('engine.js must be loaded before store-equipm
 if(modules.storeEquipment)throw new Error('store equipment is already registered.');
 const EngineClass=modules.engine.TycoonEngine;
 const finance=modules.finance;
+const economicSettlement=modules.economicSettlement;
+if(!economicSettlement)throw new Error('economic-settlement.js must be loaded before store-equipment.js.');
 
 const MAX_LEVEL=5;
 const USEFUL_LIFE_WEEKS=260;
@@ -177,21 +179,29 @@ function renovate(engine,storeID){
   if(!gate.ok)return engine.fail(gate.reason);
   const cost=renovationCost(store);
   if(finite(state.companyCash)<cost)return engine.fail(`改装には${yen(cost)}が必要です。`);
-  state.companyCash-=cost;
-  store.condition=FULL_CONDITION;
-  finance.event(state,'otherOperating',cost,{
-    cashEffect:-cost,
-    profitEffect:-cost,
-    businessID:store.businessID,
-    storeID:store.id,
-    sourceType:'storeRenovation',
-    sourceID:store.id,
-    description:`${store.name} 改装`
+  const operation=economicSettlement.buildStoreRenovationOperation(state,store,cost);
+  const priorProjection=(state.finance?.transactions||[]).find(row=>
+    row?.idempotencyKey===operation.idempotencyKey||row?.operationID===operation.operationId
+  );
+  if(priorProjection)return engine.fail('この改装取引はすでに処理されています。');
+  return engine.runTransaction(()=>{
+    const settlement=economicSettlement.settleStoreRenovation(state,operation);
+    store.condition=FULL_CONDITION;
+    const projected=finance.event(state,'otherOperating',cost,{
+      cashEffect:-cost,
+      profitEffect:-cost,
+      businessID:store.businessID,
+      storeID:store.id,
+      sourceType:'storeRenovation',
+      sourceID:store.id,
+      operationID:operation.operationId,
+      idempotencyKey:operation.idempotencyKey,
+      description:`${store.name} 改装`
+    });
+    if(!projected)throw new Error('Store renovation legacy finance projection rejected the authoritative EconomicOperation.');
+    engine.notify(`${store.name}を改装し、店舗状態を回復しました。`,'success');
+    return settlement.applied;
   });
-  engine.notify(`${store.name}を改装し、店舗状態を回復しました。`,'success');
-  engine.save();
-  engine.emit('change');
-  return true;
 }
 
 function operatingHoursOf(store){
