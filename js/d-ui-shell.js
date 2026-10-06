@@ -69,7 +69,7 @@ function pushTabHistory(tab){
 function handlePopstate(event){
   const tab=event?.state?.[HISTORY_STATE_KEY];
   if(!tab||tab===activeTab()||!ALL_NAV.some(row=>row[0]===tab))return false;
-  const source=[...document.querySelectorAll('.d-source-tabs [data-action="tab"][data-tab]')].find(button=>button.dataset.tab===tab);
+  const source=[...document.querySelectorAll('.d-source-tabs [data-action="tab"][data-tab],#d-ui-dock [data-action="tab"][data-tab]')].find(button=>button.dataset.tab===tab);
   if(!source)return false;
   historySyncing=true;
   try{source.click();}finally{historySyncing=false;}
