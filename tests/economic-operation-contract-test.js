@@ -209,6 +209,16 @@ assert.throws(() => core.roundMoney(Number.MAX_SAFE_INTEGER), /envelope/);
   delete missingSecurityClass.postings[0].securityClassId;
   assert.ok(hasCode(core.validateOperation(missingSecurityClass), 'POSTING_POSITION_REFERENCE_REQUIRED'));
 
+  const quantityOnCash = JSON.parse(JSON.stringify(op));
+  quantityOnCash.postings[0].accountId = 'asset:cash';
+  delete quantityOnCash.postings[0].securityClassId;
+  assert.ok(hasCode(core.validateOperation(quantityOnCash), 'POSTING_QUANTITY_ACCOUNT_UNSUPPORTED'));
+
+  const quantityOnRevenue = JSON.parse(JSON.stringify(op));
+  quantityOnRevenue.postings[0].accountId = 'income:revenue';
+  delete quantityOnRevenue.postings[0].securityClassId;
+  assert.ok(hasCode(core.validateOperation(quantityOnRevenue), 'POSTING_QUANTITY_ACCOUNT_UNSUPPORTED'));
+
   for (const accountId of ['asset:debt-receivable','liability:debt-principal','asset:property','asset:fixed-assets','asset:intangible-assets','equity:share-capital','equity:treasury-stock']) {
     const missingReference = JSON.parse(JSON.stringify(op));
     missingReference.postings[0].accountId = accountId;
@@ -278,6 +288,17 @@ assert.throws(() => core.roundMoney(Number.MAX_SAFE_INTEGER), /envelope/);
   const accessorResult = core.validateOperation(accessor);
   assert.ok(hasCode(accessorResult, 'METADATA_ACCESSOR_PROPERTY'));
   assert.equal(getterExecuted, false, 'metadata validation must inspect descriptors without executing getters');
+
+  let toStringTagExecuted = false;
+  const taggedMetadata = { value: 1 };
+  Object.defineProperty(taggedMetadata, Symbol.toStringTag, {
+    get() { toStringTagExecuted = true; throw new Error('Symbol.toStringTag getter must never execute'); }
+  });
+  const tagged = validOperation();
+  tagged.metadata = taggedMetadata;
+  const taggedResult = core.validateOperation(tagged);
+  assert.ok(hasCode(taggedResult, 'METADATA_SYMBOL_KEY'));
+  assert.equal(toStringTagExecuted, false, 'metadata validation must not invoke Symbol.toStringTag');
 }
 
 // 8. Validation is pure: no input mutation, game-state mutation, RNG draw or finance-row write.
