@@ -1593,6 +1593,12 @@
         ]
       },
       {
+        "file": "js/economic-operation.js",
+        "tokens": [
+          "properties"
+        ]
+      },
+      {
         "file": "js/engine.js",
         "tokens": [
           "personalRealEstateHoldings",
