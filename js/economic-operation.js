@@ -43,6 +43,15 @@ const ACCOUNT_IDS=Object.freeze(Object.entries(ACCOUNT_TAXONOMY)
   .filter(([key])=>key!=='version')
   .flatMap(([,ids])=>ids));
 const ACCOUNT_ID_SET=new Set(ACCOUNT_IDS);
+const EXTERNAL_ENTITY_ID_SET=new Set(Object.values(EXTERNAL_ENTITY_IDS));
+const POSITION_REFERENCE_BY_ACCOUNT=Object.freeze({
+  'asset:security-investment':Object.freeze(['securityClassId']),
+  'asset:debt-receivable':Object.freeze(['debtInstrumentId']),
+  'liability:debt-principal':Object.freeze(['debtInstrumentId']),
+  'asset:property':Object.freeze(['propertyId']),
+  'asset:fixed-assets':Object.freeze(['assetId']),
+  'asset:intangible-assets':Object.freeze(['assetId'])
+});
 const MONEY_MINOR_UNITS=100;
 const MAX_SAFE_MONEY_MINOR_UNITS=Number.MAX_SAFE_INTEGER;
 const SIDE_SET=new Set(['debit','credit']);
@@ -61,6 +70,20 @@ function validateRequiredString(value,path,code,errors){
 }
 function validateOptionalString(value,path,code,errors){
   if(value!=null&&!nonEmptyString(value))addError(errors,code,path,'must be a non-empty string when provided');
+}
+function validateEntityReference(value,path,requiredCode,errors){
+  validateRequiredString(value,path,requiredCode,errors);
+  if(nonEmptyString(value)&&value.startsWith('external:')&&!EXTERNAL_ENTITY_ID_SET.has(value)){
+    addError(errors,'EXTERNAL_ENTITY_ID_UNKNOWN',path,'external entity ID is not in the approved aggregate counterparty registry');
+  }
+}
+function isPlainJsonObject(value){
+  if(value==null||Object.prototype.toString.call(value)!=='[object Object]')return false;
+  const proto=Object.getPrototypeOf(value);
+  if(proto===null)return true;
+  if(Object.getPrototypeOf(proto)!==null)return false;
+  if(!Object.prototype.hasOwnProperty.call(proto,'constructor'))return false;
+  return typeof proto.constructor==='function'&&proto.constructor.name==='Object';
 }
 function validateJsonValue(value,path,errors,seen){
   const type=typeof value;
@@ -84,16 +107,20 @@ function validateJsonValue(value,path,errors,seen){
   seen.add(value);
   if(Array.isArray(value)){
     for(let i=0;i<value.length;i++)validateJsonValue(value[i],`${path}[${i}]`,errors,seen);
-  }else if(Object.prototype.toString.call(value)==='[object Object]'){
+  }else if(isPlainJsonObject(value)){
     for(const key of Object.keys(value))validateJsonValue(value[key],`${path}.${key}`,errors,seen);
   }else{
-    addError(errors,'METADATA_NOT_PLAIN_JSON',path,'metadata objects must be plain JSON objects or arrays');
+    addError(errors,'METADATA_NOT_PLAIN_JSON',path,'metadata objects must have Object.prototype or null prototype');
   }
   seen.delete(value);
 }
 function validateMetadata(value,path,errors){
-  if(value==null||Object.prototype.toString.call(value)!=='[object Object]'){
+  if(value==null||Array.isArray(value)||Object.prototype.toString.call(value)!=='[object Object]'){
     addError(errors,'METADATA_REQUIRED',path,'metadata must be a JSON object');
+    return;
+  }
+  if(!isPlainJsonObject(value)){
+    addError(errors,'METADATA_NOT_PLAIN_JSON',path,'metadata objects must have Object.prototype or null prototype');
     return;
   }
   validateJsonValue(value,path,errors,new Set());
@@ -156,7 +183,7 @@ function validatePosting(posting,index,operationId,errors,balances,postingIds,se
     if(sequences.has(posting.postingSequence))addError(errors,'POSTING_SEQUENCE_DUPLICATE',`${path}.postingSequence`,'postingSequence must be unique within an operation');
     sequences.add(posting.postingSequence);
   }
-  validateRequiredString(posting.entityId,`${path}.entityId`,'POSTING_ENTITY_REQUIRED',errors);
+  validateEntityReference(posting.entityId,`${path}.entityId`,'POSTING_ENTITY_REQUIRED',errors);
   if(!isKnownAccount(posting.accountId))addError(errors,'POSTING_ACCOUNT_UNKNOWN',`${path}.accountId`,'accountId is not in the approved taxonomy');
 
   const hasAmount=Object.prototype.hasOwnProperty.call(posting,'amount');
@@ -193,6 +220,15 @@ function validatePosting(posting,index,operationId,errors,balances,postingIds,se
 
   if(hasQuantity&&(!Number.isFinite(posting.quantityDelta)))addError(errors,'POSTING_QUANTITY_NON_FINITE',`${path}.quantityDelta`,'quantityDelta must be finite');
   for(const field of OPTIONAL_ID_FIELDS)validateOptionalString(posting[field],`${path}.${field}`,'POSTING_REFERENCE_INVALID',errors);
+  if(hasQuantity&&Number.isFinite(posting.quantityDelta)){
+    const requiredReferences=POSITION_REFERENCE_BY_ACCOUNT[posting.accountId];
+    if(requiredReferences&&!requiredReferences.some(field=>nonEmptyString(posting[field]))){
+      addError(errors,'POSTING_POSITION_REFERENCE_REQUIRED',path,`quantity posting for ${posting.accountId} requires ${requiredReferences.join(' or ')}`);
+    }
+  }
+  if(nonEmptyString(posting.counterpartyEntityId)&&posting.counterpartyEntityId.startsWith('external:')&&!EXTERNAL_ENTITY_ID_SET.has(posting.counterpartyEntityId)){
+    addError(errors,'EXTERNAL_ENTITY_ID_UNKNOWN',`${path}.counterpartyEntityId`,'external counterparty ID is not in the approved aggregate registry');
+  }
   validateMetadata(posting.metadata,`${path}.metadata`,errors);
 }
 function validateOperation(operation){
