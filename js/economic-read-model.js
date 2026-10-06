@@ -63,11 +63,28 @@ function accountBalances(state,kind){
     {entityId,accountId:'liability:debt-principal',currency:CURRENCY,amount:finite(state[debtPath],debtPath),sourcePath:debtPath,numericDomain:'legacy-number'}
   ]);
 }
-function marketHoldings(source,entityId,sourcePath){
+function ownCompanyPersonalHolding(state){
+  const instrumentId=state.ticker==null?'':String(state.ticker);
+  if(!instrumentId)return Object.freeze({instrumentId:null,quantity:0,averageCost:0,sourcePath:null});
+  const source=state.personalStocks;
+  if(source===undefined||source===null)return Object.freeze({instrumentId,quantity:0,averageCost:0,sourcePath:null});
+  if(!source||typeof source!=='object'||Array.isArray(source))throw new TypeError('personalStocks must be an object map.');
+  const holding=source[instrumentId];
+  if(holding===undefined||holding===null)return Object.freeze({instrumentId,quantity:0,averageCost:0,sourcePath:null});
+  if(!holding||typeof holding!=='object'||Array.isArray(holding))throw new TypeError(`personalStocks.${instrumentId} must be an object.`);
+  return Object.freeze({
+    instrumentId,
+    quantity:finiteOr(holding.qty,0,`personalStocks.${instrumentId}.qty`),
+    averageCost:finiteOr(holding.avg,0,`personalStocks.${instrumentId}.avg`),
+    sourcePath:`personalStocks.${instrumentId}`
+  });
+}
+function marketHoldings(source,entityId,sourcePath,excludedInstrumentId=null){
   if(source===undefined||source===null)return Object.freeze([]);
   if(!source||typeof source!=='object'||Array.isArray(source))throw new TypeError(`${sourcePath} must be an object map.`);
   const rows=[];
   for(const instrumentId of Object.keys(source).sort(compareText)){
+    if(excludedInstrumentId!==null&&instrumentId===excludedInstrumentId)continue;
     const holding=source[instrumentId];
     if(!holding||typeof holding!=='object'||Array.isArray(holding))throw new TypeError(`${sourcePath}.${instrumentId} must be an object.`);
     rows.push({
@@ -122,20 +139,38 @@ function founderDebtReceivables(debtInstruments){
     })));
 }
 function ownershipSummary(state){
+  const issuedShares=finiteOr(state.sharesOut,0,'sharesOut');
+  const treasuryShares=finiteOr(state.treasuryBuybackShares,0,'treasuryBuybackShares');
+  const outstandingShares=issuedShares-treasuryShares;
+  const legacyFounderShares=finiteOr(state.founderShares,0,'founderShares');
+  const personalOwnCompany=ownCompanyPersonalHolding(state);
+  const personallyAcquiredOwnShares=personalOwnCompany.quantity;
+  const founderBeneficialShares=legacyFounderShares+personallyAcquiredOwnShares;
+  const nonFounderBeneficialShares=outstandingShares-founderBeneficialShares;
+  const founderBeneficialRatio=outstandingShares>0?founderBeneficialShares/outstandingShares:0;
+  const nonFounderBeneficialRatio=outstandingShares>0?nonFounderBeneficialShares/outstandingShares:0;
   return Object.freeze({
     securityClassId:PLAYER_COMPANY_COMMON_SECURITY_CLASS_ID,
     issuerEntityId:PLAYER_COMPANY_ENTITY_ID,
     founderEntityId:FOUNDER_ENTITY_ID,
-    legacySharesOut:finiteOr(state.sharesOut,0,'sharesOut'),
-    founderShares:finiteOr(state.founderShares,0,'founderShares'),
-    treasuryShares:finiteOr(state.treasuryBuybackShares,0,'treasuryBuybackShares'),
-    externalShareholderRatio:finiteOr(state.externalShareholderRatio,0,'externalShareholderRatio'),
+    issuedShares,
+    treasuryShares,
+    outstandingShares,
+    legacyFounderShares,
+    personallyAcquiredOwnShares,
+    personallyAcquiredOwnSharesAverageCost:personalOwnCompany.averageCost,
+    founderBeneficialShares,
+    founderBeneficialRatio,
+    nonFounderBeneficialShares,
+    nonFounderBeneficialRatio,
+    legacyExternalShareholderRatio:finiteOr(state.externalShareholderRatio,0,'externalShareholderRatio'),
     publicCompany:Boolean(state.publicCompany),
     sourcePaths:Object.freeze({
-      legacySharesOut:'sharesOut',
-      founderShares:'founderShares',
+      issuedShares:'sharesOut',
       treasuryShares:'treasuryBuybackShares',
-      externalShareholderRatio:'externalShareholderRatio'
+      legacyFounderShares:'founderShares',
+      personallyAcquiredOwnShares:personalOwnCompany.sourcePath,
+      legacyExternalShareholderRatio:'externalShareholderRatio'
     })
   });
 }
@@ -152,7 +187,7 @@ function snapshot(state){
     entity:entityRecord(state,'founder'),
     accountBalances:accountBalances(state,'founder'),
     debtReceivables:founderDebtReceivables(companyDebtRows),
-    marketHoldings:marketHoldings(state.personalStocks,FOUNDER_ENTITY_ID,'personalStocks')
+    marketHoldings:marketHoldings(state.personalStocks,FOUNDER_ENTITY_ID,'personalStocks',state.ticker==null?null:String(state.ticker))
   });
   return Object.freeze({
     readModelVersion:READ_MODEL_VERSION,
@@ -216,8 +251,8 @@ function balanceRowByAccount(entity,accountId,expectedEntityId){
   const row=entity?.accountBalances?.find(candidate=>candidate.accountId===accountId);
   return row&&row.entityId===expectedEntityId?row:null;
 }
-function compareHoldings(source,rows,expectedEntityId){
-  const keys=Object.keys(source||{}).sort(compareText);
+function compareHoldings(source,rows,expectedEntityId,excludedInstrumentId=null){
+  const keys=Object.keys(source||{}).filter(key=>excludedInstrumentId===null||key!==excludedInstrumentId).sort(compareText);
   if(keys.length!==(rows?.length||0))return false;
   for(let index=0;index<keys.length;index++){
     const key=keys[index],holding=source[key]||{},row=rows[index];
@@ -302,10 +337,20 @@ function compareLegacyParity(state,readModel=snapshot(state)){
   const ownershipBindings=readModel.ownership?.issuerEntityId===PLAYER_COMPANY_ENTITY_ID
     &&readModel.ownership?.founderEntityId===FOUNDER_ENTITY_ID
     &&readModel.ownership?.securityClassId===PLAYER_COMPANY_COMMON_SECURITY_CLASS_ID;
-  const ownershipSourcePaths=readModel.ownership?.sourcePaths?.legacySharesOut==='sharesOut'
-    &&readModel.ownership?.sourcePaths?.founderShares==='founderShares'
+  const personalOwnCompany=ownCompanyPersonalHolding(state);
+  const expectedIssuedShares=finiteOr(state.sharesOut,0,'sharesOut');
+  const expectedTreasuryShares=finiteOr(state.treasuryBuybackShares,0,'treasuryBuybackShares');
+  const expectedOutstandingShares=expectedIssuedShares-expectedTreasuryShares;
+  const expectedLegacyFounderShares=finiteOr(state.founderShares,0,'founderShares');
+  const expectedFounderBeneficialShares=expectedLegacyFounderShares+personalOwnCompany.quantity;
+  const expectedNonFounderBeneficialShares=expectedOutstandingShares-expectedFounderBeneficialShares;
+  const expectedFounderBeneficialRatio=expectedOutstandingShares>0?expectedFounderBeneficialShares/expectedOutstandingShares:0;
+  const expectedNonFounderBeneficialRatio=expectedOutstandingShares>0?expectedNonFounderBeneficialShares/expectedOutstandingShares:0;
+  const ownershipSourcePaths=readModel.ownership?.sourcePaths?.issuedShares==='sharesOut'
     &&readModel.ownership?.sourcePaths?.treasuryShares==='treasuryBuybackShares'
-    &&readModel.ownership?.sourcePaths?.externalShareholderRatio==='externalShareholderRatio';
+    &&readModel.ownership?.sourcePaths?.legacyFounderShares==='founderShares'
+    &&readModel.ownership?.sourcePaths?.personallyAcquiredOwnShares===personalOwnCompany.sourcePath
+    &&readModel.ownership?.sourcePaths?.legacyExternalShareholderRatio==='externalShareholderRatio';
   const loanPrincipal=(company.debtInstruments||[]).reduce((sum,row)=>sum+finite(row.outstandingPrincipal,'debtInstruments.outstandingPrincipal'),0);
   const founderReceivable=(founder.debtReceivables||[]).reduce((sum,row)=>sum+finite(row.outstandingPrincipal,'debtReceivables.outstandingPrincipal'),0);
   const expectedFounderReceivable=(state.finance?.loans||[])
@@ -333,12 +378,17 @@ function compareLegacyParity(state,readModel=snapshot(state)){
     {id:'entity-read-ownership-bindings',ok:ownershipBindings},
     {id:'entity-read-ownership-source-paths',ok:ownershipSourcePaths},
     {id:'entity-read-public-company-status',ok:ownershipBindings&&companyEntityParity&&readModel.ownership.publicCompany===Boolean(state.publicCompany)},
-    {id:'entity-read-shares-out',ok:ownershipBindings&&readModel.ownership.legacySharesOut===finiteOr(state.sharesOut,0,'sharesOut')},
-    {id:'entity-read-founder-shares',ok:ownershipBindings&&readModel.ownership.founderShares===finiteOr(state.founderShares,0,'founderShares')},
-    {id:'entity-read-treasury-shares',ok:ownershipBindings&&readModel.ownership.treasuryShares===finiteOr(state.treasuryBuybackShares,0,'treasuryBuybackShares')},
-    {id:'entity-read-external-shareholder-ratio',ok:ownershipBindings&&readModel.ownership.externalShareholderRatio===finiteOr(state.externalShareholderRatio,0,'externalShareholderRatio')},
+    {id:'entity-read-issued-shares',ok:ownershipBindings&&readModel.ownership.issuedShares===expectedIssuedShares},
+    {id:'entity-read-treasury-shares',ok:ownershipBindings&&readModel.ownership.treasuryShares===expectedTreasuryShares},
+    {id:'entity-read-outstanding-shares',ok:ownershipBindings&&readModel.ownership.outstandingShares===expectedOutstandingShares},
+    {id:'entity-read-legacy-founder-shares',ok:ownershipBindings&&readModel.ownership.legacyFounderShares===expectedLegacyFounderShares},
+    {id:'entity-read-personally-acquired-own-shares',ok:ownershipBindings&&readModel.ownership.personallyAcquiredOwnShares===personalOwnCompany.quantity&&readModel.ownership.personallyAcquiredOwnSharesAverageCost===personalOwnCompany.averageCost},
+    {id:'entity-read-founder-beneficial-shares',ok:ownershipBindings&&readModel.ownership.founderBeneficialShares===expectedFounderBeneficialShares&&readModel.ownership.founderBeneficialRatio===expectedFounderBeneficialRatio},
+    {id:'entity-read-ownership-conservation',ok:ownershipBindings&&expectedIssuedShares>=0&&expectedTreasuryShares>=0&&expectedOutstandingShares>=0&&expectedFounderBeneficialShares>=0&&expectedNonFounderBeneficialShares>=0&&readModel.ownership.nonFounderBeneficialShares===expectedNonFounderBeneficialShares&&readModel.ownership.nonFounderBeneficialRatio===expectedNonFounderBeneficialRatio&&readModel.ownership.founderBeneficialShares+readModel.ownership.nonFounderBeneficialShares===readModel.ownership.outstandingShares},
+    {id:'entity-read-legacy-external-shareholder-ratio',ok:ownershipBindings&&readModel.ownership.legacyExternalShareholderRatio===finiteOr(state.externalShareholderRatio,0,'externalShareholderRatio')},
     {id:'entity-read-company-market-holdings',ok:compareHoldings(state.companyStocks,company.marketHoldings,PLAYER_COMPANY_ENTITY_ID)},
-    {id:'entity-read-personal-market-holdings',ok:compareHoldings(state.personalStocks,founder.marketHoldings,FOUNDER_ENTITY_ID)}
+    {id:'entity-read-personal-own-share-dedup',ok:!String(state.ticker||'')||!(founder.marketHoldings||[]).some(row=>row?.instrumentId===String(state.ticker))},
+    {id:'entity-read-personal-market-holdings',ok:compareHoldings(state.personalStocks,founder.marketHoldings,FOUNDER_ENTITY_ID,state.ticker==null?null:String(state.ticker))}
   ].map(row=>Object.freeze(row));
   return Object.freeze({
     ok:checks.every(row=>row.ok),
