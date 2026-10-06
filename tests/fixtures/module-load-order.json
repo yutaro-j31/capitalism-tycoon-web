@@ -18,6 +18,7 @@
     "./js/market.js",
     "./js/finance.js",
     "./js/economic-read-model.js",
+    "./js/economic-settlement.js",
     "./js/real-estate-agency-pipeline.js",
     "./js/convenience-merchandising.js",
     "./js/gym-membership-model.js",
