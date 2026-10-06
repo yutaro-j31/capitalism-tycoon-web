@@ -79,13 +79,22 @@ function validateEntityReference(value,path,requiredCode,errors){
     addError(errors,'EXTERNAL_ENTITY_ID_UNKNOWN',path,'external entity ID is not in the approved aggregate counterparty registry');
   }
 }
+function isNativeConstructorForPrototype(proto,name){
+  if(!proto||!Object.prototype.hasOwnProperty.call(proto,'constructor'))return false;
+  const ctor=proto.constructor;
+  if(typeof ctor!=='function'||ctor.name!==name||ctor.prototype!==proto)return false;
+  try{return Function.prototype.toString.call(ctor).includes('[native code]');}
+  catch{return false;}
+}
 function isPlainJsonObject(value){
   if(value==null||Object.prototype.toString.call(value)!=='[object Object]')return false;
   const proto=Object.getPrototypeOf(value);
   if(proto===null)return true;
-  if(Object.getPrototypeOf(proto)!==null)return false;
-  if(!Object.prototype.hasOwnProperty.call(proto,'constructor'))return false;
-  return typeof proto.constructor==='function'&&proto.constructor.name==='Object';
+  return Object.getPrototypeOf(proto)===null&&isNativeConstructorForPrototype(proto,'Object');
+}
+function isPlainJsonArray(value){
+  if(!Array.isArray(value))return false;
+  return isNativeConstructorForPrototype(Object.getPrototypeOf(value),'Array');
 }
 function validateJsonValue(value,path,errors,seen){
   const type=typeof value;
@@ -106,13 +115,35 @@ function validateJsonValue(value,path,errors,seen){
     addError(errors,'METADATA_CIRCULAR',path,'metadata must not contain circular references');
     return;
   }
+  const isArray=Array.isArray(value);
+  if(isArray&&!isPlainJsonArray(value)){
+    addError(errors,'METADATA_NOT_PLAIN_JSON',path,'metadata arrays must use the native Array prototype');
+    return;
+  }
+  if(!isArray&&!isPlainJsonObject(value)){
+    addError(errors,'METADATA_NOT_PLAIN_JSON',path,'metadata objects must use Object.prototype or a null prototype');
+    return;
+  }
   seen.add(value);
-  if(Array.isArray(value)){
-    for(let i=0;i<value.length;i++)validateJsonValue(value[i],`${path}[${i}]`,errors,seen);
-  }else if(isPlainJsonObject(value)){
-    for(const key of Object.keys(value))validateJsonValue(value[key],`${path}.${key}`,errors,seen);
-  }else{
-    addError(errors,'METADATA_NOT_PLAIN_JSON',path,'metadata objects must have Object.prototype or null prototype');
+  if(Object.getOwnPropertySymbols(value).length)addError(errors,'METADATA_SYMBOL_KEY',path,'metadata must not contain symbol-keyed properties');
+  const names=Object.getOwnPropertyNames(value);
+  for(const key of names){
+    if(isArray&&key==='length')continue;
+    if(isArray&&!/^(?:0|[1-9]\d*)$/.test(key)){
+      addError(errors,'METADATA_ARRAY_EXTRA_PROPERTY',`${path}.${key}`,'metadata arrays must not contain non-index properties');
+      continue;
+    }
+    const descriptor=Object.getOwnPropertyDescriptor(value,key);
+    if(!descriptor)continue;
+    if(!Object.prototype.hasOwnProperty.call(descriptor,'value')){
+      addError(errors,'METADATA_ACCESSOR_PROPERTY',`${path}.${key}`,'metadata properties must be data properties, not accessors');
+      continue;
+    }
+    if(!isArray&&!descriptor.enumerable){
+      addError(errors,'METADATA_NON_ENUMERABLE_PROPERTY',`${path}.${key}`,'metadata object properties must be enumerable JSON properties');
+      continue;
+    }
+    validateJsonValue(descriptor.value,isArray?`${path}[${key}]`:`${path}.${key}`,errors,seen);
   }
   seen.delete(value);
 }
@@ -122,7 +153,7 @@ function validateMetadata(value,path,errors){
     return;
   }
   if(!isPlainJsonObject(value)){
-    addError(errors,'METADATA_NOT_PLAIN_JSON',path,'metadata objects must have Object.prototype or null prototype');
+    addError(errors,'METADATA_NOT_PLAIN_JSON',path,'metadata objects must use Object.prototype or a null prototype');
     return;
   }
   validateJsonValue(value,path,errors,new Set());
@@ -149,7 +180,7 @@ function validateEntity(entity){
     addError(errors,'ENTITY_REQUIRED','entity','entity must be an object');
     return Object.freeze({ok:false,errors:Object.freeze(errors)});
   }
-  validateRequiredString(entity.entityId,'entity.entityId','ENTITY_ID_REQUIRED',errors);
+  validateEntityReference(entity.entityId,'entity.entityId','ENTITY_ID_REQUIRED',errors);
   if(!LEGAL_ENTITY_KINDS.includes(entity.legalEntityKind))addError(errors,'ENTITY_KIND_INVALID','entity.legalEntityKind','legalEntityKind is not approved');
   validateRequiredString(entity.legalName,'entity.legalName','ENTITY_NAME_REQUIRED',errors);
   validateRequiredString(entity.status,'entity.status','ENTITY_STATUS_REQUIRED',errors);
@@ -206,14 +237,16 @@ function validatePosting(posting,index,operationId,errors,balances,postingIds,se
     if(!SIDE_SET.has(posting.side))addError(errors,'POSTING_SIDE_INVALID',`${path}.side`,'monetary posting side must be debit or credit');
     validateRequiredString(posting.currency,`${path}.currency`,'POSTING_CURRENCY_REQUIRED',errors);
     const minor=moneyMinorUnits(posting.amount);
-    if(minor!=null&&SIDE_SET.has(posting.side)&&nonEmptyString(posting.currency)){
-      const row=balances.get(posting.currency)||{debit:0,credit:0,overflow:false};
+    if(minor!=null&&SIDE_SET.has(posting.side)&&nonEmptyString(posting.currency)&&nonEmptyString(posting.entityId)){
+      let byCurrency=balances.get(posting.entityId);
+      if(!byCurrency){byCurrency=new Map();balances.set(posting.entityId,byCurrency);}
+      const row=byCurrency.get(posting.currency)||{debit:0,credit:0,overflow:false};
       const next=row[posting.side]+minor;
       if(!Number.isSafeInteger(next)){
         row.overflow=true;
-        addError(errors,'POSTING_CURRENCY_TOTAL_OUT_OF_ENVELOPE',`${path}.amount`,'currency aggregate exceeds the safe integer envelope');
+        addError(errors,'POSTING_CURRENCY_TOTAL_OUT_OF_ENVELOPE',`${path}.amount`,'entity/currency aggregate exceeds the safe integer envelope');
       }else row[posting.side]=next;
-      balances.set(posting.currency,row);
+      byCurrency.set(posting.currency,row);
     }
   }else{
     if(posting.side!=null)addError(errors,'POSTING_SIDE_WITHOUT_AMOUNT',`${path}.side`,'side is only valid for monetary postings');
@@ -237,7 +270,7 @@ function validateOperation(operation){
   const errors=[],balances=new Map(),postingIds=new Set(),sequences=new Set();
   if(!operation||typeof operation!=='object'||Array.isArray(operation)){
     addError(errors,'OPERATION_REQUIRED','operation','operation must be an object');
-    return Object.freeze({ok:false,errors:Object.freeze(errors),currencyBalances:Object.freeze({})});
+    return Object.freeze({ok:false,errors:Object.freeze(errors),entityCurrencyBalances:Object.freeze(Object.create(null)),currencyBalances:Object.freeze(Object.create(null))});
   }
   if(operation.schemaVersion!==SCHEMA_VERSION)addError(errors,'OPERATION_SCHEMA_VERSION_INVALID','operation.schemaVersion',`schemaVersion must equal ${SCHEMA_VERSION}`);
   validateRequiredString(operation.operationId,'operation.operationId','OPERATION_ID_REQUIRED',errors);
@@ -268,15 +301,36 @@ function validateOperation(operation){
     }
   }
 
-  const currencyBalances={};
-  for(const currency of [...balances.keys()].sort()){
-    const row=balances.get(currency);
-    currencyBalances[currency]=Object.freeze({debitMinorUnits:row.debit,creditMinorUnits:row.credit});
-    if(!row.overflow&&row.debit!==row.credit)addError(errors,'OPERATION_CURRENCY_UNBALANCED',`operation.postings`,`${currency} debits and credits must balance exactly in minor units`);
+  const entityCurrencyBalances=Object.create(null);
+  const currencyBalances=Object.create(null);
+  for(const entityId of [...balances.keys()].sort()){
+    const byCurrency=balances.get(entityId);
+    const entityRows=Object.create(null);
+    entityCurrencyBalances[entityId]=entityRows;
+    for(const currency of [...byCurrency.keys()].sort()){
+      const row=byCurrency.get(currency);
+      entityRows[currency]=Object.freeze({debitMinorUnits:row.debit,creditMinorUnits:row.credit});
+      if(!row.overflow&&row.debit!==row.credit){
+        addError(errors,'OPERATION_ENTITY_CURRENCY_UNBALANCED','operation.postings',`${entityId} / ${currency} debits and credits must balance exactly in minor units`);
+      }
+      const total=currencyBalances[currency]||{debitMinorUnits:0,creditMinorUnits:0};
+      const nextDebit=total.debitMinorUnits+row.debit;
+      const nextCredit=total.creditMinorUnits+row.credit;
+      if(!Number.isSafeInteger(nextDebit)||!Number.isSafeInteger(nextCredit)){
+        addError(errors,'OPERATION_CURRENCY_TOTAL_OUT_OF_ENVELOPE','operation.postings',`${currency} diagnostic aggregate exceeds the safe integer envelope`);
+      }else{
+        total.debitMinorUnits=nextDebit;
+        total.creditMinorUnits=nextCredit;
+        currencyBalances[currency]=total;
+      }
+    }
+    Object.freeze(entityRows);
   }
+  for(const currency of Object.keys(currencyBalances))Object.freeze(currencyBalances[currency]);
   return Object.freeze({
     ok:errors.length===0,
     errors:Object.freeze(errors),
+    entityCurrencyBalances:Object.freeze(entityCurrencyBalances),
     currencyBalances:Object.freeze(currencyBalances)
   });
 }
