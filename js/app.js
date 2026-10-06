@@ -80,7 +80,7 @@ const moneyInput = (id, value, label) => `<label class="field"><span>${esc(label
 const TABS = [
   ['home','⌂','ホーム'],['map','🗾','出店'],['business','🏪','事業'],['office','🏢','本社'],['market','📈','株式'],
   ['venture','🚀','VC'],['ma','🤝','M&A'],['overseas','🌐','海外'],['assets','💎','資産'],['bank','🏦','銀行'],
-  ['report','📊','決算'],['founder','👤','創業者'],['strategy','🧩','戦略'],['media','🗞','メディア'],['legacy','🏛','承継'],['missions','🎯','進行'],['rivals','⚔','競合'],['news','📰','ニュース'],['settings','⚙','設定']
+  ['report','📊','決算'],['founder','👤','創業者'],['strategy','🧩','戦略'],['media','🗞','メディア'],['legacy','🏛','承継'],['missions','🎯','進行'],['rivals','⚔','競合'],['news','📰','ニュース'],['pe-portfolio','💼','PE'],['settings','⚙','設定']
 ];
 
 function toast(message, severity='info') {
