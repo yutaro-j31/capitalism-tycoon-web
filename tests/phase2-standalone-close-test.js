@@ -67,7 +67,20 @@ function savedPayload(loaded){return loaded.ctx.__localStorageData.get(SAVE_KEY)
     'legacy ¥10 weekly gate alone would not reject six cents');
 }
 
-// 3. A close failure aborts the complete production week and durable save.
+// 3. Explicit validation-skip fixtures bypass the close stage just like legacy validation.
+{
+  const {game,finance}=setup(0x52100005);
+  game.g.skipWeeklyValidation=true;
+  const original=finance.standaloneClose;
+  finance.standaloneClose=()=>{throw new Error('close must be skipped');};
+  try{
+    assert.equal(game.advanceWeek(false),true);
+  }finally{
+    finance.standaloneClose=original;
+  }
+}
+
+// 4. A close failure aborts the complete production week and durable save.
 {
   const {loaded,game,finance}=setup(0x52100003);
   assert.equal(game.save(),true);
@@ -94,7 +107,7 @@ function savedPayload(loaded){return loaded.ctx.__localStorageData.get(SAVE_KEY)
   assert.equal(game.financeValidationFailure.stage,'standalone-accounting-close');
 }
 
-// 4. A close implementation exception is also fail-closed and rolled back.
+// 5. A close implementation exception is also fail-closed and rolled back.
 {
   const {loaded,game,finance}=setup(0x52100004);
   assert.equal(game.save(),true);
