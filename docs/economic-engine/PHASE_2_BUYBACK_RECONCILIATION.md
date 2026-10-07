@@ -40,8 +40,8 @@ The receipt is attached to that finance row. No additional cash/share mutation i
 
 A buyback is accepted only when all of the following hold:
 
-1. rounded purchased quantity × execution price equals recognized cost;
-2. company-cash reduction equals recognized cost;
+1. purchased quantity × execution price is quantized once to the ¥0.01 accounting boundary and equals recognized cost;
+2. company-cash reduction equals that same cent-quantized recognized cost;
 3. treasury-stock book increase equals recognized cost;
 4. treasury shares increase by exactly the purchased quantity;
 5. issued shares do not change;
@@ -53,7 +53,7 @@ A buyback is accepted only when all of the following hold:
 11. execution price is consistent with the pre-buyback authoritative stock price;
 12. the public stock mirror, when present, agrees with authoritative price, issued shares and market capitalization.
 
-The existing price-impact formula is not changed by P2-4.
+The existing price-impact formula is not changed by P2-4. The only monetary hardening is one cent-quantization of executed cost before the existing cash/book/ledger mutations, eliminating sub-cent divergence between authoritative cash and the finance row.
 
 ## Forward-only adoption
 
