@@ -1,8 +1,8 @@
 # Phase 2 Fixed-Asset Reconciliation
 
-**Slice:** P2-5 — Fixed asset acquisition / investing cash flow  
-**Tracker:** #890  
-**Issue:** #906  
+**Slice:** P2-5 — Fixed asset acquisition / investing cash flow
+**Tracker:** #890
+**Issue:** #906
 **Base main:** `472107016d2e8b8012afbe3dd86af8a222dd23d7`
 
 ## Scope
@@ -31,7 +31,7 @@ Each adopted asset records:
 - opening book value;
 - current status at the P2-5 adoption boundary.
 
-P2-5 does not fabricate historical acquisition or depreciation receipts.
+P2-5 does not fabricate historical acquisition or depreciation receipts. Only an absent adoption boundary initializes old-save evidence; malformed metadata fails the gate rather than being reset.
 
 Assets created after adoption are marked `recognized` and require a valid linked acquisition event before the permanent close can pass.
 
@@ -70,7 +70,7 @@ The permanent gate proves:
 
 `opening accumulated depreciation + recognized post-adoption depreciation = current accumulated depreciation`.
 
-Disposed assets are excluded from future depreciation.
+Disposed assets are excluded from future depreciation. Live receipt counts and amounts reconcile against archived counts and amounts in both the 5,000-row runtime compactor and every quota profile. The per-asset week watermark prevents replay after archival. A cent discrepancy fails; the comparison epsilon only accommodates numeric representation noise.
 
 ## Disposal contract
 
@@ -86,6 +86,10 @@ After disposal, every linked fixed asset must have:
 - book value 0;
 - one recognized disposal identity;
 - no later depreciation.
+
+## Transaction safety
+
+The store-opening, equipment-upgrade, vertical-integration, construction and store-closure writers use the existing engine transaction boundary. A rejected receipt restores cash, asset state, ledger state and RNG and leaves durable save bytes unchanged. The property-disposition transaction remains authoritative.
 
 ## Investing cash flow
 

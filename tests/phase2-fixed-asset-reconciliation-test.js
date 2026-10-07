@@ -124,7 +124,7 @@ function status(f){
   const opening=g.companyCash;
   g.companyCash=money(g.companyCash-cost);
   finance.addFixedAsset(g,{assetID,assetType:'storeEquipment',acquisitionCost:cost,usefulLifeWeeks:2,salvageValue:salvage});
-  finance.event(g,'capitalExpenditure',cost,{cashEffect:-cost,assetEffect:cost,profitEffect:0,sourceType:'p2-test',sourceID:assetID,operationID:`fixed-asset-acquisition-${assetID}`,idempotencyKey:`fixed-asset-acquisition-${assetID}`,fixedAssetLifecycle:'acquisition',fixedAssetID});
+  finance.event(g,'capitalExpenditure',cost,{cashEffect:-cost,assetEffect:cost,profitEffect:0,sourceType:'p2-test',sourceID:assetID,operationID:`fixed-asset-acquisition-${assetID}`,idempotencyKey:`fixed-asset-acquisition-${assetID}`,fixedAssetLifecycle:'acquisition',fixedAssetID:assetID});
   finance.rebuildSnapshotForWeek(g,g.week);
   for(let i=0;i<3;i++){
     const begin=g.companyCash;
@@ -220,8 +220,8 @@ function status(f){
   const f=setup(0x52500009),g=f.engine.g,finance=f.modules.finance,cost=12345,assetID='p2-duplicate';
   g.companyCash-=cost;
   finance.addFixedAsset(g,{assetID,acquisitionCost:cost,usefulLifeWeeks:100,salvageValue:100});
-  finance.event(g,'capitalExpenditure',cost,{cashEffect:-cost,assetEffect:cost,profitEffect:0,sourceType:'p2-test',sourceID:assetID,operationID:'p2-acq-1',idempotencyKey:'p2-acq-1',fixedAssetLifecycle:'acquisition',fixedAssetID});
-  assert.throws(()=>finance.event(g,'capitalExpenditure',cost,{cashEffect:-cost,assetEffect:cost,profitEffect:0,sourceType:'p2-test',sourceID:assetID,operationID:'p2-acq-2',idempotencyKey:'p2-acq-2',fixedAssetLifecycle:'acquisition',fixedAssetID}),/P2-ASSET-DUPLICATE/);
+  finance.event(g,'capitalExpenditure',cost,{cashEffect:-cost,assetEffect:cost,profitEffect:0,sourceType:'p2-test',sourceID:assetID,operationID:'p2-acq-1',idempotencyKey:'p2-acq-1',fixedAssetLifecycle:'acquisition',fixedAssetID:assetID});
+  assert.throws(()=>finance.event(g,'capitalExpenditure',cost,{cashEffect:-cost,assetEffect:cost,profitEffect:0,sourceType:'p2-test',sourceID:assetID,operationID:'p2-acq-2',idempotencyKey:'p2-acq-2',fixedAssetLifecycle:'acquisition',fixedAssetID:assetID}),/P2-ASSET-DUPLICATE/);
   const badID='p2-expensed';
   finance.addFixedAsset(g,{assetID:badID,acquisitionCost:cost,usefulLifeWeeks:100,salvageValue:100});
   assert.throws(()=>finance.event(g,'capitalExpenditure',cost,{cashEffect:-cost,assetEffect:cost,profitEffect:-cost,sourceType:'p2-test',sourceID:badID,operationID:'p2-expensed',idempotencyKey:'p2-expensed',fixedAssetLifecycle:'acquisition',fixedAssetID:badID}),/P2-ASSET-ACQUISITION/);
@@ -270,6 +270,79 @@ function status(f){
   };
   const a=run(),b=run();
   assert.deepEqual(a,b);
+}
+
+// A failing acquisition/disposal must roll back cash, asset/ledger state, RNG and durable bytes.
+for(const kind of ['open','upgrade','vertical','building','close']){
+  const f=setup(0x52500012),g=f.engine.g,finance=f.modules.finance;
+  let invoke;
+  if(kind==='open'){
+    const tenant=g.tenants.find(t=>!t.occupiedBy&&t.businessID==='ramen');
+    invoke=()=>f.engine.openStore({tenantID:tenant.id,businessID:'ramen',name:'Rollback'});
+  }else if(kind==='vertical')invoke=()=>f.engine.addVerticalIntegration(f.modules.expansion.VERTICAL_INTEGRATION_OFFERS[0].id);
+  else if(kind==='building'){
+    const land=g.properties.find(p=>p.kind==='土地'&&!p.owner);f.engine.buyProperty(land.id,'company');
+    invoke=()=>f.engine.buildOnLand(land.id,'本社ビル');
+  }else{
+    const store=openStore(f);
+    invoke=()=>kind==='upgrade'?f.engine.upgradeStoreEquipment(store.id):f.engine.closeStore(store.id);
+  }
+  f.engine.save();
+  const state=JSON.stringify(g),saved=f.ctx.localStorage.getItem('capitalism_tycoon_web_v1');
+  const key=kind==='close'?'disposeFixedAsset':'event',original=finance[key];
+  finance[key]=(...args)=>{const result=original(...args);throw new Error('injected-fixed-asset-failure');};
+  try{assert.throws(invoke,/injected-fixed-asset-failure/);}finally{finance[key]=original;}
+  assert.equal(JSON.stringify(f.engine.g),state,kind+' rolls back all authoritative state');
+  assert.equal(f.ctx.localStorage.getItem('capitalism_tycoon_web_v1'),saved,kind+' preserves durable save');
+}
+
+// Evidence may not disappear or silently become an old-save adoption.
+for(const corrupt of [
+  (g,a)=>{delete a.p2Lifecycle;},
+  (g,a)=>{a.p2Lifecycle=null;},
+  g=>{g.finance.fixedAssetReconciliation=null;},
+  g=>{g.finance.fixedAssetReconciliation.schemaVersion=999;},
+  (g,a)=>{g.finance.transactions=g.finance.transactions.filter(tx=>tx.fixedAssetID!==a.assetID);},
+  (g,a)=>{a.bookValue+=.01;},
+  (g,a)=>{a.status='invalid';},
+]){
+  const f=setup(0x52500010),store=openStore(f),g=f.engine.g;
+  const a=g.finance.fixedAssets.find(a=>a.storeID===store.id);
+  corrupt(g,a);
+  assert.equal(f.modules.finance.fixedAssetReconciliationStatus(g).ok,false,'corrupt evidence must fail closed');
+  assert.equal(f.modules.finance.standaloneClose(g).ok,false);
+}
+
+// Non-finite optional inputs and a one-cent acquisition expense cannot be normalized away.
+{
+  const f=setup(),g=f.engine.g,finance=f.modules.finance;
+  for(const extras of [{salvageValue:Infinity},{bookValue:NaN},{accumulatedDepreciation:Infinity},{acquisitionCost:1.001}])
+    assert.throws(()=>finance.addFixedAsset(g,{assetID:'bad-optional',acquisitionCost:100,...extras}),/P2-ASSET-FINITE/);
+  finance.addFixedAsset(g,{assetID:'cent-acquisition',acquisitionCost:100});
+  const opts={cashEffect:-100,assetEffect:100,fixedAssetLifecycle:'acquisition',fixedAssetID:'cent-acquisition'};
+  assert.throws(()=>finance.event(g,'capitalExpenditure',100,{...opts,profitEffect:-.01}),/P2-ASSET-ACQUISITION/);
+  assert.throws(()=>finance.event(g,'capitalExpenditure',100,{...opts,profitEffect:Infinity}),/P2-ASSET-FINITE/);
+}
+
+// Both archive writers retain independently counted acquisition/depreciation/disposal receipts.
+{
+  const f=setup(0x52500011),store=openStore(f),g=f.engine.g,finance=f.modules.finance;
+  finance.recordWeekly(g,{stores:[],other:{},beginningCash:g.companyCash});
+  assert.equal(f.engine.closeStore(store.id),true);
+  g.week=1040;
+  for(const profile of ['normal','emergency','critical']){
+    const compact=f.modules.saveStorage.compactStateForStorage(g,profile).state;
+    assert.equal(finance.fixedAssetReconciliationStatus(compact).ok,true);
+    assert.ok(compact.finance.fixedAssets[0].p2Lifecycle.archivedDepreciationCount>0);
+  }
+  for(let i=0;i<5001;i++)g.finance.transactions.push({id:`asset-filler-${i}`,transactionID:`asset-filler-${i}`,week:20+Math.floor(i/100),category:'otherOperating',amount:0,cashEffect:0,profitEffect:0});
+  finance.event(g,'otherOperating',0,{operationID:'asset-compaction-trigger'});
+  const a=g.finance.fixedAssets.find(a=>a.storeID===store.id);
+  assert.equal(a.p2Lifecycle.archivedAcquisitionCount,1);
+  assert.equal(a.p2Lifecycle.archivedDisposalCount,1);
+  status(f);
+  a.p2Lifecycle.archivedDepreciation-=.01;
+  assert.equal(finance.fixedAssetReconciliationStatus(g).ok,false);
 }
 
 console.log('Phase 2 fixed-asset reconciliation tests passed');

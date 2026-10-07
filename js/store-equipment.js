@@ -107,6 +107,7 @@ function plan(state,store,business){
 }
 
 function upgrade(engine,storeID){
+  return engine.runTransaction(()=>{
   const state=engine.g;
   const store=(state.stores||[]).find(row=>String(row.id)===String(storeID));
   const gate=upgradeable(state,store);
@@ -143,9 +144,8 @@ function upgrade(engine,storeID){
     description:`${store.name} 設備強化 Lv${nextLevel}`
   });
   engine.notify(`${store.name}の設備をLv${nextLevel}へ強化しました。`,'success');
-  engine.save();
-  engine.emit('change');
   return true;
+  });
 }
 
 function conditionOf(store){return clamp(finite(store?.condition,FULL_CONDITION),0,FULL_CONDITION);}
