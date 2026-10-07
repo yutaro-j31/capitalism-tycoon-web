@@ -105,6 +105,24 @@ function buybackRow(f){return f.game.g.finance.transactions.filter(row=>row?.buy
   assert.equal(s.metrics.recognizedCost,money(rows.reduce((sum,row)=>sum+row.buybackReconciliation.cost,0)));
 }
 
+// Same seed/state/action produces identical receipt and economic post-state without consuming RNG.
+{
+  const a=setup(0x52400018),b=setup(0x52400018);
+  assert.equal(a.game.buybackOwnShares(3_000_000),true);
+  assert.equal(b.game.buybackOwnShares(3_000_000),true);
+  const ar=plain(buybackRow(a).buybackReconciliation),br=plain(buybackRow(b).buybackReconciliation);
+  assert.deepEqual(ar,br);
+  assert.deepEqual({
+    cash:a.game.g.companyCash,treasury:a.game.g.treasuryBuybackShares,shares:a.game.g.sharesOut,
+    founder:a.game.g.founderOwnershipRatio,external:a.game.g.externalShareholderRatio,price:a.game.g.stockPrice,
+    rng:plain(a.game.g.simulationRng),book:a.game.g.finance.balances.treasuryStock
+  },{
+    cash:b.game.g.companyCash,treasury:b.game.g.treasuryBuybackShares,shares:b.game.g.sharesOut,
+    founder:b.game.g.founderOwnershipRatio,external:b.game.g.externalShareholderRatio,price:b.game.g.stockPrice,
+    rng:plain(b.game.g.simulationRng),book:b.game.g.finance.balances.treasuryStock
+  });
+}
+
 // Save/reload retains the forward reconciliation state exactly.
 {
   const f=setup(0x52400005);
@@ -203,6 +221,20 @@ rollbackCase(0x52400012,e=>{e.issuedSharesAfter+=1;});
 rollbackCase(0x52400013,e=>{e.founderOwnershipAfter+=.01;});
 rollbackCase(0x52400014,e=>{e.stockMirrorPriceAfter+=.02;});
 rollbackCase(0x52400015,e=>{e.cost=Infinity;});
+rollbackCase(0x52400019,e=>{e.quantity+=1;});
+rollbackCase(0x5240001a,e=>{e.executionPrice+=.02;});
+rollbackCase(0x5240001b,e=>{e.treasuryBookAfter+=.02;});
+
+// Missing reconciliation evidence is also fail-closed and atomic.
+{
+  const f=setup(0x5240001c);f.game.shareholderReturnCapacity();f.game.save();
+  const before=JSON.stringify(f.game.g),saved=f.loaded.ctx.localStorage.getItem('capitalism_tycoon_web_v1'),base=f.finance.event;
+  f.finance.event=function(g,category,amount,opts={}){if(opts.buybackReconciliation){opts={...opts};delete opts.buybackReconciliation;}return base(g,category,amount,opts);};
+  try{assert.throws(()=>f.game.buybackOwnShares(1_000_000),/P2-BUYBACK-FINITE/);}
+  finally{f.finance.event=base;}
+  assert.equal(JSON.stringify(f.game.g),before);
+  assert.equal(f.loaded.ctx.localStorage.getItem('capitalism_tycoon_web_v1'),saved);
+}
 
 // Persisted drift is detected by the permanent close gate.
 for(const mutate of [
