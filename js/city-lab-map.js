@@ -3,7 +3,7 @@
 const modules=globalThis.__capitalismTycoonModules;
 if(!modules?.mapPhase2Canvas)throw new Error('map-phase2-canvas.js must precede city-lab-map.js.');
 if(modules.cityLabMap)throw new Error('city-lab-map.js is already registered.');
-const LAZY_URLS=['./assets/vendor/three-r160.min.js?rev=db97f4f4304d','./prototypes/map-canvas-renderer.js?rev=db97f4f4304d','./prototypes/map-prefecture-profiles.js?rev=db97f4f4304d'];
+const LAZY_URLS=['./assets/vendor/three-r160.min.js?rev=9262ba5af60f','./prototypes/map-canvas-renderer.js?rev=9262ba5af60f','./prototypes/map-prefecture-profiles.js?rev=9262ba5af60f'];
 const clamp=(n,a,b)=>Math.max(a,Math.min(b,n));
 const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const KIND={store:'自社店舗',tenant:'出店候補',office:'オフィス',realestate:'不動産',competitor:'競合'};
@@ -49,7 +49,7 @@ function renderWorkspace(screen,g,options){
     screen.insertBefore(root,directory);
     root.addEventListener('click',event=>{const button=event.target.closest('[data-city-camera]');if(button)current?.cameraAction(button.dataset.cityCamera);});
     ensureAssets().then(()=>{if(!root.isConnected)return;try{current=createCity(root,{...options,onUnavailable:fallback});update(root,g,options);}catch(error){fallback(error);}}).catch(fallback);
-    function fallback(error){if(!root.isConnected)return;console.warn('City Lab renderer unavailable; using Canvas2D.',error);failed=true;release();root.remove();options.fallback();const notice=document.createElement('p');notice.className='city-lab-fallback';notice.setAttribute('role','status');notice.innerHTML='この端末では2Dマップを表示しています。 <button type="button" data-d-ui-action="city-retry">3Dを再試行</button>';screen.prepend(notice);}
+    function fallback(error){if(!root.isConnected)return;console.warn('City Lab renderer unavailable; using Canvas2D.',error);failed=true;release();root.remove();options.fallback();modules.uiEnhancerRegistry?.runUIEnhancers?.();const notice=document.createElement('p');notice.className='city-lab-fallback';notice.setAttribute('role','status');notice.innerHTML='この端末では2Dマップを表示しています。 <button type="button" data-d-ui-action="city-retry">3Dを再試行</button>';screen.prepend(notice);}
   }
   if(current?.root===root)update(root,g,options);
   return true;

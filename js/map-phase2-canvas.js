@@ -30,11 +30,11 @@ if(modules.mapPhase2Canvas)throw new Error('map-phase2-canvas.js is already regi
  * to any browser storage, and never becomes part of game state or the
  * simulation.
  */
-globalThis.__STATIC_ASSET_REVISION='db97f4f4304d';
+globalThis.__STATIC_ASSET_REVISION='9262ba5af60f';
 const ASSET_BASE='./assets/map-sprites/phase2';
 const IMAGE_BASE='./assets/map-sprites/phase1';
-const MANIFEST_URL=`${ASSET_BASE}/sprites.json?rev=db97f4f4304d`;
-const PROTOTYPE_SCRIPTS=['./prototypes/map-canvas-renderer.js?rev=db97f4f4304d','./prototypes/map-prefecture-profiles.js?rev=db97f4f4304d','./prototypes/map-world-preview.js?rev=db97f4f4304d'];
+const MANIFEST_URL=`${ASSET_BASE}/sprites.json?rev=9262ba5af60f`;
+const PROTOTYPE_SCRIPTS=['./prototypes/map-canvas-renderer.js?rev=9262ba5af60f','./prototypes/map-prefecture-profiles.js?rev=9262ba5af60f','./prototypes/map-world-preview.js?rev=9262ba5af60f'];
 const WORLD_COLS=32,WORLD_ROWS=28;
 /*
  * Initial-framing pull-back (Map Framing / Zoom-out Calibration). This
