@@ -197,6 +197,108 @@ function snapshot(state){
     ownership:ownershipSummary(state)
   });
 }
+// P3-1 is source evidence only: no registry adoption, reconciliation or rights grant.
+function ownershipProjection(state){
+  if(!state||typeof state!=='object'||Array.isArray(state))throw new TypeError('economicReadModel.ownershipProjection requires a state object.');
+  const issues=[],unresolvedAliases=[];
+  function quantity(value,sourcePath,optional=false){
+    if(optional&&(value===undefined||value===null))return 0;
+    if(typeof value!=='number'||!Number.isFinite(value)||value<0||value>Number.MAX_SAFE_INTEGER){
+      issues.push({sourcePath,reason:'quantity-missing-invalid-or-out-of-envelope'});
+      return null;
+    }
+    return value;
+  }
+  function holdingMap(source,sourcePath){
+    if(source===undefined||source===null)return {};
+    if(typeof source!=='object'||Object.prototype.toString.call(source)!=='[object Object]'){
+      issues.push({sourcePath,reason:'holding-map-invalid'});
+      return null;
+    }
+    return source;
+  }
+  const issuedQuantity=quantity(state.sharesOut,'sharesOut');
+  const treasuryQuantity=quantity(state.treasuryBuybackShares,'treasuryBuybackShares',true);
+  const founderQuantity=quantity(state.founderShares,'founderShares');
+  const instrumentId=typeof state.ticker==='string'&&state.ticker.trim()?state.ticker:null;
+  if(instrumentId===null)issues.push({sourcePath:'ticker',reason:'player-instrument-binding-missing'});
+  const personal=holdingMap(state.personalStocks,'personalStocks');
+  const company=holdingMap(state.companyStocks,'companyStocks');
+  const ownPath=instrumentId===null?null:`personalStocks.${instrumentId}`;
+  const hasOwnHolding=personal!==null&&instrumentId!==null&&Object.prototype.hasOwnProperty.call(personal,instrumentId);
+  let personalQuantity=personal===null||instrumentId===null?null:0;
+  if(hasOwnHolding){
+    const row=personal[instrumentId];
+    if(!row||typeof row!=='object'||Object.prototype.toString.call(row)!=='[object Object]'){
+      issues.push({sourcePath:ownPath,reason:'holding-record-invalid'});
+      personalQuantity=null;
+    }else personalQuantity=quantity(row.qty,`${ownPath}.qty`);
+  }
+  for(const [map,path,holderId] of [[company,'companyStocks',PLAYER_COMPANY_ENTITY_ID],[personal,'personalStocks',FOUNDER_ENTITY_ID]]){
+    if(map===null)continue;
+    for(const alias of Object.keys(map).sort(compareText)){
+      if(path==='personalStocks'&&alias===instrumentId)continue;
+      unresolvedAliases.push({
+        instrumentId:alias,
+        registeredHolderEntityId:holderId,
+        issuerEntityId:null,
+        securityClassId:null,
+        sourcePath:`${path}.${alias}`,
+        reason:path==='companyStocks'&&alias===instrumentId?'company-own-share-alias-not-adopted':'issuer-family-alias-not-adopted'
+      });
+    }
+  }
+  const sourcePaths=Object.freeze({issuedQuantity:'sharesOut',treasuryQuantity:'treasuryBuybackShares'});
+  const securityClass=Object.freeze({
+    securityClassId:PLAYER_COMPANY_COMMON_SECURITY_CLASS_ID,
+    issuerEntityId:PLAYER_COMPANY_ENTITY_ID,
+    classType:'common',
+    issuedQuantity,
+    treasuryQuantity,
+    votingRightsPerUnit:1,
+    economicRightsPerUnit:1,
+    rightsEvidence:'legacy-player-single-common-class',
+    treasuryQuantityDefaulted:state.treasuryBuybackShares===undefined||state.treasuryBuybackShares===null,
+    sourcePaths
+  });
+  const holdings=freezeRows([
+    {
+      holdingId:'holding:player-company:founder-legacy',
+      securityClassId:PLAYER_COMPANY_COMMON_SECURITY_CLASS_ID,
+      registeredHolderEntityId:FOUNDER_ENTITY_ID,
+      beneficialOwnerEntityId:FOUNDER_ENTITY_ID,
+      beneficialFraction:1,
+      quantity:founderQuantity,
+      sourceLot:'legacy-founderShares-bucket',
+      sourcePath:'founderShares'
+    },
+    {
+      holdingId:'holding:player-company:founder-personal-stock',
+      securityClassId:PLAYER_COMPANY_COMMON_SECURITY_CLASS_ID,
+      registeredHolderEntityId:FOUNDER_ENTITY_ID,
+      beneficialOwnerEntityId:FOUNDER_ENTITY_ID,
+      beneficialFraction:1,
+      quantity:personalQuantity,
+      sourceLot:'legacy-personal-own-stock-bucket',
+      sourcePath:hasOwnHolding?`${ownPath}.qty`:null,
+      sourceMapPath:'personalStocks',
+      sourceInstrumentId:instrumentId
+    }
+  ]);
+  issues.sort((a,b)=>compareText(a.sourcePath,b.sourcePath)||compareText(a.reason,b.reason));
+  unresolvedAliases.sort((a,b)=>compareText(a.sourcePath,b.sourcePath));
+  return Object.freeze({
+    projectionVersion:1,
+    source:'legacy-authoritative-state',
+    authority:'read-only',
+    reconciliationStatus:'not-evaluated',
+    entities:Object.freeze([entityRecord(state,'company'),entityRecord(state,'founder')]),
+    securityClasses:Object.freeze([securityClass]),
+    holdings,
+    unresolvedAliases:freezeRows(unresolvedAliases),
+    issues:freezeRows(issues)
+  });
+}
 function entityById(readModel,entityId){
   return readModel.entities.find(row=>row?.entity?.entityId===entityId)||null;
 }
@@ -405,6 +507,7 @@ modules.economicReadModel=Object.freeze({
   CURRENCY,
   LEGACY_DEBT_TOLERANCE,
   snapshot,
+  ownershipProjection,
   compareLegacyParity
 });
 })();
