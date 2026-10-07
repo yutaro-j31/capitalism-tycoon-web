@@ -115,10 +115,12 @@ function upgrade(engine,storeID){
   const cost=upgradeCost(business,store);
   if(finite(state.companyCash)<cost)return engine.fail(`設備強化には${yen(cost)}が必要です。`);
   const nextLevel=level(store)+1;
+  const fixedAssetID=`store-equipment-${store.id}-L${nextLevel}`;
+  if(finance.ensureFinance(state).fixedAssets.some(asset=>String(asset.assetID)===fixedAssetID))return engine.fail('この設備強化はすでに処理されています。');
   state.companyCash-=cost;
   store.level=nextLevel;
-  finance.addFixedAsset(state,{
-    assetID:`store-equipment-${store.id}-L${nextLevel}`,
+  const fixedAsset=finance.addFixedAsset(state,{
+    assetID:fixedAssetID,
     assetType:'storeEquipment',
     acquisitionCost:cost,
     usefulLifeWeeks:USEFUL_LIFE_WEEKS,
@@ -126,6 +128,7 @@ function upgrade(engine,storeID){
     businessID:store.businessID,
     storeID:store.id
   });
+  if(!fixedAsset)throw new Error('P2-ASSET-DUPLICATE: equipment fixed asset already exists');
   finance.event(state,'capitalExpenditure',cost,{
     cashEffect:-cost,
     assetEffect:cost,
@@ -133,6 +136,10 @@ function upgrade(engine,storeID){
     storeID:store.id,
     sourceType:'storeEquipmentUpgrade',
     sourceID:store.id,
+    operationID:`fixed-asset-acquisition-${fixedAssetID}`,
+    idempotencyKey:`fixed-asset-acquisition-${fixedAssetID}`,
+    fixedAssetLifecycle:'acquisition',
+    fixedAssetID,
     description:`${store.name} 設備強化 Lv${nextLevel}`
   });
   engine.notify(`${store.name}の設備をLv${nextLevel}へ強化しました。`,'success');
