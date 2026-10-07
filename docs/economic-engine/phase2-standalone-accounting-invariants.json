@@ -1,0 +1,191 @@
+{
+  "schemaVersion": 1,
+  "phase": "Phase 2",
+  "status": "legacy-compatibility-baseline",
+  "source": "js/finance.js::validate",
+  "rules": [
+    {
+      "id": "P2-ACC-001",
+      "name": "balance-sheet identity",
+      "legacyTolerance": {
+        "kind": "absolute",
+        "value": 2,
+        "unit": "JPY"
+      },
+      "legacyCheck": "abs(balanceSheet.balanceDifference) <= 2",
+      "phase2Target": "BS identity"
+    },
+    {
+      "id": "P2-ACC-002",
+      "name": "balance-sheet cash to authoritative company cash",
+      "legacyTolerance": {
+        "kind": "absolute",
+        "value": 0.1,
+        "unit": "JPY"
+      },
+      "legacyCheck": "abs(BS cashAndDeposits - companyCash) <= 0.1",
+      "phase2Target": "cash roll-forward"
+    },
+    {
+      "id": "P2-ACC-003",
+      "name": "cash-flow identity",
+      "legacyTolerance": {
+        "kind": "absolute",
+        "value": 10,
+        "unit": "JPY"
+      },
+      "legacyCheck": "abs(openingCash + netCashChange - endingCash) <= 10",
+      "phase2Target": "cash roll-forward"
+    },
+    {
+      "id": "P2-ACC-004",
+      "name": "period cash-flow ending cash to authoritative company cash",
+      "legacyTolerance": {
+        "kind": "absolute",
+        "value": 0.5,
+        "unit": "JPY"
+      },
+      "legacyCheck": "abs(CF endingCash - companyCash) <= 0.5",
+      "phase2Target": "cash roll-forward"
+    },
+    {
+      "id": "P2-ACC-005",
+      "name": "weekly snapshot cash difference",
+      "legacyTolerance": {
+        "kind": "absolute",
+        "value": 10,
+        "unit": "JPY"
+      },
+      "legacyCheck": "abs(weeklySnapshot.cashDifference) <= 10",
+      "phase2Target": "cash roll-forward"
+    },
+    {
+      "id": "P2-ACC-006",
+      "name": "weekly opening/previous ending roll-forward",
+      "legacyTolerance": {
+        "kind": "absolute",
+        "value": 10,
+        "unit": "JPY"
+      },
+      "legacyCheck": "abs(previous endingCash - current openingCash) <= 10",
+      "phase2Target": "cash roll-forward"
+    },
+    {
+      "id": "P2-ACC-007",
+      "name": "finance opening cash plus archived/live cash flow to company cash",
+      "legacyTolerance": {
+        "kind": "absolute",
+        "value": 10,
+        "unit": "JPY"
+      },
+      "legacyCheck": "abs(openingCash + archived CF + live cashEffect - companyCash) <= 10",
+      "phase2Target": "cash roll-forward"
+    },
+    {
+      "id": "P2-ACC-008",
+      "name": "company debt to non-repaid loan principal",
+      "legacyTolerance": {
+        "kind": "absolute",
+        "value": 0.1,
+        "unit": "JPY"
+      },
+      "legacyCheck": "abs(sum(non-repaid outstandingPrincipal) - companyDebt) <= 0.1",
+      "phase2Target": "debt roll-forward"
+    },
+    {
+      "id": "P2-ACC-009",
+      "name": "retained earnings roll-forward",
+      "legacyTolerance": {
+        "kind": "absolute",
+        "value": 0.1,
+        "unit": "JPY"
+      },
+      "legacyCheck": "abs(opening RE + cumulative NI - dividends + prior adjustments - closing RE) <= 0.1",
+      "phase2Target": "dividend reconciliation"
+    },
+    {
+      "id": "P2-ACC-010",
+      "name": "working-capital balances non-negative",
+      "legacyTolerance": {
+        "kind": "floor",
+        "value": -0.1,
+        "unit": "JPY"
+      },
+      "legacyCheck": "AR/inventory/AP/accrued expenses/accrued taxes >= -0.1",
+      "phase2Target": "standalone close"
+    },
+    {
+      "id": "P2-ACC-011",
+      "name": "transaction IDs unique",
+      "legacyTolerance": {
+        "kind": "exact"
+      },
+      "legacyCheck": "no duplicate finance.transactionID",
+      "phase2Target": "operation idempotency"
+    },
+    {
+      "id": "P2-ACC-012",
+      "name": "idempotency keys unique",
+      "legacyTolerance": {
+        "kind": "exact"
+      },
+      "legacyCheck": "no duplicate non-empty finance.idempotencyKey",
+      "phase2Target": "operation idempotency"
+    },
+    {
+      "id": "P2-ACC-013",
+      "name": "transaction numeric fields finite",
+      "legacyTolerance": {
+        "kind": "exact"
+      },
+      "legacyCheck": "every numeric transaction field is finite",
+      "phase2Target": "no non-finite values"
+    },
+    {
+      "id": "P2-ACC-014",
+      "name": "disposed fixed asset book value zero",
+      "legacyTolerance": {
+        "kind": "exact"
+      },
+      "legacyCheck": "disposed fixed asset bookValue === 0",
+      "phase2Target": "asset acquisition/disposal"
+    },
+    {
+      "id": "P2-ACC-015",
+      "name": "accumulated depreciation not above acquisition cost",
+      "legacyTolerance": {
+        "kind": "upper-difference",
+        "value": 0.1,
+        "unit": "JPY"
+      },
+      "legacyCheck": "accumulatedDepreciation - acquisitionCost <= 0.1",
+      "phase2Target": "asset acquisition/depreciation"
+    }
+  ],
+  "roadmapGaps": [
+    {
+      "id": "P2-GAP-001",
+      "name": "dividend conservation",
+      "status": "not-directly-enforced-by-finance.validate",
+      "plannedSlice": "P2-3"
+    },
+    {
+      "id": "P2-GAP-002",
+      "name": "buyback cash/share/ownership consistency",
+      "status": "not-directly-enforced-by-finance.validate",
+      "plannedSlice": "P2-4"
+    },
+    {
+      "id": "P2-GAP-003",
+      "name": "fixed-asset acquisition cash-to-book roll-forward",
+      "status": "partially-enforced-only",
+      "plannedSlice": "P2-5"
+    },
+    {
+      "id": "P2-GAP-004",
+      "name": "debt event roll-forward by borrowing/repayment/write-off",
+      "status": "point-in-time-total-only",
+      "plannedSlice": "P2-2"
+    }
+  ]
+}
