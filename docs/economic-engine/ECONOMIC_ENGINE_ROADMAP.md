@@ -742,6 +742,8 @@ Use only the approved Control Ladder.
 
 Implement founder net-worth anti-double-counting contract.
 
+Phase 3 entry is conditionally owner-approved on #909. [PHASE_3_ENTRY_CONTRACT.md](PHASE_3_ENTRY_CONTRACT.md) records the catalog, initial issuer scope, read-only-first founder wealth and mandatory per-command execution contracts. The approval does not advance Phase 9/10/13/14 settlement authority or automatically unlock management commands at >50% or ≥2/3 voting ownership.
+
 ### Exit criteria
 
 The same ownership foundation can represent listed shares, subsidiaries, PE portfolio ownership, VC stakes, and founder ownership.
