@@ -39,14 +39,16 @@ function snapshotAccountingAcceptance(state,finance){
   // Inspect raw values BEFORE JSON serialization or ensureFinance can normalize invalid numbers.
   const issues=phase05.findNonFiniteNumbers(state);
   const rows=state?.finance?.transactions;
-  const validRows=Array.isArray(rows)&&rows.every(row=>row&&typeof row==='object'&&!Array.isArray(row));
+  const validRows=Array.isArray(rows)&&Array.from(rows).every(row=>row&&typeof row==='object'&&!Array.isArray(row));
+  const validIdentities=validRows&&rows.every(row=>typeof row.transactionID==='string'&&row.transactionID.trim().length>0);
   const checks=[check('P2-ACCEPT-RAW-FINITE',issues.length===0,{issues}),
     check('P2-ACCEPT-SAVE-V9',state?.saveVersion===9),
-    check('P2-ACCEPT-TRANSACTION-SHAPE',validRows)];
+    check('P2-ACCEPT-TRANSACTION-SHAPE',validRows),
+    check('P2-ACCEPT-TRANSACTION-IDENTITY',validIdentities)];
   const transactionIDs=validRows?duplicates(rows,'transactionID'):[],idempotencyKeys=validRows?duplicates(rows,'idempotencyKey'):[];
   checks.push(check('P2-ACCEPT-TRANSACTION-ID',validRows&&transactionIDs.length===0,{duplicates:transactionIDs}),
     check('P2-ACCEPT-IDEMPOTENCY-KEY',validRows&&idempotencyKeys.length===0,{duplicates:idempotencyKeys}));
-  if(issues.length||!validRows){
+  if(issues.length||!validRows||!validIdentities){
     checks.push(check('P2-ACCEPT-CLOSE',false,{reason:'invalid raw state; close not evaluated'}));
     return report(checks,{readOnly:true});
   }

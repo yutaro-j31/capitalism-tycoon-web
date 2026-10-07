@@ -47,9 +47,23 @@ for(const value of [NaN,Infinity,-Infinity]){
   assert.equal(snapshot(state).ok,false,'cycles fail closed before serialization');
   assert.equal(state.circular,state);
 }
-for(const transactions of [null,{},[null]]){
+for(const transactions of [null,{},[null],new Array(1)]){
   const state=plain(runtime.engine.g);state.finance.transactions=transactions;
   assert.ok(snapshot(state).failedGates.includes('P2-ACCEPT-TRANSACTION-SHAPE'));
+}
+// A single malformed material row must fail even without an identifier collision.
+for(const value of [undefined,null,'','   ',0,{},[]]){
+  const state=plain(runtime.engine.g);
+  const row=state.finance.transactions.find(item=>item.category==='debtBorrowing');
+  if(value===undefined)delete row.transactionID;else row.transactionID=value;
+  const before=JSON.stringify(state);
+  let evaluated=false;
+  const rejected=acceptance.snapshotAccountingAcceptance(state,{standaloneClose(){evaluated=true;throw new Error('must not normalize identity');}});
+  assert.equal(rejected.ok,false);
+  assert.ok(rejected.failedGates.includes('P2-ACCEPT-TRANSACTION-IDENTITY'));
+  assert.equal(evaluated,false,'malformed identity must fail before finance normalization');
+  assert.equal(rejected.readOnly,true);
+  assert.equal(JSON.stringify(state),before,'invalid identity must remain untouched');
 }
 // Zero-effect duplicate rows isolate identity gates from cash/BS reconciliation errors.
 for(const key of ['transactionID','idempotencyKey']){
