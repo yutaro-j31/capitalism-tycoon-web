@@ -339,7 +339,7 @@ function fixedAssetEventReceipt(g,f,row,opts){
     if(!asset||!meta||asset.status!=='active'||!e)throw new Error('P2-ASSET-DEPRECIATION: missing active asset/evidence');
     const keys=['bookBefore','bookAfter','accumulatedBefore','accumulatedAfter'];
     if(keys.some(key=>typeof e[key]!=='number'||!Number.isFinite(e[key])))throw new Error('P2-ASSET-FINITE: non-finite depreciation evidence');
-    const amount=r(row.amount),expectedBook=r(Math.max(n(asset.salvageValue),n(e.bookBefore)-amount));
+    const amount=r(row.amount),expectedBook=r(n(e.bookBefore)-amount);
     if(row.category!=='depreciation'||row.cashEffect!==0||Math.abs(row.profitEffect+amount)>FIXED_ASSET_TOLERANCE||Math.abs(row.assetEffect+amount)>FIXED_ASSET_TOLERANCE)throw new Error('P2-ASSET-DEPRECIATION: depreciation row mismatch');
     if(Math.abs(r(e.accumulatedAfter-e.accumulatedBefore)-amount)>FIXED_ASSET_TOLERANCE||Math.abs(r(e.bookBefore-e.bookAfter)-amount)>FIXED_ASSET_TOLERANCE||Math.abs(n(asset.accumulatedDepreciation)-e.accumulatedAfter)>FIXED_ASSET_TOLERANCE||Math.abs(n(asset.bookValue)-e.bookAfter)>FIXED_ASSET_TOLERANCE||Math.abs(e.bookAfter-expectedBook)>FIXED_ASSET_TOLERANCE)throw new Error('P2-ASSET-DEPRECIATION: book roll-forward mismatch');
     return {kind,assetID,amount,evidence:{...e}};
@@ -391,7 +391,7 @@ function fixedAssetReconciliationStatus(g){
     const expectedAcc=r(n(meta.openingAccumulatedDepreciation)+n(meta.recognizedDepreciation));
     if(Math.abs(acc-expectedAcc)>FIXED_ASSET_TOLERANCE||n(meta.recognizedDepreciation)<0||!Number.isInteger(Number(meta.depreciationCount))||Number(meta.depreciationCount)<0)depreciationErrors++;
     if(asset.status==='active'){
-      const expectedBook=r(Math.max(salvage,n(meta.openingBookValue)-n(meta.recognizedDepreciation)));
+      const expectedBook=r(n(meta.openingBookValue)-n(meta.recognizedDepreciation));
       if(Math.abs(book-expectedBook)>FIXED_ASSET_TOLERANCE||meta.disposalRecognized)bookErrors++;
     }else if(asset.status==='disposed'){
       if(Math.abs(book)>FIXED_ASSET_TOLERANCE||!meta.disposalRecognized)disposalErrors++;
@@ -405,14 +405,14 @@ function fixedAssetReconciliationStatus(g){
     }
     if(row?.fixedAssetLifecycle==='depreciation'){
       const asset=fixedAssetByID(f,row.fixedAssetID),e=row.fixedAssetEvidence,amount=r(n(row.amount));
-      if(!asset||!e||['bookBefore','bookAfter','accumulatedBefore','accumulatedAfter'].some(key=>typeof e[key]!=='number'||!Number.isFinite(e[key]))||row.category!=='depreciation'||Math.abs(n(row.cashEffect))>FIXED_ASSET_TOLERANCE||Math.abs(n(row.profitEffect)+amount)>FIXED_ASSET_TOLERANCE||Math.abs(n(row.assetEffect)+amount)>FIXED_ASSET_TOLERANCE||Math.abs(r(n(e.accumulatedAfter)-n(e.accumulatedBefore))-amount)>FIXED_ASSET_TOLERANCE||Math.abs(r(n(e.bookBefore)-n(e.bookAfter))-amount)>FIXED_ASSET_TOLERANCE||Math.abs(n(e.bookAfter)-r(Math.max(n(asset.salvageValue),n(e.bookBefore)-amount)))>FIXED_ASSET_TOLERANCE)depreciationErrors++;
+      if(!asset||!e||['bookBefore','bookAfter','accumulatedBefore','accumulatedAfter'].some(key=>typeof e[key]!=='number'||!Number.isFinite(e[key]))||row.category!=='depreciation'||Math.abs(n(row.cashEffect))>FIXED_ASSET_TOLERANCE||Math.abs(n(row.profitEffect)+amount)>FIXED_ASSET_TOLERANCE||Math.abs(n(row.assetEffect)+amount)>FIXED_ASSET_TOLERANCE||Math.abs(r(n(e.accumulatedAfter)-n(e.accumulatedBefore))-amount)>FIXED_ASSET_TOLERANCE||Math.abs(r(n(e.bookBefore)-n(e.bookAfter))-amount)>FIXED_ASSET_TOLERANCE||Math.abs(n(e.bookAfter)-r(n(e.bookBefore)-amount))>FIXED_ASSET_TOLERANCE)depreciationErrors++;
     }
     if(Array.isArray(row?.fixedAssetDisposals)&&row.fixedAssetDisposals.length){
       const ids=new Set(),total=row.fixedAssetDisposals.reduce((sum,item)=>{const id=String(item?.assetID||'');if(!id||ids.has(id)||!fixedAssetByID(f,id)||!Number.isFinite(Number(item?.bookValue))||Number(item.bookValue)<0)disposalErrors++;ids.add(id);return r(sum+n(item?.bookValue));},0);
       if(!INVESTING_CATS.has(row.category)||row.category!=='assetSale'||n(row.assetEffect)>FIXED_ASSET_TOLERANCE||Math.abs(n(row.assetEffect))+FIXED_ASSET_TOLERANCE<total)investingErrors++;
     }
   }
-  const activeNetBook=r(assets.filter(a=>a.status==='active').reduce((sum,a)=>sum+n(a.bookValue),0)),lifecycleNetBook=r(assets.filter(a=>a.status==='active').reduce((sum,a)=>sum+Math.max(n(a.salvageValue),n(a.p2Lifecycle?.openingBookValue)-n(a.p2Lifecycle?.recognizedDepreciation)),0));
+  const activeNetBook=r(assets.filter(a=>a.status==='active').reduce((sum,a)=>sum+n(a.bookValue),0)),lifecycleNetBook=r(assets.filter(a=>a.status==='active').reduce((sum,a)=>sum+n(a.p2Lifecycle?.openingBookValue)-n(a.p2Lifecycle?.recognizedDepreciation),0));
   if(Math.abs(activeNetBook-lifecycleNetBook)>FIXED_ASSET_TOLERANCE)bookErrors++;
   const metrics=Object.freeze({assetCount:assets.length,activeNetBook,lifecycleNetBook,finiteErrors,acquisitionErrors,bookErrors,depreciationErrors,disposalErrors,investingErrors,duplicateErrors});
   const checks=Object.freeze([
