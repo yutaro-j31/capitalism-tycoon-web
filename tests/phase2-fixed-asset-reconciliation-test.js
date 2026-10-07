@@ -139,6 +139,23 @@ function status(f){
   status(f);
 }
 
+// A half-cent schedule is quantized once; signed effects and both book rolls use that amount.
+{
+  const f=setup(),g=f.engine.g,finance=f.modules.finance,cost=112.23,assetID='fractional-schedule';
+  g.companyCash=money(g.companyCash-cost);
+  finance.addFixedAsset(g,{assetID,acquisitionCost:cost,usefulLifeWeeks:2,salvageValue:0});
+  finance.event(g,'capitalExpenditure',cost,{cashEffect:-cost,assetEffect:cost,fixedAssetLifecycle:'acquisition',fixedAssetID:assetID});
+  for(let i=0;i<3;i++){
+    finance.recordWeekly(g,{stores:[],other:{},beginningCash:g.companyCash});
+    status(f);g.week++;
+  }
+  const rows=g.finance.transactions.filter(tx=>tx.fixedAssetID===assetID&&tx.fixedAssetLifecycle==='depreciation');
+  assert.deepEqual(plain(rows.map(tx=>tx.amount)),[56.12,56.11]);
+  for(const row of rows){assert.equal(row.profitEffect,-row.amount);assert.equal(row.assetEffect,-row.amount);}
+  const asset=g.finance.fixedAssets.find(a=>a.assetID===assetID);
+  assert.equal(asset.bookValue,0);assert.equal(asset.accumulatedDepreciation,cost);
+}
+
 // Closing a store disposes every active equipment layer (base + upgrades) in one investing event.
 {
   const f=setup(0x52500005),store=openStore(f),finance=f.modules.finance;
@@ -198,7 +215,7 @@ function status(f){
 // Old saveVersion-9 assets are adopted forward-only; historical receipts are not fabricated.
 {
   const f=setup(0x52500008),g=f.engine.g,finance=f.modules.finance;
-  g.finance.fixedAssets.push({assetID:'legacy-p2-asset',assetType:'storeEquipment',acquisitionWeek:1,acquisitionCost:1000,usefulLifeWeeks:100,salvageValue:100,accumulatedDepreciation:90,bookValue:910,businessID:null,storeID:null,propertyID:null,status:'active'});
+  g.finance.fixedAssets.push({assetID:'legacy-p2-asset',assetType:'storeEquipment',acquisitionWeek:1,acquisitionCost:1000,usefulLifeWeeks:100,salvageValue:100,accumulatedDepreciation:90,bookValue:910.01,businessID:null,storeID:null,propertyID:null,status:'active'});
   delete g.finance.fixedAssetReconciliation;
   delete g.finance.fixedAssets.at(-1).p2Lifecycle;
   const s=finance.fixedAssetReconciliationStatus(g);
@@ -251,6 +268,15 @@ function status(f){
   assert.equal(broken.checks.find(row=>row.code==='P2-ASSET-DEPRECIATION').ok,false);
 }
 
+// A repeated live receipt cannot silently return null after a writer mutates cash/book state.
+{
+  const f=setup(),store=openStore(f),g=f.engine.g,finance=f.modules.finance;
+  const row=g.finance.transactions.find(tx=>tx.fixedAssetLifecycle==='acquisition');
+  const before=JSON.stringify(g.finance);
+  assert.throws(()=>finance.event(g,row.category,row.amount,{...plain(row)}),/P2-ASSET-DUPLICATE/);
+  assert.equal(JSON.stringify(g.finance),before);
+}
+
 // Persisted non-finite fixed-asset state cannot be hidden by numeric fallbacks.
 {
   const f=setup(0x5250000c),store=openStore(f),asset=f.engine.g.finance.fixedAssets.find(a=>a.assetID===`store-${store.id}`);
@@ -258,6 +284,26 @@ function status(f){
   const broken=f.modules.finance.fixedAssetReconciliationStatus(f.engine.g);
   assert.equal(broken.ok,false);
   assert.equal(broken.checks.find(row=>row.code==='P2-ASSET-FINITE').ok,false);
+}
+
+// Archived receipts still prevent replay; erased disposal identity and corrupt week watermarks fail.
+{
+  const f=setup(),store=openStore(f),g=f.engine.g,finance=f.modules.finance;
+  const acq=plain(g.finance.transactions.find(tx=>tx.fixedAssetLifecycle==='acquisition'));
+  finance.recordWeekly(g,{stores:[],other:{},beginningCash:g.companyCash});
+  f.engine.closeStore(store.id);g.week=1040;
+  for(let i=0;i<5001;i++)g.finance.transactions.push({id:`replay-filler-${i}`,transactionID:`replay-filler-${i}`,week:20+Math.floor(i/100),category:'otherOperating',amount:0,cashEffect:0,profitEffect:0});
+  finance.event(g,'otherOperating',0,{operationID:'replay-compaction'});
+  status(f);
+  const before=JSON.stringify(g.finance);
+  assert.throws(()=>finance.event(g,acq.category,acq.amount,acq),/P2-ASSET-DUPLICATE/);
+  assert.equal(JSON.stringify(g.finance),before);
+  const asset=g.finance.fixedAssets.find(a=>a.storeID===store.id),identity=asset.p2Lifecycle.disposalEventID;
+  asset.p2Lifecycle.disposalEventID=null;
+  assert.equal(finance.fixedAssetReconciliationStatus(g).ok,false);
+  asset.p2Lifecycle.disposalEventID=identity;
+  asset.p2Lifecycle.lastDepreciationWeek+=1;
+  assert.equal(finance.fixedAssetReconciliationStatus(g).ok,false);
 }
 
 // Same seed + same actions produce the same fixed-asset reconciliation state and consume no extra RNG.
