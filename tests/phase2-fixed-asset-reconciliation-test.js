@@ -30,7 +30,7 @@ function status(f){
 
 // Store opening creates exactly one reconciled capitalization row and investing cash outflow.
 {
-  const f=setup(),g=f.engine.g,finance=f.modules.finance,cashBefore=g.companyCash;
+  const f=setup(),g=f.engine.g,finance=f.modules.finance,cashBefore=g.companyCash,txBefore=g.finance.transactions.length;
   const store=openStore(f),asset=g.finance.fixedAssets.find(a=>a.assetID===`store-${store.id}`);
   assert.ok(asset);
   assert.equal(asset.p2Lifecycle.origin,'recognized');
@@ -42,7 +42,9 @@ function status(f){
   assert.equal(row.cashEffect,-asset.acquisitionCost);
   assert.equal(row.assetEffect,asset.acquisitionCost);
   assert.equal(row.profitEffect,0);
-  assert.equal(g.companyCash,cashBefore-asset.acquisitionCost-f.engine.g.tenants.find(t=>t.id===store.tenantID).deposit);
+  const deposit=f.engine.g.tenants.find(t=>t.id===store.tenantID).deposit;
+  const missionRewards=g.finance.transactions.slice(txBefore).filter(tx=>tx.sourceType==='missionReward').reduce((sum,tx)=>sum+tx.cashEffect,0);
+  assert.equal(g.companyCash,cashBefore-asset.acquisitionCost-deposit+missionRewards,'cash transition includes acquisition, deposit and any progression rewards');
   const st=finance.buildStatements(g,'week');
   assert.ok(st.cashFlow.investingCashFlow<0);
   status(f);
