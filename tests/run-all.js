@@ -100,6 +100,7 @@ const nodeTests = [
   ['phase0-5-acceptance-gate', 'tests/phase0-5-acceptance-gate-test.js'],
   ['phase1-acceptance-gate', 'tests/phase1-acceptance-gate-test.js'],
   ['phase2-accounting-baseline', 'tests/phase2-accounting-baseline-test.js'],
+  ['phase2-standalone-close', 'tests/phase2-standalone-close-test.js'],
   ['executive-candidate-seed-provenance', 'tests/executive-candidate-seed-provenance-test.js'],
   ['executive-dismissal-governance', 'tests/executive-dismissal-governance-test.js'],
   ['executive-retirement-succession', 'tests/executive-retirement-succession-test.js'],

@@ -31,11 +31,14 @@ const proto=modules?.engine?.TycoonEngine?.prototype;
 if(!proto||proto.__canonicalNormalizeBoundary)return;
 const FINANCE_VALIDATION_FAILED='finance-validation-failed';
 const FINANCE_VALIDATOR_THREW='finance-validator-threw';
+const STANDALONE_CLOSE_FAILED='standalone-accounting-close-failed';
+const STANDALONE_CLOSE_THREW='standalone-accounting-close-threw';
 const WEEK_EXECUTION_ORDER=Object.freeze([
   'weekly-production-wrappers',
   'delegated-executive-actions',
   'critical-money-finite-guard',
   'finance-snapshot-finalization',
+  'standalone-accounting-close',
   'liquidity-crisis-finalization',
   'finance-validation',
   'supporting-invariant-validation',
@@ -45,11 +48,11 @@ const WEEK_EXECUTION_ORDER=Object.freeze([
 ]);
 function validationCause(error){return String(error?.message||error||'finance.validate threw');}
 function validationReasons(result){return Array.isArray(result?.errors)&&result.errors.length?result.errors.map(String):['finance.validate returned a non-success result'];}
-function financeValidationError(instance,code,reasons,cause){
+function financeValidationError(instance,code,reasons,cause,stage='finance-validation'){
   const g=instance.g,hash=modules.semanticHashV2?.semanticHashV2;
   const diagnostic=Object.freeze({
     code,
-    stage:'finance-validation',
+    stage:String(stage),
     week:Number(g?.week),
     cause:String(cause||reasons[0]),
     reasons:Object.freeze(reasons.slice()),
@@ -130,6 +133,16 @@ function finalizeWeekBoundary(){
     // Phase 1: every base/module mutation has finished.
     finance?.rebuildSnapshotForWeek?.(g,g.week);
 
+    // Phase 2 / P2-1: freeze the standalone accounting close before any post-close
+    // subsystem reads the committed cash figure. A failed close aborts the outer week
+    // transaction, so state, RNG, IDs and durable save bytes roll back together.
+    if(!g.skipWeeklyValidation&&typeof finance?.standaloneClose==='function'){
+      let close;
+      try{close=finance.standaloneClose(g,'52');}
+      catch(error){throw financeValidationError(this,STANDALONE_CLOSE_THREW,[validationCause(error)],validationCause(error),'standalone-accounting-close');}
+      if(close?.ok!==true)throw financeValidationError(this,STANDALONE_CLOSE_FAILED,validationReasons(close),validationReasons(close)[0],'standalone-accounting-close');
+    }
+
     // Phase 2: liquidity crisis reads the final post-mutation cash figure.
     const crisis=modules.playerCrisis?.finalizeWeek?.(g)||modules.playerCrisis?.evaluate?.(g)||null;
 
@@ -172,6 +185,8 @@ function install(){
 modules.financeValidationBoundary=Object.freeze({
   FAILURE_CODE:FINANCE_VALIDATION_FAILED,
   EXCEPTION_CODE:FINANCE_VALIDATOR_THREW,
+  CLOSE_FAILURE_CODE:STANDALONE_CLOSE_FAILED,
+  CLOSE_EXCEPTION_CODE:STANDALONE_CLOSE_THREW,
   WEEK_EXECUTION_ORDER
 });
 if(typeof document!=='undefined'&&document.readyState==='loading'&&typeof document.addEventListener==='function')document.addEventListener('DOMContentLoaded',install,{once:true});

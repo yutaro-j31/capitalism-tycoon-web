@@ -26,6 +26,16 @@ const INVESTING_CATS=new Set(['capitalExpenditure','assetPurchase','assetSale','
 const FINANCING_CATS=new Set(['debtBorrowing','debtRepayment','equityFinancing','dividend','otherFinancing']);
 const n=(v,d=0)=>Number.isFinite(Number(v))?Number(v):d;
 const r=v=>Math.round(n(v)*100)/100;
+const STANDALONE_CLOSE_SCHEMA_VERSION=1;
+const STANDALONE_CLOSE_TOLERANCES=Object.freeze({
+  balanceSheetIdentity:0.10,
+  balanceSheetCash:0.01,
+  cashFlowIdentity:0.05,
+  cashFlowEndingCash:0.05,
+  weeklyCashDifference:0.05,
+  weeklyOpeningRollforward:0.01,
+  financeCashRollforward:0.05
+});
 const fy=w=>Math.floor((Math.max(1,Math.floor(n(w,1)))-1)/52)+1;
 const fq=w=>Math.floor(((Math.max(1,Math.floor(n(w,1)))-1)%52)/13)+1;
 function op(g,prefix='op',sourceType='',sourceID=''){const f=ensureFinance(g);const clean=v=>String(v||'').replace(/[^a-zA-Z0-9_-]+/g,'-').slice(0,40);return `${clean(prefix)}-w${Math.floor(n(g.week,1))}-seq${f.nextTransactionSeq}${sourceType?`-${clean(sourceType)}`:''}${sourceID?`-${clean(sourceID)}`:''}`;}
@@ -95,7 +105,46 @@ function recentAverage(g,cat,weeks=13){const rows=ensureFinance(g).transactions.
 function next13LoanPayments(g){const f=ensureFinance(g),rows=[];for(const l of f.loans.filter(x=>x.status==='active'))for(let i=1;i<=13;i++){const week=n(g.week)+i,principal=l.repaymentMethod==='manual'?0:(n(l.nextPaymentWeek)===week?n(l.weeklyPrincipalPayment):0),interest=r(n(l.outstandingPrincipal)*n(l.interestRate)/52);rows.push({week,principal:r(principal),interest});}return rows;}
 function forecast13(g){const loanRows=next13LoanPayments(g),receipts=recentAverage(g,'revenue'),payroll=recentAverage(g,'payroll'),rent=recentAverage(g,'rent'),ads=recentAverage(g,'advertising'),taxDue=n(ensureFinance(g).balances.accruedTaxes),rows=[];let cash=n(g.companyCash);for(let i=1;i<=13;i++){const week=g.week+i,loan=loanRows.filter(x=>x.week===week).reduce((a,x)=>({principal:a.principal+x.principal,interest:a.interest+x.interest}),{principal:0,interest:0}),tax=i===13?taxDue:0;cash+=receipts-payroll-rent-ads-loan.principal-loan.interest-tax;rows.push({week,expectedOperatingReceipts:r(receipts),payroll:r(payroll),rent:r(rent),advertising:r(ads),debtRepayment:r(loan.principal),interest:r(loan.interest),tax:r(tax),committedCapex:0,committedInvestments:0,dividend:0,endingCash:r(cash),confirmedPayments:r(loan.principal+loan.interest+tax),estimatedPayments:r(payroll+rent+ads)});}const warnings=[];if(rows.some(x=>x.endingCash<0))warnings.push('13週以内の資金不足');if(rows.some(x=>x.endingCash<1000000))warnings.push('最低運転資金割れ');if(taxDue&&rows[12].endingCash<0)warnings.push('税金支払不能');return {rows,warnings,method:'直近会計イベント実績とローン契約・未払税金に基づく簡易予測'};}
 function buildStatements(g,period='13'){rebuildDirtySnapshots(g);const f=ensureFinance(g),rows=rowsFor(g,period),allRows=f.transactions,pl=plFrom(rows),bs=bsFrom(g,allRows),cf=cfFrom(g,rows,period),wc=workingCapital(g,cf),ratios=ratiosFrom(pl,bs,cf,wc),dividendCapacity=dividendInfo(g,pl,bs,cf,wc),forecast=forecast13(g),statements={period,profitAndLoss:pl,balanceSheet:bs,cashFlow:cf,workingCapital:wc,ratios,dividendCapacity,forecast};f.lastStatements=statements;return statements;}
-function validate(g){rebuildDirtySnapshots(g);const f=ensureFinance(g),st=buildStatements(g,'52'),errors=[];if(Math.abs(st.balanceSheet.balanceDifference)>2)errors.push(`資産=負債+純資産が不一致 差額${st.balanceSheet.balanceDifference}`);if(Math.abs(st.balanceSheet.assets.cashAndDeposits-n(g.companyCash))>.1)errors.push('BS現金とcompanyCashが不一致');const cf=st.cashFlow;if(Math.abs(cf.openingCash+cf.netCashChange-cf.endingCash)>10)errors.push(`CF恒等式不一致 差額${r(cf.openingCash+cf.netCashChange-cf.endingCash)}`);if(Math.abs(cf.endingCash-n(g.companyCash))>.5)errors.push(`期間CF期末現金とcompanyCashが不一致 差額${r(cf.endingCash-n(g.companyCash))}`);for(let i=0;i<f.weeklySnapshots.length;i++){const s=f.weeklySnapshots[i];if(Math.abs(n(s.cashDifference))>10)errors.push(`第${s.week}週 cashDifference ${s.cashDifference}`);if(i>0&&Math.abs(n(f.weeklySnapshots[i-1].endingCash)-n(s.openingCash))>10)errors.push(`第${s.week}週 openingCashが前週endingCashと不一致`);}const archivedCash=n(f.archivedOperatingCashFlow)+n(f.archivedInvestingCashFlow)+n(f.archivedFinancingCashFlow);const rolledCash=r(n(f.openingCash)+archivedCash+f.transactions.reduce((a,t)=>a+n(t.cashEffect),0));if(Math.abs(rolledCash-n(g.companyCash))>10)errors.push(`finance.openingCashロールフォワードとcompanyCashが不一致 差額${r(rolledCash-n(g.companyCash))}`);const loanTotal=r(f.loans.filter(l=>l.status!=='repaid').reduce((a,l)=>a+n(l.outstandingPrincipal),0));if(Math.abs(loanTotal-n(g.companyDebt))>.1)errors.push(`companyDebtとローン残高が不一致 差額${r(n(g.companyDebt)-loanTotal)}`);const allPl={netIncome:r(n(f.archivedProfitTotal)+plFrom(f.transactions).netIncome)},dividends=r(n(f.archivedDividendTotal)-sum(f.transactions,'dividend','cashEffect')),expectedRE=r(n(f.openingRetainedEarnings)+allPl.netIncome-dividends+n(f.balances.priorPeriodAdjustments));if(Math.abs(expectedRE-st.balanceSheet.equity.retainedEarnings)>.1)errors.push('利益剰余金ロールフォワード不一致');for(const k of ['accountsReceivable','inventory','accountsPayable','accruedExpenses','accruedTaxes'])if(n(f.balances[k])<-.1)errors.push(`${k}が負数`);const ids=new Set(),idem=new Set();for(const t of f.transactions){if(ids.has(t.transactionID))errors.push(`取引ID重複 ${t.transactionID}`);ids.add(t.transactionID);if(t.idempotencyKey){if(idem.has(t.idempotencyKey))errors.push(`idempotencyKey重複 ${t.idempotencyKey}`);idem.add(t.idempotencyKey);}for(const v of Object.values(t))if(typeof v==='number'&&!Number.isFinite(v))errors.push(`非有限数値 ${t.transactionID}`);}for(const a of f.fixedAssets){if(a.status==='disposed'&&n(a.bookValue)!==0)errors.push(`除却済み資産簿価あり ${a.assetID}`);if(n(a.accumulatedDepreciation)-n(a.acquisitionCost)>.1)errors.push(`償却累計超過 ${a.assetID}`);}const result={ok:errors.length===0,errors,checkedWeek:g.week};f.lastValidation=result;return result;}
+function closeDifference(value){return Math.abs(r(value));}
+function standaloneCloseFromStatements(g,period,st){
+  const f=ensureFinance(g),cf=st.cashFlow,snaps=snapsFor(g,period),t=STANDALONE_CLOSE_TOLERANCES;
+  const archivedCash=n(f.archivedOperatingCashFlow)+n(f.archivedInvestingCashFlow)+n(f.archivedFinancingCashFlow);
+  const rolledCash=r(n(f.openingCash)+archivedCash+f.transactions.reduce((a,row)=>a+n(row.cashEffect),0));
+  const weeklyCashDifference=snaps.reduce((m,s)=>Math.max(m,closeDifference(s.cashDifference)),0);
+  let weeklyOpeningRollforward=0;
+  for(let i=1;i<snaps.length;i++)weeklyOpeningRollforward=Math.max(weeklyOpeningRollforward,closeDifference(n(snaps[i-1].endingCash)-n(snaps[i].openingCash)));
+  const metrics=Object.freeze({
+    balanceSheetIdentityDifference:closeDifference(st.balanceSheet.balanceDifference),
+    balanceSheetCashDifference:closeDifference(n(st.balanceSheet.assets.cashAndDeposits)-n(g.companyCash)),
+    cashFlowIdentityDifference:closeDifference(n(cf.openingCash)+n(cf.netCashChange)-n(cf.endingCash)),
+    cashFlowEndingCashDifference:closeDifference(n(cf.endingCash)-n(g.companyCash)),
+    weeklyCashDifference:r(weeklyCashDifference),
+    weeklyOpeningRollforwardDifference:r(weeklyOpeningRollforward),
+    financeCashRollforwardDifference:closeDifference(rolledCash-n(g.companyCash))
+  });
+  const checks=Object.freeze([
+    Object.freeze({code:'P2-CLOSE-BS-IDENTITY',ok:metrics.balanceSheetIdentityDifference<=t.balanceSheetIdentity,difference:metrics.balanceSheetIdentityDifference,limit:t.balanceSheetIdentity}),
+    Object.freeze({code:'P2-CLOSE-BS-CASH',ok:metrics.balanceSheetCashDifference<=t.balanceSheetCash,difference:metrics.balanceSheetCashDifference,limit:t.balanceSheetCash}),
+    Object.freeze({code:'P2-CLOSE-CF-IDENTITY',ok:metrics.cashFlowIdentityDifference<=t.cashFlowIdentity,difference:metrics.cashFlowIdentityDifference,limit:t.cashFlowIdentity}),
+    Object.freeze({code:'P2-CLOSE-CF-ENDING-CASH',ok:metrics.cashFlowEndingCashDifference<=t.cashFlowEndingCash,difference:metrics.cashFlowEndingCashDifference,limit:t.cashFlowEndingCash}),
+    Object.freeze({code:'P2-CLOSE-WEEKLY-CASH',ok:metrics.weeklyCashDifference<=t.weeklyCashDifference,difference:metrics.weeklyCashDifference,limit:t.weeklyCashDifference}),
+    Object.freeze({code:'P2-CLOSE-WEEKLY-ROLLFORWARD',ok:metrics.weeklyOpeningRollforwardDifference<=t.weeklyOpeningRollforward,difference:metrics.weeklyOpeningRollforwardDifference,limit:t.weeklyOpeningRollforward}),
+    Object.freeze({code:'P2-CLOSE-FINANCE-ROLLFORWARD',ok:metrics.financeCashRollforwardDifference<=t.financeCashRollforward,difference:metrics.financeCashRollforwardDifference,limit:t.financeCashRollforward})
+  ]);
+  const errors=Object.freeze(checks.filter(row=>!row.ok).map(row=>`${row.code} difference=${row.difference} limit=${row.limit}`));
+  return Object.freeze({
+    schemaVersion:STANDALONE_CLOSE_SCHEMA_VERSION,
+    week:Math.floor(n(g.week,1)),
+    period:String(period),
+    authoritativeCompanyCash:r(n(g.companyCash)),
+    metrics,
+    checks,
+    errors,
+    ok:errors.length===0
+  });
+}
+function standaloneClose(g,period='52'){rebuildDirtySnapshots(g);const st=buildStatements(g,period);return standaloneCloseFromStatements(g,period,st);}
+function validate(g){rebuildDirtySnapshots(g);const f=ensureFinance(g),st=buildStatements(g,'52'),close=standaloneCloseFromStatements(g,'52',st),errors=[...close.errors];if(Math.abs(st.balanceSheet.balanceDifference)>2)errors.push(`資産=負債+純資産が不一致 差額${st.balanceSheet.balanceDifference}`);if(Math.abs(st.balanceSheet.assets.cashAndDeposits-n(g.companyCash))>.1)errors.push('BS現金とcompanyCashが不一致');const cf=st.cashFlow;if(Math.abs(cf.openingCash+cf.netCashChange-cf.endingCash)>10)errors.push(`CF恒等式不一致 差額${r(cf.openingCash+cf.netCashChange-cf.endingCash)}`);if(Math.abs(cf.endingCash-n(g.companyCash))>.5)errors.push(`期間CF期末現金とcompanyCashが不一致 差額${r(cf.endingCash-n(g.companyCash))}`);for(let i=0;i<f.weeklySnapshots.length;i++){const s=f.weeklySnapshots[i];if(Math.abs(n(s.cashDifference))>10)errors.push(`第${s.week}週 cashDifference ${s.cashDifference}`);if(i>0&&Math.abs(n(f.weeklySnapshots[i-1].endingCash)-n(s.openingCash))>10)errors.push(`第${s.week}週 openingCashが前週endingCashと不一致`);}const archivedCash=n(f.archivedOperatingCashFlow)+n(f.archivedInvestingCashFlow)+n(f.archivedFinancingCashFlow);const rolledCash=r(n(f.openingCash)+archivedCash+f.transactions.reduce((a,t)=>a+n(t.cashEffect),0));if(Math.abs(rolledCash-n(g.companyCash))>10)errors.push(`finance.openingCashロールフォワードとcompanyCashが不一致 差額${r(rolledCash-n(g.companyCash))}`);const loanTotal=r(f.loans.filter(l=>l.status!=='repaid').reduce((a,l)=>a+n(l.outstandingPrincipal),0));if(Math.abs(loanTotal-n(g.companyDebt))>.1)errors.push(`companyDebtとローン残高が不一致 差額${r(n(g.companyDebt)-loanTotal)}`);const allPl={netIncome:r(n(f.archivedProfitTotal)+plFrom(f.transactions).netIncome)},dividends=r(n(f.archivedDividendTotal)-sum(f.transactions,'dividend','cashEffect')),expectedRE=r(n(f.openingRetainedEarnings)+allPl.netIncome-dividends+n(f.balances.priorPeriodAdjustments));if(Math.abs(expectedRE-st.balanceSheet.equity.retainedEarnings)>.1)errors.push('利益剰余金ロールフォワード不一致');for(const k of ['accountsReceivable','inventory','accountsPayable','accruedExpenses','accruedTaxes'])if(n(f.balances[k])<-.1)errors.push(`${k}が負数`);const ids=new Set(),idem=new Set();for(const t of f.transactions){if(ids.has(t.transactionID))errors.push(`取引ID重複 ${t.transactionID}`);ids.add(t.transactionID);if(t.idempotencyKey){if(idem.has(t.idempotencyKey))errors.push(`idempotencyKey重複 ${t.idempotencyKey}`);idem.add(t.idempotencyKey);}for(const v of Object.values(t))if(typeof v==='number'&&!Number.isFinite(v))errors.push(`非有限数値 ${t.transactionID}`);}for(const a of f.fixedAssets){if(a.status==='disposed'&&n(a.bookValue)!==0)errors.push(`除却済み資産簿価あり ${a.assetID}`);if(n(a.accumulatedDepreciation)-n(a.acquisitionCost)>.1)errors.push(`償却累計超過 ${a.assetID}`);}const result={ok:errors.length===0,errors,checkedWeek:g.week};f.lastValidation=result;return result;}
 // One-time prior-period correction for a save whose ledger predates LEDGER_COVERAGE_VERSION.
 // The unrecorded cash is restated in the opening balance: finance.openingCash, and the weekly
 // snapshots before the point where the cash left without a ledger row. That point shows up either
@@ -152,6 +201,6 @@ function cashBridge(g,period='week'){
     other:r(operating-(netIncome+depreciation+workingCapital)),operating:r(operating),investing:r(investing),
     financing:r(financing),netCashChange:r(n(cf.netCashChange)),openingCash:r(n(cf.openingCash)),endingCash:r(n(cf.endingCash))};
 }
-Object.assign(exports,{cashBridge,LEDGER_COVERAGE_VERSION,reconcileLegacyLedger,CATEGORIES,FINANCE_CATEGORY_ALIASES,setCategoryValidationMode,propertyBookOf,cipBook,FOUNDER_LOAN_SOURCE,isFounderLoan,founderLoanReceivable,settleLoanPrincipal,individuallyServicedPrincipal,ensureFinance,migrateFinanceState,event,op,addFixedAsset,disposeFixedAsset,recordWeekly,recordSnapshot,rebuildSnapshotForWeek,rebuildDirtySnapshots,buildStatements,validate,defaultFinanceState,rowsFor,snapsFor});
+Object.assign(exports,{cashBridge,STANDALONE_CLOSE_SCHEMA_VERSION,STANDALONE_CLOSE_TOLERANCES,standaloneClose,LEDGER_COVERAGE_VERSION,reconcileLegacyLedger,CATEGORIES,FINANCE_CATEGORY_ALIASES,setCategoryValidationMode,propertyBookOf,cipBook,FOUNDER_LOAN_SOURCE,isFounderLoan,founderLoanReceivable,settleLoanPrincipal,individuallyServicedPrincipal,ensureFinance,migrateFinanceState,event,op,addFixedAsset,disposeFixedAsset,recordWeekly,recordSnapshot,rebuildSnapshotForWeek,rebuildDirtySnapshots,buildStatements,validate,defaultFinanceState,rowsFor,snapsFor});
 })(__modules.finance={});
 })();

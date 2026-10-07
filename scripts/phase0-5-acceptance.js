@@ -10,7 +10,7 @@ const ACCEPTANCE_SCHEMA_VERSION = 1;
 const INVENTORY_PATH = path.join(ROOT, 'docs/economic-engine/phase0-5-authoritative-writers.json');
 const REQUIRED_PHASE_ORDER = Object.freeze([
   'weekly-production-wrappers','delegated-executive-actions','critical-money-finite-guard',
-  'finance-snapshot-finalization','liquidity-crisis-finalization','finance-validation',
+  'finance-snapshot-finalization','standalone-accounting-close','liquidity-crisis-finalization','finance-validation',
   'supporting-invariant-validation','weekly-summary-finalization','transaction-commit','persistence'
 ]);
 const WRITER_FIELDS = Object.freeze({
