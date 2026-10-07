@@ -150,7 +150,10 @@ function buybackRow(f){return f.game.g.finance.transactions.filter(row=>row?.buy
 
 // Corrupted evidence fails inside the existing transaction boundary and rolls every state/save mutation back.
 function rollbackCase(seed,mutate,pattern=/P2-BUYBACK-/){
-  const f=setup(seed);f.game.save();
+  const f=setup(seed);
+  // buyback() performs its safe-capacity statement build before entering runTransaction.
+  // Warm that read/cache boundary so this assertion measures transaction rollback only.
+  f.game.shareholderReturnCapacity();f.game.save();
   const before=JSON.stringify(f.game.g),saved=f.loaded.ctx.localStorage.getItem('capitalism_tycoon_web_v1'),base=f.finance.event;
   f.finance.event=function(g,category,amount,opts={}){
     if(opts.buybackReconciliation){
@@ -178,9 +181,9 @@ for(const mutate of [
   g=>{g.finance.buybackReconciliation.recognitionCount+=1;},
   g=>{g.finance.balances.treasuryStock+=.02;},
   g=>{g.treasuryBuybackShares+=1;},
-  g=>{g.founderOwnershipRatio+=.01;},
-  g=>{g.market.find(x=>x.id===g.ticker).price+=.02;},
-  g=>{g.finance.transactions.find(row=>row?.buybackReconciliation).buybackReconciliation.evidence.companyCashAfter+=.02;}
+  g=>{g.finance.transactions.find(row=>row?.buybackReconciliation).buybackReconciliation.evidence.companyCashAfter+=.02;},
+  g=>{g.finance.transactions.find(row=>row?.buybackReconciliation).buybackReconciliation.evidence.founderOwnershipAfter+=.01;},
+  g=>{g.finance.transactions.find(row=>row?.buybackReconciliation).buybackReconciliation.evidence.stockMirrorPriceAfter+=.02;}
 ]){
   const f=setup(0x52400020);assert.equal(f.game.buybackOwnShares(1_000_000),true);mutate(f.game.g);
   assert.equal(f.finance.buybackReconciliationStatus(f.game.g).ok,false);
