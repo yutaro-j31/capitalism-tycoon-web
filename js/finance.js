@@ -230,6 +230,9 @@ function buybackReconciliationReceipt(row,evidence,g=null,f=null){
   if(e.treasurySharesAfter-e.treasurySharesBefore!==qty||e.outstandingSharesBefore-e.outstandingSharesAfter!==qty)throw new Error('P2-BUYBACK-TREASURY: treasury/outstanding movement mismatch');
   if(r(e.companyCashBefore-e.companyCashAfter)!==cost||r(e.treasuryBookAfter-e.treasuryBookBefore)!==cost)throw new Error('P2-BUYBACK-CASH-BOOK: cash/treasury-book movement mismatch');
   if(row.amount!==cost||row.cashEffect!==-cost||row.equityEffect!==-cost||row.profitEffect!==0||row.assetEffect!==0||row.liabilityEffect!==0)throw new Error('P2-BUYBACK-RECOGNITION: financing row mismatch');
+  const expectedSourceID=`buyback-${row.week}-${e.treasurySharesAfter}`,expectedIdempotencyKey=`shareholder-buyback-${row.week}-${e.treasurySharesAfter}`;
+  if(row.sourceType!=='shareholderReturns'||row.sourceID!==expectedSourceID||row.idempotencyKey!==expectedIdempotencyKey)throw new Error('P2-BUYBACK-IDEMPOTENCY: buyback identity does not match week/ending treasury shares');
+  if(g&&Math.floor(n(row.week))!==Math.floor(n(g.week)))throw new Error('P2-BUYBACK-IDEMPOTENCY: stale buyback week replay');
   const ratioKeys=['founderOwnershipBefore','founderOwnershipAfter','externalOwnershipBefore','externalOwnershipAfter','competitorOwnershipBefore','competitorOwnershipAfter'];
   if(ratioKeys.some(key=>e[key]<0||e[key]>1))throw new Error('P2-BUYBACK-OWNERSHIP: invalid ownership ratio');
   if(Math.abs(e.competitorOwnershipAfter-e.competitorOwnershipBefore)>BUYBACK_RATIO_TOLERANCE)throw new Error('P2-BUYBACK-OWNERSHIP: competitor ratio changed inside buyback');
