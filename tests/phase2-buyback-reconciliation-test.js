@@ -80,6 +80,17 @@ function buybackRow(f){return f.game.g.finance.transactions.filter(row=>row?.buy
   status(f);
 }
 
+// P2-4 preserves the legacy competitor/founder ownership model rather than adding a new
+// eligibility restriction when external ownership clamps at zero.
+{
+  const f=setup(0x52400017,{founderShares:600000,competitorOwnedRatio:.25,price:100});
+  assert.equal(f.game.buybackOwnShares(40_000_000),true);
+  assert.equal(f.game.g.founderOwnershipRatio,1);
+  assert.equal(f.game.g.externalShareholderRatio,0);
+  assert.equal(f.game.g.competitorOwnedRatio,.25);
+  status(f);
+}
+
 // Multiple valid buybacks in one week remain distinct and reconcile cumulatively.
 {
   const f=setup(0x52400004);
