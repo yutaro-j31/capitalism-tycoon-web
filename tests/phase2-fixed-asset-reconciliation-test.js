@@ -84,6 +84,21 @@ function status(f){
   assert.ok(Math.abs(f.engine.g.companyCash-cashBefore)>0,'weekly operations may move cash, depreciation itself remains non-cash');
 }
 
+// Re-evaluating weekly finance in the same week cannot depreciate an asset twice.
+{
+  const f=setup(0x5250000b),store=openStore(f),finance=f.modules.finance,g=f.engine.g;
+  const asset=g.finance.fixedAssets.find(a=>a.assetID===`store-${store.id}`);
+  const beginningCash=g.companyCash;
+  finance.recordWeekly(g,{stores:[],other:{},beginningCash});
+  const bookAfterFirst=asset.bookValue,accAfterFirst=asset.accumulatedDepreciation,countAfterFirst=asset.p2Lifecycle.depreciationCount;
+  finance.recordWeekly(g,{stores:[],other:{},beginningCash});
+  assert.equal(asset.bookValue,bookAfterFirst);
+  assert.equal(asset.accumulatedDepreciation,accAfterFirst);
+  assert.equal(asset.p2Lifecycle.depreciationCount,countAfterFirst);
+  assert.equal(g.finance.transactions.filter(tx=>tx.fixedAssetLifecycle==='depreciation'&&tx.fixedAssetID===asset.assetID&&tx.week===g.week).length,1);
+  status(f);
+}
+
 // Straight-line depreciation stops at salvage value and never over-depreciates.
 {
   const f=setup(0x52500004),g=f.engine.g,finance=f.modules.finance,cost=100,salvage=20,assetID='p2-short-life';
