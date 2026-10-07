@@ -1158,6 +1158,7 @@ class TycoonEngine extends EventTarget {
   }
 
   openStore({tenantID,businessID,name,operatingHours=3,storeID=null}) {
+    return this.runTransaction(()=>{
     const tenant = this.g.tenants.find(t=>t.id===tenantID);
     const business = this.business(businessID);
     if (!tenant || tenant.occupiedBy) return this.fail('選択したテナントは利用できません。');
@@ -1174,11 +1175,13 @@ class TycoonEngine extends EventTarget {
       quality:business.quality,brand:business.brand,condition:100,lastSales:0,lastProfit:0,status:'preparing',openingWeek:this.g.week+weeks,weeksToOpen:weeks,
       tenantID,cityName:tenant.cityName,operatingHours:Number(operatingHours),contractRent:resolveTenantContractRent(tenant,this.pref(tenant.prefID)),contractInflationBase:storeInflationIndex(this.g),marketResult:null};
     this.g.stores.push(store);
-    finance.addFixedAsset(this.g,{assetID:`store-${store.id}`,assetType:'storeEquipment',acquisitionCost:business.storeCost,usefulLifeWeeks:260,salvageValue:business.storeCost*.1,businessID,storeID:store.id});
-    finance.event(this.g,'capitalExpenditure',business.storeCost,{cashEffect:-business.storeCost,assetEffect:business.storeCost,businessID,storeID:store.id,sourceType:'openStore',sourceID:store.id,description:`${store.name} 店舗設備`});
+    const fixedAssetID=`store-${store.id}`,fixedAsset=finance.addFixedAsset(this.g,{assetID:fixedAssetID,assetType:'storeEquipment',acquisitionCost:business.storeCost,usefulLifeWeeks:260,salvageValue:business.storeCost*.1,businessID,storeID:store.id});
+    if(!fixedAsset)throw new Error('P2-ASSET-DUPLICATE: store fixed asset already exists');
+    finance.event(this.g,'capitalExpenditure',business.storeCost,{cashEffect:-business.storeCost,assetEffect:business.storeCost,businessID,storeID:store.id,sourceType:'openStore',sourceID:store.id,operationID:`fixed-asset-acquisition-${fixedAssetID}`,idempotencyKey:`fixed-asset-acquisition-${fixedAssetID}`,fixedAssetLifecycle:'acquisition',fixedAssetID,description:`${store.name} 店舗設備`});
     finance.event(this.g,'otherInvesting',tenant.deposit,{cashEffect:-tenant.deposit,assetEffect:tenant.deposit,businessID,storeID:store.id,sourceType:'openStoreDeposit',sourceID:store.id,description:`${store.name} 保証金`});
     this.notify(`${store.name}の出店準備を開始しました。開店まで${weeks}週。${startupLoan?` ジム開業ローン${yen(startupLoan.principal)}（${startupLoan.term}週・年率${(startupLoan.annualRate*100).toFixed(2)}%）を実行しました。`:''}`,'success');
-    this.evaluateProgression(); this.save(); this.emit(); return true;
+    this.evaluateProgression();  return true;
+    });
   }
 
   // closeStore() を実行したときに何が起きるかを、実行前にUIへ提示するための読み取り専用の試算。
@@ -1203,11 +1206,13 @@ class TycoonEngine extends EventTarget {
   }
 
   closeStore(id) {
+    return this.runTransaction(()=>{
     const index=this.g.stores.findIndex(s=>s.id===id); if(index<0)return false;
     const store=this.g.stores[index]; const tenant=this.g.tenants.find(t=>t.id===store.tenantID),deposit=finite(tenant?.deposit); if(tenant)tenant.occupiedBy=null;
     const proceeds=(this.business(store.businessID)?.storeCost||0)*STORE_CLOSURE_SALVAGE_RATE;
     this.g.companyCash+=proceeds; workforce.disposeStoreTeam(this.g,store.id); supply.disposeStoreSupply(this.g,store.id,finance); finance.disposeFixedAsset(this.g,store.id,proceeds); if(deposit>0)finance.event(this.g,'assetSale',deposit,{cashEffect:0,assetEffect:-deposit,profitEffect:-deposit,businessID:store.businessID,storeID:store.id,sourceType:'closeStoreDeposit',sourceID:store.id,operationID:`closeStoreDeposit-${store.id}-${this.g.week}`,description:`${store.name} 保証金没収損`}); this.g.stores.splice(index,1); this.notify(`${store.name}を閉店し、${yen(proceeds)}を回収しました。`,'warning');
-    this.save();this.emit();return true;
+    return true;
+    });
   }
 
   investBusiness(businessID,kind,amount) {
@@ -1527,14 +1532,17 @@ class TycoonEngine extends EventTarget {
   }
   sellProperty(id) {
     if(__modules.realEstatePropertyDisposals?.settlePropertyDisposition)return __modules.realEstatePropertyDisposals.settlePropertyDisposition(this,{propertyID:id,reason:'voluntary-sale',grossSalePrice:finite(this.g.properties.find(x=>x.id===id)?.value)*.97,fees:0,retainProperty:true,sourceType:'sellProperty',saleWeek:this.g.week,idempotencyKey:`property-direct-sale-${id}-w${Math.floor(finite(this.g.week,1))}`});
-    const p=this.g.properties.find(x=>x.id===id);if(!p||!p.owner)return false;const owner=p.owner,proceeds=p.value*.97,landBook=finite(finance.propertyBookOf(p)),buildings=(this.g.finance?.fixedAssets||[]).filter(a=>a.propertyID===id&&a.status==='active'),buildingBook=buildings.reduce((a,x)=>a+finite(x.bookValue||Math.max(0,finite(x.acquisitionCost)-finite(x.accumulatedDepreciation))),0),book=landBook+buildingBook;this.g[owner==='company'?'companyCash':'personalCash']+=proceeds;if(owner==='company'){for(const a of buildings){a.status='disposed';a.disposalWeek=this.g.week;a.disposalProceeds=0;a.disposalBookValue=finite(a.bookValue);a.disposalGainLoss=-finite(a.bookValue);a.bookValue=0;}finance.event(this.g,'assetSale',proceeds,{cashEffect:proceeds,assetEffect:-book,profitEffect:proceeds-book,sourceType:'sellProperty',sourceID:id,description:`${p.name} 不動産・建物売却`});}p.owner=null;p.bookValue=0;p.depreciationPerWeek=0;p.buildingCost=0;clearOwnershipBook(p);
+    const p=this.g.properties.find(x=>x.id===id);if(!p||!p.owner)return false;const owner=p.owner,proceeds=p.value*.97,landBook=finite(finance.propertyBookOf(p)),buildings=(this.g.finance?.fixedAssets||[]).filter(a=>a.propertyID===id&&a.status==='active'),buildingBook=buildings.reduce((a,x)=>a+finite(x.bookValue||Math.max(0,finite(x.acquisitionCost)-finite(x.accumulatedDepreciation))),0),book=landBook+buildingBook;this.g[owner==='company'?'companyCash':'personalCash']+=proceeds;if(owner==='company'){finance.event(this.g,'assetSale',proceeds,{cashEffect:proceeds,assetEffect:-book,profitEffect:proceeds-book,sourceType:'sellProperty',sourceID:id,...(buildings.length?{fixedAssetLifecycle:'disposal',fixedAssetDisposals:buildings.map(a=>({assetID:a.assetID,bookValue:finite(a.bookValue)}))}:{}),description:`${p.name} 不動産・建物売却`});for(const a of buildings){a.status='disposed';a.disposalWeek=this.g.week;a.disposalProceeds=0;a.disposalBookValue=finite(a.bookValue);a.disposalGainLoss=-finite(a.bookValue);a.bookValue=0;}}p.owner=null;p.bookValue=0;p.depreciationPerWeek=0;p.buildingCost=0;clearOwnershipBook(p);
     this.notify(`${p.name}を${yen(proceeds)}で売却しました。`,'success');if(!this.inTransaction()){this.save();this.emit();}return true;
   }
   buildOnLand(id,type='本社ビル') {
+    return this.runTransaction(()=>{
     const p=this.g.properties.find(x=>x.id===id);if(!p||p.owner!=='company'||p.kind!=='土地')return this.fail('会社所有の土地が必要です。');
-    const costs={'本社ビル':80_000_000,'商業施設':120_000_000,'物流施設':150_000_000};const cost=costs[type]||80_000_000;
-    if(this.g.companyCash<cost)return this.fail(`${yen(cost)}が必要です。`);this.g.companyCash-=cost;p.buildingType=type;p.constructionWeeksRemaining=12;p.buildingScale=1;p.buildingCost=finite(p.buildingCost)+cost;p.bookValue=finite(p.purchasePrice||p.price||p.bookValue);finance.addFixedAsset(this.g,{assetID:`building-${id}-${this.g.week}-${Math.round(cost)}`,assetType:'building',propertyID:id,acquisitionCost:cost,usefulLifeWeeks:1040,salvageValue:cost*.2,businessID:null,storeID:null});finance.event(this.g,'capitalExpenditure',cost,{cashEffect:-cost,assetEffect:cost,sourceType:'buildOnLand',sourceID:id,description:`${p.name} ${type}建設`});
-    this.notify(`${p.name}で${type}の建設を開始しました。`,'success');this.save();this.emit();return true;
+    const costs={'本社ビル':80_000_000,'商業施設':120_000_000,'物流施設':150_000_000};const cost=costs[type]||80_000_000,fixedAssetID=`building-${id}-${this.g.week}-${Math.round(cost)}`;
+    if(finance.ensureFinance(this.g).fixedAssets.some(a=>String(a.assetID)===fixedAssetID))return this.fail('同一週の同一建設投資はすでに処理されています。');
+    if(this.g.companyCash<cost)return this.fail(`${yen(cost)}が必要です。`);this.g.companyCash-=cost;p.buildingType=type;p.constructionWeeksRemaining=12;p.buildingScale=1;p.buildingCost=finite(p.buildingCost)+cost;p.bookValue=finite(p.purchasePrice||p.price||p.bookValue);const fixedAsset=finance.addFixedAsset(this.g,{assetID:fixedAssetID,assetType:'building',propertyID:id,acquisitionCost:cost,usefulLifeWeeks:1040,salvageValue:cost*.2,businessID:null,storeID:null});if(!fixedAsset)throw new Error('P2-ASSET-DUPLICATE: building fixed asset already exists');finance.event(this.g,'capitalExpenditure',cost,{cashEffect:-cost,assetEffect:cost,sourceType:'buildOnLand',sourceID:id,operationID:`fixed-asset-acquisition-${fixedAssetID}`,idempotencyKey:`fixed-asset-acquisition-${fixedAssetID}`,fixedAssetLifecycle:'acquisition',fixedAssetID,description:`${p.name} ${type}建設`});
+    this.notify(`${p.name}で${type}の建設を開始しました。`,'success');return true;
+    });
   }
   buyLuxury(offerID) {
     const o=LUXURY_OFFERS.find(x=>x.id===offerID);if(!o||this.g.personalCash<o.price)return this.fail('個人資金が不足しています。');

@@ -59,6 +59,7 @@ function archiveTransactions(state,profile){
   if(INVESTING_CATEGORIES.has(category))investing+=cashEffect;
   if(FINANCING_CATEGORIES.has(category))financing+=cashEffect;
  }
+ modules.finance?.archiveFixedAssetEvents?.(ledger,removed);
  ledger.archivedProfitTotal=round(finite(ledger.archivedProfitTotal)+profit);
  ledger.archivedDividendTotal=round(finite(ledger.archivedDividendTotal)+dividends);
  ledger.archivedOperatingCashFlow=round(finite(ledger.archivedOperatingCashFlow)+operating);

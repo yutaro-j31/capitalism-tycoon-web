@@ -179,8 +179,9 @@
     {
       "id": "P2-GAP-003",
       "name": "fixed-asset acquisition cash-to-book roll-forward",
-      "status": "partially-enforced-only",
-      "plannedSlice": "P2-5"
+      "status": "addressed-by-p2-5-fixed-asset-reconciliation",
+      "plannedSlice": "P2-5",
+      "resolution": "forward-only fixed-asset lifecycle receipts reconcile recognized acquisition cash/book capitalization, depreciation, disposal and investing-cash-flow classification; existing saveVersion-9 assets are adopted at their current book/depreciation state"
     },
     {
       "id": "P2-GAP-004",
