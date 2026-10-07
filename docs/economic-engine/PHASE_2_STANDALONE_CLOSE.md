@@ -29,6 +29,8 @@ Production weekly commit order now contains:
 
 The close therefore evaluates the final accounting snapshot before the week is allowed to commit.
 
+Test/exploration fixtures that explicitly set `skipWeeklyValidation=true` bypass the close stage as well as the legacy validators. This preserves the existing meaning of that diagnostic-only escape hatch; normal production gameplay does not set it.
+
 A failed close throws inside the existing outer `week` transaction. State, RNG, deterministic IDs, finance rows, weekly snapshot changes and durable save bytes therefore roll back together.
 
 ## Close envelope
