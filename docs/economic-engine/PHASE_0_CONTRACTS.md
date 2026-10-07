@@ -590,6 +590,8 @@ Economic ownership, voting ownership and control are separate. Before Phase 3, t
 
 The thresholds themselves are fixed owner decisions. Phase 0 fixes the threshold framework and requires the denominator/share-class/control semantics above; the exact command-level rights matrix is a **Phase 3 entry contract** and must be approved before any Phase 3 ownership/control capability becomes executable.
 
+The owner conditionally approved that entry catalog and initial issuer scope on #909, 2026-10-08. See [PHASE_3_ENTRY_CONTRACT.md](PHASE_3_ENTRY_CONTRACT.md) for the recorded approval and mandatory per-command effect/issuer/accounting/execution contracts. Crossing a threshold does not unconditionally unlock existing management commands or advance later settlement authority.
+
 ## 9. Founder net-worth and security identity contract
 
 ### 9.1 Minimum security identity
