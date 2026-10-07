@@ -111,6 +111,7 @@ function buybackRow(f){return f.game.g.finance.transactions.filter(row=>row?.buy
   const f=setup(0x52400016);
   assert.equal(f.game.buybackOwnShares(2_000_000),true);
   const before=status(f);
+  f.game.stock('CPTY').priceHistory=[];
   assert.equal(f.game.stockSplit('CPTY',2),true);
   const after=f.finance.buybackReconciliationStatus(f.game.g);
   assert.equal(after.ok,true,JSON.stringify(after,null,2));
