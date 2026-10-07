@@ -228,6 +228,29 @@ function status(f){
   assert.throws(()=>finance.addFixedAsset(g,{assetID:'p2-nonfinite',acquisitionCost:Infinity}),/P2-ASSET-FINITE/);
 }
 
+// Persisted duplicate capitalization and depreciation-evidence corruption fail the permanent gate.
+{
+  const f=setup(0x5250000e),store=openStore(f),g=f.engine.g,finance=f.modules.finance;
+  const asset=g.finance.fixedAssets.find(a=>a.assetID===`store-${store.id}`);
+  const acquisition=g.finance.transactions.find(tx=>tx.fixedAssetLifecycle==='acquisition'&&tx.fixedAssetID===asset.assetID);
+  const duplicate=plain(acquisition);
+  duplicate.transactionID='txn-p2-duplicate-persisted';
+  duplicate.id='txn-p2-duplicate-persisted';
+  duplicate.operationID='p2-duplicate-persisted';
+  duplicate.idempotencyKey='p2-duplicate-persisted';
+  g.finance.transactions.push(duplicate);
+  let broken=finance.fixedAssetReconciliationStatus(g);
+  assert.equal(broken.ok,false);
+  assert.equal(broken.checks.find(row=>row.code==='P2-ASSET-DUPLICATE').ok,false);
+  g.finance.transactions.pop();
+  finance.recordWeekly(g,{stores:[],other:{},beginningCash:g.companyCash});
+  const dep=g.finance.transactions.find(tx=>tx.fixedAssetLifecycle==='depreciation'&&tx.fixedAssetID===asset.assetID);
+  dep.fixedAssetEvidence.bookAfter+=1;
+  broken=finance.fixedAssetReconciliationStatus(g);
+  assert.equal(broken.ok,false);
+  assert.equal(broken.checks.find(row=>row.code==='P2-ASSET-DEPRECIATION').ok,false);
+}
+
 // Persisted non-finite fixed-asset state cannot be hidden by numeric fallbacks.
 {
   const f=setup(0x5250000c),store=openStore(f),asset=f.engine.g.finance.fixedAssets.find(a=>a.assetID===`store-${store.id}`);
