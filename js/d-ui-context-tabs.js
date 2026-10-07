@@ -110,6 +110,7 @@ function enhanceNews(focus=false,uiContext=null){
   if(!NEWS_SECTIONS.some(([id])=>id===activeNewsSection))activeNewsSection='top';
   const tabs=NEWS_SECTIONS.map(([id,label])=>`<button type="button" role="tab" id="d-news-tab-${id}" aria-selected="${id===activeNewsSection}" aria-controls="d-news-section-panel" tabindex="${id===activeNewsSection?'0':'-1'}" data-d-news-section="${id}">${esc(label)}</button>`).join('');
   screen.innerHTML=`<section class="card wide" data-d-news-sections><div class="card-head"><div><h2>TYCOON WEEKLY</h2><p>既存のニュース・イベントを面ごとに整理して表示します。</p></div></div><div class="card-body"><div style="overflow-x:auto"><div class="d-context-tabs" role="tablist" aria-label="新聞の面" style="grid-template-columns:repeat(6,minmax(88px,1fr));min-width:528px">${tabs}</div></div><div id="d-news-section-panel" role="tabpanel" aria-labelledby="d-news-tab-${activeNewsSection}">${newsSectionContent(g,activeNewsSection)}</div></div></section>`;
+  modules.dUIShell.enhanceCityLabManagement?.(g);
   if(focus)screen.querySelector(`[data-d-news-section="${activeNewsSection}"]`)?.focus();
   return true;
 }

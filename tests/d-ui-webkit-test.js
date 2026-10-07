@@ -276,7 +276,7 @@ async function verifyDesktop(browser, base) {
   assert.equal(await page.locator('.d-kpi').count(), 5, 'desktop KPI bar must contain five metrics');
   await page.locator('#d-ui-sidebar [data-tab="map"]').click();
   await page.locator('.d-map-workspace').waitFor();
-  await page.locator('.d-context-panel').waitFor();
+  await page.locator('.d-context-panel').waitFor({state:'attached'});
   await page.locator('.d-map-directory').waitFor();
   // The production map (js/d-ui-shell.js's renderMapWorkspace) places
   // markers from modules.mapPhase2Canvas.placeEntityTiles(), which returns
@@ -287,7 +287,7 @@ async function verifyDesktop(browser, base) {
   await page.waitForFunction(() => document.querySelectorAll('.d-map-marker').length > 0, null, { timeout: 10_000 });
   assert.ok(await page.locator('.d-map-marker').count() > 0, 'D map must expose at least one actionable marker');
 
-  const firstMarker = page.locator('.d-map-marker').first();
+  const firstMarker = page.locator('.d-map-marker:visible').first();
   await firstMarker.click();
   assert.ok((await page.locator('.d-context-panel h2').textContent()).trim().length > 0, 'selected marker must populate the context drawer');
 

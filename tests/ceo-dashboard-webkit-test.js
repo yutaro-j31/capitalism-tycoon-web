@@ -217,6 +217,8 @@ async function inspectMAGovernance(page) {
   assert.ok(maGovernance.buttonHeight >= 43.5, `M&A CTA below 44px: ${JSON.stringify(maGovernance)}`);
   await button.click();
   await page.locator('[data-screen="ma"]').waitFor({ state: 'visible', timeout: 10_000 });
+  // secretary-jump schedules focus on the next animation frame after rendering.
+  await page.waitForFunction(() => document.activeElement?.matches?.('[data-ma-subsidiary] [data-ma-pmi-support]'), null, { timeout: 10_000 });
   const focusedSelector = await page.evaluate(() => {
     const active = document.activeElement;
     if (!active) return '';
@@ -235,7 +237,7 @@ async function inspectWeeklyImpactRecap(page, expectedPrevious) {
   for (const sub of saveBefore?.maSubsidiaries || []) {
     assert.ok(Number.isFinite(sub.sales), `M&A subsidiary sales must be finite before weekly tick: ${sub.id || sub.name}`);
   }
-  await page.locator('[data-action="advance-week"]').click();
+  await page.locator('.d-topbar [data-action="advance-week"]').click();
   const modal = page.locator('.summary-modal');
   await modal.waitFor({ state: 'visible', timeout: 20_000 });
   await modal.locator('.weekly-impact-grid').waitFor({ state: 'visible' });
@@ -285,7 +287,7 @@ async function inspectWeeklyImpactRecap(page, expectedPrevious) {
   await modal.waitFor({ state: 'hidden', timeout: 10_000 });
   const afterClose = await savedGame(page);
   assert.equal(afterClose.saveVersion, saveBefore.saveVersion, 'weekly recap close must preserve save version');
-  await page.locator('[data-action="advance-week"]').click();
+  await page.locator('.d-topbar [data-action="advance-week"]').click();
   const nextModal = page.locator('.summary-modal');
   await nextModal.waitFor({ state: 'visible', timeout: 20_000 });
   await nextModal.locator('button', { hasText: '次の優先タスクを見る' }).click();

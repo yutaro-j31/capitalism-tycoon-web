@@ -235,7 +235,11 @@ function missionValue(value,kind){return kind==='money'?money(value):`${Math.max
  * (js/map-phase2-canvas.js's pointer-pan gating and css/d-ui-map-phase2-
  * pan.css's legacy-zoom isolation rule both key off it), always emitted.
  */
-function renderMapWorkspace(screen,g){
+function renderMapWorkspace(screen,g,force2D=false){
+  const viewModel=modules.mapPhase2Canvas.buildMapViewModel(g,engine());
+  if(selectedEntity!=null&&!viewModel.entities.some(entity=>entity.id===selectedEntity))selectedEntity=null;
+  if(force2D)screen.querySelector('.city-lab-map')?.remove();
+  if(!force2D&&modules.cityLabMap?.renderWorkspace(screen,g,{engine:engine(),selected:selectedEntity,filter:mapFilterKind,directoryOpen:mapDirectoryOpen,onDirectoryToggle:open=>{mapDirectoryOpen=open;},detail:selectedDetail,select:id=>{selectedEntity=id;enhance(true);modules.uiEnhancerRegistry.runUIEnhancers();},fallback:()=>renderMapWorkspace(screen,g,true)}))return;
   /*
    * buildMapViewModel() is the sole production adapter -- no DOM
    * scraping -- and placeEntityTiles() deterministically assigns each
@@ -244,7 +248,7 @@ function renderMapWorkspace(screen,g){
    * `null` from placeEntityTiles means the district isn't built yet
    * (assets/prototypes still loading), not "no entities".
    */
-  const viewModel=modules.mapPhase2Canvas.buildMapViewModel(g,engine());
+
   /*
    * layoutMarkerPlacards() runs on placeEntityTiles()'s full, UNFILTERED
    * result (before mapFilterKind below picks the visible subset) so
@@ -318,15 +322,24 @@ function renderMapWorkspace(screen,g){
 function enhanceMap(g){
   const screen=document.getElementById('screen');if(!screen)return;
   screen.classList.toggle('d-map-screen',activeTab()==='map');
-  if(activeTab()!=='map')return;
+  if(activeTab()!=='map'){modules.cityLabMap?.release();return;}
   renderMapWorkspace(screen,g);
+}
+function enhanceCityLabManagement(g){
+  const screen=document.getElementById('screen');if(!screen||activeTab()==='map')return;
+  let header=screen.querySelector('.city-lab-work-header');
+  if(!header){header=document.createElement('header');header.className='city-lab-work-header';screen.insertBefore(header,screen.firstChild);}
+  const title=ALL_NAV.find(item=>item[0]===activeTab())?.[2]||'経営';
+  header.innerHTML=`<button type="button" data-action="tab" data-tab="map" aria-label="マップへ戻る">‹</button><div class="city-lab-work-heading"><small>CAPITALISM TYCOON / WEEK ${finite(g.week)}</small><h1>${esc(title)}</h1></div><button type="button" class="city-lab-week" data-action="advance-week">1週間進める</button>`;
+  let capital=screen.querySelector('.city-lab-capital');if(!capital){capital=document.createElement('section');capital.className='city-lab-capital';capital.setAttribute('aria-label','経営資金');header.after(capital);}
+  capital.innerHTML=`<div><span>会社の残高</span><strong>${money(g.companyCash)}</strong></div><div><span>今週の会社利益</span><strong>${money(g.lastReport?.profit)}</strong></div><div><span>個人の残高</span><strong>${money(g.personalCash)}</strong></div>`;
 }
 function renderKey(g){return [g.week,g.selectedTab,g.stores?.length,g.companyCash,g.lastReport?.profit,selectedEntity,mapFilterKind].join(':');}
 function enhance(force=false,context=null){
   const app=context?.app||document.getElementById('app');const g=context?.state||game();const e=context?.engine||engine();if(!app||!g)return false;
-  if(document.getElementById('setup-form')){document.body.classList.remove('d-ui-active');return false;}
+  if(document.getElementById('setup-form')){document.body.classList.remove('d-ui-active','city-lab-presentation');modules.cityLabMap?.release();return false;}
   const key=renderKey(g);if(!force&&app.dataset.dUiKey===key&&document.getElementById('d-ui-sidebar'))return false;
-  app.dataset.dUiKey=key;document.body.classList.add('d-ui-active');enhanceTopbar(g,e);ensureNavigation(g);enhanceMap(g);return true;
+  app.dataset.dUiKey=key;document.body.classList.add('d-ui-active','city-lab-presentation');enhanceCityLabManagement(g);enhanceTopbar(g,e);ensureNavigation(g);enhanceMap(g);return true;
 }
 /*
  * Below 1180px css/d-ui-reference-fidelity.css drops .d-context-panel out of
@@ -345,6 +358,7 @@ function enhance(force=false,context=null){
 function revealContextPanel(){
   if(typeof document==='undefined')return;
   const panel=document.querySelector('.d-context-panel');
+  if(panel?.classList?.contains('city-lab-sheet'))return;
   if(!panel||typeof panel.getBoundingClientRect!=='function'||typeof panel.scrollIntoView!=='function')return;
   const viewportWidth=globalThis.innerWidth||0,viewportHeight=globalThis.innerHeight||0;
   // Desktop keeps the panel beside the map, already on screen -- scrolling
@@ -371,6 +385,7 @@ function handleClick(event){
   if(menu?.classList.contains('open')&&event.target===menu){event.preventDefault();setCommandMenu(false,true);return true;}
   const action=event.target?.closest?.('[data-d-ui-action]')?.dataset?.dUiAction;
   if(action==='toggle-menu'){event.preventDefault();const open=!menu?.classList.contains('open');setCommandMenu(open,!open);return true;}
+  if(action==='city-retry'){event.preventDefault();modules.cityLabMap?.retry();document.querySelector('.d-map-workspace')?.remove();document.querySelector('.city-lab-fallback')?.remove();enhance(true);return true;}
   if(action==='clear-selection'){event.preventDefault();selectedEntity=null;modules.uiEnhancerRegistry.runUIEnhancers();return true;}
   if(action==='map-filter'){event.preventDefault();mapFilterKind=event.target.closest('[data-d-ui-action]').dataset.kind||'all';modules.uiEnhancerRegistry.runUIEnhancers();return true;}
   if(action==='map-retry'){event.preventDefault();modules.mapPhase2Canvas?.retryMapLoad?.();modules.uiEnhancerRegistry.runUIEnhancers();return true;}
@@ -379,13 +394,14 @@ function handleClick(event){
   // click just like any other tap would; modules.mapPhase2Canvas.consumeJustPanned()
   // is true only for the ~50ms right after a real drag ended, so a plain
   // tap (no pan) is completely unaffected by this check.
+  if(marker?.closest('.city-lab-map')&&event.detail!==0)return true;
   if(marker){event.preventDefault();if(modules.mapPhase2Canvas?.consumeJustPanned?.())return true;selectedEntity=marker.dataset.dUiMarker;modules.uiEnhancerRegistry.runUIEnhancers();revealContextPanel();return true;}
   const tab=event.target?.closest?.('[data-action="tab"]');if(tab)setCommandMenu(false);
   return false;
 }
 function handleKeydown(event){
   const menu=document.getElementById('d-ui-command-menu');
-  if(!menu?.classList.contains('open'))return false;
+  if(!menu?.classList.contains('open')){if(event.key==='Escape'&&document.querySelector('.city-lab-sheet:not([hidden])')){event.preventDefault();selectedEntity=null;enhance(true);return true;}return false;}
   if(event.key!=='Escape'){
     if(event.key!=='Tab')return false;
   }else{event.preventDefault();setCommandMenu(false,true);return true;}
@@ -406,6 +422,6 @@ function install(){
   }});
   return true;
 }
-modules.dUIShell=Object.freeze({PRIMARY_NAV,DOCK_NAV,ALL_NAV,money,reportSeries,sparkline,currentKpis,missionRows,missionValue,selectedDetail,renderMapWorkspace,setCommandMenu,enhance,handleClick,handleKeydown,install,__installed:true});
+modules.dUIShell=Object.freeze({PRIMARY_NAV,DOCK_NAV,ALL_NAV,money,reportSeries,sparkline,currentKpis,missionRows,missionValue,selectedDetail,renderMapWorkspace,enhanceCityLabManagement,setCommandMenu,enhance,handleClick,handleKeydown,install,__installed:true});
 install();
 })();

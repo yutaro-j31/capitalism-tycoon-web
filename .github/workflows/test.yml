@@ -303,6 +303,11 @@ jobs:
       - name: Play every primary game screen in iPhone WebKit
         timeout-minutes: 5
         run: node tests/iphone-full-acceptance-webkit-test.js
+      - name: Verify City Lab production map and financial UI
+        timeout-minutes: 5
+        env:
+          CITY_LAB_ARTIFACT_DIR: artifacts/iphone-acceptance/city-lab
+        run: node tests/city-lab-port-webkit-test.js
       - name: Verify Gate C lifecycle probe in iPhone WebKit
         timeout-minutes: 3
         run: node tests/iphone-baseline-probe-webkit-test.js
