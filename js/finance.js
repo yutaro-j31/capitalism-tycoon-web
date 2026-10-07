@@ -27,6 +27,9 @@ const FINANCING_CATS=new Set(['debtBorrowing','debtRepayment','equityFinancing',
 const n=(v,d=0)=>Number.isFinite(Number(v))?Number(v):d;
 const r=v=>Math.round(n(v)*100)/100;
 const STANDALONE_CLOSE_SCHEMA_VERSION=1;
+const DEBT_ROLLFORWARD_SCHEMA_VERSION=1;
+const DEBT_ROLLFORWARD_TOLERANCE=0.01;
+const DEBT_SNAPSHOT_LIMIT=520;
 const STANDALONE_CLOSE_TOLERANCES=Object.freeze({
   balanceSheetIdentity:0.10,
   balanceSheetCash:0.01,
@@ -71,13 +74,71 @@ function initialFixedAssets(g){const rows=[];for(const s of (Array.isArray(g.sto
 // reported by validate().
 const LEDGER_COVERAGE_VERSION=1;
 function emptyBalances(){return {accountsReceivable:0,inventory:0,otherCurrentAssets:0,accountsPayable:0,accruedExpenses:0,accruedTaxes:0,shareCapital:0,capitalSurplus:0,treasuryStock:0,otherEquity:0,priorPeriodAdjustments:0};}
-function defaultFinanceState(g){const fixed=initialFixedAssets(g),gross=fixed.reduce((a,x)=>a+n(x.bookValue),0),assets=n(g.companyCash)+gross+stockBook(g)+propertyBook(g)+subsidiaryBook(g)+goodwillBook(g)+otherFixedBook(g)+overseasCashBook(g),debt=Math.max(0,n(g.companyDebt)),equity=r(assets-debt);return {schemaVersion:2,nextTransactionSeq:1,openingWeek:Math.floor(n(g.week,1)),openingCash:r(n(g.companyCash)),openingAssets:r(assets),openingLiabilities:r(debt),openingEquity:equity,openingRetainedEarnings:equity,balances:emptyBalances(),transactions:[],unknownCategoryDiagnostics:[],weeklySnapshots:[],fixedAssets:fixed,loans:debt>0?[{loanID:'legacy-company-debt',principal:r(debt),outstandingPrincipal:r(debt),interestRate:.06,termWeeks:0,remainingWeeks:0,repaymentMethod:'manual',weeklyPrincipalPayment:0,nextPaymentWeek:null,status:'active'}]:[],lastStatements:null,lastValidation:null};}
-function ensureFinance(g){if(!g.finance||typeof g.finance!=='object')g.finance=defaultFinanceState(g);const f=g.finance;if(!Array.isArray(f.transactions))f.transactions=[];if(!Array.isArray(f.weeklySnapshots))f.weeklySnapshots=[];if(!Array.isArray(f.fixedAssets))f.fixedAssets=[];if(!Array.isArray(f.loans))f.loans=[];if(!Array.isArray(f.dirtyWeeks))f.dirtyWeeks=[];if(!Array.isArray(f.unknownCategoryDiagnostics))f.unknownCategoryDiagnostics=[];if(!f.balances||typeof f.balances!=='object')f.balances=emptyBalances();for(const [k,v] of Object.entries(emptyBalances()))if(!Number.isFinite(Number(f.balances[k])))f.balances[k]=v;if(!Number.isFinite(Number(f.nextTransactionSeq)))f.nextTransactionSeq=1;if(!Number.isFinite(Number(f.openingRetainedEarnings)))f.openingRetainedEarnings=r(n(f.openingEquity,n(g.companyCash)-n(g.companyDebt)));if(!Number.isFinite(Number(f.openingEquity)))f.openingEquity=f.openingRetainedEarnings;if(!Number.isFinite(Number(f.openingCash)))f.openingCash=r(n(g.companyCash));return f;}
+function makeDebtRollforwardCurrent(g,openingDebt=n(g.companyDebt),openingWeek=n(g.week,1)){return {schemaVersion:DEBT_ROLLFORWARD_SCHEMA_VERSION,openingWeek:Math.floor(n(openingWeek,1)),openingDebt:r(Math.max(0,n(openingDebt))),borrowings:0,cashPrincipalRepayments:0,cashlessPrincipalReductions:0,interestExpense:0,principalProfitEffectMagnitude:0,interestLiabilityEffectMagnitude:0,directionErrorCount:0,movementCount:0};}
+function debtInstrumentPrincipalFromFinance(f){return r((Array.isArray(f?.loans)?f.loans:[]).reduce((sum,loan)=>sum+Math.max(0,n(loan?.outstandingPrincipal)),0));}
+function ensureDebtRollforward(g,f=ensureFinance(g)){if(!Array.isArray(f.debtSnapshots))f.debtSnapshots=[];if(!f.debtRollforwardCurrent||typeof f.debtRollforwardCurrent!=='object'){f.debtRollforwardCurrent=makeDebtRollforwardCurrent(g);}const cur=f.debtRollforwardCurrent;for(const key of ['openingWeek','openingDebt','borrowings','cashPrincipalRepayments','cashlessPrincipalReductions','interestExpense','principalProfitEffectMagnitude','interestLiabilityEffectMagnitude','directionErrorCount','movementCount'])if(!Number.isFinite(Number(cur[key])))cur[key]=key==='openingWeek'?Math.floor(n(g.week,1)):0;cur.schemaVersion=DEBT_ROLLFORWARD_SCHEMA_VERSION;return cur;}
+function rebaseDebtRollforward(g,reason='compatibility-rebase'){const f=ensureFinance(g);f.debtRollforwardCurrent=makeDebtRollforwardCurrent(g,n(g.companyDebt),n(g.week,1));f.debtRollforwardCurrent.rebaseReason=String(reason);return f.debtRollforwardCurrent;}
+function recordDebtMovement(g,f,row,rebaseIfNew=false){
+  if(!['debtBorrowing','debtRepayment','interestExpense'].includes(row?.category))return null;
+  let cur=ensureDebtRollforward(g,f);
+  if(rebaseIfNew){cur=makeDebtRollforwardCurrent(g,r(n(g.companyDebt)-n(row.liabilityEffect)),row.week);cur.rebaseReason='first-observed-debt-event';f.debtRollforwardCurrent=cur;}
+  const tol=DEBT_ROLLFORWARD_TOLERANCE;
+  if(row.category==='debtBorrowing'){
+    if(n(row.liabilityEffect)<-tol)cur.directionErrorCount++;
+    const principal=Math.max(0,n(row.liabilityEffect));
+    cur.borrowings=r(n(cur.borrowings)+principal);
+    cur.principalProfitEffectMagnitude=r(n(cur.principalProfitEffectMagnitude)+Math.abs(n(row.profitEffect)));
+  }else if(row.category==='debtRepayment'){
+    if(n(row.liabilityEffect)>tol||n(row.cashEffect)>tol)cur.directionErrorCount++;
+    const principal=Math.max(0,-n(row.liabilityEffect));
+    if(Math.abs(n(row.cashEffect))<=tol)cur.cashlessPrincipalReductions=r(n(cur.cashlessPrincipalReductions)+principal);
+    else cur.cashPrincipalRepayments=r(n(cur.cashPrincipalRepayments)+principal);
+    cur.principalProfitEffectMagnitude=r(n(cur.principalProfitEffectMagnitude)+Math.abs(n(row.profitEffect)));
+  }else{
+    cur.interestExpense=r(n(cur.interestExpense)+n(row.amount));
+    cur.interestLiabilityEffectMagnitude=r(n(cur.interestLiabilityEffectMagnitude)+Math.abs(n(row.liabilityEffect)));
+  }
+  cur.movementCount=Math.floor(n(cur.movementCount))+1;
+  return cur;
+}
+function debtRollforwardStatus(g){
+  const f=ensureFinance(g),cur=ensureDebtRollforward(g,f),tol=DEBT_ROLLFORWARD_TOLERANCE;
+  const endingDebt=r(Math.max(0,n(g.companyDebt))),expectedEndingDebt=r(n(cur.openingDebt)+n(cur.borrowings)-n(cur.cashPrincipalRepayments)-n(cur.cashlessPrincipalReductions)),instrumentPrincipal=debtInstrumentPrincipalFromFinance(f);
+  const metrics=Object.freeze({
+    openingDebt:r(n(cur.openingDebt)),borrowings:r(n(cur.borrowings)),cashPrincipalRepayments:r(n(cur.cashPrincipalRepayments)),cashlessPrincipalReductions:r(n(cur.cashlessPrincipalReductions)),interestExpense:r(n(cur.interestExpense)),
+    expectedEndingDebt,endingDebt,instrumentPrincipal,
+    rollforwardDifference:r(Math.abs(expectedEndingDebt-endingDebt)),instrumentDifference:r(Math.abs(instrumentPrincipal-endingDebt)),
+    principalProfitEffectMagnitude:r(n(cur.principalProfitEffectMagnitude)),interestLiabilityEffectMagnitude:r(n(cur.interestLiabilityEffectMagnitude)),directionErrorCount:Math.floor(n(cur.directionErrorCount))
+  });
+  const checks=Object.freeze([
+    Object.freeze({code:'P2-DEBT-ROLLFORWARD',ok:metrics.rollforwardDifference<=tol,difference:metrics.rollforwardDifference,limit:tol}),
+    Object.freeze({code:'P2-DEBT-INSTRUMENTS',ok:metrics.instrumentDifference<=tol,difference:metrics.instrumentDifference,limit:tol}),
+    Object.freeze({code:'P2-DEBT-PRINCIPAL-PNL',ok:metrics.principalProfitEffectMagnitude<=tol,difference:metrics.principalProfitEffectMagnitude,limit:tol}),
+    Object.freeze({code:'P2-DEBT-INTEREST-PRINCIPAL',ok:metrics.interestLiabilityEffectMagnitude<=tol,difference:metrics.interestLiabilityEffectMagnitude,limit:tol}),
+    Object.freeze({code:'P2-DEBT-DIRECTION',ok:metrics.directionErrorCount===0,difference:metrics.directionErrorCount,limit:0})
+  ]);
+  const latest=Array.isArray(f.debtSnapshots)&&f.debtSnapshots.length?f.debtSnapshots[f.debtSnapshots.length-1]:null;
+  const errors=checks.filter(row=>!row.ok).map(row=>`${row.code} difference=${row.difference} limit=${row.limit}`);
+  if(latest&&latest.ok===false)errors.push(`P2-DEBT-PREVIOUS-SNAPSHOT week=${latest.week}`);
+  return Object.freeze({schemaVersion:DEBT_ROLLFORWARD_SCHEMA_VERSION,week:Math.floor(n(g.week,1)),openingWeek:Math.floor(n(cur.openingWeek,g.week)),movementCount:Math.floor(n(cur.movementCount)),metrics,checks,latestSnapshotOk:!latest||latest.ok!==false,errors:Object.freeze(errors),ok:errors.length===0});
+}
+function finalizeDebtRollforward(g){
+  const f=ensureFinance(g),status=debtRollforwardStatus(g);
+  if(!status.ok)return status;
+  const last=f.debtSnapshots.at(-1);
+  if(last&&last.week===Math.floor(n(g.week,1))&&Math.floor(n(f.debtRollforwardCurrent?.movementCount))===0)return last;
+  const snapshot=Object.freeze({schemaVersion:DEBT_ROLLFORWARD_SCHEMA_VERSION,week:Math.floor(n(g.week,1)),openingWeek:status.openingWeek,movementCount:status.movementCount,metrics:status.metrics,checks:status.checks,errors:status.errors,ok:true});
+  f.debtSnapshots.push(snapshot);f.debtSnapshots=f.debtSnapshots.slice(-DEBT_SNAPSHOT_LIMIT);
+  f.debtRollforwardCurrent=makeDebtRollforwardCurrent(g,status.metrics.endingDebt,n(g.week,1));
+  return snapshot;
+}
+function defaultFinanceState(g){const fixed=initialFixedAssets(g),gross=fixed.reduce((a,x)=>a+n(x.bookValue),0),assets=n(g.companyCash)+gross+stockBook(g)+propertyBook(g)+subsidiaryBook(g)+goodwillBook(g)+otherFixedBook(g)+overseasCashBook(g),debt=Math.max(0,n(g.companyDebt)),equity=r(assets-debt);return {schemaVersion:2,nextTransactionSeq:1,openingWeek:Math.floor(n(g.week,1)),openingCash:r(n(g.companyCash)),openingAssets:r(assets),openingLiabilities:r(debt),openingEquity:equity,openingRetainedEarnings:equity,balances:emptyBalances(),transactions:[],unknownCategoryDiagnostics:[],weeklySnapshots:[],debtSnapshots:[],debtRollforwardCurrent:makeDebtRollforwardCurrent(g,debt,n(g.week,1)),fixedAssets:fixed,loans:debt>0?[{loanID:'legacy-company-debt',principal:r(debt),outstandingPrincipal:r(debt),interestRate:.06,termWeeks:0,remainingWeeks:0,repaymentMethod:'manual',weeklyPrincipalPayment:0,nextPaymentWeek:null,status:'active'}]:[],lastStatements:null,lastValidation:null};}
+function ensureFinance(g){if(!g.finance||typeof g.finance!=='object')g.finance=defaultFinanceState(g);const f=g.finance;if(!Array.isArray(f.transactions))f.transactions=[];if(!Array.isArray(f.weeklySnapshots))f.weeklySnapshots=[];if(!Array.isArray(f.debtSnapshots))f.debtSnapshots=[];if(!f.debtRollforwardCurrent||typeof f.debtRollforwardCurrent!=='object')f.debtRollforwardCurrent=makeDebtRollforwardCurrent(g);if(!Array.isArray(f.fixedAssets))f.fixedAssets=[];if(!Array.isArray(f.loans))f.loans=[];if(!Array.isArray(f.dirtyWeeks))f.dirtyWeeks=[];if(!Array.isArray(f.unknownCategoryDiagnostics))f.unknownCategoryDiagnostics=[];if(!f.balances||typeof f.balances!=='object')f.balances=emptyBalances();for(const [k,v] of Object.entries(emptyBalances()))if(!Number.isFinite(Number(f.balances[k])))f.balances[k]=v;if(!Number.isFinite(Number(f.nextTransactionSeq)))f.nextTransactionSeq=1;if(!Number.isFinite(Number(f.openingRetainedEarnings)))f.openingRetainedEarnings=r(n(f.openingEquity,n(g.companyCash)-n(g.companyDebt)));if(!Number.isFinite(Number(f.openingEquity)))f.openingEquity=f.openingRetainedEarnings;if(!Number.isFinite(Number(f.openingCash)))f.openingCash=r(n(g.companyCash));return f;}
 function migrateFinanceState(g){const existing=g.finance;g.finance=existing&&existing.schemaVersion>=2?existing:defaultFinanceState(g);ensureFinance(g);return g;}
 let strictCategoryValidation=globalThis.navigator?.userAgent==='node-test';
 function setCategoryValidationMode(mode){strictCategoryValidation=mode==='strict'||mode===true;return strictCategoryValidation?'strict':'compatibility';}
 function diagnoseUnknownCategory(f,g,category,opts){const originalCategory=String(category);const sourceType=String(opts.sourceType||'engine'),sourceID=String(opts.sourceID||'unknown'),week=Math.floor(n(opts.week,g.week));let d=f.unknownCategoryDiagnostics.find(x=>x.category===originalCategory&&x.sourceType===sourceType&&x.sourceID===sourceID);if(!d){d={category:originalCategory,fallbackCategory:'otherOperating',occurrenceCount:0,firstWeek:week,latestWeek:week,sourceType,sourceID};f.unknownCategoryDiagnostics.push(d);}d.occurrenceCount++;d.latestWeek=week;f.unknownCategoryDiagnostics=f.unknownCategoryDiagnostics.slice(-100);return d;}
-function event(g,category,amount,opts={}){const f=ensureFinance(g),originalCategory=String(category);let resolution='canonical';if(FINANCE_CATEGORY_ALIASES[originalCategory]){category=FINANCE_CATEGORY_ALIASES[originalCategory];resolution='alias';}else if(!CATEGORIES.includes(originalCategory)){if(strictCategoryValidation)throw new TypeError(`Unknown finance category: ${originalCategory}`);diagnoseUnknownCategory(f,g,originalCategory,opts);category='otherOperating';resolution='compatibilityFallback';}const operationID=opts.operationID||op(g,category,opts.sourceType,opts.sourceID);const transactionID=opts.transactionID||`txn-${operationID}`;const idempotencyKey=opts.idempotencyKey||null;if(idempotencyKey&&f.transactions.some(t=>t.idempotencyKey===idempotencyKey))return null;if(f.transactions.some(t=>t.transactionID===transactionID||t.id===transactionID))return null;const row={id:transactionID,transactionID,operationID,idempotencyKey,week:Math.floor(n(opts.week,g.week)),fiscalYear:fy(n(opts.week,g.week)),fiscalQuarter:fq(n(opts.week,g.week)),category,amount:r(Math.abs(n(amount))),cashEffect:r(n(opts.cashEffect,0)),profitEffect:r(n(opts.profitEffect,0)),assetEffect:r(n(opts.assetEffect,0)),liabilityEffect:r(n(opts.liabilityEffect,0)),equityEffect:r(n(opts.equityEffect,0)),businessID:opts.businessID||null,storeID:opts.storeID||null,sourceType:opts.sourceType||'engine',sourceID:opts.sourceID||operationID,receivableAmount:r(n(opts.receivableAmount,0)),payableAmount:r(n(opts.payableAmount,0)),accruedExpenseAmount:r(n(opts.accruedExpenseAmount,0)),description:String(opts.description||originalCategory),inventoryAmount:r(n(opts.inventoryAmount,0))};if(resolution!=='canonical'){row.originalCategory=originalCategory;row.categoryResolution=resolution;}f.nextTransactionSeq++;f.transactions.push(row);applyWorkingCapital(g,[row]);markDirty(f,row.week);compressTransactions(f,row.week);return row;}
+function event(g,category,amount,opts={}){const hadDebtRollforward=Boolean(g?.finance?.debtRollforwardCurrent&&typeof g.finance.debtRollforwardCurrent==='object'),f=ensureFinance(g),originalCategory=String(category);let resolution='canonical';if(FINANCE_CATEGORY_ALIASES[originalCategory]){category=FINANCE_CATEGORY_ALIASES[originalCategory];resolution='alias';}else if(!CATEGORIES.includes(originalCategory)){if(strictCategoryValidation)throw new TypeError(`Unknown finance category: ${originalCategory}`);diagnoseUnknownCategory(f,g,originalCategory,opts);category='otherOperating';resolution='compatibilityFallback';}const operationID=opts.operationID||op(g,category,opts.sourceType,opts.sourceID);const transactionID=opts.transactionID||`txn-${operationID}`;const idempotencyKey=opts.idempotencyKey||null;if(idempotencyKey&&f.transactions.some(t=>t.idempotencyKey===idempotencyKey))return null;if(f.transactions.some(t=>t.transactionID===transactionID||t.id===transactionID))return null;const row={id:transactionID,transactionID,operationID,idempotencyKey,week:Math.floor(n(opts.week,g.week)),fiscalYear:fy(n(opts.week,g.week)),fiscalQuarter:fq(n(opts.week,g.week)),category,amount:r(Math.abs(n(amount))),cashEffect:r(n(opts.cashEffect,0)),profitEffect:r(n(opts.profitEffect,0)),assetEffect:r(n(opts.assetEffect,0)),liabilityEffect:r(n(opts.liabilityEffect,0)),equityEffect:r(n(opts.equityEffect,0)),businessID:opts.businessID||null,storeID:opts.storeID||null,sourceType:opts.sourceType||'engine',sourceID:opts.sourceID||operationID,receivableAmount:r(n(opts.receivableAmount,0)),payableAmount:r(n(opts.payableAmount,0)),accruedExpenseAmount:r(n(opts.accruedExpenseAmount,0)),description:String(opts.description||originalCategory),inventoryAmount:r(n(opts.inventoryAmount,0))};if(resolution!=='canonical'){row.originalCategory=originalCategory;row.categoryResolution=resolution;}f.nextTransactionSeq++;f.transactions.push(row);recordDebtMovement(g,f,row,!hadDebtRollforward);applyWorkingCapital(g,[row]);markDirty(f,row.week);compressTransactions(f,row.week);return row;}
 function markDirty(f,week){week=Math.floor(n(week,1));if(!f.dirtyWeeks.includes(week))f.dirtyWeeks.push(week);}
 function openingForWeek(f,week){const prev=f.weeklySnapshots.filter(s=>s.week<week).sort((a,b)=>b.week-a.week)[0];return prev?r(prev.endingCash):r(n(f.openingCash));}
 function rebuildSnapshotForWeek(g,week){const f=ensureFinance(g);week=Math.floor(n(week,g.week));const i=f.weeklySnapshots.findIndex(s=>s.week===week);const opening=i>=0?f.weeklySnapshots[i].openingCash:openingForWeek(f,week);return recordSnapshot(g,opening,week,week===Math.floor(n(g.week,1))?g.companyCash:(i>=0?f.weeklySnapshots[i].actualCompanyCash:null));}
@@ -107,7 +168,7 @@ function forecast13(g){const loanRows=next13LoanPayments(g),receipts=recentAvera
 function buildStatements(g,period='13'){rebuildDirtySnapshots(g);const f=ensureFinance(g),rows=rowsFor(g,period),allRows=f.transactions,pl=plFrom(rows),bs=bsFrom(g,allRows),cf=cfFrom(g,rows,period),wc=workingCapital(g,cf),ratios=ratiosFrom(pl,bs,cf,wc),dividendCapacity=dividendInfo(g,pl,bs,cf,wc),forecast=forecast13(g),statements={period,profitAndLoss:pl,balanceSheet:bs,cashFlow:cf,workingCapital:wc,ratios,dividendCapacity,forecast};f.lastStatements=statements;return statements;}
 function closeDifference(value){return Math.abs(r(value));}
 function standaloneCloseFromStatements(g,period,st){
-  const f=ensureFinance(g),cf=st.cashFlow,snaps=snapsFor(g,period),t=STANDALONE_CLOSE_TOLERANCES;
+  const f=ensureFinance(g),cf=st.cashFlow,snaps=snapsFor(g,period),t=STANDALONE_CLOSE_TOLERANCES,debt=debtRollforwardStatus(g);
   const archivedCash=n(f.archivedOperatingCashFlow)+n(f.archivedInvestingCashFlow)+n(f.archivedFinancingCashFlow);
   const rolledCash=r(n(f.openingCash)+archivedCash+f.transactions.reduce((a,row)=>a+n(row.cashEffect),0));
   const weeklyCashDifference=snaps.reduce((m,s)=>Math.max(m,closeDifference(s.cashDifference)),0);
@@ -120,7 +181,12 @@ function standaloneCloseFromStatements(g,period,st){
     cashFlowEndingCashDifference:closeDifference(n(cf.endingCash)-n(g.companyCash)),
     weeklyCashDifference:r(weeklyCashDifference),
     weeklyOpeningRollforwardDifference:r(weeklyOpeningRollforward),
-    financeCashRollforwardDifference:closeDifference(rolledCash-n(g.companyCash))
+    financeCashRollforwardDifference:closeDifference(rolledCash-n(g.companyCash)),
+    debtRollforwardDifference:debt.metrics.rollforwardDifference,
+    debtInstrumentDifference:debt.metrics.instrumentDifference,
+    debtPrincipalProfitEffectMagnitude:debt.metrics.principalProfitEffectMagnitude,
+    debtInterestLiabilityEffectMagnitude:debt.metrics.interestLiabilityEffectMagnitude,
+    debtDirectionErrorCount:debt.metrics.directionErrorCount
   });
   const checks=Object.freeze([
     Object.freeze({code:'P2-CLOSE-BS-IDENTITY',ok:metrics.balanceSheetIdentityDifference<=t.balanceSheetIdentity,difference:metrics.balanceSheetIdentityDifference,limit:t.balanceSheetIdentity}),
@@ -129,7 +195,9 @@ function standaloneCloseFromStatements(g,period,st){
     Object.freeze({code:'P2-CLOSE-CF-ENDING-CASH',ok:metrics.cashFlowEndingCashDifference<=t.cashFlowEndingCash,difference:metrics.cashFlowEndingCashDifference,limit:t.cashFlowEndingCash}),
     Object.freeze({code:'P2-CLOSE-WEEKLY-CASH',ok:metrics.weeklyCashDifference<=t.weeklyCashDifference,difference:metrics.weeklyCashDifference,limit:t.weeklyCashDifference}),
     Object.freeze({code:'P2-CLOSE-WEEKLY-ROLLFORWARD',ok:metrics.weeklyOpeningRollforwardDifference<=t.weeklyOpeningRollforward,difference:metrics.weeklyOpeningRollforwardDifference,limit:t.weeklyOpeningRollforward}),
-    Object.freeze({code:'P2-CLOSE-FINANCE-ROLLFORWARD',ok:metrics.financeCashRollforwardDifference<=t.financeCashRollforward,difference:metrics.financeCashRollforwardDifference,limit:t.financeCashRollforward})
+    Object.freeze({code:'P2-CLOSE-FINANCE-ROLLFORWARD',ok:metrics.financeCashRollforwardDifference<=t.financeCashRollforward,difference:metrics.financeCashRollforwardDifference,limit:t.financeCashRollforward}),
+    ...debt.checks,
+    Object.freeze({code:'P2-DEBT-PREVIOUS-SNAPSHOT',ok:debt.latestSnapshotOk,difference:debt.latestSnapshotOk?0:1,limit:0})
   ]);
   const errors=Object.freeze(checks.filter(row=>!row.ok).map(row=>`${row.code} difference=${row.difference} limit=${row.limit}`));
   return Object.freeze({
@@ -137,6 +205,8 @@ function standaloneCloseFromStatements(g,period,st){
     week:Math.floor(n(g.week,1)),
     period:String(period),
     authoritativeCompanyCash:r(n(g.companyCash)),
+    authoritativeCompanyDebt:r(n(g.companyDebt)),
+    debtRollforward:debt,
     metrics,
     checks,
     errors,
@@ -201,6 +271,6 @@ function cashBridge(g,period='week'){
     other:r(operating-(netIncome+depreciation+workingCapital)),operating:r(operating),investing:r(investing),
     financing:r(financing),netCashChange:r(n(cf.netCashChange)),openingCash:r(n(cf.openingCash)),endingCash:r(n(cf.endingCash))};
 }
-Object.assign(exports,{cashBridge,STANDALONE_CLOSE_SCHEMA_VERSION,STANDALONE_CLOSE_TOLERANCES,standaloneClose,LEDGER_COVERAGE_VERSION,reconcileLegacyLedger,CATEGORIES,FINANCE_CATEGORY_ALIASES,setCategoryValidationMode,propertyBookOf,cipBook,FOUNDER_LOAN_SOURCE,isFounderLoan,founderLoanReceivable,settleLoanPrincipal,individuallyServicedPrincipal,ensureFinance,migrateFinanceState,event,op,addFixedAsset,disposeFixedAsset,recordWeekly,recordSnapshot,rebuildSnapshotForWeek,rebuildDirtySnapshots,buildStatements,validate,defaultFinanceState,rowsFor,snapsFor});
+Object.assign(exports,{cashBridge,STANDALONE_CLOSE_SCHEMA_VERSION,STANDALONE_CLOSE_TOLERANCES,standaloneClose,DEBT_ROLLFORWARD_SCHEMA_VERSION,DEBT_ROLLFORWARD_TOLERANCE,DEBT_SNAPSHOT_LIMIT,debtRollforwardStatus,finalizeDebtRollforward,rebaseDebtRollforward,debtInstrumentPrincipalFromFinance,LEDGER_COVERAGE_VERSION,reconcileLegacyLedger,CATEGORIES,FINANCE_CATEGORY_ALIASES,setCategoryValidationMode,propertyBookOf,cipBook,FOUNDER_LOAN_SOURCE,isFounderLoan,founderLoanReceivable,settleLoanPrincipal,individuallyServicedPrincipal,ensureFinance,migrateFinanceState,event,op,addFixedAsset,disposeFixedAsset,recordWeekly,recordSnapshot,rebuildSnapshotForWeek,rebuildDirtySnapshots,buildStatements,validate,defaultFinanceState,rowsFor,snapsFor});
 })(__modules.finance={});
 })();

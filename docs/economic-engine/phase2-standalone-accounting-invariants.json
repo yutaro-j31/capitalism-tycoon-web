@@ -184,8 +184,9 @@
     {
       "id": "P2-GAP-004",
       "name": "debt event roll-forward by borrowing/repayment/write-off",
-      "status": "point-in-time-total-only",
-      "plannedSlice": "P2-2"
+      "status": "addressed-by-p2-2-forward-debt-rollforward",
+      "plannedSlice": "P2-2",
+      "resolution": "opening debt + borrowings - cash principal repayments - cashless principal reductions = ending debt; point-in-time loan reconciliation remains required"
     }
   ]
 }

@@ -141,6 +141,8 @@ function finalizeWeekBoundary(){
       try{close=finance.standaloneClose(g,'52');}
       catch(error){throw financeValidationError(this,STANDALONE_CLOSE_THREW,[validationCause(error)],validationCause(error),'standalone-accounting-close');}
       if(close?.ok!==true)throw financeValidationError(this,STANDALONE_CLOSE_FAILED,validationReasons(close),validationReasons(close)[0],'standalone-accounting-close');
+      const debtSnapshot=finance?.finalizeDebtRollforward?.(g);
+      if(debtSnapshot&&debtSnapshot.ok===false)throw financeValidationError(this,STANDALONE_CLOSE_FAILED,validationReasons(debtSnapshot),validationReasons(debtSnapshot)[0],'standalone-accounting-close');
     }
 
     // Phase 2: liquidity crisis reads the final post-mutation cash figure.
