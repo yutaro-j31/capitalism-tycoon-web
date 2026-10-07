@@ -4,6 +4,7 @@ const assert=require('node:assert/strict');
 const {loadGame}=require('./harness');
 
 function lcg(seed){let s=seed>>>0;return()=>{s=(Math.imul(s,1664525)+1013904223)>>>0;return s/0x100000000;};}
+function plain(value){return JSON.parse(JSON.stringify(value));}
 function setup(seed=0x52200001,{cash=500_000_000,debt=0}={}){
   const loaded=loadGame({headless:true,random:lcg(seed)});
   const game=new loaded.engineModule.TycoonEngine();
@@ -40,9 +41,9 @@ function status(finance,game){
 
   game.save();
   const persisted=JSON.parse(loaded.ctx.localStorage.getItem('capitalism_tycoon_web_v1'));
-  assert.deepEqual(persisted.finance.debtRollforwardCurrent,game.g.finance.debtRollforwardCurrent);
+  assert.deepEqual(persisted.finance.debtRollforwardCurrent,plain(game.g.finance.debtRollforwardCurrent));
   const restored=new loaded.engineModule.TycoonEngine(JSON.parse(JSON.stringify(persisted)));
-  assert.deepEqual(finance.debtRollforwardStatus(restored.g),borrowed,'reload must preserve the in-flight principal roll-forward');
+  assert.deepEqual(plain(finance.debtRollforwardStatus(restored.g)),plain(borrowed),'reload must preserve the in-flight principal roll-forward');
 
   assert.equal(restored.repay(2_000_000,'company'),true);
   const repaid=status(finance,restored);
@@ -149,8 +150,8 @@ function status(finance,game){
   assert.equal(a.advanceWeek(false),true);
   assert.equal(b.advanceWeek(false),true);
   assert.equal(a.g.companyDebt,b.g.companyDebt);
-  assert.deepEqual(a.g.finance.debtSnapshots.at(-1),b.g.finance.debtSnapshots.at(-1));
-  assert.deepEqual(a.g.finance.debtRollforwardCurrent,b.g.finance.debtRollforwardCurrent);
+  assert.deepEqual(plain(a.g.finance.debtSnapshots.at(-1)),plain(b.g.finance.debtSnapshots.at(-1)));
+  assert.deepEqual(plain(a.g.finance.debtRollforwardCurrent),plain(b.g.finance.debtRollforwardCurrent));
   const maturity=debtService.refinancingState(a).history.at(-1);
   assert.equal(maturity.week,a.g.week);
   assert.ok(maturity.principalPaid>0,'maturity path must repay principal in this fixture');
@@ -161,7 +162,7 @@ function status(finance,game){
   assert.equal(finance.validate(a.g).ok,true,finance.validate(a.g).errors.join(' / '));
 
   const reloaded=new loaded.engineModule.TycoonEngine(JSON.parse(JSON.stringify(a.g)));
-  assert.deepEqual(finance.debtRollforwardStatus(reloaded.g),finance.debtRollforwardStatus(a.g));
+  assert.deepEqual(plain(finance.debtRollforwardStatus(reloaded.g)),plain(finance.debtRollforwardStatus(a.g)));
 }
 
 // 7. Snapshot retention is bounded.
