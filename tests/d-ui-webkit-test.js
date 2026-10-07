@@ -33,7 +33,7 @@ async function createCompany(page, suffix) {
   await page.locator('#setup-form input[name="playerName"]').fill(`D UI Tester ${suffix}`);
   await page.locator('#setup-form input[name="companyName"]').fill(`D UI Company ${suffix}`);
   await page.locator('#setup-form').evaluate(form => form.requestSubmit());
-  await page.locator('.d-kpi-strip').waitFor();
+  await page.locator('.d-topbar [data-action="advance-week"]').waitFor();
 }
 
 async function assertNoRecovery(page, stage, errors) {
@@ -333,6 +333,17 @@ async function verifyIPhone(browser, base) {
   await createCompany(page, 'iphone');
   await page.locator('#d-ui-sidebar').waitFor();
 
+  await openCommandTab(page, 'home');
+  assert.equal(await page.locator('.d-kpi-strip:visible').count(), 0, 'iPhone must use one capital summary instead of duplicate KPI rows');
+  assert.equal(await page.locator('.city-lab-work-header [data-action="advance-week"]:visible').count(), 0, 'management header must not duplicate the global week control');
+  const capitalBox = await page.locator('.city-lab-capital').boundingBox();
+  assert.ok(capitalBox && capitalBox.height < 100, 'iPhone capital summary must fit in one compact row');
+  assert.match(await page.locator('.city-lab-capital').innerText(), /会社の残高[\s\S]*個人の残高/, 'company and personal capital must stay distinctly labelled');
+  const navStyle = await page.locator('#d-ui-sidebar [data-tab="home"]').evaluate(node => ({color:getComputedStyle(node).color,shadow:getComputedStyle(node).boxShadow}));
+  assert.equal(navStyle.color, 'rgb(32, 63, 75)', 'active mobile navigation must use the City Lab teal');
+  assert.equal(navStyle.shadow, 'none', 'legacy violet active stripe must not remain');
+  await page.screenshot({path:path.join(OUT, 'city-lab-home-iphone.png'),fullPage:false});
+
   const sidebarPosition = await page.locator('#d-ui-sidebar').evaluate(node => getComputedStyle(node).position);
   assert.equal(sidebarPosition, 'fixed', 'iPhone D navigation must remain fixed');
   assert.equal(await page.locator('#d-ui-sidebar .d-nav-button:visible').count(), 4, 'iPhone D navigation must expose exactly four direct route tabs plus the menu control');
@@ -382,6 +393,10 @@ async function verifyIPhone(browser, base) {
   await assertNoRecovery(page, 'after iPhone bank navigation', errors);
 
   await verifyMarket(page, errors, 'iPhone');
+  const sectorStyle = await page.locator('.d-market-sector-tab.active').evaluate(node => ({color:getComputedStyle(node).color,background:getComputedStyle(node).backgroundColor}));
+  assert.equal(sectorStyle.color, 'rgb(255, 255, 255)', 'selected market filter must be readable white text');
+  assert.equal(sectorStyle.background, 'rgb(32, 63, 75)', 'selected market filter must use the City Lab teal');
+
   await page.screenshot({ path: path.join(OUT, 'd-ui-market-iphone.png'), fullPage: true, scale: 'css' });
   await assertNoRecovery(page, 'after iPhone market navigation', errors);
 
@@ -405,6 +420,26 @@ async function verifyIPhone(browser, base) {
   assert.ok(await page.locator('#screen .card').count() > 0, 'settings screen must remain usable from the mobile command menu');
   await assertNoRecovery(page, 'after settings navigation', errors);
   await page.screenshot({ path: path.join(OUT, 'd-ui-iphone.png'), fullPage: true });
+  // Presentation-only long-value fixture: no economic state or save changes.
+  await openCommandTab(page, 'home');
+  for (const width of [320, 390, 430]) {
+    await page.setViewportSize({width,height:844});
+    const layout = await page.locator('.city-lab-capital').evaluate(summary => {
+      const amounts=[...summary.querySelectorAll('strong')];
+      const original=amounts.map(node=>node.textContent);
+      amounts.forEach((node,i)=>{node.textContent=i===1?'-10000.00億円':'10000.00億円';});
+      const heights=amounts.map(node=>({height:node.getBoundingClientRect().height,line:Number.parseFloat(getComputedStyle(node).lineHeight),nowrap:getComputedStyle(node).whiteSpace}));
+      const result={heights,pageWidth:document.documentElement.scrollWidth,viewport:innerWidth,scrollWidth:summary.scrollWidth,clientWidth:summary.clientWidth};
+      amounts.forEach((node,i)=>{node.textContent=original[i];});
+      return result;
+    });
+    for(const amount of layout.heights){
+      assert.equal(amount.nowrap,'nowrap',`${width}px large balances must stay unbroken`);
+      assert.ok(amount.height <= amount.line+1,`${width}px large balances must occupy one line`);
+    }
+    assert.ok(layout.pageWidth <= layout.viewport+1,`${width}px balances must not overflow the page`);
+    assert.ok(layout.scrollWidth > layout.clientWidth,`${width}px long balances must remain reachable inside the scrolling summary`);
+  }
   assert.deepEqual(errors, []);
   await context.close();
 }
