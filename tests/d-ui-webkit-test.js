@@ -28,12 +28,20 @@ function server() {
   });
 }
 
-async function createCompany(page, suffix) {
+async function createCompany(page, suffix, options = {}) {
   await page.goto(page.baseURL, { waitUntil: 'networkidle' });
   await page.locator('#setup-form input[name="playerName"]').fill(`D UI Tester ${suffix}`);
   await page.locator('#setup-form input[name="companyName"]').fill(`D UI Company ${suffix}`);
+  let founderPrefID = null;
+  if (options.nonTokyoOrigin) {
+    const origin = page.locator('#setup-form select[name="founderPrefID"]');
+    const values = await origin.locator('option').evaluateAll(nodes => nodes.map(node => node.value));
+    founderPrefID = values.find(value => value && value !== 'tokyo') || values[0] || null;
+    if (founderPrefID) await origin.selectOption(founderPrefID);
+  }
   await page.locator('#setup-form').evaluate(form => form.requestSubmit());
   await page.locator('.d-kpi-strip').waitFor();
+  return founderPrefID;
 }
 
 async function assertNoRecovery(page, stage, errors) {
@@ -330,15 +338,22 @@ async function verifyIPhone(browser, base) {
   const errors = [];
   page.on('pageerror', error => { const text=String(error.message || error); errors.push(text); DIAGNOSTICS.push(`iphone pageerror: ${text}`); });
   page.on('console', message => { if(message.type()==='error')DIAGNOSTICS.push(`iphone console: ${message.text()}`); });
-  await createCompany(page, 'iphone');
+  const founderPrefID = await createCompany(page, 'iphone', { nonTokyoOrigin: true });
   await page.locator('#d-ui-sidebar').waitFor();
 
+  await page.locator('#screen[data-screen="map"]').waitFor();
+  assert.ok(founderPrefID && founderPrefID !== 'tokyo', 'iPhone acceptance must exercise a non-Tokyo founder origin');
+  assert.equal(await page.locator('#screen select[data-bind="selectedPref"]').inputValue(), founderPrefID, 'map-first entry must initialize to the configured founder/HQ prefecture');
   const sidebarPosition = await page.locator('#d-ui-sidebar').evaluate(node => getComputedStyle(node).position);
   assert.equal(sidebarPosition, 'fixed', 'iPhone D navigation must remain fixed');
-  assert.equal(await page.locator('#d-ui-sidebar .d-nav-button:visible').count(), 4, 'iPhone D navigation must expose exactly four direct route tabs plus the menu control');
+  const directTabs = await page.locator('#d-ui-sidebar .d-nav-button:visible').evaluateAll(nodes => nodes.map(node => node.dataset.tab));
+  assert.deepEqual(directTabs, ['map','business','market','report'], 'iPhone primary dock must be MAP / 企業 / 市場 / 財務 before MENU');
   assert.equal(await page.locator('#d-ui-dock:visible').count(), 0, 'legacy floating help dock must stay hidden behind the five-tab navigation');
+  assert.ok((await page.locator('.d-current-location').innerText()).trim().length > 0, 'compact iPhone header must show the current location');
+  assert.equal(await page.locator('.d-kpi:visible').count(), 1, 'compact iPhone header must avoid desktop KPI overload');
+  assert.equal(await page.locator('.d-kpi-company-cash:visible').count(), 1, 'company cash must remain visible in the compact iPhone header');
 
-  for (const tab of ['home','report','business','market']) {
+  for (const tab of ['map','business','market','report']) {
     const control = page.locator(`#d-ui-sidebar [data-tab="${tab}"]`);
     await control.waitFor();
     const box = await control.boundingBox();
@@ -347,6 +362,28 @@ async function verifyIPhone(browser, base) {
     await page.locator(`#screen[data-screen="${tab}"]`).waitFor();
     assert.equal(await control.getAttribute('aria-current'), 'page', `iPhone ${tab} navigation control must expose aria-current after navigation`);
   }
+
+  await page.locator('#d-ui-sidebar [data-tab="map"]').click();
+  await page.locator('#screen[data-screen="map"]').waitFor();
+  await page.locator('#d-ui-sidebar [data-tab="business"]').click();
+  await page.locator('#screen[data-screen="business"]').waitFor();
+  await page.evaluate(() => history.back());
+  await page.locator('#screen[data-screen="map"]').waitFor();
+  assert.equal(await page.locator('#d-ui-sidebar [data-tab="map"]').getAttribute('aria-current'), 'page', 'browser Back must restore Map through the production tab action');
+  await page.evaluate(() => history.forward());
+  await page.locator('#screen[data-screen="business"]').waitFor();
+
+  await openCommandTab(page, 'home');
+  await page.locator('#screen[data-screen="home"]').waitFor();
+  const directJump = page.locator('[data-action="founding-tutorial-jump"]').first();
+  await directJump.waitFor();
+  const directTarget = await directJump.getAttribute('data-tab');
+  assert.ok(directTarget, 'founding tutorial must expose a direct top-level route jump');
+  await directJump.click();
+  await page.locator(`#screen[data-screen="${directTarget}"]`).waitFor();
+  await page.evaluate(() => history.back());
+  await page.locator('#screen[data-screen="home"]').waitFor();
+
   const menuToggle = page.locator('#d-ui-sidebar .d-menu-toggle');
   const menuBox = await menuToggle.boundingBox();
   assert.ok(menuBox && menuBox.height >= 44, `iPhone menu navigation control must be at least 44px high, got ${menuBox?.height}`);
