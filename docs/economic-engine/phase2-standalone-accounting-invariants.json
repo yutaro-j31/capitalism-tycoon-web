@@ -166,8 +166,9 @@
     {
       "id": "P2-GAP-001",
       "name": "dividend conservation",
-      "status": "not-directly-enforced-by-finance.validate",
-      "plannedSlice": "P2-3"
+      "status": "addressed-by-p2-3-dividend-reconciliation",
+      "plannedSlice": "P2-3",
+      "resolution": "forward-only distribution receipts reconcile payer reduction, retained earnings, personal net, withholding, external gross and explicit signed residual exactly once; existing saveVersion-9 history is adopted as opening state"
     },
     {
       "id": "P2-GAP-002",
