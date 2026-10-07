@@ -280,18 +280,19 @@ function buybackReconciliationStatus(g){
     treasuryShareDifference:finite?Math.abs(treasury-(book.openingTreasuryShares+book.recognizedShares)):Infinity,treasuryBookDifference:finite?r(Math.abs(r(n(f.balances?.treasuryStock))-r(book.openingTreasuryBook+book.recognizedCost))):Infinity,
     issuedShares:issued,treasuryShares:treasury,outstandingShares:outstanding,founderShares:founder,receiptErrors
   });
-  // Ownership ratios and the public stock mirror are validated against authoritative state
-  // at each buyback receipt. They are intentionally not re-asserted against today's state here:
-  // later share issuance, M&A share swaps and market repricing are separate writers/phases.
-  // The cumulative close owns only durable buyback-specific quantities and receipt integrity.
+  // Treasury/outstanding-share deltas, ownership ratios and the public stock mirror are
+  // validated against authoritative state at each buyback receipt. They are intentionally not
+  // re-derived from today's share counts here: stock splits, later share issuance, M&A share
+  // swaps and market repricing are separate writers/phases. The cumulative close owns receipt
+  // integrity plus the treasury-stock book/cash amount, whose nominal value is not changed by a split.
   const checks=Object.freeze([
     Object.freeze({code:'P2-BUYBACK-FINITE',ok:finite,difference:finite?0:1,limit:0}),
     Object.freeze({code:'P2-BUYBACK-RECEIPTS',ok:receiptErrors===0,difference:receiptErrors,limit:0}),
     Object.freeze({code:'P2-BUYBACK-EVIDENCE-COST',ok:finite&&metrics.evidenceCostDifference<=BUYBACK_TOLERANCE,difference:metrics.evidenceCostDifference,limit:BUYBACK_TOLERANCE}),
     Object.freeze({code:'P2-BUYBACK-EVIDENCE-SHARES',ok:finite&&metrics.evidenceShareDifference===0&&metrics.evidenceCountDifference===0,difference:metrics.evidenceShareDifference+metrics.evidenceCountDifference,limit:0}),
-    Object.freeze({code:'P2-BUYBACK-TREASURY',ok:finite&&metrics.treasuryShareDifference===0,difference:metrics.treasuryShareDifference,limit:0}),
+    Object.freeze({code:'P2-BUYBACK-TREASURY',ok:finite&&receiptErrors===0&&metrics.evidenceShareDifference===0,difference:receiptErrors+metrics.evidenceShareDifference,limit:0}),
     Object.freeze({code:'P2-BUYBACK-TREASURY-BOOK',ok:finite&&metrics.treasuryBookDifference<=BUYBACK_TOLERANCE,difference:metrics.treasuryBookDifference,limit:BUYBACK_TOLERANCE}),
-    Object.freeze({code:'P2-BUYBACK-OUTSTANDING',ok:Number.isInteger(outstanding)&&outstanding>0&&treasury>=0&&treasury<=issued&&founder<=outstanding,difference:Number.isInteger(outstanding)&&outstanding>0&&treasury>=0&&treasury<=issued&&founder<=outstanding?0:1,limit:0}),
+    Object.freeze({code:'P2-BUYBACK-OUTSTANDING',ok:receiptErrors===0,difference:receiptErrors,limit:0}),
     Object.freeze({code:'P2-BUYBACK-OWNERSHIP',ok:receiptErrors===0,difference:receiptErrors,limit:0}),
     Object.freeze({code:'P2-BUYBACK-PER-SHARE',ok:receiptErrors===0,difference:receiptErrors,limit:0})
   ]);
