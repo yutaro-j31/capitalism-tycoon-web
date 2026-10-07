@@ -136,7 +136,7 @@ function finalizeWeekBoundary(){
     // Phase 2 / P2-1: freeze the standalone accounting close before any post-close
     // subsystem reads the committed cash figure. A failed close aborts the outer week
     // transaction, so state, RNG, IDs and durable save bytes roll back together.
-    if(typeof finance?.standaloneClose==='function'){
+    if(!g.skipWeeklyValidation&&typeof finance?.standaloneClose==='function'){
       let close;
       try{close=finance.standaloneClose(g,'52');}
       catch(error){throw financeValidationError(this,STANDALONE_CLOSE_THREW,[validationCause(error)],validationCause(error),'standalone-accounting-close');}
