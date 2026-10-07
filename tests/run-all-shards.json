@@ -236,7 +236,8 @@
     "tests/phase2-accounting-baseline-test.js",
     "tests/phase2-standalone-close-test.js",
     "tests/phase2-debt-rollforward-test.js",
-    "tests/phase2-dividend-reconciliation-test.js"
+    "tests/phase2-dividend-reconciliation-test.js",
+    "tests/phase2-buyback-reconciliation-test.js"
   ],
   "L": [
     "tests/store-cost-inflation-25y-test.js"

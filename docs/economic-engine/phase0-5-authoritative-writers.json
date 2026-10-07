@@ -1217,6 +1217,15 @@
         ]
       },
       {
+        "file": "js/finance.js",
+        "tokens": [
+          "externalShareholderRatio",
+          "founderShares",
+          "sharesOut",
+          "treasuryBuybackShares"
+        ]
+      },
+      {
         "file": "js/ma-acquisition-financing.js",
         "tokens": [
           "externalShareholderRatio",
@@ -1276,6 +1285,7 @@
       {
         "file": "js/shareholder-returns.js",
         "tokens": [
+          "externalShareholderRatio",
           "founderShares",
           "sharesOut",
           "treasuryBuybackShares"
