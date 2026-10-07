@@ -1276,6 +1276,7 @@
       {
         "file": "js/shareholder-returns.js",
         "tokens": [
+          "externalShareholderRatio",
           "founderShares",
           "sharesOut",
           "treasuryBuybackShares"
