@@ -13,6 +13,7 @@ Covered writers are:
 
 - store-opening equipment in `engine.js::openStore`;
 - store-equipment upgrades in `store-equipment.js::upgrade`;
+- vertical-integration capex in `expansion.js::addVerticalIntegration`;
 - self-built property buildings in `engine.js::buildOnLand`;
 - weekly fixed-asset depreciation in `finance.js::recordWeekly`;
 - store fixed-asset disposal in `finance.js::disposeFixedAsset`;
