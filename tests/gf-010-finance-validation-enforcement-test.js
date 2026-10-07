@@ -119,10 +119,13 @@ function injectFinalValidation(modules,behavior){
 {
   const {loaded}=setup(0x0f010013),order=loaded.modules.financeValidationBoundary.WEEK_EXECUTION_ORDER;
   assert.deepEqual([...order],[
-    'weekly-production-wrappers','delegated-executive-actions','critical-money-finite-guard','finance-snapshot-finalization','liquidity-crisis-finalization',
+    'weekly-production-wrappers','delegated-executive-actions','critical-money-finite-guard','finance-snapshot-finalization','standalone-accounting-close','liquidity-crisis-finalization',
     'finance-validation','supporting-invariant-validation','weekly-summary-finalization','transaction-commit','persistence'
   ]);
-  assert.ok(order.indexOf('weekly-production-wrappers')<order.indexOf('finance-validation'));
+  assert.ok(order.indexOf('weekly-production-wrappers')<order.indexOf('standalone-accounting-close'));
+  assert.ok(order.indexOf('finance-snapshot-finalization')<order.indexOf('standalone-accounting-close'));
+  assert.ok(order.indexOf('standalone-accounting-close')<order.indexOf('liquidity-crisis-finalization'));
+  assert.ok(order.indexOf('standalone-accounting-close')<order.indexOf('finance-validation'));
   assert.ok(order.indexOf('finance-validation')<order.indexOf('transaction-commit'));
   assert.ok(order.indexOf('transaction-commit')<order.indexOf('persistence'));
   const index=fs.readFileSync(path.join(__dirname,'../index.html'),'utf8');
