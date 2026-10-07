@@ -30,6 +30,7 @@ function server() {
 
 async function createCompany(page, suffix, options = {}) {
   await page.goto(page.baseURL, { waitUntil: 'networkidle' });
+  const initialHistoryLength = options.assertInitialHistory ? await page.evaluate(() => history.length) : null;
   await page.locator('#setup-form input[name="playerName"]').fill(`D UI Tester ${suffix}`);
   await page.locator('#setup-form input[name="companyName"]').fill(`D UI Company ${suffix}`);
   let founderPrefID = null;
@@ -41,6 +42,14 @@ async function createCompany(page, suffix, options = {}) {
   }
   await page.locator('#setup-form').evaluate(form => form.requestSubmit());
   await page.locator('.d-kpi-strip').waitFor();
+  if (options.assertInitialHistory) {
+    const initialRoute = await page.evaluate(() => ({
+      length: history.length,
+      tab: history.state?.capitalismTycoonTab || null
+    }));
+    assert.equal(initialRoute.length, initialHistoryLength, 'first production Map render must replace the setup history entry rather than push an unvisited Home route');
+    assert.equal(initialRoute.tab, 'map', 'first browser-history route must be Map');
+  }
   return founderPrefID;
 }
 
@@ -338,7 +347,7 @@ async function verifyIPhone(browser, base) {
   const errors = [];
   page.on('pageerror', error => { const text=String(error.message || error); errors.push(text); DIAGNOSTICS.push(`iphone pageerror: ${text}`); });
   page.on('console', message => { if(message.type()==='error')DIAGNOSTICS.push(`iphone console: ${message.text()}`); });
-  const founderPrefID = await createCompany(page, 'iphone', { nonTokyoOrigin: true });
+  const founderPrefID = await createCompany(page, 'iphone', { nonTokyoOrigin: true, assertInitialHistory: true });
   await page.locator('#d-ui-sidebar').waitFor();
 
   await page.locator('#screen[data-screen="map"]').waitFor();
