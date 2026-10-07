@@ -73,7 +73,9 @@ Runtime finance-ledger compaction moves receipt totals into bounded archived cou
 
 P2-4 reconciles the current legacy ownership model; it does not redesign it.
 
-A new buyback may not create a worse founder-plus-competitor over-allocation than the adopted opening state. Normal states must continue to satisfy the current `updateOwnershipRatios()` denominator based on issued shares minus treasury shares.
+Each buyback receipt must prove the post-action founder/external ratios produced by the existing `updateOwnershipRatios()` denominator based on issued shares minus treasury shares, while competitor ownership remains unchanged inside that action. P2-4 does not add a new buyback eligibility restriction when the legacy competitor/founder model clamps external ownership; ownership-model redesign belongs to Phase 3.
+
+Receipt-time treasury/outstanding/ownership/price identities are not re-derived from arbitrary later state because stock splits, later share issuance, M&A share swaps and market repricing have separate writers. The cumulative close continues to enforce receipt integrity and the nominal treasury-stock book/cash roll-forward.
 
 ## Atomicity and duplicate behavior
 
