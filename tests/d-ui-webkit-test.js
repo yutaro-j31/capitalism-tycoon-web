@@ -420,6 +420,26 @@ async function verifyIPhone(browser, base) {
   assert.ok(await page.locator('#screen .card').count() > 0, 'settings screen must remain usable from the mobile command menu');
   await assertNoRecovery(page, 'after settings navigation', errors);
   await page.screenshot({ path: path.join(OUT, 'd-ui-iphone.png'), fullPage: true });
+  // Presentation-only long-value fixture: no economic state or save changes.
+  await openCommandTab(page, 'home');
+  for (const width of [320, 390, 430]) {
+    await page.setViewportSize({width,height:844});
+    const layout = await page.locator('.city-lab-capital').evaluate(summary => {
+      const amounts=[...summary.querySelectorAll('strong')];
+      const original=amounts.map(node=>node.textContent);
+      amounts.forEach((node,i)=>{node.textContent=i===1?'-10000.00億円':'10000.00億円';});
+      const heights=amounts.map(node=>({height:node.getBoundingClientRect().height,line:Number.parseFloat(getComputedStyle(node).lineHeight),nowrap:getComputedStyle(node).whiteSpace}));
+      const result={heights,pageWidth:document.documentElement.scrollWidth,viewport:innerWidth,scrollWidth:summary.scrollWidth,clientWidth:summary.clientWidth};
+      amounts.forEach((node,i)=>{node.textContent=original[i];});
+      return result;
+    });
+    for(const amount of layout.heights){
+      assert.equal(amount.nowrap,'nowrap',`${width}px large balances must stay unbroken`);
+      assert.ok(amount.height <= amount.line+1,`${width}px large balances must occupy one line`);
+    }
+    assert.ok(layout.pageWidth <= layout.viewport+1,`${width}px balances must not overflow the page`);
+    assert.ok(layout.scrollWidth > layout.clientWidth,`${width}px long balances must remain reachable inside the scrolling summary`);
+  }
   assert.deepEqual(errors, []);
   await context.close();
 }

@@ -2,7 +2,8 @@
 
 **Program:** Economic Engine  
 **Phase:** Phase 1 — Entity-aware Operation / Ledger Foundation  
-**Status:** ACCEPTANCE CANDIDATE — final only after P1-5 merge and latest-main CI green  
+**Status:** COMPLETE — formally exited on the verified P1-5 main baseline
+**Phase 1 exit main:** `1a14987e14b10b0cf9d5da2f3a75e002b7b5a43d`
 **P1-5 base main:** `deea67049953375d10995a49e60d1fcd58cf09a3`
 
 ## 1. Phase 1 objective
@@ -150,7 +151,23 @@ Phase 1 may be marked complete only when:
 6. Phase 1 acceptance gate is green;
 7. tracker #870 is updated and closed.
 
-Until those conditions are satisfied, this document remains an acceptance candidate rather than final owner exit evidence.
+These conditions were satisfied at the Phase 1 exit main above. The former
+ACCEPTANCE CANDIDATE header and unchecked P1-5 tracker items were stale
+bookkeeping, as confirmed by the owner on 2026-10-07. This update records that
+completion and does not change any design, contract or acceptance criterion.
+
+### Verified exit evidence
+
+- [P1-5 PR #887](https://github.com/yutaro-j31/capitalism-tycoon-web/pull/887) merged as the exit SHA above; it committed the permanent acceptance gate and this exit review.
+- [Test run 37551914509](https://github.com/yutaro-j31/capitalism-tycoon-web/actions/runs/37551914509): success at that exact SHA. All twelve canonical shards passed, including shard G, which registers `phase1-acceptance-gate-test.js`. All eight Phase 1 gates passed.
+- The same Test run records successful **Phase 0.5 Acceptance Smoke**, **iPhone Acceptance Playthrough** and **iPhone WebKit Smoke** jobs. Optional event-filtered jobs were skipped; they are not counted as successful evidence.
+- [Strategy Balance run 37551914451](https://github.com/yutaro-j31/capitalism-tycoon-web/actions/runs/37551914451): success at that exact exit SHA.
+- [Tracker #870](https://github.com/yutaro-j31/capitalism-tycoon-web/issues/870) is closed as completed; its P1-5 checklist is synchronized to the evidence above.
+- Exact historical exit checkout rerun on 2026-10-07: `node scripts/phase1-acceptance.js` — all eight gates PASS.
+- [Phase 2 tracker #890](https://github.com/yutaro-j31/capitalism-tycoon-web/issues/890) records: Phase 1 formally exited on latest-main `1a14987e14b10b0cf9d5da2f3a75e002b7b5a43d`.
+
+Historical completion does not imply that later main commits are CI-green.
+Each later task must verify its own current baseline.
 
 ## 10. Next phase boundary
 
