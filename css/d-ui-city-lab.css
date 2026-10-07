@@ -141,3 +141,42 @@ body.city-lab-presentation .city-lab-gesture{display:none}
 }
 
 body.city-lab-presentation #screen .city-lab-marker,body.city-lab-presentation #screen .city-lab-marker span{text-shadow:none!important;font-weight:400!important}
+
+/* Mobile readability follow-up: one capital summary, compact headings, light controls.
+   Scope and specificity also cover the legacy rules after this imported stylesheet. */
+body.d-ui-active.city-lab-presentation #screen .city-lab-work-header>.city-lab-week{display:none!important}
+body.d-ui-active.city-lab-presentation #screen .city-lab-work-heading small{display:none!important}
+body.d-ui-active.city-lab-presentation #screen .city-lab-work-header{position:relative;gap:10px;padding:0 0 12px;margin-bottom:12px}
+body.d-ui-active.city-lab-presentation #screen .city-lab-capital{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;margin-bottom:16px;padding-bottom:14px}
+body.d-ui-active.city-lab-presentation #screen .city-lab-capital>div{min-width:0}
+body.d-ui-active.city-lab-presentation #screen .city-lab-capital span{font-size:11px;line-height:1.5}
+body.d-ui-active.city-lab-presentation #screen .city-lab-capital strong{font-size:18px;line-height:1.5;overflow-wrap:anywhere}
+body.d-ui-active.city-lab-presentation #screen .filters .d-market-sector-tabs{background:var(--ct-soft)!important;border-color:var(--ct-line)!important;box-shadow:none!important;padding:4px;gap:4px}
+body.d-ui-active.city-lab-presentation #screen .d-market-sector-tab{background:transparent!important;color:var(--ct-muted)!important;border-color:transparent!important;box-shadow:none!important;font-weight:500}
+body.d-ui-active.city-lab-presentation #screen .d-market-sector-tab.active{background:var(--ct-accent)!important;color:#fff!important;border-color:var(--ct-accent)!important}
+body.d-ui-active.city-lab-presentation #d-ui-sidebar .d-nav-button[data-tab],
+body.d-ui-active.city-lab-presentation #d-ui-sidebar .d-menu-toggle{color:var(--ct-muted)!important;background:transparent!important;box-shadow:none!important}
+body.d-ui-active.city-lab-presentation #d-ui-sidebar .d-nav-button[data-tab].active,
+body.d-ui-active.city-lab-presentation #d-ui-sidebar .d-menu-toggle[aria-expanded="true"]{color:var(--ct-accent)!important;background:var(--ct-soft)!important;box-shadow:none!important}
+body.d-ui-active.city-lab-presentation .d-speed button[data-action="advance-4"]::after{color:var(--ct-ink)!important}
+@media(max-width:820px){
+body.d-ui-active.city-lab-presentation .d-topbar .d-kpi-strip{display:none!important}
+body.d-ui-active.city-lab-presentation .d-topbar{grid-template-columns:minmax(0,1fr) auto!important;padding:8px 12px!important;gap:8px!important}
+body.d-ui-active.city-lab-presentation #screen:not(.d-map-screen){padding:14px 12px 30px!important}
+body.d-ui-active.city-lab-presentation #screen .card{padding:16px 14px!important;margin-bottom:14px!important}
+body.d-ui-active.city-lab-presentation #d-ui-sidebar{backdrop-filter:none!important;box-shadow:0 -2px 12px #182c310c!important}
+body.d-ui-active.city-lab-presentation .city-lab-location,
+body.d-ui-active.city-lab-presentation .city-lab-balance{padding:10px 12px;border-radius:18px}
+body.d-ui-active.city-lab-presentation .city-lab-location>span{font-size:9px;letter-spacing:.04em}
+body.d-ui-active.city-lab-presentation #screen .city-lab-location select{min-height:44px;font-size:17px!important}
+body.d-ui-active.city-lab-presentation .city-lab-balance strong{font-size:18px}
+body.d-ui-active.city-lab-presentation .city-lab-balance small{font-size:10px}
+body.d-ui-active.city-lab-presentation .city-lab-context{top:110px;font-size:12px}
+}
+@media(max-width:360px){
+body.d-ui-active.city-lab-presentation #screen .city-lab-capital strong{font-size:16px}
+body.d-ui-active.city-lab-presentation .city-lab-location>span{display:none}
+body.d-ui-active.city-lab-presentation .city-lab-context{top:88px}
+}
+body.d-ui-active.city-lab-presentation #screen .d-market-sector-tabs{scrollbar-color:#b4c7cc var(--ct-soft)}
+body.d-ui-active.city-lab-presentation #screen .d-market-sector-tabs::-webkit-scrollbar-thumb{background:#b4c7cc!important}

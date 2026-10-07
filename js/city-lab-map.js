@@ -3,7 +3,7 @@
 const modules=globalThis.__capitalismTycoonModules;
 if(!modules?.mapPhase2Canvas)throw new Error('map-phase2-canvas.js must precede city-lab-map.js.');
 if(modules.cityLabMap)throw new Error('city-lab-map.js is already registered.');
-const LAZY_URLS=['./assets/vendor/three-r160.min.js?rev=9262ba5af60f','./prototypes/map-canvas-renderer.js?rev=9262ba5af60f','./prototypes/map-prefecture-profiles.js?rev=9262ba5af60f'];
+const LAZY_URLS=['./assets/vendor/three-r160.min.js?rev=55364a5f2ff0','./prototypes/map-canvas-renderer.js?rev=55364a5f2ff0','./prototypes/map-prefecture-profiles.js?rev=55364a5f2ff0'];
 const clamp=(n,a,b)=>Math.max(a,Math.min(b,n));
 const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const KIND={store:'自社店舗',tenant:'出店候補',office:'オフィス',realestate:'不動産',competitor:'競合'};
