@@ -94,7 +94,7 @@ async function stopServer(server) {
 }
 
 async function weeklySummary(page, action) {
-  await page.locator(`button[data-action="${action}"]`).click();
+  await page.locator(`.d-topbar button[data-action="${action}"]`).click();
   const modal = page.locator('#modal-root .summary-modal');
   await modal.waitFor({ state: 'visible', timeout: 30_000 });
   const text = await modal.innerText();

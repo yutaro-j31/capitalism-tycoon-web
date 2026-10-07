@@ -51,3 +51,11 @@ The City Lab facade, road, balcony, canopy and tree geometry is batched with `In
 - Existing save, transaction, startup-budget, map/detail/placement, module-order, frozen-CSS and asset-coherence checks remain required.
 
 Physical iPhone handling/performance and its real keyboard are not claimed from WebKit emulation. Prototype visuals are reused on the full production controls: extra real game fields and unlock gates are retained instead of replacing them with the prototype's simplified demo forms.
+
+## CI follow-up
+
+The first PR CI found two presentation integration gaps. Canonical WebKit week-advance locators now target `.d-topbar`, because the City Lab work header adds a second equivalent control. This changes the interaction target only; weekly state, accounting, saved results and button-size assertions remain intact. The CEO navigation test also waits for the existing `requestAnimationFrame` focus handoff before asserting the exact PMI support target; it does not accept unfocused navigation.
+
+The writer inventory's lexical candidate list adds `js/city-lab-map.js` for company cash and `js/d-ui-shell.js` for personal cash, both used only to display balances. The exact-authority mutation inventory is unchanged. No discovery rule, hash check or negative omission test is relaxed.
+
+The two-store native opening test additionally found that industry selection re-rendered the map and closed the source directory. The City Lab wrapper now uses the existing shell's presentation-only directory-open state, preserving the form through changes and sharing it with Canvas2D fallback. The test selects the canonical directory control, verifies that industry selection keeps it open, then opens both real stores and advances a week.

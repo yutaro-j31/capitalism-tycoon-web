@@ -3,7 +3,7 @@
 const modules=globalThis.__capitalismTycoonModules;
 if(!modules?.mapPhase2Canvas)throw new Error('map-phase2-canvas.js must precede city-lab-map.js.');
 if(modules.cityLabMap)throw new Error('city-lab-map.js is already registered.');
-const LAZY_URLS=['./assets/vendor/three-r160.min.js?rev=2077022011d1','./prototypes/map-canvas-renderer.js?rev=2077022011d1','./prototypes/map-prefecture-profiles.js?rev=2077022011d1'];
+const LAZY_URLS=['./assets/vendor/three-r160.min.js?rev=db97f4f4304d','./prototypes/map-canvas-renderer.js?rev=db97f4f4304d','./prototypes/map-prefecture-profiles.js?rev=db97f4f4304d'];
 const clamp=(n,a,b)=>Math.max(a,Math.min(b,n));
 const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const KIND={store:'自社店舗',tenant:'出店候補',office:'オフィス',realestate:'不動産',competitor:'競合'};
@@ -43,7 +43,7 @@ function renderWorkspace(screen,g,options){
   let root=screen.querySelector('.city-lab-map');
   if(!root){
     release();let directory=screen.querySelector(':scope > .d-map-directory');
-    if(!directory){const children=[...screen.children];directory=document.createElement('details');directory.className='d-map-directory';directory.innerHTML='<summary>出店候補・物件・オフィス一覧</summary><div class="d-map-directory-body"></div>';children.forEach(n=>directory.lastElementChild.appendChild(n));screen.appendChild(directory);}
+    if(!directory){const children=[...screen.children];directory=document.createElement('details');directory.className='d-map-directory';directory.open=Boolean(options.directoryOpen);directory.addEventListener('toggle',()=>options.onDirectoryToggle?.(directory.open));directory.innerHTML='<summary>出店候補・物件・オフィス一覧</summary><div class="d-map-directory-body"></div>';children.forEach(n=>directory.lastElementChild.appendChild(n));screen.appendChild(directory);}
     root=document.createElement('section');root.className='d-map-workspace city-lab-map';root.setAttribute('aria-label','都市マップ');
     root.innerHTML='<div class="d-map-stage city-lab-stage"><div class="city-lab-viewport"><canvas class="city-lab-canvas" aria-hidden="true"></canvas><div class="city-lab-labels"></div></div><header class="city-lab-hud"><label class="city-lab-location"><span>CAPITALISM TYCOON</span><select data-bind="selectedPref" aria-label="都道府県を切り替える"></select></label><div class="city-lab-balance"><small></small><strong></strong></div></header><div class="city-lab-context"></div><div class="city-lab-controls"><button type="button" data-city-camera="in" aria-label="ズームイン">＋</button><button type="button" data-city-camera="out" aria-label="ズームアウト">−</button><button type="button" data-city-camera="fit">全体</button><button type="button" data-city-camera="filter" aria-label="表示する拠点を選ぶ" aria-expanded="false">表示</button></div><footer class="city-lab-footer"><span class="city-lab-gesture">ドラッグ移動 / ピンチ</span><button type="button" data-action="advance-week">1週間進める</button></footer><p class="city-lab-load" role="status">都市を読み込み中です</p></div><aside class="d-context-panel city-lab-sheet" aria-label="建物の詳細" hidden></aside>';
     screen.insertBefore(root,directory);

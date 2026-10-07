@@ -239,7 +239,7 @@ function renderMapWorkspace(screen,g,force2D=false){
   const viewModel=modules.mapPhase2Canvas.buildMapViewModel(g,engine());
   if(selectedEntity!=null&&!viewModel.entities.some(entity=>entity.id===selectedEntity))selectedEntity=null;
   if(force2D)screen.querySelector('.city-lab-map')?.remove();
-  if(!force2D&&modules.cityLabMap?.renderWorkspace(screen,g,{engine:engine(),selected:selectedEntity,filter:mapFilterKind,detail:selectedDetail,select:id=>{selectedEntity=id;enhance(true);modules.uiEnhancerRegistry.runUIEnhancers();},fallback:()=>renderMapWorkspace(screen,g,true)}))return;
+  if(!force2D&&modules.cityLabMap?.renderWorkspace(screen,g,{engine:engine(),selected:selectedEntity,filter:mapFilterKind,directoryOpen:mapDirectoryOpen,onDirectoryToggle:open=>{mapDirectoryOpen=open;},detail:selectedDetail,select:id=>{selectedEntity=id;enhance(true);modules.uiEnhancerRegistry.runUIEnhancers();},fallback:()=>renderMapWorkspace(screen,g,true)}))return;
   /*
    * buildMapViewModel() is the sole production adapter -- no DOM
    * scraping -- and placeEntityTiles() deterministically assigns each

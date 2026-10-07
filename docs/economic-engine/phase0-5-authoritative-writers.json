@@ -51,6 +51,12 @@
         ]
       },
       {
+        "file": "js/city-lab-map.js",
+        "tokens": [
+          "companyCash"
+        ]
+      },
+      {
         "file": "js/company-recall-crisis.js",
         "tokens": [
           "companyCash"
@@ -1299,6 +1305,12 @@
       },
       {
         "file": "js/completion.js",
+        "tokens": [
+          "personalCash"
+        ]
+      },
+      {
+        "file": "js/d-ui-shell.js",
         "tokens": [
           "personalCash"
         ]

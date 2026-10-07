@@ -50,10 +50,18 @@ async function startServer(server) {
   return `http://127.0.0.1:${address.port}/`;
 }
 
+async function openMapDirectory(page) {
+  const directory = page.locator('.d-map-directory');
+  await directory.waitFor({ state: 'attached' });
+  if (await directory.getAttribute('open') === null) await directory.locator(':scope > summary').click();
+}
+
 async function openTenant(page, tenantName, businessID, storeName, expectedStoreCount) {
+  await openMapDirectory(page);
   const card = page.locator('article.item').filter({ hasText: tenantName });
   await card.waitFor({ state: 'visible' });
   await card.locator('select[id^="business-"]').selectOption(businessID);
+  assert.notEqual(await page.locator('.d-map-directory').getAttribute('open'), null, 'industry selection must preserve the open directory');
   await card.locator('button[data-action="open-store"]').click();
   await page.locator('#modal-text').waitFor({ state: 'visible' });
   await page.locator('#modal-text').fill(storeName);
@@ -153,7 +161,8 @@ async function main() {
     await page.locator('#d-ui-command-menu [data-tab="map"]').click();
     await page.locator('#screen[data-screen="map"]').waitFor({ state: 'visible' });
     assert.equal(await page.locator('#d-ui-command-menu.open').count(), 0, 'command menu should close after navigating to the map');
-    await page.locator('select[data-bind="selectedPref"]').selectOption('fukuoka');
+    await openMapDirectory(page);
+    await page.locator('.d-map-directory select[data-bind="selectedPref"]').selectOption('fukuoka');
     await openTenant(page, '福岡 駅前1階テナント', 'ramen', 'YTR 福岡駅前店', 1);
     await openTenant(page, '福岡 商店街角地テナント', 'ramen', 'YTR 福岡商店街店', 2);
 
@@ -165,7 +174,7 @@ async function main() {
       `reported setup must remain a low-cash two-store start, got ${before.companyCash}`);
 
     await installWeekTrace(page);
-    await page.locator('button[data-action="advance-week"]').click({ timeout: 30_000 });
+    await page.locator('.d-topbar button[data-action="advance-week"]').click({ timeout: 30_000 });
     const summary = page.locator('#modal-root .summary-modal');
     await summary.waitFor({ state: 'visible', timeout: 30_000 });
     assert.match(await summary.innerText(), /第2週/);

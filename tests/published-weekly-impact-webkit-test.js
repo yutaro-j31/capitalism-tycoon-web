@@ -29,7 +29,7 @@ async function savedGame(page) {
 async function inspectRecap(page, expectedPrevious) {
   const saveBefore = await savedGame(page);
   assert.ok(saveBefore, 'configured save must exist before advancing the week');
-  await page.locator('[data-action="advance-week"]').click();
+  await page.locator('.d-topbar [data-action="advance-week"]').click();
   const modal = page.locator('.summary-modal');
   await modal.waitFor({ state: 'visible', timeout: 20_000 });
   await modal.locator('.weekly-impact-grid').waitFor({ state: 'visible', timeout: 10_000 });
