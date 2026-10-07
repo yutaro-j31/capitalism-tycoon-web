@@ -105,6 +105,20 @@ function buybackRow(f){return f.game.g.finance.transactions.filter(row=>row?.buy
   assert.equal(restored.g.saveVersion,9);
 }
 
+// A later stock split changes treasury/outstanding share counts without changing buyback cost/book evidence.
+// P2-4 must not claim ownership of that separate capital-action writer.
+{
+  const f=setup(0x52400016);
+  assert.equal(f.game.buybackOwnShares(2_000_000),true);
+  const before=status(f);
+  assert.equal(f.game.executeStockSplit('CPTY',2),true);
+  const after=f.finance.buybackReconciliationStatus(f.game.g);
+  assert.equal(after.ok,true,JSON.stringify(after,null,2));
+  assert.equal(after.metrics.recognizedCost,before.metrics.recognizedCost);
+  assert.equal(after.metrics.recognizedShares,before.metrics.recognizedShares);
+  assert.equal(f.game.g.finance.balances.treasuryStock,before.metrics.recognizedCost);
+}
+
 // Old saveVersion-9 state adopts existing historical buyback balances without pretending to reconstruct receipts.
 {
   const f=setup(0x52400006),g=f.game.g,book=f.finance.ensureFinance(g),cost=10_000_000,qty=100000;
@@ -180,7 +194,7 @@ for(const mutate of [
   g=>{g.finance.buybackReconciliation.recognizedShares+=1;},
   g=>{g.finance.buybackReconciliation.recognitionCount+=1;},
   g=>{g.finance.balances.treasuryStock+=.02;},
-  g=>{g.treasuryBuybackShares+=1;},
+  g=>{g.finance.transactions.find(row=>row?.buybackReconciliation).buybackReconciliation.evidence.treasurySharesAfter+=1;},
   g=>{g.finance.transactions.find(row=>row?.buybackReconciliation).buybackReconciliation.evidence.companyCashAfter+=.02;},
   g=>{g.finance.transactions.find(row=>row?.buybackReconciliation).buybackReconciliation.evidence.founderOwnershipAfter+=.01;},
   g=>{g.finance.transactions.find(row=>row?.buybackReconciliation).buybackReconciliation.evidence.stockMirrorPriceAfter+=.02;}
