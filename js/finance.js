@@ -243,9 +243,9 @@ function buybackReconciliationReceipt(row,evidence,g=null,f=null){
   // P2-4 therefore records, but does not rewrite or reject, those pre-action display values.
   // The post-buyback ratios are the accounting/control invariant that this slice owns.
   if(Math.abs(e.founderOwnershipAfter-founderAfter)>BUYBACK_RATIO_TOLERANCE||Math.abs(e.externalOwnershipAfter-externalAfter)>BUYBACK_RATIO_TOLERANCE)throw new Error('P2-BUYBACK-OWNERSHIP: founder/external ratio mismatch');
-  const beforeExcess=Math.max(0,founderBefore+e.competitorOwnershipBefore-1),afterExcess=Math.max(0,founderAfter+e.competitorOwnershipAfter-1);
-  if(afterExcess>beforeExcess+BUYBACK_RATIO_TOLERANCE)throw new Error('P2-BUYBACK-OWNERSHIP: buyback worsens ownership over-allocation');
   if(Math.abs(e.executionPrice-e.stockPriceBefore)>Math.max(BUYBACK_TOLERANCE,Math.abs(e.stockPriceBefore)*1e-12)||e.stockPriceAfter<=0)throw new Error('P2-BUYBACK-PER-SHARE: execution/stock price mismatch');
+  const expectedPriceAfter=e.executionPrice*(1+Math.min(.08,e.quantity/Math.max(1,e.issuedSharesBefore)*.8));
+  if(Math.abs(e.stockPriceAfter-expectedPriceAfter)>Math.max(BUYBACK_TOLERANCE,Math.abs(expectedPriceAfter)*1e-12))throw new Error('P2-BUYBACK-PER-SHARE: post-buyback price impact mismatch');
   if(e.stockMirrorPresent){
     for(const key of ['stockMirrorPriceAfter','stockMirrorIssuedSharesAfter','stockMirrorMarketCapAfter'])if(typeof e[key]!=='number'||!Number.isFinite(e[key]))throw new Error('P2-BUYBACK-FINITE: invalid stock mirror evidence');
     if(e.stockMirrorIssuedSharesAfter!==e.issuedSharesAfter||Math.abs(e.stockMirrorPriceAfter-e.stockPriceAfter)>Math.max(BUYBACK_TOLERANCE,Math.abs(e.stockPriceAfter)*1e-12)||Math.abs(e.stockMirrorMarketCapAfter-e.stockPriceAfter*e.issuedSharesAfter)>BUYBACK_TOLERANCE)throw new Error('P2-BUYBACK-PER-SHARE: stock mirror mismatch');
