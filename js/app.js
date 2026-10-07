@@ -950,7 +950,24 @@ app.addEventListener('change',e=>{
   const setting=e.target.dataset.setting;if(setting){let v=e.target.type==='checkbox'?e.target.checked:e.target.value;if(setting in engine.g)engine.g[setting]=v;else engine.g.settings[setting]=v;engine.save();render();}
   if(e.target.matches('[data-ma-offer-method]')){const dealID=e.target.dataset.dealId,deal=engine.g.maDealRooms?.find(d=>d.id===dealID),target=deal&&engine.g.acquisitionTargets.find(t=>t.id===deal.targetID),method=e.target.value,input=document.querySelector(`[data-ma-offer-price][data-deal-id="${dealID}"]`),quote=target&&engine.calculateMAAcquisitionPrice?.(target,method);if(input&&quote&&Number(String(input.value).replace(/,/g,''))<quote.minimumPrice)input.value=Math.round(quote.minimumPrice);}
 });
-app.addEventListener('submit',e=>{if(e.target.id==='setup-form'){e.preventDefault();const fd=new FormData(e.target);ui.showSetup=false;engine.configure(Object.fromEntries(fd.entries()));const initialPref=engine.g.companyHQPrefID||engine.g.founderHomePrefID||'tokyo';ui.selectedPref=initialPref;engine.g.selectedPref=initialPref;engine.g.selectedTab='map';engine.save();render();}});
+app.addEventListener('submit',e=>{if(e.target.id==='setup-form'){
+  e.preventDefault();
+  const fd=new FormData(e.target),options=Object.fromEntries(fd.entries());
+  ui.showSetup=false;
+  // Keep configuration + first production route inside one outer transaction.
+  // Expansion's configure wrapper is nested, so the engine emits only after Map,
+  // founder/HQ prefecture and selectedPref are finalized. This prevents an
+  // unvisited Home route from being seeded into browser history on first launch.
+  engine.runTransaction(()=>{
+    engine.configure(options);
+    const initialPref=engine.g.companyHQPrefID||engine.g.founderHomePrefID||'tokyo';
+    ui.selectedPref=initialPref;
+    engine.g.selectedPref=initialPref;
+    engine.g.selectedTab='map';
+    engine.save();
+    return true;
+  });
+}});
 app.addEventListener('change',async e=>{if(e.target.id==='import-file'&&e.target.files[0]){try{engine.importSave(await e.target.files[0].text());toast('セーブを読み込みました。','success');}catch(err){toast(err.message||'読み込み失敗','error');}}});
 
 engine.addEventListener('notify',e=>toast(e.detail.message,e.detail.severity));
