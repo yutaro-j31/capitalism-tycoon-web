@@ -103,12 +103,16 @@ const stored = loaded => loaded.ctx.__localStorageData.get('capitalism_tycoon_we
 
 // 6. A normal transaction still works after a rollback; a production action that fails leaves no trace.
 {
-  const { engine, effects } = newGame(739);
+  const { engine, effects, finance } = newGame(739);
   assert.throws(() => engine.runTransaction(() => { engine.g.companyCash = -1; throw new Error('x'); }));
   const cash = engine.g.companyCash;
   assert.equal(engine.runTransaction(() => { engine.g.companyCash += 1; return true; }), true);
   assert.equal(engine.g.companyCash, cash + 1);
   assert.equal(effects.save, 1);
+  // The +¥1 mutation above is intentionally ledger-free because this block tests transaction
+  // semantics, not accounting. Rebase the synthetic fixture before crossing the production
+  // weekly accounting-close boundary so the rollback assertions isolate the week itself.
+  engine.g.finance = finance.defaultFinanceState(engine.g);
   // Production path: the weekly advance throws halfway (a module hook fails) -> the week is not half-applied.
   // One normal week first, so the modules' lazily initialised fields (set outside the week's
   // transaction) already exist and the comparison isolates the week itself.
