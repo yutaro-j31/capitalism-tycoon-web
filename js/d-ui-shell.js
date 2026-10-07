@@ -71,6 +71,7 @@ function pushTabHistory(tab){
 }
 function reconcileTabHistory(tab=activeTab()){
   if(!tab)return false;
+  if(globalThis.__capitalismTycoonSuppressRouteHistory)return false;
   if(historySyncing){historyTab=tab;return false;}
   if(historyTab===null)return syncHistoryEntry(tab);
   if(tab!==historyTab)return pushTabHistory(tab);
