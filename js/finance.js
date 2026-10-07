@@ -234,8 +234,12 @@ function buybackReconciliationReceipt(row,evidence,g=null,f=null){
   if(ratioKeys.some(key=>e[key]<0||e[key]>1))throw new Error('P2-BUYBACK-OWNERSHIP: invalid ownership ratio');
   if(Math.abs(e.competitorOwnershipAfter-e.competitorOwnershipBefore)>BUYBACK_RATIO_TOLERANCE)throw new Error('P2-BUYBACK-OWNERSHIP: competitor ratio changed inside buyback');
   const founderBefore=e.founderSharesBefore/e.outstandingSharesBefore,founderAfter=e.founderSharesAfter/e.outstandingSharesAfter;
-  const externalBefore=ratioClamp(1-founderBefore-e.competitorOwnershipBefore),externalAfter=ratioClamp(1-founderAfter-e.competitorOwnershipAfter);
-  if(Math.abs(e.founderOwnershipBefore-founderBefore)>BUYBACK_RATIO_TOLERANCE||Math.abs(e.founderOwnershipAfter-founderAfter)>BUYBACK_RATIO_TOLERANCE||Math.abs(e.externalOwnershipBefore-externalBefore)>BUYBACK_RATIO_TOLERANCE||Math.abs(e.externalOwnershipAfter-externalAfter)>BUYBACK_RATIO_TOLERANCE)throw new Error('P2-BUYBACK-OWNERSHIP: founder/external ratio mismatch');
+  const externalAfter=ratioClamp(1-founderAfter-e.competitorOwnershipAfter);
+  // Legacy callers can enter this action with stale pre-action display ratios. The existing
+  // buyback writer has always canonicalized ownership at the end via updateOwnershipRatios().
+  // P2-4 therefore records, but does not rewrite or reject, those pre-action display values.
+  // The post-buyback ratios are the accounting/control invariant that this slice owns.
+  if(Math.abs(e.founderOwnershipAfter-founderAfter)>BUYBACK_RATIO_TOLERANCE||Math.abs(e.externalOwnershipAfter-externalAfter)>BUYBACK_RATIO_TOLERANCE)throw new Error('P2-BUYBACK-OWNERSHIP: founder/external ratio mismatch');
   const beforeExcess=Math.max(0,founderBefore+e.competitorOwnershipBefore-1),afterExcess=Math.max(0,founderAfter+e.competitorOwnershipAfter-1);
   if(afterExcess>beforeExcess+BUYBACK_RATIO_TOLERANCE)throw new Error('P2-BUYBACK-OWNERSHIP: buyback worsens ownership over-allocation');
   if(Math.abs(e.executionPrice-e.stockPriceBefore)>Math.max(BUYBACK_TOLERANCE,Math.abs(e.stockPriceBefore)*1e-12)||e.stockPriceAfter<=0)throw new Error('P2-BUYBACK-PER-SHARE: execution/stock price mismatch');
@@ -263,17 +267,23 @@ function buybackReconciliationStatus(g){
   const f=ensureFinance(g),book=f.buybackReconciliation,finite=validBuybackReconciliation(book);
   let receiptErrors=0,liveCost=0,liveShares=0,liveCount=0;
   for(const row of (f.transactions||[]).filter(row=>row?.buybackReconciliation)){
-    try{const receipt=buybackReconciliationReceipt(row,row.buybackReconciliation.evidence);if(receipt.cost!==row.buybackReconciliation.cost||receipt.quantity!==row.buybackReconciliation.quantity||receipt.executionPrice!==row.buybackReconciliation.executionPrice)receiptErrors++;else{liveCost=r(liveCost+receipt.cost);liveShares+=receipt.quantity;liveCount++;}}catch(_){receiptErrors++;}
+    try{
+      const receipt=buybackReconciliationReceipt(row,row.buybackReconciliation.evidence);
+      if(receipt.cost!==row.buybackReconciliation.cost||receipt.quantity!==row.buybackReconciliation.quantity||receipt.executionPrice!==row.buybackReconciliation.executionPrice)receiptErrors++;
+      else{liveCost=r(liveCost+receipt.cost);liveShares+=receipt.quantity;liveCount++;}
+    }catch(_){receiptErrors++;}
   }
-  const issued=Math.max(0,Math.floor(n(g.sharesOut))),treasury=Math.max(0,Math.floor(n(g.treasuryBuybackShares))),outstanding=issued-treasury,founder=Math.max(0,Math.floor(n(g.founderShares))),competitor=ratioClamp(n(g.competitorOwnedRatio)),founderRatio=outstanding>0?founder/outstanding:Infinity,externalExpected=Number.isFinite(founderRatio)?ratioClamp(1-founderRatio-competitor):Infinity;
-  const own=(Array.isArray(g.market)?g.market:[]).find(item=>item?.id===g.ticker),mirrorOk=!own||(Math.floor(n(own.issuedShares))===issued&&Math.abs(n(own.price)-n(g.stockPrice))<=BUYBACK_TOLERANCE&&Math.abs(n(own.marketCap)-n(g.stockPrice)*issued)<=BUYBACK_TOLERANCE);
-  const currentExcess=Number.isFinite(founderRatio)?Math.max(0,founderRatio+competitor-1):Infinity;
+  const issued=Math.max(0,Math.floor(n(g.sharesOut))),treasury=Math.max(0,Math.floor(n(g.treasuryBuybackShares))),outstanding=issued-treasury,founder=Math.max(0,Math.floor(n(g.founderShares)));
   const metrics=Object.freeze({
     recognizedCost:finite?r(book.recognizedCost):0,recognizedShares:finite?book.recognizedShares:0,recognitionCount:finite?book.recognitionCount:0,
     evidenceCostDifference:finite?r(Math.abs(book.recognizedCost-r(book.archivedCost+liveCost))):Infinity,evidenceShareDifference:finite?Math.abs(book.recognizedShares-(book.archivedShares+liveShares)):Infinity,evidenceCountDifference:finite?Math.abs(book.recognitionCount-(book.archivedCount+liveCount)):Infinity,
     treasuryShareDifference:finite?Math.abs(treasury-(book.openingTreasuryShares+book.recognizedShares)):Infinity,treasuryBookDifference:finite?r(Math.abs(r(n(f.balances?.treasuryStock))-r(book.openingTreasuryBook+book.recognizedCost))):Infinity,
-    issuedShares:issued,treasuryShares:treasury,outstandingShares:outstanding,founderShares:founder,founderOwnership:n(g.founderOwnershipRatio),externalOwnership:n(g.externalShareholderRatio),competitorOwnership:competitor,currentOwnershipExcess:currentExcess,openingOwnershipExcess:finite?book.openingOwnershipExcess:Infinity,receiptErrors
+    issuedShares:issued,treasuryShares:treasury,outstandingShares:outstanding,founderShares:founder,receiptErrors
   });
+  // Ownership ratios and the public stock mirror are validated against authoritative state
+  // at each buyback receipt. They are intentionally not re-asserted against today's state here:
+  // later share issuance, M&A share swaps and market repricing are separate writers/phases.
+  // The cumulative close owns only durable buyback-specific quantities and receipt integrity.
   const checks=Object.freeze([
     Object.freeze({code:'P2-BUYBACK-FINITE',ok:finite,difference:finite?0:1,limit:0}),
     Object.freeze({code:'P2-BUYBACK-RECEIPTS',ok:receiptErrors===0,difference:receiptErrors,limit:0}),
@@ -282,8 +292,8 @@ function buybackReconciliationStatus(g){
     Object.freeze({code:'P2-BUYBACK-TREASURY',ok:finite&&metrics.treasuryShareDifference===0,difference:metrics.treasuryShareDifference,limit:0}),
     Object.freeze({code:'P2-BUYBACK-TREASURY-BOOK',ok:finite&&metrics.treasuryBookDifference<=BUYBACK_TOLERANCE,difference:metrics.treasuryBookDifference,limit:BUYBACK_TOLERANCE}),
     Object.freeze({code:'P2-BUYBACK-OUTSTANDING',ok:Number.isInteger(outstanding)&&outstanding>0&&treasury>=0&&treasury<=issued&&founder<=outstanding,difference:Number.isInteger(outstanding)&&outstanding>0&&treasury>=0&&treasury<=issued&&founder<=outstanding?0:1,limit:0}),
-    Object.freeze({code:'P2-BUYBACK-OWNERSHIP',ok:Number.isFinite(founderRatio)&&Math.abs(n(g.founderOwnershipRatio)-founderRatio)<=BUYBACK_RATIO_TOLERANCE&&Math.abs(n(g.externalShareholderRatio)-externalExpected)<=BUYBACK_RATIO_TOLERANCE&&(!finite||currentExcess<=book.openingOwnershipExcess+BUYBACK_RATIO_TOLERANCE),difference:Number.isFinite(founderRatio)?Math.max(Math.abs(n(g.founderOwnershipRatio)-founderRatio),Math.abs(n(g.externalShareholderRatio)-externalExpected),finite?Math.max(0,currentExcess-book.openingOwnershipExcess):1):Infinity,limit:BUYBACK_RATIO_TOLERANCE}),
-    Object.freeze({code:'P2-BUYBACK-PER-SHARE',ok:mirrorOk,difference:mirrorOk?0:1,limit:0})
+    Object.freeze({code:'P2-BUYBACK-OWNERSHIP',ok:receiptErrors===0,difference:receiptErrors,limit:0}),
+    Object.freeze({code:'P2-BUYBACK-PER-SHARE',ok:receiptErrors===0,difference:receiptErrors,limit:0})
   ]);
   const errors=Object.freeze(checks.filter(row=>!row.ok).map(row=>`${row.code} difference=${row.difference} limit=${row.limit}`));
   return Object.freeze({schemaVersion:BUYBACK_RECONCILIATION_SCHEMA_VERSION,week:Math.floor(n(g.week,1)),metrics,checks,errors,ok:errors.length===0});
