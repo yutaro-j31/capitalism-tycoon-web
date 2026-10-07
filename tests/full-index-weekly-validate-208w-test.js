@@ -8,6 +8,8 @@
 
 const assert = require('node:assert/strict');
 const { loadGame } = require('./harness');
+const phase05 = require('../scripts/phase0-5-harness');
+const phase2Baseline = require('../scripts/phase2-accounting-baseline');
 
 const KEY = 'capitalism_tycoon_web_v1';
 const WEEKS = 208;
@@ -226,6 +228,14 @@ for (let routeIndex = 0; routeIndex < ROUTES.length; routeIndex++) {
   }
 
   assert.equal(main.engine.g.gameOver, false, `${route.businessID}: survives invariant horizon`);
+  const accountingSnapshot=phase2Baseline.snapshotAccounting({
+    engine:main.engine,
+    loaded:main.run.loaded,
+    scenario:{stateHashVersion:phase05.STATE_HASH_VERSION}
+  });
+  const accountingEvaluation=phase2Baseline.evaluateMetrics(accountingSnapshot.metrics);
+  assert.equal(accountingSnapshot.readOnly,true,`${route.businessID}: Phase 2 accounting baseline probe is read-only`);
+  assert.equal(accountingEvaluation.ok,true,`${route.businessID}: Phase 2 accounting baseline: ${JSON.stringify(accountingEvaluation)}`);
   results.push({
     businessID:route.businessID,
     weeks:WEEKS,
@@ -233,7 +243,9 @@ for (let routeIndex = 0; routeIndex < ROUTES.length; routeIndex++) {
     finalCash:Math.round(main.engine.g.companyCash),
     finalDebt:Math.round(main.engine.g.companyDebt),
     storeCount:main.engine.g.stores.length,
-    financeTransactions:main.engine.g.finance.transactions.length
+    financeTransactions:main.engine.g.finance.transactions.length,
+    phase2AccountingBaseline:'passed',
+    phase2AccountingMetrics:accountingSnapshot.metrics
   });
 }
 
