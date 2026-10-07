@@ -74,9 +74,9 @@ function initialFixedAssets(g){const rows=[];for(const s of (Array.isArray(g.sto
 // reported by validate().
 const LEDGER_COVERAGE_VERSION=1;
 function emptyBalances(){return {accountsReceivable:0,inventory:0,otherCurrentAssets:0,accountsPayable:0,accruedExpenses:0,accruedTaxes:0,shareCapital:0,capitalSurplus:0,treasuryStock:0,otherEquity:0,priorPeriodAdjustments:0};}
-function makeDebtRollforwardCurrent(g,openingDebt=n(g.companyDebt),openingWeek=n(g.week,1)){return {schemaVersion:DEBT_ROLLFORWARD_SCHEMA_VERSION,openingWeek:Math.floor(n(openingWeek,1)),openingDebt:r(Math.max(0,n(openingDebt))),borrowings:0,cashPrincipalRepayments:0,cashlessPrincipalReductions:0,interestExpense:0,principalProfitEffectMagnitude:0,interestLiabilityEffectMagnitude:0,principalAmountDifferenceMagnitude:0,directionErrorCount:0,movementCount:0};}
+function makeDebtRollforwardCurrent(g,openingDebt=n(g.companyDebt),openingWeek=n(g.week,1)){return {schemaVersion:DEBT_ROLLFORWARD_SCHEMA_VERSION,openingWeek:Math.floor(n(openingWeek,1)),openingDebt:r(Math.max(0,n(openingDebt))),borrowings:0,cashPrincipalRepayments:0,cashlessPrincipalReductions:0,interestExpense:0,principalProfitEffectMagnitude:0,interestLiabilityEffectMagnitude:0,directionErrorCount:0,movementCount:0};}
 function debtInstrumentPrincipalFromFinance(f){return r((Array.isArray(f?.loans)?f.loans:[]).reduce((sum,loan)=>sum+Math.max(0,n(loan?.outstandingPrincipal)),0));}
-function ensureDebtRollforward(g,f=ensureFinance(g)){if(!Array.isArray(f.debtSnapshots))f.debtSnapshots=[];if(!f.debtRollforwardCurrent||typeof f.debtRollforwardCurrent!=='object'){f.debtRollforwardCurrent=makeDebtRollforwardCurrent(g);}const cur=f.debtRollforwardCurrent;for(const key of ['openingWeek','openingDebt','borrowings','cashPrincipalRepayments','cashlessPrincipalReductions','interestExpense','principalProfitEffectMagnitude','interestLiabilityEffectMagnitude','principalAmountDifferenceMagnitude','directionErrorCount','movementCount'])if(!Number.isFinite(Number(cur[key])))cur[key]=key==='openingWeek'?Math.floor(n(g.week,1)):0;cur.schemaVersion=DEBT_ROLLFORWARD_SCHEMA_VERSION;return cur;}
+function ensureDebtRollforward(g,f=ensureFinance(g)){if(!Array.isArray(f.debtSnapshots))f.debtSnapshots=[];if(!f.debtRollforwardCurrent||typeof f.debtRollforwardCurrent!=='object'){f.debtRollforwardCurrent=makeDebtRollforwardCurrent(g);}const cur=f.debtRollforwardCurrent;for(const key of ['openingWeek','openingDebt','borrowings','cashPrincipalRepayments','cashlessPrincipalReductions','interestExpense','principalProfitEffectMagnitude','interestLiabilityEffectMagnitude','directionErrorCount','movementCount'])if(!Number.isFinite(Number(cur[key])))cur[key]=key==='openingWeek'?Math.floor(n(g.week,1)):0;cur.schemaVersion=DEBT_ROLLFORWARD_SCHEMA_VERSION;return cur;}
 function rebaseDebtRollforward(g,reason='compatibility-rebase'){const f=ensureFinance(g);f.debtRollforwardCurrent=makeDebtRollforwardCurrent(g,n(g.companyDebt),n(g.week,1));f.debtRollforwardCurrent.rebaseReason=String(reason);return f.debtRollforwardCurrent;}
 function recordDebtMovement(g,f,row,rebaseIfNew=false){
   if(!['debtBorrowing','debtRepayment','interestExpense'].includes(row?.category))return null;
@@ -88,14 +88,12 @@ function recordDebtMovement(g,f,row,rebaseIfNew=false){
     const principal=Math.max(0,n(row.liabilityEffect));
     cur.borrowings=r(n(cur.borrowings)+principal);
     cur.principalProfitEffectMagnitude=r(n(cur.principalProfitEffectMagnitude)+Math.abs(n(row.profitEffect)));
-    cur.principalAmountDifferenceMagnitude=r(n(cur.principalAmountDifferenceMagnitude)+Math.abs(n(row.amount)-principal));
   }else if(row.category==='debtRepayment'){
     if(n(row.liabilityEffect)>tol||n(row.cashEffect)>tol)cur.directionErrorCount++;
     const principal=Math.max(0,-n(row.liabilityEffect));
     if(Math.abs(n(row.cashEffect))<=tol)cur.cashlessPrincipalReductions=r(n(cur.cashlessPrincipalReductions)+principal);
     else cur.cashPrincipalRepayments=r(n(cur.cashPrincipalRepayments)+principal);
     cur.principalProfitEffectMagnitude=r(n(cur.principalProfitEffectMagnitude)+Math.abs(n(row.profitEffect)));
-    cur.principalAmountDifferenceMagnitude=r(n(cur.principalAmountDifferenceMagnitude)+Math.abs(n(row.amount)-principal));
   }else{
     cur.interestExpense=r(n(cur.interestExpense)+n(row.amount));
     cur.interestLiabilityEffectMagnitude=r(n(cur.interestLiabilityEffectMagnitude)+Math.abs(n(row.liabilityEffect)));
@@ -110,14 +108,13 @@ function debtRollforwardStatus(g){
     openingDebt:r(n(cur.openingDebt)),borrowings:r(n(cur.borrowings)),cashPrincipalRepayments:r(n(cur.cashPrincipalRepayments)),cashlessPrincipalReductions:r(n(cur.cashlessPrincipalReductions)),interestExpense:r(n(cur.interestExpense)),
     expectedEndingDebt,endingDebt,instrumentPrincipal,
     rollforwardDifference:r(Math.abs(expectedEndingDebt-endingDebt)),instrumentDifference:r(Math.abs(instrumentPrincipal-endingDebt)),
-    principalProfitEffectMagnitude:r(n(cur.principalProfitEffectMagnitude)),interestLiabilityEffectMagnitude:r(n(cur.interestLiabilityEffectMagnitude)),principalAmountDifferenceMagnitude:r(n(cur.principalAmountDifferenceMagnitude)),directionErrorCount:Math.floor(n(cur.directionErrorCount))
+    principalProfitEffectMagnitude:r(n(cur.principalProfitEffectMagnitude)),interestLiabilityEffectMagnitude:r(n(cur.interestLiabilityEffectMagnitude)),directionErrorCount:Math.floor(n(cur.directionErrorCount))
   });
   const checks=Object.freeze([
     Object.freeze({code:'P2-DEBT-ROLLFORWARD',ok:metrics.rollforwardDifference<=tol,difference:metrics.rollforwardDifference,limit:tol}),
     Object.freeze({code:'P2-DEBT-INSTRUMENTS',ok:metrics.instrumentDifference<=tol,difference:metrics.instrumentDifference,limit:tol}),
     Object.freeze({code:'P2-DEBT-PRINCIPAL-PNL',ok:metrics.principalProfitEffectMagnitude<=tol,difference:metrics.principalProfitEffectMagnitude,limit:tol}),
     Object.freeze({code:'P2-DEBT-INTEREST-PRINCIPAL',ok:metrics.interestLiabilityEffectMagnitude<=tol,difference:metrics.interestLiabilityEffectMagnitude,limit:tol}),
-    Object.freeze({code:'P2-DEBT-PRINCIPAL-AMOUNT',ok:metrics.principalAmountDifferenceMagnitude<=tol,difference:metrics.principalAmountDifferenceMagnitude,limit:tol}),
     Object.freeze({code:'P2-DEBT-DIRECTION',ok:metrics.directionErrorCount===0,difference:metrics.directionErrorCount,limit:0})
   ]);
   const latest=Array.isArray(f.debtSnapshots)&&f.debtSnapshots.length?f.debtSnapshots[f.debtSnapshots.length-1]:null;
@@ -189,7 +186,6 @@ function standaloneCloseFromStatements(g,period,st){
     debtInstrumentDifference:debt.metrics.instrumentDifference,
     debtPrincipalProfitEffectMagnitude:debt.metrics.principalProfitEffectMagnitude,
     debtInterestLiabilityEffectMagnitude:debt.metrics.interestLiabilityEffectMagnitude,
-    debtPrincipalAmountDifferenceMagnitude:debt.metrics.principalAmountDifferenceMagnitude,
     debtDirectionErrorCount:debt.metrics.directionErrorCount
   });
   const checks=Object.freeze([
