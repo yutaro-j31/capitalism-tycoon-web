@@ -10,6 +10,7 @@ const assert = require('node:assert/strict');
 const { loadGame } = require('./harness');
 const phase05 = require('../scripts/phase0-5-harness');
 const phase2Baseline = require('../scripts/phase2-accounting-baseline');
+const phase2Acceptance = require('../scripts/phase2-acceptance');
 
 const KEY = 'capitalism_tycoon_web_v1';
 const WEEKS = 208;
@@ -23,6 +24,10 @@ const ROUTES = Object.freeze([
   { businessID:'gym', seed:0x74130001 },
   { businessID:'realEstateAgency', seed:0x74140001 }
 ]);
+assert.equal(WEEKS, phase2Acceptance.LONG_RUN_ENVELOPE.weeks);
+assert.equal(FORK_WEEK, phase2Acceptance.LONG_RUN_ENVELOPE.reloadForkWeek);
+assert.equal(FORK_WEEKS, phase2Acceptance.LONG_RUN_ENVELOPE.reloadForkWeeks);
+assert.deepEqual(ROUTES.map(route=>route.businessID), [...phase2Acceptance.LONG_RUN_ENVELOPE.routes]);
 
 function lcg(seedValue) {
   let seed = seedValue >>> 0;
@@ -108,6 +113,11 @@ function persist(run, engine) {
 function validateWeek(pair, label) {
   const { engine, run } = pair;
   const finance = run.loaded.modules.finance;
+
+  // Fail on raw non-finite/duplicate evidence before an external validator can normalize it.
+  const acceptance = phase2Acceptance.snapshotAccountingAcceptance(engine.g, finance);
+  assert.equal(acceptance.ok, true, `${label}: Phase 2 acceptance: ${JSON.stringify(acceptance.failedGates)}`);
+  assert.equal(acceptance.readOnly, true, `${label}: Phase 2 acceptance leaves authoritative state unchanged`);
 
   // Capture the validation written by the production final boundary before the explicit external
   // validation below can overwrite it.
@@ -245,6 +255,7 @@ for (let routeIndex = 0; routeIndex < ROUTES.length; routeIndex++) {
     storeCount:main.engine.g.stores.length,
     financeTransactions:main.engine.g.finance.transactions.length,
     phase2AccountingBaseline:'passed',
+    phase2AcceptanceViolations:0,
     phase2AccountingMetrics:accountingSnapshot.metrics
   });
 }

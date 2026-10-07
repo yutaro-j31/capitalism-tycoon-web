@@ -43,6 +43,8 @@ They are not automatically the final Phase 2 Economic Core close tolerances. Tig
 
 ## Known Phase 2 gaps
 
+This section records the historical P2-0 baseline. P2-2–P2-5 subsequently addressed these four gaps; see the registry's current `roadmapGaps` resolutions and `PHASE_2_ACCEPTANCE.md` for the permanent P2-6 gate. The original characterization and legacy tolerances below are retained.
+
 P2-0 intentionally records the following as incomplete rather than pretending existing `finance.validate()` already proves them:
 
 1. **Dividend conservation** — retained-earnings roll-forward exists, but payer/recipient/withholding/residual conservation is not a direct invariant.
