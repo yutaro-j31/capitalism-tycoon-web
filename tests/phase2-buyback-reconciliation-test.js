@@ -152,6 +152,10 @@ function buybackRow(f){return f.game.g.finance.transactions.filter(row=>row?.buy
   assert.equal(s.metrics.recognizedCost,expectedCost);
   assert.equal(s.metrics.recognizedShares,expectedShares);
   assert.equal(g.finance.buybackReconciliation.archivedCount,1);
+  const replay={cashEffect:row.cashEffect,profitEffect:0,equityEffect:row.equityEffect,sourceType:row.sourceType,sourceID:row.sourceID,idempotencyKey:row.idempotencyKey,operationID:row.operationID,buybackReconciliation:plain(row.buybackReconciliation.evidence)};
+  assert.throws(()=>f.finance.event(g,'otherFinancing',row.amount,replay),/P2-BUYBACK-IDEMPOTENCY/,'archived key cannot replay in a later week');
+  assert.throws(()=>f.finance.event(g,'otherFinancing',row.amount,{...replay,week:row.week}),/P2-BUYBACK-IDEMPOTENCY/,'forcing the historic week cannot bypass current-week replay protection');
+  assert.equal(status(f).metrics.recognitionCount,1);
 }
 
 // A replay of a live recognized buyback is rejected rather than silently double-recognized.
