@@ -4,7 +4,22 @@ const {loadGame}=require('./harness');
 const {scanSource,scanProduction}=require('./finance-category-taxonomy-scanner');
 const {modules}=loadGame(),finance=modules.finance,canonical=new Set(finance.CATEGORIES),aliases=finance.FINANCE_CATEGORY_ALIASES;
 assert.equal(canonical.size,32,'canonical taxonomy count is an explicit contract');
-for(const category of canonical){const state={week:4,companyCash:0,companyDebt:0},row=finance.event(state,category,1,{sourceType:'taxonomy-test',sourceID:category});assert.equal(row.category,category);assert.equal(row.originalCategory,undefined);}
+for(const category of canonical){
+  const state={week:4,companyCash:0,companyDebt:0};
+  let row;
+  if(category==='dividend'){
+    // P2-3 makes common-dividend recognition evidence-gated. Initialize the
+    // forward-only witness one week earlier, then exercise the canonical row
+    // through the same observe -> recognize contract used by production.
+    state.week=3;finance.ensureFinance(state);state.week=4;
+    const distribution={gross:1,founderRatio:0,personalCashBefore:0,personalCashAfter:0,payerCashWithoutDividend:1,payerCashAfter:0};
+    finance.observeDividendDistribution(state,distribution);
+    row=finance.event(state,category,1,{cashEffect:-1,profitEffect:0,sourceType:'taxonomy-test',sourceID:category,dividendDistribution:distribution});
+  }else{
+    row=finance.event(state,category,1,{sourceType:'taxonomy-test',sourceID:category});
+  }
+  assert.equal(row.category,category);assert.equal(row.originalCategory,undefined);
+}
 for(const [source,target] of Object.entries(aliases)){assert.ok(canonical.has(target),`${source} must resolve to canonical`);const state={week:5,companyCash:0,companyDebt:0},row=finance.event(state,source,1,{sourceType:'alias-test',sourceID:source});assert.equal(row.category,target,`${source} alias`);assert.equal(row.originalCategory,source);assert.equal(row.categoryResolution,'alias');}
 const cfState={week:6,companyCash:115,companyDebt:0};
 finance.event(cfState,'propertyRentIncome',40,{cashEffect:40,profitEffect:40,sourceType:'cf-test',sourceID:'operating'});
