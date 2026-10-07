@@ -46,6 +46,8 @@ const ROOT = path.resolve(__dirname, '..');
 const DIRECT_SCRIPTS = [
   'js/map-phase2-canvas.js',
   'js/d-ui-shell.js',
+  'js/city-lab-map.js',
+  'js/d-ui-context-tabs.js',
   'js/iphone-playtest-fixes.js',
 ];
 const DIRECT_STYLES = [
@@ -63,6 +65,7 @@ const NESTED_STYLES = [
   'css/d-ui-map-phase2-canvas.css',
   'css/d-ui-map-phase2-markers.css',
   'css/d-ui-map-phase2-pan.css',
+  'css/d-ui-city-lab.css',
 ];
 /* Injected at runtime by js/map-phase2-canvas.js, so index.html's own cache
    state says nothing about which generation of these the browser holds. */
@@ -71,10 +74,11 @@ const LAZY_RUNTIME = [
   'prototypes/map-prefecture-profiles.js',
   'prototypes/map-world-preview.js',
 ];
+const CITY_LAZY_RUNTIME=['assets/vendor/three-r160.min.js'];
 const SPRITE_MANIFEST = 'assets/map-sprites/phase2/sprites.json';
 
 const VERSIONED_ASSETS = [
-  ...DIRECT_SCRIPTS, ...DIRECT_STYLES, ...NESTED_STYLES, ...LAZY_RUNTIME, SPRITE_MANIFEST,
+  ...DIRECT_SCRIPTS, ...DIRECT_STYLES, ...NESTED_STYLES, ...LAZY_RUNTIME, ...CITY_LAZY_RUNTIME, SPRITE_MANIFEST,
 ];
 
 const REVISION_PATTERN = '[0-9a-f]{12}';
@@ -122,6 +126,7 @@ function stampTargets() {
   return [
     { file: 'index.html', refs: [...DIRECT_SCRIPTS, ...DIRECT_STYLES].map(asset => `./${asset}`) },
     { file: 'css/d-ui-mobile-company.css', refs: NESTED_STYLES.map(asset => `./${path.basename(asset)}`) },
+    { file: 'js/city-lab-map.js', refs: [...CITY_LAZY_RUNTIME,...LAZY_RUNTIME.slice(0,2)].map(asset=>`./${asset}`) },
     { file: 'js/map-phase2-canvas.js', refs: [...LAZY_RUNTIME.map(asset => `./${asset}`), '/sprites.json'] },
   ];
 }

@@ -66,7 +66,7 @@ function interceptMoney(event){const target=event.target?.closest?.('[data-actio
  * terrain/roads/greenery for every prefecture.
  */
 function ensureMapChrome(){
- if(activeTab()!=='map')return;const g=game(),screen=document.getElementById('screen'),stage=screen?.querySelector('.d-map-stage');if(!g||!screen||!stage)return;
+ if(activeTab()!=='map')return;const g=game(),screen=document.getElementById('screen'),stage=screen?.querySelector('.d-map-stage');if(!g||!screen||!stage||stage.closest('.city-lab-map'))return;
  const original=screen.querySelector('.d-map-directory select[data-bind="selectedPref"]');const current=original?.value||g.selectedPref||g.founderHomePrefID;
  const mapKey=[current,state.mapPanel,Object.entries(state.mapFilters).map(row=>row.join(':')).join(','),g.week,(g.stores||[]).length,(g.properties||[]).length,(g.competitorStates||[]).length].join('|');
  if(stage.dataset.iphoneMapKey===mapKey)return;
@@ -131,7 +131,7 @@ function ensureStoreCockpit(){
  if(activeTab()!=='business')return;const e=engine(),g=e?.g,screen=document.getElementById('screen');if(!g||!screen)return;const stores=(g.stores||[]).filter(store=>store.status==='open');if(!stores.length)return;
  if(!state.selectedStoreID||!stores.some(store=>String(store.id)===String(state.selectedStoreID)))state.selectedStoreID=stores[0].id;
  const store=stores.find(row=>String(row.id)===String(state.selectedStoreID)),data=storeData(store),causes=causeRows(data);const cockpitKey=[store.id,state.storeTab,g.week,data.sales,data.profit,data.inventory,data.demand,data.lostDemand].join('|');
- let cockpit=screen.querySelector('#iphone-store-cockpit');if(!cockpit){cockpit=document.createElement('section');cockpit.id='iphone-store-cockpit';cockpit.className='card iphone-store-cockpit';screen.prepend(cockpit);}else if(cockpit.dataset.renderKey===cockpitKey)return;
+ let cockpit=screen.querySelector('#iphone-store-cockpit');if(!cockpit){cockpit=document.createElement('section');cockpit.id='iphone-store-cockpit';cockpit.className='card iphone-store-cockpit';const anchor=screen.querySelector('.city-lab-capital');if(anchor)anchor.after(cockpit);else screen.prepend(cockpit);}else if(cockpit.dataset.renderKey===cockpitKey)return;
  const tabs=[['overview','概要'],['finance','財務'],['product','商品・価格'],['supply','在庫・仕入'],['staff','人員・運営']];
  const breakEven=Math.max(0,data.sales-data.profit);let body='';
  if(state.storeTab==='finance')body=`<div class="iphone-store-kpis"><div><span>売上</span><strong>${money(data.sales)}</strong></div><div><span>変動費</span><strong>${money(data.variable)}</strong></div><div><span>人件費</span><strong>${data.payroll?money(data.payroll):'—'}</strong></div><div><span>家賃</span><strong>${data.rent?money(data.rent):'—'}</strong></div><div><span>店舗利益</span><strong class="${data.profit<0?'down':'up'}">${money(data.profit)}</strong></div><div><span>損益分岐売上</span><strong>${money(breakEven)}</strong></div></div><div class="iphone-causes"><h4>赤字・低収益の主因</h4>${causes.map(row=>`<article><div><strong>${esc(row.label)}</strong><small>${esc(row.detail)}</small></div><button type="button" data-iphone-store-tab="${row.tab}">対処を見る</button></article>`).join('')||'<p>重大な赤字要因は検出されていません。</p>'}</div>`;

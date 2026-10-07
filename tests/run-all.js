@@ -60,6 +60,7 @@ const nodeTests = [
   ['corporate-bonds-ratings', 'tests/corporate-bonds-ratings-test.js'],
   ['d-ui-reference-fidelity', 'tests/d-ui-reference-fidelity-test.js'],
   ['d-ui-map-detail', 'tests/d-ui-map-detail-test.js'],
+  ['city-lab-production-port', 'tests/city-lab-production-port-test.js'],
   ['map-canvas-foundation', 'tests/map-canvas-foundation-test.js'],
   ['map-phase2-p0-assets', 'tests/map-phase2-p0-assets-test.js'],
   ['map-phase2-visual-calibration', 'tests/map-phase2-visual-calibration-test.js'],

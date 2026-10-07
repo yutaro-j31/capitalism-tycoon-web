@@ -41,7 +41,8 @@
     "tests/d-ui-shell-test.js",
     "tests/map-phase2-framing-zoomout-test.js",
     "tests/map-phase2-marker-placard-interaction-test.js",
-    "tests/map-marker-detail-interaction-test.js"
+    "tests/map-marker-detail-interaction-test.js",
+    "tests/city-lab-production-port-test.js"
   ],
   "D": [
     "tests/pe-value-creation-test.js",

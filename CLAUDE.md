@@ -65,7 +65,19 @@ Never rely on hover as the only way to perform a required action on iPhone. Main
 
 `play.html` is only a `location.replace` redirect to `index.html`. Do not revive assumptions that runtime remains on `play.html` or that every script receives a launch token.
 
-## 4. Phase 2 production map contract
+## 4. City Lab production map / Phase 2 fallback contract
+
+The user's explicit City Lab migration replaces the default display with local Three.js 3D (`js/city-lab-map.js`) and the City Lab presentation on the existing D UI. Read `docs/city-lab-production-port.md` for the approved rendering boundary.
+
+- Use `mapPhase2Canvas.buildMapViewModel` as the canonical read-only adapter for all five production entity kinds and 47 prefectures.
+- Keep state writers, accounting, save v9 and the existing management actions in the production engine. Do not copy demo economic logic or demo saves.
+- The 3D map uses the original City Lab instanced facade geometry, a shared orthographic camera for meshes and DOM markers, 8px drag intent, focal two-finger pinch, 0.58–2.6 zoom, initial 0.82 zoom and maximum DPR 1.65. One-finger movement pans in both axes inside this dedicated viewport; page/Bottom Sheet areas retain native scroll.
+- Dispose renderer, scene resources, pointer handlers and ResizeObserver on map exit/replacement. Do not regenerate geometry while panning or filtering. Prefecture change resets camera; selection/filter updates preserve it.
+- Keep Canvas2D as the capability/asset/context-loss fallback, with explicit 3D retry. The existing Phase 2 camera, placement, sprite and native page-scroll contracts below remain mandatory **for this fallback**.
+- New styles are in `css/d-ui-city-lab.css`; existing D UI hooks own navigation and domain forms. No additional startup MutationObserver or external enhancer registration.
+
+### Canvas2D fallback
+
 
 The production map architecture is:
 
@@ -76,7 +88,7 @@ Responsibilities:
 - Canvas: city background, roads, sidewalks, parks/open space, parcels, buildings, landmarks, scenery, shadows, greenery, non-interactive props
 - DOM: store/tenant/office/real-estate markers, selection, filters, taps, details, accessibility
 
-`Phase 2` is the only production renderer. Do not reintroduce the old procedural DOM/SVG map or legacy marker-slot path.
+`Phase 2` is the Canvas2D fallback renderer. Do not reintroduce the old procedural DOM/SVG map or legacy marker-slot path.
 
 ### Camera / lifecycle
 

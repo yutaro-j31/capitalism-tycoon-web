@@ -90,6 +90,7 @@
     "./js/release-diagnostics-ui.js",
     "./js/playtest-report-ui.js",
     "./js/map-phase2-canvas.js",
+    "./js/city-lab-map.js",
     "./js/d-ui-shell.js",
     "./js/pe-ui-adapter.js",
     "./js/pe-ui.js",

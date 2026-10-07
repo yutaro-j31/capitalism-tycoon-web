@@ -174,5 +174,9 @@
   "tests/workflow-path-filter-contract-test.js": {
     "reason": "Executed by the release gate script.",
     "executedBy": "scripts/release-gate.js"
+  },
+  "tests/city-lab-port-webkit-test.js": {
+    "reason": "Runs in the required iPhone Acceptance job against real WebKit, including production 3D and capability fallback.",
+    "executedBy": ".github/workflows/test.yml"
   }
 }

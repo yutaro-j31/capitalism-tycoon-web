@@ -20,7 +20,7 @@
  * that merely checked "the page loaded" without either of those would not
  * have caught the original incident.
  */
-const assert=require('node:assert/strict');const fs=require('node:fs');const path=require('node:path');const {webkit,devices}=require('playwright');const {createDiagnostics,observePageDiagnostics,runWithPublishedRetry}=require('./published-webkit-transient-retry');
+const zlib=require('node:zlib');const assert=require('node:assert/strict');const fs=require('node:fs');const path=require('node:path');const {webkit,devices}=require('playwright');const {createDiagnostics,observePageDiagnostics,runWithPublishedRetry}=require('./published-webkit-transient-retry');
 const ROOT=path.resolve(__dirname,'..'),TARGET_URL=process.env.MAP_PHASE2_TARGET_URL||'https://yutaro-j31.github.io/capitalism-tycoon-web/',ARTIFACT_DIR=path.resolve(process.env.IPHONE_WEBKIT_ARTIFACT_DIR||path.join(ROOT,'artifacts','published-iphone-webkit-smoke'));const SAVE_KEY='capitalism_tycoon_web_v1',SAVE_VERSION=9,DEVICE_NAME='iPhone 13';assert.ok(devices[DEVICE_NAME]);
 const PREF_SEQUENCE=['saitama','tochigi','gunma','tokyo'];
 const MAP_READY_TIMEOUT_MS=20000;
@@ -41,13 +41,35 @@ async function openTab(page,tab){await page.locator('[data-d-ui-action="toggle-m
  */
 async function waitForMapLoadResolved(page,timeoutMs){
   await page.waitForFunction(()=>{
+    const city=document.querySelector('.city-lab-map');
+    if(city)return Boolean(globalThis.__capitalismTycoonModules?.cityLabMap?.getDiagnostics()?.drawCalls);
     const el=document.querySelector('.d-no-markers');
     if(!el)return true;
     return !(el.textContent||'').includes('読み込み中');
   },{timeout:timeoutMs});
 }
 
+function pngVariance(buffer){
+  let width,height,channels,offset=8;const chunks=[];
+  while(offset<buffer.length){const size=buffer.readUInt32BE(offset),type=buffer.toString('ascii',offset+4,offset+8),data=buffer.subarray(offset+8,offset+8+size);
+    if(type==='IHDR'){width=data.readUInt32BE(0);height=data.readUInt32BE(4);assert.equal(data[8],8,'8-bit screenshot expected');channels=data[9]===6?4:data[9]===2?3:0;assert.ok(channels,'RGB/RGBA screenshot expected');}
+    if(type==='IDAT')chunks.push(data);offset+=size+12;
+  }
+  const decoded=zlib.inflateSync(Buffer.concat(chunks)),stride=width*channels,min=[255,255,255],max=[0,0,0];let previous=Buffer.alloc(stride),cursor=0;
+  const paeth=(a,b,c)=>{const p=a+b-c,pa=Math.abs(p-a),pb=Math.abs(p-b),pc=Math.abs(p-c);return pa<=pb&&pa<=pc?a:pb<=pc?b:c;};
+  for(let y=0;y<height;y++){const filter=decoded[cursor++],row=Buffer.alloc(stride);assert.ok(filter<=4);
+    for(let x=0;x<stride;x++){const left=x>=channels?row[x-channels]:0,up=previous[x],corner=x>=channels?previous[x-channels]:0;row[x]=(decoded[cursor++]+(filter===1?left:filter===2?up:filter===3?Math.floor((left+up)/2):filter===4?paeth(left,up,corner):0))&255;}
+    if(y%4===0)for(let x=0;x<stride;x+=channels*4)for(let c=0;c<3;c++){min[c]=Math.min(min[c],row[x+c]);max[c]=Math.max(max[c],row[x+c]);}previous=row;
+  }
+  return max.reduce((n,v,i)=>n+v-min[i],0);
+}
 async function canvasPaintSample(page){
+  if(await page.locator('.city-lab-canvas').count()){
+    const info=await page.evaluate(()=>{const c=document.querySelector('.city-lab-canvas');return {...globalThis.__capitalismTycoonModules.cityLabMap.getDiagnostics(),width:c.width,height:c.height};});
+    assert.ok(info.drawCalls>0&&info.triangles>1000,'production Three scene must draw geometry');
+    const png=await page.locator('.city-lab-canvas').screenshot({style:'.city-lab-map :is(.city-lab-hud,.city-lab-context,.city-lab-controls,.city-lab-filters,.city-lab-labels,.city-lab-footer,.city-lab-sheet){visibility:hidden!important}'});
+    return {...info,renderer:'three',variance:pngVariance(png)};
+  }
   return page.evaluate(()=>{
     const canvas=document.querySelector('.d-phase2-canvas');
     if(!canvas)return null;
@@ -68,12 +90,13 @@ async function canvasPaintSample(page){
 
 async function assertCityPainted(page,label){
   await waitForMapLoadResolved(page,MAP_READY_TIMEOUT_MS);
+  assert.equal(await page.locator('.city-lab-load:not([hidden])').count(),0,`${label}: City Lab must not remain loading`);
   const errorUi=await page.locator('.d-map-load-error').count();
   assert.equal(errorUi,0,`${label}: map surfaced its error/retry UI instead of loading (loadState reached 'error')`);
   const markerCount=await page.locator('.d-map-marker').count();
   assert.ok(markerCount>=1,`${label}: expected at least 1 actionable marker, saw ${markerCount}`);
   const paint=await canvasPaintSample(page);
-  assert.ok(paint,`${label}: .d-phase2-canvas not found`);
+  assert.ok(paint,`${label}: production map canvas not found`);
   assert.ok(paint.width>0&&paint.height>0,`${label}: canvas has a zero backing store (${JSON.stringify(paint)})`);
   assert.ok(paint.variance>10,`${label}: canvas reads as a flat, unpainted fill (variance=${paint.variance}) -- the city never actually rendered`);
   return {markerCount,paint};
@@ -106,7 +129,7 @@ async function assertAssetRevisionCoherent(page,label){
  */
 async function assertMarkerOpensDetail(page,label){
   const markerId=await page.evaluate(()=>{
-    const stage=document.querySelector('.d-city-surface-phase2')?.getBoundingClientRect();
+    const stage=document.querySelector('.city-lab-viewport,.d-city-surface-phase2')?.getBoundingClientRect();
     if(!stage)return null;
     for(const el of document.querySelectorAll('.d-map-marker')){
       if(el.hidden)continue;
@@ -163,7 +186,7 @@ async function runAttempt(attempt){
     markerDetails.initial=await assertMarkerOpensDetail(page,'initial map open (cold load)');
     await page.screenshot({path:path.join(ARTIFACT_DIR,'published-map-phase2-initial.png')});
 
-    const prefSelect=page.locator('[data-iphone-pref]');
+    const prefSelect=page.locator('.city-lab-location select,[data-iphone-pref]');
     await prefSelect.waitFor({state:'visible'});
     for(const prefID of PREF_SEQUENCE){
       await prefSelect.selectOption(prefID);
