@@ -188,6 +188,12 @@ function status(f){
   assert.equal(asset.p2Lifecycle.origin,'adopted');
   assert.equal(asset.p2Lifecycle.openingAccumulatedDepreciation,90);
   assert.equal(asset.p2Lifecycle.acquisitionTransactionID,null);
+  const openingBook=asset.bookValue,begin=g.companyCash;
+  finance.recordWeekly(g,{stores:[],other:{},beginningCash:begin});
+  const dep=g.finance.transactions.filter(tx=>tx.fixedAssetLifecycle==='depreciation'&&tx.fixedAssetID===asset.assetID).at(-1);
+  assert.ok(dep);
+  assert.equal(asset.bookValue,money(openingBook-dep.amount),'forward adoption depreciates from adopted opening book without rebasing history');
+  assert.equal(finance.fixedAssetReconciliationStatus(g).ok,true);
 }
 
 // Duplicate capitalization, expensed acquisition and non-finite acquisition fail closed.
@@ -201,6 +207,15 @@ function status(f){
   finance.addFixedAsset(g,{assetID:badID,acquisitionCost:cost,usefulLifeWeeks:100,salvageValue:100});
   assert.throws(()=>finance.event(g,'capitalExpenditure',cost,{cashEffect:-cost,assetEffect:cost,profitEffect:-cost,sourceType:'p2-test',sourceID:badID,operationID:'p2-expensed',idempotencyKey:'p2-expensed',fixedAssetLifecycle:'acquisition',fixedAssetID:badID}),/P2-ASSET-ACQUISITION/);
   assert.throws(()=>finance.addFixedAsset(g,{assetID:'p2-nonfinite',acquisitionCost:Infinity}),/P2-ASSET-FINITE/);
+}
+
+// Persisted non-finite fixed-asset state cannot be hidden by numeric fallbacks.
+{
+  const f=setup(0x5250000c),store=openStore(f),asset=f.engine.g.finance.fixedAssets.find(a=>a.assetID===`store-${store.id}`);
+  asset.bookValue=Infinity;
+  const broken=f.modules.finance.fixedAssetReconciliationStatus(f.engine.g);
+  assert.equal(broken.ok,false);
+  assert.equal(broken.checks.find(row=>row.code==='P2-ASSET-FINITE').ok,false);
 }
 
 // Same seed + same actions produce the same fixed-asset reconciliation state and consume no extra RNG.
