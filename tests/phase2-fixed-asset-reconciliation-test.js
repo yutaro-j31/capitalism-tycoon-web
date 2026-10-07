@@ -66,6 +66,23 @@ function status(f){
   status(f);
 }
 
+// Vertical-integration capex is another production fixed-asset writer and must use the same lifecycle contract.
+{
+  const f=setup(0x5250000d),offer=f.modules.expansion.VERTICAL_INTEGRATION_OFFERS[0];
+  assert.ok(offer);
+  assert.equal(f.engine.addVerticalIntegration(offer.id),true);
+  const asset=f.engine.g.finance.fixedAssets.find(a=>a.assetType==='verticalIntegration');
+  assert.ok(asset);
+  const row=f.engine.g.finance.transactions.find(tx=>tx.fixedAssetLifecycle==='acquisition'&&tx.fixedAssetID===asset.assetID);
+  assert.ok(row);
+  assert.equal(row.amount,offer.cost);
+  assert.equal(row.cashEffect,-offer.cost);
+  assert.equal(row.assetEffect,offer.cost);
+  assert.equal(row.profitEffect,0);
+  status(f);
+  assert.equal(f.modules.finance.validate(f.engine.g).ok,true,f.modules.finance.validate(f.engine.g).errors.join(' / '));
+}
+
 // Weekly depreciation is non-cash, reduces P&L/assets once, and rolls the asset book exactly.
 {
   const f=setup(0x52500003),store=openStore(f),finance=f.modules.finance;
