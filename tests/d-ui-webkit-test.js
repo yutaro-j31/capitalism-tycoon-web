@@ -39,6 +39,16 @@ async function createCompany(page, suffix, options = {}) {
     founderPrefID = values.find(value => value && value !== 'tokyo') || values[0] || null;
     if (founderPrefID) await origin.selectOption(founderPrefID);
   }
+  await page.evaluate(() => {
+    window.__setupHistoryRoutes = [];
+    for (const method of ['replaceState','pushState']) {
+      const original = history[method].bind(history);
+      history[method] = function(state, ...rest) {
+        window.__setupHistoryRoutes.push({ method, tab: state?.capitalismTycoonTab || null });
+        return original(state, ...rest);
+      };
+    }
+  });
   await page.locator('#setup-form').evaluate(form => form.requestSubmit());
   await page.locator('.d-kpi-strip').waitFor();
   return founderPrefID;
@@ -344,6 +354,10 @@ async function verifyIPhone(browser, base) {
   await page.locator('#screen[data-screen="map"]').waitFor();
   assert.ok(founderPrefID && founderPrefID !== 'tokyo', 'iPhone acceptance must exercise a non-Tokyo founder origin');
   assert.equal(await page.locator('#screen select[data-bind="selectedPref"]').inputValue(), founderPrefID, 'map-first entry must initialize to the configured founder/HQ prefecture');
+  const setupHistoryRoutes = await page.evaluate(() => window.__setupHistoryRoutes || []);
+  assert.ok(setupHistoryRoutes.length >= 1, 'setup must seed browser history for the first configured route');
+  assert.equal(setupHistoryRoutes[0].tab, 'map', 'the first configured history route must be Map, not an intermediate Home render');
+  assert.equal(setupHistoryRoutes.some(entry => entry.tab === 'home'), false, 'founding must not create a synthetic Home history entry');
   const sidebarPosition = await page.locator('#d-ui-sidebar').evaluate(node => getComputedStyle(node).position);
   assert.equal(sidebarPosition, 'fixed', 'iPhone D navigation must remain fixed');
   const directTabs = await page.locator('#d-ui-sidebar .d-nav-button:visible').evaluateAll(nodes => nodes.map(node => node.dataset.tab));
