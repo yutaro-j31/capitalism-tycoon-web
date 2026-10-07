@@ -172,8 +172,9 @@
     {
       "id": "P2-GAP-002",
       "name": "buyback cash/share/ownership consistency",
-      "status": "not-directly-enforced-by-finance.validate",
-      "plannedSlice": "P2-4"
+      "status": "addressed-by-p2-4-buyback-reconciliation",
+      "plannedSlice": "P2-4",
+      "resolution": "forward-only buyback receipts reconcile payer cash, treasury-stock book value, treasury/outstanding shares, ownership ratios and per-share stock mirror state; old saveVersion-9 history is adopted as opening state"
     },
     {
       "id": "P2-GAP-003",
