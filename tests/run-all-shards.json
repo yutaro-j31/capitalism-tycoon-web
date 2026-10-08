@@ -239,7 +239,8 @@
     "tests/phase2-dividend-reconciliation-test.js",
     "tests/phase2-buyback-reconciliation-test.js",
     "tests/phase2-fixed-asset-reconciliation-test.js",
-    "tests/phase2-acceptance-gate-test.js"
+    "tests/phase2-acceptance-gate-test.js",
+    "tests/phase3-ownership-projection-test.js"
   ],
   "L": [
     "tests/store-cost-inflation-25y-test.js"
