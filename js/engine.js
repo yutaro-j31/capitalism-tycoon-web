@@ -1429,6 +1429,8 @@ class TycoonEngine extends EventTarget {
   }
 
   buyStock(stockID,qty,account='personal') {
+    // P3-4-005: common checkpoint owns save rejection and post-save rollback.
+    return this.runTransaction(()=>{
     const stock=this.stock(stockID);qty=Math.max(0,Math.floor(qty));if(!stock||qty<1)return this.fail('数量が不正です。');
     const quote=stockOrderQuote(stock,qty,'buy');
     if(quote.maxQty<1)return this.fail('この銘柄は発行済株式数が少なく取引できません。');
@@ -1440,7 +1442,8 @@ class TycoonEngine extends EventTarget {
     this.g[cashKey]-=cost;if(account==='company')finance.event(this.g,'investmentPurchase',cost,{cashEffect:-cost,assetEffect:cost,sourceType:'buyStock',sourceID:`${stockID}-${this.g.week}`,description:`${stock.name} 株式購入`});const key=account==='company'?'companyStocks':'personalStocks';const h=this.g[key][stockID]||{qty:0,avg:0};
     h.avg=(h.avg*h.qty+cost)/(h.qty+qty);h.qty+=qty;this.g[key][stockID]=h;
     stock.price=quote.quoteAfter;stock.marketCap=stock.price*stock.issuedShares;
-    this.notify(`${account==='company'?'会社':'個人'}口座で${stock.name}を${qty.toLocaleString()}株購入しました。${clamped?`（1回の注文上限${pct(STOCK_ORDER_MAX_SHARE_OF_ISSUED)}により数量を調整しました）`:''}`,'success');this.save();this.emit();return true;
+    this.notify(`${account==='company'?'会社':'個人'}口座で${stock.name}を${qty.toLocaleString()}株購入しました。${clamped?`（1回の注文上限${pct(STOCK_ORDER_MAX_SHARE_OF_ISSUED)}により数量を調整しました）`:''}`,'success');return true;
+    });
   }
   sellStock(stockID,qty,account='personal') {
     const stock=this.stock(stockID);qty=Math.max(0,Math.floor(qty));const key=account==='company'?'companyStocks':'personalStocks';const h=this.g[key][stockID];
