@@ -116,6 +116,7 @@ jobs:
           node tests/ma-board-approval-webkit-test.js
           node tests/ma-deal-room-webkit-test.js
           node tests/ma-share-swap-save-atomicity-webkit-test.js
+          node tests/investor-offer-save-atomicity-webkit-test.js
           node tests/ma-integration-webkit-test.js
           node tests/ceo-dashboard-webkit-test.js
 
@@ -164,6 +165,7 @@ jobs:
         run: npx playwright install --with-deps webkit
       - run: node tests/ma-deal-room-webkit-test.js
       - run: node tests/ma-share-swap-save-atomicity-webkit-test.js
+      - run: node tests/investor-offer-save-atomicity-webkit-test.js
       - run: node tests/ceo-dashboard-webkit-test.js
       - name: Upload M&A Deal Room WebKit artifact
         if: always()
