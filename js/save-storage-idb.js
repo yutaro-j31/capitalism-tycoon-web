@@ -31,6 +31,7 @@
   let databasePromise = null;
   let unavailableReason = null;
   let pendingWrite = Promise.resolve();
+  let queuedWrites = new Set();
   let lastWriteError = null;
   let lastSequence = new Map();
   let bootSelection = {};
@@ -226,20 +227,37 @@
   // durable write is queued. Failures surface through lastWriteError and the save-error
   // event rather than by blocking the game loop.
   function writeSync(key, payload) {
+    const write = { key, cancelled: false };
+    queuedWrites.add(write);
     cache.set(key, payload);
     noteSequence(key, sequenceOf(payload));
     pendingWrite = pendingWrite
-      .then(() => runTransaction('readwrite', store => store.put(payload, key)))
-      .then(() => { lastWriteError = null; })
-      .catch(error => { lastWriteError = error?.message || String(error); });
+      .then(() => write.cancelled ? null : runTransaction('readwrite', store => store.put(payload, key)))
+      .then(() => { if (!write.cancelled) lastWriteError = null; })
+      .catch(error => { lastWriteError = error?.message || String(error); })
+      .finally(() => queuedWrites.delete(write));
     return true;
   }
 
+  // Economic boundaries are synchronous: rollback runs before their queued IDB transactions
+  // can start. Cancel only writes added by this boundary, keeping earlier accepted saves queued.
+  // Do not rewind saveSequence: failed attempts must never reuse a sequence already observed.
+  function checkpoint(key = SAVE_KEY) {
+    const hadCache = cache.has(key), previous = cache.get(key), earlier = new Set(queuedWrites);
+    return () => {
+      for (const write of queuedWrites) if (write.key === key && !earlier.has(write)) write.cancelled = true;
+      if (hadCache) cache.set(key, previous); else cache.delete(key);
+    };
+  }
+
   function removeSync(key) {
+    const write = { key, cancelled: false };
+    queuedWrites.add(write);
     cache.delete(key);
     pendingWrite = pendingWrite
-      .then(() => runTransaction('readwrite', store => store.delete(key)))
-      .catch(error => { lastWriteError = error?.message || String(error); });
+      .then(() => write.cancelled ? null : runTransaction('readwrite', store => store.delete(key)))
+      .catch(error => { lastWriteError = error?.message || String(error); })
+      .finally(() => queuedWrites.delete(write));
     return true;
   }
 
@@ -285,6 +303,7 @@
     databasePromise = null;
     unavailableReason = null;
     pendingWrite = Promise.resolve();
+    queuedWrites = new Set();
     lastWriteError = null;
     lastSequence = new Map();
     bootSelection = {};
@@ -357,7 +376,7 @@
   modules.saveStorageIDB = Object.freeze({
     DB_NAME, DB_VERSION, STORE_NAME, SAVE_KEY,
     hydrate, readSync, writeSync, removeSync, flush, status, findNewerSave, resetForTests, createIsolatedBackend,
-    nextSequence, sequenceOf, newerCopy,
+    nextSequence, sequenceOf, newerCopy, checkpoint,
     __installed: true
   });
 })();

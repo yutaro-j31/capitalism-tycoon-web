@@ -374,6 +374,7 @@
         if (liveDeal?.boardApproval?.financingPlanKey !== plan.planKey) return this.fail?.('資金調達条件変更のため再承認が必要です。') || false;
         const liveSnapshot = clone(liveState), storageKey = modules.engine?.SAVE_KEY;
         const storageBefore = storageKey && typeof localStorage !== 'undefined' ? localStorage.getItem(storageKey) : null;
+        const rollbackSave = modules.saveStorage?.checkpoint?.(storageKey) || (() => restoreStorage(storageKey, storageBefore));
         const shadowState = clone(liveState), shadow = Object.create(this);
         shadow.g = shadowState; shadow.save = () => true; shadow.emit = () => {}; shadow.notify = () => {};
         shadow.fail = message => { shadow.__maFailure = String(message || 'M&A closing failed'); return false; };
@@ -388,9 +389,9 @@
           try {
             if (this.save?.() === false) throw new Error('save-failed');
             this.emit?.(); this.notify?.(`${targetName}の買収資金調達と最終契約を完了しました。`, 'success');
-          } catch (error) { replaceState(liveState, liveSnapshot); restoreStorage(storageKey, storageBefore); throw error; }
+          } catch (error) { replaceState(liveState, liveSnapshot); rollbackSave(); throw error; }
           return true;
-        } catch (_) { replaceState(liveState, liveSnapshot); restoreStorage(storageKey, storageBefore); return false; }
+        } catch (_) { replaceState(liveState, liveSnapshot); rollbackSave(); return false; }
       };
       Object.defineProperty(proto, '__maAcquisitionFinancingWrapped', { value: true });
     }

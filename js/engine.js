@@ -819,6 +819,8 @@ class TycoonEngine extends EventTarget {
     const outer = previousDepth === 0;
     const snapshot = outer ? JSON.stringify(this.g) : null;
     const entryObjects = outer ? { ...this.g } : null;
+    const restoreSave = outer ? __modules.saveStorage?.checkpoint?.() : null;
+    const rollback = () => { this.restoreTransactionSnapshot(snapshot, entryObjects); restoreSave?.(); };
     if (outer) this._deferredSave = false;
     // The first nested week transaction (player-crisis.js inside the canonical boundary) hands its
     // event detail to the outer one, which emits it once the whole week has committed. Deeper week
@@ -848,22 +850,23 @@ class TycoonEngine extends EventTarget {
       }
     } catch (error) {
       this._transactionDepth = previousDepth;
-      if (outer) this.restoreTransactionSnapshot(snapshot, entryObjects);
+      if (outer) rollback();
       throw error;
     }
     this._transactionDepth = previousDepth;
     if (!outer) return result;
     if (!commit) {
-      this.restoreTransactionSnapshot(snapshot, entryObjects);
+      rollback();
       return result;
     }
     this._deferredSave = false;
-    const eventDetail = typeof detail === 'function' ? detail(result) : detail;
-    // Inside the canonical boundary (play-runtime-compat.js), the boundary normalizes after the
-    // whole wrapper chain and then performs this save and emit itself.
-    if (this._canonicalBoundaryCommits) { this._canonicalBoundaryCommits.push([eventType, eventDetail]); return result; }
-    this.save();
-    this.emit(eventType, eventDetail);
+    try {
+      const eventDetail = typeof detail === 'function' ? detail(result) : detail;
+      // The canonical boundary carries rollback through its deferred normalization/save/emit.
+      if (this._canonicalBoundaryCommits) { this._canonicalBoundaryCommits.push([eventType, eventDetail, rollback]); return result; }
+      if (this.save() === false) { rollback(); return false; }
+      this.emit(eventType, eventDetail);
+    } catch (error) { rollback(); throw error; }
     return result;
   }
 

@@ -26,6 +26,18 @@ const tail=(value,limit)=>Array.isArray(value)?value.slice(-Math.max(0,limit)):[
 const head=(value,limit)=>Array.isArray(value)?value.slice(0,Math.max(0,limit)):[];
 let activeEngine=null;
 
+// Capture the main save for a synchronous economic/import boundary. IDB rollback cancels
+// this boundary's writes before their microtasks run; previous pending saves remain intact.
+function checkpoint(key=SAVE_KEY,backend=modules.saveStorageIDB,mirror=globalThis.localStorage){
+ const previous=mirror?.getItem?.(key)??null;
+ const restoreDurable=backend?.checkpoint?.(key);
+ return ()=>{
+  restoreDurable?.();
+  if((mirror?.getItem?.(key)??null)===previous)return;
+  if(previous===null)mirror?.removeItem?.(key);else mirror?.setItem?.(key,previous);
+ };
+}
+
 function isQuotaError(error){
  const name=String(error?.name||'');
  const message=String(error?.message||error||'').toLowerCase();
@@ -192,14 +204,22 @@ function writeCandidates(instance,{slot,resolvedKey,targetBackend,mirror,timings
  timings.compactionMs=Math.max(0,clock()-mark);
  let lastError=null;
  for(const candidate of candidates){
+  let rollback;
   try{
    mark=clock();
-   const durableHolding=Boolean(targetBackend)&&targetBackend.status().available&&targetBackend.writeSync(resolvedKey,candidate.payload);
-   if(mirror?.setItem)try{mirror.setItem(resolvedKey,candidate.payload);}catch(error){if(!durableHolding||!isQuotaError(error))throw error;}
+   rollback=checkpoint(resolvedKey,targetBackend,mirror);
+   const durableAvailable=Boolean(targetBackend)&&targetBackend.status().available;
+   // Reject a non-quota mirror failure before touching the IDB cache or queue. Quota-only
+   // saves retain the established durable fallback and asynchronous enqueue semantics.
+   if(mirror?.setItem)try{mirror.setItem(resolvedKey,candidate.payload);}catch(error){if(!durableAvailable||!isQuotaError(error))throw error;}
+   if(durableAvailable&&targetBackend.writeSync(resolvedKey,candidate.payload)===false)throw new Error('IndexedDB save enqueue rejected');
    timings.storageEnqueueMs+=Math.max(0,clock()-mark);
    const info={ok:true,key:resolvedKey,slot,mode:candidate.mode,bytes:candidate.payload.length*2,originalBytes:raw.length*2,transactions:candidate.summary||null,savedAt:instance.g.lastSaveDate};
    return {...info,payload:candidate.payload,raw,timings,flush:()=>targetBackend?.flush?.()||Promise.resolve()};
-  }catch(error){lastError=error;if(!isQuotaError(error))break;}
+  }catch(error){
+   try{rollback?.();}catch(restoreError){return {ok:false,key:resolvedKey,slot,mode:'failed',error:restoreError,originalBytes:raw.length*2,savedAt:instance.g.lastSaveDate,timings};}
+   lastError=error;if(!isQuotaError(error))break;
+  }
  }
  return {ok:false,key:resolvedKey,slot,mode:'failed',error:lastError,originalBytes:raw.length*2,savedAt:instance.g.lastSaveDate,timings};
 }
@@ -244,6 +264,6 @@ function install(){
 
 function getActiveEngine(){return activeEngine;}
 
-modules.saveStorage=Object.freeze({SAVE_KEY,SAVE_VERSION,RAW_COMPACTION_THRESHOLD,PROFILES,isQuotaError,compactUntouchedRecords,isUntouchedProperty,archiveTransactions,compactStateForStorage,storagePayload,saveWithAdapter,install,getActiveEngine,__installed:true});
+modules.saveStorage=Object.freeze({SAVE_KEY,SAVE_VERSION,RAW_COMPACTION_THRESHOLD,PROFILES,isQuotaError,compactUntouchedRecords,isUntouchedProperty,archiveTransactions,compactStateForStorage,storagePayload,saveWithAdapter,install,getActiveEngine,checkpoint,__installed:true});
 install();
 })();
