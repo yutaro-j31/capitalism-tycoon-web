@@ -154,11 +154,17 @@ const comprehensiveMa = readWorkflow('ma-acquisition-financing.yml');
 assert(/^name: M&A Acquisition Financing$/m.test(comprehensiveMa), 'M&A Acquisition Financing must retain its public name');
 assert(hasTrigger(comprehensiveMa, 'pull_request'), 'consolidated M&A workflow must inherit the Deal Room PR gate');
 assert.deepEqual(pathsFor(comprehensiveMa, 'pull_request'), [
+  'js/expansion.js', 'tests/investor-offer-save-atomicity-test.js', 'tests/investor-offer-save-atomicity-webkit-test.js',
   'js/ma-deal-room.js', 'js/ceo-dashboard.js', 'js/app.js', 'css/**', 'tests/ma-deal-room-test.js',
   'tests/ceo-dashboard-webkit-test.js', '.github/workflows/ma-acquisition-financing.yml'
 ], 'Deal Room PR paths and CEO Dashboard WebKit coverage must remain explicit in the consolidated workflow');
 assert(hasTrigger(comprehensiveMa, 'push') && pathsFor(comprehensiveMa, 'push').length > 0, 'M&A comprehensive main push must use paths');
 assert(isMainOnly(triggerBlock(comprehensiveMa, 'push')), 'M&A comprehensive push must be main-only');
+for (const event of ['pull_request', 'push']) {
+  for (const path of ['js/expansion.js', 'tests/investor-offer-save-atomicity-test.js', 'tests/investor-offer-save-atomicity-webkit-test.js']) {
+    assert(pathsFor(comprehensiveMa, event).includes(path), `${event} must run investor acceptance WebKit on ${path}`);
+  }
+}
 for (const path of ['js/ma-*.js', 'js/pmi-*.js', 'js/subsidiary-*.js', 'js/group-*.js', 'tests/ma-*.js', 'tests/accounting-invariants-test.js']) {
   assert(pathsFor(comprehensiveMa, 'push').includes(path), `M&A comprehensive push must retain ${path}`);
 }

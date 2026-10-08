@@ -3,6 +3,9 @@ name: M&A Acquisition Financing
 on:
   pull_request:
     paths:
+      - 'js/expansion.js'
+      - 'tests/investor-offer-save-atomicity-test.js'
+      - 'tests/investor-offer-save-atomicity-webkit-test.js'
       - 'js/ma-deal-room.js'
       - 'js/ceo-dashboard.js'
       - 'js/app.js'
@@ -13,6 +16,9 @@ on:
   push:
     branches: [main]
     paths:
+      - 'js/expansion.js'
+      - 'tests/investor-offer-save-atomicity-test.js'
+      - 'tests/investor-offer-save-atomicity-webkit-test.js'
       - 'js/ma-*.js'
       - 'js/pmi-*.js'
       - 'js/subsidiary-*.js'
@@ -116,6 +122,7 @@ jobs:
           node tests/ma-board-approval-webkit-test.js
           node tests/ma-deal-room-webkit-test.js
           node tests/ma-share-swap-save-atomicity-webkit-test.js
+          node tests/investor-offer-save-atomicity-webkit-test.js
           node tests/ma-integration-webkit-test.js
           node tests/ceo-dashboard-webkit-test.js
 
@@ -164,6 +171,7 @@ jobs:
         run: npx playwright install --with-deps webkit
       - run: node tests/ma-deal-room-webkit-test.js
       - run: node tests/ma-share-swap-save-atomicity-webkit-test.js
+      - run: node tests/investor-offer-save-atomicity-webkit-test.js
       - run: node tests/ceo-dashboard-webkit-test.js
       - name: Upload M&A Deal Room WebKit artifact
         if: always()

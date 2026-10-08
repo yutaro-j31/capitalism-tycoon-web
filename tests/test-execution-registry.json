@@ -182,5 +182,9 @@
   "tests/city-lab-port-webkit-test.js": {
     "reason": "Runs in the required iPhone Acceptance job against real WebKit, including production 3D and capability fallback.",
     "executedBy": ".github/workflows/test.yml"
+  },
+  "tests/investor-offer-save-atomicity-webkit-test.js": {
+    "reason": "Real iPhone WebKit and fresh IndexedDB browser-context regression in M&A PR and post-merge gates.",
+    "executedBy": ".github/workflows/ma-acquisition-financing.yml"
   }
 }

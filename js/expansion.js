@@ -409,6 +409,8 @@ function installExpansion(TycoonEngine){
     this.notify(`投資家から${count}件の出資提案が届きました。`,'info');this.save();this.emit();return true;
   };
   TycoonEngine.prototype.acceptInvestorOffer=function(offerID){
+    // P3-4-003: reuse the common economic/save checkpoint for rejection and post-save exceptions.
+    return this.runTransaction(()=>{
     const o=this.g.investorOffers.find(x=>String(x.id)===String(offerID)&&x.status==='pending');
     if(!o)return this.fail('対象の出資提案が見つかりません。');
     if(this.g.publicCompany)return this.fail('上場後はこの提案を利用できません。');
@@ -420,7 +422,8 @@ function installExpansion(TycoonEngine){
     o.status='accepted';o.acceptedWeek=this.g.week;o.newShares=newShares;
     this.updateOwnershipRatios();
     this.notify(`${o.name}から${Math.round(o.amount).toLocaleString('ja-JP')}円の出資を受け入れ、新株${newShares.toLocaleString()}株を発行しました。`,'success');
-    this.save();this.emit();return true;
+    return true;
+    });
   };
   TycoonEngine.prototype.declineInvestorOffer=function(offerID){
     const o=this.g.investorOffers.find(x=>String(x.id)===String(offerID)&&x.status==='pending');
