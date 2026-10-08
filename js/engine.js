@@ -1446,6 +1446,8 @@ class TycoonEngine extends EventTarget {
     });
   }
   sellStock(stockID,qty,account='personal') {
+    // P3-4-006: shared checkpoint covers save rejection and post-save exceptions.
+    return this.runTransaction(()=>{
     const stock=this.stock(stockID);qty=Math.max(0,Math.floor(qty));const key=account==='company'?'companyStocks':'personalStocks';const h=this.g[key][stockID];
     if(!stock||!h||qty<1||h.qty<qty)return this.fail('売却可能株数を超えています。');
     const quote=stockOrderQuote(stock,qty,'sell');
@@ -1455,7 +1457,8 @@ class TycoonEngine extends EventTarget {
     h.qty-=qty;if(h.qty===0)delete this.g[key][stockID];
     this.g[account==='company'?'realizedCompanyStockPL':'realizedPersonalStockPL']+=profit;
     stock.price=quote.quoteAfter;stock.marketCap=stock.price*stock.issuedShares;
-    this.notify(`${stock.name}を${qty.toLocaleString()}株売却しました。損益${yen(profit)}。${clamped?`（1回の注文上限${pct(STOCK_ORDER_MAX_SHARE_OF_ISSUED)}により数量を調整しました）`:''}`,profit>=0?'success':'warning');this.save();this.emit();return true;
+    this.notify(`${stock.name}を${qty.toLocaleString()}株売却しました。損益${yen(profit)}。${clamped?`（1回の注文上限${pct(STOCK_ORDER_MAX_SHARE_OF_ISSUED)}により数量を調整しました）`:''}`,profit>=0?'success':'warning');return true;
+    });
   }
   toggleFavorite(stockID) {
     const a=this.g.favoriteStockIds;const i=a.indexOf(stockID);i>=0?a.splice(i,1):a.push(stockID);this.save();this.emit();

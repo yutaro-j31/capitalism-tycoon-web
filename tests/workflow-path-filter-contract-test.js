@@ -157,13 +157,14 @@ assert.deepEqual(pathsFor(comprehensiveMa, 'pull_request'), [
   'js/engine.js', 'js/expansion.js', 'tests/investor-offer-save-atomicity-test.js', 'tests/investor-offer-save-atomicity-webkit-test.js',
   'tests/founder-share-sale-save-atomicity-test.js', 'tests/founder-share-sale-save-atomicity-webkit-test.js',
   'tests/stock-purchase-save-atomicity-test.js', 'tests/stock-purchase-save-atomicity-webkit-test.js',
+  'tests/stock-sale-save-atomicity-test.js', 'tests/stock-sale-save-atomicity-webkit-test.js',
   'js/ma-deal-room.js', 'js/ceo-dashboard.js', 'js/app.js', 'css/**', 'tests/ma-deal-room-test.js',
   'tests/ceo-dashboard-webkit-test.js', '.github/workflows/ma-acquisition-financing.yml'
 ], 'Deal Room PR paths and CEO Dashboard WebKit coverage must remain explicit in the consolidated workflow');
 assert(hasTrigger(comprehensiveMa, 'push') && pathsFor(comprehensiveMa, 'push').length > 0, 'M&A comprehensive main push must use paths');
 assert(isMainOnly(triggerBlock(comprehensiveMa, 'push')), 'M&A comprehensive push must be main-only');
 for (const event of ['pull_request', 'push']) {
-  for (const path of ['js/engine.js', 'tests/stock-purchase-save-atomicity-test.js', 'tests/stock-purchase-save-atomicity-webkit-test.js', 'js/expansion.js', 'tests/investor-offer-save-atomicity-test.js', 'tests/investor-offer-save-atomicity-webkit-test.js', 'tests/founder-share-sale-save-atomicity-test.js', 'tests/founder-share-sale-save-atomicity-webkit-test.js']) {
+  for (const path of ['tests/stock-sale-save-atomicity-test.js', 'tests/stock-sale-save-atomicity-webkit-test.js', 'js/engine.js', 'tests/stock-purchase-save-atomicity-test.js', 'tests/stock-purchase-save-atomicity-webkit-test.js', 'js/expansion.js', 'tests/investor-offer-save-atomicity-test.js', 'tests/investor-offer-save-atomicity-webkit-test.js', 'tests/founder-share-sale-save-atomicity-test.js', 'tests/founder-share-sale-save-atomicity-webkit-test.js']) {
     assert(pathsFor(comprehensiveMa, event).includes(path), `${event} must run economic-command WebKit on ${path}`);
   }
 }
