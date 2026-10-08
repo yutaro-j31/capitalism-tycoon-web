@@ -184,6 +184,7 @@
     "tests/save-storage-commit-atomicity-test.js",
     "tests/ma-share-swap-save-atomicity-test.js",
     "tests/investor-offer-save-atomicity-test.js",
+    "tests/founder-share-sale-save-atomicity-test.js",
     "test:procurement",
     "test:supplier-coverage",
     "tests/macro-cycle-test.js",

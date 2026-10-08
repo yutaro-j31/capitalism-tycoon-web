@@ -6,6 +6,8 @@ on:
       - 'js/expansion.js'
       - 'tests/investor-offer-save-atomicity-test.js'
       - 'tests/investor-offer-save-atomicity-webkit-test.js'
+      - 'tests/founder-share-sale-save-atomicity-test.js'
+      - 'tests/founder-share-sale-save-atomicity-webkit-test.js'
       - 'js/ma-deal-room.js'
       - 'js/ceo-dashboard.js'
       - 'js/app.js'
@@ -19,6 +21,8 @@ on:
       - 'js/expansion.js'
       - 'tests/investor-offer-save-atomicity-test.js'
       - 'tests/investor-offer-save-atomicity-webkit-test.js'
+      - 'tests/founder-share-sale-save-atomicity-test.js'
+      - 'tests/founder-share-sale-save-atomicity-webkit-test.js'
       - 'js/ma-*.js'
       - 'js/pmi-*.js'
       - 'js/subsidiary-*.js'
@@ -123,6 +127,7 @@ jobs:
           node tests/ma-deal-room-webkit-test.js
           node tests/ma-share-swap-save-atomicity-webkit-test.js
           node tests/investor-offer-save-atomicity-webkit-test.js
+          node tests/founder-share-sale-save-atomicity-webkit-test.js
           node tests/ma-integration-webkit-test.js
           node tests/ceo-dashboard-webkit-test.js
 
@@ -172,6 +177,7 @@ jobs:
       - run: node tests/ma-deal-room-webkit-test.js
       - run: node tests/ma-share-swap-save-atomicity-webkit-test.js
       - run: node tests/investor-offer-save-atomicity-webkit-test.js
+      - run: node tests/founder-share-sale-save-atomicity-webkit-test.js
       - run: node tests/ceo-dashboard-webkit-test.js
       - name: Upload M&A Deal Room WebKit artifact
         if: always()

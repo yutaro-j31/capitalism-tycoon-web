@@ -385,7 +385,10 @@ function installExpansion(TycoonEngine){
     this.g.stockSplitHistory.unshift({week:this.g.week,stockID,ratio});this.notify(`${s.name}が1:${ratio}の株式分割を実施しました。`,'success');this.save();this.emit();return true;
   };
   TycoonEngine.prototype.sellFounderShares=function(qty){
-    qty=Math.max(0,Math.floor(qty));if(!this.g.publicCompany||qty<1||qty>this.g.founderShares)return this.fail('売却可能株数を確認してください。');const proceeds=qty*this.g.stockPrice*.995;this.g.founderShares-=qty;this.g.personalCash+=proceeds;this.g.founderShareSaleHistory.unshift({week:this.g.week,qty,price:this.g.stockPrice,proceeds});this.updateOwnershipRatios();this.notify(`創業者保有株${qty.toLocaleString()}株を売却しました。`,'success');this.save();this.emit();return true;
+    // P3-4-004: share sale success shares the common save/checkpoint boundary.
+    return this.runTransaction(()=>{
+    qty=Math.max(0,Math.floor(qty));if(!this.g.publicCompany||qty<1||qty>this.g.founderShares)return this.fail('売却可能株数を確認してください。');const proceeds=qty*this.g.stockPrice*.995;this.g.founderShares-=qty;this.g.personalCash+=proceeds;this.g.founderShareSaleHistory.unshift({week:this.g.week,qty,price:this.g.stockPrice,proceeds});this.updateOwnershipRatios();this.notify(`創業者保有株${qty.toLocaleString()}株を売却しました。`,'success');return true;
+    });
   };
 
   // Pre-IPO venture funding: an outside investor offers cash for newly issued shares.

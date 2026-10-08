@@ -186,5 +186,9 @@
   "tests/investor-offer-save-atomicity-webkit-test.js": {
     "reason": "Real iPhone WebKit and fresh IndexedDB browser-context regression in M&A PR and post-merge gates.",
     "executedBy": ".github/workflows/ma-acquisition-financing.yml"
+  },
+  "tests/founder-share-sale-save-atomicity-webkit-test.js": {
+    "reason": "Real iPhone WebKit founder secondary sale and fresh IndexedDB browser-context regression in PR and main gates.",
+    "executedBy": ".github/workflows/ma-acquisition-financing.yml"
   }
 }
