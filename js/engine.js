@@ -659,6 +659,32 @@ const STORE_CLOSURE_SALVAGE_RATE = .15;
 const STOCK_ORDER_MAX_SHARE_OF_ISSUED = .05;
 const STOCK_TRADE_FEE_RATE = .001;
 
+// P3-3-001: one read-only quantity guard for personal own-share purchases and treasury buybacks.
+// It does not adopt a registry or repair legacy holdings. Check prospective arithmetic too:
+// a valid fractional opening position can otherwise lose units when an integer order is added.
+function playerShareAcquisitionCapacity(state,quantity=0,treasury=false) {
+  const view=__modules.economicReadModel?.ownershipReconciliation?.(state);
+  if(!view?.ok||!Number.isSafeInteger(quantity)||quantity<0)return null;
+  const security=view.securityClasses[0],founder=view.beneficialHoldings[0].quantity;
+  const available=Math.floor(security.unallocatedOutstandingQuantity);
+  if(quantity>available)return null;
+  const exact=(left,right)=>{
+    const value=left+right,virtualRight=value-left;
+    return Number.isFinite(value)&&value>=0&&value<=Number.MAX_SAFE_INTEGER
+      &&(left-(value-virtualRight))+(right-virtualRight)===0;
+  };
+  if(!exact(security.unallocatedOutstandingQuantity,-quantity))return null;
+  if(treasury){
+    // The existing P2 writer/receipt floors these source buckets; never round a legacy position.
+    if(![state.sharesOut,state.founderShares,security.treasuryQuantity].every(Number.isSafeInteger))return null;
+    if(!exact(security.treasuryQuantity,quantity)||!exact(security.outstandingQuantity,-quantity))return null;
+  }else{
+    const personal=view.sourceHoldings.find(row=>row.sourceMapPath==='personalStocks').quantity;
+    if(!exact(personal,quantity)||!exact(founder,quantity))return null;
+  }
+  return available;
+}
+
 function stockOrderQuote(stock, qty, side='sell') {
   const requestedQty=Math.max(0,Math.floor(finite(qty)));
   const issuedShares=Math.max(0,finite(stock?.issuedShares,0));
@@ -1403,6 +1429,7 @@ class TycoonEngine extends EventTarget {
     const stock=this.stock(stockID);qty=Math.max(0,Math.floor(qty));if(!stock||qty<1)return this.fail('数量が不正です。');
     const quote=stockOrderQuote(stock,qty,'buy');
     if(quote.maxQty<1)return this.fail('この銘柄は発行済株式数が少なく取引できません。');
+    if(account!=='company'&&stockID===this.g.ticker&&(quote.filledQty<1||playerShareAcquisitionCapacity(this.g,quote.filledQty)===null))return this.fail('自社株の未割当株数を超える購入、または保有数量が不整合のため購入できません。');
     const clamped=qty>quote.filledQty;qty=quote.filledQty;
     const cost=quote.cashAmount;const cashKey=account==='company'?'companyCash':'personalCash';
     if(account==='company'&&!this.g.departments.investment)return this.fail('会社口座の株式投資には投資部門が必要です。');
@@ -1660,7 +1687,8 @@ class TycoonEngine extends EventTarget {
   }
   buybackOwnShares(amount) {
     if(!this.g.publicCompany)return this.fail('未上場です。');amount=Math.max(0,finite(amount));if(this.g.companyCash<amount)return this.fail('資金不足です。');
-    const qty=Math.min((this.g.sharesOut-this.g.founderShares-this.g.treasuryBuybackShares),Math.floor(amount/this.g.stockPrice));if(qty<=0)return this.fail('買い戻せる株式がありません。');
+    const available=playerShareAcquisitionCapacity(this.g,0,true);if(available===null)return this.fail('自社株の保有数量が不整合のため買い戻せません。');
+    const qty=Math.min(available,Math.floor(amount/this.g.stockPrice));if(qty<=0)return this.fail('買い戻せる株式がありません。');if(playerShareAcquisitionCapacity(this.g,qty,true)===null)return this.fail('自社株の買戻し数量を正確に処理できません。');
     const cost=qty*this.g.stockPrice;this.g.companyCash-=cost;this.g.treasuryBuybackShares+=qty;this.g.stockPrice*=1+Math.min(.08,qty/this.g.sharesOut*.8);this.updateOwnershipRatios();this.notify(`自社株${qty.toLocaleString()}株を${yen(cost)}で取得しました。`,'success');this.save();this.emit();return true;
   }
 
@@ -2349,7 +2377,7 @@ function gameDate(week){
     fullLabel:`${year}年目 ${month}月${day}日`};
 }
 
-Object.assign(exports,{LOG_ARRAY_CAP,LOG_ARRAY_CAPS,SIMULATION_SYSTEMS,SIMULATION_DEPTH_LABEL,businessSimulationDepth,FOUNDABLE_BUSINESS_IDS,VALUATION_OBSERVATION_WEEKS,storeWeeksTraded,storeNormalizedProfit,storeEarningsValue,SAVE_KEY,SAVE_VERSION,STOCK_ORDER_MAX_SHARE_OF_ISSUED,STOCK_TRADE_FEE_RATE,stockOrderQuote,stockOrderPlan,clamp,finite,uuid,yen,compactYen,pct,rand,pick,gameDate,createInitialState,mergeDefaults,detectSaveVersion,migrateSave, normalizeStockPriceHistory,migrateUnversionedToV1,migrateV1ToV2,migrateV2ToV3,migrateV3ToV4,migrateV4ToV5,migrateV5ToV6,deepNormalizeState,validateMigratedState,TycoonEngine});
+Object.assign(exports,{LOG_ARRAY_CAP,LOG_ARRAY_CAPS,SIMULATION_SYSTEMS,SIMULATION_DEPTH_LABEL,businessSimulationDepth,FOUNDABLE_BUSINESS_IDS,VALUATION_OBSERVATION_WEEKS,storeWeeksTraded,storeNormalizedProfit,storeEarningsValue,SAVE_KEY,SAVE_VERSION,STOCK_ORDER_MAX_SHARE_OF_ISSUED,STOCK_TRADE_FEE_RATE,playerShareAcquisitionCapacity,stockOrderQuote,stockOrderPlan,clamp,finite,uuid,yen,compactYen,pct,rand,pick,gameDate,createInitialState,mergeDefaults,detectSaveVersion,migrateSave, normalizeStockPriceHistory,migrateUnversionedToV1,migrateV1ToV2,migrateV2ToV3,migrateV3ToV4,migrateV4ToV5,migrateV5ToV6,deepNormalizeState,validateMigratedState,TycoonEngine});
 })(__modules.engine={},__modules.data,__modules.market,__modules.finance,__modules.supply,__modules.workforce,__modules.competitor);
 
 })();
