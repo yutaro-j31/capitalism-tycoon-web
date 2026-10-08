@@ -1,4 +1,8 @@
 {
+  "tests/ma-share-swap-save-atomicity-webkit-test.js": {
+    "reason": "Real iPhone WebKit and fresh IndexedDB browser-context regression in M&A PR and post-merge gates.",
+    "executedBy": ".github/workflows/ma-acquisition-financing.yml"
+  },
   "tests/boot-recovery-webkit-test.js": {
     "reason": "Executed outside the canonical run-all suite by the iPhone WebKit Smoke job in .github/workflows/test.yml, .github/workflows/release-candidate-tag.yml.",
     "executedBy": ".github/workflows/test.yml"
