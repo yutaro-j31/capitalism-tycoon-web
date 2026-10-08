@@ -238,12 +238,18 @@ function ownershipProjection(state){
     if(map===null)continue;
     for(const alias of Object.keys(map).sort(compareText)){
       if(path==='personalStocks'&&alias===instrumentId)continue;
+      const sourcePath=`${path}.${alias}`,row=map[alias];
+      let aliasQuantity=null;
+      if(!row||typeof row!=='object'||Object.prototype.toString.call(row)!=='[object Object]'){
+        issues.push({sourcePath,reason:'holding-record-invalid'});
+      }else aliasQuantity=quantity(row.qty,`${sourcePath}.qty`);
       unresolvedAliases.push({
         instrumentId:alias,
         registeredHolderEntityId:holderId,
         issuerEntityId:null,
         securityClassId:null,
-        sourcePath:`${path}.${alias}`,
+        quantity:aliasQuantity,
+        sourcePath,
         reason:path==='companyStocks'&&alias===instrumentId?'company-own-share-alias-not-adopted':'issuer-family-alias-not-adopted'
       });
     }

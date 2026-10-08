@@ -57,6 +57,7 @@ for(const row of model.unresolvedAliases){
   assert.equal(row.issuerEntityId,null,'aliases must not manufacture issuer identity');
   assert.equal(row.securityClassId,null,'unknown share class must remain unknown');
 }
+assert.deepEqual(Array.from(model.unresolvedAliases).map(row=>row.quantity),[2,3,4,5]);
 assert.deepEqual(plain(model.issues),[]);
 assert.equal(JSON.stringify(project(state)),JSON.stringify(model),'same input must have byte-identical ordering');
 
@@ -129,6 +130,25 @@ for(const source of [[],3,'bad',new Date(0),new Map()]){
   const result=project({...minimal,personalStocks:source});
   assert.equal(result.holdings[1].quantity,null);
   assert(result.issues.some(row=>row.reason==='holding-map-invalid'));
+}
+// Unresolved issuer identity does not excuse malformed source rows or quantities.
+for(const mapPath of ['personalStocks','companyStocks']){
+  for(const alias of ['EXTERNAL','OLD']){
+    if(mapPath==='personalStocks'&&alias==='OLD')continue;
+    for(const row of [null,[],42,{},new Date(0),{qty:-1},{qty:NaN},{qty:Infinity},{qty:Number.MAX_SAFE_INTEGER+1},{qty:'25'}]){
+      const invalid=freezeDeep({...minimal,[mapPath]:{[alias]:row}});
+      const keysBefore=Object.keys(invalid);
+      const result=project(invalid),sourcePath=`${mapPath}.${alias}`;
+      const unresolved=result.unresolvedAliases.find(item=>item.sourcePath===sourcePath);
+      assert(unresolved,'invalid alias must remain explicitly unresolved');
+      assert.equal(unresolved.issuerEntityId,null);
+      assert.equal(unresolved.securityClassId,null);
+      assert.equal(unresolved.quantity,null,'corrupted quantity must not escape as valid evidence');
+      assert(result.issues.some(issue=>issue.sourcePath===sourcePath||issue.sourcePath===`${sourcePath}.qty`),'invalid unresolved alias must report its corruption');
+      assert.deepEqual(Object.keys(invalid),keysBefore);
+      assert.equal(invalid[mapPath][alias],row,'reader must not repair the source row');
+    }
+  }
 }
 const missingTicker=project({...minimal,ticker:null,personalStocks:{OLD:{qty:25}}});
 assert.equal(missingTicker.holdings[1].quantity,null);
