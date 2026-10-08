@@ -3,6 +3,9 @@ name: M&A Acquisition Financing
 on:
   pull_request:
     paths:
+      - 'js/expansion.js'
+      - 'tests/investor-offer-save-atomicity-test.js'
+      - 'tests/investor-offer-save-atomicity-webkit-test.js'
       - 'js/ma-deal-room.js'
       - 'js/ceo-dashboard.js'
       - 'js/app.js'
@@ -13,6 +16,9 @@ on:
   push:
     branches: [main]
     paths:
+      - 'js/expansion.js'
+      - 'tests/investor-offer-save-atomicity-test.js'
+      - 'tests/investor-offer-save-atomicity-webkit-test.js'
       - 'js/ma-*.js'
       - 'js/pmi-*.js'
       - 'js/subsidiary-*.js'
