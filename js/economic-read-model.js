@@ -305,6 +305,66 @@ function ownershipProjection(state){
     issues:freezeRows(issues)
   });
 }
+// P3-2 reconciles known source buckets without adopting any ownership writer.
+function ownershipReconciliation(state){
+  const projection=ownershipProjection(state),security=projection.securityClasses[0];
+  const issues=projection.issues.map(row=>({...row}));
+  function derivedQuantity(left,right,direction,sourcePath){
+    if(left===null||right===null)return null;
+    const operand=direction*right,value=left+operand;
+    if(!Number.isFinite(value)||value<0||value>Number.MAX_SAFE_INTEGER){
+      issues.push({sourcePath,reason:'derived-quantity-negative-invalid-or-out-of-envelope'});
+      return null;
+    }
+    // Error-free TwoSum residual: fail instead of dropping a small legacy fraction.
+    const virtualRight=value-left,error=(left-(value-virtualRight))+(operand-virtualRight);
+    if(error!==0){
+      issues.push({sourcePath,reason:'derived-quantity-precision-loss'});
+      return null;
+    }
+    return value;
+  }
+  const issued=security.issuedQuantity,treasury=security.treasuryQuantity;
+  const quantities=projection.holdings.map(row=>row.quantity);
+  const outstanding=derivedQuantity(issued,treasury,-1,'outstandingQuantity');
+  const founder=derivedQuantity(quantities[0],quantities[1],1,'founderBeneficialQuantity');
+  const unallocated=derivedQuantity(outstanding,founder,-1,'unallocatedOutstandingQuantity');
+  const holdingIds=projection.holdings.map(row=>row.holdingId);
+  const sourcePaths=projection.holdings.filter(row=>row.sourcePath!==null).map(row=>row.sourcePath);
+  const sourceBindings=projection.holdings.every(row=>row.securityClassId===security.securityClassId
+    &&row.registeredHolderEntityId===FOUNDER_ENTITY_ID&&row.beneficialOwnerEntityId===FOUNDER_ENTITY_ID
+    &&row.beneficialFraction===1)
+    &&new Set(holdingIds).size===holdingIds.length&&new Set(sourcePaths).size===sourcePaths.length;
+  const checks=freezeRows([
+    {id:'ECO-010',ok:issued!==null&&treasury!==null&&outstanding!==null&&issued===treasury+outstanding},
+    {id:'ECO-011',ok:sourceBindings&&founder!==null&&unallocated!==null&&outstanding!==null
+      &&founder<=outstanding&&founder+unallocated===outstanding}
+  ]);
+  for(const check of checks)if(!check.ok)issues.push({sourcePath:security.securityClassId,reason:`${check.id}-conservation-or-dedup-failed`});
+  issues.sort((a,b)=>compareText(a.sourcePath,b.sourcePath)||compareText(a.reason,b.reason));
+  const beneficialHolding=Object.freeze({
+    beneficialHoldingId:'beneficial:player-company:founder',
+    issuerEntityId:PLAYER_COMPANY_ENTITY_ID,
+    securityClassId:security.securityClassId,
+    beneficialOwnerEntityId:FOUNDER_ENTITY_ID,
+    quantity:founder,
+    sourceHoldingIds:Object.freeze(holdingIds)
+  });
+  return Object.freeze({
+    reconciliationVersion:1,
+    source:projection.source,
+    authority:'read-only',
+    scope:'player-company-common-founder-and-unallocated-residual',
+    ok:issues.length===0&&checks.every(row=>row.ok),
+    entities:projection.entities,
+    securityClasses:Object.freeze([Object.freeze({...security,outstandingQuantity:outstanding,unallocatedOutstandingQuantity:unallocated})]),
+    beneficialHoldings:Object.freeze([beneficialHolding]),
+    sourceHoldings:projection.holdings,
+    unresolvedAliases:projection.unresolvedAliases,
+    checks,
+    issues:freezeRows(issues)
+  });
+}
 function entityById(readModel,entityId){
   return readModel.entities.find(row=>row?.entity?.entityId===entityId)||null;
 }
@@ -514,6 +574,7 @@ modules.economicReadModel=Object.freeze({
   LEGACY_DEBT_TOLERANCE,
   snapshot,
   ownershipProjection,
+  ownershipReconciliation,
   compareLegacyParity
 });
 })();
