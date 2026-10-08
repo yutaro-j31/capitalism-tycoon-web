@@ -675,6 +675,8 @@ function playerShareAcquisitionCapacity(state,quantity=0,treasury=false) {
   };
   if(!exact(security.unallocatedOutstandingQuantity,-quantity))return null;
   if(treasury){
+    // The existing P2 writer/receipt floors these source buckets; never round a legacy position.
+    if(![state.sharesOut,state.founderShares,security.treasuryQuantity].every(Number.isSafeInteger))return null;
     if(!exact(security.treasuryQuantity,quantity)||!exact(security.outstandingQuantity,-quantity))return null;
   }else{
     const personal=view.sourceHoldings.find(row=>row.sourceMapPath==='personalStocks').quantity;

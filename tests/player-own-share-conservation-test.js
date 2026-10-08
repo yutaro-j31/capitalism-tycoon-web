@@ -138,7 +138,12 @@ assert.deepEqual(differingPaths(replayA,replayB),[],'same state/commands produce
   const f=setup(0x33030007),guard=f.loaded.engineModule.playerShareAcquisitionCapacity;
   const input={ticker:'X',sharesOut:1000.5,treasuryBuybackShares:100.25,founderShares:600.25,personalStocks:{X:{qty:.5}},companyStocks:{}};
   Object.freeze(input.personalStocks.X);Object.freeze(input.personalStocks);Object.freeze(input.companyStocks);Object.freeze(input);
-  assert.equal(guard(input,1),299);assert.equal(guard(input,299,true),299);
+  assert.equal(guard(input,1),299);assert.equal(guard(input,299,true),null,'P2 buyback must not round fractional source buckets');
+  for(const [index,key] of ['sharesOut','founderShares','treasuryBuybackShares'].entries()){
+    const legacy=setup(0x33030100+index,{[key]:key==='sharesOut'?1000000.5:key==='founderShares'?600000.25:100.25});
+    assert.equal(legacy.loaded.modules.economicReadModel.ownershipReconciliation(legacy.game.g).ok,true);
+    rejectsWithoutWrites(legacy,()=>legacy.game.buybackOwnShares(100));
+  }
   for(const mode of [false,true])assert.equal(guard({...input,sharesOut:NaN},1,mode),null);
   const large={ticker:'X',sharesOut:Number.MAX_SAFE_INTEGER,treasuryBuybackShares:0,founderShares:0,personalStocks:{X:{qty:2**52-.5}},companyStocks:{}};
   assert.equal(guard(large),Math.floor(2**52-.5));assert.equal(guard(large,1),null,'personal bucket addition must not lose a fractional unit');
