@@ -103,6 +103,64 @@ async function assertRolledBack(s, before) {
 }
 
 (async () => {
+  // Privacy settings can deny reading the mirror as well as writing it. Reject cleanly,
+  // retain IDB/cache bytes, and never attempt a mirror replacement without a readable snapshot.
+  for (const fault of ['read', 'property']) {
+    const s = await scenario(), before = observe(s), original = s.ctx.localStorage;
+    const error = () => { throw Object.assign(new Error('injected mirror read failure'), { name: 'SecurityError' }); };
+    if (fault === 'read') original.getItem = error;
+    else Object.defineProperty(original, 'getItem', { configurable: true, get: error });
+    assert.equal(s.game.runTransaction(() => { s.game.g.companyCash -= 1; return true; }), false);
+    assert.equal(s.game.closeMADeal(s.deal.id), false);
+    if (fault === 'read') original.getItem = key => s.ctx.__localStorageData.get(String(key)) ?? null;
+    else Object.defineProperty(original, 'getItem', { configurable: true, value: key => s.ctx.__localStorageData.get(String(key)) ?? null, writable: true });
+    await assertRolledBack(s, before);
+    assert.equal(s.game.closeMADeal(s.deal.id), true);
+    await s.backend.flush();
+  }
+
+  // The benchmark's isolated backend has the same cancellation boundary, with no production
+  // cache/mirror reads, writes, or changes to the accepted in-flight production queue.
+  {
+    const s = await scenario(), production = observe(s), isolatedDurable = new Map(), control = { attempts: [] };
+    s.ctx.indexedDB = indexedDBFor(isolatedDurable, control);
+    const backend = s.backend.createIsolatedBackend({ databaseName: 'atomicity-test', storeName: 'isolated' });
+    await backend.hydrate();
+    const values = new Map(), key = 'isolated-key';
+    const mirror = { getItem: key => values.get(key) ?? null, setItem: (key, value) => values.set(key, value), removeItem: key => values.delete(key) };
+    s.game.checkpointSaveStorage = () => s.modules.saveStorage.checkpoint(key, backend, mirror);
+    s.game.save = function () { return s.modules.saveStorage.saveWithAdapter(this, { key, backend, mirrorStorage: mirror }).ok; };
+    assert.equal(s.game.save(), true);
+    await backend.flush();
+    const bytes = backend.readSync(key), before = snapshot(s.game), attempts = control.attempts.length;
+    s.game.emit = () => { throw new Error('isolated post-save rollback'); };
+    assert.throws(() => s.game.runTransaction(() => { s.game.g.companyCash--; return true; }), /isolated post-save/);
+    assert.deepEqual(snapshot(s.game), before);
+    assert.equal(backend.readSync(key), bytes);
+    assert.equal(mirror.getItem(key), bytes);
+    await backend.flush();
+    assert.equal(isolatedDurable.get(key), bytes);
+    assert.equal(control.attempts.length, attempts);
+    assert.equal(s.ctx.__localStorageData.get(s.key), production.local);
+    assert.equal(s.backend.readSync(s.key), production.cache);
+    assert.equal(s.durable.get(s.key), production.durable);
+  }
+
+  // A read becomes inaccessible after enqueue; restoring known bytes still works without
+  // needing a second successful mirror read, and the rejected queued put stays cancelled.
+  {
+    const s = await scenario(), before = observe(s), getItem = s.ctx.localStorage.getItem;
+    s.game.emit = type => {
+      if (type === undefined) {
+        s.ctx.localStorage.getItem = () => { throw new Error('read denied during restore'); };
+        throw new Error('post-save fault');
+      }
+    };
+    assert.equal(s.game.closeMADeal(s.deal.id), false);
+    s.ctx.localStorage.getItem = getItem;
+    await assertRolledBack(s, before);
+  }
+
   // Actual financed M&A: non-quota mirror failure must not reach cache or durable queue.
   {
     const s = await scenario(), before = observe(s), attempts = s.control.attempts.length;

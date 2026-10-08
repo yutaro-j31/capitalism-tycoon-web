@@ -819,7 +819,7 @@ class TycoonEngine extends EventTarget {
     const outer = previousDepth === 0;
     const snapshot = outer ? JSON.stringify(this.g) : null;
     const entryObjects = outer ? { ...this.g } : null;
-    const restoreSave = outer ? __modules.saveStorage?.checkpoint?.() : null;
+    const restoreSave = outer ? this.checkpointSaveStorage?.() : null;
     const rollback = () => { this.restoreTransactionSnapshot(snapshot, entryObjects); restoreSave?.(); };
     if (outer) this._deferredSave = false;
     // The first nested week transaction (player-crisis.js inside the canonical boundary) hands its

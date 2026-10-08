@@ -76,11 +76,13 @@ for (const field of FIELDS) {
 {
   const { loaded, game } = setup();
   const bytes = loaded.ctx.__localStorageData.get(SAVE_KEY);
+  const before = JSON.stringify(game.g);
   assert.equal(game.runTransaction(() => {
     game.g.companyCash = NaN;
     assert.equal(game.save(), true, 'the in-transaction request is deferred');
     return true;
-  }), true);
+  }), false, 'failed final save rejects the transaction');
+  assert.equal(JSON.stringify(game.g), before, 'invalid transaction restores all live state');
   assert.equal(loaded.ctx.__localStorageData.get(SAVE_KEY), bytes);
   assert.equal(game._lastSaveStorageInfo.reason, 'nonfinite-critical-money');
 }

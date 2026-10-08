@@ -17,6 +17,12 @@ Cutover remains stopped until this PR passes, merges and its main CI is verified
   saves continue in order. It does not enqueue a compensating old save or rewrite durable history.
 - The adapter also checkpoints each candidate: synchronous enqueue rejection/throw restores an
   already-written mirror and cancels a partially enqueued candidate before returning failed save.
+- Inaccessible mirror reads are captured without throwing at transaction entry; a save rejects
+  before replacing bytes when it cannot snapshot the mirror. IDB checkpoints still exist. If a
+  later read fails during rollback, restoration uses the known entry bytes directly.
+- `checkpointSaveStorage()` selects the engine's persistence boundary. Production uses the
+  main adapter; detached benchmark engines checkpoint their isolated namespace, and the
+  memory-only growth fixture has no storage boundary. The benchmark never reads player saves.
 - Outermost engine transactions cover final save and emit. Failed save returns false and restores
   live state, journals, quantities, RNG and storage. The canonical weekly boundary carries the
   same rollback closure through deferred final normalization/save/emit. Financed M&A and import
@@ -53,6 +59,13 @@ save/reload/fresh-context hydration and successful recovery saves. It also exerc
 buyback, canonical weekly persistence and import rollback through the shared boundary. Exact
 live snapshots and stored bytes cover rejected quantities, cash, journals and RNG; accepted
 reload comparisons use existing load normalization for optional subsidiary defaults.
+
+The continuation also covers denied mirror method/property reads and a read denied during
+rollback, plus isolated backend cancellation/byte restoration. The pre-existing critical-money
+guard now requires a failed final save to reject its transaction and restore the entire live
+snapshot; it still requires exact old durable bytes and the same error reason. The original
+assertion that a corrupt transaction returned success contradicted the approved failure boundary.
+The unchanged iPhone baseline probe regression enforces zero production mirror access.
 
 Run existing M&A accounting/determinism/save/atomicity, transaction/week rollback, IDB boot,
 quota/compaction/import/save compatibility and P0.5/P1/P2 acceptance checks. Verify canonical,

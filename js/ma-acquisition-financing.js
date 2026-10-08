@@ -373,8 +373,13 @@
         if (!plan) return this.fail?.('買収資金調達案が未選択です。') || false;
         if (liveDeal?.boardApproval?.financingPlanKey !== plan.planKey) return this.fail?.('資金調達条件変更のため再承認が必要です。') || false;
         const liveSnapshot = clone(liveState), storageKey = modules.engine?.SAVE_KEY;
-        const storageBefore = storageKey && typeof localStorage !== 'undefined' ? localStorage.getItem(storageKey) : null;
-        const rollbackSave = modules.saveStorage?.checkpoint?.(storageKey) || (() => restoreStorage(storageKey, storageBefore));
+        let rollbackSave;
+        if (this.checkpointSaveStorage) rollbackSave = this.checkpointSaveStorage();
+        else {
+          let storageBefore = null;
+          try { storageBefore = storageKey && typeof localStorage !== 'undefined' ? localStorage.getItem(storageKey) : null; } catch (_) {}
+          rollbackSave = () => restoreStorage(storageKey, storageBefore);
+        }
         const shadowState = clone(liveState), shadow = Object.create(this);
         shadow.g = shadowState; shadow.save = () => true; shadow.emit = () => {}; shadow.notify = () => {};
         shadow.fail = message => { shadow.__maFailure = String(message || 'M&A closing failed'); return false; };

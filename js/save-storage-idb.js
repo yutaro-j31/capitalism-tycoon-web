@@ -316,6 +316,7 @@
     if (!databaseName || databaseName === DB_NAME) throw new Error('isolated storage requires a non-production database name');
     if (!storeName || storeName === STORE_NAME) throw new Error('isolated storage requires a non-production store name');
     let isolatedCache = new Map(), dbPromise = null, pending = Promise.resolve(), reason = null, ready = false, lastError = null;
+    const queued = new Set();
     function open() {
       if (dbPromise) return dbPromise;
       if (!indexedDBAvailable()) { reason = 'IndexedDB is not available in this browser context.'; return (dbPromise = Promise.resolve(null)); }
@@ -357,20 +358,32 @@
     }
     function readSync(key) { return isolatedCache.get(String(key)) ?? null; }
     function writeSync(key, payload) {
+      const write = { key: String(key), cancelled: false }; queued.add(write);
       isolatedCache.set(String(key), String(payload));
-      pending = pending.then(() => transaction('readwrite', store => store.put(String(payload), String(key))))
-        .then(result => { if (result === null && reason) throw new Error(reason); lastError = null; })
-        .catch(error => { lastError = error?.message || String(error); throw error; });
+      pending = pending.then(() => write.cancelled ? null : transaction('readwrite', store => store.put(String(payload), String(key))))
+        .then(result => { if (write.cancelled) return; if (result === null && reason) throw new Error(reason); lastError = null; })
+        .catch(error => { lastError = error?.message || String(error); throw error; })
+        .finally(() => queued.delete(write));
       return true;
     }
     function removeSync(key) {
+      const write = { key: String(key), cancelled: false }; queued.add(write);
       isolatedCache.delete(String(key));
-      pending = pending.then(() => transaction('readwrite', store => store.delete(String(key))));
+      pending = pending.then(() => write.cancelled ? null : transaction('readwrite', store => store.delete(String(key))))
+        .finally(() => queued.delete(write));
       return true;
+    }
+    function checkpoint(key) {
+      key = String(key);
+      const hadCache = isolatedCache.has(key), previous = isolatedCache.get(key), earlier = new Set(queued);
+      return () => {
+        for (const write of queued) if (write.key === key && !earlier.has(write)) write.cancelled = true;
+        if (hadCache) isolatedCache.set(key, previous); else isolatedCache.delete(key);
+      };
     }
     const flush = () => pending;
     const status = () => ({ hydrated: ready, available: indexedDBAvailable() && !reason, unavailableReason: reason, cachedKeys: [...isolatedCache.keys()], lastWriteError: lastError, databaseName, storeName });
-    return Object.freeze({ hydrate, readSync, writeSync, removeSync, flush, status, databaseName, storeName, __isolated: true });
+    return Object.freeze({ hydrate, readSync, writeSync, removeSync, flush, status, checkpoint, databaseName, storeName, __isolated: true });
   }
 
   modules.saveStorageIDB = Object.freeze({

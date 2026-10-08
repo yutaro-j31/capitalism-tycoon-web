@@ -51,6 +51,7 @@ async function createGrowthFixture({onProgress=()=>{},env=globalThis}={}){
    const state=modules.engine.createInitialState({configured:true,playerName:'Gate C',companyName:'Gate C Growth Fixture',difficulty:'normal',scenario:'free',seed:78711740});
    state.companyCash=100_000_000_000;state.personalCash=2_000_000;state.gameOver=false;state.lastSaveDate=deterministicSaveDate(1);state.finance=modules.finance.defaultFinanceState(state);
    const engine=new modules.engine.TycoonEngine(state);engine.save=()=>{modules.engine.sanitizeBusinessRecords?.(engine.g);engine.g.saveVersion=modules.engine.SAVE_VERSION;modules.finance.rebuildDirtySnapshots?.(engine.g);engine.g.lastSaveDate=deterministicSaveDate(engine.g.week);return true;};engine.emit=()=>true;
+   engine.checkpointSaveStorage=()=>()=>{}; // Fixture saves only normalize detached memory.
    const tenants=(engine.g.tenants||[]).filter(tenant=>tenant.businessID==='ramen'&&!tenant.occupiedBy).slice(0,40);
    if(tenants.length<40)throw new Error(`growth fixture requires 40 ramen tenants; found ${tenants.length}`);
    for(let index=0;index<tenants.length;index++){
@@ -81,6 +82,7 @@ async function run({scenarioId='current-save',warmupWeeks=10,measuredWeeks=100,l
  const source=await scenarioState(scenarioId,live,{onProgress,env}),sourceRaw=JSON.stringify(source),sourceHash=hash(sourceRaw),sourceWeek=Number(source.week),sourceStores=source.stores?.length||0,sourceStorageInfo=live._lastSaveStorageInfo||null,detached=new modules.engine.TycoonEngine(clone(source));
  const backend=modules.saveStorageIDB.createIsolatedBackend({databaseName:DATABASE_NAME,storeName:STORE_NAME}),hydrated=await backend.hydrate();if(!hydrated.ok||!backend.status().available)throw new Error(hydrated.reason||'benchmark durable storage unavailable');
  const mirror=memoryMirror();let latestSave=null;detached.emit=()=>true;
+ detached.checkpointSaveStorage=()=>modules.saveStorage.checkpoint(BENCHMARK_KEY,backend,mirror);
  detached.save=function(){const result=modules.saveStorage.saveWithAdapter(this,{key:BENCHMARK_KEY,backend,mirrorStorage:mirror,savedAt:deterministicSaveDate(this.g.week),clock});if(!result.ok)throw result.error||new Error('isolated benchmark save failed');latestSave=result;return true;};
  detached.save();await latestSave.flush();const sourceSave=latestSave;
  const total=[],sub={simulationMs:[],snapshotRebuildMs:[],compactionMs:[],serializationMs:[],storageEnqueueMs:[],durableFlushMs:[]},failures=[];

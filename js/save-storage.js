@@ -28,14 +28,18 @@ let activeEngine=null;
 
 // Capture the main save for a synchronous economic/import boundary. IDB rollback cancels
 // this boundary's writes before their microtasks run; previous pending saves remain intact.
-function checkpoint(key=SAVE_KEY,backend=modules.saveStorageIDB,mirror=globalThis.localStorage){
- const previous=mirror?.getItem?.(key)??null;
+function checkpoint(key=SAVE_KEY,backend=modules.saveStorageIDB,mirror){
+ let previous=null,mirrorReadError=null;
+ try{if(mirror===undefined)mirror=globalThis.localStorage;previous=mirror?.getItem?.(key)??null;}catch(error){mirrorReadError=error;}
  const restoreDurable=backend?.checkpoint?.(key);
- return ()=>{
+ const restore=()=>{
   restoreDurable?.();
-  if((mirror?.getItem?.(key)??null)===previous)return;
+  if(mirrorReadError)return;
+  try{if((mirror?.getItem?.(key)??null)===previous)return;}catch(_){}
   if(previous===null)mirror?.removeItem?.(key);else mirror?.setItem?.(key,previous);
  };
+ restore.mirrorReadError=mirrorReadError;
+ return restore;
 }
 
 function isQuotaError(error){
@@ -171,7 +175,9 @@ function saveWithAdapter(instance,{slot=null,key=null,backend=null,mirrorStorage
  instance.g.lastSaveDate=savedAt||new Date().toISOString();
  const resolvedKey=key||(slot?`${SAVE_KEY}_slot_${slot}`:SAVE_KEY);
  const targetBackend=backend===null?modules.saveStorageIDB:backend;
- const mirror=mirrorStorage===null?globalThis.localStorage:mirrorStorage;
+ let mirror;
+ try{mirror=mirrorStorage===null?globalThis.localStorage:mirrorStorage;}
+ catch(error){return {ok:false,key:resolvedKey,mode:'failed',error,timings};}
  // #726: saveSequence grows by one on every save of this key and decides which copy boots. It
  // lives only in the stored payload: it is removed from the live state once the payload exists,
  // so the simulation state (and every determinism comparison of it) never contains it.
@@ -208,6 +214,7 @@ function writeCandidates(instance,{slot,resolvedKey,targetBackend,mirror,timings
   try{
    mark=clock();
    rollback=checkpoint(resolvedKey,targetBackend,mirror);
+   if(rollback.mirrorReadError)throw rollback.mirrorReadError;
    const durableAvailable=Boolean(targetBackend)&&targetBackend.status().available;
    // Reject a non-quota mirror failure before touching the IDB cache or queue. Quota-only
    // saves retain the established durable fallback and asynchronous enqueue semantics.
@@ -228,6 +235,7 @@ function install(){
  const proto=EngineClass.prototype;
  if(proto.__quotaSafeSaveInstalled)return true;
  const baseSave=proto.save;
+ proto.checkpointSaveStorage=function(){return checkpoint();};
  proto.save=function(slot=null){
   // #734: a save requested inside a transaction is deferred to runTransaction's single commit save.
   if(!slot&&this.inTransaction?.()){this._deferredSave=true;return true;}
