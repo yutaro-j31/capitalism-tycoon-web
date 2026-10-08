@@ -96,22 +96,25 @@ function boundary(name,finish,weekTransaction=false){
     const commits=this._canonicalBoundaryCommits=[];
     if(weekTransaction)this._preWeekSemanticHashV2=modules.semanticHashV2?.semanticHashV2?.(this.g)||null;
     this._weekNewsHead=Array.isArray(this.g?.news)&&this.g.news.length?this.g.news[0]:null;
-    const flush=()=>{this.save();for(const [eventType,detail] of commits)this.emit(eventType,detail);};
+    const rollback=()=>{for(let i=commits.length-1;i>=0;i--)commits[i][2]?.();};
+    const flush=()=>{if(this.save()===false){rollback();return false;}for(const [eventType,detail] of commits)this.emit(eventType,detail);return true;};
     let result;
     this._nestedWeekDetail=null;
     try{result=weekTransaction?this.runTransaction(()=>base.apply(this,args),'week',nestedWeekDetail.bind(this)):base.apply(this,args);}
     catch(error){
       this._canonicalBoundaryCommits=null;this._nestedWeekDetail=null;
       if(error?.financeValidation)recordFinanceValidationFailure(this,error.financeValidation);
-      else if(commits.length)flush();
+      rollback();
       this._preWeekSemanticHashV2=null;
       throw error;
     }
     this._canonicalBoundaryCommits=null;
     this._preWeekSemanticHashV2=null;
     if(!commits.length)return result;
-    if(this.g?.configured&&finish)finish.call(this);
-    flush();
+    try{
+      if(this.g?.configured&&finish)finish.call(this);
+      if(!flush())return false;
+    }catch(error){rollback();throw error;}
     return result;
   };
   Object.defineProperty(wrapped,'__canonicalNormalizeBoundary',{value:true});

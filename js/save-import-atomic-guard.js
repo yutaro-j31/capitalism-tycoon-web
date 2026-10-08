@@ -53,6 +53,7 @@ proto.importSave=function atomicImportSave(text){
   const previousBlocked=this._saveBlockedDueToLoadFailure;
   const previousReason=this._loadFailureReason;
   const previousSaveInfo=this._lastSaveStorageInfo;
+  const rollbackSave=this.checkpointSaveStorage?.();
   const previousDurableRaw=readAuthoritativeSave();
   let previousLocalRaw=null;
   try{previousLocalRaw=globalThis.localStorage?.getItem?.(SAVE_KEY)??null;}catch(error){}
@@ -68,7 +69,7 @@ proto.importSave=function atomicImportSave(text){
     this._saveBlockedDueToLoadFailure=previousBlocked;
     this._loadFailureReason=previousReason;
     this._lastSaveStorageInfo=previousSaveInfo;
-    restorePersistentSave(previousDurableRaw,previousLocalRaw);
+    if(rollbackSave)rollbackSave();else restorePersistentSave(previousDurableRaw,previousLocalRaw);
     try{this.emit?.();}catch(ignore){}
     throw error;
   }
