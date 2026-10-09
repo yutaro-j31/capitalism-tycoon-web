@@ -75,12 +75,13 @@ function peHist(state,deal,type,message){
   const id=`ma-history-${deal.id}-${type}-base-${state.week}`;
   deal.history=arr(deal.history);
   if(deal.history.some(x=>x?.id===id))return;
+  // Detach shared rows before trimming: common snapshot reconciliation restores by index.
+  deal.history=deal.history.map(row=>({...row}));
   const row={id,week:state.week,type,message};
   deal.history.push(row);
   deal.history=deal.history.slice(-100);
-  state.maDealHistory=arr(state.maDealHistory);
-  state.maDealHistory.unshift(row);
-  state.maDealHistory=state.maDealHistory.slice(0,200);
+  // Keep entry history order intact for the shared checkpoint; rows also occur in deal.history.
+  state.maDealHistory=[row,...arr(state.maDealHistory)].slice(0,200);
   state.news=arr(state.news);
   const line=`第${state.week}週：${message}`;
   if(!state.news.includes(line))state.news.unshift(line);
@@ -142,8 +143,6 @@ function closeFundAcquisition(engine,{deal,target,targetIndex,price,week}){
   deal.peDealID=portfolioDeal.id;
   peHist(state,deal,'closed',`${target.name}をファンド（${fund.id}）で取得しました。`);
   engine.notify?.(`${target.name}をファンドで取得しました。`,'success');
-  engine.save();
-  engine.emit();
   return true;
 }
 
@@ -171,12 +170,15 @@ function install(){
     const targetIndex=arr(this.g.acquisitionTargets).findIndex(x=>x?.id===args.targetID);
     const target=targetIndex>=0?this.g.acquisitionTargets[targetIndex]:null;
     if(!ds.isPETarget(target))return baseComplete.call(this,args);
-    ds.ensure(this.g);
-    const price=finite(args.approvedPrice);
-    // 最終契約の前提条件は既存の経路とまったく同じものを課す（受諾済み・条件一致・期限内・未クローズ）。
-    if(!deal||deal.status!=='accepted'||!deal.acceptedTerms||target.activeDealID!==deal.id||deal.targetID!==args.targetID||deal.acceptedTerms.method!==args.method||finite(deal.acceptedTerms.finalPrice)!==price||this.g.week>deal.acceptedTerms.closingDeadlineWeek||deal.closedWeek)return this.fail('最終契約を実行できません。');
-    if(args.method==='shareSwap')return this.fail('ファンドによる取得に株式交換は使えません。');
-    return closeFundAcquisition(this,{deal,target,targetIndex,price,week:this.g.week});
+    // Common transaction/checkpoint owns normalization, settlement and final save/change.
+    return this.runTransaction(()=>{
+      ds.ensure(this.g);
+      const price=finite(args.approvedPrice);
+      // 最終契約の前提条件は既存の経路とまったく同じものを課す（受諾済み・条件一致・期限内・未クローズ）。
+      if(!deal||deal.status!=='accepted'||!deal.acceptedTerms||target.activeDealID!==deal.id||deal.targetID!==args.targetID||deal.acceptedTerms.method!==args.method||finite(deal.acceptedTerms.finalPrice)!==price||this.g.week>deal.acceptedTerms.closingDeadlineWeek||deal.closedWeek)return this.fail('最終契約を実行できません。');
+      if(args.method==='shareSwap')return this.fail('ファンドによる取得に株式交換は使えません。');
+      return closeFundAcquisition(this,{deal,target,targetIndex,price,week:this.g.week});
+    });
   };
 
   // 共同投資を使うかどうかの案件単位の選択。

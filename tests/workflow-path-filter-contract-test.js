@@ -159,6 +159,11 @@ assert.deepEqual(pathsFor(comprehensiveMa, 'pull_request'), [
   'tests/stock-purchase-save-atomicity-test.js', 'tests/stock-purchase-save-atomicity-webkit-test.js',
   'tests/stock-sale-save-atomicity-test.js', 'tests/stock-sale-save-atomicity-webkit-test.js',
   'tests/stock-split-price-history-test.js', 'tests/stock-split-price-history-webkit-test.js',
+  'js/pe-acquisition.js',
+  'tests/pe-fund-acquisition-save-atomicity-test.js',
+  'tests/pe-fund-acquisition-save-atomicity-webkit-test.js',
+  'tests/fixtures/pe-fund-acquisition-atomicity.js',
+  'tests/fixtures/pe-fund-acquisition-faults.js',
   'js/pe-network-sourcing.js', 'tests/parent-ipo-save-atomicity-test.js',
   'tests/parent-ipo-save-atomicity-webkit-test.js', 'tests/fixtures/parent-ipo-atomicity.js',
   'tests/ma-subsidiary-sale-save-atomicity-test.js', 'tests/ma-subsidiary-sale-save-atomicity-webkit-test.js',
@@ -181,7 +186,7 @@ for (const mode of ['comprehensive', 'deal-room']) {
   assert(triggerBlock(comprehensiveMa, 'workflow_dispatch').some(line => line.trim() === `- ${mode}`), `M&A workflow_dispatch must retain ${mode}`);
 }
 for (const event of ['pull_request', 'push']) {
-  for (const file of ['tests/ma-subsidiary-sale-save-atomicity-test.js', 'tests/ma-subsidiary-sale-save-atomicity-webkit-test.js', 'tests/fixtures/ma-subsidiary-sale-atomicity.js', 'js/pe-network-sourcing.js', 'tests/parent-ipo-save-atomicity-test.js', 'tests/parent-ipo-save-atomicity-webkit-test.js', 'tests/fixtures/parent-ipo-atomicity.js'])
+  for (const file of ['js/pe-acquisition.js', 'tests/pe-fund-acquisition-save-atomicity-test.js', 'tests/pe-fund-acquisition-save-atomicity-webkit-test.js', 'tests/fixtures/pe-fund-acquisition-atomicity.js', 'tests/fixtures/pe-fund-acquisition-faults.js', 'tests/ma-subsidiary-sale-save-atomicity-test.js', 'tests/ma-subsidiary-sale-save-atomicity-webkit-test.js', 'tests/fixtures/ma-subsidiary-sale-atomicity.js', 'js/pe-network-sourcing.js', 'tests/parent-ipo-save-atomicity-test.js', 'tests/parent-ipo-save-atomicity-webkit-test.js', 'tests/fixtures/parent-ipo-atomicity.js'])
     assert(pathsFor(comprehensiveMa, event).includes(file), `economic-command gate path required: ${event} ${file}`);
 }
 const comprehensiveMaJob = jobBlock(comprehensiveMa, 'comprehensive-ma');
@@ -203,6 +208,7 @@ for (const command of [
 ]) assert(comprehensiveMaJob.includes(command), `M&A comprehensive gate must retain ${command}`);
 const dealRoom = jobBlock(comprehensiveMa, 'deal-room');
 for (const job of [comprehensiveMaJob,dealRoom]) {
+  assert(job.includes('node tests/pe-fund-acquisition-save-atomicity-webkit-test.js'), 'both PR and main gates must exercise PE acquisition rollback/storage');
   assert(job.includes('node tests/ma-subsidiary-sale-save-atomicity-webkit-test.js'), 'both PR and main gates must exercise actual subsidiary sale rollback/storage');
   assert(job.includes('node tests/parent-ipo-save-atomicity-webkit-test.js'), 'both PR and main gates must exercise actual IPO storage/rollback');
   assert(job.includes('node tests/stock-split-price-history-webkit-test.js'), 'both PR and main gates must exercise stock split history persistence');

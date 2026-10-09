@@ -237,6 +237,7 @@
     "tests/simulation-long-run-reload-fork-test.js"
   ],
   "J": [
+    "tests/pe-fund-acquisition-save-atomicity-test.js",
     "tests/digital-portfolio-breakeven-seeds-test.js"
   ],
   "K": [

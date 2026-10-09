@@ -15,6 +15,11 @@ on:
       - 'tests/stock-sale-save-atomicity-webkit-test.js'
       - 'tests/stock-split-price-history-test.js'
       - 'tests/stock-split-price-history-webkit-test.js'
+      - 'js/pe-acquisition.js'
+      - 'tests/pe-fund-acquisition-save-atomicity-test.js'
+      - 'tests/pe-fund-acquisition-save-atomicity-webkit-test.js'
+      - 'tests/fixtures/pe-fund-acquisition-atomicity.js'
+      - 'tests/fixtures/pe-fund-acquisition-faults.js'
       - 'js/pe-network-sourcing.js'
       - 'tests/parent-ipo-save-atomicity-test.js'
       - 'tests/parent-ipo-save-atomicity-webkit-test.js'
@@ -43,6 +48,11 @@ on:
       - 'tests/stock-sale-save-atomicity-webkit-test.js'
       - 'tests/stock-split-price-history-test.js'
       - 'tests/stock-split-price-history-webkit-test.js'
+      - 'js/pe-acquisition.js'
+      - 'tests/pe-fund-acquisition-save-atomicity-test.js'
+      - 'tests/pe-fund-acquisition-save-atomicity-webkit-test.js'
+      - 'tests/fixtures/pe-fund-acquisition-atomicity.js'
+      - 'tests/fixtures/pe-fund-acquisition-faults.js'
       - 'js/pe-network-sourcing.js'
       - 'tests/parent-ipo-save-atomicity-test.js'
       - 'tests/parent-ipo-save-atomicity-webkit-test.js'
@@ -160,6 +170,7 @@ jobs:
           node tests/stock-split-price-history-webkit-test.js
           node tests/parent-ipo-save-atomicity-webkit-test.js
           node tests/ma-subsidiary-sale-save-atomicity-webkit-test.js
+          node tests/pe-fund-acquisition-save-atomicity-webkit-test.js
           node tests/ma-integration-webkit-test.js
           node tests/ceo-dashboard-webkit-test.js
 
@@ -215,6 +226,7 @@ jobs:
       - run: node tests/stock-split-price-history-webkit-test.js
       - run: node tests/parent-ipo-save-atomicity-webkit-test.js
       - run: node tests/ma-subsidiary-sale-save-atomicity-webkit-test.js
+      - run: node tests/pe-fund-acquisition-save-atomicity-webkit-test.js
       - run: node tests/ceo-dashboard-webkit-test.js
       - name: Upload M&A Deal Room WebKit artifact
         if: always()
