@@ -202,5 +202,9 @@
   "tests/stock-split-price-history-webkit-test.js": {
     "reason": "Actual own/external stock split history persistence and fresh IndexedDB iPhone WebKit in PR/main gates.",
     "executedBy": ".github/workflows/ma-acquisition-financing.yml"
+  },
+  "tests/parent-ipo-save-atomicity-webkit-test.js": {
+    "reason": "Installed parent IPO transaction, PE Exit and underwriter persistence/rollback in actual iPhone WebKit PR/main gates.",
+    "executedBy": ".github/workflows/ma-acquisition-financing.yml"
   }
 }
