@@ -1489,12 +1489,14 @@ class TycoonEngine extends EventTarget {
     return{id:r.id,round:r.round,openedWeek:r.openedWeek,closesWeek:r.closesWeek,weeksRemaining:Math.max(0,r.closesWeek-this.g.week),preMoneyValuation:r.preMoneyValuation,targetRaise:r.targetRaise,postMoneyValuation:r.postMoneyValuation,company:side('company'),personal:side('personal')};
   }
   participateStartupFundingRound(startupID,amount,account) {
+    return this.runTransaction(()=>{
     const plan=this.getStartupFundingRoundPlan(startupID),s=this.g.startups.find(x=>x.id===startupID);if(!plan||this.g.week>=plan.closesWeek||(account!=='company'&&account!=='personal')||typeof amount!=='number'||!Number.isFinite(amount)||amount<=0)return false;
     const side=plan[account],cashKey=account==='company'?'companyCash':'personalCash';if(side.ownershipBefore<=0||amount>side.remaining+1e-7||this.g[cashKey]<amount)return false;
     this.g[cashKey]-=amount;const cap=account==='company'?'Company':'Personal';s.activeFundingRound[`contributed${cap}`]+=amount;s[`totalInvested${cap}`]=finite(s[`totalInvested${cap}`])+amount;
     if(account==='company')finance.event(this.g,'investmentPurchase',amount,{cashEffect:-amount,assetEffect:amount,sourceType:'startupFundingRound',sourceID:`${startupID}-${s.activeFundingRound.id}-${account}`,description:`${s.name} ${plan.round}追加投資`});
     const history=this.g.startupFundingHistory[startupID]||(this.g.startupFundingHistory[startupID]=[]);history.unshift({id:`${s.activeFundingRound.id}-${account}-${this.g.week}-${history.length}`,eventType:'participated',stage:plan.round,week:this.g.week,account,amount,preMoneyValuation:plan.preMoneyValuation,targetRaise:plan.targetRaise,postMoneyValuation:plan.postMoneyValuation});this.g.startupFundingHistory[startupID]=history.slice(0,24);
-    const message=`${s.name}の${plan.round}ラウンドへ${yen(amount)}追加出資しました。`;this.notify(message,'success');this.save();this.emit();return true;
+    const message=`${s.name}の${plan.round}ラウンドへ${yen(amount)}追加出資しました。`;this.notify(message,'success');return true;
+    });
   }
   openStartupFundingRound(s) {
     if(!s?.alive||s.subsidiary||s.activeFundingRound||(finite(s.ownedCompany)<=0&&finite(s.ownedPersonal)<=0)||!s.fundingOpen||this.g.week-finite(s.lastFundingRoundClosedWeek,-999)<16)return false;

@@ -52,6 +52,7 @@ const nodeTests = [
   ['stock-sale-save-atomicity', 'tests/stock-sale-save-atomicity-test.js'],
   ['stock-split-price-history', 'tests/stock-split-price-history-test.js'],
   ['parent-ipo-save-atomicity', 'tests/parent-ipo-save-atomicity-test.js'],
+  ['vc-follow-on-save-atomicity', 'tests/vc-follow-on-save-atomicity-test.js'],
   ['vc-initial-investment-save-atomicity', 'tests/vc-initial-investment-save-atomicity-test.js'],
   ['pe-fund-acquisition-save-atomicity', 'tests/pe-fund-acquisition-save-atomicity-test.js'],
   ['ma-subsidiary-sale-save-atomicity', 'tests/ma-subsidiary-sale-save-atomicity-test.js'],

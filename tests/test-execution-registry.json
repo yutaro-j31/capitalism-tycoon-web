@@ -207,6 +207,10 @@
     "reason": "Installed parent IPO transaction, PE Exit and underwriter persistence/rollback in actual iPhone WebKit PR/main gates.",
     "executedBy": ".github/workflows/ma-acquisition-financing.yml"
   },
+  "tests/vc-follow-on-save-atomicity-webkit-test.js": {
+    "reason": "Company/personal VC follow-on common transaction rollback, prior pending write, reload and fresh real IndexedDB in iPhone WebKit PR/main gates.",
+    "executedBy": ".github/workflows/ma-acquisition-financing.yml"
+  },
   "tests/vc-initial-investment-save-atomicity-webkit-test.js": {
     "reason": "VC company/personal initial investment rollback, prior pending save, reload and fresh real IndexedDB in iPhone WebKit PR/main gates.",
     "executedBy": ".github/workflows/ma-acquisition-financing.yml"
