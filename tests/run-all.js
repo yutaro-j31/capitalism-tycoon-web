@@ -52,6 +52,7 @@ const nodeTests = [
   ['stock-sale-save-atomicity', 'tests/stock-sale-save-atomicity-test.js'],
   ['stock-split-price-history', 'tests/stock-split-price-history-test.js'],
   ['parent-ipo-save-atomicity', 'tests/parent-ipo-save-atomicity-test.js'],
+  ['ma-subsidiary-sale-save-atomicity', 'tests/ma-subsidiary-sale-save-atomicity-test.js'],
   ['competitor-product-counter-reachability', 'tests/competitor-product-counter-reachability-test.js'],
   ['competitor-group-allocation-reachability', 'tests/competitor-group-allocation-reachability-test.js'],
   ['venture-investment-reachability', 'tests/venture-investment-reachability-test.js'],

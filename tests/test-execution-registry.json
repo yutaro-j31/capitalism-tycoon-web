@@ -206,5 +206,9 @@
   "tests/parent-ipo-save-atomicity-webkit-test.js": {
     "reason": "Installed parent IPO transaction, PE Exit and underwriter persistence/rollback in actual iPhone WebKit PR/main gates.",
     "executedBy": ".github/workflows/ma-acquisition-financing.yml"
+  },
+  "tests/ma-subsidiary-sale-save-atomicity-webkit-test.js": {
+    "reason": "Real iPhone WebKit subsidiary sale rollback, prior pending write and fresh IndexedDB hydration in PR/main gates.",
+    "executedBy": ".github/workflows/ma-acquisition-financing.yml"
   }
 }
