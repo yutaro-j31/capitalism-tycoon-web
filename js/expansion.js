@@ -500,26 +500,29 @@ function installExpansion(TycoonEngine){
     return{owned,discount,proceeds};
   };
   TycoonEngine.prototype.sellStartupSecondary=function(startupID,account='company'){
-    account=account==='company'?'company':'personal';
-    const preview=this.previewStartupSecondarySale(startupID,account);if(!preview)return false;
-    const s=this.g.startups.find(x=>x.id===startupID);
-    const{discount,proceeds}=preview;
-    const ownedKey=account==='company'?'ownedCompany':'ownedPersonal',investedKey=account==='company'?'totalInvestedCompany':'totalInvestedPersonal';
-    const ddOwnedKey=account==='company'?'ddNegotiatedOwnedCompany':'ddNegotiatedOwnedPersonal';
-    const book=Math.max(0,n(s[investedKey]));
-    const cashKey=account==='company'?'companyCash':'personalCash';
-    if(account==='company'){
-      const finance=__modules.finance.ensureFinance(this.g);
-      const transactionIdentity=`startup-secondary-${s.id}-${account}-${this.g.week}-${finance.nextTransactionSeq}`;
-      const recorded=__modules.finance.event(this.g,'investmentSale',proceeds,{cashEffect:proceeds,assetEffect:-book,profitEffect:proceeds-book,sourceType:'startupSecondarySale',sourceID:transactionIdentity,idempotencyKey:transactionIdentity,operationID:transactionIdentity,description:`${s.name} 持分の相対売却（セカンダリー、割引${Math.round(discount*100)}%）`});
-      // Keep the sale atomic: cash and ownership may move only after its company ledger row
-      // has been accepted.  nextTransactionSeq makes every legitimate same-week sale unique.
-      if(!recorded)return false;
-    }
-    this.g[cashKey]+=proceeds;
-    s[ownedKey]=0;s[investedKey]=0;s[ddOwnedKey]=0;
-    this.notify(`${s.name}の持分をセカンダリー市場で${Math.round(proceeds).toLocaleString()}円（流動性ディスカウント${Math.round(discount*100)}%）で売却しました。`,'success');
-    this.save();this.emit();return true;
+    // The shared transaction/checkpoint owns persistence rejection and post-save rollback.
+    return this.runTransaction(()=>{
+      account=account==='company'?'company':'personal';
+      const preview=this.previewStartupSecondarySale(startupID,account);if(!preview)return false;
+      const s=this.g.startups.find(x=>x.id===startupID);
+      const{discount,proceeds}=preview;
+      const ownedKey=account==='company'?'ownedCompany':'ownedPersonal',investedKey=account==='company'?'totalInvestedCompany':'totalInvestedPersonal';
+      const ddOwnedKey=account==='company'?'ddNegotiatedOwnedCompany':'ddNegotiatedOwnedPersonal';
+      const book=Math.max(0,n(s[investedKey]));
+      const cashKey=account==='company'?'companyCash':'personalCash';
+      if(account==='company'){
+        const finance=__modules.finance.ensureFinance(this.g);
+        const transactionIdentity=`startup-secondary-${s.id}-${account}-${this.g.week}-${finance.nextTransactionSeq}`;
+        const recorded=__modules.finance.event(this.g,'investmentSale',proceeds,{cashEffect:proceeds,assetEffect:-book,profitEffect:proceeds-book,sourceType:'startupSecondarySale',sourceID:transactionIdentity,idempotencyKey:transactionIdentity,operationID:transactionIdentity,description:`${s.name} 持分の相対売却（セカンダリー、割引${Math.round(discount*100)}%）`});
+        // Keep the sale atomic: cash and ownership may move only after its company ledger row
+        // has been accepted.  nextTransactionSeq makes every legitimate same-week sale unique.
+        if(!recorded)return false;
+      }
+      this.g[cashKey]+=proceeds;
+      s[ownedKey]=0;s[investedKey]=0;s[ddOwnedKey]=0;
+      this.notify(`${s.name}の持分をセカンダリー市場で${Math.round(proceeds).toLocaleString()}円（流動性ディスカウント${Math.round(discount*100)}%）で売却しました。`,'success');
+      return true;
+    });
   };
 
   // R1 (feature-requests.md) remaining item "創業者・チームの詳細DD": before this, the

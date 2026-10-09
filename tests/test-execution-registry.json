@@ -222,5 +222,9 @@
   "tests/ma-subsidiary-sale-save-atomicity-webkit-test.js": {
     "reason": "Real iPhone WebKit subsidiary sale rollback, prior pending write and fresh IndexedDB hydration in PR/main gates.",
     "executedBy": ".github/workflows/ma-acquisition-financing.yml"
+  },
+  "tests/vc-secondary-sale-save-atomicity-webkit-test.js": {
+    "reason": "Company/personal VC secondary sale rollback, DD ownership, pending write, reload and fresh real IndexedDB in iPhone WebKit PR/main gates.",
+    "executedBy": ".github/workflows/ma-acquisition-financing.yml"
   }
 }
