@@ -16,6 +16,9 @@ on:
       - 'tests/stock-split-price-history-test.js'
       - 'tests/stock-split-price-history-webkit-test.js'
       - 'js/pe-acquisition.js'
+      - 'tests/vc-initial-investment-save-atomicity-test.js'
+      - 'tests/vc-initial-investment-save-atomicity-webkit-test.js'
+      - 'tests/fixtures/vc-initial-investment-atomicity.js'
       - 'tests/pe-fund-acquisition-save-atomicity-test.js'
       - 'tests/pe-fund-acquisition-save-atomicity-webkit-test.js'
       - 'tests/fixtures/pe-fund-acquisition-atomicity.js'
@@ -49,6 +52,9 @@ on:
       - 'tests/stock-split-price-history-test.js'
       - 'tests/stock-split-price-history-webkit-test.js'
       - 'js/pe-acquisition.js'
+      - 'tests/vc-initial-investment-save-atomicity-test.js'
+      - 'tests/vc-initial-investment-save-atomicity-webkit-test.js'
+      - 'tests/fixtures/vc-initial-investment-atomicity.js'
       - 'tests/pe-fund-acquisition-save-atomicity-test.js'
       - 'tests/pe-fund-acquisition-save-atomicity-webkit-test.js'
       - 'tests/fixtures/pe-fund-acquisition-atomicity.js'
@@ -171,6 +177,7 @@ jobs:
           node tests/parent-ipo-save-atomicity-webkit-test.js
           node tests/ma-subsidiary-sale-save-atomicity-webkit-test.js
           node tests/pe-fund-acquisition-save-atomicity-webkit-test.js
+          node tests/vc-initial-investment-save-atomicity-webkit-test.js
           node tests/ma-integration-webkit-test.js
           node tests/ceo-dashboard-webkit-test.js
 
@@ -227,6 +234,7 @@ jobs:
       - run: node tests/parent-ipo-save-atomicity-webkit-test.js
       - run: node tests/ma-subsidiary-sale-save-atomicity-webkit-test.js
       - run: node tests/pe-fund-acquisition-save-atomicity-webkit-test.js
+      - run: node tests/vc-initial-investment-save-atomicity-webkit-test.js
       - run: node tests/ceo-dashboard-webkit-test.js
       - name: Upload M&A Deal Room WebKit artifact
         if: always()

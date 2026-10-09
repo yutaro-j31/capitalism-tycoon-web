@@ -1465,20 +1465,22 @@ class TycoonEngine extends EventTarget {
   }
 
   investStartup(startupID,amount,account='company') {
-    const s=this.g.startups.find(x=>x.id===startupID);amount=finite(amount);if(!s||!s.alive||amount<=0)return false;
-    if(s.activeFundingRound?.status==='open')return this.fail('追加資金調達中はフォローオン投資を利用してください。');
-    if(account==='company'&&!this.g.departments.investment)return this.fail('会社投資には投資部門が必要です。');
-    if(amount<s.minTicket)return this.fail(`最低投資額は${yen(s.minTicket)}です。`);
-    const cashKey=account==='company'?'companyCash':'personalCash';if(this.g[cashKey]<amount)return this.fail('資金が不足しています。');
-    // A completed due-diligence discount (js/expansion.js's conductStartupDueDiligence)
-    // negotiates better terms on the *equity received*, not the startup's headline
-    // valuation -- s.valuation itself still bumps by the same amount*.75 below.
-    const ddDiscount=clamp(finite(s.dueDiligence?.discount,0),0,.15),effectiveValuation=s.valuation*(1-ddDiscount);
-    const equity=clamp(amount/(effectiveValuation+amount),0,.35);this.g[cashKey]-=amount;s.valuation+=amount*.75;
-    if(account==='company'){finance.event(this.g,'investmentPurchase',amount,{cashEffect:-amount,assetEffect:amount,sourceType:'investStartup',sourceID:`${startupID}-${this.g.week}`,description:`${s.name} VC投資`});const before=finite(s.ownedCompany);s.ownedCompany=clamp(before+equity,0,.8);if(ddDiscount>0)s.ddNegotiatedOwnedCompany=clamp(finite(s.ddNegotiatedOwnedCompany)+(s.ownedCompany-before),0,s.ownedCompany);s.totalInvestedCompany+=amount;}
-    else{const before=finite(s.ownedPersonal);s.ownedPersonal=clamp(before+equity,0,.49);if(ddDiscount>0)s.ddNegotiatedOwnedPersonal=clamp(finite(s.ddNegotiatedOwnedPersonal)+(s.ownedPersonal-before),0,s.ownedPersonal);s.totalInvestedPersonal+=amount;}
-    s.fundingOpen=false;s.runwayWeeks+=Math.floor(amount/Math.max(1,s.valuation)*156);
-    this.notify(`${s.name}へ${yen(amount)}投資し、持分${pct(equity)}を取得しました。`,'success');this.save();this.emit();return true;
+    return this.runTransaction(() => {
+      const s=this.g.startups.find(x=>x.id===startupID);amount=finite(amount);if(!s||!s.alive||amount<=0)return false;
+      if(s.activeFundingRound?.status==='open')return this.fail('追加資金調達中はフォローオン投資を利用してください。');
+      if(account==='company'&&!this.g.departments.investment)return this.fail('会社投資には投資部門が必要です。');
+      if(amount<s.minTicket)return this.fail(`最低投資額は${yen(s.minTicket)}です。`);
+      const cashKey=account==='company'?'companyCash':'personalCash';if(this.g[cashKey]<amount)return this.fail('資金が不足しています。');
+      // A completed due-diligence discount (js/expansion.js's conductStartupDueDiligence)
+      // negotiates better terms on the *equity received*, not the startup's headline
+      // valuation -- s.valuation itself still bumps by the same amount*.75 below.
+      const ddDiscount=clamp(finite(s.dueDiligence?.discount,0),0,.15),effectiveValuation=s.valuation*(1-ddDiscount);
+      const equity=clamp(amount/(effectiveValuation+amount),0,.35);this.g[cashKey]-=amount;s.valuation+=amount*.75;
+      if(account==='company'){finance.event(this.g,'investmentPurchase',amount,{cashEffect:-amount,assetEffect:amount,sourceType:'investStartup',sourceID:`${startupID}-${this.g.week}`,description:`${s.name} VC投資`});const before=finite(s.ownedCompany);s.ownedCompany=clamp(before+equity,0,.8);if(ddDiscount>0)s.ddNegotiatedOwnedCompany=clamp(finite(s.ddNegotiatedOwnedCompany)+(s.ownedCompany-before),0,s.ownedCompany);s.totalInvestedCompany+=amount;}
+      else{const before=finite(s.ownedPersonal);s.ownedPersonal=clamp(before+equity,0,.49);if(ddDiscount>0)s.ddNegotiatedOwnedPersonal=clamp(finite(s.ddNegotiatedOwnedPersonal)+(s.ownedPersonal-before),0,s.ownedPersonal);s.totalInvestedPersonal+=amount;}
+      s.fundingOpen=false;s.runwayWeeks+=Math.floor(amount/Math.max(1,s.valuation)*156);
+      this.notify(`${s.name}へ${yen(amount)}投資し、持分${pct(equity)}を取得しました。`,'success');return true;
+    });
   }
   getStartupFundingRoundPlan(startupID) {
     const s=this.g.startups.find(x=>x.id===startupID),r=s?.activeFundingRound;
