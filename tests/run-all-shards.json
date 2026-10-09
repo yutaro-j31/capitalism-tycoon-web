@@ -187,6 +187,7 @@
     "tests/founder-share-sale-save-atomicity-test.js",
     "tests/stock-purchase-save-atomicity-test.js",
     "tests/stock-sale-save-atomicity-test.js",
+    "tests/stock-split-price-history-test.js",
     "test:procurement",
     "test:supplier-coverage",
     "tests/macro-cycle-test.js",

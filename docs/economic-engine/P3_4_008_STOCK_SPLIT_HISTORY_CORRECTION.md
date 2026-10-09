@@ -1,0 +1,17 @@
+# P3-4-008 — preserve stockSplit price history
+
+Base: `22d546ff7e012d83a6fddc34b180a7a4032ac8ea` (#920). Owner requested resumption of the proposed independent P3-4-008 correction then already-authorized P3-4-007 on 2026-10-09 09:17 JST. Evidence: #909/6071071336. Ownership/Phase9 cutovers and automatic old-save repair remain stopped.
+
+The installed stockSplit divided complete `{week,price}` records by the split ratio. Normal accepted splits turned observations into NaN and persisted null; production load discarded them and synthesized two recent observations. A valid own/external split now divides only each record's price while retaining its week and metadata. Numeric legacy direct-history entries still use the original numeric division. No other production expression changes: ratio eligibility, quotes/previous/issued/root/founder/treasury quantities, both account lots/averages, history order, cash/ledger, notification/save dispatch and RNG remain unchanged. No reconstruction of already lost observations or migration.
+
+This is **only the normal history correction**. It does not claim stockSplit save rejection or post-save exceptions are atomic; independent P3-4-007 remains the next correction after this PR/main gate completes.
+
+## Verification
+
+- Canonical `stock-split-price-history-test.js`: actual installed own/external split with both lots, nonzero treasury; metadata and object records, numeric legacy input/normalization and direct compatibility entries; repeated distinct 2/2/3 splits, buy/sell in each account, invalid/missing refusal, another split, accounting/no cash posting, host/simulation RNG, exact mirror/cache/flushed IDB bytes, production reload and independent fresh VM hydration. Twin mixed split/trade/week replay.
+- Canonical regression RED on pristine main independently with own/external first. Original portable `p3-4-008-stock-split-history-loss.cjs --assert-fixed` GREEN after correction.
+- `stock-split-price-history-webkit-test.js`: actual iPhone13 WebKit, own/external with both lots/nonzero treasury, repeated splits/mixed trades, exact history in completed real IDB transaction, mirror/cache agreement, reload and exported IDB in a fresh browser context. Explicitly registered in both PR and main M&A gates with artifacts and unchanged timeouts.
+- Normal mixed split/trade/week parity compares full state excluding only priceHistory and lastSaveDate/saveSequence, with identical host RNG. Hashes/evidence, actual local command results, final published-tree audit and PR/main CI belong on #909.
+- Existing #915–#920 atomicity regressions remain unchanged. Stock/chart/own-share/P3 reconciliation, save-v9/authoritative boot/transaction and Phase0.5/1/2 tests are required as applicable. New canonical/browser paths and shard/registration/timeout contracts retain prior coverage.
+
+Independent actual origin/main...published HEAD clean-worktree A–L difference pass must verify authorization/scope, installed method/caller, record-only adjustment, untouched economic body, normal/history/legacy replay, persistence, company/personal isolation, RNG/weekly parity, save-v9/old-save compatibility, all retained regressions, canonical/browser registrations and unchanged PR/main gate budgets. A separate same-agent clean-worktree pass is not an external-agent review claim. Required PR/main checks and actual WebKit must be terminal success before completion; skips excluded. P3-4-007 resumes from refreshed main afterward.
