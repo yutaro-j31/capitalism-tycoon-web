@@ -158,13 +158,14 @@ assert.deepEqual(pathsFor(comprehensiveMa, 'pull_request'), [
   'tests/founder-share-sale-save-atomicity-test.js', 'tests/founder-share-sale-save-atomicity-webkit-test.js',
   'tests/stock-purchase-save-atomicity-test.js', 'tests/stock-purchase-save-atomicity-webkit-test.js',
   'tests/stock-sale-save-atomicity-test.js', 'tests/stock-sale-save-atomicity-webkit-test.js',
+  'tests/stock-split-price-history-test.js', 'tests/stock-split-price-history-webkit-test.js',
   'js/ma-deal-room.js', 'js/ceo-dashboard.js', 'js/app.js', 'css/**', 'tests/ma-deal-room-test.js',
   'tests/ceo-dashboard-webkit-test.js', '.github/workflows/ma-acquisition-financing.yml'
 ], 'Deal Room PR paths and CEO Dashboard WebKit coverage must remain explicit in the consolidated workflow');
 assert(hasTrigger(comprehensiveMa, 'push') && pathsFor(comprehensiveMa, 'push').length > 0, 'M&A comprehensive main push must use paths');
 assert(isMainOnly(triggerBlock(comprehensiveMa, 'push')), 'M&A comprehensive push must be main-only');
 for (const event of ['pull_request', 'push']) {
-  for (const path of ['tests/stock-sale-save-atomicity-test.js', 'tests/stock-sale-save-atomicity-webkit-test.js', 'js/engine.js', 'tests/stock-purchase-save-atomicity-test.js', 'tests/stock-purchase-save-atomicity-webkit-test.js', 'js/expansion.js', 'tests/investor-offer-save-atomicity-test.js', 'tests/investor-offer-save-atomicity-webkit-test.js', 'tests/founder-share-sale-save-atomicity-test.js', 'tests/founder-share-sale-save-atomicity-webkit-test.js']) {
+  for (const path of ['tests/stock-split-price-history-test.js', 'tests/stock-split-price-history-webkit-test.js', 'tests/stock-sale-save-atomicity-test.js', 'tests/stock-sale-save-atomicity-webkit-test.js', 'js/engine.js', 'tests/stock-purchase-save-atomicity-test.js', 'tests/stock-purchase-save-atomicity-webkit-test.js', 'js/expansion.js', 'tests/investor-offer-save-atomicity-test.js', 'tests/investor-offer-save-atomicity-webkit-test.js', 'tests/founder-share-sale-save-atomicity-test.js', 'tests/founder-share-sale-save-atomicity-webkit-test.js']) {
     assert(pathsFor(comprehensiveMa, event).includes(path), `${event} must run economic-command WebKit on ${path}`);
   }
 }
@@ -193,6 +194,9 @@ for (const command of [
   'ma-acquisition-financing-${{ github.sha }}', 'retention-days: 30', 'if-no-files-found: error'
 ]) assert(comprehensiveMaJob.includes(command), `M&A comprehensive gate must retain ${command}`);
 const dealRoom = jobBlock(comprehensiveMa, 'deal-room');
+for (const job of [comprehensiveMaJob,dealRoom]) {
+  assert(job.includes('node tests/stock-split-price-history-webkit-test.js'), 'both PR and main gates must exercise stock split history persistence');
+}
 assert(dealRoom.includes("github.event_name == 'pull_request'") && dealRoom.includes("inputs.mode == 'deal-room'"), 'Deal Room must run on PR and deal-room manual mode');
 for (const forbidden of ["github.event_name == 'push'", "github.event_name == 'schedule'", "inputs.mode == 'comprehensive'", 'concurrency:']) {
   assert(!dealRoom.includes(forbidden), `Deal Room must not inherit ${forbidden}`);

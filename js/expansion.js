@@ -379,7 +379,7 @@ function installExpansion(TycoonEngine){
   };
 
   TycoonEngine.prototype.stockSplit=function(stockID,ratio=2){
-    const s=this.stock(stockID);if(!s||ratio<2)return false;if(stockID===this.g.ticker&&!this.g.publicCompany)return this.fail('自社は未上場です。');s.price/=ratio;s.previous/=ratio;s.issuedShares*=ratio;s.priceHistory=(s.priceHistory||[]).map(x=>x/ratio);
+    const s=this.stock(stockID);if(!s||ratio<2)return false;if(stockID===this.g.ticker&&!this.g.publicCompany)return this.fail('自社は未上場です。');s.price/=ratio;s.previous/=ratio;s.issuedShares*=ratio;s.priceHistory=(s.priceHistory||[]).map(x=>x&&typeof x==='object'?{...x,price:x.price/ratio}:x/ratio);
     for(const key of ['companyStocks','personalStocks'])if(this.g[key][stockID]){this.g[key][stockID].qty*=ratio;this.g[key][stockID].avg/=ratio;}
     if(stockID===this.g.ticker){this.g.stockPrice/=ratio;this.g.sharesOut*=ratio;this.g.founderShares*=ratio;this.g.treasuryBuybackShares*=ratio;}
     this.g.stockSplitHistory.unshift({week:this.g.week,stockID,ratio});this.notify(`${s.name}が1:${ratio}の株式分割を実施しました。`,'success');this.save();this.emit();return true;
