@@ -188,6 +188,7 @@
     "tests/stock-purchase-save-atomicity-test.js",
     "tests/stock-sale-save-atomicity-test.js",
     "tests/stock-split-price-history-test.js",
+    "tests/parent-ipo-save-atomicity-test.js",
     "test:procurement",
     "test:supplier-coverage",
     "tests/macro-cycle-test.js",

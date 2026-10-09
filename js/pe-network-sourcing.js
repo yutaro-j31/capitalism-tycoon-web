@@ -136,9 +136,13 @@ function install(){
 
   const baseExecuteIPO=proto.executeIPO;
   proto.executeIPO=function(market='東証グロース',sellShares=0){
-    const r=baseExecuteIPO.call(this,market,sellShares);
-    if(r===true)onIPO(this.g,{market,week:this.g.week});
-    return r;
+    // This is the final IPO wrapper. Keep the existing IPO/PE/scenario chain and
+    // underwriter registration inside the shared save/checkpoint boundary.
+    return this.runTransaction(()=>{
+      const r=baseExecuteIPO.call(this,market,sellShares);
+      if(r===true)onIPO(this.g,{market,week:this.g.week});
+      return r;
+    });
   };
 
   // Exit先の経営陣。T17の exitPEPortfolioCompany が唯一のExit実行経路。
