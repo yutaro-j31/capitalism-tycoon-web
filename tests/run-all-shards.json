@@ -66,7 +66,9 @@
     "tests/map-marker-density-selection-test.js",
     "tests/convenience-chain-scale-procurement-test.js",
     "tests/supply-payment-due-week-arrival-basis-test.js",
-    "tests/ramen-supply-payment-terms-244week-regression-test.js"
+    "tests/ramen-supply-payment-terms-244week-regression-test.js",
+    "tests/vc-secondary-sale-save-false-red-probe.js",
+    "tests/vc-secondary-sale-save-atomicity-test.js"
   ],
   "E": [
     "tests/week-transaction-atomicity-test.js",
