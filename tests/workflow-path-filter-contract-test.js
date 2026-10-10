@@ -179,7 +179,7 @@ assert.deepEqual(pathsFor(comprehensiveMa, 'pull_request'), [
   'tests/pe-portfolio-exit-save-atomicity-webkit-test.js',
   'tests/fixtures/pe-fund-acquisition-atomicity.js',
   'tests/fixtures/pe-fund-acquisition-faults.js',
-  'js/pe-network-sourcing.js', 'js/pe-ui-adapter.js', 'tests/parent-ipo-save-atomicity-test.js',
+  'js/pe-network-sourcing.js', 'js/pe-ui-adapter.js', 'js/pe-portfolio-operations.js', 'tests/parent-ipo-save-atomicity-test.js',
   'tests/parent-ipo-save-atomicity-webkit-test.js', 'tests/fixtures/parent-ipo-atomicity.js',
   'tests/ma-subsidiary-sale-save-atomicity-test.js', 'tests/ma-subsidiary-sale-save-atomicity-webkit-test.js',
   'tests/fixtures/ma-subsidiary-sale-atomicity.js',
