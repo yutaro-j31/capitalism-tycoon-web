@@ -270,6 +270,12 @@ jobs:
   stock-split-atomicity:
     # Keep the new regression independent of the existing M&A job's budget.
     # No event guard: exercise it on PR, main, schedule and both manual modes.
+    # Same cancellation as the PE/VC family jobs: superseded main push / schedule / comprehensive
+    # runs cancel it per ref like comprehensive-ma; PR and deal-room runs get a per-run group, so
+    # they are never cancelled or serialized.
+    concurrency:
+      group: ma-acquisition-financing-stock-split-atomicity-${{ (github.event_name == 'pull_request' || inputs.mode == 'deal-room') && github.run_id || github.ref }}
+      cancel-in-progress: true
     runs-on: ubuntu-latest
     timeout-minutes: 15
     env:
