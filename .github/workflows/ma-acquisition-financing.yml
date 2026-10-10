@@ -173,7 +173,6 @@ jobs:
           npm run test:static
           npm run test:css
           npm run test:progression-balance
-          npm run test:strategy-balance
           node tests/v1-progression-gate-test.js
           node tests/executive-secretary-test.js
 
@@ -213,6 +212,33 @@ jobs:
           if-no-files-found: error
           retention-days: 30
 
+
+  comprehensive-ma-balance:
+    # Phase 1B: the strategy balance matrix moved out of comprehensive-ma's sequential Node step so
+    # it runs in parallel with the M&A suites and WebKit. Same events, Node 22 runtime, install
+    # step and cancellation as comprehensive-ma (its own per-ref group, so the two jobs never
+    # cancel each other). Measured 10.4-17.9 min inside comprehensive-ma on CI; 30 min bounds it.
+    if: >-
+      github.event_name == 'push' ||
+      github.event_name == 'schedule' ||
+      (github.event_name == 'workflow_dispatch' && inputs.mode == 'comprehensive')
+    concurrency:
+      group: ma-acquisition-financing-balance-${{ github.ref }}
+      cancel-in-progress: true
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Install dependencies
+        run: npm ci || npm install
+
+      - name: Strategy balance matrix
+        run: npm run test:strategy-balance
 
   deal-room:
     if: >-
@@ -415,7 +441,7 @@ jobs:
     # any job therefore fails this check. Branch protection is not configured, so this is a
     # reporting gate, not a merge block on its own.
     if: always()
-    needs: [comprehensive-ma, deal-room, stock-split-atomicity, pe-acquisition-atomicity, vc-secondary-atomicity, vc-funding-atomicity]
+    needs: [comprehensive-ma, comprehensive-ma-balance, deal-room, stock-split-atomicity, pe-acquisition-atomicity, vc-secondary-atomicity, vc-funding-atomicity]
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
@@ -431,7 +457,7 @@ jobs:
           const comprehensive = event === 'push' || event === 'schedule' || (event === 'workflow_dispatch' && mode === 'comprehensive');
           const dealRoom = event === 'pull_request' || (event === 'workflow_dispatch' && mode === 'deal-room');
           const applies = {
-            'comprehensive-ma': comprehensive, 'deal-room': dealRoom, 'stock-split-atomicity': true,
+            'comprehensive-ma': comprehensive, 'comprehensive-ma-balance': comprehensive, 'deal-room': dealRoom, 'stock-split-atomicity': true,
             'pe-acquisition-atomicity': true, 'vc-secondary-atomicity': true, 'vc-funding-atomicity': true
           };
           const problems = [];
