@@ -22,7 +22,9 @@ Do **not** read every project document for every task. Use progressive disclosur
 
 `CLAUDE.md` is a legacy filename retained for compatibility. Its contents are project-specific design/runtime knowledge for **all** coding agents, not instructions to use Claude Code.
 
-**Economic Engine / Phase 3+ shared policy (all AI agents):** For economic-writer audits, transaction integrity, ownership authority, staged Economic Core replacement, and role/Owner-boundary decisions, read [docs/economic-engine/AI_AGENT_SHARED_POLICY.md](docs/economic-engine/AI_AGENT_SHARED_POLICY.md) alongside the relevant approved roadmap/Phase contract. It defines scoped P3-4 coverage versus the broader 277-candidate inventory, mandatory stop conditions, and the required ordinary ChatGPT versus Work recommendation on every economic-task report. It does not authorize new P0/P1 fixes or merge actions.\n\n## 2. Non-negotiable invariants
+**Economic Engine / Phase 3+ shared policy (all AI agents):** For economic-writer audits, transaction integrity, ownership authority, staged Economic Core replacement, and role/Owner-boundary decisions, read [docs/economic-engine/AI_AGENT_SHARED_POLICY.md](docs/economic-engine/AI_AGENT_SHARED_POLICY.md) alongside the relevant approved roadmap/Phase contract. It defines scoped P3-4 coverage versus the broader 277-candidate inventory, mandatory stop conditions, and the required ordinary ChatGPT versus Work recommendation on every economic-task report. It does not authorize new P0/P1 fixes or merge actions.
+
+## 2. Non-negotiable invariants
 
 Preserve these unless the user explicitly authorizes a dedicated migration and the repository rules are updated as part of that migration:
 
