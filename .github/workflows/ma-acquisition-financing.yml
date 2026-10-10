@@ -13,6 +13,9 @@ on:
       - 'tests/stock-purchase-save-atomicity-webkit-test.js'
       - 'tests/stock-sale-save-atomicity-test.js'
       - 'tests/stock-sale-save-atomicity-webkit-test.js'
+      - 'tests/stock-split-save-atomicity-test.js'
+      - 'tests/stock-split-save-atomicity-webkit-test.js'
+      - 'tests/fixtures/stock-split-atomicity.js'
       - 'tests/stock-split-price-history-test.js'
       - 'tests/stock-split-price-history-webkit-test.js'
       - 'js/pe-acquisition.js'
@@ -56,6 +59,9 @@ on:
       - 'tests/stock-purchase-save-atomicity-webkit-test.js'
       - 'tests/stock-sale-save-atomicity-test.js'
       - 'tests/stock-sale-save-atomicity-webkit-test.js'
+      - 'tests/stock-split-save-atomicity-test.js'
+      - 'tests/stock-split-save-atomicity-webkit-test.js'
+      - 'tests/fixtures/stock-split-atomicity.js'
       - 'tests/stock-split-price-history-test.js'
       - 'tests/stock-split-price-history-webkit-test.js'
       - 'js/pe-acquisition.js'
@@ -187,6 +193,7 @@ jobs:
           node tests/founder-share-sale-save-atomicity-webkit-test.js
           node tests/stock-purchase-save-atomicity-webkit-test.js
           node tests/stock-sale-save-atomicity-webkit-test.js
+          node tests/stock-split-save-atomicity-webkit-test.js
           node tests/stock-split-price-history-webkit-test.js
           node tests/parent-ipo-save-atomicity-webkit-test.js
           node tests/ma-subsidiary-sale-save-atomicity-webkit-test.js
@@ -246,6 +253,7 @@ jobs:
       - run: node tests/founder-share-sale-save-atomicity-webkit-test.js
       - run: node tests/stock-purchase-save-atomicity-webkit-test.js
       - run: node tests/stock-sale-save-atomicity-webkit-test.js
+      - run: node tests/stock-split-save-atomicity-webkit-test.js
       - run: node tests/stock-split-price-history-webkit-test.js
       - run: node tests/parent-ipo-save-atomicity-webkit-test.js
       - run: node tests/ma-subsidiary-sale-save-atomicity-webkit-test.js

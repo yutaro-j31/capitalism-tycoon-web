@@ -1,0 +1,1093 @@
+{
+  "baseMain": "fbfdccdbdbee8f98aa7d6cbef3ec7e411e48ddc7",
+  "finding": "P3-4-007",
+  "originalDiagnosticRED": [
+    {
+      "fault": "mirror-security-error",
+      "saveReturned": false,
+      "returned": true,
+      "error": null,
+      "command": {
+        "method": "stockSplit",
+        "stockID": "CPTY",
+        "ratio": 2
+      },
+      "before": {
+        "issued": 1000000,
+        "founder": 600000,
+        "treasury": 0,
+        "companyCash": 100000000,
+        "personalCash": 2000000,
+        "companyDebt": 0,
+        "personalDebt": 0,
+        "personalLot": {
+          "qty": 20000,
+          "avg": 100
+        },
+        "companyLot": {
+          "qty": 3000,
+          "avg": 100
+        },
+        "marketPrice": 100,
+        "marketCap": 100000000,
+        "rootStockPrice": 100,
+        "splitHistory": [],
+        "companyReceipts": 0,
+        "realizedPersonalPL": 0,
+        "rng": {
+          "seed": 1120790715,
+          "state": 1624743991,
+          "draws": 12,
+          "nextID": 1,
+          "version": 1
+        }
+      },
+      "after": {
+        "issued": 2000000,
+        "founder": 1200000,
+        "treasury": 0,
+        "companyCash": 100000000,
+        "personalCash": 2000000,
+        "companyDebt": 0,
+        "personalDebt": 0,
+        "personalLot": {
+          "qty": 40000,
+          "avg": 50
+        },
+        "companyLot": {
+          "qty": 6000,
+          "avg": 50
+        },
+        "marketPrice": 50,
+        "marketCap": 100000000,
+        "rootStockPrice": 50,
+        "splitHistory": [
+          {
+            "week": 12,
+            "stockID": "CPTY",
+            "ratio": 2
+          }
+        ],
+        "companyReceipts": 0,
+        "realizedPersonalPL": 0,
+        "rng": {
+          "seed": 1120790715,
+          "state": 1624743991,
+          "draws": 12,
+          "nextID": 1,
+          "version": 1
+        }
+      },
+      "liveRestored": false,
+      "mirrorUnchanged": true,
+      "cacheAfterFailure": {
+        "issued": 1000000,
+        "founder": 600000,
+        "treasury": 0,
+        "companyCash": 100000000,
+        "personalCash": 2000000,
+        "companyDebt": 0,
+        "personalDebt": 0,
+        "personalLot": {
+          "qty": 20000,
+          "avg": 100
+        },
+        "companyLot": {
+          "qty": 3000,
+          "avg": 100
+        },
+        "marketPrice": 100,
+        "marketCap": 100000000,
+        "rootStockPrice": 100,
+        "splitHistory": [],
+        "companyReceipts": 0,
+        "realizedPersonalPL": 0,
+        "rng": {
+          "seed": 1120790715,
+          "state": 1624743991,
+          "draws": 12,
+          "nextID": 1,
+          "version": 1
+        }
+      },
+      "durableAfterFailure": {
+        "issued": 1000000,
+        "founder": 600000,
+        "treasury": 0,
+        "companyCash": 100000000,
+        "personalCash": 2000000,
+        "companyDebt": 0,
+        "personalDebt": 0,
+        "personalLot": {
+          "qty": 20000,
+          "avg": 100
+        },
+        "companyLot": {
+          "qty": 3000,
+          "avg": 100
+        },
+        "marketPrice": 100,
+        "marketCap": 100000000,
+        "rootStockPrice": 100,
+        "splitHistory": [],
+        "companyReceipts": 0,
+        "realizedPersonalPL": 0,
+        "rng": {
+          "seed": 1120790715,
+          "state": 1624743991,
+          "draws": 12,
+          "nextID": 1,
+          "version": 1
+        }
+      },
+      "freshHydrationImmediatelyAfterFailure": {
+        "issued": 1000000,
+        "founder": 600000,
+        "treasury": 0,
+        "companyCash": 100000000,
+        "personalCash": 2000000,
+        "companyDebt": 0,
+        "personalDebt": 0,
+        "personalLot": {
+          "qty": 20000,
+          "avg": 100
+        },
+        "companyLot": {
+          "qty": 3000,
+          "avg": 100
+        },
+        "marketPrice": 100,
+        "marketCap": 100000000,
+        "rootStockPrice": 100,
+        "splitHistory": [],
+        "companyReceipts": 0,
+        "realizedPersonalPL": 0,
+        "rng": {
+          "seed": 1120790715,
+          "state": 1624743991,
+          "draws": 12,
+          "nextID": 1,
+          "version": 1
+        }
+      },
+      "freshHydrationAfterLaterSave": {
+        "issued": 2000000,
+        "founder": 1200000,
+        "treasury": 0,
+        "companyCash": 100000000,
+        "personalCash": 2000000,
+        "companyDebt": 0,
+        "personalDebt": 0,
+        "personalLot": {
+          "qty": 40000,
+          "avg": 50
+        },
+        "companyLot": {
+          "qty": 6000,
+          "avg": 50
+        },
+        "marketPrice": 50,
+        "marketCap": 100000000,
+        "rootStockPrice": 50,
+        "splitHistory": [
+          {
+            "week": 12,
+            "stockID": "CPTY",
+            "ratio": 2
+          }
+        ],
+        "companyReceipts": 0,
+        "realizedPersonalPL": 0,
+        "rng": {
+          "seed": 1120790715,
+          "state": 1624743991,
+          "draws": 12,
+          "nextID": 1,
+          "version": 1
+        }
+      }
+    },
+    {
+      "fault": "post-save-change-throw",
+      "saveReturned": true,
+      "returned": null,
+      "error": "P3-4-007 post-save change exception",
+      "command": {
+        "method": "stockSplit",
+        "stockID": "CPTY",
+        "ratio": 2
+      },
+      "before": {
+        "issued": 1000000,
+        "founder": 600000,
+        "treasury": 0,
+        "companyCash": 100000000,
+        "personalCash": 2000000,
+        "companyDebt": 0,
+        "personalDebt": 0,
+        "personalLot": {
+          "qty": 20000,
+          "avg": 100
+        },
+        "companyLot": {
+          "qty": 3000,
+          "avg": 100
+        },
+        "marketPrice": 100,
+        "marketCap": 100000000,
+        "rootStockPrice": 100,
+        "splitHistory": [],
+        "companyReceipts": 0,
+        "realizedPersonalPL": 0,
+        "rng": {
+          "seed": 1120790715,
+          "state": 1624743991,
+          "draws": 12,
+          "nextID": 1,
+          "version": 1
+        }
+      },
+      "after": {
+        "issued": 2000000,
+        "founder": 1200000,
+        "treasury": 0,
+        "companyCash": 100000000,
+        "personalCash": 2000000,
+        "companyDebt": 0,
+        "personalDebt": 0,
+        "personalLot": {
+          "qty": 40000,
+          "avg": 50
+        },
+        "companyLot": {
+          "qty": 6000,
+          "avg": 50
+        },
+        "marketPrice": 50,
+        "marketCap": 100000000,
+        "rootStockPrice": 50,
+        "splitHistory": [
+          {
+            "week": 12,
+            "stockID": "CPTY",
+            "ratio": 2
+          }
+        ],
+        "companyReceipts": 0,
+        "realizedPersonalPL": 0,
+        "rng": {
+          "seed": 1120790715,
+          "state": 1624743991,
+          "draws": 12,
+          "nextID": 1,
+          "version": 1
+        }
+      },
+      "liveRestored": false,
+      "mirrorUnchanged": false,
+      "cacheAfterFailure": {
+        "issued": 2000000,
+        "founder": 1200000,
+        "treasury": 0,
+        "companyCash": 100000000,
+        "personalCash": 2000000,
+        "companyDebt": 0,
+        "personalDebt": 0,
+        "personalLot": {
+          "qty": 40000,
+          "avg": 50
+        },
+        "companyLot": {
+          "qty": 6000,
+          "avg": 50
+        },
+        "marketPrice": 50,
+        "marketCap": 100000000,
+        "rootStockPrice": 50,
+        "splitHistory": [
+          {
+            "week": 12,
+            "stockID": "CPTY",
+            "ratio": 2
+          }
+        ],
+        "companyReceipts": 0,
+        "realizedPersonalPL": 0,
+        "rng": {
+          "seed": 1120790715,
+          "state": 1624743991,
+          "draws": 12,
+          "nextID": 1,
+          "version": 1
+        }
+      },
+      "durableAfterFailure": {
+        "issued": 2000000,
+        "founder": 1200000,
+        "treasury": 0,
+        "companyCash": 100000000,
+        "personalCash": 2000000,
+        "companyDebt": 0,
+        "personalDebt": 0,
+        "personalLot": {
+          "qty": 40000,
+          "avg": 50
+        },
+        "companyLot": {
+          "qty": 6000,
+          "avg": 50
+        },
+        "marketPrice": 50,
+        "marketCap": 100000000,
+        "rootStockPrice": 50,
+        "splitHistory": [
+          {
+            "week": 12,
+            "stockID": "CPTY",
+            "ratio": 2
+          }
+        ],
+        "companyReceipts": 0,
+        "realizedPersonalPL": 0,
+        "rng": {
+          "seed": 1120790715,
+          "state": 1624743991,
+          "draws": 12,
+          "nextID": 1,
+          "version": 1
+        }
+      },
+      "freshHydrationImmediatelyAfterFailure": {
+        "issued": 2000000,
+        "founder": 1200000,
+        "treasury": 0,
+        "companyCash": 100000000,
+        "personalCash": 2000000,
+        "companyDebt": 0,
+        "personalDebt": 0,
+        "personalLot": {
+          "qty": 40000,
+          "avg": 50
+        },
+        "companyLot": {
+          "qty": 6000,
+          "avg": 50
+        },
+        "marketPrice": 50,
+        "marketCap": 100000000,
+        "rootStockPrice": 50,
+        "splitHistory": [
+          {
+            "week": 12,
+            "stockID": "CPTY",
+            "ratio": 2
+          }
+        ],
+        "companyReceipts": 0,
+        "realizedPersonalPL": 0,
+        "rng": {
+          "seed": 1120790715,
+          "state": 1624743991,
+          "draws": 12,
+          "nextID": 1,
+          "version": 1
+        }
+      },
+      "freshHydrationAfterLaterSave": {
+        "issued": 2000000,
+        "founder": 1200000,
+        "treasury": 0,
+        "companyCash": 100000000,
+        "personalCash": 2000000,
+        "companyDebt": 0,
+        "personalDebt": 0,
+        "personalLot": {
+          "qty": 40000,
+          "avg": 50
+        },
+        "companyLot": {
+          "qty": 6000,
+          "avg": 50
+        },
+        "marketPrice": 50,
+        "marketCap": 100000000,
+        "rootStockPrice": 50,
+        "splitHistory": [
+          {
+            "week": 12,
+            "stockID": "CPTY",
+            "ratio": 2
+          }
+        ],
+        "companyReceipts": 0,
+        "realizedPersonalPL": 0,
+        "rng": {
+          "seed": 1120790715,
+          "state": 1624743991,
+          "draws": 12,
+          "nextID": 1,
+          "version": 1
+        }
+      }
+    }
+  ],
+  "node": {
+    "faultCases": 44,
+    "healthyCases": 4,
+    "invalidPrivateRefusalFamilies": 2,
+    "ok": true,
+    "backend": "fake IndexedDB",
+    "physicallyHeldPredecessor": true
+  },
+  "webkit": {
+    "physicalDevice": false,
+    "device": "iPhone13",
+    "ok": true,
+    "results": [
+      {
+        "fault": "save-false",
+        "account": "own",
+        "hits": 1,
+        "returned": false,
+        "error": null,
+        "pending": false,
+        "boundaryPuts": 0,
+        "priorSequence": 1,
+        "boundarySequence": 1,
+        "reload": "PASS",
+        "freshDurableOnly": "PASS",
+        "recoverySaveReload": "PASS",
+        "recoverySaveFreshDurableOnly": "PASS"
+      },
+      {
+        "fault": "save-before-throw",
+        "account": "own",
+        "hits": 1,
+        "returned": null,
+        "error": {
+          "name": "Error",
+          "message": "save before admission threw",
+          "stack": "@\nrunTransaction@http://127.0.0.1:43935/js/engine.js:867:20\n@\n@"
+        },
+        "pending": false,
+        "boundaryPuts": 0,
+        "priorSequence": 1,
+        "boundarySequence": 1,
+        "reload": "PASS",
+        "freshDurableOnly": "PASS",
+        "recoverySaveReload": "PASS",
+        "recoverySaveFreshDurableOnly": "PASS"
+      },
+      {
+        "fault": "mirror",
+        "account": "own",
+        "hits": 1,
+        "returned": false,
+        "error": null,
+        "pending": false,
+        "boundaryPuts": 0,
+        "priorSequence": 1,
+        "boundarySequence": 1,
+        "reload": "PASS",
+        "freshDurableOnly": "PASS",
+        "recoverySaveReload": "PASS",
+        "recoverySaveFreshDurableOnly": "PASS"
+      },
+      {
+        "fault": "enqueue-false",
+        "account": "own",
+        "hits": 1,
+        "returned": false,
+        "error": null,
+        "pending": false,
+        "boundaryPuts": 0,
+        "priorSequence": 1,
+        "boundarySequence": 1,
+        "reload": "PASS",
+        "freshDurableOnly": "PASS",
+        "recoverySaveReload": "PASS",
+        "recoverySaveFreshDurableOnly": "PASS"
+      },
+      {
+        "fault": "enqueue-throw",
+        "account": "own",
+        "hits": 1,
+        "returned": false,
+        "error": null,
+        "pending": false,
+        "boundaryPuts": 0,
+        "priorSequence": 1,
+        "boundarySequence": 1,
+        "reload": "PASS",
+        "freshDurableOnly": "PASS",
+        "recoverySaveReload": "PASS",
+        "recoverySaveFreshDurableOnly": "PASS"
+      },
+      {
+        "fault": "save-throw",
+        "account": "own",
+        "hits": 1,
+        "returned": null,
+        "error": {
+          "name": "Error",
+          "message": "PE acquisition save accepted then threw",
+          "stack": "@\nrunTransaction@http://127.0.0.1:43935/js/engine.js:867:20\n@\n@"
+        },
+        "pending": false,
+        "boundaryPuts": 0,
+        "priorSequence": 1,
+        "boundarySequence": 1,
+        "reload": "PASS",
+        "freshDurableOnly": "PASS",
+        "recoverySaveReload": "PASS",
+        "recoverySaveFreshDurableOnly": "PASS"
+      },
+      {
+        "fault": "saved",
+        "account": "own",
+        "hits": 1,
+        "returned": null,
+        "error": {
+          "name": "Error",
+          "message": "PE acquisition saved threw",
+          "stack": "@\n@http://127.0.0.1:43935/js/save-storage.js:249:15\nrunTransaction@http://127.0.0.1:43935/js/engine.js:867:20\n@\n@"
+        },
+        "pending": false,
+        "boundaryPuts": 0,
+        "priorSequence": 1,
+        "boundarySequence": 1,
+        "reload": "PASS",
+        "freshDurableOnly": "PASS",
+        "recoverySaveReload": "PASS",
+        "recoverySaveFreshDurableOnly": "PASS"
+      },
+      {
+        "fault": "change",
+        "account": "own",
+        "hits": 1,
+        "returned": null,
+        "error": {
+          "name": "Error",
+          "message": "PE acquisition change threw",
+          "stack": "@\nrunTransaction@http://127.0.0.1:43935/js/engine.js:868:16\n@\n@"
+        },
+        "pending": false,
+        "boundaryPuts": 0,
+        "priorSequence": 1,
+        "boundarySequence": 1,
+        "reload": "PASS",
+        "freshDurableOnly": "PASS",
+        "recoverySaveReload": "PASS",
+        "recoverySaveFreshDurableOnly": "PASS"
+      },
+      {
+        "fault": "notify",
+        "account": "own",
+        "hits": 1,
+        "returned": null,
+        "error": {
+          "name": "Error",
+          "message": "PE acquisition notify threw",
+          "stack": "@\nnotify@http://127.0.0.1:43935/js/engine.js:909:14\n@http://127.0.0.1:43935/js/expansion.js:387:83\nrunTransaction@http://127.0.0.1:43935/js/engine.js:832:20\n@\n@"
+        },
+        "pending": false,
+        "boundaryPuts": 0,
+        "priorSequence": 1,
+        "boundarySequence": 1,
+        "reload": "PASS",
+        "freshDurableOnly": "PASS",
+        "recoverySaveReload": "PASS",
+        "recoverySaveFreshDurableOnly": "PASS"
+      },
+      {
+        "fault": "pending-save-false",
+        "account": "own",
+        "hits": 1,
+        "returned": false,
+        "error": null,
+        "pending": true,
+        "boundaryPuts": 1,
+        "priorSequence": 1,
+        "boundarySequence": 2,
+        "reload": "PASS",
+        "freshDurableOnly": "PASS",
+        "recoverySaveReload": "PASS",
+        "recoverySaveFreshDurableOnly": "PASS"
+      },
+      {
+        "fault": "pending-save-throw",
+        "account": "own",
+        "hits": 1,
+        "returned": null,
+        "error": {
+          "name": "Error",
+          "message": "PE acquisition save accepted then threw",
+          "stack": "@\nrunTransaction@http://127.0.0.1:43935/js/engine.js:867:20\n@\n@"
+        },
+        "pending": true,
+        "boundaryPuts": 1,
+        "priorSequence": 1,
+        "boundarySequence": 2,
+        "reload": "PASS",
+        "freshDurableOnly": "PASS",
+        "recoverySaveReload": "PASS",
+        "recoverySaveFreshDurableOnly": "PASS"
+      },
+      {
+        "fault": "pending-saved",
+        "account": "own",
+        "hits": 1,
+        "returned": null,
+        "error": {
+          "name": "Error",
+          "message": "PE acquisition saved threw",
+          "stack": "@\n@http://127.0.0.1:43935/js/save-storage.js:249:15\nrunTransaction@http://127.0.0.1:43935/js/engine.js:867:20\n@\n@"
+        },
+        "pending": true,
+        "boundaryPuts": 1,
+        "priorSequence": 1,
+        "boundarySequence": 2,
+        "reload": "PASS",
+        "freshDurableOnly": "PASS",
+        "recoverySaveReload": "PASS",
+        "recoverySaveFreshDurableOnly": "PASS"
+      },
+      {
+        "fault": "pending-change",
+        "account": "own",
+        "hits": 1,
+        "returned": null,
+        "error": {
+          "name": "Error",
+          "message": "PE acquisition change threw",
+          "stack": "@\nrunTransaction@http://127.0.0.1:43935/js/engine.js:868:16\n@\n@"
+        },
+        "pending": true,
+        "boundaryPuts": 1,
+        "priorSequence": 1,
+        "boundarySequence": 2,
+        "reload": "PASS",
+        "freshDurableOnly": "PASS",
+        "recoverySaveReload": "PASS",
+        "recoverySaveFreshDurableOnly": "PASS"
+      },
+      {
+        "fault": "nested-save-false",
+        "account": "own",
+        "hits": 1,
+        "returned": false,
+        "error": null,
+        "pending": false,
+        "boundaryPuts": 0,
+        "priorSequence": 1,
+        "boundarySequence": 1,
+        "reload": "PASS",
+        "freshDurableOnly": "PASS",
+        "recoverySaveReload": "PASS",
+        "recoverySaveFreshDurableOnly": "PASS"
+      },
+      {
+        "fault": "nested-change",
+        "account": "own",
+        "hits": 1,
+        "returned": null,
+        "error": {
+          "name": "Error",
+          "message": "PE acquisition change threw",
+          "stack": "@\nrunTransaction@http://127.0.0.1:43935/js/engine.js:868:16\n@\n@"
+        },
+        "pending": false,
+        "boundaryPuts": 0,
+        "priorSequence": 1,
+        "boundarySequence": 1,
+        "reload": "PASS",
+        "freshDurableOnly": "PASS",
+        "recoverySaveReload": "PASS",
+        "recoverySaveFreshDurableOnly": "PASS"
+      },
+      {
+        "fault": "nested-notify",
+        "account": "own",
+        "hits": 1,
+        "returned": null,
+        "error": {
+          "name": "Error",
+          "message": "PE acquisition notify threw",
+          "stack": "@\nnotify@http://127.0.0.1:43935/js/engine.js:909:14\n@http://127.0.0.1:43935/js/expansion.js:387:83\nrunTransaction@http://127.0.0.1:43935/js/engine.js:832:20\n@\nrunTransaction@http://127.0.0.1:43935/js/engine.js:832:20\n@\n@"
+        },
+        "pending": false,
+        "boundaryPuts": 0,
+        "priorSequence": 1,
+        "boundarySequence": 1,
+        "reload": "PASS",
+        "freshDurableOnly": "PASS",
+        "recoverySaveReload": "PASS",
+        "recoverySaveFreshDurableOnly": "PASS"
+      },
+      {
+        "fault": "normal",
+        "account": "own",
+        "hits": 0,
+        "returned": true,
+        "error": null,
+        "pending": false,
+        "boundaryPuts": 1,
+        "priorSequence": 1,
+        "boundarySequence": 2,
+        "reload": "PASS",
+        "freshDurableOnly": "PASS",
+        "recoverySaveReload": "PASS",
+        "recoverySaveFreshDurableOnly": "PASS"
+      },
+      {
+        "fault": "legacy-normal",
+        "account": "own",
+        "hits": 0,
+        "returned": true,
+        "error": null,
+        "pending": false,
+        "boundaryPuts": 1,
+        "priorSequence": 1,
+        "boundarySequence": 2,
+        "reload": "PASS",
+        "freshDurableOnly": "PASS",
+        "recoverySaveReload": "PASS",
+        "recoverySaveFreshDurableOnly": "PASS"
+      },
+      {
+        "fault": "save-false",
+        "account": "external",
+        "hits": 1,
+        "returned": false,
+        "error": null,
+        "pending": false,
+        "boundaryPuts": 0,
+        "priorSequence": 1,
+        "boundarySequence": 1,
+        "reload": "PASS",
+        "freshDurableOnly": "PASS",
+        "recoverySaveReload": "PASS",
+        "recoverySaveFreshDurableOnly": "PASS"
+      },
+      {
+        "fault": "save-before-throw",
+        "account": "external",
+        "hits": 1,
+        "returned": null,
+        "error": {
+          "name": "Error",
+          "message": "save before admission threw",
+          "stack": "@\nrunTransaction@http://127.0.0.1:43935/js/engine.js:867:20\n@\n@"
+        },
+        "pending": false,
+        "boundaryPuts": 0,
+        "priorSequence": 1,
+        "boundarySequence": 1,
+        "reload": "PASS",
+        "freshDurableOnly": "PASS",
+        "recoverySaveReload": "PASS",
+        "recoverySaveFreshDurableOnly": "PASS"
+      },
+      {
+        "fault": "mirror",
+        "account": "external",
+        "hits": 1,
+        "returned": false,
+        "error": null,
+        "pending": false,
+        "boundaryPuts": 0,
+        "priorSequence": 1,
+        "boundarySequence": 1,
+        "reload": "PASS",
+        "freshDurableOnly": "PASS",
+        "recoverySaveReload": "PASS",
+        "recoverySaveFreshDurableOnly": "PASS"
+      },
+      {
+        "fault": "enqueue-false",
+        "account": "external",
+        "hits": 1,
+        "returned": false,
+        "error": null,
+        "pending": false,
+        "boundaryPuts": 0,
+        "priorSequence": 1,
+        "boundarySequence": 1,
+        "reload": "PASS",
+        "freshDurableOnly": "PASS",
+        "recoverySaveReload": "PASS",
+        "recoverySaveFreshDurableOnly": "PASS"
+      },
+      {
+        "fault": "enqueue-throw",
+        "account": "external",
+        "hits": 1,
+        "returned": false,
+        "error": null,
+        "pending": false,
+        "boundaryPuts": 0,
+        "priorSequence": 1,
+        "boundarySequence": 1,
+        "reload": "PASS",
+        "freshDurableOnly": "PASS",
+        "recoverySaveReload": "PASS",
+        "recoverySaveFreshDurableOnly": "PASS"
+      },
+      {
+        "fault": "save-throw",
+        "account": "external",
+        "hits": 1,
+        "returned": null,
+        "error": {
+          "name": "Error",
+          "message": "PE acquisition save accepted then threw",
+          "stack": "@\nrunTransaction@http://127.0.0.1:43935/js/engine.js:867:20\n@\n@"
+        },
+        "pending": false,
+        "boundaryPuts": 0,
+        "priorSequence": 1,
+        "boundarySequence": 1,
+        "reload": "PASS",
+        "freshDurableOnly": "PASS",
+        "recoverySaveReload": "PASS",
+        "recoverySaveFreshDurableOnly": "PASS"
+      },
+      {
+        "fault": "saved",
+        "account": "external",
+        "hits": 1,
+        "returned": null,
+        "error": {
+          "name": "Error",
+          "message": "PE acquisition saved threw",
+          "stack": "@\n@http://127.0.0.1:43935/js/save-storage.js:249:15\nrunTransaction@http://127.0.0.1:43935/js/engine.js:867:20\n@\n@"
+        },
+        "pending": false,
+        "boundaryPuts": 0,
+        "priorSequence": 1,
+        "boundarySequence": 1,
+        "reload": "PASS",
+        "freshDurableOnly": "PASS",
+        "recoverySaveReload": "PASS",
+        "recoverySaveFreshDurableOnly": "PASS"
+      },
+      {
+        "fault": "change",
+        "account": "external",
+        "hits": 1,
+        "returned": null,
+        "error": {
+          "name": "Error",
+          "message": "PE acquisition change threw",
+          "stack": "@\nrunTransaction@http://127.0.0.1:43935/js/engine.js:868:16\n@\n@"
+        },
+        "pending": false,
+        "boundaryPuts": 0,
+        "priorSequence": 1,
+        "boundarySequence": 1,
+        "reload": "PASS",
+        "freshDurableOnly": "PASS",
+        "recoverySaveReload": "PASS",
+        "recoverySaveFreshDurableOnly": "PASS"
+      },
+      {
+        "fault": "notify",
+        "account": "external",
+        "hits": 1,
+        "returned": null,
+        "error": {
+          "name": "Error",
+          "message": "PE acquisition notify threw",
+          "stack": "@\nnotify@http://127.0.0.1:43935/js/engine.js:909:14\n@http://127.0.0.1:43935/js/expansion.js:387:83\nrunTransaction@http://127.0.0.1:43935/js/engine.js:832:20\n@\n@"
+        },
+        "pending": false,
+        "boundaryPuts": 0,
+        "priorSequence": 1,
+        "boundarySequence": 1,
+        "reload": "PASS",
+        "freshDurableOnly": "PASS",
+        "recoverySaveReload": "PASS",
+        "recoverySaveFreshDurableOnly": "PASS"
+      },
+      {
+        "fault": "pending-save-false",
+        "account": "external",
+        "hits": 1,
+        "returned": false,
+        "error": null,
+        "pending": true,
+        "boundaryPuts": 1,
+        "priorSequence": 1,
+        "boundarySequence": 2,
+        "reload": "PASS",
+        "freshDurableOnly": "PASS",
+        "recoverySaveReload": "PASS",
+        "recoverySaveFreshDurableOnly": "PASS"
+      },
+      {
+        "fault": "pending-save-throw",
+        "account": "external",
+        "hits": 1,
+        "returned": null,
+        "error": {
+          "name": "Error",
+          "message": "PE acquisition save accepted then threw",
+          "stack": "@\nrunTransaction@http://127.0.0.1:43935/js/engine.js:867:20\n@\n@"
+        },
+        "pending": true,
+        "boundaryPuts": 1,
+        "priorSequence": 1,
+        "boundarySequence": 2,
+        "reload": "PASS",
+        "freshDurableOnly": "PASS",
+        "recoverySaveReload": "PASS",
+        "recoverySaveFreshDurableOnly": "PASS"
+      },
+      {
+        "fault": "pending-saved",
+        "account": "external",
+        "hits": 1,
+        "returned": null,
+        "error": {
+          "name": "Error",
+          "message": "PE acquisition saved threw",
+          "stack": "@\n@http://127.0.0.1:43935/js/save-storage.js:249:15\nrunTransaction@http://127.0.0.1:43935/js/engine.js:867:20\n@\n@"
+        },
+        "pending": true,
+        "boundaryPuts": 1,
+        "priorSequence": 1,
+        "boundarySequence": 2,
+        "reload": "PASS",
+        "freshDurableOnly": "PASS",
+        "recoverySaveReload": "PASS",
+        "recoverySaveFreshDurableOnly": "PASS"
+      },
+      {
+        "fault": "pending-change",
+        "account": "external",
+        "hits": 1,
+        "returned": null,
+        "error": {
+          "name": "Error",
+          "message": "PE acquisition change threw",
+          "stack": "@\nrunTransaction@http://127.0.0.1:43935/js/engine.js:868:16\n@\n@"
+        },
+        "pending": true,
+        "boundaryPuts": 1,
+        "priorSequence": 1,
+        "boundarySequence": 2,
+        "reload": "PASS",
+        "freshDurableOnly": "PASS",
+        "recoverySaveReload": "PASS",
+        "recoverySaveFreshDurableOnly": "PASS"
+      },
+      {
+        "fault": "nested-save-false",
+        "account": "external",
+        "hits": 1,
+        "returned": false,
+        "error": null,
+        "pending": false,
+        "boundaryPuts": 0,
+        "priorSequence": 1,
+        "boundarySequence": 1,
+        "reload": "PASS",
+        "freshDurableOnly": "PASS",
+        "recoverySaveReload": "PASS",
+        "recoverySaveFreshDurableOnly": "PASS"
+      },
+      {
+        "fault": "nested-change",
+        "account": "external",
+        "hits": 1,
+        "returned": null,
+        "error": {
+          "name": "Error",
+          "message": "PE acquisition change threw",
+          "stack": "@\nrunTransaction@http://127.0.0.1:43935/js/engine.js:868:16\n@\n@"
+        },
+        "pending": false,
+        "boundaryPuts": 0,
+        "priorSequence": 1,
+        "boundarySequence": 1,
+        "reload": "PASS",
+        "freshDurableOnly": "PASS",
+        "recoverySaveReload": "PASS",
+        "recoverySaveFreshDurableOnly": "PASS"
+      },
+      {
+        "fault": "nested-notify",
+        "account": "external",
+        "hits": 1,
+        "returned": null,
+        "error": {
+          "name": "Error",
+          "message": "PE acquisition notify threw",
+          "stack": "@\nnotify@http://127.0.0.1:43935/js/engine.js:909:14\n@http://127.0.0.1:43935/js/expansion.js:387:83\nrunTransaction@http://127.0.0.1:43935/js/engine.js:832:20\n@\nrunTransaction@http://127.0.0.1:43935/js/engine.js:832:20\n@\n@"
+        },
+        "pending": false,
+        "boundaryPuts": 0,
+        "priorSequence": 1,
+        "boundarySequence": 1,
+        "reload": "PASS",
+        "freshDurableOnly": "PASS",
+        "recoverySaveReload": "PASS",
+        "recoverySaveFreshDurableOnly": "PASS"
+      },
+      {
+        "fault": "normal",
+        "account": "external",
+        "hits": 0,
+        "returned": true,
+        "error": null,
+        "pending": false,
+        "boundaryPuts": 1,
+        "priorSequence": 1,
+        "boundarySequence": 2,
+        "reload": "PASS",
+        "freshDurableOnly": "PASS",
+        "recoverySaveReload": "PASS",
+        "recoverySaveFreshDurableOnly": "PASS"
+      },
+      {
+        "fault": "legacy-normal",
+        "account": "external",
+        "hits": 0,
+        "returned": true,
+        "error": null,
+        "pending": false,
+        "boundaryPuts": 1,
+        "priorSequence": 1,
+        "boundarySequence": 2,
+        "reload": "PASS",
+        "freshDurableOnly": "PASS",
+        "recoverySaveReload": "PASS",
+        "recoverySaveFreshDurableOnly": "PASS"
+      }
+    ]
+  },
+  "normalParity": {
+    "ok": true,
+    "cases": 4,
+    "compared": "all economic state, stored fields except lastSaveDate, event sequence, save count, host RNG"
+  },
+  "logsSHA256": {
+    "original-red.log": "80dc6598f83df9bfcfd03db5f05b84ab2eb8e001658573c53d5bde5eff0e472e",
+    "permanent-red.log": "4962b17123174cfa6f376078d36efdbfde6b421ed5d4a364d988187d871c3a41",
+    "webkit-red-final.log": "af09b4e7b0e5f2e0903bfa5fa6677518bba91035467910d9348fea660dbb2fc1",
+    "original-green.log": "996fe2acba887784924cbeb770f81a0d5f8b67dfee1aa7078a1f5f7fbdc9d478",
+    "node-green.log": "175a678e271839bacf00cd35409d399917e53fec694761eaaf25c6224df92eaf",
+    "webkit-final.log": "909a76b30ac2a02fbd68212dcc4db8b866f0735ac915746518b1c305a7d0d05f",
+    "parity-before.log": "89bc62b9671d90d37a4e520e931eb6e050fda7a0b1210136a8e9bbecf15161e0",
+    "parity-after.log": "89bc62b9671d90d37a4e520e931eb6e050fda7a0b1210136a8e9bbecf15161e0",
+    "syntax.log": "26c43c36ff170246afab8a388041ad117960e036fd8c437bfb78b15a384023b6",
+    "registration.log": "e800953ea7947a6fee43838d4096c7e2bdd4d896959a742ec27ecb867445ad1c",
+    "shard-contract.log": "e239d486e0e33fe7149ec8db960c03c68df63b53ed1948ccb71fbc7fb2c895da",
+    "workflow-contract.log": "ec95dc72a7105a006cfd5f47fd3284865313a335cb6fae2588256b229b01a576"
+  },
+  "limits": [
+    "physical iPhone not executed",
+    "real-browser predecessor is same-task pending enqueue, not a physically held request",
+    "finite-ratio policy, split replay identities and ownership authority not changed"
+  ]
+}
