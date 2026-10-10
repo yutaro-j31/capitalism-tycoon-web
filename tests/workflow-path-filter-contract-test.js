@@ -224,7 +224,6 @@ for (const job of [comprehensiveMaJob,dealRoom]) {
   assert(job.includes('node tests/pe-fund-acquisition-save-atomicity-webkit-test.js'), 'both PR and main gates must exercise PE acquisition rollback/storage');
   assert(job.includes('node tests/ma-subsidiary-sale-save-atomicity-webkit-test.js'), 'both PR and main gates must exercise actual subsidiary sale rollback/storage');
   assert(job.includes('node tests/parent-ipo-save-atomicity-webkit-test.js'), 'both PR and main gates must exercise actual IPO storage/rollback');
-  assert(job.includes('node tests/stock-split-save-atomicity-webkit-test.js'), 'both PR and main gates must exercise stock split save atomicity');
   assert(job.includes('node tests/stock-split-price-history-webkit-test.js'), 'both PR and main gates must exercise stock split history persistence');
 }
 assert(dealRoom.includes("github.event_name == 'pull_request'") && dealRoom.includes("inputs.mode == 'deal-room'"), 'Deal Room must run on PR and deal-room manual mode');
@@ -242,6 +241,12 @@ for (const command of [
   'path: artifacts/ceo-dashboard-webkit', 'if: always()', 'if-no-files-found: error'
 ]) assert(dealRoom.includes(command), `Deal Room must retain ${command}`);
 
+const splitAtomicity = jobBlock(comprehensiveMa, 'stock-split-atomicity');
+assert(!/^    if:/m.test(splitAtomicity), 'stock split real WebKit must run on every workflow event including PR and main');
+assert(splitAtomicity.includes('timeout-minutes: 15') && splitAtomicity.includes("node-version: '20'"), 'stock split WebKit must retain a bounded pinned runtime');
+for (const command of ['playwright@1.61.0', 'npx playwright install --with-deps webkit', 'node tests/stock-split-save-atomicity-webkit-test.js', 'actions/upload-artifact@v4', 'path: artifacts/stock-split-atomicity-webkit', 'if: always()', 'if-no-files-found: error']) {
+  assert(splitAtomicity.includes(command), `independent stock split gate must retain ${command}`);
+}
 const pagesSmoke = readWorkflow('pages-deployment-smoke.yml');
 assert(/^name: Pages Deployment Smoke$/m.test(pagesSmoke), 'Pages Deployment Smoke name is a workflow_run contract');
 assert(hasTrigger(pagesSmoke, 'push') && hasTrigger(pagesSmoke, 'schedule') && hasTrigger(pagesSmoke, 'workflow_dispatch'), 'Pages Deployment Smoke triggers must remain intact');
