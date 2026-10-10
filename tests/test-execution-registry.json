@@ -199,6 +199,10 @@
     "reason": "Installed personal/company stock sale rollback, real iPhone WebKit and fresh IndexedDB context in PR and main gates.",
     "executedBy": ".github/workflows/ma-acquisition-financing.yml"
   },
+  "tests/stock-split-save-atomicity-webkit-test.js": {
+    "reason": "Own/external split full rollback, pending predecessor, reload and fresh real IndexedDB in the independent stock-split-atomicity job on every workflow event including PR/main.",
+    "executedBy": ".github/workflows/ma-acquisition-financing.yml"
+  },
   "tests/stock-split-price-history-webkit-test.js": {
     "reason": "Actual own/external stock split history persistence and fresh IndexedDB iPhone WebKit in PR/main gates.",
     "executedBy": ".github/workflows/ma-acquisition-financing.yml"
