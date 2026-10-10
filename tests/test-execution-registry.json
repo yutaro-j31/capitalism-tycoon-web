@@ -223,6 +223,10 @@
     "reason": "Actual PE fund acquisition rollback, coinvestment, prior pending put and fresh IndexedDB iPhone WebKit in PR/main gates.",
     "executedBy": ".github/workflows/ma-acquisition-financing.yml"
   },
+  "tests/pe-portfolio-exit-save-atomicity-webkit-test.js": {
+    "reason": "Actual PE portfolio Exit rollback, prior pending put, reload and fresh IndexedDB iPhone WebKit in PR/main gates.",
+    "executedBy": ".github/workflows/ma-acquisition-financing.yml"
+  },
   "tests/ma-subsidiary-sale-save-atomicity-webkit-test.js": {
     "reason": "Real iPhone WebKit subsidiary sale rollback, prior pending write and fresh IndexedDB hydration in PR/main gates.",
     "executedBy": ".github/workflows/ma-acquisition-financing.yml"
