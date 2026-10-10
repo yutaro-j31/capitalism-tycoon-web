@@ -158,6 +158,9 @@ assert.deepEqual(pathsFor(comprehensiveMa, 'pull_request'), [
   'tests/founder-share-sale-save-atomicity-test.js', 'tests/founder-share-sale-save-atomicity-webkit-test.js',
   'tests/stock-purchase-save-atomicity-test.js', 'tests/stock-purchase-save-atomicity-webkit-test.js',
   'tests/stock-sale-save-atomicity-test.js', 'tests/stock-sale-save-atomicity-webkit-test.js',
+  'tests/stock-split-save-atomicity-test.js',
+  'tests/stock-split-save-atomicity-webkit-test.js',
+  'tests/fixtures/stock-split-atomicity.js',
   'tests/stock-split-price-history-test.js', 'tests/stock-split-price-history-webkit-test.js',
   'js/pe-acquisition.js',
   'tests/vc-secondary-sale-save-atomicity-test.js',
@@ -184,7 +187,7 @@ assert.deepEqual(pathsFor(comprehensiveMa, 'pull_request'), [
 assert(hasTrigger(comprehensiveMa, 'push') && pathsFor(comprehensiveMa, 'push').length > 0, 'M&A comprehensive main push must use paths');
 assert(isMainOnly(triggerBlock(comprehensiveMa, 'push')), 'M&A comprehensive push must be main-only');
 for (const event of ['pull_request', 'push']) {
-  for (const path of ['tests/vc-secondary-sale-save-atomicity-test.js', 'tests/vc-secondary-sale-save-false-red-probe.js', 'tests/vc-secondary-sale-save-atomicity-webkit-test.js', 'tests/fixtures/vc-secondary-sale-atomicity.js', 'tests/vc-follow-on-save-atomicity-test.js', 'tests/vc-follow-on-save-atomicity-webkit-test.js', 'tests/fixtures/vc-follow-on-atomicity.js', 'tests/vc-initial-investment-save-atomicity-test.js', 'tests/vc-initial-investment-save-atomicity-webkit-test.js', 'tests/fixtures/vc-initial-investment-atomicity.js', 'tests/stock-split-price-history-test.js', 'tests/stock-split-price-history-webkit-test.js', 'tests/stock-sale-save-atomicity-test.js', 'tests/stock-sale-save-atomicity-webkit-test.js', 'js/engine.js', 'tests/stock-purchase-save-atomicity-test.js', 'tests/stock-purchase-save-atomicity-webkit-test.js', 'js/expansion.js', 'tests/investor-offer-save-atomicity-test.js', 'tests/investor-offer-save-atomicity-webkit-test.js', 'tests/founder-share-sale-save-atomicity-test.js', 'tests/founder-share-sale-save-atomicity-webkit-test.js']) {
+  for (const path of ['tests/stock-split-save-atomicity-test.js', 'tests/stock-split-save-atomicity-webkit-test.js', 'tests/fixtures/stock-split-atomicity.js', 'tests/vc-secondary-sale-save-atomicity-test.js', 'tests/vc-secondary-sale-save-false-red-probe.js', 'tests/vc-secondary-sale-save-atomicity-webkit-test.js', 'tests/fixtures/vc-secondary-sale-atomicity.js', 'tests/vc-follow-on-save-atomicity-test.js', 'tests/vc-follow-on-save-atomicity-webkit-test.js', 'tests/fixtures/vc-follow-on-atomicity.js', 'tests/vc-initial-investment-save-atomicity-test.js', 'tests/vc-initial-investment-save-atomicity-webkit-test.js', 'tests/fixtures/vc-initial-investment-atomicity.js', 'tests/stock-split-price-history-test.js', 'tests/stock-split-price-history-webkit-test.js', 'tests/stock-sale-save-atomicity-test.js', 'tests/stock-sale-save-atomicity-webkit-test.js', 'js/engine.js', 'tests/stock-purchase-save-atomicity-test.js', 'tests/stock-purchase-save-atomicity-webkit-test.js', 'js/expansion.js', 'tests/investor-offer-save-atomicity-test.js', 'tests/investor-offer-save-atomicity-webkit-test.js', 'tests/founder-share-sale-save-atomicity-test.js', 'tests/founder-share-sale-save-atomicity-webkit-test.js']) {
     assert(pathsFor(comprehensiveMa, event).includes(path), `${event} must run economic-command WebKit on ${path}`);
   }
 }
@@ -221,6 +224,7 @@ for (const job of [comprehensiveMaJob,dealRoom]) {
   assert(job.includes('node tests/pe-fund-acquisition-save-atomicity-webkit-test.js'), 'both PR and main gates must exercise PE acquisition rollback/storage');
   assert(job.includes('node tests/ma-subsidiary-sale-save-atomicity-webkit-test.js'), 'both PR and main gates must exercise actual subsidiary sale rollback/storage');
   assert(job.includes('node tests/parent-ipo-save-atomicity-webkit-test.js'), 'both PR and main gates must exercise actual IPO storage/rollback');
+  assert(job.includes('node tests/stock-split-save-atomicity-webkit-test.js'), 'both PR and main gates must exercise stock split save atomicity');
   assert(job.includes('node tests/stock-split-price-history-webkit-test.js'), 'both PR and main gates must exercise stock split history persistence');
 }
 assert(dealRoom.includes("github.event_name == 'pull_request'") && dealRoom.includes("inputs.mode == 'deal-room'"), 'Deal Room must run on PR and deal-room manual mode');
