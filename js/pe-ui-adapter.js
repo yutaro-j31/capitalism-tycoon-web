@@ -402,7 +402,10 @@ function saveSuccessful(engine,result){if(!result)return false;engine.save?.();r
 function performPortfolio(action,payload={}){
   const {engine,state}=current();if(!engine||!state||!portfolio)return false;
   const fundID=String(payload.fundID||''),dealID=String(payload.dealID||'');
-  if(action==='exit'){const options={method:String(payload.method||'sale')};if(payload.buyerID)options.buyerID=String(payload.buyerID);return saveSuccessful(engine,portfolio.exitPortfolioCompany(state,fundID,dealID,options));}
+  if(action==='exit'){const options={method:String(payload.method||'sale')};if(payload.buyerID)options.buyerID=String(payload.buyerID);const exit=()=>portfolio.exitPortfolioCompany(state,fundID,dealID,options);
+    // The common transaction/checkpoint owns save rejection and rollback (PE-PORTFOLIO-EXIT-ATOMICITY-001).
+    // Only engine stand-ins without it keep the legacy save-after-write path.
+    return typeof engine.runTransaction==='function'?engine.runTransaction(()=>Boolean(exit())):saveSuccessful(engine,exit());}
   if(action==='acquireIntoGroup')return engine.acquirePEPortfolioCompany?.(fundID,dealID)??false;
   if(!requireManagementCapability(engine,fundID,dealID))return false;
   // realEstateAgency's production brokerage pipeline never reads business.price. Reject the
