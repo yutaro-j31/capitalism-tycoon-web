@@ -263,6 +263,8 @@ for (const [job, tests] of Object.entries(movedFamilyJobs)) {
   assert(!/^    if:/m.test(block), `${job} must run on every workflow event including PR, main, schedule and both manual modes`);
   assert(block.includes('timeout-minutes: 15') && block.includes('runs-on: ubuntu-latest'), `${job} must keep a bounded hosted runner`);
   assert(block.includes(legacyRuntime), `${job} must keep the pre-split runtime per event (Node 20 PR/deal-room, Node 22 main/schedule/comprehensive)`);
+  assert(block.includes(`group: ma-acquisition-financing-${job}-\${{ (github.event_name == 'pull_request' || inputs.mode == 'deal-room') && github.run_id || github.ref }}`)
+    && block.includes('cancel-in-progress: true'), `${job} must keep pre-split cancellation: per-ref for main/schedule/comprehensive, never for PR/deal-room`);
   for (const command of ['playwright@1.61.0', 'npx playwright install --with-deps webkit', `MA_DEAL_ROOM_ARTIFACT_DIR: artifacts/${job}-webkit`,
     'actions/upload-artifact@v4', `name: ${job}-webkit-\${{ github.sha }}`, `path: artifacts/${job}-webkit`, 'if: always()', 'if-no-files-found: error', 'retention-days: 30']) {
     assert(block.includes(command), `${job} must retain ${command}`);

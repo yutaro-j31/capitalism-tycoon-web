@@ -299,6 +299,12 @@ jobs:
     # No event guard: PR, main push, schedule and both manual modes run it (Phase 1A split).
     # Keep the runtime each event used before the split: Node 20 for the PR / deal-room gate,
     # Node 22 for main push, schedule and the comprehensive manual mode.
+    # Same cancellation as before the split: superseded main push / schedule / comprehensive runs
+    # cancel this job per ref like comprehensive-ma; PR and deal-room runs get a per-run group, so
+    # they are never cancelled or serialized (deal-room never had concurrency).
+    concurrency:
+      group: ma-acquisition-financing-pe-acquisition-atomicity-${{ (github.event_name == 'pull_request' || inputs.mode == 'deal-room') && github.run_id || github.ref }}
+      cancel-in-progress: true
     runs-on: ubuntu-latest
     timeout-minutes: 15
     env:
@@ -329,6 +335,12 @@ jobs:
     # No event guard: PR, main push, schedule and both manual modes run it (Phase 1A split).
     # Keep the runtime each event used before the split: Node 20 for the PR / deal-room gate,
     # Node 22 for main push, schedule and the comprehensive manual mode.
+    # Same cancellation as before the split: superseded main push / schedule / comprehensive runs
+    # cancel this job per ref like comprehensive-ma; PR and deal-room runs get a per-run group, so
+    # they are never cancelled or serialized (deal-room never had concurrency).
+    concurrency:
+      group: ma-acquisition-financing-vc-secondary-atomicity-${{ (github.event_name == 'pull_request' || inputs.mode == 'deal-room') && github.run_id || github.ref }}
+      cancel-in-progress: true
     runs-on: ubuntu-latest
     timeout-minutes: 15
     env:
@@ -359,6 +371,12 @@ jobs:
     # No event guard: PR, main push, schedule and both manual modes run it (Phase 1A split).
     # Keep the runtime each event used before the split: Node 20 for the PR / deal-room gate,
     # Node 22 for main push, schedule and the comprehensive manual mode.
+    # Same cancellation as before the split: superseded main push / schedule / comprehensive runs
+    # cancel this job per ref like comprehensive-ma; PR and deal-room runs get a per-run group, so
+    # they are never cancelled or serialized (deal-room never had concurrency).
+    concurrency:
+      group: ma-acquisition-financing-vc-funding-atomicity-${{ (github.event_name == 'pull_request' || inputs.mode == 'deal-room') && github.run_id || github.ref }}
+      cancel-in-progress: true
     runs-on: ubuntu-latest
     timeout-minutes: 15
     env:
