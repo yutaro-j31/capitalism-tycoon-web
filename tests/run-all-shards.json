@@ -73,6 +73,7 @@
   ],
   "E": [
     "tests/week-transaction-atomicity-test.js",
+    "tests/player-crisis-turnaround-ratchet-week-rollback-test.js",
     "tests/loan-single-interest-test.js",
     "tests/real-estate-building-depreciation-test.js",
     "tests/real-estate-land-book-classification-test.js",
