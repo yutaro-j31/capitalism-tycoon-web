@@ -69,7 +69,8 @@
     "tests/ramen-supply-payment-terms-244week-regression-test.js",
     "tests/vc-secondary-sale-save-false-red-probe.js",
     "tests/vc-secondary-sale-save-atomicity-test.js",
-    "tests/stock-split-save-atomicity-test.js"
+    "tests/stock-split-save-atomicity-test.js",
+    "tests/execute-mbo-save-atomicity-test.js"
   ],
   "E": [
     "tests/week-transaction-atomicity-test.js",
