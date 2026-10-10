@@ -227,7 +227,7 @@ assert(dealRoom.includes("github.event_name == 'pull_request'") && dealRoom.incl
 for (const forbidden of ["github.event_name == 'push'", "github.event_name == 'schedule'", "inputs.mode == 'comprehensive'", 'concurrency:']) {
   assert(!dealRoom.includes(forbidden), `Deal Room must not inherit ${forbidden}`);
 }
-assert(dealRoom.includes('timeout-minutes: 15') && dealRoom.includes("node-version: '20'"), 'Deal Room must retain Node 20 and timeout 15');
+assert(dealRoom.includes('timeout-minutes: 25') && dealRoom.includes("node-version: '20'"), 'Deal Room must retain Node 20 and timeout 25');
 for (const command of [
   'npm run test:ma-deal-room', 'npm run test:ma-integration', 'npm run test:finance-ma-accounting',
   'npm run test:save', 'npm run test:migration', 'npm run test:save-v9', 'npm run test:week',
