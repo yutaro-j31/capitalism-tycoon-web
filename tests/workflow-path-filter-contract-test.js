@@ -214,11 +214,20 @@ for (const command of [
   'npm run test:accounting-invariants', 'npm run test:save', 'npm run test:migration', 'npm run test:save-v9',
   'npm run test:week', 'npm run test:transaction', 'npm run test:syntax', 'npm run test:javascript',
   'npm run test:modules', 'npm run test:static', 'npm run test:css', 'npm run test:progression-balance',
-  'npm run test:strategy-balance', 'node tests/v1-progression-gate-test.js', 'node tests/executive-secretary-test.js',
+  'node tests/v1-progression-gate-test.js', 'node tests/executive-secretary-test.js',
   'node tests/ma-acquisition-financing-webkit-test.js', 'node tests/ma-board-approval-webkit-test.js',
   'node tests/ma-deal-room-webkit-test.js', 'node tests/ma-integration-webkit-test.js', 'node tests/ceo-dashboard-webkit-test.js',
   'ma-acquisition-financing-${{ github.sha }}', 'retention-days: 30', 'if-no-files-found: error'
 ]) assert(comprehensiveMaJob.includes(command), `M&A comprehensive gate must retain ${command}`);
+// Phase 1B: strategy balance runs in a parallel job with comprehensive-ma's exact events, runtime,
+// install step and cancellation; it must not also stay in comprehensive-ma.
+const comprehensiveBalance = jobBlock(comprehensiveMa, 'comprehensive-ma-balance');
+assert(jobCondition(comprehensiveMaJob), 'comprehensive M&A must keep an event condition');
+assert.equal(jobCondition(comprehensiveBalance), jobCondition(comprehensiveMaJob), 'strategy balance job must use exactly the comprehensive M&A events');
+assert(comprehensiveBalance.includes("node-version: '22'") && comprehensiveBalance.includes('timeout-minutes: 30') && comprehensiveBalance.includes('npm ci || npm install'), 'strategy balance job must keep Node 22, the install step and a bounded timeout');
+assert(comprehensiveBalance.includes('group: ma-acquisition-financing-balance-${{ github.ref }}') && comprehensiveBalance.includes('cancel-in-progress: true'), 'strategy balance job must be cancelled with superseded comprehensive runs in its own group');
+assert(comprehensiveBalance.includes('run: npm run test:strategy-balance'), 'strategy balance job must run the full matrix command');
+assert(!comprehensiveMaJob.includes('npm run test:strategy-balance'), 'strategy balance moved to comprehensive-ma-balance and must not run twice');
 const dealRoom = jobBlock(comprehensiveMa, 'deal-room');
 // Phase 1A: PE acquisition moved to pe-acquisition-atomicity; its PR and main coverage is
 // asserted per evaluated event below, together with the moved VC regressions.
@@ -318,21 +327,32 @@ const preSplitComprehensiveWebkit = [
   'tests/vc-secondary-sale-save-atomicity-webkit-test.js', 'tests/vc-follow-on-save-atomicity-webkit-test.js', 'tests/vc-initial-investment-save-atomicity-webkit-test.js',
   'tests/ma-integration-webkit-test.js', 'tests/ceo-dashboard-webkit-test.js', 'tests/stock-split-save-atomicity-webkit-test.js'
 ];
+// Node (non-WebKit) commands per event, compared against the pre-split jobs (Phase 1B).
+const nodeCommands = block => [...block.matchAll(/(npm run test:[\w:-]+|node tests\/[\w.-]+\.js)/g)].map(match => match[1]).filter(command => !command.endsWith('-webkit-test.js'));
+const preSplitDealRoomNode = ['ma-deal-room', 'ma-integration', 'finance-ma-accounting', 'save', 'migration', 'save-v9', 'week', 'transaction',
+  'syntax', 'javascript', 'modules', 'static', 'css'].map(name => `npm run test:${name}`);
+const preSplitComprehensiveNode = [...['ma-acquisition-financing', 'ma-board-approval', 'ma-deal-room', 'ma-integration', 'ma-portfolio-summary',
+  'ma-portfolio-summary-ui', 'ceo-dashboard', 'finance', 'finance-ma-accounting', 'accounting-invariants', 'save', 'migration', 'save-v9', 'week',
+  'transaction', 'syntax', 'javascript', 'modules', 'static', 'css', 'progression-balance', 'strategy-balance'].map(name => `npm run test:${name}`),
+  'node tests/v1-progression-gate-test.js', 'node tests/executive-secretary-test.js'];
 const maJobs = jobNames(comprehensiveMa);
 for (const [label, context, expected, expectedJobs] of [
   ['pull_request', {event: 'pull_request', mode: ''}, preSplitDealRoomWebkit, ['deal-room']],
   ['workflow_dispatch deal-room', {event: 'workflow_dispatch', mode: 'deal-room'}, preSplitDealRoomWebkit, ['deal-room']],
-  ['push main', {event: 'push', mode: ''}, preSplitComprehensiveWebkit, ['comprehensive-ma']],
-  ['schedule', {event: 'schedule', mode: ''}, preSplitComprehensiveWebkit, ['comprehensive-ma']],
-  ['workflow_dispatch comprehensive', {event: 'workflow_dispatch', mode: 'comprehensive'}, preSplitComprehensiveWebkit, ['comprehensive-ma']]
+  ['push main', {event: 'push', mode: ''}, preSplitComprehensiveWebkit, ['comprehensive-ma', 'comprehensive-ma-balance']],
+  ['schedule', {event: 'schedule', mode: ''}, preSplitComprehensiveWebkit, ['comprehensive-ma', 'comprehensive-ma-balance']],
+  ['workflow_dispatch comprehensive', {event: 'workflow_dispatch', mode: 'comprehensive'}, preSplitComprehensiveWebkit, ['comprehensive-ma', 'comprehensive-ma-balance']]
 ]) {
   const running = maJobs.filter(job => evaluateCondition(jobCondition(jobBlock(comprehensiveMa, job)), context));
   for (const job of [...expectedJobs, 'stock-split-atomicity', ...Object.keys(movedFamilyJobs), 'ma-economic-gate'])
     assert(running.includes(job), `${label} must run ${job}`);
-  for (const job of ['comprehensive-ma', 'deal-room'].filter(job => !expectedJobs.includes(job)))
+  for (const job of ['comprehensive-ma', 'comprehensive-ma-balance', 'deal-room'].filter(job => !expectedJobs.includes(job)))
     assert(!running.includes(job), `${label} must not run ${job}`);
   const executed = running.flatMap(job => webkitCommands(jobBlock(comprehensiveMa, job)));
   assert.deepEqual([...executed].sort(), [...expected].sort(), `${label} must execute exactly the pre-split WebKit set, each regression once`);
+  const nodeExecuted = running.flatMap(job => nodeCommands(jobBlock(comprehensiveMa, job)));
+  const nodeExpected = expectedJobs.includes('deal-room') ? preSplitDealRoomNode : preSplitComprehensiveNode;
+  assert.deepEqual([...nodeExecuted].sort(), [...nodeExpected].sort(), `${label} must execute exactly the pre-split Node command set, each command once`);
 }
 
 // The aggregate verdict must cover every other M&A job, so a skipped, cancelled or failed
