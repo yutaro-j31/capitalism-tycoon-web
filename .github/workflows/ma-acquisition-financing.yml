@@ -196,10 +196,6 @@ jobs:
           node tests/stock-split-price-history-webkit-test.js
           node tests/parent-ipo-save-atomicity-webkit-test.js
           node tests/ma-subsidiary-sale-save-atomicity-webkit-test.js
-          node tests/pe-fund-acquisition-save-atomicity-webkit-test.js
-          node tests/vc-secondary-sale-save-atomicity-webkit-test.js
-          node tests/vc-follow-on-save-atomicity-webkit-test.js
-          node tests/vc-initial-investment-save-atomicity-webkit-test.js
           node tests/ma-integration-webkit-test.js
           node tests/ceo-dashboard-webkit-test.js
 
@@ -255,10 +251,6 @@ jobs:
       - run: node tests/stock-split-price-history-webkit-test.js
       - run: node tests/parent-ipo-save-atomicity-webkit-test.js
       - run: node tests/ma-subsidiary-sale-save-atomicity-webkit-test.js
-      - run: node tests/pe-fund-acquisition-save-atomicity-webkit-test.js
-      - run: node tests/vc-secondary-sale-save-atomicity-webkit-test.js
-      - run: node tests/vc-follow-on-save-atomicity-webkit-test.js
-      - run: node tests/vc-initial-investment-save-atomicity-webkit-test.js
       - run: node tests/ceo-dashboard-webkit-test.js
       - name: Upload M&A Deal Room WebKit artifact
         if: always()
@@ -301,3 +293,132 @@ jobs:
           path: artifacts/stock-split-atomicity-webkit
           if-no-files-found: error
           retention-days: 30
+
+  pe-acquisition-atomicity:
+    # PE fund/co-invest acquisition rollback and real-IndexedDB persistence, moved from deal-room and comprehensive-ma.
+    # No event guard: PR, main push, schedule and both manual modes run it (Phase 1A split).
+    # Keep the runtime each event used before the split: Node 20 for the PR / deal-room gate,
+    # Node 22 for main push, schedule and the comprehensive manual mode.
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      MA_DEAL_ROOM_ARTIFACT_DIR: artifacts/pe-acquisition-atomicity-webkit
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ (github.event_name == 'pull_request' || inputs.mode == 'deal-room') && '20' || '22' }}
+      - name: Install pinned Playwright runtime
+        run: npm install --no-save --no-package-lock playwright@1.61.0
+      - name: Install WebKit browser and system dependencies
+        run: npx playwright install --with-deps webkit
+      - name: PE fund acquisition atomicity in real iPhone WebKit
+        run: |
+          node tests/pe-fund-acquisition-save-atomicity-webkit-test.js
+      - name: Retain pe-acquisition-atomicity WebKit evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: pe-acquisition-atomicity-webkit-${{ github.sha }}
+          path: artifacts/pe-acquisition-atomicity-webkit
+          if-no-files-found: error
+          retention-days: 30
+
+  vc-secondary-atomicity:
+    # VC secondary sale rollback and real-IndexedDB persistence, moved from deal-room and comprehensive-ma.
+    # No event guard: PR, main push, schedule and both manual modes run it (Phase 1A split).
+    # Keep the runtime each event used before the split: Node 20 for the PR / deal-room gate,
+    # Node 22 for main push, schedule and the comprehensive manual mode.
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      MA_DEAL_ROOM_ARTIFACT_DIR: artifacts/vc-secondary-atomicity-webkit
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ (github.event_name == 'pull_request' || inputs.mode == 'deal-room') && '20' || '22' }}
+      - name: Install pinned Playwright runtime
+        run: npm install --no-save --no-package-lock playwright@1.61.0
+      - name: Install WebKit browser and system dependencies
+        run: npx playwright install --with-deps webkit
+      - name: VC secondary sale atomicity in real iPhone WebKit
+        run: |
+          node tests/vc-secondary-sale-save-atomicity-webkit-test.js
+      - name: Retain vc-secondary-atomicity WebKit evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: vc-secondary-atomicity-webkit-${{ github.sha }}
+          path: artifacts/vc-secondary-atomicity-webkit
+          if-no-files-found: error
+          retention-days: 30
+
+  vc-funding-atomicity:
+    # VC follow-on then initial investment rollback and persistence, in their original order, moved from deal-room and comprehensive-ma.
+    # No event guard: PR, main push, schedule and both manual modes run it (Phase 1A split).
+    # Keep the runtime each event used before the split: Node 20 for the PR / deal-room gate,
+    # Node 22 for main push, schedule and the comprehensive manual mode.
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      MA_DEAL_ROOM_ARTIFACT_DIR: artifacts/vc-funding-atomicity-webkit
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ (github.event_name == 'pull_request' || inputs.mode == 'deal-room') && '20' || '22' }}
+      - name: Install pinned Playwright runtime
+        run: npm install --no-save --no-package-lock playwright@1.61.0
+      - name: Install WebKit browser and system dependencies
+        run: npx playwright install --with-deps webkit
+      - name: VC follow-on and initial investment atomicity in real iPhone WebKit
+        run: |
+          node tests/vc-follow-on-save-atomicity-webkit-test.js
+          node tests/vc-initial-investment-save-atomicity-webkit-test.js
+      - name: Retain vc-funding-atomicity WebKit evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: vc-funding-atomicity-webkit-${{ github.sha }}
+          path: artifacts/vc-funding-atomicity-webkit
+          if-no-files-found: error
+          retention-days: 30
+
+  ma-economic-gate:
+    # One verdict for the split M&A gate. Every job that applies to this event must succeed;
+    # a job that does not apply must be skipped. Failure, cancellation or an unexpected skip of
+    # any job therefore fails this check. Branch protection is not configured, so this is a
+    # reporting gate, not a merge block on its own.
+    if: always()
+    needs: [comprehensive-ma, deal-room, stock-split-atomicity, pe-acquisition-atomicity, vc-secondary-atomicity, vc-funding-atomicity]
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Require every applicable M&A job to succeed
+        env:
+          NEEDS_JSON: ${{ toJSON(needs) }}
+          EVENT_NAME: ${{ github.event_name }}
+          DISPATCH_MODE: ${{ inputs.mode }}
+        run: |
+          node - <<'NODE'
+          const needs = JSON.parse(process.env.NEEDS_JSON);
+          const event = process.env.EVENT_NAME, mode = process.env.DISPATCH_MODE || '';
+          const comprehensive = event === 'push' || event === 'schedule' || (event === 'workflow_dispatch' && mode === 'comprehensive');
+          const dealRoom = event === 'pull_request' || (event === 'workflow_dispatch' && mode === 'deal-room');
+          const applies = {
+            'comprehensive-ma': comprehensive, 'deal-room': dealRoom, 'stock-split-atomicity': true,
+            'pe-acquisition-atomicity': true, 'vc-secondary-atomicity': true, 'vc-funding-atomicity': true
+          };
+          const problems = [];
+          for (const [job, required] of Object.entries(applies)) {
+            const result = needs[job]?.result ?? 'missing';
+            const expected = required ? 'success' : 'skipped';
+            console.log(`${job}: ${result} (expected ${expected})`);
+            if (result !== expected) problems.push(`${job} ${result} != ${expected}`);
+          }
+          const unknown = Object.keys(needs).filter(job => !(job in applies));
+          if (unknown.length) problems.push(`unclassified needs: ${unknown.join(', ')}`);
+          if (problems.length) { console.error(`M&A economic gate FAILED for ${event}${mode ? '/' + mode : ''}: ${problems.join('; ')}`); process.exit(1); }
+          console.log(`M&A economic gate PASS for ${event}${mode ? '/' + mode : ''}`);
+          NODE
