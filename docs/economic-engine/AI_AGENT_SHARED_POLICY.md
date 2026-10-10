@@ -46,17 +46,21 @@ As of the 2026-10-10 diagnostic Draft #935, 617 installed methods produced **277
 - Do not carry stale statuses forward: confirm current commits/PRs/issues and move resolved blockers only with merged regression and final gate evidence.
 - The current request authorizes cross-agent governance documentation and scoped architecture/audit planning; it does **not** retroactively authorize either outstanding P1 production fix or the ownership authority cutover.
 
-## 5. Work order and Owner stops
+## 5. Owner's standing five-step work order — RETAINED
 
-1. First resolve the task's **scope and authority**: docs/architecture review vs confirmed-finding correction vs approved production slice. State the requested done boundary.
-2. Governance/prioritization work may proceed as isolated docs/read-only activity while a P1 fix awaits approval. For each new confirmed P0/P1 stop its production correction, archive red reproduction, account/state/storage impact and minimal solution, then request an explicit single-finding Owner decision. Previous approvals are not reusable.
-3. When PE Exit is specifically approved, fix **both** engine and UI paths in one narrow concern using existing runTransaction/#915 checkpoint. Preserve normal differences (engine saved→change/network vs adapter saved-only/no-network) unless Owner approves a contract change. Do not merge #935; migrate its executable RED oracles into permanent canonical regressions.
-4. Independently address stockSplit P3-4-007 only under its own existing/renewed authorization, preserving earlier history correction.
-5. Reconcile **Track A** inventory against actual final installed prototype/wrappers and direct callers, publish a bounded matrix and missing-path list. Use focused fault harnesses for the first approved issuer family.
-6. Produce a reviewed **P3-4 adoption contract** specifying source of truth, exact quantities, compatibility representation, migration/old-save evidence, idempotency, shadow/weekly paths, disabled capability behavior, test gates and rollback. Implement cutover ONLY after slice-specific authorization and readiness.
-7. Continue later approved slices/Track B separately; never start Phase 9/10/13/14 settlement authority early.
+The previously approved #922 sequencing is not discarded or superseded by this architectural clarification. **Scope optimization modifies HOW work is performed, not its priority or authorization.**
 
-Keep 1 concern / 1 PR. No overlapping write branches or direct pushes to main. No automatic merging without the existing explicit authorization and successful final-head gates.
+1. **Immediate: P3-4-007 stockSplit save P1 correction**, 1 concern / 1 isolated production PR, subject to independently re-confirmed specific Owner authorization and no competing active PR. #921 repaired split history only. Verify installed UI/engine path, false/throw/post-save boundaries, existing PR #915 checkpoint, full state/storage rollback, normal-parity, Node/real WebKit and applicable CI/independent diff gates. A newly confirmed separate P0/P1 still observes the Owner stop boundary; do not construe priority as permission to ignore it.
+2. **Parallel when safe: P3-4 Writer Matrix read-only bulk audit.** Inspect all potential economic writers' actual save/exception/transaction/rollback boundaries as a read-only inventory, but deduplicate by economic effect, issuer family, actual writer/commit owner and all entry/bypass aliases. Complete Track A first for P3-4 issuer adoption; retain Track B separately rather than falsely requiring all 277 broad candidates to pass before Track A cutover. New confirmed P0/P1 requires evidence and an Owner decision before production correction; do not proceed with unapproved fixes.
+3. **After audit: Shared Transaction Fault Harness.** Design the minimal common fixture/injector/oracle with evidence from the inventory, then build a standalone **test-only** PR when its exact scope and authority are approved. Preserve existing canonical registrations/assertions; changes to permanent CI contract require their own approval.
+4. **Only after explicit Owner approval: limited auto-fix authority.** Propose exact eligible same-class defects, excluded scope, proof requirements, mutation and merge permissions, stop and audit gates; do not self-authorize automatic production fixes/merges. Existing AGENTS.md merge restriction and #922 per-finding stop rule remain binding unless explicitly superseded by a reviewed Owner decision.
+5. **Spare capacity: Phase 4+ read-only advance design.** Prepare dependency and Acceptance/entry contracts only; no later-phase authoritative implementation or settlement migration before prerequisites and Owner gates.
+
+**Separate newly confirmed blocker:** PE-PORTFOLIO-EXIT-ATOMICITY-001 affects both engine and primary PE UI helper routes. It remains P1 CONFIRMED and unapproved for production correction, with diagnostic Draft #935 unmerged. This does NOT silently change the Owner's order by putting PE Exit before P3-4-007. If Owner separately authorizes PE Exit correction, implement both routes as a narrow concern with existing runTransaction/#915 checkpoint and explicit per-route normal event/save/network parity, coordinating non-overlapping branches and the stop policy.
+
+**P3-4 authoritative cutover remains STOPPED.** Before it can start, close applicable blockers and prove the **entire enabled issuer-family writer graph** (including installed UI, raw helper and whole-state replacement paths), old save compatibility, one authoritative state owner and the slice-specific adoption contract. Subsequent implementation/merge requires its own permission and final Gate evidence.
+
+Keep 1 concern / 1 PR. No overlapping write branches or direct pushes to main. Do not merge diagnostic Draft #935. No automatic merging without existing explicit authorization and successful final-head gates.
 
 ## 6. Verification and Gate labels
 
