@@ -220,8 +220,9 @@ for (const command of [
   'ma-acquisition-financing-${{ github.sha }}', 'retention-days: 30', 'if-no-files-found: error'
 ]) assert(comprehensiveMaJob.includes(command), `M&A comprehensive gate must retain ${command}`);
 const dealRoom = jobBlock(comprehensiveMa, 'deal-room');
+// Phase 1A: PE acquisition moved to pe-acquisition-atomicity; its PR and main coverage is
+// asserted per evaluated event below, together with the moved VC regressions.
 for (const job of [comprehensiveMaJob,dealRoom]) {
-  assert(job.includes('node tests/pe-fund-acquisition-save-atomicity-webkit-test.js'), 'both PR and main gates must exercise PE acquisition rollback/storage');
   assert(job.includes('node tests/ma-subsidiary-sale-save-atomicity-webkit-test.js'), 'both PR and main gates must exercise actual subsidiary sale rollback/storage');
   assert(job.includes('node tests/parent-ipo-save-atomicity-webkit-test.js'), 'both PR and main gates must exercise actual IPO storage/rollback');
   assert(job.includes('node tests/stock-split-price-history-webkit-test.js'), 'both PR and main gates must exercise stock split history persistence');
@@ -247,6 +248,107 @@ assert(splitAtomicity.includes('timeout-minutes: 15') && splitAtomicity.includes
 for (const command of ['playwright@1.61.0', 'npx playwright install --with-deps webkit', 'node tests/stock-split-save-atomicity-webkit-test.js', 'actions/upload-artifact@v4', 'path: artifacts/stock-split-atomicity-webkit', 'if: always()', 'if-no-files-found: error']) {
   assert(splitAtomicity.includes(command), `independent stock split gate must retain ${command}`);
 }
+
+// Phase 1A: PE / VC atomicity WebKit run in parallel family jobs. The moved regressions are a
+// transfer of execution responsibility, not a removal: every event must still run exactly the
+// WebKit set it ran before the split, and each moved regression exactly once.
+const movedFamilyJobs = {
+  'pe-acquisition-atomicity': ['tests/pe-fund-acquisition-save-atomicity-webkit-test.js'],
+  'vc-secondary-atomicity': ['tests/vc-secondary-sale-save-atomicity-webkit-test.js'],
+  'vc-funding-atomicity': ['tests/vc-follow-on-save-atomicity-webkit-test.js', 'tests/vc-initial-investment-save-atomicity-webkit-test.js']
+};
+const legacyRuntime = "node-version: ${{ (github.event_name == 'pull_request' || inputs.mode == 'deal-room') && '20' || '22' }}";
+for (const [job, tests] of Object.entries(movedFamilyJobs)) {
+  const block = jobBlock(comprehensiveMa, job);
+  assert(!/^    if:/m.test(block), `${job} must run on every workflow event including PR, main, schedule and both manual modes`);
+  assert(block.includes('timeout-minutes: 15') && block.includes('runs-on: ubuntu-latest'), `${job} must keep a bounded hosted runner`);
+  assert(block.includes(legacyRuntime), `${job} must keep the pre-split runtime per event (Node 20 PR/deal-room, Node 22 main/schedule/comprehensive)`);
+  assert(block.includes(`group: ma-acquisition-financing-${job}-\${{ (github.event_name == 'pull_request' || inputs.mode == 'deal-room') && github.run_id || github.ref }}`)
+    && block.includes('cancel-in-progress: true'), `${job} must keep pre-split cancellation: per-ref for main/schedule/comprehensive, never for PR/deal-room`);
+  for (const command of ['playwright@1.61.0', 'npx playwright install --with-deps webkit', `MA_DEAL_ROOM_ARTIFACT_DIR: artifacts/${job}-webkit`,
+    'actions/upload-artifact@v4', `name: ${job}-webkit-\${{ github.sha }}`, `path: artifacts/${job}-webkit`, 'if: always()', 'if-no-files-found: error', 'retention-days: 30']) {
+    assert(block.includes(command), `${job} must retain ${command}`);
+  }
+  const commands = [...block.matchAll(/node (tests\/[\w.-]+-webkit-test\.js)/g)].map(match => match[1]);
+  assert.deepEqual(commands, tests, `${job} must run exactly its moved regressions in their original order`);
+  for (const legacy of [comprehensiveMaJob, dealRoom]) for (const test of tests)
+    assert(!legacy.includes(`node ${test}`), `${test} moved to ${job} and must not also run in a legacy M&A job`);
+}
+
+// Evaluate job-level `if:` per event instead of trusting string presence alone.
+function jobNames(source) {
+  const lines = source.split(/\r?\n/);
+  const start = lines.indexOf('jobs:');
+  assert(start >= 0, 'workflow must declare jobs');
+  return lines.slice(start + 1).filter(line => /^  [A-Za-z0-9_-]+:\s*$/.test(line)).map(line => line.trim().slice(0, -1));
+}
+function jobCondition(block) {
+  const lines = block.split('\n');
+  const index = lines.findIndex(line => /^    if:/.test(line));
+  if (index < 0) return null;
+  const inline = lines[index].replace(/^    if:\s*/, '');
+  if (inline && inline !== '>-' && inline !== '>' && inline !== '|') return inline;
+  const parts = [];
+  for (let i = index + 1; i < lines.length && /^      /.test(lines[i]); i += 1) parts.push(lines[i].trim());
+  return parts.join(' ');
+}
+function evaluateCondition(expression, context) {
+  if (expression === null) return true;
+  const replaced = expression
+    .replace(/^\$\{\{\s*|\s*\}\}$/g, '')
+    .replace(/always\(\)/g, 'true')
+    .replace(/github\.event_name\s*==\s*'([^']+)'/g, (_, value) => String(context.event === value))
+    .replace(/inputs\.mode\s*==\s*'([^']+)'/g, (_, value) => String(context.mode === value));
+  assert(/^[\s()!&|truefals]*$/.test(replaced), `unsupported job condition for event evaluation: ${expression}`);
+  return Function(`"use strict"; return (${replaced});`)();
+}
+const webkitCommands = block => [...block.matchAll(/node (tests\/[\w.-]+-webkit-test\.js)/g)].map(match => match[1]);
+const preSplitDealRoomWebkit = [
+  'tests/ma-deal-room-webkit-test.js', 'tests/ma-share-swap-save-atomicity-webkit-test.js', 'tests/investor-offer-save-atomicity-webkit-test.js',
+  'tests/founder-share-sale-save-atomicity-webkit-test.js', 'tests/stock-purchase-save-atomicity-webkit-test.js', 'tests/stock-sale-save-atomicity-webkit-test.js',
+  'tests/stock-split-price-history-webkit-test.js', 'tests/parent-ipo-save-atomicity-webkit-test.js', 'tests/ma-subsidiary-sale-save-atomicity-webkit-test.js',
+  'tests/pe-fund-acquisition-save-atomicity-webkit-test.js', 'tests/vc-secondary-sale-save-atomicity-webkit-test.js', 'tests/vc-follow-on-save-atomicity-webkit-test.js',
+  'tests/vc-initial-investment-save-atomicity-webkit-test.js', 'tests/ceo-dashboard-webkit-test.js', 'tests/stock-split-save-atomicity-webkit-test.js'
+];
+const preSplitComprehensiveWebkit = [
+  'tests/ma-acquisition-financing-webkit-test.js', 'tests/ma-board-approval-webkit-test.js', 'tests/ma-deal-room-webkit-test.js',
+  'tests/ma-share-swap-save-atomicity-webkit-test.js', 'tests/investor-offer-save-atomicity-webkit-test.js', 'tests/founder-share-sale-save-atomicity-webkit-test.js',
+  'tests/stock-purchase-save-atomicity-webkit-test.js', 'tests/stock-sale-save-atomicity-webkit-test.js', 'tests/stock-split-price-history-webkit-test.js',
+  'tests/parent-ipo-save-atomicity-webkit-test.js', 'tests/ma-subsidiary-sale-save-atomicity-webkit-test.js', 'tests/pe-fund-acquisition-save-atomicity-webkit-test.js',
+  'tests/vc-secondary-sale-save-atomicity-webkit-test.js', 'tests/vc-follow-on-save-atomicity-webkit-test.js', 'tests/vc-initial-investment-save-atomicity-webkit-test.js',
+  'tests/ma-integration-webkit-test.js', 'tests/ceo-dashboard-webkit-test.js', 'tests/stock-split-save-atomicity-webkit-test.js'
+];
+const maJobs = jobNames(comprehensiveMa);
+for (const [label, context, expected, expectedJobs] of [
+  ['pull_request', {event: 'pull_request', mode: ''}, preSplitDealRoomWebkit, ['deal-room']],
+  ['workflow_dispatch deal-room', {event: 'workflow_dispatch', mode: 'deal-room'}, preSplitDealRoomWebkit, ['deal-room']],
+  ['push main', {event: 'push', mode: ''}, preSplitComprehensiveWebkit, ['comprehensive-ma']],
+  ['schedule', {event: 'schedule', mode: ''}, preSplitComprehensiveWebkit, ['comprehensive-ma']],
+  ['workflow_dispatch comprehensive', {event: 'workflow_dispatch', mode: 'comprehensive'}, preSplitComprehensiveWebkit, ['comprehensive-ma']]
+]) {
+  const running = maJobs.filter(job => evaluateCondition(jobCondition(jobBlock(comprehensiveMa, job)), context));
+  for (const job of [...expectedJobs, 'stock-split-atomicity', ...Object.keys(movedFamilyJobs), 'ma-economic-gate'])
+    assert(running.includes(job), `${label} must run ${job}`);
+  for (const job of ['comprehensive-ma', 'deal-room'].filter(job => !expectedJobs.includes(job)))
+    assert(!running.includes(job), `${label} must not run ${job}`);
+  const executed = running.flatMap(job => webkitCommands(jobBlock(comprehensiveMa, job)));
+  assert.deepEqual([...executed].sort(), [...expected].sort(), `${label} must execute exactly the pre-split WebKit set, each regression once`);
+}
+
+// The aggregate verdict must cover every other M&A job, so a skipped, cancelled or failed
+// family job cannot leave the workflow looking green.
+const economicGate = jobBlock(comprehensiveMa, 'ma-economic-gate');
+assert(/^    if: always\(\)\s*$/m.test(economicGate), 'M&A economic gate must evaluate even when a needed job failed');
+assert(economicGate.includes('timeout-minutes: 5'), 'M&A economic gate must be bounded');
+const gateNeeds = (economicGate.match(/^    needs: \[([^\]]+)\]/m) || [])[1];
+assert(gateNeeds, 'M&A economic gate must declare needs');
+assert.deepEqual(gateNeeds.split(',').map(job => job.trim()).sort(), maJobs.filter(job => job !== 'ma-economic-gate').sort(), 'M&A economic gate must need every other M&A job');
+for (const fragment of ['NEEDS_JSON: ${{ toJSON(needs) }}', 'EVENT_NAME: ${{ github.event_name }}', 'DISPATCH_MODE: ${{ inputs.mode }}',
+  "const expected = required ? 'success' : 'skipped';", 'if (problems.length)', 'process.exit(1)', 'unclassified needs']) {
+  assert(economicGate.includes(fragment), `M&A economic gate must retain ${fragment}`);
+}
+for (const job of maJobs.filter(job => job !== 'ma-economic-gate'))
+  assert(economicGate.includes(`'${job}':`), `M&A economic gate must classify ${job} per event`);
 const pagesSmoke = readWorkflow('pages-deployment-smoke.yml');
 assert(/^name: Pages Deployment Smoke$/m.test(pagesSmoke), 'Pages Deployment Smoke name is a workflow_run contract');
 assert(hasTrigger(pagesSmoke, 'push') && hasTrigger(pagesSmoke, 'schedule') && hasTrigger(pagesSmoke, 'workflow_dispatch'), 'Pages Deployment Smoke triggers must remain intact');
@@ -277,7 +379,11 @@ const pullRequestWorkflows = workflowFiles.filter(file => hasTrigger(readWorkflo
 assert.equal(pullRequestWorkflows.length, 4, 'Phase 2H retains three PR validation workflows plus close-only CI Hygiene');
 console.log(`workflow trigger architecture contract: ${workflowFiles.length} workflows, ${scheduledStartsPerDay} scheduled starts/day, ${pullRequestWorkflows.length} PR-triggered workflows`);
 
-for (const job of ['comprehensive-ma', 'deal-room']) {
-  assert(jobBlock(comprehensiveMa, job).includes('node tests/vc-follow-on-save-atomicity-webkit-test.js'), `VC follow-on real WebKit must run in ${job}`);
-  assert(jobBlock(comprehensiveMa, job).includes('node tests/vc-initial-investment-save-atomicity-webkit-test.js'), `VC initial investment real WebKit must run in ${job}`);
+// Phase 1A: VC follow-on / initial investment WebKit moved from comprehensive-ma and deal-room to
+// vc-funding-atomicity. Re-check the PR gate and main gate runs here by evaluated event.
+for (const context of [{event: 'pull_request', mode: ''}, {event: 'push', mode: ''}]) {
+  const running = maJobs.filter(job => evaluateCondition(jobCondition(jobBlock(comprehensiveMa, job)), context));
+  const executed = running.flatMap(job => webkitCommands(jobBlock(comprehensiveMa, job)));
+  assert(executed.includes('tests/vc-follow-on-save-atomicity-webkit-test.js'), `VC follow-on real WebKit must run on ${context.event}`);
+  assert(executed.includes('tests/vc-initial-investment-save-atomicity-webkit-test.js'), `VC initial investment real WebKit must run on ${context.event}`);
 }
