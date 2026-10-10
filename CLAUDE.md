@@ -4,6 +4,8 @@
 >
 > Do not read every section for every task. Use the section relevant to the work, following the routing in `AGENTS.md`.
 
+> **Economic Engine / Phase 3+ AI-wide development contract:** All agents (including Claude Code, Codex, ChatGPT Work and ordinary ChatGPT) must apply [docs/economic-engine/AI_AGENT_SHARED_POLICY.md](docs/economic-engine/AI_AGENT_SHARED_POLICY.md) for migration scope, P3-4 writer gates, transaction-integrity stops, role selection, and per-task reporting. The shared policy is a scoped supplement; existing project invariants here and approved Phase contracts remain mandatory.
+
 ## 1. Game design direction
 
 The product is **資本主義ポケット TYCOON / Capitalism Tycoon Web**. The primary product/UX reference is **Coffee Inc 2**; Capitalism / Capitalism Lab mainly inform deeper economic, operating, and capital-allocation systems.
