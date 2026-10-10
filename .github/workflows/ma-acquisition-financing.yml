@@ -31,9 +31,13 @@ on:
       - 'tests/fixtures/vc-initial-investment-atomicity.js'
       - 'tests/pe-fund-acquisition-save-atomicity-test.js'
       - 'tests/pe-fund-acquisition-save-atomicity-webkit-test.js'
+      - 'tests/pe-portfolio-exit-save-atomicity-test.js'
+      - 'tests/pe-portfolio-exit-save-atomicity-webkit-test.js'
       - 'tests/fixtures/pe-fund-acquisition-atomicity.js'
       - 'tests/fixtures/pe-fund-acquisition-faults.js'
       - 'js/pe-network-sourcing.js'
+      - 'js/pe-ui-adapter.js'
+      - 'js/pe-portfolio-operations.js'
       - 'tests/parent-ipo-save-atomicity-test.js'
       - 'tests/parent-ipo-save-atomicity-webkit-test.js'
       - 'tests/fixtures/parent-ipo-atomicity.js'
@@ -77,9 +81,13 @@ on:
       - 'tests/fixtures/vc-initial-investment-atomicity.js'
       - 'tests/pe-fund-acquisition-save-atomicity-test.js'
       - 'tests/pe-fund-acquisition-save-atomicity-webkit-test.js'
+      - 'tests/pe-portfolio-exit-save-atomicity-test.js'
+      - 'tests/pe-portfolio-exit-save-atomicity-webkit-test.js'
       - 'tests/fixtures/pe-fund-acquisition-atomicity.js'
       - 'tests/fixtures/pe-fund-acquisition-faults.js'
       - 'js/pe-network-sourcing.js'
+      - 'js/pe-ui-adapter.js'
+      - 'js/pe-portfolio-operations.js'
       - 'tests/parent-ipo-save-atomicity-test.js'
       - 'tests/parent-ipo-save-atomicity-webkit-test.js'
       - 'tests/fixtures/parent-ipo-atomicity.js'
@@ -353,6 +361,7 @@ jobs:
       - name: PE fund acquisition atomicity in real iPhone WebKit
         run: |
           node tests/pe-fund-acquisition-save-atomicity-webkit-test.js
+          node tests/pe-portfolio-exit-save-atomicity-webkit-test.js
       - name: Retain pe-acquisition-atomicity WebKit evidence
         if: always()
         uses: actions/upload-artifact@v4

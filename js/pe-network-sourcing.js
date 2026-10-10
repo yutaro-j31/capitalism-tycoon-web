@@ -150,12 +150,15 @@ function install(){
     const ops=modules.pePortfolioOperations;
     const baseExit=proto.exitPEPortfolioCompany;
     proto.exitPEPortfolioCompany=function(fundID,dealID,options={}){
-      const r=baseExit.call(this,fundID,dealID,options);
-      if(r===true){
-        const found=ops?.findFundAndDeal(this.g,fundID,dealID);
-        if(found?.deal)onPortfolioExit(this.g,{dealID,industryTag:ops.industryTagOf(found.deal),week:this.g.week});
-      }
-      return r;
+      // Network registration after a successful Exit shares the Exit's atomic boundary.
+      return this.runTransaction(()=>{
+        const r=baseExit.call(this,fundID,dealID,options);
+        if(r===true){
+          const found=ops?.findFundAndDeal(this.g,fundID,dealID);
+          if(found?.deal)onPortfolioExit(this.g,{dealID,industryTag:ops.industryTagOf(found.deal),week:this.g.week});
+        }
+        return r;
+      });
     };
   }
 
