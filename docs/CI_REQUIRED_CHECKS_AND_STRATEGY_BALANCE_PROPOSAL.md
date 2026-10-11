@@ -21,12 +21,12 @@ Branch protection is an Owner-only setting; this section only proposes the set.
 
 Because `strategy-balance.yml` and `ma-acquisition-financing.yml` are path-filtered, a check that is *required* but never *triggered* blocks docs-only PRs forever. Two safe options:
 
-1. **Require only always-running checks**: the aggregate `test` job from `test.yml` (it already aggregates shards A–L and the shard contract), plus `iPhone WebKit Smoke`. Path-filtered workflows stay advisory but must be read by the reviewer when they run.
-2. **Add an always-running gate job** (CI-only PR) that depends on the path-filtered workflows via `workflow_run` or a path-detect step and reports a single `required-gate` status. This is the usual fix, but it adds a workflow and needs its own contract test (`tests/workflow-browser-timeout-contract.js` style).
+1. **Require only checks that run on every PR**: the aggregate `test` job from `test.yml` (it aggregates shards A–L and the shard contract) plus `iPhone Acceptance Playthrough`, which runs on `pull_request`. Do **not** require `iPhone WebKit Smoke`: its `if:` (`test.yml:336`) excludes `pull_request` events (push/schedule/dispatch only), and `tests/workflow-path-filter-contract-test.js` enforces that, so a required check would be skipped on PRs without running WebKit. Path-filtered workflows stay advisory but must be read by the reviewer when they run.
+2. **Add a gate job that itself runs on every PR** (CI-only PR): a workflow triggered on `pull_request` without path filters that does the path detection inside the run, then waits for or queries the path-filtered workflows' results when they apply, and reports one `required-gate` status. A `workflow_run` trigger is **not** suitable: when a docs-only PR fails the upstream path filters no upstream run completes, so no event fires and the check stays absent. It needs its own contract test (`tests/workflow-browser-timeout-contract.js` style).
 
 Recommendation: start with option 1 (no workflow change), then evaluate option 2 only if economic PRs are observed merging with a skipped path-filtered check.
 
-Do not require: scheduled-only jobs, `Pages Deployment Smoke` (post-merge), Phase 0.5 Extended (gated).
+Do not require: scheduled-only or push-only jobs (including `iPhone WebKit Smoke`), `Pages Deployment Smoke` (post-merge), Phase 0.5 Extended (gated).
 
 ## 3. Strategy Balance duplication
 
