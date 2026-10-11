@@ -13,16 +13,17 @@ makeTransactionFaultCase({
   name,            // e.g. 'stock-split'
   fixture,         // () => { game, backend, ...ids }  deterministic, no Math.random
   command,         // (ctx) => result            the INSTALLED engine method
-  economic,        // (game) => plain object     fields that must roll back
+  snapshot,        // (game) => normalized FULL game state (live-rollback oracle; never a field subset)
+  economic,        // (game) => state minus save metadata (reload / fresh-hydration comparison only)
   expectSuccess,   // (before, after, ctx) => void   normal-path oracle
 })
 ```
 Fault kinds (the union already used by the existing tests):
-`save-false`, `save-before-throw`, `save-throw`, `mirror`, `enqueue-false`, `enqueue-throw`, `saved` (post-save listener throws), `change`, `notify`, each run with and without a pending predecessor write and, where meaningful, nested inside an outer transaction.
+`save-false`, `save-before-throw`, `save-throw`, `mirror`, `enqueue-false`, `enqueue-throw`, `saved` (post-save listener throws), `change`, `notify`, with the nesting and pending-predecessor combinations declared **per family**. A converted family must keep exactly the combinations its current test runs (e.g. stock-split: all nine faults at `pending=false` both nested and not; four non-nested faults with a pending predecessor). The harness does not impose the full cross-product.
 
 Assertions per fault (all already present in the existing families):
 1. failure contract: `false` for soft failures (`save-false`, `mirror`, `enqueue-*`), thrown error otherwise;
-2. `economic(game)` deep-equals the pre-command snapshot (live state);
+2. `snapshot(game)` deep-equals the pre-command full snapshot (live state); `economic(game)` is used only for reload / fresh-hydration comparison;
 3. localStorage mirror, IDB cache, pending queue and durable store equal the pre-command boundary after `flush()`;
 4. reload and a fresh `loadGame` hydrated from durable only equal the snapshot;
 5. retry of the same command succeeds and matches `expectSuccess`; `saveSequence` is monotonic;
@@ -32,7 +33,7 @@ Assertions per fault (all already present in the existing families):
 Real WebKit / IndexedDB remains a separate browser test per family; the harness must report "WebKit NOT RUN" explicitly rather than imply coverage.
 
 ### Rollout (each step its own PR)
-1. Harness helper + conversion of **one** small family (stock-split) with an identical-assertions check (same fault list, same counts).
+1. Harness helper + conversion of **one** small family (stock-split) with an identical-assertions check (same fault list, same combinations, same counts, same full-state snapshot).
 2. Convert other families one at a time; never delete the original assertions before the converted test is proven equivalent.
 3. Use the harness to add the remaining uncovered writers (see open #946 `activateDefense`, #947 `executeMBO`).
 
