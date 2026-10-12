@@ -1300,6 +1300,8 @@ Banking participates in credit allocation without creating a parallel economic u
 
 Invariant testing begins with Phase 0 and continues through every later phase.
 
+Share / ownership / dividend Writer Authority audit and canonical Writer Matrix: [`TRACK_A_WRITER_AUTHORITY_AUDIT.md`](TRACK_A_WRITER_AUTHORITY_AUDIT.md) (2026-10-12, verdict BLOCKED).
+
 Priority areas:
 
 - accounting
