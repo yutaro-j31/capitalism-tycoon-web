@@ -583,7 +583,10 @@ function installExpansion(TycoonEngine){
   };
 
   TycoonEngine.prototype.executeMBO=function(stockID){
-    const s=this.stock(stockID),h=this.g.companyStocks[stockID];if(!s||!h||h.qty/s.issuedShares<.5)return this.fail('会社口座で過半数保有が必要です。');const remaining=s.issuedShares-h.qty,cost=remaining*s.price*1.25;if(this.g.companyCash<cost)return this.fail('MBO資金が不足しています。');this.g.companyCash-=cost;__modules.finance.event(this.g,'investmentPurchase',cost,{cashEffect:-cost,assetEffect:cost,sourceType:'executeMBO',sourceID:`${stockID}-${this.g.week}`,description:`${s.name} MBO`});h.avg=(n(h.avg)*h.qty+cost)/s.issuedShares;this.g.companyStocks[stockID].qty=s.issuedShares;s.privateCompany=true;s.suspended=true;this.notify(`${s.name}のMBOを成立させました。`,'success');this.save();this.emit();return true;
+    // Save atomicity: cash, holdings and journal share the common save/checkpoint boundary.
+    return this.runTransaction(()=>{
+    const s=this.stock(stockID),h=this.g.companyStocks[stockID];if(!s||!h||h.qty/s.issuedShares<.5)return this.fail('会社口座で過半数保有が必要です。');const remaining=s.issuedShares-h.qty,cost=remaining*s.price*1.25;if(this.g.companyCash<cost)return this.fail('MBO資金が不足しています。');this.g.companyCash-=cost;__modules.finance.event(this.g,'investmentPurchase',cost,{cashEffect:-cost,assetEffect:cost,sourceType:'executeMBO',sourceID:`${stockID}-${this.g.week}`,description:`${s.name} MBO`});h.avg=(n(h.avg)*h.qty+cost)/s.issuedShares;this.g.companyStocks[stockID].qty=s.issuedShares;s.privateCompany=true;s.suspended=true;this.notify(`${s.name}のMBOを成立させました。`,'success');return true;
+    });
   };
   TycoonEngine.prototype.activateDefense=function(kind){
     // Save atomicity: cash, ratio and journal share the common save/checkpoint boundary.
