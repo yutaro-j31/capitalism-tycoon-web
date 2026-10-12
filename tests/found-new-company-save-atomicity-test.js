@@ -23,6 +23,13 @@ const h=makeTransactionFaultCase({name:'company refounding',fixture,command:s=>s
 (async()=>{
  for(const nested of [false,true])for(const kind of FAULT_KINDS)await h.rejected('company',kind,{nested});
  for(const kind of ['save-false','save-throw'])await h.rejected('company',kind,{pending:true});
+ // Root identity: callers holding the engine state object keep observing it after both outcomes.
+ for(const fail of [true,false]){
+  const s=await fixture(),root=s.game.g,save=s.game.save;if(fail)s.game.save=()=>false;
+  const result=s.game.foundNewCompanyAfterBuyout('新会社',INVESTMENT,'store');s.game.save=save;
+  assert.equal(result,!fail);assert.equal(s.game.g,root,`state root identity kept after ${fail?'failed':'successful'} refounding`);
+  assert.equal(root.companyName,fail?'旧会社':'新会社');
+ }
  const s=await fixture(),before=snapshot(s.game),events=[],emit=s.game.emit;
  s.game.emit=function(type='change',...args){events.push(type);return emit.call(this,type,...args);};
  assert.equal(s.game.foundNewCompanyAfterBuyout('新会社',INVESTMENT,'store'),true);s.game.emit=emit;
