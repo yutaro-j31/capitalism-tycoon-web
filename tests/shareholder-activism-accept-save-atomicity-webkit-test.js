@@ -1,7 +1,8 @@
 'use strict';
 // #953 in real iPhone WebKit + real IndexedDB: an accepted activist buyback proposal is completed in the
 // same durable commit as the buyback, so a durable-only reload cannot accept it again; a rejected save
-// leaves live, mirror and durable state untouched.
+// leaves live, mirror and durable state untouched. #951 integration: a dividend proposal opened before a
+// 1:2 split is accepted after it with the rescaled per-share term, once, across a durable-only reload.
 const assert=require('node:assert/strict'),fs=require('node:fs'),http=require('node:http'),path=require('node:path');
 const {webkit,devices}=require('playwright');
 const {scenario}=require('./fixtures/stock-split-atomicity');
@@ -24,12 +25,13 @@ async function durable(browser,context,url){
 }
 (async()=>{fs.mkdirSync(DIR,{recursive:true});await new Promise(r=>server.listen(0,'127.0.0.1',r));let browser;const results=[];try{
  browser=await webkit.launch();console.log('Actual WebKit '+browser.version()+' / iPhone13 emulation / real IndexedDB');const url='http://127.0.0.1:'+server.address().port+'/';
- for(const type of ['buyback','dividend']){
+ for(const [type,split] of [['buyback',0],['dividend',0],['dividend',2]]){
   for(const fault of [null,'save-false','save-throw']){
    const g=await fixture(type),context=await browser.newContext(options),p=await page(context,url);
-   const live=await p.evaluate(async({g,fault})=>{
+   const live=await p.evaluate(async({g,fault,split})=>{
     const m=__capitalismTycoonModules,e=new m.engine.TycoonEngine(g),backend=m.saveStorageIDB,key=m.engine.SAVE_KEY;
     await backend.hydrate();if(!backend.status().available)throw new Error('real IndexedDB prerequisite failed');if(!e.save())throw new Error('fixture save failed');await backend.flush();
+    let proposedTotal=null;if(split){proposedTotal=e.g.activeActivistCampaign.dividendPerShare*(e.g.sharesOut-e.g.treasuryBuybackShares);if(e.stockSplit('CPTY',split)!==true)throw new Error('production split failed');await backend.flush();}
     const before=JSON.stringify(e.g),bytes=backend.readSync(key),save=e.save;let result,error=null;
     if(fault==='save-false')e.save=function(...a){return this.inTransaction()?save.apply(this,a):false;};
     if(fault==='save-throw')e.save=function(...a){const r=save.apply(this,a);if(!this.inTransaction())throw new Error('save accepted then threw');return r;};
@@ -37,15 +39,20 @@ async function durable(browser,context,url){
     await backend.flush();
     if(fault){if(JSON.stringify(e.g)!==before||backend.readSync(key)!==bytes||localStorage.getItem(key)!==bytes)throw new Error('failed accept did not roll back '+JSON.stringify({fault,result,error}));}
     else if(result!==true||e.g.activeActivistCampaign!==null)throw new Error('accept failed');
-    return {result:result??null,error,campaign:e.g.activeActivistCampaign?.status??null,treasury:e.g.treasuryBuybackShares,cash:e.g.companyCash,dps:e.g.dividendPerShare};
-   },{g,fault});
+    return {result:result??null,error,campaign:e.g.activeActivistCampaign?.status??null,treasury:e.g.treasuryBuybackShares,cash:e.g.companyCash,dps:e.g.dividendPerShare,proposedTotal,
+     openTerm:e.g.activeActivistCampaign?.dividendPerShare??null,outstanding:e.g.sharesOut-e.g.treasuryBuybackShares};
+   },{g,fault,split});
    const d=await durable(browser,context,url);
    assert.equal(d.saveVersion,9);
    if(fault){assert.equal(d.before.campaign,'active',`${type} ${fault}: durable keeps the open proposal`);assert.equal(d.before.treasury,live.treasury);assert.equal(d.second,true,'retry after a failed save succeeds once');}
    else{assert.equal(d.before.campaign,null,`${type}: durable accepted proposal is completed`);assert.equal(d.second,false,`${type}: no second accept after durable reload`);
     assert.equal(d.treasuryAfter,live.treasury);assert.equal(d.cashAfter,live.cash);assert.equal(d.before.dps,live.dps);}
-   results.push({type,fault,live,durable:d});
-   console.log(`iPhone WebKit activism accept ${type} ${fault||'normal'} / durable-only fresh IDB PASS`);
+   if(split){
+    if(fault)assert.equal(live.openTerm,6/split,`${type} 1:${split} ${fault}: open proposal keeps the rescaled term`);
+    else{assert.equal(live.dps,6/split,'accepted rescaled per-share dividend');assert.equal(live.dps*live.outstanding,live.proposedTotal,'accepted total equals the pre-split proposal total');}
+   }
+   results.push({type,split,fault,live,durable:d});
+   console.log(`iPhone WebKit activism accept ${type}${split?` after 1:${split} split`:''} ${fault||'normal'} / durable-only fresh IDB PASS`);
    fs.writeFileSync(path.join(DIR,'activism-accept-result.json'),JSON.stringify({physicalDevice:false,device:'iPhone13',ok:false,results},null,2));
    await context.close();
   }
