@@ -20,6 +20,7 @@ const MUTANTS=[
  ['fault never reaches an installed writer','save-false',{command:()=>true},/fault reaches installed writer/],
  ['thrown save failure swallowed into a soft false','save-throw',{command:s=>{try{return split(s);}catch{return false;}}},/The input did not match/],
  ['soft failure escalated into a throw','save-false',{command:s=>{const r=split(s);if(r===false)throw new Error('escalated');return r;}},/failed split must return false/],
+ ['saves reuse the predecessor saveSequence','save-false',{fixture:async family=>{const s=await scenario(family),save=s.game.save;s.game.save=function(...args){const prior=s.backend.readSync(s.key)?.match(/"saveSequence":\d+/)?.[0];const ok=save.apply(this,args);if(ok&&prior&&!this.inTransaction()){const stale=s.backend.readSync(s.key).replace(/"saveSequence":\d+/,prior);s.backend.writeSync(s.key,stale);}return ok;};return s;}},/saveSequence/],
  ['retry oracle mismatch','save-false',{expectSuccess:(before,after,s)=>assertSplit(before,after,s.stockID,3)},/split oracle/],
 ];
 (async()=>{

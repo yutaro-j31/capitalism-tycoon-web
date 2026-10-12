@@ -9,6 +9,8 @@ const {indexedDBFor,inject}=require('../fixtures/pe-fund-acquisition-faults');
 const FAULT_KINDS=Object.freeze(['save-false','save-before-throw','mirror','enqueue-false','enqueue-throw','save-throw','saved','change','notify']);
 // Soft failures return false from the command; every other kind surfaces as a thrown error.
 const SOFT_FAILURES=Object.freeze(['save-false','mirror','enqueue-false','enqueue-throw']);
+// saveSequence (#726) decides which stored copy boots; it lives only in the stored payload.
+const sequenceOf=raw=>Number(/"saveSequence":(\d+)/.exec(String(raw||''))?.[1]);
 
 function injectFault(ctx,kind){
  if(!FAULT_KINDS.includes(kind))throw new Error(`unknown fault kind ${kind}`);
@@ -46,8 +48,11 @@ function makeTransactionFaultCase({name,fixture,command,snapshot,economic,expect
   assert.deepEqual(snapshot(ctx.game),before,'full live rollback including quantities/history/finance/news/RNG');assert.equal(ctx.host.draws,draws);
   assert.equal(ctx.ctx.__localStorageData.get(ctx.key),bytes);assert.equal(ctx.backend.readSync(ctx.key),bytes);assert.equal(ctx.durable.get(ctx.key),durable);
   ctx.control.release?.();await ctx.backend.flush();assert.equal(ctx.durable.get(ctx.key),bytes,`predecessor preserved, failed ${name} never durable`);assert.equal(ctx.control.attempts.length,puts,'cancel failed pending put');
+  const failedSequence=sequenceOf(bytes);assert.ok(Number.isSafeInteger(failedSequence),'predecessor carries a saveSequence');
   await loaded(ctx,before);assert.equal(ctx.game.save(),true);await ctx.backend.flush();await loaded(ctx,before);
+  const recoverySequence=sequenceOf(ctx.backend.readSync(ctx.key));assert.ok(recoverySequence>failedSequence,'recovery save never reuses the failed attempt\'s saveSequence');
   assert.equal(command(ctx),true,`failed ${name} can retry`);expectSuccess(before,snapshot(ctx.game),ctx);await ctx.backend.flush();await loaded(ctx,ctx.game.g);
+  assert.ok(sequenceOf(ctx.backend.readSync(ctx.key))>recoverySequence,'retry saveSequence is monotonic');assert.equal(sequenceOf(ctx.durable.get(ctx.key)),sequenceOf(ctx.backend.readSync(ctx.key)),'durable copy carries the latest saveSequence');
   console.log(`${label?label(variant,kind,{pending,nested}):`${name} ${variant}/${kind}/pending=${pending}/nested=${nested}`} PASS`);
  }
  return Object.freeze({name,rejected,loaded,faultKinds:FAULT_KINDS,softFailures:SOFT_FAILURES});
