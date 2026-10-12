@@ -75,6 +75,7 @@
     "tests/activate-defense-save-atomicity-test.js"
   ],
   "E": [
+    "tests/make-subsidiary-save-atomicity-test.js",
     "tests/week-transaction-atomicity-test.js",
     "tests/player-crisis-turnaround-ratchet-week-rollback-test.js",
     "tests/loan-single-interest-test.js",
