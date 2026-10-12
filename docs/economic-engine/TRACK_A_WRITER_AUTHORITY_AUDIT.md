@@ -46,7 +46,7 @@ Abbreviations: SF = save-fault injection set (save-false, mirror, enqueue-false/
 | W-ACTIVISM-NEG/REJ | `shareholder-activism.js:38/40` | module UI `:57` | campaign, commitments | company governance | **no** | **none** | none | none | — | in-memory | — | **GAP — P1/P2 #953** |
 | W-DECLINE-BUYOUT | `completion.js:148` `declineInboundBuyoutOffer` | UI `app.js:926` | competitorOwnedRatio (+0.025, no ratio recompute) | company | **no** | direct save, result ignored | none | none | — | none | — | **GAP — P1 #955 (REPRO: ratios sum 1.025, no rollback)** |
 | W-FORCE-EARNINGS | `parity.js:82-84` via UI `app.js:927` | UI (also weekly `parity.js:104` in WK) | stockPrice, own row price/marketCap, trust, pressure, guidance | company | weekly: WK; **UI: no** | UI: direct `engine.save()` | none | none | **UI consumes simulation RNG (REPRO)** | weekly only | — | **GAP — P1 #955** |
-| W-NEW-COMPANY | `completion.js:155-159` (+`pe-fund.js:1093`) `foundNewCompanyAfterBuyout` | UI `app.js:927` | replaces `g` wholesale (all equity fields) | company / personal | **no** | direct save, ignored; wrapper mutates after save | — | none | — | functional | — | **GAP — suspected P1 #955 (CODE only)** |
+| W-NEW-COMPANY | `completion.js:155-159` (+`pe-fund.js:1093`) `foundNewCompanyAfterBuyout` | UI `app.js:927` | replaces `g` wholesale (all equity fields) | company / personal | **no** | direct save, ignored; wrapper mutates after save | — | none | — | functional | — | **GAP — P1 #955 (REPRO 2026-10-12: failed save returns true with live new company vs durable sold company; on success the pe-fund founded-investment write after the save is lost on reload); fix PR #965** |
 | W-SPONSOR | `player-crisis-actions.js:56` `requestSponsorInjection` | `player-crisis-ui.js:189` | sharesOut, cash, ratios | company | yes (CODE) | commit | yes | reload only | — | `player-crisis-actions-test` | Test shards | **GAP** (no SF/HY/WebKit) |
 | W-TURNAROUND-ACCEPT | `player-crisis-turnaround-fund.js:124/133` | `player-crisis-ui.js:195` | sharesOut, cash, ratios | company | yes (CODE) | commit | yes | reload only | — | `player-crisis-turnaround-fund-test` | Test shards | **GAP** |
 | W-TURNAROUND-SETTLE | `player-crisis-turnaround-fund.js:174/186` | weekly | sharesOut (ratchet) | company | WK | week commit | yes | NODE (finalize-throw rollback) | — | `player-crisis-turnaround-ratchet-week-rollback-test` | Test shards | **GAP** (no WebKit) |
@@ -71,7 +71,7 @@ Abbreviations: SF = save-fault injection set (save-false, mirror, enqueue-false/
 | W-ANGEL | `expansion.js:605/606` | UI `app.js:922` | personalCash, `angelInvestments` | **no** | direct save | none | none (REPRO) | none | — | **GAP — P1/P2 #954** |
 | W-SUB-IPO | `subsidiary-ipo-preparation.js:59/60` → `engine.js:1518` | UI `app.js:910`, `ma-portfolio-summary-ui.js:26`, prep UI `:69` | sub ownership −15%, book, cash, ticker (RNG) | yes | commit | `investmentSale` | none (tests use a stub `runTransaction`) | `subsidiary-ipo-preparation-test`, `finance-subsidiary-ipo-test` | — | **GAP** |
 | W-SUB-IPO-STAKE | `subsidiary-ipo-secondary-sale.js:22` | module UI | cash, ownership, book, `cumulativeProfit` | yes (CODE) | commit | `investmentSale` **without `assetEffect`** (unverified ledger concern) | none (stub engine) | `subsidiary-ipo-secondary-sale-test` | — | **GAP** (ledger to verify) |
-| W-SUB-MARKET-RENDER | `listed-subsidiary-market.js:43-45` `catchUp` → `distributeQuarterlyDividend`, reached from `ensure()` via `snapshot()` / `allSnapshots()` in `renderSection` (venture tab render) as well as `normalize` and the module actions | render / load / actions | `companyCash`, `sub.subsidiaryCash`, `parentDividendsReceived`, `marketPriceIndex`, valuation, `dividendIncome` ledger event | **no** — the module has no `advanceWeek` hook, so a due quarterly parent dividend is booked at render time outside any transaction | not saved by the render; persisted by the next unrelated save | `dividendIncome` | none | functional | — | **GAP** (CODE; read-triggered writer — rendering must not mutate economic state; severity to triage after reproduction) |
+| W-SUB-MARKET-RENDER | `listed-subsidiary-market.js:43-45` `catchUp` → `distributeQuarterlyDividend`, reached from `ensure()` via `snapshot()` / `allSnapshots()` in `renderSection` (venture tab render) as well as `normalize` and the module actions | render / load / actions | `companyCash`, `sub.subsidiaryCash`, `parentDividendsReceived`, `marketPriceIndex`, valuation, `dividendIncome` ledger event | **no** — the module has no `advanceWeek` hook, so a due quarterly parent dividend is booked at render time outside any transaction | not saved by the render; persisted by the next unrelated save | `dividendIncome` | none | functional | — | **GAP — P2 #966** (REPRO 2026-10-12: no weekly catch-up; venture-tab render booked +39,000,000 parent dividend outside any transaction; idempotent, reload converges; fix needs an Owner decision on timing) |
 | W-SUB-OTHER | `listed-subsidiary-control-actions.js:22` (TOB/squeeze-out), `listed-subsidiary-market.js:51` (buy/sell stake, dividend policy), `listed-subsidiary-follow-on-offering.js:23`, `subsidiary-relisting-options.js:20`, `group-restructuring-candidates.js:27`, `internal-venture-business.js:101/104/113` | module UIs | subsidiary ownership/cash | yes (CODE) | commit | yes | none (TOB test uses a stub engine) | functional | — | **GAP** |
 
 ### 2.3 Weekly and load paths
@@ -105,6 +105,42 @@ Lower-severity findings recorded here only (no Issue yet; candidates for Owner t
 - **D9** (P2, CODE): own market row `issuedShares` / `marketCap` and the IPO-time `shareholders` map go stale after dilution until the next `updateMarket`.
 - **Render-time writer** (CODE): `listed-subsidiary-market.js` books due listed-subsidiary parent dividends (`companyCash` + `dividendIncome`) from `ensure()` during venture-tab rendering, outside any transaction and without a save (W-SUB-MARKET-RENDER). To be reproduced and triaged before filing.
 - `refreshInvestorOffers` / `declineInvestorOffer` direct saves (P2); `setDividend` / buyback write derived finance cache before entering the transaction (P2); `sellSubsidiaryIPOStake` posts `investmentSale` without `assetEffect` (ledger, unverified).
+
+## 3b. Remediation status — second pass (2026-10-12, after #952 / #956 merged)
+
+Verdicts in §2 describe **main** and stay unchanged until a fix merges; a fix PR with green CI is not a VERIFIED writer. Evidence levels: NODE = Node test on the shared fault harness (`tests/helpers/transaction-fault-case.js`, merged in #952), WEBKIT = real-WebKit test run in CI, REPRO = reproduced on main before the fix.
+
+| Writer | Defect | Fix PR | RED on main | GREEN evidence | WebKit | Verdict on main → expected after merge |
+|---|---|---|---|---|---|---|
+| W-SPLIT (dividend) | split multiplied per-share dividends; activist / governance per-share terms stale | #951 | REPRO (payout ×2; accept total ×2 / ×6; false commitment breach) | NODE 37 cases | WEBKIT 12/12 (job 114813605895: 10 dividend + 2 activist accept) | economic defect fixed → VERIFIED (atomicity already VERIFIED) |
+| W-SPLIT (floor) | no post-split price floor | #960 (Draft, stacked on #951) | REPRO (19.98 / 1:2 accepted) | NODE (boundaries, ratios, overflow, at-floor fault matrix) | WEBKIT pending CI (stacked Draft) | economic defect fixed after #951 |
+| W-ACTIVISM-ACCEPT / NEG / REJ | completion outside the transaction; double buyback after reload; responses unsaved | #957 | REPRO (all 9 fault kinds; treasury 10,000→19,920) | NODE 49 cases | WEBKIT 6/6, WebKit 26.5 (job 114817583864) | GAP → VERIFIED candidate (Node + WebKit) |
+| W-PE-LEGACY-CREATE | save outside transaction | #958 | REPRO | NODE 43 cases | NOT RUN | GAP → GAP (WebKit missing) |
+| W-PE-LEGACY-EXIT (+ premium wrapper) | save outside transaction; premium valuation kept | #959 | REPRO | NODE 64 cases | NOT RUN | GAP → GAP (WebKit missing) |
+| W-MAKE-SUB | save outside transaction | #961 | REPRO | NODE 22 cases | NOT RUN | GAP → GAP (WebKit missing) |
+| W-ANGEL (create / exit) | save outside transaction | #962 | REPRO | NODE 43 cases | NOT RUN | GAP → GAP (WebKit missing) |
+| W-DECLINE-BUYOUT | ratios sum 1.025; save outside transaction | #963 | REPRO | NODE 43 cases (sum = 1, live = reload) | NOT RUN | GAP → GAP (WebKit missing; founder + competitor > 1 edge case left to Owner) |
+| W-FORCE-EARNINGS | UI path outside transaction consuming simulation RNG | #964 | REPRO | NODE (8 applicable fault kinds; `notify` not applicable, proven) | NOT RUN | GAP → GAP (WebKit missing; forced off-schedule earnings is an Owner gameplay decision) |
+| W-NEW-COMPANY | false success; post-save wrapper write lost; root identity | #965 | REPRO | NODE 22 cases + root identity | NOT RUN | GAP → GAP (WebKit missing) |
+| W-SUB-MARKET-RENDER | render-time economic writer, no weekly catch-up | — (#966) | REPRO | — | — | GAP (P2, Owner decision) |
+| W-PERSONAL-RE-BUY (new) | `buyPersonalRealEstate` (`expansion.js:607`) saves outside a transaction (same pattern as #954) | — | CODE | — | — | GAP (not yet reproduced) |
+
+Track A completion conditions after the second pass:
+
+| # | Condition | Status |
+|---|---|---|
+| 1 | Writer list completeness | Partial (pattern sweep; one more direct-save writer found this pass) |
+| 2 | State destinations | Met (CODE) |
+| 3 | Save / rollback boundary | Met (CODE); 10 fix PRs open |
+| 4 | Node regressions registered | Improving (fix PRs add harness tests), **not met** on main |
+| 5 | WebKit need / evidence | **Not met** (#954 / #955 writers Node-only) |
+| 6 | Accounting / ownership invariants | **Not met** on main (#963 open; founder + competitor > 1 edge case; D3 / D4) |
+| 7 | Unresolved P0/P1 recorded | Met (#953–#955 with PRs; #966 P2) |
+| 8 | Executable CI gate | Partial (path filters: `js/shareholder-activism.js` added by #957; others still missing) |
+| 9 | Missing writers explicit | Met |
+| 10 | Independent diff audit | **Not met** (same agent session; Codex automated review only) |
+
+**Track A verdict: still BLOCKED.**
 
 ## 4. CI gate observations
 
