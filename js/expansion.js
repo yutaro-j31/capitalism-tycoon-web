@@ -382,8 +382,10 @@ function installExpansion(TycoonEngine){
     // P3-4-007: split quantities and histories share the common save/checkpoint boundary.
     return this.runTransaction(()=>{
     const s=this.stock(stockID);if(!s||ratio<2)return false;if(stockID===this.g.ticker&&!this.g.publicCompany)return this.fail('自社は未上場です。');s.price/=ratio;s.previous/=ratio;s.issuedShares*=ratio;s.priceHistory=(s.priceHistory||[]).map(x=>x&&typeof x==='object'?{...x,price:x.price/ratio}:x/ratio);
+    // Per-share dividends follow the share count so a split leaves every holder's quarterly total unchanged.
+    if(Number.isFinite(s.dividendPerShare))s.dividendPerShare/=ratio;
     for(const key of ['companyStocks','personalStocks'])if(this.g[key][stockID]){this.g[key][stockID].qty*=ratio;this.g[key][stockID].avg/=ratio;}
-    if(stockID===this.g.ticker){this.g.stockPrice/=ratio;this.g.sharesOut*=ratio;this.g.founderShares*=ratio;this.g.treasuryBuybackShares*=ratio;}
+    if(stockID===this.g.ticker){this.g.stockPrice/=ratio;this.g.sharesOut*=ratio;this.g.founderShares*=ratio;this.g.treasuryBuybackShares*=ratio;if(Number.isFinite(this.g.dividendPerShare))this.g.dividendPerShare/=ratio;}
     this.g.stockSplitHistory.unshift({week:this.g.week,stockID,ratio});this.notify(`${s.name}が1:${ratio}の株式分割を実施しました。`,'success');return true;
     });
   };
