@@ -23,6 +23,7 @@
     "tests/real-estate-agency-site-capacity-test.js"
   ],
   "C": [
+    "tests/decline-buyout-ownership-save-atomicity-test.js",
     "tests/transaction-rollback-test.js",
     "test:long",
     "test:supply-long",
