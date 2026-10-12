@@ -27,7 +27,7 @@ let notifyProbe=0;const s0Notify=()=>notifyProbe;
  { const s=await fixture(),emit=s.game.emit;s.game.emit=function(type,...a){if(type==='notify')notifyProbe++;return emit.call(this,type,...a);};s.game.forceEarningsEvent();s.game.emit=emit; }
  // The UI dispatches to the transaction-backed method and no longer saves directly.
  const app=fs.readFileSync(path.join(__dirname,'..','js','app.js'),'utf8');
- assert.match(app,/case 'force-earnings':engine\.forceEarningsEvent\(\);(render\(\);)?break;/,'UI uses the transaction-backed method');
+ assert.match(app,/case 'force-earnings':engine\.forceEarningsEvent\(\);break;/,'UI uses the transaction-backed method; the committed change event renders once');
  assert.doesNotMatch(app,/runEarningsEventsIfNeeded\(true\);engine\.save\(\)/,'no direct UI save path');
  // The earnings event writes news directly and never emits 'notify', so that fault kind cannot reach this
  // writer (not applicable, not counted as a pass); every other kind is exercised.
