@@ -378,14 +378,23 @@ function installExpansion(TycoonEngine){
     this.notify(`${p.name}で顧客ファネル施策を実行しました。`,'success');this.save();this.emit();return true;
   };
 
+  // Same floor as updateMarket's weekly Math.max(10, ...) for every listed price.
+  const STOCK_SPLIT_MIN_PRICE=10;
   TycoonEngine.prototype.stockSplit=function(stockID,ratio=2){
     // P3-4-007: split quantities and histories share the common save/checkpoint boundary.
     return this.runTransaction(()=>{
-    const s=this.stock(stockID);if(!s||ratio<2)return false;if(stockID===this.g.ticker&&!this.g.publicCompany)return this.fail('自社は未上場です。');s.price/=ratio;s.previous/=ratio;s.issuedShares*=ratio;s.priceHistory=(s.priceHistory||[]).map(x=>x&&typeof x==='object'?{...x,price:x.price/ratio}:x/ratio);
+    const s=this.stock(stockID);if(!s)return false;
+    if(!Number.isSafeInteger(ratio)||ratio<2)return this.fail('株式分割の比率が不正です。');
+    const own=stockID===this.g.ticker;if(own&&!this.g.publicCompany)return this.fail('自社は未上場です。');
+    // Reject a split whose post-split price would fall below the weekly market floor; for the own company both price sources must clear it.
+    if([s.price,...(own?[this.g.stockPrice]:[])].some(price=>!(price/ratio>=STOCK_SPLIT_MIN_PRICE)))return this.fail(`分割後の株価が下限${STOCK_SPLIT_MIN_PRICE}円を下回るため、1:${ratio}の株式分割はできません。`);
+    const counts=[s.issuedShares,this.g.companyStocks[stockID]?.qty,this.g.personalStocks[stockID]?.qty,...(own?[this.g.sharesOut,this.g.founderShares,this.g.treasuryBuybackShares]:[])];
+    if(counts.some(count=>Number.isFinite(count)&&Math.abs(count)*ratio>Number.MAX_SAFE_INTEGER))return this.fail('株式分割後の株式数が上限を超えるため分割できません。');
+    s.price/=ratio;s.previous/=ratio;s.issuedShares*=ratio;s.priceHistory=(s.priceHistory||[]).map(x=>x&&typeof x==='object'?{...x,price:x.price/ratio}:x/ratio);
     // Per-share dividends follow the share count so a split leaves every holder's quarterly total unchanged.
     if(Number.isFinite(s.dividendPerShare))s.dividendPerShare/=ratio;
     for(const key of ['companyStocks','personalStocks'])if(this.g[key][stockID]){this.g[key][stockID].qty*=ratio;this.g[key][stockID].avg/=ratio;}
-    if(stockID===this.g.ticker){this.g.stockPrice/=ratio;this.g.sharesOut*=ratio;this.g.founderShares*=ratio;this.g.treasuryBuybackShares*=ratio;if(Number.isFinite(this.g.dividendPerShare))this.g.dividendPerShare/=ratio;
+    if(own){this.g.stockPrice/=ratio;this.g.sharesOut*=ratio;this.g.founderShares*=ratio;this.g.treasuryBuybackShares*=ratio;if(Number.isFinite(this.g.dividendPerShare))this.g.dividendPerShare/=ratio;
       // Outstanding per-share dividend terms follow the same rescale (once per split): an open activist dividend
       // proposal that can still be accepted, and active dividend governance commitments.
       const campaign=this.g.activeActivistCampaign;if(campaign&&campaign.status==='active'&&campaign.type==='dividend'&&Number.isFinite(campaign.dividendPerShare))campaign.dividendPerShare/=ratio;

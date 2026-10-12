@@ -17,6 +17,8 @@ on:
       - 'tests/stock-split-save-atomicity-webkit-test.js'
       - 'tests/stock-split-dividend-rescale-test.js'
       - 'tests/stock-split-dividend-rescale-webkit-test.js'
+      - 'tests/stock-split-price-floor-test.js'
+      - 'tests/stock-split-price-floor-webkit-test.js'
       - 'tests/fixtures/stock-split-atomicity.js'
       - 'tests/stock-split-price-history-test.js'
       - 'tests/stock-split-price-history-webkit-test.js'
@@ -69,6 +71,8 @@ on:
       - 'tests/stock-split-save-atomicity-webkit-test.js'
       - 'tests/stock-split-dividend-rescale-test.js'
       - 'tests/stock-split-dividend-rescale-webkit-test.js'
+      - 'tests/stock-split-price-floor-test.js'
+      - 'tests/stock-split-price-floor-webkit-test.js'
       - 'tests/fixtures/stock-split-atomicity.js'
       - 'tests/stock-split-price-history-test.js'
       - 'tests/stock-split-price-history-webkit-test.js'
@@ -331,6 +335,8 @@ jobs:
         run: node tests/stock-split-save-atomicity-webkit-test.js
       - name: Stock split dividend rescale in real iPhone WebKit
         run: node tests/stock-split-dividend-rescale-webkit-test.js
+      - name: Stock split price floor in real iPhone WebKit
+        run: node tests/stock-split-price-floor-webkit-test.js
       - name: Retain stock split WebKit evidence
         if: always()
         uses: actions/upload-artifact@v4
