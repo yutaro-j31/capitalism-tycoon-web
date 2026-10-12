@@ -324,7 +324,7 @@ const preSplitDealRoomWebkit = [
   'tests/stock-split-price-history-webkit-test.js', 'tests/parent-ipo-save-atomicity-webkit-test.js', 'tests/ma-subsidiary-sale-save-atomicity-webkit-test.js',
   'tests/pe-fund-acquisition-save-atomicity-webkit-test.js', 'tests/pe-portfolio-exit-save-atomicity-webkit-test.js', 'tests/vc-secondary-sale-save-atomicity-webkit-test.js', 'tests/vc-follow-on-save-atomicity-webkit-test.js',
   'tests/vc-initial-investment-save-atomicity-webkit-test.js', 'tests/ceo-dashboard-webkit-test.js', 'tests/stock-split-save-atomicity-webkit-test.js',
-  // Added after the Phase 1A split: #954 writer-specific WebKit, run by vc-secondary-atomicity on every event.
+  // Added after the Phase 1A split: #955 refounding WebKit, run by vc-secondary-atomicity on every event.
   'tests/found-new-company-save-atomicity-webkit-test.js'
 ];
 const preSplitComprehensiveWebkit = [
@@ -334,7 +334,7 @@ const preSplitComprehensiveWebkit = [
   'tests/parent-ipo-save-atomicity-webkit-test.js', 'tests/ma-subsidiary-sale-save-atomicity-webkit-test.js', 'tests/pe-fund-acquisition-save-atomicity-webkit-test.js', 'tests/pe-portfolio-exit-save-atomicity-webkit-test.js',
   'tests/vc-secondary-sale-save-atomicity-webkit-test.js', 'tests/vc-follow-on-save-atomicity-webkit-test.js', 'tests/vc-initial-investment-save-atomicity-webkit-test.js',
   'tests/ma-integration-webkit-test.js', 'tests/ceo-dashboard-webkit-test.js', 'tests/stock-split-save-atomicity-webkit-test.js',
-  // Added after the Phase 1A split: #954 writer-specific WebKit, run by vc-secondary-atomicity on every event.
+  // Added after the Phase 1A split: #955 refounding WebKit, run by vc-secondary-atomicity on every event.
   'tests/found-new-company-save-atomicity-webkit-test.js'
 ];
 // Node (non-WebKit) commands per event, compared against the pre-split jobs (Phase 1B).
