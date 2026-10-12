@@ -203,6 +203,10 @@
     "reason": "Own/external split full rollback, pending predecessor, reload and fresh real IndexedDB in the independent stock-split-atomicity job on every workflow event including PR/main.",
     "executedBy": ".github/workflows/ma-acquisition-financing.yml"
   },
+  "tests/decline-buyout-ownership-save-atomicity-webkit-test.js": {
+    "reason": "#955 declineInboundBuyoutOffer hostile/friendly: one commit, founder+external+competitor stays 1; every harness fault kind (incl. prior pending put) rolls live, mirror, cache and durable IndexedDB back; deterministic retry; second decline refused; reload and fresh durable-only hydration in iPhone WebKit on every workflow event.",
+    "executedBy": ".github/workflows/ma-acquisition-financing.yml"
+  },
   "tests/stock-split-price-history-webkit-test.js": {
     "reason": "Actual own/external stock split history persistence and fresh IndexedDB iPhone WebKit in PR/main gates.",
     "executedBy": ".github/workflows/ma-acquisition-financing.yml"
