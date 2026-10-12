@@ -113,7 +113,7 @@ Verdicts in §2 describe **main** and stay unchanged until a fix merges; a fix P
 | Writer | Defect | Fix PR | RED on main | GREEN evidence | WebKit | Verdict on main → expected after merge |
 |---|---|---|---|---|---|---|
 | W-SPLIT (dividend) | split multiplied per-share dividends; activist / governance per-share terms stale | #951 | REPRO (payout ×2; accept total ×2 / ×6; false commitment breach) | NODE 37 cases | WEBKIT 12/12 (job 114813605895: 10 dividend + 2 activist accept) | economic defect fixed → VERIFIED (atomicity already VERIFIED) |
-| W-SPLIT (floor) | no post-split price floor | #960 (Draft, stacked on #951) | REPRO (19.98 / 1:2 accepted) | NODE (boundaries, ratios, overflow, at-floor fault matrix) | WEBKIT pending CI (stacked Draft) | economic defect fixed after #951 |
+| W-SPLIT (floor) | no post-split price floor | #960 (Draft, stacked on #951) | REPRO (19.98 / 1:2 accepted) | NODE (boundaries, ratios, overflow, at-floor fault matrix) | WEBKIT 8/8, WebKit 26.5 (job 114844972880) | economic defect fixed after #951 |
 | W-ACTIVISM-ACCEPT / NEG / REJ | completion outside the transaction; double buyback after reload; responses unsaved | #957 | REPRO (all 9 fault kinds; treasury 10,000→19,920) | NODE 49 cases | WEBKIT 6/6, WebKit 26.5 (job 114817583864) | GAP → VERIFIED candidate (Node + WebKit) |
 | W-PE-LEGACY-CREATE | save outside transaction | #958 | REPRO | NODE 43 cases | NOT RUN | GAP → GAP (WebKit missing) |
 | W-PE-LEGACY-EXIT (+ premium wrapper) | save outside transaction; premium valuation kept | #959 | REPRO | NODE 64 cases | NOT RUN | GAP → GAP (WebKit missing) |
