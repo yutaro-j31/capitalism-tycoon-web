@@ -1,7 +1,7 @@
 # Track A — Writer Authority audit: shares, ownership, dividends (#922)
 
 Status: **read-only audit. Verdict: BLOCKED** (see §5). No production, test, CI or save-format change.
-Base: main `35866030c4f47e47d1aac9dc1d4415365b412fb0` (2026-10-12). Open PRs #951 (split dividend rescale) and #952 (stock-split fault harness) are not merged and are **not** assumed below.
+Base: first pass on main `35866030c4f47e47d1aac9dc1d4415365b412fb0` (2026-10-12; §1–§7). Second pass on main `9d2a9ddba666b1817b3848d5389b73d6d154e33d`, after #952 (shared fault harness) and #956 merged: §3b records the current evidence and **supersedes** the first-pass evidence where they differ (W-NEW-COMPANY is now reproduced; the render-time writer is reproduced and filed as #966). §2 verdicts describe main and change only when a fix merges.
 
 This is the canonical Writer Matrix for the share / ownership / dividend domain. `phase0-5-authoritative-writers.json` remains the machine-generated lexical inventory consumed by `scripts/phase0-5-acceptance.js`; it is a different artifact (token-level discovery, no boundary/test verdicts) and is not duplicated here.
 
@@ -94,7 +94,7 @@ UI bypass check (CODE): no `app.js` or D UI handler writes share / ownership fie
 |---|---|---|---|
 | #953 | P1 | Activism accept completes the campaign after the inner buyback commit, outside any transaction; reload re-opens the proposal and a second accept executes a second buyback (treasury 10,000 → 19,920, cash spent twice). Negotiate / reject never save. | REPRO (Node) |
 | #954 | P1 | Legacy `createPEDeal` / `exitPEDeal`, `makeSubsidiary`, angel create/exit save outside `runTransaction`: return `true` on save rejection with storage unchanged; save-throw throws while keeping the mutation durable. | REPRO (Node) |
-| #955 | P1 (items 1–2) / suspected P1 (item 3) | `declineInboundBuyoutOffer` (ratios sum 1.025, no rollback), UI force-earnings (consumes simulation RNG outside a transaction), `foundNewCompanyAfterBuyout` (wholesale `g` replace, save ignored). | REPRO (1, 2), CODE (3) |
+| #955 | P1 (items 1–2); item 3 suspected in the first pass, **reproduced in the second pass (§3b)** | `declineInboundBuyoutOffer` (ratios sum 1.025, no rollback), UI force-earnings (consumes simulation RNG outside a transaction), `foundNewCompanyAfterBuyout` (wholesale `g` replace, save ignored). | REPRO (1, 2), CODE (3) |
 
 Lower-severity findings recorded here only (no Issue yet; candidates for Owner triage):
 
@@ -103,7 +103,7 @@ Lower-severity findings recorded here only (no Issue yet; candidates for Owner t
 - **D7** (P2, CODE): `emit('week')` / IPO `emit('change')` fire inside an uncommitted transaction.
 - **D8** (P2, REPRO): `buyStock(ownTicker, …, 'company')` skips `playerShareAcquisitionCapacity`; 50,000 own shares bought into `companyStocks` with no treasury accounting.
 - **D9** (P2, CODE): own market row `issuedShares` / `marketCap` and the IPO-time `shareholders` map go stale after dilution until the next `updateMarket`.
-- **Render-time writer** (CODE): `listed-subsidiary-market.js` books due listed-subsidiary parent dividends (`companyCash` + `dividendIncome`) from `ensure()` during venture-tab rendering, outside any transaction and without a save (W-SUB-MARKET-RENDER). To be reproduced and triaged before filing.
+- **Render-time writer** (first pass CODE; **second pass REPRO, filed as P2 #966**, see §3b): `listed-subsidiary-market.js` books due listed-subsidiary parent dividends (`companyCash` + `dividendIncome`) from `ensure()` during venture-tab rendering, outside any transaction and without a save (W-SUB-MARKET-RENDER).
 - `refreshInvestorOffers` / `declineInvestorOffer` direct saves (P2); `setDividend` / buyback write derived finance cache before entering the transaction (P2); `sellSubsidiaryIPOStake` posts `investmentSale` without `assetEffect` (ledger, unverified).
 
 ## 3b. Remediation status — second pass (2026-10-12, after #952 / #956 merged)
@@ -123,13 +123,14 @@ Verdicts in §2 describe **main** and stay unchanged until a fix merges; a fix P
 | W-FORCE-EARNINGS | UI path outside transaction consuming simulation RNG | #964 | REPRO | NODE (8 applicable fault kinds; `notify` not applicable, proven) | NOT RUN | GAP → GAP (WebKit missing; forced off-schedule earnings is an Owner gameplay decision) |
 | W-NEW-COMPANY | false success; post-save wrapper write lost; root identity | #965 | REPRO | NODE 22 cases + root identity | NOT RUN | GAP → GAP (WebKit missing) |
 | W-SUB-MARKET-RENDER | render-time economic writer, no weekly catch-up | — (#966) | REPRO | — | — | GAP (P2, Owner decision) |
-| W-PERSONAL-RE-BUY (new) | `buyPersonalRealEstate` (`expansion.js:607`) saves outside a transaction (same pattern as #954) | — | CODE | — | — | GAP (not yet reproduced) |
+
+Outside this audit's share / ownership / dividend scope, noted for the next audit (CODE only, not reproduced): the personal real-estate writers `buyPersonalRealEstate` (`expansion.js:607`) and `sellPersonalRealEstate` (`expansion.js:608`) mutate personal cash, the holding, mortgage / tax settlement and status, then call `save()`/`emit()` outside a transaction — the same pattern as #954. They belong to a personal-assets writer audit, not to Track A's equity matrix.
 
 Track A completion conditions after the second pass:
 
 | # | Condition | Status |
 |---|---|---|
-| 1 | Writer list completeness | Partial (pattern sweep; one more direct-save writer found this pass) |
+| 1 | Writer list completeness | Partial (pattern sweep; adjacent out-of-scope direct-save writers noted above) |
 | 2 | State destinations | Met (CODE) |
 | 3 | Save / rollback boundary | Met (CODE); 10 fix PRs open |
 | 4 | Node regressions registered | Improving (fix PRs add harness tests), **not met** on main |
