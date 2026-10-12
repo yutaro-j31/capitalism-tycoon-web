@@ -131,6 +131,88 @@ async function rejected(family,kind,{pending=false,nested=false}={}){
  assertPayment(await payWeek(hydrated),(await baseline()).payment,`${family} retry after ${kind} hydrated payment`);
  console.log(`stockSplit dividend ${family}/${kind}/pending=${pending}/nested=${nested} rollback/retry PASS`);
 }
+// Outstanding per-share dividend terms (Owner decision on #951): an open activist dividend proposal
+// and active dividend governance commitments are rescaled with the canonical dividend, exactly once.
+const ACTIVIST_DPS=8;
+const outstanding=state=>Math.max(0,state.sharesOut-state.treasuryBuybackShares);
+async function activistScenario(family,{status='active',type='dividend'}={}){
+ const s=await dividendScenario(family),g=s.game.g;
+ g.activeActivistCampaign={id:`activist-${g.week}-${type}-fixture`,activistName:'North Star Capital',type,title:'配当方針の引き上げ',dividendPerShare:ACTIVIST_DPS,amount:type==='dividend'?ACTIVIST_DPS*outstanding(g):5_000_000,reason:'fixture',week:g.week,startedWeek:g.week,deadlineWeek:g.week+8,status,response:null,support:40,pressureScore:70,difficulty:'normal'};
+ g.governanceCommitments=[
+  {id:'commit-ended',campaignID:'old',type:'dividend',dueWeek:g.week+2,status:'fulfilled',target:ACTIVIST_DPS},
+  {id:'commit-buyback',campaignID:'old-buyback',type:'buyback',dueWeek:g.week+40,status:'active',target:5_000_000},
+ ];
+ assert.equal(s.game.save(),true);await s.backend.flush();
+ return s;
+}
+function activistTerms(state){return {campaign:state.activeActivistCampaign?{...state.activeActivistCampaign}:null,commitments:JSON.parse(JSON.stringify(state.governanceCommitments||[]))};}
+function assertActivistRescaled(before,after,factor,label){
+ const b=activistTerms(before),a=activistTerms(after);
+ if(b.campaign&&b.campaign.type==='dividend'&&b.campaign.status==='active'){
+  close(a.campaign.dividendPerShare,b.campaign.dividendPerShare/factor,`${label} campaign dividendPerShare`);
+  close(a.campaign.dividendPerShare*outstanding(after),b.campaign.dividendPerShare*outstanding(before),`${label} campaign implied total preserved`);
+  assert.deepEqual({...a.campaign,dividendPerShare:0},{...b.campaign,dividendPerShare:0},`${label} other campaign fields untouched`);
+ }else assert.deepEqual(a.campaign,b.campaign,`${label} non-dividend / inactive campaign untouched`);
+ assert.equal(a.commitments.length,b.commitments.length);
+ a.commitments.forEach((c,i)=>{const o=b.commitments[i];
+  if(o.type==='dividend'&&o.status==='active'){close(c.target,o.target/factor,`${label} ${o.id} target`);assert.deepEqual({...c,target:0},{...o,target:0});}
+  else assert.deepEqual(c,o,`${label} ${o.id} untouched`);});
+}
+async function activistAccept(ratios){
+ // A/B/C/D: proposal created before the split, own split, accept: the declared total must not grow.
+ const s=await activistScenario('own'),g=s.game.g,before=snapshot(s.game),proposedTotal=ACTIVIST_DPS*outstanding(before);
+ for(const ratio of ratios){const prior=snapshot(s.game),draws=s.host.draws;assert.equal(s.game.stockSplit('CPTY',ratio),true);assertActivistRescaled(prior,snapshot(s.game),ratio,`accept 1:${ratio}`);assert.equal(s.host.draws,draws);}
+ await s.backend.flush();await loaded(s,s.game.g);
+ const cash=g.companyCash,personal=g.personalCash;
+ assert.equal(s.game.acceptShareholderProposal(),true,'production accept');
+ close(g.dividendPerShare*outstanding(g),proposedTotal,`accept after ${ratios.join('x')} split keeps the proposed dividend total`);
+ assert.equal(g.companyCash,cash);assert.equal(g.personalCash,personal);
+ console.log(`stockSplit dividend activist proposal accept after ${ratios.join(',')} PASS`);
+}
+async function activistCommitment(ratio){
+ // Negotiated dividend commitment, then split: the fulfilment check must compare like with like.
+ const s=await activistScenario('own'),g=s.game.g;
+ assert.equal(s.game.negotiateShareholderProposal(),true,'production negotiate creates the commitment');
+ assert.equal(s.game.setDividend(ACTIVIST_DPS),true,'policy meets the commitment before the split');
+ assert.equal(s.game.save(),true);await s.backend.flush();
+ const before=snapshot(s.game),created=before.governanceCommitments.find(c=>c.campaignID===before.activeActivistCampaign.id);
+ assert.equal(created.type,'dividend');assert.equal(created.status,'active');assert.equal(created.target,ACTIVIST_DPS);
+ assert.equal(s.game.stockSplit('CPTY',ratio),true);
+ const after=snapshot(s.game);assert.equal(before.activeActivistCampaign.status,'active','negotiated campaign stays acceptable');
+ assertActivistRescaled(before,after,ratio,`commitment 1:${ratio}`);
+ await s.backend.flush();await loaded(s,s.game.g);
+ while(s.game.g.week<created.dueWeek)assert.notEqual(s.game.advanceWeek(false),false);
+ const judged=s.game.g.governanceCommitments.find(c=>c.id===created.id);
+ assert.equal(judged.status,'fulfilled',`unchanged total payout after a 1:${ratio} split is not a breach`);
+ assert.equal(s.game.g.governanceCommitments.find(c=>c.id==='commit-ended').target,ACTIVIST_DPS);
+ assert.equal(s.modules.finance.validate(snapshot(s.game)).ok,true);
+ console.log(`stockSplit dividend governance commitment 1:${ratio} fulfilment PASS`);
+}
+async function activistUntouched(){
+ // External split, inactive (proxyFight) or buyback campaigns, ended / non-dividend commitments: unchanged.
+ for(const [family,options,label] of [['external',{},'external split'],['own',{status:'proxyFight'},'proxyFight campaign'],['own',{type:'buyback'},'buyback campaign']]){
+  const s=await activistScenario(family,options),before=snapshot(s.game);
+  assert.equal(s.game.stockSplit(s.stockID,2),true);
+  const after=snapshot(s.game);
+  if(family==='external')assert.deepEqual(activistTerms(after),activistTerms(before),`${label} leaves activist terms untouched`);
+  else assertActivistRescaled(before,after,2,label);
+ }
+ console.log('stockSplit dividend activist terms untouched outside scope PASS');
+}
+async function activistRejected(kind,{pending=false,nested=false}={}){
+ const s=await activistScenario('own');
+ if(pending){s.control.holdPut=true;assert.equal(s.game.save(),true);for(let i=0;i<100&&!s.control.release;i++)await new Promise(r=>setImmediate(r));}
+ const before=snapshot(s.game),bytes=s.backend.readSync(s.key),draws=s.host.draws;
+ const injection=fault(s,kind);let result,error;
+ try{result=nested?s.game.runTransaction(()=>s.game.stockSplit('CPTY',2)):s.game.stockSplit('CPTY',2);}catch(ex){error=ex;}finally{injection.restore();}
+ assert.ok(injection.hits()>0);if(kind==='save-false')assert.equal(result,false);else assert.match(error?.message||'',/threw/);
+ assert.deepEqual(snapshot(s.game),before,'activist terms roll back with the split');assert.equal(s.host.draws,draws);
+ assert.equal(s.backend.readSync(s.key),bytes);s.control.release?.();await s.backend.flush();assert.equal(s.durable.get(s.key),bytes);
+ await loaded(s,before);
+ assert.equal(s.game.stockSplit('CPTY',2),true,'retry');assertActivistRescaled(before,snapshot(s.game),2,`retry after ${kind}`);
+ await s.backend.flush();await loaded(s,s.game.g);
+ console.log(`stockSplit dividend activist terms ${kind}/pending=${pending}/nested=${nested} rollback/retry/reload PASS`);
+}
 async function legacyZeroDividend(){
  const s=await scenario('external');
  const ext=s.game.stock('EXT');delete ext.dividendPerShare;ext.dividendYield=.04;s.game.g.dividendPerShare=0;
@@ -150,5 +232,10 @@ async function legacyZeroDividend(){
   for(const kind of ['save-false','save-throw'])await rejected(family,kind,{pending:true});
  }
  await legacyZeroDividend();
+ for(const ratios of [[2],[3],[2,3]])await activistAccept(ratios);
+ for(const ratio of [2,3])await activistCommitment(ratio);
+ await activistUntouched();
+ for(const kind of ['save-false','save-throw'])for(const nested of [false,true])await activistRejected(kind,{nested});
+ await activistRejected('save-false',{pending:true});
  console.log('Stock split dividend rescale PASS');
 })().catch(e=>{console.error(e);process.exitCode=1;});

@@ -79,5 +79,23 @@ async function baselinePayment(browser,url,f){
    await context.close();
   }
  }
+ // Activist dividend proposal created before an own split: after a durable-only reload, accepting it
+ // must declare the same dividend total the proposal asked for (Owner decision on #951).
+ for(const ratios of [[2],[2,3]]){
+  const f=await fixture('own'),outstanding=f.g.sharesOut-f.g.treasuryBuybackShares,ACTIVIST_DPS=8;
+  f.g.activeActivistCampaign={id:'activist-webkit-dividend',activistName:'North Star Capital',type:'dividend',title:'配当方針の引き上げ',dividendPerShare:ACTIVIST_DPS,amount:ACTIVIST_DPS*outstanding,reason:'fixture',week:f.g.week,startedWeek:f.g.week,deadlineWeek:f.g.week+8,status:'active',response:null,support:40,pressureScore:70,difficulty:'normal'};
+  f.g.governanceCommitments=[{id:'commit-webkit',campaignID:'old',type:'dividend',dueWeek:f.g.week+20,status:'active',target:ACTIVIST_DPS}];
+  const context=await browser.newContext(options),p=await page(context,url);
+  await p.evaluate(async({fixture,ratios})=>{const m=__capitalismTycoonModules,e=new m.engine.TycoonEngine(fixture.g);await m.saveStorageIDB.hydrate();if(!e.save())throw new Error('fixture save failed');for(const r of ratios)if(e.stockSplit('CPTY',r)!==true)throw new Error('split failed');await m.saveStorageIDB.flush();},{fixture:f,ratios});
+  const state=await context.storageState({indexedDB:true});for(const origin of state.origins)origin.localStorage=[];
+  const fresh=await browser.newContext({...options,storageState:state}),fp=await page(fresh,url);
+  const accepted=await fp.evaluate(async()=>{const m=__capitalismTycoonModules;await m.saveStorageIDB.hydrate();const e=m.engine.TycoonEngine.load(),g=e.g;const terms={campaign:g.activeActivistCampaign.dividendPerShare,commitment:g.governanceCommitments[0].target,outstanding:g.sharesOut-g.treasuryBuybackShares};const ok=e.acceptShareholderProposal();return {ok,terms,declaredTotal:g.dividendPerShare*(g.sharesOut-g.treasuryBuybackShares)};});
+  const factor=ratios.reduce((a,b)=>a*b,1);
+  assert.equal(accepted.ok,true);close(accepted.terms.campaign,ACTIVIST_DPS/factor,'durable campaign dividendPerShare');close(accepted.terms.commitment,ACTIVIST_DPS/factor,'durable commitment target');
+  close(accepted.declaredTotal,ACTIVIST_DPS*outstanding,`accept after ${ratios.join('x')} keeps the proposed total`);
+  results.push({family:'own',case:`activist accept after ${ratios.join('x')}`,accepted});
+  console.log(`iPhone WebKit stock split dividend activist accept after ${ratios.join(',')} / durable-only fresh IDB PASS`);
+  await fresh.close();await context.close();
+ }
  fs.writeFileSync(path.join(DIR,'stock-split-dividend-result.json'),JSON.stringify({physicalDevice:false,device:'iPhone13',ok:true,results},null,2));console.log('iPhone WebKit stock split dividend rescale PASS');
 }finally{await browser?.close();await new Promise(r=>server.close(r));}})().catch(e=>{console.error(e);process.exitCode=1;});
