@@ -1,35 +1,18 @@
 'use strict';
 const assert=require('node:assert/strict'),fs=require('node:fs');
-const {loadGame}=require('./harness');
 const {scenario,economic,snapshot,assertSplit}=require('./fixtures/stock-split-atomicity');
-const {indexedDBFor,inject}=require('./fixtures/pe-fund-acquisition-faults');
+const {makeTransactionFaultCase}=require('./helpers/transaction-fault-case');
 const parity=[];
-async function loaded(s,expected){
- const wanted=economic(new s.engineModule.TycoonEngine(JSON.parse(JSON.stringify(expected))).g);
- assert.deepEqual(economic(s.engineModule.TycoonEngine.load().g),wanted,'production reload');
- const fresh=loadGame({headless:true,indexedDB:indexedDBFor(s.durable,{attempts:[]})});await fresh.modules.saveStorageIDB.hydrate();
- assert.deepEqual(economic(fresh.engineModule.TycoonEngine.load().g),wanted,'fresh durable-only hydration');await fresh.modules.saveStorageIDB.flush();
-}
-function fault(s,kind){
- if(kind!=='save-before-throw')return inject(s.game,s.modules,s.ctx.localStorage,s.key,kind);
- const save=s.game.save;let hits=0;s.game.save=()=>{hits++;throw new Error('save before admission threw');};
- return {hits:()=>hits,restore(){s.game.save=save;}};
-}
-async function rejected(family,kind,pending=false,nested=false){
- const s=await scenario(family);
- if(pending){s.control.holdPut=true;assert.equal(s.game.save(),true);for(let i=0;i<100&&!s.control.release;i++)await new Promise(r=>setImmediate(r));assert.equal(typeof s.control.release,'function');}
- const before=snapshot(s.game),bytes=s.backend.readSync(s.key),durable=s.durable.get(s.key),puts=s.control.attempts.length,draws=s.host.draws;
- const injection=fault(s,kind);let result,error;
- try{result=nested?s.game.runTransaction(()=>s.game.stockSplit(s.stockID,2)):s.game.stockSplit(s.stockID,2);}catch(ex){error=ex;}finally{injection.restore();}
- assert.ok(injection.hits()>0,'fault reaches installed writer');
- if(['save-false','mirror','enqueue-false','enqueue-throw'].includes(kind)){assert.equal(result,false,'failed split must return false');assert.equal(error,undefined);}else assert.match(error?.message||'',/threw/);
- assert.deepEqual(snapshot(s.game),before,'full live rollback including quantities/history/finance/news/RNG');assert.equal(s.host.draws,draws);
- assert.equal(s.ctx.__localStorageData.get(s.key),bytes);assert.equal(s.backend.readSync(s.key),bytes);assert.equal(s.durable.get(s.key),durable);
- s.control.release?.();await s.backend.flush();assert.equal(s.durable.get(s.key),bytes,'predecessor preserved, failed split never durable');assert.equal(s.control.attempts.length,puts,'cancel failed pending put');
- await loaded(s,before);assert.equal(s.game.save(),true);await s.backend.flush();await loaded(s,before);
- assert.equal(s.game.stockSplit(s.stockID,2),true,'failed split can retry');assertSplit(before,snapshot(s.game),s.stockID,2);await s.backend.flush();await loaded(s,s.game.g);
- console.log(`stockSplit ${family}/${kind}/pending=${pending}/nested=${nested} PASS`);
-}
+const faultCase=makeTransactionFaultCase({
+ name:'split',
+ fixture:family=>scenario(family),
+ command:s=>s.game.stockSplit(s.stockID,2),
+ snapshot,economic,
+ expectSuccess:(before,after,s)=>assertSplit(before,after,s.stockID,2),
+ label:(family,kind,{pending,nested})=>`stockSplit ${family}/${kind}/pending=${pending}/nested=${nested}`,
+});
+const loaded=faultCase.loaded;
+const rejected=(family,kind,pending=false,nested=false)=>faultCase.rejected(family,kind,{pending,nested});
 async function normal(family,legacy){
  const s=await scenario(family,legacy),events=[],emit=s.game.emit,save=s.game.save;let saves=0;
  s.game.emit=function(type='change',...args){events.push(type);return emit.call(this,type,...args);};s.game.save=function(...args){if(!this.inTransaction())saves++;return save.apply(this,args);};
