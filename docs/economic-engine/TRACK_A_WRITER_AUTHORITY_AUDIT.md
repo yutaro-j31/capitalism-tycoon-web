@@ -1,7 +1,7 @@
 # Track A — Writer Authority audit: shares, ownership, dividends (#922)
 
 Status: **read-only audit. Verdict: BLOCKED** (see §5). No production, test, CI or save-format change.
-Base: first pass on main `35866030c4f47e47d1aac9dc1d4415365b412fb0` (2026-10-12; §1–§7). Second pass on main `9d2a9ddba666b1817b3848d5389b73d6d154e33d`, after #952 (shared fault harness) and #956 merged: §3b records the current evidence and **supersedes** the first-pass evidence where they differ (W-NEW-COMPANY is now reproduced; the render-time writer is reproduced and filed as #966). §2 verdicts describe main and change only when a fix merges.
+Base: first pass on main `35866030c4f47e47d1aac9dc1d4415365b412fb0` (2026-10-12; §1–§7). Second pass on main `9d2a9ddba666b1817b3848d5389b73d6d154e33d`, after #952 (shared fault harness) and #956 merged: §3b records the current evidence and **supersedes** the first-pass evidence where they differ (W-NEW-COMPANY is now reproduced; the render-time writer is reproduced and filed as #966). Third pass on main `8f2e50fcdfcb44d712f956ebb2750610c4db426e` (2026-10-13), after #951 and #957 merged: §3c is the current status and supersedes §3b where they differ. §2 verdicts describe main and change only when a fix merges.
 
 This is the canonical Writer Matrix for the share / ownership / dividend domain. `phase0-5-authoritative-writers.json` remains the machine-generated lexical inventory consumed by `scripts/phase0-5-acceptance.js`; it is a different artifact (token-level discovery, no boundary/test verdicts) and is not duplicated here.
 
@@ -28,7 +28,7 @@ Abbreviations: SF = save-fault injection set (save-false, mirror, enqueue-false/
 
 | ID | Location (installed) | Callers | Writes | Entity | Boundary | Save | Ledger | SF / RL / HY | RNG | Tests | Gate | Verdict |
 |---|---|---|---|---|---|---|---|---|---|---|---|---|
-| W-SPLIT | `expansion.js:381` `stockSplit` | UI `app.js:920` | price/previous/issuedShares/priceHistory, holdings qty/avg, own sharesOut/founder/treasury/stockPrice, `stockSplitHistory` | company, personal, market | yes (CODE) | commit | none | NODE+WEBKIT | asserted | `stock-split-save-atomicity`, `stock-split-price-history` (+ WebKit both) | `stock-split-atomicity` (all events), `deal-room`/`comprehensive-ma` | **VERIFIED** (atomicity). Economic defects tracked separately: dividend (#951), price floor (Step 2) |
+| W-SPLIT | `expansion.js:381` `stockSplit` | UI `app.js:920` | price/previous/issuedShares/priceHistory, holdings qty/avg, own sharesOut/founder/treasury/stockPrice, `stockSplitHistory` | company, personal, market | yes (CODE) | commit | none | NODE+WEBKIT | asserted | `stock-split-save-atomicity`, `stock-split-price-history` (+ WebKit both) | `stock-split-atomicity` (all events), `deal-room`/`comprehensive-ma` | **VERIFIED** (atomicity). Dividend / activist / governance per-share rescale fixed on main by #951 (merged `00cb15fb`, NODE + WEBKIT); price floor #960 open (not on main) |
 | W-BUY | `engine.js:1431` `buyStock` | UI `app.js:909` | cash, holdings, quote price | company / personal | yes | commit | `investmentPurchase` (company) | NODE+WEBKIT | asserted | `stock-purchase-save-atomicity` (+WebKit) | `deal-room`, `comprehensive-ma` | **VERIFIED** (see D8: company account may buy own ticker) |
 | W-SELL | `engine.js:1447` `sellStock` | UI `app.js:909` | cash, holdings, realized P/L | company / personal | yes | commit | `investmentSale` | NODE+WEBKIT | asserted | `stock-sale-save-atomicity` (+WebKit) | same | **VERIFIED** |
 | W-FOUNDER-SALE | `expansion.js:390` `sellFounderShares` | UI `app.js:920` | founderShares, personalCash, ratios, history | personal | yes | commit | n/a (personal) | NODE+WEBKIT | asserted | `founder-share-sale-save-atomicity` (+WebKit) | same | **VERIFIED** |
@@ -42,8 +42,8 @@ Abbreviations: SF = save-fault injection set (save-false, mirror, enqueue-false/
 | W-DIV-SET | `shareholder-returns.js:32/36` `setDividend` (overrides dead `engine.js:1697`) | UI `app.js:899`, activism accept | dividendPerShare, own market dps/yield, returns history | company | yes; `capacity()`→`buildStatements` writes derived finance cache **before** the TX | commit | declaration only | **none** (no SF/HY) | — | `shareholder-returns`, `phase2-dividend-reconciliation`, `dividend-corporate-tax` (functional) | Test shards | **GAP** |
 | W-BUYBACK | `shareholder-returns.js:33/37` `buyback` (overrides dead `engine.js:1701`) | UI `app.js:899`, activism accept | companyCash, treasuryBuybackShares, stockPrice, own row, treasuryStock, ratios | company | yes (same pre-TX cache note) | commit | `otherFinancing` + reconciliation evidence | NODE (mirror fault only + finance-throw; RL/HY) | — | `save-storage-commit-atomicity:247-261`, `player-own-share-conservation`, `phase2-buyback-reconciliation` | Test shards | **GAP** (partial fault set, no WebKit) |
 | W-DIV-PAY | `engine.js:~2312` + `shareholder-returns.js:38` wrapper | weekly | personal/company cash, returns history | company + personal | WK | week commit; wrapper `emit('week')` inside TX (D7) | dividend rows | generic week rollback only | — | `phase2-dividend-reconciliation`, `dividend-corporate-tax` | Test shards | **GAP** (no dividend-specific fault/HY/WebKit; #951 adds split+payment WebKit) |
-| W-ACTIVISM-ACCEPT | `shareholder-activism.js:37/47` | module UI `:57` | inner buyback/dividend (own TX) **then** reputation, pressure, campaign completion | company | **partial** — completion after inner commit | inner save only | via inner writer | none | — | `shareholder-activism-test` (in-memory) | strategy-balance only | **GAP — P1 #953 (REPRO: double buyback after reload)** |
-| W-ACTIVISM-NEG/REJ | `shareholder-activism.js:38/40` | module UI `:57` | campaign, commitments | company governance | **no** | **none** | none | none | — | in-memory | — | **GAP — P1/P2 #953** |
+| W-ACTIVISM-ACCEPT | `shareholder-activism.js` `acceptShareholderProposal` | module UI | inner buyback/dividend, reputation, pressure, campaign completion | company | **yes** — one outer `runTransaction` (#957, merged `8f2e50fc`); the capital-return writer nests inside | one commit | via inner writer | NODE (all harness fault kinds, pending, nested; RL/HY) + WEBKIT | asserted (no host RNG) | `shareholder-activism-accept-save-atomicity` (+WebKit), `shareholder-activism-split-integration` (#951 × #953) | `stock-split-atomicity` (all events) | **VERIFIED** (third pass; was GAP — P1 #953) |
+| W-ACTIVISM-NEG/REJ | `shareholder-activism.js` `negotiate`/`rejectShareholderProposal` | module UI | campaign, commitments | company governance | **yes** — `runTransaction` (#957) | one commit | none | NODE (save-false / save-throw rollback, RL/HY, post-split) | — | `shareholder-activism-accept-save-atomicity`, `shareholder-activism-split-integration` | Test shards; WebKit covers accept only | **GAP** (NODE only; no negotiate/reject WebKit) — was P1/P2 #953 |
 | W-DECLINE-BUYOUT | `completion.js:148` `declineInboundBuyoutOffer` | UI `app.js:926` | competitorOwnedRatio (+0.025, no ratio recompute) | company | **no** | direct save, result ignored | none | none | — | none | — | **GAP — P1 #955 (REPRO: ratios sum 1.025, no rollback)** |
 | W-FORCE-EARNINGS | `parity.js:82-84` via UI `app.js:927` | UI (also weekly `parity.js:104` in WK) | stockPrice, own row price/marketCap, trust, pressure, guidance | company | weekly: WK; **UI: no** | UI: direct `engine.save()` | none | none | **UI consumes simulation RNG (REPRO)** | weekly only | — | **GAP — P1 #955** |
 | W-NEW-COMPANY | `completion.js:155-159` (+`pe-fund.js:1093`) `foundNewCompanyAfterBuyout` | UI `app.js:927` | replaces `g` wholesale (all equity fields) | company / personal | **no** | direct save, ignored; wrapper mutates after save | — | none | — | functional | — | **GAP — P1 #955 (REPRO 2026-10-12: failed save returns true with live new company vs durable sold company; on success the pe-fund founded-investment write after the save is lost on reload); fix PR #965** |
@@ -92,7 +92,7 @@ UI bypass check (CODE): no `app.js` or D UI handler writes share / ownership fie
 
 | Issue | Severity | Summary | Evidence |
 |---|---|---|---|
-| #953 | P1 | Activism accept completes the campaign after the inner buyback commit, outside any transaction; reload re-opens the proposal and a second accept executes a second buyback (treasury 10,000 → 19,920, cash spent twice). Negotiate / reject never save. | REPRO (Node) |
+| #953 | P1 | Activism accept completes the campaign after the inner buyback commit, outside any transaction; reload re-opens the proposal and a second accept executes a second buyback (treasury 10,000 → 19,920, cash spent twice). Negotiate / reject never save. **Fixed on main by #957 (merged `8f2e50fc`).** | REPRO (Node) |
 | #954 | P1 | Legacy `createPEDeal` / `exitPEDeal`, `makeSubsidiary`, angel create/exit save outside `runTransaction`: return `true` on save rejection with storage unchanged; save-throw throws while keeping the mutation durable. | REPRO (Node) |
 | #955 | P1 (items 1–2); item 3 suspected in the first pass, **reproduced in the second pass (§3b)** | `declineInboundBuyoutOffer` (ratios sum 1.025, no rollback), UI force-earnings (consumes simulation RNG outside a transaction), `foundNewCompanyAfterBuyout` (wholesale `g` replace, save ignored). | REPRO (1, 2), CODE (3) |
 
@@ -142,6 +142,54 @@ Track A completion conditions after the second pass:
 | 10 | Independent diff audit | **Not met** (same agent session; Codex automated review only) |
 
 **Track A verdict: still BLOCKED.**
+
+## 3c. Remediation status — third pass (2026-10-13, main `8f2e50fc`, after #951 / #957 merged)
+
+Evidence levels as in §1. A fix PR with green CI is **not** a VERIFIED writer on main; only merged fixes change §2. WEBKIT below = real WebKit 26.5 (Playwright, iPhone 13 emulation, real IndexedDB) in GitHub Actions; physical iPhone: **NOT RUN** for every row.
+
+| Writer | Fix PR | State | Node | WebKit (writer-specific) | Verdict on main |
+|---|---|---|---|---|---|
+| W-SPLIT (dividend / activist / governance) | #951 | **merged** `00cb15fb`; main CI 42 success / 8 skipped / 0 failure | 37 cases | 12/12 (job 114813605895) | VERIFIED |
+| W-ACTIVISM-ACCEPT | #957 | **merged** `8f2e50fc` | 49 + 68 integration cases (#951 × #953 cases A–C) | accept 9/9 incl. dividend after a 1:2 split (job 115038267509) | VERIFIED |
+| W-ACTIVISM-NEG/REJ | #957 | **merged** | save-false / save-throw, post-split | NOT RUN (accept only) | GAP |
+| W-SPLIT (price floor) | #960 | open (retargeted to main) | boundaries, ratios, overflow, at-floor faults | 8/8 (job 114844972880, before retarget) | defect open on main |
+| W-PE-LEGACY-CREATE | #958 | open | 43 cases | 22/22 (job 115033796121) | GAP |
+| W-PE-LEGACY-EXIT (+ premium) | #959 | open | 64 cases | 33/33 (job 115035068045) | GAP |
+| W-MAKE-SUB | #961 | open | 22 cases | 11/11 (job 115035650583) | GAP |
+| W-ANGEL (create / exit) | #962 | open | 43 cases | 22/22 (job 115036468697) | GAP |
+| W-DECLINE-BUYOUT | #963 | open | 43 cases | 22/22 (job 115052640419) | GAP |
+| W-FORCE-EARNINGS | #964 | open | 8 applicable fault kinds (`notify` not applicable) | 11/11 through the real market-tab button (job 115052659642) | GAP |
+| W-NEW-COMPANY | #965 | open | 22 cases + root identity | 12/12 through the real legacy-tab flow, root held across success and rollback (job 115052671424) | GAP |
+| W-SUB-MARKET-RENDER | — | Issue #966 | — | — | GAP (severity raise to P1 proposed; Owner decision) |
+
+Merged-tree integration (local, NODE only, never pushed): main + #957 + #960 + #958 + #959 + #961 + #962 + #963 + #964 + #965 + #970. The registration-list conflicts resolve mechanically. The `js/expansion.js` conflict between #959 and #962 does **not**: a keep-both resolution re-adds the pre-fix `exitPEDeal` / `createAngelInvestment` / `exitAngelInvestment` after the fixed ones, and the later non-transactional definitions would win. Those PRs must be merged one at a time with the conflict resolved by hand and re-tested. With that resolution, 24 suites pass (all writer tests, save-compat, save-v9 migration, transaction regression, accounting invariants, week, finance ledger).
+
+New findings in this pass (all pre-existing on main, none introduced by the fix PRs):
+
+| Issue | Severity | Summary | Evidence |
+|---|---|---|---|
+| #971 | P1 (P0 candidate) | `updateSubsidiaries` quarterly VC / M&A subsidiary dividend credits `companyCash` with no ledger event; the quarter-week standalone close fails (`P2-CLOSE-BS-IDENTITY 263,152.52`), so a company holding a VC subsidiary cannot pass week 13 | REPRO (Node, production writers, confirmed twice) |
+| #968 | P1 (P0 candidate) | `foundNewCompanyAfterBuyout` leaves `finance.openingCash` at the fresh-state default (8,000,000 vs `companyCash` 50,000,000); the next weekly close throws, so the refounding route cannot advance | REPRO (Node) |
+| #969 | P2 | success `notify` toasts are emitted inside `runTransaction` before the commit outcome; on a soft save failure the player sees a success toast for a rolled-back action | REPRO (browser logic run in Chromium; WebKit NOT RUN for this observation) |
+| #966 (update) | P2 → P1 proposed | render-booked listed-subsidiary dividend can block the next week (`P2-CLOSE-WEEKLY-CASH`); `ensureSub` rescales the listing valuation on every render; render frequency changes valuation by tens of percent; two quarterly dividend writers per listed subsidiary | REPRO (Node, subagent); see the #966 comment |
+| — (no Issue yet) | P2, Owner decision | founder + competitor ownership can exceed 1: competitor stake is clamped to 0.49 independently of the founder ratio and buybacks raise the founder ratio; production hostile declines + buyback reach founder 0.7595 + competitor 0.49 (external clamps at 0, never negative). #963 improves main (sum 1.49 → 1.096) but cannot fix it without an ownership-model change, which belongs to the stopped P3-4 cutover | REPRO (Node) |
+
+Track A completion conditions after the third pass:
+
+| # | Condition | Status |
+|---|---|---|
+| 1 | Writer list completeness | Partial (pattern sweep) |
+| 2 | State destinations | Met (CODE) |
+| 3 | Save / rollback boundary | Met (CODE); #953 fixed on main; 8 fix PRs still open |
+| 4 | Node regressions registered | Improving; **not met** on main (open PRs) |
+| 5 | WebKit need / evidence | Writer-specific WebKit now exists and passes for every #954 / #955 writer, but **only in unmerged PRs**; **not met** on main |
+| 6 | Accounting / ownership invariants | **Not met** (#971, #968 newly reproduced; founder + competitor > 1; D3 / D4) |
+| 7 | Unresolved P0/P1 recorded | Met (#954, #955, #966, #968, #971) |
+| 8 | Executable CI gate | Partial (writer path filters proposed in CI-only PR #972; save-storage budget timeout CI-only PR #970; both awaiting Owner approval) |
+| 9 | Missing writers explicit | Met |
+| 10 | Independent diff audit | **Not met** (same agent session; Codex automated review only) |
+
+**Track A verdict: still BLOCKED.** P3-4 Ownership Authority Cutover remains STOPPED; Phase 4 not started.
 
 ## 4. CI gate observations
 
