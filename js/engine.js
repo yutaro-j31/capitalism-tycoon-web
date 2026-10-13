@@ -1509,11 +1509,14 @@ class TycoonEngine extends EventTarget {
     const h=this.g.startupFundingHistory[s.id]||(this.g.startupFundingHistory[s.id]=[]),opened=h.find(x=>x.status==='open');if(opened){opened.status='closed';opened.closedWeek=this.g.week;}h.unshift({id:`${r.id}-closed`,eventType:'closed',stage:r.round,closedWeek:this.g.week,preMoneyValuation:r.preMoneyValuation,targetRaise:r.targetRaise,postMoneyValuation:r.postMoneyValuation,ownershipBefore:{company:r.preRoundOwnedCompany,personal:r.preRoundOwnedPersonal},ownershipAfter:{company:s.ownedCompany,personal:s.ownedPersonal}});this.g.startupFundingHistory[s.id]=h.slice(0,24);s.activeFundingRound=null;this.g.news.unshift(`第${this.g.week}週：${s.name}の${s.stage}追加資金調達が完了しました。`);return true;
   }
   makeSubsidiary(startupID) {
+    // #954: startup flag, subsidiary record and stake reset commit with one save, or roll back together.
+    return this.runTransaction(()=>{
     const s=this.g.startups.find(x=>x.id===startupID);if(!s||s.subsidiary)return false;
     if(s.activeFundingRound?.status==='open')return this.fail('追加資金調達ラウンド終了後に子会社化できます。');
     if(s.ownedCompany<.5)return this.fail('会社持分50%以上が必要です。');
     s.subsidiary=true;const book=finite(s.totalInvestedCompany||0);this.g.subsidiaries.push({id:uuid(this.g,'subsidiary'),startupID:s.id,name:s.name,domain:s.domain,ownership:s.ownedCompany,valuation:s.valuation,investedCost:book,carryingBookValue:book,weeklyProfit:0,growth:s.growth,risk:s.risk,publicCompany:false,status:'active',retainedEarnings:0});s.ddNegotiatedOwnedCompany=0;
-    this.notify(`${s.name}を連結子会社化しました。`,'success');this.save();this.emit();return true;
+    this.notify(`${s.name}を連結子会社化しました。`,'success');return true;
+    });
   }
   ipoSubsidiary(id) {
     const sub=this.g.subsidiaries.find(s=>s.id===id);if(!sub||sub.publicCompany)return false;

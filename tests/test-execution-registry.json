@@ -203,6 +203,10 @@
     "reason": "Own/external split full rollback, pending predecessor, reload and fresh real IndexedDB in the independent stock-split-atomicity job on every workflow event including PR/main.",
     "executedBy": ".github/workflows/ma-acquisition-financing.yml"
   },
+  "tests/stock-split-price-floor-webkit-test.js": {
+    "reason": "Own/external split at exactly the 10-yen floor persists; below-floor, NaN and non-integer ratios are rejected via fail() without live, mirror or durable change, verified through fresh real IndexedDB in the stock-split-atomicity job on every workflow event.",
+    "executedBy": ".github/workflows/ma-acquisition-financing.yml"
+  },
   "tests/shareholder-activism-accept-save-atomicity-webkit-test.js": {
     "reason": "#953 activist proposal acceptance: buyback/dividend plus campaign completion commit once; durable-only reload cannot accept again; save-false/save-throw roll back live, mirror and durable state, in the stock-split-atomicity job on every workflow event.",
     "executedBy": ".github/workflows/ma-acquisition-financing.yml"
@@ -231,12 +235,24 @@
     "reason": "#954 personal angel investment create/exit: every harness fault kind (incl. prior pending put) rolls live, mirror, cache and durable IndexedDB back; company cash never moves; retry is deterministic; second exit refused; reload and fresh durable-only hydration in iPhone WebKit on every workflow event.",
     "executedBy": ".github/workflows/ma-acquisition-financing.yml"
   },
+  "tests/make-subsidiary-save-atomicity-webkit-test.js": {
+    "reason": "#954 makeSubsidiary: every harness fault kind (incl. prior pending put) rolls live, mirror, cache and durable IndexedDB back; retry issues the same deterministic subsidiary ID; second consolidation refused; reload and fresh durable-only hydration in iPhone WebKit on every workflow event.",
+    "executedBy": ".github/workflows/ma-acquisition-financing.yml"
+  },
   "tests/pe-fund-acquisition-save-atomicity-webkit-test.js": {
     "reason": "Actual PE fund acquisition rollback, coinvestment, prior pending put and fresh IndexedDB iPhone WebKit in PR/main gates.",
     "executedBy": ".github/workflows/ma-acquisition-financing.yml"
   },
   "tests/pe-portfolio-exit-save-atomicity-webkit-test.js": {
     "reason": "Actual PE portfolio Exit rollback, prior pending put, reload and fresh IndexedDB iPhone WebKit in PR/main gates.",
+    "executedBy": ".github/workflows/ma-acquisition-financing.yml"
+  },
+  "tests/pe-create-deal-save-atomicity-webkit-test.js": {
+    "reason": "#954 createPEDeal company/personal: every harness fault kind (incl. prior pending put) rolls live, mirror, cache and durable IndexedDB back; retry issues the same deterministic deal; single commit; reload and fresh durable-only hydration in iPhone WebKit on every workflow event.",
+    "executedBy": ".github/workflows/ma-acquisition-financing.yml"
+  },
+  "tests/pe-exit-deal-save-atomicity-webkit-test.js": {
+    "reason": "#954 exitPEDeal company/personal/premium-wrapper: every harness fault kind (incl. prior pending put) rolls live, mirror, cache and durable IndexedDB back including the premium valuation; retry pays the same deterministic proceeds; second exit refused; reload and fresh durable-only hydration in iPhone WebKit on every workflow event.",
     "executedBy": ".github/workflows/ma-acquisition-financing.yml"
   },
   "tests/ma-subsidiary-sale-save-atomicity-webkit-test.js": {
