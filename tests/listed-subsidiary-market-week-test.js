@@ -105,8 +105,10 @@ console.log(`listed subsidiary weeks 17-${WEEKS} / in-week catch-up / quarterly 
  const attempts={policy:()=>game.setListedSubsidiaryDividendPolicy(id,'income'),buy:()=>game.buyListedSubsidiaryStake(id,.05),
   followOn:()=>game.executeListedSubsidiaryFollowOnOffering?.(id,(game.listedSubsidiaryFollowOnOfferingPreview?.(id)?.options||[])[0]?.id||'balanced'),
   tender:()=>game.launchListedSubsidiaryTenderOffer?.(id)};
+ const notices=[],emit=game.emit;game.emit=function(type='change',detail,...rest){if(type==='notify')notices.push(String(detail?.severity||''));return emit.call(this,type,detail,...rest);};
  for(const [name,run] of Object.entries(attempts)){
-  const before=JSON.stringify(game.g),count=errors.length,result=run();
+  const before=JSON.stringify(game.g),count=errors.length,seen=notices.length,result=run();
+  assert.ok(!notices.slice(seen).includes('success'),`${name}: a refused action shows no success notification`);
   assert.notEqual(result,true,`${name}: refused while the market lags`);
   assert.equal(JSON.stringify(game.g),before,`${name}: state rolled back`);
   if(name==='policy'||name==='buy')assert.match(errors.slice(count).join(' '),/市場更新が未完了[\s\S]*週を進め/,`${name}: the message says to advance the week`);
@@ -117,7 +119,8 @@ console.log(`listed subsidiary weeks 17-${WEEKS} / in-week catch-up / quarterly 
   assert.equal(game.runTransaction(()=>{game.g.subsidiaries.find(x=>x.id===id).ownership-=.01;return true;}),false,'any writer changing the ownership is refused');
   assert.equal(JSON.stringify(game.g),before,'and rolled back');assert.match(errors.slice(count).join(' '),/市場更新が未完了/);
   assert.equal(game.runTransaction(()=>{game.g.news.unshift('unrelated');return true;}),true,'a change elsewhere commits');}
- assert.equal(game.setGroupHoldingPolicy?.('growth')??true,true,'an unrelated action still runs');
+ {const seen=notices.length;assert.equal(game.setGroupHoldingPolicy?.('growth')??true,true,'an unrelated action still runs');
+  if(game.setGroupHoldingPolicy)assert.ok(notices.slice(seen).includes('success'),'an accepted action still shows its success notification');}
  assert.notEqual(game.advanceWeek(false),false);assert.equal(game.g.week,26);
  assert.equal(ctx.modules.listedSubsidiaryMarket.lagging(game.g).length,0,'the week advance settled the market');
  assert.equal(game.setListedSubsidiaryDividendPolicy(id,'income'),true,'the policy change runs after the market is settled');
