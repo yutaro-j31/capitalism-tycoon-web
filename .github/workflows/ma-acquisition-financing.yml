@@ -41,6 +41,10 @@ on:
       - 'tests/angel-investment-save-atomicity-webkit-test.js'
       - 'tests/make-subsidiary-save-atomicity-test.js'
       - 'tests/make-subsidiary-save-atomicity-webkit-test.js'
+      - 'tests/subsidiary-quarter-close-test.js'
+      - 'tests/subsidiary-quarter-close-save-atomicity-test.js'
+      - 'tests/fixtures/subsidiary-quarter-close.js'
+      - 'tests/subsidiary-quarter-close-webkit-test.js'
       - 'tests/fixtures/vc-initial-investment-atomicity.js'
       - 'tests/pe-fund-acquisition-save-atomicity-test.js'
       - 'tests/pe-fund-acquisition-save-atomicity-webkit-test.js'
@@ -132,6 +136,10 @@ on:
       - 'tests/angel-investment-save-atomicity-webkit-test.js'
       - 'tests/make-subsidiary-save-atomicity-test.js'
       - 'tests/make-subsidiary-save-atomicity-webkit-test.js'
+      - 'tests/subsidiary-quarter-close-test.js'
+      - 'tests/subsidiary-quarter-close-save-atomicity-test.js'
+      - 'tests/fixtures/subsidiary-quarter-close.js'
+      - 'tests/subsidiary-quarter-close-webkit-test.js'
       - 'tests/fixtures/vc-initial-investment-atomicity.js'
       - 'tests/pe-fund-acquisition-save-atomicity-test.js'
       - 'tests/pe-fund-acquisition-save-atomicity-webkit-test.js'
@@ -479,6 +487,9 @@ jobs:
       - name: VC secondary sale atomicity in real iPhone WebKit
         run: |
           node tests/vc-secondary-sale-save-atomicity-webkit-test.js
+      - name: VC / M&A subsidiary quarter close (#971) in real iPhone WebKit
+        run: |
+          node tests/subsidiary-quarter-close-webkit-test.js
       - name: Retain vc-secondary-atomicity WebKit evidence
         if: always()
         uses: actions/upload-artifact@v4

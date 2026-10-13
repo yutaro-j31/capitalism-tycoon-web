@@ -106,7 +106,8 @@
     "tests/pe-realestate-agency-bridge-negative-test.js",
     "tests/pe-realestate-agency-ui-connection-test.js",
     "test:stock",
-    "tests/personal-real-estate-short-term-test.js"
+    "tests/personal-real-estate-short-term-test.js",
+    "tests/subsidiary-quarter-close-save-atomicity-test.js"
   ],
   "F": [
     "tests/gf-010-finance-validation-enforcement-test.js",
@@ -273,6 +274,7 @@
     "tests/stock-split-price-floor-test.js",
     "tests/shareholder-activism-accept-save-atomicity-test.js",
     "tests/shareholder-activism-split-integration-test.js",
-    "tests/store-cost-inflation-25y-test.js"
+    "tests/store-cost-inflation-25y-test.js",
+    "tests/subsidiary-quarter-close-test.js"
   ]
 }
