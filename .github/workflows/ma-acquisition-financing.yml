@@ -21,6 +21,8 @@ on:
       - 'tests/shareholder-activism-split-integration-test.js'
       - 'tests/stock-split-dividend-rescale-test.js'
       - 'tests/stock-split-dividend-rescale-webkit-test.js'
+      - 'tests/stock-split-price-floor-test.js'
+      - 'tests/stock-split-price-floor-webkit-test.js'
       - 'tests/fixtures/stock-split-atomicity.js'
       - 'tests/stock-split-price-history-test.js'
       - 'tests/stock-split-price-history-webkit-test.js'
@@ -39,6 +41,8 @@ on:
       - 'tests/pe-fund-acquisition-save-atomicity-webkit-test.js'
       - 'tests/pe-portfolio-exit-save-atomicity-test.js'
       - 'tests/pe-portfolio-exit-save-atomicity-webkit-test.js'
+      - 'tests/pe-create-deal-save-atomicity-test.js'
+      - 'tests/pe-create-deal-save-atomicity-webkit-test.js'
       - 'tests/pe-exit-deal-save-atomicity-test.js'
       - 'tests/pe-exit-deal-save-atomicity-webkit-test.js'
       - 'tests/fixtures/pe-fund-acquisition-atomicity.js'
@@ -79,6 +83,8 @@ on:
       - 'tests/shareholder-activism-split-integration-test.js'
       - 'tests/stock-split-dividend-rescale-test.js'
       - 'tests/stock-split-dividend-rescale-webkit-test.js'
+      - 'tests/stock-split-price-floor-test.js'
+      - 'tests/stock-split-price-floor-webkit-test.js'
       - 'tests/fixtures/stock-split-atomicity.js'
       - 'tests/stock-split-price-history-test.js'
       - 'tests/stock-split-price-history-webkit-test.js'
@@ -97,6 +103,8 @@ on:
       - 'tests/pe-fund-acquisition-save-atomicity-webkit-test.js'
       - 'tests/pe-portfolio-exit-save-atomicity-test.js'
       - 'tests/pe-portfolio-exit-save-atomicity-webkit-test.js'
+      - 'tests/pe-create-deal-save-atomicity-test.js'
+      - 'tests/pe-create-deal-save-atomicity-webkit-test.js'
       - 'tests/pe-exit-deal-save-atomicity-test.js'
       - 'tests/pe-exit-deal-save-atomicity-webkit-test.js'
       - 'tests/fixtures/pe-fund-acquisition-atomicity.js'
@@ -345,6 +353,8 @@ jobs:
         run: node tests/shareholder-activism-accept-save-atomicity-webkit-test.js
       - name: Stock split dividend rescale in real iPhone WebKit
         run: node tests/stock-split-dividend-rescale-webkit-test.js
+      - name: Stock split price floor in real iPhone WebKit
+        run: node tests/stock-split-price-floor-webkit-test.js
       - name: Retain stock split WebKit evidence
         if: always()
         uses: actions/upload-artifact@v4
@@ -382,6 +392,7 @@ jobs:
         run: |
           node tests/pe-fund-acquisition-save-atomicity-webkit-test.js
           node tests/pe-portfolio-exit-save-atomicity-webkit-test.js
+          node tests/pe-create-deal-save-atomicity-webkit-test.js
           node tests/pe-exit-deal-save-atomicity-webkit-test.js
       - name: Retain pe-acquisition-atomicity WebKit evidence
         if: always()
