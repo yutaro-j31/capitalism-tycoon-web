@@ -107,6 +107,28 @@ async function run(browser,url,state,fault,reference){
  await fresh.close();await context.close();
  return {...proof,ui};
 }
+// An older save whose listed market lags: a change to the missed quarters' inputs is refused and rolled back with
+// a message; after the week advance settles the market, the same action commits.
+async function legacyGuard(browser,url,state){
+ const g=JSON.parse(state),sub=g.subsidiaries.find(x=>x.publicCompany);
+ for(const key of ['marketLastWeek','lastDividendWeek','marketPriceIndex','marketListingValuation','marketVolatility','dividendPolicyID','parentDividendsReceived'])delete sub[key];
+ const context=await browser.newContext(options),p=await context.newPage();await p.goto(url,{waitUntil:'networkidle'});
+ const out=await p.evaluate(async({legacy,id})=>{const m=__capitalismTycoonModules,e=new m.engine.TycoonEngine(JSON.parse(legacy)),errors=[];
+  await m.saveStorageIDB.hydrate();if(!e.save())throw new Error('baseline save failed');await m.saveStorageIDB.flush();
+  const fail=e.fail;e.fail=function(message){errors.push(message);return fail.call(this,message);};
+  const lagging=m.listedSubsidiaryMarket.lagging(e.g).map(x=>x.id),before=JSON.stringify(e.g),bytes=m.saveStorageIDB.readSync(m.engine.SAVE_KEY);
+  const policy=e.setListedSubsidiaryDividendPolicy(id,'income'),buy=e.buyListedSubsidiaryStake(id,.05);
+  const unchanged=JSON.stringify(e.g)===before&&m.saveStorageIDB.readSync(m.engine.SAVE_KEY)===bytes;
+  const advanced=e.advanceWeek(false)!==false,week=e.g.week,settled=m.listedSubsidiaryMarket.lagging(e.g).length===0,after=e.setListedSubsidiaryDividendPolicy(id,'income');
+  return {lagging,policy,buy,unchanged,errors,advanced,week,settled,after,valid:m.finance.validate(JSON.parse(JSON.stringify(e.g))).ok};},{legacy:JSON.stringify(g),id:sub.id});
+ await context.close();
+ assert.deepEqual(out.lagging,[sub.id],'legacy listed market lags');
+ assert.equal(out.policy,false,'policy change refused while the market lags');assert.equal(out.buy,false,'stake purchase refused while the market lags');
+ assert.equal(out.unchanged,true,'live state and saved bytes unchanged');assert.match(out.errors.join(' '),/市場更新が未完了[\s\S]*週を進め/,'the message says to advance the week');
+ assert.equal(out.advanced,true);assert.equal(out.week,26);assert.equal(out.settled,true,'the week advance settles the market');
+ assert.equal(out.after,true,'the policy change runs after the market is settled');assert.equal(out.valid,true);
+ return out;
+}
 (async()=>{fs.mkdirSync(DIR,{recursive:true});await new Promise(r=>server.listen(0,'127.0.0.1',r));let browser;const results=[];const out=path.join(DIR,'listed-subsidiary-quarter-close-result.json');try{
  browser=await webkit.launch();console.log('Actual WebKit '+browser.version()+' / iPhone13 emulation / real IndexedDB');const url='http://127.0.0.1:'+server.address().port+'/';
  const state=listedState();
@@ -114,6 +136,8 @@ async function run(browser,url,state,fault,reference){
  assert.deepEqual((await run(browser,url,state,'normal',reference)).signature,reference,'same seed, same quarter');
  results.push({...first.summary,ui:first.ui});
  console.log('iPhone WebKit listed subsidiary quarter normal x2 / dividend once in-week / render x3 read-only / reload read-only / venture tab UI / week 27 closes / deterministic PASS');
+ results.push({legacyGuard:await legacyGuard(browser,url,state)});
+ console.log('iPhone WebKit legacy lagging listed market / policy and stake changes refused and rolled back / allowed after the week settles PASS');
  for(const fault of FAULTS){
   const proof=await run(browser,url,state,fault,reference);
   results.push({...proof.summary,reload:'PASS',freshDurableOnly:'PASS'});
