@@ -39,15 +39,15 @@ async function observed(page,id) {
       const proof=await page.evaluate(async id=>{
         const m=globalThis.__capitalismTycoonModules,state=m.engine.createInitialState({configured:true});
         Object.assign(state,{week:12,publicCompany:true,sharesOut:1000000,founderShares:600000,
-          treasuryBuybackShares:10000,stockPrice:100,ticker:'CPTY',companyCash:100000000,companyDebt:0});
+          treasuryBuybackShares:10000,stockPrice:1000,ticker:'CPTY',companyCash:100000000,companyDebt:0});
         state.departments.investment=true;
         for(const key of ['CPTY','EXT']) {
           state.market=state.market.filter(x=>x.id!==key);
-          state.market.push({id:key,name:key,sector:'コングロマリット',price:100,previous:96,
-            issuedShares:1000000,marketCap:100000000,dividendYield:0,volatility:0,trend:0,per:20,pbr:2,
+          state.market.push({id:key,name:key,sector:'コングロマリット',price:1000,previous:960,
+            issuedShares:1000000,marketCap:1000000000,dividendYield:0,volatility:0,trend:0,per:20,pbr:2,
             dividendPerShare:0,shareholders:{},description:'fixture',listingMarket:'東証グロース',
-            priceHistory:[{week:9,price:90,tag:'first'},{week:10,price:96},{week:12,price:100}]});
-          state.personalStocks[key]={qty:20000,avg:100};state.companyStocks[key]={qty:3000,avg:120};
+            priceHistory:[{week:9,price:900,tag:'first'},{week:10,price:960},{week:12,price:1000}]});
+          state.personalStocks[key]={qty:20000,avg:1000};state.companyStocks[key]={qty:3000,avg:1200};
         }
         state.finance=m.finance.defaultFinanceState(state);
         const e=new m.engine.TycoonEngine(state),plain=x=>JSON.parse(JSON.stringify(x));
@@ -59,7 +59,7 @@ async function observed(page,id) {
         if(JSON.stringify(e.stock(id).priceHistory)!==JSON.stringify(expected))throw new Error('split history lost');
         if(JSON.stringify(e.g.finance)!==finance||JSON.stringify(e.g.simulationRng)!==rng)throw new Error('split ledger/RNG changed');
         if(e.g.personalStocks[id].qty!==240000||e.g.companyStocks[id].qty!==36000
-          ||e.g.personalStocks[id].avg!==100/2/2/3||e.g.companyStocks[id].avg!==10)throw new Error('both lots diverged');
+          ||e.g.personalStocks[id].avg!==1000/2/2/3||e.g.companyStocks[id].avg!==100)throw new Error('both lots diverged');
         for(const [key,divisor] of [['sharesOut',1],['founderShares',1],['treasuryBuybackShares',1],['stockPrice',-1]]) {
           const wanted=id==='CPTY'?(divisor===1?before[key]*12:before[key]/2/2/3):before[key];
           if(e.g[key]!==wanted)throw new Error('issuer root mismatch');
