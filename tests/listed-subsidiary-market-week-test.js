@@ -93,4 +93,15 @@ console.log(`listed subsidiary weeks 17-${WEEKS} / in-week catch-up / quarterly 
  assert.notEqual(game.advanceWeek(false),false);assert.equal(game.g.week,27,'and the next week closes too');
  console.log(`legacy listed save without market fields / load unchanged / catch-up from week ${listedWeek} inside week 26 / week 27 PASS`);
 }
+// The IPO removes a whole-yen book value, so the parent's book stays an integer; a later group-restructuring
+// disposal (which settles whole yen) then matches the ledger exactly and the next week still closes.
+{
+ const c=listedGame(36),g=c.game.g,sub=g.subsidiaries.find(x=>x.id===c.subsidiaryID);
+ assert.ok(Number.isInteger(sub.carryingBookValue),`book value after the IPO is whole yen (${sub.carryingBookValue})`);
+ const ipo=g.finance.transactions.find(t=>t.sourceType==='ipoSubsidiary');assert.ok(Number.isInteger(ipo.assetEffect),'IPO book removal is whole yen');
+ assert.equal(c.game.executeGroupRestructuringSale(c.subsidiaryID),true,'production group-restructuring sale after the lockup');
+ assert.equal(c.modules.finance.validate(snapshot(c.game)).ok,true,'accounting after the disposal');
+ assert.notEqual(c.game.advanceWeek(false),false);assert.equal(g.week,37,'the week after the disposal closes');
+ console.log('listed subsidiary IPO whole-yen book / group-restructuring sale / next week closes PASS');
+}
 console.log('Listed subsidiary market week PASS');
