@@ -74,12 +74,16 @@ assert.deepEqual(economic(second.game.g),economic(first.game.g),'deterministic 6
 assert.equal(first.host.draws+second.host.draws,0,'no host RNG draws');
 console.log(`listed subsidiary weeks 17-${WEEKS} / in-week catch-up / quarterly dividend at most once / render x3 read-only every week / quarter-week reload read-only / deterministic PASS`);
 
-// A new listing's market base is the IPO valuation: the week hook initialises it before the week's valuation update.
+// A new listing's market base is the IPO valuation: the IPO transaction fixes it, so neither a same-week action that
+// moves the valuation (such as an inter-subsidiary synergy's ¥8m lift, applied here through the production transaction) nor the next week's valuation update can redefine it.
 {
  const c=listedGame(17),g=c.game.g,sub=g.subsidiaries.find(x=>x.id===c.subsidiaryID),index=sub.ipoOfferTerms?.listingPriceIndex||100;
- assert.equal(g.week,17);const ipoValuation=sub.valuation;
+ assert.equal(g.week,17);const ipoValuation=sub.valuation,base=ipoValuation*(100/index);
+ assert.ok(Math.abs(sub.marketListingValuation-base)<1e-6,`listing valuation ${sub.marketListingValuation} is fixed at the IPO valuation ${ipoValuation}`);
+ assert.notEqual(c.game.runTransaction(()=>{sub.valuation+=8_000_000;return true;}),false,'same-week valuation change');
+ assert.ok(sub.valuation>ipoValuation,'the action moved the valuation');
  assert.notEqual(c.game.advanceWeek(false),false);
- assert.ok(Math.abs(sub.marketListingValuation-ipoValuation*(100/index))<1e-6,`listing valuation ${sub.marketListingValuation} is the IPO valuation ${ipoValuation}`);
+ assert.ok(Math.abs(sub.marketListingValuation-base)<1e-6,`listing valuation ${sub.marketListingValuation} stays the IPO valuation ${ipoValuation}`);
  console.log('new listing market base is the IPO valuation PASS');
 }
 // Older saves never caught the market up unless something rendered, so a save written before any render has no
