@@ -20,7 +20,8 @@
     "tests/store-zero-investment-founding-test.js",
     "tests/sports-team-accounting-test.js",
     "tests/sports-management-test.js",
-    "tests/real-estate-agency-site-capacity-test.js"
+    "tests/real-estate-agency-site-capacity-test.js",
+    "tests/subsidiary-disposal-save-atomicity-test.js"
   ],
   "C": [
     "tests/pe-exit-deal-save-atomicity-test.js",
@@ -256,7 +257,8 @@
     "tests/vc-initial-investment-save-atomicity-test.js",
     "tests/pe-fund-acquisition-save-atomicity-test.js",
     "tests/pe-portfolio-exit-save-atomicity-test.js",
-    "tests/digital-portfolio-breakeven-seeds-test.js"
+    "tests/digital-portfolio-breakeven-seeds-test.js",
+    "tests/subsidiary-disposal-accounting-test.js"
   ],
   "K": [
     "tests/supply-material-cost-inflation-test.js",
