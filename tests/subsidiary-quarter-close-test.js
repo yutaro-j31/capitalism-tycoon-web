@@ -76,9 +76,8 @@ for(const kind of ['vc','ma']){
 
 // Listed subsidiary: the production IPO route. Its quarterly dividend comes only from the separate
 // listed-subsidiary-market writer (paid from subsidiaryCash, booked as dividendIncome); this fix adds no second
-// one. That writer runs from render/load paths, outside the week transaction (#966): a quarter-week render or
-// reload followed by the next week fails that week's close (recorded on #966, not fixed here). The weekly loop
-// therefore never renders; the render path is exercised once, at the final quarter, for its own invariants.
+// one. Since #966 that writer settles each quarter inside the week; listed-subsidiary-market-week-test covers
+// renders and reloads around it. Here the render path is read once more at the final quarter.
 {
  const c=liveGame('vc',1,{largest:true}),g=c.game.g,id=c.subsidiaryID,market=c.modules.listedSubsidiaryMarket,finance=c.modules.finance;
  const sub=()=>g.subsidiaries.find(x=>x.id===id);
@@ -98,7 +97,7 @@ for(const kind of ['vc','ma']){
   assert.equal(finance.validate(snapshot(c.game)).ok,true,`listed week ${g.week} accounting`);
  }
  assert.deepEqual(quarters,[26,39,52],'listed subsidiary crossed three quarter closes');
- // catchUp books every quarter missed since the last market read (here 26, 39 and 52) in one call (#966).
+ // Dividends are already booked inside each quarter week, so a render books nothing further.
  const rows=()=>g.finance.transactions.filter(t=>t.sourceType==='listedSubsidiaryDividend'&&String(t.operationID).startsWith(`listedSubsidiaryDividend-${id}-`));
  const before=rows().length,cash=g.companyCash;market.allSnapshots(g);const once=g.companyCash,added=rows().slice(before);
  market.allSnapshots(g);market.allSnapshots(g);

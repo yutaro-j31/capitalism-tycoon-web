@@ -243,6 +243,10 @@
     "reason": "#971 VC and M&A subsidiary quarter close: every save fault a week can raise (incl. a prior pending put) rolls live, mirror, cache and durable IndexedDB back; the retry reaches the unfaulted cash/RNG/retainedEarnings; no subsidiary dividend; quarters keep closing to week 26; reload and fresh durable-only hydration in iPhone WebKit on every workflow event.",
     "executedBy": ".github/workflows/ma-acquisition-financing.yml"
   },
+  "tests/listed-subsidiary-quarter-close-webkit-test.js": {
+    "reason": "#966 listed subsidiary week-26 quarter: market catch-up and parent dividend once inside the week; every save fault a week can raise (incl. a prior pending put) rolls live, mirror, cache and durable IndexedDB back; reload, the real venture tab render and re-renders change no economic state; the next week closes; fresh durable-only hydration in iPhone WebKit on every workflow event.",
+    "executedBy": ".github/workflows/ma-acquisition-financing.yml"
+  },
   "tests/pe-fund-acquisition-save-atomicity-webkit-test.js": {
     "reason": "Actual PE fund acquisition rollback, coinvestment, prior pending put and fresh IndexedDB iPhone WebKit in PR/main gates.",
     "executedBy": ".github/workflows/ma-acquisition-financing.yml"

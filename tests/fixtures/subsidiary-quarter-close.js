@@ -7,7 +7,7 @@ const assert=require('node:assert/strict');
 const {loadGame}=require('../harness');
 const {indexedDBFor}=require('./pe-fund-acquisition-faults');
 
-const QUARTER_EVE=12;
+const QUARTER_EVE=12,LISTED_EVE=25;
 const snapshot=game=>JSON.parse(JSON.stringify(game.g));
 function economic(state){const copy=JSON.parse(JSON.stringify(state));delete copy.lastSaveDate;delete copy.saveSequence;return copy;}
 function lcg(seed=971){return()=>{seed=(Math.imul(seed,1664525)+1013904223)>>>0;return seed/4294967296;};}
@@ -74,9 +74,31 @@ async function quarterEve(kind){
  const subsidiaryID=(kind==='vc'?game.g.subsidiaries:game.g.maSubsidiaries).at(-1).id;
  return {...ctx,game,kind,subsidiaryID};
 }
+// A listed subsidiary through the production IPO route (preparation stages -> ipoSubsidiary), advanced to `week`.
+function listedGame(week){
+ const c=liveGame('vc',1,{largest:true}),g=c.game.g,sub=()=>g.subsidiaries.find(x=>x.id===c.subsidiaryID);
+ assert.equal(c.game.startSubsidiaryIPOPreparation(c.subsidiaryID),true,'production IPO preparation');
+ while(!sub().publicCompany&&g.week<40){
+  advance(c.game);
+  if(c.game.subsidiaryIPOPreparationSnapshot(c.subsidiaryID).canAdvance)c.game.advanceSubsidiaryIPOPreparation(c.subsidiaryID);
+  if(c.game.subsidiaryIPOPreparationSnapshot(c.subsidiaryID).ready&&!sub().publicCompany)assert.equal(c.game.ipoSubsidiary(c.subsidiaryID),true,'production subsidiary IPO');
+ }
+ assert.equal(sub().publicCompany,true,'subsidiary listed through production writers');
+ while(g.week<week)advance(c.game);
+ return c;
+}
+let listedEveState=null;
+function listedState(){return listedEveState||(listedEveState=JSON.stringify(listedGame(LISTED_EVE).game.g));}
+async function listedEve(){
+ const ctx=boot();await ctx.backend.hydrate();
+ const game=new ctx.engineModule.TycoonEngine(JSON.parse(listedState()));
+ assert.equal(game.g.week,LISTED_EVE);assert.equal(game.save(),true);await ctx.backend.flush();
+ return {...ctx,game,kind:'listed',subsidiaryID:game.g.subsidiaries.find(x=>x.publicCompany).id};
+}
+const listedDividendRows=(state,id,week)=>(state.finance?.transactions||[]).filter(t=>t.sourceType==='listedSubsidiaryDividend'&&String(t.operationID).startsWith(`listedSubsidiaryDividend-${id}-`)&&(week==null||t.operationID===`listedSubsidiaryDividend-${id}-${week}`));
 const subsidiaryOf=(state,kind,id)=>(kind==='vc'?state.subsidiaries:state.maSubsidiaries).find(x=>x.id===id);
 // Any ledger row for a VC / M&A subsidiary quarterly dividend. The listed-subsidiary writer's own rows
 // (listedSubsidiaryDividend) are a separate, legitimate writer and are excluded.
 const dividendRows=state=>(state.finance?.transactions||[]).filter(t=>t.sourceType!=='listedSubsidiaryDividend'&&/subsidiaryDividend|subsDividend/i.test(String(t.sourceType||'')));
 
-module.exports={QUARTER_EVE,snapshot,economic,boot,advance,liveGame,quarterEve,eveState,subsidiaryOf,dividendRows};
+module.exports={QUARTER_EVE,LISTED_EVE,snapshot,economic,boot,advance,liveGame,quarterEve,eveState,listedGame,listedEve,listedState,listedDividendRows,subsidiaryOf,dividendRows};
