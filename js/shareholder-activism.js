@@ -44,9 +44,11 @@ const baseNormalize=Engine.prototype.normalize,baseAdvance=Engine.prototype.adva
 Engine.prototype.normalize=function(){baseNormalize.call(this);ensure(this.g);};
 Engine.prototype.advanceWeek=function(){const result=baseAdvance.apply(this,arguments);if(result!==false){recordCapitalUse(this);processWeek(this);}return result;};
 Engine.prototype.getShareholderActivismPressure=function(){return pressure(this);};
-Engine.prototype.acceptShareholderProposal=function(){return accept(this);};
-Engine.prototype.negotiateShareholderProposal=function(){return negotiate(this);};
-Engine.prototype.rejectShareholderProposal=function(){return reject(this);};
+// #953: one transaction per player response. The capital-return writer nests inside it, so the
+// buyback/dividend, the campaign completion and the single save commit or roll back together.
+Engine.prototype.acceptShareholderProposal=function(){return this.runTransaction(()=>accept(this));};
+Engine.prototype.negotiateShareholderProposal=function(){return this.runTransaction(()=>negotiate(this));};
+Engine.prototype.rejectShareholderProposal=function(){return this.runTransaction(()=>reject(this));};
 Object.defineProperty(Engine.prototype,'__shareholderActivismInstalled',{value:true});
 function render(instance=bridge.getEngine?.()){if(!instance?.g?.configured||instance.g.selectedTab!=='market'||!instance.g.publicCompany)return'';const state=ensure(instance.g),c=state.activeActivistCampaign,p=pressure(instance);if(!c)return`<section class="card" data-shareholder-activism><div class="card-head"><div><h2>株主提案・アクティビスト</h2><p>経営状態から算出される株主圧力。現在、正式なキャンペーンはありません。</p></div><span class="badge">圧力 ${Math.round(p.score)}/${p.threshold}</span></div></section>`;return`<section class="card" data-shareholder-activism><div class="card-head"><div><h2>${esc(c.activistName)}</h2><p>${esc(c.title)} — ${esc(c.reason)}</p></div><span class="badge ${c.support>=50?'warn':'good'}">支持 ${c.support}%</span></div><div class="card-body"><div class="kpi-grid mini"><div class="stat"><span>回答期限</span><strong>第${integer(c.deadlineWeek)}週</strong></div><div class="stat"><span>要求額</span><strong>${esc(yen(c.amount))}</strong></div><div class="stat"><span>圧力スコア</span><strong>${integer(c.pressureScore)}</strong></div><div class="stat"><span>状態</span><strong>${esc(c.status)}</strong></div></div><div class="button-row"><button class="btn primary" data-activism-action="accept">受け入れる</button><button class="btn secondary" data-activism-action="negotiate">交渉する</button><button class="btn danger" data-activism-action="reject">拒否する</button></div></div></section>`;}
 
