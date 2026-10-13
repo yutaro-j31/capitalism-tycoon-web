@@ -207,6 +207,10 @@
     "reason": "#955 force-earnings: the real market-tab button tapped on the booted app commits one earnings event, one change and one durable put with its simulation-RNG draws; every applicable harness fault (incl. prior pending put) rolls live, mirror, cache and durable state back, thrown faults open the production recovery dialog, and the retry tap is deterministic; reload and fresh durable-only hydration in iPhone WebKit on every workflow event.",
     "executedBy": ".github/workflows/ma-acquisition-financing.yml"
   },
+  "tests/shareholder-activism-accept-save-atomicity-webkit-test.js": {
+    "reason": "#953 activist proposal acceptance: buyback/dividend plus campaign completion commit once; durable-only reload cannot accept again; save-false/save-throw roll back live, mirror and durable state, in the stock-split-atomicity job on every workflow event.",
+    "executedBy": ".github/workflows/ma-acquisition-financing.yml"
+  },
   "tests/stock-split-dividend-rescale-webkit-test.js": {
     "reason": "Own/external split dividendPerShare rescale (1:2, 1:3, consecutive, save-false/save-throw rollback + retry) persisted through fresh real IndexedDB and paid by the production dividend week in the stock-split-atomicity job on every workflow event.",
     "executedBy": ".github/workflows/ma-acquisition-financing.yml"

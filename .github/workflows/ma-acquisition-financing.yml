@@ -17,6 +17,10 @@ on:
       - 'tests/stock-split-save-atomicity-webkit-test.js'
       - 'tests/force-earnings-ui-save-atomicity-test.js'
       - 'tests/force-earnings-ui-save-atomicity-webkit-test.js'
+      - 'js/shareholder-activism.js'
+      - 'tests/shareholder-activism-accept-save-atomicity-test.js'
+      - 'tests/shareholder-activism-accept-save-atomicity-webkit-test.js'
+      - 'tests/shareholder-activism-split-integration-test.js'
       - 'tests/stock-split-dividend-rescale-test.js'
       - 'tests/stock-split-dividend-rescale-webkit-test.js'
       - 'tests/fixtures/stock-split-atomicity.js'
@@ -71,6 +75,10 @@ on:
       - 'tests/stock-split-save-atomicity-webkit-test.js'
       - 'tests/force-earnings-ui-save-atomicity-test.js'
       - 'tests/force-earnings-ui-save-atomicity-webkit-test.js'
+      - 'js/shareholder-activism.js'
+      - 'tests/shareholder-activism-accept-save-atomicity-test.js'
+      - 'tests/shareholder-activism-accept-save-atomicity-webkit-test.js'
+      - 'tests/shareholder-activism-split-integration-test.js'
       - 'tests/stock-split-dividend-rescale-test.js'
       - 'tests/stock-split-dividend-rescale-webkit-test.js'
       - 'tests/fixtures/stock-split-atomicity.js'
@@ -335,6 +343,8 @@ jobs:
         run: node tests/stock-split-save-atomicity-webkit-test.js
       - name: Force earnings UI atomicity in real iPhone WebKit
         run: node tests/force-earnings-ui-save-atomicity-webkit-test.js
+      - name: Activist proposal acceptance atomicity in real iPhone WebKit
+        run: node tests/shareholder-activism-accept-save-atomicity-webkit-test.js
       - name: Stock split dividend rescale in real iPhone WebKit
         run: node tests/stock-split-dividend-rescale-webkit-test.js
       - name: Retain stock split WebKit evidence

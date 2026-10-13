@@ -267,6 +267,8 @@
     "tests/player-own-share-conservation-test.js"
   ],
   "L": [
+    "tests/shareholder-activism-accept-save-atomicity-test.js",
+    "tests/shareholder-activism-split-integration-test.js",
     "tests/store-cost-inflation-25y-test.js"
   ]
 }
