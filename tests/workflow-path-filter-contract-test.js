@@ -180,6 +180,8 @@ assert.deepEqual(pathsFor(comprehensiveMa, 'pull_request'), [
   'tests/pe-fund-acquisition-save-atomicity-webkit-test.js',
   'tests/pe-portfolio-exit-save-atomicity-test.js',
   'tests/pe-portfolio-exit-save-atomicity-webkit-test.js',
+  'tests/pe-create-deal-save-atomicity-test.js',
+  'tests/pe-create-deal-save-atomicity-webkit-test.js',
   'tests/fixtures/pe-fund-acquisition-atomicity.js',
   'tests/fixtures/pe-fund-acquisition-faults.js',
   'js/pe-network-sourcing.js', 'js/pe-ui-adapter.js', 'js/pe-portfolio-operations.js', 'tests/parent-ipo-save-atomicity-test.js',
@@ -269,7 +271,7 @@ for (const command of ['playwright@1.61.0', 'npx playwright install --with-deps 
 // transfer of execution responsibility, not a removal: every event must still run exactly the
 // WebKit set it ran before the split, and each moved regression exactly once.
 const movedFamilyJobs = {
-  'pe-acquisition-atomicity': ['tests/pe-fund-acquisition-save-atomicity-webkit-test.js', 'tests/pe-portfolio-exit-save-atomicity-webkit-test.js'],
+  'pe-acquisition-atomicity': ['tests/pe-fund-acquisition-save-atomicity-webkit-test.js', 'tests/pe-portfolio-exit-save-atomicity-webkit-test.js', 'tests/pe-create-deal-save-atomicity-webkit-test.js'],
   'vc-secondary-atomicity': ['tests/vc-secondary-sale-save-atomicity-webkit-test.js'],
   'vc-funding-atomicity': ['tests/vc-follow-on-save-atomicity-webkit-test.js', 'tests/vc-initial-investment-save-atomicity-webkit-test.js']
 };
@@ -325,6 +327,8 @@ const preSplitDealRoomWebkit = [
   'tests/stock-split-price-history-webkit-test.js', 'tests/parent-ipo-save-atomicity-webkit-test.js', 'tests/ma-subsidiary-sale-save-atomicity-webkit-test.js',
   'tests/pe-fund-acquisition-save-atomicity-webkit-test.js', 'tests/pe-portfolio-exit-save-atomicity-webkit-test.js', 'tests/vc-secondary-sale-save-atomicity-webkit-test.js', 'tests/vc-follow-on-save-atomicity-webkit-test.js',
   'tests/vc-initial-investment-save-atomicity-webkit-test.js', 'tests/ceo-dashboard-webkit-test.js', 'tests/stock-split-save-atomicity-webkit-test.js',
+  // Added after the Phase 1A split: #954 writer-specific WebKit, run by pe-acquisition-atomicity on every event.
+  'tests/pe-create-deal-save-atomicity-webkit-test.js',
   // Added after the Phase 1A split: activist proposal acceptance atomicity (#953), run by stock-split-atomicity on every event.
   'tests/shareholder-activism-accept-save-atomicity-webkit-test.js',
   // Added after the Phase 1A split: stock split dividend rescale, run by stock-split-atomicity on every event.
@@ -337,6 +341,8 @@ const preSplitComprehensiveWebkit = [
   'tests/parent-ipo-save-atomicity-webkit-test.js', 'tests/ma-subsidiary-sale-save-atomicity-webkit-test.js', 'tests/pe-fund-acquisition-save-atomicity-webkit-test.js', 'tests/pe-portfolio-exit-save-atomicity-webkit-test.js',
   'tests/vc-secondary-sale-save-atomicity-webkit-test.js', 'tests/vc-follow-on-save-atomicity-webkit-test.js', 'tests/vc-initial-investment-save-atomicity-webkit-test.js',
   'tests/ma-integration-webkit-test.js', 'tests/ceo-dashboard-webkit-test.js', 'tests/stock-split-save-atomicity-webkit-test.js',
+  // Added after the Phase 1A split: #954 writer-specific WebKit, run by pe-acquisition-atomicity on every event.
+  'tests/pe-create-deal-save-atomicity-webkit-test.js',
   // Added after the Phase 1A split: activist proposal acceptance atomicity (#953), run by stock-split-atomicity on every event.
   'tests/shareholder-activism-accept-save-atomicity-webkit-test.js',
   // Added after the Phase 1A split: stock split dividend rescale, run by stock-split-atomicity on every event.
