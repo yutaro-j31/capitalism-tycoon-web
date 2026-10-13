@@ -54,6 +54,7 @@ const nodeTests = [
   ['stock-split-dividend-rescale', 'tests/stock-split-dividend-rescale-test.js'],
   ['stock-split-price-floor', 'tests/stock-split-price-floor-test.js'],
   ['transaction-fault-harness', 'tests/transaction-fault-harness-test.js'],
+  ['angel-investment-save-atomicity', 'tests/angel-investment-save-atomicity-test.js'],
   ['make-subsidiary-save-atomicity', 'tests/make-subsidiary-save-atomicity-test.js'],
   ['pe-create-deal-save-atomicity', 'tests/pe-create-deal-save-atomicity-test.js'],
   ['pe-exit-deal-save-atomicity', 'tests/pe-exit-deal-save-atomicity-test.js'],

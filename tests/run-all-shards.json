@@ -153,6 +153,7 @@
     "tests/gf-002-financing-mode0-test.js"
   ],
   "G": [
+    "tests/angel-investment-save-atomicity-test.js",
     "tests/property-insurance-loss-ledger-test.js",
     "tests/executive-dismissal-reachability-test.js",
     "test:workforce-long",
