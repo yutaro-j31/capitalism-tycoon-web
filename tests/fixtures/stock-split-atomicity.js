@@ -13,15 +13,15 @@ async function scenario(family, legacy = false) {
   await backend.hydrate();
   const state = s.engineModule.createInitialState({configured:true});
   Object.assign(state,{week:12,publicCompany:true,sharesOut:1000000,founderShares:600000,
-    treasuryBuybackShares:10000,stockPrice:100,ticker:'CPTY',companyCash:100000000,companyDebt:0});
+    treasuryBuybackShares:10000,stockPrice:1000,ticker:'CPTY',companyCash:100000000,companyDebt:0});
   state.departments.investment = true;
   for(const id of ['CPTY','EXT']) {
     state.market = state.market.filter(stock=>stock.id!==id);
-    state.market.push({id,name:id,sector:'コングロマリット',price:100,previous:96,issuedShares:1000000,
-      marketCap:100000000,dividendYield:0,volatility:0,trend:0,per:20,pbr:2,dividendPerShare:0,
+    state.market.push({id,name:id,sector:'コングロマリット',price:1000,previous:960,issuedShares:1000000,
+      marketCap:1000000000,dividendYield:0,volatility:0,trend:0,per:20,pbr:2,dividendPerShare:0,
       shareholders:{},description:'fixture',listingMarket:'東証グロース',
-      priceHistory:legacy?[90,96,100]:[{week:9,price:90,tag:'first'},{week:10,price:96},{week:12,price:100}]});
-    state.personalStocks[id]={qty:20000,avg:100};state.companyStocks[id]={qty:3000,avg:120};
+      priceHistory:legacy?[900,960,1000]:[{week:9,price:900,tag:'first'},{week:10,price:960},{week:12,price:1000}]});
+    state.personalStocks[id]={qty:20000,avg:1000};state.companyStocks[id]={qty:3000,avg:1200};
   }
   state.finance=s.modules.finance.defaultFinanceState(state);
   const game=new s.engineModule.TycoonEngine(state);

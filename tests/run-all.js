@@ -52,6 +52,7 @@ const nodeTests = [
   ['stock-sale-save-atomicity', 'tests/stock-sale-save-atomicity-test.js'],
   ['stock-split-save-atomicity', 'tests/stock-split-save-atomicity-test.js'],
   ['stock-split-dividend-rescale', 'tests/stock-split-dividend-rescale-test.js'],
+  ['stock-split-price-floor', 'tests/stock-split-price-floor-test.js'],
   ['transaction-fault-harness', 'tests/transaction-fault-harness-test.js'],
   ['shareholder-activism-accept-save-atomicity', 'tests/shareholder-activism-accept-save-atomicity-test.js'],
   ['shareholder-activism-split-integration', 'tests/shareholder-activism-split-integration-test.js'],
