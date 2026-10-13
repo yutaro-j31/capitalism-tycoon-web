@@ -15,12 +15,19 @@ on:
       - 'tests/stock-sale-save-atomicity-webkit-test.js'
       - 'tests/stock-split-save-atomicity-test.js'
       - 'tests/stock-split-save-atomicity-webkit-test.js'
+      - 'js/shareholder-activism.js'
+      - 'tests/shareholder-activism-accept-save-atomicity-test.js'
+      - 'tests/shareholder-activism-accept-save-atomicity-webkit-test.js'
+      - 'tests/shareholder-activism-split-integration-test.js'
       - 'tests/stock-split-dividend-rescale-test.js'
       - 'tests/stock-split-dividend-rescale-webkit-test.js'
+      - 'tests/stock-split-price-floor-test.js'
+      - 'tests/stock-split-price-floor-webkit-test.js'
       - 'tests/fixtures/stock-split-atomicity.js'
       - 'tests/stock-split-price-history-test.js'
       - 'tests/stock-split-price-history-webkit-test.js'
       - 'js/pe-acquisition.js'
+      - 'js/pe-value-creation.js'
       - 'tests/vc-secondary-sale-save-atomicity-test.js'
       - 'tests/vc-secondary-sale-save-false-red-probe.js'
       - 'tests/vc-secondary-sale-save-atomicity-webkit-test.js'
@@ -30,11 +37,19 @@ on:
       - 'tests/fixtures/vc-follow-on-atomicity.js'
       - 'tests/vc-initial-investment-save-atomicity-test.js'
       - 'tests/vc-initial-investment-save-atomicity-webkit-test.js'
+      - 'tests/angel-investment-save-atomicity-test.js'
+      - 'tests/angel-investment-save-atomicity-webkit-test.js'
+      - 'tests/make-subsidiary-save-atomicity-test.js'
+      - 'tests/make-subsidiary-save-atomicity-webkit-test.js'
       - 'tests/fixtures/vc-initial-investment-atomicity.js'
       - 'tests/pe-fund-acquisition-save-atomicity-test.js'
       - 'tests/pe-fund-acquisition-save-atomicity-webkit-test.js'
       - 'tests/pe-portfolio-exit-save-atomicity-test.js'
       - 'tests/pe-portfolio-exit-save-atomicity-webkit-test.js'
+      - 'tests/pe-create-deal-save-atomicity-test.js'
+      - 'tests/pe-create-deal-save-atomicity-webkit-test.js'
+      - 'tests/pe-exit-deal-save-atomicity-test.js'
+      - 'tests/pe-exit-deal-save-atomicity-webkit-test.js'
       - 'tests/fixtures/pe-fund-acquisition-atomicity.js'
       - 'tests/fixtures/pe-fund-acquisition-faults.js'
       - 'js/pe-network-sourcing.js'
@@ -67,12 +82,19 @@ on:
       - 'tests/stock-sale-save-atomicity-webkit-test.js'
       - 'tests/stock-split-save-atomicity-test.js'
       - 'tests/stock-split-save-atomicity-webkit-test.js'
+      - 'js/shareholder-activism.js'
+      - 'tests/shareholder-activism-accept-save-atomicity-test.js'
+      - 'tests/shareholder-activism-accept-save-atomicity-webkit-test.js'
+      - 'tests/shareholder-activism-split-integration-test.js'
       - 'tests/stock-split-dividend-rescale-test.js'
       - 'tests/stock-split-dividend-rescale-webkit-test.js'
+      - 'tests/stock-split-price-floor-test.js'
+      - 'tests/stock-split-price-floor-webkit-test.js'
       - 'tests/fixtures/stock-split-atomicity.js'
       - 'tests/stock-split-price-history-test.js'
       - 'tests/stock-split-price-history-webkit-test.js'
       - 'js/pe-acquisition.js'
+      - 'js/pe-value-creation.js'
       - 'tests/vc-secondary-sale-save-atomicity-test.js'
       - 'tests/vc-secondary-sale-save-false-red-probe.js'
       - 'tests/vc-secondary-sale-save-atomicity-webkit-test.js'
@@ -82,11 +104,19 @@ on:
       - 'tests/fixtures/vc-follow-on-atomicity.js'
       - 'tests/vc-initial-investment-save-atomicity-test.js'
       - 'tests/vc-initial-investment-save-atomicity-webkit-test.js'
+      - 'tests/angel-investment-save-atomicity-test.js'
+      - 'tests/angel-investment-save-atomicity-webkit-test.js'
+      - 'tests/make-subsidiary-save-atomicity-test.js'
+      - 'tests/make-subsidiary-save-atomicity-webkit-test.js'
       - 'tests/fixtures/vc-initial-investment-atomicity.js'
       - 'tests/pe-fund-acquisition-save-atomicity-test.js'
       - 'tests/pe-fund-acquisition-save-atomicity-webkit-test.js'
       - 'tests/pe-portfolio-exit-save-atomicity-test.js'
       - 'tests/pe-portfolio-exit-save-atomicity-webkit-test.js'
+      - 'tests/pe-create-deal-save-atomicity-test.js'
+      - 'tests/pe-create-deal-save-atomicity-webkit-test.js'
+      - 'tests/pe-exit-deal-save-atomicity-test.js'
+      - 'tests/pe-exit-deal-save-atomicity-webkit-test.js'
       - 'tests/fixtures/pe-fund-acquisition-atomicity.js'
       - 'tests/fixtures/pe-fund-acquisition-faults.js'
       - 'js/pe-network-sourcing.js'
@@ -329,8 +359,12 @@ jobs:
         run: npx playwright install --with-deps webkit
       - name: Stock split atomicity in real iPhone WebKit
         run: node tests/stock-split-save-atomicity-webkit-test.js
+      - name: Activist proposal acceptance atomicity in real iPhone WebKit
+        run: node tests/shareholder-activism-accept-save-atomicity-webkit-test.js
       - name: Stock split dividend rescale in real iPhone WebKit
         run: node tests/stock-split-dividend-rescale-webkit-test.js
+      - name: Stock split price floor in real iPhone WebKit
+        run: node tests/stock-split-price-floor-webkit-test.js
       - name: Retain stock split WebKit evidence
         if: always()
         uses: actions/upload-artifact@v4
@@ -368,6 +402,8 @@ jobs:
         run: |
           node tests/pe-fund-acquisition-save-atomicity-webkit-test.js
           node tests/pe-portfolio-exit-save-atomicity-webkit-test.js
+          node tests/pe-create-deal-save-atomicity-webkit-test.js
+          node tests/pe-exit-deal-save-atomicity-webkit-test.js
       - name: Retain pe-acquisition-atomicity WebKit evidence
         if: always()
         uses: actions/upload-artifact@v4
@@ -441,6 +477,8 @@ jobs:
         run: |
           node tests/vc-follow-on-save-atomicity-webkit-test.js
           node tests/vc-initial-investment-save-atomicity-webkit-test.js
+          node tests/angel-investment-save-atomicity-webkit-test.js
+          node tests/make-subsidiary-save-atomicity-webkit-test.js
       - name: Retain vc-funding-atomicity WebKit evidence
         if: always()
         uses: actions/upload-artifact@v4

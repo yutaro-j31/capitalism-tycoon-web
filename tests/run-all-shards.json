@@ -23,6 +23,7 @@
     "tests/real-estate-agency-site-capacity-test.js"
   ],
   "C": [
+    "tests/pe-exit-deal-save-atomicity-test.js",
     "tests/transaction-rollback-test.js",
     "test:long",
     "test:supply-long",
@@ -76,6 +77,7 @@
     "tests/activate-defense-save-atomicity-test.js"
   ],
   "E": [
+    "tests/make-subsidiary-save-atomicity-test.js",
     "tests/week-transaction-atomicity-test.js",
     "tests/player-crisis-turnaround-ratchet-week-rollback-test.js",
     "tests/loan-single-interest-test.js",
@@ -151,6 +153,7 @@
     "tests/gf-002-financing-mode0-test.js"
   ],
   "G": [
+    "tests/angel-investment-save-atomicity-test.js",
     "tests/property-insurance-loss-ledger-test.js",
     "tests/executive-dismissal-reachability-test.js",
     "test:workforce-long",
@@ -245,6 +248,7 @@
     "tests/simulation-long-run-reload-fork-test.js"
   ],
   "J": [
+    "tests/pe-create-deal-save-atomicity-test.js",
     "tests/vc-follow-on-save-atomicity-test.js",
     "tests/vc-initial-investment-save-atomicity-test.js",
     "tests/pe-fund-acquisition-save-atomicity-test.js",
@@ -266,6 +270,9 @@
     "tests/player-own-share-conservation-test.js"
   ],
   "L": [
+    "tests/stock-split-price-floor-test.js",
+    "tests/shareholder-activism-accept-save-atomicity-test.js",
+    "tests/shareholder-activism-split-integration-test.js",
     "tests/store-cost-inflation-25y-test.js"
   ]
 }
