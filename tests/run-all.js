@@ -54,6 +54,8 @@ const nodeTests = [
   ['stock-split-dividend-rescale', 'tests/stock-split-dividend-rescale-test.js'],
   ['transaction-fault-harness', 'tests/transaction-fault-harness-test.js'],
   ['decline-buyout-ownership-save-atomicity', 'tests/decline-buyout-ownership-save-atomicity-test.js'],
+  ['shareholder-activism-accept-save-atomicity', 'tests/shareholder-activism-accept-save-atomicity-test.js'],
+  ['shareholder-activism-split-integration', 'tests/shareholder-activism-split-integration-test.js'],
   ['execute-mbo-save-atomicity', 'tests/execute-mbo-save-atomicity-test.js'],
   ['activate-defense-save-atomicity', 'tests/activate-defense-save-atomicity-test.js'],
   ['stock-split-price-history', 'tests/stock-split-price-history-test.js'],

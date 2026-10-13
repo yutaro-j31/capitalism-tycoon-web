@@ -207,6 +207,10 @@
     "reason": "#955 declineInboundBuyoutOffer hostile/friendly: one commit, founder+external+competitor stays 1; every harness fault kind (incl. prior pending put) rolls live, mirror, cache and durable IndexedDB back; deterministic retry; second decline refused; reload and fresh durable-only hydration in iPhone WebKit on every workflow event.",
     "executedBy": ".github/workflows/ma-acquisition-financing.yml"
   },
+  "tests/shareholder-activism-accept-save-atomicity-webkit-test.js": {
+    "reason": "#953 activist proposal acceptance: buyback/dividend plus campaign completion commit once; durable-only reload cannot accept again; save-false/save-throw roll back live, mirror and durable state, in the stock-split-atomicity job on every workflow event.",
+    "executedBy": ".github/workflows/ma-acquisition-financing.yml"
+  },
   "tests/stock-split-dividend-rescale-webkit-test.js": {
     "reason": "Own/external split dividendPerShare rescale (1:2, 1:3, consecutive, save-false/save-throw rollback + retry) persisted through fresh real IndexedDB and paid by the production dividend week in the stock-split-atomicity job on every workflow event.",
     "executedBy": ".github/workflows/ma-acquisition-financing.yml"
