@@ -190,8 +190,9 @@ assert.deepEqual(pathsFor(comprehensiveMa, 'pull_request'), [
   'tests/pe-exit-deal-save-atomicity-webkit-test.js',
   'tests/fixtures/pe-fund-acquisition-atomicity.js',
   'tests/fixtures/pe-fund-acquisition-faults.js',
-  'js/pe-network-sourcing.js', 'js/pe-ui-adapter.js', 'js/pe-portfolio-operations.js', 
-  'js/completion.js', 'js/pe-fund.js', 'js/pe-value-creation.js', 'js/parity.js', 'js/shareholder-returns.js', 'js/play-runtime-compat.js', 'js/difficulty-scenario-balance.js', 'js/finance.js', 'js/ma-board-approval.js', 'js/ma-acquisition-financing.js', 'js/save*.js', 'js/subsidiary-*.js', 'js/listed-subsidiary-*.js',
+  'js/pe-network-sourcing.js', 'js/pe-ui-adapter.js', 'js/pe-portfolio-operations.js',
+  'js/completion.js', 'js/pe-fund.js', 'js/parity.js', 'js/shareholder-returns.js', 'js/play-runtime-compat.js', 'js/difficulty-scenario-balance.js', 'js/finance.js', 'js/ma-board-approval.js', 'js/ma-acquisition-financing.js', 'js/save*.js', 'js/subsidiary-*.js', 'js/listed-subsidiary-*.js',
+  'js/player-crisis-actions.js', 'js/player-crisis-turnaround-fund.js', 'js/group-restructuring-candidates.js', 'js/internal-venture-business.js', 'js/pe-deal-supply.js', 'js/pe-network.js', 'js/personal-stock-margin.js', 'js/capital-allocation-score.js', 'js/ma-integration.js', 'js/pmi-100-day-plan.js', 'js/pmi-long-run-guard.js', 'js/group-holding-governance.js',
   'tests/parent-ipo-save-atomicity-test.js',
   'tests/parent-ipo-save-atomicity-webkit-test.js', 'tests/fixtures/parent-ipo-atomicity.js',
   'tests/ma-subsidiary-sale-save-atomicity-test.js', 'tests/ma-subsidiary-sale-save-atomicity-webkit-test.js',
@@ -204,7 +205,12 @@ assert(hasTrigger(comprehensiveMa, 'push') && pathsFor(comprehensiveMa, 'push').
 // both PR and main push. Docs-only changes must not trigger this workflow.
 const trackAWriterModules = ['js/completion.js', 'js/pe-fund.js', 'js/pe-value-creation.js', 'js/parity.js', 'js/shareholder-returns.js',
   'js/shareholder-activism.js', 'js/play-runtime-compat.js', 'js/difficulty-scenario-balance.js', 'js/expansion.js', 'js/engine.js', 'js/finance.js', 'js/app.js',
-  'js/save-storage.js', 'js/save-storage-idb.js', 'js/subsidiary-ipo-preparation.js', 'js/subsidiary-ipo-secondary-sale.js', 'js/listed-subsidiary-market.js', 'js/listed-subsidiary-control-actions.js'];
+  'js/save-storage.js', 'js/save-storage-idb.js', 'js/subsidiary-ipo-preparation.js', 'js/subsidiary-ipo-secondary-sale.js', 'js/listed-subsidiary-market.js', 'js/listed-subsidiary-control-actions.js',
+  // Remaining writer files named in the TRACK_A_WRITER_AUTHORITY_AUDIT.md Writer Matrix (sections 2.1-2.3).
+  'js/pe-network-sourcing.js', 'js/ma-deal-room.js', 'js/pe-acquisition.js', 'js/ma-board-approval.js', 'js/ma-acquisition-financing.js', 'js/pe-portfolio-operations.js',
+  'js/player-crisis-actions.js', 'js/player-crisis-turnaround-fund.js', 'js/listed-subsidiary-follow-on-offering.js', 'js/subsidiary-relisting-options.js',
+  'js/group-restructuring-candidates.js', 'js/internal-venture-business.js', 'js/pe-deal-supply.js', 'js/pe-network.js', 'js/personal-stock-margin.js',
+  'js/capital-allocation-score.js', 'js/ma-integration.js', 'js/pmi-100-day-plan.js', 'js/pmi-long-run-guard.js', 'js/group-holding-governance.js'];
 const globMatch = (pattern, file) => new RegExp('^' + pattern.replace(/[.+^${}()|[\]\\]/g, '\\$&').replace(/\*\*/g, '\u0000').replace(/\*/g, '[^/]*').replace(/\u0000/g, '.*') + '$').test(file);
 for (const event of ['pull_request', 'push']) {
   const patterns = pathsFor(comprehensiveMa, event);
