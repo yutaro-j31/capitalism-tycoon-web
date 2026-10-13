@@ -56,6 +56,8 @@ const nodeTests = [
   ['transaction-fault-harness', 'tests/transaction-fault-harness-test.js'],
   ['angel-investment-save-atomicity', 'tests/angel-investment-save-atomicity-test.js'],
   ['make-subsidiary-save-atomicity', 'tests/make-subsidiary-save-atomicity-test.js'],
+  ['subsidiary-quarter-close', 'tests/subsidiary-quarter-close-test.js'],
+  ['subsidiary-quarter-close-save-atomicity', 'tests/subsidiary-quarter-close-save-atomicity-test.js'],
   ['pe-create-deal-save-atomicity', 'tests/pe-create-deal-save-atomicity-test.js'],
   ['pe-exit-deal-save-atomicity', 'tests/pe-exit-deal-save-atomicity-test.js'],
   ['shareholder-activism-accept-save-atomicity', 'tests/shareholder-activism-accept-save-atomicity-test.js'],
