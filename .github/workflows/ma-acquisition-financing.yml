@@ -27,6 +27,7 @@ on:
       - 'tests/stock-split-price-history-test.js'
       - 'tests/stock-split-price-history-webkit-test.js'
       - 'js/pe-acquisition.js'
+      - 'js/pe-value-creation.js'
       - 'tests/vc-secondary-sale-save-atomicity-test.js'
       - 'tests/vc-secondary-sale-save-false-red-probe.js'
       - 'tests/vc-secondary-sale-save-atomicity-webkit-test.js'
@@ -43,6 +44,8 @@ on:
       - 'tests/pe-portfolio-exit-save-atomicity-webkit-test.js'
       - 'tests/pe-create-deal-save-atomicity-test.js'
       - 'tests/pe-create-deal-save-atomicity-webkit-test.js'
+      - 'tests/pe-exit-deal-save-atomicity-test.js'
+      - 'tests/pe-exit-deal-save-atomicity-webkit-test.js'
       - 'tests/fixtures/pe-fund-acquisition-atomicity.js'
       - 'tests/fixtures/pe-fund-acquisition-faults.js'
       - 'js/pe-network-sourcing.js'
@@ -87,6 +90,7 @@ on:
       - 'tests/stock-split-price-history-test.js'
       - 'tests/stock-split-price-history-webkit-test.js'
       - 'js/pe-acquisition.js'
+      - 'js/pe-value-creation.js'
       - 'tests/vc-secondary-sale-save-atomicity-test.js'
       - 'tests/vc-secondary-sale-save-false-red-probe.js'
       - 'tests/vc-secondary-sale-save-atomicity-webkit-test.js'
@@ -103,6 +107,8 @@ on:
       - 'tests/pe-portfolio-exit-save-atomicity-webkit-test.js'
       - 'tests/pe-create-deal-save-atomicity-test.js'
       - 'tests/pe-create-deal-save-atomicity-webkit-test.js'
+      - 'tests/pe-exit-deal-save-atomicity-test.js'
+      - 'tests/pe-exit-deal-save-atomicity-webkit-test.js'
       - 'tests/fixtures/pe-fund-acquisition-atomicity.js'
       - 'tests/fixtures/pe-fund-acquisition-faults.js'
       - 'js/pe-network-sourcing.js'
@@ -389,6 +395,7 @@ jobs:
           node tests/pe-fund-acquisition-save-atomicity-webkit-test.js
           node tests/pe-portfolio-exit-save-atomicity-webkit-test.js
           node tests/pe-create-deal-save-atomicity-webkit-test.js
+          node tests/pe-exit-deal-save-atomicity-webkit-test.js
       - name: Retain pe-acquisition-atomicity WebKit evidence
         if: always()
         uses: actions/upload-artifact@v4

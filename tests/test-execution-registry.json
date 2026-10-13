@@ -243,6 +243,10 @@
     "reason": "#954 createPEDeal company/personal: every harness fault kind (incl. prior pending put) rolls live, mirror, cache and durable IndexedDB back; retry issues the same deterministic deal; single commit; reload and fresh durable-only hydration in iPhone WebKit on every workflow event.",
     "executedBy": ".github/workflows/ma-acquisition-financing.yml"
   },
+  "tests/pe-exit-deal-save-atomicity-webkit-test.js": {
+    "reason": "#954 exitPEDeal company/personal/premium-wrapper: every harness fault kind (incl. prior pending put) rolls live, mirror, cache and durable IndexedDB back including the premium valuation; retry pays the same deterministic proceeds; second exit refused; reload and fresh durable-only hydration in iPhone WebKit on every workflow event.",
+    "executedBy": ".github/workflows/ma-acquisition-financing.yml"
+  },
   "tests/ma-subsidiary-sale-save-atomicity-webkit-test.js": {
     "reason": "Real iPhone WebKit subsidiary sale rollback, prior pending write and fresh IndexedDB hydration in PR/main gates.",
     "executedBy": ".github/workflows/ma-acquisition-financing.yml"
