@@ -86,6 +86,28 @@ console.log(`listed subsidiary weeks 17-${WEEKS} / in-week catch-up / quarterly 
  assert.ok(Math.abs(sub.marketListingValuation-base)<1e-6,`listing valuation ${sub.marketListingValuation} stays the IPO valuation ${ipoValuation}`);
  console.log('new listing market base is the IPO valuation PASS');
 }
+// A relisting restarts the market at the relisting week: a squeezed-out subsidiary keeps its first listing's market
+// fields while private, and replaying them would pay the private period's quarter dividends and trip the lag guard.
+{
+ const c=listedGame(17),g=c.game.g,id=c.subsidiaryID,sub=()=>g.subsidiaries.find(x=>x.id===id);
+ while(g.week<sub().ipoOfferTerms.lockupUntilWeek)advance(c.game);
+ assert.equal(c.game.launchListedSubsidiaryTenderOffer(id),true,'production tender offer');assert.equal(c.game.squeezeOutListedSubsidiary(id),true,'production squeeze-out');
+ const delisted=g.week;assert.equal(sub().marketLastWeek,delisted,'market fields kept while private');
+ assert.equal(c.game.investSubsidiaryIntegrationSynergy(id,'operations'),true,'production PMI round 1');
+ for(let i=0;i<13;i++)advance(c.game);assert.equal(c.game.investSubsidiaryIntegrationSynergy(id,'operations'),true,'production PMI round 2');
+ while(g.week<delisted+26)advance(c.game);
+ sub().growth=Math.max(sub().growth,.25); // relisting eligibility needs 20% growth; an operating input, not a balance-sheet value
+ const dividends=listedDividendRows(g,id).length;
+ assert.equal(c.game.relistSubsidiary(id,'balanced'),true,'production relisting');
+ assert.equal(sub().marketLastWeek,g.week,'market clock restarts at the relisting week');
+ assert.equal(sub().marketListingValuation,sub().valuation,'listing base is the relisting valuation');
+ assert.equal(c.modules.listedSubsidiaryMarket.lagging(g).length,0,'a relisting never lags');
+ const base=sub().marketListingValuation,from=g.week;
+ for(let i=0;i<14;i++){advance(c.game);assert.equal(c.modules.finance.validate(snapshot(c.game)).ok,true,`week ${g.week} valid`);}
+ assert.equal(sub().marketListingValuation,base,'base kept');
+ assert.equal(listedDividendRows(g,id).length-dividends,[...Array(14)].map((_,i)=>from+1+i).filter(w=>w%13===0).length,'only post-relisting quarters pay');
+ console.log('relisting restarts the market / no private-period replay / never lags PASS');
+}
 // Older saves never caught the market up unless something rendered, so a save written before any render has no
 // market fields at all. It loads with no economic change and catches up from the listing week, with the quarter
 // dividend, inside the next week, where the close accounts for it.
