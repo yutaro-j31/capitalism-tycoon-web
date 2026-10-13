@@ -181,7 +181,9 @@ assert.deepEqual(pathsFor(comprehensiveMa, 'pull_request'), [
   'tests/pe-portfolio-exit-save-atomicity-webkit-test.js',
   'tests/fixtures/pe-fund-acquisition-atomicity.js',
   'tests/fixtures/pe-fund-acquisition-faults.js',
-  'js/pe-network-sourcing.js', 'js/pe-ui-adapter.js', 'js/pe-portfolio-operations.js', 'tests/parent-ipo-save-atomicity-test.js',
+  'js/pe-network-sourcing.js', 'js/pe-ui-adapter.js', 'js/pe-portfolio-operations.js', 
+  'js/completion.js', 'js/pe-fund.js', 'js/pe-value-creation.js', 'js/parity.js', 'js/shareholder-returns.js', 'js/play-runtime-compat.js', 'js/difficulty-scenario-balance.js', 'js/finance.js', 'js/ma-board-approval.js', 'js/ma-acquisition-financing.js',
+  'tests/parent-ipo-save-atomicity-test.js',
   'tests/parent-ipo-save-atomicity-webkit-test.js', 'tests/fixtures/parent-ipo-atomicity.js',
   'tests/ma-subsidiary-sale-save-atomicity-test.js', 'tests/ma-subsidiary-sale-save-atomicity-webkit-test.js',
   'tests/fixtures/ma-subsidiary-sale-atomicity.js',
@@ -189,6 +191,18 @@ assert.deepEqual(pathsFor(comprehensiveMa, 'pull_request'), [
   'tests/ceo-dashboard-webkit-test.js', '.github/workflows/ma-acquisition-financing.yml'
 ], 'Deal Room PR paths and CEO Dashboard WebKit coverage must remain explicit in the consolidated workflow');
 assert(hasTrigger(comprehensiveMa, 'push') && pathsFor(comprehensiveMa, 'push').length > 0, 'M&A comprehensive main push must use paths');
+// Track A writer modules (#922 audit section 4): a change to any of them must run the atomicity WebKit gates on
+// both PR and main push. Docs-only changes must not trigger this workflow.
+const trackAWriterModules = ['js/completion.js', 'js/pe-fund.js', 'js/pe-value-creation.js', 'js/parity.js', 'js/shareholder-returns.js',
+  'js/shareholder-activism.js', 'js/play-runtime-compat.js', 'js/difficulty-scenario-balance.js', 'js/expansion.js', 'js/engine.js', 'js/finance.js', 'js/app.js'];
+const globMatch = (pattern, file) => new RegExp('^' + pattern.replace(/[.+^${}()|[\]\\]/g, '\\$&').replace(/\*\*/g, '\u0000').replace(/\*/g, '[^/]*').replace(/\u0000/g, '.*') + '$').test(file);
+for (const event of ['pull_request', 'push']) {
+  const patterns = pathsFor(comprehensiveMa, event);
+  for (const file of trackAWriterModules) assert(patterns.some(pattern => globMatch(pattern, file)), `${event} must run the Track A atomicity gates on ${file}`);
+  for (const file of ['docs/economic-engine/TRACK_A_WRITER_AUTHORITY_AUDIT.md', 'README.md', 'docs/GAME_OVERVIEW.md']) {
+    assert(!patterns.some(pattern => globMatch(pattern, file)), `${event} must not run the M&A workflow for docs-only ${file}`);
+  }
+}
 assert(isMainOnly(triggerBlock(comprehensiveMa, 'push')), 'M&A comprehensive push must be main-only');
 for (const event of ['pull_request', 'push']) {
   for (const path of ['tests/stock-split-save-atomicity-test.js', 'tests/stock-split-save-atomicity-webkit-test.js', 'js/shareholder-activism.js', 'tests/shareholder-activism-accept-save-atomicity-test.js', 'tests/shareholder-activism-accept-save-atomicity-webkit-test.js', 'tests/stock-split-dividend-rescale-test.js', 'tests/stock-split-dividend-rescale-webkit-test.js', 'tests/fixtures/stock-split-atomicity.js', 'tests/vc-secondary-sale-save-atomicity-test.js', 'tests/vc-secondary-sale-save-false-red-probe.js', 'tests/vc-secondary-sale-save-atomicity-webkit-test.js', 'tests/fixtures/vc-secondary-sale-atomicity.js', 'tests/vc-follow-on-save-atomicity-test.js', 'tests/vc-follow-on-save-atomicity-webkit-test.js', 'tests/fixtures/vc-follow-on-atomicity.js', 'tests/vc-initial-investment-save-atomicity-test.js', 'tests/vc-initial-investment-save-atomicity-webkit-test.js', 'tests/fixtures/vc-initial-investment-atomicity.js', 'tests/stock-split-price-history-test.js', 'tests/stock-split-price-history-webkit-test.js', 'tests/stock-sale-save-atomicity-test.js', 'tests/stock-sale-save-atomicity-webkit-test.js', 'js/engine.js', 'tests/stock-purchase-save-atomicity-test.js', 'tests/stock-purchase-save-atomicity-webkit-test.js', 'js/expansion.js', 'tests/investor-offer-save-atomicity-test.js', 'tests/investor-offer-save-atomicity-webkit-test.js', 'tests/founder-share-sale-save-atomicity-test.js', 'tests/founder-share-sale-save-atomicity-webkit-test.js']) {
