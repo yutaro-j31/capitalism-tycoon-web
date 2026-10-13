@@ -296,7 +296,9 @@ function installExitWrapper(){
   if(proto.__peExitPremiumInstalled)return true;
   const baseExit=proto.exitPEDeal;
   if(typeof baseExit!=='function')return false;
-  proto.exitPEDeal=function(dealID){
+  // #954: the premium valuation set below belongs to the same transaction as the base exit, so a failed
+  // save restores it with everything else.
+  proto.exitPEDeal=function(dealID){return this.runTransaction(()=>{
     const deal=findDeal(this.g,dealID);
     if(!deal)return baseExit.call(this,dealID);
     // Without this, EXIT silently discarded an in-flight initiative: the fee was already
@@ -317,7 +319,7 @@ function installExitWrapper(){
     const result=baseExit.call(this,dealID);
     if(result===false)deal.currentValuation=original;
     return result;
-  };
+  });};
   Object.defineProperty(proto,'__peExitPremiumInstalled',{value:true});
   return true;
 }
