@@ -1,7 +1,7 @@
 # Track A — Writer Authority audit: shares, ownership, dividends (#922)
 
 Status: **read-only audit. Verdict: BLOCKED** (see §5). No production, test, CI or save-format change.
-Base: first pass on main `35866030c4f47e47d1aac9dc1d4415365b412fb0` (2026-10-12; §1–§7). Second pass on main `9d2a9ddba666b1817b3848d5389b73d6d154e33d`, after #952 (shared fault harness) and #956 merged: §3b records the current evidence and **supersedes** the first-pass evidence where they differ (W-NEW-COMPANY is now reproduced; the render-time writer is reproduced and filed as #966). Third pass on main `8f2e50fcdfcb44d712f956ebb2750610c4db426e` (2026-10-13), after #951 and #957 merged: §3c is the current status and supersedes §3b where they differ. §2 verdicts describe main and change only when a fix merges.
+Base: first pass on main `35866030c4f47e47d1aac9dc1d4415365b412fb0` (2026-10-12; §1–§7). Second pass on main `9d2a9ddba666b1817b3848d5389b73d6d154e33d`, after #952 (shared fault harness) and #956 merged: §3b records the current evidence and **supersedes** the first-pass evidence where they differ (W-NEW-COMPANY is now reproduced; the render-time writer is reproduced and filed as #966). Third pass on main `8f2e50fcdfcb44d712f956ebb2750610c4db426e` (2026-10-13), after #951 and #957 merged: §3c supersedes §3b where they differ. Fourth pass on main `ee4f37f561fe326545deed96a127d0a032ebcb24` (2026-10-14): §3d is the current status and supersedes §3c where they differ. §2 verdicts describe main and change only when a fix merges.
 
 This is the canonical Writer Matrix for the share / ownership / dividend domain. `phase0-5-authoritative-writers.json` remains the machine-generated lexical inventory consumed by `scripts/phase0-5-acceptance.js`; it is a different artifact (token-level discovery, no boundary/test verdicts) and is not duplicated here.
 
@@ -59,20 +59,20 @@ Abbreviations: SF = save-fault injection set (save-false, mirror, enqueue-false/
 | W-VC-INITIAL | `engine.js:1467` `investStartup` | UI `app.js:910` | cash, `ownedCompany/ownedPersonal`, DD fields | yes | commit | `investmentPurchase` (company) | NODE+WEBKIT | `vc-initial-investment-save-atomicity` (+WebKit) | `vc-funding-atomicity` | **VERIFIED** |
 | W-VC-FOLLOW-ON | `engine.js:1491` `participateStartupFundingRound` | UI `app.js:910` | cash, round contributions, history | yes | commit | `investmentPurchase` | NODE+WEBKIT | `vc-follow-on-save-atomicity` (+WebKit) | `vc-funding-atomicity` | **VERIFIED** |
 | W-VC-SECONDARY | `expansion.js:505` `sellStartupSecondary` | UI `app.js:910` | cash, stakes zeroed | yes | commit | `investmentSale` | NODE+WEBKIT | `vc-secondary-sale-save-atomicity` (+WebKit, red probe) | `vc-secondary-atomicity` | **VERIFIED** |
-| W-MAKE-SUB | `engine.js:1511` `makeSubsidiary` | UI `app.js:910` | startup→subsidiary, `subsidiaries` push | **no** | direct save, ignored | none | none (REPRO: returns true on mirror reject, storage unchanged) | functional | — | **GAP — P1 #954** |
+| W-MAKE-SUB | `engine.js:1511` `makeSubsidiary` | UI `app.js:910` | startup→subsidiary, `subsidiaries` push | **no** | direct save, ignored | none | none (REPRO: returns true on mirror reject, storage unchanged) | functional | — | **VERIFIED** (fourth pass: #961 merged `1d2a2d83`; NODE + WEBKIT on main `ee4f37f5`, job 115638242602) |
 | W-MA-ACQUIRE | `pe-acquisition.js:164` → `ma-board-approval.js:31` → `ma-acquisition-financing.js:369` → `ma-deal-room.js:118` | UI `app.js:911`, `ma-portfolio-summary-ui.js:18`, `executive-secretary.js:48` | cash, financing, subsidiaries, goodwill, targets | custom shadow boundary (financed) / TX (cash) | wrapper save with rollback | `acquisition` | NODE partial (mirror/enqueue/emit/quota + RL/HY in `save-storage-commit-atomicity`) | WebKit happy path only | `deal-room`, `comprehensive-ma` | **GAP** (no WebKit save-failure, no explicit SF/ST) |
 | W-MA-SALE | `engine.js:1729` `sellMASubsidiary` | UI `app.js:911`, `ma-portfolio-summary-ui.js:26` | cash, subsidiaries, goodwill, gain (RNG) | yes | commit | `assetSale` | NODE+WEBKIT | `ma-subsidiary-sale-save-atomicity` (+WebKit) | `deal-room`, `comprehensive-ma` | **VERIFIED** |
 | W-PE-FUND-ACQ | `pe-acquisition.js:91/164` `closeFundAcquisition` | via `closeMADeal` | fund capital/portfolio | yes | commit | fund waterfall | NODE+WEBKIT | `pe-fund-acquisition-save-atomicity` (+WebKit) | `pe-acquisition-atomicity` | **VERIFIED** |
 | W-PE-EXIT | `pe-network-sourcing.js:152` → `pe-acquisition.js:200` → `exitPortfolioCompany` | UI `app.js:940`; `pe-ui-adapter.js:405-408` calls the module directly inside `runTransaction` | fund cash/distributions | yes (both routes) | commit | fund waterfall | NODE (both routes) + WEBKIT (engine route) | `pe-portfolio-exit-save-atomicity` (+WebKit) | `pe-acquisition-atomicity` | **VERIFIED** atomicity; adapter route skips network registration (behavioural, P2) |
 | W-PE-TO-PARENT | `pe-portfolio-operations.js:987` `acquirePEPortfolioCompany` | `pe-ui-adapter.js:409` | cash, subsidiaries, fund deal | yes (CODE) | commit | yes | none | functional | — | **GAP** |
-| W-PE-LEGACY-CREATE | `expansion.js:600` `createPEDeal` | UI `app.js:921` (`app.js:636`) | cash, `peDeals`, subsidiaries (RNG) | **no** | direct save, ignored | `acquisition` | none (REPRO: save-throw keeps −20,000,000 durable) | functional | — | **GAP — P1 #954** |
-| W-PE-LEGACY-EXIT | `pe-value-creation.js:299` → `expansion.js:604` | UI `app.js:921` (`app.js:646`) | cash, P/L, deal status, subsidiary removal | **no** | direct save, ignored | `assetSale` | none (REPRO: save-throw keeps +19,081,707 durable) | functional | — | **GAP — P1 #954** |
+| W-PE-LEGACY-CREATE | `expansion.js:600` `createPEDeal` | UI `app.js:921` (`app.js:636`) | cash, `peDeals`, subsidiaries (RNG) | **no** | direct save, ignored | `acquisition` | none (REPRO: save-throw keeps −20,000,000 durable) | functional | — | **VERIFIED** (fourth pass: #958 merged `69ee8695`; NODE + WEBKIT on main `ee4f37f5`, `pe-acquisition-atomicity` job 115638242270) |
+| W-PE-LEGACY-EXIT | `pe-value-creation.js:299` → `expansion.js:604` | UI `app.js:921` (`app.js:646`) | cash, P/L, deal status, subsidiary removal | **no** | direct save, ignored | `assetSale` | none (REPRO: save-throw keeps +19,081,707 durable) | functional | — | **VERIFIED** (fourth pass: #959 merged `6303cccf`; NODE + WEBKIT on main `ee4f37f5`, job 115638242270) |
 | W-PE-LEGACY-TRANSFER | `pe-value-creation.js:340` → `expansion.js:603` | UI `app.js:921` | company/personal cash, owner account | yes | commit | `acquisition` | reload only | functional | — | **GAP** |
-| W-ANGEL | `expansion.js:605/606` | UI `app.js:922` | personalCash, `angelInvestments` | **no** | direct save | none | none (REPRO) | none | — | **GAP — P1/P2 #954** |
+| W-ANGEL | `expansion.js:605/606` | UI `app.js:922` | personalCash, `angelInvestments` | **no** | direct save | none | none (REPRO) | none | — | **VERIFIED** (fourth pass: #962 merged `89be3642`; NODE + WEBKIT on main `ee4f37f5`, job 115638242602) |
 | W-SUB-IPO | `subsidiary-ipo-preparation.js:59/60` → `engine.js:1518` | UI `app.js:910`, `ma-portfolio-summary-ui.js:26`, prep UI `:69` | sub ownership −15%, book, cash, ticker (RNG) | yes | commit | `investmentSale` | none (tests use a stub `runTransaction`) | `subsidiary-ipo-preparation-test`, `finance-subsidiary-ipo-test` | — | **GAP** |
 | W-SUB-IPO-STAKE | `subsidiary-ipo-secondary-sale.js:22` | module UI | cash, ownership, book, `cumulativeProfit` | yes (CODE) | commit | `investmentSale` **without `assetEffect`** (unverified ledger concern) | none (stub engine) | `subsidiary-ipo-secondary-sale-test` | — | **GAP** (ledger to verify) |
-| W-SUB-MARKET-RENDER | `listed-subsidiary-market.js:43-45` `catchUp` → `distributeQuarterlyDividend`, reached from `ensure()` via `snapshot()` / `allSnapshots()` in `renderSection` (venture tab render) as well as `normalize` and the module actions | render / load / actions | `companyCash`, `sub.subsidiaryCash`, `parentDividendsReceived`, `marketPriceIndex`, valuation, `dividendIncome` ledger event | **no** — the module has no `advanceWeek` hook, so a due quarterly parent dividend is booked at render time outside any transaction | not saved by the render; persisted by the next unrelated save | `dividendIncome` | none | functional | — | **GAP — P2 #966** (REPRO 2026-10-12: no weekly catch-up; venture-tab render booked +39,000,000 parent dividend outside any transaction; idempotent, reload converges; fix needs an Owner decision on timing) |
-| W-SUB-OTHER | `listed-subsidiary-control-actions.js:22` (TOB/squeeze-out), `listed-subsidiary-market.js:51` (buy/sell stake, dividend policy), `listed-subsidiary-follow-on-offering.js:23`, `subsidiary-relisting-options.js:20`, `group-restructuring-candidates.js:27`, `internal-venture-business.js:101/104/113` | module UIs | subsidiary ownership/cash | yes (CODE) | commit | yes | none (TOB test uses a stub engine) | functional | — | **GAP** |
+| W-SUB-MARKET-RENDER | `listed-subsidiary-market.js:43-45` `catchUp` → `distributeQuarterlyDividend`, reached from `ensure()` via `snapshot()` / `allSnapshots()` in `renderSection` (venture tab render) as well as `normalize` and the module actions | render / load / actions | `companyCash`, `sub.subsidiaryCash`, `parentDividendsReceived`, `marketPriceIndex`, valuation, `dividendIncome` ledger event | **no** — the module has no `advanceWeek` hook, so a due quarterly parent dividend is booked at render time outside any transaction | not saved by the render; persisted by the next unrelated save | `dividendIncome` | none | functional | — | **VERIFIED** (fourth pass: #974 merged `ec3ca0b0`; catch-up and parent dividend only inside the week; render / load read-only; legacy-lag guard; listing base fixed at IPO / relisting; NODE + WEBKIT, job 115638242512) |
+| W-SUB-OTHER | `listed-subsidiary-control-actions.js:22` (TOB/squeeze-out), `listed-subsidiary-market.js:51` (buy/sell stake, dividend policy), `listed-subsidiary-follow-on-offering.js:23`, `subsidiary-relisting-options.js:20`, `group-restructuring-candidates.js:27`, `internal-venture-business.js:101/104/113` | module UIs | subsidiary ownership/cash | yes (CODE) | commit | yes | none (TOB test uses a stub engine) | functional | — | **GAP**, partly covered (fourth pass): group-restructuring sale / liquidation / merge / integration accounting fixed by #977 (`ee4f37f5`, NODE + WEBKIT); group capital allocation exactness in open PR #980; TOB / follow-on / relisting / internal-venture writers still without writer-specific fault tests |
 
 ### 2.3 Weekly and load paths
 
@@ -190,6 +190,48 @@ Track A completion conditions after the third pass:
 | 10 | Independent diff audit | **Not met** (same agent session; Codex automated review only) |
 
 **Track A verdict: still BLOCKED.** P3-4 Ownership Authority Cutover remains STOPPED; Phase 4 not started.
+
+## 3d. Remediation status — fourth pass (2026-10-14, main `ee4f37f5`)
+
+Merged since the third pass (each with main CI green after merge): #958, #959, #960, #961, #962 (#954 / price floor), #970 and #972 (CI only), #973 (#971), #974 (#966), #977 (#975). §2 verdicts above were updated for the merged writers. WEBKIT = real WebKit 26.5 (Playwright, iPhone 13 emulation, real IndexedDB) in GitHub Actions; physical iPhone: **NOT RUN** for every row.
+
+| Writer / defect | Fix | State | Node | WebKit | Verdict on main |
+|---|---|---|---|---|---|
+| W-PE-LEGACY-CREATE / EXIT | #958 / #959 | merged | writer fault matrix | `pe-acquisition-atomicity` on main (job 115638242270) | VERIFIED |
+| W-MAKE-SUB, W-ANGEL | #961 / #962 | merged | writer fault matrix | `vc-funding-atomicity` on main: makeSubsidiary 11/11, angel create / exit 22/22 (job 115638242602) | VERIFIED |
+| W-SPLIT (price floor) | #960 | merged `f755de4b` | boundaries, ratios, at-floor faults | `stock-split-atomicity` on main (job 115638242292) | VERIFIED |
+| VC / M&A subsidiary quarterly cash (#971) | #973 | merged `4114df55` | quarters 13–52, 60 weeks, faults | `vc-secondary-atomicity` | fixed |
+| W-SUB-MARKET-RENDER (#966) | #974 | merged `ec3ca0b0` | weeks 17–60 render read-only, legacy-lag guard, IPO / relisting base | 11/11 (PR job 115585938361; main job 115638242512) | VERIFIED |
+| Group-restructuring disposals (#975) | #977 | merged `ee4f37f5` | sale / liquidation / negotiated / listed / merge / integration, legacy fractional book, 13 weeks; PE-managed subsidiaries refused (Owner-approved) | 24/24 (PR job 115627626327) | fixed |
+| Group capital allocation floors cash / book (#978) | #980 | **open**, Final Gate technical PASS, Owner approval pending | VC / M&A / fractional book, 9 fault kinds | 15/15 (PR job 115646414493) | GAP until merged |
+| W-NEW-COMPANY ledger (#968) | #983 | **open**, Final Gate technical PASS except Codex (usage limit), Owner approval pending | store / digital / PE deals, 13 weeks | store and digital ×2 (PR job 115656698873) | GAP until merged |
+| W-NEW-COMPANY atomicity (#955) | #965 | open; to be synced to main after #983 (conflict resolution recorded in #983) | — | — | GAP |
+| W-DECLINE-BUYOUT, W-FORCE-EARNINGS | #963 / #964 | open (unchanged by Owner instruction) | — | — | GAP |
+
+New findings in this pass:
+
+| Issue | Severity | Summary | Status |
+|---|---|---|---|
+| #976 | Owner decision | listed-subsidiary quarterly dividend recognises profit already booked weekly; A / B / C compared over 52 / 100 weeks (design audit comment on #976) | no economic change |
+| #978 | P1 | group capital allocation floors company cash and book without a ledger row; any fractional-cash game fails the next close | fix PR #980 |
+| #979 | Investigation | legacy saves already broken by pre-#977 disposals; one-time repair design only, no automatic migration (Owner decision) | open |
+
+Track A completion conditions after the fourth pass:
+
+| # | Condition | Status |
+|---|---|---|
+| 1 | Writer list completeness | Partial (pattern sweep) |
+| 2 | State destinations | Met (CODE) |
+| 3 | Save / rollback boundary | Improved: #954 writers and #966 merged; #955 (#963 / #964 / #965) still open |
+| 4 | Node regressions registered | Improved on main; open PRs #963 / #964 / #965 / #980 / #983 |
+| 5 | WebKit need / evidence | Improved on main (all #954 writers, listed-subsidiary quarter, disposals); still missing for open PRs and several subsidiary writers (§2 W-SUB-OTHER) |
+| 6 | Accounting / ownership invariants | **Not met**: #978 and #968 open; founder + competitor > 1; D3 / D4; #976 decision pending |
+| 7 | Unresolved P0/P1 recorded | Met (#955, #968, #978; #976 / #979 recorded) |
+| 8 | Executable CI gate | Met for the audited writer modules (#972 merged); new tests registered with path filters |
+| 9 | Missing writers explicit | Met |
+| 10 | Independent diff audit | Partial: Codex automated review for #974 / #977 / #980; #983 reviewed by an independent agent because Codex hit its usage limit |
+
+**Track A verdict: still BLOCKED.** P3-4 Ownership Authority Cutover remains STOPPED; Phase 4 production development not started.
 
 ## 4. CI gate observations
 
