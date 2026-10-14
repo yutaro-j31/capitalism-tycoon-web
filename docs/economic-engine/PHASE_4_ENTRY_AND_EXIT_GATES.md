@@ -167,3 +167,10 @@ Formal Entry additionally requires:
 - [ ] Implement/accept P4-4a interest-receivable taxonomy/validator before P4-5 accrual builders, and P4-4b gameplay profit/tax/cash/credit/report compatibility before live adoption. Existing strict EconomicOperation field names are preserved.
 
 Main at this recheck has53 completed checks:43 success,10 nonapplicable skipped,0 failed/pending. PR #981 initial head df59530f has22 completed checks:20 success,2 skipped. New amended head requires its own applicable CI, and docs merge remains Owner-only. No Phase4 Entry, production change or source-of-truth adoption is authorized.
+
+
+## Supplemental P1 prerequisites — 2026-10-15 JST
+
+- [ ] Resolve or explicitly disposition with evidence **P4-AUD-003–008** in the [additional audit](PHASE_4_ADDITIONAL_P1_AUDIT.md): founder-capital save atomicity; personal property principal; non-active principal allocation; double personal interest; missing mortgage liability; cash-creating downward refinancing.
+- [ ] Refresh personal principal/interest and specialist completeness tests; company-only finance/debt validation can remain green during a personal exploit.
+- [ ] Do not infer closure from #989/#990: both scoped repairs are included in the tested #990 head and all six additional findings still reproduce. No automatic legacy save repair, new authority or Phase 4 Entry is authorized by this addendum.

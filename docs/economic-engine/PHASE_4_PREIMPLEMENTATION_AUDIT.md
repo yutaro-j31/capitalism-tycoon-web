@@ -4,6 +4,10 @@
 
 Baseline: `ee4f37f561fe326545deed96a127d0a032ebcb24`, verified by Git remote HEAD, fresh clone/origin/main and GitHub branches/main on 2026-10-14 JST. This package changes documentation only. Phase 3 production work, debt writers, save format, workflows and tests are untouched. No document here supersedes the formal roadmap or an Owner decision.
 
+## Latest supplemental evidence — 2026-10-15 JST
+
+Latest audited main is `4a7e20c6148f20861321b3b17a8964f82debcadd`. [Additional P1 audit](PHASE_4_ADDITIONAL_P1_AUDIT.md) executes 19 scenarios on main and the #990 head, plus capital persistence faults: six additional P1 families remain after the two scoped fixes. Earlier CODE-only mortgage/interest concerns now have reproduction evidence. **Implementation remains NOT READY; Phase 4 Entry remains NOT AUTHORIZED.** Earlier baseline statements below are historical, not a current all-clear.
+
 ## Reading map
 
 | Deliverable | Purpose |
