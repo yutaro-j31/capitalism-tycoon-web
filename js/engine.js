@@ -1509,17 +1509,22 @@ class TycoonEngine extends EventTarget {
     const h=this.g.startupFundingHistory[s.id]||(this.g.startupFundingHistory[s.id]=[]),opened=h.find(x=>x.status==='open');if(opened){opened.status='closed';opened.closedWeek=this.g.week;}h.unshift({id:`${r.id}-closed`,eventType:'closed',stage:r.round,closedWeek:this.g.week,preMoneyValuation:r.preMoneyValuation,targetRaise:r.targetRaise,postMoneyValuation:r.postMoneyValuation,ownershipBefore:{company:r.preRoundOwnedCompany,personal:r.preRoundOwnedPersonal},ownershipAfter:{company:s.ownedCompany,personal:s.ownedPersonal}});this.g.startupFundingHistory[s.id]=h.slice(0,24);s.activeFundingRound=null;this.g.news.unshift(`第${this.g.week}週：${s.name}の${s.stage}追加資金調達が完了しました。`);return true;
   }
   makeSubsidiary(startupID) {
+    // #954: startup flag, subsidiary record and stake reset commit with one save, or roll back together.
+    return this.runTransaction(()=>{
     const s=this.g.startups.find(x=>x.id===startupID);if(!s||s.subsidiary)return false;
     if(s.activeFundingRound?.status==='open')return this.fail('追加資金調達ラウンド終了後に子会社化できます。');
     if(s.ownedCompany<.5)return this.fail('会社持分50%以上が必要です。');
     s.subsidiary=true;const book=finite(s.totalInvestedCompany||0);this.g.subsidiaries.push({id:uuid(this.g,'subsidiary'),startupID:s.id,name:s.name,domain:s.domain,ownership:s.ownedCompany,valuation:s.valuation,investedCost:book,carryingBookValue:book,weeklyProfit:0,growth:s.growth,risk:s.risk,publicCompany:false,status:'active',retainedEarnings:0});s.ddNegotiatedOwnedCompany=0;
-    this.notify(`${s.name}を連結子会社化しました。`,'success');this.save();this.emit();return true;
+    this.notify(`${s.name}を連結子会社化しました。`,'success');return true;
+    });
   }
   ipoSubsidiary(id) {
     const sub=this.g.subsidiaries.find(s=>s.id===id);if(!sub||sub.publicCompany)return false;
     if(sub.valuation<250_000_000||sub.ownership<.5)return this.fail('評価額2.5億円以上・持分50%以上が必要です。');
+    // #966: whole-yen book removal, like every other book-reducing writer (stake sale, follow-on, relisting), so the
+    // parent's book value stays an integer that load normalization and restructuring disposals keep exact.
     sub.publicCompany=true;sub.ticker=`V${Math.floor(rand(this.g,100,999))}`;sub.sharesOut=1_000_000;sub.stockPrice=sub.valuation/sub.sharesOut;
-    const soldOwnership=.15,preOwnership=sub.ownership,saleRatio=soldOwnership/Math.max(.000001,preOwnership),preBook=finite(sub.carryingBookValue||sub.investedCost||0),soldBook=preBook*saleRatio,proceeds=sub.valuation*soldOwnership,gain=proceeds-soldBook;sub.ownership-=soldOwnership;sub.carryingBookValue=Math.max(0,preBook-soldBook);this.g.companyCash+=proceeds;
+    const soldOwnership=.15,preOwnership=sub.ownership,saleRatio=soldOwnership/Math.max(.000001,preOwnership),preBook=finite(sub.carryingBookValue||sub.investedCost||0),soldBook=Math.round(preBook*saleRatio),proceeds=sub.valuation*soldOwnership,gain=proceeds-soldBook;sub.ownership-=soldOwnership;sub.carryingBookValue=Math.max(0,preBook-soldBook);this.g.companyCash+=proceeds;
     finance.event(this.g,'investmentSale',proceeds,{cashEffect:proceeds,assetEffect:-soldBook,profitEffect:gain,sourceType:'ipoSubsidiary',sourceID:id,description:`${sub.name} IPO売出`});this.syncPEDealFromSubsidiary?.(sub);
     this.notify(`${sub.name}を上場させ、${yen(proceeds)}を調達しました。`,'success');if(!this.inTransaction()){this.save();this.emit();}return true;
   }
@@ -2118,10 +2123,12 @@ class TycoonEngine extends EventTarget {
     for(const p of this.g.properties){p.value=Math.max(p.basePrice*.4,p.basePrice*(1+(this.g.economy-1)*p.economySensitivity)*(this.g.realEstateCycle||1));p.price=p.value;if(p.constructionWeeksRemaining>0){p.constructionWeeksRemaining--;if(p.constructionWeeksRemaining===0){p.kind=p.buildingType;p.value+=80_000_000;p.basePrice=p.value;p.rentIncome=p.value*.04/52;this.g.news.unshift(`第${this.g.week}週：${p.name}の${p.buildingType}が完成しました。`);}}}
   }
   updateSubsidiaries() {
-    let revenue=0,profit=0,dividends=0;
-    for(const s of this.g.subsidiaries){if(s.status==='bankrupt'||s.valuationManagedBy==='pe')continue;const annual=clamp(s.growth+rand(this.g,-s.risk,s.risk)+(this.g.economy-1)*.08,-.3,.8);s.valuation=Math.max(5_000_000,s.valuation*(1+annual/52));s.weeklyProfit=s.valuation*clamp(rand(this.g,.01,.055)-s.risk*.025,-.015,.06)/52;s.retainedEarnings=finite(s.retainedEarnings)+s.weeklyProfit;revenue+=Math.max(0,s.weeklyProfit/.12)*s.ownership;profit+=s.weeklyProfit*s.ownership;if(this.g.week%13===0&&s.retainedEarnings>0){const div=s.retainedEarnings*.15*s.ownership;s.retainedEarnings-=div;dividends+=div;}if(s.status==='distressed'&&simRng.next(this.g)<.03){s.status='bankrupt';s.valuation*=.1;}}
-    for(const s of this.g.maSubsidiaries){if(s.status!=='active')continue;if(s.pmiStatus&&s.pmiStatus!=='completed'){s.weeklyProfit=finite(s.weeklyProfit,finite(s.operatingProfit)/52);}else{s.valuation=Math.max(1_000_000,s.valuation*(1+s.growth/52+rand(this.g,-.025,.03)));s.weeklyProfit=s.operatingProfit/52*rand(this.g,.8,1.2);}s.retainedEarnings=finite(s.retainedEarnings)+s.weeklyProfit;revenue+=Math.max(0,s.sales/52);profit+=s.weeklyProfit;if(this.g.week%13===0&&s.retainedEarnings>0){const div=s.retainedEarnings*.2;s.retainedEarnings-=div;dividends+=div;}if(simRng.next(this.g)<s.risk*.005){const goodwill=this.g.goodwillRecords.find(g=>g.name===s.name);const loss=Math.min(goodwill?.carryingValue||0,s.valuation*.1);if(goodwill)goodwill.carryingValue-=loss;this.g.totalImpairmentLoss+=loss;profit-=loss;}}
-    this.g.companyCash+=dividends;return {revenue,profit,dividends};
+    // #971: subsidiary profit already reaches parent cash and profit every week (subsProfit in the weekly
+    // record), so there is no separate quarterly cash distribution; retainedEarnings stays cumulative profit.
+    let revenue=0,profit=0;
+    for(const s of this.g.subsidiaries){if(s.status==='bankrupt'||s.valuationManagedBy==='pe')continue;const annual=clamp(s.growth+rand(this.g,-s.risk,s.risk)+(this.g.economy-1)*.08,-.3,.8);s.valuation=Math.max(5_000_000,s.valuation*(1+annual/52));s.weeklyProfit=s.valuation*clamp(rand(this.g,.01,.055)-s.risk*.025,-.015,.06)/52;s.retainedEarnings=finite(s.retainedEarnings)+s.weeklyProfit;revenue+=Math.max(0,s.weeklyProfit/.12)*s.ownership;profit+=s.weeklyProfit*s.ownership;if(s.status==='distressed'&&simRng.next(this.g)<.03){s.status='bankrupt';s.valuation*=.1;}}
+    for(const s of this.g.maSubsidiaries){if(s.status!=='active')continue;if(s.pmiStatus&&s.pmiStatus!=='completed'){s.weeklyProfit=finite(s.weeklyProfit,finite(s.operatingProfit)/52);}else{s.valuation=Math.max(1_000_000,s.valuation*(1+s.growth/52+rand(this.g,-.025,.03)));s.weeklyProfit=s.operatingProfit/52*rand(this.g,.8,1.2);}s.retainedEarnings=finite(s.retainedEarnings)+s.weeklyProfit;revenue+=Math.max(0,s.sales/52);profit+=s.weeklyProfit;if(simRng.next(this.g)<s.risk*.005){const goodwill=this.g.goodwillRecords.find(g=>g.name===s.name);const loss=Math.min(goodwill?.carryingValue||0,s.valuation*.1);if(goodwill)goodwill.carryingValue-=loss;this.g.totalImpairmentLoss+=loss;profit-=loss;}}
+    return {revenue,profit};
   }
   updateOverseas() {
     let revenue=0,cost=0,retainedCash=0,parentCashLoss=0;
