@@ -6,7 +6,8 @@
 // founded-investment record; personal holdings carry over, the sold company's debt does not. Every applicable
 // harness fault, including a prior pending put, rolls live, mirror, cache and durable state back into the same
 // root; thrown faults open the production recovery dialog; the retry produces the unfaulted state. Reload and a
-// fresh durable-only context agree.
+// fresh durable-only context agree. The success toast appears only after the commit (once on success, never for a
+// rolled-back founding); a throwing notify listener therefore runs after the commit and leaves the founding saved.
 const assert=require('node:assert/strict'),fs=require('node:fs'),http=require('node:http'),path=require('node:path');
 const {webkit,devices}=require('playwright');
 const {scenario}=require('./fixtures/stock-split-atomicity');
@@ -14,7 +15,9 @@ const {inject}=require('./fixtures/pe-fund-acquisition-faults');
 const ROOT=path.resolve(__dirname,'..'),DIR=path.resolve(process.env.MA_DEAL_ROOM_ARTIFACT_DIR||'artifacts/ma-deal-room-webkit');
 const options={...devices['iPhone 13'],locale:'ja-JP',timezoneId:'Asia/Tokyo',serviceWorkers:'block'};
 const server=http.createServer((req,res)=>{try{const u=new URL(req.url,'http://localhost'),file=path.resolve(ROOT,u.pathname==='/'?'index.html':decodeURIComponent(u.pathname).slice(1));assert.ok(file.startsWith(ROOT+path.sep));res.setHeader('Content-Type',({'.html':'text/html','.js':'application/javascript','.css':'text/css','.json':'application/json'})[path.extname(file)]||'application/octet-stream');res.setHeader('Cache-Control','no-store');res.end(fs.readFileSync(file));}catch(e){res.statusCode=404;res.end(String(e));}});
-const FAULTS=['save-false','mirror','enqueue-false','enqueue-throw','save-throw','saved','change','notify','pending-save-false','pending-change'];
+const FAULTS=['save-false','mirror','enqueue-false','enqueue-throw','save-throw','saved','change','pending-save-false','pending-change'];
+// The success toast is emitted after the outermost commit, so its listener fault is a post-commit case, not a rollback.
+const POST_COMMIT_FAULTS=['notify'];
 const SOFT=['save-false','mirror','enqueue-false','enqueue-throw'];
 const INVESTMENT=50_000_000,NAME='新会社WebKit';
 async function fixture(){
@@ -49,7 +52,7 @@ async function arm(p,fault){
   if(pending&&!e.save())throw new Error('prior pending save failed');
   w.before=JSON.stringify(e.g);w.bytes=backend.readSync(key);
   w.injection=kind==='normal'?{hits:()=>0,restore(){}}:__peInject(e,m,localStorage,key,kind);
-  const emit=e.emit;w.emit=emit;e.emit=function(type='change',...a){w.events.push(type);return emit.call(this,type,...a);};
+  const emit=e.emit;w.emit=emit;e.emit=function(type='change',...a){w.events.push(type==='notify'?'notify:'+a[0]?.severity:type);return emit.call(this,type,...a);};
   return true;
  },{fault});
 }
@@ -64,13 +67,17 @@ async function settle(p){
   e.emit=w.emit;w.injection.restore();// counter first, then the injector (it restores the original emit)
   await backend.flush();IDBObjectStore.prototype.put=w.basePut;
   const durable=await new Promise((resolve,reject)=>{const open=indexedDB.open('capitalism-tycoon',1);open.onerror=()=>reject(open.error);open.onsuccess=()=>{const db=open.result,tx=db.transaction('saves','readonly'),get=tx.objectStore('saves').get(key);tx.oncomplete=()=>{db.close();resolve(get.result);};tx.onerror=()=>reject(tx.error);};});
-  const normal=w.kind==='normal',base=JSON.parse(w.before),g=e.g;
+  const normal=w.kind==='normal'||w.kind==='notify',base=JSON.parse(w.before),g=e.g;
   // Root identity: the held root is still the engine's state, the bridge's state, and what gets saved.
   if(g!==w.root||m.playerEngineBridge.getEngine()!==e||m.playerEngineBridge.getEngine().g!==w.root)throw new Error('state root identity lost');
-  // Rendered game state = the page without transient toasts. The success toast is emitted inside the
-  // transaction before the save outcome is known (cross-cutting runTransaction behaviour, recorded below).
+  // Rendered game state = the page without transient toasts. The success toast is emitted only after the commit:
+  // once (after the change event) for a committed founding, never for a rolled-back one.
   const page=document.body.cloneNode(true);for(const t of page.querySelectorAll('.toast'))t.remove();
-  const text=page.innerText,staleSuccessToast=[...document.querySelectorAll('.toast')].some(t=>t.innerText.includes(NAME));
+  const text=page.innerText,successToasts=[...document.querySelectorAll('.toast')].filter(t=>t.innerText.includes(NAME)).length;
+  const successNotices=w.events.filter(x=>x==='notify:success').length;
+  if(w.kind==='normal'&&(successNotices!==1||w.events.lastIndexOf('notify:success')<w.events.indexOf('change')||successToasts!==1))throw new Error('one success toast after the commit ('+w.events.join(',')+'; toasts '+successToasts+')');
+  if(w.kind==='notify'&&(successNotices!==1||w.events.lastIndexOf('notify:success')<w.events.indexOf('change')||successToasts!==0))throw new Error('the throwing toast listener runs after the commit ('+w.events.join(',')+')');
+  if(!normal&&(successNotices!==0||successToasts!==0))throw new Error('no success toast for a rolled-back founding ('+w.events.join(',')+'; toasts '+successToasts+')');
   if(normal){
    if(g.companyName!==NAME||g.isCompanySold!==false||g.companyCash!==INVESTMENT||g.personalCash!==base.personalCash-INVESTMENT)throw new Error('refounding effect');
    if(g.currentCompanyFoundedInvestment!==INVESTMENT)throw new Error('founded-investment record missing from the commit');
@@ -80,7 +87,8 @@ async function settle(p){
    if(w.events.filter(x=>x==='change').length!==1)throw new Error('one tap must commit once (change events '+w.events.join(',')+')');
    if(durable!==backend.readSync(key)||JSON.parse(durable).companyName!==NAME)throw new Error('durable must hold the committed new company');
    if(w.puts.length!==1+(w.pending?1:0))throw new Error('boundary puts '+w.puts.length);
-   if(!text.includes(NAME))throw new Error('rendered app must show the new company');
+   if(w.kind==='normal'&&!text.includes(NAME))throw new Error('rendered app must show the new company');
+   if(w.kind==='notify'&&!w.injection.hits())throw new Error('toast listener fault not reached through the UI');
   }else{
    if(!w.injection.hits())throw new Error('fault not reached through the UI');
    // Order-insensitive state equality (the in-place rebuild may reorder keys; values must be identical),
@@ -99,7 +107,7 @@ async function settle(p){
    for(let i=0;i<13;i++){if(probe.advanceWeek(false)===false)throw new Error('new company week '+(probe.g.week+1)+' refused');const v=m.finance.validate(JSON.parse(JSON.stringify(probe.g)));if(!v.ok)throw new Error('new company week '+probe.g.week+' accounting '+JSON.stringify(v.errors));}
    closedWeeks=`${start+1}-${probe.g.week}`;}
   if(key!=='capitalism_tycoon_web_v1'||g.saveVersion!==9)throw new Error('save identity');
-  return {live:view(new m.engine.TycoonEngine(JSON.parse(JSON.stringify(g))).g),hits:w.injection.hits(),puts:w.puts.length,newCompanyLedgerValid:normal?validation.ok:null,closedWeeks,staleSuccessToast:normal?null:staleSuccessToast,changeEvents:w.events.filter(x=>x==='change').length};
+  return {live:view(new m.engine.TycoonEngine(JSON.parse(JSON.stringify(g))).g),hits:w.injection.hits(),puts:w.puts.length,newCompanyLedgerValid:normal?validation.ok:null,closedWeeks,successToasts,successNotices,changeEvents:w.events.filter(x=>x==='change').length};
  },{snap:pick,INVESTMENT,NAME});
 }
 const recoveryDialog=p=>p.locator('#runtime-recovery-root [role="dialog"]');
@@ -137,9 +145,19 @@ async function check(browser,context,url,p,expected,label){
   await arm(p,'normal');await refound(p);const retried=await settle(p);
   assert.deepEqual(retried.live,reference,`${fault}: retry equals the unfaulted refounding`);
   await check(browser,context,url,p,retried.live,fault);
-  results.push({fault,hits:failed.hits,surface,staleSuccessToast:failed.staleSuccessToast,puts:failed.puts,rootIdentity:'PASS',retry:'PASS',reload:'PASS',freshDurableOnly:'PASS'});
-  console.log(`iPhone WebKit refounding ${fault} / rollback into the same root / retry deterministic / reload / fresh real IDB PASS`);
+  results.push({fault,hits:failed.hits,surface,successToasts:failed.successToasts,successNotices:failed.successNotices,puts:failed.puts,rootIdentity:'PASS',retry:'PASS',reload:'PASS',freshDurableOnly:'PASS'});
+  console.log(`iPhone WebKit refounding ${fault} / rollback into the same root / no success toast / retry deterministic / reload / fresh real IDB PASS`);
   fs.writeFileSync(path.join(DIR,'found-new-company-atomicity-result.json'),JSON.stringify({physicalDevice:false,device:'iPhone13',ok:false,results},null,2));
+  await context.close();
+ }
+ // A throwing success-toast listener: the founding has already committed (one change, one durable put) and reloads.
+ for(const fault of POST_COMMIT_FAULTS){
+  const context=await browser.newContext(options),p=await boot(context,url,g);
+  await arm(p,fault);await refound(p);const proof=await settle(p),surface=await surfaced(p,fault);
+  assert.deepEqual(proof.live,reference,`${fault}: the committed founding equals the unfaulted refounding`);
+  await check(browser,context,url,p,proof.live,fault);
+  results.push({fault,hits:proof.hits,surface,successNotices:proof.successNotices,changeEvents:proof.changeEvents,puts:proof.puts,committed:'PASS',reload:'PASS',freshDurableOnly:'PASS'});
+  console.log(`iPhone WebKit refounding ${fault} listener fault after the commit / founding saved / reload / fresh real IDB PASS`);
   await context.close();
  }
  fs.writeFileSync(path.join(DIR,'found-new-company-atomicity-result.json'),JSON.stringify({physicalDevice:false,device:'iPhone13',ok:true,results},null,2));
