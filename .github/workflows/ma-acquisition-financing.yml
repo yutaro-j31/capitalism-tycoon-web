@@ -56,6 +56,9 @@ on:
       - 'tests/group-capital-allocation-save-atomicity-test.js'
       - 'tests/fixtures/capital-allocation-exact.js'
       - 'tests/group-capital-allocation-webkit-test.js'
+      - 'tests/refounding-ledger-test.js'
+      - 'tests/fixtures/refounding-ledger.js'
+      - 'tests/refounding-ledger-webkit-test.js'
       - 'tests/fixtures/vc-initial-investment-atomicity.js'
       - 'tests/pe-fund-acquisition-save-atomicity-test.js'
       - 'tests/pe-fund-acquisition-save-atomicity-webkit-test.js'
@@ -164,6 +167,9 @@ on:
       - 'tests/group-capital-allocation-save-atomicity-test.js'
       - 'tests/fixtures/capital-allocation-exact.js'
       - 'tests/group-capital-allocation-webkit-test.js'
+      - 'tests/refounding-ledger-test.js'
+      - 'tests/fixtures/refounding-ledger.js'
+      - 'tests/refounding-ledger-webkit-test.js'
       - 'tests/fixtures/vc-initial-investment-atomicity.js'
       - 'tests/pe-fund-acquisition-save-atomicity-test.js'
       - 'tests/pe-fund-acquisition-save-atomicity-webkit-test.js'
@@ -523,6 +529,9 @@ jobs:
       - name: Group capital allocation exact cash and book (#978) in real iPhone WebKit
         run: |
           node tests/group-capital-allocation-webkit-test.js
+      - name: Refounding opens the new company's book at the contribution (#968) in real iPhone WebKit
+        run: |
+          node tests/refounding-ledger-webkit-test.js
       - name: Retain vc-secondary-atomicity WebKit evidence
         if: always()
         uses: actions/upload-artifact@v4
