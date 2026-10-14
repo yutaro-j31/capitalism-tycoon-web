@@ -16,7 +16,7 @@ function closes(ctx,weeks=13){const start=ctx.game.g.week;for(let i=0;i<weeks;i+
 (async()=>{
  for(const [label,opts,mode] of [['store',{},'store'],['digital',{},'digital'],['store with company and personal PE deals',{companyPE:true,personalPE:true},'store']]){
   const ctx=await soldCompany(opts),before=snapshot(ctx.game),draws=ctx.host.draws;
-  assert.equal(refound(ctx,mode),true,`${label}: production refounding`);
+  assert.equal(refound(ctx,mode),true,`${label}: production refounding`);assert.equal(ctx.host.draws,draws,'refounding draws no host RNG');
   expectRefounded(before,snapshot(ctx.game),ctx);
   await ctx.backend.flush();
   // The ledger-relevant state survives reload and a fresh durable-only hydration. (The whole-state reload equality,
@@ -26,7 +26,7 @@ function closes(ctx,weeks=13){const start=ctx.game.g.week;for(let i=0;i<weeks;i+
   const fresh=loadGame({headless:true,indexedDB:indexedDBFor(ctx.durable,{attempts:[]})});await fresh.modules.saveStorageIDB.hydrate();
   const hydrated=fresh.engineModule.TycoonEngine.load();assert.deepEqual(ledgerView(hydrated.g),expected,'fresh durable-only hydration');assert.equal(hydrated.g.saveVersion,9);
   assert.equal(fresh.modules.finance.validate(JSON.parse(JSON.stringify(hydrated.g))).ok,true,'hydrated accounting valid');
-  closes(ctx);
+  closes(ctx);assert.equal(ctx.host.draws,draws,'13 weeks after refounding draw no host RNG');
   const replay=await soldCompany(opts);assert.equal(refound(replay,mode),true);closes(replay);
   assert.deepEqual(economic(replay.game.g),economic(ctx.game.g),`${label}: deterministic`);
   console.log(`refounding ${label} / book opens at the contribution / personal cash once / reload / fresh hydration / 13 weeks / deterministic PASS`);
