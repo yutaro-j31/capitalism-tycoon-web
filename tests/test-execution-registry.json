@@ -294,5 +294,9 @@
   "tests/debt-command-save-atomicity-webkit-test.js": {
     "reason": "Installed company/personal/founder debt command rollback, retry, reload and fresh real IndexedDB in the independent debt-command-atomicity job on every event.",
     "executedBy": ".github/workflows/ma-acquisition-financing.yml"
+  },
+  "tests/property-debt-principal-sync-webkit-test.js": {
+    "reason": "Generic/voluntary/maturity/full repayment followed by property service, reload and fresh real IndexedDB in property-debt-principal-sync job.",
+    "executedBy": ".github/workflows/ma-acquisition-financing.yml"
   }
 }

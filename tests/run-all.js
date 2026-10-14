@@ -33,6 +33,7 @@ for (let i = 0; i < commands.length; i++) {
 }
 
 const nodeTests = [
+  ['property-debt-principal-sync', 'tests/property-debt-principal-sync-test.js'],
   ['debt-command-save-atomicity', 'tests/debt-command-save-atomicity-test.js'],
   ['authoritative-company-cash', 'tests/authoritative-company-cash-test.js'],
   ['real-estate-construction-in-progress', 'tests/real-estate-construction-in-progress-test.js'],
