@@ -1177,6 +1177,12 @@
         ]
       },
       {
+        "file": "js/completion.js",
+        "tokens": [
+          "externalShareholderRatio"
+        ]
+      },
+      {
         "file": "js/convertible-bonds-dilution.js",
         "tokens": [
           "sharesOut"
@@ -2107,9 +2113,15 @@
       }
     ]
   },
-  "status": "declared-and-reviewed",
-  "limitations": "Lexical discovery identifies candidates only. exactAuthority separately records production mutation evidence for reviewed economic paths; finance/accounting tests remain the behavioral verification layer.",
   "exactAuthority": {
+    "limitedStoreRenovationCompanyCash": [
+      {
+        "file": "js/economic-settlement.js",
+        "paths": [
+          "state.companyCash (store renovation EconomicOperation settlement)"
+        ]
+      }
+    ],
     "peFundCash": [
       {
         "file": "js/pe-acquisition.js",
@@ -2229,14 +2241,8 @@
           "carryingBookValue"
         ]
       }
-    ],
-    "limitedStoreRenovationCompanyCash": [
-      {
-        "file": "js/economic-settlement.js",
-        "paths": [
-          "state.companyCash (store renovation EconomicOperation settlement)"
-        ]
-      }
     ]
-  }
+  },
+  "status": "declared-and-reviewed",
+  "limitations": "Lexical discovery identifies candidates only. exactAuthority separately records production mutation evidence for reviewed economic paths; finance/accounting tests remain the behavioral verification layer."
 }
