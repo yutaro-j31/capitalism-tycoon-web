@@ -78,6 +78,22 @@ function dispose(ctx,kind,id=ctx.subsidiaryID){
   assert.equal(g.groupCapitalAllocation.rows.map(r=>r.id).join(),merged.id,'allocation plans only the merged company');
   closes(c);
   console.log('integration project / sources leave the group / allocation sees the merged company only / 13 weeks PASS');}
+ // A PE-managed subsidiary is the company's view of a PE deal: group restructuring refuses to sell, liquidate, negotiate
+ // or merge it (state unchanged), and the deal's own exit settles it with valid accounting.
+ {const ctx=D.boot(),game=new ctx.engineModule.TycoonEngine();
+  game.configure({playerName:'T',companyName:'PE975',difficulty:'normal',scenario:'free',simulationSeed:975});
+  game.g.companyCash=3_000_000_000;game.g.departments.investment=true;game.g.finance=ctx.modules.finance.defaultFinanceState(game.g);
+  const c={...ctx,game},g=game.g;assert.equal(game.createPEDeal('ramen',100_000_000,'company'),true,'production company PE deal');
+  const deal=g.peDeals.at(-1),wrapper=g.subsidiaries.find(s=>s.valuationManagedBy==='pe');assert.ok(wrapper,'PE subsidiary wrapper');
+  for(let i=0;i<3;i++)advance(game);
+  assert.equal(game.groupRestructuringSalePreview(wrapper.id),null,'no sale preview');assert.equal(game.groupRestructuringLiquidationPreview(wrapper.id),null,'no liquidation preview');
+  const before=JSON.stringify(g); // after the previews: their structural normalization is the module's existing behaviour
+  assert.equal(game.executeGroupRestructuringSale(wrapper.id),false,'sale refused');assert.equal(game.executeGroupRestructuringLiquidation(wrapper.id),false,'liquidation refused');
+  assert.equal(game.startSubsidiarySaleNegotiation(wrapper.id,'strategic'),false,'negotiation refused');
+  assert.equal(JSON.stringify(g),before,'refusals change nothing');
+  assert.equal(game.exitPEDeal(deal.id),true,'the PE deal exits through its own writer');assert.equal(validate(c).ok,true,'PE exit valid');
+  assert.equal(subsidiaryAssets(c),0,'nothing left on the balance sheet');closes(c);
+  console.log('PE-managed subsidiary / restructuring refused / PE exit valid / 13 weeks PASS');}
  // Reload after a disposal: load writes nothing economic and the next weeks close.
  {const ctx=await D.vcEve();dispose(ctx,'sold');await ctx.backend.flush();
   const loaded=ctx.engineModule.TycoonEngine.load();assert.equal(loaded.g.saveVersion,9);

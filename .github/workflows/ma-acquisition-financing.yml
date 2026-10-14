@@ -81,6 +81,7 @@ on:
       - 'js/player-crisis-actions.js'
       - 'js/player-crisis-turnaround-fund.js'
       - 'js/group-restructuring-candidates.js'
+      - 'js/group-restructuring-progress.js'
       - 'js/internal-venture-business.js'
       - 'js/pe-deal-supply.js'
       - 'js/pe-network.js'
