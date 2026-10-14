@@ -93,6 +93,13 @@ async function reloadEquals(s,label){
   assert.equal(view.guidanceRevenue,g.earningsGuidanceRevenue);assert.equal(view.guidanceProfit,g.earningsGuidanceProfit);
   console.log('scheduled event: formula applied once; summary shows the latest result and new guidance PASS');}
 
+ // The countdown shown by the view is the advance on which the weekly path really announces: overdue right after
+ // an IPO (no result yet, last announcement week 0) means the very next advance.
+ {const s=await fixture(),e=s.game,g=e.g;Object.assign(g,{week:100,lastEarningsAnnouncementWeek:0,earningsEventLog:[]});
+  const view=e.earningsSummary();assert.deepEqual({hasResult:view.hasResult,weeksUntilNext:view.weeksUntilNext},{hasResult:false,weeksUntilNext:1});
+  e.advanceWeek(false);assert.equal(g.earningsEventLog.length,1,'announced on the next advance as shown');assert.equal(e.earningsSummary().weeksUntilNext,13);
+  console.log('no-result view right after IPO: countdown matches the next weekly announcement PASS');}
+
  // 7. Legacy saveVersion 9 without any earnings fields: loads, summary defines the "no result yet" view, no change.
  {const s=await fixture(),g=JSON.parse(JSON.stringify(s.game.g));
   for(const k of ['earningsEventLog','lastEarningsAnnouncementWeek','earningsGuidanceRevenue','earningsGuidanceProfit','activistPressure'])delete g[k];

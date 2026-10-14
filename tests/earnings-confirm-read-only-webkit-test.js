@@ -13,7 +13,7 @@ const LATEST='第12週：好決算：売上2,000,000円 / 利益300,000円。株
 async function fixture(withResult){
  const s=await scenario('own'),g=s.game.g;
  Object.assign(g,{shareholderTrust:55,activistPressure:20,earningsGuidanceRevenue:withResult?2_100_000:0,earningsGuidanceProfit:withResult?310_000:0,
-  lastEarningsAnnouncementWeek:withResult?g.week:0,earningsEventLog:withResult?[LATEST]:[],selectedTab:'market'});
+  lastEarningsAnnouncementWeek:g.week,earningsEventLog:withResult?[LATEST]:[],selectedTab:'market'});
  g.lastReport={...(g.lastReport||{}),week:g.week,sales:2_000_000,profit:300_000};
  return JSON.parse(JSON.stringify(g));
 }
@@ -40,8 +40,9 @@ async function durableView(p){return p.evaluate(async snap=>{const m=__capitalis
   for(let i=0;i<5;i++){
    await button.tap();const dialog=p.locator('[data-modal-panel]');await dialog.waitFor({state:'visible',timeout:5_000});
    const text=await dialog.innerText();assert.match(text,/直近の決算・業績予想/);
-   if(withResult){assert.ok(text.includes(LATEST),'shows the latest result');assert.ok(!text.includes('未発表'));}
-   else{assert.match(text,/まだ決算発表はありません/,'defined no-result view');assert.match(text,/未発表/);}
+   if(withResult)assert.ok(text.includes(LATEST),'shows the latest result');
+   else assert.match(text,/まだ決算発表はありません。最初の定例決算まであと13週です。/,'defined no-result view with the real countdown');
+   assert.match(text,/売上ガイダンス/);assert.match(text,/利益ガイダンス/);assert.match(text,/株主信頼/);
    assert.match(text,/確認専用です/);
    await p.locator('[data-modal-panel] [data-action="close-modal"]').first().tap();await p.waitForTimeout(50);
    assert.equal(await p.locator('[data-modal-panel]').count(),0,'view closes');

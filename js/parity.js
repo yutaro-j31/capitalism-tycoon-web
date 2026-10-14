@@ -88,8 +88,10 @@ function installParity(TycoonEngine){
   };
 
   // Read-only view of the latest earnings result and guidance for the market tab; never changes state.
+  // weeksUntilNext is the week advance on which the weekly path will actually announce (13 weeks after the last
+  // announcement; on the next advance when that is already overdue, e.g. right after an IPO).
   TycoonEngine.prototype.earningsSummary=function(){const g=this.g,log=Array.isArray(g.earningsEventLog)?g.earningsEventLog:[],listed=Boolean(g.publicCompany);
-    return {listed,hasResult:log.length>0,latest:log[0]||null,lastWeek:log.length?pyNum(g.lastEarningsAnnouncementWeek):null,weeksUntilNext:listed?this.weeksUntilNextEarnings():null,
+    return {listed,hasResult:log.length>0,latest:log[0]||null,lastWeek:log.length?pyNum(g.lastEarningsAnnouncementWeek):null,weeksUntilNext:listed?Math.max(1,13-(pyNum(g.week)-pyNum(g.lastEarningsAnnouncementWeek))):null,
       guidanceRevenue:pyNum(g.earningsGuidanceRevenue),guidanceProfit:pyNum(g.earningsGuidanceProfit),shareholderTrust:pyNum(g.shareholderTrust,50),activistPressure:pyNum(g.activistPressure)};};
 
   TycoonEngine.prototype.seedCompetitorCounterStates=function(){if(this.g.competitorStates.length)return;this.g.competitorStates=this.g.competitors.slice(0,6).map(c=>({id:String(c.id),name:c.name,industryID:c.businessID,regionID:c.areaID||null,strength:pyClamp(c.stores*8+c.brand+c.quality,10,100),cash:c.cash,aggression:pyRand(this.g,.25,.75),brandPower:c.brand,pricePressure:0,isDistressed:false,lastActionWeek:0}));};
