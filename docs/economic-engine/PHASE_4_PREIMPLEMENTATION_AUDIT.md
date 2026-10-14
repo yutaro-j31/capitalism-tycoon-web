@@ -106,3 +106,44 @@ No production Phase 4 test was added. No debt fault or long-run capacity PASS is
 ## Advance-design verdict
 
 **DESIGN READY** for review and staged pure-schema/read-adapter preparation; the package specifies the architecture, inventory, test obligations and explicit decisions. **IMPLEMENTATION NOT READY**: Phase 3 exit, Track A remediation/dispositions, Entry approval and writer-family adoption contracts are outstanding. This is not a debt cutover readiness attestation. The safest first implementation after authorization is a pure schema validator (P4-1), followed by the read-only extension (P4-2). No runtime implementation is authorized by this PR.
+
+## Final review and latest-main addendum (2026-10-14 JST)
+
+Initial source anchors remain pinned to ee4f37f5. Refreshed GitHub/origin main: **`6250aef7c7b81c149305e9a47175af63df96212f`**. Reviewed all changed paths since initial baseline: completion.js, group-capital-allocation-execution.js, pe-fund.js and Track A, plus associated tests/workflow registration. No core debt/interest/property servicer or operation-schema file changed. Refounding D31 now has shared transaction/actual opening-ledger initialization and sold-company asset retention; historical D31 risk classification is superseded by that implementation evidence, not by a Phase3-complete declaration.
+
+Current disposition: #980/#983/#984/#965 merged; #978/#968/#955 issue trackers closed. #909 remains open and Phase3 formal exit absent. #963/#964 remain open even though #955 closed, so their commands still need individual disposition. Other open PRs: #981, #940, #938, #936, #935. Additional current records: #954, #976, #979, #985 P2, #969 P2, historical #865 open. Initial snapshot above is retained as historical evidence.
+
+Same original main final CI:50 checks,42 success/8 skipped. Refreshed main6250aef7:53 checks,43 success/10 skipped,0 pending/failed. PR981 initial df59530f:22 checks,20 success/2 skipped,0 failure/pending. These are distinct heads, not interchangeable proof. Updated document head requires its own checks.
+
+### Newly reproduced debt P1s on refreshed main
+
+**P4-AUD-001 — save rejection is reported as success with live mutations.** Installed production harness at6250aef7, fresh configured game, `save=()=>false`: company borrow100k, company repay10k (after borrow100k), personal borrow100k, personal repay10k (after borrow100k), founder lending100k each returns true and full state changes. Company borrowing moves cash8M→8.1M, debt0→100k and adds one loan. Founder lending moves company cash/debt+100k and personal cash−100k. No custom fixture repair required. This upgrades direct-save CODE risk to REPRO P1 for these commands. Durable IDB/cache/pending/fresh hydration was not tested in this probe; do not claim full fault coverage.
+
+**P4-AUD-002 — generic principal repayment leaves specialist alias stale, next servicing diverges.** Fresh installed game with company cash100M and company-owned property value300M, monthly rent4M, occupancy1, expense ratio.2; initialize opening finance from those fixture facts. `borrowAgainstProperty(id,60M,{rateType:'fixed',termWeeks:260})` succeeds. `repay(1M,'company')` leaves companyDebt/finance mirror59M and realEstateMarket loan60M; finance validation still reports true. Next week `realEstateCompleteCycle.processLoans` produces companyDebt58,791,450.53 but market/finance principal59,791,450.53; debtRollforwardStatus returns P2-DEBT-INSTRUMENTS difference1M, limit.01. This is current principal consistency failure, not merely CODE suspicion. No production patch is included.
+
+Reproduction core (tests/harness.js installed loader, ephemeral game state only):
+
+```js
+const {loadGame}=require('./tests/harness');
+const l=loadGame({headless:true});
+const e=new l.engineModule.TycoonEngine();
+e.configure({playerName:'P4',companyName:'P4',difficulty:'normal',simulationSeed:83951617});
+e.g.companyCash=100000000;
+e.g.properties=[{id:'p4-mirror',owner:'company',marketValue:300000000,
+  value:300000000,purchasePrice:300000000,
+  realEstate:{monthlyRent:4000000,occupancyRate:1,expenseRatio:.2}}];
+e.g.finance=l.modules.finance.defaultFinanceState(e.g);
+e.borrowAgainstProperty('p4-mirror',60000000,{rateType:'fixed',termWeeks:260});
+e.repay(1000000,'company');
+e.g.week++;
+l.modules.realEstateCompleteCycle.processLoans(e.g);
+// debtRollforwardStatus: P2-DEBT-INSTRUMENTS difference=1000000, limit=.01
+```
+
+### Review resolution and verification limits
+
+Three automated P2 design findings are incorporated: mandatory account/schema prerequisite P4-4a before builders; explicit gameplay profit/tax/cash/credit/report compatibility P4-4b before adoption; D17 company/personal legacy specialized plus generic interest overlap. Separate read-only reviewer additionally identified strict operation fields: operationType/status and metadata termsVersion/entityGeneration, now corrected. Review findings are design changes only.
+
+A concurrent duplicate docs PR982 was closed without merge. Earlier PR981 is the sole surviving Phase4 design PR; independent audit material remains preserved on docs/phase4-advance-architecture at0bd6328d as historical comparison, not a second authority. Additional13 focused existing Node suites were executed successfully on initial baseline: operation/read model/shadow journal/shared fault harness plus debt roll-forward/single interest/founder lender/negative-cash maturity/property cycle/refinancing/personal mortgage/margin/agency line. These overlap the16 original characterization tests and are not31 unique suites. Current-main extra evidence is the two command-path reproductions above; old-suite PASS is not silently relabelled current-main execution. No physical iPhone or redesigned century simulation has been executed.
+
+Final architecture status remains **DESIGN READY for proposal review / IMPLEMENTATION NOT READY / Phase4 Entry NOT AUTHORIZED**. The new P1s must be separately remediated before debt adoption. Next future code slice remains P4-1 pure schema, only after the formal Entry permission.

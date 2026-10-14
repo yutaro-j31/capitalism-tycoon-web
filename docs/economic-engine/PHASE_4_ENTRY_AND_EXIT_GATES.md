@@ -154,3 +154,16 @@ Do not run every long suite on every PR. Trigger integration when changing accou
 - [ ] Owner explicitly accepts Phase4 Exit; Phase5/6 handoff records immutable input API/version/quality and later-authority exclusions.
 
 Until these evidence records exist, do not declare Phase4 complete or permit Phase5 production entry by inference. Merging this design PR, if approved, completes an advance-design artifact only.
+
+## Final review addendum — refreshed main and additional prerequisites
+
+Latest inspected main: `6250aef7c7b81c149305e9a47175af63df96212f` (2026-10-14 JST). #978/#968 and #955 trackers are closed; #980/#983/#984/#965 are merged. Historical open statements above are the initial ee4f37f5 observation and must not be used as current defects. #909 remains open with P3-4–P3-12 incomplete; #954, #976, #979 and historical #865 still require scoped disposition; #963/#964 remain open despite #955 tracker closure. #985 is a newly open P2 sold-company PE command-boundary issue.
+
+Formal Entry additionally requires:
+
+- [ ] Resolve P4-AUD-001 reproduced rejected-save live mutations for installed company/personal borrowing/repayment and founder lending; complete shared Node/real-IDB/WebKit faults, reload/pending/fresh hydration before VERIFIED.
+- [ ] Resolve P4-AUD-002 reproduced generic property principal repayment/specialist mirror divergence, and prove closure over all generic repayment/prepayment/maturity and specialized servicing paths.
+- [ ] Cover D17 and D20 legacy company/personal property interest overlap without silently reconstructing historical interest or auto-migrating saves.
+- [ ] Implement/accept P4-4a interest-receivable taxonomy/validator before P4-5 accrual builders, and P4-4b gameplay profit/tax/cash/credit/report compatibility before live adoption. Existing strict EconomicOperation field names are preserved.
+
+Main at this recheck has53 completed checks:43 success,10 nonapplicable skipped,0 failed/pending. PR #981 initial head df59530f has22 completed checks:20 success,2 skipped. New amended head requires its own applicable CI, and docs merge remains Owner-only. No Phase4 Entry, production change or source-of-truth adoption is authorized.

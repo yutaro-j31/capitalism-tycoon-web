@@ -26,9 +26,9 @@ Every slice below inherits these explicit requirements:
 
 P4-0 docs preparation → Phase 3 exit + Owner Entry → P4-1 schema → P4-2 read adapter → P4-3 reconciliation.
 
-From P4-3: P4-4 accrual/accounting compatibility contract → P4-5 pure debt operation validators → P4-6 pure interest schedule → P4-7 pure principal/maturity schedule → P4-8 pure reset/refinance → P4-9 credit-state projection.
+From P4-3: P4-4 accrual/accounting compatibility contract → P4-4a approved interest-receivable taxonomy/validator implementation → P4-5 pure debt operation validators → P4-6 pure interest schedule → P4-7 pure principal/maturity schedule → P4-8 pure reset/refinance → P4-9 credit-state projection.
 
-P4-10 metrics can build from P4-3 and the relevant schedule modules; P4-11 persistence/receipt contract depends on all event schemas. P4-12 writer adoption contract needs P4-4 through P4-11 and a clean Phase 3/Track A baseline. P4-13 and later concern-specific implementation PRs require Owner-approved adoption, not merely P4-12 docs. Final P4-F acceptance/handoff follows completed approved family implementations and main evidence.
+P4-10 metrics can build from P4-3 and the relevant schedule modules; P4-11 persistence/receipt contract depends on all event schemas. P4-12 writer adoption contract needs P4-4 through P4-11 plus P4-4b gameplay/accounting compatibility acceptance and a clean Phase 3/Track A baseline. P4-13 and later concern-specific implementation PRs require Owner-approved adoption, not merely P4-12 docs. Final P4-F acceptance/handoff follows completed approved family implementations and main evidence.
 
 ## 3. Slice contracts
 
@@ -83,9 +83,9 @@ P4-10 metrics can build from P4-3 and the relevant schedule modules; P4-11 persi
 
 ### P4-5 — Pure monetary debt operation-family builders/validators
 
-- **Purpose/modules:** proposed `debt-operation.js`; narrow taxonomy extensions in separate follow-up concern if required.
+- **Purpose/modules:** proposed `debt-operation.js`; required interest-receivable taxonomy/validator is implemented in prerequisite P4-4a, never deferred until after accrual builders.
 - **State/API:** build/validate origination, principal repayment, accrual/payment and capitalization operation data; terms-only validated event schema separately approved. No reducer/write hookup.
-- **Writers/preconditions:** P4-4 approved; capability stays shadow.
+- **Writers/preconditions:** P4-4 approved and P4-4a implemented/accepted; capability stays shadow.
 - **Accounting/save/RNG:** balances borrower+counterparty legs, debt ID references; no hidden fee/net-cash leg; command-derived deterministic IDs, no draw.
 - **RED/GREEN:** missing lender leg, mismatched currency, principal in P&L, paid interest expensed twice, different payload same key, unsafe Number quantum → reject; exact valid operation → stable output.
 - **Node/WebKit:** economic-operation-contract, family conservation, pure data tests; actual boot CI if loaded.
@@ -182,3 +182,22 @@ Completion requires zero hidden mutations for the enabled family, full fault mat
 ## 4. Implementation agent handoff
 
 At every slice refresh origin/main, rules, #909, open issues/PRs and CI; inspect source anchors again. Check existing APIs before creating modules. Keep tests registered and risk-appropriate, avoid repeating costly long-run gates for a documentation-only change. If a prerequisite or Owner policy is absent, continue pure investigation but do not turn the capability executable. Update contracts and final PR description to match the actual final concern. No merging without the authorization applicable to that PR.
+
+## Additional prerequisite slices from review
+
+### P4-4a — Interest-receivable account and strict schema prerequisite
+
+- Purpose/files/API: separately approved extension to `economic-operation.js` taxonomy and validators, accounting mapping contract; no debt servicing or cash writer. Existing per-entity JPY balance and cent quantum unchanged.
+- State/legacy: no persistent debt root or legacy writer changes; account identifier and schema compatibility are Owner-approved after P4-4.
+- RED/GREEN: modeled-lender accrual rejected on old taxonomy; new approved account with debtInstrumentId validates, unknown accounts and invalid top-level `type`/termsVersion/entityGeneration still reject; metadata versions accepted. Existing operation/read-model/shadow tests stay green.
+- Node/WebKit/save/RNG: focused strict-schema tests, save compatibility of existing operations, zero RNG/state writes, applicable boot gates; no invented debt WebKit coverage.
+- Dependency/completion: mandatory before P4-5 modeled-lender accrual builder. Owner approves taxonomy, with no implicit lending authority.
+
+### P4-4b — Gameplay profit and accounting compatibility before live accrual
+
+- Purpose/files/API: separately scoped compatibility for `engine.js:2318-2325`, finance event/close projections and affected reports/tax/credit/history consumers. Split independently reviewable accounting and gameplay changes further if necessary; one concern per PR.
+- State/legacy: preserve existing game fields and v9; explicit cohort capability keeps new execution inactive until adopted. Accrued expense and cash-paid interest become distinct inputs, without another authoritative cash writer.
+- Postings/atomicity: accrue expense/payable once; settlement cash/payable only; principal zero P&L; paired founder income/receivable and cash attribution; existing outer transaction/storage checkpoint, no bespoke persistence.
+- RED/GREEN: cash-zero accrual changes gameplay profit/tax/retained earnings/report/history once; payment no repeat expense; normal tax/dividend weeks, default/workout, mixed cohorts, rollback and reload; exact cash/BS/CF and credit input reconciliation.
+- Node/WebKit/RNG: focused accounting/gameplay/save/fault/52-208-week tests, actual WebKit/IDB before live adoption; deterministic old/new fixture comparison with declared approved behavior change.
+- Dependencies/done/Owner: P4-4 policy, P4-4a/P4-5 operations; completed before P4-12 adoption readiness and any P4-13 live accrual. Owner accepts financial/gameplay recognition policy. Pure builder work does not authorize this production compatibility change.
