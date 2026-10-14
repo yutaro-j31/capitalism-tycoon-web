@@ -31,6 +31,8 @@ on:
       - 'tests/vc-secondary-sale-save-atomicity-test.js'
       - 'tests/vc-secondary-sale-save-false-red-probe.js'
       - 'tests/vc-secondary-sale-save-atomicity-webkit-test.js'
+      - 'tests/found-new-company-save-atomicity-test.js'
+      - 'tests/found-new-company-save-atomicity-webkit-test.js'
       - 'tests/fixtures/vc-secondary-sale-atomicity.js'
       - 'tests/vc-follow-on-save-atomicity-test.js'
       - 'tests/vc-follow-on-save-atomicity-webkit-test.js'
@@ -142,6 +144,8 @@ on:
       - 'tests/vc-secondary-sale-save-atomicity-test.js'
       - 'tests/vc-secondary-sale-save-false-red-probe.js'
       - 'tests/vc-secondary-sale-save-atomicity-webkit-test.js'
+      - 'tests/found-new-company-save-atomicity-test.js'
+      - 'tests/found-new-company-save-atomicity-webkit-test.js'
       - 'tests/fixtures/vc-secondary-sale-atomicity.js'
       - 'tests/vc-follow-on-save-atomicity-test.js'
       - 'tests/vc-follow-on-save-atomicity-webkit-test.js'
@@ -517,6 +521,7 @@ jobs:
       - name: VC secondary sale atomicity in real iPhone WebKit
         run: |
           node tests/vc-secondary-sale-save-atomicity-webkit-test.js
+          node tests/found-new-company-save-atomicity-webkit-test.js
       - name: VC / M&A subsidiary quarter close (#971) in real iPhone WebKit
         run: |
           node tests/subsidiary-quarter-close-webkit-test.js

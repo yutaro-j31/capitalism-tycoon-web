@@ -152,7 +152,14 @@ function installCompletion(TycoonEngine){
     this.g.pastCompanyRecords.unshift({id:cxUID(this.g),companySerial:serial,companyName:this.g.companyName,foundedWeek:this.g.currentCompanyFoundedWeek||1,exitedWeek:this.g.week,exitType,exitPrice,founderProceeds,peakCompanyValue:Math.max(this.companyValue(),exitPrice),finalStoreCount:this.g.stores.filter(x=>x.status==='open').length,finalProductCount:this.g.productVentures.length,finalSubsidiaryCount:this.g.subsidiaries.length+this.g.maSubsidiaries.length,note});this.g.pastCompanyRecords=this.g.pastCompanyRecords.slice(0,20);
   };
 
-  TycoonEngine.prototype.foundNewCompanyAfterBuyout=function(companyName,investment,mode='store'){
+  // #955 (review): the founding news line is part of the commit, but the success toast is shown only after the
+  // outermost transaction has committed, so a failed or thrown save never leaves a success message for a founding
+  // that was rolled back (before #955 the toast followed save and emit). Wrappers that nest call it the same way.
+  TycoonEngine.prototype.announceFoundedCompany=function(result){if(result===true&&!this.inTransaction())this.emit('notify',{message:`${this.g.companyName}を創業しました。`,severity:'success'});return result;};
+
+  // #955: the wholesale state replacement commits with one save (the transaction snapshot restores the
+  // sold company on failure); callers that extend the new state nest in the same boundary.
+  TycoonEngine.prototype.foundNewCompanyAfterBuyout=function(companyName,investment,mode='store'){return this.announceFoundedCompany(this.runTransaction(()=>{
     this.ensureCompletionDefaults();mode=mode==='homeProduct'?'digital':mode;investment=Math.max(1000000,Math.floor(cxNum(investment)));if(!this.g.isCompanySold)return this.fail('会社売却後に利用できます。');if(this.g.personalCash<investment)return this.fail('個人資金が不足しています。');
     // #968 (Owner-approved): a sale (completeCompanySale / acceptBuyoutOffer) prices the sold company at companyValue(),
     // which already includes each active company PE deal as its PE subsidiary (valuation × ownership = currentValuation);
@@ -164,8 +171,10 @@ function installCompletion(TycoonEngine){
     // #968: the new company's book opens from its own state (cash = the founder's contribution), as a new game's does;
     // the constructor's default book (opening cash 8,000,000) no longer matches the contributed cash.
     const coverage=fresh.finance?.ledgerCoverageVersion;fresh.finance=__modules.finance.defaultFinanceState(fresh);if(coverage!=null)fresh.finance.ledgerCoverageVersion=coverage;
-    this.g=fresh;this.normalize();this.ensureExpansionDefaults?.();this.ensureCompletionDefaults();this.save();this.emit();this.notify(`${fresh.companyName}を創業しました。`,'success');return true;
-  };
+    // Rebuild inside the existing root object (every value above was copied first), so the engine state keeps its
+    // identity on success and the transaction rollback restores the sold company into that same object on failure.
+    const root=this.g;for(const key of Object.keys(root))delete root[key];Object.assign(root,fresh);this.normalize();this.ensureExpansionDefaults?.();this.ensureCompletionDefaults();root.news.unshift(`第${root.week}週：${root.companyName}を創業しました。`);root.news=root.news.slice(0,300);return true;
+  }));};
 
   TycoonEngine.prototype.evaluateCompletionEndings=function(){
     for(const d of ENDING_DEFS){if(this.g.endingRecords.some(x=>x.id===d.id))continue;if(d.check(this.g,this)){const rec={id:d.id,title:d.title,icon:d.icon,detail:d.detail,week:this.g.week,companyName:this.g.companyName,companyValue:this.companyValue(),personalNetWorth:this.personalNetWorth(),stores:this.g.stores.length,subsidiaries:this.g.subsidiaries.length+this.g.maSubsidiaries.length};this.g.endingRecords.unshift(rec);if(!this.g.unlockedEndings.includes(d.id))this.g.unlockedEndings.push(d.id);if(!this.g.playerTitles.some(x=>x.id===d.id))this.g.playerTitles.push({id:d.id,name:d.title,icon:d.icon});this.g.news.unshift(`第${this.g.week}週：エンディング「${d.title}」を達成しました。`);}}
