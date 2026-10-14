@@ -1091,12 +1091,13 @@ function installCompletionDependentHooks(){
   };
   const baseFoundNewCompanyAfterBuyout=proto.foundNewCompanyAfterBuyout;
   // #955: the founded-investment record belongs to the same commit as the refounding (it was written after
-  // the base had already saved, so a reload lost it).
+  // the base had already saved, so a reload lost it). It records the contribution the base actually made
+  // (the new company's opening cash, after its minimum / whole-yen rule), not the raw input.
   proto.foundNewCompanyAfterBuyout=function(companyName,investment,mode){return this.announceFoundedCompany(this.runTransaction(()=>{
     const r=baseFoundNewCompanyAfterBuyout.call(this,companyName,investment,mode);
     if(r!==true)return r;
     ensure(this.g);
-    this.g.currentCompanyFoundedInvestment=Math.max(1,finite(investment,this.g.companyCash));
+    this.g.currentCompanyFoundedInvestment=Math.max(1,finite(this.g.companyCash,8_000_000));
     return r;
   }));};
   const baseConfigure=proto.configure;

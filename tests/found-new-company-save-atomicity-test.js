@@ -47,6 +47,15 @@ const h=makeTransactionFaultCase({name:'company refounding',fixture,command:refo
   assert.equal(result,!fail);assert.equal(s.game.g,root,`state root identity kept after ${fail?'failed':'successful'} refounding`);
   assert.equal(root.companyName,fail?'旧会社':'新会社');
  }
+ // The founded-investment record is the contribution actually made (minimum 1,000,000 yen, whole yen), as the
+ // new company's opening cash and the personal-cash debit are, not the raw input.
+ for(const [input,made] of [[0,1_000_000],[-5,1_000_000],[12_345_678.9,12_345_678],['abc',1_000_000],[INVESTMENT,INVESTMENT]]){
+  const s=await fixture(),personal=s.game.g.personalCash;
+  assert.equal(s.game.foundNewCompanyAfterBuyout('新会社',input,'store'),true);
+  assert.deepEqual([s.game.g.companyCash,personal-s.game.g.personalCash,s.game.g.currentCompanyFoundedInvestment],[made,made,made],`input ${input}: contribution, debit and record agree`);
+  await s.backend.flush();assert.equal(s.engineModule.TycoonEngine.load().g.currentCompanyFoundedInvestment,made,`input ${input}: reload keeps the record`);
+ }
+ console.log('foundNewCompanyAfterBuyout founded investment = contribution actually made / reload PASS');
  // A throwing notify listener runs after the commit: the founding is already saved and durable, and it reloads.
  {const s=await fixture(),before=snapshot(s.game),injection=injectFault(s,'notify');let error;
   try{s.game.foundNewCompanyAfterBuyout('新会社',INVESTMENT,'store');}catch(ex){error=ex;}finally{injection.restore();}
