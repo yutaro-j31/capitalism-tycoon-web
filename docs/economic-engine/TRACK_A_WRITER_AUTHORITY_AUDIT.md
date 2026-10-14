@@ -1,7 +1,7 @@
 # Track A — Writer Authority audit: shares, ownership, dividends (#922)
 
 Status: **read-only audit. Verdict: BLOCKED** (see §5). No production, test, CI or save-format change.
-Base: first pass on main `35866030c4f47e47d1aac9dc1d4415365b412fb0` (2026-10-12; §1–§7). Second pass on main `9d2a9ddba666b1817b3848d5389b73d6d154e33d`, after #952 (shared fault harness) and #956 merged: §3b records the current evidence and **supersedes** the first-pass evidence where they differ (W-NEW-COMPANY is now reproduced; the render-time writer is reproduced and filed as #966). Third pass on main `8f2e50fcdfcb44d712f956ebb2750610c4db426e` (2026-10-13), after #951 and #957 merged: §3c supersedes §3b where they differ. Fourth pass on main `ee4f37f561fe326545deed96a127d0a032ebcb24` (2026-10-14): §3d supersedes §3c where they differ. Fifth pass on main `3ceb67c2b012921b6fdef8f6027a92ffa48b1a49` (2026-10-14), after #980 and #983 merged: §3e is the current status and supersedes §3d where they differ. §2 verdicts describe main and change only when a fix merges.
+Base: first pass on main `35866030c4f47e47d1aac9dc1d4415365b412fb0` (2026-10-12; §1–§7). Second pass on main `9d2a9ddba666b1817b3848d5389b73d6d154e33d`, after #952 (shared fault harness) and #956 merged: §3b records the current evidence and **supersedes** the first-pass evidence where they differ (W-NEW-COMPANY is now reproduced; the render-time writer is reproduced and filed as #966). Third pass on main `8f2e50fcdfcb44d712f956ebb2750610c4db426e` (2026-10-13), after #951 and #957 merged: §3c supersedes §3b where they differ. Fourth pass on main `ee4f37f561fe326545deed96a127d0a032ebcb24` (2026-10-14): §3d supersedes §3c where they differ. Fifth pass on main `3ceb67c2b012921b6fdef8f6027a92ffa48b1a49` (2026-10-14), after #980 and #983 merged: §3e supersedes §3d where they differ. Sixth pass on main `6250aef7c7b81c149305e9a47175af63df96212f` (2026-10-14), after #965 merged: §3f is the current status (including a Phase 3 completion-readiness checklist) and supersedes §3e where they differ. §2 verdicts describe main and change only when a fix merges.
 
 This is the canonical Writer Matrix for the share / ownership / dividend domain. `phase0-5-authoritative-writers.json` remains the machine-generated lexical inventory consumed by `scripts/phase0-5-acceptance.js`; it is a different artifact (token-level discovery, no boundary/test verdicts) and is not duplicated here.
 
@@ -46,7 +46,7 @@ Abbreviations: SF = save-fault injection set (save-false, mirror, enqueue-false/
 | W-ACTIVISM-NEG/REJ | `shareholder-activism.js` `negotiate`/`rejectShareholderProposal` | module UI | campaign, commitments | company governance | **yes** — `runTransaction` (#957) | one commit | none | NODE (save-false / save-throw rollback, RL/HY, post-split) | — | `shareholder-activism-accept-save-atomicity`, `shareholder-activism-split-integration` | Test shards; WebKit covers accept only | **GAP** (NODE only; no negotiate/reject WebKit) — was P1/P2 #953 |
 | W-DECLINE-BUYOUT | `completion.js:148` `declineInboundBuyoutOffer` | UI `app.js:926` | competitorOwnedRatio (+0.025, no ratio recompute) | company | **no** | direct save, result ignored | none | none | — | none | — | **GAP — P1 #955 (REPRO: ratios sum 1.025, no rollback)** |
 | W-FORCE-EARNINGS | `parity.js:82-84` via UI `app.js:927` | UI (also weekly `parity.js:104` in WK) | stockPrice, own row price/marketCap, trust, pressure, guidance | company | weekly: WK; **UI: no** | UI: direct `engine.save()` | none | none | **UI consumes simulation RNG (REPRO)** | weekly only | — | **GAP — P1 #955** |
-| W-NEW-COMPANY | `completion.js:155-159` (+`pe-fund.js:1093`) `foundNewCompanyAfterBuyout` | UI `app.js:927` | replaces `g` wholesale (all equity fields) | company / personal | **no** | direct save, ignored; wrapper mutates after save | — | none | — | functional | — | **GAP — P1 #955 (REPRO 2026-10-12: failed save returns true with live new company vs durable sold company; on success the pe-fund founded-investment write after the save is lost on reload); fix PR #965**. Fifth pass: the refounded ledger (#968) is fixed on main by #983 (`3ceb67c2`, NODE + WEBKIT); the save-atomicity defect remains open |
+| W-NEW-COMPANY | `completion.js:155-159` (+`pe-fund.js:1093`) `foundNewCompanyAfterBuyout` | UI `app.js:927` | replaces `g` wholesale (all equity fields) | company / personal | **no** | direct save, ignored; wrapper mutates after save | — | none | — | functional | — | **GAP — P1 #955 (REPRO 2026-10-12: failed save returns true with live new company vs durable sold company; on success the pe-fund founded-investment write after the save is lost on reload); fix PR #965**. Fifth pass: the refounded ledger (#968) is fixed on main by #983 (`3ceb67c2`, NODE + WEBKIT). **Sixth pass: VERIFIED** — #965 merged `6250aef7` (one `runTransaction`, root identity, founded investment in the commit, success notice after the commit; NODE fault matrix + reload + fresh hydration; WEBKIT on main job 115775723281) |
 | W-SPONSOR | `player-crisis-actions.js:56` `requestSponsorInjection` | `player-crisis-ui.js:189` | sharesOut, cash, ratios | company | yes (CODE) | commit | yes | reload only | — | `player-crisis-actions-test` | Test shards | **GAP** (no SF/HY/WebKit) |
 | W-TURNAROUND-ACCEPT | `player-crisis-turnaround-fund.js:124/133` | `player-crisis-ui.js:195` | sharesOut, cash, ratios | company | yes (CODE) | commit | yes | reload only | — | `player-crisis-turnaround-fund-test` | Test shards | **GAP** |
 | W-TURNAROUND-SETTLE | `player-crisis-turnaround-fund.js:174/186` | weekly | sharesOut (ratchet) | company | WK | week commit | yes | NODE (finalize-throw rollback) | — | `player-crisis-turnaround-ratchet-week-rollback-test` | Test shards | **GAP** (no WebKit) |
@@ -64,10 +64,10 @@ Abbreviations: SF = save-fault injection set (save-false, mirror, enqueue-false/
 | W-MA-SALE | `engine.js:1729` `sellMASubsidiary` | UI `app.js:911`, `ma-portfolio-summary-ui.js:26` | cash, subsidiaries, goodwill, gain (RNG) | yes | commit | `assetSale` | NODE+WEBKIT | `ma-subsidiary-sale-save-atomicity` (+WebKit) | `deal-room`, `comprehensive-ma` | **VERIFIED** |
 | W-PE-FUND-ACQ | `pe-acquisition.js:91/164` `closeFundAcquisition` | via `closeMADeal` | fund capital/portfolio | yes | commit | fund waterfall | NODE+WEBKIT | `pe-fund-acquisition-save-atomicity` (+WebKit) | `pe-acquisition-atomicity` | **VERIFIED** |
 | W-PE-EXIT | `pe-network-sourcing.js:152` → `pe-acquisition.js:200` → `exitPortfolioCompany` | UI `app.js:940`; `pe-ui-adapter.js:405-408` calls the module directly inside `runTransaction` | fund cash/distributions | yes (both routes) | commit | fund waterfall | NODE (both routes) + WEBKIT (engine route) | `pe-portfolio-exit-save-atomicity` (+WebKit) | `pe-acquisition-atomicity` | **VERIFIED** atomicity; adapter route skips network registration (behavioural, P2) |
-| W-PE-TO-PARENT | `pe-portfolio-operations.js:987` `acquirePEPortfolioCompany` | `pe-ui-adapter.js:409` | cash, subsidiaries, fund deal | yes (CODE) | commit | yes | none | functional | — | **GAP** |
+| W-PE-TO-PARENT | `pe-portfolio-operations.js:987` `acquirePEPortfolioCompany` | `pe-ui-adapter.js:409` | cash, subsidiaries, fund deal | yes (CODE) | commit | yes | none | functional | — | **GAP**; sixth pass: also callable by a sold company (#985 REPRO), fail-closed fix in open PR #986 |
 | W-PE-LEGACY-CREATE | `expansion.js:600` `createPEDeal` | UI `app.js:921` (`app.js:636`) | cash, `peDeals`, subsidiaries (RNG) | **no** | direct save, ignored | `acquisition` | none (REPRO: save-throw keeps −20,000,000 durable) | functional | — | **VERIFIED** (fourth pass: #958 merged `69ee8695`; NODE + WEBKIT on main `ee4f37f5`, `pe-acquisition-atomicity` job 115638242270) |
 | W-PE-LEGACY-EXIT | `pe-value-creation.js:299` → `expansion.js:604` | UI `app.js:921` (`app.js:646`) | cash, P/L, deal status, subsidiary removal | **no** | direct save, ignored | `assetSale` | none (REPRO: save-throw keeps +19,081,707 durable) | functional | — | **VERIFIED** (fourth pass: #959 merged `6303cccf`; NODE + WEBKIT on main `ee4f37f5`, job 115638242270) |
-| W-PE-LEGACY-TRANSFER | `pe-value-creation.js:340` → `expansion.js:603` | UI `app.js:921` | company/personal cash, owner account | yes | commit | `acquisition` | reload only | functional | — | **GAP** |
+| W-PE-LEGACY-TRANSFER | `pe-value-creation.js:340` → `expansion.js:603` | UI `app.js:921` | company/personal cash, owner account | yes | commit | `acquisition` | reload only | functional | — | **GAP**; sixth pass: a sold company still pays (#985 REPRO, also company exit / create / initiative), fail-closed fix in open PR #986 |
 | W-ANGEL | `expansion.js:605/606` | UI `app.js:922` | personalCash, `angelInvestments` | **no** | direct save | none | none (REPRO) | none | — | **VERIFIED** (fourth pass: #962 merged `89be3642`; NODE + WEBKIT on main `ee4f37f5`, job 115638242602) |
 | W-SUB-IPO | `subsidiary-ipo-preparation.js:59/60` → `engine.js:1518` | UI `app.js:910`, `ma-portfolio-summary-ui.js:26`, prep UI `:69` | sub ownership −15%, book, cash, ticker (RNG) | yes | commit | `investmentSale` | none (tests use a stub `runTransaction`) | `subsidiary-ipo-preparation-test`, `finance-subsidiary-ipo-test` | — | **GAP** |
 | W-SUB-IPO-STAKE | `subsidiary-ipo-secondary-sale.js:22` | module UI | cash, ownership, book, `cumulativeProfit` | yes (CODE) | commit | `investmentSale` **without `assetEffect`** (unverified ledger concern) | none (stub engine) | `subsidiary-ipo-secondary-sale-test` | — | **GAP** (ledger to verify) |
@@ -271,6 +271,55 @@ Track A completion conditions after the fifth pass:
 | 10 | Independent diff audit | Partial: Codex automated review for #974 / #977 / #980; #983 had no Codex review (usage limit) and only a same-session subagent audit |
 
 **Track A verdict: still BLOCKED.** P3-4 Ownership Authority Cutover remains STOPPED; Phase 4 production development is NOT AUTHORIZED.
+
+## 3f. Remediation status — sixth pass (2026-10-14, main `6250aef7`)
+
+Merged since the fifth pass, by Owner approval with main CI green after merge (43 success / 10 skipped / 0 failed): #965 (#955 W-NEW-COMPANY atomicity, merge `6250aef7`). Evidence levels as in §3e: **review** (Codex on GitHub; a same-session subagent audit is *not* an external independent review), **NODE**, **WEBKIT** (real WebKit 26.5, iPhone 13 emulation, real IndexedDB, GitHub Actions), **iPhone** (physical device: NOT RUN for every row).
+
+| Writer / defect | Fix | State | Review | Node | WebKit | Verdict on main |
+|---|---|---|---|---|---|---|
+| W-NEW-COMPANY atomicity (#955) | #965 | merged `6250aef7` | Codex: no major issues on the merged head (two P2 findings fixed: success notice after the commit; founded investment = contribution made); two same-session subagent audits: no defects | 8 rollback fault kinds nested and not nested, pending writes, root identity, single commit, opening book = contribution, 13 weeks | 12/12 on the PR (job 115721067700); main job 115775723281 success | **VERIFIED** |
+| W-DECLINE-BUYOUT (#955) | #963 | **open**, Final Gate reported at `e049c521`; merge needs a separate Owner approval | Codex: P1 (stake capped at the remaining external float) and P2 (decline notice after the commit) fixed; one P2 left open as an Owner decision (a notice for a *nested* call needs an engine-level deferral queue; no production caller nests) | 8 fault kinds × nested × hostile/friendly, pending writes, ratios sum to 1 (incl. founder-owned and 1% float), notice count/order, post-commit notice fault | 22/22 (job 115802566585) | GAP until merged |
+| W-FORCE-EARNINGS (#955) | #964 | **open**, Final Gate reported at `9ad9d3e5`; merge needs a separate Owner approval | Codex: no major issues | applicable fault kinds + pending, RNG rolled back with the state, single render | PASS through the real market-tab button (job 115817570711) | GAP until merged |
+| W-PE-LEGACY-TRANSFER / company exit / company create / company initiative / W-PE-TO-PARENT after a sale (#985, P2) | #986 | **open**, Final Gate reported at `0ef889d3`; merge needs Owner approval | Codex: no major issues | refusals change nothing (live, mirror, cache, durable, saves, RNG); personal actions allowed; refounding re-opens; legacy save; parent acquisition refused | 6/6 in `pe-acquisition-atomicity` (job 115828303834) | GAP until merged |
+
+Findings recorded in this pass:
+
+| Item | Severity | Summary | Status |
+|---|---|---|---|
+| #985 | P2 (kept) | five PE writers let a sold company pay (transfer +31.8M to personal cash, company exit, create, initiative, parent acquisition with 246M GP carry); ledger stays valid and no route raises net worth beyond an equal-value swap or the external-exit amount, so it is an authority defect, not P1 | fix PR #986 |
+| Success notice before commit (cross-cutting) | Owner decision | read-only inventory: ~95 command sites in ~40 files emit a success/info notice inside a transaction (class A), 14 inside the weekly transaction (class C); ~22 became false-on-failure when wrapped by #915–#962. Fixed per writer only for refounding (#965) and buyout decline (#963). Recommended shared fix: engine-level deferral queue (notice after the outermost commit, dropped on rollback; `fail()` stays immediate), with the harness `notify` fault becoming a post-commit contract — needs Owner approval before any change | not changed |
+| CI transient failures | — | shard H 30-min cap once (rerun 21.5 min PASS); strategy-balance child process 180 s cap once (local ~70 s, identical output; next head PASS); iPhone playtest `play.html` navigation cancelled once (next head PASS); one real failure fixed (Phase 0.5 writer inventory after a code change, regenerated with `--refresh-writers`) | recorded |
+
+### Phase 3 completion readiness (checklist only — Phase 3 is **not** complete)
+
+Sources: `PHASE_3_ENTRY_CONTRACT.md` (staged implementation, P3-12 row), `PHASE_3_P3_3_CONTRACT.md` (P3-4 adoption requirements, verification), `ECONOMIC_ENGINE_ROADMAP.md` (Phase 3 exit criteria), this document §5.
+
+| Step | Status per the repository |
+|---|---|
+| P3-0 entry contract | done (#910) |
+| P3-1 read-only identity/holding projection | done (#911) |
+| P3-2 read-only issued = treasury + outstanding, founder counted once | done (#912; correction #913) |
+| P3-3 issuer-family adoption and writer contract | doc done (#914); not an authority cutover |
+| P3-4 player-company ownership cutover | **STOPPED**; only atomicity corrections exist (P3-4-001..008: #915–#921 and #937; Track A writer fixes: #951–#965) |
+| P3-5 .. P3-11 (listed holdings, subsidiary/M&A, PE, VC adapters, Control Ladder, command/UI integration, founder wealth projection) | not started (no evidence) |
+| P3-12 permanent acceptance / exit review | not started |
+
+| Exit Gate item | Status |
+|---|---|
+| Roadmap exit: one ownership foundation represents listed shares, subsidiaries, PE, VC and founder ownership | **Not met** (P3-5..P3-8, P3-11 not started) |
+| Approved issuer-family coverage | **Not met** (P3-4 stopped) |
+| ECO-010 / ECO-011 | read-only diagnostics only; §5 condition 6 not met (founder + competitor > 1 on main until #963 merges; D3 / D4) |
+| Save V9 / SAVE_KEY / old-save compatibility | held by every PR (no format change, no migration; #979 repair stays investigation-only) |
+| Determinism | held per PR (no new RNG; transaction rollback restores RNG; strategy / Phase 0.5 / determinism contracts green) |
+| Accounting invariants | per-writer validate at once and 13 weeks for fixed writers; Track A condition 6 not met |
+| Required WebKit gates | jobs `stock-split-atomicity`, `pe-acquisition-atomicity`, `vc-funding-atomicity`, `vc-secondary-atomicity` (+ `ma-economic-gate`); still missing for MBO, defense, setDividend, buyback, activism, dividend payment, sponsor/turnaround, subsidiary IPO, financed M&A failure paths (§5 condition 5) |
+| Independent A–L audit | **Not met** (Codex per PR; same-session audits are not independent) |
+| Physical iPhone baseline | **NOT RUN** |
+
+Ownership Authority Cutover prerequisites (P3-3 "P3-4 writer-adoption requirements" 1–6 and verification list) remain unmet: one authority per fact with every writer and bypass path reaching it, pre-validate then commit in one outer transaction (now true for the §2 VERIFIED writers only), exactly-once cash/ledger, replay without new RNG, eligibility separate from effects, and tests over all writers/bypasses. Open P0/P1 blocking exit: #955 until #963 and #964 merge; D3 (founder ratio stale after a share swap) and founder + competitor > 1 belong to the stopped cutover.
+
+**Track A verdict: still BLOCKED.** Phase 3 completion is **not** declared; P3-4 Ownership Authority Cutover remains STOPPED; Phase 4 production is NOT AUTHORIZED.
 
 ## 4. CI gate observations
 
