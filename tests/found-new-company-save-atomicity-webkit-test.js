@@ -90,13 +90,16 @@ async function settle(p){
    if(w.puts.length!==(w.pending?1:0))throw new Error('failed candidate queued: '+w.puts.length);
    if(text.includes(NAME))throw new Error('rendered game state must not show the rolled-back company');
   }
-  // The sold company (every rollback) must stay ledger-valid. The newly founded company is NOT asserted
-  // ledger-valid: refounding leaves finance.openingCash at the fresh-state default (pre-existing on main,
-  // independent of this atomicity fix, tracked separately); the observed result is recorded instead.
+  // The sold company (every rollback) and, since #968, the newly founded company must be ledger-valid; the new
+  // company's next 13 weekly closes must also pass.
   const validation=m.finance.validate(JSON.parse(JSON.stringify(g)));
-  if(!normal&&!validation.ok)throw new Error('company accounting invalid after rollback');
+  if(!validation.ok)throw new Error((normal?'new company':'company after rollback')+' accounting invalid '+JSON.stringify(validation.errors));
+  let closedWeeks=null;
+  if(normal){const probe=new m.engine.TycoonEngine(JSON.parse(JSON.stringify(g))),start=probe.g.week;probe.save=()=>true;
+   for(let i=0;i<13;i++){if(probe.advanceWeek(false)===false)throw new Error('new company week '+(probe.g.week+1)+' refused');const v=m.finance.validate(JSON.parse(JSON.stringify(probe.g)));if(!v.ok)throw new Error('new company week '+probe.g.week+' accounting '+JSON.stringify(v.errors));}
+   closedWeeks=`${start+1}-${probe.g.week}`;}
   if(key!=='capitalism_tycoon_web_v1'||g.saveVersion!==9)throw new Error('save identity');
-  return {live:view(new m.engine.TycoonEngine(JSON.parse(JSON.stringify(g))).g),hits:w.injection.hits(),puts:w.puts.length,newCompanyLedgerValid:normal?validation.ok:null,staleSuccessToast:normal?null:staleSuccessToast,changeEvents:w.events.filter(x=>x==='change').length};
+  return {live:view(new m.engine.TycoonEngine(JSON.parse(JSON.stringify(g))).g),hits:w.injection.hits(),puts:w.puts.length,newCompanyLedgerValid:normal?validation.ok:null,closedWeeks,staleSuccessToast:normal?null:staleSuccessToast,changeEvents:w.events.filter(x=>x==='change').length};
  },{snap:pick,INVESTMENT,NAME});
 }
 const recoveryDialog=p=>p.locator('#runtime-recovery-root [role="dialog"]');
