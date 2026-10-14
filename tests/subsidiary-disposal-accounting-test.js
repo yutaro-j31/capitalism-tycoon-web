@@ -65,13 +65,19 @@ function dispose(ctx,kind,id=ctx.subsidiaryID){
   const merged=g.subsidiaries.at(-1),row=g.finance.transactions.at(-1);assert.equal(merged.carryingBookValue,sum,'merged book is the raw sum');
   assert.equal(g.companyCash,cash+row.cashEffect,'merge cost by the ledger amount');assert.equal(validate(c).ok,true,'merge valid at once');closes(c);
   console.log('merge / raw book sum / validate at once / 13 weeks PASS');}
- {const c=D.mergeGame(),g=c.game.g,[a,b]=c.ids;
+ // Integration project: the sources leave the group when the merged company is created (as the direct merge does),
+ // so the capital-allocation plan, the weekly profit and the balance sheet see only the merged company.
+ {const c=D.mergeGame(),g=c.game.g,[a,b]=c.ids,sum=subOf(g,a).carryingBookValue+subOf(g,b).carryingBookValue;
   assert.equal(c.game.startSubsidiaryIntegrationProject(a,b),true,'production integration project');
   for(let i=0;i<40&&!g.integrationProjects.some(p=>p.status==='completed');i++){advance(c.game);assert.equal(validate(c).ok,true,`integration week ${g.week} valid`);}
-  assert.equal(g.integrationProjects.at(-1).status,'completed');assert.equal(g.subsidiaries.map(s=>s.status).join(),'integrated,integrated,active');
-  assert.equal(g.subsidiaries[2].carryingBookValue,g.subsidiaries[0].carryingBookValue+g.subsidiaries[1].carryingBookValue,'merged book is the raw sum');
-  assert.equal(subsidiaryAssets(c),g.subsidiaries[2].carryingBookValue,'integrated sources are not held twice');closes(c);
-  console.log('integration project / sources not held twice / 13 weeks PASS');}
+  assert.equal(g.integrationProjects.at(-1).status,'completed');
+  const merged=g.subsidiaries.find(s=>s.id===g.integrationProjects.at(-1).mergedID);
+  assert.equal(g.subsidiaries.map(s=>s.id).join(),merged.id,'the sources left the group');
+  assert.equal(merged.carryingBookValue,sum,'merged book is the raw sum');assert.equal(subsidiaryAssets(c),sum,'held once');
+  assert.equal(c.game.runGroupCapitalAllocationPlan(),true,'production capital-allocation plan');
+  assert.equal(g.groupCapitalAllocation.rows.map(r=>r.id).join(),merged.id,'allocation plans only the merged company');
+  closes(c);
+  console.log('integration project / sources leave the group / allocation sees the merged company only / 13 weeks PASS');}
  // Reload after a disposal: load writes nothing economic and the next weeks close.
  {const ctx=await D.vcEve();dispose(ctx,'sold');await ctx.backend.flush();
   const loaded=ctx.engineModule.TycoonEngine.load();assert.equal(loaded.g.saveVersion,9);
