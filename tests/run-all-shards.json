@@ -25,6 +25,7 @@
     "tests/refounding-ledger-test.js"
   ],
   "C": [
+    "tests/decline-buyout-ownership-save-atomicity-test.js",
     "tests/pe-exit-deal-save-atomicity-test.js",
     "tests/transaction-rollback-test.js",
     "test:long",
@@ -280,9 +281,11 @@
   "L": [
     "tests/stock-split-price-floor-test.js",
     "tests/found-new-company-save-atomicity-test.js",
+    "tests/sold-company-pe-authority-test.js",
     "tests/shareholder-activism-accept-save-atomicity-test.js",
     "tests/shareholder-activism-split-integration-test.js",
     "tests/store-cost-inflation-25y-test.js",
-    "tests/subsidiary-quarter-close-test.js"
+    "tests/subsidiary-quarter-close-test.js",
+    "tests/earnings-confirm-read-only-test.js"
   ]
 }
