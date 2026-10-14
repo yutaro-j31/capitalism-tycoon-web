@@ -20,9 +20,12 @@
     "tests/store-zero-investment-founding-test.js",
     "tests/sports-team-accounting-test.js",
     "tests/sports-management-test.js",
-    "tests/real-estate-agency-site-capacity-test.js"
+    "tests/real-estate-agency-site-capacity-test.js",
+    "tests/subsidiary-disposal-save-atomicity-test.js",
+    "tests/refounding-ledger-test.js"
   ],
   "C": [
+    "tests/pe-exit-deal-save-atomicity-test.js",
     "tests/transaction-rollback-test.js",
     "test:long",
     "test:supply-long",
@@ -42,7 +45,8 @@
     "tests/map-phase2-framing-zoomout-test.js",
     "tests/map-phase2-marker-placard-interaction-test.js",
     "tests/map-marker-detail-interaction-test.js",
-    "tests/city-lab-production-port-test.js"
+    "tests/city-lab-production-port-test.js",
+    "tests/listed-subsidiary-market-week-test.js"
   ],
   "D": [
     "tests/pe-value-creation-test.js",
@@ -76,6 +80,7 @@
     "tests/activate-defense-save-atomicity-test.js"
   ],
   "E": [
+    "tests/make-subsidiary-save-atomicity-test.js",
     "tests/week-transaction-atomicity-test.js",
     "tests/player-crisis-turnaround-ratchet-week-rollback-test.js",
     "tests/loan-single-interest-test.js",
@@ -104,7 +109,8 @@
     "tests/pe-realestate-agency-bridge-negative-test.js",
     "tests/pe-realestate-agency-ui-connection-test.js",
     "test:stock",
-    "tests/personal-real-estate-short-term-test.js"
+    "tests/personal-real-estate-short-term-test.js",
+    "tests/subsidiary-quarter-close-save-atomicity-test.js"
   ],
   "F": [
     "tests/gf-010-finance-validation-enforcement-test.js",
@@ -151,6 +157,7 @@
     "tests/gf-002-financing-mode0-test.js"
   ],
   "G": [
+    "tests/angel-investment-save-atomicity-test.js",
     "tests/property-insurance-loss-ledger-test.js",
     "tests/executive-dismissal-reachability-test.js",
     "test:workforce-long",
@@ -181,7 +188,8 @@
     "tests/map-phase2-pinch-zoom-test.js",
     "tests/phase0-5-harness-reporting-test.js",
     "tests/group-capital-allocation-accounting-test.js",
-    "tests/phase1-acceptance-gate-test.js"
+    "tests/phase1-acceptance-gate-test.js",
+    "tests/listed-subsidiary-quarter-save-atomicity-test.js"
   ],
   "H": [
     "tests/founder-shareholder-loan-lender-test.js",
@@ -246,11 +254,14 @@
   ],
   "J": [
     "tests/force-earnings-ui-save-atomicity-test.js",
+    "tests/pe-create-deal-save-atomicity-test.js",
     "tests/vc-follow-on-save-atomicity-test.js",
     "tests/vc-initial-investment-save-atomicity-test.js",
     "tests/pe-fund-acquisition-save-atomicity-test.js",
     "tests/pe-portfolio-exit-save-atomicity-test.js",
-    "tests/digital-portfolio-breakeven-seeds-test.js"
+    "tests/digital-portfolio-breakeven-seeds-test.js",
+    "tests/subsidiary-disposal-accounting-test.js",
+    "tests/group-capital-allocation-save-atomicity-test.js"
   ],
   "K": [
     "tests/supply-material-cost-inflation-test.js",
@@ -264,11 +275,15 @@
     "tests/phase2-acceptance-gate-test.js",
     "tests/phase3-ownership-projection-test.js",
     "tests/phase3-ownership-reconciliation-test.js",
-    "tests/player-own-share-conservation-test.js"
+    "tests/player-own-share-conservation-test.js",
+    "tests/group-capital-allocation-cash-exact-test.js"
   ],
   "L": [
+    "tests/stock-split-price-floor-test.js",
+    "tests/found-new-company-save-atomicity-test.js",
     "tests/shareholder-activism-accept-save-atomicity-test.js",
     "tests/shareholder-activism-split-integration-test.js",
-    "tests/store-cost-inflation-25y-test.js"
+    "tests/store-cost-inflation-25y-test.js",
+    "tests/subsidiary-quarter-close-test.js"
   ]
 }

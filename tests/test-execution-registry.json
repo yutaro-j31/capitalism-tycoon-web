@@ -207,6 +207,10 @@
     "reason": "#955 force-earnings: the real market-tab button tapped on the booted app commits one earnings event, one change and one durable put with its simulation-RNG draws; every applicable harness fault (incl. prior pending put) rolls live, mirror, cache and durable state back, thrown faults open the production recovery dialog, and the retry tap is deterministic; reload and fresh durable-only hydration in iPhone WebKit on every workflow event.",
     "executedBy": ".github/workflows/ma-acquisition-financing.yml"
   },
+  "tests/stock-split-price-floor-webkit-test.js": {
+    "reason": "Own/external split at exactly the 10-yen floor persists; below-floor, NaN and non-integer ratios are rejected via fail() without live, mirror or durable change, verified through fresh real IndexedDB in the stock-split-atomicity job on every workflow event.",
+    "executedBy": ".github/workflows/ma-acquisition-financing.yml"
+  },
   "tests/shareholder-activism-accept-save-atomicity-webkit-test.js": {
     "reason": "#953 activist proposal acceptance: buyback/dividend plus campaign completion commit once; durable-only reload cannot accept again; save-false/save-throw roll back live, mirror and durable state, in the stock-split-atomicity job on every workflow event.",
     "executedBy": ".github/workflows/ma-acquisition-financing.yml"
@@ -231,6 +235,34 @@
     "reason": "VC company/personal initial investment rollback, prior pending save, reload and fresh real IndexedDB in iPhone WebKit PR/main gates.",
     "executedBy": ".github/workflows/ma-acquisition-financing.yml"
   },
+  "tests/angel-investment-save-atomicity-webkit-test.js": {
+    "reason": "#954 personal angel investment create/exit: every harness fault kind (incl. prior pending put) rolls live, mirror, cache and durable IndexedDB back; company cash never moves; retry is deterministic; second exit refused; reload and fresh durable-only hydration in iPhone WebKit on every workflow event.",
+    "executedBy": ".github/workflows/ma-acquisition-financing.yml"
+  },
+  "tests/make-subsidiary-save-atomicity-webkit-test.js": {
+    "reason": "#954 makeSubsidiary: every harness fault kind (incl. prior pending put) rolls live, mirror, cache and durable IndexedDB back; retry issues the same deterministic subsidiary ID; second consolidation refused; reload and fresh durable-only hydration in iPhone WebKit on every workflow event.",
+    "executedBy": ".github/workflows/ma-acquisition-financing.yml"
+  },
+  "tests/subsidiary-quarter-close-webkit-test.js": {
+    "reason": "#971 VC and M&A subsidiary quarter close: every save fault a week can raise (incl. a prior pending put) rolls live, mirror, cache and durable IndexedDB back; the retry reaches the unfaulted cash/RNG/retainedEarnings; no subsidiary dividend; quarters keep closing to week 26; reload and fresh durable-only hydration in iPhone WebKit on every workflow event.",
+    "executedBy": ".github/workflows/ma-acquisition-financing.yml"
+  },
+  "tests/listed-subsidiary-quarter-close-webkit-test.js": {
+    "reason": "#966 listed subsidiary week-26 quarter: market catch-up and parent dividend once inside the week; every save fault a week can raise (incl. a prior pending put) rolls live, mirror, cache and durable IndexedDB back; reload, the real venture tab render and re-renders change no economic state; the next week closes; fresh durable-only hydration in iPhone WebKit on every workflow event.",
+    "executedBy": ".github/workflows/ma-acquisition-financing.yml"
+  },
+  "tests/subsidiary-disposal-webkit-test.js": {
+    "reason": "#975 group-restructuring disposals: VC subsidiary sale and liquidation and a taken-private listing with a legacy fractional book stay valid at once and for 13 weeks with the exact book and ledger cash; every save fault (incl. a prior pending put) rolls live, mirror, cache and durable IndexedDB back; reload and fresh durable-only hydration in iPhone WebKit on every workflow event.",
+    "executedBy": ".github/workflows/ma-acquisition-financing.yml"
+  },
+  "tests/group-capital-allocation-webkit-test.js": {
+    "reason": "#978 group capital allocation on fractional company cash and a legacy fractional book moves cash and book by exactly the ledger amount and stays valid at once and for 13 weeks; every save fault (incl. a prior pending put) rolls live, mirror, cache and durable IndexedDB back; reload and fresh durable-only hydration in iPhone WebKit on every workflow event.",
+    "executedBy": ".github/workflows/ma-acquisition-financing.yml"
+  },
+  "tests/refounding-ledger-webkit-test.js": {
+    "reason": "#968 refounding after a company sale opens the new company's book at the founder's contribution (cash = opening cash = opening equity), debits personal cash once, carries no company PE deal of the sold company, and stays valid at once and for 13 weeks; reload and fresh durable-only hydration agree in iPhone WebKit on every workflow event.",
+    "executedBy": ".github/workflows/ma-acquisition-financing.yml"
+  },
   "tests/pe-fund-acquisition-save-atomicity-webkit-test.js": {
     "reason": "Actual PE fund acquisition rollback, coinvestment, prior pending put and fresh IndexedDB iPhone WebKit in PR/main gates.",
     "executedBy": ".github/workflows/ma-acquisition-financing.yml"
@@ -239,12 +271,24 @@
     "reason": "Actual PE portfolio Exit rollback, prior pending put, reload and fresh IndexedDB iPhone WebKit in PR/main gates.",
     "executedBy": ".github/workflows/ma-acquisition-financing.yml"
   },
+  "tests/pe-create-deal-save-atomicity-webkit-test.js": {
+    "reason": "#954 createPEDeal company/personal: every harness fault kind (incl. prior pending put) rolls live, mirror, cache and durable IndexedDB back; retry issues the same deterministic deal; single commit; reload and fresh durable-only hydration in iPhone WebKit on every workflow event.",
+    "executedBy": ".github/workflows/ma-acquisition-financing.yml"
+  },
+  "tests/pe-exit-deal-save-atomicity-webkit-test.js": {
+    "reason": "#954 exitPEDeal company/personal/premium-wrapper: every harness fault kind (incl. prior pending put) rolls live, mirror, cache and durable IndexedDB back including the premium valuation; retry pays the same deterministic proceeds; second exit refused; reload and fresh durable-only hydration in iPhone WebKit on every workflow event.",
+    "executedBy": ".github/workflows/ma-acquisition-financing.yml"
+  },
   "tests/ma-subsidiary-sale-save-atomicity-webkit-test.js": {
     "reason": "Real iPhone WebKit subsidiary sale rollback, prior pending write and fresh IndexedDB hydration in PR/main gates.",
     "executedBy": ".github/workflows/ma-acquisition-financing.yml"
   },
   "tests/vc-secondary-sale-save-atomicity-webkit-test.js": {
     "reason": "Company/personal VC secondary sale rollback, DD ownership, pending write, reload and fresh real IndexedDB in iPhone WebKit PR/main gates.",
+    "executedBy": ".github/workflows/ma-acquisition-financing.yml"
+  },
+  "tests/found-new-company-save-atomicity-webkit-test.js": {
+    "reason": "#955 refounding after buyout through the real legacy-tab flow: state root identity kept on success and rollback; one commit with the founded-investment record; personal holdings carry over, sold-company debt does not; every harness fault kind (incl. prior pending put) rolls back into the same root; thrown faults open the recovery dialog; deterministic retry; reload and fresh durable-only hydration in iPhone WebKit on every workflow event (placed in vc-secondary-atomicity for job-time balance).",
     "executedBy": ".github/workflows/ma-acquisition-financing.yml"
   }
 }
