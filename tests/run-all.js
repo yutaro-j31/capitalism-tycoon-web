@@ -155,6 +155,8 @@ const nodeTests = [
   ['group-capital-allocation-execution', 'tests/group-capital-allocation-execution-test.js'],
   ['group-capital-allocation-accounting', 'tests/group-capital-allocation-accounting-test.js'],
   ['group-capital-allocation-plan', 'tests/group-capital-allocation-plan-test.js'],
+  ['group-capital-allocation-cash-exact', 'tests/group-capital-allocation-cash-exact-test.js'],
+  ['group-capital-allocation-save-atomicity', 'tests/group-capital-allocation-save-atomicity-test.js'],
   ['group-holding-governance', 'tests/group-holding-governance-test.js'],
   ['hall-of-fame-generations', 'tests/hall-of-fame-generations-test.js'],
   ['industry-event-response-plans', 'tests/industry-event-response-plans-test.js'],

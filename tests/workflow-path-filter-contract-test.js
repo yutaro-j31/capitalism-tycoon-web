@@ -190,6 +190,10 @@ assert.deepEqual(pathsFor(comprehensiveMa, 'pull_request'), [
   'tests/subsidiary-disposal-save-atomicity-test.js',
   'tests/fixtures/subsidiary-disposal.js',
   'tests/subsidiary-disposal-webkit-test.js',
+  'tests/group-capital-allocation-cash-exact-test.js',
+  'tests/group-capital-allocation-save-atomicity-test.js',
+  'tests/fixtures/capital-allocation-exact.js',
+  'tests/group-capital-allocation-webkit-test.js',
   'tests/fixtures/vc-initial-investment-atomicity.js',
   'tests/pe-fund-acquisition-save-atomicity-test.js',
   'tests/pe-fund-acquisition-save-atomicity-webkit-test.js',
@@ -203,7 +207,7 @@ assert.deepEqual(pathsFor(comprehensiveMa, 'pull_request'), [
   'tests/fixtures/pe-fund-acquisition-faults.js',
   'js/pe-network-sourcing.js', 'js/pe-ui-adapter.js', 'js/pe-portfolio-operations.js',
   'js/completion.js', 'js/pe-fund.js', 'js/parity.js', 'js/shareholder-returns.js', 'js/play-runtime-compat.js', 'js/difficulty-scenario-balance.js', 'js/finance.js', 'js/ma-board-approval.js', 'js/ma-acquisition-financing.js', 'js/save*.js', 'js/subsidiary-*.js', 'js/listed-subsidiary-*.js',
-  'js/player-crisis-actions.js', 'js/player-crisis-turnaround-fund.js', 'js/group-restructuring-candidates.js', 'js/group-restructuring-progress.js', 'js/internal-venture-business.js', 'js/pe-deal-supply.js', 'js/pe-network.js', 'js/personal-stock-margin.js', 'js/capital-allocation-score.js', 'js/ma-integration.js', 'js/pmi-100-day-plan.js', 'js/pmi-long-run-guard.js', 'js/group-holding-governance.js',
+  'js/player-crisis-actions.js', 'js/player-crisis-turnaround-fund.js', 'js/group-restructuring-candidates.js', 'js/group-restructuring-progress.js', 'js/group-capital-allocation-execution.js', 'js/internal-venture-business.js', 'js/pe-deal-supply.js', 'js/pe-network.js', 'js/personal-stock-margin.js', 'js/capital-allocation-score.js', 'js/ma-integration.js', 'js/pmi-100-day-plan.js', 'js/pmi-long-run-guard.js', 'js/group-holding-governance.js',
   'tests/parent-ipo-save-atomicity-test.js',
   'tests/parent-ipo-save-atomicity-webkit-test.js', 'tests/fixtures/parent-ipo-atomicity.js',
   'tests/ma-subsidiary-sale-save-atomicity-test.js', 'tests/ma-subsidiary-sale-save-atomicity-webkit-test.js',
@@ -220,7 +224,7 @@ const trackAWriterModules = ['js/completion.js', 'js/pe-fund.js', 'js/pe-value-c
   // Remaining writer files named in the TRACK_A_WRITER_AUTHORITY_AUDIT.md Writer Matrix (sections 2.1-2.3).
   'js/pe-network-sourcing.js', 'js/ma-deal-room.js', 'js/pe-acquisition.js', 'js/ma-board-approval.js', 'js/ma-acquisition-financing.js', 'js/pe-portfolio-operations.js',
   'js/player-crisis-actions.js', 'js/player-crisis-turnaround-fund.js', 'js/listed-subsidiary-follow-on-offering.js', 'js/subsidiary-relisting-options.js',
-  'js/group-restructuring-candidates.js', 'js/group-restructuring-progress.js', 'js/internal-venture-business.js', 'js/pe-deal-supply.js', 'js/pe-network.js', 'js/personal-stock-margin.js',
+  'js/group-restructuring-candidates.js', 'js/group-restructuring-progress.js', 'js/group-capital-allocation-execution.js', 'js/internal-venture-business.js', 'js/pe-deal-supply.js', 'js/pe-network.js', 'js/personal-stock-margin.js',
   'js/capital-allocation-score.js', 'js/ma-integration.js', 'js/pmi-100-day-plan.js', 'js/pmi-long-run-guard.js', 'js/group-holding-governance.js'];
 const globMatch = (pattern, file) => new RegExp('^' + pattern.replace(/[.+^${}()|[\]\\]/g, '\\$&').replace(/\*\*/g, '\u0000').replace(/\*/g, '[^/]*').replace(/\u0000/g, '.*') + '$').test(file);
 for (const event of ['pull_request', 'push']) {
@@ -310,7 +314,7 @@ for (const command of ['playwright@1.61.0', 'npx playwright install --with-deps 
 // WebKit set it ran before the split, and each moved regression exactly once.
 const movedFamilyJobs = {
   'pe-acquisition-atomicity': ['tests/pe-fund-acquisition-save-atomicity-webkit-test.js', 'tests/pe-portfolio-exit-save-atomicity-webkit-test.js', 'tests/pe-create-deal-save-atomicity-webkit-test.js', 'tests/pe-exit-deal-save-atomicity-webkit-test.js'],
-  'vc-secondary-atomicity': ['tests/vc-secondary-sale-save-atomicity-webkit-test.js', 'tests/subsidiary-quarter-close-webkit-test.js', 'tests/listed-subsidiary-quarter-close-webkit-test.js', 'tests/subsidiary-disposal-webkit-test.js'],
+  'vc-secondary-atomicity': ['tests/vc-secondary-sale-save-atomicity-webkit-test.js', 'tests/subsidiary-quarter-close-webkit-test.js', 'tests/listed-subsidiary-quarter-close-webkit-test.js', 'tests/subsidiary-disposal-webkit-test.js', 'tests/group-capital-allocation-webkit-test.js'],
   'vc-funding-atomicity': ['tests/vc-follow-on-save-atomicity-webkit-test.js', 'tests/vc-initial-investment-save-atomicity-webkit-test.js', 'tests/angel-investment-save-atomicity-webkit-test.js', 'tests/make-subsidiary-save-atomicity-webkit-test.js']
 };
 const legacyRuntime = "node-version: ${{ (github.event_name == 'pull_request' || inputs.mode == 'deal-room') && '20' || '22' }}";
@@ -374,6 +378,8 @@ const preSplitDealRoomWebkit = [
   'tests/listed-subsidiary-quarter-close-webkit-test.js',
   // Added after the Phase 1A split: #975 subsidiary disposal WebKit, run by vc-secondary-atomicity on every event.
   'tests/subsidiary-disposal-webkit-test.js',
+  // Added after the Phase 1A split: #978 group capital allocation WebKit, run by vc-secondary-atomicity on every event.
+  'tests/group-capital-allocation-webkit-test.js',
   // Added after the Phase 1A split: #954 writer-specific WebKit, run by pe-acquisition-atomicity on every event.
   'tests/pe-create-deal-save-atomicity-webkit-test.js',
   'tests/pe-exit-deal-save-atomicity-webkit-test.js',
@@ -398,6 +404,8 @@ const preSplitComprehensiveWebkit = [
   'tests/listed-subsidiary-quarter-close-webkit-test.js',
   // Added after the Phase 1A split: #975 subsidiary disposal WebKit, run by vc-secondary-atomicity on every event.
   'tests/subsidiary-disposal-webkit-test.js',
+  // Added after the Phase 1A split: #978 group capital allocation WebKit, run by vc-secondary-atomicity on every event.
+  'tests/group-capital-allocation-webkit-test.js',
   // Added after the Phase 1A split: #954 writer-specific WebKit, run by pe-acquisition-atomicity on every event.
   'tests/pe-create-deal-save-atomicity-webkit-test.js',
   'tests/pe-exit-deal-save-atomicity-webkit-test.js',

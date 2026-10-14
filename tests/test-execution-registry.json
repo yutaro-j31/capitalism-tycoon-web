@@ -251,6 +251,10 @@
     "reason": "#975 group-restructuring disposals: VC subsidiary sale and liquidation and a taken-private listing with a legacy fractional book stay valid at once and for 13 weeks with the exact book and ledger cash; every save fault (incl. a prior pending put) rolls live, mirror, cache and durable IndexedDB back; reload and fresh durable-only hydration in iPhone WebKit on every workflow event.",
     "executedBy": ".github/workflows/ma-acquisition-financing.yml"
   },
+  "tests/group-capital-allocation-webkit-test.js": {
+    "reason": "#978 group capital allocation on fractional company cash and a legacy fractional book moves cash and book by exactly the ledger amount and stays valid at once and for 13 weeks; every save fault (incl. a prior pending put) rolls live, mirror, cache and durable IndexedDB back; reload and fresh durable-only hydration in iPhone WebKit on every workflow event.",
+    "executedBy": ".github/workflows/ma-acquisition-financing.yml"
+  },
   "tests/pe-fund-acquisition-save-atomicity-webkit-test.js": {
     "reason": "Actual PE fund acquisition rollback, coinvestment, prior pending put and fresh IndexedDB iPhone WebKit in PR/main gates.",
     "executedBy": ".github/workflows/ma-acquisition-financing.yml"

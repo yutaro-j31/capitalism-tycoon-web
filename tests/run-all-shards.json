@@ -258,7 +258,8 @@
     "tests/pe-fund-acquisition-save-atomicity-test.js",
     "tests/pe-portfolio-exit-save-atomicity-test.js",
     "tests/digital-portfolio-breakeven-seeds-test.js",
-    "tests/subsidiary-disposal-accounting-test.js"
+    "tests/subsidiary-disposal-accounting-test.js",
+    "tests/group-capital-allocation-save-atomicity-test.js"
   ],
   "K": [
     "tests/supply-material-cost-inflation-test.js",
@@ -272,7 +273,8 @@
     "tests/phase2-acceptance-gate-test.js",
     "tests/phase3-ownership-projection-test.js",
     "tests/phase3-ownership-reconciliation-test.js",
-    "tests/player-own-share-conservation-test.js"
+    "tests/player-own-share-conservation-test.js",
+    "tests/group-capital-allocation-cash-exact-test.js"
   ],
   "L": [
     "tests/stock-split-price-floor-test.js",
