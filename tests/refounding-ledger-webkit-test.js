@@ -21,12 +21,12 @@ async function run(browser,url,state,mode){
   const m=__capitalismTycoonModules,e=new m.engine.TycoonEngine(JSON.parse(state)),backend=m.saveStorageIDB,key=m.engine.SAVE_KEY,view=eval(snap);
   const valid=label=>{const c=m.finance.validate(JSON.parse(JSON.stringify(e.g)));if(!c.ok)throw new Error(label+' accounting invalid '+JSON.stringify(c.errors));};
   await backend.hydrate();if(!backend.status().available)throw new Error('real IndexedDB prerequisite failed');if(!e.save())throw new Error('baseline save failed');await backend.flush();
-  const personal=e.g.personalCash,personalDeals=JSON.stringify(e.g.peDeals.filter(d=>d.ownerAccount!=='company').map(d=>d.id));
+  const kept=d=>!(d.ownerAccount==='company'&&d.status==='active'),personal=e.g.personalCash,personalDeals=JSON.stringify(e.g.peDeals.filter(kept).map(d=>d.id));
   if(e.foundNewCompanyAfterBuyout('新会社',INVESTMENT,mode)!==true)throw new Error('refounding refused');
   const f=e.g.finance;
   if(e.g.companyCash!==INVESTMENT||f.openingCash!==INVESTMENT||f.openingEquity!==INVESTMENT)throw new Error('book does not open at the contribution '+JSON.stringify({cash:e.g.companyCash,open:f.openingCash,eq:f.openingEquity}));
   if(e.g.personalCash!==personal-INVESTMENT)throw new Error('personal cash not debited exactly once');
-  if(e.g.peDeals.some(d=>d.ownerAccount==='company'))throw new Error('company PE deal carried into the new company');
+  if(e.g.peDeals.some(d=>!kept(d)))throw new Error('active company PE deal carried into the new company');
   if(JSON.stringify(e.g.peDeals.map(d=>d.id))!==personalDeals)throw new Error('personal PE deals changed');
   valid('right after refounding');
   const start=e.g.week;while(e.g.week<start+13){if(e.advanceWeek(false)===false)throw new Error('week '+(e.g.week+1)+' refused');valid('week '+e.g.week);}

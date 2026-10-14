@@ -9,7 +9,12 @@ const INVESTMENT=50_000_000,PERSONAL_CASH=200_000_000;
 async function soldCompany({companyPE=false,personalPE=false}={}){
  const ctx=await scenario('own'),g=ctx.game.g;
  g.companyCash+=300_000_000;g.personalCash=PERSONAL_CASH+(personalPE?30_000_000:0);g.finance=ctx.modules.finance.defaultFinanceState(g);
- if(companyPE)assert.equal(ctx.game.createPEDeal('ramen',100_000_000,'company'),true,'production company PE deal');
+ if(companyPE){
+  // An already exited company deal (history only, settled before the sale) and an active one (part of the sold company).
+  assert.equal(ctx.game.createPEDeal('ramen',20_000_000,'company'),true,'production company PE deal');
+  assert.equal(ctx.game.exitPEDeal(g.peDeals.at(-1).id),true,'production PE exit');
+  assert.equal(ctx.game.createPEDeal('ramen',100_000_000,'company'),true,'production company PE deal');
+ }
  if(personalPE)assert.equal(ctx.game.createPEDeal('ramen',30_000_000,'personal'),true,'production personal PE deal');
  assert.equal(ctx.modules.finance.validate(snapshot(ctx.game)).ok,true,'sold company accounting valid');
  g.isCompanySold=true;assert.equal(ctx.game.save(),true);await ctx.backend.flush();
@@ -25,8 +30,11 @@ function expectRefounded(before,after,ctx){
  assert.equal(f.openingCash,INVESTMENT,'opening cash is the contribution');assert.equal(f.openingEquity,INVESTMENT,'opening equity is the contribution');
  assert.equal(f.transactions.length,0,'the new company starts with an empty ledger');
  assert.equal(after.personalCash,before.personalCash-INVESTMENT,'personal cash debited exactly once');
- assert.equal(after.peDeals.filter(d=>d.ownerAccount==='company').length,0,'no company PE deal of the sold company is carried');
- assert.equal(JSON.stringify(after.peDeals.filter(d=>d.ownerAccount!=='company').map(d=>d.id)),JSON.stringify(before.peDeals.filter(d=>d.ownerAccount!=='company').map(d=>d.id)),'personal PE deals stay with the founder');
+ // The sold company's active company PE deals were part of its sale value (as subsidiaries in companyValue), so they
+ // stay with it; exited company deals are history only and personal deals stay with the founder.
+ const kept=d=>!(d.ownerAccount==='company'&&d.status==='active');
+ assert.equal(after.peDeals.filter(d=>!kept(d)).length,0,'no active company PE deal of the sold company is carried');
+ assert.equal(JSON.stringify(after.peDeals.map(d=>d.id)),JSON.stringify(before.peDeals.filter(kept).map(d=>d.id)),'personal deals and exited history are carried');
  assert.equal(ctx.modules.finance.validate(after).ok,true,'finance.validate right after refounding');
 }
 module.exports={INVESTMENT,soldCompany,refound,expectRefounded,snapshot,economic};
