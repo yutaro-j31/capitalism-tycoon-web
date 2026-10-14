@@ -42,5 +42,18 @@ function expectDeclined(variant){
   for(const key of ['founderOwnershipRatio','externalShareholderRatio','competitorOwnedRatio'])assert.equal(reloaded[key],live[key],`${key}: live equals reload (no load-time fork)`);
   console.log(`declineInboundBuyoutOffer ${variant} ratios sum to 1 / live equals reload / single commit PASS`);
  }
+ // The hostile stake is capped at the external float that remains: a wholly founder-owned company gives the bidder
+ // nothing, a 1% float gives at most 1%; the founder sells nothing and the ratios still sum to 1 (#963 review).
+ for(const [label,founderShare,gain] of [['founder holds everything',1,0],['1% external float',.99,.01]]){
+  const s=await fixture('hostile'),g=s.game.g;g.treasuryBuybackShares=0;g.founderShares=Math.round(g.sharesOut*founderShare);g.competitorOwnedRatio=0;s.game.updateOwnershipRatios();
+  assert.equal(s.game.save(),true);await s.backend.flush();const before=snapshot(s.game);
+  assert.equal(s.game.declineInboundBuyoutOffer('offer-fixture'),true);const after=snapshot(s.game);
+  assert.ok(Math.abs(after.competitorOwnedRatio-gain)<1e-12,`${label}: competitor gains ${gain}`);
+  assert.equal(after.founderOwnershipRatio,before.founderOwnershipRatio,`${label}: founder unchanged`);assert.equal(after.founderShares,before.founderShares);
+  assert.ok(Math.abs(sum(after)-1)<1e-12,`${label}: ratios sum to 1 (got ${sum(after)})`);
+  await s.backend.flush();const reloaded=s.engineModule.TycoonEngine.load().g;
+  for(const key of ['founderOwnershipRatio','externalShareholderRatio','competitorOwnedRatio'])assert.equal(reloaded[key],after[key],`${label}: ${key} live equals reload`);
+  console.log(`declineInboundBuyoutOffer hostile / ${label} / stake capped at the float / ratios sum to 1 / reload PASS`);
+ }
  console.log('Decline buyout ownership save atomicity PASS');
 })().catch(e=>{console.error(e);process.exitCode=1;});

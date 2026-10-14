@@ -146,8 +146,9 @@ function installCompletion(TycoonEngine){
     o.status='accepted';o.acceptedWeek=this.g.week;this.g.companyBuyoutHistory.unshift(`第${this.g.week}週：${o.bidderName}へ${Math.round(sale.exitPrice).toLocaleString()}円で売却。`);this.notify(`${this.g.companyName}を${o.bidderName}へ売却しました。創業者受取${Math.round(sale.founderProceeds).toLocaleString()}円。`,'success');this.save();this.emit();return true;
   };
   // #955: the hostile bidder's extra stake comes out of the external float under the existing ownership rule
-  // (updateOwnershipRatios), and the decline commits with one save or rolls back.
-  TycoonEngine.prototype.declineInboundBuyoutOffer=function(id){return this.runTransaction(()=>{const o=this.g.inboundBuyoutOffers.find(x=>x.id===id&&x.status==='pending');if(!o)return false;o.status='declined';if(o.hostile){this.g.competitorOwnedRatio=cxClamp(this.g.competitorOwnedRatio+.025,0,.49);this.updateOwnershipRatios();this.g.shareholderTrust=cxClamp(this.g.shareholderTrust-2,0,100);}this.g.companyBuyoutHistory.unshift(`第${this.g.week}週：${o.bidderName}の提案を拒否。`);this.notify(`${o.bidderName}からの買収提案を拒否しました。`,o.hostile?'warning':'info');return true;});};
+  // (updateOwnershipRatios), so it is capped at the float that remains (none when the founder holds everything;
+  // the founder sells nothing), and the decline commits with one save or rolls back.
+  TycoonEngine.prototype.declineInboundBuyoutOffer=function(id){return this.runTransaction(()=>{const o=this.g.inboundBuyoutOffers.find(x=>x.id===id&&x.status==='pending');if(!o)return false;o.status='declined';if(o.hostile){this.updateOwnershipRatios();this.g.competitorOwnedRatio=cxClamp(this.g.competitorOwnedRatio+Math.min(.025,Math.max(0,this.g.externalShareholderRatio)),0,.49);this.updateOwnershipRatios();this.g.shareholderTrust=cxClamp(this.g.shareholderTrust-2,0,100);}this.g.companyBuyoutHistory.unshift(`第${this.g.week}週：${o.bidderName}の提案を拒否。`);this.notify(`${o.bidderName}からの買収提案を拒否しました。`,o.hostile?'warning':'info');return true;});};
 
   TycoonEngine.prototype.recordCurrentCompany=function(exitType,exitPrice=0,founderProceeds=0,note=''){
     this.ensureCompletionDefaults();const serial=this.g.currentCompanySerial||1;if(this.g.pastCompanyRecords.some(x=>x.companySerial===serial&&x.exitType===exitType&&x.exitedWeek===this.g.week))return;
