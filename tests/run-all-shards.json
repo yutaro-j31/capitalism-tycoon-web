@@ -21,7 +21,8 @@
     "tests/sports-team-accounting-test.js",
     "tests/sports-management-test.js",
     "tests/real-estate-agency-site-capacity-test.js",
-    "tests/subsidiary-disposal-save-atomicity-test.js"
+    "tests/subsidiary-disposal-save-atomicity-test.js",
+    "tests/refounding-ledger-test.js"
   ],
   "C": [
     "tests/pe-exit-deal-save-atomicity-test.js",

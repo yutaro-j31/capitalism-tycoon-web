@@ -62,6 +62,7 @@ const nodeTests = [
   ['listed-subsidiary-quarter-save-atomicity', 'tests/listed-subsidiary-quarter-save-atomicity-test.js'],
   ['subsidiary-disposal-accounting', 'tests/subsidiary-disposal-accounting-test.js'],
   ['subsidiary-disposal-save-atomicity', 'tests/subsidiary-disposal-save-atomicity-test.js'],
+  ['refounding-ledger', 'tests/refounding-ledger-test.js'],
   ['pe-create-deal-save-atomicity', 'tests/pe-create-deal-save-atomicity-test.js'],
   ['pe-exit-deal-save-atomicity', 'tests/pe-exit-deal-save-atomicity-test.js'],
   ['shareholder-activism-accept-save-atomicity', 'tests/shareholder-activism-accept-save-atomicity-test.js'],
