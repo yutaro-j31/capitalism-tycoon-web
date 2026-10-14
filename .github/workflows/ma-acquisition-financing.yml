@@ -15,6 +15,11 @@ on:
       - 'tests/stock-sale-save-atomicity-webkit-test.js'
       - 'tests/stock-split-save-atomicity-test.js'
       - 'tests/stock-split-save-atomicity-webkit-test.js'
+      - 'js/completion.js'
+      - 'tests/decline-buyout-ownership-save-atomicity-test.js'
+      - 'tests/decline-buyout-ownership-save-atomicity-webkit-test.js'
+      - 'tests/earnings-confirm-read-only-test.js'
+      - 'tests/earnings-confirm-read-only-webkit-test.js'
       - 'js/shareholder-activism.js'
       - 'tests/shareholder-activism-accept-save-atomicity-test.js'
       - 'tests/shareholder-activism-accept-save-atomicity-webkit-test.js'
@@ -130,6 +135,11 @@ on:
       - 'tests/stock-sale-save-atomicity-webkit-test.js'
       - 'tests/stock-split-save-atomicity-test.js'
       - 'tests/stock-split-save-atomicity-webkit-test.js'
+      - 'js/completion.js'
+      - 'tests/decline-buyout-ownership-save-atomicity-test.js'
+      - 'tests/decline-buyout-ownership-save-atomicity-webkit-test.js'
+      - 'tests/earnings-confirm-read-only-test.js'
+      - 'tests/earnings-confirm-read-only-webkit-test.js'
       - 'js/shareholder-activism.js'
       - 'tests/shareholder-activism-accept-save-atomicity-test.js'
       - 'tests/shareholder-activism-accept-save-atomicity-webkit-test.js'
@@ -444,6 +454,10 @@ jobs:
         run: npx playwright install --with-deps webkit
       - name: Stock split atomicity in real iPhone WebKit
         run: node tests/stock-split-save-atomicity-webkit-test.js
+      - name: Hostile buyout decline atomicity in real iPhone WebKit
+        run: node tests/decline-buyout-ownership-save-atomicity-webkit-test.js
+      - name: Earnings confirm read-only in real iPhone WebKit
+        run: node tests/earnings-confirm-read-only-webkit-test.js
       - name: Activist proposal acceptance atomicity in real iPhone WebKit
         run: node tests/shareholder-activism-accept-save-atomicity-webkit-test.js
       - name: Stock split dividend rescale in real iPhone WebKit

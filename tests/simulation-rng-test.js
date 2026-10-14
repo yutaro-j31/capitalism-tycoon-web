@@ -225,7 +225,12 @@ const runtime = seed => {
     const person = E.generateKeyPersonCandidate();
     E.g.keyPersonnel.push(person);
     assert.equal(E.trainKeyPerson(person.id), true);
-    E.runEarningsEventsIfNeeded(true);
+    // #988: earnings run only on the formal 13-week schedule; a forced call is refused without drawing.
+    const forced = JSON.stringify(E.g);
+    assert.equal(E.runEarningsEventsIfNeeded(true), false, 'forced earnings refused');
+    assert.equal(JSON.stringify(E.g), forced, 'refused forced earnings draws nothing');
+    E.g.lastEarningsAnnouncementWeek = E.g.week - 13;
+    assert.equal(E.runEarningsEventsIfNeeded(false), true, 'scheduled earnings event draws from the save stream');
     E.seedCompetitorCounterStates();
     E.updateCompletionWeekly();
     E.updateParityWeekly();
