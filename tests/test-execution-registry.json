@@ -203,6 +203,10 @@
     "reason": "Own/external split full rollback, pending predecessor, reload and fresh real IndexedDB in the independent stock-split-atomicity job on every workflow event including PR/main.",
     "executedBy": ".github/workflows/ma-acquisition-financing.yml"
   },
+  "tests/decline-buyout-ownership-save-atomicity-webkit-test.js": {
+    "reason": "#955 declineInboundBuyoutOffer hostile/friendly: one commit, founder+external+competitor stays 1; every harness fault kind (incl. prior pending put) rolls live, mirror, cache and durable IndexedDB back; deterministic retry; second decline refused; reload and fresh durable-only hydration in iPhone WebKit on every workflow event.",
+    "executedBy": ".github/workflows/ma-acquisition-financing.yml"
+  },
   "tests/force-earnings-ui-save-atomicity-webkit-test.js": {
     "reason": "#955 force-earnings: the real market-tab button tapped on the booted app commits one earnings event, one change and one durable put with its simulation-RNG draws; every applicable harness fault (incl. prior pending put) rolls live, mirror, cache and durable state back, thrown faults open the production recovery dialog, and the retry tap is deterministic; reload and fresh durable-only hydration in iPhone WebKit on every workflow event.",
     "executedBy": ".github/workflows/ma-acquisition-financing.yml"

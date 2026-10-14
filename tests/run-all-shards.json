@@ -25,6 +25,7 @@
     "tests/refounding-ledger-test.js"
   ],
   "C": [
+    "tests/decline-buyout-ownership-save-atomicity-test.js",
     "tests/pe-exit-deal-save-atomicity-test.js",
     "tests/transaction-rollback-test.js",
     "test:long",
