@@ -59,8 +59,12 @@ function pastMaturity(){
  assert.ok(e.refinancePropertyMortgage(p.id,'fixed'));
  const before=p.mortgageBalance;
  e.g.personalCash=0;
- for(let i=0;i<modules.realEstateMortgageRefinancing.PRODUCTS.fixed.termWeeks;i++){e.g.week+=1;modules.realEstateMortgageRefinancing.processWeek(e);}
- const rec={case:'CAND-P4-010',mode:'maturity-no-cash',openingPrincipal:before,closingPrincipal:p.mortgageBalance,remainingWeeks:p.mortgageRemainingWeeks,recordedUnpaidRows:e.g.propertyMortgageHistory.filter(x=>x.type==='mortgage-payment').length,delinquentWeeks:('mortgageDelinquentWeeks' in p)?p.mortgageDelinquentWeeks:null};
+ let unpaidRows=0;
+ for(let i=0;i<modules.realEstateMortgageRefinancing.PRODUCTS.fixed.termWeeks;i++){
+  e.g.week+=1;
+  unpaidRows+=modules.realEstateMortgageRefinancing.processWeek(e).filter(x=>x.propertyID===p.id&&x.unpaid>0).length;
+ }
+ const rec={case:'CAND-P4-010',mode:'maturity-no-cash',openingPrincipal:before,closingPrincipal:p.mortgageBalance,remainingWeeks:p.mortgageRemainingWeeks,recordedUnpaidRows:unpaidRows,delinquentWeeks:('mortgageDelinquentWeeks' in p)?p.mortgageDelinquentWeeks:null};
  console.log(JSON.stringify(rec));
  assert.equal(p.mortgageRemainingWeeks,0);
  assert.equal(p.mortgageBalance,before,'outstanding debt survives nominal maturity');
