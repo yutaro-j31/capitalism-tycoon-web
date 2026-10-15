@@ -379,7 +379,7 @@ Merged since the seventh pass, one at a time by Owner conditional approval, the 
 | PR | Concern | PR head | Merge (main) | Tree (merge-test of head into main = main tree after merge) | Main CI after merge | Main WebKit |
 |---|---|---|---|---|---|---|
 | #992 | D3 share-swap ownership ratios (`issueSharesToExternalHolders`) | `d2139124` | `d0802d88` | `b575b387` | 42 success / 9 skipped / 0 failed (Pages publication-attestation finished before the Pages deployment; one failed-job rerun passed) | `stock-split-atomicity` job 116271164874 (share swap ownership ratios step success) |
-| #993 | D4 competitor stake purchase from the external float (`buyCompetitorStake`) | `6673c297` (synced with main after #992; test registration merged as a union) | `743d08d1` | `e6653644` | MAIN_CI_993 | MAIN_WEBKIT_993 |
+| #993 | D4 competitor stake purchase from the external float (`buyCompetitorStake`) | `6673c297` (synced with main after #992; test registration merged as a union) | `743d08d1` | `e6653644` | MAIN_CI_993 | `stock-split-atomicity` job 116299892888 (D3 and D4 competitor stake steps success) |
 
 | Writer / defect | Review | Node | WebKit | Verdict on main |
 |---|---|---|---|---|
