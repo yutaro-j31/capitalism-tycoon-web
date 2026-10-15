@@ -203,6 +203,10 @@
     "reason": "Own/external split full rollback, pending predecessor, reload and fresh real IndexedDB in the independent stock-split-atomicity job on every workflow event including PR/main.",
     "executedBy": ".github/workflows/ma-acquisition-financing.yml"
   },
+  "tests/ma-share-swap-ownership-ratios-webkit-test.js": {
+    "reason": "D3 share-swap closing through the installed deal-room chain on real WebKit: a rejected save rolls ownership ratios back; the committed closing dilutes founder and competitor over issued − treasury, new shares are external, ratios sum to 1; reload and fresh durable-only IndexedDB agree, in the stock-split-atomicity job on every workflow event.",
+    "executedBy": ".github/workflows/ma-acquisition-financing.yml"
+  },
   "tests/competitor-stake-float-webkit-test.js": {
     "reason": "D4 weekly competitor stake purchases on real WebKit through advanceWeek: external float only, 49% cap, whole shares, cash = filled × price, founder untouched, ratios sum to 1 every committed week; reload and fresh durable-only IndexedDB agree, in the stock-split-atomicity job on every workflow event.",
     "executedBy": ".github/workflows/ma-acquisition-financing.yml"

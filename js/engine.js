@@ -1725,7 +1725,7 @@ class TycoonEngine extends EventTarget {
     if(method!=='shareSwap'&&this.g.companyCash<price)return this.fail(`${yen(price)}が必要です。`);
     if(method==='shareSwap'&&!this.g.publicCompany)return this.fail('株式交換には自社上場が必要です。');
     const identifiable=Math.min(price,Math.max(0,t.valuation)),goodwill=Math.max(0,price-identifiable),goodwillID=uuid(this.g,'goodwill');
-    if(method==='shareSwap'){const newShares=Math.ceil(price/Math.max(1,this.g.stockPrice));this.g.sharesOut+=newShares;this.g.externalShareholderRatio+=newShares/this.g.sharesOut;finance.event(this.g,'acquisition',price,{cashEffect:0,assetEffect:price,sourceType:'acquireTargetShareSwap',sourceID:id,description:`${t.name} 株式交換取得`});finance.event(this.g,'equityFinancing',price,{cashEffect:0,equityEffect:price,sourceType:'shareSwapCapital',sourceID:id,description:`${t.name} 株式交換資本増加`});finance.ensureFinance(this.g).balances.capitalSurplus=finite(finance.ensureFinance(this.g).balances.capitalSurplus)+price;}
+    if(method==='shareSwap'){const newShares=Math.ceil(price/Math.max(1,this.g.stockPrice));this.issueSharesToExternalHolders(newShares);finance.event(this.g,'acquisition',price,{cashEffect:0,assetEffect:price,sourceType:'acquireTargetShareSwap',sourceID:id,description:`${t.name} 株式交換取得`});finance.event(this.g,'equityFinancing',price,{cashEffect:0,equityEffect:price,sourceType:'shareSwapCapital',sourceID:id,description:`${t.name} 株式交換資本増加`});finance.ensureFinance(this.g).balances.capitalSurplus=finite(finance.ensureFinance(this.g).balances.capitalSurplus)+price;}
     else {this.g.companyCash-=price;finance.event(this.g,'acquisition',price,{cashEffect:-price,assetEffect:price,sourceType:'acquireTarget',sourceID:id,description:`${t.name} 買収`});}
     const subsidiary={...t,identifiableNetAssetsBookValue:identifiable,goodwillBookValue:goodwill,totalCarryingValue:price,acquisitionPrice:price,acquisitionMethod:method,goodwillRecordID:goodwillID,acquiredWeek:this.g.week,status:'active',retainedEarnings:0,weeklyProfit:t.operatingProfit/52};globalThis.__capitalismTycoonModules?.maIntegration?.initializeSubsidiary?.(this.g,subsidiary,{legacyCompleted:false,method});subsidiary.pmiStatus='planning';subsidiary.pmiStrategy=null;subsidiary.pmiProgress=0;subsidiary.pmiPhase='assessment';subsidiary.pmiRealizedSynergyRate=0;subsidiary.pmiWeeklySynergyProfit=0;subsidiary.pmiWeeklyDisruptionCost=0;subsidiary.pmiLastProcessedWeek=null;subsidiary.weeklyProfit=subsidiary.standaloneWeeklyProfit;this.g.maSubsidiaries.push(subsidiary);
     this.g.goodwillRecords.push({id:goodwillID,name:t.name,amount:goodwill,goodwillBookValue:goodwill,carryingValue:goodwill,acquiredWeek:this.g.week});
@@ -1833,6 +1833,17 @@ class TycoonEngine extends EventTarget {
     this.notify(`${this.g.companyName}を${yen(sale.exitPrice)}で売却しました。創業者受取${yen(sale.founderProceeds)}。`,'success');this.save();this.emit();return true;
   }
 
+  // D3: issue new player-company shares to outside holders (share swap). The founder and the competitor keep
+  // their share counts and are diluted over the new outstanding denominator (issued − treasury); the new shares
+  // are external. The competitor's count is read from its stored aggregate ratio of the old denominator: that
+  // ratio is the authority (competitors[].ownedPlayerShares is not kept in sync by every writer). Ratios then
+  // follow the shared rule (external = 1 − founder − competitor).
+  issueSharesToExternalHolders(newShares) {
+    const before=Math.max(1,this.g.sharesOut-this.g.treasuryBuybackShares),competitorShares=Math.max(0,finite(this.g.competitorOwnedRatio))*before;
+    this.g.sharesOut+=newShares;
+    this.g.competitorOwnedRatio=competitorShares/Math.max(1,this.g.sharesOut-this.g.treasuryBuybackShares);
+    this.updateOwnershipRatios();
+  }
   updateOwnershipRatios() {
     const eligible=Math.max(1,this.g.sharesOut-this.g.treasuryBuybackShares);this.g.founderOwnershipRatio=clamp(this.g.founderShares/eligible,0,1);this.g.externalShareholderRatio=clamp(1-this.g.founderOwnershipRatio-finite(this.g.competitorOwnedRatio),0,1);
   }
