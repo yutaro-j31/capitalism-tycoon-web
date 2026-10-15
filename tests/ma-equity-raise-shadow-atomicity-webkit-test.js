@@ -46,13 +46,22 @@ async function view(p){return p.evaluate(async snap=>{const m=__capitalismTycoon
   // 1. save accepted (mirror + IDB cache written, put queued), then throws.
   await rejected('save-throw',()=>{const save=e.save;let hits=0,accepted=false;e.save=function(...args){const r=save.apply(this,args);if(!this.inTransaction()){hits++;accepted=r===true&&localStorage.getItem(key).includes('maPublicEquityRaise');throw new Error('save accepted then threw');}return r;};return {hits:()=>hits,accepted:()=>accepted,restore(){e.save=save;}};});
   if(!cases[0].accepted)throw new Error('save-throw did not reach an accepted closing save');
-  // 2. the success notice emit throws after the accepted save.
-  await rejected('notify-emit-throw',()=>{const emit=e.emit;let hits=0;e.emit=function(type='change',...args){if(type==='notify'&&!this.inTransaction()){hits++;throw new Error('notify emit threw');}return emit.call(this,type,...args);};return {hits:()=>hits,restore(){e.emit=emit;}};});
+  let alreadyClosed=false;
+  // 2. the success notice emit throws after the accepted save: NOT a contract (G1). Only the no-fork invariant is
+  //    checked: rolled back everywhere (today) or committed once (after a #955-style fix); live, mirror, cache, durable agree.
+  {const emit=e.emit;let hits=0;e.emit=function(type='change',...args){if(type==='notify'&&!this.inTransaction()){hits++;throw new Error('notify emit threw');}return emit.call(this,type,...args);};
+   let result,thrown=false;try{result=e.closeMADeal('eq-deal');}catch(_){thrown=true;}finally{e.emit=emit;}
+   await m.saveStorageIDB.flush();const d=await durable(),c=m.saveStorageIDB.readSync(key),closed=e.g.maDealRooms.find(x=>x.id==='eq-deal').status==='acquired';
+   if(!hits||d!==c||localStorage.getItem(key)!==c||closed!==c.includes('maPublicEquityRaise')||(!thrown&&result!==closed))throw new Error('notify-emit-throw forked '+JSON.stringify({hits,result,thrown,closed}));
+   cases.push({name:'notify-emit-throw (non-contract)',hits,result,thrown,closed,noFork:true});
+   alreadyClosed=closed;}
   // 3. a throwing UI listener: the DOM reports it and the closing commits once.
-  let listenerHits=0;const listener=()=>{listenerHits++;throw new Error('notify listener threw');};e.addEventListener('notify',listener);
+  //    (Skipped only if step 2 already committed the closing after a future #955-style fix.)
+  let listenerHits=0;
+  if(!alreadyClosed){const listener=()=>{listenerHits++;throw new Error('notify listener threw');};e.addEventListener('notify',listener);
   let committed;try{committed=e.closeMADeal('eq-deal');}finally{e.removeEventListener('notify',listener);}
   await m.saveStorageIDB.flush();
-  if(committed!==true||listenerHits<1)throw new Error('listener throw: closing expected to commit '+JSON.stringify({committed,listenerHits}));
+  if(committed!==true||listenerHits<1)throw new Error('listener throw: closing expected to commit '+JSON.stringify({committed,listenerHits}));}
   if(e.closeMADeal('eq-deal')!==false)throw new Error('a second closing must be rejected');await m.saveStorageIDB.flush();
   const g=e.g,o=g.sharesOut-g.treasuryBuybackShares,eps=1e-12,v=view(g);
   if(o!==970000||v.subsidiaries!==1||v.equityRows!==1)throw new Error('commit once '+JSON.stringify(v));
@@ -62,11 +71,12 @@ async function view(p){return p.evaluate(async snap=>{const m=__capitalismTycoon
   if(!m.finance.validate(JSON.parse(JSON.stringify(g))).ok)throw new Error('accounting invalid');
   const d=await durable();if(d!==m.saveStorageIDB.readSync(key)||d!==localStorage.getItem(key))throw new Error('commit: durable, cache and mirror differ');
   if(key!=='capitalism_tycoon_web_v1'||g.saveVersion!==9)throw new Error('save identity');
-  return {cases,listenerHits,live:view(new m.engine.TycoonEngine(JSON.parse(JSON.stringify(g))).g)};
+  return {cases,listenerHits,alreadyClosed,live:view(new m.engine.TycoonEngine(JSON.parse(JSON.stringify(g))).g)};
  },pick);
- for(const row of proof.cases)console.log(`iPhone WebKit shadow boundary ${row.name}: result=false live/mirror/cache/durable rolled back consistently PASS`);
- assert.ok(pageErrors.some(x=>x.includes('notify listener threw')),'the throwing listener was reported by the page, not rethrown');
- console.log('iPhone WebKit shadow boundary notify-listener-throw: closing commits once; live = mirror = cache = durable PASS');
+ for(const row of proof.cases)console.log(`iPhone WebKit shadow boundary ${row.name}: ${row.noFork?'no fork (live = mirror = cache = durable)':'result=false live/mirror/cache/durable rolled back consistently'} PASS`);
+ if(!proof.alreadyClosed)assert.ok(pageErrors.some(x=>x.includes('notify listener threw')),'the throwing listener was reported by the page, not rethrown');
+ assert.deepEqual(pageErrors.filter(x=>!x.includes('notify listener threw')),[],'no other page error');
+ console.log(proof.alreadyClosed?'iPhone WebKit shadow boundary notify-listener-throw: skipped (step 2 already committed the closing); live = mirror = cache = durable PASS':'iPhone WebKit shadow boundary notify-listener-throw: closing commits once; live = mirror = cache = durable PASS');
  await p.reload({waitUntil:'networkidle'});const r=await view(p);assert.equal(r.saveVersion,9);assert.deepEqual(r.view,proof.live,'reload');
  const state=await context.storageState({indexedDB:true});for(const origin of state.origins)origin.localStorage=[];
  const fresh=await browser.newContext({...options,storageState:state}),fp=await fresh.newPage();await fp.goto(url,{waitUntil:'networkidle'});

@@ -8,7 +8,7 @@
 // committed) → this.save() → this.emit() → this.notify(); any throw/false → replaceState(live, snapshot) +
 // checkpointSaveStorage() restore (mirror bytes, IDB cache bytes, cancel this boundary's queued IDB put).
 //
-// For every storage/event fault (save-false, save accepted then throws, `saved` / `change` / `notify` emit throws,
+// For every storage/event fault of the common contract (save-false, save accepted then throws, `saved` / `change` emit throws,
 // mirror reject, enqueue-false, enqueue-throw) and for a closing that fails while an earlier accepted save is still
 // in flight in IndexedDB, this test proves: closeMADeal returns false (the wrapper swallows the error, it does not
 // rethrow); live state equals the pre-closing snapshot (ratios, shares, cash, debt, loans, capital surplus, journal,
@@ -21,6 +21,10 @@
 // Owner's key question — save SUCCEEDED, then `saved` / `change` / `notify` throws: the already-saved closing IS
 // cancelled, but consistently: live, mirror, IDB cache and durable IDB all return to the pre-closing bytes (the
 // closing's IDB put is cancelled before it starts, because the boundary is synchronous). No live/durable fork.
+//
+// A throwing success `notify` is NOT part of the contract (G1): it is checked only for the safety invariant that holds
+// both today (rollback) and after the intended #955-style fix (commit, then notice): the closing is either absent
+// everywhere or committed exactly once, and live, mirror, IDB cache and durable IDB never fork.
 //
 // Known gaps, recorded here and NOT asserted (they are current behaviour, not contracts):
 //  G1 (P2, semantics) The success notice is emitted inside the rollback region. A throwing `notify` (or `change`)
@@ -42,8 +46,9 @@ const {loadGame}=require('./harness');
 const {indexedDBFor,inject}=require('./fixtures/pe-fund-acquisition-faults');
 const clone=v=>JSON.parse(JSON.stringify(v));
 const NOTICE='買収資金調達と最終契約を完了しました';
-const FAULTS=['save-false','save-throw','saved','change','notify','mirror','enqueue-false','enqueue-throw'];
-const POST_SAVE=['save-throw','saved','change','notify'];
+// Contract faults: the common transaction contract rolls these back (post-save `saved` / `change` failures included).
+const FAULTS=['save-false','save-throw','saved','change','mirror','enqueue-false','enqueue-throw'];
+const POST_SAVE=['save-throw','saved','change'];
 const outstanding=g=>g.sharesOut-g.treasuryBuybackShares;
 async function scenario(){
  const durable=new Map(),control={attempts:[]},host={draws:0};let seed=934021;
@@ -91,6 +96,28 @@ function assertCommittedOnce(s,before,label){
  assert.equal(g.personalCash,before.personalCash,`${label}: personal cash untouched`);
  assert.equal(s.modules.finance.validate(clone(g)).ok,true,`${label}: accounting valid`);
 }
+// Safety invariant for non-contract faults: rolled back everywhere, or committed exactly once; never a fork.
+async function assertNoFork(s,before,label,{result}={}){
+ s.control.release?.();await s.backend.flush();
+ const cache=s.backend.readSync(s.key);
+ assert.equal(s.durable.get(s.key),cache,`${label}: durable = cache`);assert.equal(s.ctx.__localStorageData.get(s.key),cache,`${label}: mirror = cache`);
+ const closed=s.game.g.maDealRooms.find(d=>d.id===s.deal.id).status==='acquired';
+ if(result!==undefined)assert.equal(result,closed,`${label}: the result matches the committed state`);
+ if(closed){assertCommittedOnce(s,before,`${label} (committed)`);assert.ok(cache.includes('maPublicEquityRaise'),`${label}: the committed closing is durable`);}
+ else{assert.equal(s.game.g.maSubsidiaries.length,before.maSubsidiaries.length,`${label}: no acquisition`);assert.equal(s.game.g.sharesOut,before.sharesOut,`${label}: no new shares`);assert.equal(s.game.g.companyCash,before.companyCash,`${label}: no closing money`);assert.ok(!cache.includes('maPublicEquityRaise'),`${label}: nothing durable`);}
+ await assertReloads(s,s.game.g,`${label} (no fork)`);
+ return closed;
+}
+async function notifyCase({pending=false}={}){
+ const s=await scenario(),label=`notify${pending?'/pending':''} (non-contract, G1)`;
+ if(pending){s.control.holdPut=true;s.game.g.news.unshift('earlier accepted save');assert.equal(s.game.save(),true);for(let i=0;i<100&&!s.control.release;i++)await new Promise(r=>setImmediate(r));assert.equal(typeof s.control.release,'function',`${label}: earlier IDB put in flight`);}
+ const before=snapshot(s.game),draws=s.host.draws,fault=inject(s.game,s.modules,s.ctx.localStorage,s.key,'notify');let result,error;
+ try{result=s.game.closeMADeal(s.deal.id);}catch(e){error=e;}finally{fault.restore();}
+ assert.ok(fault.hits()>0,`${label}: fault reached the closing`);assert.equal(s.host.draws,draws,`${label}: no host RNG`);
+ const closed=await assertNoFork(s,before,label,{result:error?undefined:result});
+ if(!closed){assert.equal(s.game.closeMADeal(s.deal.id),true,`${label}: retry commits`);await assertNoFork(s,before,`${label} retry`,{result:true});}
+ console.log(`M&A equity raise shadow boundary ${label}: ${closed?'committed once':'rolled back'}; live/mirror/cache/durable never fork PASS`);
+}
 async function faultCase(kind,{pending=false}={}){
  const s=await scenario(),label=`${kind}${pending?'/pending':''}`;
  if(pending){
@@ -128,7 +155,8 @@ async function faultCase(kind,{pending=false}={}){
 }
 (async()=>{
  for(const kind of FAULTS)await faultCase(kind);
- for(const kind of ['save-throw','notify'])await faultCase(kind,{pending:true});
+ for(const kind of ['save-throw','change'])await faultCase(kind,{pending:true});
+ await notifyCase();await notifyCase({pending:true});
  // Nested in an outer transaction: commit with the outer single save; roll back with the outer rollback.
  {const s=await scenario(),before=snapshot(s.game);let saves=0;const save=s.game.save;s.game.save=function(...a){if(!this.inTransaction())saves++;return save.apply(this,a);};
   assert.equal(s.game.runTransaction(()=>{const ok=s.game.closeMADeal(s.deal.id);s.game.g.news.unshift('outer marker');return ok;}),true);s.game.save=save;
@@ -145,14 +173,13 @@ async function faultCase(kind,{pending=false}={}){
   assert.equal(s.ctx.__localStorageData.get(s.key),mirror);assert.equal(s.backend.readSync(s.key),cache);await s.backend.flush();
   assert.equal(s.durable.get(s.key),cache);assert.equal(s.control.attempts.length,puts);await assertReloads(s,before,'nested rollback');
   assert.equal(s.game.closeMADeal(s.deal.id),true);assertCommittedOnce(s,before,'nested rollback retry');console.log('nested outer rollback PASS');}
- {const s=await scenario(),before=snapshot(s.game),fault=inject(s.game,s.modules,s.ctx.localStorage,s.key,'notify');let r;
+ {// A throwing notify inside an outer transaction (non-contract, G1): the outer change commits; the closing is either
+  // absent or committed once; live, mirror, cache and durable never fork.
+  const s=await scenario(),before=snapshot(s.game),fault=inject(s.game,s.modules,s.ctx.localStorage,s.key,'notify');let r;
   try{r=s.game.runTransaction(()=>{const ok=s.game.closeMADeal(s.deal.id);s.game.g.news.unshift('outer marker');return {ok};});}finally{fault.restore();}
-  assert.equal(r.ok,false,'nested: failed inner closing returns false');assert.ok(fault.hits()>0);
-  assert.equal(s.game.g.maDealRooms.find(d=>d.id===s.deal.id).status,'accepted');assert.equal(s.game.g.maSubsidiaries.length,0);assert.equal(s.game.g.sharesOut,before.sharesOut);
-  assert.equal(s.game.g.companyCash,before.companyCash,'nested: no closing money');assert.equal(s.game.g.companyDebt,before.companyDebt);
-  assert.equal(s.game.g.news[0],'outer marker','nested: outer change still commits alone');await s.backend.flush();
-  assert.equal(s.durable.get(s.key),s.backend.readSync(s.key));assert.equal(JSON.parse(s.durable.get(s.key)).news[0],'outer marker');
-  await assertReloads(s,s.game.g,'nested inner failure');console.log('nested inner failure PASS');}
+  assert.ok(fault.hits()>0);assert.equal(s.game.g.news[0],'outer marker','nested: the outer change commits');
+  await assertNoFork(s,before,'nested inner notify',{result:r.ok});assert.equal(JSON.parse(s.durable.get(s.key)).news[0],'outer marker');
+  console.log('nested inner notify (non-contract): outer commits; closing absent or once; no fork PASS');}
  // Determinism.
  {const a=await scenario(),b=await scenario();assert.equal(a.game.closeMADeal(a.deal.id),true);assert.equal(b.game.closeMADeal(b.deal.id),true);
   const eco=x=>{const c=snapshot(x);delete c.lastSaveDate;delete c.saveSequence;return JSON.stringify(c);};assert.equal(eco(a.game),eco(b.game),'deterministic');
