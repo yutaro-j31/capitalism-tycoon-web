@@ -1,0 +1,26 @@
+name: P4 Candidate Collateral and Mortgage Audit
+on:
+  pull_request:
+    paths:
+      - 'scripts/p4-cand-009-010-audit.cjs'
+      - '.github/workflows/p4-candidates-debt-audit.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'scripts/p4-cand-009-010-audit.cjs'
+      - '.github/workflows/p4-candidates-debt-audit.yml'
+permissions:
+  contents: read
+jobs:
+  candidate-reproduction:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Syntax check
+        run: node --check scripts/p4-cand-009-010-audit.cjs
+      - name: Installed engine candidate reproduction (defect oracle)
+        run: node scripts/p4-cand-009-010-audit.cjs
