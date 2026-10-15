@@ -81,6 +81,24 @@ function buy(s,c,label,expectFilled){
   assert.equal(g.competitors.reduce((a,x)=>a+finite(x.ownedPlayerShares),0),5000,'only the filled purchase is attributed');
   console.log('decline-raised aggregate stake: float bounded by the aggregate, unattributed stake left unattributed PASS');}
 
+ // 3b. Composite scenarios (Owner): issuance and a treasury buyback before a purchase keep the rule exact.
+ {const s=engine(97531,g=>{g.founderShares=850000;g.competitorOwnedRatio=.1;}),g=s.e.g,c=g.competitors[0];
+  // D3 share-swap issuance of 100,000 shares to external holders: founder/competitor diluted, float grows by 100,000.
+  const before=s.modules.economicReadModel.ownershipReconciliation(g).securityClasses[0].unallocatedOutstandingQuantity-g.competitorOwnedRatio*outstanding(g);
+  s.e.issueSharesToExternalHolders(100000);
+  const after=s.modules.economicReadModel.ownershipReconciliation(g).securityClasses[0].unallocatedOutstandingQuantity-g.competitorOwnedRatio*outstanding(g);
+  assert.ok(Math.abs(after-(before+100000))<1e-6,'issuance adds exactly the new shares to the float');assert.ok(Math.abs(sum(g)-1)<EPS);
+  buy(s,c,'after a share-swap issuance',5000);
+  console.log('composite: share-swap issuance → competitor purchase PASS');}
+ {const s=engine(97531,g=>{g.founderShares=850000;g.competitorOwnedRatio=.1;g.companyCash=1e9;g.finance=undefined;}),g=s.e.g,c=g.competitors[0];
+  g.finance=s.modules.finance.defaultFinanceState(g);const treasury=g.treasuryBuybackShares;
+  assert.equal(s.e.buybackOwnShares(2_000_000),true,'production buyback');assert.ok(g.treasuryBuybackShares>treasury,'treasury grew');
+  const r=s.modules.economicReadModel.ownershipReconciliation(g);assert.equal(r.ok,true);
+  const float=Math.floor(r.securityClasses[0].unallocatedOutstandingQuantity-g.competitorOwnedRatio*outstanding(g));
+  buy(s,c,'after a treasury buyback (float = reconciled unallocated − aggregate stake)',Math.max(0,Math.min(5000,float)));
+  assert.equal(s.modules.finance.validate(JSON.parse(JSON.stringify(g))).ok,true,'accounting valid after buyback + purchase');
+  console.log(`composite: treasury buyback → competitor purchase (float ${float}) PASS`);}
+
  // 4. The production weekly path: every purchase obeys the rule; ratios stay 1 through advanceWeek; the RNG count per
  //    week is unchanged by the rule (the probability draw happens before the fill, exactly as before).
  const weekly=(seed,setup,weeks=120)=>{const s=engine(seed,setup),calls=[],base=s.e.buyCompetitorStake;
