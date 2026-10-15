@@ -19,7 +19,8 @@ function fixture(owner='company'){
 }
 function collateral(owner,reverse){
  const {e,p}=fixture(owner), value=300_000_000;
- const specialty=()=>e.borrowAgainstProperty(p.id,80_000_000,{rateType:'fixed',termWeeks:260});
+ const quote=e.getRealEstateFinanceQuote(p.id,60_000_000,{rateType:'fixed',termWeeks:260});
+ const specialty=()=>e.borrowAgainstProperty(p.id,60_000_000,{rateType:'fixed',termWeeks:260});
  const independent=()=>e.refinancePropertyMortgage(p.id,'fixed');
  let specialist,mortgage;
  if(reverse){mortgage=independent();specialist=specialty();}
@@ -27,7 +28,7 @@ function collateral(owner,reverse){
  const market=e.g.realEstateMarket.loans.filter(x=>x.propertyID===p.id&&x.balance>0).reduce((a,x)=>a+x.balance,0);
  const prop=Number(p.mortgageBalance||0);
  const combined=round((market+prop)/value);
- const actual={case:'CAND-P4-009',owner,order:reverse?'mortgage-first':'specialist-first',specialistAccepted:Boolean(specialist),mortgageAccepted:Boolean(mortgage),marketLoanPrincipal:market,mortgagePrincipal:prop,combinedLTV:combined,maxSpecialistLTV:owner==='personal'?.70:.75,maxMortgageLTV:.65};
+ const actual={case:'CAND-P4-009',owner,order:reverse?'mortgage-first':'specialist-first',quote,specialistAccepted:Boolean(specialist),mortgageAccepted:Boolean(mortgage),marketLoanPrincipal:market,mortgagePrincipal:prop,combinedLTV:combined,maxSpecialistLTV:owner==='personal'?.70:.75,maxMortgageLTV:.65};
  console.log(JSON.stringify(actual));
  assert.equal(Boolean(specialist),true,'specialist loan must be operationally available');
  assert.equal(Boolean(mortgage),true,'mortgage writer must be operationally available');
