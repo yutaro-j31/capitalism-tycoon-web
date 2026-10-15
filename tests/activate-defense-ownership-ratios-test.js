@@ -37,11 +37,11 @@ function defend(s,kind,label,{expectSold,expectShares}={}){
  const g=s.e.g,o=outstanding(g),held=(g.competitorOwnedRatio??0)*o,before=named(g),cash=g.competitors.map(c=>c.cash);
  const company=g.companyCash,founder=g.founderShares,treasury=g.treasuryBuybackShares,price=g.stockPrice,rng=JSON.stringify(g.simulationRng),draws=s.host.draws,rows=g.finance.transactions.length,rep=g.companyReputation;
  assert.equal(s.e.activateDefense(kind),true,`${label}: defense runs`);
- const sold=before.reduce((a,x)=>a+x,0)-named(g).reduce((a,x)=>a+x,0);
+ const sold=Math.round(before.reduce((a,x)=>a+x,0)-named(g).reduce((a,x)=>a+x,0));
  if(expectSold!==undefined)assert.equal(sold,expectSold,`${label}: shares sold`);
  if(expectShares)assert.deepEqual(named(g),expectShares,`${label}: pro rata named holdings`);
  assert.ok(sold<=Math.floor(TARGET[kind]*o),`${label}: never above the target`);
- g.competitors.forEach((c,i)=>{assert.ok(Math.abs(c.cash-cash[i]-(before[i]-named(g)[i])*price)<.01,`${label}: seller ${i} receives price × its sold shares`);assert.ok(named(g)[i]>=0&&Number.isInteger(named(g)[i]),`${label}: whole non-negative shares`);});
+ g.competitors.forEach((c,i)=>{assert.ok(Math.abs(c.cash-cash[i]-(before[i]-named(g)[i])*price)<.01,`${label}: seller ${i} receives price × its sold shares`);assert.ok(named(g)[i]>=0&&Number.isInteger(before[i]-named(g)[i]),`${label}: each seller sells whole shares and keeps a non-negative holding`);});
  assert.ok(Math.abs(comp(g)*o-(held-sold))<EPS*o,`${label}: aggregate stake −sold`);
  assert.equal(g.companyCash,company-COST[kind],`${label}: company pays the defense cost only`);
  assert.equal(g.finance.transactions.length,rows+1,`${label}: one ledger row`);assert.equal(g.finance.transactions.at(-1).sourceType,'activateDefense',`${label}: the row is the defense cost`);
@@ -93,6 +93,17 @@ function refused(s,kind,label){
  {const s=engine({holdings:[0,0]});delete s.e.g.competitorOwnedRatio;s.e.g.competitors.forEach(c=>delete c.ownedPlayerShares);
   refused(s,'whiteKnight','absent fields: white knight');defend(s,'irCampaign','absent fields: IR',{expectSold:0});assert.equal('competitorOwnedRatio' in s.e.g,false,'absent field is not written (no repair)');}
  console.log(`W-DEFENSE ${corrupt.length} unknown / contradictory ownership states fail closed for all three defenses with no change PASS`);
+ // 4b. Fractional named holdings from old saves (pre-D4 purchases wrote spend / price): only whole shares are sold, every
+ //     sold share has a seller and proceeds; the fractional remainder stays with its holder and in the aggregate.
+ {const s=engine({holdings:[100.5,100.5]});const sold=defend(s,'whiteKnight','fractional 100.5 + 100.5',{expectSold:200});
+  assert.deepEqual(clone(named(s.e.g).slice(0,2)),[.5,.5],'fractional remainders stay');assert.ok(Math.abs(s.e.g.competitorOwnedRatio*950000-1)<1e-6,'aggregate keeps the 1 unsold share');assert.equal(sold,200);
+  defend(s,'irCampaign','after the fractional sale IR still runs',{expectSold:0});}
+ {const s=engine({holdings:[.4,.4,.4]});refused(s,'poisonPill','fractional 0.4 × 3: poison pill');refused(s,'whiteKnight','fractional 0.4 × 3: white knight');defend(s,'irCampaign','fractional 0.4 × 3: IR',{expectSold:0});}
+ // Seller cash must be a finite number (proceeds are not a repair); an unknown defense kind is refused.
+ for(const [label,cash] of [['seller cash NaN',NaN],['seller cash string','500'],['seller cash missing',undefined],['seller cash null',null]]){
+  const s=engine();if(cash===undefined)delete s.e.g.competitors[0].cash;else s.e.g.competitors[0].cash=cash;for(const kind of ['poisonPill','whiteKnight','irCampaign'])refused(s,kind,`${label}: ${kind}`);}
+ {const s=engine();refused(s,'unknownDefense','unknown kind');refused(s,undefined,'missing kind');}
+ console.log('W-DEFENSE fractional named holdings sell whole shares only; invalid seller cash and unknown kinds fail closed PASS');
  // 5. Composites with the other ownership writers (each step keeps sum 1, live = reload, named ≤ aggregate).
  const check=(s,label,{namedBound=true}={})=>{const g=s.e.g;assert.ok(Math.abs(sum(g)-1)<EPS,`${label}: sum 1`);assert.deepEqual(ratios(reload(s)),ratios(g),`${label}: live = reload`);if(namedBound)assert.ok(named(g).reduce((a,x)=>a+x,0)<=g.competitorOwnedRatio*outstanding(g)+1e-6,`${label}: named ≤ aggregate`);assert.equal(s.modules.finance.validate(clone(g)).ok,true,`${label}: accounting`);};
  {// D3 share swap (shared dilution helper) before and after: sold shares are fixed counts of the current outstanding.
