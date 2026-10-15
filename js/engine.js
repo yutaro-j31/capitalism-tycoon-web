@@ -1641,14 +1641,16 @@ class TycoonEngine extends EventTarget {
   // finance.loans + companyDebt shape from borrow()) rather than inventing new mechanics, and
   // never touch personalStocks or any store/company asset beyond cash/debt.
   contributeFounderCapital(amount) {
-    amount=Math.max(0,Math.floor(finite(amount)));
-    if(this.g.gameOver||this.g.isCompanySold)return this.fail('会社清算後は資本移動できません。');
-    if(amount<=0)return this.fail('注入額が不正です。');
-    if(finite(this.g.personalCash)<amount)return this.fail('個人資金が不足しています。');
-    this.g.personalCash-=amount;this.g.companyCash+=amount;
-    finance.event(this.g,'equityFinancing',amount,{cashEffect:amount,equityEffect:amount,sourceType:'founderCapitalContribution',sourceID:`founder-capital-${this.g.week}-${uuid(this.g,'capital')}`,description:'創業者資本注入'});
-    const f=finance.ensureFinance(this.g);f.balances.capitalSurplus=finite(f.balances.capitalSurplus)+amount;
-    this.notify(`個人資金から会社へ${yen(amount)}を資本注入しました。`,'success');this.save();this.emit();return true;
+    return this.runTransaction(()=>{
+      amount=Math.max(0,Math.floor(finite(amount)));
+      if(this.g.gameOver||this.g.isCompanySold)return this.fail('会社清算後は資本移動できません。');
+      if(amount<=0)return this.fail('注入額が不正です。');
+      if(finite(this.g.personalCash)<amount)return this.fail('個人資金が不足しています。');
+      this.g.personalCash-=amount;this.g.companyCash+=amount;
+      finance.event(this.g,'equityFinancing',amount,{cashEffect:amount,equityEffect:amount,sourceType:'founderCapitalContribution',sourceID:`founder-capital-${this.g.week}-${uuid(this.g,'capital')}`,description:'創業者資本注入'});
+      const f=finance.ensureFinance(this.g);f.balances.capitalSurplus=finite(f.balances.capitalSurplus)+amount;
+      this.notify(`個人資金から会社へ${yen(amount)}を資本注入しました。`,'success');return true;
+    });
   }
   foundersLoanToCompany(amount) {
     amount=Math.max(0,Math.floor(finite(amount)));
