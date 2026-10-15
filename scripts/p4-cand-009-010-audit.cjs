@@ -19,8 +19,8 @@ function fixture(owner='company'){
 }
 function collateral(owner,reverse){
  const {e,p}=fixture(owner), value=300_000_000;
- const quote=e.getRealEstateFinanceQuote(p.id,60_000_000,{rateType:'fixed',termWeeks:260});
- const specialty=()=>e.borrowAgainstProperty(p.id,60_000_000,{rateType:'fixed',termWeeks:260});
+ const quote=e.getRealEstateFinanceQuote(p.id,40_000_000,{rateType:'fixed',termWeeks:260});
+ const specialty=()=>e.borrowAgainstProperty(p.id,40_000_000,{rateType:'fixed',termWeeks:260});
  const independent=()=>e.refinancePropertyMortgage(p.id,'fixed');
  let specialist,mortgage;
  if(reverse){mortgage=independent();specialist=specialty();}
