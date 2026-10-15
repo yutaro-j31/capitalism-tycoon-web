@@ -2110,8 +2110,11 @@ class TycoonEngine extends EventTarget {
   // own holding both move by the filled quantity. No RNG is drawn here.
   buyCompetitorStake(c) {
     const price=Number(this.g.stockPrice);if(!Number.isFinite(price)||price<=0)return 0;
-    const outstanding=Math.max(1,this.g.sharesOut-this.g.treasuryBuybackShares),held=Math.max(0,finite(this.g.competitorOwnedRatio))*outstanding,ticker=this.g.ticker;
-    const ownTicker=map=>ticker!=null?Math.max(0,finite(map?.[ticker]?.qty)):0,playerHeld=finite(this.g.founderShares)+ownTicker(this.g.personalStocks)+ownTicker(this.g.companyStocks);
+    // Fail closed on malformed ownership evidence: an invalid quantity is unknown ownership, not zero.
+    const valid=v=>Number.isFinite(v)&&v>=0,ticker=this.g.ticker,ownTicker=map=>{if(ticker==null||map?.[ticker]==null)return 0;const q=map[ticker].qty;return q==null?0:(typeof q==='number'&&valid(q)?q:NaN);};
+    const issued=this.g.sharesOut,treasury=this.g.treasuryBuybackShares,founder=this.g.founderShares,ratio=this.g.competitorOwnedRatio??0,personal=ownTicker(this.g.personalStocks),company=ownTicker(this.g.companyStocks);
+    if(![issued,treasury,founder,ratio,personal,company].every(v=>typeof v==='number'&&valid(v))||issued<=treasury)return 0;
+    const outstanding=issued-treasury,held=ratio*outstanding,playerHeld=founder+personal+company;
     const float=Math.max(0,outstanding-playerHeld-held),capRoom=Math.max(0,.49*outstanding-held);
     const desired=Math.floor(Math.min(Math.max(0,finite(c.cash))*.1,5_000_000)/price),filled=Math.max(0,Math.min(desired,Math.floor(float),Math.floor(capRoom)));
     if(!filled)return 0;

@@ -51,6 +51,12 @@ function buy(s,c,label,expectFilled){
   assert.equal(s.e.buyCompetitorStake(c),0,'founder beneficial 100%: no float');assert.equal(JSON.stringify(s.e.g),before);}
  for(const price of [0,NaN,-5]){const s=engine(97531,g=>{g.stockPrice=price;}),c=s.e.g.competitors[0],before=JSON.stringify(s.e.g);
   assert.equal(s.e.buyCompetitorStake(c),0,`invalid price ${price}: zero fill`);assert.equal(JSON.stringify(s.e.g),before,`invalid price ${price}: nothing changes`);}
+ // Malformed ownership evidence is unknown ownership: no purchase, nothing changes (no guessed float).
+ for(const [label,mutate] of [['personal own-ticker qty not a number',g=>{g.ticker='CPTY';g.personalStocks={CPTY:{qty:'not-a-number',avg:1}};}],
+  ['company own-ticker qty NaN',g=>{g.ticker='CPTY';g.companyStocks={CPTY:{qty:NaN,avg:1}};}],['negative personal own-ticker qty',g=>{g.ticker='CPTY';g.personalStocks={CPTY:{qty:-5,avg:1}};}],
+  ['founderShares NaN',g=>{g.founderShares=NaN;}],['competitor ratio NaN',g=>{g.competitorOwnedRatio=NaN;}],['issued ≤ treasury',g=>{g.treasuryBuybackShares=g.sharesOut;}]]){
+  const s=engine();mutate(s.e.g);const c=s.e.g.competitors[0],before=JSON.stringify(s.e.g);
+  assert.equal(s.e.buyCompetitorStake(c),0,`${label}: zero fill`);assert.equal(JSON.stringify(s.e.g),before,`${label}: nothing changes`);}
  console.log('purchase rule: float only (founder incl. personal own-ticker, company own-ticker excluded), 49% cap, whole shares, partial fill, cash = filled × price, zero fill / invalid price no change PASS');
 
  // 2. A legacy save that is already broken (founder + competitor > 1) is not repaired and gets no new purchase.
