@@ -286,6 +286,7 @@
     "tests/shareholder-activism-split-integration-test.js",
     "tests/store-cost-inflation-25y-test.js",
     "tests/subsidiary-quarter-close-test.js",
-    "tests/earnings-confirm-read-only-test.js"
+    "tests/earnings-confirm-read-only-test.js",
+    "tests/ma-share-swap-ownership-ratios-test.js"
   ]
 }
