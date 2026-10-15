@@ -1835,8 +1835,9 @@ class TycoonEngine extends EventTarget {
 
   // D3: issue new player-company shares to outside holders (share swap). The founder and the competitor keep
   // their share counts and are diluted over the new outstanding denominator (issued − treasury); the new shares
-  // are external. The competitor's count is read from its stored ratio of the old denominator, the ratio being
-  // the only record of that stake. Ratios then follow the shared rule (external = 1 − founder − competitor).
+  // are external. The competitor's count is read from its stored aggregate ratio of the old denominator: that
+  // ratio is the authority (competitors[].ownedPlayerShares is not kept in sync by every writer). Ratios then
+  // follow the shared rule (external = 1 − founder − competitor).
   issueSharesToExternalHolders(newShares) {
     const before=Math.max(1,this.g.sharesOut-this.g.treasuryBuybackShares),competitorShares=Math.max(0,finite(this.g.competitorOwnedRatio))*before;
     this.g.sharesOut+=newShares;
