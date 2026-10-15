@@ -71,6 +71,7 @@ const nodeTests = [
   ['earnings-confirm-read-only', 'tests/earnings-confirm-read-only-test.js'],
   ['ma-share-swap-ownership-ratios', 'tests/ma-share-swap-ownership-ratios-test.js'],
   ['competitor-stake-float', 'tests/competitor-stake-float-test.js'],
+  ['ma-equity-raise-ownership-ratios', 'tests/ma-equity-raise-ownership-ratios-test.js'],
   ['shareholder-activism-accept-save-atomicity', 'tests/shareholder-activism-accept-save-atomicity-test.js'],
   ['shareholder-activism-split-integration', 'tests/shareholder-activism-split-integration-test.js'],
   ['execute-mbo-save-atomicity', 'tests/execute-mbo-save-atomicity-test.js'],
