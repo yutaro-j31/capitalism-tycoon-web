@@ -2128,7 +2128,8 @@ class TycoonEngine extends EventTarget {
     const ownAlias=a=>a?.reason==='company-own-share-alias-not-adopted'||(this.g.ticker!=null&&String(a?.instrumentId)===String(this.g.ticker));
     if(!view?.ok||(view.unresolvedAliases||[]).some(ownAlias))return 0;
     const security=view.securityClasses[0],outstanding=security.outstandingQuantity,unallocated=security.unallocatedOutstandingQuantity;
-    const valid=v=>typeof v==='number'&&Number.isFinite(v)&&v>=0,ratio=this.g.competitorOwnedRatio??0,named=c.ownedPlayerShares??0;// a missing named stake is 0
+    const valid=v=>typeof v==='number'&&Number.isFinite(v)&&v>=0,own=(o,k)=>Object.prototype.hasOwnProperty.call(o,k)?o[k]:0;
+    const ratio=own(this.g,'competitorOwnedRatio'),named=own(c,'ownedPlayerShares');// only an absent field is 0; a present null is unknown ownership
     if(![outstanding,unallocated,ratio,named].every(valid)||outstanding<=0)return 0;
     const held=ratio*outstanding,float=Math.max(0,unallocated-held),capRoom=Math.max(0,.49*outstanding-held);
     const desired=Math.floor(Math.min(Math.max(0,finite(c.cash))*.1,5_000_000)/price),filled=Math.max(0,Math.min(desired,Math.floor(float),Math.floor(capRoom)));

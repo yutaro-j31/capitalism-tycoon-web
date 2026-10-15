@@ -62,7 +62,7 @@ function buy(s,c,label,expectFilled){
  for(const [label,mutate] of [['personal own-ticker qty not a number',g=>{g.ticker='CPTY';g.personalStocks={CPTY:{qty:'not-a-number',avg:1}};}],
   ['company own-ticker qty NaN',g=>{g.ticker='CPTY';g.companyStocks={CPTY:{qty:NaN,avg:1}};}],['negative personal own-ticker qty',g=>{g.ticker='CPTY';g.personalStocks={CPTY:{qty:-5,avg:1}};}],
   ['personal own-ticker holding with qty null',g=>{g.ticker='CPTY';g.personalStocks={CPTY:{qty:null,avg:1}};}],['company own-ticker holding without qty',g=>{g.ticker='CPTY';g.companyStocks={CPTY:{avg:1}};}],
-  ['buyer named stake malformed',g=>{g.competitors[0].ownedPlayerShares='bad';}],['buyer named stake negative',g=>{g.competitors[0].ownedPlayerShares=-1;}],
+  ['buyer named stake malformed',g=>{g.competitors[0].ownedPlayerShares='bad';}],['buyer named stake present null',g=>{g.competitors[0].ownedPlayerShares=null;}],['competitor ratio present null',g=>{g.competitorOwnedRatio=null;}],['buyer named stake negative',g=>{g.competitors[0].ownedPlayerShares=-1;}],
   ['missing ticker binding with a real own-ticker holding',g=>{g.personalStocks={CPTY:{qty:1000,avg:1}};g.ticker='';}],['ticker null',g=>{g.ticker=null;}],
   ['founderShares NaN',g=>{g.founderShares=NaN;}],['competitor ratio NaN',g=>{g.competitorOwnedRatio=NaN;}],['issued ≤ treasury',g=>{g.treasuryBuybackShares=g.sharesOut;}]]){
   const s=engine();mutate(s.e.g);const c=s.e.g.competitors[0],before=JSON.stringify(s.e.g);
