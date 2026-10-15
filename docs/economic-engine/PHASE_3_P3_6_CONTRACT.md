@@ -12,7 +12,7 @@ Expose direct parent/child and minority economic interests plus provenance. Indi
 
 ## 2. Current Production State
 
-CODE: `engine.makeSubsidiary` retains startup ownership and adds subsidiaries[].startupID/ownership. `ma-deal-room.completeTargetAcquisition` adds acquired targets to maSubsidiaries and records acquisitionDealID/book/goodwill. Installed close chain outermost: pe-acquisition → ma-acquisition-financing → ma-board-approval → ma-deal-room. `expansion.syncPESubsidiary` creates a subsidiary mirror of company-owned peDeals. `pePortfolioOperations.acquirePortfolioCompanyByParent` exits a fund deal and adds a sourcePEFundID/sourcePEDealID subsidiary. Listed subsidiary market/control/follow-on/secondary writers modify ownership. D3/#992 and D4/#993 are merged; #994's M&A financing dilution repair is unmerged at audit base.
+CODE: `engine.makeSubsidiary` retains startup ownership and adds subsidiaries[].startupID/ownership. `ma-deal-room.completeTargetAcquisition` adds acquired targets to maSubsidiaries and records acquisitionDealID/book/goodwill. Installed close chain outermost: pe-acquisition → ma-acquisition-financing → ma-board-approval → ma-deal-room. `expansion.syncPESubsidiary` creates a subsidiary mirror of company-owned peDeals. `pePortfolioOperations.acquirePortfolioCompanyByParent` exits a fund deal and adds a sourcePEFundID/sourcePEDealID subsidiary. Listed subsidiary market/control/follow-on/secondary writers modify ownership. Additional actual writer: js/new-business-commercialization.js::act in spinout mode, reached through installed commercializeNewBusiness, unshifts maSubsidiaries rows with derived spinout-* ID, investmentBookValue, enterpriseValue and valuation=1,000,000. It retains no explicit ownership/class/votes or projectID/startWeek on the row. D3/#992 and D4/#993 are merged; #994's M&A financing dilution repair is unmerged at audit base.
 
 ## 3. Existing Source-of-truth
 
@@ -21,6 +21,7 @@ CODE: `engine.makeSubsidiary` retains startup ownership and adds subsidiaries[].
 | subsidiaries[].startupID | company relationship from ownedCompany / sub.ownership | same startup issuer; company edge once, personal stake stays separate |
 | subsidiaries[].peDealID, peDeals[].subsidiaryID | mirror of company-owned legacy PE position | same economic interest, canonical source P3-7 |
 | subsidiaries[].sourcePEFundID/sourcePEDealID | post-fund exit parent asset | P3-7 deal status/lifecycle must reconcile |
+| maSubsidiaries commercialization spinout row | missing ownership/class/votes; valuation=1M is not equity evidence | unresolved relationship/economic fraction; never infer100% or regenerate identity from bounded60 history |
 | maSubsidiaries[].id/acquisitionDealID | acquired-company provenance | accepted completed deal establishes whole-target acquisition scope when source evidence complete; not valuation / price alone |
 | listed subsidiaries[].ownership | economic fraction | voting unknown absent class/denominator proof |
 Acquisition price, valuation, totalCarryingValue, carryingBookValue and goodwill are different measures, none is a share count.
@@ -47,7 +48,7 @@ One underlying position per issuer/class/holder/generation. Identity aliases do 
 
 ## 9. Unsupported / Unknown Cases
 
-Legacy M&A rows lacking completed-deal provenance; mismatch between startup.ownedCompany and sub.ownership; duplicate startup IDs; missing reciprocal PE transfer; sold company generations; cross-holdings; listed flag without class rights; minority preference terms. Preserve evidence and reject new control capability. Do not “fix” #979 legacy broken books or choose #976 dividend accounting.
+Commercialization spinouts lacking ownership/retained source provenance, duplicate/reused derived IDs or lost bounded history; productVentures/newBusinesses operational assets are not automatically legal issuers; overseasSubsidiaries remains an explicitly unsupported additional relationship family outside initial adoption scope and must be included in sourceCoverage, never silently dropped. Legacy M&A rows lacking completed-deal provenance; mismatch between startup.ownedCompany and sub.ownership; duplicate startup IDs; missing reciprocal PE transfer; sold company generations; cross-holdings; listed flag without class rights; minority preference terms. Preserve evidence and reject new control capability. Do not “fix” #979 legacy broken books or choose #976 dividend accounting.
 
 ## 10. Save / Transaction / RNG Boundary
 
@@ -68,7 +69,7 @@ Relationship view identifies direct holder, indirect path and unresolved minorit
 ## 14. Tests / CI / WebKit
 
 Extend existing `tests/phase3-ownership-projection-test.js` and `tests/phase3-ownership-reconciliation-test.js` for shared purity/identity/conservation fixtures; do not duplicate their harness. Add a focused adapter test only for new family behavior, register it in `tests/run-all.js` and `tests/run-all-shards.json` with shard contract verification. Run immutable input/output, malformed/unknown, insertion-order permutation, cross-account separation and no host/simulation RNG tests. Existing tests are characterization, not proof of an unimplemented API. CI: Test canonical A–L + aggregate `test`, Phase 0.5 Acceptance Smoke and all other applicable workflows. New browser/UI integration needs actual iPhone-emulated WebKit, reload and fresh durable hydration, with tested HEAD and job/artifact recorded; physical iPhone is separate. Docs-only PR CI cannot prove future adapter behavior.
-Reuse `tests/finance-startup-subsidiary-test.js`, `tests/pe-dual-ownership-test.js`, `tests/ma-share-swap-ownership-ratios-test.js`, `tests/make-subsidiary-save-atomicity-test.js`, `tests/ma-subsidiary-sale-save-atomicity-test.js`; #994's `tests/ma-equity-raise-ownership-ratios-test.js` exists only on that PR, not the audited main. Candidate adapter-specific test: `tests/phase3-subsidiary-relationships-test.js`, covering lifecycle/aliases, two accounts, cyclic graph, M&A orphan and sold/refounded company.
+Reuse `tests/finance-startup-subsidiary-test.js`, `tests/pe-dual-ownership-test.js`, `tests/ma-share-swap-ownership-ratios-test.js`, `tests/make-subsidiary-save-atomicity-test.js`, `tests/ma-subsidiary-sale-save-atomicity-test.js`; #994's `tests/ma-equity-raise-ownership-ratios-test.js` exists only on that PR, not the audited main. Candidate adapter-specific test: `tests/phase3-subsidiary-relationships-test.js`, covering lifecycle/aliases, two accounts, cyclic graph, M&A orphan, commercialization spinout missing/duplicate IDs/lost history and sold/refounded company. Reuse tests/new-business-commercialization-test.js, tests/new-business-commercialization-accounting-test.js, tests/new-business-spinout-valuation-exploit-test.js, tests/new-business-spinout-finite-state-test.js and tests/new-business-spinout-legacy-backfill-test.js as existing characterization candidates; reader never calls ensure/backfill.
 
 ## 15. Migration and Cutover Restrictions
 
@@ -93,4 +94,3 @@ Approve pure adapter implementation separately. Unknown historical M&A ownership
 ## 20. Definition of Done
 
 All twenty-section contract requirements and cross-slice invariants implemented/tested in separately approved PRs; direct and indirect results explainable; P3-4 and Phase 10 boundaries unchanged. Design acceptance does not mark P3-6 implementation complete.
-
