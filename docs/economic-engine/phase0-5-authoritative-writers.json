@@ -1247,13 +1247,6 @@
         ]
       },
       {
-        "file": "js/ma-deal-room.js",
-        "tokens": [
-          "externalShareholderRatio",
-          "sharesOut"
-        ]
-      },
-      {
         "file": "js/parity.js",
         "tokens": [
           "sharesOut"

@@ -182,6 +182,8 @@ function applicable(state,deal){
   if(isResolved(deal))return {ok:false,reason:'この案件の再建は完了しています。'};
   if(deal.pendingInitiative)return {ok:false,reason:'既に施策が進行中です。結果判明までお待ちください。'};
   const ownerAccount=deal.ownerAccount==='company'?'company':'personal';
+  // #985: a sold company's deal (paid from its cash) takes no initiative until refounding.
+  if(ownerAccount==='company'&&state?.isCompanySold)return {ok:false,reason:'会社売却後は会社名義のPE操作はできません。'};
   const used=activeInitiativeCount(state,ownerAccount,deal.id),cap=concurrencyCapFor(ownerAccount);
   if(used>=cap)return {ok:false,reason:`経営資源が他の案件に割かれています（同時進行 ${used}/${cap}）。他の施策の結果が判明するまでお待ちください。`};
   return {ok:true,reason:''};

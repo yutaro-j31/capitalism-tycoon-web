@@ -333,9 +333,16 @@
     if (requestedEquityAmount > 0) {
       if (!state.publicCompany || nf(state.stockPrice) <= 0) throw new Error('equity-unavailable');
       const newShares = Math.ceil(requestedEquityAmount / Math.max(1, nf(state.stockPrice))), proceeds = round(newShares * Math.max(1, nf(state.stockPrice)));
-      state.companyCash = nf(state.companyCash) + proceeds; state.sharesOut = nf(state.sharesOut) + newShares;
-      if (typeof engine.updateOwnershipRatios === 'function') engine.updateOwnershipRatios();
-      else { const eligible = Math.max(1, nf(state.sharesOut) - nf(state.treasuryBuybackShares)); state.founderOwnershipRatio = clamp(nf(state.founderShares) / eligible); state.externalShareholderRatio = clamp(1 - state.founderOwnershipRatio - nf(state.competitorOwnedRatio)); }
+      state.companyCash = nf(state.companyCash) + proceeds;
+      // The public offering issues new shares to outside investors: founder and competitor keep their share counts
+      // and are diluted over issued − treasury (same rule as a share swap, engine.issueSharesToExternalHolders).
+      if (typeof engine.issueSharesToExternalHolders === 'function') engine.issueSharesToExternalHolders(newShares);
+      else {
+        const before = Math.max(1, nf(state.sharesOut) - nf(state.treasuryBuybackShares)), competitorShares = Math.max(0, nf(state.competitorOwnedRatio)) * before;
+        state.sharesOut = nf(state.sharesOut) + newShares;
+        const eligible = Math.max(1, nf(state.sharesOut) - nf(state.treasuryBuybackShares));
+        state.competitorOwnedRatio = competitorShares / eligible; state.founderOwnershipRatio = clamp(nf(state.founderShares) / eligible); state.externalShareholderRatio = clamp(1 - state.founderOwnershipRatio - state.competitorOwnedRatio);
+      }
       finance.ensureFinance(state).balances.capitalSurplus = nf(finance.ensureFinance(state).balances.capitalSurplus) + proceeds;
       const transaction = finance.event(state, 'equityFinancing', proceeds, { cashEffect: proceeds, equityEffect: proceeds, sourceType: 'maPublicEquityRaise', sourceID: deal.id,
         idempotencyKey: `ma-equity-${deal.id}`, operationID: `ma-equity-${deal.id}`, description: 'M&A 公募増資' });
