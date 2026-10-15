@@ -106,4 +106,3 @@ Prepare guards/explanation1 PR after P3-9; information view1 PR; non-binding pro
 ## 20. Definition of Done
 
 Per-command Owner-approved concrete contract, all predecessors implemented/accepted, full UI/API/fault/persistence/replay/WebKit evidence, independent review and successful applicable CI. This specification intentionally reports production BLOCKED rather than inventing economic effects to call it ready.
-
