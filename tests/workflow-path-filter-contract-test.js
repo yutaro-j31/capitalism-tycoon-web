@@ -163,6 +163,7 @@ assert.deepEqual(pathsFor(comprehensiveMa, 'pull_request'), [
   'js/completion.js', 'tests/decline-buyout-ownership-save-atomicity-test.js', 'tests/decline-buyout-ownership-save-atomicity-webkit-test.js',
   'tests/earnings-confirm-read-only-test.js', 'tests/earnings-confirm-read-only-webkit-test.js',
   'tests/ma-share-swap-ownership-ratios-test.js', 'tests/ma-share-swap-ownership-ratios-webkit-test.js',
+  'tests/competitor-stake-float-test.js', 'tests/competitor-stake-float-webkit-test.js',
   'js/shareholder-activism.js', 'tests/shareholder-activism-accept-save-atomicity-test.js', 'tests/shareholder-activism-accept-save-atomicity-webkit-test.js', 'tests/shareholder-activism-split-integration-test.js',
   'tests/stock-split-dividend-rescale-test.js', 'tests/stock-split-dividend-rescale-webkit-test.js',
   'tests/stock-split-price-floor-test.js', 'tests/stock-split-price-floor-webkit-test.js',
@@ -246,7 +247,7 @@ for (const event of ['pull_request', 'push']) {
 }
 assert(isMainOnly(triggerBlock(comprehensiveMa, 'push')), 'M&A comprehensive push must be main-only');
 for (const event of ['pull_request', 'push']) {
-  for (const path of ['tests/stock-split-save-atomicity-test.js', 'tests/stock-split-save-atomicity-webkit-test.js', 'tests/stock-split-dividend-rescale-test.js', 'tests/stock-split-dividend-rescale-webkit-test.js', 'tests/stock-split-price-floor-test.js', 'tests/stock-split-price-floor-webkit-test.js', 'js/completion.js', 'tests/decline-buyout-ownership-save-atomicity-test.js', 'tests/decline-buyout-ownership-save-atomicity-webkit-test.js', 'tests/earnings-confirm-read-only-test.js', 'tests/earnings-confirm-read-only-webkit-test.js', 'tests/ma-share-swap-ownership-ratios-test.js', 'tests/ma-share-swap-ownership-ratios-webkit-test.js', 'tests/fixtures/stock-split-atomicity.js', 'tests/vc-secondary-sale-save-atomicity-test.js', 'tests/vc-secondary-sale-save-false-red-probe.js', 'tests/vc-secondary-sale-save-atomicity-webkit-test.js', 'tests/fixtures/vc-secondary-sale-atomicity.js', 'tests/vc-follow-on-save-atomicity-test.js', 'tests/vc-follow-on-save-atomicity-webkit-test.js', 'tests/fixtures/vc-follow-on-atomicity.js', 'tests/vc-initial-investment-save-atomicity-test.js', 'tests/vc-initial-investment-save-atomicity-webkit-test.js', 'tests/fixtures/vc-initial-investment-atomicity.js', 'tests/stock-split-price-history-test.js', 'tests/stock-split-price-history-webkit-test.js', 'tests/stock-sale-save-atomicity-test.js', 'tests/stock-sale-save-atomicity-webkit-test.js', 'js/engine.js', 'tests/stock-purchase-save-atomicity-test.js', 'tests/stock-purchase-save-atomicity-webkit-test.js', 'js/expansion.js', 'tests/investor-offer-save-atomicity-test.js', 'tests/investor-offer-save-atomicity-webkit-test.js', 'tests/founder-share-sale-save-atomicity-test.js', 'tests/founder-share-sale-save-atomicity-webkit-test.js', 'js/shareholder-activism.js', 'tests/shareholder-activism-accept-save-atomicity-test.js', 'tests/shareholder-activism-accept-save-atomicity-webkit-test.js']) {
+  for (const path of ['tests/stock-split-save-atomicity-test.js', 'tests/stock-split-save-atomicity-webkit-test.js', 'tests/stock-split-dividend-rescale-test.js', 'tests/stock-split-dividend-rescale-webkit-test.js', 'tests/stock-split-price-floor-test.js', 'tests/stock-split-price-floor-webkit-test.js', 'js/completion.js', 'tests/decline-buyout-ownership-save-atomicity-test.js', 'tests/decline-buyout-ownership-save-atomicity-webkit-test.js', 'tests/earnings-confirm-read-only-test.js', 'tests/earnings-confirm-read-only-webkit-test.js', 'tests/ma-share-swap-ownership-ratios-test.js', 'tests/ma-share-swap-ownership-ratios-webkit-test.js', 'tests/competitor-stake-float-test.js', 'tests/competitor-stake-float-webkit-test.js', 'tests/fixtures/stock-split-atomicity.js', 'tests/vc-secondary-sale-save-atomicity-test.js', 'tests/vc-secondary-sale-save-false-red-probe.js', 'tests/vc-secondary-sale-save-atomicity-webkit-test.js', 'tests/fixtures/vc-secondary-sale-atomicity.js', 'tests/vc-follow-on-save-atomicity-test.js', 'tests/vc-follow-on-save-atomicity-webkit-test.js', 'tests/fixtures/vc-follow-on-atomicity.js', 'tests/vc-initial-investment-save-atomicity-test.js', 'tests/vc-initial-investment-save-atomicity-webkit-test.js', 'tests/fixtures/vc-initial-investment-atomicity.js', 'tests/stock-split-price-history-test.js', 'tests/stock-split-price-history-webkit-test.js', 'tests/stock-sale-save-atomicity-test.js', 'tests/stock-sale-save-atomicity-webkit-test.js', 'js/engine.js', 'tests/stock-purchase-save-atomicity-test.js', 'tests/stock-purchase-save-atomicity-webkit-test.js', 'js/expansion.js', 'tests/investor-offer-save-atomicity-test.js', 'tests/investor-offer-save-atomicity-webkit-test.js', 'tests/founder-share-sale-save-atomicity-test.js', 'tests/founder-share-sale-save-atomicity-webkit-test.js', 'js/shareholder-activism.js', 'tests/shareholder-activism-accept-save-atomicity-test.js', 'tests/shareholder-activism-accept-save-atomicity-webkit-test.js']) {
     assert(pathsFor(comprehensiveMa, event).includes(path), `${event} must run economic-command WebKit on ${path}`);
   }
 }
@@ -315,7 +316,7 @@ assert(!/^    if:/m.test(splitAtomicity), 'stock split real WebKit must run on e
 assert(splitAtomicity.includes('timeout-minutes: 15') && splitAtomicity.includes("node-version: '20'"), 'stock split WebKit must retain a bounded pinned runtime');
 assert(splitAtomicity.includes("group: ma-acquisition-financing-stock-split-atomicity-${{ (github.event_name == 'pull_request' || inputs.mode == 'deal-room') && github.run_id || github.ref }}")
   && splitAtomicity.includes('cancel-in-progress: true'), 'stock split WebKit must be cancelled with superseded main/schedule/comprehensive runs, never for PR/deal-room');
-for (const command of ['playwright@1.61.0', 'npx playwright install --with-deps webkit', 'node tests/stock-split-save-atomicity-webkit-test.js', 'node tests/stock-split-dividend-rescale-webkit-test.js', 'node tests/stock-split-price-floor-webkit-test.js', 'node tests/decline-buyout-ownership-save-atomicity-webkit-test.js', 'node tests/earnings-confirm-read-only-webkit-test.js', 'node tests/ma-share-swap-ownership-ratios-webkit-test.js', 'actions/upload-artifact@v4', 'path: artifacts/stock-split-atomicity-webkit', 'if: always()', 'if-no-files-found: error', 'node tests/shareholder-activism-accept-save-atomicity-webkit-test.js']) {
+for (const command of ['playwright@1.61.0', 'npx playwright install --with-deps webkit', 'node tests/stock-split-save-atomicity-webkit-test.js', 'node tests/stock-split-dividend-rescale-webkit-test.js', 'node tests/stock-split-price-floor-webkit-test.js', 'node tests/decline-buyout-ownership-save-atomicity-webkit-test.js', 'node tests/earnings-confirm-read-only-webkit-test.js', 'node tests/ma-share-swap-ownership-ratios-webkit-test.js', 'node tests/competitor-stake-float-webkit-test.js', 'actions/upload-artifact@v4', 'path: artifacts/stock-split-atomicity-webkit', 'if: always()', 'if-no-files-found: error', 'node tests/shareholder-activism-accept-save-atomicity-webkit-test.js']) {
   assert(splitAtomicity.includes(command), `independent stock split gate must retain ${command}`);
 }
 
@@ -405,6 +406,8 @@ const preSplitDealRoomWebkit = [
   'tests/earnings-confirm-read-only-webkit-test.js',
   // Added after the Phase 1A split: D3 share-swap ownership ratios WebKit, run by stock-split-atomicity on every event.
   'tests/ma-share-swap-ownership-ratios-webkit-test.js',
+  // Added after the Phase 1A split: D4 competitor stake WebKit, run by stock-split-atomicity on every event.
+  'tests/competitor-stake-float-webkit-test.js',
   // Added after the Phase 1A split: activist proposal acceptance atomicity (#953), run by stock-split-atomicity on every event.
   'tests/shareholder-activism-accept-save-atomicity-webkit-test.js',
   // Added after the Phase 1A split: stock split dividend rescale, run by stock-split-atomicity on every event.
@@ -443,6 +446,8 @@ const preSplitComprehensiveWebkit = [
   'tests/earnings-confirm-read-only-webkit-test.js',
   // Added after the Phase 1A split: D3 share-swap ownership ratios WebKit, run by stock-split-atomicity on every event.
   'tests/ma-share-swap-ownership-ratios-webkit-test.js',
+  // Added after the Phase 1A split: D4 competitor stake WebKit, run by stock-split-atomicity on every event.
+  'tests/competitor-stake-float-webkit-test.js',
   // Added after the Phase 1A split: activist proposal acceptance atomicity (#953), run by stock-split-atomicity on every event.
   'tests/shareholder-activism-accept-save-atomicity-webkit-test.js',
   // Added after the Phase 1A split: stock split dividend rescale, run by stock-split-atomicity on every event.
