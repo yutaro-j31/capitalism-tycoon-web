@@ -2102,9 +2102,21 @@ class TycoonEngine extends EventTarget {
     return weights;
   }
 
+  // D4: a competitor buys player-company shares from the external float only (never from the founder), up to the
+  // 49% aggregate cap, in whole shares. A desired quantity above what is available fills partially; the cash paid is
+  // the filled quantity × price; a zero fill changes nothing. The aggregate ratio (of issued − treasury) and the
+  // buyer's own holding both move by the filled quantity. No RNG is drawn here.
+  buyCompetitorStake(c) {
+    const price=Math.max(1,finite(this.g.stockPrice)),outstanding=Math.max(1,this.g.sharesOut-this.g.treasuryBuybackShares),held=Math.max(0,finite(this.g.competitorOwnedRatio))*outstanding;
+    const float=Math.max(0,outstanding-finite(this.g.founderShares)-held),capRoom=Math.max(0,.49*outstanding-held);
+    const desired=Math.floor(Math.min(Math.max(0,finite(c.cash))*.1,5_000_000)/price),filled=Math.max(0,Math.min(desired,Math.floor(float),Math.floor(capRoom)));
+    if(!filled)return 0;
+    c.cash-=filled*price;c.ownedPlayerShares=finite(c.ownedPlayerShares)+filled;this.g.competitorOwnedRatio=(held+filled)/outstanding;
+    return filled;
+  }
   updateCompetitors() {
     const allocations=this.allocateCompetitorGroupBudgets();
-    for(const c of this.g.competitors){const weight=allocations.get(c.id)??1;const profit=c.stores*rand(this.g,100000,450000);c.cash+=profit;c.brand=clamp(c.brand+rand(this.g,-.1,.5)*weight,0,100);c.quality=clamp(c.quality+rand(this.g,-.1,.4)*weight,0,100);if(c.cash>8_000_000&&simRng.next(this.g)<.08*weight){c.stores++;c.cash-=rand(this.g,2_000_000,7_000_000);logCompetitorText(this.g, `${c.name}が${this.area(c.areaID)?.name||''}で出店しました。`);}if(this.g.publicCompany&&simRng.next(this.g)<.005){const spend=Math.min(c.cash*.1,5_000_000),qty=spend/Math.max(1,this.g.stockPrice);c.cash-=spend;c.ownedPlayerShares+=qty;this.g.competitorOwnedRatio=clamp(this.g.competitorOwnedRatio+qty/this.g.sharesOut,0,.49);}}
+    for(const c of this.g.competitors){const weight=allocations.get(c.id)??1;const profit=c.stores*rand(this.g,100000,450000);c.cash+=profit;c.brand=clamp(c.brand+rand(this.g,-.1,.5)*weight,0,100);c.quality=clamp(c.quality+rand(this.g,-.1,.4)*weight,0,100);if(c.cash>8_000_000&&simRng.next(this.g)<.08*weight){c.stores++;c.cash-=rand(this.g,2_000_000,7_000_000);logCompetitorText(this.g, `${c.name}が${this.area(c.areaID)?.name||''}で出店しました。`);}if(this.g.publicCompany&&simRng.next(this.g)<.005)this.buyCompetitorStake(c);}
     this.updateOwnershipRatios();
   }
   updateProducts() {
