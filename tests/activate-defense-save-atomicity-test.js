@@ -10,7 +10,11 @@ async function setup(){
  const s=loadGame({headless:true,random:randomFor(),indexedDB:indexedDBFor(durable,control)});
  const game=prepareIPO(s.modules),backend=s.modules.saveStorageIDB,key=s.engineModule.SAVE_KEY;
  await backend.hydrate();assert.equal(game.executeIPO('東証グロース'),true,'fixture IPO');await backend.flush();
- game.g.companyCash=Math.max(game.g.companyCash,100_000_000);assert.equal(game.save(),true);await backend.flush();
+ game.g.companyCash=Math.max(game.g.companyCash,100_000_000);
+ // W-DEFENSE: a competitor holds named shares that match the aggregate stake, so every defense has shares to sell
+ // (with nothing sellable, poison pill and white knight are refused at no cost — asserted in normal()).
+ const outstanding=game.g.sharesOut-game.g.treasuryBuybackShares,held=Math.floor(outstanding*.1);game.g.competitors[0].ownedPlayerShares=held;game.g.competitorOwnedRatio=held/outstanding;game.updateOwnershipRatios();
+ assert.equal(game.save(),true);await backend.flush();
  return {...s,game,backend,key,durable,control};
 }
 async function rejected(kind){
@@ -21,6 +25,7 @@ async function rejected(kind){
  if(['save-false','mirror','enqueue-false','enqueue-throw'].includes(kind)){assert.equal(result,false,`${kind}: failed defense returns false`);assert.equal(error,undefined);}
  else assert.match(error?.message||'',/threw/);
  assert.deepEqual(clone(s.game.g),before,`${kind}: live state rolled back`);
+ assert.deepEqual(clone(s.game.g.competitors.map(x=>[x.ownedPlayerShares,x.cash])),before.competitors.map(x=>[x.ownedPlayerShares,x.cash]),`${kind}: seller holdings and proceeds rolled back`);
  assert.equal(s.ctx.__localStorageData.get(s.key),bytes,`${kind}: mirror unchanged`);
  await s.backend.flush();assert.equal(s.durable.get(s.key),durable,`${kind}: durable unchanged`);
  const fresh=loadGame({headless:true,random:randomFor(),indexedDB:indexedDBFor(s.durable,{attempts:[]})});await fresh.modules.saveStorageIDB.hydrate();
@@ -35,8 +40,10 @@ async function normal(){
  assert.equal(s.game.g.companyCash,cash-25_000_000);assert.equal(s.game.g.personalCash,personal);
  assert.ok(s.game.g.competitorOwnedRatio<=ratio);assert.equal(s.modules.finance.validate(s.game.g).ok,true);
  s.game.g.companyCash=0;const b=clone(s.game.g);assert.equal(s.game.activateDefense('poisonPill'),false);assert.deepEqual(clone(s.game.g),b);
+ s.game.g.companyCash=100_000_000;s.game.g.competitors.forEach(c=>{c.ownedPlayerShares=0;});s.game.g.competitorOwnedRatio=0;s.game.updateOwnershipRatios();const z=clone(s.game.g);
+ assert.equal(s.game.activateDefense('whiteKnight'),false,'nothing sellable: white knight refused');assert.deepEqual(clone(s.game.g),z,'refused at no cost');
  s.game.g.publicCompany=false;assert.equal(s.game.activateDefense('irCampaign'),false);
- console.log('activateDefense normal/insufficient/unlisted PASS');
+ console.log('activateDefense normal/insufficient/nothing sellable/unlisted PASS');
 }
 (async()=>{
  await normal();

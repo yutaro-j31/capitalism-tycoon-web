@@ -211,6 +211,10 @@
     "reason": "D3 share-swap closing through the installed deal-room chain on real WebKit: a rejected save rolls ownership ratios back; the committed closing dilutes founder and competitor over issued − treasury, new shares are external, ratios sum to 1; reload and fresh durable-only IndexedDB agree, in the stock-split-atomicity job on every workflow event.",
     "executedBy": ".github/workflows/ma-acquisition-financing.yml"
   },
+  "tests/activate-defense-ownership-ratios-webkit-test.js": {
+    "reason": "W-DEFENSE takeover defense on real WebKit: only named competitor shares are sold (pro rata, whole shares) to outside market investors, sellers paid price × shares, the company pays the defense cost only, ratios sum to 1; a rejected save rolls ratios, holdings and proceeds back in live, mirror and durable IndexedDB; an unnamed stake is refused at no cost; reload and fresh durable-only IndexedDB agree, in the stock-split-atomicity job on every workflow event.",
+    "executedBy": ".github/workflows/ma-acquisition-financing.yml"
+  },
   "tests/competitor-stake-float-webkit-test.js": {
     "reason": "D4 weekly competitor stake purchases on real WebKit through advanceWeek: external float only, 49% cap, whole shares, cash = filled × price, founder untouched, ratios sum to 1 every committed week; reload and fresh durable-only IndexedDB agree, in the stock-split-atomicity job on every workflow event.",
     "executedBy": ".github/workflows/ma-acquisition-financing.yml"
