@@ -380,7 +380,7 @@ Merged since the seventh pass, one at a time by Owner conditional approval, the 
 |---|---|---|---|---|---|---|
 | #992 | D3 share-swap ownership ratios (`issueSharesToExternalHolders`) | `d2139124` | `d0802d88` | `b575b387` | 42 success / 9 skipped / 0 failed (Pages publication-attestation finished before the Pages deployment; one failed-job rerun passed) | `stock-split-atomicity` job 116271164874 (share swap ownership ratios step success) |
 | #993 | D4 competitor stake purchase from the external float (`buyCompetitorStake`) | `6673c297` (synced with main after #992; test registration merged as a union) | `743d08d1` | `e6653644` | all push-triggered workflows success, 0 failed (Pages publication-attestation again finished before the Pages deployment; one failed-job rerun passed) | `stock-split-atomicity` job 116299892888 (D3 and D4 competitor stake steps success) |
-| #994 | W-MA-EQUITY-RAISE: the M&A public equity raise dilutes the competitor (reuses `issueSharesToExternalHolders`) | `7ac82961` | `c45b2c9e` | `0fd59972` | MAIN_CI_994 | MAIN_WEBKIT_994 |
+| #994 | W-MA-EQUITY-RAISE: the M&A public equity raise dilutes the competitor (reuses `issueSharesToExternalHolders`) | `7ac82961` | `c45b2c9e` | `0fd59972` | 42 success / 9 skipped / 0 failed (Pages publication-assets check finished before the Pages deployment; one failed-job rerun passed) | `stock-split-atomicity` job 116400815628 (M&A equity raise, D3 and D4 steps success) |
 
 | Writer / defect | Review | Node | WebKit | Verdict on main |
 |---|---|---|---|---|
