@@ -31,7 +31,7 @@ const money=g=>({cash:g.companyCash,debt:g.companyDebt,personal:g.personalCash,s
  const ref=await scenario({competitor:0});assert.equal(ref.game.closeMADeal(ref.deal.id),true);
  assert.deepEqual(money(g),money(ref.game.g),'cash, debt, capital surplus and journal unchanged by the dilution rule');
  const tx=g.finance.transactions.find(t=>t.sourceType==='maPublicEquityRaise');assert.equal(tx.amount,20_000_000,'issue proceeds');
- console.log('equity raise: founder 700k and competitor 190k diluted over 1.07M, 20k new shares external, sum 1; cash/debt/surplus/journal unchanged PASS');
+ console.log('equity raise: founder 700k and competitor 190k diluted over 0.97M, 20k new shares external, sum 1; cash/debt/surplus/journal unchanged PASS');
  // 2. Reload and fresh durable-only hydration equal live.
  await s.modules.saveStorageIDB.flush();
  const ratios=x=>JSON.stringify([x.sharesOut,x.treasuryBuybackShares,x.founderShares,x.founderOwnershipRatio,x.competitorOwnedRatio,x.externalShareholderRatio,x.companyCash,x.companyDebt]);

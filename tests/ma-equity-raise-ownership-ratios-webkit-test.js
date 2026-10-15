@@ -31,7 +31,7 @@ async function view(p){return p.evaluate(async snap=>{const m=__capitalismTycoon
   try{result=e.closeMADeal('swap-deal');}finally{Storage.prototype.setItem=setItem;}
   await m.saveStorageIDB.flush();
   if(!injected||result!==false||JSON.stringify(e.g)!==before||localStorage.getItem(key)!==bytes||await durable()!==prior)throw new Error('rejected save did not roll the ratios back');
-  // 2. The committed closing dilutes founder and competitor; the new 100,000 shares are external.
+  // 2. The committed closing dilutes founder and competitor; the new 20,000 shares are external.
   if(e.closeMADeal('swap-deal')!==true)throw new Error('closing failed');await m.saveStorageIDB.flush();
   const g=e.g,o=g.sharesOut-g.treasuryBuybackShares,eps=1e-12;
   const expect={founder:700000/970000,competitor:190000/970000,external:80000/970000};
