@@ -2103,20 +2103,21 @@ class TycoonEngine extends EventTarget {
   }
 
   // D4: a competitor buys player-company shares from the external float only, up to the 49% aggregate cap, in
-  // whole shares. The float excludes the founder's beneficial holding (founder shares + own-ticker shares bought
-  // personally, as in the P3-2 reconciliation), own-ticker shares the company holds and the competitors' aggregate
-  // stake. A desired quantity above what is available fills partially; the cash paid is the filled quantity × price;
-  // a zero fill (or an invalid price) changes nothing. The aggregate ratio (of issued − treasury) and the buyer's
-  // own holding both move by the filled quantity. No RNG is drawn here.
+  // whole shares. The float is the P3-2 reconciliation's unallocated outstanding quantity (issued − treasury −
+  // founder beneficial holding, incl. own-ticker shares bought personally) minus the competitors' aggregate stake.
+  // When that reconciliation is not ok or reports unresolved aliases (missing ticker binding, malformed or
+  // unadopted holdings such as company-held own-ticker shares, conservation failure), the competitor ratio or the buyer's named stake is malformed, or the price is invalid, ownership is
+  // unknown and the purchase is a zero fill. A desired quantity above the float fills partially; the cash paid is
+  // the filled quantity × price; a zero fill changes nothing. The aggregate ratio (of issued − treasury) and the
+  // buyer's own holding both move by the filled quantity. No RNG is drawn here.
   buyCompetitorStake(c) {
     const price=Number(this.g.stockPrice);if(!Number.isFinite(price)||price<=0)return 0;
-    // Fail closed on malformed ownership evidence: an invalid quantity is unknown ownership, not zero.
-    const valid=v=>Number.isFinite(v)&&v>=0,ticker=this.g.ticker,ownTicker=map=>{if(ticker==null||map?.[ticker]==null)return 0;const q=map[ticker].qty;return typeof q==='number'&&valid(q)?q:NaN;};
-    const issued=this.g.sharesOut,treasury=this.g.treasuryBuybackShares,founder=this.g.founderShares,ratio=this.g.competitorOwnedRatio??0,personal=ownTicker(this.g.personalStocks),company=ownTicker(this.g.companyStocks);
-    const named=c.ownedPlayerShares??0;// a missing named stake is 0; a present malformed one is unknown ownership
-    if(![issued,treasury,founder,ratio,personal,company,named].every(v=>typeof v==='number'&&valid(v))||issued<=treasury)return 0;
-    const outstanding=issued-treasury,held=ratio*outstanding,playerHeld=founder+personal+company;
-    const float=Math.max(0,outstanding-playerHeld-held),capRoom=Math.max(0,.49*outstanding-held);
+    let view;try{view=__modules.economicReadModel?.ownershipReconciliation?.(this.g);}catch{return 0;}
+    if(!view?.ok||view.unresolvedAliases?.length)return 0;// e.g. own-ticker shares held by the company (unadopted alias)
+    const security=view.securityClasses[0],outstanding=security.outstandingQuantity,unallocated=security.unallocatedOutstandingQuantity;
+    const valid=v=>typeof v==='number'&&Number.isFinite(v)&&v>=0,ratio=this.g.competitorOwnedRatio??0,named=c.ownedPlayerShares??0;// a missing named stake is 0
+    if(![outstanding,unallocated,ratio,named].every(valid)||outstanding<=0)return 0;
+    const held=ratio*outstanding,float=Math.max(0,unallocated-held),capRoom=Math.max(0,.49*outstanding-held);
     const desired=Math.floor(Math.min(Math.max(0,finite(c.cash))*.1,5_000_000)/price),filled=Math.max(0,Math.min(desired,Math.floor(float),Math.floor(capRoom)));
     if(!filled)return 0;
     c.cash-=filled*price;c.ownedPlayerShares=named+filled;this.g.competitorOwnedRatio=(held+filled)/outstanding;

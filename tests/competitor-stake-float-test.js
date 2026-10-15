@@ -44,9 +44,12 @@ function buy(s,c,label,expectFilled){
  {const s=engine(97531,g=>{g.stockPrice=3333;}),c=s.e.g.competitors[0];buy(s,c,'whole shares (5M / 3,333 → 1,500)',1500);}
  {const s=engine(),c=s.e.g.competitors[0];c.cash=4_200;buy(s,c,'cash buys 0 whole shares at ¥1,000 (10% of 4,200)',0);}
  {const s=engine(),g=s.e.g;g.publicCompany=true;const c=g.competitors[0];delete c.ownedPlayerShares;buy(s,c,'legacy competitor without ownedPlayerShares',5000);}
- // Own-ticker shares the founder bought personally and the company holds are not float (P3-2 beneficial founder holding).
- {const s=engine(97531,g=>{g.founderShares=600000;g.competitorOwnedRatio=0;g.treasuryBuybackShares=0;g.ticker='CPTY';g.personalStocks={CPTY:{qty:396000,avg:1000}};g.companyStocks={CPTY:{qty:1000,avg:1000}};}),c=s.e.g.competitors[0];
-  buy(s,c,'float = 1,000,000 − 600,000 − 396,000 personal − 1,000 company = 3,000',3000);buy(s,c,'then nothing',0);}
+ // Own-ticker shares the founder bought personally are founder beneficial holding, not float (P3-2 reconciliation).
+ {const s=engine(97531,g=>{g.founderShares=600000;g.competitorOwnedRatio=0;g.treasuryBuybackShares=0;g.ticker='CPTY';g.personalStocks={CPTY:{qty:396000,avg:1000}};}),c=s.e.g.competitors[0];
+  buy(s,c,'float = 1,000,000 − 600,000 − 396,000 personal = 4,000',4000);buy(s,c,'then nothing',0);}
+ // Own-ticker shares held by the company are an unadopted alias in the reconciliation: unknown ownership, zero fill.
+ {const s=engine(97531,g=>{g.ticker='CPTY';g.companyStocks={CPTY:{qty:1000,avg:1000}};}),c=s.e.g.competitors[0],before=JSON.stringify(s.e.g);
+  assert.equal(s.e.buyCompetitorStake(c),0,'company own-ticker alias: zero fill');assert.equal(JSON.stringify(s.e.g),before);}
  {const s=engine(97531,g=>{g.founderShares=600000;g.competitorOwnedRatio=0;g.treasuryBuybackShares=0;g.ticker='CPTY';g.personalStocks={CPTY:{qty:400000,avg:1000}};}),c=s.e.g.competitors[0],before=JSON.stringify(s.e.g);
   assert.equal(s.e.buyCompetitorStake(c),0,'founder beneficial 100%: no float');assert.equal(JSON.stringify(s.e.g),before);}
  for(const price of [0,NaN,-5]){const s=engine(97531,g=>{g.stockPrice=price;}),c=s.e.g.competitors[0],before=JSON.stringify(s.e.g);
@@ -56,6 +59,7 @@ function buy(s,c,label,expectFilled){
   ['company own-ticker qty NaN',g=>{g.ticker='CPTY';g.companyStocks={CPTY:{qty:NaN,avg:1}};}],['negative personal own-ticker qty',g=>{g.ticker='CPTY';g.personalStocks={CPTY:{qty:-5,avg:1}};}],
   ['personal own-ticker holding with qty null',g=>{g.ticker='CPTY';g.personalStocks={CPTY:{qty:null,avg:1}};}],['company own-ticker holding without qty',g=>{g.ticker='CPTY';g.companyStocks={CPTY:{avg:1}};}],
   ['buyer named stake malformed',g=>{g.competitors[0].ownedPlayerShares='bad';}],['buyer named stake negative',g=>{g.competitors[0].ownedPlayerShares=-1;}],
+  ['missing ticker binding with a real own-ticker holding',g=>{g.personalStocks={CPTY:{qty:1000,avg:1}};g.ticker='';}],['ticker null',g=>{g.ticker=null;}],
   ['founderShares NaN',g=>{g.founderShares=NaN;}],['competitor ratio NaN',g=>{g.competitorOwnedRatio=NaN;}],['issued ≤ treasury',g=>{g.treasuryBuybackShares=g.sharesOut;}]]){
   const s=engine();mutate(s.e.g);const c=s.e.g.competitors[0],before=JSON.stringify(s.e.g);
   assert.equal(s.e.buyCompetitorStake(c),0,`${label}: zero fill`);assert.equal(JSON.stringify(s.e.g),before,`${label}: nothing changes`);}
