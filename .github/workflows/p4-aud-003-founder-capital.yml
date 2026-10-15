@@ -1,0 +1,28 @@
+name: P4-AUD-003 Founder Capital Atomicity
+on:
+  pull_request:
+    paths:
+      - 'js/engine.js'
+      - 'scripts/p4-aud-003-founder-capital-atomicity.cjs'
+      - '.github/workflows/p4-aud-003-founder-capital.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'js/engine.js'
+      - 'scripts/p4-aud-003-founder-capital-atomicity.cjs'
+      - '.github/workflows/p4-aud-003-founder-capital.yml'
+permissions:
+  contents: read
+jobs:
+  founder-capital-atomicity:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Node syntax
+        run: node --check scripts/p4-aud-003-founder-capital-atomicity.cjs
+      - name: Installed engine transaction fault / reload / durable hydration regression
+        run: node scripts/p4-aud-003-founder-capital-atomicity.cjs
