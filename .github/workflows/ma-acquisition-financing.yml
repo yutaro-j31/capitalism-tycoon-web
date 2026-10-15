@@ -24,6 +24,8 @@ on:
       - 'tests/ma-share-swap-ownership-ratios-webkit-test.js'
       - 'tests/competitor-stake-float-test.js'
       - 'tests/competitor-stake-float-webkit-test.js'
+      - 'tests/ma-equity-raise-ownership-ratios-test.js'
+      - 'tests/ma-equity-raise-ownership-ratios-webkit-test.js'
       - 'js/shareholder-activism.js'
       - 'tests/shareholder-activism-accept-save-atomicity-test.js'
       - 'tests/shareholder-activism-accept-save-atomicity-webkit-test.js'
@@ -148,6 +150,8 @@ on:
       - 'tests/ma-share-swap-ownership-ratios-webkit-test.js'
       - 'tests/competitor-stake-float-test.js'
       - 'tests/competitor-stake-float-webkit-test.js'
+      - 'tests/ma-equity-raise-ownership-ratios-test.js'
+      - 'tests/ma-equity-raise-ownership-ratios-webkit-test.js'
       - 'js/shareholder-activism.js'
       - 'tests/shareholder-activism-accept-save-atomicity-test.js'
       - 'tests/shareholder-activism-accept-save-atomicity-webkit-test.js'
@@ -470,6 +474,8 @@ jobs:
         run: node tests/ma-share-swap-ownership-ratios-webkit-test.js
       - name: Competitor stake from the external float (D4) in real iPhone WebKit
         run: node tests/competitor-stake-float-webkit-test.js
+      - name: M&A equity raise ownership ratios in real iPhone WebKit
+        run: node tests/ma-equity-raise-ownership-ratios-webkit-test.js
       - name: Activist proposal acceptance atomicity in real iPhone WebKit
         run: node tests/shareholder-activism-accept-save-atomicity-webkit-test.js
       - name: Stock split dividend rescale in real iPhone WebKit
