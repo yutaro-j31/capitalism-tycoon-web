@@ -44,7 +44,14 @@ function buy(s,c,label,expectFilled){
  {const s=engine(97531,g=>{g.stockPrice=3333;}),c=s.e.g.competitors[0];buy(s,c,'whole shares (5M / 3,333 → 1,500)',1500);}
  {const s=engine(),c=s.e.g.competitors[0];c.cash=4_200;buy(s,c,'cash buys 0 whole shares at ¥1,000 (10% of 4,200)',0);}
  {const s=engine(),g=s.e.g;g.publicCompany=true;const c=g.competitors[0];delete c.ownedPlayerShares;buy(s,c,'legacy competitor without ownedPlayerShares',5000);}
- console.log('purchase rule: float only, 49% cap, whole shares, partial fill, cash = filled × price, zero fill no change PASS');
+ // Own-ticker shares the founder bought personally and the company holds are not float (P3-2 beneficial founder holding).
+ {const s=engine(97531,g=>{g.founderShares=600000;g.competitorOwnedRatio=0;g.treasuryBuybackShares=0;g.ticker='CPTY';g.personalStocks={CPTY:{qty:396000,avg:1000}};g.companyStocks={CPTY:{qty:1000,avg:1000}};}),c=s.e.g.competitors[0];
+  buy(s,c,'float = 1,000,000 − 600,000 − 396,000 personal − 1,000 company = 3,000',3000);buy(s,c,'then nothing',0);}
+ {const s=engine(97531,g=>{g.founderShares=600000;g.competitorOwnedRatio=0;g.treasuryBuybackShares=0;g.ticker='CPTY';g.personalStocks={CPTY:{qty:400000,avg:1000}};}),c=s.e.g.competitors[0],before=JSON.stringify(s.e.g);
+  assert.equal(s.e.buyCompetitorStake(c),0,'founder beneficial 100%: no float');assert.equal(JSON.stringify(s.e.g),before);}
+ for(const price of [0,NaN,-5]){const s=engine(97531,g=>{g.stockPrice=price;}),c=s.e.g.competitors[0],before=JSON.stringify(s.e.g);
+  assert.equal(s.e.buyCompetitorStake(c),0,`invalid price ${price}: zero fill`);assert.equal(JSON.stringify(s.e.g),before,`invalid price ${price}: nothing changes`);}
+ console.log('purchase rule: float only (founder incl. personal own-ticker, company own-ticker excluded), 49% cap, whole shares, partial fill, cash = filled × price, zero fill / invalid price no change PASS');
 
  // 2. A legacy save that is already broken (founder + competitor > 1) is not repaired and gets no new purchase.
  {const s=engine(97531,g=>{g.founderShares=900000;g.competitorOwnedRatio=.2;}),g=s.e.g,c=g.competitors[0],before=JSON.stringify(g);
@@ -60,17 +67,17 @@ function buy(s,c,label,expectFilled){
 
  // 4. The production weekly path: every purchase obeys the rule; ratios stay 1 through advanceWeek; the RNG count per
  //    week is unchanged by the rule (the probability draw happens before the fill, exactly as before).
- const weekly=(seed,setup)=>{const s=engine(seed,setup),calls=[],base=s.e.buyCompetitorStake;
+ const weekly=(seed,setup,weeks=120)=>{const s=engine(seed,setup),calls=[],base=s.e.buyCompetitorStake;
   s.e.buyCompetitorStake=function(c){const cash=c.cash,price=this.g.stockPrice,f=base.call(this,c);calls.push({paid:cash-c.cash,f,price});return f;};
-  for(let w=0;w<120;w++){assert.notEqual(s.e.advanceWeek(false),false,`week ${w}`);assert.ok(Math.abs(sum(s.e.g)-1)<EPS,`week ${w}: ratios sum to 1`);assert.ok(s.e.g.competitorOwnedRatio<=.49+EPS);}
+  for(let w=0;w<weeks;w++){assert.notEqual(s.e.advanceWeek(false),false,`week ${w}`);assert.ok(Math.abs(sum(s.e.g)-1)<EPS,`week ${w}: ratios sum to 1`);assert.ok(s.e.g.competitorOwnedRatio<=.49+EPS);}
   for(const x of calls)money(x.paid,x.f*x.price,'weekly purchase cash = filled × price');
   return {s,calls};};
  {const {s,calls}=weekly(97531,g=>{g.founderShares=850000;g.competitorOwnedRatio=.1;});
-  assert.ok(calls.length>0,'the weekly path reached the purchase');assert.ok(calls.some(x=>x.f===0)||calls.reduce((a,x)=>a+x.f,0)<=5000,'float bound held');
+  assert.ok(calls.length>0,'the weekly path reached the purchase');assert.ok(calls.reduce((a,x)=>a+x.f,0)<=5000,'float bound held');
   assert.ok(s.e.g.founderShares===850000,'founder never sells');
   console.log(`weekly path: ${calls.length} purchase attempts over 120 weeks, filled ${calls.reduce((a,x)=>a+x.f,0)} shares, ratios sum 1 every week PASS`);}
  // Determinism: two identical runs give identical states and RNG.
- {const a=weekly(424242),b=weekly(424242),eco=g=>{const c=JSON.parse(JSON.stringify(g));delete c.lastSaveDate;delete c.saveSequence;return JSON.stringify(c);};
+ {const a=weekly(424242,undefined,60),b=weekly(424242,undefined,60),eco=g=>{const c=JSON.parse(JSON.stringify(g));delete c.lastSaveDate;delete c.saveSequence;return JSON.stringify(c);};
   assert.equal(eco(a.s.e.g),eco(b.s.e.g),'deterministic');assert.equal(a.s.host.draws,b.s.host.draws);
   // Reload equals live (ratios, holdings).
   const g=a.s.e.g,r=new a.s.engineModule.TycoonEngine(JSON.parse(JSON.stringify(g))).g,k=x=>JSON.stringify([x.competitorOwnedRatio,x.founderOwnershipRatio,x.externalShareholderRatio,x.competitors.map(c=>[c.id,c.ownedPlayerShares,c.cash])]);

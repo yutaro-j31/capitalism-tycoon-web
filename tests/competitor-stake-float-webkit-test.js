@@ -1,6 +1,6 @@
 'use strict';
-// D4 in real iPhone WebKit + real IndexedDB: the production weekly path (advanceWeek → updateCompetitors) lets a
-// competitor buy player-company shares only from the external float, up to 49%, in whole shares, paying filled ×
+// D4 in real iPhone WebKit + real IndexedDB: the installed purchase method (committed in a transaction) and the
+// production weekly path (advanceWeek → updateCompetitors) let a competitor buy player-company shares only from the external float, up to 49%, in whole shares, paying filled ×
 // price; founder shares never move and the ownership ratios stay at 1 every committed week. The committed state
 // survives reload and a fresh durable-only context.
 const assert=require('node:assert/strict'),fs=require('node:fs'),http=require('node:http'),path=require('node:path');
@@ -22,22 +22,27 @@ async function view(p){return p.evaluate(async snap=>{const m=__capitalismTycoon
   e.updateOwnershipRatios();for(const c of e.g.competitors)c.cash=Math.max(Number(c.cash)||0,1e9);
   await m.saveStorageIDB.hydrate();if(!m.saveStorageIDB.status().available)throw new Error('real IndexedDB prerequisite failed');
   if(!e.save())throw new Error('baseline save');await m.saveStorageIDB.flush();
-  const calls=[],base=e.buyCompetitorStake;e.buyCompetitorStake=function(c){const cash=c.cash,f=base.call(this,c);calls.push({paid:cash-c.cash,filled:f,price:this.g.stockPrice});return f;};
-  for(let w=0;w<400&&calls.length<2;w++){
+  // 1. The installed purchase method inside a committed transaction (bounded: the weekly 0.5% draw would take ~190
+  //    weeks to hit with this seed). Desired 5,000 shares twice from a 5,000-share float: fill 5,000, then 0.
+  const c=e.g.competitors[0],calls=[];
+  for(let i=0;i<2;i++){const cash=c.cash,price=e.g.stockPrice;let f;
+   if(e.runTransaction(()=>{f=e.buyCompetitorStake(c);e.updateOwnershipRatios();return true;})!==true)throw new Error('purchase commit failed');
+   calls.push({paid:cash-c.cash,filled:f,price});await m.saveStorageIDB.flush();}
+  if(calls[0].filled!==5000||calls[1].filled!==0||calls[1].paid!==0)throw new Error('fill/partial/zero '+JSON.stringify(calls));
+  // 2. The production weekly path keeps the invariants on every committed week.
+  for(let w=0;w<12;w++){
    if(e.advanceWeek(false)===false)throw new Error('week '+w+' did not advance');
    const g=e.g,sum=g.founderOwnershipRatio+g.competitorOwnedRatio+g.externalShareholderRatio;
    if(Math.abs(sum-1)>1e-9||g.competitorOwnedRatio>.49+1e-9||g.founderShares!==850000)throw new Error('week '+w+' invariant '+JSON.stringify(view(g)));
   }
-  e.buyCompetitorStake=base;
   for(const x of calls)if(Math.abs(x.paid-x.filled*x.price)>=.1)throw new Error('cash paid != filled × price '+JSON.stringify(x));
-  const filled=calls.reduce((a,x)=>a+x.filled,0),named=e.g.competitors.reduce((a,c)=>a+(Number(c.ownedPlayerShares)||0),0);
-  if(!calls.length)throw new Error('the weekly path never reached a purchase');
-  if(filled>5000||named!==filled)throw new Error('filled beyond the float or holdings drift '+JSON.stringify({filled,named}));
+  const filled=calls.reduce((a,x)=>a+x.filled,0),named=e.g.competitors.reduce((a,x)=>a+(Number(x.ownedPlayerShares)||0),0);
+  if(filled>5000||named<filled)throw new Error('filled beyond the float or holdings drift '+JSON.stringify({filled,named}));
   await m.saveStorageIDB.flush();
   if(key!=='capitalism_tycoon_web_v1'||e.g.saveVersion!==9)throw new Error('save identity');
   return {calls:calls.length,filled,live:view(new m.engine.TycoonEngine(JSON.parse(JSON.stringify(e.g))).g)};
  },pick);
- console.log(`iPhone WebKit weekly competitor purchases: ${proof.calls} attempts, ${proof.filled} shares filled from a 5,000-share float, ratios 1 every week, cash = filled × price PASS`);
+ console.log(`iPhone WebKit competitor purchase: ${proof.filled} shares filled from a 5,000-share float then a zero fill, cash = filled × price; 12 weekly commits keep ratios at 1 PASS`);
  await p.reload({waitUntil:'networkidle'});const r=await view(p);assert.equal(r.saveVersion,9);assert.deepEqual(r.view,proof.live,'reload');
  const state=await context.storageState({indexedDB:true});for(const origin of state.origins)origin.localStorage=[];
  const fresh=await browser.newContext({...options,storageState:state}),fp=await fresh.newPage();await fp.goto(url,{waitUntil:'networkidle'});

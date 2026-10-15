@@ -2102,13 +2102,17 @@ class TycoonEngine extends EventTarget {
     return weights;
   }
 
-  // D4: a competitor buys player-company shares from the external float only (never from the founder), up to the
-  // 49% aggregate cap, in whole shares. A desired quantity above what is available fills partially; the cash paid is
-  // the filled quantity × price; a zero fill changes nothing. The aggregate ratio (of issued − treasury) and the
-  // buyer's own holding both move by the filled quantity. No RNG is drawn here.
+  // D4: a competitor buys player-company shares from the external float only, up to the 49% aggregate cap, in
+  // whole shares. The float excludes the founder's beneficial holding (founder shares + own-ticker shares bought
+  // personally, as in the P3-2 reconciliation), own-ticker shares the company holds and the competitors' aggregate
+  // stake. A desired quantity above what is available fills partially; the cash paid is the filled quantity × price;
+  // a zero fill (or an invalid price) changes nothing. The aggregate ratio (of issued − treasury) and the buyer's
+  // own holding both move by the filled quantity. No RNG is drawn here.
   buyCompetitorStake(c) {
-    const price=Math.max(1,finite(this.g.stockPrice)),outstanding=Math.max(1,this.g.sharesOut-this.g.treasuryBuybackShares),held=Math.max(0,finite(this.g.competitorOwnedRatio))*outstanding;
-    const float=Math.max(0,outstanding-finite(this.g.founderShares)-held),capRoom=Math.max(0,.49*outstanding-held);
+    const price=Number(this.g.stockPrice);if(!Number.isFinite(price)||price<=0)return 0;
+    const outstanding=Math.max(1,this.g.sharesOut-this.g.treasuryBuybackShares),held=Math.max(0,finite(this.g.competitorOwnedRatio))*outstanding,ticker=this.g.ticker;
+    const ownTicker=map=>ticker!=null?Math.max(0,finite(map?.[ticker]?.qty)):0,playerHeld=finite(this.g.founderShares)+ownTicker(this.g.personalStocks)+ownTicker(this.g.companyStocks);
+    const float=Math.max(0,outstanding-playerHeld-held),capRoom=Math.max(0,.49*outstanding-held);
     const desired=Math.floor(Math.min(Math.max(0,finite(c.cash))*.1,5_000_000)/price),filled=Math.max(0,Math.min(desired,Math.floor(float),Math.floor(capRoom)));
     if(!filled)return 0;
     c.cash-=filled*price;c.ownedPlayerShares=finite(c.ownedPlayerShares)+filled;this.g.competitorOwnedRatio=(held+filled)/outstanding;
