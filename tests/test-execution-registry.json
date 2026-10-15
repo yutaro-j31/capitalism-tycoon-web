@@ -211,6 +211,10 @@
     "reason": "D3 share-swap closing through the installed deal-room chain on real WebKit: a rejected save rolls ownership ratios back; the committed closing dilutes founder and competitor over issued − treasury, new shares are external, ratios sum to 1; reload and fresh durable-only IndexedDB agree, in the stock-split-atomicity job on every workflow event.",
     "executedBy": ".github/workflows/ma-acquisition-financing.yml"
   },
+  "tests/competitor-stake-float-webkit-test.js": {
+    "reason": "D4 weekly competitor stake purchases on real WebKit through advanceWeek: external float only, 49% cap, whole shares, cash = filled × price, founder untouched, ratios sum to 1 every committed week; reload and fresh durable-only IndexedDB agree, in the stock-split-atomicity job on every workflow event.",
+    "executedBy": ".github/workflows/ma-acquisition-financing.yml"
+  },
   "tests/earnings-confirm-read-only-webkit-test.js": {
     "reason": "#988 market-tab 「決算イベントを確認」 is read-only: tapped repeatedly on the booted app (latest-result and no-result views) it changes no live, mirror, cache or durable state, saves nothing, emits no engine event and draws no RNG; reload and fresh durable-only hydration in iPhone WebKit on every workflow event.",
     "executedBy": ".github/workflows/ma-acquisition-financing.yml"

@@ -2113,9 +2113,33 @@ class TycoonEngine extends EventTarget {
     return weights;
   }
 
+  // D4: a competitor buys player-company shares from the external float only, up to the 49% aggregate cap, in
+  // whole shares. The float is the P3-2 reconciliation's unallocated outstanding quantity (issued − treasury −
+  // founder beneficial holding, incl. own-ticker shares bought personally) minus the competitors' aggregate stake.
+  // When that reconciliation is not ok or reports an unresolved alias of the player-company shares (missing ticker
+  // binding, malformed holdings, company-held own-ticker shares, conservation failure), the competitor ratio or the buyer's named stake is malformed, or the price is invalid, ownership is
+  // unknown and the purchase is a zero fill. A desired quantity above the float fills partially; the cash paid is
+  // the filled quantity × price; a zero fill changes nothing. The aggregate ratio (of issued − treasury) and the
+  // buyer's own holding both move by the filled quantity. No RNG is drawn here.
+  buyCompetitorStake(c) {
+    const price=Number(this.g.stockPrice);if(!Number.isFinite(price)||price<=0)return 0;
+    let view;try{view=__modules.economicReadModel?.ownershipReconciliation?.(this.g);}catch{return 0;}
+    // Only aliases that can hold player-company shares make the float unknown; third-party portfolio aliases do not.
+    const ownAlias=a=>a?.reason==='company-own-share-alias-not-adopted'||(this.g.ticker!=null&&String(a?.instrumentId)===String(this.g.ticker));
+    if(!view?.ok||(view.unresolvedAliases||[]).some(ownAlias))return 0;
+    const security=view.securityClasses[0],outstanding=security.outstandingQuantity,unallocated=security.unallocatedOutstandingQuantity;
+    const valid=v=>typeof v==='number'&&Number.isFinite(v)&&v>=0,own=(o,k)=>Object.prototype.hasOwnProperty.call(o,k)?o[k]:0;
+    const ratio=own(this.g,'competitorOwnedRatio'),named=own(c,'ownedPlayerShares');// only an absent field is 0; a present null is unknown ownership
+    if(![outstanding,unallocated,ratio,named].every(valid)||outstanding<=0)return 0;
+    const held=ratio*outstanding,float=Math.max(0,unallocated-held),capRoom=Math.max(0,.49*outstanding-held);
+    const desired=Math.floor(Math.min(Math.max(0,finite(c.cash))*.1,5_000_000)/price),filled=Math.max(0,Math.min(desired,Math.floor(float),Math.floor(capRoom)));
+    if(!filled)return 0;
+    c.cash-=filled*price;c.ownedPlayerShares=named+filled;this.g.competitorOwnedRatio=(held+filled)/outstanding;
+    return filled;
+  }
   updateCompetitors() {
     const allocations=this.allocateCompetitorGroupBudgets();
-    for(const c of this.g.competitors){const weight=allocations.get(c.id)??1;const profit=c.stores*rand(this.g,100000,450000);c.cash+=profit;c.brand=clamp(c.brand+rand(this.g,-.1,.5)*weight,0,100);c.quality=clamp(c.quality+rand(this.g,-.1,.4)*weight,0,100);if(c.cash>8_000_000&&simRng.next(this.g)<.08*weight){c.stores++;c.cash-=rand(this.g,2_000_000,7_000_000);logCompetitorText(this.g, `${c.name}が${this.area(c.areaID)?.name||''}で出店しました。`);}if(this.g.publicCompany&&simRng.next(this.g)<.005){const spend=Math.min(c.cash*.1,5_000_000),qty=spend/Math.max(1,this.g.stockPrice);c.cash-=spend;c.ownedPlayerShares+=qty;this.g.competitorOwnedRatio=clamp(this.g.competitorOwnedRatio+qty/this.g.sharesOut,0,.49);}}
+    for(const c of this.g.competitors){const weight=allocations.get(c.id)??1;const profit=c.stores*rand(this.g,100000,450000);c.cash+=profit;c.brand=clamp(c.brand+rand(this.g,-.1,.5)*weight,0,100);c.quality=clamp(c.quality+rand(this.g,-.1,.4)*weight,0,100);if(c.cash>8_000_000&&simRng.next(this.g)<.08*weight){c.stores++;c.cash-=rand(this.g,2_000_000,7_000_000);logCompetitorText(this.g, `${c.name}が${this.area(c.areaID)?.name||''}で出店しました。`);}if(this.g.publicCompany&&simRng.next(this.g)<.005)this.buyCompetitorStake(c);}
     this.updateOwnershipRatios();
   }
   updateProducts() {
