@@ -69,6 +69,7 @@ const nodeTests = [
   ['found-new-company-save-atomicity', 'tests/found-new-company-save-atomicity-test.js'],
   ['decline-buyout-ownership-save-atomicity', 'tests/decline-buyout-ownership-save-atomicity-test.js'],
   ['earnings-confirm-read-only', 'tests/earnings-confirm-read-only-test.js'],
+  ['ma-share-swap-ownership-ratios', 'tests/ma-share-swap-ownership-ratios-test.js'],
   ['shareholder-activism-accept-save-atomicity', 'tests/shareholder-activism-accept-save-atomicity-test.js'],
   ['shareholder-activism-split-integration', 'tests/shareholder-activism-split-integration-test.js'],
   ['execute-mbo-save-atomicity', 'tests/execute-mbo-save-atomicity-test.js'],
