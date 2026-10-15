@@ -79,7 +79,7 @@ Abbreviations: SF = save-fault injection set (save-false, mirror, enqueue-false/
 | ID | Location | Writes | Boundary | Evidence | Verdict |
 |---|---|---|---|---|---|
 | W-WEEK-MARKET | `engine.js:1836-1838` `updateMarket` | all prices (floor `Math.max(10,…)`), own stockPrice/issuedShares/marketCap, priceHistory | WK | CODE + generic `week-transaction-atomicity` / `transaction-regression` | **GAP** — boundary verified by CODE only; no writer-specific fault / HY / WebKit test (generic week tests use a private company) |
-| W-WEEK-COMPETITOR | `engine.js:2142` `updateCompetitors` → `engine.js:2124` `buyCompetitorStake` | competitorOwnedRatio, named `ownedPlayerShares`, competitor cash | WK | NODE (rule, malformed / legacy, composite share swap / buyback / personal own-ticker, 120-week sum = 1, determinism, reload) + WEBKIT (in-transaction purchase, 12 weekly commits, reload, fresh IDB) — `competitor-stake-float` | **VERIFIED** for the purchase rule (eighth pass: #993 merged `743d08d1`; float from P3-2 `ownershipReconciliation`, 49 % aggregate cap, whole shares, unknown ownership → zero fill, no new RNG). No writer-specific save-fault set beyond the week transaction |
+| W-WEEK-COMPETITOR | `engine.js:2142` `updateCompetitors` → `engine.js:2124` `buyCompetitorStake` | competitorOwnedRatio, named `ownedPlayerShares`, competitor cash | WK | NODE (rule, malformed / legacy, composite share swap / buyback / personal own-ticker, 120-week sum = 1, determinism, reload) + WEBKIT (in-transaction purchase, 12 weekly commits, reload, fresh IDB) — `competitor-stake-float` | **GAP** (save-fault) — purchase rule NODE + WEBKIT (eighth pass: #993 merged `743d08d1`; float from P3-2 `ownershipReconciliation`, 49 % aggregate cap, whole shares, unknown ownership → zero fill, no new RNG), but no writer-specific save-fault rollback / HY test: `competitor-stake-float` stubs `save`, the WebKit test covers successful commits only, and the generic week rollback tests use a private company, so the purchase never runs in them |
 | W-WEEK-STARTUPS | `engine.js:1840-1867` `updateStartups` → open/close round, write-off, `listStartup` (stakes → holdings, RNG) | stakes, holdings, ledger | WK | CODE + `startup-funding-round-test` | **GAP** — boundary verified by CODE only; no writer-specific fault / HY / WebKit test |
 | W-WEEK-PE / MA / PMI | `pe-fund.js:1019`, `pe-portfolio-operations.js:996`, `pe-deal-supply.js:548`, `pe-network.js:167`, `ma-deal-room.js:122`, `updateSubsidiaries` wrappers | fund / deal / subsidiary state | WK (nested TX) | CODE | **GAP** — boundary verified by CODE only; no writer-specific fault / HY / WebKit test |
 | W-WEEK-EXPANDED | `expansion.js:798` `updateCapitalMarketsExpandedWeekly`; margin liquidation `personal-stock-margin.js:163` | `ownershipHistory`, personal holdings | WK | CODE + `microcap-listings-test`, `personal-stock-margin-test` | **GAP** — boundary verified by CODE only; no writer-specific fault / HY / WebKit test |
@@ -384,7 +384,7 @@ Merged since the seventh pass, one at a time by Owner conditional approval, the 
 | Writer / defect | Review | Node | WebKit | Verdict on main |
 |---|---|---|---|---|
 | W-SHARE-SWAP correctness (D3) | Codex: no major issues; same-session subagent audit (not independent): no P0/P1 | RED on the previous main (`competitor keeps its share count: 210000 != 190000`; live sum 1.0909, reload 1); GREEN through `closeMADeal`, `completeTargetAcquisition`, an outer transaction, the legacy `acquireTarget`; treasury / competitor / founder 100 % / competitor 49 %; reload, fresh hydration, determinism; save-fault harness asserts dilution on every retry | rejected save rolls ratios back; exact dilution; reload; fresh context | **VERIFIED** |
-| W-WEEK-COMPETITOR (D4 weekly purchase) | Codex: one P1 (personal own-ticker shares counted as float) and five P2 (malformed / null quantities, missing ticker binding, third-party aliases wrongly rejected, present-null stake or ratio) all fixed before merge; re-review on the merged head: no major issues; same-session audit P1 fixed | RED on the previous main (sum 1.01 by week 74; named +5,000 vs ratio +4,750 shares; purchases past 49 %); GREEN: rule, malformed / legacy / unknown-ownership zero fill, composite share swap → purchase, personal own-ticker → purchase, production buyback → purchase, cap reached, zero float, 120 weekly commits with sum = 1, 60-week determinism, reload | in-transaction purchase (fill 5,000 then 0), 12 weekly commits, reload, fresh context | **VERIFIED** (purchase rule) |
+| W-WEEK-COMPETITOR (D4 weekly purchase) | Codex: one P1 (personal own-ticker shares counted as float) and five P2 (malformed / null quantities, missing ticker binding, third-party aliases wrongly rejected, present-null stake or ratio) all fixed before merge; re-review on the merged head: no major issues; same-session audit P1 fixed | RED on the previous main (sum 1.01 by week 74; named +5,000 vs ratio +4,750 shares; purchases past 49 %); GREEN: rule, malformed / legacy / unknown-ownership zero fill, composite share swap → purchase, personal own-ticker → purchase, production buyback → purchase, cap reached, zero float, 120 weekly commits with sum = 1, 60-week determinism, reload | in-transaction purchase (fill 5,000 then 0), 12 weekly commits, reload, fresh context | **GAP** (rule fixed and verified; atomicity under save faults not tested for this writer — §1 requires it) |
 
 ### Remaining ownership-ratio writers (re-evaluated on `743d08d1`)
 
@@ -405,6 +405,18 @@ W-MBO, W-DEFENSE, W-ACTIVISM-NEG/REJ, W-BUYBACK (partial fault set), W-DIV-SET /
 
 Every review in this pass is Codex per PR plus same-session subagent audits (not independent). An independent A–L audit should cover at least: the ownership ratio authority (aggregate ratio vs named holdings vs P3-2 `ownershipReconciliation`), all share-issuing writers (share swap, M&A equity raise, IPO, investor / sponsor / turnaround, split), the competitor purchase float rule, W-DEFENSE, and the M&A financing shadow-state boundary.
 
+### §5 completion conditions at this pass (§5 itself is the first-pass table, kept for history)
+
+| # | Condition | Status at the eighth pass |
+|---|---|---|
+| 4 | Required Node regression tests registered | **Not met** — GAP rows remain (§2), including the W-WEEK-COMPETITOR save-fault set |
+| 5 | WebKit need decided with evidence | **Not met** — list above |
+| 6 | Accounting / ownership invariants | **Not met** — D3 and the weekly purchase are fixed; remaining: W-DEFENSE ratio fork (REPRO), W-MA-EQUITY-RAISE (#994 open), founder + competitor > 1 through a buyback (`playerShareAcquisitionCapacity` ignores the competitor; CODE, not re-reproduced in this pass) |
+| 7 | Unresolved P0/P1 recorded | **Met** — none open (#953, #954, #955 closed or fixed on main) |
+| 1, 8, 10 | Writer list completeness / executable CI gate / independent diff audit | unchanged from §5 (Partial / Partial / Not met) |
+
+Next steps (replacing §7 items 1–4, which are done on main: #957; #958 / #959 / #961 / #962; #963 / #965 / #991; #992 / #993): (1) #994 Owner decision; (2) Owner decision on the W-DEFENSE released stake and the named-vs-aggregate holding sync; (3) save-fault and WebKit coverage for the GAP rows above, one writer per PR; (4) independent A–L audit.
+
 **Open P0/P1 at this pass:** no open P0; no open P1. D3 and the weekly-purchase part of D4 are fixed on main. Remaining ownership items are P2 (above) and the open W-MA-EQUITY-RAISE fix (#994).
 
 ### P3-4 Ownership Authority Cutover — still BLOCKED (STOPPED)
@@ -418,6 +430,8 @@ Items 2–6 of §3g remain. Item 1 narrows to: W-MA-EQUITY-RAISE (#994 pending),
 - Every WebKit atomicity test drives the engine through `page.evaluate`; none goes through a UI click.
 
 ## 5. Track A completion conditions
+
+*First-pass table (2026-10-12), kept for history. The current status is in the latest remediation pass (§3h).*
 
 | # | Condition | Status | Evidence |
 |---|---|---|---|
@@ -441,6 +455,8 @@ Items 2–6 of §3g remain. Item 1 narrows to: W-MA-EQUITY-RAISE (#994 pending),
 - Not run locally: WebKit (no local WebKit; CI evidence only), physical iPhone (none).
 
 ## 7. Recommended order of remediation (each its own PR, Owner approval required)
+
+*First-pass order, kept for history: items 1–4 are done on main; the current next steps are in §3h.*
 
 1. #953 activism accept/negotiate/reject → one outer transaction + Node/WebKit tests (duplicated cash effect).
 2. #954 legacy PE create/exit, `makeSubsidiary`, angel → `runTransaction` + tests on the shared harness (#952).
