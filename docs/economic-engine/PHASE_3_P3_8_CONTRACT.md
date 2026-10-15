@@ -86,4 +86,3 @@ Approve read-only implementation. New preferred terms, acquisition exit settleme
 ## 20. Definition of Done
 
 Actual adapter and conversion tests pass; source fields and unavailable evidence documented; no Phase 14 authority change. Node/WebKit evidence identifies exact implemented cases and remaining gaps.
-
