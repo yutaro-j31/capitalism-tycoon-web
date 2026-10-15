@@ -97,4 +97,3 @@ Approve pure projection/display implementation. OD-04: choose evidence-backed pr
 ## 20. Definition of Done
 
 Supported component calculations implemented and tested; completeness honest, no duplicate own/fund assets or debt; UI and negative cases verified; consumers unchanged; outstanding Owner decisions and unsupported totals documented. This is projection DoD, not wealth-consumer cutover.
-
