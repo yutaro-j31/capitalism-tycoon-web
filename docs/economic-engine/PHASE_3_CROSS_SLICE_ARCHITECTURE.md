@@ -13,6 +13,8 @@ Raw committed legacy snapshot → validated identity/alias index → independent
 | Player issued/founder/treasury/designated personal lot | engine + expansion + shareholder returns + crisis + M&A wrappers | existing ownershipProjection / ownershipReconciliation | P3-4 stopped; P3-2 is diagnostic |
 | market / personalStocks / companyStocks | engine trades, expansion stockSplit, personalStockMargin forced helpers, startup IPO | P3-5 | Phase9 settlement unchanged |
 | subsidiaries / maSubsidiaries | makeSubsidiary; listed subsidiary market/IPO/secondary/follow-on/control; ma-deal-room → board/financing/PE wrappers; disposal/group actions | P3-6 | Phase10/11/12 boundaries unchanged |
+| maSubsidiaries commercialization spinouts | new-business-commercialization.js::act(mode=spinout), installed commercializeNewBusiness | P3-6 unresolved raw relationship | derived row lacks retained ownership/class/voting provenance; never infer100% |
+| productVentures / newBusinesses / overseasSubsidiaries | existing operating/overseas writers (not adopted here) | explicit unsupported/source-coverage disclosure | operational assets are not automatically legal issuers; parent equity coverage must disclose them |
 | peDeals + mirrored subsidiary | expansion create/transfer/sync/exit; pe-value-creation wrapper | P3-7 canonical interest; P3-6 hierarchy | no double asset; Phase13 unchanged |
 | peFirm.funds/deals/cash | peFund formation/service/distributions; peAcquisition closing; pePortfolioOperations exit/parent conversion | P3-7 | fund and external co-invest not founder gross assets |
 | startups / activeFundingRound / ipoStockID | engine invest/follow-on/close/writeoff/list; expansion secondary; weekly update | P3-8 | Phase14 settlement unchanged |
@@ -50,13 +52,33 @@ type AdapterResult = { authority: 'read-only'; adapterVersion: 1;
 
 Proposed `buildOwnershipIdentityIndex(rawState)` and `projectOwnershipSnapshot(rawState)` create a snapshot-local validated index/composition. All APIs reject non-object roots with structured INPUT_INVALID; bad rows are quarantined with exact paths and unaffected facts may return partial evidence. Index and snapshot share an opaque in-memory source token bound to the exact immutable input (never saved/time/random); passing an index for another input rejects. Caller must supply a fresh immutable committed view after each successful transaction/hydration. No reliance on week alone: same-week trades change ownership.
 
+### Stable reason-code contract
+
+| Code | Required result / explanation |
+|---|---|
+| INPUT_INVALID | malformed root/row; partial affected-row quarantine or root error; never coerce |
+| IDENTITY_UNPROVEN / GENERATION_UNPROVEN | entity/old-company binding lacks evidence; issuer/actor not executable |
+| ALIAS_CONFLICT / ID_COLLISION | multiple sources disagree or ID reused; affected claim excluded from totals/rights |
+| CLASS_UNKNOWN / RIGHTS_UNKNOWN | legal class/voting terms absent; economic evidence retained separately |
+| DENOMINATOR_UNKNOWN / DENOMINATOR_ZERO | votes cannot be evaluated; zero denominator never eligibility |
+| CONSERVATION_INVALID | issued/treasury/outstanding/known-holder quantities inconsistent; preserve source |
+| QUANTITY_OUT_OF_ENVELOPE / NUMERIC_DOMAIN_UNSUPPORTED | share envelope invalid or voting integer domain unsupported |
+| INDIRECT_CONTROL_UNSUPPORTED / CYCLE_UNSUPPORTED | graph/delegation cannot establish direct rights |
+| ISSUER_FAMILY_UNSUPPORTED / AUTHORITY_NOT_ADOPTED | facts may project; new command execution prohibited |
+| THRESHOLD_NOT_MET | valid complete evidence, exact comparator false; INELIGIBLE rather than UNKNOWN |
+| EFFECT_UNAPPROVED / STALE_EVIDENCE | proposed command effect absent or revision changed; direct execution rejects |
+| VALUATION_SOURCE_CONFLICT / VALUATION_BASIS_UNSUPPORTED | amount unknown, raw observations retained |
+| LIABILITY_COVERAGE_UNKNOWN / VALUATION_INCOMPLETE | total wealth null; known subtotal explicitly incomplete |
+
+Code strings and source paths are deterministic API data; localized message text is UI only and must not determine permission. UNKNOWN versus invalid versus INELIGIBLE remain distinct. Unrecognized reason/evidence state fails closed. Numeric residuals never rewrite source quantities. Adding a diagnostic code is additive; changing semantic meaning requires a contract revision.
+
 ## 3. Identity and generation
 
 Reuse existing P1 IDs exactly: entity:company:player, entity:person:founder and security:player-company:common. These are active-slot references, not proof that every historical company generation is one legal issuer. Keep existing P1 IDs unchanged; proposed metadata includes currentCompanySerial and provenance only when proven. Do not append serial silently to existing public IDs or rewrite historical operations.
 
 For non-player sources, deterministic proposed IDs encode durable kind/source ID using injective escaping (UTF-8 percent encoding with delimiter escaping), scoped to proven owner/generation where required. Examples: entity:company:startup:<escaped startup.id>, entity:fund:pe:<escaped fund.id>, entity:company:ma:<escaped target.id>. Security class uses an explicit class durable ID/binding only; unknown class=null, not guessed common. Namespace+length/escaped components must be collision-tested; no hash-only IDs, RNG, array index, display name or tickers as legal identity. A source-scoped ID is labeled as such and is not sufficient historical identity for new commands.
 
-M&A target stable key/deal/source IDs and reciprocal conversion evidence establish aliases when unique; duplicate durable IDs quarantine involved rows. A listing market.id is an instrument alias, not automatically a permanent legal issuer. Unique startup.id + ipoStockID provenance may bind a listing; a ticker rename/reuse without retained linkage stays unknown. IPO changes listing status and possibly class; it does not create a second issuer or imply class rights continuity. Split preserves known issuer/class and scales observed quantities; delisting preserves position identity and changes status only. Reader never replays a split or IPO.
+Commercialization spinouts retain derived spinout-* IDs but not projectID/startWeek/ownership/class on maSubsidiaries rows. Treat them as source-scoped unresolved relationships; never reconstruct their identities from bounded commercialization history, regenerate derived IDs or infer100% ownership from collection membership/EV. Duplicate/reused spinout IDs or lost history stay unsupported. M&A target stable key/deal/source IDs and reciprocal conversion evidence establish aliases when unique; duplicate durable IDs quarantine involved rows. A listing market.id is an instrument alias, not automatically a permanent legal issuer. Unique startup.id + ipoStockID provenance may bind a listing; a ticker rename/reuse without retained linkage stays unknown. IPO changes listing status and possibly class; it does not create a second issuer or imply class rights continuity. Split preserves known issuer/class and scales observed quantities; delisting preserves position identity and changes status only. Reader never replays a split or IPO.
 
 Company sale/refounding increments currentCompanySerial and replaces company roots while preserving personal assets. Source links that cannot distinguish old/new company or own-ticker interests are unresolved for new capabilities. Do not attach retained personal holdings/debt to a refounded issuer merely because the active-slot ID/ticker matches. Historical generation ambiguity is shared with #981; persisted generation adoption/repair remains separately approved.
 
@@ -83,7 +105,7 @@ No aggregation across company/person/fund vehicles for command eligibility; no a
 
 Economic fraction, legal share quantity, voting units, management rights, fund capital rights and proceeds participation are separate types of evidence. All external absent class/treasury/non-voting data remains unknown. Player single-common evidence comes from approved P3-1/2 only. Legacy ratio/source quantity validity does not establish executable voting.
 
-P3-2 exact Number/TwoSum conservation semantics remain unchanged. P3-9 accepts finite nonnegative safe integer voting units and exact BigInt comparison in transient calculation; unsupported fractions fail closed. Never persist BigInt or round quantities to pass thresholds. Monetary projections use finite in-envelope Number evidence; enforce source rounding domain separately from quantities/votes and reject nonfinite/overflow. No EPSILON may grant rights. ECO-010 must be evaluated per class with all denominator terms known, not “passed” by assuming treasury0 externally.
+Readable share quantities use the existing P3-1 predicate: typeof q === 'number', Number.isFinite(q), 0 <= q <= Number.MAX_SAFE_INTEGER; no strings/coercion/clamping. Fractions inside that envelope remain diagnostic evidence, not executable voting units. P3-2 exact Number/TwoSum conservation semantics remain unchanged. Tests distinguish MAX_SAFE_INTEGER, just-over,1e20 and finite fractional quantities. P3-9 accepts finite nonnegative safe integer voting units and exact BigInt comparison in transient calculation; unsupported fractions fail closed. Never persist BigInt or round quantities to pass thresholds. Phase0 authoritative monetary-posting envelope is abs(amount *100) <= Number.MAX_SAFE_INTEGER at the approved JPY0.01 quantum; legacy prices/valuation estimates have separate precision and are not required to be cent-quantized just to display evidence. Monetary projections use finite in-envelope Number evidence; enforce source rounding domain separately from quantities/votes and reject nonfinite/overflow. No EPSILON may grant rights. ECO-010 must be evaluated per class with all denominator terms known, not “passed” by assuming treasury0 externally.
 
 ## 6. Purity, transaction and save contract
 

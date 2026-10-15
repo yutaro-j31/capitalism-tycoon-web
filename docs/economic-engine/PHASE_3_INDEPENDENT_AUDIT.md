@@ -6,13 +6,13 @@ Audit baseline743d08d1867f453fe09c61e1fd5312c846cfc1eb, verified via GitHub bran
 
 ## 1. Method and evidence levels
 
-CODE: approved Roadmap/dependency/Entry/P3-1/2/3 contracts, AGENTS/CLAUDE invariants, Track A history, actual read-model/entity/operation code, installed engine/expansion/fund/VC/M&A/subsidiary wrappers, index script ordering and current workflow/test registration inspection. Lexical searches include share quantities/ratios, market maps, startup/IPO/funding/secondary/subsidiary, PE fund/direct/parent conversion, founder wealth and finance/debt identities. This is not a mathematical proof against every computed writer.
+CODE: approved Roadmap (all1900 lines read in the separate same-session reviewer stage), dependency graph (all256 lines), Entry/P3-1/2/3 contracts, AGENTS/CLAUDE invariants, Track A history, actual read-model/entity/operation code, installed engine/expansion/fund/VC/M&A/subsidiary wrappers, index script ordering and current workflow/test registration inspection. Lexical searches include share quantities/ratios, market maps, startup/IPO/funding/secondary/subsidiary, PE fund/direct/parent conversion, founder wealth and finance/debt identities. This is not a mathematical proof against every computed writer.
 
 TEST:12 existing Node characterization files actually executed against audited production; exact command is `node <file>` from repository root, runtime Node v24.19.0 from execution environment. All exited0. No new adapter production/API exists, so this is not TEST evidence for future APIs.
 
 WEBKIT: no local WebKit or physical iPhone executed by this design session. Actual GitHub check runs inspected at baseline include successful stock-split-atomicity, pe-acquisition-atomicity, vc-funding-atomicity, vc-secondary-atomicity, comprehensive-ma, iPhone WebKit Smoke and iPhone Acceptance Playthrough. These are legacy baseline CI evidence at their tested head/event, not new adapter or physical-device proof. Workflow source inspected to distinguish path/event applicability. No downloaded artifacts/log-by-log claim for all existing jobs.
 
-REVIEW: separate reviewer agent `/root/design_review` in this same Work session inspected eight slice drafts/shared architecture, relevant approved contracts and selected production paths. It was read-only, did not execute tests or post reviews. This is a separate author/reviewer stage, **not external independent audit**, not an independent Claude P3-4 implementation audit and not proof of complete dynamic-writer coverage. Second reviewer pass rechecked all seven corrections and completed dependency/readiness/audit documents against source; no additional material P0/P1/P2 reported. Reviewer checked stored Node log endings and result table for consistency, without rerunning tests. Final candidate must still receive requested external/fresh independent review before formal Exit.
+REVIEW: separate reviewer agent `/root/design_review` in this same Work session inspected eight slice drafts/shared architecture, relevant approved contracts and selected production paths. It was read-only, did not execute tests or post reviews. This is a separate author/reviewer stage, **not external independent audit**, not an independent Claude P3-4 implementation audit and not proof of complete dynamic-writer coverage. Second reviewer pass rechecked the first seven corrections and completed dependency/readiness/audit documents against source. A third full-Roadmap/coverage pass then identified RV08/09; their corrections are recorded below and were rechecked by the separate same-session reviewer, leaving no remaining material P0/P1/P2. Reviewer checked stored Node log endings and result table for consistency, without rerunning tests. Final candidate must still receive requested external/fresh independent review before formal Exit.
 
 DESIGN: all proposed adapter/eligibility/wealth/command APIs, added-test candidates, numeric/performance targets and future Gate assertions. Existence in a Markdown contract is not implementation or PASS.
 
@@ -80,7 +80,7 @@ Verdict: conditional DESIGN coherence after corrections. Not production Gate PAS
 
 ## 5. Separate reviewer findings and corrections
 
-Counts for this design review: **newly confirmed P0=0, P1=0, P2=7**. These counts are not a clean-bill-of-health for the repository. Existing #981 reports6 additional P1 root-cause families on its stated baselines; those were not re-executed here and are not counted as newly discovered by this design review. Owner has separately approved their minimal Writer repair; this task makes no such edits.
+Counts for this design review: **newly confirmed P0=0, P1=0, P2=9**. These counts are not a clean-bill-of-health for the repository. Existing #981 reports6 additional P1 root-cause families on its stated baselines; those were not re-executed here and are not counted as newly discovered by this design review. Owner has separately approved their minimal Writer repair; this task makes no such edits.
 
 | ID / P2 | Finding | Design correction |
 |---|---|---|
@@ -91,6 +91,8 @@ Counts for this design review: **newly confirmed P0=0, P1=0, P2=7**. These count
 |RV05|nonexistent save-v9-test.js evidence|corrected to tests/save-v9-migration-test.js|
 |RV06|no explicit conflicting own-company price policy|P3-11 now requires active-generation price evidence; stockPrice/market disagreement/missing binding gives unknown+reason and test candidate|
 |RV07|grouped iPhone job row omitted PR acceptance/smoke schedule distinctions|split exact smoke, acceptance and release-readiness event rows; docs-only Test iPhone Acceptance remains applicable|
+|RV08|commercialization spinout maSubsidiaries Writer omitted|added source fields/missing ownership provenance, unresolved/duplicate-derived-ID/lost-history fixtures and real reusable tests; operational/overseas coverage explicit|
+|RV09|readable quantity envelope not explicit for external adapter|shared/P3-5 predicate now preserves P3-1 finite0..MAX_SAFE envelope; fractions diagnostic, integer voting separate; posting quantum distinct from quote precision|
 
 Author design corrections beyond reviewer list: forbid fund financing ratios as legal shares; preserve pending VC contribution evidence without current voting equity; no legacy total-plus-founder wealth shortcut; no false total from unknown debt/equity coverage; separate12 test shards from audit axes; remove stale unmerged D3/D4 blocker claims. No production defect was repaired or claimed repaired by these edits.
 

@@ -77,6 +77,7 @@ All paths below exist at audited main unless explicitly marked candidate. An exi
 | External map / own dedup | tests/economic-read-model-test.js; tests/stock-split-price-history-test.js | new issuer alias resolution/class rights |
 | Subsidiary/VC mirror | tests/finance-startup-subsidiary-test.js; tests/make-subsidiary-save-atomicity-test.js | unified canonical relationship/alias/cycle |
 | M&A swap D3 | tests/ma-share-swap-ownership-ratios-test.js; tests/ma-share-swap-save-atomicity-test.js | #994 equity raise test remains PR-only until merged |
+| Commercialization spinout | tests/new-business-commercialization-test.js; tests/new-business-commercialization-accounting-test.js; tests/new-business-spinout-valuation-exploit-test.js; tests/new-business-spinout-finite-state-test.js; tests/new-business-spinout-legacy-backfill-test.js | P3-6 unresolved relationships, derived-ID duplicate/reuse and missing retained history; no reader backfill |
 | Competitor D4 | tests/competitor-stake-float-test.js | complete adopted registry writer coverage |
 | PE direct/company | tests/pe-dual-ownership-test.js; tests/pe-exit-deal-save-atomicity-test.js | cross-adapter uniqueness / founder union |
 | PE fund/co-invest/parent | tests/pe-fund-coinvest-test.js; tests/pe-fund-acquisition-save-atomicity-test.js; tests/pe-portfolio-exit-save-atomicity-test.js; tests/pe-parent-company-acquisition-negative-test.js | legal rights vs proceeds; fund-interest valuation completeness |
