@@ -80,13 +80,14 @@ async function view(p){return p.evaluate(async snap=>{const m=__capitalismTycoon
   return {cases,listenerHits,alreadyClosed,live:view(new m.engine.TycoonEngine(JSON.parse(JSON.stringify(g))).g)};
  },pick);
  for(const row of proof.cases)console.log(`iPhone WebKit shadow boundary ${row.name}: ${row.noFork?'no fork (live = mirror = cache = durable)':'result=false live/mirror/cache/durable rolled back consistently'} PASS`);
- if(!proof.alreadyClosed)assert.ok(pageErrors.some(x=>x.includes('notify listener threw')),'the throwing listener was reported by the page, not rethrown');
- assert.deepEqual(pageErrors.filter(x=>!x.includes('notify listener threw')),[],'no other page error');
  console.log(proof.alreadyClosed?'iPhone WebKit shadow boundary notify-listener-throw: skipped (step 2 already committed the closing); live = mirror = cache = durable PASS':'iPhone WebKit shadow boundary notify-listener-throw: closing commits once; live = mirror = cache = durable PASS');
  await p.reload({waitUntil:'networkidle'});const r=await view(p);assert.equal(r.saveVersion,9);assert.deepEqual(r.view,proof.live,'reload');
  const state=await context.storageState({indexedDB:true});for(const origin of state.origins)origin.localStorage=[];
- const fresh=await browser.newContext({...options,storageState:state}),fp=await fresh.newPage();await fp.goto(url,{waitUntil:'networkidle'});
+ const fresh=await browser.newContext({...options,storageState:state}),fp=await fresh.newPage();fp.on('pageerror',e=>pageErrors.push(String(e?.message||e)));await fp.goto(url,{waitUntil:'networkidle'});
  assert.deepEqual((await view(fp)).view,proof.live,'fresh durable-only');await fresh.close();await context.close();
+ // Page errors from the first page, its reload and the fresh durable-only page, checked after all startups.
+ if(!proof.alreadyClosed)assert.ok(pageErrors.some(x=>x.includes('notify listener threw')),'the throwing listener was reported by the page, not rethrown');
+ assert.deepEqual(pageErrors.filter(x=>!x.includes('notify listener threw')),[],'no other page error');
  console.log('iPhone WebKit M&A equity raise shadow boundary: reload / fresh real IDB PASS');
  fs.writeFileSync(path.join(DIR,'ma-equity-raise-shadow-atomicity-result.json'),JSON.stringify({physicalDevice:false,device:'iPhone13',ok:true,cases:proof.cases,listenerHits:proof.listenerHits,live:proof.live},null,2));
  console.log('iPhone WebKit M&A equity raise shadow-state atomicity PASS');
