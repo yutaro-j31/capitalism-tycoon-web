@@ -94,4 +94,3 @@ Separate implementation approval. No economic change needed for raw evidence ada
 ## 20. Definition of Done
 
 Reviewed raw-source mapping and completed focused/canonical gates; fund investment and portfolio participation remain separate; unknown valuation does not masquerade as a complete personal wealth total. No Phase 13 cutover.
-
