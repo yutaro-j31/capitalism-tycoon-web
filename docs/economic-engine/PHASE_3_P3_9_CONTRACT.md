@@ -88,4 +88,3 @@ Read-only implementation approval. No decision needed for exact integer comparat
 ## 20. Definition of Done
 
 All supported exact cases covered, unknowns explicit, UI tested if present, P3-4 adoption prerequisite preserved and no existing management method exposed. P3-9 readiness is separate from command production readiness.
-
