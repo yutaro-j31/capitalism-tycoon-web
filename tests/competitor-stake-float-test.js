@@ -47,6 +47,10 @@ function buy(s,c,label,expectFilled){
  // Own-ticker shares the founder bought personally are founder beneficial holding, not float (P3-2 reconciliation).
  {const s=engine(97531,g=>{g.founderShares=600000;g.competitorOwnedRatio=0;g.treasuryBuybackShares=0;g.ticker='CPTY';g.personalStocks={CPTY:{qty:396000,avg:1000}};}),c=s.e.g.competitors[0];
   buy(s,c,'float = 1,000,000 − 600,000 − 396,000 personal = 4,000',4000);buy(s,c,'then nothing',0);}
+ // Unrelated third-party portfolio holdings (unadopted aliases of other issuers) do not block the purchase.
+ {const s=engine(97531,g=>{g.ticker='CPTY';g.personalStocks={EXT:{qty:2000,avg:900}};g.companyStocks={EXT:{qty:3000,avg:900}};}),c=s.e.g.competitors[0];
+  assert.ok(s.modules.economicReadModel.ownershipReconciliation(s.e.g).unresolvedAliases.length>0,'fixture has third-party aliases');
+  buy(s,c,'third-party holdings only: normal fill',5000);}
  // Own-ticker shares held by the company are an unadopted alias in the reconciliation: unknown ownership, zero fill.
  {const s=engine(97531,g=>{g.ticker='CPTY';g.companyStocks={CPTY:{qty:1000,avg:1000}};}),c=s.e.g.competitors[0],before=JSON.stringify(s.e.g);
   assert.equal(s.e.buyCompetitorStake(c),0,'company own-ticker alias: zero fill');assert.equal(JSON.stringify(s.e.g),before);}
