@@ -31,7 +31,7 @@ P3-1/2 stable player IDs and common shared snapshot contract. No runtime depende
 
 ## 5. Entity / Ownership Data Model
 
-Proposed ListingObservation: `{instrumentAlias, issuerEntityId, securityClassId, listingStatus, issued, treasury, outstanding, rightsStatus, sourceRefs}`. Proposed position has registeredHolderEntityId and beneficialOwnerEntityId: founder for personal map; current player-company reference for company map, subject to generation validity. Quantity is validated finite nonnegative legacy Number, not invented integer shares. Economic fraction is quantity/outstanding only with a proven class/denominator; voting remains null unless explicit rights evidence. Personal and company holdings of the same issuer are distinct positions and cannot be pooled for permissions.
+Proposed ListingObservation: `{instrumentAlias, issuerEntityId, securityClassId, listingStatus, issued, treasury, outstanding, rightsStatus, sourceRefs}`. Proposed position has registeredHolderEntityId and beneficialOwnerEntityId: founder for personal map; current player-company reference for company map, subject to generation validity. Quantity uses P3-1 exact readable predicate: typeof q==='number', finite, 0<=q<=Number.MAX_SAFE_INTEGER, without coercion/clamping. In-envelope fractional evidence is retained for diagnostics, not invented integer voting shares. Out-of-envelope quantity becomes null+QUANTITY_OUT_OF_ENVELOPE. Economic fraction is quantity/outstanding only with a proven class/denominator; voting remains null unless explicit rights evidence. Personal and company holdings of the same issuer are distinct positions and cannot be pooled for permissions.
 
 ## 6. API / Function Contracts
 
@@ -68,7 +68,7 @@ Future position view shows account, quantity, issuer resolution, price source an
 ## 14. Tests / CI / WebKit
 
 Extend existing `tests/phase3-ownership-projection-test.js` and `tests/phase3-ownership-reconciliation-test.js` for shared purity/identity/conservation fixtures; do not duplicate their harness. Add a focused adapter test only for new family behavior, register it in `tests/run-all.js` and `tests/run-all-shards.json` with shard contract verification. Run immutable input/output, malformed/unknown, insertion-order permutation, cross-account separation and no host/simulation RNG tests. Existing tests are characterization, not proof of an unimplemented API. CI: Test canonical A–L + aggregate `test`, Phase 0.5 Acceptance Smoke and all other applicable workflows. New browser/UI integration needs actual iPhone-emulated WebKit, reload and fresh durable hydration, with tested HEAD and job/artifact recorded; physical iPhone is separate. Docs-only PR CI cannot prove future adapter behavior.
-Reuse `tests/stock-split-price-history-test.js`, `tests/stock-purchase-save-atomicity-test.js`, `tests/stock-sale-save-atomicity-test.js` for unchanged installed writers. Candidate new `tests/phase3-listed-holdings-adapter-test.js`: orphan market row; ticker collision/reuse; IPO floor conversion; split/delist; own alias; conflicting source adapters; old save with no treasury. These new tests are DESIGN, not present or executed.
+Reuse `tests/stock-split-price-history-test.js`, `tests/stock-purchase-save-atomicity-test.js`, `tests/stock-sale-save-atomicity-test.js` for unchanged installed writers. Candidate new `tests/phase3-listed-holdings-adapter-test.js`: orphan market row; ticker collision/reuse; IPO floor conversion; split/delist; own alias; conflicting source adapters; old save with no treasury; MAX_SAFE_INTEGER, just-over,1e20 and fractional diagnostic-versus-voting distinction. These new tests are DESIGN, not present or executed.
 
 ## 15. Migration and Cutover Restrictions
 
@@ -93,4 +93,3 @@ Owner implementation approval for this pure adapter is still required. No new ec
 ## 20. Definition of Done
 
 Contract accepted; adapter and test implementation reviewed separately; planned tests actually executed; latest-head applicable CI terminal success; evidence ledger complete and independent reviewer findings disposed. This document alone is design readiness, not implementation DoD.
-
