@@ -99,6 +99,10 @@ function refused(s,kind,label){
   assert.deepEqual(clone(named(s.e.g).slice(0,2)),[.5,.5],'fractional remainders stay');assert.ok(Math.abs(s.e.g.competitorOwnedRatio*950000-1)<1e-6,'aggregate keeps the 1 unsold share');assert.equal(sold,200);
   defend(s,'irCampaign','after the fractional sale IR still runs',{expectSold:0});}
  {const s=engine({holdings:[.4,.4,.4]});refused(s,'poisonPill','fractional 0.4 × 3: poison pill');refused(s,'whiteKnight','fractional 0.4 × 3: white knight');defend(s,'irCampaign','fractional 0.4 × 3: IR',{expectSold:0});}
+ // Floating-point reconstruction (1000 / 800,005 × 800,005 = 999.9999999999999): a full sale leaves exactly 0, never negative.
+ {const s=engine({holdings:[1000,0],setup:g=>{g.sharesOut=850005;g.competitorOwnedRatio=1000/800005;}});
+  defend(s,'whiteKnight','full sale after floating-point reconstruction',{expectSold:1000});assert.equal(s.e.g.competitorOwnedRatio,0,'ratio exactly 0, not negative');
+  defend(s,'irCampaign','IR after the full sale',{expectSold:0});}
  // Seller cash must be a finite number (proceeds are not a repair); an unknown defense kind is refused.
  for(const [label,cash] of [['seller cash NaN',NaN],['seller cash string','500'],['seller cash missing',undefined],['seller cash null',null]]){
   const s=engine();if(cash===undefined)delete s.e.g.competitors[0].cash;else s.e.g.competitors[0].cash=cash;for(const kind of ['poisonPill','whiteKnight','irCampaign'])refused(s,kind,`${label}: ${kind}`);}

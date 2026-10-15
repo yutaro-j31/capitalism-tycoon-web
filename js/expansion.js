@@ -624,7 +624,9 @@ function installExpansion(TycoonEngine){
       // A seller's proceeds land in its cash: a non-numeric cash is unknown state, not something to repair.
       if(qty>0){if(typeof c.cash!=='number'||!Number.isFinite(c.cash))return null;named.push({c,qty,whole:Math.floor(qty)});total+=qty;}}
     if(total>held+1e-6)return null;// named holdings above the aggregate stake: contradictory evidence
-    return {price,outstanding,held,named,total,whole:named.reduce((a,x)=>a+x.whole,0)};// whole: sellable whole named shares
+    // Within the tolerance the ratio × outstanding reconstruction can fall a hair below the named total (floating point);
+    // the aggregate is never below the named shares it contains, so a full sale cannot leave a negative ratio.
+    return {price,outstanding,held:Math.max(held,total),named,total,whole:named.reduce((a,x)=>a+x.whole,0)};// whole: sellable whole named shares
   }
   TycoonEngine.prototype.activateDefense=function(kind){
     // Save atomicity: cash, holdings, ratio and journal share the common save/checkpoint boundary.
@@ -647,7 +649,7 @@ function installExpansion(TycoonEngine){
     this.g.companyCash-=cost;__modules.finance.event(this.g,'headOfficeExpense',cost,{cashEffect:-cost,profitEffect:-cost,sourceType:'activateDefense',sourceID:`${kind}-${this.g.week}`,description:'買収防衛策'});
     if(sold){
       for(const x of rows)if(x.base>0){x.c.ownedPlayerShares=x.qty-x.base;x.c.cash+=x.base*ev.price;}// proceeds from outside market buyers; not on the company ledger
-      this.g.competitorOwnedRatio=(ev.held-sold)/ev.outstanding;
+      this.g.competitorOwnedRatio=Math.max(0,ev.held-sold)/ev.outstanding;
     }
     this.updateOwnershipRatios();
     this.g.companyReputation=clamp(this.g.companyReputation+(kind==='irCampaign'?2:0),0,100);this.g.shareholderEventLog.unshift(`第${this.g.week}週：買収防衛策「${kind}」を実行。`);this.g.shareholderEventLog=this.g.shareholderEventLog.slice(0,logCap('shareholderEventLog'));this.notify('買収防衛策を実行しました。','success');return true;
