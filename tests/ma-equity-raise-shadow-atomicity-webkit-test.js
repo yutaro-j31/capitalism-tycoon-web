@@ -49,10 +49,16 @@ async function view(p){return p.evaluate(async snap=>{const m=__capitalismTycoon
   let alreadyClosed=false;
   // 2. the success notice emit throws after the accepted save: NOT a contract (G1). Only the no-fork invariant is
   //    checked: rolled back everywhere (today) or committed once (after a #955-style fix); live, mirror, cache, durable agree.
+  // Economic projection compared between live and the persisted payload (and the pre-closing state when rolled back).
+  const econ=g=>JSON.stringify({...view(g),deal:(g.maDealRooms||[]).find(x=>x.id==='eq-deal')?.status,tx:g.finance.transactions.length,loans:(g.finance.loans||[]).length,surplus:g.finance.balances.capitalSurplus,rng:g.simulationRng});
+  const preClosing=econ(e.g);
   {const emit=e.emit;let hits=0;e.emit=function(type='change',...args){if(type==='notify'&&!this.inTransaction()){hits++;throw new Error('notify emit threw');}return emit.call(this,type,...args);};
    let result,thrown=false;try{result=e.closeMADeal('eq-deal');}catch(_){thrown=true;}finally{e.emit=emit;}
    await m.saveStorageIDB.flush();const d=await durable(),c=m.saveStorageIDB.readSync(key),closed=e.g.maDealRooms.find(x=>x.id==='eq-deal').status==='acquired';
    if(!hits||d!==c||localStorage.getItem(key)!==c||closed!==c.includes('maPublicEquityRaise')||(!thrown&&result!==closed))throw new Error('notify-emit-throw forked '+JSON.stringify({hits,result,thrown,closed}));
+   const liveEcon=econ(e.g),storedEcon=econ(JSON.parse(c));
+   if(liveEcon!==storedEcon)throw new Error('notify-emit-throw: live economic state differs from the persisted state '+JSON.stringify({liveEcon,storedEcon}));
+   if(!closed&&liveEcon!==preClosing)throw new Error('notify-emit-throw: partial rollback '+JSON.stringify({liveEcon,preClosing}));
    cases.push({name:'notify-emit-throw (non-contract)',hits,result,thrown,closed,noFork:true});
    alreadyClosed=closed;}
   // 3. a throwing UI listener: the DOM reports it and the closing commits once.
