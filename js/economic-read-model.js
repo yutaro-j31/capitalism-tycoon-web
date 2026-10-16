@@ -671,6 +671,8 @@ function projectExternalListedHoldings(rawState,identityIndex){
     if(!validId(row.id)){issues.push(ownershipReason('INPUT_INVALID',path));return;}
     add(startupIds,row.id,{row,path});
   });
+  const soldStatusValid=state.isCompanySold===undefined||state.isCompanySold===null||typeof state.isCompanySold==='boolean';
+  if(!soldStatusValid)issues.push(ownershipReason('INPUT_INVALID','isCompanySold'));
   // A malformed inventory may hide an IPO claimant; absence is not proven.
   const aliasInventoryValid=!issues.some(issue=>issue.code==='INPUT_INVALID');
   const ref=(path,durableId,family,role='current')=>({path,durableId,family,role});
@@ -685,7 +687,7 @@ function projectExternalListedHoldings(rawState,identityIndex){
     for(const alias of Object.keys(holdings).sort(compareText)){
       const path=`${mapKey}[${JSON.stringify(alias)}]`,sourceRef=ref(path,alias,'listed');
       const own=validId(state.ticker)&&alias===state.ticker;
-      const ownGenerationKnown=state.currentCompanySerial===1&&state.isCompanySold!==true;
+      const ownGenerationKnown=state.currentCompanySerial===1&&soldStatusValid&&state.isCompanySold!==true;
       if(own&&accountKind==='personal'&&ownGenerationKnown&&aliasInventoryValid
         &&!(startups.get(alias)||[]).length&&(market.get(alias)||[]).length<=1){
         result.sourceCoverage.push({path,status:'delegated',resolvedByAdapter:'ownershipReconciliation'});continue;

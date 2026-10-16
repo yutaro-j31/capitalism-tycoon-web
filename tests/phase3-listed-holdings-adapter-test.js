@@ -46,6 +46,12 @@ for(const ticker of [' ','\t']){
   assert.equal(view.positions.length,1);assert.equal(view.positions[0].quantity.value,10);
   assert.equal(view.positions[0].issuer.entityId,null);assert.equal(view.positions[0].votingUnits.value,null);
 }
+for(const isCompanySold of ['true','false',1,0,{},[]]){
+  const view=project({ticker:'OWN',currentCompanySerial:1,isCompanySold,market:[],startups:[],personalStocks:{OWN:{qty:10}}});
+  assert(!view.sourceCoverage.some(row=>row.status==='delegated'),'malformed sold status cannot prove current company');
+  assert.equal(view.positions.length,1);assert.equal(view.positions[0].quantity.value,10);
+  assert(view.issues.some(row=>row.code==='INPUT_INVALID'));assert(view.issues.some(row=>row.code==='GENERATION_UNPROVEN'));
+}
 function frozen(value){if(value&&typeof value==='object'){assert(Object.isFrozen(value));for(const child of Object.values(value))frozen(child);}}
 frozen(result);frozen(index);
 assert(!Object.isFrozen(state),'reader must not freeze the input');
