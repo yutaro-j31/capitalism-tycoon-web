@@ -32,6 +32,16 @@ for(const value of [undefined,'fund','',null]){const s=fixture();s.peDeals[0].ow
 for(const mutate of [s=>s.subsidiaries[0].ownership=.5,s=>s.subsidiaries[0].status='sold',s=>s.subsidiaries[0].peDealID='other',s=>s.subsidiaries.push({...s.subsidiaries[0]}),s=>s.subsidiaries.push({id:null,peDealID:'company'}),s=>s.maSubsidiaries.push({id:'sub'}),s=>s.overseasSubsidiaries.push({id:'sub'}),s=>s.subsidiaries[0].startupID='s',s=>s.subsidiaries[0].restructuredFrom=['old'],s=>s.peDeals.push({id:null,subsidiaryID:'sub'}),s=>s.maSubsidiaries.push({id:'another',peDealID:'company'}),s=>s.overseasSubsidiaries.push({id:'another',peDealID:'company'})]){
  const s=fixture();mutate(s);const v=project(s),p=v.positions.find(p=>p.accountKind==='company');assert.equal(p.economicFraction.value,null);assert.equal(v.aliasReplacements.length,0);
 }
+// A reciprocal mirror is only a PE alias if its explicit provenance is PE.
+for(const source of ['ma','internalVenture','vc','',null,undefined]){
+  const s=fixture();s.subsidiaries[0].source=source;
+  const v=project(s),p=v.positions.find(p=>p.accountKind==='company');
+  assert.equal(p.economicFraction.value,null);
+  assert.equal(v.aliasReplacements.length,0);
+  assert(p.reasons.some(reason=>reason.code==='ALIAS_CONFLICT'));
+}
+const explicitPE=fixture();explicitPE.subsidiaries[0].source='pe';
+assert.equal(project(explicitPE).aliasReplacements.length,1);
 for(const serial of [undefined,2,3]){const s=fixture();s.currentCompanySerial=serial;assert.equal(project(s).positions.find(p=>p.accountKind==='company').economicFraction.value,null);}
 for(const sold of [undefined,null,true]){const s=fixture();s.isCompanySold=sold;const p=project(s).positions.find(p=>p.accountKind==='company');assert.equal(p.economicFraction.value,null);assert.equal(p.registeredHolder.identityStatus,'unresolved');}
 for(const first of [false,true]){const s=fixture(),duplicate={...s.peDeals[0],ownerAccount:'company'};if(first)s.peDeals.unshift(duplicate);else s.peDeals.push(duplicate);const v=project(s);assert(v.positions.filter(p=>p.sourceDealID==='p:/%').every(p=>p.issuer.entityId===null&&p.economicFraction.value===null));}
