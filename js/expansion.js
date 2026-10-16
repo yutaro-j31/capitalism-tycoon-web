@@ -603,10 +603,56 @@ function installExpansion(TycoonEngine){
     const s=this.stock(stockID),h=this.g.companyStocks[stockID];if(!s||!h||h.qty/s.issuedShares<.5)return this.fail('会社口座で過半数保有が必要です。');const remaining=s.issuedShares-h.qty,cost=remaining*s.price*1.25;if(this.g.companyCash<cost)return this.fail('MBO資金が不足しています。');this.g.companyCash-=cost;__modules.finance.event(this.g,'investmentPurchase',cost,{cashEffect:-cost,assetEffect:cost,sourceType:'executeMBO',sourceID:`${stockID}-${this.g.week}`,description:`${s.name} MBO`});h.avg=(n(h.avg)*h.qty+cost)/s.issuedShares;this.g.companyStocks[stockID].qty=s.issuedShares;s.privateCompany=true;s.suspended=true;this.notify(`${s.name}のMBOを成立させました。`,'success');return true;
     });
   };
+  // W-DEFENSE ownership evidence (Owner decision 2026-10-15). A defense makes the competitors sell player-company shares
+  // to outside market investors (not to the founder or the company). Only shares backed by named competitor holdings
+  // can be sold; shares that exist only in the aggregate ratio get no invented seller, proceeds or history. Unknown or
+  // contradictory ownership is fail-closed: nothing (cash, shares, saves, RNG, journal) changes and no repair is made.
+  // Returns {outstanding, held, named:[{c,qty}], total} or null.
+  function defenseOwnershipEvidence(engine){
+    const g=engine.g,price=Number(g.stockPrice);if(!Number.isFinite(price)||price<=0)return null;
+    let view;try{view=__modules.economicReadModel?.ownershipReconciliation?.(g);}catch{return null;}
+    const ownAlias=a=>a?.reason==='company-own-share-alias-not-adopted'||(g.ticker!=null&&String(a?.instrumentId)===String(g.ticker));
+    if(!view?.ok||(view.unresolvedAliases||[]).some(ownAlias))return null;
+    const security=view.securityClasses?.[0],outstanding=security?.outstandingQuantity,unallocated=security?.unallocatedOutstandingQuantity;
+    const valid=v=>typeof v==='number'&&Number.isFinite(v)&&v>=0,own=(o,k)=>Object.prototype.hasOwnProperty.call(o,k)?o[k]:0;// only an absent field is 0
+    const ratio=own(g,'competitorOwnedRatio');
+    if(![outstanding,unallocated,ratio].every(valid)||outstanding<=0||ratio>.49+1e-12)return null;
+    const held=ratio*outstanding;if(held>unallocated+1e-6)return null;// the aggregate stake cannot exceed the non-founder outstanding shares
+    if(!Array.isArray(g.competitors))return null;
+    const named=[];let total=0;
+    for(const c of g.competitors){if(!c||typeof c!=='object')return null;const qty=own(c,'ownedPlayerShares');if(!valid(qty))return null;
+      // A seller's proceeds land in its cash: a non-numeric cash is unknown state, not something to repair.
+      if(qty>0){if(typeof c.cash!=='number'||!Number.isFinite(c.cash))return null;named.push({c,qty,whole:Math.floor(qty)});total+=qty;}}
+    if(total>held+1e-6)return null;// named holdings above the aggregate stake: contradictory evidence
+    // Within the tolerance the ratio × outstanding reconstruction can fall a hair below the named total (floating point);
+    // the aggregate is never below the named shares it contains, so a full sale cannot leave a negative ratio.
+    return {price,outstanding,held:Math.max(held,total),named,total,whole:named.reduce((a,x)=>a+x.whole,0)};// whole: sellable whole named shares
+  }
   TycoonEngine.prototype.activateDefense=function(kind){
-    // Save atomicity: cash, ratio and journal share the common save/checkpoint boundary.
+    // Save atomicity: cash, holdings, ratio and journal share the common save/checkpoint boundary.
     return this.runTransaction(()=>{
-    if(!this.g.publicCompany)return this.fail('自社が上場していません。');const costs={poisonPill:12000000,whiteKnight:25000000,irCampaign:6000000},cost=costs[kind]||6000000;if(this.g.companyCash<cost)return this.fail('防衛資金が不足しています。');this.g.companyCash-=cost;__modules.finance.event(this.g,'headOfficeExpense',cost,{cashEffect:-cost,profitEffect:-cost,sourceType:'activateDefense',sourceID:`${kind}-${this.g.week}`,description:'買収防衛策'});const reduction={poisonPill:.05,whiteKnight:.09,irCampaign:.025}[kind]||.025;this.g.competitorOwnedRatio=clamp(this.g.competitorOwnedRatio-reduction,0,.49);this.g.companyReputation=clamp(this.g.companyReputation+(kind==='irCampaign'?2:0),0,100);this.g.shareholderEventLog.unshift(`第${this.g.week}週：買収防衛策「${kind}」を実行。`);this.g.shareholderEventLog=this.g.shareholderEventLog.slice(0,logCap('shareholderEventLog'));this.notify('買収防衛策を実行しました。','success');return true;
+    if(!this.g.publicCompany)return this.fail('自社が上場していません。');
+    const ev=defenseOwnershipEvidence(this);if(!ev)return this.fail('株主構成を確認できないため、買収防衛策を実行できません。');
+    const costs={poisonPill:12000000,whiteKnight:25000000,irCampaign:6000000},reductions={poisonPill:.05,whiteKnight:.09,irCampaign:.025};
+    if(!Object.prototype.hasOwnProperty.call(costs,kind))return this.fail('不明な買収防衛策です。');
+    const cost=costs[kind],reduction=reductions[kind];
+    // Target reduction in whole shares, never above the whole shares backed by named holdings (partial fills allowed;
+    // a fractional named remainder from an old save stays with its holder and in the aggregate).
+    const sold=Math.max(0,Math.min(Math.floor(reduction*ev.outstanding),ev.whole));
+    if(!sold&&kind!=='irCampaign')return this.fail('競合が売却できる株式がないため、この防衛策は実行できません。');
+    // Pro rata over the whole named shares; integer by largest remainder, ties in competitor order (deterministic).
+    const rows=ev.named.filter(x=>x.whole>0).map((x,i)=>{const exact=ev.whole?sold*x.whole/ev.whole:0,base=Math.min(Math.floor(exact),x.whole);return {...x,i,base,rem:exact-base};});
+    let left=sold-rows.reduce((a,x)=>a+x.base,0);
+    for(const x of [...rows].sort((a,b)=>b.rem-a.rem||a.i-b.i)){if(left<=0)break;if(x.base<x.whole){x.base++;left--;}}
+    if(left!==0||rows.reduce((a,x)=>a+x.base,0)!==sold)return this.fail('株主構成を確認できないため、買収防衛策を実行できません。');// safety: sellers must account for every sold share
+    if(this.g.companyCash<cost)return this.fail('防衛資金が不足しています。');
+    this.g.companyCash-=cost;__modules.finance.event(this.g,'headOfficeExpense',cost,{cashEffect:-cost,profitEffect:-cost,sourceType:'activateDefense',sourceID:`${kind}-${this.g.week}`,description:'買収防衛策'});
+    if(sold){
+      for(const x of rows)if(x.base>0){x.c.ownedPlayerShares=x.qty-x.base;x.c.cash+=x.base*ev.price;}// proceeds from outside market buyers; not on the company ledger
+      this.g.competitorOwnedRatio=Math.max(0,ev.held-sold)/ev.outstanding;
+    }
+    this.updateOwnershipRatios();
+    this.g.companyReputation=clamp(this.g.companyReputation+(kind==='irCampaign'?2:0),0,100);this.g.shareholderEventLog.unshift(`第${this.g.week}週：買収防衛策「${kind}」を実行。`);this.g.shareholderEventLog=this.g.shareholderEventLog.slice(0,logCap('shareholderEventLog'));this.notify('買収防衛策を実行しました。','success');return true;
     });
   };
 
