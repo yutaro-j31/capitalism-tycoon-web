@@ -1056,6 +1056,84 @@ function projectSubsidiaryRelationships(rawState,identityIndex){
   return freezeOwned(result);
 }
 
+// Opt-in composition. Hierarchy links reference economic positions, never add assets.
+function projectSubsidiaryOwnershipSnapshot(rawState,identityIndex){
+  const index=identityIndex===undefined?buildOwnershipIdentityIndex(rawState,subsidiaryOwnershipScope):identityIndex;
+  const indexed=commonOwnershipIndexes.get(index),captured=captureListedSources(rawState,true,true);
+  const empty={authority:'read-only',snapshotVersion:3,sourceScope:subsidiaryOwnershipScope,sourceSnapshotToken:null,
+    complete:false,commandEligible:false,wealthComplete:false,entities:[],classes:[],positions:[],listingObservations:[],
+    relationships:[],sourceReplacements:[],relationshipReplacements:[],unresolved:[],issues:[],
+    coverage:[{family:'subsidiary-ma',status:'invalid'},{family:'vc',status:'not-implemented'},{family:'pe-fund',status:'not-implemented'}]};
+  if(!indexed||indexed.rawState!==rawState||!indexed.includeSubsidiaries||!sameListedSources(indexed.source,captured.source)){
+    empty.issues.push(ownershipReason('STALE_EVIDENCE','$'));return freezeOwned(empty);
+  }
+  empty.sourceSnapshotToken=index.sourceSnapshotToken;
+  if(index.issues.length||captured.issues.length){empty.issues.push(...index.issues,...captured.issues);return freezeOwned(empty);}
+  const listed=projectOwnershipSnapshot(rawState,index),subs=projectSubsidiaryRelationships(rawState,index),pe=projectPEOwnership(rawState,index);
+  const result={...listed,snapshotVersion:3,relationships:[],relationshipReplacements:[],unresolved:[],
+    positions:[...listed.positions],sourceReplacements:[...listed.sourceReplacements],issues:[...listed.issues,...pe.issues],
+    adapterCoverage:[{adapter:'projectSubsidiaryRelationships',sourceCoverage:subs.sourceCoverage},{adapter:'projectPEOwnership',sourceCoverage:pe.sourceCoverage}],
+    coverage:[...listed.coverage.filter(row=>!['subsidiary-ma','pe'].includes(row.family)),
+      {family:'subsidiary-ma',status:'partial'},{family:'pe-direct',status:'partial'},
+      {family:'pe-fund',status:'not-implemented'},{family:'indirect-economic-paths',status:'not-implemented'}]};
+  const bySource=new Map(subs.relationships.map(row=>[row.sourceRefs[0].path,row]));
+  const positions=new Map(pe.positions.filter(row=>row.positionId!==null).map(row=>[row.positionId,row]));
+  const accepted=new Map(),blocked=new Map();
+  const allowed=new Set(['CLASS_UNKNOWN','RIGHTS_UNKNOWN','ISSUER_FAMILY_UNSUPPORTED']);
+  for(const alias of pe.aliasReplacements){
+    const row=bySource.get(alias.sourcePath),position=positions.get(alias.positionId);
+    const sound=row&&position&&row.aliasOf?.family==='pe'&&row.aliasOf.sourceId===alias.sourceDealID
+      &&position.sourceDealID===alias.sourceDealID&&position.accountKind==='company'
+      &&position.assetRole==='economic-interest'&&position.economicFraction.status==='known'
+      &&row.observedFraction.status==='known'&&row.observedFraction.value===position.economicFraction.value
+      &&row.sourceStatus==='active'&&!row.reasons.some(reason=>!allowed.has(reason.code));
+    if(sound)accepted.set(alias.sourcePath,position);
+    else blocked.set(alias.positionId,row?.reasons.filter(reason=>!allowed.has(reason.code))||[ownershipReason('ALIAS_CONFLICT',alias.sourcePath)]);
+  }
+  for(const position of pe.positions){
+    if(position.positionId!==null)result.sourceReplacements.push({sourcePath:position.sourceRefs[0].path,positionId:position.positionId,resolvedByAdapter:'projectPEOwnership'});
+    if(!blocked.has(position.positionId)){result.positions.push(position);continue;}
+    const reasons=[...position.reasons,...blocked.get(position.positionId),ownershipReason('ALIAS_CONFLICT',position.sourceRefs[0].path)];
+    result.positions.push({...position,assetRole:'unresolved',economicFraction:{...position.economicFraction,status:'unknown',value:null,reasons},reasons});
+    result.issues.push(...reasons);
+  }
+  for(const row of subs.relationships){
+    const sourcePath=row.sourceRefs[0].path,position=accepted.get(sourcePath);
+    if(!position||blocked.has(position.positionId)){
+      result.relationships.push(row);result.issues.push(...row.reasons);continue;
+    }
+    const sourceRefs=position.sourceRefs;
+    const edge={...row,edgeId:`relationship:${position.positionId}`,parentEntityId:position.registeredHolder.entityId,
+      childEntityId:position.issuer.entityId,beneficialOwnerEntityId:position.beneficialOwner.entityId,
+      parent:position.registeredHolder,child:position.issuer,aliasOf:null,canonicalFamily:'pe-direct',
+      canonicalPositionId:position.positionId,status:'observed',isCurrent:true,assetRole:'relationship-only',
+      economicFraction:{...position.economicFraction,sourceRefs},sourceRefs,
+      reasons:row.reasons.filter(reason=>reason.code==='CLASS_UNKNOWN'||reason.code==='RIGHTS_UNKNOWN')};
+    result.relationships.push(edge);result.issues.push(...edge.reasons);
+    result.relationshipReplacements.push({sourcePath,edgeId:edge.edgeId,canonicalPositionId:position.positionId,resolvedByAdapter:'projectPEOwnership'});
+  }
+  // Retain errors not associated with a relationship, such as malformed inventories.
+  const rowReasons=new Set(subs.relationships.flatMap(row=>row.reasons));
+  result.issues.push(...subs.issues.filter(reason=>!rowReasons.has(reason)));
+  const entities=new Map(),rank={unresolved:0,'source-scoped':1,proven:2};
+  for(const entity of [...listed.entities,...subs.entities,...pe.entities]){
+    if(entity.entityId===null)continue;
+    const old=entities.get(entity.entityId);
+    if(!old){entities.set(entity.entityId,entity);continue;}
+    const refs=new Map([...old.sourceRefs,...entity.sourceRefs].map(ref=>[JSON.stringify(ref),ref]));
+    entities.set(entity.entityId,{...old,identityStatus:rank[old.identityStatus]<=rank[entity.identityStatus]?old.identityStatus:entity.identityStatus,
+      sourceRefs:Array.from(refs.values()).sort((a,b)=>compareText(a.path,b.path)||compareText(a.role,b.role))});
+  }
+  result.entities=Array.from(entities.values()).sort((a,b)=>compareText(a.entityId,b.entityId));
+  result.relationships.sort((a,b)=>compareText(a.edgeId||'',b.edgeId||'')||compareText(a.sourceRefs[0].path,b.sourceRefs[0].path));
+  result.relationshipReplacements.sort((a,b)=>compareText(a.sourcePath,b.sourcePath));
+  const unresolved=[...pe.unresolved,...result.relationships.filter(row=>!row.isCurrent).map(row=>({edgeId:row.edgeId,sourceRefs:row.sourceRefs,reasons:row.reasons})),
+    ...result.positions.filter(row=>row.assetRole==='unresolved').map(row=>({positionId:row.positionId,sourceRefs:row.sourceRefs,reasons:row.reasons}))];
+  result.unresolved=Array.from(new Map(unresolved.map(row=>[JSON.stringify([row.positionId,row.edgeId,row.sourceRefs[0]?.path]),row])).values());
+  result.issues.sort((a,b)=>compareText(a.path,b.path)||compareText(a.code,b.code));
+  return freezeOwned(result);
+}
+
 // Market rows are observations, not a shareholder register or a valuation writer.
 function observeOwnershipListings(state,listed){
   const aliases=new Map(),issuerCandidates=new Map();
@@ -1107,6 +1185,7 @@ modules.economicReadModel=Object.freeze({
   projectOwnershipSnapshot,
   projectSubsidiaryRelationships,
   projectPEOwnership,
+  projectSubsidiaryOwnershipSnapshot,
   buildListedHoldingsIdentityIndex,
   projectExternalListedHoldings,
   ownershipProjection,
