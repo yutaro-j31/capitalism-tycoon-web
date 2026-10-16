@@ -880,6 +880,8 @@ function previewPortfolioExitScenarios(state,fundID,dealID,{horizons=EXIT_DECISI
 }
 
 function previewParentCompanyAcquisition(state,fundID,dealID,{week}={}){
+  // #985: a sold company cannot buy a portfolio company with the buyer's cash.
+  if(state?.isCompanySold)return {ok:false,fundID,dealID,reason:'company-sold'};
   const preview=previewPortfolioExit(state,fundID,dealID,{method:'sale',week});
   if(!preview?.ok)return {ok:false,fundID,dealID,reason:preview?.reason||'not-eligible'};
   const duplicate=arr(state?.subsidiaries).some(s=>s?.sourcePEDealID===dealID);

@@ -15,6 +15,21 @@ on:
       - 'tests/stock-sale-save-atomicity-webkit-test.js'
       - 'tests/stock-split-save-atomicity-test.js'
       - 'tests/stock-split-save-atomicity-webkit-test.js'
+      - 'js/completion.js'
+      - 'tests/decline-buyout-ownership-save-atomicity-test.js'
+      - 'tests/decline-buyout-ownership-save-atomicity-webkit-test.js'
+      - 'tests/earnings-confirm-read-only-test.js'
+      - 'tests/earnings-confirm-read-only-webkit-test.js'
+      - 'tests/ma-share-swap-ownership-ratios-test.js'
+      - 'tests/ma-share-swap-ownership-ratios-webkit-test.js'
+      - 'tests/competitor-stake-float-test.js'
+      - 'tests/competitor-stake-float-webkit-test.js'
+      - 'tests/activate-defense-ownership-ratios-test.js'
+      - 'tests/activate-defense-ownership-ratios-webkit-test.js'
+      - 'tests/ma-equity-raise-ownership-ratios-test.js'
+      - 'tests/ma-equity-raise-ownership-ratios-webkit-test.js'
+      - 'tests/ma-equity-raise-shadow-atomicity-test.js'
+      - 'tests/ma-equity-raise-shadow-atomicity-webkit-test.js'
       - 'js/shareholder-activism.js'
       - 'tests/shareholder-activism-accept-save-atomicity-test.js'
       - 'tests/shareholder-activism-accept-save-atomicity-webkit-test.js'
@@ -31,6 +46,8 @@ on:
       - 'tests/vc-secondary-sale-save-atomicity-test.js'
       - 'tests/vc-secondary-sale-save-false-red-probe.js'
       - 'tests/vc-secondary-sale-save-atomicity-webkit-test.js'
+      - 'tests/found-new-company-save-atomicity-test.js'
+      - 'tests/found-new-company-save-atomicity-webkit-test.js'
       - 'tests/fixtures/vc-secondary-sale-atomicity.js'
       - 'tests/vc-follow-on-save-atomicity-test.js'
       - 'tests/vc-follow-on-save-atomicity-webkit-test.js'
@@ -52,6 +69,13 @@ on:
       - 'tests/subsidiary-disposal-save-atomicity-test.js'
       - 'tests/fixtures/subsidiary-disposal.js'
       - 'tests/subsidiary-disposal-webkit-test.js'
+      - 'tests/group-capital-allocation-cash-exact-test.js'
+      - 'tests/group-capital-allocation-save-atomicity-test.js'
+      - 'tests/fixtures/capital-allocation-exact.js'
+      - 'tests/group-capital-allocation-webkit-test.js'
+      - 'tests/refounding-ledger-test.js'
+      - 'tests/fixtures/refounding-ledger.js'
+      - 'tests/refounding-ledger-webkit-test.js'
       - 'tests/fixtures/vc-initial-investment-atomicity.js'
       - 'tests/pe-fund-acquisition-save-atomicity-test.js'
       - 'tests/pe-fund-acquisition-save-atomicity-webkit-test.js'
@@ -61,6 +85,8 @@ on:
       - 'tests/pe-create-deal-save-atomicity-webkit-test.js'
       - 'tests/pe-exit-deal-save-atomicity-test.js'
       - 'tests/pe-exit-deal-save-atomicity-webkit-test.js'
+      - 'tests/sold-company-pe-authority-test.js'
+      - 'tests/sold-company-pe-authority-webkit-test.js'
       - 'tests/fixtures/pe-fund-acquisition-atomicity.js'
       - 'tests/fixtures/pe-fund-acquisition-faults.js'
       - 'js/pe-network-sourcing.js'
@@ -82,6 +108,7 @@ on:
       - 'js/player-crisis-turnaround-fund.js'
       - 'js/group-restructuring-candidates.js'
       - 'js/group-restructuring-progress.js'
+      - 'js/group-capital-allocation-execution.js'
       - 'js/internal-venture-business.js'
       - 'js/pe-deal-supply.js'
       - 'js/pe-network.js'
@@ -118,6 +145,21 @@ on:
       - 'tests/stock-sale-save-atomicity-webkit-test.js'
       - 'tests/stock-split-save-atomicity-test.js'
       - 'tests/stock-split-save-atomicity-webkit-test.js'
+      - 'js/completion.js'
+      - 'tests/decline-buyout-ownership-save-atomicity-test.js'
+      - 'tests/decline-buyout-ownership-save-atomicity-webkit-test.js'
+      - 'tests/earnings-confirm-read-only-test.js'
+      - 'tests/earnings-confirm-read-only-webkit-test.js'
+      - 'tests/ma-share-swap-ownership-ratios-test.js'
+      - 'tests/ma-share-swap-ownership-ratios-webkit-test.js'
+      - 'tests/competitor-stake-float-test.js'
+      - 'tests/competitor-stake-float-webkit-test.js'
+      - 'tests/activate-defense-ownership-ratios-test.js'
+      - 'tests/activate-defense-ownership-ratios-webkit-test.js'
+      - 'tests/ma-equity-raise-ownership-ratios-test.js'
+      - 'tests/ma-equity-raise-ownership-ratios-webkit-test.js'
+      - 'tests/ma-equity-raise-shadow-atomicity-test.js'
+      - 'tests/ma-equity-raise-shadow-atomicity-webkit-test.js'
       - 'js/shareholder-activism.js'
       - 'tests/shareholder-activism-accept-save-atomicity-test.js'
       - 'tests/shareholder-activism-accept-save-atomicity-webkit-test.js'
@@ -134,6 +176,8 @@ on:
       - 'tests/vc-secondary-sale-save-atomicity-test.js'
       - 'tests/vc-secondary-sale-save-false-red-probe.js'
       - 'tests/vc-secondary-sale-save-atomicity-webkit-test.js'
+      - 'tests/found-new-company-save-atomicity-test.js'
+      - 'tests/found-new-company-save-atomicity-webkit-test.js'
       - 'tests/fixtures/vc-secondary-sale-atomicity.js'
       - 'tests/vc-follow-on-save-atomicity-test.js'
       - 'tests/vc-follow-on-save-atomicity-webkit-test.js'
@@ -155,6 +199,13 @@ on:
       - 'tests/subsidiary-disposal-save-atomicity-test.js'
       - 'tests/fixtures/subsidiary-disposal.js'
       - 'tests/subsidiary-disposal-webkit-test.js'
+      - 'tests/group-capital-allocation-cash-exact-test.js'
+      - 'tests/group-capital-allocation-save-atomicity-test.js'
+      - 'tests/fixtures/capital-allocation-exact.js'
+      - 'tests/group-capital-allocation-webkit-test.js'
+      - 'tests/refounding-ledger-test.js'
+      - 'tests/fixtures/refounding-ledger.js'
+      - 'tests/refounding-ledger-webkit-test.js'
       - 'tests/fixtures/vc-initial-investment-atomicity.js'
       - 'tests/pe-fund-acquisition-save-atomicity-test.js'
       - 'tests/pe-fund-acquisition-save-atomicity-webkit-test.js'
@@ -164,6 +215,8 @@ on:
       - 'tests/pe-create-deal-save-atomicity-webkit-test.js'
       - 'tests/pe-exit-deal-save-atomicity-test.js'
       - 'tests/pe-exit-deal-save-atomicity-webkit-test.js'
+      - 'tests/sold-company-pe-authority-test.js'
+      - 'tests/sold-company-pe-authority-webkit-test.js'
       - 'tests/fixtures/pe-fund-acquisition-atomicity.js'
       - 'tests/fixtures/pe-fund-acquisition-faults.js'
       - 'js/pe-network-sourcing.js'
@@ -421,6 +474,20 @@ jobs:
         run: npx playwright install --with-deps webkit
       - name: Stock split atomicity in real iPhone WebKit
         run: node tests/stock-split-save-atomicity-webkit-test.js
+      - name: Hostile buyout decline atomicity in real iPhone WebKit
+        run: node tests/decline-buyout-ownership-save-atomicity-webkit-test.js
+      - name: Earnings confirm read-only in real iPhone WebKit
+        run: node tests/earnings-confirm-read-only-webkit-test.js
+      - name: Share swap ownership ratios (D3) in real iPhone WebKit
+        run: node tests/ma-share-swap-ownership-ratios-webkit-test.js
+      - name: Competitor stake from the external float (D4) in real iPhone WebKit
+        run: node tests/competitor-stake-float-webkit-test.js
+      - name: M&A equity raise ownership ratios in real iPhone WebKit
+        run: node tests/ma-equity-raise-ownership-ratios-webkit-test.js
+      - name: Takeover defense ownership ratios (W-DEFENSE) in real iPhone WebKit
+        run: node tests/activate-defense-ownership-ratios-webkit-test.js
+      - name: M&A equity raise shadow-state atomicity in real iPhone WebKit
+        run: node tests/ma-equity-raise-shadow-atomicity-webkit-test.js
       - name: Activist proposal acceptance atomicity in real iPhone WebKit
         run: node tests/shareholder-activism-accept-save-atomicity-webkit-test.js
       - name: Stock split dividend rescale in real iPhone WebKit
@@ -466,6 +533,7 @@ jobs:
           node tests/pe-portfolio-exit-save-atomicity-webkit-test.js
           node tests/pe-create-deal-save-atomicity-webkit-test.js
           node tests/pe-exit-deal-save-atomicity-webkit-test.js
+          node tests/sold-company-pe-authority-webkit-test.js
       - name: Retain pe-acquisition-atomicity WebKit evidence
         if: always()
         uses: actions/upload-artifact@v4
@@ -502,6 +570,7 @@ jobs:
       - name: VC secondary sale atomicity in real iPhone WebKit
         run: |
           node tests/vc-secondary-sale-save-atomicity-webkit-test.js
+          node tests/found-new-company-save-atomicity-webkit-test.js
       - name: VC / M&A subsidiary quarter close (#971) in real iPhone WebKit
         run: |
           node tests/subsidiary-quarter-close-webkit-test.js
@@ -511,6 +580,12 @@ jobs:
       - name: Group-restructuring subsidiary disposal accounting (#975) in real iPhone WebKit
         run: |
           node tests/subsidiary-disposal-webkit-test.js
+      - name: Group capital allocation exact cash and book (#978) in real iPhone WebKit
+        run: |
+          node tests/group-capital-allocation-webkit-test.js
+      - name: Refounding opens the new company's book at the contribution (#968) in real iPhone WebKit
+        run: |
+          node tests/refounding-ledger-webkit-test.js
       - name: Retain vc-secondary-atomicity WebKit evidence
         if: always()
         uses: actions/upload-artifact@v4

@@ -4,6 +4,15 @@
 
 Baseline `ee4f37f561fe326545deed96a127d0a032ebcb24` (2026-10-14 JST). One concern / one PR. A slice with independently migrating writer families must split again; these are dependency units, not a promised PR count. The formal roadmap is unchanged.
 
+## Current implementation-first scheduling (2026-10-16)
+
+The merged [Implementation-First Roadmap v2](ECONOMIC_ENGINE_IMPLEMENTATION_FIRST_ROADMAP.md) and [Phase 3/4 gate alignment](PHASE_3_4_IMPLEMENTATION_FIRST_GATE_ALIGNMENT.md) control execution timing. Baseline refreshed to `26a22a971db457025821ef27503163f4ebaef927`; earlier audit/status evidence retains its stated SHA. Phase 4 production Entry is **NOT AUTHORIZED**: it requires Owner-accepted `PHASE_3_F_EXIT`, relevant adopted-family S/cutover/permanent/CI evidence, known defect/policy dispositions and a separate explicit Owner Entry decision. No whole-engine `Q_ACCEPTED` prerequisite is invented.
+
+Stage F completes every required approved capability with focused safety S, applicable existing Permanent Gates/CI, complete writer-family closure, accounting/conservation, save-failure/rollback, old-v9/real-IDB hydration, deterministic replay and relevant real WebKit. No adoption or double writer is allowed without its exact approval. Expanded untouched-system/whole-phase exploratory audits, mass seeds/century runs, large-population scale campaigns and comprehensive balance calibration are explicitly Stage Q backlog, not new requirements on each F PR or Functional Exit. Existing named required tests/workflows remain registered and binding; no concrete corruption can be deferred for an enabled dependent capability. F Exit is not full quality/release readiness.
+
+Current open remediation dependencies include #989 → #990, #1010 and #1015; diagnostics #1011/#1012 and decision issues #1013/#1014 require evidence-based disposition. They are not merged repairs. #1008 fix #1016 is separately reviewed; Phase 3 remains incomplete. Refresh all statuses at Entry rather than infer failure or safety from historical titles.
+
+
 ## 1. Lowest-risk path and shared slice contract
 
 This docs-only package is **P4-0 preparation**; its merge needs Owner approval and does not satisfy formal Entry. After Phase 3 exit and Entry approval, implement P4-1 pure schema validator first, then P4-2 extension of the existing read adapter. They make missing evidence and alias conflicts visible without changing any financial outcome. P4-3 reconciliation is the next risk-reduction step. Do not start by rewriting borrow/repay or persisting a debt registry.
@@ -169,15 +178,15 @@ Each future PR must specify exact modules/state/API, disabled/enabled manifest, 
 
 Completion requires zero hidden mutations for the enabled family, full fault matrix plus mixed debt replay, P2 close including accrued-interest compatibility, stable old-save reload, per-instrument due preservation and current-main WebKit. Owner decides **which family**, **what becomes authoritative**, **whether saved records may be adopted**, and **when activation is permitted**. No executable slice exists merely because this roadmap names it.
 
-### P4-F — Final acceptance and Phase 5 / Phase 6 handoff
+### P4-F — Functional acceptance and Phase 5 / Phase 6 handoff
 
 - **Purpose/modules:** acceptance/exit docs and approved permanent tests, implementation evidence manifest; no Phase5 industry or Phase6 valuation implementation.
 - **State/API:** immutable debt input snapshot with version/perimeter/quality, adoption coverage, unresolved unsupported families.
 - **Writers/preconditions:** all approved Phase4 scopes complete, latest-main no P0/P1, Owner-approved perimeter not every optional later-domain writer.
 - **Accounting/save/RNG:** ECO cash/principal/payable identities, P0.5/P1/P2/P3 parity, durable replay and no host entropy; preserved v9.
-- **RED/GREEN:** full lifecycle combinations, MA/sale/refounding legacy interactions, long-run seeds and capacity budgets from gate plan.
-- **Node/WebKit:** integration and nightly/deep-audit evidence; actual main push-only browser jobs; physical iPhone limitations explicit.
-- **Dependency/done/Owner:** Owner formal Phase4 exit; Phase5 receives financing constraints/inputs, Phase6 receives Cost of Debt/tax/capital-structure observations. No WACC authority granted here.
+- **RED/GREEN:** relevant lifecycle and MA/sale/refounding interactions with focused S/adoption evidence; expanded cross-domain/long-run/capacity campaigns explicitly scheduled in Stage Q.
+- **Node/WebKit:** applicable focused integration/permanent/CI evidence and actual relevant main push-only browser jobs; expanded nightly/deep-audit campaign pending Q; physical iPhone limitations explicit.
+- **Dependency/done/Owner:** Owner-accepted PHASE_4_F_EXIT after mandatory functional coverage and S/adoption safety; Phase5 receives financing constraints/inputs, Phase6 receives Cost of Debt/tax/capital-structure observations. No WACC authority granted here.
 
 ## 4. Implementation agent handoff
 

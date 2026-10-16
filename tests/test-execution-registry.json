@@ -87,6 +87,10 @@
     "reason": "Executed by the release delivery gate aggregator, invoked from the release-readiness job in .github/workflows/test.yml.",
     "executedBy": "scripts/release-delivery-gate.js"
   },
+  "tests/pages-deployment-wait-test.js": {
+    "reason": "Executed by the release delivery gate aggregator, invoked from the release-readiness job in .github/workflows/test.yml.",
+    "executedBy": "scripts/release-delivery-gate.js"
+  },
   "tests/pe-ui-phase2-test.js": {
     "reason": "Executed by the canonical PE UI Phase 1 regression entry, which is registered in tests/run-all.js.",
     "executedBy": "tests/pe-ui-phase1-test.js"
@@ -203,6 +207,34 @@
     "reason": "Own/external split full rollback, pending predecessor, reload and fresh real IndexedDB in the independent stock-split-atomicity job on every workflow event including PR/main.",
     "executedBy": ".github/workflows/ma-acquisition-financing.yml"
   },
+  "tests/ma-equity-raise-ownership-ratios-webkit-test.js": {
+    "reason": "M&A financed closing with a public equity raise on real WebKit (board approval, financing shadow-state boundary): a rejected save rolls the closing and ratios back; the commit dilutes founder and competitor over issued − treasury, new shares external, ratios sum to 1; reload and fresh durable-only IndexedDB agree, in the stock-split-atomicity job on every workflow event.",
+    "executedBy": ".github/workflows/ma-acquisition-financing.yml"
+  },
+  "tests/activate-defense-ownership-ratios-webkit-test.js": {
+    "reason": "W-DEFENSE takeover defense on real WebKit: only named competitor shares are sold (pro rata, whole shares) to outside market investors, sellers paid price × shares, the company pays the defense cost only, ratios sum to 1; a rejected save rolls ratios, holdings and proceeds back in live, mirror and durable IndexedDB; an unnamed stake is refused at no cost; reload and fresh durable-only IndexedDB agree, in the stock-split-atomicity job on every workflow event.",
+    "executedBy": ".github/workflows/ma-acquisition-financing.yml"
+  },
+  "tests/ma-equity-raise-shadow-atomicity-webkit-test.js": {
+    "reason": "M&A financing shadow-state boundary with a public equity raise on real WebKit: a save accepted then thrown and a throwing success-notice emit roll the closing back with live, localStorage mirror, IDB cache and durable IndexedDB consistent; a throwing notify listener is reported, not rethrown, and the closing commits once; reload and fresh durable-only IndexedDB agree, in the stock-split-atomicity job on every workflow event.",
+    "executedBy": ".github/workflows/ma-acquisition-financing.yml"
+  },
+  "tests/ma-share-swap-ownership-ratios-webkit-test.js": {
+    "reason": "D3 share-swap closing through the installed deal-room chain on real WebKit: a rejected save rolls ownership ratios back; the committed closing dilutes founder and competitor over issued − treasury, new shares are external, ratios sum to 1; reload and fresh durable-only IndexedDB agree, in the stock-split-atomicity job on every workflow event.",
+    "executedBy": ".github/workflows/ma-acquisition-financing.yml"
+  },
+  "tests/competitor-stake-float-webkit-test.js": {
+    "reason": "D4 weekly competitor stake purchases on real WebKit through advanceWeek: external float only, 49% cap, whole shares, cash = filled × price, founder untouched, ratios sum to 1 every committed week; reload and fresh durable-only IndexedDB agree, in the stock-split-atomicity job on every workflow event.",
+    "executedBy": ".github/workflows/ma-acquisition-financing.yml"
+  },
+  "tests/earnings-confirm-read-only-webkit-test.js": {
+    "reason": "#988 market-tab 「決算イベントを確認」 is read-only: tapped repeatedly on the booted app (latest-result and no-result views) it changes no live, mirror, cache or durable state, saves nothing, emits no engine event and draws no RNG; reload and fresh durable-only hydration in iPhone WebKit on every workflow event.",
+    "executedBy": ".github/workflows/ma-acquisition-financing.yml"
+  },
+  "tests/decline-buyout-ownership-save-atomicity-webkit-test.js": {
+    "reason": "#955 declineInboundBuyoutOffer hostile/friendly: one commit, founder+external+competitor stays 1; every harness fault kind (incl. prior pending put) rolls live, mirror, cache and durable IndexedDB back; deterministic retry; second decline refused; reload and fresh durable-only hydration in iPhone WebKit on every workflow event.",
+    "executedBy": ".github/workflows/ma-acquisition-financing.yml"
+  },
   "tests/stock-split-price-floor-webkit-test.js": {
     "reason": "Own/external split at exactly the 10-yen floor persists; below-floor, NaN and non-integer ratios are rejected via fail() without live, mirror or durable change, verified through fresh real IndexedDB in the stock-split-atomicity job on every workflow event.",
     "executedBy": ".github/workflows/ma-acquisition-financing.yml"
@@ -251,6 +283,14 @@
     "reason": "#975 group-restructuring disposals: VC subsidiary sale and liquidation and a taken-private listing with a legacy fractional book stay valid at once and for 13 weeks with the exact book and ledger cash; every save fault (incl. a prior pending put) rolls live, mirror, cache and durable IndexedDB back; reload and fresh durable-only hydration in iPhone WebKit on every workflow event.",
     "executedBy": ".github/workflows/ma-acquisition-financing.yml"
   },
+  "tests/group-capital-allocation-webkit-test.js": {
+    "reason": "#978 group capital allocation on fractional company cash and a legacy fractional book moves cash and book by exactly the ledger amount and stays valid at once and for 13 weeks; every save fault (incl. a prior pending put) rolls live, mirror, cache and durable IndexedDB back; reload and fresh durable-only hydration in iPhone WebKit on every workflow event.",
+    "executedBy": ".github/workflows/ma-acquisition-financing.yml"
+  },
+  "tests/refounding-ledger-webkit-test.js": {
+    "reason": "#968 refounding after a company sale opens the new company's book at the founder's contribution (cash = opening cash = opening equity), debits personal cash once, carries no company PE deal of the sold company, and stays valid at once and for 13 weeks; reload and fresh durable-only hydration agree in iPhone WebKit on every workflow event.",
+    "executedBy": ".github/workflows/ma-acquisition-financing.yml"
+  },
   "tests/pe-fund-acquisition-save-atomicity-webkit-test.js": {
     "reason": "Actual PE fund acquisition rollback, coinvestment, prior pending put and fresh IndexedDB iPhone WebKit in PR/main gates.",
     "executedBy": ".github/workflows/ma-acquisition-financing.yml"
@@ -267,12 +307,20 @@
     "reason": "#954 exitPEDeal company/personal/premium-wrapper: every harness fault kind (incl. prior pending put) rolls live, mirror, cache and durable IndexedDB back including the premium valuation; retry pays the same deterministic proceeds; second exit refused; reload and fresh durable-only hydration in iPhone WebKit on every workflow event.",
     "executedBy": ".github/workflows/ma-acquisition-financing.yml"
   },
+  "tests/sold-company-pe-authority-webkit-test.js": {
+    "reason": "#985 after a company sale, company-account PE actions (transfer to the company, company exit, company create, company initiative) are refused with no live, mirror, cache or durable change and no save; the founder's personal exit commits once; reload and fresh durable-only hydration in iPhone WebKit in the pe-acquisition-atomicity job on every workflow event.",
+    "executedBy": ".github/workflows/ma-acquisition-financing.yml"
+  },
   "tests/ma-subsidiary-sale-save-atomicity-webkit-test.js": {
     "reason": "Real iPhone WebKit subsidiary sale rollback, prior pending write and fresh IndexedDB hydration in PR/main gates.",
     "executedBy": ".github/workflows/ma-acquisition-financing.yml"
   },
   "tests/vc-secondary-sale-save-atomicity-webkit-test.js": {
     "reason": "Company/personal VC secondary sale rollback, DD ownership, pending write, reload and fresh real IndexedDB in iPhone WebKit PR/main gates.",
+    "executedBy": ".github/workflows/ma-acquisition-financing.yml"
+  },
+  "tests/found-new-company-save-atomicity-webkit-test.js": {
+    "reason": "#955 refounding after buyout through the real legacy-tab flow: state root identity kept on success and rollback; one commit with the founded-investment record; personal holdings carry over, sold-company debt does not; every harness fault kind (incl. prior pending put) rolls back into the same root; thrown faults open the recovery dialog; deterministic retry; reload and fresh durable-only hydration in iPhone WebKit on every workflow event (placed in vc-secondary-atomicity for job-time balance).",
     "executedBy": ".github/workflows/ma-acquisition-financing.yml"
   }
 }

@@ -4,6 +4,14 @@
 
 Baseline `ee4f37f561fe326545deed96a127d0a032ebcb24`, 2026-10-14 JST. This document is an evidence checklist, not an assertion that the checklist passes. [Audit](PHASE_4_PREIMPLEMENTATION_AUDIT.md), [Design](PHASE_4_DEBT_INSTRUMENT_DESIGN.md), [Matrix](PHASE_4_WRITER_AUTHORITY_MATRIX.md), [PR Roadmap](PHASE_4_IMPLEMENTATION_ROADMAP.md) define its scope.
 
+## Current implementation-first scheduling (2026-10-16)
+
+The merged [Implementation-First Roadmap v2](ECONOMIC_ENGINE_IMPLEMENTATION_FIRST_ROADMAP.md) and [Phase 3/4 gate alignment](PHASE_3_4_IMPLEMENTATION_FIRST_GATE_ALIGNMENT.md) control execution timing. Baseline refreshed to `26a22a971db457025821ef27503163f4ebaef927`; earlier audit/status evidence retains its stated SHA. Phase 4 production Entry is **NOT AUTHORIZED**: it requires Owner-accepted `PHASE_3_F_EXIT`, relevant adopted-family S/cutover/permanent/CI evidence, known defect/policy dispositions and a separate explicit Owner Entry decision. No whole-engine `Q_ACCEPTED` prerequisite is invented.
+
+Stage F completes every required approved capability with focused safety S, applicable existing Permanent Gates/CI, complete writer-family closure, accounting/conservation, save-failure/rollback, old-v9/real-IDB hydration, deterministic replay and relevant real WebKit. No adoption or double writer is allowed without its exact approval. Expanded untouched-system/whole-phase exploratory audits, mass seeds/century runs, large-population scale campaigns and comprehensive balance calibration are explicitly Stage Q backlog, not new requirements on each F PR or Functional Exit. Existing named required tests/workflows remain registered and binding; no concrete corruption can be deferred for an enabled dependent capability. F Exit is not full quality/release readiness.
+
+Current open remediation dependencies include #989 → #990, #1010 and #1015; diagnostics #1011/#1012 and decision issues #1013/#1014 require evidence-based disposition. They are not merged repairs. #1008 fix #1016 is separately reviewed; Phase 3 remains incomplete. Refresh all statuses at Entry rather than infer failure or safety from historical titles.
+
 ## 1. Phase 3 dependency classification
 
 A = design and isolated/read-only validation possible before Phase 3 completion, with no production integration in this task. B = runtime implementation possible after Phase 3 completion **and formal Owner Phase4 Entry**. C = another later authority required; Phase3 completion alone insufficient.
@@ -33,8 +41,8 @@ A does not mean a Phase4 production module can be introduced now. This task is d
 
 All must be recorded against a fresh main and exact approval revision:
 
-- [ ] Phase3 formal P3-12 exit accepted by Owner; tracker reconciled with actual merged slices and main tests. Phase3 adapters alone do not satisfy exit.
-- [ ] Track A complete with writer/call-site coverage, exact ownership conservation and no competing authoritative writer; P3-4 STOPPED lifted by explicit approved evidence.
+- [ ] Owner-accepted PHASE_3_F_EXIT covering every mandatory P3 capability and its applicable S/cutover/permanent evidence; tracker reconciled with actual merged slices and main tests. Phase3 adapters alone do not satisfy exit.
+- [ ] Relevant adopted ownership writer families have complete Track A writer/call-site coverage, exact ownership conservation and no competing authoritative writer; P3-4 STOPPED lifted by explicit approved evidence.
 - [ ] Current P0/P1 records resolved or formally dispositioned with evidence; specifically #978/#968, remaining #955/#954 and open historical #865. Stale titles cannot be treated as either proof of failure or proof of resolution.
 - [ ] #976 listed-dividend accounting and #979 old damaged saves have explicit permitted-scope decisions; no unauthorized load repair.
 - [ ] Latest main CI fully terminal success for applicable jobs, actual main/push WebKit and deterministic/accounting gates inspected; cancelled/pending/failed are not green, expected skipped jobs excluded by applicability.
@@ -139,9 +147,9 @@ Measure tick p50/p95/p99/max, serialization/compaction/hydration/IDB-flush time,
 
 Before executable adoption record baseline and approved budgets: storage below current production quota and compaction safety envelope; zero receipt loss; no nonfinite/unsafe amounts; no determinism/accounting violations; no uncontrolled per-week accumulation. Proposed performance acceptance is no >10% p95 or save-byte regression at matched workload without explained/approved budget, plus responsive iPhone interaction measurements. This numeric threshold is **a proposal**, not an existing repository SLA. Do not invent absolute iPhone latency/capacity claims without measurement.
 
-Do not run every long suite on every PR. Trigger integration when changing accounting/schedule/writer interactions, nightly on recurring branch/main schedule, deep/manual on exit/capacity changes. New workflow scheduling would be a separate authorized infrastructure concern, not part of this docs PR.
+Stage F runs targeted integration required by affected accounting/schedule/writer interactions and all existing mandatory scheduled/CI gates. Expanded new nightly/century/scale campaigns in this proposal belong to Stage Q; an F Exit does not require newly launching the broad campaign. New workflow scheduling would be a separate authorized infrastructure concern, not part of this docs PR.
 
-## 9. Exit evidence
+## 9. Functional Exit evidence (PHASE_4_F_EXIT; Q separate)
 
 - [ ] Owner-approved Phase4 perimeter and exact adopted writer families implemented; all other domains explicitly legacy/unsupported with no competing writer.
 - [ ] Contract / economic event / journal / cash / state / display separation demonstrated through installed bypass and failure tests.
@@ -149,11 +157,11 @@ Do not run every long suite on every PR. Trigger integration when changing accou
 - [ ] Cost of Debt and risk inputs have verified formulas, units, data quality/window, missing reasons; formal WACC/CoE/valuation integration still Phase6.
 - [ ] old-v9 read/adoption compatibility, normal/critical compaction, cache/mirror/pending/durable/reload/fresh hydration and permanent idempotency proof.
 - [ ] Deterministic seeds/IDs/RNG/replay, safe monetary envelope and measured retention/performance/save budgets; scale limitations explicit.
-- [ ] Approved integration/nightly/century evidence manifests, zero unresolved introduced or prerequisite P0/P1; relevant main CI and actual WebKit green.
+- [ ] Applicable focused S/integration and existing permanent evidence manifests, zero unresolved findings in the applicable safety/cutover review; expanded nightly/century/scale manifests explicitly pending Stage Q; relevant main CI and actual WebKit green.
 - [ ] Independent review of actual final diff and post-merge main evidence; physical-iPhone test status accurately stated.
-- [ ] Owner explicitly accepts Phase4 Exit; Phase5/6 handoff records immutable input API/version/quality and later-authority exclusions.
+- [ ] Owner explicitly accepts PHASE_4_F_EXIT after all required approved capabilities and S evidence, with Q pending; Phase5/6 handoff records immutable input API/version/quality and later-authority exclusions.
 
-Until these evidence records exist, do not declare Phase4 complete or permit Phase5 production entry by inference. Merging this design PR, if approved, completes an advance-design artifact only.
+Until these evidence records exist, do not declare Phase4 functionally complete or permit Phase5 production entry by inference. Merging this design PR, if approved, completes an advance-design artifact only.
 
 ## Final review addendum — refreshed main and additional prerequisites
 

@@ -132,8 +132,10 @@ function prepareCanonicalSave() {
   engine.g.lastProductOfferGenerationWeek = 0;
 
   // Keep the setup canonical: do not synthesize a partial IPO/listing or product object by hand.
-  // Public-company earnings are still exercised through runEarningsEventsIfNeeded(true), while the
-  // private-company path keeps every ownership/market field internally consistent across reloads.
+  // The private-company path keeps every ownership/market field internally consistent across reloads.
+  // #988: a forced earnings call (formerly used here to exercise earnings on this private company) is now
+  // refused and must leave the whole state unchanged on both forks; scheduled earnings are covered by
+  // tests/earnings-confirm-read-only-test.js and tests/simulation-rng-test.js.
   openStore(engine, 'ramen', '決定論ラーメン');
   openStore(engine, 'conveni', '決定論コンビニ');
   openStore(engine, 'gym', '決定論ジム');
@@ -152,13 +154,13 @@ function scriptedActions(engine, step) {
   if (step === 40) engine.generateMATargets(true);
   if (step === 48) engine.proposeInternalVenture();
   if (step === 56) openStore(engine, 'ramen', '決定論ラーメン2');
-  if (step === 64) engine.runEarningsEventsIfNeeded(true);
+  if (step === 64) { const before = JSON.stringify(engine.g); assert.equal(engine.runEarningsEventsIfNeeded(true), false, 'forced earnings refused (#988)'); assert.equal(JSON.stringify(engine.g), before, 'refused forced earnings changes nothing (#988)'); }
   if (step === 72) engine.refreshStartupDealFlow();
   if (step === 80) engine.generateMATargets(true);
   if (step === 88 && engine.g.keyPersonnel[0]) engine.retainKeyPerson(engine.g.keyPersonnel[0].id);
   if (step === 96) engine.startMediaAction('ir');
   if (step === 104) engine.refreshInvestorOffers();
-  if (step === 112) engine.runEarningsEventsIfNeeded(true);
+  if (step === 112) { const before = JSON.stringify(engine.g); assert.equal(engine.runEarningsEventsIfNeeded(true), false, 'forced earnings refused (#988)'); assert.equal(JSON.stringify(engine.g), before, 'refused forced earnings changes nothing (#988)'); }
 }
 
 const seedSave = prepareCanonicalSave();
