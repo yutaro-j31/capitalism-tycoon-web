@@ -7,7 +7,7 @@ const api=loaded.modules.economicReadModel;
 const plain=value=>JSON.parse(JSON.stringify(value));
 const project=api.projectExternalListedHoldings;
 assert.equal(typeof project,'function','installed module exposes opt-in reader');
-const state={ticker:'OWN',saveVersion:9,currentCompanySerial:2,
+const state={ticker:'OWN',saveVersion:9,currentCompanySerial:1,
   market:[{id:'X',issuedShares:1000,price:3},{id:'IPO',issuedShares:1000000}],
   startups:[{id:'s:1/%',ipoStockID:'IPO',ownedPersonal:0,ownedCompany:0}],
   personalStocks:{X:{qty:20,avg:90},OWN:{qty:10,avg:10},IPO:{qty:30,avg:4}},
@@ -82,6 +82,19 @@ for(const change of [
   const raw=plain(state);change(raw);
   const rows=project(raw).positions.filter(x=>x.instrumentAlias==='IPO');
   for(const row of rows)assert.equal(row.issuer.entityId,null,'conflicting claims must not receive issuer identity');
+}
+for(const badID of [undefined,'',null,42]){
+ const raw=plain(state);raw.startups.push({id:badID,ipoStockID:'IPO',ownedPersonal:0,ownedCompany:0});
+ const position=project(raw).positions.find(x=>x.instrumentAlias==='IPO');
+ assert.equal(position.issuer.entityId,null,'invalid source ID must still quarantine its conflicting listing alias');
+ assert(position.reasons.some(x=>x.code==='ALIAS_CONFLICT'));
+}
+for(const serial of [undefined,2,3]){
+ const raw=plain(state);raw.currentCompanySerial=serial;
+ const position=project(raw).positions.find(x=>x.accountKind==='personal'&&x.instrumentAlias==='OWN');
+ assert(position,'generation-ambiguous own ticker lot remains observable');
+ assert.equal(position.quantity.value,10);assert.equal(position.issuer.entityId,null);
+ assert(position.reasons.some(x=>x.code==='GENERATION_UNPROVEN'));
 }
 const orphan=project({ticker:'OWN',personalStocks:{LOST:{qty:9}}});
 assert.equal(orphan.positions[0].quantity.value,9);assert.equal(orphan.positions[0].issuer.entityId,null);

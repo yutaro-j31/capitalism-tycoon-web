@@ -662,12 +662,14 @@ function projectExternalListedHoldings(rawState,identityIndex){
   });
   rows('startups').forEach((row,i)=>{
     const path=`startups[${i}]`;
-    if(!plainOwnershipObject(row)||!validId(row.id)){issues.push(ownershipReason('INPUT_INVALID',path));return;}
-    add(startupIds,row.id,{row,path});
+    if(!plainOwnershipObject(row)){issues.push(ownershipReason('INPUT_INVALID',path));return;}
+    // Even an invalid issuer ID can contradict an alias claimed by another row.
     if(row.ipoStockID!==undefined&&row.ipoStockID!==null){
       if(validId(row.ipoStockID))add(startups,row.ipoStockID,{row,path});
       else issues.push(ownershipReason('INPUT_INVALID',`${path}.ipoStockID`));
     }
+    if(!validId(row.id)){issues.push(ownershipReason('INPUT_INVALID',path));return;}
+    add(startupIds,row.id,{row,path});
   });
   const ref=(path,durableId,family,role='current')=>({path,durableId,family,role});
   const entity=(entityId,identityStatus,sourceRefs,generation=null)=>({entityId,generation,identityStatus,sourceRefs});
@@ -681,17 +683,17 @@ function projectExternalListedHoldings(rawState,identityIndex){
     for(const alias of Object.keys(holdings).sort(compareText)){
       const path=`${mapKey}[${JSON.stringify(alias)}]`,sourceRef=ref(path,alias,'listed');
       const own=validId(state.ticker)&&alias===state.ticker;
-      if(own&&accountKind==='personal'){
-        const conflict=(startups.get(alias)||[]).length>0||(market.get(alias)||[]).length>1;
-        if(conflict)issues.push(ownershipReason('ALIAS_CONFLICT',path));
-        result.sourceCoverage.push({path,status:conflict?'quarantined':'delegated',resolvedByAdapter:'ownershipReconciliation'});continue;
+      const ownGenerationKnown=state.currentCompanySerial===1&&state.isCompanySold!==true;
+      if(own&&accountKind==='personal'&&ownGenerationKnown
+        &&!(startups.get(alias)||[]).length&&(market.get(alias)||[]).length<=1){
+        result.sourceCoverage.push({path,status:'delegated',resolvedByAdapter:'ownershipReconciliation'});continue;
       }
       const reasons=[],row=holdings[alias],matches=market.get(alias)||[],links=startups.get(alias)||[];
       const quantity=plainOwnershipObject(row)&&typeof row.qty==='number'&&Number.isFinite(row.qty)&&row.qty>=0&&row.qty<=Number.MAX_SAFE_INTEGER?row.qty:null;
       if(quantity===null)reasons.push(ownershipReason('QUANTITY_OUT_OF_ENVELOPE',`${path}.qty`));
       let issuerId=null,issuerStatus='unresolved';
       const listingRefs=matches.map(item=>ref(item.path,item.row.id,'listed'));
-      const linkRefs=links.map(item=>ref(item.path,item.row.id,'vc','historical'));
+      const linkRefs=links.map(item=>ref(item.path,validId(item.row.id)?item.row.id:null,'vc','historical'));
       const conflict=matches.length>1||links.length>1||links.some(item=>(startupIds.get(item.row.id)||[]).length!==1)||(own&&links.length>0);
       if(conflict)reasons.push(ownershipReason('ALIAS_CONFLICT',path));
       else if(!own&&matches.length===1&&links.length===1){
@@ -704,7 +706,7 @@ function projectExternalListedHoldings(rawState,identityIndex){
       if(!issuerId)reasons.push(ownershipReason('IDENTITY_UNPROVEN',path));
       reasons.push(ownershipReason('CLASS_UNKNOWN',path),ownershipReason('RIGHTS_UNKNOWN',path),ownershipReason('DENOMINATOR_UNKNOWN',path));
       if(!validId(state.ticker))reasons.push(ownershipReason('IDENTITY_UNPROVEN','ticker'));
-      if(accountKind==='company')reasons.push(ownershipReason('GENERATION_UNPROVEN',path));
+      if(accountKind==='company'||(own&&!ownGenerationKnown))reasons.push(ownershipReason('GENERATION_UNPROVEN',path));
       const holder=entity(holderId,accountKind==='personal'?'proven':'source-scoped',[sourceRef]);
       const issuer=entity(issuerId,issuerStatus,[...listingRefs,...linkRefs]);
       const unknown=code=>evidence('unknown',null,[sourceRef],reasons.filter(reason=>reason.code===code));
