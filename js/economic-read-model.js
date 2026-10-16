@@ -602,7 +602,7 @@ function inspectListedSources(raw,includePlayer=false){
       if(Array.isArray(value)&&key==='length')continue;
       const descriptor=descriptors[key];
       // Histories and unrelated startup operating data are not identity inputs.
-      const fields=/^market\["[0-9]+"\]$/.test(path)?['id','privateCompany','suspended']
+      const fields=/^market\["[0-9]+"\]$/.test(path)?['id','privateCompany','suspended',...(includePlayer?['price','issuedShares']:[])]
         :/^startups\["[0-9]+"\]$/.test(path)?['id','ipoStockID','ownedCompany','ownedPersonal']:null;
       if(fields&&!fields.includes(key))continue;
       if(typeof key==='string'){try{encodeURIComponent(key);}catch(_){issues.push(ownershipReason('INPUT_INVALID',path));continue;}}
@@ -747,7 +747,7 @@ function buildOwnershipIdentityIndex(rawState){
     for(const key of ['publicCompany','isCompanySold'])if(source[key]!=null&&typeof source[key]!=='boolean')captured.issues.push(ownershipReason('INPUT_INVALID',key));
   }
   const sourceSnapshotToken=Object.freeze({});
-  const index=freezeOwned({authority:'read-only',indexVersion:1,sourceScope:'player-and-listed-ownership-v1',sourceSnapshotToken,issues:captured.issues});
+  const index=freezeOwned({authority:'read-only',indexVersion:2,sourceScope:'player-and-listed-ownership-v2',sourceSnapshotToken,issues:captured.issues});
   const listed=freezeOwned({...projectExternalListedHoldings(source),sourceSnapshotToken});
   commonOwnershipIndexes.set(index,{rawState,source:freezeOwned(source),listed});
   return index;
@@ -755,8 +755,8 @@ function buildOwnershipIdentityIndex(rawState){
 function projectOwnershipSnapshot(rawState,identityIndex){
   const index=identityIndex===undefined?buildOwnershipIdentityIndex(rawState):identityIndex;
   const indexed=commonOwnershipIndexes.get(index),current=captureListedSources(rawState,true);
-  const result={authority:'read-only',snapshotVersion:1,sourceScope:'player-and-listed-ownership-v1',sourceSnapshotToken:null,
-    complete:false,commandEligible:false,wealthComplete:false,entities:[],classes:[],positions:[],sourceReplacements:[],issues:[],
+  const result={authority:'read-only',snapshotVersion:2,sourceScope:'player-and-listed-ownership-v2',sourceSnapshotToken:null,
+    complete:false,commandEligible:false,wealthComplete:false,entities:[],classes:[],positions:[],listingObservations:[],sourceReplacements:[],issues:[],
     coverage:[{family:'player-and-listed',status:'invalid'},...['subsidiary-ma','pe','vc','control-ladder','founder-wealth'].map(family=>({family,status:'not-implemented'}))]};
   if(!indexed||indexed.rawState!==rawState||current.issues.length||!sameListedSources(indexed.source,current.source)){
     result.issues.push(...current.issues,ownershipReason('STALE_EVIDENCE','$'));return freezeOwned(result);
@@ -767,6 +767,7 @@ function projectOwnershipSnapshot(rawState,identityIndex){
   if(listed.issues.some(row=>row.code==='INPUT_INVALID')){
     result.issues.push(...listed.issues);return freezeOwned(result);
   }
+  result.listingObservations=observeOwnershipListings(state,listed);
   // Only a source explicitly delegated by P3-5 may enter the legacy own bucket.
   // A reused ticker or conflicting IPO alias stays a separate unresolved asset.
   const ownPath=`personalStocks[${JSON.stringify(state.ticker)}]`;
@@ -795,9 +796,48 @@ function projectOwnershipSnapshot(rawState,identityIndex){
   if(bound)result.classes=player.securityClasses;
   for(const ref of sourceRefs)result.sourceReplacements.push({sourcePath:ref.path,positionId,resolvedByAdapter:'ownershipReconciliation'});
   for(const position of listed.positions)result.sourceReplacements.push({sourcePath:position.sourceRefs[0].path,positionId:position.positionId,resolvedByAdapter:'projectExternalListedHoldings'});
-  result.issues=[...listed.issues,...reasons,...player.issues.map(row=>ownershipReason(row.reason,row.sourcePath))];
+  result.issues=[...listed.issues,...reasons,...player.issues.map(row=>ownershipReason(row.reason,row.sourcePath)),...result.listingObservations.flatMap(row=>row.reasons)];
   result.coverage[0]={family:'player-and-listed',status:result.issues.length?'partial':'observed',personalOwnLot:delegated?'delegated':ownRetained?'retained-unresolved':'absent'};
   return freezeOwned(result);
+}
+
+// Market rows are observations, not a shareholder register or a valuation writer.
+function observeOwnershipListings(state,listed){
+  const aliases=new Map(),issuerCandidates=new Map();
+  for(const position of listed.positions){
+    if(position.issuer.entityId===null)continue;
+    if(!issuerCandidates.has(position.instrumentAlias))issuerCandidates.set(position.instrumentAlias,new Set());
+    issuerCandidates.get(position.instrumentAlias).add(position.issuer.entityId);
+  }
+  for(const [i,row] of (state.market||[]).entries()){
+    if(!aliases.has(row.id))aliases.set(row.id,[]);
+    aliases.get(row.id).push({row,path:`market[${i}]`});
+  }
+  return Array.from(aliases.keys()).sort(compareText).map(alias=>{
+    const matches=aliases.get(alias),unique=matches.length===1,refs=matches.map(item=>({path:item.path,durableId:alias,family:'listed',role:'current'}));
+    const reasons=[];
+    if(!unique)reasons.push(ownershipReason('ALIAS_CONFLICT',refs[0].path));
+    const row=matches[0].row;
+    function numeric(field){
+      const value=row[field],path=`${matches[0].path}.${field}`;
+      const valid=typeof value==='number'&&Number.isFinite(value)&&value>=0&&value<=Number.MAX_SAFE_INTEGER;
+      const status=!unique?'unknown':value===undefined||value===null?'unknown':valid?'known':'invalid';
+      const code=field==='issuedShares'?'DENOMINATOR_UNKNOWN':'PRICE_UNKNOWN';
+      const errors=status==='known'?[]:[ownershipReason(status==='invalid'?'OBSERVATION_OUT_OF_ENVELOPE':code,path)];
+      reasons.push(...errors);
+      return {status,value:status==='known'?value:null,sourceRefs:refs,reasons:errors};
+    }
+    const issuerIds=issuerCandidates.get(alias);
+    const issuerEntityId=unique&&issuerIds?.size===1?issuerIds.values().next().value:null;
+    if(issuerEntityId===null)reasons.push(ownershipReason('IDENTITY_UNPROVEN',refs[0].path));
+    const unknown=code=>({status:'unknown',value:null,sourceRefs:refs,reasons:[ownershipReason(code,refs[0].path)]});
+    const statusValid=[row.privateCompany,row.suspended].every(value=>value===undefined||value===null||typeof value==='boolean');
+    if(!statusValid)reasons.push(ownershipReason('INPUT_INVALID',refs[0].path));
+    return {instrumentAlias:alias,issuerEntityId,securityClassId:null,
+      listingStatus:unique&&statusValid?(row.privateCompany===true?'private':row.suspended===true?'suspended':'observed'):'unknown',
+      issued:numeric('issuedShares'),price:numeric('price'),treasury:unknown('TREASURY_UNKNOWN'),outstanding:unknown('DENOMINATOR_UNKNOWN'),
+      rightsStatus:'unknown',sourceRefs:refs,reasons};
+  });
 }
 
 modules.economicReadModel=Object.freeze({

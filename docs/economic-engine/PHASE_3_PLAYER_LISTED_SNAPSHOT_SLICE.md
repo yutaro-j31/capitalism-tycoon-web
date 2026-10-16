@@ -13,12 +13,12 @@ consumer. P3-5 and Phase 3 are not functionally complete.
 - `projectExternalListedHoldings(rawState, commonIndex)` shares the same token.
 - Both readers reject forged, foreign-object or stale ownership indexes.
 - The transient `sourceSnapshotToken` identifies the index's immutable **selected
-  ownership source view**, scoped as `player-and-listed-ownership-v1`. It is not
+  ownership source view**, scoped as `player-and-listed-ownership-v2`. It is not
   persisted and cannot certify a financial snapshot, valuation, cash or debt.
 - Selected inputs are ticker, company serial/sold status, market identity/listing
-  flags, startup IPO identity/stakes, personal/company stock maps, player names,
+  flags and strict price/issued observations, startup IPO identity/stakes, personal/company stock maps, player names,
   public-company flag, issued/treasury/founder quantities and week. Histories,
-  market price/issued counts, unrelated company operations and financial balances
+  unrelated company operations and financial balances
   are not captured. Stock-map records (including cost evidence) are captured.
 - Blank/whitespace ticker and invalid alias inventories produce an explicitly
   invalid composition with no positions/classes/replacements. The standalone
@@ -49,7 +49,8 @@ quantities, source-token staleness, getter rejection, frozen owned outputs, sour
 purity, RNG invariance and v9 JSON reload. Existing adapter and reconciliation
 suites remain registered and unchanged.
 
-This slice does not implement price/valuation observations, full family identity
+Price/issued listing observations are added by a separate dependent PR. It does
+not implement valuations, full family identity
 indexing, financial-snapshot binding, control eligibility or live wealth consumers.
 Those require subsequent approved read-only slices. Actual save writers, hydration
 and transaction checkpoints are unchanged; their existing permanent gates remain.
@@ -58,3 +59,22 @@ Comprehensive long-run/cross-system audits remain Stage Q work.
 Merge order: #995 -> #996 -> #1019 -> this PR (base is #1019's branch).
 Retarget to main after #1019 merges and verify the final integration again.
 No Owner merge approval is inferred for #1019 or this PR.
+
+## Listing observation follow-up (dependent PR)
+
+Snapshot/index version2 extends the selected source view to market price and
+issuedShares and adds listingObservations (one per sorted alias, including unheld
+listings). This does not adopt a quote/valuation/settlement writer. Strict finite
+nonnegative Numbers within MAX_SAFE_INTEGER are retained without coercion or
+rounding. Fractional source observations remain diagnostic; they never establish
+an integer voting denominator. Missing observations are unknown; invalid values
+are invalid/null. Duplicate market aliases quarantine price, issued count and
+issuer binding rather than choosing a row. Treasury, outstanding, class and rights
+remain unknown. A unique existing IPO-linked position can supply its already
+source-scoped issuer; an unheld ticker never fabricates a legal issuer. Private
+and suspended observations retain the original holdings. Price/issued mutations
+invalidate the common ownership token; financial balances still remain outside
+its scope. Legacy standalone adapter output shape remains unchanged.
+
+Merge order extends through #1020 before the observation follow-up. Neither new
+PR has Owner merge permission. Full P3-5 completion is not claimed.
