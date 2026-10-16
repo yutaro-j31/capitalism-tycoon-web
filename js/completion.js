@@ -170,8 +170,44 @@ function installCompletion(TycoonEngine){
     // the founder is paid that value through founderProceeds. So active company PE deals stay with the sold company and
     // are not carried free into the new one. Exited company deals (history, no asset) and every personal or legacy
     // deal are carried unchanged; company sports teams already follow the same rule.
+    // P1 #1008: only the founder's legally held VC stakes and funded personal round commitments
+    // survive a company sale. The sold company's equity, funding cash and DD terms must not
+    // become the next company's assets. Reject ambiguous ownership before replacing any state.
+    const personalVC=[],personalVCIDs=new Set();
+    for(const s of (this.g.startups||[])){
+      const personal=s?.ownedPersonal??0,pending=s?.activeFundingRound?.contributedPersonal??0;
+      if(!Number.isFinite(personal)||!Number.isFinite(pending)||personal<0||pending<0){
+        if(s?.totalInvestedPersonal>0||s?.ownedPersonal!=null||pending!==0)return this.fail('個人VC持分の記録が不正なため再創業できません。');
+        continue;
+      }
+      if(personal===0&&pending===0)continue;
+      if(typeof s.id!=='string'||!s.id||personalVCIDs.has(s.id))return this.fail('個人VC持分の識別子を確認できません。');
+      personalVCIDs.add(s.id);
+      const held=cxCopy(s);
+      held.ownedCompany=0;held.totalInvestedCompany=0;held.ddNegotiatedOwnedCompany=0;
+      held.subsidiary=false;delete held.dueDiligence;
+      if(held.activeFundingRound){
+        if(held.activeFundingRound.status!=='open'||!Number.isFinite(held.activeFundingRound.preRoundOwnedPersonal)||!Number.isFinite(held.activeFundingRound.contributedPersonal))return this.fail('個人VC出資ラウンドを確認できません。');
+        held.activeFundingRound.preRoundOwnedCompany=0;
+        held.activeFundingRound.contributedCompany=0;
+      }
+      personalVC.push(held);
+    }
     const old=this.g,preserved={week:old.week,month:old.month,personalCash:old.personalCash-investment,personalDebt:old.personalDebt,personalStocks:cxCopy(old.personalStocks),personalInvestments:cxCopy(old.personalInvestments),luxuryAssets:cxCopy(old.luxuryAssets),sportsTeams:cxCopy(old.sportsTeams.filter(x=>x.owner==='personal')),peDeals:cxCopy(old.peDeals.filter(x=>!(x.ownerAccount==='company'&&x.status==='active'))),angelInvestments:cxCopy(old.angelInvestments),personalRealEstateHoldings:cxCopy(old.personalRealEstateHoldings),familyTrustEstablished:old.familyTrustEstablished,familyTrustCash:old.familyTrustCash,familyTrustShares:old.familyTrustShares,founderAge:old.founderAge,founderGeneration:old.founderGeneration,founderName:old.founderName,playerName:old.playerName,founderHomePrefID:old.founderHomePrefID,founderHomePrefName:old.founderHomePrefName,founderTraitID:old.founderTraitID,founderHomeLevel:old.founderHomeLevel,currentFounderHomeRank:old.currentFounderHomeRank,founderSkillBusiness:old.founderSkillBusiness,founderSkillTech:old.founderSkillTech,founderSkillFinance:old.founderSkillFinance,founderSkillNegotiation:old.founderSkillNegotiation,founderEducationLevel:old.founderEducationLevel,founderNetworkLevel:old.founderNetworkLevel,foundationEndowment:old.foundationEndowment,foundationReputation:old.foundationReputation,lobbyInfluence:old.lobbyInfluence,achievements:cxCopy(old.achievements),unlockedEndings:cxCopy(old.unlockedEndings),endingRecords:cxCopy(old.endingRecords),playerTitles:cxCopy(old.playerTitles),hallOfRecords:cxCopy(old.hallOfRecords),pastCompanyRecords:cxCopy(old.pastCompanyRecords),serialCompanyCount:Math.max(old.serialCompanyCount||1,old.currentCompanySerial||1)+1,settings:cxCopy(old.settings),news:cxCopy(old.news),history:cxCopy(old.history),market:cxCopy(old.market)};
     const fresh=(new this.constructor()).g;fresh.configured=true;fresh.companyName=(companyName||`新会社${preserved.serialCompanyCount}`).trim();fresh.playerName=preserved.playerName;fresh.companyCash=investment;fresh.week=preserved.week;fresh.month=preserved.month;fresh.personalCash=preserved.personalCash;fresh.personalDebt=preserved.personalDebt;fresh.personalStocks=preserved.personalStocks;fresh.personalInvestments=preserved.personalInvestments;fresh.luxuryAssets=preserved.luxuryAssets;fresh.sportsTeams=preserved.sportsTeams;fresh.peDeals=preserved.peDeals;fresh.angelInvestments=preserved.angelInvestments;fresh.personalRealEstateHoldings=preserved.personalRealEstateHoldings;fresh.familyTrustEstablished=preserved.familyTrustEstablished;fresh.familyTrustCash=preserved.familyTrustCash;fresh.familyTrustShares=preserved.familyTrustShares;fresh.founderAge=preserved.founderAge;fresh.founderGeneration=preserved.founderGeneration;fresh.founderName=preserved.founderName;fresh.founderHomePrefID=preserved.founderHomePrefID;fresh.founderHomePrefName=preserved.founderHomePrefName;fresh.founderTraitID=preserved.founderTraitID;fresh.founderHomeLevel=preserved.founderHomeLevel;fresh.currentFounderHomeRank=preserved.currentFounderHomeRank;fresh.founderSkillBusiness=preserved.founderSkillBusiness;fresh.founderSkillTech=preserved.founderSkillTech;fresh.founderSkillFinance=preserved.founderSkillFinance;fresh.founderSkillNegotiation=preserved.founderSkillNegotiation;fresh.founderEducationLevel=preserved.founderEducationLevel;fresh.founderNetworkLevel=preserved.founderNetworkLevel;fresh.foundationEndowment=preserved.foundationEndowment;fresh.foundationReputation=preserved.foundationReputation;fresh.lobbyInfluence=preserved.lobbyInfluence;fresh.achievements=preserved.achievements;fresh.unlockedEndings=preserved.unlockedEndings;fresh.endingRecords=preserved.endingRecords;fresh.playerTitles=preserved.playerTitles;fresh.hallOfRecords=preserved.hallOfRecords;fresh.pastCompanyRecords=preserved.pastCompanyRecords;fresh.serialCompanyCount=preserved.serialCompanyCount;fresh.currentCompanySerial=preserved.serialCompanyCount;fresh.currentCompanyFoundedWeek=preserved.week;fresh.lastNewCompanyFoundingWeek=preserved.week;fresh.settings=preserved.settings;fresh.news=[`第${preserved.week}週：売却益を元手に新会社「${fresh.companyName}」を創業しました。`,...preserved.news].slice(0,300);fresh.history=preserved.history;fresh.market=preserved.market;fresh.selectedTab=mode==='digital'?'business':'home';fresh.isCompanySold=false;fresh.hasSeenCompanyBuyoutEnding=false;fresh.gameOver=false;fresh.gameOverReason='';fresh.scenario=mode;
+    // Resolve constructor's reused startup IDs by legal source identity, never by name.
+    // Unrelated new-company deal flow remains fresh; no company-owned position is carried over.
+    const vcByID=new Map(personalVC.map(s=>[s.id,s]));
+    const defaultIDs=new Set(fresh.startups.map(s=>s.id));
+    fresh.startups=fresh.startups.map(s=>vcByID.get(s.id)||s);
+    for(const s of personalVC)if(!defaultIDs.has(s.id))fresh.startups.push(s);
+    for(const s of personalVC){
+      const events=old.startupFundingHistory?.[s.id];
+      if(!Array.isArray(events))continue;
+      // Carry source evidence for the personal participation only. Company subscriptions
+      // remain with the sold entity; prior closed/open rounds are non-asset provenance.
+      fresh.startupFundingHistory[s.id]=cxCopy(events.filter(e=>e&&(e.account==='personal'||e.eventType==='opened'||e.eventType==='closed')));
+    }
     // #968: the new company's book opens from its own state (cash = the founder's contribution), as a new game's does;
     // the constructor's default book (opening cash 8,000,000) no longer matches the contributed cash.
     const coverage=fresh.finance?.ledgerCoverageVersion;fresh.finance=__modules.finance.defaultFinanceState(fresh);if(coverage!=null)fresh.finance.ledgerCoverageVersion=coverage;
