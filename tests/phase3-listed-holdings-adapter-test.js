@@ -32,6 +32,20 @@ for(const position of result.positions){
   assert.equal(position.assetRole,'unresolved');
 }
 assert.equal(personal.issuer.entityId,null,'listing alias and issued count are insufficient legal identity');
+for(const extra of [{market:{}},{startups:{}},{market:[{id:' '}]},{startups:[{id:' ',ipoStockID:'OTHER'}]}]){
+  const raw={ticker:'OWN',currentCompanySerial:1,market:[],startups:[],personalStocks:{OWN:{qty:10}},...extra};
+  const view=project(raw);
+  assert(view.issues.some(row=>row.code==='INPUT_INVALID'));
+  assert(!view.sourceCoverage.some(row=>row.status==='delegated'),'invalid alias inventories cannot prove safe delegation');
+  assert.equal(view.positions.length,1);assert.equal(view.positions[0].quantity.value,10);
+  assert.equal(view.positions[0].issuer.entityId,null);assert.equal(view.positions[0].assetRole,'unresolved');
+}
+for(const ticker of [' ','\t']){
+  const view=project({ticker,currentCompanySerial:1,market:[],startups:[],personalStocks:{[ticker]:{qty:10}}});
+  assert(!view.sourceCoverage.some(row=>row.status==='delegated'),'match P3-2 nonblank player binding');
+  assert.equal(view.positions.length,1);assert.equal(view.positions[0].quantity.value,10);
+  assert.equal(view.positions[0].issuer.entityId,null);assert.equal(view.positions[0].votingUnits.value,null);
+}
 function frozen(value){if(value&&typeof value==='object'){assert(Object.isFrozen(value));for(const child of Object.values(value))frozen(child);}}
 frozen(result);frozen(index);
 assert(!Object.isFrozen(state),'reader must not freeze the input');
