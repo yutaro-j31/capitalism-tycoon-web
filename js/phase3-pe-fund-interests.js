@@ -60,7 +60,7 @@
       const size=requireNumber(fund,'size',path,errors),gp=requireNumber(fund,'gpCommit',path,errors),lp=requireNumber(fund,'lpContributed',path,errors);
       const status=read(fund,'status',path,errors);
       if(!['investing','harvesting','closed'].includes(status))errors.push(issue('LIFECYCLE_UNKNOWN',`${path}.status`));
-      const totalsValid=size!==null&&size>0&&gp!==null&&lp!==null&&gp<=size&&lp<=size&&gp+lp===size;
+      const totalsValid=size!==null&&size>0&&gp!==null&&lp!==null&&gp<=size&&lp<=size&&size-gp===lp;
       if(!totalsValid)errors.push(issue('CONTRIBUTION_MISMATCH',path));
       const supported=id!==null&&!collision&&totalsValid&&['investing','harvesting','closed'].includes(status);
       const interest={fundId:id,sourcePath:path,holder:'founder-personal-gp',fundStatus:typeof status==='string'?status:null,
