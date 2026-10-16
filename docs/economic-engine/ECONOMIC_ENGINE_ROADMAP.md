@@ -1,5 +1,8 @@
 # Capitalism Tycoon Economic Engine Integration Roadmap
 
+> **Owner-approved execution-order update — 2026-10-16:** For current implementation priorities, phase-level validation budgets, the `Functional Complete → Quality Complete` policy, and the agent-neutral handoff protocol, read **[ECONOMIC_ENGINE_IMPLEMENTATION_FIRST_ROADMAP.md](ECONOMIC_ENGINE_IMPLEMENTATION_FIRST_ROADMAP.md)** first. This original roadmap continues to define the detailed phase architecture and economics. Its `Continuous Track A/B/C/D` deep audit, long-run, scale and calibration programs are executed comprehensively **after functional completion**; existing permanent tests, safety contracts, current Owner/cutover gates, and applicable CI are not waived. Status declarations in this historical header describe their stated historical baseline, not today's live phase progress.
+
+
 **Status: APPROVED IMPLEMENTATION BASELINE — Phase 1 authorized**  
 **Implementation baseline: YES**  
 **Gate C: COMPLETE — physical iPhone evidence accepted; #787 closed**  

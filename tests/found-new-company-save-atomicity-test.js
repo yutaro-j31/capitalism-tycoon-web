@@ -129,5 +129,18 @@ const h=makeTransactionFaultCase({name:'company refounding',fixture,command:refo
   assert.equal(s.engineModule.TycoonEngine.load().g.startups.find(x=>x.id===st.id).ownedPersonal,held,'durable VC persists');
   await h.loaded(s,s.game.g);
   console.log('P1 #1008 real sale -> refound -> durable/fresh VC ownership PASS');}
+ // Every original source participates in ID validation, including unheld/company-only rows.
+ for(const companyOwned of [false,true])for(const conflictFirst of [false,true]){
+  const s=await fixture(),st=s.game.g.startups.find(x=>x.ownedPersonal>0);
+  const duplicate={...JSON.parse(JSON.stringify(st)),name:'異なる発行体',ownedPersonal:0,totalInvestedPersonal:0,
+   ownedCompany:companyOwned?0.1:0,totalInvestedCompany:companyOwned?1_000_000:0,activeFundingRound:null};
+  if(conflictFirst)s.game.g.startups.unshift(duplicate);else s.game.g.startups.push(duplicate);
+  const before=snapshot(s.game),mirror=s.ctx.localStorage.getItem(s.engineModule.SAVE_KEY);
+  assert.equal(s.game.foundNewCompanyAfterBuyout('新会社',INVESTMENT,'store'),false,'ambiguous old startup identity must reject');
+  assert.deepEqual(snapshot(s.game),before,'rejected refounding preserves live state and all assets');
+  await s.backend.flush();
+  assert.equal(s.ctx.localStorage.getItem(s.engineModule.SAVE_KEY),mirror,'rejected identity does not write a new save');
+ }
+ console.log('P1 #1008 duplicate personal/unheld/company source IDs in both row orders rejected PASS');
  console.log('Found new company save atomicity PASS');
 })().catch(e=>{console.error(e);process.exitCode=1;});

@@ -173,7 +173,8 @@ function installCompletion(TycoonEngine){
     // P1 #1008: only the founder's legally held VC stakes and funded personal round commitments
     // survive a company sale. The sold company's equity, funding cash and DD terms must not
     // become the next company's assets. Reject ambiguous ownership before replacing any state.
-    const personalVC=[],personalVCIDs=new Set();
+    const personalVC=[],personalVCIDs=new Set(),sourceVCIDCounts=new Map();
+    for(const s of (this.g.startups||[]))if(typeof s?.id==='string')sourceVCIDCounts.set(s.id,(sourceVCIDCounts.get(s.id)||0)+1);
     for(const s of (this.g.startups||[])){
       const personal=s?.ownedPersonal??0,pending=s?.activeFundingRound?.contributedPersonal??0;
       if(!Number.isFinite(personal)||!Number.isFinite(pending)||personal<0||pending<0){
@@ -181,7 +182,7 @@ function installCompletion(TycoonEngine){
         continue;
       }
       if(personal===0&&pending===0)continue;
-      if(typeof s.id!=='string'||!s.id||personalVCIDs.has(s.id))return this.fail('個人VC持分の識別子を確認できません。');
+      if(typeof s.id!=='string'||!s.id||personalVCIDs.has(s.id)||sourceVCIDCounts.get(s.id)!==1)return this.fail('個人VC持分の識別子を確認できません。');
       personalVCIDs.add(s.id);
       const held=cxCopy(s);
       held.ownedCompany=0;held.totalInvestedCompany=0;held.ddNegotiatedOwnedCompany=0;
