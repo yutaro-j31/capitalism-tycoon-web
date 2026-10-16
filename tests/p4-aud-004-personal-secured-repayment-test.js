@@ -59,4 +59,12 @@ const previous=JSON.stringify(rehydrated.g);
 assert.equal(rehydrated.repay(1_000_000,'personal'),false,'reloaded save retains specialist allocation');
 assert.equal(JSON.stringify(rehydrated.g),previous);
 assert.equal(rehydrated.g.personalDebt,rehydrated.g.realEstateMarket.loans.filter(l=>l.owner==='personal'&&l.accountingTracked===true&&l.balance>0).reduce((s,l)=>s+l.balance,0));
+// Legacy save contains a previously valid specialist loan without the accountingTracked
+// field. Do not assume this unknown personal claim can be paid via the unsecured writer.
+const legacy=new engineModule.TycoonEngine(JSON.parse(JSON.stringify(g)));
+const legacyLoan=legacy.g.realEstateMarket.loans.find(l=>l.id===loan.id);
+delete legacyLoan.accountingTracked;
+const legacyBefore=JSON.stringify(legacy.g);
+assert.equal(legacy.repay(1_000_000,'personal'),false,'unknown legacy tracking must fail closed');
+assert.equal(JSON.stringify(legacy.g),legacyBefore,'legacy save must not be mutated by a rejected repay');
 console.log('P4-AUD-004 personal secured-principal guard and save/reload PASS');
