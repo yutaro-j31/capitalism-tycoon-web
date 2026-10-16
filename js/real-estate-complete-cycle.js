@@ -52,7 +52,7 @@ function processWeek(engine){const g=engine.g,s=ensure(g),w=week(g);if(s.lastPro
 Engine.prototype.getRealEstateFinanceQuote=function(propertyID,amount,options){return quote(this.g,propertyID,amount,options);};Engine.prototype.borrowAgainstProperty=function(propertyID,amount,options){return this.runTransaction?this.runTransaction(()=>borrow(this.g,propertyID,amount,options)):borrow(this.g,propertyID,amount,options);};Engine.prototype.repayPropertyLoan=function(id,amount){return this.prepayRealEstateLoan(id,amount);};Engine.prototype.prepayRealEstateLoan=function(id,amount){return this.runTransaction?this.runTransaction(()=>prepay(this.g,id,amount)):prepay(this.g,id,amount);};Engine.prototype.refinanceRealEstateLoan=function(id,options){return this.runTransaction?this.runTransaction(()=>refinance(this.g,id,options)):refinance(this.g,id,options);};Engine.prototype.getRealEstateCycleDashboard=function(){const s=ensure(this.g);return {macro:{...s.macro},loans:s.loans.map(x=>({...x})),rivals:s.rivals.map(x=>({...x})),events:s.events.slice(-12).map(x=>({...x})),vehicles:s.vehicles.map(x=>({...x}))};};Engine.prototype.createRealEstateVehicle=function(type,ids){return createVehicle(this.g,type,ids);};
 // P4-AUD-004: personalDebt includes the separately serviced personal property loans.
 // Generic repay() has no corresponding specialist-loan principal allocation. Refuse only
-// the secured portion (including defaulted/workout balances), with no implicit partial pay.
+// the secured portion (including defaulted/workout and unknown legacy tracking), with no implicit partial pay.
 // Use the existing specialist prepayment writer to settle the reserved portion instead.
 // This is a read-only guard: no loan authority, save format, or repayment priority change.
 const baseGenericRepay=Engine.prototype.repay;
@@ -61,7 +61,7 @@ if(typeof baseGenericRepay==='function')Engine.prototype.repay=function(amount,a
     const total=Math.max(0,n(this.g.personalDebt));
     const requested=round(Math.min(total,Math.max(0,n(amount))));
     const personalSecured=(Array.isArray(this.g.realEstateMarket?.loans)?this.g.realEstateMarket.loans:[])
-      .filter(l=>l?.owner==='personal'&&l.accountingTracked===true
+      .filter(l=>l?.owner==='personal'&&l.accountingTracked!==false
         &&l.status!=='paid'&&l.status!=='refinanced'&&n(l.balance)>0)
       .reduce((sum,l)=>sum+Math.max(0,n(l.balance)),0);
     const unsecured=round(Math.max(0,total-personalSecured));
