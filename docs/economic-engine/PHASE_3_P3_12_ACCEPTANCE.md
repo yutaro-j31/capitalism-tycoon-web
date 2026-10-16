@@ -6,9 +6,15 @@ Audited production main: `743d08d1867f453fe09c61e1fd5312c846cfc1eb` (2026-10-15 
 
 Repository precedence follows the approved Roadmap. Current source establishes observed production facts; approved target contracts establish required future behavior. Discrepancies must be logged, never silently adopted as new policy. Required references: Owner instruction and approved [Entry](PHASE_3_ENTRY_CONTRACT.md), [P3-1](PHASE_3_P3_1_CONTRACT.md), [P3-2](PHASE_3_P3_2_CONTRACT.md), [P3-3](PHASE_3_P3_3_CONTRACT.md), [Roadmap](ECONOMIC_ENGINE_ROADMAP.md) and [dependency graph](ECONOMIC_ENGINE_DEPENDENCY_GRAPH.md). Shared proposed types, identity rules and reason codes are specified in `PHASE_3_CROSS_SLICE_ARCHITECTURE.md` (companion cross-slice PR; dependency must merge first).
 
+## Current F/S/Q gate alignment (2026-10-16)
+
+This proposal incorporates the merged [Implementation-First Roadmap v2](ECONOMIC_ENGINE_IMPLEMENTATION_FIRST_ROADMAP.md) and [Phase 3/4 gate alignment](PHASE_3_4_IMPLEMENTATION_FIRST_GATE_ALIGNMENT.md). Baseline refreshed to `26a22a971db457025821ef27503163f4ebaef927`; historical CODE/TEST facts below retain their stated SHA. Shared contract #995 remains a separate dependency. The Owner's current development instruction authorizes safe implementation preparation, not automatic Exit, merge or Phase 4 Entry.
+
+Record distinct results: `S_PASS` for focused safety of an implemented slice; Owner-accepted `PHASE_3_F_EXIT` only after every mandatory P3-4–P3-11 capability and relevant S/permanent/cutover/CI evidence exists; `Q_ACCEPTED` only after the later integrated quality campaign. Expanded whole-system A–L audits, broad untouched-writer campaigns, mass seed/century runs, 100/1000-company scale expansion and comprehensive calibration are Stage Q backlog. Targeted independent adopted-writer diff review, complete writer-family closure, conservation/accounting, save-failure/rollback, old-v9/real-IDB hydration, deterministic replay, relevant WebKit and all existing required CI/Permanent Gates remain Stage F obligations. No required test is deleted, disabled, skipped or relabeled by this proposal. P3-4 blocked means F Exit remains blocked; no mandatory scope is silently deferred.
+
 ## 1. Goal / Scope
 
-Design an evidence-based permanent gate. Phase3 Exit remains NOT PASS: P3-4..11 are not all implemented/accepted, independent full audit is absent and economic decisions remain. Test existence, docs CI and historical green checks cannot clear this gate.
+Design an evidence-based permanent gate. Phase3 Exit remains NOT PASS: P3-4..11 are not all implemented/accepted, required scoped safety/adoption evidence is absent and economic decisions remain. Test existence, docs CI and historical green checks cannot clear this gate.
 
 ## 2. Current Production State
 
@@ -32,7 +38,7 @@ Proposed `evaluatePhase3Acceptance(evidence)` is a future fail-closed evidence e
 
 ## 7. Input / Output Examples
 
-Existing test green + no P3-7 API = P3-7 missing, Exit NOT PASS. WebKit push-only workflow skipped on PR = no PR WebKit proof; fetch actual main/push job. Twelve green test shards + no independent reviewer = tests passed, independent A–L audit missing. Old save with unknown issuer → preservation/explicit unsupported can PASS its fail-closed fixture, not an executable ownership adoption fixture.
+Existing test green + no P3-7 API = P3-7 missing, Exit NOT PASS. WebKit push-only workflow skipped on PR = no PR WebKit proof; fetch actual main/push job. Twelve green test shards do not establish a targeted independent cutover review; that review remains required for adopted writers. The expanded whole-system independent A–L campaign is separately marked pending Stage Q. Old save with unknown issuer → preservation/explicit unsupported can PASS its fail-closed fixture, not an executable ownership adoption fixture.
 
 ## 8. Invariants
 
@@ -73,11 +79,11 @@ Detailed Test Coverage / CI / WebKit matrix and exact existing filenames live in
 | Accounting/separation | accounting-invariants-test.js; phase2-acceptance-gate-test.js; writer atomicity suites | every newly adopted call path and cash/no-cash invariant |
 | Save9/hydration | save-compat-test.js; save-v9-migration-test.js; save-storage-commit-atomicity-test.js | nonzero adapter positions through all compaction profiles and ambiguous old generation |
 
-Existing tests characterize legacy behavior; no row above certifies unimplemented adapters. Candidate new tests use slice-specific names; extend reusable existing tests where equivalent assertion already exists. CI minimum: Test A–L+aggregate, P0.5 smoke; full relevant main/push/strategy/real WebKit gates and permanent P1/P2 gates. Long-run: use existing harness smoke/nightly/deepAudit tiers, explicit simulationRng seeds83951617..24, same-state replay + reload forks; add100/1000-company adapter scale fixtures without inventing AI entities as authority. Record requested/persisted seed diversity and stochastic-path diversity before combining outcomes. Do not use company name as seed.
+Existing tests characterize legacy behavior; no row above certifies unimplemented adapters. Candidate new tests use slice-specific names; extend reusable existing tests where equivalent assertion already exists. CI minimum: Test A–L+aggregate, P0.5 smoke; full relevant main/push/strategy/real WebKit gates and permanent P1/P2 gates. Stage F retains existing required harness/permanent tiers, focused same-state replay and reload forks. Expanded nightly/deepAudit seed campaigns (explicit simulationRng seeds83951617..24) and new100/1000-company adapter-scale fixtures are scheduled for Stage Q unless needed to diagnose a concrete affected-path defect; do not invent AI entities as authority. Record requested/persisted seed diversity and stochastic-path diversity before combining outcomes. Do not use company name as seed.
 
 ## 15. Migration and Cutover Restrictions
 
-No formal Exit in this design PR. No acceptance bypass, CI skip/weakening, schema upgrade or new authority. Physical Gate C historical acceptance does not constitute physical testing of new UI/scale work. Phase4 Entry is an explicit later Owner decision after satisfied Phase3 Exit.
+No formal Exit in this design PR. No acceptance bypass, CI skip/weakening, schema upgrade or new authority. Physical Gate C historical acceptance does not constitute physical testing of new UI/scale work. Phase4 Entry is an explicit later Owner decision after Owner-accepted PHASE_3_F_EXIT and applicable S/cutover prerequisites, not after a fabricated Q completion.
 
 ## 16. Risks and Findings
 
@@ -85,11 +91,11 @@ R-P312-01: coverage by filename falsely treated as executed verification. Resolv
 
 ## 17. Acceptance Criteria
 
-Every listed ECO/ownership/accounting/failure/determinism/save/WebKit case has implemented assertion, actual run, matching candidate and result; all applicable final-head CI success, integration-main checked, independent A–L completed and no unresolved P0/P1. P2 disposition/risk accepted explicitly where required. Owner authorizes Exit and Phase4 Entry separately.
+For PHASE_3_F_EXIT, every required implemented capability has relevant ECO/ownership/accounting/failure/determinism/save/WebKit assertions, actual runs and matching candidate evidence; applicable final-head CI succeeds, integration-main is checked, and targeted independent adopted-writer review is complete. A known corrupting P0/P1 cannot be waived for an enabled family or global dependency. Expanded cross-system A–L/scale/long-run campaigns remain explicitly pending Stage Q. Applicable S/cutover review must have zero unresolved findings, including P2. Expanded Q campaign work may remain explicitly pending, without being called reviewed/closed; any exception needs its exact explicit Owner decision. Owner authorizes Exit and Phase4 Entry separately.
 
 ## 18. Owner Decisions
 
-No approval needed to complete this planning. Implementation needs its own approval. OD-06: independent external reviewer/session availability and disposition of #976/#979/known debt prerequisites before Exit. Owner alone may approve any scope adjustment; do not infer acceptance from urgency.
+No approval needed to complete this planning. Implementation needs its own approval. OD-06: scoped independent writer-review evidence and disposition of #976/#979/known debt dependencies before the relevant F Exit/Entry; external reviewer unavailability must be labeled and escalated only where the exact cutover contract requires it. Owner alone may approve any scope adjustment; do not infer acceptance from urgency.
 
 ## 19. Implementation Slices
 
@@ -97,4 +103,4 @@ No approval needed to complete this planning. Implementation needs its own appro
 
 ## 20. Definition of Done
 
-A permanent executable gate and honest final audit exist after separately approved implementation; required candidate/main evidence actual; independent A–L review complete; Owner Exit decision recorded. Until then status NOT PASS, Phase4 NOT AUTHORIZED.
+A permanent functional/safety gate exists after authorized implementation; all mandatory capabilities and applicable candidate/main S/permanent/cutover/CI evidence are actual; Owner acceptance records PHASE_3_F_EXIT. Until then functional status is NOT PASS and Phase4 is NOT AUTHORIZED. The expanded independent whole-system A–L campaign is Stage Q and cannot be reported complete through F acceptance. Owner Phase4 Entry remains a separate decision.
