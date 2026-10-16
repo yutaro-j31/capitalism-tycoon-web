@@ -567,6 +567,8 @@ function compareLegacyParity(state,readModel=snapshot(state)){
 
 // P3-5: opt-in evidence only. No settlement or voting authority is adopted.
 const ownershipIndexes=new WeakMap();
+const commonOwnershipIndexes=new WeakMap();
+const commonOwnershipFields=['companyName','playerName','publicCompany','sharesOut','treasuryBuybackShares','founderShares','week'];
 function freezeOwned(value){
   if(value&&typeof value==='object'){
     for(const child of Object.values(value))freezeOwned(child);
@@ -582,7 +584,7 @@ function plainOwnershipObject(value){
 }
 // Inspect descriptors before reading values; never invoke source getters or helpers.
 // Only this adapter's source branches are copied, never the entire game state.
-function inspectListedSources(raw){
+function inspectListedSources(raw,includePlayer=false){
   const issues=[],ancestors=new Set();
   function copy(value,path){
     if(typeof value==='string'){
@@ -616,13 +618,13 @@ function inspectListedSources(raw){
   for(const key of Reflect.ownKeys(descriptors)){
     if(typeof key!=='string'||!Object.hasOwn(descriptors[key],'value'))issues.push(ownershipReason('INPUT_INVALID','$'));
   }
-  for(const key of ['ticker','currentCompanySerial','isCompanySold','market','startups','personalStocks','companyStocks']){
+  for(const key of ['ticker','currentCompanySerial','isCompanySold','market','startups','personalStocks','companyStocks',...(includePlayer?commonOwnershipFields:[])]){
     if(Object.hasOwn(descriptors,key)&&Object.hasOwn(descriptors[key],'value'))source[key]=copy(descriptors[key].value,key);
   }
   return {source,issues};
 }
-function captureListedSources(raw){
-  try{return inspectListedSources(raw);}
+function captureListedSources(raw,includePlayer=false){
+  try{return inspectListedSources(raw,includePlayer);}
   catch(_){return {source:null,issues:[ownershipReason('INPUT_INVALID','$')]};}
 }
 function sameListedSources(a,b){
@@ -638,6 +640,11 @@ function buildListedHoldingsIdentityIndex(rawState){
   return index;
 }
 function projectExternalListedHoldings(rawState,identityIndex){
+  if(commonOwnershipIndexes.has(identityIndex)){
+    const indexed=commonOwnershipIndexes.get(identityIndex),current=captureListedSources(rawState,true);
+    if(indexed.rawState===rawState&&!current.issues.length&&!identityIndex.issues.length&&sameListedSources(indexed.source,current.source))return indexed.listed;
+    return freezeOwned({authority:'read-only',adapterVersion:1,complete:false,entities:[],classes:[],positions:[],relationships:[],unresolved:[],sourceCoverage:[],issues:[ownershipReason('STALE_EVIDENCE','$')]});
+  }
   const captured=captureListedSources(rawState),issues=captured.issues;
   const result={authority:'read-only',adapterVersion:1,complete:false,entities:[],classes:[],positions:[],relationships:[],unresolved:[],issues,sourceCoverage:[]};
   if(identityIndex!==undefined){
@@ -730,6 +737,69 @@ function projectExternalListedHoldings(rawState,identityIndex){
   return freezeOwned(result);
 }
 
+// Incremental common index: binds the immutable player/listed OWNERSHIP inputs.
+// It deliberately certifies neither financial balances nor unsupported families.
+function buildOwnershipIdentityIndex(rawState){
+  const captured=captureListedSources(rawState,true),source=captured.source;
+  if(source){
+    if(typeof source.ticker!=='string'||!source.ticker.trim())captured.issues.push(ownershipReason('INPUT_INVALID','ticker'));
+    for(const key of ['companyName','playerName'])if(source[key]!=null&&typeof source[key]!=='string')captured.issues.push(ownershipReason('INPUT_INVALID',key));
+    for(const key of ['publicCompany','isCompanySold'])if(source[key]!=null&&typeof source[key]!=='boolean')captured.issues.push(ownershipReason('INPUT_INVALID',key));
+  }
+  const sourceSnapshotToken=Object.freeze({});
+  const index=freezeOwned({authority:'read-only',indexVersion:1,sourceScope:'player-and-listed-ownership-v1',sourceSnapshotToken,issues:captured.issues});
+  const listed=freezeOwned({...projectExternalListedHoldings(source),sourceSnapshotToken});
+  commonOwnershipIndexes.set(index,{rawState,source:freezeOwned(source),listed});
+  return index;
+}
+function projectOwnershipSnapshot(rawState,identityIndex){
+  const index=identityIndex===undefined?buildOwnershipIdentityIndex(rawState):identityIndex;
+  const indexed=commonOwnershipIndexes.get(index),current=captureListedSources(rawState,true);
+  const result={authority:'read-only',snapshotVersion:1,sourceScope:'player-and-listed-ownership-v1',sourceSnapshotToken:null,
+    complete:false,commandEligible:false,wealthComplete:false,entities:[],classes:[],positions:[],sourceReplacements:[],issues:[],
+    coverage:[{family:'player-and-listed',status:'invalid'},...['subsidiary-ma','pe','vc','control-ladder','founder-wealth'].map(family=>({family,status:'not-implemented'}))]};
+  if(!indexed||indexed.rawState!==rawState||current.issues.length||!sameListedSources(indexed.source,current.source)){
+    result.issues.push(...current.issues,ownershipReason('STALE_EVIDENCE','$'));return freezeOwned(result);
+  }
+  result.sourceSnapshotToken=index.sourceSnapshotToken;
+  if(index.issues.length){result.issues.push(...index.issues);return freezeOwned(result);}
+  const state=indexed.source,listed=indexed.listed;
+  if(listed.issues.some(row=>row.code==='INPUT_INVALID')){
+    result.issues.push(...listed.issues);return freezeOwned(result);
+  }
+  // Only a source explicitly delegated by P3-5 may enter the legacy own bucket.
+  // A reused ticker or conflicting IPO alias stays a separate unresolved asset.
+  const ownPath=`personalStocks[${JSON.stringify(state.ticker)}]`;
+  const delegated=listed.sourceCoverage.some(row=>row.path===ownPath&&row.status==='delegated');
+  const ownRetained=listed.positions.some(row=>row.accountKind==='personal'&&row.instrumentAlias===state.ticker);
+  const playerState={...state};
+  if(ownRetained){playerState.personalStocks={...state.personalStocks};delete playerState.personalStocks[state.ticker];}
+  const player=ownershipReconciliation(playerState);
+  const generationProven=state.currentCompanySerial===1&&state.isCompanySold!==true;
+  const bound=player.ok&&generationProven&&!ownRetained;
+  const positionId='position:player-company:founder';
+  const founderSources=player.sourceHoldings.filter(row=>row.sourcePath!==null);
+  const sourceRefs=founderSources.map(row=>({path:row.sourceLot==='legacy-founderShares-bucket'?'founderShares':ownPath,durableId:null,family:'player',role:'current'}));
+  const reasons=[];
+  if(!generationProven)reasons.push(ownershipReason('GENERATION_UNPROVEN','currentCompanySerial'));
+  if(ownRetained)reasons.push(ownershipReason('ALIAS_BINDING_UNPROVEN',ownPath));
+  if(!player.ok)reasons.push(ownershipReason('PLAYER_RECONCILIATION_FAILED','founderShares'));
+  const holder={entityId:FOUNDER_ENTITY_ID,generation:null,identityStatus:'proven',sourceRefs};
+  const issuer={entityId:PLAYER_COMPANY_ENTITY_ID,generation:null,identityStatus:bound?'source-scoped':'unresolved',sourceRefs};
+  result.positions=[{positionId,ownershipKey:null,issuer,securityClassId:bound?PLAYER_COMPANY_COMMON_SECURITY_CLASS_ID:null,
+    registeredHolder:holder,beneficialOwner:holder,accountKind:'personal',assetRole:bound?'founder-equity':'unresolved',
+    quantity:{status:player.beneficialHoldings[0].quantity===null?'invalid':'known',value:player.beneficialHoldings[0].quantity,sourceRefs,reasons},
+    // This slice supplies evidence only, including for the proven player class.
+    economicFraction:{status:'unknown',value:null,sourceRefs,reasons:[]},votingUnits:{status:'unknown',value:null,sourceRefs,reasons:[]},sourceRefs,reasons},...listed.positions];
+  result.entities=[holder,issuer,...listed.entities.filter(row=>![FOUNDER_ENTITY_ID,PLAYER_COMPANY_ENTITY_ID].includes(row.entityId))];
+  if(bound)result.classes=player.securityClasses;
+  for(const ref of sourceRefs)result.sourceReplacements.push({sourcePath:ref.path,positionId,resolvedByAdapter:'ownershipReconciliation'});
+  for(const position of listed.positions)result.sourceReplacements.push({sourcePath:position.sourceRefs[0].path,positionId:position.positionId,resolvedByAdapter:'projectExternalListedHoldings'});
+  result.issues=[...listed.issues,...reasons,...player.issues.map(row=>ownershipReason(row.reason,row.sourcePath))];
+  result.coverage[0]={family:'player-and-listed',status:result.issues.length?'partial':'observed',personalOwnLot:delegated?'delegated':ownRetained?'retained-unresolved':'absent'};
+  return freezeOwned(result);
+}
+
 modules.economicReadModel=Object.freeze({
   READ_MODEL_VERSION,
   PLAYER_COMPANY_ENTITY_ID,
@@ -738,6 +808,8 @@ modules.economicReadModel=Object.freeze({
   CURRENCY,
   LEGACY_DEBT_TOLERANCE,
   snapshot,
+  buildOwnershipIdentityIndex,
+  projectOwnershipSnapshot,
   buildListedHoldingsIdentityIndex,
   projectExternalListedHoldings,
   ownershipProjection,
