@@ -50,6 +50,25 @@ function processEvent(g){const s=ensure(g),owned=props(g).filter(p=>p?.owner==='
 function createVehicle(g,type,propertyIDs){const s=ensure(g),ids=[...new Set(propertyIDs||[])],owned=ids.map(id=>prop(g,id)).filter(Boolean);if(!owned.length)return null;const value=round(owned.reduce((a,p)=>a+valueOf(p),0)),min=type==='reit'?100000000:type==='urban'?200000000:50000000;if(value<min)return null;const v={id:`REVEH-${week(g)}-${s.vehicles.length+1}`,type:['reit','urban','overseas'].includes(type)?type:'reit',propertyIDs:ids,value,status:'active',createdWeek:week(g),distributionRate:type==='reit'?.04:0};s.vehicles.push(v);s.history.push({week:week(g),type:'vehicle-created',vehicleID:v.id,vehicleType:v.type,value});return v;}
 function processWeek(engine){const g=engine.g,s=ensure(g),w=week(g);if(s.lastProcessedWeek===w)return s;updateMacro(g);processLoans(g);processRivals(g);processEvent(g);s.lastProcessedWeek=w;s.history=s.history.slice(-HISTORY_LIMIT);s.events=s.events.slice(-HISTORY_LIMIT);return s;}
 Engine.prototype.getRealEstateFinanceQuote=function(propertyID,amount,options){return quote(this.g,propertyID,amount,options);};Engine.prototype.borrowAgainstProperty=function(propertyID,amount,options){return this.runTransaction?this.runTransaction(()=>borrow(this.g,propertyID,amount,options)):borrow(this.g,propertyID,amount,options);};Engine.prototype.repayPropertyLoan=function(id,amount){return this.prepayRealEstateLoan(id,amount);};Engine.prototype.prepayRealEstateLoan=function(id,amount){return this.runTransaction?this.runTransaction(()=>prepay(this.g,id,amount)):prepay(this.g,id,amount);};Engine.prototype.refinanceRealEstateLoan=function(id,options){return this.runTransaction?this.runTransaction(()=>refinance(this.g,id,options)):refinance(this.g,id,options);};Engine.prototype.getRealEstateCycleDashboard=function(){const s=ensure(this.g);return {macro:{...s.macro},loans:s.loans.map(x=>({...x})),rivals:s.rivals.map(x=>({...x})),events:s.events.slice(-12).map(x=>({...x})),vehicles:s.vehicles.map(x=>({...x}))};};Engine.prototype.createRealEstateVehicle=function(type,ids){return createVehicle(this.g,type,ids);};
+// P4-AUD-004: personalDebt includes the separately serviced personal property loans.
+// Generic repay() has no corresponding specialist-loan principal allocation. Refuse only
+// the secured portion (including defaulted/workout and unknown legacy tracking), with no implicit partial pay.
+// Use the existing specialist prepayment writer to settle the reserved portion instead.
+// This is a read-only guard: no loan authority, save format, or repayment priority change.
+const baseGenericRepay=Engine.prototype.repay;
+if(typeof baseGenericRepay==='function')Engine.prototype.repay=function(amount,account='company'){
+  if(account==='personal'){
+    const total=Math.max(0,n(this.g.personalDebt));
+    const requested=round(Math.min(total,Math.max(0,n(amount))));
+    const personalSecured=(Array.isArray(this.g.realEstateMarket?.loans)?this.g.realEstateMarket.loans:[])
+      .filter(l=>l?.owner==='personal'&&l.accountingTracked!==false
+        &&l.status!=='paid'&&l.status!=='refinanced'&&n(l.balance)>0)
+      .reduce((sum,l)=>sum+Math.max(0,n(l.balance)),0);
+    const unsecured=round(Math.max(0,total-personalSecured));
+    if(requested>unsecured)return this.fail('不動産担保ローンの元本は専用の繰上返済から返済してください。');
+  }
+  return baseGenericRepay.apply(this,arguments);
+};
 const baseNormalize=Engine.prototype.normalize;Engine.prototype.normalize=function(){const out=baseNormalize.call(this);ensure(this.g);initRivals(this.g);return out;};const existing=Engine.prototype.updateParityWeekly;function wrap(base){if(typeof base!=='function')return base;const fn=function(){const out=base.apply(this,arguments);processWeek(this);return out;};Object.defineProperty(fn,'__realEstateCompleteCycleWrapped',{value:true});return fn;}if(typeof existing==='function'&&!existing.__realEstateCompleteCycleWrapped)Engine.prototype.updateParityWeekly=wrap(existing);
 modules.realEstateCompleteCycle=Object.freeze({VERSION,HISTORY_LIMIT,EVENT_RATE,ensure,quote,borrow,prepay,refinance,updateMacro,processLoans,processRivals,processEvent,createVehicle,processWeek});
 
