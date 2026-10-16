@@ -889,6 +889,7 @@ function projectPEOwnership(rawState,identityIndex){
       mirror=claims.length===1&&matches.length===1&&claims[0]===matches[0]?matches[0]:null;
       const m=mirror?.row;
       if((dealMirrorClaims.get(row.subsidiaryID)||[]).length!==1||!mirror||mirror.family!=='subsidiaries'||m.status!=='active'||m.peDealID!==row.id||m.ownership!==row.ownershipRatio
+        ||(Object.hasOwn(m,'source')&&m.source!=='pe')
         ||['startupID','internalVentureID','sourceCompetitorID','sourcePEFundID','sourcePEDealID','restructuredFrom','restructuredWeek'].some(key=>Object.hasOwn(m,key)))reason('ALIAS_CONFLICT');
     }else if(claims.length||Object.hasOwn(row,'subsidiaryID'))reason('ALIAS_CONFLICT');
     const accepted=reasons.length===0;

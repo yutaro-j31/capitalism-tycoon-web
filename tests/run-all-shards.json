@@ -281,6 +281,7 @@
     "tests/phase3-subsidiary-relationships-test.js",
     "tests/phase3-pe-ownership-adapter-test.js",
     "tests/phase3-subsidiary-composition-test.js",
+    "tests/phase3-indirect-economic-paths-test.js",
     "tests/player-own-share-conservation-test.js",
     "tests/group-capital-allocation-cash-exact-test.js"
   ],

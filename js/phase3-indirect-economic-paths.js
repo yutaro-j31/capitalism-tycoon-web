@@ -37,15 +37,16 @@ function traceIndirectEconomicInterest(source,rootEntityId,targetEntityId){
       const current=data(row,'isCurrent'),status=data(row,'status');
       if(current===false&&status==='historical')continue;
       if(!validId(id)||!validId(parent)||!validId(child))return reject('IDENTITY_UNPROVEN',path);
-      if(edgeIds.has(id)||pairs.has(parent+'|'+child))return reject('ALIAS_CONFLICT',path);
-      edgeIds.add(id);pairs.add(parent+'|'+child);
+      const pairKey=JSON.stringify([parent,child]);
+      if(edgeIds.has(id)||pairs.has(pairKey))return reject('ALIAS_CONFLICT',path);
+      edgeIds.add(id);pairs.add(pairKey);
       const fraction=data(row,'economicFraction'),assetRole=data(row,'assetRole');
       let value=null;
       if(fraction!==undefined&&fraction!==null){
         if(typeof fraction!=='object'||Array.isArray(fraction))return reject('INPUT_INVALID',path+'.economicFraction');
         if(data(fraction,'status')==='known')value=data(fraction,'value');
       }
-      const known=current===true&&status==='observed'&&assetRole!=='alias'
+      const known=current===true&&status==='observed'&&assetRole==='relationship-only'
         &&typeof value==='number'&&Number.isFinite(value)&&value>=0&&value<=1;
       edges.push({id,parent,child,value:known?value:null,known});
     }
