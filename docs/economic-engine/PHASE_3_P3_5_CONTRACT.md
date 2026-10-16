@@ -20,7 +20,7 @@ CODE: `js/economic-read-model.js::marketHoldings`, `ownershipProjection` and `ow
 |---|---|---|
 | Personal / company quantity and cost | personalStocks[key].qty/avg; companyStocks[key].qty/avg | separate legal accounts; avg is cost, not votes |
 | Market instrument / price | market[].id/price/issuedShares | listing observation, not proof of all rights |
-| Player own holding | personalStocks[state.ticker] | P3-2 founder bucket, excluded from external positions |
+| Player own holding | personalStocks[state.ticker] | Delegate to P3-2 only with proven current-generation binding and no alias conflict; otherwise retain unresolved quantity |
 | VC listing identity | startup.id + ipoStockID → unique market.id | preserve startup issuer identity; class transition explicit |
 | Delisting | market privateCompany/suspended and retained row | status observation, never delete holding |
 No field `market.issuerEntityId` or `market.treasuryShares` is assumed to exist.
@@ -39,11 +39,11 @@ Proposed `projectExternalListedHoldings(rawState, identityIndex)` → frozen Ada
 
 ## 7. Input / Output Examples
 
-Input: personalStocks.X={qty:20,avg:90}, companyStocks.X={qty:30,avg:95}, market row X. Without issuer provenance: two unresolved account rows, reason `IDENTITY_UNPROVEN`, not one 50-share founder position. With an explicit approved issuer/class binding and outstanding 1,000: economic fractions .02 and .03 separately; votes null without rights evidence. VC startup s1 with unique ipoStockID V1234 and zero old stakes resolves V1234 to startup s1's issuer, while its original share-class identity remains unknown unless conversion evidence proves continuity. Two startups referencing V1234 → ALIAS_CONFLICT.
+Input: personalStocks.X={qty:20,avg:90}, companyStocks.X={qty:30,avg:95}, market row X. Without issuer provenance: two unresolved account rows, reason `IDENTITY_UNPROVEN`, not one 50-share founder position. With an explicit approved issuer/class binding and outstanding 1,000: economic fractions .02 and .03 separately; votes null without rights evidence. VC startup s1 with unique ipoStockID V1234 and zero old stakes resolves V1234 to startup s1's issuer, while its original share-class identity remains unknown unless conversion evidence proves continuity. Two startups referencing V1234 → ALIAS_CONFLICT, including a conflicting row with an invalid issuer ID. A first nonsold company may delegate its designated own lot only with valid generation/alias evidence; after sale/refounding reuses CPTY at serial2, preserve the old personal CPTY lot unresolved rather than attach it to the new issuer. Missing generation evidence also remains unresolved.
 
 ## 8. Invariants
 
-One source path contributes once. Source lots are evidence only; company-own-ticker positions are unresolved, never treasury. Existing founder personal-own bucket is omitted from this adapter and referenced to P3-2. issued = treasury + outstanding is checked only where each term has evidence; absent treasury for an external issuer is unknown, not zero. Quantity beyond a proven outstanding denominator fails. Ticker/name changes cannot manufacture a new beneficial asset or silently attach an old asset to a new issuer.
+One source path contributes once. Source lots are evidence only; company-own-ticker positions are unresolved, never treasury. The founder personal-own bucket delegates to P3-2 only when current-generation binding is proven and aliases are conflict-free. Otherwise retain its quantity as an unresolved position with GENERATION_UNPROVEN or ALIAS_CONFLICT; ticker equality alone never proves the issuer. issued = treasury + outstanding is checked only where each term has evidence; absent treasury for an external issuer is unknown, not zero. Quantity beyond a proven outstanding denominator fails. Ticker/name changes cannot manufacture a new beneficial asset or silently attach an old asset to a new issuer.
 
 ## 9. Unsupported / Unknown Cases
 
@@ -68,7 +68,7 @@ Future position view shows account, quantity, issuer resolution, price source an
 ## 14. Tests / CI / WebKit
 
 Extend existing `tests/phase3-ownership-projection-test.js` and `tests/phase3-ownership-reconciliation-test.js` for shared purity/identity/conservation fixtures; do not duplicate their harness. Add a focused adapter test only for new family behavior, register it in `tests/run-all.js` and `tests/run-all-shards.json` with shard contract verification. Run immutable input/output, malformed/unknown, insertion-order permutation, cross-account separation and no host/simulation RNG tests. Existing tests are characterization, not proof of an unimplemented API. CI: Test canonical A–L + aggregate `test`, Phase 0.5 Acceptance Smoke and all other applicable workflows. New browser/UI integration needs actual iPhone-emulated WebKit, reload and fresh durable hydration, with tested HEAD and job/artifact recorded; physical iPhone is separate. Docs-only PR CI cannot prove future adapter behavior.
-Reuse `tests/stock-split-price-history-test.js`, `tests/stock-purchase-save-atomicity-test.js`, `tests/stock-sale-save-atomicity-test.js` for unchanged installed writers. Candidate new `tests/phase3-listed-holdings-adapter-test.js`: orphan market row; ticker collision/reuse; IPO floor conversion; split/delist; own alias; conflicting source adapters; old save with no treasury; MAX_SAFE_INTEGER, just-over,1e20 and fractional diagnostic-versus-voting distinction. These new tests are DESIGN, not present or executed.
+Reuse `tests/stock-split-price-history-test.js`, `tests/stock-purchase-save-atomicity-test.js`, `tests/stock-sale-save-atomicity-test.js` for unchanged installed writers. Candidate new `tests/phase3-listed-holdings-adapter-test.js`: orphan market row; ticker collision/reuse; IPO floor conversion; split/delist; own alias in first/missing/later generations; actual sale/refounding with ticker reuse; invalid-ID IPO alias conflict; conflicting source adapters; old save with no treasury; MAX_SAFE_INTEGER, just-over,1e20 and fractional diagnostic-versus-voting distinction. These new tests are DESIGN, not present or executed.
 
 ## 15. Migration and Cutover Restrictions
 
@@ -81,6 +81,10 @@ R-P35-01 (P2 design risk): market ID is a listing alias, not demonstrated perman
 ## 17. Acceptance Criteria
 
 No state/save/RNG changes on all fixtures; separate account attribution; every positive source quantity appears exactly once as resolved or unresolved; evidence-backed identity and class continuity; no inferred votes/treasury; preserved P1/P2 API shapes; successful canonical and relevant writer gates. Coverage is reported with unresolved counts; no claim that all external issuers now support control.
+
+## 2026-10-16 implementation alignment
+
+Current Owner instruction authorizes pure read-only implementation and preserves the [F/S/Q gate alignment](PHASE_3_4_IMPLEMENTATION_FIRST_GATE_ALIGNMENT.md). #995 must be adopted first. #1019 is an unmerged source-evidence sub-slice, not P3-5 completion; common ownership snapshot integration remains separate dependent work. Its safe initial delegation condition is nonsold currentCompanySerial=1 with no conflicting listing/IPO alias. Old saves without that evidence remain unresolved; no legacy repair or new persisted generation history is authorized. Shared token/composition must preserve this distinction and replace each source bucket exactly once. #1019 and any new implementation PR require their own actual merge permission and final-HEAD gates.
 
 ## 18. Owner Decisions
 
