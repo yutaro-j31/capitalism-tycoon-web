@@ -276,6 +276,7 @@
     "tests/phase3-ownership-projection-test.js",
     "tests/phase3-ownership-reconciliation-test.js",
     "tests/phase3-listed-holdings-adapter-test.js",
+    "tests/phase3-ownership-snapshot-test.js",
     "tests/player-own-share-conservation-test.js",
     "tests/group-capital-allocation-cash-exact-test.js"
   ],
