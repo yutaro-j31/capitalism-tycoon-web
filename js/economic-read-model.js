@@ -654,7 +654,7 @@ function projectExternalListedHoldings(rawState,identityIndex){
   }
   if(issues.length||!captured.source)return freezeOwned(result);
   const state=captured.source,market=new Map(),startups=new Map(),startupIds=new Map();
-  const validId=value=>typeof value==='string'&&value.length>0;
+  const validId=value=>typeof value==='string'&&value.trim().length>0;
   const add=(map,key,row)=>{if(!map.has(key))map.set(key,[]);map.get(key).push(row);};
   const encode=value=>encodeURIComponent(value).replace(/[!'()*]/g,c=>`%${c.charCodeAt(0).toString(16).toUpperCase()}`);
   function rows(key){
@@ -678,6 +678,10 @@ function projectExternalListedHoldings(rawState,identityIndex){
     if(!validId(row.id)){issues.push(ownershipReason('INPUT_INVALID',path));return;}
     add(startupIds,row.id,{row,path});
   });
+  const soldStatusValid=state.isCompanySold===undefined||state.isCompanySold===null||typeof state.isCompanySold==='boolean';
+  if(!soldStatusValid)issues.push(ownershipReason('INPUT_INVALID','isCompanySold'));
+  // A malformed inventory may hide an IPO claimant; absence is not proven.
+  const aliasInventoryValid=!issues.some(issue=>issue.code==='INPUT_INVALID');
   const ref=(path,durableId,family,role='current')=>({path,durableId,family,role});
   const entity=(entityId,identityStatus,sourceRefs,generation=null)=>({entityId,generation,identityStatus,sourceRefs});
   const evidence=(status,value,sourceRefs,reasons)=>({status,value,sourceRefs,reasons});
@@ -690,8 +694,8 @@ function projectExternalListedHoldings(rawState,identityIndex){
     for(const alias of Object.keys(holdings).sort(compareText)){
       const path=`${mapKey}[${JSON.stringify(alias)}]`,sourceRef=ref(path,alias,'listed');
       const own=validId(state.ticker)&&alias===state.ticker;
-      const ownGenerationKnown=state.currentCompanySerial===1&&state.isCompanySold!==true;
-      if(own&&accountKind==='personal'&&ownGenerationKnown
+      const ownGenerationKnown=state.currentCompanySerial===1&&soldStatusValid&&state.isCompanySold!==true;
+      if(own&&accountKind==='personal'&&ownGenerationKnown&&aliasInventoryValid
         &&!(startups.get(alias)||[]).length&&(market.get(alias)||[]).length<=1){
         result.sourceCoverage.push({path,status:'delegated',resolvedByAdapter:'ownershipReconciliation'});continue;
       }
