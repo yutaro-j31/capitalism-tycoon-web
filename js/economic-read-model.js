@@ -609,8 +609,8 @@ function inspectListedSources(raw,includePlayer=false,includeSubsidiaries=false)
       if(includeSubsidiaries){
         const familyFields={
           subsidiaries:['id','startupID','peDealID','sourcePEFundID','sourcePEDealID','internalVentureID','sourceCompetitorID','restructuredFrom','restructuredWeek','ownership','status','source'],
-          maSubsidiaries:['id','maStableKey','acquisitionDealID','acquisitionMethod','acquiredWeek','ownership','status'],
-          overseasSubsidiaries:['id','status'],
+          maSubsidiaries:['peDealID','startupID','id','maStableKey','acquisitionDealID','acquisitionMethod','acquiredWeek','ownership','status'],
+          overseasSubsidiaries:['peDealID','startupID','id','status'],
           maDealRooms:['id','targetID','targetStableKey','status','closedWeek','acceptedTerms'],
           acquisitionTargets:['id','maStableKey'],internalVentures:['id','status','spunOffSubsidiaryID'],
           peDeals:['id','ownerAccount','status','subsidiaryID','ownershipRatio']
@@ -824,6 +824,97 @@ function projectOwnershipSnapshot(rawState,identityIndex){
   return freezeOwned(result);
 }
 
+// P3-7 first slice: legacy direct economic interests, never fund assets or votes.
+function projectPEOwnership(rawState,identityIndex){
+  const index=identityIndex===undefined?buildOwnershipIdentityIndex(rawState,subsidiaryOwnershipScope):identityIndex;
+  const indexed=commonOwnershipIndexes.get(index),captured=captureListedSources(rawState,true,true);
+  const result={authority:'read-only',adapterVersion:1,complete:false,commandEligible:false,wealthComplete:false,
+    sourceScope:subsidiaryOwnershipScope,sourceSnapshotToken:null,entities:[],classes:[],positions:[],relationships:[],
+    aliasReplacements:[],unresolved:[],issues:[],fundInterests:[],portfolioParticipations:[],managementRelationships:[],distributionEvidence:[],
+    sourceCoverage:[{path:'peFirm',status:'not-implemented'},{path:'fund-parent-conversions',status:'not-implemented'},{path:'valuation',status:'not-implemented'}]};
+  if(!indexed||indexed.rawState!==rawState||!indexed.includeSubsidiaries||!sameListedSources(indexed.source,captured.source)){
+    result.issues.push(ownershipReason('STALE_EVIDENCE','$'));return freezeOwned(result);
+  }
+  result.sourceSnapshotToken=index.sourceSnapshotToken;
+  if(index.issues.length||captured.issues.length){result.issues.push(...index.issues,...captured.issues);return freezeOwned(result);}
+  const state=indexed.source,validId=x=>typeof x==='string'&&x.trim().length>0;
+  const validFraction=x=>typeof x==='number'&&Number.isFinite(x)&&x>=0&&x<=1;
+  const encode=x=>encodeURIComponent(x).replace(/[!'()*]/g,c=>`%${c.charCodeAt(0).toString(16).toUpperCase()}`);
+  const ref=(path,id,family,role='current')=>({path,durableId:validId(id)?id:null,family,role});
+  const rows=new Map(),dealIds=new Map(),dealMirrorClaims=new Map(),subIds=new Map(),subClaims=new Map(),entities=new Map();
+  const add=(map,key,item)=>{if(!map.has(key))map.set(key,[]);map.get(key).push(item);};
+  for(const family of ['peDeals','subsidiaries','maSubsidiaries','overseasSubsidiaries']){
+    const source=state[family];rows.set(family,[]);
+    if(source===undefined){result.sourceCoverage.push({path:family,status:'absent-optional'});continue;}
+    if(!Array.isArray(source)){result.issues.push(ownershipReason('INPUT_INVALID',family));continue;}
+    result.sourceCoverage.push({path:family,status:'observed'});
+    source.forEach((row,i)=>{
+      const item={row,path:`${family}[${i}]`,family};
+      if(!plainOwnershipObject(row)){result.issues.push(ownershipReason('INPUT_INVALID',item.path));return;}
+      rows.get(family).push(item);
+      if(family==='peDeals'){
+        if(validId(row.id))add(dealIds,row.id,item);
+        if(validId(row.subsidiaryID))add(dealMirrorClaims,row.subsidiaryID,item);
+      }
+      else {
+        if(validId(row.id))add(subIds,row.id,item);
+        // A malformed subsidiary ID must still contradict its claimed PE link.
+        if(Object.hasOwn(row,'peDealID'))add(subClaims,row.peDealID,item);
+      }
+    });
+  }
+  if(result.issues.length)return freezeOwned(result);
+  const entity=(id,status,sourceRefs)=>({entityId:id,generation:null,identityStatus:status,sourceRefs});
+  for(const item of rows.get('peDeals')){
+    const {row,path}=item,reasons=[],sourceRefs=[ref(path,row.id,'pe-direct')];
+    const reason=(code,p=path)=>reasons.push(ownershipReason(code,p));
+    const idValid=validId(row.id),idUnique=idValid&&dealIds.get(row.id).length===1;
+    if(!idValid)reason('IDENTITY_UNPROVEN');else if(!idUnique)reason('ID_COLLISION');
+    const claims=idValid?(subClaims.get(row.id)||[]):[];
+    if(row.status==='exited'){
+      result.sourceCoverage.push({path,status:'historical'});
+      if(claims.length){reason('ALIAS_CONFLICT');result.unresolved.push({sourceRefs,reasons});result.issues.push(...reasons);}
+      continue;
+    }
+    if(row.status!=='active')reason('LIFECYCLE_UNPROVEN');
+    const ownerKnown=row.ownerAccount==='personal'||row.ownerAccount==='company';
+    if(!ownerKnown)reason('OWNER_UNKNOWN',`${path}.ownerAccount`);
+    if(!validFraction(row.ownershipRatio))reason('FRACTION_INVALID',`${path}.ownershipRatio`);
+    const company=row.ownerAccount==='company';
+    const companyGenerationProven=state.currentCompanySerial===1&&state.isCompanySold===false;
+    if(company&&!companyGenerationProven)reason('GENERATION_UNPROVEN','currentCompanySerial');
+    let mirror=null;
+    if(company){
+      const matches=validId(row.subsidiaryID)?subIds.get(row.subsidiaryID)||[]:[];
+      mirror=claims.length===1&&matches.length===1&&claims[0]===matches[0]?matches[0]:null;
+      const m=mirror?.row;
+      if((dealMirrorClaims.get(row.subsidiaryID)||[]).length!==1||!mirror||mirror.family!=='subsidiaries'||m.status!=='active'||m.peDealID!==row.id||m.ownership!==row.ownershipRatio
+        ||(Object.hasOwn(m,'source')&&m.source!=='pe')
+        ||['startupID','internalVentureID','sourceCompetitorID','sourcePEFundID','sourcePEDealID','restructuredFrom','restructuredWeek'].some(key=>Object.hasOwn(m,key)))reason('ALIAS_CONFLICT');
+    }else if(claims.length||Object.hasOwn(row,'subsidiaryID'))reason('ALIAS_CONFLICT');
+    const accepted=reasons.length===0;
+    if(accepted&&mirror)sourceRefs.push(ref(mirror.path,mirror.row.id,'subsidiary','alias'));
+    const issuer=entity(idUnique?`entity:company:pe-direct:${encode(row.id)}`:null,idUnique?'source-scoped':'unresolved',sourceRefs);
+    const accountKind=ownerKnown?row.ownerAccount:'unknown';
+    const holder=entity(ownerKnown?(company?PLAYER_COMPANY_ENTITY_ID:FOUNDER_ENTITY_ID):null,ownerKnown?(company?(companyGenerationProven?'source-scoped':'unresolved'):'proven'):'unresolved',[sourceRefs[0]]);
+    const unknown=code=>({status:'unknown',value:null,sourceRefs,reasons:[ownershipReason(code,path)]});
+    const positionId=idUnique?`position:pe-direct:${encode(row.id)}`:null;
+    const position={positionId,ownershipKey:null,issuer,securityClassId:null,registeredHolder:holder,beneficialOwner:holder,accountKind,
+      assetRole:accepted?'economic-interest':'unresolved',quantity:unknown('QUANTITY_UNKNOWN'),votingUnits:unknown('RIGHTS_UNKNOWN'),
+      economicFraction:{status:accepted?'known':'unknown',value:accepted?row.ownershipRatio:null,sourceRefs,reasons},
+      sourceRefs,reasons,sourceDealID:idValid?row.id:null};
+    result.positions.push(position);
+    if(!accepted)result.unresolved.push({positionId,sourceRefs,reasons});
+    else if(mirror)result.aliasReplacements.push({sourcePath:mirror.path,positionId,sourceDealID:row.id,resolvedByAdapter:'projectPEOwnership'});
+    for(const e of [issuer,holder])if(e.entityId!==null)entities.set(e.entityId,e);
+    result.issues.push(...reasons);
+  }
+  result.positions.sort((a,b)=>compareText(a.sourceDealID,b.sourceDealID)||compareText(a.accountKind,b.accountKind));
+  result.entities=Array.from(entities.values()).sort((a,b)=>compareText(a.entityId,b.entityId));
+  result.issues.sort((a,b)=>compareText(a.path,b.path)||compareText(a.code,b.code));
+  return freezeOwned(result);
+}
+
 // P3-6 first slice: direct source evidence only; no canonical asset composition.
 function projectSubsidiaryRelationships(rawState,identityIndex){
   const index=identityIndex===undefined?buildOwnershipIdentityIndex(rawState,subsidiaryOwnershipScope):identityIndex;
@@ -1016,6 +1107,7 @@ modules.economicReadModel=Object.freeze({
   buildOwnershipIdentityIndex,
   projectOwnershipSnapshot,
   projectSubsidiaryRelationships,
+  projectPEOwnership,
   buildListedHoldingsIdentityIndex,
   projectExternalListedHoldings,
   ownershipProjection,
