@@ -2,6 +2,10 @@
 
 **DESIGN ONLY — no authority/production/merge authorization.** Baseline743d08d1867f453fe09c61e1fd5312c846cfc1eb, 2026-10-15 JST. Existing approved roadmap/entry/P3-3 take precedence. Proposed sequencing below is a technical recommendation, not amended formal phase authority.
 
+## Current scheduling addendum (2026-10-16)
+
+The merged [Implementation-First Roadmap v2](ECONOMIC_ENGINE_IMPLEMENTATION_FIRST_ROADMAP.md) and [gate alignment](PHASE_3_4_IMPLEMENTATION_FIRST_GATE_ALIGNMENT.md) control validation timing. References below to broad A–L/century/scale programs are Stage Q plans, not new prerequisites for every pure adapter or F Exit. Targeted independent writer-family review, financial safety/permanent gates and applicable final-HEAD CI remain Stage F requirements. `PHASE_3_F_EXIT` needs all mandatory functionality and Owner acceptance; Phase 4 production still requires a separate Entry decision. The Owner's 2026-10-16 instruction authorizes safe pure implementation; it does not grant unconditional merges/cutovers.
+
 ## 1. Implementation DAG and merge order
 
 ```mermaid
@@ -81,6 +85,7 @@ All paths below exist at audited main unless explicitly marked candidate. An exi
 | Competitor D4 | tests/competitor-stake-float-test.js | complete adopted registry writer coverage |
 | PE direct/company | tests/pe-dual-ownership-test.js; tests/pe-exit-deal-save-atomicity-test.js | cross-adapter uniqueness / founder union |
 | PE fund/co-invest/parent | tests/pe-fund-coinvest-test.js; tests/pe-fund-acquisition-save-atomicity-test.js; tests/pe-portfolio-exit-save-atomicity-test.js; tests/pe-parent-company-acquisition-negative-test.js | legal rights vs proceeds; fund-interest valuation completeness |
+| Personal legacy angel source | tests/angel-investment-save-atomicity-test.js | P3-8/P3-11 distinct source coverage, unknown issuer/class/fraction/votes, duplicate IDs, active/exited/weekly/refounding lifecycle; no name-based startup alias |
 | VC rounds and accounts | tests/startup-funding-round-test.js; tests/vc-initial-investment-save-atomicity-test.js; tests/vc-follow-on-save-atomicity-test.js; tests/vc-secondary-sale-save-atomicity-test.js | pending contribution / IPO class / cap-table unknowns |
 | Founder lender/assets/debt | tests/founder-shareholder-loan-lender-test.js; tests/personal-real-estate-mortgage-test.js; tests/personal-stock-margin-test.js | full liability identity union and private EquityValue coverage |
 | Ledger / permanent Phase1/2 | tests/accounting-invariants-test.js; tests/phase1-acceptance-gate-test.js; tests/phase2-acceptance-gate-test.js | newly adopted ownership+command financial invariants |
@@ -122,4 +127,4 @@ Reuse existing Phase0.5 --tier smoke/nightly/deepAudit commands and scenario cre
 
 ## 9. Exit → Phase4 handoff
 
-P3-12 accepted implementation/independent audit + Owner formal Exit decision precedes Phase4 Entry. Handoff includes candidate/main/tree, approved issuer-family authority, preserved legacy adapters, ID/generation and alias registry contract, legal account scope, pledged collateral evidence, debt/wealth source coverage, unresolved risk/unsupported list and full CI/WebKit evidence. #981 debt design is a proposal; refresh its baseline/status and explicitly dispose known P1 fixes #989/#990 and P4-AUD003..008. A design docs merge does not authorize Phase4 production. No full WACC until Phase6 and no premature later settlement authority.
+Owner-accepted PHASE_3_F_EXIT, all required implemented capabilities and scoped S/cutover evidence precede a separate Owner Phase4 Entry decision. Expanded whole-engine independent audits remain Stage Q; they are not silently labeled complete. Handoff includes candidate/main/tree, approved issuer-family authority, preserved legacy adapters, ID/generation and alias registry contract, legal account scope, pledged collateral evidence, debt/wealth source coverage, unresolved risk/unsupported list and full CI/WebKit evidence. #981 debt design is a proposal; refresh its baseline/status and explicitly dispose known P1 fixes #989/#990 and P4-AUD003..008. A design docs merge does not authorize Phase4 production. No full WACC until Phase6 and no premature later settlement authority.

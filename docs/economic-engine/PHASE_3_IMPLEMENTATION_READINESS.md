@@ -4,6 +4,12 @@
 
 Baseline/source audit main743d08d1867f453fe09c61e1fd5312c846cfc1eb, GitHub and fresh clone agree, 2026-10-15 JST. P3-0..3 completed; P3-4 STOPPED. D3 PR992 merged (d0802d88), D4 PR993 merged (743d08d1). PR994 equity-raise dilution remains open head7ac82961a5ba9ce837c6a9025dbc65fe6dc2b72e at observation. Debt989 head d90fbc38 and990 head390d62d4 remain open/stacked; Phase4 design981 head7234639d remains open. All statuses time-scoped, must refresh before implementation/merge.
 
+## Current Owner scheduling addendum (2026-10-16)
+
+Use the merged [Implementation-First Roadmap v2](ECONOMIC_ENGINE_IMPLEMENTATION_FIRST_ROADMAP.md) and [Phase 3/4 gate alignment](PHASE_3_4_IMPLEMENTATION_FIRST_GATE_ALIGNMENT.md). Owner has authorized pure/read-only implementation where dependencies and fail-closed evidence are satisfied. Historical approval-needed/design snapshots below do not cancel that later authorization. Stage F requires relevant S tests, permanent gates and complete safety proofs for each adopted writer; broad unrelated A–L sweeps, mass seed/century/scale campaigns and calibration move to Stage Q. `PHASE_3_F_EXIT` requires all mandatory Phase 3 functionality plus Owner acceptance; `Q_ACCEPTED` remains separate. No Exit, merge or Phase 4 Entry is declared here.
+
+Refreshed main: `26a22a971db457025821ef27503163f4ebaef927`; #994 is merged. #995–#1003/#981 are still proposals; #1008 fix #1016 remains open. Historical source/CI observations below retain their stated baselines. Add legacy `angelInvestments` to P3-8 and P3-11 source-coverage/unknown-wealth tests; personal angel rows do not establish issuer/class identity from names or return multiples. Incomplete coverage keeps total wealth incomplete.
+
 ## 1. Meaning of readiness
 
 READY means specification/dependency/test contract is concrete enough for an Owner implementation-start decision. READY WITH CONDITIONS means explicit source-evidence/integration prerequisites remain; conservative pure behavior is specified, not an excuse to guess missing facts. BLOCKED means material authority/economic-effect/Owner decisions prevent production integration. No status means code exists or acceptance passed.
@@ -54,4 +60,4 @@ Use companion PHASE_3_IMPLEMENTATION_DEPENDENCIES.md for optimized DAG, one-conc
 
 ## 7. Phase4 Entry readiness
 
-NOT READY / NOT AUTHORIZED. Conditions: all required Phase3 implementations and issuer-family authority coverage; accepted permanent gates including save/replay/conservation/unknown/failure/real WebKit and independent A–L; explicit disposition of material P0/P1 and Owner policy; final-main successful applicable CI and stable source identity handoff; Owner formal Phase3 Exit and separate Phase4 Entry approval. Update #981 by proposal/reviewer coordination only, never overwrite its branch. Founder wealth projection does not switch credit limits; collateral does not transfer votes; borrower/lender/fund separation mandatory; WACC remains Phase6.
+NOT READY / NOT AUTHORIZED. Conditions: all required Phase3 implementations and issuer-family authority coverage; accepted permanent gates including save/replay/conservation/unknown/failure/real WebKit and scoped independent writer review; explicit disposition of material P0/P1 and Owner policy; final-main successful applicable CI and stable source identity handoff; Owner-accepted PHASE_3_F_EXIT and separate Phase4 Entry approval. Comprehensive Q campaigns remain later work. Update #981 by proposal/reviewer coordination only, never overwrite its branch. Founder wealth projection does not switch credit limits; collateral does not transfer votes; borrower/lender/fund separation mandatory; WACC remains Phase6.

@@ -4,6 +4,12 @@
 
 Audited production main: `743d08d1867f453fe09c61e1fd5312c846cfc1eb`, 2026-10-15 JST. This common contract precedes P3-5..12 design adoption; approved Entry/P3-1/2/3 remain normative. No earlier contract or formal roadmap is rewritten.
 
+## Implementation-first alignment (2026-10-16)
+
+This proposal is governed by the merged [Implementation-First Roadmap v2](ECONOMIC_ENGINE_IMPLEMENTATION_FIRST_ROADMAP.md) and [Phase 3/4 gate alignment](PHASE_3_4_IMPLEMENTATION_FIRST_GATE_ALIGNMENT.md). Stage F retains focused S safety, permanent gates and complete approved writer-family cutover proofs. Expanded unrelated-system A–L sweeps, mass seed/century/scale campaigns and comprehensive calibration belong to Stage Q. Owner-accepted `PHASE_3_F_EXIT` is separate from `Q_ACCEPTED`; neither is declared here. Pure adapter implementation is authorized by the Owner's 2026-10-16 development instruction, but shared/slice contract adoption, final merge permission and every authority/Entry decision remain scoped to their actual approvals.
+
+Refresh baseline: `26a22a971db457025821ef27503163f4ebaef927`. Original 2026-10-15 audit evidence below remains historical. #994 is now merged; #1008 personal VC refounding-loss fix #1016 remains open. P3-4–P3-12 remain incomplete on #909; no Phase 4 production Entry.
+
 ## 1. Architecture and source authority
 
 Raw committed legacy snapshot → validated identity/alias index → independently pure family adapters → canonical beneficial-position/relationship composition → voting eligibility / founder wealth projections → separately approved command guard. Only a future explicitly adopted writer may mutate ownership; projection never writes a mirror back.
@@ -18,6 +24,7 @@ Raw committed legacy snapshot → validated identity/alias index → independent
 | peDeals + mirrored subsidiary | expansion create/transfer/sync/exit; pe-value-creation wrapper | P3-7 canonical interest; P3-6 hierarchy | no double asset; Phase13 unchanged |
 | peFirm.funds/deals/cash | peFund formation/service/distributions; peAcquisition closing; pePortfolioOperations exit/parent conversion | P3-7 | fund and external co-invest not founder gross assets |
 | startups / activeFundingRound / ipoStockID | engine invest/follow-on/close/writeoff/list; expansion secondary; weekly update | P3-8 | Phase14 settlement unchanged |
+| angelInvestments | expansion createAngelInvestment / exitAngelInvestment; weekly multiple update; completion refounding preservation | P3-8 source coverage; P3-11 distinct personal economic claim | startupName is a label, not issuer/class evidence; Phase14 unchanged |
 | Existing personalNetWorth and consumers | engine base + expansion wrapper | separate P3-11 component projection | no consumer/credit/progression cutover |
 | Debt / pledged assets | legacy finance and specialist lenders; #981 proposed future debt authority | evidence only | Phase4 Entry not authorized |
 
@@ -99,6 +106,8 @@ Composition builds alias claims, validates uniqueness/agreement/lifecycle, then 
 | exited fund deal and reciprocal parent subsidiary | parent current interest; fund historical deal/paid distributions excluded |
 | parent equity including subsidiary versus look-through asset | parent value OR decomposition, never both |
 
+Legacy `angelInvestments` is a separate personal source, not an alias of `startups`. Its durable row ID can locate source-scoped evidence; startupName/investedAmount/multiple cannot prove the same legal issuer or equity class as a startup/listed position. Active rows carry distinct current economic evidence; exited rows are historical and excluded from current assets. Do not infer legal share quantities, economic fractions or votes from investedAmount or multiple. Duplicate IDs, absent issuer links and any suspected overlap with startup/fund/listed claims remain explicitly unresolved; do not sum them into a complete wealth total. P3-8/P3-11 sourceCoverage must disclose this family even while unsupported, preserve company/personal separation and test create/weekly/exit/refounding/read-only replay. Any new valuation-policy or automatic merge of these assets needs a separate approved contract.
+
 No aggregation across company/person/fund vehicles for command eligibility; no automatic family/trust/joint control. Indirect economic path diagnostics require complete acyclic graph and documented coverage. Cyclic/cross-holding value or votes stays unsupported; direct valid facts remain available.
 
 ## 5. Rights and numeric domains
@@ -123,7 +132,7 @@ Proposed scale fixture100/1000 issuers + proportional holdings/edges measures in
 
 Reviewed PR981 head7234639d094309a837438ebe82a62af8bb5375b0 proposal schema and additional P1 audit. DebtInstrumentId, issuerEntityId/securityClassId, borrowerEntityId/lenderEntityId are distinct identities. Company/person/fund source scopes and company-generation evidence must agree across debt/ownership. Founder shareholder loan is personal debt receivable versus company payable; company EquityValue already subtracts its debt. Pledged ownership/collateral links asset/security ID+beneficial fraction+lien evidence; a pledge does not transfer title or grant creditor voting/control absent explicit terms. Do not reduce gross wealth twice for pledge and debt. Cost of Debt consumes debt metrics; ownership provides legal attribution and pledged evidence only. WACC/Cost of Equity/EV bridge remains Phase6.
 
-Recommended amendments to981 (proposal only, no edits to its branch): reference this shared generation/alias contract; require loan/pledge duplicate and founder receivable tests across sale/refounding; carry incomplete liability coverage into wealth total; update stale issue/PR status at merge. #981's six additional P1 families are reported prior TEST evidence on their stated baselines, not newly re-executed here; Owner has separately approved repairs, which are not implemented by this task. Phase4 Entry requires their evidence-based disposition plus Phase3 formal completion/approval. Docs merge approval and production Entry remain separate.
+Recommended amendments to981 (proposal only, no edits to its branch): reference this shared generation/alias contract; require loan/pledge duplicate and founder receivable tests across sale/refounding; carry incomplete liability coverage into wealth total; update stale issue/PR status at merge. #981's six additional P1 families are reported prior TEST evidence on their stated baselines, not newly re-executed here; Owner has separately approved repairs, which are not implemented by this task. Phase4 Entry requires their evidence-based disposition plus Owner-accepted PHASE_3_F_EXIT plus applicable S/cutover safety approval. Docs merge approval and production Entry remain separate.
 
 ## 9. Reviewable boundary
 

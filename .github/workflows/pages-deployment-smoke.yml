@@ -9,20 +9,49 @@ on:
 
 permissions:
   contents: read
+  deployments: read
 
 concurrency:
   group: pages-deployment-smoke
   cancel-in-progress: true
 
 jobs:
+  # Published checks must compare against the Pages deployment of exactly this
+  # commit. GitHub's dynamic "pages build and deployment" run finished 2-46
+  # minutes after the push on 2026-10-15 (d0802d88, 743d08d1, c45b2c9e), so the
+  # byte verifiers' fixed retry budgets expired first, and for c45b2c9e the
+  # 7-file attestation passed against the previous deployment. This job waits
+  # for the github-pages deployment status of github.sha to reach success and
+  # fails as SUPERSEDED (never passes) if main or the live deployment moved on.
+  # It only polls the API (no browser); 120 x 30 s covers the observed 46 min.
+  wait-for-pages-deployment:
+    runs-on: ubuntu-latest
+    timeout-minutes: 70
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Wait for the GitHub Pages deployment of this exact commit
+        env:
+          GH_TOKEN: ${{ github.token }}
+          EXPECTED_SHA: ${{ github.sha }}
+          PAGES_DEPLOYMENT_BRANCH: main
+          PAGES_DEPLOYMENT_WAIT_ATTEMPTS: '120'
+          PAGES_DEPLOYMENT_WAIT_DELAY_MS: '30000'
+        run: node scripts/wait-for-pages-deployment.js
+
   verify-publication-attestation:
+    needs: wait-for-pages-deployment
     runs-on: ubuntu-latest
     timeout-minutes: 8
     steps:
       - name: Check out expected main
         uses: actions/checkout@v4
         with:
-          ref: main
+          ref: ${{ github.sha }}
       - name: Use Node.js 20
         uses: actions/setup-node@v4
         with:
@@ -36,6 +65,7 @@ jobs:
 
   verify-published-assets:
     if: github.event_name != 'schedule'
+    needs: [ wait-for-pages-deployment, verify-publication-attestation ]
     runs-on: ubuntu-latest
     timeout-minutes: 45
     steps:
@@ -88,6 +118,13 @@ jobs:
           SAVE_QUOTA_TARGET_URL: https://yutaro-j31.github.io/capitalism-tycoon-web/
           IPHONE_WEBKIT_ARTIFACT_DIR: artifacts/published-iphone-webkit-smoke
         run: node tests/published-save-quota-webkit-test.js
+      - name: Confirm this commit stayed the live Pages deployment
+        env:
+          GH_TOKEN: ${{ github.token }}
+          EXPECTED_SHA: ${{ github.sha }}
+          PAGES_DEPLOYMENT_BRANCH: main
+          PAGES_DEPLOYMENT_MODE: confirm
+        run: node scripts/wait-for-pages-deployment.js
       - name: Retain published WebKit evidence
         if: always()
         uses: actions/upload-artifact@v4
