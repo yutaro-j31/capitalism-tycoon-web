@@ -134,6 +134,7 @@ const nodeTests = [
   ['economic-shadow-journal', 'tests/economic-shadow-journal-test.js'],
   ['economic-settlement-store-renovation', 'tests/economic-settlement-store-renovation-test.js'],
   ['economic-read-model', 'tests/economic-read-model-test.js'],
+  ['phase3-restructuring-lifecycle', 'tests/phase3-restructuring-lifecycle-test.js'],
   ['phase3-ownership-projection', 'tests/phase3-ownership-projection-test.js'],
   ['phase3-ownership-reconciliation', 'tests/phase3-ownership-reconciliation-test.js'],
   ['phase3-listed-holdings-adapter', 'tests/phase3-listed-holdings-adapter-test.js'],

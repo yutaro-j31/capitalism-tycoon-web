@@ -142,5 +142,55 @@ const h=makeTransactionFaultCase({name:'company refounding',fixture,command:refo
   assert.equal(s.ctx.localStorage.getItem(s.engineModule.SAVE_KEY),mirror,'rejected identity does not write a new save');
  }
  console.log('P1 #1008 duplicate personal/unheld/company source IDs in both row orders rejected PASS');
+ // #1027: malformed legacy rounds must not cross wholesale state replacement.
+ // Start with real opening/subscription writers, then deliberately corrupt saved evidence.
+ for(const corrupt of [r=>delete r.closesWeek,r=>r.preMoneyValuation=0,r=>r.targetRaise=-1,
+  r=>r.postMoneyValuation+=1,r=>delete r.contributedCompany,r=>r.preRoundOwnedCompany=NaN]){
+  const s=await fixture(),st=s.game.g.startups.find(x=>x.ownedPersonal>0);
+  st.fundingOpen=true;assert.equal(s.game.openStartupFundingRound(st),true);
+  const amount=Math.min(1_000_000,s.game.getStartupFundingRoundPlan(st.id).personal.remaining/2);
+  assert.equal(s.game.participateStartupFundingRound(st.id,amount,'personal'),true);
+  corrupt(st.activeFundingRound);assert.equal(s.game.getStartupFundingRoundPlan(st.id),null);
+  const before=snapshot(s.game),root=s.game.g,mirror=s.ctx.localStorage.getItem(s.engineModule.SAVE_KEY);
+  assert.equal(refound(s),false,'invalid personally funded round rejects refounding');
+  assert.equal(s.game.g,root);assert.deepEqual(snapshot(s.game),before,'all live assets and RNG unchanged');
+  await s.backend.flush();assert.equal(s.ctx.localStorage.getItem(s.engineModule.SAVE_KEY),mirror,'no replacement save');
+ }
+ console.log('#1027 invalid personally funded rounds rejected without replacement/save/RNG mutation PASS');
+ // P1 review: finite values alone do not prove economic validity. These all
+ // pass the legacy plan reader but must never survive wholesale replacement.
+ for(const corrupt of [r=>r.preRoundOwnedPersonal=-1,r=>r.preRoundOwnedPersonal=1.1,
+  r=>r.preRoundOwnedCompany=-.1,r=>r.preRoundOwnedCompany=1.1,
+  r=>r.contributedCompany=-1,r=>r.contributedCompany=r.targetRaise+1,
+  r=>r.contributedPersonal=r.targetRaise+1,r=>r.contributedPersonal=-1]){
+  const s=await fixture(),st=s.game.g.startups.find(x=>x.ownedPersonal>0);
+  st.fundingOpen=true;assert.equal(s.game.openStartupFundingRound(st),true);
+  assert.equal(s.game.participateStartupFundingRound(st.id,Math.min(1_000_000,s.game.getStartupFundingRoundPlan(st.id).personal.remaining/2),'personal'),true);
+  corrupt(st.activeFundingRound);
+  const before=snapshot(s.game),root=s.game.g,mirror=s.ctx.localStorage.getItem(s.engineModule.SAVE_KEY);
+  assert.equal(refound(s),false,'out-of-range retained evidence rejects refounding');
+  assert.equal(s.game.g,root);assert.deepEqual(snapshot(s.game),before);
+  await s.backend.flush();assert.equal(s.ctx.localStorage.getItem(s.engineModule.SAVE_KEY),mirror);
+ }
+ console.log('P1 retained round economic bounds / both accounts / no replacement or save PASS');
+ // In-range snapshots must still describe the current legal source. Otherwise
+ // closing a retained round can erase or inflate a previously purchased stake.
+ for(const [account,ownership] of [['personal',0],['personal',.8],['company',.4]]){
+  const s=await fixture(),st=s.game.g.startups.find(x=>x.ownedPersonal>0);
+  st.fundingOpen=true;assert.equal(s.game.openStartupFundingRound(st),true);
+  st.activeFundingRound[account==='personal'?'preRoundOwnedPersonal':'preRoundOwnedCompany']=ownership;
+  const before=snapshot(s.game),root=s.game.g,mirror=s.ctx.localStorage.getItem(s.engineModule.SAVE_KEY);
+  assert.equal(refound(s),false,'contradictory source ownership rejects refounding');
+  assert.equal(s.game.g,root);assert.deepEqual(snapshot(s.game),before,'assets and RNG unchanged');
+  await s.backend.flush();assert.equal(s.ctx.localStorage.getItem(s.engineModule.SAVE_KEY),mirror,'no replacement save');
+ }
+ console.log('Retained round source ownership consistency / both accounts PASS');
+ // Inclusive ownership/capital endpoints remain supported; no EPSILON right grants.
+ for(const ownership of [0,1]){
+  const s=await fixture(),st=s.game.g.startups.find(x=>x.ownedPersonal>0);
+  st.ownedPersonal=ownership;st.ownedCompany=1-ownership;
+  st.fundingOpen=true;assert.equal(s.game.openStartupFundingRound(st),true);
+  assert.equal(refound(s),true,'bounded round endpoint remains supported');
+ }
  console.log('Found new company save atomicity PASS');
 })().catch(e=>{console.error(e);process.exitCode=1;});
