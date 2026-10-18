@@ -34,6 +34,13 @@ unresolved(s=>s.groupRestructuringHistory=[], 'LIFECYCLE_UNPROVEN');
 unresolved(s=>s.groupRestructuringHistory.push(receipt()),'LIFECYCLE_UNPROVEN');
 unresolved(s=>s.groupRestructuringHistory[0].aID='other','LIFECYCLE_UNPROVEN');
 unresolved(s=>s.groupRestructuringHistory[0].week=99,'LIFECYCLE_UNPROVEN');
+for(const type of [undefined,null,'',{},'sale']){
+ unresolved(s=>s.groupRestructuringHistory.push({type,aID:'r',bID:'c',mergedID:'z',week:101}));
+}
+{
+ const s=fixture();s.groupRestructuringHistory.push({type:'sale',subsidiaryID:'other',week:101});
+ assert.equal(get(s).status,'source-matched');
+}
 unresolved(s=>s.subsidiaries.push({id:'a',status:'active'}),'LIVE_PREDECESSOR_CONFLICT');
 unresolved(s=>s.subsidiaries.push({id:'a'}),'LIVE_PREDECESSOR_CONFLICT');
 unresolved(s=>s.subsidiaries.push(replacement()),'IDENTITY_UNPROVEN');

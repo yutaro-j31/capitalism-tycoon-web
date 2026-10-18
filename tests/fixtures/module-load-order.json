@@ -18,6 +18,7 @@
     "./js/market.js",
     "./js/finance.js",
     "./js/economic-read-model.js",
+    "./js/phase3-vc-source-interests.js",
     "./js/phase3-restructuring-lifecycle.js",
     "./js/economic-settlement.js",
     "./js/real-estate-agency-pipeline.js",

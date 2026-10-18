@@ -43,10 +43,10 @@ function projectRestructuringLifecycle(raw){
    receipts.get(replacement).push(receipt);
   }
   history.forEach((r,i)=>{
-   if(field(r,'type')!=='merge')return;
+   const type=field(r,'type');if(type!=='merge'&&!['aID','bID','mergedID'].some(key=>own.call(r,key)))return;
    const a=field(r,'aID'),b=field(r,'bID'),from=id(a)&&id(b)&&a!==b?[a,b].sort(order):null;
    const replacement=field(r,'mergedID'),at=field(r,'week');
-   addReceipt(replacement,from,at,`groupRestructuringHistory[${i}]`,!!from&&week(at)&&!from.includes(replacement),[a,b]);
+   addReceipt(replacement,from,at,`groupRestructuringHistory[${i}]`,type==='merge'&&!!from&&week(at)&&!from.includes(replacement),[a,b]);
   });
   for(const p of projects){const key=field(p,'id');if(id(key))projectsByID.set(key,(projectsByID.get(key)||0)+1);}
   projects.forEach((p,i)=>{
