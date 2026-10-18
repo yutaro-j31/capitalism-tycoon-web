@@ -81,7 +81,7 @@ function projectRestructuringLifecycle(raw){
    return retainedConflict?'LIFECYCLE_CONFLICT':liveConflict?'LIVE_PREDECESSOR_CONFLICT':null;
   }
   subsidiaries.forEach((s,i)=>{
-   const rawFrom=field(s,'restructuredFrom');if(rawFrom===undefined)return;
+   const rawFrom=field(s,'restructuredFrom');if(!own.call(s,'restructuredFrom')&&!own.call(s,'restructuredWeek'))return;
    const path=`subsidiaries[${i}]`,replacement=field(s,'id'),from=pair(rawFrom),at=field(s,'restructuredWeek'),status=field(s,'status');
    const observation={replacementSourceId:id(replacement)?replacement:null,predecessorSourceIds:from||[],sourcePath:path,
     assetRole:'lifecycle-only',status:'unresolved',isCurrent:null,historicalPredecessorSourceIds:[],receiptPaths:[],
