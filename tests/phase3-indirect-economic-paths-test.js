@@ -99,4 +99,21 @@ assert.equal(trace({relationships:arr},'root','target').issues[0].code,'INPUT_IN
  assert.equal(out.paths.length,0);assert.equal(out.economicFraction,null);
 }
 
+// Only ordinary JSON containers (including null-prototype records) are evidence.
+{
+ class Exotic{};
+ for(const where of ['container','row','fraction','array']){
+   const row=edge('e','root','target',.4);let input={relationships:[row]};
+   if(where==='container')input=Object.assign(new Exotic(),input);
+   if(where==='row')input.relationships[0]=Object.assign(new Exotic(),row);
+   if(where==='fraction')row.economicFraction=Object.assign(new Exotic(),row.economicFraction);
+   if(where==='array')Object.setPrototypeOf(input.relationships,{});
+   assert.equal(trace(input,'root','target').issues[0].code,'INPUT_INVALID',where);
+ }
+ const row=edge('e','root','target',.4);Object.setPrototypeOf(row,Object.create(null));
+ assert.equal(trace({relationships:[row]},'root','target').issues[0].code,'INPUT_INVALID');
+ const valid=edge('e','root','target',.4);Object.setPrototypeOf(valid,null);Object.setPrototypeOf(valid.economicFraction,null);
+ assert.equal(trace({relationships:[valid]},'root','target').status,'known');
+}
+
 console.log('PASS P3-6 indirect economic paths: strict evidence, graph ambiguity, purity, frozen output, v9 reload');

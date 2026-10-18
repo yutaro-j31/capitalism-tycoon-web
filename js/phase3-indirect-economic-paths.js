@@ -5,8 +5,22 @@ if(!modules)throw new Error('runtime.js must precede phase3-indirect-economic-pa
 if(modules.phase3IndirectEconomicPaths)throw new Error('Phase 3 indirect path module already registered');
 const MAX_EDGES=4096,MAX_DEPTH=64,MAX_PATHS=256,MAX_VISITS=16384;
 const cmp=(a,b)=>a<b?-1:a>b?1:0;
+// Accept ordinary records across browser/VM realms without invoking constructors/getters.
+function intrinsicPrototype(proto,constructor){
+  if(!proto)return false;
+  const d=Object.getOwnPropertyDescriptor(proto,'constructor');
+  if(!d||!Object.prototype.hasOwnProperty.call(d,'value')||typeof d.value!=='function')return false;
+  const p=Object.getOwnPropertyDescriptor(d.value,'prototype');
+  return !!p&&p.value===proto&&Function.prototype.toString.call(d.value)===Function.prototype.toString.call(constructor);
+}
+function jsonContainer(value){
+  if(value===null||typeof value!=='object')return false;
+  const proto=Object.getPrototypeOf(value);
+  if(Array.isArray(value))return intrinsicPrototype(proto,Array);
+  return proto===null||(Object.getPrototypeOf(proto)===null&&intrinsicPrototype(proto,Object));
+}
 function data(object,key){
-  if(object===null||typeof object!=='object')throw new TypeError('Expected a source object');
+  if(!jsonContainer(object))throw new TypeError('Expected an ordinary JSON source container');
   const descriptor=Object.getOwnPropertyDescriptor(object,key);
   if(!descriptor)return undefined;
   if(!Object.prototype.hasOwnProperty.call(descriptor,'value'))throw new TypeError('Accessor evidence is unsupported');
@@ -28,7 +42,7 @@ function traceIndirectEconomicInterest(source,rootEntityId,targetEntityId){
   output.rootEntityId=rootEntityId;output.targetEntityId=targetEntityId;
   try{
     const rows=Array.isArray(source)?source:data(source,'relationships');
-    if(!Array.isArray(rows)||rows.length>MAX_EDGES)return reject('INPUT_INVALID','relationships');
+    if(!Array.isArray(rows)||!jsonContainer(rows)||rows.length>MAX_EDGES)return reject('INPUT_INVALID','relationships');
     const edges=[],edgeIds=new Set(),pairs=new Set();
     for(let i=0;i<rows.length;i++){
       const row=data(rows,String(i)),path='relationships['+i+']';
