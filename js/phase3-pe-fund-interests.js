@@ -107,6 +107,54 @@
     errors.sort((a,b)=>textOrder(a.path,b.path)||textOrder(a.code,b.code));
     return freeze(result);
   }
-  if(typeof module==='object'&&module.exports)module.exports={projectPEFundInterests};
-  else if(root){const registry=root.__capitalismTycoonModules;if(!registry)throw new Error('runtime.js must precede phase3-pe-fund-interests.js');if(registry.phase3PeFundInterests)throw new Error('PE fund interests already registered');registry.phase3PeFundInterests=Object.freeze({projectPEFundInterests});}
+  // LP type labels and commitments are source metadata, never named legal LPs,
+  // proof of paid-in capital, fund units, a receivable or founder wealth.
+  function projectLPCommitments(rawState){
+    const out={authority:'read-only',adapterVersion:1,complete:false,wealthComplete:false,commandEligible:false,
+      funds:[],commitments:[],issues:[]},errors=out.issues;
+    if(!plain(rawState)){errors.push(issue('INPUT_INVALID','$'));return freeze(out);}
+    const firm=safeField(rawState,'peFirm','$',errors);
+    if(!firm.ok||!firm.present)return freeze(out);
+    const fundRows=inspectArray(read(firm.value,'funds','peFirm',errors),'peFirm.funds',errors,20);
+    if(!fundRows)return freeze(out);
+    const ids=fundRows.map((f,i)=>requireId(f,'id',`peFirm.funds[${i}]`,errors));
+    const fundCounts=unique(ids.map(id=>({id})),r=>r.id,errors,'peFirm.funds');
+    for(let i=0;i<fundRows.length;i++){
+      const f=fundRows[i],path=`peFirm.funds[${i}]`,fundId=ids[i];
+      const size=requireNumber(f,'size',path,errors),gp=requireNumber(f,'gpCommit',path,errors),lp=requireNumber(f,'lpContributed',path,errors);
+      const status=read(f,'status',path,errors);
+      const valid=fundId!==null&&fundCounts.get(fundId)===1&&size!==null&&size>0&&gp!==null&&gp<=size&&lp!==null&&size-gp===lp&&['investing','harvesting','closed'].includes(status);
+      if(!valid)errors.push(issue('FUND_SOURCE_UNPROVEN',path));
+      const observation={fundId,sourcePath:path,fundStatus:typeof status==='string'?status:null,declaredLPContributed:lp,
+        observedCommitmentTotal:null,commitmentTotalMatchesDeclaredLP:null,paidCapitalAllocated:false};
+      out.funds.push(observation);
+      const source=safeField(f,'lps',path,errors);
+      if(!source.ok)continue;
+      if(!source.present){errors.push(issue('SOURCE_UNKNOWN',`${path}.lps`));continue;}
+      const rows=inspectArray(source.value,`${path}.lps`,errors,100);
+      if(!rows)continue;
+      const keys=rows.map((r,j)=>requireId(r,'lpTypeID',`${path}.lps[${j}]`,errors));
+      const counts=unique(keys.map(id=>({id})),r=>r.id,errors,`${path}.lps`);
+      let total=0,allValid=true;
+      for(let j=0;j<rows.length;j++){
+        const rowPath=`${path}.lps[${j}]`,amount=requireNumber(rows[j],'committedAmount',rowPath,errors),lpTypeID=keys[j];
+        const rowValid=valid&&lpTypeID!==null&&counts.get(lpTypeID)===1&&amount!==null;
+        allValid=allValid&&rowValid;
+        if(amount!==null)total+=amount;
+        out.commitments.push({fundId,lpTypeID,sourcePath:rowPath,kind:'commitment-only',status:rowValid?'observed':'unresolved',
+          committedAmount:amount,paidCapital:null,legalLPId:null,beneficialOwnerId:null,economicFraction:null,votingFraction:null,wealthValue:null});
+      }
+      if(!Number.isFinite(total)){allValid=false;errors.push(issue('AMOUNT_UNKNOWN',`${path}.lps`));}
+      if(allValid){
+        observation.observedCommitmentTotal=total;
+        observation.commitmentTotalMatchesDeclaredLP=total===lp;
+        if(total!==lp)errors.push(issue('COMMITMENT_TOTAL_MISMATCH',`${path}.lps`));
+      }
+    }
+    out.funds.sort((a,b)=>textOrder(a.fundId||'',b.fundId||'')||textOrder(a.sourcePath,b.sourcePath));
+    out.commitments.sort((a,b)=>textOrder(a.fundId||'',b.fundId||'')||textOrder(a.lpTypeID||'',b.lpTypeID||'')||textOrder(a.sourcePath,b.sourcePath));
+    errors.sort((a,b)=>textOrder(a.path,b.path)||textOrder(a.code,b.code));return freeze(out);
+  }
+  if(typeof module==='object'&&module.exports)module.exports={projectPEFundInterests,projectLPCommitments};
+  else if(root){const registry=root.__capitalismTycoonModules;if(!registry)throw new Error('runtime.js must precede phase3-pe-fund-interests.js');if(registry.phase3PeFundInterests)throw new Error('PE fund interests already registered');registry.phase3PeFundInterests=Object.freeze({projectPEFundInterests,projectLPCommitments});}
 })(typeof globalThis==='object'?globalThis:null);

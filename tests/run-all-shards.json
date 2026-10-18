@@ -284,7 +284,8 @@
     "tests/phase3-indirect-economic-paths-test.js",
     "tests/player-own-share-conservation-test.js",
     "tests/group-capital-allocation-cash-exact-test.js",
-    "tests/phase3-pe-fund-interests-test.js"
+    "tests/phase3-pe-fund-interests-test.js",
+    "tests/phase3-pe-lp-commitments-test.js"
   ],
   "L": [
     "tests/stock-split-price-floor-test.js",
