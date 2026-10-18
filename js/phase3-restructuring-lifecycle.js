@@ -17,9 +17,9 @@ function field(x,key){
  const d=Object.getOwnPropertyDescriptor(x,key);if(!d)return undefined;
  if(!own.call(d,'value'))throw Error('INPUT_INVALID');return d.value;
 }
-function rows(x){
+function rows(x,limit=512){
  if(x===undefined)return [];
- if(!Array.isArray(x)||!intrinsic(Object.getPrototypeOf(x),Array)||x.length>512)throw Error('INPUT_INVALID');
+ if(!Array.isArray(x)||!intrinsic(Object.getPrototypeOf(x),Array)||x.length>limit)throw Error('INPUT_INVALID');
  const out=[];for(let i=0;i<x.length;i++){const v=field(x,String(i));if(!record(v))throw Error('INPUT_INVALID');out.push(v);}return out;
 }
 function pair(x){if(!Array.isArray(x)||!intrinsic(Object.getPrototypeOf(x),Array)||x.length!==2)return null;const a=field(x,'0'),b=field(x,'1');return id(a)&&id(b)&&a!==b?[a,b].sort(order):null;}
@@ -30,7 +30,7 @@ function projectRestructuringLifecycle(raw){
  const issue=(code,path)=>out.issues.push({code,path});
  try{
   if(!record(raw))throw Error('INPUT_INVALID');
-  const subsidiaries=rows(field(raw,'subsidiaries')),history=rows(field(raw,'groupRestructuringHistory')),projects=rows(field(raw,'integrationProjects'));
+  const subsidiaries=rows(field(raw,'subsidiaries'),4096),history=rows(field(raw,'groupRestructuringHistory')),projects=rows(field(raw,'integrationProjects'));
   const now=field(raw,'week'),counts=new Map(),subs=new Map(),receipts=new Map(),projectsByID=new Map(),uses=new Map();
   for(const s of subsidiaries){const key=field(s,'id');if(id(key)){counts.set(key,(counts.get(key)||0)+1);if(!subs.has(key))subs.set(key,[]);subs.get(key).push(s);}}
   function addReceipt(replacement,from,at,path,valid){
@@ -52,12 +52,24 @@ function projectRestructuringLifecycle(raw){
    const at=field(p,'completedWeek'),key=field(p,'id');
    addReceipt(replacement,from,at,`integrationProjects[${i}]`,id(key)&&projectsByID.get(key)===1&&field(p,'status')==='completed'&&field(p,'completionApplied')===true&&!!from&&week(at)&&!from.includes(replacement));
   });
-  function lineage(key,seen,depth,beforeWeek=Infinity){
-   if(depth>64)return 'GRAPH_LIMIT';if(seen.has(key))return 'CYCLE_UNSUPPORTED';
-   const list=receipts.get(key);if(!list)return null;
-   if(list.length!==1||!list[0].valid||list[0].week>beforeWeek)return 'LIFECYCLE_CONFLICT';
-   const next=new Set(seen);next.add(key);
-   for(const source of list[0].from){if((uses.get(source)?.size||0)>1)return 'ALIAS_CONFLICT';const error=lineage(source,next,depth+1,list[0].week);if(error)return error;}
+  // Both installed writers retain 80 records; a missing ancestor at saturation
+  // may have been evicted. Absence is not proof that it was an original leaf.
+  const historyMayBeTruncated=history.length>=80||projects.length>=80;
+  function lineage(key){
+   const stack=[{key,beforeWeek:Infinity,exit:false}],active=new Set();let visits=0;
+   while(stack.length){
+    if(++visits>4*(receipts.size+1)+1)return 'GRAPH_LIMIT';
+    const node=stack.pop();if(node.exit){active.delete(node.key);continue;}
+    if(active.has(node.key))return 'CYCLE_UNSUPPORTED';
+    const list=receipts.get(node.key);
+    if(!list){if(historyMayBeTruncated)return 'ANCESTRY_UNPROVEN';continue;}
+    if(list.length!==1||!list[0].valid||list[0].week>node.beforeWeek)return 'LIFECYCLE_CONFLICT';
+    active.add(node.key);stack.push({key:node.key,exit:true});
+    for(const source of list[0].from){
+     if((uses.get(source)?.size||0)>1)return 'ALIAS_CONFLICT';
+     stack.push({key:source,beforeWeek:list[0].week,exit:false});
+    }
+   }
    return null;
   }
   subsidiaries.forEach((s,i)=>{
@@ -70,7 +82,7 @@ function projectRestructuringLifecycle(raw){
    let error=!id(replacement)||counts.get(replacement)!==1?'IDENTITY_UNPROVEN':!from||from.includes(replacement)?'ALIAS_CONFLICT':!week(now)||!week(at)||at>now?'LIFECYCLE_UNKNOWN':!['active','sold','liquidated','integrated'].includes(status)?'LIFECYCLE_UNKNOWN':null;
    const proof=receipts.get(replacement)||[];
    if(!error&&(proof.length!==1||!proof[0].valid||proof[0].week!==at||JSON.stringify(proof[0].from)!==JSON.stringify(from)))error='LIFECYCLE_UNPROVEN';
-   if(!error)error=lineage(replacement,new Set(),0);
+   if(!error)error=lineage(replacement);
    if(!error)for(const source of from){const retained=subs.get(source)||[];if(retained.length>1||retained.some(r=>field(r,'status')!=='integrated')){error='LIVE_PREDECESSOR_CONFLICT';break;}}
    if(error){issue(error,path);return;}
    observation.status='source-matched';observation.isCurrent=status==='active';

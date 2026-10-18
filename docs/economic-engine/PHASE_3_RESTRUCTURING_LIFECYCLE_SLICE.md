@@ -11,3 +11,9 @@ All output is detached/frozen. Only own data descriptors are read; getters, exot
 Wiring adds one classic module after economic-read-model, exact module-load-order fixture and a canonical shard K test. Tests use the existing installed-engine stock-split-atomicity fixture to execute actual direct merge and staged integration, then inspect untouched raw results. They also cover frozen input/output, v9 JSON, orphan/truncated receipts, live predecessors, duplicate IDs/receipts, reused sources, cycles, future ancestry, exotic prototypes and getter non-execution.
 
 No UI consumer, canonical relationship arbitration, current-company generation adoption, wealth aggregation, indirect ownership/control grant, P3-4 writer cutover, P3-10 command or Phase4 Entry. Canonical integration is a remaining Stage F concern; broad integrated audits and long-run campaigns remain Q. Final-head CI and independent diff review are separate from locally executed tests; cite actual results in the PR/handoff.
+
+## Independent review correction candidate
+
+The initial HEAD review found three P2 gaps. Both installed restructuring writers retain 80 records: at saturation a missing ancestor now returns ANCESTRY_UNPROVEN, since an evicted receipt may hide reuse/cycles. No new completeness marker or historical source is invented. Subsidiary input supports up to 4,096 rows, covering the required 1,000-issuer fixture, while receipt arrays remain bounded at 512. Iterative ancestry traversal replaces the arbitrary depth-64 cap; work is bounded by the validated receipt inventory, so 65 consistent retained merges pass. Added saturated-history RED→GREEN, 1,000-subsidiary and 65-merge cases. Source matching remains limited to retained evidence and is never a global historical completeness attestation.
+
+Candidate corrections are kept on a separate durable branch until this PR's active HEAD CI becomes terminal, per AGENTS.md. They are not final-HEAD CI evidence until applied.

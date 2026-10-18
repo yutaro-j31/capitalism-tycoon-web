@@ -56,6 +56,20 @@ unresolved(s=>delete s.subsidiaries[0].status,'LIFECYCLE_UNKNOWN');
  class Exotic{};const x=fixture();x.subsidiaries[0]=Object.assign(new Exotic(),x.subsidiaries[0]);assert.equal(project(x).issues[0].code,'INPUT_INVALID');
 }
 assert.throws(()=>vm.runInNewContext(code,context),/already registered/);
+// Source retention and the supported issuer envelope must not fabricate ancestry.
+{
+ const s=fixture();for(let i=1;i<80;i++)s.groupRestructuringHistory.push({type:'sale',week:100});
+ assert.equal(get(s).status,'unresolved');assert(project(s).issues.some(i=>i.code==='ANCESTRY_UNPROVEN'));
+}
+{
+ const s=fixture();for(let i=1;i<1000;i++)s.subsidiaries.push({id:'other-'+i,status:'active'});
+ assert.equal(project(s).observations[0].status,'source-matched');
+}
+{
+ const s={week:165,subsidiaries:[{id:'r65',status:'active',restructuredFrom:['r64','leaf65'],restructuredWeek:165}],groupRestructuringHistory:[]};
+ for(let i=1;i<=65;i++)s.groupRestructuringHistory.push({type:'merge',aID:i===1?'leaf0':'r'+(i-1),bID:'leaf'+i,mergedID:'r'+i,week:100+i});
+ assert.equal(project(s).observations[0].status,'source-matched');
+}
 // Reuse the installed-engine harness: no second economic simulation fixture.
 (async()=>{
  const {scenario}=require('./fixtures/stock-split-atomicity');const s=await scenario('own'),e=s.game;
