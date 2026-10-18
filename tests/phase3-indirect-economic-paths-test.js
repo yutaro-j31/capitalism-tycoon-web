@@ -46,7 +46,7 @@ assert.equal(known([edge('a','A','B',.8),edge('b','B','C',.5,{assetRole:'alias'}
 assert.equal(known([edge('a','A','B',.8),edge('b','B','C',.5,{assetRole:'unresolved'})]).issues[0].code,'SOURCE_INCOMPLETE');
 assert.equal(known([edge('a','A','B',.8),edge('b','B','C',.5,{isCurrent:null})]).issues[0].code,'SOURCE_INCOMPLETE');
 assert.equal(known([edge('a','A','B',.8),edge('b','B','C',2)]).issues[0].code,'SOURCE_INCOMPLETE');
-assert.equal(known([edge('a','A','B',.8),edge('b','B','C',NaN)]).issues[0].code,'SOURCE_INCOMPLETE');
+assert.equal(known([edge('a','A','B',.8),edge('b','B','C',NaN)]).issues[0].code,'INPUT_INVALID');
 assert.equal(trace({},'A','C').issues[0].code,'INPUT_INVALID');
 assert.equal(trace({relationships:chain},'A','A').issues[0].code,'INPUT_INVALID');
 let getterCount=0;
@@ -116,4 +116,38 @@ assert.equal(trace({relationships:arr},'root','target').issues[0].code,'INPUT_IN
  assert.equal(trace({relationships:[valid]},'root','target').status,'known');
 }
 
+// Shared Reason shape is required even on early input failures.
+for(const out of [trace({},'A','C'),known(diamond),known([])])for(const issue of out.issues){
+ assert.equal(typeof issue.message,'string');assert(issue.message.length>0);
+ assert.deepEqual(plain(issue.evidenceRefs),[issue.path]);
+}
+for(const location of ['source','array','row','fraction']){
+ const rows=[edge('e','A','C',.4)],input={relationships:rows};
+ const cycle=location==='source'?input:location==='array'?rows:location==='row'?rows[0]:rows[0].economicFraction;
+ cycle.self=cycle;
+ assert.equal(trace(input,'A','C').issues[0]?.code,'INPUT_INVALID',location);
+}
+for(const bad of [NaN,Infinity,-Infinity]){
+ const rows=[edge('e','A','C',.4)];rows[0].metadata={bad};
+ assert.equal(known(rows).issues[0]?.code,'INPUT_INVALID');
+}
+{
+ const shared={note:'same data, not a cycle'},rows=[edge('e','A','C',.4)];
+ rows[0].left=shared;rows[0].right=shared;assert.equal(known(rows).status,'known');
+ let reads=0;Object.defineProperty(shared,'hidden',{get(){reads++;throw Error('must not run');}});
+ assert.equal(known(rows).issues[0]?.code,'INPUT_INVALID');assert.equal(reads,0);
+}
+{
+ const rows=[edge('e','A','C',-0)],out=known(rows);
+ assert.equal(out.status,'known');assert(Object.is(out.economicFraction,0));
+ assert(Object.is(out.paths[0].economicFraction,0));assert.equal(known(plain(rows)).economicFraction,out.economicFraction);
+}
+{
+ const rows=[edge('e','A','C',.4)];
+ for(let i=1;i<4096;i++)rows.push(edge('isolated'+i,'X'+i,'Y'+i,.5));
+ assert.equal(known(rows).economicFraction,.4,'full supported edge envelope survives JSON validation');
+ const deep=[edge('deep','A','C',.4)];let node=deep[0];
+ for(let i=0;i<130;i++){node.child={};node=node.child;}
+ assert.equal(known(deep).issues[0]?.code,'INPUT_INVALID','bounded descriptor validation');
+}
 console.log('PASS P3-6 indirect economic paths: strict evidence, graph ambiguity, purity, frozen output, v9 reload');

@@ -31,7 +31,28 @@ function frozen(value){
   else if(value&&typeof value==='object'){for(const key of Object.keys(value))frozen(value[key]);}
   return Object.freeze(value);
 }
-function reason(code,path){return {code,path};}
+function reason(code,path){return {code,path,message:code,evidenceRefs:[path]};}
+// Validate own data descriptors without invoking accessors or walking cycles.
+// Memoization allows shared acyclic metadata without exponential repeated work.
+function validateEvidence(value){
+  const active=new Set(),done=new Set();let visits=0;
+  function visit(item,depth){
+    if(++visits>65536||depth>128)throw new TypeError('Evidence limit');
+    if(typeof item==='number'&&!Number.isFinite(item))throw new TypeError('Non-finite evidence');
+    if(item===null||['undefined','string','number','boolean'].includes(typeof item))return;
+    if(typeof item!=='object'||!jsonContainer(item)||active.has(item))throw new TypeError('Invalid evidence container');
+    if(done.has(item))return;
+    active.add(item);
+    for(const key of Reflect.ownKeys(item)){
+      if(typeof key!=='string')throw new TypeError('Symbol evidence');
+      const descriptor=Object.getOwnPropertyDescriptor(item,key);
+      if(!descriptor||!Object.prototype.hasOwnProperty.call(descriptor,'value'))throw new TypeError('Accessor evidence');
+      visit(descriptor.value,depth+1);
+    }
+    active.delete(item);done.add(item);
+  }
+  visit(value,0);
+}
 function traceIndirectEconomicInterest(source,rootEntityId,targetEntityId){
   const output={authority:'read-only',adapterVersion:1,complete:false,commandEligible:false,
     rootEntityId:null,targetEntityId:null,status:'unknown',economicFraction:null,votingFraction:null,
@@ -43,6 +64,7 @@ function traceIndirectEconomicInterest(source,rootEntityId,targetEntityId){
   try{
     const rows=Array.isArray(source)?source:data(source,'relationships');
     if(!Array.isArray(rows)||!jsonContainer(rows)||rows.length>MAX_EDGES)return reject('INPUT_INVALID','relationships');
+    validateEvidence(source);
     const edges=[],edgeIds=new Set(),pairs=new Set();
     for(let i=0;i<rows.length;i++){
       const row=data(rows,String(i)),path='relationships['+i+']';
@@ -62,7 +84,7 @@ function traceIndirectEconomicInterest(source,rootEntityId,targetEntityId){
       }
       const known=current===true&&status==='observed'&&assetRole==='relationship-only'
         &&typeof value==='number'&&Number.isFinite(value)&&value>=0&&value<=1;
-      edges.push({id,parent,child,value:known?value:null,known});
+      edges.push({id,parent,child,value:known?(value===0?0:value):null,known});
     }
     const adjacency=new Map();
     for(const edge of edges){
