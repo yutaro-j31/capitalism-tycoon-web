@@ -163,4 +163,59 @@ assert.deepEqual(differingPaths(replayA,replayB),[],'same state/commands produce
   assert.equal(f.game.g.personalStocks[external.id].qty,1);assert.equal(external.price,quote.quoteAfter);
   assert.equal(f.game.g.personalStocks.CPTY,undefined);reconciles(f);
 }
+// P3-4 writer-family characterization: the installed margin-liquidation path silently
+// calls sellPersonalStockRaw instead of engine.sellStock. For an own-company holding,
+// this bypass must decrease only the purchased personal lot; it must not retire
+// originally issued shares or write company/treasury/founder buckets. This is a
+// pre-cutover regression, NOT authority adoption or a new settlement implementation.
+{
+  const f=setup(0x3303000a),g=f.game.g,margin=f.loaded.modules.personalStockMargin;
+  assert.equal(typeof margin.processWeek,'function');
+  assert.equal(f.game.buyStock('CPTY',1000,'personal'),true);
+  const before=reconciles(f),purchased=g.personalStocks.CPTY.qty;
+  assert.equal(before.beneficialHoldings[0].quantity,g.founderShares+purchased);
+  const immutableCompany={
+    cash:g.companyCash,sharesOut:g.sharesOut,
+    founderShares:g.founderShares,treasury:g.treasuryBuybackShares,
+    companyStocks:JSON.stringify(g.companyStocks),
+    finance:JSON.stringify(g.finance)
+  };
+  assert.equal(f.game.borrowPersonalStockMargin('standard'),true);
+  const loanBefore=margin.balanceOf(g);
+  assert(loanBefore>0);
+  const stock=f.game.stock('CPTY');
+  stock.price=Math.max(1,stock.price*.1);
+  stock.marketCap=stock.price*stock.issuedShares;
+  assert(margin.currentLTV(g)>margin.MAINTENANCE_LTV);
+  const draws=f.draws(),simulation=JSON.stringify(g.simulationRng),personalDebt=g.personalDebt;
+  const result=margin.processWeek(f.game);
+  assert.equal(result.liquidated,true,'own-company shares enter the margin forced-sell path');
+  assert(result.raised>0&&result.shortfall>0,'liquidation exhausts this one collateral lot');
+  assert.equal(g.personalStocks.CPTY,undefined,'the personal lot is actually sold');
+  assert.equal(margin.balanceOf(g),0);
+  assert.equal(g.personalDebt,personalDebt+result.shortfall,'uncovered margin debt stays personal');
+  assert.equal(g.companyCash,immutableCompany.cash);
+  assert.equal(g.sharesOut,immutableCompany.sharesOut);
+  assert.equal(g.founderShares,immutableCompany.founderShares);
+  assert.equal(g.treasuryBuybackShares,immutableCompany.treasury);
+  assert.equal(JSON.stringify(g.companyStocks),immutableCompany.companyStocks);
+  assert.equal(JSON.stringify(g.finance),immutableCompany.finance,'no company financing entry from personal liquidation');
+  const after=plain(reconciles(f));
+  assert.equal(after.beneficialHoldings[0].quantity,before.beneficialHoldings[0].quantity-purchased);
+  assert.equal(after.securityClasses[0].issuedQuantity,immutableCompany.sharesOut);
+  assert.equal(after.securityClasses[0].treasuryQuantity,immutableCompany.treasury);
+  const stateBytes=JSON.stringify(g);
+  assert.equal(margin.processWeek(f.game),null,'the same week cannot liquidate or charge interest twice');
+  assert.equal(JSON.stringify(g),stateBytes,'no hidden second-week mutation');
+  assert.equal(f.draws(),draws);
+  assert.equal(JSON.stringify(g.simulationRng),simulation);
+  const compact=f.loaded.modules.saveStorage.compactStateForStorage(g,'critical').state;
+  const restored=new f.loaded.engineModule.TycoonEngine();
+  restored.importSave(JSON.stringify(compact));
+  assert.deepEqual(plain(f.loaded.modules.economicReadModel.ownershipReconciliation(restored.g)),after);
+  assert.equal(restored.g.founderShares,immutableCompany.founderShares);
+  assert.equal(restored.g.personalStocks.CPTY,undefined);
+  assert.equal(restored.g.saveVersion,9);
+}
+
 console.log('Player own-share acquisition conservation regressions passed');
