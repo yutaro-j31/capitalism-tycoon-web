@@ -129,6 +129,15 @@ for(const mergedID of [undefined,null,'',{},7])for(const status of ['active','in
  const s=fixture();s.integrationProjects=[{id:'planned',aID:'r',bID:'c',status:'active',completionApplied:false}];
  assert.equal(get(s).status,'source-matched');
 }
+// A reserved merged ID is not proof of a completed integration.
+for(const status of ['active','paused','cancelled']){
+ const s=fixture();s.integrationProjects=[{id:'planned',aID:'r',bID:'c',mergedID:'reserved',status,completionApplied:false}];
+ assert.equal(get(s).status,'source-matched');assert.equal(get(s).isCurrent,true);
+}
+for(const signal of [{status:'completed',completionApplied:false},{status:'active',completionApplied:true}]){
+ const s=fixture();s.integrationProjects=[{id:'broken',aID:'r',bID:'c',...signal}];
+ assert.equal(get(s).status,'unresolved');
+}
 (async()=>{
  const {scenario}=require('./fixtures/stock-split-atomicity');const s=await scenario('own'),e=s.game;
  const sub=id=>({id,name:id,status:'active',ownership:1,valuation:100000000,carryingBookValue:70000000,investedCost:70000000,subsidiaryCash:1000000,weeklyProfit:1000000,growth:.1,risk:.2,domain:'retail'});
@@ -136,6 +145,14 @@ for(const mergedID of [undefined,null,'',{},7])for(const status of ['active','in
  assert.equal(e.executeGroupRestructuringMerge('a','b'),true);
  const snapshot=JSON.stringify(e.g),draws=s.host.draws,direct=project(e.g);assert.equal(s.host.draws,draws);assert.equal(direct.observations[0].status,'source-matched');assert.equal(JSON.stringify(e.g),snapshot);
  assert.deepEqual(plain(project(plain(e.g))),plain(direct));
+ const current=e.g.subsidiaries[0];e.g.subsidiaries.push(sub('pending-peer'));
+ assert.equal(e.startSubsidiaryIntegrationProject(current.id,'pending-peer'),true);
+ assert.equal(typeof e.g.integrationProjects[0].mergedID,'string');
+ const plannedSnapshot=JSON.stringify(e.g),plannedDraws=s.host.draws;
+ assert.equal(project(e.g).observations[0].status,'source-matched');assert.equal(project(e.g).observations[0].isCurrent,true);
+ assert.equal(JSON.stringify(e.g),plannedSnapshot);assert.equal(s.host.draws,plannedDraws);
+ // Start the independent completed-integration fixture with no pending consumer.
+ e.g.integrationProjects=[];
  e.g.subsidiaries=[sub('c'),sub('d')];
  assert.equal(e.startSubsidiaryIntegrationProject('c','d'),true);
  for(let i=0;i<12;i++){e.g.week++;s.ctx.__capitalismTycoonModules.groupRestructuringProgress.processWeek(e.g,e.g.week);}
