@@ -9,6 +9,7 @@ const checks = [
   ['setup recovery UI', 'tests/setup-recovery-ui-test.js', 30_000],
   ['game-over settings recovery', 'tests/game-over-settings-ui-test.js', 30_000],
   ['Pages deployment verifier', 'tests/pages-deployment-smoke-test.js', 45_000],
+  ['Pages deployment wait', 'tests/pages-deployment-wait-test.js', 30_000],
   ['published save quota contract', 'tests/published-save-quota-contract-test.js', 30_000],
   ['release candidate tag gate', 'tests/release-candidate-tag-gate-test.js', 30_000],
   ['recovery outcome attestation', 'tests/release-candidate-recovery-attestation-test.js', 30_000],

@@ -10,7 +10,12 @@ const {makeTransactionFaultCase,FAULT_KINDS,injectFault}=require('./helpers/tran
 const REFOUNDING_FAULTS=FAULT_KINDS.filter(kind=>kind!=='notify');
 const INVESTMENT=50_000_000;
 async function fixture(){
- const s=await scenario('own');Object.assign(s.game.g,{isCompanySold:true,personalCash:200_000_000,companyName:'旧会社'});
+ const s=await scenario('own');Object.assign(s.game.g,{personalCash:200_000_000,companyName:'旧会社'});
+ // A real personal VC purchase must not be lost when the founder replaces the sold company.
+ const target=s.game.g.startups.find(x=>x.alive&&!x.subsidiary&&!x.ipoStockID&&x.minTicket<=100_000_000);
+ assert.ok(target,'available VC target');
+ assert.equal(s.game.investStartup(target.id,Math.max(20_000_000,target.minTicket),'personal'),true,'actual personal VC purchase');
+ s.game.g.isCompanySold=true;
  assert.equal(s.game.save(),true);await s.backend.flush();return s;
 }
 function expectFounded(before,after,ctx){
@@ -19,6 +24,17 @@ function expectFounded(before,after,ctx){
  assert.equal(after.companyCash,INVESTMENT,'new company capitalised with the investment');
  assert.equal(after.currentCompanyFoundedInvestment,INVESTMENT,'pe-fund founded-investment record is part of the commit');
  assert.equal(after.week,before.week);
+ for(const old of before.startups.filter(x=>x.ownedPersonal>0||x.activeFundingRound?.contributedPersonal>0)){
+  const kept=after.startups.filter(x=>x.id===old.id);
+  assert.equal(kept.length,1,'one matching VC source identity retained');
+  assert.equal(kept[0].name,old.name,'original VC company identity, not generated placeholder');
+  assert.equal(kept[0].ownedPersonal,old.ownedPersonal,'personal VC stake survives');
+  assert.equal(kept[0].totalInvestedPersonal,old.totalInvestedPersonal,'personal investment cost survives');
+  assert.equal(kept[0].ownedCompany,0,'sold-company VC stake stays with purchaser');
+  assert.equal(kept[0].totalInvestedCompany,0,'sold-company VC carrying cost is not transferred');
+  if(old.activeFundingRound){assert.equal(kept[0].activeFundingRound?.contributedPersonal,old.activeFundingRound.contributedPersonal,'pending personal contribution survives');
+    assert.equal(kept[0].activeFundingRound.contributedCompany,0,'sold-company pending contribution is not carried');}
+ }
  assert.ok(after.pastCompanyRecords.length>=before.pastCompanyRecords.length,'history preserved');
  // #968: the new company's book opens at the contribution and is valid at once.
  assert.equal(after.finance.openingCash,INVESTMENT,'opening cash is the contribution');
@@ -73,5 +89,58 @@ const h=makeTransactionFaultCase({name:'company refounding',fixture,command:refo
  // The founded company keeps closing: 13 weeks, every week ledger-valid.
  {const start=s.game.g.week;for(let i=0;i<13;i++){assert.notEqual(s.game.advanceWeek(false),false,`week ${s.game.g.week+1} commits`);assert.equal(s.modules.finance.validate(snapshot(s.game)).ok,true,`week ${s.game.g.week} ledger valid`);}assert.equal(s.game.g.week,start+13);}
  console.log('foundNewCompanyAfterBuyout normal / single commit / live equals reload / fresh hydration PASS');
+ // Mixed company/personal VC and an open financing round: only personal equity and funded
+ // personal commitment survive; old company capital and subscriptions never transfer.
+ {const s=await fixture(),st=s.game.g.startups.find(x=>x.ownedPersonal>0);
+  s.game.g.isCompanySold=false;
+  const amount=Math.max(20_000_000,st.minTicket);
+  assert.equal(s.game.investStartup(st.id,amount,'company'),true,'real company VC purchase');
+  st.fundingOpen=true;
+  assert.equal(s.game.openStartupFundingRound(st),true,'real follow-on round');
+  const plan=s.game.getStartupFundingRoundPlan(st.id);
+  assert.ok(plan?.personal.remaining>0&&plan.company.remaining>0,'mixed owned round');
+  const personalAmount=Math.min(1_000_000,plan.personal.remaining/2),companyAmount=Math.min(1_000_000,plan.company.remaining/2);
+  assert.equal(s.game.participateStartupFundingRound(st.id,personalAmount,'personal'),true,'personal funded subscription');
+  assert.equal(s.game.participateStartupFundingRound(st.id,companyAmount,'company'),true,'company funded subscription');
+  s.game.g.isCompanySold=true;
+  assert.equal(s.game.save(),true);await s.backend.flush();
+  const before=snapshot(s.game);assert.equal(s.game.foundNewCompanyAfterBuyout('新会社',INVESTMENT,'store'),true);
+  const after=snapshot(s.game);expectFounded(before,after,s);
+  const kept=after.startups.find(x=>x.id===st.id),r=kept.activeFundingRound;
+  assert.equal(r?.contributedPersonal,personalAmount);
+  assert.equal(r?.contributedCompany,0);
+  assert.equal(r?.preRoundOwnedCompany,0);
+  assert.equal(after.startupFundingHistory[st.id]?.some(x=>x.account==='company'),false,'sold company funding evidence excluded');
+  assert.equal(after.startups.filter(x=>x.id===st.id).length,1,'no duplicate startup ID');
+  await s.backend.flush();await h.loaded(s,s.game.g);
+  console.log('P1 #1008 mixed VC/personal pending round / no asset transfer / fresh hydration PASS');}
+ // Installed production sale command, not direct isCompanySold mutation: retain the same
+ // legal ownership through sale, successful refounding and durable reload.
+ {const s=await scenario('own');s.game.g.personalCash=200_000_000;
+  const st=s.game.g.startups.find(x=>x.alive&&!x.subsidiary&&!x.ipoStockID&&x.minTicket<=100_000_000);
+  assert.ok(st,'real-sale target');
+  assert.equal(s.game.investStartup(st.id,Math.max(st.minTicket,20_000_000),'personal'),true);
+  const held=st.ownedPersonal;
+  assert.equal(s.game.acceptBuyoutOffer(1.2),true,'installed company sale command');
+  assert.equal(s.game.g.startups.find(x=>x.id===st.id).ownedPersonal,held,'stake survives sale');
+  assert.equal(s.game.foundNewCompanyAfterBuyout('新会社',INVESTMENT,'store'),true,'installed founding command');
+  assert.equal(s.game.g.startups.find(x=>x.id===st.id).ownedPersonal,held,'stake survives refounding');
+  await s.backend.flush();
+  assert.equal(s.engineModule.TycoonEngine.load().g.startups.find(x=>x.id===st.id).ownedPersonal,held,'durable VC persists');
+  await h.loaded(s,s.game.g);
+  console.log('P1 #1008 real sale -> refound -> durable/fresh VC ownership PASS');}
+ // Every original source participates in ID validation, including unheld/company-only rows.
+ for(const companyOwned of [false,true])for(const conflictFirst of [false,true]){
+  const s=await fixture(),st=s.game.g.startups.find(x=>x.ownedPersonal>0);
+  const duplicate={...JSON.parse(JSON.stringify(st)),name:'異なる発行体',ownedPersonal:0,totalInvestedPersonal:0,
+   ownedCompany:companyOwned?0.1:0,totalInvestedCompany:companyOwned?1_000_000:0,activeFundingRound:null};
+  if(conflictFirst)s.game.g.startups.unshift(duplicate);else s.game.g.startups.push(duplicate);
+  const before=snapshot(s.game),mirror=s.ctx.localStorage.getItem(s.engineModule.SAVE_KEY);
+  assert.equal(s.game.foundNewCompanyAfterBuyout('新会社',INVESTMENT,'store'),false,'ambiguous old startup identity must reject');
+  assert.deepEqual(snapshot(s.game),before,'rejected refounding preserves live state and all assets');
+  await s.backend.flush();
+  assert.equal(s.ctx.localStorage.getItem(s.engineModule.SAVE_KEY),mirror,'rejected identity does not write a new save');
+ }
+ console.log('P1 #1008 duplicate personal/unheld/company source IDs in both row orders rejected PASS');
  console.log('Found new company save atomicity PASS');
 })().catch(e=>{console.error(e);process.exitCode=1;});
