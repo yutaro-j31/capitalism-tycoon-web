@@ -196,8 +196,10 @@ function installCompletion(TycoonEngine){
         // Reject rather than normalize/repair funded evidence. Neither source account
         // may contribute more than the entire raise or close with negative/>100% equity.
         if(!plan||['company','personal'].some(account=>{
-          const side=plan[account];
-          return side.ownershipBefore<0||side.ownershipBefore>1||side.contributed<0||side.contributed>plan.targetRaise||
+          const side=plan[account],sourceOwnership=s[account==='company'?'ownedCompany':'ownedPersonal']??0;
+          // A finite, bounded snapshot can still erase/inflate held assets on close.
+          // Live round writers freeze these source holdings until the round closes.
+          return side.ownershipBefore!==sourceOwnership||side.ownershipBefore<0||side.ownershipBefore>1||side.contributed<0||side.contributed>plan.targetRaise||
             !Number.isFinite(side.projectedOwnership)||side.projectedOwnership<0||side.projectedOwnership>1;
         }))return this.fail('個人VC出資ラウンドを確認できません。');
         held.activeFundingRound.preRoundOwnedCompany=0;

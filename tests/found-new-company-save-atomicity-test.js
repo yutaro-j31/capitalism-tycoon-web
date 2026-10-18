@@ -173,11 +173,23 @@ const h=makeTransactionFaultCase({name:'company refounding',fixture,command:refo
   await s.backend.flush();assert.equal(s.ctx.localStorage.getItem(s.engineModule.SAVE_KEY),mirror);
  }
  console.log('P1 retained round economic bounds / both accounts / no replacement or save PASS');
+ // In-range snapshots must still describe the current legal source. Otherwise
+ // closing a retained round can erase or inflate a previously purchased stake.
+ for(const [account,ownership] of [['personal',0],['personal',.8],['company',.4]]){
+  const s=await fixture(),st=s.game.g.startups.find(x=>x.ownedPersonal>0);
+  st.fundingOpen=true;assert.equal(s.game.openStartupFundingRound(st),true);
+  st.activeFundingRound[account==='personal'?'preRoundOwnedPersonal':'preRoundOwnedCompany']=ownership;
+  const before=snapshot(s.game),root=s.game.g,mirror=s.ctx.localStorage.getItem(s.engineModule.SAVE_KEY);
+  assert.equal(refound(s),false,'contradictory source ownership rejects refounding');
+  assert.equal(s.game.g,root);assert.deepEqual(snapshot(s.game),before,'assets and RNG unchanged');
+  await s.backend.flush();assert.equal(s.ctx.localStorage.getItem(s.engineModule.SAVE_KEY),mirror,'no replacement save');
+ }
+ console.log('Retained round source ownership consistency / both accounts PASS');
  // Inclusive ownership/capital endpoints remain supported; no EPSILON right grants.
  for(const ownership of [0,1]){
   const s=await fixture(),st=s.game.g.startups.find(x=>x.ownedPersonal>0);
-  st.ownedPersonal=1;st.fundingOpen=true;assert.equal(s.game.openStartupFundingRound(st),true);
-  st.activeFundingRound.preRoundOwnedPersonal=ownership;
+  st.ownedPersonal=ownership;st.ownedCompany=1-ownership;
+  st.fundingOpen=true;assert.equal(s.game.openStartupFundingRound(st),true);
   assert.equal(refound(s),true,'bounded round endpoint remains supported');
  }
  console.log('Found new company save atomicity PASS');
