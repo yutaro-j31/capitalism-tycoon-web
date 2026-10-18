@@ -185,6 +185,31 @@ const h=makeTransactionFaultCase({name:'company refounding',fixture,command:refo
   await s.backend.flush();assert.equal(s.ctx.localStorage.getItem(s.engineModule.SAVE_KEY),mirror,'no replacement save');
  }
  console.log('Retained round source ownership consistency / both accounts PASS');
+ // P1: the entire target raise is not either account's legal pro-rata limit.
+ // Use the installed participation writer as the boundary oracle, not a new policy.
+ for(const account of ['company','personal'])for(const excess of [false,true]){
+  const s=await fixture(),st=s.game.g.startups.find(x=>x.ownedPersonal>0);
+  if(account==='company'){
+   s.game.g.isCompanySold=false;
+   assert.equal(s.game.investStartup(st.id,Math.max(20_000_000,st.minTicket),'company'),true);
+   s.game.g.isCompanySold=true;
+  }
+  st.fundingOpen=true;assert.equal(s.game.openStartupFundingRound(st),true);
+  const plan=s.game.getStartupFundingRoundPlan(st.id),amount=plan[account].proRataRequired+(excess?1:5e-8);
+  assert.equal(s.game.participateStartupFundingRound(st.id,amount,account),!excess,'existing writer tolerance');
+  if(excess)st.activeFundingRound[account==='company'?'contributedCompany':'contributedPersonal']=amount;
+  const before=snapshot(s.game),root=s.game.g,mirror=s.ctx.localStorage.getItem(s.engineModule.SAVE_KEY);
+  assert.equal(refound(s),!excess,'reject impossible contribution; retain writer-admitted tolerance');
+  if(excess){assert.equal(s.game.g,root);assert.deepEqual(snapshot(s.game),before);
+   await s.backend.flush();assert.equal(s.ctx.localStorage.getItem(s.engineModule.SAVE_KEY),mirror);}
+ }
+ {const s=await fixture(),st=s.game.g.startups.find(x=>x.ownedPersonal>0);
+  st.fundingOpen=true;assert.equal(s.game.openStartupFundingRound(st),true);
+  assert.equal(st.ownedCompany,0);st.activeFundingRound.contributedCompany=1e-8;
+  const before=snapshot(s.game);assert.equal(refound(s),false,'zero stake has no participation entitlement');
+  assert.deepEqual(snapshot(s.game),before);
+ }
+ console.log('Retained round pro-rata limits / both accounts / installed tolerance PASS');
  // Inclusive ownership/capital endpoints remain supported; no EPSILON right grants.
  for(const ownership of [0,1]){
   const s=await fixture(),st=s.game.g.startups.find(x=>x.ownedPersonal>0);
