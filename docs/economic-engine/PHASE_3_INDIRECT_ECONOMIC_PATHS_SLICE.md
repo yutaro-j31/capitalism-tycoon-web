@@ -31,3 +31,5 @@ Recovered remote `54132ce1`, merged current main without rewriting history. The 
 This is one diagnostic slice stacked on #1024; canonical restructuring, trusted snapshot integration and full P3-6 remain incomplete. Independent reviewer not executed in this recovery session; prior review evidence is not relabelled as current independent approval. Owner merge approval is absent.
 
 Recovery also detected an omitted module-load-order fixture entry. Added only the new script immediately after economic-read-model, preserving every existing script and order; installed module-split test rerun required.
+
+Final-HEAD automated review reported exotic-prototype acceptance. Added RED/GREEN fixtures for class/custom-prototype source containers, arrays, rows and fraction records, with null-prototype records retained. Validation checks native intrinsic constructor/prototype data descriptors across realms without invoking constructors or accessors. This correction remains a candidate until published-HEAD CI/review conditions are satisfied.
