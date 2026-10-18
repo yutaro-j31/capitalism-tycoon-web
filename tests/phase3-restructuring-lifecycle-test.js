@@ -19,6 +19,16 @@ assert.equal(out.sourceSnapshotToken,null);assert.equal(JSON.stringify(input),be
 assert(Object.isFrozen(out.observations[0].historicalPredecessorSourceIds));
 assert.deepEqual(plain(project(freeze(plain(input)))),plain(out));assert.deepEqual(plain(project(plain(input))),plain(out));
 assert.equal(project({saveVersion:9}).observations.length,0);
+// Present lifecycle markers must not disappear when the predecessor pair is lost.
+for(const markers of [{restructuredWeek:100},{restructuredWeek:undefined},{restructuredWeek:null},{restructuredFrom:undefined}]){
+ const s=fixture();delete s.subsidiaries[0].restructuredFrom;delete s.subsidiaries[0].restructuredWeek;
+ Object.assign(s.subsidiaries[0],markers);const r=project(s);
+ assert.equal(r.observations[0]?.status,'unresolved');assert(r.issues.length>0);
+}
+{
+ const s=fixture();delete s.subsidiaries[0].restructuredFrom;delete s.subsidiaries[0].restructuredWeek;
+ assert.equal(project(s).observations.length,0);assert.equal(project(s).issues.length,0);
+}
 function unresolved(change,expected){const s=fixture();change(s);const r=project(s);assert.equal(r.observations[0]?.status,'unresolved');if(expected)assert(r.issues.some(i=>i.code===expected),JSON.stringify(r));}
 unresolved(s=>s.groupRestructuringHistory=[], 'LIFECYCLE_UNPROVEN');
 unresolved(s=>s.groupRestructuringHistory.push(receipt()),'LIFECYCLE_UNPROVEN');
