@@ -59,7 +59,7 @@ function projectRestructuringLifecycle(raw){
   // may have been evicted. Absence is not proof that it was an original leaf.
   const historyMayBeTruncated=history.length>=80||projects.length>=80;
   function lineage(key){
-   const stack=[{key,beforeWeek:Infinity,exit:false}],active=new Set();let visits=0;
+   const stack=[{key,beforeWeek:Infinity,exit:false}],active=new Set();let visits=0,liveConflict=false;
    while(stack.length){
     if(++visits>4*(receipts.size+1)+1)return 'GRAPH_LIMIT';
     const node=stack.pop();if(node.exit){active.delete(node.key);continue;}
@@ -70,10 +70,12 @@ function projectRestructuringLifecycle(raw){
     active.add(node.key);stack.push({key:node.key,exit:true});
     for(const source of list[0].from){
      if((uses.get(source)?.length||0)>1)return 'ALIAS_CONFLICT';
+     const retained=subs.get(source)||[];
+     if(retained.length>1||retained.some(r=>field(r,'status')!=='integrated'))liveConflict=true;
      stack.push({key:source,beforeWeek:list[0].week,exit:false});
     }
    }
-   return null;
+   return liveConflict?'LIVE_PREDECESSOR_CONFLICT':null;
   }
   subsidiaries.forEach((s,i)=>{
    const rawFrom=field(s,'restructuredFrom');if(rawFrom===undefined)return;

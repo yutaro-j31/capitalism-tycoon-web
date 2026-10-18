@@ -100,6 +100,16 @@ assert.throws(()=>vm.runInNewContext(code,context),/already registered/);
  assert.equal(project(s).observations[0].status,'source-matched');
 }
 // Reuse the installed-engine harness: no second economic simulation fixture.
+for(const retained of [{id:'a',status:'active'},{id:'a',status:'sold'},{id:'a',status:'integrated'}]){
+ const s={week:102,subsidiaries:[{id:'r2',status:'active',restructuredFrom:['r','c'],restructuredWeek:101},retained],groupRestructuringHistory:[receipt(),{type:'merge',aID:'r',bID:'c',mergedID:'r2',week:101}]};
+ assert.equal(project(s).observations[0].status,retained.status==='integrated'?'source-matched':'unresolved');
+ if(retained.status==='integrated'){s.subsidiaries.push({...retained});assert.equal(project(s).observations[0].status,'unresolved');}
+}
+{
+ const s=fixture();s.week=102;s.subsidiaries[0].status='integrated';s.subsidiaries.push({id:'x',status:'active'});
+ s.groupRestructuringHistory.push({type:'merge',aID:'x',bID:'y',mergedID:'c',week:99},{type:'merge',aID:'r',bID:'c',mergedID:'z',week:101});
+ assert.equal(get(s).status,'unresolved');
+}
 (async()=>{
  const {scenario}=require('./fixtures/stock-split-atomicity');const s=await scenario('own'),e=s.game;
  const sub=id=>({id,name:id,status:'active',ownership:1,valuation:100000000,carryingBookValue:70000000,investedCost:70000000,subsidiaryCash:1000000,weeklyProfit:1000000,growth:.1,risk:.2,domain:'retail'});
