@@ -139,6 +139,7 @@ const nodeTests = [
   ['phase3-listed-holdings-adapter', 'tests/phase3-listed-holdings-adapter-test.js'],
   ['phase3-ownership-snapshot', 'tests/phase3-ownership-snapshot-test.js'],
   ['phase3-listing-observations', 'tests/phase3-listing-observations-test.js'],
+  ['phase3-subsidiary-relationships', 'tests/phase3-subsidiary-relationships-test.js'],
   ['player-own-share-conservation', 'tests/player-own-share-conservation-test.js'],
   ['economic-foundation-draws', 'tests/economic-foundation-draws-test.js'],
   ['phase0-5-seed-provenance', 'tests/phase0-5-seed-provenance-test.js'],
