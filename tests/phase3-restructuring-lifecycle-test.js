@@ -120,6 +120,15 @@ for(const [consumer,change] of [
  if(consumer){s.subsidiaries[0].status='integrated';s.groupRestructuringHistory.push({type:'merge',aID:'r2',bID:'d',mergedID:'z',week:102});}
  change(s);assert.equal(project(s).observations.find(r=>r.replacementSourceId==='r2').status,'unresolved');
 }
+for(const mergedID of [undefined,null,'',{},7])for(const status of ['active','integrated']){
+ const s=fixture();s.subsidiaries[0].status=status;
+ s.integrationProjects=[{id:'consumer',aID:'r',bID:'c',mergedID,status:'completed',completionApplied:true,completedWeek:100}];
+ assert.equal(get(s).status,'unresolved');
+}
+{
+ const s=fixture();s.integrationProjects=[{id:'planned',aID:'r',bID:'c',status:'active',completionApplied:false}];
+ assert.equal(get(s).status,'source-matched');
+}
 (async()=>{
  const {scenario}=require('./fixtures/stock-split-atomicity');const s=await scenario('own'),e=s.game;
  const sub=id=>({id,name:id,status:'active',ownership:1,valuation:100000000,carryingBookValue:70000000,investedCost:70000000,subsidiaryCash:1000000,weeklyProfit:1000000,growth:.1,risk:.2,domain:'retail'});
