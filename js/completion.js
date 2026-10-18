@@ -194,16 +194,45 @@ function installCompletion(TycoonEngine){
         const plan=this.getStartupFundingRoundPlan(s.id);
         // The legacy reader only checks finiteness, not legal economic ranges.
         // Reject rather than normalize/repair funded evidence. Neither source account
-        // may exceed its pro-rata entitlement (same 1e-7 tolerance as the live
-        // participation writer) or close with negative/>100% equity.
+        // may close with negative/>100% equity. Pro-rata limits are replayed
+        // per payment below, because the live writer permits repeated tiny overages.
         if(!plan||['company','personal'].some(account=>{
           const side=plan[account],sourceOwnership=s[account==='company'?'ownedCompany':'ownedPersonal']??0;
           // A finite, bounded snapshot can still erase/inflate held assets on close.
           // Live round writers freeze these source holdings until the round closes.
           return side.ownershipBefore!==sourceOwnership||side.ownershipBefore<0||side.ownershipBefore>1||side.contributed<0||side.contributed>plan.targetRaise||
-            (side.contributed>0&&side.ownershipBefore<=0)||side.contributed>side.proRataRequired+1e-7||
+            (side.contributed>0&&side.ownershipBefore<=0)||
             !Number.isFinite(side.projectedOwnership)||side.projectedOwnership<0||side.projectedOwnership>1;
         }))return this.fail('個人VC出資ラウンドを確認できません。');
+        // Funded evidence must agree with the installed writer's retained receipts.
+        // History is newest-first and bounded to 24. If its opening receipt fell
+        // out, do not invent missing payments or discard the old save: reject.
+        const round=s.activeFundingRound,events=this.g.startupFundingHistory?.[s.id];
+        if(typeof round.id!=='string'||!round.id||!Number.isFinite(round.openedWeek)||
+          round.openedWeek>this.g.week||round.closesWeek<=round.openedWeek||!Array.isArray(events)||events.length>24)
+          return this.fail('個人VC払込履歴を確認できません。');
+        const openings=events.map((e,i)=>e?.id===`${round.id}-opened`?i:-1).filter(i=>i>=0);
+        if(openings.length!==1)return this.fail('個人VC払込履歴を確認できません。');
+        const opening=events[openings[0]],sameTerms=e=>e.stage===round.round&&
+          e.preMoneyValuation===plan.preMoneyValuation&&e.targetRaise===plan.targetRaise&&e.postMoneyValuation===plan.postMoneyValuation;
+        if(opening.eventType!=='opened'||opening.status!=='open'||opening.openedWeek!==round.openedWeek||!sameTerms(opening))
+          return this.fail('個人VC払込履歴を確認できません。');
+        const paid={company:0,personal:0};let paymentWeek=round.openedWeek;
+        for(let i=openings[0]-1;i>=0;i--){
+          const e=events[i],side=plan[e?.account];
+          if(!e||e.eventType!=='participated'||!['company','personal'].includes(e.account)||!side||
+            typeof e.id!=='string'||!e.id.startsWith(`${round.id}-${e.account}-`)||!sameTerms(e)||
+            !Number.isFinite(e.week)||e.week<paymentWeek||e.week>=round.closesWeek||e.week>this.g.week||
+            !Number.isFinite(e.amount)||e.amount<=0||side.ownershipBefore<=0||
+            e.amount>Math.max(0,side.proRataRequired-paid[e.account])+1e-7)
+            return this.fail('個人VC払込履歴を確認できません。');
+          paid[e.account]+=e.amount;paymentWeek=e.week;
+        }
+        if(['company','personal'].some(account=>{
+          const basis=s[account==='company'?'totalInvestedCompany':'totalInvestedPersonal']??0;
+          return !Number.isFinite(paid[account])||paid[account]!==plan[account].contributed||
+            !Number.isFinite(basis)||basis<paid[account];
+        }))return this.fail('個人VC払込履歴を確認できません。');
         held.activeFundingRound.preRoundOwnedCompany=0;
         held.activeFundingRound.contributedCompany=0;
       }

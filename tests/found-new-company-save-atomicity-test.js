@@ -210,6 +210,48 @@ const h=makeTransactionFaultCase({name:'company refounding',fixture,command:refo
   assert.deepEqual(snapshot(s.game),before);
  }
  console.log('Retained round pro-rata limits / both accounts / installed tolerance PASS');
+ // Retained participation must reconcile with the actual bounded writer receipts.
+ for(const defect of ['inflated','missing-history','missing-opening','wrong-terms','low-basis','missing-payment']){
+  const s=await fixture(),st=s.game.g.startups.find(x=>x.ownedPersonal>0);
+  st.fundingOpen=true;assert.equal(s.game.openStartupFundingRound(st),true);
+  assert.equal(s.game.participateStartupFundingRound(st.id,1_000_000,'personal'),true);
+  const events=s.game.g.startupFundingHistory[st.id];
+  if(defect==='inflated')st.activeFundingRound.contributedPersonal=s.game.getStartupFundingRoundPlan(st.id).personal.proRataRequired;
+  else if(defect==='missing-history')delete s.game.g.startupFundingHistory[st.id];
+  else if(defect==='missing-opening')events.pop();
+  else if(defect==='wrong-terms')events[0].postMoneyValuation++;
+  else if(defect==='low-basis')st.totalInvestedPersonal=1;
+  else events.shift();
+  const before=snapshot(s.game),root=s.game.g,mirror=s.ctx.localStorage.getItem(s.engineModule.SAVE_KEY);
+  assert.equal(refound(s),false,'unproven personal payment rejects refounding: '+defect);
+  assert.equal(s.game.g,root);assert.deepEqual(snapshot(s.game),before);
+  await s.backend.flush();assert.equal(s.ctx.localStorage.getItem(s.engineModule.SAVE_KEY),mirror);
+ }
+ // Replay individual writer-admitted payments, not an invented aggregate epsilon.
+ for(const account of ['company','personal']){
+  const s=await fixture(),st=s.game.g.startups.find(x=>x.ownedPersonal>0);
+  if(account==='company'){
+   s.game.g.isCompanySold=false;
+   assert.equal(s.game.investStartup(st.id,Math.max(20_000_000,st.minTicket),'company'),true);
+   s.game.g.isCompanySold=true;
+  }
+  st.fundingOpen=true;assert.equal(s.game.openStartupFundingRound(st),true);
+  const required=s.game.getStartupFundingRoundPlan(st.id)[account].proRataRequired;
+  assert.equal(s.game.participateStartupFundingRound(st.id,required+5e-8,account),true);
+  for(let i=0;i<3;i++)assert.equal(s.game.participateStartupFundingRound(st.id,5e-8,account),true);
+  assert.ok(s.game.getStartupFundingRoundPlan(st.id)[account].contributed>required+1e-7);
+  assert.equal(refound(s),true,'all source-exact installed payments remain supported');
+  await s.backend.flush();await h.loaded(s,s.game.g);
+ }
+ // Truncated bounded history cannot prove old payments; refuse without deleting assets.
+ {const s=await fixture(),st=s.game.g.startups.find(x=>x.ownedPersonal>0);
+  st.fundingOpen=true;assert.equal(s.game.openStartupFundingRound(st),true);
+  for(let i=0;i<24;i++)assert.equal(s.game.participateStartupFundingRound(st.id,1,'personal'),true);
+  assert.equal(s.game.g.startupFundingHistory[st.id].length,24);
+  const before=snapshot(s.game);assert.equal(refound(s),false,'unknown truncated receipts fail closed');
+  assert.deepEqual(snapshot(s.game),before);
+ }
+ console.log('Retained round payment evidence / repeated tolerance / history gaps PASS');
  // Inclusive ownership/capital endpoints remain supported; no EPSILON right grants.
  for(const ownership of [0,1]){
   const s=await fixture(),st=s.game.g.startups.find(x=>x.ownedPersonal>0);
