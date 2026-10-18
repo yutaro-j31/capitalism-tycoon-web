@@ -23,6 +23,10 @@ const INVESTMENT=50_000_000,NAME='新会社WebKit';
 async function fixture(){
  const s=await scenario('own'),g=s.game.g;
  assert.equal(s.game.createAngelInvestment(1_000_000),true,'personal angel holding to carry over');
+ g.personalCash=200_000_000;
+ const target=g.startups.find(x=>x.alive&&!x.subsidiary&&!x.ipoStockID&&x.minTicket<=100_000_000);
+ assert.ok(target,'personal VC fixture target');
+ assert.equal(s.game.investStartup(target.id,Math.max(20_000_000,target.minTicket),'personal'),true,'real personal VC stake');
  assert.notEqual(s.game.borrow(5_000_000,'company'),false,'production company borrowing (ledger-backed debt)');assert.ok(g.companyDebt>0);
  Object.assign(g,{isCompanySold:true,personalCash:200_000_000,companyName:'旧会社',selectedTab:'legacy'});
  assert.equal(s.modules.finance.validate(JSON.parse(JSON.stringify(g))).ok,true,'sold-company fixture is ledger-valid');
@@ -30,7 +34,7 @@ async function fixture(){
 }
 const pick=`(g)=>({companyName:g.companyName,isCompanySold:g.isCompanySold,configured:g.configured,week:g.week,companyCash:g.companyCash,personalCash:g.personalCash,
  companyDebt:g.companyDebt,personalDebt:g.personalDebt,currentCompanyFoundedInvestment:g.currentCompanyFoundedInvestment,serialCompanyCount:g.serialCompanyCount,
- angels:(g.angelInvestments||[]).map(a=>a.id),personalStocks:g.personalStocks,pastCompanyRecords:(g.pastCompanyRecords||[]).length,simulationRng:g.simulationRng})`;
+ angels:(g.angelInvestments||[]).map(a=>a.id),vc:g.startups.filter(s=>s.ownedPersonal>0).map(s=>({id:s.id,name:s.name,ownedPersonal:s.ownedPersonal,ownedCompany:s.ownedCompany,totalInvestedPersonal:s.totalInvestedPersonal})),personalStocks:g.personalStocks,pastCompanyRecords:(g.pastCompanyRecords||[]).length,simulationRng:g.simulationRng})`;
 async function boot(context,url,g){
  const p=await context.newPage();await p.goto(url,{waitUntil:'networkidle'});
  await p.evaluate(async g=>{const m=__capitalismTycoonModules,key=m.engine.SAVE_KEY;await m.saveStorageIDB.hydrate();if(!m.saveStorageIDB.status().available)throw new Error('real IndexedDB prerequisite failed');
@@ -83,6 +87,10 @@ async function settle(p){
    if(g.currentCompanyFoundedInvestment!==INVESTMENT)throw new Error('founded-investment record missing from the commit');
    if(g.companyDebt!==0)throw new Error('sold company debt must not carry into the new company');
    if(g.personalDebt!==base.personalDebt||JSON.stringify(g.angelInvestments.map(a=>a.id))!==JSON.stringify(base.angelInvestments.map(a=>a.id))||JSON.stringify(g.personalStocks)!==JSON.stringify(base.personalStocks))throw new Error('personal holdings must carry over unchanged');
+   for(const old of base.startups.filter(s=>s.ownedPersonal>0)){
+    const retained=g.startups.filter(s=>s.id===old.id);
+    if(retained.length!==1||retained[0].name!==old.name||retained[0].ownedPersonal!==old.ownedPersonal||retained[0].ownedCompany!==0||retained[0].totalInvestedPersonal!==old.totalInvestedPersonal||retained[0].totalInvestedCompany!==0)throw new Error('P1 #1008 personal VC ownership/source identity lost or company stake transferred');
+   }
    if(g.pastCompanyRecords.length<base.pastCompanyRecords.length)throw new Error('company history lost');
    if(w.events.filter(x=>x==='change').length!==1)throw new Error('one tap must commit once (change events '+w.events.join(',')+')');
    if(durable!==backend.readSync(key)||JSON.parse(durable).companyName!==NAME)throw new Error('durable must hold the committed new company');
