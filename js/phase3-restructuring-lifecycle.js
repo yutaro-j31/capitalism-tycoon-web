@@ -83,6 +83,10 @@ function projectRestructuringLifecycle(raw){
    const proof=receipts.get(replacement)||[];
    if(!error&&(proof.length!==1||!proof[0].valid||proof[0].week!==at||JSON.stringify(proof[0].from)!==JSON.stringify(from)))error='LIFECYCLE_UNPROVEN';
    if(!error)error=lineage(replacement);
+   // A replacement can itself be consumed by a subsequent retained receipt.
+   // Only an integrated row may remain as historical evidence of that entity.
+   if(!error&&(uses.get(replacement)?.size||0)>1)error='ALIAS_CONFLICT';
+   if(!error&&uses.has(replacement)&&status!=='integrated')error='LIVE_PREDECESSOR_CONFLICT';
    if(!error)for(const source of from){const retained=subs.get(source)||[];if(retained.length>1||retained.some(r=>field(r,'status')!=='integrated')){error='LIVE_PREDECESSOR_CONFLICT';break;}}
    if(error){issue(error,path);return;}
    observation.status='source-matched';observation.isCurrent=status==='active';

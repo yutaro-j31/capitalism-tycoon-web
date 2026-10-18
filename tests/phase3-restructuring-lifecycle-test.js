@@ -31,6 +31,14 @@ unresolved(s=>s.subsidiaries[0].restructuredFrom=['a','a'],'ALIAS_CONFLICT');
 unresolved(s=>s.subsidiaries[0].restructuredFrom=['r','b'],'ALIAS_CONFLICT');
 unresolved(s=>s.week=99,'LIFECYCLE_UNKNOWN');
 unresolved(s=>delete s.subsidiaries[0].status,'LIFECYCLE_UNKNOWN');
+unresolved(s=>{s.week=101;s.groupRestructuringHistory.push({type:'merge',aID:'r',bID:'c',mergedID:'z',week:101});},'LIVE_PREDECESSOR_CONFLICT');
+{
+ const s=fixture();s.week=101;s.subsidiaries[0].status='integrated';
+ s.groupRestructuringHistory.push({type:'merge',aID:'r',bID:'c',mergedID:'z',week:101});
+ assert.equal(get(s).status,'source-matched');assert.equal(get(s).isCurrent,false);
+ s.groupRestructuringHistory.push({type:'merge',aID:'r',bID:'d',mergedID:'z2',week:101});
+ assert(project(s).issues.some(i=>i.code==='ALIAS_CONFLICT'));
+}
 {
  const s=fixture();s.subsidiaries.push({id:'a',status:'integrated'});assert.equal(get(s).status,'source-matched');
  s.subsidiaries[0].status='sold';assert.equal(get(s).isCurrent,false);
