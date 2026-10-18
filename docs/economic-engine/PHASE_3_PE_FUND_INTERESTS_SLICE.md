@@ -11,3 +11,7 @@ Authority boundary: standalone diagnostic only. It does not verify a common iden
 No persisted root, migration, normalization, save, ledger, economic writer, cash movement or simulation RNG call. Fund creation/acquisition/distribution writers are unchanged. No P3-4 cutover, P3-10 executable command or Phase4 production Entry.
 
 Verification: see final PR/handoff for actual executed tests and CI. Independent final-diff review and GitHub CI remain distinct from local checks. This session's local second pass is same-agent review, not independent certification. Functional omissions remain Stage F tasks; broad integrated campaigns remain Stage Q.
+
+## Review correction candidate
+
+Automated final-HEAD review found that processFundsWeek marks a fund closed at its term while active deals remain saleable. The correction derives current portfolio participation from the deal status/settlement and valid source allocation, independently of fund term closure. The fund-level capital row still reports its closed status; no NAV entitlement is created. Closed-plus-active regression executed RED, then GREEN, including an actual installed processFundsWeek deadline transition and subsequent deal exit. Candidate remains outside the active PR until queued/in-progress HEAD CI finishes per AGENTS.md.

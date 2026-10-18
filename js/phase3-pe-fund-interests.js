@@ -92,7 +92,7 @@
         const splitValid=invested!==null&&invested>0&&fundPortion!==null&&coinvestPortion!==null&&fundPortion+coinvestPortion===invested;
         if(!splitValid)errors.push(issue('FINANCING_MISMATCH',dealPath));
         const active=dealStatus==='active'&&!historical;
-        const known=supported&&status!=='closed'&&dealId!==null&&counts.get(dealId)===1&&active&&splitValid&&settled.ok;
+        const known=supported&&dealId!==null&&counts.get(dealId)===1&&active&&splitValid&&settled.ok;
         result.portfolioParticipations.push({fundId:id,dealId,sourcePath:dealPath,
           assetRole:known?'proceeds-participation':'unresolved',current:known,
           fundProceedsFraction:known?fundPortion/invested:null,externalCoinvestProceedsFraction:known?coinvestPortion/invested:null,
