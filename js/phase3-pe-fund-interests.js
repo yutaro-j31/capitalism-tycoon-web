@@ -135,7 +135,7 @@
       if(!rows)continue;
       const keys=rows.map((r,j)=>requireId(r,'lpTypeID',`${path}.lps[${j}]`,errors));
       const counts=unique(keys.map(id=>({id})),r=>r.id,errors,`${path}.lps`);
-      let total=0,allValid=true;
+      let total=0,allValid=valid;
       for(let j=0;j<rows.length;j++){
         const rowPath=`${path}.lps[${j}]`,amount=requireNumber(rows[j],'committedAmount',rowPath,errors),lpTypeID=keys[j];
         const rowValid=valid&&lpTypeID!==null&&counts.get(lpTypeID)===1&&amount!==null;

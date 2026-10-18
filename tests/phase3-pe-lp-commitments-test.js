@@ -15,6 +15,11 @@ assert.deepEqual(projectPEFundInterests(s),old,'existing API unchanged');
 for(const value of [undefined,null,{},'98']){const x=state();x.peFirm.funds[0].lps=value;assert.equal(project(x).funds[0].observedCommitmentTotal,null);}
 {const x=state();delete x.peFirm.funds[0].lps;assert(project(x).issues.some(i=>i.code==='SOURCE_UNKNOWN'));}
 {const x=state();x.peFirm.funds[0].lps=[];assert.equal(project(x).funds[0].commitmentTotalMatchesDeclaredLP,false);}
+for(const change of [f=>f.status='unknown',f=>delete f.id,f=>f.gpCommit=99]){
+ const x=state(),f=x.peFirm.funds[0];Object.assign(f,{gpCommit:100,lpContributed:0,lps:[]});change(f);
+ assert.equal(project(x).funds[0].commitmentTotalMatchesDeclaredLP,null,'invalid fund cannot reconcile an empty LP list');
+}
+{const x=state();Object.assign(x.peFirm.funds[0],{size:1.5e308,gpCommit:0,lpContributed:1.5e308,lps:[{lpTypeID:'a',committedAmount:1e308},{lpTypeID:'b',committedAmount:1e308}]});assert.equal(project(x).funds[0].observedCommitmentTotal,null,'sum overflow fails closed');}
 for(const amount of [-1,Infinity,NaN,'40']){const x=state();x.peFirm.funds[0].lps[0].committedAmount=amount;assert.equal(project(x).funds[0].observedCommitmentTotal,null);}
 {const x=state();x.peFirm.funds[0].lps.push(copy(x.peFirm.funds[0].lps[0]));const r=project(x);assert.equal(r.funds[0].observedCommitmentTotal,null);assert(r.commitments.filter(c=>c.lpTypeID==='type-b').every(c=>c.status==='unresolved'));}
 {const x=state();x.peFirm.funds.push(fund());assert(project(x).commitments.every(c=>c.status==='unresolved'));}
