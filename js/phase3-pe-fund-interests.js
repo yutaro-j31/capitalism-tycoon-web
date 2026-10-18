@@ -1,6 +1,6 @@
 'use strict';
 // P3-7 opt-in pure raw-save projection. No PE settlement, issuer shares, or wealth authority.
-// Candidate source file; integration into the dependency stack is intentionally pending.
+// Recovered source; opt-in diagnostics only, not canonical ownership or wealth.
 (function register(root){
   const has=Object.prototype.hasOwnProperty;
   const textOrder=(a,b)=>a<b?-1:a>b?1:0;
@@ -108,5 +108,5 @@
     return freeze(result);
   }
   if(typeof module==='object'&&module.exports)module.exports={projectPEFundInterests};
-  else if(root){const registry=root.__capitalismTycoonModules||(root.__capitalismTycoonModules={});registry.phase3PeFundInterests=Object.freeze({projectPEFundInterests});}
+  else if(root){const registry=root.__capitalismTycoonModules;if(!registry)throw new Error('runtime.js must precede phase3-pe-fund-interests.js');if(registry.phase3PeFundInterests)throw new Error('PE fund interests already registered');registry.phase3PeFundInterests=Object.freeze({projectPEFundInterests});}
 })(typeof globalThis==='object'?globalThis:null);

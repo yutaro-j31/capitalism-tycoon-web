@@ -3,7 +3,7 @@
 const modules=globalThis.__capitalismTycoonModules;
 if(!modules)throw new Error('runtime.js must precede phase3-indirect-economic-paths.js');
 if(modules.phase3IndirectEconomicPaths)throw new Error('Phase 3 indirect path module already registered');
-const MAX_EDGES=4096,MAX_DEPTH=64,MAX_PATHS=256;
+const MAX_EDGES=4096,MAX_DEPTH=64,MAX_PATHS=256,MAX_VISITS=16384;
 const cmp=(a,b)=>a<b?-1:a>b?1:0;
 function data(object,key){
   if(object===null||typeof object!=='object')throw new TypeError('Expected a source object');
@@ -70,8 +70,9 @@ function traceIndirectEconomicInterest(source,rootEntityId,targetEntityId){
     }
     try{validate(rootEntityId,0);}
     catch(error){return reject(['CYCLE_UNSUPPORTED','SOURCE_INCOMPLETE','GRAPH_LIMIT'].includes(error.message)?error.message:'INPUT_INVALID','relationships');}
+    let visits=0;
     function walk(node,entities,ids,fraction,depth){
-      if(depth>MAX_DEPTH||output.paths.length>=MAX_PATHS)throw new Error('GRAPH_LIMIT');
+      if(++visits>MAX_VISITS||depth>MAX_DEPTH||output.paths.length>=MAX_PATHS)throw new Error('GRAPH_LIMIT');
       if(node===targetEntityId){
         output.paths.push({edgeIds:ids.slice(),entityIds:entities.slice(),economicFraction:fraction});return;
       }
