@@ -30,6 +30,9 @@ for(const change of [
  const x=fixture();x.startups[0].subsidiary=true;x.subsidiaries=[{id:'sub',startupID:'s',ownership:.6,status:'active'}];
  assert.equal(row(x,'company').assetRole,'relationship-only');assert.equal(row(x).assetRole,'economic-interest');
  assert.equal(row(x,'company').aliasSourcePath,'subsidiaries[0]');
+ for(const key of ['peDealID','sourcePEFundID','sourcePEDealID','internalVentureID','sourceCompetitorID','acquisitionDealID','restructuredWeek'])for(const value of ['other',null,undefined]){
+  const a=plain(x);a.subsidiaries[0][key]=value;assert.equal(row(a,'company').status,'unresolved');assert.equal(row(a).economicFraction,.1);
+ }
  for(const change of [
   a=>a.subsidiaries.push({...a.subsidiaries[0]}),a=>a.subsidiaries[0].ownership=.7,
   a=>a.subsidiaries[0].restructuredFrom=['a','b'],a=>a.subsidiaries[0].status='sold',

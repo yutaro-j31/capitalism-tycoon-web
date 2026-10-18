@@ -50,7 +50,7 @@ function projectRestructuringLifecycle(raw){
   });
   for(const p of projects){const key=field(p,'id');if(id(key))projectsByID.set(key,(projectsByID.get(key)||0)+1);}
   projects.forEach((p,i)=>{
-   const replacement=field(p,'mergedID');if(!id(replacement))return;
+   const replacement=field(p,'mergedID');if(!id(replacement)&&field(p,'status')!=='completed'&&field(p,'completionApplied')!==true)return;
    const a=field(p,'aID'),b=field(p,'bID'),from=id(a)&&id(b)&&a!==b?[a,b].sort(order):null;
    const at=field(p,'completedWeek'),key=field(p,'id');
    addReceipt(replacement,from,at,`integrationProjects[${i}]`,id(key)&&projectsByID.get(key)===1&&field(p,'status')==='completed'&&field(p,'completionApplied')===true&&!!from&&week(at)&&!from.includes(replacement),[a,b]);
