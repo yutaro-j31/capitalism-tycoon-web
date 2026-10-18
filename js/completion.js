@@ -188,7 +188,10 @@ function installCompletion(TycoonEngine){
       held.ownedCompany=0;held.totalInvestedCompany=0;held.ddNegotiatedOwnedCompany=0;
       held.subsidiary=false;delete held.dueDiligence;
       if(held.activeFundingRound){
-        if(held.activeFundingRound.status!=='open'||!Number.isFinite(held.activeFundingRound.preRoundOwnedPersonal)||!Number.isFinite(held.activeFundingRound.contributedPersonal))return this.fail('個人VC出資ラウンドを確認できません。');
+        // #1027: use the installed round reader's complete validity contract before
+        // replacing state; otherwise the next weekly writer discards funded evidence.
+        // Validate the original company/personal source before clearing company fields.
+        if(!this.getStartupFundingRoundPlan(s.id))return this.fail('個人VC出資ラウンドを確認できません。');
         held.activeFundingRound.preRoundOwnedCompany=0;
         held.activeFundingRound.contributedCompany=0;
       }

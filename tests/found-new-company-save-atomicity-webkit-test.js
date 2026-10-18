@@ -127,14 +127,43 @@ async function surfaced(p,fault){
  assert.equal(await recoveryDialog(p).count(),0,`${fault}: recovery dialog closes`);return 'recovery-dialog';
 }
 async function durableView(p){return p.evaluate(async snap=>{const m=__capitalismTycoonModules;await m.saveStorageIDB.hydrate();const g=m.engine.TycoonEngine.load().g;return {view:eval(snap)(g),saveVersion:g.saveVersion};},pick);}
-async function check(browser,context,url,p,expected,label){
+async function check(browser,context,url,p,expected,label,round=null){
+ const retained=async page=>{if(round)assert.equal(await page.evaluate(({id})=>__capitalismTycoonModules.playerEngineBridge.getEngine().g.startups.find(s=>s.id===id).activeFundingRound.contributedPersonal,round),round.amount,`${label} pending personal contribution`);};
  await p.reload({waitUntil:'networkidle'});const r=await durableView(p);assert.equal(r.saveVersion,9);assert.deepEqual(r.view,expected,`${label} reload`);
+ await retained(p);
  const state=await context.storageState({indexedDB:true});for(const origin of state.origins)origin.localStorage=[];
  const fresh=await browser.newContext({...options,storageState:state}),fp=await fresh.newPage();await fp.goto(url,{waitUntil:'networkidle'});
- const d=await durableView(fp);assert.deepEqual(d.view,expected,`${label} fresh durable-only`);await fresh.close();
+ const d=await durableView(fp);assert.deepEqual(d.view,expected,`${label} fresh durable-only`);await retained(fp);await fresh.close();
 }
 (async()=>{fs.mkdirSync(DIR,{recursive:true});await new Promise(r=>server.listen(0,'127.0.0.1',r));let browser;const results=[];try{
  browser=await webkit.launch();console.log('Actual WebKit '+browser.version()+' / iPhone13 emulation / real IndexedDB / real legacy-tab flow');const url='http://127.0.0.1:'+server.address().port+'/',g=await fixture();
+ // #1027: reject incomplete personally funded rounds through the installed UI,
+ // retaining the malformed old-v9 evidence rather than inventing a repair.
+ for(const defect of ['missing-close','post-money']){
+  const context=await browser.newContext(options),p=await boot(context,url,g);
+  const before=await p.evaluate(async defect=>{
+   const m=__capitalismTycoonModules,e=m.playerEngineBridge.getEngine(),st=e.g.startups.find(s=>s.ownedPersonal>0);
+   st.fundingOpen=true;if(!e.openStartupFundingRound(st))throw Error('round opening');
+   const amount=Math.min(1_000_000,e.getStartupFundingRoundPlan(st.id).personal.remaining/2);
+   if(!e.participateStartupFundingRound(st.id,amount,'personal'))throw Error('subscription');
+   if(defect==='missing-close')delete st.activeFundingRound.closesWeek;else st.activeFundingRound.postMoneyValuation++;
+   if(e.getStartupFundingRoundPlan(st.id)!==null)throw Error('malformed fixture accepted');
+   if(!e.save())throw Error('legacy fixture save');await m.saveStorageIDB.flush();
+   globalThis.__invalidRoundRoot=e.g;
+   return {json:JSON.stringify(e.g),bytes:m.saveStorageIDB.readSync(m.engine.SAVE_KEY),id:st.id,amount};
+  },defect);
+  await refound(p);
+  await p.evaluate(async before=>{
+   const m=__capitalismTycoonModules,e=m.playerEngineBridge.getEngine();await m.saveStorageIDB.flush();
+   if(e.g!==globalThis.__invalidRoundRoot||JSON.stringify(e.g)!==before.json)throw Error('rejected round changed state/RNG/root');
+   if(m.saveStorageIDB.readSync(m.engine.SAVE_KEY)!==before.bytes||localStorage.getItem(m.engine.SAVE_KEY)!==before.bytes)throw Error('rejected round replaced save');
+  },before);
+  const expected=await p.evaluate(snap=>eval(snap)(__capitalismTycoonModules.playerEngineBridge.getEngine().g),pick);
+  await check(browser,context,url,p,expected,'invalid '+defect,{id:before.id,amount:before.amount});
+  results.push({fault:'invalid-round-'+defect,rootIdentity:'PASS',unchanged:'PASS',reload:'PASS',freshDurableOnly:'PASS'});
+  console.log(`#1027 ${defect} rejected via iPhone WebKit UI / unchanged root/assets/RNG/save / real IDB reload/fresh hydration PASS`);
+  await context.close();
+ }
  let reference=null;
  for(const run of [1,2]){
   const context=await browser.newContext(options),p=await boot(context,url,g);
