@@ -59,14 +59,16 @@ function projectRestructuringLifecycle(raw){
   // may have been evicted. Absence is not proof that it was an original leaf.
   const historyMayBeTruncated=history.length>=80||projects.length>=80;
   function lineage(key){
-   const stack=[{key,beforeWeek:Infinity,exit:false}],active=new Set();let visits=0,liveConflict=false;
+   const stack=[{key,beforeWeek:Infinity,exit:false}],active=new Set();let visits=0,liveConflict=false,retainedConflict=false;
    while(stack.length){
     if(++visits>4*(receipts.size+1)+1)return 'GRAPH_LIMIT';
     const node=stack.pop();if(node.exit){active.delete(node.key);continue;}
     if(active.has(node.key))return 'CYCLE_UNSUPPORTED';
     const list=receipts.get(node.key);
-    if(!list){if(historyMayBeTruncated)return 'ANCESTRY_UNPROVEN';continue;}
+    if(!list){if(historyMayBeTruncated)return 'ANCESTRY_UNPROVEN';if((subs.get(node.key)||[]).some(r=>field(r,'restructuredFrom')!==undefined||field(r,'restructuredWeek')!==undefined))retainedConflict=true;continue;}
     if(list.length!==1||!list[0].valid||list[0].week>node.beforeWeek)return 'LIFECYCLE_CONFLICT';
+    const retainedNode=subs.get(node.key)||[];
+    if(retainedNode.length>1||retainedNode.some(r=>field(r,'restructuredWeek')!==list[0].week||JSON.stringify(pair(field(r,'restructuredFrom')))!==JSON.stringify(list[0].from)))retainedConflict=true;
     active.add(node.key);stack.push({key:node.key,exit:true});
     for(const source of list[0].from){
      if((uses.get(source)?.length||0)>1)return 'ALIAS_CONFLICT';
@@ -75,7 +77,7 @@ function projectRestructuringLifecycle(raw){
      stack.push({key:source,beforeWeek:list[0].week,exit:false});
     }
    }
-   return liveConflict?'LIVE_PREDECESSOR_CONFLICT':null;
+   return retainedConflict?'LIFECYCLE_CONFLICT':liveConflict?'LIVE_PREDECESSOR_CONFLICT':null;
   }
   subsidiaries.forEach((s,i)=>{
    const rawFrom=field(s,'restructuredFrom');if(rawFrom===undefined)return;

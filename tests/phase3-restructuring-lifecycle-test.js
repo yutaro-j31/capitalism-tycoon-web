@@ -110,6 +110,16 @@ for(const retained of [{id:'a',status:'active'},{id:'a',status:'sold'},{id:'a',s
  s.groupRestructuringHistory.push({type:'merge',aID:'x',bID:'y',mergedID:'c',week:99},{type:'merge',aID:'r',bID:'c',mergedID:'z',week:101});
  assert.equal(get(s).status,'unresolved');
 }
+for(const [consumer,change] of [
+ [false,s=>s.subsidiaries[1].restructuredFrom=['x','y']],[false,s=>s.subsidiaries[1].restructuredWeek=99],
+ [false,s=>delete s.subsidiaries[1].restructuredFrom],
+ [true,s=>s.subsidiaries.push({id:'z',status:'active',restructuredFrom:['x','y'],restructuredWeek:101})]
+]){
+ const s={week:102,subsidiaries:[{id:'r2',status:'active',restructuredFrom:['r','c'],restructuredWeek:101},{...replacement(),status:'integrated'}],groupRestructuringHistory:[receipt(),{type:'merge',aID:'r',bID:'c',mergedID:'r2',week:101}]};
+ // The optional z is the consumer of this historical r2 row.
+ if(consumer){s.subsidiaries[0].status='integrated';s.groupRestructuringHistory.push({type:'merge',aID:'r2',bID:'d',mergedID:'z',week:102});}
+ change(s);assert.equal(project(s).observations.find(r=>r.replacementSourceId==='r2').status,'unresolved');
+}
 (async()=>{
  const {scenario}=require('./fixtures/stock-split-atomicity');const s=await scenario('own'),e=s.game;
  const sub=id=>({id,name:id,status:'active',ownership:1,valuation:100000000,carryingBookValue:70000000,investedCost:70000000,subsidiaryCash:1000000,weeklyProfit:1000000,growth:.1,risk:.2,domain:'retail'});
