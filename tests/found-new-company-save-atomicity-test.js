@@ -157,5 +157,28 @@ const h=makeTransactionFaultCase({name:'company refounding',fixture,command:refo
   await s.backend.flush();assert.equal(s.ctx.localStorage.getItem(s.engineModule.SAVE_KEY),mirror,'no replacement save');
  }
  console.log('#1027 invalid personally funded rounds rejected without replacement/save/RNG mutation PASS');
+ // P1 review: finite values alone do not prove economic validity. These all
+ // pass the legacy plan reader but must never survive wholesale replacement.
+ for(const corrupt of [r=>r.preRoundOwnedPersonal=-1,r=>r.preRoundOwnedPersonal=1.1,
+  r=>r.preRoundOwnedCompany=-.1,r=>r.preRoundOwnedCompany=1.1,
+  r=>r.contributedCompany=-1,r=>r.contributedCompany=r.targetRaise+1,
+  r=>r.contributedPersonal=r.targetRaise+1,r=>r.contributedPersonal=-1]){
+  const s=await fixture(),st=s.game.g.startups.find(x=>x.ownedPersonal>0);
+  st.fundingOpen=true;assert.equal(s.game.openStartupFundingRound(st),true);
+  assert.equal(s.game.participateStartupFundingRound(st.id,Math.min(1_000_000,s.game.getStartupFundingRoundPlan(st.id).personal.remaining/2),'personal'),true);
+  corrupt(st.activeFundingRound);
+  const before=snapshot(s.game),root=s.game.g,mirror=s.ctx.localStorage.getItem(s.engineModule.SAVE_KEY);
+  assert.equal(refound(s),false,'out-of-range retained evidence rejects refounding');
+  assert.equal(s.game.g,root);assert.deepEqual(snapshot(s.game),before);
+  await s.backend.flush();assert.equal(s.ctx.localStorage.getItem(s.engineModule.SAVE_KEY),mirror);
+ }
+ console.log('P1 retained round economic bounds / both accounts / no replacement or save PASS');
+ // Inclusive ownership/capital endpoints remain supported; no EPSILON right grants.
+ for(const ownership of [0,1]){
+  const s=await fixture(),st=s.game.g.startups.find(x=>x.ownedPersonal>0);
+  st.ownedPersonal=1;st.fundingOpen=true;assert.equal(s.game.openStartupFundingRound(st),true);
+  st.activeFundingRound.preRoundOwnedPersonal=ownership;
+  assert.equal(refound(s),true,'bounded round endpoint remains supported');
+ }
  console.log('Found new company save atomicity PASS');
 })().catch(e=>{console.error(e);process.exitCode=1;});

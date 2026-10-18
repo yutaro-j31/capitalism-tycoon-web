@@ -139,18 +139,24 @@ async function check(browser,context,url,p,expected,label,round=null){
  browser=await webkit.launch();console.log('Actual WebKit '+browser.version()+' / iPhone13 emulation / real IndexedDB / real legacy-tab flow');const url='http://127.0.0.1:'+server.address().port+'/',g=await fixture();
  // #1027: reject incomplete personally funded rounds through the installed UI,
  // retaining the malformed old-v9 evidence rather than inventing a repair.
- for(const defect of ['missing-close','post-money']){
+ for(const defect of ['missing-close','post-money','negative-ownership','excess-ownership','negative-company-contribution','excess-personal-contribution']){
   const context=await browser.newContext(options),p=await boot(context,url,g);
   const before=await p.evaluate(async defect=>{
    const m=__capitalismTycoonModules,e=m.playerEngineBridge.getEngine(),st=e.g.startups.find(s=>s.ownedPersonal>0);
    st.fundingOpen=true;if(!e.openStartupFundingRound(st))throw Error('round opening');
    const amount=Math.min(1_000_000,e.getStartupFundingRoundPlan(st.id).personal.remaining/2);
    if(!e.participateStartupFundingRound(st.id,amount,'personal'))throw Error('subscription');
-   if(defect==='missing-close')delete st.activeFundingRound.closesWeek;else st.activeFundingRound.postMoneyValuation++;
-   if(e.getStartupFundingRoundPlan(st.id)!==null)throw Error('malformed fixture accepted');
+   const r=st.activeFundingRound;
+   if(defect==='missing-close')delete r.closesWeek;
+   else if(defect==='post-money')r.postMoneyValuation++;
+   else if(defect==='negative-ownership')r.preRoundOwnedPersonal=-1;
+   else if(defect==='excess-ownership')r.preRoundOwnedPersonal=1.1;
+   else if(defect==='negative-company-contribution')r.contributedCompany=-1;
+   else r.contributedPersonal=r.targetRaise+1;
+   if(['missing-close','post-money'].includes(defect)&&e.getStartupFundingRoundPlan(st.id)!==null)throw Error('malformed fixture accepted');
    if(!e.save())throw Error('legacy fixture save');await m.saveStorageIDB.flush();
    globalThis.__invalidRoundRoot=e.g;
-   return {json:JSON.stringify(e.g),bytes:m.saveStorageIDB.readSync(m.engine.SAVE_KEY),id:st.id,amount};
+   return {json:JSON.stringify(e.g),bytes:m.saveStorageIDB.readSync(m.engine.SAVE_KEY),id:st.id,amount:r.contributedPersonal};
   },defect);
   await refound(p);
   await p.evaluate(async before=>{
