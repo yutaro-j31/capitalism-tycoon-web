@@ -84,4 +84,19 @@ assert.equal(trace({relationships:[edge('one','root','target',.5),edge('two','ro
 let count=0;const arr=[edge('x','root','target',.4)];Object.defineProperty(arr,'0',{get(){count++;throw Error('getter');}});
 assert.equal(trace({relationships:arr},'root','target').issues[0].code,'INPUT_INVALID');assert.equal(count,0);
 }
+
+
+// Dead-end DAG paths must consume the work budget even without a target match.
+{
+ const rows=[];let parents=['root'];
+ for(let level=0;level<16;level++){
+   const children=['L'+level,'R'+level];
+   for(const parent of parents)for(const child of children)rows.push(edge(parent+'>'+child,parent,child,.5));
+   parents=children;
+ }
+ const out=trace({relationships:rows},'root','absent');
+ assert.equal(out.status,'unknown');assert.equal(out.issues[0].code,'GRAPH_LIMIT');
+ assert.equal(out.paths.length,0);assert.equal(out.economicFraction,null);
+}
+
 console.log('PASS P3-6 indirect economic paths: strict evidence, graph ambiguity, purity, frozen output, v9 reload');

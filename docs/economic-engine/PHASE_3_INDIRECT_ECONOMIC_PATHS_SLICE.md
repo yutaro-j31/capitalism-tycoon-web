@@ -23,3 +23,11 @@ The initial published source at `4ae87e4a` failed the collision test; this slice
 - Run focused Node test, syntax/static, shard matrix and canonical registration checks, then independent diff review and final-head CI.
 - Create a dependent PR against `feat/phase3-subsidiary-composition` after checking branch head and existing PR inventory.
 - Do not merge #1019–#1024 or this slice without explicit Owner authorization.
+
+## 2026-10-18 recovery and traversal bound
+
+Recovered remote `54132ce1`, merged current main without rewriting history. The path-count cap alone did not bound dead-end DAG traversal: a 16-layer diamond without the target returned PATH_UNPROVEN only after enumerating all branches. Added a 16,384-visit budget; overflow returns GRAPH_LIMIT with no paths or fraction. The regression was executed RED on recovered code, then GREEN after the fix. Existing depth/edge/path budgets remain unchanged.
+
+This is one diagnostic slice stacked on #1024; canonical restructuring, trusted snapshot integration and full P3-6 remain incomplete. Independent reviewer not executed in this recovery session; prior review evidence is not relabelled as current independent approval. Owner merge approval is absent.
+
+Recovery also detected an omitted module-load-order fixture entry. Added only the new script immediately after economic-read-model, preserving every existing script and order; installed module-split test rerun required.
