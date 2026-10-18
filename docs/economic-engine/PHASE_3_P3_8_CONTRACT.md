@@ -8,7 +8,9 @@ Repository precedence follows the approved Roadmap. Current source establishes o
 
 ## 2026-10-18 recovery alignment
 
-Current verified main: `6178b0686ba22a39d909240da0680097a784b08a`. Older CODE facts below remain historical. Shared contract #995 and P3-6 contract #997 are merged. The merged Implementation-First Roadmap v2 and Phase3/4 Gate Alignment govern F/S/Q timing; no new writer/cutover/Entry permission follows from this correction.
+Verified main on 2026-10-18 14:27 UTC: `29198aa2bae57c8004a10cc3d6a447d82fe8c0e1`. Older CODE facts below remain historical. Shared contract #995, P3-6/#997, P3-7/#998 and the read-only implementation chain #1019–#1024 are merged; these partial adapters do not complete P3-5/6/7. Main post-merge CI is still pending at this checkpoint, while those implementation PR HEADs each completed 23 successful checks and 8 inapplicable skips. The merged Implementation-First Roadmap v2 and Phase3/4 Gate Alignment govern F/S/Q timing; no new writer/cutover/Entry permission follows from this correction.
+
+VC remediation #1027/#1029 remains OPEN: malformed retained round/payment evidence and writer-produced tolerance states are not accepted as resolved merely because PR CI is green. The participation-evidence candidate `29cbd0b0b59762feda5882f7a1bb06cec1f5c3ae` is not the public #1029 HEAD; history-truncation compatibility, final corrected-HEAD CI/WebKit and independent review remain unresolved. P3-8 must preserve these source gaps as unsupported evidence and cannot mark those dependencies, writer remediation or Phase 3 acceptance complete.
 
 The earlier refounding asset-loss finding is tracked as #1008 and its approved writer correction #1016 is merged (`2596b7e62e592df759d19bc44ff16c0a428b3917`). This does not certify P3-8 adapter completion or repair older saves whose source evidence was already lost. The current installed refounding Node fault suite was executed PASS during the recovery session; actual browser evidence must still be cited separately from Node VM hydration.
 
