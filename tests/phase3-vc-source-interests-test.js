@@ -13,6 +13,11 @@ assert.deepEqual(plain(project(frozen(plain(s)))),plain(result));assert(Object.i
 for(const k of ['complete','wealthComplete','commandEligible'])assert.equal(result[k],false);
 for(const r of result.observations)for(const k of ['quantity','votingFraction','issuerEntityId','securityClassId','ownershipKey'])assert.equal(r[k],null);
 assert.equal(result.sourceSnapshotToken,null);assert.equal(project({saveVersion:9}).observations.length,0);
+// A rounded Number sum must not hide a real positive excess above one.
+for(const [company,personal,valid] of [[1,0,true],[1,2**-54,false],[1,Number.MIN_VALUE,false],[1-2**-52,2**-52,true],[1-2**-52,2**-51,false],[.5,.5,true]]){
+ const x=fixture();x.startups[0].ownedCompany=company;x.startups[0].ownedPersonal=personal;
+ assert.equal(row(x).status,valid?'source-matched':'unresolved');
+}
 for(const change of [
  x=>x.startups.push({...x.startups[0]}),x=>delete x.startups[0].id,
  x=>x.startups[0].ownedCompany=.95,x=>x.startups[0].ownedPersonal=NaN,

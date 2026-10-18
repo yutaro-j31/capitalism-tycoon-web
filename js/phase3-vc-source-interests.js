@@ -6,6 +6,7 @@ if(modules.phase3VCSourceInterests)throw Error('VC source interests already regi
 const own=Object.prototype.hasOwnProperty,order=(a,b)=>a<b?-1:a>b?1:0;
 const id=x=>typeof x==='string'&&x.trim().length>0;
 const fraction=x=>typeof x==='number'&&Number.isFinite(x)&&x>=0&&x<=1;
+function allocated(a,b){const sum=a+b,part=sum-a,residual=(a-(sum-part))+(b-part);return sum<1||(sum===1&&residual<=0);}
 function intrinsic(proto,type){
  const c=proto&&Object.getOwnPropertyDescriptor(proto,'constructor');
  const p=c&&own.call(c,'value')&&typeof c.value==='function'&&Object.getOwnPropertyDescriptor(c.value,'prototype');
@@ -34,7 +35,7 @@ function projectVCSourceInterests(raw){
   startups.forEach((s,i)=>{
    const path=`startups[${i}]`,source=field(s,'id'),company=field(s,'ownedCompany'),personal=field(s,'ownedPersonal');
    const ipo=field(s,'ipoStockID'),alive=field(s,'alive'),converted=field(s,'subsidiary'),pending=field(s,'activeFundingRound');
-   let error=!id(source)||counts.get(source)!==1?'IDENTITY_UNPROVEN':!fraction(company)||!fraction(personal)||company+personal>1?'OWNERSHIP_CONFLICT':null;
+   let error=!id(source)||counts.get(source)!==1?'IDENTITY_UNPROVEN':!fraction(company)||!fraction(personal)||!allocated(company,personal)?'OWNERSHIP_CONFLICT':null;
    for(const [key,stake] of [['ddNegotiatedOwnedCompany',company],['ddNegotiatedOwnedPersonal',personal]]){
     const dd=field(s,key);if(!error&&dd!==undefined&&(!fraction(dd)||dd>stake))error='OWNERSHIP_CONFLICT';
    }
