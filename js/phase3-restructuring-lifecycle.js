@@ -33,24 +33,27 @@ function projectRestructuringLifecycle(raw){
   const subsidiaries=rows(field(raw,'subsidiaries'),4096),history=rows(field(raw,'groupRestructuringHistory')),projects=rows(field(raw,'integrationProjects'));
   const now=field(raw,'week'),counts=new Map(),subs=new Map(),receipts=new Map(),projectsByID=new Map(),uses=new Map();
   for(const s of subsidiaries){const key=field(s,'id');if(id(key)){counts.set(key,(counts.get(key)||0)+1);if(!subs.has(key))subs.set(key,[]);subs.get(key).push(s);}}
-  function addReceipt(replacement,from,at,path,valid){
+  function addReceipt(replacement,from,at,path,valid,mentioned){
+   const receipt={replacement,from,week:at,path,valid:valid&&id(replacement)};
+   // Preserve individual uses, including malformed/duplicate receipts. A Set of
+   // target IDs would turn contradictory copies into one apparent proof.
+   for(const source of new Set(mentioned.filter(id))){if(!uses.has(source))uses.set(source,[]);uses.get(source).push(receipt);}
    if(!id(replacement))return;
    if(!receipts.has(replacement))receipts.set(replacement,[]);
-   receipts.get(replacement).push({from,week:at,path,valid});
-   if(from)for(const source of from){if(!uses.has(source))uses.set(source,new Set());uses.get(source).add(replacement);}
+   receipts.get(replacement).push(receipt);
   }
   history.forEach((r,i)=>{
    if(field(r,'type')!=='merge')return;
    const a=field(r,'aID'),b=field(r,'bID'),from=id(a)&&id(b)&&a!==b?[a,b].sort(order):null;
    const replacement=field(r,'mergedID'),at=field(r,'week');
-   addReceipt(replacement,from,at,`groupRestructuringHistory[${i}]`,!!from&&week(at)&&!from.includes(replacement));
+   addReceipt(replacement,from,at,`groupRestructuringHistory[${i}]`,!!from&&week(at)&&!from.includes(replacement),[a,b]);
   });
   for(const p of projects){const key=field(p,'id');if(id(key))projectsByID.set(key,(projectsByID.get(key)||0)+1);}
   projects.forEach((p,i)=>{
    const replacement=field(p,'mergedID');if(!id(replacement))return;
    const a=field(p,'aID'),b=field(p,'bID'),from=id(a)&&id(b)&&a!==b?[a,b].sort(order):null;
    const at=field(p,'completedWeek'),key=field(p,'id');
-   addReceipt(replacement,from,at,`integrationProjects[${i}]`,id(key)&&projectsByID.get(key)===1&&field(p,'status')==='completed'&&field(p,'completionApplied')===true&&!!from&&week(at)&&!from.includes(replacement));
+   addReceipt(replacement,from,at,`integrationProjects[${i}]`,id(key)&&projectsByID.get(key)===1&&field(p,'status')==='completed'&&field(p,'completionApplied')===true&&!!from&&week(at)&&!from.includes(replacement),[a,b]);
   });
   // Both installed writers retain 80 records; a missing ancestor at saturation
   // may have been evicted. Absence is not proof that it was an original leaf.
@@ -66,7 +69,7 @@ function projectRestructuringLifecycle(raw){
     if(list.length!==1||!list[0].valid||list[0].week>node.beforeWeek)return 'LIFECYCLE_CONFLICT';
     active.add(node.key);stack.push({key:node.key,exit:true});
     for(const source of list[0].from){
-     if((uses.get(source)?.size||0)>1)return 'ALIAS_CONFLICT';
+     if((uses.get(source)?.length||0)>1)return 'ALIAS_CONFLICT';
      stack.push({key:source,beforeWeek:list[0].week,exit:false});
     }
    }
@@ -85,8 +88,13 @@ function projectRestructuringLifecycle(raw){
    if(!error)error=lineage(replacement);
    // A replacement can itself be consumed by a subsequent retained receipt.
    // Only an integrated row may remain as historical evidence of that entity.
-   if(!error&&(uses.get(replacement)?.size||0)>1)error='ALIAS_CONFLICT';
+   if(!error&&(uses.get(replacement)?.length||0)>1)error='ALIAS_CONFLICT';
    if(!error&&uses.has(replacement)&&status!=='integrated')error='LIVE_PREDECESSOR_CONFLICT';
+   if(!error&&uses.has(replacement)){
+    const consuming=uses.get(replacement)[0];
+    if(!consuming.valid||consuming.week<at||consuming.week>now)error='LIFECYCLE_CONFLICT';
+    else error=lineage(consuming.replacement);
+   }
    if(!error)for(const source of from){const retained=subs.get(source)||[];if(retained.length>1||retained.some(r=>field(r,'status')!=='integrated')){error='LIVE_PREDECESSOR_CONFLICT';break;}}
    if(error){issue(error,path);return;}
    observation.status='source-matched';observation.isCurrent=status==='active';

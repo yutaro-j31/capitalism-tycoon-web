@@ -39,6 +39,27 @@ unresolved(s=>{s.week=101;s.groupRestructuringHistory.push({type:'merge',aID:'r'
  s.groupRestructuringHistory.push({type:'merge',aID:'r',bID:'d',mergedID:'z2',week:101});
  assert(project(s).issues.some(i=>i.code==='ALIAS_CONFLICT'));
 }
+// Historical status is not proof that the receipt consuming this row is sound.
+for(const change of [
+ s=>s.groupRestructuringHistory[1].week=99,
+ s=>s.groupRestructuringHistory[1].week=102,
+ s=>s.groupRestructuringHistory[1].week=NaN,
+ s=>s.groupRestructuringHistory.push({...s.groupRestructuringHistory[1]}),
+ s=>s.groupRestructuringHistory[1].bID='r',
+ s=>delete s.groupRestructuringHistory[1].mergedID,
+ s=>s.groupRestructuringHistory.push({type:'merge',aID:'x',bID:'y',mergedID:'z',week:101}),
+ s=>s.groupRestructuringHistory.push({type:'merge',aID:'x',bID:'y',mergedID:'c',week:102})
+]){
+ const s=fixture();s.week=101;s.subsidiaries[0].status='integrated';
+ s.groupRestructuringHistory.push({type:'merge',aID:'r',bID:'c',mergedID:'z',week:101});change(s);
+ const result=project(s);assert.equal(result.observations[0].status,'unresolved',JSON.stringify(s));
+ assert(result.issues.length>0);assert.equal(result.observations[0].isCurrent,null);
+}
+{
+ const s=fixture();s.subsidiaries[0].status='integrated';
+ s.groupRestructuringHistory.push({type:'merge',aID:'r',bID:'c',mergedID:'z',week:100});
+ assert.equal(get(s).status,'source-matched');assert.equal(get(s).isCurrent,false);
+}
 {
  const s=fixture();s.subsidiaries.push({id:'a',status:'integrated'});assert.equal(get(s).status,'source-matched');
  s.subsidiaries[0].status='sold';assert.equal(get(s).isCurrent,false);
