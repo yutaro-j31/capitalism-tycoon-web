@@ -6,17 +6,25 @@ Audited production main: `743d08d1867f453fe09c61e1fd5312c846cfc1eb` (2026-10-15 
 
 Repository precedence follows the approved Roadmap. Current source establishes observed production facts; approved target contracts establish required future behavior. Discrepancies must be logged, never silently adopted as new policy. Required references: Owner instruction and approved [Entry](PHASE_3_ENTRY_CONTRACT.md), [P3-1](PHASE_3_P3_1_CONTRACT.md), [P3-2](PHASE_3_P3_2_CONTRACT.md), [P3-3](PHASE_3_P3_3_CONTRACT.md), [Roadmap](ECONOMIC_ENGINE_ROADMAP.md) and [dependency graph](ECONOMIC_ENGINE_DEPENDENCY_GRAPH.md). Shared proposed types, identity rules and reason codes are specified in `PHASE_3_CROSS_SLICE_ARCHITECTURE.md` (companion cross-slice PR; dependency must merge first).
 
+## 2026-10-18 recovery alignment
+
+Current verified main: `6178b0686ba22a39d909240da0680097a784b08a`. Older CODE facts below remain historical. Shared contract #995 and P3-6 contract #997 are merged. The merged Implementation-First Roadmap v2 and Phase3/4 Gate Alignment govern F/S/Q timing; no new writer/cutover/Entry permission follows from this correction.
+
+The earlier refounding asset-loss finding is tracked as #1008 and its approved writer correction #1016 is merged (`2596b7e62e592df759d19bc44ff16c0a428b3917`). This does not certify P3-8 adapter completion or repair older saves whose source evidence was already lost. The current installed refounding Node fault suite was executed PASS during the recovery session; actual browser evidence must still be cited separately from Node VM hydration.
+
 ## 1. Goal / Scope
 
 Unify current company/personal startup economic stakes, funding evidence and IPO/subsidiary/exit transitions. Do not invent preferred-share voting/liquidation terms or move Phase 14 funding/exit authority.
 
 ## 2. Current Production State
 
-CODE: engine.investStartup writes ownedCompany/ownedPersonal and invested cost; participateStartupFundingRound adds contributedCompany/Personal to activeFundingRound before close. closeStartupFundingRound applies pre-round dilution plus contribution/post-money and clears round. updateStartups can change stakes/die/list. expansion.sellStartupSecondary zeros the selected full stake/cost/DD bucket inside runTransaction. engine.listStartup creates market lots using floor(stake×1M), zeros startup stakes/cost, sets ipoStockID and alive=false. engine.makeSubsidiary retains startup stakes and creates a subsidiary mirror.
+CODE: engine.investStartup writes ownedCompany/ownedPersonal and invested cost; participateStartupFundingRound adds contributedCompany/Personal to activeFundingRound before close. closeStartupFundingRound applies pre-round dilution plus contribution/post-money and clears round. updateStartups can change stakes/die/list. expansion.sellStartupSecondary zeros the selected full stake/cost/DD bucket inside runTransaction. engine.listStartup creates market lots using floor(stake×1M), zeros startup stakes/cost, sets ipoStockID and alive=false. engine.makeSubsidiary retains startup stakes and creates a subsidiary mirror. `completion.js::foundNewCompanyAfterBuyout` is also a lifecycle writer: after #1016 it retains personal startup stakes and personal pending subscriptions, while company stakes/contributions must not transfer to the newly founded company. Inspect acceptBuyoutOffer, currentCompanySerial and original startup IDs together; a new company generation never gains the sold company's VC stake.
 
 ## 3. Existing Source-of-truth
 
 Current stakes: startups[].ownedCompany/ownedPersonal. Amount invested: totalInvestedCompany/Personal, not share quantity. DD negotiated stake is a subset of owned stake. Open-round preRoundOwned*/contributed* and startupFundingHistory are lifecycle evidence, not additional current shares. `valuation` is a source economic valuation estimate, not automatically a proven common-share Equity Value. Startup `stage` or fundingRound label does not establish legal share class. `angelInvestments` is a distinct legacy investment family and must not be merged by startup display name.
+
+Refounding source coverage: current retained startup rows and activeFundingRound personal buckets are evidence, not extra assets. An old save missing the personally held startup after refounding cannot be reconstructed from cash, names, investment totals or a fresh constructor row. Preserve unknown identity/generation and report a source/lifecycle gap; never invent historical ownership.
 
 ## 4. Dependencies
 
@@ -61,7 +69,7 @@ Show company/personal stake separately, pending round contribution, dilution sou
 ## 14. Tests / CI / WebKit
 
 Extend existing `tests/phase3-ownership-projection-test.js` and `tests/phase3-ownership-reconciliation-test.js` for shared purity/identity/conservation fixtures; do not duplicate their harness. Add a focused adapter test only for new family behavior, register it in `tests/run-all.js` and `tests/run-all-shards.json` with shard contract verification. Run immutable input/output, malformed/unknown, insertion-order permutation, cross-account separation and no host/simulation RNG tests. Existing tests are characterization, not proof of an unimplemented API. CI: Test canonical A–L + aggregate `test`, Phase 0.5 Acceptance Smoke and all other applicable workflows. New browser/UI integration needs actual iPhone-emulated WebKit, reload and fresh durable hydration, with tested HEAD and job/artifact recorded; physical iPhone is separate. Docs-only PR CI cannot prove future adapter behavior.
-Reuse `tests/startup-funding-round-test.js`, VC initial/follow-on/secondary atomicity suites and corresponding real WebKit jobs; `tests/make-subsidiary-save-atomicity-test.js`. Candidate `tests/phase3-vc-ownership-adapter-test.js`: before/during/after round, IPO floor conversion, partial sold/zeroed stake, subsidiary mirror with residual personal investment, missing preferred rights and overallocated cap table. These future assertions are not claimed to exist today.
+Reuse `tests/startup-funding-round-test.js`, VC initial/follow-on/secondary atomicity suites and corresponding real WebKit jobs; `tests/make-subsidiary-save-atomicity-test.js`. Candidate `tests/phase3-vc-ownership-adapter-test.js`: before/during/after round, IPO floor conversion, partial sold/zeroed stake, subsidiary mirror with residual personal investment, missing preferred rights and overallocated cap table. Add installed sale → refound → save/reload/fresh-hydration fixtures for both accounts, mixed company/personal pending rounds, duplicate startup IDs and old saves with absent retained evidence. Reuse `tests/found-new-company-save-atomicity-test.js` and `tests/found-new-company-save-atomicity-webkit-test.js` for existing #1016 writer proof. New adapter-specific assertions remain future work, not completed implementation evidence.
 
 ## 15. Migration and Cutover Restrictions
 
@@ -69,7 +77,7 @@ This slice may represent legacy facts before P3-4 completes, only as a pure opt-
 
 ## 16. Risks and Findings
 
-R-P38-01: open-round cash contribution is paid before current ownership changes; naive fraction-only wealth would omit it, while treating it as current equity grants unsupported rights. Contract now carries pending-investment evidence with completeness flags. R-P38-02: IPO/dormant startup versus subsidiary duplicate needs lifecycle-aware composer. Existing tests do not certify complete legal cap tables.
+R-P38-01: open-round cash contribution is paid before current ownership changes; naive fraction-only wealth would omit it, while treating it as current equity grants unsupported rights. Contract now carries pending-investment evidence with completeness flags. R-P38-02: IPO/dormant startup versus subsidiary duplicate needs lifecycle-aware composer. R-P38-03: refounding originally erased personal VC ownership (#1008); #1016 fixes the current writer only. The adapter must preserve personal evidence across generations, exclude former company ownership and fail closed on already-lost old-save evidence; it must not normalize or backfill the source. Existing tests do not certify complete legal cap tables.
 
 ## 17. Acceptance Criteria
 

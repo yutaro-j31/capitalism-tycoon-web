@@ -84,6 +84,8 @@ function measure(modules, engine, label, action) {
 {
   const { modules, engine } = freshGame();
   engine.g.publicCompany = true;
+  // A listed company has a valid price; with none, the W-DEFENSE ownership check fails closed (no cost charged).
+  engine.g.stockPrice = 1000;
   const [row] = measure(modules, engine, 'activateDefense(irCampaign)', () => engine.activateDefense('irCampaign'));
   assert.equal(row.profitEffect, row.cashEffect);
 }
