@@ -54,8 +54,8 @@ function projectVCSourceInterests(raw){
     // An inherited startupID on a restructuring replacement is not an alias.
     if(!reason&&account==='company'&&(converted===true||linked.length)){
      const mirror=linked[0]?.row,key=mirror&&field(mirror,'id');
-     const competing=mirror&&['peDealID','sourcePEFundID','sourcePEDealID','internalVentureID','sourceCompetitorID','acquisitionDealID','restructuredWeek'].some(key=>own.call(mirror,key));
-     if(converted!==true||linked.length!==1||!id(key)||subIDs.get(key)!==1||competing||field(mirror,'restructuredFrom')!==undefined||field(mirror,'status')!=='active'||!fraction(field(mirror,'ownership'))||field(mirror,'ownership')!==company||id(ipo))reason='ALIAS_CONFLICT';
+     const competing=mirror&&(['peDealID','sourcePEFundID','sourcePEDealID','internalVentureID','sourceCompetitorID','acquisitionDealID','restructuredWeek','restructuredFrom'].some(key=>own.call(mirror,key))||['pe','internalVenture'].includes(field(mirror,'source')));
+     if(converted!==true||linked.length!==1||!id(key)||subIDs.get(key)!==1||competing||field(mirror,'status')!=='active'||!fraction(field(mirror,'ownership'))||field(mirror,'ownership')!==company||id(ipo))reason='ALIAS_CONFLICT';
      else{row.status='source-matched';row.assetRole='relationship-only';row.economicFraction=stake;row.aliasSourcePath=linked[0].path;continue;}
     }
     if(reason){out.issues.push({code:reason,path:row.sourcePath});continue;}
