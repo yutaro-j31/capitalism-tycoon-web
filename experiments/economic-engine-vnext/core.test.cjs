@@ -43,7 +43,7 @@ test('insufficient founder cash rejected',()=>rejected(seed(),{id:'send-too-much
 test('insufficient bank cash rejected',()=>rejected(seed(),{id:'borrow-too-much',type:'borrow',borrower:'company',lender:'bank',loanId:'loan-big',amountMinor:100001},'negative-cash'));
 test('save false leaves original state intact',()=>rejected(seed(),borrow,'persistence-rejected',()=>false));
 test('save throws leaves original state intact',()=>rejected(seed(),borrow,'persistence-threw',()=>{throw Error('save unavailable');}));
-test('persistence callback required',()=>rejected(seed(),borrow,'persistence-required',undefined));
+test('persistence callback required',()=>{const a=seed(),r=admitOperation(a,borrow);assert.equal(r.ok,false);assert.equal(r.reason,'persistence-required');assert.deepEqual(r.state,a);});
 test('invalid/non-finite/unsafe/fractional money rejected',()=>{
   for(const value of [NaN,Infinity,0.5,Number.MAX_SAFE_INTEGER+1,-1,0]){
     rejected(seed(),{id:'invalid-money',type:'transfer',from:'founder',to:'company',amountMinor:value},'invalid-amount');
