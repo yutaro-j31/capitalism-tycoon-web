@@ -46,6 +46,16 @@ for(const cash of [undefined,null,'5',NaN,Infinity,-1,1e100]){
  assert.doesNotThrow(()=>project(s));assert.equal(reads,0);
 }
 assert.equal(out.fundInterests[0].contributionRatio,.02);
+for(const key of ['size','gpCommit','lpContributed','id','status']){
+ const s=state(),f=s.peFirm.funds[0];Object.defineProperty(f,key,{value:f[key],enumerable:false});
+ const r=project(s);assert.equal(r.fundInterests[0].status,'unresolved');
+ assert(r.issues.some(i=>i.code==='INPUT_INVALID'&&i.path==='peFirm.funds[0].'+key));
+ assert.equal(project(copy(s)).fundInterests[0].status,'unresolved','JSON-hidden evidence never supports observed capital');
+}
+{
+ const s=state();Object.defineProperty(s.peFirm.funds,'0',{value:s.peFirm.funds[0],enumerable:false});
+ assert(project(s).issues.some(i=>i.code==='INPUT_INVALID'&&i.path==='peFirm.funds'));
+}
 assert.equal(out.portfolioParticipations[0].fundProceedsFraction,25/35);
 assert.equal(out.portfolioParticipations[0].externalCoinvestProceedsFraction,10/35);
 assert.equal(out.portfolioParticipations[0].founderBeneficialFraction,null);
