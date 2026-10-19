@@ -50,6 +50,7 @@ function validateEvidence(value){
         :/^[A-Za-z_$][\w$]*$/.test(key)?`${path==='$'?'':path+'.'}${key}`:`${path}[${JSON.stringify(key)}]`;
       const descriptor=Object.getOwnPropertyDescriptor(item,key);
       if(!descriptor||!Object.prototype.hasOwnProperty.call(descriptor,'value'))invalid('Accessor evidence',childPath);
+      if(!descriptor.enumerable&&!(Array.isArray(item)&&key==='length'))invalid('Non-enumerable evidence',childPath);
       visit(descriptor.value,depth+1,childPath);
     }
     active.delete(item);done.add(item);
