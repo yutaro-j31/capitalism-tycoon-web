@@ -1,7 +1,11 @@
 # Capitalism Tycoon Web — Shared AI Economic Development Policy
 
-**Scope:** Economic Engine / Phase 3 and later economic migration work.  
-**Status:** Proposed on an isolated documentation PR; becomes repository policy only when reviewed, Gate-accepted, and merged.  
+**Scope:** Economic Engine / Phase 3 and later economic migration work.
+
+**Status:** Proposed on an isolated documentation PR; becomes repository policy only when reviewed, Gate-accepted, and merged.
+
+**Historical baseline:** The stop/priority examples in §§4–5 record the 2026-10-10 proposal; refresh their issue/merge status before using them. This history does not supersede later explicit Owner instructions.
+**Current precedence (2026-10-19 correction):** The merged [Implementation-First roadmap](ECONOMIC_ENGINE_IMPLEMENTATION_FIRST_ROADMAP.md) governs Phase 3–16 scheduling. Its focused safety gates remain mandatory; the historical broad-audit sequence below cannot reinstate a comprehensive pre-implementation gate. Phase 3 authoritative cutover remains unfinished and Phase 4 Entry is unapproved; neither this proposal nor a documentation merge grants either permission.
 **Owner intent:** Every AI (ordinary ChatGPT, ChatGPT Work, Codex, Claude Code, or successor) follows the SAME evidence, authorization, sequencing, and reporting rules. The selected model does not alter the contract.
 
 ## 1. Source of truth and entry procedure
@@ -14,7 +18,7 @@
 
 ## 2. Architecture choice: staged Economic Core replacement, NOT a full-game rewrite
 
-Retain the playable game, production UI, save-v9 compatibility, the deterministic harness, already-cut-over Phase 1/2 ledger/accounting, existing runTransaction, and PR #915 common persistence checkpoint. Follow the approved **Strangler / Observe → Shadow → Cutover → Projection → Retire** strategy from roadmap §9.
+Retain the playable game, production UI, save-v9 compatibility, the deterministic harness, the limited Phase 1 `company:store-renovation` cutover and Phase 2 read-only accounting/reconciliation adapters, existing runTransaction, and PR #915 common persistence checkpoint. The [Phase 1 acceptance](PHASE_1_ACCEPTANCE.md) adopts only the approved store-renovation issuer family; it does not transfer all ledger authority. The [Phase 2 acceptance](PHASE_2_ACCEPTANCE.md) explicitly leaves production finance and legacy settlement writers authoritative. Follow the approved **Strangler / Observe → Shadow → Cutover → Projection → Retire** strategy from roadmap §9.
 
 Target transaction shape:
 

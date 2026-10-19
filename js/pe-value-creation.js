@@ -182,6 +182,8 @@ function applicable(state,deal){
   if(isResolved(deal))return {ok:false,reason:'この案件の再建は完了しています。'};
   if(deal.pendingInitiative)return {ok:false,reason:'既に施策が進行中です。結果判明までお待ちください。'};
   const ownerAccount=deal.ownerAccount==='company'?'company':'personal';
+  // #985: a sold company's deal (paid from its cash) takes no initiative until refounding.
+  if(ownerAccount==='company'&&state?.isCompanySold)return {ok:false,reason:'会社売却後は会社名義のPE操作はできません。'};
   const used=activeInitiativeCount(state,ownerAccount,deal.id),cap=concurrencyCapFor(ownerAccount);
   if(used>=cap)return {ok:false,reason:`経営資源が他の案件に割かれています（同時進行 ${used}/${cap}）。他の施策の結果が判明するまでお待ちください。`};
   return {ok:true,reason:''};
@@ -296,7 +298,9 @@ function installExitWrapper(){
   if(proto.__peExitPremiumInstalled)return true;
   const baseExit=proto.exitPEDeal;
   if(typeof baseExit!=='function')return false;
-  proto.exitPEDeal=function(dealID){
+  // #954: the premium valuation set below belongs to the same transaction as the base exit, so a failed
+  // save restores it with everything else.
+  proto.exitPEDeal=function(dealID){return this.runTransaction(()=>{
     const deal=findDeal(this.g,dealID);
     if(!deal)return baseExit.call(this,dealID);
     // Without this, EXIT silently discarded an in-flight initiative: the fee was already
@@ -317,7 +321,7 @@ function installExitWrapper(){
     const result=baseExit.call(this,dealID);
     if(result===false)deal.currentValuation=original;
     return result;
-  };
+  });};
   Object.defineProperty(proto,'__peExitPremiumInstalled',{value:true});
   return true;
 }

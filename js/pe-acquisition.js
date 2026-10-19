@@ -198,12 +198,14 @@ function install(){
   };
   // 保有中のポートフォリオ企業のExit（決済はjs/pe-fund.jsのウォーターフォールを通る）。
   proto.exitPEPortfolioCompany=function(fundID,dealID,options={}){
-    ds.ensure(this.g);
-    const deal=ops.exitPortfolioCompany(this.g,fundID,dealID,{...options,week:this.g.week});
-    if(!deal)return this.fail('この案件はExitできません。');
-    this.save();
-    this.emit();
-    return true;
+    // PE-PORTFOLIO-EXIT-ATOMICITY-001: the common transaction/checkpoint owns normalization,
+    // settlement and the final save/change, so a rejected save rolls the fund settlement back.
+    return this.runTransaction(()=>{
+      ds.ensure(this.g);
+      const deal=ops.exitPortfolioCompany(this.g,fundID,dealID,{...options,week:this.g.week});
+      if(!deal)return this.fail('この案件はExitできません。');
+      return true;
+    });
   };
 
   Object.defineProperty(proto,'__peAcquisitionInstalled',{value:true});

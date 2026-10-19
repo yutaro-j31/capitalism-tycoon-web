@@ -24,6 +24,12 @@ Do **not** read every project document for every task. Use progressive disclosur
 
 **Economic Engine / Phase 3+ shared policy (all AI agents):** For economic-writer audits, transaction integrity, ownership authority, staged Economic Core replacement, and role/Owner-boundary decisions, read [docs/economic-engine/AI_AGENT_SHARED_POLICY.md](docs/economic-engine/AI_AGENT_SHARED_POLICY.md) alongside the relevant approved roadmap/Phase contract. It defines scoped P3-4 coverage versus the broader 277-candidate inventory, mandatory stop conditions, and the required ordinary ChatGPT versus Work recommendation on every economic-task report. It does not authorize new P0/P1 fixes or merge actions.
 
+## Economic Engine development mode (Owner decision, 2026-10-16)
+
+For Economic Engine Phases 3–16, read [the implementation-first roadmap](docs/economic-engine/ECONOMIC_ENGINE_IMPLEMENTATION_FIRST_ROADMAP.md) before planning a slice. The Owner adopted two stages: **F — finish approved features with relevant focused safety tests and CI**, followed by **Q — freeze features and perform comprehensive cross-system audits, large seed/long-run simulations, performance and calibration**. Use the existing [detailed roadmap](docs/economic-engine/ECONOMIC_ENGINE_ROADMAP.md) and [dependency graph](docs/economic-engine/ECONOMIC_ENGINE_DEPENDENCY_GRAPH.md) for the unchanged financial design and phase prerequisites.
+
+This timing change does **not** exempt executable economic writers from targeted conservation, save-failure/rollback, IndexedDB hydration, relevant old-save, determinism, or browser checks; it does not authorize a premature source-of-truth cutover, Phase 4 Entry, or autonomous merge. Different AI agents use the same phase/slice state and handoff record; their model/vendor is irrelevant. Existing non-Economic-Engine tasks continue under normal validation-by-risk rules below.
+
 ## 2. Non-negotiable invariants
 
 Preserve these unless the user explicitly authorizes a dedicated migration and the repository rules are updated as part of that migration:

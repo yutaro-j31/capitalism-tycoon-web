@@ -13,24 +13,113 @@ on:
       - 'tests/stock-purchase-save-atomicity-webkit-test.js'
       - 'tests/stock-sale-save-atomicity-test.js'
       - 'tests/stock-sale-save-atomicity-webkit-test.js'
+      - 'tests/stock-split-save-atomicity-test.js'
+      - 'tests/stock-split-save-atomicity-webkit-test.js'
+      - 'js/completion.js'
+      - 'tests/decline-buyout-ownership-save-atomicity-test.js'
+      - 'tests/decline-buyout-ownership-save-atomicity-webkit-test.js'
+      - 'tests/execute-mbo-save-atomicity-test.js'
+      - 'tests/execute-mbo-save-atomicity-webkit-test.js'
+      - 'tests/earnings-confirm-read-only-test.js'
+      - 'tests/earnings-confirm-read-only-webkit-test.js'
+      - 'tests/ma-share-swap-ownership-ratios-test.js'
+      - 'tests/ma-share-swap-ownership-ratios-webkit-test.js'
+      - 'tests/competitor-stake-float-test.js'
+      - 'tests/competitor-stake-float-webkit-test.js'
+      - 'tests/activate-defense-ownership-ratios-test.js'
+      - 'tests/activate-defense-ownership-ratios-webkit-test.js'
+      - 'tests/ma-equity-raise-ownership-ratios-test.js'
+      - 'tests/ma-equity-raise-ownership-ratios-webkit-test.js'
+      - 'tests/ma-equity-raise-shadow-atomicity-test.js'
+      - 'tests/ma-equity-raise-shadow-atomicity-webkit-test.js'
+      - 'js/shareholder-activism.js'
+      - 'tests/shareholder-activism-accept-save-atomicity-test.js'
+      - 'tests/shareholder-activism-accept-save-atomicity-webkit-test.js'
+      - 'tests/shareholder-activism-split-integration-test.js'
+      - 'tests/stock-split-dividend-rescale-test.js'
+      - 'tests/stock-split-dividend-rescale-webkit-test.js'
+      - 'tests/stock-split-price-floor-test.js'
+      - 'tests/stock-split-price-floor-webkit-test.js'
+      - 'tests/fixtures/stock-split-atomicity.js'
       - 'tests/stock-split-price-history-test.js'
       - 'tests/stock-split-price-history-webkit-test.js'
       - 'js/pe-acquisition.js'
+      - 'js/pe-value-creation.js'
       - 'tests/vc-secondary-sale-save-atomicity-test.js'
       - 'tests/vc-secondary-sale-save-false-red-probe.js'
       - 'tests/vc-secondary-sale-save-atomicity-webkit-test.js'
+      - 'tests/found-new-company-save-atomicity-test.js'
+      - 'tests/found-new-company-save-atomicity-webkit-test.js'
       - 'tests/fixtures/vc-secondary-sale-atomicity.js'
       - 'tests/vc-follow-on-save-atomicity-test.js'
       - 'tests/vc-follow-on-save-atomicity-webkit-test.js'
       - 'tests/fixtures/vc-follow-on-atomicity.js'
       - 'tests/vc-initial-investment-save-atomicity-test.js'
       - 'tests/vc-initial-investment-save-atomicity-webkit-test.js'
+      - 'tests/angel-investment-save-atomicity-test.js'
+      - 'tests/angel-investment-save-atomicity-webkit-test.js'
+      - 'tests/make-subsidiary-save-atomicity-test.js'
+      - 'tests/make-subsidiary-save-atomicity-webkit-test.js'
+      - 'tests/subsidiary-quarter-close-test.js'
+      - 'tests/subsidiary-quarter-close-save-atomicity-test.js'
+      - 'tests/fixtures/subsidiary-quarter-close.js'
+      - 'tests/subsidiary-quarter-close-webkit-test.js'
+      - 'tests/listed-subsidiary-market-week-test.js'
+      - 'tests/listed-subsidiary-quarter-save-atomicity-test.js'
+      - 'tests/listed-subsidiary-quarter-close-webkit-test.js'
+      - 'tests/subsidiary-disposal-accounting-test.js'
+      - 'tests/subsidiary-disposal-save-atomicity-test.js'
+      - 'tests/fixtures/subsidiary-disposal.js'
+      - 'tests/subsidiary-disposal-webkit-test.js'
+      - 'tests/group-capital-allocation-cash-exact-test.js'
+      - 'tests/group-capital-allocation-save-atomicity-test.js'
+      - 'tests/fixtures/capital-allocation-exact.js'
+      - 'tests/group-capital-allocation-webkit-test.js'
+      - 'tests/refounding-ledger-test.js'
+      - 'tests/fixtures/refounding-ledger.js'
+      - 'tests/refounding-ledger-webkit-test.js'
       - 'tests/fixtures/vc-initial-investment-atomicity.js'
       - 'tests/pe-fund-acquisition-save-atomicity-test.js'
       - 'tests/pe-fund-acquisition-save-atomicity-webkit-test.js'
+      - 'tests/pe-portfolio-exit-save-atomicity-test.js'
+      - 'tests/pe-portfolio-exit-save-atomicity-webkit-test.js'
+      - 'tests/pe-create-deal-save-atomicity-test.js'
+      - 'tests/pe-create-deal-save-atomicity-webkit-test.js'
+      - 'tests/pe-exit-deal-save-atomicity-test.js'
+      - 'tests/pe-exit-deal-save-atomicity-webkit-test.js'
+      - 'tests/sold-company-pe-authority-test.js'
+      - 'tests/sold-company-pe-authority-webkit-test.js'
       - 'tests/fixtures/pe-fund-acquisition-atomicity.js'
       - 'tests/fixtures/pe-fund-acquisition-faults.js'
       - 'js/pe-network-sourcing.js'
+      - 'js/pe-ui-adapter.js'
+      - 'js/pe-portfolio-operations.js'
+      - 'js/completion.js'
+      - 'js/pe-fund.js'
+      - 'js/parity.js'
+      - 'js/shareholder-returns.js'
+      - 'js/play-runtime-compat.js'
+      - 'js/difficulty-scenario-balance.js'
+      - 'js/finance.js'
+      - 'js/ma-board-approval.js'
+      - 'js/ma-acquisition-financing.js'
+      - 'js/save*.js'
+      - 'js/subsidiary-*.js'
+      - 'js/listed-subsidiary-*.js'
+      - 'js/player-crisis-actions.js'
+      - 'js/player-crisis-turnaround-fund.js'
+      - 'js/group-restructuring-candidates.js'
+      - 'js/group-restructuring-progress.js'
+      - 'js/group-capital-allocation-execution.js'
+      - 'js/internal-venture-business.js'
+      - 'js/pe-deal-supply.js'
+      - 'js/pe-network.js'
+      - 'js/personal-stock-margin.js'
+      - 'js/capital-allocation-score.js'
+      - 'js/ma-integration.js'
+      - 'js/pmi-100-day-plan.js'
+      - 'js/pmi-long-run-guard.js'
+      - 'js/group-holding-governance.js'
       - 'tests/parent-ipo-save-atomicity-test.js'
       - 'tests/parent-ipo-save-atomicity-webkit-test.js'
       - 'tests/fixtures/parent-ipo-atomicity.js'
@@ -56,24 +145,102 @@ on:
       - 'tests/stock-purchase-save-atomicity-webkit-test.js'
       - 'tests/stock-sale-save-atomicity-test.js'
       - 'tests/stock-sale-save-atomicity-webkit-test.js'
+      - 'tests/stock-split-save-atomicity-test.js'
+      - 'tests/stock-split-save-atomicity-webkit-test.js'
+      - 'js/completion.js'
+      - 'tests/decline-buyout-ownership-save-atomicity-test.js'
+      - 'tests/decline-buyout-ownership-save-atomicity-webkit-test.js'
+      - 'tests/execute-mbo-save-atomicity-test.js'
+      - 'tests/execute-mbo-save-atomicity-webkit-test.js'
+      - 'tests/earnings-confirm-read-only-test.js'
+      - 'tests/earnings-confirm-read-only-webkit-test.js'
+      - 'tests/ma-share-swap-ownership-ratios-test.js'
+      - 'tests/ma-share-swap-ownership-ratios-webkit-test.js'
+      - 'tests/competitor-stake-float-test.js'
+      - 'tests/competitor-stake-float-webkit-test.js'
+      - 'tests/activate-defense-ownership-ratios-test.js'
+      - 'tests/activate-defense-ownership-ratios-webkit-test.js'
+      - 'tests/ma-equity-raise-ownership-ratios-test.js'
+      - 'tests/ma-equity-raise-ownership-ratios-webkit-test.js'
+      - 'tests/ma-equity-raise-shadow-atomicity-test.js'
+      - 'tests/ma-equity-raise-shadow-atomicity-webkit-test.js'
+      - 'js/shareholder-activism.js'
+      - 'tests/shareholder-activism-accept-save-atomicity-test.js'
+      - 'tests/shareholder-activism-accept-save-atomicity-webkit-test.js'
+      - 'tests/shareholder-activism-split-integration-test.js'
+      - 'tests/stock-split-dividend-rescale-test.js'
+      - 'tests/stock-split-dividend-rescale-webkit-test.js'
+      - 'tests/stock-split-price-floor-test.js'
+      - 'tests/stock-split-price-floor-webkit-test.js'
+      - 'tests/fixtures/stock-split-atomicity.js'
       - 'tests/stock-split-price-history-test.js'
       - 'tests/stock-split-price-history-webkit-test.js'
       - 'js/pe-acquisition.js'
+      - 'js/pe-value-creation.js'
       - 'tests/vc-secondary-sale-save-atomicity-test.js'
       - 'tests/vc-secondary-sale-save-false-red-probe.js'
       - 'tests/vc-secondary-sale-save-atomicity-webkit-test.js'
+      - 'tests/found-new-company-save-atomicity-test.js'
+      - 'tests/found-new-company-save-atomicity-webkit-test.js'
       - 'tests/fixtures/vc-secondary-sale-atomicity.js'
       - 'tests/vc-follow-on-save-atomicity-test.js'
       - 'tests/vc-follow-on-save-atomicity-webkit-test.js'
       - 'tests/fixtures/vc-follow-on-atomicity.js'
       - 'tests/vc-initial-investment-save-atomicity-test.js'
       - 'tests/vc-initial-investment-save-atomicity-webkit-test.js'
+      - 'tests/angel-investment-save-atomicity-test.js'
+      - 'tests/angel-investment-save-atomicity-webkit-test.js'
+      - 'tests/make-subsidiary-save-atomicity-test.js'
+      - 'tests/make-subsidiary-save-atomicity-webkit-test.js'
+      - 'tests/subsidiary-quarter-close-test.js'
+      - 'tests/subsidiary-quarter-close-save-atomicity-test.js'
+      - 'tests/fixtures/subsidiary-quarter-close.js'
+      - 'tests/subsidiary-quarter-close-webkit-test.js'
+      - 'tests/listed-subsidiary-market-week-test.js'
+      - 'tests/listed-subsidiary-quarter-save-atomicity-test.js'
+      - 'tests/listed-subsidiary-quarter-close-webkit-test.js'
+      - 'tests/subsidiary-disposal-accounting-test.js'
+      - 'tests/subsidiary-disposal-save-atomicity-test.js'
+      - 'tests/fixtures/subsidiary-disposal.js'
+      - 'tests/subsidiary-disposal-webkit-test.js'
+      - 'tests/group-capital-allocation-cash-exact-test.js'
+      - 'tests/group-capital-allocation-save-atomicity-test.js'
+      - 'tests/fixtures/capital-allocation-exact.js'
+      - 'tests/group-capital-allocation-webkit-test.js'
+      - 'tests/refounding-ledger-test.js'
+      - 'tests/fixtures/refounding-ledger.js'
+      - 'tests/refounding-ledger-webkit-test.js'
       - 'tests/fixtures/vc-initial-investment-atomicity.js'
       - 'tests/pe-fund-acquisition-save-atomicity-test.js'
       - 'tests/pe-fund-acquisition-save-atomicity-webkit-test.js'
+      - 'tests/pe-portfolio-exit-save-atomicity-test.js'
+      - 'tests/pe-portfolio-exit-save-atomicity-webkit-test.js'
+      - 'tests/pe-create-deal-save-atomicity-test.js'
+      - 'tests/pe-create-deal-save-atomicity-webkit-test.js'
+      - 'tests/pe-exit-deal-save-atomicity-test.js'
+      - 'tests/pe-exit-deal-save-atomicity-webkit-test.js'
+      - 'tests/sold-company-pe-authority-test.js'
+      - 'tests/sold-company-pe-authority-webkit-test.js'
       - 'tests/fixtures/pe-fund-acquisition-atomicity.js'
       - 'tests/fixtures/pe-fund-acquisition-faults.js'
       - 'js/pe-network-sourcing.js'
+      - 'js/pe-ui-adapter.js'
+      - 'js/pe-portfolio-operations.js'
+      - 'js/completion.js'
+      - 'js/pe-fund.js'
+      - 'js/parity.js'
+      - 'js/shareholder-returns.js'
+      - 'js/play-runtime-compat.js'
+      - 'js/difficulty-scenario-balance.js'
+      - 'js/app.js'
+      - 'js/listed-subsidiary-*.js'
+      - 'js/player-crisis-actions.js'
+      - 'js/player-crisis-turnaround-fund.js'
+      - 'js/internal-venture-business.js'
+      - 'js/pe-deal-supply.js'
+      - 'js/pe-network.js'
+      - 'js/personal-stock-margin.js'
+      - 'js/capital-allocation-score.js'
       - 'tests/parent-ipo-save-atomicity-test.js'
       - 'tests/parent-ipo-save-atomicity-webkit-test.js'
       - 'tests/fixtures/parent-ipo-atomicity.js'
@@ -167,7 +334,6 @@ jobs:
           npm run test:static
           npm run test:css
           npm run test:progression-balance
-          npm run test:strategy-balance
           node tests/v1-progression-gate-test.js
           node tests/executive-secretary-test.js
 
@@ -190,10 +356,6 @@ jobs:
           node tests/stock-split-price-history-webkit-test.js
           node tests/parent-ipo-save-atomicity-webkit-test.js
           node tests/ma-subsidiary-sale-save-atomicity-webkit-test.js
-          node tests/pe-fund-acquisition-save-atomicity-webkit-test.js
-          node tests/vc-secondary-sale-save-atomicity-webkit-test.js
-          node tests/vc-follow-on-save-atomicity-webkit-test.js
-          node tests/vc-initial-investment-save-atomicity-webkit-test.js
           node tests/ma-integration-webkit-test.js
           node tests/ceo-dashboard-webkit-test.js
 
@@ -212,12 +374,39 @@ jobs:
           retention-days: 30
 
 
+  comprehensive-ma-balance:
+    # Phase 1B: the strategy balance matrix moved out of comprehensive-ma's sequential Node step so
+    # it runs in parallel with the M&A suites and WebKit. Same events, Node 22 runtime, install
+    # step and cancellation as comprehensive-ma (its own per-ref group, so the two jobs never
+    # cancel each other). Measured 10.4-17.9 min inside comprehensive-ma on CI; 30 min bounds it.
+    if: >-
+      github.event_name == 'push' ||
+      github.event_name == 'schedule' ||
+      (github.event_name == 'workflow_dispatch' && inputs.mode == 'comprehensive')
+    concurrency:
+      group: ma-acquisition-financing-balance-${{ github.ref }}
+      cancel-in-progress: true
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Install dependencies
+        run: npm ci || npm install
+
+      - name: Strategy balance matrix
+        run: npm run test:strategy-balance
+
   deal-room:
     if: >-
       github.event_name == 'pull_request' ||
       (github.event_name == 'workflow_dispatch' && inputs.mode == 'deal-room')
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 25
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -249,10 +438,6 @@ jobs:
       - run: node tests/stock-split-price-history-webkit-test.js
       - run: node tests/parent-ipo-save-atomicity-webkit-test.js
       - run: node tests/ma-subsidiary-sale-save-atomicity-webkit-test.js
-      - run: node tests/pe-fund-acquisition-save-atomicity-webkit-test.js
-      - run: node tests/vc-secondary-sale-save-atomicity-webkit-test.js
-      - run: node tests/vc-follow-on-save-atomicity-webkit-test.js
-      - run: node tests/vc-initial-investment-save-atomicity-webkit-test.js
       - run: node tests/ceo-dashboard-webkit-test.js
       - name: Upload M&A Deal Room WebKit artifact
         if: always()
@@ -268,3 +453,227 @@ jobs:
           name: ceo-dashboard-webkit-pr
           path: artifacts/ceo-dashboard-webkit
           if-no-files-found: error
+
+  stock-split-atomicity:
+    # Keep the new regression independent of the existing M&A job's budget.
+    # No event guard: exercise it on PR, main, schedule and both manual modes.
+    # Same cancellation as the PE/VC family jobs: superseded main push / schedule / comprehensive
+    # runs cancel it per ref like comprehensive-ma; PR and deal-room runs get a per-run group, so
+    # they are never cancelled or serialized.
+    concurrency:
+      group: ma-acquisition-financing-stock-split-atomicity-${{ (github.event_name == 'pull_request' || inputs.mode == 'deal-room') && github.run_id || github.ref }}
+      cancel-in-progress: true
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      MA_DEAL_ROOM_ARTIFACT_DIR: artifacts/stock-split-atomicity-webkit
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - name: Install pinned Playwright runtime
+        run: npm install --no-save --no-package-lock playwright@1.61.0
+      - name: Install WebKit browser and system dependencies
+        run: npx playwright install --with-deps webkit
+      - name: Stock split atomicity in real iPhone WebKit
+        run: node tests/stock-split-save-atomicity-webkit-test.js
+      - name: MBO atomicity in real iPhone WebKit
+        run: node tests/execute-mbo-save-atomicity-webkit-test.js
+      - name: Hostile buyout decline atomicity in real iPhone WebKit
+        run: node tests/decline-buyout-ownership-save-atomicity-webkit-test.js
+      - name: Earnings confirm read-only in real iPhone WebKit
+        run: node tests/earnings-confirm-read-only-webkit-test.js
+      - name: Share swap ownership ratios (D3) in real iPhone WebKit
+        run: node tests/ma-share-swap-ownership-ratios-webkit-test.js
+      - name: Competitor stake from the external float (D4) in real iPhone WebKit
+        run: node tests/competitor-stake-float-webkit-test.js
+      - name: M&A equity raise ownership ratios in real iPhone WebKit
+        run: node tests/ma-equity-raise-ownership-ratios-webkit-test.js
+      - name: Takeover defense ownership ratios (W-DEFENSE) in real iPhone WebKit
+        run: node tests/activate-defense-ownership-ratios-webkit-test.js
+      - name: M&A equity raise shadow-state atomicity in real iPhone WebKit
+        run: node tests/ma-equity-raise-shadow-atomicity-webkit-test.js
+      - name: Activist proposal acceptance atomicity in real iPhone WebKit
+        run: node tests/shareholder-activism-accept-save-atomicity-webkit-test.js
+      - name: Stock split dividend rescale in real iPhone WebKit
+        run: node tests/stock-split-dividend-rescale-webkit-test.js
+      - name: Stock split price floor in real iPhone WebKit
+        run: node tests/stock-split-price-floor-webkit-test.js
+      - name: Retain stock split WebKit evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: stock-split-atomicity-webkit-${{ github.sha }}
+          path: artifacts/stock-split-atomicity-webkit
+          if-no-files-found: error
+          retention-days: 30
+
+  pe-acquisition-atomicity:
+    # PE fund/co-invest acquisition rollback and real-IndexedDB persistence, moved from deal-room and comprehensive-ma.
+    # No event guard: PR, main push, schedule and both manual modes run it (Phase 1A split).
+    # Keep the runtime each event used before the split: Node 20 for the PR / deal-room gate,
+    # Node 22 for main push, schedule and the comprehensive manual mode.
+    # Same cancellation as before the split: superseded main push / schedule / comprehensive runs
+    # cancel this job per ref like comprehensive-ma; PR and deal-room runs get a per-run group, so
+    # they are never cancelled or serialized (deal-room never had concurrency).
+    concurrency:
+      group: ma-acquisition-financing-pe-acquisition-atomicity-${{ (github.event_name == 'pull_request' || inputs.mode == 'deal-room') && github.run_id || github.ref }}
+      cancel-in-progress: true
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      MA_DEAL_ROOM_ARTIFACT_DIR: artifacts/pe-acquisition-atomicity-webkit
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ (github.event_name == 'pull_request' || inputs.mode == 'deal-room') && '20' || '22' }}
+      - name: Install pinned Playwright runtime
+        run: npm install --no-save --no-package-lock playwright@1.61.0
+      - name: Install WebKit browser and system dependencies
+        run: npx playwright install --with-deps webkit
+      - name: PE fund acquisition atomicity in real iPhone WebKit
+        run: |
+          node tests/pe-fund-acquisition-save-atomicity-webkit-test.js
+          node tests/pe-portfolio-exit-save-atomicity-webkit-test.js
+          node tests/pe-create-deal-save-atomicity-webkit-test.js
+          node tests/pe-exit-deal-save-atomicity-webkit-test.js
+          node tests/sold-company-pe-authority-webkit-test.js
+      - name: Retain pe-acquisition-atomicity WebKit evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: pe-acquisition-atomicity-webkit-${{ github.sha }}
+          path: artifacts/pe-acquisition-atomicity-webkit
+          if-no-files-found: error
+          retention-days: 30
+
+  vc-secondary-atomicity:
+    # VC secondary sale rollback and real-IndexedDB persistence, moved from deal-room and comprehensive-ma.
+    # No event guard: PR, main push, schedule and both manual modes run it (Phase 1A split).
+    # Keep the runtime each event used before the split: Node 20 for the PR / deal-room gate,
+    # Node 22 for main push, schedule and the comprehensive manual mode.
+    # Same cancellation as before the split: superseded main push / schedule / comprehensive runs
+    # cancel this job per ref like comprehensive-ma; PR and deal-room runs get a per-run group, so
+    # they are never cancelled or serialized (deal-room never had concurrency).
+    concurrency:
+      group: ma-acquisition-financing-vc-secondary-atomicity-${{ (github.event_name == 'pull_request' || inputs.mode == 'deal-room') && github.run_id || github.ref }}
+      cancel-in-progress: true
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      MA_DEAL_ROOM_ARTIFACT_DIR: artifacts/vc-secondary-atomicity-webkit
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ (github.event_name == 'pull_request' || inputs.mode == 'deal-room') && '20' || '22' }}
+      - name: Install pinned Playwright runtime
+        run: npm install --no-save --no-package-lock playwright@1.61.0
+      - name: Install WebKit browser and system dependencies
+        run: npx playwright install --with-deps webkit
+      - name: VC secondary sale atomicity in real iPhone WebKit
+        run: |
+          node tests/vc-secondary-sale-save-atomicity-webkit-test.js
+          node tests/found-new-company-save-atomicity-webkit-test.js
+      - name: VC / M&A subsidiary quarter close (#971) in real iPhone WebKit
+        run: |
+          node tests/subsidiary-quarter-close-webkit-test.js
+      - name: Listed subsidiary quarter close, render and reload (#966) in real iPhone WebKit
+        run: |
+          node tests/listed-subsidiary-quarter-close-webkit-test.js
+      - name: Group-restructuring subsidiary disposal accounting (#975) in real iPhone WebKit
+        run: |
+          node tests/subsidiary-disposal-webkit-test.js
+      - name: Group capital allocation exact cash and book (#978) in real iPhone WebKit
+        run: |
+          node tests/group-capital-allocation-webkit-test.js
+      - name: Refounding opens the new company's book at the contribution (#968) in real iPhone WebKit
+        run: |
+          node tests/refounding-ledger-webkit-test.js
+      - name: Retain vc-secondary-atomicity WebKit evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: vc-secondary-atomicity-webkit-${{ github.sha }}
+          path: artifacts/vc-secondary-atomicity-webkit
+          if-no-files-found: error
+          retention-days: 30
+
+  vc-funding-atomicity:
+    # VC follow-on then initial investment rollback and persistence, in their original order, moved from deal-room and comprehensive-ma.
+    # No event guard: PR, main push, schedule and both manual modes run it (Phase 1A split).
+    # Keep the runtime each event used before the split: Node 20 for the PR / deal-room gate,
+    # Node 22 for main push, schedule and the comprehensive manual mode.
+    # Same cancellation as before the split: superseded main push / schedule / comprehensive runs
+    # cancel this job per ref like comprehensive-ma; PR and deal-room runs get a per-run group, so
+    # they are never cancelled or serialized (deal-room never had concurrency).
+    concurrency:
+      group: ma-acquisition-financing-vc-funding-atomicity-${{ (github.event_name == 'pull_request' || inputs.mode == 'deal-room') && github.run_id || github.ref }}
+      cancel-in-progress: true
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      MA_DEAL_ROOM_ARTIFACT_DIR: artifacts/vc-funding-atomicity-webkit
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ (github.event_name == 'pull_request' || inputs.mode == 'deal-room') && '20' || '22' }}
+      - name: Install pinned Playwright runtime
+        run: npm install --no-save --no-package-lock playwright@1.61.0
+      - name: Install WebKit browser and system dependencies
+        run: npx playwright install --with-deps webkit
+      - name: VC follow-on and initial investment atomicity in real iPhone WebKit
+        run: |
+          node tests/vc-follow-on-save-atomicity-webkit-test.js
+          node tests/vc-initial-investment-save-atomicity-webkit-test.js
+          node tests/angel-investment-save-atomicity-webkit-test.js
+          node tests/make-subsidiary-save-atomicity-webkit-test.js
+      - name: Retain vc-funding-atomicity WebKit evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: vc-funding-atomicity-webkit-${{ github.sha }}
+          path: artifacts/vc-funding-atomicity-webkit
+          if-no-files-found: error
+          retention-days: 30
+
+  ma-economic-gate:
+    # One verdict for the split M&A gate. Every job that applies to this event must succeed;
+    # a job that does not apply must be skipped. Failure, cancellation or an unexpected skip of
+    # any job therefore fails this check. Branch protection is not configured, so this is a
+    # reporting gate, not a merge block on its own.
+    if: always()
+    needs: [comprehensive-ma, comprehensive-ma-balance, deal-room, stock-split-atomicity, pe-acquisition-atomicity, vc-secondary-atomicity, vc-funding-atomicity]
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Require every applicable M&A job to succeed
+        env:
+          NEEDS_JSON: ${{ toJSON(needs) }}
+          EVENT_NAME: ${{ github.event_name }}
+          DISPATCH_MODE: ${{ inputs.mode }}
+        run: |
+          node - <<'NODE'
+          const needs = JSON.parse(process.env.NEEDS_JSON);
+          const event = process.env.EVENT_NAME, mode = process.env.DISPATCH_MODE || '';
+          const comprehensive = event === 'push' || event === 'schedule' || (event === 'workflow_dispatch' && mode === 'comprehensive');
+          const dealRoom = event === 'pull_request' || (event === 'workflow_dispatch' && mode === 'deal-room');
+          const applies = {
+            'comprehensive-ma': comprehensive, 'comprehensive-ma-balance': comprehensive, 'deal-room': dealRoom, 'stock-split-atomicity': true,
+            'pe-acquisition-atomicity': true, 'vc-secondary-atomicity': true, 'vc-funding-atomicity': true
+          };
+          const problems = [];
+          for (const [job, required] of Object.entries(applies)) {
+            const result = needs[job]?.result ?? 'missing';
+            const expected = required ? 'success' : 'skipped';
+            console.log(`${job}: ${result} (expected ${expected})`);
+            if (result !== expected) problems.push(`${job} ${result} != ${expected}`);
+          }
+          const unknown = Object.keys(needs).filter(job => !(job in applies));
+          if (unknown.length) problems.push(`unclassified needs: ${unknown.join(', ')}`);
+          if (problems.length) { console.error(`M&A economic gate FAILED for ${event}${mode ? '/' + mode : ''}: ${problems.join('; ')}`); process.exit(1); }
+          console.log(`M&A economic gate PASS for ${event}${mode ? '/' + mode : ''}`);
+          NODE

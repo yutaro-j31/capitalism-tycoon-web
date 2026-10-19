@@ -124,6 +124,10 @@ async function successful(s) {
   assert.equal(state.maDealRooms[0].status, 'acquired');
   for (const key of ['companyCash', 'companyDebt', 'personalCash', 'personalDebt', 'founderShares', 'treasuryBuybackShares'])
     assert.equal(state[key], before.state[key], key);
+  // D3: the founder is diluted by the issued shares and the ratios still sum to 1 (outstanding = issued − treasury).
+  const outstanding = state.sharesOut - state.treasuryBuybackShares;
+  assert.ok(Math.abs(state.founderOwnershipRatio - state.founderShares / outstanding) < 1e-12, 'founder ratio follows the diluted share count');
+  assert.ok(Math.abs(state.founderOwnershipRatio + state.competitorOwnedRatio + state.externalShareholderRatio - 1) < 1e-12, 'ownership ratios sum to 1');
   assert.equal(state.finance.transactions.filter(t => t.sourceType === 'acquireTargetShareSwap').length, 1);
   assert.equal(state.finance.transactions.filter(t => t.sourceType === 'shareSwapCapital').length, 1);
   // validate caches derived statements: check a clone without changing the saved/live comparison.
