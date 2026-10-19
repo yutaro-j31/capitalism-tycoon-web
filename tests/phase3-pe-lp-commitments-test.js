@@ -37,6 +37,23 @@ for(const at of ['root','fund','array','row','amount']){
  const x=state(),f=x.peFirm.funds[0],lp=f.lps[0],target=at==='root'?x:at==='fund'?f:at==='array'?f.lps:lp,key=at==='root'?'peFirm':at==='fund'?'lps':at==='array'?'0':at==='row'?'lpTypeID':'committedAmount';
  Object.defineProperty(target,key,{get(){reads++;throw Error('getter');}});assert.doesNotThrow(()=>project(x));
 }assert.equal(reads,0);
+// Hidden selected record fields cannot establish a persisted LP commitment.
+for(const key of ['lpTypeID','committedAmount']){
+ const x=state(),lp=x.peFirm.funds[0].lps[0];
+ Object.defineProperty(lp,key,{value:lp[key],enumerable:false});
+ for(const r of [project(x),project(copy(x))]){
+  assert.equal(r.funds[0].observedCommitmentTotal,null,key);
+  assert.equal(r.funds[0].commitmentTotalMatchesDeclaredLP,null,key);
+  assert(r.commitments.some(c=>c.status==='unresolved'),key);
+ }
+ assert(project(x).issues.some(i=>i.code==='INPUT_INVALID'&&i.path==='peFirm.funds[0].lps[0].'+key));
+}
+for(const location of ['list','index']){
+ const x=state(),f=x.peFirm.funds[0],obj=location==='list'?f:f.lps,key=location==='list'?'lps':'0';
+ Object.defineProperty(obj,key,{value:obj[key],enumerable:false});
+ const r=project(x);assert.equal(r.funds[0].observedCommitmentTotal,null);
+ assert(r.issues.some(i=>i.code==='INPUT_INVALID'));
+}
 {class Exotic{};const x=state();x.peFirm.funds[0].lps[0]=Object.assign(new Exotic(),x.peFirm.funds[0].lps[0]);assert.equal(project(x).funds[0].observedCommitmentTotal,null);}
 {const x=state();x.peFirm.funds[0].lps[0].lpTypeID=x;assert.equal(project(x).funds[0].observedCommitmentTotal,null,'selected cycle is invalid, not traversed');}
 {const x=state();x.peFirm.funds[0].lps=Array(101).fill({lpTypeID:'a',committedAmount:0});assert(project(x).issues.some(i=>i.code==='INPUT_LIMIT_EXCEEDED'));}
