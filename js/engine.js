@@ -1489,7 +1489,25 @@ class TycoonEngine extends EventTarget {
     if(sources.length!==1||!r||!['company','personal'].includes(account))return false;
     const cap=account==='company'?'Company':'Personal',pending=r[`contributed${cap}`];
     if(!Number.isFinite(pending)||pending<0)return false;
-    if(pending===0)return true; // Older zero-funded rounds need no invented receipt.
+    if(pending===0){
+      const history=this.g.startupFundingHistory?.[startupID];
+      if(history!=null&&!Array.isArray(history))return false;
+      const prefix=typeof r.id==='string'&&r.id?`${r.id}-${account}-`:null;
+      const other=account==='company'?'personal':'company';
+      const otherPrefix=typeof r.id==='string'&&r.id?`${r.id}-${other}-`:null;
+      return !history?.some(row=>{
+        if(!row||typeof row!=='object')return false;
+        if(prefix&&typeof row.id==='string'&&row.id.startsWith(prefix))return true;
+        if(otherPrefix&&typeof row.id==='string'&&row.id.startsWith(otherPrefix))return false;
+        // Damaged receipt IDs must not erase same-round paid ownership.
+        // Ambiguous account evidence fails closed; prior-round evidence is excluded.
+        return row.eventType==='participated'&&
+          Number.isSafeInteger(r.openedWeek)&&Number.isSafeInteger(r.closesWeek)&&
+          Number.isSafeInteger(row.week)&&row.week>=r.openedWeek&&row.week<r.closesWeek&&
+          row.stage===r.round&&row.preMoneyValuation===r.preMoneyValuation&&
+          row.targetRaise===r.targetRaise&&row.postMoneyValuation===r.postMoneyValuation;
+      });
+    }
     const history=this.g.startupFundingHistory?.[startupID],cost=s[`totalInvested${cap}`];
     if(typeof r.id!=='string'||!r.id||!Number.isSafeInteger(r.openedWeek)||r.openedWeek<1||
       !Number.isSafeInteger(r.closesWeek)||r.closesWeek<=r.openedWeek||!Array.isArray(history)||
