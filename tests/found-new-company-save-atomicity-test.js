@@ -264,6 +264,49 @@ const h=makeTransactionFaultCase({name:'company refounding',fixture,command:refo
   assert.deepEqual(snapshot(s.game),before,'cumulative overage rejection never charges cash');
   assert.equal(refound(s),true,'actual supported payment remains retainable');
  }
+ // A malformed v9 snapshot with zero pending but a paid same-round receipt must
+ // not erase the investor's shares during refounding or weekly settlement.
+ {const s=await fixture(),st=s.game.g.startups.find(x=>x.ownedPersonal>0);
+  st.fundingOpen=true;assert.equal(s.game.openStartupFundingRound(st),true);
+  assert.equal(s.game.participateStartupFundingRound(st.id,1_000_000,'personal'),true);
+  const receipt=s.game.g.startupFundingHistory[st.id].find(row=>row.eventType==='participated');
+  assert.equal(receipt.amount,1_000_000);
+  st.activeFundingRound.contributedPersonal=0;
+  const root=s.game.g,before=snapshot(s.game),mirror=s.backend.readSync(s.key);
+  assert.equal(s.game.hasStartupFundingRoundPaymentEvidence(st.id,'personal'),false);
+  assert.equal(refound(s),false,'zero pending cannot erase a paid subscription');
+  assert.equal(s.game.g,root);assert.deepEqual(snapshot(s.game),before);
+  await s.backend.flush();assert.equal(s.backend.readSync(s.key),mirror);
+  s.game.g.week=st.activeFundingRound.closesWeek;
+  const due=snapshot(s.game);
+  assert.equal(s.game.closeStartupFundingRound(st),false,'direct close cannot erase paid equity');
+  assert.deepEqual(snapshot(s.game),due);
+  const retained=JSON.stringify(st.activeFundingRound),equity=st.ownedPersonal;
+  s.game.updateStartups();
+  assert.equal(JSON.stringify(st.activeFundingRound),retained,'weekly close retains disputed evidence');
+  assert.equal(st.ownedPersonal,equity,'weekly close preserves beneficial ownership');
+ }
+ // Damaged receipt IDs must not turn a paid round into an unfunded round.
+ {const s=await fixture(),st=s.game.g.startups.find(x=>x.ownedPersonal>0);
+  st.fundingOpen=true;assert.equal(s.game.openStartupFundingRound(st),true);
+  assert.equal(s.game.participateStartupFundingRound(st.id,1_000_000,'personal'),true);
+  const receipt=s.game.g.startupFundingHistory[st.id].find(row=>row.eventType==='participated');
+  assert.ok(receipt);receipt.id='malformed-current-receipt-id';
+  st.activeFundingRound.contributedPersonal=0;
+  const before=snapshot(s.game),root=s.game.g;
+  assert.equal(s.game.hasStartupFundingRoundPaymentEvidence(st.id,'personal'),false);
+  assert.equal(refound(s),false,'corrupt receipt ID cannot erase paid equity');
+  assert.equal(s.game.g,root);assert.deepEqual(snapshot(s.game),before);
+  s.game.g.week=st.activeFundingRound.closesWeek;
+  const due=snapshot(s.game);
+  assert.equal(s.game.closeStartupFundingRound(st),false,'direct close rejects corrupt receipt ID');
+  assert.deepEqual(snapshot(s.game),due);
+ }
+ // Unfunded rounds without any paid receipt remain valid.
+ {const s=await fixture(),st=s.game.g.startups.find(x=>x.ownedPersonal>0);
+  st.fundingOpen=true;assert.equal(s.game.openStartupFundingRound(st),true);
+  assert.equal(s.game.hasStartupFundingRoundPaymentEvidence(st.id,'personal'),true);
+  assert.equal(refound(s),true,'zero-funded legacy round remains retainable');}
  const paidHarness=makeTransactionFaultCase({name:'paid-personal-refounding',
   fixture:async()=>{const s=await fixture(),st=s.game.g.startups.find(x=>x.ownedPersonal>0);
    st.fundingOpen=true;assert.equal(s.game.openStartupFundingRound(st),true);
