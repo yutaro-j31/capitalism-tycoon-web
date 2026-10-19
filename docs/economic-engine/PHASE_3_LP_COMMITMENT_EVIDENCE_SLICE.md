@@ -2,8 +2,9 @@
 
 `phase3PeFundInterests.projectLPCommitments(rawState)` observes `peFirm.funds[].lps`
 without invoking ensure, normalization, fundraising previews, settlement or saves.
-Depends on #1026 and adopted #998/#995 contracts; new explicit Owner merge approval
-is required. This is not full P3-7, Phase3 F Exit or a Phase13 authority cutover.
+Depends on #1026 and adopted #998/#995 contracts. Merge remains conditional on the
+applicable Owner grant, dependency gates, final-HEAD CI and independent review.
+This is not full P3-7, Phase3 F Exit or a Phase13 authority cutover.
 
 Fund IDs and LP type labels locate source observations, not legal LP/person IDs.
 `committedAmount` is a commitment only. Even when its exact Number sum matches
@@ -16,6 +17,10 @@ containers, unknown lifecycle, missing legacy LP arrays and invalid capital tota
 leave reconciliation unproven. Explicit empty LP arrays with positive declared LP
 capital report a mismatch. Source numbers are never clamped, normalized or repaired;
 floating discrepancies remain observable. Completeness/wealth/command flags are false.
+
+Current dependency integration uses the shared full Reason shape and cent-safe
+monetary predicate. The aggregate commitment total must also fit that envelope;
+individually safe amounts cannot produce an unsafe monetary observation.
 
 The existing GP/portfolio API and shared economic-read-model are unchanged. This
 opt-in observation is not a canonical snapshot token, named paid-LP allocation or

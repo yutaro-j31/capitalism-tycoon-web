@@ -6,6 +6,13 @@ const fund=()=>({id:'f1',size:100,gpCommit:2,lpContributed:98,status:'investing'
 const state=()=>({saveVersion:9,companyCash:12,personalCash:34,simulationRng:{seed:17},peFirm:{funds:[fund()]}});
 const freeze=x=>{if(x&&typeof x==='object'){Object.values(x).forEach(freeze);Object.freeze(x);}return x;};
 const s=state(),before=JSON.stringify(s),old=projectPEFundInterests(s),out=project(s);
+{
+ const x=state(),f=x.peFirm.funds[0],limit=Number.MAX_SAFE_INTEGER/100;
+ Object.assign(f,{size:limit,gpCommit:0,lpContributed:limit,lps:[{lpTypeID:'a',committedAmount:limit},{lpTypeID:'b',committedAmount:limit}]});
+ const r=project(x);assert.equal(r.funds[0].observedCommitmentTotal,null,'safe rows cannot create an unsafe monetary sum');
+ assert(r.issues.some(i=>i.code==='AMOUNT_UNKNOWN'&&i.path==='peFirm.funds[0].lps'));
+ assert(r.issues.every(i=>typeof i.message==='string'&&i.evidenceRefs.includes(i.path)));
+}
 assert.equal(out.funds[0].observedCommitmentTotal,98);assert.equal(out.funds[0].commitmentTotalMatchesDeclaredLP,true);
 assert.deepEqual(out.commitments.map(r=>r.lpTypeID),['type-a','type-b']);
 for(const r of out.commitments){assert.equal(r.kind,'commitment-only');for(const k of ['paidCapital','legalLPId','beneficialOwnerId','economicFraction','votingFraction','wealthValue'])assert.equal(r[k],null);}
