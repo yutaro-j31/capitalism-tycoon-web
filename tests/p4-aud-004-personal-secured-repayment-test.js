@@ -8,9 +8,9 @@ const e=new engineModule.TycoonEngine(),g=e.g;
 g.configured=true;g.week=10;g.companyCash=100_000_000;g.companyDebt=0;
 g.personalCash=80_000_000;g.personalDebt=0;
 g.properties=[
- {id:'P4-004-A',name:'Personal Income Tower',owner:'personal',marketValue:300_000_000,purchasePrice:300_000_000,
+ {id:'P4-004-A',name:'Personal Income Tower',owner:'personal',value:300_000_000,marketValue:300_000_000,purchasePrice:300_000_000,
   realEstate:{monthlyRent:4_000_000,occupancyRate:1,expenseRatio:.2}},
- {id:'P4-004-B',name:'Second Income Tower',owner:'personal',marketValue:250_000_000,purchasePrice:250_000_000,
+ {id:'P4-004-B',name:'Second Income Tower',owner:'personal',value:250_000_000,marketValue:250_000_000,purchasePrice:250_000_000,
   realEstate:{monthlyRent:3_000_000,occupancyRate:1,expenseRatio:.2}}
 ];
 g.finance=modules.finance.defaultFinanceState(g);
