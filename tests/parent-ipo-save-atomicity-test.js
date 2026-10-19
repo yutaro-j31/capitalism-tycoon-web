@@ -4,6 +4,9 @@ const vm = require('node:vm');
 const { loadGame } = require('./harness');
 const { prepareIPO, economic } = require('./fixtures/parent-ipo-atomicity');
 const clone = value => JSON.parse(JSON.stringify(value));
+// P3-4 pre-cutover observation only: existing writer remains the sole authority.
+const ownership = (modules, state) =>
+  clone(modules.economicReadModel.ownershipReconciliation(state));
 function randomFor() {
   let seed = 0x19be5702;
   return () => { seed = (Math.imul(seed, 1664525) + 1013904223) >>> 0; return seed / 4294967296; };
@@ -47,11 +50,17 @@ async function setup() {
 }
 async function assertLoaded(s, expected) {
   const normalized = new s.engineModule.TycoonEngine(clone(expected));
-  assert.deepEqual(economic(s.engineModule.TycoonEngine.load().g), economic(normalized.g), 'production reload');
+  const restored = s.engineModule.TycoonEngine.load();
+  assert.deepEqual(economic(restored.g), economic(normalized.g), 'production reload');
+  assert.deepEqual(ownership(s.modules, restored.g), ownership(s.modules, normalized.g),
+    'production reload retains the observed P3-2 share quantities');
   // No mirror: a new VM must hydrate from durable IDB alone.
   const fresh = loadGame({ headless: true, random: randomFor(), indexedDB: indexedDBFor(s.durable, { attempts: [] }) });
   await fresh.modules.saveStorageIDB.hydrate();
-  assert.deepEqual(economic(fresh.engineModule.TycoonEngine.load().g), economic(normalized.g), 'fresh durable-only hydration');
+  const hydrated = fresh.engineModule.TycoonEngine.load();
+  assert.deepEqual(economic(hydrated.g), economic(normalized.g), 'fresh durable-only hydration');
+  assert.deepEqual(ownership(fresh.modules, hydrated.g), ownership(fresh.modules, normalized.g),
+    'fresh durable-only IndexedDB hydration retains exact ownership evidence');
   await fresh.modules.saveStorageIDB.flush();
 }
 function inject(s, name) {
@@ -96,7 +105,9 @@ async function rejected(name, pending = false, outer = false) {
     s.control.holdPut = true; assert.equal(s.game.save(), true);
     await new Promise(resolve => setTimeout(resolve, 0)); assert.equal(typeof s.control.release, 'function');
   }
-  const before = clone(s.game.g), bytes = s.backend.readSync(s.key), durable = s.durable.get(s.key);
+  const before = clone(s.game.g), beforeOwnership = ownership(s.modules, before),
+    bytes = s.backend.readSync(s.key), durable = s.durable.get(s.key);
+  assert.equal(beforeOwnership.ok, true, JSON.stringify(beforeOwnership.issues));
   const puts = s.control.attempts.length, fault = inject(s, name);
   let result, error;
   try {
@@ -107,6 +118,8 @@ async function rejected(name, pending = false, outer = false) {
     assert.equal(result, false); assert.equal(error, undefined);
   } else assert.match(error?.message || '', /IPO .*threw/);
   assert.deepEqual(clone(s.game.g), before, `${name}: full live snapshot restored`);
+  assert.deepEqual(ownership(s.modules, s.game.g), beforeOwnership,
+    `${name}: failed IPO leaves P3-2 share reconciliation unchanged`);
   assert.equal(s.ctx.__localStorageData.get(s.key), bytes, `${name}: exact mirror`);
   assert.equal(s.backend.readSync(s.key), bytes, `${name}: exact cache and saveSequence`);
   assert.equal(s.durable.get(s.key), durable, `${name}: no synchronous durable mutation`);
@@ -128,7 +141,9 @@ async function rejected(name, pending = false, outer = false) {
   console.log(`parent IPO ${name}${pending ? ' / prior pending put' : ''}${outer ? ' / nested' : ''} PASS`);
 }
 async function normal() {
-  const a = await setup(), b = await setup(), before = clone(a.game.g);
+  const a = await setup(), b = await setup(), before = clone(a.game.g),
+    previousOwnership = ownership(a.modules, before);
+  assert.equal(previousOwnership.ok, true, JSON.stringify(previousOwnership.issues));
   const price = Math.max(100, a.game.companyValue() / before.sharesOut);
   const primary = Math.max(1, Math.round(before.sharesOut * .2));
   const secondary = Math.max(1, Math.round(before.founderShares * .05));
@@ -139,6 +154,23 @@ async function normal() {
   const g = a.game.g;
   assert.deepEqual(events, ['change', 'saved', 'change'], 'existing base change then one committed saved/change');
   assert.equal(g.sharesOut, before.sharesOut + primary); assert.equal(g.founderShares, before.founderShares - secondary);
+  const projected = ownership(a.modules, g);
+  assert.equal(projected.ok, true, JSON.stringify(projected.issues));
+  assert.equal(projected.authority, 'read-only');
+  const prevClass = previousOwnership.securityClasses[0], nextClass = projected.securityClasses[0];
+  assert.equal(nextClass.issuedQuantity, prevClass.issuedQuantity + primary,
+    'installed IPO primary issue enters P3-2 share supply exactly once');
+  assert.equal(nextClass.treasuryQuantity, prevClass.treasuryQuantity,
+    'IPO does not alter treasury shares');
+  assert.equal(nextClass.outstandingQuantity, prevClass.outstandingQuantity + primary);
+  assert.equal(projected.beneficialHoldings[0].quantity,
+    previousOwnership.beneficialHoldings[0].quantity - secondary,
+    'founder secondary sale removes original beneficial shares, not newly issued company cash');
+  assert.equal(nextClass.unallocatedOutstandingQuantity,
+    prevClass.unallocatedOutstandingQuantity + primary + secondary,
+    'primary issue and secondary transfer remain unallocated external evidence, not fabricated voting owners');
+  assert.deepEqual(ownership(b.modules, b.game.g), projected,
+    'identical installed IPO paths have identical ownership read models');
   const reward = g.finance.transactions.filter(t => t.sourceType === 'missionReward' && !before.finance.transactions.some(x => x.id === t.id))
     .reduce((n, t) => n + t.cashEffect, 0);
   assert.equal(reward, 10000000, 'existing IPO mission reward');
@@ -160,6 +192,8 @@ async function normal() {
   const completed = clone(g), savedBytes = a.backend.readSync(a.key);
   assert.equal(a.game.executeIPO('東証グロース'), false, 'duplicate IPO is rejected');
   assert.deepEqual(clone(g), completed, 'duplicate does not add cash, shares, reward, PE exit or node');
+  assert.deepEqual(ownership(a.modules, g), projected,
+    'rejected duplicate IPO never issues additional founder or outside ownership');
   assert.equal(a.backend.readSync(a.key), savedBytes);
   console.log('parent IPO normal persistence/reload/deterministic replay PASS');
 }
