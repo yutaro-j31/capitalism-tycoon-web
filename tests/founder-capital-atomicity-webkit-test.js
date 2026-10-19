@@ -66,12 +66,19 @@ async function economic(page){return page.evaluate(()=>{
    await page.reload({waitUntil:'networkidle'});
    assert.deepEqual(await economic(page),expected,'production reload');
    const storageState=await context.storageState({indexedDB:true});
-   const fresh=await browser.newContext({...options,storageState}),freshPage=await fresh.newPage();
+   const origin=new URL(url).origin;
+   assert(storageState.origins.some(x=>x.origin===origin&&Array.isArray(x.indexedDB)
+     &&x.indexedDB.some(db=>db.name==='capitalism-tycoon')),
+     'a real durable IndexedDB snapshot is required for fresh hydration');
+   const durableOnly={...storageState,origins:storageState.origins.map(x=>({...x,localStorage:[]}))};
+   assert(durableOnly.origins.every(x=>x.localStorage.length===0),
+     'the fresh context must contain no localStorage mirror');
+   const fresh=await browser.newContext({...options,storageState:durableOnly}),freshPage=await fresh.newPage();
    await freshPage.goto(url,{waitUntil:'networkidle'});
-   assert.deepEqual(await economic(freshPage),expected,'fresh real IndexedDB hydration');
+   assert.deepEqual(await economic(freshPage),expected,'fresh durable-only real IndexedDB hydration');
    output.push(proof);await fresh.close();await context.close();
   }
   fs.writeFileSync(path.join(DIR,'founder-capital-atomicity.json'),JSON.stringify({device:'iPhone 13',output},null,2));
-  console.log('P4-AUD-003 Founder Capital real iPhone WebKit / durable hydration PASS');
+  console.log('P4-AUD-003 Founder Capital real iPhone WebKit / durable-only hydration PASS');
  }finally{await browser?.close();await new Promise(resolve=>server.close(resolve));}
 })().catch(err=>{console.error(err);process.exitCode=1;});

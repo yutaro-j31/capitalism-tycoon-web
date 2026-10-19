@@ -211,6 +211,10 @@
     "reason": "M&A financed closing with a public equity raise on real WebKit (board approval, financing shadow-state boundary): a rejected save rolls the closing and ratios back; the commit dilutes founder and competitor over issued − treasury, new shares external, ratios sum to 1; reload and fresh durable-only IndexedDB agree, in the stock-split-atomicity job on every workflow event.",
     "executedBy": ".github/workflows/ma-acquisition-financing.yml"
   },
+  "tests/activate-defense-ownership-ratios-webkit-test.js": {
+    "reason": "W-DEFENSE takeover defense on real WebKit: only named competitor shares are sold (pro rata, whole shares) to outside market investors, sellers paid price × shares, the company pays the defense cost only, ratios sum to 1; a rejected save rolls ratios, holdings and proceeds back in live, mirror and durable IndexedDB; an unnamed stake is refused at no cost; reload and fresh durable-only IndexedDB agree, in the stock-split-atomicity job on every workflow event.",
+    "executedBy": ".github/workflows/ma-acquisition-financing.yml"
+  },
   "tests/ma-equity-raise-shadow-atomicity-webkit-test.js": {
     "reason": "M&A financing shadow-state boundary with a public equity raise on real WebKit: a save accepted then thrown and a throwing success-notice emit roll the closing back with live, localStorage mirror, IDB cache and durable IndexedDB consistent; a throwing notify listener is reported, not rethrown, and the closing commits once; reload and fresh durable-only IndexedDB agree, in the stock-split-atomicity job on every workflow event.",
     "executedBy": ".github/workflows/ma-acquisition-financing.yml"
@@ -319,8 +323,12 @@
     "reason": "#955 refounding after buyout through the real legacy-tab flow: state root identity kept on success and rollback; one commit with the founded-investment record; personal holdings carry over, sold-company debt does not; every harness fault kind (incl. prior pending put) rolls back into the same root; thrown faults open the recovery dialog; deterministic retry; reload and fresh durable-only hydration in iPhone WebKit on every workflow event (placed in vc-secondary-atomicity for job-time balance).",
     "executedBy": ".github/workflows/ma-acquisition-financing.yml"
   },
+  "tests/execute-mbo-save-atomicity-webkit-test.js": {
+    "reason": "Installed executeMBO writer: shared save faults, pending predecessor, accounting, reload and fresh durable-only real IndexedDB in the stock-split-atomicity job on every workflow event.",
+    "executedBy": ".github/workflows/ma-acquisition-financing.yml"
+  },
   "tests/founder-capital-atomicity-webkit-test.js": {
-    "reason": "P4-AUD-003 installed Founder Capital contribution: real iPhone WebKit mirror rejection/post-save notification fault rollback, retry, one valid capital/equity posting and cash separation, production reload, fresh real IndexedDB hydration in stock-split-atomicity on PR/main.",
+    "reason": "P4-AUD-003 installed Founder Capital contribution: real iPhone WebKit mirror rejection/post-save notification fault rollback, retry, one valid capital/equity posting and cash separation, production reload, fresh durable-only real IndexedDB hydration in stock-split-atomicity on PR/main.",
     "executedBy": ".github/workflows/ma-acquisition-financing.yml"
   }
 }
