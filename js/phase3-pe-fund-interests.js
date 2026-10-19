@@ -14,7 +14,7 @@
     if(!plain(obj)){errors.push(issue('INPUT_INVALID',path));return {ok:false,present:false};}
     const descriptor=Object.getOwnPropertyDescriptor(obj,key);
     if(!descriptor)return {ok:true,present:false};
-    if(!has.call(descriptor,'value')){errors.push(issue('INPUT_INVALID',`${path}.${key}`));return {ok:false,present:true};}
+    if(!has.call(descriptor,'value')||!descriptor.enumerable){errors.push(issue('INPUT_INVALID',`${path}.${key}`));return {ok:false,present:true};}
     return {ok:true,present:true,value:descriptor.value};
   }
   function read(obj,key,path,errors){const r=safeField(obj,key,path,errors);return r.ok&&r.present?r.value:undefined;}
@@ -24,7 +24,7 @@
     if(!isArray(value)||Object.getPrototypeOf(value)!==Array.prototype){errors.push(issue('INPUT_INVALID',path));return null;}
     if(value.length>maxLength){errors.push(issue('INPUT_LIMIT_EXCEEDED',path));return null;}
     const descriptors=Object.getOwnPropertyDescriptors(value);
-    if(Reflect.ownKeys(descriptors).some(key=>typeof key==='symbol')||Object.keys(descriptors).some(key=>key!=='length'&&(!/^(0|[1-9]\d*)$/.test(key)||!has.call(descriptors[key],'value')))){
+    if(Reflect.ownKeys(descriptors).some(key=>typeof key==='symbol')||Object.keys(descriptors).some(key=>key!=='length'&&(!/^(0|[1-9]\d*)$/.test(key)||!has.call(descriptors[key],'value')||!descriptors[key].enumerable))){
       errors.push(issue('INPUT_INVALID',path));return null;
     }
     if(Object.keys(descriptors).filter(k=>k!=='length').length!==value.length){errors.push(issue('INPUT_INVALID',path));return null;}

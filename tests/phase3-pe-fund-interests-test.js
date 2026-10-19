@@ -82,6 +82,31 @@ for(const key of ['size','gpCommit','status','deals']){
  const s=state();Object.defineProperty(s.peFirm.funds[0],key,{get(){reads++;throw Error('getter');}});assert.doesNotThrow(()=>project(s));
 }
 const s=state();Object.defineProperty(s.peFirm.funds,'0',{get(){reads++;throw Error('array getter');}});project(s);assert.equal(reads,0);
+// Selected record evidence must survive JSON serialization to be attested.
+for(const key of ['id','status','size','gpCommit','lpContributed']){
+ const x=state(),f=x.peFirm.funds[0];
+ Object.defineProperty(f,key,{value:f[key],enumerable:false});
+ const raw=project(x),reloaded=project(copy(x));
+ assert.equal(raw.fundInterests[0].contributionRatio,null,key);
+ assert.equal(raw.fundInterests[0].current,false,key);
+ assert.equal(reloaded.fundInterests[0].contributionRatio,null,key+' JSON');
+ assert.equal(reloaded.fundInterests[0].current,false,key+' JSON');
+ assert(raw.issues.some(i=>i.code==='INPUT_INVALID'&&i.path==='peFirm.funds[0].'+key));
+}
+for(const key of ['gpDistributed','lpDistributed','gpCarryPaid','managementFeesPaid']){
+ const x=state(),f=x.peFirm.funds[0];Object.defineProperty(f,key,{value:f[key],enumerable:false});
+ assert.equal(project(x).distributionEvidence[0][key],null);
+ assert.equal(project(copy(x)).distributionEvidence[0][key],null);
+}
+for(const location of ['root','funds','fund-index','deals','deal-index','fraction']){
+ const x=state(),f=x.peFirm.funds[0],d=f.deals[0];
+ const [obj,key]=location==='root'?[x,'peFirm']:location==='funds'?[x.peFirm,'funds']:
+  location==='fund-index'?[x.peFirm.funds,'0']:location==='deals'?[f,'deals']:
+  location==='deal-index'?[f.deals,'0']:[d,'fundPortion'];
+ Object.defineProperty(obj,key,{value:obj[key],enumerable:false});
+ const r=project(x);assert(r.issues.some(i=>i.code==='INPUT_INVALID'),location);
+ assert(r.portfolioParticipations.every(d=>d.fundProceedsFraction===null),location);
+}
 const src=fs.readFileSync(require.resolve('../js/phase3-pe-fund-interests.js'),'utf8');
 const ctx={__capitalismTycoonModules:{}};vm.runInNewContext(src,ctx);assert.equal(typeof ctx.__capitalismTycoonModules.phase3PeFundInterests.projectPEFundInterests,'function');
 assert.throws(()=>vm.runInNewContext(src,ctx),/already registered/);
