@@ -34,6 +34,7 @@ for (let i = 0; i < commands.length; i++) {
 
 const nodeTests = [
   ['p4-aud-003-founder-capital-atomicity', 'scripts/p4-aud-003-founder-capital-atomicity.cjs'],
+  ['debt-command-save-atomicity', 'tests/debt-command-save-atomicity-test.js'],
   ['authoritative-company-cash', 'tests/authoritative-company-cash-test.js'],
   ['real-estate-construction-in-progress', 'tests/real-estate-construction-in-progress-test.js'],
   ['bank-loans-covenants-accounting', 'tests/bank-loans-covenants-accounting-test.js'],
