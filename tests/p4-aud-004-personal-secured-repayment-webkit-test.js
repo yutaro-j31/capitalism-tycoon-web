@@ -66,9 +66,18 @@ async function projection(page){return page.evaluate(()=>{
  assert.equal(expected.companyDebt,0);assert.equal(expected.valid,true);
  await page.reload({waitUntil:'networkidle'});assert.deepEqual(await projection(page),expected,'production reload');
  const storage=await context.storageState({indexedDB:true});
- const fresh=await browser.newContext({...options,storageState:storage}),freshPage=await fresh.newPage();
+ // Force the fresh context to recover from persisted IndexedDB alone, not from
+ // a copied localStorage mirror; retaining the mirror made the old assertion vacuous.
+ const origin=new URL(url).origin;
+ assert(storage.origins.some(x=>x.origin===origin&&Array.isArray(x.indexedDB)
+   &&x.indexedDB.some(db=>db.name==='capitalism-tycoon')),
+   'a real durable IndexedDB snapshot is required for fresh hydration');
+ const durableOnly={...storage,origins:storage.origins.map(x=>({...x,localStorage:[]}))};
+ assert(durableOnly.origins.every(x=>x.localStorage.length===0),
+   'the fresh context must contain no localStorage mirror');
+ const fresh=await browser.newContext({...options,storageState:durableOnly}),freshPage=await fresh.newPage();
  await freshPage.goto(url,{waitUntil:'networkidle'});
- assert.deepEqual(await projection(freshPage),expected,'fresh iPhone WebKit IndexedDB hydration');
+ assert.deepEqual(await projection(freshPage),expected,'fresh iPhone WebKit durable-only IndexedDB hydration');
  fs.writeFileSync(path.join(DIR,'p4-aud-004-result.json'),JSON.stringify({device:'iPhone 13 WebKit',proof,expected},null,2));
  console.log('P4-AUD-004 real WebKit, rejection/no writes, generic and specialist payoff, reload/IndexedDB PASS');
  await fresh.close();await context.close();
