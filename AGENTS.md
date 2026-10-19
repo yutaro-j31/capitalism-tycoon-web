@@ -4,6 +4,18 @@ This file defines repository-wide operating rules for Codex and other coding age
 
 The goal is to provide the project constraints and the completion boundary without forcing every task through the same reading or validation sequence.
 
+## Owner-only experimental track — Economic Engine vNext (2026-10-20)
+
+**Mandatory workstream boundary, applicable to ChatGPT Work, Claude Code, Codex and every agent reading this repository.** Owner decision: [Issue #1038](https://github.com/yutaro-j31/capitalism-tycoon-web/issues/1038). The **regular ChatGPT conversation** is the sole implementation coordinator for the **independent Economic Engine vNext feasibility experiment**. Its initial [draft PR #1039](https://github.com/yutaro-j31/capitalism-tycoon-web/pull/1039) is **not** a production change.
+
+- **Reserved for regular ChatGPT:** `experiments/economic-engine-vnext/**`, any `experiment/economic-engine-vnext-*` branches, the prototype PR #1039, and the implementation scope / task ownership recorded in #1038. Do not edit, commit to, rebase, merge, cherry-pick, close, resolve, or take over this experiment, its PR or tracker while working on unrelated mainline tasks. Do not start vNext work merely because it appears in a roadmap, issue, audit, or backlog.
+- **ChatGPT Work / Claude Code stay on the existing mainline** Phase 3/4 development, P0/P1 repair, CI and approved merge work. Their existing ownership, permission gates and implementation-first sequencing do not change. Do **not** pause mainline work because vNext exists.
+- Reading the experiment for context is allowed. If the Owner **explicitly** authorizes a new named agent to review, modify, or take over vNext, follow that later instruction with a written handoff recorded on #1038 first. A general “continue development,” “next task,” autonomous backlog choice, or unrelated approval **is not vNext authorization**.
+- The vNext branch must not become a new canonical economic authority, affect production paths / save state, or be merged into `main` without a separate explicit Owner decision and all applicable tests/review/CI. Preserve all existing `SAVE_KEY`, `saveVersion`, determinism, accounting, WebKit and PR guards.
+- For ambiguous tasks involving “Economic Engine,” **default to current mainline work**. If a change would overlap vNext reserved files/branches, exclude it and record the conflict rather than silently extending scope.
+
+**These are coordination rules, not a GitHub technical permission lock.** Agents must honor them even when their GitHub credentials technically allow editing. Do not remove or relax this ownership boundary without explicit Owner approval.
+
 ## 1. Project and source of truth
 
 Repository: `yutaro-j31/capitalism-tycoon-web`
