@@ -41,6 +41,9 @@ on:
       - 'tests/stock-split-price-floor-test.js'
       - 'tests/stock-split-price-floor-webkit-test.js'
       - 'tests/fixtures/stock-split-atomicity.js'
+      - 'tests/debt-command-save-atomicity-test.js'
+      - 'tests/debt-command-save-atomicity-webkit-test.js'
+      - 'tests/fixtures/debt-command-atomicity.js'
       - 'tests/stock-split-price-history-test.js'
       - 'tests/stock-split-price-history-webkit-test.js'
       - 'js/pe-acquisition.js'
@@ -173,6 +176,9 @@ on:
       - 'tests/stock-split-price-floor-test.js'
       - 'tests/stock-split-price-floor-webkit-test.js'
       - 'tests/fixtures/stock-split-atomicity.js'
+      - 'tests/debt-command-save-atomicity-test.js'
+      - 'tests/debt-command-save-atomicity-webkit-test.js'
+      - 'tests/fixtures/debt-command-atomicity.js'
       - 'tests/stock-split-price-history-test.js'
       - 'tests/stock-split-price-history-webkit-test.js'
       - 'js/pe-acquisition.js'
@@ -454,6 +460,39 @@ jobs:
           path: artifacts/ceo-dashboard-webkit
           if-no-files-found: error
 
+  debt-command-atomicity:
+    # Independent budget for the debt command fault matrix.
+    # No event guard: exercise it on PR, main, schedule and both manual modes.
+    # Same cancellation as the PE/VC family jobs: superseded main push / schedule / comprehensive
+    # runs cancel it per ref like comprehensive-ma; PR and deal-room runs get a per-run group, so
+    # they are never cancelled or serialized.
+    concurrency:
+      group: ma-acquisition-financing-debt-command-atomicity-${{ (github.event_name == 'pull_request' || inputs.mode == 'deal-room') && github.run_id || github.ref }}
+      cancel-in-progress: true
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      MA_DEAL_ROOM_ARTIFACT_DIR: artifacts/debt-command-atomicity-webkit
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - name: Install pinned Playwright runtime
+        run: npm install --no-save --no-package-lock playwright@1.61.0
+      - name: Install WebKit browser and system dependencies
+        run: npx playwright install --with-deps webkit
+      - name: Debt command atomicity in real iPhone WebKit
+        run: node tests/debt-command-save-atomicity-webkit-test.js
+      - name: Retain debt command WebKit evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: debt-command-atomicity-webkit-${{ github.sha }}
+          path: artifacts/debt-command-atomicity-webkit
+          if-no-files-found: error
+          retention-days: 30
+
   stock-split-atomicity:
     # Keep the new regression independent of the existing M&A job's budget.
     # No event guard: exercise it on PR, main, schedule and both manual modes.
@@ -646,7 +685,7 @@ jobs:
     # any job therefore fails this check. Branch protection is not configured, so this is a
     # reporting gate, not a merge block on its own.
     if: always()
-    needs: [comprehensive-ma, comprehensive-ma-balance, deal-room, stock-split-atomicity, pe-acquisition-atomicity, vc-secondary-atomicity, vc-funding-atomicity]
+    needs: [debt-command-atomicity, comprehensive-ma, comprehensive-ma-balance, deal-room, stock-split-atomicity, pe-acquisition-atomicity, vc-secondary-atomicity, vc-funding-atomicity]
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
@@ -663,7 +702,7 @@ jobs:
           const dealRoom = event === 'pull_request' || (event === 'workflow_dispatch' && mode === 'deal-room');
           const applies = {
             'comprehensive-ma': comprehensive, 'comprehensive-ma-balance': comprehensive, 'deal-room': dealRoom, 'stock-split-atomicity': true,
-            'pe-acquisition-atomicity': true, 'vc-secondary-atomicity': true, 'vc-funding-atomicity': true
+            'debt-command-atomicity': true, 'pe-acquisition-atomicity': true, 'vc-secondary-atomicity': true, 'vc-funding-atomicity': true
           };
           const problems = [];
           for (const [job, required] of Object.entries(applies)) {
