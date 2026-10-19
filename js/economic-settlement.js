@@ -123,12 +123,52 @@ function settleStoreRenovation(state,operation){
   });
 }
 
+// Track B / B2: one boundary that pairs an authoritative company-cash settlement with its
+// finance projection. The caller supplies the family's own settlement and projection steps;
+// this function admits the operation once, then proves that the cash delta, the operation
+// identity and the projected ledger row agree. Any disagreement throws, so the surrounding
+// runTransaction() rolls cash, domain state and finance back together. It never writes cash
+// or finance itself, so the cut-over family keeps exactly one company-cash writer.
+const COMPANY_CASH_FAMILIES=Object.freeze({
+  [STORE_RENOVATION_OPERATION_TYPE]:validateStoreRenovationOperation
+});
+function priorProjection(state,operation){
+  const rows=state.finance?.transactions;
+  if(rows!=null&&!Array.isArray(rows))throw new TypeError('Finance projection receipts must be an array.');
+  return (rows||[]).find(row=>row?.idempotencyKey===operation.idempotencyKey||row?.operationID===operation.operationId)||null;
+}
+function signedCashDelta(operation){
+  const cash=operation.postings.filter(row=>row.entityId===PLAYER_COMPANY_ENTITY_ID&&row.accountId==='asset:cash');
+  if(cash.length!==1)throw new TypeError('Company cash commit requires exactly one player company cash posting.');
+  return cash[0].side==='debit'?cash[0].amount:-cash[0].amount;
+}
+function commitCompanyCashOperation(state,operation,settle,project){
+  if(!state||typeof state!=='object'||Array.isArray(state))throw new TypeError('state must be an object.');
+  const validateFamily=COMPANY_CASH_FAMILIES[operation?.operationType];
+  if(typeof validateFamily!=='function')throw new TypeError('Unsupported EconomicOperation type for company cash commit.');
+  if(typeof settle!=='function'||typeof project!=='function')throw new TypeError('Company cash commit requires settlement and projection steps.');
+  validateFamily(operation);
+  if(priorProjection(state,operation))throw new Error(`EconomicOperation ${operation.operationId} is already projected.`);
+  const before=finite(state.companyCash,'state.companyCash');
+  const expected=modules.economicOperation.roundMoney(before+signedCashDelta(operation));
+  const settlement=settle();
+  if(!settlement||settlement.applied!==true||settlement.operationId!==operation.operationId||settlement.idempotencyKey!==operation.idempotencyKey)throw new Error('Company cash settlement receipt does not match the EconomicOperation.');
+  if(settlement.companyCashBefore!==before||settlement.companyCashAfter!==state.companyCash||modules.economicOperation.roundMoney(state.companyCash)!==expected)throw new Error('Company cash settlement does not match the EconomicOperation postings.');
+  const settled=state.companyCash;
+  const row=project(settlement);
+  if(state.companyCash!==settled)throw new Error('Finance projection must not change company cash.');
+  if(!row||row.operationID!==operation.operationId||row.idempotencyKey!==operation.idempotencyKey)throw new Error('Finance projection did not record the EconomicOperation identity.');
+  if(modules.economicOperation.roundMoney(Number(row.cashEffect))!==modules.economicOperation.roundMoney(settled-before))throw new Error('Finance projection cash effect does not match the settled company cash.');
+  return Object.freeze({...settlement,transactionID:row.transactionID??row.id??null});
+}
+
 modules.economicSettlement=Object.freeze({
   STORE_RENOVATION_OPERATION_TYPE,
   PLAYER_COMPANY_ENTITY_ID,
   CURRENCY,
   buildStoreRenovationOperation,
   validateStoreRenovationOperation,
-  settleStoreRenovation
+  settleStoreRenovation,
+  commitCompanyCashOperation
 });
 })();
