@@ -116,6 +116,42 @@ assert.throws(()=>vm.runInNewContext(code,context),/already registered/);
  for(let i=1;i<=65;i++)s.groupRestructuringHistory.push({type:'merge',aID:i===1?'leaf0':'r'+(i-1),bID:'leaf'+i,mergedID:'r'+i,week:100+i});
  assert.equal(project(s).observations[0].status,'source-matched');
 }
+// Receipt/replacement evidence hidden from JSON cannot establish a lifecycle.
+const stagedFixture=()=>{
+ const s=fixture();s.groupRestructuringHistory=[];
+ s.integrationProjects=[{id:'p',aID:'a',bID:'b',mergedID:'r',status:'completed',completionApplied:true,completedWeek:100}];
+ return s;
+};
+for(const [make,select,keys] of [
+ [fixture,s=>s.groupRestructuringHistory[0],['type','aID','bID','mergedID','week']],
+ [fixture,s=>s.subsidiaries[0],['id','status','restructuredFrom','restructuredWeek']],
+ [stagedFixture,s=>s.integrationProjects[0],['id','aID','bID','mergedID','status','completionApplied','completedWeek']],
+ [fixture,s=>s,['week','subsidiaries','groupRestructuringHistory']]
+])for(const key of keys){
+ const s=make(),object=select(s);
+ Object.defineProperty(object,key,{value:object[key],enumerable:false});
+ const r=project(s);assert.equal(r.issues[0]?.code,'INPUT_INVALID',key);
+ assert(!r.observations.some(o=>o.status==='source-matched'),key+' hidden raw evidence');
+ assert(!project(plain(s)).observations.some(o=>o.status==='source-matched'),key+' JSON cannot restore missing proof');
+}
+// JSON serializes array indexes regardless of enumerability; reject malformed
+// raw descriptors, while ordinary serialized arrays retain their usual shape.
+for(const [make,select] of [
+ [fixture,s=>s.subsidiaries],[fixture,s=>s.groupRestructuringHistory],
+ [fixture,s=>s.subsidiaries[0].restructuredFrom],[stagedFixture,s=>s.integrationProjects]
+]){
+ const s=make(),array=select(s);Object.defineProperty(array,'0',{value:array[0],enumerable:false});
+ assert.equal(project(s).issues[0]?.code,'INPUT_INVALID');
+}
+for(const [make,select,key] of [
+ [fixture,s=>s.groupRestructuringHistory[0],'mergedID'],
+ [fixture,s=>s.subsidiaries[0],'restructuredWeek'],
+ [stagedFixture,s=>s.integrationProjects[0],'completedWeek'],
+ [fixture,s=>s.subsidiaries[0].restructuredFrom,'0']
+]){
+ const s=make();let reads=0;Object.defineProperty(select(s),key,{enumerable:true,get(){reads++;throw Error('must not run');}});
+ assert.equal(project(s).issues[0]?.code,'INPUT_INVALID');assert.equal(reads,0);
+}
 // Reuse the installed-engine harness: no second economic simulation fixture.
 for(const marker of ['restructuredFrom','restructuredWeek']){
  const retained={id:'r',status:'integrated',[marker]:undefined};
