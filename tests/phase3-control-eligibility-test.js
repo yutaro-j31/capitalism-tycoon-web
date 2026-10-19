@@ -16,9 +16,9 @@ const plain=x=>JSON.parse(JSON.stringify(x));
 // Synthetic snapshot in the exact P3-2 reconciliation shape. Independent expected outcomes below are
 // written out by hand from the approved catalog, not computed with the projector's comparator.
 function snapshot({issued,treasury,held,ok=true,aliases=[]}){
-  return {reconciliationVersion:1,authority:'read-only',ok,
+  return {reconciliationVersion:1,authority:'read-only',scope:'player-company-common-founder-and-unallocated-residual',ok,checks:[{id:'ECO-010',ok:true},{id:'ECO-011',ok:true}],issues:[],
     securityClasses:[{securityClassId:'security:player-company:common',issuerEntityId:PLAYER,classType:'common',issuedQuantity:issued,treasuryQuantity:treasury,
-      outstandingQuantity:issued-treasury,votingRightsPerUnit:1,economicRightsPerUnit:1,rightsEvidence:'legacy-player-single-common-class'}],
+      outstandingQuantity:issued-treasury,unallocatedOutstandingQuantity:issued-treasury-held,votingRightsPerUnit:1,economicRightsPerUnit:1,rightsEvidence:'legacy-player-single-common-class'}],
     beneficialHoldings:[{beneficialHoldingId:'beneficial:player-company:founder',issuerEntityId:PLAYER,securityClassId:'security:player-company:common',beneficialOwnerEntityId:FOUNDER,quantity:held}],
     unresolvedAliases:aliases};
 }
@@ -91,6 +91,21 @@ unknown(project(snapshot({issued:300,treasury:0,held:10})),'ISSUER_FAMILY_UNSUPP
   const w=snapshot({issued:300,treasury:0,held:10});w.reconciliationVersion=2;unknown(project(w,scope),'INPUT_INVALID');
 }
 for(const bad of [null,[],'x',42,new Map()])unknown(project(bad,scope),'INPUT_INVALID');
+// A snapshot that claims ok but whose own evidence disagrees is not trusted.
+{
+  const residual=snapshot({issued:300,treasury:0,held:200});residual.securityClasses[0].unallocatedOutstandingQuantity=200;unknown(project(residual,scope),'RECONCILIATION_FAILED');
+  const check=snapshot({issued:300,treasury:0,held:200});check.checks[1].ok=false;unknown(project(check,scope),'RECONCILIATION_FAILED');
+  const issue=snapshot({issued:300,treasury:0,held:200});issue.issues.push({sourcePath:'x',reason:'y'});unknown(project(issue,scope),'RECONCILIATION_FAILED');
+  const scopeChanged=snapshot({issued:300,treasury:0,held:200});scopeChanged.scope='all-holders';unknown(project(scopeChanged,scope),'INPUT_INVALID');
+  const missing=snapshot({issued:300,treasury:0,held:200});delete missing.securityClasses[0].unallocatedOutstandingQuantity;unknown(project(missing,scope),'INPUT_INVALID');
+}
+// Options are read without executing accessors.
+{
+  let calls=0;const opts={actingEntityId:FOUNDER};Object.defineProperty(opts,'issuerEntityId',{enumerable:true,get(){calls++;return PLAYER;}});
+  unknown(project(snapshot({issued:300,treasury:0,held:10}),opts),'INPUT_INVALID');assert.equal(calls,0,'option getter must not run');
+  unknown(project(snapshot({issued:300,treasury:0,held:10}),null),'INPUT_INVALID');
+  unknown(project(snapshot({issued:300,treasury:0,held:10}),Object.create({issuerEntityId:PLAYER,actingEntityId:FOUNDER})),'INPUT_INVALID');
+}
 // Accessors are never executed and non-enumerable evidence is rejected.
 {
   let called=0;const s=snapshot({issued:300,treasury:0,held:10});
