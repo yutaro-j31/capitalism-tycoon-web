@@ -14,6 +14,10 @@ g.properties=[
   realEstate:{monthlyRent:3_000_000,occupancyRate:1,expenseRatio:.2}}
 ];
 g.finance=modules.finance.defaultFinanceState(g);
+// A normal installed transaction initializes the finance reconciliation metadata.
+// Do so before the baseline to compare genuine company-account invariants, not lazy setup.
+modules.finance.ensureFinance(g);
+assert(modules.finance.validate(JSON.parse(JSON.stringify(g))).ok,'normalized initial company books must be valid');
 const companyBefore=JSON.stringify({cash:g.companyCash,debt:g.companyDebt,finance:g.finance});
 const loan=e.borrowAgainstProperty('P4-004-A',30_000_000,{rateType:'fixed',termWeeks:260});
 assert(loan&&loan.accountingTracked===true);
