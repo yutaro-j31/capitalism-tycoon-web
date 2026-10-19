@@ -2,6 +2,12 @@
 const assert = require('node:assert/strict');
 const { loadGame } = require('./harness');
 const snapshot = game => JSON.parse(JSON.stringify(game.g));
+const plain = value => JSON.parse(JSON.stringify(value));
+// P3-4 pre-cutover observation only: this projection must not mutate state,
+// add a persisted authority or imply registered voting ownership for investors.
+function ownership(modules, state) {
+  return plain(modules.economicReadModel.ownershipReconciliation(state));
+}
 
 function randomFor(seed = 934003) {
   return () => { seed = (Math.imul(seed, 1664525) + 1013904223) >>> 0; return seed / 4294967296; };
@@ -64,9 +70,15 @@ async function freshBoot(s, expected) {
   const loaded = fresh.engineModule.TycoonEngine.load();
   const normalized = new fresh.engineModule.TycoonEngine(JSON.parse(JSON.stringify(expected)));
   assert.deepEqual(JSON.parse(JSON.stringify(economic(loaded.g))), JSON.parse(JSON.stringify(economic(normalized.g))));
+  assert.deepEqual(ownership(fresh.modules, loaded.g), ownership(fresh.modules, normalized.g),
+    'fresh durable-only hydration retains P3-2 issued/treasury/founder/unallocated evidence');
 }
 async function assertRollback(s, before) {
   assert.deepEqual(snapshot(s.game), before.state, 'complete economic state, histories and RNG restored');
+  const previous = ownership(s.modules, before.state);
+  assert.equal(previous.ok, true, JSON.stringify(previous.issues));
+  assert.deepEqual(ownership(s.modules, s.game.g), previous,
+    'failed acceptance cannot change read-only economic ownership evidence');
   assert.equal(s.host.draws, before.draws, 'no extra host RNG draws');
   assert.equal(s.ctx.__localStorageData.get(s.key), before.mirror, 'exact prior mirror bytes');
   assert.equal(s.backend.readSync(s.key), before.cache, 'exact prior cache bytes');
@@ -119,6 +131,8 @@ function fault(s, name) {
 async function successful(s) {
   const before = observe(s), counts = { saved: 0, change: 0 }, offerID = s.offer.id;
   const newShares = Math.max(1, Math.round(before.state.sharesOut * s.offer.amount / s.offer.preMoneyValuation));
+  const prior = ownership(s.modules, before.state);
+  assert.equal(prior.ok, true, JSON.stringify(prior.issues));
   s.game.addEventListener('saved', () => counts.saved++); s.game.addEventListener('change', () => counts.change++);
   assert.equal(s.game.acceptInvestorOffer(offerID), true);
   const state = s.game.g;
@@ -131,6 +145,22 @@ async function successful(s) {
   for (const key of ['companyDebt', 'personalCash', 'personalDebt', 'founderShares', 'treasuryBuybackShares'])
     assert.equal(state[key], before.state[key], key);
   assert.deepEqual(JSON.parse(JSON.stringify(state.personalStocks)), before.state.personalStocks);
+  const projected = ownership(s.modules, state);
+  assert.equal(projected.ok, true, JSON.stringify(projected.issues));
+  assert.equal(projected.authority, 'read-only');
+  assert.equal(projected.securityClasses[0].issuedQuantity,
+    prior.securityClasses[0].issuedQuantity + newShares,
+    'installed investor-offer issuance adds exactly one external quantity');
+  assert.equal(projected.securityClasses[0].treasuryQuantity,
+    prior.securityClasses[0].treasuryQuantity);
+  assert.equal(projected.securityClasses[0].outstandingQuantity,
+    prior.securityClasses[0].outstandingQuantity + newShares);
+  assert.equal(projected.beneficialHoldings[0].quantity,
+    prior.beneficialHoldings[0].quantity,
+    'original/purchased founder beneficial shares must not be diluted by changing quantity');
+  assert.equal(projected.securityClasses[0].unallocatedOutstandingQuantity,
+    prior.securityClasses[0].unallocatedOutstandingQuantity + newShares,
+    'new investor shares remain unresolved external evidence, not invented registered fund rights');
   const receipts = state.finance.transactions.filter(t => t.sourceType === 'investorOffer' && t.sourceID === offerID);
   assert.equal(receipts.length, 1); assert.equal(receipts[0].cashEffect, s.offer.amount);
   assert.equal(receipts[0].equityEffect, s.offer.amount);
@@ -142,6 +172,8 @@ async function successful(s) {
   const completed = observe(s);
   assert.equal(s.game.acceptInvestorOffer(offerID), false);
   assert.deepEqual(observe(s), completed, 'duplicate accepted offer changes no state/storage/RNG');
+  assert.deepEqual(ownership(s.modules, s.game.g), projected,
+    'rejected duplicate cannot resurrect or issue another beneficial position');
   return state;
 }
 (async () => {
