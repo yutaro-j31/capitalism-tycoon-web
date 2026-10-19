@@ -299,6 +299,7 @@
     "tests/activate-defense-ownership-ratios-test.js",
     "tests/ma-equity-raise-shadow-atomicity-test.js",
     "tests/phase3-vc-source-interests-test.js",
-    "tests/debt-command-save-atomicity-test.js"
+    "tests/debt-command-save-atomicity-test.js",
+    "tests/property-debt-principal-sync-test.js"
   ]
 }
