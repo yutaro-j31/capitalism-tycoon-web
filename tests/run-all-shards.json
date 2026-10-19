@@ -275,6 +275,12 @@
     "tests/phase2-acceptance-gate-test.js",
     "tests/phase3-ownership-projection-test.js",
     "tests/phase3-ownership-reconciliation-test.js",
+    "tests/phase3-listed-holdings-adapter-test.js",
+    "tests/phase3-ownership-snapshot-test.js",
+    "tests/phase3-listing-observations-test.js",
+    "tests/phase3-subsidiary-relationships-test.js",
+    "tests/phase3-pe-ownership-adapter-test.js",
+    "tests/phase3-subsidiary-composition-test.js",
     "tests/player-own-share-conservation-test.js",
     "tests/group-capital-allocation-cash-exact-test.js"
   ],
@@ -292,6 +298,7 @@
     "tests/ma-equity-raise-ownership-ratios-test.js",
     "tests/activate-defense-ownership-ratios-test.js",
     "tests/ma-equity-raise-shadow-atomicity-test.js",
+    "tests/phase3-vc-source-interests-test.js",
     "tests/p4-aud-004-personal-secured-repayment-test.js"
   ]
 }

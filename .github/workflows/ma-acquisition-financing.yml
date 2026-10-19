@@ -18,6 +18,8 @@ on:
       - 'js/completion.js'
       - 'tests/decline-buyout-ownership-save-atomicity-test.js'
       - 'tests/decline-buyout-ownership-save-atomicity-webkit-test.js'
+      - 'tests/execute-mbo-save-atomicity-test.js'
+      - 'tests/execute-mbo-save-atomicity-webkit-test.js'
       - 'tests/earnings-confirm-read-only-test.js'
       - 'tests/earnings-confirm-read-only-webkit-test.js'
       - 'tests/ma-share-swap-ownership-ratios-test.js'
@@ -150,6 +152,8 @@ on:
       - 'js/completion.js'
       - 'tests/decline-buyout-ownership-save-atomicity-test.js'
       - 'tests/decline-buyout-ownership-save-atomicity-webkit-test.js'
+      - 'tests/execute-mbo-save-atomicity-test.js'
+      - 'tests/execute-mbo-save-atomicity-webkit-test.js'
       - 'tests/earnings-confirm-read-only-test.js'
       - 'tests/earnings-confirm-read-only-webkit-test.js'
       - 'tests/ma-share-swap-ownership-ratios-test.js'
@@ -478,6 +482,8 @@ jobs:
         run: npx playwright install --with-deps webkit
       - name: Stock split atomicity in real iPhone WebKit
         run: node tests/stock-split-save-atomicity-webkit-test.js
+      - name: MBO atomicity in real iPhone WebKit
+        run: node tests/execute-mbo-save-atomicity-webkit-test.js
       - name: Hostile buyout decline atomicity in real iPhone WebKit
         run: node tests/decline-buyout-ownership-save-atomicity-webkit-test.js
       - name: Earnings confirm read-only in real iPhone WebKit
