@@ -155,6 +155,7 @@ assert(/^name: M&A Acquisition Financing$/m.test(comprehensiveMa), 'M&A Acquisit
 assert(hasTrigger(comprehensiveMa, 'pull_request'), 'consolidated M&A workflow must inherit the Deal Room PR gate');
 assert.deepEqual(pathsFor(comprehensiveMa, 'pull_request'), [
   'js/engine.js', 'js/expansion.js', 'tests/investor-offer-save-atomicity-test.js', 'tests/investor-offer-save-atomicity-webkit-test.js',
+  'js/real-estate-mortgage-refinancing.js', 'tests/property-mortgage-refinance-conservation-test.js', 'tests/property-mortgage-refinance-webkit-test.js',
   'tests/founder-share-sale-save-atomicity-test.js', 'tests/founder-share-sale-save-atomicity-webkit-test.js',
   'tests/stock-purchase-save-atomicity-test.js', 'tests/stock-purchase-save-atomicity-webkit-test.js',
   'tests/stock-sale-save-atomicity-test.js', 'tests/stock-sale-save-atomicity-webkit-test.js',
@@ -377,6 +378,8 @@ function evaluateCondition(expression, context) {
 }
 const webkitCommands = block => [...block.matchAll(/node (tests\/[\w.-]+-webkit-test\.js)/g)].map(match => match[1]);
 const preSplitDealRoomWebkit = [
+  // P4-AUD-008 adds this regression to both retained jobs; event checks still require every script exactly once.
+  'tests/property-mortgage-refinance-webkit-test.js',
   'tests/ma-deal-room-webkit-test.js', 'tests/ma-share-swap-save-atomicity-webkit-test.js', 'tests/investor-offer-save-atomicity-webkit-test.js',
   'tests/founder-share-sale-save-atomicity-webkit-test.js', 'tests/stock-purchase-save-atomicity-webkit-test.js', 'tests/stock-sale-save-atomicity-webkit-test.js',
   'tests/stock-split-price-history-webkit-test.js', 'tests/parent-ipo-save-atomicity-webkit-test.js', 'tests/ma-subsidiary-sale-save-atomicity-webkit-test.js',
@@ -423,6 +426,8 @@ const preSplitDealRoomWebkit = [
   'tests/stock-split-dividend-rescale-webkit-test.js', 'tests/stock-split-price-floor-webkit-test.js'
 ];
 const preSplitComprehensiveWebkit = [
+  // P4-AUD-008 adds this regression without moving or removing any existing family.
+  'tests/property-mortgage-refinance-webkit-test.js',
   'tests/ma-acquisition-financing-webkit-test.js', 'tests/ma-board-approval-webkit-test.js', 'tests/ma-deal-room-webkit-test.js',
   'tests/ma-share-swap-save-atomicity-webkit-test.js', 'tests/investor-offer-save-atomicity-webkit-test.js', 'tests/founder-share-sale-save-atomicity-webkit-test.js',
   'tests/stock-purchase-save-atomicity-webkit-test.js', 'tests/stock-sale-save-atomicity-webkit-test.js', 'tests/stock-split-price-history-webkit-test.js',

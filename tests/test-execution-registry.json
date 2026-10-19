@@ -1,4 +1,8 @@
 {
+  "tests/property-mortgage-refinance-webkit-test.js": {
+    "reason": "Real iPhone WebKit refinance rejection, save-failure rollback and durable-only fresh-context hydration in M&A PR and post-merge gates.",
+    "executedBy": ".github/workflows/ma-acquisition-financing.yml"
+  },
   "tests/ma-share-swap-save-atomicity-webkit-test.js": {
     "reason": "Real iPhone WebKit and fresh IndexedDB browser-context regression in M&A PR and post-merge gates.",
     "executedBy": ".github/workflows/ma-acquisition-financing.yml"

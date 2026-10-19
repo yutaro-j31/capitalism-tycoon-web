@@ -60,6 +60,7 @@
     "tests/pe-weekly-performance-test.js",
     "tests/pe-initiative-delay-concurrency-test.js",
     "tests/personal-real-estate-mortgage-test.js",
+    "tests/property-mortgage-refinance-conservation-test.js",
     "tests/personal-real-estate-taxes-test.js",
     "tests/real-estate-cycle-state-collision-test.js",
     "tests/menu-lifecycle-test.js",
