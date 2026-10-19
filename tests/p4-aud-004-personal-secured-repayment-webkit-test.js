@@ -26,7 +26,7 @@ async function projection(page){return page.evaluate(()=>{
   const m=globalThis.__capitalismTycoonModules,key=m.engine.SAVE_KEY;
   const state=m.engine.createInitialState({configured:true});
   Object.assign(state,{configured:true,week:10,companyCash:100_000_000,companyDebt:0,personalCash:80_000_000,personalDebt:0,
-    properties:[{id:'P4-004-WB',name:'Property Tower',owner:'personal',purchasePrice:300_000_000,marketValue:300_000_000,
+    properties:[{id:'P4-004-WB',name:'Property Tower',owner:'personal',value:300_000_000,purchasePrice:300_000_000,marketValue:300_000_000,
       realEstate:{monthlyRent:4_000_000,occupancyRate:1,expenseRatio:.2}}]});
   state.finance=m.finance.defaultFinanceState(state);
   const e=new m.engine.TycoonEngine(state);
