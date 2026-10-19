@@ -36,7 +36,9 @@ for(const change of [d=>d.status='exited',d=>d.settlement={},d=>d.investedAmount
  const s=state();change(s.peFirm.funds[0].deals[0]);assert.equal(project(s).portfolioParticipations[0].fundProceedsFraction,null);
 }
 {
- const s=state();s.peFirm.funds[0].status='closed';const r=project(s);assert.equal(r.fundInterests[0].current,false);assert.equal(r.portfolioParticipations[0].current,true);assert.equal(r.portfolioParticipations[0].fundProceedsFraction,25/35);
+ const s=state();s.peFirm.funds[0].status='closed';const r=project(s);assert.equal(r.fundInterests[0].current,true);assert.equal(r.managementRelationships[0].current,true);assert.equal(r.fundInterests[0].fundStatus,'closed');assert.equal(r.portfolioParticipations[0].current,true);assert.equal(r.portfolioParticipations[0].fundProceedsFraction,25/35);
+ s.peFirm.funds[0].deals[0].status='exited';assert.equal(project(s).fundInterests[0].current,false);assert.equal(project(s).managementRelationships[0].current,false);
+ s.peFirm.funds[0].cash=5;assert.equal(project(s).fundInterests[0].current,true);
 }
 let reads=0;
 for(const key of ['size','gpCommit','status','deals']){
@@ -55,7 +57,7 @@ assert.throws(()=>vm.runInNewContext(src,ctx),/already registered/);
  const r=project(copy(e.g));assert.equal(r.fundInterests[0].contributionRatio,f.gpCommit/f.size);
  f.deals.push(deal());m.peFund.processFundsWeek(e.g,f.deadlineWeek);
  assert.equal(f.status,'closed');assert.equal(f.deals[0].status,'active');
- const closed=project(copy(e.g));assert.equal(closed.portfolioParticipations[0].current,true);assert.equal(closed.portfolioParticipations[0].fundProceedsFraction,25/35);
+ const closed=project(copy(e.g));assert.equal(closed.fundInterests[0].current,true);assert.equal(closed.managementRelationships[0].current,true);assert.equal(closed.portfolioParticipations[0].current,true);assert.equal(closed.portfolioParticipations[0].fundProceedsFraction,25/35);
  f.deals[0].status='exited';assert.equal(project(copy(e.g)).portfolioParticipations[0].fundProceedsFraction,null);
 }
 console.log('PASS P3-7 fund interests: account separation, source-exact capital, coinvest, historical distributions, malformed evidence, purity, v9 and installed writer');

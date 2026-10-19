@@ -68,7 +68,8 @@
         votingFraction:null,legalTargetShares:null,managementAuthority:false,wealthValue:null,
         status:supported?'observed':'unresolved'};
       result.fundInterests.push(interest);
-      if(id!==null&&!collision)result.managementRelationships.push({fundId:id,sourcePath:path,relationship:'gp-manager',assetRole:'management-only',current:supported&&status!=='closed'});
+      const manager=id!==null&&!collision?{fundId:id,sourcePath:path,relationship:'gp-manager',assetRole:'management-only',current:supported&&status!=='closed'}:null;
+      if(manager)result.managementRelationships.push(manager);
       const paidKeys=['gpDistributed','lpDistributed','gpCarryPaid','managementFeesPaid'];
       const paid={fundId:id,sourcePath:path,kind:'historical-paid-cash',isReceivable:false};
       for(const key of paidKeys){const r=safeField(fund,key,path,errors);paid[key]=r.ok&&r.present&&finiteNonnegative(r.value)?r.value:null;
@@ -81,6 +82,7 @@
       if(!deals)continue;
       const dealIds=deals.map((deal,j)=>plain(deal)?requireId(deal,'id',`${path}.deals[${j}]`,errors):null);
       const counts=unique(dealIds.map(id=>({id})),r=>r.id,errors,`${path}.deals`);
+      const participationStart=result.portfolioParticipations.length;
       for(let j=0;j<deals.length;j++){
         const deal=deals[j],dealPath=`${path}.deals[${j}]`,dealId=dealIds[j];
         if(!plain(deal)){errors.push(issue('INPUT_INVALID',dealPath));continue;}
@@ -98,6 +100,11 @@
           fundProceedsFraction:known?fundPortion/invested:null,externalCoinvestProceedsFraction:known?coinvestPortion/invested:null,
           legalEquityFraction:null,votingFraction:null,issuerId:null,founderBeneficialFraction:null,
           wealthValue:null,sourceStatus:typeof dealStatus==='string'?dealStatus:null});
+      }
+      if(supported&&status==='closed'){
+        const cash=read(fund,'cash',path,errors);
+        const outstanding=result.portfolioParticipations.slice(participationStart).some(row=>row.current)||(finiteNonnegative(cash)&&cash>0);
+        interest.current=outstanding;if(manager)manager.current=outstanding;
       }
     }
     result.fundInterests.sort((a,b)=>textOrder(a.fundId||'',b.fundId||'')||textOrder(a.sourcePath,b.sourcePath));
