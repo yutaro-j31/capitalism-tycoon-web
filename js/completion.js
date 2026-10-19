@@ -196,14 +196,8 @@ function installCompletion(TycoonEngine){
         // Reject rather than normalize/repair funded evidence. Neither source account
         // may exceed its pro-rata entitlement (same 1e-7 tolerance as the live
         // participation writer) or close with negative/>100% equity.
-        if(!plan||['company','personal'].some(account=>{
-          const side=plan[account],sourceOwnership=s[account==='company'?'ownedCompany':'ownedPersonal']??0;
-          // A finite, bounded snapshot can still erase/inflate held assets on close.
-          // Live round writers freeze these source holdings until the round closes.
-          return side.ownershipBefore!==sourceOwnership||side.ownershipBefore<0||side.ownershipBefore>1||side.contributed<0||side.contributed>plan.targetRaise||
-            (side.contributed>0&&side.ownershipBefore<=0)||side.contributed>side.proRataRequired+1e-7||
-            !Number.isFinite(side.projectedOwnership)||side.projectedOwnership<0||side.projectedOwnership>1;
-        }))return this.fail('個人VC出資ラウンドを確認できません。');
+        if(!plan||!this.hasValidStartupFundingRoundOwnershipEvidence(s.id))return this.fail('個人VC出資ラウンドを確認できません。');
+        if(!this.hasStartupFundingRoundPaymentEvidence(s.id,'personal'))return this.fail('個人VC出資の払込証拠を確認できません。');
         held.activeFundingRound.preRoundOwnedCompany=0;
         held.activeFundingRound.contributedCompany=0;
       }

@@ -183,6 +183,11 @@ const h=makeTransactionFaultCase({name:'company refounding',fixture,command:refo
   assert.equal(refound(s),false,'contradictory source ownership rejects refounding');
   assert.equal(s.game.g,root);assert.deepEqual(snapshot(s.game),before,'assets and RNG unchanged');
   await s.backend.flush();assert.equal(s.ctx.localStorage.getItem(s.engineModule.SAVE_KEY),mirror,'no replacement save');
+  s.game.g.week=st.activeFundingRound.closesWeek;
+  const due=snapshot(s.game);assert.equal(s.game.closeStartupFundingRound(st),false,'direct close rejects contradictory source ownership');
+  assert.deepEqual(snapshot(s.game),due);
+  const held=JSON.stringify(st.activeFundingRound);s.game.updateStartups();
+  assert.equal(JSON.stringify(st.activeFundingRound),held,'weekly close preserves the rejected funded snapshot');
  }
  console.log('Retained round source ownership consistency / both accounts PASS');
  // P1: the entire target raise is not either account's legal pro-rata limit.
@@ -217,5 +222,54 @@ const h=makeTransactionFaultCase({name:'company refounding',fixture,command:refo
   st.fundingOpen=true;assert.equal(s.game.openStartupFundingRound(st),true);
   assert.equal(refound(s),true,'bounded round endpoint remains supported');
  }
+ // Within-entitlement amounts must still be backed by actual personal payments.
+ for(const corrupt of [
+  (s,st)=>st.activeFundingRound.contributedPersonal=s.game.getStartupFundingRoundPlan(st.id).personal.proRataRequired,
+  (s,st)=>delete s.game.g.startupFundingHistory[st.id],
+  (s,st)=>delete st.activeFundingRound.openedWeek,
+  (s,st)=>s.game.g.startupFundingHistory[st.id]=[],
+  (s,st)=>st.totalInvestedPersonal=0,
+  (s,st)=>s.game.g.startupFundingHistory[st.id][0].amount+=1,
+  (s,st)=>s.game.g.startupFundingHistory[st.id][0].postMoneyValuation+=1,
+  (s,st)=>s.game.g.startupFundingHistory[st.id].unshift({...s.game.g.startupFundingHistory[st.id][0]})
+ ]){
+  const s=await fixture(),st=s.game.g.startups.find(x=>x.ownedPersonal>0);
+  st.fundingOpen=true;assert.equal(s.game.openStartupFundingRound(st),true);
+  assert.equal(s.game.participateStartupFundingRound(st.id,1_000_000,'personal'),true);
+  corrupt(s,st);const before=snapshot(s.game),root=s.game.g,mirror=s.backend.readSync(s.key);
+  assert.equal(refound(s),false,'unproven personal payment must not become retained equity');
+  assert.equal(s.game.g,root);assert.deepEqual(snapshot(s.game),before);
+  await s.backend.flush();assert.equal(s.backend.readSync(s.key),mirror);
+  // Refusing refounding must not leave a direct/weekly close bypass to mint
+  // the same unpaid equity, nor silently discard the funded corrupt round.
+  s.game.g.week=st.activeFundingRound.closesWeek;
+  const due=snapshot(s.game);
+  assert.equal(s.game.closeStartupFundingRound(st),false);
+  assert.deepEqual(snapshot(s.game),due);
+  const retained=JSON.stringify(st.activeFundingRound),ownership=st.ownedPersonal;
+  s.game.updateStartups();
+  assert.equal(JSON.stringify(st.activeFundingRound),retained);
+  assert.equal(st.ownedPersonal,ownership);
+ }
+ // The writer and replacement guard use the same cumulative tolerance. Repeated
+ // sub-tolerance commands cannot build an overage rejected by the reader.
+ for(const account of ['personal','company']){
+  const s=await fixture(),st=s.game.g.startups.find(x=>x.ownedPersonal>0);
+  if(account==='company')assert.equal(s.game.investStartup(st.id,20_000_000,'company'),true);
+  st.fundingOpen=true;assert.equal(s.game.openStartupFundingRound(st),true);
+  const required=s.game.getStartupFundingRoundPlan(st.id)[account].proRataRequired;
+  assert.equal(s.game.participateStartupFundingRound(st.id,required+6e-8,account),true);
+  const before=snapshot(s.game);
+  assert.equal(s.game.participateStartupFundingRound(st.id,6e-8,account),false);
+  assert.deepEqual(snapshot(s.game),before,'cumulative overage rejection never charges cash');
+  assert.equal(refound(s),true,'actual supported payment remains retainable');
+ }
+ const paidHarness=makeTransactionFaultCase({name:'paid-personal-refounding',
+  fixture:async()=>{const s=await fixture(),st=s.game.g.startups.find(x=>x.ownedPersonal>0);
+   st.fundingOpen=true;assert.equal(s.game.openStartupFundingRound(st),true);
+   assert.equal(s.game.participateStartupFundingRound(st.id,1_000_000,'personal'),true);
+   await s.backend.flush();return s;},command:refound,snapshot,economic,expectSuccess:expectFounded});
+ for(const kind of ['save-false','save-throw'])await paidHarness.rejected('personal',kind,{nested:true});
+ console.log('Paid personal round evidence / cumulative writer tolerance PASS');
  console.log('Found new company save atomicity PASS');
 })().catch(e=>{console.error(e);process.exitCode=1;});

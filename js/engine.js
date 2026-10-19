@@ -1482,16 +1482,50 @@ class TycoonEngine extends EventTarget {
       this.notify(`${s.name}へ${yen(amount)}投資し、持分${pct(equity)}を取得しました。`,'success');return true;
     });
   }
+  // Existing v9 payment history is evidence, never a source of invented capital.
+  // Missing/truncated positive subscriptions remain held but cannot be converted.
+  hasStartupFundingRoundPaymentEvidence(startupID,account) {
+    const sources=this.g.startups.filter(s=>s.id===startupID),s=sources[0],r=s?.activeFundingRound;
+    if(sources.length!==1||!r||!['company','personal'].includes(account))return false;
+    const cap=account==='company'?'Company':'Personal',pending=r[`contributed${cap}`];
+    if(!Number.isFinite(pending)||pending<0)return false;
+    if(pending===0)return true; // Older zero-funded rounds need no invented receipt.
+    const history=this.g.startupFundingHistory?.[startupID],cost=s[`totalInvested${cap}`];
+    if(typeof r.id!=='string'||!r.id||!Number.isSafeInteger(r.openedWeek)||r.openedWeek<1||
+      !Number.isSafeInteger(r.closesWeek)||r.closesWeek<=r.openedWeek||!Array.isArray(history)||
+      !Number.isFinite(cost)||cost<pending)return false;
+    const payments=history.filter(row=>row?.eventType==='participated'&&row.account===account&&
+      typeof row.id==='string'&&row.id.startsWith(`${r.id}-${account}-`));
+    const ids=new Set();let paid=0;
+    for(const row of payments.slice().reverse()){
+      if(ids.has(row.id)||!Number.isFinite(row.amount)||row.amount<=0||
+        !Number.isSafeInteger(row.week)||row.week<r.openedWeek||row.week>=r.closesWeek||
+        row.stage!==r.round||row.preMoneyValuation!==r.preMoneyValuation||
+        row.targetRaise!==r.targetRaise||row.postMoneyValuation!==r.postMoneyValuation)return false;
+      ids.add(row.id);paid+=row.amount;
+    }
+    return Number.isFinite(paid)&&paid===pending;
+  }
   getStartupFundingRoundPlan(startupID) {
     const s=this.g.startups.find(x=>x.id===startupID),r=s?.activeFundingRound;
     if(!s||!s.alive||!r||r.status!=='open'||![r.preMoneyValuation,r.targetRaise,r.postMoneyValuation,r.preRoundOwnedCompany,r.preRoundOwnedPersonal,r.contributedCompany,r.contributedPersonal,r.closesWeek].every(Number.isFinite)||r.preMoneyValuation<=0||r.targetRaise<=0||r.postMoneyValuation!==r.preMoneyValuation+r.targetRaise)return null;
     const side=account=>{const cap=account==='company'?'Company':'Personal',before=r[`preRoundOwned${cap}`],contributed=r[`contributed${cap}`],required=before*r.targetRaise,diluted=before*r.preMoneyValuation/r.postMoneyValuation;return{account,ownershipBefore:before,ownershipWithoutParticipation:diluted,projectedOwnership:diluted+contributed/r.postMoneyValuation,proRataRequired:required,contributed,remaining:Math.max(0,required-contributed)};};
     return{id:r.id,round:r.round,openedWeek:r.openedWeek,closesWeek:r.closesWeek,weeksRemaining:Math.max(0,r.closesWeek-this.g.week),preMoneyValuation:r.preMoneyValuation,targetRaise:r.targetRaise,postMoneyValuation:r.postMoneyValuation,company:side('company'),personal:side('personal')};
   }
+  hasValidStartupFundingRoundOwnershipEvidence(startupID) {
+    const plan=this.getStartupFundingRoundPlan(startupID),s=this.g.startups.find(row=>row.id===startupID);
+    return !!plan&&['company','personal'].every(account=>{
+      const side=plan[account],source=s[account==='company'?'ownedCompany':'ownedPersonal']??0;
+      return side.ownershipBefore===source&&side.ownershipBefore>=0&&side.ownershipBefore<=1&&
+        side.contributed>=0&&side.contributed<=plan.targetRaise&&
+        (side.contributed===0||side.ownershipBefore>0)&&side.contributed<=side.proRataRequired+1e-7&&
+        Number.isFinite(side.projectedOwnership)&&side.projectedOwnership>=0&&side.projectedOwnership<=1;
+    });
+  }
   participateStartupFundingRound(startupID,amount,account) {
     return this.runTransaction(()=>{
     const plan=this.getStartupFundingRoundPlan(startupID),s=this.g.startups.find(x=>x.id===startupID);if(!plan||this.g.week>=plan.closesWeek||(account!=='company'&&account!=='personal')||typeof amount!=='number'||!Number.isFinite(amount)||amount<=0)return false;
-    const side=plan[account],cashKey=account==='company'?'companyCash':'personalCash';if(side.ownershipBefore<=0||amount>side.remaining+1e-7||this.g[cashKey]<amount)return false;
+    const side=plan[account],cashKey=account==='company'?'companyCash':'personalCash';if(side.ownershipBefore<=0||amount>side.remaining+1e-7||side.contributed+amount>side.proRataRequired+1e-7||this.g[cashKey]<amount)return false;
     this.g[cashKey]-=amount;const cap=account==='company'?'Company':'Personal';s.activeFundingRound[`contributed${cap}`]+=amount;s[`totalInvested${cap}`]=finite(s[`totalInvested${cap}`])+amount;
     if(account==='company')finance.event(this.g,'investmentPurchase',amount,{cashEffect:-amount,assetEffect:amount,sourceType:'startupFundingRound',sourceID:`${startupID}-${s.activeFundingRound.id}-${account}`,description:`${s.name} ${plan.round}追加投資`});
     const history=this.g.startupFundingHistory[startupID]||(this.g.startupFundingHistory[startupID]=[]);history.unshift({id:`${s.activeFundingRound.id}-${account}-${this.g.week}-${history.length}`,eventType:'participated',stage:plan.round,week:this.g.week,account,amount,preMoneyValuation:plan.preMoneyValuation,targetRaise:plan.targetRaise,postMoneyValuation:plan.postMoneyValuation});this.g.startupFundingHistory[startupID]=history.slice(0,24);
@@ -1505,7 +1539,7 @@ class TycoonEngine extends EventTarget {
     const h=this.g.startupFundingHistory[s.id]||(this.g.startupFundingHistory[s.id]=[]);h.unshift({id:`${s.activeFundingRound.id}-opened`,eventType:'opened',stage:next,openedWeek:this.g.week,preMoneyValuation:pre,targetRaise:raise,postMoneyValuation:pre+raise,status:'open'});this.g.startupFundingHistory[s.id]=h.slice(0,24);this.g.news.unshift(`第${this.g.week}週：${s.name}が${next}追加資金調達を開始しました。`);return true;
   }
   closeStartupFundingRound(s) {
-    const plan=this.getStartupFundingRoundPlan(s?.id);if(!plan||this.g.week<plan.closesWeek)return false;const r=s.activeFundingRound,dilution=r.preMoneyValuation/r.postMoneyValuation;s.ownedCompany=r.preRoundOwnedCompany*dilution+r.contributedCompany/r.postMoneyValuation;s.ownedPersonal=r.preRoundOwnedPersonal*dilution+r.contributedPersonal/r.postMoneyValuation;s.ddNegotiatedOwnedCompany=clamp(finite(s.ddNegotiatedOwnedCompany)*dilution,0,s.ownedCompany);s.ddNegotiatedOwnedPersonal=clamp(finite(s.ddNegotiatedOwnedPersonal)*dilution,0,s.ownedPersonal);s.valuation=r.postMoneyValuation;s.stage=r.round;s.fundingRound=r.round;s.runwayWeeks=Math.max(finite(s.runwayWeeks),({Seed:40,'Series A':48,'Series B':56,'Pre-IPO':52,'プレIPO':52}[r.round]||48));s.lastFundingRoundClosedWeek=this.g.week;
+    const plan=this.getStartupFundingRoundPlan(s?.id);if(!plan||this.g.week<plan.closesWeek||!this.hasValidStartupFundingRoundOwnershipEvidence(s.id)||!['company','personal'].every(account=>this.hasStartupFundingRoundPaymentEvidence(s.id,account)))return false;const r=s.activeFundingRound,dilution=r.preMoneyValuation/r.postMoneyValuation;s.ownedCompany=r.preRoundOwnedCompany*dilution+r.contributedCompany/r.postMoneyValuation;s.ownedPersonal=r.preRoundOwnedPersonal*dilution+r.contributedPersonal/r.postMoneyValuation;s.ddNegotiatedOwnedCompany=clamp(finite(s.ddNegotiatedOwnedCompany)*dilution,0,s.ownedCompany);s.ddNegotiatedOwnedPersonal=clamp(finite(s.ddNegotiatedOwnedPersonal)*dilution,0,s.ownedPersonal);s.valuation=r.postMoneyValuation;s.stage=r.round;s.fundingRound=r.round;s.runwayWeeks=Math.max(finite(s.runwayWeeks),({Seed:40,'Series A':48,'Series B':56,'Pre-IPO':52,'プレIPO':52}[r.round]||48));s.lastFundingRoundClosedWeek=this.g.week;
     const h=this.g.startupFundingHistory[s.id]||(this.g.startupFundingHistory[s.id]=[]),opened=h.find(x=>x.status==='open');if(opened){opened.status='closed';opened.closedWeek=this.g.week;}h.unshift({id:`${r.id}-closed`,eventType:'closed',stage:r.round,closedWeek:this.g.week,preMoneyValuation:r.preMoneyValuation,targetRaise:r.targetRaise,postMoneyValuation:r.postMoneyValuation,ownershipBefore:{company:r.preRoundOwnedCompany,personal:r.preRoundOwnedPersonal},ownershipAfter:{company:s.ownedCompany,personal:s.ownedPersonal}});this.g.startupFundingHistory[s.id]=h.slice(0,24);s.activeFundingRound=null;this.g.news.unshift(`第${this.g.week}週：${s.name}の${s.stage}追加資金調達が完了しました。`);return true;
   }
   makeSubsidiary(startupID) {
@@ -1854,7 +1888,7 @@ class TycoonEngine extends EventTarget {
     if(this.g.publicCompany){const own=this.stock(this.g.ticker);if(own){this.g.stockPrice=own.price;own.issuedShares=this.g.sharesOut;own.marketCap=own.price*this.g.sharesOut;}}
   }
   updateStartups() {
-    for(const s of this.g.startups){if(!s.alive){s.activeFundingRound=null;continue;}if(s.activeFundingRound&&!this.getStartupFundingRoundPlan(s.id))s.activeFundingRound=null;if(s.activeFundingRound&&this.g.week>=s.activeFundingRound.closesWeek){this.closeStartupFundingRound(s);continue;}s.runwayWeeks--;const annual=s.growth+rand(this.g,-s.risk,s.risk)+(this.g.economy-1)*.15;s.valuation=Math.max(2_000_000,s.valuation*(1+annual/52));s.productProgress=clamp(s.productProgress+rand(this.g,.005,.035),0,1);
+    for(const s of this.g.startups){if(!s.alive){s.activeFundingRound=null;continue;}if(s.activeFundingRound&&!this.getStartupFundingRoundPlan(s.id)){if(s.activeFundingRound.contributedPersonal>0||s.activeFundingRound.contributedCompany>0)continue;s.activeFundingRound=null;}if(s.activeFundingRound&&this.g.week>=s.activeFundingRound.closesWeek){this.closeStartupFundingRound(s);continue;}s.runwayWeeks--;const annual=s.growth+rand(this.g,-s.risk,s.risk)+(this.g.economy-1)*.15;s.valuation=Math.max(2_000_000,s.valuation*(1+annual/52));s.productProgress=clamp(s.productProgress+rand(this.g,.005,.035),0,1);
       if(s.runwayWeeks<8)s.fundingOpen=true;if(s.fundingOpen&&(s.ownedCompany>0||s.ownedPersonal>0))this.openStartupFundingRound(s);else if(s.fundingOpen&&simRng.next(this.g)<.08){s.stage=s.stage==='Seed'?'Series A':s.stage==='Series A'?'Series B':s.stage==='Series B'?'Series C':'Pre-IPO';s.valuation*=rand(this.g,1.15,1.65);s.runwayWeeks+=52;const companyDilution=rand(this.g,.82,.94),personalDilution=rand(this.g,.82,.94);s.ownedCompany*=companyDilution;s.ownedPersonal*=personalDilution;s.ddNegotiatedOwnedCompany=clamp(finite(s.ddNegotiatedOwnedCompany)*companyDilution,0,s.ownedCompany);s.ddNegotiatedOwnedPersonal=clamp(finite(s.ddNegotiatedOwnedPersonal)*personalDilution,0,s.ownedPersonal);s.fundingOpen=false;this.g.news.unshift(`第${this.g.week}週：${s.name}が${s.stage}資金調達を完了しました。`);}
       if(s.runwayWeeks<=0&&simRng.next(this.g)<.25){s.alive=false;s.valuation*=.1;this.writeOffStartup(s,'資金枯渇');this.g.news.unshift(`第${this.g.week}週：${s.name}が資金枯渇で事業停止しました。`);}
       if(s.stage==='Pre-IPO'&&s.valuation>1_000_000_000&&simRng.next(this.g)<.025)this.listStartup(s);

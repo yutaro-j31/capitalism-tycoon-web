@@ -139,7 +139,7 @@ async function check(browser,context,url,p,expected,label,round=null){
  browser=await webkit.launch();console.log('Actual WebKit '+browser.version()+' / iPhone13 emulation / real IndexedDB / real legacy-tab flow');const url='http://127.0.0.1:'+server.address().port+'/',g=await fixture();
  // #1027: reject incomplete personally funded rounds through the installed UI,
  // retaining the malformed old-v9 evidence rather than inventing a repair.
- for(const defect of ['missing-close','post-money','negative-ownership','excess-ownership','negative-company-contribution','excess-personal-contribution','ownership-source-mismatch','excess-pro-rata']){
+ for(const defect of ['missing-close','post-money','negative-ownership','excess-ownership','negative-company-contribution','excess-personal-contribution','ownership-source-mismatch','excess-pro-rata','unpaid-personal','missing-payment-history']){
   const context=await browser.newContext(options),p=await boot(context,url,g);
   const before=await p.evaluate(async defect=>{
    const m=__capitalismTycoonModules,e=m.playerEngineBridge.getEngine(),st=e.g.startups.find(s=>s.ownedPersonal>0);
@@ -154,6 +154,8 @@ async function check(browser,context,url,p,expected,label,round=null){
    else if(defect==='negative-company-contribution')r.contributedCompany=-1;
    else if(defect==='ownership-source-mismatch')r.preRoundOwnedPersonal=0;
    else if(defect==='excess-pro-rata')r.contributedPersonal=e.getStartupFundingRoundPlan(st.id).personal.proRataRequired+1;
+   else if(defect==='unpaid-personal')r.contributedPersonal=e.getStartupFundingRoundPlan(st.id).personal.proRataRequired;
+   else if(defect==='missing-payment-history')delete e.g.startupFundingHistory[st.id];
    else r.contributedPersonal=r.targetRaise+1;
    if(['missing-close','post-money'].includes(defect)&&e.getStartupFundingRoundPlan(st.id)!==null)throw Error('malformed fixture accepted');
    if(!e.save())throw Error('legacy fixture save');await m.saveStorageIDB.flush();
