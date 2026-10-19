@@ -68,7 +68,13 @@ function validateState(s){
       expected[posting.account]=(expected[posting.account]||0n)+change;
     }
     if(delta!==0n)throw Error("unbalanced-journal");
-    if(j.type==="journal")for(const sum of Object.values(perEntity))if(sum!==0n)throw Error("unbalanced-entity-journal");
+    if(j.type==="journal"){
+      for(const sum of Object.values(perEntity))if(sum!==0n)throw Error("unbalanced-entity-journal");
+      const cashLegs=j.postings.filter(p=>p.account.endsWith(":cash"));
+      const netCash=cashLegs.reduce((sum,p)=>sum+BigInt(p.deltaMinor),0n);
+      if(netCash!==0n)throw Error("unbalanced-cash-journal");
+      if(cashLegs.length&&new Set(cashLegs.map(p=>p.account.split(":")[0])).size<2)throw Error("uncorroborated-cash-journal");
+    }
   }
   // Every current balance must be a replay of genesis plus exactly the recorded journal legs.
   if(JSON.stringify(Object.keys(expected).sort())!==JSON.stringify(Object.keys(s.balances).sort()))throw Error("balance-journal-keys");
@@ -113,6 +119,9 @@ function planOperation(previous,op){
       const totals=Object.fromEntries(next.entities.map(e=>[e,0n]));
       for(const item of p)totals[item.account.split(":")[0]]+=BigInt(item.deltaMinor);
       if(Object.values(totals).some(value=>value!==0n))throw Error("unbalanced-entity-journal");
+      const cashLegs=p.filter(item=>item.account.endsWith(":cash"));
+      if(cashLegs.reduce((sum,item)=>sum+BigInt(item.deltaMinor),0n)!==0n)throw Error("unbalanced-cash-journal");
+      if(cashLegs.length&&new Set(cashLegs.map(item=>item.account.split(":")[0])).size<2)throw Error("uncorroborated-cash-journal");
     }else throw Error("unsupported-operation");
     let delta=0n;
     for(const item of p){
