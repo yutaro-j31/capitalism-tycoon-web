@@ -36,22 +36,25 @@ function reason(code,path){return {code,path,message:code,evidenceRefs:[path]};}
 // Memoization allows shared acyclic metadata without exponential repeated work.
 function validateEvidence(value){
   const active=new Set(),done=new Set();let visits=0;
-  function visit(item,depth){
-    if(++visits>65536||depth>128)throw new TypeError('Evidence limit');
-    if(typeof item==='number'&&!Number.isFinite(item))throw new TypeError('Non-finite evidence');
+  function invalid(message,path){throw Object.assign(new TypeError(message),{evidencePath:path});}
+  function visit(item,depth,path){
+    if(++visits>65536||depth>128)invalid('Evidence limit',path);
+    if(typeof item==='number'&&!Number.isFinite(item))invalid('Non-finite evidence',path);
     if(item===null||['undefined','string','number','boolean'].includes(typeof item))return;
-    if(typeof item!=='object'||!jsonContainer(item)||active.has(item))throw new TypeError('Invalid evidence container');
+    if(typeof item!=='object'||!jsonContainer(item)||active.has(item))invalid('Invalid evidence container',path);
     if(done.has(item))return;
     active.add(item);
     for(const key of Reflect.ownKeys(item)){
-      if(typeof key!=='string')throw new TypeError('Symbol evidence');
+      if(typeof key!=='string')invalid('Symbol evidence',path);
+      const childPath=Array.isArray(item)&&/^(0|[1-9]\d*)$/.test(key)?`${path}[${key}]`
+        :/^[A-Za-z_$][\w$]*$/.test(key)?`${path==='$'?'':path+'.'}${key}`:`${path}[${JSON.stringify(key)}]`;
       const descriptor=Object.getOwnPropertyDescriptor(item,key);
-      if(!descriptor||!Object.prototype.hasOwnProperty.call(descriptor,'value'))throw new TypeError('Accessor evidence');
-      visit(descriptor.value,depth+1);
+      if(!descriptor||!Object.prototype.hasOwnProperty.call(descriptor,'value'))invalid('Accessor evidence',childPath);
+      visit(descriptor.value,depth+1,childPath);
     }
     active.delete(item);done.add(item);
   }
-  visit(value,0);
+  visit(value,0,Array.isArray(value)?'relationships':'$');
 }
 function traceIndirectEconomicInterest(source,rootEntityId,targetEntityId){
   const output={authority:'read-only',adapterVersion:1,complete:false,commandEligible:false,
@@ -125,7 +128,7 @@ function traceIndirectEconomicInterest(source,rootEntityId,targetEntityId){
     if(output.paths.length!==1)return reject('MULTIPATH_AGGREGATION_UNSUPPORTED','relationships');
     output.status='known';output.economicFraction=output.paths[0].economicFraction;
     return frozen(output);
-  }catch(error){output.paths=[];return reject('INPUT_INVALID','relationships');}
+  }catch(error){output.paths=[];return reject('INPUT_INVALID',typeof error.evidencePath==='string'?error.evidencePath:'relationships');}
 }
 modules.phase3IndirectEconomicPaths=Object.freeze({traceIndirectEconomicInterest});
 })();

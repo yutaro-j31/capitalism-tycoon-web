@@ -150,4 +150,15 @@ for(const bad of [NaN,Infinity,-Infinity]){
  for(let i=0;i<130;i++){node.child={};node=node.child;}
  assert.equal(known(deep).issues[0]?.code,'INPUT_INVALID','bounded descriptor validation');
 }
+for(const kind of ['accessor','cycle','nonfinite']){
+ const rows=Array.from({length:58},(_,i)=>edge('edge'+i,i?'X'+i:'A',i?'Y'+i:'C',.4));
+ const metadata={};rows[57].economicFraction.metadata=metadata;let reads=0;
+ if(kind==='accessor')Object.defineProperty(metadata,'bad',{get(){reads++;throw Error('must not run');}});
+ if(kind==='cycle')metadata.self=metadata;
+ if(kind==='nonfinite')metadata.bad=Infinity;
+ for(const input of [{relationships:rows},rows]){
+  const out=trace(input,'A','C'),path='relationships[57].economicFraction.metadata.'+(kind==='cycle'?'self':'bad');
+  assert.equal(out.issues[0].path,path);assert.deepEqual(plain(out.issues[0].evidenceRefs),[path]);assert.equal(reads,0);
+ }
+}
 console.log('PASS P3-6 indirect economic paths: strict evidence, graph ambiguity, purity, frozen output, v9 reload');
