@@ -19,6 +19,7 @@
     "./js/finance.js",
     "./js/economic-read-model.js",
     "./js/phase3-vc-source-interests.js",
+    "./js/phase3-control-eligibility.js",
     "./js/economic-settlement.js",
     "./js/real-estate-agency-pipeline.js",
     "./js/convenience-merchandising.js",
