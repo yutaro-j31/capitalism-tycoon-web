@@ -4,6 +4,14 @@
 >
 > Do not read every section for every task. Use the section relevant to the work, following the routing in `AGENTS.md`.
 
+## Ownership boundary: isolated Economic Engine vNext (Owner decision 2026-10-20)
+
+**Claude Code and ChatGPT Work must NOT implement or take ownership of the separate Economic Engine vNext feasibility experiment.** Regular ChatGPT is the designated lead. See [Owner Issue #1038](https://github.com/yutaro-j31/capitalism-tycoon-web/issues/1038), initial [draft PR #1039](https://github.com/yutaro-j31/capitalism-tycoon-web/pull/1039), and the repository-wide rule in `AGENTS.md`.
+
+Reserved scope: `experiments/economic-engine-vnext/**`, `experiment/economic-engine-vnext-*` branches, PR #1039 and vNext implementation scope in Issue #1038. When running ongoing Phase 3/4, repair, CI, review, or merge workflows, **exclude** those paths/branches/PR from your write and merge actions. Do not treat an open vNext PR as a mainline merge candidate or choose it as an autonomous “next task.” Read-only inspection for context is permitted.
+
+Continue existing production development normally. If a new Owner instruction **explicitly** reassigns vNext to Claude Code or Work, first document the handoff in Issue #1038; otherwise do not cross this boundary. A generic instruction to “proceed” does not override it. The experimental code is not approved economic authority, save migration or Phase 3/4 cutover. This section does not weaken any existing CI, money, ownership, deterministic, browser or persistence gate.
+
 ## 1. Game design direction
 
 The product is **資本主義ポケット TYCOON / Capitalism Tycoon Web**. The primary product/UX reference is **Coffee Inc 2**; Capitalism / Capitalism Lab mainly inform deeper economic, operating, and capital-allocation systems.
