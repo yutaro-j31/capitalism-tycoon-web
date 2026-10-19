@@ -143,9 +143,16 @@ for(const bad of [NaN,Infinity,-Infinity]){
  assert(Object.is(out.paths[0].economicFraction,0));assert.equal(known(plain(rows)).economicFraction,out.economicFraction);
 }
 {
- const rows=[edge('e','A','C',.4)];
- for(let i=1;i<4096;i++)rows.push(edge('isolated'+i,'X'+i,'Y'+i,.5));
- assert.equal(known(rows).economicFraction,.4,'full supported edge envelope survives JSON validation');
+ const fullEdge=(id,parent,child,value)=>edge(id,parent,child,value,{
+  beneficialOwnerEntityId:null,votingFraction:null,kind:'subsidiary',sourceRefs:[],aliasOf:null
+ });
+ const rows=[fullEdge('e','A','C',.4)];
+ for(let i=1;i<4096;i++)rows.push(fullEdge('isolated'+i,'X'+i,'Y'+i,.5));
+ const out=known(rows);
+ assert.equal(out.economicFraction,.4,'complete supported 4096-edge shape survives descriptor validation');
+ assert.deepEqual(plain(known(plain(rows))),plain(out),'full supported shape retains JSON parity');
+ assert.equal(trace(rows,'A','C').economicFraction,.4,'array source supports the same full shape');
+ assert.equal(known(rows.concat(fullEdge('excess','X4096','Y4096',.5))).issues[0].code,'INPUT_INVALID','edge limit stays enforced');
  const deep=[edge('deep','A','C',.4)];let node=deep[0];
  for(let i=0;i<130;i++){node.child={};node=node.child;}
  assert.equal(known(deep).issues[0]?.code,'INPUT_INVALID','bounded descriptor validation');

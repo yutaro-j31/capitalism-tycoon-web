@@ -4,6 +4,10 @@ const modules=globalThis.__capitalismTycoonModules;
 if(!modules)throw new Error('runtime.js must precede phase3-indirect-economic-paths.js');
 if(modules.phase3IndirectEconomicPaths)throw new Error('Phase 3 indirect path module already registered');
 const MAX_EDGES=4096,MAX_DEPTH=64,MAX_PATHS=256,MAX_VISITS=16384;
+// Descriptor validation also visits optional evidence fields, fraction records and
+// sourceRefs array lengths. Reserve room for the complete supported edge shape,
+// independently of the graph traversal budget; retain a finite metadata bound.
+const MAX_EVIDENCE_VISITS=MAX_EDGES*64;
 const cmp=(a,b)=>a<b?-1:a>b?1:0;
 // Accept ordinary records across browser/VM realms without invoking constructors/getters.
 function intrinsicPrototype(proto,constructor){
@@ -38,7 +42,7 @@ function validateEvidence(value){
   const active=new Set(),done=new Set();let visits=0;
   function invalid(message,path){throw Object.assign(new TypeError(message),{evidencePath:path});}
   function visit(item,depth,path){
-    if(++visits>65536||depth>128)invalid('Evidence limit',path);
+    if(++visits>MAX_EVIDENCE_VISITS||depth>128)invalid('Evidence limit',path);
     if(typeof item==='number'&&!Number.isFinite(item))invalid('Non-finite evidence',path);
     if(item===null||['undefined','string','number','boolean'].includes(typeof item))return;
     if(typeof item!=='object'||!jsonContainer(item)||active.has(item))invalid('Invalid evidence container',path);
