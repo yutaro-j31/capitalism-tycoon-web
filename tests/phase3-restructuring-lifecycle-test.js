@@ -117,6 +117,11 @@ assert.throws(()=>vm.runInNewContext(code,context),/already registered/);
  assert.equal(project(s).observations[0].status,'source-matched');
 }
 // Reuse the installed-engine harness: no second economic simulation fixture.
+for(const marker of ['restructuredFrom','restructuredWeek']){
+ const retained={id:'r',status:'integrated',[marker]:undefined};
+ const s={week:102,subsidiaries:[{id:'r2',status:'active',restructuredFrom:['r','c'],restructuredWeek:101},retained],groupRestructuringHistory:[{type:'merge',aID:'r',bID:'c',mergedID:'r2',week:101}]};
+ assert.equal(project(s).observations.find(r=>r.replacementSourceId==='r2').status,'unresolved','own undefined ancestor marker is not an ordinary leaf');
+}
 for(const retained of [{id:'a',status:'active'},{id:'a',status:'sold'},{id:'a',status:'integrated'}]){
  const s={week:102,subsidiaries:[{id:'r2',status:'active',restructuredFrom:['r','c'],restructuredWeek:101},retained],groupRestructuringHistory:[receipt(),{type:'merge',aID:'r',bID:'c',mergedID:'r2',week:101}]};
  assert.equal(project(s).observations[0].status,retained.status==='integrated'?'source-matched':'unresolved');

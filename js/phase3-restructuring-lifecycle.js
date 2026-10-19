@@ -66,7 +66,7 @@ function projectRestructuringLifecycle(raw){
     const node=stack.pop();if(node.exit){active.delete(node.key);continue;}
     if(active.has(node.key))return 'CYCLE_UNSUPPORTED';
     const list=receipts.get(node.key);
-    if(!list){if(historyMayBeTruncated)return 'ANCESTRY_UNPROVEN';if((subs.get(node.key)||[]).some(r=>field(r,'restructuredFrom')!==undefined||field(r,'restructuredWeek')!==undefined))retainedConflict=true;continue;}
+    if(!list){if(historyMayBeTruncated)return 'ANCESTRY_UNPROVEN';if((subs.get(node.key)||[]).some(r=>own.call(r,'restructuredFrom')||own.call(r,'restructuredWeek')))retainedConflict=true;continue;}
     if(list.length!==1||!list[0].valid||list[0].week>node.beforeWeek)return 'LIFECYCLE_CONFLICT';
     const retainedNode=subs.get(node.key)||[];
     if(retainedNode.length>1||retainedNode.some(r=>field(r,'restructuredWeek')!==list[0].week||JSON.stringify(pair(field(r,'restructuredFrom')))!==JSON.stringify(list[0].from)))retainedConflict=true;
