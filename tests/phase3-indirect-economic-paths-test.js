@@ -161,4 +161,12 @@ for(const kind of ['accessor','cycle','nonfinite']){
   assert.equal(out.issues[0].path,path);assert.deepEqual(plain(out.issues[0].evidenceRefs),[path]);assert.equal(reads,0);
  }
 }
+for(const key of ['value','status']){
+ const rows=[edge('hidden','A','C',.4)];
+ Object.defineProperty(rows[0].economicFraction,key,{value:rows[0].economicFraction[key],enumerable:false});
+ const out=known(rows);
+ assert.equal(out.status,'unknown');assert.equal(out.issues[0].code,'INPUT_INVALID');
+ assert.equal(out.issues[0].path,'relationships[0].economicFraction.'+key);
+ assert.notEqual(known(plain(rows)).status,'known','JSON reload cannot restore hidden evidence');
+}
 console.log('PASS P3-6 indirect economic paths: strict evidence, graph ambiguity, purity, frozen output, v9 reload');
