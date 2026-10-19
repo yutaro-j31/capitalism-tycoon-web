@@ -20,14 +20,24 @@ function createInitialState(openingCashMinor){
   validateState(s);return s;
 }
 
+function accountParts(account, entities){
+  if(typeof account!=="string")throw Error("invalid-account");
+  const parts=account.split(":");
+  if(!entities.includes(parts[0]))throw Error("unknown-entity-account");
+  if(parts.length===2&&["cash","opening-equity"].includes(parts[1]))return parts;
+  if(parts.length===3&&["loan","receivable","revenue","expense"].includes(parts[1])){
+    requireId(parts[2],"account-id");return parts;
+  }
+  throw Error("unknown-account");
+}
+
 function validateState(s){
   if(!s||s.schemaVersion!==1||s.unit!=="JPY-0.01"||!Array.isArray(s.entities)||!s.balances||!s.loans||!s.receipts||!Array.isArray(s.journal)||!Number.isSafeInteger(s.nextSequence)||s.nextSequence!==s.journal.length+1)throw Error("invalid-state-shape");
   if(s.entities.length<2||new Set(s.entities).size!==s.entities.length||s.entities.some(e=>requireId(e,"entity")!==e))throw Error("invalid-entities");
   let total=0n;
   for(const [account,v] of Object.entries(s.balances)){
     minor(Math.abs(v),"account-balance");if(!Number.isSafeInteger(v))throw Error("invalid-account");
-    const parts=account.split(":");
-    if(parts.length<2||!s.entities.includes(parts[0])||!["cash","opening-equity","loan","receivable"].includes(parts[1])||(parts.length===3?requireId(parts[2],"loan-id")!==parts[2]:parts.length!==2)||(parts.length===3&&!["loan","receivable"].includes(parts[1])))throw Error("unknown-account");
+    const parts=accountParts(account,s.entities);
     if(parts[1]==="cash"&&v<0)throw Error("negative-cash");
     total+=BigInt(v);
   }
@@ -40,11 +50,29 @@ function validateState(s){
     if(s.balances[`${loan.borrower}:loan:${id}`]!==-loan.outstandingMinor||s.balances[`${loan.lender}:receivable:${id}`]!==loan.outstandingMinor)throw Error("loan-ledger-mismatch");
   }
   if(Object.keys(s.receipts).length!==s.journal.length)throw Error("receipt-count-mismatch");
-  for(let i=0;i<s.journal.length;i++){
-    const j=s.journal[i];if(!j||j.sequence!==i+1||!Array.isArray(j.postings)||s.receipts[j.operationId]!==j.sequence)throw Error("invalid-journal");
-    let delta=0n;for(const p of j.postings){if(!p||typeof p.account!=="string"||!Number.isSafeInteger(p.deltaMinor))throw Error("invalid-posting");delta+=BigInt(p.deltaMinor);}
-    if(delta!==0n)throw Error("unbalanced-journal");
+  if(!s.openingCashMinor||typeof s.openingCashMinor!=="object"||Array.isArray(s.openingCashMinor)||JSON.stringify(Object.keys(s.openingCashMinor).sort())!==JSON.stringify(s.entities))throw Error("invalid-opening");
+  const expected={};
+  for(const entity of s.entities){
+    const opening=minor(s.openingCashMinor[entity],"opening-cash");
+    expected[`${entity}:cash`]=BigInt(opening);
+    expected[`${entity}:opening-equity`]=-BigInt(opening);
   }
+  for(let i=0;i<s.journal.length;i++){
+    const j=s.journal[i];if(!j||j.sequence!==i+1||!Array.isArray(j.postings)||j.postings.length<2||j.postings.length>100||typeof j.operationId!=="string"||!Object.prototype.hasOwnProperty.call(s.receipts,j.operationId)||s.receipts[j.operationId]!==j.sequence)throw Error("invalid-journal");
+    let delta=0n;const perEntity=Object.fromEntries(s.entities.map(e=>[e,0n]));
+    for(const posting of j.postings){
+      if(!posting||!Number.isSafeInteger(posting.deltaMinor)||posting.deltaMinor===0)throw Error("invalid-posting");
+      const parts=accountParts(posting.account,s.entities);
+      const change=BigInt(posting.deltaMinor);
+      delta+=change;perEntity[parts[0]]+=change;
+      expected[posting.account]=(expected[posting.account]||0n)+change;
+    }
+    if(delta!==0n)throw Error("unbalanced-journal");
+    if(j.type==="journal")for(const sum of Object.values(perEntity))if(sum!==0n)throw Error("unbalanced-entity-journal");
+  }
+  // Every current balance must be a replay of genesis plus exactly the recorded journal legs.
+  if(JSON.stringify(Object.keys(expected).sort())!==JSON.stringify(Object.keys(s.balances).sort()))throw Error("balance-journal-keys");
+  for(const [account,balance] of Object.entries(s.balances))if(expected[account]!==BigInt(balance))throw Error("balance-journal-mismatch");
   return true;
 }
 
@@ -57,7 +85,7 @@ function planOperation(previous,op){
     const next=clone(previous),p=[];
     const entity=(name)=>{requireId(name,"entity");if(!next.entities.includes(name))throw Error("unknown-entity");return name;};
     const add=(key,delta)=>{if(!Number.isSafeInteger(delta))throw Error("invalid-posting");p.push({account:key,deltaMinor:delta});};
-    const money=minor(op.amountMinor,"amount",true);
+    const money=op.type==="journal"?null:minor(op.amountMinor,"amount",true);
     if(op.type==="transfer"){
       const from=entity(op.from),to=entity(op.to);if(from===to)throw Error("same-entity");
       add(`${from}:cash`,-money);add(`${to}:cash`,money);
@@ -75,6 +103,16 @@ function planOperation(previous,op){
       loan.outstandingMinor-=money;
       add(`${loan.borrower}:cash`,-money);add(`${loan.lender}:cash`,money);
       add(`${loan.borrower}:loan:${loanId}`,money);add(`${loan.lender}:receivable:${loanId}`,-money);
+    }else if(op.type==="journal"){
+      if(!Array.isArray(op.postings)||op.postings.length<2||op.postings.length>100)throw Error("invalid-postings");
+      for(const item of op.postings){
+        if(!item||!Number.isSafeInteger(item.deltaMinor)||item.deltaMinor===0)throw Error("invalid-posting");
+        accountParts(item.account,next.entities);
+        p.push({account:item.account,deltaMinor:item.deltaMinor});
+      }
+      const totals=Object.fromEntries(next.entities.map(e=>[e,0n]));
+      for(const item of p)totals[item.account.split(":")[0]]+=BigInt(item.deltaMinor);
+      if(Object.values(totals).some(value=>value!==0n))throw Error("unbalanced-entity-journal");
     }else throw Error("unsupported-operation");
     let delta=0n;
     for(const item of p){
