@@ -169,4 +169,13 @@ for(const key of ['value','status']){
  assert.equal(out.issues[0].path,'relationships[0].economicFraction.'+key);
  assert.notEqual(known(plain(rows)).status,'known','JSON reload cannot restore hidden evidence');
 }
+for(const change of [e=>e.assetRole='unsupported',e=>e.economicFraction.status='unknown',e=>e.isCurrent=false]){
+ const rows=Array.from({length:58},(_,i)=>edge('row'+i,'X'+i,'Y'+i,.4));
+ rows[57]=edge('bad','A','C',.4);change(rows[57]);
+ for(const input of [rows,{relationships:rows}]){
+  const out=trace(input,'A','C');assert.equal(out.issues[0].code,'SOURCE_INCOMPLETE');
+  assert.equal(out.issues[0].path,'relationships[57]');
+  assert.deepEqual(plain(out.issues[0].evidenceRefs),['relationships[57]']);
+ }
+}
 console.log('PASS P3-6 indirect economic paths: strict evidence, graph ambiguity, purity, frozen output, v9 reload');
