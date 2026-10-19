@@ -88,7 +88,7 @@ function traceIndirectEconomicInterest(source,rootEntityId,targetEntityId){
       }
       const known=current===true&&status==='observed'&&assetRole==='relationship-only'
         &&typeof value==='number'&&Number.isFinite(value)&&value>=0&&value<=1;
-      edges.push({id,parent,child,value:known?(value===0?0:value):null,known});
+      edges.push({id,parent,child,path,value:known?(value===0?0:value):null,known});
     }
     const adjacency=new Map();
     for(const edge of edges){
@@ -103,13 +103,13 @@ function traceIndirectEconomicInterest(source,rootEntityId,targetEntityId){
       if(color.get(node)===2)return;
       color.set(node,1);
       for(const edge of adjacency.get(node)||[]){
-        if(!edge.known)throw new Error('SOURCE_INCOMPLETE');
+        if(!edge.known)throw Object.assign(new Error('SOURCE_INCOMPLETE'),{evidencePath:edge.path});
         validate(edge.child,depth+1);
       }
       color.set(node,2);
     }
     try{validate(rootEntityId,0);}
-    catch(error){return reject(['CYCLE_UNSUPPORTED','SOURCE_INCOMPLETE','GRAPH_LIMIT'].includes(error.message)?error.message:'INPUT_INVALID','relationships');}
+    catch(error){return reject(['CYCLE_UNSUPPORTED','SOURCE_INCOMPLETE','GRAPH_LIMIT'].includes(error.message)?error.message:'INPUT_INVALID',typeof error.evidencePath==='string'?error.evidencePath:'relationships');}
     let visits=0;
     function walk(node,entities,ids,fraction,depth){
       if(++visits>MAX_VISITS||depth>MAX_DEPTH||output.paths.length>=MAX_PATHS)throw new Error('GRAPH_LIMIT');
