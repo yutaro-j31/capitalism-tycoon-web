@@ -187,6 +187,7 @@ assert.deepEqual(differingPaths(replayA,replayB),[],'same state/commands produce
   stock.price=Math.max(1,stock.price*.1);
   stock.marketCap=stock.price*stock.issuedShares;
   assert(margin.currentLTV(g)>margin.MAINTENANCE_LTV);
+  const preLiquidation=f.loaded.modules.saveStorage.compactStateForStorage(g,'critical').state;
   const draws=f.draws(),simulation=JSON.stringify(g.simulationRng),personalDebt=g.personalDebt;
   const result=margin.processWeek(f.game);
   assert.equal(result.liquidated,true,'own-company shares enter the margin forced-sell path');
@@ -216,6 +217,34 @@ assert.deepEqual(differingPaths(replayA,replayB),[],'same state/commands produce
   assert.equal(restored.g.founderShares,immutableCompany.founderShares);
   assert.equal(restored.g.personalStocks.CPTY,undefined);
   assert.equal(restored.g.saveVersion,9);
+  // Reload before the installed writer runs: critical compaction must not alter
+  // its liquidation result or permit a second settlement in the same week.
+  const replay=new f.loaded.engineModule.TycoonEngine();
+  replay.importSave(JSON.stringify(preLiquidation));
+  // Import legitimately adds default finance metadata; the writer must preserve
+  // the hydrated ledger, not reproduce the pre-hydration object shape.
+  const replayFinance=JSON.stringify(replay.g.finance);
+  const effects={sellStock:0,save:0,emit:0,notify:0};
+  replay.sellStock=()=>{effects.sellStock++;assert.fail('weekly liquidation must bypass the public sale command');};
+  replay.save=()=>{effects.save++;assert.fail('weekly liquidation must not save independently');};
+  replay.emit=()=>{effects.emit++;assert.fail('weekly liquidation must not emit independently');};
+  replay.notify=()=>{effects.notify++;};
+  const replayDraws=f.draws(),replayRng=JSON.stringify(replay.g.simulationRng);
+  assert.equal(replay.updatePersonalExpandedWeekly(),0,'installed personal weekly entry point');
+  assert.deepEqual(effects,{sellStock:0,save:0,emit:0,notify:1},'one margin-call notification, no per-lot command side effects');
+  assert.equal(margin.balanceOf(replay.g),0);
+  assert.equal(replay.g.personalStocks.CPTY,undefined);
+  assert.deepEqual(plain(f.loaded.modules.economicReadModel.ownershipReconciliation(replay.g)),after);
+  assert.equal(replay.g.personalCash,g.personalCash);
+  assert.equal(replay.g.personalDebt,g.personalDebt);
+  assert.equal(replay.g.companyCash,immutableCompany.cash);
+  assert.equal(JSON.stringify(replay.g.finance),replayFinance);
+  const replayBytes=JSON.stringify(replay.g);
+  assert.equal(replay.updatePersonalExpandedWeekly(),0);
+  assert.deepEqual(effects,{sellStock:0,save:0,emit:0,notify:1});
+  assert.equal(JSON.stringify(replay.g),replayBytes);
+  assert.equal(f.draws(),replayDraws);
+  assert.equal(JSON.stringify(replay.g.simulationRng),replayRng);
 }
 
 console.log('Player own-share acquisition conservation regressions passed');
