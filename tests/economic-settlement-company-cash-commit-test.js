@@ -115,6 +115,17 @@ function setup(seed){
   assert.equal(JSON.parse(ctx.localStorage.getItem('capitalism_tycoon_web_v1')).saveVersion,9);
 }
 
+// A late-game balance beyond the cent-exact envelope (> MAX_SAFE_INTEGER/100) still commits:
+// only the operation-sized delta is quantized, never the whole balance.
+{
+  const {engine,store,cost}=setup(905);
+  engine.g.companyCash=1e15+0.5;
+  assert.ok(engine.g.companyCash>Number.MAX_SAFE_INTEGER/100);
+  assert.equal(engine.renovateStore(store.id),true);
+  assert.equal(engine.g.companyCash,1e15+0.5-cost);
+  assert.equal(engine.g.finance.transactions.filter(row=>row.sourceType==='storeRenovation').at(-1).cashEffect,-cost);
+}
+
 // Deterministic: the same seed and action produce the same state (save wall-clock stamp excluded).
 {
   const run=()=>{const t=setup(904);assert.equal(t.engine.renovateStore(t.store.id),true);return JSON.stringify({...t.engine.g,lastSaveDate:null});};

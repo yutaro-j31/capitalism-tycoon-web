@@ -150,15 +150,16 @@ function commitCompanyCashOperation(state,operation,settle,project){
   validateFamily(operation);
   if(priorProjection(state,operation))throw new Error(`EconomicOperation ${operation.operationId} is already projected.`);
   const before=finite(state.companyCash,'state.companyCash');
-  const expected=modules.economicOperation.roundMoney(before+signedCashDelta(operation));
+  // Only the operation-sized delta passes the cent envelope; any finite save balance is accepted.
+  const delta=signedCashDelta(operation),expected=before+delta;
   const settlement=settle();
   if(!settlement||settlement.applied!==true||settlement.operationId!==operation.operationId||settlement.idempotencyKey!==operation.idempotencyKey)throw new Error('Company cash settlement receipt does not match the EconomicOperation.');
-  if(settlement.companyCashBefore!==before||settlement.companyCashAfter!==state.companyCash||modules.economicOperation.roundMoney(state.companyCash)!==expected)throw new Error('Company cash settlement does not match the EconomicOperation postings.');
+  if(settlement.companyCashBefore!==before||settlement.companyCashAfter!==state.companyCash||state.companyCash!==expected)throw new Error('Company cash settlement does not match the EconomicOperation postings.');
   const settled=state.companyCash;
   const row=project(settlement);
   if(state.companyCash!==settled)throw new Error('Finance projection must not change company cash.');
   if(!row||row.operationID!==operation.operationId||row.idempotencyKey!==operation.idempotencyKey)throw new Error('Finance projection did not record the EconomicOperation identity.');
-  if(modules.economicOperation.roundMoney(Number(row.cashEffect))!==modules.economicOperation.roundMoney(settled-before))throw new Error('Finance projection cash effect does not match the settled company cash.');
+  if(typeof row.cashEffect!=='number'||!Number.isFinite(row.cashEffect)||modules.economicOperation.roundMoney(row.cashEffect)!==modules.economicOperation.roundMoney(delta))throw new Error('Finance projection cash effect does not match the settled company cash.');
   return Object.freeze({...settlement,transactionID:row.transactionID??row.id??null});
 }
 
