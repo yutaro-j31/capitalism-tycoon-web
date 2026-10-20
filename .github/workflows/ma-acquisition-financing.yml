@@ -7,6 +7,9 @@ on:
       - 'js/expansion.js'
       - 'tests/investor-offer-save-atomicity-test.js'
       - 'tests/investor-offer-save-atomicity-webkit-test.js'
+      - 'js/real-estate-mortgage-refinancing.js'
+      - 'tests/property-mortgage-refinance-conservation-test.js'
+      - 'tests/property-mortgage-refinance-webkit-test.js'
       - 'tests/founder-share-sale-save-atomicity-test.js'
       - 'tests/founder-share-sale-save-atomicity-webkit-test.js'
       - 'tests/stock-purchase-save-atomicity-test.js'
@@ -42,6 +45,7 @@ on:
       - 'tests/stock-split-price-floor-webkit-test.js'
       - 'tests/p4-aud-004-personal-secured-repayment-webkit-test.js'
       - 'tests/p4-aud-004-personal-secured-repayment-test.js'
+      - 'tests/founder-capital-atomicity-webkit-test.js'
       - 'tests/fixtures/stock-split-atomicity.js'
       - 'tests/debt-command-save-atomicity-test.js'
       - 'tests/debt-command-save-atomicity-webkit-test.js'
@@ -144,6 +148,9 @@ on:
       - 'js/expansion.js'
       - 'tests/investor-offer-save-atomicity-test.js'
       - 'tests/investor-offer-save-atomicity-webkit-test.js'
+      - 'js/real-estate-mortgage-refinancing.js'
+      - 'tests/property-mortgage-refinance-conservation-test.js'
+      - 'tests/property-mortgage-refinance-webkit-test.js'
       - 'tests/founder-share-sale-save-atomicity-test.js'
       - 'tests/founder-share-sale-save-atomicity-webkit-test.js'
       - 'tests/stock-purchase-save-atomicity-test.js'
@@ -179,6 +186,7 @@ on:
       - 'tests/stock-split-price-floor-webkit-test.js'
       - 'tests/p4-aud-004-personal-secured-repayment-webkit-test.js'
       - 'tests/p4-aud-004-personal-secured-repayment-test.js'
+      - 'tests/founder-capital-atomicity-webkit-test.js'
       - 'tests/fixtures/stock-split-atomicity.js'
       - 'tests/debt-command-save-atomicity-test.js'
       - 'tests/debt-command-save-atomicity-webkit-test.js'
@@ -361,6 +369,7 @@ jobs:
           node tests/ma-share-swap-save-atomicity-webkit-test.js
           node tests/investor-offer-save-atomicity-webkit-test.js
           node tests/founder-share-sale-save-atomicity-webkit-test.js
+          node tests/property-mortgage-refinance-webkit-test.js
           node tests/stock-purchase-save-atomicity-webkit-test.js
           node tests/stock-sale-save-atomicity-webkit-test.js
           node tests/stock-split-price-history-webkit-test.js
@@ -443,6 +452,7 @@ jobs:
       - run: node tests/ma-share-swap-save-atomicity-webkit-test.js
       - run: node tests/investor-offer-save-atomicity-webkit-test.js
       - run: node tests/founder-share-sale-save-atomicity-webkit-test.js
+      - run: node tests/property-mortgage-refinance-webkit-test.js
       - run: node tests/stock-purchase-save-atomicity-webkit-test.js
       - run: node tests/stock-sale-save-atomicity-webkit-test.js
       - run: node tests/stock-split-price-history-webkit-test.js
@@ -545,6 +555,8 @@ jobs:
         run: node tests/stock-split-price-floor-webkit-test.js
       - name: P4-AUD-004 personal secured repayment in real iPhone WebKit
         run: node tests/p4-aud-004-personal-secured-repayment-webkit-test.js
+      - name: Founder Capital save atomicity in real iPhone WebKit
+        run: node tests/founder-capital-atomicity-webkit-test.js
       - name: Retain stock split WebKit evidence
         if: always()
         uses: actions/upload-artifact@v4
