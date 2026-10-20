@@ -213,6 +213,7 @@ const nodeTests = [
   ['real-estate-insurance-claims', 'tests/real-estate-insurance-claims-test.js'],
   ['real-estate-insurance-risk', 'tests/real-estate-insurance-risk-test.js'],
   ['real-estate-maintenance-reserves', 'tests/real-estate-maintenance-reserves-test.js'],
+  ['property-mortgage-refinance-conservation', 'tests/property-mortgage-refinance-conservation-test.js'],
   ['real-estate-mortgage-refinancing', 'tests/real-estate-mortgage-refinancing-test.js'],
   ['real-estate-portfolio-dashboard', 'tests/real-estate-portfolio-dashboard-test.js'],
   ['real-estate-price-negotiation', 'tests/real-estate-price-negotiation-test.js'],
