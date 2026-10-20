@@ -84,6 +84,25 @@ for(const marker of ['corrupt',1,true,[]]){
  assert(r.issues.some(i=>i.code==='INPUT_INVALID'&&i.path.endsWith('.deals[0].settlement')),'malformed settlement is reported');
 }
 {const s=state();s.peFirm.funds[0].deals[0].settlement=null;assert.equal(project(s).portfolioParticipations[0].current,true,'null settlement is the unsettled default');}
+// A plain settlement record that is not JSON data (cyclic, accessor, hidden field) is malformed too.
+{
+ const cyclic={week:3};cyclic.self=cyclic;
+ const accessor={};Object.defineProperty(accessor,'week',{get(){throw Error('getter must not run');},enumerable:true});
+ const hidden={};Object.defineProperty(hidden,'week',{value:3,enumerable:false});
+ for(const marker of [cyclic,accessor,hidden,{nested:{fn(){}}},{n:NaN}]){
+  const s=state();s.peFirm.funds[0].deals[0].settlement=marker;const r=project(s);
+  assert.equal(r.portfolioParticipations[0].current,false);
+  assert(r.issues.some(i=>i.code==='INPUT_INVALID'&&i.path.endsWith('.deals[0].settlement')),'non-JSON settlement is reported');
+ }
+ const s=state();s.peFirm.funds[0].deals[0].settlement={week:3,proceeds:[1,2]};
+ assert.equal(project(s).portfolioParticipations[0].current,false,'a valid settlement record is historical evidence');
+ assert(!project(s).issues.some(i=>i.path.endsWith('.settlement')));
+}
+// Negative zero is canonicalized, so a raw projection equals its v9 JSON reload exactly.
+{
+ const s=state(),f=s.peFirm.funds[0];f.gpCommit=-0;f.gpDistributed=-0;f.cash=-0;f.deals[0].coinvestPortion=-0;f.deals[0].fundPortion=35;
+ assert.deepStrictEqual(project(s),project(copy(s)));
+}
 let reads=0;
 for(const key of ['size','gpCommit','status','deals']){
  const s=state();Object.defineProperty(s.peFirm.funds[0],key,{get(){reads++;throw Error('getter');}});assert.doesNotThrow(()=>project(s));

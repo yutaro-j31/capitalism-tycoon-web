@@ -17,8 +17,20 @@
     if(!has.call(descriptor,'value')||!descriptor.enumerable){errors.push(issue('INPUT_INVALID',`${path}.${key}`));return {ok:false,present:true};}
     return {ok:true,present:true,value:descriptor.value};
   }
+  // JSON-representable data only: plain records/arrays of own enumerable data fields, finite
+  // numbers, strings, booleans and null, acyclic and bounded. Anything else cannot survive a v9 reload.
+  function jsonData(value,seen=new Set(),budget={nodes:4096}){
+    if(value===null||typeof value==='string'||typeof value==='boolean')return true;
+    if(typeof value==='number')return Number.isFinite(value);
+    if(typeof value!=='object'||seen.has(value)||--budget.nodes<0)return false;
+    const isList=isArray(value);if(isList?Object.getPrototypeOf(value)!==Array.prototype:!plain(value))return false;
+    const descriptors=Object.getOwnPropertyDescriptors(value);if(Reflect.ownKeys(descriptors).some(key=>typeof key==='symbol'))return false;
+    seen.add(value);
+    const ok=Object.keys(descriptors).every(key=>(isList&&key==='length')||(has.call(descriptors[key],'value')&&descriptors[key].enumerable&&jsonData(descriptors[key].value,seen,budget)));
+    seen.delete(value);return ok;
+  }
   function read(obj,key,path,errors){const r=safeField(obj,key,path,errors);return r.ok&&r.present?r.value:undefined;}
-  function requireNumber(obj,key,path,errors){const r=safeField(obj,key,path,errors);if(!r.ok)return null;if(!r.present||!finiteNonnegative(r.value)){errors.push(issue('AMOUNT_UNKNOWN',`${path}.${key}`));return null;}return r.value;}
+  function requireNumber(obj,key,path,errors){const r=safeField(obj,key,path,errors);if(!r.ok)return null;if(!r.present||!finiteNonnegative(r.value)){errors.push(issue('AMOUNT_UNKNOWN',`${path}.${key}`));return null;}return r.value+0;}
   function requireId(obj,key,path,errors){const r=safeField(obj,key,path,errors);if(!r.ok)return null;if(!r.present||!validId(r.value)){errors.push(issue('IDENTITY_UNKNOWN',`${path}.${key}`));return null;}return r.value;}
   function inspectArray(value,path,errors,maxLength){
     if(!isArray(value)||Object.getPrototypeOf(value)!==Array.prototype){errors.push(issue('INPUT_INVALID',path));return null;}
@@ -72,7 +84,7 @@
       if(manager)result.managementRelationships.push(manager);
       const paidKeys=['gpDistributed','lpDistributed','gpCarryPaid','managementFeesPaid'];
       const paid={fundId:id,sourcePath:path,kind:'historical-paid-cash',isReceivable:false};
-      for(const key of paidKeys){const r=safeField(fund,key,path,errors);paid[key]=r.ok&&r.present&&finiteNonnegative(r.value)?r.value:null;
+      for(const key of paidKeys){const r=safeField(fund,key,path,errors);paid[key]=r.ok&&r.present&&finiteNonnegative(r.value)?r.value+0:null;
         if(r.ok&&r.present&&!finiteNonnegative(r.value))errors.push(issue('AMOUNT_UNKNOWN',`${path}.${key}`));}
       result.distributionEvidence.push(paid);
       const dealsField=safeField(fund,'deals',path,errors);
@@ -89,9 +101,9 @@
         const dealStatus=read(deal,'status',dealPath,errors);
         const settled=safeField(deal,'settlement',dealPath,errors);
         // Only a plain settlement record is lifecycle evidence; a malformed marker stays unresolved.
-        const settlementMalformed=settled.ok&&settled.present&&settled.value!==null&&!plain(settled.value);
+        const settlementMalformed=settled.ok&&settled.present&&settled.value!==null&&(!plain(settled.value)||!jsonData(settled.value));
         if(settlementMalformed)errors.push(issue('INPUT_INVALID',`${dealPath}.settlement`));
-        const historical=dealStatus==='exited'||dealStatus==='sold'||dealStatus==='closed'||(settled.ok&&settled.present&&plain(settled.value));
+        const historical=dealStatus==='exited'||dealStatus==='sold'||dealStatus==='closed'||(settled.ok&&settled.present&&settled.value!==null&&!settlementMalformed);
         if(!['active','exited','sold','closed'].includes(dealStatus))errors.push(issue('LIFECYCLE_UNKNOWN',`${dealPath}.status`));
         const fundPortion=requireNumber(deal,'fundPortion',dealPath,errors),coinvestPortion=requireNumber(deal,'coinvestPortion',dealPath,errors),invested=requireNumber(deal,'investedAmount',dealPath,errors);
         const splitValid=invested!==null&&invested>0&&fundPortion!==null&&coinvestPortion!==null&&fundPortion+coinvestPortion===invested;
