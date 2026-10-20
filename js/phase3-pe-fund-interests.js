@@ -19,20 +19,22 @@
   }
   // JSON-representable data only: plain records and dense arrays of own enumerable data fields,
   // finite numbers, strings, booleans and null. Iterative (no recursion), at most 64 levels and
-  // 4,096 objects, each object visited once (so cycles and shared references fail closed).
+  // 4,096 object visits. A shared (DAG) reference is data that JSON duplicates, so it is accepted
+  // and counted on every visit; only an object already on the active path is a cycle.
   function jsonData(rootValue){
-    const stack=[[rootValue,0]],seen=new Set();
+    const EXIT={},stack=[[rootValue,0]],path=new Set();let visits=0;
     while(stack.length){
       const [value,depth]=stack.pop();
+      if(depth===EXIT){path.delete(value);continue;}
       if(value===null||typeof value==='string'||typeof value==='boolean')continue;
       if(typeof value==='number'){if(!Number.isFinite(value))return false;continue;}
-      if(typeof value!=='object'||seen.has(value)||depth>64||seen.size>=4096)return false;
-      seen.add(value);
+      if(typeof value!=='object'||path.has(value)||depth>64||++visits>4096)return false;
       const isList=isArray(value);if(isList?Object.getPrototypeOf(value)!==Array.prototype:!plain(value))return false;
       const descriptors=Object.getOwnPropertyDescriptors(value),keys=Object.keys(descriptors);
       if(Reflect.ownKeys(descriptors).some(key=>typeof key==='symbol'))return false;
       // Arrays must be dense with no extra keys: exactly the indices 0..length-1 plus length.
       if(isList&&keys.length!==value.length+1)return false;
+      path.add(value);stack.push([value,EXIT]);
       for(const key of isList?Array.from({length:value.length},(_,i)=>String(i)):keys){
         const d=descriptors[key];if(!d||!has.call(d,'value')||!d.enumerable)return false;
         stack.push([d.value,depth+1]);

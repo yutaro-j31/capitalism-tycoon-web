@@ -105,6 +105,24 @@ for(const marker of ['corrupt',1,true,[]]){
  assert.equal(project(s).portfolioParticipations[0].current,false,'a valid settlement record is historical evidence');
  assert(!project(s).issues.some(i=>i.path.endsWith('.settlement')));
 }
+// Codex P2: a shared (DAG) subtree is JSON data (serialized by duplication), not a cycle; the raw
+// projection must equal its v9 JSON reload. A real cycle through a shared node still fails closed.
+{
+ const shared={amount:5};
+ const s=state();s.peFirm.funds[0].deals[0].settlement={week:3,a:shared,b:shared,list:[shared,shared]};
+ const r=project(s);
+ assert(!r.issues.some(i=>i.path.endsWith('.settlement')),'a shared settlement subtree is valid JSON data');
+ assert.equal(r.portfolioParticipations[0].current,false);
+ assert.deepStrictEqual(r,project(copy(s)),'raw projection equals its JSON reload');
+ const loop={week:3,a:shared};shared.back=loop;
+ const c=state();c.peFirm.funds[0].deals[0].settlement=loop;const rc=project(c);
+ assert(rc.issues.some(i=>i.code==='INPUT_INVALID'&&i.path.endsWith('.deals[0].settlement')),'a cycle through a shared node is reported');
+ delete shared.back;
+ // Shared references cannot bypass the object budget: every visit counts.
+ let wide={};for(let i=0;i<13;i++)wide={l:wide,r:wide};
+ const w=state();w.peFirm.funds[0].deals[0].settlement=wide;
+ assert(project(w).issues.some(i=>i.code==='INPUT_INVALID'&&i.path.endsWith('.deals[0].settlement')),'an exponential DAG exceeds the object budget');
+}
 // Negative zero is canonicalized, so a raw projection equals its v9 JSON reload exactly.
 {
  const s=state(),f=s.peFirm.funds[0];f.gpCommit=-0;f.gpDistributed=-0;f.cash=-0;f.deals[0].coinvestPortion=-0;f.deals[0].fundPortion=35;
