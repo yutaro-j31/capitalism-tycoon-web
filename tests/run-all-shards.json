@@ -47,7 +47,8 @@
     "tests/map-phase2-marker-placard-interaction-test.js",
     "tests/map-marker-detail-interaction-test.js",
     "tests/city-lab-production-port-test.js",
-    "tests/listed-subsidiary-market-week-test.js"
+    "tests/listed-subsidiary-market-week-test.js",
+    "tests/product-recall-reachability-runner.js"
   ],
   "D": [
     "tests/pe-value-creation-test.js",
@@ -112,7 +113,8 @@
     "tests/pe-realestate-agency-ui-connection-test.js",
     "test:stock",
     "tests/personal-real-estate-short-term-test.js",
-    "tests/subsidiary-quarter-close-save-atomicity-test.js"
+    "tests/subsidiary-quarter-close-save-atomicity-test.js",
+    "tests/store-cost-inflation-25y-test.js"
   ],
   "F": [
     "tests/gf-010-finance-validation-enforcement-test.js",
@@ -126,7 +128,6 @@
     "tests/executive-delegation-test.js",
     "tests/customer-review-breakdown-test.js",
     "tests/store-comparison-table-test.js",
-    "tests/product-recall-reachability-runner.js",
     "tests/exploration-smoke-test.js",
     "tests/menu-research-test.js",
     "tests/personal-real-estate-corp-test.js",
@@ -143,7 +144,6 @@
     "tests/bank-loans-covenants-default-consistency-test.js",
     "tests/gym-startup-loan-workout-test.js",
     "tests/gym-startup-hard-founding-test.js",
-    "tests/ramen-supply-payment-terms-negative-test.js",
     "tests/pe-multi-fund-acquisition-negative-test.js",
     "tests/phase0-5-harness-core-test.js",
     "tests/phase0-5-persistence-replay-test.js",
@@ -262,7 +262,9 @@
     "tests/pe-portfolio-exit-save-atomicity-test.js",
     "tests/digital-portfolio-breakeven-seeds-test.js",
     "tests/subsidiary-disposal-accounting-test.js",
-    "tests/group-capital-allocation-save-atomicity-test.js"
+    "tests/group-capital-allocation-save-atomicity-test.js",
+    "tests/shareholder-activism-split-integration-test.js",
+    "tests/ramen-supply-payment-terms-negative-test.js"
   ],
   "K": [
     "tests/supply-material-cost-inflation-test.js",
@@ -291,8 +293,6 @@
     "tests/found-new-company-save-atomicity-test.js",
     "tests/sold-company-pe-authority-test.js",
     "tests/shareholder-activism-accept-save-atomicity-test.js",
-    "tests/shareholder-activism-split-integration-test.js",
-    "tests/store-cost-inflation-25y-test.js",
     "tests/subsidiary-quarter-close-test.js",
     "tests/earnings-confirm-read-only-test.js",
     "tests/ma-share-swap-ownership-ratios-test.js",
