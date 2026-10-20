@@ -1,6 +1,6 @@
 # VC funding round — legacy truncated-history rescue: design and verification
 
-**Status:** DESIGN / VERIFICATION ONLY. Not implemented. Needs a separate Owner decision.
+**Status:** CONCLUDED (Owner decision 2026-10-20, next-cycle item 3). No rescue is implemented. Every `PAYMENT_HISTORY_TRUNCATED` round stays held and diagnosable; see §8.
 **Owner decision 2026-10-20 (#1029):**
 - Option (a), fail-closed hold, is the interim policy.
 - Unproven subscriptions must not be converted into equity, refunded or rewritten.
@@ -27,7 +27,7 @@ Since #1029 the writer refuses any installment that would evict a receipt, so no
 
 | # | Source | Account | What it holds | Retention / limits |
 |---|---|---|---|---|
-| E1 | `finance.transactions` row: `investmentPurchase`, `sourceType:'startupFundingRound'`, `sourceID: <startupID>-<roundID>-company` | company only | exact amount and week of every company installment | Kept until `compressTransactions` archives rows beyond the newest 5,000. Archived rows lose `sourceID`. |
+| E1 | `finance.transactions` row: `investmentPurchase`, `sourceType:'startupFundingRound'`, `sourceID: <startupID>-<roundID>-company` | company only | week and amount of every company installment, **rounded to 0.01 yen** (`finance.js` `r()`) | Kept until `compressTransactions` archives rows beyond the newest 5,000. Archived rows lose `sourceID`. |
 | E2 | `g.news` line `第{week}週：{name}の{round}ラウンドへ{yen}追加出資しました。` | **both, not distinguished** | week and amount, rounded to whole yen | Cut to 300 lines, so any 300 later news lines evict it. |
 | E3 | retained `startupFundingHistory` receipts | each | exact amount, week, account | Truncated; this is the defect. |
 | E4 | `totalInvested{Company,Personal}` | each | cumulative cost basis, including earlier investments | An upper-bound sanity check only. It cannot isolate one round. |
@@ -38,10 +38,10 @@ There is no personal cash ledger, so personal installments have no exact indepen
 
 A held round is rescued only when **every account with a pending amount is proven exactly**. Otherwise it stays held, unchanged. Under this rule only company-only rounds can be rescued.
 
-1. **Company account:**
-   - Proven when the E1 rows of this round, within the round's week window, sum **exactly** to `contributedCompany`.
-   - Every retained E3 company receipt must have a matching E1 row (same week and amount).
-   - E4: `totalInvestedCompany ≥ contributedCompany`.
+1. **Company account — not provable either:**
+   - E1 rounds each installment to 0.01 yen (`finance.js` `r = v => Math.round(v*100)/100`). The legacy writer and the `askMoney()` input accepted arbitrary fractions, so sub-cent fractions can cancel. For example, 100.004 and 100.996 appear as 100.00 and 101.00, whose sum equals the exact pending 201.
+   - An E1 sum that matches `contributedCompany` therefore shows consistency, not proof. This holds even when the pending amount and every retained receipt are whole yen.
+   - Exact independent evidence for the evicted installments does not exist in v9 saves, and the Owner decided not to add an audit field.
 2. **Personal account — not provable under this design:**
    - E2 is lossy: it rounds each installment to whole yen. The pre-fix writer and the `askMoney()` input (`Number(value)`) both accepted fractional amounts, so there is no whole-yen invariant to rely on.
    - Rounding errors can cancel. Installments of 100.4 and 100.6 appear as 100 and 101, whose sum equals the exact pending 201. An E2 sum that matches `contributedPersonal` therefore does not prove the per-installment amounts, even when the pending amount and every retained E3 receipt are whole yen.
@@ -93,3 +93,28 @@ One PR, containing:
 - Node tests for each probe variant plus adversarial cases: an extra E2 line, a missing E1 row, a cost basis below the pending amount, prior-round lines, and duplicate amounts in one week;
 - save-fault rollback, reload and fresh durable IndexedDB in iPhone WebKit;
 - determinism, with no RNG.
+
+## 8. Owner decision 2026-10-20 and resulting design
+
+The Owner decided:
+- Rescue only amounts whose payment can be **proven**.
+- Personal news-line matches are not payment evidence.
+- The company ledger rounding problem must be resolved too.
+- Partially proven rounds stay held.
+- No automatic equity conversion or refund of unproven subscriptions.
+- No new audit save field.
+- Unrescuable legacy saves are kept and diagnosable.
+
+Applying these rules to the evidence in §2:
+- **E2 (news)** is excluded by decision.
+- **E1 (company ledger)** is lossy at 0.01 yen (rule 1). A match therefore never proves the installments behind it.
+- **E3** is the truncated history itself.
+- **E4** is only an upper bound.
+
+So **no truncated round can be proven exactly from v9 evidence**, and every `PAYMENT_HISTORY_TRUNCATED` round stays held. Nothing is converted, refunded or rewritten. This is already the behaviour of #1029: `getStartupFundingRoundHold()` reports the code and per-account `pending` / `retainedPaid` / `unproven`, and the UI shows the hold notice and disables ownership-changing actions.
+
+What remains in scope for future work, as separate small PRs:
+- **Diagnostics only.** Extend the hold diagnosis with the E1 and E2 consistency values (sums and row counts, read-only), so a maintainer can see why a round is held. These values never release it.
+- **Reconsider only with new evidence.** A future exact source of payment evidence would need a new save field, which needs its own Owner approval.
+
+Rules 2–5 in §3 and the slice in §7 are superseded by this section. They are kept for the record.
