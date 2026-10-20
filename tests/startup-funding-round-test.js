@@ -104,4 +104,19 @@ function reload(x){x.e.save();const raw=x.loaded.ctx.__localStorageData.get(x.lo
  x.s.activeFundingRound.contributedPersonal+=1;x.s.totalInvestedPersonal+=1;
  assert.equal(x.e.getStartupFundingRoundHold(x.s.id).code,'PAYMENT_EVIDENCE_MISMATCH');
 }
+// Codex P1 on #1029: a round whose contribution fields are unreadable is kept (not discarded) while a
+// paid receipt exists. Codex P2: the hold is rendered even though no round plan can be built.
+{
+ const x=setup(),p=open(x);assert.equal(x.e.participateStartupFundingRound(x.s.id,100_000,'personal'),true);
+ delete x.s.activeFundingRound.contributedPersonal;delete x.s.activeFundingRound.contributedCompany;
+ assert.equal(x.e.getStartupFundingRoundPlan(x.s.id),null);
+ const before=JSON.stringify(x.e.g.startups.find(row=>row.id===x.s.id));
+ x.e.updateStartups();
+ assert.equal(JSON.stringify(x.e.g.startups.find(row=>row.id===x.s.id)),before,'round with a paid receipt is preserved unchanged');
+ assert.equal(x.e.getStartupFundingRoundHold(x.s.id).code,'ROUND_STRUCTURE_INVALID');
+ for(const bad of ['100000',NaN]){const y=setup();open(y);y.s.activeFundingRound.contributedCompany=bad;y.e.updateStartups();assert.ok(y.s.activeFundingRound,'unreadable contribution keeps the round');}
+ x.e.g.selectedTab='venture';x.e.save();const raw=x.loaded.ctx.__localStorageData.get(x.loaded.engineModule.SAVE_KEY);
+ const ui=loadGame({localStorageInitial:{[x.loaded.engineModule.SAVE_KEY]:raw}});
+ assert.match(String(ui.ctx.document.getElementById('app').innerHTML),/data-startup-funding-round-hold="ROUND_STRUCTURE_INVALID"/,'hold notice renders without a round plan');
+}
 console.log('startup funding round tests passed');
