@@ -112,7 +112,11 @@ No new finance category, no new save root, and `saveVersion=9` is unchanged. An 
 7. **Q7 — Generic allocators:** exclude the mortgage row, or sync it through the #990 hook.
 8. **Q8 — Personal mortgages:** whether they should start touching `personalDebt` (D-4), and if so whether tracked mortgage principal counts towards the `personalBorrowRate()` tier. Generic repayment reservation and generic-interest suppression are required either way (§6 slice 4).
 9. **Q9 — `loanID`:** one stable ID per property, or a new ID per origination.
-10. **Q10 — D-1 interim fix:** whether to fix it first, independently, as a disposal-only fix. While the mortgage is off book, that fix must (a) never subtract it from `companyDebt`, and (b) exclude the off-book `legacyBalance` from the `property-disposition-debt` row's `liabilityEffect` (today `−debt.total`), while keeping the cash payoff. Otherwise `P2-DEBT-ROLLFORWARD` fails by the mortgage balance after the sale. The fix stops further loss of other loans' debt without deciding Option A.
+10. **Q10 — D-1 interim fix:** whether to fix it first, independently, as a disposal-only fix. The fix stops further loss of other loans' debt without deciding Option A. While the mortgage is off book, it must satisfy all of the following:
+    - (a) Never subtract the off-book `legacyBalance` from `companyDebt`.
+    - (b) Never subtract it from `personalDebt` on the personal-owned path either, until Q8 tracking has migrated that balance. Today the disposal writer subtracts it from whichever aggregate the owner uses, so a personal mortgage consumes unrelated personal borrowing in the same way.
+    - (c) Exclude the off-book balance from the `property-disposition-debt` row's `liabilityEffect` (today `−debt.total`), while keeping the cash payoff. Otherwise `P2-DEBT-ROLLFORWARD` fails by the mortgage balance after the sale.
+    - (d) The ledger treatment of that cash payoff depends on the S1/S2 classification (Q2) and must not be applied universally. In S2 the ledger balances today because equity absorbed `B`. Paying `B` in cash with a zero liability effect then leaves no offset, and `finance.validate` turns from valid to `P2-CLOSE-BS-IDENTITY` by `B`. So S2 must either carry an equity offset on the payoff (for example `priorPeriodAdjustments −= B`, subject to Q2), or be quarantined until classified. The fix's tests must show, per state, that a save which validates before the sale still validates after it.
 
 ## 6. Proposed implementation slices (after Owner decisions)
 
