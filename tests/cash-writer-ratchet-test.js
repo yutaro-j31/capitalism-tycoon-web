@@ -57,10 +57,29 @@ function stateAliases(source) {
     if (m[1] !== 'g' && m[1] !== 'state' && (roots.test(m[2]) || aliases.has(m[2]))) aliases.add(m[1]);
   return [...aliases];
 }
+// Index just past the `]` that closes the `[` at `open`, skipping nested brackets and string or
+// template literals, so keys such as g[cashKeys[owner]] or g[`${a}]`] are measured whole.
+function closeBracket(source, open) {
+  let depth = 0;
+  for (let i = open; i < source.length; i++) {
+    const c = source[i];
+    if (c === '"' || c === "'" || c === '`') {
+      for (i++; i < source.length && source[i] !== c; i++) if (source[i] === '\\') i++;
+    } else if (c === '[') depth++;
+    else if (c === ']' && --depth === 0) return i + 1;
+  }
+  return -1;
+}
 function computedStateKeys(source) {
-  const root = `(?:${[...BASE_ROOTS, ...stateAliases(source).map(a => `(?<![\\w$.])${a.replace(/\$/g, '\\$')}`)].join('|')})`;
-  return count(source, new RegExp(`${root}\\s*\\[[^\\]\\n]+\\]\\s*(?:${ASSIGN}|\\+\\+|--)`, 'g')) +
-    count(source, new RegExp(`(?:\\+\\+|--)\\s*${root}\\s*\\[[^\\]\\n]+\\]`, 'g'));
+  const root = new RegExp(`(?:${[...BASE_ROOTS, ...stateAliases(source).map(a => `(?<![\\w$.])${a.replace(/\$/g, '\\$')}`)].join('|')})\\s*\\[`, 'g');
+  const assignAfter = new RegExp(`^\\s*(?:${ASSIGN}|\\+\\+|--)`), updateBefore = /(?:\+\+|--)\s*$/;
+  let n = 0;
+  for (const m of source.matchAll(root)) {
+    const end = closeBracket(source, m.index + m[0].length - 1);
+    if (end < 0) continue;
+    if (assignAfter.test(source.slice(end, end + 8)) || updateBefore.test(source.slice(Math.max(0, m.index - 4), m.index))) n++;
+  }
+  return n;
 }
 function snapshot() {
   const files = {};
@@ -100,6 +119,9 @@ assert.equal(computedStateKeys('g.loans[i]=1;rows[i]=2;if(g[key]===1||g[key]>=2)
 // Codex P1: a local alias of the state root is followed, including chained aliases and other engines.
 assert.equal(computedStateKeys('const game=this.g;game[cashKey(owner)]-=amount;let live = engine.g, w = live;w[k]+=1;const p=e.g;p[k]=0;'), 3);
 assert.equal(computedStateKeys('const rows=this.g.loans;rows[i]=1;const f=compute(this.g);f[k]=1;const r=g&&g.x;r[k]=1;'), 0);
+// Codex P1: nested and literal bracket keys are measured whole.
+assert.equal(computedStateKeys('const game=this.g;game[cashKeys[owner]]-=amount;g[map[a][b]]+=1;state[`${k}]`]=0;--g[keys[i]];'), 4);
+assert.equal(computedStateKeys('g[keys[i]]===1;x=g[a[b]];g[a][b]=1;'), 0);
 
 const baseline = JSON.parse(fs.readFileSync(BASELINE, 'utf8'));
 assert.equal(baseline.schema, 1, 'cash writer ratchet baseline schema');

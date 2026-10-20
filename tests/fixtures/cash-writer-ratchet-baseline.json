@@ -104,7 +104,7 @@
     "direct": 19,
     "dynamicKey": 7
    },
-   "computedStateKey": 8
+   "computedStateKey": 9
   },
   "js/finance.js": {
    "companyCash": {
@@ -605,7 +605,7 @@
   "companyCash.direct": 156,
   "companyCash.dynamicKey": 59,
   "personalCash.dynamicKey": 54,
-  "computedStateKey": 78,
+  "computedStateKey": 79,
   "companyCash.literalKey": 15,
   "personalCash.direct": 59,
   "personalCash.literalKey": 8
