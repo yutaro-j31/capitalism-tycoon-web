@@ -63,4 +63,42 @@ function reload(x){x.e.save();const raw=x.loaded.ctx.__localStorageData.get(x.lo
  const ids=x.e.g.startupFundingHistory[x.s.id].map(row=>row.id);assert.equal(new Set(ids).size,ids.length,'no collision with legacy receipt IDs');
  assert.equal(x.e.hasStartupFundingRoundPaymentEvidence(x.s.id,'personal'),true);
 }
+// Owner decision 2026-10-20 (#1029, option a): a legacy save whose pre-fix writer already pushed
+// receipts out of the 24-row history is held fail-closed. Nothing is converted, refunded or
+// rewritten, the cause is identifiable, and the hold survives save/reload.
+{
+ const x=setup(),p=open(x),r=x.s.activeFundingRound,step=100_000,cash0=x.e.g.personalCash,basis0=finite0(x.s.totalInvestedPersonal);
+ function finite0(v){return Number.isFinite(v)?v:0;}
+ // Exact pre-fix writer effects: charge, accumulate, receipt suffix = history length, cap at 24.
+ const legacyPay=()=>{x.e.g.personalCash-=step;r.contributedPersonal+=step;x.s.totalInvestedPersonal=finite0(x.s.totalInvestedPersonal)+step;const h=x.e.g.startupFundingHistory[x.s.id];h.unshift({id:`${r.id}-personal-${x.e.g.week}-${h.length}`,eventType:'participated',stage:p.round,week:x.e.g.week,account:'personal',amount:step,preMoneyValuation:p.preMoneyValuation,targetRaise:p.targetRaise,postMoneyValuation:p.postMoneyValuation});x.e.g.startupFundingHistory[x.s.id]=h.slice(0,24);};
+ for(let i=0;i<25;i++)legacyPay();
+ assert.equal(r.contributedPersonal,25*step);assert.equal(x.e.g.personalCash,cash0-25*step);assert.equal(x.s.totalInvestedPersonal,basis0+25*step);
+ assert.equal(x.e.hasStartupFundingRoundPaymentEvidence(x.s.id,'personal'),false,'truncated receipts cannot prove the pending amount');
+ const hold=x.e.getStartupFundingRoundHold(x.s.id);
+ assert.equal(hold.code,'PAYMENT_HISTORY_TRUNCATED');assert.equal(hold.accounts.length,1);
+ assert.equal(hold.accounts[0].account,'personal');assert.equal(hold.accounts[0].pending,25*step);
+ assert.ok(hold.accounts[0].provenPaid<25*step&&hold.accounts[0].unproven>0,'only retained receipts count as proven');
+ const before=JSON.stringify(x.e.g);
+ assert.equal(x.e.participateStartupFundingRound(x.s.id,step,'personal'),false,'a full round refuses further installments');
+ assert.equal(JSON.stringify(x.e.g),before,'refused installment changes nothing');
+ x.e.g.week=p.closesWeek;
+ const keep=()=>JSON.stringify({s:x.e.g.startups.find(row=>row.id===x.s.id),h:x.e.g.startupFundingHistory[x.s.id],personal:x.e.g.personalCash,company:x.e.g.companyCash});
+ const held=keep();
+ assert.equal(x.e.closeStartupFundingRound(x.s),false,'unproven round is not closed');
+ x.e.updateStartups();x.e.updateStartups();
+ assert.equal(keep(),held,'held round keeps cash, contribution, cost basis, stake and history unchanged');
+ assert.ok(x.s.activeFundingRound&&x.s.activeFundingRound.contributedPersonal===25*step,'subscription is neither converted nor refunded');
+ const y=reload(x);
+ assert.equal(y.s.activeFundingRound.contributedPersonal,25*step);
+ assert.equal(y.e.getStartupFundingRoundHold(y.s.id).code,'PAYMENT_HISTORY_TRUNCATED','hold survives save/reload');
+}
+// A fully evidenced round has no hold.
+{
+ const x=setup(),p=open(x);assert.equal(x.e.getStartupFundingRoundHold(x.s.id),null);
+ assert.equal(x.e.participateStartupFundingRound(x.s.id,p.personal.proRataRequired/2,'personal'),true);
+ assert.equal(x.e.getStartupFundingRoundHold(x.s.id),null);
+ // A mismatch without the truncation signature is reported as such.
+ x.s.activeFundingRound.contributedPersonal+=1;x.s.totalInvestedPersonal+=1;
+ assert.equal(x.e.getStartupFundingRoundHold(x.s.id).code,'PAYMENT_EVIDENCE_MISMATCH');
+}
 console.log('startup funding round tests passed');

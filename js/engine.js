@@ -1524,6 +1524,26 @@ class TycoonEngine extends EventTarget {
     }
     return Number.isFinite(paid)&&paid===pending;
   }
+  // Owner decision 2026-10-20 (#1029, option a): a round whose payment or ownership evidence is
+  // unproven is held, never converted, refunded or repaired. This read-only diagnosis names the
+  // cause; provenPaid sums only the retained receipts and changes nothing.
+  getStartupFundingRoundHold(startupID) {
+    const sources=this.g.startups.filter(s=>s.id===startupID),s=sources[0],r=s?.activeFundingRound;
+    if(sources.length!==1||!s.alive||!r)return null;
+    const plan=this.getStartupFundingRoundPlan(startupID);
+    if(!plan)return (r.contributedPersonal>0||r.contributedCompany>0)?{code:'ROUND_STRUCTURE_INVALID',accounts:[]}:null;
+    if(!this.hasValidStartupFundingRoundOwnershipEvidence(startupID))return {code:'OWNERSHIP_EVIDENCE_INVALID',accounts:[]};
+    const history=Array.isArray(this.g.startupFundingHistory?.[startupID])?this.g.startupFundingHistory[startupID]:[];
+    const accounts=['company','personal'].filter(account=>!this.hasStartupFundingRoundPaymentEvidence(startupID,account)).map(account=>{
+      const pending=r[account==='company'?'contributedCompany':'contributedPersonal'],ids=new Set();let provenPaid=0;
+      for(const row of history)if(row?.eventType==='participated'&&row.account===account&&typeof row.id==='string'&&row.id.startsWith(`${r.id}-${account}-`)&&!ids.has(row.id)&&Number.isFinite(row.amount)&&row.amount>0){ids.add(row.id);provenPaid+=row.amount;}
+      return {account,pending,provenPaid,unproven:Math.max(0,pending-provenPaid)};
+    });
+    if(!accounts.length)return null;
+    // The pre-fix writer kept 24 rows: once the round's own opened row is gone, older receipts were evicted.
+    const truncated=history.length>=24&&!history.some(row=>row?.id===`${r.id}-opened`);
+    return {code:truncated?'PAYMENT_HISTORY_TRUNCATED':'PAYMENT_EVIDENCE_MISMATCH',accounts};
+  }
   getStartupFundingRoundPlan(startupID) {
     const s=this.g.startups.find(x=>x.id===startupID),r=s?.activeFundingRound;
     if(!s||!s.alive||!r||r.status!=='open'||![r.preMoneyValuation,r.targetRaise,r.postMoneyValuation,r.preRoundOwnedCompany,r.preRoundOwnedPersonal,r.contributedCompany,r.contributedPersonal,r.closesWeek].every(Number.isFinite)||r.preMoneyValuation<=0||r.targetRaise<=0||r.postMoneyValuation!==r.preMoneyValuation+r.targetRaise)return null;
