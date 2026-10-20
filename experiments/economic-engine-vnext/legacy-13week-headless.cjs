@@ -4,7 +4,8 @@
 // or change the production runtime source. Runs a disposable in-memory game.
 const assert=require('node:assert/strict');
 const {loadGame}=require('../../tests/harness');
-const {capture13Weeks,evaluateCapture}=require('./legacy-13week-capture.cjs');
+const {capture13Weeks}=require('./legacy-13week-capture.cjs');
+const {analyze}=require('./legacy-observation-analysis.cjs');
 const fixture=require('./fixtures/13-week-retail.json');
 const SEED=0x74110001;
 const HOST_SEED=74100;
@@ -46,7 +47,7 @@ while(currentStore()?.status!=='open' && readinessWeeks<16){
 }
 assert.equal(currentStore()?.status,'open','ramen store is operating after preparation');
 const capture=capture13Weeks(engine,{storeID:createdStoreID,businessID:'ramen'});
-const result=evaluateCapture(capture,fixture);
+const result=analyze(capture);
 const perWeek=capture.records.map(x=>({
  step:x.step,week:x.week,cashDeltaJPY:x.cashDeltaJPY,
  postedCashEffectJPY:x.observedFinanceCashEffectJPY,
@@ -63,12 +64,12 @@ const output={
  observedWeeks:[capture.records[0].week,capture.records[12].week],
  storeWeeklyRows:capture.records.flatMap(w=>w.storeRows),
  weeklyEvidence:perWeek,
- compareToSyntheticFixture:result,
+ legacyEvidenceClassification:result,
  evidenceLevel:'HEADLESS_EXECUTION',
- warning:'UNSUPPORTED is expected for supply-aware ramen. Do not interpret MATCH vs a synthetic scenario as true game parity.'
+ warning:'Actual legacy run, not a synthetic vNext comparison. UNSUPPORTED is an observed adapter gap, not a production error.'
 };
 console.log(JSON.stringify(output,null,2));
 if(result.status==='EVIDENCE_BLOCKED'){
- console.error('EVIDENCE_BLOCKED: legacy row provenance/schema must be investigated; do not infer parity');
+ console.error('EVIDENCE_BLOCKED: '+result.reasons.join('; '));
  process.exitCode=1;
 }
