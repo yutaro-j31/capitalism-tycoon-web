@@ -36,18 +36,17 @@ There is no personal cash ledger, so personal installments have no exact indepen
 
 ## 3. Proposed rescue rule
 
-A held round is rescued only when **every account with a pending amount is proven**. Otherwise it stays held, unchanged.
+A held round is rescued only when **every account with a pending amount is proven exactly**. Otherwise it stays held, unchanged. Under this rule only company-only rounds can be rescued.
 
 1. **Company account:**
    - Proven when the E1 rows of this round, within the round's week window, sum **exactly** to `contributedCompany`.
    - Every retained E3 company receipt must have a matching E1 row (same week and amount).
    - E4: `totalInvestedCompany ≥ contributedCompany`.
-2. **Personal account:**
-   - Take E2 lines of this startup and round within `[openedWeek, closesWeek)`.
-   - Remove one line per E1 company row (same week and rounded amount). The remaining lines are personal.
-   - Proven when their sum equals `contributedPersonal` **exactly** and no E1 row was left unmatched.
-   - Every retained E3 personal receipt must have a matching remaining line.
-   - E4: `totalInvestedPersonal ≥ contributedPersonal`.
+2. **Personal account — not provable under this design:**
+   - E2 is lossy: it rounds each installment to whole yen. The pre-fix writer and the `askMoney()` input (`Number(value)`) both accepted fractional amounts, so there is no whole-yen invariant to rely on.
+   - Rounding errors can cancel. Installments of 100.4 and 100.6 appear as 100 and 101, whose sum equals the exact pending 201. An E2 sum that matches `contributedPersonal` therefore does not prove the per-installment amounts, even when the pending amount and every retained E3 receipt are whole yen.
+   - So a round with a non-zero `contributedPersonal` **stays held**. E2 may be computed as a diagnostic (an E2 sum that does not match is a definite mismatch), but a match never releases the hold.
+   - Releasing personal amounts would need exact independent evidence, such as a personal ledger, which v9 saves do not have. Accepting E2 consistency as proof is a separate Owner decision (Q1), not part of this rule.
 3. **Pending amount of zero:** an account with nothing pending needs no proof, but any E1, E2 or E3 evidence of a payment for that account fails the rule.
 4. **What the rescue does:** it lets the normal `closeStartupFundingRound()` (or refounding) proceed with the amounts already recorded.
    - No contribution, cash, cost basis or history is rewritten, refunded or invented.
@@ -60,25 +59,28 @@ The probe is a scratch script, not committed. It loads the game through `tests/h
 
 It creates a legacy save with an exact emulation of the pre-fix writer: 30 installments in one round, with company and personal installments alternating, a 24-row cap, the `-24` suffix reused, ledger rows and news lines. It then applies rules 1 and 2.
 
-| Variant | Company: pending = E1 sum | Personal: E2 reconstruction = pending | Result |
+| Variant | Company: pending = E1 sum | Personal: E2 sum vs pending | Result under rule 2 |
 |---|---|---|---|
-| Integer amounts | 180,825 = 180,825 | 178,770 = 178,770 | both proven → rescuable |
-| Fractional company amounts, integer personal | 180,937.5 = 180,937.5 | 178,875 = 178,875 | both proven |
-| 300 later news lines (E2 evicted) | proven | 0 ≠ 178,770 | personal unproven → stays held |
-| Personal-only round | nothing pending | 359,595 = 359,595 | proven |
+| Integer amounts | 180,825 = 180,825 | 178,770 = 178,770 (match) | personal pending → stays held |
+| Fractional company amounts, integer personal | 180,937.5 = 180,937.5 | 178,875 = 178,875 (match) | personal pending → stays held |
+| 300 later news lines (E2 evicted) | proven | 0 ≠ 178,770 | stays held |
+| Personal-only round | nothing pending | 359,595 = 359,595 (match) | stays held |
+| Company-only round [I] | E1 exact | nothing pending | rescuable |
+
+The matches in the first, second and fourth rows show that E2 is *consistent* with the pending amount. They are not exact proof, because fractional installments whose rounding cancels would match too (rule 2).
 
 In every variant, `getStartupFundingRoundHold()` reported `PAYMENT_HISTORY_TRUNCATED` before the rule ran.
 
 ## 5. Limits and risks
 
-- **Fractional personal installments [I].** E2 rounds to whole yen, so a fractional personal installment can never be proven exactly. The round stays held. UI amounts are whole yen in practice.
+- **Personal installments [V].** E2 rounds to whole yen and the legacy input accepted fractions, so an E2 match is never exact proof (rule 2). Every round with a personal pending amount stays held.
 - **Long games [V].** E1 can be archived and E2 evicted, so some legacy saves stay unrescuable. They remain held and identifiable, with no silent asset change, as the Owner decision requires.
 - **News is display text [I].** It is part of the same save as the other evidence and is no more forgeable. Exact equality between two independent stores is the proof; one alone is not.
 - **No save-format change.** The rule reads existing v9 fields only. The optional audit marker (Q3) would add one optional field to the closed-round history row; `saveVersion` stays 9.
 
 ## 6. Owner decisions required
 
-1. **Q1:** adopt rules 1–3, including E2 as evidence for the personal account.
+1. **Q1:** adopt rules 1–3 (company-only rescue). Separately: whether an E2 match, which is consistent but lossy, may ever release a personal pending amount. This design recommends no.
 2. **Q2:** keep partially proven rounds held (rule 5), or allow some other disposition.
 3. **Q3:** record an audit marker on the closed-round row, or derive the proof each time.
 4. **Q4:** decide how saves that stay unrescuable are handled: kept held indefinitely with the diagnosis visible, or given a manual player-confirmed path. A manual path would need its own design.
