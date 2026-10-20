@@ -33,6 +33,7 @@ for (let i = 0; i < commands.length; i++) {
 }
 
 const nodeTests = [
+  ['debt-command-save-atomicity', 'tests/debt-command-save-atomicity-test.js'],
   ['authoritative-company-cash', 'tests/authoritative-company-cash-test.js'],
   ['real-estate-construction-in-progress', 'tests/real-estate-construction-in-progress-test.js'],
   ['bank-loans-covenants-accounting', 'tests/bank-loans-covenants-accounting-test.js'],
@@ -214,6 +215,7 @@ const nodeTests = [
   ['real-estate-insurance-claims', 'tests/real-estate-insurance-claims-test.js'],
   ['real-estate-insurance-risk', 'tests/real-estate-insurance-risk-test.js'],
   ['real-estate-maintenance-reserves', 'tests/real-estate-maintenance-reserves-test.js'],
+  ['property-mortgage-refinance-conservation', 'tests/property-mortgage-refinance-conservation-test.js'],
   ['real-estate-mortgage-refinancing', 'tests/real-estate-mortgage-refinancing-test.js'],
   ['real-estate-portfolio-dashboard', 'tests/real-estate-portfolio-dashboard-test.js'],
   ['real-estate-price-negotiation', 'tests/real-estate-price-negotiation-test.js'],

@@ -120,9 +120,12 @@ function install(){
 
   const baseBorrow=proto.borrow;
   proto.borrow=function(amount,account='company'){
-    const r=baseBorrow.call(this,amount,account);
-    if(r!==false)onBankLoan(this.g,{account,prefID:account==='company'?companyPrefID(this.g):this.g.founderHomePrefID,week:this.g.week});
-    return r;
+    // The installed wrapper's network mutation belongs to the same checkpoint as the loan.
+    return this.runTransaction(()=>{
+      const r=baseBorrow.call(this,amount,account);
+      if(r!==false)onBankLoan(this.g,{account,prefID:account==='company'?companyPrefID(this.g):this.g.founderHomePrefID,week:this.g.week});
+      return r;
+    });
   };
 
   const baseHireExecutive=proto.hireExecutive;
