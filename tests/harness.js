@@ -183,7 +183,7 @@ function loadGameFromHtml(html, options = {}) {
   // Line -> source file of the single joined 'index.html' script, for attributing stack frames.
   const scriptMap = [];
   let line = 1;
-  for (const s of scripts) { scriptMap.push({ line, file: s.file ? path.relative(ROOT, s.file) : '(inline)' }); line += s.code.split('\n').length; }
+  for (const s of scripts) { scriptMap.push({ line, file: s.file ? path.relative(ROOT, s.file).split(path.sep).join('/') : '(inline)' }); line += s.code.split('\n').length; }
   return { ctx, modules: ctx.__capitalismTycoonModules, engineModule: ctx.__capitalismTycoonModules.engine, scriptMap };
 }
 function assertFinite(value, path, errors) { if (typeof value === 'number' && !Number.isFinite(value)) errors.push(`${path}: non-finite ${value}`); }

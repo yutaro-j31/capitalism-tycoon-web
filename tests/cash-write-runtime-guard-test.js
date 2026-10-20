@@ -34,6 +34,10 @@ const CASES = Object.freeze([
   engine.g = copy;
   copy.personalCash -= 1;
   assert.equal(guard.writes.get('(test)'), 2, 'a replaced root must be guarded again');
+  delete copy.companyCash;
+  Object.assign(copy, { companyCash: before });
+  assert.equal(engine.g.companyCash, before, 're-created field must read back');
+  assert.equal(guard.recreated.get('companyCash'), 1, 'a deleted and re-created field must be reported, not silently re-armed');
 }
 
 const observed = new Set();
@@ -44,6 +48,7 @@ for (const [scenarioID, seed] of CASES) {
   let guard = null;
   const guarded = runScenario(scenario, seed, { onLoad: loaded => { guard = installCashWriteGuard(loaded); } });
   assert.ok(guard && guard.writes.size > 0, `${scenarioID}: the guard observed no cash writes`);
+  assert.equal(guard.recreated.size, 0, `${scenarioID}: cash fields were deleted and re-created, so some writes may be unattributed: ${JSON.stringify([...guard.recreated])}`);
   // Each run has its own vm realm, so compare serialized results (also pins key order).
   assert.equal(JSON.stringify(guarded), JSON.stringify(plain), `${scenarioID}: the guard changed the simulation result`);
   for (const site of guard.writes.keys()) {

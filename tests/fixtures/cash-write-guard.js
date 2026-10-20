@@ -38,12 +38,21 @@ function installCashWriteGuard(loaded) {
     return site || '(test)';
   }
   const ours = new WeakSet();
-  // Re-installed whenever a field is no longer our accessor (delete + Object.assign replaces it).
+  // Without a Proxy, re-creating a deleted field (delete + Object.assign, as refounding does) cannot be
+  // intercepted: the re-creating write and any later write before the next engine.g access are not
+  // attributed. Such a re-arm is counted in `recreated` so a caller can fail closed instead of
+  // silently missing writes.
+  const armed = new WeakMap();
+  const recreated = new Map();
   function guardRoot(state) {
     if (!state || typeof state !== 'object') return state;
     for (const field of FIELDS) {
       const d = Object.getOwnPropertyDescriptor(state, field);
       if (!d || (d.get && ours.has(d.get))) continue; // absent fields are left alone
+      const fields = armed.get(state) || new Set();
+      if (fields.has(field)) recreated.set(field, (recreated.get(field) || 0) + 1);
+      fields.add(field);
+      armed.set(state, fields);
       let value = state[field];
       const get = () => value;
       ours.add(get);
@@ -62,6 +71,6 @@ function installCashWriteGuard(loaded) {
     get() { return guardRoot(this[slot]); },
     set(next) { this[slot] = guardRoot(next); }
   });
-  return { writes, guardRoot };
+  return { writes, recreated, guardRoot };
 }
 module.exports = { installCashWriteGuard };
