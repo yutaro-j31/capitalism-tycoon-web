@@ -31,7 +31,7 @@ function plainRecord(x){
  if(!x||typeof x!=='object'||Array.isArray(x))return false;
  const proto=Object.getPrototypeOf(x);return proto===null||(Object.getPrototypeOf(proto)===null&&intrinsic(proto,Object));
 }
-// Own enumerable data properties only; accessors are never executed.
+// Own enumerable data fields only; accessors are never executed.
 function field(x,key,path){
  const d=Object.getOwnPropertyDescriptor(x,key);
  if(!d)return undefined;
@@ -91,7 +91,7 @@ function evidence(snapshot,issuerEntityId,actingEntityId){
 function projectControlEligibility(snapshot,options){
  const out={authority:'read-only',executable:false,projectionVersion:1,issuerEntityId:null,actingEntityId:null,status:'UNKNOWN',votingEvidence:null,capabilities:[],issues:[]};
  try{
-  // Options are read like evidence: own data properties only, accessors never executed.
+  // Options are read like evidence: own data fields only, accessors never executed.
   const opts=options===undefined?{}:record(options,'options');
   const issuerEntityId=field(opts,'issuerEntityId','options'),actingEntityId=field(opts,'actingEntityId','options');
   out.issuerEntityId=typeof issuerEntityId==='string'?issuerEntityId:null;
