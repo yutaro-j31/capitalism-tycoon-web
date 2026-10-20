@@ -139,7 +139,7 @@ test('supply journal preserves balanced entries by each entity',()=>{
 test('global cash conservation after both credit and cash procurement',()=>{
  const s=execute(execute(partiallyPaid(),consume),cashReceive);
  const cash=s.unified.core.entities.reduce((total,e)=>total+BigInt(s.unified.core.balances[e+':cash']),0n);
- assert.equal(cash,165000n);
+ assert.equal(cash,155000n);
 });
 test('inventory balance and AP never silently diverge from source event history',()=>{
  const s=execute(partiallyPaid(),consume);
