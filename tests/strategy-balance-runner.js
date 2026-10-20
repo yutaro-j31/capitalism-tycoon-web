@@ -24,9 +24,12 @@ function makeRandom(initialSeed){
  return()=>{seed=(Math.imul(seed,1664525)+1013904223)>>>0;return seed/0x100000000;};
 }
 
-function runScenario(def,seed,{includeState=false,difficulty='normal',gameScenario='standard'}={}){
+function runScenario(def,seed,{includeState=false,difficulty='normal',gameScenario='standard',onLoad=null}={}){
  const random=makeRandom(seed);
- const {engineModule,modules}=loadGame({random});
+ const loaded=loadGame({random});
+ // Test instrumentation (e.g. the cash-write runtime guard) attaches before the engine exists.
+ if(onLoad)onLoad(loaded);
+ const {engineModule,modules}=loaded;
  const game=new engineModule.TycoonEngine();
  game.configure({playerName:`監査-${def.id}`,companyName:`監査-${def.id}`,difficulty,scenario:gameScenario,founderPrefID:def.route[0],founderTraitID:def.trait});
  const startingCash=game.g.companyCash;

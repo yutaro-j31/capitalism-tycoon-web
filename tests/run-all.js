@@ -495,7 +495,8 @@ const nodeTests = [
   ['pe-realestate-agency-portfolio-bridge', 'tests/pe-realestate-agency-portfolio-bridge-test.js'],
   ['pe-realestate-agency-bridge-208week-regression', 'tests/pe-realestate-agency-bridge-208week-regression-test.js'],
   ['pe-realestate-agency-bridge-negative', 'tests/pe-realestate-agency-bridge-negative-test.js'],
-  ['pe-realestate-agency-ui-connection', 'tests/pe-realestate-agency-ui-connection-test.js']
+  ['pe-realestate-agency-ui-connection', 'tests/pe-realestate-agency-ui-connection-test.js'],
+  ['cash-write-runtime-guard', 'tests/cash-write-runtime-guard-test.js'],
 ];
 
 for (let i = 0; i < nodeTests.length; i++) {
