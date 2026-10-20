@@ -1,0 +1,157 @@
+{
+  "id": "vnext-synthetic-13week-cash-retail-001",
+  "source": "Synthetic planning input; NOT extracted from legacy gameplay or authoritative game balance.",
+  "unit": "JPY-0.01",
+  "openingCashMinor": {
+    "company": 250000,
+    "founder": 500000,
+    "investor": 400000,
+    "customer": 2000000,
+    "supplier": 0,
+    "employee": 0
+  },
+  "issuer": "company",
+  "shareClass": {
+    "classId": "ordinary",
+    "authorizedShares": 1000,
+    "votesPerShare": 1
+  },
+  "subscriptions": [
+    {
+      "id": "issue-founder-w0",
+      "type": "issue-shares",
+      "issuer": "company",
+      "subscriber": "founder",
+      "classId": "ordinary",
+      "shares": 300,
+      "priceMinor": 100
+    },
+    {
+      "id": "issue-investor-w0",
+      "type": "issue-shares",
+      "issuer": "company",
+      "subscriber": "investor",
+      "classId": "ordinary",
+      "shares": 200,
+      "priceMinor": 200
+    }
+  ],
+  "store": {
+    "company": "company",
+    "customer": "customer",
+    "supplier": "supplier",
+    "employee": "employee",
+    "storeId": "ramen"
+  },
+  "weeks": [
+    {
+      "week": 1,
+      "salesMinor": 52000,
+      "materialsMinor": 21000,
+      "wagesMinor": 15000,
+      "profitMinor": 16000
+    },
+    {
+      "week": 2,
+      "salesMinor": 58000,
+      "materialsMinor": 22500,
+      "wagesMinor": 15000,
+      "profitMinor": 20500
+    },
+    {
+      "week": 3,
+      "salesMinor": 60000,
+      "materialsMinor": 25000,
+      "wagesMinor": 16000,
+      "profitMinor": 19000
+    },
+    {
+      "week": 4,
+      "salesMinor": 65000,
+      "materialsMinor": 27000,
+      "wagesMinor": 16500,
+      "profitMinor": 21500
+    },
+    {
+      "week": 5,
+      "salesMinor": 43000,
+      "materialsMinor": 24500,
+      "wagesMinor": 16000,
+      "profitMinor": 2500
+    },
+    {
+      "week": 6,
+      "salesMinor": 70000,
+      "materialsMinor": 29000,
+      "wagesMinor": 17500,
+      "profitMinor": 23500
+    },
+    {
+      "week": 7,
+      "salesMinor": 72000,
+      "materialsMinor": 30000,
+      "wagesMinor": 18000,
+      "profitMinor": 24000
+    },
+    {
+      "week": 8,
+      "salesMinor": 25000,
+      "materialsMinor": 21000,
+      "wagesMinor": 18000,
+      "profitMinor": -14000
+    },
+    {
+      "week": 9,
+      "salesMinor": 75000,
+      "materialsMinor": 31000,
+      "wagesMinor": 18000,
+      "profitMinor": 26000
+    },
+    {
+      "week": 10,
+      "salesMinor": 79000,
+      "materialsMinor": 35000,
+      "wagesMinor": 19000,
+      "profitMinor": 25000
+    },
+    {
+      "week": 11,
+      "salesMinor": 81000,
+      "materialsMinor": 36000,
+      "wagesMinor": 19500,
+      "profitMinor": 25500
+    },
+    {
+      "week": 12,
+      "salesMinor": 90000,
+      "materialsMinor": 39000,
+      "wagesMinor": 21000,
+      "profitMinor": 30000
+    },
+    {
+      "week": 13,
+      "salesMinor": 85000,
+      "materialsMinor": 37000,
+      "wagesMinor": 20500,
+      "profitMinor": 27500
+    }
+  ],
+  "expected": {
+    "totalSalesMinor": 855000,
+    "totalMaterialsMinor": 378000,
+    "totalWagesMinor": 230000,
+    "totalProfitMinor": 247000,
+    "companyCashMinor": 567000,
+    "customerCashMinor": 1145000,
+    "supplierCashMinor": 378000,
+    "employeeCashMinor": 230000,
+    "founderCashMinor": 470000,
+    "investorCashMinor": 360000,
+    "companyPaidInMinor": -70000,
+    "founderInvestmentMinor": 30000,
+    "investorInvestmentMinor": 40000,
+    "issuedShares": 500,
+    "journalEntries": 15,
+    "storeReceipts": 13
+  }
+}
