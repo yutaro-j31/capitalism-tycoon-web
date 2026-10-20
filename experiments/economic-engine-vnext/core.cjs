@@ -25,7 +25,7 @@ function accountParts(account, entities){
   const parts=account.split(":");
   if(!entities.includes(parts[0]))throw Error("unknown-entity-account");
   if(parts.length===2&&["cash","opening-equity"].includes(parts[1]))return parts;
-  if(parts.length===3&&["loan","receivable","revenue","expense"].includes(parts[1])){
+  if(parts.length===3&&["loan","receivable","revenue","expense","investment","paid-in"].includes(parts[1])){
     requireId(parts[2],"account-id");return parts;
   }
   throw Error("unknown-account");
