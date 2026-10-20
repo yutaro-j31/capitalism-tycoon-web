@@ -78,6 +78,21 @@ async function projection(page){return page.evaluate(()=>{
  const fresh=await browser.newContext({...options,storageState:durableOnly}),freshPage=await fresh.newPage();
  await freshPage.goto(url,{waitUntil:'networkidle'});
  assert.deepEqual(await projection(freshPage),expected,'fresh iPhone WebKit durable-only IndexedDB hydration');
+ // Use the installed UI and real click delegation with a long history of defaults.
+ await freshPage.evaluate(()=>{
+  const m=globalThis.__capitalismTycoonModules,e=m.playerEngineBridge.getEngine();
+  e.g.realEstateMarket.loans=Array.from({length:127},(_,i)=>({id:`UI-LOAN-${i}`,status:'defaulted',balance:1_000_000,rate:.03,weeklyPayment:1}));
+  document.querySelector('#screen').setAttribute('data-screen','assets');
+  m.realEstateCompleteCycleUI.render();
+ });
+ const loanBox=freshPage.locator('[data-real-estate-complete-cycle]');
+ assert.equal(await loanBox.locator('[data-re-prepay]').count(),5);
+ for(let i=0;i<25;i++)await loanBox.locator('[data-re-loan-page]').last().click();
+ assert.equal(await loanBox.locator('[data-re-prepay]').count(),2);
+ assert.equal(await loanBox.locator('[data-re-prepay]').last().getAttribute('data-re-prepay'),'UI-LOAN-0');
+ assert.equal(await loanBox.locator('[data-re-loan-page]').last().isDisabled(),true);
+ await loanBox.locator('[data-re-loan-page]').first().click();
+ assert.equal(await loanBox.locator('[data-re-prepay]').count(),5);
  fs.writeFileSync(path.join(DIR,'p4-aud-004-result.json'),JSON.stringify({device:'iPhone 13 WebKit',proof,expected},null,2));
  console.log('P4-AUD-004 real WebKit, rejection/no writes, generic and specialist payoff, reload/IndexedDB PASS');
  await fresh.close();await context.close();

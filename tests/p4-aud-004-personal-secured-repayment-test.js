@@ -125,19 +125,32 @@ assert.equal(legacy.g.realEstateMarket.loans.find(l=>l.id==='RELOAN-3-9').balanc
   assert.equal(ug.personalDebt,debt,'full settlement of an untracked loan leaves personalDebt unchanged');
   assert.equal(JSON.stringify({cash:ug.companyCash,debt:ug.companyDebt,finance:ug.finance}),company,'no company effects');
 }
-// The dashboard keeps its last-five window but always lists defaulted loans, so an older default
-// still has its settle button.
+// Large loan histories stay bounded in the DOM, while every older default remains reachable.
 {
-  const L=loadGame({random:()=>0.5}),ctx=L.ctx,live=ctx.__ct_engine;
-  ctx.document.querySelector('[data-screen]').setAttribute('data-screen','assets');
-  L.modules.realEstateCompleteCycle.ensure(live.g);
-  for(let i=1;i<=7;i++)live.g.realEstateMarket.loans.push({id:`RELOAN-1-${i}`,propertyID:'P',owner:'personal',balance:1_000_000*i,rate:.03,weeklyPayment:1,status:i===1?'defaulted':'active',accountingTracked:true});
-  const created=[],createElement=ctx.document.createElement;
-  ctx.document.createElement=function(tag){const el=createElement.call(this,tag);created.push(el);return el;};
-  try{L.modules.realEstateCompleteCycleUI.render();}finally{ctx.document.createElement=createElement;}
-  const box=created.find(el=>el.dataset&&el.dataset.realEstateCompleteCycle==='');
-  assert(box,'dashboard rendered');
-  const ids=[...String(box.innerHTML).matchAll(/data-re-prepay="([^"]+)"/g)].map(m=>m[1]);
-  assert.deepEqual(ids,['RELOAN-1-7','RELOAN-1-6','RELOAN-1-5','RELOAN-1-4','RELOAN-1-3','RELOAN-1-1'],'last five plus the older defaulted loan, newest first, no duplicates');
+  const vm=require('node:vm'),fs=require('node:fs'),path=require('node:path');
+  const loans=Array.from({length:127},(_,i)=>({id:`loan-${i}`,balance:1_000_000,rate:.03,weeklyPayment:1,status:i%2?'active':'defaulted'}));
+  let dashboard={macro:{},loans,rivals:[],events:[],vehicles:[]},html='',click,saves=0,settled=null;
+  const live={g:{properties:[]},getRealEstateCycleDashboard:()=>dashboard,save(){saves++;},emit(){},prepayRealEstateLoan(id){settled=id;return true;}};
+  const screen={querySelector:()=>null,prepend(box){html=box.innerHTML;}};
+  const document={querySelector:()=>screen,createElement:()=>({dataset:{}}),addEventListener(type,handler){if(type==='click')click=handler;}};
+  const registry={registerUIEnhancer(){},runUIEnhancers(){}};
+  const m={realEstateCompleteCycle:{},playerEngineBridge:{getEngine:()=>live},uiEnhancerRegistry:registry};
+  vm.runInNewContext(fs.readFileSync(path.join(__dirname,'../js/real-estate-complete-cycle-ui.js'),'utf8'),{globalThis:{__capitalismTycoonModules:m},document});
+  const render=()=>{m.realEstateCompleteCycleUI.render();return [...html.matchAll(/data-re-prepay="([^"']+)"/g)].map(match=>match[1]);};
+  const navigate=page=>click({target:{closest:selector=>selector==='[data-re-loan-page]'?{dataset:{reLoanPage:String(page)}}:null}});
+  const initial=JSON.stringify(dashboard),seen=[];
+  for(let page=0;page<26;page++){
+    navigate(page);
+    const ids=render();assert(ids.length<=5,'at most five loan rows per page');seen.push(...ids);
+  }
+  assert.equal(new Set(seen).size,127,'all active and defaulted loans are reachable without duplication');
+  assert.equal(seen.at(-1),'loan-0','oldest default is reachable on the final page');
+  assert.match(html,/data-re-loan-page="26" disabled/,'next is disabled on final page');
+  assert.equal(JSON.stringify(dashboard),initial,'pagination never changes loan evidence');assert.equal(saves,0,'navigation never saves');
+  click({target:{closest:selector=>selector==='[data-re-prepay]'?{dataset:{rePrepay:'loan-0'}}:null}});
+  assert.equal(settled,'loan-0','oldest default routes to the existing specialist repayment');assert.equal(saves,1);
+  dashboard={...dashboard,loans:loans.slice(0,2)};
+  assert.deepEqual(render(),['loan-1','loan-0'],'page is clamped after collection shrinks');
+  dashboard={...dashboard,loans:[]};assert.deepEqual(render(),[]);assert.match(html,/借入なし/);assert.doesNotMatch(html,/data-re-loan-page/);
 }
 console.log('P4-AUD-004 personal secured-principal guard and save/reload PASS');
