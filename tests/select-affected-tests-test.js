@@ -80,4 +80,11 @@ for (const test of ['tests/prototype-overwrite-audit.js', 'tests/shareholder-act
 const attestation = select(['.github/workflows/release-attestation-sync.yml', 'scripts/release-attestation-issue.js']);
 assert.ok(!attestation.node.some(row => row.test === 'scripts/release-attestation-issue.js'), 'workflow_run job is not run locally');
 assert.ok(attestation.ciOnly.some(row => row.test === 'scripts/release-attestation-issue.js'), 'workflow_run job is listed as CI-only');
+// Codex P2: a changed support file (helper or fixture) selects every test that requires it, transitively.
+const helper = select(['tests/helpers/transaction-fault-case.js']);
+assert.ok(helper.node.some(row => row.test === 'tests/transaction-fault-harness-test.js'), 'helper change selects its requiring test');
+assert.ok(!names(helper).includes('tests/helpers/transaction-fault-case.js'), 'the helper itself is not run');
+// Codex P2: a production module with no focused test (it extends a shared namespace) falls back to every
+// canonical test that boots the game through the harness.
+assert.ok(names(select(['js/competitor-media.js'])).includes('tests/competitor-newspaper-safety-test.js'), 'shared-namespace module falls back to harness tests');
 console.log('select-affected-tests PASS');

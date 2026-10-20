@@ -147,19 +147,26 @@ function registryTests() {
   return fs.existsSync(file) ? Object.keys(JSON.parse(fs.readFileSync(file, 'utf8'))).filter(exists) : [];
 }
 
-// True when a test reaches tests/harness.js through its own local requires (test -> fixture -> harness).
-function bootsGame(test, seen = new Set()) {
-  if (seen.has(test)) return false;
-  seen.add(test);
-  const text = fs.readFileSync(path.join(ROOT, test), 'utf8');
-  for (const m of text.matchAll(/require\(['"](\.\.?\/[\w./-]+)['"]\)/g)) {
-    let dep = path.posix.normalize(path.posix.join(path.posix.dirname(test), m[1]));
-    if (!dep.endsWith('.js') && !dep.endsWith('.cjs')) dep += '.js';
-    if (dep === 'tests/harness.js') return true;
-    if (dep.startsWith('tests/') && exists(dep) && bootsGame(dep, seen)) return true;
+// Local files a test or script reaches through relative `require` calls, transitively (memoized).
+const closures = new Map();
+function localRequires(file) {
+  if (closures.has(file)) return closures.get(file);
+  const reached = new Set();
+  closures.set(file, reached);
+  const stack = [file];
+  while (stack.length) {
+    const current = stack.pop();
+    const text = fs.readFileSync(path.join(ROOT, current), 'utf8');
+    for (const m of text.matchAll(/require\(['"](\.\.?\/[\w./-]+)['"]\)/g)) {
+      let dep = path.posix.normalize(path.posix.join(path.posix.dirname(current), m[1]));
+      if (!/\.(?:c?js|json)$/.test(dep)) dep += '.js';
+      if (!reached.has(dep) && exists(dep)) { reached.add(dep); if (!dep.endsWith('.json')) stack.push(dep); }
+    }
   }
-  return false;
+  return reached;
 }
+// True when a test reaches tests/harness.js through its local requires (test -> fixture -> harness).
+function bootsGame(test) { return localRequires(test).has('tests/harness.js'); }
 
 function select(files) {
   const reasons = new Map();
@@ -173,16 +180,29 @@ function select(files) {
   const ciOnly = new Set(flows.flatMap(w => w.ciOnly).filter(t => !runsLocally.has(t)));
   const runnable = new Set([...canonical, ...registryTests(), ...flows.flatMap(w => [...w.tests, ...w.ciOnly])]);
   for (const file of files) if (runnable.has(file)) add(file, 'changed test');
+  // A changed support file (helper, fixture, harness) selects every test that requires it, transitively.
+  const support = files.filter(f => /^(?:tests|scripts)\/.+\.(?:c?js|json)$/.test(f) && !runnable.has(f) && exists(f));
+  if (support.length) for (const test of runnable) {
+    const hit = support.find(f => localRequires(test).has(f));
+    if (hit) add(test, `requires ${hit}`);
+  }
   for (const w of flows.filter(flow => flow.patterns.length)) {
     const hit = files.find(f => w.patterns.some(p => (!p.broad || BROAD) && p.re.test(f)));
     if (hit) [...w.tests, ...w.ciOnly].forEach(t => add(t, `${w.name} paths: ${hit}`));
   }
   if (production.length) {
-    const corpus = canonical.map(t => ({ t, text: fs.readFileSync(path.join(ROOT, t), 'utf8') }));
+    // The selector's own test names production files as data; it is not a focused module test.
+    const corpus = canonical.filter(t => t !== 'tests/select-affected-tests-test.js').map(t => ({ t, text: fs.readFileSync(path.join(ROOT, t), 'utf8') }));
+    const unfocused = [];
     for (const file of production) {
       const base = path.basename(file, '.js'), key = camel(base);
-      for (const { t, text } of corpus) if (text.includes(`${base}.js`) || new RegExp(`modules\\??\\.${key}\\b`).test(text)) add(t, `references ${file}`);
+      let focused = 0;
+      for (const { t, text } of corpus) if (text.includes(`${base}.js`) || new RegExp(`modules\\??\\.${key}\\b`).test(text)) { add(t, `references ${file}`); focused++; }
+      if (!focused && !CORE_MODULES.includes(base)) unfocused.push(file);
     }
+    // Fail safe: a module with no focused test (e.g. one that extends a shared namespace such as
+    // modules.competitor) is reached only through the booted game, like a core module.
+    for (const file of unfocused) for (const { t } of corpus) if (bootsGame(t)) add(t, `boots the game; no focused test for ${file}`);
     // Tests that boot the whole game through tests/harness.js load every module transitively. A change
     // to a core module (state, RNG, accounting, save) reaches them without any textual reference.
     const core = production.filter(f => CORE_MODULES.includes(path.basename(f, '.js')));

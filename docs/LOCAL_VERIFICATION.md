@@ -19,9 +19,9 @@ This document records the decision and the operating procedure. It does **not** 
 2. Run `node scripts/select-affected-tests.js --run`, which selects:
    - the always-on contracts (test registration, shard matrix, workflow path filters);
    - the Phase 0.5 / 1 / 2 permanent acceptance gates, the cash writer ratchet and the module-split test whenever any `js/` file changes. Their lexical writer inventories react even to comment text;
-   - every changed test;
+   - every changed test, and every test that requires a changed support file (helper, fixture, harness) through local `require` calls, transitively;
    - every Node step of a workflow whose path filter matches the diff;
-   - every canonical test that loads the changed production module.
+   - every canonical test that loads the changed production module. A module with no focused test, such as one that only extends a shared namespace like `modules.competitor`, falls back to every canonical test that boots the game through `tests/harness.js`;
    - for a core module (`runtime`, `data`, `engine`, `simulation-rng`, `finance`, `economic-operation`, `economic-settlement`, `save-v9`, `semantic-hash-v2`), every canonical test that boots the game through `tests/harness.js`, directly or through a local helper it requires (for example `ma-acquisition-financing-fixture.js`). That is close to the whole suite, so for a core change run all canonical shards (measure 1) instead.
 
    Some workflow jobs cannot run here as they are. Their commands are listed as **CI-only** and not run, unless a pull-request job or the canonical suite also runs the same test. A job is CI-only when it:
