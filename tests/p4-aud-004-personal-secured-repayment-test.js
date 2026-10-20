@@ -108,4 +108,36 @@ assert.equal(legacy.g.realEstateMarket.loans.find(l=>l.id==='RELOAN-3-9').balanc
   assert.equal(reloaded.g.realEstateMarket.loans.find(l=>l.id===loan.id).status,'paid','settlement persists across reload');
   assert.equal(reloaded.g.personalDebt,dg.personalDebt);
 }
+// A pre-#849 loan was never part of personalDebt, so settling it (active or defaulted) must not
+// move the aggregate or touch the company side; only the loan row and the paying cash change.
+{
+  const u=new engineModule.TycoonEngine(JSON.parse(JSON.stringify(g))),ug=u.g;
+  ug.realEstateMarket.loans.push({id:'RELOAN-2-90',propertyID:'P4-004-B',owner:'personal',originalPrincipal:8_000_000,balance:8_000_000,
+   rate:.04,spread:.025,rateType:'fixed',termWeeks:260,weeksRemaining:200,weeklyPayment:40_000,status:'defaulted',delinquentWeeks:8,createdWeek:2});
+  ug.personalCash=20_000_000;
+  const debt=ug.personalDebt,company=JSON.stringify({cash:ug.companyCash,debt:ug.companyDebt,finance:ug.finance});
+  assert.equal(u.prepayRealEstateLoan('RELOAN-2-90',3_000_000),true,'an untracked defaulted loan is settleable');
+  assert.equal(ug.personalDebt,debt,'partial settlement of an untracked loan leaves personalDebt unchanged');
+  assert.equal(ug.personalCash,17_000_000);
+  assert.equal(u.prepayRealEstateLoan('RELOAN-2-90',5_000_000),true);
+  const legacyLoan=ug.realEstateMarket.loans.find(l=>l.id==='RELOAN-2-90');
+  assert.equal(legacyLoan.balance,0);assert.equal(legacyLoan.status,'paid');
+  assert.equal(ug.personalDebt,debt,'full settlement of an untracked loan leaves personalDebt unchanged');
+  assert.equal(JSON.stringify({cash:ug.companyCash,debt:ug.companyDebt,finance:ug.finance}),company,'no company effects');
+}
+// The dashboard keeps its last-five window but always lists defaulted loans, so an older default
+// still has its settle button.
+{
+  const L=loadGame({random:()=>0.5}),ctx=L.ctx,live=ctx.__ct_engine;
+  ctx.document.querySelector('[data-screen]').setAttribute('data-screen','assets');
+  L.modules.realEstateCompleteCycle.ensure(live.g);
+  for(let i=1;i<=7;i++)live.g.realEstateMarket.loans.push({id:`RELOAN-1-${i}`,propertyID:'P',owner:'personal',balance:1_000_000*i,rate:.03,weeklyPayment:1,status:i===1?'defaulted':'active',accountingTracked:true});
+  const created=[],createElement=ctx.document.createElement;
+  ctx.document.createElement=function(tag){const el=createElement.call(this,tag);created.push(el);return el;};
+  try{L.modules.realEstateCompleteCycleUI.render();}finally{ctx.document.createElement=createElement;}
+  const box=created.find(el=>el.dataset&&el.dataset.realEstateCompleteCycle==='');
+  assert(box,'dashboard rendered');
+  const ids=[...String(box.innerHTML).matchAll(/data-re-prepay="([^"]+)"/g)].map(m=>m[1]);
+  assert.deepEqual(ids,['RELOAN-1-7','RELOAN-1-6','RELOAN-1-5','RELOAN-1-4','RELOAN-1-3','RELOAN-1-1'],'last five plus the older defaulted loan, newest first, no duplicates');
+}
 console.log('P4-AUD-004 personal secured-principal guard and save/reload PASS');
