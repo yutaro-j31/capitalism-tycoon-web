@@ -33,6 +33,7 @@ for (let i = 0; i < commands.length; i++) {
 }
 
 const nodeTests = [
+  ['p4-aud-003-founder-capital-atomicity', 'scripts/p4-aud-003-founder-capital-atomicity.cjs'],
   ['debt-command-save-atomicity', 'tests/debt-command-save-atomicity-test.js'],
   ['cash-writer-ratchet', 'tests/cash-writer-ratchet-test.js'],
   ['authoritative-company-cash', 'tests/authoritative-company-cash-test.js'],
@@ -144,6 +145,7 @@ const nodeTests = [
   ['phase3-subsidiary-relationships', 'tests/phase3-subsidiary-relationships-test.js'],
   ['phase3-pe-ownership-adapter', 'tests/phase3-pe-ownership-adapter-test.js'],
   ['phase3-subsidiary-composition', 'tests/phase3-subsidiary-composition-test.js'],
+  ['phase3-indirect-economic-paths', 'tests/phase3-indirect-economic-paths-test.js'],
   ['phase3-vc-source-interests', 'tests/phase3-vc-source-interests-test.js'],
   ['player-own-share-conservation', 'tests/player-own-share-conservation-test.js'],
   ['economic-foundation-draws', 'tests/economic-foundation-draws-test.js'],
@@ -214,6 +216,7 @@ const nodeTests = [
   ['real-estate-insurance-claims', 'tests/real-estate-insurance-claims-test.js'],
   ['real-estate-insurance-risk', 'tests/real-estate-insurance-risk-test.js'],
   ['real-estate-maintenance-reserves', 'tests/real-estate-maintenance-reserves-test.js'],
+  ['property-mortgage-refinance-conservation', 'tests/property-mortgage-refinance-conservation-test.js'],
   ['real-estate-mortgage-refinancing', 'tests/real-estate-mortgage-refinancing-test.js'],
   ['real-estate-portfolio-dashboard', 'tests/real-estate-portfolio-dashboard-test.js'],
   ['real-estate-price-negotiation', 'tests/real-estate-price-negotiation-test.js'],
