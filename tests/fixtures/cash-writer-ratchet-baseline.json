@@ -9,7 +9,8 @@
    },
    "personalCash": {
     "dynamicKey": 1
-   }
+   },
+   "computedStateKey": 1
   },
   "js/bank-loans-covenants.js": {
    "companyCash": {
@@ -39,7 +40,8 @@
    "personalCash": {
     "direct": 1,
     "literalKey": 1
-   }
+   },
+   "computedStateKey": 1
   },
   "js/convertible-bonds-dilution.js": {
    "companyCash": {
@@ -79,7 +81,8 @@
     "direct": 14,
     "dynamicKey": 12,
     "literalKey": 1
-   }
+   },
+   "computedStateKey": 22
   },
   "js/executive-reviews-succession-board.js": {
    "companyCash": {
@@ -100,7 +103,8 @@
    "personalCash": {
     "direct": 19,
     "dynamicKey": 7
-   }
+   },
+   "computedStateKey": 8
   },
   "js/finance.js": {
    "companyCash": {
@@ -199,7 +203,8 @@
    "companyCash": {
     "direct": 8,
     "literalKey": 1
-   }
+   },
+   "computedStateKey": 1
   },
   "js/pe-fund.js": {
    "companyCash": {
@@ -233,7 +238,8 @@
    },
    "personalCash": {
     "dynamicKey": 2
-   }
+   },
+   "computedStateKey": 1
   },
   "js/personal-real-estate-corp.js": {
    "personalCash": {
@@ -340,7 +346,8 @@
    },
    "personalCash": {
     "dynamicKey": 1
-   }
+   },
+   "computedStateKey": 5
   },
   "js/real-estate-development.js": {
    "companyCash": {
@@ -348,7 +355,8 @@
    },
    "personalCash": {
     "dynamicKey": 1
-   }
+   },
+   "computedStateKey": 4
   },
   "js/real-estate-insurance-claims.js": {
    "companyCash": {
@@ -356,7 +364,8 @@
    },
    "personalCash": {
     "dynamicKey": 1
-   }
+   },
+   "computedStateKey": 1
   },
   "js/real-estate-mortgage-refinancing.js": {
    "companyCash": {
@@ -364,7 +373,8 @@
    },
    "personalCash": {
     "dynamicKey": 1
-   }
+   },
+   "computedStateKey": 3
   },
   "js/real-estate-price-negotiation.js": {
    "companyCash": {
@@ -372,7 +382,8 @@
    },
    "personalCash": {
     "dynamicKey": 1
-   }
+   },
+   "computedStateKey": 1
   },
   "js/real-estate-property-disposals.js": {
    "companyCash": {
@@ -380,7 +391,8 @@
    },
    "personalCash": {
     "dynamicKey": 1
-   }
+   },
+   "computedStateKey": 2
   },
   "js/real-estate-property-insurance.js": {
    "companyCash": {
@@ -388,7 +400,8 @@
    },
    "personalCash": {
     "dynamicKey": 1
-   }
+   },
+   "computedStateKey": 3
   },
   "js/real-estate-property-maintenance.js": {
    "companyCash": {
@@ -396,7 +409,8 @@
    },
    "personalCash": {
     "dynamicKey": 1
-   }
+   },
+   "computedStateKey": 2
   },
   "js/real-estate-property-management.js": {
    "companyCash": {
@@ -404,7 +418,8 @@
    },
    "personalCash": {
     "dynamicKey": 1
-   }
+   },
+   "computedStateKey": 1
   },
   "js/real-estate-property-taxes.js": {
    "companyCash": {
@@ -412,7 +427,8 @@
    },
    "personalCash": {
     "dynamicKey": 1
-   }
+   },
+   "computedStateKey": 1
   },
   "js/real-estate-redevelopment-projects.js": {
    "companyCash": {
@@ -420,7 +436,8 @@
    },
    "personalCash": {
     "dynamicKey": 1
-   }
+   },
+   "computedStateKey": 1
   },
   "js/real-estate-rent-guarantee.js": {
    "companyCash": {
@@ -428,7 +445,8 @@
    },
    "personalCash": {
     "dynamicKey": 1
-   }
+   },
+   "computedStateKey": 2
   },
   "js/real-estate-risk-mitigation.js": {
    "companyCash": {
@@ -436,7 +454,8 @@
    },
    "personalCash": {
     "dynamicKey": 2
-   }
+   },
+   "computedStateKey": 2
   },
   "js/real-estate-safety-certification.js": {
    "companyCash": {
@@ -444,7 +463,8 @@
    },
    "personalCash": {
     "dynamicKey": 1
-   }
+   },
+   "computedStateKey": 1
   },
   "js/real-estate-security-deposits.js": {
    "companyCash": {
@@ -460,7 +480,8 @@
    },
    "personalCash": {
     "dynamicKey": 1
-   }
+   },
+   "computedStateKey": 3
   },
   "js/real-estate-tenant-contracts.js": {
    "companyCash": {
@@ -468,7 +489,8 @@
    },
    "personalCash": {
     "dynamicKey": 2
-   }
+   },
+   "computedStateKey": 3
   },
   "js/real-estate-tenant-leasing.js": {
    "companyCash": {
@@ -476,7 +498,8 @@
    },
    "personalCash": {
     "dynamicKey": 1
-   }
+   },
+   "computedStateKey": 3
   },
   "js/real-estate-tenant-operations.js": {
    "companyCash": {
@@ -484,7 +507,8 @@
    },
    "personalCash": {
     "dynamicKey": 1
-   }
+   },
+   "computedStateKey": 2
   },
   "js/real-estate-tenant-renewals.js": {
    "companyCash": {
@@ -492,7 +516,8 @@
    },
    "personalCash": {
     "dynamicKey": 1
-   }
+   },
+   "computedStateKey": 1
   },
   "js/real-estate.js": {
    "companyCash": {
@@ -502,7 +527,8 @@
    "personalCash": {
     "direct": 2,
     "dynamicKey": 3
-   }
+   },
+   "computedStateKey": 3
   },
   "js/save-import-atomic-guard.js": {
    "companyCash": {
@@ -579,6 +605,7 @@
   "companyCash.direct": 156,
   "companyCash.dynamicKey": 59,
   "personalCash.dynamicKey": 54,
+  "computedStateKey": 78,
   "companyCash.literalKey": 15,
   "personalCash.direct": 59,
   "personalCash.literalKey": 8

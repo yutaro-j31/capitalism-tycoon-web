@@ -8,8 +8,12 @@
 //   direct      `companyCash = / += / -= / *= …`, `++` / `--` on the field (comparisons are excluded)
 //   dynamicKey  the field name as a string literal, e.g. `g[key]` with key = 'companyCash'
 //   literalKey  the field name as an object-literal key, e.g. Object.assign(g,{companyCash:…})
-// dynamicKey and literalKey also match some reads; they are ratcheted because they are the
-// indirect write routes the direct pattern cannot see.
+// Counted per production file, independent of field (key computed at run time):
+//   computedStateKey  an assignment to a computed key of the game-state root, e.g.
+//                     g[key] -= x, this.g[cashKey] += x, state[cashKey(owner)] = x
+// dynamicKey and literalKey also match some reads, and computedStateKey also matches non-cash
+// computed root writes; they are ratcheted because they are the indirect write routes (such as
+// a cashKey() helper) that the direct pattern cannot see.
 //
 // A count above the baseline fails: route the new write through an existing writer instead.
 // A count below the baseline also fails, so the baseline stays tight: lower the entry in
@@ -42,10 +46,18 @@ function scan(source) {
   return out;
 }
 
+const STATE_ROOT = '(?:\\bthis\\.g|\\bengine\\.g|(?<![\\w$.])g|(?<![\\w$.])state)';
+function computedStateKeys(source) {
+  return count(source, new RegExp(`${STATE_ROOT}\\s*\\[[^\\]\\n]+\\]\\s*(?:${ASSIGN}|\\+\\+|--)`, 'g')) +
+    count(source, new RegExp(`(?:\\+\\+|--)\\s*${STATE_ROOT}\\s*\\[[^\\]\\n]+\\]`, 'g'));
+}
+
 function snapshot() {
   const files = {};
   for (const name of fs.readdirSync(JS_DIR).filter(name => name.endsWith('.js')).sort()) {
-    const row = scan(fs.readFileSync(path.join(JS_DIR, name), 'utf8'));
+    const source = fs.readFileSync(path.join(JS_DIR, name), 'utf8');
+    const row = scan(source), computed = computedStateKeys(source);
+    if (computed) row.computedStateKey = computed;
     if (Object.keys(row).length) files[`js/${name}`] = row;
   }
   return files;
@@ -53,8 +65,10 @@ function snapshot() {
 
 function totals(files) {
   const sum = {};
-  for (const row of Object.values(files)) for (const [field, kinds] of Object.entries(row))
+  for (const row of Object.values(files)) for (const [field, kinds] of Object.entries(row)) {
+    if (typeof kinds === 'number') { sum[field] = (sum[field] || 0) + kinds; continue; }
     for (const [kind, n] of Object.entries(kinds)) sum[`${field}.${kind}`] = (sum[`${field}.${kind}`] || 0) + n;
+  }
   return sum;
 }
 
@@ -71,15 +85,20 @@ assert.deepEqual(scan('if(g.companyCash>=x&&g.companyCash<=y&&g.companyCash==z&&
 assert.deepEqual(scan("const k=o==='personal'?'personalCash':'companyCash';Object.assign(g,{companyCash:1});"),
   { companyCash: { dynamicKey: 1, literalKey: 1 }, personalCash: { dynamicKey: 1 } });
 
+assert.equal(computedStateKeys('g[cashKey(owner)]-=amount;this.g[key]+=1;state[k]=0;engine.g[debtKey]--;++g[x];'), 5);
+assert.equal(computedStateKeys('g.loans[i]=1;rows[i]=2;if(g[key]===1||g[key]>=2)x=g[key];myg[key]=1;'), 0);
+
 const baseline = JSON.parse(fs.readFileSync(BASELINE, 'utf8'));
 assert.equal(baseline.schema, 1, 'cash writer ratchet baseline schema');
 const problems = [];
 for (const file of new Set([...Object.keys(baseline.files), ...Object.keys(current)])) {
-  for (const field of FIELDS) for (const kind of ['direct', 'dynamicKey', 'literalKey']) {
-    const was = baseline.files[file]?.[field]?.[kind] || 0, now = current[file]?.[field]?.[kind] || 0;
-    if (now > was) problems.push(`${file} ${field}.${kind}: ${was} -> ${now} (new cash write site; use an existing writer)`);
-    else if (now < was) problems.push(`${file} ${field}.${kind}: ${was} -> ${now} (sites removed; lower the baseline)`);
-  }
+  const compare = (label, was, now) => {
+    if (now > was) problems.push(`${file} ${label}: ${was} -> ${now} (new cash write site; use an existing writer)`);
+    else if (now < was) problems.push(`${file} ${label}: ${was} -> ${now} (sites removed; lower the baseline)`);
+  };
+  for (const field of FIELDS) for (const kind of ['direct', 'dynamicKey', 'literalKey'])
+    compare(`${field}.${kind}`, baseline.files[file]?.[field]?.[kind] || 0, current[file]?.[field]?.[kind] || 0);
+  compare('computedStateKey', baseline.files[file]?.computedStateKey || 0, current[file]?.computedStateKey || 0);
 }
 assert.deepEqual(problems, [], `cash writer ratchet:\n  ${problems.join('\n  ')}\nBaseline: tests/fixtures/cash-writer-ratchet-baseline.json`);
 assert.deepEqual(baseline.totals, totals(current), 'baseline totals must equal the sum of its file rows');
