@@ -1544,9 +1544,16 @@ class TycoonEngine extends EventTarget {
     return this.runTransaction(()=>{
     const plan=this.getStartupFundingRoundPlan(startupID),s=this.g.startups.find(x=>x.id===startupID);if(!plan||this.g.week>=plan.closesWeek||(account!=='company'&&account!=='personal')||typeof amount!=='number'||!Number.isFinite(amount)||amount<=0)return false;
     const side=plan[account],cashKey=account==='company'?'companyCash':'personalCash';if(side.ownershipBefore<=0||amount>side.remaining+1e-7||side.contributed+amount>side.proRataRequired+1e-7||this.g[cashKey]<amount)return false;
+    // Every paid receipt of the open round must stay inside the 24-row history the payment-evidence
+    // check reads; refuse further installments before charging instead of dropping a receipt.
+    const roundPrefix=`${s.activeFundingRound.id}-`,roundRows=(this.g.startupFundingHistory[startupID]||[]).filter(row=>typeof row?.id==='string'&&row.id.startsWith(roundPrefix));
+    if(roundRows.length>=24)return false;
+    // Unique even beside legacy receipts whose suffix was the history length.
+    const usedIDs=new Set(roundRows.map(row=>row.id));let receiptSeq=roundRows.filter(row=>row.id.startsWith(`${roundPrefix}${account}-`)).length;
+    while(usedIDs.has(`${roundPrefix}${account}-${this.g.week}-${receiptSeq}`))receiptSeq++;
     this.g[cashKey]-=amount;const cap=account==='company'?'Company':'Personal';s.activeFundingRound[`contributed${cap}`]+=amount;s[`totalInvested${cap}`]=finite(s[`totalInvested${cap}`])+amount;
     if(account==='company')finance.event(this.g,'investmentPurchase',amount,{cashEffect:-amount,assetEffect:amount,sourceType:'startupFundingRound',sourceID:`${startupID}-${s.activeFundingRound.id}-${account}`,description:`${s.name} ${plan.round}追加投資`});
-    const history=this.g.startupFundingHistory[startupID]||(this.g.startupFundingHistory[startupID]=[]);history.unshift({id:`${s.activeFundingRound.id}-${account}-${this.g.week}-${history.length}`,eventType:'participated',stage:plan.round,week:this.g.week,account,amount,preMoneyValuation:plan.preMoneyValuation,targetRaise:plan.targetRaise,postMoneyValuation:plan.postMoneyValuation});this.g.startupFundingHistory[startupID]=history.slice(0,24);
+    const history=this.g.startupFundingHistory[startupID]||(this.g.startupFundingHistory[startupID]=[]);history.unshift({id:`${s.activeFundingRound.id}-${account}-${this.g.week}-${receiptSeq}`,eventType:'participated',stage:plan.round,week:this.g.week,account,amount,preMoneyValuation:plan.preMoneyValuation,targetRaise:plan.targetRaise,postMoneyValuation:plan.postMoneyValuation});this.g.startupFundingHistory[startupID]=history.slice(0,24);
     const message=`${s.name}の${plan.round}ラウンドへ${yen(amount)}追加出資しました。`;this.notify(message,'success');return true;
     });
   }

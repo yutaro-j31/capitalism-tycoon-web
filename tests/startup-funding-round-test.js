@@ -32,4 +32,35 @@ function reload(x){x.e.save();const raw=x.loaded.ctx.__localStorageData.get(x.lo
 {
  const x=setup();x.s.ownedCompany=0;x.s.ownedPersonal=.0500009;x.s.totalInvestedPersonal=10e6;x.s.activeFundingRound=null;const cash=x.e.g.personalCash,preStake=x.s.valuation*x.s.ownedPersonal,preWorth=x.e.personalNetWorth();assert.equal(preWorth,cash+preStake);x.e.listStartup(x.s);const holding=x.e.g.personalStocks[x.s.ipoStockID],stock=x.e.stock(x.s.ipoStockID),postStake=holding.qty*stock.price;assert.equal(holding.qty,Math.floor(.0500009*1e6));assert.equal(x.s.ownedPersonal,0);assert.ok(Math.abs(x.e.personalNetWorth()-(cash+postStake))<1e-7);assert.ok(Math.abs((x.e.personalNetWorth()-preWorth)-(postStake-preStake))<1e-7);
 }
+// Codex P2 on #1029: every receipt the payment-evidence check needs must survive the 24-row
+// history cap, and receipt IDs must stay unique, for any state the public writer can produce.
+{
+ const x=setup(),p=open(x),step=100_000;let accepted=0;
+ for(let i=0;i<25;i++)if(x.e.participateStartupFundingRound(x.s.id,step,'personal'))accepted++;
+ assert.ok(accepted<25,'the writer must stop before a receipt would fall out of the capped history');
+ assert.equal(x.s.activeFundingRound.contributedPersonal,accepted*step);
+ const ids=x.e.g.startupFundingHistory[x.s.id].map(row=>row.id);assert.equal(new Set(ids).size,ids.length,'receipt IDs are unique');
+ assert.equal(x.e.hasStartupFundingRoundPaymentEvidence(x.s.id,'personal'),true,'all paid installments remain provable');
+ x.e.g.week=p.closesWeek;assert.equal(x.e.closeStartupFundingRound(x.s),true,'a round funded through the public writer can close');
+}
+{
+ const x=setup();x.e.g.startupFundingHistory[x.s.id]=Array.from({length:24},(_,i)=>({id:`old-round-${i}`,eventType:'closed',stage:'Seed',closedWeek:1}));
+ const p=open(x);
+ assert.equal(x.e.participateStartupFundingRound(x.s.id,100_000,'personal'),true);
+ assert.equal(x.e.participateStartupFundingRound(x.s.id,100_000,'personal'),true,'second installment in the same week');
+ const ids=x.e.g.startupFundingHistory[x.s.id].map(row=>row.id);assert.equal(new Set(ids).size,ids.length,'full prior history must not reuse receipt IDs');
+ assert.equal(x.e.hasStartupFundingRoundPaymentEvidence(x.s.id,'personal'),true);
+ x.e.g.week=p.closesWeek;assert.equal(x.e.closeStartupFundingRound(x.s),true);
+}
+{
+ // A round opened before this fix keeps legacy history-length suffixes; new receipts must not collide.
+ const x=setup(),p=open(x),r=x.s.activeFundingRound;
+ assert.equal(x.e.participateStartupFundingRound(x.s.id,100_000,'personal'),true);
+ const first=x.e.g.startupFundingHistory[x.s.id][0];first.id=`${r.id}-personal-${x.e.g.week}-0`;
+ const legacy={...first,id:`${r.id}-personal-${x.e.g.week}-2`};x.e.g.startupFundingHistory[x.s.id].unshift(legacy);
+ r.contributedPersonal+=legacy.amount;x.s.totalInvestedPersonal+=legacy.amount;
+ assert.equal(x.e.participateStartupFundingRound(x.s.id,100_000,'personal'),true);
+ const ids=x.e.g.startupFundingHistory[x.s.id].map(row=>row.id);assert.equal(new Set(ids).size,ids.length,'no collision with legacy receipt IDs');
+ assert.equal(x.e.hasStartupFundingRoundPaymentEvidence(x.s.id,'personal'),true);
+}
 console.log('startup funding round tests passed');
