@@ -59,25 +59,44 @@ function stateAliases(source) {
 }
 // Index just past the `]` that closes the `[` at `open`, skipping nested brackets and string or
 // template literals, so keys such as g[cashKeys[owner]] or g[`${a}]`] are measured whole.
+// Index just past the bracket that closes the one at `open` ('[' or '('), skipping nested brackets and
+// string or template literals, so keys such as g[cashKeys[owner]] or g[`${a}]`] are measured whole.
 function closeBracket(source, open) {
-  let depth = 0;
+  const pairs = { '[': ']', '(': ')', '{': '}' }, stack = [];
   for (let i = open; i < source.length; i++) {
     const c = source[i];
     if (c === '"' || c === "'" || c === '`') {
       for (i++; i < source.length && source[i] !== c; i++) if (source[i] === '\\') i++;
-    } else if (c === '[') depth++;
-    else if (c === ']' && --depth === 0) return i + 1;
+    } else if (pairs[c]) stack.push(pairs[c]);
+    else if (c === stack[stack.length - 1] && (stack.pop(), stack.length === 0)) return i + 1;
   }
   return -1;
 }
 function computedStateKeys(source) {
-  const root = new RegExp(`(?:${[...BASE_ROOTS, ...stateAliases(source).map(a => `(?<![\\w$.])${a.replace(/\$/g, '\\$')}`)].join('|')})\\s*\\[`, 'g');
+  const rootAlt = [...BASE_ROOTS, ...stateAliases(source).map(a => `(?<![\\w$.])${a.replace(/\$/g, '\\$')}`)].join('|');
+  const root = new RegExp(`(?:${rootAlt})\\s*\\[`, 'g');
   const assignAfter = new RegExp(`^\\s*(?:${ASSIGN}|\\+\\+|--)`), updateBefore = /(?:\+\+|--)\s*$/;
   let n = 0;
   for (const m of source.matchAll(root)) {
     const end = closeBracket(source, m.index + m[0].length - 1);
     if (end < 0) continue;
     if (assignAfter.test(source.slice(end, end + 8)) || updateBefore.test(source.slice(Math.max(0, m.index - 4), m.index))) n++;
+  }
+  // Reflective writes onto the root: Object.assign(root, {[key]: v}) counts each computed key;
+  // Object.defineProperty / Reflect.set / Reflect.defineProperty(root, key, ...) count a non-literal key.
+  const call = new RegExp(`\\b(Object\\.assign|Object\\.defineProperty|Reflect\\.set|Reflect\\.defineProperty)\\s*\\(\\s*(?:${rootAlt})\\s*,`, 'g');
+  for (const m of source.matchAll(call)) {
+    const open = source.indexOf('(', m.index), end = closeBracket(source, open);
+    if (end < 0) continue;
+    const args = source.slice(m.index + m[0].length, end - 1);
+    if (m[1] === 'Object.assign') {
+      for (let i = 0; i < args.length; i++) {
+        if (args[i] === '"' || args[i] === "'" || args[i] === '`') { const q = args[i]; for (i++; i < args.length && args[i] !== q; i++) if (args[i] === '\\') i++; continue; }
+        if (args[i] !== '[' || !/[{,]\s*$/.test(args.slice(0, i))) continue;
+        const close = closeBracket(args, i);
+        if (close > 0 && /^\s*:/.test(args.slice(close))) n++;
+      }
+    } else if (!/^\s*['"`]/.test(args)) n++;
   }
   return n;
 }
@@ -122,6 +141,9 @@ assert.equal(computedStateKeys('const rows=this.g.loans;rows[i]=1;const f=comput
 // Codex P1: nested and literal bracket keys are measured whole.
 assert.equal(computedStateKeys('const game=this.g;game[cashKeys[owner]]-=amount;g[map[a][b]]+=1;state[`${k}]`]=0;--g[keys[i]];'), 4);
 assert.equal(computedStateKeys('g[keys[i]]===1;x=g[a[b]];g[a][b]=1;'), 0);
+// Codex P1: computed keys written reflectively onto the root.
+assert.equal(computedStateKeys("Object.assign(g,{[cashKey(owner)]:v});Object.assign(this.g,{a:1},{[k]:2,[j]:3});Object.defineProperty(state,key,{value:1});Reflect.set(g,k,1);"), 5);
+assert.equal(computedStateKeys("Object.assign(g,{a:[1,2]});Object.assign(row,{[k]:1});Reflect.set(g,'week',1);Object.assign(g,{s:'[x]:'});"), 0);
 
 const baseline = JSON.parse(fs.readFileSync(BASELINE, 'utf8'));
 assert.equal(baseline.schema, 1, 'cash writer ratchet baseline schema');
