@@ -7,6 +7,14 @@ const KNOWN=new Set(['workingCapitalIncrease','accountsPayablePayment','deprecia
 function ensure(value,reason){if(!value)throw Error(reason);}
 const cent=(n,k)=>crosswalk.signedMinorFromYen(n,k);
 const money=(n,k)=>crosswalk.minorFromYen(n,k);
+function measuredCashDelta(n,label){
+ // The real game's companyCash is a binary floating Number. Do not silently
+ // assume that subtraction of two >500M-JPY balances is cent-exact.
+ ensure(typeof n==='number'&&Number.isFinite(n),'invalid-'+label);
+ const scaled=n*100,rounded=Math.round(scaled);
+ ensure(Number.isSafeInteger(rounded),'invalid-'+label);
+ return {minor:rounded,residualJPY:n-rounded/100};
+}
 function inspectIdentity(x,w,s,b){
  ensure(x&&typeof x==='object','invalid-row');
  ensure(x.week===w&&x.storeID===s&&x.businessID===b,'row-source-mismatch');
@@ -46,15 +54,22 @@ function analyze(capture){
   ensure(capture&&Array.isArray(capture.records)&&capture.records.length===13,'capture-thirteen-weeks-required');
   ensure(typeof capture.storeID==='string'&&typeof capture.businessID==='string','capture-identity');
   const baseline=[],ids=new Set(),reasons=new Set(),categoryCounts={};
-  let company=0n,finance=0n,storeCash=0n,storeProfit=0n,storeRows=0;
+  let company=0n,finance=0n,storeCash=0n,storeProfit=0n,storeRows=0,maxCashResidualJPY=0;
+  let nonStoreFinanceRows=0;
   for(let i=0;i<13;i++){
    const w=capture.records[i],expected=capture.records[0].week+i;
    ensure(w&&w.step===i+1&&w.week===expected&&Number.isSafeInteger(expected),'week-sequence');
    ensure(Array.isArray(w.storeRows)&&Array.isArray(w.otherRows),'missing-weekly-finance-rows');
-   const delta=cent(w.cashDeltaJPY,'company-week-cash');
+   const observed=measuredCashDelta(w.cashDeltaJPY,'company-week-cash');
    const recognized=cent(w.observedFinanceCashEffectJPY,'finance-week-cash');
-   ensure(delta===recognized,'week-company-cash-unexplained-'+w.week);
-   company+=BigInt(delta);finance+=BigInt(recognized);
+   // A sub-cent rounding residual is permitted only in observed companyCash
+   // subtraction. Individual financial journal rows still require exact cents.
+   const floatResidual=Math.abs(w.cashDeltaJPY-w.observedFinanceCashEffectJPY);
+   ensure(floatResidual<=0.0050001,'material-week-company-cash-unexplained-'+w.week);
+   maxCashResidualJPY=Math.max(maxCashResidualJPY,floatResidual);
+   ensure(Math.abs(observed.minor-recognized)<=1,'week-cash-integer-mismatch-'+w.week);
+   company+=BigInt(recognized);finance+=BigInt(recognized);
+   nonStoreFinanceRows+=w.otherRows.length;
    for(const x of w.storeRows){
     inspectIdentity(x,w.week,capture.storeID,capture.businessID);
     ensure(!ids.has(x.operationID),'duplicate-store-operation-'+x.operationID);ids.add(x.operationID);
@@ -74,10 +89,12 @@ function analyze(capture){
    if(w.maintenanceMinor>0)reasons.add('maintenance-not-modeled');
   }
   ensure(company===finance,'total-company-cash-unexplained');
-  ensure(cent(capture.closingCashJPY-capture.openingCashJPY,'company-period-cash')===Number(company),'opening-closing-cash-mismatch');
+  const closingDelta=measuredCashDelta(capture.closingCashJPY-capture.openingCashJPY,'company-period-cash');
+  ensure(Math.abs(closingDelta.minor-Number(company))<=1,'opening-closing-cash-mismatch');
   ensure([storeCash,storeProfit,company].every(v=>v<=BigInt(Number.MAX_SAFE_INTEGER)&&v>=BigInt(-Number.MAX_SAFE_INTEGER)),'money-overflow');
   return {status:reasons.size?'UNSUPPORTED':'OBSERVED_NOT_PARITY_TESTED',reasons:[...reasons].sort(),
-   observedWeeks:[capture.records[0].week,capture.records[12].week],weeks:13,storeRows,
+   observedWeeks:[capture.records[0].week,capture.records[12].week],weeks:13,storeRows,nonStoreFinanceRows,
+   maxCompanyFloatResidualJPY:maxCashResidualJPY,
    categoryCounts:Object.fromEntries(Object.entries(categoryCounts).sort(([a],[b])=>a.localeCompare(b))),
    companyCashDeltaMinor:Number(company),storeCashDeltaMinor:Number(storeCash),storeProfitMinor:Number(storeProfit),
    warning:'Actual legacy engine observed. No source-matched vNext full production parity proof.'};
