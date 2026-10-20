@@ -1499,13 +1499,8 @@ class TycoonEngine extends EventTarget {
         if(!row||typeof row!=='object')return false;
         if(prefix&&typeof row.id==='string'&&row.id.startsWith(prefix))return true;
         if(otherPrefix&&typeof row.id==='string'&&row.id.startsWith(otherPrefix))return false;
-        // Damaged receipt IDs must not erase same-round paid ownership.
         // Ambiguous account evidence fails closed; prior-round evidence is excluded.
-        return row.eventType==='participated'&&
-          Number.isSafeInteger(r.openedWeek)&&Number.isSafeInteger(r.closesWeek)&&
-          Number.isSafeInteger(row.week)&&row.week>=r.openedWeek&&row.week<r.closesWeek&&
-          row.stage===r.round&&row.preMoneyValuation===r.preMoneyValuation&&
-          row.targetRaise===r.targetRaise&&row.postMoneyValuation===r.postMoneyValuation;
+        return this.isSameRoundStartupFundingReceipt(r,row);
       });
     }
     const history=this.g.startupFundingHistory?.[startupID],cost=s[`totalInvested${cap}`];
@@ -1536,7 +1531,19 @@ class TycoonEngine extends EventTarget {
     const claim=v=>v!==undefined&&v!==null&&(!Number.isFinite(v)||v!==0);
     if(claim(r.contributedPersonal)||claim(r.contributedCompany))return true;
     const history=this.g.startupFundingHistory?.[s.id];
-    return typeof r.id==='string'&&!!r.id&&Array.isArray(history)&&history.some(row=>row?.eventType==='participated'&&typeof row.id==='string'&&row.id.startsWith(`${r.id}-`));
+    // Same receipt matcher as hasStartupFundingRoundPaymentEvidence(), including damaged IDs.
+    return Array.isArray(history)&&history.some(row=>row?.eventType==='participated'&&(
+      (typeof r.id==='string'&&!!r.id&&typeof row.id==='string'&&row.id.startsWith(`${r.id}-`))||
+      this.isSameRoundStartupFundingReceipt(r,row)));
+  }
+  // Damaged receipt IDs must not erase same-round paid ownership: a participation row inside the
+  // round's week window with the round's stage and valuation terms belongs to this round.
+  isSameRoundStartupFundingReceipt(r,row) {
+    return !!row&&typeof row==='object'&&row.eventType==='participated'&&
+      Number.isSafeInteger(r?.openedWeek)&&Number.isSafeInteger(r.closesWeek)&&
+      Number.isSafeInteger(row.week)&&row.week>=r.openedWeek&&row.week<r.closesWeek&&
+      row.stage===r.round&&row.preMoneyValuation===r.preMoneyValuation&&
+      row.targetRaise===r.targetRaise&&row.postMoneyValuation===r.postMoneyValuation;
   }
   getStartupFundingRoundHold(startupID) {
     const sources=this.g.startups.filter(s=>s.id===startupID),s=sources[0],r=s?.activeFundingRound;

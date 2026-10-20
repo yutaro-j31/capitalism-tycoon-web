@@ -134,4 +134,31 @@ function reload(x){x.e.save();const raw=x.loaded.ctx.__localStorageData.get(x.lo
  const html=String(loadGame({localStorageInitial:{[x.loaded.engineModule.SAVE_KEY]:raw}}).ctx.document.getElementById('app').innerHTML);
  assert.match(html,/data-action="make-subsidiary" data-id="[^"]+"\s+disabled/,'subsidiary button is disabled while held');
 }
+// Codex P1 on #1029: the payment-claim detector uses the same damaged-receipt matcher as the
+// evidence reader. Corrupt status + zeroed contributions + a damaged receipt ID is still held.
+{
+ const x=setup();open(x);assert.equal(x.e.participateStartupFundingRound(x.s.id,100_000,'personal'),true);
+ const r=x.s.activeFundingRound;r.status='corrupt';r.contributedPersonal=0;r.contributedCompany=0;
+ x.e.g.startupFundingHistory[x.s.id][0].id='damaged-receipt';
+ assert.equal(x.e.hasStartupFundingRoundPaymentEvidence(x.s.id,'personal'),false,'evidence reader fails closed');
+ assert.equal(x.e.startupFundingRoundHasPaymentClaim(x.s),true,'claim detector agrees with the evidence reader');
+ const before=JSON.stringify(x.e.g.startups.find(row=>row.id===x.s.id));
+ x.e.updateStartups();
+ assert.equal(JSON.stringify(x.e.g.startups.find(row=>row.id===x.s.id)),before,'damaged-receipt round is preserved unchanged');
+ assert.ok(x.e.getStartupFundingRoundHold(x.s.id),'hold is reported');
+ x.s.ownedCompany=.6;x.s.totalInvestedCompany=50e6;
+ const state=JSON.stringify(x.e.g);
+ assert.equal(x.e.investStartup(x.s.id,1_000_000,'company'),false,'initial investment is blocked');
+ assert.equal(x.e.makeSubsidiary(x.s.id),false,'subsidiary conversion is blocked');
+ assert.equal(x.e.listStartup(x.s),false,'listing is blocked');
+ assert.equal(JSON.stringify(x.e.g),state,'blocked writers change nothing');
+ x.e.g.selectedTab='venture';x.e.save();const raw=x.loaded.ctx.__localStorageData.get(x.loaded.engineModule.SAVE_KEY);
+ const html=String(loadGame({localStorageInitial:{[x.loaded.engineModule.SAVE_KEY]:raw}}).ctx.document.getElementById('app').innerHTML);
+ assert.match(html,/data-startup-funding-round-hold="/,'hold notice renders');
+ assert.match(html,/data-action="make-subsidiary" data-id="[^"]+"\s+disabled/,'subsidiary button is disabled while held');
+ // A participation row from a prior round (outside the week window) is not a claim on this round.
+ const y=setup();open(y);const ry=y.s.activeFundingRound;
+ y.e.g.startupFundingHistory[y.s.id].push({id:'old',eventType:'participated',stage:ry.round,week:ry.openedWeek-1,account:'personal',amount:1,preMoneyValuation:ry.preMoneyValuation,targetRaise:ry.targetRaise,postMoneyValuation:ry.postMoneyValuation});
+ assert.equal(y.e.startupFundingRoundHasPaymentClaim(y.s),false,'prior-round receipt is not a claim');
+}
 console.log('startup funding round tests passed');
