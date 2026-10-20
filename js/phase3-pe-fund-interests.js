@@ -87,13 +87,15 @@
       if(!['investing','harvesting','closed'].includes(status))errors.push(issue('LIFECYCLE_UNKNOWN',`${path}.status`));
       const totalsValid=size!==null&&size>0&&gp!==null&&lp!==null&&gp<=size&&lp<=size&&size-gp===lp;
       if(!totalsValid)errors.push(issue('CONTRIBUTION_MISMATCH',path));
-      const supported=id!==null&&!collision&&totalsValid&&['investing','harvesting','closed'].includes(status);
+      // Capital ratios, lifecycle and portfolio financing are independent source facts.
+      const lifecycleSupported=id!==null&&!collision&&['investing','harvesting','closed'].includes(status);
+      const capitalSupported=lifecycleSupported&&totalsValid;
       const interest={fundId:id,sourcePath:path,holder:'founder-personal-gp',fundStatus:typeof status==='string'?status:null,
-        contributionRatio:supported?gp/size:null,current:supported&&status!=='closed',gpContributed:gp,lpContributed:lp,
+        contributionRatio:capitalSupported?gp/size:null,current:lifecycleSupported&&status!=='closed',gpContributed:gp,lpContributed:lp,
         votingFraction:null,legalTargetShares:null,managementAuthority:false,wealthValue:null,
-        status:supported?'observed':'unresolved'};
+        status:capitalSupported?'observed':'unresolved'};
       result.fundInterests.push(interest);
-      const manager=id!==null&&!collision?{fundId:id,sourcePath:path,relationship:'gp-manager',assetRole:'management-only',current:supported&&status!=='closed'}:null;
+      const manager=id!==null&&!collision?{fundId:id,sourcePath:path,relationship:'gp-manager',assetRole:'management-only',current:lifecycleSupported&&status!=='closed'}:null;
       if(manager)result.managementRelationships.push(manager);
       const paidKeys=['gpDistributed','lpDistributed','gpCarryPaid','managementFeesPaid'];
       const paid={fundId:id,sourcePath:path,kind:'historical-paid-cash',isReceivable:false};
@@ -123,7 +125,7 @@
         const splitValid=invested!==null&&invested>0&&fundPortion!==null&&coinvestPortion!==null&&fundPortion+coinvestPortion===invested;
         if(!splitValid)errors.push(issue('FINANCING_MISMATCH',dealPath));
         const active=dealStatus==='active'&&!historical;
-        const known=supported&&dealId!==null&&counts.get(dealId)===1&&active&&splitValid&&settled.ok&&!settlementMalformed;
+        const known=lifecycleSupported&&dealId!==null&&counts.get(dealId)===1&&active&&splitValid&&settled.ok&&!settlementMalformed;
         result.portfolioParticipations.push({fundId:id,dealId,sourcePath:dealPath,
           assetRole:known?'proceeds-participation':'unresolved',current:known,
           fundProceedsFraction:known?fundPortion/invested:null,externalCoinvestProceedsFraction:known?coinvestPortion/invested:null,
@@ -134,7 +136,7 @@
         if(active&&settled.ok&&!settlementMalformed)liveDeal=true;
       }
       }
-      if(supported&&status==='closed'){
+      if(lifecycleSupported&&status==='closed'){
         const cash=requireNumber(fund,'cash',path,errors);
         const outstanding=liveDeal||(cash!==null&&cash>0);
         interest.current=outstanding;if(manager)manager.current=outstanding;

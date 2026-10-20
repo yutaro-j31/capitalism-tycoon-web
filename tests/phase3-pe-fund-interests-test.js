@@ -8,6 +8,40 @@ const deal=()=>({id:'d1',status:'active',fundPortion:25,coinvestPortion:10,inves
 const fund=()=>({id:'f1',status:'investing',size:100,gpCommit:2,lpContributed:98,cash:0,deals:[deal()],gpDistributed:3,lpDistributed:4,gpCarryPaid:1,managementFeesPaid:2});
 const state=()=>({saveVersion:9,companyCash:123,personalCash:456,simulationRng:{seed:17},peFirm:{funds:[fund()]}});
 const input=state(),before=JSON.stringify(input),out=project(input);
+
+// Contribution validity cannot erase independently supported lifecycle, management or deal allocation.
+for(const damage of [f=>{f.size='100';},f=>{f.size=0;},f=>{delete f.gpCommit;},f=>{f.gpCommit=101;},f=>{f.lpContributed=99;}]){
+ for(const status of ['investing','harvesting','closed']){
+  const s=state(),f=s.peFirm.funds[0];f.status=status;damage(f);
+  const before=JSON.stringify(s),r=project(s);
+  assert.equal(r.fundInterests[0].status,'unresolved');
+  assert.equal(r.fundInterests[0].contributionRatio,null);
+  assert.equal(r.fundInterests[0].current,true,'valid active deal/lifecycle survives invalid capital');
+  assert.equal(r.managementRelationships[0].current,true);
+  assert.equal(r.portfolioParticipations[0].current,true);
+  assert.equal(r.portfolioParticipations[0].fundProceedsFraction,25/35);
+  assert.equal(r.portfolioParticipations[0].externalCoinvestProceedsFraction,10/35);
+  assert.equal(r.portfolioParticipations[0].founderBeneficialFraction,null);
+  assert.equal(r.fundInterests[0].wealthValue,null);
+  assert.equal(JSON.stringify(s),before);assert.deepEqual(r,project(copy(s)));
+  f.deals[0].status='exited';f.cash=0;
+  assert.equal(project(s).portfolioParticipations[0].fundProceedsFraction,null);
+  assert.equal(project(s).fundInterests[0].current,status!=='closed');
+  if(status==='closed'){
+   assert.equal(project(s).managementRelationships[0].current,false);
+   f.cash=5;assert.equal(project(s).fundInterests[0].current,true);
+   assert.equal(project(s).managementRelationships[0].current,true);
+  }
+ }
+}
+// Unknown identity/lifecycle still quarantines otherwise valid portfolio fractions.
+for(const damage of [f=>{delete f.id;},f=>{f.status='unknown';}]){
+ const s=state();damage(s.peFirm.funds[0]);const r=project(s);
+ assert.equal(r.fundInterests[0].current,false);
+ assert(r.managementRelationships.every(m=>!m.current));
+ assert.equal(r.portfolioParticipations[0].fundProceedsFraction,null);
+}
+
 for(const bad of [null,{}, {peFirm:{funds:[{...fund(),size:'100'}]}}]){
  const r=project(bad);for(const reason of r.issues){
   assert.equal(typeof reason.message,'string');assert(reason.message.length>0);
@@ -60,7 +94,8 @@ assert.deepEqual(project(freeze(copy(input))),out);assert(Object.isFrozen(out.po
 assert.equal(project({saveVersion:9}).fundInterests.length,0);
 for(const mutate of [f=>{f.size=0;},f=>{f.gpCommit=101;},f=>{f.lpContributed=99;},f=>{f.gpCommit='2';},f=>{f.status='unknown';}]){
  const s=state();mutate(s.peFirm.funds[0]);const r=project(s);
- assert.equal(r.fundInterests[0].contributionRatio,null);assert.equal(r.portfolioParticipations[0].current,false);
+ assert.equal(r.fundInterests[0].contributionRatio,null);
+ assert.equal(r.portfolioParticipations[0].current,s.peFirm.funds[0].status!=='unknown','capital defects do not invalidate deal allocation');
 }
 {
  const s=state();s.peFirm.funds.push(fund());const r=project(s);
@@ -139,9 +174,9 @@ for(const key of ['id','status','size','gpCommit','lpContributed']){
  Object.defineProperty(f,key,{value:f[key],enumerable:false});
  const raw=project(x),reloaded=project(copy(x));
  assert.equal(raw.fundInterests[0].contributionRatio,null,key);
- assert.equal(raw.fundInterests[0].current,false,key);
+ assert.equal(raw.fundInterests[0].current,!['id','status'].includes(key),key+' lifecycle independent of hidden capital');
  assert.equal(reloaded.fundInterests[0].contributionRatio,null,key+' JSON');
- assert.equal(reloaded.fundInterests[0].current,false,key+' JSON');
+ assert.equal(reloaded.fundInterests[0].current,!['id','status'].includes(key),key+' JSON lifecycle independent of missing capital');
  assert(raw.issues.some(i=>i.code==='INPUT_INVALID'&&i.path==='peFirm.funds[0].'+key));
 }
 for(const key of ['gpDistributed','lpDistributed','gpCarryPaid','managementFeesPaid']){
