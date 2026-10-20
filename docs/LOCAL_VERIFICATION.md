@@ -27,7 +27,8 @@ This document records the decision and the operating procedure. It does **not** 
    Some workflow jobs cannot run here as they are. Their commands are listed as **CI-only** and not run, unless a pull-request job or the canonical suite also runs the same test. A job is CI-only when it:
    - reads `${{ matrix.* }}` (shard runners);
    - downloads artifacts from upstream jobs;
-   - has a job-level `if:` that cannot hold on a pull request (another event, or `workflow_dispatch` inputs).
+   - belongs to a workflow that no `pull_request` / `pull_request_target` event triggers (for example `workflow_run`, push, schedule or `workflow_dispatch` only);
+   - has a job-level `if:` that cannot hold on a pull request. The condition is read conservatively. A top-level `||` alternative comparing `github.event_name` with a pull-request event makes the job PR-capable. Otherwise a dependency on `workflow_dispatch` inputs or `github.event.workflow_run`, or an `event_name` comparison with other events only, makes it CI-only.
 
    Tests run by aggregator scripts and declared in `tests/test-execution-registry.json` count as tests, so changing one selects it.
 

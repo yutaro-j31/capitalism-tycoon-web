@@ -69,4 +69,15 @@ assert.ok(guarded.ciOnly.some(row => row.test === 'tests/ma-acquisition-financin
 assert.ok(!guarded.webkit.some(row => row.test === 'tests/ma-acquisition-financing-webkit-test.js'), 'CI-only tests are not listed again as WebKit');
 // Codex P2: harness users are found through local helper requires (test -> fixture -> ./harness).
 assert.ok(names(select(['js/simulation-rng.js'])).includes('tests/ma-acquisition-financing-test.js'), 'harness use is followed through fixtures');
+// Codex P2: an inputs-dependent job whose condition has a top-level pull_request alternative stays
+// PR-capable (strategy-balance focused-diagnostics runs its diagnostics on pull requests).
+const diagnostics = select(['tests/gym-membership-strategy-test.js']);
+for (const test of ['tests/prototype-overwrite-audit.js', 'tests/shareholder-activism-reachability-test.js']) {
+  assert.ok(diagnostics.node.some(row => row.test === test), `PR diagnostics job runs ${test}`);
+  assert.ok(!diagnostics.ciOnly.some(row => row.test === test), `${test} is not CI-only`);
+}
+// Codex P2: workflows no pull-request event triggers (workflow_run here) run in CI context only.
+const attestation = select(['.github/workflows/release-attestation-sync.yml', 'scripts/release-attestation-issue.js']);
+assert.ok(!attestation.node.some(row => row.test === 'scripts/release-attestation-issue.js'), 'workflow_run job is not run locally');
+assert.ok(attestation.ciOnly.some(row => row.test === 'scripts/release-attestation-issue.js'), 'workflow_run job is listed as CI-only');
 console.log('select-affected-tests PASS');

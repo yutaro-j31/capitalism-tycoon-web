@@ -65,18 +65,46 @@ function globToRegExp(glob) {
   return new RegExp(`^${body}$`);
 }
 
+const PR_EVENTS = ['pull_request', 'pull_request_target'];
+// Top-level `||` alternatives of a condition (parentheses and quotes respected).
+function alternatives(condition) {
+  const parts = [];
+  let depth = 0, quote = '', start = 0;
+  for (let i = 0; i < condition.length; i++) {
+    const c = condition[i];
+    if (quote) { if (c === quote) quote = ''; continue; }
+    if (c === "'" || c === '"') quote = c;
+    else if (c === '(') depth++;
+    else if (c === ')') depth--;
+    else if (depth === 0 && c === '|' && condition[i + 1] === '|') { parts.push(condition.slice(start, i)); start = i + 2; i++; }
+  }
+  parts.push(condition.slice(start));
+  return parts;
+}
 // A job is CI-only when it reads ${{ matrix.* }} (shard index, output path), consumes artifacts of
-// upstream jobs, or carries a job-level `if:` that cannot hold on a pull request (event other than
-// pull_request, or workflow_dispatch inputs).
+// upstream jobs, or carries a job-level `if:` that cannot hold on a pull request. A condition is
+// read conservatively: when one of its top-level `||` alternatives compares github.event_name with a
+// pull-request event, the job is PR-capable. Otherwise it is CI-only when it depends on
+// workflow_dispatch inputs or on github.event.workflow_run, or compares github.event_name only with
+// other events.
 function ciOnlyJob(job) {
   if (job.includes('${{ matrix.') || /actions\/download-artifact@/.test(job)) return true;
   const lines = job.split('\n'), at = lines.findIndex(line => /^    if:/.test(line));
   if (at < 0) return false;
-  let condition = lines[at];
+  let condition = lines[at].replace(/^    if:\s*>?-?/, '');
   for (let i = at + 1; i < lines.length && /^      /.test(lines[i]); i++) condition += ` ${lines[i].trim()}`;
-  if (/\binputs\./.test(condition)) return true;
-  const events = [...condition.matchAll(/github\.event_name\s*==\s*['"]([\w-]+)['"]/g)].map(m => m[1]);
-  return events.length > 0 && !events.includes('pull_request');
+  const prEvent = new RegExp(`github\\.event_name\\s*==\\s*['"](?:${PR_EVENTS.join('|')})['"]`);
+  if (alternatives(condition).some(alt => prEvent.test(alt))) return false;
+  if (/\binputs\./.test(condition) || /github\.event\.workflow_run\b/.test(condition)) return true;
+  return /github\.event_name\s*==/.test(condition);
+}
+
+// Events of a workflow's `on:` key (scalar, flow list or block mapping).
+function triggers(text) {
+  const inline = text.match(/^(?:on|'on'|"on"):[ \t]*(\S.*)$/m);
+  if (inline) return inline[1].replace(/[[\]'"]/g, '').split(',').map(e => e.trim()).filter(Boolean);
+  const block = text.match(/^(?:on|'on'|"on"):[ \t]*\n((?:[ \t]+.*\n|[ \t]*\n)*)/m);
+  return block ? [...block[1].matchAll(/^  (?:- )?['"]?([\w-]+)['"]?:?\s*$/gm)].map(m => m[1]) : [];
 }
 
 // Workflow path filters and the node test steps they guard (plain-text parse; no YAML dependency).
@@ -97,7 +125,10 @@ function workflows() {
     const tests = new Set(), ciOnly = new Set();
     const jobsAt = text.search(/^jobs:\s*$/m);
     const jobs = jobsAt < 0 ? [text] : text.slice(jobsAt).split(/^(?=  [\w-]+:\s*$)/m);
-    for (const job of jobs) for (const t of testsIn(job)) if (exists(t)) (ciOnlyJob(job) ? ciOnly : tests).add(t);
+    // A workflow that no pull-request event triggers (workflow_run, push, schedule or
+    // workflow_dispatch only) runs in CI context only; all its jobs are CI-only.
+    const prTriggered = triggers(text).some(event => PR_EVENTS.includes(event));
+    for (const job of jobs) for (const t of testsIn(job)) if (exists(t)) (!prTriggered || ciOnlyJob(job) ? ciOnly : tests).add(t);
     // A directory-wide filter (e.g. js/**) guards a broad campaign; only --broad selects it.
     return { name, patterns: [...patterns].map(p => ({ glob: p, re: globToRegExp(p), broad: /^[\w.-]+\/\*\*$/.test(p) })), tests: [...tests], ciOnly: [...ciOnly] };
   });
@@ -191,7 +222,7 @@ function runAll(tests) {
   });
 }
 
-module.exports = { select, globToRegExp, camel, canonicalTests };
+module.exports = { select, globToRegExp, camel, canonicalTests, triggers, ciOnlyJob };
 
 if (require.main === module) {
   const plan = select(changedFiles());
