@@ -49,7 +49,7 @@ function units(x,path){
  return x+0; // canonicalize -0, which JSON reloads as 0
 }
 // The whole accepted snapshot must be JSON data, including fields the projection never reads: plain
-// records and dense arrays of own enumerable data properties, finite numbers, no cycles. Iterative
+// records and dense arrays of own enumerable data fields, finite numbers, no cycles. Iterative
 // and bounded; a shared (acyclic) subtree is allowed because JSON serializes it by duplication.
 const MAX_DEPTH=64,MAX_OBJECTS=65536;
 function jsonData(rootValue,rootPath){
