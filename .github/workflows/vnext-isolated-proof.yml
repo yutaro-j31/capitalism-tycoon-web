@@ -33,7 +33,7 @@ jobs:
         run: |
           git rev-parse HEAD
           node --version
-      - name: Execute all seven experimental suites in actual Node
+      - name: Execute all eight experimental suites in actual Node
         shell: bash
         run: |
           set -euo pipefail
@@ -44,7 +44,8 @@ jobs:
             unified.test.cjs \
             13-week.test.cjs \
             legacy-crosswalk.test.cjs \
-            legacy-13week-capture.test.cjs
+            legacy-13week-capture.test.cjs \
+            legacy-observation-analysis.test.cjs
           do
             echo "::group::Direct Node: $script"
             node "experiments/economic-engine-vnext/$script"
@@ -77,7 +78,7 @@ jobs:
           echo "Legacy runner exit: $status"
           cat vnext-proof/legacy-stderr.txt
           if test "$status" -eq 0; then
-            node -e "const r=require('./vnext-proof/legacy-observation.json');console.log(JSON.stringify({status:r.compareToSyntheticFixture?.status,reasons:r.compareToSyntheticFixture?.reasons,observedWeeks:r.observedWeeks,observedStore:r.observedStore},null,2))"
+            node -e "const r=require('./vnext-proof/legacy-observation.json');console.log(JSON.stringify({status:r.legacyEvidenceClassification?.status,reasons:r.legacyEvidenceClassification?.reasons,observedWeeks:r.observedWeeks,observedStore:r.observedStore},null,2))"
           fi
           exit "$status"
       - name: Retain disposable experimental observation evidence
