@@ -30,6 +30,7 @@ const JOBS = Math.max(1, Number(option('--jobs', '4')) || 4);
 const BROAD = args.includes('--broad');
 
 const ALWAYS = ['tests/test-registration-contract-test.js', 'tests/shard-matrix-contract.js', 'tests/workflow-path-filter-contract-test.js'];
+const CORE_MODULES = ['runtime', 'data', 'engine', 'simulation-rng', 'finance', 'economic-operation', 'economic-settlement', 'save-v9', 'semantic-hash-v2'];
 const ON_PRODUCTION_CHANGE = ['tests/phase0-5-acceptance-gate-test.js', 'tests/phase1-acceptance-gate-test.js',
   'tests/phase2-acceptance-gate-test.js', 'tests/cash-writer-ratchet-test.js', 'tests/javascript-module-split-test.js'];
 
@@ -77,9 +78,14 @@ function workflows() {
       if (item) patterns.add(item[1]);
       else if (inPaths && line.trim()) inPaths = false;
     }
-    const tests = [...new Set(testsIn(text))].filter(exists);
+    // Split into jobs: a job that reads ${{ matrix.* }} needs its matrix environment (shard index,
+    // output path), so its commands are listed as CI-only and never run locally.
+    const tests = new Set(), ciOnly = new Set();
+    const jobsAt = text.search(/^jobs:\s*$/m);
+    const jobs = jobsAt < 0 ? [text] : text.slice(jobsAt).split(/^(?=  [\w-]+:\s*$)/m);
+    for (const job of jobs) for (const t of testsIn(job)) if (exists(t)) (job.includes('${{ matrix.') ? ciOnly : tests).add(t);
     // A directory-wide filter (e.g. js/**) guards a broad campaign; only --broad selects it.
-    return { name, patterns: [...patterns].map(p => ({ glob: p, re: globToRegExp(p), broad: /^[\w.-]+\/\*\*$/.test(p) })), tests };
+    return { name, patterns: [...patterns].map(p => ({ glob: p, re: globToRegExp(p), broad: /^[\w.-]+\/\*\*$/.test(p) })), tests: [...tests], ciOnly: [...ciOnly] };
   });
 }
 
@@ -97,11 +103,12 @@ function select(files) {
   const production = files.filter(f => /^js\/[\w.-]+\.js$/.test(f));
   if (production.length) ON_PRODUCTION_CHANGE.forEach(t => add(t, 'production source changed'));
   const flows = workflows(), canonical = canonicalTests();
-  const runnable = new Set([...canonical, ...flows.flatMap(w => w.tests)]);
+  const ciOnly = new Set(flows.flatMap(w => w.ciOnly).filter(t => !canonical.includes(t)));
+  const runnable = new Set([...canonical, ...flows.flatMap(w => [...w.tests, ...w.ciOnly])]);
   for (const file of files) if (runnable.has(file)) add(file, 'changed test');
   for (const w of flows.filter(flow => flow.patterns.length)) {
     const hit = files.find(f => w.patterns.some(p => (!p.broad || BROAD) && p.re.test(f)));
-    if (hit) w.tests.forEach(t => add(t, `${w.name} paths: ${hit}`));
+    if (hit) [...w.tests, ...w.ciOnly].forEach(t => add(t, `${w.name} paths: ${hit}`));
   }
   if (production.length) {
     const corpus = canonical.map(t => ({ t, text: fs.readFileSync(path.join(ROOT, t), 'utf8') }));
@@ -109,11 +116,16 @@ function select(files) {
       const base = path.basename(file, '.js'), key = camel(base);
       for (const { t, text } of corpus) if (text.includes(`${base}.js`) || new RegExp(`modules\\??\\.${key}\\b`).test(text)) add(t, `references ${file}`);
     }
+    // Tests that boot the whole game through tests/harness.js load every module transitively. A change
+    // to a core module (state, RNG, accounting, save) reaches them without any textual reference.
+    const core = production.filter(f => CORE_MODULES.includes(path.basename(f, '.js')));
+    if (core.length) for (const { t, text } of corpus) if (/require\(['"]\.\/harness['"]\)/.test(text)) add(t, `boots the game; core module ${core[0]} changed`);
   }
-  const all = [...reasons.keys()].sort();
+  const all = [...reasons.keys()].sort(), row = t => ({ test: t, reasons: [...reasons.get(t)] });
   return {
     base: BASE, changedFiles: files,
-    node: all.filter(t => !t.endsWith('-webkit-test.js')).map(t => ({ test: t, reasons: [...reasons.get(t)] })),
+    ciOnly: all.filter(t => ciOnly.has(t)).map(row),
+    node: all.filter(t => !t.endsWith('-webkit-test.js') && !ciOnly.has(t)).map(row),
     webkit: all.filter(t => t.endsWith('-webkit-test.js')).map(t => ({ test: t, reasons: [...reasons.get(t)] }))
   };
 }
@@ -150,6 +162,8 @@ if (require.main === module) {
   if (args.includes('--json')) { console.log(JSON.stringify(plan, null, 2)); process.exit(0); }
   console.log(`base ${BASE}; ${plan.changedFiles.length} changed file(s); ${plan.node.length} Node test(s), ${plan.webkit.length} WebKit test(s)`);
   for (const row of plan.node) console.log(`  ${row.test}  <- ${row.reasons.join('; ')}`);
+  if (plan.ciOnly.length) console.log('CI-only (needs a workflow matrix environment; not run here):');
+  for (const row of plan.ciOnly) console.log(`  ${row.test}  <- ${row.reasons.join('; ')}`);
   if (plan.webkit.length) console.log('WebKit (run on a WebKit-capable machine; not run here):');
   for (const row of plan.webkit) console.log(`  ${row.test}  <- ${row.reasons.join('; ')}`);
   if (!args.includes('--run')) process.exit(0);

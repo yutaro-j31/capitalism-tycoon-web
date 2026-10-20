@@ -49,4 +49,12 @@ assert.equal(globToRegExp('tests/**/*strategy*').test('tests/a/b/x-strategy-test
 assert.equal(globToRegExp('tests/**/*strategy*').test('js/x-strategy.js'), false);
 // Codex P2: a test run only by workflows without a paths block still counts as a changed test.
 assert.ok(names(select(['tests/iphone-webkit-smoke-test.js'])).includes('tests/iphone-webkit-smoke-test.js'));
+// Codex P2: commands of matrix jobs (shard runners) need their matrix environment; they are listed
+// as CI-only and never run locally.
+const strategy = select(['tests/gym-membership-strategy-test.js']);
+assert.ok(strategy.ciOnly.some(row => row.test === 'tests/difficulty-scenario-shard-runner.js'), 'matrix shard runner is CI-only');
+assert.ok(!strategy.node.some(row => /shard-runner/.test(row.test)), 'matrix shard runners are not run locally');
+// Codex P2: a core-module change reaches tests that boot the game through the harness.
+assert.ok(names(select(['js/simulation-rng.js'])).includes('tests/personal-investment-risk-model-test.js'), 'harness tests follow core modules');
+assert.ok(!names(select(['js/store-equipment.js'])).includes('tests/personal-investment-risk-model-test.js'), 'non-core modules keep the narrow plan');
 console.log('select-affected-tests PASS');
