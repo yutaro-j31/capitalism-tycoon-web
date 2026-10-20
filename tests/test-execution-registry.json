@@ -339,6 +339,10 @@
     "reason": "P4-AUD-004 personal generic debt guard: refuse dedicated specialist principal repayment without mutation, do not persist rejected commands, allow unsecured generic and authorized specialist repayment, valid company books, production reload and fresh durable IndexedDB hydration in real iPhone WebKit PR and main checks.",
     "executedBy": ".github/workflows/ma-acquisition-financing.yml"
   },
+  "tests/property-debt-principal-sync-webkit-test.js": {
+    "reason": "Generic/voluntary/maturity/full repayment then property service, reload and fresh real IndexedDB in property-debt-principal-sync job.",
+    "executedBy": ".github/workflows/ma-acquisition-financing.yml"
+  },
   "tests/founder-capital-atomicity-webkit-test.js": {
     "reason": "P4-AUD-003 installed Founder Capital contribution: real iPhone WebKit mirror rejection/post-save notification fault rollback, retry, one valid capital/equity posting and cash separation, production reload, fresh durable-only real IndexedDB hydration in stock-split-atomicity on PR/main.",
     "executedBy": ".github/workflows/ma-acquisition-financing.yml"
