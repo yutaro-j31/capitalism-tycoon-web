@@ -32,19 +32,20 @@ const tenant=tenants[0];
 assert.ok(tenant,'available tenant');
 const preExistingStoreIDs=new Set(engine.g.stores.map(s=>s.id));
 assert.equal(engine.openStore({tenantID:tenant.id,businessID:'ramen',name:'VNext Observation Ramen',operatingHours:3}),true,'ramen store opening');
-const observedStore=engine.g.stores.find(s=>s.businessID==='ramen'&&!preExistingStoreIDs.has(s.id));
-assert.ok(observedStore,'newly created ramen store exists');
+const createdStore=engine.g.stores.find(s=>s.businessID==='ramen'&&!preExistingStoreIDs.has(s.id));
+assert.ok(createdStore,'newly created ramen store exists');
+const createdStoreID=createdStore.id;
+const currentStore=()=>engine.g.stores.find(s=>s.id===createdStoreID);
 let readinessWeeks=0;
-// Production store opening is staged. A new store is not necessarily "open"
-// immediately after openStore() succeeds. Advance the actual disposable game
-// until it is open, but do not count preparatory weeks in the 13 observed weeks.
-while(observedStore.status!=='open' && readinessWeeks<16){
+// Production store opening is staged. Resolve the store by its stable ID
+// after each advance because normalize may replace nested state objects.
+while(currentStore()?.status!=='open' && readinessWeeks<16){
   assert.equal(engine.g.gameOver,false,'company survived opening preparation');
   assert.equal(engine.advanceWeek(false),true,'store opening preparation advances');
   readinessWeeks++;
 }
-assert.equal(observedStore.status,'open','ramen store is operating after preparation');
-const capture=capture13Weeks(engine,{storeID:observedStore.id,businessID:'ramen'});
+assert.equal(currentStore()?.status,'open','ramen store is operating after preparation');
+const capture=capture13Weeks(engine,{storeID:createdStoreID,businessID:'ramen'});
 const result=evaluateCapture(capture,fixture);
 const perWeek=capture.records.map(x=>({
  step:x.step,week:x.week,cashDeltaJPY:x.cashDeltaJPY,
