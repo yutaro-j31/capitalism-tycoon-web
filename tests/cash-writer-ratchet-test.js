@@ -47,19 +47,18 @@ function scan(source) {
 }
 
 // Roots: g, state, any <object>.g, and every local alias the file binds to one of them
-// (const root=this.g; let live = engine.g; ({game}=...) is not resolved). Lexical, like the
+// (const root=this.g; let live = engine.g; root = this.g; ({game}=...) is not resolved). Lexical, like the
 // Phase 0.5 inventory: a tripwire for new write sites, not a proof of completeness.
 const BASE_ROOTS = ['(?<![\\w$.])g', '(?<![\\w$.])state', '[\\w$]+\\.g'];
 function stateAliases(source) {
   const roots = new RegExp(`^(?:${BASE_ROOTS.join('|')})$`);
   const aliases = new Set();
-  for (const m of source.matchAll(/(?:\b(?:const|let|var)\s+|[,(]\s*)([A-Za-z_$][\w$]*)\s*=\s*([\w$.]+)(?=\s*(?:[;,)}]|$))/gm))
+  // Declarations, comma/parenthesis expressions and plain statements (`let r; r = this.g;`).
+  for (const m of source.matchAll(/(?:\b(?:const|let|var)\s+|[,(]\s*|(?:^|[;{}])\s*)([A-Za-z_$][\w$]*)\s*=\s*([\w$.]+)(?=\s*(?:[;,)}]|$))/gm))
     if (m[1] !== 'g' && m[1] !== 'state' && (roots.test(m[2]) || aliases.has(m[2]))) aliases.add(m[1]);
   return [...aliases];
 }
-// Index just past the `]` that closes the `[` at `open`, skipping nested brackets and string or
-// template literals, so keys such as g[cashKeys[owner]] or g[`${a}]`] are measured whole.
-// Index just past the bracket that closes the one at `open` ('[' or '('), skipping nested brackets and
+// Index just past the bracket that closes the one at `open` ('[', '(' or '{'), skipping nested brackets and
 // string or template literals, so keys such as g[cashKeys[owner]] or g[`${a}]`] are measured whole.
 function closeBracket(source, open) {
   const pairs = { '[': ']', '(': ')', '{': '}' }, stack = [];
@@ -72,6 +71,18 @@ function closeBracket(source, open) {
   }
   return -1;
 }
+// The first top-level argument of an argument list (strings and nested brackets skipped).
+function firstArgument(args) {
+  for (let i = 0; i < args.length; i++) {
+    const c = args[i];
+    if (c === '"' || c === "'" || c === '`') { for (i++; i < args.length && args[i] !== c; i++) if (args[i] === '\\') i++; continue; }
+    if (c === '[' || c === '(' || c === '{') { const close = closeBracket(args, i); if (close < 0) return args; i = close - 1; continue; }
+    if (c === ',') return args.slice(0, i);
+  }
+  return args;
+}
+// A reflective key is static only when the whole argument is one literal without substitutions.
+const STATIC_KEY = /^\s*(?:'(?:[^'\\]|\\.)*'|"(?:[^"\\]|\\.)*"|`(?:[^`$\\]|\\.|\$(?!\{))*`)\s*$/;
 function computedStateKeys(source) {
   const rootAlt = [...BASE_ROOTS, ...stateAliases(source).map(a => `(?<![\\w$.])${a.replace(/\$/g, '\\$')}`)].join('|');
   const root = new RegExp(`(?:${rootAlt})\\s*\\[`, 'g');
@@ -90,13 +101,21 @@ function computedStateKeys(source) {
     if (end < 0) continue;
     const args = source.slice(m.index + m[0].length, end - 1);
     if (m[1] === 'Object.assign') {
+      // Only computed keys directly inside a top-level source object literal name root fields;
+      // keys of nested objects, arrays or call arguments do not.
+      const stack = [];
       for (let i = 0; i < args.length; i++) {
-        if (args[i] === '"' || args[i] === "'" || args[i] === '`') { const q = args[i]; for (i++; i < args.length && args[i] !== q; i++) if (args[i] === '\\') i++; continue; }
-        if (args[i] !== '[' || !/[{,]\s*$/.test(args.slice(0, i))) continue;
-        const close = closeBracket(args, i);
-        if (close > 0 && /^\s*:/.test(args.slice(close))) n++;
+        const c = args[i];
+        if (c === '"' || c === "'" || c === '`') { for (i++; i < args.length && args[i] !== c; i++) if (args[i] === '\\') i++; continue; }
+        if (c === '[' && stack.length === 1 && stack[0] === '}' && /[{,]\s*$/.test(args.slice(0, i))) {
+          const close = closeBracket(args, i);
+          if (close < 0) break;
+          if (/^\s*:/.test(args.slice(close))) n++;
+          i = close - 1;
+        } else if (c === '[' || c === '(' || c === '{') stack.push({ '[': ']', '(': ')', '{': '}' }[c]);
+        else if (c === stack[stack.length - 1]) stack.pop();
       }
-    } else if (!/^\s*['"`]/.test(args)) n++;
+    } else if (!STATIC_KEY.test(firstArgument(args))) n++;
   }
   return n;
 }
@@ -144,6 +163,15 @@ assert.equal(computedStateKeys('g[keys[i]]===1;x=g[a[b]];g[a][b]=1;'), 0);
 // Codex P1: computed keys written reflectively onto the root.
 assert.equal(computedStateKeys("Object.assign(g,{[cashKey(owner)]:v});Object.assign(this.g,{a:1},{[k]:2,[j]:3});Object.defineProperty(state,key,{value:1});Reflect.set(g,k,1);"), 5);
 assert.equal(computedStateKeys("Object.assign(g,{a:[1,2]});Object.assign(row,{[k]:1});Reflect.set(g,'week',1);Object.assign(g,{s:'[x]:'});"), 0);
+// Codex P1: a key that merely starts with a literal is still computed.
+assert.equal(computedStateKeys("Reflect.set(g,'company'+s,v);Object.defineProperty(g,`company${s}`,d);Reflect.set(this.g,k+'Cash',1);"), 3);
+assert.equal(computedStateKeys("Reflect.set(g,`week`,1);Object.defineProperty(state,'flag',{value:1});Reflect.defineProperty(g,\"a,b\",d);"), 0);
+// Codex P1: an alias assigned after its declaration is followed.
+assert.equal(computedStateKeys('let root; root = this.g; root[cashKey(owner)] -= amount;if(x){live=engine.g}live[k]+=1;'), 2);
+assert.equal(computedStateKeys('let root;x.root = this.g;root[k]=1;root == this.g;root[j]=1;'), 0);
+// Codex P2: only top-level keys of each Object.assign source object are root keys.
+assert.equal(computedStateKeys('Object.assign(g,{settings:{[id]:v}});Object.assign(g,{a:[{[k]:1}]},f({[j]:2}));'), 0);
+assert.equal(computedStateKeys('Object.assign(g,{a:{b:1},[k]:2},{c:{[x]:1},[y]:3});'), 2);
 
 const baseline = JSON.parse(fs.readFileSync(BASELINE, 'utf8'));
 assert.equal(baseline.schema, 1, 'cash writer ratchet baseline schema');
