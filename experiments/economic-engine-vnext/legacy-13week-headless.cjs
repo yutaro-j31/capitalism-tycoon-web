@@ -30,10 +30,20 @@ const tenants=engine.g.tenants.filter(t=>!t.occupiedBy).sort((a,b)=>
  || String(a.id).localeCompare(String(b.id)));
 const tenant=tenants[0];
 assert.ok(tenant,'available tenant');
+const preExistingStoreIDs=new Set(engine.g.stores.map(s=>s.id));
 assert.equal(engine.openStore({tenantID:tenant.id,businessID:'ramen',name:'VNext Observation Ramen',operatingHours:3}),true,'ramen store opening');
-const observedStore=engine.g.stores.find(s=>s.businessID==='ramen'&&s.status==='open'&&s.tenantID===tenant.id)
- ||engine.g.stores.find(s=>s.businessID==='ramen'&&s.status==='open');
-assert.ok(observedStore,'opened store exists');
+const observedStore=engine.g.stores.find(s=>s.businessID==='ramen'&&!preExistingStoreIDs.has(s.id));
+assert.ok(observedStore,'newly created ramen store exists');
+let readinessWeeks=0;
+// Production store opening is staged. A new store is not necessarily "open"
+// immediately after openStore() succeeds. Advance the actual disposable game
+// until it is open, but do not count preparatory weeks in the 13 observed weeks.
+while(observedStore.status!=='open' && readinessWeeks<16){
+  assert.equal(engine.g.gameOver,false,'company survived opening preparation');
+  assert.equal(engine.advanceWeek(false),true,'store opening preparation advances');
+  readinessWeeks++;
+}
+assert.equal(observedStore.status,'open','ramen store is operating after preparation');
 const capture=capture13Weeks(engine,{storeID:observedStore.id,businessID:'ramen'});
 const result=evaluateCapture(capture,fixture);
 const perWeek=capture.records.map(x=>({
@@ -48,6 +58,7 @@ const output={
  scope:'legacy observational evidence only; no production-save import',
  companyCashJPY:{opening:capture.openingCashJPY,closing:capture.closingCashJPY},
  observedStore:{id:capture.storeID,businessID:capture.businessID},
+ readinessWeeksBeforeObservation:readinessWeeks,
  observedWeeks:[capture.records[0].week,capture.records[12].week],
  storeWeeklyRows:capture.records.flatMap(w=>w.storeRows),
  weeklyEvidence:perWeek,
