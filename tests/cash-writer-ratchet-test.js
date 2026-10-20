@@ -46,12 +46,22 @@ function scan(source) {
   return out;
 }
 
-const STATE_ROOT = '(?:\\bthis\\.g|\\bengine\\.g|(?<![\\w$.])g|(?<![\\w$.])state)';
-function computedStateKeys(source) {
-  return count(source, new RegExp(`${STATE_ROOT}\\s*\\[[^\\]\\n]+\\]\\s*(?:${ASSIGN}|\\+\\+|--)`, 'g')) +
-    count(source, new RegExp(`(?:\\+\\+|--)\\s*${STATE_ROOT}\\s*\\[[^\\]\\n]+\\]`, 'g'));
+// Roots: g, state, any <object>.g, and every local alias the file binds to one of them
+// (const root=this.g; let live = engine.g; ({game}=...) is not resolved). Lexical, like the
+// Phase 0.5 inventory: a tripwire for new write sites, not a proof of completeness.
+const BASE_ROOTS = ['(?<![\\w$.])g', '(?<![\\w$.])state', '[\\w$]+\\.g'];
+function stateAliases(source) {
+  const roots = new RegExp(`^(?:${BASE_ROOTS.join('|')})$`);
+  const aliases = new Set();
+  for (const m of source.matchAll(/(?:\b(?:const|let|var)\s+|[,(]\s*)([A-Za-z_$][\w$]*)\s*=\s*([\w$.]+)(?=\s*(?:[;,)}]|$))/gm))
+    if (m[1] !== 'g' && m[1] !== 'state' && (roots.test(m[2]) || aliases.has(m[2]))) aliases.add(m[1]);
+  return [...aliases];
 }
-
+function computedStateKeys(source) {
+  const root = `(?:${[...BASE_ROOTS, ...stateAliases(source).map(a => `(?<![\\w$.])${a.replace(/\$/g, '\\$')}`)].join('|')})`;
+  return count(source, new RegExp(`${root}\\s*\\[[^\\]\\n]+\\]\\s*(?:${ASSIGN}|\\+\\+|--)`, 'g')) +
+    count(source, new RegExp(`(?:\\+\\+|--)\\s*${root}\\s*\\[[^\\]\\n]+\\]`, 'g'));
+}
 function snapshot() {
   const files = {};
   for (const name of fs.readdirSync(JS_DIR).filter(name => name.endsWith('.js')).sort()) {
@@ -87,6 +97,9 @@ assert.deepEqual(scan("const k=o==='personal'?'personalCash':'companyCash';Objec
 
 assert.equal(computedStateKeys('g[cashKey(owner)]-=amount;this.g[key]+=1;state[k]=0;engine.g[debtKey]--;++g[x];'), 5);
 assert.equal(computedStateKeys('g.loans[i]=1;rows[i]=2;if(g[key]===1||g[key]>=2)x=g[key];myg[key]=1;'), 0);
+// Codex P1: a local alias of the state root is followed, including chained aliases and other engines.
+assert.equal(computedStateKeys('const game=this.g;game[cashKey(owner)]-=amount;let live = engine.g, w = live;w[k]+=1;const p=e.g;p[k]=0;'), 3);
+assert.equal(computedStateKeys('const rows=this.g.loans;rows[i]=1;const f=compute(this.g);f[k]=1;const r=g&&g.x;r[k]=1;'), 0);
 
 const baseline = JSON.parse(fs.readFileSync(BASELINE, 'utf8'));
 assert.equal(baseline.schema, 1, 'cash writer ratchet baseline schema');
