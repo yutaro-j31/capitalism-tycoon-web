@@ -119,7 +119,10 @@ No new finance category, no new save root, and `saveVersion=9` is unchanged. An 
 1. **D-1 disposal fix** (if Q10 = yes): one writer, with Node, save-fault, WebKit and old-save tests.
 2. **Option A for new movements:** row, `companyDebt`, liability effects and suppression, with the allocator choice from Q7.
 3. **Legacy migration** per Q1–Q4, as a separate PR with old-save fixtures for S1–S4.
-4. **Shared per-property encumbrance** for LTV (D-5): separate PR.
+4. **Personal mortgage tracking** (only if Q8 = yes), as its own PR:
+   - Migrate S5 by adding each personal mortgage's gross outstanding `B` to `personalDebt` once, with an old-save fixture.
+   - The personal writers must decrement `personalDebt` only for balances that were migrated or originated as tracked, so a repayment never consumes unrelated personal debt. This follows the same `accountingTracked` rule that #1015 applies to property-secured loans.
+5. **Shared per-property encumbrance** for LTV (D-5): separate PR.
 
 Each slice is one concern per PR. It must pass the Stage S gate for a debt writer:
 - exact borrower identity;
