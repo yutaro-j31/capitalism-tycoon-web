@@ -116,6 +116,29 @@ for(const bad of [null,[],'x',42,new Map()])unknown(project(bad,scope),'INPUT_IN
   const p=snapshot({issued:300,treasury:0,held:10});unknown(project(Object.assign(Object.create({inherited:true}),p),scope),'INPUT_INVALID');
 }
 
+// Every beneficial holding must lie inside the reconciled founder-and-residual scope (Codex 4329489015).
+{
+  const other=snapshot({issued:300,treasury:0,held:200});
+  other.beneficialHoldings.push({beneficialHoldingId:'beneficial:player-company:other',issuerEntityId:PLAYER,securityClassId:'security:player-company:common',beneficialOwnerEntityId:'entity:person:other',quantity:100});
+  unknown(project(other,scope),'INPUT_INVALID');
+  const otherClass=snapshot({issued:300,treasury:0,held:200});
+  otherClass.beneficialHoldings.push({...otherClass.beneficialHoldings[0],securityClassId:'security:player-company:preferred'});
+  unknown(project(otherClass,scope),'INPUT_INVALID');
+  const otherIssuer=snapshot({issued:300,treasury:0,held:200});
+  otherIssuer.beneficialHoldings.push({...otherIssuer.beneficialHoldings[0],issuerEntityId:'entity:company:other'});
+  unknown(project(otherIssuer,scope),'INPUT_INVALID');
+  const companyRow=snapshot({issued:300,treasury:0,held:200});
+  companyRow.beneficialHoldings.unshift({...companyRow.beneficialHoldings[0],beneficialOwnerEntityId:PLAYER});
+  unknown(project(companyRow,scope),'INPUT_INVALID');
+}
+// A missing unresolvedAliases collection is not proven-empty (Codex 4329489006).
+{
+  const missing=snapshot({issued:300,treasury:0,held:10});delete missing.unresolvedAliases;
+  unknown(project(missing,scope),'INPUT_INVALID');
+  const nulled=snapshot({issued:300,treasury:0,held:10});nulled.unresolvedAliases=null;
+  unknown(project(nulled,scope),'INPUT_INVALID');
+}
+
 // The whole snapshot graph is validated, including fields the projection never reads.
 {
   const ok=snapshot({issued:300,treasury:0,held:10});
@@ -155,6 +178,7 @@ for(const bad of [null,[],'x',42,new Map()])unknown(project(bad,scope),'INPUT_IN
   Object.assign(state,{publicCompany:true,sharesOut:1000,treasuryBuybackShares:100,founderShares:400,personalStocks:{[state.ticker]:{qty:51,avg:900},ZZZ:{qty:5,avg:50}}});
   const before=JSON.stringify(state),draws=hostDraws;
   const reconciliation=readModel.ownershipReconciliation(state);
+  assert.ok(Array.isArray(reconciliation.unresolvedAliases)&&reconciliation.beneficialHoldings.length===1,'P3-2 output carries the collections the projector requires');
   assert.equal(reconciliation.ok,true,JSON.stringify(reconciliation.issues));
   const out=project(reconciliation,scope);
   assert.equal(JSON.stringify(state),before,'pure read');assert.equal(hostDraws,draws,'no host RNG');

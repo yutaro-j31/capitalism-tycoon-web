@@ -94,7 +94,7 @@ function evidence(snapshot,issuerEntityId,actingEntityId){
  if(field(root,'scope','snapshot')!==RECONCILIATION_SCOPE)throw new Unknown('INPUT_INVALID','snapshot.scope','Unsupported reconciliation scope.');
  rows(field(root,'checks','snapshot'),'snapshot.checks').forEach((check,i)=>{if(field(check,'ok',`snapshot.checks[${i}]`)!==true)throw new Unknown('RECONCILIATION_FAILED',`snapshot.checks[${i}]`,'A reconciliation check did not pass.');});
  if(rows(field(root,'issues','snapshot'),'snapshot.issues').length)throw new Unknown('RECONCILIATION_FAILED','snapshot.issues','Reconciliation reported issues.');
- for(const [i,alias] of rows(field(root,'unresolvedAliases','snapshot')??[],'snapshot.unresolvedAliases').entries()){
+ for(const [i,alias] of rows(field(root,'unresolvedAliases','snapshot'),'snapshot.unresolvedAliases').entries()){
   if(field(alias,'reason',`snapshot.unresolvedAliases[${i}]`)==='company-own-share-alias-not-adopted')throw new Unknown('OWN_SHARE_ALIAS_UNRESOLVED',`snapshot.unresolvedAliases[${i}]`,'Company-held own shares outside treasury leave the voting denominator unproven.');
  }
  const classes=rows(field(root,'securityClasses','snapshot'),'snapshot.securityClasses');
@@ -106,11 +106,15 @@ function evidence(snapshot,issuerEntityId,actingEntityId){
  const issued=units(field(c,'issuedQuantity',cp),`${cp}.issuedQuantity`),treasury=units(field(c,'treasuryQuantity',cp),`${cp}.treasuryQuantity`);
  const outstanding=units(field(c,'outstandingQuantity',cp),`${cp}.outstandingQuantity`);
  if(BigInt(issued)!==BigInt(treasury)+BigInt(outstanding))throw new Unknown('RECONCILIATION_FAILED',cp,'Issued units do not equal treasury plus outstanding units.');
- const holdings=rows(field(root,'beneficialHoldings','snapshot'),'snapshot.beneficialHoldings').map((row,i)=>({row,path:`snapshot.beneficialHoldings[${i}]`}))
-  .filter(({row,path})=>field(row,'beneficialOwnerEntityId',path)===actingEntityId&&field(row,'securityClassId',path)===securityClassId);
+ // The declared scope reconciles only founder plus unallocated residual: every beneficial holding must be
+ // the founder's row in this class, so no other holder can sit outside the conservation check.
+ const holdings=rows(field(root,'beneficialHoldings','snapshot'),'snapshot.beneficialHoldings').map((row,i)=>({row,path:`snapshot.beneficialHoldings[${i}]`}));
+ for(const {row,path} of holdings){
+  if(field(row,'issuerEntityId',path)!==PLAYER||field(row,'securityClassId',path)!==securityClassId||field(row,'beneficialOwnerEntityId',path)!==FOUNDER)
+   throw new Unknown('INPUT_INVALID',path,'Beneficial holding lies outside the reconciled founder-and-residual scope.');
+ }
  if(holdings.length!==1)throw new Unknown('ACTOR_UNSUPPORTED','snapshot.beneficialHoldings','The actor needs exactly one beneficial holding in the class.');
  const {row,path}=holdings[0];
- if(field(row,'issuerEntityId',path)!==PLAYER)throw new Unknown('INPUT_INVALID',path,'Beneficial holding issuer does not match.');
  const held=units(field(row,'quantity',path),`${path}.quantity`);
  if(held>outstanding)throw new Unknown('RECONCILIATION_FAILED',path,'Holder units exceed eligible outstanding units.');
  const unallocated=units(field(c,'unallocatedOutstandingQuantity',cp),`${cp}.unallocatedOutstandingQuantity`);
