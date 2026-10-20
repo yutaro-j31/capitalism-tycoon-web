@@ -1467,7 +1467,7 @@ class TycoonEngine extends EventTarget {
   investStartup(startupID,amount,account='company') {
     return this.runTransaction(() => {
       const s=this.g.startups.find(x=>x.id===startupID);amount=finite(amount);if(!s||!s.alive||amount<=0)return false;
-      if(s.activeFundingRound?.status==='open')return this.fail('追加資金調達中はフォローオン投資を利用してください。');
+      if(s.activeFundingRound?.status==='open'||this.startupFundingRoundHasPaymentClaim(s))return this.fail('追加資金調達中はフォローオン投資を利用してください。');
       if(account==='company'&&!this.g.departments.investment)return this.fail('会社投資には投資部門が必要です。');
       if(amount<s.minTicket)return this.fail(`最低投資額は${yen(s.minTicket)}です。`);
       const cashKey=account==='company'?'companyCash':'personalCash';if(this.g[cashKey]<amount)return this.fail('資金が不足しています。');
@@ -1602,7 +1602,7 @@ class TycoonEngine extends EventTarget {
     // #954: startup flag, subsidiary record and stake reset commit with one save, or roll back together.
     return this.runTransaction(()=>{
     const s=this.g.startups.find(x=>x.id===startupID);if(!s||s.subsidiary)return false;
-    if(s.activeFundingRound?.status==='open')return this.fail('追加資金調達ラウンド終了後に子会社化できます。');
+    if(s.activeFundingRound?.status==='open'||this.startupFundingRoundHasPaymentClaim(s))return this.fail('追加資金調達ラウンド終了後に子会社化できます。');
     if(s.ownedCompany<.5)return this.fail('会社持分50%以上が必要です。');
     s.subsidiary=true;const book=finite(s.totalInvestedCompany||0);this.g.subsidiaries.push({id:uuid(this.g,'subsidiary'),startupID:s.id,name:s.name,domain:s.domain,ownership:s.ownedCompany,valuation:s.valuation,investedCost:book,carryingBookValue:book,weeklyProfit:0,growth:s.growth,risk:s.risk,publicCompany:false,status:'active',retainedEarnings:0});s.ddNegotiatedOwnedCompany=0;
     this.notify(`${s.name}を連結子会社化しました。`,'success');return true;
@@ -1975,7 +1975,7 @@ class TycoonEngine extends EventTarget {
     return true;
   }
   listStartup(s) {
-    if(s?.activeFundingRound?.status==='open')return false;
+    if(s?.activeFundingRound?.status==='open'||this.startupFundingRoundHasPaymentClaim(s))return false;
     const id=`V${Math.floor(rand(this.g,1000,9999))}`;if(this.stock(id))return;s.ipoStockID=id;const shares=1_000_000,price=s.valuation/shares;
     this.g.market.push({id,name:s.name,sector:s.domain,price,previous:price,dividendYield:0,volatility:.12,trend:.004,marketCap:s.valuation,per:0,pbr:5,issuedShares:shares,dividendPerShare:0,shareholders:{},description:`${s.domain}の新興企業`,listingMarket:'東証グロース',priceHistory:[{week:this.g.week, price}]});
     const companyQty=Math.floor(s.ownedCompany*shares),personalQty=Math.floor(s.ownedPersonal*shares);const companyBook=Math.max(0,finite(s.totalInvestedCompany)),personalBook=Math.max(0,finite(s.totalInvestedPersonal));if(companyQty)this.g.companyStocks[id]={qty:companyQty,avg:companyBook/companyQty};if(personalQty)this.g.personalStocks[id]={qty:personalQty,avg:personalBook/personalQty};if(companyBook>0){finance.event(this.g,'investmentSale',companyBook,{cashEffect:0,assetEffect:-companyBook,profitEffect:0,sourceType:'listStartup',sourceID:`${s.id}-${this.g.week}`,idempotencyKey:`list-startup-${s.id}`,description:`${s.name} IPO転換（VC持分の振替）`});finance.event(this.g,'investmentPurchase',companyBook,{cashEffect:0,assetEffect:companyBook,profitEffect:0,sourceType:'listStartupShares',sourceID:`${s.id}-${this.g.week}`,idempotencyKey:`list-startup-shares-${s.id}`,description:`${s.name} 上場株式への振替`});s.totalInvestedCompany=0;}if(personalBook>0)s.totalInvestedPersonal=0;

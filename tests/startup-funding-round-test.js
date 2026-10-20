@@ -119,4 +119,19 @@ function reload(x){x.e.save();const raw=x.loaded.ctx.__localStorageData.get(x.lo
  const ui=loadGame({localStorageInitial:{[x.loaded.engineModule.SAVE_KEY]:raw}});
  assert.match(String(ui.ctx.document.getElementById('app').innerHTML),/data-startup-funding-round-hold="ROUND_STRUCTURE_INVALID"/,'hold notice renders without a round plan');
 }
+// Codex P1 on #1029: a retained round with a payment claim but a corrupt status still blocks every
+// ownership-changing writer and the venture UI, so the held evidence cannot be contradicted.
+{
+ const x=setup();open(x);assert.equal(x.e.participateStartupFundingRound(x.s.id,100_000,'personal'),true);
+ x.s.activeFundingRound.status='corrupt';x.e.updateStartups();assert.ok(x.s.activeFundingRound,'claimed round is retained');
+ x.s.ownedCompany=.6;x.s.totalInvestedCompany=50e6;
+ const before=JSON.stringify(x.e.g);
+ assert.equal(x.e.investStartup(x.s.id,1_000_000,'company'),false,'initial investment is blocked');
+ assert.equal(x.e.makeSubsidiary(x.s.id),false,'subsidiary conversion is blocked');
+ assert.equal(x.e.listStartup(x.s),false,'listing is blocked');
+ assert.equal(JSON.stringify(x.e.g),before,'blocked writers change nothing');
+ x.e.g.selectedTab='venture';x.e.save();const raw=x.loaded.ctx.__localStorageData.get(x.loaded.engineModule.SAVE_KEY);
+ const html=String(loadGame({localStorageInitial:{[x.loaded.engineModule.SAVE_KEY]:raw}}).ctx.document.getElementById('app').innerHTML);
+ assert.match(html,/data-action="make-subsidiary" data-id="[^"]+"\s+disabled/,'subsidiary button is disabled while held');
+}
 console.log('startup funding round tests passed');
