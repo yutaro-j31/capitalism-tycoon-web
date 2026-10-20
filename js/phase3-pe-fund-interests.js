@@ -17,8 +17,33 @@
     if(!has.call(descriptor,'value')||!descriptor.enumerable){errors.push(issue('INPUT_INVALID',`${path}.${key}`));return {ok:false,present:true};}
     return {ok:true,present:true,value:descriptor.value};
   }
+  // JSON-representable data only: plain records and dense arrays of own enumerable data fields,
+  // finite numbers, strings, booleans and null. Iterative (no recursion), at most 64 levels and
+  // 4,096 object visits. A shared (DAG) reference is data that JSON duplicates, so it is accepted
+  // and counted on every visit; only an object already on the active path is a cycle.
+  function jsonData(rootValue){
+    const EXIT={},stack=[[rootValue,0]],path=new Set();let visits=0;
+    while(stack.length){
+      const [value,depth]=stack.pop();
+      if(depth===EXIT){path.delete(value);continue;}
+      if(value===null||typeof value==='string'||typeof value==='boolean')continue;
+      if(typeof value==='number'){if(!Number.isFinite(value))return false;continue;}
+      if(typeof value!=='object'||path.has(value)||depth>64||++visits>4096)return false;
+      const isList=isArray(value);if(isList?Object.getPrototypeOf(value)!==Array.prototype:!plain(value))return false;
+      const descriptors=Object.getOwnPropertyDescriptors(value),keys=Object.keys(descriptors);
+      if(Reflect.ownKeys(descriptors).some(key=>typeof key==='symbol'))return false;
+      // Arrays must be dense with no extra keys: exactly the indices 0..length-1 plus length.
+      if(isList&&keys.length!==value.length+1)return false;
+      path.add(value);stack.push([value,EXIT]);
+      for(const key of isList?Array.from({length:value.length},(_,i)=>String(i)):keys){
+        const d=descriptors[key];if(!d||!has.call(d,'value')||!d.enumerable)return false;
+        stack.push([d.value,depth+1]);
+      }
+    }
+    return true;
+  }
   function read(obj,key,path,errors){const r=safeField(obj,key,path,errors);return r.ok&&r.present?r.value:undefined;}
-  function requireNumber(obj,key,path,errors){const r=safeField(obj,key,path,errors);if(!r.ok)return null;if(!r.present||!finiteNonnegative(r.value)){errors.push(issue('AMOUNT_UNKNOWN',`${path}.${key}`));return null;}return r.value;}
+  function requireNumber(obj,key,path,errors){const r=safeField(obj,key,path,errors);if(!r.ok)return null;if(!r.present||!finiteNonnegative(r.value)){errors.push(issue('AMOUNT_UNKNOWN',`${path}.${key}`));return null;}return r.value+0;}
   function requireId(obj,key,path,errors){const r=safeField(obj,key,path,errors);if(!r.ok)return null;if(!r.present||!validId(r.value)){errors.push(issue('IDENTITY_UNKNOWN',`${path}.${key}`));return null;}return r.value;}
   function inspectArray(value,path,errors,maxLength){
     if(!isArray(value)||Object.getPrototypeOf(value)!==Array.prototype){errors.push(issue('INPUT_INVALID',path));return null;}
@@ -62,50 +87,60 @@
       if(!['investing','harvesting','closed'].includes(status))errors.push(issue('LIFECYCLE_UNKNOWN',`${path}.status`));
       const totalsValid=size!==null&&size>0&&gp!==null&&lp!==null&&gp<=size&&lp<=size&&size-gp===lp;
       if(!totalsValid)errors.push(issue('CONTRIBUTION_MISMATCH',path));
-      const supported=id!==null&&!collision&&totalsValid&&['investing','harvesting','closed'].includes(status);
+      // Capital ratios, lifecycle and portfolio financing are independent source facts.
+      const lifecycleSupported=id!==null&&!collision&&['investing','harvesting','closed'].includes(status);
+      const capitalSupported=lifecycleSupported&&totalsValid;
       const interest={fundId:id,sourcePath:path,holder:'founder-personal-gp',fundStatus:typeof status==='string'?status:null,
-        contributionRatio:supported?gp/size:null,current:supported&&status!=='closed',gpContributed:gp,lpContributed:lp,
+        contributionRatio:capitalSupported?gp/size:null,current:lifecycleSupported&&status!=='closed',gpContributed:gp,lpContributed:lp,
         votingFraction:null,legalTargetShares:null,managementAuthority:false,wealthValue:null,
-        status:supported?'observed':'unresolved'};
+        status:capitalSupported?'observed':'unresolved'};
       result.fundInterests.push(interest);
-      const manager=id!==null&&!collision?{fundId:id,sourcePath:path,relationship:'gp-manager',assetRole:'management-only',current:supported&&status!=='closed'}:null;
+      const manager=id!==null&&!collision?{fundId:id,sourcePath:path,relationship:'gp-manager',assetRole:'management-only',current:lifecycleSupported&&status!=='closed'}:null;
       if(manager)result.managementRelationships.push(manager);
       const paidKeys=['gpDistributed','lpDistributed','gpCarryPaid','managementFeesPaid'];
       const paid={fundId:id,sourcePath:path,kind:'historical-paid-cash',isReceivable:false};
-      for(const key of paidKeys){const r=safeField(fund,key,path,errors);paid[key]=r.ok&&r.present&&finiteNonnegative(r.value)?r.value:null;
+      for(const key of paidKeys){const r=safeField(fund,key,path,errors);paid[key]=r.ok&&r.present&&finiteNonnegative(r.value)?r.value+0:null;
         if(r.ok&&r.present&&!finiteNonnegative(r.value))errors.push(issue('AMOUNT_UNKNOWN',`${path}.${key}`));}
       result.distributionEvidence.push(paid);
       const dealsField=safeField(fund,'deals',path,errors);
-      if(!dealsField.ok)continue;
-      if(!dealsField.present){errors.push(issue('SOURCE_UNKNOWN',`${path}.deals`));continue;}
-      const deals=inspectArray(dealsField.value,`${path}.deals`,errors,500);
-      if(!deals)continue;
+      if(dealsField.ok&&!dealsField.present)errors.push(issue('SOURCE_UNKNOWN',`${path}.deals`));
+      const deals=dealsField.ok&&dealsField.present?inspectArray(dealsField.value,`${path}.deals`,errors,500):null;
+      // A closed fund is still reconciled when its deal collection is unavailable: validated cash can
+      // prove a live claim, while the missing collection keeps the interest unresolved.
+      let liveDeal=false;
+      if(deals){
       const dealIds=deals.map((deal,j)=>plain(deal)?requireId(deal,'id',`${path}.deals[${j}]`,errors):null);
       const counts=unique(dealIds.map(id=>({id})),r=>r.id,errors,`${path}.deals`);
-      const participationStart=result.portfolioParticipations.length;
       for(let j=0;j<deals.length;j++){
         const deal=deals[j],dealPath=`${path}.deals[${j}]`,dealId=dealIds[j];
         if(!plain(deal)){errors.push(issue('INPUT_INVALID',dealPath));continue;}
         const dealStatus=read(deal,'status',dealPath,errors);
         const settled=safeField(deal,'settlement',dealPath,errors);
-        const historical=dealStatus==='exited'||dealStatus==='sold'||dealStatus==='closed'||(settled.ok&&settled.present&&settled.value!==null);
+        // Only a plain settlement record is lifecycle evidence; a malformed marker stays unresolved.
+        const settlementMalformed=settled.ok&&settled.present&&settled.value!==null&&(!plain(settled.value)||!jsonData(settled.value));
+        if(settlementMalformed)errors.push(issue('INPUT_INVALID',`${dealPath}.settlement`));
+        const historical=dealStatus==='exited'||dealStatus==='sold'||dealStatus==='closed'||(settled.ok&&settled.present&&settled.value!==null&&!settlementMalformed);
         if(!['active','exited','sold','closed'].includes(dealStatus))errors.push(issue('LIFECYCLE_UNKNOWN',`${dealPath}.status`));
         const fundPortion=requireNumber(deal,'fundPortion',dealPath,errors),coinvestPortion=requireNumber(deal,'coinvestPortion',dealPath,errors),invested=requireNumber(deal,'investedAmount',dealPath,errors);
         const splitValid=invested!==null&&invested>0&&fundPortion!==null&&coinvestPortion!==null&&fundPortion+coinvestPortion===invested;
         if(!splitValid)errors.push(issue('FINANCING_MISMATCH',dealPath));
         const active=dealStatus==='active'&&!historical;
-        const known=supported&&dealId!==null&&counts.get(dealId)===1&&active&&splitValid&&settled.ok;
+        const known=lifecycleSupported&&dealId!==null&&counts.get(dealId)===1&&active&&splitValid&&settled.ok&&!settlementMalformed;
         result.portfolioParticipations.push({fundId:id,dealId,sourcePath:dealPath,
           assetRole:known?'proceeds-participation':'unresolved',current:known,
           fundProceedsFraction:known?fundPortion/invested:null,externalCoinvestProceedsFraction:known?coinvestPortion/invested:null,
           legalEquityFraction:null,votingFraction:null,issuerId:null,founderBeneficialFraction:null,
           wealthValue:null,sourceStatus:typeof dealStatus==='string'?dealStatus:null});
+        // Currentness needs only a validated unsettled lifecycle; allocation and identity gaps leave the
+        // participation row unresolved but still prove that an asset is outstanding.
+        if(active&&settled.ok&&!settlementMalformed)liveDeal=true;
       }
-      if(supported&&status==='closed'){
+      }
+      if(lifecycleSupported&&status==='closed'){
         const cash=requireNumber(fund,'cash',path,errors);
-        const outstanding=result.portfolioParticipations.slice(participationStart).some(row=>row.current)||(cash!==null&&cash>0);
+        const outstanding=liveDeal||(cash!==null&&cash>0);
         interest.current=outstanding;if(manager)manager.current=outstanding;
-        if(cash===null){interest.status='unresolved';if(manager)manager.status='unresolved';}
+        if(cash===null||!deals){interest.status='unresolved';if(manager)manager.status='unresolved';}
       }
     }
     result.fundInterests.sort((a,b)=>textOrder(a.fundId||'',b.fundId||'')||textOrder(a.sourcePath,b.sourcePath));

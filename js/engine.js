@@ -1622,16 +1622,20 @@ class TycoonEngine extends EventTarget {
   }
 
   borrow(amount,account='company') {
-    amount=Math.max(0,finite(amount));const debtKey=account==='company'?'companyDebt':'personalDebt',cashKey=account==='company'?'companyCash':'personalCash';
-    const limit=account==='company'?this.companyCreditLimit():this.personalCreditLimit();if(this.g[debtKey]+amount>limit)return this.fail(`借入限度額は${yen(limit)}です。`);
-    this.g[debtKey]+=amount;this.g[cashKey]+=amount;
-    if(account==='company'){const f=finance.ensureFinance(this.g);f.loans.push({loanID:`loan-${this.g.week}-${f.loans.length+1}`,principal:amount,outstandingPrincipal:amount,interestRate:this.companyBorrowRate(),termWeeks:260,remainingWeeks:260,repaymentMethod:'manual',weeklyPrincipalPayment:0,nextPaymentWeek:this.g.week+1,status:'active'});finance.event(this.g,'debtBorrowing',amount,{cashEffect:amount,liabilityEffect:amount,sourceType:'borrow',sourceID:`company-${this.g.week}-${amount}`,description:'会社借入'});}
-    this.notify(`${account==='company'?'会社':'個人'}で${yen(amount)}借り入れました。`,'success');this.save();this.emit();return true;
+    return this.runTransaction(()=>{
+      amount=Math.max(0,finite(amount));const debtKey=account==='company'?'companyDebt':'personalDebt',cashKey=account==='company'?'companyCash':'personalCash';
+      const limit=account==='company'?this.companyCreditLimit():this.personalCreditLimit();if(this.g[debtKey]+amount>limit)return this.fail(`借入限度額は${yen(limit)}です。`);
+      this.g[debtKey]+=amount;this.g[cashKey]+=amount;
+      if(account==='company'){const f=finance.ensureFinance(this.g);f.loans.push({loanID:`loan-${this.g.week}-${f.loans.length+1}`,principal:amount,outstandingPrincipal:amount,interestRate:this.companyBorrowRate(),termWeeks:260,remainingWeeks:260,repaymentMethod:'manual',weeklyPrincipalPayment:0,nextPaymentWeek:this.g.week+1,status:'active'});finance.event(this.g,'debtBorrowing',amount,{cashEffect:amount,liabilityEffect:amount,sourceType:'borrow',sourceID:`company-${this.g.week}-${amount}`,description:'会社借入'});}
+      this.notify(`${account==='company'?'会社':'個人'}で${yen(amount)}借り入れました。`,'success');return true;
+    });
   }
   repay(amount,account='company') {
-    amount=Math.max(0,finite(amount));const debtKey=account==='company'?'companyDebt':'personalDebt',cashKey=account==='company'?'companyCash':'personalCash';amount=Math.min(amount,this.g[debtKey]);
-    if(this.g[cashKey]<amount)return this.fail('返済資金が不足しています。');this.g[cashKey]-=amount;this.g[debtKey]-=amount;if(account==='company'){this.g.companyCredit=clamp(this.g.companyCredit+amount/10_000_000,0,100);let remaining=amount;for(const loan of finance.ensureFinance(this.g).loans.filter(l=>l.status==='active')){const pay=Math.min(remaining,loan.outstandingPrincipal);loan.outstandingPrincipal-=pay;remaining-=pay;finance.settleLoanPrincipal(this.g,loan,pay);if(loan.outstandingPrincipal<=0){loan.outstandingPrincipal=0;loan.status='paid';}if(remaining<=0)break;}finance.event(this.g,'debtRepayment',amount,{cashEffect:-amount,liabilityEffect:-amount,sourceType:'repay',sourceID:`company-${this.g.week}-${amount}`,description:'会社借入返済'});}
-    this.notify(`${yen(amount)}返済しました。`,'success');this.save();this.emit();return true;
+    return this.runTransaction(()=>{
+      amount=Math.max(0,finite(amount));const debtKey=account==='company'?'companyDebt':'personalDebt',cashKey=account==='company'?'companyCash':'personalCash';amount=Math.min(amount,this.g[debtKey]);
+      if(this.g[cashKey]<amount)return this.fail('返済資金が不足しています。');this.g[cashKey]-=amount;this.g[debtKey]-=amount;if(account==='company'){this.g.companyCredit=clamp(this.g.companyCredit+amount/10_000_000,0,100);let remaining=amount;for(const loan of finance.ensureFinance(this.g).loans.filter(l=>l.status==='active')){const pay=Math.min(remaining,loan.outstandingPrincipal);loan.outstandingPrincipal-=pay;remaining-=pay;finance.settleLoanPrincipal(this.g,loan,pay);if(loan.outstandingPrincipal<=0){loan.outstandingPrincipal=0;loan.status='paid';}if(remaining<=0)break;}finance.event(this.g,'debtRepayment',amount,{cashEffect:-amount,liabilityEffect:-amount,sourceType:'repay',sourceID:`company-${this.g.week}-${amount}`,description:'会社借入返済'});}
+      this.notify(`${yen(amount)}返済しました。`,'success');return true;
+    });
   }
   // Issue #423 priority 3: a formal, always-available founder-to-company capital movement,
   // distinct from player-crisis-actions.js's injectFounderCapital (which stays crisis-status
@@ -1641,26 +1645,30 @@ class TycoonEngine extends EventTarget {
   // finance.loans + companyDebt shape from borrow()) rather than inventing new mechanics, and
   // never touch personalStocks or any store/company asset beyond cash/debt.
   contributeFounderCapital(amount) {
-    amount=Math.max(0,Math.floor(finite(amount)));
-    if(this.g.gameOver||this.g.isCompanySold)return this.fail('会社清算後は資本移動できません。');
-    if(amount<=0)return this.fail('注入額が不正です。');
-    if(finite(this.g.personalCash)<amount)return this.fail('個人資金が不足しています。');
-    this.g.personalCash-=amount;this.g.companyCash+=amount;
-    finance.event(this.g,'equityFinancing',amount,{cashEffect:amount,equityEffect:amount,sourceType:'founderCapitalContribution',sourceID:`founder-capital-${this.g.week}-${uuid(this.g,'capital')}`,description:'創業者資本注入'});
-    const f=finance.ensureFinance(this.g);f.balances.capitalSurplus=finite(f.balances.capitalSurplus)+amount;
-    this.notify(`個人資金から会社へ${yen(amount)}を資本注入しました。`,'success');this.save();this.emit();return true;
+    return this.runTransaction(()=>{
+      amount=Math.max(0,Math.floor(finite(amount)));
+      if(this.g.gameOver||this.g.isCompanySold)return this.fail('会社清算後は資本移動できません。');
+      if(amount<=0)return this.fail('注入額が不正です。');
+      if(finite(this.g.personalCash)<amount)return this.fail('個人資金が不足しています。');
+      this.g.personalCash-=amount;this.g.companyCash+=amount;
+      finance.event(this.g,'equityFinancing',amount,{cashEffect:amount,equityEffect:amount,sourceType:'founderCapitalContribution',sourceID:`founder-capital-${this.g.week}-${uuid(this.g,'capital')}`,description:'創業者資本注入'});
+      const f=finance.ensureFinance(this.g);f.balances.capitalSurplus=finite(f.balances.capitalSurplus)+amount;
+      this.notify(`個人資金から会社へ${yen(amount)}を資本注入しました。`,'success');return true;
+    });
   }
   foundersLoanToCompany(amount) {
-    amount=Math.max(0,Math.floor(finite(amount)));
-    if(this.g.gameOver||this.g.isCompanySold)return this.fail('会社清算後は資本移動できません。');
-    if(amount<=0)return this.fail('融資額が不正です。');
-    if(finite(this.g.personalCash)<amount)return this.fail('個人資金が不足しています。');
-    const limit=this.companyCreditLimit();if(this.g.companyDebt+amount>limit)return this.fail(`借入限度額は${yen(limit)}です。`);
-    this.g.personalCash-=amount;this.g.companyCash+=amount;this.g.companyDebt+=amount;
-    const f=finance.ensureFinance(this.g);
-    f.loans.push({loanID:`founder-loan-${this.g.week}-${f.loans.length+1}`,principal:amount,outstandingPrincipal:amount,interestRate:this.companyBorrowRate(),termWeeks:260,remainingWeeks:260,repaymentMethod:'manual',weeklyPrincipalPayment:0,nextPaymentWeek:this.g.week+1,status:'active',sourceType:'founderShareholderLoan'});
-    finance.event(this.g,'debtBorrowing',amount,{cashEffect:amount,liabilityEffect:amount,sourceType:'founderShareholderLoan',sourceID:`founder-loan-${this.g.week}-${uuid(this.g,'loan')}`,description:'創業者株主ローン'});
-    this.notify(`個人資金から会社へ${yen(amount)}を株主ローンとして貸し付けました。`,'success');this.save();this.emit();return true;
+    return this.runTransaction(()=>{
+      amount=Math.max(0,Math.floor(finite(amount)));
+      if(this.g.gameOver||this.g.isCompanySold)return this.fail('会社清算後は資本移動できません。');
+      if(amount<=0)return this.fail('融資額が不正です。');
+      if(finite(this.g.personalCash)<amount)return this.fail('個人資金が不足しています。');
+      const limit=this.companyCreditLimit();if(this.g.companyDebt+amount>limit)return this.fail(`借入限度額は${yen(limit)}です。`);
+      this.g.personalCash-=amount;this.g.companyCash+=amount;this.g.companyDebt+=amount;
+      const f=finance.ensureFinance(this.g);
+      f.loans.push({loanID:`founder-loan-${this.g.week}-${f.loans.length+1}`,principal:amount,outstandingPrincipal:amount,interestRate:this.companyBorrowRate(),termWeeks:260,remainingWeeks:260,repaymentMethod:'manual',weeklyPrincipalPayment:0,nextPaymentWeek:this.g.week+1,status:'active',sourceType:'founderShareholderLoan'});
+      finance.event(this.g,'debtBorrowing',amount,{cashEffect:amount,liabilityEffect:amount,sourceType:'founderShareholderLoan',sourceID:`founder-loan-${this.g.week}-${uuid(this.g,'loan')}`,description:'創業者株主ローン'});
+      this.notify(`個人資金から会社へ${yen(amount)}を株主ローンとして貸し付けました。`,'success');return true;
+    });
   }
 
   ipoMissingReasons() {

@@ -33,6 +33,9 @@ for (let i = 0; i < commands.length; i++) {
 }
 
 const nodeTests = [
+  ['property-debt-principal-sync', 'tests/property-debt-principal-sync-test.js'],
+  ['p4-aud-003-founder-capital-atomicity', 'scripts/p4-aud-003-founder-capital-atomicity.cjs'],
+  ['debt-command-save-atomicity', 'tests/debt-command-save-atomicity-test.js'],
   ['authoritative-company-cash', 'tests/authoritative-company-cash-test.js'],
   ['real-estate-construction-in-progress', 'tests/real-estate-construction-in-progress-test.js'],
   ['bank-loans-covenants-accounting', 'tests/bank-loans-covenants-accounting-test.js'],
@@ -133,7 +136,9 @@ const nodeTests = [
   ['economic-operation-contract', 'tests/economic-operation-contract-test.js'],
   ['economic-shadow-journal', 'tests/economic-shadow-journal-test.js'],
   ['economic-settlement-store-renovation', 'tests/economic-settlement-store-renovation-test.js'],
+  ['economic-settlement-company-cash-commit', 'tests/economic-settlement-company-cash-commit-test.js'],
   ['economic-read-model', 'tests/economic-read-model-test.js'],
+  ['phase3-restructuring-lifecycle', 'tests/phase3-restructuring-lifecycle-test.js'],
   ['phase3-ownership-projection', 'tests/phase3-ownership-projection-test.js'],
   ['phase3-ownership-reconciliation', 'tests/phase3-ownership-reconciliation-test.js'],
   ['phase3-listed-holdings-adapter', 'tests/phase3-listed-holdings-adapter-test.js'],
@@ -215,6 +220,7 @@ const nodeTests = [
   ['real-estate-insurance-claims', 'tests/real-estate-insurance-claims-test.js'],
   ['real-estate-insurance-risk', 'tests/real-estate-insurance-risk-test.js'],
   ['real-estate-maintenance-reserves', 'tests/real-estate-maintenance-reserves-test.js'],
+  ['property-mortgage-refinance-conservation', 'tests/property-mortgage-refinance-conservation-test.js'],
   ['real-estate-mortgage-refinancing', 'tests/real-estate-mortgage-refinancing-test.js'],
   ['real-estate-portfolio-dashboard', 'tests/real-estate-portfolio-dashboard-test.js'],
   ['real-estate-price-negotiation', 'tests/real-estate-price-negotiation-test.js'],

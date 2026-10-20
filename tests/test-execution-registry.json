@@ -1,4 +1,8 @@
 {
+  "tests/property-mortgage-refinance-webkit-test.js": {
+    "reason": "Real iPhone WebKit refinance rejection, save-failure rollback and durable-only fresh-context hydration in M&A PR and post-merge gates.",
+    "executedBy": ".github/workflows/ma-acquisition-financing.yml"
+  },
   "tests/ma-share-swap-save-atomicity-webkit-test.js": {
     "reason": "Real iPhone WebKit and fresh IndexedDB browser-context regression in M&A PR and post-merge gates.",
     "executedBy": ".github/workflows/ma-acquisition-financing.yml"
@@ -323,8 +327,20 @@
     "reason": "#955 refounding after buyout through the real legacy-tab flow: state root identity kept on success and rollback; one commit with the founded-investment record; personal holdings carry over, sold-company debt does not; every harness fault kind (incl. prior pending put) rolls back into the same root; thrown faults open the recovery dialog; deterministic retry; reload and fresh durable-only hydration in iPhone WebKit on every workflow event (placed in vc-secondary-atomicity for job-time balance).",
     "executedBy": ".github/workflows/ma-acquisition-financing.yml"
   },
+  "tests/debt-command-save-atomicity-webkit-test.js": {
+    "reason": "Installed company/personal/founder debt command rollback, retry, reload and fresh real IndexedDB in the independent debt-command-atomicity job on every event.",
+    "executedBy": ".github/workflows/ma-acquisition-financing.yml"
+  },
   "tests/execute-mbo-save-atomicity-webkit-test.js": {
     "reason": "Installed executeMBO writer: shared save faults, pending predecessor, accounting, reload and fresh durable-only real IndexedDB in the stock-split-atomicity job on every workflow event.",
+    "executedBy": ".github/workflows/ma-acquisition-financing.yml"
+  },
+  "tests/property-debt-principal-sync-webkit-test.js": {
+    "reason": "Generic/voluntary/maturity/full repayment then property service, reload and fresh real IndexedDB in property-debt-principal-sync job.",
+    "executedBy": ".github/workflows/ma-acquisition-financing.yml"
+  },
+  "tests/founder-capital-atomicity-webkit-test.js": {
+    "reason": "P4-AUD-003 installed Founder Capital contribution: real iPhone WebKit mirror rejection/post-save notification fault rollback, retry, one valid capital/equity posting and cash separation, production reload, fresh durable-only real IndexedDB hydration in stock-split-atomicity on PR/main.",
     "executedBy": ".github/workflows/ma-acquisition-financing.yml"
   }
 }
