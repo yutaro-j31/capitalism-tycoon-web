@@ -88,13 +88,16 @@
         if(!plain(deal)){errors.push(issue('INPUT_INVALID',dealPath));continue;}
         const dealStatus=read(deal,'status',dealPath,errors);
         const settled=safeField(deal,'settlement',dealPath,errors);
-        const historical=dealStatus==='exited'||dealStatus==='sold'||dealStatus==='closed'||(settled.ok&&settled.present&&settled.value!==null);
+        // Only a plain settlement record is lifecycle evidence; a malformed marker stays unresolved.
+        const settlementMalformed=settled.ok&&settled.present&&settled.value!==null&&!plain(settled.value);
+        if(settlementMalformed)errors.push(issue('INPUT_INVALID',`${dealPath}.settlement`));
+        const historical=dealStatus==='exited'||dealStatus==='sold'||dealStatus==='closed'||(settled.ok&&settled.present&&plain(settled.value));
         if(!['active','exited','sold','closed'].includes(dealStatus))errors.push(issue('LIFECYCLE_UNKNOWN',`${dealPath}.status`));
         const fundPortion=requireNumber(deal,'fundPortion',dealPath,errors),coinvestPortion=requireNumber(deal,'coinvestPortion',dealPath,errors),invested=requireNumber(deal,'investedAmount',dealPath,errors);
         const splitValid=invested!==null&&invested>0&&fundPortion!==null&&coinvestPortion!==null&&fundPortion+coinvestPortion===invested;
         if(!splitValid)errors.push(issue('FINANCING_MISMATCH',dealPath));
         const active=dealStatus==='active'&&!historical;
-        const known=supported&&dealId!==null&&counts.get(dealId)===1&&active&&splitValid&&settled.ok;
+        const known=supported&&dealId!==null&&counts.get(dealId)===1&&active&&splitValid&&settled.ok&&!settlementMalformed;
         result.portfolioParticipations.push({fundId:id,dealId,sourcePath:dealPath,
           assetRole:known?'proceeds-participation':'unresolved',current:known,
           fundProceedsFraction:known?fundPortion/invested:null,externalCoinvestProceedsFraction:known?coinvestPortion/invested:null,

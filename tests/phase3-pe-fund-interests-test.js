@@ -77,6 +77,13 @@ for(const change of [d=>d.status='exited',d=>d.settlement={},d=>d.investedAmount
  s.peFirm.funds[0].deals[0].status='exited';assert.equal(project(s).fundInterests[0].current,false);assert.equal(project(s).managementRelationships[0].current,false);
  s.peFirm.funds[0].cash=5;assert.equal(project(s).fundInterests[0].current,true);
 }
+// A malformed settlement marker is neither proof of settlement nor of a current participation.
+for(const marker of ['corrupt',1,true,[]]){
+ const s=state();s.peFirm.funds[0].deals[0].settlement=marker;const r=project(s);
+ assert.equal(r.portfolioParticipations[0].current,false);assert.equal(r.portfolioParticipations[0].fundProceedsFraction,null);
+ assert(r.issues.some(i=>i.code==='INPUT_INVALID'&&i.path.endsWith('.deals[0].settlement')),'malformed settlement is reported');
+}
+{const s=state();s.peFirm.funds[0].deals[0].settlement=null;assert.equal(project(s).portfolioParticipations[0].current,true,'null settlement is the unsettled default');}
 let reads=0;
 for(const key of ['size','gpCommit','status','deals']){
  const s=state();Object.defineProperty(s.peFirm.funds[0],key,{get(){reads++;throw Error('getter');}});assert.doesNotThrow(()=>project(s));
