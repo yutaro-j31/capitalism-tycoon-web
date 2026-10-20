@@ -48,7 +48,8 @@ assert.equal(globToRegExp('tests/**/*strategy*').test('tests/gym-membership-stra
 assert.equal(globToRegExp('tests/**/*strategy*').test('tests/a/b/x-strategy-test.js'), true);
 assert.equal(globToRegExp('tests/**/*strategy*').test('js/x-strategy.js'), false);
 // Codex P2: a test run only by workflows without a paths block still counts as a changed test.
-assert.ok(names(select(['tests/iphone-webkit-smoke-test.js'])).includes('tests/iphone-webkit-smoke-test.js'));
+const smoke = select(['tests/iphone-webkit-smoke-test.js']);
+assert.ok([...names(smoke), ...smoke.ciOnly.map(row => row.test)].includes('tests/iphone-webkit-smoke-test.js'));
 // Codex P2: commands of matrix jobs (shard runners) need their matrix environment; they are listed
 // as CI-only and never run locally.
 const strategy = select(['tests/gym-membership-strategy-test.js']);
@@ -57,4 +58,15 @@ assert.ok(!strategy.node.some(row => /shard-runner/.test(row.test)), 'matrix sha
 // Codex P2: a core-module change reaches tests that boot the game through the harness.
 assert.ok(names(select(['js/simulation-rng.js'])).includes('tests/personal-investment-risk-model-test.js'), 'harness tests follow core modules');
 assert.ok(!names(select(['js/store-equipment.js'])).includes('tests/personal-investment-risk-model-test.js'), 'non-core modules keep the narrow plan');
+// Codex P2: tests run through aggregator scripts (tests/test-execution-registry.json) count as tests.
+assert.ok(names(select(['tests/release-gate-wiring-test.js'])).includes('tests/release-gate-wiring-test.js'), 'registry-executed test selects itself');
+// Codex P2: jobs whose `if:` cannot hold on pull_request, or that consume upstream artifacts, are CI-only.
+assert.ok(strategy.ciOnly.some(row => row.test === 'tests/exploration-aggregate.js'), 'dispatch-only artifact aggregate is CI-only');
+assert.ok(!strategy.node.some(row => row.test === 'tests/exploration-aggregate.js'), 'dispatch-only artifact aggregate is not run locally');
+// Jobs without a guard stay runnable, while the push/schedule-only comprehensive M&A job is CI-only.
+assert.ok(guarded.webkit.some(row => row.test === 'tests/vc-follow-on-save-atomicity-webkit-test.js'), 'PR-run WebKit gate stays listed');
+assert.ok(guarded.ciOnly.some(row => row.test === 'tests/ma-acquisition-financing-webkit-test.js'), 'push-only WebKit gate is CI-only');
+assert.ok(!guarded.webkit.some(row => row.test === 'tests/ma-acquisition-financing-webkit-test.js'), 'CI-only tests are not listed again as WebKit');
+// Codex P2: harness users are found through local helper requires (test -> fixture -> ./harness).
+assert.ok(names(select(['js/simulation-rng.js'])).includes('tests/ma-acquisition-financing-test.js'), 'harness use is followed through fixtures');
 console.log('select-affected-tests PASS');

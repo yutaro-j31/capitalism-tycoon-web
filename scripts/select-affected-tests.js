@@ -9,7 +9,7 @@
 // Test files are collected from the canonical registry: literal paths in tests/run-all.js plus every
 // `node <file>` inside the package.json scripts that run-all.js (or a workflow) calls via `npm run`.
 // A test is selected when any of these holds for a changed file:
-//   1. the changed file is itself a canonical or workflow test;
+//   1. the changed file is itself a canonical, workflow or execution-registry test;
 //   2. a workflow path filter matches it: every node test the workflow runs, directly or through
 //      `npm run`, is selected (directory-wide filters such as js/** only with --broad);
 //   3. it is a production module (js/<name>.js): every canonical test whose source mentions
@@ -65,6 +65,20 @@ function globToRegExp(glob) {
   return new RegExp(`^${body}$`);
 }
 
+// A job is CI-only when it reads ${{ matrix.* }} (shard index, output path), consumes artifacts of
+// upstream jobs, or carries a job-level `if:` that cannot hold on a pull request (event other than
+// pull_request, or workflow_dispatch inputs).
+function ciOnlyJob(job) {
+  if (job.includes('${{ matrix.') || /actions\/download-artifact@/.test(job)) return true;
+  const lines = job.split('\n'), at = lines.findIndex(line => /^    if:/.test(line));
+  if (at < 0) return false;
+  let condition = lines[at];
+  for (let i = at + 1; i < lines.length && /^      /.test(lines[i]); i++) condition += ` ${lines[i].trim()}`;
+  if (/\binputs\./.test(condition)) return true;
+  const events = [...condition.matchAll(/github\.event_name\s*==\s*['"]([\w-]+)['"]/g)].map(m => m[1]);
+  return events.length > 0 && !events.includes('pull_request');
+}
+
 // Workflow path filters and the node test steps they guard (plain-text parse; no YAML dependency).
 function workflows() {
   const dir = path.join(ROOT, '.github', 'workflows');
@@ -78,12 +92,12 @@ function workflows() {
       if (item) patterns.add(item[1]);
       else if (inPaths && line.trim()) inPaths = false;
     }
-    // Split into jobs: a job that reads ${{ matrix.* }} needs its matrix environment (shard index,
-    // output path), so its commands are listed as CI-only and never run locally.
+    // Split into jobs. Commands of a job that cannot run as-is locally are listed as CI-only and never
+    // run here: see ciOnlyJob().
     const tests = new Set(), ciOnly = new Set();
     const jobsAt = text.search(/^jobs:\s*$/m);
     const jobs = jobsAt < 0 ? [text] : text.slice(jobsAt).split(/^(?=  [\w-]+:\s*$)/m);
-    for (const job of jobs) for (const t of testsIn(job)) if (exists(t)) (job.includes('${{ matrix.') ? ciOnly : tests).add(t);
+    for (const job of jobs) for (const t of testsIn(job)) if (exists(t)) (ciOnlyJob(job) ? ciOnly : tests).add(t);
     // A directory-wide filter (e.g. js/**) guards a broad campaign; only --broad selects it.
     return { name, patterns: [...patterns].map(p => ({ glob: p, re: globToRegExp(p), broad: /^[\w.-]+\/\*\*$/.test(p) })), tests: [...tests], ciOnly: [...ciOnly] };
   });
@@ -96,6 +110,26 @@ function canonicalTests() {
   return [...new Set([...literal, ...viaNpm])].filter(exists);
 }
 
+// Tests executed outside run-all.js through aggregator scripts, as declared in the execution registry.
+function registryTests() {
+  const file = path.join(ROOT, 'tests', 'test-execution-registry.json');
+  return fs.existsSync(file) ? Object.keys(JSON.parse(fs.readFileSync(file, 'utf8'))).filter(exists) : [];
+}
+
+// True when a test reaches tests/harness.js through its own local requires (test -> fixture -> harness).
+function bootsGame(test, seen = new Set()) {
+  if (seen.has(test)) return false;
+  seen.add(test);
+  const text = fs.readFileSync(path.join(ROOT, test), 'utf8');
+  for (const m of text.matchAll(/require\(['"](\.\.?\/[\w./-]+)['"]\)/g)) {
+    let dep = path.posix.normalize(path.posix.join(path.posix.dirname(test), m[1]));
+    if (!dep.endsWith('.js') && !dep.endsWith('.cjs')) dep += '.js';
+    if (dep === 'tests/harness.js') return true;
+    if (dep.startsWith('tests/') && exists(dep) && bootsGame(dep, seen)) return true;
+  }
+  return false;
+}
+
 function select(files) {
   const reasons = new Map();
   const add = (test, why) => { if (!exists(test)) return; if (!reasons.has(test)) reasons.set(test, new Set()); reasons.get(test).add(why); };
@@ -103,8 +137,10 @@ function select(files) {
   const production = files.filter(f => /^js\/[\w.-]+\.js$/.test(f));
   if (production.length) ON_PRODUCTION_CHANGE.forEach(t => add(t, 'production source changed'));
   const flows = workflows(), canonical = canonicalTests();
-  const ciOnly = new Set(flows.flatMap(w => w.ciOnly).filter(t => !canonical.includes(t)));
-  const runnable = new Set([...canonical, ...flows.flatMap(w => [...w.tests, ...w.ciOnly])]);
+  // CI-only unless some PR-runnable job (or the canonical suite) also runs the test.
+  const runsLocally = new Set([...canonical, ...flows.flatMap(w => w.tests)]);
+  const ciOnly = new Set(flows.flatMap(w => w.ciOnly).filter(t => !runsLocally.has(t)));
+  const runnable = new Set([...canonical, ...registryTests(), ...flows.flatMap(w => [...w.tests, ...w.ciOnly])]);
   for (const file of files) if (runnable.has(file)) add(file, 'changed test');
   for (const w of flows.filter(flow => flow.patterns.length)) {
     const hit = files.find(f => w.patterns.some(p => (!p.broad || BROAD) && p.re.test(f)));
@@ -119,14 +155,14 @@ function select(files) {
     // Tests that boot the whole game through tests/harness.js load every module transitively. A change
     // to a core module (state, RNG, accounting, save) reaches them without any textual reference.
     const core = production.filter(f => CORE_MODULES.includes(path.basename(f, '.js')));
-    if (core.length) for (const { t, text } of corpus) if (/require\(['"]\.\/harness['"]\)/.test(text)) add(t, `boots the game; core module ${core[0]} changed`);
+    if (core.length) for (const { t } of corpus) if (bootsGame(t)) add(t, `boots the game; core module ${core[0]} changed`);
   }
   const all = [...reasons.keys()].sort(), row = t => ({ test: t, reasons: [...reasons.get(t)] });
   return {
     base: BASE, changedFiles: files,
     ciOnly: all.filter(t => ciOnly.has(t)).map(row),
     node: all.filter(t => !t.endsWith('-webkit-test.js') && !ciOnly.has(t)).map(row),
-    webkit: all.filter(t => t.endsWith('-webkit-test.js')).map(t => ({ test: t, reasons: [...reasons.get(t)] }))
+    webkit: all.filter(t => t.endsWith('-webkit-test.js') && !ciOnly.has(t)).map(row)
   };
 }
 

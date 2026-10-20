@@ -22,9 +22,14 @@ This document records the decision and the operating procedure. It does **not** 
    - every changed test;
    - every Node step of a workflow whose path filter matches the diff;
    - every canonical test that loads the changed production module.
-   - for a core module (`runtime`, `data`, `engine`, `simulation-rng`, `finance`, `economic-operation`, `economic-settlement`, `save-v9`, `semantic-hash-v2`), every canonical test that boots the game through `tests/harness.js`. That is close to the whole suite, so for a core change run all canonical shards (measure 1) instead.
+   - for a core module (`runtime`, `data`, `engine`, `simulation-rng`, `finance`, `economic-operation`, `economic-settlement`, `save-v9`, `semantic-hash-v2`), every canonical test that boots the game through `tests/harness.js`, directly or through a local helper it requires (for example `ma-acquisition-financing-fixture.js`). That is close to the whole suite, so for a core change run all canonical shards (measure 1) instead.
 
-   Commands of workflow jobs that read `${{ matrix.* }}` (shard runners) need their matrix environment. They are listed as **CI-only** and not run.
+   Some workflow jobs cannot run here as they are. Their commands are listed as **CI-only** and not run, unless a pull-request job or the canonical suite also runs the same test. A job is CI-only when it:
+   - reads `${{ matrix.* }}` (shard runners);
+   - downloads artifacts from upstream jobs;
+   - has a job-level `if:` that cannot hold on a pull request (another event, or `workflow_dispatch` inputs).
+
+   Tests run by aggregator scripts and declared in `tests/test-execution-registry.json` count as tests, so changing one selects it.
 
    Use `--broad` to also include workflows guarded by directory-wide filters such as `js/**` (the strategy-balance campaign). Use `--json` for a machine-readable plan.
 3. For a large or cross-cutting change, also run all canonical shards locally (measure 1).
