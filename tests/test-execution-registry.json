@@ -334,5 +334,9 @@
   "tests/execute-mbo-save-atomicity-webkit-test.js": {
     "reason": "Installed executeMBO writer: shared save faults, pending predecessor, accounting, reload and fresh durable-only real IndexedDB in the stock-split-atomicity job on every workflow event.",
     "executedBy": ".github/workflows/ma-acquisition-financing.yml"
+  },
+  "tests/founder-capital-atomicity-webkit-test.js": {
+    "reason": "P4-AUD-003 installed Founder Capital contribution: real iPhone WebKit mirror rejection/post-save notification fault rollback, retry, one valid capital/equity posting and cash separation, production reload, fresh durable-only real IndexedDB hydration in stock-split-atomicity on PR/main.",
+    "executedBy": ".github/workflows/ma-acquisition-financing.yml"
   }
 }
