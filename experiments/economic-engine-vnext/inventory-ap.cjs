@@ -98,6 +98,7 @@ function validateSupplyState(s){
     if(!j||j.operationId!==e.operationId||j.type!=='journal'||JSON.stringify(j.postings)!==JSON.stringify(legs(e)))throw Error('supply-journal-mismatch');
   }
   const {orders,inventory}=exposure(s.events);
+  for(const order of orders.keys())if(has(coreState.loans,order))throw Error('order-loan-id-collision');
   // No writer outside source-backed supply events can touch authoritative
   // inventory/AP accounts, even if that writer emits balanced core journal legs.
   for(const j of coreState.journal) {
