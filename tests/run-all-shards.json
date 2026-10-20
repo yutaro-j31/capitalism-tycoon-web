@@ -60,6 +60,7 @@
     "tests/pe-weekly-performance-test.js",
     "tests/pe-initiative-delay-concurrency-test.js",
     "tests/personal-real-estate-mortgage-test.js",
+    "tests/property-mortgage-refinance-conservation-test.js",
     "tests/personal-real-estate-taxes-test.js",
     "tests/real-estate-cycle-state-collision-test.js",
     "tests/menu-lifecycle-test.js",
@@ -281,6 +282,7 @@
     "tests/phase3-subsidiary-relationships-test.js",
     "tests/phase3-pe-ownership-adapter-test.js",
     "tests/phase3-subsidiary-composition-test.js",
+    "tests/phase3-indirect-economic-paths-test.js",
     "tests/player-own-share-conservation-test.js",
     "tests/group-capital-allocation-cash-exact-test.js",
     "tests/phase3-restructuring-lifecycle-test.js"
@@ -299,6 +301,7 @@
     "tests/ma-equity-raise-ownership-ratios-test.js",
     "tests/activate-defense-ownership-ratios-test.js",
     "tests/ma-equity-raise-shadow-atomicity-test.js",
-    "tests/phase3-vc-source-interests-test.js"
+    "tests/phase3-vc-source-interests-test.js",
+    "tests/debt-command-save-atomicity-test.js"
   ]
 }
