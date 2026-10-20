@@ -87,6 +87,7 @@ No new finance category, no new save root, and `saveVersion=9` is unchanged. An 
 |---|---|
 | S1 | Company property with `mortgageBalance = B > 0`, no row, ledger predates the mortgage. `validate` already fails by exactly `B`. |
 | S2 | Same as S1, but `g.finance` was (re)created by `defaultFinanceState` after the mortgage. Equity absorbed `B`, and `validate` passes today. |
+| S2s | S2 followed by mortgage principal payments `P`. The writers reduced cash and `mortgageBalance` to `B = B₀ − P` without a liability effect, so `validate` already fails by `−P` before any sale. Neither S1 nor S2 describes it. |
 | S3 | A mortgaged property was already sold. Another loan's `companyDebt` was consumed by `B` (D-1). |
 | S4 | A past refinance-down or same-product refinance already forgave principal or booked a cashless fee (D-2). |
 | S5 | Personal-owned mortgage with `personalNetWorth` overstated (D-4). |
@@ -116,7 +117,7 @@ No new finance category, no new save root, and `saveVersion=9` is unchanged. An 
     - (a) Never subtract the off-book `legacyBalance` from `companyDebt`.
     - (b) Never subtract it from `personalDebt` on the personal-owned path either, until Q8 tracking has migrated that balance. Today the disposal writer subtracts it from whichever aggregate the owner uses, so a personal mortgage consumes unrelated personal borrowing in the same way.
     - (c) Exclude the off-book balance from the `property-disposition-debt` row's `liabilityEffect` (today `−debt.total`), while keeping the cash payoff. Otherwise `P2-DEBT-ROLLFORWARD` fails by the mortgage balance after the sale.
-    - (d) The ledger treatment of that cash payoff depends on the S1/S2 classification (Q2) and must not be applied universally. In S2 the ledger balances today because equity absorbed `B`. Paying `B` in cash with a zero liability effect then leaves no offset, and `finance.validate` turns from valid to `P2-CLOSE-BS-IDENTITY` by `B`. So S2 must either carry an equity offset on the payoff (for example `priorPeriodAdjustments −= B`, subject to Q2), or be quarantined until classified. The fix's tests must show, per state, that a save which validates before the sale still validates after it.
+    - (d) The ledger treatment of that cash payoff depends on the S1/S2 classification (Q2) and must not be applied universally. In S2 the ledger balances today because equity absorbed `B`. Paying `B` in cash with a zero liability effect then leaves no offset, and `finance.validate` turns from valid to `P2-CLOSE-BS-IDENTITY` by `B`. So S2 must either carry an equity offset on the payoff, or be quarantined until classified. The offset must equal the actual historical accounting gap, not the current balance: `B` for a pure S2, but `B₀` for S2s, where the earlier principal payments `P` already left a `−P` difference. When that gap cannot be measured exactly from the ledger, the property is quarantined. Any equity restatement through `priorPeriodAdjustments` is subject to Q2. The fix's tests must cover S1, S2 and S2s, and show per state that a save which validates before the sale still validates after it, and that S2s is either brought to a validating state or quarantined.
 
 ## 6. Proposed implementation slices (after Owner decisions)
 
