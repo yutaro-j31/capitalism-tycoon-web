@@ -77,7 +77,10 @@ function reload(x){x.e.save();const raw=x.loaded.ctx.__localStorageData.get(x.lo
  const hold=x.e.getStartupFundingRoundHold(x.s.id);
  assert.equal(hold.code,'PAYMENT_HISTORY_TRUNCATED');assert.equal(hold.accounts.length,1);
  assert.equal(hold.accounts[0].account,'personal');assert.equal(hold.accounts[0].pending,25*step);
- assert.ok(hold.accounts[0].provenPaid<25*step&&hold.accounts[0].unproven>0,'only retained receipts count as proven');
+ const visible=x.e.g.startupFundingHistory[x.s.id].filter(row=>row.eventType==='participated').reduce((t,row)=>t+row.amount,0);
+ assert.equal(hold.accounts[0].retainedPaid,visible,'every retained receipt row counts, including reused legacy IDs');
+ assert.ok(hold.accounts[0].duplicateReceiptIDs>0,'reused legacy receipt IDs are reported');
+ assert.equal(hold.accounts[0].unproven,25*step-visible);
  const before=JSON.stringify(x.e.g);
  assert.equal(x.e.participateStartupFundingRound(x.s.id,step,'personal'),false,'a full round refuses further installments');
  assert.equal(JSON.stringify(x.e.g),before,'refused installment changes nothing');

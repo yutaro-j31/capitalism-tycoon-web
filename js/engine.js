@@ -1526,7 +1526,9 @@ class TycoonEngine extends EventTarget {
   }
   // Owner decision 2026-10-20 (#1029, option a): a round whose payment or ownership evidence is
   // unproven is held, never converted, refunded or repaired. This read-only diagnosis names the
-  // cause; provenPaid sums only the retained receipts and changes nothing.
+  // cause and changes nothing. retainedPaid sums every retained receipt row; the pre-fix writer gave
+  // same-suffix IDs to distinct installments once the history was full, so duplicate IDs are counted
+  // and reported, not merged. It is a lower bound on what was paid, not proof of the pending amount.
   getStartupFundingRoundHold(startupID) {
     const sources=this.g.startups.filter(s=>s.id===startupID),s=sources[0],r=s?.activeFundingRound;
     if(sources.length!==1||!s.alive||!r)return null;
@@ -1535,9 +1537,9 @@ class TycoonEngine extends EventTarget {
     if(!this.hasValidStartupFundingRoundOwnershipEvidence(startupID))return {code:'OWNERSHIP_EVIDENCE_INVALID',accounts:[]};
     const history=Array.isArray(this.g.startupFundingHistory?.[startupID])?this.g.startupFundingHistory[startupID]:[];
     const accounts=['company','personal'].filter(account=>!this.hasStartupFundingRoundPaymentEvidence(startupID,account)).map(account=>{
-      const pending=r[account==='company'?'contributedCompany':'contributedPersonal'],ids=new Set();let provenPaid=0;
-      for(const row of history)if(row?.eventType==='participated'&&row.account===account&&typeof row.id==='string'&&row.id.startsWith(`${r.id}-${account}-`)&&!ids.has(row.id)&&Number.isFinite(row.amount)&&row.amount>0){ids.add(row.id);provenPaid+=row.amount;}
-      return {account,pending,provenPaid,unproven:Math.max(0,pending-provenPaid)};
+      const pending=r[account==='company'?'contributedCompany':'contributedPersonal'],ids=new Set();let retainedPaid=0,duplicateReceiptIDs=0;
+      for(const row of history)if(row?.eventType==='participated'&&row.account===account&&typeof row.id==='string'&&row.id.startsWith(`${r.id}-${account}-`)&&Number.isFinite(row.amount)&&row.amount>0){if(ids.has(row.id))duplicateReceiptIDs++;ids.add(row.id);retainedPaid+=row.amount;}
+      return {account,pending,retainedPaid,duplicateReceiptIDs,unproven:Math.max(0,pending-retainedPaid)};
     });
     if(!accounts.length)return null;
     // The pre-fix writer kept 24 rows: once the round's own opened row is gone, older receipts were evicted.
