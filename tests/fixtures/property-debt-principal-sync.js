@@ -1,0 +1,6 @@
+'use strict';
+const assert=require('node:assert/strict');
+const {loadGame}=require('../harness');
+function fixture(){const s=loadGame({headless:true}),g=s.engineModule.TycoonEngine.load();g.g.configured=true;g.g.companyCash=100_000_000;g.g.personalCash=100_000_000;g.g.companyDebt=0;g.g.personalDebt=0;g.g.properties=[{id:'property-sync',owner:'company',marketValue:300_000_000,value:300_000_000,purchasePrice:300_000_000,realEstate:{monthlyRent:4_000_000,occupancyRate:1,expenseRatio:.2}}];g.g.finance=s.modules.finance.defaultFinanceState(g.g);assert.ok(g.borrowAgainstProperty('property-sync',60_000_000,{rateType:'fixed',termWeeks:260}));return {...s,game:g};}
+function check(s){const g=s.game.g;for(const l of g.realEstateMarket.loans.filter(x=>x.owner==='company'&&x.accountingTracked)){const f=g.finance.loans.find(x=>x.loanID===l.id);assert.equal(f.outstandingPrincipal,l.balance,'specialist principal follows allocated canonical repayment');}assert.ok(Math.abs(g.companyDebt-g.finance.loans.reduce((sum,l)=>sum+l.outstandingPrincipal,0))<.01);assert.equal(s.modules.finance.validate(JSON.parse(JSON.stringify(g))).ok,true);assert.equal(s.modules.finance.debtRollforwardStatus(g).ok,true);return g.realEstateMarket.loans[0];}
+module.exports={fixture,check};

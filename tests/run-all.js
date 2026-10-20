@@ -33,6 +33,7 @@ for (let i = 0; i < commands.length; i++) {
 }
 
 const nodeTests = [
+  ['property-debt-principal-sync', 'tests/property-debt-principal-sync-test.js'],
   ['p4-aud-003-founder-capital-atomicity', 'scripts/p4-aud-003-founder-capital-atomicity.cjs'],
   ['debt-command-save-atomicity', 'tests/debt-command-save-atomicity-test.js'],
   ['authoritative-company-cash', 'tests/authoritative-company-cash-test.js'],
@@ -135,7 +136,9 @@ const nodeTests = [
   ['economic-operation-contract', 'tests/economic-operation-contract-test.js'],
   ['economic-shadow-journal', 'tests/economic-shadow-journal-test.js'],
   ['economic-settlement-store-renovation', 'tests/economic-settlement-store-renovation-test.js'],
+  ['economic-settlement-company-cash-commit', 'tests/economic-settlement-company-cash-commit-test.js'],
   ['economic-read-model', 'tests/economic-read-model-test.js'],
+  ['phase3-restructuring-lifecycle', 'tests/phase3-restructuring-lifecycle-test.js'],
   ['phase3-ownership-projection', 'tests/phase3-ownership-projection-test.js'],
   ['phase3-ownership-reconciliation', 'tests/phase3-ownership-reconciliation-test.js'],
   ['phase3-listed-holdings-adapter', 'tests/phase3-listed-holdings-adapter-test.js'],

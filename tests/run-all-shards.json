@@ -286,7 +286,8 @@
     "tests/phase3-subsidiary-composition-test.js",
     "tests/phase3-indirect-economic-paths-test.js",
     "tests/player-own-share-conservation-test.js",
-    "tests/group-capital-allocation-cash-exact-test.js"
+    "tests/group-capital-allocation-cash-exact-test.js",
+    "tests/phase3-restructuring-lifecycle-test.js"
   ],
   "L": [
     "tests/stock-split-price-floor-test.js",
@@ -302,6 +303,7 @@
     "tests/ma-equity-raise-shadow-atomicity-test.js",
     "tests/phase3-vc-source-interests-test.js",
     "scripts/p4-aud-003-founder-capital-atomicity.cjs",
-    "tests/debt-command-save-atomicity-test.js"
+    "tests/debt-command-save-atomicity-test.js",
+    "tests/property-debt-principal-sync-test.js"
   ]
 }
