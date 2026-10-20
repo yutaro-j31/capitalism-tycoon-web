@@ -42,4 +42,11 @@ assert.ok(names(select(['js/market.js'])).includes('tests/market-engine-test.js'
 const probe = 'tests/vc-secondary-sale-save-false-red-probe.js';
 assert.ok(canonicalTests().includes(probe), 'probe is canonical');
 assert.ok(names(select([probe])).includes(probe), 'a changed canonical probe selects itself');
+
+// Codex P2: `**/` matches zero directories, as in GitHub Actions path filters.
+assert.equal(globToRegExp('tests/**/*strategy*').test('tests/gym-membership-strategy-test.js'), true);
+assert.equal(globToRegExp('tests/**/*strategy*').test('tests/a/b/x-strategy-test.js'), true);
+assert.equal(globToRegExp('tests/**/*strategy*').test('js/x-strategy.js'), false);
+// Codex P2: a test run only by workflows without a paths block still counts as a changed test.
+assert.ok(names(select(['tests/iphone-webkit-smoke-test.js'])).includes('tests/iphone-webkit-smoke-test.js'));
 console.log('select-affected-tests PASS');

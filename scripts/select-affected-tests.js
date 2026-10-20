@@ -58,7 +58,9 @@ function testsIn(text) {
 }
 function camel(name) { return name.replace(/-([a-z0-9])/g, (_, c) => c.toUpperCase()); }
 function globToRegExp(glob) {
-  const body = glob.replace(/[.+^${}()|[\]\\]/g, '\\$&').replace(/\*\*/g, '\u0000').replace(/\*/g, '[^/]*').replace(/\u0000/g, '.*');
+  // `**/` matches zero or more directories (GitHub Actions semantics); a trailing `**` matches anything.
+  const body = glob.replace(/[.+^${}()|[\]\\]/g, '\\$&').replace(/\*\*\//g, '\u0001').replace(/\*\*/g, '\u0000')
+    .replace(/\*/g, '[^/]*').replace(/\u0001/g, '(?:.*/)?').replace(/\u0000/g, '.*');
   return new RegExp(`^${body}$`);
 }
 
@@ -78,7 +80,7 @@ function workflows() {
     const tests = [...new Set(testsIn(text))].filter(exists);
     // A directory-wide filter (e.g. js/**) guards a broad campaign; only --broad selects it.
     return { name, patterns: [...patterns].map(p => ({ glob: p, re: globToRegExp(p), broad: /^[\w.-]+\/\*\*$/.test(p) })), tests };
-  }).filter(w => w.patterns.length);
+  });
 }
 
 function canonicalTests() {
@@ -97,7 +99,7 @@ function select(files) {
   const flows = workflows(), canonical = canonicalTests();
   const runnable = new Set([...canonical, ...flows.flatMap(w => w.tests)]);
   for (const file of files) if (runnable.has(file)) add(file, 'changed test');
-  for (const w of flows) {
+  for (const w of flows.filter(flow => flow.patterns.length)) {
     const hit = files.find(f => w.patterns.some(p => (!p.broad || BROAD) && p.re.test(f)));
     if (hit) w.tests.forEach(t => add(t, `${w.name} paths: ${hit}`));
   }
