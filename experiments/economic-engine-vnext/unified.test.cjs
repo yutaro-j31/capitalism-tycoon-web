@@ -55,7 +55,7 @@ test('store then issuance yields same economic closing balances',()=>{
  const base=startWeek(seed());
  const r=u.admitIssue(base,{...issue},()=>true);
  assert.equal(r.ok,true,r.reason);
- assert.deepEqual(r.state.core.balances,x);
+ assert.deepEqual(Object.entries(r.state.core.balances).sort(([a],[b])=>a.localeCompare(b)),Object.entries(x).sort(([a],[b])=>a.localeCompare(b)));
 });
 test('two investors preserve separate beneficial ownership',()=>{
  const a=startIssued();
