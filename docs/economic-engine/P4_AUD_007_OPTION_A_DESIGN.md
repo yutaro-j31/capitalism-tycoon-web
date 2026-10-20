@@ -110,7 +110,7 @@ No new finance category, no new save root, and `saveVersion=9` is unchanged. An 
 5. **Q5 — Refinance-down semantics** after #1036: keep the block, add a funded payoff, or allow a cashless write-down.
 6. **Q6 — Unpaid interest:** accrue, delinquent/default, or keep dropping it (current behavior).
 7. **Q7 — Generic allocators:** exclude the mortgage row, or sync it through the #990 hook.
-8. **Q8 — Personal mortgages:** whether they should start touching `personalDebt` (D-4).
+8. **Q8 — Personal mortgages:** whether they should start touching `personalDebt` (D-4), and if so whether tracked mortgage principal counts towards the `personalBorrowRate()` tier. Generic repayment reservation and generic-interest suppression are required either way (§6 slice 4).
 9. **Q9 — `loanID`:** one stable ID per property, or a new ID per origination.
 10. **Q10 — D-1 interim fix:** whether to fix it first, independently, as a disposal-only fix. While the mortgage is off book, that fix must (a) never subtract it from `companyDebt`, and (b) exclude the off-book `legacyBalance` from the `property-disposition-debt` row's `liabilityEffect` (today `−debt.total`), while keeping the cash payoff. Otherwise `P2-DEBT-ROLLFORWARD` fails by the mortgage balance after the sale. The fix stops further loss of other loans' debt without deciding Option A.
 
@@ -122,6 +122,8 @@ No new finance category, no new save root, and `saveVersion=9` is unchanged. An 
 4. **Personal mortgage tracking** (only if Q8 = yes), as its own PR:
    - Migrate S5 by adding each personal mortgage's gross outstanding `B` to `personalDebt` once, with an old-save fixture.
    - The personal writers must decrement `personalDebt` only for balances that were migrated or originated as tracked, so a repayment never consumes unrelated personal debt. This follows the same `accountingTracked` rule that #1015 applies to property-secured loans.
+   - **Generic repayment:** `engine.repay(amount,'personal')` (`js/engine.js` `repay`) lowers `personalDebt` without touching `p.mortgageBalance`. A later scheduled payment, prepayment or disposal would then decrement `personalDebt` for the same principal a second time. The slice must reserve tracked mortgage principal from generic personal repayment, the same way #1015 reserves tracked property-secured loans, so mortgage principal is only ever settled by the mortgage writers.
+   - **Generic interest suppression:** the weekly personal interest (`js/engine.js` `personalCash -= personalDebt * personalBorrowRate() / 52`) would charge the tracked mortgage balance on top of the mortgage's own interest in `real-estate-mortgage-refinancing.js`. The slice must charge generic personal interest on `personalDebt − tracked mortgage principal` only. This is the personal counterpart of the company rule that adds `'propertyMortgage'` to `INDIVIDUALLY_SERVICED_SOURCES` (§3). Whether tracked mortgages should still raise the `personalBorrowRate()` tier, which reads `personalDebt`, is part of Q8.
 5. **Shared per-property encumbrance** for LTV (D-5): separate PR.
 
 Each slice is one concern per PR. It must pass the Stage S gate for a debt writer:
