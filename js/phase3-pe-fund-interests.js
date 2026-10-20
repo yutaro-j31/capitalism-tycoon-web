@@ -17,17 +17,28 @@
     if(!has.call(descriptor,'value')||!descriptor.enumerable){errors.push(issue('INPUT_INVALID',`${path}.${key}`));return {ok:false,present:true};}
     return {ok:true,present:true,value:descriptor.value};
   }
-  // JSON-representable data only: plain records/arrays of own enumerable data fields, finite
-  // numbers, strings, booleans and null, acyclic and bounded. Anything else cannot survive a v9 reload.
-  function jsonData(value,seen=new Set(),budget={nodes:4096}){
-    if(value===null||typeof value==='string'||typeof value==='boolean')return true;
-    if(typeof value==='number')return Number.isFinite(value);
-    if(typeof value!=='object'||seen.has(value)||--budget.nodes<0)return false;
-    const isList=isArray(value);if(isList?Object.getPrototypeOf(value)!==Array.prototype:!plain(value))return false;
-    const descriptors=Object.getOwnPropertyDescriptors(value);if(Reflect.ownKeys(descriptors).some(key=>typeof key==='symbol'))return false;
-    seen.add(value);
-    const ok=Object.keys(descriptors).every(key=>(isList&&key==='length')||(has.call(descriptors[key],'value')&&descriptors[key].enumerable&&jsonData(descriptors[key].value,seen,budget)));
-    seen.delete(value);return ok;
+  // JSON-representable data only: plain records and dense arrays of own enumerable data fields,
+  // finite numbers, strings, booleans and null. Iterative (no recursion), at most 64 levels and
+  // 4,096 objects, each object visited once (so cycles and shared references fail closed).
+  function jsonData(rootValue){
+    const stack=[[rootValue,0]],seen=new Set();
+    while(stack.length){
+      const [value,depth]=stack.pop();
+      if(value===null||typeof value==='string'||typeof value==='boolean')continue;
+      if(typeof value==='number'){if(!Number.isFinite(value))return false;continue;}
+      if(typeof value!=='object'||seen.has(value)||depth>64||seen.size>=4096)return false;
+      seen.add(value);
+      const isList=isArray(value);if(isList?Object.getPrototypeOf(value)!==Array.prototype:!plain(value))return false;
+      const descriptors=Object.getOwnPropertyDescriptors(value),keys=Object.keys(descriptors);
+      if(Reflect.ownKeys(descriptors).some(key=>typeof key==='symbol'))return false;
+      // Arrays must be dense with no extra keys: exactly the indices 0..length-1 plus length.
+      if(isList&&keys.length!==value.length+1)return false;
+      for(const key of isList?Array.from({length:value.length},(_,i)=>String(i)):keys){
+        const d=descriptors[key];if(!d||!has.call(d,'value')||!d.enumerable)return false;
+        stack.push([d.value,depth+1]);
+      }
+    }
+    return true;
   }
   function read(obj,key,path,errors){const r=safeField(obj,key,path,errors);return r.ok&&r.present?r.value:undefined;}
   function requireNumber(obj,key,path,errors){const r=safeField(obj,key,path,errors);if(!r.ok)return null;if(!r.present||!finiteNonnegative(r.value)){errors.push(issue('AMOUNT_UNKNOWN',`${path}.${key}`));return null;}return r.value+0;}

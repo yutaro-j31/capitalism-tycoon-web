@@ -94,6 +94,13 @@ for(const marker of ['corrupt',1,true,[]]){
   assert.equal(r.portfolioParticipations[0].current,false);
   assert(r.issues.some(i=>i.code==='INPUT_INVALID'&&i.path.endsWith('.deals[0].settlement')),'non-JSON settlement is reported');
  }
+ // Codex P2: sparse arrays, arrays with extra keys and very deep nesting are malformed, never a crash.
+ let deep={};const top=deep;for(let i=0;i<5000;i++){deep.next={};deep=deep.next;}
+ for(const marker of [{data:[,3]},{data:Object.assign([],{extra:1})},top]){
+  const s=state();s.peFirm.funds[0].deals[0].settlement=marker;let r;
+  assert.doesNotThrow(()=>{r=project(s);});
+  assert(r.issues.some(i=>i.code==='INPUT_INVALID'&&i.path.endsWith('.deals[0].settlement')),'non-round-trippable settlement is reported');
+ }
  const s=state();s.peFirm.funds[0].deals[0].settlement={week:3,proceeds:[1,2]};
  assert.equal(project(s).portfolioParticipations[0].current,false,'a valid settlement record is historical evidence');
  assert(!project(s).issues.some(i=>i.path.endsWith('.settlement')));
