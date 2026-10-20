@@ -36,7 +36,7 @@ Probe (one company property, `fixed` product):
   - Today a refinance-down or same-product refinance forgives principal with no cash and books a fee with no cash.
   - Open PR #1036 rejects `target < old` and `gross < fee`. That covers both cases once it merges.
 - **D-3 [V].** When cash is short, unpaid interest is dropped (no accrual, no delinquency), and `remainingWeeks` still decrements.
-- **D-4 [V].** A personal-owned `g.properties` mortgage raises `personalCash`, but `personalDebt` is untouched and `personalNetWorth` overstates by the net proceeds.
+- **D-4 [V].** A personal-owned `g.properties` mortgage raises `personalCash` by the net proceeds `B − F`, but `personalDebt` is untouched. Against the debt-aware value (`cash + property − B`), `personalNetWorth` is overstated by the **gross outstanding balance `B`**: the fee has already reduced cash, and `B − F` is only the change from the pre-refinance display. A migration (S5/Q8) must recognize the gross `B`.
 - **D-5 [V].**
   - Three independent LTV calculations exist: the mortgage products, the complete-cycle `quote`, and `real-estate.js` `collateralCapacity`.
   - None sees the others, so one property can carry a mortgage, a market loan and a legacy collateral loan beyond any single cap.
@@ -71,7 +71,7 @@ Its source type is listed in `finance.js` `INDIVIDUALLY_SERVICED_SOURCES`, so th
 | Refinance down / same product | — | — | rejected by #1036 (Q5 decides whether to allow a funded payoff or a write-down) |
 | Weekly payment | `−principalPaid`, `remainingWeeks−1` | `−principalPaid` | interest: cash `−i`, profit `−i`; principal: `debtRepayment`, cash `−p`, **liability `−p`** |
 | Prepayment / payoff | `−paid`; `repaid` at 0 | `−paid` | `debtRepayment`, cash `−paid`, **liability `−paid`** |
-| Sale / disposal | settled with market loans, exactly once | `−paid` once; **remove the `legacyBalance` subtraction** (fixes D-1) | existing `property-disposition-debt` row |
+| Sale / disposal | settled with market loans, exactly once | `−paid` once; **remove the `legacyBalance` subtraction** (fixes D-1) | existing `property-disposition-debt` row; its `liabilityEffect` must equal the on-book principal actually settled |
 | Generic allocators (`engine.repay`, treasury prepayment, maturity, crisis negotiation) | Q7: exclude `sourceType 'propertyMortgage'`, **or** sync through the #990 `settleLoanPrincipal` hook | — | — |
 | Personal-owned property | no row, no company event | 0 | Q8 decides whether `personalDebt` starts tracking it |
 
@@ -112,7 +112,7 @@ No new finance category, no new save root, and `saveVersion=9` is unchanged. An 
 7. **Q7 — Generic allocators:** exclude the mortgage row, or sync it through the #990 hook.
 8. **Q8 — Personal mortgages:** whether they should start touching `personalDebt` (D-4).
 9. **Q9 — `loanID`:** one stable ID per property, or a new ID per origination.
-10. **Q10 — D-1 interim fix:** whether to fix it first, independently, as a disposal-only fix that never subtracts the mortgage from `companyDebt` while it is off book. That fix stops further loss of other loans' debt without deciding Option A.
+10. **Q10 — D-1 interim fix:** whether to fix it first, independently, as a disposal-only fix. While the mortgage is off book, that fix must (a) never subtract it from `companyDebt`, and (b) exclude the off-book `legacyBalance` from the `property-disposition-debt` row's `liabilityEffect` (today `−debt.total`), while keeping the cash payoff. Otherwise `P2-DEBT-ROLLFORWARD` fails by the mortgage balance after the sale. The fix stops further loss of other loans' debt without deciding Option A.
 
 ## 6. Proposed implementation slices (after Owner decisions)
 
