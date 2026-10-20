@@ -71,16 +71,20 @@ function closeBracket(source, open) {
   }
   return -1;
 }
-// The first top-level argument of an argument list (strings and nested brackets skipped).
-function firstArgument(args) {
+// Top-level arguments of an argument list (strings and nested brackets skipped).
+function splitArguments(args) {
+  const out = [];
+  let start = 0;
   for (let i = 0; i < args.length; i++) {
     const c = args[i];
     if (c === '"' || c === "'" || c === '`') { for (i++; i < args.length && args[i] !== c; i++) if (args[i] === '\\') i++; continue; }
-    if (c === '[' || c === '(' || c === '{') { const close = closeBracket(args, i); if (close < 0) return args; i = close - 1; continue; }
-    if (c === ',') return args.slice(0, i);
+    if (c === '[' || c === '(' || c === '{') { const close = closeBracket(args, i); if (close < 0) break; i = close - 1; continue; }
+    if (c === ',') { out.push(args.slice(start, i)); start = i + 1; }
   }
-  return args;
+  out.push(args.slice(start));
+  return out;
 }
+function firstArgument(args) { return splitArguments(args)[0]; }
 // A reflective key is static only when the whole argument is one literal without substitutions.
 const STATIC_KEY = /^\s*(?:'(?:[^'\\]|\\.)*'|"(?:[^"\\]|\\.)*"|`(?:[^`$\\]|\\.|\$(?!\{))*`)\s*$/;
 function computedStateKeys(source) {
@@ -101,19 +105,19 @@ function computedStateKeys(source) {
     if (end < 0) continue;
     const args = source.slice(m.index + m[0].length, end - 1);
     if (m[1] === 'Object.assign') {
-      // Only computed keys directly inside a top-level source object literal name root fields;
-      // keys of nested objects, arrays or call arguments do not.
-      const stack = [];
-      for (let i = 0; i < args.length; i++) {
-        const c = args[i];
-        if (c === '"' || c === "'" || c === '`') { for (i++; i < args.length && args[i] !== c; i++) if (args[i] === '\\') i++; continue; }
-        if (c === '[' && stack.length === 1 && stack[0] === '}' && /[{,]\s*$/.test(args.slice(0, i))) {
-          const close = closeBracket(args, i);
-          if (close < 0) break;
-          if (/^\s*:/.test(args.slice(close))) n++;
-          i = close - 1;
-        } else if (c === '[' || c === '(' || c === '{') stack.push({ '[': ']', '(': ')', '{': '}' }[c]);
-        else if (c === stack[stack.length - 1]) stack.pop();
+      // A source that is not an object literal (a patch built elsewhere) is opaque and counts once.
+      // Inside a literal source, each top-level computed key and each spread counts; keys of nested
+      // objects, arrays or call arguments do not name root fields.
+      for (const arg of splitArguments(args)) {
+        const text = arg.trim();
+        if (!text) continue;
+        if (text[0] !== '{' || closeBracket(text, 0) !== text.length) { n++; continue; }
+        const body = text.slice(1, -1);
+        for (const entry of splitArguments(body)) {
+          const key = entry.trim();
+          if (key.startsWith('...')) n++;
+          else if (key[0] === '[') { const close = closeBracket(key, 0); if (close > 0 && /^\s*:/.test(key.slice(close))) n++; }
+        }
       }
     } else if (!STATIC_KEY.test(firstArgument(args))) n++;
   }
@@ -170,7 +174,11 @@ assert.equal(computedStateKeys("Reflect.set(g,`week`,1);Object.defineProperty(st
 assert.equal(computedStateKeys('let root; root = this.g; root[cashKey(owner)] -= amount;if(x){live=engine.g}live[k]+=1;'), 2);
 assert.equal(computedStateKeys('let root;x.root = this.g;root[k]=1;root == this.g;root[j]=1;'), 0);
 // Codex P2: only top-level keys of each Object.assign source object are root keys.
-assert.equal(computedStateKeys('Object.assign(g,{settings:{[id]:v}});Object.assign(g,{a:[{[k]:1}]},f({[j]:2}));'), 0);
+assert.equal(computedStateKeys('Object.assign(g,{settings:{[id]:v}});Object.assign(g,{a:[{[k]:1}]});'), 0);
+// Codex P1: a source that is not an object literal (a patch built elsewhere, a call result) or a
+// spread inside a literal is opaque and counts once.
+assert.equal(computedStateKeys('const patch={[cashKey(owner)]:next};Object.assign(g,patch);'), 1);
+assert.equal(computedStateKeys('Object.assign(this.g,{a:1},f({[j]:2}));Object.assign(state,{...patch,b:1});'), 2);
 assert.equal(computedStateKeys('Object.assign(g,{a:{b:1},[k]:2},{c:{[x]:1},[y]:3});'), 2);
 
 const baseline = JSON.parse(fs.readFileSync(BASELINE, 'utf8'));
