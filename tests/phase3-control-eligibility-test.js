@@ -116,6 +116,39 @@ for(const bad of [null,[],'x',42,new Map()])unknown(project(bad,scope),'INPUT_IN
   const p=snapshot({issued:300,treasury:0,held:10});unknown(project(Object.assign(Object.create({inherited:true}),p),scope),'INPUT_INVALID');
 }
 
+// The whole snapshot graph is validated, including fields the projection never reads.
+{
+  const ok=snapshot({issued:300,treasury:0,held:10});
+  const bad=[
+    s=>{s.beneficialHoldings[0].self=s.beneficialHoldings[0];},
+    s=>{s.checks[0].note={};s.checks[0].note.back=s.checks[0];},
+    s=>{let called=0;Object.defineProperty(s.securityClasses[0],'memo',{enumerable:true,get(){called++;return 1;}});return ()=>assert.equal(called,0,'unread getter must not run');},
+    s=>{Object.defineProperty(s.checks[1],'hidden',{value:1,enumerable:false});},
+    s=>{s.beneficialHoldings[0].extra=NaN;},
+    s=>{s.beneficialHoldings[0].extra=Infinity;},
+    s=>{s.securityClasses[0].note=()=>1;},
+    s=>{s.securityClasses[0].note=1n;},
+    s=>{s.securityClasses[0].note=new Date(0);},
+    s=>{s.securityClasses[0][Symbol('x')]=1;},
+    s=>{s.checks.length=3;},
+    s=>{s.checks.extra=1;},
+    s=>{s.issuesNote=[undefined];},
+    s=>{let x={};for(let i=0;i<70;i++)x={x};s.deep=x;},
+  ];
+  for(const [i,mutate] of bad.entries()){
+    const s=snapshot({issued:300,treasury:0,held:10});const after=mutate(s);
+    const out=project(s,scope);assert.equal(out.status,'UNKNOWN',`unread malformed field ${i} must not evaluate`);
+    assert.equal(out.issues[0].code,'INPUT_INVALID',`unread malformed field ${i}: ${out.issues[0].code}`);
+    if(after)after();
+  }
+  // Shared acyclic subtrees serialize by duplication, so they evaluate like their JSON reload.
+  const shared=snapshot({issued:300,treasury:0,held:10}),note={source:'audit'};
+  shared.checks[0].note=note;shared.checks[1].note=note;shared.securityClasses[0].memo=undefined;
+  assert.equal(project(shared,scope).status,'EVALUATED');
+  assert.deepEqual(plain(project(shared,scope)),plain(project(plain(shared),scope)));
+  assert.deepEqual(plain(project(shared,scope)),plain(project(ok,scope)));
+}
+
 // Production wiring: the real P3-2 reconciliation feeds the projector without mutating state or RNG.
 {
   const state=loaded.engineModule.createInitialState({configured:true,seed:0x39000001});

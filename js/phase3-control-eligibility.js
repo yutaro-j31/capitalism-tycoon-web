@@ -48,11 +48,44 @@ function units(x,path){
  if(!Number.isSafeInteger(x))throw new Unknown('NUMERIC_DOMAIN_UNSUPPORTED',path,'Fractional or unsafe voting units are not evaluated.');
  return x;
 }
+// The whole accepted snapshot must be JSON data, including fields the projection never reads: plain
+// records and dense arrays of own enumerable data properties, finite numbers, no cycles. Iterative
+// and bounded; a shared (acyclic) subtree is allowed because JSON serializes it by duplication.
+const MAX_DEPTH=64,MAX_OBJECTS=65536;
+function jsonData(rootValue,rootPath){
+ const onPath=new Set(),checked=new Set(),stack=[{value:rootValue,path:rootPath,depth:0}];let objects=0;
+ while(stack.length){
+  const top=stack.pop();
+  if(top.exit){onPath.delete(top.exit);checked.add(top.exit);continue;}
+  const {value,path,depth}=top;
+  if(value===null||typeof value==='string'||typeof value==='boolean')continue;
+  if(typeof value==='number'){if(!Number.isFinite(value))throw new Unknown('INPUT_INVALID',path,'Evidence numbers must be finite.');continue;}
+  if(typeof value!=='object')throw new Unknown('INPUT_INVALID',path,'Evidence must be JSON data.');
+  if(onPath.has(value))throw new Unknown('INPUT_INVALID',path,'Evidence must not be cyclic.');
+  if(checked.has(value))continue;
+  if(depth>MAX_DEPTH||++objects>MAX_OBJECTS)throw new Unknown('INPUT_INVALID',path,'Evidence exceeds the supported size.');
+  const isArray=Array.isArray(value);
+  if(isArray?!intrinsic(Object.getPrototypeOf(value),Array)||value.length>4096:!plainRecord(value))throw new Unknown('INPUT_INVALID',path,'Evidence must be a plain record or array.');
+  const keys=Reflect.ownKeys(value);
+  if(isArray&&keys.length!==value.length+1)throw new Unknown('INPUT_INVALID',path,'Evidence arrays must be dense with no extra keys.');
+  onPath.add(value);stack.push({exit:value});
+  for(const key of keys){
+   if(isArray&&key==='length')continue;
+   if(typeof key!=='string'||(isArray&&!(String(Number(key))===key&&Number(key)<value.length)))throw new Unknown('INPUT_INVALID',path,'Evidence has an unsupported key.');
+   const d=Object.getOwnPropertyDescriptor(value,key),child=isArray?`${path}[${key}]`:`${path}.${key}`;
+   if(!own.call(d,'value')||!d.enumerable)throw new Unknown('INPUT_INVALID',child,'Evidence must be an own enumerable data property.');
+   // JSON drops an undefined record field (absent and undefined read the same) but not an array slot.
+   if(d.value===undefined&&!isArray)continue;
+   stack.push({value:d.value,path:child,depth:depth+1});
+  }
+ }
+}
 function reason(code,path,message,evidenceRefs=[]){return {code,path,message,evidenceRefs:[...evidenceRefs]};}
 function deepFreeze(x){if(x&&typeof x==='object'){Object.values(x).forEach(deepFreeze);Object.freeze(x);}return x;}
 
 function evidence(snapshot,issuerEntityId,actingEntityId){
  const root=record(snapshot,'snapshot');
+ jsonData(root,'snapshot');
  if(field(root,'reconciliationVersion','snapshot')!==1||field(root,'authority','snapshot')!=='read-only')throw new Unknown('INPUT_INVALID','snapshot','Unsupported ownership reconciliation snapshot.');
  if(issuerEntityId!==PLAYER)throw new Unknown('ISSUER_FAMILY_UNSUPPORTED','issuerEntityId','Only the player company common class is evaluated.');
  if(actingEntityId!==FOUNDER)throw new Unknown('ACTOR_UNSUPPORTED','actingEntityId','No voting evidence is modeled for this actor.');
