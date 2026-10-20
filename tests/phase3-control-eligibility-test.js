@@ -175,4 +175,11 @@ for(const bad of [null,[],'x',42,new Map()])unknown(project(bad,scope),'INPUT_IN
   const fr=project(readModel.ownershipReconciliation(fractional),scope);
   assert.equal(fr.status,'UNKNOWN');assert.ok(['NUMERIC_DOMAIN_UNSUPPORTED','RECONCILIATION_FAILED'].includes(fr.issues[0].code),fr.issues[0].code);
 }
+// Negative zero is a valid quantity but JSON reloads it as 0; the evaluated evidence must be
+// identical before and after a round trip (Object.is semantics under deepStrictEqual).
+for(const negativeZero of [snapshot({issued:300,treasury:-0,held:150}),snapshot({issued:300,treasury:0,held:-0})]){
+  const raw=project(negativeZero,scope),reloaded=project(plain(negativeZero),scope);
+  assert.equal(raw.status,'EVALUATED');
+  assert.deepStrictEqual(raw,reloaded,'-0 voting units must canonicalize to 0');
+}
 console.log('P3-9 control eligibility projection tests passed');

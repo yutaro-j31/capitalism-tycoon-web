@@ -46,7 +46,7 @@ function rows(x,path){
 function units(x,path){
  if(typeof x!=='number'||!Number.isFinite(x)||x<0)throw new Unknown('INPUT_INVALID',path,'Voting units must be a finite non-negative number.');
  if(!Number.isSafeInteger(x))throw new Unknown('NUMERIC_DOMAIN_UNSUPPORTED',path,'Fractional or unsafe voting units are not evaluated.');
- return x;
+ return x+0; // canonicalize -0, which JSON reloads as 0
 }
 // The whole accepted snapshot must be JSON data, including fields the projection never reads: plain
 // records and dense arrays of own enumerable data properties, finite numbers, no cycles. Iterative
