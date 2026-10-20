@@ -63,12 +63,16 @@ const previous=JSON.stringify(rehydrated.g);
 assert.equal(rehydrated.repay(1_000_000,'personal'),false,'reloaded save retains specialist allocation');
 assert.equal(JSON.stringify(rehydrated.g),previous);
 assert.equal(rehydrated.g.personalDebt,rehydrated.g.realEstateMarket.loans.filter(l=>l.owner==='personal'&&l.accountingTracked===true&&l.balance>0).reduce((s,l)=>s+l.balance,0));
-// Legacy save contains a previously valid specialist loan without the accountingTracked
-// field. Do not assume this unknown personal claim can be paid via the unsecured writer.
+// Authentic legacy save: a personal RELOAN created before #849 has no accountingTracked
+// field and its origination never raised personalDebt. It must not block generic debt.
 const legacy=new engineModule.TycoonEngine(JSON.parse(JSON.stringify(g)));
-const legacyLoan=legacy.g.realEstateMarket.loans.find(l=>l.id===loan.id);
-delete legacyLoan.accountingTracked;
-const legacyBefore=JSON.stringify(legacy.g);
-assert.equal(legacy.repay(1_000_000,'personal'),false,'unknown legacy tracking must fail closed');
-assert.equal(JSON.stringify(legacy.g),legacyBefore,'legacy save must not be mutated by a rejected repay');
+legacy.g.realEstateMarket.loans=legacy.g.realEstateMarket.loans.filter(l=>l.owner!=='personal');
+legacy.g.personalDebt=0;
+legacy.g.realEstateMarket.loans.push({id:'RELOAN-3-9',propertyID:'P4-004-A',owner:'personal',originalPrincipal:30_000_000,balance:30_000_000,
+ rate:.04,spread:.025,rateType:'fixed',termWeeks:260,weeksRemaining:250,weeklyPayment:130_000,status:'active',delinquentWeeks:0,createdWeek:3});
+assert.equal(legacy.borrow(10_000_000,'personal'),true);
+assert.equal(legacy.g.personalDebt,10_000_000);
+assert.equal(legacy.repay(10_000_000,'personal'),true,'legacy untracked loan is outside personalDebt and must not reserve it');
+assert.equal(legacy.g.personalDebt,0);
+assert.equal(legacy.g.realEstateMarket.loans.find(l=>l.id==='RELOAN-3-9').balance,30_000_000,'legacy specialist loan is untouched');
 console.log('P4-AUD-004 personal secured-principal guard and save/reload PASS');

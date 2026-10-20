@@ -170,7 +170,7 @@ assert.deepEqual(pathsFor(comprehensiveMa, 'pull_request'), [
   'js/shareholder-activism.js', 'tests/shareholder-activism-accept-save-atomicity-test.js', 'tests/shareholder-activism-accept-save-atomicity-webkit-test.js', 'tests/shareholder-activism-split-integration-test.js',
   'tests/stock-split-dividend-rescale-test.js', 'tests/stock-split-dividend-rescale-webkit-test.js',
   'tests/stock-split-price-floor-test.js', 'tests/stock-split-price-floor-webkit-test.js',
-  'tests/p4-aud-004-personal-secured-repayment-webkit-test.js', 'tests/p4-aud-004-personal-secured-repayment-test.js',
+  'tests/p4-aud-004-personal-secured-repayment-webkit-test.js', 'tests/p4-aud-004-personal-secured-repayment-test.js', 'js/real-estate-complete-cycle.js',
   'tests/founder-capital-atomicity-webkit-test.js',
   'tests/fixtures/stock-split-atomicity.js',
   'tests/debt-command-save-atomicity-test.js', 'tests/debt-command-save-atomicity-webkit-test.js', 'tests/fixtures/debt-command-atomicity.js',
