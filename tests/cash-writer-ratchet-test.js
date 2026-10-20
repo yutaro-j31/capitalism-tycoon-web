@@ -99,6 +99,7 @@ function computedStateKeys(source) {
   }
   // Reflective writes onto the root: Object.assign(root, {[key]: v}) counts each computed key;
   // Object.defineProperty / Reflect.set / Reflect.defineProperty(root, key, ...) count a non-literal key.
+  let opaque = false;
   const call = new RegExp(`\\b(Object\\.assign|Object\\.defineProperty|Reflect\\.set|Reflect\\.defineProperty)\\s*\\(\\s*(?:${rootAlt})\\s*,`, 'g');
   for (const m of source.matchAll(call)) {
     const open = source.indexOf('(', m.index), end = closeBracket(source, open);
@@ -111,7 +112,7 @@ function computedStateKeys(source) {
       for (const arg of splitArguments(args)) {
         const text = arg.trim();
         if (!text) continue;
-        if (text[0] !== '{' || closeBracket(text, 0) !== text.length) { n++; continue; }
+        if (text[0] !== '{' || closeBracket(text, 0) !== text.length) { n++; opaque = true; continue; }
         const body = text.slice(1, -1);
         for (const entry of splitArguments(body)) {
           const key = entry.trim();
@@ -120,6 +121,18 @@ function computedStateKeys(source) {
         }
       }
     } else if (!STATIC_KEY.test(firstArgument(args))) n++;
+  }
+  // An opaque source cannot be traced lexically, so a file that has one also counts every computed
+  // object-literal key it contains: adding [cashKey(owner)]: v to the patch's producer then moves
+  // the baseline instead of hiding behind the single opaque count.
+  if (opaque) n += computedLiteralKeys(source);
+  return n;
+}
+function computedLiteralKeys(source) {
+  let n = 0;
+  for (const m of source.matchAll(/[{,]\s*\[/g)) {
+    const open = m.index + m[0].length - 1, close = closeBracket(source, open);
+    if (close > 0 && /^\s*:/.test(source.slice(close, close + 4))) n++;
   }
   return n;
 }
@@ -177,8 +190,11 @@ assert.equal(computedStateKeys('let root;x.root = this.g;root[k]=1;root == this.
 assert.equal(computedStateKeys('Object.assign(g,{settings:{[id]:v}});Object.assign(g,{a:[{[k]:1}]});'), 0);
 // Codex P1: a source that is not an object literal (a patch built elsewhere, a call result) or a
 // spread inside a literal is opaque and counts once.
-assert.equal(computedStateKeys('const patch={[cashKey(owner)]:next};Object.assign(g,patch);'), 1);
-assert.equal(computedStateKeys('Object.assign(this.g,{a:1},f({[j]:2}));Object.assign(state,{...patch,b:1});'), 2);
+// The opaque call counts once and, because the file has an opaque source, so does every computed
+// literal key in it: changing the producer of an already-counted patch moves the count.
+assert.equal(computedStateKeys('const patch={a:1};Object.assign(g,patch);'), 1);
+assert.equal(computedStateKeys('const patch={a:1,[cashKey(owner)]:next};Object.assign(g,patch);'), 2);
+assert.equal(computedStateKeys('Object.assign(this.g,{a:1},f({[j]:2}));Object.assign(state,{...patch,b:1});'), 3); // two opaque sources + the file's computed literal key {[j]:2}
 assert.equal(computedStateKeys('Object.assign(g,{a:{b:1},[k]:2},{c:{[x]:1},[y]:3});'), 2);
 
 const baseline = JSON.parse(fs.readFileSync(BASELINE, 'utf8'));
