@@ -75,4 +75,37 @@ assert.equal(legacy.g.personalDebt,10_000_000);
 assert.equal(legacy.repay(10_000_000,'personal'),true,'legacy untracked loan is outside personalDebt and must not reserve it');
 assert.equal(legacy.g.personalDebt,0);
 assert.equal(legacy.g.realEstateMarket.loans.find(l=>l.id==='RELOAN-3-9').balance,30_000_000,'legacy specialist loan is untouched');
+// A loan that defaults after eight missed payments stays reserved from generic repay, so the
+// specialist writer must settle it once cash is restored (Codex P1, #1015).
+{
+  const d=new engineModule.TycoonEngine(JSON.parse(JSON.stringify(g))),dg=d.g;
+  const target=dg.realEstateMarket.loans.find(l=>l.id===loan.id);
+  dg.personalCash=0;
+  for(let w=11;w<=18;w++){dg.week=w;modules.realEstateCompleteCycle.processLoans(dg);}
+  assert.equal(target.status,'defaulted','eight missed payments default the loan');
+  const balance=target.balance,debt=dg.personalDebt;
+  dg.personalCash=60_000_000;
+  const defaulted=JSON.stringify(dg);
+  assert.equal(d.repay(1_000_000,'personal'),false,'a defaulted secured loan stays reserved from generic repay');
+  assert.equal(JSON.stringify(dg),defaulted);
+  const save=d.save;d.save=()=>false;
+  try{assert.equal(d.prepayRealEstateLoan(target.id,1_000_000),false,'save failure must refuse the settlement');}finally{d.save=save;}
+  assert.equal(JSON.stringify(dg),defaulted,'save failure must roll the settlement back');
+  assert.equal(d.prepayRealEstateLoan(target.id,1_000_000),true,'specialist prepayment settles part of a defaulted loan');
+  const live=dg.realEstateMarket.loans.find(l=>l.id===loan.id);
+  assert.equal(live.balance,balance-1_000_000);
+  assert.equal(live.status,'defaulted','a partial payment does not cure the default');
+  assert.equal(dg.personalDebt,debt-1_000_000);
+  assert.equal(dg.personalCash,59_000_000);
+  assert.equal(d.prepayRealEstateLoan(target.id,balance),true,'the remaining balance is settled through the same writer');
+  const settled=dg.realEstateMarket.loans.find(l=>l.id===loan.id);
+  assert.equal(settled.balance,0);
+  assert.equal(settled.status,'paid');
+  assert.equal(dg.personalDebt,debt-balance);
+  assert.equal(dg.personalDebt,dg.realEstateMarket.loans.filter(l=>l.owner==='personal'&&l.accountingTracked===true&&l.balance>0).reduce((s,l)=>s+l.balance,0),'personalDebt matches the remaining tracked loans');
+  assert.equal(JSON.stringify({cash:dg.companyCash,debt:dg.companyDebt}),JSON.stringify({cash:g.companyCash,debt:g.companyDebt}),'no company effects');
+  const reloaded=new engineModule.TycoonEngine(JSON.parse(JSON.stringify(dg)));
+  assert.equal(reloaded.g.realEstateMarket.loans.find(l=>l.id===loan.id).status,'paid','settlement persists across reload');
+  assert.equal(reloaded.g.personalDebt,dg.personalDebt);
+}
 console.log('P4-AUD-004 personal secured-principal guard and save/reload PASS');
