@@ -6,10 +6,10 @@ name: vNext isolated proof (experimental)
 on:
   push:
     branches:
-      - 'experiment/economic-engine-vnext-inventory-ap-*'
+      - 'experiment/economic-engine-vnext-operating-*'
   pull_request:
     branches:
-      - 'experiment/economic-engine-vnext-ci-proof-*'
+      - 'experiment/economic-engine-vnext-inventory-ap-*'
     paths:
       - '.github/workflows/vnext-isolated-proof.yml'
 
@@ -33,7 +33,7 @@ jobs:
         run: |
           git rev-parse HEAD
           node --version
-      - name: Execute all nine experimental suites in actual Node
+      - name: Execute all ten experimental suites in actual Node
         shell: bash
         run: |
           set -euo pipefail
@@ -46,7 +46,8 @@ jobs:
             legacy-crosswalk.test.cjs \
             legacy-13week-capture.test.cjs \
             legacy-observation-analysis.test.cjs \
-            inventory-ap.test.cjs
+            inventory-ap.test.cjs \
+            operating.test.cjs
           do
             echo "::group::Direct Node: $script"
             node "experiments/economic-engine-vnext/$script"
