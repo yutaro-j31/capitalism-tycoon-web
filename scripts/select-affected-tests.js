@@ -6,10 +6,12 @@
 //
 //   node scripts/select-affected-tests.js [--base origin/main] [--run] [--jobs 4] [--json] [--broad]
 //
+// Test files are collected from the canonical registry: literal paths in tests/run-all.js plus every
+// `node <file>` inside the package.json scripts that run-all.js (or a workflow) calls via `npm run`.
 // A test is selected when any of these holds for a changed file:
-//   1. the changed file is itself a test (tests/*-test.js);
-//   2. a workflow path filter matches it: every `node tests/…-test.js` step in that workflow is
-//      selected (directory-wide filters such as js/** only with --broad);
+//   1. the changed file is itself a canonical or workflow test;
+//   2. a workflow path filter matches it: every node test the workflow runs, directly or through
+//      `npm run`, is selected (directory-wide filters such as js/** only with --broad);
 //   3. it is a production module (js/<name>.js): every canonical test whose source mentions
 //      `<name>.js`, `<name>` or the module's camelCase registry key;
 //   4. always-on contracts: test registration, shard matrix and workflow path contracts, plus the
@@ -39,6 +41,21 @@ function changedFiles() {
   return [...new Set([...committed, ...local, ...untracked].filter(Boolean))].sort();
 }
 function exists(file) { return fs.existsSync(path.join(ROOT, file)); }
+// `node [flags] <file>` invocations in a shell command; flags such as --max-old-space-size are kept.
+const NODE_RUN = /node((?:\s+--[\w=-]+)*)\s+((?:tests|scripts)\/[\w./-]+\.c?js)/g;
+const FLAGS = new Map();
+function nodeRuns(text) {
+  return [...text.matchAll(NODE_RUN)].map(m => { const flags = m[1].trim().split(/\s+/).filter(Boolean); if (flags.length) FLAGS.set(m[2], flags); return m[2]; });
+}
+let scripts;
+function npmScript(name) {
+  scripts ??= JSON.parse(fs.readFileSync(path.join(ROOT, 'package.json'), 'utf8')).scripts || {};
+  return nodeRuns(scripts[name] || '');
+}
+// Node tests a command text runs, through literal `node` steps and `npm run <script>`.
+function testsIn(text) {
+  return [...nodeRuns(text), ...[...text.matchAll(/npm run ([\w:.-]+)/g)].flatMap(m => npmScript(m[1]))];
+}
 function camel(name) { return name.replace(/-([a-z0-9])/g, (_, c) => c.toUpperCase()); }
 function globToRegExp(glob) {
   const body = glob.replace(/[.+^${}()|[\]\\]/g, '\\$&').replace(/\*\*/g, '\u0000').replace(/\*/g, '[^/]*').replace(/\u0000/g, '.*');
@@ -58,8 +75,7 @@ function workflows() {
       if (item) patterns.add(item[1]);
       else if (inPaths && line.trim()) inPaths = false;
     }
-    const tests = [...new Set([...text.matchAll(/node(?:\s+--[\w=-]+)*\s+(tests\/[\w./-]+\.js)/g)].map(m => m[1]))]
-      .filter(t => /-(test|contract)\.js$/.test(t));
+    const tests = [...new Set(testsIn(text))].filter(exists);
     // A directory-wide filter (e.g. js/**) guards a broad campaign; only --broad selects it.
     return { name, patterns: [...patterns].map(p => ({ glob: p, re: globToRegExp(p), broad: /^[\w.-]+\/\*\*$/.test(p) })), tests };
   }).filter(w => w.patterns.length);
@@ -67,7 +83,9 @@ function workflows() {
 
 function canonicalTests() {
   const source = fs.readFileSync(path.join(ROOT, 'tests', 'run-all.js'), 'utf8');
-  return [...new Set([...source.matchAll(/['"](tests\/[\w./-]+\.js)['"]/g)].map(m => m[1]))].filter(exists);
+  const literal = [...source.matchAll(/['"]((?:tests|scripts)\/[\w./-]+\.c?js)['"]/g)].map(m => m[1]);
+  const viaNpm = [...source.matchAll(/['"](test:[\w:.-]+)['"]/g)].flatMap(m => npmScript(m[1]));
+  return [...new Set([...literal, ...viaNpm])].filter(exists);
 }
 
 function select(files) {
@@ -76,13 +94,15 @@ function select(files) {
   ALWAYS.forEach(t => add(t, 'always-on contract'));
   const production = files.filter(f => /^js\/[\w.-]+\.js$/.test(f));
   if (production.length) ON_PRODUCTION_CHANGE.forEach(t => add(t, 'production source changed'));
-  for (const file of files) if (/^tests\/.+-test\.js$/.test(file)) add(file, 'changed test');
-  for (const w of workflows()) {
+  const flows = workflows(), canonical = canonicalTests();
+  const runnable = new Set([...canonical, ...flows.flatMap(w => w.tests)]);
+  for (const file of files) if (runnable.has(file)) add(file, 'changed test');
+  for (const w of flows) {
     const hit = files.find(f => w.patterns.some(p => (!p.broad || BROAD) && p.re.test(f)));
     if (hit) w.tests.forEach(t => add(t, `${w.name} paths: ${hit}`));
   }
   if (production.length) {
-    const corpus = canonicalTests().map(t => ({ t, text: fs.readFileSync(path.join(ROOT, t), 'utf8') }));
+    const corpus = canonical.map(t => ({ t, text: fs.readFileSync(path.join(ROOT, t), 'utf8') }));
     for (const file of production) {
       const base = path.basename(file, '.js'), key = camel(base);
       for (const { t, text } of corpus) if (text.includes(`${base}.js`) || new RegExp(`modules\\??\\.${key}\\b`).test(text)) add(t, `references ${file}`);
@@ -105,7 +125,7 @@ function runAll(tests) {
       while (active < JOBS && queue.length) {
         const test = queue.shift(), started = Date.now();
         active++;
-        const child = childProcess.spawn(process.execPath, [test], { cwd: ROOT, stdio: ['ignore', 'pipe', 'pipe'] });
+        const child = childProcess.spawn(process.execPath, [...(FLAGS.get(test) || []), test], { cwd: ROOT, stdio: ['ignore', 'pipe', 'pipe'] });
         let tail = '';
         const keep = chunk => { tail = (tail + chunk).slice(-4000); };
         child.stdout.on('data', keep); child.stderr.on('data', keep);
@@ -121,7 +141,7 @@ function runAll(tests) {
   });
 }
 
-module.exports = { select, globToRegExp, camel };
+module.exports = { select, globToRegExp, camel, canonicalTests };
 
 if (require.main === module) {
   const plan = select(changedFiles());

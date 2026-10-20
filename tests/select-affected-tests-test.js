@@ -2,7 +2,7 @@
 // The local affected-test selector must stay a safe superset of what a change needs: contracts always,
 // acceptance gates on any production source change, and every workflow step guarded by a matching path.
 const assert = require('node:assert/strict');
-const { select, globToRegExp, camel } = require('../scripts/select-affected-tests');
+const { select, globToRegExp, camel, canonicalTests } = require('../scripts/select-affected-tests');
 
 assert.equal(globToRegExp('js/**').test('js/a/b.js'), true);
 assert.equal(globToRegExp('js/*.js').test('js/a/b.js'), false);
@@ -29,4 +29,17 @@ assert.ok(names(changedTest).includes('tests/store-equipment-test.js'), 'a chang
 const guarded = select(['js/ma-acquisition-financing.js']);
 assert.ok(guarded.node.some(row => row.reasons.some(r => r.startsWith('ma-acquisition-financing.yml paths'))));
 assert.ok(guarded.webkit.length > 0, 'workflow WebKit steps are listed for a WebKit-capable run');
+
+// Workflow steps that call `npm run <script>` expand to the node tests inside that script.
+for (const test of ['tests/ma-acquisition-financing-test.js', 'tests/ma-acquisition-financing-capacity-test.js'])
+  assert.ok(guarded.node.some(row => row.test === test), `npm-run workflow step expands to ${test}`);
+
+// Canonical tests reached only through package.json scripts count as module references.
+assert.ok(canonicalTests().includes('tests/market-engine-test.js'), 'test:market expands into the canonical corpus');
+assert.ok(names(select(['js/market.js'])).includes('tests/market-engine-test.js'), 'market module change selects its npm-script test');
+
+// A changed canonical executable is selected even without the -test.js suffix.
+const probe = 'tests/vc-secondary-sale-save-false-red-probe.js';
+assert.ok(canonicalTests().includes(probe), 'probe is canonical');
+assert.ok(names(select([probe])).includes(probe), 'a changed canonical probe selects itself');
 console.log('select-affected-tests PASS');
