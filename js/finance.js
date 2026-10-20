@@ -57,7 +57,16 @@ function stockBook(g){return Object.entries((g.companyStocks&&typeof g.companySt
 const FOUNDER_LOAN_SOURCE='founderShareholderLoan';
 function isFounderLoan(loan){return loan?.sourceType===FOUNDER_LOAN_SOURCE;}
 function founderLoanReceivable(g){return (Array.isArray(g?.finance?.loans)?g.finance.loans:[]).filter(l=>isFounderLoan(l)&&l.status==='active').reduce((a,l)=>a+Math.max(0,n(l.outstandingPrincipal)),0);}
-function settleLoanPrincipal(g,loan,paid){paid=Math.max(0,n(paid));if(!isFounderLoan(loan)||paid<=0)return 0;g.personalCash=n(g.personalCash)+paid;return paid;}
+function settleLoanPrincipal(g,loan,paid){
+  paid=Math.max(0,n(paid));if(paid<=0)return 0;
+  // Generic repayment has already reduced this finance row. Keep the matching company
+  // property service contract in sync before its next weekly payment; no second cash/ledger effect.
+  if(loan?.sourceType==='propertySecuredLoan'){
+    const mirror=(Array.isArray(g.realEstateMarket?.loans)?g.realEstateMarket.loans:[]).find(l=>l.id===loan.loanID&&l.owner==='company'&&l.accountingTracked===true);
+    if(mirror){mirror.balance=Math.max(0,n(loan.outstandingPrincipal));if(mirror.balance<=0)mirror.status='paid';}
+  }
+  if(!isFounderLoan(loan))return 0;g.personalCash=n(g.personalCash)+paid;return paid;
+}
 // Loans that bank-loans-covenants.js services itself (contractual interest + principal every
 // week) must not also carry the engine's generic interest on companyDebt (#735). A defaulted or
 // workout gym/property loan is not serviced there, so it stays in the generic pool: one charge either way.
