@@ -173,4 +173,35 @@ assert.throws(()=>vm.runInNewContext(src,ctx),/already registered/);
  const closed=project(copy(e.g));assert.equal(closed.fundInterests[0].current,true);assert.equal(closed.managementRelationships[0].current,true);assert.equal(closed.portfolioParticipations[0].current,true);assert.equal(closed.portfolioParticipations[0].fundProceedsFraction,25/35);
  f.deals[0].status='exited';assert.equal(project(copy(e.g)).portfolioParticipations[0].fundProceedsFraction,null);
 }
+// Closed-fund currentness is reconciled even without deal evidence: validated positive cash keeps the
+// claim live, and the missing deal collection keeps the interest explicitly unresolved.
+for(const deals of [undefined,'bad',{length:1}]){
+ const s=state(),f=s.peFirm.funds[0];f.status='closed';f.cash=40;
+ if(deals===undefined)delete f.deals;else f.deals=deals;
+ const r=project(s);
+ assert.equal(r.fundInterests[0].current,true,'validated cash proves a live closed-fund claim without deals');
+ assert.equal(r.managementRelationships[0].current,true);
+ assert.equal(r.fundInterests[0].status,'unresolved','missing deal evidence stays unresolved');
+ assert.equal(r.managementRelationships[0].status,'unresolved');
+ assert.equal(r.portfolioParticipations.length,0);
+}
+{
+ const s=state(),f=s.peFirm.funds[0];f.status='closed';f.cash=0;delete f.deals;
+ const r=project(s);assert.equal(r.fundInterests[0].current,false,'zero cash and unknown deals cannot prove a live claim');
+ assert.equal(r.fundInterests[0].status,'unresolved','unknown deals cannot prove the claim is finished either');
+}
+// A validly active, unsettled deal proves an outstanding asset even when its allocation or identity is
+// unresolved; the participation itself stays unresolved with no inferred fractions.
+for(const damage of [d=>{d.fundPortion='25';},d=>{d.investedAmount=99;},d=>{delete d.id;}]){
+ const s=state(),f=s.peFirm.funds[0];f.status='closed';f.cash=0;damage(f.deals[0]);
+ const r=project(s);
+ assert.equal(r.fundInterests[0].current,true,'active lifecycle keeps the closed fund current');
+ assert.equal(r.managementRelationships[0].current,true);
+ assert.equal(r.portfolioParticipations[0].current,false);assert.equal(r.portfolioParticipations[0].assetRole,'unresolved');
+ assert.equal(r.portfolioParticipations[0].fundProceedsFraction,null);
+}
+{
+ const s=state(),f=s.peFirm.funds[0];f.status='closed';f.cash=0;f.deals[0].status='exited';f.deals[0].fundPortion='25';
+ assert.equal(project(s).fundInterests[0].current,false,'an exited deal with bad allocation proves nothing outstanding');
+}
 console.log('PASS P3-7 fund interests: account separation, source-exact capital, coinvest, historical distributions, malformed evidence, purity, v9 and installed writer');

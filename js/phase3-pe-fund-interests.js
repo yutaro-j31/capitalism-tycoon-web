@@ -101,13 +101,14 @@
         if(r.ok&&r.present&&!finiteNonnegative(r.value))errors.push(issue('AMOUNT_UNKNOWN',`${path}.${key}`));}
       result.distributionEvidence.push(paid);
       const dealsField=safeField(fund,'deals',path,errors);
-      if(!dealsField.ok)continue;
-      if(!dealsField.present){errors.push(issue('SOURCE_UNKNOWN',`${path}.deals`));continue;}
-      const deals=inspectArray(dealsField.value,`${path}.deals`,errors,500);
-      if(!deals)continue;
+      if(dealsField.ok&&!dealsField.present)errors.push(issue('SOURCE_UNKNOWN',`${path}.deals`));
+      const deals=dealsField.ok&&dealsField.present?inspectArray(dealsField.value,`${path}.deals`,errors,500):null;
+      // A closed fund is still reconciled when its deal collection is unavailable: validated cash can
+      // prove a live claim, while the missing collection keeps the interest unresolved.
+      let liveDeal=false;
+      if(deals){
       const dealIds=deals.map((deal,j)=>plain(deal)?requireId(deal,'id',`${path}.deals[${j}]`,errors):null);
       const counts=unique(dealIds.map(id=>({id})),r=>r.id,errors,`${path}.deals`);
-      const participationStart=result.portfolioParticipations.length;
       for(let j=0;j<deals.length;j++){
         const deal=deals[j],dealPath=`${path}.deals[${j}]`,dealId=dealIds[j];
         if(!plain(deal)){errors.push(issue('INPUT_INVALID',dealPath));continue;}
@@ -128,12 +129,16 @@
           fundProceedsFraction:known?fundPortion/invested:null,externalCoinvestProceedsFraction:known?coinvestPortion/invested:null,
           legalEquityFraction:null,votingFraction:null,issuerId:null,founderBeneficialFraction:null,
           wealthValue:null,sourceStatus:typeof dealStatus==='string'?dealStatus:null});
+        // Currentness needs only a validated unsettled lifecycle; allocation and identity gaps leave the
+        // participation row unresolved but still prove that an asset is outstanding.
+        if(active&&settled.ok&&!settlementMalformed)liveDeal=true;
+      }
       }
       if(supported&&status==='closed'){
         const cash=requireNumber(fund,'cash',path,errors);
-        const outstanding=result.portfolioParticipations.slice(participationStart).some(row=>row.current)||(cash!==null&&cash>0);
+        const outstanding=liveDeal||(cash!==null&&cash>0);
         interest.current=outstanding;if(manager)manager.current=outstanding;
-        if(cash===null){interest.status='unresolved';if(manager)manager.status='unresolved';}
+        if(cash===null||!deals){interest.status='unresolved';if(manager)manager.status='unresolved';}
       }
     }
     result.fundInterests.sort((a,b)=>textOrder(a.fundId||'',b.fundId||'')||textOrder(a.sourcePath,b.sourcePath));
