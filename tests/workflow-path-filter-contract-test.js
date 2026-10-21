@@ -170,6 +170,7 @@ assert.deepEqual(pathsFor(comprehensiveMa, 'pull_request'), [
   'js/shareholder-activism.js', 'tests/shareholder-activism-accept-save-atomicity-test.js', 'tests/shareholder-activism-accept-save-atomicity-webkit-test.js', 'tests/shareholder-activism-split-integration-test.js',
   'tests/stock-split-dividend-rescale-test.js', 'tests/stock-split-dividend-rescale-webkit-test.js',
   'tests/stock-split-price-floor-test.js', 'tests/stock-split-price-floor-webkit-test.js',
+  'tests/p4-aud-004-personal-secured-repayment-webkit-test.js', 'tests/p4-aud-004-personal-secured-repayment-test.js', 'js/real-estate-complete-cycle.js', 'js/real-estate-complete-cycle-ui.js',
   'tests/founder-capital-atomicity-webkit-test.js',
   'tests/fixtures/stock-split-atomicity.js',
   'tests/property-debt-principal-sync-test.js', 'tests/property-debt-principal-sync-webkit-test.js', 'tests/fixtures/property-debt-principal-sync.js', 'js/treasury-prepayment.js', 'js/player-debt-service.js', 'js/real-estate-complete-cycle.js',
@@ -426,7 +427,7 @@ const preSplitDealRoomWebkit = [
   // Added after the Phase 1A split: activist proposal acceptance atomicity (#953), run by stock-split-atomicity on every event.
   'tests/shareholder-activism-accept-save-atomicity-webkit-test.js',
   // Added after the Phase 1A split: stock split dividend rescale, run by stock-split-atomicity on every event.
-  'tests/stock-split-dividend-rescale-webkit-test.js', 'tests/stock-split-price-floor-webkit-test.js', 'tests/founder-capital-atomicity-webkit-test.js', 'tests/debt-command-save-atomicity-webkit-test.js', 'tests/property-debt-principal-sync-webkit-test.js'
+  'tests/stock-split-dividend-rescale-webkit-test.js', 'tests/stock-split-price-floor-webkit-test.js', 'tests/p4-aud-004-personal-secured-repayment-webkit-test.js', 'tests/founder-capital-atomicity-webkit-test.js', 'tests/debt-command-save-atomicity-webkit-test.js', 'tests/property-debt-principal-sync-webkit-test.js'
 ];
 const preSplitComprehensiveWebkit = [
   // P4-AUD-008 adds this regression without moving or removing any existing family.
@@ -475,7 +476,7 @@ const preSplitComprehensiveWebkit = [
   // Added after the Phase 1A split: activist proposal acceptance atomicity (#953), run by stock-split-atomicity on every event.
   'tests/shareholder-activism-accept-save-atomicity-webkit-test.js',
   // Added after the Phase 1A split: stock split dividend rescale, run by stock-split-atomicity on every event.
-  'tests/stock-split-dividend-rescale-webkit-test.js', 'tests/stock-split-price-floor-webkit-test.js', 'tests/founder-capital-atomicity-webkit-test.js', 'tests/debt-command-save-atomicity-webkit-test.js', 'tests/property-debt-principal-sync-webkit-test.js'
+  'tests/stock-split-dividend-rescale-webkit-test.js', 'tests/stock-split-price-floor-webkit-test.js', 'tests/p4-aud-004-personal-secured-repayment-webkit-test.js', 'tests/founder-capital-atomicity-webkit-test.js', 'tests/debt-command-save-atomicity-webkit-test.js', 'tests/property-debt-principal-sync-webkit-test.js'
 ];
 // Node (non-WebKit) commands per event, compared against the pre-split jobs (Phase 1B).
 const nodeCommands = block => [...block.matchAll(/(npm run test:[\w:-]+|node tests\/[\w.-]+\.js)/g)].map(match => match[1]).filter(command => !command.endsWith('-webkit-test.js'));
