@@ -99,7 +99,8 @@ function ownershipFingerprint(rawState,index){
  try{return JSON.stringify(readModel.projectOwnershipSnapshot(rawState,index));}catch(_){return null;}
 }
 // Canonical liability identity: a supplied 'personal-debt' names the captured 'liability:personal-debt'.
-function bareLiabilityKey(key){return key.replace(/^liability:/,'').replace(/^supplied:/,'');}
+// Surrounding whitespace is not identity: validation accepts it, so grouping must ignore it too.
+function bareLiabilityKey(key){return key.trim().replace(/^liability:/,'').replace(/^supplied:/,'').trim();}
 // One unknown ALIAS_CONFLICT entry for a set of rows sharing one identity; sorted refs make it order-independent.
 function collapse(members,key,keyField,fields,message){
  const refs=members.flatMap(row=>row.sourceRefs).map(r=>({...r})).sort((a,b)=>a.path<b.path?-1:a.path>b.path?1:0);
@@ -230,11 +231,13 @@ function captureFounderWealthEvidence(rawState,externalEvidence){
   let code=null;
   if(price===undefined||price===null||!rows.length)code='VALUATION_INCOMPLETE';
   else if(rows.length>1||!valid(price)||!valid(rows[0].row.price)||rows[0].row.price!==price)code='VALUATION_SOURCE_CONFLICT';
+  // Same rule as the ownership listing adapter: a present listing flag must be boolean, or the status is unknown.
+  else if(![rows[0].row.privateCompany,rows[0].row.suspended].every(x=>x===undefined||x===null||typeof x==='boolean'))code='INPUT_INVALID';
   else if(rows[0].row.privateCompany===true||rows[0].row.suspended===true)code='VALUATION_INCOMPLETE';
   const refs=[ref('stockPrice',null,'player'),...rows.map(item=>ref(item.path,item.row.id,'listed'))];
   valuation.entries.push({valuationKey:'quote:own-company',assetKey:'own-company',kind:'marketPrice',value:code?null:price,currency:JPY,provenance:'captured',
    sourceMethod:'stockPrice+designated-market-row',sourceVersion:1,asOfWeek:week,coveredAssets:[],coveredLiabilities:[],sourceRefs:refs,status:code?'unknown':'known',
-   reasons:code?[reason(code,'stockPrice',code==='VALUATION_SOURCE_CONFLICT'?'Own-company stockPrice and the designated market row disagree, repeat or are invalid; no quote is chosen.':'Own-company quote or its active listing row is missing.',refs.map(r=>r.path))]:[]});
+   reasons:code?[reason(code,'stockPrice',code==='VALUATION_SOURCE_CONFLICT'?'Own-company stockPrice and the designated market row disagree, repeat or are invalid; no quote is chosen.':code==='INPUT_INVALID'?'The designated market row carries a non-boolean listing flag; its listing status is unknown.':'Own-company quote or its active listing row is missing.',refs.map(r=>r.path))]:[]});
  }
  for(const lot of ownership.listed){
   const observation=ownership.listingObservations.find(row=>row.alias===lot.alias);

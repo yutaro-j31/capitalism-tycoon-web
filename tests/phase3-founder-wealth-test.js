@@ -290,6 +290,27 @@ function noReference(value,target,seen=new Set()){
  s.finance.loans=[{loanID:'L1',sourceType:'founderShareholderLoan',status:'active',outstandingPrincipal:50}];
  assert.equal(comp(project(s),'asset:founder-loan:L1').amountJPY,50);
 }
+// 10. Whitespace around a supplied liability key does not escape its identity group (dff1a3f review).
+{
+ const s=fixture();Object.assign(s,{publicCompany:false,treasuryBuybackShares:0,founderShares:600,personalStocks:{}});
+ for(const key of [' personal-debt','personal-debt ',' liability:personal-debt','liability: personal-debt']){
+  const r=project(s,{liabilities:[{liabilityKey:key,amount:30,currency:'JPY',sourceMethod:'x'}]});
+  const pd=r.components.filter(c=>c.componentId==='liability:personal-debt'||/personal-debt/.test(c.componentId));
+  assert.equal(pd.length,1,`${JSON.stringify(key)}: one personal-debt component`);
+  assert.equal(pd[0].amountJPY,null);deq(codes(pd[0].reasons),['ALIAS_CONFLICT']);
+  assert.equal(r.knownNetWorth,10,`${JSON.stringify(key)}: the debt is not subtracted twice`);
+ }
+}
+// 11. A non-boolean listing flag on the designated market row leaves the own-company quote unknown (dff1a3f review).
+{
+ for(const change of [r=>{r.privateCompany='false';},r=>{r.suspended=1;},r=>{r.suspended='no';},r=>{r.privateCompany=0;}]){
+  const s=fixture();change(s.market[0]);const own=comp(project(s),'asset:own-company');
+  assert.equal(own.amountJPY,null);assert(own.reasons.length>0);
+ }
+ for(const change of [r=>{r.privateCompany=false;},r=>{r.suspended=null;},r=>{}]){
+  const s=fixture();change(s.market[0]);assert.equal(comp(project(s),'asset:own-company').amountJPY,10000);
+ }
+}
 // Founder loans, margin, liability mirrors, VC/angel/PE families and the company/personal boundary.
 {
  const s=fixture();
