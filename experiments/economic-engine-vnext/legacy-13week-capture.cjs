@@ -19,10 +19,12 @@ function sourceSnapshot(game,storeID){
  const orders=Array.isArray(game.purchaseOrders)?
   game.purchaseOrders.filter(p=>p&&p.storeID===storeID).map(p=>({
    orderID:p.orderID,storeID:p.storeID,businessID:p.businessID,
-   supplierID:p.supplierID,materialID:p.materialID,
+   supplierID:p.supplierID,supplierContractID:p.supplierContractID??null,
+   materialID:p.materialID,isEmergency:p.isEmergency===true,
    orderWeek:p.orderWeek,receivedCost:p.receivedCost,paidAmount:p.paidAmount,
    receivedQuantity:p.receivedQuantity,unitCost:p.unitCost,
-   paymentDueWeek:p.paymentDueWeek,orderStatus:p.orderStatus,paymentStatus:p.paymentStatus
+   paymentDueWeek:p.paymentDueWeek,paymentTermsWeeks:p.paymentTermsWeeks,
+   orderStatus:p.orderStatus,paymentStatus:p.paymentStatus
   })).sort((a,b)=>String(a.orderID).localeCompare(String(b.orderID))):null;
  const inv=game.inventoryByStoreID?.[storeID];
  const lots=inv?.materials?Object.entries(inv.materials).flatMap(([materialID,m])=>(m.lots||[]).map(l=>({
