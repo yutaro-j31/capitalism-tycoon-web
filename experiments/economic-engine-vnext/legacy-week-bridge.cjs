@@ -10,6 +10,13 @@ const asMinor=(x,label)=>{
  return rounded;
 };
 const ensure=(x,msg)=>{if(!x)throw Error(msg)};
+const observedMinor=(x,label)=>{
+ if(typeof x!=='number'||!Number.isFinite(x))throw Error('invalid-'+label);
+ const rounded=Math.round(x*100);
+ // Only opening/closing float-derived company cash may have sub-cent numerical noise.
+ if(!Number.isSafeInteger(rounded)||Math.abs(x-rounded/100)>0.00001)throw Error('material-float-drift-'+label);
+ return rounded;
+};
 const categories=reference.categories;
 const oneWeek=['revenue','costOfSales','rent','payroll','maintenance','depreciation'];
 const toKind=x=>{
@@ -113,7 +120,7 @@ function verifyObservation(observation, pinned=reference){
   ensure(total.profitMinor===pinned.totals.storeProfitMinor,'aggregate-store-profit');
   ensure(total.rows===pinned.totals.rows,'aggregate-row-count');
   ensure(total.depreciationMinor===pinned.totals.depreciationMinor,'aggregate-depreciation');
-  const companyDelta=asMinor(cash.closing-cash.opening,'company-delta');
+  const companyDelta=observedMinor(cash.closing-cash.opening,'company-delta');
   ensure(companyDelta===pinned.totals.companyCashDeltaMinor,'aggregate-company-cash');
   return {status:'SOURCE_ALIGNED_PARTIAL',weeks:13,storeRows:total.rows,
    sourceCashMinor:total.cashMinor,sourceProfitMinor:total.profitMinor,
