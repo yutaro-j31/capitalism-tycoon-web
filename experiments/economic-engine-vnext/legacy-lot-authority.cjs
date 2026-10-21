@@ -77,7 +77,7 @@ function auditSource(source,financing){
     const old=allPOs.get(id);
     if(old)check(old.supplierID===o.supplierID&&old.materialID===o.materialID
       &&old.storeID===o.storeID,'purchase-order-source-changed');
-    else allPOs.set(id,{supplierID:o.supplierID,materialID:o.materialID,
+    else allPOs.set(id,{storeID:o.storeID,supplierID:o.supplierID,materialID:o.materialID,
       supplierContractID:o.supplierContractID,isEmergency:o.isEmergency===true});
    }
    for(const [id,c]of image.contracts){
