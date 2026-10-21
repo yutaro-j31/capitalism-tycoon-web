@@ -47,9 +47,13 @@ The vNext SPIKE-3/4/5 prototype itself **has not replayed each authentic legacy 
 
 **Six explicit blockers remain:** unknown legal counterparties; non-authenticated opening inventory/AP; no actual vNext transaction-by-transaction application; eleven non-store corporate finance rows outside scope; asset acquisition outside source window; real durable storage not tested. Real browser/IndexedDB recovery, tax, saved-state migration and scale are likewise unproven.
 
+### Individual receipt cryptographic evidence
+
+The committed reference now also pins **13 SHA-256 digests** calculated from the 138 authentic source receipts, canonicalized in each game week by transaction operation ID. Each normalized row includes the source receipt ID/type, store/business identity, all signed accounting amounts and fixed-asset book/evidence fields (if present). The authentic runner recomputes and validates these hashes after posting the full 13 weeks; an offsetting two-receipt alteration no longer escapes by keeping week/category totals constant. The **original source JSON SHA-256** remains recorded above. This still proves source-data reproducibility, **not a vNext multi-entity ledger replay**.
+
 ## Verification and CI policy
 
-Prior source #1059 successfully ran **274/274 direct Node 22 tests** and its legacy observer job. This SPIKE adds **19** new source-bridge detector tests for a total of **293** tests (subject to actual new HEAD proof).
+Prior source #1059 successfully ran **274/274 direct Node 22 tests** and its legacy observer job. This SPIKE adds **21** new source-bridge detector tests for a total of **295** tests (subject to actual new HEAD proof).
 
 The separate experiment-only workflow is necessarily located in `.github/workflows` and is the eighth workflow file, while the current mainline `tests/workflow-path-filter-contract-test.js` requires exactly seven. Thus this experiment-only draft can show a **known `release-readiness` failure (`8 !== 7`)** even when its direct Node proof and real observation bridge pass. Do not modify the production CI contract or merge an experiment-only workflow into main. Do not claim the whole PR CI is green.
 
