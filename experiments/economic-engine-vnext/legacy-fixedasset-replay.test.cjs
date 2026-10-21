@@ -76,8 +76,11 @@ test('credit receipt value remains exactly source-authenticated',()=>{
  assert.equal(e.length,31);assert.equal(e.reduce((n,r)=>n+r.postings[0].deltaMinor,0),617170756);
 });
 test('source operation ID is immutably mapped to core legal ID by SHA256',()=>{
- const x=accepted(),r=x.sourceToCore[0];
- assert.equal(r.id,'leg-'+crypto.createHash('sha256').update(r.sourceOperationID).digest('hex').slice(0,32));
+ const x=accepted();
+ for(const r of x.sourceToCore){
+  const prefix=r.kind==='depreciation'?'as-':'leg-';
+  assert.equal(r.id,prefix+crypto.createHash('sha256').update(r.sourceOperationID).digest('hex').slice(0,32));
+ }
 });
 test('data ordering reproduces exact immutable journal',()=>{
  const a=accepted(),b=accepted();assert.deepEqual(a.journal,b.journal);
