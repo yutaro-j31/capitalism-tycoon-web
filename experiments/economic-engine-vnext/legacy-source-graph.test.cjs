@@ -30,7 +30,7 @@ function scenario(){
  });
  const depreciation=Array.from({length:13},(_,i)=>({
   week:5+i,storeID:'store-s2',businessID:'ramen',category:'depreciation',
-  fixedAssetEvidence:{bookBefore:1000-i*10,bookAfter:990-i*10}
+  fixedAssetEvidence:{bookBefore:1000-i*10,bookAfter:990-i*10,accumulatedBefore:100+i*10,accumulatedAfter:110+i*10}
  }));
  return {observedStore:{id:'store-s2',businessID:'ramen'},observedWeeks:[5,17],
   storeWeeklyRows:rows.concat(depreciation),
