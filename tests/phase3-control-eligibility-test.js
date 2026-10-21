@@ -162,6 +162,15 @@ for(const bad of [null,[],'x',42,new Map()])unknown(project(bad,scope),'INPUT_IN
   const ok=snapshot({issued:300,treasury:0,held:10});ok.unresolvedAliases=[base];
   assert.equal(project(ok,scope).status,'EVALUATED');
 }
+// The canonical ECO-010/ECO-011 attestations are required exactly once each (Codex 4334161225).
+{
+  for(const checks of [[],[{id:'ECO-010',ok:true}],[{id:'ECO-010',ok:true},{id:'ECO-010',ok:true}],[{id:'ECO-010',ok:true},{id:'ECO-999',ok:true}],[{id:'ECO-010',ok:true},{id:'ECO-011',ok:true},{id:'ECO-012',ok:true}],[{ok:true},{ok:true}]]){
+    const s=snapshot({issued:300,treasury:0,held:10});s.checks=checks;
+    unknown(project(s,scope),'RECONCILIATION_FAILED');
+  }
+  const swapped=snapshot({issued:300,treasury:0,held:10});swapped.checks.reverse();
+  assert.equal(project(swapped,scope).status,'EVALUATED','order of the canonical checks does not matter');
+}
 // A missing unresolvedAliases collection is not proven-empty (Codex 4329489006).
 {
   const missing=snapshot({issued:300,treasury:0,held:10});delete missing.unresolvedAliases;

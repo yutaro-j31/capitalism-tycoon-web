@@ -13,6 +13,7 @@ const COMMON_CLASS=readModel.PLAYER_COMPANY_COMMON_SECURITY_CLASS_ID,FOUNDER_HOL
 if(typeof COMMON_CLASS!=='string'||!COMMON_CLASS)throw Error('economic-read-model.js must export the player common class ID');
 const PLAYER_RIGHTS_EVIDENCE='legacy-player-single-common-class';
 const RECONCILIATION_SCOPE='player-company-common-founder-and-unallocated-residual';
+const REQUIRED_CHECKS=Object.freeze(['ECO-010','ECO-011']);
 // Six approved stages with exact crossing semantics over safe-integer voting units (n of d).
 const LADDER=Object.freeze([
  Object.freeze({commandId:'informationRequest',threshold:'>=1/100',crosses:(n,d)=>100n*n>=d}),
@@ -95,7 +96,12 @@ function evidence(snapshot,issuerEntityId,actingEntityId){
  if(field(root,'ok','snapshot')!==true)throw new Unknown('RECONCILIATION_FAILED','snapshot.ok','Ownership reconciliation did not pass conservation.');
  // Do not trust ok alone: a serialized snapshot can claim ok while its own evidence disagrees.
  if(field(root,'scope','snapshot')!==RECONCILIATION_SCOPE)throw new Unknown('INPUT_INVALID','snapshot.scope','Unsupported reconciliation scope.');
- rows(field(root,'checks','snapshot'),'snapshot.checks').forEach((check,i)=>{if(field(check,'ok',`snapshot.checks[${i}]`)!==true)throw new Unknown('RECONCILIATION_FAILED',`snapshot.checks[${i}]`,'A reconciliation check did not pass.');});
+ // Exactly the canonical P3-2 attestations, each once and passing: an empty or truncated list proves nothing.
+ const checks=rows(field(root,'checks','snapshot'),'snapshot.checks');
+ checks.forEach((check,i)=>{if(field(check,'ok',`snapshot.checks[${i}]`)!==true)throw new Unknown('RECONCILIATION_FAILED',`snapshot.checks[${i}]`,'A reconciliation check did not pass.');});
+ const checkIds=checks.map((check,i)=>field(check,'id',`snapshot.checks[${i}]`));
+ if(checkIds.length!==REQUIRED_CHECKS.length||REQUIRED_CHECKS.some(id=>checkIds.filter(x=>x===id).length!==1))
+  throw new Unknown('RECONCILIATION_FAILED','snapshot.checks','The canonical reconciliation checks are missing, repeated or unknown.');
  if(rows(field(root,'issues','snapshot'),'snapshot.issues').length)throw new Unknown('RECONCILIATION_FAILED','snapshot.issues','Reconciliation reported issues.');
  for(const [i,alias] of rows(field(root,'unresolvedAliases','snapshot'),'snapshot.unresolvedAliases').entries()){
   const why=field(alias,'reason',`snapshot.unresolvedAliases[${i}]`);
