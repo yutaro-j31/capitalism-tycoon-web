@@ -98,3 +98,6 @@ console.log('select-affected-tests PASS');
 assert.ok(names(select(['tests/financial-statements-test.js'])).includes('tests/cash-flow-test.js'), 'a test that extends another test is selected');
 // Computed requires and source reads of a changed script select the reading test (Codex 4332698750).
 assert.ok(names(select(['scripts/pages-deployment-smoke.js'])).includes('tests/map-phase2-lazy-load-recovery-test.js'), 'computed require of a changed script selects its test');
+// Map sources and assets outside tests/ and scripts/ select the tests that load them (Codex 4333790171).
+for (const file of ['prototypes/map-world-preview.js', 'assets/map-sprites/phase2/sprites.json'])
+  assert.ok(names(select([file])).includes('tests/map-phase2-environment-micro-props-test.js'), `${file} selects the map test that loads it`);

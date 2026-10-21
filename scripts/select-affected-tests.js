@@ -203,7 +203,9 @@ function select(files) {
   for (const file of files) if (runnable.has(file)) add(file, 'changed test');
   // Any changed file under tests/ or scripts/ (helper, fixture, harness, a test that other tests extend, or a
   // deleted file) selects every test that requires it, transitively.
-  const support = files.filter(f => /^(?:tests|scripts)\/.+\.(?:c?js|json)$/.test(f));
+  // Production modules under js/ are matched below; docs (*.md) select only the always-on contracts. Every
+  // other changed file (tests/, scripts/, prototypes/, assets/, css/, ...) selects the tests that load it.
+  const support = files.filter(f => !/^js\/[\w.-]+\.js$/.test(f) && !/\.md$/i.test(f));
   if (support.length) for (const test of runnable) {
     if (!exists(test)) continue;
     // A literal relative require, or a code reference to the file's repo path or quoted basename
