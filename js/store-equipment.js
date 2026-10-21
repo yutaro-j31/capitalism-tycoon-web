@@ -192,20 +192,21 @@ function renovate(engine,storeID){
   );
   if(priorProjection)return engine.fail('この改装取引はすでに処理されています。');
   return engine.runTransaction(()=>{
-    const settlement=economicSettlement.settleStoreRenovation(state,operation);
+    // Cash settlement and its finance projection are admitted and cross-checked as one commit.
+    const settlement=economicSettlement.commitCompanyCashOperation(state,operation,
+      ()=>economicSettlement.settleStoreRenovation(state,operation),
+      ()=>finance.event(state,'otherOperating',cost,{
+        cashEffect:-cost,
+        profitEffect:-cost,
+        businessID:store.businessID,
+        storeID:store.id,
+        sourceType:'storeRenovation',
+        sourceID:store.id,
+        operationID:operation.operationId,
+        idempotencyKey:operation.idempotencyKey,
+        description:`${store.name} 改装`
+      }));
     store.condition=FULL_CONDITION;
-    const projected=finance.event(state,'otherOperating',cost,{
-      cashEffect:-cost,
-      profitEffect:-cost,
-      businessID:store.businessID,
-      storeID:store.id,
-      sourceType:'storeRenovation',
-      sourceID:store.id,
-      operationID:operation.operationId,
-      idempotencyKey:operation.idempotencyKey,
-      description:`${store.name} 改装`
-    });
-    if(!projected)throw new Error('Store renovation legacy finance projection rejected the authoritative EconomicOperation.');
     engine.notify(`${store.name}を改装し、店舗状態を回復しました。`,'success');
     return settlement.applied;
   });

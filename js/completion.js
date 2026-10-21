@@ -177,7 +177,7 @@ function installCompletion(TycoonEngine){
     for(const s of (this.g.startups||[]))if(typeof s?.id==='string')sourceVCIDCounts.set(s.id,(sourceVCIDCounts.get(s.id)||0)+1);
     for(const s of (this.g.startups||[])){
       const personal=s?.ownedPersonal??0,pending=s?.activeFundingRound?.contributedPersonal??0;
-      if(!Number.isFinite(personal)||!Number.isFinite(pending)||personal<0||pending<0){
+      if(!Number.isFinite(personal)||!Number.isFinite(pending)||personal<0||personal>1||pending<0){
         if(s?.totalInvestedPersonal>0||s?.ownedPersonal!=null||pending!==0)return this.fail('個人VC持分の記録が不正なため再創業できません。');
         continue;
       }
@@ -188,7 +188,16 @@ function installCompletion(TycoonEngine){
       held.ownedCompany=0;held.totalInvestedCompany=0;held.ddNegotiatedOwnedCompany=0;
       held.subsidiary=false;delete held.dueDiligence;
       if(held.activeFundingRound){
-        if(held.activeFundingRound.status!=='open'||!Number.isFinite(held.activeFundingRound.preRoundOwnedPersonal)||!Number.isFinite(held.activeFundingRound.contributedPersonal))return this.fail('個人VC出資ラウンドを確認できません。');
+        // #1027: reuse the installed round reader's structural validity before
+        // replacing state; otherwise the next weekly writer discards funded evidence.
+        // Validate the original company/personal source before clearing company fields.
+        const plan=this.getStartupFundingRoundPlan(s.id);
+        // The legacy reader only checks finiteness, not legal economic ranges.
+        // Reject rather than normalize/repair funded evidence. Neither source account
+        // may exceed its pro-rata entitlement (same 1e-7 tolerance as the live
+        // participation writer) or close with negative/>100% equity.
+        if(!plan||!this.hasValidStartupFundingRoundOwnershipEvidence(s.id))return this.fail('個人VC出資ラウンドを確認できません。');
+        if(!this.hasStartupFundingRoundPaymentEvidence(s.id,'personal'))return this.fail('個人VC出資の払込証拠を確認できません。');
         held.activeFundingRound.preRoundOwnedCompany=0;
         held.activeFundingRound.contributedCompany=0;
       }
