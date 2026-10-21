@@ -34,7 +34,10 @@ Since #1029 the writer refuses any installment that would evict a receipt, so no
 
 There is no personal cash ledger, so personal installments have no exact independent record.
 
-## 3. Proposed rescue rule
+## 3. Proposed rescue rule (superseded)
+
+> **Superseded (2026-10-21).** This section is kept for the record only. Its rescue proposals, including the company-only rescue, are withdrawn by §8: E1 is lossy too, so no truncated round can be proven exactly from v9 evidence, and every such round stays held. Do not implement anything from this section.
+
 
 A held round is rescued only when **every account with a pending amount is proven exactly**. Otherwise it stays held, unchanged. Under this rule only company-only rounds can be rescued.
 
@@ -53,7 +56,10 @@ A held round is rescued only when **every account with a pending amount is prove
    - The proof result could be recorded as an optional evidence marker on the closed-round history row, for audit. Whether to do so is for the Owner to decide (Q3).
 5. **Partial proof:** if only part of an account's amount is proven, the round stays held. Converting part of it would change the subscription, which the Owner decision forbids. The diagnosis keeps reporting the proven and unproven amounts.
 
-## 4. Verification probe [V]
+## 4. Verification probe [V] (superseded)
+
+> **Superseded (2026-10-21).** This section is kept for the record only. Its rescue proposals, including the company-only rescue, are withdrawn by §8: E1 is lossy too, so no truncated round can be proven exactly from v9 evidence, and every such round stays held. Do not implement anything from this section.
+
 
 The probe is a scratch script, not committed. It loads the game through `tests/harness.js` on the #1029 tree.
 
@@ -71,21 +77,30 @@ The matches in the first, second and fourth rows show that E2 is *consistent* wi
 
 In every variant, `getStartupFundingRoundHold()` reported `PAYMENT_HISTORY_TRUNCATED` before the rule ran.
 
-## 5. Limits and risks
+## 5. Limits and risks (superseded)
+
+> **Superseded (2026-10-21).** This section is kept for the record only. Its rescue proposals, including the company-only rescue, are withdrawn by §8: E1 is lossy too, so no truncated round can be proven exactly from v9 evidence, and every such round stays held. Do not implement anything from this section.
+
 
 - **Personal installments [V].** E2 rounds to whole yen and the legacy input accepted fractions, so an E2 match is never exact proof (rule 2). Every round with a personal pending amount stays held.
 - **Long games [V].** E1 can be archived and E2 evicted, so some legacy saves stay unrescuable. They remain held and identifiable, with no silent asset change, as the Owner decision requires.
 - **News is display text [I].** It is part of the same save as the other evidence and is no more forgeable. Exact equality between two independent stores is the proof; one alone is not.
 - **No save-format change.** The rule reads existing v9 fields only. The optional audit marker (Q3) would add one optional field to the closed-round history row; `saveVersion` stays 9.
 
-## 6. Owner decisions required
+## 6. Owner decisions required (superseded)
+
+> **Superseded (2026-10-21).** This section is kept for the record only. Its rescue proposals, including the company-only rescue, are withdrawn by §8: E1 is lossy too, so no truncated round can be proven exactly from v9 evidence, and every such round stays held. Do not implement anything from this section.
+
 
 1. **Q1:** adopt rules 1–3 (company-only rescue). Separately: whether an E2 match, which is consistent but lossy, may ever release a personal pending amount. This design recommends no.
 2. **Q2:** keep partially proven rounds held (rule 5), or allow some other disposition.
 3. **Q3:** record an audit marker on the closed-round row, or derive the proof each time.
 4. **Q4:** decide how saves that stay unrescuable are handled: kept held indefinitely with the diagnosis visible, or given a manual player-confirmed path. A manual path would need its own design.
 
-## 7. Implementation slice (after Q1–Q4)
+## 7. Implementation slice (after Q1–Q4) (superseded)
+
+> **Superseded (2026-10-21).** This section is kept for the record only. Its rescue proposals, including the company-only rescue, are withdrawn by §8: E1 is lossy too, so no truncated round can be proven exactly from v9 evidence, and every such round stays held. Do not implement anything from this section.
+
 
 One PR, containing:
 - a read-only `proveLegacyStartupFundingRound(startupID)` that applies rules 1–3;
@@ -117,4 +132,4 @@ What remains in scope for future work, as separate small PRs:
 - **Diagnostics only.** Extend the hold diagnosis with the E1 and E2 consistency values (sums and row counts, read-only), so a maintainer can see why a round is held. These values never release it.
 - **Reconsider only with new evidence.** A future exact source of payment evidence would need a new save field, which needs its own Owner approval.
 
-Rules 2–5 in §3 and the slice in §7 are superseded by this section. They are kept for the record.
+Everything in §§3–7 is superseded by this section: the rescue rule in §3 (including the company-only rescue and its E2 conditions), the probe outcomes in §4 that label a round "rescuable", the risk notes in §5, the open questions in §6 and the slice in §7. They are kept for the record only and must not be implemented. With no round rescued, the E2 clearing question for a zero personal pending amount no longer arises.
