@@ -1,0 +1,65 @@
+# Non-mergeable CI laboratory. Never merge into main: production requires 7 workflows.
+name: vNext SPIKE-8C authentic fixed-asset proof
+on:
+  push:
+    branches:
+      - ci/vnext-spike8c-fixedasset-proof-20261022
+permissions:
+  contents: read
+concurrency:
+  group: vnext-spike8c-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  node-contracts:
+    name: vNext 386 direct Node 22 contract tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Execute all fifteen experimental contract suites
+        shell: bash
+        run: |
+          set -euo pipefail
+          git rev-parse HEAD
+          node --version
+          for t in core equity store unified 13-week legacy-crosswalk legacy-13week-capture legacy-observation-analysis inventory-ap operating legacy-week-bridge legacy-source-graph legacy-company-replay legacy-inventory-rollforward legacy-fixedasset-replay; do
+            node "experiments/economic-engine-vnext/$t.test.cjs"
+          done
+  source-fixedasset-replay:
+    name: Real legacy 13wk fixed assets into one core with 31 credit receipts
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Source-authenticate real 13 week game + fixed asset core replay
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p proof
+          git rev-parse HEAD > proof/sha.txt
+          node --version > proof/node.txt
+          node experiments/economic-engine-vnext/legacy-13week-headless.cjs > proof/real-legacy.json
+          node experiments/economic-engine-vnext/legacy-week-bridge-cli.cjs proof/real-legacy.json > proof/receipts.json
+          node experiments/economic-engine-vnext/legacy-source-graph-cli.cjs proof/real-legacy.json > proof/po-graph.json
+          node experiments/economic-engine-vnext/legacy-inventory-rollforward-cli.cjs proof/real-legacy.json > proof/material-stock.json
+          node experiments/economic-engine-vnext/legacy-company-replay-cli.cjs proof/real-legacy.json > proof/credit-replay.json
+          node experiments/economic-engine-vnext/legacy-fixedasset-replay-cli.cjs proof/real-legacy.json > proof/fixedasset-replay.json
+          node -e "const r=require('./proof/fixedasset-replay.json');if(r.status!=='SOURCE_LEDGER_FIXED_ASSET_PARTIAL'||r.postedSourceRows!==44||r.blockedSourceRows!==94||r.canonicalJournalCount!==45||r.depreciationExpenseMinor!==7650006)process.exit(1);console.log(JSON.stringify({status:r.status,sourcePosted:r.postedSourceRows,held:r.blockedSourceRows,openingAssetMinor:r.openingAssetBookMinor,endingAssetMinor:r.endingAssetBookMinor,depreciationMinor:r.depreciationExpenseMinor,canonicalJournals:r.canonicalJournalCount,limitations:r.limitations},null,2))"
+      - name: Retain source and fixed-asset journal proof
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: vnext-spike8c-original-fixedasset-evidence
+          path: proof/
+          if-no-files-found: warn
+          retention-days: 7
