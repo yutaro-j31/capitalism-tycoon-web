@@ -179,6 +179,13 @@ function localRequires(file) {
   }
   return reached;
 }
+// True when a test's code (comments stripped) names a file by repo path or quoted basename (memoized code).
+const codeCache = new Map();
+function referencesPath(test, file) {
+  if (!codeCache.has(test)) codeCache.set(test, stripComments(fs.readFileSync(path.join(ROOT, test), 'utf8')));
+  const code = codeCache.get(test), base = path.posix.basename(file);
+  return code.includes(file) || ['"', "'", '`'].some(q => code.includes(`${q}${base}${q}`));
+}
 // True when a test reaches tests/harness.js through its local requires (test -> fixture -> harness).
 function bootsGame(test) { return localRequires(test).has('tests/harness.js'); }
 
@@ -199,7 +206,9 @@ function select(files) {
   const support = files.filter(f => /^(?:tests|scripts)\/.+\.(?:c?js|json)$/.test(f));
   if (support.length) for (const test of runnable) {
     if (!exists(test)) continue;
-    const hit = support.find(f => f !== test && localRequires(test).has(f));
+    // A literal relative require, or a code reference to the file's repo path or quoted basename
+    // (e.g. `require(path.join(ROOT, 'scripts/x.js'))` or `fs.readFileSync(... 'x.js')`).
+    const hit = support.find(f => f !== test && (localRequires(test).has(f) || referencesPath(test, f)));
     if (hit) add(test, `requires ${hit}`);
   }
   for (const w of flows.filter(flow => flow.patterns.length)) {

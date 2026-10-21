@@ -96,4 +96,5 @@ console.log('select-affected-tests PASS');
 }
 // Reverse dependents follow a changed runnable test and a deleted helper (Codex 4332158097).
 assert.ok(names(select(['tests/financial-statements-test.js'])).includes('tests/cash-flow-test.js'), 'a test that extends another test is selected');
-
+// Computed requires and source reads of a changed script select the reading test (Codex 4332698750).
+assert.ok(names(select(['scripts/pages-deployment-smoke.js'])).includes('tests/map-phase2-lazy-load-recovery-test.js'), 'computed require of a changed script selects its test');
