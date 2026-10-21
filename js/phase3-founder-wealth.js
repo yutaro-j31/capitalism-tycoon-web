@@ -98,14 +98,28 @@ const captures=new WeakMap(),issued=new WeakMap();
 function ownershipFingerprint(rawState,index){
  try{return JSON.stringify(readModel.projectOwnershipSnapshot(rawState,index));}catch(_){return null;}
 }
+// Canonical liability identity: a supplied 'personal-debt' names the captured 'liability:personal-debt'.
+function bareLiabilityKey(key){return key.replace(/^liability:/,'').replace(/^supplied:/,'');}
+// One unknown ALIAS_CONFLICT entry for a set of rows sharing one identity; sorted refs make it order-independent.
+function collapse(members,key,keyField,fields,message){
+ const refs=members.flatMap(row=>row.sourceRefs).map(r=>({...r})).sort((a,b)=>a.path<b.path?-1:a.path>b.path?1:0);
+ const same=f=>members.every(row=>row[f]===members[0][f])?members[0][f]:null;
+ return {[keyField]:key,...fields,value:null,currency:same('currency'),sourceMethod:same('sourceMethod'),sourceRefs:refs,status:'unknown',
+  reasons:[reason('ALIAS_CONFLICT',refs[0].path,message,refs.map(r=>r.path))]};
+}
 function ref(path,durableId,family,role='current'){return {path,durableId:durableId===undefined?null:durableId,family,role};}
-function supplied(view,external,issues){
+// Parse issues are reported on the evidence they belong to: valuation rows under
+// valuationEvidence, liability rows under liabilityEvidence. A structural failure that
+// cannot be attributed to one family is reported on both.
+function supplied(view,external,valuationIssues,liabilityIssues){
  const valuations=[],liabilities=[];
  if(external===undefined||external===null)return {valuations,liabilities};
+ const sink=path=>path.startsWith('supplied.liabilities')?[liabilityIssues]:path.startsWith('supplied.valuations')?[valuationIssues]:[valuationIssues,liabilityIssues];
  let copy;
  try{copy=copier().pick(external,{fields:{valuations:'deep',liabilities:'deep'}},'supplied',0);}
- catch(error){issues.push(reason('INPUT_INVALID',typeof error.evidencePath==='string'?error.evidencePath:'supplied','Supplied evidence is not plain immutable JSON data.'));return {valuations,liabilities};}
- const rows=(key)=>{const v=copy[key];if(v===undefined)return [];if(!Array.isArray(v)){issues.push(reason('INPUT_INVALID',`supplied.${key}`,'Supplied evidence family must be an array.'));return [];}return v;};
+ catch(error){const path=typeof error.evidencePath==='string'?error.evidencePath:'supplied';for(const issues of sink(path))issues.push(reason('INPUT_INVALID',path,'Supplied evidence is not plain immutable JSON data.'));return {valuations,liabilities};}
+ const rows=(key)=>{const v=copy[key];if(v===undefined)return [];if(!Array.isArray(v)){for(const issues of sink(`supplied.${key}`))issues.push(reason('INPUT_INVALID',`supplied.${key}`,'Supplied evidence family must be an array.'));return [];}return v;};
+ const issues=valuationIssues;
  rows('valuations').forEach((row,i)=>{
   const path=`supplied.valuations[${i}]`;
   const strings=x=>x===undefined?[]:Array.isArray(x)&&x.every(id)?x.slice():null;
@@ -121,9 +135,9 @@ function supplied(view,external,issues){
  rows('liabilities').forEach((row,i)=>{
   const path=`supplied.liabilities[${i}]`;
   if(!row||typeof row!=='object'||Array.isArray(row)||!id(row.liabilityKey)||!money(row.amount)||row.amount<0||!id(row.sourceMethod)){
-   issues.push(reason('INPUT_INVALID',path,'Supplied liability evidence requires liabilityKey, a finite non-negative amount within the monetary envelope and sourceMethod.'));return;
+   liabilityIssues.push(reason('INPUT_INVALID',path,'Supplied liability evidence requires liabilityKey, a finite non-negative amount within the monetary envelope and sourceMethod.'));return;
   }
-  liabilities.push({liabilityKey:`liability:supplied:${row.liabilityKey}`,kind:'principal',value:row.amount,currency:row.currency===undefined?null:row.currency,
+  liabilities.push({liabilityKey:`liability:supplied:${bareLiabilityKey(row.liabilityKey)}`,identity:bareLiabilityKey(row.liabilityKey),kind:'principal',value:row.amount,currency:row.currency===undefined?null:row.currency,
    provenance:'supplied',sourceMethod:row.sourceMethod,sourceRefs:[ref(path,row.liabilityKey,'supplied')],includesKeys:[],excludedKeys:[],status:'known',reasons:[]});
  });
  return {valuations,liabilities};
@@ -230,6 +244,15 @@ function captureFounderWealthEvidence(rawState,externalEvidence){
    sourceMethod:'finance.founderLoanReceivable-semantics',sourceVersion:1,asOfWeek:week,coveredAssets:[],coveredLiabilities:[],sourceRefs:[ref(path,id(loan.loanID)?loan.loanID:null,'finance')],
    status:code?'unknown':'known',reasons:code?[reason(code,path,'Founder loan receivable identity, lifecycle or principal is not proven.')]:[]});
  });
+ // Duplicate founder-loan identities collapse to one unknown entry (order-independent).
+ const founderLoans=new Map();
+ for(const row of valuation.entries.filter(row=>row.kind==='principal')){if(!founderLoans.has(row.valuationKey))founderLoans.set(row.valuationKey,[]);founderLoans.get(row.valuationKey).push(row);}
+ valuation.entries=valuation.entries.filter(row=>row.kind!=='principal');
+ for(const [key,members] of founderLoans){
+  if(members.length===1){valuation.entries.push(members[0]);continue;}
+  valuation.entries.push(collapse(members,key,'valuationKey',{assetKey:members[0].assetKey,kind:'principal',provenance:'captured',
+   sourceVersion:1,asOfWeek:week,coveredAssets:[],coveredLiabilities:[]},'Founder loan identity repeats; no principal is counted.'));
+ }
  const debt=view.personalDebt,mirrors=[],untracked=[];
  for(const [key,field] of [['realEstate','loanID'],['realEstateMarket','id']]){
   const rows=view[key]&&Array.isArray(view[key].loans)?view[key].loans:[];
@@ -255,19 +278,24 @@ function captureFounderWealthEvidence(rawState,externalEvidence){
    sourceMethod:'personalStockMargin.balance',sourceRefs:[ref('personalMarginLoan.balance',null,'personal')],includesKeys:['personalMarginLoan'],excludedKeys:[],
    status:ok?'known':'unknown',reasons:ok?[]:[reason('INPUT_INVALID','personalMarginLoan.balance','Margin loan balance is not a finite non-negative amount.')]});
  }
- const extra=supplied(view,externalEvidence,valuation.issues);
+ const extra=supplied(view,externalEvidence,valuation.issues,liability.issues);
  valuation.entries.push(...extra.valuations);
- // A repeated identity invalidates every member of the set, independent of input order, and collapses
- // to one unknown entry so component IDs stay unique.
- const keys=new Set(liability.entries.map(row=>row.liabilityKey)),groups=new Map();
- for(const row of extra.liabilities){if(!groups.has(row.liabilityKey))groups.set(row.liabilityKey,[]);groups.get(row.liabilityKey).push(row);}
- for(const [key,members] of groups){
-  if(members.length===1&&!keys.has(key)){liability.entries.push(members[0]);continue;}
-  const refs=members.flatMap(row=>row.sourceRefs).sort((a,b)=>a.path<b.path?-1:a.path>b.path?1:0);
-  const same=f=>members.every(row=>row[f]===members[0][f])?members[0][f]:null;
-  liability.entries.push({liabilityKey:key,kind:'principal',value:null,currency:same('currency'),provenance:'supplied',sourceMethod:same('sourceMethod'),
-   sourceRefs:refs,includesKeys:[],excludedKeys:[],status:'unknown',
-   reasons:[reason('ALIAS_CONFLICT',refs[0].path,'Supplied liability identity repeats another liability identity.',refs.map(r=>r.path))]});
+ // Liabilities are grouped by canonical identity across captured AND supplied rows, so a
+ // supplied 'personal-debt' (or 'liability:margin', ...) meets the captured row it names.
+ // A repeated identity invalidates every member, independent of input order, and collapses
+ // to one unknown entry so component IDs stay unique. A collision with a captured row is
+ // fail-closed on the captured row too: the two sources either duplicate one obligation
+ // (subtracting both double counts it) or contradict each other, and nothing here can tell
+ // which amount is right, so neither contributes. The collapsed entry keeps the captured ID.
+ const groups=new Map();
+ for(const row of [...liability.entries,...extra.liabilities]){const key=row.identity||bareLiabilityKey(row.liabilityKey);if(!groups.has(key))groups.set(key,[]);groups.get(key).push(row);}
+ liability.entries=[];
+ for(const members of groups.values()){
+  if(members.length===1){const {identity,...row}=members[0];liability.entries.push(row);continue;}
+  const captured=members.find(row=>row.provenance==='captured');
+  liability.entries.push(collapse(members,captured?captured.liabilityKey:members[0].liabilityKey,'liabilityKey',
+   {kind:'principal',provenance:captured?'captured+supplied':'supplied',includesKeys:captured?captured.includesKeys.slice():[],excludedKeys:[]},
+   'Liability identity is claimed more than once; no representation is counted.'));
  }
  for(const [evidence,kind] of [[ownership,'ownershipSnapshot'],[valuation,'valuationEvidence'],[liability,'liabilityEvidence']]){freeze(evidence);issued.set(evidence,{kind,token});}
  bundle.ownershipSnapshot=ownership;bundle.valuationEvidence=valuation;bundle.liabilityEvidence=liability;
@@ -331,7 +359,7 @@ function projectFounderWealth(rawState,ownershipSnapshot,valuationEvidence,liabi
   else if(!accepted.has(quote))ownCompany.reasons.push(...blocked('stockPrice'));
   else if(quote.status!=='known')ownCompany.reasons.push(...copied(quote.reasons));
   else{ownCompany.valuation={kind:'marketPrice',price:quote.value,founderBeneficialShares:founder.quantity};known(ownCompany,quote.value*founder.quantity,'marketPrice');}
- }else if(ownership.publicCompany===false||ownership.publicCompany===null){
+ }else if(ownership.publicCompany===false){
   const outstanding=founder.outstandingQuantity;
   if(!ownSupplied.length)ownCompany.reasons.push(reason('VALUATION_INCOMPLETE','ownCompanyEquityValue','No approved private Equity Value source exists (OD-04); legacy companyValue is not Equity Value.'));
   else if(ownSupplied.length>1)ownCompany.reasons.push(reason('VALUATION_SOURCE_CONFLICT','ownCompanyEquityValue','Multiple own-company valuation inputs; none is chosen.',ownSupplied.map(item=>`valuationEvidence.entries[${item.i}]`)));
@@ -349,6 +377,9 @@ function projectFounderWealth(rawState,ownershipSnapshot,valuationEvidence,liabi
     known(ownCompany,row.value*economicOwnership*PRIVATE_EQUITY_FACTOR,'equityValue×economicOwnership×0.70');
    }
   }
+ }else{
+  // Listing status unknown (absent or non-boolean): neither formula applies.
+  ownCompany.reasons.push(reason('VALUATION_INCOMPLETE','publicCompany','Listing status is not an explicit boolean; neither own-company formula applies.'));
  }
  result.components.push(ownCompany);
  // Other personal listed lots (P3-5), valued at the unique observed price.

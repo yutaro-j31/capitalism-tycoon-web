@@ -134,7 +134,6 @@ function noReference(value,target,seen=new Set()){
  const mixed=project(s,{...ev('JPY'),...liability('USD',1e9)});
  deq(mixed.reasons.map(x=>[x.code,x.path]),[['CURRENCY_UNSUPPORTED','liabilityEvidence.entries[1].currency']]);
  assert.equal(mixed.knownNetWorth,42e6-20);
- deq(codes(comp(project(s,{liabilities:[{liabilityKey:'personal-debt',amount:1,currency:'JPY',sourceMethod:'x'}]}),'liability:supplied:personal-debt').reasons),[]);
 }
 // Supplied liabilities: negative amounts are rejected; a repeated identity invalidates every member, order-independently.
 {
@@ -155,6 +154,57 @@ function noReference(value,target,seen=new Set()){
   assert.equal(r.knownNetWorth,base-3,'no member of a conflicting set contributes');
  }
  assert.equal(new Set(forward.components.map(c=>c.componentId)).size,forward.components.length,'component IDs stay unique');
+}
+// Review regressions (Codex P2 on f70b9315).
+// 1. Unknown listing status never selects the private formula; only an explicit false does.
+{
+ for(const status of [undefined,'yes',1]){
+  const s=fixture();Object.assign(s,{treasuryBuybackShares:0,founderShares:600,personalStocks:{}});
+  if(status===undefined)delete s.publicCompany;else s.publicCompany=status;
+  const r=project(s,{valuations:[{assetKey:'own-company',kind:'equityValue',amount:100e6,currency:'JPY',sourceMethod:'fixture-equity'}]});
+  assert.equal(comp(r,'asset:own-company').amountJPY,null,`publicCompany=${status} leaves own company unresolved`);
+  assert(codes(comp(r,'asset:own-company').reasons).length>0);
+  if(status===undefined)deq(codes(comp(r,'asset:own-company').reasons),['VALUATION_INCOMPLETE']);
+ }
+}
+// 2. Malformed supplied liabilities are reported relative to liabilityEvidence, not valuationEvidence.
+{
+ const r=project(fixture(),{liabilities:[{liabilityKey:'x'}]});
+ deq(r.reasons.map(x=>[x.code,x.path]),[['INPUT_INVALID','liabilityEvidence.supplied.liabilities[0]']]);
+ const v=project(fixture(),{valuations:[{assetKey:'own-company'}]});
+ deq(v.reasons.map(x=>[x.code,x.path]),[['INPUT_INVALID','valuationEvidence.supplied.valuations[0]']]);
+ const notArray=project(fixture(),{liabilities:{}});
+ deq(notArray.reasons.map(x=>x.path),['liabilityEvidence.supplied.liabilities']);
+}
+// 3. A supplied identity equal to a captured identity invalidates every representation (no double subtraction).
+{
+ for(const key of ['personal-debt','liability:personal-debt','supplied:personal-debt','margin','liability:margin']){
+  const s=fixture();s.personalMarginLoan={balance:7};
+  const clean=project(s),r=project(s,{liabilities:[{liabilityKey:key,amount:30,currency:'JPY',sourceMethod:'fixture-liability'}]});
+  const target=key.includes('margin')?'liability:margin':'liability:personal-debt',other=target==='liability:margin'?'liability:personal-debt':'liability:margin';
+  const rows=r.components.filter(c=>c.componentId===target||c.componentId.startsWith('liability:supplied:'));
+  assert.equal(rows.length,1,`${key}: collapses to one component`);
+  assert.equal(rows[0].componentId,target);assert.equal(rows[0].amountJPY,null);deq(codes(rows[0].reasons),['ALIAS_CONFLICT']);
+  assert(rows[0].sourceRefs.length===2,'captured and supplied evidence are both cited');
+  assert.equal(comp(r,other).amountJPY,comp(clean,other).amountJPY,'unrelated identities are unaffected');
+  assert.equal(r.knownNetWorth,clean.knownNetWorth-comp(clean,target).amountJPY,'neither representation is subtracted');
+  assert.equal(new Set(r.components.map(c=>c.componentId)).size,r.components.length,'component IDs stay unique');
+ }
+ // Order independence across two colliding supplied rows plus the captured row.
+ const s=fixture(),row=a=>({liabilityKey:'personal-debt',amount:a,currency:'JPY',sourceMethod:'fixture-liability'});
+ deq(project(s,{liabilities:[row(1),row(2)]}).components,project(s,{liabilities:[row(2),row(1)]}).components);
+}
+// 4. Duplicate founder-loan identities collapse to one unknown component, independent of input order.
+{
+ const loan=p=>({loanID:'L1',sourceType:'founderShareholderLoan',status:'active',outstandingPrincipal:p});
+ const results=[[loan(50),loan(60)],[loan(60),loan(50)]].map(loans=>{const s=fixture();s.finance.loans=loans;return project(s);});
+ for(const r of results){
+  const rows=r.components.filter(c=>c.componentId==='asset:founder-loan:L1');
+  assert.equal(rows.length,1);assert.equal(rows[0].amountJPY,null);deq(codes(rows[0].reasons),['ALIAS_CONFLICT']);
+  deq(rows[0].sourceRefs.map(x=>x.path),['finance.loans[0]','finance.loans[1]']);
+  assert.equal(new Set(r.components.map(c=>c.componentId)).size,r.components.length);
+ }
+ deq(results[0],results[1]);
 }
 // Founder loans, margin, liability mirrors, VC/angel/PE families and the company/personal boundary.
 {
