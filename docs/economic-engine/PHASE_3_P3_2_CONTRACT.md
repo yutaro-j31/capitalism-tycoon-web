@@ -12,6 +12,8 @@
 
 The result's `ok` means only the stated read-only scope reconciles. It is not a complete shareholder registry, evidence of external beneficial identity, eligibility or execution permission. Valid unresolved company/external aliases retain null issuer/class and legal-account attribution; they are never added to founder shares or adopted as treasury. Malformed aliases remain explicit source issues and make the diagnostic fail closed. The unallocated residual is a class-level quantity, not a fabricated named holder/transaction or permission to aggregate another legal account.
 
+The result also carries `generationEvidence: {currentCompanySerial, isCompanySold}`, the raw issuer-generation facts (a safe integer or boolean, else `null`). They are passed through unjudged and do not affect `ok`; a consumer that attributes control (P3-9) decides whether the company generation is proven.
+
 ## Quantity and deduplication contract
 
 - Issued quantity is `sharesOut`; treasury quantity is `treasuryBuybackShares` (old missing/null optional field defaults to zero only in the projection); outstanding is issued minus treasury. ECO-010 requires finite nonnegative in-envelope quantities and exact Number equality `issued = treasury + outstanding`.
