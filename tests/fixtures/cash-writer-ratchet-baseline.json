@@ -398,7 +398,7 @@
    "personalCash": {
     "dynamicKey": 1
    },
-   "computedStateKey": 2
+   "computedStateKey": 1
   },
   "js/real-estate-property-insurance.js": {
    "companyCash": {
@@ -611,7 +611,7 @@
   "companyCash.direct": 156,
   "companyCash.dynamicKey": 59,
   "personalCash.dynamicKey": 55,
-  "computedStateKey": 80,
+  "computedStateKey": 79,
   "companyCash.literalKey": 15,
   "personalCash.direct": 59,
   "personalCash.literalKey": 9
