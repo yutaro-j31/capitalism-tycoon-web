@@ -3,6 +3,7 @@
 // No fabricated legal counterparties and NO assertion of 138-row parity.
 // Experimental only; not production/save/IndexedDB.
 const core=require('./core.cjs');
+const {createHash}=require('node:crypto');
 const {validateRow}=require('./legacy-week-bridge.cjs');
 const {verifySourceGraph,baseOrderID}=require('./legacy-source-graph.cjs');
 const ref=require('./fixtures/legacy-real-13week-summary.json');
@@ -41,7 +42,7 @@ function planSourceRows(rows,graph){
    ensure(!mapped.has(order.orderID),'duplicate-source-order');
    mapped.set(order.orderID,order);
   }
-  const entryRows=[],held=[],seen=new Set();
+  const entryRows=[],held=[],seen=new Set(),mappedIds=new Set();
   let state=makeBaseline(),minorSum=0n,creditCount=0;
   const ordered=[...rows].sort((a,b)=>a.week-b.week || a.operationID.localeCompare(b.operationID));
   for(const row of ordered){
@@ -67,12 +68,17 @@ function planSourceRows(rows,graph){
     {account:company+':inventory:'+row.storeID,deltaMinor:entry.amountMinor},
     {account:company+':payable:'+po,deltaMinor:-entry.amountMinor}
    ];
-   const planned=core.planOperation(state,{type:'journal',id:row.operationID,postings});
+   // Legacy receipt IDs can contain decimal quantities (e.g. po-8-receipt-ap-2.5).
+   // Canonical core IDs permit only [a-z0-9-], so link by collision-checked
+   // deterministic SHA-256 rather than truncating / guessing a PO number.
+   const canonicalID='leg-'+createHash('sha256').update(row.operationID,'utf8').digest('hex').slice(0,32);
+   ensure(!mappedIds.has(canonicalID),'source-hash-collision');mappedIds.add(canonicalID);
+   const planned=core.planOperation(state,{type:'journal',id:canonicalID,postings});
    if(!planned.ok)fail('core-replay-'+row.operationID+':'+planned.reason);
    state=planned.state;
    entryRows.push({...tag,status:'POSTED',sourceOrderID:po,
     supplierCatalogID:group.supplierCatalogID,
-    journalSequence:planned.receipt.sequence,postings});
+    journalSequence:planned.receipt.sequence,canonicalOperationID:canonicalID,postings});
    minorSum+=BigInt(entry.amountMinor);
    ensure(minorSum<=MAX,'credit-receipts-overflow');creditCount++;
   }
