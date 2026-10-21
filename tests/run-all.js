@@ -137,7 +137,9 @@ const nodeTests = [
   ['economic-operation-contract', 'tests/economic-operation-contract-test.js'],
   ['economic-shadow-journal', 'tests/economic-shadow-journal-test.js'],
   ['economic-settlement-store-renovation', 'tests/economic-settlement-store-renovation-test.js'],
+  ['economic-settlement-company-cash-commit', 'tests/economic-settlement-company-cash-commit-test.js'],
   ['economic-read-model', 'tests/economic-read-model-test.js'],
+  ['phase3-restructuring-lifecycle', 'tests/phase3-restructuring-lifecycle-test.js'],
   ['phase3-ownership-projection', 'tests/phase3-ownership-projection-test.js'],
   ['phase3-ownership-reconciliation', 'tests/phase3-ownership-reconciliation-test.js'],
   ['phase3-listed-holdings-adapter', 'tests/phase3-listed-holdings-adapter-test.js'],
@@ -148,6 +150,7 @@ const nodeTests = [
   ['phase3-subsidiary-composition', 'tests/phase3-subsidiary-composition-test.js'],
   ['phase3-indirect-economic-paths', 'tests/phase3-indirect-economic-paths-test.js'],
   ['phase3-vc-source-interests', 'tests/phase3-vc-source-interests-test.js'],
+  ['phase3-pe-fund-interests', 'tests/phase3-pe-fund-interests-test.js'],
   ['player-own-share-conservation', 'tests/player-own-share-conservation-test.js'],
   ['economic-foundation-draws', 'tests/economic-foundation-draws-test.js'],
   ['phase0-5-seed-provenance', 'tests/phase0-5-seed-provenance-test.js'],
@@ -211,6 +214,7 @@ const nodeTests = [
   ['real-estate-capex-actuals', 'tests/real-estate-capex-actuals-test.js'],
   ['real-estate-capex-roi', 'tests/real-estate-capex-roi-test.js'],
   ['real-estate-complete-cycle', 'tests/real-estate-complete-cycle-test.js'],
+  ['p4-aud-004-personal-secured-repayment', 'tests/p4-aud-004-personal-secured-repayment-test.js'],
   ['real-estate-complete-cycle-draws', 'tests/real-estate-complete-cycle-draws-test.js'],
   ['real-estate-development', 'tests/real-estate-development-test.js'],
   ['real-estate-foundation', 'tests/real-estate-foundation-test.js'],
@@ -496,7 +500,8 @@ const nodeTests = [
   ['pe-realestate-agency-portfolio-bridge', 'tests/pe-realestate-agency-portfolio-bridge-test.js'],
   ['pe-realestate-agency-bridge-208week-regression', 'tests/pe-realestate-agency-bridge-208week-regression-test.js'],
   ['pe-realestate-agency-bridge-negative', 'tests/pe-realestate-agency-bridge-negative-test.js'],
-  ['pe-realestate-agency-ui-connection', 'tests/pe-realestate-agency-ui-connection-test.js']
+  ['pe-realestate-agency-ui-connection', 'tests/pe-realestate-agency-ui-connection-test.js'],
+  ['cash-write-runtime-guard', 'tests/cash-write-runtime-guard-test.js'],
 ];
 
 for (let i = 0; i < nodeTests.length; i++) {

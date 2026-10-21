@@ -20,6 +20,8 @@
     "./js/economic-read-model.js",
     "./js/phase3-indirect-economic-paths.js",
     "./js/phase3-vc-source-interests.js",
+    "./js/phase3-pe-fund-interests.js",
+    "./js/phase3-restructuring-lifecycle.js",
     "./js/economic-settlement.js",
     "./js/real-estate-agency-pipeline.js",
     "./js/convenience-merchandising.js",
