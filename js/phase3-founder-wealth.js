@@ -3,9 +3,9 @@
 (function(){'use strict';
 const modules=globalThis.__capitalismTycoonModules;
 if(!modules)throw new Error('runtime.js must precede phase3-founder-wealth.js');
-if(!modules.finance||!modules.economicReadModel||!modules.phase3VCSourceInterests)throw new Error('finance, economic-read-model and phase3-vc-source-interests must precede phase3-founder-wealth.js');
+if(!modules.finance||!modules.economicReadModel||!modules.phase3VCSourceInterests||!modules.phase3PeFundInterests)throw new Error('finance, economic-read-model, phase3-vc-source-interests and phase3-pe-fund-interests must precede phase3-founder-wealth.js');
 if(modules.phase3FounderWealth)throw new Error('Founder wealth projection already registered');
-const readModel=modules.economicReadModel,vcInterests=modules.phase3VCSourceInterests;
+const readModel=modules.economicReadModel,vcInterests=modules.phase3VCSourceInterests,peFundInterests=modules.phase3PeFundInterests;
 const FOUNDER=readModel.FOUNDER_ENTITY_ID,JPY=readModel.CURRENCY,FOUNDER_LOAN=modules.finance.FOUNDER_LOAN_SOURCE;
 // Owner-fixed own-company formulas (P3-11 contract §6): listed price × unique founder
 // beneficial shares; private evidence-backed Equity Value × economic ownership × 0.70.
@@ -77,8 +77,9 @@ const SOURCE_SPEC={fields:{
  finance:{fields:{loans:{rows:['loanID','sourceType','status','outstandingPrincipal']}}},
  personalMarginLoan:{fields:{balance:'deep'}},
  realEstate:{fields:{loans:{rows:['loanID','owner','status']}}},
- realEstateMarket:{fields:{loans:{rows:['id','owner','status']}}},
+ realEstateMarket:{fields:{loans:{rows:['id','owner','status','accountingTracked']}}},
  peDeals:{rows:['id','ownerAccount','status']},
+ peFirm:{fields:{funds:'deep'}},
  angelInvestments:{rows:['id','status']},
  startups:{rows:['id','ownedCompany','ownedPersonal','ddNegotiatedOwnedCompany','ddNegotiatedOwnedPersonal','ipoStockID','alive','subsidiary','activeFundingRound']},
  subsidiaries:{rows:['id','startupID','peDealID','sourcePEFundID','sourcePEDealID','internalVentureID','sourceCompetitorID','acquisitionDealID','restructuredWeek','restructuredFrom','source','status','ownership']}
@@ -175,6 +176,14 @@ function captureFounderWealthEvidence(rawState,externalEvidence){
   if(row.status==='exited'||row.status==='sold'){ownership.exclusions.push({sourcePath:path,basis:'historical',includedBy:null});return;}
   ownership.peSources.push(ref(path,id(row.id)?row.id:null,'pe'));
  });
+ // P3-7 GP fund capital evidence: a contribution ratio is not NAV, carry or title to fund assets.
+ const pe=peFundInterests.projectPEFundInterests(view);
+ for(const row of pe.fundInterests){
+  if(row.current===false&&row.status==='observed'){ownership.exclusions.push({sourcePath:row.sourcePath,basis:'historical',includedBy:null});continue;}
+  ownership.peSources.push(ref(row.sourcePath,row.fundId,'pe-fund'));
+ }
+ for(const row of pe.distributionEvidence)ownership.exclusions.push({sourcePath:row.sourcePath,basis:'historical-paid-cash',includedBy:'asset:personal-cash'});
+ ownership.peCodes=Array.from(new Set(pe.issues.map(row=>row.code))).sort(order);
  (view.angelInvestments||[]).forEach((row,i)=>{
   const path=`angelInvestments[${i}]`;
   if(row.status==='exited'){ownership.exclusions.push({sourcePath:path,basis:'historical',includedBy:null});return;}
@@ -221,16 +230,25 @@ function captureFounderWealthEvidence(rawState,externalEvidence){
    sourceMethod:'finance.founderLoanReceivable-semantics',sourceVersion:1,asOfWeek:week,coveredAssets:[],coveredLiabilities:[],sourceRefs:[ref(path,id(loan.loanID)?loan.loanID:null,'finance')],
    status:code?'unknown':'known',reasons:code?[reason(code,path,'Founder loan receivable identity, lifecycle or principal is not proven.')]:[]});
  });
- const debt=view.personalDebt,mirrors=[];
+ const debt=view.personalDebt,mirrors=[],untracked=[];
  for(const [key,field] of [['realEstate','loanID'],['realEstateMarket','id']]){
   const rows=view[key]&&Array.isArray(view[key].loans)?view[key].loans:[];
-  rows.forEach((row,i)=>{if(row.owner==='personal'&&row.status==='active')mirrors.push(`${key}.loans[${i}]`);});
+  rows.forEach((row,i)=>{
+   if(row.owner!=='personal'||(row.status!=='active'&&row.status!=='defaulted'))return;
+   const path=`${key}.loans[${i}]`;
+   // P4-AUD-004: only accountingTracked specialist loans are inside the personal debt aggregate.
+   if(key==='realEstate'||row.accountingTracked===true){mirrors.push(path);return;}
+   untracked.push({liabilityKey:`liability:untracked-property-loan:${path}`,kind:'principal',value:null,currency:JPY,provenance:'captured',
+    sourceMethod:'realEstateMarket.loans',sourceRefs:[ref(path,id(row[field])?row[field]:null,'personal')],includesKeys:[path],excludedKeys:[],status:'unknown',
+    reasons:[reason('LIABILITY_COVERAGE_UNKNOWN',path,'Personal specialist loan outside the personal debt aggregate; its principal identity is not reconciled.')]});
+  });
  }
  for(const path of mirrors)liability.exclusions.push({sourcePath:path,basis:'included-in-personal-debt',includedBy:'liability:personal-debt'});
  const debtOk=money(debt)&&debt>=0;
  liability.entries.push({liabilityKey:'liability:personal-debt',kind:'principal',value:debtOk?debt:null,currency:JPY,provenance:'captured',
   sourceMethod:'economicReadModel.accountBalances',sourceRefs:[ref('personalDebt',null,'personal')],includesKeys:['personalDebt',...mirrors],excludedKeys:[],
   status:debtOk?'known':'unknown',reasons:debtOk?[]:[reason('INPUT_INVALID','personalDebt','Personal debt is missing, negative, non-finite or outside the monetary envelope.')]});
+ liability.entries.push(...untracked);
  if(view.personalMarginLoan!==undefined){
   const balance=view.personalMarginLoan.balance,ok=money(balance)&&balance>=0;
   if(!ok||balance>0)liability.entries.push({liabilityKey:'liability:margin',kind:'principal',value:ok?balance:null,currency:JPY,provenance:'captured',
@@ -347,7 +365,8 @@ function projectFounderWealth(rawState,ownershipSnapshot,valuationEvidence,liabi
  for(const row of ownership.angel)result.components.push(component(`asset:angel:${row.sourcePath}`,'asset',{sourceRefs:[ref(row.sourcePath,row.durableId,'angel')],includesKeys:[row.sourcePath],
   reasons:[reason('VALUATION_INCOMPLETE',row.sourcePath,'Legacy angel investments are a separate unresolved personal claim without an approved valuation basis.')]}));
  result.components.push(component('asset:pe-interests','asset',{sourceRefs:ownership.peSources.map(r=>({...r})),includesKeys:ownership.peSources.map(r=>r.path),
-  reasons:[reason('VALUATION_INCOMPLETE','peDeals','Personal PE deal stakes and GP/fund interests are unvalued: the PE fund-interest (P3-7) and entitlement (P3-9) adapters are not merged.')]}));
+  reasons:[...ownership.peCodes.map(code=>reason(code,'peFirm.funds','PE fund-interest source evidence is unresolved.')),
+   reason('VALUATION_INCOMPLETE','peDeals','Personal PE deal stakes and GP fund interests are unvalued: fund NAV, liabilities, waterfall/carry (OD-05) and P3-9 entitlement are not available.')]}));
  result.components.push(component('asset:unadapted-personal-families','asset',{
   reasons:[reason('VALUATION_INCOMPLETE','personalAssets','Personal real estate, investments, luxury assets, sports teams, the personal real-estate corporation and family trust are not adapted in this slice.')]}));
  // Liabilities: union of distinct identities; mirrors are excluded, never re-added.

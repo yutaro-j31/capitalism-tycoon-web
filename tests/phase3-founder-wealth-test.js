@@ -160,6 +160,20 @@ function noReference(value,target,seen=new Set()){
  assert(r.exclusions.some(x=>x.sourcePath==='finance.loans[1]'&&x.basis==='historical'));
  const d=plain(s);d.finance.loans.push({...d.finance.loans[0]});
  deq(codes(comp(project(d),'asset:founder-loan:L1').reasons),['ALIAS_CONFLICT']);
+ // P3-7 GP fund capital (NAV 1000, GP 2%) never becomes a founder amount; paid cash is not re-added.
+ const f=plain(s);f.peFirm={funds:[{id:'F1',size:1000,gpCommit:20,lpContributed:980,status:'investing',nav:1000,gpDistributed:5,lpDistributed:0,gpCarryPaid:3,managementFeesPaid:1,deals:[]}]};
+ const fr=project(f);
+ deq(comp(fr,'asset:pe-interests').includesKeys,['peDeals[0]','peFirm.funds[0]']);assert.equal(comp(fr,'asset:pe-interests').amountJPY,null);
+ assert(fr.exclusions.some(x=>x.sourcePath==='peFirm.funds[0]'&&x.basis==='historical-paid-cash'));assert.equal(fr.knownNetWorth,r.knownNetWorth);
+ const bf=plain(f);bf.peFirm.funds[0].lpContributed=1;
+ assert(codes(comp(project(bf),'asset:pe-interests').reasons).includes('CONTRIBUTION_MISMATCH'));
+ // P4-AUD-004: only accountingTracked specialist loans are inside personalDebt; others stay unknown.
+ const t=plain(s);t.realEstateMarket={loans:[{id:'M1',owner:'personal',status:'defaulted',accountingTracked:true},{id:'M2',owner:'personal',status:'active'},{id:'M3',owner:'personal',status:'paid'}]};
+ const tr=project(t);
+ assert(comp(tr,'liability:personal-debt').includesKeys.includes('realEstateMarket.loans[0]'));
+ const u=comp(tr,'liability:untracked-property-loan:realEstateMarket.loans[1]');
+ assert.equal(u.amountJPY,null);deq(codes(u.reasons),['LIABILITY_COVERAGE_UNKNOWN']);assert(tr.unvaluedComponents.includes(u.componentId));
+ assert.equal(comp(tr,'liability:untracked-property-loan:realEstateMarket.loans[2]'),undefined);
  const m=plain(s);m.personalMarginLoan.balance=-1;deq(codes(comp(project(m),'liability:margin').reasons),['INPUT_INVALID']);
 }
 // Single committed-snapshot boundary: mixed, forged, missing, in-place changed and replaced evidence.
