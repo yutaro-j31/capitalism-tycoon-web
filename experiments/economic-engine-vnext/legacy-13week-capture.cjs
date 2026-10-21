@@ -25,10 +25,19 @@ function sourceSnapshot(game,storeID){
    paymentDueWeek:p.paymentDueWeek,orderStatus:p.orderStatus,paymentStatus:p.paymentStatus
   })).sort((a,b)=>String(a.orderID).localeCompare(String(b.orderID))):null;
  const inv=game.inventoryByStoreID?.[storeID];
- const lots=inv?.materials?Object.values(inv.materials).flatMap(m=>(m.lots||[]).map(l=>({
-  status:l.status,bookValue:l.bookValue,quantity:l.quantity,receivedWeek:l.receivedWeek
+ const lots=inv?.materials?Object.entries(inv.materials).flatMap(([materialID,m])=>(m.lots||[]).map(l=>({
+  lotID:l.lotID,materialID:l.materialID||materialID,purchaseOrderID:l.purchaseOrderID??null,
+  status:l.status,bookValue:l.bookValue,quantity:l.quantity,originalQuantity:l.originalQuantity,
+  unitCost:l.unitCost,receivedWeek:l.receivedWeek,expiryWeek:l.expiryWeek
  }))):null;
- return snapshot({week:game.week,orders,lots,companyAccountsPayableJPY:game.supplyAccountsPayableBalance??null,
+ const inventoryScope=Object.entries(game.inventoryByStoreID||{}).map(([id,book])=>({
+  storeID:id,businessID:book?.businessID||null,
+  availableBookValueJPY:Object.values(book?.materials||{}).flatMap(m=>(m.lots||[]))
+   .filter(l=>l.status==='available'&&Number(l.quantity)>0)
+   .reduce((sum,l)=>sum+Number(l.bookValue||0),0)
+ })).sort((a,b)=>a.storeID.localeCompare(b.storeID));
+ return snapshot({week:game.week,orders,lots,inventoryScope,
+  companyAccountsPayableJPY:game.supplyAccountsPayableBalance??null,
   financeInventoryJPY:game.finance?.balances?.inventory??null});
 }
 function capture13Weeks(engine, options={}) {
