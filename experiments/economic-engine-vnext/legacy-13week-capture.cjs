@@ -27,6 +27,7 @@ function sourceSnapshot(game,storeID){
  const inv=game.inventoryByStoreID?.[storeID];
  const lots=inv?.materials?Object.entries(inv.materials).flatMap(([materialID,m])=>(m.lots||[]).map(l=>({
   lotID:l.lotID,materialID:l.materialID||materialID,purchaseOrderID:l.purchaseOrderID??null,
+  supplierContractID:l.supplierContractID??null,quality:l.quality,
   status:l.status,bookValue:l.bookValue,quantity:l.quantity,originalQuantity:l.originalQuantity,
   unitCost:l.unitCost,receivedWeek:l.receivedWeek,expiryWeek:l.expiryWeek
  }))):null;
@@ -45,7 +46,19 @@ function sourceSnapshot(game,storeID){
    .filter(l=>l.status==='available'&&Number(l.quantity)>0)
    .reduce((sum,l)=>sum+Number(l.bookValue||0),0)
  })).sort((a,b)=>a.storeID.localeCompare(b.storeID));
- return snapshot({week:game.week,orders,lots,inventoryScope,fixedAssets,
+ const supplierContracts=Array.isArray(game.supplierContracts)?
+  game.supplierContracts.filter(c=>c&&c.storeID===storeID).map(c=>({
+   contractID:c.contractID,storeID:c.storeID,businessID:c.businessID,supplierID:c.supplierID,
+   active:c.active,status:c.status,startedWeek:c.startedWeek,terminatedWeek:c.terminatedWeek??null
+  })).sort((a,b)=>String(a.contractID).localeCompare(String(b.contractID))):null;
+ return snapshot({week:game.week,orders,lots,inventoryScope,fixedAssets,supplierContracts,
+  inventoryAuthoritySource:{
+   supplyMigrationV6Applied:game.supplyMigrationV6Applied===true,
+   openingAPBaselineJPY:game.supplyAccountsPayableOpeningBaseline??null,
+   financeOpeningAssetsJPY:game.finance?.openingAssets??null,
+   financeOpeningEquityJPY:game.finance?.openingEquity??null,
+   financeOpeningRetainedEarningsJPY:game.finance?.openingRetainedEarnings??null
+  },
   companyAccountsPayableJPY:game.supplyAccountsPayableBalance??null,
   financeInventoryJPY:game.finance?.balances?.inventory??null});
 }
