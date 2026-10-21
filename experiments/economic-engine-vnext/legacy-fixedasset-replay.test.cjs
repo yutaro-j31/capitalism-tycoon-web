@@ -15,7 +15,7 @@ const original=()=>{
 function previous(){
  const receipts=Array.from({length:31},(_,i)=>{
   const n=i+1,minor=i<30?1000000:ref.totals.creditPurchaseMinor-30000000;
-  return {week:5+Math.floor(i/3),canonicalOperationID:'leg-'+crypto.createHash('sha256').update('mock-purchase-'+n).digest('hex').slice(0,32),
+  return {week:5+Math.floor(i/3),canonicalOperationID:'leg-'+crypto.createHash('sha256').update('po-'+n+'-receipt-ap-2.5').digest('hex').slice(0,32),
    operationID:'po-'+n+'-receipt-ap-2.5',
    postings:[{account:'company:inventory:store-s2',deltaMinor:minor},
     {account:'company:payable:po-'+n,deltaMinor:-minor}]};
