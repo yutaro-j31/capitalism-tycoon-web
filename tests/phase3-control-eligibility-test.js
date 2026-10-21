@@ -131,6 +131,14 @@ for(const bad of [null,[],'x',42,new Map()])unknown(project(bad,scope),'INPUT_IN
   companyRow.beneficialHoldings.unshift({...companyRow.beneficialHoldings[0],beneficialOwnerEntityId:PLAYER});
   unknown(project(companyRow,scope),'INPUT_INVALID');
 }
+// A holding without its durable evidence ID fails closed instead of citing an array position (Codex 4332153047).
+{
+  for(const id of [undefined,null,7,'']){
+    const s=snapshot({issued:300,treasury:0,held:10});
+    if(id===undefined)delete s.beneficialHoldings[0].beneficialHoldingId;else s.beneficialHoldings[0].beneficialHoldingId=id;
+    unknown(project(s,scope),'INPUT_INVALID');
+  }
+}
 // A missing unresolvedAliases collection is not proven-empty (Codex 4329489006).
 {
   const missing=snapshot({issued:300,treasury:0,held:10});delete missing.unresolvedAliases;

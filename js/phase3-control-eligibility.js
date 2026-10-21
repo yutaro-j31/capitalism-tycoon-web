@@ -120,9 +120,11 @@ function evidence(snapshot,issuerEntityId,actingEntityId){
  const unallocated=units(field(c,'unallocatedOutstandingQuantity',cp),`${cp}.unallocatedOutstandingQuantity`);
  if(BigInt(held)+BigInt(unallocated)!==BigInt(outstanding))throw new Unknown('RECONCILIATION_FAILED',cp,'Founder and unallocated units do not equal outstanding units.');
  if(outstanding===0)throw new Unknown('DENOMINATOR_ZERO',`${cp}.outstandingQuantity`,'No eligible outstanding voting units.');
+ // The durable holding ID is the evidence reference downstream revalidation consumes; an array position is not.
  const holdingId=field(row,'beneficialHoldingId',path);
+ if(typeof holdingId!=='string'||!holdingId)throw new Unknown('INPUT_INVALID',`${path}.beneficialHoldingId`,'Beneficial holding has no durable evidence ID.');
  return {securityClassId,eligibleVotingUnits:outstanding,holderVotingUnits:held,treasuryUnitsExcluded:treasury,
-  rightsBasis:PLAYER_RIGHTS_EVIDENCE,sourceRefs:[securityClassId,typeof holdingId==='string'?holdingId:path]};
+  rightsBasis:PLAYER_RIGHTS_EVIDENCE,sourceRefs:[securityClassId,holdingId]};
 }
 
 function projectControlEligibility(snapshot,options){
