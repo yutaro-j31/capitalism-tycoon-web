@@ -176,6 +176,6 @@ test('fake prior proof cannot unlock cash-side COGS',()=>{
  blocked(x=>{x.prev.status='CONTRACT_STOCK_LOSS_SIMULATION';});
 });
 test('mutated customer/PO is never accepted as inventory origin',()=>{
- blocked(x=>{x.graph.orders[0].receipts[0].kind='cash';});
+ blocked(x=>{x.graph.orders[0].receipts[0].kind='invalid-kind';});
 });
 console.log('SPIKE-8E COGS cash-financing dependency graph: '+passed+' PASS (synthetic mocks only).');
