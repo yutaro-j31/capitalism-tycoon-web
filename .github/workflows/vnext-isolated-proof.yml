@@ -6,10 +6,10 @@ name: vNext isolated proof (experimental)
 on:
   push:
     branches:
-      - 'experiment/economic-engine-vnext-operating-*'
+      - 'experiment/economic-engine-vnext-legacy-bridge-*'
   pull_request:
     branches:
-      - 'experiment/economic-engine-vnext-inventory-ap-*'
+      - 'experiment/economic-engine-vnext-operating-*'
     paths:
       - '.github/workflows/vnext-isolated-proof.yml'
 
@@ -33,7 +33,7 @@ jobs:
         run: |
           git rev-parse HEAD
           node --version
-      - name: Execute all ten experimental suites in actual Node
+      - name: Execute all eleven experimental suites in actual Node
         shell: bash
         run: |
           set -euo pipefail
@@ -47,7 +47,8 @@ jobs:
             legacy-13week-capture.test.cjs \
             legacy-observation-analysis.test.cjs \
             inventory-ap.test.cjs \
-            operating.test.cjs
+            operating.test.cjs \
+            legacy-week-bridge.test.cjs
           do
             echo "::group::Direct Node: $script"
             node "experiments/economic-engine-vnext/$script"
@@ -83,6 +84,13 @@ jobs:
             node -e "const r=require('./vnext-proof/legacy-observation.json');console.log(JSON.stringify({status:r.legacyEvidenceClassification?.status,reasons:r.legacyEvidenceClassification?.reasons,observedWeeks:r.observedWeeks,observedStore:r.observedStore},null,2))"
           fi
           exit "$status"
+      - name: Verify real source against 13-week cash-profit-inventory-AP bridge
+        shell: bash
+        run: |
+          set -euo pipefail
+          node experiments/economic-engine-vnext/legacy-week-bridge-cli.cjs \
+            vnext-proof/legacy-observation.json > vnext-proof/legacy-bridge.json
+          node -e "const r=require('./vnext-proof/legacy-bridge.json');console.log(JSON.stringify({status:r.status,weeks:r.weeks,storeRows:r.storeRows,storeCashMinor:r.sourceCashMinor,storeProfitMinor:r.sourceProfitMinor,blockers:r.blockers},null,2))"
       - name: Retain disposable experimental observation evidence
         if: always()
         uses: actions/upload-artifact@v4
