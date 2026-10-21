@@ -14,6 +14,8 @@ if(typeof COMMON_CLASS!=='string'||!COMMON_CLASS)throw Error('economic-read-mode
 const PLAYER_RIGHTS_EVIDENCE='legacy-player-single-common-class';
 const RECONCILIATION_SCOPE='player-company-common-founder-and-unallocated-residual';
 const REQUIRED_CHECKS=Object.freeze(['ECO-010','ECO-011']);
+// P3-2 binds the founder holding to exactly these two source buckets (legacy founder bucket, personal own lot).
+const SOURCE_HOLDINGS=Object.freeze(['holding:player-company:founder-legacy','holding:player-company:founder-personal-stock']);
 // Six approved stages with exact crossing semantics over safe-integer voting units (n of d).
 const LADDER=Object.freeze([
  Object.freeze({commandId:'informationRequest',threshold:'>=1/100',crosses:(n,d)=>100n*n>=d}),
@@ -103,6 +105,14 @@ function evidence(snapshot,issuerEntityId,actingEntityId){
  if(checkIds.length!==REQUIRED_CHECKS.length||REQUIRED_CHECKS.some(id=>checkIds.filter(x=>x===id).length!==1))
   throw new Unknown('RECONCILIATION_FAILED','snapshot.checks','The canonical reconciliation checks are missing, repeated or unknown.');
  if(rows(field(root,'issues','snapshot'),'snapshot.issues').length)throw new Unknown('RECONCILIATION_FAILED','snapshot.issues','Reconciliation reported issues.');
+ // The issuer must be the current, unsold first company generation: a sold or refounded company keeps the
+ // founder's old buckets, so its quantities prove nothing about control of an active issuer.
+ const generation=record(field(root,'generationEvidence','snapshot'),'snapshot.generationEvidence');
+ const serial=field(generation,'currentCompanySerial','snapshot.generationEvidence'),sold=field(generation,'isCompanySold','snapshot.generationEvidence');
+ if(serial!==1||sold!==false)throw new Unknown('GENERATION_UNPROVEN','snapshot.generationEvidence','The issuer is sold or its company generation is not proven.');
+ const issuers=rows(field(root,'entities','snapshot'),'snapshot.entities').map((row,i)=>({row,path:`snapshot.entities[${i}]`})).filter(({row,path})=>field(row,'entityId',path)===PLAYER);
+ if(issuers.length!==1)throw new Unknown('INPUT_INVALID','snapshot.entities','The issuer entity must appear exactly once.');
+ if(field(issuers[0].row,'status',issuers[0].path)!=='active')throw new Unknown('GENERATION_UNPROVEN',`${issuers[0].path}.status`,'The issuer entity is not active.');
  for(const [i,alias] of rows(field(root,'unresolvedAliases','snapshot'),'snapshot.unresolvedAliases').entries()){
   const why=field(alias,'reason',`snapshot.unresolvedAliases[${i}]`);
   if(why==='company-own-share-alias-not-adopted')throw new Unknown('OWN_SHARE_ALIAS_UNRESOLVED',`snapshot.unresolvedAliases[${i}]`,'Company-held own shares outside treasury leave the voting denominator unproven.');
@@ -132,6 +142,24 @@ function evidence(snapshot,issuerEntityId,actingEntityId){
  if(holdings.length!==1)throw new Unknown('ACTOR_UNSUPPORTED','snapshot.beneficialHoldings','The actor needs exactly one beneficial holding in the class.');
  const {row,path}=holdings[0];
  const held=units(field(row,'quantity',path),`${path}.quantity`);
+ // ECO-011 is recomputed, not trusted: the founder holding must bind exactly the canonical source buckets,
+ // each a unique founder row in the class with a unique source path, and their units must sum to it.
+ const sources=rows(field(root,'sourceHoldings','snapshot'),'snapshot.sourceHoldings');
+ const sourceIds=[],sourcePaths=[];let sourceUnits=0n;
+ sources.forEach((source,i)=>{
+  const sp=`snapshot.sourceHoldings[${i}]`,sourcePath=field(source,'sourcePath',sp);
+  if(field(source,'securityClassId',sp)!==securityClassId||field(source,'registeredHolderEntityId',sp)!==FOUNDER||field(source,'beneficialOwnerEntityId',sp)!==FOUNDER||field(source,'beneficialFraction',sp)!==1)
+   throw new Unknown('RECONCILIATION_FAILED',sp,'Source holding is not a founder row in the reconciled class.');
+  if(sourcePath!==null&&(typeof sourcePath!=='string'||!sourcePath))throw new Unknown('INPUT_INVALID',`${sp}.sourcePath`,'Source path must be a non-empty string or null.');
+  sourceIds.push(field(source,'holdingId',sp));if(sourcePath!==null)sourcePaths.push(sourcePath);
+  sourceUnits+=BigInt(units(field(source,'quantity',sp),`${sp}.quantity`));
+ });
+ const bound=field(row,'sourceHoldingIds',path);
+ const boundIds=Array.isArray(bound)?bound.slice():null; // the whole graph is already validated JSON data
+ const canonical=ids=>Array.isArray(ids)&&ids.length===SOURCE_HOLDINGS.length&&SOURCE_HOLDINGS.every(id=>ids.filter(x=>x===id).length===1);
+ if(!canonical(sourceIds)||new Set(sourcePaths).size!==sourcePaths.length)throw new Unknown('RECONCILIATION_FAILED','snapshot.sourceHoldings','Source holdings are missing, repeated or not the canonical founder buckets.');
+ if(!canonical(boundIds))throw new Unknown('RECONCILIATION_FAILED',`${path}.sourceHoldingIds`,'The founder holding does not bind exactly the canonical source holdings.');
+ if(sourceUnits!==BigInt(held))throw new Unknown('RECONCILIATION_FAILED',path,'Founder units do not equal the sum of their source holdings.');
  if(held>outstanding)throw new Unknown('RECONCILIATION_FAILED',path,'Holder units exceed eligible outstanding units.');
  const unallocated=units(field(c,'unallocatedOutstandingQuantity',cp),`${cp}.unallocatedOutstandingQuantity`);
  if(BigInt(held)+BigInt(unallocated)!==BigInt(outstanding))throw new Unknown('RECONCILIATION_FAILED',cp,'Founder and unallocated units do not equal outstanding units.');

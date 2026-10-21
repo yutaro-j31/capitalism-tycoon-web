@@ -19,7 +19,13 @@ function snapshot({issued,treasury,held,ok=true,aliases=[]}){
   return {reconciliationVersion:1,authority:'read-only',scope:'player-company-common-founder-and-unallocated-residual',ok,checks:[{id:'ECO-010',ok:true},{id:'ECO-011',ok:true}],issues:[],
     securityClasses:[{securityClassId:'security:player-company:common',issuerEntityId:PLAYER,classType:'common',issuedQuantity:issued,treasuryQuantity:treasury,
       outstandingQuantity:issued-treasury,unallocatedOutstandingQuantity:issued-treasury-held,votingRightsPerUnit:1,economicRightsPerUnit:1,rightsEvidence:'legacy-player-single-common-class'}],
-    beneficialHoldings:[{beneficialHoldingId:'beneficial:player-company:founder',issuerEntityId:PLAYER,securityClassId:'security:player-company:common',beneficialOwnerEntityId:FOUNDER,quantity:held}],
+    beneficialHoldings:[{beneficialHoldingId:'beneficial:player-company:founder',issuerEntityId:PLAYER,securityClassId:'security:player-company:common',beneficialOwnerEntityId:FOUNDER,quantity:held,
+      sourceHoldingIds:['holding:player-company:founder-legacy','holding:player-company:founder-personal-stock']}],
+    sourceHoldings:[
+      {holdingId:'holding:player-company:founder-legacy',securityClassId:'security:player-company:common',registeredHolderEntityId:FOUNDER,beneficialOwnerEntityId:FOUNDER,beneficialFraction:1,quantity:held,sourceLot:'legacy-founderShares-bucket',sourcePath:'founderShares'},
+      {holdingId:'holding:player-company:founder-personal-stock',securityClassId:'security:player-company:common',registeredHolderEntityId:FOUNDER,beneficialOwnerEntityId:FOUNDER,beneficialFraction:1,quantity:0,sourceLot:'legacy-personal-own-stock-bucket',sourcePath:null,sourceMapPath:'personalStocks',sourceInstrumentId:'OWN'}],
+    generationEvidence:{currentCompanySerial:1,isCompanySold:false},
+    entities:[{entityId:PLAYER,status:'active'},{entityId:FOUNDER,status:'active'}],
     unresolvedAliases:aliases};
 }
 const E='ELIGIBLE',I='INELIGIBLE';
@@ -215,7 +221,7 @@ for(const bad of [null,[],'x',42,new Map()])unknown(project(bad,scope),'INPUT_IN
 // Production wiring: the real P3-2 reconciliation feeds the projector without mutating state or RNG.
 {
   const state=loaded.engineModule.createInitialState({configured:true,seed:0x39000001});
-  Object.assign(state,{publicCompany:true,sharesOut:1000,treasuryBuybackShares:100,founderShares:400,personalStocks:{[state.ticker]:{qty:51,avg:900},ZZZ:{qty:5,avg:50}}});
+  Object.assign(state,{currentCompanySerial:1,publicCompany:true,sharesOut:1000,treasuryBuybackShares:100,founderShares:400,personalStocks:{[state.ticker]:{qty:51,avg:900},ZZZ:{qty:5,avg:50}}});
   const before=JSON.stringify(state),draws=hostDraws;
   const reconciliation=readModel.ownershipReconciliation(state);
   assert.ok(Array.isArray(reconciliation.unresolvedAliases)&&reconciliation.beneficialHoldings.length===1,'P3-2 output carries the collections the projector requires');
@@ -238,6 +244,55 @@ for(const bad of [null,[],'x',42,new Map()])unknown(project(bad,scope),'INPUT_IN
   const fractional=JSON.parse(before);fractional.founderShares=400.5;
   const fr=project(readModel.ownershipReconciliation(fractional),scope);
   assert.equal(fr.status,'UNKNOWN');assert.ok(['NUMERIC_DOMAIN_UNSUPPORTED','RECONCILIATION_FAILED'].includes(fr.issues[0].code),fr.issues[0].code);
+}
+// A sold or generation-unproven issuer is never attributed to the founder's old buckets (7c900968 review).
+{
+  for(const [label,mutate,code] of [
+    ['sold flag',s=>{s.generationEvidence.isCompanySold=true;},'GENERATION_UNPROVEN'],
+    ['sold entity',s=>{s.entities[0].status='sold';},'GENERATION_UNPROVEN'],
+    ['refounded serial',s=>{s.generationEvidence.currentCompanySerial=2;},'GENERATION_UNPROVEN'],
+    ['unknown serial',s=>{s.generationEvidence.currentCompanySerial=null;},'GENERATION_UNPROVEN'],
+    ['unknown sold flag',s=>{s.generationEvidence.isCompanySold=null;},'GENERATION_UNPROVEN'],
+    ['missing generation evidence',s=>{delete s.generationEvidence;},'INPUT_INVALID'],
+    ['missing issuer entity',s=>{s.entities=s.entities.slice(1);},'INPUT_INVALID'],
+    ['repeated issuer entity',s=>{s.entities.push({...s.entities[0]});},'INPUT_INVALID'],
+  ]){const s=snapshot({issued:300,treasury:0,held:200});mutate(s);unknown(project(s,scope),code);assert.ok(project(s,scope).status==='UNKNOWN',label);}
+  // Production: completeCompanySale's flag and a refounded serial both leave every stage UNKNOWN.
+  const state=loaded.engineModule.createInitialState({configured:true,seed:0x39000002});
+  Object.assign(state,{currentCompanySerial:1,isCompanySold:false,sharesOut:1000,treasuryBuybackShares:0,founderShares:600});
+  assert.equal(project(readModel.ownershipReconciliation(state),scope).status,'EVALUATED');
+  for(const change of [{isCompanySold:true},{currentCompanySerial:2}]){
+    const r=readModel.ownershipReconciliation({...state,...change});
+    unknown(project(r,scope),'GENERATION_UNPROVEN');
+  }
+}
+// ECO-011 is recomputed from the source bindings, not accepted from its label (7c900968 review).
+{
+  const legacy='holding:player-company:founder-legacy',personal='holding:player-company:founder-personal-stock';
+  for(const [label,mutate] of [
+    ['duplicate source ID',s=>{s.sourceHoldings[1].holdingId=legacy;}],
+    ['altered source ID',s=>{s.sourceHoldings[0].holdingId='holding:bogus';}],
+    ['duplicate source path',s=>{s.sourceHoldings[1].sourcePath='founderShares';}],
+    ['extra source row',s=>{s.sourceHoldings.push({...s.sourceHoldings[1],holdingId:'holding:extra',quantity:0});}],
+    ['missing source row',s=>{s.sourceHoldings.pop();}],
+    ['missing source collection',s=>{delete s.sourceHoldings;}],
+    ['other holder source',s=>{s.sourceHoldings[1].registeredHolderEntityId=PLAYER;}],
+    ['partial beneficial fraction',s=>{s.sourceHoldings[0].beneficialFraction=0.5;}],
+    ['other class source',s=>{s.sourceHoldings[0].securityClassId='security:other';}],
+    ['bindings deleted',s=>{delete s.beneficialHoldings[0].sourceHoldingIds;}],
+    ['bindings disconnected',s=>{s.beneficialHoldings[0].sourceHoldingIds=[legacy,'holding:elsewhere'];}],
+    ['bindings repeated',s=>{s.beneficialHoldings[0].sourceHoldingIds=[legacy,legacy];}],
+    ['bindings truncated',s=>{s.beneficialHoldings[0].sourceHoldingIds=[personal];}],
+    ['sources do not sum',s=>{s.sourceHoldings[1].quantity=5;}],
+  ]){
+    const s=snapshot({issued:300,treasury:0,held:200});mutate(s);const out=project(s,scope);
+    assert.equal(out.status,'UNKNOWN',`${label} must not evaluate`);
+    assert.ok(['RECONCILIATION_FAILED','INPUT_INVALID'].includes(out.issues[0].code),`${label}: ${out.issues[0].code}`);
+  }
+  // Order of the two sources and of the bindings does not matter; split buckets still sum exactly.
+  const split=snapshot({issued:300,treasury:0,held:200});split.sourceHoldings[0].quantity=150;split.sourceHoldings[1].quantity=50;
+  split.sourceHoldings.reverse();split.beneficialHoldings[0].sourceHoldingIds.reverse();
+  assert.equal(project(split,scope).status,'EVALUATED');
 }
 // Negative zero is a valid quantity but JSON reloads it as 0; the evaluated evidence must be
 // identical before and after a round trip (Object.is semantics under deepStrictEqual).

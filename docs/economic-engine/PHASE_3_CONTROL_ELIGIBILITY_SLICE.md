@@ -36,7 +36,8 @@ There is no floating ratio, rounding or EPSILON. The disclosure (5%) and equity-
 
 **EVALUATED** only when all of the following hold:
 - The issuer is `entity:company:player` and the actor is `entity:person:founder`.
-- The reconciliation is `ok`.
+- The reconciliation is `ok`, and its `ECO-010`/`ECO-011` labels are backed by the evidence itself: the founder holding binds exactly the two canonical source holdings (`holding:player-company:founder-legacy`, `holding:player-company:founder-personal-stock`), each a unique founder row in the class with a unique source path, and their units sum to the founder's units.
+- The issuer is the current, unsold first company generation: `generationEvidence` is `{currentCompanySerial: 1, isCompanySold: false}` and the player entity appears once with `status: 'active'`.
 - There is exactly one class, it is `common`, it has `votingRightsPerUnit === 1`, and its evidence is `legacy-player-single-common-class`.
 - `issued = treasury + outstanding`, all as safe integers.
 - The actor has exactly one beneficial holding in that class, and it is a safe integer ≤ d.
@@ -49,7 +50,8 @@ Anything else returns **UNKNOWN for all six stages**, never INELIGIBLE-zero, wit
 | `INPUT_INVALID` | Malformed, accessor, non-enumerable or exotic-prototype evidence. Getters are never executed. |
 | `ISSUER_FAMILY_UNSUPPORTED` | Any other issuer. |
 | `ACTOR_UNSUPPORTED` | The company itself, other persons, or missing or duplicate holdings. |
-| `RECONCILIATION_FAILED` | Reconciliation not ok, conservation broken, or holder above d. |
+| `RECONCILIATION_FAILED` | Reconciliation not ok, conservation broken, holder above d, or source bindings that do not support ECO-011. |
+| `GENERATION_UNPROVEN` | The company is sold, refounded (serial ≠ 1), or its generation facts are absent. |
 | `CLASS_RULES_UNKNOWN` | Other class shapes or vote weights. |
 | `NUMERIC_DOMAIN_UNSUPPORTED` | Fractional or unsafe units. |
 | `DENOMINATOR_ZERO` | d = 0. |
