@@ -79,3 +79,11 @@ Only an explicit `currency === 'JPY'` is accepted on valuation and liability ent
 - an installed engine with a real same-week personal borrow, with zero RNG draws, unchanged storage and an unchanged `personalNetWorth()`/`personalCreditLimit()`
 
 Real WebKit and physical iPhone are not claimed. No UI is added.
+
+## Applied review corrections
+
+- **Supplied liabilities, amounts and repeats** (f70b9315): a supplied liability must have a finite, non-negative amount within the monetary envelope. When a supplied identity repeats, every member is invalidated, and the set collapses to one unknown component regardless of input order.
+- **Listing status:** only an explicit `publicCompany === false` selects the private Equity Value formula. An absent or non-boolean status leaves the own company unresolved (`VALUATION_INCOMPLETE`).
+- **Where supplied-liability issues are reported:** malformed supplied liabilities are reported under `liabilityEvidence`, and malformed supplied valuations under `valuationEvidence`. A structural failure that cannot be attributed to one family is reported on both.
+- **Supplied keys that name a captured liability:** supplied keys are canonicalized (an optional `liability:`/`supplied:` prefix is removed). They are grouped with captured identities, so a supplied `personal-debt` or `margin` meets the captured row it names. That collision fails closed on both rows: they collapse to one unknown `ALIAS_CONFLICT` component under the captured ID. The two sources either duplicate one obligation (counting both would double it) or contradict each other, and nothing here can tell which amount is right.
+- **Repeated founder-loan identities:** they collapse to one unknown `ALIAS_CONFLICT` component, regardless of input order.
