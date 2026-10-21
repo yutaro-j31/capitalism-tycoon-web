@@ -278,6 +278,18 @@ function noReference(value,target,seen=new Set()){
  // A malformed row for an unsupported asset claims nothing about the own company.
  assert.equal(comp(project(s,{valuations:[ok,{assetKey:'fund'}]}),'asset:own-company').amountJPY,42e6);
 }
+// 9. A supplied own-company row with kind 'principal' is not a founder-loan receivable (6515a69 review).
+{
+ const s=fixture();Object.assign(s,{publicCompany:false,treasuryBuybackShares:0,founderShares:600,personalStocks:{},personalCash:0,personalDebt:0});
+ const r=project(s,{valuations:[{assetKey:'own-company',kind:'principal',amount:100,currency:'JPY',sourceMethod:'x'}]});
+ const own=r.components.filter(c=>c.componentId==='asset:own-company');
+ assert.equal(own.length,1,'one own-company component');assert.equal(own[0].amountJPY,null);deq(codes(own[0].reasons),['VALUATION_BASIS_UNSUPPORTED']);
+ assert.equal(r.knownNetWorth,0,'the supplied principal is not counted');
+ assert.equal(new Set(r.components.map(c=>c.componentId)).size,r.components.length);
+ // A captured founder loan is still projected.
+ s.finance.loans=[{loanID:'L1',sourceType:'founderShareholderLoan',status:'active',outstandingPrincipal:50}];
+ assert.equal(comp(project(s),'asset:founder-loan:L1').amountJPY,50);
+}
 // Founder loans, margin, liability mirrors, VC/angel/PE families and the company/personal boundary.
 {
  const s=fixture();

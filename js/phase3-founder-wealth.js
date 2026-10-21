@@ -414,7 +414,8 @@ function projectFounderWealth(rawState,ownershipSnapshot,valuationEvidence,liabi
   result.components.push(c);
  }
  // Founder loan receivables: principal once; the company payable stays inside company equity.
- for(const row of valuation.filter(row=>row.kind==='principal'))result.components.push(fromEntry(component(`asset:${row.assetKey}`,'asset',{includesKeys:[row.sourceRefs[0].path]}),row,1,'principal'));
+ // Only captured founder-loan receivables are principal assets; a supplied row's kind is caller-controlled.
+ for(const row of valuation.filter(row=>row.kind==='principal'&&row.provenance==='captured'&&row.valuationKey.startsWith('principal:founder-loan:')))result.components.push(fromEntry(component(`asset:${row.assetKey}`,'asset',{includesKeys:[row.sourceRefs[0].path]}),row,1,'principal'));
  // Families without an approved valuation adapter stay explicitly unvalued, never zero.
  for(const row of ownership.vc)result.components.push(component(`asset:vc-personal:${row.sourcePath}`,'asset',{sourceRefs:[ref(row.sourcePath,row.startupSourceId,'vc')],includesKeys:[row.sourcePath],
   reasons:[...(row.code?[reason(row.code,row.sourcePath,'Startup source evidence is unresolved.')]:[]),reason('VALUATION_INCOMPLETE',row.sourcePath,'Personal startup interests have no approved valuation basis (preferred terms, pending rounds).')]}));
