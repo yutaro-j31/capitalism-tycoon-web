@@ -100,6 +100,8 @@ No new finance category, no new save root, and `saveVersion=9` is unchanged. An 
 | Quarantine (block further mortgage actions and new borrowing while unreconciled) | `validate` failure persists | — | No disappearance risk. Debt stays off book, and value and credit limits stay inflated. |
 | Forward-only (Option A for new movements only) | — | — | The first movement on a legacy mortgage posts a liability against a missing row, which leads back to backfill. Disposal keeps consuming other loans' debt. |
 
+**S2s backfill:** the backfill recipe above covers only S1 and pure S2. For S2s it would leave the save failing: adding `B` to `companyDebt` turns the existing `−P` difference into `−(P + B) = −B₀`, and restating equity by `B` (`priorPeriodAdjustments −= B`) still leaves `−P`. For S2s, the backfill restates equity by the measured historical gap `B₀ = B + P`, where `P` is the sum of the mortgage principal payments recorded after the finance state was recreated. The S2s backfill fixture must show `validate` ok, `P2-DEBT-ROLLFORWARD` ok and the balance-sheet difference at 0 afterwards. When `P` cannot be measured exactly from the ledger (for example because principal rows were compressed away), the property is quarantined and not backfilled. Restating equity remains subject to Q2.
+
 **S3 repair:** restoring `companyDebt` to `Σ loans` is a separate decision. It moves debt without cash, so it needs a rebase or an opening-debt adjustment.
 
 ## 5. Owner decisions required
