@@ -242,6 +242,21 @@ function noReference(value,target,seen=new Set()){
  const clean=project(s,ev(['subsidiaries'],['finance.loans']));
  assert.equal(comp(clean,'asset:own-company').amountJPY,42e6);assert.equal(comp(clean,'asset:founder-loan:L1').amountJPY,50);
 }
+// 7. A collapsed conflict keeps ALIAS_CONFLICT whatever currency the malformed claimant carries (d7823625 review).
+{
+ const s=fixture();Object.assign(s,{publicCompany:false,treasuryBuybackShares:0,founderShares:600,personalStocks:{}});
+ for(const currency of [undefined,'USD'])for(const reverse of [false,true]){
+  const ok={liabilityKey:'tax',amount:5,currency:'JPY',sourceMethod:'fixture-liability'},bad={liabilityKey:'tax',amount:-7,sourceMethod:'fixture-liability'};
+  if(currency!==undefined)bad.currency=currency;
+  const r=project(s,{liabilities:reverse?[bad,ok]:[ok,bad]}),tax=comp(r,'liability:supplied:tax');
+  assert.equal(tax.amountJPY,null);deq(codes(tax.reasons),['ALIAS_CONFLICT'],`currency ${currency}: conflict reason kept`);
+  assert(!r.reasons.some(x=>x.code==='CURRENCY_UNSUPPORTED'),'no currency failure is attributed to the collapsed conflict');
+  assert(r.reasons.some(x=>x.code==='INPUT_INVALID'));assert.equal(r.knownNetWorth,-20);
+ }
+ // A well-formed known non-JPY row is still rejected by the currency gate.
+ const usd=project(s,{liabilities:[{liabilityKey:'tax',amount:5,currency:'USD',sourceMethod:'fixture-liability'}]});
+ deq(codes(comp(usd,'liability:supplied:tax').reasons),['CURRENCY_UNSUPPORTED']);
+}
 // Founder loans, margin, liability mirrors, VC/angel/PE families and the company/personal boundary.
 {
  const s=fixture();

@@ -336,8 +336,12 @@ function projectFounderWealth(rawState,ownershipSnapshot,valuationEvidence,liabi
  for(const [name,evidence] of args)for(const issue of evidence.issues)result.reasons.push(reason(issue.code,`${name}.${issue.path}`,issue.message,issue.evidenceRefs.map(p=>`${name}.${p}`)));
  // Currency gate precedes any amount arithmetic; rejected nominal amounts never contribute.
  const accepted=new Set();
- valuation.forEach((row,i)=>{if(row.currency===JPY)accepted.add(row);else result.reasons.push(reason('CURRENCY_UNSUPPORTED',`valuationEvidence.entries[${i}].currency`,'Only explicit JPY valuation evidence is supported; no FX conversion is performed.',[`valuationEvidence.entries[${i}]`]));});
- liabilities.forEach((row,i)=>{if(row.currency===JPY)accepted.add(row);else result.reasons.push(reason('CURRENCY_UNSUPPORTED',`liabilityEvidence.entries[${i}].currency`,'Only explicit JPY liability evidence is supported; no FX conversion is performed.',[`liabilityEvidence.entries[${i}]`]));});
+ // The gate applies to entries that carry an amount. An entry already unknown (e.g. a collapsed
+ // ALIAS_CONFLICT whose malformed claimant had no or another currency) has no nominal amount to
+ // reject and keeps its own reason; it still contributes nothing.
+ const gated=row=>row.status==='known'&&row.currency!==JPY;
+ valuation.forEach((row,i)=>{if(!gated(row))accepted.add(row);else result.reasons.push(reason('CURRENCY_UNSUPPORTED',`valuationEvidence.entries[${i}].currency`,'Only explicit JPY valuation evidence is supported; no FX conversion is performed.',[`valuationEvidence.entries[${i}]`]));});
+ liabilities.forEach((row,i)=>{if(!gated(row))accepted.add(row);else result.reasons.push(reason('CURRENCY_UNSUPPORTED',`liabilityEvidence.entries[${i}].currency`,'Only explicit JPY liability evidence is supported; no FX conversion is performed.',[`liabilityEvidence.entries[${i}]`]));});
  const blocked=path=>[reason('CURRENCY_UNSUPPORTED',path,'Evidence currency is not JPY.')];
  const copied=rows=>rows.map(r=>({...r,evidenceRefs:r.evidenceRefs.slice()}));
  const known=(c,amount,basis)=>{
