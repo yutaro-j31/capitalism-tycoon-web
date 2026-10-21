@@ -63,6 +63,7 @@ const output={
  readinessWeeksBeforeObservation:readinessWeeks,
  observedWeeks:[capture.records[0].week,capture.records[12].week],
  storeWeeklyRows:capture.records.flatMap(w=>w.storeRows),
+ nonStoreWeeklyRows:capture.records.flatMap(w=>w.otherRows),
  sourceGraphEvidence:capture.sourceGraphEvidence,
  weeklyEvidence:perWeek,
  legacyEvidenceClassification:result,
