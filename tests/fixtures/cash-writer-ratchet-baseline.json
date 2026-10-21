@@ -1,0 +1,613 @@
+{
+ "schema": 1,
+ "note": "Generated from main 8de12935 by tests/cash-writer-ratchet-test.js --print. Counts may only go down.",
+ "files": {
+  "js/app.js": {
+   "companyCash": {
+    "direct": 1,
+    "dynamicKey": 1
+   },
+   "personalCash": {
+    "dynamicKey": 1
+   },
+   "computedStateKey": 1
+  },
+  "js/bank-loans-covenants.js": {
+   "companyCash": {
+    "direct": 1
+   }
+  },
+  "js/board-governance-resolution.js": {
+   "companyCash": {
+    "literalKey": 1
+   }
+  },
+  "js/company-recall-crisis.js": {
+   "companyCash": {
+    "direct": 1
+   }
+  },
+  "js/competitor-parity.js": {
+   "companyCash": {
+    "direct": 3
+   }
+  },
+  "js/completion.js": {
+   "companyCash": {
+    "direct": 8,
+    "literalKey": 1
+   },
+   "personalCash": {
+    "direct": 1,
+    "literalKey": 1
+   },
+   "computedStateKey": 2
+  },
+  "js/convertible-bonds-dilution.js": {
+   "companyCash": {
+    "direct": 1
+   }
+  },
+  "js/corporate-bonds-ratings.js": {
+   "companyCash": {
+    "direct": 1
+   }
+  },
+  "js/difficulty-scenario-balance.js": {
+   "companyCash": {
+    "direct": 2
+   }
+  },
+  "js/economic-read-model.js": {
+   "companyCash": {
+    "dynamicKey": 3
+   },
+   "personalCash": {
+    "dynamicKey": 3
+   }
+  },
+  "js/economic-settlement.js": {
+   "companyCash": {
+    "direct": 1
+   }
+  },
+  "js/engine.js": {
+   "companyCash": {
+    "direct": 36,
+    "dynamicKey": 12,
+    "literalKey": 5
+   },
+   "personalCash": {
+    "direct": 14,
+    "dynamicKey": 12,
+    "literalKey": 1
+   },
+   "computedStateKey": 22
+  },
+  "js/executive-reviews-succession-board.js": {
+   "companyCash": {
+    "direct": 1
+   }
+  },
+  "js/executives-department-assignments.js": {
+   "companyCash": {
+    "direct": 1
+   }
+  },
+  "js/expansion.js": {
+   "companyCash": {
+    "direct": 18,
+    "dynamicKey": 11,
+    "literalKey": 1
+   },
+   "personalCash": {
+    "direct": 19,
+    "dynamicKey": 7
+   },
+   "computedStateKey": 9
+  },
+  "js/finance.js": {
+   "companyCash": {
+    "literalKey": 1
+   },
+   "personalCash": {
+    "direct": 1
+   }
+  },
+  "js/group-capital-allocation-execution.js": {
+   "companyCash": {
+    "direct": 1
+   }
+  },
+  "js/group-restructuring-candidates.js": {
+   "companyCash": {
+    "direct": 3
+   }
+  },
+  "js/group-restructuring-progress.js": {
+   "companyCash": {
+    "direct": 3
+   }
+  },
+  "js/industry-event-response-plans.js": {
+   "companyCash": {
+    "direct": 1
+   }
+  },
+  "js/inter-subsidiary-synergy-allocation.js": {
+   "companyCash": {
+    "direct": 1
+   }
+  },
+  "js/internal-venture-business.js": {
+   "companyCash": {
+    "direct": 4
+   }
+  },
+  "js/iphone-baseline-probe.js": {
+   "companyCash": {
+    "direct": 1,
+    "literalKey": 1
+   },
+   "personalCash": {
+    "direct": 1,
+    "literalKey": 1
+   }
+  },
+  "js/listed-subsidiary-control-actions.js": {
+   "companyCash": {
+    "direct": 2
+   }
+  },
+  "js/listed-subsidiary-follow-on-offering.js": {
+   "companyCash": {
+    "direct": 1
+   }
+  },
+  "js/listed-subsidiary-market.js": {
+   "companyCash": {
+    "direct": 3
+   }
+  },
+  "js/ma-acquisition-financing.js": {
+   "companyCash": {
+    "direct": 4
+   }
+  },
+  "js/ma-deal-room.js": {
+   "companyCash": {
+    "direct": 4
+   }
+  },
+  "js/ma-integration.js": {
+   "companyCash": {
+    "direct": 1
+   }
+  },
+  "js/menu-research.js": {
+   "companyCash": {
+    "direct": 1
+   }
+  },
+  "js/new-business-commercialization.js": {
+   "companyCash": {
+    "direct": 1
+   }
+  },
+  "js/new-business-research-projects.js": {
+   "companyCash": {
+    "direct": 1
+   }
+  },
+  "js/parity.js": {
+   "companyCash": {
+    "direct": 8,
+    "literalKey": 1
+   },
+   "computedStateKey": 1
+  },
+  "js/pe-fund.js": {
+   "companyCash": {
+    "direct": 2
+   },
+   "personalCash": {
+    "direct": 3
+   }
+  },
+  "js/pe-portfolio-operations.js": {
+   "companyCash": {
+    "direct": 2
+   }
+  },
+  "js/pe-ui-adapter.js": {
+   "companyCash": {
+    "literalKey": 2
+   },
+   "personalCash": {
+    "literalKey": 4
+   }
+  },
+  "js/pe-ui.js": {
+   "companyCash": {
+    "literalKey": 1
+   }
+  },
+  "js/pe-value-creation.js": {
+   "companyCash": {
+    "dynamicKey": 2
+   },
+   "personalCash": {
+    "dynamicKey": 2
+   },
+   "computedStateKey": 1
+  },
+  "js/personal-real-estate-corp.js": {
+   "personalCash": {
+    "direct": 5
+   }
+  },
+  "js/personal-real-estate-mortgage.js": {
+   "personalCash": {
+    "direct": 4
+   }
+  },
+  "js/personal-real-estate-redevelopment.js": {
+   "personalCash": {
+    "direct": 1
+   }
+  },
+  "js/personal-real-estate-short-term.js": {
+   "personalCash": {
+    "direct": 2
+   }
+  },
+  "js/personal-stock-margin.js": {
+   "personalCash": {
+    "direct": 5
+   }
+  },
+  "js/play-runtime-compat.js": {
+   "companyCash": {
+    "direct": 1
+   }
+  },
+  "js/player-crisis-actions.js": {
+   "companyCash": {
+    "direct": 3
+   },
+   "personalCash": {
+    "direct": 1
+   }
+  },
+  "js/player-crisis-restructuring.js": {
+   "companyCash": {
+    "direct": 1
+   }
+  },
+  "js/player-crisis-turnaround-fund.js": {
+   "companyCash": {
+    "direct": 1
+   }
+  },
+  "js/player-debt-service.js": {
+   "companyCash": {
+    "direct": 1
+   }
+  },
+  "js/player-engine-bridge.js": {
+   "companyCash": {
+    "direct": 2
+   }
+  },
+  "js/player-media-advertising.js": {
+   "companyCash": {
+    "direct": 1
+   }
+  },
+  "js/pmi-100-day-plan.js": {
+   "companyCash": {
+    "direct": 1
+   }
+  },
+  "js/preferred-shares-dividends.js": {
+   "companyCash": {
+    "direct": 1
+   }
+  },
+  "js/product-lifecycle.js": {
+   "companyCash": {
+    "direct": 5
+   }
+  },
+  "js/real-estate-agency-credit-line.js": {
+   "companyCash": {
+    "direct": 2
+   }
+  },
+  "js/real-estate-capex-actuals.js": {
+   "companyCash": {
+    "dynamicKey": 1
+   },
+   "personalCash": {
+    "dynamicKey": 1
+   }
+  },
+  "js/real-estate-capex-roi.js": {
+   "companyCash": {
+    "dynamicKey": 1
+   },
+   "personalCash": {
+    "dynamicKey": 1
+   }
+  },
+  "js/real-estate-complete-cycle.js": {
+   "companyCash": {
+    "dynamicKey": 1
+   },
+   "personalCash": {
+    "dynamicKey": 1
+   },
+   "computedStateKey": 5
+  },
+  "js/real-estate-development.js": {
+   "companyCash": {
+    "dynamicKey": 1
+   },
+   "personalCash": {
+    "dynamicKey": 1
+   },
+   "computedStateKey": 4
+  },
+  "js/real-estate-insurance-claims.js": {
+   "companyCash": {
+    "dynamicKey": 1
+   },
+   "personalCash": {
+    "dynamicKey": 1
+   },
+   "computedStateKey": 1
+  },
+  "js/real-estate-mortgage-refinancing.js": {
+   "companyCash": {
+    "dynamicKey": 1
+   },
+   "personalCash": {
+    "dynamicKey": 1
+   },
+   "computedStateKey": 3
+  },
+  "js/real-estate-price-negotiation.js": {
+   "companyCash": {
+    "dynamicKey": 1
+   },
+   "personalCash": {
+    "dynamicKey": 1
+   },
+   "computedStateKey": 1
+  },
+  "js/real-estate-property-disposals.js": {
+   "companyCash": {
+    "dynamicKey": 1
+   },
+   "personalCash": {
+    "dynamicKey": 1
+   },
+   "computedStateKey": 1
+  },
+  "js/real-estate-property-insurance.js": {
+   "companyCash": {
+    "dynamicKey": 1
+   },
+   "personalCash": {
+    "dynamicKey": 1
+   },
+   "computedStateKey": 3
+  },
+  "js/real-estate-property-maintenance.js": {
+   "companyCash": {
+    "dynamicKey": 1
+   },
+   "personalCash": {
+    "dynamicKey": 1
+   },
+   "computedStateKey": 2
+  },
+  "js/real-estate-property-management.js": {
+   "companyCash": {
+    "dynamicKey": 1
+   },
+   "personalCash": {
+    "dynamicKey": 1
+   },
+   "computedStateKey": 1
+  },
+  "js/real-estate-property-taxes.js": {
+   "companyCash": {
+    "dynamicKey": 1
+   },
+   "personalCash": {
+    "dynamicKey": 1
+   },
+   "computedStateKey": 1
+  },
+  "js/real-estate-redevelopment-projects.js": {
+   "companyCash": {
+    "dynamicKey": 1
+   },
+   "personalCash": {
+    "dynamicKey": 1
+   },
+   "computedStateKey": 1
+  },
+  "js/real-estate-rent-guarantee.js": {
+   "companyCash": {
+    "dynamicKey": 1
+   },
+   "personalCash": {
+    "dynamicKey": 1
+   },
+   "computedStateKey": 2
+  },
+  "js/real-estate-risk-mitigation.js": {
+   "companyCash": {
+    "dynamicKey": 2
+   },
+   "personalCash": {
+    "dynamicKey": 2
+   },
+   "computedStateKey": 2
+  },
+  "js/real-estate-safety-certification.js": {
+   "companyCash": {
+    "dynamicKey": 1
+   },
+   "personalCash": {
+    "dynamicKey": 1
+   },
+   "computedStateKey": 1
+  },
+  "js/real-estate-security-deposits.js": {
+   "companyCash": {
+    "dynamicKey": 1
+   },
+   "personalCash": {
+    "dynamicKey": 1
+   }
+  },
+  "js/real-estate-tenant-collections.js": {
+   "companyCash": {
+    "dynamicKey": 1
+   },
+   "personalCash": {
+    "dynamicKey": 1
+   },
+   "computedStateKey": 3
+  },
+  "js/real-estate-tenant-contracts.js": {
+   "companyCash": {
+    "dynamicKey": 2
+   },
+   "personalCash": {
+    "dynamicKey": 2
+   },
+   "computedStateKey": 3
+  },
+  "js/real-estate-tenant-leasing.js": {
+   "companyCash": {
+    "dynamicKey": 1
+   },
+   "personalCash": {
+    "dynamicKey": 1
+   },
+   "computedStateKey": 3
+  },
+  "js/real-estate-tenant-operations.js": {
+   "companyCash": {
+    "dynamicKey": 1
+   },
+   "personalCash": {
+    "dynamicKey": 1
+   },
+   "computedStateKey": 2
+  },
+  "js/real-estate-tenant-renewals.js": {
+   "companyCash": {
+    "dynamicKey": 1
+   },
+   "personalCash": {
+    "dynamicKey": 1
+   },
+   "computedStateKey": 1
+  },
+  "js/real-estate.js": {
+   "companyCash": {
+    "direct": 2,
+    "dynamicKey": 3
+   },
+   "personalCash": {
+    "direct": 2,
+    "dynamicKey": 3
+   },
+   "computedStateKey": 3
+  },
+  "js/save-import-atomic-guard.js": {
+   "companyCash": {
+    "literalKey": 1
+   },
+   "personalCash": {
+    "literalKey": 1
+   }
+  },
+  "js/save-v9.js": {
+   "companyCash": {
+    "direct": 1,
+    "dynamicKey": 2
+   },
+   "personalCash": {
+    "dynamicKey": 1
+   }
+  },
+  "js/semantic-hash-v2.js": {
+   "companyCash": {
+    "dynamicKey": 1
+   },
+   "personalCash": {
+    "dynamicKey": 1
+   }
+  },
+  "js/shareholder-returns.js": {
+   "companyCash": {
+    "direct": 1
+   }
+  },
+  "js/store-equipment.js": {
+   "companyCash": {
+    "direct": 2
+   }
+  },
+  "js/subsidiary-integration-synergy.js": {
+   "companyCash": {
+    "direct": 1
+   }
+  },
+  "js/subsidiary-ipo-preparation.js": {
+   "companyCash": {
+    "direct": 2
+   }
+  },
+  "js/subsidiary-ipo-secondary-sale.js": {
+   "companyCash": {
+    "direct": 1
+   }
+  },
+  "js/subsidiary-relisting-options.js": {
+   "companyCash": {
+    "direct": 2
+   }
+  },
+  "js/supply.js": {
+   "companyCash": {
+    "direct": 3
+   }
+  },
+  "js/treasury-prepayment.js": {
+   "companyCash": {
+    "direct": 1
+   }
+  },
+  "js/workforce.js": {
+   "companyCash": {
+    "direct": 2
+   }
+  }
+ },
+ "totals": {
+  "companyCash.direct": 156,
+  "companyCash.dynamicKey": 59,
+  "personalCash.dynamicKey": 54,
+  "computedStateKey": 79,
+  "companyCash.literalKey": 15,
+  "personalCash.direct": 59,
+  "personalCash.literalKey": 8
+ }
+}

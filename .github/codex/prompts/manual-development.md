@@ -6,7 +6,7 @@ Use the current repository state as source of truth. Follow root `AGENTS.md` and
 
 Complete the requested scope through implementation, focused/risk-appropriate validation, repair of failures caused by the change, final diff inspection, commit, branch push, and PR creation when GitHub write access is available. Do not stop at the first draft merely to ask for approval when the requested task can be safely completed locally.
 
-Keep repository invariants and task-specific contracts intact. Never push to `main`, force-push, weaken tests to get green, or merge autonomously. Do not broaden the task into unrelated cleanup.
+Keep repository invariants and task-specific contracts intact. Never push to `main`, force-push, or weaken tests to get green. Merge only under the conditional low-risk policy in `AGENTS.md` §3 (#1055): every one of its gates must hold, and high-impact financial writers, persistence, authority and migration PRs keep their independent-review or Owner gates. Otherwise leave the PR open for review. Do not broaden the task into unrelated cleanup.
 
 Finish with a concise Japanese report containing the base/main SHA, branch/commit/PR, what changed, checks actually run and their results, relevant compatibility/runtime implications, and any unresolved risk or unverified environment. Do not report checks or GitHub actions that were not actually performed.
 

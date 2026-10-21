@@ -339,6 +339,10 @@
     "reason": "P4-AUD-004 personal generic debt guard: refuse dedicated specialist principal repayment without mutation, do not persist rejected commands, allow unsecured generic and authorized specialist repayment, valid company books, production reload and fresh durable IndexedDB hydration in real iPhone WebKit PR and main checks.",
     "executedBy": ".github/workflows/ma-acquisition-financing.yml"
   },
+  "tests/p4-aud-007-mortgage-disposal-debt-webkit-test.js": {
+    "reason": "P4-AUD-007 D-1 mortgage disposal: S1 company sale keeps the unrelated bank loan and valid books, personal sale keeps personalDebt, S2 quarantine and save-false leave live/mirror/cache unchanged, reload and fresh durable-only real IndexedDB hydration in real iPhone WebKit PR and main checks.",
+    "executedBy": ".github/workflows/ma-acquisition-financing.yml"
+  },
   "tests/property-debt-principal-sync-webkit-test.js": {
     "reason": "Generic/voluntary/maturity/full repayment then property service, reload and fresh real IndexedDB in property-debt-principal-sync job.",
     "executedBy": ".github/workflows/ma-acquisition-financing.yml"

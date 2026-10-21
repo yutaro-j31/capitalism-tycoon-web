@@ -307,6 +307,7 @@
     "tests/p4-aud-004-personal-secured-repayment-test.js",
     "scripts/p4-aud-003-founder-capital-atomicity.cjs",
     "tests/debt-command-save-atomicity-test.js",
-    "tests/property-debt-principal-sync-test.js"
+    "tests/property-debt-principal-sync-test.js",
+    "tests/p4-aud-007-mortgage-disposal-debt-test.js"
   ]
 }
