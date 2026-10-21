@@ -1,0 +1,64 @@
+# Proof laboratory only. This eighth workflow MUST NOT be merged into main.
+name: Economic vNext SPIKE-8B actual material-lot source proof
+on:
+  push:
+    branches:
+      - ci/vnext-spike8b-stock-proof-20261021
+permissions:
+  contents: read
+concurrency:
+  group: vnext-spike8b-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  vnext-node-contracts:
+    name: 360 real Node 22 vNext unit cases
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Run all fourteen experimental suites
+        shell: bash
+        run: |
+          set -euo pipefail
+          git rev-parse HEAD
+          node --version
+          for t in core equity store unified 13-week legacy-crosswalk legacy-13week-capture legacy-observation-analysis inventory-ap operating legacy-week-bridge legacy-source-graph legacy-company-replay legacy-inventory-rollforward; do
+            node "experiments/economic-engine-vnext/$t.test.cjs"
+          done
+  legacy-lot-rollforward:
+    name: Real 13wk lot sources, COGS, spoilage and 31 original core postings
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Execute disposable legacy and verify source receipt, PO graph, core and physical inventory
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p proof
+          git rev-parse HEAD > proof/sha.txt
+          node --version > proof/node.txt
+          node experiments/economic-engine-vnext/legacy-13week-headless.cjs > proof/real-legacy.json
+          node experiments/economic-engine-vnext/legacy-week-bridge-cli.cjs proof/real-legacy.json > proof/receipts.json
+          node experiments/economic-engine-vnext/legacy-source-graph-cli.cjs proof/real-legacy.json > proof/po-graph.json
+          node experiments/economic-engine-vnext/legacy-company-replay-cli.cjs proof/real-legacy.json > proof/company-core.json
+          node experiments/economic-engine-vnext/legacy-inventory-rollforward-cli.cjs proof/real-legacy.json > proof/inventory-lots.json
+          node -e "const c=require('./proof/company-core.json'),s=require('./proof/inventory-lots.json');if(c.status!=='SOURCE_LEDGER_PARTIAL'||c.posted!==31||c.blocked!==107||s.status!=='SOURCE_STOCK_EVIDENCE_PARTIAL'||s.verifiedWeeks+s.blockedWeeks!==13||s.verifiedWeeks<1)process.exit(1);console.log(JSON.stringify({ledger:c.status,posted:c.posted,held:c.blocked,stock:s.status,verifiedStockWeeks:s.verifiedWeeks,blockedStockWeeks:s.blockedWeeks,opening:s.opening,stockRows:s.weeks},null,2))"
+      - name: Retain source and physical-material evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: vnext-spike8b-material-source
+          path: proof/
+          if-no-files-found: warn
+          retention-days: 7
