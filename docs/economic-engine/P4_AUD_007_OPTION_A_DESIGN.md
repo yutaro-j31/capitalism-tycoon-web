@@ -62,6 +62,11 @@ Its source type is listed in `finance.js` `INDIVIDUALLY_SERVICED_SOURCES`, so th
 - `termWeeks`, `remainingWeeks`
 - `repaymentMethod:'individual'`
 - `status: 'active' | 'repaid'`
+- **Schedule metadata (required):** `weeklyPrincipalPayment` = the mortgage's own scheduled principal, `round(min(B, B / max(1, mortgageRemainingWeeks)))`, and `nextPaymentWeek = week + 1`. The mortgage `processWeek` refreshes both after each payment, and the refinance and prepayment paths refresh them after each balance change.
+  - Do **not** copy the precedent's `weeklyPrincipalPayment:0`.
+  - `finance.js` `next13LoanPayments` (cash forecast and safe-dividend reserve) and `ma-board-approval.js` `activeLoanWeeklyPayments` (the M&A cash buffer) read this field. A zero would overstate dividend capacity and undersize the M&A buffer for a mortgaged company.
+  - The same zero in the `propertySecuredLoan` precedent is an existing gap, out of scope here.
+  - Acceptance: a regression asserts that the 13-week forecast principal and `activeLoanWeeklyPayments` include the mortgage's scheduled principal.
 
 **Required suppression:** add `'propertyMortgage'` to `INDIVIDUALLY_SERVICED_SOURCES`. Otherwise the generic interest at `engine.js` (`companyDebt − individuallyServicedPrincipal`) double-charges what the mortgage `processWeek` already charges.
 
