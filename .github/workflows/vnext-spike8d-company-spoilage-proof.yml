@@ -1,0 +1,66 @@
+# Temporary vNext laboratory; NEVER merge this eighth workflow to production main.
+name: Economic vNext SPIKE-8D original noncash spoilage proof
+on:
+  push:
+    branches:
+      - ci/vnext-spike8d-company-spoilage-proof-20261022
+permissions:
+  contents: read
+concurrency:
+  group: vnext-spike8d-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  vnext-unit:
+    name: 413 direct Node 22 vNext contract cases
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Execute all sixteen vNext contract suites
+        shell: bash
+        run: |
+          set -euo pipefail
+          git rev-parse HEAD
+          node --version
+          for t in core equity store unified 13-week legacy-crosswalk legacy-13week-capture legacy-observation-analysis inventory-ap operating legacy-week-bridge legacy-source-graph legacy-company-replay legacy-inventory-rollforward legacy-fixedasset-replay legacy-spoilage-replay; do
+            node "experiments/economic-engine-vnext/$t.test.cjs"
+          done
+  original-company-spoilage:
+    name: Authentic 13wk 53 source rows into single core, 96 source holds
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Real disposable legacy source graph and original noncash journal
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p proof
+          git rev-parse HEAD > proof/sha.txt
+          node --version > proof/node-version.txt
+          node experiments/economic-engine-vnext/legacy-13week-headless.cjs > proof/legacy-13week.json
+          node experiments/economic-engine-vnext/legacy-week-bridge-cli.cjs proof/legacy-13week.json > proof/receipts.json
+          node experiments/economic-engine-vnext/legacy-source-graph-cli.cjs proof/legacy-13week.json > proof/po-graph.json
+          node experiments/economic-engine-vnext/legacy-inventory-rollforward-cli.cjs proof/legacy-13week.json > proof/inventory-stock.json
+          node experiments/economic-engine-vnext/legacy-company-replay-cli.cjs proof/legacy-13week.json > proof/inventory-credit-core.json
+          node experiments/economic-engine-vnext/legacy-fixedasset-replay-cli.cjs proof/legacy-13week.json > proof/fixed-asset-core.json
+          node experiments/economic-engine-vnext/legacy-spoilage-replay-cli.cjs proof/legacy-13week.json > proof/company-stockloss-core.json
+          node -e "const r=require('./proof/company-stockloss-core.json');if(r.status!=='SOURCE_LEDGER_STOCK_LOSS_PARTIAL'||r.postedSourceRows!==53||r.heldSourceRows!==96||r.canonicalJournalCount!==54||r.postedNonStoreRows!==9||r.heldNonStoreRows!==2||r.creditInventoryMinor-r.periodSpoilageMinor!==r.remainingInventoryMinor)process.exit(1);console.log(JSON.stringify({status:r.status,sourcePosted:r.postedSourceRows,sourceHeld:r.heldSourceRows,originalNonStore:r.observedNonStoreRows,spoilage:r.postedNonStoreRows,spoilageMinor:r.periodSpoilageMinor,inventoryMinor:r.remainingInventoryMinor,journalCount:r.canonicalJournalCount,limitations:r.limitations},null,2))"
+      - name: Archive authentic source and spoof-proof noncash ledger
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: vnext-spike8d-genuine-company-spoilage-ledger
+          path: proof/
+          retention-days: 7
+          if-no-files-found: warn
