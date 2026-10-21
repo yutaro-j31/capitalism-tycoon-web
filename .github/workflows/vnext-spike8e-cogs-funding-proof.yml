@@ -1,0 +1,67 @@
+# NEVER merge into main: disposable CI laboratory adds eighth workflow.
+name: vNext SPIKE-8E real COGS/cash financing provenance
+on:
+  push:
+    branches:
+      - ci/vnext-spike8e-cogs-funding-proof-20261022
+permissions:
+  contents: read
+concurrency:
+  group: vnext-spike8e-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  node-suites:
+    name: 441 direct Node 22 vNext contract cases
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Execute 17 experimental test suites
+        shell: bash
+        run: |
+          set -euo pipefail
+          git rev-parse HEAD
+          node --version
+          for t in core equity store unified 13-week legacy-crosswalk legacy-13week-capture legacy-observation-analysis inventory-ap operating legacy-week-bridge legacy-source-graph legacy-company-replay legacy-inventory-rollforward legacy-fixedasset-replay legacy-spoilage-replay legacy-cogs-funding; do
+            node "experiments/economic-engine-vnext/$t.test.cjs"
+          done
+  authentic-financing-graph:
+    name: Real 13-week COGS source and cash-stock PO funding graph
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Validate genuine legacy finance, prior 53 postings and 15 held COGS/cash sources
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p proof
+          git rev-parse HEAD > proof/sha.txt
+          node --version > proof/node-version.txt
+          node experiments/economic-engine-vnext/legacy-13week-headless.cjs > proof/legacy-13week.json
+          node experiments/economic-engine-vnext/legacy-week-bridge-cli.cjs proof/legacy-13week.json > proof/receipts.json
+          node experiments/economic-engine-vnext/legacy-source-graph-cli.cjs proof/legacy-13week.json > proof/po-graph.json
+          node experiments/economic-engine-vnext/legacy-inventory-rollforward-cli.cjs proof/legacy-13week.json > proof/physical-stock.json
+          node experiments/economic-engine-vnext/legacy-company-replay-cli.cjs proof/legacy-13week.json > proof/inventory-credit-core.json
+          node experiments/economic-engine-vnext/legacy-fixedasset-replay-cli.cjs proof/legacy-13week.json > proof/fixed-asset-core.json
+          node experiments/economic-engine-vnext/legacy-spoilage-replay-cli.cjs proof/legacy-13week.json > proof/company-spoilage-core.json
+          node experiments/economic-engine-vnext/legacy-cogs-funding-cli.cjs proof/legacy-13week.json > proof/cogs-funding.json
+          node -e "const r=require('./proof/cogs-funding.json');if(r.status!=='SOURCE_COGS_FUNDING_DEPENDENCY_PARTIAL'||r.totalCOGSMinor!==512098001||r.totalImmediateCashMinor!==26351317||r.totalCreditMinor!==617170756||r.openingPhysicalMinor!==13483||r.closingPhysicalMinor!==99645966||r.stillHeldSourceRows!==96||r.heldDependencies.length!==15||r.weeks.length!==13||r.weeks.some(w=>w.coreCOGSPosted!==false))process.exit(1);console.log(JSON.stringify({status:r.status,cogs:r.totalCOGSMinor,immediateCash:r.totalImmediateCashMinor,opening:r.openingPhysicalMinor,closing:r.closingPhysicalMinor,cashStockFundingGap:r.missingOpeningAndImmediateCashStockMinor,postedBefore:53,heldUnchanged:r.stillHeldSourceRows},null,2))"
+      - name: Preserve source and verification evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: vnext-spike8e-source-cogs-dependency
+          path: proof/
+          if-no-files-found: warn
+          retention-days: 7
