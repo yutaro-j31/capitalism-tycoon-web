@@ -59,3 +59,7 @@ SPIKE-4 adds **38** focused tests. The parent's **199** tests passed actual Node
 ### Next task
 
 After exact branch Node proofs, implement only the observed next missing financial categories (depreciation, rent and maintenance) as isolated source-backed events, then build a true 13-week production-event replay comparison. Do not declare production parity, WebKit/durability or Phase 3/4 cutover from this prototype.
+
+## CI normalization (2026-10-21 JST)
+
+The isolated GitHub Actions proof workflow has been removed from this implementation branch. It remains only on the non-mergeable verification branch `experiment/economic-engine-vnext-po-provenance-ci-20261021`. The implementation branch retains the mainline seven-workflow contract; the latest-HEAD `release-readiness` check must be evaluated independently. Experimental direct Node proof on the verification branch is tracked separately and is not an automatic PASS on this PR's new SHA. See `ISOLATED_CI_RUNBOOK.md`. No runtime code, financial logic, saves, or mainline CI contract is changed by this documentation note.
