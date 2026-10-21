@@ -1,0 +1,65 @@
+# Non-mergeable, experiment-only proof. NEVER merge this eighth workflow into main.
+name: vNext SPIKE-8A company-side source-ledger proof
+on:
+  push:
+    branches:
+      - ci/vnext-spike8a-source-ledger-proof-20261021
+permissions:
+  contents: read
+concurrency:
+  group: vnext-spike8a-proof-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  experimental-direct-node:
+    name: vNext 336 direct Node contracts
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Run all thirteen vNext contract suites on verification tree
+        shell: bash
+        run: |
+          set -euo pipefail
+          git rev-parse HEAD
+          node --version
+          for t in core equity store unified 13-week legacy-crosswalk legacy-13week-capture legacy-observation-analysis inventory-ap operating legacy-week-bridge legacy-source-graph legacy-company-replay; do
+            echo "::group::$t direct Node"
+            node "experiments/economic-engine-vnext/$t.test.cjs"
+            echo "::endgroup::"
+          done
+  legacy-source-ledger:
+    name: Real legacy -> 31 core postings, 107 explicit holds
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Execute real disposable legacy 13 weeks and source-authenticated core
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p spike8a-proof
+          git rev-parse HEAD > spike8a-proof/source-sha.txt
+          node --version > spike8a-proof/node-version.txt
+          node experiments/economic-engine-vnext/legacy-13week-headless.cjs > spike8a-proof/legacy-13week.json
+          node experiments/economic-engine-vnext/legacy-week-bridge-cli.cjs spike8a-proof/legacy-13week.json > spike8a-proof/legacy-bridge.json
+          node experiments/economic-engine-vnext/legacy-source-graph-cli.cjs spike8a-proof/legacy-13week.json > spike8a-proof/source-graph.json
+          node experiments/economic-engine-vnext/legacy-company-replay-cli.cjs spike8a-proof/legacy-13week.json > spike8a-proof/company-core-replay.json
+          node -e "const r=require('./spike8a-proof/company-core-replay.json');if(r.status!=='SOURCE_LEDGER_PARTIAL'||r.rows!==138||r.posted!==31||r.blocked!==107||r.journal.length!==31||r.balances.creditInventoryMinor!==617170756||r.balances.creditPayableMinor!==-617170756)process.exit(1);console.log(JSON.stringify({status:r.status,observed:r.rows,posted:r.posted,blocked:r.blocked,delta:r.balances,blockers:r.blockers},null,2))"
+      - name: Preserve disposable observation and core evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: vnext-spike8a-authenticated-core-evidence
+          path: spike8a-proof/
+          if-no-files-found: warn
+          retention-days: 7
