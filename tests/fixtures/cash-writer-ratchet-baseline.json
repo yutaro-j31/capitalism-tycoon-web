@@ -266,6 +266,12 @@
     "direct": 5
    }
   },
+  "js/phase3-founder-wealth.js": {
+   "personalCash": {
+    "dynamicKey": 1,
+    "literalKey": 1
+   }
+  },
   "js/play-runtime-compat.js": {
    "companyCash": {
     "direct": 1
@@ -604,10 +610,10 @@
  "totals": {
   "companyCash.direct": 156,
   "companyCash.dynamicKey": 59,
-  "personalCash.dynamicKey": 54,
+  "personalCash.dynamicKey": 55,
   "computedStateKey": 80,
   "companyCash.literalKey": 15,
   "personalCash.direct": 59,
-  "personalCash.literalKey": 8
+  "personalCash.literalKey": 9
  }
 }
