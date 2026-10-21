@@ -7,7 +7,9 @@ let passed=0;function test(label,fn){fn();passed++;console.log('PASS '+label);}
 const C=reference.categories;
 function row(week,kind,amountMinor,sequence){
  const storeID=reference.provenance.storeId,businessID=reference.provenance.businessId;
- const amount=amountMinor/100,base={week,storeID,businessID,amount,cashEffect:0,profitEffect:0,
+ const amount=amountMinor/100,base={week,storeID,businessID,
+  category:kind==='inventoryReceiptCash'||kind==='inventoryReceiptCredit'?'workingCapitalIncrease':kind,
+  amount,cashEffect:0,profitEffect:0,
   assetEffect:0,liabilityEffect:0,payableAmount:0,inventoryAmount:0};
  if(['revenue','costOfSales','rent','payroll','maintenance','depreciation'].includes(kind)){
   const suffix=kind==='costOfSales'?'cogs':kind;
