@@ -59,7 +59,15 @@ function fabricate(){
   companyCashJPY:{opening:reference.provenance.openingCompanyCashJPY,closing:reference.provenance.closingCompanyCashJPY},
   legacyEvidenceClassification:{status:'UNSUPPORTED',nonStoreFinanceRows:reference.totals.nonStoreRows}};
 }
-function accepted(){const r=bridge.verifyObservation(fabricate());assert.equal(r.status,'SOURCE_ALIGNED_PARTIAL',JSON.stringify(r));return r;}
+// Construct a DIFFERENT digest pin for synthetic records, never allow mocked
+// receipt IDs to masquerade as real original observations.
+function mockPin(observation){
+ const p=clone(reference);
+ p.receiptWeekSHA256=p.weeks.map(w=>bridge.receiptDigest(observation.storeWeeklyRows.filter(r=>r.week===w[0])));
+ return p;
+}
+const knownGoodMockPin=mockPin(fabricate());
+function accepted(){const r=bridge.verifyObservation(fabricate(),knownGoodMockPin);assert.equal(r.status,'SOURCE_ALIGNED_PARTIAL',JSON.stringify(r));return r;}
 test('source-registered 13-week fixture has all nine signed categories',()=>{
  assert.deepEqual(C,['revenue','costOfSales','rent','payroll','maintenance','depreciation','inventoryReceiptCash','inventoryReceiptCredit','accountsPayablePayment']);
  assert.equal(reference.weeks.length,13);
@@ -94,51 +102,64 @@ test('cash does not automatically equal profit',()=>{
 test('duplicate transaction receipt rejected even if categories match',()=>{
  const o=fabricate(),a=o.storeWeeklyRows[0],b=o.storeWeeklyRows[1];
  b.operationID=a.operationID;b.idempotencyKey=a.operationID;
- assert.equal(bridge.verifyObservation(o).status,'EVIDENCE_BLOCKED');
+ assert.equal(bridge.verifyObservation(o,knownGoodMockPin).status,'EVIDENCE_BLOCKED');
 });
 test('single-cent cash distortion fails source reference',()=>{
  const o=fabricate();o.storeWeeklyRows[0].cashEffect+=0.01;
- assert.equal(bridge.verifyObservation(o).status,'EVIDENCE_BLOCKED');
+ assert.equal(bridge.verifyObservation(o,knownGoodMockPin).status,'EVIDENCE_BLOCKED');
 });
 test('one-cent P&L manipulation is not tolerated',()=>{
  const o=fabricate();o.storeWeeklyRows[0].profitEffect+=0.01;
- assert.equal(bridge.verifyObservation(o).status,'EVIDENCE_BLOCKED');
+ assert.equal(bridge.verifyObservation(o,knownGoodMockPin).status,'EVIDENCE_BLOCKED');
 });
 test('source operation belongs to correct weekly store',()=>{
  const o=fabricate();o.storeWeeklyRows[0].storeID='store-unauthorized';
- assert.equal(bridge.verifyObservation(o).status,'EVIDENCE_BLOCKED');
+ assert.equal(bridge.verifyObservation(o,knownGoodMockPin).status,'EVIDENCE_BLOCKED');
 });
 test('different seeded demand history rejected',()=>{
  const o=fabricate();o.seed++;
- assert.equal(bridge.verifyObservation(o).status,'EVIDENCE_BLOCKED');
+ assert.equal(bridge.verifyObservation(o,knownGoodMockPin).status,'EVIDENCE_BLOCKED');
 });
 test('noncash inventory COGS must change source inventory',()=>{
  const o=fabricate();const c=o.storeWeeklyRows.find(x=>x.category==='costOfSales');c.inventoryAmount=0;
- assert.equal(bridge.verifyObservation(o).status,'EVIDENCE_BLOCKED');
+ assert.equal(bridge.verifyObservation(o,knownGoodMockPin).status,'EVIDENCE_BLOCKED');
 });
 test('credit receipt requires a real matching AP liability event',()=>{
  const o=fabricate();const c=o.storeWeeklyRows.find(x=>x.sourceType==='inventory-receipt-ap');c.liabilityEffect=0;
- assert.equal(bridge.verifyObservation(o).status,'EVIDENCE_BLOCKED');
+ assert.equal(bridge.verifyObservation(o,knownGoodMockPin).status,'EVIDENCE_BLOCKED');
 });
 test('depreciation source must contain book before/after evidence',()=>{
  const o=fabricate();const d=o.storeWeeklyRows.find(x=>x.category==='depreciation');delete d.fixedAssetEvidence;
- assert.equal(bridge.verifyObservation(o).status,'EVIDENCE_BLOCKED');
+ assert.equal(bridge.verifyObservation(o,knownGoodMockPin).status,'EVIDENCE_BLOCKED');
 });
 test('missing week row fails closed',()=>{
  const o=fabricate();o.storeWeeklyRows.pop();
- assert.equal(bridge.verifyObservation(o).status,'EVIDENCE_BLOCKED');
+ assert.equal(bridge.verifyObservation(o,knownGoodMockPin).status,'EVIDENCE_BLOCKED');
+});
+test('original real receipt digests reject fabricated records even when sums are identical',()=>{
+ assert.equal(bridge.verifyObservation(fabricate()).status,'EVIDENCE_BLOCKED');
+});
+test('offsetting receipt tamper cannot escape per-week SHA-256 despite zero category drift',()=>{
+ const o=fabricate(),rows=o.storeWeeklyRows.filter(r=>r.week===5&&r.sourceType==='emergency-receipt-cash');
+ assert.equal(rows.length,2);
+ for(const [row,delta]of [[rows[0],1],[rows[1],-1]]){
+  row.amount+=delta;row.cashEffect-=delta;row.inventoryAmount+=delta;row.assetEffect+=delta;
+ }
+ assert.equal(bridge.verifyObservation(o,knownGoodMockPin).status,'EVIDENCE_BLOCKED');
+ const rePinned=mockPin(o);
+ assert.equal(bridge.verifyObservation(o,rePinned).status,'SOURCE_ALIGNED_PARTIAL');
 });
 test('opening company cash drift fails closed',()=>{
  const o=fabricate();o.companyCashJPY.opening+=100;
- assert.equal(bridge.verifyObservation(o).status,'EVIDENCE_BLOCKED');
+ assert.equal(bridge.verifyObservation(o,knownGoodMockPin).status,'EVIDENCE_BLOCKED');
 });
 test('closed asset-book float amount remains exactly cents',()=>{
  const o=fabricate();const d=o.storeWeeklyRows.find(x=>x.category==='depreciation');d.fixedAssetEvidence.bookAfter+=0.001;
- assert.equal(bridge.verifyObservation(o).status,'EVIDENCE_BLOCKED');
+ assert.equal(bridge.verifyObservation(o,knownGoodMockPin).status,'EVIDENCE_BLOCKED');
 });
 test('unmodeled new finance category rejected rather than counted as revenue',()=>{
  const o=fabricate();o.storeWeeklyRows[0].category='taxExpense';
- assert.equal(bridge.verifyObservation(o).status,'EVIDENCE_BLOCKED');
+ assert.equal(bridge.verifyObservation(o,knownGoodMockPin).status,'EVIDENCE_BLOCKED');
 });
 test('nonstore finance rows remain explicitly out of accounting-parity scope',()=>{
  assert.ok(accepted().blockers.includes('non-store-finance-outside-store-scope'));
