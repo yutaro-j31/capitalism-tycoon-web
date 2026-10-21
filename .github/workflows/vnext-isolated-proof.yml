@@ -1,17 +1,12 @@
 # Experimental verification ONLY. This workflow exists on a draft vNext branch,
 # is not merged into main, and is restricted to the proof branch or its own PR.
 # Never consume production saved games or publish user data.
-name: vNext isolated proof (experimental)
+name: vNext PR-equivalent isolated proof (experimental)
 
 on:
   push:
     branches:
-      - 'experiment/economic-engine-vnext-po-provenance-*'
-  pull_request:
-    branches:
-      - 'experiment/economic-engine-vnext-legacy-bridge-*'
-    paths:
-      - '.github/workflows/vnext-isolated-proof.yml'
+      - 'ci/vnext-pr-readiness-verification-20261021'
 
 permissions:
   contents: read
@@ -109,7 +104,7 @@ jobs:
           retention-days: 7
 
   implementation-release-readiness:
-    name: Implementation PR release gate (${{ matrix.pr }})
+    name: Implementation PR-equivalent release gate (${{ matrix.pr }})
     runs-on: ubuntu-latest
     timeout-minutes: 35
     strategy:
@@ -146,11 +141,15 @@ jobs:
           node tests/workflow-path-filter-contract-test.js
       - name: Prepare release-readiness diagnostics
         run: mkdir -p artifacts/release-readiness
-      - name: Run standard release balance gate
+      # release-gate.js selects its established PR matrices from this variable.
+      # The lab itself is push-triggered; emulate ONLY the child gate context.
+      # This is PR readiness evidence, never evidence of full-release matrices.
+      - name: Run standard PR release balance gate
         shell: bash
         run: |
           set -o pipefail
-          node scripts/release-gate.js 2>&1 | tee artifacts/release-readiness/balance.log
+          GITHUB_EVENT_NAME=pull_request node scripts/release-gate.js 2>&1 | tee artifacts/release-readiness/balance.log
+          grep -Fq '[release-gate] mode=pull-request-representative ' artifacts/release-readiness/balance.log
       - name: Run standard release hardening gate
         shell: bash
         run: |
