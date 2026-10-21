@@ -125,7 +125,13 @@ function supplied(view,external,valuationIssues,liabilityIssues){
   const strings=x=>x===undefined?[]:Array.isArray(x)&&x.every(id)?x.slice():null;
   const coveredAssets=row&&typeof row==='object'?strings(row.coveredAssets):null,coveredLiabilities=row&&typeof row==='object'?strings(row.coveredLiabilities):null;
   if(!row||typeof row!=='object'||Array.isArray(row)||!id(row.assetKey)||!id(row.kind)||typeof row.amount!=='number'||!id(row.sourceMethod)||coveredAssets===null||coveredLiabilities===null){
-   issues.push(reason('INPUT_INVALID',path,'Supplied valuation evidence requires assetKey, kind, numeric amount, sourceMethod and string coverage lists.'));return;
+   issues.push(reason('INPUT_INVALID',path,'Supplied valuation evidence requires assetKey, kind, numeric amount, sourceMethod and string coverage lists.'));
+   // A malformed own-company row still claims that valuation: a valid sibling must not be
+   // chosen alone, so the claim survives as an unknown entry with no amount.
+   if(row&&typeof row==='object'&&!Array.isArray(row)&&row.assetKey==='own-company')valuations.push({valuationKey:`supplied:${i}`,assetKey:'own-company',
+    kind:id(row.kind)?row.kind:null,value:null,currency:typeof row.currency==='string'?row.currency:null,provenance:'supplied',sourceMethod:id(row.sourceMethod)?row.sourceMethod:null,
+    sourceVersion:null,asOfWeek:null,coveredAssets:[],coveredLiabilities:[],sourceRefs:[ref(path,null,'supplied')],status:'unknown',reasons:[reason('INPUT_INVALID',path,'Malformed own-company valuation claim; no amount is used.')]});
+   return;
   }
   if(row.assetKey!=='own-company'){issues.push(reason('VALUATION_BASIS_UNSUPPORTED',`${path}.assetKey`,'Only own-company Equity Value evidence may be supplied in this slice.'));return;}
   valuations.push({valuationKey:`supplied:${i}`,assetKey:row.assetKey,kind:row.kind,value:row.amount,currency:row.currency===undefined?null:row.currency,
@@ -377,6 +383,7 @@ function projectFounderWealth(rawState,ownershipSnapshot,valuationEvidence,liabi
   else{
    const {row,i}=ownSupplied[0],path=`valuationEvidence.entries[${i}]`;
    if(!accepted.has(row))ownCompany.reasons.push(...blocked(path));
+   else if(row.status!=='known')ownCompany.reasons.push(reason('INPUT_INVALID',path,'The only own-company valuation input is malformed; no amount is used.'));
    else if(row.kind!=='equityValue')ownCompany.reasons.push(reason('VALUATION_BASIS_UNSUPPORTED',path,row.kind==='enterpriseValue'?'Enterprise Value is not Equity Value; no debt bridge is applied.':'Only semantic equityValue evidence is supported.'));
    else if(!money(row.value)||row.value<0)ownCompany.reasons.push(reason('VALUATION_BASIS_UNSUPPORTED',path,'Equity Value must be a finite non-negative JPY amount.'));
    else if(typeof outstanding!=='number'||!(outstanding>0)||founder.quantity>outstanding)ownCompany.reasons.push(reason('DENOMINATOR_UNKNOWN','outstandingQuantity','Founder economic ownership cannot be derived.'));

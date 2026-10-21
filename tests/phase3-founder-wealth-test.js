@@ -257,6 +257,27 @@ function noReference(value,target,seen=new Set()){
  const usd=project(s,{liabilities:[{liabilityKey:'tax',amount:5,currency:'USD',sourceMethod:'fixture-liability'}]});
  deq(codes(comp(usd,'liability:supplied:tax').reasons),['CURRENCY_UNSUPPORTED']);
 }
+// 8. A malformed own-company valuation keeps its claim: a valid sibling is never chosen alone (7c9dac05 review).
+{
+ const s=fixture();Object.assign(s,{publicCompany:false,treasuryBuybackShares:0,founderShares:600,personalStocks:{},personalCash:0,personalDebt:0});
+ const ok={assetKey:'own-company',kind:'equityValue',amount:100e6,currency:'JPY',sourceMethod:'fixture-equity'};
+ const {amount,...noAmount}=ok,{sourceMethod,...noMethod}=ok,{kind,...noKind}=ok;
+ for(const bad of [noAmount,{...ok,amount:'100'},noMethod,noKind,{...ok,coveredAssets:'subsidiaries'}]){
+  const results=[[ok,bad],[bad,ok]].map(rows=>project(s,{valuations:rows}));
+  for(const r of results){
+   const own=comp(r,'asset:own-company');
+   assert.equal(own.amountJPY,null);deq(codes(own.reasons),['VALUATION_SOURCE_CONFLICT'],'the repeated claim is a conflict');
+   assert(r.reasons.some(x=>x.code==='INPUT_INVALID'&&/^valuationEvidence\.supplied\.valuations\[[01]\]$/.test(x.path)),'malformed row still reported');
+   assert.equal(r.knownNetWorth,0,'the valid sibling is not counted');
+  }
+  deq(codes(comp(results[0],'asset:own-company').reasons),codes(comp(results[1],'asset:own-company').reasons));
+  // A lone malformed claim is an input failure on the component; no amount is used.
+  const lone=comp(project(s,{valuations:[bad]}),'asset:own-company');
+  assert.equal(lone.amountJPY,null);deq(codes(lone.reasons),['INPUT_INVALID']);
+ }
+ // A malformed row for an unsupported asset claims nothing about the own company.
+ assert.equal(comp(project(s,{valuations:[ok,{assetKey:'fund'}]}),'asset:own-company').amountJPY,42e6);
+}
 // Founder loans, margin, liability mirrors, VC/angel/PE families and the company/personal boundary.
 {
  const s=fixture();
