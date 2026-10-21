@@ -13,6 +13,24 @@ function requireInteger(v,label) {
   if(!Number.isSafeInteger(v))throw Error('invalid-'+label);
   return v;
 }
+// Snapshot legacy supply sources separately from finance postings. Catalog
+// supplierID is NOT an authenticated vNext legal entity or payable counterparty.
+function sourceSnapshot(game,storeID){
+ const orders=Array.isArray(game.purchaseOrders)?
+  game.purchaseOrders.filter(p=>p&&p.storeID===storeID).map(p=>({
+   orderID:p.orderID,storeID:p.storeID,businessID:p.businessID,
+   supplierID:p.supplierID,materialID:p.materialID,
+   orderWeek:p.orderWeek,receivedCost:p.receivedCost,paidAmount:p.paidAmount,
+   receivedQuantity:p.receivedQuantity,unitCost:p.unitCost,
+   paymentDueWeek:p.paymentDueWeek,orderStatus:p.orderStatus,paymentStatus:p.paymentStatus
+  })).sort((a,b)=>String(a.orderID).localeCompare(String(b.orderID))):null;
+ const inv=game.inventoryByStoreID?.[storeID];
+ const lots=inv?.materials?Object.values(inv.materials).flatMap(m=>(m.lots||[]).map(l=>({
+  status:l.status,bookValue:l.bookValue,quantity:l.quantity,receivedWeek:l.receivedWeek
+ }))):null;
+ return snapshot({week:game.week,orders,lots,companyAccountsPayableJPY:game.supplyAccountsPayableBalance??null,
+  financeInventoryJPY:game.finance?.balances?.inventory??null});
+}
 function capture13Weeks(engine, options={}) {
   if(!engine||typeof engine.advanceWeek!=='function'||!engine.g||!engine.g.finance||!Array.isArray(engine.g.finance.transactions))throw Error('invalid-legacy-runtime');
   if(!options||typeof options!=='object'||!options.storeID||!options.businessID)throw Error('missing-store-selection');
@@ -21,7 +39,9 @@ function capture13Weeks(engine, options={}) {
   const startingWeek=requireInteger(before.week,'starting-week');
   const openingCash=finite(before.companyCash,'opening-company-cash');
   const firstSequence=before.finance.transactions.length;
+  const openingSource=sourceSnapshot(engine.g,options.storeID);
   const records=[];
+  const weeklySources=[];
   const forWeek=week=>engine.g.finance.transactions.filter(r=>r&&r.week===week).map(row=>snapshot(row));
   for(let step=1;step<=13;step++) {
     const prevWeek=engine.g.week,preCash=finite(engine.g.companyCash,'opening-company-cash');
@@ -37,6 +57,7 @@ function capture13Weeks(engine, options={}) {
     const financeState=engine.g.finance;
     const lastValidation=financeState.lastValidation?.ok;
     if(lastValidation===false)throw Error('legacy-finance-validation-failed-week-'+actual);
+    weeklySources.push(sourceSnapshot(engine.g,options.storeID));
     records.push({
       step,week:actual,
       beforeCashJPY:preCash,afterCashJPY:endingCash,cashDeltaJPY:endingCash-preCash,
@@ -51,7 +72,7 @@ function capture13Weeks(engine, options={}) {
   }
   return {startingWeek,endingWeek:engine.g.week,openingCashJPY:openingCash,closingCashJPY:engine.g.companyCash,
     storeID:options.storeID,businessID:options.businessID,startingFinanceTransactionCount:firstSequence,
-    records};
+    records,sourceGraphEvidence:{opening:openingSource,weekly:weeklySources}};
 }
 function evaluateCapture(capture,reference) {
   if(!capture||!Array.isArray(capture.records)||capture.records.length!==13)throw Error('invalid-capture');
