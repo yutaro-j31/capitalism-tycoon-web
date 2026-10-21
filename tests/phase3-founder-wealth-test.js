@@ -136,6 +136,26 @@ function noReference(value,target,seen=new Set()){
  assert.equal(mixed.knownNetWorth,42e6-20);
  deq(codes(comp(project(s,{liabilities:[{liabilityKey:'personal-debt',amount:1,currency:'JPY',sourceMethod:'x'}]}),'liability:supplied:personal-debt').reasons),[]);
 }
+// Supplied liabilities: negative amounts are rejected; a repeated identity invalidates every member, order-independently.
+{
+ const s=fixture();Object.assign(s,{publicCompany:false,treasuryBuybackShares:0,founderShares:600,personalStocks:{}});
+ const base=project(s).knownNetWorth;
+ const row=(amount,key='tax-bill')=>({liabilityKey:key,amount,currency:'JPY',sourceMethod:'fixture-liability'});
+ for(const amount of [-100,-0.01,NaN,Infinity,1e300]){
+  const r=project(s,{liabilities:[row(amount)]});
+  assert.equal(comp(r,'liability:supplied:tax-bill'),undefined,`amount ${amount} is not issued as evidence`);
+  assert.equal(r.knownNetWorth,base,`amount ${amount} does not move the known subtotal`);
+ }
+ const forward=project(s,{liabilities:[row(5),row(7),row(3,'other')]}),reverse=project(s,{liabilities:[row(3,'other'),row(7),row(5)]});
+ for(const r of [forward,reverse]){
+  const dup=r.components.filter(c=>c.componentId==='liability:supplied:tax-bill');
+  assert.equal(dup.length,1,'a repeated identity collapses to one component');
+  assert.equal(dup[0].amountJPY,null);deq(codes(dup[0].reasons),['ALIAS_CONFLICT']);
+  assert.equal(comp(r,'liability:supplied:other').amountJPY,-3);
+  assert.equal(r.knownNetWorth,base-3,'no member of a conflicting set contributes');
+ }
+ assert.equal(new Set(forward.components.map(c=>c.componentId)).size,forward.components.length,'component IDs stay unique');
+}
 // Founder loans, margin, liability mirrors, VC/angel/PE families and the company/personal boundary.
 {
  const s=fixture();

@@ -120,8 +120,8 @@ function supplied(view,external,issues){
  });
  rows('liabilities').forEach((row,i)=>{
   const path=`supplied.liabilities[${i}]`;
-  if(!row||typeof row!=='object'||Array.isArray(row)||!id(row.liabilityKey)||typeof row.amount!=='number'||!id(row.sourceMethod)){
-   issues.push(reason('INPUT_INVALID',path,'Supplied liability evidence requires liabilityKey, numeric amount and sourceMethod.'));return;
+  if(!row||typeof row!=='object'||Array.isArray(row)||!id(row.liabilityKey)||!money(row.amount)||row.amount<0||!id(row.sourceMethod)){
+   issues.push(reason('INPUT_INVALID',path,'Supplied liability evidence requires liabilityKey, a finite non-negative amount within the monetary envelope and sourceMethod.'));return;
   }
   liabilities.push({liabilityKey:`liability:supplied:${row.liabilityKey}`,kind:'principal',value:row.amount,currency:row.currency===undefined?null:row.currency,
    provenance:'supplied',sourceMethod:row.sourceMethod,sourceRefs:[ref(path,row.liabilityKey,'supplied')],includesKeys:[],excludedKeys:[],status:'known',reasons:[]});
@@ -257,10 +257,17 @@ function captureFounderWealthEvidence(rawState,externalEvidence){
  }
  const extra=supplied(view,externalEvidence,valuation.issues);
  valuation.entries.push(...extra.valuations);
- const keys=new Set(liability.entries.map(row=>row.liabilityKey));
- for(const row of extra.liabilities){
-  if(keys.has(row.liabilityKey)){row.status='unknown';row.reasons.push(reason('ALIAS_CONFLICT',row.sourceRefs[0].path,'Supplied liability identity repeats another liability identity.'));}
-  keys.add(row.liabilityKey);liability.entries.push(row);
+ // A repeated identity invalidates every member of the set, independent of input order, and collapses
+ // to one unknown entry so component IDs stay unique.
+ const keys=new Set(liability.entries.map(row=>row.liabilityKey)),groups=new Map();
+ for(const row of extra.liabilities){if(!groups.has(row.liabilityKey))groups.set(row.liabilityKey,[]);groups.get(row.liabilityKey).push(row);}
+ for(const [key,members] of groups){
+  if(members.length===1&&!keys.has(key)){liability.entries.push(members[0]);continue;}
+  const refs=members.flatMap(row=>row.sourceRefs).sort((a,b)=>a.path<b.path?-1:a.path>b.path?1:0);
+  const same=f=>members.every(row=>row[f]===members[0][f])?members[0][f]:null;
+  liability.entries.push({liabilityKey:key,kind:'principal',value:null,currency:same('currency'),provenance:'supplied',sourceMethod:same('sourceMethod'),
+   sourceRefs:refs,includesKeys:[],excludedKeys:[],status:'unknown',
+   reasons:[reason('ALIAS_CONFLICT',refs[0].path,'Supplied liability identity repeats another liability identity.',refs.map(r=>r.path))]});
  }
  for(const [evidence,kind] of [[ownership,'ownershipSnapshot'],[valuation,'valuationEvidence'],[liability,'liabilityEvidence']]){freeze(evidence);issued.set(evidence,{kind,token});}
  bundle.ownershipSnapshot=ownership;bundle.valuationEvidence=valuation;bundle.liabilityEvidence=liability;
