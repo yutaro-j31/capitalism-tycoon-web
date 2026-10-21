@@ -133,9 +133,22 @@ for(const bad of [null,[],'x',42,new Map()])unknown(project(bad,scope),'INPUT_IN
 }
 // A holding without its durable evidence ID fails closed instead of citing an array position (Codex 4332153047).
 {
-  for(const id of [undefined,null,7,'']){
+  for(const id of [undefined,null,7,'','bogus']){
     const s=snapshot({issued:300,treasury:0,held:10});
     if(id===undefined)delete s.beneficialHoldings[0].beneficialHoldingId;else s.beneficialHoldings[0].beneficialHoldingId=id;
+    unknown(project(s,scope),'INPUT_INVALID');
+  }
+}
+// Only the canonical player common class is accepted, even when class and holding agree (Codex 4332651508).
+{
+  const s=snapshot({issued:300,treasury:0,held:10});
+  s.securityClasses[0].securityClassId='security:invented';s.beneficialHoldings[0].securityClassId='security:invented';
+  unknown(project(s,scope),'CLASS_RULES_UNKNOWN');
+}
+// Unrecognized unresolved-alias records fail closed; the known issuer-family alias stays harmless (Codex 4332651514).
+{
+  for(const alias of [{},{reason:'unknown'},{reason:null}]){
+    const s=snapshot({issued:300,treasury:0,held:10});s.unresolvedAliases=[alias];
     unknown(project(s,scope),'INPUT_INVALID');
   }
 }

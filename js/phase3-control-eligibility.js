@@ -8,6 +8,9 @@ if(!modules.economicReadModel)throw Error('economic-read-model.js must precede p
 if(modules.phase3ControlEligibility)throw Error('control eligibility already registered');
 const readModel=modules.economicReadModel;
 const PLAYER=readModel.PLAYER_COMPANY_ENTITY_ID,FOUNDER=readModel.FOUNDER_ENTITY_ID;
+// The supported P3-2 scope has one canonical class and one founder holding; any other identity is unproven.
+const COMMON_CLASS=readModel.PLAYER_COMPANY_COMMON_SECURITY_CLASS_ID,FOUNDER_HOLDING='beneficial:player-company:founder';
+if(typeof COMMON_CLASS!=='string'||!COMMON_CLASS)throw Error('economic-read-model.js must export the player common class ID');
 const PLAYER_RIGHTS_EVIDENCE='legacy-player-single-common-class';
 const RECONCILIATION_SCOPE='player-company-common-founder-and-unallocated-residual';
 // Six approved stages with exact crossing semantics over safe-integer voting units (n of d).
@@ -95,13 +98,16 @@ function evidence(snapshot,issuerEntityId,actingEntityId){
  rows(field(root,'checks','snapshot'),'snapshot.checks').forEach((check,i)=>{if(field(check,'ok',`snapshot.checks[${i}]`)!==true)throw new Unknown('RECONCILIATION_FAILED',`snapshot.checks[${i}]`,'A reconciliation check did not pass.');});
  if(rows(field(root,'issues','snapshot'),'snapshot.issues').length)throw new Unknown('RECONCILIATION_FAILED','snapshot.issues','Reconciliation reported issues.');
  for(const [i,alias] of rows(field(root,'unresolvedAliases','snapshot'),'snapshot.unresolvedAliases').entries()){
-  if(field(alias,'reason',`snapshot.unresolvedAliases[${i}]`)==='company-own-share-alias-not-adopted')throw new Unknown('OWN_SHARE_ALIAS_UNRESOLVED',`snapshot.unresolvedAliases[${i}]`,'Company-held own shares outside treasury leave the voting denominator unproven.');
+  const why=field(alias,'reason',`snapshot.unresolvedAliases[${i}]`);
+  if(why==='company-own-share-alias-not-adopted')throw new Unknown('OWN_SHARE_ALIAS_UNRESOLVED',`snapshot.unresolvedAliases[${i}]`,'Company-held own shares outside treasury leave the voting denominator unproven.');
+  // Only an issuer-family alias is known to leave the player denominator untouched; anything else is unproven.
+  if(why!=='issuer-family-alias-not-adopted')throw new Unknown('INPUT_INVALID',`snapshot.unresolvedAliases[${i}].reason`,'Unrecognized unresolved-alias evidence leaves the voting denominator unproven.');
  }
  const classes=rows(field(root,'securityClasses','snapshot'),'snapshot.securityClasses');
  if(classes.length!==1)throw new Unknown('CLASS_RULES_UNKNOWN','snapshot.securityClasses','Exactly one modeled class is required.');
  const c=classes[0],cp='snapshot.securityClasses[0]';
  const securityClassId=field(c,'securityClassId',cp);
- if(field(c,'issuerEntityId',cp)!==PLAYER||field(c,'classType',cp)!=='common'||field(c,'votingRightsPerUnit',cp)!==1||field(c,'rightsEvidence',cp)!==PLAYER_RIGHTS_EVIDENCE||typeof securityClassId!=='string'||!securityClassId)
+ if(field(c,'issuerEntityId',cp)!==PLAYER||field(c,'classType',cp)!=='common'||field(c,'votingRightsPerUnit',cp)!==1||field(c,'rightsEvidence',cp)!==PLAYER_RIGHTS_EVIDENCE||securityClassId!==COMMON_CLASS)
   throw new Unknown('CLASS_RULES_UNKNOWN',cp,'Class voting rules are not evidenced.');
  const issued=units(field(c,'issuedQuantity',cp),`${cp}.issuedQuantity`),treasury=units(field(c,'treasuryQuantity',cp),`${cp}.treasuryQuantity`);
  const outstanding=units(field(c,'outstandingQuantity',cp),`${cp}.outstandingQuantity`);
@@ -122,7 +128,7 @@ function evidence(snapshot,issuerEntityId,actingEntityId){
  if(outstanding===0)throw new Unknown('DENOMINATOR_ZERO',`${cp}.outstandingQuantity`,'No eligible outstanding voting units.');
  // The durable holding ID is the evidence reference downstream revalidation consumes; an array position is not.
  const holdingId=field(row,'beneficialHoldingId',path);
- if(typeof holdingId!=='string'||!holdingId)throw new Unknown('INPUT_INVALID',`${path}.beneficialHoldingId`,'Beneficial holding has no durable evidence ID.');
+ if(holdingId!==FOUNDER_HOLDING)throw new Unknown('INPUT_INVALID',`${path}.beneficialHoldingId`,'Beneficial holding does not carry the canonical founder evidence ID.');
  return {securityClassId,eligibleVotingUnits:outstanding,holderVotingUnits:held,treasuryUnitsExcluded:treasury,
   rightsBasis:PLAYER_RIGHTS_EVIDENCE,sourceRefs:[securityClassId,holdingId]};
 }
