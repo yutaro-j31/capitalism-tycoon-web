@@ -78,7 +78,7 @@ unknown(project(snapshot({issued:300,treasury:0,held:-1}),scope),'INPUT_INVALID'
 unknown(project(snapshot({issued:300,treasury:0,held:301}),scope),'RECONCILIATION_FAILED');
 unknown(project(snapshot({issued:300,treasury:0,held:10,ok:false}),scope),'RECONCILIATION_FAILED');
 unknown(project(snapshot({issued:300,treasury:0,held:10,aliases:[{reason:'company-own-share-alias-not-adopted'}]}),scope),'OWN_SHARE_ALIAS_UNRESOLVED');
-assert.equal(project(snapshot({issued:300,treasury:0,held:10,aliases:[{reason:'issuer-family-alias-not-adopted'}]}),scope).status,'EVALUATED','other issuers do not affect the player denominator');
+assert.equal(project(snapshot({issued:300,treasury:0,held:10,aliases:[{reason:'issuer-family-alias-not-adopted',issuerEntityId:null,securityClassId:null}]}),scope).status,'EVALUATED','other issuers do not affect the player denominator');
 unknown(project(snapshot({issued:300,treasury:0,held:10}),{issuerEntityId:'entity:company:other',actingEntityId:FOUNDER}),'ISSUER_FAMILY_UNSUPPORTED');
 unknown(project(snapshot({issued:300,treasury:0,held:10}),{issuerEntityId:PLAYER,actingEntityId:PLAYER}),'ACTOR_UNSUPPORTED');
 unknown(project(snapshot({issued:300,treasury:0,held:10}),{issuerEntityId:PLAYER,actingEntityId:'entity:person:other'}),'ACTOR_UNSUPPORTED');
@@ -151,6 +151,16 @@ for(const bad of [null,[],'x',42,new Map()])unknown(project(bad,scope),'INPUT_IN
     const s=snapshot({issued:300,treasury:0,held:10});s.unresolvedAliases=[alias];
     unknown(project(s,scope),'INPUT_INVALID');
   }
+}
+// A recognized issuer-family alias that claims the player issuer or class contradicts its reason (Codex 4333230848).
+{
+  const base={reason:'issuer-family-alias-not-adopted',registeredHolderEntityId:PLAYER,issuerEntityId:null,securityClassId:null,quantity:100};
+  for(const alias of [{...base,issuerEntityId:PLAYER,securityClassId:'security:player-company:common'},{...base,issuerEntityId:PLAYER},{...base,securityClassId:'security:player-company:common'},{reason:'issuer-family-alias-not-adopted'}]){
+    const s=snapshot({issued:300,treasury:0,held:10});s.unresolvedAliases=[alias];
+    unknown(project(s,scope),'INPUT_INVALID');
+  }
+  const ok=snapshot({issued:300,treasury:0,held:10});ok.unresolvedAliases=[base];
+  assert.equal(project(ok,scope).status,'EVALUATED');
 }
 // A missing unresolvedAliases collection is not proven-empty (Codex 4329489006).
 {

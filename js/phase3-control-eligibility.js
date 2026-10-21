@@ -102,6 +102,10 @@ function evidence(snapshot,issuerEntityId,actingEntityId){
   if(why==='company-own-share-alias-not-adopted')throw new Unknown('OWN_SHARE_ALIAS_UNRESOLVED',`snapshot.unresolvedAliases[${i}]`,'Company-held own shares outside treasury leave the voting denominator unproven.');
   // Only an issuer-family alias is known to leave the player denominator untouched; anything else is unproven.
   if(why!=='issuer-family-alias-not-adopted')throw new Unknown('INPUT_INVALID',`snapshot.unresolvedAliases[${i}].reason`,'Unrecognized unresolved-alias evidence leaves the voting denominator unproven.');
+  // P3-2 leaves an issuer-family alias unresolved: it names no issuer and no class. A record that claims either
+  // contradicts its own reason (e.g. company-held player common shares) and is rejected.
+  const ap=`snapshot.unresolvedAliases[${i}]`;
+  if(field(alias,'issuerEntityId',ap)!==null||field(alias,'securityClassId',ap)!==null)throw new Unknown('INPUT_INVALID',ap,'An issuer-family alias must not claim an issuer or class.');
  }
  const classes=rows(field(root,'securityClasses','snapshot'),'snapshot.securityClasses');
  if(classes.length!==1)throw new Unknown('CLASS_RULES_UNKNOWN','snapshot.securityClasses','Exactly one modeled class is required.');
