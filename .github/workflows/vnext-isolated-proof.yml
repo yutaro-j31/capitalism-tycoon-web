@@ -107,3 +107,65 @@ jobs:
           path: vnext-proof/
           if-no-files-found: warn
           retention-days: 7
+
+  implementation-release-readiness:
+    name: Implementation PR release gate (${{ matrix.pr }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    strategy:
+      fail-fast: false
+      max-parallel: 3
+      matrix:
+        include:
+          - pr: "1054"
+            sha: "af45449b04ade04002e74dd0020a273b01ab8902"
+          - pr: "1058"
+            sha: "be176e8d01f721556a8f0cda506c132f9503bbf5"
+          - pr: "1059"
+            sha: "e966b25730ef300ead27719d461bd15f81bc17fc"
+          - pr: "1063"
+            sha: "fd4bd9dfe0040a20452652591ed97d8af685b8cb"
+          - pr: "1064"
+            sha: "8c8775e061477f68b62941e3925af6bb35365cd3"
+    steps:
+      - name: Check out exact implementation HEAD
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ matrix.sha }}
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - name: Check source SHA and seven-workflow contract
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "${{ matrix.sha }}"
+          test "$(find .github/workflows -maxdepth 1 -name '*.yml' | wc -l | tr -d ' ')" = "7"
+          test ! -e .github/workflows/vnext-isolated-proof.yml
+          node tests/workflow-path-filter-contract-test.js
+      - name: Prepare release-readiness diagnostics
+        run: mkdir -p artifacts/release-readiness
+      - name: Run standard release balance gate
+        shell: bash
+        run: |
+          set -o pipefail
+          node scripts/release-gate.js 2>&1 | tee artifacts/release-readiness/balance.log
+      - name: Run standard release hardening gate
+        shell: bash
+        run: |
+          set -o pipefail
+          node scripts/release-hardening-gate.js 2>&1 | tee artifacts/release-readiness/hardening.log
+      - name: Run standard release delivery gate
+        shell: bash
+        run: |
+          set -o pipefail
+          node scripts/release-delivery-gate.js 2>&1 | tee artifacts/release-readiness/delivery.log
+      - name: Preserve exact-source release gate evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: vnext-pr-${{ matrix.pr }}-release-readiness
+          path: artifacts/release-readiness
+          if-no-files-found: warn
+          retention-days: 7
