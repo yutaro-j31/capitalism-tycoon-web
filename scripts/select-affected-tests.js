@@ -41,6 +41,19 @@ function changedFiles() {
   const untracked = git(['ls-files', '--others', '--exclude-standard']).split('\n');
   return [...new Set([...committed, ...local, ...untracked].filter(Boolean))].sort();
 }
+// Removes // and /* */ comments outside string literals (a rough lexer; good enough for reference matching).
+function stripComments(text) {
+  let out = '', i = 0, quote = null;
+  while (i < text.length) {
+    const ch = text[i], next = text[i + 1];
+    if (quote) { out += ch; if (ch === '\\') { out += next ?? ''; i += 2; continue; } if (ch === quote) quote = null; i++; continue; }
+    if (ch === '"' || ch === "'" || ch === '`') { quote = ch; out += ch; i++; continue; }
+    if (ch === '/' && next === '/') { while (i < text.length && text[i] !== '\n') i++; continue; }
+    if (ch === '/' && next === '*') { const end = text.indexOf('*/', i + 2); i = end < 0 ? text.length : end + 2; out += ' '; continue; }
+    out += ch; i++;
+  }
+  return out;
+}
 function exists(file) { return fs.existsSync(path.join(ROOT, file)); }
 // `node [flags] <file>` invocations in a shell command; flags such as --max-old-space-size are kept.
 const NODE_RUN = /node((?:\s+--[\w=-]+)*)\s+((?:tests|scripts)\/[\w./-]+\.c?js)/g;
@@ -160,7 +173,8 @@ function localRequires(file) {
     for (const m of text.matchAll(/require\(['"](\.\.?\/[\w./-]+)['"]\)/g)) {
       let dep = path.posix.normalize(path.posix.join(path.posix.dirname(current), m[1]));
       if (!/\.(?:c?js|json)$/.test(dep)) dep += '.js';
-      if (!reached.has(dep) && exists(dep)) { reached.add(dep); if (!dep.endsWith('.json')) stack.push(dep); }
+      // A missing dependency is still recorded, so deleting a helper selects the tests that required it.
+      if (!reached.has(dep)) { reached.add(dep); if (exists(dep) && !dep.endsWith('.json')) stack.push(dep); }
     }
   }
   return reached;
@@ -180,10 +194,12 @@ function select(files) {
   const ciOnly = new Set(flows.flatMap(w => w.ciOnly).filter(t => !runsLocally.has(t)));
   const runnable = new Set([...canonical, ...registryTests(), ...flows.flatMap(w => [...w.tests, ...w.ciOnly])]);
   for (const file of files) if (runnable.has(file)) add(file, 'changed test');
-  // A changed support file (helper, fixture, harness) selects every test that requires it, transitively.
-  const support = files.filter(f => /^(?:tests|scripts)\/.+\.(?:c?js|json)$/.test(f) && !runnable.has(f) && exists(f));
+  // Any changed file under tests/ or scripts/ (helper, fixture, harness, a test that other tests extend, or a
+  // deleted file) selects every test that requires it, transitively.
+  const support = files.filter(f => /^(?:tests|scripts)\/.+\.(?:c?js|json)$/.test(f));
   if (support.length) for (const test of runnable) {
-    const hit = support.find(f => localRequires(test).has(f));
+    if (!exists(test)) continue;
+    const hit = support.find(f => f !== test && localRequires(test).has(f));
     if (hit) add(test, `requires ${hit}`);
   }
   for (const w of flows.filter(flow => flow.patterns.length)) {
@@ -192,12 +208,23 @@ function select(files) {
   }
   if (production.length) {
     // The selector's own test names production files as data; it is not a focused module test.
-    const corpus = canonical.filter(t => t !== 'tests/select-affected-tests-test.js').map(t => ({ t, text: fs.readFileSync(path.join(ROOT, t), 'utf8') }));
+    const corpus = canonical.filter(t => t !== 'tests/select-affected-tests-test.js').map(t => {
+      const text = fs.readFileSync(path.join(ROOT, t), 'utf8');
+      return { t, text, code: stripComments(text) };
+    });
     const unfocused = [];
     for (const file of production) {
       const base = path.basename(file, '.js'), key = camel(base);
       let focused = 0;
-      for (const { t, text } of corpus) if (text.includes(`${base}.js`) || new RegExp(`modules\\??\\.${key}\\b`).test(text)) { add(t, `references ${file}`); focused++; }
+      // Only references in code count as focused; a filename that appears only in a comment still selects the
+      // test, but does not suppress the harness fallback below.
+      // A multi-word module name is distinctive enough to match as a bare binding (e.g. a destructured
+      // `{ playerCrisisRestructuring } = modules`); a one-word name must be read through `modules.`.
+      const named = /[A-Z]/.test(key) ? new RegExp(`\\b${key}\\b`) : new RegExp(`modules\\??\\.${key}\\b`);
+      for (const { t, text, code } of corpus) {
+        if (code.includes(`${base}.js`) || named.test(code)) { add(t, `references ${file}`); focused++; }
+        else if (text.includes(`${base}.js`)) add(t, `mentions ${file}`);
+      }
       if (!focused && !CORE_MODULES.includes(base)) unfocused.push(file);
     }
     // Fail safe: a module with no focused test (e.g. one that extends a shared namespace such as

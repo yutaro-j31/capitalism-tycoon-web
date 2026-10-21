@@ -88,3 +88,12 @@ assert.ok(!names(helper).includes('tests/helpers/transaction-fault-case.js'), 't
 // canonical test that boots the game through the harness.
 assert.ok(names(select(['js/competitor-media.js'])).includes('tests/competitor-newspaper-safety-test.js'), 'shared-namespace module falls back to harness tests');
 console.log('select-affected-tests PASS');
+
+// A comment-only filename mention does not suppress the fallback; code references by binding are focused (Codex 4332158094).
+{
+  const plan = names(select(['js/player-crisis-restructuring.js']));
+  assert.ok(plan.includes('tests/player-crisis-restructuring-test.js'), 'destructured module binding selects the dedicated test');
+}
+// Reverse dependents follow a changed runnable test and a deleted helper (Codex 4332158097).
+assert.ok(names(select(['tests/financial-statements-test.js'])).includes('tests/cash-flow-test.js'), 'a test that extends another test is selected');
+
