@@ -135,7 +135,13 @@ function supplied(view,external,valuationIssues,liabilityIssues){
  rows('liabilities').forEach((row,i)=>{
   const path=`supplied.liabilities[${i}]`;
   if(!row||typeof row!=='object'||Array.isArray(row)||!id(row.liabilityKey)||!money(row.amount)||row.amount<0||!id(row.sourceMethod)){
-   liabilityIssues.push(reason('INPUT_INVALID',path,'Supplied liability evidence requires liabilityKey, a finite non-negative amount within the monetary envelope and sourceMethod.'));return;
+   liabilityIssues.push(reason('INPUT_INVALID',path,'Supplied liability evidence requires liabilityKey, a finite non-negative amount within the monetary envelope and sourceMethod.'));
+   // A malformed row whose key is valid still claims that identity: it must be able to
+   // invalidate a well-formed sibling (or captured row) of the same identity in grouping.
+   if(row&&typeof row==='object'&&!Array.isArray(row)&&id(row.liabilityKey))liabilities.push({liabilityKey:`liability:supplied:${bareLiabilityKey(row.liabilityKey)}`,
+    identity:bareLiabilityKey(row.liabilityKey),malformed:true,kind:'principal',value:null,currency:typeof row.currency==='string'?row.currency:null,provenance:'supplied',
+    sourceMethod:id(row.sourceMethod)?row.sourceMethod:null,sourceRefs:[ref(path,row.liabilityKey,'supplied')],includesKeys:[],excludedKeys:[],status:'unknown',reasons:[]});
+   return;
   }
   liabilities.push({liabilityKey:`liability:supplied:${bareLiabilityKey(row.liabilityKey)}`,identity:bareLiabilityKey(row.liabilityKey),kind:'principal',value:row.amount,currency:row.currency===undefined?null:row.currency,
    provenance:'supplied',sourceMethod:row.sourceMethod,sourceRefs:[ref(path,row.liabilityKey,'supplied')],includesKeys:[],excludedKeys:[],status:'known',reasons:[]});
@@ -291,7 +297,8 @@ function captureFounderWealthEvidence(rawState,externalEvidence){
  for(const row of [...liability.entries,...extra.liabilities]){const key=row.identity||bareLiabilityKey(row.liabilityKey);if(!groups.has(key))groups.set(key,[]);groups.get(key).push(row);}
  liability.entries=[];
  for(const members of groups.values()){
-  if(members.length===1){const {identity,...row}=members[0];liability.entries.push(row);continue;}
+  // A lone malformed claim is reported only as INPUT_INVALID; it adds no component.
+  if(members.length===1){const {identity,malformed,...row}=members[0];if(!malformed)liability.entries.push(row);continue;}
   const captured=members.find(row=>row.provenance==='captured');
   liability.entries.push(collapse(members,captured?captured.liabilityKey:members[0].liabilityKey,'liabilityKey',
    {kind:'principal',provenance:captured?'captured+supplied':'supplied',includesKeys:captured?captured.includesKeys.slice():[],excludedKeys:[]},
@@ -410,6 +417,26 @@ function projectFounderWealth(rawState,ownershipSnapshot,valuationEvidence,liabi
  // Liabilities: union of distinct identities; mirrors are excluded, never re-added.
  for(const row of liabilities)result.components.push(fromEntry(component(row.liabilityKey,'liability',{includesKeys:row.includesKeys.slice()}),row,-1,'principal'));
  result.components.push(component('liability:unreconciled-coverage','liability',{reasons:copied(liabilityEvidence.coverage.reasons)}));
+ // Supplied Equity Value coverage vs other projected claims. Coverage declares what that
+ // company-level value already includes. If it names a personal claim this projection also
+ // carries (e.g. personalCash as an asset, personalDebt as a liability), the same economics
+ // would be recognized twice. Nothing here can say which representation is right, so the
+ // whole conflicting claim set is left unresolved with ALIAS_CONFLICT (the cross-slice code
+ // for disagreeing sources of one claim) rather than preferring either amount. Assets are
+ // matched against asset claims and liabilities against personal liability claims only: a
+ // company payable inside Equity Value (e.g. finance.loans) and the founder's receivable are
+ // distinct legal positions (contract §6), so that pairing is not a conflict.
+ if(ownCompany.valuation&&ownCompany.valuation.kind==='equityValue'){
+  const covers=(c,k)=>k===c||k.startsWith(`${c}.`)||k.startsWith(`${c}[`)||c.startsWith(`${k}.`)||c.startsWith(`${k}[`);
+  const overlapping=result.components.filter(c=>c!==ownCompany&&c.includesKeys.some(k=>(c.side==='asset'?ownCompany.valuation.coveredAssets:ownCompany.valuation.coveredLiabilities).some(cov=>covers(cov,k))));
+  if(overlapping.length){
+   const refs=overlapping.map(c=>c.componentId).sort(order);
+   for(const c of [ownCompany,...overlapping]){
+    c.amountJPY=null;c.completeness='unknown';c.valuationBasis=null;
+    c.reasons.push(reason('ALIAS_CONFLICT',c===ownCompany?'ownCompanyEquityValue.coverage':c.componentId,'Supplied Equity Value coverage overlaps another projected claim; neither is counted.',['asset:own-company',...refs]));
+   }
+  }
+ }
  result.exclusions.push(...ownership.exclusions.map(r=>({...r})),...liabilityEvidence.exclusions.map(r=>({...r})));
  result.components.sort((a,b)=>order(a.componentId,b.componentId));
  result.exclusions.sort((a,b)=>order(a.sourcePath,b.sourcePath)||order(a.basis,b.basis));

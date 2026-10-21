@@ -206,6 +206,42 @@ function noReference(value,target,seen=new Set()){
  }
  deq(results[0],results[1]);
 }
+// Review regressions (Codex P2 on 253ceb77).
+// 5. A malformed row keeps its valid key claim: a repeated identity with one bad amount becomes one unknown.
+{
+ const s=fixture();Object.assign(s,{publicCompany:false,treasuryBuybackShares:0,founderShares:600,personalStocks:{}});
+ const ok={liabilityKey:'tax',amount:5,currency:'JPY',sourceMethod:'fixture-liability'},bad={...ok,amount:-7};
+ const results=[[ok,bad],[bad,ok]].map(rows=>project(s,{liabilities:rows}));
+ for(const r of results){
+  const tax=r.components.filter(c=>c.componentId==='liability:supplied:tax');
+  assert.equal(tax.length,1);assert.equal(tax[0].amountJPY,null);deq(codes(tax[0].reasons),['ALIAS_CONFLICT']);
+  assert(r.reasons.some(x=>x.code==='INPUT_INVALID'&&/^liabilityEvidence\.supplied\.liabilities\[[01]\]$/.test(x.path)),'malformed row still reported');
+  assert.equal(r.knownNetWorth,-20,'the valid sibling is not counted');
+ }
+ deq(results[0].components,results[1].components);
+ // A malformed claim on a captured identity invalidates the captured row too.
+ const pd=project(s,{liabilities:[{liabilityKey:'personal-debt',amount:-1,currency:'JPY',sourceMethod:'x'}]});
+ assert.equal(comp(pd,'liability:personal-debt').amountJPY,null);deq(codes(comp(pd,'liability:personal-debt').reasons),['ALIAS_CONFLICT']);
+ // A lone malformed row is only an input failure; it adds no component.
+ const lone=project(s,{liabilities:[bad]});
+ assert.equal(comp(lone,'liability:supplied:tax'),undefined);assert.equal(lone.knownNetWorth,-20);
+}
+// 6. Supplied Equity Value coverage overlapping another projected claim leaves the whole set unresolved.
+{
+ const s=fixture();Object.assign(s,{publicCompany:false,treasuryBuybackShares:0,founderShares:600,personalStocks:{}});
+ s.finance.loans=[{loanID:'L1',sourceType:'founderShareholderLoan',status:'active',outstandingPrincipal:50}];
+ const ev=(coveredAssets,coveredLiabilities)=>({valuations:[{assetKey:'own-company',kind:'equityValue',amount:100e6,currency:'JPY',sourceMethod:'fixture-equity',coveredAssets,coveredLiabilities}]});
+ for(const [assets,liabs,overlapped] of [[['personalCash'],[],'asset:personal-cash'],[[],['personalDebt'],'liability:personal-debt'],[['finance.loans'],[],'asset:founder-loan:L1'],[['finance.loans[0]'],[],'asset:founder-loan:L1']]){
+  const r=project(s,ev(assets,liabs));
+  for(const id of ['asset:own-company',overlapped]){
+   assert.equal(comp(r,id).amountJPY,null,`${id} unresolved for coverage ${assets.concat(liabs)}`);
+   assert(codes(comp(r,id).reasons).includes('ALIAS_CONFLICT'));
+  }
+ }
+ // Coverage naming nothing else projected keeps working; a company payable is not the founder receivable.
+ const clean=project(s,ev(['subsidiaries'],['finance.loans']));
+ assert.equal(comp(clean,'asset:own-company').amountJPY,42e6);assert.equal(comp(clean,'asset:founder-loan:L1').amountJPY,50);
+}
 // Founder loans, margin, liability mirrors, VC/angel/PE families and the company/personal boundary.
 {
  const s=fixture();
