@@ -3,6 +3,7 @@
 // All observed rows come from a disposable REAL legacy game, not vNext fiction.
 // Never fill unknown legacy counterparties, opening inventory or prior AP with guesses.
 const reference=require('./fixtures/legacy-real-13week-summary.json');
+const {createHash}=require('node:crypto');
 const asMinor=(x,label)=>{
  if(typeof x!=='number'||!Number.isFinite(x))throw Error('invalid-'+label);
  const q=x*100,rounded=Math.round(q);
@@ -63,6 +64,18 @@ function validateRow(r,week,store,business){
  }
  return {kind,amountMinor:a,cashMinor:cash,profitMinor:profit};
 }
+// Verify actual posted source-identity + ALL ledger-relevant values for each
+// individual receipt. Canonical serialization is stable across input row order.
+function receiptDigest(rows){
+ const canonical=rows.map(x=>{
+  const f=x.fixedAssetEvidence||{};
+  return [x.operationID,x.sourceType,x.sourceID,x.category,x.week,x.storeID,x.businessID,
+   ...['amount','cashEffect','profitEffect','assetEffect','liabilityEffect','inventoryAmount','payableAmount'].map(k=>asMinor(x[k]||0,k)),
+   x.fixedAssetLifecycle||'',x.fixedAssetID||'',
+   ...['bookBefore','bookAfter','accumulatedBefore','accumulatedAfter'].map(k=>Object.prototype.hasOwnProperty.call(f,k)?asMinor(f[k],k):null)];
+ }).sort((a,b)=>a[0]<b[0]?-1:a[0]>b[0]?1:0);
+ return createHash('sha256').update(JSON.stringify(canonical),'utf8').digest('hex');
+}
 function emptyMetrics(){
  return {cashMinor:0,profitMinor:0,inventoryDeltaMinor:0,payableDeltaMinor:0,depreciationMinor:0,week:0,rows:0};
 }
@@ -106,6 +119,10 @@ function verifyObservation(observation, pinned=reference){
     const expectedAmount=k<6?expected[k+1]:expected[k===6?7:k===7?8:9];
     ensure(slot.count===count&&slot.amount===expectedAmount,'week-category-drift-'+week+'-'+kind);
    }
+   if(pinned.receiptWeekSHA256!==undefined){
+    ensure(Array.isArray(pinned.receiptWeekSHA256)&&pinned.receiptWeekSHA256.length===13,'invalid-receipt-digest-reference');
+    ensure(receiptDigest(rows)===pinned.receiptWeekSHA256[i],'receipt-digest-mismatch-week-'+week);
+   }
    const cashCalc=metrics.cashMinor,profitCalc=metrics.profitMinor;
    ensure(cashCalc===expected[13]&&profitCalc===expected[14],'week-cash-profit-drift-'+week);
    // Store CFO vs P&L, using inventory and AP working capital and noncash depreciation.
@@ -131,4 +148,4 @@ function verifyObservation(observation, pinned=reference){
    source:'Real legacy game observations; signed 13-week category and cash/profit working-capital bridge only; NOT full economic parity.'};
  }catch(e){return {status:'EVIDENCE_BLOCKED',reasons:[String(e?.message||e)],source:'Do not conclude parity from incomplete or altered evidence.'};}
 }
-module.exports={verifyObservation,validateRow};
+module.exports={verifyObservation,validateRow,receiptDigest};
