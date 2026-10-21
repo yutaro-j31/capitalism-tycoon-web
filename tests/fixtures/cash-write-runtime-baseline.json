@@ -1,0 +1,35 @@
+{
+  "cases": [
+    [
+      "ramen-bootstrap",
+      1797259521
+    ],
+    [
+      "cram-school",
+      1797259778
+    ],
+    [
+      "real-estate-agency",
+      1797260035
+    ]
+  ],
+  "sites": [
+    "js/difficulty-scenario-balance.js#reconcileWeeklyCashRounding",
+    "js/engine.js#(anonymous)<js/engine.js#borrow",
+    "js/engine.js#(anonymous)<js/engine.js#openStore",
+    "js/engine.js#advanceWeek",
+    "js/engine.js#contractOffice",
+    "js/engine.js#establishBoard",
+    "js/engine.js#establishDepartment",
+    "js/engine.js#evaluateProgression",
+    "js/engine.js#executeIPO",
+    "js/engine.js#hireExecutive",
+    "js/engine.js#updatePersonalAssets",
+    "js/expansion.js#TycoonEngine.updateFounderExpandedWeekly",
+    "js/expansion.js#TycoonEngine.updateSupplyChainWeekly",
+    "js/real-estate-agency-credit-line.js#draw",
+    "js/real-estate-agency-credit-line.js#repay",
+    "js/supply.js#payables",
+    "js/supply.js#receiptAccounting"
+  ]
+}
