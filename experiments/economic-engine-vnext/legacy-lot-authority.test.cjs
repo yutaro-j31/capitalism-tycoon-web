@@ -104,6 +104,7 @@ test('all PO provenance classifications are explicit',()=>{
 });
 test('merged PO book origins remain explicitly untraceable',()=>{
  const x=inputs();x.source.evidence.opening.lots[0].purchaseOrderID='merged';
+ for(const w of x.source.evidence.weekly)w.lots[0].purchaseOrderID='merged';
  const r=pass(x);assert.equal(r.opening.lotOrigins.MERGED_PO_ANCESTRY_LOST,1);
 });
 test('supplier contracts can exist without a legally verified counterparty',()=>{
