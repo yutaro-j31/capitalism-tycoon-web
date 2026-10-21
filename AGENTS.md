@@ -26,7 +26,7 @@ Do **not** read every project document for every task. Use progressive disclosur
 
 For Economic Engine Phases 3–16, read [the implementation-first roadmap](docs/economic-engine/ECONOMIC_ENGINE_IMPLEMENTATION_FIRST_ROADMAP.md) before planning a slice. The Owner adopted two stages: **F — finish approved features with relevant focused safety tests and CI**, followed by **Q — freeze features and perform comprehensive cross-system audits, large seed/long-run simulations, performance and calibration**. Use the existing [detailed roadmap](docs/economic-engine/ECONOMIC_ENGINE_ROADMAP.md) and [dependency graph](docs/economic-engine/ECONOMIC_ENGINE_DEPENDENCY_GRAPH.md) for the unchanged financial design and phase prerequisites.
 
-This timing change does **not** exempt executable economic writers from targeted conservation, save-failure/rollback, IndexedDB hydration, relevant old-save, determinism, or browser checks; it does not authorize a premature source-of-truth cutover, Phase 4 Entry, or autonomous merge. Different AI agents use the same phase/slice state and handoff record; their model/vendor is irrelevant. Existing non-Economic-Engine tasks continue under normal validation-by-risk rules below.
+This timing change does **not** exempt executable economic writers from targeted conservation, save-failure/rollback, IndexedDB hydration, relevant old-save, determinism, or browser checks; it does not authorize a premature source-of-truth cutover or Phase 4 Entry. Conditional autonomous PR merges are governed by the Owner's risk-based policy in [#1055](https://github.com/yutaro-j31/capitalism-tycoon-web/issues/1055) and §3 below. Different AI agents use the same phase/slice state and handoff record; their model/vendor is irrelevant. Existing non-Economic-Engine tasks continue under normal validation-by-risk rules below.
 
 ## 2. Non-negotiable invariants
 
@@ -60,11 +60,12 @@ Do not stop at the first working draft merely to request review if the requested
 
 Do **not** autonomously:
 
-- merge to `main`
 - push directly to `main`
 - force-push or rewrite published history
 - access or mutate production services/data unless the user explicitly authorizes that operation and the environment is known to be safe
 - overwrite, reset, clean, or stash unknown work just to obtain a clean tree
+
+**Owner-approved conditional autonomous merges (#1055):** Agents may merge an otherwise eligible **low-risk** PR without a fresh Owner request when it does not change an authoritative economic writer or cash/ledger/debt/ownership/save semantics; its latest HEAD and base are verified; all applicable required final-HEAD CI, focused tests, and relevant compatibility/browser checks have passed; no material in-scope finding or unresolved PR-specific approval remains; and the repository's permissions and protection rules allow the merge. A separate Claude session/subagent may provide scoped review while Codex is unavailable, but this is **same-model review, not independent review**; report that limitation. Existing specific Owner conditions still apply. High-impact financial writers, save/IndexedDB persistence, asset/cash/ownership/debt authority, legacy migrations and cutovers require their existing independent-review/Owner gates or a new **specific** Owner authorization; otherwise hold that PR's merge and continue unrelated safe work. Never weaken or skip tests to qualify. After any merge, verify the new main and report the result.
 
 If the requested task cannot be completed safely because a required environment, credential, destructive decision, or product choice is genuinely unavailable, stop at that boundary and report the blocker precisely.
 
@@ -147,6 +148,6 @@ Do not pad the report with irrelevant checklist items.
 
 ## 9. Scheduled/recurring Codex tasks
 
-Only when the task is explicitly recurring or scheduled, run one safe development cycle: refresh state, repair directly relevant active work first, otherwise choose one non-conflicting small task, implement and validate it, push a branch/PR when safe, and never merge autonomously.
+Only when the task is explicitly recurring or scheduled, run one safe development cycle: refresh state, repair directly relevant active work first, otherwise choose one non-conflicting small task, implement and validate it, push a branch/PR when safe, and merge only if the conditional Owner authorization and PR-specific gates in §3 are met.
 
 If safe progress is blocked, report the blocker rather than forcing the change through.

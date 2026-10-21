@@ -23,8 +23,8 @@ Do not paste the full contents of `AGENTS.md` into every task. The launcher expl
 4. Paste the contents of `.github/codex/prompts/manual-development.md`.
 5. Optionally append one specific task after the launcher. If no task is appended, Codex should select the next safe unit of work according to `AGENTS.md`.
 6. Let Codex inspect the repository, implement one reviewable change, and run focused tests.
-7. When supported by the connected Codex environment, have it push a non-main branch and open a **Draft PR**. It must never merge autonomously.
-8. Return to ChatGPT with the PR URL. ChatGPT reviews the live GitHub state, CI, diff, and review feedback before any merge.
+7. When supported by the connected Codex environment, have it push a non-main branch and open a **Draft PR**. It may merge only when the conditional low-risk policy in `AGENTS.md` §3 (#1055) allows it. Otherwise it leaves the PR open.
+8. Return to ChatGPT with the PR URL. For any PR not merged under that policy, ChatGPT reviews the live GitHub state, CI, diff, and review feedback before any merge.
 
 ## Usage and cost boundary
 
