@@ -30,13 +30,22 @@ function sourceSnapshot(game,storeID){
   status:l.status,bookValue:l.bookValue,quantity:l.quantity,originalQuantity:l.originalQuantity,
   unitCost:l.unitCost,receivedWeek:l.receivedWeek,expiryWeek:l.expiryWeek
  }))):null;
+ const fixedAssets=Array.isArray(game.finance?.fixedAssets)?
+  game.finance.fixedAssets.filter(a=>a&&a.storeID===storeID).map(a=>({
+   assetID:a.assetID,assetType:a.assetType,storeID:a.storeID,businessID:a.businessID,
+   status:a.status,acquisitionWeek:a.acquisitionWeek,acquisitionCost:a.acquisitionCost,
+   salvageValue:a.salvageValue,usefulLifeWeeks:a.usefulLifeWeeks,
+   accumulatedDepreciation:a.accumulatedDepreciation,bookValue:a.bookValue,
+   lifecycleOrigin:a.p2Lifecycle?.origin??null,
+   lifecycleAdoptedWeek:a.p2Lifecycle?.adoptedWeek??null
+  })).sort((a,b)=>String(a.assetID).localeCompare(String(b.assetID))):null;
  const inventoryScope=Object.entries(game.inventoryByStoreID||{}).map(([id,book])=>({
   storeID:id,businessID:book?.businessID||null,
   availableBookValueJPY:Object.values(book?.materials||{}).flatMap(m=>(m.lots||[]))
    .filter(l=>l.status==='available'&&Number(l.quantity)>0)
    .reduce((sum,l)=>sum+Number(l.bookValue||0),0)
  })).sort((a,b)=>a.storeID.localeCompare(b.storeID));
- return snapshot({week:game.week,orders,lots,inventoryScope,
+ return snapshot({week:game.week,orders,lots,inventoryScope,fixedAssets,
   companyAccountsPayableJPY:game.supplyAccountsPayableBalance??null,
   financeInventoryJPY:game.finance?.balances?.inventory??null});
 }
