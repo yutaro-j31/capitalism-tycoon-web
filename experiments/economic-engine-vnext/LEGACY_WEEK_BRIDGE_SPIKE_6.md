@@ -63,3 +63,7 @@ The separate experiment-only workflow is necessarily located in `.github/workflo
 2. Produce an independently authorized read-only **counterparty/PO/source graph**, including pre-window opening finance and fixed-asset acquisitions. Explicitly show any missing ownership and cash claim links.
 3. Only then build a new vNext *transaction-by-transaction* economic journal replay that agrees with that source graph. Keep unprovable rows `BLOCKED`; never fabricate legal entity relationships.
 4. Prove real IndexedDB commit/recovery, post-write rollback, WebKit fresh hydration and old-save compatibility in later isolated PRs.
+
+## CI normalization (2026-10-21 JST)
+
+The isolated GitHub Actions proof workflow has been removed from this implementation branch. It remains only on the non-mergeable verification branch `experiment/economic-engine-vnext-po-provenance-ci-20261021`. The implementation branch retains the mainline seven-workflow contract; the latest-HEAD `release-readiness` check must be evaluated independently. Experimental direct Node proof on the verification branch is tracked separately and is not an automatic PASS on this PR's new SHA. See `ISOLATED_CI_RUNBOOK.md`. No runtime code, financial logic, saves, or mainline CI contract is changed by this documentation note.
