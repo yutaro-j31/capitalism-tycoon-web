@@ -55,3 +55,7 @@ This SPIKE adds **19** mocked source-graph tests. Parent **295** cases were actu
 ## Next task
 
 After authentic source PO linkage succeeds, move to a separate domain proof: establish identifiable legal counterparties/clearing entities (or fail closed), reconstruct opening inventory/AP and fixed-asset acquisitions from authorized primary sources, and only then try the 138 event replay against vNext's single canonical ledger. Until then the verdict is partial, with no promise of production parity, v9 save compatibility, IDB atomicity or WebKit durability.
+
+## CI normalization (2026-10-21 JST)
+
+The isolated GitHub Actions proof workflow has been removed from this implementation branch. It remains only on the non-mergeable verification branch `experiment/economic-engine-vnext-po-provenance-ci-20261021`. The implementation branch retains the mainline seven-workflow contract; the latest-HEAD `release-readiness` check must be evaluated independently. Experimental direct Node proof on the verification branch is tracked separately and is not an automatic PASS on this PR's new SHA. See `ISOLATED_CI_RUNBOOK.md`. No runtime code, financial logic, saves, or mainline CI contract is changed by this documentation note.
