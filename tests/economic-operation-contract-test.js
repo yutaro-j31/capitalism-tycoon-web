@@ -215,6 +215,10 @@ assert.deepEqual(snapArray(core.allocateYen(99.2, [1, 1, 1], ['a', 'b', 'c'])), 
 assert.deepEqual(snapArray(core.allocateYen(10, [0.7, 0.2, 0.1], ['x', 'y', 'z'])), [7, 2, 1], 'exact shares stay exact');
 assert.deepEqual(snapArray(core.allocateYen(10, [2, 1], ['big', 'small'])), [7, 3], 'largest remainder wins');
 assert.deepEqual(snapArray(core.allocateYen(5, [0, 1], ['none', 'all'])), [0, 5], 'zero weight gets nothing');
+assert.deepEqual(snapArray(core.allocateYen(1, [0.49999999975, 0.50000000025], ['a', 'z'])), [0, 1], 'a remainder larger by under 1e-9 still wins; the ID only breaks exact ties');
+assert.deepEqual(snapArray(core.allocateYen(10, [Number.MAX_VALUE, Number.MAX_VALUE], ['a', 'b'])), [5, 5], 'weights near Number.MAX_VALUE do not overflow');
+assert.deepEqual(snapArray(core.allocateYen(1e13, [1e300, 1e300], ['a', 'b'])), [5e12, 5e12], 'huge weights split a large total exactly');
+assert.deepEqual(snapArray(core.allocateYen(3, [1e300, 1], ['big', 'tiny'])), [3, 0], 'a negligible weight gets nothing, the parts still sum to the total');
 for (let seed = 1; seed <= 200; seed++) {
   let x = seed;
   const next = () => (x = (x * 1103515245 + 12345) % 2147483648) / 2147483648;
