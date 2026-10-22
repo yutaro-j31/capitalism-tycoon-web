@@ -47,7 +47,7 @@ Consequences, which are intended:
 
 - `ceilYen(12.3) = 13`, `ceilYen(-12.3) = -13`: a payment and a receipt each grow by the fraction. Do **not** use bare `Math.ceil`; for a negative amount it moves toward zero (`Math.ceil(-12.3) = -12`).
 - `ceilYen(1200.0000000002) = 1200` and `ceilYen((0.1+0.2)*10) = 3`: a difference within float precision is noise, not a fraction. Any larger fraction rounds up: `ceilYen(12.004) = 13`, `ceilYen(1200.004) = 1201`, `ceilYen(0.1+0.2) = 1`. Do **not** normalise to ¥0.01 first; that would drop real sub-¥0.01 fractions.
-- The absolute floor of 1e-9 is the contract's minimum monetary quantum: a fraction below ¥0.000000001 is treated as noise (`ceilYen(1.0000000005) = 1`, `ceilYen(5e-10) = 0`). No game formula produces a meaningful amount that small.
+- The absolute floor of 1e-9 is the contract's minimum monetary quantum: a fraction **at or below** ¥0.000000001 is treated as noise, because the comparison is `<=` (`ceilYen(1e-9) = 0`, `ceilYen(1.0000000005) = 1`, `ceilYen(5e-10) = 0`). A fraction above it rounds up (`ceilYen(1.000000002) = 2`). No game formula produces a meaningful amount that small.
 - `ceilYen(12) = 12`. The function is idempotent: rounding an already rounded amount does nothing.
 - The tolerance is about four ULPs of x, so it absorbs the noise of a few arithmetic steps (for example `11000000 * 1.1`). It is capped at ¥0.005, so a fraction of ¥0.01 or more always rounds up anywhere in the envelope: `ceilYen(1e12 + 0.01) = 1e12 + 1`, `ceilYen(1e13 + 0.01) = 1e13 + 1`. Below |x| ≈ ¥5.63·10¹² (where `|x|·4·EPSILON = 0.005`) the cap is not reached, and the tolerance is four ULPs or 1e-9, whichever is larger; above it the tolerance is exactly ¥0.005. R0's boundary tests cover both sides of that point.
 
