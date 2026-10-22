@@ -97,6 +97,58 @@ const SCENARIOS = [
     assert.equal(g.finance.transactions.length, before);
     return { rows, state: { companyCash: g.companyCash, companyDebt: g.companyDebt } };
   } },
+  { slice: 'R2a', label: 'store weekly P&L rounds each row up from fractional master data', run() {
+    const loaded = loadGame({ headless: true, random: lcg(1201) });
+    const { engine: engineModule, finance, market, data } = loaded.modules;
+    const state = engineModule.createInitialState({ configured: true });
+    const business = state.businesses.find(row => !market.isTargetBusinessID(row.id));
+    Object.assign(business, { price: 123.45, unitCost: 45.67, fixedCost: 100000.89, wage: 20000.78, demand: 0.25, quality: 0, brand: 0, efficiency: 0, dx: 0, storeCost: 0 });
+    const pref = state.prefs[0];
+    pref.rent = 30000.67;
+    Object.assign(state, { companyCash: 1_000_000_000, companyDebt: 0, properties: [], startups: [], competitors: [], market: [], productVentures: [], subsidiaries: [], maSubsidiaries: [], overseasSubsidiaries: [], sportsTeams: [], personalInvestments: [], luxuryAssets: [], activeMissionIDs: [], completedMissionIDs: (data.MISSION_DEFS || []).map(row => row.id) });
+    state.stores = [{ id: 'r2a-store', businessID: business.id, prefID: pref.id, name: 'R2a', status: 'open', condition: 99.876, operatingHours: 3, openingWeek: 1, weeksToOpen: 0, lastSales: 0, lastProfit: 0, marketResult: null }];
+    state.finance = finance.defaultFinanceState(state);
+    const engine = new engineModule.TycoonEngine(state), g = engine.g, count = g.finance.transactions.length;
+    assert.equal(engine.advanceWeek(false), true);
+    const rows = rowsSince(g, count, row => row.storeID === 'r2a-store');
+    assert.equal(rows.length, 5, 'five store rows');
+    return { rows, state: { lastSales: g.stores[0].lastSales, lastProfit: g.stores[0].lastProfit } };
+  } },
+  { slice: 'R2a', label: 'open and close a store with a fractional tenant deposit', run() {
+    const { engine } = newGame(1202), g = engine.g;
+    const tenant = g.tenants.find(t => !t.occupiedBy && t.businessID !== 'ramen') || g.tenants.find(t => !t.occupiedBy);
+    tenant.deposit = 1_234_567.3;
+    const count = g.finance.transactions.length;
+    assert.notEqual(engine.openStore({ tenantID: tenant.id, businessID: tenant.businessID || 'cafe', name: 'R2a open', operatingHours: 3 }), false);
+    const store = g.stores[g.stores.length - 1];
+    assert.equal(store.depositPaid, 1_234_568, 'the deposit paid is rounded up and kept on the store');
+    const afterOpen = g.finance.transactions.length;
+    assert.equal(engine.closeStore(store.id), true);
+    const closeRows = g.finance.transactions.slice(afterOpen).filter(row => row.storeID === store.id);
+    assert.equal(closeRows.find(row => row.sourceType === 'closeStoreDeposit').amount, 1_234_568, 'the forfeited deposit is the amount paid');
+    return { rows: rowsSince(g, count, row => row.storeID === store.id), state: { companyCash: g.companyCash } };
+  } },
+  { slice: 'R2a', label: 'store equipment upgrade, renovation, menu research and business investment', run() {
+    const { engine } = newGame(1203), g = engine.g;
+    const tenant = g.tenants.find(t => !t.occupiedBy && t.businessID === 'ramen') || g.tenants.find(t => !t.occupiedBy);
+    assert.notEqual(engine.openStore({ tenantID: tenant.id, businessID: 'ramen', name: 'R2a equip', operatingHours: 3 }), false);
+    const store = g.stores[g.stores.length - 1];
+    store.status = 'open';
+    store.condition = 87.654;
+    // Menu research needs the product department, which needs an office. The office deposit is slice R2c and can
+    // leave a fraction in companyCash, so this scenario checks the rows only.
+    const office = g.rentalOffices.reduce((a, b) => (a.deposit < b.deposit ? a : b));
+    assert.equal(engine.contractOffice(office.id), true);
+    assert.equal(engine.establishDepartment('product'), true);
+    const count = g.finance.transactions.length;
+    assert.equal(engine.upgradeStoreEquipment(store.id), true);
+    assert.equal(engine.renovateStore(store.id), true);
+    assert.equal(engine.startMenuResearch('chashu'), true);
+    assert.equal(engine.investBusiness('ramen', 'brand', 1_000_000.4), true);
+    const rows = rowsSince(g, count, () => true);
+    assert.equal(rows.find(row => row.sourceType === 'investBusiness').amount, 1_000_001, 'a fractional investment rounds up');
+    return { rows, state: {} };
+  } },
 ];
 for (const scenario of SCENARIOS) {
   const { rows, state = {} } = scenario.run();
