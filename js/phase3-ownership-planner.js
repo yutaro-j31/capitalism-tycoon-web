@@ -91,24 +91,30 @@ function inspect(state,scope){
  const q={};for(const k of BUCKETS.slice(0,3))q[k]=quantity(field(state,k,'state'),`state.${k}`);
  const personal=record(field(state,'personalStocks','state'),'state.personalStocks');
  const company=record(field(state,'companyStocks','state'),'state.companyStocks');
+ const lotPresent=own.call(personal,ticker),companyLotPresent=own.call(company,ticker);
  const lot=field(personal,ticker,'state.personalStocks'),companyLot=field(company,ticker,'state.companyStocks');
- q.personalOwnShares=lot===undefined?0:quantity(field(record(lot,'personalLot'),'qty','personalLot'),'personalLot.qty');
- if(companyLot!==undefined&&quantity(field(record(companyLot,'companyLot'),'qty','companyLot'),'companyLot.qty')!==0)fail('OWN_SHARE_ALIAS_UNRESOLVED','state.companyStocks','Company-owned alias is not treasury evidence.');
+ q.personalOwnShares=lotPresent?quantity(field(record(lot,'personalLot'),'qty','personalLot'),'personalLot.qty'):0;
+ if(companyLotPresent&&quantity(field(record(companyLot,'companyLot'),'qty','companyLot'),'companyLot.qty')!==0)fail('OWN_SHARE_ALIAS_UNRESOLVED','state.companyStocks','Company-owned alias is not treasury evidence.');
  const matches=[];
  for(const [i,row] of array(field(state,'market','state'),'state.market').entries()){
   const path=`state.market[${i}]`;record(row,path);
-  if(text(field(row,'id',path),`${path}.id`)===ticker)matches.push({i,issuedShares:quantity(field(row,'issuedShares',path),`${path}.issuedShares`)});
+  if(text(field(row,'id',path),`${path}.id`)===ticker){
+   if(!listed)fail('ALIAS_BINDING_UNPROVEN',path,'A private company cannot claim an existing market row by ticker.');
+   matches.push({i,issuedShares:quantity(field(row,'issuedShares',path),`${path}.issuedShares`)});
+  }
  }
  if(matches.length>1)fail('ALIAS_BINDING_UNPROVEN','state.market','Repeated player ticker.');
  if((listed&&!matches.length)||(matches.length&&matches[0].issuedShares!==q.sharesOut))fail('MIRROR_MISMATCH','state.market','Player listing must agree with issued quantity.');
  for(const [i,row] of array(field(state,'startups','state'),'state.startups').entries()){
   const path=`state.startups[${i}]`;record(row,path);
-  if(field(row,'ipoStockID',path)===ticker)fail('ALIAS_BINDING_UNPROVEN',`${path}.ipoStockID`,'Startup IPO alias cannot be attributed to player common.');
+  const alias=field(row,'ipoStockID',path);
+  if(alias!==undefined&&alias!==null&&alias!=='')text(alias,`${path}.ipoStockID`);
+  if(alias===ticker)fail('ALIAS_BINDING_UNPROVEN',`${path}.ipoStockID`,'Startup IPO alias cannot be attributed to player common.');
  }
  const quantities=reconcile(q),personalPath=`personalStocks[${JSON.stringify(ticker)}].qty`;
  const sourcePaths={sharesOut:'sharesOut',treasuryBuybackShares:'treasuryBuybackShares',founderShares:'founderShares',personalOwnShares:personalPath};
  // Canonical ownership-only fingerprint, not a money revision, permission or cryptographic receipt.
- const sourceFingerprint=JSON.stringify([1,scoped,ticker,listed,lot!==undefined,companyLot!==undefined,matches,quantities]);
+ const sourceFingerprint=JSON.stringify([1,scoped,ticker,listed,lotPresent,companyLotPresent,matches,quantities]);
  return {status:'OBSERVED',authority:'read-only',executable:false,scope:scoped,ticker,publicCompany:listed,sourcePaths,sourceFingerprint,quantities,
   mirror:matches.length?{index:matches[0].i,issuedShares:matches[0].issuedShares}:null,
   knownFounderHolder:{registeredHolderEntityId:FOUNDER,beneficialOwnerEntityId:FOUNDER},checks:[{id:'ECO-010',ok:true},{id:'ECO-011',ok:true}],reasons:[]};

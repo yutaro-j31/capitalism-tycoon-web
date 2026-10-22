@@ -136,6 +136,21 @@ for(const sold of [true,undefined,null,0]){const s=state();s.isCompanySold=sold;
  const s=state(),req=intent(s);s.currentCompanySerial=2;reject(plan(s,req),'GENERATION_UNPROVEN');s.currentCompanySerial=1;s.isCompanySold=true;reject(plan(s,req),'GENERATION_UNPROVEN');
 }
 // NG-06/08/09: ticker aliases and malformed/colliding sources are not repaired or merged.
+{
+ const s=state(),req=intent(s,'W-IPO-CHAIN');s.publicCompany=false;
+ // Even an exact quantity/name match remains another issuer when the player is private.
+ const before=plain(s);reject(inspect(s,scope()),'ALIAS_BINDING_UNPROVEN');reject(plan(s,req),'ALIAS_BINDING_UNPROVEN');assert.deepEqual(plain(s),before);
+ let reads=0;Object.defineProperty(s.market[0],'issuedShares',{enumerable:true,get(){reads++;throw Error('external issuer quantity');}});
+ reject(inspect(s,scope()),'ALIAS_BINDING_UNPROVEN');assert.equal(reads,0);
+}
+for(const map of ['personalStocks','companyStocks'])for(const bad of [undefined,null,false,0,'bad']){
+ const s=state(),req=intent(s);s[map].OWN=bad;deepFreeze(s);const descriptor=Object.getOwnPropertyDescriptor(s[map],'OWN');
+ reject(inspect(s,scope()),'INPUT_INVALID');reject(plan(s,req),'INPUT_INVALID');assert.deepEqual(Object.getOwnPropertyDescriptor(s[map],'OWN'),descriptor);
+}
+{
+ const s=state();delete s.personalStocks.OWN;assert.equal(inspect(s,scope()).quantities.personalOwnShares,0);ok(plan(s,intent(s)));
+ const t=state();t.startups=[{ipoStockID:123}];reject(inspect(t,scope()),'INPUT_INVALID');
+}
 for(const mutate of [s=>{s.startups=[{id:'vc-personal',ipoStockID:'OWN'}];},s=>{s.market.push({...s.market[0]});}]){const s=state();mutate(s);const before=plain(s);reject(inspect(s,scope()),'ALIAS_BINDING_UNPROVEN');assert.deepEqual(plain(s),before);}
 {
  const s=state();s.companyStocks.OWN={qty:2};reject(inspect(s,scope()),'OWN_SHARE_ALIAS_UNRESOLVED');
