@@ -26,7 +26,7 @@ Do **not** read every project document for every task. Use progressive disclosur
 
 For Economic Engine Phases 3–16, read [the implementation-first roadmap](docs/economic-engine/ECONOMIC_ENGINE_IMPLEMENTATION_FIRST_ROADMAP.md) before planning a slice. The Owner adopted two stages: **F — finish approved features with relevant focused safety tests and CI**, followed by **Q — freeze features and perform comprehensive cross-system audits, large seed/long-run simulations, performance and calibration**. Use the existing [detailed roadmap](docs/economic-engine/ECONOMIC_ENGINE_ROADMAP.md) and [dependency graph](docs/economic-engine/ECONOMIC_ENGINE_DEPENDENCY_GRAPH.md) for the unchanged financial design and phase prerequisites.
 
-This timing change does **not** exempt executable economic writers from targeted conservation, save-failure/rollback, IndexedDB hydration, relevant old-save, determinism, or browser checks; it does not authorize a premature source-of-truth cutover or Phase 4 Entry. Conditional autonomous PR merges are governed by the Owner's risk-based policy in [#1055](https://github.com/yutaro-j31/capitalism-tycoon-web/issues/1055) and §3 below. Different AI agents use the same phase/slice state and handoff record; their model/vendor is irrelevant. Existing non-Economic-Engine tasks continue under normal validation-by-risk rules below.
+This timing change does **not** exempt executable economic writers from targeted conservation, save-failure/rollback, IndexedDB hydration, determinism, or browser checks; it does not authorize a premature source-of-truth cutover or Phase 4 Entry. Conditional autonomous PR merges are governed by the Owner's risk-based policy in [#1055](https://github.com/yutaro-j31/capitalism-tycoon-web/issues/1055) and §3 below. Different AI agents use the same phase/slice state and handoff record; their model/vendor is irrelevant. Existing non-Economic-Engine tasks continue under normal validation-by-risk rules below.
 
 ## 2. Non-negotiable invariants
 
@@ -34,7 +34,6 @@ Preserve these unless the user explicitly authorizes a dedicated migration and t
 
 - `SAVE_KEY=capitalism_tycoon_web_v1`
 - `saveVersion=9`
-- backward compatibility with existing saves
 - deterministic simulation
 - accounting integrity
 - strict separation of company assets/cash from personal assets/cash
@@ -106,7 +105,7 @@ When logic is shared between company and personal systems, share calculation log
 
 Do not introduce unnecessary RNG consumption. Prefer deterministic derivation from existing identifiers/state when sufficient. In tests that require distinct random-derived IDs, use a deterministic sequence/LCG rather than a constant random function.
 
-New persistent state should normally support old saves through safe defaults while retaining `saveVersion=9`. Monetary changes must follow the existing accounting model and avoid duplicate recognition of cash, revenue, cost, assets, or liabilities.
+New persistent state retains `saveVersion=9`. Compatibility with existing saves is not required (Owner decision, 2026-10-22: device play-testing always starts a new game). Monetary changes must follow the existing accounting model and avoid duplicate recognition of cash, revenue, cost, assets, or liabilities.
 
 ### Browser/UI
 

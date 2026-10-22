@@ -37,7 +37,6 @@ These are non-negotiable unless the user explicitly authorizes a dedicated migra
 
 - `SAVE_KEY=capitalism_tycoon_web_v1`
 - `saveVersion=9`
-- backward compatibility with old saves
 - deterministic simulation
 - accounting integrity
 - complete separation of company assets/cash from personal assets/cash
@@ -195,7 +194,6 @@ When founding/progression work changes the two-route model, prove the affected c
 - investment-company route can begin/continue with zero stores when intended
 - company investment changes company cash/holdings/ledger only, not personal assets
 - loosening investment-route gates does not unlock unrelated M&A/real-estate/governance/business systems unconditionally
-- old saves without new optional route information still load safely with `saveVersion=9`
 - deterministic validation does not add unnecessary RNG consumption
 
 Do not run these route-specific checks for unrelated CSS, map-prop, CI, or documentation changes.
