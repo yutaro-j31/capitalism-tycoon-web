@@ -84,15 +84,15 @@ Rounding every part separately makes the parts disagree with the rounded total (
 
 ## 7. Approval boundary
 
-These slices change authoritative cash, ledger and debt writers. Under `AGENTS.md` §3 and #1055, they are **not** low-risk autonomous merges.
+These slices change authoritative cash, ledger and debt writers. Under `AGENTS.md` §3 and #1055 alone, they would not count as low-risk autonomous merges.
 
-**Owner decision required (Q1):** Does merging this contract also authorize merging each slice PR (R0–R9) once:
+**Owner decision (2026-10-22, Q1): approved.** Any agent may merge a slice PR (R0–R9) without asking the Owner again, once all of these hold:
 
-- CI on its final HEAD is green;
-- the Codex review has no unresolved finding;
-- the slice's acceptance checks in §8 pass?
+- CI on its final HEAD is green, and its base is current `main`;
+- the Codex review of that HEAD has no unresolved finding. When Codex wrote the slice itself, a separate review is required, and the PR must say that it is a same-model review (`AGENTS.md` §3);
+- the slice's acceptance checks in §8 pass, and the PR body records them.
 
-The other answer is that every slice PR still needs a fresh Owner "OK to merge". Until the Owner answers, the default is a fresh Owner approval per slice.
+This authorization covers only slice PRs that implement this contract. It does not cover changes to the contract itself; any change to §2–§7 needs a fresh Owner approval. It also does not cover unrelated writer changes bundled into a slice; do not bundle them. After each merge, verify the new `main` and update §8.
 
 ## 8. Slices and progress
 
