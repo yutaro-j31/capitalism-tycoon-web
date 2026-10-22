@@ -354,12 +354,12 @@ function roundMoney(value){
   if(Math.abs(scaled)>MAX_SAFE_MONEY_MINOR_UNITS)throw new RangeError('money exceeds the cent-exact Number envelope');
   return Math.round(scaled)/MONEY_MINOR_UNITS;
 }
-// Whole-yen ceiling rounding (YEN_CEILING_ROUNDING_CONTRACT.md §2): float noise within a few units of precision
-// snaps to the nearest yen; every real fraction rounds the magnitude up, so -12.3 becomes -13, never -12.
+// Whole-yen ceiling rounding (YEN_CEILING_ROUNDING_CONTRACT.md §2): float noise within about four ULPs (never more
+// than ¥0.005) snaps to the nearest yen; every real fraction rounds the magnitude up, so -12.3 becomes -13, never -12.
 function ceilYen(value){
   if(typeof value!=='number'||!Number.isFinite(value))throw new TypeError('money must be a finite number');
   if(Math.abs(value*MONEY_MINOR_UNITS)>MAX_SAFE_MONEY_MINOR_UNITS)throw new RangeError('money exceeds the cent-exact Number envelope');
-  const nearest=Math.round(value),tolerance=Math.max(1e-9,Math.abs(value)*64*Number.EPSILON);
+  const nearest=Math.round(value),tolerance=Math.min(.005,Math.max(1e-9,Math.abs(value)*4*Number.EPSILON));
   const yen=Math.abs(value-nearest)<=tolerance?nearest:Math.sign(value)*Math.ceil(Math.abs(value));
   return yen===0?0:yen;
 }
