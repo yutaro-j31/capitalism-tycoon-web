@@ -78,9 +78,14 @@ Rounding every part separately makes the parts disagree with the rounded total (
   - no transaction appears or disappears without a stated reason.
 - An existing test that asserts a cent value (for example `1234.56`) gets the new whole-yen expected value. This applies the approved contract; it does not weaken the test. Never delete a test, skip it, or widen a tolerance to make it pass.
 - **Ratchet guard** (added in slice R0): `tests/yen-ceiling-rounding-guard-test.js` with its baseline `tests/fixtures/yen-ceiling-rounding-baseline.json`. It checks two things:
-  - **Lexical:** a `js/` file that is not listed in the baseline's `pendingFiles` must not contain a ¥0.01 rounding pattern (`*100)/100` and its spacing variants), except where `economic-operation.js` defines `roundMoney`.
-  - **Runtime:** each slice adds focused scenarios for its migrated sources. The scenarios start from whole-yen balances and drive the slice's writers directly. The test asserts that every ledger row those writers produce has a whole-yen `amount` and whole-yen effects. A full seeded run would also exercise unmigrated writers, whose fractions can legitimately cap a migrated amount (§3.5), so the full run is not used before R9. From R9, when `pendingSources` is empty, the test adds a fixed seeded full run and asserts that every ledger row is whole, and that every company, personal and competitor cash/debt field is whole.
-  - Each slice **removes** its entries from both lists. The lists may only shrink; the test fails if an entry is added.
+  - **Lexical ratchet.** The baseline's `pendingFiles` lists the `js/` files that still contain a ¥0.01 rounding pattern (`*100)/100` and its spacing variants). The test fails in two cases:
+    - a file **not** in `pendingFiles` contains the pattern. A new or migrated file must not reintroduce cent rounding.
+    - a file **in** `pendingFiles` no longer contains it, i.e. the entry is stale. So each slice must remove its files from the list.
+
+    The pattern can also round a non-monetary value, such as a rate or a percentage, to two decimals. Such a line is exempt when it carries the comment `/* not-money: <what it rounds> */` on the same line. Use the exemption only for values that §1 lists as out of scope.
+
+    Adding a file to `pendingFiles` is only legitimate when a slice must keep a cent helper temporarily, for example a shared normaliser (§2). The PR body must state the reason, and the entry must be gone by R9.
+  - **Runtime.** Each slice adds focused scenarios for the writers it migrates. The scenarios start from whole-yen balances and drive the slice's writers directly. The test asserts that every ledger row those writers produce has a whole-yen `amount` and whole-yen effects, and that the state fields they write are whole. This also covers writers that never had a cent helper (for example an unrounded `deposit*.6`), which the lexical ratchet cannot see. A full seeded run would also exercise unmigrated writers, whose fractions can legitimately cap a migrated amount (§3.5), so it is not used before R9. R9 empties `pendingFiles` and adds a fixed seeded full run. That run asserts that every ledger row is whole, and that every company, personal and competitor cash/debt field is whole.
 
 ## 7. Approval boundary
 
@@ -100,7 +105,7 @@ One slice per PR. Branch name: `fix/yen-ceil-<slice id lower-case>` (for example
 
 | Slice | Files / families | Notes | Status | PR |
 |---|---|---|---|---|
-| R0 | `economic-operation.js` (`ceilYen`, `allocateYen` + unit tests); ratchet guard test + baseline listing every current file and source | No behaviour change: nothing calls the new helpers yet | TODO | |
+| R0 | `economic-operation.js` (`ceilYen`, `allocateYen` + unit tests); ratchet guard test + baseline listing every file that currently contains a ¥0.01 pattern | No behaviour change: nothing calls the new helpers yet | TODO | |
 | R1 | `finance.js`'s own writers (generic interest, loan schedule postings, depreciation), `treasury-prepayment.js` | Calls `ceilYen` explicitly at each posting. The shared `r` (and with it `finance.event`'s normalisation) stays ¥0.01 (§2) | TODO | |
 | R2 | Store operations: `engine.js` store P&L and weekly cash (revenue, costs, wages, rent, closures, refunds), `workforce.js`, `supply.js`, `store-equipment.js`, `menu-research.js`, `player-media-advertising.js`, `product-lifecycle.js`, `completion.js`, `parity.js`, `expansion.js` | Largest slice; split into R2a (engine.js) / R2b (rest) if the diff exceeds one review | TODO | |
 | R3a | Company real estate, acquisition/finance/disposal: `real-estate.js`, `real-estate-mortgage-refinancing.js`, `real-estate-property-disposals.js`, `real-estate-property-taxes.js`, `real-estate-development.js`, `real-estate-price-negotiation.js`, `real-estate-complete-cycle.js`, `real-estate-redevelopment-projects.js`, `real-estate-agency-credit-line.js` | Mortgage: interest is the charge, principal is the remainder (§4) | TODO | |
@@ -120,7 +125,7 @@ The file lists come from the 2026-10-22 inventory of `main` (`2690051`):
 
 ### Acceptance checks for every slice
 
-1. The slice's files contain no ¥0.01 money rounding. Every amount they settle or post is whole yen, and the ratchet guard passes after removing their entries.
+1. The slice's files contain no ¥0.01 money rounding. Every amount they settle or post is whole yen, the ratchet guard passes after removing their `pendingFiles` entries, and the slice's focused runtime scenarios are added to the guard.
 2. The focused tests of every changed file pass: the tests that `node scripts/select-affected-tests.js --base origin/main` lists, at least those that name the changed files directly.
 3. `finance.validate` passes and the debt rollforward has no failing check in the slice's focused scenarios. `tests/phase0-5-acceptance-gate-test.js` and `tests/finance-category-taxonomy-test.js` pass. If the lexical writer inventory moves, refresh it with `node scripts/phase0-5-acceptance.js --refresh-writers` and state that `exactAuthority` is unchanged.
 4. Every fixture or expected-value change is listed and explained in the PR body (§6).
