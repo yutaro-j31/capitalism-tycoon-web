@@ -353,6 +353,8 @@ Money or positions entering/leaving the modeled ownership graph must have an exp
 
 ## 5. Monetary, rounding and close contract
 
+> **vNext (Owner decision, 2026-10-22):** monetary amounts move from the ¥0.01 quantum to whole yen, with any fraction rounded **up** in magnitude. The rule, split/allocation rules and slice-by-slice migration are in [`YEN_CEILING_ROUNDING_CONTRACT.md`](YEN_CEILING_ROUNDING_CONTRACT.md). Until a family's slice is marked `DONE` there, the ¥0.01 text below still describes that family.
+
 ### 5.1 Numeric domains during saveVersion 9 migration
 
 The current saveVersion 9 representation remains JavaScript `Number`.
@@ -551,7 +553,7 @@ The following IDs are normative targets for the permanent harness.
 | ECO-016 | UI/render/report/preview/shadow evaluation does not consume production simulation RNG |
 | ECO-017 | projections/derived metrics cannot mutate source-of-truth cash, ownership or debt |
 | ECO-018 | transaction/history compaction preserves required accounting, replay and idempotency evidence |
-| ECO-019 | cent-quantized authoritative monetary postings remain inside the approved exact-quantum Number envelope until another representation is approved |
+| ECO-019 | cent-quantized (whole-yen once migrated, see `YEN_CEILING_ROUNDING_CONTRACT.md`) authoritative monetary postings remain inside the approved exact-quantum Number envelope until another representation is approved |
 | ECO-020 | every committed multi-leg operation satisfies its family-specific balance/conservation schema |
 | ECO-021 | authoritative security/debt/property IDs and next-ID counters remain unique and deterministic |
 | ECO-022 | base valuation used for a decision is immutable for that decision and cannot be rewritten by same-period post-decision repricing |
