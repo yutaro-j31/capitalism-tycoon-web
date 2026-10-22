@@ -135,3 +135,12 @@ The file lists come from the 2026-10-22 inventory of `main` (`2690051`):
 4. Validate as in "Acceptance checks". Open the PR; in its body, list the moved values and the slice's §8 row. Request `@codex review` (unless Codex itself is the author; then note that the review is same-model, as `AGENTS.md` requires).
 5. Merge only as §7 allows. After the merge, set the row to `DONE` with the PR number. That can be done in the same PR before merging, or in the next slice's PR.
 6. If you stop mid-slice (usage limit, end of session), push the branch, and leave a PR comment stating what is done, what is left and which tests were run, so that the next agent can continue from that comment.
+
+## 10. Ordering with other Economic Engine work (Owner decision, 2026-10-22)
+
+Economic Engine phases and this migration both rewrite authoritative money writers. To avoid conflicting edits, double work and failures whose cause cannot be told apart:
+
+1. **Until R0 and R1 are `DONE`,** do not start or merge Economic Engine work that adds or changes a writer of cash, debt, ledger rows or settled amounts. Read-only work may continue in parallel: read models, projections, reconciliations that post nothing, contracts and tests that write no money.
+2. **From the merge of R0,** every new or rewritten money writer, in any task, settles its amounts with `ceilYen` (and `allocateYen` for allocations), following §3–§4. This includes writers outside this migration.
+3. **After R1,** Economic Engine work that changes a money writer in a file that a later slice still owns waits until that slice is `DONE`. If it cannot wait, it migrates the file to whole yen itself, under that slice's rules and acceptance checks, and marks the slice row (or a sub-row) `DONE` in the same PR.
+4. Before you start any Economic Engine task, check §8 to find out whether the task writes money, and which slices it touches.
