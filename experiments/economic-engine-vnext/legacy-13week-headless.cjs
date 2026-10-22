@@ -46,7 +46,13 @@ while(currentStore()?.status!=='open' && readinessWeeks<16){
   readinessWeeks++;
 }
 assert.equal(currentStore()?.status,'open','ramen store is operating after preparation');
-const capture=capture13Weeks(engine,{storeID:createdStoreID,businessID:'ramen'});
+// Opt-in observer wraps exported boundaries in this disposable VM only.
+// Internal lexical consume() calls are NOT individually intercepted.
+const trace=process.argv.includes('--consumption-boundary')?
+ require('./legacy-consumption-boundary.cjs').install(loaded.modules,createdStoreID):null;
+let capture;
+try{capture=capture13Weeks(engine,{storeID:createdStoreID,businessID:'ramen'});}
+finally{trace?.restore();}
 const result=analyze(capture);
 const perWeek=capture.records.map(x=>({
  step:x.step,week:x.week,cashDeltaJPY:x.cashDeltaJPY,
@@ -70,6 +76,7 @@ const output={
  evidenceLevel:'HEADLESS_EXECUTION',
  warning:'Actual legacy run, not a synthetic vNext comparison. UNSUPPORTED is an observed adapter gap, not a production error.'
 };
+if(trace)output.consumptionBoundaryEvidence=trace.snapshot();
 console.log(JSON.stringify(output,null,2));
 if(result.status==='EVIDENCE_BLOCKED'){
  console.error('EVIDENCE_BLOCKED: '+result.reasons.join('; '));
