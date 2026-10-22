@@ -36,7 +36,23 @@ async function runCase(kind) {
   await m.saveStorageIDB.hydrate();
   if (!m.saveStorageIDB.status().available) throw new Error('real IDB prerequisite');
   if (e.borrow(UNRELATED, owner) !== true) throw new Error('unrelated loan');
-  const mortgage = e.refinancePropertyMortgage('P1', 'fixed');
+  // A pre-Option-A save: the off-book mortgage the old refinance writer produced (no finance row, no debt aggregate,
+  // a proceeds row with no liability effect), reproduced field by field. runCase is serialized into the page, so it is inline.
+  const legacyMortgage = (id, productID) => e.runTransaction(() => {
+    const p = e.g.properties.find(x => x.id === id), product = m.realEstateMortgageRefinancing.PRODUCTS[productID];
+    const round = v => Math.round(Number(v) * 100) / 100, week = Math.floor(Number(e.g.week) || 1), own = p.owner === 'personal' ? 'personal' : 'company';
+    const key = own === 'personal' ? 'personalCash' : 'companyCash', target = round(Number(p.marketValue) * product.maxLTV), old = round(p.mortgageBalance);
+    const gross = Math.max(0, target - old), fee = round(target * product.feeRate), net = round(Math.max(0, gross - fee));
+    e.g[key] = round(e.g[key] + net);
+    Object.assign(p, { mortgageProductID: productID, mortgageBalance: target, mortgageRemainingWeeks: product.termWeeks, lastMortgageActionWeek: week });
+    if (own === 'company') {
+      if (net > 0) m.finance.event(e.g, 'propertyMortgageProceeds', net, { cashEffect: net, profitEffect: 0, sourceType: 'property-mortgage', sourceID: id, idempotencyKey: `property-mortgage-proceeds-${id}-w${week}`, description: `${p.name || id} 借換手取金` });
+      if (fee > 0) m.finance.event(e.g, 'propertyMortgageFee', fee, { cashEffect: 0, profitEffect: -fee, sourceType: 'property-mortgage-fee', sourceID: id, idempotencyKey: `property-mortgage-fee-${id}-w${week}`, description: `${p.name || id} 借換手数料` });
+    }
+    m.realEstateMortgageRefinancing.ensure(e.g).propertyMortgageHistory.push({ type: 'mortgage-refinance', week, propertyID: id, owner: own, productID, oldBalance: old, newBalance: target, fee, netProceeds: net });
+    return { oldBalance: old, newBalance: target, fee, netProceeds: net };
+  });
+  const mortgage = legacyMortgage('P1', 'fixed');
   if (!mortgage) throw new Error('mortgage');
   if (kind === 'S2') e.g.finance = m.finance.defaultFinanceState(e.g);
   if (!e.save()) throw new Error('baseline save'); await m.saveStorageIDB.flush();

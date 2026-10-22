@@ -310,6 +310,7 @@
     "tests/debt-command-save-atomicity-test.js",
     "tests/phase3-control-eligibility-test.js",
     "tests/property-debt-principal-sync-test.js",
-    "tests/p4-aud-007-mortgage-disposal-debt-test.js"
+    "tests/p4-aud-007-mortgage-disposal-debt-test.js",
+    "tests/p4-aud-007-option-a-mortgage-test.js"
   ]
 }

@@ -128,6 +128,17 @@ No new finance category, no new save root, and `saveVersion=9` is unchanged. An 
     - (c) Exclude the off-book balance from the `property-disposition-debt` row's `liabilityEffect` (today `−debt.total`), while keeping the cash payoff. Otherwise `P2-DEBT-ROLLFORWARD` fails by the mortgage balance after the sale.
     - (d) The ledger treatment of that cash payoff depends on the S1/S2 classification (Q2) and must not be applied universally. In S2 the ledger balances today because equity absorbed `B`. Paying `B` in cash with a zero liability effect then leaves no offset, and `finance.validate` turns from valid to `P2-CLOSE-BS-IDENTITY` by `B`. So S2 must either carry an equity offset on the payoff, or be quarantined until classified. The offset must equal the actual historical accounting gap, not the current balance: `B` for a pure S2, but `B_open = B + P − D` for S2s, where the later payments `P` and draws `D` already left a `D − P` difference. When that gap cannot be measured exactly from the ledger, the property is quarantined. Any equity restatement through `priorPeriodAdjustments` is subject to Q2. The fix's tests must cover S1, S2 and S2s, and show per state that a save which validates before the sale still validates after it, and that S2s is either brought to a validating state or quarantined.
 
+### 5.1 Owner decisions (2026-10-22)
+
+The Owner delegated Q1–Q9 to the recommended options. The Owner also stated that existing saves need no repair: device play-testing always starts a new game.
+
+- **Q1–Q4 (legacy):** forward-only. A company mortgage originated from a zero balance is on book and carries `p.mortgageAccountingTracked = true`. An existing off-book mortgage has no flag and keeps its legacy behaviour, including the #1062 D-1 disposal treatment, until it is paid off. No backfill, equity restatement or S3/S4 repair is built. Old saves must still load and play without errors (CLAUDE.md §2 backward compatibility).
+- **Q5:** keep the #1036 block.
+- **Q6:** unpaid interest on an on-book mortgage is capitalised into principal and posted as two rows: an `interestExpense` row (profit −x, no cash, no liability) and a cashless `debtBorrowing` row (liability +x). `p.mortgageDelinquentWeeks` counts consecutive short weeks. Default and foreclosure consequences are not part of this slice.
+- **Q7:** sync through the #990 `settleLoanPrincipal` hook. A generic repayment of the mortgage row moves `p.mortgageBalance` with no second cash or ledger effect.
+- **Q8:** personal mortgages are a separate later PR (§6 slice 4).
+- **Q9:** one stable `loanID` per property, `property-mortgage-<propertyID>`. A refinance updates the same row.
+
 ## 6. Proposed implementation slices (after Owner decisions)
 
 1. **D-1 disposal fix** (if Q10 = yes): one writer, with Node, save-fault, WebKit and old-save tests.
