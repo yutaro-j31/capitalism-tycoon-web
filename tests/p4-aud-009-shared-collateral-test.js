@@ -58,6 +58,10 @@ for (const owner of ['company', 'personal']) {
     const combined = (marketDebt(e.g, p.id) + (p.mortgageBalance || 0)) / 300_000_000;
     assert.ok(combined <= maxSpecialistLTV, `${owner}: combined LTV ${combined} stays within the cap`);
     const loan = e.g.realEstateMarket.loans.find(l => l.propertyID === p.id && l.status === 'active');
+    // A defaulted loan keeps its balance on the collateral: the mortgage and further specialist loans stay refused.
+    loan.status = 'defaulted';
+    assert.equal(e.refinancePropertyMortgage(p.id, 'fixed'), false, `${owner}: mortgage refused while a defaulted loan is outstanding`);
+    assert.equal(e.getRealEstateFinanceQuote(p.id, 0.5e6, { rateType: 'fixed' }).existingDebt, 40_000_000, `${owner}: quote counts the defaulted loan`);
     assert.ok(e.prepayRealEstateLoan(loan.id, loan.balance), `${owner}: repay the specialist loan`);
     e.g.week += 1;
     assert.ok(e.refinancePropertyMortgage(p.id, 'fixed'), `${owner}: mortgage allowed once the collateral is free`);
