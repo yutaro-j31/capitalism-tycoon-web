@@ -280,7 +280,7 @@ jobs:
       group: iphone-acceptance-${{ github.event.pull_request.number || github.ref }}
       cancel-in-progress: true
     runs-on: ubuntu-latest
-    timeout-minutes: 18
+    timeout-minutes: 35
     env:
       IPHONE_ACCEPTANCE_ARTIFACT_DIR: artifacts/iphone-acceptance
       D_UI_ARTIFACT_DIR: artifacts/iphone-acceptance/pe
@@ -294,10 +294,10 @@ jobs:
         run: npm install --no-save --no-package-lock playwright@1.61.0
       - name: Install WebKit browser and system dependencies
         # Bounded retry: the install has stalled for the whole job budget several times (CLAUDE.md §7);
-        # a fresh attempt normally finishes in under two minutes. Two 6-minute attempts fit every job budget.
+        # healthy installs have taken up to ~9 minutes, so each attempt gets 12 and the job budget fits two.
         run: |
           for attempt in 1 2; do
-            timeout --kill-after=30s 6m npx playwright install --with-deps webkit && exit 0
+            timeout --kill-after=30s 12m npx playwright install --with-deps webkit && exit 0
             echo "::warning::WebKit install attempt $attempt failed or stalled; retrying"
           done
           exit 1
@@ -347,7 +347,7 @@ jobs:
       group: iphone-webkit-smoke-${{ github.ref }}
       cancel-in-progress: true
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 30
     env:
       IPHONE_WEBKIT_ARTIFACT_DIR: artifacts/iphone-webkit-smoke
       GAME_OVER_SETTINGS_ARTIFACT_DIR: artifacts/game-over-settings-webkit
@@ -363,10 +363,10 @@ jobs:
         run: npm install --no-save --no-package-lock playwright@1.61.0
       - name: Install WebKit browser and system dependencies
         # Bounded retry: the install has stalled for the whole job budget several times (CLAUDE.md §7);
-        # a fresh attempt normally finishes in under two minutes. Two 6-minute attempts fit every job budget.
+        # healthy installs have taken up to ~9 minutes, so each attempt gets 12 and the job budget fits two.
         run: |
           for attempt in 1 2; do
-            timeout --kill-after=30s 6m npx playwright install --with-deps webkit && exit 0
+            timeout --kill-after=30s 12m npx playwright install --with-deps webkit && exit 0
             echo "::warning::WebKit install attempt $attempt failed or stalled; retrying"
           done
           exit 1

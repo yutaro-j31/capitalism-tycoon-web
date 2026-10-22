@@ -384,10 +384,10 @@ jobs:
 
       - name: Install WebKit browser and system dependencies
         # Bounded retry: the install has stalled for the whole job budget several times (CLAUDE.md §7);
-        # a fresh attempt normally finishes in under two minutes. Two 6-minute attempts fit every job budget.
+        # healthy installs have taken up to ~9 minutes, so each attempt gets 12 and the job budget fits two.
         run: |
           for attempt in 1 2; do
-            timeout --kill-after=30s 6m npx playwright install --with-deps webkit && exit 0
+            timeout --kill-after=30s 12m npx playwright install --with-deps webkit && exit 0
             echo "::warning::WebKit install attempt $attempt failed or stalled; retrying"
           done
           exit 1
@@ -455,7 +455,7 @@ jobs:
       github.event_name == 'pull_request' ||
       (github.event_name == 'workflow_dispatch' && inputs.mode == 'deal-room')
     runs-on: ubuntu-latest
-    timeout-minutes: 25
+    timeout-minutes: 35
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -478,10 +478,10 @@ jobs:
         run: npm install --no-save --no-package-lock playwright@1.61.0
       - name: Install WebKit browser and system dependencies
         # Bounded retry: the install has stalled for the whole job budget several times (CLAUDE.md §7);
-        # a fresh attempt normally finishes in under two minutes. Two 6-minute attempts fit every job budget.
+        # healthy installs have taken up to ~9 minutes, so each attempt gets 12 and the job budget fits two.
         run: |
           for attempt in 1 2; do
-            timeout --kill-after=30s 6m npx playwright install --with-deps webkit && exit 0
+            timeout --kill-after=30s 12m npx playwright install --with-deps webkit && exit 0
             echo "::warning::WebKit install attempt $attempt failed or stalled; retrying"
           done
           exit 1
@@ -521,7 +521,7 @@ jobs:
       group: ma-acquisition-financing-property-debt-principal-sync-${{ (github.event_name == 'pull_request' || inputs.mode == 'deal-room') && github.run_id || github.ref }}
       cancel-in-progress: true
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 30
     env:
       MA_DEAL_ROOM_ARTIFACT_DIR: artifacts/property-debt-principal-sync-webkit
     steps:
@@ -533,10 +533,10 @@ jobs:
         run: npm install --no-save --no-package-lock playwright@1.61.0
       - name: Install WebKit browser and system dependencies
         # Bounded retry: the install has stalled for the whole job budget several times (CLAUDE.md §7);
-        # a fresh attempt normally finishes in under two minutes. Two 6-minute attempts fit every job budget.
+        # healthy installs have taken up to ~9 minutes, so each attempt gets 12 and the job budget fits two.
         run: |
           for attempt in 1 2; do
-            timeout --kill-after=30s 6m npx playwright install --with-deps webkit && exit 0
+            timeout --kill-after=30s 12m npx playwright install --with-deps webkit && exit 0
             echo "::warning::WebKit install attempt $attempt failed or stalled; retrying"
           done
           exit 1
@@ -563,7 +563,7 @@ jobs:
       group: ma-acquisition-financing-debt-command-atomicity-${{ (github.event_name == 'pull_request' || inputs.mode == 'deal-room') && github.run_id || github.ref }}
       cancel-in-progress: true
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 35
     env:
       MA_DEAL_ROOM_ARTIFACT_DIR: artifacts/debt-command-atomicity-webkit
     steps:
@@ -575,10 +575,10 @@ jobs:
         run: npm install --no-save --no-package-lock playwright@1.61.0
       - name: Install WebKit browser and system dependencies
         # Bounded retry: the install has stalled for the whole job budget several times (CLAUDE.md §7);
-        # a fresh attempt normally finishes in under two minutes. Two 6-minute attempts fit every job budget.
+        # healthy installs have taken up to ~9 minutes, so each attempt gets 12 and the job budget fits two.
         run: |
           for attempt in 1 2; do
-            timeout --kill-after=30s 6m npx playwright install --with-deps webkit && exit 0
+            timeout --kill-after=30s 12m npx playwright install --with-deps webkit && exit 0
             echo "::warning::WebKit install attempt $attempt failed or stalled; retrying"
           done
           exit 1
@@ -603,7 +603,7 @@ jobs:
       group: ma-acquisition-financing-stock-split-atomicity-${{ (github.event_name == 'pull_request' || inputs.mode == 'deal-room') && github.run_id || github.ref }}
       cancel-in-progress: true
     runs-on: ubuntu-latest
-    timeout-minutes: 25
+    timeout-minutes: 40
     env:
       MA_DEAL_ROOM_ARTIFACT_DIR: artifacts/stock-split-atomicity-webkit
     steps:
@@ -615,10 +615,10 @@ jobs:
         run: npm install --no-save --no-package-lock playwright@1.61.0
       - name: Install WebKit browser and system dependencies
         # Bounded retry: the install has stalled for the whole job budget several times (CLAUDE.md §7);
-        # a fresh attempt normally finishes in under two minutes. Two 6-minute attempts fit every job budget.
+        # healthy installs have taken up to ~9 minutes, so each attempt gets 12 and the job budget fits two.
         run: |
           for attempt in 1 2; do
-            timeout --kill-after=30s 6m npx playwright install --with-deps webkit && exit 0
+            timeout --kill-after=30s 12m npx playwright install --with-deps webkit && exit 0
             echo "::warning::WebKit install attempt $attempt failed or stalled; retrying"
           done
           exit 1
@@ -671,7 +671,7 @@ jobs:
       group: ma-acquisition-financing-pe-acquisition-atomicity-${{ (github.event_name == 'pull_request' || inputs.mode == 'deal-room') && github.run_id || github.ref }}
       cancel-in-progress: true
     runs-on: ubuntu-latest
-    timeout-minutes: 25
+    timeout-minutes: 40
     env:
       MA_DEAL_ROOM_ARTIFACT_DIR: artifacts/pe-acquisition-atomicity-webkit
     steps:
@@ -683,10 +683,10 @@ jobs:
         run: npm install --no-save --no-package-lock playwright@1.61.0
       - name: Install WebKit browser and system dependencies
         # Bounded retry: the install has stalled for the whole job budget several times (CLAUDE.md §7);
-        # a fresh attempt normally finishes in under two minutes. Two 6-minute attempts fit every job budget.
+        # healthy installs have taken up to ~9 minutes, so each attempt gets 12 and the job budget fits two.
         run: |
           for attempt in 1 2; do
-            timeout --kill-after=30s 6m npx playwright install --with-deps webkit && exit 0
+            timeout --kill-after=30s 12m npx playwright install --with-deps webkit && exit 0
             echo "::warning::WebKit install attempt $attempt failed or stalled; retrying"
           done
           exit 1
@@ -718,7 +718,7 @@ jobs:
       group: ma-acquisition-financing-vc-secondary-atomicity-${{ (github.event_name == 'pull_request' || inputs.mode == 'deal-room') && github.run_id || github.ref }}
       cancel-in-progress: true
     runs-on: ubuntu-latest
-    timeout-minutes: 25
+    timeout-minutes: 40
     env:
       MA_DEAL_ROOM_ARTIFACT_DIR: artifacts/vc-secondary-atomicity-webkit
     steps:
@@ -730,10 +730,10 @@ jobs:
         run: npm install --no-save --no-package-lock playwright@1.61.0
       - name: Install WebKit browser and system dependencies
         # Bounded retry: the install has stalled for the whole job budget several times (CLAUDE.md §7);
-        # a fresh attempt normally finishes in under two minutes. Two 6-minute attempts fit every job budget.
+        # healthy installs have taken up to ~9 minutes, so each attempt gets 12 and the job budget fits two.
         run: |
           for attempt in 1 2; do
-            timeout --kill-after=30s 6m npx playwright install --with-deps webkit && exit 0
+            timeout --kill-after=30s 12m npx playwright install --with-deps webkit && exit 0
             echo "::warning::WebKit install attempt $attempt failed or stalled; retrying"
           done
           exit 1
@@ -777,7 +777,7 @@ jobs:
       group: ma-acquisition-financing-vc-funding-atomicity-${{ (github.event_name == 'pull_request' || inputs.mode == 'deal-room') && github.run_id || github.ref }}
       cancel-in-progress: true
     runs-on: ubuntu-latest
-    timeout-minutes: 25
+    timeout-minutes: 40
     env:
       MA_DEAL_ROOM_ARTIFACT_DIR: artifacts/vc-funding-atomicity-webkit
     steps:
@@ -789,10 +789,10 @@ jobs:
         run: npm install --no-save --no-package-lock playwright@1.61.0
       - name: Install WebKit browser and system dependencies
         # Bounded retry: the install has stalled for the whole job budget several times (CLAUDE.md §7);
-        # a fresh attempt normally finishes in under two minutes. Two 6-minute attempts fit every job budget.
+        # healthy installs have taken up to ~9 minutes, so each attempt gets 12 and the job budget fits two.
         run: |
           for attempt in 1 2; do
-            timeout --kill-after=30s 6m npx playwright install --with-deps webkit && exit 0
+            timeout --kill-after=30s 12m npx playwright install --with-deps webkit && exit 0
             echo "::warning::WebKit install attempt $attempt failed or stalled; retrying"
           done
           exit 1

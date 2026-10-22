@@ -104,7 +104,7 @@ assert(iphoneJob.includes("github.event_name == 'push'") && iphoneJob.includes("
 assert(!iphoneJob.includes("github.event_name == 'pull_request'") && !iphoneJob.includes("inputs.mode == 'release-readiness'"), 'iPhone job must skip PR and release-readiness manual mode');
 for (const token of [
   'contents: read', 'group: iphone-webkit-smoke-${{ github.ref }}', 'cancel-in-progress: true',
-  'timeout-minutes: 15', "node-version: '22'", 'playwright@1.61.0',
+  'timeout-minutes: 30', "node-version: '22'", 'playwright@1.61.0',
   'npx playwright install --with-deps webkit', 'node tests/iphone-playtest-webkit-test.js',
   'node tests/physical-iphone-playtest-test.js', 'node tests/iphone-webkit-smoke-test.js',
   'node tests/runtime-recovery-webkit-test.js', 'name: iphone-webkit-smoke-${{ github.sha }}',
@@ -308,7 +308,7 @@ assert(dealRoom.includes("github.event_name == 'pull_request'") && dealRoom.incl
 for (const forbidden of ["github.event_name == 'push'", "github.event_name == 'schedule'", "inputs.mode == 'comprehensive'", 'concurrency:']) {
   assert(!dealRoom.includes(forbidden), `Deal Room must not inherit ${forbidden}`);
 }
-assert(dealRoom.includes('timeout-minutes: 25') && dealRoom.includes("node-version: '20'"), 'Deal Room must retain Node 20 and timeout 25');
+assert(dealRoom.includes('timeout-minutes: 35') && dealRoom.includes("node-version: '20'"), 'Deal Room must retain Node 20 and timeout 35');
 for (const command of [
   'npm run test:ma-deal-room', 'npm run test:ma-integration', 'npm run test:finance-ma-accounting',
   'npm run test:save', 'npm run test:migration', 'npm run test:save-v9', 'npm run test:week',
@@ -324,7 +324,7 @@ assert(!/^    if:/m.test(splitAtomicity), 'stock split real WebKit must run on e
 // The heavy WebKit family jobs run 8.5-12.5 min when healthy (2026-10-22: stock split 11m20s, VC secondary 12m30s,
 // PE acquisition 9m35s, VC funding 8m36s), and the unpinned-cache `npm install playwright` step alone took 5-7 min in
 // slow windows that day, cancelling all three of the longest at 15 min. 25 keeps them bounded with that headroom.
-assert(splitAtomicity.includes('timeout-minutes: 25') && splitAtomicity.includes("node-version: '20'"), 'stock split WebKit must retain a bounded pinned runtime');
+assert(splitAtomicity.includes('timeout-minutes: 40') && splitAtomicity.includes("node-version: '20'"), 'stock split WebKit must retain a bounded pinned runtime');
 assert(splitAtomicity.includes("group: ma-acquisition-financing-stock-split-atomicity-${{ (github.event_name == 'pull_request' || inputs.mode == 'deal-room') && github.run_id || github.ref }}")
   && splitAtomicity.includes('cancel-in-progress: true'), 'stock split WebKit must be cancelled with superseded main/schedule/comprehensive runs, never for PR/deal-room');
 for (const command of ['playwright@1.61.0', 'npx playwright install --with-deps webkit', 'node tests/stock-split-save-atomicity-webkit-test.js', 'node tests/stock-split-dividend-rescale-webkit-test.js', 'node tests/stock-split-price-floor-webkit-test.js', 'node tests/decline-buyout-ownership-save-atomicity-webkit-test.js', 'node tests/execute-mbo-save-atomicity-webkit-test.js', 'node tests/earnings-confirm-read-only-webkit-test.js', 'node tests/ma-share-swap-ownership-ratios-webkit-test.js', 'node tests/competitor-stake-float-webkit-test.js', 'node tests/activate-defense-ownership-ratios-webkit-test.js', 'node tests/ma-equity-raise-ownership-ratios-webkit-test.js', 'node tests/ma-equity-raise-shadow-atomicity-webkit-test.js', 'actions/upload-artifact@v4', 'path: artifacts/stock-split-atomicity-webkit', 'if: always()', 'if-no-files-found: error', 'node tests/shareholder-activism-accept-save-atomicity-webkit-test.js']) {
@@ -343,7 +343,7 @@ const legacyRuntime = "node-version: ${{ (github.event_name == 'pull_request' ||
 for (const [job, tests] of Object.entries(movedFamilyJobs)) {
   const block = jobBlock(comprehensiveMa, job);
   assert(!/^    if:/m.test(block), `${job} must run on every workflow event including PR, main, schedule and both manual modes`);
-  assert(block.includes('timeout-minutes: 25') && block.includes('runs-on: ubuntu-latest'), `${job} must keep a bounded hosted runner`);
+  assert(block.includes('timeout-minutes: 40') && block.includes('runs-on: ubuntu-latest'), `${job} must keep a bounded hosted runner`);
   assert(block.includes(legacyRuntime), `${job} must keep the pre-split runtime per event (Node 20 PR/deal-room, Node 22 main/schedule/comprehensive)`);
   assert(block.includes(`group: ma-acquisition-financing-${job}-\${{ (github.event_name == 'pull_request' || inputs.mode == 'deal-room') && github.run_id || github.ref }}`)
     && block.includes('cancel-in-progress: true'), `${job} must keep pre-split cancellation: per-ref for main/schedule/comprehensive, never for PR/deal-room`);
