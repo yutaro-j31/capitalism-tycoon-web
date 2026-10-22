@@ -15,7 +15,7 @@ Build the complete planned Economic Engine **before** investing in broad, repeat
 
 Two separate completion milestones:
 
-1. **F — Functional Complete:** all required Phase 0–16 capabilities are implemented/connected or explicitly dispositioned by Owner; their dependency-specific local acceptance tests and applicable CI pass; existing gameplay and saves remain operable. Each phase can be marked `FUNCTIONAL` without claiming that the whole engine is regression-free or release-ready.
+1. **F — Functional Complete:** all required Phase 0–16 capabilities are implemented/connected or explicitly dispositioned by Owner; their dependency-specific local acceptance tests and applicable CI pass; existing gameplay remains operable. Each phase can be marked `FUNCTIONAL` without claiming that the whole engine is regression-free or release-ready.
 2. **Q — Quality Complete:** after F, freeze feature scope, then execute cross-system financial-integrity auditing, failure/fault campaigns, multi-seed/long-run simulations, mobile performance tests, calibration, fixes, and final regression on the integrated codebase. Only Q can support an Engine `RELEASE READY` claim.
 
 Important nuance: **"implement first" does not mean "merge known-corrupting code now and fix it later."** Required safety checks stay in the individual implementation PR. If an actual P0/P1 affects a proposed executable writer, that writer stays blocked until fixed or isolated; unrelated pure/read-only slices may progress. Never silently mark an incomplete phase `PASS`.
@@ -128,7 +128,7 @@ Enter Q only with an Owner-reviewed Functional Completion manifest and a feature
 | Q4 Deterministic stress | Stratified seed matrix, many AI profiles, multiple business/financing routes, 50/100/1,000-year scenarios where bounded and meaningful; minimized reproductions | Same persisted seed/state/actions → same semantic result; no observed invariant errors |
 | Q5 Performance/mobile | 100→250→500→1,000 company scale study, physical iPhone Safari p50/p95, memory, serialization/save size, backgrounding and long-run stability | Budgets based on actual device evidence; 1,000 companies is an architecture feasibility target unless separately made mandatory |
 | Q6 Balance/calibration | Rates, demand/supply, bankruptcy, concentration, valuation, PE/VC returns, money sinks, founder progression | Owner-approved target ranges; fixes made through separate dedicated PRs |
-| Q7 Regression/release | Replay failing seeds, old/compacted saves, full applicable CI/WebKit, independent review and final main revalidation | Only here label Economic Engine `QUALITY COMPLETE / RELEASE READY` |
+| Q7 Regression/release | Replay failing seeds, compacted saves, full applicable CI/WebKit, independent review and final main revalidation | Only here label Economic Engine `QUALITY COMPLETE / RELEASE READY` |
 
 100–1,000-year simulations must have bounded runtime/data size; duration is a scenario choice, not an evidence-free promise. Current harness deepAudit default is **2,600 weeks (50 years)**; 100 years requires **5,200 weeks** by explicit configuration. Preserve full provenance (seed, initial save fingerprint, action log, final hash, first diff, exact commit).
 
