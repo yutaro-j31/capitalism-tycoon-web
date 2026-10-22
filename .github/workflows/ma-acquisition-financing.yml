@@ -383,8 +383,22 @@ jobs:
         run: npm install --no-save --no-package-lock playwright@1.61.0
 
       - name: Install WebKit browser and system dependencies
-        run: npx playwright install --with-deps webkit
-
+        # Bounded retry: the install has stalled for the whole job budget several times (CLAUDE.md §7);
+        # healthy installs have taken up to ~9 minutes, so each attempt gets 12 and the job budget fits two.
+        run: |
+          # apt mirrors have stalled mid-download: retry stalled connections instead of waiting forever.
+          printf 'Acquire::Retries "5";\nAcquire::http::Timeout "30";\nAcquire::https::Timeout "30";\n' | sudo tee /etc/apt/apt.conf.d/80-ci-retries >/dev/null
+          for attempt in 1 2; do
+            timeout --kill-after=30s 12m npx playwright install --with-deps webkit && exit 0
+            echo "::warning::WebKit install attempt $attempt failed or stalled"
+            # timeout kills npx, not the apt-get it started as root; free the dpkg lock before retrying.
+            sudo pkill -9 -x apt-get || true
+            sudo pkill -9 -x dpkg || true
+            sudo env DEBIAN_FRONTEND=noninteractive timeout --kill-after=10s 2m dpkg --configure -a || true
+            # A crawling Azure apt mirror is what stalls the install; retry against archive.ubuntu.com.
+            sudo sed -i -E 's#https?://azure\.archive\.ubuntu\.com/ubuntu/?#http://archive.ubuntu.com/ubuntu/#g' /etc/apt/apt-mirrors.txt /etc/apt/sources.list /etc/apt/sources.list.d/* 2>/dev/null || true
+          done
+          exit 1
       - name: iPhone WebKit smoke
         run: |
           node tests/ma-acquisition-financing-webkit-test.js
@@ -449,7 +463,7 @@ jobs:
       github.event_name == 'pull_request' ||
       (github.event_name == 'workflow_dispatch' && inputs.mode == 'deal-room')
     runs-on: ubuntu-latest
-    timeout-minutes: 25
+    timeout-minutes: 35
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -471,7 +485,22 @@ jobs:
       - name: Install pinned Playwright runtime
         run: npm install --no-save --no-package-lock playwright@1.61.0
       - name: Install WebKit browser and system dependencies
-        run: npx playwright install --with-deps webkit
+        # Bounded retry: the install has stalled for the whole job budget several times (CLAUDE.md §7);
+        # healthy installs have taken up to ~9 minutes, so each attempt gets 12 and the job budget fits two.
+        run: |
+          # apt mirrors have stalled mid-download: retry stalled connections instead of waiting forever.
+          printf 'Acquire::Retries "5";\nAcquire::http::Timeout "30";\nAcquire::https::Timeout "30";\n' | sudo tee /etc/apt/apt.conf.d/80-ci-retries >/dev/null
+          for attempt in 1 2; do
+            timeout --kill-after=30s 12m npx playwright install --with-deps webkit && exit 0
+            echo "::warning::WebKit install attempt $attempt failed or stalled"
+            # timeout kills npx, not the apt-get it started as root; free the dpkg lock before retrying.
+            sudo pkill -9 -x apt-get || true
+            sudo pkill -9 -x dpkg || true
+            sudo env DEBIAN_FRONTEND=noninteractive timeout --kill-after=10s 2m dpkg --configure -a || true
+            # A crawling Azure apt mirror is what stalls the install; retry against archive.ubuntu.com.
+            sudo sed -i -E 's#https?://azure\.archive\.ubuntu\.com/ubuntu/?#http://archive.ubuntu.com/ubuntu/#g' /etc/apt/apt-mirrors.txt /etc/apt/sources.list /etc/apt/sources.list.d/* 2>/dev/null || true
+          done
+          exit 1
       - run: node tests/ma-deal-room-webkit-test.js
       - run: node tests/ma-share-swap-save-atomicity-webkit-test.js
       - run: node tests/investor-offer-save-atomicity-webkit-test.js
@@ -508,7 +537,7 @@ jobs:
       group: ma-acquisition-financing-property-debt-principal-sync-${{ (github.event_name == 'pull_request' || inputs.mode == 'deal-room') && github.run_id || github.ref }}
       cancel-in-progress: true
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 30
     env:
       MA_DEAL_ROOM_ARTIFACT_DIR: artifacts/property-debt-principal-sync-webkit
     steps:
@@ -519,7 +548,22 @@ jobs:
       - name: Install pinned Playwright runtime
         run: npm install --no-save --no-package-lock playwright@1.61.0
       - name: Install WebKit browser and system dependencies
-        run: npx playwright install --with-deps webkit
+        # Bounded retry: the install has stalled for the whole job budget several times (CLAUDE.md §7);
+        # healthy installs have taken up to ~9 minutes, so each attempt gets 12 and the job budget fits two.
+        run: |
+          # apt mirrors have stalled mid-download: retry stalled connections instead of waiting forever.
+          printf 'Acquire::Retries "5";\nAcquire::http::Timeout "30";\nAcquire::https::Timeout "30";\n' | sudo tee /etc/apt/apt.conf.d/80-ci-retries >/dev/null
+          for attempt in 1 2; do
+            timeout --kill-after=30s 12m npx playwright install --with-deps webkit && exit 0
+            echo "::warning::WebKit install attempt $attempt failed or stalled"
+            # timeout kills npx, not the apt-get it started as root; free the dpkg lock before retrying.
+            sudo pkill -9 -x apt-get || true
+            sudo pkill -9 -x dpkg || true
+            sudo env DEBIAN_FRONTEND=noninteractive timeout --kill-after=10s 2m dpkg --configure -a || true
+            # A crawling Azure apt mirror is what stalls the install; retry against archive.ubuntu.com.
+            sudo sed -i -E 's#https?://azure\.archive\.ubuntu\.com/ubuntu/?#http://archive.ubuntu.com/ubuntu/#g' /etc/apt/apt-mirrors.txt /etc/apt/sources.list /etc/apt/sources.list.d/* 2>/dev/null || true
+          done
+          exit 1
       - name: Property debt principal in real iPhone WebKit
         run: node tests/property-debt-principal-sync-webkit-test.js
       - name: P4-AUD-007 mortgage disposal debt in real iPhone WebKit
@@ -543,7 +587,7 @@ jobs:
       group: ma-acquisition-financing-debt-command-atomicity-${{ (github.event_name == 'pull_request' || inputs.mode == 'deal-room') && github.run_id || github.ref }}
       cancel-in-progress: true
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 35
     env:
       MA_DEAL_ROOM_ARTIFACT_DIR: artifacts/debt-command-atomicity-webkit
     steps:
@@ -554,7 +598,22 @@ jobs:
       - name: Install pinned Playwright runtime
         run: npm install --no-save --no-package-lock playwright@1.61.0
       - name: Install WebKit browser and system dependencies
-        run: npx playwright install --with-deps webkit
+        # Bounded retry: the install has stalled for the whole job budget several times (CLAUDE.md §7);
+        # healthy installs have taken up to ~9 minutes, so each attempt gets 12 and the job budget fits two.
+        run: |
+          # apt mirrors have stalled mid-download: retry stalled connections instead of waiting forever.
+          printf 'Acquire::Retries "5";\nAcquire::http::Timeout "30";\nAcquire::https::Timeout "30";\n' | sudo tee /etc/apt/apt.conf.d/80-ci-retries >/dev/null
+          for attempt in 1 2; do
+            timeout --kill-after=30s 12m npx playwright install --with-deps webkit && exit 0
+            echo "::warning::WebKit install attempt $attempt failed or stalled"
+            # timeout kills npx, not the apt-get it started as root; free the dpkg lock before retrying.
+            sudo pkill -9 -x apt-get || true
+            sudo pkill -9 -x dpkg || true
+            sudo env DEBIAN_FRONTEND=noninteractive timeout --kill-after=10s 2m dpkg --configure -a || true
+            # A crawling Azure apt mirror is what stalls the install; retry against archive.ubuntu.com.
+            sudo sed -i -E 's#https?://azure\.archive\.ubuntu\.com/ubuntu/?#http://archive.ubuntu.com/ubuntu/#g' /etc/apt/apt-mirrors.txt /etc/apt/sources.list /etc/apt/sources.list.d/* 2>/dev/null || true
+          done
+          exit 1
       - name: Debt command atomicity in real iPhone WebKit
         run: node tests/debt-command-save-atomicity-webkit-test.js
       - name: Retain debt command WebKit evidence
@@ -576,7 +635,7 @@ jobs:
       group: ma-acquisition-financing-stock-split-atomicity-${{ (github.event_name == 'pull_request' || inputs.mode == 'deal-room') && github.run_id || github.ref }}
       cancel-in-progress: true
     runs-on: ubuntu-latest
-    timeout-minutes: 25
+    timeout-minutes: 40
     env:
       MA_DEAL_ROOM_ARTIFACT_DIR: artifacts/stock-split-atomicity-webkit
     steps:
@@ -587,7 +646,22 @@ jobs:
       - name: Install pinned Playwright runtime
         run: npm install --no-save --no-package-lock playwright@1.61.0
       - name: Install WebKit browser and system dependencies
-        run: npx playwright install --with-deps webkit
+        # Bounded retry: the install has stalled for the whole job budget several times (CLAUDE.md §7);
+        # healthy installs have taken up to ~9 minutes, so each attempt gets 12 and the job budget fits two.
+        run: |
+          # apt mirrors have stalled mid-download: retry stalled connections instead of waiting forever.
+          printf 'Acquire::Retries "5";\nAcquire::http::Timeout "30";\nAcquire::https::Timeout "30";\n' | sudo tee /etc/apt/apt.conf.d/80-ci-retries >/dev/null
+          for attempt in 1 2; do
+            timeout --kill-after=30s 12m npx playwright install --with-deps webkit && exit 0
+            echo "::warning::WebKit install attempt $attempt failed or stalled"
+            # timeout kills npx, not the apt-get it started as root; free the dpkg lock before retrying.
+            sudo pkill -9 -x apt-get || true
+            sudo pkill -9 -x dpkg || true
+            sudo env DEBIAN_FRONTEND=noninteractive timeout --kill-after=10s 2m dpkg --configure -a || true
+            # A crawling Azure apt mirror is what stalls the install; retry against archive.ubuntu.com.
+            sudo sed -i -E 's#https?://azure\.archive\.ubuntu\.com/ubuntu/?#http://archive.ubuntu.com/ubuntu/#g' /etc/apt/apt-mirrors.txt /etc/apt/sources.list /etc/apt/sources.list.d/* 2>/dev/null || true
+          done
+          exit 1
       - name: Stock split atomicity in real iPhone WebKit
         run: node tests/stock-split-save-atomicity-webkit-test.js
       - name: MBO atomicity in real iPhone WebKit
@@ -637,7 +711,7 @@ jobs:
       group: ma-acquisition-financing-pe-acquisition-atomicity-${{ (github.event_name == 'pull_request' || inputs.mode == 'deal-room') && github.run_id || github.ref }}
       cancel-in-progress: true
     runs-on: ubuntu-latest
-    timeout-minutes: 25
+    timeout-minutes: 40
     env:
       MA_DEAL_ROOM_ARTIFACT_DIR: artifacts/pe-acquisition-atomicity-webkit
     steps:
@@ -648,7 +722,22 @@ jobs:
       - name: Install pinned Playwright runtime
         run: npm install --no-save --no-package-lock playwright@1.61.0
       - name: Install WebKit browser and system dependencies
-        run: npx playwright install --with-deps webkit
+        # Bounded retry: the install has stalled for the whole job budget several times (CLAUDE.md §7);
+        # healthy installs have taken up to ~9 minutes, so each attempt gets 12 and the job budget fits two.
+        run: |
+          # apt mirrors have stalled mid-download: retry stalled connections instead of waiting forever.
+          printf 'Acquire::Retries "5";\nAcquire::http::Timeout "30";\nAcquire::https::Timeout "30";\n' | sudo tee /etc/apt/apt.conf.d/80-ci-retries >/dev/null
+          for attempt in 1 2; do
+            timeout --kill-after=30s 12m npx playwright install --with-deps webkit && exit 0
+            echo "::warning::WebKit install attempt $attempt failed or stalled"
+            # timeout kills npx, not the apt-get it started as root; free the dpkg lock before retrying.
+            sudo pkill -9 -x apt-get || true
+            sudo pkill -9 -x dpkg || true
+            sudo env DEBIAN_FRONTEND=noninteractive timeout --kill-after=10s 2m dpkg --configure -a || true
+            # A crawling Azure apt mirror is what stalls the install; retry against archive.ubuntu.com.
+            sudo sed -i -E 's#https?://azure\.archive\.ubuntu\.com/ubuntu/?#http://archive.ubuntu.com/ubuntu/#g' /etc/apt/apt-mirrors.txt /etc/apt/sources.list /etc/apt/sources.list.d/* 2>/dev/null || true
+          done
+          exit 1
       - name: PE fund acquisition atomicity in real iPhone WebKit
         run: |
           node tests/pe-fund-acquisition-save-atomicity-webkit-test.js
@@ -677,7 +766,7 @@ jobs:
       group: ma-acquisition-financing-vc-secondary-atomicity-${{ (github.event_name == 'pull_request' || inputs.mode == 'deal-room') && github.run_id || github.ref }}
       cancel-in-progress: true
     runs-on: ubuntu-latest
-    timeout-minutes: 25
+    timeout-minutes: 40
     env:
       MA_DEAL_ROOM_ARTIFACT_DIR: artifacts/vc-secondary-atomicity-webkit
     steps:
@@ -688,7 +777,22 @@ jobs:
       - name: Install pinned Playwright runtime
         run: npm install --no-save --no-package-lock playwright@1.61.0
       - name: Install WebKit browser and system dependencies
-        run: npx playwright install --with-deps webkit
+        # Bounded retry: the install has stalled for the whole job budget several times (CLAUDE.md §7);
+        # healthy installs have taken up to ~9 minutes, so each attempt gets 12 and the job budget fits two.
+        run: |
+          # apt mirrors have stalled mid-download: retry stalled connections instead of waiting forever.
+          printf 'Acquire::Retries "5";\nAcquire::http::Timeout "30";\nAcquire::https::Timeout "30";\n' | sudo tee /etc/apt/apt.conf.d/80-ci-retries >/dev/null
+          for attempt in 1 2; do
+            timeout --kill-after=30s 12m npx playwright install --with-deps webkit && exit 0
+            echo "::warning::WebKit install attempt $attempt failed or stalled"
+            # timeout kills npx, not the apt-get it started as root; free the dpkg lock before retrying.
+            sudo pkill -9 -x apt-get || true
+            sudo pkill -9 -x dpkg || true
+            sudo env DEBIAN_FRONTEND=noninteractive timeout --kill-after=10s 2m dpkg --configure -a || true
+            # A crawling Azure apt mirror is what stalls the install; retry against archive.ubuntu.com.
+            sudo sed -i -E 's#https?://azure\.archive\.ubuntu\.com/ubuntu/?#http://archive.ubuntu.com/ubuntu/#g' /etc/apt/apt-mirrors.txt /etc/apt/sources.list /etc/apt/sources.list.d/* 2>/dev/null || true
+          done
+          exit 1
       - name: VC secondary sale atomicity in real iPhone WebKit
         run: |
           node tests/vc-secondary-sale-save-atomicity-webkit-test.js
@@ -729,7 +833,7 @@ jobs:
       group: ma-acquisition-financing-vc-funding-atomicity-${{ (github.event_name == 'pull_request' || inputs.mode == 'deal-room') && github.run_id || github.ref }}
       cancel-in-progress: true
     runs-on: ubuntu-latest
-    timeout-minutes: 25
+    timeout-minutes: 40
     env:
       MA_DEAL_ROOM_ARTIFACT_DIR: artifacts/vc-funding-atomicity-webkit
     steps:
@@ -740,7 +844,22 @@ jobs:
       - name: Install pinned Playwright runtime
         run: npm install --no-save --no-package-lock playwright@1.61.0
       - name: Install WebKit browser and system dependencies
-        run: npx playwright install --with-deps webkit
+        # Bounded retry: the install has stalled for the whole job budget several times (CLAUDE.md §7);
+        # healthy installs have taken up to ~9 minutes, so each attempt gets 12 and the job budget fits two.
+        run: |
+          # apt mirrors have stalled mid-download: retry stalled connections instead of waiting forever.
+          printf 'Acquire::Retries "5";\nAcquire::http::Timeout "30";\nAcquire::https::Timeout "30";\n' | sudo tee /etc/apt/apt.conf.d/80-ci-retries >/dev/null
+          for attempt in 1 2; do
+            timeout --kill-after=30s 12m npx playwright install --with-deps webkit && exit 0
+            echo "::warning::WebKit install attempt $attempt failed or stalled"
+            # timeout kills npx, not the apt-get it started as root; free the dpkg lock before retrying.
+            sudo pkill -9 -x apt-get || true
+            sudo pkill -9 -x dpkg || true
+            sudo env DEBIAN_FRONTEND=noninteractive timeout --kill-after=10s 2m dpkg --configure -a || true
+            # A crawling Azure apt mirror is what stalls the install; retry against archive.ubuntu.com.
+            sudo sed -i -E 's#https?://azure\.archive\.ubuntu\.com/ubuntu/?#http://archive.ubuntu.com/ubuntu/#g' /etc/apt/apt-mirrors.txt /etc/apt/sources.list /etc/apt/sources.list.d/* 2>/dev/null || true
+          done
+          exit 1
       - name: VC follow-on and initial investment atomicity in real iPhone WebKit
         run: |
           node tests/vc-follow-on-save-atomicity-webkit-test.js
