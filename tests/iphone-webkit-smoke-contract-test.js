@@ -47,7 +47,7 @@ assert.doesNotMatch(iphoneJob, /inputs\.mode == 'release-readiness'/, 'release-r
 assert.match(iphoneJob, /^      contents: read$/m, 'WebKit job must use read-only contents permission');
 assert.match(iphoneJob, /group: iphone-webkit-smoke-\$\{\{ github\.ref \}\}/);
 assert.match(iphoneJob, /cancel-in-progress: true/);
-assert.match(iphoneJob, /timeout-minutes: 15/);
+assert.match(iphoneJob, /timeout-minutes: 30/);
 assert.match(iphoneJob, /node-version: '22'/);
 assert.match(iphoneJob, /npm install --no-save --no-package-lock playwright@1\.61\.0/);
 assert.match(iphoneJob, /npx playwright install --with-deps webkit/);
