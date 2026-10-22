@@ -118,6 +118,13 @@ const SCENARIOS = [
     const { engine } = newGame(1202), g = engine.g;
     const tenant = g.tenants.find(t => !t.occupiedBy && t.businessID !== 'ramen') || g.tenants.find(t => !t.occupiedBy);
     tenant.deposit = 1_234_567.3;
+    // The opening preview posts fixed cost as the same three independently rounded rows as advanceWeek().
+    g.inflation = 1.001;
+    const estimate = engine.estimateStoreOpening({ tenantID: tenant.id, businessID: tenant.businessID || 'cafe', operatingHours: 3 });
+    const { rent, wage, otherFixed } = estimate.breakdown;
+    for (const value of [rent, wage, otherFixed]) assert.equal(Number.isInteger(value), true, 'each preview fixed row is whole yen');
+    assert.equal(estimate.expected.fixed, rent + wage + otherFixed, 'preview fixed cost is the sum of the rounded rows');
+    assert.equal(estimate.deposit, 1_234_568, 'the previewed deposit is the amount that will be paid');
     const count = g.finance.transactions.length;
     assert.notEqual(engine.openStore({ tenantID: tenant.id, businessID: tenant.businessID || 'cafe', name: 'R2a open', operatingHours: 3 }), false);
     const store = g.stores[g.stores.length - 1];

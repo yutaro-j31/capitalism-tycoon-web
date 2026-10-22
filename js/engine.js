@@ -40,6 +40,13 @@ const clamp = (n, min, max) => Math.max(min, Math.min(max, Number.isFinite(n) ? 
 const finite = (n, fallback = 0) => Number.isFinite(Number(n)) ? Number(n) : fallback;
 // Whole-yen settlement, fractions rounded up (YEN_CEILING_ROUNDING_CONTRACT §2).
 const ceilYen = value => __modules.economicOperation.ceilYen(finite(value));
+// A store's weekly fixed cost posts as three rows (rent, wage, maintenance = repair + the rest of fixed), each
+// rounded up on its own; advanceWeek() and the decision previews share this so a preview never differs by a yen.
+const postedStoreFixedRows = (rent, wage, fixed, repair) => {
+  const otherFixed = Math.max(0, finite(fixed) - finite(rent) - finite(wage));
+  const row = { rent: ceilYen(Math.max(0, finite(rent))), wage: ceilYen(Math.max(0, finite(wage))), maintenance: ceilYen(Math.max(0, finite(repair) + otherFixed)) };
+  return Object.freeze({ ...row, total: row.rent + row.wage + row.maintenance });
+};
 // Simulation randomness and entity IDs come from the stream kept in the save (#731), so the same
 // save and the same actions give the same results in any runtime.
 const simRng = __modules.simulationRng;
@@ -1084,8 +1091,8 @@ class TycoonEngine extends EventTarget {
     let sales=0,variable=0,fixed=0,profit=0;
     for(const store of rows){
       const result=calculated.stores?.[store.id];if(!result)continue;
-      const rent=getStoreContractRent(store,p,previewState),costMultiplier=previewState.inflation*costHoursByStore(store)*(previewState.macroCrisis?.costMultiplier||1),extraPayroll=workforce.storeExtraPayroll(previewState,store.id),storeFixed=rent+(b.fixedCost+b.wage+extraPayroll)*costMultiplier+getStoreRepairCost(store,previewState);
-      const storeSales=ceilYen(Math.max(0,finite(result.revenue))),storeVariable=finite(result.variableCost),storeFixedPosted=ceilYen(Math.max(0,finite(storeFixed))),storeProfit=storeSales-storeVariable-storeFixedPosted;
+      const rent=getStoreContractRent(store,p,previewState),costMultiplier=previewState.inflation*costHoursByStore(store)*(previewState.macroCrisis?.costMultiplier||1),extraPayroll=workforce.storeExtraPayroll(previewState,store.id),fixedBeforeRepair=rent+(b.fixedCost+b.wage+extraPayroll)*costMultiplier;
+      const storeSales=ceilYen(Math.max(0,finite(result.revenue))),storeVariable=finite(result.variableCost),storeFixedPosted=postedStoreFixedRows(rent,(b.wage+extraPayroll)*costMultiplier,fixedBeforeRepair,getStoreRepairCost(store,previewState)).total,storeProfit=storeSales-storeVariable-storeFixedPosted;
       byStore[store.id]=Object.freeze({sales:storeSales,variable:storeVariable,fixed:storeFixedPosted,profit:storeProfit});
       sales+=storeSales;variable+=storeVariable;fixed+=storeFixedPosted;profit+=storeProfit;
     }
@@ -1139,7 +1146,7 @@ class TycoonEngine extends EventTarget {
     const rent=resolveTenantContractRent(tenant,p);
     const wage=b.wage*this.g.inflation*costHours*crisisCost;
     const otherFixed=b.fixedCost*this.g.inflation*costHours*crisisCost;
-    const fixed=rent+wage+otherFixed;
+    const fixed=rent+wage+otherFixed,postedFixed=postedStoreFixedRows(rent,wage,fixed,0);
     const efficiencyDiscount=1-Math.min(.22,b.efficiency/260);
     const operationsRelief=1+this.departmentEffect('operations')*.04;
 
@@ -1148,7 +1155,7 @@ class TycoonEngine extends EventTarget {
       const sales=ceilYen(Math.max(0,units*b.price*this.g.inflation));
       const variable=ceilYen(Math.max(0,units*b.unitCost*this.g.inflation*efficiencyDiscount/operationsRelief));
       return Object.freeze({units:Math.round(units*10)/10,sales,variable,
-        fixed:ceilYen(Math.max(0,fixed)),profit:sales-variable-ceilYen(Math.max(0,fixed))});
+        fixed:postedFixed.total,profit:sales-variable-postedFixed.total});
     };
     const conservative=at(.88),expected=at(1),optimistic=at(1.14);
 
@@ -1176,9 +1183,8 @@ class TycoonEngine extends EventTarget {
       tenantID,businessID,operatingHours:hours,siteSuitability,
       businessName:b.name,tenantName:tenant.name,prefName:p.name,
       conservative,expected,optimistic,
-      breakdown:Object.freeze({rent:Math.floor(Math.max(0,rent)),wage:Math.floor(Math.max(0,wage)),
-        otherFixed:Math.floor(Math.max(0,fixed-rent-wage))}),
-      storeCost:b.storeCost,deposit:tenant.deposit,upfront,weeksToOpen,
+      breakdown:Object.freeze({rent:postedFixed.rent,wage:postedFixed.wage,otherFixed:postedFixed.maintenance}),
+      storeCost:b.storeCost,deposit:ceilYen(tenant.deposit),upfront,weeksToOpen,
       companyCash:finite(this.g.companyCash),affordable:finite(this.g.companyCash)>=upfront||Boolean(startupLoan?.eligible),
       cashAfterOpening:finite(this.g.companyCash)+(startupLoan?.eligible?startupLoan.principal:0)-upfront,
       startupLoan,
@@ -2442,14 +2448,12 @@ class TycoonEngine extends EventTarget {
       const isSupplyStore=market.isTargetBusinessID(store.businessID);
       const rentPart=contractRent;
       const wagePart=(b.wage+(isSupplyStore?workforce.storeExtraPayroll(this.g,store.id):0))*this.g.inflation*([0,.55,.8,1,1.24][store.operatingHours||3]||1)*(this.g.macroCrisis?.costMultiplier||1);
-      const otherFixed=Math.max(0,fixed-rentPart-wagePart);
       // Each store row settles in whole yen, rounded up (contract R2a). Supply-store COGS is the inventory relief
       // from supply.consume and is not rounded here (slice R2b).
       const postedSales=ceilYen(Math.max(0,finite(storeSales)));
       const postedVariable=isSupplyStore?finite(variable):ceilYen(Math.max(0,finite(variable)));
-      const postedRent=ceilYen(Math.max(0,finite(rentPart)));
-      const postedWage=ceilYen(Math.max(0,finite(wagePart)));
-      const postedMaintenance=ceilYen(Math.max(0,finite(repair+otherFixed)));
+      const fixedRows=postedStoreFixedRows(rentPart,wagePart,fixed,repair);
+      const postedRent=fixedRows.rent,postedWage=fixedRows.wage,postedMaintenance=fixedRows.maintenance;
       if(isSupplyStore)supplyCogsNonCash+=postedVariable;
       const postedProfit=postedSales-postedVariable-postedRent-postedWage-postedMaintenance;
       store.lastSales=postedSales;store.lastProfit=isSupplyStore?postedProfit:Math.floor(postedProfit);updateStoreSmoothedProfit(this.g,store);
