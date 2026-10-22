@@ -139,7 +139,8 @@ function status(f){
   status(f);
 }
 
-// A half-cent schedule is quantized once; signed effects and both book rolls use that amount.
+// A fractional weekly schedule is rounded up to whole yen once (YEN_CEILING_ROUNDING_CONTRACT R1: 112.23/2 = 56.115 -> 57);
+// the final week is capped at the remaining cent-valued book (55.23, §3.5); signed effects and both book rolls use that amount.
 {
   const f=setup(),g=f.engine.g,finance=f.modules.finance,cost=112.23,assetID='fractional-schedule';
   g.companyCash=money(g.companyCash-cost);
@@ -150,10 +151,22 @@ function status(f){
     status(f);g.week++;
   }
   const rows=g.finance.transactions.filter(tx=>tx.fixedAssetID===assetID&&tx.fixedAssetLifecycle==='depreciation');
-  assert.deepEqual(plain(rows.map(tx=>tx.amount)),[56.12,56.11]);
+  assert.deepEqual(plain(rows.map(tx=>tx.amount)),[57,55.23]);
   for(const row of rows){assert.equal(row.profitEffect,-row.amount);assert.equal(row.assetEffect,-row.amount);}
   const asset=g.finance.fixedAssets.find(a=>a.assetID===assetID);
   assert.equal(asset.bookValue,0);assert.equal(asset.accumulatedDepreciation,cost);
+}
+
+// A large pre-R1 cent-valued asset reaching its capped tail posts that tail without a float-residue schedule mismatch.
+{
+  const f=setup(),g=f.engine.g,finance=f.modules.finance,assetID='large-cent-tail';
+  const cost=2777187936.01,salvage=555437587.2,book=555438260.56;
+  finance.addFixedAsset(g,{assetID,acquisitionCost:cost,usefulLifeWeeks:1040,salvageValue:salvage,bookValue:book,accumulatedDepreciation:money(cost-book)});
+  // Posting-time receipt check only: this asset is seeded mid-life, so it has no acquisition history to reconcile.
+  finance.recordWeekly(g,{stores:[],other:{},beginningCash:g.companyCash});
+  const row=g.finance.transactions.find(tx=>tx.fixedAssetID===assetID&&tx.fixedAssetLifecycle==='depreciation');
+  assert.equal(row.amount,673.36);
+  assert.equal(g.finance.fixedAssets.find(a=>a.assetID===assetID).bookValue,salvage);
 }
 
 // Closing a store disposes every active equipment layer (base + upgrades) in one investing event.

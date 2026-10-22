@@ -67,7 +67,8 @@ negotiated.game.companyWeeklyBorrowRate = function() {
   return usedRate;
 };
 assert.equal(negotiated.game.advanceWeek(false), true);
-assert.equal(negotiated.game.g.lastReport.interest, debtAtInterest * usedRate / 52);
+// Generic interest settles in whole yen, rounded up (YEN_CEILING_ROUNDING_CONTRACT R1).
+assert.equal(negotiated.game.g.lastReport.interest, modules.economicOperation.ceilYen(debtAtInterest * usedRate / 52));
 assert.equal(playerDebtService.inWeeklyContext(negotiated.game), false, 'weekly context must be released after success');
 assert.equal(negotiated.game.companyBorrowRate(), legacyRate(negotiated.game), 'ordinary quote must be restored after weekly processing');
 const interestTxn = negotiated.game.g.finance.transactions.find(row => row.week === negotiated.game.g.week && row.category === 'interestExpense');
