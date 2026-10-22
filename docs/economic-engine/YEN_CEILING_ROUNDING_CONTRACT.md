@@ -1,7 +1,7 @@
 # Whole-Yen Ceiling Rounding Contract (Phase 0 §5 vNext)
 
 **Status: PROPOSED — becomes the approved contract when the Owner merges the PR that adds this file.**
-**Owner decision (2026-10-22):** every in-game monetary amount is settled in whole yen. Any fraction of a yen is **rounded up** (切り上げ). Old saves do not need to stay compatible (Owner decision of the same day; `AGENTS.md` and `CLAUDE.md` are updated by #1071, which must merge before this PR). An old save that loads with fractional balances is not normalised: rewriting a balance would create or destroy money. Its fractions are simply spent through whole-yen postings; the strict whole-yen checks of §6 run on new games.
+**Owner decision (2026-10-22):** every in-game monetary amount is settled in whole yen. Any fraction of a yen is **rounded up** (切り上げ). Old saves do not need to stay compatible (Owner decision of the same day; `AGENTS.md` and `CLAUDE.md` were updated by #1071). An old save that loads with fractional balances is not normalised: rewriting a balance would create or destroy money. Its fractions are simply spent through whole-yen postings; the strict whole-yen checks of §6 run on new games.
 **Supersedes:** the ¥0.01 posting quantum in `PHASE_0_CONTRACTS.md` §5.1/§5.3 and ECO-019, slice by slice, as recorded in §8 below.
 
 This document is written so that **any agent** (Claude Code, Codex/ChatGPT, or another) can pick up the work at any slice. If you are resuming this work, read §9 first.
