@@ -197,7 +197,9 @@ assert.throws(() => core.roundMoney(Number.MAX_SAFE_INTEGER), /envelope/);
 for (const [input, expected] of [
   [12.3, 13], [-12.3, -13], [12, 12], [99.7, 100], [12.004, 13], [1200.004, 1201], [0.1 + 0.2, 1],
   [1200.0000000002, 1200], [(0.1 + 0.2) * 10, 3], [3 * 0.1 * 100, 30], [1e7 * 1.1, 11000000], [-1e-12, 0], [0, 0], [1e13 + 0.5, 1e13 + 1],
-  [1e12 + 0.01, 1e12 + 1], [1e13 + 0.01, 1e13 + 1], [8e13 + 0.02, 8e13 + 1]
+  [1e12 + 0.01, 1e12 + 1], [1e13 + 0.01, 1e13 + 1], [8e13 + 0.02, 8e13 + 1],
+  // Either side of the ¥0.005 cap crossover (|x|·4·EPSILON = 0.005 at about ¥5.63e12).
+  [5e12 + 0.006, 5e12 + 1], [6e12 + 0.006, 6e12 + 1], [6e12 + 0.004, 6e12]
 ]) assert.equal(core.ceilYen(input), expected, `ceilYen(${input})`);
 assert.ok(Object.is(core.ceilYen(-0), 0) && Object.is(core.ceilYen(-1e-12), 0), 'ceilYen never returns -0');
 for (const value of [12.3, -12.3, 0.1 + 0.2, 1e13 + 0.5]) assert.equal(core.ceilYen(core.ceilYen(value)), core.ceilYen(value), 'ceilYen is idempotent');
