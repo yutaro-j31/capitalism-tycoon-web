@@ -99,7 +99,14 @@ jobs:
       - name: Install pinned Playwright runtime
         run: npm install --no-save --no-package-lock playwright@1.61.0
       - name: Install WebKit browser and system dependencies
-        run: npx playwright install --with-deps webkit
+        # Bounded retry: the install has stalled for the whole job budget several times (CLAUDE.md §7);
+        # a fresh attempt normally finishes in under two minutes. Two 6-minute attempts fit every job budget.
+        run: |
+          for attempt in 1 2; do
+            timeout --kill-after=30s 6m npx playwright install --with-deps webkit && exit 0
+            echo "::warning::WebKit install attempt $attempt failed or stalled; retrying"
+          done
+          exit 1
       - name: Reject open pull requests
         env:
           GH_TOKEN: ${{ github.token }}
