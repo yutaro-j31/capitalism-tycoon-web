@@ -193,6 +193,58 @@ for (const [amount, code] of [
 assert.equal(core.roundMoney(12.345), 12.35);
 assert.throws(() => core.roundMoney(Infinity), /finite/);
 assert.throws(() => core.roundMoney(Number.MAX_SAFE_INTEGER), /envelope/);
+// Whole-yen ceiling (YEN_CEILING_ROUNDING_CONTRACT.md §2): float noise snaps, every real fraction rounds the magnitude up.
+for (const [input, expected] of [
+  [12.3, 13], [-12.3, -13], [12, 12], [99.7, 100], [12.004, 13], [1200.004, 1201], [0.1 + 0.2, 1],
+  [1200.0000000002, 1200], [(0.1 + 0.2) * 10, 3], [3 * 0.1 * 100, 30], [1e7 * 1.1, 11000000], [-1e-12, 0], [0, 0], [1e13 + 0.5, 1e13 + 1],
+  [1e12 + 0.01, 1e12 + 1], [1e13 + 0.01, 1e13 + 1], [8e13 + 0.02, 8e13 + 1],
+  // Either side of the ¥0.005 cap crossover (|x|·4·EPSILON = 0.005 at about ¥5.63e12).
+  [5e12 + 0.006, 5e12 + 1], [6e12 + 0.006, 6e12 + 1], [6e12 + 0.004, 6e12],
+  // The 1e-9 floor is the minimum monetary quantum (contract §2): smaller fractions are noise.
+  [1e-9, 0], [1.0000000005, 1], [5e-10, 0], [1.000000002, 2]
+]) assert.equal(core.ceilYen(input), expected, `ceilYen(${input})`);
+assert.ok(Object.is(core.ceilYen(-0), 0) && Object.is(core.ceilYen(-1e-12), 0), 'ceilYen never returns -0');
+for (const value of [12.3, -12.3, 0.1 + 0.2, 1e13 + 0.5]) assert.equal(core.ceilYen(core.ceilYen(value)), core.ceilYen(value), 'ceilYen is idempotent');
+assert.throws(() => core.ceilYen(Infinity), /finite/);
+assert.throws(() => core.ceilYen('12'), /finite/);
+assert.throws(() => core.ceilYen(Number.MAX_SAFE_INTEGER), /envelope/);
+// allocateYen (§4): floor shares, leftover yen by largest remainder, ties by ascending ID; parts always sum to the total.
+const snapArray = value => JSON.parse(JSON.stringify(value));
+assert.deepEqual(snapArray(core.allocateYen(100, [1, 1, 1], ['c', 'a', 'b'])), [33, 34, 33], 'tie goes to the lowest ID');
+assert.deepEqual(snapArray(core.allocateYen(99.2, [1, 1, 1], ['a', 'b', 'c'])), [34, 33, 33], 'total is ceiled first');
+assert.deepEqual(snapArray(core.allocateYen(10, [0.7, 0.2, 0.1], ['x', 'y', 'z'])), [7, 2, 1], 'exact shares stay exact');
+assert.deepEqual(snapArray(core.allocateYen(10, [2, 1], ['big', 'small'])), [7, 3], 'largest remainder wins');
+assert.deepEqual(snapArray(core.allocateYen(5, [0, 1], ['none', 'all'])), [0, 5], 'zero weight gets nothing');
+assert.deepEqual(snapArray(core.allocateYen(1, [0.49999999975, 0.50000000025], ['a', 'z'])), [0, 1], 'a remainder larger by under 1e-9 still wins; the ID only breaks exact ties');
+assert.deepEqual(snapArray(core.allocateYen(10, [Number.MAX_VALUE, Number.MAX_VALUE], ['a', 'b'])), [5, 5], 'weights near Number.MAX_VALUE do not overflow');
+assert.deepEqual(snapArray(core.allocateYen(1e13, [1e300, 1e300], ['a', 'b'])), [5e12, 5e12], 'huge weights split a large total exactly');
+assert.deepEqual(snapArray(core.allocateYen(3, [1e300, 1], ['big', 'tiny'])), [3, 0], 'a negligible weight gets nothing, the parts still sum to the total');
+{
+  // The same (id, weight) pairs in a different order get the same yen (the weight sum is order-independent).
+  const pairs = [['big', 1e300], ...Array.from({ length: 1000 }, (_, i) => [`small-${String(i).padStart(4, '0')}`, 1e284])];
+  const byID = list => { const parts = core.allocateYen(9e13, list.map(p => p[1]), list.map(p => p[0])); return Object.fromEntries(list.map((p, i) => [p[0], parts[i]])); };
+  assert.deepEqual(byID([...pairs].reverse()), byID(pairs), 'allocation per recipient does not depend on input order');
+}
+{
+  // Large recipient counts do not hit the argument-spread stack limit.
+  const n = 200000, parts = core.allocateYen(n + 7, new Array(n).fill(1), Array.from({ length: n }, (_, i) => `r${String(i).padStart(6, '0')}`));
+  assert.equal(parts.reduce((a, b) => a + b, 0), n + 7);
+  assert.deepEqual(snapArray(parts.slice(0, 8)), [2, 2, 2, 2, 2, 2, 2, 1], 'the 7 leftover yen go to the 7 lowest IDs');
+}
+for (let seed = 1; seed <= 200; seed++) {
+  let x = seed;
+  const next = () => (x = (x * 1103515245 + 12345) % 2147483648) / 2147483648;
+  const n = 1 + (seed % 7), weights = Array.from({ length: n }, () => next()), ids = weights.map((_, i) => `id-${i}`);
+  const total = Math.floor(next() * 1e9) / 100, parts = core.allocateYen(total, weights, ids);
+  assert.equal(parts.reduce((a, b) => a + b, 0), core.ceilYen(total), `allocation ${seed} sums to the ceiled total`);
+  assert.ok(parts.every(Number.isSafeInteger), `allocation ${seed} is whole yen`);
+  assert.deepEqual(snapArray(core.allocateYen(total, weights, ids)), snapArray(parts), `allocation ${seed} is deterministic`);
+}
+assert.throws(() => core.allocateYen(10, [1], ['a', 'b']), /equal-length/);
+assert.throws(() => core.allocateYen(10, [1, -1], ['a', 'b']), /non-negative/);
+assert.throws(() => core.allocateYen(10, [1, 1], ['a', 'a']), /unique/);
+assert.throws(() => core.allocateYen(10, [0, 0], ['a', 'b']), /all be zero/);
+assert.throws(() => core.allocateYen(-10, [1], ['a']), /negative/);
 
 // 4. Duplicate IDs/sequences and nondeterministic posting input order fail.
 {

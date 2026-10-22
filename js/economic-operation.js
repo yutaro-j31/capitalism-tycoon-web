@@ -354,6 +354,36 @@ function roundMoney(value){
   if(Math.abs(scaled)>MAX_SAFE_MONEY_MINOR_UNITS)throw new RangeError('money exceeds the cent-exact Number envelope');
   return Math.round(scaled)/MONEY_MINOR_UNITS;
 }
+// Whole-yen ceiling rounding (YEN_CEILING_ROUNDING_CONTRACT.md §2): float noise within about four ULPs (never more
+// than ¥0.005) snaps to the nearest yen; every real fraction rounds the magnitude up, so -12.3 becomes -13, never -12.
+function ceilYen(value){
+  if(typeof value!=='number'||!Number.isFinite(value))throw new TypeError('money must be a finite number');
+  if(Math.abs(value*MONEY_MINOR_UNITS)>MAX_SAFE_MONEY_MINOR_UNITS)throw new RangeError('money exceeds the cent-exact Number envelope');
+  const nearest=Math.round(value),tolerance=Math.min(.005,Math.max(1e-9,Math.abs(value)*4*Number.EPSILON));
+  const yen=Math.abs(value-nearest)<=tolerance?nearest:Math.sign(value)*Math.ceil(Math.abs(value));
+  return yen===0?0:yen;
+}
+// Splits ceilYen(total) across recipients in proportion to weights (§4): each gets the floor of its exact share,
+// then the leftover yen go one at a time by largest fractional remainder, ties by ascending stable ID.
+function allocateYen(total,weights,ids){
+  if(!Array.isArray(weights)||!Array.isArray(ids)||weights.length!==ids.length||!weights.length)throw new TypeError('allocateYen needs equal-length, non-empty weights and ids');
+  if(weights.some(weight=>typeof weight!=='number'||!Number.isFinite(weight)||weight<0))throw new TypeError('allocation weights must be finite and non-negative');
+  if(ids.some(id=>!nonEmptyString(id))||new Set(ids).size!==ids.length)throw new TypeError('allocation ids must be unique non-empty strings');
+  const amount=ceilYen(total),max=weights.reduce((a,weight)=>weight>a?weight:a,0);
+  if(amount<0)throw new RangeError('allocation total must not be negative');
+  if(!(max>0))throw new RangeError('allocation weights must not all be zero');
+  // Scale by the largest weight first so huge finite weights cannot overflow the sum or amount × weight, and sum in
+  // ascending (weight, id) order so the result does not depend on the order the recipients were passed in.
+  const scaled=weights.map(weight=>weight/max);
+  const sum=scaled.map((weight,index)=>({weight,id:ids[index]})).sort((a,b)=>a.weight!==b.weight?a.weight-b.weight:(a.id<b.id?-1:a.id>b.id?1:0)).reduce((a,row)=>a+row.weight,0);
+  const shares=scaled.map((weight,index)=>{const exact=amount*weight/sum,base=Math.floor(exact);return {index,id:ids[index],base,remainder:exact-base};});
+  if(shares.some(row=>!Number.isFinite(row.remainder)))throw new RangeError('allocation arithmetic is not finite');
+  let left=amount-shares.reduce((a,row)=>a+row.base,0);
+  const order=[...shares].sort((a,b)=>b.remainder!==a.remainder?b.remainder-a.remainder:(a.id<b.id?-1:a.id>b.id?1:0));
+  if(left<0||left>shares.length)throw new RangeError('allocation floors do not fit the total');
+  for(const row of order){if(left<=0)break;row.base++;left--;}
+  return shares.map(row=>row.base);
+}
 function isKnownAccount(accountId){return nonEmptyString(accountId)&&ACCOUNT_ID_SET.has(accountId);}
 function validateEntity(entity){
   const errors=[];
@@ -542,6 +572,8 @@ Object.assign(exports,{
   MAX_SAFE_MONEY_MINOR_UNITS,
   MONETARY_CURRENCIES,
   roundMoney,
+  ceilYen,
+  allocateYen,
   isKnownAccount,
   validateEntity,
   validateOperation

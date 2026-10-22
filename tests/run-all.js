@@ -136,6 +136,7 @@ const nodeTests = [
   ['d-ui-shell', 'tests/d-ui-shell-test.js'],
   ['deterministic-economic-foundation', 'tests/deterministic-economic-foundation-test.js'],
   ['economic-operation-contract', 'tests/economic-operation-contract-test.js'],
+  ['yen-ceiling-rounding-guard', 'tests/yen-ceiling-rounding-guard-test.js'],
   ['economic-shadow-journal', 'tests/economic-shadow-journal-test.js'],
   ['economic-settlement-store-renovation', 'tests/economic-settlement-store-renovation-test.js'],
   ['economic-settlement-company-cash-commit', 'tests/economic-settlement-company-cash-commit-test.js'],
