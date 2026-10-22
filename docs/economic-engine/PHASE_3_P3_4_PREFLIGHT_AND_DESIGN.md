@@ -82,7 +82,6 @@ Rounding slice assignments come from the approved contract §8. A file absent fr
 
 | ID / source function (baseline file:line) | Installed caller / boundary and fact | Money? | Save-failure / rollback test definition | Actual WebKit definition | Rounding owner |
 |---|---|---|---|---|---|
-
 | W-INIT: `js/engine.js:256` `createInitialState` | constructor/configure/reset; issued/founder/treasury and empty maps; difficulty configure/reset TX wrappers | Yes: opening/reset | `tests/difficulty-scenario-balance-test.js`; `tests/transaction-regression-test.js` (not complete adoption fault set) | No initializer-specific adoption test established | R2; difficulty wrapper R9 |
 | W-BUY: `js/engine.js:1431` `buyStock` | app buy-stock → final engine TX; company/personal maps remain separate | Yes | `tests/stock-purchase-save-atomicity-test.js` | `tests/stock-purchase-save-atomicity-webkit-test.js` (real browser script; baseline execution unverified here) | R2 |
 | W-SELL: `js/engine.js:1448` `sellStock` | app sell-stock / recovery funding delegation → TX; lot deletion on exhaustion | Yes | `tests/stock-sale-save-atomicity-test.js` | `tests/stock-sale-save-atomicity-webkit-test.js` (real browser script; baseline execution unverified here) | R2 |
@@ -271,11 +270,13 @@ Each row is one concern; sizes are engineering estimates, not an execution autho
 | #976 target-C executable policy | MONEY WRITER: R1 + R2/R6; separate Owner implementation timing/scope | Large | Listed/unlisted standalone policy coordinated with later consolidation design; no bundling with P3-4 routing. |
 | Optional old-load simplification | READ_ONLY deletion proposal now; executable save/load change waits separate review + R9 | Medium | Identify all current-game boot/reload/restore users before proposing deletion. No code removal here. |
 
-## 5. Owner decisions required
+## 5. Owner decisions — approved 2026-10-22
 
-No additional approval is needed to finish this docs PR, and it must not be merged by the agent.
+The Owner reviewed PR #1080 and approved all seven recommendations on 2026-10-22 in the task handoff. This records design choices only: no writer activation, monetary implementation, load-code removal or P3-10 execution is authorized. PR #1080 may merge only after final-HEAD CI and Codex review pass. The message is the decision source; a public decision comment is not assumed.
 
-| Decision | Choices / recommendation | Boundary / evidence |
+All recommendations in the following table are **APPROVED**. Alternatives are retained as design history, not pending choices.
+
+| Approved decision | Adopted recommendation / historical alternative | Boundary / evidence |
 |---|---|---|
 | Initial backing/authority representation | **Recommend gateway over the existing exact player-common backing fields first**; alternative new persisted registry with explicitly derived mirrors | P3-3 requirement 1. Avoid two independent writable cap tables. Future adoption PR and activation remain separate approvals. |
 | What counts as a completed first adoption family? | **Recommend all player-common fact writers closed before activation**, even if preparatory routing spans many PRs; alternative narrow fact-only capability kept explicitly non-executable for unsupported operations | P3-3 requirement 2. R2/R5 alone cannot bypass margin/R4, crisis/R7, M&A/PE/R6 or replacement/R9. |
@@ -297,7 +298,8 @@ Static checks for this document: local Markdown targets, source line/function ex
 MAIN SHA: c4f0d16da78837d182e6a92e3c562483ef44c171
 CURRENT SLICE: P3-4 read-only preflight / adoption design proposal
 AUTHORITY: READ_ONLY
-OWNER DECISIONS REQUIRED: backing representation; activation family; generation scope;
-  #976 implementation timing; #979 disposition; targeted SH/cutover review and activation
-NEXT TASK: read-only exact-SHA writer/fault/WebKit evidence manifest; no writer activation
+OWNER DECISIONS REQUIRED: future activation after complete family S and targeted review;
+  P3-10 effect approval separately; #976 executable policy scope/timing separately
+NEXT TASK: separate read-only writer/fault/WebKit evidence and new-game generation/refounding
+  specifications; no money-writing code or tests before R1 merges; then wait file slices
 ```
