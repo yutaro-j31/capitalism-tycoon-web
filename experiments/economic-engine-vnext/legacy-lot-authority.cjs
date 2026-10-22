@@ -71,19 +71,37 @@ function auditSource(source,financing){
   const images=[source.evidence.opening,...source.evidence.weekly]
     .map(x=>validateSnapshot(x,source.storeID));
   check(images[0].week===pinned.provenance.gameWeeks[0]-1,'incorrect-period-opening');
-  const allPOs=new Map(),allContracts=new Map(),firstLotOrigin=new Map(),anomalies=[];
+  const allPOs=new Map(),allContracts=new Map(),lastLotOrigin=new Map();
   for(const image of images){
    for(const [id,o]of image.orders){
     const old=allPOs.get(id);
     if(old)check(old.supplierID===o.supplierID&&old.materialID===o.materialID
-      &&old.storeID===o.storeID,'purchase-order-source-changed');
+      &&old.storeID===o.storeID&&old.supplierContractID===o.supplierContractID
+      &&old.isEmergency===(o.isEmergency===true)&&old.orderWeek===o.orderWeek,
+      'purchase-order-source-changed');
     else allPOs.set(id,{storeID:o.storeID,supplierID:o.supplierID,materialID:o.materialID,
-      supplierContractID:o.supplierContractID,isEmergency:o.isEmergency===true});
+      supplierContractID:o.supplierContractID,isEmergency:o.isEmergency===true,
+      orderWeek:o.orderWeek});
    }
    for(const [id,c]of image.contracts){
     const old=allContracts.get(id);
     if(old)check(old.supplierID===c.supplierID,'supplier-contract-source-changed');
     else allContracts.set(id,{supplierID:c.supplierID});
+   }
+   // Keep identity history across absent snapshots too. Adjacent snapshots
+   // alone cannot detect a removed lotID reused with a different source.
+   for(const [id,lot]of image.lots){
+    const old=lastLotOrigin.get(id);
+    if(old){
+     check(old.materialID===lot.materialID,'lot-material-authority-changed');
+     check(old.receivedWeek===lot.receivedWeek,'lot-arrival-authority-changed');
+     check(old.supplierContractID===lot.supplierContractID,'lot-contract-authority-changed');
+     check(old.purchaseOrderID===lot.purchaseOrderID||lot.purchaseOrderID==='merged',
+      'lot-PO-source-reassigned');
+    }
+    // A transition to "merged" remains an explicitly lost ancestry marker;
+    // it never authorizes restoring a concrete PO on a later reappearance.
+    lastLotOrigin.set(id,lot);
    }
   }
   const origins={SOURCE_PO_VISIBLE:0,SOURCE_PO_NOT_IN_WINDOW_SNAPSHOTS:0,

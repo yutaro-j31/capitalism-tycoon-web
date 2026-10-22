@@ -48,3 +48,36 @@ node experiments/economic-engine-vnext/legacy-lot-authority-cli.cjs /tmp/real-or
 ## Follow-on blocking work
 
 Do not book original week-4 opening inventory in vNext merely to make net stock equal. Do not invent a cash clearing supplier or legal counterparty ID. Before promoting 13 real COGS and two original immediate purchases from BLOCKED into actual canonical legal-entity postings, we need original source-backed legal supplier ownership/payment account proof, per-lot consumption events or independent authenticated material consumption authority, and a complete authorized material opening balance. If the legacy model never tracked those identities, report this as a genuine **modeling boundary and required owner economic-design decision**, not a replay implementation bug. No full-game balance sheet, indexedDB durability, WebKit, old save or cutover was proved here.
+
+## Takeover correction — 2026-10-22 JST
+
+Starting implementation HEAD `e883dbf6981d64bb6ec01a36a2c5d472a32d9442`;
+current main observed at takeover `ea79786498a7f37cb39d34be01f9ff9be8ee89ce`.
+The starting PR HEAD had 20 successful native checks and two provider skips,
+including successful Release Readiness. These results do not apply to later code.
+
+Reproduced a source-audit false acceptance: changing an existing PO's
+`supplierContractID` to null still returned `CONTRACT_ORIGIN_AUDIT_ONLY`.
+The audit also compared lot identity only in adjacent snapshots, so a lot
+removed from one snapshot could reappear with reassigned provenance.
+
+The audit now checks PO contract, emergency classification and original order
+week throughout the observation, and retains lot identity across missing
+snapshots. Material, receipt week and supplier contract must remain stable;
+PO lineage may only remain unchanged or become the explicit `merged` unknown
+marker. An unchanged reappearance remains allowed. No quantities, economic
+postings, cash counterparties or production code are changed.
+
+Validation executed locally using **Node v24.19.0**:
+- 38 lot-authority tests PASS, including seven reason-specific rejection
+  regressions and one valid reappearance control (previously 30).
+- All experimental suites: **479/479 PASS** (previously 471).
+- Full disposable original-game 13-week capture and authenticated
+  `legacy-lot-authority-cli.cjs` PASS. Before/after authenticated reports are
+  byte-for-byte identical: 53 source rows posted, 96 held, no new COGS/cash
+  journals. This verifies unchanged authentic observation output, not full parity.
+- Local final diff whitespace validation PASS.
+
+New final-HEAD native CI must be inspected separately. Historical Node 22 lab
+results above are not a Node 22 execution claim for this correction. No separate
+reviewer was used for this correction; local diff inspection is self-review.

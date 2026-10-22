@@ -52,10 +52,11 @@ function pass(x=inputs()){
  const r=auditSource(x.source,x.financing);
  assert.equal(r.status,'CONTRACT_ORIGIN_AUDIT_ONLY',JSON.stringify(r));return r;
 }
-function rejects(edit){
+function rejects(edit,reason){
  const x=inputs();edit(x);
  const r=auditSource(x.source,x.financing);
  assert.equal(r.status,'EVIDENCE_BLOCKED',JSON.stringify(r));
+ if(reason)assert.ok(r.reasons.includes(reason),JSON.stringify(r));
 }
 test('migration opening lot is source valuation, not legal vendor evidence',()=>{
  const r=pass();assert.equal(r.opening.physicalBookMinor,13483);
@@ -169,5 +170,37 @@ test('future-dated material lot can never prove opening stock',()=>rejects(x=>{
 }));
 test('wrong finance supplier type is never promoted to money receiver',()=>{
  const r=pass();assert.ok(r.blockers.some(x=>x.includes('legal-entity')));
+});
+test('same PO cannot silently change its supplier contract',()=>rejects(x=>{
+ x.source.evidence.weekly[3].orders[0].supplierContractID=null;
+},'purchase-order-source-changed'));
+test('same PO cannot silently change its emergency purchase identity',()=>rejects(x=>{
+ x.source.evidence.weekly[3].orders[0].isEmergency=false;
+},'purchase-order-source-changed'));
+test('same PO cannot move its original order week',()=>rejects(x=>{
+ x.source.evidence.weekly[3].orders[0].orderWeek=4;
+},'purchase-order-source-changed'));
+// Zero-book unavailable rows may disappear without changing the physical
+// inventory sums. A later row must still retain the original lot identity.
+function hiddenLotReappears(x,field,value){
+ const first={...lot(0,'po-1'),lotID:'lot-999',status:'consumed',quantity:0};
+ const later={...first,[field]:value};
+ x.source.evidence.weekly[0].lots.push(first);
+ x.source.evidence.weekly[2].lots.push(later);
+}
+test('lot PO substitution after an absent snapshot cannot evade provenance',()=>rejects(x=>{
+ hiddenLotReappears(x,'purchaseOrderID','po-2');
+},'lot-PO-source-reassigned'));
+test('lot material substitution after an absent snapshot is rejected',()=>rejects(x=>{
+ hiddenLotReappears(x,'materialID','ramen_soup');
+},'lot-material-authority-changed'));
+test('lot received week cannot be rewritten after absence',()=>rejects(x=>{
+ hiddenLotReappears(x,'receivedWeek',3);
+},'lot-arrival-authority-changed'));
+test('lot supplier contract cannot be reassigned after absence',()=>rejects(x=>{
+ hiddenLotReappears(x,'supplierContractID','contract-1');
+},'lot-contract-authority-changed'));
+test('unchanged lot reappearance is allowed and remains evidence only',()=>{
+ const x=inputs();hiddenLotReappears(x,'purchaseOrderID','po-1');pass(x);
 });
 console.log('SPIKE-8F original material lot/supplier authority audit: '+count+' PASS (mock contracts only).');
