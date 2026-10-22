@@ -30,7 +30,7 @@ ceilYen(x):
   require typeof x === 'number' and finite                 (TypeError otherwise)
   require |x·100| <= MAX_SAFE_INTEGER                         (RangeError otherwise; the same envelope as roundMoney)
   k   = Math.round(x)
-  tol = max(1e-9, |x| · 64 · Number.EPSILON)                 (a few units of float precision at x's magnitude)
+  tol = min(0.005, max(1e-9, |x| · 4 · Number.EPSILON))     (about four ULPs at x's magnitude, never more than ¥0.005)
   y   = |x − k| <= tol ? k : sign(x) · ceil(|x|)              (float noise snaps to k; every real fraction rounds the magnitude up)
   return y === 0 ? 0 : y                                     (never return -0)
 ```
@@ -40,7 +40,7 @@ Consequences, which are intended:
 - `ceilYen(12.3) = 13`, `ceilYen(-12.3) = -13`: a payment and a receipt each grow by the fraction. Do **not** use bare `Math.ceil`; for a negative amount it moves toward zero (`Math.ceil(-12.3) = -12`).
 - `ceilYen(1200.0000000002) = 1200` and `ceilYen((0.1+0.2)*10) = 3`: a difference within float precision is noise, not a fraction. Any larger fraction, however small, rounds up: `ceilYen(12.004) = 13`, `ceilYen(1200.004) = 1201`, `ceilYen(0.1+0.2) = 1`. Do **not** normalise to ¥0.01 first; that would drop real sub-¥0.01 fractions.
 - `ceilYen(12) = 12`. The function is idempotent: rounding an already rounded amount does nothing.
-- The tolerance is relative, so a value near ¥10¹³ snaps only within a few thousandths of a yen, below what a Number can represent there anyway.
+- The tolerance is about four ULPs of x, so it absorbs the noise of a few arithmetic steps (for example `11000000 * 1.1`). It is capped at ¥0.005, so a fraction of ¥0.01 or more always rounds up anywhere in the envelope: `ceilYen(1e12 + 0.01) = 1e12 + 1`, `ceilYen(1e13 + 0.01) = 1e13 + 1`. Below about ¥1.1·10¹³ the cap is not reached, and the tolerance is four ULPs or 1e-9, whichever is larger.
 
 A writer's **private** helper (for example `const round=v=>Math.round(n(v)*100)/100` in a real-estate module) replaces its body with a call to the shared function, but only when every caller of that helper is in the same slice. It does not keep a private copy of the rule. A helper that also coerces non-finite values (`n(v)`) keeps that coercion before calling `ceilYen`.
 
@@ -116,7 +116,7 @@ One slice per PR. Branch name: `fix/yen-ceil-<slice id lower-case>` (for example
 | R6 | M&A, PE, subsidiaries: `ma-*.js`, `pe-fund.js`, `pe-portfolio-operations.js`, `pe-value-creation.js`, `pmi-100-day-plan.js`, `listed-subsidiary-*.js`, `subsidiary-*.js`, `group-*.js`, `inter-subsidiary-synergy-allocation.js` | Fund waterfalls use `allocateYen` | TODO | |
 | R7 | Crisis, governance, new business: `player-crisis-*.js`, `company-recall-crisis.js`, `industry-event-response-plans.js`, `executive-reviews-succession-board.js`, `executives-department-assignments.js`, `new-business-*.js`, `internal-venture-business.js`, `sports-management.js` | | TODO | |
 | R8 | Competitors and NPCs: `competitor*.js` (money fields only), `pe-rivals.js` | `competitor-credit.js` already rounds to whole yen with `Math.round`; switch it to `ceilYen` for consistency | TODO | |
-| R9 | Remainder and closing: switch or remove the shared ¥0.01 normalisers (`finance.js` `r` as applied by `finance.event`, `economic-settlement.js`'s `roundMoney` calls); `save-storage.js`, `save-v9.js`, `play-runtime-compat.js`, `player-engine-bridge.js`, `difficulty-scenario-balance.js`, `iphone-baseline-probe.js`, any file still in the baseline; empty both pending lists; enable the state-level whole-yen assertion; update `PHASE_0_CONTRACTS.md` §5 status to "fully migrated" | After R9, a later separate PR may tighten the `finance.validate` tolerances | TODO | |
+| R9 | Remainder and closing: switch or remove the shared ¥0.01 normalisers (`finance.js` `r` as applied by `finance.event`, `economic-settlement.js`'s `roundMoney` calls); `save-storage.js`, `save-v9.js`, `play-runtime-compat.js`, `player-engine-bridge.js`, `difficulty-scenario-balance.js`, `iphone-baseline-probe.js`, any file still in the baseline; empty `pendingFiles`; add the full seeded run and the state-level whole-yen assertion (§6); update `PHASE_0_CONTRACTS.md` §5 status to "fully migrated" | After R9, a later separate PR may tighten the `finance.validate` tolerances | TODO | |
 
 The file lists come from the 2026-10-22 inventory of `main` (`2690051`):
 
