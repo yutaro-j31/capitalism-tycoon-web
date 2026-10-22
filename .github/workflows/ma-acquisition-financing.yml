@@ -57,6 +57,7 @@ on:
       - 'js/real-estate-complete-cycle.js'
       - 'js/real-estate-property-disposals.js'
       - 'tests/p4-aud-007-mortgage-disposal-debt-test.js'
+      - 'tests/p4-aud-007-option-a-mortgage-test.js'
       - 'tests/p4-aud-007-mortgage-disposal-debt-webkit-test.js'
       - 'tests/debt-command-save-atomicity-test.js'
       - 'tests/debt-command-save-atomicity-webkit-test.js'
@@ -209,6 +210,7 @@ on:
       - 'js/real-estate-complete-cycle.js'
       - 'js/real-estate-property-disposals.js'
       - 'tests/p4-aud-007-mortgage-disposal-debt-test.js'
+      - 'tests/p4-aud-007-option-a-mortgage-test.js'
       - 'tests/p4-aud-007-mortgage-disposal-debt-webkit-test.js'
       - 'tests/debt-command-save-atomicity-test.js'
       - 'tests/debt-command-save-atomicity-webkit-test.js'
@@ -574,7 +576,7 @@ jobs:
       group: ma-acquisition-financing-stock-split-atomicity-${{ (github.event_name == 'pull_request' || inputs.mode == 'deal-room') && github.run_id || github.ref }}
       cancel-in-progress: true
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 25
     env:
       MA_DEAL_ROOM_ARTIFACT_DIR: artifacts/stock-split-atomicity-webkit
     steps:
@@ -635,7 +637,7 @@ jobs:
       group: ma-acquisition-financing-pe-acquisition-atomicity-${{ (github.event_name == 'pull_request' || inputs.mode == 'deal-room') && github.run_id || github.ref }}
       cancel-in-progress: true
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 25
     env:
       MA_DEAL_ROOM_ARTIFACT_DIR: artifacts/pe-acquisition-atomicity-webkit
     steps:
@@ -675,7 +677,7 @@ jobs:
       group: ma-acquisition-financing-vc-secondary-atomicity-${{ (github.event_name == 'pull_request' || inputs.mode == 'deal-room') && github.run_id || github.ref }}
       cancel-in-progress: true
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 25
     env:
       MA_DEAL_ROOM_ARTIFACT_DIR: artifacts/vc-secondary-atomicity-webkit
     steps:
@@ -727,7 +729,7 @@ jobs:
       group: ma-acquisition-financing-vc-funding-atomicity-${{ (github.event_name == 'pull_request' || inputs.mode == 'deal-room') && github.run_id || github.ref }}
       cancel-in-progress: true
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 25
     env:
       MA_DEAL_ROOM_ARTIFACT_DIR: artifacts/vc-funding-atomicity-webkit
     steps:

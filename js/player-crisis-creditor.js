@@ -64,9 +64,11 @@ function ensure(state){
  state.playerCrisisCreditor=current;
  return current;
 }
+// An on-book property mortgage (P4-AUD-007) is serviced by its own writer from the property's product terms, which
+// cannot honour a deferral, extension or rate cut, so it stays outside creditor negotiation as it was before.
 function activeLoans(state){
  return finance.ensureFinance(state).loans
-  .filter(loan=>loan&&loan.status==='active'&&finite(loan.outstandingPrincipal)>0)
+  .filter(loan=>loan&&loan.status==='active'&&finite(loan.outstandingPrincipal)>0&&loan.sourceType!=='propertyMortgage')
   .sort((a,b)=>finite(b.outstandingPrincipal)-finite(a.outstandingPrincipal)||text(a.loanID).localeCompare(text(b.loanID)));
 }
 function cooldownRemaining(state,loanID){

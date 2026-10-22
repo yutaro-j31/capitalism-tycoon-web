@@ -174,7 +174,7 @@ assert.deepEqual(pathsFor(comprehensiveMa, 'pull_request'), [
   'tests/founder-capital-atomicity-webkit-test.js',
   'tests/fixtures/stock-split-atomicity.js',
   'tests/property-debt-principal-sync-test.js', 'tests/property-debt-principal-sync-webkit-test.js', 'tests/fixtures/property-debt-principal-sync.js', 'js/treasury-prepayment.js', 'js/player-debt-service.js', 'js/real-estate-complete-cycle.js',
-  'js/real-estate-property-disposals.js', 'tests/p4-aud-007-mortgage-disposal-debt-test.js', 'tests/p4-aud-007-mortgage-disposal-debt-webkit-test.js',
+  'js/real-estate-property-disposals.js', 'tests/p4-aud-007-mortgage-disposal-debt-test.js', 'tests/p4-aud-007-option-a-mortgage-test.js', 'tests/p4-aud-007-mortgage-disposal-debt-webkit-test.js',
   'tests/debt-command-save-atomicity-test.js', 'tests/debt-command-save-atomicity-webkit-test.js', 'tests/fixtures/debt-command-atomicity.js',
   'tests/stock-split-price-history-test.js', 'tests/stock-split-price-history-webkit-test.js',
   'js/pe-acquisition.js', 'js/pe-value-creation.js',
@@ -321,7 +321,10 @@ for (const command of [
 
 const splitAtomicity = jobBlock(comprehensiveMa, 'stock-split-atomicity');
 assert(!/^    if:/m.test(splitAtomicity), 'stock split real WebKit must run on every workflow event including PR and main');
-assert(splitAtomicity.includes('timeout-minutes: 15') && splitAtomicity.includes("node-version: '20'"), 'stock split WebKit must retain a bounded pinned runtime');
+// The heavy WebKit family jobs run 8.5-12.5 min when healthy (2026-10-22: stock split 11m20s, VC secondary 12m30s,
+// PE acquisition 9m35s, VC funding 8m36s), and the unpinned-cache `npm install playwright` step alone took 5-7 min in
+// slow windows that day, cancelling all three of the longest at 15 min. 25 keeps them bounded with that headroom.
+assert(splitAtomicity.includes('timeout-minutes: 25') && splitAtomicity.includes("node-version: '20'"), 'stock split WebKit must retain a bounded pinned runtime');
 assert(splitAtomicity.includes("group: ma-acquisition-financing-stock-split-atomicity-${{ (github.event_name == 'pull_request' || inputs.mode == 'deal-room') && github.run_id || github.ref }}")
   && splitAtomicity.includes('cancel-in-progress: true'), 'stock split WebKit must be cancelled with superseded main/schedule/comprehensive runs, never for PR/deal-room');
 for (const command of ['playwright@1.61.0', 'npx playwright install --with-deps webkit', 'node tests/stock-split-save-atomicity-webkit-test.js', 'node tests/stock-split-dividend-rescale-webkit-test.js', 'node tests/stock-split-price-floor-webkit-test.js', 'node tests/decline-buyout-ownership-save-atomicity-webkit-test.js', 'node tests/execute-mbo-save-atomicity-webkit-test.js', 'node tests/earnings-confirm-read-only-webkit-test.js', 'node tests/ma-share-swap-ownership-ratios-webkit-test.js', 'node tests/competitor-stake-float-webkit-test.js', 'node tests/activate-defense-ownership-ratios-webkit-test.js', 'node tests/ma-equity-raise-ownership-ratios-webkit-test.js', 'node tests/ma-equity-raise-shadow-atomicity-webkit-test.js', 'actions/upload-artifact@v4', 'path: artifacts/stock-split-atomicity-webkit', 'if: always()', 'if-no-files-found: error', 'node tests/shareholder-activism-accept-save-atomicity-webkit-test.js']) {
@@ -340,7 +343,7 @@ const legacyRuntime = "node-version: ${{ (github.event_name == 'pull_request' ||
 for (const [job, tests] of Object.entries(movedFamilyJobs)) {
   const block = jobBlock(comprehensiveMa, job);
   assert(!/^    if:/m.test(block), `${job} must run on every workflow event including PR, main, schedule and both manual modes`);
-  assert(block.includes('timeout-minutes: 15') && block.includes('runs-on: ubuntu-latest'), `${job} must keep a bounded hosted runner`);
+  assert(block.includes('timeout-minutes: 25') && block.includes('runs-on: ubuntu-latest'), `${job} must keep a bounded hosted runner`);
   assert(block.includes(legacyRuntime), `${job} must keep the pre-split runtime per event (Node 20 PR/deal-room, Node 22 main/schedule/comprehensive)`);
   assert(block.includes(`group: ma-acquisition-financing-${job}-\${{ (github.event_name == 'pull_request' || inputs.mode == 'deal-room') && github.run_id || github.ref }}`)
     && block.includes('cancel-in-progress: true'), `${job} must keep pre-split cancellation: per-ref for main/schedule/comprehensive, never for PR/deal-room`);

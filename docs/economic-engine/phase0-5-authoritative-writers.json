@@ -809,6 +809,12 @@
         ]
       },
       {
+        "file": "js/real-estate-mortgage-refinancing.js",
+        "tokens": [
+          "companyDebt"
+        ]
+      },
+      {
         "file": "js/real-estate-property-disposals.js",
         "tokens": [
           "companyDebt"
