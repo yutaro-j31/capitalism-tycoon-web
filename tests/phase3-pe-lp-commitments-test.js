@@ -32,6 +32,15 @@ for(const amount of [-1,Infinity,NaN,'40']){const x=state();x.peFirm.funds[0].lp
 {const x=state();x.peFirm.funds.push(fund());assert(project(x).commitments.every(c=>c.status==='unresolved'));}
 {const x=state();const f=fund();f.id='f2';f.status='closed';x.peFirm.funds.push(f);assert(project(x).funds.every(f=>f.commitmentTotalMatchesDeclaredLP));assert(project(x).commitments.every(c=>c.paidCapital===null));}
 {const x=state();Object.assign(x.peFirm.funds[0],{size:1,gpCommit:.7,lpContributed:.3,lps:[{lpTypeID:'a',committedAmount:.1},{lpTypeID:'b',committedAmount:.2}]});assert.equal(project(x).funds[0].commitmentTotalMatchesDeclaredLP,null,'inexact fund source is not repaired');}
+// The commitment total is summed in canonical lpTypeID order, so reordering the same rows never
+// changes the reconciliation (Codex review on 9b3b6f99).
+{
+ const rows=[{lpTypeID:'a',committedAmount:1e12},{lpTypeID:'b',committedAmount:0.0002},{lpTypeID:'c',committedAmount:0.0002}];
+ const perms=[[0,1,2],[0,2,1],[1,0,2],[1,2,0],[2,0,1],[2,1,0]];
+ const results=perms.map(order=>{const x=state();Object.assign(x.peFirm.funds[0],{size:1_000_000_000_000.0004,gpCommit:0,lpContributed:1_000_000_000_000.0004,lps:order.map(i=>copy(rows[i]))});
+  const f=project(x).funds[0];return [f.observedCommitmentTotal,f.commitmentTotalMatchesDeclaredLP];});
+ for(const r of results)assert.deepEqual(r,results[0],'row order does not change the total or the reconciliation');
+}
 let reads=0;
 for(const at of ['root','fund','array','row','amount']){
  const x=state(),f=x.peFirm.funds[0],lp=f.lps[0],target=at==='root'?x:at==='fund'?f:at==='array'?f.lps:lp,key=at==='root'?'peFirm':at==='fund'?'lps':at==='array'?'0':at==='row'?'lpTypeID':'committedAmount';

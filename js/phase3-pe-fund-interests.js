@@ -178,15 +178,19 @@
       if(!rows)continue;
       const keys=rows.map((r,j)=>requireId(r,'lpTypeID',`${path}.lps[${j}]`,errors));
       const counts=unique(keys.map(id=>({id})),r=>r.id,errors,`${path}.lps`);
-      let total=0,allValid=valid;
+      // Rows are identity-keyed and output is canonically sorted, so the sum is too: floating-point
+      // addition is order-sensitive, and reordering the same rows must not change the reconciliation.
+      let total=0,allValid=valid;const addends=[];
       for(let j=0;j<rows.length;j++){
         const rowPath=`${path}.lps[${j}]`,amount=requireNumber(rows[j],'committedAmount',rowPath,errors),lpTypeID=keys[j];
         const rowValid=valid&&lpTypeID!==null&&counts.get(lpTypeID)===1&&amount!==null;
         allValid=allValid&&rowValid;
-        if(amount!==null)total+=amount;
+        if(amount!==null)addends.push({lpTypeID,rowPath,amount});
         out.commitments.push({fundId,lpTypeID,sourcePath:rowPath,kind:'commitment-only',status:rowValid?'observed':'unresolved',
           committedAmount:amount,paidCapital:null,legalLPId:null,beneficialOwnerId:null,economicFraction:null,votingFraction:null,wealthValue:null});
       }
+      addends.sort((a,b)=>textOrder(a.lpTypeID||'',b.lpTypeID||'')||textOrder(a.rowPath,b.rowPath));
+      for(const x of addends)total+=x.amount;
       if(!finiteNonnegative(total)){allValid=false;errors.push(issue('AMOUNT_UNKNOWN',`${path}.lps`));}
       if(allValid){
         observation.observedCommitmentTotal=total;
