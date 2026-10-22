@@ -394,7 +394,7 @@ jobs:
             # timeout kills npx, not the apt-get it started as root; free the dpkg lock before retrying.
             sudo pkill -9 -x apt-get || true
             sudo pkill -9 -x dpkg || true
-            sudo dpkg --configure -a || true
+            sudo env DEBIAN_FRONTEND=noninteractive timeout --kill-after=10s 2m dpkg --configure -a || true
           done
           exit 1
       - name: iPhone WebKit smoke
@@ -494,7 +494,7 @@ jobs:
             # timeout kills npx, not the apt-get it started as root; free the dpkg lock before retrying.
             sudo pkill -9 -x apt-get || true
             sudo pkill -9 -x dpkg || true
-            sudo dpkg --configure -a || true
+            sudo env DEBIAN_FRONTEND=noninteractive timeout --kill-after=10s 2m dpkg --configure -a || true
           done
           exit 1
       - run: node tests/ma-deal-room-webkit-test.js
@@ -555,7 +555,7 @@ jobs:
             # timeout kills npx, not the apt-get it started as root; free the dpkg lock before retrying.
             sudo pkill -9 -x apt-get || true
             sudo pkill -9 -x dpkg || true
-            sudo dpkg --configure -a || true
+            sudo env DEBIAN_FRONTEND=noninteractive timeout --kill-after=10s 2m dpkg --configure -a || true
           done
           exit 1
       - name: Property debt principal in real iPhone WebKit
@@ -603,7 +603,7 @@ jobs:
             # timeout kills npx, not the apt-get it started as root; free the dpkg lock before retrying.
             sudo pkill -9 -x apt-get || true
             sudo pkill -9 -x dpkg || true
-            sudo dpkg --configure -a || true
+            sudo env DEBIAN_FRONTEND=noninteractive timeout --kill-after=10s 2m dpkg --configure -a || true
           done
           exit 1
       - name: Debt command atomicity in real iPhone WebKit
@@ -649,7 +649,7 @@ jobs:
             # timeout kills npx, not the apt-get it started as root; free the dpkg lock before retrying.
             sudo pkill -9 -x apt-get || true
             sudo pkill -9 -x dpkg || true
-            sudo dpkg --configure -a || true
+            sudo env DEBIAN_FRONTEND=noninteractive timeout --kill-after=10s 2m dpkg --configure -a || true
           done
           exit 1
       - name: Stock split atomicity in real iPhone WebKit
@@ -723,7 +723,7 @@ jobs:
             # timeout kills npx, not the apt-get it started as root; free the dpkg lock before retrying.
             sudo pkill -9 -x apt-get || true
             sudo pkill -9 -x dpkg || true
-            sudo dpkg --configure -a || true
+            sudo env DEBIAN_FRONTEND=noninteractive timeout --kill-after=10s 2m dpkg --configure -a || true
           done
           exit 1
       - name: PE fund acquisition atomicity in real iPhone WebKit
@@ -776,7 +776,7 @@ jobs:
             # timeout kills npx, not the apt-get it started as root; free the dpkg lock before retrying.
             sudo pkill -9 -x apt-get || true
             sudo pkill -9 -x dpkg || true
-            sudo dpkg --configure -a || true
+            sudo env DEBIAN_FRONTEND=noninteractive timeout --kill-after=10s 2m dpkg --configure -a || true
           done
           exit 1
       - name: VC secondary sale atomicity in real iPhone WebKit
@@ -841,7 +841,7 @@ jobs:
             # timeout kills npx, not the apt-get it started as root; free the dpkg lock before retrying.
             sudo pkill -9 -x apt-get || true
             sudo pkill -9 -x dpkg || true
-            sudo dpkg --configure -a || true
+            sudo env DEBIAN_FRONTEND=noninteractive timeout --kill-after=10s 2m dpkg --configure -a || true
           done
           exit 1
       - name: VC follow-on and initial investment atomicity in real iPhone WebKit
