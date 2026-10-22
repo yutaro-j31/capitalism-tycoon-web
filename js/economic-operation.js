@@ -369,7 +369,7 @@ function allocateYen(total,weights,ids){
   if(!Array.isArray(weights)||!Array.isArray(ids)||weights.length!==ids.length||!weights.length)throw new TypeError('allocateYen needs equal-length, non-empty weights and ids');
   if(weights.some(weight=>typeof weight!=='number'||!Number.isFinite(weight)||weight<0))throw new TypeError('allocation weights must be finite and non-negative');
   if(ids.some(id=>!nonEmptyString(id))||new Set(ids).size!==ids.length)throw new TypeError('allocation ids must be unique non-empty strings');
-  const amount=ceilYen(total),max=Math.max(...weights);
+  const amount=ceilYen(total),max=weights.reduce((a,weight)=>weight>a?weight:a,0);
   if(amount<0)throw new RangeError('allocation total must not be negative');
   if(!(max>0))throw new RangeError('allocation weights must not all be zero');
   // Scale by the largest weight first so huge finite weights cannot overflow the sum or amount × weight, and sum in
@@ -380,6 +380,7 @@ function allocateYen(total,weights,ids){
   if(shares.some(row=>!Number.isFinite(row.remainder)))throw new RangeError('allocation arithmetic is not finite');
   let left=amount-shares.reduce((a,row)=>a+row.base,0);
   const order=[...shares].sort((a,b)=>b.remainder!==a.remainder?b.remainder-a.remainder:(a.id<b.id?-1:a.id>b.id?1:0));
+  if(left<0||left>shares.length)throw new RangeError('allocation floors do not fit the total');
   for(const row of order){if(left<=0)break;row.base++;left--;}
   return shares.map(row=>row.base);
 }

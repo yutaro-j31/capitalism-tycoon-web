@@ -225,6 +225,12 @@ assert.deepEqual(snapArray(core.allocateYen(3, [1e300, 1], ['big', 'tiny'])), [3
   const byID = list => { const parts = core.allocateYen(9e13, list.map(p => p[1]), list.map(p => p[0])); return Object.fromEntries(list.map((p, i) => [p[0], parts[i]])); };
   assert.deepEqual(byID([...pairs].reverse()), byID(pairs), 'allocation per recipient does not depend on input order');
 }
+{
+  // Large recipient counts do not hit the argument-spread stack limit.
+  const n = 200000, parts = core.allocateYen(n + 7, new Array(n).fill(1), Array.from({ length: n }, (_, i) => `r${String(i).padStart(6, '0')}`));
+  assert.equal(parts.reduce((a, b) => a + b, 0), n + 7);
+  assert.deepEqual(snapArray(parts.slice(0, 8)), [2, 2, 2, 2, 2, 2, 2, 1], 'the 7 leftover yen go to the 7 lowest IDs');
+}
 for (let seed = 1; seed <= 200; seed++) {
   let x = seed;
   const next = () => (x = (x * 1103515245 + 12345) % 2147483648) / 2147483648;
