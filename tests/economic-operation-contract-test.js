@@ -219,6 +219,12 @@ assert.deepEqual(snapArray(core.allocateYen(1, [0.49999999975, 0.50000000025], [
 assert.deepEqual(snapArray(core.allocateYen(10, [Number.MAX_VALUE, Number.MAX_VALUE], ['a', 'b'])), [5, 5], 'weights near Number.MAX_VALUE do not overflow');
 assert.deepEqual(snapArray(core.allocateYen(1e13, [1e300, 1e300], ['a', 'b'])), [5e12, 5e12], 'huge weights split a large total exactly');
 assert.deepEqual(snapArray(core.allocateYen(3, [1e300, 1], ['big', 'tiny'])), [3, 0], 'a negligible weight gets nothing, the parts still sum to the total');
+{
+  // The same (id, weight) pairs in a different order get the same yen (the weight sum is order-independent).
+  const pairs = [['big', 1e300], ...Array.from({ length: 1000 }, (_, i) => [`small-${String(i).padStart(4, '0')}`, 1e284])];
+  const byID = list => { const parts = core.allocateYen(9e13, list.map(p => p[1]), list.map(p => p[0])); return Object.fromEntries(list.map((p, i) => [p[0], parts[i]])); };
+  assert.deepEqual(byID([...pairs].reverse()), byID(pairs), 'allocation per recipient does not depend on input order');
+}
 for (let seed = 1; seed <= 200; seed++) {
   let x = seed;
   const next = () => (x = (x * 1103515245 + 12345) % 2147483648) / 2147483648;
