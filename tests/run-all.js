@@ -152,6 +152,8 @@ const nodeTests = [
   ['phase3-indirect-economic-paths', 'tests/phase3-indirect-economic-paths-test.js'],
   ['phase3-vc-source-interests', 'tests/phase3-vc-source-interests-test.js'],
   ['phase3-pe-fund-interests', 'tests/phase3-pe-fund-interests-test.js'],
+  ['phase3-founder-wealth', 'tests/phase3-founder-wealth-test.js'],
+  ['phase3-control-eligibility', 'tests/phase3-control-eligibility-test.js'],
   ['player-own-share-conservation', 'tests/player-own-share-conservation-test.js'],
   ['economic-foundation-draws', 'tests/economic-foundation-draws-test.js'],
   ['phase0-5-seed-provenance', 'tests/phase0-5-seed-provenance-test.js'],

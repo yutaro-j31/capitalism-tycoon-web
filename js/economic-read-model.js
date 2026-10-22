@@ -356,6 +356,12 @@ function ownershipReconciliation(state){
     authority:'read-only',
     scope:'player-company-common-founder-and-unallocated-residual',
     ok:issues.length===0&&checks.every(row=>row.ok),
+    // Raw issuer-generation facts, passed through unjudged: consumers that attribute control decide
+    // whether this company generation is proven (a sold or refounded company keeps its old buckets).
+    generationEvidence:Object.freeze({
+      currentCompanySerial:Number.isSafeInteger(state.currentCompanySerial)?state.currentCompanySerial:null,
+      isCompanySold:typeof state.isCompanySold==='boolean'?state.isCompanySold:null
+    }),
     entities:projection.entities,
     securityClasses:Object.freeze([Object.freeze({...security,outstandingQuantity:outstanding,unallocatedOutstandingQuantity:unallocated})]),
     beneficialHoldings:Object.freeze([beneficialHolding]),

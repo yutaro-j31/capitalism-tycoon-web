@@ -289,7 +289,8 @@
     "tests/player-own-share-conservation-test.js",
     "tests/group-capital-allocation-cash-exact-test.js",
     "tests/phase3-pe-fund-interests-test.js",
-    "tests/phase3-restructuring-lifecycle-test.js"
+    "tests/phase3-restructuring-lifecycle-test.js",
+    "tests/phase3-founder-wealth-test.js"
   ],
   "L": [
     "tests/stock-split-price-floor-test.js",
@@ -307,6 +308,7 @@
     "tests/p4-aud-004-personal-secured-repayment-test.js",
     "scripts/p4-aud-003-founder-capital-atomicity.cjs",
     "tests/debt-command-save-atomicity-test.js",
+    "tests/phase3-control-eligibility-test.js",
     "tests/property-debt-principal-sync-test.js",
     "tests/p4-aud-007-mortgage-disposal-debt-test.js"
   ]

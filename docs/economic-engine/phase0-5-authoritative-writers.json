@@ -1433,6 +1433,12 @@
         ]
       },
       {
+        "file": "js/phase3-founder-wealth.js",
+        "tokens": [
+          "personalCash"
+        ]
+      },
+      {
         "file": "js/player-crisis-actions.js",
         "tokens": [
           "personalCash"
