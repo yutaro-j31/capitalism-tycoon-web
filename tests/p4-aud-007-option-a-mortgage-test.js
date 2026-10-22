@@ -160,7 +160,18 @@ function assertMirrors(s, label) {
   assert.equal(s.g.companyDebt, 0);
 }
 
-// 7. Determinism and save round trip.
+// 7. Crisis creditor negotiation cannot target the mortgage: its writer services the property's product terms,
+// so a negotiated deferral, extension or rate cut would be silently ignored.
+{
+  const s = setup();
+  assert.equal(s.e.borrow(UNRELATED, 'company'), true);
+  s.e.refinancePropertyMortgage('P1', 'fixed');
+  const ids = snap(s.modules.playerCrisisCreditor.activeLoans(s.g).map(l => l.loanID));
+  assert.equal(ids.includes(LOAN_ID), false, 'mortgage is not offered to creditor negotiation');
+  assert.equal(ids.length, 1, 'the unrelated bank loan still is');
+}
+
+// 8. Determinism and save round trip.
 {
   const run = () => { const s = setup(); s.e.refinancePropertyMortgage('P1', 'fixed'); for (let i = 0; i < 3; i++) s.e.advanceWeek(false); return s; };
   const a = run(), b = run();
@@ -173,4 +184,4 @@ function assertMirrors(s, label) {
   assert.deepEqual(snap(e2.g.finance.loans.find(l => l.loanID === LOAN_ID)), snap(row(a)));
 }
 
-console.log('PASS P4-AUD-007 Option A: on-book company mortgage origination, service, prepayment, generic repayment, capitalised interest, sale, legacy and reload');
+console.log('PASS P4-AUD-007 Option A: on-book company mortgage origination, service, prepayment, generic repayment, capitalised interest, sale, legacy, creditor exclusion and reload');
