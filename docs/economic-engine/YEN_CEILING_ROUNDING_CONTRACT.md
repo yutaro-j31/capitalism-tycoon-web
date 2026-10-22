@@ -1,7 +1,7 @@
 # Whole-Yen Ceiling Rounding Contract (Phase 0 §5 vNext)
 
 **Status: PROPOSED — becomes the approved contract when the Owner merges the PR that adds this file.**
-**Owner decision (2026-10-22):** every in-game monetary amount is settled in whole yen. Any fraction of a yen is **rounded up** (切り上げ). Old saves do not need to stay compatible (Owner decision of the same day; `AGENTS.md` and `CLAUDE.md` were updated by #1071). An old save that loads with fractional balances is not normalised: rewriting a balance would create or destroy money. Its fractions are simply spent through whole-yen postings; the strict whole-yen checks of §6 run on new games.
+**Owner decision (2026-10-22):** every in-game monetary amount is settled in whole yen. Any fraction of a yen is **rounded up** (切り上げ). Old saves do not need to stay compatible (Owner decision of the same day; `AGENTS.md` and `CLAUDE.md` were updated by #1071). Saves created before R9 are **outside the whole-yen guarantee**; see §1.1.
 **Supersedes:** the ¥0.01 posting quantum in `PHASE_0_CONTRACTS.md` §5.1/§5.3 and ECO-019, slice by slice, as recorded in §8 below.
 
 This document is written so that **any agent** (Claude Code, Codex/ChatGPT, or another) can pick up the work at any slice. If you are resuming this work, read §9 first.
@@ -20,6 +20,14 @@ Out of scope (keep their current precision; do **not** round them):
 - share/security quantities (already integer by their own contracts);
 - per-share prices, valuations, market values, forecasts and other estimates **until** they are settled or posted. When one of them is posted, the posted amount is rounded by this contract.
 - UI formatting (display already shows whole yen; an integer amount displays the same).
+
+### 1.1 Saves created before R9
+
+The whole-yen guarantee and the strict checks of §6 apply to **games started after R9**. A save created earlier is excluded from them, but it still loads and plays:
+
+- Every persisted monetary value keeps its stored fraction: cash, debt, `finance.fixedAssets[].bookValue`, loan rows, property and mortgage balances, deposits, fund and holding values. Nothing is normalised on load, because rewriting a stored amount would create or destroy money. Nothing is rejected, because rejecting saves is a save-semantics change that would need its own Owner decision.
+- A migrated writer that operates on such a value uses it as stored. A payment capped by a fractional balance posts the capped amount (§3.5). A disposal of a fractional book value posts the fractional `assetEffect` and `profitEffect` it implies. In every case the same value goes to state and to the ledger. §3.2's "already whole" premise does not hold for these operands, and nothing is rounded again to hide that.
+- The existing accounting checks (`finance.validate`, the debt rollforward) still apply to such saves; only the whole-yen checks do not. The Owner starts device testing from a new game (2026-10-22), so no further handling is planned.
 
 ## 2. The rounding function
 
@@ -54,7 +62,7 @@ Rounding happens **once**, at the point where an amount is settled or posted. It
 2. **Derived amounts are not rounded again.** A gain = proceeds − book value, a net = gross − fee, or a new balance = old − payment is the difference of two whole-yen amounts, so it is already whole. Do not call `ceilYen` on it, because that hides a component that was not rounded.
 3. **Caps keep their cap.** When a balance caps an amount (a payment cannot exceed the balance; depreciation cannot exceed the remaining book value), round first, then cap: `min(ceilYen(x), balance)`. Rounding up never makes a payment exceed what is owed, nor a book value go negative.
 4. **Cash limits.** When available cash limits a payment (`min(due, cash)`), round `due` first.
-5. **During the migration, balances can still carry fractions.** Until R9, writers that have not migrated yet (and old saves, §1) can leave a fraction in `companyCash` or another balance. A migrated writer whose amount is capped by such a balance posts the capped amount **as is**, without rounding up past the balance, and writes that same value to state and ledger. This is the only case where a migrated writer may post a non-whole amount. In a game started after R9 it cannot occur, because every writer posts whole yen. It **remains** for a save created before R9 that still holds a fractional balance: `save-v9.js` accepts finite fractional v9 values and does not normalise them (§1), so a loaded ¥0.5 cash balance caps a ¥2 payment at ¥0.5, posted as is. This exception is kept after R9 rather than rejecting such saves: rejecting saves is a save-semantics change that would need its own Owner decision. The runtime guard (§6) therefore checks migrated rows in scenarios that start from whole-yen balances. From R9 it checks all rows strictly in a new game, and it adds one loaded-fractional-save scenario asserting that the capped posting writes the same value to state and ledger and that the books validate.
+5. **During the migration, balances can still carry fractions.** Until R9, writers that have not migrated yet (and saves created before R9, §1.1) can leave a fraction in `companyCash` or another balance. A migrated writer whose amount is capped by such a balance posts the capped amount **as is**, without rounding up past the balance, and writes that same value to state and ledger. This is one of the two cases where a migrated writer may post a non-whole amount; the other is an operand loaded from a save created before R9 (§1.1). In a game started after R9 neither can occur, because every writer posts whole yen. The runtime guard (§6) therefore checks migrated rows in scenarios that start from whole-yen balances, and from R9 it checks all rows strictly in a new game. It also adds one scenario that loads a fractional pre-R9 save, performs a capped payment and a fractional book-value disposal, and asserts that state and ledger agree and the books validate.
 
 ## 4. Splitting one amount into parts
 
