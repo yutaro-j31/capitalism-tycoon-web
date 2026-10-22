@@ -1,0 +1,45 @@
+{
+  "mode": "full",
+  "generatedAt": "2026-10-22T09:01:38.839Z",
+  "cases": 0,
+  "completed": 0,
+  "bankruptcies": 0,
+  "engineFailures": 0,
+  "maxRSSBytes": 0,
+  "overall": {
+    "cases": 0,
+    "bankruptcies": 0,
+    "bankruptcyRate": 0,
+    "survivalRates": {
+      "52": 0,
+      "104": 0,
+      "260": 0,
+      "520": 0,
+      "1000": 0
+    },
+    "ipoRate": 0,
+    "medianIPOWeek": null,
+    "medianCompanyValueAt1000": null,
+    "turnaroundCases": 0,
+    "turnaroundSuccessRate": null
+  },
+  "byDifficulty": {},
+  "byBusiness": {},
+  "byStrategy": {},
+  "bankruptcyCauseCounts": {
+    "過剰出店": 0,
+    "借入過多": 0,
+    "返済負担": 0,
+    "値下げしすぎ": 0,
+    "高価格による需要不足": 0,
+    "不採算店舗放置": 0,
+    "固定費過多": 0,
+    "現金管理失敗": 0,
+    "再建開始遅れ": 0,
+    "エンジン異常": 0
+  },
+  "mostStableStrategy": null,
+  "fastestIPOStrategy": null,
+  "overpoweredBusinesses": [],
+  "weakBusinesses": []
+}

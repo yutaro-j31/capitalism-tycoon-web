@@ -139,9 +139,10 @@ function status(f){
   status(f);
 }
 
-// A half-cent schedule is quantized once; signed effects and both book rolls use that amount.
+// A fractional weekly schedule is rounded up to whole yen once (YEN_CEILING_ROUNDING_CONTRACT R1: 113/2 = 56.5 -> 57),
+// the final week is capped at the remaining book (56); signed effects and both book rolls use that amount.
 {
-  const f=setup(),g=f.engine.g,finance=f.modules.finance,cost=112.23,assetID='fractional-schedule';
+  const f=setup(),g=f.engine.g,finance=f.modules.finance,cost=113,assetID='fractional-schedule';
   g.companyCash=money(g.companyCash-cost);
   finance.addFixedAsset(g,{assetID,acquisitionCost:cost,usefulLifeWeeks:2,salvageValue:0});
   finance.event(g,'capitalExpenditure',cost,{cashEffect:-cost,assetEffect:cost,fixedAssetLifecycle:'acquisition',fixedAssetID:assetID});
@@ -150,7 +151,7 @@ function status(f){
     status(f);g.week++;
   }
   const rows=g.finance.transactions.filter(tx=>tx.fixedAssetID===assetID&&tx.fixedAssetLifecycle==='depreciation');
-  assert.deepEqual(plain(rows.map(tx=>tx.amount)),[56.12,56.11]);
+  assert.deepEqual(plain(rows.map(tx=>tx.amount)),[57,56]);
   for(const row of rows){assert.equal(row.profitEffect,-row.amount);assert.equal(row.assetEffect,-row.amount);}
   const asset=g.finance.fixedAssets.find(a=>a.assetID===assetID);
   assert.equal(asset.bookValue,0);assert.equal(asset.accumulatedDepreciation,cost);

@@ -1,6 +1,6 @@
 # Whole-Yen Ceiling Rounding Contract (Phase 0 §5 vNext)
 
-**Status: PROPOSED — becomes the approved contract when the Owner merges the PR that adds this file.**
+**Status: APPROVED — merged by the Owner in #1074 (2026-10-22).**
 **Owner decision (2026-10-22):** every in-game monetary amount is settled in whole yen. Any fraction of a yen is **rounded up** (切り上げ). Old saves do not need to stay compatible (Owner decision of the same day; `AGENTS.md` and `CLAUDE.md` were updated by #1071). Saves created before R9 are **outside the whole-yen guarantee**; see §1.1.
 **Supersedes:** the ¥0.01 posting quantum in `PHASE_0_CONTRACTS.md` §5.1/§5.3 and ECO-019, slice by slice, as recorded in §8 below.
 
@@ -114,8 +114,8 @@ One slice per PR. Branch name: `fix/yen-ceil-<slice id lower-case>` (for example
 
 | Slice | Files / families | Notes | Status | PR |
 |---|---|---|---|---|
-| R0 | `economic-operation.js` (`ceilYen`, `allocateYen` + unit tests); ratchet guard test + baseline listing every file that currently contains a ¥0.01 pattern | No behaviour change: nothing calls the new helpers yet. Baseline: 37 `pendingFiles` | DONE | this PR |
-| R1 | `finance.js`'s own writers (generic interest, loan schedule postings, depreciation), `treasury-prepayment.js` | Calls `ceilYen` explicitly at each posting. The shared `r` (and with it `finance.event`'s normalisation) stays ¥0.01 (§2) | TODO | |
+| R0 | `economic-operation.js` (`ceilYen`, `allocateYen` + unit tests); ratchet guard test + baseline listing every file that currently contains a ¥0.01 pattern | No behaviour change: nothing calls the new helpers yet. Baseline: 37 `pendingFiles` | DONE | #1076 |
+| R1 | `finance.js`'s own writers (generic interest, loan schedule postings, depreciation), `treasury-prepayment.js` | Calls `ceilYen` explicitly at each posting. The shared `r` (and with it `finance.event`'s normalisation) stays ¥0.01 (§2). As implemented: weekly depreciation = `min(ceilYen(straight-line), book − salvage)` (§3.3), and the fixed-asset validators accept that schedule, plus the legacy ¥0.01 schedule for rows already in the ledger; legacy-asset recognition (`initialFixedAssets`) rounds cost and salvage up; generic interest on company debt is computed in `engine.js` `advanceWeek` and is rounded there (one line; the rest of `engine.js` stays with R2), the founder-lender share is `min(ceilYen(share), interest)` (§4); voluntary prepayment rounds the request up and caps it at the prepayable maximum (§3.3, §3.5). `finance.js` has no loan-schedule writer of its own (schedules are serviced in R3a/R5 files). `finance.js` stays in `pendingFiles` because of `r` | DONE | this PR |
 | R2 | Store operations: `engine.js` store P&L and weekly cash (revenue, costs, wages, rent, closures, refunds), `workforce.js`, `supply.js`, `store-equipment.js`, `menu-research.js`, `player-media-advertising.js`, `product-lifecycle.js`, `completion.js`, `parity.js`, `expansion.js` | Largest slice; split into R2a (engine.js) / R2b (rest) if the diff exceeds one review | TODO | |
 | R3a | Company real estate, acquisition/finance/disposal: `real-estate.js`, `real-estate-mortgage-refinancing.js`, `real-estate-property-disposals.js`, `real-estate-property-taxes.js`, `real-estate-development.js`, `real-estate-price-negotiation.js`, `real-estate-complete-cycle.js`, `real-estate-redevelopment-projects.js`, `real-estate-agency-credit-line.js` | Mortgage: interest is the charge, principal is the remainder (§4) | TODO | |
 | R3b | Company real estate, tenants/rent: `real-estate-tenant-*.js`, `real-estate-rent-*.js`, `real-estate-security-deposits.js` | Deposits are refunded at their stored whole-yen amount | TODO | |
