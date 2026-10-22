@@ -33,6 +33,24 @@ function indexedDBFor(durable) {
 // state: 'S1' (ledger predates the mortgage), 'S2' (finance re-created after it), 'S2s' (S2 for P1,
 // then a further S1 mortgage on P2: the ledger difference covers only part of the off-book total),
 // 'none' (no off-book mortgage), 'S1+onbook' (S1 plus an on-book market loan on the same property).
+// A pre-Option-A save: the off-book mortgage the old refinance writer produced (no finance row, no debt aggregate,
+// a proceeds row with no liability effect), reproduced field by field so the legacy D-1 states can still be built.
+function legacyMortgage(m, e, id, productID) {
+  return e.runTransaction(() => {
+    const g = e.g, p = g.properties.find(x => x.id === id), product = m.realEstateMortgageRefinancing.PRODUCTS[productID];
+    const round = v => Math.round(Number(v) * 100) / 100, week = Math.floor(Number(g.week) || 1), owner = p.owner === 'personal' ? 'personal' : 'company';
+    const key = owner === 'personal' ? 'personalCash' : 'companyCash', target = round(Number(p.marketValue) * product.maxLTV), old = round(p.mortgageBalance);
+    const gross = Math.max(0, target - old), fee = round(target * product.feeRate), net = round(Math.max(0, gross - fee));
+    g[key] = round(g[key] + net);
+    Object.assign(p, { mortgageProductID: productID, mortgageBalance: target, mortgageRemainingWeeks: product.termWeeks, lastMortgageActionWeek: week });
+    if (owner === 'company') {
+      if (net > 0) m.finance.event(g, 'propertyMortgageProceeds', net, { cashEffect: net, profitEffect: 0, sourceType: 'property-mortgage', sourceID: id, idempotencyKey: `property-mortgage-proceeds-${id}-w${week}`, description: `${p.name || id} 借換手取金` });
+      if (fee > 0) m.finance.event(g, 'propertyMortgageFee', fee, { cashEffect: 0, profitEffect: -fee, sourceType: 'property-mortgage-fee', sourceID: id, idempotencyKey: `property-mortgage-fee-${id}-w${week}`, description: `${p.name || id} 借換手数料` });
+    }
+    m.realEstateMortgageRefinancing.ensure(g).propertyMortgageHistory.push({ type: 'mortgage-refinance', week, propertyID: id, owner, productID, oldBalance: old, newBalance: target, fee, netProceeds: net });
+    return { oldBalance: old, newBalance: target, fee, netProceeds: net };
+  });
+}
 async function scenario(owner, state) {
   const durable = new Map();
   const s = loadGame({ headless: true, indexedDB: indexedDBFor(durable) });
@@ -56,10 +74,10 @@ async function scenario(owner, state) {
     s.modules.realEstateCompleteCycle.ensure(e.g);
     assert.ok(s.modules.realEstateCompleteCycle.borrow(e.g, 'P1', 20_000_000, { rateType: 'fixed' }), 'on-book market loan');
   }
-  if (state !== 'none') assert.ok(e.refinancePropertyMortgage('P1', 'fixed'), 'mortgage P1');
+  if (state !== 'none') assert.ok(legacyMortgage(s.modules, e, 'P1', 'fixed'), 'mortgage P1');
   // S2: a legacy save whose g.finance was (re)created by defaultFinanceState after the mortgage.
   if (state === 'S2' || state === 'S2s') e.g.finance = finance.defaultFinanceState(e.g);
-  if (state === 'S2s') { e.g.week++; assert.ok(e.refinancePropertyMortgage('P2', 'fixed'), 'mortgage P2'); }
+  if (state === 'S2s') { e.g.week++; assert.ok(legacyMortgage(s.modules, e, 'P2', 'fixed'), 'mortgage P2'); }
   assert.equal(e.save(), true); await s.modules.saveStorageIDB.flush();
   return { ...s, e, durable, key: s.engineModule.SAVE_KEY };
 }

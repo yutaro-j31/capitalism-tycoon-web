@@ -174,7 +174,7 @@ assert.deepEqual(pathsFor(comprehensiveMa, 'pull_request'), [
   'tests/founder-capital-atomicity-webkit-test.js',
   'tests/fixtures/stock-split-atomicity.js',
   'tests/property-debt-principal-sync-test.js', 'tests/property-debt-principal-sync-webkit-test.js', 'tests/fixtures/property-debt-principal-sync.js', 'js/treasury-prepayment.js', 'js/player-debt-service.js', 'js/real-estate-complete-cycle.js',
-  'js/real-estate-property-disposals.js', 'tests/p4-aud-007-mortgage-disposal-debt-test.js', 'tests/p4-aud-007-mortgage-disposal-debt-webkit-test.js',
+  'js/real-estate-property-disposals.js', 'tests/p4-aud-007-mortgage-disposal-debt-test.js', 'tests/p4-aud-007-option-a-mortgage-test.js', 'tests/p4-aud-007-mortgage-disposal-debt-webkit-test.js',
   'tests/debt-command-save-atomicity-test.js', 'tests/debt-command-save-atomicity-webkit-test.js', 'tests/fixtures/debt-command-atomicity.js',
   'tests/stock-split-price-history-test.js', 'tests/stock-split-price-history-webkit-test.js',
   'js/pe-acquisition.js', 'js/pe-value-creation.js',
