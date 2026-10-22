@@ -1,7 +1,7 @@
 # Whole-Yen Ceiling Rounding Contract (Phase 0 §5 vNext)
 
 **Status: PROPOSED — becomes the approved contract when the Owner merges the PR that adds this file.**
-**Owner decision (2026-10-22):** every in-game monetary amount is settled in whole yen. Any fraction of a yen is **rounded up** (切り上げ). Old saves do not need to stay compatible (see `AGENTS.md` §6).
+**Owner decision (2026-10-22):** every in-game monetary amount is settled in whole yen. Any fraction of a yen is **rounded up** (切り上げ). Old saves do not need to stay compatible (Owner decision of the same day; `AGENTS.md` and `CLAUDE.md` are updated by #1071, which must merge before this PR). An old save that loads with fractional balances is not normalised: rewriting a balance would create or destroy money. Its fractions are simply spent through whole-yen postings; the strict whole-yen checks of §6 run on new games.
 **Supersedes:** the ¥0.01 posting quantum in `PHASE_0_CONTRACTS.md` §5.1/§5.3 and ECO-019, slice by slice, as recorded in §8 below.
 
 This document is written so that **any agent** (Claude Code, Codex/ChatGPT, or another) can pick up the work at any slice. If you are resuming this work, read §9 first.
@@ -28,19 +28,23 @@ One shared implementation lives in `js/economic-operation.js` (it loads third, b
 ```text
 ceilYen(x):
   require typeof x === 'number' and finite                 (TypeError otherwise)
-  c = roundMoney(x)                                         (existing ¥0.01 normaliser; removes float noise such as 1200.0000000002)
-  y = sign(c) * ceil(abs(c))                                 (round the magnitude up)
+  require |x·100| <= MAX_SAFE_INTEGER                         (RangeError otherwise; the same envelope as roundMoney)
+  k   = Math.round(x)
+  tol = max(1e-9, |x| · 64 · Number.EPSILON)                 (a few units of float precision at x's magnitude)
+  y   = |x − k| <= tol ? k : sign(x) · ceil(|x|)              (float noise snaps to k; every real fraction rounds the magnitude up)
   return y === 0 ? 0 : y                                     (never return -0)
 ```
 
 Consequences, which are intended:
 
 - `ceilYen(12.3) = 13`, `ceilYen(-12.3) = -13`: a payment and a receipt each grow by the fraction. Do **not** use bare `Math.ceil`; for a negative amount it moves toward zero (`Math.ceil(-12.3) = -12`).
-- `ceilYen(1200.0000000002) = 1200` (float noise is removed first), `ceilYen(1200.004) = 1200` (a sub-¥0.01 remainder is noise, not a fraction to charge).
+- `ceilYen(1200.0000000002) = 1200` and `ceilYen((0.1+0.2)*10) = 3`: a difference within float precision is noise, not a fraction. Any larger fraction, however small, rounds up: `ceilYen(12.004) = 13`, `ceilYen(1200.004) = 1201`, `ceilYen(0.1+0.2) = 1`. Do **not** normalise to ¥0.01 first; that would drop real sub-¥0.01 fractions.
 - `ceilYen(12) = 12`. The function is idempotent: rounding an already rounded amount does nothing.
-- The envelope check of `roundMoney` (`|x·100| ≤ MAX_SAFE_INTEGER`) still applies and still throws `RangeError`.
+- The tolerance is relative, so a value near ¥10¹³ snaps only within a few thousandths of a yen, below what a Number can represent there anyway.
 
-Writers that already keep a local helper (for example `const round=v=>Math.round(n(v)*100)/100` or `const r=…`) replace its body with a call to the shared function. They do not keep a private copy of the rule. A local helper that also coerces non-finite values (`n(v)`) keeps that coercion before calling `ceilYen`.
+A writer's **private** helper (for example `const round=v=>Math.round(n(v)*100)/100` in a real-estate module) replaces its body with a call to the shared function, but only when every caller of that helper is in the same slice. It does not keep a private copy of the rule. A helper that also coerces non-finite values (`n(v)`) keeps that coercion before calling `ceilYen`.
+
+**Shared normalisers stay ¥0.01 until R9.** `finance.js`'s `r`, which `finance.event` applies to the amount and every effect of a ledger row, and `economic-settlement.js`'s use of `roundMoney` serve writers in every slice, and also derive statement and reconciliation figures. If one of them were switched early, a writer that has not migrated yet would write a cent value to state while its ledger row became whole yen. A migrated writer instead calls `ceilYen` itself, **before** it writes state or calls `finance.event`. The ¥0.01 normaliser leaves a whole-yen amount unchanged, so state and ledger agree. R9 switches or removes the shared normalisers only once no unmigrated writer remains. The same rule applies to any other helper with callers in more than one slice.
 
 ## 3. Where rounding happens
 
@@ -48,8 +52,9 @@ Rounding happens **once**, at the point where an amount is settled or posted. It
 
 1. **Compute, round, then write.** A writer computes the amount, rounds it once with `ceilYen`, and uses that **same** value for the state field (`companyCash`, `companyDebt`, `mortgageBalance`, …) and for every effect on the ledger row. Writing an unrounded value to state and a rounded one to the ledger (or the other way round) breaks the balance sheet.
 2. **Derived amounts are not rounded again.** A gain = proceeds − book value, a net = gross − fee, or a new balance = old − payment is the difference of two whole-yen amounts, so it is already whole. Do not call `ceilYen` on it, because that hides a component that was not rounded.
-3. **Caps keep their cap.** When an amount is capped by an existing whole-yen balance (a payment cannot exceed the balance; depreciation cannot exceed the remaining book value), round first, then cap: `min(ceilYen(x), balance)`. Rounding up never makes a payment exceed what is owed, nor a book value go negative.
-4. **Cash limits.** When a payment is limited by available cash (`min(due, cash)`), round `due` first. A cash balance is already whole once its family is converted.
+3. **Caps keep their cap.** When a balance caps an amount (a payment cannot exceed the balance; depreciation cannot exceed the remaining book value), round first, then cap: `min(ceilYen(x), balance)`. Rounding up never makes a payment exceed what is owed, nor a book value go negative.
+4. **Cash limits.** When available cash limits a payment (`min(due, cash)`), round `due` first.
+5. **During the migration, balances can still carry fractions.** Until R9, writers that have not migrated yet (and old saves, §1) can leave a fraction in `companyCash` or another balance. A migrated writer whose amount is capped by such a balance posts the capped amount **as is**, without rounding up past the balance, and writes that same value to state and ledger. This is the only case where a migrated writer may post a non-whole amount. It disappears once every writer of that balance has migrated. The runtime guard (§6) therefore checks migrated rows in scenarios that start from whole-yen balances, and checks all rows strictly only from R9.
 
 ## 4. Splitting one amount into parts
 
@@ -63,7 +68,7 @@ Rounding every part separately makes the parts disagree with the rounded total (
 
 - `SAVE_KEY`, `saveVersion=9`, determinism, company/personal separation, and the ban on `Math.random()` in simulation paths.
 - Legacy validation tolerances in `finance.validate()` (Phase 0 §5.5) stay as they are during the migration. Tightening them is a separate, later PR after slice R9.
-- `roundMoney` keeps its current ¥0.01 behaviour. It becomes the noise normaliser inside `ceilYen`, so `tests/economic-operation-contract-test.js` keeps its assertions.
+- `roundMoney` keeps its current ¥0.01 behaviour, and `tests/economic-operation-contract-test.js` keeps its assertions. `ceilYen` does not call it (§2).
 
 ## 6. Determinism, fixtures and tests
 
@@ -74,7 +79,7 @@ Rounding every part separately makes the parts disagree with the rounded total (
 - An existing test that asserts a cent value (for example `1234.56`) gets the new whole-yen expected value. This applies the approved contract; it does not weaken the test. Never delete a test, skip it, or widen a tolerance to make it pass.
 - **Ratchet guard** (added in slice R0): `tests/yen-ceiling-rounding-guard-test.js` with its baseline `tests/fixtures/yen-ceiling-rounding-baseline.json`. It checks two things:
   - **Lexical:** a `js/` file that is not listed in the baseline's `pendingFiles` must not contain a ¥0.01 rounding pattern (`*100)/100` and its spacing variants), except where `economic-operation.js` defines `roundMoney`.
-  - **Runtime:** the test runs a fixed seeded scenario for a fixed number of weeks. It then asserts that every ledger row whose `sourceType`/`category` is not listed in the baseline's `pendingSources` has whole-yen `amount` and effects. When `pendingSources` is empty (slice R9), it also asserts that every company, personal and competitor cash/debt field is whole.
+  - **Runtime:** each slice adds focused scenarios for its migrated sources. The scenarios start from whole-yen balances and drive the slice's writers directly. The test asserts that every ledger row those writers produce has a whole-yen `amount` and whole-yen effects. A full seeded run would also exercise unmigrated writers, whose fractions can legitimately cap a migrated amount (§3.5), so the full run is not used before R9. From R9, when `pendingSources` is empty, the test adds a fixed seeded full run and asserts that every ledger row is whole, and that every company, personal and competitor cash/debt field is whole.
   - Each slice **removes** its entries from both lists. The lists may only shrink; the test fails if an entry is added.
 
 ## 7. Approval boundary
@@ -96,7 +101,7 @@ One slice per PR. Branch name: `fix/yen-ceil-<slice id lower-case>` (for example
 | Slice | Files / families | Notes | Status | PR |
 |---|---|---|---|---|
 | R0 | `economic-operation.js` (`ceilYen`, `allocateYen` + unit tests); ratchet guard test + baseline listing every current file and source | No behaviour change: nothing calls the new helpers yet | TODO | |
-| R1 | `finance.js` (`r` helper, generic interest, loans, depreciation, 13-week forecast), `economic-settlement.js`, `treasury-prepayment.js` | Ledger core first, so later slices post whole yen into a whole-yen ledger | TODO | |
+| R1 | `finance.js`'s own writers (generic interest, loan schedule postings, depreciation), `treasury-prepayment.js` | Calls `ceilYen` explicitly at each posting. The shared `r` (and with it `finance.event`'s normalisation) stays ¥0.01 (§2) | TODO | |
 | R2 | Store operations: `engine.js` store P&L and weekly cash (revenue, costs, wages, rent, closures, refunds), `workforce.js`, `supply.js`, `store-equipment.js`, `menu-research.js`, `player-media-advertising.js`, `product-lifecycle.js`, `completion.js`, `parity.js`, `expansion.js` | Largest slice; split into R2a (engine.js) / R2b (rest) if the diff exceeds one review | TODO | |
 | R3a | Company real estate, acquisition/finance/disposal: `real-estate.js`, `real-estate-mortgage-refinancing.js`, `real-estate-property-disposals.js`, `real-estate-property-taxes.js`, `real-estate-development.js`, `real-estate-price-negotiation.js`, `real-estate-complete-cycle.js`, `real-estate-redevelopment-projects.js`, `real-estate-agency-credit-line.js` | Mortgage: interest is the charge, principal is the remainder (§4) | TODO | |
 | R3b | Company real estate, tenants/rent: `real-estate-tenant-*.js`, `real-estate-rent-*.js`, `real-estate-security-deposits.js` | Deposits are refunded at their stored whole-yen amount | TODO | |
@@ -106,7 +111,7 @@ One slice per PR. Branch name: `fix/yen-ceil-<slice id lower-case>` (for example
 | R6 | M&A, PE, subsidiaries: `ma-*.js`, `pe-fund.js`, `pe-portfolio-operations.js`, `pe-value-creation.js`, `pmi-100-day-plan.js`, `listed-subsidiary-*.js`, `subsidiary-*.js`, `group-*.js`, `inter-subsidiary-synergy-allocation.js` | Fund waterfalls use `allocateYen` | TODO | |
 | R7 | Crisis, governance, new business: `player-crisis-*.js`, `company-recall-crisis.js`, `industry-event-response-plans.js`, `executive-reviews-succession-board.js`, `executives-department-assignments.js`, `new-business-*.js`, `internal-venture-business.js`, `sports-management.js` | | TODO | |
 | R8 | Competitors and NPCs: `competitor*.js` (money fields only), `pe-rivals.js` | `competitor-credit.js` already rounds to whole yen with `Math.round`; switch it to `ceilYen` for consistency | TODO | |
-| R9 | Remainder and closing: `save-storage.js`, `save-v9.js`, `play-runtime-compat.js`, `player-engine-bridge.js`, `difficulty-scenario-balance.js`, `iphone-baseline-probe.js`, any file still in the baseline; empty both pending lists; enable the state-level whole-yen assertion; update `PHASE_0_CONTRACTS.md` §5 status to "fully migrated" | After R9, a later separate PR may tighten the `finance.validate` tolerances | TODO | |
+| R9 | Remainder and closing: switch or remove the shared ¥0.01 normalisers (`finance.js` `r` as applied by `finance.event`, `economic-settlement.js`'s `roundMoney` calls); `save-storage.js`, `save-v9.js`, `play-runtime-compat.js`, `player-engine-bridge.js`, `difficulty-scenario-balance.js`, `iphone-baseline-probe.js`, any file still in the baseline; empty both pending lists; enable the state-level whole-yen assertion; update `PHASE_0_CONTRACTS.md` §5 status to "fully migrated" | After R9, a later separate PR may tighten the `finance.validate` tolerances | TODO | |
 
 The file lists come from the 2026-10-22 inventory of `main` (`2690051`):
 
