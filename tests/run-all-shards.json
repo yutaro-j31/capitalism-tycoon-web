@@ -245,7 +245,8 @@
     "tests/pe-conveni-bridge-negative-test.js",
     "tests/pe-conveni-ui-connection-test.js",
     "tests/pe-d-ui-management-levers-test.js",
-    "tests/ma-subsidiary-sale-save-atomicity-test.js"
+    "tests/ma-subsidiary-sale-save-atomicity-test.js",
+    "tests/cash-write-runtime-guard-test.js"
   ],
   "I": [
     "tests/competitor-product-counter-reachability-test.js",
@@ -289,7 +290,8 @@
     "tests/group-capital-allocation-cash-exact-test.js",
     "tests/phase3-pe-fund-interests-test.js",
     "tests/phase3-pe-lp-commitments-test.js",
-    "tests/phase3-restructuring-lifecycle-test.js"
+    "tests/phase3-restructuring-lifecycle-test.js",
+    "tests/phase3-founder-wealth-test.js"
   ],
   "L": [
     "tests/stock-split-price-floor-test.js",
@@ -304,8 +306,11 @@
     "tests/activate-defense-ownership-ratios-test.js",
     "tests/ma-equity-raise-shadow-atomicity-test.js",
     "tests/phase3-vc-source-interests-test.js",
+    "tests/p4-aud-004-personal-secured-repayment-test.js",
     "scripts/p4-aud-003-founder-capital-atomicity.cjs",
     "tests/debt-command-save-atomicity-test.js",
-    "tests/property-debt-principal-sync-test.js"
+    "tests/phase3-control-eligibility-test.js",
+    "tests/property-debt-principal-sync-test.js",
+    "tests/p4-aud-007-mortgage-disposal-debt-test.js"
   ]
 }

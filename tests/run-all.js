@@ -36,6 +36,7 @@ const nodeTests = [
   ['property-debt-principal-sync', 'tests/property-debt-principal-sync-test.js'],
   ['p4-aud-003-founder-capital-atomicity', 'scripts/p4-aud-003-founder-capital-atomicity.cjs'],
   ['debt-command-save-atomicity', 'tests/debt-command-save-atomicity-test.js'],
+  ['cash-writer-ratchet', 'tests/cash-writer-ratchet-test.js'],
   ['authoritative-company-cash', 'tests/authoritative-company-cash-test.js'],
   ['real-estate-construction-in-progress', 'tests/real-estate-construction-in-progress-test.js'],
   ['bank-loans-covenants-accounting', 'tests/bank-loans-covenants-accounting-test.js'],
@@ -151,6 +152,8 @@ const nodeTests = [
   ['phase3-vc-source-interests', 'tests/phase3-vc-source-interests-test.js'],
   ['phase3-pe-fund-interests', 'tests/phase3-pe-fund-interests-test.js'],
   ['phase3-pe-lp-commitments', 'tests/phase3-pe-lp-commitments-test.js'],
+  ['phase3-founder-wealth', 'tests/phase3-founder-wealth-test.js'],
+  ['phase3-control-eligibility', 'tests/phase3-control-eligibility-test.js'],
   ['player-own-share-conservation', 'tests/player-own-share-conservation-test.js'],
   ['economic-foundation-draws', 'tests/economic-foundation-draws-test.js'],
   ['phase0-5-seed-provenance', 'tests/phase0-5-seed-provenance-test.js'],
@@ -214,6 +217,7 @@ const nodeTests = [
   ['real-estate-capex-actuals', 'tests/real-estate-capex-actuals-test.js'],
   ['real-estate-capex-roi', 'tests/real-estate-capex-roi-test.js'],
   ['real-estate-complete-cycle', 'tests/real-estate-complete-cycle-test.js'],
+  ['p4-aud-004-personal-secured-repayment', 'tests/p4-aud-004-personal-secured-repayment-test.js'],
   ['real-estate-complete-cycle-draws', 'tests/real-estate-complete-cycle-draws-test.js'],
   ['real-estate-development', 'tests/real-estate-development-test.js'],
   ['real-estate-foundation', 'tests/real-estate-foundation-test.js'],
@@ -226,6 +230,7 @@ const nodeTests = [
   ['real-estate-price-negotiation', 'tests/real-estate-price-negotiation-test.js'],
   ['real-estate-property-disposals', 'tests/real-estate-property-disposals-test.js'],
   ['canonical-property-disposition', 'tests/canonical-property-disposition-test.js'],
+  ['p4-aud-007-mortgage-disposal-debt', 'tests/p4-aud-007-mortgage-disposal-debt-test.js'],
   ['real-estate-property-insurance', 'tests/real-estate-property-insurance-test.js'],
   ['real-estate-property-maintenance', 'tests/real-estate-property-maintenance-test.js'],
   ['real-estate-property-management', 'tests/real-estate-property-management-test.js'],
@@ -499,7 +504,8 @@ const nodeTests = [
   ['pe-realestate-agency-portfolio-bridge', 'tests/pe-realestate-agency-portfolio-bridge-test.js'],
   ['pe-realestate-agency-bridge-208week-regression', 'tests/pe-realestate-agency-bridge-208week-regression-test.js'],
   ['pe-realestate-agency-bridge-negative', 'tests/pe-realestate-agency-bridge-negative-test.js'],
-  ['pe-realestate-agency-ui-connection', 'tests/pe-realestate-agency-ui-connection-test.js']
+  ['pe-realestate-agency-ui-connection', 'tests/pe-realestate-agency-ui-connection-test.js'],
+  ['cash-write-runtime-guard', 'tests/cash-write-runtime-guard-test.js'],
 ];
 
 for (let i = 0; i < nodeTests.length; i++) {

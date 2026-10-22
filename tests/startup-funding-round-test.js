@@ -32,4 +32,133 @@ function reload(x){x.e.save();const raw=x.loaded.ctx.__localStorageData.get(x.lo
 {
  const x=setup();x.s.ownedCompany=0;x.s.ownedPersonal=.0500009;x.s.totalInvestedPersonal=10e6;x.s.activeFundingRound=null;const cash=x.e.g.personalCash,preStake=x.s.valuation*x.s.ownedPersonal,preWorth=x.e.personalNetWorth();assert.equal(preWorth,cash+preStake);x.e.listStartup(x.s);const holding=x.e.g.personalStocks[x.s.ipoStockID],stock=x.e.stock(x.s.ipoStockID),postStake=holding.qty*stock.price;assert.equal(holding.qty,Math.floor(.0500009*1e6));assert.equal(x.s.ownedPersonal,0);assert.ok(Math.abs(x.e.personalNetWorth()-(cash+postStake))<1e-7);assert.ok(Math.abs((x.e.personalNetWorth()-preWorth)-(postStake-preStake))<1e-7);
 }
+// Codex P2 on #1029: every receipt the payment-evidence check needs must survive the 24-row
+// history cap, and receipt IDs must stay unique, for any state the public writer can produce.
+{
+ const x=setup(),p=open(x),step=100_000;let accepted=0;
+ for(let i=0;i<25;i++)if(x.e.participateStartupFundingRound(x.s.id,step,'personal'))accepted++;
+ assert.ok(accepted<25,'the writer must stop before a receipt would fall out of the capped history');
+ assert.equal(x.s.activeFundingRound.contributedPersonal,accepted*step);
+ const ids=x.e.g.startupFundingHistory[x.s.id].map(row=>row.id);assert.equal(new Set(ids).size,ids.length,'receipt IDs are unique');
+ assert.equal(x.e.hasStartupFundingRoundPaymentEvidence(x.s.id,'personal'),true,'all paid installments remain provable');
+ x.e.g.week=p.closesWeek;assert.equal(x.e.closeStartupFundingRound(x.s),true,'a round funded through the public writer can close');
+}
+{
+ const x=setup();x.e.g.startupFundingHistory[x.s.id]=Array.from({length:24},(_,i)=>({id:`old-round-${i}`,eventType:'closed',stage:'Seed',closedWeek:1}));
+ const p=open(x);
+ assert.equal(x.e.participateStartupFundingRound(x.s.id,100_000,'personal'),true);
+ assert.equal(x.e.participateStartupFundingRound(x.s.id,100_000,'personal'),true,'second installment in the same week');
+ const ids=x.e.g.startupFundingHistory[x.s.id].map(row=>row.id);assert.equal(new Set(ids).size,ids.length,'full prior history must not reuse receipt IDs');
+ assert.equal(x.e.hasStartupFundingRoundPaymentEvidence(x.s.id,'personal'),true);
+ x.e.g.week=p.closesWeek;assert.equal(x.e.closeStartupFundingRound(x.s),true);
+}
+{
+ // A round opened before this fix keeps legacy history-length suffixes; new receipts must not collide.
+ const x=setup(),p=open(x),r=x.s.activeFundingRound;
+ assert.equal(x.e.participateStartupFundingRound(x.s.id,100_000,'personal'),true);
+ const first=x.e.g.startupFundingHistory[x.s.id][0];first.id=`${r.id}-personal-${x.e.g.week}-0`;
+ const legacy={...first,id:`${r.id}-personal-${x.e.g.week}-2`};x.e.g.startupFundingHistory[x.s.id].unshift(legacy);
+ r.contributedPersonal+=legacy.amount;x.s.totalInvestedPersonal+=legacy.amount;
+ assert.equal(x.e.participateStartupFundingRound(x.s.id,100_000,'personal'),true);
+ const ids=x.e.g.startupFundingHistory[x.s.id].map(row=>row.id);assert.equal(new Set(ids).size,ids.length,'no collision with legacy receipt IDs');
+ assert.equal(x.e.hasStartupFundingRoundPaymentEvidence(x.s.id,'personal'),true);
+}
+// Owner decision 2026-10-20 (#1029, option a): a legacy save whose pre-fix writer already pushed
+// receipts out of the 24-row history is held fail-closed. Nothing is converted, refunded or
+// rewritten, the cause is identifiable, and the hold survives save/reload.
+{
+ const x=setup(),p=open(x),r=x.s.activeFundingRound,step=100_000,cash0=x.e.g.personalCash,basis0=finite0(x.s.totalInvestedPersonal);
+ function finite0(v){return Number.isFinite(v)?v:0;}
+ // Exact pre-fix writer effects: charge, accumulate, receipt suffix = history length, cap at 24.
+ const legacyPay=()=>{x.e.g.personalCash-=step;r.contributedPersonal+=step;x.s.totalInvestedPersonal=finite0(x.s.totalInvestedPersonal)+step;const h=x.e.g.startupFundingHistory[x.s.id];h.unshift({id:`${r.id}-personal-${x.e.g.week}-${h.length}`,eventType:'participated',stage:p.round,week:x.e.g.week,account:'personal',amount:step,preMoneyValuation:p.preMoneyValuation,targetRaise:p.targetRaise,postMoneyValuation:p.postMoneyValuation});x.e.g.startupFundingHistory[x.s.id]=h.slice(0,24);};
+ for(let i=0;i<25;i++)legacyPay();
+ assert.equal(r.contributedPersonal,25*step);assert.equal(x.e.g.personalCash,cash0-25*step);assert.equal(x.s.totalInvestedPersonal,basis0+25*step);
+ assert.equal(x.e.hasStartupFundingRoundPaymentEvidence(x.s.id,'personal'),false,'truncated receipts cannot prove the pending amount');
+ const hold=x.e.getStartupFundingRoundHold(x.s.id);
+ assert.equal(hold.code,'PAYMENT_HISTORY_TRUNCATED');assert.equal(hold.accounts.length,1);
+ assert.equal(hold.accounts[0].account,'personal');assert.equal(hold.accounts[0].pending,25*step);
+ const visible=x.e.g.startupFundingHistory[x.s.id].filter(row=>row.eventType==='participated').reduce((t,row)=>t+row.amount,0);
+ assert.equal(hold.accounts[0].retainedPaid,visible,'every retained receipt row counts, including reused legacy IDs');
+ assert.ok(hold.accounts[0].duplicateReceiptIDs>0,'reused legacy receipt IDs are reported');
+ assert.equal(hold.accounts[0].unproven,25*step-visible);
+ const before=JSON.stringify(x.e.g);
+ assert.equal(x.e.participateStartupFundingRound(x.s.id,step,'personal'),false,'a full round refuses further installments');
+ assert.equal(JSON.stringify(x.e.g),before,'refused installment changes nothing');
+ x.e.g.week=p.closesWeek;
+ const keep=()=>JSON.stringify({s:x.e.g.startups.find(row=>row.id===x.s.id),h:x.e.g.startupFundingHistory[x.s.id],personal:x.e.g.personalCash,company:x.e.g.companyCash});
+ const held=keep();
+ assert.equal(x.e.closeStartupFundingRound(x.s),false,'unproven round is not closed');
+ x.e.updateStartups();x.e.updateStartups();
+ assert.equal(keep(),held,'held round keeps cash, contribution, cost basis, stake and history unchanged');
+ assert.ok(x.s.activeFundingRound&&x.s.activeFundingRound.contributedPersonal===25*step,'subscription is neither converted nor refunded');
+ const y=reload(x);
+ assert.equal(y.s.activeFundingRound.contributedPersonal,25*step);
+ assert.equal(y.e.getStartupFundingRoundHold(y.s.id).code,'PAYMENT_HISTORY_TRUNCATED','hold survives save/reload');
+}
+// A fully evidenced round has no hold.
+{
+ const x=setup(),p=open(x);assert.equal(x.e.getStartupFundingRoundHold(x.s.id),null);
+ assert.equal(x.e.participateStartupFundingRound(x.s.id,p.personal.proRataRequired/2,'personal'),true);
+ assert.equal(x.e.getStartupFundingRoundHold(x.s.id),null);
+ // A mismatch without the truncation signature is reported as such.
+ x.s.activeFundingRound.contributedPersonal+=1;x.s.totalInvestedPersonal+=1;
+ assert.equal(x.e.getStartupFundingRoundHold(x.s.id).code,'PAYMENT_EVIDENCE_MISMATCH');
+}
+// Codex P1 on #1029: a round whose contribution fields are unreadable is kept (not discarded) while a
+// paid receipt exists. Codex P2: the hold is rendered even though no round plan can be built.
+{
+ const x=setup(),p=open(x);assert.equal(x.e.participateStartupFundingRound(x.s.id,100_000,'personal'),true);
+ delete x.s.activeFundingRound.contributedPersonal;delete x.s.activeFundingRound.contributedCompany;
+ assert.equal(x.e.getStartupFundingRoundPlan(x.s.id),null);
+ const before=JSON.stringify(x.e.g.startups.find(row=>row.id===x.s.id));
+ x.e.updateStartups();
+ assert.equal(JSON.stringify(x.e.g.startups.find(row=>row.id===x.s.id)),before,'round with a paid receipt is preserved unchanged');
+ assert.equal(x.e.getStartupFundingRoundHold(x.s.id).code,'ROUND_STRUCTURE_INVALID');
+ for(const bad of ['100000',NaN]){const y=setup();open(y);y.s.activeFundingRound.contributedCompany=bad;y.e.updateStartups();assert.ok(y.s.activeFundingRound,'unreadable contribution keeps the round');}
+ x.e.g.selectedTab='venture';x.e.save();const raw=x.loaded.ctx.__localStorageData.get(x.loaded.engineModule.SAVE_KEY);
+ const ui=loadGame({localStorageInitial:{[x.loaded.engineModule.SAVE_KEY]:raw}});
+ assert.match(String(ui.ctx.document.getElementById('app').innerHTML),/data-startup-funding-round-hold="ROUND_STRUCTURE_INVALID"/,'hold notice renders without a round plan');
+}
+// Codex P1 on #1029: a retained round with a payment claim but a corrupt status still blocks every
+// ownership-changing writer and the venture UI, so the held evidence cannot be contradicted.
+{
+ const x=setup();open(x);assert.equal(x.e.participateStartupFundingRound(x.s.id,100_000,'personal'),true);
+ x.s.activeFundingRound.status='corrupt';x.e.updateStartups();assert.ok(x.s.activeFundingRound,'claimed round is retained');
+ x.s.ownedCompany=.6;x.s.totalInvestedCompany=50e6;
+ const before=JSON.stringify(x.e.g);
+ assert.equal(x.e.investStartup(x.s.id,1_000_000,'company'),false,'initial investment is blocked');
+ assert.equal(x.e.makeSubsidiary(x.s.id),false,'subsidiary conversion is blocked');
+ assert.equal(x.e.listStartup(x.s),false,'listing is blocked');
+ assert.equal(JSON.stringify(x.e.g),before,'blocked writers change nothing');
+ x.e.g.selectedTab='venture';x.e.save();const raw=x.loaded.ctx.__localStorageData.get(x.loaded.engineModule.SAVE_KEY);
+ const html=String(loadGame({localStorageInitial:{[x.loaded.engineModule.SAVE_KEY]:raw}}).ctx.document.getElementById('app').innerHTML);
+ assert.match(html,/data-action="make-subsidiary" data-id="[^"]+"\s+disabled/,'subsidiary button is disabled while held');
+}
+// Codex P1 on #1029: the payment-claim detector uses the same damaged-receipt matcher as the
+// evidence reader. Corrupt status + zeroed contributions + a damaged receipt ID is still held.
+{
+ const x=setup();open(x);assert.equal(x.e.participateStartupFundingRound(x.s.id,100_000,'personal'),true);
+ const r=x.s.activeFundingRound;r.status='corrupt';r.contributedPersonal=0;r.contributedCompany=0;
+ x.e.g.startupFundingHistory[x.s.id][0].id='damaged-receipt';
+ assert.equal(x.e.hasStartupFundingRoundPaymentEvidence(x.s.id,'personal'),false,'evidence reader fails closed');
+ assert.equal(x.e.startupFundingRoundHasPaymentClaim(x.s),true,'claim detector agrees with the evidence reader');
+ const before=JSON.stringify(x.e.g.startups.find(row=>row.id===x.s.id));
+ x.e.updateStartups();
+ assert.equal(JSON.stringify(x.e.g.startups.find(row=>row.id===x.s.id)),before,'damaged-receipt round is preserved unchanged');
+ assert.ok(x.e.getStartupFundingRoundHold(x.s.id),'hold is reported');
+ x.s.ownedCompany=.6;x.s.totalInvestedCompany=50e6;
+ const state=JSON.stringify(x.e.g);
+ assert.equal(x.e.investStartup(x.s.id,1_000_000,'company'),false,'initial investment is blocked');
+ assert.equal(x.e.makeSubsidiary(x.s.id),false,'subsidiary conversion is blocked');
+ assert.equal(x.e.listStartup(x.s),false,'listing is blocked');
+ assert.equal(JSON.stringify(x.e.g),state,'blocked writers change nothing');
+ x.e.g.selectedTab='venture';x.e.save();const raw=x.loaded.ctx.__localStorageData.get(x.loaded.engineModule.SAVE_KEY);
+ const html=String(loadGame({localStorageInitial:{[x.loaded.engineModule.SAVE_KEY]:raw}}).ctx.document.getElementById('app').innerHTML);
+ assert.match(html,/data-startup-funding-round-hold="/,'hold notice renders');
+ assert.match(html,/data-action="make-subsidiary" data-id="[^"]+"\s+disabled/,'subsidiary button is disabled while held');
+ // A participation row from a prior round (outside the week window) is not a claim on this round.
+ const y=setup();open(y);const ry=y.s.activeFundingRound;
+ y.e.g.startupFundingHistory[y.s.id].push({id:'old',eventType:'participated',stage:ry.round,week:ry.openedWeek-1,account:'personal',amount:1,preMoneyValuation:ry.preMoneyValuation,targetRaise:ry.targetRaise,postMoneyValuation:ry.postMoneyValuation});
+ assert.equal(y.e.startupFundingRoundHasPaymentClaim(y.s),false,'prior-round receipt is not a claim');
+}
 console.log('startup funding round tests passed');
