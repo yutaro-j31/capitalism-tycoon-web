@@ -5,7 +5,7 @@
 **Baseline observed when authored:** `400338a25cbc57b7c2a80b4191296d3505f09ba5` (never assume this stays current)  
 **Status:** Owner-directed implementation-sequencing policy; **NOT** an authorization for any source-of-truth cutover, economic redesign, Phase 4 Entry, banking product-policy choice, or unconditional merge.  
 **Audience:** any agent with an actual repository environment (ChatGPT, ChatGPT Work, Claude Code, Codex, other agents, human developers).  
-**Relationship to legacy roadmap:** this document is the operative **sequencing, validation-budget, and handoff policy**. `ECONOMIC_ENGINE_ROADMAP.md` and `ECONOMIC_ENGINE_DEPENDENCY_GRAPH.md` remain the detailed economic specification and phase/dependency inventory. Existing approved contracts, identity/accounting requirements, owner gates, and permanent tests remain binding. Where an old document calls for repeated *nonessential exploratory full-system audits during implementation*, this newer Owner policy defers those audits to Quality Completion. It **does not** waive a specifically required save-atomicity, writer-adoption, source-of-truth, CI, old-save, accounting, WebKit, or cutover safety proof.
+**Relationship to legacy roadmap:** this document is the operative **sequencing, validation-budget, and handoff policy**. `ECONOMIC_ENGINE_ROADMAP.md` and `ECONOMIC_ENGINE_DEPENDENCY_GRAPH.md` remain the detailed economic specification and phase/dependency inventory. Existing approved contracts, identity/accounting requirements, owner gates, and permanent tests remain binding. Where an old document calls for repeated *nonessential exploratory full-system audits during implementation*, this newer Owner policy defers those audits to Quality Completion. It **does not** waive a specifically required save-atomicity, writer-adoption, source-of-truth, CI, accounting, WebKit, or cutover safety proof.
 
 ---
 
@@ -23,7 +23,7 @@ Important nuance: **"implement first" does not mean "merge known-corrupting code
 ### Development work that continues during F
 
 - Implement one reviewable concern per PR and integrate the vertical slice.
-- Run focused unit/contract tests; relevant deterministic/accounting tests; and save-failure/rollback/old-save tests **when the change touches their authority**.
+- Run focused unit/contract tests; relevant deterministic/accounting tests; and save-failure/rollback tests **when the change touches their authority**.
 - Keep the existing permanent Phase 0.5/1/2 gates and applicable canonical CI; check real iPhone WebKit jobs when browser/save/UI behavior changes.
 - Fix known P0/P1 in the touched path or keep that capability disabled; preserve exact evidence in issues.
 - Confirm the final installed JS wrappers, legal-entity payer/owner, and complete writer-family coverage **before an authoritative cutover**. Mere read-only projection does not require a global writer audit.
@@ -52,7 +52,7 @@ If a scoped contract has a stronger safety prerequisite, satisfy it. If the new 
 
 ## 3. Non-negotiable invariants (F and Q)
 
-- `SAVE_KEY=capitalism_tycoon_web_v1`, `saveVersion=9`; backward-compatible old saves and compaction/reload.
+- `SAVE_KEY=capitalism_tycoon_web_v1`, `saveVersion=9`; save compaction/reload. Compatibility with existing saves is not required (Owner decision, 2026-10-22).
 - Deterministic persisted `simulationRng.seed`; stable iteration/tie-break, no `Math.random()` or uncontrolled wall-clock in production economic simulation; rendering consumes zero simulation RNG.
 - Distinct company, founder-person, subsidiary, PE-fund, VC-vehicle, property/SPV, and later banking legal-entity ownership/cash. Company investment is not personal investment.
 - Monetary conservation, balanced multi-leg postings, debt principal vs interest distinction, no fabricated cash/asset, no duplicate shares/beneficial interest/transaction receipts.
@@ -106,7 +106,7 @@ Select the **first uncompleted, authorized and dependency-ready slice** with no 
 |---|---|---|
 | Docs/design only | Source/link/contradiction check, clear unmerged/unknown labels, relevant docs CI if applicable | Simulation, runtime WebKit unless docs CI specifically demands it |
 | Pure calculation/read model | Focused valid/invalid boundary cases, input immutability, deterministic equality, zero RNG/save mutations, applicable CI | Large seed sweep and all-sector fuzz |
-| New economic writer or authority cutover | Exact account/identity/ledger invariants, relevant writer call-sites, save-false/throw and rollback, old save + compaction/reload + real IDB/hydration when touched, replay/idempotency, focused cross-family tests, applicable full CI/WebKit, scoped independent diff audit | Broad independent audit of **unrelated** writers, high-volume Monte Carlo |
+| New economic writer or authority cutover | Exact account/identity/ledger invariants, relevant writer call-sites, save-false/throw and rollback, compaction/reload + real IDB/hydration when touched, replay/idempotency, focused cross-family tests, applicable full CI/WebKit, scoped independent diff audit | Broad independent audit of **unrelated** writers, high-volume Monte Carlo |
 | UI integration | Command permission identical to backend, iPhone viewport/WebKit interaction, no unauthorized direct execution | Whole-application UX audit |
 | CI or test harness | Relevant workflow contract, actual affected event/jobs and test registration; no fake green/skip | Unrelated economic long-run |
 | Bug fix P0/P1 | Reproduce RED against correct base, smallest fix, GREEN regression, adjacent failure cases and actual CI | General re-audit of entire repository |
