@@ -92,6 +92,9 @@ const SCENARIOS = [
     const rows = rowsSince(g, count, row => row.sourceType === 'voluntaryDebtPrepayment');
     assert.equal(rows.length, 1);
     assert.equal(rows[0].amount, 1_234_568, 'a requested ¥0.3 rounds up to the next yen');
+    const before = g.finance.transactions.length;
+    assert.equal(engine.prepayCompanyDebtVoluntarily(5e-10), false, 'a request that rounds to ¥0 is rejected, not reported as paid');
+    assert.equal(g.finance.transactions.length, before);
     return { rows, state: { companyCash: g.companyCash, companyDebt: g.companyDebt } };
   } },
 ];

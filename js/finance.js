@@ -29,8 +29,9 @@ const r=v=>Math.round(n(v)*100)/100;
 // Whole-yen settlement (YEN_CEILING_ROUNDING_CONTRACT §2). `r` stays the shared ¥0.01 normaliser.
 const ceilYen=v=>__modules.economicOperation.ceilYen(n(v));
 // Weekly straight-line charge: rounded up, then capped at book − salvage (§3.3). `legacy` is the pre-R1 ¥0.01 schedule,
-// accepted only when re-validating rows already in the ledger (saves made before R1).
-function depreciationSchedule(bookBefore,asset){const room=Math.max(0,n(bookBefore)-n(asset?.salvageValue)),straight=Math.max(0,(n(asset?.acquisitionCost)-n(asset?.salvageValue))/n(asset?.usefulLifeWeeks,1));return {whole:Math.min(ceilYen(straight),room),legacy:r(Math.min(room,straight))};}
+// accepted only when re-validating rows already in the ledger (saves made before R1). The cap keeps the cent
+// normaliser so a pre-R1 fractional book (§3.5) posts the same capped amount the ledger row stores.
+function depreciationSchedule(bookBefore,asset){const room=Math.max(0,n(bookBefore)-n(asset?.salvageValue)),straight=Math.max(0,(n(asset?.acquisitionCost)-n(asset?.salvageValue))/n(asset?.usefulLifeWeeks,1));return {whole:Math.min(ceilYen(straight),r(room)),legacy:r(Math.min(room,straight))};}
 const STANDALONE_CLOSE_SCHEMA_VERSION=1;
 const DEBT_ROLLFORWARD_SCHEMA_VERSION=1;
 const DEBT_ROLLFORWARD_TOLERANCE=0.01;
