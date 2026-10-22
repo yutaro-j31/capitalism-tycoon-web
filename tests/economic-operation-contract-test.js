@@ -199,7 +199,9 @@ for (const [input, expected] of [
   [1200.0000000002, 1200], [(0.1 + 0.2) * 10, 3], [3 * 0.1 * 100, 30], [1e7 * 1.1, 11000000], [-1e-12, 0], [0, 0], [1e13 + 0.5, 1e13 + 1],
   [1e12 + 0.01, 1e12 + 1], [1e13 + 0.01, 1e13 + 1], [8e13 + 0.02, 8e13 + 1],
   // Either side of the ¥0.005 cap crossover (|x|·4·EPSILON = 0.005 at about ¥5.63e12).
-  [5e12 + 0.006, 5e12 + 1], [6e12 + 0.006, 6e12 + 1], [6e12 + 0.004, 6e12]
+  [5e12 + 0.006, 5e12 + 1], [6e12 + 0.006, 6e12 + 1], [6e12 + 0.004, 6e12],
+  // The 1e-9 floor is the minimum monetary quantum (contract §2): smaller fractions are noise.
+  [1.0000000005, 1], [5e-10, 0], [1.000000002, 2]
 ]) assert.equal(core.ceilYen(input), expected, `ceilYen(${input})`);
 assert.ok(Object.is(core.ceilYen(-0), 0) && Object.is(core.ceilYen(-1e-12), 0), 'ceilYen never returns -0');
 for (const value of [12.3, -12.3, 0.1 + 0.2, 1e13 + 0.5]) assert.equal(core.ceilYen(core.ceilYen(value)), core.ceilYen(value), 'ceilYen is idempotent');
