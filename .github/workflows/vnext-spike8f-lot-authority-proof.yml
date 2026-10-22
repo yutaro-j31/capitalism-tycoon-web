@@ -1,0 +1,68 @@
+# Non-mergeable vNext proof laboratory. NEVER merge eighth workflow into main.
+name: vNext SPIKE-8F source lot and supplier authority proof
+on:
+  push:
+    branches:
+      - ci/vnext-spike8f-lot-authority-proof-20261022
+permissions:
+  contents: read
+concurrency:
+  group: vnext-spike8f-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  node-contracts:
+    name: 471 direct Node 22 vNext contract cases
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Verify all eighteen experimental test suites
+        shell: bash
+        run: |
+          set -euo pipefail
+          git rev-parse HEAD
+          node --version
+          for t in core equity store unified 13-week legacy-crosswalk legacy-13week-capture legacy-observation-analysis inventory-ap operating legacy-week-bridge legacy-source-graph legacy-company-replay legacy-inventory-rollforward legacy-fixedasset-replay legacy-spoilage-replay legacy-cogs-funding legacy-lot-authority; do
+            node "experiments/economic-engine-vnext/$t.test.cjs"
+          done
+  actual-legacy-lot-authority:
+    name: Genuine 13-week opening stock, supplier catalogue and merged PO source audit
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Execute source-pinned existing game and new lot-authority audit
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p proof
+          git rev-parse HEAD > proof/source-sha.txt
+          node --version > proof/node-version.txt
+          node experiments/economic-engine-vnext/legacy-13week-headless.cjs > proof/legacy-13week.json
+          node experiments/economic-engine-vnext/legacy-week-bridge-cli.cjs proof/legacy-13week.json > proof/receipts.json
+          node experiments/economic-engine-vnext/legacy-source-graph-cli.cjs proof/legacy-13week.json > proof/PO-source.json
+          node experiments/economic-engine-vnext/legacy-inventory-rollforward-cli.cjs proof/legacy-13week.json > proof/physical-lots.json
+          node experiments/economic-engine-vnext/legacy-company-replay-cli.cjs proof/legacy-13week.json > proof/credit-core.json
+          node experiments/economic-engine-vnext/legacy-fixedasset-replay-cli.cjs proof/legacy-13week.json > proof/fixed-assets-core.json
+          node experiments/economic-engine-vnext/legacy-spoilage-replay-cli.cjs proof/legacy-13week.json > proof/spoilage-core.json
+          node experiments/economic-engine-vnext/legacy-cogs-funding-cli.cjs proof/legacy-13week.json > proof/COGS-funding.json
+          node experiments/economic-engine-vnext/legacy-lot-authority-cli.cjs proof/legacy-13week.json > proof/lot-authority.json
+          node -e "const x=require('./proof/lot-authority.json');if(x.status!=='SOURCE_LOT_AUTHORITY_GAPS_PARTIAL'||x.sourceWeeks!==13||x.previousSourceRowsPosted!==53||x.previousSourceRowsHeld!==96||x.cashPurchasePOs.length!==2||x.newlyPostedCOGS!==0||x.newlyPostedCashPurchases!==0||x.opening.physicalBookMinor!==13483)process.exit(1);console.log(JSON.stringify({status:x.status,opening:x.opening,originalPOs:x.originalPOsVisible,contracts:x.originalSupplierContractsVisible,mergerEvents:x.lotMergerTransitions,unresolvedOrigins:x.unresolvedPORefAppearances,cashPOs:x.cashPurchasePOs,blockers:x.blockers},null,2))"
+      - name: Preserve original source and authority result
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: vnext-spike8f-genuine-supplier-and-lot-evidence
+          path: proof/
+          if-no-files-found: warn
+          retention-days: 7
