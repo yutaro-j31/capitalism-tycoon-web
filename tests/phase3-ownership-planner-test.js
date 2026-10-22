@@ -13,7 +13,7 @@ vm.runInContext(source,ctx,{filename:'phase3-ownership-planner.js'});
 const api=registry.phase3OwnershipPlanner,inspect=api.inspectOwnershipAuthority,plan=api.planOwnershipChange;
 const plain=x=>JSON.parse(JSON.stringify(x));
 function deepFreeze(x,seen=new Set()){if(x&&typeof x==='object'&&!seen.has(x)){seen.add(x);for(const d of Object.values(Object.getOwnPropertyDescriptors(x)))if('value'in d)deepFreeze(d.value,seen);Object.freeze(x);}return x;}
-function state(){return {currentCompanySerial:1,isCompanySold:false,publicCompany:true,ticker:'OWN',sharesOut:1000,founderShares:600,treasuryBuybackShares:100,
+function state(){return {currentCompanySerial:1,isCompanySold:false,publicCompany:true,companyName:'Own',ticker:'OWN',sharesOut:1000,founderShares:600,treasuryBuybackShares:100,
  personalStocks:{OWN:{qty:10,avg:123},X:{qty:20,avg:34}},companyStocks:{X:{qty:30,avg:45}},market:[{id:'OWN',issuedShares:1000,price:99},{id:'X',issuedShares:2000}],startups:[]};}
 function scope(){return {family:'player-common',issuerEntityId:constants.PLAYER_COMPANY_ENTITY_ID,securityClassId:constants.PLAYER_COMPANY_COMMON_SECURITY_CLASS_ID,currentCompanySerial:1};}
 const kinds={
@@ -32,8 +32,8 @@ function intent(s,id='W-BUY'){
  const kind=kinds[id]||'external-issue';
  const buckets=kind==='split'?['sharesOut','treasuryBuybackShares','founderShares','personalOwnShares']:kind.startsWith('personal-')?['personalOwnShares']:kind==='founder-sale'?['founderShares']:kind==='buyback'?['treasuryBuybackShares']:kind==='ipo'?['sharesOut','founderShares']:['sharesOut'];
  return {scope:scope(),writerId:id,kind,operationId:'existing-operation-1',account:kind==='ipo'?'company-and-personal':['personal-buy','personal-sell','founder-sale'].includes(kind)?'personal':'company',
- sourceLots:buckets.map(k=>evidence.sourcePaths[k]),expected:{sourceState:s,sourceFingerprint:evidence.sourceFingerprint,quantities:{sharesOut:s.sharesOut,treasuryBuybackShares:s.treasuryBuybackShares,founderShares:s.founderShares,personalOwnShares:s.personalStocks.OWN?.qty||0}},
- change:kind==='split'?{factor:2}:kind==='ipo'?{issuedQuantity:100,founderSecondaryQuantity:20}:{quantity:5}};
+ sourceLots:buckets.map(k=>evidence.sourcePaths[k]),expected:{sourceState:s,sourceFingerprint:evidence.sourceFingerprint,quantities:{sharesOut:s.sharesOut,treasuryBuybackShares:s.treasuryBuybackShares,founderShares:s.founderShares,personalOwnShares:evidence.quantities.personalOwnShares}},
+ change:kind==='split'?{factor:2}:kind==='ipo'?{issuedQuantity:100,founderSecondaryQuantity:20,listingTicker:s.companyName.replace(/[^A-Za-z]/g,'').slice(0,4).toUpperCase()||'CPTY'}:{quantity:5}};
 }
 function reject(result,code){assert.equal(result.status,'REJECTED');assert.equal(result.executable,false);assert.equal(result.authority,'read-only');assert.equal(result.reasons[0].code,code);assert.equal(typeof result.reasons[0].path,'string');assert.equal(typeof result.reasons[0].message,'string');assert(Object.isFrozen(result.reasons[0]));}
 function ok(result){assert.equal(result.status,'PLANNED',JSON.stringify(result));assert.equal(result.executable,false);assert.equal(result.wholeCommandValidated,false);assert.equal(result.unallocatedIsIdentifiedHolder,false);assert.equal(result.after.sharesOut,result.after.treasuryBuybackShares+result.after.outstanding);assert.equal(result.after.outstanding,result.after.founderBeneficial+result.after.unallocated);assert.equal(result.after.founderBeneficial,result.after.founderShares+result.after.personalOwnShares);}
@@ -68,7 +68,31 @@ for(const [id,changes] of [
 {
  const s=state();s.publicCompany=false;s.market=[];const r=plan(s,intent(s,'W-IPO-CHAIN'));ok(r);
  assert.equal(r.after.sharesOut,1100);assert.equal(r.after.founderShares,580);assert.equal(r.after.unallocated,410);
- assert.deepEqual(plain(r.listingRequirement),{ticker:'OWN',issuedShares:1100,requiresExistingWriter:true});
+ assert.deepEqual(plain(r.listingRequirement),{ticker:'OWN',previousTicker:'OWN',issuedShares:1100,requiresExistingWriter:true});
+}
+// IPO identity follows the installed writer's companyName rule, not the private ticker.
+function privateIPO(){const s=state();s.publicCompany=false;s.ticker='CPTY';s.companyName='Acme';s.market=[];s.personalStocks={};s.companyStocks={};return s;}
+{
+ const s=privateIPO(),req=intent(s,'W-IPO-CHAIN'),before=plain(s);deepFreeze(req);
+ const r=plan(s,req);ok(r);assert.deepEqual(plain(r.listingRequirement),{ticker:'ACME',previousTicker:'CPTY',issuedShares:1100,requiresExistingWriter:true});
+ assert.deepEqual(plain(r.mirrors),[]);assert.deepEqual(plain(s),before);assert.deepEqual(plain(plan(s,req)),plain(r));
+}
+for(const mutate of [s=>{s.market=[{id:'ACME',issuedShares:1000}];},s=>{s.startups=[{ipoStockID:'ACME'}];},
+ ...['personalStocks','companyStocks'].flatMap(key=>['CPTY','ACME'].map(ticker=>s=>{s[key][ticker]={qty:0};}))]){
+ const s=privateIPO();mutate(s);const req=intent(s,'W-IPO-CHAIN'),before=plain(s);deepFreeze(req);
+ reject(plan(s,req),'ALIAS_BINDING_UNPROVEN');assert.deepEqual(plain(s),before);
+}
+{
+ const s=privateIPO(),req=intent(s,'W-IPO-CHAIN');let calls=0;
+ s.market=[{id:'ACME',get issuedShares(){calls++;throw Error('external issuer');}}];
+ reject(plan(s,req),'ALIAS_BINDING_UNPROVEN');assert.equal(calls,0);
+ const t=privateIPO(),stale=intent(t,'W-IPO-CHAIN');t.companyName='Beta';reject(plan(t,stale),'STALE_SOURCE');
+ const u=privateIPO(),accessor=intent(u,'W-IPO-CHAIN');Object.defineProperty(u,'companyName',{enumerable:true,get(){calls++;throw Error('name accessor');}});
+ reject(plan(u,accessor),'INPUT_INVALID');assert.equal(calls,0);
+ const v=privateIPO(),missing=intent(v,'W-IPO-CHAIN');delete missing.change.listingTicker;reject(plan(v,missing),'INPUT_INVALID');
+}
+for(const [name,target] of [['日本会社','CPTY'],['a-1b éC dEF','ABCD']]){
+ const s=privateIPO();s.companyName=name;const r=plan(s,intent(s,'W-IPO-CHAIN'));ok(r);assert.equal(r.listingRequirement.ticker,target);
 }
 {
  const s=state(),r=plan(s,intent(s,'W-INVESTOR'));assert.deepEqual(plain(r.mirrors),[{sourcePath:'market[0].issuedShares',before:1000,after:1005}]);

@@ -61,9 +61,11 @@ Planning requires safe-integer units and positive existing outstanding quantity.
 | external-issue | positive `quantity` | company | sharesOut | W-INVESTOR, W-SHARE-SWAP, W-MA-EQUITY/SH, W-SPONSOR, W-TURNAROUND-ACCEPT, W-TURNAROUND-RATCHET |
 | buyback | positive `quantity` | company | treasuryBuybackShares | W-BUYBACK |
 | split | safe integer `factor` ≥ 2 | company | sharesOut, treasuryBuybackShares, founderShares, designated personal qty | W-SPLIT |
-| ipo | nonnegative `issuedQuantity`, `founderSecondaryQuantity`; at least one positive | company-and-personal | sharesOut, founderShares | W-IPO-CHAIN |
+| ipo | nonnegative `issuedQuantity`, `founderSecondaryQuantity`; at least one positive; expected `listingTicker` | company-and-personal | sharesOut, founderShares | W-IPO-CHAIN |
 
 All trades/sales, buybacks and splits require a current listing. IPO requires private state. Share-swap/financed public-equity issuance requires listed state; other issuance may use private or listed state. The prospect must conserve all modeled quantities and cannot sell more than held, buy more than the unallocated remainder or create negative treasury/outstanding/holder quantities. All outputs remain safe integers. There is no coercion, epsilon grant or fraction repair.
+
+IPO planning alone also reads the own data string `companyName`. The installed `js/engine.js::executeIPO` derives its listing ticker by removing non-ASCII letters, taking the first four letters, uppercasing, then falling back to `CPTY`. `change.listingTicker` must match that target or planning returns STALE_SOURCE. Any existing target market row or startup IPO alias rejects; if the ticker changes, any old-ticker or target-ticker key in either stock map rejects, including zero holdings. The planner cannot prove lot rebinding and never moves or claims those lots. Its `listingRequirement` reports the actual target and `previousTicker`; it emits no existing mirror for a private company. Inspection and non-IPO planning do not read `companyName`. These checks establish a prospective listing identity, not whole-command validation.
 
 `PLANNED` contains copied before/after quantities, changed backing quantity paths with issuer-total/treasury/known-founder attribution, existing issued-share mirror changes, and (for IPO) a listing requirement for the existing writer. It never creates a full listing record, recomputes prices/cost bases, attributes unallocated equity, or modifies lifecycle status.
 

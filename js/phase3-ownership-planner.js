@@ -120,6 +120,24 @@ function inspect(state,scope){
   knownFounderHolder:{registeredHolderEntityId:FOUNDER,beneficialOwnerEntityId:FOUNDER},checks:[{id:'ECO-010',ok:true},{id:'ECO-011',ok:true}],reasons:[]};
 }
 function inspectOwnershipAuthority(state,scope){try{return freeze(inspect(state,scope));}catch(e){return rejected(e);}}
+function ipoListingTicker(state,evidence,change){
+ // Match executeIPO's installed identity rule without invoking a writer or reading finances.
+ const name=field(state,'companyName','state');
+ if(typeof name!=='string')fail('INPUT_INVALID','state.companyName','IPO identity requires a company name data string.');
+ const target=name.replace(/[^A-Za-z]/g,'').slice(0,4).toUpperCase()||'CPTY';
+ if(text(field(change,'listingTicker','intent.change'),'intent.change.listingTicker')!==target)fail('STALE_SOURCE','intent.change.listingTicker','Expected IPO listing identity differs from the installed name-derived rule.');
+ for(const [i,row] of array(field(state,'market','state'),'state.market').entries()){
+  if(field(row,'id',`state.market[${i}]`)===target)fail('ALIAS_BINDING_UNPROVEN',`state.market[${i}].id`,'IPO cannot claim a pre-existing listing.');
+ }
+ for(const [i,row] of array(field(state,'startups','state'),'state.startups').entries()){
+  if(field(row,'ipoStockID',`state.startups[${i}]`)===target)fail('ALIAS_BINDING_UNPROVEN',`state.startups[${i}].ipoStockID`,'IPO target collides with a startup listing alias.');
+ }
+ if(target!==evidence.ticker)for(const key of ['personalStocks','companyStocks']){
+  const map=field(state,key,'state');
+  if(own.call(map,evidence.ticker)||own.call(map,target))fail('ALIAS_BINDING_UNPROVEN',`state.${key}`,'Reticker lot rebinding is unproved; existing lots cannot be moved or claimed.');
+ }
+ return target;
+}
 function planOwnershipChange(state,intent){try{
  exact(intent,['scope','writerId','kind','operationId','account','sourceLots','expected','change'],'intent');
  const writerId=text(field(intent,'writerId','intent'),'intent.writerId'),policy=policies[writerId];
@@ -139,7 +157,7 @@ function planOwnershipChange(state,intent){try{
  if(before.outstanding===0)fail('DENOMINATOR_UNSUPPORTED','before.outstanding','Planning requires a positive existing outstanding quantity.');
  const publicOnly=kind!=='external-issue'||['W-SHARE-SWAP','W-MA-EQUITY/SH'].includes(writerId);
  if(kind==='ipo'?evidence.publicCompany:publicOnly&&!evidence.publicCompany)fail('LIFECYCLE_UNSUPPORTED','state.publicCompany','Listing lifecycle does not match the command.');
- const change=field(intent,'change','intent'),after=Object.fromEntries(BUCKETS.map(k=>[k,before[k]]));
+ const change=field(intent,'change','intent'),after=Object.fromEntries(BUCKETS.map(k=>[k,before[k]]));let listingRequirement=null;
  const changed=kind==='split'?BUCKETS:kind.startsWith('personal-')?['personalOwnShares']:kind==='founder-sale'?['founderShares']:kind==='buyback'?['treasuryBuybackShares']:kind==='ipo'?['sharesOut','founderShares']:['sharesOut'];
  const lots=array(field(intent,'sourceLots','intent'),'intent.sourceLots'),wantedLots=changed.map(k=>evidence.sourcePaths[k]);
  if(lots.length!==wantedLots.length||lots.some((x,i)=>x!==wantedLots[i]))fail('SOURCE_LOT_UNSUPPORTED','intent.sourceLots','Expected exact canonical source lots in bucket order.');
@@ -148,10 +166,12 @@ function planOwnershipChange(state,intent){try{
   if(factor<2)fail('COMMAND_DOMAIN','intent.change.factor','Split factor must be an integer of at least two.');
   for(const k of BUCKETS)after[k]=quantity(before[k]*factor,`after.${k}`,true);
  }else if(kind==='ipo'){
-  exact(change,['issuedQuantity','founderSecondaryQuantity'],'intent.change');
+  exact(change,['issuedQuantity','founderSecondaryQuantity','listingTicker'],'intent.change');
+  const ticker=ipoListingTicker(state,evidence,change);
   const issued=quantity(field(change,'issuedQuantity','intent.change'),'intent.change.issuedQuantity',true),secondary=quantity(field(change,'founderSecondaryQuantity','intent.change'),'intent.change.founderSecondaryQuantity',true);
   if(issued===0&&secondary===0)fail('COMMAND_DOMAIN','intent.change','IPO must change a quantity.');
   after.sharesOut=sum(before.sharesOut,issued,'after.sharesOut');after.founderShares=sum(before.founderShares,-secondary,'after.founderShares');
+  listingRequirement={ticker,previousTicker:evidence.ticker,issuedShares:after.sharesOut,requiresExistingWriter:true};
  }else{
   exact(change,['quantity'],'intent.change');const n=quantity(field(change,'quantity','intent.change'),'intent.change.quantity',true);
   if(n===0)fail('COMMAND_DOMAIN','intent.change.quantity','Quantity must be positive.');
@@ -164,7 +184,7 @@ function planOwnershipChange(state,intent){try{
  const mirrors=evidence.mirror&&before.sharesOut!==after.sharesOut?[{sourcePath:`market[${evidence.mirror.index}].issuedShares`,before:before.sharesOut,after:after.sharesOut}]:[];
  return freeze({status:'PLANNED',authority:'read-only',executable:false,wholeCommandValidated:false,writerId,kind,operationId,account,scope:evidence.scope,sourceFingerprint:evidence.sourceFingerprint,
   before,after:prospective,updates,mirrors,knownFounderHolder:evidence.knownFounderHolder,unallocatedIsIdentifiedHolder:false,
-  listingRequirement:kind==='ipo'?{ticker:evidence.ticker,issuedShares:after.sharesOut,requiresExistingWriter:true}:null,
+  listingRequirement,
   checks:[{id:'ECO-010',ok:true},{id:'ECO-011',ok:true}],reasons:[]});
  }catch(e){return rejected(e);}}
 modules.phase3OwnershipPlanner=freeze({VERSION:1,BUCKETS,WRITER_POLICIES:policies,inspectOwnershipAuthority,planOwnershipChange});
