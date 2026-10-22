@@ -2,7 +2,7 @@
 // The local affected-test selector must stay a safe superset of what a change needs: contracts always,
 // acceptance gates on any production source change, and every workflow step guarded by a matching path.
 const assert = require('node:assert/strict');
-const { select, globToRegExp, camel, canonicalTests } = require('../scripts/select-affected-tests');
+const { select, globToRegExp, camel, canonicalTests, envOf, envFor } = require('../scripts/select-affected-tests');
 
 assert.equal(globToRegExp('js/**').test('js/a/b.js'), true);
 assert.equal(globToRegExp('js/*.js').test('js/a/b.js'), false);
@@ -101,3 +101,14 @@ assert.ok(names(select(['scripts/pages-deployment-smoke.js'])).includes('tests/m
 // Map sources and assets outside tests/ and scripts/ select the tests that load them (Codex 4333790171).
 for (const file of ['prototypes/map-world-preview.js', 'assets/map-sprites/phase2/sprites.json'])
   assert.ok(names(select([file])).includes('tests/map-phase2-environment-micro-props-test.js'), `${file} selects the map test that loads it`);
+// A workflow step's literal env is passed to the command; a CI-context env value makes it CI-only.
+// Changing tests/run-all.js selects tests/run-all-shard.js, which the shard-contract step runs with
+// TEST_SHARD=A and TEST_SHARD_CONTRACT=1; without them it exits with `Unknown TEST_SHARD`.
+{
+  assert.deepEqual(envOf('      - name: x\n        env:\n          A: 1\n          B: \'two\'\n        run: node tests/x.js\n'), { env: { A: '1', B: 'two' }, ci: false });
+  assert.equal(envOf('      - name: x\n        env:\n          TEST_SHARD: ${{ matrix.shard }}\n        run: node tests/x.js\n').ci, true);
+  const plan = select(['tests/run-all.js']);
+  assert.ok(plan.node.some(row => row.test === 'tests/run-all-shard.js'), 'run-all-shard.js stays runnable through the contract step');
+  assert.deepEqual(envFor('tests/run-all-shard.js'), { TEST_SHARD: 'A', TEST_SHARD_CONTRACT: '1' }, 'it runs with the contract step env');
+  assert.equal(envFor('tests/store-equipment-test.js'), undefined, 'a canonical test gets no workflow env');
+}

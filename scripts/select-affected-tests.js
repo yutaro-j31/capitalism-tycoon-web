@@ -66,6 +66,24 @@ function npmScript(name) {
   scripts ??= JSON.parse(fs.readFileSync(path.join(ROOT, 'package.json'), 'utf8')).scripts || {};
   return nodeRuns(scripts[name] || '');
 }
+// `env:` mappings of a workflow fragment (a job header or one step). Literal values are kept so the
+// command runs here as it does in CI; a value that needs CI context (`${{ ... }}`) makes it CI-only.
+const ENVS = new Map();
+function envOf(text) {
+  const env = {}, lines = text.split('\n');
+  let ci = false;
+  for (let i = 0; i < lines.length; i++) {
+    const head = lines[i].match(/^(\s*)env:\s*$/);
+    if (!head) continue;
+    for (let j = i + 1; j < lines.length; j++) {
+      const m = lines[j].match(/^(\s*)([A-Za-z_]\w*):\s*(.*)$/);
+      if (!m || m[1].length <= head[1].length) break;
+      const value = m[3].trim().replace(/^(['"])(.*)\1$/, '$2');
+      if (value.includes('${{')) ci = true; else env[m[2]] = value;
+    }
+  }
+  return { env, ci };
+}
 // Node tests a command text runs, through literal `node` steps and `npm run <script>`.
 function testsIn(text) {
   return [...nodeRuns(text), ...[...text.matchAll(/npm run ([\w:.-]+)/g)].flatMap(m => npmScript(m[1]))];
@@ -141,7 +159,18 @@ function workflows() {
     // A workflow that no pull-request event triggers (workflow_run, push, schedule or
     // workflow_dispatch only) runs in CI context only; all its jobs are CI-only.
     const prTriggered = triggers(text).some(event => PR_EVENTS.includes(event));
-    for (const job of jobs) for (const t of testsIn(job)) if (exists(t)) (!prTriggered || ciOnlyJob(job) ? ciOnly : tests).add(t);
+    for (const job of jobs) {
+      // Steps carry their own `env:`; a command depends on the job's and its step's environment.
+      const [header, ...steps] = job.split(/^(?=      - )/m), jobEnv = envOf(header), jobCi = !prTriggered || ciOnlyJob(job);
+      for (const step of steps.length ? steps : [job]) {
+        const stepEnv = steps.length ? envOf(step) : { env: {}, ci: false };
+        const ci = jobCi || jobEnv.ci || stepEnv.ci, env = { ...jobEnv.env, ...stepEnv.env };
+        for (const t of testsIn(step)) if (exists(t)) {
+          (ci ? ciOnly : tests).add(t);
+          if (!ci && Object.keys(env).length && !ENVS.has(t)) ENVS.set(t, env);
+        }
+      }
+    }
     // A directory-wide filter (e.g. js/**) guards a broad campaign; only --broad selects it.
     return { name, patterns: [...patterns].map(p => ({ glob: p, re: globToRegExp(p), broad: /^[\w.-]+\/\*\*$/.test(p) })), tests: [...tests], ciOnly: [...ciOnly] };
   });
@@ -196,6 +225,8 @@ function select(files) {
   const production = files.filter(f => /^js\/[\w.-]+\.js$/.test(f));
   if (production.length) ON_PRODUCTION_CHANGE.forEach(t => add(t, 'production source changed'));
   const flows = workflows(), canonical = canonicalTests();
+  // A canonical test runs without a workflow environment in run-all.js; keep that behaviour here.
+  for (const t of canonical) ENVS.delete(t);
   // CI-only unless some PR-runnable job (or the canonical suite) also runs the test.
   const runsLocally = new Set([...canonical, ...flows.flatMap(w => w.tests)]);
   const ciOnly = new Set(flows.flatMap(w => w.ciOnly).filter(t => !runsLocally.has(t)));
@@ -264,7 +295,7 @@ function runAll(tests) {
       while (active < JOBS && queue.length) {
         const test = queue.shift(), started = Date.now();
         active++;
-        const child = childProcess.spawn(process.execPath, [...(FLAGS.get(test) || []), test], { cwd: ROOT, stdio: ['ignore', 'pipe', 'pipe'] });
+        const child = childProcess.spawn(process.execPath, [...(FLAGS.get(test) || []), test], { cwd: ROOT, env: { ...process.env, ...(ENVS.get(test) || {}) }, stdio: ['ignore', 'pipe', 'pipe'] });
         let tail = '';
         const keep = chunk => { tail = (tail + chunk).slice(-4000); };
         child.stdout.on('data', keep); child.stderr.on('data', keep);
@@ -280,7 +311,7 @@ function runAll(tests) {
   });
 }
 
-module.exports = { select, globToRegExp, camel, canonicalTests, triggers, ciOnlyJob };
+module.exports = { select, globToRegExp, camel, canonicalTests, triggers, ciOnlyJob, envOf, envFor: test => ENVS.get(test) };
 
 if (require.main === module) {
   const plan = select(changedFiles());
