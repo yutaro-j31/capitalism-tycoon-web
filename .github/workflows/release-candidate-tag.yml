@@ -102,9 +102,15 @@ jobs:
         # Bounded retry: the install has stalled for the whole job budget several times (CLAUDE.md §7);
         # healthy installs have taken up to ~9 minutes, so each attempt gets 12 and the job budget fits two.
         run: |
+          # apt mirrors have stalled mid-download: retry stalled connections instead of waiting forever.
+          printf 'Acquire::Retries "5";\nAcquire::http::Timeout "30";\nAcquire::https::Timeout "30";\n' | sudo tee /etc/apt/apt.conf.d/80-ci-retries >/dev/null
           for attempt in 1 2; do
             timeout --kill-after=30s 12m npx playwright install --with-deps webkit && exit 0
-            echo "::warning::WebKit install attempt $attempt failed or stalled; retrying"
+            echo "::warning::WebKit install attempt $attempt failed or stalled"
+            # timeout kills npx, not the apt-get it started as root; free the dpkg lock before retrying.
+            sudo pkill -9 -x apt-get || true
+            sudo pkill -9 -x dpkg || true
+            sudo dpkg --configure -a || true
           done
           exit 1
       - name: Reject open pull requests
