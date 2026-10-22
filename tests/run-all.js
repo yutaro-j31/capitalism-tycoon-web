@@ -156,6 +156,7 @@ const nodeTests = [
   ['phase3-pe-lp-commitments', 'tests/phase3-pe-lp-commitments-test.js'],
   ['phase3-founder-wealth', 'tests/phase3-founder-wealth-test.js'],
   ['phase3-control-eligibility', 'tests/phase3-control-eligibility-test.js'],
+  ['phase3-ownership-planner', 'tests/phase3-ownership-planner-test.js'],
   ['player-own-share-conservation', 'tests/player-own-share-conservation-test.js'],
   ['economic-foundation-draws', 'tests/economic-foundation-draws-test.js'],
   ['phase0-5-seed-provenance', 'tests/phase0-5-seed-provenance-test.js'],
