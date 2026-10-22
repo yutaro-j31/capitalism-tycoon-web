@@ -395,6 +395,8 @@ jobs:
             sudo pkill -9 -x apt-get || true
             sudo pkill -9 -x dpkg || true
             sudo env DEBIAN_FRONTEND=noninteractive timeout --kill-after=10s 2m dpkg --configure -a || true
+            # A crawling Azure apt mirror is what stalls the install; retry against archive.ubuntu.com.
+            sudo sed -i -E 's#https?://azure\.archive\.ubuntu\.com/ubuntu/?#http://archive.ubuntu.com/ubuntu/#g' /etc/apt/apt-mirrors.txt /etc/apt/sources.list /etc/apt/sources.list.d/* 2>/dev/null || true
           done
           exit 1
       - name: iPhone WebKit smoke
@@ -495,6 +497,8 @@ jobs:
             sudo pkill -9 -x apt-get || true
             sudo pkill -9 -x dpkg || true
             sudo env DEBIAN_FRONTEND=noninteractive timeout --kill-after=10s 2m dpkg --configure -a || true
+            # A crawling Azure apt mirror is what stalls the install; retry against archive.ubuntu.com.
+            sudo sed -i -E 's#https?://azure\.archive\.ubuntu\.com/ubuntu/?#http://archive.ubuntu.com/ubuntu/#g' /etc/apt/apt-mirrors.txt /etc/apt/sources.list /etc/apt/sources.list.d/* 2>/dev/null || true
           done
           exit 1
       - run: node tests/ma-deal-room-webkit-test.js
@@ -556,6 +560,8 @@ jobs:
             sudo pkill -9 -x apt-get || true
             sudo pkill -9 -x dpkg || true
             sudo env DEBIAN_FRONTEND=noninteractive timeout --kill-after=10s 2m dpkg --configure -a || true
+            # A crawling Azure apt mirror is what stalls the install; retry against archive.ubuntu.com.
+            sudo sed -i -E 's#https?://azure\.archive\.ubuntu\.com/ubuntu/?#http://archive.ubuntu.com/ubuntu/#g' /etc/apt/apt-mirrors.txt /etc/apt/sources.list /etc/apt/sources.list.d/* 2>/dev/null || true
           done
           exit 1
       - name: Property debt principal in real iPhone WebKit
@@ -604,6 +610,8 @@ jobs:
             sudo pkill -9 -x apt-get || true
             sudo pkill -9 -x dpkg || true
             sudo env DEBIAN_FRONTEND=noninteractive timeout --kill-after=10s 2m dpkg --configure -a || true
+            # A crawling Azure apt mirror is what stalls the install; retry against archive.ubuntu.com.
+            sudo sed -i -E 's#https?://azure\.archive\.ubuntu\.com/ubuntu/?#http://archive.ubuntu.com/ubuntu/#g' /etc/apt/apt-mirrors.txt /etc/apt/sources.list /etc/apt/sources.list.d/* 2>/dev/null || true
           done
           exit 1
       - name: Debt command atomicity in real iPhone WebKit
@@ -650,6 +658,8 @@ jobs:
             sudo pkill -9 -x apt-get || true
             sudo pkill -9 -x dpkg || true
             sudo env DEBIAN_FRONTEND=noninteractive timeout --kill-after=10s 2m dpkg --configure -a || true
+            # A crawling Azure apt mirror is what stalls the install; retry against archive.ubuntu.com.
+            sudo sed -i -E 's#https?://azure\.archive\.ubuntu\.com/ubuntu/?#http://archive.ubuntu.com/ubuntu/#g' /etc/apt/apt-mirrors.txt /etc/apt/sources.list /etc/apt/sources.list.d/* 2>/dev/null || true
           done
           exit 1
       - name: Stock split atomicity in real iPhone WebKit
@@ -724,6 +734,8 @@ jobs:
             sudo pkill -9 -x apt-get || true
             sudo pkill -9 -x dpkg || true
             sudo env DEBIAN_FRONTEND=noninteractive timeout --kill-after=10s 2m dpkg --configure -a || true
+            # A crawling Azure apt mirror is what stalls the install; retry against archive.ubuntu.com.
+            sudo sed -i -E 's#https?://azure\.archive\.ubuntu\.com/ubuntu/?#http://archive.ubuntu.com/ubuntu/#g' /etc/apt/apt-mirrors.txt /etc/apt/sources.list /etc/apt/sources.list.d/* 2>/dev/null || true
           done
           exit 1
       - name: PE fund acquisition atomicity in real iPhone WebKit
@@ -777,6 +789,8 @@ jobs:
             sudo pkill -9 -x apt-get || true
             sudo pkill -9 -x dpkg || true
             sudo env DEBIAN_FRONTEND=noninteractive timeout --kill-after=10s 2m dpkg --configure -a || true
+            # A crawling Azure apt mirror is what stalls the install; retry against archive.ubuntu.com.
+            sudo sed -i -E 's#https?://azure\.archive\.ubuntu\.com/ubuntu/?#http://archive.ubuntu.com/ubuntu/#g' /etc/apt/apt-mirrors.txt /etc/apt/sources.list /etc/apt/sources.list.d/* 2>/dev/null || true
           done
           exit 1
       - name: VC secondary sale atomicity in real iPhone WebKit
@@ -842,6 +856,8 @@ jobs:
             sudo pkill -9 -x apt-get || true
             sudo pkill -9 -x dpkg || true
             sudo env DEBIAN_FRONTEND=noninteractive timeout --kill-after=10s 2m dpkg --configure -a || true
+            # A crawling Azure apt mirror is what stalls the install; retry against archive.ubuntu.com.
+            sudo sed -i -E 's#https?://azure\.archive\.ubuntu\.com/ubuntu/?#http://archive.ubuntu.com/ubuntu/#g' /etc/apt/apt-mirrors.txt /etc/apt/sources.list /etc/apt/sources.list.d/* 2>/dev/null || true
           done
           exit 1
       - name: VC follow-on and initial investment atomicity in real iPhone WebKit
