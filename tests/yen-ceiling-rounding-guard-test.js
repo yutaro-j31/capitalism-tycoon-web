@@ -275,6 +275,8 @@ const SCENARIOS = [
     // An offer generated before R2d may still carry cents.
     g.productBuyoutOffers.unshift({ id: 'r2d-offer', productID: bought.id, productName: bought.name, buyerName: 'R2d', offerAmount: 12_345_678.9, premium: .1, createdWeek: g.week, expiresWeek: g.week + 8, status: 'pending' });
     assert.equal(engine.acceptProductBuyoutOffer('r2d-offer'), true);
+    const offer = g.productBuyoutOffers.find(row => row.id === 'r2d-offer');
+    assert.equal(offer.offerAmount, 12_345_679, 'the accepted offer keeps the amount actually received');
     kept.valuation = 3_456_789.4;
     assert.equal(engine.sellProduct(kept.id), true);
     g.subsidiaries.push({ id: 'r2d-sub', name: 'R2d物流', industry: '物流', valuation: 123_456_789.7 });
@@ -284,7 +286,7 @@ const SCENARIOS = [
     for (const kind of PRODUCT) assert.ok(rows.some(row => row.sourceType === kind), `R2d scenario posts ${kind}`);
     const amount = kind => rows.find(row => row.sourceType === kind).amount;
     assert.deepEqual([amount('productAction'), amount('productBuyoutOffer'), amount('sellProduct'), amount('startTransportRebuild')], [100_001, 12_345_679, 3_456_790, 5_555_556], 'user amount, legacy offer, sale value and ceil(123,456,789.7 × .045)');
-    return { rows, state: { companyCash: g.companyCash } };
+    return { rows, state: { companyCash: g.companyCash, acceptedOffer: offer.offerAmount, maxProductExit: g.hallOfRecords ? g.hallOfRecords.maxProductExit : 0 } };
   } },
   { slice: 'R2d', label: 'weekly adjustments: legacy product, franchise income, quarterly tax, supply chain, vertical integration, personal depreciation', run() {
     const loaded = loadGame({ headless: true, random: lcg(1502) });
