@@ -577,6 +577,37 @@ const SCENARIOS = [
     const rows = rowsSince(g, count, () => true);
     return { rows, state: { personalCash: g.personalCash, personalDebt: g.personalDebt, balance: loan.balance, interestPaid: loan.interestPaid, interestCapitalized: loan.interestCapitalized, raised: forced.raised, repaid: forced.repaid, shortfall: forced.shortfall } };
   } },
+  { slice: 'R4d-1', label: 'personal luxury and investment redemptions, generic borrow/repay and personal debt interest', run() {
+    const { engine } = newGame(2301), g = engine.g;
+    const count = g.finance.transactions.length;
+    // Luxury: a sale settles at ceil(value × .95).
+    assert.ok(engine.buyLuxury('watch'));
+    const [watch] = g.luxuryAssets;
+    watch.currentValue = 6_500_000.3;
+    let before = g.personalCash;
+    assert.ok(engine.sellLuxury(watch.id));
+    assert.equal(g.personalCash - before, Math.ceil(6_500_000.3 * .95));
+    // Personal investment: the amount rounds up; a redemption is ceil(value) less ceil(carry).
+    assert.ok(engine.buyPersonalInvestment('vc-fund', 15_000_000.4));
+    const [fund] = g.personalInvestments;
+    assert.equal(fund.principal, 15_000_001);
+    fund.currentValue = 18_123_456.7;
+    before = g.personalCash;
+    assert.ok(engine.sellPersonalInvestment(fund.id));
+    assert.equal(g.personalCash - before, Math.ceil(18_123_456.7) - Math.ceil((18_123_456.7 - 15_000_001) * .2));
+    // Generic borrow and repay round the request up, for both accounts.
+    assert.ok(engine.borrow(1_234_567.2, 'company'));
+    assert.ok(engine.repay(234_567.2, 'company'));
+    assert.ok(engine.borrow(2_345_678.1, 'personal'));
+    assert.equal(g.personalDebt, 2_345_679);
+    assert.ok(engine.repay(345_678.1, 'personal'));
+    // A request at a fractional credit limit borrows the whole yen below it.
+    const room = engine.personalCreditLimit() - g.personalDebt;
+    assert.ok(engine.borrow(room, 'personal'));
+    assert.ok(g.personalDebt <= engine.personalCreditLimit());
+    const rows = rowsSince(g, count, row => ['borrow', 'repay'].includes(row.sourceType) || /debt/i.test(String(row.category || '')));
+    return { rows, state: { personalCash: g.personalCash, personalDebt: g.personalDebt, companyCash: g.companyCash, companyDebt: g.companyDebt } };
+  } },
 ];
 for (const scenario of SCENARIOS) {
   const { rows, state = {} } = scenario.run();

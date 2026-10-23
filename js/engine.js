@@ -1703,10 +1703,10 @@ class TycoonEngine extends EventTarget {
     this.notify(`${o.name}を個人で購入しました。`,'success');this.save();this.emit();return true;
   }
   sellLuxury(id) {
-    const i=this.g.luxuryAssets.findIndex(x=>x.id===id);if(i<0)return false;const x=this.g.luxuryAssets[i],value=x.currentValue*.95;this.g.personalCash+=value;this.g.luxuryAssets.splice(i,1);this.notify(`${x.name}を${yen(value)}で売却しました。`);this.save();this.emit();return true;
+    const i=this.g.luxuryAssets.findIndex(x=>x.id===id);if(i<0)return false;const x=this.g.luxuryAssets[i],value=ceilYen(x.currentValue*.95);this.g.personalCash+=value;this.g.luxuryAssets.splice(i,1);this.notify(`${x.name}を${yen(value)}で売却しました。`);this.save();this.emit();return true;
   }
   buyPersonalInvestment(offerID,amount) {
-    const o=PERSONAL_INVESTMENT_OFFERS.find(x=>x.id===offerID);amount=finite(amount);if(!o||amount<o.minAmount||this.g.personalCash<amount)return this.fail('投資条件を満たしていません。');
+    const o=PERSONAL_INVESTMENT_OFFERS.find(x=>x.id===offerID);amount=ceilYen(amount);if(!o||amount<o.minAmount||this.g.personalCash<amount)return this.fail('投資条件を満たしていません。');
     this.g.personalCash-=amount;this.g.personalInvestments.push({id:uuid(this.g,'investment'),name:o.name,type:o.type,principal:amount,currentValue:amount,weeklyReturn:o.weeklyReturn,risk:o.risk,carryRate:finite(o.carryRate,0),purchasedWeek:this.g.week,reinvest:true});
     this.notify(`${o.name}へ${yen(amount)}投資しました。`,'success');this.save();this.emit();return true;
   }
@@ -1716,7 +1716,9 @@ class TycoonEngine extends EventTarget {
     // only on gains, never eating into principal. carryRate is 0/undefined on every other
     // offer, so this is a strict no-op for the bond/index/REIT/PE products that predate it.
     const i=this.g.personalInvestments.findIndex(x=>x.id===id);if(i<0)return false;const x=this.g.personalInvestments[i];
-    const gain=Math.max(0,finite(x.currentValue)-finite(x.principal)),carry=gain*finite(x.carryRate,0),proceeds=finite(x.currentValue)-carry;
+    // Whole yen (YEN_CEILING_ROUNDING_CONTRACT §4): the redemption value is rounded up, the
+    // carry is the charge and the proceeds are the remainder.
+    const gross=ceilYen(Math.max(0,finite(x.currentValue))),gain=Math.max(0,finite(x.currentValue)-finite(x.principal)),carry=Math.min(ceilYen(gain*finite(x.carryRate,0)),gross),proceeds=gross-carry;
     this.g.personalCash+=proceeds;this.g.personalInvestments.splice(i,1);
     this.notify(carry>0?`${x.name}を解約しました（成功報酬${yen(carry)}控除後 ${yen(proceeds)}）。`:`${x.name}を解約しました。`);this.save();this.emit();return true;
   }
@@ -1731,8 +1733,10 @@ class TycoonEngine extends EventTarget {
 
   borrow(amount,account='company') {
     return this.runTransaction(()=>{
-      amount=Math.max(0,finite(amount));const debtKey=account==='company'?'companyDebt':'personalDebt',cashKey=account==='company'?'companyCash':'personalCash';
-      const limit=account==='company'?this.companyCreditLimit():this.personalCreditLimit();if(this.g[debtKey]+amount>limit)return this.fail(`借入限度額は${yen(limit)}です。`);
+      // The request is rounded up to whole yen. The credit limit is a valuation, not a balance, so
+      // a request within it that rounds past it borrows the whole yen below the limit instead.
+      const requested=Math.max(0,finite(amount));amount=ceilYen(requested);const debtKey=account==='company'?'companyDebt':'personalDebt',cashKey=account==='company'?'companyCash':'personalCash';
+      const limit=account==='company'?this.companyCreditLimit():this.personalCreditLimit(),room=limit-this.g[debtKey];if(requested>room)return this.fail(`借入限度額は${yen(limit)}です。`);if(amount>room)amount=Math.max(0,Math.floor(room));
       this.g[debtKey]+=amount;this.g[cashKey]+=amount;
       if(account==='company'){const f=finance.ensureFinance(this.g);f.loans.push({loanID:`loan-${this.g.week}-${f.loans.length+1}`,principal:amount,outstandingPrincipal:amount,interestRate:this.companyBorrowRate(),termWeeks:260,remainingWeeks:260,repaymentMethod:'manual',weeklyPrincipalPayment:0,nextPaymentWeek:this.g.week+1,status:'active'});finance.event(this.g,'debtBorrowing',amount,{cashEffect:amount,liabilityEffect:amount,sourceType:'borrow',sourceID:`company-${this.g.week}-${amount}`,description:'会社借入'});}
       this.notify(`${account==='company'?'会社':'個人'}で${yen(amount)}借り入れました。`,'success');return true;
@@ -1740,7 +1744,7 @@ class TycoonEngine extends EventTarget {
   }
   repay(amount,account='company') {
     return this.runTransaction(()=>{
-      amount=Math.max(0,finite(amount));const debtKey=account==='company'?'companyDebt':'personalDebt',cashKey=account==='company'?'companyCash':'personalCash';amount=Math.min(amount,this.g[debtKey]);
+      amount=ceilYen(Math.max(0,finite(amount)));const debtKey=account==='company'?'companyDebt':'personalDebt',cashKey=account==='company'?'companyCash':'personalCash';amount=Math.min(amount,this.g[debtKey]);
       if(this.g[cashKey]<amount)return this.fail('返済資金が不足しています。');this.g[cashKey]-=amount;this.g[debtKey]-=amount;if(account==='company'){this.g.companyCredit=clamp(this.g.companyCredit+amount/10_000_000,0,100);let remaining=amount;for(const loan of finance.ensureFinance(this.g).loans.filter(l=>l.status==='active')){const pay=Math.min(remaining,loan.outstandingPrincipal);loan.outstandingPrincipal-=pay;remaining-=pay;finance.settleLoanPrincipal(this.g,loan,pay);if(loan.outstandingPrincipal<=0){loan.outstandingPrincipal=0;loan.status='paid';}if(remaining<=0)break;}finance.event(this.g,'debtRepayment',amount,{cashEffect:-amount,liabilityEffect:-amount,sourceType:'repay',sourceID:`company-${this.g.week}-${amount}`,description:'会社借入返済'});}
       this.notify(`${yen(amount)}返済しました。`,'success');return true;
     });
@@ -2334,7 +2338,7 @@ class TycoonEngine extends EventTarget {
     // earning something even if that module is somehow absent.
     const sportsManagement=globalThis.__capitalismTycoonModules?.sportsManagement;
     for(const t of this.g.sportsTeams){const win=simRng.next(this.g)<t.teamStrength/100;if(sportsManagement)sportsManagement.recordGameResult(t,win);else if(win)t.seasonWins++;t.fanBase=clamp(t.fanBase+(win?rand(this.g,.1,1.2):rand(this.g,-.5,.2)),10,100);const net=sportsManagement?sportsManagement.weeklyFinancialsFor(t).net:Math.round(t.revenue*(.7+t.fanBase/100)-t.cost);this.g[t.owner==='company'?'companyCash':'personalCash']+=net;if(t.owner==='company'&&net)finance.event(this.g,'otherOperating',Math.abs(net),{cashEffect:net,profitEffect:net,sourceType:'sportsTeamWeekly',sourceID:t.id,idempotencyKey:`sports-weekly-${t.id}-${this.g.week}`,description:`${t.name} 週次興行収支`});t.value=Math.max(t.price*.5,t.value*(1+rand(this.g,-.01,.015)+(win?.002:-.001)));sportsManagement?.rolloverSeason(t,this.g.week);}
-    this.g.personalCash-=this.g.personalDebt*this.personalBorrowRate()/52;
+    this.g.personalCash-=ceilYen(Math.max(0,this.g.personalDebt)*this.personalBorrowRate()/52);
   }
   updateFranchise() {
     let income=0;for(const [businessID,count] of Object.entries(this.g.franchiseStoresByBusinessID)){const b=this.business(businessID);const royalty=this.g.franchiseRoyaltyRateByBusinessID[businessID]||.05;const quality=this.g.franchiseQualityByBusinessID[businessID]||60;const avg=b.demand*b.price*.7;income+=count*avg*royalty*(.6+quality/100);if(count>0&&simRng.next(this.g)<.03)this.g.franchiseStoresByBusinessID[businessID]++;}return ceilYen(income);
