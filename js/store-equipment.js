@@ -59,6 +59,8 @@ const STORE_CONCEPTS=Object.freeze([
 const finite=(value,fallback=0)=>Number.isFinite(Number(value))?Number(value):fallback;
 const clamp=(value,min,max)=>Math.max(min,Math.min(max,value));
 const yen=value=>`${Math.round(finite(value)).toLocaleString('ja-JP')}円`;
+// Whole-yen settlement, fractions rounded up (YEN_CEILING_ROUNDING_CONTRACT §2).
+const ceilYen=value=>modules.economicOperation.ceilYen(finite(value));
 // 乱数を消費しない純関数（週番号→月）で判定するため決定論を維持する。engine.jsのgameDate()と
 // 同じ暦（52週=1年、第1週=1月1日）を再利用し、季節の境界を独自に定義し直さない。
 function seasonalMultiplierFor(state,def){
@@ -78,7 +80,7 @@ function capacityMultiplier(store){return 1+(level(store)-1)*CAPACITY_GAIN_PER_L
 function upgradeCost(business,store){
   const base=Math.max(0,finite(business?.storeCost));
   const nextLevel=level(store)+1;
-  return Math.round(base*(.25+nextLevel*.1));
+  return ceilYen(base*(.25+nextLevel*.1));
 }
 
 function upgradeable(state,store){
@@ -125,7 +127,7 @@ function upgrade(engine,storeID){
     assetType:'storeEquipment',
     acquisitionCost:cost,
     usefulLifeWeeks:USEFUL_LIFE_WEEKS,
-    salvageValue:Math.round(cost*SALVAGE_RATE),
+    salvageValue:ceilYen(cost*SALVAGE_RATE),
     businessID:store.businessID,
     storeID:store.id
   });
@@ -153,7 +155,7 @@ function conditionOf(store){return clamp(finite(store?.condition,FULL_CONDITION)
 // Restoring wear is an expense, not an upgrade: it returns the store to its original
 // state rather than adding capability, so it is charged to profit instead of capitalised.
 function renovationCost(store){
-  return Math.round(Math.max(0,FULL_CONDITION-conditionOf(store))*RENOVATION_COST_PER_POINT);
+  return ceilYen(Math.max(0,FULL_CONDITION-conditionOf(store))*RENOVATION_COST_PER_POINT);
 }
 
 function renovatable(state,store){

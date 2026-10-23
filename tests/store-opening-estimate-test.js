@@ -84,10 +84,12 @@ const freeTenant = engine => engine.g.tenants.find(t => !t.occupiedBy);
 //     ブロック2だけでは競合圧力のような小さめの係数を落としても赤くならない。
 //     ここでは需要式をテスト側で独立に組み立て、期待ケースの売上と厳密一致することを要求する。
 {
-  const { engine } = newGame();
+  const { engine, modules } = newGame();
   const g = engine.g;
   const tenant = freeTenant(engine);
   const b = engine.business('cafe');
+  // Whole-yen R2a: each estimated amount rounds up, as the weekly store rows do.
+  const yen = modules.economicOperation.ceilYen;
   const p = engine.pref(tenant.prefID);
   const a = engine.area(p.areaID);
 
@@ -100,12 +102,12 @@ const freeTenant = engine => engine.g.tenants.find(t => !t.occupiedBy);
   demand *= [0, .45, .75, 1, 1.17][3];
   if (g.macroCrisis) demand *= g.macroCrisis.salesMultiplier;
 
-  const expectedSales = Math.floor(Math.max(0, demand * b.price * g.inflation));
-  const expectedVariable = Math.floor(Math.max(0, demand * b.unitCost * g.inflation
+  const expectedSales = yen(Math.max(0, demand * b.price * g.inflation));
+  const expectedVariable = yen(Math.max(0, demand * b.unitCost * g.inflation
     * (1 - Math.min(.22, b.efficiency / 260)) / (1 + engine.departmentEffect('operations') * .04)));
   const costMultiplier = g.inflation * [0, .55, .8, 1, 1.24][3]
     * (g.macroCrisis ? g.macroCrisis.costMultiplier : 1);
-  const expectedFixed = Math.floor(Math.max(0, tenant.rent + (b.fixedCost + b.wage) * costMultiplier));
+  const expectedFixed = yen(Math.max(0, tenant.rent + (b.fixedCost + b.wage) * costMultiplier));
 
   const estimate = engine.estimateStoreOpening({ tenantID: tenant.id, businessID: 'cafe', operatingHours: 3 });
   assert.equal(estimate.expected.sales, expectedSales, '売上が需要式と厳密一致する');
@@ -260,7 +262,7 @@ const freeTenant = engine => engine.g.tenants.find(t => !t.occupiedBy);
       const extraPayroll = modules.workforce.storeExtraPayroll(engine.g, store.id);
       const fixed = store.contractRent + (b.fixedCost + b.wage + extraPayroll) * costMultiplier
         + Math.max(0, 100 - store.condition) * 650;
-      total += Math.floor(Math.max(0, mr.revenue)) - mr.variableCost - Math.floor(Math.max(0, fixed));
+      total += modules.economicOperation.ceilYen(Math.max(0, mr.revenue)) - mr.variableCost - modules.economicOperation.ceilYen(Math.max(0, fixed));
     }
     return total;
   }

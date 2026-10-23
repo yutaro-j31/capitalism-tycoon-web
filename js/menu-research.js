@@ -30,10 +30,12 @@ const ALWAYS_UNLOCKED=Object.freeze(['classic']);
 
 const finite=(value,fallback=0)=>Number.isFinite(Number(value))?Number(value):fallback;
 const yen=value=>`${Math.round(finite(value)).toLocaleString('ja-JP')}円`;
+// Whole-yen settlement, fractions rounded up (YEN_CEILING_ROUNDING_CONTRACT §2).
+const ceilYen=value=>modules.economicOperation.ceilYen(finite(value));
 
 function researchCost(def){
   const power=Math.abs(finite(def?.qualityDelta))+Math.abs(finite(def?.noveltyDelta));
-  return Math.round(RESEARCH_BASE_COST+RESEARCH_POWER_RATE*power);
+  return ceilYen(RESEARCH_BASE_COST+RESEARCH_POWER_RATE*power);
 }
 
 function ensure(state){
