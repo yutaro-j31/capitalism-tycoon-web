@@ -524,6 +524,32 @@ const SCENARIOS = [
     const rows = rowsSince(g, count, row => /personal/i.test(String(row.sourceType || '')));
     return { rows, state: { ...personal, saleProceeds: g.personalCash - before, longGross: osaka.rentalOps.lastGrossRent, longExpense: osaka.rentalOps.lastOperatingExpense, longNOI: osaka.rentalOps.lastNOI, corpCashAfterWeek: corp.cash } };
   } },
+  { slice: 'R4b', label: 'personal mortgage: borrow, weekly service, prepayment and foreclosure', ledger: false, run() {
+    const { engine, modules } = newGame(2101), g = engine.g, mortgage = modules.personalRealEstateMortgage;
+    assert.ok(engine.buyPersonalRealEstate('studio-tokyo'));
+    assert.ok(engine.buyPersonalRealEstate('commercial-osaka'));
+    const [studio, osaka] = g.personalRealEstateHoldings.filter(x => x.status === 'owned');
+    Object.assign(studio, { currentValue: 18_000_000.7 });
+    Object.assign(osaka, { currentValue: 65_000_000.3 });
+    const count = g.finance.transactions.length;
+    // Borrow: ceiling = ceil(value × LTV) and fee = ceil(available × rate).
+    assert.ok(engine.borrowPersonalRealEstateMortgage(studio.assetID, 'fixed'));
+    assert.equal(studio.mortgageBalance, Math.ceil(18_000_000.7 * .6));
+    assert.equal(studio.mortgageFeePaid, Math.ceil(studio.mortgageBalance * .012));
+    // Weekly service: the payment is rounded up once; interest is the charge, principal the remainder.
+    g.week += 1;
+    const [serviced] = mortgage.processWeek(engine);
+    assert.ok(serviced && !serviced.foreclosed && serviced.interest > 0 && serviced.principal > 0, 'the week is serviced');
+    // Prepayment: the request rounds up and is capped at the balance.
+    assert.ok(engine.prepayPersonalRealEstateMortgage(studio.assetID, 123_456.4));
+    assert.equal(studio.mortgagePrincipalPaid, serviced.principal + 123_457);
+    // Foreclosure: the forced sale settles at ceil(value × .85) and the net lands in personal cash.
+    assert.ok(engine.borrowPersonalRealEstateMortgage(osaka.assetID, 'variable'));
+    mortgage.foreclose(engine, osaka);
+    assert.equal(osaka.salePrice, Math.ceil(65_000_000.3 * .85));
+    const rows = rowsSince(g, count, () => true);
+    return { rows, state: { personalCash: g.personalCash, personalDebt: g.personalDebt, balance: studio.mortgageBalance, interestPaid: studio.mortgageInterestPaid, principalPaid: studio.mortgagePrincipalPaid, feePaid: studio.mortgageFeePaid, osakaFee: osaka.mortgageFeePaid, foreclosureSale: osaka.salePrice } };
+  } },
 ];
 for (const scenario of SCENARIOS) {
   const { rows, state = {} } = scenario.run();

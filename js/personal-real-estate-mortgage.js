@@ -50,7 +50,7 @@ const MAX_DELINQUENT_WEEKS=8;
 const FORECLOSURE_SALE_RATE=.85;
 
 const finite=(value,fallback=0)=>Number.isFinite(Number(value))?Number(value):fallback;
-const round=value=>Math.round(finite(value));
+const ceilYen=value=>modules.economicOperation.ceilYen(finite(value));
 const clamp=(value,min,max)=>Math.max(min,Math.min(max,value));
 
 function productOf(productID){return PRODUCTS[productID]||null;}
@@ -68,8 +68,10 @@ function valueOf(asset){
   return Math.max(1,finite(asset?.currentValue,finite(asset?.purchasePrice,1)));
 }
 
+// The stored balance is plain arithmetic; a fraction from an older save is kept and is
+// cleared by the final instalment (YEN_CEILING_ROUNDING_CONTRACT §1.1, §3.5).
 function balanceOf(asset){
-  return Math.max(0,round(asset?.mortgageBalance));
+  return Math.max(0,finite(asset?.mortgageBalance));
 }
 
 function hasMortgage(asset){
@@ -87,7 +89,7 @@ function totalDebt(state){
 function maxPrincipalFor(asset,productID){
   const product=productOf(productID);
   if(!product)return 0;
-  return round(valueOf(asset)*product.maxLTV);
+  return ceilYen(valueOf(asset)*product.maxLTV);
 }
 
 // What the player is offered for one holding: headroom is the ceiling minus whatever is
@@ -98,15 +100,16 @@ function quotesFor(state,asset){
   return Object.values(PRODUCTS).map(product=>{
     const ceiling=maxPrincipalFor(asset,product.id);
     const available=Math.max(0,ceiling-outstanding);
-    const fee=round(available*product.feeRate);
+    const fee=ceilYen(available*product.feeRate);
     const annualRate=annualRateFor(state,product.id);
+    const first=scheduleFor(available,annualRate,product.termWeeks);
     return Object.freeze({
       id:product.id,label:product.label,detail:product.detail,
       annualRate,maxLTV:product.maxLTV,termWeeks:product.termWeeks,feeRate:product.feeRate,
       variable:product.variable,ceiling,available,fee,
       netProceeds:Math.max(0,available-fee),
-      weeklyInterest:round(available*annualRate/52),
-      weeklyPrincipal:available>0?round(available/product.termWeeks):0,
+      weeklyInterest:first.interest,
+      weeklyPrincipal:first.principal,
       // Refuse rather than silently lend nothing once the building is already fully charged.
       eligible:available>0
     });
@@ -117,14 +120,23 @@ function currentLTV(asset){
   return balanceOf(asset)/valueOf(asset);
 }
 
-// Interest on the balance plus straight-line principal over the remaining term.
+// Interest on the balance plus straight-line principal over the remaining term, rounded up
+// once as the week's payment: interest is the charge and principal the remainder (§4). The
+// final instalment pays the balance exactly, so an older save's fractional balance is cleared
+// (YEN_CEILING_ROUNDING_CONTRACT §3.5).
+function scheduleFor(balance,annualRate,remainingWeeks){
+  if(!(balance>0))return {interest:0,principal:0,due:0};
+  const rawInterest=balance*annualRate/52,interestCharge=ceilYen(rawInterest);
+  const rawPrincipal=Math.min(balance,balance/Math.max(1,remainingWeeks));
+  if(rawPrincipal>=balance)return {interest:interestCharge,principal:balance,due:interestCharge+balance};
+  const due=Math.min(ceilYen(rawInterest+rawPrincipal),balance+interestCharge);
+  const interest=Math.min(interestCharge,due);
+  return {interest,principal:due-interest,due};
+}
 function weeklyPaymentFor(state,asset){
   if(!hasMortgage(asset))return {interest:0,principal:0,due:0};
-  const balance=balanceOf(asset);
-  const interest=round(balance*annualRateFor(state,asset.mortgageProductID)/52);
   const remaining=Math.max(1,Math.floor(finite(asset.mortgageRemainingWeeks,1)));
-  const principal=round(Math.min(balance,balance/remaining));
-  return {interest,principal,due:interest+principal};
+  return scheduleFor(balanceOf(asset),annualRateFor(state,asset.mortgageProductID),remaining);
 }
 
 function borrow(engine,assetID,productID){
@@ -138,15 +150,15 @@ function borrow(engine,assetID,productID){
   const quote=quotesFor(state,asset).find(row=>row.id===productID);
   if(!quote?.eligible)return engine.fail('この物件の担保余力がありません。');
 
-  state.personalCash=round(finite(state.personalCash)+quote.netProceeds);
+  state.personalCash=finite(state.personalCash)+quote.netProceeds;
   asset.mortgageProductID=productID;
-  asset.mortgageBalance=round(balanceOf(asset)+quote.available);
+  asset.mortgageBalance=balanceOf(asset)+quote.available;
   asset.mortgageRemainingWeeks=product.termWeeks;
   asset.mortgageBorrowedWeek=Math.floor(finite(state.week));
-  asset.mortgageInterestPaid=round(asset.mortgageInterestPaid);
-  asset.mortgagePrincipalPaid=round(asset.mortgagePrincipalPaid);
+  asset.mortgageInterestPaid=finite(asset.mortgageInterestPaid);
+  asset.mortgagePrincipalPaid=finite(asset.mortgagePrincipalPaid);
   asset.mortgageDelinquentWeeks=0;
-  asset.mortgageFeePaid=round(finite(asset.mortgageFeePaid)+quote.fee);
+  asset.mortgageFeePaid=finite(asset.mortgageFeePaid)+quote.fee;
 
   engine.notify(`${asset.name}を担保に${quote.available.toLocaleString('ja-JP')}円を借り入れました（手数料${quote.fee.toLocaleString('ja-JP')}円を差し引き${quote.netProceeds.toLocaleString('ja-JP')}円を受け取り）。`,'success');
   engine.save();
@@ -159,13 +171,14 @@ function prepay(engine,assetID,amount){
   const asset=(state.personalRealEstateHoldings||[]).find(row=>row.assetID===assetID&&row.status==='owned');
   if(!asset)return engine.fail('対象の物件が見つかりません。');
   if(!hasMortgage(asset))return engine.fail('この物件に返済中の融資はありません。');
-  const requested=Math.max(0,round(amount));
-  const paid=Math.min(requested,balanceOf(asset),Math.max(0,round(state.personalCash)));
+  // The request is rounded up, then capped at the balance and the cash on hand (§3.5).
+  const requested=ceilYen(Math.max(0,finite(amount)));
+  const paid=Math.min(requested,balanceOf(asset),Math.max(0,finite(state.personalCash)));
   if(paid<=0)return engine.fail('繰上返済に充てる個人資金が不足しています。');
 
-  state.personalCash=round(finite(state.personalCash)-paid);
-  asset.mortgageBalance=round(balanceOf(asset)-paid);
-  asset.mortgagePrincipalPaid=round(finite(asset.mortgagePrincipalPaid)+paid);
+  state.personalCash=finite(state.personalCash)-paid;
+  asset.mortgageBalance=balanceOf(asset)-paid;
+  asset.mortgagePrincipalPaid=finite(asset.mortgagePrincipalPaid)+paid;
   if(balanceOf(asset)<=0){
     asset.mortgageProductID='';
     asset.mortgageRemainingWeeks=0;
@@ -181,28 +194,30 @@ function prepay(engine,assetID,amount){
 
 // Selling a mortgaged property clears the loan out of the proceeds first. Without this the
 // debt would simply vanish with the asset and selling would be a way to erase a loan.
+// Proceeds are settled by the caller (a sale at ceilYen(valuation), a foreclosure at
+// ceilYen(valuation × rate)), so they are taken as given.
 function settleOnSale(state,asset,proceeds){
-  const outstanding=balanceOf(asset);
-  if(outstanding<=0)return {repaid:0,shortfall:0,net:round(proceeds)};
-  const repaid=Math.min(outstanding,round(proceeds));
-  const shortfall=round(outstanding-repaid);
+  const outstanding=balanceOf(asset),amount=finite(proceeds);
+  if(outstanding<=0)return {repaid:0,shortfall:0,net:amount};
+  const repaid=Math.min(outstanding,amount);
+  const shortfall=outstanding-repaid;
   asset.mortgageBalance=0;
   asset.mortgageProductID='';
   asset.mortgageRemainingWeeks=0;
   asset.mortgageDelinquentWeeks=0;
   // Negative equity follows the borrower rather than disappearing with the building.
-  if(shortfall>0)state.personalDebt=round(finite(state.personalDebt)+shortfall);
-  return {repaid,shortfall,net:round(proceeds)-repaid};
+  if(shortfall>0)state.personalDebt=finite(state.personalDebt)+shortfall;
+  return {repaid,shortfall,net:amount-repaid};
 }
 
 function foreclose(engine,asset){
   const state=engine.g;
-  const proceeds=round(valueOf(asset)*FORECLOSURE_SALE_RATE);
+  const proceeds=ceilYen(valueOf(asset)*FORECLOSURE_SALE_RATE);
   const outcome=settleOnSale(state,asset,proceeds);
   const taxOutcome=modules.personalRealEstateTaxes?.settleOnSale
     ?modules.personalRealEstateTaxes.settleOnSale(state,asset,outcome.net)
     :{paid:0,shortfall:0,net:outcome.net};
-  state.personalCash=round(finite(state.personalCash)+taxOutcome.net);
+  state.personalCash=finite(state.personalCash)+taxOutcome.net;
   asset.status='foreclosed';
   asset.foreclosedWeek=Math.floor(finite(state.week));
   asset.salePrice=proceeds;
@@ -224,15 +239,15 @@ function processWeek(engine){
     if(finite(asset.mortgageProcessedWeek)===week)continue;
     asset.mortgageProcessedWeek=week;
     const {interest,principal,due}=weeklyPaymentFor(state,asset);
-    const cash=Math.max(0,round(state.personalCash));
+    const cash=Math.max(0,finite(state.personalCash));
     const paid=Math.min(due,cash);
     const interestPaid=Math.min(interest,paid);
     const principalPaid=Math.max(0,paid-interestPaid);
 
-    state.personalCash=round(finite(state.personalCash)-paid);
-    asset.mortgageBalance=round(Math.max(0,balanceOf(asset)-principalPaid));
-    asset.mortgageInterestPaid=round(finite(asset.mortgageInterestPaid)+interestPaid);
-    asset.mortgagePrincipalPaid=round(finite(asset.mortgagePrincipalPaid)+principalPaid);
+    state.personalCash=finite(state.personalCash)-paid;
+    asset.mortgageBalance=Math.max(0,balanceOf(asset)-principalPaid);
+    asset.mortgageInterestPaid=finite(asset.mortgageInterestPaid)+interestPaid;
+    asset.mortgagePrincipalPaid=finite(asset.mortgagePrincipalPaid)+principalPaid;
     asset.mortgageRemainingWeeks=Math.max(0,Math.floor(finite(asset.mortgageRemainingWeeks))-1);
 
     if(paid+1<due){
@@ -273,8 +288,8 @@ function summaryFor(state,asset){
     remainingWeeks:Math.max(0,Math.floor(finite(asset?.mortgageRemainingWeeks))),
     delinquentWeeks:Math.max(0,Math.floor(finite(asset?.mortgageDelinquentWeeks))),
     weeksUntilForeclosure:Math.max(0,MAX_DELINQUENT_WEEKS-Math.floor(finite(asset?.mortgageDelinquentWeeks))),
-    interestPaid:round(asset?.mortgageInterestPaid),
-    principalPaid:round(asset?.mortgagePrincipalPaid),
+    interestPaid:finite(asset?.mortgageInterestPaid),
+    principalPaid:finite(asset?.mortgagePrincipalPaid),
     equity:Math.max(0,valueOf(asset)-balanceOf(asset))
   });
 }
@@ -293,7 +308,7 @@ Engine.prototype.prepayPersonalRealEstateMortgage=function(assetID,amount){retur
 modules.personalRealEstateMortgage=Object.freeze({
   PRODUCTS,MAX_DELINQUENT_WEEKS,FORECLOSURE_SALE_RATE,
   annualRateFor,valueOf,balanceOf,hasMortgage,totalDebt,maxPrincipalFor,quotesFor,currentLTV,
-  weeklyPaymentFor,borrow,prepay,settleOnSale,foreclose,processWeek,summaryFor,
+  scheduleFor,weeklyPaymentFor,borrow,prepay,settleOnSale,foreclose,processWeek,summaryFor,
   __installed:true
 });
 })();
