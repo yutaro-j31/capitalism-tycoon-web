@@ -5,6 +5,16 @@
 **Baseline main:** `93ab9d65dcc5e4f40374abb4630a0d4f4035b737` (2026-10-23 JST).
 **Authority: READ_ONLY.** One new document; no js/, tests, workflow, storage or rounding migration change.
 
+## Current scheduling overlay — main `927419156996a64edda6d3ae1b4b4182d9e81546`
+
+The **evidence baseline remains `93ab9d65`**: source line numbers, definitions and C/P/G verdicts below retain that explicit historical meaning. This overlay and the route/GAP dependency cells reflect current main `927419156996a64edda6d3ae1b4b4182d9e81546`, not a blanket re-audit or promotion of old definitions. Since the input revision `36b1eca3`, main includes pure planner #1086, supplier transaction #1088, R2b #1090 and **R2c #1092 (`92741915`, DONE)**. R2c removes the R2c migration wait for completion/parity; it does not prove P3-4 S_PASS, generation isolation, caller closure or every refounding monetary case.
+
+R2d is **planned in Claude's `fix/yen-ceil-r2d` PR; PR number UNASSIGNED** (no open R2d PR at this refresh). Every R2d dependency below means that planned PR, not DONE; replace this placeholder with its verified PR number when available. Owner reports its completion will finish the contract's R2 umbrella. Do not invent an additional blocking R2 migration after that: G37/G15–G17/G40 currently retain the pending engine ownership-flow evidence assignment identified in review, and must be reconciled to the final R2d acceptance or actual R4/R5/R6/R9 flow owner before implementation. A slice DONE is not itself proof the listed S scenario ran. R3a company-real-estate migration is next; this inventory neither edits its files nor gates unrelated pure tests on it.
+
+**R2c status convention:** `R2c DONE #1092` in a dependency cell is a satisfied prerequisite, never an outstanding wait. `completion.js` also has product/transport work in the planned R2d PR; coordinate any executable refounding follow-up with that owner and the remaining R6/R9 boundaries. No baseline evidence label is upgraded from aggregate CI. The 51 IDs remain the pinned candidate register, not 51 outstanding migration blockers.
+
+Current R2c proof checked directly: contract §8 R2c DONE; `tests/yen-ceiling-rounding-guard-test.js` scenarios named "head office: office deposit, hiring, executives, directives, key people and weekly HQ costs" and "office and branch cancellation refunds are capped at the deposit paid" in #1092, canonical Test / test-shard-A. They cover their declared HQ/parity/completion rows, not the full P3-4 refounding/identity boundary. This overlay does not execute them or assert a tuple PASS.
+
 ## 1. Reading rules and verdict criteria
 
 This is a source-definition inventory at the baseline SHA, not a runtime PASS report. It maps all 67 route IDs in [#1080 §2](PHASE_3_P3_4_PREFLIGHT_AND_DESIGN.md#2-updated-installed-writer-matrix) to the nine obligations in its §3.3. The [#1081 inventory](PHASE_3_P3_4_WRITER_FAILURE_WEBKIT_EVIDENCE.md) supplies search leads only; its historical labels/line numbers are not promoted to current verdicts. Test definitions, called helpers, canonical npm labels and actual workflow job bodies were rechecked. #1086 is still unmerged at this baseline; its pure planner is not baseline S evidence.
@@ -58,7 +68,7 @@ Each route is distinct, including captured base/raw/exported/weekly/SH/replaceme
 | W-MBO: `js/expansion.js` `executeMBO` | R2d | G:G01 | P:E09 | P:E09 / G45 | P:E09 | P:E09 / G36 | P:E09 | P:E09 | P:B09 | P:REG; G39 |
 | W-DEFENSE: `js/expansion.js` `activateDefense` | R2d plus NPC scope R8 | G:G01 | P:E10 | P:E10 / G45,G50 | P:E10 | P:E10 / G36 | P:E10 | P:E10 | P:B10 | P:REG; G42 |
 | W-RATIOS: `js/engine.js` `updateOwnershipRatios` | R2 | G:G01 | P:F31,F07 | N | P:F31,F07 | P:F31,F07 / G36 | P:F31,F07 | P:F31,F07 | G:G01 | P:REG; G01 |
-| W-DECLINE: `js/completion.js` `declineInboundBuyoutOffer` | R2c | G:G01 | P:E11 | N | P:E11 | P:E11 / G36 | P:E11 | P:E11 | P:B11 | P:REG; G40 |
+| W-DECLINE: `js/completion.js` `declineInboundBuyoutOffer` | R2c DONE #1092 | G:G01 | P:E11 | N | P:E11 | P:E11 / G36 | P:E11 | P:E11 | P:B11 | P:REG; G40 |
 | W-BUYBACK: `js/shareholder-returns.js` `buyback` | R5 | G:G01 | P:F05,F01,F28 | P:F05,F01,F28 / G47 | P:F05,F01,F28 | P:F05,F01,F28 / G36 | P:F05,F01,F28 | P:F05,F01,F28 | G:G09 | P:REG; G09 |
 | W-BUYBACK-BASE: `js/engine.js` `buybackOwnShares` | R2; installed R5 | G:G01 | P:F01 | P:F01 / G37,G47 | P:F01 | P:F01 / G36 | P:F01 | P:F01 | G:G09 | P:REG; G09 |
 | W-DIV-SET: `js/shareholder-returns.js` `setDividend` | R5 | G:G01 | P:F06 | P:F06 / G47 | P:F06 | P:F06 / G36 | P:F06 | P:F06 | G:G10 | P:REG; G10 |
@@ -67,7 +77,7 @@ Each route is distinct, including captured base/raw/exported/weekly/SH/replaceme
 | W-SPONSOR: `js/player-crisis-actions.js` `requestSponsorInjection` | R7; engine R2 | G:G01 | P:F03 | P:F03 / G49,G37 | P:F03 | P:F03 / G36 | P:F03 | P:F03 | G:G11 | P:REG; G11 |
 | W-TURNAROUND-ACCEPT: `js/player-crisis-turnaround-fund.js` `accept` | R7 | G:G01 | P:F04 | P:F04 / G49 | P:F04 | P:F04 / G36 | P:F04 | P:F04 | G:G12 | P:REG; G12 |
 | W-TURNAROUND-RATCHET: `js/player-crisis-turnaround-fund.js` `settle` | R7; engine R2 | G:G01 | P:F02 | C:F02 (zero-cash leg) | P:F02 | P:F02 / G36 | P:F02 | P:F02 | G:G13 | P:REG; G13 |
-| W-NEW-COMPANY: `js/completion.js` `foundNewCompanyAfterBuyout` | R2c / R6 / R9 | G:G01 | P:E13 | P:E13 / G44,G48,G51 | P:E13 | P:E13 / G36 | P:E13 | P:E13 | P:B13 | P:REG; G02,G36 |
+| W-NEW-COMPANY: `js/completion.js` `foundNewCompanyAfterBuyout` | R2c DONE #1092 / R6 / R9 | G:G01 | P:E13 | P:E13 / G44,G48,G51 | P:E13 | P:E13 / G36 | P:E13 | P:E13 | P:B13 | P:REG; G02,G36 |
 ### 2.1.2 Adjacent issuers and remaining weekly/load paths
 
 | Route / source function | Wait slice before future edits | F | A | M | S | L | R | D | W | P / gap candidates |
@@ -105,7 +115,7 @@ Each route is distinct, including captured base/raw/exported/weekly/SH/replaceme
 | W-WEEK-STARTUPS: `js/engine.js` `updateStartups` | R2 | G:G01 | P:F09 | P:F09 / G37 | P:F09 | P:F09 / G36 | P:F09 | P:F09 | G:G15 | P:REG; G15,G16,G17 |
 | W-WEEK-PE: `js/pe-fund.js` `processFundsWeek` | R6 | G:G01 | P:F22 | P:F22 / G48 | P:F22 | P:F22 / G36 | P:F22 | P:F22 | G:G31 | P:REG; G31 |
 | W-WEEK-EXPANDED: `js/expansion.js` `updateCapitalMarketsExpandedWeekly` | R2d, margin R4 | G:G01 | P:F01,F42,F08 | P:F01,F42,F08 / G45,G46 | P:F01,F42,F08 | P:F01,F42,F08 / G36 | P:F01,F42,F08 | P:F01,F42,F08 | G:G33 | P:REG; G33 |
-| W-EARNINGS: `js/parity.js` `runEarningsEventsIfNeeded` | R2c | G:G01 | N | N | N | N | N | P:F25 | G:G01 | P:REG; G01 |
+| W-EARNINGS: `js/parity.js` `runEarningsEventsIfNeeded` | R2c DONE #1092 | G:G01 | N | N | N | N | N | P:F25 | G:G01 | P:REG; G01 |
 | W-CAPALLOC-PRICE: `js/capital-allocation-score.js` `advanceWeek` | R9 catch-all | G:G01 | N | N | N | N | N | P:F40 | G:G01 | P:REG; G01 |
 | W-LOAD-NORMALIZE: `js/engine.js` `normalizeHoldingMap` | R2, save wrappers R9 | G:G01 | P:F26,F27 | P:F26,F27 / G37,G51 | P:F26,F27 | P:F26,F27 / G36 | P:F26,F27 | P:F26,F27 | G:G02 | P:REG; G02,G36 |
 | W-LOAD-IMPORT: `js/save-v9.js` `migrateSave` | R9 | G:G01 | P:F27,F28 | P:F27,F28 (conservation; rounding N/A) | P:F27,F28 | P:F27,F28 / G36 | P:F27,F28 | P:F27,F28 | G:G02 | P:REG; G02,G36 |
@@ -232,12 +242,12 @@ All B entries contain a real WebKit launcher; the cited body establishes real ID
 
 ## 3. GAP register — one candidate PR per row
 
-These are evidence/implementation prerequisites, not reproduced defects or authorization to edit writers. Every executable case must wait for its owning file slice under contract §10; current R0/R1 and R2a completion does not waive R2c/R2d/R4–R9. No work on Claude branches `fix/yen-ceil-r2b` or `fix/supply-select-supplier-transaction` is proposed here. Existing slice PRs should be continued by their owners, not duplicated. Sizes are S/M/L estimates. Status labels below distinguish source reinspection/specification that can start READ_ONLY from tests/writer work that must wait.
+These are evidence/implementation prerequisites, not reproduced defects or authorization to edit writers. Every executable case must wait for its owning file slice under contract §10; R0/R1/R2a/R2b and R2c (#1092) are DONE at the scheduling overlay; this does not waive pending R2d/R4–R9 or route-specific S evidence. No work on Claude branches `fix/yen-ceil-r2b` or `fix/supply-select-supplier-transaction` is proposed here. Existing slice PRs should be continued by their owners, not duplicated. Sizes are S/M/L estimates. Status labels below distinguish source reinspection/specification that can start READ_ONLY from tests/writer work that must wait.
 
 | GAP / one future PR concern | Type / size | Existing evidence vs missing acceptance | Wait slice / execution dependency |
 |---|---|---|---|
 | G01: Close initial common-writer family and bypass test contract | closure; L | All 67 rows are inventoried; no installed one-authority call/bypass ratchet is established. Read-only specification now; disabled routing and executable closure only after all contributing slices. | R2/R4/R5/R6/R7/R9 |
-| G02: Execute new-game sold/refound generation-isolation scenarios | identity; L | E13 and F34/F35 preserve/refuse selected facts; no entire current-game same-ticker issuer/retained-personal-lot scenario closure. READ_ONLY specification now; executable scenarios wait. | R2c/R6/R9; #1082 specification |
+| G02: Execute new-game sold/refound generation-isolation scenarios | identity; L | E13 and F34/F35 preserve/refuse selected facts; no entire current-game same-ticker issuer/retained-personal-lot scenario closure. READ_ONLY specification now; executable scenarios wait. | R2c DONE #1092/R6/R9; #1082 specification |
 | G03: Complete purchase browser fault/account matrix | browser; M | E01 vs B01: browser only personal mirror/change, not company/full fault or durable-only fresh boot. | R2 engine personal-stock slice assignment / R4 |
 | G04: Complete sale browser failure matrix | browser; M | E02 vs B02: both accounts but only mirror/change; add remaining applicable faults/durable-only boots. | R2/R4 |
 | G05: Complete founder-secondary browser fault matrix | browser; M | E03 vs B03 only mirror/change. | R2d |
@@ -250,9 +260,9 @@ These are evidence/implementation prerequisites, not reproduced defects or autho
 | G12: Turnaround acceptance S matrix | writer; M | F04 healthy acceptance not complete failure/durable proof. | R7 |
 | G13: Ratchet storage-fault and real-WebKit matrix | writer; M | F02 covers one finalization throw plus zero-cash/replay/critical roundtrip, not the full storage failure set. | R7/R2 |
 | G14: Weekly competitor purchase fault matrix | writer; M | F07 healthy float/cash/twins/reload; targeted storage failure not established. | R2/R8 |
-| G15: VC funding-round close S matrix | writer; M | F09 healthy/held close and E15 contribution do not certify every close entry/fault. | R2d |
-| G16: VC writeoff S evidence | writer; M | F10 does not invoke writeoff; specific installed failure/durable definition UNVERIFIED. | R2d |
-| G17: VC listing S matrix | writer; M | F09/F37 transitions/reader provenance not listing-specific full persistence faults. | R2d |
+| G15: VC funding-round close S matrix | writer; M | F09 healthy/held close and E15 contribution do not certify every close entry/fault. | R2 pending engine ownership-flow evidence assignment (G37); reconcile final R2d acceptance/actual flow owner before implementation |
+| G16: VC writeoff S evidence | writer; M | F10 does not invoke writeoff; specific installed failure/durable definition UNVERIFIED. | R2 pending engine ownership-flow evidence assignment (G37); reconcile final R2d acceptance/actual flow owner before implementation |
+| G17: VC listing S matrix | writer; M | F09/F37 transitions/reader provenance not listing-specific full persistence faults. | R2 pending engine ownership-flow evidence assignment (G37); reconcile final R2d acceptance/actual flow owner before implementation |
 | G18: Prepared/base subsidiary IPO S matrix | writer; M | F11 stub and F12 isolated legacy invariants lack full installed chain failures. | R6/R2 |
 | G19: Subsidiary secondary sale S matrix | writer; M | F13 stub healthy/refusal lacks production fault/durable scope. | R6 |
 | G20: Direct listed-market stake S matrix | writer; M | F14/F15 quarter evidence cannot certify every buy/sell stake command. | R6 |
@@ -271,10 +281,10 @@ These are evidence/implementation prerequisites, not reproduced defects or autho
 | G33: Expanded-week ownership composition S scenario | writer; M | F01 raw margin and F42 listing behavior do not cover the entire installed expanded-week fault boundary. | R2/R4 |
 | G34: Initializer/configure/reset ownership S scenario | replacement; M | F38/F39 generic initialization/transaction checks do not establish reset-specific ownership rollback. | R2/R9 |
 | G35: Auxiliary investor refresh/decline fault scope | writer; S | F41 auxiliary metadata only; establish N/A effects explicitly and prove relevant failure contract rather than borrow accepted-issuance proof. | R2d |
-| G36: Current-game adopted-evidence reload/compaction retention | replacement; L | E/F baseline storage proofs predate gateway adoption. Pin nonzero current-game quantities and stale-plan invalidation through normal/emergency/critical/SH/load, after format/API exists. READ_ONLY cases now. | R2c/R6/R9; gateway/replacement design first |
+| G36: Current-game adopted-evidence reload/compaction retention | replacement; L | E/F baseline storage proofs predate gateway adoption. Pin nonzero current-game quantities and stale-plan invalidation through normal/emergency/critical/SH/load, after format/API exists. READ_ONLY cases now. | R2c DONE #1092/R6/R9; gateway/replacement design first |
 | G37: R2 engine ownership-flow rounding scenarios | rounding; M | F45 R2a store scenarios do not cover engine equity/IPO/VC/weekly ownership money. The owning R2 sub-slice PR must migrate and add its own focused scenarios; exact ownership-flow sub-row remains UNASSIGNED, not R2a DONE. Closes only rows naming G37. | R2 pending ownership-flow sub-slice; preserve R2a completion |
-| G44: R2c completion/parity acceptance scenarios | rounding; M | completion.js and parity.js are explicitly R2c in contract §8. Add required scenarios in the owning R2c migration/acceptance PR, not after all R2 is complete. Nonposting confirmation remains N/A for settlement. | R2c |
-| G45: R2d expansion ownership-family acceptance scenarios | rounding; M | The owning R2d PR supplies its expansion.js monetary scenarios and migration acceptance; no global G37 wait after R2d closes its own obligations. | R2d |
+| G44: R2c completion/parity acceptance scenarios | rounding; M | R2c migration/acceptance is DONE in #1092, including the two named guard scenarios in the overlay. No R2c wait remains. Mapping the specific refounding/contribution cases to actual acceptance remains PARTIAL, not inferred from HQ checks; preserve G02/G36 and coordinate completion.js with planned R2d/R6/R9. Nonposting confirmation remains N/A for settlement. | R2c DONE #1092 |
+| G45: R2d expansion ownership-family acceptance scenarios | rounding; M | Planned in Claude's fix/yen-ceil-r2d PR (PR number UNASSIGNED at refresh): expansion.js monetary scenarios and migration acceptance. Not DONE; replace with the actual PR number once published. No global G37 wait after its own obligations close. | R2d |
 | G46: R4 personal/margin ownership-money scenarios | rounding; M | The owning R4 migration/acceptance PR supplies direct and forced-sale personal cash/debt scenarios. | R4 |
 | G47: R5 dividend/buyback exact allocation scenarios | rounding; M | F05/F06 currently assert cent semantics. The owning R5 PR must add whole-yen settlement/allocateYen conservation scenarios for its writers and close the corresponding cells. | R5; engine body owner separately where relevant |
 | G48: R6 M&A/PE/subsidiary money acceptance scenarios | rounding; M | Each separately scoped R6 migration PR owns the focused scenarios for the writers it migrates; this is an R6 family-specific acceptance candidate, not a cross-slice follow-up. | R6 (split into owned sub-slices when planned) |
@@ -283,7 +293,7 @@ These are evidence/implementation prerequisites, not reproduced defects or autho
 | G51: R9 wrapper/remainder and closing acceptance scenarios | rounding; M | The owning R9 PR closes remaining monetary wrappers and the full new-game whole-yen guard; legacy stored operands stay under contract §1.1. No requirement to re-round imported or compacted books. | R9 |
 | G38: SH scope and independent S review record | review; S | E08 expressly strips a notice and documents G1-G4; record exact economics/event contract and independent scope. READ_ONLY review contract now; future routing waits. | R6/R2; Owner-approved existing SH, same S duties |
 | G39: Complete direct/nested/pending boundaries for MBO and fund adapter | browser; M | E09 lacks complete nested/pending/twin cases; E21 has fewer faults on adapter than engine. One reusable entry-boundary fault-specification PR now; each executable family implementation must be a separately reviewed PR. | R2/R6; READ_ONLY specification only for this candidate |
-| G40: Shared browser fault-applicability specification | browser; M | B06 includes pre-admission throw; several other browser suites omit it or nested/pending variants. One READ_ONLY fault-applicability contract PR, followed by separate affected-family executable PRs; no claim all browser definitions are missing. | R2c/R2d/R6/R9 according to family; no shared rollback replacement |
+| G40: Shared browser fault-applicability specification | browser; M | B06 includes pre-admission throw; several other browser suites omit it or nested/pending variants. One READ_ONLY fault-applicability contract PR, followed by separate affected-family executable PRs; no claim all browser definitions are missing. | R2 pending engine VC/base ownership-flow evidence assignment (G37); R2c DONE #1092/R2d/R6/R9 according to family; no shared rollback replacement |
 | G41: Complete share-swap browser fault set | browser; M | E07 command evidence vs B07 mirror/change-only proof. | R6/R2 |
 | G42: Takeover-defense actual WebKit failure matrix | browser; M | B10 verifies named-share ratios, not E10 storage faults. | R2/R8 |
 | G43: Activist acceptance browser failure matrix | browser; M | B12 covers false/accepted-save throw for buyback/dividend proposal; remaining applicable failures/durable variants not established. | R9 + R5 inner paths |
@@ -310,7 +320,7 @@ These are evidence/implementation prerequisites, not reproduced defects or autho
 | #909 tracker comment proposal | Deferred optional separate PR/comment draft; tracker issue body remains untouched. | #1080 §4; no tracker files changed |
 
 ```text
-MAIN SHA: 93ab9d65dcc5e4f40374abb4630a0d4f4035b737
+MAIN SHA: 927419156996a64edda6d3ae1b4b4182d9e81546 (scheduling overlay; evidence baseline 93ab9d65 retained)
 CURRENT SLICE: P3-4 S evidence manifest (definition inventory)
 AUTHORITY: READ_ONLY
 OWNER DECISIONS REQUIRED: accept this inventory; future activation and P3-10 remain separate
