@@ -353,6 +353,43 @@ const SCENARIOS = [
     assert.deepEqual([legacy.interest, legacy.principal, legacy.status], [9, 10_000.3, 'paid'], 'the final instalment clears a fractional legacy balance');
     return { rows, state };
   } },
+  { slice: 'R3a', label: 'company real-estate finance: mortgage refinance, prepayment, partial payment, specialist loan service/refinance, agency credit line', run() {
+    const { engine, modules } = newGame(1701), g = engine.g;
+    const [mortgaged, secured] = g.properties.filter(p => !p.owner && p.buildingType);
+    for (const p of [mortgaged, secured]) Object.assign(p, { owner: 'company', purchasePrice: 100_000_000, marketValue: 100_000_003, value: 100_000_003 });
+    modules.realEstate.ensure(g);
+    const count = g.finance.transactions.length;
+    // Mortgage: target ceil(100,000,003 × .65), fee ceil(target × .012); net derived.
+    assert.deepEqual({ ...engine.refinancePropertyMortgage(mortgaged.id, 'fixed') }, { oldBalance: 0, newBalance: 65_000_002, fee: 780_001, netProceeds: 64_220_001 });
+    // A week with ¥1 of cash: the interest charge is paid first and the unpaid rest is capitalised.
+    const cash = g.companyCash;
+    g.week += 1; g.companyCash = 1; modules.realEstateMortgageRefinancing.processWeek(engine); g.companyCash += cash;
+    g.week += 1; modules.realEstateMortgageRefinancing.processWeek(engine);
+    assert.equal(engine.prepayPropertyMortgage(mortgaged.id, 1234.3), 1235);
+    // Specialist loan: principal ceil(10,000,001.3); prepayment ceil(1234.3); refinance fee ceil(payoff × .015).
+    secured.realEstate.monthlyRent = 5_000_000;
+    const loan = engine.borrowAgainstProperty(secured.id, 10_000_001.3, { spread: .0251, termWeeks: 53 });
+    assert.ok(loan && loan.originalPrincipal === 10_000_002);
+    assert.equal(engine.prepayRealEstateLoan(loan.id, 1234.3), true);
+    g.week += 1; modules.realEstateCompleteCycle.processLoans(g);
+    const fresh = engine.refinanceRealEstateLoan(loan.id, { spread: .0251, termWeeks: 53 });
+    assert.ok(fresh, 'the specialist loan is refinanced');
+    // Agency credit line: a public draw and repayment round the request up.
+    assert.equal(modules.realEstateAgencyCreditLine.draw(g, 1234.3), 1235);
+    assert.equal(modules.realEstateAgencyCreditLine.repay(g, 1000.4), 1001);
+    const SOURCES = new Set(['propertyMortgage', 'propertySecuredLoan', 'realEstateAgencyCreditLine']);
+    const rows = rowsSince(g, count, row => SOURCES.has(row.sourceType));
+    for (const kind of ['propertyMortgage:debtBorrowing', 'propertyMortgage:interestExpense', 'propertyMortgage:debtRepayment', 'propertySecuredLoan:debtBorrowing', 'propertySecuredLoan:debtRepayment', 'propertySecuredLoan:interestExpense', 'propertySecuredLoan:otherOperating', 'realEstateAgencyCreditLine:debtBorrowing', 'realEstateAgencyCreditLine:debtRepayment'])
+      assert.ok(rows.some(row => `${row.sourceType}:${row.category}` === kind), `R3a finance scenario posts ${kind}`);
+    const mortgageLoan = g.finance.loans.find(row => row.loanID === `property-mortgage-${mortgaged.id}`);
+    const state = { companyCash: g.companyCash, companyDebt: g.companyDebt, mortgageBalance: mortgaged.mortgageBalance, mortgageInterestPaid: mortgaged.mortgageInterestPaid, mortgagePrincipalPaid: mortgaged.mortgagePrincipalPaid, mortgageForecastPrincipal: mortgageLoan.weeklyPrincipalPayment, specialistBalance: fresh.balance, specialistPayment: fresh.weeklyPayment };
+    // Saves made before R3a-2 can carry a fractional balance: the final instalment pays it exactly (§3.5) and the loan ends.
+    Object.assign(mortgaged, { mortgageBalance: 10_000.3, mortgageRemainingWeeks: 1 });
+    Object.assign(fresh, { balance: 10_000.3, weeksRemaining: 1 });
+    g.week += 1; modules.realEstateMortgageRefinancing.processWeek(engine); modules.realEstateCompleteCycle.processLoans(g);
+    assert.deepEqual([mortgaged.mortgageBalance, fresh.balance, fresh.status], [0, 0, 'paid'], 'the final instalments clear fractional legacy balances');
+    return { rows, state };
+  } },
 ];
 for (const scenario of SCENARIOS) {
   const { rows, state = {} } = scenario.run();

@@ -48,13 +48,17 @@ const BUSINESS_ID='realEstateAgency',SOURCE_TYPE='realEstateAgencyCreditLine';
 const CAP=6_000_000,CUSHION=1_200_000,REPAY_FLOOR_MULTIPLIER=2,REPAY_FLOOR=CUSHION*REPAY_FLOOR_MULTIPLIER;
 const CUSHION_PER_STORE=100_000,CUSHION_MAX=2_400_000;
 const finite=(v,d=0)=>Number.isFinite(Number(v))?Number(v):d;
+const ceilYen=v=>modules.economicOperation.ceilYen(finite(v));
 function creditLineLoans(g){return finance.ensureFinance(g).loans.filter(l=>l&&l.sourceType===SOURCE_TYPE);}
 function outstandingBalance(g){return creditLineLoans(g).filter(l=>l.status==='active').reduce((a,l)=>a+finite(l.outstandingPrincipal),0);}
 function openStoreCount(g){return (Array.isArray(g?.stores)?g.stores:[]).filter(s=>s?.businessID===BUSINESS_ID&&s.status==='open').length;}
 function eligible(g){return openStoreCount(g)>0;}
 function cushionFor(g){const count=Math.max(1,openStoreCount(g));return Math.min(CUSHION_MAX,CUSHION+CUSHION_PER_STORE*(count-1));}
 function repayFloorFor(g){return cushionFor(g)*REPAY_FLOOR_MULTIPLIER;}
-function draw(g,amount){
+// A public draw or repayment rounds the request up to whole yen (YEN_CEILING_ROUNDING_CONTRACT §3); service() passes
+// amounts it has already rounded or capped by a balance, which borrowAmount/settle post as is (§3.3–§3.5).
+function draw(g,amount){return borrowAmount(g,ceilYen(Math.max(0,finite(amount))));}
+function borrowAmount(g,amount){
   amount=Math.max(0,finite(amount));if(amount<=0)return 0;
   const f=finance.ensureFinance(g),week=finite(g.week,1),seq=finite(f.nextTransactionSeq,1),id=`realestate-credit-draw-${week}-${seq}`;
   g.companyCash=finite(g.companyCash)+amount;g.companyDebt=finite(g.companyDebt)+amount;
@@ -62,7 +66,8 @@ function draw(g,amount){
   finance.event(g,'debtBorrowing',amount,{cashEffect:amount,liabilityEffect:amount,sourceType:SOURCE_TYPE,sourceID:id,operationID:id,idempotencyKey:`${id}-ledger`,description:'不動産仲介 運転資金credit line引き出し'});
   return amount;
 }
-function repay(g,amount){
+function repay(g,amount){return settle(g,ceilYen(Math.max(0,finite(amount))));}
+function settle(g,amount){
   amount=Math.max(0,finite(amount));if(amount<=0)return 0;
   const active=creditLineLoans(g).filter(l=>l.status==='active'&&l.outstandingPrincipal>0);
   let remaining=amount,paid=0;
@@ -71,7 +76,7 @@ function repay(g,amount){
     const pay=Math.min(remaining,loan.outstandingPrincipal);
     loan.outstandingPrincipal=Math.max(0,loan.outstandingPrincipal-pay);
     remaining-=pay;paid+=pay;
-    if(loan.outstandingPrincipal<=.01){loan.outstandingPrincipal=0;loan.status='repaid';}
+    if(loan.outstandingPrincipal<=0){loan.outstandingPrincipal=0;loan.status='repaid';}
   }
   if(paid<=0)return 0;
   g.companyCash=finite(g.companyCash)-paid;g.companyDebt=Math.max(0,finite(g.companyDebt)-paid);
@@ -84,10 +89,10 @@ function service(g){
   const cushion=cushionFor(g),repayFloor=repayFloorFor(g);
   const outstanding=outstandingBalance(g),cash=finite(g.companyCash);
   if(cash<cushion){
-    const room=Math.max(0,CAP-outstanding),need=Math.min(room,cushion-cash);
-    return need>0?draw(g,need):0;
+    const room=Math.max(0,CAP-outstanding),need=Math.min(room,ceilYen(cushion-cash));
+    return need>0?borrowAmount(g,need):0;
   }
-  if(cash>repayFloor&&outstanding>0)return repay(g,Math.min(cash-repayFloor,outstanding));
+  if(cash>repayFloor&&outstanding>0)return settle(g,Math.min(cash-repayFloor,outstanding));
   return 0;
 }
 function install(){
