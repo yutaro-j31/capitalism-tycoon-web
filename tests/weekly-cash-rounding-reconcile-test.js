@@ -77,6 +77,12 @@ const LIMIT = 0.05;
   assertValid(finance, g, 'after build');
   // Ledger rows are rounded to the cent while companyCash is not, so the reconciliation may
   // legitimately absorb accumulated drift in a later week: compare the running totals.
+  // Since the whole-yen migration (YEN_CEILING_ROUNDING_CONTRACT §8 R2d) the weekly flows no longer
+  // leave sub-cent drift between companyCash and the cent-rounded ledger. Reproduce the drift an
+  // unmigrated writer leaves (cash keeps the fraction, its ledger row rounds it) once a quarter, so
+  // the reconciliation runs in weeks that also post property tax after the snapshot.
+  const baseFranchise = engine.updateFranchise;
+  engine.updateFranchise = function () { return baseFranchise.call(this) + (this.g.week % 13 === 0 ? 0.006 : 0); };
   let offLedger = 0;
   const recordedTotal = () => g.finance.roundingAdjustmentTotal;
   const recordedStart = recordedTotal();

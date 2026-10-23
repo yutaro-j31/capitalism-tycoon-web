@@ -14,7 +14,6 @@
     ]
   ],
   "sites": [
-    "js/difficulty-scenario-balance.js#reconcileWeeklyCashRounding",
     "js/engine.js#(anonymous)<js/engine.js#borrow",
     "js/engine.js#(anonymous)<js/engine.js#openStore",
     "js/engine.js#advanceWeek",

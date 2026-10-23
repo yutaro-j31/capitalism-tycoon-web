@@ -4,7 +4,6 @@
  "note": "pendingFiles may only shrink: remove a file when its slice migrates it (contract §6). An addition needs a stated reason in the PR body.",
  "pendingFiles": [
   "js/difficulty-scenario-balance.js",
-  "js/expansion.js",
   "js/finance.js",
   "js/personal-real-estate-corp.js",
   "js/personal-real-estate-redevelopment.js",

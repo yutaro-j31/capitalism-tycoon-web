@@ -48,7 +48,8 @@ function withHolding(seed = 260819902, offer = 'logistics-aichi', cash = 300_000
   const { engine, asset } = withHolding();
   assert.equal(asset.bookValue, asset.purchasePrice, '購入直後は帳簿価額=購入額');
   const ops0 = engine.getPersonalRealEstateOperations(asset.assetID);
-  const expectedWeekly = Math.round((asset.purchasePrice * (1 - 0.2) / 1040) * 100) / 100;
+  // Whole yen (YEN_CEILING_ROUNDING_CONTRACT §8 R2d): the salvage floor and the straight-line charge both round up.
+  const expectedWeekly = Math.ceil((asset.purchasePrice - Math.ceil(asset.purchasePrice * 0.2)) / 1040);
   assert.equal(ops0.weeklyDepreciation, expectedWeekly, '週次償却額は耐用1040週・残存20%から導出される');
 }
 
@@ -64,7 +65,7 @@ function withHolding(seed = 260819902, offer = 'logistics-aichi', cash = 300_000
   const after10 = engine.getPersonalRealEstateOperations(asset.assetID);
   assert.ok(after10.bookValue < before, '帳簿価額は毎週減少する');
 
-  const floor = Math.round(asset.purchasePrice * 0.2 * 100) / 100; // literal 20%, independent of the module constant
+  const floor = Math.ceil(asset.purchasePrice * 0.2); // literal 20%, independent of the module constant
   asset.bookValue = floor + 5;
   for (let i = 0; i < 5; i++) assert.notEqual(engine.advanceWeek(false), false);
   const long = engine.getPersonalRealEstateOperations(asset.assetID);

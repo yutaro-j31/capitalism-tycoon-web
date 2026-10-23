@@ -255,6 +255,67 @@ const SCENARIOS = [
     assert.deepEqual([byKind.closeBranchOffice.cashEffect, byKind.closeBranchOffice.assetEffect, byKind.closeBranchOffice.profitEffect], [200_001, -333_334, -133_333]);
     return { rows, state: { companyCash: g.companyCash } };
   } },
+  { slice: 'R2d', label: 'product ventures: development, funnel weeks, maintenance, actions, retirement, sale, buyout and transport rebuild', run() {
+    const { engine, modules } = newGame(1501), g = engine.g;
+    // Product development needs the product department; install it directly (establishing it needs a head office).
+    g.departments.product = { ...modules.data.MASTER.departments.find(d => d.id === 'product'), established: true };
+    const count = g.finance.transactions.length;
+    const blueprints = modules.data.PRODUCT_BLUEPRINTS.slice(0, 3);
+    for (const bp of blueprints) assert.equal(engine.launchProduct(bp.id, `R2d ${bp.id}`), true);
+    for (const p of g.productVentures) p.serverCost += 0.3; // a fractional server cost feeds the development cost
+    assert.equal(engine.advanceWeek(false), true, 'a development week');
+    for (const p of g.productVentures) Object.assign(p, { progress: 99, weeksToLaunch: 1 });
+    for (let week = 0; week < 3; week++) assert.equal(engine.advanceWeek(false), true, 'release and funnel weeks');
+    const [kept, bought, retired] = g.productVentures;
+    assert.ok(g.productVentures.every(p => p.status === 'released' && Number.isSafeInteger(p.revenue) && Number.isSafeInteger(p.cost)), 'funnel revenue and cost are whole');
+    assert.equal(engine.productAction(kept.id, 'marketing', 100_000.3), true);
+    assert.equal(engine.startProductSunset(retired.id), true);
+    for (let week = 0; week < 4; week++) assert.equal(engine.advanceWeek(false), true, 'sunset weeks');
+    assert.equal(engine.retireProduct(retired.id), true);
+    // An offer generated before R2d may still carry cents.
+    g.productBuyoutOffers.unshift({ id: 'r2d-offer', productID: bought.id, productName: bought.name, buyerName: 'R2d', offerAmount: 12_345_678.9, premium: .1, createdWeek: g.week, expiresWeek: g.week + 8, status: 'pending' });
+    assert.equal(engine.acceptProductBuyoutOffer('r2d-offer'), true);
+    const offer = g.productBuyoutOffers.find(row => row.id === 'r2d-offer');
+    assert.equal(offer.offerAmount, 12_345_679, 'the accepted offer keeps the amount actually received');
+    kept.valuation = 3_456_789.4;
+    assert.equal(engine.sellProduct(kept.id), true);
+    g.subsidiaries.push({ id: 'r2d-sub', name: 'R2d物流', industry: '物流', valuation: 123_456_789.7 });
+    assert.equal(engine.startTransportRebuild('r2d-sub', 'digital'), true);
+    const PRODUCT = ['launchProduct', 'weekly-productRevenue', 'weekly-productCost', 'productMaintenance', 'expansionWeeklyAdjustment', 'productAction', 'productRetirement', 'productBuyoutOffer', 'sellProduct', 'startTransportRebuild'];
+    const rows = rowsSince(g, count, row => PRODUCT.includes(row.sourceType));
+    for (const kind of PRODUCT) assert.ok(rows.some(row => row.sourceType === kind), `R2d scenario posts ${kind}`);
+    const amount = kind => rows.find(row => row.sourceType === kind).amount;
+    assert.deepEqual([amount('productAction'), amount('productBuyoutOffer'), amount('sellProduct'), amount('startTransportRebuild')], [100_001, 12_345_679, 3_456_790, 5_555_556], 'user amount, legacy offer, sale value and ceil(123,456,789.7 × .045)');
+    return { rows, state: { companyCash: g.companyCash, acceptedOffer: offer.offerAmount, maxProductExit: g.hallOfRecords ? g.hallOfRecords.maxProductExit : 0 } };
+  } },
+  { slice: 'R2d', label: 'weekly adjustments: legacy product, franchise income, quarterly tax, supply chain, vertical integration, personal depreciation', run() {
+    const loaded = loadGame({ headless: true, random: lcg(1502) });
+    const { engine: engineModule, finance, market, supply, data } = loaded.modules;
+    const state = engineModule.createInitialState({ configured: true });
+    const business = state.businesses.find(row => !market.isTargetBusinessID(row.id) && !supply.isTargetBusinessID(row.id));
+    Object.assign(business, { price: 123.45, unitCost: 45.67, demand: 0.25 });
+    Object.assign(state, { week: 12, companyCash: 1_000_000_000, personalCash: 100_000_000, companyDebt: 0, properties: [], startups: [], competitors: [], market: [], subsidiaries: [], maSubsidiaries: [], overseasSubsidiaries: [], sportsTeams: [], personalInvestments: [], luxuryAssets: [], activeMissionIDs: [], completedMissionIDs: (data.MISSION_DEFS || []).map(row => row.id) });
+    state.stores = [{ id: 'r2d-store', businessID: business.id, prefID: state.prefs[0].id, name: 'R2d', status: 'open', condition: 99, operatingHours: 3, openingWeek: 1, weeksToOpen: 0, lastSales: 0, lastProfit: 0, marketResult: null }];
+    // A pre-economics product without a digital blueprint runs the legacy revenue/cost paths.
+    state.productVentures = [{ id: 'r2d-legacy', name: 'Legacy', blueprintID: 'legacy', category: 'SaaS', status: 'released', economicsVersion: 0, quality: 60, brand: 30, users: 12_345, paidUsers: 321, price: 1234.5, serverCost: 150_000.3, market: 500_000, risk: .2, valuation: 50_000_000, revenue: 0, cost: 0, profit: 0, releaseWeek: 1 }];
+    state.supplierContracts = [{ contractID: 'r2d-contract', id: 'local-quality', name: 'R2d supplier', businessID: business.id, active: true, discount: .02, quality: 10, reliability: 2, weeklyFee: 35_000 }];
+    state.verticalIntegrationAssets = [{ assetID: 'r2d-vertical', id: 'pos-platform', name: 'POS', businessID: 'all', cost: 45_000_000, weeklyCost: 320_000, costReduction: .025, risk: 100, active: true, condition: 100 }];
+    state.franchiseStoresByBusinessID = { [business.id]: 3 };
+    state.quarterlyPretaxProfit = 1_234_567.89; // week 13 closes the quarter
+    state.finance = finance.defaultFinanceState(state);
+    const engine = new engineModule.TycoonEngine(state), g = engine.g, count = g.finance.transactions.length;
+    g.inventoryByBusinessID[business.id].disruptionWeeks = 2; // a shortage week posts the lost margin
+    g.personalRealEstateHoldings = [{ assetID: 'r2d-home', name: 'R2d home', status: 'owned', purchasePrice: 12_345_677, bookValue: 12_345_677, currentValue: 12_345_677, weeklyRent: 20_000, acquiredWeek: 1 }];
+    assert.equal(engine.advanceWeek(false), true);
+    assert.equal(g.week, 13);
+    const WEEKLY = ['weekly-productRevenue', 'weekly-productCost', 'weekly-franchiseRevenue', 'weekly-taxExpense', 'weekly-taxPayment', 'expansionWeeklyAdjustment'];
+    const rows = rowsSince(g, count, row => WEEKLY.includes(row.sourceType));
+    for (const kind of WEEKLY) assert.ok(rows.some(row => row.sourceType === kind), `R2d scenario posts ${kind}`);
+    assert.ok(g.supplyChainEvents.some(text => text.includes('欠品')) && g.supplyChainEvents.some(text => text.includes('修繕費')), 'the shortage and the vertical incident both fire');
+    const home = g.personalRealEstateHoldings[0];
+    assert.equal(home.bookValue, 12_345_677 - 9_497, 'ceil((12,345,677 − ceil(12,345,677 × .2)) / 1040)');
+    return { rows, state: { companyCash: g.companyCash, supply: g.expandedWeeklyAdjustments.supply, product: g.expandedWeeklyAdjustments.product, homeBook: home.bookValue } };
+  } },
 ];
 for (const scenario of SCENARIOS) {
   const { rows, state = {} } = scenario.run();
