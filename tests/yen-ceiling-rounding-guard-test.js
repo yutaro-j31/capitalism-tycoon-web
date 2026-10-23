@@ -175,6 +175,28 @@ const SCENARIOS = [
     assert.equal(supply.physicalInventoryValue(g), g.finance.balances.inventory, 'physical inventory equals the balance-sheet inventory exactly');
     return { rows, state: { supplyAccountsPayable: g.supplyAccountsPayableBalance, inventory: g.finance.balances.inventory, lotBooks: lots.reduce((sum, lot) => sum + lot.bookValue, 0) } };
   } },
+  { slice: 'R2b', label: 'every other supply writer: fees, cash and emergency receipts, spoilage, closure write-off', run() {
+    const { engine, finance, modules } = newGame(1302), g = engine.g, supply = modules.supply;
+    g.inflation = 1.0137;
+    const tenant = g.tenants.find(t => !t.occupiedBy && t.businessID === 'ramen') || g.tenants.find(t => !t.occupiedBy);
+    assert.notEqual(engine.openStore({ tenantID: tenant.id, businessID: 'ramen', name: 'R2b writers', operatingHours: 3 }), false);
+    const store = g.stores[g.stores.length - 1];
+    store.status = 'open';
+    supply.ensureStore(g, store);
+    const count = g.finance.transactions.length;
+    assert.equal(supply.selectSupplier(g, store.id, 'quality_farm', finance), true, 'contract fee');
+    assert.equal(supply.selectSupplier(g, store.id, 'quick_local', finance), true, 'termination fee plus the next contract fee');
+    const cashOrder = supply.createOrder(g, store.id, 'ramen_noodles', 333.33, { paymentTermsWeeks: 0, leadTimeWeeks: 0 });
+    assert.ok(cashOrder && supply.receiveOrderNow(g, finance, cashOrder, cashOrder.orderedQuantity) > 0, 'immediate cash receipt');
+    assert.ok(supply.receiveEmergencyOrder(g, store.id, 'ramen_soup', 77.77, finance), 'emergency receipt');
+    const soupLots = g.inventoryByStoreID[store.id].materials.ramen_soup.lots;
+    soupLots.forEach(lot => { lot.expiryWeek = g.week; });
+    assert.ok(supply.spoil(g, finance).cost > 0, 'spoilage');
+    assert.ok(supply.disposeStoreSupply(g, store.id, finance).bookValue > 0, 'closure write-off of the remaining noodles');
+    const rows = rowsSince(g, count, row => row.storeID === store.id || row.sourceType === 'spoilage');
+    for (const kind of ['supplier-contract', 'supplier-termination', 'inventory-receipt-cash', 'emergency-receipt-cash', 'spoilage', 'closeStoreInventoryWriteoff']) assert.ok(rows.some(row => row.sourceType === kind), `R2b scenario posts ${kind}`);
+    return { rows, state: { inventory: g.finance.balances.inventory, physicalInventory: supply.physicalInventoryValue(g) } };
+  } },
 ];
 for (const scenario of SCENARIOS) {
   const { rows, state = {} } = scenario.run();
