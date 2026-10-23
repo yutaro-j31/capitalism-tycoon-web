@@ -34,40 +34,40 @@ Actual financial browser definitions run in **M&A Acquisition Financing** (`.git
 
 ## 2. Route × S obligation matrix
 
-Each route is distinct, including captured base/raw/exported/weekly/SH/replacement paths. Evidence through an enclosing installed command is only PARTIAL for a standalone raw/base path. Every F cell remains G01: no installed gateway/bypass-closure ratchet is on baseline main. Every permanent-gate cell is PARTIAL: registrations exist for the cited tests, but there is no executable adoption-completeness certificate. Source labels follow #1080; source locations are identified by file/function, not its obsolete baseline line numbers.
+Each route is distinct, including captured base/raw/exported/weekly/SH/replacement paths. Evidence through an enclosing installed command is only PARTIAL for a standalone raw/base path. Every F cell remains G01: no installed gateway/bypass-closure ratchet is on baseline main. For adjacent issuer families, G01 requires explicit exclusion and no alias contamination, not adoption of every external/VC/PE/subsidiary issuer before player-common activation; those families retain their own listed prerequisites. Every permanent-gate cell is PARTIAL: registrations exist for the cited tests, but there is no executable adoption-completeness certificate. Source labels follow #1080; source locations are identified by file/function, not its obsolete baseline line numbers.
 
 ### 2.1.1 Player-common, orchestration and replacement inputs
 
 | Route / source function | Wait slice before future edits | F | A | M | S | L | R | D | W | P / gap candidates |
 |---|---|---|---|---|---|---|---|---|---|---|
-| W-INIT: `js/engine.js` `createInitialState` | R2; difficulty wrapper R9 | G:G01 | P:F38,F39 | P:F38,F39 / G37 | P:F38,F39 | P:F38,F39 / G36 | P:F38,F39 | P:F38,F39 | G:G34 | P:REG; G34 |
-| W-BUY: `js/engine.js` `buyStock` | R2 / R4 | G:G01 | P:E01 | P:E01 / G37 | P:E01 | P:E01 / G36 | P:E01 | C:E01 | P:B01 | P:REG; G03 |
-| W-SELL: `js/engine.js` `sellStock` | R2 / R4 | G:G01 | P:E02 | P:E02 / G37 | P:E02 | P:E02 / G36 | P:E02 | C:E02 | P:B02 | P:REG; G04 |
-| W-MARGIN-RAW: `js/personal-stock-margin.js` `sellPersonalStockRaw` | R4 | G:G01 | P:F01 | P:F01 / G37 | P:F01 | P:F01 / G36 | P:F01 | P:F01 | G:G08 | P:REG; G08 |
-| W-MARGIN-LIQ: `js/personal-stock-margin.js` `liquidate` | R4 | G:G01 | P:F01 | P:F01 / G37 | P:F01 | P:F01 / G36 | P:F01 | P:F01 | G:G08 | P:REG; G08 |
-| W-SPLIT: `js/expansion.js` `stockSplit` | R2d | G:G01 | P:E06 | N | P:E06 | P:E06 / G36 | P:E06 | P:E06 | P:B06 | P:REG; G40 |
-| W-FOUNDER-SALE: `js/expansion.js` `sellFounderShares` | R2d | G:G01 | P:E03 | P:E03 / G37 | P:E03 | P:E03 / G36 | P:E03 | C:E03 | P:B03 | P:REG; G05 |
-| W-INVESTOR: `js/expansion.js` `acceptInvestorOffer` | R2d | G:G01 | P:E04 | P:E04 / G37 | P:E04 | P:E04 / G36 | C:E04 | C:E04 | P:B04 | P:REG; G06 |
+| W-INIT: `js/engine.js` `createInitialState` | R2; difficulty wrapper R9 | G:G01 | P:F38,F39 | P:F38,F39 / G37,G51 | P:F38,F39 | P:F38,F39 / G36 | P:F38,F39 | P:F38,F39 | G:G34 | P:REG; G34 |
+| W-BUY: `js/engine.js` `buyStock` | R2 / R4 | G:G01 | P:E01 | P:E01 / G37,G46 | P:E01 | P:E01 / G36 | P:E01 | C:E01 | P:B01 | P:REG; G03 |
+| W-SELL: `js/engine.js` `sellStock` | R2 / R4 | G:G01 | P:E02 | P:E02 / G37,G46 | P:E02 | P:E02 / G36 | P:E02 | C:E02 | P:B02 | P:REG; G04 |
+| W-MARGIN-RAW: `js/personal-stock-margin.js` `sellPersonalStockRaw` | R4 | G:G01 | P:F01 | P:F01 / G46 | P:F01 | P:F01 / G36 | P:F01 | P:F01 | G:G08 | P:REG; G08 |
+| W-MARGIN-LIQ: `js/personal-stock-margin.js` `liquidate` | R4 | G:G01 | P:F01 | P:F01 / G46 | P:F01 | P:F01 / G36 | P:F01 | P:F01 | G:G08 | P:REG; G08 |
+| W-SPLIT: `js/expansion.js` `stockSplit` | R2d | G:G01 | P:E06 | P:E06 (conservation; rounding N/A) | P:E06 | P:E06 / G36 | P:E06 | P:E06 | P:B06 | P:REG; G40 |
+| W-FOUNDER-SALE: `js/expansion.js` `sellFounderShares` | R2d | G:G01 | P:E03 | P:E03 / G45 | P:E03 | P:E03 / G36 | P:E03 | C:E03 | P:B03 | P:REG; G05 |
+| W-INVESTOR: `js/expansion.js` `acceptInvestorOffer` | R2d | G:G01 | P:E04 | P:E04 / G45 | P:E04 | P:E04 / G36 | C:E04 | C:E04 | P:B04 | P:REG; G06 |
 | W-INVESTOR-AUX: `js/expansion.js` `refreshInvestorOffers` | R2d | G:G01 | P:F41 | N | P:F41 | P:F41 / G36 | P:F41 | P:F41 | G:G35 | P:REG; G35 |
 | W-IPO-BASE: `js/engine.js` `executeIPO` | R2 | G:G01 | P:E05 | P:E05 / G37 | P:E05 (indirect) | P:E05 / G36 | P:E05 | P:E05 | P:B05 | P:REG; G07 |
-| W-IPO-CHAIN: `js/difficulty-scenario-balance.js` `baseExecuteIPO` | R9 wrapper; R6 PE hooks; R2 body | G:G01 | P:E05 | P:E05 / G37 | P:E05 | P:E05 / G36 | C:E05 | C:E05 | P:B05 | P:REG; G07 |
+| W-IPO-CHAIN: `js/difficulty-scenario-balance.js` `baseExecuteIPO` | R9 wrapper; R6 PE hooks; R2 body | G:G01 | P:E05 | P:E05 / G51,G48,G37 | P:E05 | P:E05 / G36 | C:E05 | C:E05 | P:B05 | P:REG; G07 |
 | W-ISSUE-RAW: `js/engine.js` `issueSharesToExternalHolders` | R2 | G:G01 | P:E07,E08 | N | P:E07,E08 (indirect) | P:E07,E08 / G36 | P:E07,E08 | P:E07,E08 | G:G01 | P:REG; G01 |
-| W-SHARE-SWAP: `js/ma-deal-room.js` `completeTargetAcquisition` | R6, helper R2 | G:G01 | P:E07 | P:E07 / G37 | P:E07 | P:E07 / G36 | C:E07 | C:E07 | P:B07 | P:REG; G41 |
-| W-ACQUIRE-COMPAT: `js/engine.js` `acquireTarget` | R2, installed route R6 | G:G01 | P:E07 | P:E07 / G37 | P:E07 (indirect) | P:E07 / G36 | P:E07 | P:E07 | G:G01 | P:REG; G01 |
-| W-MA-EQUITY/SH: `js/ma-acquisition-financing.js` `executeFinancing` | R6; helper R2 | G:G01 | P:E08 | P:E08 / G37 | P:E08 | P:E08 / G36 | P:E08 | P:E08 | P:B08 | P:REG; G38 |
-| W-MBO: `js/expansion.js` `executeMBO` | R2d | G:G01 | P:E09 | P:E09 / G37 | P:E09 | P:E09 / G36 | P:E09 | P:E09 | P:B09 | P:REG; G39 |
-| W-DEFENSE: `js/expansion.js` `activateDefense` | R2d plus NPC scope R8 | G:G01 | P:E10 | P:E10 / G37 | P:E10 | P:E10 / G36 | P:E10 | P:E10 | P:B10 | P:REG; G42 |
+| W-SHARE-SWAP: `js/ma-deal-room.js` `completeTargetAcquisition` | R6, helper R2 | G:G01 | P:E07 | P:E07 / G48,G37 | P:E07 | P:E07 / G36 | C:E07 | C:E07 | P:B07 | P:REG; G41 |
+| W-ACQUIRE-COMPAT: `js/engine.js` `acquireTarget` | R2, installed route R6 | G:G01 | P:E07 | P:E07 / G37,G48 | P:E07 (indirect) | P:E07 / G36 | P:E07 | P:E07 | G:G01 | P:REG; G01 |
+| W-MA-EQUITY/SH: `js/ma-acquisition-financing.js` `executeFinancing` | R6; helper R2 | G:G01 | P:E08 | P:E08 / G48,G37 | P:E08 | P:E08 / G36 | P:E08 | P:E08 | P:B08 | P:REG; G38 |
+| W-MBO: `js/expansion.js` `executeMBO` | R2d | G:G01 | P:E09 | P:E09 / G45 | P:E09 | P:E09 / G36 | P:E09 | P:E09 | P:B09 | P:REG; G39 |
+| W-DEFENSE: `js/expansion.js` `activateDefense` | R2d plus NPC scope R8 | G:G01 | P:E10 | P:E10 / G45,G50 | P:E10 | P:E10 / G36 | P:E10 | P:E10 | P:B10 | P:REG; G42 |
 | W-RATIOS: `js/engine.js` `updateOwnershipRatios` | R2 | G:G01 | P:F31,F07 | N | P:F31,F07 | P:F31,F07 / G36 | P:F31,F07 | P:F31,F07 | G:G01 | P:REG; G01 |
-| W-DECLINE: `js/completion.js` `declineInboundBuyoutOffer` | R2 | G:G01 | P:E11 | N | P:E11 | P:E11 / G36 | P:E11 | P:E11 | P:B11 | P:REG; G40 |
-| W-BUYBACK: `js/shareholder-returns.js` `buyback` | R5 | G:G01 | P:F05,F01,F28 | P:F05,F01,F28 / G37 | P:F05,F01,F28 | P:F05,F01,F28 / G36 | P:F05,F01,F28 | P:F05,F01,F28 | G:G09 | P:REG; G09 |
-| W-BUYBACK-BASE: `js/engine.js` `buybackOwnShares` | R2; installed R5 | G:G01 | P:F01 | P:F01 / G37 | P:F01 | P:F01 / G36 | P:F01 | P:F01 | G:G09 | P:REG; G09 |
-| W-DIV-SET: `js/shareholder-returns.js` `setDividend` | R5 | G:G01 | P:F06 | P:F06 / G37 | P:F06 | P:F06 / G36 | P:F06 | P:F06 | G:G10 | P:REG; G10 |
-| W-DIV-PAY: `js/shareholder-returns.js` `advanceWeek` | R5 wrapper / R2 engine | G:G01 | P:F06,F08 | P:F06,F08 / G37 | P:F06,F08 | P:F06,F08 / G36 | P:F06,F08 | P:F06,F08 | G:G10 | P:REG; G10 |
-| W-ACTIVISM: `js/shareholder-activism.js` `accept` | R9 (file not explicitly R5); inner R5 | G:G01 | P:E12 | P:E12 / G37 | P:E12 | P:E12 / G36 | P:E12 | P:E12 | P:B12 | P:REG; G43 |
-| W-SPONSOR: `js/player-crisis-actions.js` `requestSponsorInjection` | R7; engine R2 | G:G01 | P:F03 | P:F03 / G37 | P:F03 | P:F03 / G36 | P:F03 | P:F03 | G:G11 | P:REG; G11 |
-| W-TURNAROUND-ACCEPT: `js/player-crisis-turnaround-fund.js` `accept` | R7 | G:G01 | P:F04 | P:F04 / G37 | P:F04 | P:F04 / G36 | P:F04 | P:F04 | G:G12 | P:REG; G12 |
+| W-DECLINE: `js/completion.js` `declineInboundBuyoutOffer` | R2c | G:G01 | P:E11 | N | P:E11 | P:E11 / G36 | P:E11 | P:E11 | P:B11 | P:REG; G40 |
+| W-BUYBACK: `js/shareholder-returns.js` `buyback` | R5 | G:G01 | P:F05,F01,F28 | P:F05,F01,F28 / G47 | P:F05,F01,F28 | P:F05,F01,F28 / G36 | P:F05,F01,F28 | P:F05,F01,F28 | G:G09 | P:REG; G09 |
+| W-BUYBACK-BASE: `js/engine.js` `buybackOwnShares` | R2; installed R5 | G:G01 | P:F01 | P:F01 / G37,G47 | P:F01 | P:F01 / G36 | P:F01 | P:F01 | G:G09 | P:REG; G09 |
+| W-DIV-SET: `js/shareholder-returns.js` `setDividend` | R5 | G:G01 | P:F06 | P:F06 / G47 | P:F06 | P:F06 / G36 | P:F06 | P:F06 | G:G10 | P:REG; G10 |
+| W-DIV-PAY: `js/shareholder-returns.js` `advanceWeek` | R5 wrapper / R2 engine | G:G01 | P:F06,F08 | P:F06,F08 / G47,G37 | P:F06,F08 | P:F06,F08 / G36 | P:F06,F08 | P:F06,F08 | G:G10 | P:REG; G10 |
+| W-ACTIVISM: `js/shareholder-activism.js` `accept` | R9 (file not explicitly R5); inner R5 | G:G01 | P:E12 | P:E12 / G51,G47 | P:E12 | P:E12 / G36 | P:E12 | P:E12 | P:B12 | P:REG; G43 |
+| W-SPONSOR: `js/player-crisis-actions.js` `requestSponsorInjection` | R7; engine R2 | G:G01 | P:F03 | P:F03 / G49,G37 | P:F03 | P:F03 / G36 | P:F03 | P:F03 | G:G11 | P:REG; G11 |
+| W-TURNAROUND-ACCEPT: `js/player-crisis-turnaround-fund.js` `accept` | R7 | G:G01 | P:F04 | P:F04 / G49 | P:F04 | P:F04 / G36 | P:F04 | P:F04 | G:G12 | P:REG; G12 |
 | W-TURNAROUND-RATCHET: `js/player-crisis-turnaround-fund.js` `settle` | R7; engine R2 | G:G01 | P:F02 | C:F02 (zero-cash leg) | P:F02 | P:F02 / G36 | P:F02 | P:F02 | G:G13 | P:REG; G13 |
-| W-NEW-COMPANY: `js/completion.js` `foundNewCompanyAfterBuyout` | R2c / R6 / R9 | G:G01 | P:E13 | P:E13 / G37 | P:E13 | P:E13 / G36 | P:E13 | P:E13 | P:B13 | P:REG; G02,G36 |
+| W-NEW-COMPANY: `js/completion.js` `foundNewCompanyAfterBuyout` | R2c / R6 / R9 | G:G01 | P:E13 | P:E13 / G44,G48,G51 | P:E13 | P:E13 / G36 | P:E13 | P:E13 | P:B13 | P:REG; G02,G36 |
 ### 2.1.2 Adjacent issuers and remaining weekly/load paths
 
 | Route / source function | Wait slice before future edits | F | A | M | S | L | R | D | W | P / gap candidates |
@@ -75,44 +75,44 @@ Each route is distinct, including captured base/raw/exported/weekly/SH/replaceme
 | W-VC-INITIAL: `js/engine.js` `investStartup` | R2 | G:G01 | P:E14 | P:E14 / G37 | P:E14 | P:E14 / G36 | P:E14 | C:E14 | P:B14 | P:REG; G40 |
 | W-VC-FOLLOW: `js/engine.js` `participateStartupFundingRound` | R2 | G:G01 | P:E15 | P:E15 / G37 | P:E15 | P:E15 / G36 | P:E15 | C:E15 | P:B15 | P:REG; G40 |
 | W-VC-CLOSE: `js/engine.js` `closeStartupFundingRound` | R2 | G:G01 | P:F09 | P:F09 / G37 | P:F09 | P:F09 / G36 | P:F09 | P:F09 | G:G15 | P:REG; G15 |
-| W-VC-WRITEOFF: `js/engine.js` `writeOffStartup` | R2 | G:G01 | G:G16 | G:G16 | G:G16 | G:G16 | G:G16 | G:G16 | G:G16 | P:REG; G16 |
-| W-VC-LIST: `js/engine.js` `listStartup` | R2 | G:G01 | P:F09,F37 | N | P:F09,F37 | P:F09,F37 / G36 | P:F09,F37 | P:F09,F37 | G:G17 | P:REG; G17 |
-| W-VC-SECONDARY: `js/expansion.js` `sellStartupSecondary` | R2d | G:G01 | P:E16 | P:E16 / G37 | P:E16 | P:E16 / G36 | C:E16 | C:E16 | P:B16 | P:REG; G40 |
-| W-MAKE-SUB: `js/engine.js` `makeSubsidiary` | R2 | G:G01 | P:E17 | N | P:E17 | P:E17 / G36 | P:E17 | P:E17 | P:B17 | P:REG; G40 |
-| W-SUB-IPO: `js/subsidiary-ipo-preparation.js` `ipoSubsidiary` | R6 wrapper / R2 engine | G:G01 | P:F11,F12 | P:F11,F12 / G37 | P:F11,F12 | P:F11,F12 / G36 | P:F11,F12 | P:F11,F12 | G:G18 | P:REG; G18 |
-| W-SUB-SECONDARY: `js/subsidiary-ipo-secondary-sale.js` `sellSubsidiaryIPOStake` | R6 | G:G01 | P:F13 | P:F13 / G37 | P:F13 | P:F13 / G36 | P:F13 | P:F13 | G:G19 | P:REG; G19 |
-| W-SUB-MARKET: `js/listed-subsidiary-market.js` `sellListedSubsidiaryStake` | R6 | G:G01 | P:F14,F15 | P:F14,F15 / G37 | P:F14,F15 | P:F14,F15 / G36 | P:F14,F15 | P:F14,F15 | P:B25 | P:REG; G20 |
-| W-SUB-CONTROL: `js/listed-subsidiary-control-actions.js` `launchListedSubsidiaryTenderOffer` | R6 | G:G01 | P:F16 | P:F16 / G37 | P:F16 | P:F16 / G36 | P:F16 | P:F16 | G:G21 | P:REG; G21 |
-| W-SUB-FOLLOWON: `js/listed-subsidiary-follow-on-offering.js` `executeListedSubsidiaryFollowOnOffering` | R6 | G:G01 | P:F17 | P:F17 / G37 | P:F17 | P:F17 / G36 | P:F17 | P:F17 | G:G22 | P:REG; G22 |
-| W-SUB-RELIST: `js/subsidiary-relisting-options.js` `relistSubsidiary` | R6 | G:G01 | P:F18 | P:F18 / G37 | P:F18 | P:F18 / G36 | P:F18 | P:F18 | G:G23 | P:REG; G23 |
-| W-GROUP-DISPOSAL: `js/group-restructuring-candidates.js` `executeGroupRestructuringSale` | R6 | G:G01 | P:E18 | P:E18 / G37 | P:E18 | P:E18 / G36 | P:E18 | C:E18 | P:B18 | P:REG; G40 |
-| W-GROUP-NEGOTIATED: `js/group-restructuring-progress.js` `closeSale` | R6 | G:G01 | P:F19 | P:F19 / G37 | P:F19 | P:F19 / G36 | P:F19 | P:F19 | G:G24 | P:REG; G24 |
-| W-INTERNAL-VENTURE: `js/internal-venture-business.js` `fundSubsidiaryFromParent` | R7 explicit contract row; subsidiary families R6 overlap must coordinate | G:G01 | P:F20 | P:F20 / G37 | P:F20 | P:F20 / G36 | P:F20 | P:F20 | G:G25 | P:REG; G25 |
-| W-COMMERCIAL-SPINOUT: `js/new-business-commercialization.js` `act` | R7 | G:G01 | P:F21 | P:F21 / G37 | P:F21 | P:F21 / G36 | P:F21 | P:F21 | G:G26 | P:REG; G26 |
-| W-MA-ACQUIRE: `js/pe-acquisition.js` `completeTargetAcquisition` | R6 | G:G01 | P:E07,E08,E20 | P:E07,E08,E20 / G37 | P:E07,E08,E20 | P:E07,E08,E20 / G36 | P:E07,E08,E20 | P:E07,E08,E20 | G:G01 | P:REG; G01 |
-| W-MA-SALE: `js/engine.js` `sellMASubsidiary` | R2 / R6 callers | G:G01 | P:E19 | P:E19 / G37 | P:E19 | P:E19 / G36 | P:E19 | C:E19 | P:B19 | P:REG; G40 |
-| W-PE-FORM: `js/pe-fund.js` `createFund` | R6 | G:G01 | P:F22 | P:F22 / G37 | P:F22 | P:F22 / G36 | P:F22 | P:F22 | G:G27 | P:REG; G27 |
-| W-PE-FUND-ACQ: `js/pe-acquisition.js` `closeFundAcquisition` | R6 | G:G01 | P:E20 | P:E20 / G37 | P:E20 | P:E20 / G36 | C:E20 | C:E20 | P:B20 | P:REG; G39 |
-| W-PE-FUND-EXIT: `js/pe-portfolio-operations.js` `exitPortfolioCompany` | R6 | G:G01 | P:E21 | P:E21 / G37 | P:E21 | P:E21 / G36 | C:E21 | C:E21 | P:B21 | P:REG; G39 |
-| W-PE-PARENT: `js/pe-portfolio-operations.js` `acquirePEPortfolioCompany` | R6 | G:G01 | P:F23 | P:F23 / G37 | P:F23 | P:F23 / G36 | P:F23 | P:F23 | G:G28 | P:REG; G28 |
-| W-PE-LEGACY-CREATE: `js/expansion.js` `createPEDeal` | R2d / R6 premium/lifecycle wrappers | G:G01 | P:E22 | P:E22 / G37 | P:E22 | P:E22 / G36 | P:E22 | P:E22 | P:B22 | P:REG; G40 |
-| W-PE-LEGACY-EXIT: `js/expansion.js` `exitPEDeal` | R2d / R6 wrapper | G:G01 | P:E23 | P:E23 / G37 | P:E23 | P:E23 / G36 | C:E23 | P:E23 | P:B23 | P:REG; G40 |
-| W-PE-TRANSFER: `js/expansion.js` `transferPEDealToCompany` | R2d / R6 wrapper | G:G01 | P:F24 | P:F24 / G37 | P:F24 | P:F24 / G36 | P:F24 | P:F24 | G:G29 | P:REG; G29 |
-| W-PE-SYNC: `js/expansion.js` `syncPESubsidiary` | R2d / R6 calling families | G:G01 | P:F24 | N | P:F24 | P:F24 / G36 | P:F24 | P:F24 | G:G30 | P:REG; G30 |
-| W-ANGEL: `js/expansion.js` `createAngelInvestment` | R2d | G:G01 | P:E24 | P:E24 / G37 | P:E24 | P:E24 / G36 | P:E24 | P:E24 | P:B24 | P:REG; G40 |
-| W-WEEK-COMPETITOR: `js/engine.js` `buyCompetitorStake` | R2; NPC effects R8 | G:G01 | P:F07 | P:F07 / G37 | P:F07 | P:F07 / G36 | P:F07 | C:F07 | G:G14 | P:REG; G14 |
+| W-VC-WRITEOFF: `js/engine.js` `writeOffStartup` | R2 | G:G01 | G:G16 | G:G16 / G37 | G:G16 | G:G16 | G:G16 | G:G16 | G:G16 | P:REG; G16 |
+| W-VC-LIST: `js/engine.js` `listStartup` | R2 | G:G01 | P:F09,F37 | G:G17 / G37 | P:F09,F37 | P:F09,F37 / G36 | P:F09,F37 | P:F09,F37 | G:G17 | P:REG; G17 |
+| W-VC-SECONDARY: `js/expansion.js` `sellStartupSecondary` | R2d | G:G01 | P:E16 | P:E16 / G45 | P:E16 | P:E16 / G36 | C:E16 | C:E16 | P:B16 | P:REG; G40 |
+| W-MAKE-SUB: `js/engine.js` `makeSubsidiary` | R2 | G:G01 | P:E17 | P:E17 / G37 (book preservation) | P:E17 | P:E17 / G36 | P:E17 | P:E17 | P:B17 | P:REG; G40 |
+| W-SUB-IPO: `js/subsidiary-ipo-preparation.js` `ipoSubsidiary` | R6 wrapper / R2 engine | G:G01 | P:F11,F12 | P:F11,F12 / G48,G37 | P:F11,F12 | P:F11,F12 / G36 | P:F11,F12 | P:F11,F12 | G:G18 | P:REG; G18 |
+| W-SUB-SECONDARY: `js/subsidiary-ipo-secondary-sale.js` `sellSubsidiaryIPOStake` | R6 | G:G01 | P:F13 | P:F13 / G48 | P:F13 | P:F13 / G36 | P:F13 | P:F13 | G:G19 | P:REG; G19 |
+| W-SUB-MARKET: `js/listed-subsidiary-market.js` `sellListedSubsidiaryStake` | R6 | G:G01 | P:F14,F15 | P:F14,F15 / G48 | P:F14,F15 | P:F14,F15 / G36 | P:F14,F15 | P:F14,F15 | P:B25 | P:REG; G20 |
+| W-SUB-CONTROL: `js/listed-subsidiary-control-actions.js` `launchListedSubsidiaryTenderOffer` | R6 | G:G01 | P:F16 | P:F16 / G48 | P:F16 | P:F16 / G36 | P:F16 | P:F16 | G:G21 | P:REG; G21 |
+| W-SUB-FOLLOWON: `js/listed-subsidiary-follow-on-offering.js` `executeListedSubsidiaryFollowOnOffering` | R6 | G:G01 | P:F17 | P:F17 / G48 | P:F17 | P:F17 / G36 | P:F17 | P:F17 | G:G22 | P:REG; G22 |
+| W-SUB-RELIST: `js/subsidiary-relisting-options.js` `relistSubsidiary` | R6 | G:G01 | P:F18 | P:F18 / G48 | P:F18 | P:F18 / G36 | P:F18 | P:F18 | G:G23 | P:REG; G23 |
+| W-GROUP-DISPOSAL: `js/group-restructuring-candidates.js` `executeGroupRestructuringSale` | R6 | G:G01 | P:E18 | P:E18 / G48 | P:E18 | P:E18 / G36 | P:E18 | C:E18 | P:B18 | P:REG; G40 |
+| W-GROUP-NEGOTIATED: `js/group-restructuring-progress.js` `closeSale` | R6 | G:G01 | P:F19 | P:F19 / G48 | P:F19 | P:F19 / G36 | P:F19 | P:F19 | G:G24 | P:REG; G24 |
+| W-INTERNAL-VENTURE: `js/internal-venture-business.js` `fundSubsidiaryFromParent` | R7 explicit contract row; subsidiary families R6 overlap must coordinate | G:G01 | P:F20 | P:F20 / G49,G48 | P:F20 | P:F20 / G36 | P:F20 | P:F20 | G:G25 | P:REG; G25 |
+| W-COMMERCIAL-SPINOUT: `js/new-business-commercialization.js` `act` | R7 | G:G01 | P:F21 | P:F21 / G49 | P:F21 | P:F21 / G36 | P:F21 | P:F21 | G:G26 | P:REG; G26 |
+| W-MA-ACQUIRE: `js/pe-acquisition.js` `completeTargetAcquisition` | R6 | G:G01 | P:E07,E08,E20 | P:E07,E08,E20 / G48 | P:E07,E08,E20 | P:E07,E08,E20 / G36 | P:E07,E08,E20 | P:E07,E08,E20 | G:G01 | P:REG; G01 |
+| W-MA-SALE: `js/engine.js` `sellMASubsidiary` | R2 / R6 callers | G:G01 | P:E19 | P:E19 / G37,G48 | P:E19 | P:E19 / G36 | P:E19 | C:E19 | P:B19 | P:REG; G40 |
+| W-PE-FORM: `js/pe-fund.js` `createFund` | R6 | G:G01 | P:F22 | P:F22 / G48 | P:F22 | P:F22 / G36 | P:F22 | P:F22 | G:G27 | P:REG; G27 |
+| W-PE-FUND-ACQ: `js/pe-acquisition.js` `closeFundAcquisition` | R6 | G:G01 | P:E20 | P:E20 / G48 | P:E20 | P:E20 / G36 | C:E20 | C:E20 | P:B20 | P:REG; G39 |
+| W-PE-FUND-EXIT: `js/pe-portfolio-operations.js` `exitPortfolioCompany` | R6 | G:G01 | P:E21 | P:E21 / G48 | P:E21 | P:E21 / G36 | C:E21 | C:E21 | P:B21 | P:REG; G39 |
+| W-PE-PARENT: `js/pe-portfolio-operations.js` `acquirePEPortfolioCompany` | R6 | G:G01 | P:F23 | P:F23 / G48 | P:F23 | P:F23 / G36 | P:F23 | P:F23 | G:G28 | P:REG; G28 |
+| W-PE-LEGACY-CREATE: `js/expansion.js` `createPEDeal` | R2d / R6 premium/lifecycle wrappers | G:G01 | P:E22 | P:E22 / G45,G48 | P:E22 | P:E22 / G36 | P:E22 | P:E22 | P:B22 | P:REG; G40 |
+| W-PE-LEGACY-EXIT: `js/expansion.js` `exitPEDeal` | R2d / R6 wrapper | G:G01 | P:E23 | P:E23 / G45,G48 | P:E23 | P:E23 / G36 | C:E23 | P:E23 | P:B23 | P:REG; G40 |
+| W-PE-TRANSFER: `js/expansion.js` `transferPEDealToCompany` | R2d / R6 wrapper | G:G01 | P:F24 | P:F24 / G45,G48 | P:F24 | P:F24 / G36 | P:F24 | P:F24 | G:G29 | P:REG; G29 |
+| W-PE-SYNC: `js/expansion.js` `syncPESubsidiary` | R2d / R6 calling families | G:G01 | P:F24 | P:F24 / G45,G48 (book preservation) | P:F24 | P:F24 / G36 | P:F24 | P:F24 | G:G30 | P:REG; G30 |
+| W-ANGEL: `js/expansion.js` `createAngelInvestment` | R2d | G:G01 | P:E24 | P:E24 / G45 | P:E24 | P:E24 / G36 | P:E24 | P:E24 | P:B24 | P:REG; G40 |
+| W-WEEK-COMPETITOR: `js/engine.js` `buyCompetitorStake` | R2; NPC effects R8 | G:G01 | P:F07 | P:F07 / G37,G50 | P:F07 | P:F07 / G36 | P:F07 | C:F07 | G:G14 | P:REG; G14 |
 | W-WEEK-MARKET: `js/engine.js` `updateMarket` | R2 | G:G01 | P:F08 | P:F08 / G37 | P:F08 | P:F08 / G36 | P:F08 | P:F08 | G:G32 | P:REG; G32 |
 | W-WEEK-STARTUPS: `js/engine.js` `updateStartups` | R2 | G:G01 | P:F09 | P:F09 / G37 | P:F09 | P:F09 / G36 | P:F09 | P:F09 | G:G15 | P:REG; G15,G16,G17 |
-| W-WEEK-PE: `js/pe-fund.js` `processFundsWeek` | R6 | G:G01 | P:F22 | P:F22 / G37 | P:F22 | P:F22 / G36 | P:F22 | P:F22 | G:G31 | P:REG; G31 |
-| W-WEEK-EXPANDED: `js/expansion.js` `updateCapitalMarketsExpandedWeekly` | R2d, margin R4 | G:G01 | P:F01,F42,F08 | P:F01,F42,F08 / G37 | P:F01,F42,F08 | P:F01,F42,F08 / G36 | P:F01,F42,F08 | P:F01,F42,F08 | G:G33 | P:REG; G33 |
-| W-EARNINGS: `js/parity.js` `runEarningsEventsIfNeeded` | R2 | G:G01 | N | N | N | N | N | P:F25 | G:G01 | P:REG; G01 |
+| W-WEEK-PE: `js/pe-fund.js` `processFundsWeek` | R6 | G:G01 | P:F22 | P:F22 / G48 | P:F22 | P:F22 / G36 | P:F22 | P:F22 | G:G31 | P:REG; G31 |
+| W-WEEK-EXPANDED: `js/expansion.js` `updateCapitalMarketsExpandedWeekly` | R2d, margin R4 | G:G01 | P:F01,F42,F08 | P:F01,F42,F08 / G45,G46 | P:F01,F42,F08 | P:F01,F42,F08 / G36 | P:F01,F42,F08 | P:F01,F42,F08 | G:G33 | P:REG; G33 |
+| W-EARNINGS: `js/parity.js` `runEarningsEventsIfNeeded` | R2c | G:G01 | N | N | N | N | N | P:F25 | G:G01 | P:REG; G01 |
 | W-CAPALLOC-PRICE: `js/capital-allocation-score.js` `advanceWeek` | R9 catch-all | G:G01 | N | N | N | N | N | P:F40 | G:G01 | P:REG; G01 |
-| W-LOAD-NORMALIZE: `js/engine.js` `normalizeHoldingMap` | R2, save wrappers R9 | G:G01 | P:F26,F27 | P:F26,F27 / G37 | P:F26,F27 | P:F26,F27 / G36 | P:F26,F27 | P:F26,F27 | G:G02 | P:REG; G02,G36 |
-| W-LOAD-IMPORT: `js/save-v9.js` `migrateSave` | R9 | G:G01 | P:F27,F28 | N | P:F27,F28 | P:F27,F28 / G36 | P:F27,F28 | P:F27,F28 | G:G02 | P:REG; G02,G36 |
-| W-COMPACTION: `js/save-storage.js` `compactStateForStorage` | R9 | G:G01 | P:F28,F29,F30 | N | P:F28,F29,F30 | P:F28,F29,F30 / G36 | P:F28,F29,F30 | P:F28,F29,F30 | G:G36 | P:REG; G36 |
-| W-RESTORE/SH-REPLACE: `js/engine.js` `restoreTransactionSnapshot` | R2 / R6 / R9 storage | G:G01 | P:E08,F28,F39 | P:E08,F28,F39 / G37 | P:E08,F28,F39 | P:E08,F28,F39 / G36 | P:E08,F28,F39 | P:E08,F28,F39 | G:G02 | P:REG; G02,G36 |
+| W-LOAD-NORMALIZE: `js/engine.js` `normalizeHoldingMap` | R2, save wrappers R9 | G:G01 | P:F26,F27 | P:F26,F27 / G37,G51 | P:F26,F27 | P:F26,F27 / G36 | P:F26,F27 | P:F26,F27 | G:G02 | P:REG; G02,G36 |
+| W-LOAD-IMPORT: `js/save-v9.js` `migrateSave` | R9 | G:G01 | P:F27,F28 | P:F27,F28 (conservation; rounding N/A) | P:F27,F28 | P:F27,F28 / G36 | P:F27,F28 | P:F27,F28 | G:G02 | P:REG; G02,G36 |
+| W-COMPACTION: `js/save-storage.js` `compactStateForStorage` | R9 | G:G01 | P:F28,F29,F30 | P:F28,F29,F30 (conservation; rounding N/A) | P:F28,F29,F30 | P:F28,F29,F30 / G36 | P:F28,F29,F30 | P:F28,F29,F30 | G:G36 | P:REG; G36 |
+| W-RESTORE/SH-REPLACE: `js/engine.js` `restoreTransactionSnapshot` | R2 / R6 / R9 storage | G:G01 | P:E08,F28,F39 | P:E08,F28,F39 / G37,G48,G51 | P:E08,F28,F39 | P:E08,F28,F39 / G36 | P:E08,F28,F39 | P:E08,F28,F39 | G:G02 | P:REG; G02,G36 |
 
-**Scope notes:** N for split/raw dilution/ratio helpers means no settled cash posting in that fact leg, not no effect on prices/book mirrors or enclosing M&A. N for compaction/import means no new settlement; preservation of existing balances/receipts is still L/A. W-DIV-SET includes future payout evidence only indirectly. W-SUB-MARKET has a real quarter-close browser test (below), but that is PARTIAL for direct stake commands, never transferable to all actions. W-IPO-BASE / W-ISSUE-RAW / W-ACQUIRE-COMPAT are tested indirectly, not closed standalone. All monetary P cells also depend on G37; R2a store checks do not cover these paths. E18 covers sale/liquidation only, whereas F19 names the actual negotiated-close route.
+**Scope notes:** Split, compaction and import retain monetary-conservation evidence with settlement rounding N/A; preservation is not waived. Raw dilution/ratio helpers have no monetary operand in that isolated leg; enclosing-command money remains separately assessed. Startup listing converts company and personal book values into stock cost basis and posts two corporate ledger rows (`js/engine.js:1993`–`:1998`), so its M cell is GAP plus its own rounding owner, not N. makeSubsidiary and PE sync also retain book-preservation obligations despite no immediate cash settlement. W-DIV-SET includes future payout evidence only indirectly. W-SUB-MARKET has a real quarter-close browser test (below), but that is PARTIAL for direct stake commands, never transferable to all actions. W-IPO-BASE / W-ISSUE-RAW / W-ACQUIRE-COMPAT are tested indirectly, not closed standalone. Monetary cells name only their applicable rounding evidence owners (G37 and G44–G51). Each owning slice closes its own scenario/acceptance obligations in that slice PR; no later cross-slice omnibus evidence PR is required. R2a store checks do not cover these paths. E18 covers sale/liquidation only, whereas F19 names the actual negotiated-close route.
 
 ### 2.2 Node definitions, exact faults and canonical jobs
 
@@ -272,7 +272,15 @@ These are evidence/implementation prerequisites, not reproduced defects or autho
 | G34: Initializer/configure/reset ownership S scenario | replacement; M | F38/F39 generic initialization/transaction checks do not establish reset-specific ownership rollback. | R2/R9 |
 | G35: Auxiliary investor refresh/decline fault scope | writer; S | F41 auxiliary metadata only; establish N/A effects explicitly and prove relevant failure contract rather than borrow accepted-issuance proof. | R2d |
 | G36: Current-game adopted-evidence reload/compaction retention | replacement; L | E/F baseline storage proofs predate gateway adoption. Pin nonzero current-game quantities and stale-plan invalidation through normal/emergency/critical/SH/load, after format/API exists. READ_ONLY cases now. | R2c/R6/R9; gateway/replacement design first |
-| G37: Ownership-family whole-yen acceptance scenarios | rounding; M | F45 only migrated scenarios; F05/F06 still assert cent semantics. After owning migrations, one focused PR adds exact ceilYen/allocateYen ownership-family accounting cases; do not duplicate current migration PRs. | R2/R4/R5/R6/R7/R8/R9 as each touched family requires |
+| G37: R2 engine ownership-flow rounding scenarios | rounding; M | F45 R2a store scenarios do not cover engine equity/IPO/VC/weekly ownership money. The owning R2 sub-slice PR must migrate and add its own focused scenarios; exact ownership-flow sub-row remains UNASSIGNED, not R2a DONE. Closes only rows naming G37. | R2 pending ownership-flow sub-slice; preserve R2a completion |
+| G44: R2c completion/parity acceptance scenarios | rounding; M | completion.js and parity.js are explicitly R2c in contract §8. Add required scenarios in the owning R2c migration/acceptance PR, not after all R2 is complete. Nonposting confirmation remains N/A for settlement. | R2c |
+| G45: R2d expansion ownership-family acceptance scenarios | rounding; M | The owning R2d PR supplies its expansion.js monetary scenarios and migration acceptance; no global G37 wait after R2d closes its own obligations. | R2d |
+| G46: R4 personal/margin ownership-money scenarios | rounding; M | The owning R4 migration/acceptance PR supplies direct and forced-sale personal cash/debt scenarios. | R4 |
+| G47: R5 dividend/buyback exact allocation scenarios | rounding; M | F05/F06 currently assert cent semantics. The owning R5 PR must add whole-yen settlement/allocateYen conservation scenarios for its writers and close the corresponding cells. | R5; engine body owner separately where relevant |
+| G48: R6 M&A/PE/subsidiary money acceptance scenarios | rounding; M | Each separately scoped R6 migration PR owns the focused scenarios for the writers it migrates; this is an R6 family-specific acceptance candidate, not a cross-slice follow-up. | R6 (split into owned sub-slices when planned) |
+| G49: R7 crisis/new-business money acceptance scenarios | rounding; M | The owning R7 migration/acceptance PR includes the relevant sponsor/turnaround/funding money scenarios; zero-cash ratchet does not acquire an invented monetary leg. | R7 |
+| G50: R8 named-competitor monetary scenarios | rounding; M | The owning R8 migration/acceptance PR checks NPC cash against filled consideration without importing it into company finance. | R8 |
+| G51: R9 wrapper/remainder and closing acceptance scenarios | rounding; M | The owning R9 PR closes remaining monetary wrappers and the full new-game whole-yen guard; legacy stored operands stay under contract §1.1. No requirement to re-round imported or compacted books. | R9 |
 | G38: SH scope and independent S review record | review; S | E08 expressly strips a notice and documents G1-G4; record exact economics/event contract and independent scope. READ_ONLY review contract now; future routing waits. | R6/R2; Owner-approved existing SH, same S duties |
 | G39: Complete direct/nested/pending boundaries for MBO and fund adapter | browser; M | E09 lacks complete nested/pending/twin cases; E21 has fewer faults on adapter than engine. One reusable entry-boundary fault-specification PR now; each executable family implementation must be a separately reviewed PR. | R2/R6; READ_ONLY specification only for this candidate |
 | G40: Shared browser fault-applicability specification | browser; M | B06 includes pre-admission throw; several other browser suites omit it or nested/pending variants. One READ_ONLY fault-applicability contract PR, followed by separate affected-family executable PRs; no claim all browser definitions are missing. | R2c/R2d/R6/R9 according to family; no shared rollback replacement |
@@ -280,7 +288,7 @@ These are evidence/implementation prerequisites, not reproduced defects or autho
 | G42: Takeover-defense actual WebKit failure matrix | browser; M | B10 verifies named-share ratios, not E10 storage faults. | R2/R8 |
 | G43: Activist acceptance browser failure matrix | browser; M | B12 covers false/accepted-save throw for buyback/dividend proposal; remaining applicable failures/durable variants not established. | R9 + R5 inner paths |
 
-**Count: 43 distinct candidate concerns**, not 43 reproduced bugs and not a count of all missing test tuples. Breakdown: browser 10, closure 2, identity 2, replacement 2, review 1, rounding 1, writer 25. A repeated G identifier across matrix cells counts once. G39/G40 are single READ_ONLY specifications, not permission to bundle multiple future writer implementations into one PR.
+**Count: 51 distinct candidate concerns**, not 51 reproduced bugs and not a count of all missing test tuples. Breakdown: browser 10, closure 2, identity 2, replacement 2, review 1, rounding 9, writer 25. A repeated G identifier across matrix cells counts once. G39/G40 are single READ_ONLY specifications, not permission to bundle multiple future writer implementations into one PR.
 
 **Priority:** G01 closes the authority/bypass contract before any activation; G08 establishes the raw/exported forced-sale boundary that currently evades the public sell command; G13 extends the zero-cash weekly ratchet from one finalization failure to the applicable persistence/WebKit set. Their executable work still waits for the listed slices. G02 is the cross-generation prerequisite to retain alongside all three; it cannot be deferred as historical-save repair.
 
@@ -288,13 +296,13 @@ These are evidence/implementation prerequisites, not reproduced defects or autho
 
 | #1080 candidate | Current disposition and manifest delta | Baseline source/provenance |
 |---|---|---|
-| Current-main S evidence manifest | This single-file inventory supplies 67 × 9 scoped definition cells, named failures and resolved canonical/browser jobs; no runtime S_PASS. G01–G43 enumerate remaining concerns. | #1080 §3.3/§4; baseline test/job citations above |
+| Current-main S evidence manifest | This single-file inventory supplies 67 × 9 scoped definition cells, named failures and resolved canonical/browser jobs; no runtime S_PASS. G01–G51 enumerate remaining concerns. | #1080 §3.3/§4; baseline test/job citations above |
 | Current-generation identity/refound scenario contract | #1082 already supplies the read-only scenarios; do not create a duplicate contract. G02/G36 are the unexecuted adoption transitions/retention. | `docs/economic-engine/PHASE_3_P3_4_NEW_GAME_GENERATION_REFOUNDING_SPEC.md:1`; #1082; E13/F34/F35 |
 | Pure family-closure specification | Still required (G01/G30); existence of a writer matrix and read-only projection does not close raw/base/SH/weekly/LOAD bypasses. | F01/F31; `tests/helpers/transaction-fault-case.js:3` explicitly Node-only; #1032/#952 |
 | Pure planning API | #1086 is open/unmerged at baseline. Its later merge must not upgrade any executable S cell or enable routing. | Baseline `93ab9d65`; #1086 branch/PR is outside baseline evidence |
 | Sponsor/ratchet/weekly competitor faults | Split into G11/G12/G13/G14 with different scopes. R0/R1 are now DONE (#1076/#1083), but file slices remain mandatory. | F02/F03/F04/F07; contract §8/§10 |
-| Buyback/dividend S evidence | G09/G10 retain healthy P2 accounting and distinguish current cent fixtures from pending whole-yen migration (G37). | F05/F06/F45; #913 and merged P2 test provenance above |
-| Routing trade/investor/split/IPO/margin | No routing implemented here. G01 closure, G03–G08/G40/G41 browser/entry limits and G37 rounding remain; R2a DONE is not engine equity/expansion DONE. | E01–E07/F01, B01–B07; contract R2a–R2d/R4/R6/R9 |
+| Buyback/dividend S evidence | G09/G10 retain healthy P2 accounting and distinguish current cent fixtures from pending whole-yen migration (G47 for R5). | F05/F06/F45; #913 and merged P2 test provenance above |
+| Routing trade/investor/split/IPO/margin | No routing implemented here. G01 closure, G03–G08/G40/G41 browser/entry limits and the applicable G37/G44–G51 rounding rows remain; R2a DONE is not engine equity/expansion DONE. | E01–E07/F01, B01–B07; contract R2a–R2d/R4/R6/R9 |
 | M&A SH/ordinary and crisis/refound routing | Preserve separate SH no-fork/event semantics (G38), zero-cash ratchet (G13), and current-game replacement (G02/G36). One concern per future PR. | E08 lines 24–40; F02; E13; #1005/#1033/#1016/#1029 |
 | Initial player-common activation | Still a separate Owner decision after whole-family S and scoped independent review; this inventory author/bot review cannot grant it. | #1080 §5 decisions; `docs/economic-engine/PHASE_3_P3_3_CONTRACT.md:47` |
 | #976 target-C subsidiary policy | Separate policy/adoption dependency; do not block all common-share evidence work or silently change accounting. Subsidiary adoption still waits for its resolution. | #1080 §5 decision; G18–G24; #976 |
