@@ -174,12 +174,14 @@ async function normal() {
   const reward = g.finance.transactions.filter(t => t.sourceType === 'missionReward' && !before.finance.transactions.some(x => x.id === t.id))
     .reduce((n, t) => n + t.cashEffect, 0);
   assert.equal(reward, 10000000, 'existing IPO mission reward');
-  assert.equal(g.companyCash, before.companyCash + price * primary * .955 + reward);
-  assert.equal(g.personalCash, before.personalCash + price * secondary * .955);
-  assert.equal(g.finance.balances.capitalSurplus, before.finance.balances.capitalSurplus + price * primary * .955);
+  // The raise and the founder sale are each rounded up to whole yen (YEN_CEILING_ROUNDING_CONTRACT §8 R4d-2).
+  const ceilYen = a.modules.economicOperation.ceilYen, raise = ceilYen(price * primary * .955), founderSale = ceilYen(price * secondary * .955);
+  assert.equal(g.companyCash, before.companyCash + raise + reward);
+  assert.equal(g.personalCash, before.personalCash + founderSale);
+  assert.equal(g.finance.balances.capitalSurplus, before.finance.balances.capitalSurplus + raise);
   assert.equal(g.founderOwnershipRatio, g.founderShares / g.sharesOut);
   assert.equal(g.peFirm.trackRecord.exits.length, before.peFirm.trackRecord.exits.length + 1);
-  assert.equal(g.peFirm.trackRecord.exits.at(-1).realizedAmount, price * secondary * .955);
+  assert.equal(g.peFirm.trackRecord.exits.at(-1).realizedAmount, founderSale);
   assert.equal(g.peNetwork.nodes.length, before.peNetwork.nodes.length + 1);
   assert.equal(a.modules.finance.validate(g).ok, true);
   assert.deepEqual(economic(g), economic(b.game.g), 'same seed/actions preserve complete economic result and RNG');

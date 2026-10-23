@@ -608,6 +608,33 @@ const SCENARIOS = [
     const rows = rowsSince(g, count, row => ['borrow', 'repay'].includes(row.sourceType) || /debt/i.test(String(row.category || '')));
     return { rows, state: { personalCash: g.personalCash, personalDebt: g.personalDebt, companyCash: g.companyCash, companyDebt: g.companyDebt } };
   } },
+  { slice: 'R4d-2', label: 'personal branches of property purchase, startup investment, IPO founder sale and company sale', run() {
+    const { engine } = newGame(2401), g = engine.g;
+    const count = g.finance.transactions.length;
+    // Property purchase (either owner) pays ceil(listed price).
+    const [land, lot] = g.properties.filter(p => !p.owner);
+    land.price = 12_345_678.4; lot.price = 23_456_789.6;
+    assert.ok(engine.buyProperty(land.id, 'personal'));
+    assert.equal(land.purchasePrice, 12_345_679);
+    assert.ok(engine.buyProperty(lot.id, 'company'));
+    // Startup investment rounds the amount up.
+    const startup = g.startups.find(s => s.alive);
+    assert.ok(startup, 'a live startup exists');
+    assert.ok(engine.investStartup(startup.id, Math.max(startup.minTicket, 10_000_000) + .3, 'personal'));
+    // IPO: company raise and founder sale are each rounded up.
+    Object.assign(g, { hasHeadOffice: true, boardEstablished: true });
+    g.departments.accounting = true;
+    for (let week = 1; week <= 52; week += 1) g.reports.push({ week, profit: 1_000_000, revenue: 0, expenses: 0 });
+    const ipoBefore = g.personalCash;
+    assert.ok(engine.executeIPO('東証グロース', 0), 'the IPO executes');
+    const founderSale = g.personalCash - ipoBefore;
+    // Company sale: founder proceeds round up.
+    const saleBefore = g.personalCash;
+    assert.ok(engine.completeCompanySale({ exitPrice: 3_000_000_000.5, founderProceeds: 1_234_567_890.2, showEnding: false }));
+    assert.equal(g.personalCash - saleBefore, 1_234_567_891);
+    const rows = rowsSince(g, count, row => ['buyProperty', 'investStartup', 'parentCompanyIPO'].includes(row.sourceType));
+    return { rows, state: { personalCash: g.personalCash, companyCash: g.companyCash, landPurchase: land.purchasePrice, lotPurchase: lot.purchasePrice, founderSale, invested: startup.totalInvestedPersonal } };
+  } },
 ];
 for (const scenario of SCENARIOS) {
   const { rows, state = {} } = scenario.run();
