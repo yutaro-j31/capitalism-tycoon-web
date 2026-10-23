@@ -7,6 +7,8 @@ MAIN SHA: `927419156996a64edda6d3ae1b4b4182d9e81546`。
 
 開始時にorigin/mainを取得し、AGENTS.md、CLAUDE.md、[契約書](YEN_CEILING_ROUNDING_CONTRACT.md) §1–§6/§8を読んだ。基準mainの§8ではR2b #1090/R2c #1092 DONE、R2d TODO。OPEN PR検索でR3aの重複文書/実装PRなし。Owner申告のClaudeによるR2d作業を妨げない。R2dが後でマージされても、この文書は上記SHAのインベントリとして読む。実装開始前に対象9ファイルとテストの差分を再照合する。
 
+レビュー追補（2026-10-23）: 最新origin/mainを再取得して上記SHAと同一であることを確認。R2dは未マージで、対象9ファイル/テストの基準行番号は変わっていない。再レビューP2（税preview）とP3（償却assertion参照）を修正した。R3b静的調査で、実契約がg.realEstateDevelopment.tenantContractsにある一方disposals:24はg.tenantContractsを読むこと、tenantDepositのliabilityEffectがBSにそのまま反映されるわけではないことも確認した。本文の「tenant終了」はコード上のtop-level配列処理であり、nested実契約の終了/保証金精算完了を保証しない。finance.js:529のotherLiabilitiesは固定0なので、保証金の受入を含む会計合格は別途検証が必要。本書はそのPASSを主張しない。
+
 ## 適用規則と表の読み方
 
 - `C(x)` = `economicOperation.ceilYen(x)`。負数も絶対値方向に切り上げ、浮動小数ノイズ許容、finite/safe envelopeは§2どおり。`Math.ceil`や先行の銭丸めは不可。既存`n`による入力coercionは必要なら維持する。
@@ -117,7 +119,7 @@ MAIN SHA: `927419156996a64edda6d3ae1b4b4182d9e81546`。
 | 6 | round/valueOf | 銭round/なし | 税試算/既存残高支払 | 用途別分離 | 残高全体のC不可 |
 | 7 | propertyTaxAccrued/PaidTotal ensure | なし | 旧未払税/累計 | 元値 | 旧負債をロード時に変更しない |
 | 11 | taxBasisOf | なし | development.propertyTaxBasis fallback value | 元値 | 簿価を先行丸めしない |
-| 12 | weeklyAccrual preview | round | tax regime表示 | 実際のweeklyPropertyTaxと同じC式 | 支払見積の表示整合、二重accrual禁止 |
+| 12 | weeklyAccrual preview | round | tax regime表示（非決済の週次予測） | 変更なし（現行の銭精度） | §1のforecast。実際の税額はdevelopment:23/31で別途Cして確定、previewは保存/転記しない |
 | 14 | legacy tax amount | round(min(cash,accrued)) | propertyTaxPayment / property-tax-payment | min(max(0,cash),storedAccrued)（元値） | §1.1/§3.5、既存債務精算をCしない |
 | 14 | cash/accrued/PaidTotal更新 | 各round | 現金/旧未払/累計 | 派生値 | 残高再丸め禁止 |
 | 14 | payment ledger/history.remaining | なし | 上記カテゴリ、history | 元値 | 新規accrual/liabilityEffectを追加する移行ではない |
@@ -326,9 +328,9 @@ non-money専用helperに銭精度を残す場合、§1対象外の時価/予測�
 
 | テスト | assertion行（基準SHA） | 予想影響/対応 |
 |---|---|---|
-| real-estate-building-depreciation-test.js | 57（式56）、66、84/85（floor77）、132 | straight-line銭期待値→C+cap、最終floor、10週累計とnetYield。floorを新規/旧保存で区別 |
+| real-estate-building-depreciation-test.js | 57（式56）、65、84/85（floor77）、132 | straight-line銭期待値→C+cap、最終floor、10週累計とnetYield。floorを新規/旧保存で区別 |
 | real-estate-price-negotiation-test.js | 73、120/122/125/126/127、143–147 | Math.round提示額→C、取得簿価配分と総額、会社/個人同じ確定offer |
-| real-estate-property-tax-ledger-test.js | 56/58、81/87（式78）、92/95/98/99、123、136–139、148 | 週税C、年税は非決済なら据置、NOI差の波及、旧未払5000は据置、netは差分 |
+| real-estate-property-tax-ledger-test.js | 56/58、81/87（式78）、92/95/98/99、123、136–139、148 | 実支払81は週税C、preview87は式78の現行銭精度を維持して期待値を分離。年税/NOI予測は据置、旧未払5000は据置、netは差分 |
 | p4-aud-007-option-a-mortgage-test.js | 57、124/125（式120）、127 | schedule principalがtotal-chargeへ、未払利息Cの資本化。debt/BS一致を維持 |
 | real-estate-complete-cycle-test.js | 8–12、28–36 | 週次元利・借換fee・災害netの数値traceが動く。整数originationは不変、所有分離/BS/rollback不変 |
 | real-estate-mortgage-refinancing-test.js | 4 | minifiedな週次cash/balance/interestPaid/prepayの定義、VMへeconomicOperation注入が必要 |
