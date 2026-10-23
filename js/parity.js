@@ -6,9 +6,7 @@ if(__modules.parity)throw new Error('Capitalism Tycoon parity module is already 
 (function(exports){
 // Parity layer for Swift systems that were still missing from the first browser expansion:
 // AI advisor, key personnel, earnings/shareholder reactions, competitor counterattacks and annual awards.
-const pyNum=(v,f=0)=>Number.isFinite(Number(v))?Number(v):f;
-// Whole-yen settlement, fractions rounded up (YEN_CEILING_ROUNDING_CONTRACT §2).
-const pyYen=v=>__modules.economicOperation.ceilYen(pyNum(v));
+const pyNum=(v,f=0)=>Number.isFinite(Number(v))?Number(v):f;const pyYen=v=>__modules.economicOperation.ceilYen(pyNum(v)); // pyYen: whole-yen settlement, fractions rounded up (YEN_CEILING_ROUNDING_CONTRACT §2)
 const pyClamp=(v,min,max)=>Math.max(min,Math.min(max,pyNum(v,min)));
 const pyRng=__modules.simulationRng;const pyRand=(g,min,max)=>pyRng.range(g,min,max);
 const pyPick=(g,a)=>pyRng.pick(g,a);
