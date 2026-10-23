@@ -53,7 +53,8 @@ function configuredEngine(seed = 260819901) {
   const p = e.g.properties.find(x => !x.owner && x.buildingType);
   assert.equal(e.buyProperty(p.id, 'company'), true);
   const m0 = e.getPropertyInvestmentMetrics(p.id);
-  const expectedWeekly = Math.round((m0.buildingBookValue * (1 - modules.realEstate.DEPRECIATION_SALVAGE_RATE) / modules.realEstate.DEPRECIATION_USEFUL_LIFE_WEEKS) * 100) / 100;
+  // Whole yen (YEN_CEILING_ROUNDING_CONTRACT §8 R3a-1): the salvage floor and the straight-line charge both round up.
+  const expectedWeekly = Math.ceil((m0.buildingBookValue - Math.ceil(m0.buildingBookValue * modules.realEstate.DEPRECIATION_SALVAGE_RATE)) / modules.realEstate.DEPRECIATION_USEFUL_LIFE_WEEKS);
   assert.equal(m0.weeklyDepreciation, expectedWeekly, '初回の週次償却額は導出式どおり');
   const landBefore = m0.landBookValue;
 
@@ -74,7 +75,7 @@ function configuredEngine(seed = 260819901) {
   const p = e.g.properties.find(x => !x.owner && x.buildingType);
   e.buyProperty(p.id, 'company');
   const m0 = e.getPropertyInvestmentMetrics(p.id);
-  const floor = Math.round(m0.buildingBookValue * 0.2 * 100) / 100; // literal 20%, matching the documented convention independently of the module's own constant
+  const floor = Math.ceil(m0.buildingBookValue * 0.2); // literal 20%, matching the documented convention independently of the module's own constant
   assert.equal(modules.realEstate.DEPRECIATION_SALVAGE_RATE, 0.2, '残存価値率は取得原価の20%');
   for (let i = 0; i < modules.realEstate.DEPRECIATION_USEFUL_LIFE_WEEKS + 50; i++) {
     e.g.week++;
