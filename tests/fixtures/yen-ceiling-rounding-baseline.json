@@ -24,10 +24,6 @@
   "js/real-estate-safety-certification.js",
   "js/real-estate-security-deposits.js",
   "js/real-estate-tenant-collections.js",
-  "js/real-estate-tenant-contracts.js",
-  "js/real-estate-tenant-leasing.js",
-  "js/real-estate-tenant-operations.js",
-  "js/real-estate-tenant-renewals.js",
   "js/save-storage.js",
   "js/shareholder-returns.js"
  ]

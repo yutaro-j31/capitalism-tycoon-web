@@ -421,6 +421,41 @@ const SCENARIOS = [
     assert.equal(rows.find(row => row.sourceType === 'property-tax').amount, 23_077, 'ceil(100,000,001 × 1.2% / 52)');
     return { rows, state: { companyCash: g.companyCash, paidCost: project.paidCost, developedBuildingBook: developed.realEstate.buildingBookValue, redevelopmentSpent: redeveloped.redevelopmentSpentTotal } };
   } },
+  { slice: 'R3b', label: 'tenant contracts: signing, weekly rent, complaints, renewal concession, listing and brokerage', run() {
+    const { engine, modules } = newGame(1901), g = engine.g;
+    const [leased, listed] = g.properties.filter(p => !p.owner && p.buildingType);
+    for (const p of [leased, listed]) Object.assign(p, { owner: 'company', purchasePrice: 100_000_000, marketValue: 100_000_003, value: 100_000_003 });
+    modules.realEstate.ensure(g);
+    for (const p of [leased, listed]) Object.assign(p.realEstate, { landBookValue: 40_000_001, buildingBookValue: 60_000_000, buildingOriginalCost: 60_000_000, monthlyRent: 333_333.3, rentalEnabled: true, occupancy: .9, condition: 1 });
+    const count = g.finance.transactions.length;
+    // The quoted rent and deposit are the amounts contracted and received.
+    const quote = [...engine.getPropertyTenantQuotes(leased.id)].find(q => q.profileID === 'growth');
+    assert.deepEqual([quote.monthlyRent, quote.deposit], [350_000, 350_000], 'ceil(333,333.3 × 1.05) and one month of deposit');
+    const contract = engine.signPropertyTenant(leased.id, 'growth');
+    assert.equal(contract.depositBalance, 350_000);
+    for (let week = 0; week < 3; week++) { g.week += 1; modules.realEstateTenantContracts.processWeek(engine); }
+    const live = engine.getPropertyTenantContract(leased.id);
+    live.openComplaints = 2;
+    assert.ok(engine.resolvePropertyTenantComplaints(leased.id), 'complaint cost ceil(max(30,000, rent × .2 × 2))');
+    // The renewal quote and the renewal actually agreed use the same whole-yen amounts.
+    live.expiresWeek = g.week + 5; // renewal options open in the last 13 weeks of the term
+    const option = [...engine.getPropertyTenantRenewalOptions(leased.id)].find(x => x.id === 'retention');
+    const renewal = engine.offerPropertyTenantRenewal(leased.id, 'retention');
+    if (renewal && renewal.accepted) assert.equal(engine.getPropertyTenantContract(leased.id).monthlyRent, option.newMonthlyRent);
+    assert.ok(Number.isSafeInteger(option.newMonthlyRent) && Number.isSafeInteger(option.concession));
+    // Listing with an agency: the brokerage fee on the new contract is ceil(rent × .5).
+    assert.ok(engine.startPropertyTenantListing(listed.id, 'agency'));
+    for (let week = 0; week < 3; week++) { g.week += 1; modules.realEstateTenantLeasing.processWeek(engine); }
+    const application = [...engine.getPropertyTenantApplications(listed.id)][0];
+    assert.ok(application, 'the listing produces an applicant');
+    const signed = engine.approvePropertyTenantApplication(application.applicationID);
+    assert.ok(signed && Number.isSafeInteger(signed.brokerageFee) && signed.brokerageFee > 0);
+    const KINDS = ['property-tenant-deposit', 'property-tenant-rent', 'property-tenant-complaint-resolution', 'property-tenant-marketing', 'property-tenant-brokerage'];
+    const rows = rowsSince(g, count, row => KINDS.includes(row.sourceType) || row.sourceType === 'property-tenant-renewal-concession');
+    for (const kind of KINDS) assert.ok(rows.some(row => row.sourceType === kind), `R3b scenario posts ${kind}`);
+    assert.equal(rows.find(row => row.sourceType === 'property-tenant-rent').amount, 72_498, 'ceil(350,000 / 4.345 × .9)');
+    return { rows, state: { companyCash: g.companyCash, monthlyRent: live.monthlyRent, depositBalance: live.depositBalance, rentCollected: live.rentCollectedTotal, arrears: live.arrears, brokerageFee: signed.brokerageFee } };
+  } },
 ];
 for (const scenario of SCENARIOS) {
   const { rows, state = {} } = scenario.run();
