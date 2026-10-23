@@ -5,7 +5,7 @@ if(!modules?.engine?.TycoonEngine||!modules?.realEstateTenantLeasing||!modules?.
 if(modules.realEstateRentPricing)throw new Error('real-estate-rent-pricing.js already registered.');
 const Engine=modules.engine.TycoonEngine,VERSION=1,HISTORY_LIMIT=500;
 const STRATEGIES=Object.freeze({discount:{id:'discount',label:'早期成約優先',multiplier:.85},competitive:{id:'competitive',label:'競争力重視',multiplier:.95},market:{id:'market',label:'市場賃料',multiplier:1},premium:{id:'premium',label:'収益重視',multiplier:1.1},aggressive:{id:'aggressive',label:'強気募集',multiplier:1.2}});
-const n=(v,d=0)=>Number.isFinite(Number(v))?Number(v):d,round=v=>Math.round(n(v)*100)/100,clamp=(v,a,b)=>Math.min(b,Math.max(a,n(v,a)));
+const n=(v,d=0)=>Number.isFinite(Number(v))?Number(v):d,round=v=>Math.round(n(v)*100)/100 /* not-money: unsettled market and asking rent estimates, ratios, applicant income multiples and the vacancy opportunity-loss analytics; a contract rounds its own rent up */,clamp=(v,a,b)=>Math.min(b,Math.max(a,n(v,a)));
 function hash01(id,week,salt=''){let h=2166136261;for(const c of `${id}:${week}:${salt}`){h^=c.codePointAt(0);h=Math.imul(h,16777619);}return(h>>>0)/4294967295;}
 function property(g,id){return(g.properties||[]).find(p=>p.id===id)||null;}
 function activeContract(g,id){return modules.realEstateTenantContracts?.active?.(g,id)||null;}

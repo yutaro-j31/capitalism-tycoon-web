@@ -456,6 +456,36 @@ const SCENARIOS = [
     assert.equal(rows.find(row => row.sourceType === 'property-tenant-rent').amount, 72_498, 'ceil(350,000 / 4.345 × .9)');
     return { rows, state: { companyCash: g.companyCash, monthlyRent: live.monthlyRent, depositBalance: live.depositBalance, rentCollected: live.rentCollectedTotal, arrears: live.arrears, brokerageFee: signed.brokerageFee } };
   } },
+  { slice: 'R3b', label: 'tenant collections, rent guarantee and security deposit settlement', run() {
+    const { engine, modules } = newGame(1902), g = engine.g;
+    const [leased] = g.properties.filter(p => !p.owner && p.buildingType);
+    Object.assign(leased, { owner: 'company', purchasePrice: 100_000_000, marketValue: 100_000_003, value: 100_000_003 });
+    modules.realEstate.ensure(g);
+    Object.assign(leased.realEstate, { landBookValue: 40_000_001, buildingBookValue: 60_000_000, buildingOriginalCost: 60_000_000, monthlyRent: 333_333.3, rentalEnabled: true, occupancy: .9, condition: 1 });
+    assert.ok(engine.signPropertyTenant(leased.id, 'growth'));
+    const contract = engine.getPropertyTenantContract(leased.id);
+    // Whole-yen balances; the amounts derived from them carry fractions before rounding.
+    Object.assign(contract, { monthlyRent: 333_337, arrears: 123_457, missedWeeks: 1 });
+    const count = g.finance.transactions.length;
+    // Guarantee: weekly premium ceil(333,337 × .011); a claim pays min(ceil(arrears × .75), limit, arrears).
+    assert.ok(engine.setPropertyRentGuarantee(leased.id, 'standard'));
+    g.week += 1; modules.realEstateRentGuarantee.processWeek(engine);
+    const claim = engine.claimPropertyRentGuarantee(leased.id);
+    assert.ok(claim, 'the guarantee pays the arrears claim');
+    // Collections: a legal action costs its whole constant; any recovery is min(ceil(arrears × rate), arrears).
+    assert.ok(engine.collectPropertyTenantArrears(leased.id, 'legal'));
+    // Security deposit: the half-month policy sets ceil(333,337 × .5); settlement applies min(arrears, held).
+    assert.ok(engine.setPropertySecurityDeposit(leased.id, 'premium'));
+    assert.equal(engine.getPropertyTenantContract(leased.id).securityDepositHeld, 166_669);
+    engine.getPropertyTenantContract(leased.id).status = 'ended'; // the deposit is settled when the tenancy ends
+    assert.ok(engine.settlePropertySecurityDeposit(leased.id));
+    const KINDS = ['property-rent-guarantee-premium', 'property-rent-guarantee', 'property-tenant-collection'];
+    const rows = rowsSince(g, count, row => KINDS.includes(row.sourceType) || ['property-tenant-recovery', 'property-security-deposit'].includes(row.sourceType));
+    for (const kind of KINDS) assert.ok(rows.some(row => row.sourceType === kind), `R3b collections scenario posts ${kind}`);
+    assert.equal(rows.find(row => row.sourceType === 'property-rent-guarantee-premium').amount, 3_667, 'ceil(333,337 × .011)');
+    const after = contract;
+    return { rows, state: { companyCash: g.companyCash, arrears: after.arrears, guaranteePayout: after.guaranteePayoutTotal, premiumPaid: after.guaranteePremiumPaid, depositApplied: after.securityDepositApplied, depositReturned: after.securityDepositReturned } };
+  } },
 ];
 for (const scenario of SCENARIOS) {
   const { rows, state = {} } = scenario.run();
