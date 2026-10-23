@@ -344,7 +344,14 @@ const SCENARIOS = [
     const first = [...rows.filter(row => row.sourceType.startsWith('property-collateral-')).slice(0, 2)].map(row => row.amount);
     assert.deepEqual(first, [868, 76_923], 'the payment is rounded once; interest is the charge, principal the remainder');
     const loan = g.realEstate.loans.find(row => row.loanID === 'r3a-loan');
-    return { rows, state: { companyCash: g.companyCash, companyDebt: g.companyDebt, loanOutstanding: loan.outstandingPrincipal, landBook: x.landBookValue, buildingBook: x.buildingBookValue, repairReserve: x.repairReserve } };
+    const state = { companyCash: g.companyCash, companyDebt: g.companyDebt, loanOutstanding: loan.outstandingPrincipal, landBook: x.landBookValue, buildingBook: x.buildingBookValue, repairReserve: x.repairReserve };
+    // A loan from a save made before R3a-1 can carry a fractional balance: its final instalment pays that balance exactly
+    // (§3.5) instead of leaving a residue that keeps accruing ¥1 of interest.
+    g.realEstate.loans.push({ loanID: 'r3a-legacy', propertyID: property.id, owner: 'company', principal: 10_000.3, outstandingPrincipal: 10_000.3, interestRate: .045, termWeeks: 1, remainingWeeks: 1, status: 'active', originatedWeek: 1, lastPaymentWeek: 0, missedPayments: 0 });
+    g.week += 1;
+    const legacy = [...realEstate.processLoans(engine, g.week)].find(row => row.loanID === 'r3a-legacy');
+    assert.deepEqual([legacy.interest, legacy.principal, legacy.status], [9, 10_000.3, 'paid'], 'the final instalment clears a fractional legacy balance');
+    return { rows, state };
   } },
 ];
 for (const scenario of SCENARIOS) {
