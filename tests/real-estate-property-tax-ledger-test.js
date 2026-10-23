@@ -75,7 +75,8 @@ function taxRows(g, propertyID, week) {
   assert.notEqual(engine.advanceWeek(false), false);
   const week = engine.g.week;
   const urban = modules.realEstatePropertyTaxes.REGIMES.urban.annualRate;
-  const expected = Math.round(dev.propertyTaxBasis(land) * urban / 52 * 100) / 100;
+  // The weekly tax actually charged is rounded up to whole yen (YEN_CEILING_ROUNDING_CONTRACT §8 R3a-3).
+  const expected = modules.economicOperation.ceilYen(dev.propertyTaxBasis(land) * urban / 52);
   const rows = taxRows(engine.g, land.id, week);
   assert.equal(JSON.stringify(rows.map(t => t.category).sort()), JSON.stringify(['taxExpense', 'taxPayment']), 'regime must not add a second tax');
   assert.equal(rows.find(t => t.category === 'taxPayment').amount, expected);

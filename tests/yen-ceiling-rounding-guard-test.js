@@ -395,6 +395,32 @@ const SCENARIOS = [
     assert.deepEqual([mortgaged.mortgageBalance, fresh.balance, fresh.status], [0, 0, 'paid'], 'the final instalments clear fractional legacy balances');
     return { rows, state };
   } },
+  { slice: 'R3a', label: 'company real-estate projects and disposal: development, insurance, property tax, redevelopment write-off, sale', run() {
+    const { engine, modules } = newGame(1801), g = engine.g;
+    const [developed, redeveloped, sold] = g.properties.filter(p => !p.owner && p.buildingType);
+    for (const p of [developed, redeveloped, sold]) Object.assign(p, { owner: 'company', purchasePrice: 100_000_000, marketValue: 100_000_003, value: 100_000_003 });
+    modules.realEstate.ensure(g);
+    for (const p of [developed, redeveloped, sold]) Object.assign(p.realEstate, { landBookValue: 40_000_001, buildingBookValue: 60_000_000, buildingOriginalCost: 60_000_000 });
+    const count = g.finance.transactions.length;
+    // Development: contract ceil(1,000,000.3), deposit ceil(15%), each weekly instalment ceil(remaining / weeks left).
+    assert.ok(engine.startPropertyDevelopment(developed.id, 'renovation', { totalCost: 1_000_000.3, durationWeeks: 7 }));
+    assert.ok(engine.buyPropertyInsurance(developed.id, { premiumPerWeek: 1000.3 }));
+    for (let week = 0; week < 2; week++) { g.week += 1; modules.realEstateDevelopment.processWeek(engine); }
+    const project = modules.realEstateDevelopment.ensure(g).projects[0];
+    assert.deepEqual([project.totalCost, project.paidCost], [1_000_001, 150_001 + 141_667 * 2]);
+    // Redevelopment: the quoted cost is the cost paid, and a cancellation writes off exactly that.
+    const redevelopment = engine.startPropertyRedevelopment(redeveloped.id, Object.keys(modules.realEstateRedevelopmentProjects.PROJECTS)[0]);
+    assert.ok(redevelopment && Number.isSafeInteger(redevelopment.cost));
+    assert.equal(engine.cancelPropertyRedevelopment(redeveloped.id), true);
+    // Sale: gross and fees round up once; net and gain are derived.
+    const sale = engine.settlePropertyDisposition({ propertyID: sold.id, reason: 'voluntary-sale', grossSalePrice: 90_000_000.3, fees: 2_000_000.3, saleWeek: g.week });
+    assert.deepEqual([sale.salePrice, sale.fee, sale.net, sale.gain], [90_000_001, 2_000_001, 88_000_000, -12_000_001]);
+    const KINDS = ['property-development', 'property-insurance', 'property-tax', 'property-tax-payment', 'property-redevelopment-capex', 'property-redevelopment-write-off', 'property-disposition', 'property-disposition-fee'];
+    const rows = rowsSince(g, count, row => KINDS.includes(row.sourceType));
+    for (const kind of KINDS) assert.ok(rows.some(row => row.sourceType === kind), `R3a projects scenario posts ${kind}`);
+    assert.equal(rows.find(row => row.sourceType === 'property-tax').amount, 23_077, 'ceil(100,000,001 × 1.2% / 52)');
+    return { rows, state: { companyCash: g.companyCash, paidCost: project.paidCost, developedBuildingBook: developed.realEstate.buildingBookValue, redevelopmentSpent: redeveloped.redevelopmentSpentTotal } };
+  } },
 ];
 for (const scenario of SCENARIOS) {
   const { rows, state = {} } = scenario.run();
