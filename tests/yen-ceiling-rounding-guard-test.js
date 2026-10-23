@@ -366,6 +366,11 @@ const SCENARIOS = [
     g.week += 1; g.companyCash = 1; modules.realEstateMortgageRefinancing.processWeek(engine); g.companyCash += cash;
     g.week += 1; modules.realEstateMortgageRefinancing.processWeek(engine);
     assert.equal(engine.prepayPropertyMortgage(mortgaged.id, 1234.3), 1235);
+    // The 13-week cash forecast reserves exactly the whole-yen payments the writer will make (the mortgage is the only loan here).
+    const forecast = modules.finance.buildStatements(g, '13').forecast.rows;
+    let balance = mortgaged.mortgageBalance, left = mortgaged.mortgageRemainingWeeks, expected = 0;
+    for (let week = 0; week < 13; week++) { const due = modules.realEstateMortgageRefinancing.scheduledPayment(balance, .032, left); expected += due.due; balance -= due.principal; left -= 1; }
+    assert.equal(forecast.reduce((sum, row) => sum + row.debtRepayment + row.interest, 0), expected, 'the forecast follows the mortgage schedule');
     // Specialist loan: principal ceil(10,000,001.3); prepayment ceil(1234.3); refinance fee ceil(payoff × .015).
     secured.realEstate.monthlyRent = 5_000_000;
     const loan = engine.borrowAgainstProperty(secured.id, 10_000_001.3, { spread: .0251, termWeeks: 53 });
