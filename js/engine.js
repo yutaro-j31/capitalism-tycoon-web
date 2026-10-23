@@ -38,6 +38,15 @@ const previewStateFor = state => {
 
 const clamp = (n, min, max) => Math.max(min, Math.min(max, Number.isFinite(n) ? n : min));
 const finite = (n, fallback = 0) => Number.isFinite(Number(n)) ? Number(n) : fallback;
+// Whole-yen settlement, fractions rounded up (YEN_CEILING_ROUNDING_CONTRACT §2).
+const ceilYen = value => __modules.economicOperation.ceilYen(finite(value));
+// A store's weekly fixed cost posts as three rows (rent, wage, maintenance = repair + the rest of fixed), each
+// rounded up on its own; advanceWeek() and the decision previews share this so a preview never differs by a yen.
+const postedStoreFixedRows = (rent, wage, fixed, repair) => {
+  const otherFixed = Math.max(0, finite(fixed) - finite(rent) - finite(wage));
+  const row = { rent: ceilYen(Math.max(0, finite(rent))), wage: ceilYen(Math.max(0, finite(wage))), maintenance: ceilYen(Math.max(0, finite(repair) + otherFixed)) };
+  return Object.freeze({ ...row, total: row.rent + row.wage + row.maintenance });
+};
 // Simulation randomness and entity IDs come from the stream kept in the save (#731), so the same
 // save and the same actions give the same results in any runtime.
 const simRng = __modules.simulationRng;
@@ -1082,8 +1091,8 @@ class TycoonEngine extends EventTarget {
     let sales=0,variable=0,fixed=0,profit=0;
     for(const store of rows){
       const result=calculated.stores?.[store.id];if(!result)continue;
-      const rent=getStoreContractRent(store,p,previewState),costMultiplier=previewState.inflation*costHoursByStore(store)*(previewState.macroCrisis?.costMultiplier||1),extraPayroll=workforce.storeExtraPayroll(previewState,store.id),storeFixed=rent+(b.fixedCost+b.wage+extraPayroll)*costMultiplier+getStoreRepairCost(store,previewState);
-      const storeSales=Math.floor(Math.max(0,finite(result.revenue))),storeVariable=finite(result.variableCost),storeFixedPosted=Math.floor(Math.max(0,finite(storeFixed))),storeProfit=storeSales-storeVariable-storeFixedPosted;
+      const rent=getStoreContractRent(store,p,previewState),costMultiplier=previewState.inflation*costHoursByStore(store)*(previewState.macroCrisis?.costMultiplier||1),extraPayroll=workforce.storeExtraPayroll(previewState,store.id),fixedBeforeRepair=rent+(b.fixedCost+b.wage+extraPayroll)*costMultiplier;
+      const storeSales=ceilYen(Math.max(0,finite(result.revenue))),storeVariable=finite(result.variableCost),storeFixedPosted=postedStoreFixedRows(rent,(b.wage+extraPayroll)*costMultiplier,fixedBeforeRepair,getStoreRepairCost(store,previewState)).total,storeProfit=storeSales-storeVariable-storeFixedPosted;
       byStore[store.id]=Object.freeze({sales:storeSales,variable:storeVariable,fixed:storeFixedPosted,profit:storeProfit});
       sales+=storeSales;variable+=storeVariable;fixed+=storeFixedPosted;profit+=storeProfit;
     }
@@ -1137,20 +1146,20 @@ class TycoonEngine extends EventTarget {
     const rent=resolveTenantContractRent(tenant,p);
     const wage=b.wage*this.g.inflation*costHours*crisisCost;
     const otherFixed=b.fixedCost*this.g.inflation*costHours*crisisCost;
-    const fixed=rent+wage+otherFixed;
+    const fixed=rent+wage+otherFixed,postedFixed=postedStoreFixedRows(rent,wage,fixed,0);
     const efficiencyDiscount=1-Math.min(.22,b.efficiency/260);
     const operationsRelief=1+this.departmentEffect('operations')*.04;
 
     const at=multiplier=>{
       const units=Math.max(0,demand*multiplier);
-      const sales=Math.floor(Math.max(0,units*b.price*this.g.inflation));
-      const variable=Math.floor(Math.max(0,units*b.unitCost*this.g.inflation*efficiencyDiscount/operationsRelief));
+      const sales=ceilYen(Math.max(0,units*b.price*this.g.inflation));
+      const variable=ceilYen(Math.max(0,units*b.unitCost*this.g.inflation*efficiencyDiscount/operationsRelief));
       return Object.freeze({units:Math.round(units*10)/10,sales,variable,
-        fixed:Math.floor(Math.max(0,fixed)),profit:sales-variable-Math.floor(Math.max(0,fixed))});
+        fixed:postedFixed.total,profit:sales-variable-postedFixed.total});
     };
     const conservative=at(.88),expected=at(1),optimistic=at(1.14);
 
-    const upfront=b.storeCost+tenant.deposit;
+    const upfront=b.storeCost+ceilYen(tenant.deposit);
     const startupLoan=b.id==='gym'?globalThis.__capitalismTycoonModules.bankLoansCovenants?.gymStartupQuote?.(this.g,upfront):null;
     const weeksToOpen=b.storeCost>=15_000_000?8:b.storeCost>=7_000_000?5:3;
     const depth=businessSimulationDepth(businessID);
@@ -1174,9 +1183,8 @@ class TycoonEngine extends EventTarget {
       tenantID,businessID,operatingHours:hours,siteSuitability,
       businessName:b.name,tenantName:tenant.name,prefName:p.name,
       conservative,expected,optimistic,
-      breakdown:Object.freeze({rent:Math.floor(Math.max(0,rent)),wage:Math.floor(Math.max(0,wage)),
-        otherFixed:Math.floor(Math.max(0,fixed-rent-wage))}),
-      storeCost:b.storeCost,deposit:tenant.deposit,upfront,weeksToOpen,
+      breakdown:Object.freeze({rent:postedFixed.rent,wage:postedFixed.wage,otherFixed:postedFixed.maintenance}),
+      storeCost:b.storeCost,deposit:ceilYen(tenant.deposit),upfront,weeksToOpen,
       companyCash:finite(this.g.companyCash),affordable:finite(this.g.companyCash)>=upfront||Boolean(startupLoan?.eligible),
       cashAfterOpening:finite(this.g.companyCash)+(startupLoan?.eligible?startupLoan.principal:0)-upfront,
       startupLoan,
@@ -1194,7 +1202,7 @@ class TycoonEngine extends EventTarget {
     if (!business) return this.fail('業種が見つかりません。');
     const resolvedStoreID=storeID===null||storeID===undefined?null:String(storeID);
     if(resolvedStoreID!==null&&this.g.stores.some(s=>String(s.id)===resolvedStoreID))return this.fail('店舗IDが重複しています。');
-    const cost = business.storeCost + tenant.deposit;
+    const depositPaid = ceilYen(tenant.deposit), cost = business.storeCost + depositPaid;
     let startupLoan=null;
     if(this.g.companyCash<cost&&business.id==='gym')startupLoan=globalThis.__capitalismTycoonModules.bankLoansCovenants?.fundGymStartup?.(this.g,cost)||null;
     if (this.g.companyCash < cost) return this.fail(`出店には${yen(cost)}が必要です。`);
@@ -1202,12 +1210,12 @@ class TycoonEngine extends EventTarget {
     const weeks = business.storeCost >= 15_000_000 ? 8 : business.storeCost >= 7_000_000 ? 5 : 3;
     const store = {id:resolvedStoreID??uuid(this.g,'store'),businessID,prefID:tenant.prefID,name:name||`${this.g.companyName} ${this.g.stores.length+1}号店`,openedWeek:this.g.week,
       quality:business.quality,brand:business.brand,condition:100,lastSales:0,lastProfit:0,status:'preparing',openingWeek:this.g.week+weeks,weeksToOpen:weeks,
-      tenantID,cityName:tenant.cityName,operatingHours:Number(operatingHours),contractRent:resolveTenantContractRent(tenant,this.pref(tenant.prefID)),contractInflationBase:storeInflationIndex(this.g),marketResult:null};
+      tenantID,cityName:tenant.cityName,operatingHours:Number(operatingHours),depositPaid,contractRent:resolveTenantContractRent(tenant,this.pref(tenant.prefID)),contractInflationBase:storeInflationIndex(this.g),marketResult:null};
     this.g.stores.push(store);
-    const fixedAssetID=`store-${store.id}`,fixedAsset=finance.addFixedAsset(this.g,{assetID:fixedAssetID,assetType:'storeEquipment',acquisitionCost:business.storeCost,usefulLifeWeeks:260,salvageValue:business.storeCost*.1,businessID,storeID:store.id});
+    const fixedAssetID=`store-${store.id}`,fixedAsset=finance.addFixedAsset(this.g,{assetID:fixedAssetID,assetType:'storeEquipment',acquisitionCost:business.storeCost,usefulLifeWeeks:260,salvageValue:ceilYen(business.storeCost*.1),businessID,storeID:store.id});
     if(!fixedAsset)throw new Error('P2-ASSET-DUPLICATE: store fixed asset already exists');
     finance.event(this.g,'capitalExpenditure',business.storeCost,{cashEffect:-business.storeCost,assetEffect:business.storeCost,businessID,storeID:store.id,sourceType:'openStore',sourceID:store.id,operationID:`fixed-asset-acquisition-${fixedAssetID}`,idempotencyKey:`fixed-asset-acquisition-${fixedAssetID}`,fixedAssetLifecycle:'acquisition',fixedAssetID,description:`${store.name} 店舗設備`});
-    finance.event(this.g,'otherInvesting',tenant.deposit,{cashEffect:-tenant.deposit,assetEffect:tenant.deposit,businessID,storeID:store.id,sourceType:'openStoreDeposit',sourceID:store.id,description:`${store.name} 保証金`});
+    finance.event(this.g,'otherInvesting',depositPaid,{cashEffect:-depositPaid,assetEffect:depositPaid,businessID,storeID:store.id,sourceType:'openStoreDeposit',sourceID:store.id,description:`${store.name} 保証金`});
     this.notify(`${store.name}の出店準備を開始しました。開店まで${weeks}週。${startupLoan?` ジム開業ローン${yen(startupLoan.principal)}（${startupLoan.term}週・年率${(startupLoan.annualRate*100).toFixed(2)}%）を実行しました。`:''}`,'success');
     this.evaluateProgression();  return true;
     });
@@ -1220,9 +1228,9 @@ class TycoonEngine extends EventTarget {
     const business=this.business(store.businessID);
     const tenant=this.g.tenants.find(t=>t.id===store.tenantID);
     // 設備は簿価ではなく storeCost に対する固定割合で売却される。
-    const proceeds=Math.floor(Math.max(0,finite(business?.storeCost)*STORE_CLOSURE_SALVAGE_RATE));
+    const proceeds=ceilYen(Math.max(0,finite(business?.storeCost)*STORE_CLOSURE_SALVAGE_RATE));
     // 保証金は返還されない。現金は動かず、没収損として損益に落ちる（closeStore() の closeStoreDeposit）。
-    const forfeitedDeposit=Math.max(0,finite(tenant?.deposit));
+    const forfeitedDeposit=Math.max(0,finite(store.depositPaid??tenant?.deposit));
     return Object.freeze({
       storeID:store.id,storeName:store.name||'',status:store.status,
       businessName:business?.name||store.businessID,prefName:this.pref(store.prefID)?.name||'',
@@ -1237,15 +1245,16 @@ class TycoonEngine extends EventTarget {
   closeStore(id) {
     return this.runTransaction(()=>{
     const index=this.g.stores.findIndex(s=>s.id===id); if(index<0)return false;
-    const store=this.g.stores[index]; const tenant=this.g.tenants.find(t=>t.id===store.tenantID),deposit=finite(tenant?.deposit); if(tenant)tenant.occupiedBy=null;
-    const proceeds=(this.business(store.businessID)?.storeCost||0)*STORE_CLOSURE_SALVAGE_RATE;
+    const store=this.g.stores[index]; const tenant=this.g.tenants.find(t=>t.id===store.tenantID),deposit=finite(store.depositPaid??tenant?.deposit); if(tenant)tenant.occupiedBy=null;
+    // The deposit forfeited is the amount paid at opening (a store opened before R2a falls back to the tenant's deposit).
+    const proceeds=ceilYen((this.business(store.businessID)?.storeCost||0)*STORE_CLOSURE_SALVAGE_RATE);
     this.g.companyCash+=proceeds; workforce.disposeStoreTeam(this.g,store.id); supply.disposeStoreSupply(this.g,store.id,finance); finance.disposeFixedAsset(this.g,store.id,proceeds); if(deposit>0)finance.event(this.g,'assetSale',deposit,{cashEffect:0,assetEffect:-deposit,profitEffect:-deposit,businessID:store.businessID,storeID:store.id,sourceType:'closeStoreDeposit',sourceID:store.id,operationID:`closeStoreDeposit-${store.id}-${this.g.week}`,description:`${store.name} 保証金没収損`}); this.g.stores.splice(index,1); this.notify(`${store.name}を閉店し、${yen(proceeds)}を回収しました。`,'warning');
     return true;
     });
   }
 
   investBusiness(businessID,kind,amount) {
-    const b=this.business(businessID); amount=Math.max(0,finite(amount));
+    const b=this.business(businessID); amount=ceilYen(Math.max(0,finite(amount)));
     if(!b||amount<=0)return this.fail('投資額が不正です。');
     if(this.g.companyCash<amount)return this.fail('会社資金が不足しています。');
     const lock={quality:'product',brand:'marketing',efficiency:'operations',dx:'dx'}[kind];
@@ -2439,12 +2448,12 @@ class TycoonEngine extends EventTarget {
       const isSupplyStore=market.isTargetBusinessID(store.businessID);
       const rentPart=contractRent;
       const wagePart=(b.wage+(isSupplyStore?workforce.storeExtraPayroll(this.g,store.id):0))*this.g.inflation*([0,.55,.8,1,1.24][store.operatingHours||3]||1)*(this.g.macroCrisis?.costMultiplier||1);
-      const otherFixed=Math.max(0,fixed-rentPart-wagePart);
-      const postedSales=Math.floor(Math.max(0,finite(storeSales)));
-      const postedVariable=isSupplyStore?finite(variable):Math.floor(Math.max(0,finite(variable)));
-      const postedRent=Math.floor(Math.max(0,finite(rentPart)));
-      const postedWage=Math.floor(Math.max(0,finite(wagePart)));
-      const postedMaintenance=Math.floor(Math.max(0,finite(repair+otherFixed)));
+      // Each store row settles in whole yen, rounded up (contract R2a). Supply-store COGS is the inventory relief
+      // from supply.consume and is not rounded here (slice R2b).
+      const postedSales=ceilYen(Math.max(0,finite(storeSales)));
+      const postedVariable=isSupplyStore?finite(variable):ceilYen(Math.max(0,finite(variable)));
+      const fixedRows=postedStoreFixedRows(rentPart,wagePart,fixed,repair);
+      const postedRent=fixedRows.rent,postedWage=fixedRows.wage,postedMaintenance=fixedRows.maintenance;
       if(isSupplyStore)supplyCogsNonCash+=postedVariable;
       const postedProfit=postedSales-postedVariable-postedRent-postedWage-postedMaintenance;
       store.lastSales=postedSales;store.lastProfit=isSupplyStore?postedProfit:Math.floor(postedProfit);updateStoreSmoothedProfit(this.g,store);
