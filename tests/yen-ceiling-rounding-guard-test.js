@@ -210,6 +210,9 @@ const SCENARIOS = [
     assert.equal(engine.contractBranchOffice(branch.id), true);
     assert.equal(g.branchOffices[0].deposit, 765_433, 'the branch keeps the deposit paid');
     assert.equal(engine.establishDepartment('product'), true);
+    // The CXO referral needs HR; install it directly (its unlock needs stores this scenario does not model).
+    g.departments.hr = { ...modules.data.MASTER.departments.find(d => d.id === 'hr'), established: true };
+    assert.equal(engine.refreshExecutives(), true, 'a CXO referral fee drawn from a fractional range');
     workforce.generateCandidates(g);
     const candidate = g.workforceCandidates.find(c => c.status === 'open' && !c.storeID);
     assert.ok(candidate, 'a corporate candidate');
@@ -227,10 +230,10 @@ const SCENARIOS = [
     assert.equal(engine.retainKeyPerson(keyPerson.id), true);
     while (g.week % 4 !== 3) assert.equal(engine.advanceWeek(false), true);
     assert.equal(engine.advanceWeek(false), true, 'a week that pays executive payroll');
-    const HQ = new Set(['contractOffice', 'contractBranchOffice', 'workforceCandidateHire', 'hireExecutive', 'addDirective', 'startCampaign', 'hireKeyPerson', 'trainKeyPerson', 'retainKeyPerson',
+    const HQ = new Set(['contractOffice', 'contractBranchOffice', 'refreshExecutives', 'workforceCandidateHire', 'hireExecutive', 'addDirective', 'startCampaign', 'hireKeyPerson', 'trainKeyPerson', 'retainKeyPerson',
       'weekly-execPayroll', 'weekly-deptCost', 'weekly-officeCost', 'weekly-projectCost', 'weekly-severanceCost', 'parityWeeklyAdjustment', 'completionWeeklyAdjustment']);
     const rows = rowsSince(g, count, row => HQ.has(row.sourceType));
-    for (const kind of ['contractOffice', 'contractBranchOffice', 'workforceCandidateHire', 'hireExecutive', 'addDirective', 'startCampaign', 'hireKeyPerson', 'trainKeyPerson', 'retainKeyPerson', 'weekly-execPayroll', 'weekly-deptCost', 'weekly-officeCost', 'parityWeeklyAdjustment', 'completionWeeklyAdjustment'])
+    for (const kind of ['contractOffice', 'contractBranchOffice', 'refreshExecutives', 'workforceCandidateHire', 'hireExecutive', 'addDirective', 'startCampaign', 'hireKeyPerson', 'trainKeyPerson', 'retainKeyPerson', 'weekly-execPayroll', 'weekly-deptCost', 'weekly-officeCost', 'parityWeeklyAdjustment', 'completionWeeklyAdjustment'])
       assert.ok(rows.some(row => row.sourceType === kind), `R2c scenario posts ${kind}`);
     return { rows, state: { departmentSeverance: workforce.departmentSeverance(g, 'product'), weeklyPayroll: workforce.weeklyPayroll(g), totalOfficeWeeklyCost: engine.totalOfficeWeeklyCost() } };
   } },

@@ -1382,7 +1382,7 @@ class TycoonEngine extends EventTarget {
   }
   refreshExecutives() {
     if(!this.g.departments.hr)return this.fail('人事部門が必要です。');
-    const cost=rand(this.g,500000,2000000);if(this.g.companyCash<cost)return this.fail('紹介費が不足しています。');this.g.companyCash-=cost;finance.event(this.g,'headOfficeExpense',cost,{cashEffect:-cost,profitEffect:-cost,sourceType:'refreshExecutives',sourceID:`executive-market-${this.g.week}`,description:'CXO候補紹介費'});
+    const cost=ceilYen(rand(this.g,500000,2000000));if(this.g.companyCash<cost)return this.fail('紹介費が不足しています。');this.g.companyCash-=cost;finance.event(this.g,'headOfficeExpense',cost,{cashEffect:-cost,profitEffect:-cost,sourceType:'refreshExecutives',sourceID:`executive-market-${this.g.week}`,description:'CXO候補紹介費'});
     const surnames=['佐藤','鈴木','高橋','田中','伊藤','渡辺','山本','中村','小林','加藤'];
     const roles=['CEO','COO','CFO','CMO','CTO','CPO','CHRO','CSO'];
     this.g.executiveMarket=roles.map(role=>{
