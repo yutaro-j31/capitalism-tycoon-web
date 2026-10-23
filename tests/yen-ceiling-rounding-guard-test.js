@@ -58,7 +58,7 @@ function newGame(seed) {
   engine.g.companyCash = 500_000_000;
   engine.g.personalCash = 100_000_000;
   engine.g.finance = finance.defaultFinanceState(engine.g);
-  return { engine, finance };
+  return { engine, finance, modules: loaded.modules };
 }
 const rowsSince = (g, count, keep) => g.finance.transactions.slice(count).filter(keep);
 const SCENARIOS = [
@@ -155,6 +155,25 @@ const SCENARIOS = [
     const rows = rowsSince(g, count, () => true);
     assert.equal(rows.find(row => row.sourceType === 'investBusiness').amount, 1_000_001, 'a fractional investment rounds up');
     return { rows, state: {} };
+  } },
+  { slice: 'R2b', label: 'ramen procurement: contract, receipts, AP payment, consumption and spoilage', run() {
+    const { engine, modules } = newGame(1301), g = engine.g, supply = modules.supply;
+    g.inflation = 1.0137;
+    const tenant = g.tenants.find(t => !t.occupiedBy && t.businessID === 'ramen') || g.tenants.find(t => !t.occupiedBy);
+    assert.notEqual(engine.openStore({ tenantID: tenant.id, businessID: 'ramen', name: 'R2b', operatingHours: 3 }), false);
+    const store = g.stores[g.stores.length - 1];
+    store.status = 'open';
+    store.openingWeek = g.week;
+    const count = g.finance.transactions.length;
+    // The default supplier (balanced_wholesale) buys on 3-week terms, so receipts go through AP and are paid later.
+    for (let week = 0; week < 8; week++) assert.equal(engine.advanceWeek(false), true);
+    const SUPPLY_SOURCES = new Set(['inventory-receipt-cash', 'emergency-receipt-cash', 'inventory-receipt-ap', 'ap-payment', 'spoilage']);
+    const rows = rowsSince(g, count, row => SUPPLY_SOURCES.has(row.sourceType) || (row.sourceType === 'weekly-store-cogs' && row.storeID === store.id));
+    for (const kind of ['inventory-receipt-ap', 'ap-payment', 'weekly-store-cogs']) assert.ok(rows.some(row => row.sourceType === kind), `R2b scenario posts ${kind}`);
+    const lots = Object.values(g.inventoryByStoreID[store.id].materials).flatMap(material => material.lots).filter(lot => lot.status === 'available');
+    assert.ok(lots.length > 0 && lots.every(lot => Number.isSafeInteger(lot.bookValue)), 'every lot book is whole yen');
+    assert.equal(supply.physicalInventoryValue(g), g.finance.balances.inventory, 'physical inventory equals the balance-sheet inventory exactly');
+    return { rows, state: { supplyAccountsPayable: g.supplyAccountsPayableBalance, inventory: g.finance.balances.inventory, lotBooks: lots.reduce((sum, lot) => sum + lot.bookValue, 0) } };
   } },
 ];
 for (const scenario of SCENARIOS) {
