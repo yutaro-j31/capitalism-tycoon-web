@@ -486,10 +486,52 @@ const SCENARIOS = [
     const after = contract;
     return { rows, state: { companyCash: g.companyCash, arrears: after.arrears, guaranteePayout: after.guaranteePayoutTotal, premiumPaid: after.guaranteePremiumPaid, depositApplied: after.securityDepositApplied, depositReturned: after.securityDepositReturned } };
   } },
+  { slice: 'R4a', label: 'personal real estate: corp account, property tax, redevelopment, short-term letting, long-let NOI and sale', ledger: false, run() {
+    const { engine, modules } = newGame(2001), g = engine.g;
+    assert.ok(engine.buyPersonalRealEstate('studio-tokyo'));
+    assert.ok(engine.buyPersonalRealEstate('commercial-osaka'));
+    const [studio, osaka] = g.personalRealEstateHoldings.filter(x => x.status === 'owned');
+    // Valuations and market rents drift to fractions; every amount settled from them is rounded up.
+    Object.assign(studio, { currentValue: 18_000_000.7, weeklyRent: 31_000.4 });
+    Object.assign(osaka, { currentValue: 65_000_000.3, weeklyRent: 106_000.6 });
+    // Corp: whole setup cost; a dividend request rounds up and is capped at the corp's cash.
+    assert.ok(engine.establishPersonalRealEstateCorp());
+    assert.ok(engine.contributePersonalRealEstateToCorp(osaka.assetID));
+    modules.personalRealEstateCorp.creditOwnerAccount(g, osaka, 1_000_000);
+    assert.ok(engine.withdrawPersonalRealEstateCorpDividend(12_345.6));
+    const corp = modules.personalRealEstateCorp.ensure(g);
+    assert.equal(corp.withdrawnTotal, 12_346, 'ceil(12,345.6)');
+    // Property tax: instalment = ceil(ceil(65,000,000.3 × .014) / 4), debited from the corp.
+    g.week = osaka.purchasedWeek + 13;
+    modules.personalRealEstateTaxes.processWeek(engine);
+    assert.equal(osaka.propertyTaxPaid, Math.ceil(Math.ceil(65_000_000.3 * .014) / 4));
+    // Redevelopment: cost ceil(value × rate); book value steps up to ceil(valuation) plus the cost.
+    const [quote] = engine.getPersonalRealEstateRedevelopmentProjects(studio.assetID);
+    assert.ok(engine.startPersonalRealEstateRedevelopment(studio.assetID, quote.id));
+    modules.personalRealEstateRedevelopment.complete(studio);
+    // Short-term letting: conversion cost, gross and expense are rounded up; NOI is their difference.
+    assert.ok(engine.switchPersonalRealEstateRentalMode(studio.assetID, 'short'));
+    modules.personalRealEstateShortTerm.processWeek(engine, studio);
+    const personal = { personalCash: g.personalCash, corpCash: corp.cash, corpWithdrawn: corp.withdrawnTotal, taxPaid: osaka.propertyTaxPaid, taxArrears: osaka.propertyTaxArrears, redevelopmentSpent: studio.redevelopmentSpentTotal, studioBook: studio.bookValue, conversionPaid: studio.shortTermConversionPaid, shortGross: studio.rentalOps.lastGrossRent, shortExpense: studio.rentalOps.lastOperatingExpense, shortNOI: studio.rentalOps.lastNOI };
+    // Sale: the price is ceil(valuation) and the whole net proceeds land in personal cash.
+    const before = g.personalCash;
+    assert.ok(engine.sellPersonalRealEstate(studio.assetID));
+    assert.equal(studio.salePrice, Math.ceil(studio.currentValue));
+    // Long-let week (corp-owned): the contract rent and the week's expense are rounded up, so the corp's NOI credit is whole.
+    Object.assign(osaka.rentalOps, { occupancyStatus: 'occupied', contractWeeklyRent: 106_001, lastProcessedWeek: -1 });
+    const count = g.finance.transactions.length;
+    assert.equal(engine.advanceWeek(false), true);
+    const rows = rowsSince(g, count, row => /personal/i.test(String(row.sourceType || '')));
+    return { rows, state: { ...personal, saleProceeds: g.personalCash - before, longGross: osaka.rentalOps.lastGrossRent, longExpense: osaka.rentalOps.lastOperatingExpense, longNOI: osaka.rentalOps.lastNOI, corpCashAfterWeek: corp.cash } };
+  } },
 ];
 for (const scenario of SCENARIOS) {
   const { rows, state = {} } = scenario.run();
-  assert.ok(rows.length > 0, `${scenario.slice} ${scenario.label}: scenario posts at least one row`);
+  // Personal writers never post to the company ledger (company/personal separation), so a personal
+  // scenario asserts that it posted no row and is checked through its state fields instead.
+  if (scenario.ledger === false) assert.equal(rows.length, 0, `${scenario.slice} ${scenario.label}: personal writers post no company ledger row`);
+  else assert.ok(rows.length > 0, `${scenario.slice} ${scenario.label}: scenario posts at least one row`);
+  assert.ok(scenario.ledger !== false || Object.keys(state).length > 0, `${scenario.slice} ${scenario.label}: a personal scenario checks state`);
   for (const row of rows) assert.deepEqual(fractionalFields(row), [], `${scenario.slice} ${scenario.label}: ${row.category} ${row.sourceType} is whole yen`);
   for (const [key, value] of Object.entries(state)) assert.ok(Number.isSafeInteger(value), `${scenario.slice} ${scenario.label}: ${key}=${value} is whole yen`);
 }

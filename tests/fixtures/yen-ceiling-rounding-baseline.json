@@ -5,8 +5,6 @@
  "pendingFiles": [
   "js/difficulty-scenario-balance.js",
   "js/finance.js",
-  "js/personal-real-estate-corp.js",
-  "js/personal-real-estate-redevelopment.js",
   "js/player-debt-service.js",
   "js/real-estate-capex-actuals.js",
   "js/real-estate-capex-roi.js",

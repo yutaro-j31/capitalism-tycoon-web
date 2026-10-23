@@ -243,7 +243,7 @@
   },
   "js/personal-real-estate-corp.js": {
    "personalCash": {
-    "direct": 5
+    "direct": 4
    }
   },
   "js/personal-real-estate-mortgage.js": {
@@ -613,7 +613,7 @@
   "personalCash.dynamicKey": 55,
   "computedStateKey": 79,
   "companyCash.literalKey": 15,
-  "personalCash.direct": 59,
+  "personalCash.direct": 58,
   "personalCash.literalKey": 9
  }
 }
