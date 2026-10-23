@@ -7,8 +7,8 @@ const fs = require('node:fs');
 const { loadGame } = require('./harness');
 
 const app = fs.readFileSync('js/app.js', 'utf8');
-assert.match(app, /case 'supply-select-supplier':engine\.runTransaction\(\(\)=>supplyModule\.selectSupplier\(engine\.g,id,el\.value,financeModule\)\);/,
-  'the supply screen changes supplier inside engine.runTransaction');
+assert.match(app, /case 'supply-select-supplier':if\(engine\.runTransaction\(\(\)=>supplyModule\.selectSupplier\(engine\.g,id,el\.value,financeModule\)\)===false\)render\(\);break;/,
+  'the supply screen changes supplier inside engine.runTransaction; a commit re-renders through its change event, a refusal re-renders the selector');
 
 function lcg(seed) {
   let s = seed >>> 0;
