@@ -24,6 +24,7 @@
     "./js/phase3-restructuring-lifecycle.js",
     "./js/phase3-founder-wealth.js",
     "./js/phase3-control-eligibility.js",
+    "./js/phase3-ownership-planner.js",
     "./js/economic-settlement.js",
     "./js/real-estate-agency-pipeline.js",
     "./js/convenience-merchandising.js",
