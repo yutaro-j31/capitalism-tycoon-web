@@ -25,7 +25,8 @@ const PROJECTS=Object.freeze({
 });
 
 const finite=(v,d=0)=>Number.isFinite(Number(v))?Number(v):d;
-const round=v=>Math.round(finite(v)*100)/100;
+const ceilYen=v=>modules.economicOperation.ceilYen(finite(v));
+const roundValue=v=>Math.round(finite(v)*100)/100; /* not-money: valuation estimate (currentValue), not a settlement */
 const clamp=(v,a,b)=>Math.min(b,Math.max(a,finite(v,a)));
 
 function holding(state,assetID){return (state.personalRealEstateHoldings||[]).find(x=>x.assetID===assetID&&x.status==='owned')||null;}
@@ -35,7 +36,7 @@ function inProgress(x){return Boolean(x&&x.redevelopmentProjectID);}
 function quotesFor(x){
   if(!x||inProgress(x))return [];
   const value=valueOf(x);
-  return Object.values(PROJECTS).map(p=>({...p,cost:round(value*p.costRate),valueGain:round(value*p.valueRate),targetValue:round(value*(1+p.valueRate))}));
+  return Object.values(PROJECTS).map(p=>({...p,cost:ceilYen(value*p.costRate),valueGain:roundValue(value*p.valueRate),targetValue:roundValue(value*(1+p.valueRate))}));
 }
 
 Engine.prototype.getPersonalRealEstateRedevelopmentProjects=function(assetID){
@@ -48,14 +49,14 @@ Engine.prototype.startPersonalRealEstateRedevelopment=function(assetID,projectID
   if(x.ownerCorp)return this.fail('法人所有の物件は個人資金での開発・再開発を開始できません。');
   const quote=quotesFor(x).find(q=>q.id===projectID);
   if(!quote||finite(g.personalCash)<quote.cost)return this.fail('個人資金が不足しています。');
-  g.personalCash=round(finite(g.personalCash)-quote.cost);
+  g.personalCash=finite(g.personalCash)-quote.cost;
   const week=Math.floor(finite(g.week,1));
   x.redevelopmentProjectID=projectID;
   x.redevelopmentStartWeek=week;
   x.redevelopmentCompleteWeek=week+project.durationWeeks;
   x.redevelopmentCost=quote.cost;
   x.redevelopmentValueGain=quote.valueGain;
-  x.redevelopmentSpentTotal=round(finite(x.redevelopmentSpentTotal)+quote.cost);
+  x.redevelopmentSpentTotal=finite(x.redevelopmentSpentTotal)+quote.cost;
   this.notify(`${x.name}の${project.label}を開始しました（${Math.round(quote.cost).toLocaleString('ja-JP')}円 · ${project.durationWeeks}週後に完了）。`,'success');
   this.save();this.emit();
   return true;
@@ -86,8 +87,10 @@ function complete(x){
   const project=PROJECTS[x.redevelopmentProjectID];
   if(!project)return null;
   const oldValue=valueOf(x),gain=Math.max(0,finite(x.redevelopmentValueGain)),cost=Math.max(0,finite(x.redevelopmentCost));
-  x.currentValue=round(oldValue+gain);
-  x.bookValue=round(Math.max(finite(x.bookValue,finite(x.purchasePrice,oldValue)),oldValue)+cost);
+  x.currentValue=roundValue(oldValue+gain);
+  // Book value is money: a step-up to the valuation is rounded up, a stored book value and the
+  // paid cost are taken as is (YEN_CEILING_ROUNDING_CONTRACT §1.1).
+  x.bookValue=Math.max(finite(x.bookValue,finite(x.purchasePrice,oldValue)),ceilYen(oldValue))+cost;
   if(x.rentalOps)x.rentalOps.condition=clamp(finite(x.rentalOps.condition,90)+project.conditionGain,0,100);
   x.redevelopmentCompletedTotal=Math.floor(finite(x.redevelopmentCompletedTotal))+1;
   const result={assetID:x.assetID,projectID:project.id,label:project.label,valueGain:gain,cost};

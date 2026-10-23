@@ -60,7 +60,7 @@ const MODE_LOCK_WEEKS=13;
 const SHORT_TERM_CONDITION_DRAG=.24;
 
 const finite=(value,fallback=0)=>Number.isFinite(Number(value))?Number(value):fallback;
-const round=value=>Math.round(finite(value));
+const ceilYen=value=>modules.economicOperation.ceilYen(finite(value));
 const clamp=(value,min,max)=>Math.max(min,Math.min(max,value));
 
 // Same FNV-1a derivation the rest of the codebase uses for save-stable pseudo-values.
@@ -105,16 +105,17 @@ function occupancyFor(state,asset){
 // The nightly rate a fully booked week would earn, before occupancy is applied.
 function fullRateFor(asset){
   const base=Math.max(0,finite(asset?.weeklyRent));
-  return round(base*SHORT_TERM_RATE_MULTIPLIER);
+  return ceilYen(base*SHORT_TERM_RATE_MULTIPLIER);
 }
 
 function grossFor(state,asset){
-  return round(fullRateFor(asset)*occupancyFor(state,asset));
+  return ceilYen(fullRateFor(asset)*occupancyFor(state,asset));
 }
 
+// Rounded up once, as the week's whole expense (YEN_CEILING_ROUNDING_CONTRACT §3).
 function expenseFor(state,asset,gross){
-  const standing=round(Math.max(0,finite(asset?.purchasePrice))*SHORT_TERM_STANDING_COST_RATE);
-  return round(standing+round(gross)*SHORT_TERM_VARIABLE_COST);
+  const standing=Math.max(0,finite(asset?.purchasePrice))*SHORT_TERM_STANDING_COST_RATE;
+  return ceilYen(standing+finite(gross)*SHORT_TERM_VARIABLE_COST);
 }
 
 // What one week of short-term letting nets, computed exactly as the weekly loop computes it.
@@ -126,7 +127,7 @@ function weeklyResultFor(state,asset){
 }
 
 function conversionCostFor(asset){
-  return round(Math.max(0,finite(asset?.purchasePrice))*CONVERSION_COST_RATE);
+  return ceilYen(Math.max(0,finite(asset?.purchasePrice))*CONVERSION_COST_RATE);
 }
 
 function weeksUntilUnlocked(state,asset){
@@ -156,8 +157,8 @@ function switchMode(engine,assetID,target){
 
   if(target===MODE_SHORT){
     const cost=conversionCostFor(asset);
-    state.personalCash=round(finite(state.personalCash)-cost);
-    asset.shortTermConversionPaid=round(finite(asset.shortTermConversionPaid)+cost);
+    state.personalCash=finite(state.personalCash)-cost;
+    asset.shortTermConversionPaid=finite(asset.shortTermConversionPaid)+cost;
     asset.rentalMode=MODE_SHORT;
     // A signed lease does not survive the change; the unit is taken back for nightly letting.
     if(asset.rentalOps){
@@ -195,7 +196,7 @@ function processWeek(engine,asset){
   if(!ops)return null;
   const result=weeklyResultFor(state,asset);
 
-  state.personalCash=round(finite(state.personalCash)+result.noi);
+  state.personalCash=finite(state.personalCash)+result.noi;
   ops.weeksTracked=finite(ops.weeksTracked)+1;
   // Occupancy here is a fraction of the week, not a yes/no, so it accrues proportionally and
   // the existing occupancy-rate readout stays meaningful across both modes.
@@ -231,7 +232,7 @@ function summaryFor(state,asset){
     canSwitchToLong:canSwitch(state,asset,MODE_LONG).ok,
     switchBlockedReason:canSwitch(state,asset,short?MODE_LONG:MODE_SHORT).reason,
     shortTermWeeks:finite(asset?.shortTermWeeks),
-    shortTermGrossTotal:round(asset?.shortTermGrossTotal)
+    shortTermGrossTotal:finite(asset?.shortTermGrossTotal)
   });
 }
 

@@ -96,7 +96,7 @@ function buyHolding(engine) {
   const valueBefore = holding.currentValue, bookBefore = holding.bookValue;
   modules.personalRealEstateRedevelopment.complete(holding);
   assert.equal(holding.currentValue, Math.round((valueBefore + quote.valueGain) * 100) / 100, 'currentValueはvalueGain分だけ厳密に増える');
-  assert.equal(holding.bookValue, Math.round((Math.max(bookBefore, valueBefore) + quote.cost) * 100) / 100, 'bookValueはcost分だけ厳密に増える');
+  assert.equal(holding.bookValue, Math.max(bookBefore, Math.ceil(valueBefore)) + quote.cost, 'bookValueはcost分だけ厳密に増える');
 }
 
 // 4. Selling a holding mid-project is blocked; selling after completion works normally.
