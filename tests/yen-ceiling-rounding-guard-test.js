@@ -550,6 +550,33 @@ const SCENARIOS = [
     const rows = rowsSince(g, count, () => true);
     return { rows, state: { personalCash: g.personalCash, personalDebt: g.personalDebt, balance: studio.mortgageBalance, interestPaid: studio.mortgageInterestPaid, principalPaid: studio.mortgagePrincipalPaid, feePaid: studio.mortgageFeePaid, osakaFee: osaka.mortgageFeePaid, foreclosureSale: osaka.salePrice } };
   } },
+  { slice: 'R4c', label: 'personal stock margin: borrow, weekly interest, prepayment and forced liquidation', ledger: false, run() {
+    const { engine, modules } = newGame(2201), g = engine.g, margin = modules.personalStockMargin;
+    const [stock] = g.market;
+    Object.assign(stock, { price: 1_234.57, issuedShares: 100_000_000 });
+    g.personalStocks = { [stock.id]: { qty: 10_001, avg: 1_000.3 } };
+    const count = g.finance.transactions.length;
+    // Borrow: ceiling = ceil(portfolio value × LTV).
+    assert.ok(engine.borrowPersonalStockMargin('standard'));
+    assert.equal(margin.balanceOf(g), Math.ceil(1_234.57 * 10_001 * .5));
+    // Weekly interest is ceil(balance × rate / 52), paid from personal cash.
+    g.week += 1;
+    const week = margin.processWeek(engine);
+    assert.equal(week.interest, Math.ceil(margin.balanceOf(g) * margin.annualRateFor('standard') / 52));
+    // Prepayment: the request rounds up and is capped at the balance.
+    const before = margin.balanceOf(g);
+    assert.ok(engine.prepayPersonalStockMargin(12_345.6));
+    assert.equal(before - margin.balanceOf(g), 12_346);
+    // A price collapse forces liquidation; sale proceeds are whole and the shortfall moves to personal debt.
+    stock.price = 300.33;
+    g.personalCash = 0;
+    g.week += 1;
+    const forced = margin.processWeek(engine);
+    assert.ok(forced.liquidated, 'the margin call liquidates the holding');
+    const loan = margin.ensure(g);
+    const rows = rowsSince(g, count, () => true);
+    return { rows, state: { personalCash: g.personalCash, personalDebt: g.personalDebt, balance: loan.balance, interestPaid: loan.interestPaid, interestCapitalized: loan.interestCapitalized, raised: forced.raised, repaid: forced.repaid, shortfall: forced.shortfall } };
+  } },
 ];
 for (const scenario of SCENARIOS) {
   const { rows, state = {} } = scenario.run();

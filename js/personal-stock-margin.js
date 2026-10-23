@@ -46,7 +46,7 @@ const PRODUCTS=Object.freeze({
 const MAINTENANCE_LTV=.65;
 
 const finite=(value,fallback=0)=>Number.isFinite(Number(value))?Number(value):fallback;
-const round=value=>Math.round(finite(value));
+const ceilYen=value=>modules.economicOperation.ceilYen(finite(value));
 
 function productOf(productID){return PRODUCTS[productID]||null;}
 function annualRateFor(productID){return productOf(productID)?.baseRate||0;}
@@ -63,11 +63,12 @@ function portfolioValueOf(state){
 function ensure(state){
   if(!state.personalMarginLoan||typeof state.personalMarginLoan!=='object')state.personalMarginLoan={};
   const loan=state.personalMarginLoan;
-  loan.balance=Math.max(0,round(loan.balance));
+  // Balances are plain arithmetic, never re-normalised (YEN_CEILING_ROUNDING_CONTRACT §3.5).
+  loan.balance=Math.max(0,finite(loan.balance));
   loan.productID=productOf(loan.productID)?loan.productID:'';
   if(loan.balance<=0)loan.productID='';
-  loan.interestPaid=Math.max(0,round(loan.interestPaid));
-  loan.interestCapitalized=Math.max(0,round(loan.interestCapitalized));
+  loan.interestPaid=Math.max(0,finite(loan.interestPaid));
+  loan.interestCapitalized=Math.max(0,finite(loan.interestCapitalized));
   loan.liquidatedCount=Math.max(0,Math.floor(finite(loan.liquidatedCount)));
   return loan;
 }
@@ -85,7 +86,7 @@ function currentLTV(state){
 function maxPrincipalFor(state,productID){
   const product=productOf(productID);
   if(!product)return 0;
-  return round(portfolioValueOf(state)*product.maxLTV);
+  return ceilYen(portfolioValueOf(state)*product.maxLTV);
 }
 
 // Headroom under the ceiling for each product. A loan already open on a different product
@@ -102,7 +103,7 @@ function quotesFor(state){
       id:product.id,label:product.label,detail:product.detail,
       annualRate:product.baseRate,maxLTV:product.maxLTV,
       ceiling,available,
-      weeklyInterest:round(available*product.baseRate/52),
+      weeklyInterest:ceilYen(available*product.baseRate/52),
       eligible:available>0
     });
   });
@@ -117,8 +118,8 @@ function borrow(engine,productID){
   const quote=quotesFor(state).find(row=>row.id===productID);
   if(!quote?.eligible)return engine.fail('担保となる個人保有株式の評価額に対して借入余力がありません。');
 
-  state.personalCash=round(finite(state.personalCash)+quote.available);
-  loan.balance=round(loan.balance+quote.available);
+  state.personalCash=finite(state.personalCash)+quote.available;
+  loan.balance=loan.balance+quote.available;
   loan.productID=productID;
 
   engine.notify(`個人保有株式を担保に${quote.available.toLocaleString('ja-JP')}円を信用取引で借り入れました。`,'success');
@@ -131,12 +132,13 @@ function prepay(engine,amount){
   const state=engine.g;
   const loan=ensure(state);
   if(loan.balance<=0)return engine.fail('返済中の信用取引はありません。');
-  const requested=Math.max(0,round(amount));
-  const paid=Math.min(requested,loan.balance,Math.max(0,round(state.personalCash)));
+  // The request is rounded up, then capped at the balance and the cash on hand (§3.5).
+  const requested=ceilYen(Math.max(0,finite(amount)));
+  const paid=Math.min(requested,loan.balance,Math.max(0,finite(state.personalCash)));
   if(paid<=0)return engine.fail('返済に充てる個人資金が不足しています。');
 
-  state.personalCash=round(finite(state.personalCash)-paid);
-  loan.balance=round(loan.balance-paid);
+  state.personalCash=finite(state.personalCash)-paid;
+  loan.balance=loan.balance-paid;
   if(loan.balance<=0){
     loan.balance=0;
     loan.productID='';
@@ -159,10 +161,10 @@ function sellPersonalStockRaw(state,stockID,qty){
   if(quote.filledQty<1)return 0;
   const proceeds=quote.cashAmount;
   const profit=proceeds-holding.avg*quote.filledQty;
-  state.personalCash=round(finite(state.personalCash)+proceeds);
+  state.personalCash=finite(state.personalCash)+proceeds;
   holding.qty-=quote.filledQty;
   if(holding.qty<=0)delete state.personalStocks[stockID];
-  state.realizedPersonalStockPL=round(finite(state.realizedPersonalStockPL)+profit);
+  state.realizedPersonalStockPL=finite(state.realizedPersonalStockPL)+profit;
   stock.price=quote.quoteAfter;
   stock.marketCap=stock.price*stock.issuedShares;
   return proceeds;
@@ -188,18 +190,18 @@ function liquidate(engine){
       const qty=Math.min(Math.floor(finite(liveHolding.qty)),Math.max(1,Math.ceil((loan.balance-raised)/stock.price)));
       const proceeds=sellPersonalStockRaw(state,holding.id,qty);
       if(proceeds<=0)break;
-      raised=round(raised+proceeds);
+      raised+=proceeds;
     }
     if(raised>=loan.balance)break;
   }
 
   const repaid=Math.min(loan.balance,raised);
-  const shortfall=Math.max(0,round(loan.balance-raised));
-  state.personalCash=round(finite(state.personalCash)-repaid);
+  const shortfall=Math.max(0,loan.balance-raised);
+  state.personalCash=finite(state.personalCash)-repaid;
   loan.balance=0;
   loan.productID='';
   loan.liquidatedCount=Math.floor(finite(loan.liquidatedCount))+1;
-  if(shortfall>0)state.personalDebt=round(finite(state.personalDebt)+shortfall);
+  if(shortfall>0)state.personalDebt=finite(state.personalDebt)+shortfall;
 
   engine.notify(
     shortfall>0
@@ -221,16 +223,16 @@ function processWeek(engine){
   loan.processedWeek=week;
 
   const rate=annualRateFor(loan.productID);
-  const interest=round(loan.balance*rate/52);
-  const cash=Math.max(0,round(state.personalCash));
+  const interest=ceilYen(loan.balance*rate/52);
+  const cash=Math.max(0,finite(state.personalCash));
   const paid=Math.min(interest,cash);
   const unpaid=Math.max(0,interest-paid);
 
-  state.personalCash=round(finite(state.personalCash)-paid);
-  loan.interestPaid=round(finite(loan.interestPaid)+paid);
+  state.personalCash=finite(state.personalCash)-paid;
+  loan.interestPaid=finite(loan.interestPaid)+paid;
   if(unpaid>0){
-    loan.balance=round(loan.balance+unpaid);
-    loan.interestCapitalized=round(finite(loan.interestCapitalized)+unpaid);
+    loan.balance=loan.balance+unpaid;
+    loan.interestCapitalized=finite(loan.interestCapitalized)+unpaid;
   }
 
   if(currentLTV(state)>MAINTENANCE_LTV)return {interest,paid,unpaid,liquidated:true,...liquidate(engine)};
