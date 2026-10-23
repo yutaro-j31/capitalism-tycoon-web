@@ -197,6 +197,61 @@ const SCENARIOS = [
     for (const kind of ['supplier-contract', 'supplier-termination', 'inventory-receipt-cash', 'emergency-receipt-cash', 'spoilage', 'closeStoreInventoryWriteoff']) assert.ok(rows.some(row => row.sourceType === kind), `R2b scenario posts ${kind}`);
     return { rows, state: { inventory: g.finance.balances.inventory, physicalInventory: supply.physicalInventoryValue(g) } };
   } },
+  { slice: 'R2c', label: 'head office: office deposit, hiring, executives, directives, key people and weekly HQ costs', run() {
+    const { engine, modules } = newGame(1401), g = engine.g, workforce = modules.workforce;
+    g.inflation = 1.0137;
+    const office = g.rentalOffices.reduce((a, b) => (a.deposit < b.deposit ? a : b));
+    Object.assign(office, { deposit: 1_234_567.4, rent: 98_765.3 });
+    const branch = g.rentalOffices.find(o => o.id !== office.id);
+    Object.assign(branch, { deposit: 765_432.1, rent: 43_210.7 });
+    const count = g.finance.transactions.length;
+    assert.equal(engine.contractOffice(office.id), true);
+    assert.equal(g.contractedOfficeDeposit, 1_234_568, 'the office deposit paid is rounded up and kept');
+    assert.equal(engine.contractBranchOffice(branch.id), true);
+    assert.equal(g.branchOffices[0].deposit, 765_433, 'the branch keeps the deposit paid');
+    assert.equal(engine.establishDepartment('product'), true);
+    workforce.generateCandidates(g);
+    const candidate = g.workforceCandidates.find(c => c.status === 'open' && !c.storeID);
+    assert.ok(candidate, 'a corporate candidate');
+    candidate.recruitmentFee = 123_456.7; // a candidate generated before R2c may still carry cents
+    assert.equal(workforce.hireCandidate(g, candidate.candidateID, modules.finance).cost, 123_457);
+    const exec = g.executiveMarket[0];
+    exec.desiredSalary = 1;
+    assert.equal(engine.hireExecutive(exec.id, 12_345_678.9, exec.desiredSO || .005), true, 'a generous offer is accepted');
+    assert.equal(engine.addDirective(exec.role, 'cost', 1_000_000.4), true);
+    assert.equal(engine.startCampaign('product', '採用強化', 500_000.6), true);
+    assert.equal(engine.hireKeyPerson(), true);
+    const keyPerson = g.keyPersonnel[g.keyPersonnel.length - 1];
+    keyPerson.salary = 9_876_543.21;
+    assert.equal(engine.trainKeyPerson(keyPerson.id), true);
+    assert.equal(engine.retainKeyPerson(keyPerson.id), true);
+    while (g.week % 4 !== 3) assert.equal(engine.advanceWeek(false), true);
+    assert.equal(engine.advanceWeek(false), true, 'a week that pays executive payroll');
+    const HQ = new Set(['contractOffice', 'contractBranchOffice', 'workforceCandidateHire', 'hireExecutive', 'addDirective', 'startCampaign', 'hireKeyPerson', 'trainKeyPerson', 'retainKeyPerson',
+      'weekly-execPayroll', 'weekly-deptCost', 'weekly-officeCost', 'weekly-projectCost', 'weekly-severanceCost', 'parityWeeklyAdjustment', 'completionWeeklyAdjustment']);
+    const rows = rowsSince(g, count, row => HQ.has(row.sourceType));
+    for (const kind of ['contractOffice', 'contractBranchOffice', 'workforceCandidateHire', 'hireExecutive', 'addDirective', 'startCampaign', 'hireKeyPerson', 'trainKeyPerson', 'retainKeyPerson', 'weekly-execPayroll', 'weekly-deptCost', 'weekly-officeCost', 'parityWeeklyAdjustment', 'completionWeeklyAdjustment'])
+      assert.ok(rows.some(row => row.sourceType === kind), `R2c scenario posts ${kind}`);
+    return { rows, state: { departmentSeverance: workforce.departmentSeverance(g, 'product'), weeklyPayroll: workforce.weeklyPayroll(g), totalOfficeWeeklyCost: engine.totalOfficeWeeklyCost() } };
+  } },
+  { slice: 'R2c', label: 'office and branch cancellation refunds are capped at the deposit paid', run() {
+    const { engine } = newGame(1402), g = engine.g;
+    const office = g.rentalOffices.reduce((a, b) => (a.deposit < b.deposit ? a : b));
+    office.deposit = 1_000_000.3;
+    const branch = g.rentalOffices.find(o => o.id !== office.id);
+    branch.deposit = 333_333.3;
+    assert.equal(engine.contractOffice(office.id), true);
+    assert.equal(engine.contractBranchOffice(branch.id), true);
+    const count = g.finance.transactions.length;
+    assert.equal(engine.closeBranchOffice(g.branchOffices[0].id), true);
+    assert.equal(engine.cancelOffice(), true);
+    assert.equal(g.contractedOfficeDeposit, undefined, 'the paid deposit is forgotten once the office is cancelled');
+    const rows = rowsSince(g, count, row => row.sourceType === 'cancelOffice' || row.sourceType === 'closeBranchOffice');
+    const byKind = Object.fromEntries(rows.map(row => [row.sourceType, row]));
+    assert.deepEqual([byKind.cancelOffice.cashEffect, byKind.cancelOffice.assetEffect, byKind.cancelOffice.profitEffect], [600_001, -1_000_001, -400_000], 'refund ceil(1,000,001 × .6); loss derived');
+    assert.deepEqual([byKind.closeBranchOffice.cashEffect, byKind.closeBranchOffice.assetEffect, byKind.closeBranchOffice.profitEffect], [200_001, -333_334, -133_333]);
+    return { rows, state: { companyCash: g.companyCash } };
+  } },
 ];
 for (const scenario of SCENARIOS) {
   const { rows, state = {} } = scenario.run();

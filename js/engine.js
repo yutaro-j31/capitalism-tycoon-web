@@ -1309,15 +1309,17 @@ class TycoonEngine extends EventTarget {
   contractOffice(officeID) {
     if(this.g.hasHeadOffice)return this.fail('すでに本社オフィスを契約しています。');
     const office=this.g.rentalOffices.find(o=>o.id===officeID);if(!office)return false;
-    if(this.g.companyCash<office.deposit)return this.fail(`保証金${yen(office.deposit)}が必要です。`);
-    this.g.companyCash-=office.deposit;finance.event(this.g,'otherInvesting',office.deposit,{cashEffect:-office.deposit,assetEffect:office.deposit,sourceType:'contractOffice',sourceID:office.id,description:`${office.name} 保証金`});office.contracted=true;this.g.contractedOfficeID=office.id;this.g.hasHeadOffice=true;
+    // The deposit is paid in whole yen and remembered, so the refund on cancellation is computed from what was paid.
+    const depositPaid=ceilYen(office.deposit);
+    if(this.g.companyCash<depositPaid)return this.fail(`保証金${yen(depositPaid)}が必要です。`);
+    this.g.companyCash-=depositPaid;finance.event(this.g,'otherInvesting',depositPaid,{cashEffect:-depositPaid,assetEffect:depositPaid,sourceType:'contractOffice',sourceID:office.id,description:`${office.name} 保証金`});office.contracted=true;this.g.contractedOfficeID=office.id;this.g.contractedOfficeDeposit=depositPaid;this.g.hasHeadOffice=true;
     this.g.officeName=office.name;this.g.officeCapacity=office.capacity;this.g.officeWeeklyCost=office.rent;this.g.officePrestige=office.prestige;
     this.notify(`${office.name}を本社として契約しました。`,'success');this.evaluateProgression();this.save();this.emit();return true;
   }
   cancelOffice() {
     if(Object.keys(this.g.departments).length||Object.keys(this.g.executives).length)return this.fail('部門またはCXOが在籍しているため解約できません。');
-    const office=this.g.rentalOffices.find(o=>o.id===this.g.contractedOfficeID);if(office){office.contracted=false;const refund=office.deposit*.6;this.g.companyCash+=refund;finance.event(this.g,'assetSale',refund,{cashEffect:refund,assetEffect:-office.deposit,profitEffect:refund-office.deposit,sourceType:'cancelOffice',sourceID:office.id,description:`${office.name} 保証金返還・解約損`});}
-    this.g.hasHeadOffice=false;this.g.contractedOfficeID=null;this.g.officeName='小さな創業オフィス';this.g.officeCapacity=2;this.g.officeWeeklyCost=85000;
+    const office=this.g.rentalOffices.find(o=>o.id===this.g.contractedOfficeID);if(office){office.contracted=false;const paid=finite(this.g.contractedOfficeDeposit??office.deposit),refund=Math.min(ceilYen(paid*.6),paid);this.g.companyCash+=refund;finance.event(this.g,'assetSale',refund,{cashEffect:refund,assetEffect:-paid,profitEffect:refund-paid,sourceType:'cancelOffice',sourceID:office.id,description:`${office.name} 保証金返還・解約損`});}
+    this.g.hasHeadOffice=false;this.g.contractedOfficeID=null;delete this.g.contractedOfficeDeposit;this.g.officeName='小さな創業オフィス';this.g.officeCapacity=2;this.g.officeWeeklyCost=85000;
     this.notify('本社オフィスを解約しました。','warning');this.save();this.emit();return true;
   }
   establishDepartment(id) {
@@ -1395,7 +1397,7 @@ class TycoonEngine extends EventTarget {
     const i=this.g.executiveMarket.findIndex(e=>e.id===candidateID);if(i<0)return false;const c=this.g.executiveMarket[i];
     if(this.g.executives[c.role])return this.fail(`${c.role}は在籍済みです。`);
     salary=finite(salary,c.desiredSalary||c.salary);so=finite(so,c.desiredSO||.005);
-    const bonus=salary*.25;if(this.g.companyCash<bonus)return this.fail(`契約金${yen(bonus)}が必要です。`);
+    const bonus=ceilYen(salary*.25);if(this.g.companyCash<bonus)return this.fail(`契約金${yen(bonus)}が必要です。`);
     const chance=clamp(.55+(salary/(c.desiredSalary||salary)-1)*.8+(so-(c.desiredSO||0))*12+this.g.companyReputation/300,.15,.98);
     if(simRng.next(this.g)>chance){this.notify(`${c.name}との交渉は不成立でした。`,'warning');return false;}
     this.g.companyCash-=bonus;finance.event(this.g,'payroll',bonus,{cashEffect:-bonus,profitEffect:-bonus,sourceType:'hireExecutive',sourceID:c.id,description:`${c.name} 契約金`});this.g.executives[c.role]={...c,salary,offeredSO:so,hired:true,hireWeek:this.g.week};
@@ -1914,12 +1916,12 @@ class TycoonEngine extends EventTarget {
   }
 
   addDirective(role,type,budget) {
-    const e=this.g.executives[role];if(!e)return this.fail(`${role}が在籍していません。`);budget=Math.max(0,finite(budget));if(this.g.companyCash<budget)return this.fail('予算不足です。');
+    const e=this.g.executives[role];if(!e)return this.fail(`${role}が在籍していません。`);budget=ceilYen(Math.max(0,finite(budget)));if(this.g.companyCash<budget)return this.fail('予算不足です。');
     this.g.companyCash-=budget;finance.event(this.g,'headOfficeExpense',budget,{cashEffect:-budget,profitEffect:-budget,sourceType:'addDirective',sourceID:`${role}-${type}-${this.g.week}`,description:`${role} 指示予算`});this.g.executiveDirectives.push({id:uuid(this.g,'directive'),role,executiveName:e.name,type,budget,startWeek:this.g.week,endWeek:this.g.week+4,progress:0,status:'active'});
     this.notify(`${e.name}へ「${type}」を指示しました。`,'success');this.save();this.emit();return true;
   }
   startCampaign(departmentID,type,budget) {
-    if(!this.g.departments[departmentID])return this.fail('該当部門がありません。');budget=finite(budget);if(this.g.companyCash<budget)return this.fail('予算不足です。');this.g.companyCash-=budget;finance.event(this.g,type&&String(type).includes('広告')?'advertising':'headOfficeExpense',budget,{cashEffect:-budget,profitEffect:-budget,sourceType:'startCampaign',sourceID:`${departmentID}-${type}-${this.g.week}`,description:`${departmentID} ${type}`});
+    if(!this.g.departments[departmentID])return this.fail('該当部門がありません。');budget=ceilYen(budget);if(this.g.companyCash<budget)return this.fail('予算不足です。');this.g.companyCash-=budget;finance.event(this.g,type&&String(type).includes('広告')?'advertising':'headOfficeExpense',budget,{cashEffect:-budget,profitEffect:-budget,sourceType:'startCampaign',sourceID:`${departmentID}-${type}-${this.g.week}`,description:`${departmentID} ${type}`});
     this.g.departmentCampaigns.push({id:uuid(this.g,'campaign'),departmentID,type,budget,startWeek:this.g.week,endWeek:this.g.week+6,progress:0,status:'active'});this.notify(`${this.g.departments[departmentID].name}で${type}を開始しました。`,'success');this.save();this.emit();return true;
   }
   proposeInternalVenture() {
@@ -2462,9 +2464,9 @@ class TycoonEngine extends EventTarget {
       store.condition=clamp(store.condition-rand(this.g,.1,1),40,100);sales+=postedSales;expenses+=postedVariable+postedRent+postedWage+postedMaintenance;}
     for(const p of this.g.properties){if(!p.owner)continue;const rent=p.rentIncome*clamp(this.g.economy,.75,1.25)*p.rentMultiplier*(1-p.vacancyRate);if(p.owner==='company')rentIncome+=rent;else this.g.personalCash+=rent;}
     expenses+=propertyDepreciation;
-    const execPayroll=this.g.week%4===0?Object.values(this.g.executives).reduce((a,e)=>a+finite(e.salary)/13,0):0;
+    const execPayroll=this.g.week%4===0?ceilYen(Object.values(this.g.executives).reduce((a,e)=>a+finite(e.salary)/13,0)):0;
     const deptCost=workforce.weeklyPayroll(this.g);
-    const officeCost=this.g.hasHeadOffice?this.g.officeWeeklyCost:0,genericDebt=Math.max(0,this.g.companyDebt-finance.individuallyServicedPrincipal(this.g)),interest=__modules.economicOperation.ceilYen(genericDebt*this.companyBorrowRate()/52);expenses+=execPayroll+deptCost+officeCost+interest;const founderLoanShare=genericDebt>0?Math.min(1,finance.founderLoanReceivable(this.g)/genericDebt):0;if(founderLoanShare>0)this.g.personalCash+=Math.min(__modules.economicOperation.ceilYen(interest*founderLoanShare),interest);
+    const officeCost=this.g.hasHeadOffice?ceilYen(this.g.officeWeeklyCost):0,genericDebt=Math.max(0,this.g.companyDebt-finance.individuallyServicedPrincipal(this.g)),interest=__modules.economicOperation.ceilYen(genericDebt*this.companyBorrowRate()/52);expenses+=execPayroll+deptCost+officeCost+interest;const founderLoanShare=genericDebt>0?Math.min(1,finance.founderLoanReceivable(this.g)/genericDebt):0;if(founderLoanShare>0)this.g.personalCash+=Math.min(__modules.economicOperation.ceilYen(interest*founderLoanShare),interest);
     if(this.g.week%13===0){for(const [id,h] of Object.entries(this.g.companyStocks)){const s=this.stock(id);if(s&&id!==this.g.ticker)stockIncome+=h.qty*(s.dividendPerShare||s.price*s.dividendYield/4);}for(const [id,h] of Object.entries(this.g.personalStocks)){const s=this.stock(id);if(s&&id!==this.g.ticker)this.g.personalCash+=h.qty*(s.dividendPerShare||s.price*s.dividendYield/4)*.797;}if(this.g.publicCompany&&this.g.dividendPerShare>0){dividend=this.g.dividendPerShare*Math.max(0,this.g.sharesOut-this.g.treasuryBuybackShares);const founderGross=dividend*this.g.founderOwnershipRatio,personalCashBefore=this.g.personalCash;this.g.personalCash+=founderGross*.797;dividendDistribution={gross:dividend,founderRatio:this.g.founderOwnershipRatio,personalCashBefore,personalCashAfter:this.g.personalCash};}}
     const projectRun=workforce.advanceProjects(this.g);const projectCost=finite(projectRun?.projectCost);expenses+=projectCost;const turnoverRun=workforce.updateEndOfWeek(this.g);const severanceCost=finite(turnoverRun?.turnoverCost);expenses+=severanceCost;supply.autoOrder(this.g);const operatingProfit=sales+rentIncome+stockIncome-expenses+subs.profit;this.g.quarterlyPretaxProfit=finite(this.g.quarterlyPretaxProfit)+operatingProfit;let tax=0;if(this.g.week%13===0){if(this.g.quarterlyPretaxProfit>0)tax=this.g.quarterlyPretaxProfit*.306;expenses+=tax;this.g.quarterlyPretaxProfit=0;}
     const profit=sales+rentIncome+stockIncome-expenses+subs.profit;const weeklyCashDelta=profit-dividend-finite(overseas.retainedCash)+supplyCogsNonCash+finite(spoilage?.cost),nonStoreCashDelta=weeklyCashDelta-storeCashDelta;const payerCashWithoutDividend=this.g.companyCash+profit-finite(overseas.retainedCash)+supplyCogsNonCash+finite(spoilage?.cost);this.g.companyCash+=nonStoreCashDelta+storeCashDelta;if(dividendDistribution)Object.assign(dividendDistribution,{payerCashWithoutDividend,payerCashAfter:this.g.companyCash});this.g.companyCredit=clamp(this.g.companyCredit+(profit>=0?.15:-.3),0,100);this.g.companyReputation=clamp(this.g.companyReputation+(profit>0?.08:-.04),0,100);

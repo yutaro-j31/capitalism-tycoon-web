@@ -11,6 +11,8 @@ if(__modules.completion)throw new Error('Capitalism Tycoon completion module is 
 // Installed after expansion.js so it can safely extend the same save state.
 
 const cxNum = (v,f=0) => Number.isFinite(Number(v)) ? Number(v) : f;
+// Whole-yen settlement, fractions rounded up (YEN_CEILING_ROUNDING_CONTRACT §2).
+const cxYen = v => __modules.economicOperation.ceilYen(cxNum(v));
 const cxClamp = (v,min,max) => Math.max(min,Math.min(max,cxNum(v,min)));
 const cxRng = __modules.simulationRng; const cxRand = (g,min,max) => cxRng.range(g,min,max);
 const cxPick = (g,arr) => cxRng.pick(g,arr);
@@ -74,20 +76,20 @@ function installCompletion(TycoonEngine){
   };
 
   TycoonEngine.prototype.totalOfficeCapacity=function(){return cxNum(this.g.officeCapacity);};
-  TycoonEngine.prototype.totalOfficeWeeklyCost=function(){return (this.g.hasHeadOffice?cxNum(this.g.officeWeeklyCost):0)+cxSum((this.g.branchOffices||[]).map(x=>x.rent));};
+  TycoonEngine.prototype.totalOfficeWeeklyCost=function(){return (this.g.hasHeadOffice?cxYen(this.g.officeWeeklyCost):0)+cxSum((this.g.branchOffices||[]).map(x=>cxYen(x.rent)));};
   TycoonEngine.prototype.officeEmployeeCount=function(){return cxSum(Object.values(this.g.departmentStaff||{}))+Object.keys(this.g.executives||{}).length;};
 
   TycoonEngine.prototype.contractBranchOffice=function(officeID){
     this.ensureCompletionDefaults();if(!this.g.hasHeadOffice)return this.fail('先に本社オフィスを契約してください。');const o=this.g.rentalOffices.find(x=>x.id===officeID);if(!o)return false;
     if(o.id===this.g.contractedOfficeID||o.contracted||this.g.branchOffices.some(x=>x.officeID===o.id))return this.fail('このオフィスは契約済みです。');
-    if(this.g.companyCash<o.deposit)return this.fail('保証金が不足しています。');const branchID=cxUID(this.g);this.g.companyCash-=o.deposit;__modules.finance.event(this.g,'otherInvesting',o.deposit,{cashEffect:-o.deposit,assetEffect:o.deposit,sourceType:'contractBranchOffice',sourceID:branchID,description:`${o.name} 支社保証金`});o.contracted=true;
-    this.g.branchOffices.push({id:branchID,officeID:o.id,name:o.name,prefID:o.prefID,grade:o.grade,capacity:o.capacity,rent:o.rent,deposit:o.deposit,prestige:o.prestige,openedWeek:this.g.week});
+    const depositPaid=cxYen(o.deposit);if(this.g.companyCash<depositPaid)return this.fail('保証金が不足しています。');const branchID=cxUID(this.g);this.g.companyCash-=depositPaid;__modules.finance.event(this.g,'otherInvesting',depositPaid,{cashEffect:-depositPaid,assetEffect:depositPaid,sourceType:'contractBranchOffice',sourceID:branchID,description:`${o.name} 支社保証金`});o.contracted=true;
+    this.g.branchOffices.push({id:branchID,officeID:o.id,name:o.name,prefID:o.prefID,grade:o.grade,capacity:o.capacity,rent:o.rent,deposit:depositPaid,prestige:o.prestige,openedWeek:this.g.week});
     this.g.officeCapacity+=o.capacity;this.g.officePrestige+=o.prestige*.25;this.notify(`${o.name}を支社オフィスとして契約しました。`,'success');this.save();this.emit();return true;
   };
   TycoonEngine.prototype.closeBranchOffice=function(id){
     const i=this.g.branchOffices.findIndex(x=>x.id===id);if(i<0)return false;const b=this.g.branchOffices[i];const used=this.officeEmployeeCount(),nextCapacity=Math.max(0,this.g.officeCapacity-b.capacity);
     if(used>nextCapacity)return this.fail('在籍人数が残る定員を超えるため解約できません。');const o=this.g.rentalOffices.find(x=>x.id===b.officeID);if(o)o.contracted=false;
-    const refund=b.deposit*.6;this.g.companyCash+=refund;__modules.finance.event(this.g,'assetSale',refund,{cashEffect:refund,assetEffect:-b.deposit,profitEffect:refund-b.deposit,sourceType:'closeBranchOffice',sourceID:b.id,description:`${b.name} 保証金返還・解約損`});this.g.officeCapacity=nextCapacity;this.g.branchOffices.splice(i,1);this.notify(`${b.name}を解約しました。`,'warning');this.save();this.emit();return true;
+    const refund=Math.min(cxYen(cxNum(b.deposit)*.6),cxNum(b.deposit));this.g.companyCash+=refund;__modules.finance.event(this.g,'assetSale',refund,{cashEffect:refund,assetEffect:-b.deposit,profitEffect:refund-b.deposit,sourceType:'closeBranchOffice',sourceID:b.id,description:`${b.name} 保証金返還・解約損`});this.g.officeCapacity=nextCapacity;this.g.branchOffices.splice(i,1);this.notify(`${b.name}を解約しました。`,'warning');this.save();this.emit();return true;
   };
 
   TycoonEngine.prototype.officeFloorSnapshot=function(){
@@ -233,7 +235,7 @@ function installCompletion(TycoonEngine){
   TycoonEngine.prototype.updateCompletionWeekly=function(){
     const g=this.g;let companyAdjustment=0,expenseAdjustment=0;
     // Branch offices and workforce.
-    if(!g.isCompanySold){const branchCost=cxSum(g.branchOffices.map(x=>x.rent));if(branchCost){g.companyCash-=branchCost;companyAdjustment-=branchCost;expenseAdjustment+=branchCost;}
+    if(!g.isCompanySold){const branchCost=cxSum(g.branchOffices.map(x=>cxYen(x.rent)));if(branchCost){g.companyCash-=branchCost;companyAdjustment-=branchCost;expenseAdjustment+=branchCost;}
       const employees=this.officeEmployeeCount(),seats=Math.max(1,this.totalOfficeCapacity()),usage=employees/seats;g.overtimeRisk=cxClamp(.10+Math.max(0,usage-.72)*.95+(g.remoteWorkEnabled?-.08:0)+(g.employeeSatisfaction<45?.10:0),0,1);
       if(employees>0){g.employeeSatisfaction=cxClamp(g.employeeSatisfaction+(usage<.85?.05:-.12)-g.overtimeRisk*.08,0,100);g.organizationCulture.morale=cxClamp(g.organizationCulture.morale+(g.employeeSatisfaction-50)/1200-g.overtimeRisk*.05,0,100);}
       if(employees>0&&g.week-g.lastEmployeeComplaintWeek>=6&&cxRng.next(g)<cxClamp(.08+g.overtimeRisk*.28+(usage>1?.22:0),.06,.5)){const texts=usage>1?['座席が足りず集中できません','会議室が不足しています']:g.overtimeRisk>.6?['残業が常態化しています','人員配置を見直してほしい']:g.remoteWorkEnabled?['リモート手当を整備してほしい','出社日ルールが曖昧です']:['評価制度を透明にしてほしい','研修機会を増やしてほしい'];g.employeeComplaintLog.unshift({id:cxUID(this.g),week:g.week,text:cxPick(g,texts),type:usage>1?'capacity':g.overtimeRisk>.6?'overtime':'culture',severity:g.overtimeRisk>.7?'high':'medium',status:'open'});g.lastEmployeeComplaintWeek=g.week;g.news.unshift(`第${g.week}週：社員の声「${g.employeeComplaintLog[0].text}」`);}
