@@ -37,7 +37,6 @@
   "js/real-estate-tenant-renewals.js",
   "js/real-estate.js",
   "js/save-storage.js",
-  "js/shareholder-returns.js",
-  "js/workforce.js"
+  "js/shareholder-returns.js"
  ]
 }

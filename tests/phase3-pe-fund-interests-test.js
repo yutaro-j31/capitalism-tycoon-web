@@ -199,7 +199,7 @@ assert.throws(()=>vm.runInNewContext(src,ctx),/already registered/);
 // Match the installed fund writer's subtraction, including floating-point values.
 {
  const ctx={console,EventTarget,Event,CustomEvent,localStorage:{getItem(){return null;},setItem(){},removeItem(){}},document:{addEventListener(){}},setTimeout(){},clearTimeout(){}};ctx.window=ctx;
- for(const file of ['runtime','data','store-market-environment','workforce','supply','competitor','competitor-projects','competitor-entry','competitor-credit','competitor-distress','market','finance','simulation-rng','engine','save-v9','completion','pe-fund'])vm.runInNewContext(fs.readFileSync(require.resolve('../js/'+file+'.js'),'utf8'),ctx);
+ for(const file of ['runtime','data','economic-operation','store-market-environment','workforce','supply','competitor','competitor-projects','competitor-entry','competitor-credit','competitor-distress','market','finance','simulation-rng','engine','save-v9','completion','pe-fund'])vm.runInNewContext(fs.readFileSync(require.resolve('../js/'+file+'.js'),'utf8'),ctx);
  const m=ctx.__capitalismTycoonModules,e=new m.engine.TycoonEngine();e.g.personalCash=1e9;
  const f=m.peFund.createFund(e.g,{size:30000000.1,gpCommit:2000000.2});assert(f);
  const r=project(copy(e.g));assert.equal(r.fundInterests[0].contributionRatio,f.gpCommit/f.size);
