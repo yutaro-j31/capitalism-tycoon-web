@@ -737,6 +737,22 @@ const SCENARIOS = [
     assert.equal(rows.find(row => row.sourceType === 'property-management').amount, Math.ceil(123_456_789.3 * .00012), 'fee = ceil(value × rate)');
     return { rows, state: { companyCash: g.companyCash, reserve: prop.maintenanceReserve, spent: prop.maintenanceSpentTotal, managementFee: prop.managementFeePaid } };
   } },
+  { slice: 'R3c-3', label: 'safety inspection, risk mitigation install and weekly mitigation maintenance', run() {
+    const { engine, modules } = newGame(3301), g = engine.g;
+    const [prop] = g.properties.filter(p => !p.owner && p.buildingType);
+    Object.assign(prop, { owner: 'company', marketValue: 123_456_789.3, value: 123_456_789.3 });
+    modules.realEstate.ensure(g);
+    Object.assign(prop.realEstate, { buildingValue: 198_765_432.1 });
+    const count = g.finance.transactions.length;
+    assert.ok(engine.inspectPropertySafety(prop.id, 'standard'));
+    assert.ok(engine.installPropertyMitigation(prop.id, 'flood_barrier'));
+    g.week += 1;
+    modules.realEstateRiskMitigation.processWeek(engine);
+    const KINDS = ['property-safety-inspection', 'property-mitigation', 'property-mitigation-maintenance'];
+    const rows = rowsSince(g, count, row => KINDS.includes(row.sourceType));
+    for (const kind of KINDS) assert.ok(rows.some(row => row.sourceType === kind), `R3c-3 scenario posts ${kind}`);
+    return { rows, state: { companyCash: g.companyCash } };
+  } },
 ];
 for (const scenario of SCENARIOS) {
   const { rows, state = {} } = scenario.run();
