@@ -87,7 +87,7 @@ function responseCost(s){
   ensure(s);const c=s.activeRecallCrisis;if(!c)return 0;
   const stores=arr(s.stores).filter(store=>store&&store.status==='open'&&store.businessID===c.businessID);
   const recentSales=stores.reduce((sum,store)=>sum+Math.max(0,n(store.lastSales)),0);
-  return Math.floor(Math.max(2_000_000,Math.min(30_000_000,stores.length*1_500_000+recentSales*.2)));
+  return Math.max(2_000_000,Math.min(30_000_000,globalThis.__capitalismTycoonModules.economicOperation.ceilYen(stores.length*1_500_000+recentSales*.2)));
 }
 function respond(engine){
   const s=ensure(engine.g),c=s.activeRecallCrisis;if(!c||c.responded)return false;

@@ -846,6 +846,17 @@ const SCENARIOS = [
     const rows = rowsSince(g, count, () => true);
     return { rows, state: { portfolioCash: pc.cash, fundCash: fund.cash, weeklyRevenue: pc.weeklyRevenue, legacyWeeklyProfit: vc.weeklyProfitFor(legacyDeal), legacyExitValue: vc.exitValue(legacyDeal) } };
   } },
+  { slice: 'R7a', label: 'founder capital injection during a cash crisis', run() {
+    const { engine, modules } = newGame(3901), g = engine.g;
+    Object.assign(g, { week: 2, companyCash: -1_000_000, personalCash: 10_000_000, companyCredit: 80 });
+    modules.playerCrisis.evaluate(g);
+    assert.equal(g.playerCrisis.status, 'distressed', 'R7a scenario starts in a cash crisis');
+    const count = g.finance.transactions.length, personal = g.personalCash;
+    assert.notEqual(engine.injectFounderCapital(1_234_567.4), false, 'the crisis allows a founder injection');
+    assert.equal(personal - g.personalCash, 1_234_568, 'the injection request rounds up');
+    const rows = rowsSince(g, count, () => true);
+    return { rows, state: { companyCash: g.companyCash, personalCash: g.personalCash } };
+  } },
 ];
 for (const scenario of SCENARIOS) {
   const { rows, state = {} } = scenario.run();
