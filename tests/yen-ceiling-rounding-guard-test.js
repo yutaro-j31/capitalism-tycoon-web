@@ -668,6 +668,20 @@ const SCENARIOS = [
     assert.equal(principal.amount, Math.min(debt, Math.ceil(debt * r.principalShare)), 'required principal rounds up');
     return { rows, state: { companyCash: g.companyCash, companyDebt: g.companyDebt } };
   } },
+  { slice: 'R5c-1', label: 'share buyback at a fractional price', run() {
+    const { engine, modules } = newGame(2701), g = engine.g;
+    Object.assign(g, { publicCompany: true, sharesOut: 1_000_000, founderShares: 300_000, treasuryBuybackShares: 0, competitorOwnedRatio: 0, stockPrice: 123.4567, ticker: 'YENC' });
+    g.market = g.market.filter(row => row.id !== 'YENC');
+    g.market.push({ id: 'YENC', name: g.companyName, sector: 'コングロマリット', price: 123.4567, previous: 123.4567, dividendYield: 0, volatility: 0, trend: 0, marketCap: 123.4567 * 1_000_000, per: 20, pbr: 2, issuedShares: 1_000_000, dividendPerShare: 0, shareholders: {} });
+    engine.updateOwnershipRatios();
+    const count = g.finance.transactions.length;
+    assert.equal(engine.buybackOwnShares(1_000_000), true);
+    const rows = rowsSince(g, count, row => row.sourceType === 'shareholderReturns');
+    const qty = Math.floor(1_000_000 / 123.4567);
+    assert.equal(rows[0].amount, Math.ceil(qty * 123.4567), 'cost = ceil(quantity × price)');
+    assert.equal(modules.finance.buybackReconciliationStatus(g).ok, true);
+    return { rows, state: { companyCash: g.companyCash, treasuryBook: g.finance.balances.treasuryStock } };
+  } },
 ];
 for (const scenario of SCENARIOS) {
   const { rows, state = {} } = scenario.run();

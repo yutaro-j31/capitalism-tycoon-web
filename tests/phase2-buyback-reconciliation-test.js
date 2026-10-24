@@ -53,12 +53,15 @@ function buybackRow(f){return f.game.g.finance.transactions.filter(row=>row?.buy
   assert.equal(f.finance.validate(g).ok,true,f.finance.validate(g).errors.join(' / '));
 }
 
-// Fractional stock prices still recognize quantity x execution price at cent precision.
+// Fractional stock prices settle quantity x execution price rounded up to whole yen
+// (YEN_CEILING_ROUNDING_CONTRACT §8 R5c-1); the receipt says which rule it used.
 {
   const f=setup(0x52400002,{price:123.4567});
   const before=f.game.g.companyCash;
   assert.equal(f.game.buybackOwnShares(1_000_000),true);
-  const row=buybackRow(f),receipt=row.buybackReconciliation,qty=Math.floor(1_000_000/123.4567),expected=money(qty*123.4567);
+  const row=buybackRow(f),receipt=row.buybackReconciliation,qty=Math.floor(1_000_000/123.4567),expected=Math.ceil(qty*123.4567);
+  assert.equal(receipt.evidence.costRounding,'ceilYen');
+  assert.notEqual(expected,money(qty*123.4567),'fixture: the cent rule would give a different cost');
   assert.equal(receipt.quantity,qty);
   assert.equal(receipt.cost,expected);
   assert.equal(row.amount,expected);
@@ -251,6 +254,20 @@ for(const mutate of [
   assert.equal(f.finance.buybackReconciliationStatus(f.game.g).ok,false);
   assert.equal(f.finance.standaloneClose(f.game.g).ok,false);
   assert.equal(f.finance.validate(f.game.g).ok,false);
+}
+
+
+// A receipt recorded before R5c-1 has no costRounding marker and keeps the ¥0.01 rule
+// (YEN_CEILING_ROUNDING_CONTRACT §1.1); the marker decides which rule re-validates it.
+{
+  const legacy=setup(0x52400031,{price:100});
+  assert.equal(legacy.game.buybackOwnShares(1_000_000),true);
+  delete buybackRow(legacy).buybackReconciliation.evidence.costRounding;
+  status(legacy);
+  const marked=setup(0x52400032,{price:123.4567});
+  assert.equal(marked.game.buybackOwnShares(1_000_000),true);
+  delete buybackRow(marked).buybackReconciliation.evidence.costRounding;
+  assert.equal(marked.finance.buybackReconciliationStatus(marked.game.g).ok,false,'a whole-yen cost does not pass the legacy cent rule');
 }
 
 console.log('Phase 2 buyback reconciliation tests passed');

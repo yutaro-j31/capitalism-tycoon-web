@@ -15,7 +15,6 @@
   "js/real-estate-property-management.js",
   "js/real-estate-risk-mitigation.js",
   "js/real-estate-safety-certification.js",
-  "js/save-storage.js",
-  "js/shareholder-returns.js"
+  "js/save-storage.js"
  ]
 }
