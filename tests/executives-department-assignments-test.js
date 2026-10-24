@@ -1,5 +1,6 @@
 'use strict';
 const assert=require('assert'),fs=require('fs'),vm=require('vm');
+const economicOperation=(()=>{const ctx={};ctx.globalThis=ctx;ctx.__capitalismTycoonModules={};vm.runInNewContext(fs.readFileSync('js/economic-operation.js','utf8'),ctx);return ctx.__capitalismTycoonModules.economicOperation;})();
 class Engine{
   constructor(g){this.g=g;this.legacyCalls=[];}
   normalize(){}
@@ -31,7 +32,7 @@ const finance={
   },
   rebuildSnapshotForWeek(){return true;}
 };
-const modules={engine:{TycoonEngine:Engine},playerEngineBridge:{getEngine:()=>null},preferredSharesDividends:{},finance},context={globalThis:null,console,setTimeout,queueMicrotask};context.globalThis=context;context.__capitalismTycoonModules=modules;vm.runInNewContext(fs.readFileSync('js/simulation-rng.js','utf8'),context);vm.runInNewContext(fs.readFileSync('js/deterministic-economic-foundation.js','utf8'),context);vm.runInNewContext(fs.readFileSync('js/executives-department-assignments.js','utf8'),context);
+const modules={economicOperation,engine:{TycoonEngine:Engine},playerEngineBridge:{getEngine:()=>null},preferredSharesDividends:{},finance},context={globalThis:null,console,setTimeout,queueMicrotask};context.globalThis=context;context.__capitalismTycoonModules=modules;vm.runInNewContext(fs.readFileSync('js/simulation-rng.js','utf8'),context);vm.runInNewContext(fs.readFileSync('js/deterministic-economic-foundation.js','utf8'),context);vm.runInNewContext(fs.readFileSync('js/executives-department-assignments.js','utf8'),context);
 const mod=modules.executivesDepartmentAssignments,state={week:10,cash:5000000,personalCash:500000,cumulativeProfit:3000000,companyName:'Test',ticker:'TST'},personal=state.personalCash,a=JSON.stringify(mod.generate(state)),b=JSON.stringify(mod.generate({week:10,cash:5000000,companyName:'Test',ticker:'TST'}));assert.strictEqual(a,b);const id=state.executiveManagement.candidates[0].id,before=state.cash,profit=state.cumulativeProfit,res=mod.hire(state,id);assert(res);assert(state.cash<before);assert(state.cumulativeProfit<profit);assert.strictEqual(state.personalCash,personal);assert.strictEqual(state.finance.transactions.filter(row=>row.sourceType==='executive-hire').length,1);assert.strictEqual(mod.hire(state,id),false);
 assert.strictEqual(mod.assign(state,id,'finance'),true);assert.strictEqual(state.executiveManagement.assignments.finance,id);assert(state.executiveModifiers.finance>1);const weekCash=state.cash;state.week=11;assert.strictEqual(mod.payroll(state),true);assert(state.cash<weekCash);assert.strictEqual(state.finance.transactions.filter(row=>row.sourceType==='executive-payroll').length,1);assert.strictEqual(mod.payroll(state),false);
 const poor={week:1,cash:0,cumulativeProfit:0,executiveManagement:{candidates:[{id:'x',salary:100000}],executives:[],assignments:{},history:[]}},snap=JSON.stringify(poor);assert.strictEqual(mod.hire(poor,'x'),false);assert.strictEqual(JSON.stringify(poor),snap);
