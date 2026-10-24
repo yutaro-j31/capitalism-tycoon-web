@@ -54,6 +54,7 @@ const HISTORY_LIMIT=26;
 const FUND_NAMES=Object.freeze(['再生パートナーズ','日本事業再生機構','ターンアラウンド・キャピタル','産業革新investors']);
 
 const finite=(v,f=0)=>Number.isFinite(Number(v))?Number(v):f;
+const ceilYen=value=>globalThis.__capitalismTycoonModules.economicOperation.ceilYen(finite(value));
 const integer=(v,f=0)=>Math.max(0,Math.floor(finite(v,f)));
 const text=v=>String(v??'');
 const plain=v=>Boolean(v&&typeof v==='object'&&!Array.isArray(v));
@@ -86,7 +87,7 @@ function fundNameFor(state){return FUND_NAMES[integer(state.week)%FUND_NAMES.len
 function injectionFor(instance){
  const state=instance.g,crisis=playerCrisis.ensure(state);
  const gap=Math.max(0,finite(crisis.reserveThreshold)-finite(state.companyCash));
- return Math.max(0,Math.round(Math.max(BASE_INJECTION,gap*TARGET_MULTIPLE)));
+ return Math.max(0,ceilYen(Math.max(BASE_INJECTION,gap*TARGET_MULTIPLE)));
 }
 function quoteFor(instance){
  const state=instance.g,amount=injectionFor(instance);
