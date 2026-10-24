@@ -799,6 +799,31 @@ const SCENARIOS = [
     assert.equal(rows[0].amount, Math.ceil(150_000_124 * .0015), 'advisory fee = ceil(price × 0.15%)');
     return { rows, state: { companyCash: g.companyCash } };
   } },
+  { slice: 'R6b-1', label: 'PE exit waterfall, GP/LP split and carry', ledger: false, run() {
+    const { engine, modules } = newGame(3701), g = engine.g, pf = modules.peFund;
+    const fund = pf.createFund(g, { size: 1_000_000_000, gpCommit: 30_000_000, y0: g.week, terms: { fee: .02, carry: .2, hurdle: .08 } });
+    const deal = { id: 'r6b1-deal', fundPortion: 200_000_000, coinvestPortion: 100_000_001, acquiredWeek: g.week - 104 };
+    const count = g.finance.transactions.length, personal = g.personalCash;
+    const s = pf.settleExitProceeds(g, fund, deal, 456_789_012.3, g.week);
+    assert.equal(s.grossProceeds, 456_789_013, 'exit proceeds round up');
+    assert.equal(s.fundShare + s.coinvestShare, s.grossProceeds, 'fund and co-invest shares add up to the proceeds');
+    assert.equal(s.fundCarry, Math.ceil((s.fundShare - 200_000_000 - s.fundHurdleAmount) * .2), 'fund carry = ceil(excess over hurdle × carry)');
+    assert.equal(s.distributedToFund, s.fundShare - s.fundCarry);
+    assert.equal(fund.gpDistributed + fund.lpDistributed, s.distributedToFund, 'GP and LP distributions add up to the fund distribution');
+    assert.equal(g.personalCash - personal, s.gpPrincipalAndGain + s.gpCarry, 'the GP receives exactly what the settlement previews');
+    const rows = rowsSince(g, count, () => true);
+    return { rows, state: { personalCash: g.personalCash, gpDistributed: fund.gpDistributed, lpDistributed: fund.lpDistributed, gpCarryPaid: fund.gpCarryPaid, fundCarry: s.fundCarry, coinvestCarry: s.coinvestCarry, returnedToCoinvestors: s.returnedToCoinvestors } };
+  } },
+  { slice: 'R6b-1', label: 'PE management fee and team payroll', run() {
+    const { engine, modules } = newGame(3702), g = engine.g, pf = modules.peFund;
+    const fund = pf.createFund(g, { size: 1_000_000_001, gpCommit: 0, y0: g.week, terms: { fee: .0183, carry: .2, hurdle: .08 } });
+    assert.equal(pf.annualManagementFee(fund), Math.ceil(1_000_000_001 * .0183), 'annual fee = ceil(size × rate)');
+    const count = g.finance.transactions.length;
+    pf.processManagementFeePeriods(g, fund, fund.y0 + 52);
+    const rows = rowsSince(g, count, row => row.sourceType === 'peManagementFee' || row.sourceType === 'peTeamPayroll');
+    assert.ok(rows.some(row => row.sourceType === 'peManagementFee'), 'the management fee posts');
+    return { rows, state: { companyCash: g.companyCash } };
+  } },
 ];
 for (const scenario of SCENARIOS) {
   const { rows, state = {} } = scenario.run();
