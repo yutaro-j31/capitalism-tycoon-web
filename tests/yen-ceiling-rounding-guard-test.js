@@ -701,6 +701,24 @@ const SCENARIOS = [
     assert.equal(finance.dividendReconciliationStatus(g).ok, true);
     return { rows: [row], state: { founderNet: d.personalNet, payerReduction: d.payerReduction } };
   } },
+  { slice: 'R3c-1', label: 'property insurance premium, incident loss and claim payout', run() {
+    const { engine, modules } = newGame(3101), g = engine.g, insurance = modules.realEstatePropertyInsurance;
+    const [prop] = g.properties.filter(p => !p.owner && p.buildingType);
+    Object.assign(prop, { owner: 'company', marketValue: 123_456_789.3, value: 123_456_789.3, buildingCondition: 0 });
+    modules.realEstate.ensure(g);
+    assert.ok(engine.setPropertyInsurance(prop.id, 'basic'));
+    const count = g.finance.transactions.length;
+    // Run weeks until an incident lands and its claim is paid; every amount settles in whole yen.
+    for (let week = g.week + 1; week <= g.week + 600 && !g.finance.transactions.slice(count).some(t => t.sourceType === 'property-insurance-payout'); week++) {
+      g.week = week; insurance.processWeek(engine);
+      if (prop.pendingInsuranceIncident) engine.claimPropertyInsurance(prop.id);
+    }
+    const KINDS = ['property-insurance-premium', 'property-insurance-loss', 'property-insurance-payout'];
+    const rows = rowsSince(g, count, row => KINDS.includes(row.sourceType));
+    for (const kind of KINDS) assert.ok(rows.some(row => row.sourceType === kind), `R3c-1 scenario posts ${kind}`);
+    assert.equal(rows.find(row => row.sourceType === 'property-insurance-premium').amount, Math.ceil(123_456_789.3 * .00018), 'premium = ceil(value × rate)');
+    return { rows, state: { companyCash: g.companyCash, premiumPaid: prop.insurancePremiumPaid, lossTotal: prop.insuranceLossTotal, payoutTotal: prop.insurancePayoutTotal } };
+  } },
 ];
 for (const scenario of SCENARIOS) {
   const { rows, state = {} } = scenario.run();
