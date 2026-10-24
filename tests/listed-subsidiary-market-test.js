@@ -16,7 +16,8 @@ class Engine{
   runTransaction(work){const result=work();if(result!==false){this.save();this.emit();}return result;}
 }
 const financeEvents=[];
-const modules={engine:{TycoonEngine:Engine,compactYen:v=>`${Math.round(Number(v)||0).toLocaleString('ja-JP')}円`},finance:{event:(state,type,amount,meta)=>financeEvents.push({state,type,amount,meta})},playerEngineBridge:{getEngine:()=>null}};
+const economicOperation=(()=>{const ctx={};ctx.globalThis=ctx;ctx.__capitalismTycoonModules={};vm.runInNewContext(fs.readFileSync(path.join(__dirname,'../js/economic-operation.js'),'utf8'),ctx);return ctx.__capitalismTycoonModules.economicOperation;})();
+const modules={economicOperation,engine:{TycoonEngine:Engine,compactYen:v=>`${Math.round(Number(v)||0).toLocaleString('ja-JP')}円`},finance:{event:(state,type,amount,meta)=>financeEvents.push({state,type,amount,meta})},playerEngineBridge:{getEngine:()=>null}};
 const context={globalThis:{__capitalismTycoonModules:modules,confirm:()=>true}};context.globalThis.globalThis=context.globalThis;
 vm.runInNewContext(code,context,{filename:'listed-subsidiary-market.js'});
 const mod=modules.listedSubsidiaryMarket;

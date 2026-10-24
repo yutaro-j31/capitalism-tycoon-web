@@ -6,7 +6,8 @@ const path=require('node:path');
 const code=fs.readFileSync(path.join(__dirname,'../js/listed-subsidiary-follow-on-offering.js'),'utf8');
 class Engine{constructor(state){this.g=state;this.normalize();}normalize(){}fail(message){this.lastError=message;return false;}notify(){}runTransaction(work){return work();}}
 const events=[];
-const modules={engine:{TycoonEngine:Engine,compactYen:v=>String(Math.round(Number(v)||0))+'円'},finance:{event:(state,type,amount,meta)=>events.push({state,type,amount,meta})},playerEngineBridge:{getEngine:()=>null}};
+const economicOperation=(()=>{const ctx={};ctx.globalThis=ctx;ctx.__capitalismTycoonModules={};vm.runInNewContext(fs.readFileSync(path.join(__dirname,'../js/economic-operation.js'),'utf8'),ctx);return ctx.__capitalismTycoonModules.economicOperation;})();
+const modules={economicOperation,engine:{TycoonEngine:Engine,compactYen:v=>String(Math.round(Number(v)||0))+'円'},finance:{event:(state,type,amount,meta)=>events.push({state,type,amount,meta})},playerEngineBridge:{getEngine:()=>null}};
 const context={globalThis:{__capitalismTycoonModules:modules,confirm:()=>true}};context.globalThis.globalThis=context.globalThis;
 vm.runInNewContext(code,context,{filename:'listed-subsidiary-follow-on-offering.js'});
 const mod=modules.listedSubsidiaryFollowOnOffering;
