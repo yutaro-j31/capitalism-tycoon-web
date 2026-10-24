@@ -1477,7 +1477,7 @@ class TycoonEngine extends EventTarget {
 
   investStartup(startupID,amount,account='company') {
     return this.runTransaction(() => {
-      const s=this.g.startups.find(x=>x.id===startupID);amount=finite(amount);if(!s||!s.alive||amount<=0)return false;
+      const s=this.g.startups.find(x=>x.id===startupID);amount=ceilYen(amount);if(!s||!s.alive||amount<=0)return false;
       if(s.activeFundingRound?.status==='open'||this.startupFundingRoundHasPaymentClaim(s))return this.fail('追加資金調達中はフォローオン投資を利用してください。');
       if(account==='company'&&!this.g.departments.investment)return this.fail('会社投資には投資部門が必要です。');
       if(amount<s.minTicket)return this.fail(`最低投資額は${yen(s.minTicket)}です。`);
@@ -1680,12 +1680,12 @@ class TycoonEngine extends EventTarget {
 
   buyProperty(id,owner='company') {
     const p=this.g.properties.find(x=>x.id===id);if(!p||p.owner)return false;const cashKey=owner==='company'?'companyCash':'personalCash';
-    if(this.g[cashKey]<p.price)return this.fail('購入資金が不足しています。');this.g[cashKey]-=p.price;p.owner=owner;p.purchasePrice=p.price;p.bookValue=p.price;setAcquisitionSplit(p);clearOwnershipBook(p);__modules.realEstate?.ensureProperty?.(p);if(owner==='company')finance.event(this.g,'assetPurchase',p.price,{cashEffect:-p.price,assetEffect:p.price,sourceType:'buyProperty',sourceID:id,description:`${p.name} 不動産取得`});
+    const price=ceilYen(p.price);if(this.g[cashKey]<price)return this.fail('購入資金が不足しています。');this.g[cashKey]-=price;p.owner=owner;p.purchasePrice=price;p.bookValue=price;setAcquisitionSplit(p);clearOwnershipBook(p);__modules.realEstate?.ensureProperty?.(p);if(owner==='company')finance.event(this.g,'assetPurchase',price,{cashEffect:-price,assetEffect:price,sourceType:'buyProperty',sourceID:id,description:`${p.name} 不動産取得`});
     this.notify(`${p.name}を${owner==='company'?'会社':'個人'}で購入しました。`,'success');this.save();this.emit();return true;
   }
   sellProperty(id) {
     if(__modules.realEstatePropertyDisposals?.settlePropertyDisposition)return __modules.realEstatePropertyDisposals.settlePropertyDisposition(this,{propertyID:id,reason:'voluntary-sale',grossSalePrice:finite(this.g.properties.find(x=>x.id===id)?.value)*.97,fees:0,retainProperty:true,sourceType:'sellProperty',saleWeek:this.g.week,idempotencyKey:`property-direct-sale-${id}-w${Math.floor(finite(this.g.week,1))}`});
-    const p=this.g.properties.find(x=>x.id===id);if(!p||!p.owner)return false;const owner=p.owner,proceeds=p.value*.97,landBook=finite(finance.propertyBookOf(p)),buildings=(this.g.finance?.fixedAssets||[]).filter(a=>a.propertyID===id&&a.status==='active'),buildingBook=buildings.reduce((a,x)=>a+finite(x.bookValue||Math.max(0,finite(x.acquisitionCost)-finite(x.accumulatedDepreciation))),0),book=landBook+buildingBook;this.g[owner==='company'?'companyCash':'personalCash']+=proceeds;if(owner==='company'){finance.event(this.g,'assetSale',proceeds,{cashEffect:proceeds,assetEffect:-book,profitEffect:proceeds-book,sourceType:'sellProperty',sourceID:id,...(buildings.length?{fixedAssetLifecycle:'disposal',fixedAssetDisposals:buildings.map(a=>({assetID:a.assetID,bookValue:finite(a.bookValue)}))}:{}),description:`${p.name} 不動産・建物売却`});for(const a of buildings){a.status='disposed';a.disposalWeek=this.g.week;a.disposalProceeds=0;a.disposalBookValue=finite(a.bookValue);a.disposalGainLoss=-finite(a.bookValue);a.bookValue=0;}}p.owner=null;p.bookValue=0;p.depreciationPerWeek=0;p.buildingCost=0;clearOwnershipBook(p);
+    const p=this.g.properties.find(x=>x.id===id);if(!p||!p.owner)return false;const owner=p.owner,proceeds=ceilYen(p.value*.97),landBook=finite(finance.propertyBookOf(p)),buildings=(this.g.finance?.fixedAssets||[]).filter(a=>a.propertyID===id&&a.status==='active'),buildingBook=buildings.reduce((a,x)=>a+finite(x.bookValue||Math.max(0,finite(x.acquisitionCost)-finite(x.accumulatedDepreciation))),0),book=landBook+buildingBook;this.g[owner==='company'?'companyCash':'personalCash']+=proceeds;if(owner==='company'){finance.event(this.g,'assetSale',proceeds,{cashEffect:proceeds,assetEffect:-book,profitEffect:proceeds-book,sourceType:'sellProperty',sourceID:id,...(buildings.length?{fixedAssetLifecycle:'disposal',fixedAssetDisposals:buildings.map(a=>({assetID:a.assetID,bookValue:finite(a.bookValue)}))}:{}),description:`${p.name} 不動産・建物売却`});for(const a of buildings){a.status='disposed';a.disposalWeek=this.g.week;a.disposalProceeds=0;a.disposalBookValue=finite(a.bookValue);a.disposalGainLoss=-finite(a.bookValue);a.bookValue=0;}}p.owner=null;p.bookValue=0;p.depreciationPerWeek=0;p.buildingCost=0;clearOwnershipBook(p);
     this.notify(`${p.name}を${yen(proceeds)}で売却しました。`,'success');if(!this.inTransaction()){this.save();this.emit();}return true;
   }
   buildOnLand(id,type='本社ビル') {
@@ -1805,7 +1805,7 @@ class TycoonEngine extends EventTarget {
     // the same outcome as before.
     const sellFloor=Math.max(1,Math.round(this.g.founderShares*.05)),sellCeil=Math.max(sellFloor,Math.round(this.g.founderShares*.4));
     sellShares=clamp(Math.floor(sellShares)||sellFloor,sellFloor,sellCeil);
-    const newShares=Math.max(1,Math.round(this.g.sharesOut*.2)),companyRaise=this.g.stockPrice*newShares*.955,founderSale=this.g.stockPrice*sellShares*.955;
+    const newShares=Math.max(1,Math.round(this.g.sharesOut*.2)),companyRaise=ceilYen(this.g.stockPrice*newShares*.955),founderSale=ceilYen(this.g.stockPrice*sellShares*.955);
     this.g.sharesOut+=newShares;this.g.founderShares-=sellShares;this.g.companyCash+=companyRaise;this.g.personalCash+=founderSale;this.g.publicCompany=true;this.g.selectedListingMarket=market;
     // The IPO primary offering raises real cash (companyRaise, above) with no matching
     // liability, so it must be recorded as equity financing or finance.validate()'s
@@ -1939,7 +1939,7 @@ class TycoonEngine extends EventTarget {
 
   completeCompanySale({exitPrice=0,founderProceeds=0,note='',showEnding=true}={}) {
     if(this.g.isCompanySold)return this.fail('会社はすでに売却済みです。');
-    const price=Math.max(0,finite(exitPrice)),proceeds=Math.max(0,finite(founderProceeds));
+    const price=Math.max(0,finite(exitPrice)),proceeds=ceilYen(Math.max(0,finite(founderProceeds)));
     if(typeof this.recordCurrentCompany==='function')this.recordCurrentCompany('buyout',price,proceeds,note);
     this.g.personalCash+=proceeds;
     this.g.isCompanySold=true;
@@ -2466,12 +2466,12 @@ class TycoonEngine extends EventTarget {
       financeStores.push({storeID:store.id,businessID:store.businessID,name:store.name,sales:postedSales,variable:postedVariable,rent:postedRent,wage:postedWage,repair:postedMaintenance,cogsCashEffect:(isSupplyStore?0:undefined)});
       storeCashDelta+=postedSales-(isSupplyStore?0:postedVariable)-postedRent-postedWage-postedMaintenance;
       store.condition=clamp(store.condition-rand(this.g,.1,1),40,100);sales+=postedSales;expenses+=postedVariable+postedRent+postedWage+postedMaintenance;}
-    for(const p of this.g.properties){if(!p.owner)continue;const rent=p.rentIncome*clamp(this.g.economy,.75,1.25)*p.rentMultiplier*(1-p.vacancyRate);if(p.owner==='company')rentIncome+=rent;else this.g.personalCash+=rent;}
+    for(const p of this.g.properties){if(!p.owner)continue;const rent=p.rentIncome*clamp(this.g.economy,.75,1.25)*p.rentMultiplier*(1-p.vacancyRate);if(p.owner==='company')rentIncome+=rent;else this.g.personalCash+=ceilYen(rent);}
     expenses+=propertyDepreciation;
     const execPayroll=this.g.week%4===0?ceilYen(Object.values(this.g.executives).reduce((a,e)=>a+finite(e.salary)/13,0)):0;
     const deptCost=workforce.weeklyPayroll(this.g);
     const officeCost=this.g.hasHeadOffice?ceilYen(this.g.officeWeeklyCost):0,genericDebt=Math.max(0,this.g.companyDebt-finance.individuallyServicedPrincipal(this.g)),interest=__modules.economicOperation.ceilYen(genericDebt*this.companyBorrowRate()/52);expenses+=execPayroll+deptCost+officeCost+interest;const founderLoanShare=genericDebt>0?Math.min(1,finance.founderLoanReceivable(this.g)/genericDebt):0;if(founderLoanShare>0)this.g.personalCash+=Math.min(__modules.economicOperation.ceilYen(interest*founderLoanShare),interest);
-    if(this.g.week%13===0){for(const [id,h] of Object.entries(this.g.companyStocks)){const s=this.stock(id);if(s&&id!==this.g.ticker)stockIncome+=h.qty*(s.dividendPerShare||s.price*s.dividendYield/4);}for(const [id,h] of Object.entries(this.g.personalStocks)){const s=this.stock(id);if(s&&id!==this.g.ticker)this.g.personalCash+=h.qty*(s.dividendPerShare||s.price*s.dividendYield/4)*.797;}if(this.g.publicCompany&&this.g.dividendPerShare>0){dividend=this.g.dividendPerShare*Math.max(0,this.g.sharesOut-this.g.treasuryBuybackShares);const founderGross=dividend*this.g.founderOwnershipRatio,personalCashBefore=this.g.personalCash;this.g.personalCash+=founderGross*.797;dividendDistribution={gross:dividend,founderRatio:this.g.founderOwnershipRatio,personalCashBefore,personalCashAfter:this.g.personalCash};}}
+    if(this.g.week%13===0){for(const [id,h] of Object.entries(this.g.companyStocks)){const s=this.stock(id);if(s&&id!==this.g.ticker)stockIncome+=h.qty*(s.dividendPerShare||s.price*s.dividendYield/4);}for(const [id,h] of Object.entries(this.g.personalStocks)){const s=this.stock(id);if(s&&id!==this.g.ticker)this.g.personalCash+=ceilYen(h.qty*(s.dividendPerShare||s.price*s.dividendYield/4)*.797);}if(this.g.publicCompany&&this.g.dividendPerShare>0){dividend=this.g.dividendPerShare*Math.max(0,this.g.sharesOut-this.g.treasuryBuybackShares);const founderGross=dividend*this.g.founderOwnershipRatio,personalCashBefore=this.g.personalCash;this.g.personalCash+=founderGross*.797;dividendDistribution={gross:dividend,founderRatio:this.g.founderOwnershipRatio,personalCashBefore,personalCashAfter:this.g.personalCash};}}
     const projectRun=workforce.advanceProjects(this.g);const projectCost=finite(projectRun?.projectCost);expenses+=projectCost;const turnoverRun=workforce.updateEndOfWeek(this.g);const severanceCost=finite(turnoverRun?.turnoverCost);expenses+=severanceCost;supply.autoOrder(this.g);const operatingProfit=sales+rentIncome+stockIncome-expenses+subs.profit;this.g.quarterlyPretaxProfit=finite(this.g.quarterlyPretaxProfit)+operatingProfit;let tax=0;if(this.g.week%13===0){if(this.g.quarterlyPretaxProfit>0)tax=ceilYen(this.g.quarterlyPretaxProfit*.306);expenses+=tax;this.g.quarterlyPretaxProfit=0;}
     const profit=sales+rentIncome+stockIncome-expenses+subs.profit;const weeklyCashDelta=profit-dividend-finite(overseas.retainedCash)+supplyCogsNonCash+finite(spoilage?.cost),nonStoreCashDelta=weeklyCashDelta-storeCashDelta;const payerCashWithoutDividend=this.g.companyCash+profit-finite(overseas.retainedCash)+supplyCogsNonCash+finite(spoilage?.cost);this.g.companyCash+=nonStoreCashDelta+storeCashDelta;if(dividendDistribution)Object.assign(dividendDistribution,{payerCashWithoutDividend,payerCashAfter:this.g.companyCash});this.g.companyCredit=clamp(this.g.companyCredit+(profit>=0?.15:-.3),0,100);this.g.companyReputation=clamp(this.g.companyReputation+(profit>0?.08:-.04),0,100);
     if(dividendDistribution&&dividend>0)finance.observeDividendDistribution(this.g,dividendDistribution);
