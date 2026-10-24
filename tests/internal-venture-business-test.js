@@ -1,4 +1,5 @@
 'use strict';
+const __economicOperation=(()=>{const __fs=require('fs'),__vm=require('vm'),ctx={};ctx.globalThis=ctx;ctx.__capitalismTycoonModules={};__vm.runInNewContext(__fs.readFileSync(require('path').join(__dirname,'../js/economic-operation.js'),'utf8'),ctx);return ctx.__capitalismTycoonModules.economicOperation;})();
 const assert=require('node:assert/strict');
 const fs=require('node:fs');
 const vm=require('node:vm');
@@ -15,7 +16,7 @@ class Engine{
   runTransaction(work){const result=work();if(result!==false){this.save();this.emit();}return result;}
 }
 const financeEvents=[];
-const modules={engine:{TycoonEngine:Engine,compactYen:v=>`${Math.round(Number(v)||0).toLocaleString('ja-JP')}円`},finance:{event:(state,type,amount,meta)=>financeEvents.push({state,type,amount,meta})},playerEngineBridge:{getEngine:()=>null}};
+const modules={economicOperation:__economicOperation,engine:{TycoonEngine:Engine,compactYen:v=>`${Math.round(Number(v)||0).toLocaleString('ja-JP')}円`},finance:{event:(state,type,amount,meta)=>financeEvents.push({state,type,amount,meta})},playerEngineBridge:{getEngine:()=>null}};
 const context={globalThis:{__capitalismTycoonModules:modules,confirm:()=>true}};context.globalThis.globalThis=context.globalThis;
 vm.runInNewContext(code,context,{filename:'internal-venture-business.js'});
 const mod=modules.internalVentureBusiness;

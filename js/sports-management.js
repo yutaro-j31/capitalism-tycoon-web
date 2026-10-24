@@ -45,6 +45,7 @@ const TRADE_SALARY_RATE=.12;
 const FOREIGN_SALARY_RATE=.15;
 
 const finite=(value,fallback=0)=>Number.isFinite(Number(value))?Number(value):fallback;
+const ceilYen=value=>globalThis.__capitalismTycoonModules.economicOperation.ceilYen(finite(value));
 const clamp=(value,min,max)=>Math.max(min,Math.min(max,value));
 
 // Squads saved before players carried a salary still have to cost something, or an old save
@@ -53,22 +54,22 @@ const clamp=(value,min,max)=>Math.max(min,Math.min(max,value));
 function weeklySalaryFor(player){
   if(!player)return 0;
   const stored=finite(player.weeklySalary);
-  if(stored>0)return Math.round(stored);
+  if(stored>0)return ceilYen(stored);
   const drafted=finite(player.expectedSalary);
-  if(drafted>0)return Math.round(drafted*DRAFT_SALARY_RATE/DRAFT_SALARY_WEEKS);
+  if(drafted>0)return ceilYen(drafted*DRAFT_SALARY_RATE/DRAFT_SALARY_WEEKS);
   const traded=finite(player.askingPrice);
-  if(traded>0)return Math.round(traded*TRADE_SALARY_RATE/DRAFT_SALARY_WEEKS);
+  if(traded>0)return ceilYen(traded*TRADE_SALARY_RATE/DRAFT_SALARY_WEEKS);
   return 0;
 }
 
 function salaryFromDraft(candidate){
-  return Math.round(Math.max(0,finite(candidate?.expectedSalary))*DRAFT_SALARY_RATE/DRAFT_SALARY_WEEKS);
+  return ceilYen(Math.max(0,finite(candidate?.expectedSalary))*DRAFT_SALARY_RATE/DRAFT_SALARY_WEEKS);
 }
 function salaryFromTrade(asset){
-  return Math.round(Math.max(0,finite(asset?.askingPrice))*TRADE_SALARY_RATE/DRAFT_SALARY_WEEKS);
+  return ceilYen(Math.max(0,finite(asset?.askingPrice))*TRADE_SALARY_RATE/DRAFT_SALARY_WEEKS);
 }
 function salaryFromForeign(fee){
-  return Math.round(Math.max(0,finite(fee))*FOREIGN_SALARY_RATE/DRAFT_SALARY_WEEKS);
+  return ceilYen(Math.max(0,finite(fee))*FOREIGN_SALARY_RATE/DRAFT_SALARY_WEEKS);
 }
 
 function payrollFor(team){
@@ -101,13 +102,13 @@ function sponsorRevenueFor(team){
   return base*SPONSOR_SHARE*(SPONSOR_FLOOR+sponsorWinRate(team)*SPONSOR_SWING);
 }
 
-// Whole yen, because finance.event rounds what it stores and the ledger has to agree with the
-// cash balance exactly.
+// Whole yen, rounded up (contract §3), because finance.event rounds what it stores and the ledger
+// has to agree with the cash balance exactly.
 function weeklyFinancialsFor(team){
-  const gate=Math.round(gateRevenueFor(team));
-  const sponsor=Math.round(sponsorRevenueFor(team));
+  const gate=ceilYen(gateRevenueFor(team));
+  const sponsor=ceilYen(sponsorRevenueFor(team));
   const payroll=payrollFor(team);
-  const fixedCost=Math.round(Math.max(0,finite(team?.cost)));
+  const fixedCost=ceilYen(Math.max(0,finite(team?.cost)));
   return {gate,sponsor,revenue:gate+sponsor,payroll,fixedCost,cost:fixedCost+payroll,net:gate+sponsor-fixedCost-payroll};
 }
 

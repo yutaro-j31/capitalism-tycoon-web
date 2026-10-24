@@ -868,6 +868,19 @@ const SCENARIOS = [
     const rows = rowsSince(g, count, () => true);
     return { rows, state: { companyCash: g.companyCash } };
   } },
+  { slice: 'R7c', label: 'company sports team sale proceeds', run() {
+    const { engine, modules } = newGame(4101), g = engine.g, catalog = modules.data.SPORTS_TEAMS;
+    assert.ok(catalog.length, 'R7c scenario finds the sports team catalog');
+    g.companyCash = 50_000_000_000;
+    assert.ok(engine.buySportsTeam(catalog[0].id, 'company'), 'R7c scenario buys a team for the company');
+    const team = g.sportsTeams.at(-1);
+    team.value = 123_456_789.3;
+    const count = g.finance.transactions.length;
+    assert.ok(engine.sellSportsTeam(team.id));
+    const rows = rowsSince(g, count, row => row.sourceType === 'sellSportsTeam');
+    assert.equal(rows.length, 1, 'the sale posts');
+    return { rows, state: { companyCash: g.companyCash } };
+  } },
 ];
 for (const scenario of SCENARIOS) {
   const { rows, state = {} } = scenario.run();
