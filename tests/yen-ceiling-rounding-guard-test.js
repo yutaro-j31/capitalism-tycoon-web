@@ -881,6 +881,22 @@ const SCENARIOS = [
     assert.equal(rows.length, 1, 'the sale posts');
     return { rows, state: { companyCash: g.companyCash } };
   } },
+  { slice: 'R8a', label: 'distressed competitor acquisition price', run() {
+    const { engine, modules } = newGame(4201), g = engine.g;
+    const target = g.competitorStates[0];
+    Object.assign(target, { lifecycleStatus: 'distressed', status: 'distressed', lastDistressScore: 8, cash: 123_456.7 });
+    g.week = 30;
+    g.companyCash = 1_000_000_000;
+    modules.competitor.ensure(g);
+    engine.seedCompetitorCounterStates();
+    const counter = g.competitorCounterStates.find(row => row.competitorID === target.competitorID);
+    assert.equal(counter.isDistressed, true, 'R8a scenario has a distressed competitor');
+    const count = g.finance.transactions.length;
+    assert.ok(engine.respondToCompetitor(target.competitorID, 'acquire'));
+    const rows = rowsSince(g, count, row => row.sourceType === 'rivalResponse');
+    assert.equal(rows.length, 1, 'the acquisition posts');
+    return { rows, state: { companyCash: g.companyCash } };
+  } },
 ];
 for (const scenario of SCENARIOS) {
   const { rows, state = {} } = scenario.run();

@@ -132,7 +132,7 @@ function installCompatibility(TycoonEngine){
    cost=2_500_000;if(state.companyCash<cost)return this.fail('品質防衛費が不足しています。');state.companyCash-=cost;counter.pricePressure=clamp(counter.pricePressure-.8,0,8);const business=this.business(counter.industryID);if(business)business.quality=clamp(business.quality+2,0,100);
   }else if(action==='acquire'){
    if(!counter.isDistressed||company.acquiredByPlayer)return this.fail('この競合は買収可能な状態ではありません。');
-   cost=Math.max(5_000_000,counter.strength*1_000_000+finite(company.cash)*1.2);if(state.companyCash<cost)return this.fail('買収資金が不足しています。');state.companyCash-=cost;
+   cost=Math.max(5_000_000,globalThis.__capitalismTycoonModules.economicOperation.ceilYen(counter.strength*1_000_000+finite(company.cash)*1.2));if(state.companyCash<cost)return this.fail('買収資金が不足しています。');state.companyCash-=cost;
    closeAcquiredCompany(state,company,Math.max(0,Math.floor(finite(state.week))));counter.active=false;counter.acquired=true;counter.isDistressed=false;counter.pricePressure=0;
    const subsidiaryID=`rival-acquisition-${company.competitorID}-${state.week}`;if(!(state.subsidiaries||[]).some(row=>row.id===subsidiaryID))state.subsidiaries.push({id:subsidiaryID,name:company.name,domain:company.businessID,industry:company.businessID,valuation:cost,carryingBookValue:cost,investedCost:cost,acquisitionPrice:cost,status:'active',weeklyProfit:Math.max(0,finite(company.weeklyProfit)),growth:.02,risk:.15,ownership:1,retainedEarnings:0,acquiredWeek:state.week,sourceCompetitorID:company.competitorID});
    if(typeof competitor.applyTerminalCompatibility==='function')competitor.applyTerminalCompatibility(state,state.competitorEvents||[]);
