@@ -48,8 +48,8 @@ function deal(id,businessID='gym'){
   assert.strictEqual(ops.resolvePortfolioOperatingCalculator(gym),ops.calculateGenericPortfolioOperatingWeek);
   assert.equal(JSON.stringify(dispatched),JSON.stringify(generic));assert.equal(dispatched.source,'generic');
   const pcBefore=structuredClone(gym.portfolioCompany);ops.settlePortfolioOperatingWeek(gym,dispatched);
-  assert.equal(gym.portfolioCompany.weeklyRevenue,dispatched.revenue);assert.equal(gym.portfolioCompany.weeklyProfit,dispatched.profit);
-  assert.equal(gym.portfolioCompany.cash,pcBefore.cash+dispatched.profit);
+  assert.equal(gym.portfolioCompany.weeklyRevenue,Math.ceil(dispatched.revenue));assert.equal(gym.portfolioCompany.weeklyProfit,Math.ceil(dispatched.profit));
+  assert.equal(gym.portfolioCompany.cash,pcBefore.cash+Math.ceil(dispatched.profit));
 }
 
 {

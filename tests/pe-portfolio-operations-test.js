@@ -96,8 +96,10 @@ function bigFund(score = 35, size = 30_000_000_000) {
   const deal = ops.acquirePillarCompany(e.g, fund.id, { businessID: 'ramen', enterpriseValue: 2_500_000_000, week: 1 });
   const focusedMultiplier = pf.attentionMultiplier(fund);
   assert.equal(focusedMultiplier, 1, 'sanity: a single active deal must not dilute attention');
+  // The calculator's exact result carries the multiplicative factor; settlement then rounds it up to whole yen once.
+  const focusedProfit = ops.calculatePortfolioOperatingWeek(fund, deal, 2).profit;
   ops.processDealWeek(fund, deal, 2);
-  const focusedProfit = deal.portfolioCompany.weeklyProfit;
+  assert.equal(deal.portfolioCompany.weeklyProfit, Math.ceil(focusedProfit), 'settlement records the focused result rounded up to whole yen');
 
   // Same fund, but now with enough other active deals pushed onto it directly (bypassing the
   // acquisition flow, purely to manipulate activeDealCount for this isolated check) to dilute
@@ -108,8 +110,9 @@ function bigFund(score = 35, size = 30_000_000_000) {
   for (let i = 0; i < 40; i++) fund2.deals.push({ id: `filler-${i}`, businessID: null, status: 'active' });
   const dilutedMultiplier = pf.attentionMultiplier(fund2);
   assert.ok(dilutedMultiplier < focusedMultiplier, `attention must be diluted: ${dilutedMultiplier} should be < ${focusedMultiplier}`);
+  const dilutedProfit = ops.calculatePortfolioOperatingWeek(fund2, deal2, 2).profit;
   ops.processDealWeek(fund2, deal2, 2);
-  const dilutedProfit = deal2.portfolioCompany.weeklyProfit;
+  assert.equal(deal2.portfolioCompany.weeklyProfit, Math.ceil(dilutedProfit), 'settlement records the diluted result rounded up to whole yen');
   assert.ok(dilutedProfit < focusedProfit, `diluted attention must lower weeklyProfit: ${dilutedProfit} should be < ${focusedProfit}`);
   assert.ok(Math.abs(dilutedProfit / focusedProfit - dilutedMultiplier / focusedMultiplier) < 1e-9, 'the profit ratio must match the attentionMultiplier ratio exactly (single multiplicative factor)');
 }

@@ -24,6 +24,7 @@ const pf=modules.peFund,tiers=modules.peIndustryTiers,rivals=modules.peRivals;
 const finite=(v,f=0)=>Number.isFinite(Number(v))?Number(v):f;
 const clamp=(v,min=0,max=1)=>Math.max(min,Math.min(max,finite(v,min)));
 const arr=v=>Array.isArray(v)?v:[];
+const ceilYen=v=>modules.economicOperation.ceilYen(finite(v));
 const clone=value=>value===undefined?undefined:value===null?null:JSON.parse(JSON.stringify(value));
 
 // Same deterministic FNV-1a hash as js/ma-deal-room.js / js/pe-rivals.js / js/pe-industry-tiers.js.
@@ -460,10 +461,12 @@ function calculatePortfolioOperatingWeek(fund,deal,week,state){return resolvePor
 function settlePortfolioOperatingWeek(deal,result){
   const pc=deal?.portfolioCompany,week=finite(result?.week,-1);
   if(!pc||!result||pc.lastProcessedWeek>=week)return false;
-  pc.cash=finite(pc.cash)+finite(result.profit);
-  pc.weeklyRevenue=finite(result.revenue);
-  pc.weeklyProfit=finite(result.profit);
-  pc.profitHistory=[...arr(pc.profitHistory),finite(result.profit)].slice(-PROFIT_HISTORY_LIMIT);
+  // 週次の営業結果はここで一度だけ円単位に切り上げる（契約書 §3）。
+  const profit=ceilYen(result.profit);
+  pc.cash=finite(pc.cash)+profit;
+  pc.weeklyRevenue=ceilYen(result.revenue);
+  pc.weeklyProfit=profit;
+  pc.profitHistory=[...arr(pc.profitHistory),profit].slice(-PROFIT_HISTORY_LIMIT);
   if(deal.businessID==='gym'&&result.nextOperatingState)pc.gymOperatingState=clone(result.nextOperatingState);
   if(deal.businessID==='conveni'&&result.nextOperatingState)pc.conveniOperatingState=clone(result.nextOperatingState);
   if(deal.businessID==='realEstateAgency'&&result.nextOperatingState)pc.realEstateAgencyOperatingState=clone(result.nextOperatingState);
@@ -519,7 +522,7 @@ function previewManagementAction(state,fundID,dealID,action,{kind=''}={}){
     if(!executable)reason=cash<=0?'cash':'maxed';
   }else if(action==='reformProcurement'){
     const next=Math.min(1,finite(pc.procurementReform)+.25),increase=Math.max(0,next-finite(pc.procurementReform));
-    cost=increase*PROCUREMENT_COST_FRACTION*ev;
+    cost=ceilYen(increase*PROCUREMENT_COST_FRACTION*ev);
     executable=increase>0&&cost<=cash;
     if(!executable)reason=increase<=0?'maxed':'cash';
   }else if(action==='setStaffing'){
@@ -534,7 +537,7 @@ function previewManagementAction(state,fundID,dealID,action,{kind=''}={}){
     }else{executable=false;reason='unsupported';}
   }else if(action==='renewProductMix'){
     const next=Math.min(1,finite(pc.productMixLevel)+.5),increase=Math.max(0,next-finite(pc.productMixLevel));
-    cost=increase*PRODUCT_MIX_COST_FRACTION*ev;
+    cost=ceilYen(increase*PRODUCT_MIX_COST_FRACTION*ev);
     executable=increase>0&&cost<=cash;
     if(!executable)reason=increase<=0?'maxed':'cash';
   }else if(action==='consolidateSites'){
@@ -542,7 +545,7 @@ function previewManagementAction(state,fundID,dealID,action,{kind=''}={}){
     executable=!deal.employmentPromise&&remaining>1e-9;
     reason=!executable?(deal.employmentPromise?'employment-promise':'maxed'):null;
   }else if(action==='expandPortfolioStore'){
-    cost=EXPANSION_COST_FRACTION*ev;
+    cost=ceilYen(EXPANSION_COST_FRACTION*ev);
     executable=cost>0&&cost<=cash;
     if(!executable)reason=cost<=0?'unsupported':'cash';
   }else{executable=false;reason='unsupported';}
@@ -565,7 +568,7 @@ function investQuality(state,fundID,dealID,amount){
   const {deal}=findFundAndDeal(state,fundID,dealID);
   if(!deal||deal.status!=='active')return null;
   const pc=deal.portfolioCompany;
-  const spend=Math.max(0,Math.min(finite(amount),pc.cash));
+  const spend=Math.max(0,Math.min(ceilYen(amount),pc.cash));
   pc.cash-=spend;
   // 1点あたりの価格は企業価値に比例する（T20較正）。大きい会社の品質ほど上げるのに金がかかる。
   const costPerPoint=Math.max(1,QUALITY_COST_FRACTION_PER_POINT*Math.max(0,finite(deal.enterpriseValue)));
@@ -577,7 +580,7 @@ function expandPortfolioStore(state,fundID,dealID){
   const {deal}=findFundAndDeal(state,fundID,dealID);
   if(!deal||deal.status!=='active')return null;
   const pc=deal.portfolioCompany;
-  const cost=EXPANSION_COST_FRACTION*finite(deal.enterpriseValue);
+  const cost=ceilYen(EXPANSION_COST_FRACTION*finite(deal.enterpriseValue));
   if(pc.cash<cost)return null;
   pc.cash-=cost;
   pc.storeCount+=1;
@@ -609,7 +612,7 @@ function reformProcurement(state,fundID,dealID,level){
   const pc=deal.portfolioCompany;
   const next=clamp(finite(level,pc.procurementReform),0,1);
   const increase=Math.max(0,next-finite(pc.procurementReform));
-  const cost=increase*PROCUREMENT_COST_FRACTION*Math.max(0,finite(deal.enterpriseValue));
+  const cost=ceilYen(increase*PROCUREMENT_COST_FRACTION*Math.max(0,finite(deal.enterpriseValue)));
   if(cost>pc.cash)return null;
   pc.cash-=cost;
   pc.procurementReform=next;
@@ -648,7 +651,7 @@ function renewProductMix(state,fundID,dealID,level){
   const next=clamp(finite(level,1),0,1);
   const increase=Math.max(0,next-finite(pc.productMixLevel));
   if(increase<=0)return null;
-  const cost=increase*PRODUCT_MIX_COST_FRACTION*Math.max(0,finite(deal.enterpriseValue));
+  const cost=ceilYen(increase*PRODUCT_MIX_COST_FRACTION*Math.max(0,finite(deal.enterpriseValue)));
   if(cost>pc.cash)return null;
   pc.cash-=cost;
   pc.productMixLevel=next;

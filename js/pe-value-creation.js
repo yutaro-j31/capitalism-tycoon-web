@@ -83,6 +83,7 @@ const INITIATIVES=Object.freeze([
 
 const finite=(value,fallback=0)=>Number.isFinite(Number(value))?Number(value):fallback;
 const clamp=(value,min,max)=>Math.max(min,Math.min(max,value));
+const ceilYen=value=>modules.economicOperation.ceilYen(finite(value));
 const yen=value=>`${Math.round(finite(value)).toLocaleString('ja-JP')}円`;
 
 // Same FNV-1a derivation used elsewhere in the codebase for save-stable pseudo-values.
@@ -109,13 +110,13 @@ function issueOf(deal){
 }
 
 function initiativeCost(deal){
-  return Math.round(Math.max(MIN_INITIATIVE_COST,finite(deal?.investedAmount)*INITIATIVE_COST_RATE));
+  return ceilYen(Math.max(MIN_INITIATIVE_COST,finite(deal?.investedAmount)*INITIATIVE_COST_RATE));
 }
 
 // Fixed once at acquisition so the weekly headline number moves only because of
 // improvementScore, not because of unrelated valuation noise.
 function weeklyRevenueFor(deal){
-  return Math.round(Math.max(0,finite(deal?.investedAmount))*WEEKLY_REVENUE_RATE);
+  return ceilYen(Math.max(0,finite(deal?.investedAmount))*WEEKLY_REVENUE_RATE);
 }
 
 function marginFor(deal){
@@ -127,7 +128,7 @@ function marginFor(deal){
 // from investedAmount in that case rather than treating the deal as revenue-less.
 function weeklyProfitFor(deal){
   const revenue=finite(deal?.weeklyRevenue)>0?finite(deal.weeklyRevenue):weeklyRevenueFor(deal);
-  return Math.round(revenue*marginFor(deal));
+  return ceilYen(revenue*marginFor(deal));
 }
 
 function matches(deal,initiativeID){
@@ -164,7 +165,7 @@ function exitMultiplier(deal){
 }
 
 function exitValue(deal){
-  return Math.round(finite(deal?.currentValuation)*exitMultiplier(deal));
+  return ceilYen(finite(deal?.currentValuation)*exitMultiplier(deal));
 }
 
 // How many OTHER active deals of the same owner account currently have an initiative in
@@ -203,7 +204,7 @@ function plan(state,deal){
     issue,
     cost,
     exitValue:exitValue(deal),
-    exitPremium:exitValue(deal)-Math.round(finite(deal?.currentValuation)),
+    exitPremium:exitValue(deal)-ceilYen(deal?.currentValuation),
     exitMultiplier:exitMultiplier(deal),
     affordable:gate.ok&&finite(state?.[ownerAccount==='company'?'companyCash':'personalCash'])>=cost,
     blockedReason:gate.ok?'':gate.reason,
