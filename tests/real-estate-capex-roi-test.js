@@ -1,6 +1,7 @@
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const vm = require('node:vm');
+const economicOperation=(()=>{const ctx={};ctx.globalThis=ctx;ctx.__capitalismTycoonModules={};vm.runInNewContext(fs.readFileSync('js/economic-operation.js','utf8'),ctx);return ctx.__capitalismTycoonModules.economicOperation;})();
 
 const src = fs.readFileSync('js/real-estate-capex-roi.js', 'utf8');
 const ui = fs.readFileSync('js/real-estate-capex-roi-ui.js', 'utf8');
@@ -62,6 +63,7 @@ const modules = {
   realEstateDevelopment: development,
   realEstateRentPricing: pricing,
 };
+modules.economicOperation = economicOperation;
 vm.runInNewContext(src, { globalThis: { __capitalismTycoonModules: modules } });
 const mod = modules.realEstateCapexROI;
 
