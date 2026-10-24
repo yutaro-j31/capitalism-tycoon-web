@@ -1,11 +1,12 @@
 'use strict';
 const assert=require('node:assert/strict'),fs=require('node:fs'),vm=require('node:vm'),path=require('node:path');
+const economicOperation=(()=>{const ctx={};ctx.globalThis=ctx;ctx.__capitalismTycoonModules={};vm.runInNewContext(fs.readFileSync(path.join(__dirname,'..','js','economic-operation.js'),'utf8'),ctx);return ctx.__capitalismTycoonModules.economicOperation;})();
 const code=fs.readFileSync(path.join(__dirname,'../js/group-restructuring-candidates.js'),'utf8'),events=[];
 class Engine{constructor(g){this.g=g;this.normalize();}normalize(){}fail(m){this.lastError=m;return false;}runTransaction(fn){const before=structuredClone(this.g);try{const result=fn();if(!result)this.g=before;return result;}catch(error){this.g=before;throw error;}}sellListedSubsidiaryStake(id,amount){const sub=this.g.subsidiaries.find(row=>row.id===id);if(this.g.week<sub.ipoOfferTerms.lockupUntilWeek)return false;const sold=Math.min(amount,sub.ownership-.1),book=Math.round(sub.carryingBookValue*sold/sub.ownership),price=Math.round(sub.valuation*sold*.98);sub.ownership=Math.round((sub.ownership-sold)*1e6)/1e6;sub.carryingBookValue-=book;this.g.companyCash+=price;finance.event(this.g,'assetSale',price,{cashEffect:price,assetEffect:-book,profitEffect:price-book});return sold>0;}}
 const finance={event:(state,type,amount,detail)=>events.push({type,amount,...detail})};
 const performance={summarize:state=>(state.interSubsidiarySynergyHistory||[]).map(r=>({pairKey:r.pairKey,measuredRounds:1,annualROI:r.annualROI,rounds:1,annualizedProfitLift:r.annualizedProfitLift||0,valuationLift:r.valuationLift||0}))};
 const modules={engine:{TycoonEngine:Engine},finance,playerEngineBridge:{getEngine:()=>null},interSubsidiarySynergyPerformance:performance};
-const context={globalThis:{__capitalismTycoonModules:modules,confirm:()=>true}};context.globalThis.globalThis=context.globalThis;vm.runInNewContext(code,context);
+modules.economicOperation=economicOperation;const context={globalThis:{__capitalismTycoonModules:modules,confirm:()=>true}};context.globalThis.globalThis=context.globalThis;vm.runInNewContext(code,context);
 const mod=modules.groupRestructuringCandidates;
 function base(){return {configured:true,selectedTab:'venture',week:100,saveVersion:9,companyCash:500_000_000,personalCash:12_000_000,subsidiaries:[
  {id:'loss',name:'赤字社',ownership:1,valuation:20_000_000,carryingBookValue:80_000_000,subsidiaryCash:5_000_000,weeklyProfit:-2_000_000,growth:.01,risk:.8,lossMakingWeeks:40,integrationSynergyRounds:2,integrationSynergyInvested:10_000_000},

@@ -753,6 +753,18 @@ const SCENARIOS = [
     for (const kind of KINDS) assert.ok(rows.some(row => row.sourceType === kind), `R3c-3 scenario posts ${kind}`);
     return { rows, state: { companyCash: g.companyCash } };
   } },
+  { slice: 'R6d', label: 'group restructuring sale proceeds', run() {
+    const { engine } = newGame(3401), g = engine.g;
+    g.subsidiaries = [{ id: 'r6d-sale', name: 'R6d売却', ownership: 1, valuation: 123_456_787, carryingBookValue: 50_000_000, subsidiaryCash: 3_000_001, weeklyProfit: 10_000, growth: .02, risk: .2, status: 'active' }];
+    engine.normalize();
+    const count = g.finance.transactions.length;
+    const sale = engine.groupRestructuringSalePreview('r6d-sale');
+    assert.equal(sale.expectedSale, Math.ceil(123_456_787 * .92), 'proceeds = ceil(stake value × .92)');
+    assert.notEqual(engine.executeGroupRestructuringSale('r6d-sale'), false);
+    const rows = rowsSince(g, count, row => row.sourceType === 'groupRestructuringSale');
+    assert.equal(rows.length, 1, 'the sale posts');
+    return { rows, state: { companyCash: g.companyCash } };
+  } },
 ];
 for (const scenario of SCENARIOS) {
   const { rows, state = {} } = scenario.run();
