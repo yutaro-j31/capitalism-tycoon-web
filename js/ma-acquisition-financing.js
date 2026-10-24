@@ -10,6 +10,7 @@
   const arr = value => Array.isArray(value) ? value : [];
   const clamp = (value, min = 0, max = 1) => Math.max(min, Math.min(max, nf(value, min)));
   const round = value => Math.round(nf(value));
+  const ceilYen = value => modules.economicOperation.ceilYen(nf(value));
   const clone = value => typeof structuredClone === 'function' ? structuredClone(value) : JSON.parse(JSON.stringify(value));
   const TERMINAL_LOAN_STATUSES = new Set(['inactive', 'repaid', 'closed', 'paid', 'settled']);
 
@@ -85,7 +86,7 @@
     const status = String(state?.finance?.fundingConcentration?.status || 'diversified');
     return ['diversified', 'watch', 'concentrated'].includes(status) ? status : 'diversified';
   }
-  function estimatedFeeReserve(price) { return round(Math.max(0, nf(price)) * THRESHOLDS.equityFeeRate); }
+  function estimatedFeeReserve(price) { return ceilYen(Math.max(0, nf(price)) * THRESHOLDS.equityFeeRate); }
 
   function buildCapacity(state, deal, helpers = {}) {
     const method = deal?.acceptedTerms?.method || deal?.currentOffer?.method || 'friendly';
@@ -128,7 +129,7 @@
   }
 
   function feeFor(plan) {
-    return round(nf(plan?.termLoanAmount) * THRESHOLDS.termFeeRate + nf(plan?.bridgeLoanAmount) * THRESHOLDS.bridgeFeeRate +
+    return ceilYen(nf(plan?.termLoanAmount) * THRESHOLDS.termFeeRate + nf(plan?.bridgeLoanAmount) * THRESHOLDS.bridgeFeeRate +
       nf(plan?.requestedEquityAmount, nf(plan?.equityRaiseAmount)) * THRESHOLDS.equityFeeRate);
   }
   function buildPlanKey(deal, plan) {

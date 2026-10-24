@@ -777,6 +777,28 @@ const SCENARIOS = [
     assert.equal(rows.length, 1, 'the sale posts');
     return { rows, state: { companyCash: g.companyCash } };
   } },
+  { slice: 'R6a', label: 'M&A offer price and advisory fee', run() {
+    const { engine, modules } = newGame(3601), g = engine.g;
+    Object.assign(g, { companyCash: 2_000_000_000, stockPrice: 1000, sharesOut: 1_000_000 });
+    g.departments.investment = { established: true };
+    for (const role of ['CEO', 'CSO', 'CFO']) g.executives[role] = { role, skill: 90 };
+    g.acquisitionTargets = [{ id: 'r6a-target', name: 'R6a買収先', domain: '物流', valuation: 100_000_000, sales: 80_000_000, operatingProfit: 9_000_000, growth: .08, risk: .18, synergy: .12, friendly: true, expiresWeek: g.week + 30 }];
+    engine.normalize();
+    assert.ok(engine.openMADealRoom('r6a-target'));
+    const deal = g.maDealRooms.find(d => d.targetID === 'r6a-target');
+    engine.advanceMADealRound(deal.id);
+    assert.ok(engine.startMADueDiligence(deal.id, 'screening'));
+    g.week += 1;
+    modules.maDealRoom.processDealWeek(g, g.week);
+    engine.advanceMADealRound(deal.id);
+    const count = g.finance.transactions.length;
+    assert.ok(engine.submitMAOffer(deal.id, { method: 'friendly', offerPrice: 150_000_123.4 }));
+    assert.equal(deal.currentOffer.offerPrice, 150_000_124, 'the offer price rounds up');
+    const rows = rowsSince(g, count, row => row.sourceType === 'maAdvisory');
+    assert.equal(rows.length, 1, 'the advisory fee posts');
+    assert.equal(rows[0].amount, Math.ceil(150_000_124 * .0015), 'advisory fee = ceil(price × 0.15%)');
+    return { rows, state: { companyCash: g.companyCash } };
+  } },
 ];
 for (const scenario of SCENARIOS) {
   const { rows, state = {} } = scenario.run();
