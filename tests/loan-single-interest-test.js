@@ -32,7 +32,7 @@ function assertValid(finance, g, label) {
 
 const interestRows = (g, from) => g.finance.transactions.slice(from).filter(t => t.category === 'interestExpense');
 // service() rounds each payment down to whole yen.
-const contractual = loan => Math.floor(loan.outstandingPrincipal * loan.interestRate / 52);
+const contractual = loan => Math.ceil(loan.outstandingPrincipal * loan.interestRate / 52); // whole yen, rounded up (YEN_CEILING_ROUNDING_CONTRACT §8 R5a)
 
 function assertContractualOnly(engine, finance, loan, label, weeks) {
   const g = engine.g;
