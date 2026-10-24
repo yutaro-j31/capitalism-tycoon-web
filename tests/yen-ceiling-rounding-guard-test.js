@@ -682,6 +682,25 @@ const SCENARIOS = [
     assert.equal(modules.finance.buybackReconciliationStatus(g).ok, true);
     return { rows, state: { companyCash: g.companyCash, treasuryBook: g.finance.balances.treasuryStock } };
   } },
+  { slice: 'R5c-2', label: 'quarterly dividend gross and founder net', run() {
+    const { engine, modules } = newGame(2801), g = engine.g, finance = modules.finance;
+    Object.assign(g, { week: 12, publicCompany: true, sharesOut: 1_000_000, founderShares: 300_000, treasuryBuybackShares: 100_000, stockPrice: 100, ticker: 'YEND' });
+    g.market = g.market.filter(row => row.id !== 'YEND');
+    g.market.push({ id: 'YEND', name: g.companyName, sector: 'コングロマリット', price: 100, previous: 100, dividendYield: 0, volatility: 0, trend: 0, marketCap: 100_000_000, per: 20, pbr: 2, issuedShares: 1_000_000, dividendPerShare: 0, shareholders: {} });
+    engine.updateOwnershipRatios();
+    g.finance = finance.defaultFinanceState(g); g.finance.ledgerCoverageVersion = finance.LEDGER_COVERAGE_VERSION; finance.ensureFinance(g);
+    const count = g.finance.transactions.length;
+    assert.equal(engine.setDividend(.123456789), true);
+    const personalBefore = g.personalCash;
+    assert.equal(engine.advanceWeek(false), true);
+    const row = g.finance.transactions.slice(count).find(t => t.category === 'dividend');
+    assert.ok(row, 'the quarter pays a dividend');
+    assert.equal(row.amount, Math.ceil(.123456789 * 900_000), 'gross = ceil(per share × outstanding)');
+    const d = row.dividendDistribution;
+    assert.equal(d.personalNet, Math.min(Math.ceil(d.evidence.gross * d.founderRatio * .797), Math.floor(d.evidence.gross * d.founderRatio)));
+    assert.equal(finance.dividendReconciliationStatus(g).ok, true);
+    return { rows: [row], state: { founderNet: d.personalNet, payerReduction: d.payerReduction } };
+  } },
 ];
 for (const scenario of SCENARIOS) {
   const { rows, state = {} } = scenario.run();
