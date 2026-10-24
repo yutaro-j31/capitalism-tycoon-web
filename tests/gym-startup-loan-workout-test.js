@@ -22,6 +22,7 @@ function newContext(){
   context.globalThis=context;
   const modules={engine:{TycoonEngine:Engine},playerEngineBridge:{getEngine:()=>null},deterministicEconomicFoundation:{ensure:s=>s}};
   context.__capitalismTycoonModules=modules;
+  vm.runInNewContext(fs.readFileSync(path.join(ROOT,'js/economic-operation.js'),'utf8'),context);
   vm.runInNewContext(fs.readFileSync(path.join(ROOT,'js/finance.js'),'utf8'),context);
   vm.runInNewContext(fs.readFileSync(path.join(ROOT,'js/bank-loans-covenants.js'),'utf8'),context);
   return {finance:modules.finance,mod:modules.bankLoansCovenants};
