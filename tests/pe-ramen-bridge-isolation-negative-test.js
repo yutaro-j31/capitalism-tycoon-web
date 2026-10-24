@@ -87,7 +87,7 @@ assert.equal(ops.settlePortfolioOperatingWeek(deal,directResult),true,'direct ra
 assert.equal(experiment.fund.cash,poolsBeforeDirect.fundCash,'direct PE ramen settlement never moves fund.cash');
 assert.equal(experiment.engine.g.companyCash,poolsBeforeDirect.companyCash,'direct PE ramen settlement never moves self companyCash');
 assert.equal(experiment.engine.g.personalCash,poolsBeforeDirect.personalCash,'direct PE ramen settlement never moves personalCash');
-assert(Math.abs((deal.portfolioCompany.cash-poolsBeforeDirect.portfolioCash)-directResult.profit)<1e-6,'direct PE ramen settlement moves only portfolioCompany.cash by profit');
+assert.equal(deal.portfolioCompany.cash-poolsBeforeDirect.portfolioCash,Math.ceil(directResult.profit),'direct PE ramen settlement moves only portfolioCompany.cash by profit');
 assert.deepEqual(selfFingerprint(experiment.engine,experiment.storeID),selfBeforeDirect,'direct PE ramen settlement cannot mutate self demand/inventory/supply/finance state');
 assert.equal(experiment.random.calls(),callsBeforeDirect,'direct PE ramen calculate/settle consumes no simulation RNG');
 assert.equal(experiment.random.calls(),control.random.calls(),'direct PE ramen calculate/settle does not desynchronize RNG from Control');

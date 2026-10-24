@@ -261,7 +261,7 @@ function resolveInitiative(modules, engine) {
     Math.abs(modules.peValueCreation.exitMultiplier(deal) - (1 + modules.peValueCreation.EXIT_PREMIUM_AT_FULL)) < 1e-9,
     '改善度100で上乗せが最大になる'
   );
-  assert.equal(modules.peValueCreation.exitValue(deal), Math.round(base * 1.5), '最大時のEXIT価格');
+  assert.equal(modules.peValueCreation.exitValue(deal), Math.ceil(base * 1.5), '最大時のEXIT価格');
 
   deal.improvementScore = 60;
   const mid = modules.peValueCreation.exitMultiplier(deal);
@@ -353,7 +353,7 @@ function resolveInitiative(modules, engine) {
   const deal = openDeal(engine);
   const before = engine.peValueCreationPlan(deal.id);
   assert.equal(before.exitPremium, 0, '未改善では上乗せ0と表現される');
-  assert.equal(before.exitValue, Math.round(deal.currentValuation));
+  assert.equal(before.exitValue, Math.ceil(deal.currentValuation));
 
   deal.improvementScore = modules.peValueCreation.MAX_SCORE;
   const after = engine.peValueCreationPlan(deal.id);

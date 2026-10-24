@@ -21,9 +21,9 @@ function parityFixture(businessID='gym',id='parity-deal'){
   assert.deepEqual(plain({fund,deal}),before,'calculation is pure');assert.equal(randomCalls,callsBefore,'calculation consumes no RNG');
   assert.equal(result.week,80);assert.equal(result.source,'generic');assert.equal(result.revenue,5199818.7531460365);assert.equal(result.profit,3768109.916921017);
   const cashBefore=pc.cash;assert.equal(ops.settlePortfolioOperatingWeek(deal,result),true);
-  assert.equal(pc.weeklyRevenue,5199818.7531460365);assert.equal(pc.weeklyProfit,3768109.916921017);assert.equal(pc.cash-cashBefore,(cashBefore+3768109.916921017)-cashBefore);assert.equal(pc.improvementScore,55);
-  assert.equal(ops.settlePortfolioOperatingWeek(deal,result),false,'same result cannot settle twice');assert.equal(pc.cash-cashBefore,(cashBefore+3768109.916921017)-cashBefore);
-  ops.processDealWeek(fund,deal,80);assert.equal(pc.cash-cashBefore,(cashBefore+3768109.916921017)-cashBefore,'same-week process is also idempotent');
+  assert.equal(pc.weeklyRevenue,5199819);assert.equal(pc.weeklyProfit,3768110);assert.equal(pc.cash-cashBefore,(cashBefore+3768110)-cashBefore);assert.equal(pc.improvementScore,55);
+  assert.equal(ops.settlePortfolioOperatingWeek(deal,result),false,'same result cannot settle twice');assert.equal(pc.cash-cashBefore,(cashBefore+3768110)-cashBefore);
+  ops.processDealWeek(fund,deal,80);assert.equal(pc.cash-cashBefore,(cashBefore+3768110)-cashBefore,'same-week process is also idempotent');
 }
 for(const businessID of ['ramen','conveni','gym','realEstateAgency','productVentures','non-pillar']){
   const {deal}=parityFixture(businessID,`fallback-${businessID}`);
@@ -48,10 +48,10 @@ for(const businessID of ['ramen','conveni','gym','realEstateAgency','productVent
   assert.equal(randomCalls,callsBefore,'gym calculation consumes no simulation RNG');
   const cashBefore=deal.portfolioCompany.cash;
   assert.equal(ops.settlePortfolioOperatingWeek(deal,neutral),true);
-  assert.equal(deal.portfolioCompany.cash-cashBefore,neutral.profit);
+  assert.equal(deal.portfolioCompany.cash-cashBefore,Math.ceil(neutral.profit));
   assert.equal(deal.portfolioCompany.gymOperatingState.gymMembership.lastWeek.week,2,'single settlement persists the detached membership state');
   assert.equal(ops.settlePortfolioOperatingWeek(deal,neutral),false,'gym weekly result cannot settle twice');
-  assert.equal(deal.portfolioCompany.cash-cashBefore,neutral.profit);
+  assert.equal(deal.portfolioCompany.cash-cashBefore,Math.ceil(neutral.profit));
 
   ops.setPriceMultiplier(engine.g,fund.id,deal.id,1.25);
   const beforePriceCalc=plain(engine.g),callsBeforePrice=randomCalls;
@@ -86,10 +86,10 @@ for(const businessID of ['ramen','conveni','gym','realEstateAgency','productVent
   assert.equal(randomCalls,callsBefore,'conveni calculation consumes no simulation RNG');
   const cashBefore=deal.portfolioCompany.cash;
   assert.equal(ops.settlePortfolioOperatingWeek(deal,neutral),true);
-  assert.equal(deal.portfolioCompany.cash-cashBefore,neutral.profit);
+  assert.equal(deal.portfolioCompany.cash-cashBefore,Math.ceil(neutral.profit));
   assert(Object.keys(deal.portfolioCompany.conveniOperatingState.lastWeekByStoreID).length>0,'single settlement persists the detached merchandising state');
   assert.equal(ops.settlePortfolioOperatingWeek(deal,neutral),false,'conveni weekly result cannot settle twice');
-  assert.equal(deal.portfolioCompany.cash-cashBefore,neutral.profit);
+  assert.equal(deal.portfolioCompany.cash-cashBefore,Math.ceil(neutral.profit));
 
   ops.setPriceMultiplier(engine.g,fund.id,deal.id,1.25);
   const beforePriceCalc=plain(engine.g),callsBeforePrice=randomCalls;

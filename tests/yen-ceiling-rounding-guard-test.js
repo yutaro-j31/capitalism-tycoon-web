@@ -824,6 +824,28 @@ const SCENARIOS = [
     assert.ok(rows.some(row => row.sourceType === 'peManagementFee'), 'the management fee posts');
     return { rows, state: { companyCash: g.companyCash } };
   } },
+  { slice: 'R6b-2', label: 'PE weekly portfolio result, lever spends and value-creation amounts', ledger: false, run() {
+    const { engine, modules } = newGame(3801), g = engine.g, pf = modules.peFund, ops = modules.pePortfolioOperations;
+    const count = g.finance.transactions.length;
+    pf.recordExit(g, { exitType: 'buyout', realizedAmount: 200_000_000, investedAmount: 8_000_000, foundedWeek: 1, exitedWeek: 52, profitableWeekStreak: 260, employeeCount: 30 });
+    const fund = pf.createFund(g, { size: 10_000_000_000, gpCommit: 0, terms: { fee: .02, carry: .2, hurdle: .08 }, y0: g.week });
+    const deal = ops.acquirePillarCompany(g, fund.id, { businessID: 'gym', enterpriseValue: 1_234_567_891, useCoinvest: false, week: g.week });
+    assert.ok(deal?.portfolioCompany, 'R6b-2 scenario acquires a portfolio company');
+    const pc = deal.portfolioCompany;
+    pc.cash = 2_000_000_000;
+    assert.ok(ops.settlePortfolioOperatingWeek(deal, { week: pc.lastProcessedWeek + 1, profit: 12_345.6, revenue: 45_678.9 }));
+    assert.equal(pc.weeklyProfit, 12_346, 'the weekly result rounds up once');
+    const preview = ops.previewManagementAction(g, fund.id, deal.id, 'expandPortfolioStore');
+    assert.equal(preview.cost, Math.ceil(1_234_567_891 * .05), 'expansion cost = ceil(EV × 5%)');
+    const before = pc.cash;
+    assert.ok(ops.expandPortfolioStore(g, fund.id, deal.id));
+    assert.equal(before - pc.cash, preview.cost, 'the expansion spends what the preview shows');
+    const vc = modules.peValueCreation, legacyDeal = { investedAmount: 123_456_701, currentValuation: 123_456_701.3, improvementScore: 90 };
+    assert.equal(vc.initiativeCost(legacyDeal), Math.ceil(123_456_701 * .02), 'initiative cost = ceil(invested × 2%)');
+    assert.equal(vc.weeklyRevenueFor(legacyDeal), Math.ceil(123_456_701 * .03), 'weekly revenue = ceil(invested × 3%)');
+    const rows = rowsSince(g, count, () => true);
+    return { rows, state: { portfolioCash: pc.cash, fundCash: fund.cash, weeklyRevenue: pc.weeklyRevenue, legacyWeeklyProfit: vc.weeklyProfitFor(legacyDeal), legacyExitValue: vc.exitValue(legacyDeal) } };
+  } },
 ];
 for (const scenario of SCENARIOS) {
   const { rows, state = {} } = scenario.run();
