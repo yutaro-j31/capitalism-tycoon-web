@@ -654,6 +654,20 @@ const SCENARIOS = [
     assert.equal(rows.find(row => row.category === 'interestExpense').amount, expectedInterest, 'interest rounds up');
     return { rows, state: { companyCash: g.companyCash, companyDebt: g.companyDebt } };
   } },
+  { slice: 'R5b', label: 'debt maturity principal and refinancing fee', run() {
+    const { engine, modules } = newGame(2601), g = engine.g, debtService = modules.playerDebtService;
+    assert.ok(engine.borrow(33_333_331, 'company'));
+    const count = g.finance.transactions.length;
+    const r = debtService.refinancingState(engine);
+    r.nextMaturityWeek = g.week;
+    const debt = g.companyDebt;
+    debtService.processDebtMaturity(engine);
+    const rows = rowsSince(g, count, row => row.sourceType === 'debt-refinancing');
+    const principal = rows.find(row => row.category === 'debtRepayment');
+    assert.ok(principal, 'the maturity repays principal');
+    assert.equal(principal.amount, Math.min(debt, Math.ceil(debt * r.principalShare)), 'required principal rounds up');
+    return { rows, state: { companyCash: g.companyCash, companyDebt: g.companyDebt } };
+  } },
 ];
 for (const scenario of SCENARIOS) {
   const { rows, state = {} } = scenario.run();
