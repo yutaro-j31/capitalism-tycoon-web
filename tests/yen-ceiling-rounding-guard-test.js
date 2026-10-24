@@ -719,6 +719,24 @@ const SCENARIOS = [
     assert.equal(rows.find(row => row.sourceType === 'property-insurance-premium').amount, Math.ceil(123_456_789.3 * .00018), 'premium = ceil(value × rate)');
     return { rows, state: { companyCash: g.companyCash, premiumPaid: prop.insurancePremiumPaid, lossTotal: prop.insuranceLossTotal, payoutTotal: prop.insurancePayoutTotal } };
   } },
+  { slice: 'R3c-2', label: 'property maintenance reserve, repair and management fee', run() {
+    const { engine, modules } = newGame(3201), g = engine.g;
+    const [prop] = g.properties.filter(p => !p.owner && p.buildingType);
+    Object.assign(prop, { owner: 'company', marketValue: 123_456_789.3, value: 123_456_789.3, buildingCondition: 40 });
+    modules.realEstate.ensure(g);
+    assert.ok(engine.setPropertyMaintenancePolicy(prop.id, 'preventive'));
+    assert.ok(engine.setPropertyManagementPlan(prop.id, 'standard'));
+    const count = g.finance.transactions.length;
+    g.week += 1;
+    modules.realEstatePropertyMaintenance.processWeek(engine);
+    modules.realEstatePropertyManagement.processWeek(engine);
+    engine.repairProperty(prop.id);
+    const KINDS = ['property-maintenance-reserve', 'property-management', 'property-maintenance-repair'];
+    const rows = rowsSince(g, count, row => KINDS.includes(row.sourceType));
+    for (const kind of KINDS) assert.ok(rows.some(row => row.sourceType === kind), `R3c-2 scenario posts ${kind}`);
+    assert.equal(rows.find(row => row.sourceType === 'property-management').amount, Math.ceil(123_456_789.3 * .00012), 'fee = ceil(value × rate)');
+    return { rows, state: { companyCash: g.companyCash, reserve: prop.maintenanceReserve, spent: prop.maintenanceSpentTotal, managementFee: prop.managementFeePaid } };
+  } },
 ];
 for (const scenario of SCENARIOS) {
   const { rows, state = {} } = scenario.run();
