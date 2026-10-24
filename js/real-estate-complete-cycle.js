@@ -4,7 +4,7 @@ const modules=globalThis.__capitalismTycoonModules;
 if(!modules?.engine?.TycoonEngine||!modules?.realEstateCapexActuals)throw new Error('engine and real-estate capex actuals are required.');
 if(modules.realEstateCompleteCycle)throw new Error('real-estate-complete-cycle.js already registered.');
 const Engine=modules.engine.TycoonEngine,finance=modules.finance,VERSION=1,HISTORY_LIMIT=260;
-const n=(v,d=0)=>Number.isFinite(Number(v))?Number(v):d,round=v=>Math.round(n(v)*100)/100,ceilYen=v=>modules.economicOperation.ceilYen(n(v)),clamp=(v,a,b)=>Math.min(b,Math.max(a,n(v,a))),week=g=>Math.max(1,Math.floor(n(g.week,1)));
+const n=(v,d=0)=>Number.isFinite(Number(v))?Number(v):d,round=v=>Math.round(n(v)*100)/100/* not-money: rates, indices, ratios and valuation estimates */,ceilYen=v=>modules.economicOperation.ceilYen(n(v)),clamp=(v,a,b)=>Math.min(b,Math.max(a,n(v,a))),week=g=>Math.max(1,Math.floor(n(g.week,1)));
 // FNV-1a alone barely moves its top bits when only the week at the end of the key changes, so
 // the macro shock, each rival's decision and the disaster roll were almost the same week after
 // week (lag-1 correlation 0.88). With seed 1 in every game, every player's first disaster came
@@ -68,12 +68,13 @@ const baseGenericRepay=Engine.prototype.repay;
 if(typeof baseGenericRepay==='function')Engine.prototype.repay=function(amount,account='company'){
   if(account==='personal'){
     const total=Math.max(0,n(this.g.personalDebt));
-    const requested=round(Math.min(total,Math.max(0,n(amount))));
+    // Mirrors the generic repay's own request: ceilYen, then capped at the debt.
+    const requested=Math.min(total,ceilYen(Math.max(0,n(amount))));
     const personalSecured=(Array.isArray(this.g.realEstateMarket?.loans)?this.g.realEstateMarket.loans:[])
       .filter(l=>l?.owner==='personal'&&l.accountingTracked===true
         &&l.status!=='paid'&&l.status!=='refinanced'&&n(l.balance)>0)
       .reduce((sum,l)=>sum+Math.max(0,n(l.balance)),0);
-    const unsecured=round(Math.max(0,total-personalSecured));
+    const unsecured=Math.max(0,total-personalSecured);
     if(requested>unsecured)return this.fail('不動産担保ローンの元本は専用の繰上返済から返済してください。');
   }
   return baseGenericRepay.apply(this,arguments);

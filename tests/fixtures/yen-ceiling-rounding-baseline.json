@@ -8,7 +8,6 @@
   "js/player-debt-service.js",
   "js/real-estate-capex-actuals.js",
   "js/real-estate-capex-roi.js",
-  "js/real-estate-complete-cycle.js",
   "js/real-estate-insurance-claims.js",
   "js/real-estate-insurance-risk.js",
   "js/real-estate-portfolio-dashboard.js",
