@@ -5,9 +5,6 @@
  "pendingFiles": [
   "js/difficulty-scenario-balance.js",
   "js/finance.js",
-  "js/real-estate-portfolio-dashboard.js",
-  "js/real-estate-risk-mitigation.js",
-  "js/real-estate-safety-certification.js",
   "js/save-storage.js"
  ]
 }
