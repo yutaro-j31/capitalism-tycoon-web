@@ -12,7 +12,11 @@ const MAX_CREDIT_HISTORY=104;
 const CREDIT_STATUSES=Object.freeze(['prime','standard','watch','restricted']);
 const finite=(value,fallback=0)=>Number.isFinite(Number(value))?Number(value):fallback;
 const clamp=(value,min,max)=>Math.max(min,Math.min(max,finite(value,min)));
+// Contract §3: charges, requests and payments round up; limits (credit limit, available credit, the cash above the
+// buffer) round down. roundMoney only normalises the reporting rows in creditHistory and performance snapshots.
 const roundMoney=value=>Math.max(0,Math.round(finite(value)));
+const ceilMoney=value=>Math.max(0,globalThis.__capitalismTycoonModules.economicOperation.ceilYen(finite(value)));
+const floorMoney=value=>Math.max(0,Math.floor(finite(value)));
 
 function strategy(company){return competitor.STRATEGIES[company.strategyID]||competitor.STRATEGIES.balanced;}
 function operatingCost(company){return Math.max(1,finite(company.weeklyFixedCost)+finite(company.weeklyMarketingCost)+finite(company.weeklyRDCost)+finite(company.weeklyInterestCost)+finite(company.weeklyCapacityCost));}
@@ -26,7 +30,7 @@ function calculateCreditLimit(state,company){
  const earningsCapacity=avgRevenue*6+Math.max(0,avgProfit)*10;
  const base=Math.max(2000000,operatingCost(company)*26+assetProxy*.35+earningsCapacity);
  const scoreFactor=.35+score/100*.9,strategyFactor=.75+s.debtTolerance*.6,distressFactor=company.status==='distressed'?.55:company.status==='turnaround'?.65:company.status==='defending'?.85:1;
- return roundMoney(Math.max(1000000,base*scoreFactor*strategyFactor*distressFactor));
+ return floorMoney(Math.max(1000000,base*scoreFactor*strategyFactor*distressFactor));
 }
 function normalizeCreditHistory(rows){
  const byWeek=new Map();
@@ -36,10 +40,10 @@ function normalizeCreditHistory(rows){
 function refreshCreditMetrics(state,company){
  company.creditScore=clamp(company.creditScore,0,100);
  company.creditLimit=calculateCreditLimit(state,company);
- company.availableCredit=roundMoney(Math.max(0,company.creditLimit-finite(company.debt)));
- company.overCreditLimit=roundMoney(Math.max(0,finite(company.debt)-company.creditLimit));
+ company.availableCredit=floorMoney(Math.max(0,company.creditLimit-finite(company.debt)));
+ company.overCreditLimit=ceilMoney(Math.max(0,finite(company.debt)-company.creditLimit));
  company.cashRunwayWeeks=Math.max(0,finite(company.cash)/operatingCost(company));
- company.scheduledPrincipalPayment=roundMoney(Math.min(finite(company.debt),Math.max(finite(company.debt)>0?100000:0,finite(company.debt)*.025)));
+ company.scheduledPrincipalPayment=Math.min(finite(company.debt),ceilMoney(Math.max(finite(company.debt)>0?100000:0,finite(company.debt)*.025)));
  company.creditStatus=creditStatus(company.creditScore);
  return company;
 }
@@ -62,7 +66,7 @@ function pushCreditEvent(state,company,type,text,operationID){
  state.competitorEvents=state.competitorEvents.slice(-160);
 }
 function denyBorrow(state,company,action,reason){
- action.requestedValue=roundMoney(action.requestedValue??action.newValue);
+ action.requestedValue=ceilMoney(action.requestedValue??action.newValue);
  action.approvedValue=0;action.newValue=0;action.creditDecision='denied';action.creditReason=reason;action.status='skipped';action.applied=true;action.appliedWeek=state.week;
  company.lastBorrowAttemptWeek=Math.max(0,Math.floor(finite(state.week)));company.lastCreditReason=reason;
  pushCreditEvent(state,company,'borrowDenied',`${company.name}の借入申請を否決：${reason}`,`credit-borrow-${action.actionID}`);
@@ -73,17 +77,17 @@ function preflightBorrowActions(state){
   if(action.actionType!=='borrow'||action.applied||finite(action.effectiveWeek)>finite(state.week))continue;
   const company=(state.competitorStates||[]).find(row=>row.competitorID===action.competitorID);if(!company)continue;
   refreshCreditMetrics(state,company);
-  const requested=roundMoney(action.requestedValue??action.newValue);action.requestedValue=requested;action.creditLimitAtApproval=company.creditLimit;action.availableCreditAtApproval=company.availableCredit;
+  const requested=ceilMoney(action.requestedValue??action.newValue);action.requestedValue=requested;action.creditLimitAtApproval=company.creditLimit;action.availableCreditAtApproval=company.availableCredit;
   if(!company.active||['bankrupt','inactive','withdrawing'].includes(company.status)){denyBorrow(state,company,action,'事業継続条件を満たしていません');continue;}
   if(company.creditStatus==='restricted'){denyBorrow(state,company,action,'信用区分が制限状態です');continue;}
-  const approved=roundMoney(Math.min(requested,company.availableCredit));
+  const approved=Math.min(requested,floorMoney(company.availableCredit));
   if(requested<=0||approved<100000){denyBorrow(state,company,action,'利用可能な与信枠が不足しています');continue;}
   action.approvedValue=approved;action.newValue=approved;action.creditDecision=approved<requested?'partial':'approved';action.creditReason=approved<requested?'与信枠内へ減額承認':'承認';company.lastBorrowAttemptWeek=Math.max(0,Math.floor(finite(state.week)));company.lastCreditReason=action.creditReason;
   pushCreditEvent(state,company,'borrowApproved',`${company.name}が${approved.toLocaleString('ja-JP')}円を借入${approved<requested?'（減額承認）':''}`,`credit-borrow-${action.actionID}`);
  }
 }
 function annotatePendingBorrowActions(state){
- for(const action of state.competitorActions||[]){if(action.actionType!=='borrow'||action.applied)continue;const company=(state.competitorStates||[]).find(row=>row.competitorID===action.competitorID);if(!company)continue;action.requestedValue=roundMoney(action.requestedValue??action.newValue);action.creditLimitAtDecision=company.creditLimit;action.availableCreditAtDecision=company.availableCredit;}
+ for(const action of state.competitorActions||[]){if(action.actionType!=='borrow'||action.applied)continue;const company=(state.competitorStates||[]).find(row=>row.competitorID===action.competitorID);if(!company)continue;action.requestedValue=ceilMoney(action.requestedValue??action.newValue);action.creditLimitAtDecision=company.creditLimit;action.availableCreditAtDecision=company.availableCredit;}
 }
 function upsertCreditHistory(state,company){
  const week=Math.max(0,Math.floor(finite(state.week))),row={week,creditScore:company.creditScore,creditLimit:company.creditLimit,availableCredit:company.availableCredit,debt:roundMoney(company.debt),cash:roundMoney(company.cash),cashRunwayWeeks:company.cashRunwayWeeks,scheduledPrincipalPayment:company.scheduledPrincipalPayment,missedDebtPayments:company.missedDebtPayments,status:company.creditStatus};
@@ -95,7 +99,7 @@ function reviewCompanyCredit(state,company){
  refreshCreditMetrics(state,company);
  let repayment=0,required=0,missed=false;
  if(week>0&&week%13===0&&finite(company.debt)>0&&company.lastPrincipalPaymentWeek!==week){
-  required=company.scheduledPrincipalPayment;const buffer=Math.max(300000,operatingCost(company)*strategy(company).cashBufferWeeks),excess=Math.max(0,finite(company.cash)-buffer);repayment=roundMoney(Math.min(finite(company.debt),required,excess));
+  required=company.scheduledPrincipalPayment;const buffer=Math.max(300000,operatingCost(company)*strategy(company).cashBufferWeeks),excess=Math.max(0,finite(company.cash)-buffer);repayment=Math.min(finite(company.debt),ceilMoney(required),floorMoney(excess));
   if(repayment>0){company.cash=Math.max(0,finite(company.cash)-repayment);company.debt=Math.max(0,finite(company.debt)-repayment);}
   missed=required>0&&repayment<required*.5;company.missedDebtPayments=missed?company.missedDebtPayments+1:Math.max(0,company.missedDebtPayments-(repayment>=required?1:0));company.lastPrincipalPaymentWeek=week;
   pushCreditEvent(state,company,missed?'debtPaymentMissed':'principalPayment',missed?`${company.name}が元本返済条件を未達`:`${company.name}が元本${repayment.toLocaleString('ja-JP')}円を返済`,`credit-payment-${company.competitorID}-${week}`);
