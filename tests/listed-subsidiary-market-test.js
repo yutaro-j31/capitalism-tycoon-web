@@ -16,7 +16,8 @@ class Engine{
   runTransaction(work){const result=work();if(result!==false){this.save();this.emit();}return result;}
 }
 const financeEvents=[];
-const modules={engine:{TycoonEngine:Engine,compactYen:v=>`${Math.round(Number(v)||0).toLocaleString('ja-JP')}円`},finance:{event:(state,type,amount,meta)=>financeEvents.push({state,type,amount,meta})},playerEngineBridge:{getEngine:()=>null}};
+const economicOperation=(()=>{const ctx={};ctx.globalThis=ctx;ctx.__capitalismTycoonModules={};vm.runInNewContext(fs.readFileSync(path.join(__dirname,'../js/economic-operation.js'),'utf8'),ctx);return ctx.__capitalismTycoonModules.economicOperation;})();
+const modules={economicOperation,engine:{TycoonEngine:Engine,compactYen:v=>`${Math.round(Number(v)||0).toLocaleString('ja-JP')}円`},finance:{event:(state,type,amount,meta)=>financeEvents.push({state,type,amount,meta})},playerEngineBridge:{getEngine:()=>null}};
 const context={globalThis:{__capitalismTycoonModules:modules,confirm:()=>true}};context.globalThis.globalThis=context.globalThis;
 vm.runInNewContext(code,context,{filename:'listed-subsidiary-market.js'});
 const mod=modules.listedSubsidiaryMarket;
@@ -36,6 +37,8 @@ const cashBeforeBuy=engine.g.companyCash,ownershipBeforeBuy=engine.g.subsidiarie
 assert.equal(engine.setListedSubsidiaryDividendPolicy('sub-1','income'),true);assert.equal(engine.g.subsidiaries[0].dividendPolicyID,'income');
 const lockedState=state(25),lockedEngine=new Engine(lockedState);assert.equal(lockedEngine.sellListedSubsidiaryStake('sub-1',.05),false);assert.match(lockedEngine.lastError,/ロックアップ/);
 const dividendState=state(52);dividendState.subsidiaries[0].dividendPolicyID='income';dividendState.subsidiaries[0].marketLastWeek=51;const dividendCashBefore=dividendState.companyCash,dividendEngine=new Engine(dividendState);assert.equal(dividendState.companyCash,dividendCashBefore,'construction / load pays no dividend');dividendEngine.updateSubsidiaries();assert.ok(dividendState.companyCash>dividendCashBefore,'quarterly parent dividend must increase company cash inside the week');assert.equal(dividendState.personalCash,personalBefore,'personal cash must remain separated');assert.equal(financeEvents.at(-1).type,'dividendIncome');
+// Codex #1116: the quarterly dividend total rounds up once, is capped at the subsidiary's cash, and the parent receives a share of that same total (never more than the subsidiary pays out).
+{const tiny=state(52);Object.assign(tiny.subsidiaries[0],{dividendPolicyID:'balanced',weeklyProfit:1,ownership:.99,marketLastWeek:51});const tinyEngine=new Engine(tiny);tinyEngine.updateSubsidiaries();const row=tiny.listedSubsidiaryMarketHistory.find(r=>r.type==='dividend');assert.ok(row,'a quarterly dividend is recorded');assert.ok(Number.isSafeInteger(row.totalDividend)&&Number.isSafeInteger(row.parentDividend),'dividend amounts are whole yen');assert.ok(row.parentDividend<=row.totalDividend,`the parent receives at most the dividend the subsidiary pays: ${row.parentDividend} <= ${row.totalDividend}`);}
 const render=mod.renderSection({g:state()});assert.match(render,/上場子会社の資本市場運営/);assert.match(render,/5%売却/);assert.match(render,/高配当/);
 assert.match(launcher,/\.\/js\/listed-subsidiary-market\.js"/,'public launcher must cache-bust listed market module');
 

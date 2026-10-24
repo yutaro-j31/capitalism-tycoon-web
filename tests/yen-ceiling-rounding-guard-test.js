@@ -765,6 +765,18 @@ const SCENARIOS = [
     assert.equal(rows.length, 1, 'the sale posts');
     return { rows, state: { companyCash: g.companyCash } };
   } },
+  { slice: 'R6c', label: 'listed subsidiary secondary sale proceeds', run() {
+    const { engine } = newGame(3501), g = engine.g;
+    g.subsidiaries = [{ id: 'r6c-ipo', name: 'R6c上場', ownership: 1, valuation: 123_456_789, carryingBookValue: 50_000_000, subsidiaryCash: 3_000_001, weeklyProfit: 10_000, growth: .02, risk: .2, status: 'active', publicCompany: true }];
+    engine.normalize();
+    const count = g.finance.transactions.length;
+    const view = engine.subsidiaryIPOSecondarySalePreview('r6c-ipo', .10);
+    assert.equal(view.proceeds, Math.ceil(12_345_679 * .98), 'proceeds = ceil(gross × (1 − market discount))');
+    assert.notEqual(engine.sellSubsidiaryIPOStake('r6c-ipo', .10), false);
+    const rows = rowsSince(g, count, row => row.sourceType === 'sellSubsidiaryIPOStake');
+    assert.equal(rows.length, 1, 'the sale posts');
+    return { rows, state: { companyCash: g.companyCash } };
+  } },
 ];
 for (const scenario of SCENARIOS) {
   const { rows, state = {} } = scenario.run();
