@@ -635,6 +635,25 @@ const SCENARIOS = [
     const rows = rowsSince(g, count, row => ['buyProperty', 'investStartup', 'parentCompanyIPO'].includes(row.sourceType));
     return { rows, state: { personalCash: g.personalCash, companyCash: g.companyCash, landPurchase: land.purchasePrice, lotPurchase: lot.purchasePrice, founderSale, invested: startup.totalInvestedPersonal } };
   } },
+  { slice: 'R5a', label: 'bank loan borrowing and weekly service', run() {
+    const { engine, modules } = newGame(2501), g = engine.g, bank = modules.bankLoansCovenants;
+    const count = g.finance.transactions.length;
+    // Borrowing rounds the request up; the quoted weekly payment and the covenant cash floor are whole.
+    const quote = bank.quote(g, 3_333_333.3, 52);
+    assert.equal(quote.principal, 3_333_334);
+    assert.ok(Number.isSafeInteger(quote.weeklyPayment) && Number.isSafeInteger(quote.covenants.minCash));
+    assert.ok(bank.borrow(g, 3_333_333.3, 52), 'the bank loan is drawn');
+    const loan = g.finance.loans.find(l => l.sourceType === 'bankLoansCovenants');
+    const expectedInterest = Math.ceil(loan.outstandingPrincipal * loan.interestRate / 52);
+    assert.equal(quote.weeklyPayment, Math.ceil(3_333_334 * (1 + quote.annualRate * 52 / 52) / 52));
+    // Weekly service: interest = ceil(balance × rate / 52) is the charge, principal the rest of the payment.
+    g.week += 1;
+    bank.service(g);
+    const rows = rowsSince(g, count, row => ['bankLoansCovenants'].includes(row.sourceType));
+    assert.ok(rows.some(row => row.category === 'interestExpense') && rows.some(row => row.category === 'debtRepayment'), 'a week is serviced');
+    assert.equal(rows.find(row => row.category === 'interestExpense').amount, expectedInterest, 'interest rounds up');
+    return { rows, state: { companyCash: g.companyCash, companyDebt: g.companyDebt } };
+  } },
 ];
 for (const scenario of SCENARIOS) {
   const { rows, state = {} } = scenario.run();
