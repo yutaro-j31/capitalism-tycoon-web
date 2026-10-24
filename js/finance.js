@@ -168,12 +168,16 @@ function finalizeDebtRollforward(g){
 // P2-3 observes the existing common-dividend writer; it does not settle a second payment.
 function recognizedDividends(f){return r(n(f.archivedDividendTotal)-(f.transactions||[]).filter(row=>row.category==='dividend').reduce((total,row)=>total+n(row.cashEffect),0));}
 function makeDividendReconciliation(g,f){return {schemaVersion:DIVIDEND_RECONCILIATION_SCHEMA_VERSION,openingWeek:Math.floor(n(g.week,1)),openingDividendTotal:recognizedDividends(f),grossPaid:0,payerReduction:0,personalNet:0,withholding:0,externalGross:0,roundingResidual:0,paymentCount:0,lastPaymentWeek:Math.floor(n(g.week,1)),pendingDistribution:null};}
+// Whole yen since R5c-2: the founder receives ceilYen(founder gross × net rate), capped at the
+// whole yen of the founder's gross so withholding stays non-negative; withholding is the rest.
+function founderDividendNet(founderGross){return Math.min(ceilYen(Math.max(0,n(founderGross))*DIVIDEND_NET_RATE),Math.max(0,Math.floor(n(founderGross))));}
 function dividendDistributionReceipt(row,distribution){
   const keys=['gross','founderRatio','personalCashBefore','personalCashAfter','payerCashWithoutDividend','payerCashAfter'];
   if(!distribution||keys.some(key=>typeof distribution[key]!=='number'||!Number.isFinite(distribution[key])))throw new Error('P2-DIVIDEND-FINITE: missing/non-finite distribution evidence');
   const d=distribution,gross=r(d.gross),founderGross=d.gross*d.founderRatio;
   if(d.gross<=0||d.founderRatio<0||d.founderRatio>1||Math.abs(d.gross*100)>Number.MAX_SAFE_INTEGER)throw new Error('P2-DIVIDEND-DIRECTION: invalid entitlement');
-  const personalNet=r(d.personalCashAfter-d.personalCashBefore),expectedNet=r(founderGross*DIVIDEND_NET_RATE),withholding=r(founderGross*(1-DIVIDEND_NET_RATE)),externalGross=r(d.gross-founderGross);
+  // A distribution recorded since R5c-2 carries netRounding: 'ceilYen'; older ones keep the ¥0.01 rule (YEN_CEILING_ROUNDING_CONTRACT §1.1).
+  const wholeYen=d.netRounding==='ceilYen',personalNet=r(d.personalCashAfter-d.personalCashBefore),expectedNet=wholeYen?founderDividendNet(founderGross):r(founderGross*DIVIDEND_NET_RATE),withholding=wholeYen?r(founderGross-expectedNet):r(founderGross*(1-DIVIDEND_NET_RATE)),externalGross=r(d.gross-founderGross);
   // Only the independently rounded expected legs determine this signed cent residual.
   // An incorrect actual cash credit can never be hidden in the residual.
   const roundingResidual=r(gross-expectedNet-withholding-externalGross),payerReduction=r(d.payerCashWithoutDividend-d.payerCashAfter);
@@ -653,6 +657,6 @@ function cashBridge(g,period='week'){
     other:r(operating-(netIncome+depreciation+workingCapital)),operating:r(operating),investing:r(investing),
     financing:r(financing),netCashChange:r(n(cf.netCashChange)),openingCash:r(n(cf.openingCash)),endingCash:r(n(cf.endingCash))};
 }
-Object.assign(exports,{archiveFixedAssetEvents,FIXED_ASSET_RECONCILIATION_SCHEMA_VERSION,FIXED_ASSET_TOLERANCE,fixedAssetReconciliationStatus,BUYBACK_RECONCILIATION_SCHEMA_VERSION,BUYBACK_TOLERANCE,buybackReconciliationStatus,DIVIDEND_RECONCILIATION_SCHEMA_VERSION,DIVIDEND_NET_RATE,observeDividendDistribution,dividendReconciliationStatus,cashBridge,STANDALONE_CLOSE_SCHEMA_VERSION,STANDALONE_CLOSE_TOLERANCES,standaloneClose,DEBT_ROLLFORWARD_SCHEMA_VERSION,DEBT_ROLLFORWARD_TOLERANCE,DEBT_SNAPSHOT_LIMIT,debtRollforwardStatus,finalizeDebtRollforward,rebaseDebtRollforward,debtInstrumentPrincipalFromFinance,LEDGER_COVERAGE_VERSION,reconcileLegacyLedger,CATEGORIES,FINANCE_CATEGORY_ALIASES,setCategoryValidationMode,propertyBookOf,cipBook,FOUNDER_LOAN_SOURCE,isFounderLoan,founderLoanReceivable,settleLoanPrincipal,individuallyServicedPrincipal,ensureFinance,migrateFinanceState,event,op,addFixedAsset,disposeFixedAsset,recordWeekly,recordSnapshot,rebuildSnapshotForWeek,rebuildDirtySnapshots,buildStatements,validate,defaultFinanceState,rowsFor,snapsFor});
+Object.assign(exports,{founderDividendNet,dividendDistributionReceipt,archiveFixedAssetEvents,FIXED_ASSET_RECONCILIATION_SCHEMA_VERSION,FIXED_ASSET_TOLERANCE,fixedAssetReconciliationStatus,BUYBACK_RECONCILIATION_SCHEMA_VERSION,BUYBACK_TOLERANCE,buybackReconciliationStatus,DIVIDEND_RECONCILIATION_SCHEMA_VERSION,DIVIDEND_NET_RATE,observeDividendDistribution,dividendReconciliationStatus,cashBridge,STANDALONE_CLOSE_SCHEMA_VERSION,STANDALONE_CLOSE_TOLERANCES,standaloneClose,DEBT_ROLLFORWARD_SCHEMA_VERSION,DEBT_ROLLFORWARD_TOLERANCE,DEBT_SNAPSHOT_LIMIT,debtRollforwardStatus,finalizeDebtRollforward,rebaseDebtRollforward,debtInstrumentPrincipalFromFinance,LEDGER_COVERAGE_VERSION,reconcileLegacyLedger,CATEGORIES,FINANCE_CATEGORY_ALIASES,setCategoryValidationMode,propertyBookOf,cipBook,FOUNDER_LOAN_SOURCE,isFounderLoan,founderLoanReceivable,settleLoanPrincipal,individuallyServicedPrincipal,ensureFinance,migrateFinanceState,event,op,addFixedAsset,disposeFixedAsset,recordWeekly,recordSnapshot,rebuildSnapshotForWeek,rebuildDirtySnapshots,buildStatements,validate,defaultFinanceState,rowsFor,snapsFor});
 })(__modules.finance={});
 })();

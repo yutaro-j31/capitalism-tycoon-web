@@ -24,12 +24,16 @@ for(const ownership of [{founderShares:300000,treasury:100000},{founderShares:0,
   const paid=setup(0x52300001,ownership),control=setup(0x52300001,ownership),row=pay(paid);
   assert.equal(control.game.advanceWeek(false),true);
   const d=row.dividendDistribution,raw=d.evidence.gross;
-  assert.equal(d.gross,money(.123456789*(1000000-ownership.treasury)),'treasury shares receive no dividend');
+  // Whole yen since R5c-2 (YEN_CEILING_ROUNDING_CONTRACT §8): the gross rounds up, the founder's net is
+  // ceilYen(founder gross × .797) capped at its whole yen, and withholding is the rest.
+  assert.equal(d.evidence.netRounding,'ceilYen');
+  assert.equal(d.gross,Math.ceil(.123456789*(1000000-ownership.treasury)),'treasury shares receive no dividend');
   assert.equal(d.payerReduction,d.gross);
   assert.equal(money(control.game.g.companyCash-paid.game.g.companyCash),d.gross);
   assert.equal(money(paid.game.g.personalCash-control.game.g.personalCash),d.personalNet);
-  assert.equal(d.personalNet,money(raw*d.founderRatio*.797));
-  assert.equal(d.withholding,money(raw*d.founderRatio*(1-.797)));
+  assert.equal(d.personalNet,Math.min(Math.ceil(raw*d.founderRatio*.797),Math.floor(raw*d.founderRatio)));
+  assert.ok(Number.isSafeInteger(d.personalNet),'the founder receives whole yen');
+  assert.equal(d.withholding,money(raw*d.founderRatio-d.personalNet));
   assert.equal(d.externalGross,money(raw*(1-d.founderRatio)));
   assert.equal(money(d.personalNet+d.withholding+d.externalGross+d.roundingResidual),d.gross);
   assert.equal(row.profitEffect,0);
@@ -43,15 +47,25 @@ for(const ownership of [{founderShares:300000,treasury:100000},{founderShares:0,
   assert.equal(paid.finance.validate(paid.game.g).ok,true);
 }
 
-// At least one fractional entitlement exercises the signed, explicitly calculated cent residual.
+// A distribution recorded before R5c-2 (no netRounding marker) keeps the ¥0.01 rule, and at least one
+// fractional entitlement still exercises its signed, explicitly calculated cent residual (§1.1).
 {
-  const f=setup(0x52300002);let perShare;
+  const f=setup(0x52300002);let total;
   for(let cents=1;cents<200;cents++){
-    const total=cents/100,founder=total/3;
-    if(money(money(total)-money(founder*.797)-money(founder*(1-.797))-money(total-founder))!==0){perShare=total/900000;break;}
+    const candidate=cents/100,founder=candidate/3;
+    if(money(money(candidate)-money(founder*.797)-money(founder*(1-.797))-money(candidate-founder))!==0){total=candidate;break;}
   }
-  assert.ok(perShare);
-  const row=pay(f,perShare);assert.equal(Math.abs(row.dividendDistribution.roundingResidual),.01);
+  assert.ok(total);
+  const founder=total/3,gross=money(total),before=1000,after=before+money(founder*.797);
+  const legacy={gross:total,founderRatio:1/3,personalCashBefore:before,personalCashAfter:after,payerCashWithoutDividend:5000,payerCashAfter:5000-gross};
+  const row={week:13,amount:gross,cashEffect:-gross,profitEffect:0,assetEffect:0,liabilityEffect:0,equityEffect:0};
+  const receipt=f.finance.dividendDistributionReceipt(row,legacy);
+  assert.equal(Math.abs(receipt.roundingResidual),.01);
+  assert.equal(receipt.personalNet,money(founder*.797));
+  // The same evidence marked as whole yen is checked against the whole-yen rule and rejected.
+  assert.throws(()=>f.finance.dividendDistributionReceipt(row,{...legacy,netRounding:'ceilYen'}),/P2-DIVIDEND-DISTRIBUTION/);
+  // Under the whole-yen rule the engine's own payment reconciles with a residual within one cent.
+  const paid=pay(f,.123456789);assert.ok(Math.abs(paid.dividendDistribution.roundingResidual)<=.01);
   status(f.finance,f.game);
 }
 
@@ -158,13 +172,15 @@ for(const field of ['payerCashAfter','personalCashAfter','gross']){
   assert.equal(f.loaded.ctx.localStorage.getItem('capitalism_tycoon_web_v1'),saved);
 }
 
-// Missing recognition cannot hide inside the older five-cent weekly cash envelope.
+// Missing recognition cannot hide inside the older five-cent weekly cash envelope. Since R5c-2 the
+// smallest dividend is ¥1 (YEN_CEILING_ROUNDING_CONTRACT §8), so the dropped row is now caught by the
+// close's balance-sheet identity as well as the pending-payment check; either way the week rolls back.
 {
   const f=setup(0x52300015);assert.equal(f.game.setDividend(.01/900000),true);f.game.save();
   const before=JSON.stringify(f.game.g),saved=f.loaded.ctx.localStorage.getItem('capitalism_tycoon_web_v1');
   const base=f.finance.recordWeekly;
   f.finance.recordWeekly=function(g,ctx){if(ctx.dividendDistribution)delete ctx.other.dividend;return base(g,ctx);};
-  assert.throws(()=>f.game.advanceWeek(false),/P2-DIVIDEND-PENDING/);
+  assert.throws(()=>f.game.advanceWeek(false),/P2-DIVIDEND-PENDING|P2-CLOSE-BS-IDENTITY difference=1 /);
   assert.equal(JSON.stringify(f.game.g),before);assert.equal(f.loaded.ctx.localStorage.getItem('capitalism_tycoon_web_v1'),saved);
 }
 
