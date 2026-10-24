@@ -857,6 +857,17 @@ const SCENARIOS = [
     const rows = rowsSince(g, count, () => true);
     return { rows, state: { companyCash: g.companyCash, personalCash: g.personalCash } };
   } },
+  { slice: 'R7b', label: 'executive hiring bonus and weekly executive payroll', run() {
+    const { engine, modules } = newGame(4001), g = engine.g, mod = modules.executivesDepartmentAssignments;
+    mod.generate(g);
+    const candidate = g.executiveManagement.candidates[0];
+    candidate.salary = 123_456.7;
+    const count = g.finance.transactions.length, cash = g.companyCash;
+    assert.ok(mod.hire(g, candidate.id), 'R7b scenario hires an executive');
+    assert.equal(cash - g.companyCash, Math.ceil(123_456.7) * 4, 'the hiring charge is four weeks of salary rounded up');
+    const rows = rowsSince(g, count, () => true);
+    return { rows, state: { companyCash: g.companyCash } };
+  } },
 ];
 for (const scenario of SCENARIOS) {
   const { rows, state = {} } = scenario.run();
