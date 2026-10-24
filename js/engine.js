@@ -1728,7 +1728,7 @@ class TycoonEngine extends EventTarget {
     this.notify(`${t.name}を取得しました。`,'success');this.save();this.emit();return true;
   }
   sellSportsTeam(id) {
-    const i=this.g.sportsTeams.findIndex(x=>x.id===id);if(i<0)return false;const t=this.g.sportsTeams[i],price=t.value*rand(this.g,.9,1.25);this.g[t.owner==='company'?'companyCash':'personalCash']+=price;if(t.owner==='company')finance.event(this.g,'assetSale',price,{cashEffect:price,assetEffect:-finite(t.purchasePrice||t.price),profitEffect:price-finite(t.purchasePrice||t.price),sourceType:'sellSportsTeam',sourceID:id,description:`${t.name} 球団売却`});this.g.sportsTeams.splice(i,1);this.notify(`${t.name}を${yen(price)}で売却しました。`,'success');this.save();this.emit();return true;
+    const i=this.g.sportsTeams.findIndex(x=>x.id===id);if(i<0)return false;const t=this.g.sportsTeams[i],price=ceilYen(t.value*rand(this.g,.9,1.25));this.g[t.owner==='company'?'companyCash':'personalCash']+=price;if(t.owner==='company')finance.event(this.g,'assetSale',price,{cashEffect:price,assetEffect:-finite(t.purchasePrice||t.price),profitEffect:price-finite(t.purchasePrice||t.price),sourceType:'sellSportsTeam',sourceID:id,description:`${t.name} 球団売却`});this.g.sportsTeams.splice(i,1);this.notify(`${t.name}を${yen(price)}で売却しました。`,'success');this.save();this.emit();return true;
   }
 
   borrow(amount,account='company') {
