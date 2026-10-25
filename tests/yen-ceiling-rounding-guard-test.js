@@ -19,6 +19,13 @@ assert.ok(Array.isArray(baseline.pendingFiles));
 assert.deepEqual([...baseline.pendingFiles], [...new Set(baseline.pendingFiles)].sort(), 'pendingFiles is sorted and unique');
 assert.ok(Array.isArray(baseline.ledgerPrecisionFiles));
 assert.deepEqual([...baseline.ledgerPrecisionFiles], [...new Set(baseline.ledgerPrecisionFiles)].sort(), 'ledgerPrecisionFiles is sorted and unique');
+// R9b approved only these three shared normalisers. Editing the baseline together with
+// a writer must not grant that writer an exception; removing an exception remains allowed.
+const APPROVED_LEDGER_PRECISION_FILES = new Set([
+  'js/difficulty-scenario-balance.js', 'js/finance.js', 'js/save-storage.js'
+]);
+assert.deepEqual(baseline.ledgerPrecisionFiles.filter(file => !APPROVED_LEDGER_PRECISION_FILES.has(file)), [],
+  'ledgerPrecisionFiles may only shrink from the three R9b-approved shared normalisers');
 
 assert.ok(CENT_PATTERN.test('const r=v=>Math.round(v*100)/100;') && CENT_PATTERN.test('Math.round(x * 100 ) / 100'), 'cent pattern matches its spacing variants');
 assert.ok(!CENT_PATTERN.test('Math.round(x*100)/1000'), 'a different divisor is not a cent pattern');
