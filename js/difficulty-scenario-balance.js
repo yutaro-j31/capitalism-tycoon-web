@@ -17,7 +17,7 @@ const finite=(v,d=0)=>Number.isFinite(Number(v))?Number(v):d;
 const integer=(v,d=0)=>Math.max(0,Math.floor(finite(v,d)));
 const plain=v=>Boolean(v&&typeof v==='object'&&!Array.isArray(v));
 const text=v=>String(v??'');
-const round2=v=>Math.round(finite(v)*100)/100;
+const round2=v=>Math.round(finite(v)*100)/100; /* not-money: legacy-save opening-balance and rounding-adjustment normaliser; stays at ¥0.01 for saves created before R9 (contract §1.1, §2) */
 function difficultyProfile(v){return DIFFICULTY_PROFILES[v]||DIFFICULTY_PROFILES.normal;}
 function scenarioProfile(v){return SCENARIO_PROFILES[v]||SCENARIO_PROFILES.free;}
 function gradeForWeek(week){week=integer(week);return week<=78?'S':week<=104?'A':week<=130?'B':week<=156?'C':week<=STANDARD_TARGET_WEEK?'D':'E';}

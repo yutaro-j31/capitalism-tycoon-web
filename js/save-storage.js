@@ -20,7 +20,7 @@ const PROFILES=Object.freeze({
 });
 
 const finite=(value,fallback=0)=>Number.isFinite(Number(value))?Number(value):fallback;
-const round=value=>Math.round(finite(value)*100)/100;
+const round=value=>Math.round(finite(value)*100)/100; /* not-money: archived-ledger total normaliser; identity on whole-yen totals, keeps cents of pre-R9 saves (contract §1.1) */
 const clone=value=>typeof structuredClone==='function'?structuredClone(value):JSON.parse(JSON.stringify(value));
 const tail=(value,limit)=>Array.isArray(value)?value.slice(-Math.max(0,limit)):[];
 const head=(value,limit)=>Array.isArray(value)?value.slice(0,Math.max(0,limit)):[];

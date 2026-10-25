@@ -2,9 +2,5 @@
  "schema": 1,
  "contract": "docs/economic-engine/YEN_CEILING_ROUNDING_CONTRACT.md",
  "note": "pendingFiles may only shrink: remove a file when its slice migrates it (contract §6). An addition needs a stated reason in the PR body.",
- "pendingFiles": [
-  "js/difficulty-scenario-balance.js",
-  "js/finance.js",
-  "js/save-storage.js"
- ]
+ "pendingFiles": []
 }

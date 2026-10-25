@@ -25,7 +25,7 @@ const OPERATING_CATS=new Set(['revenue','costOfSales','payroll','rent','advertis
 const INVESTING_CATS=new Set(['capitalExpenditure','assetPurchase','assetSale','investmentPurchase','investmentSale','investmentDividend','acquisition','otherInvesting']);
 const FINANCING_CATS=new Set(['debtBorrowing','debtRepayment','equityFinancing','dividend','otherFinancing']);
 const n=(v,d=0)=>Number.isFinite(Number(v))?Number(v):d;
-const r=v=>Math.round(n(v)*100)/100;
+const r=v=>Math.round(n(v)*100)/100; /* not-money: shared ¥0.01 normaliser kept by contract §2; identity on whole-yen amounts, never switched to ceilYen */
 // Whole-yen settlement (YEN_CEILING_ROUNDING_CONTRACT §2). `r` stays the shared ¥0.01 normaliser.
 const ceilYen=v=>__modules.economicOperation.ceilYen(n(v));
 // Weekly straight-line charge: rounded up, then capped at book − salvage (§3.3). `legacy` is the pre-R1 ¥0.01 schedule,
