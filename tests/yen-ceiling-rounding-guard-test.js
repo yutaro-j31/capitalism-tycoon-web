@@ -897,6 +897,20 @@ const SCENARIOS = [
     assert.equal(rows.length, 1, 'the acquisition posts');
     return { rows, state: { companyCash: g.companyCash } };
   } },
+  { slice: 'R6b-3', label: 'PE fund formation and deal financing', ledger: false, run() {
+    const { engine, modules } = newGame(4301), g = engine.g, pf = modules.peFund;
+    const count = g.finance.transactions.length, personal = g.personalCash;
+    const fund = pf.createFund(g, { size: 10_000_000_002.7, gpCommit: 30_000_000.4, terms: { fee: .02, carry: .2, hurdle: .08 }, y0: g.week });
+    assert.equal(fund.size, 10_000_000_002, 'a new fund size rounds down to whole yen');
+    assert.equal(personal - g.personalCash, 30_000_001, 'the GP commitment rounds up');
+    const cap = pf.maxSingleDealSize(fund);
+    assert.equal(cap, Math.floor(10_000_000_002 * .25), 'the per-deal cap rounds down');
+    assert.equal(pf.planDealFinancing(fund, cap, false).rejectedAmount, 0, 'a bid of exactly the displayed cap is accepted');
+    const plan = pf.planDealFinancing(fund, 4_000_000_000.4, true);
+    assert.equal(plan.fundPortion + plan.coinvestPortion, 4_000_000_001, 'the deal size rounds up and is fully financed');
+    const rows = rowsSince(g, count, () => true);
+    return { rows, state: { personalCash: g.personalCash, fundSize: fund.size, fundCash: fund.cash, fundPortion: plan.fundPortion, coinvestPortion: plan.coinvestPortion } };
+  } },
 ];
 for (const scenario of SCENARIOS) {
   const { rows, state = {} } = scenario.run();
