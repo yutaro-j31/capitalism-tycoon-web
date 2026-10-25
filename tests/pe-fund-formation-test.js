@@ -63,15 +63,17 @@ function systemCash(g) {
   const custom=e.formablePEFund({gpCommit:chosen});
   assert.equal(JSON.stringify(e.g),before,'GP出資額のプレビューはread-only');
   assert.equal(custom.ok,true);
-  assert.ok(Math.abs(custom.gpCommit-chosen)<1e-6);
+  // 円単位（契約書 §3）: GP 出資は払込なので切り上げ、規模は floor(GP 出資 ÷ 必要比率)。
+  assert.equal(custom.gpCommit,Math.ceil(chosen),'GP出資額は円単位に切り上げ');
+  assert.equal(custom.size,Math.min(maxPlan.maxSize,Math.floor(custom.gpCommit/custom.ratio)),'Fund規模は floor(GP出資 ÷ 必要比率)');
   assert.ok(Math.abs(custom.size/maxPlan.maxSize-.4)<1e-9,'Fund規模はGP出資額に比例して縮小');
-  assert.ok(Math.abs(custom.gpCommit/custom.size-custom.ratio)<1e-12,'必要GP比率は維持');
+  assert.ok(custom.gpCommit>=custom.size*custom.ratio&&custom.gpCommit-custom.size*custom.ratio<custom.ratio+1,'必要GP比率は維持（円単位の切り上げ分だけ上回る）');
   const personalBefore=e.g.personalCash,companyBefore=e.g.companyCash,systemBefore=systemCash(e.g);
   assert.equal(e.formPEFund({gpCommit:chosen}),true);
   const created=e.g.peFirm.funds[0];
-  assert.ok(Math.abs(created.gpCommit-chosen)<1e-6);
-  assert.ok(Math.abs(created.size-custom.size)<1e-6);
-  assert.ok(Math.abs(e.g.personalCash-(personalBefore-chosen))<1e-6);
+  assert.equal(created.gpCommit,custom.gpCommit,'書き込みはプレビューと同じGP出資額');
+  assert.equal(created.size,custom.size,'書き込みはプレビューと同じFund規模');
+  assert.equal(e.g.personalCash,personalBefore-custom.gpCommit,'個人資産はGP出資額ちょうど減る');
   assert.equal(e.g.companyCash,companyBefore);
   assert.ok(Math.abs(systemCash(e.g)-(systemBefore+created.lpContributed))<1,'カスタムGP出資でも外部から増える現金はLP拠出だけ');
 }
