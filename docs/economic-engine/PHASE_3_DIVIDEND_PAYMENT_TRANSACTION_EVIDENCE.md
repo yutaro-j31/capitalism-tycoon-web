@@ -94,8 +94,36 @@ timeout changes. Local and exact-HEAD execution results are recorded in the
 PR separately from registration-only checks. Existing dividend, declaration,
 activism and permanent accounting tests remain unchanged.
 
-A dedicated native-WebKit/IndexedDB weekly-payment counterpart remains next.
+The native-WebKit/IndexedDB counterpart is
+`tests/shareholder-dividend-payment-save-atomicity-webkit-test.js` (see below).
 This fixture does not certify additional personal own-company lots, all
 holder classes, captured/raw/helper bypass closure or adopted ownership
 authority. There is no S_PASS, cutover, P3-10 permission, Phase 3 Exit or Phase
 4 Entry claim. The six Owner-held inventory/spec PRs remain unchanged.
+
+## Native WebKit / IndexedDB counterpart
+
+`tests/shareholder-dividend-payment-save-atomicity-webkit-test.js` runs the same
+pinned normal and capped states in the installed page (emulated iPhone 13
+WebKit, real IndexedDB) through the canonical `advanceWeek(false)`, week 12 to
+13. A page-side observer requires the actual payment inside the week transaction
+with the pinned gross and founder net. Per variant it runs the success case, the
+seven applicable shared faults (no `change`/`notify`, as in Node) and the three
+week boundaries: after the receipt is written, during the final close and at the
+terminal `week` event. The normal variant adds queued-predecessor and nested
+`save-false`/`save-throw`, 26 scenarios in total.
+
+Every failure must leave the full live state, the localStorage mirror, the
+backend cache and the durable IndexedDB bytes exactly as before, with any
+pending predecessor intact. A recovery save must exceed every allocated failed
+sequence, and the retried week must equal the uninterrupted same-seed week. A
+fresh browser context with localStorage removed must hydrate exactly that state
+from IndexedDB alone. After each case, re-observing the paid distribution is
+rejected without mutation, and week 14 must not pay again; its durable-only
+hydration is checked too. Two negative controls reject a disabled rollback and a
+corrupted founder cash credit.
+
+The test runs in the M&A `stock-split-atomicity` job next to the declaration
+counterpart. Its logic was exercised locally with the same script on Chromium
+(26 scenarios plus 2 rejected controls). WebKit execution evidence is the exact
+HEAD's CI job, not this local run, and no physical-iPhone claim is made.
