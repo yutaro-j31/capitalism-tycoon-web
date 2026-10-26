@@ -131,8 +131,10 @@ on:
       - 'js/player-crisis-actions.js'
       - 'tests/sponsor-injection-save-atomicity-webkit-test.js'
       - 'tests/shareholder-buyback-save-atomicity-webkit-test.js'
+      - 'tests/shareholder-dividend-declaration-save-atomicity-webkit-test.js'
       - 'tests/fixtures/sponsor-injection-atomicity.js'
       - 'tests/fixtures/shareholder-buyback-atomicity.js'
+      - 'tests/fixtures/shareholder-dividend-declaration-atomicity.js'
       - 'js/player-crisis-turnaround-fund.js'
       - 'tests/turnaround-fund-accept-save-atomicity-test.js'
       - 'tests/turnaround-fund-accept-save-atomicity-webkit-test.js'
@@ -294,8 +296,10 @@ on:
       - 'js/player-crisis-actions.js'
       - 'tests/sponsor-injection-save-atomicity-webkit-test.js'
       - 'tests/shareholder-buyback-save-atomicity-webkit-test.js'
+      - 'tests/shareholder-dividend-declaration-save-atomicity-webkit-test.js'
       - 'tests/fixtures/sponsor-injection-atomicity.js'
       - 'tests/fixtures/shareholder-buyback-atomicity.js'
+      - 'tests/fixtures/shareholder-dividend-declaration-atomicity.js'
       - 'js/player-crisis-turnaround-fund.js'
       - 'tests/turnaround-fund-accept-save-atomicity-test.js'
       - 'tests/turnaround-fund-accept-save-atomicity-webkit-test.js'
@@ -714,6 +718,8 @@ jobs:
         run: node tests/stock-split-dividend-rescale-webkit-test.js
       - name: Stock split price floor in real iPhone WebKit
         run: node tests/stock-split-price-floor-webkit-test.js
+      - name: Dividend declaration safety in real iPhone WebKit
+        run: node tests/shareholder-dividend-declaration-save-atomicity-webkit-test.js
       - name: Shareholder buyback safety in real iPhone WebKit
         run: node tests/shareholder-buyback-save-atomicity-webkit-test.js
       - name: Sponsor injection safety in real iPhone WebKit
