@@ -1,4 +1,8 @@
 {
+  "tests/personal-stock-margin-save-atomicity-webkit-test.js": {
+    "reason": "P3-4 personal margin enclosing-transaction faults and real IndexedDB hydration in the M&A stock-split-atomicity job.",
+    "executedBy": ".github/workflows/ma-acquisition-financing.yml"
+  },
   "tests/property-mortgage-refinance-webkit-test.js": {
     "reason": "Real iPhone WebKit refinance rejection, save-failure rollback and durable-only fresh-context hydration in M&A PR and post-merge gates.",
     "executedBy": ".github/workflows/ma-acquisition-financing.yml"
