@@ -85,7 +85,6 @@
   "E": [
     "tests/make-subsidiary-save-atomicity-test.js",
     "tests/week-transaction-atomicity-test.js",
-    "tests/player-crisis-turnaround-ratchet-week-rollback-test.js",
     "tests/loan-single-interest-test.js",
     "tests/real-estate-building-depreciation-test.js",
     "tests/real-estate-land-book-classification-test.js",
@@ -268,6 +267,7 @@
     "tests/ramen-supply-payment-terms-negative-test.js"
   ],
   "K": [
+    "tests/player-crisis-turnaround-ratchet-week-rollback-test.js",
     "tests/yen-ceiling-seeded-full-run-test.js",
     "tests/supply-material-cost-inflation-test.js",
     "tests/full-index-weekly-validate-208w-test.js",
