@@ -130,6 +130,8 @@ on:
       - 'js/listed-subsidiary-*.js'
       - 'js/player-crisis-actions.js'
       - 'js/player-crisis-turnaround-fund.js'
+      - 'js/player-turnaround-plan.js'
+      - 'tests/player-crisis-turnaround-ratchet-webkit-test.js'
       - 'js/group-restructuring-candidates.js'
       - 'js/group-restructuring-progress.js'
       - 'js/group-capital-allocation-execution.js'
@@ -284,6 +286,8 @@ on:
       - 'js/listed-subsidiary-*.js'
       - 'js/player-crisis-actions.js'
       - 'js/player-crisis-turnaround-fund.js'
+      - 'js/player-turnaround-plan.js'
+      - 'tests/player-crisis-turnaround-ratchet-webkit-test.js'
       - 'js/internal-venture-business.js'
       - 'js/pe-deal-supply.js'
       - 'js/pe-network.js'
@@ -696,6 +700,8 @@ jobs:
         run: node tests/stock-split-dividend-rescale-webkit-test.js
       - name: Stock split price floor in real iPhone WebKit
         run: node tests/stock-split-price-floor-webkit-test.js
+      - name: Turnaround ratchet week safety in real iPhone WebKit
+        run: node tests/player-crisis-turnaround-ratchet-webkit-test.js
       - name: Personal margin enclosing-transaction safety in real iPhone WebKit
         run: node tests/personal-stock-margin-save-atomicity-webkit-test.js
       - name: P4-AUD-004 personal secured repayment in real iPhone WebKit

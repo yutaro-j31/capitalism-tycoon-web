@@ -1,4 +1,8 @@
 {
+  "tests/player-crisis-turnaround-ratchet-webkit-test.js": {
+    "reason": "P3-4 installed weekly ratchet save faults, retry and fresh real IndexedDB hydration in the M&A stock-split-atomicity job.",
+    "executedBy": ".github/workflows/ma-acquisition-financing.yml"
+  },
   "tests/personal-stock-margin-save-atomicity-webkit-test.js": {
     "reason": "P3-4 personal margin enclosing-transaction faults and real IndexedDB hydration in the M&A stock-split-atomicity job.",
     "executedBy": ".github/workflows/ma-acquisition-financing.yml"
