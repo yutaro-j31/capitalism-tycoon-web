@@ -120,18 +120,26 @@ async function exercise({ state, kind, pending, nested, soft, pin, perShare, var
     const rows = receipts(after);
     check(rows.length === receipts(baseline).length + 1, 'exactly one receipt');
     const row = rows.at(-1), d = row.dividendDistribution;
-    check(row.week === 13 && row.sourceType === 'weekly-dividend' && row.idempotencyKey === 'week-13-dividend', 'receipt identity');
+    check(row.week === 13 && row.sourceType === 'weekly-dividend' && row.sourceID === 'dividend' &&
+      row.operationID === 'week-13-dividend' && row.idempotencyKey === 'week-13-dividend', 'receipt identity');
     check(row.amount === pin.gross && row.cashEffect === -pin.gross, 'pinned gross paid');
     for (const field of ['profitEffect', 'assetEffect', 'liabilityEffect', 'equityEffect']) check(row[field] === 0, 'receipt ' + field);
     for (const [field, value] of Object.entries({ gross: pin.gross, payerReduction: pin.gross, personalNet: pin.net,
       withholding: pin.withholding, externalGross: pin.external, roundingResidual: 0, founderRatio: 60000 / 99000 }))
       check(d[field] === value, 'independent distribution leg ' + field);
+    const ev = d.evidence;
+    check(ev.netRounding === 'ceilYen' && ev.gross === pin.gross, 'distribution evidence rounding/gross');
+    check(ev.personalCashBefore === 10000000 && ev.personalCashAfter === 10000000 + pin.net, 'pinned founder cash evidence');
+    check(ev.payerCashWithoutDividend === pin.cash && ev.payerCashAfter === pin.cash - pin.gross, 'pinned payer cash evidence');
     const returns = after.finance.shareholderReturns, previous = baseline.finance.shareholderReturns;
     check(returns.lastActualDividend === pin.gross && returns.lastPaymentWeek === 13, 'shareholder-return payment record');
+    check(returns.lastDeclaredDividend === previous.lastDeclaredDividend, 'declared policy record preserved');
+    check(returns.history.length === previous.history.length + 1, 'one payment history row');
     equal(returns.history.slice(0, -1), previous.history, 'existing history retained');
     equal(returns.history.at(-1), { week: 13, type: 'dividendPayment', declaredPerShare: perShare, declaredTotal: perShare * 99000,
       paid: pin.gross, capped: variant === 'capped', safeCapacity: pin.capacity, corporateTaxCorrection: 0 }, 'payment history row');
-    check(m.finance.dividendReconciliationStatus(plain(after)).ok === true, 'dividend reconciliation');
+    const reconciliation = m.finance.dividendReconciliationStatus(plain(after));
+    check(reconciliation.ok === true && reconciliation.metrics.paymentCount === 1, 'dividend reconciliation and payment count');
     check(after.finance.dividendReconciliation.pendingDistribution === null, 'no pending distribution');
     check(m.finance.standaloneClose(plain(after)).ok === true, 'standalone close');
     check(m.finance.validate(plain(after)).ok === true, 'finance.validate');
@@ -151,6 +159,10 @@ async function exercise({ state, kind, pending, nested, soft, pin, perShare, var
     check(result === true && !error && saves.count === 1, 'successful week rejected or saved twice');
     const after = plain(e.g);
     if (mutation === 'founder') after.personalCash++;
+    const last = after.finance.transactions.filter(row => row.category === 'dividend').at(-1);
+    if (mutation === 'identity') last.operationID = 'week-13-other';
+    if (mutation === 'evidence') { last.dividendDistribution.evidence.payerCashWithoutDividend += 1; last.dividendDistribution.evidence.payerCashAfter += 1; }
+    if (mutation === 'declared') after.finance.shareholderReturns.lastDeclaredDividend = 999;
     oracle(prior, after);
     check(await durableBytes() === backend.readSync(key), 'successful durable copy differs');
   }
@@ -245,7 +257,10 @@ async function nextWeek() {
     }
     for (const [mutation, kind, pattern] of [
       ['rollback', 'save-false', /exact rollback changed full live state/],
-      ['founder', 'none', /pinned founder net cash/]
+      ['founder', 'none', /pinned founder net cash/],
+      ['identity', 'none', /receipt identity/],
+      ['evidence', 'none', /pinned payer cash evidence/],
+      ['declared', 'none', /declared policy record preserved/]
     ]) {
       const broken = await browser.newContext(options);
       try {
@@ -256,6 +271,6 @@ async function nextWeek() {
       } finally { await broken.close(); }
     }
     record(true);
-    console.log(`Dividend payment real WebKit evidence PASS: ${results.length - 2} scenarios + 2 rejected mutations`);
+    console.log(`Dividend payment real WebKit evidence PASS: ${results.length - 5} scenarios + 5 rejected mutations`);
   } finally { await browser?.close(); await new Promise(resolve => server.close(resolve)); }
 })().catch(error => { console.error(error); process.exitCode = 1; });

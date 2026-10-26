@@ -120,10 +120,14 @@ sequence, and the retried week must equal the uninterrupted same-seed week. A
 fresh browser context with localStorage removed must hydrate exactly that state
 from IndexedDB alone. After each case, re-observing the paid distribution is
 rejected without mutation, and week 14 must not pay again; its durable-only
-hydration is checked too. Two negative controls reject a disabled rollback and a
-corrupted founder cash credit.
+hydration is checked too. The page oracle ports the Node `success()` in full,
+including receipt `sourceID`/`operationID`, the pinned payer and founder cash
+evidence, the preserved `lastDeclaredDividend` and the reconciliation payment
+count. Five negative controls reject a disabled rollback, a corrupted founder cash
+credit, a changed receipt operation ID, payer evidence shifted by the same amount
+on both sides, and a changed declared-policy record.
 
 The test runs in the M&A `stock-split-atomicity` job next to the declaration
 counterpart. Its logic was exercised locally with the same script on Chromium
-(26 scenarios plus 2 rejected controls). WebKit execution evidence is the exact
+(26 scenarios plus 5 rejected controls). WebKit execution evidence is the exact
 HEAD's CI job, not this local run, and no physical-iPhone claim is made.
