@@ -1,7 +1,8 @@
 'use strict';
 // Whole-yen ceiling rounding ratchet (docs/economic-engine/YEN_CEILING_ROUNDING_CONTRACT.md §6).
 // Lexical: only files listed in pendingFiles may still round money to ¥0.01, and a listed file that no longer
-// does is stale and must be removed. Runtime: each migration slice registers focused scenarios below whose
+// does is stale and must be removed. A shared ¥0.01 normaliser that §2 keeps after R9 carries a
+// /* ledger-precision: ... */ marker, which only the files in ledgerPrecisionFiles may use. Runtime: each migration slice registers focused scenarios below whose
 // ledger rows and written state fields must be whole yen.
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
@@ -11,31 +12,54 @@ const root = path.join(__dirname, '..');
 const baseline = JSON.parse(fs.readFileSync(path.join(__dirname, 'fixtures', 'yen-ceiling-rounding-baseline.json'), 'utf8'));
 const CENT_PATTERN = /\*\s*100\s*\)\s*\/\s*100(?![0-9])/;
 const EXEMPT = /\/\*\s*not-money:\s*\S[^*]*\*\//;
+const LEDGER_PRECISION = /\/\*\s*ledger-precision:\s*\S[^*]*\*\//;
 
 assert.equal(baseline.schema, 1);
 assert.ok(Array.isArray(baseline.pendingFiles));
 assert.deepEqual([...baseline.pendingFiles], [...new Set(baseline.pendingFiles)].sort(), 'pendingFiles is sorted and unique');
+assert.ok(Array.isArray(baseline.ledgerPrecisionFiles));
+assert.deepEqual([...baseline.ledgerPrecisionFiles], [...new Set(baseline.ledgerPrecisionFiles)].sort(), 'ledgerPrecisionFiles is sorted and unique');
+// R9b approved only these three shared normalisers. Editing the baseline together with
+// a writer must not grant that writer an exception; removing an exception remains allowed.
+const APPROVED_LEDGER_PRECISION_FILES = new Set([
+  'js/difficulty-scenario-balance.js', 'js/finance.js', 'js/save-storage.js'
+]);
+assert.deepEqual(baseline.ledgerPrecisionFiles.filter(file => !APPROVED_LEDGER_PRECISION_FILES.has(file)), [],
+  'ledgerPrecisionFiles may only shrink from the three R9b-approved shared normalisers');
 
 assert.ok(CENT_PATTERN.test('const r=v=>Math.round(v*100)/100;') && CENT_PATTERN.test('Math.round(x * 100 ) / 100'), 'cent pattern matches its spacing variants');
 assert.ok(!CENT_PATTERN.test('Math.round(x*100)/1000'), 'a different divisor is not a cent pattern');
 assert.ok(EXEMPT.test('Math.round(rate*100)/100 /* not-money: rate */') && !EXEMPT.test('Math.round(x*100)/100 /* not-money: */'), 'exemption needs a stated reason');
+assert.ok(LEDGER_PRECISION.test('const r=v=>Math.round(v*100)/100; /* ledger-precision: shared normaliser */') && !LEDGER_PRECISION.test('const r=v=>Math.round(v*100)/100; /* ledger-precision: */'), 'a ledger-precision marker needs a stated reason');
 
 function centLines(file) {
   return fs.readFileSync(path.join(root, file), 'utf8').split('\n')
     .map((line, index) => ({ line, number: index + 1 }))
     .filter(({ line }) => CENT_PATTERN.test(line) && !EXEMPT.test(line));
 }
+function markedLines(file, marker) {
+  return fs.readFileSync(path.join(root, file), 'utf8').split('\n')
+    .map((line, index) => ({ line, number: index + 1 }))
+    .filter(({ line }) => marker.test(line));
+}
 const files = fs.readdirSync(path.join(root, 'js')).filter(name => name.endsWith('.js')).sort().map(name => `js/${name}`);
 const pending = new Set(baseline.pendingFiles);
 for (const file of pending) assert.ok(files.includes(file), `pendingFiles lists ${file}, which does not exist`);
-const unlisted = [], stale = [];
+const ledgerPrecision = new Set(baseline.ledgerPrecisionFiles);
+for (const file of ledgerPrecision) assert.ok(files.includes(file), `ledgerPrecisionFiles lists ${file}, which does not exist`);
+const unlisted = [], stale = [], misplaced = [], unmarked = [];
 for (const file of files) {
-  const hits = centLines(file);
+  const marked = markedLines(file, LEDGER_PRECISION);
+  if (marked.length && !ledgerPrecision.has(file)) misplaced.push(`${file}:${marked.map(hit => hit.number).join(',')}`);
+  if (!marked.some(({ line }) => CENT_PATTERN.test(line)) && ledgerPrecision.has(file)) unmarked.push(file);
+  const hits = centLines(file).filter(({ line }) => !(ledgerPrecision.has(file) && LEDGER_PRECISION.test(line)));
   if (hits.length && !pending.has(file)) unlisted.push(`${file}:${hits.map(hit => hit.number).join(',')}`);
   if (!hits.length && pending.has(file)) stale.push(file);
 }
 assert.deepEqual(unlisted, [], 'cent rounding outside pendingFiles; use economicOperation.ceilYen, or mark a non-money line with /* not-money: ... */');
 assert.deepEqual(stale, [], 'stale pendingFiles entries; remove them from tests/fixtures/yen-ceiling-rounding-baseline.json');
+assert.deepEqual(misplaced, [], 'a ledger-precision marker outside ledgerPrecisionFiles; only the shared ¥0.01 normalisers that contract §2 keeps may use it');
+assert.deepEqual(unmarked, [], 'stale ledgerPrecisionFiles entries: no marked cent line remains; remove them from the baseline');
 
 // Runtime: the row check itself must reject fractions, so a slice scenario cannot pass vacuously.
 const EFFECTS = ['amount', 'cashEffect', 'profitEffect', 'assetEffect', 'liabilityEffect', 'equityEffect'];

@@ -354,6 +354,7 @@ Money or positions entering/leaving the modeled ownership graph must have an exp
 ## 5. Monetary, rounding and close contract
 
 > **vNext (Owner decision, 2026-10-22):** monetary amounts move from the ¥0.01 quantum to whole yen, with any fraction rounded **up** in magnitude. The rule, split/allocation rules and slice-by-slice migration are in [`YEN_CEILING_ROUNDING_CONTRACT.md`](YEN_CEILING_ROUNDING_CONTRACT.md). Until a family's slice is marked `DONE` there, the ¥0.01 text below still describes that family.
+> **Status (R9, 2026-10-25): fully migrated.** Every amount the company and the founder settle or post is whole yen, and a seeded full run asserts it (`tests/yen-ceiling-seeded-full-run-test.js`). The ¥0.01 text below no longer describes any company or personal writer; it still describes the shared normalisers that §2 of that document keeps (marked `ledger-precision`), and the cents that saves created before R9 may hold (its §1.1). Out of scope: NPC-internal competitor and PE-rival money (its R8b row). Stock trades settle whole yen, rounding against the trader (its R9b row).
 > Economic Engine work that writes money follows that document's §10 ordering rule: it waits for slices R0–R1, and from R0 on, new money writers use `ceilYen`.
 
 ### 5.1 Numeric domains during saveVersion 9 migration
