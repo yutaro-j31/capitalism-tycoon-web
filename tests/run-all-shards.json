@@ -116,6 +116,7 @@
     "tests/store-cost-inflation-25y-test.js"
   ],
   "F": [
+    "tests/shareholder-buyback-save-atomicity-test.js",
     "tests/gf-010-finance-validation-enforcement-test.js",
     "tests/gf-009-semantic-hash-v2-test.js",
     "tests/gf-008-broader-determinism-test.js",
