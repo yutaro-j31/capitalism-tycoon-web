@@ -236,6 +236,7 @@ const nodeTests = [
   ['canonical-property-disposition', 'tests/canonical-property-disposition-test.js'],
   ['p4-aud-007-mortgage-disposal-debt', 'tests/p4-aud-007-mortgage-disposal-debt-test.js'],
   ['p4-aud-007-option-a-mortgage', 'tests/p4-aud-007-option-a-mortgage-test.js'],
+  ['p4-aud-010-mortgage-shortfall', 'tests/p4-aud-010-mortgage-shortfall-test.js'],
   ['p4-aud-009-shared-collateral', 'tests/p4-aud-009-shared-collateral-test.js'],
   ['supply-select-supplier-week-close', 'tests/supply-select-supplier-week-close-test.js'],
   ['real-estate-property-insurance', 'tests/real-estate-property-insurance-test.js'],

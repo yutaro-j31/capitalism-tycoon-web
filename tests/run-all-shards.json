@@ -314,6 +314,7 @@
     "tests/property-debt-principal-sync-test.js",
     "tests/p4-aud-007-mortgage-disposal-debt-test.js",
     "tests/p4-aud-007-option-a-mortgage-test.js",
+    "tests/p4-aud-010-mortgage-shortfall-test.js",
     "tests/p4-aud-009-shared-collateral-test.js",
     "tests/supply-select-supplier-week-close-test.js"
   ]
