@@ -129,6 +129,8 @@ on:
       - 'js/subsidiary-*.js'
       - 'js/listed-subsidiary-*.js'
       - 'js/player-crisis-actions.js'
+      - 'tests/sponsor-injection-save-atomicity-webkit-test.js'
+      - 'tests/fixtures/sponsor-injection-atomicity.js'
       - 'js/player-crisis-turnaround-fund.js'
       - 'js/player-turnaround-plan.js'
       - 'tests/player-crisis-turnaround-ratchet-webkit-test.js'
@@ -285,6 +287,8 @@ on:
       - 'js/app.js'
       - 'js/listed-subsidiary-*.js'
       - 'js/player-crisis-actions.js'
+      - 'tests/sponsor-injection-save-atomicity-webkit-test.js'
+      - 'tests/fixtures/sponsor-injection-atomicity.js'
       - 'js/player-crisis-turnaround-fund.js'
       - 'js/player-turnaround-plan.js'
       - 'tests/player-crisis-turnaround-ratchet-webkit-test.js'
@@ -700,6 +704,8 @@ jobs:
         run: node tests/stock-split-dividend-rescale-webkit-test.js
       - name: Stock split price floor in real iPhone WebKit
         run: node tests/stock-split-price-floor-webkit-test.js
+      - name: Sponsor injection safety in real iPhone WebKit
+        run: node tests/sponsor-injection-save-atomicity-webkit-test.js
       - name: Turnaround ratchet week safety in real iPhone WebKit
         run: node tests/player-crisis-turnaround-ratchet-webkit-test.js
       - name: Personal margin enclosing-transaction safety in real iPhone WebKit
