@@ -159,6 +159,7 @@
     "tests/gf-002-financing-mode0-test.js"
   ],
   "G": [
+    "tests/turnaround-fund-accept-save-atomicity-test.js",
     "tests/sponsor-injection-save-atomicity-test.js",
     "tests/angel-investment-save-atomicity-test.js",
     "tests/property-insurance-loss-ledger-test.js",
