@@ -66,6 +66,67 @@ const server = http.createServer((req, res) => {
       assert.deepEqual(hydrated, expected, `${fault}: durable-only fresh context`);
       await fresh.close(); await context.close();
     }
-    console.log('iPhone WebKit mortgage refinance rejection/rollback and durable-only hydration PASS');
+    // #1079: real iPhone WebKit save rollback and fresh IndexedDB-only hydration of weekly shortfalls.
+    for (const owner of ['personal', 'company']) for (const fault of ['none', 'save-false', 'save-throw', 'post-save-throw']) {
+      const context = await browser.newContext(options), page = await context.newPage();
+      await page.goto(url, { waitUntil: 'networkidle' });
+      const expected = await page.evaluate(async ({ owner, fault }) => {
+        const m = globalThis.__capitalismTycoonModules, state = m.engine.createInitialState({ configured: true });
+        Object.assign(state, { week: 10, companyCash: 400000000, personalCash: 400000000, companyDebt: 0, personalDebt: 7000000 });
+        state.properties = [{ ...state.properties[0], id: 'shortfall-webkit', owner, marketValue: 300000000, value: 300000000,
+          purchasePrice: 300000000, mortgageBalance: 0, mortgageProductID: '', mortgageRemainingWeeks: 0,
+          realEstate: { landBookValue: 100000000, buildingBookValue: 200000000, landValue: 100000000, buildingValue: 200000000 } }];
+        state.finance = m.finance.defaultFinanceState(state);
+        const e = new m.engine.TycoonEngine(state), key = m.engine.SAVE_KEY;
+        if (!e.refinancePropertyMortgage('shortfall-webkit', 'fixed')) throw new Error('origination failed');
+        e.g.week++;
+        if (owner === 'company') m.finance.event(e.g, 'otherOperating', e.g.companyCash,
+          { cashEffect: -e.g.companyCash, profitEffect: -e.g.companyCash, sourceType: 'shortfall-fixture' });
+        e.g[owner === 'company' ? 'companyCash' : 'personalCash'] = 0;
+        if (!e.save()) throw new Error('baseline save failed'); await m.saveStorageIDB.flush();
+        const before = JSON.stringify(e.g), mirror = localStorage.getItem(key), save = e.save;
+        if (fault !== 'none') e.save = function (...args) {
+          if (fault === 'save-false') return false;
+          if (fault === 'save-throw') throw new Error('injected shortfall save');
+          save.apply(this, args); throw new Error('injected shortfall post-save');
+        };
+        let result, thrown = false;
+        try { result = e.runTransaction(() => {
+          m.realEstateMortgageRefinancing.processWeek(e);
+          if (!m.finance.validate(e.g).ok || !m.finance.debtRollforwardStatus(e.g).ok) throw new Error('shortfall books incorrect');
+          return true;
+        }); }
+        catch (_) { thrown = true; } finally { e.save = save; }
+        await m.saveStorageIDB.flush();
+        if (fault !== 'none') {
+          if (JSON.stringify(e.g) !== before || localStorage.getItem(key) !== mirror || m.saveStorageIDB.readSync(key) !== mirror)
+            throw new Error('shortfall failure changed live/mirror/cache');
+          if (fault === 'save-false' ? result !== false || thrown : !thrown) throw new Error('shortfall fault not exercised');
+        } else {
+          const p = e.g.properties[0];
+          if (result !== true || thrown || p.mortgageRemainingWeeks !== 520 || p.mortgageDelinquentWeeks !== 1 ||
+            p.mortgageUnpaidInterest !== (owner === 'personal' ? 120000 : 0) ||
+            p.mortgageBalance !== (owner === 'personal' ? 195000000 : 195120000)) throw new Error('shortfall state incorrect');
+        }
+        // Loading clears derived statement/validation caches; compare the identical normalization path.
+        const loaded = new m.engine.TycoonEngine(JSON.parse(JSON.stringify(e.g)));
+        return JSON.parse(JSON.stringify({ property: loaded.g.properties[0], finance: loaded.g.finance, companyCash: loaded.g.companyCash,
+          personalCash: loaded.g.personalCash, companyDebt: loaded.g.companyDebt, personalDebt: loaded.g.personalDebt, saveVersion: loaded.g.saveVersion }));
+      }, { owner, fault });
+      const storageState = await context.storageState({ indexedDB: true });
+      for (const origin of storageState.origins) origin.localStorage = [];
+      const fresh = await browser.newContext({ ...options, storageState }), freshPage = await fresh.newPage();
+      await freshPage.goto(url, { waitUntil: 'networkidle' });
+      const hydrated = await freshPage.evaluate(async () => {
+        const m = globalThis.__capitalismTycoonModules; await m.saveStorageIDB.hydrate();
+        const e = m.engine.TycoonEngine.load();
+        return JSON.parse(JSON.stringify({ property: e.g.properties.find(p => p.id === 'shortfall-webkit'), finance: e.g.finance,
+          companyCash: e.g.companyCash, personalCash: e.g.personalCash, companyDebt: e.g.companyDebt,
+          personalDebt: e.g.personalDebt, saveVersion: e.g.saveVersion }));
+      });
+      assert.deepEqual(hydrated, expected, `${owner}/${fault}: shortfall durable-only fresh context`);
+      await fresh.close(); await context.close();
+    }
+    console.log('iPhone WebKit mortgage refinance/shortfall rollback and durable-only hydration PASS');
   } finally { await browser?.close(); await new Promise(resolve => server.close(resolve)); }
 })().catch(error => { console.error(error); process.exitCode = 1; });

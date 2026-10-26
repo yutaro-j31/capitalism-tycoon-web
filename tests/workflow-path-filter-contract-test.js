@@ -155,7 +155,7 @@ assert(/^name: M&A Acquisition Financing$/m.test(comprehensiveMa), 'M&A Acquisit
 assert(hasTrigger(comprehensiveMa, 'pull_request'), 'consolidated M&A workflow must inherit the Deal Room PR gate');
 assert.deepEqual(pathsFor(comprehensiveMa, 'pull_request'), [
   'js/engine.js', 'js/expansion.js', 'tests/investor-offer-save-atomicity-test.js', 'tests/investor-offer-save-atomicity-webkit-test.js',
-  'js/real-estate-mortgage-refinancing.js', 'tests/property-mortgage-refinance-conservation-test.js', 'tests/property-mortgage-refinance-webkit-test.js',
+  'js/real-estate-mortgage-refinancing.js', 'tests/property-mortgage-refinance-conservation-test.js', 'tests/p4-aud-010-mortgage-shortfall-test.js', 'tests/property-mortgage-refinance-webkit-test.js',
   'tests/founder-share-sale-save-atomicity-test.js', 'tests/founder-share-sale-save-atomicity-webkit-test.js',
   'tests/stock-purchase-save-atomicity-test.js', 'tests/stock-purchase-save-atomicity-webkit-test.js',
   'tests/stock-sale-save-atomicity-test.js', 'tests/stock-sale-save-atomicity-webkit-test.js',
