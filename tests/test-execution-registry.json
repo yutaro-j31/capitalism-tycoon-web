@@ -1,4 +1,8 @@
 {
+  "tests/turnaround-fund-accept-save-atomicity-webkit-test.js": {
+    "reason": "P3-4 turnaround-fund acceptance real WebKit/native-IDB faults, cap and plan replacement, deterministic retry and durable-only hydration in the M&A stock-split-atomicity job.",
+    "executedBy": ".github/workflows/ma-acquisition-financing.yml"
+  },
   "tests/sponsor-injection-save-atomicity-webkit-test.js": {
     "reason": "P3-4 sponsor injection real WebKit/native-IDB faults, retry and fresh durable-only hydration in the M&A stock-split-atomicity job.",
     "executedBy": ".github/workflows/ma-acquisition-financing.yml"

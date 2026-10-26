@@ -132,6 +132,9 @@ on:
       - 'tests/sponsor-injection-save-atomicity-webkit-test.js'
       - 'tests/fixtures/sponsor-injection-atomicity.js'
       - 'js/player-crisis-turnaround-fund.js'
+      - 'tests/turnaround-fund-accept-save-atomicity-test.js'
+      - 'tests/turnaround-fund-accept-save-atomicity-webkit-test.js'
+      - 'tests/fixtures/turnaround-fund-accept-atomicity.js'
       - 'js/player-turnaround-plan.js'
       - 'tests/player-crisis-turnaround-ratchet-webkit-test.js'
       - 'js/group-restructuring-candidates.js'
@@ -290,6 +293,9 @@ on:
       - 'tests/sponsor-injection-save-atomicity-webkit-test.js'
       - 'tests/fixtures/sponsor-injection-atomicity.js'
       - 'js/player-crisis-turnaround-fund.js'
+      - 'tests/turnaround-fund-accept-save-atomicity-test.js'
+      - 'tests/turnaround-fund-accept-save-atomicity-webkit-test.js'
+      - 'tests/fixtures/turnaround-fund-accept-atomicity.js'
       - 'js/player-turnaround-plan.js'
       - 'tests/player-crisis-turnaround-ratchet-webkit-test.js'
       - 'js/internal-venture-business.js'
@@ -706,6 +712,8 @@ jobs:
         run: node tests/stock-split-price-floor-webkit-test.js
       - name: Sponsor injection safety in real iPhone WebKit
         run: node tests/sponsor-injection-save-atomicity-webkit-test.js
+      - name: Turnaround fund acceptance safety in real iPhone WebKit
+        run: node tests/turnaround-fund-accept-save-atomicity-webkit-test.js
       - name: Turnaround ratchet week safety in real iPhone WebKit
         run: node tests/player-crisis-turnaround-ratchet-webkit-test.js
       - name: Personal margin enclosing-transaction safety in real iPhone WebKit
