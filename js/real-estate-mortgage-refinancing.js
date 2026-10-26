@@ -2,6 +2,10 @@
 (function(){'use strict';
 const modules=globalThis.__capitalismTycoonModules;if(!modules?.engine?.TycoonEngine||!modules?.realEstatePropertyTaxes)throw new Error('real-estate-property-taxes.js must load before real-estate-mortgage-refinancing.js.');if(modules.realEstateMortgageRefinancing)throw new Error('real-estate-mortgage-refinancing.js already registered.');
 const Engine=modules.engine.TycoonEngine,finance=modules.finance,VERSION=1,HISTORY_LIMIT=500;
+// #1079 (Owner decision, 2026-10-27): as for personal holdings (personal-real-estate-mortgage.js), eight consecutive
+// short weeks foreclose the property at 85% of its value; the sale settles the mortgage and its unpaid interest, and
+// any deficiency stays with the borrower.
+const MAX_DELINQUENT_WEEKS=8,FORECLOSURE_SALE_RATE=.85;
 const PRODUCTS=Object.freeze({fixed:{id:'fixed',label:'固定金利',annualRate:.032,maxLTV:.65,termWeeks:520,feeRate:.012},variable:{id:'variable',label:'変動金利',annualRate:.024,maxLTV:.72,termWeeks:416,feeRate:.016},conservative:{id:'conservative',label:'低LTV融資',annualRate:.021,maxLTV:.5,termWeeks:624,feeRate:.008}});
 const n=(v,d=0)=>Number.isFinite(Number(v))?Number(v):d,ceilYen=v=>modules.economicOperation.ceilYen(n(v));
 // One weekly payment (YEN_CEILING_ROUNDING_CONTRACT §4): the due is rounded once and capped at balance + interest,
@@ -52,6 +56,11 @@ Engine.prototype.prepayPropertyMortgage=function(id,amount){return this.runTrans
   }
   record(g,{type:'mortgage-prepayment',week,propertyID:id,owner,amount:paid,interest:interestPaid,principal:principalPaid,balance:p.mortgageBalance,unpaidInterest:p.mortgageUnpaidInterest});return paid;
 });};
+// A company mortgage from before P4-AUD-007 is off book and its sale is quarantined (real-estate-property-disposals.js),
+// so it keeps counting delinquency without being foreclosed. The sale would also throw inside the week, rolling the
+// whole week back, without canonical book values or when another secured loan would be left short; those cases keep
+// counting delinquency too.
+function foreclose(engine,p,week){const disposals=modules.realEstatePropertyDisposals,owner=ownerOf(p);if(!(owner==='personal'||tracked(p))||!disposals)return null;const g=engine.g,gross=ceilYen(valueOf(p)*FORECLOSURE_SALE_RATE),debt=disposals.securedLoans(g,p,owner);if(!disposals.canonicalBook(g,p)||(debt.total>gross&&(debt.marketLoans.length||debt.collateralLoans.length)))return null;const name=p.name||p.id,owed=outstandingBalance(p),result=disposals.settlePropertyDisposition(engine,{propertyID:p.id,reason:'foreclosure',grossSalePrice:gross,fees:0,retainProperty:true,sourceType:'propertyMortgageForeclosure',saleWeek:week,idempotencyKey:`property-mortgage-foreclosure-${p.id}-w${week}`});if(!result)return null;const carried=n(result.mortgageDeficiency);engine.notify?.(carried>0?`${name}が住宅ローンの延滞により差し押さえられました。売却代金では返済しきれず、${carried.toLocaleString('ja-JP')}円が負債として残りました。`:`${name}が住宅ローンの延滞により差し押さえられました。売却代金で残債${owed.toLocaleString('ja-JP')}円を清算しました。`,'error');return record(g,{type:'mortgage-foreclosure',week,propertyID:p.id,owner,salePrice:result.salePrice,mortgagePaid:result.mortgage,deficiency:carried});}
 function processWeek(engine){
   const g=engine.g,s=ensure(g),week=Math.floor(n(g.week,1));if(s.lastPropertyMortgageProcessedWeek===week)return[];
   const rows=[];
@@ -65,7 +74,7 @@ function processWeek(engine){
     p.mortgageInterestPaid=n(p.mortgageInterestPaid)+interestPaid;p.mortgagePrincipalPaid=n(p.mortgagePrincipalPaid)+principalPaid;
     p.mortgageDelinquentWeeks=paid<due?Math.floor(n(p.mortgageDelinquentWeeks))+1:0;
     // A short instalment is still due. An old save already at zero weeks gets one overdue instalment,
-    // rather than silently keeping an active debt with a zero schedule or triggering a new foreclosure policy.
+    // rather than silently keeping an active debt with a zero schedule.
     p.mortgageRemainingWeeks=paid<due?Math.max(1,Math.floor(n(p.mortgageRemainingWeeks))):Math.max(0,Math.floor(n(p.mortgageRemainingWeeks)-1));
     if(tracked(p)){
       if(interestPaid>0)check(finance?.event?.(g,'interestExpense',interestPaid,{cashEffect:-interestPaid,profitEffect:-interestPaid,assetEffect:0,sourceType:LOAN_SOURCE,sourceID:p.id,idempotencyKey:`property-mortgage-interest-${p.id}-w${week}`,description:`${p.name||p.id} 住宅ローン利息`}),'interestExpense');
@@ -91,11 +100,13 @@ function processWeek(engine){
     }
     if(outstandingBalance(p)<=0)p.mortgageRemainingWeeks=0;
     rows.push(record(g,{type:'mortgage-payment',week,propertyID:p.id,owner,interest:interestPaid,principal:principalPaid,unpaid:due-paid,unpaidInterest,delinquentWeeks:p.mortgageDelinquentWeeks,balance:p.mortgageBalance}));
+    if(p.mortgageDelinquentWeeks>=MAX_DELINQUENT_WEEKS){const row=foreclose(engine,p,week);if(row)rows.push(row);}
+    else if(p.mortgageDelinquentWeeks===MAX_DELINQUENT_WEEKS-2&&(owner==='personal'||tracked(p)))engine.notify?.(`${p.name||p.id}の住宅ローンが${p.mortgageDelinquentWeeks}週延滞しています。あと2週延滞すると差し押さえられます。`,'warning');
   }
   s.lastPropertyMortgageProcessedWeek=week;return rows;
 }
 const baseNormalize=Engine.prototype.normalize;Engine.prototype.normalize=function(){const out=baseNormalize.call(this);ensure(this.g);return out;};const existing=Engine.prototype.updateParityWeekly;function wrap(base){if(typeof base!=='function')return base;const fn=function(){const out=base.apply(this,arguments);processWeek(this);return out;};Object.defineProperty(fn,'__realEstateMortgageRefinancingWrapped',{value:true});return fn;}if(typeof existing==='function'&&!existing.__realEstateMortgageRefinancingWrapped)Engine.prototype.updateParityWeekly=wrap(existing);else if(typeof existing!=='function')Object.defineProperty(Engine.prototype,'updateParityWeekly',{configurable:true,get(){return undefined;},set(fn){Object.defineProperty(Engine.prototype,'updateParityWeekly',{value:fn?.__realEstateMortgageRefinancingWrapped?fn:wrap(fn),writable:true,configurable:true});}});
-modules.realEstateMortgageRefinancing=Object.freeze({VERSION,HISTORY_LIMIT,PRODUCTS,LOAN_SOURCE,loanIDOf,scheduledPayment,interestArrears,outstandingBalance,ensure,processWeek});
+modules.realEstateMortgageRefinancing=Object.freeze({VERSION,MAX_DELINQUENT_WEEKS,FORECLOSURE_SALE_RATE,HISTORY_LIMIT,PRODUCTS,LOAN_SOURCE,loanIDOf,scheduledPayment,interestArrears,outstandingBalance,ensure,processWeek});
 
 
 })();
