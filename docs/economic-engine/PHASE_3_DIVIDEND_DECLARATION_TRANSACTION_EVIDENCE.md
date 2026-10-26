@@ -2,8 +2,9 @@
 
 Base main: `8baefedd248065123a7b93257faf8f24968d4f3b`, after #1133.
 Mode: `F_IMPLEMENT`. Scope is the existing installed `setDividend()` command
-(`W-DIV-SET`) from `js/shareholder-returns.js`. This is targeted Node/fake-IDB
-safety evidence; quarterly cash payment (`W-DIV-PAY`) is a separate concern.
+(`W-DIV-SET`) from `js/shareholder-returns.js`. This contains targeted Node/
+fake-IDB and real-WebKit/native-IDB safety evidence; quarterly cash payment
+(`W-DIV-PAY`) is a separate concern.
 No production code or economic/ownership/save policy changes.
 
 ## Installed setup and independent expectations
@@ -73,9 +74,50 @@ uses measured headroom; no existing assignment or timeout changes. Actual
 local and final-HEAD execution is recorded in the PR, separately from a
 registration-only run. Existing shareholder/activism/split tests remain.
 
-A dedicated direct-command real-WebKit/native-IDB counterpart remains the
-next evidence slice. Existing activism/split browser coverage does not prove
-all direct declaration/cancellation faults. Weekly payment, complete installed
-caller/bypass closure and independent authority-adoption review remain
-separate. This supplies no S_PASS, cutover, P3-10 permission, Phase 3 Exit or
-Phase 4 Entry. The six Owner-held inventory/spec PRs remain unchanged.
+## Real WebKit/native IndexedDB counterpart
+
+Browser follow-up base: `a9e9cf2883cb8bdf61756d2409cef2b5ce98c297`, after
+#1136. `tests/shareholder-dividend-declaration-save-atomicity-webkit-test.js`
+runs the actual installed command in real WebKit/iPhone 13 emulation, using
+the same independently pinned setup. A stock-lookup observer delegates to the
+installed lookup and requires the expected policy term to have been reached
+inside a transaction. It does not replace declaration or settlement. The
+same existing capacity cache is previewed before the baseline save.
+
+Twenty-four scenarios cover success and all nine shared faults for each
+variant, plus four queued/nested declaration cases. The queued predecessor is
+admitted in the same synchronous task before microtasks start; an already
+running blocked native IDB request is not simulated. Every failed case checks
+exact full live state and mirror/cache bytes, and reads durable bytes directly
+from native IndexedDB. LocalStorage is removed from the exported storage
+state; a fresh context hydrates through the production loader and must equal
+the complete normalized expected state. Only lastSaveDate/saveSequence are
+excluded from normalized comparisons; rollback bytes/live state remain exact.
+
+Recovery must exceed the maximum actually observed failed-save allocation.
+Each retry saves once and equals the full uninterrupted same-variant economic
+state, followed by fresh durable-only hydration. Every scenario then repeats
+the valid policy (one history row/save, no payment) and attempts the unsafe
+¥1,000-per-share policy (no mutation or save). The full result must match
+uninterrupted repeat behavior and survive another fresh durable-only context.
+The same oracle checks finance-book/cash separation, policy/mirror/history and
+payment metadata; a successful setting cannot masquerade as a distribution.
+
+Two browser negative controls must fail: disabled restore trips the exact
+rollback assertion, and a corrupted completed-state planned total that
+includes treasury trips the independent-total assertion. Actual execution,
+runtime, artifacts and final-HEAD CI are recorded in the PR. Desktop iPhone
+emulation is not physical-iPhone or interactive UI-click evidence.
+
+The existing M&A stock-split-atomicity job runs this test on its normal events
+and retains `dividend-declaration-result.json` in its artifact directory. Both
+PR/push filters cover the new browser test and reused declaration fixture;
+its reused buyback fixture and production/shared dependencies were already
+covered. Registry and workflow contracts require that wiring. Existing tests,
+timeouts and canonical Node registrations remain unchanged by this browser
+follow-up. No production, financial or persistence semantics are changed.
+
+Weekly payment, complete installed caller/bypass closure and independent
+authority-adoption review remain separate. This supplies no S_PASS, cutover,
+P3-10 permission, Phase 3 Exit or Phase 4 Entry. The six Owner-held
+inventory/spec PRs remain unchanged.
