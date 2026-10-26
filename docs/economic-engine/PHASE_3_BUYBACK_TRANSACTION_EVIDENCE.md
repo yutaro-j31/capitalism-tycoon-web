@@ -78,9 +78,51 @@ G 1,433.367s and H 1,468.936s. Placement uses this measured headroom without
 changing an existing assignment or timeout. Local commands and exact-HEAD CI
 results are recorded in the PR; a registration-only run is not full execution.
 
-A dedicated real-WebKit/native-IDB counterpart remains the next evidence
-slice. Existing activism/split browser tests do not prove all direct-buyback
-faults. The raw engine fallback, installed caller/bypass closure, adoption and
-scoped independent authority review remain separate. There is no S_PASS,
-cutover, P3-10 permission, Phase 3 Exit or Phase 4 Entry claim. The six
-Owner-held inventory/spec PRs remain unchanged and unmerged.
+## Real WebKit/native IndexedDB counterpart
+
+Browser follow-up base: `f1670d67b6274f850ba638a359b72529f8a39582`, after
+#1134. `tests/shareholder-buyback-save-atomicity-webkit-test.js` uses the same
+pinned inputs and independent settlement as Node, with actual installed
+classic-script modules in real WebKit/iPhone 13 emulation. The test explicitly
+previews the same capacity cache before the baseline save. An observer
+delegates to the installed ratio update and checks that the actual treasury
+purchase was reached inside a transaction. It does not replace settlement.
+
+Twenty-four scenarios cover both variants' success and all nine faults, plus
+four ordinary-case queued/nested save-false/post-admission-throw cases. The
+queued predecessor is admitted in the same synchronous task before microtasks
+start; this does not simulate an already-running blocked native IDB request.
+After every failure the test compares exact full live state and mirror/cache
+bytes, then reads the durable bytes directly from the native database. It
+exports only the resulting IndexedDB into a fresh browser context, removes
+localStorage, hydrates through the production loader and compares the entire
+normalized state. Only lastSaveDate/saveSequence are excluded from normalized
+comparisons; rollback payload comparisons remain exact.
+
+Recovery must exceed the observed maximum sequence allocated by the failed
+save. Every retried order must save once and produce the full economic state
+of an uninterrupted same-variant order, followed by fresh durable-only
+hydration. Every scenario then tests another order: the ordinary variant buys
+one share for the separately pinned ¥109 with a distinct second receipt; the
+capped variant must reject without saving or changing state. The full result
+must match uninterrupted repeat behavior and survive another fresh context.
+This preserves order semantics rather than inventing replay rejection.
+
+Two browser negative controls are separately rejected: disabled restore must
+fail the full rollback assertion, and a corrupted completed-state treasury
+snapshot must fail the independent quantity assertion. Actual local and
+final-HEAD CI results, runtime and artifact are recorded in the PR; this is
+not a physical-iPhone or interactive UI-click claim.
+
+The existing M&A stock-split-atomicity job executes the browser test on its
+normal events and retains `shareholder-buyback-result.json` in its artifact
+directory. Both PR/push path filters name the new test and reused fixture;
+writer/shared storage dependencies already trigger this workflow. Registration
+and workflow contracts require the command and paths. No existing test or
+timeout changes; no production module, money rule, authority or save format
+changes. Existing activism/split browser tests are retained separately.
+
+The raw engine fallback, installed caller/bypass closure, adoption and scoped
+independent authority review remain separate. There is no S_PASS, cutover,
+P3-10 permission, Phase 3 Exit or Phase 4 Entry claim. The six Owner-held
+inventory/spec PRs remain unchanged and unmerged.
