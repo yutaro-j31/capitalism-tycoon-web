@@ -35,6 +35,10 @@ No new gameplay P1 is claimed from the deliberate raw-helper design.
 
 - Multi-lot forced sales including the player's own-company shares; residual
   debt, realized personal stock profit/loss, market quantities and capitalization.
+- Independent settlement pins from two 20,000-share lots: 99.4 execution price,
+  0.1% fee, 3,972,024 total proceeds, -36,027,976 realized P&L, 98.8 closing
+  price and 98,800,000 capitalization per issuer. Expected proceeds are not
+  reconstructed from the writer's realized P&L or debt outputs.
 - Weekly interest followed by liquidation, and interest-only capitalization.
 - Exact personal cash/debt conservation and unchanged company cash, debt,
   holdings, finance ledger, issuer quantities and simulation RNG for scoped calls.
@@ -45,13 +49,20 @@ No new gameplay P1 is claimed from the deliberate raw-helper design.
 - Nested outer transactions, an already-pending predecessor, exact live rollback,
   mirror/cache/durable bytes, canceled failed puts, monotonic saveSequence,
   recovery save, retry and production/fresh durable-only reload.
+- The shared fault harness observes the installed `nextSequence` allocator
+  before rollback and requires the recovery save to exceed every failed
+  allocation, rather than only the restored predecessor sequence. The harness
+  mutation suite rejects sequence reuse with and without a pending predecessor.
 - One save for the enclosing command and a no-op helper repeat.
 - The installed canonical week under saved-event and post-save exceptions,
   plus a separate failure at its actual `week` completion event. Rollback and
   retry are compared with an uninterrupted same-seed canonical week. A week emits
   `week`, so injecting a nonexistent `change` completion event is not evidence.
 - A negative control that disables rollback only in a fresh test instance:
-  the full-state rollback oracle must reject it. Production code is untouched.
+  the full-state rollback oracle must reject it. A second isolated mutation
+  halves actual liquidation proceeds; the old output-derived identity still
+  accepts it, while the independent settlement pins reject it. Production code
+  is untouched.
 
 The test is canonical-registered in shard K, next to ownership conservation.
 Measured prior-main K runtime in #1127 was 744.590 seconds, compared with
@@ -64,6 +75,8 @@ This is a placement decision, not a timeout increase or benchmark promise.
 real WebKit with iPhone 13 emulation and real IndexedDB. It covers success and
 all applicable shared faults for the scoped liquidation/weekly/interest paths,
 plus canonical-week success, saved/post-save faults and the real `week` event.
+The scoped successful liquidations assert the same independent settlement pins
+as the Node suite, including returned proceeds/repaid and closing prices.
 After each case it exports IndexedDB, removes localStorage from the exported
 context, starts a fresh browser context, loads through production hydration and
 compares the complete normalized state. Only wall-clock save metadata and the
@@ -73,7 +86,7 @@ rollback itself compares exact live state and mirror/cache bytes.
 The JSON artifact records browser version, `physicalDevice: false`, each executed
 case and the final result. Physical iPhone testing is not claimed. The M&A
 `stock-split-atomicity` job runs this test on its existing events and retains the
-artifact in its existing directory. Source, test and fixture paths are in both
+artifact in its existing directory. Source, test, fixture and shared fault-helper paths are in both
 PR/push filters. The workflow contract and alternative-execution registry verify
 that registration. No existing test, event, timeout or assertion is removed.
 

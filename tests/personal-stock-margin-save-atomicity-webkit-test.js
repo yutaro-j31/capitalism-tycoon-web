@@ -2,7 +2,7 @@
 // P3-4 scoped evidence: raw margin helpers execute inside the caller's existing transaction.
 const assert=require('node:assert/strict'),fs=require('node:fs'),http=require('node:http'),path=require('node:path');
 const {webkit,devices}=require('playwright');
-const {fixture}=require('./fixtures/personal-stock-margin-atomicity');
+const {fixture,SETTLEMENT}=require('./fixtures/personal-stock-margin-atomicity');
 const {inject}=require('./fixtures/pe-fund-acquisition-faults');
 const {FAULT_KINDS,SOFT_FAILURES}=require('./helpers/transaction-fault-case');
 const ROOT=path.resolve(__dirname,'..'),DIR=path.resolve(process.env.MA_DEAL_ROOM_ARTIFACT_DIR||'artifacts/personal-stock-margin-webkit');
@@ -19,7 +19,7 @@ async function page(context,url){const p=await context.newPage();await p.goto(ur
    for(const kind of kinds){
     const context=await browser.newContext(options),p=await page(context,url);
     await p.addScriptTag({content:'globalThis.__injectMarginFault='+inject.toString()+';'});
-    const expected=await p.evaluate(async({state,variant,kind,soft})=>{
+    const expected=await p.evaluate(async({state,variant,kind,soft,settlement})=>{
      const m=__capitalismTycoonModules,e=new m.engine.TycoonEngine(state),backend=m.saveStorageIDB,key=m.engine.SAVE_KEY;
      await backend.hydrate();if(!backend.status().available)throw new Error('real IndexedDB unavailable');if(!e.save())throw new Error('baseline save failed');await backend.flush();
      const before=JSON.stringify(e.g),prior=JSON.parse(before),bytes=backend.readSync(key),save=e.save;
@@ -41,7 +41,10 @@ async function page(context,url){const p=await context.newPage();await p.goto(ur
        for(const k of ['companyCash','companyDebt','companyStocks','finance','simulationRng','sharesOut','founderShares','treasuryBuybackShares'])if(JSON.stringify(e.g[k])!==JSON.stringify(prior[k]))throw new Error('margin changed '+k);
        if(variant==='interest'){if(e.g.personalMarginLoan.balance!==1001000||e.g.personalMarginLoan.interestCapitalized!==1000||JSON.stringify(e.g.personalStocks)!==JSON.stringify(prior.personalStocks))throw new Error('interest conservation failed');}
        else{
-        const raised=e.g.realizedPersonalStockPL-prior.realizedPersonalStockPL+Object.entries(prior.personalStocks).reduce((sum,[id,h])=>sum+(h.qty-(e.g.personalStocks[id]?.qty||0))*h.avg,0);
+        for(const id of ['CPTY','EXT']){const stock=prior.market.find(x=>x.id===id),lot=prior.personalStocks[id];if(stock.price!==100||stock.issuedShares!==1000000||lot.qty!==20000||lot.avg!==1000)throw Error('pinned fixture changed');}
+        const raised=settlement.raised;
+        if(e.g.realizedPersonalStockPL-prior.realizedPersonalStockPL!==settlement.realizedPL||result.raised!==raised||result.repaid!==raised)throw Error('pinned proceeds/P&L failed');
+        for(const stock of e.g.market.filter(x=>['CPTY','EXT'].includes(x.id)))if(stock.price!==settlement.priceAfter||stock.marketCap!==settlement.marketCapAfter)throw Error('pinned price impact failed');
         if(e.g.personalCash!==0||e.g.personalDebt-prior.personalDebt!==prior.personalMarginLoan.balance+(variant==='weekly'?10000:0)-raised)throw new Error('liquidation cash/debt conservation failed');
        }
       }
@@ -50,7 +53,7 @@ async function page(context,url){const p=await context.newPage();await p.goto(ur
      }
      const normalized=new m.engine.TycoonEngine(JSON.parse(JSON.stringify(e.g))).g;
      delete normalized.lastSaveDate;delete normalized.saveSequence;return JSON.parse(JSON.stringify(normalized));
-    },{state,variant,kind,soft:SOFT_FAILURES});
+    },{state,variant,kind,soft:SOFT_FAILURES,settlement:SETTLEMENT});
     const storageState=await context.storageState({indexedDB:true});for(const origin of storageState.origins)origin.localStorage=[];
     const fresh=await browser.newContext({...options,storageState}),fp=await page(fresh,url);
     const actual=await fp.evaluate(async()=>{const m=__capitalismTycoonModules;await m.saveStorageIDB.hydrate();const e=m.engine.TycoonEngine.load();if(!e)throw new Error('durable-only load failed');const g=JSON.parse(JSON.stringify(e.g));delete g.lastSaveDate;delete g.saveSequence;return g;});
