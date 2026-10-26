@@ -52,6 +52,7 @@ const nodeTests = [
   ['save-storage-commit-atomicity', 'tests/save-storage-commit-atomicity-test.js'],
   ['ma-share-swap-save-atomicity', 'tests/ma-share-swap-save-atomicity-test.js'],
   ['investor-offer-save-atomicity', 'tests/investor-offer-save-atomicity-test.js'],
+  ['sponsor-injection-save-atomicity', 'tests/sponsor-injection-save-atomicity-test.js'],
   ['founder-share-sale-save-atomicity', 'tests/founder-share-sale-save-atomicity-test.js'],
   ['stock-purchase-save-atomicity', 'tests/stock-purchase-save-atomicity-test.js'],
   ['stock-sale-save-atomicity', 'tests/stock-sale-save-atomicity-test.js'],
