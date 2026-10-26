@@ -137,6 +137,10 @@ on:
       - 'js/pe-deal-supply.js'
       - 'js/pe-network.js'
       - 'js/personal-stock-margin.js'
+      - 'tests/personal-stock-margin-save-atomicity-test.js'
+      - 'tests/personal-stock-margin-save-atomicity-webkit-test.js'
+      - 'tests/fixtures/personal-stock-margin-atomicity.js'
+      - 'tests/helpers/transaction-fault-case.js'
       - 'js/capital-allocation-score.js'
       - 'js/ma-integration.js'
       - 'js/pmi-100-day-plan.js'
@@ -284,6 +288,10 @@ on:
       - 'js/pe-deal-supply.js'
       - 'js/pe-network.js'
       - 'js/personal-stock-margin.js'
+      - 'tests/personal-stock-margin-save-atomicity-test.js'
+      - 'tests/personal-stock-margin-save-atomicity-webkit-test.js'
+      - 'tests/fixtures/personal-stock-margin-atomicity.js'
+      - 'tests/helpers/transaction-fault-case.js'
       - 'js/capital-allocation-score.js'
       - 'tests/parent-ipo-save-atomicity-test.js'
       - 'tests/parent-ipo-save-atomicity-webkit-test.js'
@@ -688,6 +696,8 @@ jobs:
         run: node tests/stock-split-dividend-rescale-webkit-test.js
       - name: Stock split price floor in real iPhone WebKit
         run: node tests/stock-split-price-floor-webkit-test.js
+      - name: Personal margin enclosing-transaction safety in real iPhone WebKit
+        run: node tests/personal-stock-margin-save-atomicity-webkit-test.js
       - name: P4-AUD-004 personal secured repayment in real iPhone WebKit
         run: node tests/p4-aud-004-personal-secured-repayment-webkit-test.js
       - name: Founder Capital save atomicity in real iPhone WebKit
