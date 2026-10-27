@@ -352,7 +352,7 @@
     "executedBy": ".github/workflows/ma-acquisition-financing.yml"
   },
   "tests/vc-writeoff-week-save-atomicity-webkit-test.js": {
-    "reason": "P3-4 W-VC-WRITEOFF installed canonical startup write-off week real WebKit/native-IDB faults, final-close/week boundaries, no repeat write-off and fresh durable-only hydration in the M&A stock-split-atomicity job.",
+    "reason": "P3-4 W-VC-WRITEOFF installed canonical startup write-off week real WebKit/native-IDB faults, final-close/week boundaries, no repeat write-off and fresh durable-only hydration in the M&A vc-week-atomicity job.",
     "executedBy": ".github/workflows/ma-acquisition-financing.yml"
   },
   "tests/found-new-company-save-atomicity-webkit-test.js": {
