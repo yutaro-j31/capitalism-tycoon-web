@@ -17,8 +17,9 @@ priority over principal, and principal is the remainder of the actual payment.
 A fully funded scheduled payment consumes one instalment; a short payment
 keeps the remaining count and increments `mortgageDelinquentWeeks`. Full payoff
 sets the remaining count to zero. An already-zero schedule with debt has one
-overdue instalment while underpaid. This does not introduce foreclosure,
-penalty rates, or an automatic acceleration/default workflow.
+overdue instalment while underpaid. This correction itself did not introduce foreclosure,
+penalty rates, or an automatic acceleration/default workflow; foreclosure was added
+afterwards by the Owner decision recorded in "Foreclosure" below.
 
 | Mortgage ownership/accounting | Unpaid interest | Debt and ledger attribution |
 | --- | --- | --- |
@@ -33,6 +34,35 @@ capped after rounding by the exact debt and available owner cash. Thus an
 existing fractional final payoff remains exact. After 520 zero-cash weeks,
 the personal example retains principal ¥195,000,000, interest arrears
 ¥62,400,000, 520 remaining instalments and delinquency 520 weeks.
+
+## Foreclosure (Owner decision, 2026-10-27)
+
+Without a consequence, a short payment was the better choice for the player: a
+founder's arrears accrue no interest, and the property and its rent stay with the
+owner indefinitely. The Owner chose to align property mortgages with the existing
+personal-holdings rule (`personal-real-estate-mortgage.js`):
+
+- Eight consecutive short weeks (`MAX_DELINQUENT_WEEKS`) foreclose a founder
+  mortgage or an Option A on-book company mortgage at 85% of the property's
+  current value (`FORECLOSURE_SALE_RATE`, rounded up), through the existing
+  `settlePropertyDisposition` with `reason: 'foreclosure'`.
+- The sale settles unpaid interest before principal. A surplus goes to the
+  owner's cash. A deficiency is carried, never erased: the founder's becomes
+  `personalDebt`; a company's stays in `companyDebt` as an active manual
+  `propertyMortgageDeficiency` finance-loan row (like `borrow()`), so companyDebt
+  still equals the active finance loans and the debt rollforward reconciles.
+- A pre-P4-AUD-007 off-book company mortgage keeps counting delinquency but is not
+  foreclosed: its sale is quarantined by the legacy S1/S2 rule. A sale that would
+  throw inside the week (no canonical book values, or another secured loan left
+  short) is skipped too, so the week is never rolled back by a foreclosure.
+- A full payment resets the count. The mortgage controls show the weeks left before
+  foreclosure, and a warning notice fires two weeks before it.
+
+`tests/p4-aud-010-mortgage-foreclosure-test.js` covers founder surplus and
+deficiency, the warning, the reset, on-book company surplus and deficiency with the
+books and rollforward checked every week, the legacy exclusion in state S1, and
+determinism. The 520-missed-week case in the shortfall test becomes 7 missed weeks,
+one short of foreclosure, with the same recovery assertions.
 
 ## Payoff and visibility
 

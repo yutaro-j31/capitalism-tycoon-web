@@ -54,13 +54,14 @@ for(const owner of ['personal','company'])for(const legacy of owner==='company'?
   const same=JSON.stringify(s.e.g);assert.equal(s.modules.realEstateMortgageRefinancing.processWeek(s.e).length,0);assert.equal(JSON.stringify(s.e.g),same);
   books(s);
 }
-// After 520 missed payments, principal and the exact simple-interest arrears remain recoverable.
+// After 7 missed payments (one short of foreclosure, #1079 Owner decision 2026-10-27), principal and the exact
+// simple-interest arrears remain recoverable. Foreclosure itself is covered by p4-aud-010-mortgage-foreclosure-test.js.
 {
-  const s=fixture();for(let i=0;i<520;i++)tick(s,0);
+  const s=fixture();for(let i=0;i<7;i++)tick(s,0);
   assert.equal(s.p().mortgageRemainingWeeks,520);assert.equal(s.p().mortgageBalance,195000000);
-  assert.equal(s.p().mortgageUnpaidInterest,62400000);assert.equal(s.p().mortgageDelinquentWeeks,520);
-  assert.equal(s.modules.realEstateMortgageRefinancing.outstandingBalance(s.p()),257400000);
-  const row=tick(s,1000000000);assert.equal(row.interest,62520000);assert.equal(row.principal,375000);
+  assert.equal(s.p().mortgageUnpaidInterest,840000);assert.equal(s.p().mortgageDelinquentWeeks,7);
+  assert.equal(s.modules.realEstateMortgageRefinancing.outstandingBalance(s.p()),195840000);
+  const row=tick(s,1000000000);assert.equal(row.interest,960000);assert.equal(row.principal,375000);
   assert.equal(s.p().mortgageUnpaidInterest,0);assert.equal(s.p().mortgageDelinquentWeeks,0);assert.equal(s.p().mortgageRemainingWeeks,519);
 }
 // Legacy saves already past nominal maturity remain payable, not active with a zero schedule.
