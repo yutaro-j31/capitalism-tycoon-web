@@ -76,5 +76,27 @@ preparation cost not paid.
 
 ## Limits
 
-Node only; a native-WebKit counterpart is the next slice. This does not certify raw/helper bypass closure, S_PASS,
+This does not certify raw/helper bypass closure, S_PASS,
 authority cutover, P3-10, Phase 3 Exit or Phase 4 Entry.
+
+## Native WebKit / IndexedDB counterpart
+
+`tests/subsidiary-relist-save-atomicity-webkit-test.js` runs the same pinned `control`, `balanced` and `growth` states
+in the installed page (emulated iPhone 13 WebKit, real IndexedDB) through the installed `relistSubsidiary`. A
+page-side observer requires the actual relisting secondary receipt of the pinned subsidiary inside the command's
+transaction. Per variant: success and all nine shared faults; `growth` adds queued-predecessor and nested
+`save-false` / `save-throw` (34 scenarios).
+
+Each failure must leave live state, mirror, cache and durable IndexedDB bytes exactly as before, with a pending
+predecessor intact; the recovery save exceeds every allocated failed sequence; the retried relisting equals the
+uninterrupted one; a fresh context with localStorage removed hydrates that state from IndexedDB alone. After each case
+a second relisting is refused under every strategy without any change, and is hydrated durable-only too. The page
+oracle ports the Node `success()`. Live-state rollback is compared with sorted object keys, as Node's deep equality
+does (as in the round-close WebKit test): the restored subsidiary carries its listing terms (`ipoOfferTerms`) in a
+different key order without any value changing. Mirror, cache and durable bytes are still compared exactly. Three
+negative controls are rejected: disabled rollback, company cash one yen over the expected movement and subsidiary
+cash one yen short of the primary proceeds.
+
+It runs in the M&A `sub-listing-atomicity` job after the follow-on evidence. Its logic was exercised locally on
+Chromium (34 scenarios plus 3 rejected controls); WebKit evidence is the exact HEAD's CI job. No physical-iPhone claim
+is made.
