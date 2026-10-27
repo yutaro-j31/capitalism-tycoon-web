@@ -66,6 +66,6 @@ After each case, week 22 does not write off again and is hydrated durable-only t
 `success()`. Three negative controls are rejected: disabled rollback, a receipt off by ¥1 and a founder stake left
 after the write-off.
 
-It runs in the M&A `stock-split-atomicity` job, like the other P3-4 evidence. Its logic was exercised locally on
+It runs in the M&A `vc-week-atomicity` job (split from `stock-split-atomicity` for its job budget). Its logic was exercised locally on
 Chromium (24 scenarios plus 3 rejected controls); WebKit evidence is the exact HEAD's CI job. No physical-iPhone
 claim is made.

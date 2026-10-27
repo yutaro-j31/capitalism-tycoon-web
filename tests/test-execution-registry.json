@@ -1,10 +1,10 @@
 {
   "tests/shareholder-dividend-declaration-save-atomicity-webkit-test.js": {
-    "reason": "P3-4 installed dividend declaration/cancellation real WebKit/native-IDB faults, repeat policy and fresh durable-only hydration in the M&A stock-split-atomicity job.",
+    "reason": "P3-4 installed dividend declaration/cancellation real WebKit/native-IDB faults, repeat policy and fresh durable-only hydration in the M&A vc-week-atomicity job.",
     "executedBy": ".github/workflows/ma-acquisition-financing.yml"
   },
   "tests/shareholder-dividend-payment-save-atomicity-webkit-test.js": {
-    "reason": "P3-4 installed canonical quarterly dividend-payment week real WebKit/native-IDB faults, payment/final-close/week boundaries, week-14 non-repayment and fresh durable-only hydration in the M&A stock-split-atomicity job.",
+    "reason": "P3-4 installed canonical quarterly dividend-payment week real WebKit/native-IDB faults, payment/final-close/week boundaries, week-14 non-repayment and fresh durable-only hydration in the M&A vc-week-atomicity job.",
     "executedBy": ".github/workflows/ma-acquisition-financing.yml"
   },
   "tests/turnaround-fund-accept-save-atomicity-webkit-test.js": {
@@ -12,11 +12,11 @@
     "executedBy": ".github/workflows/ma-acquisition-financing.yml"
   },
   "tests/shareholder-buyback-save-atomicity-webkit-test.js": {
-    "reason": "P3-4 installed buyback real WebKit/native-IDB faults, repeat orders and fresh durable-only hydration in the M&A stock-split-atomicity job.",
+    "reason": "P3-4 installed buyback real WebKit/native-IDB faults, repeat orders and fresh durable-only hydration in the M&A vc-week-atomicity job.",
     "executedBy": ".github/workflows/ma-acquisition-financing.yml"
   },
   "tests/sponsor-injection-save-atomicity-webkit-test.js": {
-    "reason": "P3-4 sponsor injection real WebKit/native-IDB faults, retry and fresh durable-only hydration in the M&A stock-split-atomicity job.",
+    "reason": "P3-4 sponsor injection real WebKit/native-IDB faults, retry and fresh durable-only hydration in the M&A vc-week-atomicity job.",
     "executedBy": ".github/workflows/ma-acquisition-financing.yml"
   },
   "tests/player-crisis-turnaround-ratchet-webkit-test.js": {
@@ -352,7 +352,7 @@
     "executedBy": ".github/workflows/ma-acquisition-financing.yml"
   },
   "tests/vc-writeoff-week-save-atomicity-webkit-test.js": {
-    "reason": "P3-4 W-VC-WRITEOFF installed canonical startup write-off week real WebKit/native-IDB faults, final-close/week boundaries, no repeat write-off and fresh durable-only hydration in the M&A stock-split-atomicity job.",
+    "reason": "P3-4 W-VC-WRITEOFF installed canonical startup write-off week real WebKit/native-IDB faults, final-close/week boundaries, no repeat write-off and fresh durable-only hydration in the M&A vc-week-atomicity job.",
     "executedBy": ".github/workflows/ma-acquisition-financing.yml"
   },
   "tests/found-new-company-save-atomicity-webkit-test.js": {
