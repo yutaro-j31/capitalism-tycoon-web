@@ -65,7 +65,7 @@ Production mutants (not committed) that the test rejects:
 
 ## Limits
 
-This is Node-only evidence; a native-WebKit counterpart is the next slice. It does not certify any of the following:
+This does not certify any of the following:
 
 - the other internal-venture writers;
 - group-restructuring merge of spun-off subsidiaries;
@@ -75,3 +75,21 @@ This is Node-only evidence; a native-WebKit counterpart is the next slice. It do
 - P3-10;
 - Phase 3 Exit;
 - Phase 4 Entry.
+
+## Native WebKit / IndexedDB counterpart
+
+`tests/internal-venture-spinoff-save-atomicity-webkit-test.js` runs the same pinned `first` and `second` states in the
+installed page (emulated iPhone 13 WebKit, real IndexedDB) through the installed `spinOffInternalVenture`. A page-side
+observer requires the spin-off notice naming the pinned venture inside the command's transaction. Per variant: success
+and all nine shared faults; `second` adds queued-predecessor and nested `save-false` / `save-throw` (24 scenarios).
+
+Each failure must leave live state, mirror, cache and durable IndexedDB bytes exactly as before, with a pending
+predecessor intact; the recovery save exceeds every allocated failed sequence; the retried spin-off equals the
+uninterrupted one; a fresh context with localStorage removed hydrates that state from IndexedDB alone. After each case
+a second spin-off is refused without any change, and is hydrated durable-only too. The page oracle ports the Node
+`success()`. Three negative controls are rejected: disabled rollback, company cash one yen off and a book left on the
+venture.
+
+It runs in the M&A `group-atomicity` job after the group restructuring sale evidence. Its logic was exercised locally
+on Chromium (24 scenarios plus 3 rejected controls); WebKit evidence is the exact HEAD's CI job. No physical-iPhone
+claim is made.
