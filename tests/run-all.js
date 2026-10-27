@@ -39,6 +39,7 @@ const nodeTests = [
   ['cash-writer-ratchet', 'tests/cash-writer-ratchet-test.js'],
   ['select-affected-tests', 'tests/select-affected-tests-test.js'],
   ['ci-metrics', 'tests/ci-metrics-test.js'],
+  ['parallel-shard-runner', 'tests/parallel-shard-runner-test.js'],
   ['authoritative-company-cash', 'tests/authoritative-company-cash-test.js'],
   ['real-estate-construction-in-progress', 'tests/real-estate-construction-in-progress-test.js'],
   ['bank-loans-covenants-accounting', 'tests/bank-loans-covenants-accounting-test.js'],
