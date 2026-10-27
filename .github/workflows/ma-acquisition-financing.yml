@@ -1047,7 +1047,7 @@ jobs:
 
   sub-capital-atomicity:
     # P3-4 listed-subsidiary capital-policy writers (follow-on offering, relisting) in real iPhone WebKit, split from
-    # sub-capital-atomicity, which took 37 min with five tests on #1167 (13-min install + 24-min tests).
+    # sub-listing-atomicity, which took 37 min with five tests on #1167 (13-min install + 24-min tests).
     # No event guard; same runtime and cancellation shape as the other family jobs.
     concurrency:
       group: ma-acquisition-financing-sub-capital-atomicity-${{ (github.event_name == 'pull_request' || inputs.mode == 'deal-room') && github.run_id || github.ref }}
