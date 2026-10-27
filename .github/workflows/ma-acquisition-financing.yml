@@ -734,24 +734,6 @@ jobs:
         run: node tests/stock-split-dividend-rescale-webkit-test.js
       - name: Stock split price floor in real iPhone WebKit
         run: node tests/stock-split-price-floor-webkit-test.js
-      - name: Dividend declaration safety in real iPhone WebKit
-        run: node tests/shareholder-dividend-declaration-save-atomicity-webkit-test.js
-      - name: Dividend payment week safety in real iPhone WebKit
-        run: node tests/shareholder-dividend-payment-save-atomicity-webkit-test.js
-      - name: Shareholder buyback safety in real iPhone WebKit
-        run: node tests/shareholder-buyback-save-atomicity-webkit-test.js
-      - name: Sponsor injection safety in real iPhone WebKit
-        run: node tests/sponsor-injection-save-atomicity-webkit-test.js
-      - name: Turnaround fund acceptance safety in real iPhone WebKit
-        run: node tests/turnaround-fund-accept-save-atomicity-webkit-test.js
-      - name: Turnaround ratchet week safety in real iPhone WebKit
-        run: node tests/player-crisis-turnaround-ratchet-webkit-test.js
-      - name: Personal margin enclosing-transaction safety in real iPhone WebKit
-        run: node tests/personal-stock-margin-save-atomicity-webkit-test.js
-      - name: P4-AUD-004 personal secured repayment in real iPhone WebKit
-        run: node tests/p4-aud-004-personal-secured-repayment-webkit-test.js
-      - name: Founder Capital save atomicity in real iPhone WebKit
-        run: node tests/founder-capital-atomicity-webkit-test.js
       - name: Retain stock split WebKit evidence
         if: always()
         uses: actions/upload-artifact@v4
@@ -988,13 +970,75 @@ jobs:
           if-no-files-found: error
           retention-days: 30
 
+  p3-writer-atomicity:
+    # P3-4 shareholder-return, crisis, personal-margin and founder-capital writers in real iPhone WebKit, split from
+    # stock-split-atomicity: its steps alone took ~27.5 minutes, so a 12.5-minute WebKit install hit the 40-minute
+    # timeout (#1150, job 122041180558). No event guard; same runtime and cancellation shape as the family jobs.
+    concurrency:
+      group: ma-acquisition-financing-p3-writer-atomicity-${{ (github.event_name == 'pull_request' || inputs.mode == 'deal-room') && github.run_id || github.ref }}
+      cancel-in-progress: true
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    env:
+      MA_DEAL_ROOM_ARTIFACT_DIR: artifacts/p3-writer-atomicity-webkit
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ (github.event_name == 'pull_request' || inputs.mode == 'deal-room') && '20' || '22' }}
+      - name: Install pinned Playwright runtime
+        run: npm install --no-save --no-package-lock playwright@1.61.0
+      - name: Install WebKit browser and system dependencies
+        # Bounded retry: the install has stalled for the whole job budget several times (CLAUDE.md §7);
+        # healthy installs have taken up to ~9 minutes, so each attempt gets 12 and the job budget fits two.
+        run: |
+          # apt mirrors have stalled mid-download: retry stalled connections instead of waiting forever.
+          printf 'Acquire::Retries "5";\nAcquire::http::Timeout "30";\nAcquire::https::Timeout "30";\n' | sudo tee /etc/apt/apt.conf.d/80-ci-retries >/dev/null
+          for attempt in 1 2; do
+            timeout --kill-after=30s 12m npx playwright install --with-deps webkit && exit 0
+            echo "::warning::WebKit install attempt $attempt failed or stalled"
+            # timeout kills npx, not the apt-get it started as root; free the dpkg lock before retrying.
+            sudo pkill -9 -x apt-get || true
+            sudo pkill -9 -x dpkg || true
+            sudo env DEBIAN_FRONTEND=noninteractive timeout --kill-after=10s 2m dpkg --configure -a || true
+            # A crawling Azure apt mirror is what stalls the install; retry against archive.ubuntu.com.
+            sudo sed -i -E 's#https?://azure\.archive\.ubuntu\.com/ubuntu/?#http://archive.ubuntu.com/ubuntu/#g' /etc/apt/apt-mirrors.txt /etc/apt/sources.list /etc/apt/sources.list.d/* 2>/dev/null || true
+          done
+          exit 1
+      - name: Dividend declaration safety in real iPhone WebKit
+        run: node tests/shareholder-dividend-declaration-save-atomicity-webkit-test.js
+      - name: Dividend payment week safety in real iPhone WebKit
+        run: node tests/shareholder-dividend-payment-save-atomicity-webkit-test.js
+      - name: Shareholder buyback safety in real iPhone WebKit
+        run: node tests/shareholder-buyback-save-atomicity-webkit-test.js
+      - name: Sponsor injection safety in real iPhone WebKit
+        run: node tests/sponsor-injection-save-atomicity-webkit-test.js
+      - name: Turnaround fund acceptance safety in real iPhone WebKit
+        run: node tests/turnaround-fund-accept-save-atomicity-webkit-test.js
+      - name: Turnaround ratchet week safety in real iPhone WebKit
+        run: node tests/player-crisis-turnaround-ratchet-webkit-test.js
+      - name: Personal margin enclosing-transaction safety in real iPhone WebKit
+        run: node tests/personal-stock-margin-save-atomicity-webkit-test.js
+      - name: P4-AUD-004 personal secured repayment in real iPhone WebKit
+        run: node tests/p4-aud-004-personal-secured-repayment-webkit-test.js
+      - name: Founder Capital save atomicity in real iPhone WebKit
+        run: node tests/founder-capital-atomicity-webkit-test.js
+      - name: Retain p3-writer-atomicity WebKit evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: p3-writer-atomicity-webkit-${{ github.sha }}
+          path: artifacts/p3-writer-atomicity-webkit
+          if-no-files-found: error
+          retention-days: 30
+
   ma-economic-gate:
     # One verdict for the split M&A gate. Every job that applies to this event must succeed;
     # a job that does not apply must be skipped. Failure, cancellation or an unexpected skip of
     # any job therefore fails this check. Branch protection is not configured, so this is a
     # reporting gate, not a merge block on its own.
     if: always()
-    needs: [debt-command-atomicity, property-debt-principal-sync, comprehensive-ma, comprehensive-ma-balance, deal-room, stock-split-atomicity, pe-acquisition-atomicity, vc-secondary-atomicity, vc-funding-atomicity, vc-week-atomicity]
+    needs: [debt-command-atomicity, property-debt-principal-sync, comprehensive-ma, comprehensive-ma-balance, deal-room, stock-split-atomicity, pe-acquisition-atomicity, vc-secondary-atomicity, vc-funding-atomicity, vc-week-atomicity, p3-writer-atomicity]
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
@@ -1011,7 +1055,7 @@ jobs:
           const dealRoom = event === 'pull_request' || (event === 'workflow_dispatch' && mode === 'deal-room');
           const applies = {
             'comprehensive-ma': comprehensive, 'comprehensive-ma-balance': comprehensive, 'deal-room': dealRoom, 'stock-split-atomicity': true,
-            'debt-command-atomicity': true, 'property-debt-principal-sync': true, 'pe-acquisition-atomicity': true, 'vc-secondary-atomicity': true, 'vc-funding-atomicity': true, 'vc-week-atomicity': true
+            'debt-command-atomicity': true, 'property-debt-principal-sync': true, 'pe-acquisition-atomicity': true, 'vc-secondary-atomicity': true, 'vc-funding-atomicity': true, 'vc-week-atomicity': true, 'p3-writer-atomicity': true
           };
           const problems = [];
           for (const [job, required] of Object.entries(applies)) {

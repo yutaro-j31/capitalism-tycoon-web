@@ -339,7 +339,9 @@ const movedFamilyJobs = {
   'vc-secondary-atomicity': ['tests/vc-secondary-sale-save-atomicity-webkit-test.js', 'tests/found-new-company-save-atomicity-webkit-test.js', 'tests/subsidiary-quarter-close-webkit-test.js', 'tests/listed-subsidiary-quarter-close-webkit-test.js', 'tests/subsidiary-disposal-webkit-test.js', 'tests/group-capital-allocation-webkit-test.js', 'tests/refounding-ledger-webkit-test.js'],
   'vc-funding-atomicity': ['tests/vc-follow-on-save-atomicity-webkit-test.js', 'tests/vc-initial-investment-save-atomicity-webkit-test.js', 'tests/angel-investment-save-atomicity-webkit-test.js', 'tests/make-subsidiary-save-atomicity-webkit-test.js'],
   // Not a Phase 1A move: P3-4 canonical-week startup writers, split from stock-split-atomicity for its job budget.
-  'vc-week-atomicity': ['tests/vc-writeoff-week-save-atomicity-webkit-test.js', 'tests/vc-round-close-week-save-atomicity-webkit-test.js', 'tests/vc-listing-week-save-atomicity-webkit-test.js']
+  'vc-week-atomicity': ['tests/vc-writeoff-week-save-atomicity-webkit-test.js', 'tests/vc-round-close-week-save-atomicity-webkit-test.js', 'tests/vc-listing-week-save-atomicity-webkit-test.js'],
+  // Not a Phase 1A move: P3-4 writer evidence, split from stock-split-atomicity for its job budget.
+  'p3-writer-atomicity': ['tests/shareholder-dividend-declaration-save-atomicity-webkit-test.js', 'tests/shareholder-dividend-payment-save-atomicity-webkit-test.js', 'tests/shareholder-buyback-save-atomicity-webkit-test.js', 'tests/sponsor-injection-save-atomicity-webkit-test.js', 'tests/turnaround-fund-accept-save-atomicity-webkit-test.js', 'tests/player-crisis-turnaround-ratchet-webkit-test.js', 'tests/personal-stock-margin-save-atomicity-webkit-test.js', 'tests/p4-aud-004-personal-secured-repayment-webkit-test.js', 'tests/founder-capital-atomicity-webkit-test.js']
 };
 const legacyRuntime = "node-version: ${{ (github.event_name == 'pull_request' || inputs.mode == 'deal-room') && '20' || '22' }}";
 for (const [job, tests] of Object.entries(movedFamilyJobs)) {
