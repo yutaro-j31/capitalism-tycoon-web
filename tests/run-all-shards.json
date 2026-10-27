@@ -114,7 +114,8 @@
     "test:stock",
     "tests/personal-real-estate-short-term-test.js",
     "tests/subsidiary-quarter-close-save-atomicity-test.js",
-    "tests/store-cost-inflation-25y-test.js"
+    "tests/store-cost-inflation-25y-test.js",
+    "tests/subsidiary-ipo-save-atomicity-test.js"
   ],
   "F": [
     "tests/shareholder-dividend-payment-save-atomicity-test.js",
