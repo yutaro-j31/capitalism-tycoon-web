@@ -62,7 +62,24 @@ assert.equal(summary.jobGroups.find(x => x.name === 'iPhone WebKit Smoke').skipp
 // Wall time is run creation -> last finishing job; the PR run ends when the final `test` job completes at minute 37.
 assert.equal(summary.perRun[0].wallMs, 37 * MIN);
 assert.equal(summary.perRun[0].lastFinishingJob.name, 'test');
-assert.equal(summary.perRun[0].firstJobStartDelayMs, 0);
+assert.equal(summary.perRun[0].firstJobStartDelayMs, MIN, 'the skipped job (placeholder start at run creation) must not define the first start');
+// Regression: skipped placeholders must not zero the first-start delay while every real job waited 10 minutes.
+const waited = m.summarize([{ run: run(10, 'pull_request', 0), jobs: [job('skipped-gate', 0, 0, 0, 'skipped'), job('test-shard-A', 0, 10, 20), job('test', 20, 20, 21)] }]);
+assert.equal(waited.perRun[0].firstJobStartDelayMs, 10 * MIN);
+assert.equal(waited.firstJobStartDelayMs.median, 10 * MIN);
+const onlySkipped = m.summarize([{ run: run(11, 'pull_request', 0), jobs: [job('skipped-gate', 0, 0, 0, 'skipped')] }]);
+assert.equal(onlySkipped.perRun[0].firstJobStartDelayMs, null, 'a run whose jobs were all skipped has no measurable start delay');
+// Regression: a last-finishing shard that failed or was cancelled keeps its queue sample but contributes no execution sample.
+const critical = m.summarize([
+  { run: run(20, 'pull_request', 0), jobs: [job('test-shard-A', 0, 2, 12), job('test-shard-B', 0, 3, 25), job('test', 25, 25, 26)] },
+  { run: run(21, 'pull_request', 100), jobs: [job('test-shard-A', 100, 101, 110), job('test-shard-B', 100, 104, 112, 'failure')] },
+  { run: run(22, 'pull_request', 200), jobs: [job('test-shard-A', 200, 201, 205), job('test-shard-B', 200, 206, 207, 'cancelled')] }
+]);
+assert.equal(critical.criticalShard.queueMs.n, 3, 'queue wait of every last shard is kept');
+assert.equal(critical.criticalShard.runMs.n, 1, 'only the successful last shard gives an execution sample');
+assert.equal(critical.criticalShard.runMs.median, 22 * MIN);
+assert.equal(critical.perRun[1].lastShard.conclusion, 'failure', 'run 21: the failed shard B finished last');
+assert.equal(critical.perRun[2].lastShard.conclusion, 'cancelled');
 // PR CI count and main-push attribution.
 assert.equal(summary.prCi.prs, 1); assert.equal(summary.prCi.runsPerPr.max, 2); assert.equal(summary.prCi.headShasPerPr.max, 2);
 assert.equal(summary.prCi.cancelledRuns, 1); assert.equal(summary.prCi.reattemptedRuns, 1);

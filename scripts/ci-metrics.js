@@ -74,8 +74,9 @@ function analyzeRun({ run, jobs }) {
     headSha: run.head_sha, pr: pr.number, prSource: pr.source,
     // Wall time = run creation -> last finishing job; only known when at least one job has a complete timestamp pair.
     wallMs: last ? span(run.created_at, last.completedAt) : null,
-    firstJobStartDelayMs: Math.min(...jobs.map(j => span(run.created_at, j.started_at)).filter(Number.isFinite), Infinity),
-    lastShard: lastShard ? { name: lastShard.name, queueMs: lastShard.queueMs, runMs: lastShard.runMs } : null,
+    // Skipped jobs carry placeholder timestamps and never ran on a runner, so they cannot define the first start.
+    firstJobStartDelayMs: Math.min(...jobs.filter(j => j.conclusion !== 'skipped').map(j => span(run.created_at, j.started_at)).filter(Number.isFinite), Infinity),
+    lastShard: lastShard ? { name: lastShard.name, conclusion: lastShard.conclusion, queueMs: lastShard.queueMs, runMs: lastShard.runMs } : null,
     shardStartSpreadMs: shardStarts.length > 1 ? Math.max(...shardStarts) - Math.min(...shardStarts) : null,
     lastFinishingJob: last ? { name: last.name, queueMs: last.queueMs, runMs: last.runMs } : null,
     lastFinishingJobCreatedToRunMs: lastRaw ? span(run.created_at, lastRaw.started_at) : null,
@@ -133,7 +134,7 @@ function summarize(entries) {
       wallMs: stats(pushWall.map(p => p.wallMs)) },
     criticalShard: {
       // The shard that finishes last decides when the aggregate `test` job can start: was it waiting or running?
-      queueMs: stats(runs.map(r => r.lastShard && r.lastShard.queueMs)), runMs: stats(runs.map(r => r.lastShard && r.lastShard.runMs)),
+      queueMs: stats(runs.map(r => r.lastShard && r.lastShard.queueMs)), runMs: stats(runs.map(r => r.lastShard && r.lastShard.conclusion === 'success' ? r.lastShard.runMs : null)),
       startSpreadMs: stats(runs.map(r => r.shardStartSpreadMs)),
       lastShardCounts: runs.reduce((a, r) => (r.lastShard && (a[r.lastShard.name] = (a[r.lastShard.name] || 0) + 1), a), {})
     },

@@ -34,7 +34,7 @@ Definitions: **queue wait** = job `created_at` → `started_at`; **execution** =
 
 | n | mean | median | p90 | min | max |
 |---:|---:|---:|---:|---:|---:|
-| 119 | 0.5 | 0.0 | 0.0 | 0.0 | 17.4 |
+| 119 | 1.6 | 0.1 | 5.2 | 0.0 | 17.4 |
 
 ### Jobs: queue wait (created -> started) vs execution (started -> completed)
 
@@ -105,6 +105,7 @@ Definitions: **queue wait** = job `created_at` → `started_at`; **execution** =
 - A PR's required CI takes a median of 40.2 min (p90 50.9, max 67.5). The post-merge `main` push run takes a median of 33.0 min (p90 44.8); it repeats the full 12-shard suite.
 - The run ends when the slowest shard ends. For that critical shard, queue wait has median 7.6 min (p90 16.2, max 25.8) and execution median 24.3 min (p90 26.4). Shard start times within one run are spread over a median of 7.9 min (p90 15.1).
 - Shard medians range from 17.9 min (K) to 25.9 min (J); J was the last shard in 36 of 115 runs, C/D/H in 15 each.
+- The first-job start delay excludes skipped jobs (their placeholder timestamps would otherwise pull it to 0). It is the delay of the first job of *any* kind, and small independent jobs usually start at once, so it understates the wait of the shard jobs; use the queue columns below for those.
 - Median CI runs per PR branch is 1 (p90 2, max 3), and no run in the sample was re-attempted; repeated CI cycles per PR are not the main cost in this sample.
 - `release-readiness` (median 19.5 min execution) and `iPhone Acceptance Playthrough` (median 4.5 min, p90 16.2) are never the last-finishing job in this sample.
 
