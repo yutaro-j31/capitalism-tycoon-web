@@ -1,17 +1,28 @@
 'use strict';
 // #978 group capital allocation through production writers: runGroupCapitalAllocationPlan -> executeGroupCapitalAllocation
-// on a VC subsidiary (fractional company cash, as in any normal play), an M&A subsidiary, and a taken-private listing
-// whose book carries a legacy fraction. Shared by the Node accounting test, the save-atomicity test and the WebKit test.
+// on a VC subsidiary, an M&A subsidiary, and a taken-private listing whose book carries a legacy fraction. Each
+// state also carries a legacy company-cash fraction (see legacyCashFraction). Shared by the Node accounting test, the save-atomicity test and the WebKit test.
 const assert=require('node:assert/strict');
 const {boot,advance,liveGame,snapshot,economic}=require('./subsidiary-quarter-close');
 const {privateGame,FRACTION}=require('./subsidiary-disposal');
 
 const WEEK=14;
 const validate=ctx=>ctx.modules.finance.validate(snapshot(ctx.game));
+// Before the whole-yen fix of the weekly subsidiary results (contract R6e), every week with a subsidiary added a
+// fraction of a yen to company cash, so a save from that time carries one. The allocation must keep such a fraction
+// exactly (#978), so each state emulates that older save: the fraction is booked as subsidiary revenue, exactly as
+// the old weekly writer recorded it, and the week's snapshot is rebuilt so the books are valid.
+function legacyCashFraction(c){
+ const g=c.game.g,fin=c.modules.finance;
+ fin.event(g,'revenue',FRACTION,{cashEffect:FRACTION,profitEffect:FRACTION,sourceType:'weekly-subsRevenue',sourceID:'pre-r6e-save',description:'pre-R6e subsidiary revenue fraction'});
+ g.companyCash+=FRACTION;fin.rebuildDirtySnapshots(g);
+ assert.equal(fin.validate(snapshot(c.game)).ok,true,'legacy fraction keeps the books valid');
+ return c;
+}
 const builders={
- vc:()=>liveGame('vc',WEEK),
- ma:()=>liveGame('ma',WEEK),
- book:()=>privateGame(FRACTION)
+ vc:()=>legacyCashFraction(liveGame('vc',WEEK)),
+ ma:()=>legacyCashFraction(liveGame('ma',WEEK)),
+ book:()=>legacyCashFraction(privateGame(FRACTION))
 };
 const states={};
 function stateOf(kind){return states[kind]||(states[kind]=JSON.stringify(builders[kind]().game.g));}

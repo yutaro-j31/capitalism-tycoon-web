@@ -119,7 +119,7 @@ async function normal() {
   const a = await setup(2), b = await setup(2);
   for (const id of a.game.g.maSubsidiaries.map(s => s.id)) {
     const before = clone(a.game.g), subsidiary = before.maSubsidiaries.find(s => s.id === id);
-    const expected = clone(before), price = subsidiary.valuation * a.engineModule.rand(expected, .85, 1.3);
+    const expected = clone(before), price = a.modules.economicOperation.ceilYen(subsidiary.valuation * a.engineModule.rand(expected, .85, 1.3)); // whole yen (contract R6e)
     const book = (subsidiary.commercializationCarryingValue || 0) + subsidiary.identifiableNetAssetsBookValue + subsidiary.goodwillBookValue;
     const events = [], listeners = [];
     for (const type of ['notify', 'saved', 'change']) {

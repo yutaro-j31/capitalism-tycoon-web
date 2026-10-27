@@ -801,6 +801,41 @@ const SCENARIOS = [
     assert.equal(rows.length, 1, 'the sale posts');
     return { rows, state: { companyCash: g.companyCash } };
   } },
+  { slice: 'R6e', label: 'weekly subsidiary revenue and operating profit', run() {
+    const { engine } = newGame(3551), g = engine.g;
+    // Fractional valuations and ownership make the parent's shares of revenue and profit fractional every week.
+    g.subsidiaries = [{ id: 'r6e-vc', name: 'R6e子会社', ownership: .7, valuation: 844_340_778, carryingBookValue: 400_000_000, subsidiaryCash: 0, weeklyProfit: 0, growth: .13, risk: .21, status: 'active', publicCompany: false }];
+    g.maSubsidiaries = [{ id: 'r6e-ma', name: 'R6e買収子会社', status: 'active', pmiStatus: 'completed', valuation: 123_456_789, sales: 98_765_433, operatingProfit: 7_654_321, growth: .05, risk: .1, weeklyProfit: 0 }];
+    engine.normalize();
+    const count = g.finance.transactions.length;
+    for (let week = 0; week < 4; week++) assert.notEqual(engine.advanceWeek(false), false);
+    const rows = rowsSince(g, count, row => ['weekly-subsRevenue', 'weekly-subsProfit'].includes(row.sourceType));
+    assert.ok(rows.some(row => row.sourceType === 'weekly-subsRevenue') && rows.some(row => row.sourceType === 'weekly-subsProfit'), 'both weekly subsidiary rows post');
+    return { rows, state: { companyCash: g.companyCash } };
+  } },
+  { slice: 'R6e', label: 'base subsidiary IPO secondary sale proceeds', run() {
+    const { engine } = newGame(3552), g = engine.g;
+    g.subsidiaries = [{ id: 'r6e-ipo', name: 'R6e上場', ownership: .7, valuation: 844_340_778, carryingBookValue: 543_639_055, subsidiaryCash: 0, weeklyProfit: 0, growth: .13, risk: .21, status: 'active', publicCompany: false,
+      ipoPreparation: { stageIndex: 3, startedWeek: 1, stageStartedWeek: 1, totalCost: 25_000_000, completed: true, offerTermID: 'balanced' } }];
+    engine.normalize();
+    assert.equal(engine.subsidiaryIPOPreparationSnapshot('r6e-ipo').ready, true, 'prepared for listing');
+    const count = g.finance.transactions.length;
+    assert.equal(engine.executePreparedSubsidiaryIPO('r6e-ipo'), true);
+    const rows = rowsSince(g, count, row => row.sourceType === 'ipoSubsidiary');
+    assert.equal(rows.length, 1, 'the IPO sale posts');
+    assert.equal(rows[0].amount, 126_651_117, '15% of ¥844,340,778 = ¥126,651,116.7 rounds up');
+    return { rows, state: { companyCash: g.companyCash, carryingBookValue: g.subsidiaries[0].carryingBookValue } };
+  } },
+  { slice: 'R6e', label: 'M&A subsidiary sale price', run() {
+    const { engine } = newGame(3553), g = engine.g;
+    g.maSubsidiaries = [{ id: 'r6e-sale', name: 'R6e売却', status: 'active', valuation: 123_456_789, identifiableNetAssetsBookValue: 60_000_000, goodwillBookValue: 20_000_000, commercializationCarryingValue: 0, sales: 1, operatingProfit: 1, growth: 0, risk: .1 }];
+    engine.normalize();
+    const count = g.finance.transactions.length;
+    assert.equal(engine.sellMASubsidiary('r6e-sale'), true);
+    const rows = rowsSince(g, count, row => row.sourceType === 'sellMASubsidiary');
+    assert.equal(rows.length, 1, 'the sale posts');
+    return { rows, state: { companyCash: g.companyCash } };
+  } },
   { slice: 'R6a', label: 'M&A offer price and advisory fee', run() {
     const { engine, modules } = newGame(3601), g = engine.g;
     Object.assign(g, { companyCash: 2_000_000_000, stockPrice: 1000, sharesOut: 1_000_000 });
