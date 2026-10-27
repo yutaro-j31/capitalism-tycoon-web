@@ -144,6 +144,7 @@ on:
       - 'tests/subsidiary-market-trade-save-atomicity-webkit-test.js'
       - 'tests/group-restructuring-sale-save-atomicity-webkit-test.js'
       - 'tests/internal-venture-spinoff-save-atomicity-webkit-test.js'
+      - 'tests/group-restructuring-merge-save-atomicity-webkit-test.js'
       - 'tests/fixtures/sponsor-injection-atomicity.js'
       - 'tests/fixtures/shareholder-buyback-atomicity.js'
       - 'tests/fixtures/shareholder-dividend-declaration-atomicity.js'
@@ -159,6 +160,7 @@ on:
       - 'tests/fixtures/subsidiary-market-trade-atomicity.js'
       - 'tests/fixtures/group-restructuring-sale-atomicity.js'
       - 'tests/fixtures/internal-venture-spinoff-atomicity.js'
+      - 'tests/fixtures/group-restructuring-merge-atomicity.js'
       - 'js/player-crisis-turnaround-fund.js'
       - 'tests/turnaround-fund-accept-save-atomicity-test.js'
       - 'tests/turnaround-fund-accept-save-atomicity-webkit-test.js'
@@ -333,6 +335,7 @@ on:
       - 'tests/subsidiary-market-trade-save-atomicity-webkit-test.js'
       - 'tests/group-restructuring-sale-save-atomicity-webkit-test.js'
       - 'tests/internal-venture-spinoff-save-atomicity-webkit-test.js'
+      - 'tests/group-restructuring-merge-save-atomicity-webkit-test.js'
       - 'tests/fixtures/sponsor-injection-atomicity.js'
       - 'tests/fixtures/shareholder-buyback-atomicity.js'
       - 'tests/fixtures/shareholder-dividend-declaration-atomicity.js'
@@ -348,6 +351,7 @@ on:
       - 'tests/fixtures/subsidiary-market-trade-atomicity.js'
       - 'tests/fixtures/group-restructuring-sale-atomicity.js'
       - 'tests/fixtures/internal-venture-spinoff-atomicity.js'
+      - 'tests/fixtures/group-restructuring-merge-atomicity.js'
       - 'js/player-crisis-turnaround-fund.js'
       - 'tests/turnaround-fund-accept-save-atomicity-test.js'
       - 'tests/turnaround-fund-accept-save-atomicity-webkit-test.js'
@@ -1143,6 +1147,8 @@ jobs:
         run: node tests/group-restructuring-sale-save-atomicity-webkit-test.js
       - name: Internal venture spin-off safety (W-INTERNAL-VENTURE) in real iPhone WebKit
         run: node tests/internal-venture-spinoff-save-atomicity-webkit-test.js
+      - name: Group restructuring merge safety (W-GROUP-DISPOSAL) in real iPhone WebKit
+        run: node tests/group-restructuring-merge-save-atomicity-webkit-test.js
       - name: Retain group-atomicity WebKit evidence
         if: always()
         uses: actions/upload-artifact@v4
