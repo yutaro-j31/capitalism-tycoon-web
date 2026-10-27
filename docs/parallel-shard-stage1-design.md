@@ -1,7 +1,8 @@
 # ステージ1 詳細設計 — `run-all-shard.js` への並列実行の opt-in 接続（シャードJのみ）
 
-- 状態: **設計と回帰テストの準備のみ。本番ランナー・ワークフローへの接続はしていない**（試作は別ブランチ `ci/stage1-optin-prototype`、PRなし）。
-- 前提: PR #1158（段階0）はマージ済み。PR #1172（`status===null` の誤判定の修正）は未マージで、Owner承認待ち。ステージ1は #1172 の後に載せる。
+- 状態: **Stage 1（`run-all-shard.js` への opt-in 接続、シャード J のみ）は実装済み**（PR #1174）。`TEST_SHARD_PARALLELISM` 未設定・`1`・不正値では従来の直列実行のまま。
+- **Stage 2（`.github/workflows/test.yml` への接続、リポジトリ変数、並列化の有効化）は未実施**。本書 §3・§7 は設計であり、実装・有効化は別PR・別承認。
+- 前提: PR #1158（段階0）と PR #1172（`status===null` の誤判定の修正、マージ `85a9cab8`）はマージ済み。Stage 1 は #1172 の後に載せた。
 
 ## 1. 要件との対応
 
@@ -20,7 +21,7 @@
 
 | ファイル | 変更 | 他のPRとの競合リスク |
 |---|---|---|
-| `tests/run-all-shard.js` | 約 +20 行: 並列度の解釈、並列時の記録スタブ、末尾の分岐。既定経路は不変 | 低: Aは通常このファイルを編集しない。#1172 も同ファイルの1行（`runRegisteredNodeTest` の条件）を変更するため、ステージ1は #1172 のマージ後に作る |
+| `tests/run-all-shard.js` | 約 +20 行: 並列度の解釈、並列時の記録スタブ、末尾の分岐。既定経路は不変 | 低: Aは通常このファイルを編集しない。#1172（同ファイルの1行）は既にマージ済みで、Stage 1 はその上に作成 |
 | `scripts/parallel-shard-runner.js` | `parseParallelism`、`runShard` を追加（既存関数は不変） | 低: 私の新規ファイル |
 | `scripts/parallel-shard-runner.config.json` | `parallelEnabledShards`、`timings`（J） | 低 |
 | `tests/shard-parallel-optin-test.js`（新規） | 回帰テスト（§4） | `tests/run-all.js` に1行登録。Aの挿入位置（98行目以降）と離れている |
@@ -43,7 +44,7 @@
 4. **ロールバック**: リポジトリ変数を削除（または `1`）。次の実行から直列。コード側の撤回は `test.yml` の環境変数行の revert。
 5. **拡大**: J の基準達成後に、同じ手順でシャードを1つずつ追加（`parallelEnabledShards` への追加は別PR、`serial` の確認つき）。
 
-## 4. 準備した回帰テスト（`tests/shard-parallel-optin-test.js`、試作ブランチ、約40秒）
+## 4. 準備した回帰テスト（`tests/shard-parallel-optin-test.js`、約28秒）
 
 本番の `run-all.js`・`run-all-shard.js`・`run-all-shards.json` を無改造で一時ディレクトリにコピーし、担当テストをスタブにして実行する。
 
@@ -75,11 +76,11 @@
 | 並列出力が直列と一致 | OK（段階0でJ、8回、全テストの stdout/stderr ハッシュ一致）。試作のJ実走（本番の `run-all-shard.js` 経由、並列度4）: exit 0、`executed=10 seen=614`（contract モードの `seen` と一致）、10本成功、wall 672秒、使用中ピークメモリ 2710MB、システムCPU 91%、ランナー自身のCPU 7.3秒。このときのホストは単体テストが 65秒→101.7秒（約1.56倍遅い）になっており、wall の絶対値は以前の実測と比べられない |
 | 失敗・タイムアウト・中断・残留 | OK（実在のJコマンドと回帰テスト） |
 | ロールバック | OK（リポジトリ変数、コミット不要） |
-| `status===null` の誤判定（#1171/#1172） | **未解決**: 並列化の前に #1172 を入れるか、並列実行器の厳格な扱い（失敗扱い）を直列より先行させることを Owner が了承するか |
+| `status===null` の誤判定（#1171/#1172） | 解決済み（#1172 マージ済み。直列・並列とも signal/error/ENOBUFS を失敗扱い） |
 | CIランナーのコア数・メモリ | **未確認**（ステージ2の最初のステップで確認） |
-| #1172 のCI | PENDING |
+| Stage 1 PR #1174 の最終HEAD CI | 実装時点で全シャード成功（最終HEADは PR 参照） |
 
-**判定: ステージ1のPR（コード、既定動作不変）は作成してよい状態。ただし #1172 のマージ後が望ましい。ステージ2（`test.yml` 変更と有効化）は個別承認。**
+**判定: Stage 1（コード、既定動作不変）は実装済み。Stage 2（`test.yml` 変更と有効化）は未実施で、Stage 2A（初期状態は無効）と Stage 2B（並列度2への有効化）を個別のGateで判断する。**
 
 ## 7. ステージ2の設計（GitHub Actions での J パイロット。ワークフロー変更・変数設定・有効化は未許可）
 
