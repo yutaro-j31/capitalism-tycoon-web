@@ -995,8 +995,9 @@ jobs:
           retention-days: 30
 
   sub-listing-atomicity:
-    # P3-4 listed-subsidiary writers (prepared IPO, secondary sale, and later control/follow-on/relisting) in real
-    # iPhone WebKit, split out so vc-secondary-atomicity (30.5 min with a 13-min install on #1153) keeps headroom.
+    # P3-4 listed-subsidiary writers (prepared IPO, secondary sale, control actions) in real iPhone WebKit, split out so
+    # vc-secondary-atomicity (30.5 min with a 13-min install on #1153) keeps headroom. Follow-on and relisting moved to
+    # sub-capital-atomicity: with all five tests this job took 37 min on #1167 (13-min install + 24-min tests).
     # No event guard; same runtime and cancellation shape as the other family jobs.
     concurrency:
       group: ma-acquisition-financing-sub-listing-atomicity-${{ (github.event_name == 'pull_request' || inputs.mode == 'deal-room') && github.run_id || github.ref }}
@@ -1035,16 +1036,60 @@ jobs:
         run: node tests/subsidiary-secondary-sale-save-atomicity-webkit-test.js
       - name: Listed subsidiary tender offer / squeeze-out safety (W-SUB-CONTROL) in real iPhone WebKit
         run: node tests/subsidiary-control-save-atomicity-webkit-test.js
-      - name: Listed subsidiary follow-on offering safety (W-SUB-FOLLOWON) in real iPhone WebKit
-        run: node tests/subsidiary-follow-on-save-atomicity-webkit-test.js
-      - name: Subsidiary relisting safety (W-SUB-RELIST) in real iPhone WebKit
-        run: node tests/subsidiary-relist-save-atomicity-webkit-test.js
       - name: Retain sub-listing-atomicity WebKit evidence
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: sub-listing-atomicity-webkit-${{ github.sha }}
           path: artifacts/sub-listing-atomicity-webkit
+          if-no-files-found: error
+          retention-days: 30
+
+  sub-capital-atomicity:
+    # P3-4 listed-subsidiary capital-policy writers (follow-on offering, relisting) in real iPhone WebKit, split from
+    # sub-capital-atomicity, which took 37 min with five tests on #1167 (13-min install + 24-min tests).
+    # No event guard; same runtime and cancellation shape as the other family jobs.
+    concurrency:
+      group: ma-acquisition-financing-sub-capital-atomicity-${{ (github.event_name == 'pull_request' || inputs.mode == 'deal-room') && github.run_id || github.ref }}
+      cancel-in-progress: true
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    env:
+      MA_DEAL_ROOM_ARTIFACT_DIR: artifacts/sub-capital-atomicity-webkit
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ (github.event_name == 'pull_request' || inputs.mode == 'deal-room') && '20' || '22' }}
+      - name: Install pinned Playwright runtime
+        run: npm install --no-save --no-package-lock playwright@1.61.0
+      - name: Install WebKit browser and system dependencies
+        # Bounded retry: the install has stalled for the whole job budget several times (CLAUDE.md §7);
+        # healthy installs have taken up to ~9 minutes, so each attempt gets 12 and the job budget fits two.
+        run: |
+          # apt mirrors have stalled mid-download: retry stalled connections instead of waiting forever.
+          printf 'Acquire::Retries "5";\nAcquire::http::Timeout "30";\nAcquire::https::Timeout "30";\n' | sudo tee /etc/apt/apt.conf.d/80-ci-retries >/dev/null
+          for attempt in 1 2; do
+            timeout --kill-after=30s 12m npx playwright install --with-deps webkit && exit 0
+            echo "::warning::WebKit install attempt $attempt failed or stalled"
+            # timeout kills npx, not the apt-get it started as root; free the dpkg lock before retrying.
+            sudo pkill -9 -x apt-get || true
+            sudo pkill -9 -x dpkg || true
+            sudo env DEBIAN_FRONTEND=noninteractive timeout --kill-after=10s 2m dpkg --configure -a || true
+            # A crawling Azure apt mirror is what stalls the install; retry against archive.ubuntu.com.
+            sudo sed -i -E 's#https?://azure\.archive\.ubuntu\.com/ubuntu/?#http://archive.ubuntu.com/ubuntu/#g' /etc/apt/apt-mirrors.txt /etc/apt/sources.list /etc/apt/sources.list.d/* 2>/dev/null || true
+          done
+          exit 1
+      - name: Listed subsidiary follow-on offering safety (W-SUB-FOLLOWON) in real iPhone WebKit
+        run: node tests/subsidiary-follow-on-save-atomicity-webkit-test.js
+      - name: Subsidiary relisting safety (W-SUB-RELIST) in real iPhone WebKit
+        run: node tests/subsidiary-relist-save-atomicity-webkit-test.js
+      - name: Retain sub-capital-atomicity WebKit evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: sub-capital-atomicity-webkit-${{ github.sha }}
+          path: artifacts/sub-capital-atomicity-webkit
           if-no-files-found: error
           retention-days: 30
 
@@ -1163,7 +1208,7 @@ jobs:
     # any job therefore fails this check. Branch protection is not configured, so this is a
     # reporting gate, not a merge block on its own.
     if: always()
-    needs: [debt-command-atomicity, property-debt-principal-sync, comprehensive-ma, comprehensive-ma-balance, deal-room, stock-split-atomicity, pe-acquisition-atomicity, vc-secondary-atomicity, vc-funding-atomicity, vc-week-atomicity, p3-writer-atomicity, sub-listing-atomicity, group-atomicity]
+    needs: [debt-command-atomicity, property-debt-principal-sync, comprehensive-ma, comprehensive-ma-balance, deal-room, stock-split-atomicity, pe-acquisition-atomicity, vc-secondary-atomicity, vc-funding-atomicity, vc-week-atomicity, p3-writer-atomicity, sub-listing-atomicity, sub-capital-atomicity, group-atomicity]
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
@@ -1180,7 +1225,7 @@ jobs:
           const dealRoom = event === 'pull_request' || (event === 'workflow_dispatch' && mode === 'deal-room');
           const applies = {
             'comprehensive-ma': comprehensive, 'comprehensive-ma-balance': comprehensive, 'deal-room': dealRoom, 'stock-split-atomicity': true,
-            'debt-command-atomicity': true, 'property-debt-principal-sync': true, 'pe-acquisition-atomicity': true, 'vc-secondary-atomicity': true, 'vc-funding-atomicity': true, 'vc-week-atomicity': true, 'p3-writer-atomicity': true, 'sub-listing-atomicity': true, 'group-atomicity': true
+            'debt-command-atomicity': true, 'property-debt-principal-sync': true, 'pe-acquisition-atomicity': true, 'vc-secondary-atomicity': true, 'vc-funding-atomicity': true, 'vc-week-atomicity': true, 'p3-writer-atomicity': true, 'sub-listing-atomicity': true, 'sub-capital-atomicity': true, 'group-atomicity': true
           };
           const problems = [];
           for (const [job, required] of Object.entries(applies)) {

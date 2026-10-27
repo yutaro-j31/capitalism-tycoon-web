@@ -74,6 +74,7 @@ every option is refused inside the restarted cooldown without any change, and is
 oracle ports the Node `success()`. Three negative controls are rejected: disabled rollback, company cash one yen over
 the secondary proceeds and subsidiary cash one yen short of the primary proceeds.
 
-It runs in the M&A `sub-listing-atomicity` job after the control-action evidence. Its logic was exercised locally on
+It runs in the M&A `sub-capital-atomicity` job (split from `sub-listing-atomicity`, which took 37 minutes with five
+tests on #1167). Its logic was exercised locally on
 Chromium (34 scenarios plus 3 rejected controls); WebKit evidence is the exact HEAD's CI job. No physical-iPhone claim
 is made.
