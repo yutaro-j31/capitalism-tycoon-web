@@ -51,18 +51,32 @@ function prOf(run) {
   return m ? { number: Number(m[1]), source: 'commit-message' } : { number: null, source: null };
 }
 
+// GitHub drops the PR link from a run once the head branch is deleted, so PR runs fall back to the branch name.
+function prKeyOf(run) {
+  const pr = prOf(run);
+  if (pr.number !== null) return { key: `#${pr.number}`, source: pr.source };
+  return run.event === 'pull_request' && run.head_branch ? { key: `branch:${run.head_branch}`, source: 'head-branch' } : { key: null, source: null };
+}
+
 function analyzeRun({ run, jobs }) {
   const analyzed = jobs.map(analyzeJob);
   const timed = analyzed.filter(j => j.completedAt);
   const last = timed.reduce((best, j) => (!best || Date.parse(j.completedAt) > Date.parse(best.completedAt) ? j : best), null);
   const lastRaw = last && jobs.find(j => j.name === last.name && j.completed_at === last.completedAt);
   const pr = prOf(run);
+  const shardJobs = jobs.filter(j => SHARD_JOB.test(j.name) && j.conclusion !== 'skipped');
+  const shardStarts = shardJobs.map(j => Date.parse(j.started_at)).filter(Number.isFinite);
+  const shardTimed = analyzed.filter(j => SHARD_JOB.test(j.name) && j.completedAt);
+  const lastShard = shardTimed.reduce((b, j) => (!b || Date.parse(j.completedAt) > Date.parse(b.completedAt) ? j : b), null);
   return {
+    prKey: prKeyOf(run).key, prKeySource: prKeyOf(run).source,
     runId: run.id, runNumber: run.run_number, attempt: run.run_attempt || 1, event: run.event, conclusion: run.conclusion || 'unknown',
     headSha: run.head_sha, pr: pr.number, prSource: pr.source,
     // Wall time = run creation -> last finishing job; only known when at least one job has a complete timestamp pair.
     wallMs: last ? span(run.created_at, last.completedAt) : null,
     firstJobStartDelayMs: Math.min(...jobs.map(j => span(run.created_at, j.started_at)).filter(Number.isFinite), Infinity),
+    lastShard: lastShard ? { name: lastShard.name, queueMs: lastShard.queueMs, runMs: lastShard.runMs } : null,
+    shardStartSpreadMs: shardStarts.length > 1 ? Math.max(...shardStarts) - Math.min(...shardStarts) : null,
     lastFinishingJob: last ? { name: last.name, queueMs: last.queueMs, runMs: last.runMs } : null,
     lastFinishingJobCreatedToRunMs: lastRaw ? span(run.created_at, lastRaw.started_at) : null,
     jobs: analyzed
@@ -75,32 +89,33 @@ function summarize(entries) {
   const jobs = runs.flatMap(r => r.jobs.map(j => ({ ...j, event: r.event })));
   const byName = {};
   for (const j of jobs) {
-    const g = (byName[groupName(j.name)] ||= { queue: [], run: [], total: 0, skipped: 0, untimed: 0 });
+    const g = (byName[groupName(j.name)] ||= { queue: [], run: [], total: 0, skipped: 0, untimed: 0, nonSuccess: 0 });
     g.total++;
     if (j.skipped) g.skipped++;
     else if (j.queueMs === null || j.runMs === null) g.untimed++;
-    g.queue.push(j.queueMs); g.run.push(j.runMs);
+    if (!j.skipped && j.conclusion !== 'success') g.nonSuccess++;
+    g.queue.push(j.queueMs); g.run.push(j.conclusion === 'success' ? j.runMs : null);
   }
   const jobGroups = Object.entries(byName).map(([name, g]) => ({
-    name, jobs: g.total, skipped: g.skipped, untimed: g.untimed, queueMs: stats(g.queue), runMs: stats(g.run)
+    name, jobs: g.total, skipped: g.skipped, untimed: g.untimed, nonSuccess: g.nonSuccess, queueMs: stats(g.queue), runMs: stats(g.run)
   })).sort((a, b) => (b.runMs.median ?? -1) - (a.runMs.median ?? -1));
   const shards = {};
   for (const j of jobs) {
     const m = SHARD_JOB.exec(j.name);
-    if (m) (shards[m[1]] ||= { queue: [], run: [] }).run.push(j.runMs), shards[m[1]].queue.push(j.queueMs);
+    if (m) { const sh = (shards[m[1]] ||= { queue: [], run: [] }); sh.run.push(j.conclusion === 'success' ? j.runMs : null); sh.queue.push(j.queueMs); }
   }
   const shardTable = Object.keys(shards).sort().map(s => ({ shard: s, queueMs: stats(shards[s].queue), runMs: stats(shards[s].run) }));
   const wallByEvent = {};
   for (const r of runs) (wallByEvent[r.event] ||= []).push(r.wallMs);
   const wall = Object.fromEntries(Object.entries(wallByEvent).map(([e, v]) => [e, stats(v)]));
   const prs = {};
-  for (const r of runs.filter(x => x.event === 'pull_request' && x.pr !== null)) {
-    const p = (prs[r.pr] ||= { shas: new Set(), runs: 0, cancelled: 0, reattempts: 0 });
+  for (const r of runs.filter(x => x.event === 'pull_request' && x.prKey !== null)) {
+    const p = (prs[r.prKey] ||= { shas: new Set(), runs: 0, cancelled: 0, reattempts: 0 });
     p.shas.add(r.headSha); p.runs++;
     if (r.conclusion === 'cancelled') p.cancelled++;
     if (r.attempt > 1) p.reattempts++;
   }
-  const prList = Object.entries(prs).map(([n, p]) => ({ pr: Number(n), runs: p.runs, distinctHeadShas: p.shas.size, cancelled: p.cancelled, reattempts: p.reattempts }));
+  const prList = Object.entries(prs).map(([n, p]) => ({ pr: n, runs: p.runs, distinctHeadShas: p.shas.size, cancelled: p.cancelled, reattempts: p.reattempts }));
   const pushWall = runs.filter(r => r.event === 'push' && r.pr !== null).map(r => ({ pr: r.pr, wallMs: r.wallMs, prSource: r.prSource }));
   const outcomes = {};
   for (const r of runs) outcomes[r.conclusion] = (outcomes[r.conclusion] || 0) + 1;
@@ -116,6 +131,12 @@ function summarize(entries) {
       cancelledRuns: prList.reduce((a, p) => a + p.cancelled, 0), reattemptedRuns: prList.reduce((a, p) => a + p.reattempts, 0) },
     mainPushRevalidation: { mapped: pushWall.length, mappedByCommitMessage: pushWall.filter(p => p.prSource === 'commit-message').length,
       wallMs: stats(pushWall.map(p => p.wallMs)) },
+    criticalShard: {
+      // The shard that finishes last decides when the aggregate `test` job can start: was it waiting or running?
+      queueMs: stats(runs.map(r => r.lastShard && r.lastShard.queueMs)), runMs: stats(runs.map(r => r.lastShard && r.lastShard.runMs)),
+      startSpreadMs: stats(runs.map(r => r.shardStartSpreadMs)),
+      lastShardCounts: runs.reduce((a, r) => (r.lastShard && (a[r.lastShard.name] = (a[r.lastShard.name] || 0) + 1), a), {})
+    },
     perRun: runs.map(({ jobs: _jobs, ...rest }) => rest)
   };
 }
@@ -126,19 +147,22 @@ const HEAD = '| n | mean | median | p90 | min | max |\n|---:|---:|---:|---:|---:
 
 function toMarkdown(summary, meta) {
   const L = [`# CI timing report`, '', `- repo: ${meta.repo}, workflow: ${meta.workflow}`, `- completed runs analysed: ${summary.runs}${meta.window ? ` (${meta.window})` : ''}`,
-    `- all durations in minutes; \`n/a\` = timestamp missing or inconsistent in the API response (never estimated)`,
+    `- all durations in minutes; \`n/a\` = timestamp missing or inconsistent in the API response (never estimated); execution statistics cover successful jobs only (failed/cancelled jobs end early and would distort them); queue statistics cover every job with a valid created->started pair`,
     `- outcomes: ${Object.entries(summary.outcomes).map(([k, v]) => `${k}=${v}`).join(', ')}`, '',
-    '## Workflow wall time (run created -> last finishing job)', '', `| event | ${HEAD.split('\n')[0].slice(2)}`, `|---|${HEAD.split('\n')[1]}`];
+    '## Workflow wall time (run created -> last finishing job)', '', `| event ${HEAD.split('\n')[0]}`, `|---${HEAD.split('\n')[1]}`];
   for (const [e, s] of Object.entries(summary.wallMsByEvent)) L.push(`| ${e} | ${statCells(s)} |`);
   L.push('', '## Delay before the first job starts', '', HEAD, `| ${statCells(summary.firstJobStartDelayMs)} |`);
   L.push('', '## Jobs: queue wait (created -> started) vs execution (started -> completed)', '',
-    `| job | jobs | skipped | untimed | queue n | queue median | queue p90 | queue max | run n | run median | run p90 | run max |`, `|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|`);
-  for (const g of summary.jobGroups) L.push(`| ${g.name} | ${g.jobs} | ${g.skipped} | ${g.untimed} | ${g.queueMs.n} | ${min(g.queueMs.median)} | ${min(g.queueMs.p90)} | ${min(g.queueMs.max)} | ${g.runMs.n} | ${min(g.runMs.median)} | ${min(g.runMs.p90)} | ${min(g.runMs.max)} |`);
+    `| job | jobs | skipped | untimed | non-success | queue n | queue median | queue p90 | queue max | run n | run median | run p90 | run max |`, `|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|`);
+  for (const g of summary.jobGroups) L.push(`| ${g.name} | ${g.jobs} | ${g.skipped} | ${g.untimed} | ${g.nonSuccess} | ${g.queueMs.n} | ${min(g.queueMs.median)} | ${min(g.queueMs.p90)} | ${min(g.queueMs.max)} | ${g.runMs.n} | ${min(g.runMs.median)} | ${min(g.runMs.p90)} | ${min(g.runMs.max)} |`);
   L.push('', '## Shards', '', `| shard | queue median | queue max | run n | run median | run p90 | run min | run max |`, `|---|---:|---:|---:|---:|---:|---:|---:|`);
   for (const s of summary.shards) L.push(`| ${s.shard} | ${min(s.queueMs.median)} | ${min(s.queueMs.max)} | ${s.runMs.n} | ${min(s.runMs.median)} | ${min(s.runMs.p90)} | ${min(s.runMs.min)} | ${min(s.runMs.max)} |`);
   L.push('', '## Last finishing job per run (the run\'s critical-path end; dependencies are not in the API)', '',
     Object.entries(summary.lastFinishingJobCounts).map(([k, v]) => `- ${k}: ${v}`).join('\n') || '- none');
-  L.push('', '## Pull-request CI', '', `- PRs with pull_request runs: ${summary.prCi.prs}`, `- runs per PR: median ${summary.prCi.runsPerPr.median ?? 'n/a'}, max ${summary.prCi.runsPerPr.max ?? 'n/a'}`,
+  L.push('', '## Critical shard (the last shard to finish in each run)', '', HEAD.split('\n').map((x, i) => (i ? x : '| metric ' + x)).join('\n').replace('|---:|', '|---|---:|'),
+    `| queue wait | ${statCells(summary.criticalShard.queueMs)} |`, `| execution | ${statCells(summary.criticalShard.runMs)} |`, `| spread of shard start times | ${statCells(summary.criticalShard.startSpreadMs)} |`,
+    '', `- last shard counts: ${Object.entries(summary.criticalShard.lastShardCounts).sort().map(([k, v]) => `${k.replace('test-shard-', '')}=${v}`).join(', ') || 'none'}`);
+  L.push('', '## Pull-request CI', '', `- PRs (or PR branches, when GitHub dropped the PR link) with pull_request runs: ${summary.prCi.prs}`, `- runs per PR: median ${summary.prCi.runsPerPr.median ?? 'n/a'}, max ${summary.prCi.runsPerPr.max ?? 'n/a'}`,
     `- distinct head SHAs per PR: median ${summary.prCi.headShasPerPr.median ?? 'n/a'}, max ${summary.prCi.headShasPerPr.max ?? 'n/a'}`,
     `- cancelled runs: ${summary.prCi.cancelledRuns}, re-attempted runs: ${summary.prCi.reattemptedRuns}`);
   L.push('', '## main push re-validation after merge', '', `- push runs mapped to a PR: ${summary.mainPushRevalidation.mapped} (${summary.mainPushRevalidation.mappedByCommitMessage} via commit message, inferred)`, '', HEAD, `| ${statCells(summary.mainPushRevalidation.wallMs)} |`);
@@ -161,7 +185,7 @@ function fetchRuns({ repo, workflow, maxRuns, exec = ghExec }) {
     return { run: slimRun(run), jobs: jobs.map(slimJob) };
   });
 }
-const slimRun = r => ({ id: r.id, run_number: r.run_number, run_attempt: r.run_attempt, event: r.event, conclusion: r.conclusion, head_sha: r.head_sha,
+const slimRun = r => ({ id: r.id, head_branch: r.head_branch, run_number: r.run_number, run_attempt: r.run_attempt, event: r.event, conclusion: r.conclusion, head_sha: r.head_sha,
   created_at: r.created_at, updated_at: r.updated_at, display_title: r.display_title, pull_requests: (r.pull_requests || []).map(p => ({ number: p.number })),
   head_commit: r.head_commit ? { message: String(r.head_commit.message || '').split('\n')[0] } : null });
 const slimJob = j => ({ name: j.name, conclusion: j.conclusion, created_at: j.created_at, started_at: j.started_at, completed_at: j.completed_at });
