@@ -77,8 +77,9 @@ function runRegisteredNodeTest(name, file) {
     maxBuffer: 64 * 1024 * 1024,
     shell: false
   });
-  if (result.status) {
+  if (result.status !== 0 || result.signal || result.error) {
     console.error(`::error title=Test suite failed::${name}`);
+    if (result.signal || result.error) console.error(`abnormal exit: signal=${result.signal} error=${result.error && (result.error.code || result.error.message)}`);
     if (result.stdout) process.stdout.write(result.stdout);
     if (result.stderr) process.stderr.write(result.stderr);
     process.exit(result.status || 1);
