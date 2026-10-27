@@ -56,5 +56,26 @@ one, founder stake not diluted.
 
 ## Limits
 
-Node only; a native-WebKit counterpart is the next slice. This does not certify listing (`listStartup`), raw/helper
+This does not certify listing (`listStartup`), raw/helper
 bypass closure, S_PASS, authority cutover, P3-10, Phase 3 Exit or Phase 4 Entry.
+
+## Native WebKit / IndexedDB counterpart
+
+`tests/vc-round-close-week-save-atomicity-webkit-test.js` runs the same pinned `company` and `mixed` states in the
+installed page (emulated iPhone 13 WebKit, real IndexedDB) through the canonical `advanceWeek(false)`, week 23 to
+24. A page-side observer requires the actual successful close of the pinned round inside the week transaction. Per
+variant: success, the seven applicable shared faults and the final-close and terminal `week` boundaries; `mixed`
+adds queued-predecessor and nested `save-false` / `save-throw` (24 scenarios).
+
+Each failure must leave live state, mirror, cache and durable IndexedDB bytes exactly as before, with a pending
+predecessor intact; the recovery save exceeds every allocated failed sequence; the retried week equals the
+uninterrupted same-seed week; a fresh context with localStorage removed hydrates that state from IndexedDB alone.
+After each case, week 25 neither closes again nor re-dilutes, and is hydrated durable-only too. The page oracle ports
+the Node `success()`. Live-state rollback is compared with sorted object keys, as Node's deep equality does (as in
+the follow-on WebKit test): a rollback may re-order the keys of funding history rows without changing any value.
+Mirror, cache and durable bytes are still compared exactly. Three negative controls are rejected: disabled
+rollback, an undiluted founder stake and an extra round ledger row.
+
+It runs in the M&A `vc-week-atomicity` job with the write-off week evidence. Its logic was exercised locally on
+Chromium (24 scenarios plus 3 rejected controls); WebKit evidence is the exact HEAD's CI job. No physical-iPhone
+claim is made.
