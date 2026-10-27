@@ -301,7 +301,8 @@
     "tests/phase3-pe-fund-interests-test.js",
     "tests/phase3-pe-lp-commitments-test.js",
     "tests/phase3-restructuring-lifecycle-test.js",
-    "tests/phase3-founder-wealth-test.js"
+    "tests/phase3-founder-wealth-test.js",
+    "tests/subsidiary-secondary-sale-save-atomicity-test.js"
   ],
   "L": [
     "tests/stock-split-price-floor-test.js",
