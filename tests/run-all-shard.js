@@ -29,7 +29,7 @@ const executed = [];
 // Opt-in parallel execution (stage 1): TEST_SHARD_PARALLELISM=N (N >= 2) on a shard enabled in
 // scripts/parallel-shard-runner.config.json. Unset, empty, 1, invalid or not enabled -> the serial code below, unchanged.
 const parallelism = process.env.TEST_SHARD_PARALLELISM && !contractOnly
-  ? require('../scripts/parallel-shard-runner').parseParallelism(process.env.TEST_SHARD_PARALLELISM, selectedShard, JSON.parse(require('node:fs').readFileSync(path.join(__dirname, '..', 'scripts', 'parallel-shard-runner.config.json'), 'utf8')))
+  ? require('../scripts/parallel-shard-runner').parseParallelism(process.env.TEST_SHARD_PARALLELISM, selectedShard, require('../scripts/parallel-shard-runner').loadConfig)
   : 1;
 const planned = [];
 

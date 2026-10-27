@@ -315,11 +315,13 @@ async function main(argv) {
 
 // ---- opt-in entry for tests/run-all-shard.js (stage 1) ------------------------------------------------------------------
 // `planned` is what the production wrapper recorded for the shard instead of running it. Returns the process exit code.
-function parseParallelism(raw, shard, config, warn = line => console.error(line)) {
+function parseParallelism(raw, shard, getConfig, warn = line => console.error(line)) {
   if (raw === undefined || raw === '') return 1;
   if (!/^\d+$/.test(String(raw)) || Number(raw) < 1) { warn(`::warning::TEST_SHARD_PARALLELISM=${raw} is not a positive integer; running serially`); return 1; }
   const n = Math.min(Number(raw), 8);
-  if (n > 1 && !((config.parallelEnabledShards || []).includes(shard))) { warn(`::warning::shard ${shard} is not enabled for parallel execution in scripts/parallel-shard-runner.config.json; running serially`); return 1; }
+  if (n === 1) return 1; // the config is only read when parallel execution is actually requested
+  const config = typeof getConfig === 'function' ? getConfig() : getConfig;
+  if (!((config.parallelEnabledShards || []).includes(shard))) { warn(`::warning::shard ${shard} is not enabled for parallel execution in scripts/parallel-shard-runner.config.json; running serially`); return 1; }
   return n;
 }
 
@@ -357,5 +359,5 @@ async function runShard({ shard, planned, concurrency, executed, env = process.e
   return report.ok ? 0 : 1;
 }
 
-module.exports = { labelOf, enumerateShard, digestOf, scanSharedState, scheduleOrder, reconcile, runCommands, killGroup, groupAlive, parseParallelism, runShard };
+module.exports = { labelOf, enumerateShard, digestOf, scanSharedState, scheduleOrder, reconcile, runCommands, killGroup, groupAlive, parseParallelism, loadConfig, runShard };
 if (require.main === module) main(process.argv.slice(2)).then(code => { process.exitCode = code; }, error => { console.error(error); process.exitCode = 3; });
