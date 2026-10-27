@@ -104,6 +104,7 @@ const nodeTests = [
   ['subsidiary-control-save-atomicity', 'tests/subsidiary-control-save-atomicity-test.js'],
   ['subsidiary-relist-save-atomicity', 'tests/subsidiary-relist-save-atomicity-test.js'],
   ['subsidiary-market-trade-save-atomicity', 'tests/subsidiary-market-trade-save-atomicity-test.js'],
+  ['internal-venture-spinoff-save-atomicity', 'tests/internal-venture-spinoff-save-atomicity-test.js'],
   ['vc-initial-investment-save-atomicity', 'tests/vc-initial-investment-save-atomicity-test.js'],
   ['pe-fund-acquisition-save-atomicity', 'tests/pe-fund-acquisition-save-atomicity-test.js'],
   ['pe-portfolio-exit-save-atomicity', 'tests/pe-portfolio-exit-save-atomicity-test.js'],
