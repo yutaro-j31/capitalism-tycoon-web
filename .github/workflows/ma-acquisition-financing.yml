@@ -136,6 +136,7 @@ on:
       - 'tests/vc-writeoff-week-save-atomicity-webkit-test.js'
       - 'tests/vc-round-close-week-save-atomicity-webkit-test.js'
       - 'tests/vc-listing-week-save-atomicity-webkit-test.js'
+      - 'tests/subsidiary-ipo-save-atomicity-webkit-test.js'
       - 'tests/fixtures/sponsor-injection-atomicity.js'
       - 'tests/fixtures/shareholder-buyback-atomicity.js'
       - 'tests/fixtures/shareholder-dividend-declaration-atomicity.js'
@@ -143,6 +144,7 @@ on:
       - 'tests/fixtures/vc-writeoff-week-atomicity.js'
       - 'tests/fixtures/vc-round-close-week-atomicity.js'
       - 'tests/fixtures/vc-listing-week-atomicity.js'
+      - 'tests/fixtures/subsidiary-ipo-atomicity.js'
       - 'js/player-crisis-turnaround-fund.js'
       - 'tests/turnaround-fund-accept-save-atomicity-test.js'
       - 'tests/turnaround-fund-accept-save-atomicity-webkit-test.js'
@@ -309,6 +311,7 @@ on:
       - 'tests/vc-writeoff-week-save-atomicity-webkit-test.js'
       - 'tests/vc-round-close-week-save-atomicity-webkit-test.js'
       - 'tests/vc-listing-week-save-atomicity-webkit-test.js'
+      - 'tests/subsidiary-ipo-save-atomicity-webkit-test.js'
       - 'tests/fixtures/sponsor-injection-atomicity.js'
       - 'tests/fixtures/shareholder-buyback-atomicity.js'
       - 'tests/fixtures/shareholder-dividend-declaration-atomicity.js'
@@ -316,6 +319,7 @@ on:
       - 'tests/fixtures/vc-writeoff-week-atomicity.js'
       - 'tests/fixtures/vc-round-close-week-atomicity.js'
       - 'tests/fixtures/vc-listing-week-atomicity.js'
+      - 'tests/fixtures/subsidiary-ipo-atomicity.js'
       - 'js/player-crisis-turnaround-fund.js'
       - 'tests/turnaround-fund-accept-save-atomicity-test.js'
       - 'tests/turnaround-fund-accept-save-atomicity-webkit-test.js'
@@ -856,6 +860,9 @@ jobs:
       - name: Refounding opens the new company's book at the contribution (#968) in real iPhone WebKit
         run: |
           node tests/refounding-ledger-webkit-test.js
+      - name: Prepared subsidiary IPO safety (W-SUB-IPO) in real iPhone WebKit
+        run: |
+          node tests/subsidiary-ipo-save-atomicity-webkit-test.js
       - name: Retain vc-secondary-atomicity WebKit evidence
         if: always()
         uses: actions/upload-artifact@v4
