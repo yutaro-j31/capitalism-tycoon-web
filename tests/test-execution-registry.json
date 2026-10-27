@@ -375,6 +375,10 @@
     "reason": "P3-4 W-SUB-CONTROL listed subsidiary tender offer and squeeze-out real WebKit/native-IDB faults (all nine shared kinds), refused repeated action and fresh durable-only hydration in the M&A sub-listing-atomicity job.",
     "executedBy": ".github/workflows/ma-acquisition-financing.yml"
   },
+  "tests/subsidiary-follow-on-save-atomicity-webkit-test.js": {
+    "reason": "P3-4 W-SUB-FOLLOWON listed subsidiary follow-on offering real WebKit/native-IDB faults (all nine shared kinds, three installed options), refused offering inside the cooldown and fresh durable-only hydration in the M&A sub-listing-atomicity job.",
+    "executedBy": ".github/workflows/ma-acquisition-financing.yml"
+  },
   "tests/found-new-company-save-atomicity-webkit-test.js": {
     "reason": "#955 refounding after buyout through the real legacy-tab flow: state root identity kept on success and rollback; one commit with the founded-investment record; personal holdings carry over, sold-company debt does not; every harness fault kind (incl. prior pending put) rolls back into the same root; thrown faults open the recovery dialog; deterministic retry; reload and fresh durable-only hydration in iPhone WebKit on every workflow event (placed in vc-secondary-atomicity for job-time balance).",
     "executedBy": ".github/workflows/ma-acquisition-financing.yml"
