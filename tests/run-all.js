@@ -24,8 +24,9 @@ for (let i = 0; i < commands.length; i++) {
   });
   const elapsedSeconds = ((Date.now() - startedAt) / 1000).toFixed(1);
   console.log(`[run-all ${i + 1}/${commands.length}] done ${command} in ${elapsedSeconds}s (exit ${result.status ?? `signal:${result.signal}`})`);
-  if (result.status) {
+  if (result.status !== 0 || result.signal || result.error) {
     console.error(`::error title=Test suite failed::${command}`);
+    if (result.signal || result.error) console.error(`abnormal exit: signal=${result.signal} error=${result.error && (result.error.code || result.error.message)}`);
     if (result.stdout) process.stdout.write(result.stdout);
     if (result.stderr) process.stderr.write(result.stderr);
     process.exit(result.status || 1);
@@ -40,6 +41,7 @@ const nodeTests = [
   ['select-affected-tests', 'tests/select-affected-tests-test.js'],
   ['ci-metrics', 'tests/ci-metrics-test.js'],
   ['parallel-shard-runner', 'tests/parallel-shard-runner-test.js'],
+  ['run-all-abnormal-exit', 'tests/run-all-abnormal-exit-test.js'],
   ['authoritative-company-cash', 'tests/authoritative-company-cash-test.js'],
   ['real-estate-construction-in-progress', 'tests/real-estate-construction-in-progress-test.js'],
   ['bank-loans-covenants-accounting', 'tests/bank-loans-covenants-accounting-test.js'],
@@ -548,8 +550,9 @@ for (let i = 0; i < nodeTests.length; i++) {
   });
   const elapsedSeconds = ((Date.now() - startedAt) / 1000).toFixed(1);
   console.log(`[run-all node ${i + 1}/${nodeTests.length}] done ${name} in ${elapsedSeconds}s (exit ${result.status ?? `signal:${result.signal}`})`);
-  if (result.status) {
+  if (result.status !== 0 || result.signal || result.error) {
     console.error(`::error title=Test suite failed::${name}`);
+    if (result.signal || result.error) console.error(`abnormal exit: signal=${result.signal} error=${result.error && (result.error.code || result.error.message)}`);
     if (result.stdout) process.stdout.write(result.stdout);
     if (result.stderr) process.stderr.write(result.stderr);
     process.exit(result.status || 1);
