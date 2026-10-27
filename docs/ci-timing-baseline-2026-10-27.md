@@ -119,6 +119,35 @@ Definitions: **queue wait** = job `created_at` → `started_at`; **execution** =
 | ENVIRONMENT_SETUP | WebKit jobs are not last-finishing in any run | not on the critical path in this sample |
 | WORKFLOW_DEPENDENCY | shards `needs` the contract job; contract-job queue p90 10.0 min | observed, not analysed |
 
+## Slowest tests (partial — one run, first 10 timing notices per shard)
+
+Source: the `::notice title=Shard X timing::` annotations of the `Test` run for PR #1138 (run 40415699426), read via the check-runs annotations API. GitHub keeps only the first 10 annotations per job, so shards that executed more than 10 heavy entries are truncated and this is **not** a complete top-20. Entries are `node tests/…` files or `npm run` labels; seconds are execution time on that one run.
+
+| s | shard | entry |
+|---:|---|---|
+| 349.0 | L | tests/debt-command-save-atomicity-test.js |
+| 319.9 | C | tests/product-recall-reachability-runner.js |
+| 277.7 | I | tests/competitor-product-counter-reachability-test.js |
+| 254.6 | J | tests/digital-portfolio-breakeven-seeds-test.js |
+| 248.7 | I | tests/exploration-style-test.js |
+| 221.5 | C | tests/pe-exit-deal-save-atomicity-test.js |
+| 200.9 | I | tests/industry-event-response-plans-reachability-test.js |
+| 191.1 | I | test:digital-portfolio-profitability |
+| 183.5 | K | tests/yen-ceiling-seeded-full-run-test.js |
+| 177.6 | C | test:supply-long |
+| 166.8 | G | test:workforce-long |
+| 163.6 | D | tests/stock-split-save-atomicity-test.js |
+| 154.1 | I | tests/simulation-long-run-reload-fork-test.js |
+| 144.8 | G | tests/angel-investment-save-atomicity-test.js |
+| 137.8 | L | tests/subsidiary-quarter-close-test.js |
+| 136.4 | C | tests/decline-buyout-ownership-save-atomicity-test.js |
+| 134.0 | J | tests/shareholder-activism-split-integration-test.js |
+| 133.4 | B | tests/store-concept-test.js |
+| 128.4 | C | tests/founder-retirement-reachability-test.js |
+| 122.4 | G | tests/turnaround-fund-accept-save-atomicity-test.js |
+
+Observed: six of these twenty are `*-save-atomicity-test.js` files (2–6 min each), the family P3-4 keeps extending. Each shard executes only a few heavy entries (shard J: 10 entries, 877.9 s total in that run), so shard time is dominated by a handful of tests. Why these tests are slow (repeated full-week simulation, fixture construction, I/O) has **not** been profiled yet.
+
 ## Not measured here
 
 Human review/approval waiting, Codex review latency, fixes per PR (commit counts), other workflows, GitHub plan concurrency limits, per-test timings inside shards.
