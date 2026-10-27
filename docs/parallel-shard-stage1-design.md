@@ -80,3 +80,79 @@
 | #1172 のCI | PENDING |
 
 **判定: ステージ1のPR（コード、既定動作不変）は作成してよい状態。ただし #1172 のマージ後が望ましい。ステージ2（`test.yml` 変更と有効化）は個別承認。**
+
+## 7. ステージ2の設計（GitHub Actions での J パイロット。ワークフロー変更・変数設定・有効化は未許可）
+
+### 7.1 ワークフロー変更案（`.github/workflows/test.yml`、`test-shards` ジョブのみ。ローカルで契約テストに通ることを確認済み）
+
+```yaml
+      - name: Record runner resources (shard J parallel pilot)
+        if: matrix.shard == 'J'
+        run: |
+          nproc
+          free -m
+          grep -m1 'model name' /proc/cpuinfo
+          cat /sys/fs/cgroup/cpu.max 2>/dev/null || true
+          cat /sys/fs/cgroup/memory.max 2>/dev/null || true
+      - name: Run canonical test shard ${{ matrix.shard }}
+        env:
+          TEST_SHARD: ${{ matrix.shard }}
+          # Parallel execution is off unless the repository variable TEST_SHARD_PARALLELISM_J is set; only shard J can use it.
+          TEST_SHARD_PARALLELISM: ${{ matrix.shard == 'J' && (vars.TEST_SHARD_PARALLELISM_J || '1') || '1' }}
+          TEST_SHARD_PARALLEL_REPORT: artifacts/shard-parallel/${{ matrix.shard }}.json
+        run: node tests/run-all-shard.js
+      - name: Upload parallel shard report
+        if: always() && matrix.shard == 'J' && vars.TEST_SHARD_PARALLELISM_J != ''
+        uses: actions/upload-artifact@v4
+        with:
+          name: shard-parallel-report-${{ matrix.shard }}-${{ github.run_id }}
+          path: artifacts/shard-parallel
+          if-no-files-found: ignore
+          retention-days: 14
+```
+
+- マージ時点では変数が未設定なので、**全シャードの挙動は現行と同一**（J のリソース出力ステップが数秒増えるだけ）。
+- ジョブの `timeout-minutes: 30` は変更しない。並列実行の全体タイムアウト（既定1680秒）がそれより先に診断を出す。タイムアウト値の延長はしない。
+- ローカルでの確認: `shard-matrix-contract`、`workflow-path-filter-contract-test`、`workflow-browser-timeout-contract`、`iphone-webkit-smoke-contract-test` が通り、YAML が解釈できる。`ci-hygiene.yml` は `test.yml` の変更で動くパスフィルタを持つ（既存の挙動）。
+- ステージ2のPR作成前に、`test.yml` を変更中の他のPRがないこと、最新mainに追従していることを再確認する。
+
+### 7.2 並列度2から始める手順
+
+1. （Owner）リポジトリ変数 `TEST_SHARD_PARALLELISM_J = 2` を設定。以後のPR実行・main push実行の J が並列度2になる。
+2. 最初の1回で CI ランナーの実際のコア数・メモリ・モデル名（リソース出力ステップ）を確認する。**コア数が4未満、またはメモリが想定（16GB）の半分以下なら、変数を削除して中止**する。
+3. 10回以上のPR実行（main push実行は別集計）で下記の指標を集める。
+
+### 7.3 並列度4へ移行する条件（すべて満たすこと）
+
+- 並列度2で10回連続成功。各回で `canonical-test-shard-summary` の `executed=10` と `seen` が直列の基準値と一致、`parallel-shard-summary` の `passed=10 failed=0 aborted=0 notStarted=0`。
+- J の実行時間の中央値が、直列基準（直近120件で 25.9分）に対して 14分以下（ローカルの並列度2の比 約1.8倍からの推定: 約14分）。
+- `leftoverProcesses` が0、テスト単位のタイムアウト発動0。
+- 使用中ピークメモリが `MemTotal` の50%以下、`nproc` が4以上。
+- システムCPU使用率が40%以上（並列度2でコアが実際に使われている証拠）。
+- その後、変数を `4` にし、さらに10回同じ条件（J の中央値 10分以下を目標、メモリ50%以下）で確認する。
+
+### 7.4 計測する指標と方法
+
+| 指標 | 取得元 |
+|---|---|
+| ランナーのコア数・メモリ・モデル・cgroup上限 | リソース出力ステップのログ |
+| J の実行時間、開始待ち | `node scripts/ci-metrics.js`（`test-shard-J` の queue / execution）。変数設定前の履歴を基準にする |
+| 他シャードに対する J の相対値（ランナーの速度変動の対照） | 同じ run の他シャードの実行時間との比を、変数設定の前後で比較 |
+| CPU・ピークメモリ・ランナー自身のCPU・件数・各テストの時間 | アーティファクト `shard-parallel-report-J-<run_id>`（`parallel-shard-summary` 行にも出る） |
+| 実行件数・失敗率 | `canonical-test-shard-summary` の `executed`/`seen`、run の結論 |
+| 逐次との速度比較 | 変数設定前の履歴（n=115）と、設定後の10回以上。さらに、設定後でも変数を一時的に `1` に戻した run を数回挟んで同日比較する |
+
+### 7.5 即時ロールバック
+
+- 変数 `TEST_SHARD_PARALLELISM_J` を削除（または `1`）→ 次の実行から直列。コミット・PR不要。実行中の run には影響しない。
+- 次の場合は**直ちにロールバック**し原因を調べる: `executed`/`seen` が基準と不一致、`leftoverProcesses` が true、テスト単位または全体のタイムアウト、メモリ使用が50%超、J 以外のシャードの挙動変化、原因不明の失敗。
+- コード側の撤回は `test.yml` の追加行の revert（変数なしでは何も変わらないので、緊急性は低い）。
+
+### 7.6 リスクと対処
+
+| リスク | 対処 |
+|---|---|
+| ランナーが想定より遅い・コア数が少ない | リソース出力で最初の1回に検出。中止条件を設定 |
+| 並列実行で初めて顕在化するテスト間干渉 | J は監査で書き込みが `*_PARITY_OUTPUT` 環境変数ゲートのみ。直列グループ機構あり。不一致時は即ロールバック |
+| 失敗時の診断ログの差 | 並列時は `::error` が登録名ではなくファイルパス／npmスクリプト名になる。失敗テストの出力は保持される |
+| ホスト速度の変動で時間比較がぶれる | 他シャードとの相対値、設定前後の n 比較、`1` に戻した同日 run |
