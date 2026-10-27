@@ -364,7 +364,7 @@
     "executedBy": ".github/workflows/ma-acquisition-financing.yml"
   },
   "tests/subsidiary-ipo-save-atomicity-webkit-test.js": {
-    "reason": "P3-4 W-SUB-IPO prepared subsidiary IPO real WebKit/native-IDB faults (all nine shared kinds), refused second listing and fresh durable-only hydration in the M&A vc-secondary-atomicity job.",
+    "reason": "P3-4 W-SUB-IPO prepared subsidiary IPO real WebKit/native-IDB faults (all nine shared kinds), refused second listing and fresh durable-only hydration in the M&A sub-listing-atomicity job.",
     "executedBy": ".github/workflows/ma-acquisition-financing.yml"
   },
   "tests/found-new-company-save-atomicity-webkit-test.js": {
