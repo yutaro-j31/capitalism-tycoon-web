@@ -48,7 +48,8 @@
     "tests/map-marker-detail-interaction-test.js",
     "tests/city-lab-production-port-test.js",
     "tests/listed-subsidiary-market-week-test.js",
-    "tests/product-recall-reachability-runner.js"
+    "tests/product-recall-reachability-runner.js",
+    "tests/subsidiary-follow-on-save-atomicity-test.js"
   ],
   "D": [
     "tests/pe-value-creation-test.js",
