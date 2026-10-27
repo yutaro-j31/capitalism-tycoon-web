@@ -95,6 +95,7 @@ const nodeTests = [
   ['vc-secondary-sale-save-atomicity', 'tests/vc-secondary-sale-save-atomicity-test.js'],
   ['vc-follow-on-save-atomicity', 'tests/vc-follow-on-save-atomicity-test.js'],
   ['vc-writeoff-week-save-atomicity', 'tests/vc-writeoff-week-save-atomicity-test.js'],
+  ['vc-round-close-week-save-atomicity', 'tests/vc-round-close-week-save-atomicity-test.js'],
   ['vc-initial-investment-save-atomicity', 'tests/vc-initial-investment-save-atomicity-test.js'],
   ['pe-fund-acquisition-save-atomicity', 'tests/pe-fund-acquisition-save-atomicity-test.js'],
   ['pe-portfolio-exit-save-atomicity', 'tests/pe-portfolio-exit-save-atomicity-test.js'],
