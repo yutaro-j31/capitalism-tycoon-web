@@ -5,7 +5,7 @@
 //
 //   node scripts/parallel-shard-runner.js --shard J --concurrency 4 [--order longest-first --timings t.json]
 //        [--serial label,label | --serial-config scripts/parallel-shard-runner.config.json]
-//        [--test-timeout-sec 1800] [--run-timeout-sec 0] [--no-fail-fast] [--sample-ms 250] [--report r.json] [--write-timings t.json]
+//        [--test-timeout-sec 1800] [--run-timeout-sec 0] [--no-fail-fast] [--sample-ms 250] [--leftover-grace-ms 2000] [--report r.json] [--write-timings t.json]
 //   node scripts/parallel-shard-runner.js --shard J --enumerate-only      # list (and digest) what would run
 //   node scripts/parallel-shard-runner.js --shard A --audit               # static shared-state audit (heuristic)
 //   node scripts/parallel-shard-runner.js --commands-file cmds.json ...   # explicit [{label?,command,args}] list
@@ -150,8 +150,8 @@ function systemSample() {
   if (!hasProc) return null;
   const cpu = fs.readFileSync('/proc/stat', 'utf8').split('\n')[0].split(/\s+/).slice(1).map(Number);
   const idle = cpu[3] + (cpu[4] || 0), total = cpu.reduce((a, b) => a + b, 0);
-  const mem = Number(/MemAvailable:\s+(\d+)/.exec(fs.readFileSync('/proc/meminfo', 'utf8'))[1]);
-  return { idle, total, memAvailableKb: mem };
+  const meminfo = fs.readFileSync('/proc/meminfo', 'utf8');
+  return { idle, total, memAvailableKb: Number(/MemAvailable:\s+(\d+)/.exec(meminfo)[1]), memTotalKb: Number(/MemTotal:\s+(\d+)/.exec(meminfo)[1]) };
 }
 const TICKS = 100; // USER_HZ on Linux
 
@@ -166,7 +166,7 @@ async function killGroup(pgid, graceMs) {
 // ---- execution -------------------------------------------------------------------------------------------------
 async function runCommands(items, opts = {}) {
   const { concurrency = 1, order = 'recorded', timings = {}, serial = [], testTimeoutMs = 0, runTimeoutMs = 0, failFast = true,
-    cwd = ROOT, maxBuffer = 64 * 1024 * 1024, sampleMs = 250, killGraceMs = 3000, env = process.env, log = () => {}, shardName = 'commands' } = opts;
+    cwd = ROOT, maxBuffer = 64 * 1024 * 1024, sampleMs = 250, killGraceMs = 3000, leftoverGraceMs = 2000, env = process.env, log = () => {}, shardName = 'commands' } = opts;
   if (!Number.isInteger(concurrency) || concurrency < 1) throw new Error('concurrency must be a positive integer');
   const plan = scheduleOrder(items, { order, timings, serial });
   const results = {}; const active = new Map(); let seq = 0; let aborted = null; let firstFailure = null;
@@ -193,15 +193,16 @@ async function runCommands(items, opts = {}) {
   function runOne(item) {
     return new Promise(resolve => {
       if (aborted) return resolve(results[item.index]);
-      const ctx = { peakRssBytes: 0, cpuTicks: 0, abortReason: null, out: [], err: [], bytes: 0, reason: null };
+      const ctx = { peakRssBytes: 0, cpuTicks: 0, abortReason: null, out: [], err: [], bytes: 0, reason: null, leftoverKilled: false, exitTimer: null };
       const t0 = process.hrtime.bigint();
       let child;
       const finish = async (code, signal) => {
         const wallMs = Number(process.hrtime.bigint() - t0) / 1e6;
         if (child && child.pid) active.delete(child.pid);
-        clearTimeout(ctx.timer);
-        const leftover = child && child.pid ? groupAlive(child.pid) : false;
-        if (leftover) await killGroup(child.pid, killGraceMs);
+        clearTimeout(ctx.timer); clearTimeout(ctx.exitTimer);
+        const stillThere = child && child.pid ? groupAlive(child.pid) : false;
+        if (stillThere) await killGroup(child.pid, killGraceMs);
+        const leftover = stillThere || ctx.leftoverKilled;
         const stdout = Buffer.concat(ctx.out), stderr = Buffer.concat(ctx.err);
         // aborted = terminated by this runner after another command failed (or the run timed out); a command that had
         // already exited 0 by then is still a pass. A timeout / output cap / spawn error / signal / non-zero exit is a failure.
@@ -234,6 +235,11 @@ async function runCommands(items, opts = {}) {
       child.stdout.on('data', c => take(ctx.out, c)); child.stderr.on('data', c => take(ctx.err, c));
       if (testTimeoutMs) ctx.timer = setTimeout(() => { if (!ctx.reason) { ctx.reason = `timeout after ${testTimeoutMs}ms`; killGroup(child.pid, killGraceMs); } }, testTimeoutMs);
       child.on('error', e => { if (!ctx.reason) ctx.reason = `spawn error: ${e.message}`; });
+      // The command itself has exited but a descendant may still hold its stdout/stderr pipes, which delays 'close'
+      // indefinitely. Give such descendants a short grace to finish, then terminate the group so 'close' can fire.
+      child.on('exit', () => {
+        ctx.exitTimer = setTimeout(() => { if (child.pid && groupAlive(child.pid)) { ctx.leftoverKilled = true; killGroup(child.pid, killGraceMs); } }, leftoverGraceMs);
+      });
       child.on('close', (code, signal) => { finish(code, signal); });
     });
   }
@@ -255,7 +261,10 @@ async function runCommands(items, opts = {}) {
   return {
     ok: !aborted && !firstFailure && counts.passed === items.length, abortedReason: aborted, firstFailure: firstFailure && firstFailure.label,
     firstFailureResult: firstFailure, counts: { enumerated: items.length, ...counts }, concurrency, order, serial: plan.serialPhase.map(i => i.label),
-    enumerationDigest: digestOf(items), wallMs, systemCpuUtilization: cpuUtil, peakSystemMemUsedMb: sys0 ? Math.round((sys0.memAvailableKb - sysMin) / 1024) : null,
+    enumerationDigest: digestOf(items), wallMs, systemCpuUtilization: cpuUtil,
+    // In use = MemTotal - lowest MemAvailable seen (includes whatever was already running); growth = rise over the start of the run.
+    peakSystemMemInUseMb: sys0 ? Math.round((sys0.memTotalKb - sysMin) / 1024) : null,
+    peakSystemMemGrowthMb: sys0 ? Math.round((sys0.memAvailableKb - sysMin) / 1024) : null,
     runnerCpuSeconds: (({ user, system }) => (user + system) / 1e6)(process.cpuUsage(cpu0)),
     cpuSecondsSampled: hasProc ? ordered.reduce((a, r) => a + (r.cpuMs || 0), 0) / 1000 : null, results: ordered
   };
@@ -287,7 +296,7 @@ async function main(argv) {
   const report = await runCommands(items, {
     concurrency: Number(opt('--concurrency', '1')), order: opt('--order', 'recorded'), timings, serial,
     testTimeoutMs: Number(opt('--test-timeout-sec', '1800')) * 1000, runTimeoutMs: Number(opt('--run-timeout-sec', '0')) * 1000,
-    failFast: !flag('--no-fail-fast'), sampleMs: Number(opt('--sample-ms', '250')), shardName: shard || 'commands', log: line => console.log(line)
+    failFast: !flag('--no-fail-fast'), sampleMs: Number(opt('--sample-ms', '250')), leftoverGraceMs: Number(opt('--leftover-grace-ms', '2000')), shardName: shard || 'commands', log: line => console.log(line)
   });
   if (opt('--report')) fs.writeFileSync(opt('--report'), JSON.stringify(report, null, 2));
   if (opt('--write-timings')) fs.writeFileSync(opt('--write-timings'), JSON.stringify(Object.fromEntries(report.results.filter(r => r.state === 'passed').map(r => [r.label, Number((r.wallMs / 1000).toFixed(1))])), null, 2));

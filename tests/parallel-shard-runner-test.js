@@ -87,7 +87,10 @@ const sleepForever = 'setInterval(()=>{},1000)';
   const timed = await runner.runCommands(set, { concurrency: 4 });
   assert.ok(Number.isFinite(timed.runnerCpuSeconds) && timed.runnerCpuSeconds >= 0, 'the runner reports its own CPU cost');
   if (process.platform === 'linux') {
-    assert.ok(timed.peakSystemMemUsedMb !== null && timed.systemCpuUtilization !== null && timed.results.every(r => r.peakRssMb !== null), 'resources are recorded on Linux');
+    assert.ok(timed.peakSystemMemInUseMb !== null && timed.peakSystemMemGrowthMb !== null && timed.systemCpuUtilization !== null && timed.results.every(r => r.peakRssMb !== null), 'resources are recorded on Linux');
+    const memTotalMb = Math.round(Number(/MemTotal:\s+(\d+)/.exec(fs.readFileSync('/proc/meminfo', 'utf8'))[1]) / 1024);
+    assert.ok(timed.peakSystemMemInUseMb > 0 && timed.peakSystemMemInUseMb <= memTotalMb, 'peak in-use memory is measured against MemTotal, not as a growth figure');
+    assert.ok(timed.peakSystemMemInUseMb >= timed.peakSystemMemGrowthMb, 'in use includes what was already running before the run');
   }
 
   // ---- first failure: non-zero outcome, output kept, running siblings terminated, none left behind ---------------------------
@@ -130,6 +133,16 @@ const sleepForever = 'setInterval(()=>{},1000)';
   const leak = await runner.runCommands(items([leaky]), {});
   assert.equal(leak.results[0].state, 'passed'); assert.equal(leak.results[0].leftoverProcesses, process.platform === 'linux');
   assert.ok(await waitDead([Number(fs.readFileSync(bgFile, 'utf8'))]), 'leftover background process was terminated');
+
+  // ---- a command that exits while a descendant still holds its stdout/stderr must not stall the run until a timeout ------------------
+  const heldFile = path.join(TMP, 'held');
+  const holder = node('holder', `const c=require('child_process').spawn(process.execPath,['-e',${JSON.stringify(sleepForever)}],{stdio:'inherit'});c.unref();require('fs').writeFileSync(${JSON.stringify(heldFile)},String(c.pid));console.log('PASS holder')`);
+  const heldStart = Date.now();
+  const held = await runner.runCommands(items([holder]), { leftoverGraceMs: 400 });
+  assert.equal(held.results[0].state, 'passed', 'the exited command passed; it is not reported as a timeout');
+  assert.equal(held.results[0].leftoverProcesses, true); assert.equal(held.results[0].stdout.toString(), 'PASS holder\n');
+  assert.ok(Date.now() - heldStart < 10000, 'finished by the leftover grace, with no test timeout configured');
+  assert.ok(await waitDead([Number(fs.readFileSync(heldFile, 'utf8'))]), 'the pipe-holding descendant was terminated');
 
   // ---- shared-state isolation: serial-group commands never overlap anything; the detector itself is proven by a negative control -----
   const lock = path.join(TMP, 'lock');

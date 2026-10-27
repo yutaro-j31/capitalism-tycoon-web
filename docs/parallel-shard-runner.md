@@ -20,10 +20,10 @@ Exit status: the failing command's own exit status (`1` if it has none), `124` f
 
 - **Enumeration.** The production `tests/run-all-shard.js` is loaded in a child process in which `spawnSync` only *records* the commands the shard owns and returns a stub success. The list therefore comes from the production code path (same ownership rules, same order) and cannot drift from it. The same input gives the same list and the same `enumerationDigest` (SHA-256 of label, command, args).
 - **Scheduling.** Serial-group commands run first, alone, in recorded order. The rest run through a pool of `concurrency` workers in `recorded` order or `longest-first` order (timings file; ties and unknown timings keep recorded order).
-- **Per command.** Spawned as its own process group with piped stdout/stderr. Failure = non-zero exit, killed by a signal, per-test timeout, output over the 64 MiB cap (the serial runner's `maxBuffer`), or spawn error. On timeout, abort or interrupt the whole **process group** is sent SIGTERM, then SIGKILL after a grace period, and the runner waits until no member of the group is alive. A passing command that leaves background processes behind is reported (`leftoverProcesses`) and cleaned up.
+- **Per command.** Spawned as its own process group with piped stdout/stderr. Failure = non-zero exit, killed by a signal, per-test timeout, output over the 64 MiB cap (the serial runner's `maxBuffer`), or spawn error. On timeout, abort or interrupt the whole **process group** is sent SIGTERM, then SIGKILL after a grace period, and the runner waits until no member of the group is alive. A passing command that leaves background processes behind is reported (`leftoverProcesses`) and cleaned up: when the command itself exits, descendants get `--leftover-grace-ms` (default 2000) to finish; if any still holds the output pipes after that, the group is terminated so the run cannot stall until a timeout.
 - **First failure.** No new command starts; running ones are terminated and reported as `aborted`; the failing command's stdout/stderr are printed with `::error title=Test suite failed::<label>` like the serial runner, and the process exits non-zero.
 - **Reconciliation.** Every enumerated command must end in exactly one of `passed`, `failed`, `aborted`, `notStarted`; a run without a failure or abort must have passed all of them, otherwise the runner throws.
-- **Records.** Per command: wall time, sampled CPU time and peak RSS of its process group (Linux `/proc`, 250 ms), SHA-256/length/line count of stdout and stderr. Per run: wall time, system CPU utilisation, peak system memory use, the runner's own CPU seconds. The `::notice title=Shard X timing::label Ns` lines match the production runner's format.
+- **Records.** Per command: wall time, sampled CPU time and peak RSS of its process group (Linux `/proc`, 250 ms), SHA-256/length/line count of stdout and stderr. Per run: wall time, system CPU utilisation, peak system memory in use and its growth over the start of the run, the runner's own CPU seconds. The `::notice title=Shard X timing::label Ns` lines match the production runner's format.
 
 ## What the production runner relies on from `spawnSync` (audited)
 
@@ -33,14 +33,16 @@ Exit status: the failing command's own exit status (`1` if it has none), `124` f
 
 ## Evidence (local, 4 cores / 15 GB, shard J: 10 commands)
 
-All seven runs below enumerated the same list (digest `aea0ed6ef221`), passed 10/10, and produced **byte-identical stdout and stderr (SHA-256), exit codes, PASS-line counts and line counts for every test**.
+All eight runs below enumerated the same list (digest `aea0ed6ef221`), passed 10/10, and produced **byte-identical stdout and stderr (SHA-256), exit codes, PASS-line counts and line counts for every test**.
 
-| Run | wall | speed-up vs concurrency 1 | system CPU | peak system memory use |
+| Run | wall | speed-up vs concurrency 1 | system CPU | peak system memory growth* |
 |---|---:|---:|---:|---:|
 | concurrency 1, recorded order | 1463.6 s | 1.00x | 29% | 1349 MB |
 | concurrency 2, recorded order | 832.8 s | 1.76x | 50% | 1663 MB |
 | concurrency 4, recorded order | 679.6 s | 2.15x | 62% | 2104 MB |
-| concurrency 4, longest-first (4 runs) | 487.8 / 497.0 / 501.5 / 502.2 s | 3.00x / 2.94x / 2.92x / 2.91x | 90–92% | 2.07–2.11 GB |
+| concurrency 4, longest-first (5 runs) | 487.8 / 497.0 / 501.5 / 502.2 / 486.6 s | 3.00x / 2.94x / 2.92x / 2.91x / 3.01x | 89–92% | 2.07–2.22 GB |
+
+\* Growth of system memory use over the start of the run (`MemAvailable` at start minus its lowest value). The first seven runs predate the `peakSystemMemInUseMb` metric (`MemTotal` minus the lowest `MemAvailable`, which includes what was already running). In the last run, with the final code, the peak in use was 2734 MB of 16 GB and the growth 2220 MB, so in-use figures are about 0.5 GB above the growth figures in this table.
 
 The machine's speed drifted by about ±10% over the session: the production serial runner, run last (`TEST_SHARD=J node tests/run-all-shard.js`, 1620.9 s, `executed=10 seen=605`, exit 0), was slower on every one of the 10 tests (by 5–19%) than this runner at concurrency 1, and it executed exactly the same 10 labels in the same order. Compare only within one group of runs. In the last run (final code) the runner itself used 4.1 CPU-seconds over 502 s of wall time, 0.2% of the machine's 4-core capacity. The largest single test process is 1408 MB (`subsidiary-disposal-accounting-test.js`).
 
