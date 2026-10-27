@@ -53,5 +53,24 @@ booked on the transfer-out row.
 
 ## Limits
 
-Node only; a native-WebKit counterpart is the next slice. This does not certify raw/helper bypass closure, S_PASS,
+This does not certify raw/helper bypass closure, S_PASS,
 authority cutover, P3-10, Phase 3 Exit or Phase 4 Entry.
+
+## Native WebKit / IndexedDB counterpart
+
+`tests/vc-listing-week-save-atomicity-webkit-test.js` runs the same pinned `company` and `mixed` states in the
+installed page (emulated iPhone 13 WebKit, real IndexedDB) through the canonical `advanceWeek(false)`, week 20 to
+21. A page-side observer requires the actual listing of the pinned startup inside the week transaction. Per variant:
+success, the seven applicable shared faults and the final-close and terminal `week` boundaries; `mixed` adds
+queued-predecessor and nested `save-false` / `save-throw` (24 scenarios).
+
+Each failure must leave live state, mirror, cache and durable IndexedDB bytes exactly as before, with a pending
+predecessor intact; the recovery save exceeds every allocated failed sequence; the retried week equals the
+uninterrupted same-seed week; a fresh context with localStorage removed hydrates that state from IndexedDB alone.
+After each case, week 22 neither lists again nor changes the lots, and is hydrated durable-only too. The page oracle
+ports the Node `success()`. Three negative controls are rejected: disabled rollback, a founder lot off by one share
+and a listing row that books a gain.
+
+It runs in the M&A `vc-week-atomicity` job with the write-off and round-close week evidence. Its logic was exercised locally on
+Chromium (24 scenarios plus 3 rejected controls); WebKit evidence is the exact HEAD's CI job. No physical-iPhone
+claim is made.
