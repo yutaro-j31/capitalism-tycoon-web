@@ -139,6 +139,7 @@ on:
       - 'tests/subsidiary-ipo-save-atomicity-webkit-test.js'
       - 'tests/subsidiary-secondary-sale-save-atomicity-webkit-test.js'
       - 'tests/subsidiary-control-save-atomicity-webkit-test.js'
+      - 'tests/subsidiary-follow-on-save-atomicity-webkit-test.js'
       - 'tests/fixtures/sponsor-injection-atomicity.js'
       - 'tests/fixtures/shareholder-buyback-atomicity.js'
       - 'tests/fixtures/shareholder-dividend-declaration-atomicity.js'
@@ -149,6 +150,7 @@ on:
       - 'tests/fixtures/subsidiary-ipo-atomicity.js'
       - 'tests/fixtures/subsidiary-secondary-sale-atomicity.js'
       - 'tests/fixtures/subsidiary-control-atomicity.js'
+      - 'tests/fixtures/subsidiary-follow-on-atomicity.js'
       - 'js/player-crisis-turnaround-fund.js'
       - 'tests/turnaround-fund-accept-save-atomicity-test.js'
       - 'tests/turnaround-fund-accept-save-atomicity-webkit-test.js'
@@ -318,6 +320,7 @@ on:
       - 'tests/subsidiary-ipo-save-atomicity-webkit-test.js'
       - 'tests/subsidiary-secondary-sale-save-atomicity-webkit-test.js'
       - 'tests/subsidiary-control-save-atomicity-webkit-test.js'
+      - 'tests/subsidiary-follow-on-save-atomicity-webkit-test.js'
       - 'tests/fixtures/sponsor-injection-atomicity.js'
       - 'tests/fixtures/shareholder-buyback-atomicity.js'
       - 'tests/fixtures/shareholder-dividend-declaration-atomicity.js'
@@ -328,6 +331,7 @@ on:
       - 'tests/fixtures/subsidiary-ipo-atomicity.js'
       - 'tests/fixtures/subsidiary-secondary-sale-atomicity.js'
       - 'tests/fixtures/subsidiary-control-atomicity.js'
+      - 'tests/fixtures/subsidiary-follow-on-atomicity.js'
       - 'js/player-crisis-turnaround-fund.js'
       - 'tests/turnaround-fund-accept-save-atomicity-test.js'
       - 'tests/turnaround-fund-accept-save-atomicity-webkit-test.js'
@@ -1023,6 +1027,8 @@ jobs:
         run: node tests/subsidiary-secondary-sale-save-atomicity-webkit-test.js
       - name: Listed subsidiary tender offer / squeeze-out safety (W-SUB-CONTROL) in real iPhone WebKit
         run: node tests/subsidiary-control-save-atomicity-webkit-test.js
+      - name: Listed subsidiary follow-on offering safety (W-SUB-FOLLOWON) in real iPhone WebKit
+        run: node tests/subsidiary-follow-on-save-atomicity-webkit-test.js
       - name: Retain sub-listing-atomicity WebKit evidence
         if: always()
         uses: actions/upload-artifact@v4
