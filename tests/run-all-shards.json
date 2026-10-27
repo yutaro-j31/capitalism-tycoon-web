@@ -22,7 +22,8 @@
     "tests/sports-management-test.js",
     "tests/real-estate-agency-site-capacity-test.js",
     "tests/subsidiary-disposal-save-atomicity-test.js",
-    "tests/refounding-ledger-test.js"
+    "tests/refounding-ledger-test.js",
+    "tests/subsidiary-relist-save-atomicity-test.js"
   ],
   "C": [
     "tests/decline-buyout-ownership-save-atomicity-test.js",
