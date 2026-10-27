@@ -135,12 +135,14 @@ on:
       - 'tests/shareholder-dividend-payment-save-atomicity-webkit-test.js'
       - 'tests/vc-writeoff-week-save-atomicity-webkit-test.js'
       - 'tests/vc-round-close-week-save-atomicity-webkit-test.js'
+      - 'tests/vc-listing-week-save-atomicity-webkit-test.js'
       - 'tests/fixtures/sponsor-injection-atomicity.js'
       - 'tests/fixtures/shareholder-buyback-atomicity.js'
       - 'tests/fixtures/shareholder-dividend-declaration-atomicity.js'
       - 'tests/fixtures/shareholder-dividend-payment-atomicity.js'
       - 'tests/fixtures/vc-writeoff-week-atomicity.js'
       - 'tests/fixtures/vc-round-close-week-atomicity.js'
+      - 'tests/fixtures/vc-listing-week-atomicity.js'
       - 'js/player-crisis-turnaround-fund.js'
       - 'tests/turnaround-fund-accept-save-atomicity-test.js'
       - 'tests/turnaround-fund-accept-save-atomicity-webkit-test.js'
@@ -306,12 +308,14 @@ on:
       - 'tests/shareholder-dividend-payment-save-atomicity-webkit-test.js'
       - 'tests/vc-writeoff-week-save-atomicity-webkit-test.js'
       - 'tests/vc-round-close-week-save-atomicity-webkit-test.js'
+      - 'tests/vc-listing-week-save-atomicity-webkit-test.js'
       - 'tests/fixtures/sponsor-injection-atomicity.js'
       - 'tests/fixtures/shareholder-buyback-atomicity.js'
       - 'tests/fixtures/shareholder-dividend-declaration-atomicity.js'
       - 'tests/fixtures/shareholder-dividend-payment-atomicity.js'
       - 'tests/fixtures/vc-writeoff-week-atomicity.js'
       - 'tests/fixtures/vc-round-close-week-atomicity.js'
+      - 'tests/fixtures/vc-listing-week-atomicity.js'
       - 'js/player-crisis-turnaround-fund.js'
       - 'tests/turnaround-fund-accept-save-atomicity-test.js'
       - 'tests/turnaround-fund-accept-save-atomicity-webkit-test.js'
@@ -973,6 +977,8 @@ jobs:
         run: node tests/vc-writeoff-week-save-atomicity-webkit-test.js
       - name: Startup funding round close week safety (W-VC-CLOSE) in real iPhone WebKit
         run: node tests/vc-round-close-week-save-atomicity-webkit-test.js
+      - name: Startup listing week safety (W-VC-LIST) in real iPhone WebKit
+        run: node tests/vc-listing-week-save-atomicity-webkit-test.js
       - name: Retain vc-week-atomicity WebKit evidence
         if: always()
         uses: actions/upload-artifact@v4
