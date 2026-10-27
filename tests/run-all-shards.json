@@ -83,7 +83,8 @@
     "tests/transaction-fault-harness-test.js",
     "tests/execute-mbo-save-atomicity-test.js",
     "tests/activate-defense-save-atomicity-test.js",
-    "tests/vc-listing-week-save-atomicity-test.js"
+    "tests/vc-listing-week-save-atomicity-test.js",
+    "tests/group-restructuring-sale-save-atomicity-test.js"
   ],
   "E": [
     "tests/make-subsidiary-save-atomicity-test.js",
