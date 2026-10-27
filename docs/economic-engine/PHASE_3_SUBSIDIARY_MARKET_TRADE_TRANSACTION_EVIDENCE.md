@@ -58,6 +58,25 @@ and a repurchase that is not capitalised.
 
 ## Limits
 
-This is Node-only evidence; a native-WebKit counterpart is the next slice. This does not certify the listed
+This does not certify the listed
 subsidiary dividend policy or weekly market, raw/helper bypass closure, S_PASS, authority cutover, P3-10, Phase 3 Exit
 or Phase 4 Entry.
+
+## Native WebKit / IndexedDB counterpart
+
+`tests/subsidiary-market-trade-save-atomicity-webkit-test.js` runs the same pinned `sell5`, `sell10`, `buy5` and
+`buy10` states in the installed page (emulated iPhone 13 WebKit, real IndexedDB) through the installed
+`sellListedSubsidiaryStake` / `buyListedSubsidiaryStake`. A page-side observer requires the actual trade row of the
+pinned subsidiary and size inside the command's transaction. Per variant: success and all nine shared faults; `sell10`
+and `buy10` add queued-predecessor and nested `save-false` / `save-throw` (48 scenarios).
+
+Each failure must leave live state, mirror, cache and durable IndexedDB bytes exactly as before, with a pending
+predecessor intact; the recovery save exceeds every allocated failed sequence; the retried trade equals the
+uninterrupted one; a fresh context with localStorage removed hydrates that state from IndexedDB alone. After each case
+an unfunded repurchase is refused without any change (company cash is restored after the probe), and is hydrated
+durable-only too. The page oracle ports the Node `success()`. Three negative controls are rejected: disabled
+rollback, company cash one yen off the trade price and a book one yen off.
+
+It runs in the new M&A `group-atomicity` job, split from `sub-listing-atomicity`, which took 25 minutes with its five
+tests on #1164. Its logic was exercised locally on Chromium (48 scenarios plus 3 rejected controls); WebKit evidence is
+the exact HEAD's CI job. No physical-iPhone claim is made.
