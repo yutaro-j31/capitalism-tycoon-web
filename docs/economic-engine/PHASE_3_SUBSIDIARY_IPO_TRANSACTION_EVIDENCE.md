@@ -67,6 +67,6 @@ a second listing is refused with no state change, no save and unchanged durable 
 too. The page oracle ports the Node `success()`. Three negative controls are rejected: disabled rollback, company cash
 off by ¥1 and primary proceeds missing from the subsidiary.
 
-It runs in the M&A `vc-secondary-atomicity` job with the other subsidiary WebKit evidence. Its logic was exercised
+It runs in the M&A `sub-listing-atomicity` job (split from `vc-secondary-atomicity` for its job budget). Its logic was exercised
 locally on Chromium (24 scenarios plus 3 rejected controls); WebKit evidence is the exact HEAD's CI job. No
 physical-iPhone claim is made.
