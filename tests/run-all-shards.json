@@ -253,6 +253,7 @@
     "tests/cash-write-runtime-guard-test.js"
   ],
   "I": [
+    "tests/vc-writeoff-week-save-atomicity-test.js",
     "tests/competitor-product-counter-reachability-test.js",
     "tests/industry-event-response-plans-reachability-test.js",
     "test:digital-portfolio-profitability",
