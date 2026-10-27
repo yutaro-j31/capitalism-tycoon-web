@@ -97,6 +97,6 @@ different key order without any value changing. Mirror, cache and durable bytes 
 negative controls are rejected: disabled rollback, company cash one yen over the expected movement and subsidiary
 cash one yen short of the primary proceeds.
 
-It runs in the M&A `sub-listing-atomicity` job after the follow-on evidence. Its logic was exercised locally on
+It runs in the M&A `sub-capital-atomicity` job after the follow-on evidence. Its logic was exercised locally on
 Chromium (34 scenarios plus 3 rejected controls); WebKit evidence is the exact HEAD's CI job. No physical-iPhone claim
 is made.

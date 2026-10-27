@@ -343,7 +343,8 @@ const movedFamilyJobs = {
   // Not a Phase 1A move: P3-4 writer evidence, split from stock-split-atomicity for its job budget.
   'p3-writer-atomicity': ['tests/shareholder-dividend-declaration-save-atomicity-webkit-test.js', 'tests/shareholder-dividend-payment-save-atomicity-webkit-test.js', 'tests/shareholder-buyback-save-atomicity-webkit-test.js', 'tests/sponsor-injection-save-atomicity-webkit-test.js', 'tests/turnaround-fund-accept-save-atomicity-webkit-test.js', 'tests/player-crisis-turnaround-ratchet-webkit-test.js', 'tests/personal-stock-margin-save-atomicity-webkit-test.js', 'tests/p4-aud-004-personal-secured-repayment-webkit-test.js', 'tests/founder-capital-atomicity-webkit-test.js'],
   // Not a Phase 1A move: P3-4 listed-subsidiary writers, split from vc-secondary-atomicity for its job budget.
-  'sub-listing-atomicity': ['tests/subsidiary-ipo-save-atomicity-webkit-test.js', 'tests/subsidiary-secondary-sale-save-atomicity-webkit-test.js', 'tests/subsidiary-control-save-atomicity-webkit-test.js', 'tests/subsidiary-follow-on-save-atomicity-webkit-test.js', 'tests/subsidiary-relist-save-atomicity-webkit-test.js'],
+  'sub-listing-atomicity': ['tests/subsidiary-ipo-save-atomicity-webkit-test.js', 'tests/subsidiary-secondary-sale-save-atomicity-webkit-test.js', 'tests/subsidiary-control-save-atomicity-webkit-test.js'],
+  'sub-capital-atomicity': ['tests/subsidiary-follow-on-save-atomicity-webkit-test.js', 'tests/subsidiary-relist-save-atomicity-webkit-test.js'],
   'group-atomicity': ['tests/subsidiary-market-trade-save-atomicity-webkit-test.js']
 };
 const legacyRuntime = "node-version: ${{ (github.event_name == 'pull_request' || inputs.mode == 'deal-room') && '20' || '22' }}";
