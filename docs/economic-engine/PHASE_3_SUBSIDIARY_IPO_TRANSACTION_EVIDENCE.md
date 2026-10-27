@@ -48,6 +48,25 @@ to the subsidiary, sold book not pro rata to the stake.
 
 ## Limits
 
-Node only; a native-WebKit counterpart is the next slice. This does not certify the IPO secondary sale, control
+This does not certify the IPO secondary sale, control
 actions, follow-on or relisting, raw/helper bypass closure, S_PASS, authority cutover, P3-10, Phase 3 Exit or Phase 4
 Entry.
+
+## Native WebKit / IndexedDB counterpart
+
+`tests/subsidiary-ipo-save-atomicity-webkit-test.js` runs the same prepared `balanced` and `growth` states in the
+installed page (emulated iPhone 13 WebKit, real IndexedDB) through `executePreparedSubsidiaryIPO`. A page-side
+observer requires the engine's actual `ipoSubsidiary` ledger posting inside the listing transaction. Per variant:
+success and all nine shared faults (`notify` and `change` included, since the command emits them); `growth` adds
+queued-predecessor and nested `save-false` / `save-throw` (24 scenarios).
+
+Each failure must leave live state, mirror, cache and durable IndexedDB bytes exactly as before, with a pending
+predecessor intact; the recovery save exceeds every allocated failed sequence; the retried listing equals the
+uninterrupted one; a fresh context with localStorage removed hydrates that state from IndexedDB alone. After each case
+a second listing is refused with no state change, no save and unchanged durable bytes, and is hydrated durable-only
+too. The page oracle ports the Node `success()`. Three negative controls are rejected: disabled rollback, company cash
+off by ¥1 and primary proceeds missing from the subsidiary.
+
+It runs in the M&A `vc-secondary-atomicity` job with the other subsidiary WebKit evidence. Its logic was exercised
+locally on Chromium (24 scenarios plus 3 rejected controls); WebKit evidence is the exact HEAD's CI job. No
+physical-iPhone claim is made.
