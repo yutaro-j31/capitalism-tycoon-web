@@ -85,6 +85,7 @@ const sleepForever = 'setInterval(()=>{},1000)';
     assert.ok(r.results.every(x => x.wallMs > 0 && x.stdoutBytes > 0));
   }
   const timed = await runner.runCommands(set, { concurrency: 4 });
+  assert.ok(Number.isFinite(timed.runnerCpuSeconds) && timed.runnerCpuSeconds >= 0, 'the runner reports its own CPU cost');
   if (process.platform === 'linux') {
     assert.ok(timed.peakSystemMemUsedMb !== null && timed.systemCpuUtilization !== null && timed.results.every(r => r.peakRssMb !== null), 'resources are recorded on Linux');
   }

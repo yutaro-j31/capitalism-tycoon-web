@@ -5,7 +5,7 @@
 //
 //   node scripts/parallel-shard-runner.js --shard J --concurrency 4 [--order longest-first --timings t.json]
 //        [--serial label,label | --serial-config scripts/parallel-shard-runner.config.json]
-//        [--test-timeout-sec 1800] [--run-timeout-sec 0] [--no-fail-fast] [--report r.json] [--write-timings t.json]
+//        [--test-timeout-sec 1800] [--run-timeout-sec 0] [--no-fail-fast] [--sample-ms 250] [--report r.json] [--write-timings t.json]
 //   node scripts/parallel-shard-runner.js --shard J --enumerate-only      # list (and digest) what would run
 //   node scripts/parallel-shard-runner.js --shard A --audit               # static shared-state audit (heuristic)
 //   node scripts/parallel-shard-runner.js --commands-file cmds.json ...   # explicit [{label?,command,args}] list
@@ -172,7 +172,7 @@ async function runCommands(items, opts = {}) {
   const results = {}; const active = new Map(); let seq = 0; let aborted = null; let firstFailure = null;
   for (const item of items) results[item.index] = { state: 'notStarted', label: item.label, index: item.index };
   const sys0 = systemSample(); let sysMin = sys0 && sys0.memAvailableKb;
-  const started = Date.now();
+  const started = Date.now(); const cpu0 = process.cpuUsage();
 
   const sampler = hasProc ? setInterval(() => {
     const s = systemSample(); if (s) { sysMin = Math.min(sysMin, s.memAvailableKb); }
@@ -256,6 +256,7 @@ async function runCommands(items, opts = {}) {
     ok: !aborted && !firstFailure && counts.passed === items.length, abortedReason: aborted, firstFailure: firstFailure && firstFailure.label,
     firstFailureResult: firstFailure, counts: { enumerated: items.length, ...counts }, concurrency, order, serial: plan.serialPhase.map(i => i.label),
     enumerationDigest: digestOf(items), wallMs, systemCpuUtilization: cpuUtil, peakSystemMemUsedMb: sys0 ? Math.round((sys0.memAvailableKb - sysMin) / 1024) : null,
+    runnerCpuSeconds: (({ user, system }) => (user + system) / 1e6)(process.cpuUsage(cpu0)),
     cpuSecondsSampled: hasProc ? ordered.reduce((a, r) => a + (r.cpuMs || 0), 0) / 1000 : null, results: ordered
   };
 }
@@ -286,7 +287,7 @@ async function main(argv) {
   const report = await runCommands(items, {
     concurrency: Number(opt('--concurrency', '1')), order: opt('--order', 'recorded'), timings, serial,
     testTimeoutMs: Number(opt('--test-timeout-sec', '1800')) * 1000, runTimeoutMs: Number(opt('--run-timeout-sec', '0')) * 1000,
-    failFast: !flag('--no-fail-fast'), shardName: shard || 'commands', log: line => console.log(line)
+    failFast: !flag('--no-fail-fast'), sampleMs: Number(opt('--sample-ms', '250')), shardName: shard || 'commands', log: line => console.log(line)
   });
   if (opt('--report')) fs.writeFileSync(opt('--report'), JSON.stringify(report, null, 2));
   if (opt('--write-timings')) fs.writeFileSync(opt('--write-timings'), JSON.stringify(Object.fromEntries(report.results.filter(r => r.state === 'passed').map(r => [r.label, Number((r.wallMs / 1000).toFixed(1))])), null, 2));

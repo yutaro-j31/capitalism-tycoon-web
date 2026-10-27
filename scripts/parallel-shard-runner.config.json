@@ -1,0 +1,42 @@
+{
+  "_comment": "Stage-0 input for scripts/parallel-shard-runner.js --serial-config. Nothing reads this in CI. 'serial' commands run alone, before the parallel phase. 'reviewedSafe' records audit hits (node scripts/parallel-shard-runner.js --shard X --audit) that were read and judged harmless for parallel execution. The audit is a heuristic text scan, not a proof.",
+  "serial": {
+    "A": [
+      "test:founding-tutorial",
+      "tests/phase0-5-acceptance-gate-test.js",
+      "tests/iphone-playtest-remediation-test.js",
+      "tests/release-attestation-issue-test.js"
+    ],
+    "G": [
+      "tests/map-phase2-visual-calibration-test.js",
+      "tests/map-phase2-p1-mid-civic-assets-test.js"
+    ],
+    "H": [
+      "tests/static-asset-cache-coherence-test.js",
+      "tests/map-phase2-lazy-load-recovery-test.js",
+      "tests/cash-write-runtime-guard-test.js"
+    ]
+  },
+  "reasons": {
+    "test:founding-tutorial": "founding-tutorial-workflow-test.js writes under artifacts/",
+    "tests/phase0-5-acceptance-gate-test.js": "phase0-5-acceptance.js creates and writes artifacts/phase0-5-acceptance",
+    "tests/iphone-playtest-remediation-test.js": "creates and clears artifacts/iphone-playtest-remediation and artifacts/physical-iphone-playtest",
+    "tests/release-attestation-issue-test.js": "writes artifacts/ and a temp directory",
+    "tests/map-phase2-visual-calibration-test.js": "writes and deletes a scratch copy under js/ (js/ is scanned by other tests)",
+    "tests/map-phase2-p1-mid-civic-assets-test.js": "writes and deletes a scratch copy under js/",
+    "tests/static-asset-cache-coherence-test.js": "temporarily appends to tracked css/d-ui-map-phase2-markers.css and prototypes/map-world-preview.js and restores them",
+    "tests/map-phase2-lazy-load-recovery-test.js": "writes and deletes js/_scratch-lazy-load-negtest.js",
+    "tests/cash-write-runtime-guard-test.js": "rewrites its baseline file when UPDATE_CASH_WRITE_RUNTIME_BASELINE=1; scans js/ lexically"
+  },
+  "reviewedSafe": {
+    "tests/vc-follow-on-save-atomicity-test.js": "writeFileSync only when VC_FOLLOW_PARITY_OUTPUT is set",
+    "tests/vc-initial-investment-save-atomicity-test.js": "writeFileSync only when VC_PARITY_OUTPUT is set",
+    "tests/stock-split-save-atomicity-test.js": "writeFileSync only when STOCK_SPLIT_PARITY_OUTPUT is set",
+    "tests/vc-secondary-sale-save-atomicity-test.js": "writeFileSync only when VC_SECONDARY_PARITY_OUTPUT is set",
+    "tests/stock-split-price-history-test.js": "reads SPLIT_EXTERNAL_FIRST; no file writes",
+    "tests/exploration-smoke-test.js": "uses fs.mkdtempSync under os.tmpdir() (unique per call)",
+    "tests/ci-metrics-test.js": "uses fs.mkdtempSync under os.tmpdir()",
+    "tests/parallel-shard-runner-test.js": "uses fs.mkdtempSync under os.tmpdir()",
+    "tests/phase1-acceptance-gate-test.js": "writes artifacts/phase0-5-acceptance like the Phase 0.5 gate; only one such test lives in shard G, but keep it apart from any other artifacts/ writer if shards change"
+  }
+}
