@@ -42,6 +42,7 @@ const nodeTests = [
   ['ci-metrics', 'tests/ci-metrics-test.js'],
   ['parallel-shard-runner', 'tests/parallel-shard-runner-test.js'],
   ['run-all-abnormal-exit', 'tests/run-all-abnormal-exit-test.js'],
+  ['shard-parallel-optin', 'tests/shard-parallel-optin-test.js'],
   ['authoritative-company-cash', 'tests/authoritative-company-cash-test.js'],
   ['real-estate-construction-in-progress', 'tests/real-estate-construction-in-progress-test.js'],
   ['bank-loans-covenants-accounting', 'tests/bank-loans-covenants-accounting-test.js'],
