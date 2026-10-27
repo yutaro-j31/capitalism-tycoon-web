@@ -313,5 +313,49 @@ async function main(argv) {
   return report.ok ? 0 : 1;
 }
 
-module.exports = { labelOf, enumerateShard, digestOf, scanSharedState, scheduleOrder, reconcile, runCommands, killGroup, groupAlive };
+// ---- opt-in entry for tests/run-all-shard.js (stage 1) ------------------------------------------------------------------
+// `planned` is what the production wrapper recorded for the shard instead of running it. Returns the process exit code.
+function parseParallelism(raw, shard, config, warn = line => console.error(line)) {
+  if (raw === undefined || raw === '') return 1;
+  if (!/^\d+$/.test(String(raw)) || Number(raw) < 1) { warn(`::warning::TEST_SHARD_PARALLELISM=${raw} is not a positive integer; running serially`); return 1; }
+  const n = Math.min(Number(raw), 8);
+  if (n > 1 && !((config.parallelEnabledShards || []).includes(shard))) { warn(`::warning::shard ${shard} is not enabled for parallel execution in scripts/parallel-shard-runner.config.json; running serially`); return 1; }
+  return n;
+}
+
+function loadConfig() { return JSON.parse(fs.readFileSync(path.join(__dirname, 'parallel-shard-runner.config.json'), 'utf8')); }
+
+async function runShard({ shard, planned, concurrency, executed, env = process.env, log = line => console.log(line), warn = line => console.error(line) }) {
+  const config = loadConfig();
+  const known = new Set(planned.map(i => i.label));
+  const configuredSerial = (config.serial || {})[shard] || [];
+  for (const label of configuredSerial) if (!known.has(label)) warn(`::warning::serial config label not owned by shard ${shard}: ${label}`);
+  const timings = (config.timings || {})[shard] || {};
+  const order = env.TEST_SHARD_PARALLEL_ORDER || (Object.keys(timings).length ? 'longest-first' : 'recorded');
+  const interrupt = code => () => process.exit(code); // the 'exit' hook inside runCommands kills every process group
+  process.on('SIGINT', interrupt(130)); process.on('SIGTERM', interrupt(143));
+  const report = await runCommands(planned, {
+    concurrency, order, timings, serial: configuredSerial.filter(l => known.has(l)), shardName: shard, log,
+    testTimeoutMs: Number(env.TEST_SHARD_PARALLEL_TEST_TIMEOUT_SEC || 1500) * 1000, runTimeoutMs: Number(env.TEST_SHARD_PARALLEL_RUN_TIMEOUT_SEC || 1680) * 1000
+  });
+  for (const r of report.results) if (r.state === 'passed' || r.state === 'failed') executed.push({ label: r.label, elapsedMs: r.wallMs });
+  if (env.TEST_SHARD_PARALLEL_REPORT) {
+    fs.mkdirSync(path.dirname(path.resolve(env.TEST_SHARD_PARALLEL_REPORT)), { recursive: true });
+    fs.writeFileSync(env.TEST_SHARD_PARALLEL_REPORT, JSON.stringify({ shard, ...report }, null, 2));
+  }
+  const c = report.counts;
+  log(`parallel-shard-summary: shard=${shard} concurrency=${concurrency} order=${report.order} enumerated=${c.enumerated} passed=${c.passed} failed=${c.failed} aborted=${c.aborted} notStarted=${c.notStarted} wall=${(report.wallMs / 1000).toFixed(1)}s digest=${report.enumerationDigest.slice(0, 12)} peakMemInUseMb=${report.peakSystemMemInUseMb} systemCpu=${report.systemCpuUtilization === null ? 'n/a' : Math.round(report.systemCpuUtilization * 100) + '%'} runnerCpu=${report.runnerCpuSeconds.toFixed(1)}s`);
+  const f = report.firstFailureResult;
+  if (f) {
+    console.error(`::error title=Test suite failed::${f.label}`);
+    if (f.signal || f.reason) console.error(`abnormal exit: ${f.reason}`);
+    if (f.stdout && f.stdout.length) process.stdout.write(f.stdout);
+    if (f.stderr && f.stderr.length) process.stderr.write(f.stderr);
+    return typeof f.exitCode === 'number' && f.exitCode > 0 ? f.exitCode : 1;
+  }
+  if (report.abortedReason === 'run-timeout') { console.error(`::error title=Test suite failed::shard ${shard} exceeded the parallel run timeout`); return 124; }
+  return report.ok ? 0 : 1;
+}
+
+module.exports = { labelOf, enumerateShard, digestOf, scanSharedState, scheduleOrder, reconcile, runCommands, killGroup, groupAlive, parseParallelism, runShard };
 if (require.main === module) main(process.argv.slice(2)).then(code => { process.exitCode = code; }, error => { console.error(error); process.exitCode = 3; });

@@ -1,5 +1,22 @@
 {
-  "_comment": "Stage-0 input for scripts/parallel-shard-runner.js --serial-config. Nothing reads this in CI. 'serial' commands run alone, before the parallel phase. 'reviewedSafe' records audit hits (node scripts/parallel-shard-runner.js --shard X --audit) that were read and judged harmless for parallel execution. The audit is a heuristic text scan, not a proof.",
+  "_comment": "Stage-0 input for scripts/parallel-shard-runner.js --serial-config. Nothing reads this in CI. 'serial' commands run alone, before the parallel phase. 'reviewedSafe' records audit hits (node scripts/parallel-shard-runner.js --shard X --audit) that were read and judged harmless for parallel execution. The audit is a heuristic text scan, not a proof. 'parallelEnabledShards' lists the only shards tests/run-all-shard.js may run in parallel when TEST_SHARD_PARALLELISM is set (anything else runs serially with a warning). 'timings' (seconds, from an idle 4-core run) order longest-first scheduling.",
+  "parallelEnabledShards": [
+    "J"
+  ],
+  "timings": {
+    "J": {
+      "tests/subsidiary-disposal-accounting-test.js": 129.3,
+      "tests/pe-create-deal-save-atomicity-test.js": 134.1,
+      "tests/shareholder-activism-split-integration-test.js": 212.5,
+      "tests/vc-follow-on-save-atomicity-test.js": 65,
+      "tests/vc-initial-investment-save-atomicity-test.js": 68.4,
+      "tests/pe-fund-acquisition-save-atomicity-test.js": 102,
+      "tests/pe-portfolio-exit-save-atomicity-test.js": 59.2,
+      "tests/group-capital-allocation-save-atomicity-test.js": 94.8,
+      "tests/digital-portfolio-breakeven-seeds-test.js": 435.5,
+      "tests/ramen-supply-payment-terms-negative-test.js": 162.8
+    }
+  },
   "serial": {
     "A": [
       "test:founding-tutorial",
