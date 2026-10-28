@@ -22,9 +22,7 @@
     "tests/sports-management-test.js",
     "tests/real-estate-agency-site-capacity-test.js",
     "tests/subsidiary-disposal-save-atomicity-test.js",
-    "tests/refounding-ledger-test.js",
-    "tests/subsidiary-relist-save-atomicity-test.js",
-    "tests/internal-venture-business-save-atomicity-test.js"
+    "tests/refounding-ledger-test.js"
   ],
   "C": [
     "tests/decline-buyout-ownership-save-atomicity-test.js",
@@ -258,7 +256,8 @@
     "tests/pe-conveni-ui-connection-test.js",
     "tests/pe-d-ui-management-levers-test.js",
     "tests/ma-subsidiary-sale-save-atomicity-test.js",
-    "tests/cash-write-runtime-guard-test.js"
+    "tests/cash-write-runtime-guard-test.js",
+    "tests/internal-venture-business-save-atomicity-test.js"
   ],
   "I": [
     "tests/vc-writeoff-week-save-atomicity-test.js",
@@ -309,7 +308,8 @@
     "tests/phase3-restructuring-lifecycle-test.js",
     "tests/phase3-founder-wealth-test.js",
     "tests/subsidiary-secondary-sale-save-atomicity-test.js",
-    "tests/group-restructuring-merge-save-atomicity-test.js"
+    "tests/group-restructuring-merge-save-atomicity-test.js",
+    "tests/subsidiary-relist-save-atomicity-test.js"
   ],
   "L": [
     "tests/stock-split-price-floor-test.js",
