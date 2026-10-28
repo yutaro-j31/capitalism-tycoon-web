@@ -17,7 +17,7 @@ vm.runInContext(read('js/phase3-ownership-apply.js'),ctx,{filename:'phase3-owner
 const planner=registry.phase3OwnershipPlanner,api=registry.phase3OwnershipApply,apply=api.applyOwnershipPlan;
 const plain=x=>JSON.parse(JSON.stringify(x));
 
-assert.deepEqual(Object.keys(api).sort(),['ACTIVATION','KINDS','VERSION','applyOwnershipPlan']);
+assert.deepEqual(Object.keys(api).sort(),['ACTIVATION','KINDS','VERSION','applyOwnershipPlan','beginOwnershipLeg','confirmOwnershipLeg']);
 assert.equal(api.ACTIVATION,'disabled');assert.ok(Object.isFrozen(api));
 assert.deepEqual(plain(api.KINDS),['personal-buy','personal-sell','founder-sale','external-issue','buyback','split']);
 assert.equal(planner.applyOwnershipPlan,undefined,'the planner stays read-only');
@@ -96,6 +96,23 @@ for(const bad of [null,{},{g:null,inTransaction(){return true;}},{g:state(),inTr
  const s=state(),p=planFor(s,'W-BUYBACK','buyback',{quantity:1});assert.equal(apply(bad,p),false);
 }
 
+// Verification legs: a plannable leg must leave exactly the planned quantities; an unplannable one is not checked.
+{
+ const begin=api.beginOwnershipLeg,confirm=api.confirmOwnershipLeg;
+ const leg={writerId:'W-FOUNDER-SALE',kind:'founder-sale',operationId:'founder-sale-1',change:{quantity:50}};
+ const s=state(),before=plain(s);
+ assert.equal(begin(engine(s,false),leg),null,'no leg outside a transaction');
+ const handle=begin(engine(s),leg);assert.equal(handle.plan.status,'PLANNED');assert.deepEqual(plain(s),before,'planning writes nothing');
+ assert.equal(confirm(engine(s),handle),false,'nothing written yet');
+ s.founderShares=549;assert.equal(confirm(engine(s),handle),false,'a different quantity is rejected');
+ s.founderShares=550;assert.equal(confirm(engine(s),handle),true,'the planned quantity is confirmed');
+ s.sharesOut=1001;assert.equal(confirm(engine(s),handle),false,'an unplanned bucket change or mirror mismatch is rejected');
+ for(const unplannable of [t=>{t.currentCompanySerial=2;},t=>{t.publicCompany=false;t.market=[];},t=>{t.founderShares=10;}]){
+  const t=state();unplannable(t);const h=begin(engine(t),leg);assert.equal(h,null);assert.equal(confirm(engine(t),h),true,'unplannable legs keep existing behaviour');
+ }
+ assert.equal(begin(engine(state()),{...leg,kind:'ipo'}),null);assert.equal(begin(engine(state()),null),null);
+}
+
 // The installed runtime registers the module without routing a writer to it, and a real engine transaction commits or
 // restores the applied quantities with the rest of its command.
 const { boot } = require('./fixtures/subsidiary-quarter-close');
@@ -107,6 +124,9 @@ const { boot } = require('./fixtures/subsidiary-quarter-close');
  assert.equal(list.indexOf('./js/phase3-ownership-apply.js'),list.indexOf('./js/phase3-ownership-planner.js')+1,'loads right after the planner');
  const sources=fs.readdirSync(path.join(ROOT,'js')).filter(f=>f.endsWith('.js')&&f!=='phase3-ownership-apply.js');
  for(const f of sources)assert.ok(!read('js/'+f).includes('applyOwnershipPlan'),f+' must not route to the dormant apply');
+ // Verification legs are routed only through the reviewed writers.
+ const routed=sources.filter(f=>read('js/'+f).includes('beginOwnershipLeg'));
+ assert.deepEqual(routed,['expansion.js']);assert.equal((read('js/expansion.js').match(/beginOwnershipLeg\(/g)||[]).length,1,'W-FOUNDER-SALE only');
  const game=new s.engineModule.TycoonEngine();
  game.configure({playerName:'T',companyName:'Apply',difficulty:'normal',scenario:'free',simulationSeed:971});
  assert.equal(game.save(),true);await s.backend.flush();
@@ -128,5 +148,25 @@ const { boot } = require('./fixtures/subsidiary-quarter-close');
  assert.equal(game.runTransaction(()=>run(game,realPlan()).status==='APPLIED'),true);
  assert.equal(game.g.sharesOut,sharesOut+1000);await s.backend.flush();
  assert.equal(JSON.parse(s.backend.readSync(s.key)).sharesOut,sharesOut+1000,'committed quantities are durable');
- console.log('Phase 3 ownership apply (dormant) PASS');
+ // W-FOUNDER-SALE routed in verification mode: unchanged success, a diverging write is rejected and rolled back, and a
+ // refounded (second-generation) company keeps the existing sale.
+ function listed(serial=1){
+  const st=s.engineModule.createInitialState({configured:true});
+  Object.assign(st,{week:12,publicCompany:true,sharesOut:1000000,founderShares:600000,treasuryBuybackShares:0,stockPrice:100,ticker:'CPTY',currentCompanySerial:serial});
+  st.market=st.market.filter(x=>x.id!=='CPTY');st.market.push({id:'CPTY',name:st.companyName,price:100,issuedShares:1000000,priceHistory:[{week:12,price:100}]});
+  st.personalStocks.CPTY={qty:20000,avg:100};st.finance=s.modules.finance.defaultFinanceState(st);
+  return new s.engineModule.TycoonEngine(st);
+ }
+ {
+  const g=listed(),cash=g.g.personalCash;
+  assert.equal(g.sellFounderShares(1000),true);assert.equal(g.g.founderShares,599000);assert.equal(g.g.personalCash,cash+1000*100*.995);
+  const bad=listed(),prior=JSON.stringify(bad.g),ratios=bad.updateOwnershipRatios;
+  bad.updateOwnershipRatios=function(...args){this.g.founderShares-=1;return ratios.apply(this,args);};
+  assert.equal(bad.sellFounderShares(1000),false,'a founder write that diverges from the plan is rejected');
+  assert.equal(JSON.stringify(bad.g),prior,'and the whole sale is rolled back');
+  const second=listed(2);
+  assert.equal(s.modules.phase3OwnershipPlanner.inspectOwnershipAuthority(second.g,scope()).status,'REJECTED');
+  assert.equal(second.sellFounderShares(1000),true,'second generation keeps the existing sale');assert.equal(second.g.founderShares,599000);
+ }
+ console.log('Phase 3 ownership apply (dormant) and W-FOUNDER-SALE verification leg PASS');
 })().catch(error=>{console.error(error);process.exitCode=1;});

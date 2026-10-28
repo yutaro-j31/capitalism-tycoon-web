@@ -1,6 +1,6 @@
 # P3-4 dormant ownership plan application
 
-**Authority: DORMANT. No writer routes here; activation is `disabled`. No command permission, settlement or S_PASS.**
+**Authority: DORMANT. No writer calls `applyOwnershipPlan`; routed writers only verify (below); activation is `disabled`. No command permission, settlement or S_PASS.**
 
 This adds the `applyOwnershipPlan` half of [#1080 §3.1](PHASE_3_P3_4_PREFLIGHT_AND_DESIGN.md) beside the
 [pure planner](PHASE_3_P3_4_PURE_PLANNER_API.md). It is the first step of §3.2 order 2, which routes player-common writers
@@ -75,6 +75,45 @@ them with everything else when the command fails. Exceptions follow the existing
 `tests/phase3-ownership-planner-test.js` builds its planner-less runtime without this dependent module as well. Its
 assertions are unchanged. The Phase 0.5 writer inventory gains the module's candidate row through
 `--refresh-writers`.
+
+## Verification mode for routed writers
+
+The Owner decided on 2026-10-28 that player-common writers are routed in **verification mode** until activation. A
+routed writer keeps its own quantity writes, so no supported or unsupported outcome changes.
+
+- `beginOwnershipLeg(engine, {writerId, kind, operationId, change})` runs inside the writer's transaction, before
+  the writer writes. It plans the leg against the current state. It returns `null` when there is no active
+  transaction or the planner cannot plan the leg. The planner cannot plan, for example:
+  - a later company generation (`currentCompanySerial` above 1);
+  - an unlisted company for a public-only leg;
+  - a quantity outside the planner's domain.
+- `confirmOwnershipLeg(engine, handle)` runs after the writer's quantity writes. It is `true` for a `null` handle.
+  Otherwise it is `true` only when re-inspection observes a consistent issued mirror and exactly the plan's
+  prospective quantities. On `false`, the writer rejects its command and the transaction restores everything.
+
+Activation later replaces the writer's own quantity writes with `applyOwnershipPlan`.
+
+### Routed writers
+
+| Writer | Leg | PR |
+| --- | --- | --- |
+| W-FOUNDER-SALE `sellFounderShares` (`js/expansion.js`) | `founder-sale` | this PR |
+
+`tests/phase3-ownership-apply-test.js` covers the legs at two levels:
+
+- **Unit:**
+  - no leg outside a transaction;
+  - planning writes nothing;
+  - unwritten, wrong and extra-bucket quantities are rejected;
+  - the planned quantity is confirmed;
+  - unplannable states are left unchecked.
+- **Installed runtime:**
+  - a first-generation founder sale succeeds unchanged;
+  - a founder write that diverges from the plan is rejected and the whole sale is rolled back;
+  - a second-generation company keeps the existing sale;
+  - only the reviewed writers call `beginOwnershipLeg`.
+
+The existing founder-share-sale Node and real-WebKit fault suites pass unchanged.
 
 ## Limits
 
