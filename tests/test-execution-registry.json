@@ -407,6 +407,10 @@
     "reason": "P3-4 W-INTERNAL-VENTURE internal venture funding, sale and withdrawal real WebKit/native-IDB faults (all nine shared kinds, five pinned commands), refused follow-up command and fresh durable-only hydration in the M&A venture-atomicity job.",
     "executedBy": ".github/workflows/ma-acquisition-financing.yml"
   },
+  "tests/subsidiary-funding-save-atomicity-webkit-test.js": {
+    "reason": "P3-4 W-INTERNAL-VENTURE unlisted subsidiary parent funding and external round real WebKit/native-IDB faults (all nine shared kinds, four pinned rounds), refused follow-up round and fresh durable-only hydration in the M&A venture-atomicity job.",
+    "executedBy": ".github/workflows/ma-acquisition-financing.yml"
+  },
   "tests/new-business-commercialization-save-atomicity-webkit-test.js": {
     "reason": "P3-4 W-COMMERCIAL-SPINOUT new-business launch, spin-out and abandonment real WebKit/native-IDB faults (all nine shared kinds, three decided projects), refused second decision in every mode and fresh durable-only hydration in the M&A venture-atomicity job.",
     "executedBy": ".github/workflows/ma-acquisition-financing.yml"
