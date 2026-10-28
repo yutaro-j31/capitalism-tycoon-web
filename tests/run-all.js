@@ -112,6 +112,7 @@ const nodeTests = [
   ['group-restructuring-merge-save-atomicity', 'tests/group-restructuring-merge-save-atomicity-test.js'],
   ['group-negotiated-sale-save-atomicity', 'tests/group-negotiated-sale-save-atomicity-test.js'],
   ['internal-venture-business-save-atomicity', 'tests/internal-venture-business-save-atomicity-test.js'],
+  ['subsidiary-funding-save-atomicity', 'tests/subsidiary-funding-save-atomicity-test.js'],
   ['vc-initial-investment-save-atomicity', 'tests/vc-initial-investment-save-atomicity-test.js'],
   ['pe-fund-acquisition-save-atomicity', 'tests/pe-fund-acquisition-save-atomicity-test.js'],
   ['pe-portfolio-exit-save-atomicity', 'tests/pe-portfolio-exit-save-atomicity-test.js'],
