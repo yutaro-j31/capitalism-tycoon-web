@@ -147,6 +147,7 @@ on:
       - 'tests/group-restructuring-merge-save-atomicity-webkit-test.js'
       - 'tests/group-negotiated-sale-save-atomicity-webkit-test.js'
       - 'tests/internal-venture-business-save-atomicity-webkit-test.js'
+      - 'tests/subsidiary-funding-save-atomicity-webkit-test.js'
       - 'tests/fixtures/sponsor-injection-atomicity.js'
       - 'tests/fixtures/shareholder-buyback-atomicity.js'
       - 'tests/fixtures/shareholder-dividend-declaration-atomicity.js'
@@ -165,6 +166,7 @@ on:
       - 'tests/fixtures/group-restructuring-merge-atomicity.js'
       - 'tests/fixtures/group-negotiated-sale-atomicity.js'
       - 'tests/fixtures/internal-venture-business-atomicity.js'
+      - 'tests/fixtures/subsidiary-funding-atomicity.js'
       - 'js/player-crisis-turnaround-fund.js'
       - 'tests/turnaround-fund-accept-save-atomicity-test.js'
       - 'tests/turnaround-fund-accept-save-atomicity-webkit-test.js'
@@ -342,6 +344,7 @@ on:
       - 'tests/group-restructuring-merge-save-atomicity-webkit-test.js'
       - 'tests/group-negotiated-sale-save-atomicity-webkit-test.js'
       - 'tests/internal-venture-business-save-atomicity-webkit-test.js'
+      - 'tests/subsidiary-funding-save-atomicity-webkit-test.js'
       - 'tests/fixtures/sponsor-injection-atomicity.js'
       - 'tests/fixtures/shareholder-buyback-atomicity.js'
       - 'tests/fixtures/shareholder-dividend-declaration-atomicity.js'
@@ -360,6 +363,7 @@ on:
       - 'tests/fixtures/group-restructuring-merge-atomicity.js'
       - 'tests/fixtures/group-negotiated-sale-atomicity.js'
       - 'tests/fixtures/internal-venture-business-atomicity.js'
+      - 'tests/fixtures/subsidiary-funding-atomicity.js'
       - 'js/player-crisis-turnaround-fund.js'
       - 'tests/turnaround-fund-accept-save-atomicity-test.js'
       - 'tests/turnaround-fund-accept-save-atomicity-webkit-test.js'
@@ -1169,7 +1173,8 @@ jobs:
           retention-days: 30
 
   venture-atomicity:
-    # P3-4 internal-venture writers (venture funding, sale and withdrawal) in real iPhone WebKit, split out so
+    # P3-4 internal-venture writers (venture funding, sale and withdrawal; subsidiary parent funding and external rounds)
+    # in real iPhone WebKit, split out so
     # group-atomicity (24.5 min with six tests on #1177: 13-min install + tests) keeps headroom.
     # No event guard; same runtime and cancellation shape as the other family jobs.
     concurrency:
@@ -1205,6 +1210,8 @@ jobs:
           exit 1
       - name: Internal venture funding / sale / withdrawal safety (W-INTERNAL-VENTURE) in real iPhone WebKit
         run: node tests/internal-venture-business-save-atomicity-webkit-test.js
+      - name: Unlisted subsidiary parent funding / external round safety (W-INTERNAL-VENTURE) in real iPhone WebKit
+        run: node tests/subsidiary-funding-save-atomicity-webkit-test.js
       - name: Retain venture-atomicity WebKit evidence
         if: always()
         uses: actions/upload-artifact@v4
