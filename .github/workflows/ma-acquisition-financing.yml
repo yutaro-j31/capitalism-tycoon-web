@@ -145,6 +145,7 @@ on:
       - 'tests/group-restructuring-sale-save-atomicity-webkit-test.js'
       - 'tests/internal-venture-spinoff-save-atomicity-webkit-test.js'
       - 'tests/group-restructuring-merge-save-atomicity-webkit-test.js'
+      - 'tests/group-negotiated-sale-save-atomicity-webkit-test.js'
       - 'tests/fixtures/sponsor-injection-atomicity.js'
       - 'tests/fixtures/shareholder-buyback-atomicity.js'
       - 'tests/fixtures/shareholder-dividend-declaration-atomicity.js'
@@ -161,6 +162,7 @@ on:
       - 'tests/fixtures/group-restructuring-sale-atomicity.js'
       - 'tests/fixtures/internal-venture-spinoff-atomicity.js'
       - 'tests/fixtures/group-restructuring-merge-atomicity.js'
+      - 'tests/fixtures/group-negotiated-sale-atomicity.js'
       - 'js/player-crisis-turnaround-fund.js'
       - 'tests/turnaround-fund-accept-save-atomicity-test.js'
       - 'tests/turnaround-fund-accept-save-atomicity-webkit-test.js'
@@ -336,6 +338,7 @@ on:
       - 'tests/group-restructuring-sale-save-atomicity-webkit-test.js'
       - 'tests/internal-venture-spinoff-save-atomicity-webkit-test.js'
       - 'tests/group-restructuring-merge-save-atomicity-webkit-test.js'
+      - 'tests/group-negotiated-sale-save-atomicity-webkit-test.js'
       - 'tests/fixtures/sponsor-injection-atomicity.js'
       - 'tests/fixtures/shareholder-buyback-atomicity.js'
       - 'tests/fixtures/shareholder-dividend-declaration-atomicity.js'
@@ -352,6 +355,7 @@ on:
       - 'tests/fixtures/group-restructuring-sale-atomicity.js'
       - 'tests/fixtures/internal-venture-spinoff-atomicity.js'
       - 'tests/fixtures/group-restructuring-merge-atomicity.js'
+      - 'tests/fixtures/group-negotiated-sale-atomicity.js'
       - 'js/player-crisis-turnaround-fund.js'
       - 'tests/turnaround-fund-accept-save-atomicity-test.js'
       - 'tests/turnaround-fund-accept-save-atomicity-webkit-test.js'
@@ -1149,6 +1153,8 @@ jobs:
         run: node tests/internal-venture-spinoff-save-atomicity-webkit-test.js
       - name: Group restructuring merge safety (W-GROUP-DISPOSAL) in real iPhone WebKit
         run: node tests/group-restructuring-merge-save-atomicity-webkit-test.js
+      - name: Negotiated subsidiary sale safety (W-GROUP-NEGOTIATED) in real iPhone WebKit
+        run: node tests/group-negotiated-sale-save-atomicity-webkit-test.js
       - name: Retain group-atomicity WebKit evidence
         if: always()
         uses: actions/upload-artifact@v4

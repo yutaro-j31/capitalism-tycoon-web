@@ -74,6 +74,25 @@ and a dropped earnout.
 
 ## Limits
 
-This is Node only; a native-WebKit counterpart is the next slice. This does not certify the negotiation start,
+This does not certify the negotiation start,
 price/terms/bid/cancel actions or the weekly earnout payment, raw/helper bypass closure, S_PASS, authority cutover,
 P3-10, Phase 3 Exit or Phase 4 Entry.
+
+## Native WebKit / IndexedDB counterpart
+
+`tests/group-negotiated-sale-save-atomicity-webkit-test.js` runs the same pinned `partial`, `whole` and `listed` states
+in the installed page (emulated iPhone 13 WebKit, real IndexedDB) through the installed
+`closeNegotiatedSubsidiarySale`. A page-side observer requires the actual sale receipt of the pinned negotiation inside
+the command's transaction. Per variant: success and the eight applicable shared faults; `whole` adds queued-predecessor
+and nested `save-false` / `save-throw` (31 scenarios).
+
+Each failure must leave live state, mirror, cache and durable IndexedDB bytes exactly as before, with a pending
+predecessor intact; the recovery save exceeds every allocated failed sequence; the retried close equals the
+uninterrupted one; a fresh context with localStorage removed hydrates that state from IndexedDB alone. After each case
+a second close is refused without any change, and is hydrated durable-only too. The page oracle ports the Node
+`success()`, including the earnout terms. Three negative controls are rejected: disabled rollback, company cash one yen
+over the net proceeds and a book one yen over what remains on the parent.
+
+It runs in the M&A `group-atomicity` job after the group restructuring merge evidence. Its logic was exercised locally
+on Chromium (31 scenarios plus 3 rejected controls); WebKit evidence is the exact HEAD's CI job. No physical-iPhone
+claim is made.
