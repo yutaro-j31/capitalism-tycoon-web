@@ -83,13 +83,12 @@ async function exercise({ state, kind, pending, nested, soft, dealID, mutation =
     delete copy.lastSaveDate; delete copy.saveSequence; return copy;
   }
   const same = (a, b) => JSON.stringify(a) === JSON.stringify(b);
-  // The shared ledger keeps effects at ¥0.01 (finance.js contract §2); the PE fair value is fractional.
-  const cents = value => Math.round(value * 100) / 100;
   const rows = s => s.finance.transactions.filter(row => row.sourceType === 'peTransfer');
   // Port of success() in tests/pe-transfer-save-atomicity-test.js.
   function oracle(baseline = prior, after = plain(e.g)) {
     const was = baseline.peDeals.find(d => d.id === dealID), now = after.peDeals.find(d => d.id === dealID);
-    const price = was.currentValuation, subID = `pe-subsidiary-${was.id}`;
+    // The fractional fair value settles at ceilYen (whole-yen contract slice R10a).
+    const price = m.economicOperation.ceilYen(was.currentValuation), subID = `pe-subsidiary-${was.id}`;
     check(after.companyCash === baseline.companyCash - price, 'company pays the fair value');
     check(after.personalCash === baseline.personalCash + price, 'the founder receives the fair value');
     check(after.peRealizedPL === baseline.peRealizedPL + price - was.ownerCostBasis, 'founder realises the gain over cost basis');
@@ -97,7 +96,7 @@ async function exercise({ state, kind, pending, nested, soft, dealID, mutation =
       'only the ownership fields of the deal change');
     const sub = after.subsidiaries.find(x => x.id === subID);
     check(sub && same(sub, { id: subID, name: was.targetName, industry: was.industry, domain: was.industry, status: 'active',
-      ownership: was.ownershipRatio, valuation: price / was.ownershipRatio, carryingBookValue: price, investedCost: price, acquisitionPrice: price,
+      ownership: was.ownershipRatio, valuation: was.currentValuation / was.ownershipRatio, carryingBookValue: price, investedCost: price, acquisitionPrice: price,
       weeklyProfit: 0, growth: 0, risk: 0, retainedEarnings: 0, acquiredWeek: after.week, source: 'pe', peDealID: was.id, valuationManagedBy: 'pe' }),
       'subsidiary booked at the fair value');
     check(same(after.subsidiaries.filter(x => x.id !== subID), baseline.subsidiaries), 'other subsidiaries untouched');
@@ -105,8 +104,9 @@ async function exercise({ state, kind, pending, nested, soft, dealID, mutation =
     const added = rows(after).slice(rows(baseline).length), row = added[0];
     check(added.length === 1 && after.finance.transactions.length === baseline.finance.transactions.length + 1, 'exactly one ledger row');
     check(row.category === 'acquisition' && row.operationID === `pe-transfer-${was.id}` && row.idempotencyKey === `pe-transfer-${was.id}`
-      && row.sourceID === was.id && row.week === after.week && row.amount === cents(price) && row.cashEffect === cents(-price)
-      && row.assetEffect === cents(price) && row.profitEffect === 0, 'transfer row');
+      && row.sourceID === was.id && row.week === after.week && row.amount === price && row.cashEffect === -price
+      && row.assetEffect === price && row.profitEffect === 0, 'transfer row');
+    check(Number.isSafeInteger(after.companyCash) && Number.isSafeInteger(after.personalCash), 'both cash balances stay whole yen');
     check(m.finance.validate(plain(after)).ok === true, 'finance.validate');
     check(m.finance.standaloneClose(plain(after)).ok === true, 'standalone close');
   }
