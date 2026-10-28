@@ -127,7 +127,7 @@ const { boot } = require('./fixtures/subsidiary-quarter-close');
  // Verification legs are routed only through the reviewed writers.
  const routed=sources.filter(f=>read('js/'+f).includes('beginOwnershipLeg'));
  assert.deepEqual(routed,['engine.js','expansion.js']);
- assert.equal((read('js/expansion.js').match(/beginOwnershipLeg\(/g)||[]).length,1,'expansion.js: W-FOUNDER-SALE only');
+ assert.equal((read('js/expansion.js').match(/beginOwnershipLeg\(/g)||[]).length,2,'expansion.js: W-SPLIT and W-FOUNDER-SALE only');
  assert.equal((read('js/engine.js').match(/beginOwnershipLeg\(/g)||[]).length,2,'engine.js: W-BUY and W-SELL only');
  const game=new s.engineModule.TycoonEngine();
  game.configure({playerName:'T',companyName:'Apply',difficulty:'normal',scenario:'free',simulationSeed:971});
@@ -193,5 +193,23 @@ const { boot } = require('./fixtures/subsidiary-quarter-close');
   const second=listed(2);assert.equal(second.buyStock('CPTY',100),true,'second generation keeps the existing purchase');
   assert.equal(second.sellStock('CPTY',100),true,'second generation keeps the existing sale');
  }
- console.log('Phase 3 ownership apply (dormant) and W-FOUNDER-SALE / W-BUY / W-SELL verification legs PASS');
+ // W-SPLIT routed in verification mode for splits of the player's own shares: unchanged success, a diverging bucket
+ // write is rejected and rolled back, and another ticker and a second generation keep the existing split.
+ {
+  const g=listed();
+  assert.equal(g.stockSplit('CPTY',2),true);
+  assert.deepEqual([g.g.sharesOut,g.g.founderShares,g.g.treasuryBuybackShares,g.g.personalStocks.CPTY.qty,g.stock('CPTY').issuedShares],
+   [2000000,1200000,0,40000,2000000]);
+  assert.equal(g.stockSplit('CPTY',3),true,'a later split plans against the split quantities');assert.equal(g.g.sharesOut,6000000);
+  const bad=listed(),prior=JSON.stringify(bad.g);
+  let armed=true;
+  bad.g.personalStocks.CPTY=new Proxy(bad.g.personalStocks.CPTY,{set(target,key,value){target[key]=key==='qty'&&armed?value+1:value;if(key==='qty')armed=false;return true;}});
+  assert.equal(bad.stockSplit('CPTY',2),false,'a bucket write that diverges from the plan is rejected');
+  assert.equal(JSON.stringify(bad.g),prior,'and the whole split is rolled back');
+  const other=listed(),id=other.g.market.find(x=>x.id!=='CPTY'&&x.price/2>=10).id,issued=other.stock(id).issuedShares;
+  assert.equal(other.stockSplit(id,2),true,'another ticker is not an own-share leg');assert.equal(other.stock(id).issuedShares,issued*2);
+  const second=listed(2);assert.equal(second.stockSplit('CPTY',2),true,'second generation keeps the existing split');
+  assert.equal(second.g.sharesOut,2000000);
+ }
+ console.log('Phase 3 ownership apply (dormant) and W-FOUNDER-SALE / W-BUY / W-SELL / W-SPLIT verification legs PASS');
 })().catch(error=>{console.error(error);process.exitCode=1;});
