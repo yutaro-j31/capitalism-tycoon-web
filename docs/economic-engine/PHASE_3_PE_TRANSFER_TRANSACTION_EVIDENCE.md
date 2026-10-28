@@ -48,7 +48,7 @@ with the installed `createPEDeal`. The only hand-set inputs are cash buffers and
   - the deal changes only its owner, cost basis, company acquisition cost and subsidiary link;
   - the full PE subsidiary record: ownership, valuation, book, invested cost and acquisition week;
   - the other deal and subsidiary unchanged;
-  - exactly one ledger row, the `acquisition` row with its operation and idempotency keys, at ¥0.01;
+  - exactly one ledger row, the `acquisition` row with its operation and idempotency keys, in whole yen;
   - `finance.validate` and standalone close pass.
 - The uninterrupted command commits once, in `notify -> saved -> change` order.
 - A replay is identical.
@@ -62,11 +62,13 @@ with the installed `createPEDeal`. The only hand-set inputs are cash buffers and
 
 The test also rejects a production mutant, which is not committed: a ledger row rounded to whole yen.
 
-## Observation
+## Rounding
 
-The fair value is fractional (`createPEDeal` draws it as amount × rand). The command moves both cash balances by the
-unrounded value, while the ledger row keeps it at ¥0.01. This PR records that behaviour and does not change it; whether
-the transfer joins the whole-yen rounding table is a separate decision.
+The fair value is fractional (`createPEDeal` draws it as amount × rand). The evidence first recorded that the command
+moved both cash balances by the unrounded value while the ledger kept it at ¥0.01. Whole-yen contract slice R10a now
+settles the transfer at `ceilYen(currentValuation)`, and the oracles above expect that one whole-yen price on both cash
+balances, the ledger row, the cost basis and the realised gain. The subsidiary's valuation remains a valuation and is not
+rounded.
 
 ## Limits
 
