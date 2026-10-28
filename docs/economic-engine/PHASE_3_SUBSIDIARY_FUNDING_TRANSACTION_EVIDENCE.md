@@ -87,5 +87,24 @@ The test also rejects three production mutants, which are not committed:
 
 ## Limits
 
-This is Node only; a native-WebKit counterpart is the next slice. This does not certify listed-subsidiary capital
+This does not certify listed-subsidiary capital
 actions (W-SUB evidence), raw/helper bypass closure, S_PASS, authority cutover, P3-10, Phase 3 Exit or Phase 4 Entry.
+
+## Native WebKit / IndexedDB counterpart
+
+`tests/subsidiary-funding-save-atomicity-webkit-test.js` runs the same four pinned states and rounds in the installed
+page (emulated iPhone 13 WebKit, real IndexedDB) through the installed `fundSubsidiaryFromParent` and
+`raiseSubsidiaryExternalRound`. An external round posts no parent ledger row, so a page-side observer requires the
+round's notice naming the pinned subsidiary inside the command's transaction. Per variant: success and all nine shared
+faults; `parentVc` adds queued-predecessor and nested `save-false` / `save-throw` (44 scenarios).
+
+Each failure must leave live state, mirror, cache and durable IndexedDB bytes exactly as before, with a pending
+predecessor intact; the recovery save exceeds every allocated failed sequence; the retried round equals the
+uninterrupted one; a fresh context with localStorage removed hydrates that state from IndexedDB alone. After each case
+the follow-up round is refused without any change, and is hydrated durable-only too. The page oracle ports the Node
+`success()`. Three negative controls are rejected: disabled rollback, company cash one yen over the injection and a
+stake left at its pre-round value.
+
+It runs in the M&A `venture-atomicity` job after the internal venture business evidence. Its logic was exercised
+locally on Chromium (44 scenarios plus 3 rejected controls); WebKit evidence is the exact HEAD's CI job. No
+physical-iPhone claim is made.
