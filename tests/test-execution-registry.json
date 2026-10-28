@@ -411,6 +411,10 @@
     "reason": "P3-4 W-INTERNAL-VENTURE unlisted subsidiary parent funding and external round real WebKit/native-IDB faults (all nine shared kinds, four pinned rounds), refused follow-up round and fresh durable-only hydration in the M&A venture-atomicity job.",
     "executedBy": ".github/workflows/ma-acquisition-financing.yml"
   },
+  "tests/pe-parent-acquisition-save-atomicity-webkit-test.js": {
+    "reason": "P3-4 W-PE-PARENT PE portfolio company acquisition into the group, direct and through the PE UI adapter, real WebKit/native-IDB faults (all nine shared kinds, three pinned holdings), refused second acquisition and fresh durable-only hydration in the M&A pe-acquisition-atomicity job.",
+    "executedBy": ".github/workflows/ma-acquisition-financing.yml"
+  },
   "tests/found-new-company-save-atomicity-webkit-test.js": {
     "reason": "#955 refounding after buyout through the real legacy-tab flow: state root identity kept on success and rollback; one commit with the founded-investment record; personal holdings carry over, sold-company debt does not; every harness fault kind (incl. prior pending put) rolls back into the same root; thrown faults open the recovery dialog; deterministic retry; reload and fresh durable-only hydration in iPhone WebKit on every workflow event (placed in vc-secondary-atomicity for job-time balance).",
     "executedBy": ".github/workflows/ma-acquisition-financing.yml"
