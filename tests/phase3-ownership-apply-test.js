@@ -1,0 +1,132 @@
+'use strict';
+// P3-4 dormant applyOwnershipPlan: applies a planner result only inside an active outer transaction, only when it is
+// exactly the plan for the current state, with synchronous quantity/mirror writes and no clock, RNG, save or emit. No
+// installed writer calls it, so loading the runtime changes nothing; a real engine transaction commits or restores it.
+const assert=require('node:assert/strict');
+const fs=require('node:fs');
+const path=require('node:path');
+const vm=require('node:vm');
+const ROOT=path.resolve(__dirname,'..');
+const read=file=>fs.readFileSync(path.join(ROOT,file),'utf8');
+const constants=Object.freeze({PLAYER_COMPANY_ENTITY_ID:'entity:company:player',FOUNDER_ENTITY_ID:'entity:person:founder',PLAYER_COMPANY_COMMON_SECURITY_CLASS_ID:'security:player-company:common'});
+const registry={economicReadModel:constants};
+const ctx=vm.createContext({__capitalismTycoonModules:registry});
+vm.runInContext(`Date=new Proxy(function(){},{apply(){throw Error('clock');},construct(){throw Error('clock');},get(){throw Error('clock');}});Math.random=()=>{throw Error('RNG');};`,ctx);
+vm.runInContext(read('js/phase3-ownership-planner.js'),ctx,{filename:'phase3-ownership-planner.js'});
+vm.runInContext(read('js/phase3-ownership-apply.js'),ctx,{filename:'phase3-ownership-apply.js'});
+const planner=registry.phase3OwnershipPlanner,api=registry.phase3OwnershipApply,apply=api.applyOwnershipPlan;
+const plain=x=>JSON.parse(JSON.stringify(x));
+
+assert.deepEqual(Object.keys(api).sort(),['ACTIVATION','KINDS','VERSION','applyOwnershipPlan']);
+assert.equal(api.ACTIVATION,'disabled');assert.ok(Object.isFrozen(api));
+assert.deepEqual(plain(api.KINDS),['personal-buy','personal-sell','founder-sale','external-issue','buyback','split']);
+assert.equal(planner.applyOwnershipPlan,undefined,'the planner stays read-only');
+
+function state(){return {currentCompanySerial:1,isCompanySold:false,publicCompany:true,companyName:'Own',ticker:'OWN',sharesOut:1000,founderShares:600,treasuryBuybackShares:100,
+ personalStocks:{OWN:{qty:10,avg:123},X:{qty:20,avg:34}},companyStocks:{X:{qty:30,avg:45}},market:[{id:'OWN',issuedShares:1000,price:99},{id:'X',issuedShares:2000}],startups:[],companyCash:5000};}
+function scope(){return {family:'player-common',issuerEntityId:constants.PLAYER_COMPANY_ENTITY_ID,securityClassId:constants.PLAYER_COMPANY_COMMON_SECURITY_CLASS_ID,currentCompanySerial:1};}
+const changedOf={'personal-buy':['personalOwnShares'],'personal-sell':['personalOwnShares'],'founder-sale':['founderShares'],'external-issue':['sharesOut'],buyback:['treasuryBuybackShares'],
+ split:['sharesOut','treasuryBuybackShares','founderShares','personalOwnShares'],ipo:['sharesOut','founderShares']};
+function planFor(s,writerId,kind,change){
+ const e=planner.inspectOwnershipAuthority(s,scope());assert.equal(e.status,'OBSERVED');
+ const account=['personal-buy','personal-sell','founder-sale'].includes(kind)?'personal':kind==='ipo'?'company-and-personal':'company';
+ const p=planner.planOwnershipChange(s,{scope:scope(),writerId,kind,operationId:'operation-1',account,sourceLots:changedOf[kind].map(k=>e.sourcePaths[k]),
+  expected:{sourceState:s,sourceFingerprint:e.sourceFingerprint,quantities:{sharesOut:e.quantities.sharesOut,treasuryBuybackShares:e.quantities.treasuryBuybackShares,
+   founderShares:e.quantities.founderShares,personalOwnShares:e.quantities.personalOwnShares}},change});
+ assert.equal(p.status,'PLANNED',JSON.stringify(p));return p;
+}
+function engine(s,active=true){return {g:s,inTransaction(){return active;},save(){throw Error('apply may not save');},emit(){throw Error('apply may not emit');},notify(){throw Error('apply may not notify');}};}
+// Independently written expected writes for each supported fact leg.
+const cases=[
+ ['W-BUY','personal-buy',{quantity:5},s=>{s.personalStocks.OWN.qty=15;}],
+ ['W-SELL','personal-sell',{quantity:4},s=>{s.personalStocks.OWN.qty=6;}],
+ ['W-MARGIN-LIQ','personal-sell',{quantity:10},s=>{s.personalStocks.OWN.qty=0;}],
+ ['W-FOUNDER-SALE','founder-sale',{quantity:50},s=>{s.founderShares=550;}],
+ ['W-INVESTOR','external-issue',{quantity:200},s=>{s.sharesOut=1200;s.market[0].issuedShares=1200;}],
+ ['W-SHARE-SWAP','external-issue',{quantity:300},s=>{s.sharesOut=1300;s.market[0].issuedShares=1300;}],
+ ['W-BUYBACK','buyback',{quantity:25},s=>{s.treasuryBuybackShares=125;}],
+ ['W-SPLIT','split',{factor:3},s=>{s.sharesOut=3000;s.treasuryBuybackShares=300;s.founderShares=1800;s.personalStocks.OWN.qty=30;s.market[0].issuedShares=3000;}]
+];
+for(const [writerId,kind,change,expect] of cases){
+ const label=writerId+'/'+kind,s=state(),p=planFor(s,writerId,kind,change),untouched=plain(s);
+ // Outside an active outer transaction nothing is written.
+ assert.equal(apply(engine(s,false),p),false,label+' outside a transaction');assert.deepEqual(plain(s),untouched);
+ assert.equal(apply({g:s},p),false,label+' without a transaction boundary');assert.deepEqual(plain(s),untouched);
+ const result=apply(engine(s),p);
+ assert.equal(result.status,'APPLIED',label);assert.equal(result.activation,'disabled');assert.ok(Object.isFrozen(result));
+ assert.deepEqual(plain(result.after),plain(p.after));assert.deepEqual(plain(result.updates),plain(p.updates));
+ const expected=state();expect(expected);assert.deepEqual(plain(s),expected,label+' writes exactly the planned quantities and mirror');
+ // The applied plan is stale for the new state: replay cannot apply twice.
+ assert.equal(apply(engine(s),p),false,label+' replay');assert.deepEqual(plain(s),expected);
+ const reinspected=planner.inspectOwnershipAuthority(s,scope());assert.equal(reinspected.status,'OBSERVED');
+ for(const k of planner.BUCKETS)assert.equal(reinspected.quantities[k],p.after[k],label+'/'+k);
+}
+// Stale, forged, unsupported and incomplete plans write nothing.
+{
+ const s=state(),p=planFor(s,'W-INVESTOR','external-issue',{quantity:200});
+ s.founderShares=599;const changed=plain(s);
+ assert.equal(apply(engine(s),p),false,'stale source');assert.deepEqual(plain(s),changed);
+}
+{
+ const s=state(),p=planFor(s,'W-INVESTOR','external-issue',{quantity:200}),before=plain(s);
+ for(const forge of [x=>{x.after.sharesOut=1300;},x=>{x.updates[0].after=1300;},x=>{x.mirrors[0].after=999;},x=>{x.sourceFingerprint+=' ';},
+  x=>{x.status='OBSERVED';},x=>{x.kind='ipo';},x=>{x.before.founderShares=0;},x=>{x.account='personal';}]){
+  const forged=plain(p);forge(forged);assert.equal(apply(engine(s),forged),false,JSON.stringify(forged).slice(0,80));assert.deepEqual(plain(s),before);
+ }
+ // A plan is identified by its content: another admissible writer or operation ID for the same fact leg is that
+ // writer's own plan, and applies as such (the identifier is not a lifecycle or idempotency receipt).
+ for(const relabel of [x=>{x.operationId='operation-2';},x=>{x.writerId='W-SPONSOR';}]){
+  const t=state(),q=plain(planFor(t,'W-INVESTOR','external-issue',{quantity:200}));relabel(q);
+  const r=apply(engine(t),q);assert.equal(r.status,'APPLIED');assert.equal(r.operationId,q.operationId);assert.equal(r.writerId,q.writerId);assert.equal(t.sharesOut,1200);
+ }
+ // A JSON copy of the genuine plan is still the genuine plan: application compares, it does not trust identity.
+ assert.equal(apply(engine(s),plain(p)).status,'APPLIED');
+}
+{
+ const s=state();s.publicCompany=false;s.market=[];const before=plain(s);
+ const p=planFor(s,'W-IPO-CHAIN','ipo',{issuedQuantity:100,founderSecondaryQuantity:20,listingTicker:'OWN'});
+ assert.equal(apply(engine(s),p),false,'IPO stays with the existing listing writer');assert.deepEqual(plain(s),before);
+}
+{
+ const s=state();delete s.personalStocks.OWN;const before=plain(s),p=planFor(s,'W-BUY','personal-buy',{quantity:5});
+ assert.equal(apply(engine(s),p),false,'lot creation stays with the existing writer');assert.deepEqual(plain(s),before);
+}
+for(const bad of [null,undefined,{},{status:'PLANNED'},'PLANNED',[]]){const s=state(),before=plain(s);assert.equal(apply(engine(s),bad),false);assert.deepEqual(plain(s),before);}
+for(const bad of [null,{},{g:null,inTransaction(){return true;}},{g:state(),inTransaction(){throw Error('boundary');}}]){
+ const s=state(),p=planFor(s,'W-BUYBACK','buyback',{quantity:1});assert.equal(apply(bad,p),false);
+}
+
+// The installed runtime registers the module without routing a writer to it, and a real engine transaction commits or
+// restores the applied quantities with the rest of its command.
+const { boot } = require('./fixtures/subsidiary-quarter-close');
+(async()=>{
+ const s=boot();await s.backend.hydrate();
+ assert.equal(s.modules.phase3OwnershipApply.ACTIVATION,'disabled');
+ const order=JSON.parse(read('tests/fixtures/module-load-order.json'));
+ const list=Object.values(order).find(Array.isArray)||order;
+ assert.equal(list.indexOf('./js/phase3-ownership-apply.js'),list.indexOf('./js/phase3-ownership-planner.js')+1,'loads right after the planner');
+ const sources=fs.readdirSync(path.join(ROOT,'js')).filter(f=>f.endsWith('.js')&&f!=='phase3-ownership-apply.js');
+ for(const f of sources)assert.ok(!read('js/'+f).includes('applyOwnershipPlan'),f+' must not route to the dormant apply');
+ const game=new s.engineModule.TycoonEngine();
+ game.configure({playerName:'T',companyName:'Apply',difficulty:'normal',scenario:'free',simulationSeed:971});
+ assert.equal(game.save(),true);await s.backend.flush();
+ const real=s.modules.phase3OwnershipPlanner,run=s.modules.phase3OwnershipApply.applyOwnershipPlan;
+ function realPlan(){
+  const e=real.inspectOwnershipAuthority(game.g,scope());assert.equal(e.status,'OBSERVED',JSON.stringify(e));
+  const q=e.quantities;
+  return real.planOwnershipChange(game.g,{scope:scope(),writerId:'W-INVESTOR',kind:'external-issue',operationId:'investor-offer-1',account:'company',sourceLots:[e.sourcePaths.sharesOut],
+   expected:{sourceState:game.g,sourceFingerprint:e.sourceFingerprint,quantities:{sharesOut:q.sharesOut,treasuryBuybackShares:q.treasuryBuybackShares,founderShares:q.founderShares,personalOwnShares:q.personalOwnShares}},
+   change:{quantity:1000}});
+ }
+ const prior=JSON.stringify(game.g),sharesOut=game.g.sharesOut,bytes=s.backend.readSync(s.key);
+ assert.equal(run(game,realPlan()),false,'outside the outer transaction');assert.equal(JSON.stringify(game.g),prior);
+ // The enclosing command fails after applying: the outer transaction restores the quantities with everything else.
+ assert.equal(game.runTransaction(()=>{assert.equal(run(game,realPlan()).status,'APPLIED');assert.equal(game.g.sharesOut,sharesOut+1000);return false;}),false);
+ assert.equal(JSON.stringify(game.g),prior,'rejected command restores the applied quantities');
+ await s.backend.flush();assert.equal(s.backend.readSync(s.key),bytes,'nothing durable');
+ // The enclosing command succeeds: the quantities commit once, with the command's own save.
+ assert.equal(game.runTransaction(()=>run(game,realPlan()).status==='APPLIED'),true);
+ assert.equal(game.g.sharesOut,sharesOut+1000);await s.backend.flush();
+ assert.equal(JSON.parse(s.backend.readSync(s.key)).sharesOut,sharesOut+1000,'committed quantities are durable');
+ console.log('Phase 3 ownership apply (dormant) PASS');
+})().catch(error=>{console.error(error);process.exitCode=1;});
