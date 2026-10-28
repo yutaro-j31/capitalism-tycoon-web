@@ -1,6 +1,7 @@
 {
-  "_comment": "Stage-0 input for scripts/parallel-shard-runner.js --serial-config. tests/run-all-shard.js reads this file only when TEST_SHARD_PARALLELISM is 2 or more (never in contract mode); the workflow leaves that variable at 1 unless the repository variable TEST_SHARD_PARALLELISM_J is set. 'serial' commands run alone, before the parallel phase. 'reviewedSafe' records audit hits (node scripts/parallel-shard-runner.js --shard X --audit) that were read and judged harmless for parallel execution. The audit is a heuristic text scan, not a proof. 'parallelEnabledShards' lists the only shards tests/run-all-shard.js may run in parallel when TEST_SHARD_PARALLELISM is set (anything else runs serially with a warning). 'timings' (seconds, from an idle 4-core run) order longest-first scheduling.",
+  "_comment": "Stage-0 input for scripts/parallel-shard-runner.js --serial-config. tests/run-all-shard.js reads this file only when TEST_SHARD_PARALLELISM is 2 or more (never in contract mode); the workflow leaves that variable at 1 unless the repository variable TEST_SHARD_PARALLELISM_J (shard J) or TEST_SHARD_PARALLELISM_C (shard C) is set. 'serial' commands run alone, before the parallel phase. 'reviewedSafe' records audit hits (node scripts/parallel-shard-runner.js --shard X --audit) that were read and judged harmless for parallel execution. The audit is a heuristic text scan, not a proof. 'parallelEnabledShards' lists the only shards tests/run-all-shard.js may run in parallel when TEST_SHARD_PARALLELISM is set (anything else runs serially with a warning). 'timings' (seconds, from an idle 4-core run) order longest-first scheduling.",
   "parallelEnabledShards": [
+    "C",
     "J"
   ],
   "timings": {
@@ -15,6 +16,33 @@
       "tests/group-capital-allocation-save-atomicity-test.js": 94.8,
       "tests/digital-portfolio-breakeven-seeds-test.js": 435.5,
       "tests/ramen-supply-payment-terms-negative-test.js": 162.8
+    },
+    "C": {
+      "test:long": 56.5,
+      "test:supply-long": 145.3,
+      "tests/company-buyout-idempotency-test.js": 0.6,
+      "tests/product-recall-reachability-runner.js": 262.3,
+      "tests/listed-subsidiary-market-week-test.js": 106.8,
+      "tests/decline-buyout-ownership-save-atomicity-test.js": 115.7,
+      "tests/pe-exit-deal-save-atomicity-test.js": 188.5,
+      "tests/subsidiary-follow-on-save-atomicity-test.js": 124.6,
+      "tests/city-lab-production-port-test.js": 0.5,
+      "tests/map-phase2-framing-zoomout-test.js": 0.5,
+      "tests/map-phase2-marker-placard-interaction-test.js": 0.6,
+      "tests/map-marker-detail-interaction-test.js": 0.1,
+      "tests/d-ui-shell-test.js": 0.0,
+      "tests/founder-retirement-reachability-test.js": 107.5,
+      "tests/transaction-rollback-test.js": 3.0,
+      "tests/real-estate-insurance-claims-test.js": 36.2,
+      "tests/investment-route-ipo-reachability-test.js": 0.5,
+      "tests/founder-capital-movement-test.js": 6.9,
+      "tests/startup-deal-flow-refresh-test.js": 15.0,
+      "tests/vc-fund-lp-test.js": 7.3,
+      "tests/personal-investment-risk-model-test.js": 6.7,
+      "tests/startup-secondary-sale-confirm-ui-test.js": 0.3,
+      "tests/map-directory-open-state-persistence-test.js": 0.0,
+      "tests/executive-payroll-annual-total-test.js": 42.2,
+      "tests/shareholder-value-destruction-incidence-matrix-test.js": 173.1
     }
   },
   "serial": {

@@ -162,8 +162,8 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
-      - name: Record runner resources (shard J parallel pilot)
-        if: matrix.shard == 'J'
+      - name: Record runner resources (parallel pilot shards)
+        if: matrix.shard == 'J' || matrix.shard == 'C'
         run: |
           echo "nproc: $(nproc)"
           free -m
@@ -173,12 +173,12 @@ jobs:
       - name: Run canonical test shard ${{ matrix.shard }}
         env:
           TEST_SHARD: ${{ matrix.shard }}
-          # Serial unless the repository variable TEST_SHARD_PARALLELISM_J is set; only shard J can use it (docs/parallel-shard-rollback.md).
-          TEST_SHARD_PARALLELISM: ${{ matrix.shard == 'J' && (vars.TEST_SHARD_PARALLELISM_J || '1') || '1' }}
+          # Serial unless the repository variable TEST_SHARD_PARALLELISM_J / _C is set; only shards J and C can use it (docs/parallel-shard-rollback.md).
+          TEST_SHARD_PARALLELISM: ${{ matrix.shard == 'J' && (vars.TEST_SHARD_PARALLELISM_J || '1') || matrix.shard == 'C' && (vars.TEST_SHARD_PARALLELISM_C || '1') || '1' }}
           TEST_SHARD_PARALLEL_REPORT: artifacts/shard-parallel/${{ matrix.shard }}.json
         run: node tests/run-all-shard.js
       - name: Upload parallel shard report
-        if: always() && matrix.shard == 'J' && vars.TEST_SHARD_PARALLELISM_J != ''
+        if: always() && ((matrix.shard == 'J' && vars.TEST_SHARD_PARALLELISM_J != '') || (matrix.shard == 'C' && vars.TEST_SHARD_PARALLELISM_C != ''))
         uses: actions/upload-artifact@v4
         with:
           name: shard-parallel-report-${{ matrix.shard }}-${{ github.run_id }}
