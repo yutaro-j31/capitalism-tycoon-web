@@ -1,7 +1,8 @@
 {
-  "_comment": "Stage-0 input for scripts/parallel-shard-runner.js --serial-config. tests/run-all-shard.js reads this file only when TEST_SHARD_PARALLELISM is 2 or more (never in contract mode); the workflow leaves that variable at 1 unless the repository variable TEST_SHARD_PARALLELISM_J (shard J) or TEST_SHARD_PARALLELISM_C (shard C) is set. 'serial' commands run alone, before the parallel phase. 'reviewedSafe' records audit hits (node scripts/parallel-shard-runner.js --shard X --audit) that were read and judged harmless for parallel execution. The audit is a heuristic text scan, not a proof. 'parallelEnabledShards' lists the only shards tests/run-all-shard.js may run in parallel when TEST_SHARD_PARALLELISM is set (anything else runs serially with a warning). 'timings' (seconds, from an idle 4-core run) order longest-first scheduling.",
+  "_comment": "Stage-0 input for scripts/parallel-shard-runner.js --serial-config. tests/run-all-shard.js reads this file only when TEST_SHARD_PARALLELISM is 2 or more (never in contract mode); the workflow leaves that variable at 1 unless the repository variable TEST_SHARD_PARALLELISM_J / _C / _E (shards J, C, E) is set. 'serial' commands run alone, before the parallel phase. 'reviewedSafe' records audit hits (node scripts/parallel-shard-runner.js --shard X --audit) that were read and judged harmless for parallel execution. The audit is a heuristic text scan, not a proof. 'parallelEnabledShards' lists the only shards tests/run-all-shard.js may run in parallel when TEST_SHARD_PARALLELISM is set (anything else runs serially with a warning). 'timings' (seconds, from an idle 4-core run) order longest-first scheduling.",
   "parallelEnabledShards": [
     "C",
+    "E",
     "J"
   ],
   "timings": {
@@ -43,6 +44,41 @@
       "tests/map-directory-open-state-persistence-test.js": 0.0,
       "tests/executive-payroll-annual-total-test.js": 42.2,
       "tests/shareholder-value-destruction-incidence-matrix-test.js": 173.1
+    },
+    "E": {
+      "test:player-crisis-turnaround-fund": 14.2,
+      "test:stock": 113.7,
+      "tests/make-subsidiary-save-atomicity-test.js": 62.2,
+      "tests/subsidiary-quarter-close-save-atomicity-test.js": 74.2,
+      "tests/subsidiary-ipo-save-atomicity-test.js": 85.0,
+      "tests/subsidiary-market-trade-save-atomicity-test.js": 181.4,
+      "tests/map-phase2-production-promotion-test.js": 0.2,
+      "tests/map-phase2-prefecture-switch-canvas-lifecycle-test.js": 2.2,
+      "tests/map-prefecture-identity-regional-variation-test.js": 1.8,
+      "tests/loan-single-interest-test.js": 5.3,
+      "tests/week-transaction-atomicity-test.js": 2.0,
+      "tests/d-ui-context-tabs-test.js": 0.0,
+      "tests/founder-health-system-removal-test.js": 27.6,
+      "tests/personal-stock-margin-test.js": 8.2,
+      "tests/real-estate-agency-pipeline-test.js": 13.5,
+      "tests/real-estate-agency-pipeline-draws-test.js": 0.4,
+      "tests/real-estate-agency-credit-line-test.js": 39.4,
+      "tests/personal-real-estate-short-term-test.js": 74.8,
+      "tests/real-estate-building-depreciation-test.js": 28.5,
+      "tests/real-estate-land-book-classification-test.js": 6.8,
+      "tests/personal-real-estate-depreciation-test.js": 16.5,
+      "tests/company-valuation-normalization-test.js": 47.5,
+      "tests/weekly-cashflow-bridge-test.js": 37.0,
+      "tests/overseas-repatriation-test.js": 7.1,
+      "tests/business-portfolio-focus-test.js": 12.5,
+      "tests/foundable-business-scope-test.js": 4.7,
+      "tests/convenience-merchandising-test.js": 266.0,
+      "tests/convenience-private-brand-test.js": 3.8,
+      "tests/store-cost-inflation-25y-test.js": 238.9,
+      "tests/pe-realestate-agency-portfolio-bridge-test.js": 0.6,
+      "tests/pe-realestate-agency-bridge-208week-regression-test.js": 18.0,
+      "tests/pe-realestate-agency-bridge-negative-test.js": 4.4,
+      "tests/pe-realestate-agency-ui-connection-test.js": 4.3
     }
   },
   "serial": {
