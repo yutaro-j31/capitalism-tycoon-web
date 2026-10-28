@@ -70,7 +70,7 @@ The test also rejects three production mutants, which are not committed:
 
 ## Limits
 
-This is Node only; a native-WebKit counterpart is the next slice. This does not certify:
+This does not certify:
 
 - the research start or weekly research progress;
 - the class or ownership evidence of the created `spinout-` subsidiary, which the inventory row flags;
@@ -79,3 +79,28 @@ This is Node only; a native-WebKit counterpart is the next slice. This does not 
 - authority cutover;
 - P3-10;
 - Phase 3 Exit or Phase 4 Entry.
+
+## Native WebKit / IndexedDB counterpart
+
+`tests/new-business-commercialization-save-atomicity-webkit-test.js` runs the same three decided projects in the
+installed page through the installed `commercializeNewBusiness`. The page is emulated iPhone 13 WebKit with real
+IndexedDB. Abandonment posts no ledger row, so a page-side observer instead requires the decision's notice, naming the
+pinned project, inside the command's transaction. Per variant it runs success and all nine shared faults; `spinout`
+adds queued-predecessor and nested `save-false` / `save-throw`, for 34 scenarios.
+
+Each failure is checked for:
+
+- live state, mirror, cache and durable IndexedDB bytes exactly as before, with a pending predecessor intact;
+- a recovery save above every allocated failed sequence;
+- a retried decision equal to the uninterrupted one;
+- a fresh context with localStorage removed that hydrates that state from IndexedDB alone.
+
+After each case, a second decision in every mode is refused without any change and is hydrated durable-only too. The
+page oracle ports the Node `success()`. Three negative controls are rejected:
+
+- a disabled rollback;
+- company cash off by ¥1;
+- a spin-out book ¥1 short.
+
+It runs in the M&A `venture-atomicity` job. Its logic was exercised locally on Chromium (34 scenarios plus 3 rejected
+controls); WebKit evidence is the exact HEAD's CI job. No physical-iPhone claim is made.

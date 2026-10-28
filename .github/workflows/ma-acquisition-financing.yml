@@ -150,6 +150,7 @@ on:
       - 'tests/group-negotiated-sale-save-atomicity-webkit-test.js'
       - 'tests/internal-venture-business-save-atomicity-webkit-test.js'
       - 'tests/subsidiary-funding-save-atomicity-webkit-test.js'
+      - 'tests/new-business-commercialization-save-atomicity-webkit-test.js'
       - 'tests/fixtures/sponsor-injection-atomicity.js'
       - 'tests/fixtures/shareholder-buyback-atomicity.js'
       - 'tests/fixtures/shareholder-dividend-declaration-atomicity.js'
@@ -169,6 +170,7 @@ on:
       - 'tests/fixtures/group-negotiated-sale-atomicity.js'
       - 'tests/fixtures/internal-venture-business-atomicity.js'
       - 'tests/fixtures/subsidiary-funding-atomicity.js'
+      - 'tests/fixtures/new-business-commercialization-atomicity.js'
       - 'js/player-crisis-turnaround-fund.js'
       - 'tests/turnaround-fund-accept-save-atomicity-test.js'
       - 'tests/turnaround-fund-accept-save-atomicity-webkit-test.js'
@@ -179,6 +181,7 @@ on:
       - 'js/group-restructuring-progress.js'
       - 'js/group-capital-allocation-execution.js'
       - 'js/internal-venture-business.js'
+      - 'js/new-business-commercialization.js'
       - 'js/pe-deal-supply.js'
       - 'js/pe-network.js'
       - 'js/personal-stock-margin.js'
@@ -349,6 +352,7 @@ on:
       - 'tests/group-negotiated-sale-save-atomicity-webkit-test.js'
       - 'tests/internal-venture-business-save-atomicity-webkit-test.js'
       - 'tests/subsidiary-funding-save-atomicity-webkit-test.js'
+      - 'tests/new-business-commercialization-save-atomicity-webkit-test.js'
       - 'tests/fixtures/sponsor-injection-atomicity.js'
       - 'tests/fixtures/shareholder-buyback-atomicity.js'
       - 'tests/fixtures/shareholder-dividend-declaration-atomicity.js'
@@ -368,6 +372,7 @@ on:
       - 'tests/fixtures/group-negotiated-sale-atomicity.js'
       - 'tests/fixtures/internal-venture-business-atomicity.js'
       - 'tests/fixtures/subsidiary-funding-atomicity.js'
+      - 'tests/fixtures/new-business-commercialization-atomicity.js'
       - 'js/player-crisis-turnaround-fund.js'
       - 'tests/turnaround-fund-accept-save-atomicity-test.js'
       - 'tests/turnaround-fund-accept-save-atomicity-webkit-test.js'
@@ -375,6 +380,7 @@ on:
       - 'js/player-turnaround-plan.js'
       - 'tests/player-crisis-turnaround-ratchet-webkit-test.js'
       - 'js/internal-venture-business.js'
+      - 'js/new-business-commercialization.js'
       - 'js/pe-deal-supply.js'
       - 'js/pe-network.js'
       - 'js/personal-stock-margin.js'
@@ -1217,6 +1223,8 @@ jobs:
         run: node tests/internal-venture-business-save-atomicity-webkit-test.js
       - name: Unlisted subsidiary parent funding / external round safety (W-INTERNAL-VENTURE) in real iPhone WebKit
         run: node tests/subsidiary-funding-save-atomicity-webkit-test.js
+      - name: New-business commercialization launch / spin-out / abandonment safety (W-COMMERCIAL-SPINOUT) in real iPhone WebKit
+        run: node tests/new-business-commercialization-save-atomicity-webkit-test.js
       - name: Retain venture-atomicity WebKit evidence
         if: always()
         uses: actions/upload-artifact@v4
