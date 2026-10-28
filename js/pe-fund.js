@@ -1066,13 +1066,14 @@ function install(){
     this.emit();
     return true;
   };
+  // P3-4 W-PE-FORM: the GP commitment, the fund and its LP commitments commit with one save, or roll back together.
   proto.formPEFund=function(options={}){
-    const result=formFund(this.g,options);
-    if(!result.ok)return this.fail(result.message);
-    this.notify?.(`${Math.round(result.size/100_000_000).toLocaleString('ja-JP')}億円のPEファンドを組成しました。`,'success');
-    this.save();
-    this.emit();
-    return true;
+    return this.runTransaction(()=>{
+      const result=formFund(this.g,options);
+      if(!result.ok)return this.fail(result.message);
+      this.notify?.(`${Math.round(result.size/100_000_000).toLocaleString('ja-JP')}億円のPEファンドを組成しました。`,'success');
+      return true;
+    });
   };
   Object.defineProperty(proto,'__peFundInstalled',{value:true});
   return true;
