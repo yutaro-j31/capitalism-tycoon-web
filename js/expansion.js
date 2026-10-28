@@ -392,6 +392,9 @@ function installExpansion(TycoonEngine){
     if([s.price,...(own?[this.g.stockPrice]:[])].some(price=>!(price/ratio>=STOCK_SPLIT_MIN_PRICE)))return this.fail(`分割後の株価が下限${STOCK_SPLIT_MIN_PRICE}円を下回るため、1:${ratio}の株式分割はできません。`);
     const counts=[s.issuedShares,this.g.companyStocks[stockID]?.qty,this.g.personalStocks[stockID]?.qty,...(own?[this.g.sharesOut,this.g.founderShares,this.g.treasuryBuybackShares]:[])];
     if(counts.some(count=>Number.isFinite(count)&&Math.abs(count)*ratio>Number.MAX_SAFE_INTEGER))return this.fail('株式分割後の株式数が上限を超えるため分割できません。');
+    // P3-4 verification leg (W-SPLIT): a split of the player's own shares must leave every bucket at the planned quantity.
+    const ownership=globalThis.__capitalismTycoonModules.phase3OwnershipApply,leg=own
+     ?ownership.beginOwnershipLeg(this,{writerId:'W-SPLIT',kind:'split',operationId:`split-${stockID}-${this.g.week}-${this.g.stockSplitHistory.length}`,change:{factor:ratio}}):null;
     s.price/=ratio;s.previous/=ratio;s.issuedShares*=ratio;s.priceHistory=(s.priceHistory||[]).map(x=>x&&typeof x==='object'?{...x,price:x.price/ratio}:x/ratio);
     // Per-share dividends follow the share count so a split leaves every holder's quarterly total unchanged.
     if(Number.isFinite(s.dividendPerShare))s.dividendPerShare/=ratio;
@@ -401,6 +404,7 @@ function installExpansion(TycoonEngine){
       // proposal that can still be accepted, and active dividend governance commitments.
       const campaign=this.g.activeActivistCampaign;if(campaign&&campaign.status==='active'&&campaign.type==='dividend'&&Number.isFinite(campaign.dividendPerShare))campaign.dividendPerShare/=ratio;
       for(const commitment of Array.isArray(this.g.governanceCommitments)?this.g.governanceCommitments:[])if(commitment&&commitment.status==='active'&&commitment.type==='dividend'&&Number.isFinite(commitment.target))commitment.target/=ratio;}
+    if(!ownership.confirmOwnershipLeg(this,leg))return this.fail('株式数の整合を確認できませんでした。');
     this.g.stockSplitHistory.unshift({week:this.g.week,stockID,ratio});this.notify(`${s.name}が1:${ratio}の株式分割を実施しました。`,'success');return true;
     });
   };
