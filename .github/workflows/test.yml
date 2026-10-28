@@ -149,7 +149,10 @@ jobs:
     name: test-shard-${{ matrix.shard }}
     needs: test-shard-contract
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    # Measured on slow runners (#1178, #1180, #1181): shards B and K spent 1764.7-1787.5 s in tests, so a 30-minute job
+    # was cancelled at 30:04; the same shards finish in about 17 minutes on fast runners. 40 keeps that variance inside
+    # the budget without removing or skipping any test.
+    timeout-minutes: 40
     strategy:
       fail-fast: false
       matrix:

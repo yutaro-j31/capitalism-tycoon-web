@@ -265,7 +265,8 @@
     "tests/industry-event-response-plans-reachability-test.js",
     "test:digital-portfolio-profitability",
     "tests/exploration-style-test.js",
-    "tests/simulation-long-run-reload-fork-test.js"
+    "tests/simulation-long-run-reload-fork-test.js",
+    "tests/subsidiary-relist-save-atomicity-test.js"
   ],
   "J": [
     "tests/pe-create-deal-save-atomicity-test.js",
@@ -308,8 +309,7 @@
     "tests/phase3-restructuring-lifecycle-test.js",
     "tests/phase3-founder-wealth-test.js",
     "tests/subsidiary-secondary-sale-save-atomicity-test.js",
-    "tests/group-restructuring-merge-save-atomicity-test.js",
-    "tests/subsidiary-relist-save-atomicity-test.js"
+    "tests/group-restructuring-merge-save-atomicity-test.js"
   ],
   "L": [
     "tests/stock-split-price-floor-test.js",

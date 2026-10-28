@@ -29,7 +29,8 @@ for (const shard of 'ABCDEFGHIJKL') {
 
 // Required gates are unchanged.
 assert.match(job, /needs: test-shard-contract/);
-assert.match(job, /timeout-minutes: 30/);
+// 40 since #1184: measured shard test time on slow runners reached 1787 s against a 30-minute job budget.
+assert.match(job, /timeout-minutes: 40/);
 assert.match(job, /shard: \[A, B, C, D, E, F, G, H, I, J, K, L\]/);
 assert.match(job, /fail-fast: false/);
 assert.match(job, /run: node tests\/run-all-shard\.js/);
