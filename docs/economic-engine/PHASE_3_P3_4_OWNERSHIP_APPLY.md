@@ -98,7 +98,8 @@ Activation later replaces the writer's own quantity writes with `applyOwnershipP
 | Writer | Leg | PR |
 | --- | --- | --- |
 | W-FOUNDER-SALE `sellFounderShares` (`js/expansion.js`) | `founder-sale` | #1185 |
-| W-BUY `buyStock` / W-SELL `sellStock` (`js/engine.js`), personal account, the player's own ticker only | `personal-buy` / `personal-sell` | this PR |
+| W-BUY `buyStock` / W-SELL `sellStock` (`js/engine.js`), personal account, the player's own ticker only | `personal-buy` / `personal-sell` | #1186 |
+| W-SPLIT `stockSplit` (`js/expansion.js`), the player's own ticker only | `split` | this PR |
 
 `tests/phase3-ownership-apply-test.js` covers the legs at two levels:
 
@@ -109,19 +110,26 @@ Activation later replaces the writer's own quantity writes with `applyOwnershipP
   - the planned quantity is confirmed;
   - unplannable states are left unchecked.
 - **Installed runtime:**
-  - a first-generation founder sale succeeds unchanged;
-  - a founder write that diverges from the plan is rejected and the whole sale is rolled back;
-  - a second-generation company keeps the existing sale;
-- a personal own-share purchase or sale leaves the lot unchanged from today: an exhausted lot is deleted and a new one
-  is created as before;
-- a lot write skewed by one share is rejected, and the whole trade is rolled back;
-- another ticker and a second-generation company keep the existing trade;
+  - founder sale:
+    - a first-generation founder sale succeeds unchanged;
+    - a founder write that diverges from the plan is rejected and the whole sale is rolled back;
+    - a second-generation company keeps the existing sale;
+  - personal own-share trades:
+    - a purchase or sale leaves the lot unchanged from today: an exhausted lot is deleted and a new one is created as
+      before;
+    - a lot write skewed by one share is rejected, and the whole trade is rolled back;
+    - another ticker and a second-generation company keep the existing trade;
+  - own-share split:
+    - a split multiplies every bucket and the issued mirror as before, and a later split plans against the split
+      quantities;
+    - a bucket write skewed by one share is rejected, and the whole split is rolled back;
+    - another ticker and a second-generation company keep the existing split;
   - only the reviewed writers call `beginOwnershipLeg`.
 
-The existing founder-share-sale Node and real-WebKit fault suites pass unchanged.
+The existing founder-share-sale and stock-split Node suites pass unchanged.
 
 ## Limits
 
-This does not route any writer or activate the authority. It does not grant S_PASS for any family, and it does not
+This routes only the writers listed above, in verification mode, and does not activate the authority. It does not grant S_PASS for any family, and it does not
 change whole-command validation. The existing writers still own their financial and lifecycle rules. It does not
 certify P3-10, Phase 3 Exit or Phase 4 Entry.
