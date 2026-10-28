@@ -415,6 +415,10 @@
     "reason": "P3-4 W-PE-PARENT PE portfolio company acquisition into the group, direct and through the PE UI adapter, real WebKit/native-IDB faults (all nine shared kinds, three pinned holdings), refused second acquisition and fresh durable-only hydration in the M&A pe-acquisition-atomicity job.",
     "executedBy": ".github/workflows/ma-acquisition-financing.yml"
   },
+  "tests/new-business-commercialization-save-atomicity-webkit-test.js": {
+    "reason": "P3-4 W-COMMERCIAL-SPINOUT new-business launch, spin-out and abandonment real WebKit/native-IDB faults (all nine shared kinds, three decided projects), refused second decision in every mode and fresh durable-only hydration in the M&A venture-atomicity job.",
+    "executedBy": ".github/workflows/ma-acquisition-financing.yml"
+  },
   "tests/pe-transfer-save-atomicity-webkit-test.js": {
     "reason": "P3-4 W-PE-TRANSFER personal PE deal transfer to the company real WebKit/native-IDB faults (all nine shared kinds, fresh and aged deals), refused second transfer and fresh durable-only hydration in the M&A pe-acquisition-atomicity job.",
     "executedBy": ".github/workflows/ma-acquisition-financing.yml"
