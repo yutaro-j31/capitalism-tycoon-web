@@ -38,7 +38,8 @@ async function exercise({ state, variant, kind, pending, nested, soft, settlemen
   let reached = 0;
   e.updateOwnershipRatios = function (...args) {
     if (this.inTransaction() && this.g.sharesOut === prior.sharesOut + settlement.shares) reached++;
-    if (mutation === 'quantity') this.g.sharesOut--;
+    // Since the P3-4 W-TURNAROUND-ACCEPT verification leg a skewed live issuance is refused by the writer itself ('skew').
+    if (mutation === 'skew') this.g.sharesOut--;
     return ratios.apply(this, args);
   };
   if (mutation === 'rollback') e.restoreTransactionSnapshot = () => {};
@@ -109,12 +110,12 @@ function acceptanceOracle(before, after, s, assert) {
   assert.equal(s.modules.finance.validate(JSON.parse(JSON.stringify(after))).ok, true);
 }
 
-  function oracle() {
+  function oracle(after = e.g) {
     const assert = {
       equal(actual, expected, label = 'exact acceptance value') { check(actual === expected, label); },
       deepEqual(actual, expected, label = 'exact acceptance structure') { check(JSON.stringify(actual) === JSON.stringify(expected), label); }
     };
-    acceptanceOracle(prior, e.g, { variant, settlement, modules: m }, assert);
+    acceptanceOracle(prior, after, { variant, settlement, modules: m }, assert);
     const settled = JSON.stringify(e.g), stored = backend.readSync(key);
     check(e.acceptTurnaroundFund() === false && JSON.stringify(e.g) === settled && backend.readSync(key) === stored, 'active-fund replay issued or saved again');
   }
@@ -129,7 +130,14 @@ function acceptanceOracle(before, after, s, assert) {
     if (['mirror', 'enqueue-false', 'enqueue-throw', 'save-throw', 'saved', 'change'].includes(kind))
       check(allocated.length > 0, 'admitted fault never allocated a sequence');
   } else {
-    check(result === true && !error, 'successful fund-accept command rejected'); oracle();
+    if (mutation === 'skew') {
+      check(result === false && !error, 'skewed fund issuance was not refused');
+      check(JSON.stringify(e.g) === before, 'refused fund issuance changed live state');
+      return normalized(e.g);
+    }
+    // The 'quantity' control breaks a copy of the committed state, so the oracle must reject a wrong issued quantity.
+    check(result === true && !error, 'successful fund-accept command rejected');
+    oracle(mutation === 'quantity' ? { ...JSON.parse(JSON.stringify(e.g)), sharesOut: e.g.sharesOut - 1 } : e.g);
     check(await durableBytes() === backend.readSync(key), 'successful durable copy differs');
   }
   globalThis.__fundAcceptEvidence = { e, backend, key, before, failedSequence, oracle, normalized, durableBytes };
@@ -215,7 +223,16 @@ async function retry() {
         results.push({ mutation: mutation + ' rejected', pass: true });
       } finally { await broken.close(); }
     }
+    {
+      const skewed = await browser.newContext(options);
+      try {
+        const p = await open(skewed);
+        await p.addScriptTag({ content: 'globalThis.__injectFundAcceptFault=' + inject.toString() + ';' });
+        await p.evaluate(exercise, { state: states.capped, variant: 'capped', kind: 'none', soft: SOFT_FAILURES, settlement: PINS.capped, mutation: 'skew' });
+        results.push({ mutation: 'skewed live issuance refused by the W-TURNAROUND-ACCEPT leg', pass: true });
+      } finally { await skewed.close(); }
+    }
     record(true);
-    console.log('FundAccept real WebKit evidence PASS: 34 scenarios + 2 rejected mutations');
+    console.log('FundAccept real WebKit evidence PASS: 34 scenarios + 2 rejected mutations + 1 refused skewed issuance');
   } finally { await browser?.close(); await new Promise(resolve => server.close(resolve)); }
 })().catch(error => { console.error(error); process.exitCode = 1; });

@@ -126,10 +126,11 @@ const { boot } = require('./fixtures/subsidiary-quarter-close');
  for(const f of sources)assert.ok(!read('js/'+f).includes('applyOwnershipPlan'),f+' must not route to the dormant apply');
  // Verification legs are routed only through the reviewed writers.
  const routed=sources.filter(f=>read('js/'+f).includes('beginOwnershipLeg'));
- assert.deepEqual(routed,['engine.js','expansion.js','shareholder-returns.js']);
+ assert.deepEqual(routed,['engine.js','expansion.js','player-crisis-turnaround-fund.js','shareholder-returns.js']);
  assert.equal((read('js/expansion.js').match(/beginOwnershipLeg\(/g)||[]).length,2,'expansion.js: W-SPLIT and W-FOUNDER-SALE only');
  assert.equal((read('js/engine.js').match(/beginOwnershipLeg\(/g)||[]).length,2,'engine.js: W-BUY and W-SELL only');
  assert.equal((read('js/shareholder-returns.js').match(/beginOwnershipLeg\(/g)||[]).length,1,'shareholder-returns.js: W-BUYBACK only');
+ assert.equal((read('js/player-crisis-turnaround-fund.js').match(/beginOwnershipLeg\(/g)||[]).length,1,'player-crisis-turnaround-fund.js: W-TURNAROUND-ACCEPT only');
  const game=new s.engineModule.TycoonEngine();
  game.configure({playerName:'T',companyName:'Apply',difficulty:'normal',scenario:'free',simulationSeed:971});
  assert.equal(game.save(),true);await s.backend.flush();
@@ -229,5 +230,26 @@ const { boot } = require('./fixtures/subsidiary-quarter-close');
   const second=listed(2);assert.equal(second.buybackOwnShares(1000000),true,'second generation keeps the existing buyback');
   assert.equal(second.g.treasuryBuybackShares,10000);
  }
- console.log('Phase 3 ownership apply (dormant) and W-FOUNDER-SALE / W-BUY / W-SELL / W-SPLIT / W-BUYBACK verification legs PASS');
+ // W-TURNAROUND-ACCEPT routed in verification mode through acceptTurnaroundFund on a distressed unlisted company (the
+ // uncapped state of tests/fixtures/turnaround-fund-accept-atomicity.js): unchanged success, a diverging issued-share
+ // write is rejected and rolled back, and a second generation keeps the existing acceptance.
+ function rescued(serial=1){
+  const st=s.engineModule.createInitialState({configured:true});
+  Object.assign(st,{week:2,companyCash:-3000000,personalCash:10000000,companyCredit:80,currentCompanySerial:serial});
+  Object.assign(st.properties[0],{owner:'company',purchasePrice:100000000,price:100000000,value:100000000});
+  st.finance=s.modules.finance.defaultFinanceState(st);s.modules.playerCrisis.evaluate(st);
+  return new s.engineModule.TycoonEngine(st);
+ }
+ {
+  const g=rescued();
+  assert.equal(g.acceptTurnaroundFund(),true);assert.equal(g.g.sharesOut,16186,'6,186 new shares as before');
+  const bad=rescued();s.modules.playerCrisisTurnaroundFund.ensure(bad.g);s.modules.playerCrisis.ensure(bad.g);
+  const prior=JSON.stringify(bad.g),ratios=bad.updateOwnershipRatios;
+  bad.updateOwnershipRatios=function(...args){this.g.sharesOut+=1;return ratios.apply(this,args);};
+  assert.equal(bad.acceptTurnaroundFund(),false,'an issued-share write that diverges from the plan is rejected');
+  assert.equal(JSON.stringify(bad.g),prior,'and the whole acceptance is rolled back');
+  const second=rescued(2);assert.equal(second.acceptTurnaroundFund(),true,'second generation keeps the existing acceptance');
+  assert.equal(second.g.sharesOut,16186);
+ }
+ console.log('Phase 3 ownership apply (dormant) and W-FOUNDER-SALE / W-BUY / W-SELL / W-SPLIT / W-BUYBACK / W-TURNAROUND-ACCEPT verification legs PASS');
 })().catch(error=>{console.error(error);process.exitCode=1;});
