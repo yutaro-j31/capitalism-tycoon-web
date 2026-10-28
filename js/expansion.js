@@ -449,11 +449,15 @@ function installExpansion(TycoonEngine){
     if(this.g.publicCompany)return this.fail('上場後はこの提案を利用できません。');
     if(this.g.week>o.expiresWeek)return this.fail('この提案は期限切れです。');
     const newShares=Math.max(1,Math.round(this.g.sharesOut*o.amount/o.preMoneyValuation));
+    // P3-4 verification leg (W-INVESTOR): the issued bucket this investment leaves must be the planned one.
+    const ownership=globalThis.__capitalismTycoonModules.phase3OwnershipApply,leg=ownership.beginOwnershipLeg(this,{writerId:'W-INVESTOR',kind:'external-issue',
+     operationId:`investorOffer-${o.id}`,change:{quantity:newShares}});
     this.g.sharesOut+=newShares;this.g.companyCash+=o.amount;
     __modules.finance.event(this.g,'equityFinancing',o.amount,{cashEffect:o.amount,equityEffect:o.amount,sourceType:'investorOffer',sourceID:o.id,operationID:`investorOffer-${o.id}`,idempotencyKey:`investorOffer-${o.id}`,description:`${o.name} 出資受け入れ`});
     __modules.finance.ensureFinance(this.g).balances.capitalSurplus=n(__modules.finance.ensureFinance(this.g).balances.capitalSurplus)+o.amount;
     o.status='accepted';o.acceptedWeek=this.g.week;o.newShares=newShares;
     this.updateOwnershipRatios();
+    if(!ownership.confirmOwnershipLeg(this,leg))return this.fail('株式数の整合を確認できませんでした。');
     this.notify(`${o.name}から${Math.round(o.amount).toLocaleString('ja-JP')}円の出資を受け入れ、新株${newShares.toLocaleString()}株を発行しました。`,'success');
     return true;
     });
