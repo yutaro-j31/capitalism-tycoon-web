@@ -75,6 +75,25 @@ Production mutants (not committed) that the test rejects:
 
 ## Limits
 
-Node only; a native-WebKit counterpart is the next slice. This does not certify group-restructuring liquidation, which
+This does not certify group-restructuring liquidation, which
 no production path reaches from the pinned fixtures. It also does not certify negotiated group sales
 (W-GROUP-NEGOTIATED), raw/helper bypass closure, S_PASS, authority cutover, P3-10, Phase 3 Exit or Phase 4 Entry.
+
+## Native WebKit / IndexedDB counterpart
+
+`tests/group-restructuring-merge-save-atomicity-webkit-test.js` runs the same pinned `forward` and `reverse` states in
+the installed page (emulated iPhone 13 WebKit, real IndexedDB) through the installed `executeGroupRestructuringMerge`.
+A page-side observer requires the actual integration-cost row of the merged subsidiary inside the command's
+transaction. Per variant: success and the eight applicable shared faults; `forward` adds queued-predecessor and nested
+`save-false` / `save-throw` (22 scenarios).
+
+Each failure must leave live state, mirror, cache and durable IndexedDB bytes exactly as before, with a pending
+predecessor intact; the recovery save exceeds every allocated failed sequence; the retried merge equals the
+uninterrupted one; a fresh context with localStorage removed hydrates that state from IndexedDB alone. After each case
+a second merge of the pair is refused without any change, and is hydrated durable-only too. The page oracle ports the
+Node `success()`. Three negative controls are rejected: disabled rollback, company cash one yen off the integration
+cost and a merged book one yen short of the sum of both books.
+
+It runs in the M&A `group-atomicity` job after the internal venture spin-off evidence. Its logic was exercised locally
+on Chromium (22 scenarios plus 3 rejected controls); WebKit evidence is the exact HEAD's CI job. No physical-iPhone
+claim is made.
