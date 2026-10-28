@@ -76,7 +76,36 @@ The test also rejects a production mutant, which is not committed: an acquisitio
 
 ## Limits
 
-This is Node only; a native-WebKit counterpart is the next slice. The existing
+The existing
 `tests/pe-parent-company-acquisition-test.js` (functional) and `tests/pe-parent-company-acquisition-negative-test.js`
 (mutation sensitivity) are unchanged. This does not certify the other PE writers (W-PE-FORM, W-WEEK-PE), raw/helper
 bypass closure, S_PASS, authority cutover, P3-10, Phase 3 Exit or Phase 4 Entry.
+
+## Native WebKit / IndexedDB counterpart
+
+`tests/pe-parent-acquisition-save-atomicity-webkit-test.js` runs the same three pinned holdings through the installed
+`acquirePEPortfolioCompany` in the installed page. The page is emulated iPhone 13 WebKit with real IndexedDB. The
+`adapter` variant goes through the PE UI adapter's `acquireIntoGroup` after binding the page engine.
+
+A page-side observer requires the actual `acquisition` ledger row of the pinned holding inside the command's
+transaction. The price comes from the read-only preview, taken before the command, as in Node. Per variant it runs
+success and all nine shared faults; `coinvest` adds queued-predecessor and nested `save-false` / `save-throw`, for 34
+scenarios.
+
+Each failure is checked for:
+
+- live state, mirror, cache and durable IndexedDB bytes exactly as before, with a pending predecessor intact;
+- a recovery save above every allocated failed sequence;
+- a retried acquisition equal to the uninterrupted one;
+- a fresh context with localStorage removed that hydrates that state from IndexedDB alone.
+
+After each case, a second acquisition is refused without any change and is hydrated durable-only too. The page oracle
+ports the Node `success()`. Three negative controls are rejected:
+
+- a disabled rollback;
+- personal cash off by ¥1;
+- a co-investor return off by ¥1.
+
+It runs in the M&A `pe-acquisition-atomicity` job, beside the other PE WebKit suites (12.5 minutes on #1187). Its logic
+was exercised locally on Chromium (34 scenarios plus 3 rejected controls); WebKit evidence is the exact HEAD's CI job.
+No physical-iPhone claim is made.
