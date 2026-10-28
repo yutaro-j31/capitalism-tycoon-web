@@ -100,7 +100,8 @@ Activation later replaces the writer's own quantity writes with `applyOwnershipP
 | W-FOUNDER-SALE `sellFounderShares` (`js/expansion.js`) | `founder-sale` | #1185 |
 | W-BUY `buyStock` / W-SELL `sellStock` (`js/engine.js`), personal account, the player's own ticker only | `personal-buy` / `personal-sell` | #1186 |
 | W-SPLIT `stockSplit` (`js/expansion.js`), the player's own ticker only | `split` | #1191 |
-| W-BUYBACK installed `buybackOwnShares` (`js/shareholder-returns.js`) | `buyback` | this PR |
+| W-BUYBACK installed `buybackOwnShares` (`js/shareholder-returns.js`) | `buyback` | #1194 |
+| W-SPONSOR `requestSponsorInjection` (`js/player-crisis-actions.js`), unlisted company in crisis | `external-issue` | this PR |
 
 `tests/phase3-ownership-apply-test.js` covers the legs at two levels:
 
@@ -132,9 +133,16 @@ Activation later replaces the writer's own quantity writes with `applyOwnershipP
       reconciliation would also catch it, but by throwing; the leg refuses first. `buybackOwnShares` builds the derived
       statement cache before its transaction (existing behaviour), so the rollback baseline is taken after that read;
     - a second-generation company keeps the existing buyback;
+  - sponsor injection (distressed unlisted company):
+    - an injection issues exactly the pinned 2,020 new shares, as before;
+    - an issued-share write skewed by one share is refused, and the whole injection is rolled back;
+    - a second-generation company keeps the existing injection;
   - only the reviewed writers call `beginOwnershipLeg`.
 
-The existing founder-share-sale, stock-split and buyback Node suites pass unchanged. The overridden base engine
+The existing founder-share-sale, stock-split and buyback Node suites pass unchanged. The sponsor-injection Node and
+WebKit suites had a negative control that skewed the live issuance and expected the command to succeed; the writer now
+refuses that issuance, so the control breaks a copy of the committed state instead, and both suites add a case that
+the skewed live issuance is refused and rolled back. The overridden base engine
 `buybackOwnShares` (W-BUYBACK-BASE) is not installed and is not routed.
 
 ## Limits
