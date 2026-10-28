@@ -209,10 +209,13 @@ for(const mode of ['store','digital','investment']){
  for(const ticker of ['__proto__','constructor','prototype','bad\u0000ticker']){const t=state();t.ticker=ticker;reject(inspect(t,scope()),'INPUT_INVALID');}
  const t=state();t.treasuryBuybackShares=-0;assert.equal(Object.is(inspect(t,scope()).quantities.treasuryBuybackShares,-0),false);assert(Object.is(t.treasuryBuybackShares,-0));
 }
-// Installing the module into the actual classic-script runtime changes no engine method/state.
+// Installing the module into the actual classic-script runtime changes no engine method/state. The dormant apply
+// module depends on the planner, so it is left out of this planner-less runtime too.
 {
  const {loadGameFromHtml,readIndex}=require('./harness');
- const loaded=loadGameFromHtml(readIndex().replace('<script src="./js/phase3-ownership-planner.js"></script>',''),{headless:true,random:()=>.25});
+ const html=readIndex().replace('<script src="./js/phase3-ownership-planner.js"></script>','').replace('<script src="./js/phase3-ownership-apply.js"></script>','');
+ assert.ok(!html.includes('phase3-ownership-planner.js')&&!html.includes('phase3-ownership-apply.js'));
+ const loaded=loadGameFromHtml(html,{headless:true,random:()=>.25});
  const Engine=loaded.engineModule.TycoonEngine,game=new Engine(),s=game.g;
  const before=JSON.stringify(s),methods=Object.getOwnPropertyDescriptors(Engine.prototype);
  game.save=()=>{throw Error('save');};game.emit=()=>{throw Error('emit');};
