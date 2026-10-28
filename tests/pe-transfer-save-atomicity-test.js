@@ -7,15 +7,14 @@
 const assert = require('node:assert/strict');
 const { fixture, command, snapshot, economic, VARIANTS } = require('./fixtures/pe-transfer-atomicity');
 const { makeTransactionFaultCase, FAULT_KINDS } = require('./helpers/transaction-fault-case');
-// The shared ledger keeps effects at ¥0.01 (finance.js contract §2); the PE fair value is fractional.
-const cents = value => Math.round(value * 100) / 100;
 const json = value => JSON.parse(JSON.stringify(value));
 const rows = state => state.finance.transactions.filter(row => row.sourceType === 'peTransfer');
 
 function success(before, after, s) {
   const was = before.peDeals.find(d => d.id === s.dealID), now = after.peDeals.find(d => d.id === s.dealID);
-  const price = was.currentValuation, subID = `pe-subsidiary-${was.id}`;
-  // Independent oracle from the deal's own fair value and cost basis.
+  // Independent oracle from the deal's own fair value and cost basis. The fractional fair value settles at
+  // ceilYen (whole-yen contract slice R10a), and that one price moves both cash balances and the ledger.
+  const price = s.modules.economicOperation.ceilYen(was.currentValuation), subID = `pe-subsidiary-${was.id}`;
   assert.equal(after.companyCash, before.companyCash - price, 'company pays the fair value');
   assert.equal(after.personalCash, before.personalCash + price, 'the founder receives the fair value');
   assert.equal(after.peRealizedPL, before.peRealizedPL + price - was.ownerCostBasis, 'founder realises the gain over cost basis');
@@ -24,7 +23,7 @@ function success(before, after, s) {
   const sub = after.subsidiaries.find(x => x.id === subID);
   assert.ok(sub, 'the deal joins the group as a PE subsidiary');
   assert.deepEqual(json(sub), { id: subID, name: was.targetName, industry: was.industry, domain: was.industry, status: 'active',
-    ownership: was.ownershipRatio, valuation: price / was.ownershipRatio, carryingBookValue: price, investedCost: price, acquisitionPrice: price,
+    ownership: was.ownershipRatio, valuation: was.currentValuation / was.ownershipRatio, carryingBookValue: price, investedCost: price, acquisitionPrice: price,
     weeklyProfit: 0, growth: 0, risk: 0, retainedEarnings: 0, acquiredWeek: after.week, source: 'pe', peDealID: was.id, valuationManagedBy: 'pe' },
     'subsidiary booked at the fair value');
   assert.deepEqual(json(after.subsidiaries.filter(x => x.id !== subID)), json(before.subsidiaries), 'other subsidiaries untouched');
@@ -34,7 +33,9 @@ function success(before, after, s) {
   const row = added[0];
   assert.equal(row.category, 'acquisition'); assert.equal(row.operationID, `pe-transfer-${was.id}`); assert.equal(row.idempotencyKey, `pe-transfer-${was.id}`);
   assert.equal(row.sourceID, was.id); assert.equal(row.week, after.week);
-  assert.equal(row.amount, cents(price)); assert.equal(row.cashEffect, cents(-price)); assert.equal(row.assetEffect, cents(price)); assert.equal(row.profitEffect, 0);
+  assert.equal(row.amount, price); assert.equal(row.cashEffect, -price); assert.equal(row.assetEffect, price);
+  for (const field of ['amount', 'cashEffect', 'assetEffect']) assert.ok(Number.isSafeInteger(row[field]), `${field} is whole yen`);
+  assert.ok(Number.isSafeInteger(after.companyCash) && Number.isSafeInteger(after.personalCash), 'both cash balances stay whole yen'); assert.equal(row.profitEffect, 0);
   assert.equal(after.finance.transactions.length, before.finance.transactions.length + 1, 'no other ledger rows');
   const copy = () => json(after);
   assert.equal(s.modules.finance.validate(copy()).ok, true);
