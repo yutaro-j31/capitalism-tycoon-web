@@ -70,5 +70,30 @@ the transfer joins the whole-yen rounding table is a separate decision.
 
 ## Limits
 
-This is Node only; a native-WebKit counterpart is the next slice. This does not certify the other PE writers (W-PE-FORM,
+This does not certify the other PE writers (W-PE-FORM,
 W-PE-PARENT, W-WEEK-PE), raw/helper bypass closure, S_PASS, authority cutover, P3-10, Phase 3 Exit or Phase 4 Entry.
+
+## Native WebKit / IndexedDB counterpart
+
+`tests/pe-transfer-save-atomicity-webkit-test.js` runs the same two pinned deals through the installed
+`transferPEDealToCompany` in the installed page. The page is emulated iPhone 13 WebKit with real IndexedDB. A page-side
+observer requires the actual `peTransfer` ledger row of the pinned deal inside the command's transaction. Per variant it
+runs success and all nine shared faults; `aged` adds queued-predecessor and nested `save-false` / `save-throw`, for 24
+scenarios.
+
+Each failure is checked for:
+
+- live state, mirror, cache and durable IndexedDB bytes exactly as before, with a pending predecessor intact;
+- a recovery save above every allocated failed sequence;
+- a retried transfer equal to the uninterrupted one;
+- a fresh context with localStorage removed that hydrates that state from IndexedDB alone.
+
+After each case, a second transfer of the same deal is refused without any change and is hydrated durable-only too. The
+page oracle ports the Node `success()`. Three negative controls are rejected:
+
+- a disabled rollback;
+- personal cash off by ¥1;
+- a subsidiary book that is not the fair value.
+
+It runs in the M&A `pe-acquisition-atomicity` job. Its logic was exercised locally on Chromium (24 scenarios plus 3
+rejected controls); WebKit evidence is the exact HEAD's CI job. No physical-iPhone claim is made.
