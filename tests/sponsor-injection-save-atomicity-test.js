@@ -68,10 +68,15 @@ function success(before, after, s) {
     const s = await fixture(); s.game.restoreTransactionSnapshot = () => {}; return s;
   }, command, snapshot, economic, expectSuccess: success });
   await assert.rejects(broken.rejected('private', 'save-false'), /full live rollback/);
-  // A coherent cash/ledger receipt with the wrong issued quantity is still invalid.
-  const wrong = await fixture(), prior = snapshot(wrong.game), ratios = wrong.game.updateOwnershipRatios;
-  wrong.game.updateOwnershipRatios = function (...args) { this.g.sharesOut--; return ratios.apply(this, args); };
+  // A coherent cash/ledger receipt with the wrong issued quantity is still invalid to the oracle.
+  const wrong = await fixture(), prior = snapshot(wrong.game);
   assert.equal(command(wrong), true);
-  assert.throws(() => success(prior, snapshot(wrong.game), wrong), /pinned sponsor issuance/);
+  const skewed = snapshot(wrong.game); skewed.sharesOut--;
+  assert.throws(() => success(prior, skewed, wrong), /pinned sponsor issuance/);
+  // Since the P3-4 W-SPONSOR verification leg, the writer itself refuses such an issuance and rolls it back.
+  const refused = await fixture(), unchanged = snapshot(refused.game), ratios = refused.game.updateOwnershipRatios;
+  refused.game.updateOwnershipRatios = function (...args) { this.g.sharesOut--; return ratios.apply(this, args); };
+  assert.equal(command(refused), false, 'a diverging issued quantity is refused');
+  assert.deepEqual(snapshot(refused.game), unchanged, 'and the whole injection is rolled back');
   console.log('Sponsor injection shared save-fault evidence PASS');
 })().catch(error => { console.error(error); process.exitCode = 1; });

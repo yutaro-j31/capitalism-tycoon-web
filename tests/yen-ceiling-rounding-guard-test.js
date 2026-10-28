@@ -970,6 +970,20 @@ const SCENARIOS = [
     const rows = rowsSince(g, count, () => true);
     return { rows, state: { personalCash: g.personalCash, fundSize: fund.size, fundCash: fund.cash, fundPortion: plan.fundPortion, coinvestPortion: plan.coinvestPortion } };
   } },
+  { slice: 'R10a', label: 'PE deal transfer to the company at fair value', run() {
+    const { engine, modules } = newGame(4401), g = engine.g;
+    g.personalCash = 1_000_000_000; g.companyCash = 1_000_000_000; g.finance = modules.finance.defaultFinanceState(g);
+    assert.equal(engine.createPEDeal('テック', 100_000_000, 'personal'), true);
+    const deal = g.peDeals.at(-1);
+    deal.currentValuation = 123_456_789.25;
+    const count = g.finance.transactions.length, personal = g.personalCash, company = g.companyCash;
+    assert.equal(engine.transferPEDealToCompany(deal.id), true);
+    assert.equal(g.personalCash - personal, 123_456_790, 'the founder receives the fair value rounded up');
+    assert.equal(company - g.companyCash, 123_456_790, 'the company pays the same whole-yen price');
+    const rows = rowsSince(g, count, row => row.sourceType === 'peTransfer');
+    assert.equal(rows.length, 1, 'the transfer posts');
+    return { rows, state: { companyCash: g.companyCash, personalCash: g.personalCash, ownerCostBasis: deal.ownerCostBasis, peRealizedPL: g.peRealizedPL } };
+  } },
 ];
 for (const scenario of SCENARIOS) {
   const { rows, state = {} } = scenario.run();
