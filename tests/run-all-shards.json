@@ -266,7 +266,8 @@
     "test:digital-portfolio-profitability",
     "tests/exploration-style-test.js",
     "tests/simulation-long-run-reload-fork-test.js",
-    "tests/subsidiary-relist-save-atomicity-test.js"
+    "tests/subsidiary-relist-save-atomicity-test.js",
+    "tests/pe-transfer-save-atomicity-test.js"
   ],
   "J": [
     "tests/pe-create-deal-save-atomicity-test.js",
