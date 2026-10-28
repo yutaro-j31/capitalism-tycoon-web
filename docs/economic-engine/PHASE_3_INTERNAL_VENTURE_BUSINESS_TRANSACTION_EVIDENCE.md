@@ -79,6 +79,25 @@ and a floored withdrawal recovery.
 
 ## Limits
 
-This is Node only; a native-WebKit counterpart is the next slice. This does not certify the venture proposal and
+This does not certify the venture proposal and
 approval, spin-off (W-INTERNAL-VENTURE spin-off evidence), subsidiary parent funding or external rounds, raw/helper
 bypass closure, S_PASS, authority cutover, P3-10, Phase 3 Exit or Phase 4 Entry.
+
+## Native WebKit / IndexedDB counterpart
+
+`tests/internal-venture-business-save-atomicity-webkit-test.js` runs the same five pinned states and commands in the
+installed page (emulated iPhone 13 WebKit, real IndexedDB) through the installed `fundInternalVenture`,
+`sellInternalVenture` and `withdrawInternalVenture`. A page-side observer requires the actual ledger row of the pinned
+venture and command inside the command's transaction. Per variant: success and all nine shared faults; `sellActive`
+adds queued-predecessor and nested `save-false` / `save-throw` (54 scenarios).
+
+Each failure must leave live state, mirror, cache and durable IndexedDB bytes exactly as before, with a pending
+predecessor intact; the recovery save exceeds every allocated failed sequence; the retried command equals the
+uninterrupted one; a fresh context with localStorage removed hydrates that state from IndexedDB alone. After each case
+the follow-up command is refused without any change, and is hydrated durable-only too. The page oracle ports the Node
+`success()`. Three negative controls are rejected: disabled rollback, company cash one yen over the withdrawal recovery
+and a book left on the venture.
+
+It runs in a new M&A `venture-atomicity` job, split from `group-atomicity`, which took 24.5 minutes with six tests on
+#1177. Its logic was exercised locally on Chromium (54 scenarios plus 3 rejected controls); WebKit evidence is the exact
+HEAD's CI job. No physical-iPhone claim is made.
