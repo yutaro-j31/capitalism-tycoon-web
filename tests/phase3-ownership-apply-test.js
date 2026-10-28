@@ -126,7 +126,9 @@ const { boot } = require('./fixtures/subsidiary-quarter-close');
  for(const f of sources)assert.ok(!read('js/'+f).includes('applyOwnershipPlan'),f+' must not route to the dormant apply');
  // Verification legs are routed only through the reviewed writers.
  const routed=sources.filter(f=>read('js/'+f).includes('beginOwnershipLeg'));
- assert.deepEqual(routed,['expansion.js']);assert.equal((read('js/expansion.js').match(/beginOwnershipLeg\(/g)||[]).length,1,'W-FOUNDER-SALE only');
+ assert.deepEqual(routed,['engine.js','expansion.js']);
+ assert.equal((read('js/expansion.js').match(/beginOwnershipLeg\(/g)||[]).length,1,'expansion.js: W-FOUNDER-SALE only');
+ assert.equal((read('js/engine.js').match(/beginOwnershipLeg\(/g)||[]).length,2,'engine.js: W-BUY and W-SELL only');
  const game=new s.engineModule.TycoonEngine();
  game.configure({playerName:'T',companyName:'Apply',difficulty:'normal',scenario:'free',simulationSeed:971});
  assert.equal(game.save(),true);await s.backend.flush();
@@ -168,5 +170,28 @@ const { boot } = require('./fixtures/subsidiary-quarter-close');
   assert.equal(s.modules.phase3OwnershipPlanner.inspectOwnershipAuthority(second.g,scope()).status,'REJECTED');
   assert.equal(second.sellFounderShares(1000),true,'second generation keeps the existing sale');assert.equal(second.g.founderShares,599000);
  }
- console.log('Phase 3 ownership apply (dormant) and W-FOUNDER-SALE verification leg PASS');
+ // W-BUY / W-SELL routed in verification mode for personal trades of the player's own shares: unchanged success,
+ // a diverging lot write is rejected and rolled back, and other tickers, the company account and a second generation
+ // keep the existing trade.
+ {
+  const g=listed(),cash=g.g.personalCash;
+  assert.equal(g.buyStock('CPTY',100),true);assert.equal(g.g.personalStocks.CPTY.qty,20100);assert.ok(g.g.personalCash<cash);
+  assert.equal(g.sellStock('CPTY',100),true);assert.equal(g.g.personalStocks.CPTY.qty,20000);
+  assert.equal(g.sellStock('CPTY',20000),true);assert.equal(g.g.personalStocks.CPTY,undefined,'an exhausted lot is deleted as before');
+  assert.equal(g.buyStock('CPTY',50),true,'a new lot is created as before');assert.equal(g.g.personalStocks.CPTY.qty,50);
+  for(const side of ['buyStock','sellStock']){
+   const bad=listed(),prior=JSON.stringify(bad.g);
+   // Simulate a writer bug in the quantity write itself: the trade's lot write ends one share off the plan. Only that
+   // first write is skewed; the transaction's in-place restore must still bring every field back.
+   let armed=true;
+   bad.g.personalStocks.CPTY=new Proxy(bad.g.personalStocks.CPTY,{set(target,key,value){target[key]=key==='qty'&&armed?value+1:value;if(key==='qty')armed=false;return true;}});
+   assert.equal(bad[side]('CPTY',100),false,side+': a lot write that diverges from the plan is rejected');
+   assert.equal(JSON.stringify(bad.g),prior,side+': and the whole trade is rolled back');
+  }
+  const other=listed(),ids=other.g.market.filter(x=>x.id!=='CPTY'&&x.issuedShares>0).map(x=>x.id);
+  assert.equal(other.buyStock(ids[0],10),true,'another ticker is not an own-share leg');
+  const second=listed(2);assert.equal(second.buyStock('CPTY',100),true,'second generation keeps the existing purchase');
+  assert.equal(second.sellStock('CPTY',100),true,'second generation keeps the existing sale');
+ }
+ console.log('Phase 3 ownership apply (dormant) and W-FOUNDER-SALE / W-BUY / W-SELL verification legs PASS');
 })().catch(error=>{console.error(error);process.exitCode=1;});

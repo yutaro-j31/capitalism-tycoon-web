@@ -1450,9 +1450,13 @@ class TycoonEngine extends EventTarget {
     const cost=quote.cashAmount;const cashKey=account==='company'?'companyCash':'personalCash';
     if(account==='company'&&!this.g.departments.investment)return this.fail('会社口座の株式投資には投資部門が必要です。');
     if(this.g[cashKey]<cost)return this.fail('資金が不足しています。');
+    // P3-4 verification leg (W-BUY): a personal purchase of the player's own shares must leave the planned lot.
+    const ownership=globalThis.__capitalismTycoonModules.phase3OwnershipApply,leg=account!=='company'&&stockID===this.g.ticker
+     ?ownership.beginOwnershipLeg(this,{writerId:'W-BUY',kind:'personal-buy',operationId:`buy-${stockID}-${this.g.week}`,change:{quantity:qty}}):null;
     this.g[cashKey]-=cost;if(account==='company')finance.event(this.g,'investmentPurchase',cost,{cashEffect:-cost,assetEffect:cost,sourceType:'buyStock',sourceID:`${stockID}-${this.g.week}`,description:`${stock.name} 株式購入`});const key=account==='company'?'companyStocks':'personalStocks';const h=this.g[key][stockID]||{qty:0,avg:0};
     h.avg=(h.avg*h.qty+cost)/(h.qty+qty);h.qty+=qty;this.g[key][stockID]=h;
     stock.price=quote.quoteAfter;stock.marketCap=stock.price*stock.issuedShares;
+    if(!ownership.confirmOwnershipLeg(this,leg))return this.fail('株式数の整合を確認できませんでした。');
     this.notify(`${account==='company'?'会社':'個人'}口座で${stock.name}を${qty.toLocaleString()}株購入しました。${clamped?`（1回の注文上限${pct(STOCK_ORDER_MAX_SHARE_OF_ISSUED)}により数量を調整しました）`:''}`,'success');return true;
     });
   }
@@ -1464,10 +1468,14 @@ class TycoonEngine extends EventTarget {
     const quote=stockOrderQuote(stock,qty,'sell');
     if(quote.maxQty<1)return this.fail('この銘柄は発行済株式数が少なく取引できません。');
     const clamped=qty>quote.filledQty;qty=quote.filledQty;
+    // P3-4 verification leg (W-SELL): a personal sale of the player's own shares must leave the planned lot.
+    const ownership=globalThis.__capitalismTycoonModules.phase3OwnershipApply,leg=account!=='company'&&stockID===this.g.ticker
+     ?ownership.beginOwnershipLeg(this,{writerId:'W-SELL',kind:'personal-sell',operationId:`sell-${stockID}-${this.g.week}`,change:{quantity:qty}}):null;
     const proceeds=quote.cashAmount;const soldBook=h.avg*qty,profit=proceeds-soldBook;this.g[account==='company'?'companyCash':'personalCash']+=proceeds;if(account==='company')finance.event(this.g,'investmentSale',proceeds,{cashEffect:proceeds,assetEffect:-soldBook,profitEffect:profit,sourceType:'sellStock',sourceID:`${stockID}-${this.g.week}`,description:`${stock.name} 株式売却`});
     h.qty-=qty;if(h.qty===0)delete this.g[key][stockID];
     this.g[account==='company'?'realizedCompanyStockPL':'realizedPersonalStockPL']+=profit;
     stock.price=quote.quoteAfter;stock.marketCap=stock.price*stock.issuedShares;
+    if(!ownership.confirmOwnershipLeg(this,leg))return this.fail('株式数の整合を確認できませんでした。');
     this.notify(`${stock.name}を${qty.toLocaleString()}株売却しました。損益${yen(profit)}。${clamped?`（1回の注文上限${pct(STOCK_ORDER_MAX_SHARE_OF_ISSUED)}により数量を調整しました）`:''}`,profit>=0?'success':'warning');return true;
     });
   }
