@@ -97,7 +97,8 @@ Activation later replaces the writer's own quantity writes with `applyOwnershipP
 
 | Writer | Leg | PR |
 | --- | --- | --- |
-| W-FOUNDER-SALE `sellFounderShares` (`js/expansion.js`) | `founder-sale` | this PR |
+| W-FOUNDER-SALE `sellFounderShares` (`js/expansion.js`) | `founder-sale` | #1185 |
+| W-BUY `buyStock` / W-SELL `sellStock` (`js/engine.js`), personal account, the player's own ticker only | `personal-buy` / `personal-sell` | this PR |
 
 `tests/phase3-ownership-apply-test.js` covers the legs at two levels:
 
@@ -111,6 +112,10 @@ Activation later replaces the writer's own quantity writes with `applyOwnershipP
   - a first-generation founder sale succeeds unchanged;
   - a founder write that diverges from the plan is rejected and the whole sale is rolled back;
   - a second-generation company keeps the existing sale;
+- a personal own-share purchase or sale leaves the lot unchanged from today: an exhausted lot is deleted and a new one
+  is created as before;
+- a lot write skewed by one share is rejected, and the whole trade is rolled back;
+- another ticker and a second-generation company keep the existing trade;
   - only the reviewed writers call `beginOwnershipLeg`.
 
 The existing founder-share-sale Node and real-WebKit fault suites pass unchanged.
