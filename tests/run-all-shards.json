@@ -336,6 +336,7 @@
     "tests/p4-aud-009-shared-collateral-test.js",
     "tests/supply-select-supplier-week-close-test.js",
     "tests/vc-round-close-week-save-atomicity-test.js",
-    "tests/subsidiary-control-save-atomicity-test.js"
+    "tests/subsidiary-control-save-atomicity-test.js",
+    "tests/new-business-commercialization-save-atomicity-test.js"
   ]
 }
