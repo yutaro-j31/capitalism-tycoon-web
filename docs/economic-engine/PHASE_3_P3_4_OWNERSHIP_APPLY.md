@@ -99,7 +99,8 @@ Activation later replaces the writer's own quantity writes with `applyOwnershipP
 | --- | --- | --- |
 | W-FOUNDER-SALE `sellFounderShares` (`js/expansion.js`) | `founder-sale` | #1185 |
 | W-BUY `buyStock` / W-SELL `sellStock` (`js/engine.js`), personal account, the player's own ticker only | `personal-buy` / `personal-sell` | #1186 |
-| W-SPLIT `stockSplit` (`js/expansion.js`), the player's own ticker only | `split` | this PR |
+| W-SPLIT `stockSplit` (`js/expansion.js`), the player's own ticker only | `split` | #1191 |
+| W-BUYBACK installed `buybackOwnShares` (`js/shareholder-returns.js`) | `buyback` | this PR |
 
 `tests/phase3-ownership-apply-test.js` covers the legs at two levels:
 
@@ -124,9 +125,17 @@ Activation later replaces the writer's own quantity writes with `applyOwnershipP
       quantities;
     - a bucket write skewed by one share is rejected, and the whole split is rolled back;
     - another ticker and a second-generation company keep the existing split;
+  - buyback:
+    - a buyback raises only the treasury bucket, leaves the issued mirror unchanged, and a later buyback plans against
+      the bought-back quantity;
+    - a treasury write skewed by one share is refused, and the whole buyback is rolled back. The existing P2 buyback
+      reconciliation would also catch it, but by throwing; the leg refuses first. `buybackOwnShares` builds the derived
+      statement cache before its transaction (existing behaviour), so the rollback baseline is taken after that read;
+    - a second-generation company keeps the existing buyback;
   - only the reviewed writers call `beginOwnershipLeg`.
 
-The existing founder-share-sale and stock-split Node suites pass unchanged.
+The existing founder-share-sale, stock-split and buyback Node suites pass unchanged. The overridden base engine
+`buybackOwnShares` (W-BUYBACK-BASE) is not installed and is not routed.
 
 ## Limits
 

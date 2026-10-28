@@ -126,9 +126,10 @@ const { boot } = require('./fixtures/subsidiary-quarter-close');
  for(const f of sources)assert.ok(!read('js/'+f).includes('applyOwnershipPlan'),f+' must not route to the dormant apply');
  // Verification legs are routed only through the reviewed writers.
  const routed=sources.filter(f=>read('js/'+f).includes('beginOwnershipLeg'));
- assert.deepEqual(routed,['engine.js','expansion.js']);
+ assert.deepEqual(routed,['engine.js','expansion.js','shareholder-returns.js']);
  assert.equal((read('js/expansion.js').match(/beginOwnershipLeg\(/g)||[]).length,2,'expansion.js: W-SPLIT and W-FOUNDER-SALE only');
  assert.equal((read('js/engine.js').match(/beginOwnershipLeg\(/g)||[]).length,2,'engine.js: W-BUY and W-SELL only');
+ assert.equal((read('js/shareholder-returns.js').match(/beginOwnershipLeg\(/g)||[]).length,1,'shareholder-returns.js: W-BUYBACK only');
  const game=new s.engineModule.TycoonEngine();
  game.configure({playerName:'T',companyName:'Apply',difficulty:'normal',scenario:'free',simulationSeed:971});
  assert.equal(game.save(),true);await s.backend.flush();
@@ -154,7 +155,7 @@ const { boot } = require('./fixtures/subsidiary-quarter-close');
  // refounded (second-generation) company keeps the existing sale.
  function listed(serial=1){
   const st=s.engineModule.createInitialState({configured:true});
-  Object.assign(st,{week:12,publicCompany:true,sharesOut:1000000,founderShares:600000,treasuryBuybackShares:0,stockPrice:100,ticker:'CPTY',currentCompanySerial:serial});
+  Object.assign(st,{week:12,publicCompany:true,sharesOut:1000000,founderShares:600000,treasuryBuybackShares:0,stockPrice:100,ticker:'CPTY',currentCompanySerial:serial,companyCash:5e9});
   st.market=st.market.filter(x=>x.id!=='CPTY');st.market.push({id:'CPTY',name:st.companyName,price:100,issuedShares:1000000,priceHistory:[{week:12,price:100}]});
   st.personalStocks.CPTY={qty:20000,avg:100};st.finance=s.modules.finance.defaultFinanceState(st);
   return new s.engineModule.TycoonEngine(st);
@@ -211,5 +212,22 @@ const { boot } = require('./fixtures/subsidiary-quarter-close');
   const second=listed(2);assert.equal(second.stockSplit('CPTY',2),true,'second generation keeps the existing split');
   assert.equal(second.g.sharesOut,2000000);
  }
- console.log('Phase 3 ownership apply (dormant) and W-FOUNDER-SALE / W-BUY / W-SELL / W-SPLIT verification legs PASS');
+ // W-BUYBACK routed in verification mode through the installed buybackOwnShares: unchanged success, a diverging
+ // treasury write is rejected and rolled back, and a second generation keeps the existing buyback.
+ {
+  const g=listed(),cash=g.g.companyCash;
+  assert.equal(g.buybackOwnShares(1000000),true);assert.equal(g.g.treasuryBuybackShares,10000);assert.equal(g.g.companyCash,cash-1000000);
+  assert.equal(g.stock('CPTY').issuedShares,1000000,'issued mirror unchanged');
+  assert.equal(g.buybackOwnShares(1000000),true,'a later buyback plans against the bought-back quantity');assert.ok(g.g.treasuryBuybackShares>10000);
+  // buybackOwnShares builds the derived statement cache before its transaction (existing behaviour, W-BUYBACK
+  // inventory row), so the rollback baseline is taken after the same read.
+  const bad=listed();bad.shareholderReturnCapacity();
+  const prior=JSON.stringify(bad.g),ratios=bad.updateOwnershipRatios;
+  bad.updateOwnershipRatios=function(...args){this.g.treasuryBuybackShares+=1;return ratios.apply(this,args);};
+  assert.equal(bad.buybackOwnShares(1000000),false,'a treasury write that diverges from the plan is rejected');
+  assert.equal(JSON.stringify(bad.g),prior,'and the whole buyback is rolled back');
+  const second=listed(2);assert.equal(second.buybackOwnShares(1000000),true,'second generation keeps the existing buyback');
+  assert.equal(second.g.treasuryBuybackShares,10000);
+ }
+ console.log('Phase 3 ownership apply (dormant) and W-FOUNDER-SALE / W-BUY / W-SELL / W-SPLIT / W-BUYBACK verification legs PASS');
 })().catch(error=>{console.error(error);process.exitCode=1;});
