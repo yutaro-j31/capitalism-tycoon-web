@@ -102,7 +102,8 @@ Activation later replaces the writer's own quantity writes with `applyOwnershipP
 | W-SPLIT `stockSplit` (`js/expansion.js`), the player's own ticker only | `split` | #1191 |
 | W-BUYBACK installed `buybackOwnShares` (`js/shareholder-returns.js`) | `buyback` | #1194 |
 | W-SPONSOR `requestSponsorInjection` (`js/player-crisis-actions.js`), unlisted company in crisis | `external-issue` | #1201 |
-| W-INVESTOR `acceptInvestorOffer` (`js/expansion.js`), pre-IPO | `external-issue` | this PR |
+| W-INVESTOR `acceptInvestorOffer` (`js/expansion.js`), pre-IPO | `external-issue` | #1199 |
+| W-SHARE-SWAP `completeTargetAcquisition` (`js/ma-deal-room.js`), listed company, deal-room share swap | `external-issue` | this PR |
 
 `tests/phase3-ownership-apply-test.js` covers the legs at two levels:
 
@@ -143,12 +144,26 @@ Activation later replaces the writer's own quantity writes with `applyOwnershipP
     - an issued-share write skewed by one share is refused, and the whole investment is rolled back;
     - a second-generation company keeps the existing acceptance;
   - only the reviewed writers call `beginOwnershipLeg`.
+- **Writer suite** (`tests/ma-share-swap-ownership-ratios-test.js`), deal-room share swap on a listed company with its
+  own market row:
+  - the closing issues exactly the computed new shares and the existing dilution, reload and fresh-hydration checks
+    pass;
+  - an issued-share write skewed by one share is refused, the whole closing is rolled back and nothing is durable;
+  - a second-generation company keeps the existing closing.
 
 The existing founder-share-sale, stock-split, buyback and investor-offer Node suites pass unchanged. The sponsor-injection Node and
 WebKit suites had a negative control that skewed the live issuance and expected the command to succeed; the writer now
 refuses that issuance, so the control breaks a copy of the committed state instead, and both suites add a case that
 the skewed live issuance is refused and rolled back. The overridden base engine
 `buybackOwnShares` (W-BUYBACK-BASE) is not installed and is not routed.
+
+The share swap needed one writer fix to be checkable. `issueSharesToExternalHolders` (`js/engine.js`) raised
+`sharesOut` without the listing's own market row, which `updateMarket` only re-synced at the next week. The planner
+refuses a listing whose row disagrees with `sharesOut`, so every listed swap would have been refused. The helper now
+mirrors `issuedShares` and `marketCap` on the own row at once, as `updateMarket` does. The dormant legacy
+`acquireTarget('shareSwap')` and the M&A equity raise use the same helper and get the same mirror; neither is routed
+here. The deal-room unit-test loader (`tests/ma-deal-room-test-helpers.js`) now loads the read model, planner and
+apply modules in production order, because the routed writer requires them.
 
 ## Limits
 

@@ -80,5 +80,27 @@ async function check(s,run,label){
  CLOSE.close(a);CLOSE.close(b);const economic=g=>{const c=snapshot(g);delete c.lastSaveDate;delete c.saveSequence;return JSON.stringify(c);};
  assert.equal(economic(a.game),economic(b.game),'deterministic (save wall-clock metadata excluded)');
  assert.notEqual(a.game.advanceWeek(false),false);assertRatios(a.game.g,'after the next week');
+ // 5. P3-4 verification leg (W-SHARE-SWAP): with the listing's own market row present, the swap issues exactly the
+ // computed shares and mirrors them on that row at once; an issued-share write skewed by one share is refused and the
+ // whole closing is rolled back (nothing durable); a second-generation company keeps the existing closing.
+ async function listed(serial=1){
+  const s=await scenario({treasury:50000,competitor:.2}),g=s.game.g;g.currentCompanySerial=serial;
+  g.market=g.market.filter(x=>x.id!==g.ticker);g.market.push({id:g.ticker,name:g.companyName,price:1000,issuedShares:g.sharesOut,marketCap:1000*g.sharesOut,priceHistory:[{week:g.week,price:1000}]});
+  assert.equal(s.game.save(),true);await s.modules.saveStorageIDB.flush();return s;
+ }
+ {const s=await listed(),g=s.game.g,issued=Math.ceil(s.deal.acceptedTerms.finalPrice/1000);
+  assert.equal(s.modules.phase3OwnershipPlanner.inspectOwnershipAuthority(g,{family:'player-common',issuerEntityId:'entity:company:player',securityClassId:'security:player-company:common',currentCompanySerial:1}).status,'OBSERVED','listed: the leg is plannable');
+  const before=g.sharesOut;await check(s,CLOSE.close,'listed leg');
+  assert.equal(g.sharesOut,before+issued,'listed: exactly the computed new shares');
+  const own=g.market.find(x=>x.id===g.ticker);assert.equal(own.issuedShares,g.sharesOut,'listed: own market row mirrors the issued quantity');assert.equal(own.marketCap,own.price*g.sharesOut);}
+ {const s=await listed(),prior=JSON.stringify(s.game.g),bytes=s.durable.get(s.key)??null,ratios=s.game.updateOwnershipRatios;
+  s.game.updateOwnershipRatios=function(...args){this.g.sharesOut+=1;return ratios.apply(this,args);};
+  assert.equal(s.game.closeMADeal(s.deal.id),false,'a skewed issued-share write is refused');
+  assert.equal(JSON.stringify(s.game.g),prior,'and the whole closing is rolled back');
+  await s.modules.saveStorageIDB.flush();assert.equal(s.durable.get(s.key)??null,bytes,'nothing durable');}
+ {const s=await listed(2),g=s.game.g,ratios=s.game.updateOwnershipRatios;
+  s.game.updateOwnershipRatios=function(...args){this.g.sharesOut+=1;return ratios.apply(this,args);};
+  assert.equal(s.game.closeMADeal(s.deal.id),true,'second generation keeps the existing closing (unchecked)');}
+ console.log('share swap P3-4 verification leg: listed issuance + mirror, skewed write refused and rolled back, second generation unchanged PASS');
  console.log('share swap ownership ratios PASS');
 })().catch(e=>{console.error(e);process.exitCode=1;});
