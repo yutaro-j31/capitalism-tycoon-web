@@ -70,7 +70,7 @@ draws no RNG, so every other weekly effect is identical. The oracle checks:
 - the aggregate ratio one share off;
 - the buyer's cash off by ¥1,000.
 
-The test runs in canonical shard J (about 91 seconds locally).
+The test runs in canonical shard A, the default for unassigned tests (about 91 seconds locally; shard J's entry count is fixed by the runner contract tests).
 
 ## Limits
 

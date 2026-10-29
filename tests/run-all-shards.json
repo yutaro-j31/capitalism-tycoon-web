@@ -271,7 +271,6 @@
     "tests/pe-transfer-save-atomicity-test.js"
   ],
   "J": [
-    "tests/week-competitor-stake-save-atomicity-test.js",
     "tests/pe-create-deal-save-atomicity-test.js",
     "tests/vc-follow-on-save-atomicity-test.js",
     "tests/vc-initial-investment-save-atomicity-test.js",
