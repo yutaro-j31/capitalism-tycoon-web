@@ -126,9 +126,10 @@ const { boot } = require('./fixtures/subsidiary-quarter-close');
  for(const f of sources)assert.ok(!read('js/'+f).includes('applyOwnershipPlan'),f+' must not route to the dormant apply');
  // Verification legs are routed only through the reviewed writers.
  const routed=sources.filter(f=>read('js/'+f).includes('beginOwnershipLeg'));
- assert.deepEqual(routed,['engine.js','expansion.js','ma-deal-room.js','player-crisis-actions.js','player-crisis-turnaround-fund.js','shareholder-returns.js']);
+ assert.deepEqual(routed,['engine.js','expansion.js','ma-deal-room.js','personal-stock-margin.js','player-crisis-actions.js','player-crisis-turnaround-fund.js','shareholder-returns.js']);
  assert.equal((read('js/expansion.js').match(/beginOwnershipLeg\(/g)||[]).length,3,'expansion.js: W-SPLIT, W-FOUNDER-SALE and W-INVESTOR only');
  assert.equal((read('js/engine.js').match(/beginOwnershipLeg\(/g)||[]).length,2,'engine.js: W-BUY and W-SELL only');
+ assert.equal((read('js/personal-stock-margin.js').match(/beginOwnershipLeg\(/g)||[]).length,1,'personal-stock-margin.js: W-MARGIN-LIQ forced own-share sale only');
  assert.equal((read('js/ma-deal-room.js').match(/beginOwnershipLeg\(/g)||[]).length,1,'ma-deal-room.js: W-SHARE-SWAP only');
  assert.equal((read('js/shareholder-returns.js').match(/beginOwnershipLeg\(/g)||[]).length,1,'shareholder-returns.js: W-BUYBACK only');
  assert.equal((read('js/player-crisis-actions.js').match(/beginOwnershipLeg\(/g)||[]).length,1,'player-crisis-actions.js: W-SPONSOR only');
