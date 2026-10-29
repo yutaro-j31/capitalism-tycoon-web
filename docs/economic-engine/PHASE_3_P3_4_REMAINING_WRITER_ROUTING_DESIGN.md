@@ -1,6 +1,7 @@
 # Phase 3 P3-4 — routing design for the remaining player-common writers
 
-**Status: design for Owner decision. No code changes.** This memo covers the four player-common quantity writers
+**Status: decided. No code changes in this memo.** The Owner delegated the choice on 2026-10-29; the recommended
+option of each section is adopted, in the proposed order below. This memo covers the four player-common quantity writers
 that are not yet routed through the verification legs of `PHASE_3_P3_4_OWNERSHIP_APPLY.md`. The Owner asked on
 2026-10-29 for a design memo before these are implemented, because each one differs from the writers routed so far.
 
@@ -25,7 +26,7 @@ marked PROBE come from a local, uncommitted script run against the installed run
 - It then calls `replaceState`, saves, and restores a checkpoint on failure.
 - `executeFinancing` runs **before** the inner completion's `runTransaction`, so the shadow is not in a transaction.
   `beginOwnershipLeg` therefore returns `null`, and the leg is never checked.
-- The issuance uses `engine.issueSharesToExternalHolders`. With #1204 (open) that helper mirrors the listing's own market
+- The issuance uses `engine.issueSharesToExternalHolders`. Since #1204 that helper mirrors the listing's own market
   row, so the planner can observe the result.
 
 **Options:**
@@ -68,7 +69,7 @@ transaction, and a mismatch reuses the existing, tested rollback path (save-fals
 
 **Recommendation: fix the mirror gap first, as its own PR, then A.**
 
-- The mirror fix mirrors `issuedShares`/`marketCap` in `settle`, as #1204 (open) does for the issuance helper. It does
+- The mirror fix mirrors `issuedShares`/`marketCap` in `settle`, as #1204 does for the issuance helper. It does
   not change dilution.
 - After that, a mismatch can come only from a writer defect, and refusing the week is the same guarantee the
   command writers give.
