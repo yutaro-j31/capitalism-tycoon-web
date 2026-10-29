@@ -1814,6 +1814,11 @@ class TycoonEngine extends EventTarget {
     const sellFloor=Math.max(1,Math.round(this.g.founderShares*.05)),sellCeil=Math.max(sellFloor,Math.round(this.g.founderShares*.4));
     sellShares=clamp(Math.floor(sellShares)||sellFloor,sellFloor,sellCeil);
     const newShares=Math.max(1,Math.round(this.g.sharesOut*.2)),companyRaise=ceilYen(this.g.stockPrice*newShares*.955),founderSale=ceilYen(this.g.stockPrice*sellShares*.955);
+    // P3-4 verification leg (W-IPO-CHAIN, reached only through the installed IPO chain's outer transaction): the issued
+    // and founder buckets and the listing this IPO leaves must be the planned ones.
+    const ownership=globalThis.__capitalismTycoonModules.phase3OwnershipApply,leg=ownership.beginOwnershipLeg(this,{writerId:'W-IPO-CHAIN',kind:'ipo',
+     operationId:`parent-ipo-${this.g.week}`,change:{issuedQuantity:newShares,founderSecondaryQuantity:sellShares,
+      listingTicker:this.g.companyName.replace(/[^A-Za-z]/g,'').slice(0,4).toUpperCase()||'CPTY'}});
     this.g.sharesOut+=newShares;this.g.founderShares-=sellShares;this.g.companyCash+=companyRaise;this.g.personalCash+=founderSale;this.g.publicCompany=true;this.g.selectedListingMarket=market;
     // The IPO primary offering raises real cash (companyRaise, above) with no matching
     // liability, so it must be recorded as equity financing or finance.validate()'s
@@ -1825,6 +1830,7 @@ class TycoonEngine extends EventTarget {
     const ipoLedger=finance.ensureFinance(this.g);ipoLedger.balances.capitalSurplus=finite(ipoLedger.balances.capitalSurplus)+companyRaise;
     this.g.ticker=(this.g.companyName.replace(/[^A-Za-z]/g,'').slice(0,4).toUpperCase()||'CPTY');this.updateOwnershipRatios();
     this.g.market.push({id:this.g.ticker,name:this.g.companyName,sector:'コングロマリット',price:this.g.stockPrice,previous:this.g.stockPrice,dividendYield:0,volatility:.08,trend:.003,marketCap:this.g.stockPrice*this.g.sharesOut,per:20,pbr:2,issuedShares:this.g.sharesOut,dividendPerShare:0,shareholders:{創業者:this.g.founderOwnershipRatio},description:'プレイヤーが経営する企業',listingMarket:market,priceHistory:[{week:this.g.week, price:this.g.stockPrice}]});
+    if(!ownership.confirmOwnershipLeg(this,leg))return this.fail('株式数の整合を確認できませんでした。');
     this.notify(`${market}へ上場しました。会社調達${yen(companyRaise)}、創業者売出収入${yen(founderSale)}。`,'success');this.evaluateProgression();this.save();this.emit();return true;
   }
   setDividend(amount) {

@@ -104,7 +104,8 @@ Activation later replaces the writer's own quantity writes with `applyOwnershipP
 | W-SPONSOR `requestSponsorInjection` (`js/player-crisis-actions.js`), unlisted company in crisis | `external-issue` | #1201 |
 | W-INVESTOR `acceptInvestorOffer` (`js/expansion.js`), pre-IPO | `external-issue` | #1199 |
 | W-SHARE-SWAP `completeTargetAcquisition` (`js/ma-deal-room.js`), listed company, deal-room share swap | `external-issue` | #1204 |
-| W-TURNAROUND-ACCEPT `accept` (`js/player-crisis-turnaround-fund.js`), unlisted company in crisis | `external-issue` | this PR |
+| W-TURNAROUND-ACCEPT `accept` (`js/player-crisis-turnaround-fund.js`), unlisted company in crisis | `external-issue` | #1202 |
+| W-IPO-CHAIN base `executeIPO` (`js/engine.js`), reached through the installed IPO chain's outer transaction; verified only | `ipo` | this PR |
 
 `tests/phase3-ownership-apply-test.js` covers the legs at two levels:
 
@@ -156,6 +157,13 @@ Activation later replaces the writer's own quantity writes with `applyOwnershipP
   - an issued-share write skewed by one share is refused, the whole closing is rolled back and nothing is durable;
   - a second-generation company keeps the existing closing.
 
+- **IPO (verification only):**
+  - unit: an unlisted company's IPO leg plans and carries the planned listing; a listed company cannot plan one;
+    confirmation needs the planned buckets *and* the listing (listed, under the planned ticker, consistent issued
+    mirror); a different founder secondary or an inconsistent mirror is rejected;
+  - installed chain (zero-store investment route): the IPO succeeds unchanged; a bucket write skewed by one share is
+    refused and the whole IPO is rolled back; a second-generation company keeps the existing IPO.
+
 The existing founder-share-sale, stock-split, buyback and investor-offer Node suites pass unchanged. The sponsor-injection Node and
 WebKit suites had a negative control that skewed the live issuance and expected the command to succeed; the writer now
 refuses that issuance, so the control breaks a copy of the committed state instead, and both suites add a case that
@@ -172,6 +180,11 @@ mirrors `issuedShares` and `marketCap` on the own row at once, as `updateMarket`
 `acquireTarget('shareSwap')` and the M&A equity raise use the same helper and get the same mirror; neither is routed
 here. The deal-room unit-test loader (`tests/ma-deal-room-test-helpers.js`) now loads the read model, planner and
 apply modules in production order, because the routed writer requires them.
+
+IPO legs are verified only (Owner decision 2026-10-29). `applyOwnershipPlan` still refuses `ipo` plans, because the
+listing record and any lot rebinding stay with the existing writer; verification writes nothing, so those reasons do
+not apply to it. The leg sits in the base `executeIPO`, which production reaches only through the installed chain
+(difficulty → PE network → PE fund wrappers) whose outer transaction is the boundary.
 
 ## Limits
 
