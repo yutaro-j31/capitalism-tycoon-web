@@ -1,6 +1,6 @@
 # P3-4: PE fund formation transaction fix and evidence (W-PE-FORM)
 
-Status: one production atomicity fix plus Node / fake-IndexedDB evidence. No economic, persistence, rounding or authority
+Status: one production atomicity fix plus Node / fake-IndexedDB and native-WebKit evidence. No economic, persistence, rounding or authority
 change: a successful formation writes exactly what it wrote before.
 
 ## Defect
@@ -65,8 +65,33 @@ On the previous `formPEFund` the test fails at the first fault: `failed PE fund 
 `tests/pe-fund-formation-test.js`, `tests/pe-fund-gate-rescue-test.js`, `tests/pe-multi-fund-acquisition-negative-test.js`,
 `tests/pe-fund-test.js` and `tests/pe-full-playloop-test.js` pass unchanged.
 
+## Native WebKit / IndexedDB counterpart
+
+`tests/pe-fund-formation-save-atomicity-webkit-test.js` runs the same two variants through the installed `formPEFund` in
+the installed page. The page is emulated iPhone 13 WebKit with real IndexedDB. A page-side observer requires the
+actual formation notice inside the command's transaction. Per variant it runs success and all nine shared faults;
+`custom` adds queued-predecessor and nested `save-false` / `save-throw`, for 24 scenarios.
+
+Each failure is checked for:
+
+- live state, mirror, cache and durable IndexedDB bytes exactly as before, with a pending predecessor intact;
+- a recovery save above every allocated failed sequence;
+- a retried formation equal to the uninterrupted one;
+- a fresh context with localStorage removed that hydrates that state from IndexedDB alone.
+
+After each case, Fund II is refused without any change and is hydrated durable-only too. The page oracle ports the Node
+`success()` against the installed read-only plan taken before the command. Three negative controls are rejected:
+
+- a disabled rollback;
+- personal cash off by ¥1;
+- an LP contribution off by ¥1.
+
+It runs in the M&A `pe-acquisition-atomicity` job (20.6 minutes of its 40-minute budget on `22f90271`, before this
+test). Its logic was exercised locally on Chromium (24 scenarios plus 3 rejected controls); WebKit evidence is the
+exact HEAD's CI job. No physical-iPhone claim is made.
+
 ## Limits
 
-This is Node only; a native-WebKit counterpart is the next slice. LP outreach (`solicitPELP`, `answerPELPQuestions`) keeps
+LP outreach (`solicitPELP`, `answerPELPQuestions`) keeps
 its own direct save and is not changed here. This does not certify W-WEEK-PE, raw/helper bypass closure, S_PASS,
 authority cutover, P3-10, Phase 3 Exit or Phase 4 Entry.
