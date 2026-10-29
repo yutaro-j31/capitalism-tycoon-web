@@ -102,6 +102,7 @@ Activation later replaces the writer's own quantity writes with `applyOwnershipP
 | W-SPLIT `stockSplit` (`js/expansion.js`), the player's own ticker only | `split` | #1191 |
 | W-BUYBACK installed `buybackOwnShares` (`js/shareholder-returns.js`) | `buyback` | #1194 |
 | W-SPONSOR `requestSponsorInjection` (`js/player-crisis-actions.js`), unlisted company in crisis | `external-issue` | #1201 |
+| W-INVESTOR `acceptInvestorOffer` (`js/expansion.js`), pre-IPO | `external-issue` | #1199 |
 | W-TURNAROUND-ACCEPT `accept` (`js/player-crisis-turnaround-fund.js`), unlisted company in crisis | `external-issue` | this PR |
 
 `tests/phase3-ownership-apply-test.js` covers the legs at two levels:
@@ -138,13 +139,17 @@ Activation later replaces the writer's own quantity writes with `applyOwnershipP
     - an injection issues exactly the pinned 2,020 new shares, as before;
     - an issued-share write skewed by one share is refused, and the whole injection is rolled back;
     - a second-generation company keeps the existing injection;
+  - investor acceptance (unlisted company):
+    - an accepted offer issues exactly the computed new shares, as before;
+    - an issued-share write skewed by one share is refused, and the whole investment is rolled back;
+    - a second-generation company keeps the existing acceptance;
   - turnaround fund acceptance (distressed unlisted company):
     - an acceptance issues exactly the pinned 6,186 new shares, as before;
     - an issued-share write skewed by one share is refused, and the whole acceptance is rolled back;
     - a second-generation company keeps the existing acceptance;
   - only the reviewed writers call `beginOwnershipLeg`.
 
-The existing founder-share-sale, stock-split and buyback Node suites pass unchanged. The sponsor-injection Node and
+The existing founder-share-sale, stock-split, buyback and investor-offer Node suites pass unchanged. The sponsor-injection Node and
 WebKit suites had a negative control that skewed the live issuance and expected the command to succeed; the writer now
 refuses that issuance, so the control breaks a copy of the committed state instead, and both suites add a case that
 the skewed live issuance is refused and rolled back. The turnaround-fund acceptance Node

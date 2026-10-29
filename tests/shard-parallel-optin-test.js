@@ -139,6 +139,20 @@ const noticeLabels = text => [...text.matchAll(/::notice title=Shard \w+ timing:
   assert.equal((await exited).code, 143);
   assert.ok(await waitDead(started().map(f => Number(fs.readFileSync(f, 'utf8')))), 'SIGTERM leaves no test process behind');
 
+  // ---- shard C (Stage 3): allow-listed, the product-recall pre-step is one of the enumerated commands, parity holds ----
+  const cLabels = [...shardConfig.C].sort();
+  assert.ok(require(path.join(ROOT, 'scripts', 'parallel-shard-runner.config.json')).parallelEnabledShards.includes('C'), 'C is allow-listed');
+  const dirC = build('C');
+  const cSerial = run(dirC, 'C'), cPar = run(dirC, 'C', { TEST_SHARD_PARALLELISM: '2' });
+  assert.equal(cSerial.status, 0, cSerial.stderr); assert.equal(cPar.status, 0, cPar.stderr);
+  assert.match(cPar.stdout, /parallel-shard-summary: shard=C concurrency=2 order=longest-first enumerated=25 passed=25 failed=0 aborted=0 notStarted=0 /);
+  assert.equal(cLabels.length, 25); assert.ok(cLabels.includes('tests/product-recall-reachability-runner.js'));
+  assert.deepEqual(noticeLabels(cPar.stdout), cLabels, 'every C command (including the product-recall pre-step) ran once');
+  assert.equal(summary(cPar.stdout)[3], summary(cSerial.stdout)[3]); assert.equal(summary(cPar.stdout)[4], summary(cSerial.stdout)[4]);
+  const cFail = 'tests/subsidiary-follow-on-save-atomicity-test.js';
+  const cBad = run(build('C', { [cFail]: 'process.exit(3)' }), 'C', { TEST_SHARD_PARALLELISM: '2' });
+  assert.notEqual(cBad.status, 0, 'a failing C test fails the shard in parallel mode');
+
   fs.rmSync(TMP, { recursive: true, force: true });
   console.log('shard-parallel-optin-test: ok');
 })().catch(error => { console.error(error); fs.rmSync(TMP, { recursive: true, force: true }); process.exit(1); });
