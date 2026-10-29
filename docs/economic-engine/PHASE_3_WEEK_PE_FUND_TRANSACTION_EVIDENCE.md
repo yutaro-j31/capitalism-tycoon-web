@@ -85,7 +85,7 @@ These mutations are each rejected:
 - company cash off by ¥1;
 - leftover fund cash.
 
-The test runs in canonical shard J, in about 140 seconds locally.
+The test runs in canonical shard A, the default for unassigned tests, in about 140 seconds locally (shard J's entry count is fixed by the runner contract tests).
 
 ## Limits
 
