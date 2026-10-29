@@ -107,6 +107,8 @@ Activation later replaces the writer's own quantity writes with `applyOwnershipP
 | W-TURNAROUND-ACCEPT `accept` (`js/player-crisis-turnaround-fund.js`), unlisted company in crisis | `external-issue` | #1202 |
 | W-IPO-CHAIN base `executeIPO` (`js/engine.js`), reached through the installed IPO chain's outer transaction; verified only | `ipo` | this PR |
 
+| W-MARGIN-LIQ forced margin sale (`liquidate` → `sellPersonalStockRaw`, `js/personal-stock-margin.js`), the player's own ticker only, one leg per forced sale | `personal-sell` | #1212 |
+
 `tests/phase3-ownership-apply-test.js` covers the legs at two levels:
 
 - **Unit:**
@@ -164,6 +166,12 @@ Activation later replaces the writer's own quantity writes with `applyOwnershipP
   - installed chain (zero-store investment route): the IPO succeeds unchanged; a bucket write skewed by one share is
     refused and the whole IPO is rolled back; a second-generation company keeps the existing IPO.
 
+- **Writer suite** (`tests/player-own-share-conservation-test.js`), forced margin liquidation of an own-share lot:
+  - inside a transaction and through the installed week, the forced sale leaves exactly the planned lot (the lot is
+    sold as before);
+  - a lot write skewed by one share is refused and the whole transaction or week is rolled back;
+  - a second-generation company keeps the existing liquidation.
+
 The existing founder-share-sale, stock-split, buyback and investor-offer Node suites pass unchanged. The sponsor-injection Node and
 WebKit suites had a negative control that skewed the live issuance and expected the command to succeed; the writer now
 refuses that issuance, so the control breaks a copy of the committed state instead, and both suites add a case that
@@ -185,6 +193,10 @@ IPO legs are verified only (Owner decision 2026-10-29). `applyOwnershipPlan` sti
 listing record and any lot rebinding stay with the existing writer; verification writes nothing, so those reasons do
 not apply to it. The leg sits in the base `executeIPO`, which production reaches only through the installed chain
 (difficulty → PE network → PE fund wrappers) whose outer transaction is the boundary.
+
+The forced margin sale is a weekly writer: a mismatch refuses the whole week. Each own-ticker raw sale plans against
+the state the previous sale left. The exported `liquidate` / `processWeek` called directly, outside a transaction, keep
+the documented boundary gap and stay unchecked; closing it is a separate atomicity change.
 
 ## Limits
 
