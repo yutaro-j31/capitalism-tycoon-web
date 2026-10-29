@@ -104,7 +104,8 @@ Activation later replaces the writer's own quantity writes with `applyOwnershipP
 | W-SPONSOR `requestSponsorInjection` (`js/player-crisis-actions.js`), unlisted company in crisis | `external-issue` | #1201 |
 | W-INVESTOR `acceptInvestorOffer` (`js/expansion.js`), pre-IPO | `external-issue` | #1199 |
 | W-SHARE-SWAP `completeTargetAcquisition` (`js/ma-deal-room.js`), listed company, deal-room share swap | `external-issue` | #1204 |
-| W-TURNAROUND-ACCEPT `accept` (`js/player-crisis-turnaround-fund.js`), unlisted company in crisis | `external-issue` | this PR |
+| W-TURNAROUND-ACCEPT `accept` (`js/player-crisis-turnaround-fund.js`), unlisted company in crisis | `external-issue` | #1202 |
+| W-MARGIN-LIQ forced margin sale (`liquidate` → `sellPersonalStockRaw`, `js/personal-stock-margin.js`), the player's own ticker only, one leg per forced sale | `personal-sell` | this PR |
 
 `tests/phase3-ownership-apply-test.js` covers the legs at two levels:
 
@@ -156,6 +157,12 @@ Activation later replaces the writer's own quantity writes with `applyOwnershipP
   - an issued-share write skewed by one share is refused, the whole closing is rolled back and nothing is durable;
   - a second-generation company keeps the existing closing.
 
+- **Writer suite** (`tests/player-own-share-conservation-test.js`), forced margin liquidation of an own-share lot:
+  - inside a transaction and through the installed week, the forced sale leaves exactly the planned lot (the lot is
+    sold as before);
+  - a lot write skewed by one share is refused and the whole transaction or week is rolled back;
+  - a second-generation company keeps the existing liquidation.
+
 The existing founder-share-sale, stock-split, buyback and investor-offer Node suites pass unchanged. The sponsor-injection Node and
 WebKit suites had a negative control that skewed the live issuance and expected the command to succeed; the writer now
 refuses that issuance, so the control breaks a copy of the committed state instead, and both suites add a case that
@@ -172,6 +179,10 @@ mirrors `issuedShares` and `marketCap` on the own row at once, as `updateMarket`
 `acquireTarget('shareSwap')` and the M&A equity raise use the same helper and get the same mirror; neither is routed
 here. The deal-room unit-test loader (`tests/ma-deal-room-test-helpers.js`) now loads the read model, planner and
 apply modules in production order, because the routed writer requires them.
+
+The forced margin sale is a weekly writer: a mismatch refuses the whole week. Each own-ticker raw sale plans against
+the state the previous sale left. The exported `liquidate` / `processWeek` called directly, outside a transaction, keep
+the documented boundary gap and stay unchecked; closing it is a separate atomicity change.
 
 ## Limits
 
