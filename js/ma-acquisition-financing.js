@@ -334,10 +334,6 @@
     if (requestedEquityAmount > 0) {
       if (!state.publicCompany || nf(state.stockPrice) <= 0) throw new Error('equity-unavailable');
       const newShares = Math.ceil(requestedEquityAmount / Math.max(1, nf(state.stockPrice))), proceeds = round(newShares * Math.max(1, nf(state.stockPrice)));
-      // P3-4 verification leg (W-MA-EQUITY/SH): the issued bucket this offering leaves must be the planned one. It is
-      // planned on the shadow engine the financing wrapper owns; a mismatch throws into that wrapper's rollback.
-      const ownership = modules.phase3OwnershipApply, leg = ownership.beginOwnershipLeg(engine, { writerId: 'W-MA-EQUITY/SH',
-        kind: 'external-issue', operationId: `ma-equity-${deal.id}`, change: { quantity: newShares } });
       state.companyCash = nf(state.companyCash) + proceeds;
       // The public offering issues new shares to outside investors: founder and competitor keep their share counts
       // and are diluted over issued − treasury (same rule as a share swap, engine.issueSharesToExternalHolders).
@@ -348,7 +344,6 @@
         const eligible = Math.max(1, nf(state.sharesOut) - nf(state.treasuryBuybackShares));
         state.competitorOwnedRatio = competitorShares / eligible; state.founderOwnershipRatio = clamp(nf(state.founderShares) / eligible); state.externalShareholderRatio = clamp(1 - state.founderOwnershipRatio - state.competitorOwnedRatio);
       }
-      if (!ownership.confirmOwnershipLeg(engine, leg)) throw new Error('ownership-leg-mismatch');
       finance.ensureFinance(state).balances.capitalSurplus = nf(finance.ensureFinance(state).balances.capitalSurplus) + proceeds;
       const transaction = finance.event(state, 'equityFinancing', proceeds, { cashEffect: proceeds, equityEffect: proceeds, sourceType: 'maPublicEquityRaise', sourceID: deal.id,
         idempotencyKey: `ma-equity-${deal.id}`, operationID: `ma-equity-${deal.id}`, description: 'M&A 公募増資' });
@@ -393,8 +388,16 @@
           try { storageBefore = storageKey && typeof localStorage !== 'undefined' ? localStorage.getItem(storageKey) : null; } catch (_) {}
           rollbackSave = () => restoreStorage(storageKey, storageBefore);
         }
+        // The financing wrapper owns rollback of the entire shadow closing. Plan against the untouched live state,
+        // then verify the final shadow state before publishing it; no nested runTransaction or authority activation.
+        const ownership = modules.phase3OwnershipApply;
+        const requestedEquityAmount = round(nf(plan.requestedEquityAmount, nf(plan.equityRaiseAmount)));
+        const leg = requestedEquityAmount > 0 ? ownership.beginOwnershipLeg({ g: liveState, ownershipShadowBoundary: true }, {
+          writerId: 'W-MA-EQUITY/SH', kind: 'external-issue', operationId: `ma-equity-${liveDeal.id}`,
+          change: { quantity: Math.ceil(requestedEquityAmount / Math.max(1, nf(liveState.stockPrice))) }
+        }) : null;
         const shadowState = clone(liveState), shadow = Object.create(this);
-        shadow.g = shadowState; shadow.ownershipShadowBoundary = true; shadow.save = () => true; shadow.emit = () => {}; shadow.notify = () => {};
+        shadow.g = shadowState; shadow.save = () => true; shadow.emit = () => {}; shadow.notify = () => {};
         shadow.fail = message => { shadow.__maFailure = String(message || 'M&A closing failed'); return false; };
         const shadowDeal = arr(shadowState.maDealRooms).find(deal => deal?.id === args.dealID);
         const targetName = targetFor(shadowState, shadowDeal)?.name || shadowDeal?.targetID || '対象企業';
@@ -403,6 +406,7 @@
           if (!baseComplete.call(shadow, args)) throw new Error(shadow.__maFailure || 'acquisition-completion-failed');
           const validation = finance.validate(shadow.g);
           if (!validation?.ok) throw new Error(`finance-validation:${arr(validation?.errors).join('|')}`);
+          if (!ownership.confirmOwnershipLeg(shadow, leg)) throw new Error('ownership-leg-mismatch');
           const committed = clone(shadow.g); replaceState(liveState, committed);
           try {
             if (this.save?.() === false) throw new Error('save-failed');

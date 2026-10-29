@@ -83,8 +83,8 @@ routed writer keeps its own quantity writes, so no supported or unsupported outc
 
 - `beginOwnershipLeg(engine, {writerId, kind, operationId, change})` runs inside the writer's transaction, before
   the writer writes. It plans the leg against the current state. It returns `null` when there is no rollback
-  boundary or the planner cannot plan the leg. A rollback boundary is the engine's active transaction, or a shadow
-  engine whose owner restores the live state when the shadow's command fails and marks it with an own
+  boundary or the planner cannot plan the leg. A rollback boundary is the engine's active transaction, or a verification boundary
+  facade whose owner restores the live state when the shadow closing fails and marks the facade with an own
   `ownershipShadowBoundary: true` property (only the M&A financing wrapper does). The planner cannot plan, for example:
   - a later company generation (`currentCompanySerial` above 1);
   - an unlisted company for a public-only leg;
@@ -107,7 +107,7 @@ Activation later replaces the writer's own quantity writes with `applyOwnershipP
 | W-INVESTOR `acceptInvestorOffer` (`js/expansion.js`), pre-IPO | `external-issue` | #1199 |
 | W-SHARE-SWAP `completeTargetAcquisition` (`js/ma-deal-room.js`), listed company, deal-room share swap | `external-issue` | #1204 |
 | W-TURNAROUND-ACCEPT `accept` (`js/player-crisis-turnaround-fund.js`), unlisted company in crisis | `external-issue` | #1202 |
-| W-MA-EQUITY/SH `executeFinancing` (`js/ma-acquisition-financing.js`), listed company, M&A public equity raise on the financing wrapper's shadow engine | `external-issue` | this PR |
+| W-MA-EQUITY/SH financing wrapper of `completeTargetAcquisition` (`js/ma-acquisition-financing.js`), listed company, M&A public equity raise, live plan / final shadow confirmation | `external-issue` | this PR |
 
 `tests/phase3-ownership-apply-test.js` covers the legs at two levels:
 
@@ -184,8 +184,8 @@ mirrors `issuedShares` and `marketCap` on the own row at once, as `updateMarket`
 apply modules in production order, because the routed writer requires them.
 
 The M&A equity raise runs on the financing wrapper's shadow engine, outside any `runTransaction`, so a transaction-only
-gate would never plan it. The wrapper now marks its shadow as a rollback boundary. `executeFinancing` plans the leg
-before the issuance and confirms it after; a mismatch throws into the wrapper's existing catch, which restores the live
+gate would never plan it. The wrapper now plans against the live state via its explicitly marked boundary facade, before cloning. It confirms the leg
+against the final shadow after financing, inner completion and finance validation, before live replacement; a mismatch throws into the wrapper's existing catch, which restores the live
 state and the save checkpoint. This adds no nested transaction and does not change how §1 treats the shadow boundary.
 
 ## Limits
@@ -193,3 +193,12 @@ state and the save checkpoint. This adds no nested transaction and does not chan
 This routes only the writers listed above, in verification mode, and does not activate the authority. It does not grant S_PASS for any family, and it does not
 change whole-command validation. The existing writers still own their financial and lifecycle rules. It does not
 certify P3-10, Phase 3 Exit or Phase 4 Entry.
+
+### Remaining-writer design alignment (Work A, 2026-10-29)
+
+The approved #1205 option B places the verification at the custom wrapper boundary. A regression injects a one-share
+founder skew at the final shadow validation stage, after the issuance itself. The earlier confirmation inside
+`executeFinancing` accepted that skew (RED on `6f00c95d`); the wrapper now refuses it before `replaceState`, preserves
+live/mirror/cache/durable state, and accepts the unskewed retry. The own boundary marker permits verification only;
+`applyOwnershipPlan` still requires an actual active transaction and stays dormant. Raw `executeFinancing` receives
+no new transaction or standalone atomicity guarantee.
