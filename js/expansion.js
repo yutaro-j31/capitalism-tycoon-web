@@ -428,6 +428,8 @@ function installExpansion(TycoonEngine){
   // no producer or consumer before this.
   const INVESTOR_NAMES=['グロースキャピタル','新星ベンチャーズ','フロンティア・パートナーズ','東京インパクト・ファンド','サンライズ・エクイティ','ブルーオーシャン・キャピタル'];
   TycoonEngine.prototype.refreshInvestorOffers=function(){
+    // P3-4 W-INVESTOR-AUX: the offers, the RNG draws and the notice commit with one save or roll back together.
+    return this.runTransaction(()=>{
     if(this.g.publicCompany)return this.fail('上場後は別の資金調達手段を利用してください。');
     if(!this.g.hasHeadOffice)return this.fail('本社オフィスが必要です。');
     const baseValue=Math.max(5_000_000,this.companyValue());
@@ -439,7 +441,8 @@ function installExpansion(TycoonEngine){
       this.g.investorOffers.push({id:uid(this.g),name:pick(this.g,INVESTOR_NAMES),amount,equity,preMoneyValuation,expiresWeek:this.g.week+6,status:'pending'});
     }
     this.g.investorOffers=this.g.investorOffers.slice(-30);
-    this.notify(`投資家から${count}件の出資提案が届きました。`,'info');this.save();this.emit();return true;
+    this.notify(`投資家から${count}件の出資提案が届きました。`,'info');return true;
+    });
   };
   TycoonEngine.prototype.acceptInvestorOffer=function(offerID){
     // P3-4-003: reuse the common economic/save checkpoint for rejection and post-save exceptions.
@@ -463,10 +466,13 @@ function installExpansion(TycoonEngine){
     });
   };
   TycoonEngine.prototype.declineInvestorOffer=function(offerID){
+    // P3-4 W-INVESTOR-AUX: the declined status and the notice commit with one save or roll back together.
+    return this.runTransaction(()=>{
     const o=this.g.investorOffers.find(x=>String(x.id)===String(offerID)&&x.status==='pending');
     if(!o)return false;
     o.status='declined';
-    this.notify(`${o.name}からの出資提案を見送りました。`,'info');this.save();this.emit();return true;
+    this.notify(`${o.name}からの出資提案を見送りました。`,'info');return true;
+    });
   };
 
   // R1 (feature-requests.md) remaining item "案件の自動入替": g.startups was populated

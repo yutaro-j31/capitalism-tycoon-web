@@ -280,7 +280,8 @@
     "tests/subsidiary-disposal-accounting-test.js",
     "tests/group-capital-allocation-save-atomicity-test.js",
     "tests/shareholder-activism-split-integration-test.js",
-    "tests/ramen-supply-payment-terms-negative-test.js"
+    "tests/ramen-supply-payment-terms-negative-test.js",
+    "tests/investor-offer-aux-save-atomicity-test.js"
   ],
   "K": [
     "tests/player-crisis-turnaround-ratchet-week-rollback-test.js",
