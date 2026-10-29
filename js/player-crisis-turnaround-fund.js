@@ -188,11 +188,20 @@ function settle(instance){
   return fund;
  }
  const shares=ratchetSharesFor(state);
+ // P3-4 verification only: the canonical week owns rollback. The listed issued mirror below is updated before
+ // confirming; a genuine bucket mismatch rejects the whole week, while unsupported generations remain unchecked.
+ const ownership=modules.phase3OwnershipApply,leg=ownership.beginOwnershipLeg(instance,{writerId:'W-TURNAROUND-RATCHET',
+  kind:'external-issue',operationId:`${fund.fundID}-ratchet-${integer(state.week)}`,change:{quantity:shares}});
  state.sharesOut=finite(state.sharesOut)+shares;
+ // A company that listed during the fund term mirrors the issued quantity on its own market row at once; settle runs
+ // after this week's updateMarket, which would otherwise leave the row stale until next week.
+ const own=state.publicCompany?(state.market||[]).find(row=>row.id===state.ticker):null;
+ if(own){own.issuedShares=state.sharesOut;own.marketCap=finite(own.price)*state.sharesOut;}
  fund.ratchetShares=integer(fund.ratchetShares)+shares;
  fund.shares=integer(fund.shares)+shares;
  fund.status='ratcheted';
  instance.updateOwnershipRatios();
+ if(!ownership.confirmOwnershipLeg(instance,leg))throw new Error('株式数の整合を確認できませんでした。');
  record(state,fund,'ratcheted',{amount:0,shares,equity:RATCHET_EQUITY,
   detail:`${fund.fundName}の再建目標を達成できず、追加で${shares.toLocaleString('ja-JP')}株（持分${(RATCHET_EQUITY*100).toFixed(0)}%）を譲渡しました。`});
  instance.notify?.(`${fund.fundName}の再建目標未達により、追加の持分${(RATCHET_EQUITY*100).toFixed(0)}%を譲渡しました。`,'error');

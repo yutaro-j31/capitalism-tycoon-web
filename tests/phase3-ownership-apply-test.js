@@ -132,7 +132,7 @@ const { boot } = require('./fixtures/subsidiary-quarter-close');
  assert.equal((read('js/ma-deal-room.js').match(/beginOwnershipLeg\(/g)||[]).length,1,'ma-deal-room.js: W-SHARE-SWAP only');
  assert.equal((read('js/shareholder-returns.js').match(/beginOwnershipLeg\(/g)||[]).length,1,'shareholder-returns.js: W-BUYBACK only');
  assert.equal((read('js/player-crisis-actions.js').match(/beginOwnershipLeg\(/g)||[]).length,1,'player-crisis-actions.js: W-SPONSOR only');
- assert.equal((read('js/player-crisis-turnaround-fund.js').match(/beginOwnershipLeg\(/g)||[]).length,1,'player-crisis-turnaround-fund.js: W-TURNAROUND-ACCEPT only');
+ assert.equal((read('js/player-crisis-turnaround-fund.js').match(/beginOwnershipLeg\(/g)||[]).length,2,'player-crisis-turnaround-fund.js: W-TURNAROUND-ACCEPT and W-TURNAROUND-RATCHET only');
  const game=new s.engineModule.TycoonEngine();
  game.configure({playerName:'T',companyName:'Apply',difficulty:'normal',scenario:'free',simulationSeed:971});
  assert.equal(game.save(),true);await s.backend.flush();
