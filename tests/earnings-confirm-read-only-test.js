@@ -66,7 +66,7 @@ async function reloadEquals(s,label){
   for(let i=0;i<2000;i++){s.game.earningsSummary();s.game.runEarningsEventsIfNeeded(true);}
   assert.equal(g.stockPrice,price,'price unchanged after 2,000 uses');assert.equal(g.market.find(x=>x.id==='CPTY').price,price);
   let cash=g.personalCash;assert.equal(s.game.sellFounderShares(10_000),true);
-  assert.equal(g.personalCash-cash,10_000*price*.995,'founder sale paid at the unchanged price');
+  assert.equal(g.personalCash-cash,s.modules.economicOperation.ceilYen(10_000*price*.995),'founder sale paid at the unchanged price, in whole yen');
   cash=g.personalCash;assert.equal(s.game.sellStock('CPTY',1000,'personal'),true);
   assert.ok(g.personalCash-cash<=1000*price,'personal own-ticker sale gains nothing from the button');
   assert.equal(s.modules.finance.validate(JSON.parse(JSON.stringify(g))).ok,true,'accounting valid');

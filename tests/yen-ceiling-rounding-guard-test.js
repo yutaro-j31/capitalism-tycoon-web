@@ -984,6 +984,16 @@ const SCENARIOS = [
     assert.equal(rows.length, 1, 'the transfer posts');
     return { rows, state: { companyCash: g.companyCash, personalCash: g.personalCash, ownerCostBasis: deal.ownerCostBasis, peRealizedPL: g.peRealizedPL } };
   } },
+  { slice: 'R10b', label: 'founder share sale proceeds', ledger: false, run() {
+    const { engine } = newGame(4501), g = engine.g;
+    Object.assign(g, { publicCompany: true, sharesOut: 1_000_000, founderShares: 600_000, treasuryBuybackShares: 0, stockPrice: 123.45 });
+    const count = g.finance.transactions.length, personal = g.personalCash;
+    assert.equal(engine.sellFounderShares(1_001), true);
+    assert.equal(g.personalCash - personal, 122_956, 'proceeds 1,001 x 123.45 x 0.995 = 122,955.58... round up');
+    assert.equal(g.founderShareSaleHistory[0].proceeds, 122_956, 'the history records the same whole-yen proceeds');
+    const rows = rowsSince(g, count, () => true);
+    return { rows, state: { personalCash: g.personalCash, proceeds: g.founderShareSaleHistory[0].proceeds } };
+  } },
 ];
 for (const scenario of SCENARIOS) {
   const { rows, state = {} } = scenario.run();

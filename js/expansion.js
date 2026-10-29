@@ -415,7 +415,7 @@ function installExpansion(TycoonEngine){
     // P3-4 verification leg (W-FOUNDER-SALE): the founder bucket this sale leaves must be the planned one.
     const ownership=globalThis.__capitalismTycoonModules.phase3OwnershipApply,leg=ownership.beginOwnershipLeg(this,{writerId:'W-FOUNDER-SALE',kind:'founder-sale',
      operationId:`founder-sale-${this.g.week}-${this.g.founderShareSaleHistory.length}`,change:{quantity:qty}});
-    const proceeds=qty*this.g.stockPrice*.995;this.g.founderShares-=qty;this.g.personalCash+=proceeds;this.g.founderShareSaleHistory.unshift({week:this.g.week,qty,price:this.g.stockPrice,proceeds});this.updateOwnershipRatios();
+    const proceeds=ceilYen(qty*this.g.stockPrice*.995);this.g.founderShares-=qty;this.g.personalCash+=proceeds;this.g.founderShareSaleHistory.unshift({week:this.g.week,qty,price:this.g.stockPrice,proceeds});this.updateOwnershipRatios();
     if(!ownership.confirmOwnershipLeg(this,leg))return this.fail('株式数の整合を確認できませんでした。');
     this.notify(`創業者保有株${qty.toLocaleString()}株を売却しました。`,'success');return true;
     });
