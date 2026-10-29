@@ -90,7 +90,7 @@ The following pass unchanged:
 - `tests/digital-portfolio-scenario.js`;
 - `tests/gf-008-broader-determinism-test.js` and `tests/transaction-regression-test.js`.
 
-The test runs in canonical shard J (about 71 seconds locally).
+The test runs in canonical shard A, the default for unassigned tests (about 71 seconds locally; shard J's entry count is fixed by the runner contract tests).
 
 ## Limits
 
