@@ -111,6 +111,15 @@ for(const bad of [null,{},{g:null,inTransaction(){return true;}},{g:state(),inTr
   const t=state();unplannable(t);const h=begin(engine(t),leg);assert.equal(h,null);assert.equal(confirm(engine(t),h),true,'unplannable legs keep existing behaviour');
  }
  assert.equal(begin(engine(state()),{...leg,kind:'ipo'}),null);assert.equal(begin(engine(state()),null),null);
+ // A shadow engine owned by a rollback boundary (the M&A financing wrapper) plans only when it carries that marker as its
+ // own property; an inherited or false marker, or a plain object, is not a boundary.
+ {
+  const shadow={g:state(),ownershipShadowBoundary:true},h=begin(shadow,leg);assert.equal(h.plan.status,'PLANNED','shadow boundary plans');
+  shadow.g.founderShares=550;assert.equal(confirm(shadow,h),true);
+  assert.equal(begin({g:state(),ownershipShadowBoundary:false,inTransaction(){return true;}},leg),null,'an explicit false marker is not a boundary');
+  assert.equal(begin(Object.create({ownershipShadowBoundary:true,g:state()}),leg),null,'an inherited marker is not a boundary');
+  assert.equal(begin({g:state()},leg),null,'no boundary');
+ }
 }
 
 // The installed runtime registers the module without routing a writer to it, and a real engine transaction commits or
@@ -126,9 +135,10 @@ const { boot } = require('./fixtures/subsidiary-quarter-close');
  for(const f of sources)assert.ok(!read('js/'+f).includes('applyOwnershipPlan'),f+' must not route to the dormant apply');
  // Verification legs are routed only through the reviewed writers.
  const routed=sources.filter(f=>read('js/'+f).includes('beginOwnershipLeg'));
- assert.deepEqual(routed,['engine.js','expansion.js','ma-deal-room.js','player-crisis-actions.js','player-crisis-turnaround-fund.js','shareholder-returns.js']);
+ assert.deepEqual(routed,['engine.js','expansion.js','ma-acquisition-financing.js','ma-deal-room.js','player-crisis-actions.js','player-crisis-turnaround-fund.js','shareholder-returns.js']);
  assert.equal((read('js/expansion.js').match(/beginOwnershipLeg\(/g)||[]).length,3,'expansion.js: W-SPLIT, W-FOUNDER-SALE and W-INVESTOR only');
  assert.equal((read('js/engine.js').match(/beginOwnershipLeg\(/g)||[]).length,2,'engine.js: W-BUY and W-SELL only');
+ assert.equal((read('js/ma-acquisition-financing.js').match(/beginOwnershipLeg\(/g)||[]).length,1,'ma-acquisition-financing.js: W-MA-EQUITY/SH only');
  assert.equal((read('js/ma-deal-room.js').match(/beginOwnershipLeg\(/g)||[]).length,1,'ma-deal-room.js: W-SHARE-SWAP only');
  assert.equal((read('js/shareholder-returns.js').match(/beginOwnershipLeg\(/g)||[]).length,1,'shareholder-returns.js: W-BUYBACK only');
  assert.equal((read('js/player-crisis-actions.js').match(/beginOwnershipLeg\(/g)||[]).length,1,'player-crisis-actions.js: W-SPONSOR only');

@@ -82,8 +82,10 @@ The Owner decided on 2026-10-28 that player-common writers are routed in **verif
 routed writer keeps its own quantity writes, so no supported or unsupported outcome changes.
 
 - `beginOwnershipLeg(engine, {writerId, kind, operationId, change})` runs inside the writer's transaction, before
-  the writer writes. It plans the leg against the current state. It returns `null` when there is no active
-  transaction or the planner cannot plan the leg. The planner cannot plan, for example:
+  the writer writes. It plans the leg against the current state. It returns `null` when there is no rollback
+  boundary or the planner cannot plan the leg. A rollback boundary is the engine's active transaction, or a shadow
+  engine whose owner restores the live state when the shadow's command fails and marks it with an own
+  `ownershipShadowBoundary: true` property (only the M&A financing wrapper does). The planner cannot plan, for example:
   - a later company generation (`currentCompanySerial` above 1);
   - an unlisted company for a public-only leg;
   - a quantity outside the planner's domain.
@@ -104,7 +106,8 @@ Activation later replaces the writer's own quantity writes with `applyOwnershipP
 | W-SPONSOR `requestSponsorInjection` (`js/player-crisis-actions.js`), unlisted company in crisis | `external-issue` | #1201 |
 | W-INVESTOR `acceptInvestorOffer` (`js/expansion.js`), pre-IPO | `external-issue` | #1199 |
 | W-SHARE-SWAP `completeTargetAcquisition` (`js/ma-deal-room.js`), listed company, deal-room share swap | `external-issue` | #1204 |
-| W-TURNAROUND-ACCEPT `accept` (`js/player-crisis-turnaround-fund.js`), unlisted company in crisis | `external-issue` | this PR |
+| W-TURNAROUND-ACCEPT `accept` (`js/player-crisis-turnaround-fund.js`), unlisted company in crisis | `external-issue` | #1202 |
+| W-MA-EQUITY/SH `executeFinancing` (`js/ma-acquisition-financing.js`), listed company, M&A public equity raise on the financing wrapper's shadow engine | `external-issue` | this PR |
 
 `tests/phase3-ownership-apply-test.js` covers the legs at two levels:
 
@@ -155,6 +158,14 @@ Activation later replaces the writer's own quantity writes with `applyOwnershipP
     pass;
   - an issued-share write skewed by one share is refused, the whole closing is rolled back and nothing is durable;
   - a second-generation company keeps the existing closing.
+- **Writer suite** (`tests/ma-equity-raise-ownership-ratios-test.js`), financed M&A closing with a public equity raise on a
+  listed company with its own market row:
+  - the raise issues exactly the computed new shares (20,000) and the own row mirrors them;
+  - an issued-share write skewed by one share is refused, the whole financed closing is rolled back and nothing is
+    durable, and the unskewed retry commits;
+  - a second-generation company keeps the existing closing.
+- **Unit:** a shadow engine plans only with its own `ownershipShadowBoundary: true`; an inherited or false marker, or no
+  boundary, does not.
 
 The existing founder-share-sale, stock-split, buyback and investor-offer Node suites pass unchanged. The sponsor-injection Node and
 WebKit suites had a negative control that skewed the live issuance and expected the command to succeed; the writer now
@@ -169,9 +180,13 @@ The share swap needed one writer fix to be checkable. `issueSharesToExternalHold
 `sharesOut` without the listing's own market row, which `updateMarket` only re-synced at the next week. The planner
 refuses a listing whose row disagrees with `sharesOut`, so every listed swap would have been refused. The helper now
 mirrors `issuedShares` and `marketCap` on the own row at once, as `updateMarket` does. The dormant legacy
-`acquireTarget('shareSwap')` and the M&A equity raise use the same helper and get the same mirror; neither is routed
-here. The deal-room unit-test loader (`tests/ma-deal-room-test-helpers.js`) now loads the read model, planner and
+`acquireTarget('shareSwap')` and the M&A equity raise use the same helper and get the same mirror. The deal-room unit-test loader (`tests/ma-deal-room-test-helpers.js`) now loads the read model, planner and
 apply modules in production order, because the routed writer requires them.
+
+The M&A equity raise runs on the financing wrapper's shadow engine, outside any `runTransaction`, so a transaction-only
+gate would never plan it. The wrapper now marks its shadow as a rollback boundary. `executeFinancing` plans the leg
+before the issuance and confirms it after; a mismatch throws into the wrapper's existing catch, which restores the live
+state and the save checkpoint. This adds no nested transaction and does not change how §1 treats the shadow boundary.
 
 ## Limits
 

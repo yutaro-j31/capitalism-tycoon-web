@@ -334,6 +334,10 @@
     if (requestedEquityAmount > 0) {
       if (!state.publicCompany || nf(state.stockPrice) <= 0) throw new Error('equity-unavailable');
       const newShares = Math.ceil(requestedEquityAmount / Math.max(1, nf(state.stockPrice))), proceeds = round(newShares * Math.max(1, nf(state.stockPrice)));
+      // P3-4 verification leg (W-MA-EQUITY/SH): the issued bucket this offering leaves must be the planned one. It is
+      // planned on the shadow engine the financing wrapper owns; a mismatch throws into that wrapper's rollback.
+      const ownership = modules.phase3OwnershipApply, leg = ownership.beginOwnershipLeg(engine, { writerId: 'W-MA-EQUITY/SH',
+        kind: 'external-issue', operationId: `ma-equity-${deal.id}`, change: { quantity: newShares } });
       state.companyCash = nf(state.companyCash) + proceeds;
       // The public offering issues new shares to outside investors: founder and competitor keep their share counts
       // and are diluted over issued − treasury (same rule as a share swap, engine.issueSharesToExternalHolders).
@@ -344,6 +348,7 @@
         const eligible = Math.max(1, nf(state.sharesOut) - nf(state.treasuryBuybackShares));
         state.competitorOwnedRatio = competitorShares / eligible; state.founderOwnershipRatio = clamp(nf(state.founderShares) / eligible); state.externalShareholderRatio = clamp(1 - state.founderOwnershipRatio - state.competitorOwnedRatio);
       }
+      if (!ownership.confirmOwnershipLeg(engine, leg)) throw new Error('ownership-leg-mismatch');
       finance.ensureFinance(state).balances.capitalSurplus = nf(finance.ensureFinance(state).balances.capitalSurplus) + proceeds;
       const transaction = finance.event(state, 'equityFinancing', proceeds, { cashEffect: proceeds, equityEffect: proceeds, sourceType: 'maPublicEquityRaise', sourceID: deal.id,
         idempotencyKey: `ma-equity-${deal.id}`, operationID: `ma-equity-${deal.id}`, description: 'M&A 公募増資' });
@@ -389,7 +394,7 @@
           rollbackSave = () => restoreStorage(storageKey, storageBefore);
         }
         const shadowState = clone(liveState), shadow = Object.create(this);
-        shadow.g = shadowState; shadow.save = () => true; shadow.emit = () => {}; shadow.notify = () => {};
+        shadow.g = shadowState; shadow.ownershipShadowBoundary = true; shadow.save = () => true; shadow.emit = () => {}; shadow.notify = () => {};
         shadow.fail = message => { shadow.__maFailure = String(message || 'M&A closing failed'); return false; };
         const shadowDeal = arr(shadowState.maDealRooms).find(deal => deal?.id === args.dealID);
         const targetName = targetFor(shadowState, shadowDeal)?.name || shadowDeal?.targetID || '対象企業';

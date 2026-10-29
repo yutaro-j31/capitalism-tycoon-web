@@ -50,9 +50,16 @@ function applyOwnershipPlan(engine,plan){
 // rejects its command. A leg the planner cannot plan (a later company generation, an unlisted company, ...) keeps the
 // existing behaviour, so routing changes no supported or unsupported outcome. Activation later swaps the writes for
 // applyOwnershipPlan.
+// A leg plans only inside a rollback boundary: the engine's active transaction, or a shadow engine whose owner restores
+// the live state when the shadow's command fails (ownershipShadowBoundary, set by that owner only).
+function insideBoundary(engine){
+ if(!engine)return false;
+ if(Object.prototype.hasOwnProperty.call(engine,'ownershipShadowBoundary'))return engine.ownershipShadowBoundary===true;
+ return typeof engine.inTransaction==='function'&&engine.inTransaction()===true;
+}
 function beginOwnershipLeg(engine,leg){
  try{
-  if(!engine||typeof engine.inTransaction!=='function'||engine.inTransaction()!==true||!leg||!KINDS.includes(leg.kind))return null;
+  if(!insideBoundary(engine)||!leg||!KINDS.includes(leg.kind))return null;
   const state=engine.g,scope={family:'player-common',issuerEntityId:read.PLAYER_COMPANY_ENTITY_ID,
    securityClassId:read.PLAYER_COMPANY_COMMON_SECURITY_CLASS_ID,currentCompanySerial:1};
   const evidence=planner.inspectOwnershipAuthority(state,scope);
