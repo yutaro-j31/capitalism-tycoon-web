@@ -155,6 +155,7 @@ const noticeLabels = text => [...text.matchAll(/::notice title=Shard \w+ timing:
 
   // ---- shard E (Stage 3): allow-listed; 33 commands run once each in parallel; failure still fails the shard ----
   const eLabels = [...shardConfig.E].sort();
+  assert.equal(eLabels.length, 33, 'the reviewed E execution contract contains 33 commands');
   assert.ok(require(path.join(ROOT, 'scripts', 'parallel-shard-runner.config.json')).parallelEnabledShards.includes('E'), 'E is allow-listed');
   const dirE = build('E');
   const eSerial = run(dirE, 'E'), ePar = run(dirE, 'E', { TEST_SHARD_PARALLELISM: '2' });
@@ -162,6 +163,11 @@ const noticeLabels = text => [...text.matchAll(/::notice title=Shard \w+ timing:
   assert.match(ePar.stdout, new RegExp(`parallel-shard-summary: shard=E concurrency=2 order=longest-first enumerated=${eLabels.length} passed=${eLabels.length} failed=0 aborted=0 notStarted=0 `));
   assert.deepEqual(noticeLabels(ePar.stdout), eLabels, 'every E command ran once');
   assert.equal(summary(ePar.stdout)[3], summary(eSerial.stdout)[3]); assert.equal(summary(ePar.stdout)[4], summary(eSerial.stdout)[4]);
+  const eContract = run(dirE, 'E', { TEST_SHARD_CONTRACT: '1', TEST_SHARD_PARALLELISM: '2' });
+  assert.equal(eContract.status, 0, eContract.stderr);
+  assert.equal(summary(eContract.stdout)[2], 'true'); assert.equal(summary(eContract.stdout)[3], '0');
+  assert.equal(summary(ePar.stdout)[4], summary(eContract.stdout)[4], 'E sees the same registry as contract mode');
+  assert.doesNotMatch(eContract.stdout, /parallel-shard-summary/, 'contract mode never executes E in parallel');
   const eBad = run(build('E', { [eLabels.find(l => l.startsWith('tests/'))]: 'process.exit(3)' }), 'E', { TEST_SHARD_PARALLELISM: '2' });
   assert.notEqual(eBad.status, 0, 'a failing E test fails the shard in parallel mode');
 
