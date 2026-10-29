@@ -490,3 +490,38 @@ jobs:
             artifacts/physical-iphone-playtest
           if-no-files-found: error
           retention-days: 30
+
+  parallel-process-diagnostic:
+    name: Parallel process diagnostic (Node ${{ matrix.node }})
+    if: github.event_name == 'pull_request' && github.head_ref == 'ci/parallel-shard-process-diagnostic'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        node: ['22', '24']
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node }}
+      - name: Record Linux runtime identity
+        run: |
+          node --version
+          nproc
+          free -m
+          uname -a
+      - name: Reproduce and classify process groups
+        run: node scripts/parallel-shard-runner-process-diagnostic.js --report artifacts/process-diagnostic/node-${{ matrix.node }}.json
+      - name: Existing runner process integrity regression
+        run: node tests/parallel-shard-runner-test.js
+      - name: Retain process evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: process-diagnostic-node-${{ matrix.node }}-${{ github.run_id }}
+          path: artifacts/process-diagnostic/
+          if-no-files-found: error
+          retention-days: 14
