@@ -276,6 +276,7 @@
     "tests/vc-initial-investment-save-atomicity-test.js",
     "tests/pe-fund-acquisition-save-atomicity-test.js",
     "tests/pe-portfolio-exit-save-atomicity-test.js",
+    "tests/week-pe-fund-save-atomicity-test.js",
     "tests/digital-portfolio-breakeven-seeds-test.js",
     "tests/subsidiary-disposal-accounting-test.js",
     "tests/group-capital-allocation-save-atomicity-test.js",

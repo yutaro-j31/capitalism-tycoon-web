@@ -121,6 +121,7 @@ const nodeTests = [
   ['pe-parent-acquisition-save-atomicity', 'tests/pe-parent-acquisition-save-atomicity-test.js'],
   ['pe-portfolio-exit-save-atomicity', 'tests/pe-portfolio-exit-save-atomicity-test.js'],
   ['pe-fund-formation-save-atomicity', 'tests/pe-fund-formation-save-atomicity-test.js'],
+  ['week-pe-fund-save-atomicity', 'tests/week-pe-fund-save-atomicity-test.js'],
   ['ma-subsidiary-sale-save-atomicity', 'tests/ma-subsidiary-sale-save-atomicity-test.js'],
   ['competitor-product-counter-reachability', 'tests/competitor-product-counter-reachability-test.js'],
   ['competitor-group-allocation-reachability', 'tests/competitor-group-allocation-reachability-test.js'],
