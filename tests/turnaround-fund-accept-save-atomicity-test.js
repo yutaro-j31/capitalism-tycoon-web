@@ -70,9 +70,15 @@ function success(before, after, s) {
     const s = await fixture(variant); s.game.restoreTransactionSnapshot = () => {}; return s;
   }, command, snapshot, economic, expectSuccess: success });
   await assert.rejects(broken.rejected('replace', 'save-false'), /full live rollback/);
-  const wrong = await fixture('capped'), prior = snapshot(wrong.game), ratios = wrong.game.updateOwnershipRatios;
-  wrong.game.updateOwnershipRatios = function (...args) { this.g.sharesOut--; return ratios.apply(this, args); };
+  // A wrong issued quantity is invalid to the oracle.
+  const wrong = await fixture('capped'), prior = snapshot(wrong.game);
   assert.equal(command(wrong), true);
-  assert.throws(() => success(prior, snapshot(wrong.game), wrong), /pinned fund issuance/);
+  const skewed = snapshot(wrong.game); skewed.sharesOut--;
+  assert.throws(() => success(prior, skewed, wrong), /pinned fund issuance/);
+  // Since the P3-4 W-TURNAROUND-ACCEPT verification leg, the writer itself refuses such an issuance and rolls it back.
+  const refused = await fixture('capped'), unchanged = snapshot(refused.game), ratios = refused.game.updateOwnershipRatios;
+  refused.game.updateOwnershipRatios = function (...args) { this.g.sharesOut--; return ratios.apply(this, args); };
+  assert.equal(command(refused), false, 'a diverging issued quantity is refused');
+  assert.deepEqual(snapshot(refused.game), unchanged, 'and the whole acceptance is rolled back');
   console.log('Turnaround fund acceptance shared save-fault evidence PASS');
 })().catch(error => { console.error(error); process.exitCode = 1; });

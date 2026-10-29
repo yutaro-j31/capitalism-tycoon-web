@@ -1970,6 +1970,8 @@ class TycoonEngine extends EventTarget {
     const before=Math.max(1,this.g.sharesOut-this.g.treasuryBuybackShares),competitorShares=Math.max(0,finite(this.g.competitorOwnedRatio))*before;
     this.g.sharesOut+=newShares;
     this.g.competitorOwnedRatio=competitorShares/Math.max(1,this.g.sharesOut-this.g.treasuryBuybackShares);
+    // A listed company's own market row mirrors the issued quantity at once (as updateMarket does weekly).
+    const own=this.g.publicCompany?this.stock(this.g.ticker):null;if(own){own.issuedShares=this.g.sharesOut;own.marketCap=own.price*this.g.sharesOut;}
     this.updateOwnershipRatios();
   }
   updateOwnershipRatios() {

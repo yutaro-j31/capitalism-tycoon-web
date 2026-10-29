@@ -113,10 +113,12 @@ on:
       - 'tests/sold-company-pe-authority-webkit-test.js'
       - 'tests/pe-parent-acquisition-save-atomicity-webkit-test.js'
       - 'tests/pe-transfer-save-atomicity-webkit-test.js'
+      - 'tests/pe-fund-formation-save-atomicity-webkit-test.js'
       - 'tests/fixtures/pe-fund-acquisition-atomicity.js'
       - 'tests/fixtures/pe-fund-acquisition-faults.js'
       - 'tests/fixtures/pe-parent-acquisition-atomicity.js'
       - 'tests/fixtures/pe-transfer-atomicity.js'
+      - 'tests/fixtures/pe-fund-formation-atomicity.js'
       - 'js/pe-network-sourcing.js'
       - 'js/pe-ui-adapter.js'
       - 'js/pe-portfolio-operations.js'
@@ -321,10 +323,12 @@ on:
       - 'tests/sold-company-pe-authority-webkit-test.js'
       - 'tests/pe-parent-acquisition-save-atomicity-webkit-test.js'
       - 'tests/pe-transfer-save-atomicity-webkit-test.js'
+      - 'tests/pe-fund-formation-save-atomicity-webkit-test.js'
       - 'tests/fixtures/pe-fund-acquisition-atomicity.js'
       - 'tests/fixtures/pe-fund-acquisition-faults.js'
       - 'tests/fixtures/pe-parent-acquisition-atomicity.js'
       - 'tests/fixtures/pe-transfer-atomicity.js'
+      - 'tests/fixtures/pe-fund-formation-atomicity.js'
       - 'js/pe-network-sourcing.js'
       - 'js/pe-ui-adapter.js'
       - 'js/pe-portfolio-operations.js'
@@ -853,6 +857,7 @@ jobs:
           node tests/sold-company-pe-authority-webkit-test.js
           node tests/pe-parent-acquisition-save-atomicity-webkit-test.js
           node tests/pe-transfer-save-atomicity-webkit-test.js
+          node tests/pe-fund-formation-save-atomicity-webkit-test.js
       - name: Retain pe-acquisition-atomicity WebKit evidence
         if: always()
         uses: actions/upload-artifact@v4
