@@ -103,7 +103,8 @@ Activation later replaces the writer's own quantity writes with `applyOwnershipP
 | W-BUYBACK installed `buybackOwnShares` (`js/shareholder-returns.js`) | `buyback` | #1194 |
 | W-SPONSOR `requestSponsorInjection` (`js/player-crisis-actions.js`), unlisted company in crisis | `external-issue` | #1201 |
 | W-INVESTOR `acceptInvestorOffer` (`js/expansion.js`), pre-IPO | `external-issue` | #1199 |
-| W-SHARE-SWAP `completeTargetAcquisition` (`js/ma-deal-room.js`), listed company, deal-room share swap | `external-issue` | this PR |
+| W-SHARE-SWAP `completeTargetAcquisition` (`js/ma-deal-room.js`), listed company, deal-room share swap | `external-issue` | #1204 |
+| W-TURNAROUND-ACCEPT `accept` (`js/player-crisis-turnaround-fund.js`), unlisted company in crisis | `external-issue` | this PR |
 
 `tests/phase3-ownership-apply-test.js` covers the legs at two levels:
 
@@ -143,6 +144,10 @@ Activation later replaces the writer's own quantity writes with `applyOwnershipP
     - an accepted offer issues exactly the computed new shares, as before;
     - an issued-share write skewed by one share is refused, and the whole investment is rolled back;
     - a second-generation company keeps the existing acceptance;
+  - turnaround fund acceptance (distressed unlisted company):
+    - an acceptance issues exactly the pinned 6,186 new shares, as before;
+    - an issued-share write skewed by one share is refused, and the whole acceptance is rolled back;
+    - a second-generation company keeps the existing acceptance;
   - only the reviewed writers call `beginOwnershipLeg`.
 - **Writer suite** (`tests/ma-share-swap-ownership-ratios-test.js`), deal-room share swap on a listed company with its
   own market row:
@@ -154,7 +159,10 @@ Activation later replaces the writer's own quantity writes with `applyOwnershipP
 The existing founder-share-sale, stock-split, buyback and investor-offer Node suites pass unchanged. The sponsor-injection Node and
 WebKit suites had a negative control that skewed the live issuance and expected the command to succeed; the writer now
 refuses that issuance, so the control breaks a copy of the committed state instead, and both suites add a case that
-the skewed live issuance is refused and rolled back. The overridden base engine
+the skewed live issuance is refused and rolled back. The turnaround-fund acceptance Node
+and WebKit suites had a negative control that skewed the live issuance and expected the command to succeed; the writer
+now refuses that issuance, so the control breaks a copy of the committed state instead, and both suites add a case
+that the skewed live issuance is refused and rolled back. The weekly ratchet (W-TURNAROUND-RATCHET) is not routed here. The overridden base engine
 `buybackOwnShares` (W-BUYBACK-BASE) is not installed and is not routed.
 
 The share swap needed one writer fix to be checkable. `issueSharesToExternalHolders` (`js/engine.js`) raised

@@ -131,6 +131,9 @@ function accept(instance){
  if(quote.amount<MIN_INJECTION||quote.shares<=0)return instance.fail('事業再生ファンドの出資条件を満たしていません。');
  return instance.runTransaction(()=>{
   const week=integer(state.week),fundID=`turnaround-fund-${week}`,fundName=fundNameFor(state);
+  // P3-4 verification leg (W-TURNAROUND-ACCEPT): the issued bucket this injection leaves must be the planned one.
+  const ownership=globalThis.__capitalismTycoonModules.phase3OwnershipApply,leg=ownership.beginOwnershipLeg(instance,{writerId:'W-TURNAROUND-ACCEPT',
+   kind:'external-issue',operationId:fundID,change:{quantity:quote.shares}});
   state.sharesOut=finite(state.sharesOut)+quote.shares;
   state.companyCash=finite(state.companyCash)+quote.amount;
   finance.event(state,'equityFinancing',quote.amount,{cashEffect:quote.amount,equityEffect:quote.amount,
@@ -139,6 +142,7 @@ function accept(instance){
   const ledger=finance.ensureFinance(state);
   ledger.balances.capitalSurplus=finite(ledger.balances.capitalSurplus)+quote.amount;
   instance.updateOwnershipRatios();
+  if(!ownership.confirmOwnershipLeg(instance,leg))return instance.fail('株式数の整合を確認できませんでした。');
   // The injection lifts cash, so re-run the crisis evaluation before starting the plan: the
   // plan's own targets are computed from the post-injection position.
   crisis.lastEvaluationWeek=Math.max(0,week-1);
