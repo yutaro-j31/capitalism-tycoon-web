@@ -247,4 +247,34 @@ assert.deepEqual(differingPaths(replayA,replayB),[],'same state/commands produce
   assert.equal(JSON.stringify(replay.g.simulationRng),replayRng);
 }
 
+// P3-4 verification legs (W-MARGIN-LIQ, one per forced own-share sale): inside a rollback boundary the forced sale leaves
+// exactly the planned lot; a lot write skewed by one share refuses the whole boundary and restores it; another ticker
+// and a second generation keep the existing liquidation. The installed week runs it inside its transaction.
+{
+  function called(serial=1){
+    const f=setup(0x3303000b),g=f.game.g,margin=f.loaded.modules.personalStockMargin;g.currentCompanySerial=serial;
+    assert.equal(f.game.buyStock('CPTY',1000,'personal'),true);
+    assert.equal(f.game.borrowPersonalStockMargin('standard'),true);
+    // The setup row has no market trend; the installed week's market pass needs one (production rows always carry it).
+    const stock=f.game.stock('CPTY');stock.trend=0;stock.price=Math.max(1,stock.price*.1);stock.marketCap=stock.price*stock.issuedShares;
+    assert(margin.currentLTV(g)>margin.MAINTENANCE_LTV);return {f,g,margin};
+  }
+  const skew=g=>{let armed=true;g.personalStocks.CPTY=new Proxy(g.personalStocks.CPTY,{set(t,k,v){t[k]=k==='qty'&&armed?v+1:v;if(k==='qty')armed=false;return true;}});};
+  {const {f,g,margin}=called();
+   const result=f.game.runTransaction(()=>margin.processWeek(f.game)!==null);
+   assert.equal(result,true,'leg-checked liquidation inside a transaction');assert.equal(g.personalStocks.CPTY,undefined,'the lot is sold as before');assert.equal(margin.balanceOf(g),0);}
+  {const {f,g,margin}=called(),prior=JSON.stringify(g);skew(g);
+   assert.throws(()=>f.game.runTransaction(()=>margin.processWeek(f.game)!==null),/株式数の整合を確認できませんでした/,'a skewed forced-sale lot write is refused');
+   assert.equal(JSON.stringify(g),prior,'and the whole boundary is rolled back');}
+  {const {f,g,margin}=called(2);skew(g);
+   assert.equal(f.game.runTransaction(()=>margin.processWeek(f.game)!==null),true,'second generation keeps the existing liquidation (unchecked)');}
+  {const {f,g,margin}=called(),prior=JSON.stringify(g),save=f.game.save;skew(g);f.game.save=()=>true;
+   assert.throws(()=>f.game.advanceWeek(false),/株式数の整合を確認できませんでした/,'the installed week refuses a skewed forced sale');
+   f.game.save=save;assert.equal(JSON.stringify(g),prior,'and the whole week is rolled back');void margin;}
+  {const {f,g,margin}=called();f.game.save=()=>true;
+   assert.notEqual(f.game.advanceWeek(false),false,'the installed week liquidates the own-share lot');
+   assert.equal(g.personalStocks.CPTY,undefined,'the week sold the own-share lot');assert.equal(margin.balanceOf(g),0);}
+  console.log('margin forced own-share sale P3-4 verification legs (transaction, installed week, skew, second generation) PASS');
+}
+
 console.log('Player own-share acquisition conservation regressions passed');

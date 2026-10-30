@@ -109,6 +109,8 @@ Activation later replaces the writer's own quantity writes with `applyOwnershipP
 | W-TURNAROUND-ACCEPT `accept` (`js/player-crisis-turnaround-fund.js`), unlisted company in crisis | `external-issue` | #1202 |
 | W-MA-EQUITY/SH financing wrapper of `completeTargetAcquisition` (`js/ma-acquisition-financing.js`), listed company, M&A public equity raise, live plan / final shadow confirmation | `external-issue` | this PR |
 
+| W-MARGIN-LIQ forced margin sale (`liquidate` → `sellPersonalStockRaw`, `js/personal-stock-margin.js`), the player's own ticker only, one leg per forced sale | `personal-sell` | #1212 |
+
 `tests/phase3-ownership-apply-test.js` covers the legs at two levels:
 
 - **Unit:**
@@ -167,6 +169,12 @@ Activation later replaces the writer's own quantity writes with `applyOwnershipP
 - **Unit:** a shadow engine plans only with its own `ownershipShadowBoundary: true`; an inherited or false marker, or no
   boundary, does not.
 
+- **Writer suite** (`tests/player-own-share-conservation-test.js`), forced margin liquidation of an own-share lot:
+  - inside a transaction and through the installed week, the forced sale leaves exactly the planned lot (the lot is
+    sold as before);
+  - a lot write skewed by one share is refused and the whole transaction or week is rolled back;
+  - a second-generation company keeps the existing liquidation.
+
 The existing founder-share-sale, stock-split, buyback and investor-offer Node suites pass unchanged. The sponsor-injection Node and
 WebKit suites had a negative control that skewed the live issuance and expected the command to succeed; the writer now
 refuses that issuance, so the control breaks a copy of the committed state instead, and both suites add a case that
@@ -187,6 +195,10 @@ The M&A equity raise runs on the financing wrapper's shadow engine, outside any 
 gate would never plan it. The wrapper now plans against the live state via its explicitly marked boundary facade, before cloning. It confirms the leg
 against the final shadow after financing, inner completion and finance validation, before live replacement; a mismatch throws into the wrapper's existing catch, which restores the live
 state and the save checkpoint. This adds no nested transaction and does not change how §1 treats the shadow boundary.
+
+The forced margin sale is a weekly writer: a mismatch refuses the whole week. Each own-ticker raw sale plans against
+the state the previous sale left. The exported `liquidate` / `processWeek` called directly, outside a transaction, keep
+the documented boundary gap and stay unchecked; closing it is a separate atomicity change.
 
 ## Limits
 
