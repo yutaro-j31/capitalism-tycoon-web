@@ -150,6 +150,8 @@ jobs:
         run: node scripts/parallel-shard-write-observation.cjs
       - name: Verify optional shard write audit controls
         run: node scripts/parallel-shard-write-audit-test.cjs
+      - name: Validate offline K evidence audit controls
+        run: node scripts/parallel-shard-k-evidence-audit-test.cjs
   test-shards:
     if: github.event_name == 'push' || github.event_name == 'pull_request'
     name: test-shard-${{ matrix.shard }}
