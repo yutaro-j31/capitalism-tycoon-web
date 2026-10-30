@@ -74,4 +74,13 @@ for (const token of ["node: ['22', '24']", 'timeout-minutes: 90', 'contents: rea
   assert.ok(kDiagnostic.includes(token), `K diagnostic must retain ${token}`);
 assert.doesNotMatch(kDiagnostic, /continue-on-error|TEST_SHARD_PARALLELISM|vars\./);
 assert.ok(!diagnostic.includes('--full-shard K'), 'E and K contracts examine separate job blocks');
+const writeDiagnostic = jobBlock('parallel-k-write-observation');
+assert.equal(writeDiagnostic.split("\n").find(line => line.trim().startsWith("if:")),
+  "    if: github.event_name == 'pull_request' && github.head_ref == 'ci/shard-k-write-observation'");
+for (const token of ["node: ['22', '24']", 'timeout-minutes: 120', 'contents: read', 'fail-fast: false',
+  '--full-shard K', '--root diagnostic-k-source', '--source-sha 165d924423f1e4bde8be8c801c28b15bbac76e72',
+  '--retain-output --write-audit-root', 'node scripts/parallel-shard-write-observation.cjs',
+  'node tests/parallel-shard-runner-test.js', 'persist-credentials: false', 'if: always()', 'if-no-files-found: error'])
+  assert.ok(writeDiagnostic.includes(token), `K write observation must retain ${token}`);
+assert.doesNotMatch(writeDiagnostic, /continue-on-error|TEST_SHARD_PARALLELISM|vars\./);
 console.log('shard-parallel-workflow-contract-test: ok');

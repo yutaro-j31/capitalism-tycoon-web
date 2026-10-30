@@ -10,10 +10,14 @@ const path = require('node:path');
 const cp = require('node:child_process');
 const sha256 = bytes => require('node:crypto').createHash('sha256').update(bytes).digest('hex');
 const runner = require('./parallel-shard-runner');
+const writeObservation = require('./parallel-shard-write-observation.cjs');
 const option = name => { const i = process.argv.indexOf(name); return i < 0 ? null : process.argv[i + 1]; };
 const ROOT = option('--root') ? path.resolve(option('--root')) : path.resolve(__dirname, '..');
 const fullShard = process.argv.includes('--full-e') ? 'E' : option('--full-shard');
 if (fullShard && !['E', 'K'].includes(fullShard)) throw new Error('full-shard diagnosis supports E or K only');
+const auditRoot = option('--write-audit-root');
+if (auditRoot && (fullShard !== 'K' || !process.argv.includes('--retain-output')))
+  throw new Error('write audit requires full-shard K and byte-exact --retain-output');
 const delay = ms => new Promise(resolve => setTimeout(resolve, ms));
 
 function parseStat(text) {
@@ -162,9 +166,11 @@ async function main() {
     const command = (label, body) => ({ label, command: process.execPath, args: ['-e', body] });
     async function run(name, commands, concurrency, expected, scheduling = {}) {
       trace = [];
-      const items = commands.map((c, i) => ({ ...c, index: i }));
+      const { audit = false, ...runnerScheduling } = scheduling;
+      let items = commands.map((c, i) => ({ ...c, index: i }));
+      if (audit) items = writeObservation.prepare(items, path.resolve(auditRoot, name));
       const record = { name, trace, result: null, after: [] }; report.runs.push(record);
-      const result = await runner.runCommands(items, { cwd: ROOT, concurrency, ...scheduling, testTimeoutMs: fullShard ? 1500000 : 240000,
+      const result = await runner.runCommands(items, { cwd: ROOT, concurrency, ...runnerScheduling, testTimeoutMs: fullShard ? 1500000 : 240000,
         runTimeoutMs: fullShard ? 3000000 : 300000, sampleMs: 100, log: line => console.log(line) });
       record.result = result;
       if (process.argv.includes('--retain-output')) record.outputs = retainedOutputs(result.results);
@@ -189,6 +195,11 @@ async function main() {
       assert.deepEqual(result.counts, { enumerated: commands.length, passed: commands.length, failed: 0, aborted: 0, notStarted: 0 });
       if (fullShard === 'K') assertMemory(result.peakSystemMemInUseMb, report.physicalMemoryBytes);
       for (let i = 0; i < expected.length; i++) assert.equal(result.results[i].leftoverProcesses, expected[i], `${name}: residue flag for ${items[i].label}`);
+      if (audit) {
+        record.writeObservation = writeObservation.collect(items, trace);
+        save();
+        assert.equal(record.writeObservation.ok, true, `${name}: observed writes/ports/opaque child calls require review`);
+      }
       console.log(`process-diagnostic: ${name} ${JSON.stringify(record.classifications)}`);
       return result;
     }
@@ -217,9 +228,13 @@ async function main() {
         const cfg = JSON.parse(fs.readFileSync(path.join(ROOT, 'scripts/parallel-shard-runner.config.json'), 'utf8'));
         const timings = fullShard === 'E' ? cfg.timings.E : Object.fromEntries(reference.results.map(r => [r.label, r.wallMs / 1000]));
         report.schedulingTimings = timings;
+        if (auditRoot) {
+          const audited = await run(`${prefix}-audited-serial`, commands, 1, Array(count).fill(false), { audit: true });
+          compareOutputs(reference, audited);
+        }
         for (const concurrency of fullShard === 'K' ? [2, 4] : [2]) {
           const parallel = await run(`${prefix}-parallel-${concurrency}`, commands, concurrency, Array(count).fill(false),
-            { order: 'longest-first', timings, serial: cfg.serial[fullShard] || [] });
+            { order: 'longest-first', timings, serial: cfg.serial[fullShard] || [], audit: Boolean(auditRoot) });
           compareOutputs(reference, parallel);
         }
         report.outputParity = true; report.ok = true;

@@ -146,6 +146,8 @@ jobs:
         run: node scripts/parallel-shard-runner-process-diagnostic.js --self-test
       - name: Verify every browser-installing job is time-bounded
         run: node tests/workflow-browser-timeout-contract.js
+      - name: Verify per-command write observation coverage
+        run: node scripts/parallel-shard-write-observation.cjs
       - name: Verify optional shard write audit controls
         run: node scripts/parallel-shard-write-audit-test.cjs
   test-shards:
@@ -585,5 +587,54 @@ jobs:
         with:
           name: k-diagnostic-node-${{ matrix.node }}-${{ github.run_id }}
           path: artifacts/k-diagnostic/
+          if-no-files-found: error
+          retention-days: 14
+
+  parallel-k-write-observation:
+    name: K write observation (Node ${{ matrix.node }})
+    if: github.event_name == 'pull_request' && github.head_ref == 'ci/shard-k-write-observation'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    timeout-minutes: 120
+    strategy:
+      fail-fast: false
+      matrix:
+        node: ['22', '24']
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node }}
+      - name: Record K host resources
+        run: |
+          node --version
+          nproc
+          free -m
+          uname -a
+      - name: Diagnose process controls
+        run: node scripts/parallel-shard-runner-process-diagnostic.js --report artifacts/k-write-observation/controls-node-${{ matrix.node }}.json
+      - name: Validate write observation controls
+        run: node scripts/parallel-shard-write-observation.cjs
+      - name: Existing process integrity regression
+        run: node tests/parallel-shard-runner-test.js
+      - name: Checkout pinned K source
+        uses: actions/checkout@v4
+        with:
+          ref: 165d924423f1e4bde8be8c801c28b15bbac76e72
+          path: diagnostic-k-source
+          persist-credentials: false
+      - name: Compare K clean reference and audited serial, two and four
+        run: >-
+          node scripts/parallel-shard-runner-process-diagnostic.js --full-shard K
+          --root diagnostic-k-source --source-sha 165d924423f1e4bde8be8c801c28b15bbac76e72
+          --retain-output --write-audit-root artifacts/k-write-observation/audit-node-${{ matrix.node }}
+          --report artifacts/k-write-observation/full-k-node-${{ matrix.node }}.json
+      - name: Retain K diagnostic evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: k-write-observation-node-${{ matrix.node }}-${{ github.run_id }}
+          path: artifacts/k-write-observation/
           if-no-files-found: error
           retention-days: 14
