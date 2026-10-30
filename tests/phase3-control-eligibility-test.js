@@ -302,3 +302,57 @@ for(const negativeZero of [snapshot({issued:300,treasury:-0,held:150}),snapshot(
   assert.deepStrictEqual(raw,reloaded,'-0 voting units must canonicalize to 0');
 }
 console.log('P3-9 control eligibility projection tests passed');
+
+// P3-10: inspect-only explanation, including 100% voting eligibility, never authorizes a command or its payload.
+{
+ const explain=control.explainOwnershipCommand;
+ assert.equal(typeof explain,'function','inspect-only explanation loads through the existing production module');
+ const full=snapshot({issued:300,treasury:0,held:300}),before=JSON.stringify(full);
+ const requests=ORDER.map(commandId=>({...scope,commandId,payload:{policy:'sellAssets'}}));
+ for(const request of requests){
+  const requestBefore=JSON.stringify(request),out=explain(full,request);
+  assert.equal(out.status,'EXPLAINED');assert.equal(out.commandId,request.commandId);
+  assert.equal(out.eligibility.status,E,'100% proves eligibility only');
+  assert.equal(out.authority,'read-only');assert.equal(out.executable,false);assert.equal(out.executionStatus,'NOT_AUTHORIZED');
+  assert.deepEqual(Array.from(out.blockers,b=>b.code),['AUTHORITY_NOT_ADOPTED','EFFECT_UNAPPROVED']);
+  assert.deepEqual(plain(out.eligibility),plain(project(full,scope).capabilities.find(c=>c.commandId===request.commandId)));
+  assert(Object.isFrozen(out)&&Object.isFrozen(out.blockers)&&Object.isFrozen(out.eligibility));
+  assert.equal(JSON.stringify(request),requestBefore,'request unchanged');
+  assert.deepEqual(plain(explain(JSON.parse(before),JSON.parse(requestBefore))),plain(out),'JSON reload parity');
+ }
+ assert.equal(JSON.stringify(full),before,'evidence unchanged');
+ for(const [commandId,n,status] of cases){
+  const out=explain(snapshot({issued:300,treasury:0,held:n}),{...scope,commandId});
+  assert.equal(out.status,'EXPLAINED');assert.equal(out.eligibility.status,status,commandId+' exact boundary');
+  assert.equal(out.executable,false);
+ }
+ const unknown=explain(full,{...scope,commandId:'informationRequest',issuerEntityId:'entity:company:unknown'});
+ assert.equal(unknown.status,'UNKNOWN');assert.equal(unknown.eligibility.status,'UNKNOWN');
+ assert.equal(unknown.issues[0].code,'ISSUER_FAMILY_UNSUPPORTED');assert.equal(unknown.executable,false);
+ for(const request of [null,[],{...scope,commandId:'executeIPO'},{...scope,commandId:'informationRequest',execute:true}]){
+  const out=explain(full,request);assert.equal(out.status,'UNKNOWN');assert.equal(out.executable,false);assert(out.issues.length);
+ }
+ let getterHits=0;
+ const getter={...scope};Object.defineProperty(getter,'commandId',{enumerable:true,get(){getterHits++;throw Error('getter');}});
+ assert.equal(explain(full,getter).issues[0].code,'INPUT_INVALID');assert.equal(getterHits,0);
+ const payload={};Object.defineProperty(payload,'policy',{enumerable:true,get(){getterHits++;return 'sellAssets';}});
+ assert.equal(explain(full,{...scope,commandId:'managementProposal',payload}).issues[0].code,'INPUT_INVALID');assert.equal(getterHits,0);
+ const cyclic={};cyclic.self=cyclic;
+ assert.equal(explain(full,{...scope,commandId:'managementProposal',payload:cyclic}).issues[0].code,'INPUT_INVALID');
+ const forged=plain(full);forged.beneficialHoldings[0].quantity--;
+ assert.equal(explain(forged,{...scope,commandId:'specialResolution'}).eligibility.status,'UNKNOWN','forged reconciliation is revalidated');
+ // Production-state read path: preserve the whole state/RNG and make persistence, ledger, clock and host RNG fail.
+ const game=new loaded.engineModule.TycoonEngine();
+ const g=game.g,prior=JSON.stringify(g),draws=hostDraws;
+ const save=game.save,event=loaded.modules.finance.event,clock=loaded.ctx.Date;
+ game.save=()=>{throw Error('save');};loaded.modules.finance.event=()=>{throw Error('ledger');};
+ loaded.ctx.Date=new Proxy(function(){},{apply(){throw Error('clock');},construct(){throw Error('clock');}});
+ try{
+  const evidence=readModel.ownershipReconciliation(g),request={...scope,commandId:'informationRequest'};
+  const a=explain(evidence,request),b=explain(evidence,request);
+  assert.deepEqual(plain(a),plain(b));assert.equal(a.status,'EXPLAINED','valid production evidence is explained');assert.equal(a.executable,false);
+  assert.equal(explain(game,request).status,'UNKNOWN','an engine is not a reconciliation snapshot');
+  assert.equal(JSON.stringify(g),prior,'full production state unchanged');assert.equal(hostDraws,draws,'zero host RNG');
+ }finally{game.save=save;loaded.modules.finance.event=event;loaded.ctx.Date=clock;}
+ console.log('P3-10 inspect-only ownership command explanation PASS');
+}

@@ -192,8 +192,37 @@ function projectControlEligibility(snapshot,options){
  return deepFreeze(out);
 }
 
+// P3-10 inspect-only preparation: explain the existing eligibility and why execution is unavailable. This function
+// accepts a reconciliation snapshot, never an engine, and cannot invoke a command or authorize its payload.
+function explainOwnershipCommand(snapshot,request){
+ const out={explanationVersion:1,authority:'read-only',executable:false,status:'UNKNOWN',commandId:null,
+  issuerEntityId:null,actingEntityId:null,eligibility:null,executionStatus:'NOT_AUTHORIZED',blockers:[
+   reason('AUTHORITY_NOT_ADOPTED','execution','Ownership authority activation has not been approved.'),
+   reason('EFFECT_UNAPPROVED','request.payload','This explanation grants no command effect or execution permission.')
+  ],issues:[]};
+ try{
+  const req=record(request,'request');jsonData(req,'request');
+  const allowed=['commandId','issuerEntityId','actingEntityId','payload'];
+  if(Reflect.ownKeys(req).some(key=>!allowed.includes(key)))throw new Unknown('INPUT_INVALID','request','Only inspect-only command fields are supported.');
+  const commandId=field(req,'commandId','request');
+  if(typeof commandId!=='string'||!LADDER.some(stage=>stage.commandId===commandId))
+   throw new Unknown('COMMAND_UNSUPPORTED','request.commandId','The command is outside the approved Control Ladder catalog.');
+  out.commandId=commandId;
+  const issuerEntityId=field(req,'issuerEntityId','request'),actingEntityId=field(req,'actingEntityId','request');
+  const eligibility=projectControlEligibility(snapshot,{issuerEntityId,actingEntityId});
+  out.issuerEntityId=eligibility.issuerEntityId;out.actingEntityId=eligibility.actingEntityId;
+  out.eligibility=eligibility.capabilities.find(row=>row.commandId===commandId);
+  out.issues=eligibility.issues;
+  out.status=eligibility.status==='EVALUATED'?'EXPLAINED':'UNKNOWN';
+ }catch(error){
+  out.issues=[reason(error instanceof Unknown?error.code:'INPUT_INVALID',error instanceof Unknown?error.path:'request',
+   error instanceof Unknown?error.message:'The request or evidence could not be inspected.')];
+ }
+ return deepFreeze(out);
+}
+
 modules.phase3ControlEligibility=Object.freeze({
  LADDER:Object.freeze(LADDER.map(stage=>Object.freeze({commandId:stage.commandId,threshold:stage.threshold}))),
- projectControlEligibility
+ projectControlEligibility,explainOwnershipCommand
 });
 })();
