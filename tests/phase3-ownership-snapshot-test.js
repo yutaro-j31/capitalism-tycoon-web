@@ -136,5 +136,49 @@ console.log('PASS phase3 ownership snapshot: composition, dedup, generation quar
  quantities(checked(s,game,index));
  assert(checked(s,game,speculative).issues.some(x=>x.code==='STALE_EVIDENCE'),'speculative index cannot survive rollback');
  assert.equal(s.backend.readSync(s.key),bytes);await s.backend.flush();assert.equal(s.durable.get(s.key),bytes,'rejected replacement cannot become durable');
+ // W-SPLIT: exercise the actual installed writer at the same week, not a synthetic quantity edit.
+ const root=game.g,splitBefore=plain(game.g),splitIndex=read.buildOwnershipIdentityIndex(game.g);
+ function scaled(engine,api,factor){
+  const before=JSON.stringify(engine.g),view=api.projectOwnershipSnapshot(engine.g);
+  assert.equal(JSON.stringify(engine.g),before,'split observation preserves full state and persisted RNG');
+  assert(!view.issues.some(row=>row.code==='STALE_EVIDENCE'));
+  assert.equal(view.classes[0].issuedQuantity,1000*factor);assert.equal(view.classes[0].treasuryQuantity,100*factor);
+  assert.equal(view.classes[0].outstandingQuantity,900*factor);
+  assert.equal(view.positions.find(row=>row.assetRole==='founder-equity').quantity.value,610*factor,'founder + own personal lot scale once');
+  for(const account of ['company','personal'])assert.equal(view.positions.find(row=>row.instrumentAlias==='EXT'&&row.accountKind===account).quantity.value,account==='company'?30:20);
+  assert.equal(view.commandEligible,false);assert.equal(view.wealthComplete,false);
+  assert.equal(engine.g.week,splitBefore.week,'split does not advance time');
+  for(const key of ['companyCash','personalCash','companyDebt','personalDebt','simulationRng'])assert.deepEqual(plain(engine.g[key]),splitBefore[key],key+' unchanged by split');
+  assert.equal(s.modules.finance.validate(plain(engine.g)).ok,true);
+ }
+ for(const mode of ['save-false','save-throw']){
+  const save=game.save,attempts=s.control.attempts.length,draws=s.host.draws;let speculative,hits=0;
+  game.save=function(...args){
+   if(this.inTransaction())return save.apply(this,args);
+   hits++;speculative=read.buildOwnershipIdentityIndex(this.g);
+   if(mode==='save-false')return false;
+   const result=save.apply(this,args);assert.equal(result,true,'throw follows actual save admission');throw Error('split save admitted then threw');
+  };
+  try{if(mode==='save-throw')assert.throws(()=>game.stockSplit('OWN',2),/split save admitted then threw/);else assert.equal(game.stockSplit('OWN',2),false);}finally{game.save=save;}
+  assert.equal(hits,1,'fault reaches the actual outer commit');assert.equal(game.g,root,'rollback retains root');
+  assert.deepEqual(plain(game.g),splitBefore,'failed split restores all fields');assert.equal(s.host.draws,draws);
+  quantities(checked(s,game,splitIndex));
+  assert(checked(s,game,speculative).issues.some(row=>row.code==='STALE_EVIDENCE'),'speculative split index rejected after rollback');
+  await s.backend.flush();assert.equal(s.backend.readSync(s.key),bytes);assert.equal(s.ctx.localStorage.getItem(s.key),bytes);
+  assert.equal(s.durable.get(s.key),bytes);assert.equal(s.control.attempts.length,attempts,'failed split put never starts');
+ }
+ let predecessor=splitIndex;
+ for(const factor of [2,4]){
+  const draws=s.host.draws;assert.equal(game.stockSplit('OWN',2),true,'healthy split/retry');assert.equal(game.g,root);
+  assert.equal(s.host.draws,draws);assert(checked(s,game,predecessor).issues.some(row=>row.code==='STALE_EVIDENCE'),'same-root/same-week writer invalidates predecessor');
+  scaled(game,read,factor);predecessor=read.buildOwnershipIdentityIndex(game.g);
+ }
+ await s.backend.flush();scaled(s.engineModule.TycoonEngine.load(),read,4);
+ const {indexedDBFor}=require('./fixtures/pe-fund-acquisition-faults');
+ const freshControl={attempts:[]},fresh=loadGame({headless:true,indexedDB:indexedDBFor(s.durable,freshControl)});await fresh.modules.saveStorageIDB.hydrate();
+ const hydrated=fresh.engineModule.TycoonEngine.load(),freshBefore=JSON.stringify(hydrated.g),freshAttempts=freshControl.attempts.length;
+ scaled(hydrated,fresh.modules.economicReadModel,4);assert.equal(JSON.stringify(hydrated.g),freshBefore);
+ assert.equal(freshControl.attempts.length,freshAttempts,'fresh ownership observation admits no write');
+ console.log('P3-4 actual same-week split: old/speculative index invalidation / rollback / retry / repeat / fresh fake-IDB PASS');
  console.log('P3-4 ownership replacement-boundary read-model evidence PASS');
 })().catch(error=>{console.error(error);process.exitCode=1;});
