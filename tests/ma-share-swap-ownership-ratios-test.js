@@ -153,5 +153,58 @@ async function check(s,run,label){
   assert.equal(fresh.modules.finance.validate(snapshot(restored)).ok,true);
   console.log('raw external issuance / existing caller TX / '+mode+' / fresh durable hydration PASS');
  }
+ // W-ACQUIRE-COMPAT: capture the old engine body, not the installed deal-room wrapper.
+ // Only the explicit existing caller TX below owns persistence/rollback; standalone use stays unproved.
+ const {injectFault}=require('./helpers/transaction-fault-case');
+ const economicState=g=>{const copy=JSON.parse(JSON.stringify(g));delete copy.lastSaveDate;delete copy.saveSequence;return copy;};
+ let compatReference;
+ for(const mode of ['normal','save-false','save-throw']){
+  const s=await listed(),game=s.game,backend=s.modules.saveStorageIDB;
+  game.g.acquisitionTargets[0].activeDealID=null;assert.equal(game.save(),true);await backend.flush();
+  const proto=Object.getPrototypeOf(s.engineModule.TycoonEngine.prototype),captured=proto.acquireTarget;
+  assert.equal(Object.hasOwn(proto,'acquireTarget'),true);assert.notEqual(captured,game.acquireTarget);
+  assert.equal(s.modules.phase3OwnershipPlanner.WRITER_POLICIES['W-ACQUIRE-COMPAT'].rejection,'INTERNAL_ENTRY');
+  game.acquireTarget=()=>{throw Error('installed compatibility wrapper must not run');};
+  const before=snapshot(game),bytes=backend.readSync(s.key),puts=s.control.attempts.length,draws=s.host.draws,targetID=before.acquisitionTargets[0].id;
+  assert.equal(before.acquisitionTargets[0].valuation,80000000,'pinned legacy valuation');
+  let calls=0;
+  const invoke=()=>game.runTransaction(()=>{assert.equal(game.inTransaction(),true);calls++;return captured.call(game,targetID,'shareSwap');});
+  async function loaded(expected){
+   const wanted=economicState(new s.engineModule.TycoonEngine(JSON.parse(JSON.stringify(expected))).g);
+   assert.deepEqual(economicState(s.engineModule.TycoonEngine.load().g),wanted,'compat production reload');
+   const fresh=loadGame({headless:true,indexedDB:indexedDBFor(s.durable,{attempts:[]})});await fresh.modules.saveStorageIDB.hydrate();
+   assert.deepEqual(economicState(fresh.engineModule.TycoonEngine.load().g),wanted,'compat fresh durable-only hydration');
+  }
+  const fault=mode==='normal'?null:injectFault({...s,backend},mode);
+  try{if(mode==='save-throw')assert.throws(invoke,/save accepted then threw/);else assert.equal(invoke(),mode==='normal');}finally{fault?.restore();}
+  assert.equal(calls,1,'captured acquisition really executed');
+  if(fault){
+   assert.ok(fault.hits()>0);assert.deepEqual(snapshot(game),before,'full legacy acquisition/RNG rollback');
+   await backend.flush();assert.equal(backend.readSync(s.key),bytes);assert.equal(s.ctx.localStorage.getItem(s.key),bytes);
+   assert.equal(s.durable.get(s.key),bytes);assert.equal(s.control.attempts.length,puts,'failed compat put never starts');
+   await loaded(before);assert.equal(invoke(),true,'same captured acquisition retries');assert.equal(calls,2);
+  }
+  const after=snapshot(game);
+  assert.equal(after.sharesOut,before.sharesOut+86400,'legacy 80M x1.08 /1000 issues86400 external shares');
+  assert.equal(game.stock(after.ticker).issuedShares,after.sharesOut);assert.equal(game.stock(after.ticker).marketCap,1000*after.sharesOut);
+  for(const key of ['founderShares','treasuryBuybackShares','personalStocks','companyStocks','companyCash','personalCash','companyDebt','personalDebt','maDealRooms'])
+   assert.deepEqual(after[key],before[key],'compat preserves '+key);
+  for(const key of ['seed','state','draws'])assert.equal(after.simulationRng[key],before.simulationRng[key],'goodwill ID does not draw RNG: '+key);
+  assert.equal(s.host.draws,draws);assert.ok(after.simulationRng.nextID>before.simulationRng.nextID,'existing goodwill ID allocation retained');
+  close(holdings(after).competitor,190000,'legacy competitor quantity preserved');close(holdings(after).external,146400,'legacy external quantity');assertRatios(after,'captured compatibility');
+  assert.equal(after.acquisitionTargets.some(t=>t.id===targetID),false);assert.equal(after.totalAcquisitions,before.totalAcquisitions+1);
+  assert.equal(after.maSubsidiaries.length,before.maSubsidiaries.length+1);assert.equal(after.goodwillRecords.length,before.goodwillRecords.length+1);
+  const sub=after.maSubsidiaries.at(-1);assert.equal(sub.acquisitionPrice,86400000);assert.equal(sub.identifiableNetAssetsBookValue,80000000);assert.equal(sub.goodwillBookValue,6400000);
+  for(const [source,field] of [['acquireTargetShareSwap','assetEffect'],['shareSwapCapital','equityEffect']]){
+   const rows=after.finance.transactions.filter(t=>t.sourceType===source&&t.sourceID===targetID);
+   assert.equal(rows.length,1,'one '+source+' receipt');assert.equal(rows[0].cashEffect,0);assert.equal(rows[0][field],86400000);
+  }
+  assert.equal(s.modules.finance.validate(JSON.parse(JSON.stringify(after))).ok,true);
+  if(compatReference)assert.deepEqual(economicState(after),compatReference,'rollback+retry equals uninterrupted legacy acquisition including ID/RNG');else compatReference=economicState(after);
+  await backend.flush();assert.equal(s.control.attempts.length,puts+1,'one successful compat put');await loaded(after);
+  const stable=snapshot(game),saved=backend.readSync(s.key);assert.equal(invoke(),false,'consumed target cannot be acquired twice');
+  assert.deepEqual(snapshot(game),stable);await backend.flush();assert.equal(backend.readSync(s.key),saved);assert.equal(s.control.attempts.length,puts+1);
+  console.log('captured acquireTarget / explicit caller TX / '+mode+' / retry-replay-fresh fake-IDB PASS');
+ }
  console.log('share swap ownership ratios PASS');
 })().catch(e=>{console.error(e);process.exitCode=1;});
