@@ -144,6 +144,8 @@ jobs:
         run: node tests/shard-matrix-contract.js
       - name: Verify every browser-installing job is time-bounded
         run: node tests/workflow-browser-timeout-contract.js
+      - name: Verify optional shard write audit controls
+        run: node scripts/parallel-shard-write-audit-test.cjs
   test-shards:
     if: github.event_name == 'push' || github.event_name == 'pull_request'
     name: test-shard-${{ matrix.shard }}
