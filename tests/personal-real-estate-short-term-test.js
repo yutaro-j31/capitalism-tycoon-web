@@ -135,7 +135,7 @@ function withHolding(seed = 260819777, offer = 'logistics-aichi', cash = 500_000
 // is being traded for the loss of a guaranteed rent.
 {
   const { asset, shortTerm } = withHolding();
-  assert.equal(shortTerm.fullRateFor(asset), Math.round(asset.weeklyRent * shortTerm.SHORT_TERM_RATE_MULTIPLIER));
+  assert.equal(shortTerm.fullRateFor(asset), Math.ceil(asset.weeklyRent * shortTerm.SHORT_TERM_RATE_MULTIPLIER));
   assert.ok(shortTerm.SHORT_TERM_RATE_MULTIPLIER > 1.5, '満室週は長期の契約家賃を大きく上回る');
 }
 
@@ -144,9 +144,9 @@ function withHolding(seed = 260819777, offer = 'logistics-aichi', cash = 500_000
   const { engine, asset, shortTerm } = withHolding();
   engine.switchPersonalRealEstateRentalMode(asset.assetID, 'short');
   const result = shortTerm.weeklyResultFor(engine.g, asset);
-  assert.equal(result.gross, Math.round(shortTerm.fullRateFor(asset) * result.occupancy));
-  const standing = Math.round(asset.purchasePrice * shortTerm.SHORT_TERM_STANDING_COST_RATE);
-  assert.equal(result.expense, standing + Math.round(result.gross * shortTerm.SHORT_TERM_VARIABLE_COST));
+  assert.equal(result.gross, Math.ceil(shortTerm.fullRateFor(asset) * result.occupancy));
+  const standing = asset.purchasePrice * shortTerm.SHORT_TERM_STANDING_COST_RATE;
+  assert.equal(result.expense, Math.ceil(standing + result.gross * shortTerm.SHORT_TERM_VARIABLE_COST));
   assert.equal(result.noi, result.gross - result.expense);
   assert.ok(standing > 0, '空室でも発生する固定的な費用がある');
 }
@@ -362,7 +362,7 @@ function withHolding(seed = 260819777, offer = 'logistics-aichi', cash = 500_000
     assert.equal(short.currentValue, long.currentValue, `${weeks}週後の市場評価額は運用方式に依存しない`);
     assert.equal(short.weeklyRent, long.weeklyRent, `${weeks}週後の市場家賃は運用方式に依存しない`);
     assert.equal(long.rentalOps.contractWeeklyRent, signedRent, '締結済み契約家賃は市場家賃と分離する');
-    assert.equal(shortTerm.fullRateFor(short), Math.round(short.weeklyRent * shortTerm.SHORT_TERM_RATE_MULTIPLIER), '短期基準収益は更新済み市場家賃を使う');
+    assert.equal(shortTerm.fullRateFor(short), Math.ceil(short.weeklyRent * shortTerm.SHORT_TERM_RATE_MULTIPLIER), '短期基準収益は更新済み市場家賃を使う');
     assert.equal(modules.personalRealEstateTaxes.annualTaxFor(short), modules.personalRealEstateTaxes.annualTaxFor(long), '固定資産税評価も運用方式に依存しない');
     return { initialValue, initialRent, currentValue: long.currentValue, weeklyRent: long.weeklyRent };
   }

@@ -1,12 +1,13 @@
 'use strict';
 const assert=require('node:assert/strict'),fs=require('node:fs'),vm=require('node:vm'),path=require('node:path');
+const economicOperation=(()=>{const ctx={};ctx.globalThis=ctx;ctx.__capitalismTycoonModules={};vm.runInNewContext(fs.readFileSync(path.join(__dirname,'..','js','economic-operation.js'),'utf8'),ctx);return ctx.__capitalismTycoonModules.economicOperation;})();
 const code=fs.readFileSync(path.join(__dirname,'../js/group-restructuring-progress.js'),'utf8'),events=[];
 let throwEvent=false;
 class Engine{constructor(g){this.g=g;this.normalize();}normalize(){}runTransaction(fn){const before=structuredClone(this.g);try{const ok=fn();if(!ok)this.g=before;return ok;}catch(error){this.g=before;throw error;}}advanceWeek(count=1){this.g.week+=count;return true;}save(){this.saved=JSON.stringify(this.g);}}
 const finance={event:(state,type,amount,detail)=>{if(throwEvent)throw new Error('ledger rejected');events.push({type,amount,...detail});}};
 function mergePreview(state,a,b){const rows=[String(a),String(b)].sort().map(id=>state.subsidiaries.find(x=>x.id===id));if(rows.some(x=>!x)||a===b)return null;return {aID:rows[0].id,bID:rows[1].id,mergedID:`merged-${rows.map(x=>x.id).join('-')}`,integrationCost:12_000_000,postValuation:rows.reduce((n,x)=>n+x.valuation,0)+10_000_000,postWeeklyProfit:rows.reduce((n,x)=>n+x.weeklyProfit,0)+200_000,bookValue:rows.reduce((n,x)=>n+x.carryingBookValue,0),risk:.2,growth:.1};}
 const modules={engine:{TycoonEngine:Engine},finance,playerEngineBridge:{getEngine:()=>null},groupRestructuringCandidates:{mergePreview}};
-const context={globalThis:{__capitalismTycoonModules:modules}};context.globalThis.globalThis=context.globalThis;vm.runInNewContext(code,context);const mod=modules.groupRestructuringProgress;
+modules.economicOperation=economicOperation;const context={globalThis:{__capitalismTycoonModules:modules}};context.globalThis.globalThis=context.globalThis;vm.runInNewContext(code,context);const mod=modules.groupRestructuringProgress;
 const plain=value=>JSON.parse(JSON.stringify(value));
 function state(){return {configured:true,selectedTab:'venture',saveVersion:9,week:10,companyCash:500_000_000,personalCash:9_000_000,subsidiaries:[
  {id:'a',name:'赤字A',status:'active',ownership:1,valuation:100_000_000,carryingBookValue:80_000_000,subsidiaryCash:4_000_000,weeklyProfit:-500_000,growth:.01,risk:.7,parentDividendsReceived:1000},

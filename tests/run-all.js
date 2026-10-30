@@ -24,8 +24,9 @@ for (let i = 0; i < commands.length; i++) {
   });
   const elapsedSeconds = ((Date.now() - startedAt) / 1000).toFixed(1);
   console.log(`[run-all ${i + 1}/${commands.length}] done ${command} in ${elapsedSeconds}s (exit ${result.status ?? `signal:${result.signal}`})`);
-  if (result.status) {
+  if (result.status !== 0 || result.signal || result.error) {
     console.error(`::error title=Test suite failed::${command}`);
+    if (result.signal || result.error) console.error(`abnormal exit: signal=${result.signal} error=${result.error && (result.error.code || result.error.message)}`);
     if (result.stdout) process.stdout.write(result.stdout);
     if (result.stderr) process.stderr.write(result.stderr);
     process.exit(result.status || 1);
@@ -38,6 +39,11 @@ const nodeTests = [
   ['debt-command-save-atomicity', 'tests/debt-command-save-atomicity-test.js'],
   ['cash-writer-ratchet', 'tests/cash-writer-ratchet-test.js'],
   ['select-affected-tests', 'tests/select-affected-tests-test.js'],
+  ['ci-metrics', 'tests/ci-metrics-test.js'],
+  ['parallel-shard-runner', 'tests/parallel-shard-runner-test.js'],
+  ['run-all-abnormal-exit', 'tests/run-all-abnormal-exit-test.js'],
+  ['shard-parallel-optin', 'tests/shard-parallel-optin-test.js'],
+  ['shard-parallel-workflow-contract', 'tests/shard-parallel-workflow-contract-test.js'],
   ['authoritative-company-cash', 'tests/authoritative-company-cash-test.js'],
   ['real-estate-construction-in-progress', 'tests/real-estate-construction-in-progress-test.js'],
   ['bank-loans-covenants-accounting', 'tests/bank-loans-covenants-accounting-test.js'],
@@ -52,6 +58,12 @@ const nodeTests = [
   ['save-storage-commit-atomicity', 'tests/save-storage-commit-atomicity-test.js'],
   ['ma-share-swap-save-atomicity', 'tests/ma-share-swap-save-atomicity-test.js'],
   ['investor-offer-save-atomicity', 'tests/investor-offer-save-atomicity-test.js'],
+  ['investor-offer-aux-save-atomicity', 'tests/investor-offer-aux-save-atomicity-test.js'],
+  ['sponsor-injection-save-atomicity', 'tests/sponsor-injection-save-atomicity-test.js'],
+  ['turnaround-fund-accept-save-atomicity', 'tests/turnaround-fund-accept-save-atomicity-test.js'],
+  ['shareholder-buyback-save-atomicity', 'tests/shareholder-buyback-save-atomicity-test.js'],
+  ['shareholder-dividend-declaration-save-atomicity', 'tests/shareholder-dividend-declaration-save-atomicity-test.js'],
+  ['shareholder-dividend-payment-save-atomicity', 'tests/shareholder-dividend-payment-save-atomicity-test.js'],
   ['founder-share-sale-save-atomicity', 'tests/founder-share-sale-save-atomicity-test.js'],
   ['stock-purchase-save-atomicity', 'tests/stock-purchase-save-atomicity-test.js'],
   ['stock-sale-save-atomicity', 'tests/stock-sale-save-atomicity-test.js'],
@@ -67,6 +79,7 @@ const nodeTests = [
   ['listed-subsidiary-quarter-save-atomicity', 'tests/listed-subsidiary-quarter-save-atomicity-test.js'],
   ['subsidiary-disposal-accounting', 'tests/subsidiary-disposal-accounting-test.js'],
   ['subsidiary-disposal-save-atomicity', 'tests/subsidiary-disposal-save-atomicity-test.js'],
+  ['group-restructuring-sale-save-atomicity', 'tests/group-restructuring-sale-save-atomicity-test.js'],
   ['refounding-ledger', 'tests/refounding-ledger-test.js'],
   ['pe-create-deal-save-atomicity', 'tests/pe-create-deal-save-atomicity-test.js'],
   ['pe-exit-deal-save-atomicity', 'tests/pe-exit-deal-save-atomicity-test.js'],
@@ -88,9 +101,29 @@ const nodeTests = [
   ['vc-secondary-sale-save-false', 'tests/vc-secondary-sale-save-false-red-probe.js'],
   ['vc-secondary-sale-save-atomicity', 'tests/vc-secondary-sale-save-atomicity-test.js'],
   ['vc-follow-on-save-atomicity', 'tests/vc-follow-on-save-atomicity-test.js'],
+  ['vc-writeoff-week-save-atomicity', 'tests/vc-writeoff-week-save-atomicity-test.js'],
+  ['vc-listing-week-save-atomicity', 'tests/vc-listing-week-save-atomicity-test.js'],
+  ['vc-round-close-week-save-atomicity', 'tests/vc-round-close-week-save-atomicity-test.js'],
+  ['week-competitor-stake-save-atomicity', 'tests/week-competitor-stake-save-atomicity-test.js'],
+  ['subsidiary-ipo-save-atomicity', 'tests/subsidiary-ipo-save-atomicity-test.js'],
+  ['subsidiary-follow-on-save-atomicity', 'tests/subsidiary-follow-on-save-atomicity-test.js'],
+  ['subsidiary-secondary-sale-save-atomicity', 'tests/subsidiary-secondary-sale-save-atomicity-test.js'],
+  ['subsidiary-control-save-atomicity', 'tests/subsidiary-control-save-atomicity-test.js'],
+  ['subsidiary-relist-save-atomicity', 'tests/subsidiary-relist-save-atomicity-test.js'],
+  ['subsidiary-market-trade-save-atomicity', 'tests/subsidiary-market-trade-save-atomicity-test.js'],
+  ['internal-venture-spinoff-save-atomicity', 'tests/internal-venture-spinoff-save-atomicity-test.js'],
+  ['group-restructuring-merge-save-atomicity', 'tests/group-restructuring-merge-save-atomicity-test.js'],
+  ['group-negotiated-sale-save-atomicity', 'tests/group-negotiated-sale-save-atomicity-test.js'],
+  ['internal-venture-business-save-atomicity', 'tests/internal-venture-business-save-atomicity-test.js'],
+  ['subsidiary-funding-save-atomicity', 'tests/subsidiary-funding-save-atomicity-test.js'],
+  ['new-business-commercialization-save-atomicity', 'tests/new-business-commercialization-save-atomicity-test.js'],
+  ['pe-transfer-save-atomicity', 'tests/pe-transfer-save-atomicity-test.js'],
   ['vc-initial-investment-save-atomicity', 'tests/vc-initial-investment-save-atomicity-test.js'],
   ['pe-fund-acquisition-save-atomicity', 'tests/pe-fund-acquisition-save-atomicity-test.js'],
+  ['pe-parent-acquisition-save-atomicity', 'tests/pe-parent-acquisition-save-atomicity-test.js'],
   ['pe-portfolio-exit-save-atomicity', 'tests/pe-portfolio-exit-save-atomicity-test.js'],
+  ['pe-fund-formation-save-atomicity', 'tests/pe-fund-formation-save-atomicity-test.js'],
+  ['week-pe-fund-save-atomicity', 'tests/week-pe-fund-save-atomicity-test.js'],
   ['ma-subsidiary-sale-save-atomicity', 'tests/ma-subsidiary-sale-save-atomicity-test.js'],
   ['competitor-product-counter-reachability', 'tests/competitor-product-counter-reachability-test.js'],
   ['competitor-group-allocation-reachability', 'tests/competitor-group-allocation-reachability-test.js'],
@@ -137,6 +170,7 @@ const nodeTests = [
   ['deterministic-economic-foundation', 'tests/deterministic-economic-foundation-test.js'],
   ['economic-operation-contract', 'tests/economic-operation-contract-test.js'],
   ['yen-ceiling-rounding-guard', 'tests/yen-ceiling-rounding-guard-test.js'],
+  ['yen-ceiling-seeded-full-run', 'tests/yen-ceiling-seeded-full-run-test.js'],
   ['economic-shadow-journal', 'tests/economic-shadow-journal-test.js'],
   ['economic-settlement-store-renovation', 'tests/economic-settlement-store-renovation-test.js'],
   ['economic-settlement-company-cash-commit', 'tests/economic-settlement-company-cash-commit-test.js'],
@@ -158,6 +192,7 @@ const nodeTests = [
   ['phase3-control-eligibility', 'tests/phase3-control-eligibility-test.js'],
   ['phase3-ownership-planner', 'tests/phase3-ownership-planner-test.js'],
   ['phase3-writer-inventory-contract', 'tests/phase3-writer-inventory-contract-test.js'],
+  ['phase3-ownership-apply', 'tests/phase3-ownership-apply-test.js'],
   ['player-own-share-conservation', 'tests/player-own-share-conservation-test.js'],
   ['economic-foundation-draws', 'tests/economic-foundation-draws-test.js'],
   ['phase0-5-seed-provenance', 'tests/phase0-5-seed-provenance-test.js'],
@@ -236,6 +271,8 @@ const nodeTests = [
   ['canonical-property-disposition', 'tests/canonical-property-disposition-test.js'],
   ['p4-aud-007-mortgage-disposal-debt', 'tests/p4-aud-007-mortgage-disposal-debt-test.js'],
   ['p4-aud-007-option-a-mortgage', 'tests/p4-aud-007-option-a-mortgage-test.js'],
+  ['p4-aud-010-mortgage-shortfall', 'tests/p4-aud-010-mortgage-shortfall-test.js'],
+  ['p4-aud-010-mortgage-foreclosure', 'tests/p4-aud-010-mortgage-foreclosure-test.js'],
   ['p4-aud-009-shared-collateral', 'tests/p4-aud-009-shared-collateral-test.js'],
   ['supply-select-supplier-week-close', 'tests/supply-select-supplier-week-close-test.js'],
   ['real-estate-property-insurance', 'tests/real-estate-property-insurance-test.js'],
@@ -252,6 +289,7 @@ const nodeTests = [
   ['transaction-rollback', 'tests/transaction-rollback-test.js'],
   ['week-transaction-atomicity', 'tests/week-transaction-atomicity-test.js'],
   ['player-crisis-turnaround-ratchet-week-rollback', 'tests/player-crisis-turnaround-ratchet-week-rollback-test.js'],
+  ['turnaround-ratchet-listed-mirror', 'tests/turnaround-ratchet-listed-mirror-test.js'],
   ['reload-canonical-state', 'tests/reload-canonical-state-test.js'],
   ['simulation-rng', 'tests/simulation-rng-test.js'],
   ['simulation-long-run-reload-fork', 'tests/simulation-long-run-reload-fork-test.js'],
@@ -395,6 +433,7 @@ const nodeTests = [
   ['sports-management', 'tests/sports-management-test.js'],
   ['personal-real-estate-mortgage', 'tests/personal-real-estate-mortgage-test.js'],
   ['personal-stock-margin', 'tests/personal-stock-margin-test.js'],
+  ['personal-stock-margin-save-atomicity', 'tests/personal-stock-margin-save-atomicity-test.js'],
   ['personal-real-estate-taxes', 'tests/personal-real-estate-taxes-test.js'],
   ['real-estate-cycle-state-collision', 'tests/real-estate-cycle-state-collision-test.js'],
   ['real-estate-agency-pipeline', 'tests/real-estate-agency-pipeline-test.js'],
@@ -526,8 +565,9 @@ for (let i = 0; i < nodeTests.length; i++) {
   });
   const elapsedSeconds = ((Date.now() - startedAt) / 1000).toFixed(1);
   console.log(`[run-all node ${i + 1}/${nodeTests.length}] done ${name} in ${elapsedSeconds}s (exit ${result.status ?? `signal:${result.signal}`})`);
-  if (result.status) {
+  if (result.status !== 0 || result.signal || result.error) {
     console.error(`::error title=Test suite failed::${name}`);
+    if (result.signal || result.error) console.error(`abnormal exit: signal=${result.signal} error=${result.error && (result.error.code || result.error.message)}`);
     if (result.stdout) process.stdout.write(result.stdout);
     if (result.stderr) process.stderr.write(result.stderr);
     process.exit(result.status || 1);

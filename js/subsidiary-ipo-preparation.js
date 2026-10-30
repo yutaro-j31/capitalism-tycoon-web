@@ -24,7 +24,7 @@ const clamp=(v,min,max)=>Math.max(min,Math.min(max,finite(v,min)));
 const esc=v=>String(v??'').replace(/[&<>'"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c]));
 const compactYen=modules.engine.compactYen||((v)=>`${Math.round(finite(v)).toLocaleString('ja-JP')}円`);
 function offerTerm(id){return OFFER_TERMS.find(v=>v.id===String(id))||OFFER_TERMS[1];}
-function offerPreview(sub,termID){const term=offerTerm(termID),preMoney=Math.max(0,finite(sub?.valuation)),gross=Math.round(preMoney*term.primaryRatio),proceeds=Math.round(gross*(1-term.discount));return Object.freeze({...term,preMoney,grossPrimaryRaise:gross,primaryProceeds:proceeds,postMoney:preMoney+proceeds});}
+function offerPreview(sub,termID){const term=offerTerm(termID),preMoney=Math.max(0,finite(sub?.valuation)),gross=Math.round(preMoney*term.primaryRatio),proceeds=modules.economicOperation.ceilYen(gross*(1-term.discount));return Object.freeze({...term,preMoney,grossPrimaryRaise:gross,primaryProceeds:proceeds,postMoney:preMoney+proceeds});}
 function ensure(state){
   if(!state||typeof state!=='object')return state;
   state.subsidiaryIPOPreparationVersion=Math.max(VERSION,integer(state.subsidiaryIPOPreparationVersion));

@@ -112,7 +112,7 @@ deal.portfolioCompany.priceMultiplier=1.35;
   assert.notEqual(priced.revenue,pricedGeneric.revenue,'non-neutral production pricing diverges from the old generic formula');
   assert.equal(ops.settlePortfolioOperatingWeek(deal,priced),true);
   assert.equal(engine.g.companyCash,companyCashBefore,'PE settlement never moves self-company companyCash');
-  assert.equal(deal.portfolioCompany.cash,pcCashBefore+priced.profit,'PE operating result settles only into portfolioCompany.cash');
+  assert.equal(deal.portfolioCompany.cash,pcCashBefore+Math.ceil(priced.profit),'PE operating result settles only into portfolioCompany.cash');
   assert(deal.portfolioCompany.productVenturesOperatingState,'settlement persists only the detached PE product state');
   assert.deepEqual(plain({products:engine.g.productVentures,funnels:engine.g.productFunnels}),selfBefore,'PE settlement cannot mutate self-company product/funnel state');
   assert.equal(randomCalls,callsBefore,'priced calculation and settlement consume no RNG');

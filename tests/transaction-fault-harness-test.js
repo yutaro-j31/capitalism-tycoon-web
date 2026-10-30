@@ -36,5 +36,12 @@ const MUTANTS=[
   await assert.rejects(make(overrides).rejected('external',kind),pattern,`harness must reject mutant: ${label}`);
   console.log(`transaction fault harness rejects mutant: ${label} PASS`);
  }
+ // Rewinding to the restored cache is coherent on normal saves but reuses a failed
+ // admitted sequence. Check both an ordinary and an already-pending predecessor.
+ for(const pending of [false,true]){
+  const brokenAllocator={fixture:async family=>{const s=await scenario(family);s.modules.saveStorageIDB={...s.backend,nextSequence(key){return (s.backend.sequenceOf(s.backend.readSync(key))||0)+1;}};return s;}};
+  await assert.rejects(make(brokenAllocator).rejected('external','save-throw',{pending}),/allocated failed saveSequence/);
+  console.log(`transaction fault harness rejects admitted-sequence reuse / pending=${pending} PASS`);
+ }
  console.log('Transaction fault harness mutation PASS');
 })().catch(e=>{console.error(e);process.exitCode=1;});

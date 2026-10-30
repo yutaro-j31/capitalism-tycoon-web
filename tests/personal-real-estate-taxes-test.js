@@ -46,8 +46,8 @@ function keepVacant(asset) {
 // 2. The bill is a rate on assessed value, split into equal instalments.
 {
   const { asset, taxes } = withHolding();
-  assert.equal(taxes.annualTaxFor(asset), Math.round(asset.currentValue * taxes.ANNUAL_RATE));
-  assert.equal(taxes.instalmentFor(asset), Math.round(taxes.annualTaxFor(asset) / taxes.INSTALMENTS));
+  assert.equal(taxes.annualTaxFor(asset), Math.ceil(asset.currentValue * taxes.ANNUAL_RATE));
+  assert.equal(taxes.instalmentFor(asset), Math.ceil(taxes.annualTaxFor(asset) / taxes.INSTALMENTS));
   assert.equal(taxes.INSTALMENTS * taxes.WEEKS_PER_INSTALMENT, 52, '分割回数×間隔が1年になる');
 }
 

@@ -43,7 +43,7 @@ function withPortfolio(seed = 1, qty = 1000) {
   const quotes = e.getPersonalStockMarginQuotes();
   assert.equal(quotes.length, 2);
   for (const q of quotes) {
-    assert.equal(q.available, Math.round(value * q.maxLTV));
+    assert.equal(q.available, Math.ceil(value * q.maxLTV));
     assert.ok(q.eligible);
   }
   const byId = Object.fromEntries(quotes.map(q => [q.id, q]));
@@ -79,7 +79,7 @@ function withPortfolio(seed = 1, qty = 1000) {
   const { e, margin } = withPortfolio();
   e.borrowPersonalStockMargin('standard');
   const balanceBefore = margin.balanceOf(e.g);
-  const expectedInterest = Math.round(balanceBefore * margin.annualRateFor('standard') / 52);
+  const expectedInterest = Math.ceil(balanceBefore * margin.annualRateFor('standard') / 52);
   const cashBefore = e.g.personalCash;
   const result = margin.processWeek(e);
   assert.equal(result.interest, expectedInterest);

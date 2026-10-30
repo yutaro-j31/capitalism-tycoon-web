@@ -26,6 +26,12 @@ for (const [shard, labels] of Object.entries(shardConfig)) {
 const originalSpawnSync = childProcess.spawnSync;
 const seen = new Set();
 const executed = [];
+// Opt-in parallel execution (stage 1): TEST_SHARD_PARALLELISM=N (N >= 2) on a shard enabled in
+// scripts/parallel-shard-runner.config.json. Unset, empty, 1, invalid or not enabled -> the serial code below, unchanged.
+const parallelism = process.env.TEST_SHARD_PARALLELISM && process.env.TEST_SHARD_PARALLELISM !== '1' && !contractOnly
+  ? require('../scripts/parallel-shard-runner').parseParallelism(process.env.TEST_SHARD_PARALLELISM, selectedShard, require('../scripts/parallel-shard-runner').loadConfig)
+  : 1;
+const planned = [];
 
 function commandLabel(command, args = []) {
   if (command === 'npm' && args[0] === 'run') return String(args[1] || 'npm-run');
@@ -41,6 +47,10 @@ childProcess.spawnSync = function shardedSpawnSync(command, args, options) {
   const label = commandLabel(command, args);
   seen.add(label);
   if (contractOnly || ownerFor(label) !== selectedShard) {
+    return { status: 0, signal: null, stdout: '', stderr: '', pid: 0, output: [null, '', ''] };
+  }
+  if (parallelism > 1) {
+    planned.push({ index: planned.length, label, command, args: [...(args || [])] });
     return { status: 0, signal: null, stdout: '', stderr: '', pid: 0, output: [null, '', ''] };
   }
   const startedAt = process.hrtime.bigint();
@@ -77,8 +87,9 @@ function runRegisteredNodeTest(name, file) {
     maxBuffer: 64 * 1024 * 1024,
     shell: false
   });
-  if (result.status) {
+  if (result.status !== 0 || result.signal || result.error) {
     console.error(`::error title=Test suite failed::${name}`);
+    if (result.signal || result.error) console.error(`abnormal exit: signal=${result.signal} error=${result.error && (result.error.code || result.error.message)}`);
     if (result.stdout) process.stdout.write(result.stdout);
     if (result.stderr) process.stderr.write(result.stderr);
     process.exit(result.status || 1);
@@ -92,4 +103,14 @@ process.on('exit', () => {
 });
 
 runRegisteredNodeTest('product-recall-reachability', 'tests/product-recall-reachability-runner.js');
-require('./run-all');
+if (parallelism > 1) {
+  // run-all.js only enumerates here (every spawnSync above is a recording stub), so silence its per-command
+  // "done in 0.0s" lines and its final "all tests passed" line, which would otherwise print before anything ran.
+  const log = console.log;
+  console.log = () => {};
+  try { require('./run-all'); } finally { console.log = log; }
+  require('../scripts/parallel-shard-runner').runShard({ shard: selectedShard, planned, concurrency: parallelism, executed })
+    .then(code => { if (code) process.exit(code); }, error => { console.error(error); process.exit(3); });
+} else {
+  require('./run-all');
+}

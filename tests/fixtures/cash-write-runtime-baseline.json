@@ -14,7 +14,6 @@
     ]
   ],
   "sites": [
-    "js/difficulty-scenario-balance.js#reconcileWeeklyCashRounding",
     "js/engine.js#(anonymous)<js/engine.js#borrow",
     "js/engine.js#(anonymous)<js/engine.js#openStore",
     "js/engine.js#advanceWeek",
@@ -27,8 +26,8 @@
     "js/engine.js#updatePersonalAssets",
     "js/expansion.js#TycoonEngine.updateFounderExpandedWeekly",
     "js/expansion.js#TycoonEngine.updateSupplyChainWeekly",
-    "js/real-estate-agency-credit-line.js#draw",
-    "js/real-estate-agency-credit-line.js#repay",
+    "js/real-estate-agency-credit-line.js#borrowAmount",
+    "js/real-estate-agency-credit-line.js#settle",
     "js/supply.js#payables",
     "js/supply.js#receiptAccounting"
   ]

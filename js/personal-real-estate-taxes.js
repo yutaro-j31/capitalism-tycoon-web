@@ -29,18 +29,18 @@ const INSTALMENTS=4;
 const WEEKS_PER_INSTALMENT=13;
 
 const finite=(value,fallback=0)=>Number.isFinite(Number(value))?Number(value):fallback;
-const round=value=>Math.round(finite(value));
+const ceilYen=value=>modules.economicOperation.ceilYen(finite(value));
 
 function assessedValueOf(asset){
   return Math.max(0,finite(asset?.currentValue,finite(asset?.purchasePrice)));
 }
 
 function annualTaxFor(asset){
-  return round(assessedValueOf(asset)*ANNUAL_RATE);
+  return ceilYen(assessedValueOf(asset)*ANNUAL_RATE);
 }
 
 function instalmentFor(asset){
-  return round(annualTaxFor(asset)/INSTALMENTS);
+  return ceilYen(annualTaxFor(asset)/INSTALMENTS);
 }
 
 // Bills land every 13th week of ownership rather than on a global calendar, so a property
@@ -59,14 +59,16 @@ function totalPaid(state){
 // A sale ends the holding but not the owner's tax obligation.  Clear arrears from the
 // proceeds left after the secured mortgage; if the property is underwater, preserve the
 // unpaid amount as personal debt instead of letting it disappear with the sold asset.
+// Arrears and proceeds are already settled amounts, so they are taken as stored; a
+// fraction from an older save is cleared as is (YEN_CEILING_ROUNDING_CONTRACT §1.1, §3.5).
 function settleOnSale(state,asset,proceeds){
-  const outstanding=Math.max(0,round(asset?.propertyTaxArrears));
-  const available=Math.max(0,round(proceeds));
+  const outstanding=Math.max(0,finite(asset?.propertyTaxArrears));
+  const available=Math.max(0,finite(proceeds));
   const paid=Math.min(outstanding,available);
-  const shortfall=round(outstanding-paid);
+  const shortfall=outstanding-paid;
   asset.propertyTaxArrears=0;
-  asset.propertyTaxPaid=round(finite(asset.propertyTaxPaid)+paid);
-  if(shortfall>0)state.personalDebt=round(finite(state.personalDebt)+shortfall);
+  asset.propertyTaxPaid=finite(asset.propertyTaxPaid)+paid;
+  if(shortfall>0)state.personalDebt=finite(state.personalDebt)+shortfall;
   return {paid,shortfall,net:available-paid};
 }
 
@@ -80,11 +82,11 @@ function processWeek(engine){
     if(finite(asset.propertyTaxProcessedWeek)===week)continue;
     if(!instalmentDue(asset,week))continue;
     asset.propertyTaxProcessedWeek=week;
-    const due=instalmentFor(asset)+round(asset.propertyTaxArrears);
+    const due=instalmentFor(asset)+Math.max(0,finite(asset.propertyTaxArrears));
     if(due<=0)continue;
     const paid=globalThis.__capitalismTycoonModules.personalRealEstateCorp.debitOwnerAccount(state,asset,due);
-    asset.propertyTaxPaid=round(finite(asset.propertyTaxPaid)+paid);
-    asset.propertyTaxArrears=round(due-paid);
+    asset.propertyTaxPaid=finite(asset.propertyTaxPaid)+paid;
+    asset.propertyTaxArrears=due-paid;
     asset.lastPropertyTaxWeek=week;
     charged.push({assetID:asset.assetID,due,paid,arrears:asset.propertyTaxArrears});
     engine.notify?.(
@@ -103,8 +105,8 @@ function summaryFor(state,asset){
     annualRate:ANNUAL_RATE,
     annualTax:annualTaxFor(asset),
     instalment:instalmentFor(asset),
-    paidTotal:round(asset?.propertyTaxPaid),
-    arrears:round(asset?.propertyTaxArrears),
+    paidTotal:finite(asset?.propertyTaxPaid),
+    arrears:finite(asset?.propertyTaxArrears),
     weeksUntilNext:WEEKS_PER_INSTALMENT-(owned%WEEKS_PER_INSTALMENT),
     // What the tax actually costs against this holding's rent, which is the number that
     // decides whether a leveraged purchase still clears its interest.

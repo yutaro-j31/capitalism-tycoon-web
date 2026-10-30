@@ -98,7 +98,7 @@ const plain = value => JSON.parse(JSON.stringify(value));
   const result = calc(fund, deal, previewWeek, engine.g);
   assert.equal(ops.settlePortfolioOperatingWeek(deal, result), true);
   assert.equal(engine.g.companyCash, companyCashBeforeSettlement, 'settling the PE realEstateAgency deal must never move the self-company companyCash');
-  assert(Math.abs((deal.portfolioCompany.cash - pcCashBeforeSettlement) - result.profit) < 1e-6, 'PE deal settlement moves only deal.portfolioCompany.cash, by exactly this week\'s profit');
+  assert.equal(deal.portfolioCompany.cash - pcCashBeforeSettlement, Math.ceil(result.profit), 'PE deal settlement moves only deal.portfolioCompany.cash, by exactly this week\'s profit');
   assert.deepEqual(plain(store.brokeragePipeline), selfPipelineAfterSelfWeek, 'settling the PE deal must never mutate the self-company store record');
 }
 

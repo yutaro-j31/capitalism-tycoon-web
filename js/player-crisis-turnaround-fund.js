@@ -54,6 +54,7 @@ const HISTORY_LIMIT=26;
 const FUND_NAMES=Object.freeze(['再生パートナーズ','日本事業再生機構','ターンアラウンド・キャピタル','産業革新investors']);
 
 const finite=(v,f=0)=>Number.isFinite(Number(v))?Number(v):f;
+const ceilYen=value=>globalThis.__capitalismTycoonModules.economicOperation.ceilYen(finite(value));
 const integer=(v,f=0)=>Math.max(0,Math.floor(finite(v,f)));
 const text=v=>String(v??'');
 const plain=v=>Boolean(v&&typeof v==='object'&&!Array.isArray(v));
@@ -86,7 +87,7 @@ function fundNameFor(state){return FUND_NAMES[integer(state.week)%FUND_NAMES.len
 function injectionFor(instance){
  const state=instance.g,crisis=playerCrisis.ensure(state);
  const gap=Math.max(0,finite(crisis.reserveThreshold)-finite(state.companyCash));
- return Math.max(0,Math.round(Math.max(BASE_INJECTION,gap*TARGET_MULTIPLE)));
+ return Math.max(0,ceilYen(Math.max(BASE_INJECTION,gap*TARGET_MULTIPLE)));
 }
 function quoteFor(instance){
  const state=instance.g,amount=injectionFor(instance);
@@ -130,6 +131,9 @@ function accept(instance){
  if(quote.amount<MIN_INJECTION||quote.shares<=0)return instance.fail('事業再生ファンドの出資条件を満たしていません。');
  return instance.runTransaction(()=>{
   const week=integer(state.week),fundID=`turnaround-fund-${week}`,fundName=fundNameFor(state);
+  // P3-4 verification leg (W-TURNAROUND-ACCEPT): the issued bucket this injection leaves must be the planned one.
+  const ownership=globalThis.__capitalismTycoonModules.phase3OwnershipApply,leg=ownership.beginOwnershipLeg(instance,{writerId:'W-TURNAROUND-ACCEPT',
+   kind:'external-issue',operationId:fundID,change:{quantity:quote.shares}});
   state.sharesOut=finite(state.sharesOut)+quote.shares;
   state.companyCash=finite(state.companyCash)+quote.amount;
   finance.event(state,'equityFinancing',quote.amount,{cashEffect:quote.amount,equityEffect:quote.amount,
@@ -138,6 +142,7 @@ function accept(instance){
   const ledger=finance.ensureFinance(state);
   ledger.balances.capitalSurplus=finite(ledger.balances.capitalSurplus)+quote.amount;
   instance.updateOwnershipRatios();
+  if(!ownership.confirmOwnershipLeg(instance,leg))return instance.fail('株式数の整合を確認できませんでした。');
   // The injection lifts cash, so re-run the crisis evaluation before starting the plan: the
   // plan's own targets are computed from the post-injection position.
   crisis.lastEvaluationWeek=Math.max(0,week-1);
@@ -184,6 +189,10 @@ function settle(instance){
  }
  const shares=ratchetSharesFor(state);
  state.sharesOut=finite(state.sharesOut)+shares;
+ // A company that listed during the fund term mirrors the issued quantity on its own market row at once; settle runs
+ // after this week's updateMarket, which would otherwise leave the row stale until next week.
+ const own=state.publicCompany?(state.market||[]).find(row=>row.id===state.ticker):null;
+ if(own){own.issuedShares=state.sharesOut;own.marketCap=finite(own.price)*state.sharesOut;}
  fund.ratchetShares=integer(fund.ratchetShares)+shares;
  fund.shares=integer(fund.shares)+shares;
  fund.status='ratcheted';

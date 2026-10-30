@@ -9,6 +9,7 @@ on:
       - 'tests/investor-offer-save-atomicity-webkit-test.js'
       - 'js/real-estate-mortgage-refinancing.js'
       - 'tests/property-mortgage-refinance-conservation-test.js'
+      - 'tests/p4-aud-010-mortgage-shortfall-test.js'
       - 'tests/property-mortgage-refinance-webkit-test.js'
       - 'tests/founder-share-sale-save-atomicity-test.js'
       - 'tests/founder-share-sale-save-atomicity-webkit-test.js'
@@ -110,8 +111,14 @@ on:
       - 'tests/pe-exit-deal-save-atomicity-webkit-test.js'
       - 'tests/sold-company-pe-authority-test.js'
       - 'tests/sold-company-pe-authority-webkit-test.js'
+      - 'tests/pe-parent-acquisition-save-atomicity-webkit-test.js'
+      - 'tests/pe-transfer-save-atomicity-webkit-test.js'
+      - 'tests/pe-fund-formation-save-atomicity-webkit-test.js'
       - 'tests/fixtures/pe-fund-acquisition-atomicity.js'
       - 'tests/fixtures/pe-fund-acquisition-faults.js'
+      - 'tests/fixtures/pe-parent-acquisition-atomicity.js'
+      - 'tests/fixtures/pe-transfer-atomicity.js'
+      - 'tests/fixtures/pe-fund-formation-atomicity.js'
       - 'js/pe-network-sourcing.js'
       - 'js/pe-ui-adapter.js'
       - 'js/pe-portfolio-operations.js'
@@ -128,14 +135,64 @@ on:
       - 'js/subsidiary-*.js'
       - 'js/listed-subsidiary-*.js'
       - 'js/player-crisis-actions.js'
+      - 'tests/sponsor-injection-save-atomicity-webkit-test.js'
+      - 'tests/shareholder-buyback-save-atomicity-webkit-test.js'
+      - 'tests/shareholder-dividend-declaration-save-atomicity-webkit-test.js'
+      - 'tests/shareholder-dividend-payment-save-atomicity-webkit-test.js'
+      - 'tests/vc-writeoff-week-save-atomicity-webkit-test.js'
+      - 'tests/vc-round-close-week-save-atomicity-webkit-test.js'
+      - 'tests/vc-listing-week-save-atomicity-webkit-test.js'
+      - 'tests/subsidiary-ipo-save-atomicity-webkit-test.js'
+      - 'tests/subsidiary-secondary-sale-save-atomicity-webkit-test.js'
+      - 'tests/subsidiary-control-save-atomicity-webkit-test.js'
+      - 'tests/subsidiary-follow-on-save-atomicity-webkit-test.js'
+      - 'tests/subsidiary-relist-save-atomicity-webkit-test.js'
+      - 'tests/subsidiary-market-trade-save-atomicity-webkit-test.js'
+      - 'tests/group-restructuring-sale-save-atomicity-webkit-test.js'
+      - 'tests/internal-venture-spinoff-save-atomicity-webkit-test.js'
+      - 'tests/group-restructuring-merge-save-atomicity-webkit-test.js'
+      - 'tests/group-negotiated-sale-save-atomicity-webkit-test.js'
+      - 'tests/internal-venture-business-save-atomicity-webkit-test.js'
+      - 'tests/subsidiary-funding-save-atomicity-webkit-test.js'
+      - 'tests/new-business-commercialization-save-atomicity-webkit-test.js'
+      - 'tests/fixtures/sponsor-injection-atomicity.js'
+      - 'tests/fixtures/shareholder-buyback-atomicity.js'
+      - 'tests/fixtures/shareholder-dividend-declaration-atomicity.js'
+      - 'tests/fixtures/shareholder-dividend-payment-atomicity.js'
+      - 'tests/fixtures/vc-writeoff-week-atomicity.js'
+      - 'tests/fixtures/vc-round-close-week-atomicity.js'
+      - 'tests/fixtures/vc-listing-week-atomicity.js'
+      - 'tests/fixtures/subsidiary-ipo-atomicity.js'
+      - 'tests/fixtures/subsidiary-secondary-sale-atomicity.js'
+      - 'tests/fixtures/subsidiary-control-atomicity.js'
+      - 'tests/fixtures/subsidiary-follow-on-atomicity.js'
+      - 'tests/fixtures/subsidiary-relist-atomicity.js'
+      - 'tests/fixtures/subsidiary-market-trade-atomicity.js'
+      - 'tests/fixtures/group-restructuring-sale-atomicity.js'
+      - 'tests/fixtures/internal-venture-spinoff-atomicity.js'
+      - 'tests/fixtures/group-restructuring-merge-atomicity.js'
+      - 'tests/fixtures/group-negotiated-sale-atomicity.js'
+      - 'tests/fixtures/internal-venture-business-atomicity.js'
+      - 'tests/fixtures/subsidiary-funding-atomicity.js'
+      - 'tests/fixtures/new-business-commercialization-atomicity.js'
       - 'js/player-crisis-turnaround-fund.js'
+      - 'tests/turnaround-fund-accept-save-atomicity-test.js'
+      - 'tests/turnaround-fund-accept-save-atomicity-webkit-test.js'
+      - 'tests/fixtures/turnaround-fund-accept-atomicity.js'
+      - 'js/player-turnaround-plan.js'
+      - 'tests/player-crisis-turnaround-ratchet-webkit-test.js'
       - 'js/group-restructuring-candidates.js'
       - 'js/group-restructuring-progress.js'
       - 'js/group-capital-allocation-execution.js'
       - 'js/internal-venture-business.js'
+      - 'js/new-business-commercialization.js'
       - 'js/pe-deal-supply.js'
       - 'js/pe-network.js'
       - 'js/personal-stock-margin.js'
+      - 'tests/personal-stock-margin-save-atomicity-test.js'
+      - 'tests/personal-stock-margin-save-atomicity-webkit-test.js'
+      - 'tests/fixtures/personal-stock-margin-atomicity.js'
+      - 'tests/helpers/transaction-fault-case.js'
       - 'js/capital-allocation-score.js'
       - 'js/ma-integration.js'
       - 'js/pmi-100-day-plan.js'
@@ -162,6 +219,7 @@ on:
       - 'tests/investor-offer-save-atomicity-webkit-test.js'
       - 'js/real-estate-mortgage-refinancing.js'
       - 'tests/property-mortgage-refinance-conservation-test.js'
+      - 'tests/p4-aud-010-mortgage-shortfall-test.js'
       - 'tests/property-mortgage-refinance-webkit-test.js'
       - 'tests/founder-share-sale-save-atomicity-test.js'
       - 'tests/founder-share-sale-save-atomicity-webkit-test.js'
@@ -263,8 +321,14 @@ on:
       - 'tests/pe-exit-deal-save-atomicity-webkit-test.js'
       - 'tests/sold-company-pe-authority-test.js'
       - 'tests/sold-company-pe-authority-webkit-test.js'
+      - 'tests/pe-parent-acquisition-save-atomicity-webkit-test.js'
+      - 'tests/pe-transfer-save-atomicity-webkit-test.js'
+      - 'tests/pe-fund-formation-save-atomicity-webkit-test.js'
       - 'tests/fixtures/pe-fund-acquisition-atomicity.js'
       - 'tests/fixtures/pe-fund-acquisition-faults.js'
+      - 'tests/fixtures/pe-parent-acquisition-atomicity.js'
+      - 'tests/fixtures/pe-transfer-atomicity.js'
+      - 'tests/fixtures/pe-fund-formation-atomicity.js'
       - 'js/pe-network-sourcing.js'
       - 'js/pe-ui-adapter.js'
       - 'js/pe-portfolio-operations.js'
@@ -277,11 +341,61 @@ on:
       - 'js/app.js'
       - 'js/listed-subsidiary-*.js'
       - 'js/player-crisis-actions.js'
+      - 'tests/sponsor-injection-save-atomicity-webkit-test.js'
+      - 'tests/shareholder-buyback-save-atomicity-webkit-test.js'
+      - 'tests/shareholder-dividend-declaration-save-atomicity-webkit-test.js'
+      - 'tests/shareholder-dividend-payment-save-atomicity-webkit-test.js'
+      - 'tests/vc-writeoff-week-save-atomicity-webkit-test.js'
+      - 'tests/vc-round-close-week-save-atomicity-webkit-test.js'
+      - 'tests/vc-listing-week-save-atomicity-webkit-test.js'
+      - 'tests/subsidiary-ipo-save-atomicity-webkit-test.js'
+      - 'tests/subsidiary-secondary-sale-save-atomicity-webkit-test.js'
+      - 'tests/subsidiary-control-save-atomicity-webkit-test.js'
+      - 'tests/subsidiary-follow-on-save-atomicity-webkit-test.js'
+      - 'tests/subsidiary-relist-save-atomicity-webkit-test.js'
+      - 'tests/subsidiary-market-trade-save-atomicity-webkit-test.js'
+      - 'tests/group-restructuring-sale-save-atomicity-webkit-test.js'
+      - 'tests/internal-venture-spinoff-save-atomicity-webkit-test.js'
+      - 'tests/group-restructuring-merge-save-atomicity-webkit-test.js'
+      - 'tests/group-negotiated-sale-save-atomicity-webkit-test.js'
+      - 'tests/internal-venture-business-save-atomicity-webkit-test.js'
+      - 'tests/subsidiary-funding-save-atomicity-webkit-test.js'
+      - 'tests/new-business-commercialization-save-atomicity-webkit-test.js'
+      - 'tests/fixtures/sponsor-injection-atomicity.js'
+      - 'tests/fixtures/shareholder-buyback-atomicity.js'
+      - 'tests/fixtures/shareholder-dividend-declaration-atomicity.js'
+      - 'tests/fixtures/shareholder-dividend-payment-atomicity.js'
+      - 'tests/fixtures/vc-writeoff-week-atomicity.js'
+      - 'tests/fixtures/vc-round-close-week-atomicity.js'
+      - 'tests/fixtures/vc-listing-week-atomicity.js'
+      - 'tests/fixtures/subsidiary-ipo-atomicity.js'
+      - 'tests/fixtures/subsidiary-secondary-sale-atomicity.js'
+      - 'tests/fixtures/subsidiary-control-atomicity.js'
+      - 'tests/fixtures/subsidiary-follow-on-atomicity.js'
+      - 'tests/fixtures/subsidiary-relist-atomicity.js'
+      - 'tests/fixtures/subsidiary-market-trade-atomicity.js'
+      - 'tests/fixtures/group-restructuring-sale-atomicity.js'
+      - 'tests/fixtures/internal-venture-spinoff-atomicity.js'
+      - 'tests/fixtures/group-restructuring-merge-atomicity.js'
+      - 'tests/fixtures/group-negotiated-sale-atomicity.js'
+      - 'tests/fixtures/internal-venture-business-atomicity.js'
+      - 'tests/fixtures/subsidiary-funding-atomicity.js'
+      - 'tests/fixtures/new-business-commercialization-atomicity.js'
       - 'js/player-crisis-turnaround-fund.js'
+      - 'tests/turnaround-fund-accept-save-atomicity-test.js'
+      - 'tests/turnaround-fund-accept-save-atomicity-webkit-test.js'
+      - 'tests/fixtures/turnaround-fund-accept-atomicity.js'
+      - 'js/player-turnaround-plan.js'
+      - 'tests/player-crisis-turnaround-ratchet-webkit-test.js'
       - 'js/internal-venture-business.js'
+      - 'js/new-business-commercialization.js'
       - 'js/pe-deal-supply.js'
       - 'js/pe-network.js'
       - 'js/personal-stock-margin.js'
+      - 'tests/personal-stock-margin-save-atomicity-test.js'
+      - 'tests/personal-stock-margin-save-atomicity-webkit-test.js'
+      - 'tests/fixtures/personal-stock-margin-atomicity.js'
+      - 'tests/helpers/transaction-fault-case.js'
       - 'js/capital-allocation-score.js'
       - 'tests/parent-ipo-save-atomicity-test.js'
       - 'tests/parent-ipo-save-atomicity-webkit-test.js'
@@ -686,10 +800,6 @@ jobs:
         run: node tests/stock-split-dividend-rescale-webkit-test.js
       - name: Stock split price floor in real iPhone WebKit
         run: node tests/stock-split-price-floor-webkit-test.js
-      - name: P4-AUD-004 personal secured repayment in real iPhone WebKit
-        run: node tests/p4-aud-004-personal-secured-repayment-webkit-test.js
-      - name: Founder Capital save atomicity in real iPhone WebKit
-        run: node tests/founder-capital-atomicity-webkit-test.js
       - name: Retain stock split WebKit evidence
         if: always()
         uses: actions/upload-artifact@v4
@@ -745,6 +855,9 @@ jobs:
           node tests/pe-create-deal-save-atomicity-webkit-test.js
           node tests/pe-exit-deal-save-atomicity-webkit-test.js
           node tests/sold-company-pe-authority-webkit-test.js
+          node tests/pe-parent-acquisition-save-atomicity-webkit-test.js
+          node tests/pe-transfer-save-atomicity-webkit-test.js
+          node tests/pe-fund-formation-save-atomicity-webkit-test.js
       - name: Retain pe-acquisition-atomicity WebKit evidence
         if: always()
         uses: actions/upload-artifact@v4
@@ -875,13 +988,331 @@ jobs:
           if-no-files-found: error
           retention-days: 30
 
+  vc-week-atomicity:
+    # P3-4 canonical-week startup writers (write-off, round close, listing) in real iPhone WebKit, split from
+    # stock-split-atomicity, whose test steps alone reached ~34.5 of its 40 minutes (measured on #1144).
+    # No event guard: PR, main push, schedule and both manual modes run it, like the other family jobs.
+    # Same runtime and cancellation shape as the Phase 1A family jobs.
+    concurrency:
+      group: ma-acquisition-financing-vc-week-atomicity-${{ (github.event_name == 'pull_request' || inputs.mode == 'deal-room') && github.run_id || github.ref }}
+      cancel-in-progress: true
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    env:
+      MA_DEAL_ROOM_ARTIFACT_DIR: artifacts/vc-week-atomicity-webkit
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ (github.event_name == 'pull_request' || inputs.mode == 'deal-room') && '20' || '22' }}
+      - name: Install pinned Playwright runtime
+        run: npm install --no-save --no-package-lock playwright@1.61.0
+      - name: Install WebKit browser and system dependencies
+        # Bounded retry: the install has stalled for the whole job budget several times (CLAUDE.md §7);
+        # healthy installs have taken up to ~9 minutes, so each attempt gets 12 and the job budget fits two.
+        run: |
+          # apt mirrors have stalled mid-download: retry stalled connections instead of waiting forever.
+          printf 'Acquire::Retries "5";\nAcquire::http::Timeout "30";\nAcquire::https::Timeout "30";\n' | sudo tee /etc/apt/apt.conf.d/80-ci-retries >/dev/null
+          for attempt in 1 2; do
+            timeout --kill-after=30s 12m npx playwright install --with-deps webkit && exit 0
+            echo "::warning::WebKit install attempt $attempt failed or stalled"
+            # timeout kills npx, not the apt-get it started as root; free the dpkg lock before retrying.
+            sudo pkill -9 -x apt-get || true
+            sudo pkill -9 -x dpkg || true
+            sudo env DEBIAN_FRONTEND=noninteractive timeout --kill-after=10s 2m dpkg --configure -a || true
+            # A crawling Azure apt mirror is what stalls the install; retry against archive.ubuntu.com.
+            sudo sed -i -E 's#https?://azure\.archive\.ubuntu\.com/ubuntu/?#http://archive.ubuntu.com/ubuntu/#g' /etc/apt/apt-mirrors.txt /etc/apt/sources.list /etc/apt/sources.list.d/* 2>/dev/null || true
+          done
+          exit 1
+      - name: Startup write-off week safety (W-VC-WRITEOFF) in real iPhone WebKit
+        run: node tests/vc-writeoff-week-save-atomicity-webkit-test.js
+      - name: Startup funding round close week safety (W-VC-CLOSE) in real iPhone WebKit
+        run: node tests/vc-round-close-week-save-atomicity-webkit-test.js
+      - name: Startup listing week safety (W-VC-LIST) in real iPhone WebKit
+        run: node tests/vc-listing-week-save-atomicity-webkit-test.js
+      - name: Retain vc-week-atomicity WebKit evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: vc-week-atomicity-webkit-${{ github.sha }}
+          path: artifacts/vc-week-atomicity-webkit
+          if-no-files-found: error
+          retention-days: 30
+
+  sub-listing-atomicity:
+    # P3-4 listed-subsidiary writers (prepared IPO, secondary sale, control actions) in real iPhone WebKit, split out so
+    # vc-secondary-atomicity (30.5 min with a 13-min install on #1153) keeps headroom. Follow-on and relisting moved to
+    # sub-capital-atomicity: with all five tests this job took 37 min on #1167 (13-min install + 24-min tests).
+    # No event guard; same runtime and cancellation shape as the other family jobs.
+    concurrency:
+      group: ma-acquisition-financing-sub-listing-atomicity-${{ (github.event_name == 'pull_request' || inputs.mode == 'deal-room') && github.run_id || github.ref }}
+      cancel-in-progress: true
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    env:
+      MA_DEAL_ROOM_ARTIFACT_DIR: artifacts/sub-listing-atomicity-webkit
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ (github.event_name == 'pull_request' || inputs.mode == 'deal-room') && '20' || '22' }}
+      - name: Install pinned Playwright runtime
+        run: npm install --no-save --no-package-lock playwright@1.61.0
+      - name: Install WebKit browser and system dependencies
+        # Bounded retry: the install has stalled for the whole job budget several times (CLAUDE.md §7);
+        # healthy installs have taken up to ~9 minutes, so each attempt gets 12 and the job budget fits two.
+        run: |
+          # apt mirrors have stalled mid-download: retry stalled connections instead of waiting forever.
+          printf 'Acquire::Retries "5";\nAcquire::http::Timeout "30";\nAcquire::https::Timeout "30";\n' | sudo tee /etc/apt/apt.conf.d/80-ci-retries >/dev/null
+          for attempt in 1 2; do
+            timeout --kill-after=30s 12m npx playwright install --with-deps webkit && exit 0
+            echo "::warning::WebKit install attempt $attempt failed or stalled"
+            # timeout kills npx, not the apt-get it started as root; free the dpkg lock before retrying.
+            sudo pkill -9 -x apt-get || true
+            sudo pkill -9 -x dpkg || true
+            sudo env DEBIAN_FRONTEND=noninteractive timeout --kill-after=10s 2m dpkg --configure -a || true
+            # A crawling Azure apt mirror is what stalls the install; retry against archive.ubuntu.com.
+            sudo sed -i -E 's#https?://azure\.archive\.ubuntu\.com/ubuntu/?#http://archive.ubuntu.com/ubuntu/#g' /etc/apt/apt-mirrors.txt /etc/apt/sources.list /etc/apt/sources.list.d/* 2>/dev/null || true
+          done
+          exit 1
+      - name: Prepared subsidiary IPO safety (W-SUB-IPO) in real iPhone WebKit
+        run: node tests/subsidiary-ipo-save-atomicity-webkit-test.js
+      - name: Listed subsidiary secondary sale safety (W-SUB-SECONDARY) in real iPhone WebKit
+        run: node tests/subsidiary-secondary-sale-save-atomicity-webkit-test.js
+      - name: Listed subsidiary tender offer / squeeze-out safety (W-SUB-CONTROL) in real iPhone WebKit
+        run: node tests/subsidiary-control-save-atomicity-webkit-test.js
+      - name: Retain sub-listing-atomicity WebKit evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: sub-listing-atomicity-webkit-${{ github.sha }}
+          path: artifacts/sub-listing-atomicity-webkit
+          if-no-files-found: error
+          retention-days: 30
+
+  sub-capital-atomicity:
+    # P3-4 listed-subsidiary capital-policy writers (follow-on offering, relisting) in real iPhone WebKit, split from
+    # sub-listing-atomicity, which took 37 min with five tests on #1167 (13-min install + 24-min tests).
+    # No event guard; same runtime and cancellation shape as the other family jobs.
+    concurrency:
+      group: ma-acquisition-financing-sub-capital-atomicity-${{ (github.event_name == 'pull_request' || inputs.mode == 'deal-room') && github.run_id || github.ref }}
+      cancel-in-progress: true
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    env:
+      MA_DEAL_ROOM_ARTIFACT_DIR: artifacts/sub-capital-atomicity-webkit
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ (github.event_name == 'pull_request' || inputs.mode == 'deal-room') && '20' || '22' }}
+      - name: Install pinned Playwright runtime
+        run: npm install --no-save --no-package-lock playwright@1.61.0
+      - name: Install WebKit browser and system dependencies
+        # Bounded retry: the install has stalled for the whole job budget several times (CLAUDE.md §7);
+        # healthy installs have taken up to ~9 minutes, so each attempt gets 12 and the job budget fits two.
+        run: |
+          # apt mirrors have stalled mid-download: retry stalled connections instead of waiting forever.
+          printf 'Acquire::Retries "5";\nAcquire::http::Timeout "30";\nAcquire::https::Timeout "30";\n' | sudo tee /etc/apt/apt.conf.d/80-ci-retries >/dev/null
+          for attempt in 1 2; do
+            timeout --kill-after=30s 12m npx playwright install --with-deps webkit && exit 0
+            echo "::warning::WebKit install attempt $attempt failed or stalled"
+            # timeout kills npx, not the apt-get it started as root; free the dpkg lock before retrying.
+            sudo pkill -9 -x apt-get || true
+            sudo pkill -9 -x dpkg || true
+            sudo env DEBIAN_FRONTEND=noninteractive timeout --kill-after=10s 2m dpkg --configure -a || true
+            # A crawling Azure apt mirror is what stalls the install; retry against archive.ubuntu.com.
+            sudo sed -i -E 's#https?://azure\.archive\.ubuntu\.com/ubuntu/?#http://archive.ubuntu.com/ubuntu/#g' /etc/apt/apt-mirrors.txt /etc/apt/sources.list /etc/apt/sources.list.d/* 2>/dev/null || true
+          done
+          exit 1
+      - name: Listed subsidiary follow-on offering safety (W-SUB-FOLLOWON) in real iPhone WebKit
+        run: node tests/subsidiary-follow-on-save-atomicity-webkit-test.js
+      - name: Subsidiary relisting safety (W-SUB-RELIST) in real iPhone WebKit
+        run: node tests/subsidiary-relist-save-atomicity-webkit-test.js
+      - name: Retain sub-capital-atomicity WebKit evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: sub-capital-atomicity-webkit-${{ github.sha }}
+          path: artifacts/sub-capital-atomicity-webkit
+          if-no-files-found: error
+          retention-days: 30
+
+  group-atomicity:
+    # P3-4 group-portfolio writers on subsidiaries (listed-subsidiary market trades, group restructuring sale, merge and
+    # negotiated sale, internal-venture spin-off) in real iPhone WebKit, split out so sub-listing-atomicity (25 min with
+    # five tests on #1164) keeps headroom. Further internal-venture writers run in venture-atomicity.
+    # No event guard; same runtime and cancellation shape as the other family jobs.
+    concurrency:
+      group: ma-acquisition-financing-group-atomicity-${{ (github.event_name == 'pull_request' || inputs.mode == 'deal-room') && github.run_id || github.ref }}
+      cancel-in-progress: true
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    env:
+      MA_DEAL_ROOM_ARTIFACT_DIR: artifacts/group-atomicity-webkit
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ (github.event_name == 'pull_request' || inputs.mode == 'deal-room') && '20' || '22' }}
+      - name: Install pinned Playwright runtime
+        run: npm install --no-save --no-package-lock playwright@1.61.0
+      - name: Install WebKit browser and system dependencies
+        # Bounded retry: the install has stalled for the whole job budget several times (CLAUDE.md §7);
+        # healthy installs have taken up to ~9 minutes, so each attempt gets 12 and the job budget fits two.
+        run: |
+          # apt mirrors have stalled mid-download: retry stalled connections instead of waiting forever.
+          printf 'Acquire::Retries "5";\nAcquire::http::Timeout "30";\nAcquire::https::Timeout "30";\n' | sudo tee /etc/apt/apt.conf.d/80-ci-retries >/dev/null
+          for attempt in 1 2; do
+            timeout --kill-after=30s 12m npx playwright install --with-deps webkit && exit 0
+            echo "::warning::WebKit install attempt $attempt failed or stalled"
+            # timeout kills npx, not the apt-get it started as root; free the dpkg lock before retrying.
+            sudo pkill -9 -x apt-get || true
+            sudo pkill -9 -x dpkg || true
+            sudo env DEBIAN_FRONTEND=noninteractive timeout --kill-after=10s 2m dpkg --configure -a || true
+            # A crawling Azure apt mirror is what stalls the install; retry against archive.ubuntu.com.
+            sudo sed -i -E 's#https?://azure\.archive\.ubuntu\.com/ubuntu/?#http://archive.ubuntu.com/ubuntu/#g' /etc/apt/apt-mirrors.txt /etc/apt/sources.list /etc/apt/sources.list.d/* 2>/dev/null || true
+          done
+          exit 1
+      - name: Listed subsidiary market sale / repurchase safety (W-SUB-MARKET) in real iPhone WebKit
+        run: node tests/subsidiary-market-trade-save-atomicity-webkit-test.js
+      - name: Group restructuring sale safety (W-GROUP-DISPOSAL) in real iPhone WebKit
+        run: node tests/group-restructuring-sale-save-atomicity-webkit-test.js
+      - name: Internal venture spin-off safety (W-INTERNAL-VENTURE) in real iPhone WebKit
+        run: node tests/internal-venture-spinoff-save-atomicity-webkit-test.js
+      - name: Group restructuring merge safety (W-GROUP-DISPOSAL) in real iPhone WebKit
+        run: node tests/group-restructuring-merge-save-atomicity-webkit-test.js
+      - name: Negotiated subsidiary sale safety (W-GROUP-NEGOTIATED) in real iPhone WebKit
+        run: node tests/group-negotiated-sale-save-atomicity-webkit-test.js
+      - name: Retain group-atomicity WebKit evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: group-atomicity-webkit-${{ github.sha }}
+          path: artifacts/group-atomicity-webkit
+          if-no-files-found: error
+          retention-days: 30
+
+  venture-atomicity:
+    # P3-4 internal-venture writers (venture funding, sale and withdrawal; subsidiary parent funding and external rounds)
+    # in real iPhone WebKit, split out so
+    # group-atomicity (24.5 min with six tests on #1177: 13-min install + tests) keeps headroom.
+    # No event guard; same runtime and cancellation shape as the other family jobs.
+    concurrency:
+      group: ma-acquisition-financing-venture-atomicity-${{ (github.event_name == 'pull_request' || inputs.mode == 'deal-room') && github.run_id || github.ref }}
+      cancel-in-progress: true
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    env:
+      MA_DEAL_ROOM_ARTIFACT_DIR: artifacts/venture-atomicity-webkit
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ (github.event_name == 'pull_request' || inputs.mode == 'deal-room') && '20' || '22' }}
+      - name: Install pinned Playwright runtime
+        run: npm install --no-save --no-package-lock playwright@1.61.0
+      - name: Install WebKit browser and system dependencies
+        # Bounded retry: the install has stalled for the whole job budget several times (CLAUDE.md §7);
+        # healthy installs have taken up to ~9 minutes, so each attempt gets 12 and the job budget fits two.
+        run: |
+          # apt mirrors have stalled mid-download: retry stalled connections instead of waiting forever.
+          printf 'Acquire::Retries "5";\nAcquire::http::Timeout "30";\nAcquire::https::Timeout "30";\n' | sudo tee /etc/apt/apt.conf.d/80-ci-retries >/dev/null
+          for attempt in 1 2; do
+            timeout --kill-after=30s 12m npx playwright install --with-deps webkit && exit 0
+            echo "::warning::WebKit install attempt $attempt failed or stalled"
+            # timeout kills npx, not the apt-get it started as root; free the dpkg lock before retrying.
+            sudo pkill -9 -x apt-get || true
+            sudo pkill -9 -x dpkg || true
+            sudo env DEBIAN_FRONTEND=noninteractive timeout --kill-after=10s 2m dpkg --configure -a || true
+            # A crawling Azure apt mirror is what stalls the install; retry against archive.ubuntu.com.
+            sudo sed -i -E 's#https?://azure\.archive\.ubuntu\.com/ubuntu/?#http://archive.ubuntu.com/ubuntu/#g' /etc/apt/apt-mirrors.txt /etc/apt/sources.list /etc/apt/sources.list.d/* 2>/dev/null || true
+          done
+          exit 1
+      - name: Internal venture funding / sale / withdrawal safety (W-INTERNAL-VENTURE) in real iPhone WebKit
+        run: node tests/internal-venture-business-save-atomicity-webkit-test.js
+      - name: Unlisted subsidiary parent funding / external round safety (W-INTERNAL-VENTURE) in real iPhone WebKit
+        run: node tests/subsidiary-funding-save-atomicity-webkit-test.js
+      - name: New-business commercialization launch / spin-out / abandonment safety (W-COMMERCIAL-SPINOUT) in real iPhone WebKit
+        run: node tests/new-business-commercialization-save-atomicity-webkit-test.js
+      - name: Retain venture-atomicity WebKit evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: venture-atomicity-webkit-${{ github.sha }}
+          path: artifacts/venture-atomicity-webkit
+          if-no-files-found: error
+          retention-days: 30
+
+  p3-writer-atomicity:
+    # P3-4 shareholder-return, crisis, personal-margin and founder-capital writers in real iPhone WebKit, split from
+    # stock-split-atomicity: its steps alone took ~27.5 minutes, so a 12.5-minute WebKit install hit the 40-minute
+    # timeout (#1150, job 122041180558). No event guard; same runtime and cancellation shape as the family jobs.
+    concurrency:
+      group: ma-acquisition-financing-p3-writer-atomicity-${{ (github.event_name == 'pull_request' || inputs.mode == 'deal-room') && github.run_id || github.ref }}
+      cancel-in-progress: true
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    env:
+      MA_DEAL_ROOM_ARTIFACT_DIR: artifacts/p3-writer-atomicity-webkit
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ (github.event_name == 'pull_request' || inputs.mode == 'deal-room') && '20' || '22' }}
+      - name: Install pinned Playwright runtime
+        run: npm install --no-save --no-package-lock playwright@1.61.0
+      - name: Install WebKit browser and system dependencies
+        # Bounded retry: the install has stalled for the whole job budget several times (CLAUDE.md §7);
+        # healthy installs have taken up to ~9 minutes, so each attempt gets 12 and the job budget fits two.
+        run: |
+          # apt mirrors have stalled mid-download: retry stalled connections instead of waiting forever.
+          printf 'Acquire::Retries "5";\nAcquire::http::Timeout "30";\nAcquire::https::Timeout "30";\n' | sudo tee /etc/apt/apt.conf.d/80-ci-retries >/dev/null
+          for attempt in 1 2; do
+            timeout --kill-after=30s 12m npx playwright install --with-deps webkit && exit 0
+            echo "::warning::WebKit install attempt $attempt failed or stalled"
+            # timeout kills npx, not the apt-get it started as root; free the dpkg lock before retrying.
+            sudo pkill -9 -x apt-get || true
+            sudo pkill -9 -x dpkg || true
+            sudo env DEBIAN_FRONTEND=noninteractive timeout --kill-after=10s 2m dpkg --configure -a || true
+            # A crawling Azure apt mirror is what stalls the install; retry against archive.ubuntu.com.
+            sudo sed -i -E 's#https?://azure\.archive\.ubuntu\.com/ubuntu/?#http://archive.ubuntu.com/ubuntu/#g' /etc/apt/apt-mirrors.txt /etc/apt/sources.list /etc/apt/sources.list.d/* 2>/dev/null || true
+          done
+          exit 1
+      - name: Dividend declaration safety in real iPhone WebKit
+        run: node tests/shareholder-dividend-declaration-save-atomicity-webkit-test.js
+      - name: Dividend payment week safety in real iPhone WebKit
+        run: node tests/shareholder-dividend-payment-save-atomicity-webkit-test.js
+      - name: Shareholder buyback safety in real iPhone WebKit
+        run: node tests/shareholder-buyback-save-atomicity-webkit-test.js
+      - name: Sponsor injection safety in real iPhone WebKit
+        run: node tests/sponsor-injection-save-atomicity-webkit-test.js
+      - name: Turnaround fund acceptance safety in real iPhone WebKit
+        run: node tests/turnaround-fund-accept-save-atomicity-webkit-test.js
+      - name: Turnaround ratchet week safety in real iPhone WebKit
+        run: node tests/player-crisis-turnaround-ratchet-webkit-test.js
+      - name: Personal margin enclosing-transaction safety in real iPhone WebKit
+        run: node tests/personal-stock-margin-save-atomicity-webkit-test.js
+      - name: P4-AUD-004 personal secured repayment in real iPhone WebKit
+        run: node tests/p4-aud-004-personal-secured-repayment-webkit-test.js
+      - name: Founder Capital save atomicity in real iPhone WebKit
+        run: node tests/founder-capital-atomicity-webkit-test.js
+      - name: Retain p3-writer-atomicity WebKit evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: p3-writer-atomicity-webkit-${{ github.sha }}
+          path: artifacts/p3-writer-atomicity-webkit
+          if-no-files-found: error
+          retention-days: 30
+
   ma-economic-gate:
     # One verdict for the split M&A gate. Every job that applies to this event must succeed;
     # a job that does not apply must be skipped. Failure, cancellation or an unexpected skip of
     # any job therefore fails this check. Branch protection is not configured, so this is a
     # reporting gate, not a merge block on its own.
     if: always()
-    needs: [debt-command-atomicity, property-debt-principal-sync, comprehensive-ma, comprehensive-ma-balance, deal-room, stock-split-atomicity, pe-acquisition-atomicity, vc-secondary-atomicity, vc-funding-atomicity]
+    needs: [debt-command-atomicity, property-debt-principal-sync, comprehensive-ma, comprehensive-ma-balance, deal-room, stock-split-atomicity, pe-acquisition-atomicity, vc-secondary-atomicity, vc-funding-atomicity, vc-week-atomicity, p3-writer-atomicity, sub-listing-atomicity, sub-capital-atomicity, group-atomicity, venture-atomicity]
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
@@ -898,7 +1329,7 @@ jobs:
           const dealRoom = event === 'pull_request' || (event === 'workflow_dispatch' && mode === 'deal-room');
           const applies = {
             'comprehensive-ma': comprehensive, 'comprehensive-ma-balance': comprehensive, 'deal-room': dealRoom, 'stock-split-atomicity': true,
-            'debt-command-atomicity': true, 'property-debt-principal-sync': true, 'pe-acquisition-atomicity': true, 'vc-secondary-atomicity': true, 'vc-funding-atomicity': true
+            'debt-command-atomicity': true, 'property-debt-principal-sync': true, 'pe-acquisition-atomicity': true, 'vc-secondary-atomicity': true, 'vc-funding-atomicity': true, 'vc-week-atomicity': true, 'p3-writer-atomicity': true, 'sub-listing-atomicity': true, 'sub-capital-atomicity': true, 'group-atomicity': true, 'venture-atomicity': true
           };
           const problems = [];
           for (const [job, required] of Object.entries(applies)) {

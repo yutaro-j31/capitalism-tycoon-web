@@ -3,7 +3,9 @@ const assert=require('node:assert/strict');const fs=require('node:fs');const vm=
 const code=fs.readFileSync(path.join(__dirname,'../js/listed-subsidiary-control-actions.js'),'utf8');
 const play=fs.readFileSync(path.join(__dirname,'../index.html'),'utf8');
 class Engine{constructor(state){this.g=state;this.normalize();}normalize(){}fail(m){this.lastError=m;return false;}notify(){}runTransaction(fn){return fn();}}
-const events=[];const modules={engine:{TycoonEngine:Engine,compactYen:v=>`${Math.round(Number(v)||0).toLocaleString('ja-JP')}円`},finance:{event:(state,type,amount,meta)=>events.push({state,type,amount,meta})},playerEngineBridge:{getEngine:()=>null}};const context={globalThis:{__capitalismTycoonModules:modules}};context.globalThis.globalThis=context.globalThis;vm.runInNewContext(code,context,{filename:'listed-subsidiary-control-actions.js'});
+const events=[];
+const economicOperation=(()=>{const ctx={};ctx.globalThis=ctx;ctx.__capitalismTycoonModules={};vm.runInNewContext(fs.readFileSync(path.join(__dirname,'../js/economic-operation.js'),'utf8'),ctx);return ctx.__capitalismTycoonModules.economicOperation;})();
+const modules={economicOperation,engine:{TycoonEngine:Engine,compactYen:v=>`${Math.round(Number(v)||0).toLocaleString('ja-JP')}円`},finance:{event:(state,type,amount,meta)=>events.push({state,type,amount,meta})},playerEngineBridge:{getEngine:()=>null}};const context={globalThis:{__capitalismTycoonModules:modules}};context.globalThis.globalThis=context.globalThis;vm.runInNewContext(code,context,{filename:'listed-subsidiary-control-actions.js'});
 function state(){return {week:80,configured:true,selectedTab:'venture',companyCash:500_000_000,personalCash:12_000_000,saveVersion:9,subsidiaries:[{id:'sub-1',name:'物流テック',publicCompany:true,status:'active',ownership:.6,valuation:300_000_000,carryingBookValue:90_000_000}]};}
 const mod=modules.listedSubsidiaryControlActions;const s=state(),e=new Engine(s),personal=s.personalCash,saveVersion=s.saveVersion;
 const tob=mod.acquisitionPreview(s.subsidiaries[0],.9,.18);assert.equal(tob.ratio,.3);assert.equal(tob.price,106_200_000);

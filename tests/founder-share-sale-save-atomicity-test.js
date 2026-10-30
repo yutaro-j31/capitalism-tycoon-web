@@ -125,7 +125,7 @@ function fault(s, name) {
   }; return () => { g.emit = base; };
 }
 async function successful(s, entry = 'direct') {
-  const before = observe(s), counts = { saved: 0, change: 0 }, proceeds = 1000 * before.state.stockPrice * .995;
+  const before = observe(s), counts = { saved: 0, change: 0 }, proceeds = s.modules.economicOperation.ceilYen(1000 * before.state.stockPrice * .995);
   const saved = () => counts.saved++, change = () => counts.change++;
   s.game.addEventListener('saved', saved); s.game.addEventListener('change', change);
   assert.equal(invoke(s, entry), true);

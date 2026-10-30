@@ -50,8 +50,8 @@ function keepVacant(asset) {
   const quotes = engine.getPersonalRealEstateMortgageQuotes(asset.assetID);
   assert.equal(quotes.length, 3);
   for (const quote of quotes) {
-    assert.equal(quote.available, Math.round(asset.currentValue * quote.maxLTV), `${quote.label}の借入可能額はLTV上限どおり`);
-    assert.equal(quote.fee, Math.round(quote.available * quote.feeRate));
+    assert.equal(quote.available, Math.ceil(asset.currentValue * quote.maxLTV), `${quote.label}の借入可能額はLTV上限どおり`);
+    assert.equal(quote.fee, Math.ceil(quote.available * quote.feeRate));
     assert.equal(quote.netProceeds, quote.available - quote.fee);
     assert.ok(quote.eligible);
   }
@@ -237,7 +237,7 @@ function keepVacant(asset) {
   const value = asset.currentValue;
   const cashBefore = engine.g.personalCash;
   assert.equal(engine.sellPersonalRealEstate(asset.assetID), true);
-  assert.equal(engine.g.personalCash, cashBefore + Math.round(value) - balance, '売却代金から残債が清算される');
+  assert.equal(engine.g.personalCash, cashBefore + Math.ceil(value) - balance, '売却代金から残債が清算される');
   assert.equal(mortgage.totalDebt(engine.g), 0);
 }
 
@@ -371,7 +371,7 @@ function keepVacant(asset) {
 {
   const { modules, engine, asset, mortgage } = withHolding(901);
   assert.equal(engine.borrowPersonalRealEstateMortgage(asset.assetID, 'variable'), true);
-  const proceeds = Math.round(asset.currentValue * mortgage.FORECLOSURE_SALE_RATE);
+  const proceeds = Math.ceil(asset.currentValue * mortgage.FORECLOSURE_SALE_RATE);
   const mortgageBalance = mortgage.balanceOf(asset);
   assert.ok(proceeds > mortgageBalance, '前提: 差押え売却代金だけで住宅ローンは全額返済できる');
   asset.propertyTaxArrears = 100_000_000;
@@ -398,6 +398,22 @@ function keepVacant(asset) {
   assert.equal(restored.status, 'foreclosed', '差押え済みのinactive stateはreload後も復活しない');
   assert.equal(restored.propertyTaxArrears, 0, '清算済み税未納はreload後も復活しない');
   assert.equal(reloaded.g.personalDebt, engine.g.personalDebt, '税未納から振り替えた個人負債はreload後も保持する');
+}
+
+// Whole-yen schedule (YEN_CEILING_ROUNDING_CONTRACT §3.5, §4): the week's payment is rounded up
+// once, interest is the charge and principal the remainder; the final instalment pays a
+// fractional balance from an older save exactly.
+{
+  const { mortgage } = newGame();
+  const regular = mortgage.scheduleFor(10_000_001, .042, 1560);
+  const rawInterest = 10_000_001 * .042 / 52, rawPrincipal = 10_000_001 / 1560;
+  assert.equal(regular.due, Math.ceil(rawInterest + rawPrincipal), '週次返済額は利息と元本の合計を一度だけ切り上げる');
+  assert.equal(regular.interest, Math.ceil(rawInterest), '利息は切り上げた請求額');
+  assert.equal(regular.principal, regular.due - regular.interest, '元本は残り');
+  const final = mortgage.scheduleFor(1_000.4, .042, 1);
+  assert.equal(final.principal, 1_000.4, '最終回は端数のある旧残高をそのまま完済する');
+  assert.equal(final.interest, Math.ceil(1_000.4 * .042 / 52));
+  assert.equal(final.due, final.interest + 1_000.4);
 }
 
 console.log('personal real estate mortgage tests passed');

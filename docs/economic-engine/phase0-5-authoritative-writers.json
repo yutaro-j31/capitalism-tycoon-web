@@ -1259,6 +1259,14 @@
         ]
       },
       {
+        "file": "js/phase3-ownership-apply.js",
+        "tokens": [
+          "founderShares",
+          "sharesOut",
+          "treasuryBuybackShares"
+        ]
+      },
+      {
         "file": "js/phase3-ownership-planner.js",
         "tokens": [
           "founderShares",

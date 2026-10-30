@@ -18,6 +18,7 @@ const DISPOSITION_TYPES=Object.freeze(['store','property','product']);
 const COST_ACTION_TYPES=Object.freeze(['pauseProject','reduceDepartmentHeadcount']);
 const ELIGIBLE_STATUSES=new Set(['watch','distressed','turnaround','recovered']);
 const finite=(value,fallback=0)=>Number.isFinite(Number(value))?Number(value):fallback;
+const ceilYen=value=>globalThis.__capitalismTycoonModules.economicOperation.ceilYen(finite(value));
 const integer=(value,fallback=0)=>Math.max(0,Math.floor(finite(value,fallback)));
 const text=value=>String(value??'');
 const plain=value=>Boolean(value&&typeof value==='object'&&!Array.isArray(value));
@@ -158,7 +159,7 @@ function costOptions(instance){
    const result=state.workforceResultsByDepartmentID?.[team.departmentID]||{};
    const utilization=Math.max(0,finite(team.utilization,finite(result.utilization,1)));
    const weeklySavings=reducibleSalary(team);
-   return {type:'reduceDepartmentHeadcount',id:text(team.teamID),name:`${text(department.name||team.departmentID)} 1名削減`,departmentID:text(team.departmentID),weeklySavings,oneTimeCost:weeklySavings*2,utilization,priority:utilization<.8?0:1,canExecute};
+   return {type:'reduceDepartmentHeadcount',id:text(team.teamID),name:`${text(department.name||team.departmentID)} 1名削減`,departmentID:text(team.departmentID),weeklySavings,oneTimeCost:ceilYen(weeklySavings*2),utilization,priority:utilization<.8?0:1,canExecute};
   })
   .filter(row=>row.weeklySavings>0&&row.utilization<1)
   .sort((a,b)=>a.priority-b.priority||a.utilization-b.utilization||b.weeklySavings-a.weeklySavings||a.id.localeCompare(b.id));
@@ -172,7 +173,7 @@ function findCostCandidate(instance,type,id){
 }
 function reduceDepartmentHeadcount(state,team,candidate,operationID){
  const weeklySavings=Math.max(0,finite(candidate.weeklySavings));
- const oneTimeCost=Math.max(0,finite(candidate.oneTimeCost));
+ const oneTimeCost=Math.max(0,ceilYen(candidate.oneTimeCost));
  const cohorts=activeCorporateCohorts(team);
  if(cohorts.length){
   const cohort=cohorts[0];

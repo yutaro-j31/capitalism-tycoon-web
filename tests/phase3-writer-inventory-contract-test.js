@@ -10,6 +10,8 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
 const vm = require('node:vm');
+const { createHash } = require('node:crypto');
+const { spawnSync } = require('node:child_process');
 const ROOT = path.resolve(__dirname, '..');
 const PIN = '36b1eca3bc1a4115a6e544f93a9104adc4fa2026';
 const read = file => fs.readFileSync(path.join(ROOT, file), 'utf8');
@@ -90,6 +92,13 @@ const pinned = SNAPSHOT.split('\n').map(line => {
   const [id, file, symbol, callers, disposition] = line.split(' ');
   return { id, file, symbol, callers: callers.split(','), disposition };
 });
+// Reviewed id -> caller declarations at PIN, fixed independently of runtime input parsing. Deriving both actual
+// and expected from SNAPSHOT would allow a wrong known tag to silently rewrite its own expected value.
+const CALLER_DECLARATIONS_SHA256 = 'c24c39f31f2663c5b563ee1347af562638dc0426262f4a69e8ee285b9434b861';
+const callerDeclarations = pinned.map(row => [row.id, [...row.callers].sort()])
+  .sort((a, b) => a[0] < b[0] ? -1 : a[0] > b[0] ? 1 : 0);
+assert.equal(createHash('sha256').update(JSON.stringify(callerDeclarations)).digest('hex'), CALLER_DECLARATIONS_SHA256,
+  'caller declaration digest changed: review the fixed id/caller pin');
 
 // Parse actual matrix rows, not incidental W-* mentions elsewhere in prose.
 function matrixRows(text) {
@@ -189,5 +198,21 @@ negative('unsupported/replacement-accepted', x => { x.policies['W-NEW-COMPANY'] 
 negative('supported/kind', x => { x.policies['W-BUY'].kinds = ['personal-sell']; }, /fact kinds changed/);
 negative('declaration/disposition-removed', x => { delete x.declarations[0].disposition; }, /disposition changed/);
 validate(inputs);
-assert.equal(rejected, 26);
+// Execute an actual edited source copy, not another candidate compared against an expectation derived from itself.
+const originalSource = read('tests/phase3-writer-inventory-contract-test.js');
+const mutatedSource = originalSource.replace('W-BUY js/engine.js buyStock direct fact:personal-buy',
+  'W-BUY js/engine.js buyStock wrapper fact:personal-buy');
+assert.notEqual(mutatedSource, originalSource, 'checked-in caller mutation reached SNAPSHOT');
+const mutation = spawnSync(process.execPath, ['-e', `
+  const fs=require('node:fs'),path=require('node:path'),Module=require('node:module');
+  const file=process.argv[1],m=new Module(file);
+  m.filename=file;m.paths=Module._nodeModulePaths(path.dirname(file));
+  m._compile(fs.readFileSync(0,'utf8'),file);
+`, __filename], { input: mutatedSource, encoding: 'utf8', timeout: 10000 });
+assert.equal(mutation.error, undefined, 'source mutation child started and completed');
+assert.equal(mutation.status, 1, 'wrong known caller in checked-in SNAPSHOT must exit 1');
+assert.match(mutation.stderr, /caller declaration digest changed/);
+rejected++;
+console.log('FC-G01-01 rejected source mutation: W-BUY direct -> wrapper');
+assert.equal(rejected, 27);
 console.log(`FC-G01-01 PASS: 67 static route declarations; ${rejected} negative mutations rejected; pin=${PIN}; no runtime closure or activation evidence`);

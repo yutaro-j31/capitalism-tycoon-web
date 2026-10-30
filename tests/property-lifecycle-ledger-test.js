@@ -76,7 +76,7 @@ const round2 = v => Math.round(v * 100) / 100;
   assert.equal('landBookValue' in (land.realEstate || {}), false, 'seller book must not survive the sale');
   assert.equal(engine.g.finance.fixedAssets.filter(a => a.propertyID === land.id && a.status === 'active').length, 0);
 
-  const paid = land.price, cashBefore = engine.g.companyCash;
+  const paid = Math.ceil(land.price), cashBefore = engine.g.companyCash; // whole yen (YEN_CEILING_ROUNDING_CONTRACT §8 R4d-2)
   assert.equal(assertActionBalanced(finance, engine.g, 'rebuy', () => engine.buyProperty(land.id, 'company')), true);
   assert.equal(round2(cashBefore - engine.g.companyCash), round2(paid));
   assert.equal(land.purchasePrice, paid, 'rebuy starts a fresh acquisition basis');
@@ -93,7 +93,7 @@ const round2 = v => Math.round(v * 100) / 100;
   const { engine, finance } = newGame(730);
   const land = engine.g.properties.find(p => !p.owner && p.kind === '土地' && p.price < 300_000_000);
   for (let i = 0; i < 10; i++) assert.notEqual(engine.advanceWeek(false), false);
-  const paid = land.price;
+  const paid = Math.ceil(land.price);
   assert.equal(engine.buyProperty(land.id, 'company'), true);
   assert.equal(round2(finance.propertyBookOf(land)), round2(paid));
   assertValid(finance, engine.g, 'first purchase at week 11');
@@ -129,7 +129,7 @@ const round2 = v => Math.round(v * 100) / 100;
   const land = engine.g.properties.find(p => !p.owner && p.kind === '土地' && p.price < 300_000_000);
   const tx = engine.g.finance.transactions.length;
   assert.equal(engine.buyProperty(land.id, 'personal'), true);
-  assert.equal(land.purchasePrice, land.price);
+  assert.equal(land.purchasePrice, Math.ceil(land.price));
   assert.equal(engine.sellProperty(land.id), true);
   assert.equal(land.depreciationPerWeek, 0);
   assert.equal(engine.g.finance.transactions.length, tx, 'personal property stays off the company ledger');

@@ -17,6 +17,7 @@ const EngineClass=modules.engine.TycoonEngine;
 const finite=(v,f=0)=>Number.isFinite(Number(v))?Number(v):f;
 const clamp=(v,min=0,max=1)=>Math.max(min,Math.min(max,finite(v,min)));
 const arr=v=>Array.isArray(v)?v:[];
+const ceilYen=v=>modules.economicOperation.ceilYen(finite(v));
 
 // ファンド期間10年・投資期間5年（設計書§2）。週次エンジンなので週数で扱う。
 const FUND_TERM_WEEKS=520;
@@ -261,8 +262,9 @@ function recordExitForCurrentCompany(state,exitType,realizedAmount){
 // 個人資産が gpCommit に足りなければ何も変更せず null を返す。
 function createFund(state,{size=0,gpCommit=0,terms={fee:0,carry:0,hurdle:0},lps=[],y0}={}){
   ensure(state);
-  const cappedSize=Math.min(MAX_FUND_SIZE,Math.max(0,finite(size)));
-  const commit=Math.max(0,Math.min(cappedSize,finite(gpCommit)));
+  // 新規ファンドの規模は円単位に切り捨て（調達上限）、GP 出資は個人からの払込なので切り上げて規模で上限をかける。
+  const cappedSize=Math.floor(Math.min(MAX_FUND_SIZE,Math.max(0,finite(size))));
+  const commit=Math.min(cappedSize,ceilYen(Math.max(0,finite(gpCommit))));
   if(finite(state.personalCash)<commit)return null; // 個人資産が足りなければ組成できない
   state.personalCash=finite(state.personalCash)-commit;
   const fund={id:`pe-fund-${state.peFirm.funds.length+1}-${finite(state.week,1)}`,size:cappedSize,gpCommit:commit,lpContributed:cappedSize-commit,gpDistributed:0,lpDistributed:0,gpCarryPaid:0,managementFeesPaid:0,managementFeeShortfall:0,teamPayrollPaid:0,lastManagementFeePeriod:0,coinvestCash:0,coinvestContributed:0,trackScoreAtFormation:finite(state.peFirm.trackRecord.score),lps:arr(lps),terms:{...terms},y0:Math.max(1,Math.floor(finite(y0,finite(state.week,1)))),cash:cappedSize,undrawn:0,distributed:0,deals:[],status:'investing'};
@@ -280,12 +282,21 @@ function createFund(state,{size=0,gpCommit=0,terms={fee:0,carry:0,hurdle:0},lps=
 // プレイヤーの個人資産へ実際に戻る。これがGP出資の元本返済であり、キャリー（成功報酬）とは別物。
 // fund.distributed はファンド全体の分配額（DPIの分子）なので、GP持分を含めた総額を積む。
 function gpShareOfFund(fund){const size=Math.max(0,finite(fund?.size));return size>0?clamp(finite(fund?.gpCommit)/size,0,1):0;}
+// GP/LP split of a fund distribution (contract §4): a whole-yen amount is split exactly with allocateYen; a legacy
+// fractional one (undeployed cash carried from an older save, §1.1) keeps its exact proportional split.
+function investorSplit(fund,amount){
+  const gross=Math.max(0,finite(amount)),share=gpShareOfFund(fund);
+  if(gross<=0)return {gp:0,lp:0};
+  if(!Number.isSafeInteger(gross)||share<=0||share>=1){const gp=gross*share;return {gp,lp:gross-gp};}
+  const [gp,lp]=modules.economicOperation.allocateYen(gross,[share,1-share],['gp','lp']);
+  return {gp,lp};
+}
 function distributeToInvestors(state,fund,amount){
   const gross=Math.max(0,finite(amount));
   if(!fund||gross<=0)return 0;
   fund.distributed=Math.max(0,finite(fund.distributed))+gross;
-  const gpPart=gross*gpShareOfFund(fund);
-  fund.lpDistributed=Math.max(0,finite(fund.lpDistributed))+(gross-gpPart);
+  const {gp:gpPart,lp:lpPart}=investorSplit(fund,gross);
+  fund.lpDistributed=Math.max(0,finite(fund.lpDistributed))+lpPart;
   if(gpPart>0&&state){
     fund.gpDistributed=Math.max(0,finite(fund.gpDistributed))+gpPart;
     state.personalCash=finite(state.personalCash)+gpPart;
@@ -678,7 +689,7 @@ function processManagementFeePeriods(state,fund,week){
     fee+=paidFee;
     // チームは管理報酬で養われるので、報酬を取れなかった分だけ人件費も払えない（比例）。
     // ファンドの現金が尽きた後（投資期間終了で未投資分を返した後）は自然にゼロになる。
-    const target=Math.max(0,teamCapacity(fund)*MANAGEMENT_FEE_PER_HEAD)*(due>0?paidFee/due:0);
+    const target=ceilYen(Math.max(0,teamCapacity(fund)*MANAGEMENT_FEE_PER_HEAD)*(due>0?paidFee/due:0));
     const paidPayroll=Math.min(target,Math.max(0,finite(state.companyCash)));
     if(paidPayroll>0){
       state.companyCash=finite(state.companyCash)-paidPayroll;
@@ -752,7 +763,8 @@ function slotCapacity(fund){
   return Math.max(1,Math.min(SLOT_CAP_ABSOLUTE,teamDriven,ticketDriven));
 }
 // LPの分散義務（設計書§4）: 1件あたりの投下額はファンド規模の25%まで。
-function maxSingleDealSize(fund){return Math.max(0,finite(fund?.size))*MAX_DEAL_SHARE_OF_FUND;}
+// 上限は円単位に切り捨てる（契約書 §3: 上限は floor）。表示する最大入札額もこの値なので、上限ちょうどの入札が拒否されない。
+function maxSingleDealSize(fund){return Math.floor(Math.max(0,finite(fund?.size))*MAX_DEAL_SHARE_OF_FUND);}
 function activeDealCount(fund){return arr(fund?.deals).filter(d=>d&&d.status!=='exited').length;}
 // attention = チーム人数 ÷ 案件数（設計書§4）。1件に1人を割れないと改善が鈍る、という
 // 方向性のみが両文書で明記されている（正確な係数の指定はない）ため、ratio>=1で頭打ち・
@@ -810,8 +822,8 @@ const COINVEST_CARRY_FACTOR=.5;
 
 function coinvestCapacity(fund){return Math.max(0,finite(fund?.size))*COINVEST_CAP_MULTIPLE;}
 function coinvestCommitted(fund){return Math.max(0,finite(fund?.coinvestCommitted));}
-function coinvestRemaining(fund){return Math.max(0,coinvestCapacity(fund)-coinvestCommitted(fund));}
-function annualManagementFee(fund){return Math.max(0,finite(fund?.size)*finite(fund?.terms?.fee));}
+function coinvestRemaining(fund){return Math.floor(Math.max(0,coinvestCapacity(fund)-coinvestCommitted(fund)));}
+function annualManagementFee(fund){return ceilYen(Math.max(0,finite(fund?.size)*finite(fund?.terms?.fee)));}
 // 案件ごとの選択（設計書§14「規模を取るか報酬率を取るかの交換」）:
 //   useCoinvest=false: 全額ファンドで打つ。25%上限までしか投下できず、超過分は打てない
 //     (rejectedAmount)。キャリーはフル。
@@ -819,7 +831,7 @@ function annualManagementFee(fund){return Math.max(0,finite(fund?.size)*finite(f
 //     共同投資分にはフルの半分のキャリーしか付かないため、案件全体のキャリーは
 //     ファンド持分とのブレンドになる。
 function planDealFinancing(fund,dealSize,useCoinvest){
-  const size=Math.max(0,finite(dealSize));
+  const size=ceilYen(Math.max(0,finite(dealSize)));
   const cap=maxSingleDealSize(fund);
   const fullCarry=finite(fund?.terms?.carry);
   if(!useCoinvest||size<=cap){
@@ -879,12 +891,12 @@ function spendCoinvestment(fund,amount){
 // 二重徴収防止: 決済済みの案件（deal.settlement あり）は再決済しない。
 function calculateExitSettlement(fund,deal,proceeds,week){
   if(!fund||!deal)return null;
-  const gross=Math.max(0,finite(proceeds));
+  const gross=ceilYen(Math.max(0,finite(proceeds)));
   const fundPortion=Math.max(0,finite(deal.fundPortion));
   const coinvestPortion=Math.max(0,finite(deal.coinvestPortion));
   const invested=fundPortion+coinvestPortion;
-  const fundShare=invested>0?gross*fundPortion/invested:gross;
-  const coinvestShare=invested>0?gross*coinvestPortion/invested:0;
+  // 回収額は円単位に切り上げ、ファンド分／共同投資分へ allocateYen で按分する（契約書 §4）。
+  const [fundShare,coinvestShare]=fundPortion>0&&coinvestPortion>0?modules.economicOperation.allocateYen(gross,[fundPortion,coinvestPortion],['fund','coinvest']):invested>0&&fundPortion<=0?[0,gross]:[gross,0];
   const w=Math.max(0,Math.floor(finite(week,finite(deal.acquiredWeek,0))));
   const years=Math.max(0,(w-finite(deal.acquiredWeek,w))/52);
   const hurdle=Math.max(0,finite(fund.terms?.hurdle));
@@ -892,10 +904,10 @@ function calculateExitSettlement(fund,deal,proceeds,week){
   const fullCarry=Math.max(0,finite(fund.terms?.carry));
   const fundProfit=Math.max(0,fundShare-fundPortion);
   const fundHurdleAmount=fundPortion*hurdleFactor;
-  const fundCarry=Math.max(0,fundProfit-fundHurdleAmount)*fullCarry;
+  const fundCarry=Math.min(fundShare,ceilYen(Math.max(0,fundProfit-fundHurdleAmount)*fullCarry));
   const coinvestProfit=Math.max(0,coinvestShare-coinvestPortion);
   const coinvestHurdleAmount=coinvestPortion*hurdleFactor;
-  const coinvestCarry=Math.max(0,coinvestProfit-coinvestHurdleAmount)*fullCarry*COINVEST_CARRY_FACTOR;
+  const coinvestCarry=Math.min(coinvestShare,ceilYen(Math.max(0,coinvestProfit-coinvestHurdleAmount)*fullCarry*COINVEST_CARRY_FACTOR));
   const distributedToFund=Math.max(0,fundShare-fundCarry);
   const returnedToCoinvestors=Math.max(0,coinvestShare-coinvestCarry);
   return {
@@ -904,7 +916,7 @@ function calculateExitSettlement(fund,deal,proceeds,week){
     coinvestPrincipalReturned:Math.min(coinvestShare,coinvestPortion),
     hurdleFactor,fundHurdleAmount,coinvestHurdleAmount,
     fundCarry,coinvestCarry,gpCarry:fundCarry+coinvestCarry,
-    gpPrincipalAndGain:distributedToFund*gpShareOfFund(fund),
+    gpPrincipalAndGain:investorSplit(fund,distributedToFund).gp,
     distributedToFund,returnedToCoinvestors,settledWeek:w
   };
 }
@@ -935,17 +947,19 @@ function planFundFormation(state,{gpCommit=null}={}){
   if(!firm.unlocked)return {ok:false,reason:'locked',message:'PEファンドの組成にはExit経験が必要です。'};
   if(firm.funds.length&&!canFormNextFund(state))return {ok:false,reason:'gate',message:'次号ファンドの組成条件（DPI 1.2倍以上・資金消化80%以上）を満たしていません。'};
   const score=firm.trackRecord.score;
-  const maxSize=formableFundSize(state);
+  // 円単位（契約書 §3）: 規模は上限なので切り捨て、GP 出資は個人からの払込なので切り上げる。
+  // 規模を floor(GP 出資 ÷ 必要比率) で決めるので、GP 出資は常に「規模 × 必要比率」以上になる。
+  const maxSize=Math.floor(Math.max(0,finite(formableFundSize(state))));
   const ratio=requiredGPRatio(score);
-  const maxGpCommit=maxSize*ratio;
+  const maxGpCommit=ratio>0?ceilYen(maxSize*ratio):0;
   const terms=fundTermsForScore(score);
   if(maxSize<=0||maxGpCommit<=0)return {ok:false,reason:'size',message:'組成できる規模がありません。',maxSize,maxGpCommit,ratio,score,terms};
   const specified=gpCommit!==null&&gpCommit!==undefined&&gpCommit!=='';
   const requested=specified?Number(gpCommit):maxGpCommit;
   if(!Number.isFinite(requested)||requested<=0)return {ok:false,reason:'gpCommit',message:'GP出資額は0円より大きい金額を指定してください。',maxSize,maxGpCommit,ratio,score,terms};
-  if(requested>maxGpCommit+1e-6)return {ok:false,reason:'gpCommitMax',message:`現在の実績ではGP出資は最大${Math.round(maxGpCommit).toLocaleString('ja-JP')}円までです。`,maxSize,maxGpCommit,requestedGpCommit:requested,ratio,score,terms};
-  const selectedGpCommit=requested;
-  const size=maxSize*(selectedGpCommit/maxGpCommit);
+  const selectedGpCommit=ceilYen(requested);
+  if(selectedGpCommit>maxGpCommit)return {ok:false,reason:'gpCommitMax',message:`現在の実績ではGP出資は最大${maxGpCommit.toLocaleString('ja-JP')}円までです。`,maxSize,maxGpCommit,requestedGpCommit:selectedGpCommit,ratio,score,terms};
+  const size=selectedGpCommit>=maxGpCommit?maxSize:Math.min(maxSize,Math.floor(selectedGpCommit/ratio));
   if(finite(state.personalCash)<selectedGpCommit)return {ok:false,reason:'gpCash',message:`GP出資${Math.round(selectedGpCommit).toLocaleString('ja-JP')}円に対して個人資産が不足しています。`,maxSize,maxGpCommit,requestedGpCommit:selectedGpCommit,ratio,score,terms};
   return {ok:true,size,gpCommit:selectedGpCommit,ratio,score,terms,maxSize,maxGpCommit,customGpCommit:specified};
 }
@@ -993,7 +1007,7 @@ function formFund(state,{acceptPromises=false,promiseDecisions=null,gpCommit=nul
   const fund=createFund(state,{size:plan.size,gpCommit:plan.gpCommit,terms:plan.terms,y0:finite(state.week,1)});
   if(!fund)return {ok:false,reason:'gpCash',message:'GP出資に対して個人資産が不足しています。'};
   buildLPCommitments(state,fund,{acceptPromises,promiseDecisions});
-  return {ok:true,fund,size:plan.size,gpCommit:plan.gpCommit};
+  return {ok:true,fund,size:fund.size,gpCommit:fund.gpCommit};
 }
 
 function install(){
@@ -1052,13 +1066,14 @@ function install(){
     this.emit();
     return true;
   };
+  // P3-4 W-PE-FORM: the GP commitment, the fund and its LP commitments commit with one save, or roll back together.
   proto.formPEFund=function(options={}){
-    const result=formFund(this.g,options);
-    if(!result.ok)return this.fail(result.message);
-    this.notify?.(`${Math.round(result.size/100_000_000).toLocaleString('ja-JP')}億円のPEファンドを組成しました。`,'success');
-    this.save();
-    this.emit();
-    return true;
+    return this.runTransaction(()=>{
+      const result=formFund(this.g,options);
+      if(!result.ok)return this.fail(result.message);
+      this.notify?.(`${Math.round(result.size/100_000_000).toLocaleString('ja-JP')}億円のPEファンドを組成しました。`,'success');
+      return true;
+    });
   };
   Object.defineProperty(proto,'__peFundInstalled',{value:true});
   return true;
