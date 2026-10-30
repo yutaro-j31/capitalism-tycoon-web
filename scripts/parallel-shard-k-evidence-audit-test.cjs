@@ -1,7 +1,7 @@
 'use strict';
 const assert = require('node:assert/strict'), fs = require('node:fs'), os = require('node:os'), path = require('node:path');
 const crypto = require('node:crypto'), runner = require('./parallel-shard-runner');
-const { auditOne, auditPair, expectedFrom } = require('./parallel-shard-k-evidence-audit.cjs');
+const { auditOne, auditPair, expectedFrom, withArchive } = require('./parallel-shard-k-evidence-audit.cjs');
 const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'k-evidence-controls-'));
 const hash = b => crypto.createHash('sha256').update(b).digest('hex');
 const commands = runner.enumerateShard('K');
@@ -70,5 +70,46 @@ try {
   assert.equal(review.status, 'cross-node-output-review-required'); assert.equal(review.differences.length, 1);
   assert.equal(review.productionAuthorized, false);
   assert.throws(() => auditPair([a.report, a.report], expected, [a.root, a.root]), /both Node versions/);
-  console.log('K evidence audit: PASS (synthetic controls only; not hosted safety evidence)');
+  // Replay the retained pack without any test workload or historical Git fetch.
+  const zlib = require('node:zlib');
+  const archived = fs.readFileSync(path.join(__dirname, '../docs/ci-evidence/k-refresh-hosted-2026-10-31.json.gz'));
+  const archiveHash = 'cbd0dbbde22ab5907d2d605e00cdb37db273722eaefe1d8f0c2850a3080aab63';
+  const archivePin = '9223004d0bd2e9b0ebb435edf599d01b72020fd0';
+  let restoredRoots;
+  assert.deepEqual(withArchive(archived, archiveHash, archivePin, (reports, roots) => {
+    restoredRoots = roots;
+    assert.equal(roots.reduce((sum, root) => sum + fs.readdirSync(root).length, 0), 6);
+    return reports.map(r => r.node.split('.')[0]).sort();
+  }), ['v22', 'v24']);
+  assert.ok(restoredRoots.every(root => !fs.existsSync(root)), 'success removes temporary files');
+  assert.throws(() => withArchive(archived, archiveHash, archivePin, (_, roots) => {
+    restoredRoots = roots; throw Error('visitor failed');
+  }), /visitor failed/);
+  assert.ok(restoredRoots.every(root => !fs.existsSync(root)), 'failure removes temporary files');
+  assert.throws(() => withArchive(archived, '0'.repeat(64), archivePin, () => {}), /archive SHA256/);
+  assert.throws(() => withArchive(archived, archiveHash, '0'.repeat(40), () => {}));
+  const pack = JSON.parse(zlib.gunzipSync(archived));
+  const oversized = zlib.gzipSync(JSON.stringify({ ...pack, padding: 'x'.repeat(16 * 1024 * 1024) }));
+  assert.throws(() => withArchive(oversized, hash(oversized), archivePin, () => {}), 'decompression bound');
+  for (const mutate of [
+    p => p.nodes[0].artifactId = '../escape',
+    p => p.nodes[1].artifactId = p.nodes[0].artifactId,
+    p => p.nodes[0].files[0].path = '../escape',
+    p => p.nodes[0].files[0].path = '/tmp/escape',
+    p => p.nodes[0].files[0].path = 'unexpected.json',
+    p => p.nodes[0].files.push(p.nodes[0].files[0]),
+    p => p.nodes[0].files[0].base64 += '!',
+    p => p.nodes[0].files[0].sha256 = '0'.repeat(64),
+    p => p.nodes[0].files.pop(),
+    p => {
+      const f = p.nodes[0].files.find(f => /^controls-node-/.test(f.path));
+      const c = JSON.parse(Buffer.from(f.base64, 'base64')); c.ok = false;
+      const bytes = Buffer.from(JSON.stringify(c)); f.base64 = bytes.toString('base64'); f.sha256 = hash(bytes);
+    },
+    p => p.nodes[0].files[0].path = p.nodes[0].files[0].path.replace('node-22', 'node-24'),
+  ]) {
+    const copy = structuredClone(pack); mutate(copy); const zipped = zlib.gzipSync(JSON.stringify(copy));
+    assert.throws(() => withArchive(zipped, hash(zipped), archivePin, () => {}));
+  }
+  console.log('K evidence audit: PASS (synthetic controls + archive restoration; not fresh hosted safety evidence)');
 } finally { fs.rmSync(directory, { recursive: true, force: true }); }

@@ -128,12 +128,59 @@ function expectedFrom(root, pinnedSha = PIN) {
   return { sha: pinnedSha, commands, digest: runner.digestOf(commands), seen: Number(seen[1]),
     runnerSha256: sha(fs.readFileSync(path.join(root, 'scripts/parallel-shard-runner.js'))) };
 }
-module.exports = { auditOne, auditPair, expectedFrom };
+// Restore only an independently hash-pinned complete artifact pack into a private
+// temporary directory. Existing auditPair still decides evidence status/exit2.
+function withArchive(bytes, expectedHash, pinnedSha, visit) {
+  assert.match(expectedHash, /^[a-f0-9]{64}$/); assert.match(pinnedSha, /^[a-f0-9]{40}$/);
+  assert.equal(sha(bytes), expectedHash, 'archive SHA256 mismatch');
+  const pack = JSON.parse(require('node:zlib').gunzipSync(bytes, { maxOutputLength: 16 * 1024 * 1024 }));
+  assert.equal(pack.schema, 'k-full-artifact-evidence-v1'); assert.equal(pack.sourceSha, pinnedSha);
+  assert.equal(pack.productionAuthorized, false); unique(pack.nodes, 'artifactId', 2);
+  const root = fs.mkdtempSync(path.join(require('node:os').tmpdir(), 'k-archive-audit-'));
+  try {
+    const reports = [], roots = [], majors = [];
+    for (const node of pack.nodes) {
+      assert.ok(Number.isSafeInteger(node.artifactId) && node.artifactId > 0);
+      unique(node.files, 'path', 89); // full report + controls + 3*29 raw PID logs
+      const dir = path.join(root, String(node.artifactId)); fs.mkdirSync(dir); roots.push(dir);
+      let major;
+      for (const file of node.files) {
+        assert.equal(typeof file.path, 'string');
+        const match = /^(?:(?:full-k|controls)-node-(22|24)\.json|audit-node-(22|24)\/full-k-(?:audited-serial|parallel-2|parallel-4)\/(?:[0-9]|1[0-9]|2[0-8])\/[1-9][0-9]*\.jsonl)$/.exec(file.path);
+        assert.ok(match, 'unexpected artifact path');
+        const version = Number(match[1] || match[2]); major ??= version;
+        assert.equal(version, major, 'mixed Node versions in artifact');
+        assert.equal(typeof file.base64, 'string'); const data = Buffer.from(file.base64, 'base64');
+        assert.equal(data.toString('base64'), file.base64, 'canonical archive base64');
+        assert.equal(sha(data), file.sha256, 'artifact file SHA256 mismatch');
+        const target = path.join(dir, file.path); fs.mkdirSync(path.dirname(target), { recursive: true });
+        fs.writeFileSync(target, data, { flag: 'wx' });
+      }
+      majors.push(major);
+      const controls = JSON.parse(fs.readFileSync(path.join(dir, `controls-node-${major}.json`)));
+      assert.equal(controls.ok, true); assert.equal(controls.identity.consistent, true);
+      const report = JSON.parse(fs.readFileSync(path.join(dir, `full-k-node-${major}.json`)));
+      assert.match(report.node, new RegExp(`^v${major}\\.`)); reports.push(report);
+    }
+    assert.deepEqual(majors.slice().sort(), [22, 24], 'both Node artifact versions required');
+    return visit(reports, roots);
+  } finally { fs.rmSync(root, { recursive: true, force: true }); }
+}
+module.exports = { auditOne, auditPair, expectedFrom, withArchive };
 if (require.main === module) {
   try {
-    const [source, root22, report22, root24, report24, pinnedSha] = process.argv.slice(2);
-    assert.ok([7, 8].includes(process.argv.length), 'usage: audit.cjs SOURCE_ROOT ARTIFACT22 REPORT22 ARTIFACT24 REPORT24 [PINNED_SOURCE_SHA]');
-    const result = auditPair([report22, report24].map(p => JSON.parse(fs.readFileSync(p))), expectedFrom(path.resolve(source), pinnedSha), [root22, root24]);
+    let result;
+    if (process.argv[2] === '--archive') {
+      assert.equal(process.argv.length, 7, 'usage: audit.cjs --archive SOURCE_ROOT ARCHIVE_GZ EXPECTED_GZIP_SHA256 PINNED_SOURCE_SHA');
+      const [, source, archive, hash, pinnedSha] = process.argv.slice(2);
+      const expected = expectedFrom(path.resolve(source), pinnedSha);
+      result = withArchive(fs.readFileSync(archive), hash, pinnedSha,
+        (reports, roots) => auditPair(reports, expected, roots));
+    } else {
+      const [source, root22, report22, root24, report24, pinnedSha] = process.argv.slice(2);
+      assert.ok([7, 8].includes(process.argv.length), 'usage: audit.cjs SOURCE_ROOT ARTIFACT22 REPORT22 ARTIFACT24 REPORT24 [PINNED_SOURCE_SHA]');
+      result = auditPair([report22, report24].map(p => JSON.parse(fs.readFileSync(p))), expectedFrom(path.resolve(source), pinnedSha), [root22, root24]);
+    }
     console.log(JSON.stringify(result, null, 2)); process.exitCode = result.differences.length ? 2 : 0;
   } catch (error) { console.error(error.stack); process.exitCode = 1; }
 }

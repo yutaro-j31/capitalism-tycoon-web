@@ -50,6 +50,18 @@ for node in archive['nodes']:
 print(out)
 ```
 
+## One-command strict offline replay
+
+The auditor now also accepts the retained complete pack directly:
+
+```sh
+node scripts/parallel-shard-k-evidence-audit.cjs --archive SOURCE_ROOT docs/ci-evidence/k-refresh-hosted-2026-10-31.json.gz cbd0dbbde22ab5907d2d605e00cdb37db273722eaefe1d8f0c2850a3080aab63 9223004d0bd2e9b0ebb435edf599d01b72020fd0
+```
+
+`SOURCE_ROOT` must be a clean checkout at the exact explicit922 pin. The expected gzip hash is supplied independently from this reviewed record, not computed from the input and silently trusted. The tool verifies that hash, v1 schema/source, two unique positive artifact IDs, exact89 files per Node, allowed Node-specific relative paths, canonical Base64 and each file hash. Decompression is bounded to16MiB. Both control reports must be successful with consistent namespace identity. A private temporary directory is removed on success or failure; no user output directory or existing artifacts are overwritten.
+
+The restored reports/raw PID files go through the **same existing** source/contract/runner/output/flags/metrics/final-group/API-log auditor. Existing extracted-artifact CLI/default165d pin stays compatible. Exit0/1/2 semantics remain unchanged; this real archived pack still returns exit2 for the one directly classified cross-Node stderr difference. No output normalization, residue waiver, fresh workload, network access, workflow edit or production enabling is involved. Synthetic malformed-pack controls and actual committed-pack restoration run in the existing short mandatory auditor self-test; no job/step is added. A real922-source full archived audit was executed locally and reproduced the expected sole difference after all within-Node checks.
+
 ## Integration and remaining gates
 
 #1234 was merged as **`142c38e77b1f5b13200663367128effef0860ff6`** only after exact finalHEAD Test4361 SUCCESS22 applicable checks/4 nonapplicable skips, Codex completed/no findings/threads0, complete hosted audit and current main754 integration tree `a13ee6772cf3669908ae26d20ac7f720d7de27b3` with focused auditor/write/workflow/iPhone/diff PASS. Main754's Test4362 remained queued, not relabeled PASS. Actual merge tree matches the integration tree. New-main Test4366/run41120002733 is pending at first observation, not postmerge success. This docs-only evidence PR still needs its own finalHEAD CI/review.
