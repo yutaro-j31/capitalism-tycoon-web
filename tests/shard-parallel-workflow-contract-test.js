@@ -47,4 +47,16 @@ for (const needle of ['nproc', 'free -m', '/proc/cpuinfo', 'cpu.max', 'memory.ma
 // The aggregate job still requires every shard.
 assert.match(text, /test "\$\{\{ needs\.test-shards\.result \}\}" = "success"/);
 
+// Owner-authorized residue diagnosis is restricted to its own PR branch. It never
+// changes canonical J/C parallelism or starts on main, schedule, dispatch or other PRs.
+const diagnostic = text.slice(text.indexOf('\n  parallel-process-diagnostic:'));
+assert.ok(text.includes('\n  parallel-process-diagnostic:'), 'dedicated process diagnostic job exists');
+assert.ok(diagnostic.includes("if: github.event_name == 'pull_request' && github.head_ref == 'ci/parallel-shard-process-diagnostic'"));
+for (const token of ["node: ['22', '24']", 'timeout-minutes: 90', 'contents: read', 'fail-fast: false',
+  'node scripts/parallel-shard-runner-process-diagnostic.js --report',
+  'node tests/parallel-shard-runner-test.js', '--full-e', '--root diagnostic-e-source',
+  '--source-sha 20dcfe71a3fc5e8ad662c8f8497fac1120162ae1', 'persist-credentials: false', 'if: always()', 'if-no-files-found: error'])
+  assert.ok(diagnostic.includes(token), `process diagnostic must retain ${token}`);
+assert.doesNotMatch(diagnostic, /continue-on-error|TEST_SHARD_PARALLELISM|vars\./);
+
 console.log('shard-parallel-workflow-contract-test: ok');

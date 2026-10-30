@@ -53,8 +53,25 @@ const workflow=fs.readFileSync(smokeWorkflow,'utf8');
 for(const removed of ['.github/workflows/iphone-playtest-remediation.yml','.github/workflows/physical-iphone-playtest.yml']){
  assert(!fs.existsSync(removed),`${removed} must remain consolidated into ${smokeWorkflow}`);
 }
-assert(/github\.event_name == 'push'.*github\.event_name == 'schedule'.*inputs\.mode == 'iphone-webkit'/.test(workflow),`${smokeWorkflow} iPhone job must retain main, schedule, and manual coverage`);
-assert(!/iphone-webkit-smoke:[\s\S]*?if:[^\n]*pull_request/.test(workflow),`${smokeWorkflow} iPhone job must not run on pull_request`);
+function iphoneJob(text){
+ const start=text.search(/^  iphone-webkit-smoke:\s*$/m);
+ assert(start>=0,`${smokeWorkflow} iPhone job must exist`);
+ const tail=text.slice(start);
+ const next=tail.slice(1).search(/^  [A-Za-z0-9_-]+:\s*$/m);
+ return next<0?tail:tail.slice(0,next+1);
+}
+function verifyIphoneCondition(text){
+ const job=iphoneJob(text);
+ assert(/github\.event_name == 'push'.*github\.event_name == 'schedule'.*inputs\.mode == 'iphone-webkit'/.test(job),`${smokeWorkflow} iPhone job must retain main, schedule, and manual coverage`);
+ assert(!/if:[^\n]*pull_request/.test(job),`${smokeWorkflow} iPhone job must not run on pull_request`);
+}
+verifyIphoneCondition(workflow);
+// A following PR-only job is outside this contract; the same condition inside
+// the iPhone job must still be rejected, even when allowed triggers remain.
+const isolatedIphone=iphoneJob(workflow);
+verifyIphoneCondition(`${isolatedIphone}\n  unrelated-diagnostic:\n    if: github.event_name == 'pull_request'\n    runs-on: ubuntu-latest\n`);
+assert.throws(()=>verifyIphoneCondition(isolatedIphone.replace(/^(    if:.*)$/m,"$1 || github.event_name == 'pull_request'")),/iPhone job must not run on pull_request/);
+assert.throws(()=>verifyIphoneCondition(isolatedIphone.replace(/^    if:.*$/m,"    if: github.event_name == 'pull_request'")),/iPhone job must retain main, schedule, and manual coverage/);
 assert(/^\s*push\s*:/m.test(workflow),`${smokeWorkflow} must retain main push coverage`);
 assert(/branches:\s*\[\s*main\s*\]/.test(workflow),`${smokeWorkflow} push coverage must target main`);
 assert(/^\s*schedule\s*:/m.test(workflow),`${smokeWorkflow} must retain daily coverage`);

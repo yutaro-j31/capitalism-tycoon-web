@@ -490,3 +490,49 @@ jobs:
             artifacts/physical-iphone-playtest
           if-no-files-found: error
           retention-days: 30
+
+  parallel-process-diagnostic:
+    name: Parallel process diagnostic (Node ${{ matrix.node }})
+    if: github.event_name == 'pull_request' && github.head_ref == 'ci/parallel-shard-process-diagnostic'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    timeout-minutes: 90
+    strategy:
+      fail-fast: false
+      matrix:
+        node: ['22', '24']
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node }}
+      - name: Record Linux runtime identity
+        run: |
+          node --version
+          nproc
+          free -m
+          uname -a
+      - name: Reproduce and classify process groups
+        run: node scripts/parallel-shard-runner-process-diagnostic.js --report artifacts/process-diagnostic/node-${{ matrix.node }}.json
+      - name: Existing runner process integrity regression
+        run: node tests/parallel-shard-runner-test.js
+      - name: Checkout exact E HEAD for full reproduction
+        uses: actions/checkout@v4
+        with:
+          ref: 20dcfe71a3fc5e8ad662c8f8497fac1120162ae1
+          path: diagnostic-e-source
+          persist-credentials: false
+      - name: Compare all 33 E commands serial and parallel two
+        run: >-
+          node scripts/parallel-shard-runner-process-diagnostic.js --full-e
+          --root diagnostic-e-source --source-sha 20dcfe71a3fc5e8ad662c8f8497fac1120162ae1
+          --report artifacts/process-diagnostic/full-e-node-${{ matrix.node }}.json
+      - name: Retain process evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: process-diagnostic-node-${{ matrix.node }}-${{ github.run_id }}
+          path: artifacts/process-diagnostic/
+          if-no-files-found: error
+          retention-days: 14
