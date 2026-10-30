@@ -240,8 +240,15 @@ async function successful(s) {
       retry.game.importSave(JSON.stringify(compact));
       assert.notEqual(retry.game.g, oldRoot, 'import actually replaces the root');
       await retry.backend.flush();
+      // A stale-root invocation must be distinguishable from a correct rejection: give the detached root the
+      // genuine pre-acceptance state (including its pending offer and valid books), not another accepted copy.
+      for (const key of Object.keys(oldRoot)) delete oldRoot[key];
+      Object.assign(oldRoot, plain(before.state));
+      const detached = JSON.stringify(oldRoot);
       async function refuses(current, invoke, label) {
         const prior = observe(current), attempts = current.control.attempts.length;
+        const history = current.ctx.__localStorageHistory;
+        const mirrorCalls = { set: history.setItem.length, remove: history.removeItem.length };
         const rows = current.game.g.finance.transactions.filter(t => t.sourceType === 'investorOffer' && t.sourceID === offerID);
         assert.equal(rows.length, 1, 'one surviving financing row');
         assert.equal(rows[0].cashEffect, s.offer.amount); assert.equal(rows[0].equityEffect, s.offer.amount);
@@ -249,10 +256,18 @@ async function successful(s) {
         assert.equal(current.game.g.companyCash, before.state.companyCash + s.offer.amount);
         assert.equal(current.modules.finance.validate(snapshot(current.game)).ok, true);
         assert.equal(current.game.g.investorOffers.find(o => o.id === offerID).status, 'accepted');
-        assert.equal(invoke(), false, label);
-        await current.backend.flush();
+        const backend = current.modules.saveStorageIDB, calls = { write: 0, remove: 0 };
+        current.modules.saveStorageIDB = { ...backend,
+          writeSync(...args) { calls.write++; return backend.writeSync(...args); },
+          removeSync(...args) { calls.remove++; return backend.removeSync(...args); } };
+        try { assert.equal(invoke(), false, label); await current.backend.flush(); }
+        finally { current.modules.saveStorageIDB = backend; }
         assert.deepEqual(observe(current), prior, label + ': full state/RNG/mirror/cache/durable unchanged');
         assert.equal(current.control.attempts.length, attempts, label + ': no durable put');
+        assert.deepEqual(calls, { write: 0, remove: 0 }, label + ': no cache write/remove attempt');
+        assert.deepEqual({ set: history.setItem.length, remove: history.removeItem.length }, mirrorCalls,
+          label + ': no mirror write/remove attempt, even of identical bytes');
+        assert.equal(JSON.stringify(oldRoot), detached, label + ': detached pending root untouched');
       }
       await refuses(retry, () => captured.call(retry.game, offerID), profile + ' captured installed method after import');
       const fresh = await durableOnly(retry);

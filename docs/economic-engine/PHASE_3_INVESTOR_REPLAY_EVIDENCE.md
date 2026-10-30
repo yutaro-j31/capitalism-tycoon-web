@@ -13,11 +13,19 @@ offer must remain consumed after production compaction/import and a fresh runtim
   company cash, unchanged personal cash and capital surplus to one successful acceptance.
 - Exercise production normal and critical compaction plus actual `importSave`, verifying that the state root changes.
   A reference to the installed acceptance method captured before import must use the replacement root and refuse
-  the already accepted offer. This is an installed-method reference, **not** the raw/captured-base writer family.
+  the already accepted offer. The detached root is reset to the genuine pending pre-acceptance fixture, so a stale
+  root would admit another issuance; both roots must remain unchanged. This is an installed-method reference,
+  **not** the raw/captured-base writer family.
 - Hydrate another fresh runtime from durable storage alone. Direct and nested-transaction retries of the same offer
-  both return false. Full state, RNG, mirror/cache/durable bytes and durable-put count remain unchanged.
+  both return false. Full state, RNG, mirror/cache/durable bytes and durable-put count remain unchanged. Harness
+  mirror set/remove counters and instrumented backend write/remove counters also reject same-value or cancelled writes.
 - Require exactly one surviving financing row for this offer with the original cash/equity effects, accepted status,
   exact one-issuance shares/cash, and valid company accounting.
+
+Local mutation checks of the focused replay block reject three broken variants: temporarily route the captured call
+through the detached pending root; rewrite identical mirror bytes before rejection; or enqueue identical cache bytes
+and cancel through a checkpoint before flush. Each exits 1 at its corresponding assertion; the unmodified full suite
+passes. These are test-sensitivity controls, not reports of production defects.
 
 ## Scope and remaining gates
 
