@@ -1,7 +1,7 @@
 'use strict';
 const assert = require('node:assert/strict'), fs = require('node:fs'), os = require('node:os'), path = require('node:path');
 const crypto = require('node:crypto'), runner = require('./parallel-shard-runner');
-const { auditOne, auditPair } = require('./parallel-shard-k-evidence-audit.cjs');
+const { auditOne, auditPair, expectedFrom } = require('./parallel-shard-k-evidence-audit.cjs');
 const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'k-evidence-controls-'));
 const hash = b => crypto.createHash('sha256').update(b).digest('hex');
 const commands = runner.enumerateShard('K');
@@ -35,6 +35,19 @@ function fixture(major) {
   return { report, root };
 }
 try {
+  // Use a tiny private Git source to exercise SHA/dirty guards without any K workload.
+  const cp = require('node:child_process');
+  const source = path.join(directory, 'source'); fs.mkdirSync(source);
+  const git = args => cp.execFileSync('git', args, { cwd: source, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] }).trim();
+  git(['init']); fs.writeFileSync(path.join(source, 'tracked'), 'original'); git(['add', '.']);
+  git(['-c', 'user.name=Fixture', '-c', 'user.email=fixture@example.invalid', 'commit', '-m', 'fixture']);
+  const sourceSha = git(['rev-parse', 'HEAD']);
+  for (const invalid of ['main', '1234567', 'A'.repeat(40), '0'.repeat(39)])
+    assert.throws(() => expectedFrom(source, invalid), /explicit full source SHA/);
+  assert.throws(() => expectedFrom(source, '0'.repeat(40)), /strictly equal/);
+  assert.throws(() => expectedFrom(source), /strictly equal/, 'legacy default must still require the historical pin');
+  fs.writeFileSync(path.join(source, 'tracked'), 'dirty');
+  assert.throws(() => expectedFrom(source, sourceSha), /source tracked files must be clean/);
   const a = fixture(22), b = fixture(24);
   assert.equal(auditPair([a.report, b.report], expected, [a.root, b.root]).status, 'evidence-verified');
   const cases = [r => r.runs.pop(), r => r.identity.consistent = false, r => r.identity.numbered.pid++,

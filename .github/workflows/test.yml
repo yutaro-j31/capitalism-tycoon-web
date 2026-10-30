@@ -596,7 +596,7 @@ jobs:
 
   parallel-k-write-observation:
     name: K write observation (Node ${{ matrix.node }})
-    if: github.event_name == 'pull_request' && github.head_ref == 'ci/shard-k-write-observation'
+    if: github.event_name == 'pull_request' && github.head_ref == 'ci/k-source-freshness'
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -625,13 +625,13 @@ jobs:
       - name: Checkout pinned K source
         uses: actions/checkout@v4
         with:
-          ref: 165d924423f1e4bde8be8c801c28b15bbac76e72
+          ref: 9223004d0bd2e9b0ebb435edf599d01b72020fd0
           path: diagnostic-k-source
           persist-credentials: false
       - name: Compare K clean reference and audited serial, two and four
         run: >-
           node scripts/parallel-shard-runner-process-diagnostic.js --full-shard K
-          --root diagnostic-k-source --source-sha 165d924423f1e4bde8be8c801c28b15bbac76e72
+          --root diagnostic-k-source --source-sha 9223004d0bd2e9b0ebb435edf599d01b72020fd0
           --retain-output --write-audit-root artifacts/k-write-observation/audit-node-${{ matrix.node }}
           --report artifacts/k-write-observation/full-k-node-${{ matrix.node }}.json
       - name: Retain K diagnostic evidence

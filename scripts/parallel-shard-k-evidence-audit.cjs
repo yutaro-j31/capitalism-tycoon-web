@@ -118,21 +118,22 @@ function auditPair(reports, expected, roots) {
   return { status: differences.length ? 'cross-node-output-review-required' : 'evidence-verified',
     nodes: audited.map(({ node, rounds }) => ({ node, rounds })), differences, productionAuthorized: false };
 }
-function expectedFrom(root) {
-  assert.equal(cp.execFileSync('git', ['rev-parse', 'HEAD'], { cwd: root, encoding: 'utf8' }).trim(), PIN);
+function expectedFrom(root, pinnedSha = PIN) {
+  assert.match(pinnedSha, /^[a-f0-9]{40}$/, 'explicit full source SHA required');
+  assert.equal(cp.execFileSync('git', ['rev-parse', 'HEAD'], { cwd: root, encoding: 'utf8' }).trim(), pinnedSha);
   assert.equal(cp.execFileSync('git', ['status', '--porcelain', '--untracked-files=no'], { cwd: root, encoding: 'utf8' }).trim(), '', 'source tracked files must be clean');
   const commands = runner.enumerateShard('K', { root });
   const contract = cp.execFileSync(process.execPath, ['tests/run-all-shard.js'], { cwd: root, encoding: 'utf8', env: { ...process.env, TEST_SHARD: 'K', TEST_SHARD_CONTRACT: '1' } });
   const seen = /contractOnly=true executed=0 seen=(\d+)/.exec(contract); assert.ok(seen);
-  return { sha: PIN, commands, digest: runner.digestOf(commands), seen: Number(seen[1]),
+  return { sha: pinnedSha, commands, digest: runner.digestOf(commands), seen: Number(seen[1]),
     runnerSha256: sha(fs.readFileSync(path.join(root, 'scripts/parallel-shard-runner.js'))) };
 }
 module.exports = { auditOne, auditPair, expectedFrom };
 if (require.main === module) {
   try {
-    const [source, root22, report22, root24, report24] = process.argv.slice(2);
-    assert.equal(process.argv.length, 7, 'usage: audit.cjs SOURCE_ROOT ARTIFACT22 REPORT22 ARTIFACT24 REPORT24');
-    const result = auditPair([report22, report24].map(p => JSON.parse(fs.readFileSync(p))), expectedFrom(path.resolve(source)), [root22, root24]);
+    const [source, root22, report22, root24, report24, pinnedSha] = process.argv.slice(2);
+    assert.ok([7, 8].includes(process.argv.length), 'usage: audit.cjs SOURCE_ROOT ARTIFACT22 REPORT22 ARTIFACT24 REPORT24 [PINNED_SOURCE_SHA]');
+    const result = auditPair([report22, report24].map(p => JSON.parse(fs.readFileSync(p))), expectedFrom(path.resolve(source), pinnedSha), [root22, root24]);
     console.log(JSON.stringify(result, null, 2)); process.exitCode = result.differences.length ? 2 : 0;
   } catch (error) { console.error(error.stack); process.exitCode = 1; }
 }
