@@ -2,6 +2,7 @@
 
 Baseline main: `779c33b39f3689b6081804046ad20523a31f9db5` (after #1231).
 Storage/event follow-up baseline: `754ef36e86cb69c6aa60f3aebfef26fc0aa0853d` (after #1233).
+Pending-save follow-up baseline: `0febdaf47bf3d68b0b68d83132660fbd2486e5b6` (after #1235).
 
 The existing registered `tests/competitor-stake-float-test.js` retains its healthy purchase/float/weekly cases and
 adds a real persisted `advanceWeek(false)` path. Unlike its original `engine()` helper, the new fixture uses the
@@ -30,5 +31,12 @@ This is partial Node/fake-IndexedDB evidence for eight faults, not every weekly 
 NPC monetary rounding migration, whole-family S_PASS, Authority Cutover, Phase 3 Exit or Phase 4 Entry. No new
 physical-device claim. No production/economic policy/saveVersion9/old-save loader/registration/Work B CI configuration
 or vNext change. Existing quote arithmetic is observed, not redefined; unknown/legacy holdings are not repaired.
-Notify-before-purchase, in-flight predecessor puts, nested direct callers and real browser storage remain outside
-this follow-up; it does not close the matrix's whole weekly family or establish NPC holder authority.
+The pending-save follow-up also holds a previous successful save's real fake-IDB put in flight before starting
+the purchase week. A release callback must exist before the fault is injected. Save-false and admitted-save-throw
+cases each preserve the pre-fault mirror/cache and older durable version while the predecessor is held. After
+release and flush, only the successful predecessor becomes durable; no failed weekly put starts. Reload and
+fresh durable-only hydration observe that predecessor before retry. Retry matches the uninterrupted same-seed
+week and adds exactly one successful put. All original non-pending cases remain.
+
+Notify-before-purchase, other pending fault kinds, nested direct callers and real browser storage remain outside
+these follow-ups; they do not close the matrix's whole weekly family or establish NPC holder authority.
