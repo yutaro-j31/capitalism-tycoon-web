@@ -120,7 +120,7 @@ function buy(s,c,label,expectFilled){
   console.log('weekly path deterministic, reload equals live, accounting valid PASS');}
  // P3-4 W-WEEK-COMPETITOR: real persisted week, unlike engine() above whose save is stubbed.
  const {scenario,snapshot,economic}=require('./fixtures/stock-split-atomicity');
- const {injectFault}=require('./helpers/transaction-fault-case');
+ const {injectFault,SOFT_FAILURES}=require('./helpers/transaction-fault-case');
  const {indexedDBFor}=require('./fixtures/pe-fund-acquisition-faults');
  async function persistedWeek(){
   const s=await scenario('own'),g=s.game.g;delete g.companyStocks.CPTY;
@@ -137,7 +137,10 @@ function buy(s,c,label,expectFilled){
   assert.deepEqual(economic(fresh.engineModule.TycoonEngine.load().g),wanted,'fresh durable-only weekly hydration');
  }
  let reference;
- for(const mode of ['normal','save-false','save-throw']){
+ // Keep the original actual-save cases; also cover storage admission and post-save dispatch.
+ // notify can precede the purchase during the week and requires a separate call-site witness.
+ // The outer transaction dispatches `week`, not the helper harness's generic `change` event.
+ for(const mode of ['normal','save-false','save-throw','save-before-throw','mirror','enqueue-false','enqueue-throw','saved','week']){
   const s=await persistedWeek(),game=s.game,prior=snapshot(game),bytes=s.backend.readSync(s.key),puts=s.control.attempts.length,draws=s.host.draws,records=[];
   const base=game.buyCompetitorStake;
   game.buyCompetitorStake=function(c){
@@ -151,8 +154,16 @@ function buy(s,c,label,expectFilled){
     assert.deepEqual(snapshot(this)[key],before[key],'NPC purchase alone preserves player '+key);
    records.push({id:c.id,filled,price});return filled;
   };
-  const injection=mode==='normal'?null:injectFault(s,mode);
-  try{if(mode==='save-throw')assert.throws(()=>game.advanceWeek(false),/save accepted then threw/);else assert.equal(game.advanceWeek(false),mode==='normal');}finally{injection?.restore();}
+  let injection;
+  if(mode==='week'){
+   const emit=game.emit;let hits=0;
+   game.emit=function(type,...args){if(type==='week'&&!this.inTransaction()){hits++;throw new Error('weekly event threw');}return emit.call(this,type,...args);};
+   injection={hits:()=>hits,restore(){game.emit=emit;}};
+  }else injection=mode==='normal'?null:injectFault(s,mode);
+  try{
+   if(mode==='normal'||SOFT_FAILURES.includes(mode))assert.equal(game.advanceWeek(false),mode==='normal');
+   else assert.throws(()=>game.advanceWeek(false),mode==='save-throw'?/save accepted then threw/:/threw/);
+  }finally{injection?.restore();}
   assert.equal(records.length,1,'the seeded week really reached one purchase');assert.equal(s.host.draws,draws,'weekly simulation draws no host RNG');
   if(injection){
    assert.ok(injection.hits()>0);assert.deepEqual(snapshot(game),prior,'whole rejected week including NPC cash/shares/player ledger/RNG restored');
