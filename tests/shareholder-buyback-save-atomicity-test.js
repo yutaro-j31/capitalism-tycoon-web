@@ -95,5 +95,40 @@ function success(before, after, s) {
   assert.equal(command(wrong), true);
   const corrupted = snapshot(wrong.game); corrupted.treasuryBuybackShares++;
   assert.throws(() => success(prior, corrupted, wrong), /pinned treasury quantity/);
+  // P3-4 direct-export closure: the exported implementation has its own shared transaction and verification leg.
+  // Trap the installed method, so a test accidentally delegated through the usual engine entry cannot pass.
+  const directFixture = async variant => {
+    const s = await fixture(variant);
+    s.game.buybackOwnShares = () => { throw Error('direct export test used installed entry'); };
+    return s;
+  };
+  const directCommand = s => s.modules.shareholderReturns.buyback(s.game, REQUEST);
+  const direct = makeTransactionFaultCase({ name: 'buyback direct export', fixture: directFixture,
+    command: directCommand, snapshot, economic, expectSuccess: success });
+  for (const variant of ['ordinary', 'capped']) {
+    const s = await directFixture(variant), before = snapshot(s.game), draws = s.host.draws;
+    let saves = 0; const save = s.game.save;
+    s.game.save = function (...args) { saves++; return save.apply(this, args); };
+    assert.equal(directCommand(s), true); assert.equal(saves, 1); assert.equal(s.host.draws, draws);
+    success(before, snapshot(s.game), s); await s.backend.flush(); await direct.loaded(s, s.game.g);
+    for (const kind of ['save-false', 'save-throw']) await direct.rejected(variant, kind);
+    console.log('buyback direct export ' + variant + ': exact settlement / one save / fresh fake-IDB PASS');
+  }
+  await direct.rejected('ordinary', 'save-false', { nested: true });
+  await direct.rejected('ordinary', 'save-throw', { pending: true });
+  // A one-share divergence on this bypass must be refused by the real verification leg, not merely caught by
+  // the normal-success oracle after a committed order. Both money and the entire durable predecessor survive.
+  const skew = await directFixture('ordinary'), beforeSkew = snapshot(skew.game), bytes = skew.backend.readSync(skew.key), puts = skew.control.attempts.length;
+  const ratios = skew.game.updateOwnershipRatios;
+  skew.game.updateOwnershipRatios = function (...args) { this.g.treasuryBuybackShares++; return ratios.apply(this, args); };
+  assert.equal(directCommand(skew), false, 'direct export rejects one extra treasury share');
+  assert.deepEqual(snapshot(skew.game), beforeSkew, 'mismatch restores full live state and persisted RNG');
+  await skew.backend.flush();
+  assert.equal(skew.backend.readSync(skew.key), bytes); assert.equal(skew.ctx.localStorage.getItem(skew.key), bytes);
+  assert.equal(skew.durable.get(skew.key), bytes); assert.equal(skew.control.attempts.length, puts, 'mismatch never admits a durable put');
+  await direct.loaded(skew, beforeSkew);
+  skew.game.updateOwnershipRatios = ratios; assert.equal(directCommand(skew), true, 'healthy direct-export retry');
+  success(beforeSkew, snapshot(skew.game), skew); await skew.backend.flush(); await direct.loaded(skew, skew.game.g);
+  console.log('buyback direct export: one-share mismatch / full rollback / durable hydration / retry PASS');
   console.log('Shareholder buyback shared save-fault evidence PASS');
 })().catch(error => { console.error(error); process.exitCode = 1; });
