@@ -9,7 +9,9 @@ const os = require('node:os');
 const path = require('node:path');
 const cp = require('node:child_process');
 const runner = require('./parallel-shard-runner');
-const ROOT = path.resolve(__dirname, '..');
+const option = name => { const i = process.argv.indexOf(name); return i < 0 ? null : process.argv[i + 1]; };
+const ROOT = option('--root') ? path.resolve(option('--root')) : path.resolve(__dirname, '..');
+const fullE = process.argv.includes('--full-e');
 const delay = ms => new Promise(resolve => setTimeout(resolve, ms));
 
 function parseStat(text) {
@@ -39,6 +41,18 @@ function classify(consistent, observed, remaining) {
   if (remaining.length) return 'still-alive-after-run';
   return observed ? 'observed-and-cleaned' : 'clean';
 }
+function traceItem(items, event) {
+  const matches = items.filter(c => c.command === event.command && JSON.stringify(c.args) === JSON.stringify(event.args));
+  assert.equal(matches.length, 1, 'every traced process uniquely matches an enumerated command');
+  return matches[0];
+}
+function compareOutputs(reference, result) {
+  assert.equal(result.enumerationDigest, reference.enumerationDigest);
+  assert.equal(result.results.length, reference.results.length);
+  for (let i = 0; i < reference.results.length; i++)
+    for (const field of ['label', 'state', 'exitCode', 'signal', 'stdoutSha256', 'stderrSha256', 'stdoutBytes', 'stderrBytes', 'stdoutLines', 'passLines'])
+      assert.deepEqual(result.results[i][field], reference.results[i][field], `${reference.results[i].label}: ${field} parity`);
+}
 function selfTest() {
   const fields = ['S', '11', '23', '23', ...Array(15).fill('0'), '991', '0'];
   const parsed = parseStat(`42 (test name) with close)) ${fields.join(' ')}`);
@@ -47,6 +61,14 @@ function selfTest() {
   assert.equal(classify(true, true, []), 'observed-and-cleaned');
   assert.equal(classify(true, false, [{ pid: 12 }]), 'still-alive-after-run');
   assert.equal(classify(true, false, []), 'clean');
+  const items = [{ index: 0, command: 'node', args: ['a'] }, { index: 1, command: 'node', args: ['b'] }];
+  assert.equal(traceItem(items, { command: 'node', args: ['b'] }).index, 1, 'longest-first spawn order must preserve result identity');
+  assert.throws(() => traceItem(items, { command: 'node', args: ['missing'] }));
+  const reference = { enumerationDigest: 'same', results: [{ label: 'a', stdoutSha256: 'original', stderrSha256: 'empty' }] };
+  compareOutputs(reference, structuredClone(reference));
+  const changed = structuredClone(reference); changed.results[0].stderrSha256 = 'changed';
+  assert.throws(() => compareOutputs(reference, changed), /stderrSha256 parity/);
+
 }
 
 async function main() {
@@ -82,20 +104,23 @@ async function main() {
       return child;
     };
     const command = (label, body) => ({ label, command: process.execPath, args: ['-e', body] });
-    async function run(name, commands, concurrency, expected) {
+    async function run(name, commands, concurrency, expected, scheduling = {}) {
       trace = [];
       const items = commands.map((c, i) => ({ ...c, index: i }));
       const record = { name, trace, result: null, after: [] }; report.runs.push(record);
-      const result = await runner.runCommands(items, { cwd: ROOT, concurrency, testTimeoutMs: 240000,
-        runTimeoutMs: 300000, sampleMs: 100, log: line => console.log(line) });
+      const result = await runner.runCommands(items, { cwd: ROOT, concurrency, ...scheduling, testTimeoutMs: fullE ? 1500000 : 240000,
+        runTimeoutMs: fullE ? 3000000 : 300000, sampleMs: 100, log: line => console.log(line) });
       record.result = result;
       for (const wait of [0, 100, 2000]) {
         if (wait) await delay(wait);
         record.after.push({ waitedMs: wait, groups: trace.map(t => ({ pid: t.pid, members: members(t.pid) })) });
       }
       const final = record.after.at(-1);
-      record.classifications = trace.map((t, i) => ({ label: items[i].label, pid: t.pid,
-        classification: classify(true, result.results[i].leftoverProcesses, final.groups[i].members.filter(p => p.state !== 'Z')) }));
+      record.classifications = trace.map((t, i) => {
+        const item = traceItem(items, t);
+        return { label: item.label, pid: t.pid,
+          classification: classify(true, result.results[item.index].leftoverProcesses, final.groups[i].members.filter(p => p.state !== 'Z')) };
+      });
       save();
       for (const t of trace) {
         const spawn = t.snapshots.find(s => s.phase === 'spawn');
@@ -110,6 +135,28 @@ async function main() {
       return result;
     }
     try {
+      if (fullE) {
+        const source = cp.spawnSync('git', ['rev-parse', 'HEAD'], { cwd: ROOT, encoding: 'utf8' });
+        assert.equal(source.status, 0); report.targetSourceSha = source.stdout.trim();
+        assert.equal(report.targetSourceSha, option('--source-sha'), 'diagnose the pinned E HEAD');
+        assert.equal(fs.readFileSync(path.join(ROOT, 'scripts/parallel-shard-runner.js'), 'utf8'),
+          fs.readFileSync(path.join(__dirname, 'parallel-shard-runner.js'), 'utf8'), 'target and diagnostic use identical runner source');
+        const commands = runner.enumerateShard('E', { root: ROOT });
+        assert.equal(commands.length, 33, 'all 33 E commands');
+        report.commands = commands;
+        const contract = cp.spawnSync(process.execPath, ['tests/run-all-shard.js'], { cwd: ROOT, encoding: 'utf8',
+          env: { ...process.env, TEST_SHARD: 'E', TEST_SHARD_CONTRACT: '1' }, maxBuffer: 64 * 1024 * 1024 });
+        assert.equal(contract.status, 0, contract.stderr);
+        report.contractSummary = /canonical-test-shard-summary: shard=E contractOnly=true executed=0 seen=\d+[^\n]*/.exec(contract.stdout)?.[0];
+        assert.ok(report.contractSummary, 'same-source E contract summary');
+        const reference = await run('full-e-serial', commands, 1, Array(33).fill(false));
+        const cfg = JSON.parse(fs.readFileSync(path.join(ROOT, 'scripts/parallel-shard-runner.config.json'), 'utf8'));
+        const parallel = await run('full-e-parallel-2', commands, 2, Array(33).fill(false),
+          { order: 'longest-first', timings: cfg.timings.E, serial: cfg.serial.E || [] });
+        compareOutputs(reference, parallel);
+        report.outputParity = true; report.ok = true;
+        return;
+      }
       const forever = 'setInterval(()=>{},1000)';
       const background = (stdio, body) => `const c=require('node:child_process').spawn(process.execPath,['-e',${JSON.stringify(body)}],{stdio:${JSON.stringify(stdio)}});c.unref();console.log('PASS background parent');`;
       await run('clean-command', [command('clean', "console.log('PASS clean')")], 1, [false]);
