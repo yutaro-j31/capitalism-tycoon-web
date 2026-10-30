@@ -102,5 +102,56 @@ async function check(s,run,label){
   s.game.updateOwnershipRatios=function(...args){this.g.sharesOut+=1;return ratios.apply(this,args);};
   assert.equal(s.game.closeMADeal(s.deal.id),true,'second generation keeps the existing closing (unchecked)');}
  console.log('share swap P3-4 verification leg: listed issuance + mirror, skewed write refused and rolled back, second generation unchanged PASS');
+ // W-ISSUE-RAW has no persistence boundary or authority of its own. Test it only within the existing caller TX,
+ // separately from the deal-room and M&A shadow contracts above; this does not make it a standalone command.
+ for(const mode of ['commit','reject','throw','save-false','save-throw']){
+  const s=await listed(),game=s.game,backend=s.modules.saveStorageIDB,raw=game.issueSharesToExternalHolders;
+  assert.equal(s.modules.phase3OwnershipPlanner.WRITER_POLICIES['W-ISSUE-RAW'].rejection,'INTERNAL_ENTRY');
+  const before=snapshot(game),prior=holdings(before),bytes=backend.readSync(s.key),puts=s.control.attempts.length,draws=s.host.draws;
+  assert.deepEqual([before.sharesOut,before.treasuryBuybackShares,before.founderShares],[1000000,50000,700000]);
+  close(prior.competitor,190000,'pinned competitor quantity');close(prior.external,60000,'pinned external quantity');
+  const save=game.save;
+  if(mode==='save-false')game.save=()=>false;
+  if(mode==='save-throw')game.save=function(...args){const result=save.apply(this,args);if(!this.inTransaction())throw Error('raw issuance save admitted then threw');return result;};
+  let entered=false,result,error;
+  try{result=game.runTransaction(()=>{
+   assert.equal(game.inTransaction(),true);entered=true;
+   const methods={save:game.save,emit:game.emit,notify:game.notify};
+   const noSideEffect=()=>{throw Error('raw helper attempted save/event');};
+   Object.assign(game,{save:noSideEffect,emit:noSideEffect,notify:noSideEffect});
+   try{assert.equal(raw.call(game,123),undefined);}finally{Object.assign(game,methods);}
+   assert.equal(game.g.sharesOut,before.sharesOut+123);assert.equal(game.stock(game.g.ticker).issuedShares,before.sharesOut+123);
+   assert.equal(game.stock(game.g.ticker).marketCap,1000*(before.sharesOut+123));
+   close(game.g.competitorOwnedRatio,prior.competitor/(prior.o+123),'raw helper preserves competitor quantity');
+   close(holdings(game.g).external,prior.external+123,'raw helper issues only external units');
+   for(const key of ['founderShares','treasuryBuybackShares','personalStocks','companyStocks','companyCash','personalCash','companyDebt','personalDebt','finance','simulationRng'])
+    assert.deepEqual(snapshot(game)[key],before[key],'raw helper leaves '+key+' unchanged');
+   assert.equal(backend.readSync(s.key),bytes,'raw helper has not saved');assert.equal(s.host.draws,draws);
+   if(mode==='reject')return false;if(mode==='throw')throw Error('caller rejected raw issuance');return true;
+  });}catch(e){error=e;}finally{game.save=save;}
+  assert.equal(entered,true,'actual raw helper caller boundary reached');
+  if(mode==='throw'||mode==='save-throw')assert.match(error?.message||'',/caller rejected raw issuance|raw issuance save admitted then threw/);
+  else{assert.equal(error,undefined);assert.equal(result,mode==='commit');}
+  await backend.flush();
+  if(mode==='commit'){
+   assert.equal(game.g.sharesOut,before.sharesOut+123);assert.equal(game.stock(game.g.ticker).issuedShares,before.sharesOut+123);
+   assert.equal(s.modules.finance.validate(snapshot(game)).ok,true);
+  }else{
+   assert.deepEqual(snapshot(game),before,'caller/save failure restores full state');
+   assert.equal(backend.readSync(s.key),bytes);assert.equal(s.control.attempts.length,puts,'rejected put never starts');
+  }
+  assert.equal(s.host.draws,draws);assert.equal(s.ctx.__localStorageData.get(s.key),backend.readSync(s.key));
+  assert.equal(s.durable.get(s.key),backend.readSync(s.key));
+  const fresh=loadGame({headless:true,indexedDB:indexedDBFor(s.durable,{attempts:[]})});await fresh.modules.saveStorageIDB.hydrate();
+  const restored=fresh.engineModule.TycoonEngine.load();assert(restored);
+  assert.equal(restored.g.sharesOut,before.sharesOut+(mode==='commit'?123:0));
+  assert.equal(restored.stock(restored.g.ticker).issuedShares,restored.g.sharesOut);
+  close(holdings(restored.g).competitor,190000,'fresh durable competitor quantity');
+  close(holdings(restored.g).external,mode==='commit'?60123:60000,'fresh durable external quantity');
+  assert.deepEqual(snapshot(restored).simulationRng,before.simulationRng,'fresh hydration preserves persisted RNG');
+  for(const key of ['companyCash','personalCash','founderShares','treasuryBuybackShares'])assert.equal(restored.g[key],before[key]);
+  assert.equal(fresh.modules.finance.validate(snapshot(restored)).ok,true);
+  console.log('raw external issuance / existing caller TX / '+mode+' / fresh durable hydration PASS');
+ }
  console.log('share swap ownership ratios PASS');
 })().catch(e=>{console.error(e);process.exitCode=1;});
