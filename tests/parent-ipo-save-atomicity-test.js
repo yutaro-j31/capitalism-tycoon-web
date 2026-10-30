@@ -199,11 +199,71 @@ async function normal() {
   assert.equal(a.backend.readSync(a.key), savedBytes);
   console.log('parent IPO normal persistence/reload/deterministic replay PASS');
 }
+// P3-4 partial captured-base evidence. The explicit existing outer transaction is essential: this does not
+// authorize a standalone base call, replace the installed IPO chain, or certify its PE/network side effects.
+async function capturedBase() {
+  for (const name of ['normal', 'save-false', 'save-throw']) {
+    const s = await setup(), proto = Object.getPrototypeOf(s.engineModule.TycoonEngine.prototype);
+    assert.equal(Object.hasOwn(proto, 'executeIPO'), true, 'capture the actual base declaration');
+    const captured = proto.executeIPO;
+    assert.notEqual(captured, s.game.executeIPO, 'base must be distinct from the installed wrapper chain');
+    const before = clone(s.game.g), bytes = s.backend.readSync(s.key), puts = s.control.attempts.length;
+    const price = Math.max(100, s.game.companyValue() / before.sharesOut);
+    const primary = Math.max(1, Math.round(before.sharesOut * .2));
+    const secondary = Math.max(1, Math.round(before.founderShares * .05));
+    let entered = false;
+    const invoke = () => s.game.runTransaction(() => {
+      assert.equal(s.game.inTransaction(), true); entered = true;
+      return captured.call(s.game, '東証グロース');
+    });
+    const fault = name === 'normal' ? null : inject(s, name);
+    try {
+      if (name === 'save-throw') assert.throws(invoke, /IPO save accepted then threw/);
+      else assert.equal(invoke(), name === 'normal');
+    } finally { fault?.restore(); }
+    assert.equal(entered, true, 'the captured base actually ran inside the outer boundary');
+    if (fault) {
+      assert.ok(fault.hits() > 0, 'save fault reached the outer commit');
+      assert.deepEqual(clone(s.game.g), before, name + ': entire state including RNG restored');
+      assert.equal(s.ctx.__localStorageData.get(s.key), bytes); assert.equal(s.backend.readSync(s.key), bytes);
+      await s.backend.flush(); assert.equal(s.durable.get(s.key), bytes);
+      assert.equal(s.control.attempts.length, puts, 'failed captured-base put never starts');
+      await assertLoaded(s, before);
+      assert.equal(invoke(), true, 'same captured base retries after failed commit');
+    }
+    const g = s.game.g, ceilYen = s.modules.economicOperation.ceilYen;
+    assert.equal(g.publicCompany, true); assert.equal(g.sharesOut, before.sharesOut + primary);
+    assert.equal(g.founderShares, before.founderShares - secondary);
+    assert.equal(g.treasuryBuybackShares, before.treasuryBuybackShares);
+    assert.equal(g.companyCash, before.companyCash + ceilYen(price * primary * .955) + 10000000, 'one primary raise and pinned IPO mission reward');
+    assert.equal(g.personalCash, before.personalCash + ceilYen(price * secondary * .955), 'secondary proceeds stay personal');
+    assert.deepEqual(clone(g.personalStocks), before.personalStocks); assert.deepEqual(clone(g.companyStocks), before.companyStocks);
+    assert.deepEqual(clone(g.peFirm.trackRecord.exits), before.peFirm.trackRecord.exits, 'base does not execute the installed PE exit wrapper');
+    assert.deepEqual(clone(g.peNetwork.nodes), before.peNetwork.nodes, 'base does not execute the installed network wrapper');
+    assert.equal(g.market.find(row => row.id === g.ticker).issuedShares, before.sharesOut + primary);
+    const postings = g.finance.transactions.filter(row => row.sourceType === 'parentCompanyIPO');
+    assert.equal(postings.length, before.finance.transactions.filter(row => row.sourceType === 'parentCompanyIPO').length + 1);
+    assert.equal(postings.at(-1).cashEffect, ceilYen(price * primary * .955));
+    assert.equal(postings.at(-1).equityEffect, ceilYen(price * primary * .955));
+    assert.equal(s.modules.finance.validate(clone(g)).ok, true);
+    assert.equal(ownership(s.modules, g).ok, true);
+    await s.backend.flush();
+    assert.equal(s.durable.get(s.key), s.backend.readSync(s.key));
+    await assertLoaded(s, g);
+    const settled = clone(g), stored = s.backend.readSync(s.key), writes = s.control.attempts.length;
+    assert.equal(invoke(), false, 'captured base cannot IPO an already listed company twice');
+    await s.backend.flush(); assert.deepEqual(clone(s.game.g), settled);
+    assert.equal(s.backend.readSync(s.key), stored); assert.equal(s.durable.get(s.key), stored);
+    assert.equal(s.control.attempts.length, writes, 'rejected repeat has no durable put');
+    console.log('parent IPO captured base / explicit outer TX / ' + name + ' / retry-reload-replay PASS');
+  }
+}
 (async () => {
   // Run the confirmed IPO-ATOMICITY-001 first so pristine main produces an attributable RED.
   await rejected('network');
   for (const name of ['save-false', 'mirror', 'enqueue-false', 'enqueue-throw', 'save-throw', 'saved', 'change', 'pe-exit']) await rejected(name);
   await rejected('change', true); await rejected('network', true); await rejected('network', false, true);
   await normal();
+  await capturedBase();
   console.log('Parent IPO save atomicity PASS');
 })().catch(error => { console.error(error); process.exitCode = 1; });
