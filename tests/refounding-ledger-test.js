@@ -60,5 +60,63 @@ function closes(ctx,weeks=13){const start=ctx.game.g.week;for(let i=0;i<weeks;i+
   assert.equal(after.finance.openingAssets,R.INVESTMENT,'opening assets are the contribution only');
   assert.equal(ctx.modules.finance.validate(after).ok,true,'validate at once');closes(ctx);
   console.log('refounding after the production buyout / sale value includes the company PE deal / nothing transferred free / 13 weeks PASS');}
+ // P3-4 W-NEW-COMPANY: actual sale/refounding, not a synthetic serial edit. A reused ticker is not an issuer binding.
+ {const ctx=await soldCompany({}),game=ctx.game,g=game.g,read=ctx.modules.economicReadModel;
+  g.isCompanySold=false;delete g.companyStocks.CPTY;g.finance=ctx.modules.finance.defaultFinanceState(g);
+  const root=g,oldIndex=read.buildOwnershipIdentityIndex(g),scope={issuerEntityId:read.PLAYER_COMPANY_ENTITY_ID,actingEntityId:read.FOUNDER_ENTITY_ID};
+  function observe(runtime,engine,index){
+   const before=JSON.stringify(engine.g),bytes=runtime.backend.readSync(runtime.key),mirror=runtime.ctx.localStorage.getItem(runtime.key),durable=runtime.durable.get(runtime.key),attempts=runtime.control.attempts.length,draws=runtime.host?.draws;
+   const api=runtime.modules.economicReadModel,view=api.projectOwnershipSnapshot(engine.g,index);
+   const eligibility=runtime.modules.phase3ControlEligibility.projectControlEligibility(api.ownershipReconciliation(engine.g),scope);
+   assert.equal(view.commandEligible,false);assert.equal(view.wealthComplete,false);assert.equal(eligibility.executable,false);
+   assert.ok(eligibility.capabilities.every(row=>row.executionStatus==='NOT_AUTHORIZED'));
+   assert.equal(JSON.stringify(engine.g),before,'ownership/control readers preserve all state including persisted RNG');
+   assert.equal(runtime.backend.readSync(runtime.key),bytes);assert.equal(runtime.ctx.localStorage.getItem(runtime.key),mirror);assert.equal(runtime.durable.get(runtime.key),durable);
+   assert.equal(runtime.control.attempts.length,attempts,'readers enqueue no writes');assert.equal(runtime.host?.draws,draws,'readers draw no host RNG');
+   return {view,eligibility};
+  }
+  const first=observe(ctx,game,oldIndex);assert.equal(first.view.positions[0].quantity.value,620000);
+  assert.equal(first.view.classes[0].issuedQuantity,1000000);assert.equal(first.eligibility.status,'EVALUATED');
+  assert.equal(game.acceptBuyoutOffer(1.2),true,'actual company buyout');await ctx.backend.flush();
+  assert.ok(observe(ctx,game,oldIndex).view.issues.some(row=>row.code==='STALE_EVIDENCE'),'sale invalidates unsold evidence');
+  const soldIndex=read.buildOwnershipIdentityIndex(game.g),sold=snapshot(game),bytes=ctx.backend.readSync(ctx.key),mirror=ctx.ctx.localStorage.getItem(ctx.key);
+  assert.equal(observe(ctx,game,soldIndex).eligibility.issues[0].code,'GENERATION_UNPROVEN');
+  for(const fault of ['false','throw']){
+   const save=game.save;let speculative;
+   game.save=function(){speculative=read.buildOwnershipIdentityIndex(this.g);if(fault==='throw')throw Error('refounding save fault');return false;};
+   try{if(fault==='throw')assert.throws(()=>refound(ctx),/refounding save fault/);else assert.equal(refound(ctx),false,'failed refounding is rejected');}finally{game.save=save;}
+   assert.ok(speculative,'fault reaches the replaced speculative state');assert.equal(game.g,root,'rollback preserves root identity');
+   assert.deepEqual(snapshot(game),sold,'failed refounding restores every field');
+   assert.ok(!observe(ctx,game,soldIndex).view.issues.some(row=>row.code==='STALE_EVIDENCE'),'sold index valid again after rollback');
+   assert.ok(observe(ctx,game,speculative).view.issues.some(row=>row.code==='STALE_EVIDENCE'),'speculative generation cannot survive rollback');
+   await ctx.backend.flush();assert.equal(ctx.backend.readSync(ctx.key),bytes);assert.equal(ctx.ctx.localStorage.getItem(ctx.key),mirror);assert.equal(ctx.durable.get(ctx.key),bytes);
+  }
+  assert.equal(refound(ctx),true,'healthy retry succeeds');assert.equal(game.g,root,'successful refounding also retains the root');
+  expectRefounded(sold,snapshot(game),ctx);assert.equal(game.g.currentCompanySerial,2);assert.equal(game.g.ticker,'CPTY','fixture really reuses the old ticker');
+  function second(runtime,engine){
+   const {view,eligibility}=observe(runtime,engine);
+   assert.equal(view.classes.length,0,'no adopted class for the new generation');
+   assert.equal(view.positions[0].quantity.value,10000,'new founder bucket stays separate from retained old-company shares');
+   assert.equal(view.positions[0].assetRole,'unresolved');
+   const retained=view.positions.filter(row=>row.instrumentAlias==='CPTY');assert.equal(retained.length,1);
+   assert.equal(retained[0].accountKind,'personal');assert.equal(retained[0].quantity.value,20000);
+   assert.equal(retained[0].securityClassId,null);assert.equal(retained[0].votingUnits.value,null,'old ticker lot grants no new-company votes');
+   // The old 20,000-share lot exceeds the new 10,000 issued shares if naively joined: reconciliation rejects
+   // this collision before the later generation guard. Never normalize the lot just to manufacture votes.
+   const reconciliation=runtime.modules.economicReadModel.ownershipReconciliation(engine.g);
+   assert.equal(reconciliation.ok,false);assert.ok(reconciliation.checks.some(row=>row.id==='ECO-011'&&!row.ok));
+   assert.equal(eligibility.status,'UNKNOWN');assert.equal(eligibility.issues[0].code,'RECONCILIATION_FAILED');
+   assert.ok(eligibility.capabilities.every(row=>row.status==='UNKNOWN'));
+   assert.equal(engine.g.companyCash,R.INVESTMENT);assert.equal(engine.g.personalCash,sold.personalCash-R.INVESTMENT);
+   assert.deepEqual(JSON.parse(JSON.stringify(engine.g.personalStocks)),sold.personalStocks,'all personal lots retained once');
+   assert.equal(Object.keys(engine.g.companyStocks).length,0,'sold company lots are not carried free');
+   assert.equal(runtime.modules.finance.validate(JSON.parse(JSON.stringify(engine.g))).ok,true);
+  }
+  second(ctx,game);assert.ok(observe(ctx,game,soldIndex).view.issues.some(row=>row.code==='STALE_EVIDENCE'));
+  await ctx.backend.flush();second(ctx,ctx.engineModule.TycoonEngine.load());
+  const freshControl={attempts:[]},fresh=loadGame({headless:true,indexedDB:indexedDBFor(ctx.durable,freshControl)});await fresh.modules.saveStorageIDB.hydrate();
+  second({...fresh,backend:fresh.modules.saveStorageIDB,key:ctx.key,durable:ctx.durable,control:freshControl},fresh.engineModule.TycoonEngine.load());
+  console.log('P3-4 actual sale/refounding: same root / ticker reuse / old and speculative evidence rejected / rollback / reload / fresh fake-IDB PASS');
+ }
  console.log('Refounding ledger PASS');
 })().catch(e=>{console.error(e);process.exitCode=1;});
