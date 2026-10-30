@@ -1,0 +1,1316 @@
+[
+  {
+    "n": 4306,
+    "run": 40831491312,
+    "sha": "6f00c95d5be8444e17709aad7ddcb57531deebc2",
+    "created": "2026-10-29T06:48:53Z",
+    "job": 123306556533,
+    "conclusion": "success",
+    "conservativeEligible": false,
+    "artifactPass": true,
+    "seen": 627,
+    "contractSeen": 627,
+    "digest": "01ba9573fd09e0bb0ac6de70925cdd1793567c1773679e20a404465f2f0b0593",
+    "wall": 867.576,
+    "total": 1735.003809654,
+    "cpu": 0.5651311643182173,
+    "peakMem": 2978,
+    "physicalMem": 15983,
+    "memoryPercent": 18.632296815366328,
+    "leftover": 0,
+    "queueFromRun": 1617.0,
+    "runWall": 4011.0,
+    "criticalJob": "test",
+    "otherShards": {
+      "test-shard-A": {
+        "result": "success",
+        "wall": 1821.0
+      },
+      "test-shard-D": {
+        "result": "success",
+        "wall": 1572.0
+      },
+      "test-shard-B": {
+        "result": "success",
+        "wall": 820.0
+      },
+      "test-shard-F": {
+        "result": "success",
+        "wall": 1060.0
+      },
+      "test-shard-L": {
+        "result": "success",
+        "wall": 1666.0
+      },
+      "test-shard-J": {
+        "result": "success",
+        "wall": 847.0
+      },
+      "test-shard-I": {
+        "result": "success",
+        "wall": 1627.0
+      },
+      "test-shard-E": {
+        "result": "success",
+        "wall": 1669.0
+      },
+      "test-shard-C": {
+        "result": "success",
+        "wall": 876.0
+      },
+      "test-shard-K": {
+        "result": "success",
+        "wall": 1641.0
+      },
+      "test-shard-G": {
+        "result": "success",
+        "wall": 1236.0
+      },
+      "test-shard-H": {
+        "result": "success",
+        "wall": 1410.0
+      }
+    },
+    "Jleft": 0,
+    "nproc": 4,
+    "cpuModel": "AMD EPYC 7763 64-Core Processor",
+    "queueFromJob": 1606.0
+  },
+  {
+    "n": 4307,
+    "run": 40832415361,
+    "sha": "378b101f81a8a3ebb0ff3261bf045d9ba35b26f4",
+    "created": "2026-10-29T06:57:59Z",
+    "job": 123310838121,
+    "conclusion": "success",
+    "conservativeEligible": false,
+    "artifactPass": true,
+    "seen": 628,
+    "contractSeen": 628,
+    "digest": "01ba9573fd09e0bb0ac6de70925cdd1793567c1773679e20a404465f2f0b0593",
+    "wall": 872.194,
+    "total": 1744.019173563,
+    "cpu": 0.5634844868735083,
+    "peakMem": 2888,
+    "physicalMem": 15983,
+    "memoryPercent": 18.069198523431144,
+    "leftover": 0,
+    "queueFromRun": 3210.0,
+    "runWall": 5642.0,
+    "criticalJob": "test",
+    "otherShards": {
+      "test-shard-K": {
+        "result": "success",
+        "wall": 1035.0
+      },
+      "test-shard-H": {
+        "result": "success",
+        "wall": 1398.0
+      },
+      "test-shard-F": {
+        "result": "success",
+        "wall": 1362.0
+      },
+      "test-shard-A": {
+        "result": "success",
+        "wall": 1793.0
+      },
+      "test-shard-I": {
+        "result": "success",
+        "wall": 1054.0
+      },
+      "test-shard-L": {
+        "result": "success",
+        "wall": 968.0
+      },
+      "test-shard-D": {
+        "result": "success",
+        "wall": 960.0
+      },
+      "test-shard-C": {
+        "result": "success",
+        "wall": 880.0
+      },
+      "test-shard-G": {
+        "result": "success",
+        "wall": 1276.0
+      },
+      "test-shard-J": {
+        "result": "success",
+        "wall": 509.0
+      },
+      "test-shard-E": {
+        "result": "success",
+        "wall": 1332.0
+      },
+      "test-shard-B": {
+        "result": "success",
+        "wall": 1134.0
+      }
+    },
+    "Jleft": 0,
+    "nproc": 4,
+    "cpuModel": "AMD EPYC 7763 64-Core Processor",
+    "queueFromJob": 2946.0
+  },
+  {
+    "n": 4308,
+    "run": 40833218443,
+    "sha": "2a61e5e097323c638a8f407f7edce584c7cb026e",
+    "created": "2026-10-29T07:05:38Z",
+    "job": 123320964298,
+    "conclusion": "success",
+    "conservativeEligible": false,
+    "artifactPass": true,
+    "seen": 627,
+    "contractSeen": 627,
+    "digest": "01ba9573fd09e0bb0ac6de70925cdd1793567c1773679e20a404465f2f0b0593",
+    "wall": 908.522,
+    "total": 1789.5624102020001,
+    "cpu": 0.5543973653626906,
+    "peakMem": 2623,
+    "physicalMem": 15983,
+    "memoryPercent": 16.411186886066446,
+    "leftover": 0,
+    "queueFromRun": 4872.0,
+    "runWall": 6876.0,
+    "criticalJob": "test",
+    "otherShards": {
+      "test-shard-J": {
+        "result": "success",
+        "wall": 503.0
+      },
+      "test-shard-F": {
+        "result": "success",
+        "wall": 1413.0
+      },
+      "test-shard-G": {
+        "result": "success",
+        "wall": 1558.0
+      },
+      "test-shard-H": {
+        "result": "success",
+        "wall": 1621.0
+      },
+      "test-shard-K": {
+        "result": "success",
+        "wall": 968.0
+      },
+      "test-shard-B": {
+        "result": "success",
+        "wall": 1198.0
+      },
+      "test-shard-A": {
+        "result": "success",
+        "wall": 1827.0
+      },
+      "test-shard-L": {
+        "result": "success",
+        "wall": 911.0
+      },
+      "test-shard-I": {
+        "result": "success",
+        "wall": 1646.0
+      },
+      "test-shard-E": {
+        "result": "success",
+        "wall": 949.0
+      },
+      "test-shard-C": {
+        "result": "success",
+        "wall": 915.0
+      },
+      "test-shard-D": {
+        "result": "success",
+        "wall": 1644.0
+      }
+    },
+    "Jleft": 0,
+    "nproc": 4,
+    "cpuModel": "AMD EPYC 7763 64-Core Processor",
+    "queueFromJob": 3281.0
+  },
+  {
+    "n": 4309,
+    "run": 40833950146,
+    "sha": "85a358ad65547c8a2f97538301382a75683b9aa1",
+    "created": "2026-10-29T07:12:31Z",
+    "job": 123319749106,
+    "conclusion": "success",
+    "conservativeEligible": false,
+    "artifactPass": true,
+    "seen": 627,
+    "contractSeen": 627,
+    "digest": "01ba9573fd09e0bb0ac6de70925cdd1793567c1773679e20a404465f2f0b0593",
+    "wall": 903.859,
+    "total": 1800.691693327,
+    "cpu": 0.555680040821307,
+    "peakMem": 2874,
+    "physicalMem": 15983,
+    "memoryPercent": 17.981605455796785,
+    "leftover": 0,
+    "queueFromRun": 4014.0,
+    "runWall": 5901.0,
+    "criticalJob": "test",
+    "otherShards": {
+      "test-shard-E": {
+        "result": "success",
+        "wall": 1051.0
+      },
+      "test-shard-A": {
+        "result": "success",
+        "wall": 1850.0
+      },
+      "test-shard-D": {
+        "result": "success",
+        "wall": 956.0
+      },
+      "test-shard-F": {
+        "result": "success",
+        "wall": 929.0
+      },
+      "test-shard-L": {
+        "result": "success",
+        "wall": 1683.0
+      },
+      "test-shard-J": {
+        "result": "success",
+        "wall": 571.0
+      },
+      "test-shard-K": {
+        "result": "success",
+        "wall": 1678.0
+      },
+      "test-shard-B": {
+        "result": "success",
+        "wall": 855.0
+      },
+      "test-shard-I": {
+        "result": "success",
+        "wall": 1603.0
+      },
+      "test-shard-H": {
+        "result": "success",
+        "wall": 1305.0
+      },
+      "test-shard-G": {
+        "result": "success",
+        "wall": 1520.0
+      },
+      "test-shard-C": {
+        "result": "success",
+        "wall": 911.0
+      }
+    },
+    "Jleft": 0,
+    "nproc": 4,
+    "cpuModel": "AMD EPYC 9V74 80-Core Processor",
+    "queueFromJob": 3047.0
+  },
+  {
+    "n": 4310,
+    "run": 40839157012,
+    "sha": "20dcfe71a3fc5e8ad662c8f8497fac1120162ae1",
+    "created": "2026-10-29T08:01:01Z",
+    "job": 123335269749,
+    "conclusion": "success",
+    "conservativeEligible": true,
+    "artifactPass": true,
+    "seen": 627,
+    "contractSeen": 627,
+    "digest": "01ba9573fd09e0bb0ac6de70925cdd1793567c1773679e20a404465f2f0b0593",
+    "wall": 521.598,
+    "total": 1043.022955205,
+    "cpu": 0.5603679773256791,
+    "peakMem": 2781,
+    "physicalMem": 15983,
+    "memoryPercent": 17.399737220797096,
+    "leftover": 0,
+    "queueFromRun": 2349.0,
+    "runWall": 6979.0,
+    "criticalJob": "test",
+    "otherShards": {
+      "test-shard-A": {
+        "result": "success",
+        "wall": 1468.0
+      },
+      "test-shard-E": {
+        "result": "success",
+        "wall": 1121.0
+      },
+      "test-shard-K": {
+        "result": "success",
+        "wall": 1656.0
+      },
+      "test-shard-C": {
+        "result": "success",
+        "wall": 530.0
+      },
+      "test-shard-D": {
+        "result": "success",
+        "wall": 1343.0
+      },
+      "test-shard-B": {
+        "result": "success",
+        "wall": 1388.0
+      },
+      "test-shard-G": {
+        "result": "success",
+        "wall": 1241.0
+      },
+      "test-shard-H": {
+        "result": "success",
+        "wall": 1306.0
+      },
+      "test-shard-F": {
+        "result": "success",
+        "wall": 1026.0
+      },
+      "test-shard-I": {
+        "result": "success",
+        "wall": 1662.0
+      },
+      "test-shard-J": {
+        "result": "success",
+        "wall": 850.0
+      },
+      "test-shard-L": {
+        "result": "success",
+        "wall": 998.0
+      }
+    },
+    "Jleft": 0,
+    "nproc": 4,
+    "cpuModel": "AMD EPYC 9V45 96-Core Processor",
+    "queueFromJob": 1679.0
+  },
+  {
+    "n": 4311,
+    "run": 40839323555,
+    "sha": "b4fa2ae01f3ef912ae97545dca4bde608b72692e",
+    "created": "2026-10-29T08:02:27Z",
+    "job": 123333014470,
+    "conclusion": "success",
+    "conservativeEligible": true,
+    "artifactPass": true,
+    "seen": 627,
+    "contractSeen": 627,
+    "digest": "01ba9573fd09e0bb0ac6de70925cdd1793567c1773679e20a404465f2f0b0593",
+    "wall": 868.95,
+    "total": 1737.767457374,
+    "cpu": 0.5658249075642865,
+    "peakMem": 2768,
+    "physicalMem": 15983,
+    "memoryPercent": 17.318400800850902,
+    "leftover": 0,
+    "queueFromRun": 2676.0,
+    "runWall": 5737.0,
+    "criticalJob": "test",
+    "otherShards": {
+      "test-shard-A": {
+        "result": "success",
+        "wall": 1824.0
+      },
+      "test-shard-J": {
+        "result": "success",
+        "wall": 518.0
+      },
+      "test-shard-E": {
+        "result": "success",
+        "wall": 1670.0
+      },
+      "test-shard-B": {
+        "result": "success",
+        "wall": 824.0
+      },
+      "test-shard-C": {
+        "result": "success",
+        "wall": 879.0
+      },
+      "test-shard-I": {
+        "result": "success",
+        "wall": 1671.0
+      },
+      "test-shard-K": {
+        "result": "success",
+        "wall": 1637.0
+      },
+      "test-shard-F": {
+        "result": "success",
+        "wall": 1696.0
+      },
+      "test-shard-L": {
+        "result": "success",
+        "wall": 1635.0
+      },
+      "test-shard-D": {
+        "result": "success",
+        "wall": 1598.0
+      },
+      "test-shard-H": {
+        "result": "success",
+        "wall": 1644.0
+      },
+      "test-shard-G": {
+        "result": "success",
+        "wall": 1540.0
+      }
+    },
+    "Jleft": 0,
+    "nproc": 4,
+    "cpuModel": "AMD EPYC 7763 64-Core Processor",
+    "queueFromJob": 2446.0
+  },
+  {
+    "n": 4312,
+    "run": 40839708182,
+    "sha": "dc43df997d49d427da3527dd59fe629556f3d439",
+    "created": "2026-10-29T08:05:49Z",
+    "job": 123339375142,
+    "conclusion": "success",
+    "conservativeEligible": true,
+    "artifactPass": true,
+    "seen": 627,
+    "contractSeen": 627,
+    "digest": "01ba9573fd09e0bb0ac6de70925cdd1793567c1773679e20a404465f2f0b0593",
+    "wall": 514.368,
+    "total": 1027.50724078,
+    "cpu": 0.5592216458439883,
+    "peakMem": 2922,
+    "physicalMem": 15983,
+    "memoryPercent": 18.28192454482888,
+    "leftover": 0,
+    "queueFromRun": 6957.0,
+    "runWall": 9058.0,
+    "criticalJob": "test",
+    "otherShards": {
+      "test-shard-J": {
+        "result": "success",
+        "wall": 870.0
+      },
+      "test-shard-A": {
+        "result": "success",
+        "wall": 1785.0
+      },
+      "test-shard-E": {
+        "result": "success",
+        "wall": 1701.0
+      },
+      "test-shard-F": {
+        "result": "success",
+        "wall": 1708.0
+      },
+      "test-shard-K": {
+        "result": "success",
+        "wall": 1665.0
+      },
+      "test-shard-G": {
+        "result": "success",
+        "wall": 1534.0
+      },
+      "test-shard-B": {
+        "result": "success",
+        "wall": 1387.0
+      },
+      "test-shard-H": {
+        "result": "success",
+        "wall": 1650.0
+      },
+      "test-shard-D": {
+        "result": "success",
+        "wall": 1575.0
+      },
+      "test-shard-I": {
+        "result": "success",
+        "wall": 987.0
+      },
+      "test-shard-C": {
+        "result": "success",
+        "wall": 523.0
+      },
+      "test-shard-L": {
+        "result": "success",
+        "wall": 1678.0
+      }
+    },
+    "Jleft": 0,
+    "nproc": 4,
+    "cpuModel": "AMD EPYC 9V45 96-Core Processor",
+    "queueFromJob": 5937.0
+  },
+  {
+    "n": 4313,
+    "run": 40841677714,
+    "sha": "96fa864f0aba46df9447cd9a869ccb0219880857",
+    "created": "2026-10-29T08:22:35Z",
+    "job": 123343164752,
+    "conclusion": "success",
+    "conservativeEligible": true,
+    "artifactPass": true,
+    "seen": 628,
+    "contractSeen": 628,
+    "digest": "01ba9573fd09e0bb0ac6de70925cdd1793567c1773679e20a404465f2f0b0593",
+    "wall": 690.138,
+    "total": 1380.034363441,
+    "cpu": 0.5565285583583846,
+    "peakMem": 2966,
+    "physicalMem": 15983,
+    "memoryPercent": 18.557217043108302,
+    "leftover": 0,
+    "queueFromRun": 2888.0,
+    "runWall": 7191.0,
+    "criticalJob": "test",
+    "otherShards": {
+      "test-shard-H": {
+        "result": "success",
+        "wall": 1644.0
+      },
+      "test-shard-A": {
+        "result": "success",
+        "wall": 1812.0
+      },
+      "test-shard-F": {
+        "result": "success",
+        "wall": 1446.0
+      },
+      "test-shard-C": {
+        "result": "success",
+        "wall": 698.0
+      },
+      "test-shard-B": {
+        "result": "success",
+        "wall": 1114.0
+      },
+      "test-shard-G": {
+        "result": "success",
+        "wall": 1134.0
+      },
+      "test-shard-E": {
+        "result": "success",
+        "wall": 1695.0
+      },
+      "test-shard-D": {
+        "result": "success",
+        "wall": 1257.0
+      },
+      "test-shard-K": {
+        "result": "success",
+        "wall": 982.0
+      },
+      "test-shard-J": {
+        "result": "success",
+        "wall": 865.0
+      },
+      "test-shard-I": {
+        "result": "success",
+        "wall": 1650.0
+      },
+      "test-shard-L": {
+        "result": "success",
+        "wall": 1359.0
+      }
+    },
+    "Jleft": 0,
+    "nproc": 4,
+    "cpuModel": "AMD EPYC 9V74 80-Core Processor",
+    "queueFromJob": 2301.0
+  },
+  {
+    "n": 4314,
+    "run": 40843743757,
+    "sha": "14175c16fe05c0397f412b0bfc9c3ec6f7ade563",
+    "created": "2026-10-29T08:39:44Z",
+    "job": 123364105409,
+    "conclusion": "failure",
+    "conservativeEligible": true,
+    "artifactPass": true,
+    "seen": 627,
+    "contractSeen": 627,
+    "digest": "01ba9573fd09e0bb0ac6de70925cdd1793567c1773679e20a404465f2f0b0593",
+    "wall": 519.601,
+    "total": 1038.872101488,
+    "cpu": 0.5593826118413119,
+    "peakMem": 2409,
+    "physicalMem": 15983,
+    "memoryPercent": 15.072264280798349,
+    "leftover": 0,
+    "queueFromRun": 6595.0,
+    "runWall": 9521.0,
+    "criticalJob": "test",
+    "otherShards": {
+      "test-shard-D": {
+        "result": "success",
+        "wall": 1641.0
+      },
+      "test-shard-A": {
+        "result": "failure",
+        "wall": 1344.0
+      },
+      "test-shard-J": {
+        "result": "success",
+        "wall": 850.0
+      },
+      "test-shard-E": {
+        "result": "success",
+        "wall": 1364.0
+      },
+      "test-shard-C": {
+        "result": "success",
+        "wall": 531.0
+      },
+      "test-shard-F": {
+        "result": "success",
+        "wall": 1686.0
+      },
+      "test-shard-I": {
+        "result": "success",
+        "wall": 964.0
+      },
+      "test-shard-H": {
+        "result": "success",
+        "wall": 1629.0
+      },
+      "test-shard-B": {
+        "result": "success",
+        "wall": 1114.0
+      },
+      "test-shard-G": {
+        "result": "success",
+        "wall": 1282.0
+      },
+      "test-shard-L": {
+        "result": "success",
+        "wall": 1007.0
+      },
+      "test-shard-K": {
+        "result": "success",
+        "wall": 1644.0
+      }
+    },
+    "Jleft": 0,
+    "nproc": 4,
+    "cpuModel": "AMD EPYC 9V45 96-Core Processor",
+    "queueFromJob": 3999.0
+  },
+  {
+    "n": 4317,
+    "run": 40846943419,
+    "sha": "069e4c38dcdbfff25f7a40b75b8196cf2273fc24",
+    "created": "2026-10-29T09:05:44Z",
+    "job": 123381289102,
+    "conclusion": "success",
+    "conservativeEligible": true,
+    "artifactPass": true,
+    "seen": 628,
+    "contractSeen": 628,
+    "digest": "01ba9573fd09e0bb0ac6de70925cdd1793567c1773679e20a404465f2f0b0593",
+    "wall": 725.993,
+    "total": 1451.789697465,
+    "cpu": 0.5657724048466782,
+    "peakMem": 2966,
+    "physicalMem": 15982,
+    "memoryPercent": 18.558378175447377,
+    "leftover": 0,
+    "queueFromRun": 5711.0,
+    "runWall": 8170.0,
+    "criticalJob": "test",
+    "otherShards": {
+      "test-shard-B": {
+        "result": "success",
+        "wall": 904.0
+      },
+      "test-shard-C": {
+        "result": "success",
+        "wall": 734.0
+      },
+      "test-shard-K": {
+        "result": "success",
+        "wall": 1655.0
+      },
+      "test-shard-D": {
+        "result": "success",
+        "wall": 1589.0
+      },
+      "test-shard-L": {
+        "result": "success",
+        "wall": 1227.0
+      },
+      "test-shard-E": {
+        "result": "success",
+        "wall": 1322.0
+      },
+      "test-shard-A": {
+        "result": "success",
+        "wall": 1464.0
+      },
+      "test-shard-I": {
+        "result": "success",
+        "wall": 1334.0
+      },
+      "test-shard-F": {
+        "result": "success",
+        "wall": 1368.0
+      },
+      "test-shard-H": {
+        "result": "success",
+        "wall": 999.0
+      },
+      "test-shard-G": {
+        "result": "success",
+        "wall": 1522.0
+      },
+      "test-shard-J": {
+        "result": "success",
+        "wall": 858.0
+      }
+    },
+    "Jleft": 0,
+    "nproc": 4,
+    "cpuModel": "INTEL(R) XEON(R) PLATINUM 8573C",
+    "queueFromJob": 2331.0
+  },
+  {
+    "n": 4318,
+    "run": 40847436515,
+    "sha": "afe0a2dab5ffdbf278dd647cf406017a9166f55c",
+    "created": "2026-10-29T09:09:34Z",
+    "job": 123363899006,
+    "conclusion": "success",
+    "conservativeEligible": true,
+    "artifactPass": true,
+    "seen": 628,
+    "contractSeen": 628,
+    "digest": "01ba9573fd09e0bb0ac6de70925cdd1793567c1773679e20a404465f2f0b0593",
+    "wall": 672.716,
+    "total": 1345.239139676,
+    "cpu": 0.5559892584053723,
+    "peakMem": 2266,
+    "physicalMem": 15983,
+    "memoryPercent": 14.177563661390227,
+    "leftover": 0,
+    "queueFromRun": 5170.0,
+    "runWall": 6976.0,
+    "criticalJob": "test",
+    "otherShards": {
+      "test-shard-F": {
+        "result": "success",
+        "wall": 1696.0
+      },
+      "test-shard-D": {
+        "result": "success",
+        "wall": 1630.0
+      },
+      "test-shard-K": {
+        "result": "success",
+        "wall": 1654.0
+      },
+      "test-shard-H": {
+        "result": "success",
+        "wall": 1309.0
+      },
+      "test-shard-A": {
+        "result": "success",
+        "wall": 1855.0
+      },
+      "test-shard-E": {
+        "result": "success",
+        "wall": 1322.0
+      },
+      "test-shard-J": {
+        "result": "success",
+        "wall": 859.0
+      },
+      "test-shard-L": {
+        "result": "success",
+        "wall": 1670.0
+      },
+      "test-shard-I": {
+        "result": "success",
+        "wall": 1618.0
+      },
+      "test-shard-C": {
+        "result": "success",
+        "wall": 682.0
+      },
+      "test-shard-G": {
+        "result": "success",
+        "wall": 1571.0
+      },
+      "test-shard-B": {
+        "result": "success",
+        "wall": 1376.0
+      }
+    },
+    "Jleft": 0,
+    "nproc": 4,
+    "cpuModel": "AMD EPYC 9V74 80-Core Processor",
+    "queueFromJob": 4393.0
+  },
+  {
+    "n": 4319,
+    "run": 40847610841,
+    "sha": "86945dc595ed334a92a739feb7a94c5c4088135c",
+    "created": "2026-10-29T09:10:51Z",
+    "job": 123360492147,
+    "conclusion": "success",
+    "conservativeEligible": true,
+    "artifactPass": true,
+    "seen": 628,
+    "contractSeen": 628,
+    "digest": "01ba9573fd09e0bb0ac6de70925cdd1793567c1773679e20a404465f2f0b0593",
+    "wall": 875.262,
+    "total": 1749.003868065,
+    "cpu": 0.564747108915657,
+    "peakMem": 2205,
+    "physicalMem": 15983,
+    "memoryPercent": 13.795908152411938,
+    "leftover": 0,
+    "queueFromRun": 4268.0,
+    "runWall": 7137.0,
+    "criticalJob": "test",
+    "otherShards": {
+      "test-shard-J": {
+        "result": "success",
+        "wall": 752.0
+      },
+      "test-shard-L": {
+        "result": "success",
+        "wall": 1655.0
+      },
+      "test-shard-I": {
+        "result": "success",
+        "wall": 1647.0
+      },
+      "test-shard-C": {
+        "result": "success",
+        "wall": 883.0
+      },
+      "test-shard-H": {
+        "result": "success",
+        "wall": 1345.0
+      },
+      "test-shard-K": {
+        "result": "success",
+        "wall": 1665.0
+      },
+      "test-shard-A": {
+        "result": "success",
+        "wall": 1167.0
+      },
+      "test-shard-E": {
+        "result": "success",
+        "wall": 1325.0
+      },
+      "test-shard-F": {
+        "result": "success",
+        "wall": 1691.0
+      },
+      "test-shard-G": {
+        "result": "success",
+        "wall": 1525.0
+      },
+      "test-shard-B": {
+        "result": "success",
+        "wall": 1404.0
+      },
+      "test-shard-D": {
+        "result": "success",
+        "wall": 971.0
+      }
+    },
+    "Jleft": 0,
+    "nproc": 4,
+    "cpuModel": "AMD EPYC 7763 64-Core Processor",
+    "queueFromJob": 4041.0
+  },
+  {
+    "n": 4320,
+    "run": 40980663528,
+    "sha": "60bd759dd95159d6180489646312c5bd08dca206",
+    "created": "2026-10-30T00:35:42Z",
+    "job": 123819672812,
+    "conclusion": "success",
+    "conservativeEligible": true,
+    "artifactPass": true,
+    "seen": 628,
+    "contractSeen": 628,
+    "digest": "01ba9573fd09e0bb0ac6de70925cdd1793567c1773679e20a404465f2f0b0593",
+    "wall": 869.942,
+    "total": 1739.7622561629998,
+    "cpu": 0.5633295766690974,
+    "peakMem": 2956,
+    "physicalMem": 15983,
+    "memoryPercent": 18.494650566226614,
+    "leftover": 0,
+    "Jparallelism": 2,
+    "Jleft": 0,
+    "nproc": 4,
+    "cpuModel": "AMD EPYC 7763 64-Core Processor",
+    "queueFromRun": 53.0,
+    "queueFromJob": 42.0,
+    "runWall": 1848.0,
+    "criticalJob": "test",
+    "otherShards": {
+      "test-shard-B": {
+        "result": "success",
+        "wall": 1399.0
+      },
+      "test-shard-G": {
+        "result": "success",
+        "wall": 1566.0
+      },
+      "test-shard-K": {
+        "result": "success",
+        "wall": 1626.0
+      },
+      "test-shard-H": {
+        "result": "success",
+        "wall": 1015.0
+      },
+      "test-shard-A": {
+        "result": "success",
+        "wall": 1798.0
+      },
+      "test-shard-D": {
+        "result": "success",
+        "wall": 945.0
+      },
+      "test-shard-L": {
+        "result": "success",
+        "wall": 1458.0
+      },
+      "test-shard-J": {
+        "result": "success",
+        "wall": 688.0
+      },
+      "test-shard-C": {
+        "result": "success",
+        "wall": 877.0
+      },
+      "test-shard-F": {
+        "result": "success",
+        "wall": 1367.0
+      },
+      "test-shard-I": {
+        "result": "success",
+        "wall": 1282.0
+      },
+      "test-shard-E": {
+        "result": "success",
+        "wall": 1317.0
+      }
+    }
+  },
+  {
+    "n": 4321,
+    "run": 40981391974,
+    "sha": "a00bd4b2a2a977543f65d403564595d3a8ce4a17",
+    "created": "2026-10-30T00:42:42Z",
+    "job": 123828329545,
+    "conclusion": "success",
+    "conservativeEligible": true,
+    "artifactPass": true,
+    "seen": 628,
+    "contractSeen": 628,
+    "digest": "01ba9573fd09e0bb0ac6de70925cdd1793567c1773679e20a404465f2f0b0593",
+    "wall": 877.876,
+    "total": 1755.6104305469999,
+    "cpu": 0.5647375835455011,
+    "peakMem": 3036,
+    "physicalMem": 15983,
+    "memoryPercent": 18.99518238128011,
+    "leftover": 0,
+    "Jparallelism": 2,
+    "Jleft": 0,
+    "nproc": 4,
+    "cpuModel": "AMD EPYC 7763 64-Core Processor",
+    "queueFromRun": 4234.0,
+    "queueFromJob": 3109.0,
+    "runWall": 6157.0,
+    "criticalJob": "test",
+    "otherShards": {
+      "test-shard-D": {
+        "result": "success",
+        "wall": 878.0
+      },
+      "test-shard-E": {
+        "result": "success",
+        "wall": 1715.0
+      },
+      "test-shard-G": {
+        "result": "success",
+        "wall": 1246.0
+      },
+      "test-shard-L": {
+        "result": "success",
+        "wall": 1678.0
+      },
+      "test-shard-K": {
+        "result": "success",
+        "wall": 953.0
+      },
+      "test-shard-A": {
+        "result": "success",
+        "wall": 1285.0
+      },
+      "test-shard-F": {
+        "result": "success",
+        "wall": 1683.0
+      },
+      "test-shard-I": {
+        "result": "success",
+        "wall": 1617.0
+      },
+      "test-shard-C": {
+        "result": "success",
+        "wall": 887.0
+      },
+      "test-shard-H": {
+        "result": "success",
+        "wall": 1674.0
+      },
+      "test-shard-B": {
+        "result": "success",
+        "wall": 1386.0
+      },
+      "test-shard-J": {
+        "result": "success",
+        "wall": 687.0
+      }
+    }
+  },
+  {
+    "n": 4322,
+    "run": 40981397578,
+    "sha": "c280fcf8de2a1402500882460d6cb6156e4767ff",
+    "created": "2026-10-30T00:42:46Z",
+    "job": 123827592699,
+    "conclusion": "success",
+    "conservativeEligible": true,
+    "artifactPass": true,
+    "seen": 628,
+    "contractSeen": 628,
+    "digest": "01ba9573fd09e0bb0ac6de70925cdd1793567c1773679e20a404465f2f0b0593",
+    "wall": 482.544,
+    "total": 964.996652918,
+    "cpu": 0.5573303146273958,
+    "peakMem": 2797,
+    "physicalMem": 15983,
+    "memoryPercent": 17.499843583807795,
+    "leftover": 0,
+    "Jparallelism": 2,
+    "Jleft": 0,
+    "nproc": 4,
+    "cpuModel": "AMD EPYC 9V45 96-Core Processor",
+    "queueFromRun": 3084.0,
+    "queueFromJob": 2093.0,
+    "runWall": 4985.0,
+    "criticalJob": "test",
+    "otherShards": {
+      "test-shard-E": {
+        "result": "success",
+        "wall": 1032.0
+      },
+      "test-shard-I": {
+        "result": "success",
+        "wall": 958.0
+      },
+      "test-shard-D": {
+        "result": "success",
+        "wall": 1275.0
+      },
+      "test-shard-H": {
+        "result": "success",
+        "wall": 1618.0
+      },
+      "test-shard-F": {
+        "result": "success",
+        "wall": 1720.0
+      },
+      "test-shard-A": {
+        "result": "success",
+        "wall": 1870.0
+      },
+      "test-shard-G": {
+        "result": "success",
+        "wall": 1542.0
+      },
+      "test-shard-K": {
+        "result": "success",
+        "wall": 1655.0
+      },
+      "test-shard-C": {
+        "result": "success",
+        "wall": 490.0
+      },
+      "test-shard-J": {
+        "result": "success",
+        "wall": 681.0
+      },
+      "test-shard-L": {
+        "result": "success",
+        "wall": 1350.0
+      },
+      "test-shard-B": {
+        "result": "success",
+        "wall": 1124.0
+      }
+    }
+  },
+  {
+    "n": 4323,
+    "run": 40981499285,
+    "sha": "e9f7c7668c0b8b32bac8f95609a72a1ea67e268e",
+    "created": "2026-10-30T00:43:43Z",
+    "job": 123825322848,
+    "conclusion": "success",
+    "conservativeEligible": true,
+    "artifactPass": true,
+    "seen": 628,
+    "contractSeen": 628,
+    "digest": "01ba9573fd09e0bb0ac6de70925cdd1793567c1773679e20a404465f2f0b0593",
+    "wall": 863.048,
+    "total": 1725.784666284,
+    "cpu": 0.563892731351785,
+    "peakMem": 3013,
+    "physicalMem": 15983,
+    "memoryPercent": 18.85127948445223,
+    "leftover": 0,
+    "Jparallelism": 2,
+    "Jleft": 0,
+    "nproc": 4,
+    "cpuModel": "AMD EPYC 7763 64-Core Processor",
+    "queueFromRun": 2867.0,
+    "queueFromJob": 2341.0,
+    "runWall": 5855.0,
+    "criticalJob": "test",
+    "otherShards": {
+      "test-shard-J": {
+        "result": "success",
+        "wall": 750.0
+      },
+      "test-shard-B": {
+        "result": "success",
+        "wall": 1398.0
+      },
+      "test-shard-E": {
+        "result": "success",
+        "wall": 962.0
+      },
+      "test-shard-L": {
+        "result": "success",
+        "wall": 1659.0
+      },
+      "test-shard-D": {
+        "result": "success",
+        "wall": 1580.0
+      },
+      "test-shard-H": {
+        "result": "success",
+        "wall": 1339.0
+      },
+      "test-shard-K": {
+        "result": "success",
+        "wall": 1664.0
+      },
+      "test-shard-C": {
+        "result": "success",
+        "wall": 872.0
+      },
+      "test-shard-G": {
+        "result": "success",
+        "wall": 921.0
+      },
+      "test-shard-I": {
+        "result": "success",
+        "wall": 1653.0
+      },
+      "test-shard-A": {
+        "result": "success",
+        "wall": 1814.0
+      },
+      "test-shard-F": {
+        "result": "success",
+        "wall": 1703.0
+      }
+    }
+  },
+  {
+    "n": 4324,
+    "run": 40981782768,
+    "sha": "154de7e25d38ddb96bd1cb2a9a9419f2e8cb6edf",
+    "created": "2026-10-30T00:46:26Z",
+    "job": 123824481606,
+    "conclusion": "success",
+    "conservativeEligible": true,
+    "artifactPass": true,
+    "seen": 628,
+    "contractSeen": 628,
+    "digest": "01ba9573fd09e0bb0ac6de70925cdd1793567c1773679e20a404465f2f0b0593",
+    "wall": 510.691,
+    "total": 1021.1831675269999,
+    "cpu": 0.5584158804452883,
+    "peakMem": 2865,
+    "physicalMem": 15983,
+    "memoryPercent": 17.925295626603265,
+    "leftover": 0,
+    "Jparallelism": 2,
+    "Jleft": 0,
+    "nproc": 4,
+    "cpuModel": "AMD EPYC 9V45 96-Core Processor",
+    "queueFromRun": 3355.0,
+    "queueFromJob": 3143.0,
+    "runWall": 4777.0,
+    "criticalJob": "test",
+    "otherShards": {
+      "test-shard-A": {
+        "result": "success",
+        "wall": 1103.0
+      },
+      "test-shard-D": {
+        "result": "success",
+        "wall": 1527.0
+      },
+      "test-shard-I": {
+        "result": "success",
+        "wall": 1632.0
+      },
+      "test-shard-L": {
+        "result": "success",
+        "wall": 942.0
+      },
+      "test-shard-F": {
+        "result": "success",
+        "wall": 1019.0
+      },
+      "test-shard-G": {
+        "result": "success",
+        "wall": 1552.0
+      },
+      "test-shard-E": {
+        "result": "success",
+        "wall": 1645.0
+      },
+      "test-shard-C": {
+        "result": "success",
+        "wall": 517.0
+      },
+      "test-shard-H": {
+        "result": "success",
+        "wall": 1034.0
+      },
+      "test-shard-J": {
+        "result": "success",
+        "wall": 666.0
+      },
+      "test-shard-B": {
+        "result": "success",
+        "wall": 900.0
+      },
+      "test-shard-K": {
+        "result": "success",
+        "wall": 951.0
+      }
+    }
+  }
+]

@@ -536,3 +536,50 @@ jobs:
           path: artifacts/process-diagnostic/
           if-no-files-found: error
           retention-days: 14
+
+
+  parallel-k-diagnostic:
+    name: K parallel diagnostic (Node ${{ matrix.node }})
+    if: github.event_name == 'pull_request' && github.head_ref == 'ci/shard-k-parallel-diagnostic'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    timeout-minutes: 90
+    strategy:
+      fail-fast: false
+      matrix:
+        node: ['22', '24']
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node }}
+      - name: Record K host resources
+        run: |
+          node --version
+          nproc
+          free -m
+          uname -a
+      - name: Diagnose process controls
+        run: node scripts/parallel-shard-runner-process-diagnostic.js --report artifacts/k-diagnostic/controls-node-${{ matrix.node }}.json
+      - name: Existing process integrity regression
+        run: node tests/parallel-shard-runner-test.js
+      - name: Checkout pinned K source
+        uses: actions/checkout@v4
+        with:
+          ref: 165d924423f1e4bde8be8c801c28b15bbac76e72
+          path: diagnostic-k-source
+          persist-credentials: false
+      - name: Compare all 29 K commands serial, parallel two and four
+        run: >-
+          node scripts/parallel-shard-runner-process-diagnostic.js --full-shard K
+          --root diagnostic-k-source --source-sha 165d924423f1e4bde8be8c801c28b15bbac76e72
+          --report artifacts/k-diagnostic/full-k-node-${{ matrix.node }}.json
+      - name: Retain K diagnostic evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: k-diagnostic-node-${{ matrix.node }}-${{ github.run_id }}
+          path: artifacts/k-diagnostic/
+          if-no-files-found: error
+          retention-days: 14
