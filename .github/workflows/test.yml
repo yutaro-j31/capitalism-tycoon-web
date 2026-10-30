@@ -152,6 +152,8 @@ jobs:
         run: node scripts/parallel-shard-write-audit-test.cjs
       - name: Validate offline K evidence audit controls
         run: node scripts/parallel-shard-k-evidence-audit-test.cjs
+      - name: Validate read-only CI timing analysis
+        run: node scripts/parallel-shard-ci-timing-test.cjs
   test-shards:
     if: github.event_name == 'push' || github.event_name == 'pull_request'
     name: test-shard-${{ matrix.shard }}
