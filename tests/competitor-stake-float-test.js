@@ -140,8 +140,16 @@ function buy(s,c,label,expectFilled){
  // Keep the original actual-save cases; also cover storage admission and post-save dispatch.
  // notify can precede the purchase during the week and requires a separate call-site witness.
  // The outer transaction dispatches `week`, not the helper harness's generic `change` event.
- for(const mode of ['normal','save-false','save-throw','save-before-throw','mirror','enqueue-false','enqueue-throw','saved','week']){
-  const s=await persistedWeek(),game=s.game,prior=snapshot(game),bytes=s.backend.readSync(s.key),puts=s.control.attempts.length,draws=s.host.draws,records=[];
+ const cases=['normal','save-false','save-throw','save-before-throw','mirror','enqueue-false','enqueue-throw','saved','week'].map(mode=>({mode,pending:false}));
+ cases.push({mode:'save-false',pending:true},{mode:'save-throw',pending:true});
+ for(const {mode,pending} of cases){
+  const s=await persistedWeek(),game=s.game;
+  if(pending){
+   s.control.holdPut=true;assert.equal(game.save(),true);
+   for(let i=0;i<100&&!s.control.release;i++)await new Promise(resolve=>setImmediate(resolve));
+   assert.equal(typeof s.control.release,'function','predecessor durable put is really in flight');
+  }
+  const prior=snapshot(game),bytes=s.backend.readSync(s.key),durable=s.durable.get(s.key),puts=s.control.attempts.length,draws=s.host.draws,records=[];
   const base=game.buyCompetitorStake;
   game.buyCompetitorStake=function(c){
    assert.equal(this.inTransaction(),true,'actual weekly caller owns the transaction');assert.match(new Error().stack,/updateCompetitors/);
@@ -167,7 +175,9 @@ function buy(s,c,label,expectFilled){
   assert.equal(records.length,1,'the seeded week really reached one purchase');assert.equal(s.host.draws,draws,'weekly simulation draws no host RNG');
   if(injection){
    assert.ok(injection.hits()>0);assert.deepEqual(snapshot(game),prior,'whole rejected week including NPC cash/shares/player ledger/RNG restored');
-   await s.backend.flush();assert.equal(s.backend.readSync(s.key),bytes);assert.equal(s.ctx.localStorage.getItem(s.key),bytes);
+   assert.equal(s.backend.readSync(s.key),bytes);assert.equal(s.ctx.localStorage.getItem(s.key),bytes);
+   assert.equal(s.durable.get(s.key),durable,'failed week leaves the prior durable version intact while pending');
+   s.control.release?.();await s.backend.flush();
    assert.equal(s.durable.get(s.key),bytes);assert.equal(s.control.attempts.length,puts,'failed weekly put never starts');await restored(s,prior);
    records.length=0;assert.equal(game.advanceWeek(false),true,'same seeded week retries successfully');assert.equal(records.length,1);
   }
@@ -177,7 +187,7 @@ function buy(s,c,label,expectFilled){
   assert.ok(Math.abs(sum(game.g)-1)<EPS);assert.equal(s.modules.finance.validate(snapshot(game)).ok,true);
   if(reference)assert.deepEqual(economic(game.g),reference,'failed week + retry equals uninterrupted week including persisted RNG');else reference=economic(game.g);
   await s.backend.flush();assert.equal(s.control.attempts.length,puts+1,'one successful weekly durable put, including after retry');await restored(s,game.g);
-  console.log('weekly competitor purchase '+mode+': real commit / full rollback / retry / fresh fake-IDB PASS');
+  console.log('weekly competitor purchase '+mode+' pending='+pending+': real commit / full rollback / retry / fresh fake-IDB PASS');
  }
  console.log('Competitor stake float PASS');
 })().catch(e=>{console.error(e);process.exitCode=1;});
