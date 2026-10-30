@@ -38,10 +38,15 @@ function summarize(run, response, asOf = new Date().toISOString()) {
     if (created !== null && started !== null) assert.ok(started >= created, 'start precedes creation');
     if (started !== null && completed !== null) assert.ok(completed >= started, 'completion precedes start');
     return { id: job.id, name: job.name, state: status, status: job.status, conclusion: job.conclusion ?? null, apiStartedAt: job.started_at ?? null, created, started, completed,
+      runCreationToJobCreationSeconds: difference(created, origin),
       jobCreationToStartSeconds: difference(started, created), elapsedSeconds: difference(completed, started),
       runCreationToStartSeconds: difference(started, origin),
       pendingAgeSeconds: status === 'pending' && started === null ? difference(now, created) : null };
   });
+  // GitHub may defer creating any job while a workflow concurrency group is held.
+  // These are observed API creation times, not proof of scheduler/runner causation.
+  const creations = rows.map(r => r.created).filter(ms => ms !== null);
+  const firstCreation = creations.length ? Math.min(...creations) : null;
   const canonical = rows.filter(r => /^test-shard-[A-L]$/.test(r.name));
   const complete = [...'ABCDEFGHIJKL'].every(s => canonical.filter(r => r.name === `test-shard-${s}` && r.state === 'success').length === 1 && canonical.filter(r => r.name === `test-shard-${s}`).length === 1);
   const success = canonical.filter(r => r.state === 'success');
@@ -63,8 +68,12 @@ function summarize(run, response, asOf = new Date().toISOString()) {
   if (interval !== null) assert.ok(interval >= 0, 'aggregate completed before a required shard');
   return { runId: run.id, headSha: run.head_sha, event: run.event, asOf, workflowState: state(run), workflowStatus: run.status, workflowConclusion: run.conclusion ?? null,
     jobStates: Object.fromEntries(['success', 'failed', 'cancelled', 'skipped', 'neutral', 'pending', 'unknown'].map(s => [s, rows.filter(r => r.state === s).length])),
+    observedJobCreationCount: creations.length, returnedJobCreationCoverageComplete: rows.length > 0 && creations.length === rows.length,
+    firstObservedJobCreatedAt: firstCreation === null ? null : new Date(firstCreation).toISOString(),
+    runCreationToFirstObservedJobCreationSeconds: difference(firstCreation, origin),
     canonicalSuccessCount: success.length, canonicalCoverageComplete: complete,
     successfulShardCreationToStart: metric('jobCreationToStartSeconds'), successfulShardElapsed: metric('elapsedSeconds'),
+    successfulShardRunCreationToStart: metric('runCreationToStartSeconds'),
     lastCanonicalSuccessJobs: last, lastCanonicalSuccessEnd: lastEnd === null ? null : new Date(lastEnd).toISOString(),
     aggregateState: aggregate?.state ?? 'missing-or-ambiguous', aggregateCreationToStartSeconds: aggregate?.jobCreationToStartSeconds ?? null,
     runCreationToAggregateCompletionSeconds: aggregate?.state === 'success' ? difference(aggregate.completed, origin) : null,
