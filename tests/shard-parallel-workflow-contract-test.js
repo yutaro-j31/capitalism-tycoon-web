@@ -49,7 +49,14 @@ assert.match(text, /test "\$\{\{ needs\.test-shards\.result \}\}" = "success"/);
 
 // Owner-authorized residue diagnosis is restricted to its own PR branch. It never
 // changes canonical J/C parallelism or starts on main, schedule, dispatch or other PRs.
-const diagnostic = text.slice(text.indexOf('\n  parallel-process-diagnostic:'));
+function jobBlock(id) {
+  const start = text.indexOf(`\n  ${id}:`);
+  assert.ok(start >= 0, `${id} job exists`);
+  const tail = text.slice(start + 1);
+  const next = tail.slice(1).search(/^  [A-Za-z0-9_-]+:\s*$/m);
+  return next < 0 ? tail : tail.slice(0, next + 1);
+}
+const diagnostic = jobBlock('parallel-process-diagnostic');
 assert.ok(text.includes('\n  parallel-process-diagnostic:'), 'dedicated process diagnostic job exists');
 assert.ok(diagnostic.includes("if: github.event_name == 'pull_request' && github.head_ref == 'ci/parallel-shard-process-diagnostic'"));
 for (const token of ["node: ['22', '24']", 'timeout-minutes: 90', 'contents: read', 'fail-fast: false',
@@ -59,4 +66,12 @@ for (const token of ["node: ['22', '24']", 'timeout-minutes: 90', 'contents: rea
   assert.ok(diagnostic.includes(token), `process diagnostic must retain ${token}`);
 assert.doesNotMatch(diagnostic, /continue-on-error|TEST_SHARD_PARALLELISM|vars\./);
 
+const kDiagnostic = jobBlock('parallel-k-diagnostic');
+assert.ok(kDiagnostic.includes("if: github.event_name == 'pull_request' && github.head_ref == 'ci/shard-k-parallel-diagnostic'"));
+for (const token of ["node: ['22', '24']", 'timeout-minutes: 90', 'contents: read', 'fail-fast: false',
+  '--full-shard K', '--root diagnostic-k-source', '--source-sha 165d924423f1e4bde8be8c801c28b15bbac76e72',
+  'node tests/parallel-shard-runner-test.js', 'persist-credentials: false', 'if: always()', 'if-no-files-found: error'])
+  assert.ok(kDiagnostic.includes(token), `K diagnostic must retain ${token}`);
+assert.doesNotMatch(kDiagnostic, /continue-on-error|TEST_SHARD_PARALLELISM|vars\./);
+assert.ok(!diagnostic.includes('--full-shard K'), 'E and K contracts examine separate job blocks');
 console.log('shard-parallel-workflow-contract-test: ok');

@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 'use strict';
 
-// One-off, read-only diagnosis of E's residue report. Does not enable a canonical shard.
+// Branch-only E/K diagnosis. Does not enable a canonical shard.
 // Refuses to run/kill process groups when Node PIDs and procfs use different namespaces.
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
@@ -11,7 +11,8 @@ const cp = require('node:child_process');
 const runner = require('./parallel-shard-runner');
 const option = name => { const i = process.argv.indexOf(name); return i < 0 ? null : process.argv[i + 1]; };
 const ROOT = option('--root') ? path.resolve(option('--root')) : path.resolve(__dirname, '..');
-const fullE = process.argv.includes('--full-e');
+const fullShard = process.argv.includes('--full-e') ? 'E' : option('--full-shard');
+if (fullShard && !['E', 'K'].includes(fullShard)) throw new Error('full-shard diagnosis supports E or K only');
 const delay = ms => new Promise(resolve => setTimeout(resolve, ms));
 
 function parseStat(text) {
@@ -53,7 +54,20 @@ function compareOutputs(reference, result) {
     for (const field of ['label', 'state', 'exitCode', 'signal', 'stdoutSha256', 'stderrSha256', 'stdoutBytes', 'stderrBytes', 'stdoutLines', 'passLines'])
       assert.deepEqual(result.results[i][field], reference.results[i][field], `${reference.results[i].label}: ${field} parity`);
 }
+function contractSummary(shard, text) {
+  return new RegExp(`canonical-test-shard-summary: shard=${shard} contractOnly=true executed=0 seen=\\d+[^\\n]*`).exec(text)?.[0];
+}
+function assertMemory(peakMiB, physicalBytes) {
+  assert.ok(Number.isFinite(peakMiB) && peakMiB > 0, 'K memory measurement must be present');
+  assert.ok(Number.isFinite(physicalBytes) && physicalBytes > 0, 'physical memory must be present');
+  assert.ok(peakMiB * 1048576 <= physicalBytes / 2, 'K peak in-use system memory must not exceed 50%');
+}
 function selfTest() {
+  assert.equal(contractSummary('K', 'canonical-test-shard-summary: shard=K contractOnly=true executed=0 seen=628 total=0.000s\n'), 'canonical-test-shard-summary: shard=K contractOnly=true executed=0 seen=628 total=0.000s');
+  assert.equal(contractSummary('E', 'canonical-test-shard-summary: shard=K contractOnly=true executed=0 seen=628'), undefined);
+  assertMemory(50, 100 * 1048576);
+  assert.throws(() => assertMemory(51, 100 * 1048576), /50%/);
+  assert.throws(() => assertMemory(null, 100 * 1048576), /must be present/);
   const fields = ['S', '11', '23', '23', ...Array(15).fill('0'), '991', '0'];
   const parsed = parseStat(`42 (test name) with close)) ${fields.join(' ')}`);
   assert.equal(parsed.pid, 42); assert.equal(parsed.pgrp, 23); assert.equal(parsed.startTicks, '991');
@@ -108,8 +122,8 @@ async function main() {
       trace = [];
       const items = commands.map((c, i) => ({ ...c, index: i }));
       const record = { name, trace, result: null, after: [] }; report.runs.push(record);
-      const result = await runner.runCommands(items, { cwd: ROOT, concurrency, ...scheduling, testTimeoutMs: fullE ? 1500000 : 240000,
-        runTimeoutMs: fullE ? 3000000 : 300000, sampleMs: 100, log: line => console.log(line) });
+      const result = await runner.runCommands(items, { cwd: ROOT, concurrency, ...scheduling, testTimeoutMs: fullShard ? 1500000 : 240000,
+        runTimeoutMs: fullShard ? 3000000 : 300000, sampleMs: 100, log: line => console.log(line) });
       record.result = result;
       for (const wait of [0, 100, 2000]) {
         if (wait) await delay(wait);
@@ -129,31 +143,42 @@ async function main() {
       }
       assert.ok(record.classifications.every(c => c.classification !== 'still-alive-after-run'), `${name}: live process after cleanup`);
       assert.equal(result.ok, true, `${name}: all commands must pass`);
-      assert.equal(result.counts.passed, commands.length);
+      assert.deepEqual(result.counts, { enumerated: commands.length, passed: commands.length, failed: 0, aborted: 0, notStarted: 0 });
+      if (fullShard === 'K') assertMemory(result.peakSystemMemInUseMb, report.physicalMemoryBytes);
       for (let i = 0; i < expected.length; i++) assert.equal(result.results[i].leftoverProcesses, expected[i], `${name}: residue flag for ${items[i].label}`);
       console.log(`process-diagnostic: ${name} ${JSON.stringify(record.classifications)}`);
       return result;
     }
     try {
-      if (fullE) {
+      if (fullShard) {
         const source = cp.spawnSync('git', ['rev-parse', 'HEAD'], { cwd: ROOT, encoding: 'utf8' });
         assert.equal(source.status, 0); report.targetSourceSha = source.stdout.trim();
-        assert.equal(report.targetSourceSha, option('--source-sha'), 'diagnose the pinned E HEAD');
+        assert.equal(report.targetSourceSha, option('--source-sha'), 'diagnose the pinned source HEAD');
         assert.equal(fs.readFileSync(path.join(ROOT, 'scripts/parallel-shard-runner.js'), 'utf8'),
           fs.readFileSync(path.join(__dirname, 'parallel-shard-runner.js'), 'utf8'), 'target and diagnostic use identical runner source');
-        const commands = runner.enumerateShard('E', { root: ROOT });
-        assert.equal(commands.length, 33, 'all 33 E commands');
+        const commands = runner.enumerateShard(fullShard, { root: ROOT });
+        const count = fullShard === 'E' ? 33 : 29;
+        assert.equal(commands.length, count, `all ${count} ${fullShard} commands`);
+        if (fullShard === 'K') {
+          report.sharedStateAudit = runner.scanSharedState(commands, { root: ROOT });
+          assert.deepEqual(report.sharedStateAudit, {}, 'new K shared-state patterns need review before running');
+        }
         report.commands = commands;
         const contract = cp.spawnSync(process.execPath, ['tests/run-all-shard.js'], { cwd: ROOT, encoding: 'utf8',
-          env: { ...process.env, TEST_SHARD: 'E', TEST_SHARD_CONTRACT: '1' }, maxBuffer: 64 * 1024 * 1024 });
+          env: { ...process.env, TEST_SHARD: fullShard, TEST_SHARD_CONTRACT: '1' }, maxBuffer: 64 * 1024 * 1024 });
         assert.equal(contract.status, 0, contract.stderr);
-        report.contractSummary = /canonical-test-shard-summary: shard=E contractOnly=true executed=0 seen=\d+[^\n]*/.exec(contract.stdout)?.[0];
-        assert.ok(report.contractSummary, 'same-source E contract summary');
-        const reference = await run('full-e-serial', commands, 1, Array(33).fill(false));
+        report.contractSummary = contractSummary(fullShard, contract.stdout);
+        assert.ok(report.contractSummary, 'same-source contract summary');
+        const prefix = `full-${fullShard.toLowerCase()}`;
+        const reference = await run(`${prefix}-serial`, commands, 1, Array(count).fill(false));
         const cfg = JSON.parse(fs.readFileSync(path.join(ROOT, 'scripts/parallel-shard-runner.config.json'), 'utf8'));
-        const parallel = await run('full-e-parallel-2', commands, 2, Array(33).fill(false),
-          { order: 'longest-first', timings: cfg.timings.E, serial: cfg.serial.E || [] });
-        compareOutputs(reference, parallel);
+        const timings = fullShard === 'E' ? cfg.timings.E : Object.fromEntries(reference.results.map(r => [r.label, r.wallMs / 1000]));
+        report.schedulingTimings = timings;
+        for (const concurrency of fullShard === 'K' ? [2, 4] : [2]) {
+          const parallel = await run(`${prefix}-parallel-${concurrency}`, commands, concurrency, Array(count).fill(false),
+            { order: 'longest-first', timings, serial: cfg.serial[fullShard] || [] });
+          compareOutputs(reference, parallel);
+        }
         report.outputParity = true; report.ok = true;
         return;
       }
