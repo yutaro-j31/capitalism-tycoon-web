@@ -8,6 +8,7 @@ const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
 const cp = require('node:child_process');
+const sha256 = bytes => require('node:crypto').createHash('sha256').update(bytes).digest('hex');
 const runner = require('./parallel-shard-runner');
 const option = name => { const i = process.argv.indexOf(name); return i < 0 ? null : process.argv[i + 1]; };
 const ROOT = option('--root') ? path.resolve(option('--root')) : path.resolve(__dirname, '..');
@@ -54,6 +55,22 @@ function compareOutputs(reference, result) {
     for (const field of ['label', 'state', 'exitCode', 'signal', 'stdoutSha256', 'stderrSha256', 'stdoutBytes', 'stderrBytes', 'stdoutLines', 'passLines'])
       assert.deepEqual(result.results[i][field], reference.results[i][field], `${reference.results[i].label}: ${field} parity`);
 }
+// Keep byte-exact evidence separate from the runner's non-enumerable buffers.
+// Only used by this optional diagnostic; canonical reports remain unchanged.
+function retainedOutputs(results) {
+  return results.map(r => {
+    const evidence = { index: r.index, label: r.label, state: r.state };
+    if (r.state === 'notStarted') return { ...evidence, unavailable: 'not-started' };
+    for (const stream of ['stdout', 'stderr']) {
+      const bytes = r[stream];
+      assert.ok(Buffer.isBuffer(bytes), `${r.label}: ${stream} capture missing`);
+      assert.equal(bytes.length, r[`${stream}Bytes`], `${r.label}: ${stream} capture length`);
+      assert.equal(sha256(bytes), r[`${stream}Sha256`], `${r.label}: ${stream} capture hash`);
+      evidence[`${stream}Base64`] = bytes.toString('base64');
+    }
+    return evidence;
+  });
+}
 function contractSummary(shard, text) {
   return new RegExp(`canonical-test-shard-summary: shard=${shard} contractOnly=true executed=0 seen=\\d+[^\\n]*`).exec(text)?.[0];
 }
@@ -61,6 +78,31 @@ function assertMemory(peakMiB, physicalBytes) {
   assert.ok(Number.isFinite(peakMiB) && peakMiB > 0, 'K memory measurement must be present');
   assert.ok(Number.isFinite(physicalBytes) && physicalBytes > 0, 'physical memory must be present');
   assert.ok(peakMiB * 1048576 <= physicalBytes / 2, 'K peak in-use system memory must not exceed 50%');
+}
+async function outputSelfTest() {
+  const binary = [0, 255, 195, 40, 10]; // Includes invalid UTF-8: text decoding would lose evidence.
+  const commands = [{ index: 0, label: 'binary-control', command: process.execPath,
+    args: ['-e', `process.stdout.write(Buffer.from(${JSON.stringify(binary)}));process.stderr.write('expected stderr');`] }];
+  const actual = await runner.runCommands(commands, { testTimeoutMs: 10000, runTimeoutMs: 15000 });
+  assert.equal(actual.ok, true);
+  const before = JSON.stringify(actual);
+  const retained = JSON.parse(JSON.stringify(retainedOutputs(actual.results)));
+  assert.deepEqual([...Buffer.from(retained[0].stdoutBase64, 'base64')], binary);
+  assert.equal(Buffer.from(retained[0].stderrBase64, 'base64').toString(), 'expected stderr');
+  assert.equal(JSON.stringify(actual), before, 'capture must not mutate runner status or flags');
+  const changedCapture = { ...actual.results[0], stdout: Buffer.from('changed'), stderr: actual.results[0].stderr };
+  assert.throws(() => retainedOutputs([changedCapture]), /capture length/);
+  changedCapture.stdout = Buffer.from([1, ...binary.slice(1)]);
+  assert.throws(() => retainedOutputs([changedCapture]), /capture hash/);
+  assert.throws(() => retainedOutputs([{ ...actual.results[0] }]), /capture missing/);
+  assert.deepEqual(retainedOutputs([{ index: 1, label: 'unstarted', state: 'notStarted' }]),
+    [{ index: 1, label: 'unstarted', state: 'notStarted', unavailable: 'not-started' }]);
+  // Empty streams and failed commands must also survive JSON without being called passed.
+  const failed = await runner.runCommands([{ index: 0, label: 'failed-control', command: process.execPath,
+    args: ['-e', 'process.exit(7)'] }], { testTimeoutMs: 10000, runTimeoutMs: 15000 });
+  assert.equal(failed.ok, false); assert.equal(failed.results[0].exitCode, 7);
+  assert.deepEqual(retainedOutputs(failed.results)[0],
+    { index: 0, label: 'failed-control', state: 'failed', stdoutBase64: '', stderrBase64: '' });
 }
 function selfTest() {
   assert.equal(contractSummary('K', 'canonical-test-shard-summary: shard=K contractOnly=true executed=0 seen=628 total=0.000s\n'), 'canonical-test-shard-summary: shard=K contractOnly=true executed=0 seen=628 total=0.000s');
@@ -87,7 +129,7 @@ function selfTest() {
 
 async function main() {
   selfTest();
-  if (process.argv.includes('--self-test')) { console.log('process diagnostic self-test: PASS'); return; }
+  if (process.argv.includes('--self-test')) { await outputSelfTest(); console.log('process diagnostic self-test: PASS'); return; }
   const outputIndex = process.argv.indexOf('--report');
   const output = outputIndex < 0 ? path.join(ROOT, 'artifacts/process-diagnostic/report.json') : path.resolve(process.argv[outputIndex + 1]);
   const report = { node: process.version, platform: process.platform, sourceSha: process.env.GITHUB_SHA || null,
@@ -125,6 +167,7 @@ async function main() {
       const result = await runner.runCommands(items, { cwd: ROOT, concurrency, ...scheduling, testTimeoutMs: fullShard ? 1500000 : 240000,
         runTimeoutMs: fullShard ? 3000000 : 300000, sampleMs: 100, log: line => console.log(line) });
       record.result = result;
+      if (process.argv.includes('--retain-output')) record.outputs = retainedOutputs(result.results);
       for (const wait of [0, 100, 2000]) {
         if (wait) await delay(wait);
         record.after.push({ waitedMs: wait, groups: trace.map(t => ({ pid: t.pid, members: members(t.pid) })) });

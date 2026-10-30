@@ -142,6 +142,8 @@ jobs:
         run: node tests/run-all-shard.js
       - name: Verify the shard matrix covers every configured shard
         run: node tests/shard-matrix-contract.js
+      - name: Verify byte-exact diagnostic output retention
+        run: node scripts/parallel-shard-runner-process-diagnostic.js --self-test
       - name: Verify every browser-installing job is time-bounded
         run: node tests/workflow-browser-timeout-contract.js
   test-shards:
