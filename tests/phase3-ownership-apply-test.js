@@ -111,6 +111,18 @@ for(const bad of [null,{},{g:null,inTransaction(){return true;}},{g:state(),inTr
   const t=state();unplannable(t);const h=begin(engine(t),leg);assert.equal(h,null);assert.equal(confirm(engine(t),h),true,'unplannable legs keep existing behaviour');
  }
  assert.equal(begin(engine(state()),{...leg,kind:'ipo'}),null);assert.equal(begin(engine(state()),null),null);
+ // IPO is verified only (Owner decision 2026-10-29): an unlisted company's IPO leg plans; confirmation requires the planned
+ // buckets and the planned listing (listed, under the planned ticker, with a consistent issued mirror).
+ {
+  const ipo={writerId:'W-IPO-CHAIN',kind:'ipo',operationId:'parent-ipo-12',change:{issuedQuantity:100,founderSecondaryQuantity:20,listingTicker:'OWN'}};
+  const t=state();t.publicCompany=false;t.market=t.market.filter(x=>x.id!=='OWN');
+  const h=begin(engine(t),ipo);assert.equal(h.plan.status,'PLANNED','an unlisted IPO leg plans');assert.equal(h.plan.listingRequirement.ticker,'OWN');
+  assert.equal(begin(engine(state()),ipo),null,'a listed company cannot plan an IPO leg');
+  t.sharesOut+=100;t.founderShares-=20;assert.equal(confirm(engine(t),h),false,'buckets alone, still unlisted, are rejected');
+  t.publicCompany=true;t.market.push({id:'OWN',issuedShares:t.sharesOut,price:99});assert.equal(confirm(engine(t),h),true,'the planned listing is confirmed');
+  t.market.at(-1).issuedShares-=1;assert.equal(confirm(engine(t),h),false,'an inconsistent issued mirror is rejected');t.market.at(-1).issuedShares+=1;
+  t.founderShares-=1;assert.equal(confirm(engine(t),h),false,'a different founder secondary is rejected');
+ }
 }
 
 // The installed runtime registers the module without routing a writer to it, and a real engine transaction commits or
@@ -128,7 +140,8 @@ const { boot } = require('./fixtures/subsidiary-quarter-close');
  const routed=sources.filter(f=>read('js/'+f).includes('beginOwnershipLeg'));
  assert.deepEqual(routed,['engine.js','expansion.js','ma-deal-room.js','personal-stock-margin.js','player-crisis-actions.js','player-crisis-turnaround-fund.js','shareholder-returns.js']);
  assert.equal((read('js/expansion.js').match(/beginOwnershipLeg\(/g)||[]).length,3,'expansion.js: W-SPLIT, W-FOUNDER-SALE and W-INVESTOR only');
- assert.equal((read('js/engine.js').match(/beginOwnershipLeg\(/g)||[]).length,2,'engine.js: W-BUY and W-SELL only');
+ assert.equal((read('js/engine.js').match(/beginOwnershipLeg\(/g)||[]).length,3,'engine.js: W-BUY, W-SELL and the W-IPO-CHAIN base only');
+
  assert.equal((read('js/personal-stock-margin.js').match(/beginOwnershipLeg\(/g)||[]).length,1,'personal-stock-margin.js: W-MARGIN-LIQ forced own-share sale only');
  assert.equal((read('js/ma-deal-room.js').match(/beginOwnershipLeg\(/g)||[]).length,1,'ma-deal-room.js: W-SHARE-SWAP only');
  assert.equal((read('js/shareholder-returns.js').match(/beginOwnershipLeg\(/g)||[]).length,1,'shareholder-returns.js: W-BUYBACK only');
@@ -296,5 +309,21 @@ const { boot } = require('./fixtures/subsidiary-quarter-close');
   const second=rescued(2);assert.equal(second.acceptTurnaroundFund(),true,'second generation keeps the existing acceptance');
   assert.equal(second.g.sharesOut,16186);
  }
- console.log('Phase 3 ownership apply (dormant) and W-FOUNDER-SALE / W-BUY / W-SELL / W-SPLIT / W-BUYBACK / W-SPONSOR / W-INVESTOR / W-TURNAROUND-ACCEPT verification legs PASS');
+ // W-IPO-CHAIN routed in verification mode through the installed chain (zero-store investment route): unchanged success,
+ // a diverging bucket write is refused and the whole IPO rolled back, a second generation keeps the existing IPO.
+ {
+  const {prepareIPO}=require('./fixtures/parent-ipo-atomicity'),{loadGame}=require('./harness');
+  function eve(serial=1){const l=loadGame({headless:true}),g=prepareIPO(l.modules);g.g.currentCompanySerial=serial;return g;}
+  const g=eve(),shares=g.g.sharesOut,founder=g.g.founderShares;
+  assert.equal(g.executeIPO('東証グロース'),true,'first-generation IPO');assert.equal(g.g.publicCompany,true);
+  assert.ok(g.g.sharesOut>shares&&g.g.founderShares<founder);assert.equal(g.stock(g.g.ticker).issuedShares,g.g.sharesOut);
+  const bad=eve(),prior=JSON.stringify(bad.g),ratios=bad.updateOwnershipRatios;
+  bad.updateOwnershipRatios=function(...args){this.g.sharesOut+=1;return ratios.apply(this,args);};
+  assert.equal(bad.executeIPO('東証グロース'),false,'an IPO bucket write that diverges from the plan is refused');
+  assert.equal(JSON.stringify(bad.g),prior,'and the whole IPO is rolled back');
+  const second=eve(2),r2=second.updateOwnershipRatios;
+  second.updateOwnershipRatios=function(...args){this.g.sharesOut+=1;return r2.apply(this,args);};
+  assert.equal(second.executeIPO('東証グロース'),true,'second generation keeps the existing IPO (unchecked)');
+ }
+ console.log('Phase 3 ownership apply (dormant) and W-FOUNDER-SALE / W-BUY / W-SELL / W-SPLIT / W-BUYBACK / W-SPONSOR / W-INVESTOR / W-TURNAROUND-ACCEPT / W-IPO-CHAIN verification legs PASS');
 })().catch(error=>{console.error(error);process.exitCode=1;});
