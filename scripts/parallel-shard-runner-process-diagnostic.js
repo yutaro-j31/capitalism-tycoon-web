@@ -159,7 +159,11 @@ function selfTest() {
 
 async function main() {
   selfTest();
-  if (process.argv.includes('--self-test')) { await outputSelfTest(); console.log('process diagnostic self-test: PASS'); return; }
+  if (process.argv.includes('--self-test')) {
+    await outputSelfTest();
+    require('./parallel-shard-c-evidence-audit-test.cjs');
+    console.log('process diagnostic self-test: PASS'); return;
+  }
   const outputIndex = process.argv.indexOf('--report');
   const output = outputIndex < 0 ? path.join(ROOT, 'artifacts/process-diagnostic/report.json') : path.resolve(process.argv[outputIndex + 1]);
   const report = { node: process.version, platform: process.platform, sourceSha: process.env.GITHUB_SHA || null,
