@@ -3,7 +3,7 @@
 Baseline: `1bb4d6d5e50d2a097644e36b30d4a206eeb852e4`.
 
 The already registered `tests/shareholder-buyback-save-atomicity-test.js` retains its installed-command and
-actual direct-export cases. Eight additional cases capture the own `engine.js` prototype declaration of
+actual direct-export cases. Ten additional cases capture the own `engine.js` prototype declaration of
 `buybackOwnShares` (W-BUYBACK-BASE), require it to differ from the installed entry, and trap accidental calls
 to that installed entry. The planner still rejects this internal entry; no routing or authority is added.
 
@@ -19,9 +19,20 @@ This proves rejected speculative calls only. The old base source uses raw quanti
 omits the installed settlement's treasury-book/receipt/mirror work. These pre-existing unadopted semantics are
 not certified as a successful transaction, repaired, rounded, or enabled here. A healthy retry deliberately
 uses the supported installed writer; it does not commit the legacy candidate. Normal legacy settlement,
-standalone base calls, pending predecessor schedules, all callers and base-specific native WebKit remain
+standalone base calls, other pending predecessor schedules, all callers and base-specific native WebKit remain
 unproved. The earlier direct-export evidence does not close those gaps.
 
 Node/fake-IDB partial evidence only; no new physical-iPhone claim, whole-family S_PASS, Authority Cutover,
 P3-10 executable command, Phase 3 formal Exit or Phase 4 Entry. No production writer, SAVE_KEY/saveVersion9,
 old-save loader, RNG/rounding policy, test registration, Work B CI/runner/config/workflow or vNext change.
+
+## In-flight predecessor follow-up
+
+Baseline: `1b703df984d075b350662ee232e364fd1d414b5f` (after #1247). Two ordinary-float cases additionally
+hold an already accepted save's fake-IDB put while the captured candidate encounters save-false/admitted-save-throw.
+A company-name marker makes this pending predecessor distinct from the older durable save without modifying
+financial inputs. The put must actually be in flight; mirror/cache retain that accepted payload, while the old
+durable bytes remain unchanged until release. After rejection, releasing the original put must persist exactly
+the accepted predecessor and admit no rejected put. The existing full rollback, predecessor reload/fresh hydration,
+installed recovery settlement oracle and one recovery-put checks apply. Original eight cases remain unchanged
+in meaning. This is a specific pending-write ordering proof, not successful legacy settlement or all schedules.
