@@ -3,13 +3,13 @@
 const assert = require('node:assert/strict');
 const fs = require('node:fs'), path = require('node:path'), os = require('node:os');
 const cp = require('node:child_process'), zlib = require('node:zlib'), crypto = require('node:crypto');
-const { auditOne, auditPair, expectedFrom, withArchive } = require('./parallel-shard-c-evidence-audit.cjs');
+const { auditOne, auditPair, expectedFrom, withArchive, enumerateOffline } = require('./parallel-shard-c-evidence-audit.cjs');
 const runner = require('./parallel-shard-runner');
 const sha = bytes => crypto.createHash('sha256').update(bytes).digest('hex');
 const pin = 'd10a971eb99fb4111fd3a169ba9c34ccb7a81971';
 const hash = 'f33b04eaa4f82191c804c5b328855baa7e0589b5fb46e13c1db987f269b592ce';
 const archived = fs.readFileSync(path.join(__dirname, '../docs/ci-evidence/c-process-hosted-2026-10-31.json.gz'));
-const commands = runner.enumerateShard('C');
+const commands = enumerateOffline(runner, path.resolve(__dirname, '..'));
 // Current canonical metadata is an independent expectation; it does not launch tests.
 const contract = cp.execFileSync(process.execPath, ['tests/run-all-shard.js'], {
   cwd: path.resolve(__dirname, '..'), encoding: 'utf8',
@@ -104,6 +104,33 @@ assert.throws(() => withArchive(oversized, sha(oversized), pin, () => {}));
 // Source SHA/dirty guards execute before any contract loader or workload.
 const source = fs.mkdtempSync(path.join(os.tmpdir(), 'c-evidence-source-'));
 try {
+  // Exercise the real historical enumerator, but replace only its sharder with
+  // a harmless witness. An async spawn would execute the witness if inherited
+  // parallelism leaked through; serial spawnSync must instead be intercepted.
+  fs.mkdirSync(path.join(source, 'tests'));
+  const witness = path.join(source, 'workload-started');
+  fs.writeFileSync(path.join(source, 'tests/run-all-shard.js'), `
+const cp = require('node:child_process');
+if (Number(process.env.TEST_SHARD_PARALLELISM) >= 2) {
+  cp.spawn(process.execPath, ['-e', ${JSON.stringify(`require('node:fs').writeFileSync(${JSON.stringify(witness)}, 'started')`)}]);
+} else cp.spawnSync('node', ['never-run.js']);
+`);
+  const inherited = process.env.TEST_SHARD_PARALLELISM;
+  try {
+    for (const value of [undefined, '2', '4']) {
+      if (value === undefined) delete process.env.TEST_SHARD_PARALLELISM;
+      else process.env.TEST_SHARD_PARALLELISM = value;
+      const result = enumerateOffline(runner, source);
+      assert.equal(result.length, 1); assert.deepEqual(result[0].args, ['never-run.js']);
+      assert.equal(process.env.TEST_SHARD_PARALLELISM, value, 'restore inherited environment');
+      assert.ok(!fs.existsSync(witness), 'no actual async workload');
+      assert.throws(() => enumerateOffline({ enumerateShard() { throw Error('enumeration failed'); } }, source), /enumeration failed/);
+      assert.equal(process.env.TEST_SHARD_PARALLELISM, value, 'restore environment after failure');
+    }
+  } finally {
+    if (inherited === undefined) delete process.env.TEST_SHARD_PARALLELISM;
+    else process.env.TEST_SHARD_PARALLELISM = inherited;
+  }
   const git = args => cp.execFileSync('git', args, { cwd: source, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] }).trim();
   git(['init']); fs.writeFileSync(path.join(source, 'tracked'), 'original'); git(['add', '.']);
   git(['-c', 'user.name=Fixture', '-c', 'user.email=fixture@example.invalid', 'commit', '-m', 'fixture']);

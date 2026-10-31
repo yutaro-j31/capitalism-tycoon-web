@@ -11,6 +11,19 @@ function unique(list, key, count) {
   assert.equal(list.length, count, `${key}: complete coverage`);
   assert.equal(new Set(list.map(item => item[key])).size, count, `${key}: unique coverage`);
 }
+// Historical enumerateShard inherits the caller's parallelism. Its spawnSync
+// interception does not intercept the parallel async executor: force serial
+// enumeration and restore the caller exactly, including an absent variable.
+function enumerateOffline(runner, root) {
+  const previous = process.env.TEST_SHARD_PARALLELISM;
+  try {
+    process.env.TEST_SHARD_PARALLELISM = '1';
+    return runner.enumerateShard('C', { root });
+  } finally {
+    if (previous === undefined) delete process.env.TEST_SHARD_PARALLELISM;
+    else process.env.TEST_SHARD_PARALLELISM = previous;
+  }
+}
 function auditIdentity(identity) {
   assert.equal(identity.consistent, true);
   for (const field of ['self', 'numbered']) assert.equal(identity[field].pid, identity.nodePid);
@@ -116,7 +129,7 @@ function expectedFrom(root, pinnedSha) {
   assert.equal(cp.execFileSync('git', ['rev-parse', 'HEAD'], { cwd: root, encoding: 'utf8' }).trim(), pinnedSha);
   assert.equal(cp.execFileSync('git', ['status', '--porcelain', '--untracked-files=no'], { cwd: root, encoding: 'utf8' }).trim(), '', 'source tracked files must be clean');
   const runner = require(path.join(root, 'scripts/parallel-shard-runner.js'));
-  const commands = runner.enumerateShard('C', { root });
+  const commands = enumerateOffline(runner, root);
   const contract = cp.execFileSync(process.execPath, ['tests/run-all-shard.js'], { cwd: root, encoding: 'utf8', env: { ...process.env, TEST_SHARD: 'C', TEST_SHARD_CONTRACT: '1' } });
   const seen = /contractOnly=true executed=0 seen=(\d+)/.exec(contract); assert.ok(seen);
   return { sha: pinnedSha, commands, digest: runner.digestOf(commands), seen: Number(seen[1]),
@@ -161,7 +174,7 @@ function withArchive(bytes, expectedHash, pinnedSha, visit) {
     return visit(reports, roots);
   } finally { fs.rmSync(root, { recursive: true, force: true }); }
 }
-module.exports = { auditOne, auditPair, expectedFrom, withArchive };
+module.exports = { auditOne, auditPair, expectedFrom, withArchive, enumerateOffline };
 if (require.main === module) {
   try {
     assert.equal(process.argv.length, 7, 'usage: audit.cjs --archive SOURCE_ROOT ARCHIVE_GZ EXPECTED_GZIP_SHA256 PINNED_SOURCE_SHA');
