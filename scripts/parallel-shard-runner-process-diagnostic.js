@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 'use strict';
 
-// Branch-only E/K diagnosis. Does not enable a canonical shard.
+// Branch-only C/E/K diagnosis. Does not enable a canonical shard.
 // Refuses to run/kill process groups when Node PIDs and procfs use different namespaces.
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
@@ -14,7 +14,7 @@ const writeObservation = require('./parallel-shard-write-observation.cjs');
 const option = name => { const i = process.argv.indexOf(name); return i < 0 ? null : process.argv[i + 1]; };
 const ROOT = option('--root') ? path.resolve(option('--root')) : path.resolve(__dirname, '..');
 const fullShard = process.argv.includes('--full-e') ? 'E' : option('--full-shard');
-if (fullShard && !['E', 'K'].includes(fullShard)) throw new Error('full-shard diagnosis supports E or K only');
+if (fullShard && !['C', 'E', 'K'].includes(fullShard)) throw new Error('full-shard diagnosis supports C, E or K only');
 const auditRoot = option('--write-audit-root');
 if (auditRoot && (fullShard !== 'K' || !process.argv.includes('--retain-output')))
   throw new Error('write audit requires full-shard K and byte-exact --retain-output');
@@ -79,9 +79,23 @@ function contractSummary(shard, text) {
   return new RegExp(`canonical-test-shard-summary: shard=${shard} contractOnly=true executed=0 seen=\\d+[^\\n]*`).exec(text)?.[0];
 }
 function assertMemory(peakMiB, physicalBytes) {
-  assert.ok(Number.isFinite(peakMiB) && peakMiB > 0, 'K memory measurement must be present');
+  assert.ok(Number.isFinite(peakMiB) && peakMiB > 0, 'diagnostic memory measurement must be present');
   assert.ok(Number.isFinite(physicalBytes) && physicalBytes > 0, 'physical memory must be present');
-  assert.ok(peakMiB * 1048576 <= physicalBytes / 2, 'K peak in-use system memory must not exceed 50%');
+  assert.ok(peakMiB * 1048576 <= physicalBytes / 2, 'diagnostic peak in-use system memory must not exceed 50%');
+}
+function parallelLevels(shard) { return shard === 'K' ? [2, 4] : [2]; }
+function assertCNamespace(value) {
+  assert.equal(value.consistent, true, 'C namespace identity must be qualified');
+  assert.match(value.selfPidNamespace, /^pid:\[\d+\]$/);
+  assert.equal(value.selfPidNamespace, value.numberedPidNamespace, 'C PID namespace links must match');
+}
+function assertCFinalGroups(groups, count) {
+  assert.equal(groups.length, count, 'C final process group coverage');
+  assert.equal(new Set(groups.map(g => g.pid)).size, count, 'C group identities must be unique');
+  for (const group of groups) {
+    assert.ok(Number.isSafeInteger(group.pid) && group.pid > 0);
+    assert.deepEqual(group.members, [], 'C final groups must be empty, including zombies');
+  }
 }
 async function outputSelfTest() {
   const binary = [0, 255, 195, 40, 10]; // Includes invalid UTF-8: text decoding would lose evidence.
@@ -114,6 +128,18 @@ function selfTest() {
   assertMemory(50, 100 * 1048576);
   assert.throws(() => assertMemory(51, 100 * 1048576), /50%/);
   assert.throws(() => assertMemory(null, 100 * 1048576), /must be present/);
+  assert.deepEqual(parallelLevels('C'), [2], 'C never diagnoses parallel four');
+  assert.deepEqual(parallelLevels('E'), [2]);
+  assert.deepEqual(parallelLevels('K'), [2, 4]);
+  const qualified = { consistent: true, selfPidNamespace: 'pid:[1]', numberedPidNamespace: 'pid:[1]' };
+  assertCNamespace(qualified);
+  for (const change of [{ consistent: false }, { selfPidNamespace: null }, { numberedPidNamespace: 'pid:[2]' }])
+    assert.throws(() => assertCNamespace({ ...qualified, ...change }));
+  assertCFinalGroups([{ pid: 11, members: [] }], 1);
+  for (const members of [[{ pid: 12, state: 'S' }], [{ pid: 12, state: 'Z' }]])
+    assert.throws(() => assertCFinalGroups([{ pid: 11, members }], 1), /including zombies/);
+  assert.throws(() => assertCFinalGroups([], 1), /coverage/);
+  assert.throws(() => assertCFinalGroups([{ pid: 11, members: [] }, { pid: 11, members: [] }], 2), /unique/);
   const fields = ['S', '11', '23', '23', ...Array(15).fill('0'), '991', '0'];
   const parsed = parseStat(`42 (test name) with close)) ${fields.join(' ')}`);
   assert.equal(parsed.pid, 42); assert.equal(parsed.pgrp, 23); assert.equal(parsed.startTicks, '991');
@@ -146,6 +172,7 @@ async function main() {
     assert.equal(report.platform, 'linux', 'this diagnostic requires Linux procfs');
     assert.equal(report.identity.consistent, true,
       'Node PID and /proc PID do not match: residue/RSS evidence is unqualified; no test groups launched');
+    if (fullShard === 'C') { assertCNamespace(report.identity); report.processEvidencePolicy = 'empty-final-groups-including-zombies'; }
     const originalSpawn = cp.spawn;
     let trace = [];
     cp.spawn = function(command, args, options) {
@@ -193,7 +220,11 @@ async function main() {
       assert.ok(record.classifications.every(c => c.classification !== 'still-alive-after-run'), `${name}: live process after cleanup`);
       assert.equal(result.ok, true, `${name}: all commands must pass`);
       assert.deepEqual(result.counts, { enumerated: commands.length, passed: commands.length, failed: 0, aborted: 0, notStarted: 0 });
-      if (fullShard === 'K') assertMemory(result.peakSystemMemInUseMb, report.physicalMemoryBytes);
+      if (fullShard === 'C') {
+        assert.equal(trace.length, commands.length, 'C traced command coverage');
+        assertCFinalGroups(final.groups, commands.length);
+      }
+      if (['C', 'K'].includes(fullShard)) assertMemory(result.peakSystemMemInUseMb, report.physicalMemoryBytes);
       for (let i = 0; i < expected.length; i++) assert.equal(result.results[i].leftoverProcesses, expected[i], `${name}: residue flag for ${items[i].label}`);
       if (audit) {
         record.writeObservation = writeObservation.collect(items, trace);
@@ -211,7 +242,8 @@ async function main() {
         assert.equal(fs.readFileSync(path.join(ROOT, 'scripts/parallel-shard-runner.js'), 'utf8'),
           fs.readFileSync(path.join(__dirname, 'parallel-shard-runner.js'), 'utf8'), 'target and diagnostic use identical runner source');
         const commands = runner.enumerateShard(fullShard, { root: ROOT });
-        const count = fullShard === 'E' ? 33 : 29;
+        const count = { C: 25, E: 33, K: 29 }[fullShard];
+        if (fullShard === 'C') assert.equal(cp.execFileSync('git', ['status', '--porcelain', '--untracked-files=no'], { cwd: ROOT, encoding: 'utf8' }).trim(), '', 'C pinned tracked source must be clean');
         assert.equal(commands.length, count, `all ${count} ${fullShard} commands`);
         if (fullShard === 'K') {
           report.sharedStateAudit = runner.scanSharedState(commands, { root: ROOT });
@@ -232,10 +264,14 @@ async function main() {
           const audited = await run(`${prefix}-audited-serial`, commands, 1, Array(count).fill(false), { audit: true });
           compareOutputs(reference, audited);
         }
-        for (const concurrency of fullShard === 'K' ? [2, 4] : [2]) {
+        for (const concurrency of parallelLevels(fullShard)) {
           const parallel = await run(`${prefix}-parallel-${concurrency}`, commands, concurrency, Array(count).fill(false),
             { order: 'longest-first', timings, serial: cfg.serial[fullShard] || [], audit: Boolean(auditRoot) });
           compareOutputs(reference, parallel);
+        }
+        if (fullShard === 'C') {
+          assert.equal(cp.execFileSync('git', ['status', '--porcelain', '--untracked-files=no'], { cwd: ROOT, encoding: 'utf8' }).trim(), '', 'C tracked source remains clean');
+          report.trackedSourceCleanAfter = true;
         }
         report.outputParity = true; report.ok = true;
         return;
