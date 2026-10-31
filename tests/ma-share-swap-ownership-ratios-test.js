@@ -158,7 +158,7 @@ async function check(s,run,label){
  const {injectFault}=require('./helpers/transaction-fault-case');
  const economicState=g=>{const copy=JSON.parse(JSON.stringify(g));delete copy.lastSaveDate;delete copy.saveSequence;return copy;};
  let compatReference;
- for(const mode of ['normal','save-false','save-throw']){
+ for(const mode of ['normal','save-false','save-throw','caller-false','caller-throw']){
   const s=await listed(),game=s.game,backend=s.modules.saveStorageIDB;
   game.g.acquisitionTargets[0].activeDealID=null;assert.equal(game.save(),true);await backend.flush();
   const proto=Object.getPrototypeOf(s.engineModule.TycoonEngine.prototype),captured=proto.acquireTarget;
@@ -167,19 +167,32 @@ async function check(s,run,label){
   game.acquireTarget=()=>{throw Error('installed compatibility wrapper must not run');};
   const before=snapshot(game),bytes=backend.readSync(s.key),puts=s.control.attempts.length,draws=s.host.draws,targetID=before.acquisitionTargets[0].id;
   assert.equal(before.acquisitionTargets[0].valuation,80000000,'pinned legacy valuation');
-  let calls=0;
-  const invoke=()=>game.runTransaction(()=>{assert.equal(game.inTransaction(),true);calls++;return captured.call(game,targetID,'shareSwap');});
+  let calls=0,callerFailure=mode.startsWith('caller-')?mode:null;
+  const invoke=()=>game.runTransaction(()=>{
+   assert.equal(game.inTransaction(),true);calls++;
+   const result=captured.call(game,targetID,'shareSwap');
+   if(callerFailure){
+    assert.equal(result,true,'captured body succeeds before caller refuses');
+    assert.equal(game.g.sharesOut,before.sharesOut+86400,'caller refusal is after real issuance');
+    if(callerFailure==='caller-throw')throw Error('caller rejected after captured acquisition');
+    return false;
+   }
+   return result;
+  });
   async function loaded(expected){
    const wanted=economicState(new s.engineModule.TycoonEngine(JSON.parse(JSON.stringify(expected))).g);
    assert.deepEqual(economicState(s.engineModule.TycoonEngine.load().g),wanted,'compat production reload');
    const fresh=loadGame({headless:true,indexedDB:indexedDBFor(s.durable,{attempts:[]})});await fresh.modules.saveStorageIDB.hydrate();
    assert.deepEqual(economicState(fresh.engineModule.TycoonEngine.load().g),wanted,'compat fresh durable-only hydration');
   }
-  const fault=mode==='normal'?null:injectFault({...s,backend},mode);
-  try{if(mode==='save-throw')assert.throws(invoke,/save accepted then threw/);else assert.equal(invoke(),mode==='normal');}finally{fault?.restore();}
+  const fault=mode.startsWith('save-')?injectFault({...s,backend},mode):null;
+  try{
+   if(mode==='save-throw'||mode==='caller-throw')assert.throws(invoke,mode==='save-throw'?/save accepted then threw/:/caller rejected after captured acquisition/);
+   else assert.equal(invoke(),mode==='normal');
+  }finally{fault?.restore();callerFailure=null;}
   assert.equal(calls,1,'captured acquisition really executed');
-  if(fault){
-   assert.ok(fault.hits()>0);assert.deepEqual(snapshot(game),before,'full legacy acquisition/RNG rollback');
+  if(mode!=='normal'){
+   if(fault)assert.ok(fault.hits()>0);assert.deepEqual(snapshot(game),before,'full legacy acquisition/RNG rollback');
    await backend.flush();assert.equal(backend.readSync(s.key),bytes);assert.equal(s.ctx.localStorage.getItem(s.key),bytes);
    assert.equal(s.durable.get(s.key),bytes);assert.equal(s.control.attempts.length,puts,'failed compat put never starts');
    await loaded(before);assert.equal(invoke(),true,'same captured acquisition retries');assert.equal(calls,2);
