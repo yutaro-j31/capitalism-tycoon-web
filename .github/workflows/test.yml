@@ -642,3 +642,49 @@ jobs:
           path: artifacts/k-write-observation/
           if-no-files-found: error
           retention-days: 14
+
+  parallel-c-process-evidence:
+    name: C process evidence (Node ${{ matrix.node }})
+    if: github.event_name == 'pull_request' && github.head_ref == 'ci/shard-c-process-evidence'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    timeout-minutes: 90
+    strategy:
+      fail-fast: false
+      matrix:
+        node: ['22', '24']
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node }}
+      - name: Record C host resources
+        run: |
+          node --version
+          nproc
+          free -m
+          uname -a
+      - name: Process identity and cleanup controls
+        run: node scripts/parallel-shard-runner-process-diagnostic.js --report artifacts/c-process/controls-node-${{ matrix.node }}.json
+      - name: Existing process integrity regression
+        run: node tests/parallel-shard-runner-test.js
+      - name: Checkout pinned C source
+        uses: actions/checkout@v4
+        with:
+          ref: d10a971eb99fb4111fd3a169ba9c34ccb7a81971
+          path: diagnostic-c-source
+          persist-credentials: false
+      - name: Compare all 25 C commands and retain final groups
+        run: >-
+          node scripts/parallel-shard-runner-process-diagnostic.js --full-shard C
+          --root diagnostic-c-source --source-sha d10a971eb99fb4111fd3a169ba9c34ccb7a81971
+          --retain-output --report artifacts/c-process/full-c-node-${{ matrix.node }}.json
+      - name: Retain C process evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: c-process-node-${{ matrix.node }}-${{ github.run_id }}
+          path: artifacts/c-process/
+          if-no-files-found: error
+          retention-days: 14

@@ -84,4 +84,13 @@ for (const token of ["node: ['22', '24']", 'timeout-minutes: 120', 'contents: re
   assert.ok(writeDiagnostic.includes(token), `K write observation must retain ${token}`);
 assert.ok(writeDiagnostic.includes('ref: 9223004d0bd2e9b0ebb435edf599d01b72020fd0'), 'checkout and claimed source SHA stay pinned together');
 assert.doesNotMatch(writeDiagnostic, /continue-on-error|TEST_SHARD_PARALLELISM|vars\./);
+const cDiagnostic = jobBlock('parallel-c-process-evidence');
+assert.equal(cDiagnostic.split('\n').find(line => line.trim().startsWith('if:')),
+  "    if: github.event_name == 'pull_request' && github.head_ref == 'ci/shard-c-process-evidence'");
+for (const token of ["node: ['22', '24']", 'timeout-minutes: 90', 'contents: read', 'fail-fast: false',
+  'node tests/parallel-shard-runner-test.js', '--full-shard C', '--retain-output',
+  'ref: d10a971eb99fb4111fd3a169ba9c34ccb7a81971', '--source-sha d10a971eb99fb4111fd3a169ba9c34ccb7a81971',
+  'persist-credentials: false', 'if: always()', 'if-no-files-found: error'])
+  assert.ok(cDiagnostic.includes(token), `C diagnostic must retain ${token}`);
+assert.doesNotMatch(cDiagnostic, /continue-on-error|TEST_SHARD_PARALLELISM|vars\./);
 console.log('shard-parallel-workflow-contract-test: ok');
