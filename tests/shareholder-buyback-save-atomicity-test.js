@@ -1,7 +1,7 @@
 'use strict';
 const assert = require('node:assert/strict');
 const { fixture, snapshot, economic, REQUEST } = require('./fixtures/shareholder-buyback-atomicity');
-const { makeTransactionFaultCase, FAULT_KINDS } = require('./helpers/transaction-fault-case');
+const { makeTransactionFaultCase, injectFault, FAULT_KINDS } = require('./helpers/transaction-fault-case');
 const command = s => s.game.buybackOwnShares(REQUEST);
 function success(before, after, s) {
   const { quantity, cost, remaining } = s.settlement;
@@ -130,5 +130,43 @@ function success(before, after, s) {
   skew.game.updateOwnershipRatios = ratios; assert.equal(directCommand(skew), true, 'healthy direct-export retry');
   success(beforeSkew, snapshot(skew.game), skew); await skew.backend.flush(); await direct.loaded(skew, skew.game.g);
   console.log('buyback direct export: one-share mismatch / full rollback / durable hydration / retry PASS');
+  // W-BUYBACK-BASE is an overridden legacy body, not the export above. Prove rejection only:
+  // its successful settlement/book/rounding policy is not adopted by this evidence.
+  for (const variant of ['ordinary', 'capped']) for (const kind of ['caller-false', 'caller-throw', 'save-false', 'save-throw']) {
+    const s = await fixture(variant), proto = Object.getPrototypeOf(s.engineModule.TycoonEngine.prototype);
+    assert.equal(Object.hasOwn(proto, 'buybackOwnShares'), true, 'actual base declaration');
+    const captured = proto.buybackOwnShares, installed = s.game.buybackOwnShares;
+    assert.notEqual(captured, installed);
+    assert.equal(s.modules.phase3OwnershipPlanner.WRITER_POLICIES['W-BUYBACK-BASE'].rejection, 'INTERNAL_ENTRY');
+    s.game.buybackOwnShares = () => { throw Error('captured base test used installed entry'); };
+    const before = snapshot(s.game), bytes = s.backend.readSync(s.key), puts = s.control.attempts.length, draws = s.host.draws;
+    let entered = 0;
+    const invoke = () => s.game.runTransaction(() => {
+      assert.equal(s.game.inTransaction(), true); entered++;
+      const result = captured.call(s.game, REQUEST);
+      assert.equal(result, true, 'legacy body finishes before refusal');
+      assert.equal(s.game.g.treasuryBuybackShares, before.treasuryBuybackShares + s.settlement.quantity);
+      assert.ok(s.game.g.companyCash < before.companyCash, 'legacy cash write really happened');
+      if (kind === 'caller-throw') throw Error('buyback caller threw after legacy body');
+      return kind === 'caller-false' ? false : result;
+    });
+    const fault = kind.startsWith('save-') ? injectFault(s, kind) : null;
+    try {
+      if (kind === 'caller-throw' || kind === 'save-throw')
+        assert.throws(invoke, kind === 'caller-throw' ? /buyback caller threw/ : /save accepted then threw/);
+      else assert.equal(invoke(), false);
+    } finally { fault?.restore(); s.game.buybackOwnShares = installed; }
+    assert.equal(entered, 1); if (fault) assert.ok(fault.hits() > 0, 'outer save fault reached');
+    assert.deepEqual(snapshot(s.game), before, 'entire legacy candidate including book/history/RNG restored');
+    assert.equal(s.host.draws, draws);
+    assert.equal(s.ctx.localStorage.getItem(s.key), bytes); assert.equal(s.backend.readSync(s.key), bytes);
+    await s.backend.flush(); assert.equal(s.durable.get(s.key), bytes);
+    assert.equal(s.control.attempts.length, puts, 'no rejected base put starts');
+    await harness.loaded(s, before);
+    assert.equal(command(s), true, 'supported installed command works after legacy rollback');
+    success(before, snapshot(s.game), s); await s.backend.flush(); await harness.loaded(s, s.game.g);
+    assert.equal(s.control.attempts.length, puts + 1, 'only the supported recovery order is persisted');
+    console.log('captured buyback base / ' + variant + ' / ' + kind + ' / rollback-installed-recovery-fresh fake-IDB PASS');
+  }
   console.log('Shareholder buyback shared save-fault evidence PASS');
 })().catch(error => { console.error(error); process.exitCode = 1; });
