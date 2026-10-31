@@ -1,5 +1,23 @@
 # Read-only CI timing analysis
 
+## Multiple-run overlap without inferring a runner quota
+
+`node scripts/parallel-shard-ci-overlap.cjs COLLECTION.json [AS_OF_ISO]` reads a collection `{ "snapshots": [{ "run": RUN, "jobs": JOBS_RESPONSE }], "asOf": "..." }`. Each entry uses the same complete run/jobs metadata accepted by the single-run tool, plus repository full name and matching positive `run_attempt` fields on run and jobs. The optional retained `asOf` makes offline replay deterministic; an explicit CLI argument overrides it. Fetch all job pages for each included run before creating the collection. The supplied runs are an explicit subset, not a complete repository/account inventory.
+
+The tool rejects repeated run snapshots/attempts, duplicate job IDs across runs, mixed repositories, mismatched attempts, partial job pagination and invalid chronology. It reuses the existing single-run classifier and timing checks. Only completed-success intervals and observed `in_progress` intervals enter overlap, with running intervals censored at the observation time. Queued placeholder starts and missing starts never become execution. Terminal failed/cancelled/neutral/unknown jobs are omitted from overlap conservatively, even when timestamps are present, and their states remain separately counted. Their consumption is not zero; it is outside the conservative metric. Skipped jobs also do not count. Tied finishes occur before starts using half-open intervals. Output retains a peak timestamp/job/run witness and distinguishes job overlap from simultaneous runs.
+
+`maximumObservedEligibleJobOverlap` and `observedEligibleJobSeconds` cover only those intervals. They are not a quota, billing estimate, speedup prediction or release gate. `capacityQuota=null` and `completeRepositoryCoverage=false` are explicit even for completed successful samples. Missing workflows, other repositories, prior attempts and omitted terminal states prevent inferring account/organization capacity. A pending workflow stays pending independently of successful jobs. Existing required timing self-tests invoke the new controls; no workflow job, dependency, timeout, main-push policy or shard variable changes.
+
+[Retained API metadata subset](ci-evidence/ci-overlap-2026-10-31.json) contains all78 returned jobs of three independently fetched Test run snapshots, with analysis-relevant original fields (no logs/steps); `total_count` and IDs were not reduced. Offline replay uses observation2026-10-31T05:02:46.070Z. All three runs have20 successful jobs and6 nonapplicable skips:
+
+| Test / run | source | event | 12-shard elapsed median | job creation→start median | run creation→first job | run→aggregate completion |
+|---|---|---|---:|---:|---:|---:|
+|4386 /41159875620|1bb4d6d5|push|1375.5s|311.5s|72s|3260s|
+|4387 /41162384114|cb71d308|pull_request|1603s|65s|0s|2162s|
+|4389 /41168421553|1b703df9|push|1466.5s|8.5s|1s|2013s|
+
+These are three within-run medians, not repeated measurements on the same source/CPU. Across this explicit subset there are60 eligible intervals/52255 observed job-seconds and a maximum20 simultaneously observed jobs at03:01:37Z spanning runs41159875620/41162384114. The output's20 job IDs identify the witness. This supplies direct cross-run overlap evidence; it **does not confirm a20-runner quota** or show which scheduler constraint caused any queue. E and K remain production-serial, J/C2 unchanged. The separate C production observations retain their historical lack of independent final-group listings; no safety gate is inferred from timing metadata.
+
 `node scripts/parallel-shard-ci-timing.cjs RUN.json JOBS.json [AS_OF_ISO]` consumes GitHub run metadata and the complete jobs response (`total_count` and `jobs`). No network, workflow mutation, rerun, cancellation, variable setting or test workload is performed. Fetch all pages first; truncated pages, duplicate IDs, wrong-run jobs and impossible executable-job chronology reject the input. Output is metadata analysis, **not a release gate or CI-success certificate**.
 
 Run SHA/id/event and observation time are retained. Workflow status/conclusion and each job's raw status/conclusion remain separate from aggregate `test`, canonical12-shard coverage and timing availability. Queued/in-progress runs are pending even if an inconsistent metadata conclusion says success. Cancelled, failed, skipped, neutral and unknown jobs have separate counts; only successful canonical shard jobs enter successful timing medians, with sample counts. A missing timestamp stays null, never zero. A completed run containing pending job metadata is flagged rather than silently considered a complete snapshot.
