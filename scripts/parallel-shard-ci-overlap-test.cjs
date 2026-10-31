@@ -38,6 +38,11 @@ assert.equal(pending.pendingObservation, true);
 assert.deepEqual(pending.runs[0].jobStates, { success: 1, failed: 1, cancelled: 1, skipped: 1, neutral: 1, pending: 2, unknown: 0 });
 assert.equal(pending.runs[0].workflowState, 'pending');
 assert.equal(pending.runs[0].omittedIntervals, 6);
+const inconsistent = structuredClone(waiting);
+inconsistent.snapshots[0].run = run(1);
+const inconsistentResult = summarizeCollection(inconsistent, time(100));
+assert.equal(inconsistentResult.pendingObservation, true, 'completed workflow does not hide pending jobs');
+assert.equal(inconsistentResult.runs[0].completedRunHasPendingJobs, true);
 const none = summarizeCollection({ snapshots: [snap(run(1), [])] }, time(100));
 assert.equal(none.maximumObservedEligibleJobOverlap, 0); assert.equal(none.peakWitness, null);
 for (const mutate of [

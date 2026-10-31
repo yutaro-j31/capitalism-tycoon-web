@@ -31,6 +31,8 @@ function summarizeCollection(input, asOf = input.asOf ?? new Date().toISOString(
     summaries.push({ runId: run.id, headSha: run.head_sha, attempt: run.run_attempt,
       event: run.event, workflowState: summary.workflowState, workflowStatus: run.status,
       workflowConclusion: run.conclusion ?? null, jobStates: summary.jobStates,
+      pendingObservation: summary.pendingObservation,
+      completedRunHasPendingJobs: summary.completedRunHasPendingJobs,
       eligibleIntervals: eligible, omittedIntervals: omitted,
       successfulShardElapsed: summary.successfulShardElapsed,
       successfulShardCreationToStart: summary.successfulShardCreationToStart,
@@ -59,7 +61,7 @@ function summarizeCollection(input, asOf = input.asOf ?? new Date().toISOString(
     eligibleIntervals: intervals.length, maximumObservedEligibleJobOverlap: maximum,
     maximumObservedEligibleRunOverlap: maximumRuns, peakWitness: witness,
     observedEligibleJobSeconds: intervals.reduce((sum, i) => sum + (i.end - i.start) / 1000, 0),
-    pendingObservation: summaries.some(s => s.workflowState === 'pending'), runs: summaries };
+    pendingObservation: summaries.some(s => s.workflowState === 'pending' || s.pendingObservation), runs: summaries };
 }
 module.exports = { summarizeCollection };
 if (require.main === module) {
