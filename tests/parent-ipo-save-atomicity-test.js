@@ -202,7 +202,8 @@ async function normal() {
 // P3-4 partial captured-base evidence. The explicit existing outer transaction is essential: this does not
 // authorize a standalone base call, replace the installed IPO chain, or certify its PE/network side effects.
 async function capturedBase() {
-  for (const name of ['normal', 'save-false', 'save-throw']) {
+  let reference;
+  for (const name of ['normal', 'save-false', 'save-throw', 'caller-false', 'caller-throw']) {
     const s = await setup(), proto = Object.getPrototypeOf(s.engineModule.TycoonEngine.prototype);
     assert.equal(Object.hasOwn(proto, 'executeIPO'), true, 'capture the actual base declaration');
     const captured = proto.executeIPO;
@@ -211,25 +212,36 @@ async function capturedBase() {
     const price = Math.max(100, s.game.companyValue() / before.sharesOut);
     const primary = Math.max(1, Math.round(before.sharesOut * .2));
     const secondary = Math.max(1, Math.round(before.founderShares * .05));
-    let entered = false;
+    let entered = 0, callerFailure = name.startsWith('caller-') ? name : null;
     const invoke = () => s.game.runTransaction(() => {
-      assert.equal(s.game.inTransaction(), true); entered = true;
-      return captured.call(s.game, '東証グロース');
+      assert.equal(s.game.inTransaction(), true); entered++;
+      const result = captured.call(s.game, '東証グロース');
+      if (callerFailure) {
+        assert.equal(result, true, 'IPO body succeeds before the outer caller refuses');
+        assert.equal(s.game.g.publicCompany, true);
+        assert.equal(s.game.g.sharesOut, before.sharesOut + primary);
+        assert.equal(s.game.g.founderShares, before.founderShares - secondary);
+        if (callerFailure === 'caller-throw') throw new Error('IPO caller rejected after listing');
+        return false;
+      }
+      return result;
     });
-    const fault = name === 'normal' ? null : inject(s, name);
+    const fault = name.startsWith('save-') ? inject(s, name) : null;
     try {
-      if (name === 'save-throw') assert.throws(invoke, /IPO save accepted then threw/);
+      if (name === 'save-throw' || name === 'caller-throw')
+        assert.throws(invoke, name === 'save-throw' ? /IPO save accepted then threw/ : /IPO caller rejected after listing/);
       else assert.equal(invoke(), name === 'normal');
-    } finally { fault?.restore(); }
-    assert.equal(entered, true, 'the captured base actually ran inside the outer boundary');
-    if (fault) {
-      assert.ok(fault.hits() > 0, 'save fault reached the outer commit');
+    } finally { fault?.restore(); callerFailure = null; }
+    assert.equal(entered, 1, 'the captured base actually ran inside the outer boundary');
+    if (name !== 'normal') {
+      if (fault) assert.ok(fault.hits() > 0, 'save fault reached the outer commit');
       assert.deepEqual(clone(s.game.g), before, name + ': entire state including RNG restored');
       assert.equal(s.ctx.__localStorageData.get(s.key), bytes); assert.equal(s.backend.readSync(s.key), bytes);
       await s.backend.flush(); assert.equal(s.durable.get(s.key), bytes);
       assert.equal(s.control.attempts.length, puts, 'failed captured-base put never starts');
       await assertLoaded(s, before);
-      assert.equal(invoke(), true, 'same captured base retries after failed commit');
+      assert.equal(invoke(), true, 'same captured base retries after outer rejection');
+      assert.equal(entered, 2);
     }
     const g = s.game.g, ceilYen = s.modules.economicOperation.ceilYen;
     assert.equal(g.publicCompany, true); assert.equal(g.sharesOut, before.sharesOut + primary);
@@ -247,7 +259,10 @@ async function capturedBase() {
     assert.equal(postings.at(-1).equityEffect, ceilYen(price * primary * .955));
     assert.equal(s.modules.finance.validate(clone(g)).ok, true);
     assert.equal(ownership(s.modules, g).ok, true);
+    if (reference) assert.deepEqual(economic(g), reference, 'retry equals uninterrupted IPO including account balances and RNG');
+    else reference = economic(clone(g));
     await s.backend.flush();
+    assert.equal(s.control.attempts.length, puts + 1, 'exactly one successful IPO put');
     assert.equal(s.durable.get(s.key), s.backend.readSync(s.key));
     await assertLoaded(s, g);
     const settled = clone(g), stored = s.backend.readSync(s.key), writes = s.control.attempts.length;

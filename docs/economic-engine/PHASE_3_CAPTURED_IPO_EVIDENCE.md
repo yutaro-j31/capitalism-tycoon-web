@@ -23,3 +23,14 @@ standalone base-call atomicity or make that path a supported public command; it 
 installed chain. No new native WebKit evidence is claimed. Pending #1213 owns IPO verification routing and its
 financial review gate. No production code, schema, registry, test registration, CI runner/workflow or Work B file
 changes. Whole-family closure, Authority Cutover, S_PASS, Phase 3 Exit and Phase 4 Entry remain separate gates.
+
+## Outer caller rejection follow-up
+
+Baseline: `12e1149e46a8d117d315dae8180e4a8ea875adcc`. Two additional cases refuse the enclosing transaction
+only after the captured IPO body returns true, creates the listing, issues the expected primary shares and
+reduces founder shares by the secondary sale. One caller returns false; the other throws. The original normal
+and save-failure cases remain. Full predecessor live/RNG and mirror/cache/durable bytes must be restored,
+with no rejected durable put. Production reload and fresh durable-only fake-IDB hydration precede retry.
+Retry must equal the uninterrupted IPO's complete economic state; precisely one successful put is allowed,
+and the existing duplicate-listing rejection remains. These are tests of the existing caller boundary,
+not new IPO authority, standalone base-call support, native WebKit proof or complete family closure.
