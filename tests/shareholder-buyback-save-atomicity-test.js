@@ -132,14 +132,28 @@ function success(before, after, s) {
   console.log('buyback direct export: one-share mismatch / full rollback / durable hydration / retry PASS');
   // W-BUYBACK-BASE is an overridden legacy body, not the export above. Prove rejection only:
   // its successful settlement/book/rounding policy is not adopted by this evidence.
-  for (const variant of ['ordinary', 'capped']) for (const kind of ['caller-false', 'caller-throw', 'save-false', 'save-throw']) {
+  const baseCases = ['ordinary', 'capped'].flatMap(variant =>
+    ['caller-false', 'caller-throw', 'save-false', 'save-throw'].map(kind => ({ variant, kind, pending: false })));
+  for (const kind of ['save-false', 'save-throw']) baseCases.push({ variant: 'ordinary', kind, pending: true });
+  for (const { variant, kind, pending } of baseCases) {
     const s = await fixture(variant), proto = Object.getPrototypeOf(s.engineModule.TycoonEngine.prototype);
     assert.equal(Object.hasOwn(proto, 'buybackOwnShares'), true, 'actual base declaration');
     const captured = proto.buybackOwnShares, installed = s.game.buybackOwnShares;
     assert.notEqual(captured, installed);
     assert.equal(s.modules.phase3OwnershipPlanner.WRITER_POLICIES['W-BUYBACK-BASE'].rejection, 'INTERNAL_ENTRY');
     s.game.buybackOwnShares = () => { throw Error('captured base test used installed entry'); };
-    const before = snapshot(s.game), bytes = s.backend.readSync(s.key), puts = s.control.attempts.length, draws = s.host.draws;
+    if (pending) {
+      const opening = s.durable.get(s.key);
+      s.game.g.companyName += ' accepted pending predecessor';
+      s.control.holdPut = true; assert.equal(s.game.save(), true);
+      for (let i = 0; i < 100 && !s.control.release; i++) await new Promise(resolve => setImmediate(resolve));
+      assert.equal(typeof s.control.release, 'function', 'earlier accepted put is in flight');
+      assert.equal(s.durable.get(s.key), opening, 'earlier put has not completed');
+      assert.notEqual(s.backend.readSync(s.key), opening, 'pending predecessor differs from old durable save');
+      assert.equal(JSON.parse(s.backend.readSync(s.key)).companyName, s.game.g.companyName);
+    }
+    const before = snapshot(s.game), bytes = s.backend.readSync(s.key), durable = s.durable.get(s.key),
+      puts = s.control.attempts.length, draws = s.host.draws;
     let entered = 0;
     const invoke = () => s.game.runTransaction(() => {
       assert.equal(s.game.inTransaction(), true); entered++;
@@ -160,13 +174,14 @@ function success(before, after, s) {
     assert.deepEqual(snapshot(s.game), before, 'entire legacy candidate including book/history/RNG restored');
     assert.equal(s.host.draws, draws);
     assert.equal(s.ctx.localStorage.getItem(s.key), bytes); assert.equal(s.backend.readSync(s.key), bytes);
-    await s.backend.flush(); assert.equal(s.durable.get(s.key), bytes);
-    assert.equal(s.control.attempts.length, puts, 'no rejected base put starts');
+    assert.equal(s.durable.get(s.key), durable, 'old durable copy unchanged before predecessor release');
+    s.control.release?.(); await s.backend.flush(); assert.equal(s.durable.get(s.key), bytes);
+    assert.equal(s.control.attempts.length, puts, 'predecessor preserved and no rejected base put starts');
     await harness.loaded(s, before);
     assert.equal(command(s), true, 'supported installed command works after legacy rollback');
     success(before, snapshot(s.game), s); await s.backend.flush(); await harness.loaded(s, s.game.g);
     assert.equal(s.control.attempts.length, puts + 1, 'only the supported recovery order is persisted');
-    console.log('captured buyback base / ' + variant + ' / ' + kind + ' / rollback-installed-recovery-fresh fake-IDB PASS');
+    console.log('captured buyback base / ' + variant + ' / ' + kind + ' / pending=' + pending + ' / rollback-installed-recovery-fresh fake-IDB PASS');
   }
   console.log('Shareholder buyback shared save-fault evidence PASS');
 })().catch(error => { console.error(error); process.exitCode = 1; });
