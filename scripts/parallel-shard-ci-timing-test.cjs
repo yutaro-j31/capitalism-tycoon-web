@@ -78,3 +78,4 @@ assert.equal(summarize(run, skippedPlaceholder, time(1100)).maximumObservedJobOv
 const tied = { total_count: 2, jobs: [make(1, 'one', 20, 30), make(2, 'two', 30, 40)] };
 assert.equal(summarize(run, tied, time(1100)).maximumObservedJobOverlap, 1);
 console.log('CI timing audit: PASS (queue/cancel/pending/pre-job-creation/missing/pagination/chronology/ties; synthetic controls)');
+require('./parallel-shard-ci-overlap-test.cjs');
