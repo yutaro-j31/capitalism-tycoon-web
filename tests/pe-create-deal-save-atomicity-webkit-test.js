@@ -18,12 +18,38 @@ async function fixture(){const s=await scenario('own');s.game.g.personalCash=50_
 // Economic view compared across live, reload and fresh durable-only hydration.
 const pick=`(g)=>({companyCash:g.companyCash,personalCash:g.personalCash,simulationRng:g.simulationRng,
  deals:(g.peDeals||[]).map(d=>({id:d.id,status:d.status,ownerAccount:d.ownerAccount,investedAmount:d.investedAmount,ownershipRatio:d.ownershipRatio,currentValuation:d.currentValuation,targetName:d.targetName})),
- subsidiaries:(g.subsidiaries||[]).filter(x=>x.source==='pe').map(x=>({id:x.id,peDealID:x.peDealID,ownership:x.ownership,carryingBookValue:x.carryingBookValue})),
+ subsidiaries:(g.subsidiaries||[]).filter(x=>x.source==='pe').map(x=>({id:x.id,peDealID:x.peDealID,ownership:x.ownership,valuation:x.valuation,carryingBookValue:x.carryingBookValue})),
  ledger:((g.finance||{}).transactions||[]).filter(t=>t.sourceType==='peAcquisition').map(t=>({operationID:t.operationID,cashEffect:t.cashEffect,assetEffect:t.assetEffect}))})`;
 async function helpers(p){await p.evaluate(`globalThis.__peInject=(${inject.toString()});`);}
 async function loaded(p,expected,label){
  const actual=await p.evaluate(async snap=>{const m=__capitalismTycoonModules;await m.saveStorageIDB.hydrate();const g=m.engine.TycoonEngine.load().g;return {view:eval(snap)(g),saveVersion:g.saveVersion};},pick);
  assert.equal(actual.saveVersion,9,`${label} saveVersion`);assert.deepEqual(actual.view,expected,label);
+}
+// G30: compare the unnormalized legal stake to reload and native-IDB-only hydration.
+// Normalizing the expected value first would conceal the precision defect (#1259).
+async function mirrorPrecision(browser,url,g){
+ const context=await browser.newContext(options);
+ try{
+  const p=await context.newPage();await p.goto(url,{waitUntil:'networkidle'});
+  const expected=await p.evaluate(async({g,snap,amount})=>{
+   const m=__capitalismTycoonModules,e=new m.engine.TycoonEngine(g);
+   await m.saveStorageIDB.hydrate();
+   if(!m.saveStorageIDB.status().available)throw Error('precision: native IDB unavailable');
+   if(e.createPEDeal('テック',amount,'company')!==true)throw Error('precision: company acquisition');
+   e.updatePersonalExpandedWeekly();
+   const deal=e.g.peDeals.at(-1),sub=e.g.subsidiaries.find(s=>s.peDealID===deal.id);
+   if(sub.ownership!==deal.ownershipRatio||Math.abs(sub.valuation*sub.ownership-deal.currentValuation)>.01)throw Error('precision: initial legal stake');
+   const expected=eval(snap)(e.g);
+   if(!e.save())throw Error('precision: save');await m.saveStorageIDB.flush();
+   return expected;
+  },{g,snap:pick,amount:AMOUNT});
+  await p.reload({waitUntil:'networkidle'});await loaded(p,expected,'exact PE precision reload');
+  const state=await context.storageState({indexedDB:true});for(const origin of state.origins)origin.localStorage=[];
+  const fresh=await browser.newContext({...options,storageState:state});
+  try{const fp=await fresh.newPage();await fp.goto(url,{waitUntil:'networkidle'});await loaded(fp,expected,'exact PE precision fresh durable-only');}
+  finally{await fresh.close();}
+  console.log('iPhone WebKit PE mirror exact precision / reload / fresh native IDB PASS');
+ }finally{await context.close();}
 }
 async function run(browser,url,g,account,fault,reference){
  const context=await browser.newContext(options),p=await context.newPage();await p.goto(url,{waitUntil:'networkidle'});await helpers(p);
@@ -82,6 +108,7 @@ async function run(browser,url,g,account,fault,reference){
 }
 (async()=>{fs.mkdirSync(DIR,{recursive:true});await new Promise(r=>server.listen(0,'127.0.0.1',r));let browser;const results=[];try{
  browser=await webkit.launch();console.log('Actual WebKit '+browser.version()+' / iPhone13 emulation / real IndexedDB');const url='http://127.0.0.1:'+server.address().port+'/',g=await fixture();
+ await mirrorPrecision(browser,url,g);results.push({scenario:'PE mirror exact precision',reload:'PASS',freshDurableOnly:'PASS'});
  for(const account of ['company','personal']){
   const reference=(await run(browser,url,g,account,'normal',null)).signature;
   const again=await run(browser,url,g,account,'normal',reference);

@@ -54,6 +54,49 @@ const stakeMatches=(d,s)=>assert.ok(Math.abs(s.valuation*s.ownership-d.currentVa
  assert.equal(e.syncPESubsidiary(d),null,'personal PE stake cannot create a company subsidiary mirror');
  assert.equal(JSON.stringify(e.g),before,'rejected personal mirror sync leaves all state unchanged');
 }
+// FC-G30 precision: generic subsidiary defaulting must not quantize a PE projection.
+// Seed 181 reproduces the previously unexplained 41.2372418-yen reload difference.
+{
+ const {x,e,d}=acquire('company',181);
+ e.updatePersonalExpandedWeekly();
+ const id=`pe-subsidiary-${d.id}`,sub=e.g.subsidiaries.find(s=>s.id===id);
+ const expected={ownership:sub.ownership,valuation:sub.valuation,stake:d.currentValuation,
+  basis:d.ownerCostBasis,companyCash:e.g.companyCash,personalCash:e.g.personalCash,
+  ledger:JSON.stringify(e.g.finance.transactions),rng:JSON.stringify(e.g.simulationRng)};
+ const check=(engine,label)=>{
+  const mirror=engine.g.subsidiaries.find(s=>s.id===id),deal=engine.g.peDeals.find(s=>s.id===d.id);
+  assert.equal(mirror.ownership,expected.ownership,`${label}: exact PE ownership`);
+  assert.equal(mirror.valuation,expected.valuation,`${label}: exact PE total valuation`);
+  assert.ok(Math.abs(mirror.valuation*mirror.ownership-expected.stake)<.01,`${label}: one exact stake`);
+  assert.equal(deal.ownershipRatio,expected.ownership);
+  assert.equal(deal.currentValuation,expected.stake);
+  assert.equal(deal.ownerCostBasis,expected.basis);
+  assert.equal(engine.g.companyCash,expected.companyCash);
+  assert.equal(engine.g.personalCash,expected.personalCash);
+ };
+ for(const name of ['interSubsidiarySynergyAllocation','groupRestructuringCandidates',
+  'subsidiaryRelistingOptions','listedSubsidiaryFollowOnOffering']){
+  x.modules[name].ensure(e.g);check(e,name);
+  const ordinary={ownership:expected.ownership,valuation:expected.valuation};
+  x.modules[name].ensure({subsidiaries:[ordinary]});
+  assert.equal(ordinary.ownership,Math.round(expected.ownership*1e6)/1e6,`${name}: non-PE ratio rule retained`);
+  assert.equal(ordinary.valuation,name==='groupRestructuringCandidates'?Math.round(expected.valuation):expected.valuation,
+   `${name}: non-PE valuation rule retained`);
+ }
+ e.normalize();check(e,'installed normalize');
+ assert.equal(JSON.stringify(e.g.finance.transactions),expected.ledger,'normalization posts no receipt');
+ assert.equal(JSON.stringify(e.g.simulationRng),expected.rng,'normalization consumes no RNG');
+ for(const profile of Object.keys(x.modules.saveStorage.PROFILES)){
+  const compacted=x.modules.saveStorage.compactStateForStorage(e.g,profile);
+  const clone=Object.create(e);clone.g=compacted.state;
+  clone.normalize();check(clone,`compaction ${profile}`);
+ }
+ assert.equal(e.save(),true);
+ let loaded=e.constructor.load();check(loaded,'reload');
+ const value=loaded.companyValue();loaded.syncPESubsidiary(loaded.g.peDeals.find(s=>s.id===d.id));
+ assert.equal(loaded.companyValue(),value,'resync after reload changes no company value');
+ assert.equal(loaded.save(),true);loaded=e.constructor.load();check(loaded,'second reload');
+}
 // Transfer is fair-value, atomic and commits exactly once.
 {const{x,e,d}=acquire();const price=x.modules.economicOperation.ceilYen(d.currentValuation),pc=e.g.personalCash,cc=e.g.companyCash,pl=e.g.peRealizedPL,tx=e.g.finance.transactions.length;let saves=0,events=[];e.save=()=>{saves++;return true;};e.emit=type=>{events.push(type||'change');};assert.equal(e.transferPEDealToCompany(d.id),true);assert.equal(saves,1);assert.deepEqual(events,['notify','change']);assert.equal(e.g.personalCash,pc+price);assert.equal(e.g.companyCash,cc-price);assert.equal(e.g.peRealizedPL,pl+price-100e6);assert.equal(d.ownerAccount,'company');assert.equal(d.ownerCostBasis,price);assert.equal(e.g.subsidiaries[0].carryingBookValue,price);assert.equal(e.g.finance.transactions.length,tx+1);const snapshot=JSON.stringify(e.g);assert.equal(e.transferPEDealToCompany(d.id),false);assert.equal(JSON.stringify(e.g),snapshot);}
 {const{e,d}=acquire();e.g.companyCash=d.currentValuation-1;const before=JSON.stringify(e.g);assert.equal(e.transferPEDealToCompany(d.id),false);assert.equal(JSON.stringify(e.g),before);}
