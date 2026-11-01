@@ -10,6 +10,38 @@ const stakeMatches=(d,s)=>assert.ok(Math.abs(s.valuation*s.ownership-d.currentVa
 {const{e}=game(),before=JSON.stringify(e.g);assert.equal(e.createPEDeal('テック',100e6,'company'),false);assert.equal(JSON.stringify(e.g),before);assert.equal(e.createPEDeal('テック',100e6),true);}
 // Company acquisition accounting, deterministic linkage, valuation equation and net-worth separation.
 {const{e,d,pc,cc,tx}=acquire('company');const s=e.g.subsidiaries[0];assert.equal(e.g.personalCash,pc);assert.equal(e.g.companyCash,cc-100e6);assert.equal(e.g.finance.transactions.length,tx+1);assert.equal(e.g.finance.transactions.at(-1).category,'acquisition');assert.equal(s.id,`pe-subsidiary-${d.id}`);assert.equal(s.source,'pe');assert.equal(s.valuationManagedBy,'pe');stakeMatches(d,s);const personal=e.personalNetWorth();d.currentValuation+=50e6;e.syncPESubsidiary(d);assert.equal(e.personalNetWorth(),personal);stakeMatches(d,s);const withSub=e.companyValue();e.g.subsidiaries=[];assert.ok(Math.abs(withSub-e.companyValue()-d.currentValuation)<.01,'company value includes PE stake exactly once');}
+// P3-4 FC-G30-01 (partial): one PE legal stake has one subsidiary projection across
+// direct sync, installed weekly sync and fresh storage hydration. This tests identity
+// reuse, not caller closure, a second economic asset, or ownership authority.
+{
+ const {e,d}=acquire('company',181),id=`pe-subsidiary-${d.id}`;
+ const count=e.g.subsidiaries.length,companyCash=e.g.companyCash,personalCash=e.g.personalCash;
+ const transactions=e.g.finance.transactions.length,initialValue=e.companyValue();
+ for(let i=0;i<2;i++){
+  const sub=e.syncPESubsidiary(d);
+  assert.equal(sub.id,id);assert.equal(sub.peDealID,d.id);
+  assert.equal(e.g.subsidiaries.length,count,'direct re-sync never appends the same stake');
+  assert.equal(e.companyValue(),initialValue,'direct re-sync never creates a second asset');
+ }
+ assert.equal(e.g.companyCash,companyCash);assert.equal(e.g.personalCash,personalCash);
+ assert.equal(e.g.finance.transactions.length,transactions,'mirror-only sync posts no ledger receipt');
+ e.updatePersonalExpandedWeekly();
+ const weeklyValue=e.companyValue();e.syncPESubsidiary(d);
+ assert.equal(e.g.subsidiaries.filter(x=>x.id===id).length,1,'weekly then direct sync preserves identity');
+ assert.equal(e.companyValue(),weeklyValue,'weekly mirror is counted once');
+ assert.equal(e.save(),true);
+ const loaded=e.constructor.load(),deal=loaded.g.peDeals.find(x=>x.id===d.id);
+ assert.ok(deal,'original PE legal stake survives reload');
+ assert.equal(loaded.g.subsidiaries.filter(x=>x.id===id).length,1,'one mirror survives reload');
+ const reloadedValue=loaded.companyValue();loaded.syncPESubsidiary(deal);
+ assert.equal(loaded.g.subsidiaries.filter(x=>x.id===id).length,1,'rehydrated direct sync reuses mirror');
+ assert.equal(loaded.companyValue(),reloadedValue,'rehydrated sync never double-counts');
+}
+{
+ const {e,d}=acquire('personal',182),before=JSON.stringify(e.g);
+ assert.equal(e.syncPESubsidiary(d),null,'personal PE stake cannot create a company subsidiary mirror');
+ assert.equal(JSON.stringify(e.g),before,'rejected personal mirror sync leaves all state unchanged');
+}
 // Transfer is fair-value, atomic and commits exactly once.
 {const{x,e,d}=acquire();const price=x.modules.economicOperation.ceilYen(d.currentValuation),pc=e.g.personalCash,cc=e.g.companyCash,pl=e.g.peRealizedPL,tx=e.g.finance.transactions.length;let saves=0,events=[];e.save=()=>{saves++;return true;};e.emit=type=>{events.push(type||'change');};assert.equal(e.transferPEDealToCompany(d.id),true);assert.equal(saves,1);assert.deepEqual(events,['notify','change']);assert.equal(e.g.personalCash,pc+price);assert.equal(e.g.companyCash,cc-price);assert.equal(e.g.peRealizedPL,pl+price-100e6);assert.equal(d.ownerAccount,'company');assert.equal(d.ownerCostBasis,price);assert.equal(e.g.subsidiaries[0].carryingBookValue,price);assert.equal(e.g.finance.transactions.length,tx+1);const snapshot=JSON.stringify(e.g);assert.equal(e.transferPEDealToCompany(d.id),false);assert.equal(JSON.stringify(e.g),snapshot);}
 {const{e,d}=acquire();e.g.companyCash=d.currentValuation-1;const before=JSON.stringify(e.g);assert.equal(e.transferPEDealToCompany(d.id),false);assert.equal(JSON.stringify(e.g),before);}
