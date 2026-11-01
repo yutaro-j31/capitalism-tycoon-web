@@ -4,6 +4,7 @@ const os = require('node:os'), path = require('node:path'), cp = require('node:c
 const { compareSeries } = require('./parallel-shard-queue-series.cjs');
 const sample = (id, admission, queue) => ({ runId: id, headSha: 'a'.repeat(40),
   workflowState: 'success', canonicalCoverageComplete: true, pendingObservation: false,
+  completedRunHasPendingJobs: false, aggregateState: 'success',
   runCreationToFirstObservedJobCreationSeconds: admission,
   runCreationToAggregateCompletionSeconds: admission + 100,
   rows: [...'ABCDEFGHIJKL'].map((x, i) => ({ name: `test-shard-${x}`, state: 'success',
@@ -22,7 +23,13 @@ missing.summaries[0].runCreationToFirstObservedJobCreationSeconds = null;
 assert.equal(compareSeries(missing).metrics.firstJobCreationSeconds.samples, 1);
 for (const mutate of [x => x.summaries.pop(), x => x.summaries.push(x.summaries[0]),
   x => x.summaries[0].workflowState = 'pending', x => x.summaries[0].pendingObservation = true,
-  x => x.summaries[0].canonicalCoverageComplete = false, x => x.summaries[0].rows.pop(),
+  x => x.summaries[0].canonicalCoverageComplete = false,
+  x => x.summaries[0].completedRunHasPendingJobs = true,
+  x => delete x.summaries[0].completedRunHasPendingJobs,
+  x => x.summaries[0].aggregateState = 'failed',
+  x => delete x.summaries[0].aggregateState,
+  x => x.summaries[0].aggregateState = 'missing-or-ambiguous',
+  x => x.summaries[0].rows.pop(),
   x => x.summaries[0].rows[1].name = 'test-shard-A',
   x => x.summaries[0].rows[0].state = 'cancelled',
   x => x.summaries[0].rows[0].elapsedSeconds = Infinity,

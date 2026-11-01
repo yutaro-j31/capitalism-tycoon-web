@@ -16,7 +16,12 @@ function compareSeries(collection) {
     assert.ok(Number.isSafeInteger(s.runId) && s.runId > 0 && !seen.has(s.runId)); seen.add(s.runId);
     assert.match(s.headSha, /^[a-f0-9]{40}$/);
     assert.equal(s.workflowState, 'success'); assert.equal(s.canonicalCoverageComplete, true);
-    assert.equal(s.pendingObservation, false); assert.ok(Array.isArray(s.rows));
+    assert.equal(s.pendingObservation, false);
+    // A successful workflow label must not mask incomplete child jobs or an
+    // unsuccessful/missing aggregate. Fail closed on inconsistent summaries.
+    assert.equal(s.completedRunHasPendingJobs, false);
+    assert.equal(s.aggregateState, 'success');
+    assert.ok(Array.isArray(s.rows));
     const rows = s.rows.filter(r => /^test-shard-[A-L]$/.test(r?.name || ''));
     assert.equal(rows.length, 12); assert.equal(new Set(rows.map(r => r.name)).size, 12);
     assert.deepEqual(rows.map(r => r.name).sort(), letters.map(x => `test-shard-${x}`));
