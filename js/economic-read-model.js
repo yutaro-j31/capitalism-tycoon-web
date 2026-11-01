@@ -784,7 +784,7 @@ function projectOwnershipSnapshot(rawState,identityIndex){
   const index=identityIndex===undefined?buildOwnershipIdentityIndex(rawState):identityIndex;
   const indexed=commonOwnershipIndexes.get(index),current=captureListedSources(rawState,true,indexed?.includeSubsidiaries);
   const result={authority:'read-only',snapshotVersion:2,sourceScope:'player-and-listed-ownership-v2',sourceSnapshotToken:null,
-    complete:false,commandEligible:false,wealthComplete:false,entities:[],classes:[],positions:[],listingObservations:[],sourceReplacements:[],issues:[],
+    complete:false,commandEligible:false,wealthComplete:false,entities:[],classes:[],positions:[],listingObservations:[],conversionLinks:[],sourceReplacements:[],issues:[],
     coverage:[{family:'player-and-listed',status:'invalid'},...['subsidiary-ma','pe','vc','control-ladder','founder-wealth'].map(family=>({family,status:'not-implemented'}))]};
   if(!indexed||indexed.rawState!==rawState||current.issues.length||!sameListedSources(indexed.source,current.source)){
     result.issues.push(...current.issues,ownershipReason('STALE_EVIDENCE','$'));return freezeOwned(result);
@@ -797,6 +797,7 @@ function projectOwnershipSnapshot(rawState,identityIndex){
     result.issues.push(...listed.issues);return freezeOwned(result);
   }
   result.listingObservations=observeOwnershipListings(state,listed);
+  result.conversionLinks=observeVCListingConversions(state,listed,result.listingObservations);
   // Only a source explicitly delegated by P3-5 may enter the legacy own bucket.
   // A reused ticker or conflicting IPO alias stays a separate unresolved asset.
   const ownPath=`personalStocks[${JSON.stringify(state.ticker)}]`;
@@ -1178,6 +1179,39 @@ function observeOwnershipListings(state,listed){
       issued:numeric('issuedShares'),price:numeric('price'),treasury:unknown('TREASURY_UNKNOWN'),outstanding:unknown('DENOMINATOR_UNKNOWN'),
       rightsStatus:'unknown',sourceRefs:refs,reasons};
   });
+}
+
+// P3-8 IPO links reuse existing P3-5 identity/quantity evidence. A current listed
+// lot is not the original IPO allotment: subsequent trades or missing history are unknown.
+function observeVCListingConversions(state,listed,listings){
+  const validId=x=>typeof x==='string'&&x.trim().length>0;
+  const encode=x=>encodeURIComponent(x).replace(/[!'()*]/g,c=>`%${c.charCodeAt(0).toString(16).toUpperCase()}`);
+  const observed=new Map(listings.map(row=>[row.instrumentAlias,row])),lots=new Map();
+  for(const position of listed.positions)lots.set(`${position.accountKind}:${position.instrumentAlias}`,position);
+  const links=[];
+  for(const [i,startup] of (state.startups||[]).entries()){
+    if(startup.ipoStockID===undefined||startup.ipoStockID===null)continue;
+    const path=`startups[${i}]`,alias=validId(startup.ipoStockID)?startup.ipoStockID:null;
+    const expected=validId(startup.id)?`entity:company:startup:${encode(startup.id)}`:null,listing=observed.get(alias);
+    const linked=expected!==null&&listing?.issuerEntityId===expected;
+    const currentPositions=['company','personal'].map(account=>{
+      const position=alias===null?undefined:lots.get(`${account}:${alias}`),sourcePath=alias===null?`${path}.ipoStockID`:`${account}Stocks[${JSON.stringify(alias)}]`;
+      const quantity=position?{...position.quantity,sourceRefs:position.quantity.sourceRefs.map(row=>({...row})),reasons:position.quantity.reasons.map(row=>({...row}))}
+        :{status:'unknown',value:null,sourceRefs:[],reasons:[ownershipReason('SOURCE_UNKNOWN',sourcePath)]};
+      return {account,sourcePath,positionId:position?.positionId||null,issuerEntityId:position?.issuer.entityId||null,
+        matchedToStartup:!!position&&expected!==null&&position.issuer.entityId===expected,quantity,
+        parentGenerationStatus:account==='company'?'unproven':'not-applicable',
+        reasons:position?position.reasons.map(row=>({...row})):[ownershipReason('SOURCE_UNKNOWN',sourcePath)],
+        securityClassId:null,votingFraction:null,wealthValue:null};
+    });
+    links.push({startupSourceId:validId(startup.id)?startup.id:null,instrumentAlias:alias,sourcePath:path,
+      status:linked?'source-linked':'unresolved',issuerEntityId:linked?expected:null,securityClassId:null,
+      linkRole:'source-history-to-current-listed-positions',currentPositions,conversionQuantity:null,roundingResidual:null,
+      votingFraction:null,wealthValue:null,sourceRefs:[{path,durableId:validId(startup.id)?startup.id:null,family:'vc',role:'historical'},
+        ...(listing?.sourceRefs||[]).map(row=>({...row}))],
+      reasons:[...(!linked?[ownershipReason('ALIAS_BINDING_UNPROVEN',path)]:[]),ownershipReason('CONVERSION_UNPROVEN',`${path}.ipoStockID`)]});
+  }
+  return links.sort((a,b)=>compareText(a.startupSourceId,b.startupSourceId)||compareText(a.instrumentAlias,b.instrumentAlias)||compareText(a.sourcePath,b.sourcePath));
 }
 
 modules.economicReadModel=Object.freeze({

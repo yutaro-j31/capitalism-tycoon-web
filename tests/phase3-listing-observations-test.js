@@ -58,5 +58,54 @@ const source=fixture(),roundtrip=JSON.parse(JSON.stringify(source));
 assert.deepEqual(JSON.parse(JSON.stringify(api.projectOwnershipSnapshot(source))),JSON.parse(JSON.stringify(api.projectOwnershipSnapshot(roundtrip))));
 const reorder=fixture();reorder.personalStocks={IPO:{qty:5},X:{qty:20}};
 assert.deepEqual(JSON.parse(JSON.stringify(api.projectOwnershipSnapshot(source))),JSON.parse(JSON.stringify(api.projectOwnershipSnapshot(reorder))));
+// P3-8: IPO source links explain existing listed positions, never mint a second lot.
+{
+ const s=fixture(),before=JSON.stringify(s),n=draws,view=api.projectOwnershipSnapshot(s),link=view.conversionLinks[0];
+ assert.equal(link.startupSourceId,'s1');assert.equal(link.instrumentAlias,'IPO');assert.equal(link.status,'source-linked');
+ assert.equal(link.issuerEntityId,'entity:company:startup:s1');assert.equal(link.conversionQuantity,null);assert.equal(link.roundingResidual,null);
+ const personal=link.currentPositions.find(x=>x.account==='personal'),company=link.currentPositions.find(x=>x.account==='company');
+ assert.equal(personal.quantity.value,5);assert.equal(personal.matchedToStartup,true);
+ assert.equal(company.quantity.value,null,'absent lot is not zero or a fabricated original conversion');
+ assert.equal(company.parentGenerationStatus,'unproven');assert(company.reasons.some(x=>x.code==='SOURCE_UNKNOWN'));
+ assert.equal(company.matchedToStartup,false);assert.equal(link.securityClassId,null);assert.equal(link.votingFraction,null);assert.equal(link.wealthValue,null);
+ assert.equal(JSON.stringify(s),before);assert.equal(draws,n);assert(!Object.isFrozen(s));assert(Object.isFrozen(personal.quantity));
+ assert.equal(view.positions.filter(x=>x.instrumentAlias==='IPO').length,1,'links create no extra position');
+ assert.equal(view.sourceReplacements.filter(x=>x.sourcePath==='personalStocks["IPO"]').length,1);
+ for(const mutate of [t=>t.startups[0].ownedPersonal=.1,t=>t.startups.push({...t.startups[0]}),
+  t=>t.market.push({...t.market[2]}),t=>t.ticker='IPO']){
+  const t=fixture();mutate(t);const v=api.projectOwnershipSnapshot(t);
+  assert(v.conversionLinks.every(x=>x.status==='unresolved'&&x.issuerEntityId===null));
+  assert(v.conversionLinks.every(x=>x.conversionQuantity===null&&x.roundingResidual===null));
+ }
+ const missing=fixture();delete missing.personalStocks.IPO;
+ assert(api.projectOwnershipSnapshot(missing).conversionLinks[0].currentPositions.every(x=>x.quantity.value===null),'no inferred IPO lot when both maps omit it');
+ const noMarket=fixture();noMarket.market=noMarket.market.filter(x=>x.id!=='IPO');
+ assert.equal(api.projectOwnershipSnapshot(noMarket).conversionLinks[0].status,'unresolved');
+ const badAlias=fixture();badAlias.startups[0].ipoStockID=123;badAlias.personalStocks.null={qty:999};
+ assert.equal(api.projectOwnershipSnapshot(badAlias).conversionLinks.length,0,'existing invalid-input quarantine cannot select an unrelated string-null lot');
+ const traded=fixture();traded.personalStocks.IPO.qty=9;
+ const changed=api.projectOwnershipSnapshot(traded).conversionLinks[0];
+ assert.equal(changed.currentPositions.find(x=>x.account==='personal').quantity.value,9);assert.equal(changed.conversionQuantity,null,'current trade quantity is not the IPO allotment');
+ const invalid=fixture();invalid.personalStocks.IPO.qty=-1;
+ assert.equal(api.projectOwnershipSnapshot(invalid).conversionLinks[0].currentPositions.find(x=>x.account==='personal').quantity.value,null);
+ const tokenState=fixture(),token=api.buildOwnershipIdentityIndex(tokenState);tokenState.personalStocks.IPO.qty++;
+ const stale=api.projectOwnershipSnapshot(tokenState,token);assert.equal(stale.conversionLinks.length,0);assert(stale.issues.some(x=>x.code==='STALE_EVIDENCE'));
+ const handle=api.buildOwnershipIdentityIndex(s);const copy=JSON.parse(JSON.stringify(s));
+ assert.equal(api.projectOwnershipSnapshot(copy,handle).conversionLinks.length,0,'replacement root rejects old token');
+ assert.deepEqual(JSON.parse(JSON.stringify(api.projectOwnershipSnapshot(copy))),JSON.parse(JSON.stringify(view)));
+}
+// Installed IPO produces the same source-linked current quantities; reading posts nothing.
+{
+ let seed=333;const loaded=loadGame({headless:true,random:()=>((seed=Math.imul(seed,1664525)+1013904223>>>0)/2**32)});
+ const e=new loaded.engineModule.TycoonEngine(),s=e.g.startups[0];
+ Object.assign(s,{alive:true,subsidiary:false,ownedCompany:.2,ownedPersonal:.1,totalInvestedCompany:20e6,totalInvestedPersonal:10e6,valuation:100e6,activeFundingRound:null});
+ assert.notEqual(e.listStartup(s),false);assert(s.ipoStockID);
+ const before=JSON.stringify(e.g),v=loaded.modules.economicReadModel.projectOwnershipSnapshot(e.g);
+ const link=v.conversionLinks.find(x=>x.startupSourceId===s.id);assert.equal(link.status,'source-linked');
+ assert.equal(link.currentPositions.find(x=>x.account==='company').quantity.value,200000);
+ assert.equal(link.currentPositions.find(x=>x.account==='personal').quantity.value,100000);
+ assert.equal(link.conversionQuantity,null);assert.equal(link.roundingResidual,null);
+ assert.equal(JSON.stringify(e.g),before,'projection never replays the IPO or writes a receipt');
+}
 const oldShape=api.projectExternalListedHoldings(source);assert(!Object.hasOwn(oldShape,'listingObservations'),'legacy opt-in API shape preserved');
 console.log('PASS phase3 listing observations: strict observations, unknown rights/denominator, duplicate quarantine, token invalidation and purity');
