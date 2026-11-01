@@ -77,6 +77,7 @@ const SOURCE_SPEC={fields:{
  luxuryAssets:{rows:['id','currentValue','owner','ownerAccount','status']},
  sportsTeams:{rows:['id','value','owner','ownerAccount','status']},
  personalRealEstateHoldings:{rows:['assetID','currentValue','ownerCorp','owner','ownerAccount','status']},
+ properties:{rows:['id','value','owner','ownerAccount','status']},
  market:{rows:['id','price','privateCompany','suspended']},
  finance:{fields:{loans:{rows:['loanID','sourceType','status','outstandingPrincipal']}}},
  personalMarginLoan:{fields:{balance:'deep'}},
@@ -277,7 +278,7 @@ function captureFounderWealthEvidence(rawState,externalEvidence){
  }
  // Installed writers keep these as separate current personal inventories. A gross
  // source mark is not net redemption; equal IDs across collections are not aliases.
- for(const [collection,family,valueField,idField='id'] of [['personalInvestments','personal-investment','currentValue'],['luxuryAssets','personal-luxury','currentValue'],['sportsTeams','personal-sports','value'],['personalRealEstateHoldings','personal-property','currentValue','assetID']]){
+ for(const [collection,family,valueField,idField='id'] of [['personalInvestments','personal-investment','currentValue'],['luxuryAssets','personal-luxury','currentValue'],['sportsTeams','personal-sports','value'],['personalRealEstateHoldings','personal-property','currentValue','assetID'],['properties','personal-general-property','value']]){
   const inventoryGroups=new Map();
   (view[collection]||[]).forEach((row,i)=>{
    let encoded=null;try{if(id(row[idField]))encoded=encodeURIComponent(row[idField]);}catch(_){}
@@ -287,10 +288,14 @@ function captureFounderWealthEvidence(rawState,externalEvidence){
   });
   for(const [assetKey,members] of inventoryGroups){
    const {row,path}=members[0],refs=members.map(x=>ref(x.path,id(x.row[idField])?x.row[idField]:null,family));
-   // Sports is a mixed-account collection: company title is not personal wealth.
+   // Mixed-account collections: company title is not direct personal wealth.
    // Group before excluding so a conflicting duplicate cannot be silently selected.
-   if(collection==='sportsTeams'&&members.length===1&&row.owner==='company'&&(row.ownerAccount===undefined||row.ownerAccount==='company')){
+   const mixedOwner=collection==='sportsTeams'||collection==='properties';
+   if(mixedOwner&&members.length===1&&row.owner==='company'&&(row.ownerAccount===undefined||row.ownerAccount==='company')){
     ownership.exclusions.push({sourcePath:path,basis:'company-owned',includedBy:'asset:own-company'});continue;
+   }
+   if(collection==='properties'&&members.length===1&&row.owner===null){
+    ownership.exclusions.push({sourcePath:path,basis:'not-owned',includedBy:null});continue;
    }
    const property=collection==='personalRealEstateHoldings';
    if(property&&members.length===1&&['sold','foreclosed'].includes(row.status)){
@@ -299,7 +304,7 @@ function captureFounderWealthEvidence(rawState,externalEvidence){
    const mark=row[valueField];
    const code=members.length>1?'ALIAS_CONFLICT':!id(row[idField])||assetKey.startsWith(`${family}:unidentified:`)?'IDENTITY_UNPROVEN'
     :property&&row.ownerCorp!==undefined&&row.ownerCorp!==false?'OWNERSHIP_UNPROVEN'
-    :collection==='sportsTeams'&&row.owner!=='personal'?'OWNERSHIP_UNPROVEN'
+    :mixedOwner&&row.owner!=='personal'?'OWNERSHIP_UNPROVEN'
     :[row.owner,row.ownerAccount].some(x=>x!==undefined&&x!=='personal')?'OWNERSHIP_CONFLICT'
     :(property?row.status!=='owned':row.status!==undefined&&row.status!=='active')?'LIFECYCLE_UNKNOWN'
     :mark===undefined?'VALUATION_INCOMPLETE':!money(mark)||mark<0?'NUMERIC_DOMAIN_UNSUPPORTED':null;
@@ -484,7 +489,7 @@ function projectFounderWealth(rawState,ownershipSnapshot,valuationEvidence,liabi
  for(const row of valuation.filter(row=>row.kind==='stakeValue'&&row.provenance==='captured'&&row.valuationKey.startsWith('stake:pe-direct:')))
   result.components.push(fromEntry(component(`asset:${row.assetKey}`,'asset',{includesKeys:[row.sourceRefs[0].path]}),row,1,'stakeValue'));
  // Gross personal inventory marks are captured and counted once by durable source ID.
- for(const row of valuation.filter(row=>row.kind==='reportedCurrentValue'&&row.provenance==='captured'&&['current:personal-investment:','current:personal-luxury:','current:personal-sports:','current:personal-property:'].some(prefix=>row.valuationKey.startsWith(prefix))))
+ for(const row of valuation.filter(row=>row.kind==='reportedCurrentValue'&&row.provenance==='captured'&&['current:personal-investment:','current:personal-luxury:','current:personal-sports:','current:personal-property:','current:personal-general-property:'].some(prefix=>row.valuationKey.startsWith(prefix))))
   result.components.push(fromEntry(component(`asset:${row.assetKey}`,'asset',{includesKeys:row.coveredAssets.slice()}),row,1,'reportedCurrentValue'));
  // Families without an approved valuation adapter stay explicitly unvalued, never zero.
  for(const row of ownership.vc)result.components.push(component(`asset:vc-personal:${row.sourcePath}`,'asset',{sourceRefs:[ref(row.sourcePath,row.startupSourceId,'vc')],includesKeys:[row.sourcePath],
@@ -496,7 +501,7 @@ function projectFounderWealth(rawState,ownershipSnapshot,valuationEvidence,liabi
    ...ownership.peCodes.map(code=>reason(code,'peFirm.funds','PE fund-interest source evidence is unresolved.')),
    reason('VALUATION_INCOMPLETE','peDeals','Unresolved direct PE stakes and GP fund interests remain unvalued; fund NAV, liabilities and waterfall/carry (OD-05) are not established.')]}));
  result.components.push(component('asset:unadapted-personal-families','asset',{
-  reasons:[reason('VALUATION_INCOMPLETE','personalAssets','Real estate in other collections, the personal real-estate corporation and family trust are not adapted in this slice.')]}));
+  reasons:[reason('VALUATION_INCOMPLETE','personalAssets','The personal real-estate corporation and family trust are not adapted in this slice.')]}));
  // Liabilities: union of distinct identities; mirrors are excluded, never re-added.
  for(const row of liabilities)result.components.push(fromEntry(component(row.liabilityKey,'liability',{includesKeys:row.includesKeys.slice()}),row,-1,'principal'));
  result.components.push(component('liability:unreconciled-coverage','liability',{reasons:copied(liabilityEvidence.coverage.reasons)}));
