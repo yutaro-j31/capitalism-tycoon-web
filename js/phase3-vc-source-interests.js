@@ -16,7 +16,7 @@ function record(x){if(!x||typeof x!=='object'||Array.isArray(x))return false;con
 function field(x,key){
  if(!record(x)&&!(Array.isArray(x)&&intrinsic(Object.getPrototypeOf(x),Array)))throw Error('INPUT_INVALID');
  const d=Object.getOwnPropertyDescriptor(x,key);if(!d)return undefined;
- if(!own.call(d,'value'))throw Error('INPUT_INVALID');return d.value;
+ if(!own.call(d,'value')||!d.enumerable)throw Error('INPUT_INVALID');return d.value;
 }
 function rows(x){
  if(x===undefined)return [];

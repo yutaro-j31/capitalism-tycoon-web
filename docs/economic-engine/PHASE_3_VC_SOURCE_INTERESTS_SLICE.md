@@ -44,3 +44,22 @@ malformed terms/fractions/contributions/week windows, duplicate round IDs, confl
 lifecycle/mirrors, getter non-execution, and the actual installed open/close funding
 writer. No UI, save, ledger, writer, RNG, history replay or browser path is changed.
 Native WebKit is not newly claimed for this pure source observation.
+
+
+## Enumerable source evidence boundary
+
+Selected root, row, alias and pending-round fields must be own enumerable data
+descriptors. The reader now rejects non-enumerable selected fields with INPUT_INVALID
+and no ownership/pending rows. Previously a hidden root or fraction could supply a
+positive observation even though JSON object serialization omits that field. Accessors
+remain unexecuted. Array elements also retain the contract's own-enumerable requirement,
+including cases JSON array serialization would otherwise preserve by index.
+
+The existing canonical source suite covers hidden roots, array elements, startup ID/
+fraction/lifecycle, subsidiary alias ownership and pending contribution fields. JSON
+omission cannot certify the hidden claim; independently preserved personal/company
+source evidence is tested separately where appropriate. Ordinary installed writer,
+frozen input and v9 JSON behavior are unchanged. This is a read-only source-validation
+correction, with no writer, settlement, save/RNG, financial policy or authority change.
+See the PR/#909 for RED/GREEN execution, exact final-HEAD CI and review provenance;
+no new native WebKit/browser path is introduced.
