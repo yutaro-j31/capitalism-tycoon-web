@@ -4,6 +4,7 @@
 const fs = require('node:fs');
 const path = require('node:path');
 const net = require('node:net');
+const dgram = require('node:dgram');
 const cp = require('node:child_process');
 const { promisify } = require('node:util');
 
@@ -63,7 +64,12 @@ function install(directory) {
       wrap(handle, name, () => record(`FileHandle.${name}`, args[0]));
     return handle;
   };
-  wrap(net.Server.prototype, 'listen', args => record('net.listen', typeof args[0] === 'object' ? args[0]?.port ?? args[0]?.path : args[0]));
+  // Options may contain getters/proxies. Observing their properties would add
+  // reads before Node processes them, changing the behavior being measured.
+  const endpoint = value => typeof value === 'string' || (typeof value === 'number' && Number.isFinite(value))
+    ? value : '[options omitted]';
+  wrap(net.Server.prototype, 'listen', args => record('net.listen', endpoint(args[0])));
+  wrap(dgram.Socket.prototype, 'bind', args => record('dgram.bind', endpoint(args[0])));
   wrap(process, 'chdir', args => record('process.chdir', args[0]));
   // Subprocesses can bypass Node fs hooks. Record the executable, not payloads or environment.
   for (const name of ['spawn', 'spawnSync', 'exec', 'execSync', 'execFile', 'execFileSync', 'fork'])

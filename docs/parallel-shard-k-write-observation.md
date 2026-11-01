@@ -21,3 +21,29 @@ Refreshed main `d16eb41feac2e402b9e8bc5924861c2af061f674` after Work A #1222 mer
 J/C2 and E/K1 remain. C15 qualified successes are retained from the previous durable handoff; do not add partial/cancelled runs. Historical C final-group listing limitation persists. E #1203 remains HOLD and requires explicit final merge plus separate enabling approval; historical local leftover cause remains unconfirmed. K's original one-command cross-Node stderr mismatch cause is also unconfirmed because original successful bytes were not retained. This new observation is justified by newly added instrumentation/capture; it is not an unchanged rerun or evidence that the older mismatch is harmless.
 
 Local Node24 collector/output/self-tests, iPhone/J-C workflow/browser-timeout/path/registration/syntax/YAML/diff checks pass; local full hosted safety evidence cannot be obtained because procfs identity is inconsistent. Exact final-HEAD hosted Node22/24 diagnostics, full CI and Codex review are separate pending gates. Next cycle should inspect report.ok, every trial/command/log/root PID/output hash and remaining groups, not artifact presence alone; investigate any finding before merge or further parallel trials. Production K enabling is still a separate Owner decision.
+
+## Network bind observation controls (2026-11-01)
+
+The optional preload observes `net.Server.listen` and now explicit
+`dgram.Socket.bind` calls. These are **requests**, not proof that a port was
+successfully acquired or that a collision occurred. Numeric/string first arguments
+are retained; options objects and other nonprimitive forms are logged as
+`[options omitted]`. The observer does not inspect their properties or invoke
+getters/proxy traps just to describe the endpoint. In particular, the earlier TCP
+observer performed one additional `port` getter read; a real loopback control exposed
+native stdout `PASS TCP 5` versus observed `PASS TCP 6` on local Node24.22.1.
+The corrected observer preserves the native getter-read count and output.
+
+The existing required write-audit self-test now runs unobserved/observed TCP and UDP
+options-getter controls plus numeric UDP binding, all on loopback/ephemeral ports.
+It checks native return values, callback completion, stdout/stderr equality,
+retained events, and collector refusal to label a successful bind control clean.
+Existing filesystem/child/PID/corruption/output controls remain. No job/step or
+production runner configuration is added; these controls do not run K/H/I workloads.
+
+The event shape/initialization marker stays compatible, but historical K/C/E
+archives were collected using their recorded source and do **not retroactively gain
+UDP coverage**. New zero findings remain limited to these Node APIs; implicit/native,
+worker or sanitized-child activity is not exhaustively covered. Fresh workload
+qualification and Owner approval are still required before production enabling.
+J/C remain 2, E/K remain serial, and #1203 remains Owner-held.

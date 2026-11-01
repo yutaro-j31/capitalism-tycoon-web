@@ -4,6 +4,7 @@ const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
 const cp = require('node:child_process');
+const { collect } = require('./parallel-shard-write-observation.cjs');
 const root = fs.mkdtempSync(path.join(os.tmpdir(), 'psr-write-audit-'));
 const preload = path.join(__dirname, 'parallel-shard-write-audit.cjs');
 function run(name, code, audit) {
@@ -14,7 +15,7 @@ function run(name, code, audit) {
   const result = cp.spawnSync(process.execPath, ['-e', code, work], { env, encoding: 'utf8', timeout: 10000 });
   assert.equal(result.status, 0, result.stderr); assert.equal(result.signal, null);
   const events = audit ? fs.readdirSync(logs).flatMap(file => fs.readFileSync(path.join(logs, file), 'utf8').trim().split('\n').map(JSON.parse)) : [];
-  return { result, events };
+  return { result, events, work, logs };
 }
 function verifyWorkflow(text) {
   const start = text.indexOf('\n  test-shard-contract:'); assert.ok(start >= 0);
@@ -47,6 +48,35 @@ try {
   const plain = run('plain', code, false), audited = run('audited', code, true);
   assert.equal(audited.result.stdout, plain.result.stdout, 'instrumentation retains stdout');
   assert.equal(audited.result.stderr, plain.result.stderr, 'instrumentation retains stderr');
+  // Real loopback controls compare native behavior with the preload. Logging an
+  // options object must not evaluate its getters before Node consumes it.
+  const network = [
+    { name: 'tcp-getter', operation: 'net.listen', code: `
+      const assert=require('node:assert/strict'),server=require('node:net').createServer();let reads=0;
+      const options={host:'127.0.0.1',get port(){reads++;return 0}};
+      assert.equal(server.listen(options,()=>server.close(()=>console.log('PASS TCP '+reads))),server);` },
+    { name: 'udp-getter', operation: 'dgram.bind', code: `
+      const assert=require('node:assert/strict'),socket=require('node:dgram').createSocket('udp4');let reads=0;
+      const options={address:'127.0.0.1',get port(){reads++;return 0}};
+      assert.equal(socket.bind(options,()=>socket.close(()=>console.log('PASS UDP '+reads))),socket);` },
+    { name: 'udp-number', operation: 'dgram.bind', code: `
+      const socket=require('node:dgram').createSocket('udp4');
+      socket.bind(0,'127.0.0.1',()=>socket.close(()=>console.log('PASS UDP numeric')));` }
+  ];
+  for (const { name, operation, code } of network) {
+    const plainBind = run(name+'-plain', code, false), auditedBind = run(name+'-audit', code, true);
+    assert.equal(auditedBind.result.stdout, plainBind.result.stdout, name+': getter reads/stdout unchanged');
+    assert.equal(auditedBind.result.stderr, plainBind.result.stderr, name+': stderr unchanged');
+    const bindEvent = auditedBind.events.find(e=>e.operation===operation);
+    assert.ok(bindEvent, name+': bind request retained');
+    assert.equal(bindEvent.target, name==='udp-number' ? 0 : '[options omitted]');
+    const args = ['-e',code,auditedBind.work];
+    const observation = collect([{ label: name, command: process.execPath, args,
+      env: { PSR_WRITE_AUDIT_DIR: auditedBind.logs } }],
+      [{ command: process.execPath, args, pid: auditedBind.result.pid }]);
+    assert.equal(observation.ok,false,name+': passing bind control still requires review');
+    assert.ok(observation.commands[0].findings.some(e=>e.operation===operation));
+  }
   const denied = cp.spawnSync(process.execPath, ['-e', "console.log('BODY MUST NOT RUN')"], {
     env: { ...process.env, NODE_OPTIONS: `--require=${JSON.stringify(preload)}`, PSR_WRITE_AUDIT_DIR: path.join(root, 'quiet/input') }, encoding: 'utf8', timeout: 5000 });
   assert.notEqual(denied.status, 0, 'unavailable audit output must fail closed');
@@ -59,5 +89,5 @@ try {
   assert.equal(audited.events.filter(e => e.operation === 'initialized').length, 2, 'Node child inherited the preload and records its own PID');
   assert.ok(audited.events.filter(e => e.operation === 'initialized').every(e => Number.isInteger(e.pid)));
   assert.ok(audited.events.some(e => e.operation === 'fs.writeFileSync' && e.target.endsWith('/missing/out')), 'attempted failed writes are retained');
-  console.log('parallel-shard-write-audit: PASS (read-only, writes, callbacks, promises, descriptors, child, port, output parity)');
+  console.log('parallel-shard-write-audit: PASS (read-only, writes, callbacks, promises, descriptors, child, TCP/UDP getter parity, output parity)');
 } finally { fs.rmSync(root, { recursive: true, force: true }); }
