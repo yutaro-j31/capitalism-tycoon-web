@@ -38,7 +38,7 @@ const stakeMatches=(d,s)=>assert.ok(Math.abs(s.valuation*s.ownership-d.currentVa
  const priorSub=loaded.g.subsidiaries.find(x=>x.id===id);
  const priorStake=priorSub.valuation*priorSub.ownership;
  const reloadedValue=loaded.companyValue(),reloadedCash=loaded.g.companyCash;
- const reloadedPersonalCash=loaded.g.personalCash,loadedTx=loaded.g.finance.transactions.length;
+ const reloadedPersonalCash=loaded.g.personalCash,reloadedTx=loaded.g.finance.transactions.length;
  const expectedStake=deal.currentValuation;
  loaded.syncPESubsidiary(deal);
  const currentSub=loaded.g.subsidiaries.find(x=>x.id===id);
