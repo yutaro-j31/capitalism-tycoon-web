@@ -75,15 +75,34 @@ for (const token of ["node: ['22', '24']", 'timeout-minutes: 90', 'contents: rea
 assert.doesNotMatch(kDiagnostic, /continue-on-error|TEST_SHARD_PARALLELISM|vars\./);
 assert.ok(!diagnostic.includes('--full-shard K'), 'E and K contracts examine separate job blocks');
 const writeDiagnostic = jobBlock('parallel-k-write-observation');
-assert.equal(writeDiagnostic.split("\n").find(line => line.trim().startsWith("if:")),
-  "    if: github.event_name == 'pull_request' && github.head_ref == 'ci/k-source-freshness'");
-for (const token of ["node: ['22', '24']", 'timeout-minutes: 120', 'contents: read', 'fail-fast: false',
-  '--full-shard K', '--root diagnostic-k-source', '--source-sha 9223004d0bd2e9b0ebb435edf599d01b72020fd0',
-  '--retain-output --write-audit-root', 'node scripts/parallel-shard-write-observation.cjs',
-  'node tests/parallel-shard-runner-test.js', 'persist-credentials: false', 'if: always()', 'if-no-files-found: error'])
-  assert.ok(writeDiagnostic.includes(token), `K write observation must retain ${token}`);
-assert.ok(writeDiagnostic.includes('ref: 9223004d0bd2e9b0ebb435edf599d01b72020fd0'), 'checkout and claimed source SHA stay pinned together');
-assert.doesNotMatch(writeDiagnostic, /continue-on-error|TEST_SHARD_PARALLELISM|vars\./);
+function verifyKWriteDiagnostic(block) {
+  assert.equal(block.split("\n").find(line => line.trim().startsWith("if:")),
+    "    if: github.event_name == 'pull_request' && github.head_ref == 'ci/k-current-source-refresh'");
+  for (const token of ["node: ['22', '24']", 'timeout-minutes: 120', 'contents: read', 'fail-fast: false',
+    '--full-shard K', '--root diagnostic-k-source', '--source-sha daa5236d2483a9dbd1b208bb6b84e44d88a39762',
+    '--retain-output --write-audit-root', 'node scripts/parallel-shard-write-observation.cjs',
+    'node tests/parallel-shard-runner-test.js', 'persist-credentials: false', 'if: always()', 'if-no-files-found: error'])
+    assert.ok(block.includes(token), `K write observation must retain ${token}`);
+  assert.ok(block.includes('ref: daa5236d2483a9dbd1b208bb6b84e44d88a39762'), 'checkout and claimed source SHA stay pinned together');
+  assert.doesNotMatch(block, /continue-on-error|TEST_SHARD_PARALLELISM|vars\./);
+}
+verifyKWriteDiagnostic(writeDiagnostic);
+// Keep this source refresh confined to its opt-in branch, complete evidence
+// and immutable checkout/claimed-source pair. No production setting can enter.
+for (const mutate of [
+  b => b.replace("github.event_name == 'pull_request' && github.head_ref == 'ci/k-current-source-refresh'", "github.event_name == 'pull_request'"),
+  b => b.replace('ref: daa5236d2483a9dbd1b208bb6b84e44d88a39762', 'ref: main'),
+  b => b.replace('--source-sha daa5236d2483a9dbd1b208bb6b84e44d88a39762', '--source-sha 9223004d0bd2e9b0ebb435edf599d01b72020fd0'),
+  b => b.replace('contents: read', 'contents: write'),
+  b => b.replace('fail-fast: false', 'fail-fast: true'),
+  b => b.replace('--retain-output', ''),
+  b => b.replace('--write-audit-root', ''),
+  b => b.replace('persist-credentials: false', 'persist-credentials: true'),
+  b => b.replace('if: always()', 'if: success()'),
+  b => b.replace('if-no-files-found: error', 'if-no-files-found: warn'),
+  b => b + '\n    continue-on-error: true',
+  b => b + '\n    TEST_SHARD_PARALLELISM: 2'
+]) assert.throws(() => verifyKWriteDiagnostic(mutate(writeDiagnostic)), 'unsafe K refresh workflow mutation rejected');
 const cDiagnostic = jobBlock('parallel-c-process-evidence');
 assert.equal(cDiagnostic.split('\n').find(line => line.trim().startsWith('if:')),
   "    if: github.event_name == 'pull_request' && github.head_ref == 'ci/shard-c-process-evidence'");
