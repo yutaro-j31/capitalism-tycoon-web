@@ -78,3 +78,36 @@ its scope. Legacy standalone adapter output shape remains unchanged.
 
 Merge order extends through #1020 before the observation follow-up. Neither new
 PR has Owner merge permission. Full P3-5 completion is not claimed.
+
+
+## P3-8 IPO source-to-listing links — 2026-11-01
+
+Base: `9bc3cdf484f4a5afc617055d3ef033cabec9712a`. `projectOwnershipSnapshot`
+now returns `conversionLinks` for explicit startup `ipoStockID` claims. The links
+reuse the existing P3-5 source-scoped issuer and account quantity evidence. No
+new position or replacement is added and no current consumer is switched.
+
+A unique zeroed startup source and a listing with matched current lot provenance
+can be `source-linked`. Duplicate startup/market aliases, nonzero retained source
+stakes, own-ticker conflicts or missing listing evidence remain unresolved. Each
+link shows company/personal current positions separately, including matched issuer
+status and strict quantity evidence. An absent lot is unknown, never a guessed
+zero or a reconstructed IPO allotment. Invalid inventories and stale/foreign root
+indexes retain the existing fail-closed empty-result boundary.
+
+Current lots may have been traded after the IPO. `conversionQuantity` and
+`roundingResidual` therefore remain null, with `CONVERSION_UNPROVEN` diagnostic;
+no original allotment, historical residual, compensation, rights or class
+continuity is inferred. Security class, voting fraction and wealth value remain
+null. A source link is neither proof of the original settlement nor permission to
+trade a delisted/suspended instrument. Global completeness/control/wealth flags
+remain false. The standalone legacy listed-adapter shape stays unchanged.
+
+The existing registered listing observation suite covers shared-source binding,
+missing/conflicting aliases, retained fractions, strict current quantities,
+post-IPO trades versus unknown historical quantities, input/RNG purity, freezing,
+JSON replay, stale and replacement roots, and an installed IPO fixture with both
+legal accounts. Adjacent ownership/founder/control tests are reused. This pure
+reader change adds no writer, save, UI, ledger, RNG or browser path; new native
+WebKit is not claimed. Full P3-8 composition/settlement and Phase 3 acceptance stay
+separate. Pending-round PR #1264 touches other files and is not a dependency.
