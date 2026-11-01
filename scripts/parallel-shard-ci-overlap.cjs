@@ -2,6 +2,8 @@
 // Offline analysis of an explicitly supplied subset, never a capacity or release gate.
 const assert = require('node:assert/strict');
 const { summarize } = require('./parallel-shard-ci-timing.cjs');
+const emptyPreStart = () => ({ startedJobs: 0, observedDelaySeconds: 0, unstartedJobs: 0, censoredAgeSeconds: 0, omittedJobs: 0 });
+const unstartedStates = new Set(['queued', 'waiting', 'pending', 'requested']);
 function summarizeCollection(input, asOf = input.asOf ?? new Date().toISOString()) {
   assert.ok(Array.isArray(input.snapshots) && input.snapshots.length > 0, 'provide run/jobs snapshots');
   const runs = new Set(), jobs = new Set(), intervals = [], summaries = [];
@@ -19,10 +21,18 @@ function summarizeCollection(input, asOf = input.asOf ?? new Date().toISOString(
     }
     const summary = summarize(run, response, asOf);
     let eligible = 0, omitted = 0;
+    const preStart = emptyPreStart();
     for (const row of summary.rows) {
       // Cancellation can expose placeholder start timestamps. A conservative
       // overlap excludes all terminal non-success jobs, even with valid times.
       const eligibleState = row.state === 'success' || row.status === 'in_progress';
+      if (eligibleState && row.created !== null && row.started !== null) {
+        preStart.startedJobs++; preStart.observedDelaySeconds += row.jobCreationToStartSeconds;
+      } else if (unstartedStates.has(row.status) && row.pendingAgeSeconds !== null) {
+        // Queue/approval/dependency waiting are not proof of runner scarcity.
+        preStart.unstartedJobs++; preStart.censoredAgeSeconds += row.pendingAgeSeconds;
+      } else preStart.omittedJobs++;
+
       const end = row.status === 'in_progress' ? Date.parse(asOf) : row.completed;
       if (eligibleState && row.started !== null && end !== null && end > row.started) {
         intervals.push({ id: row.id, runId: run.id, start: row.started, end }); eligible++;
@@ -33,7 +43,7 @@ function summarizeCollection(input, asOf = input.asOf ?? new Date().toISOString(
       workflowConclusion: run.conclusion ?? null, jobStates: summary.jobStates,
       pendingObservation: summary.pendingObservation,
       completedRunHasPendingJobs: summary.completedRunHasPendingJobs,
-      eligibleIntervals: eligible, omittedIntervals: omitted,
+      eligibleIntervals: eligible, omittedIntervals: omitted, preStart,
       successfulShardElapsed: summary.successfulShardElapsed,
       successfulShardCreationToStart: summary.successfulShardCreationToStart,
       runCreationToFirstObservedJobCreationSeconds: summary.runCreationToFirstObservedJobCreationSeconds,
@@ -58,6 +68,10 @@ function summarizeCollection(input, asOf = input.asOf ?? new Date().toISOString(
   }
   return { repository, asOf, observedRuns: runs.size, observedJobs: jobs.size,
     completeRepositoryCoverage: false, capacityQuota: null,
+    preStart: summaries.reduce((total, run) => {
+      for (const key of Object.keys(total)) total[key] += run.preStart[key];
+      return total;
+    }, emptyPreStart()),
     eligibleIntervals: intervals.length, maximumObservedEligibleJobOverlap: maximum,
     maximumObservedEligibleRunOverlap: maximumRuns, peakWitness: witness,
     observedEligibleJobSeconds: intervals.reduce((sum, i) => sum + (i.end - i.start) / 1000, 0),

@@ -90,3 +90,35 @@ time. It retains the analyzer inputs, not full job step/actor metadata. The shor
 required self-test replays this completed snapshot and rejects a deliberately changed
 job attempt. This is a metadata consistency control, not a rerun of the workload or
 proof that a mixed-attempt response occurred in GitHub production.
+
+## Cross-run pre-start observations
+
+The collection analyzer now returns `preStart` both per run and for the supplied
+subset. `startedJobs` / `observedDelaySeconds` count and sum creation-to-start
+intervals only for completed-success or in-progress jobs with both timestamps.
+`unstartedJobs` / `censoredAgeSeconds` count and sum age since creation, censored at
+`asOf`, for known queued/waiting/pending/requested statuses without an observed start.
+Terminal non-success jobs, missing creation/start evidence and unknown statuses are
+counted in `omittedJobs`; a running job missing its start is not invented queue time.
+Zero-second intervals remain samples. These counters partition the observed jobs;
+zero samples do not certify that no other waiting jobs exist.
+
+Pre-start seconds are distinct from eligible execution seconds. They may include
+approval/dependency/scheduler waiting and are **not proof of ready-to-run demand or
+runner scarcity**. Censored ages are unfinished observations, not completed queue
+durations. Sums include overlapping job intervals: do not divide them by wall time
+and call the result serial speedup, capacity or a causal critical path. Existing
+conservative execution eligibility, quota=null and partial-coverage markers remain.
+
+[Retained two-run input projection](ci-evidence/ci-prestart-snapshots-41303594585-41315187678.json)
+preserves exact attempt metadata, all returned job records as an input-field
+projection (not full step/actor metadata), source API URLs and `asOf`.
+It contains run41303594585 and run41315187678 at their recorded source SHAs, not a
+claim about the latest main or all concurrent workflows. The required self-test
+replays this metadata; no workload is rerun and no production setting is changed.
+
+This retained subset has39 started observations and12 omitted skipped jobs. Its
+creation-to-start sum is6232 job-seconds (3754 and2478 per run), **not** elapsed
+workflow time. The second run separately records1730 seconds before its first job
+was created. No unstarted sample was present in this particular snapshot; synthetic
+queued/approval-waiting controls exercise censoring without inventing live data.
