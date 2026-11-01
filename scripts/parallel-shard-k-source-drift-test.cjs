@@ -44,6 +44,12 @@ try {
   assert.ok(edge.otherTrackedChanges.some(c=>c.path==='docs/with\ttab.md'&&c.status==='added'));
   const cli=JSON.parse(cp.execFileSync(process.execPath,[path.join(__dirname,'parallel-shard-k-source-drift.cjs'),baseline,pin,repo,edgePin],{encoding:'utf8'}));
   assert.deepEqual(cli,edge);
+  const relativeCli = JSON.parse(cp.execFileSync(process.execPath,
+    [path.join(__dirname,'parallel-shard-k-source-drift.cjs'),'../baseline',pin,'.',edgePin],
+    {cwd:repo,encoding:'utf8'}));
+  assert.deepEqual(relativeCli,edge,'relative CLI roots resolve before enumeration');
+  assert.deepEqual(compareRoots(path.relative(process.cwd(),baseline),pin,path.relative(process.cwd(),repo),edgePin),edge,
+    'relative module roots resolve before enumeration');
   const body = fs.readFileSync(path.join(repo,'tests/run-all-shard.js'),'utf8');
   write('tests/run-all-shard.js',body.replace("['tests/t'+i+'.js']", "['tests/t'+i+'.js','--changed']"));
   git('add','.'); git('commit','-m','command arguments drift');

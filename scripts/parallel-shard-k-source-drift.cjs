@@ -4,6 +4,7 @@ const assert = require('node:assert/strict'), cp = require('node:child_process')
 const path = require('node:path');
 const { expectedFrom } = require('./parallel-shard-k-evidence-audit.cjs');
 function snapshot(root, pin) {
+  root = path.resolve(root);
   assert.match(pin, /^[a-f0-9]{40}$/, 'explicit full source SHA required');
   const expected = expectedFrom(root, pin); // clean exact pin; enumeration/contract only
   assert.equal(expected.commands.length, 29, 'full K29 command contract required');
