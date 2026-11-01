@@ -78,6 +78,7 @@ const SOURCE_SPEC={fields:{
  sportsTeams:{rows:['id','value','owner','ownerAccount','status']},
  personalRealEstateHoldings:{rows:['assetID','currentValue','ownerCorp','owner','ownerAccount','status']},
  properties:{rows:['id','value','owner','ownerAccount','status']},
+ personalRealEstateCorp:{fields:{established:'deep',cash:'deep'}},
  market:{rows:['id','price','privateCompany','suspended']},
  finance:{fields:{loans:{rows:['loanID','sourceType','status','outstandingPrincipal']}}},
  personalMarginLoan:{fields:{balance:'deep'}},
@@ -314,6 +315,17 @@ function captureFounderWealthEvidence(rawState,externalEvidence){
     reasons:code?[reason(code,path,'Personal inventory current value is missing, ambiguous or not a supported current personal claim.',refs.map(x=>x.path))]:[]});
   }
  }
+ // Corporate treasury/holdings are source evidence, not the founder's direct cash.
+ const corp=view.personalRealEstateCorp,corpCash=corp&&corp.cash;
+ const heldPropertySources=(view.personalRealEstateHoldings||[]).flatMap((row,i)=>row.ownerCorp===true&&row.status==='owned'?
+  [{sourcePath:`personalRealEstateHoldings[${i}]`,sourceAssetId:id(row.assetID)?row.assetID:null,identityStatus:'unproven',
+    assetRole:'entity-asset-reference',personalWealthValue:null}]:[]);
+ ownership.personalRealEstateCorporation={sourcePath:'personalRealEstateCorp',coverage:'partial',
+  establishmentStatus:corp&&typeof corp.established==='boolean'?(corp.established?'established':'not-established'):'unknown',
+  reportedCash:money(corpCash)&&corpCash>=0?corpCash+0:null,cashStatus:money(corpCash)&&corpCash>=0?'source-observed':'unknown',
+  heldPropertySources,ownershipStatus:'unproven',nav:null,
+  reasons:money(corpCash)&&corpCash>=0?[]:[reason('AMOUNT_UNKNOWN','personalRealEstateCorp.cash','No valid non-negative corporate source cash is captured.')],
+  sourceRefs:[ref('personalRealEstateCorp',null,'personal-property-corp'),...heldPropertySources.map(row=>ref(row.sourcePath,row.sourceAssetId,'personal-property','entity-asset-reference'))]};
  const loans=view.finance&&Array.isArray(view.finance.loans)?view.finance.loans:[],loanCounts=new Map();
  for(const loan of loans)if(id(loan.loanID))loanCounts.set(loan.loanID,(loanCounts.get(loan.loanID)||0)+1);
  loans.forEach((loan,i)=>{
@@ -500,8 +512,14 @@ function projectFounderWealth(rawState,ownershipSnapshot,valuationEvidence,liabi
   reasons:[...ownership.peDirectIssues.map(row=>reason(row.code,row.path,'Direct PE ownership/alias evidence is unresolved.')),
    ...ownership.peCodes.map(code=>reason(code,'peFirm.funds','PE fund-interest source evidence is unresolved.')),
    reason('VALUATION_INCOMPLETE','peDeals','Unresolved direct PE stakes and GP fund interests remain unvalued; fund NAV, liabilities and waterfall/carry (OD-05) are not established.')]}));
+ const corporation=ownership.personalRealEstateCorporation;
+ result.components.push(component('asset:personal-real-estate-corporation','asset',{beneficialOwnerEntityId:null,
+  sourceRefs:corporation.sourceRefs.map(row=>({...row})),includesKeys:['personalRealEstateCorp'],
+  sourceEvidence:{...corporation,reasons:copied(corporation.reasons),heldPropertySources:corporation.heldPropertySources.map(row=>({...row})),sourceRefs:corporation.sourceRefs.map(row=>({...row}))},
+  reasons:[reason('OWNERSHIP_UNPROVEN','personalRealEstateCorp','Corporate source cash/property does not establish founder beneficial title.'),
+   reason('VALUATION_INCOMPLETE','personalRealEstateCorp','Corporate liabilities, ownership and net asset valuation are not established.')]}));
  result.components.push(component('asset:unadapted-personal-families','asset',{
-  reasons:[reason('VALUATION_INCOMPLETE','personalAssets','The personal real-estate corporation and family trust are not adapted in this slice.')]}));
+  reasons:[reason('VALUATION_INCOMPLETE','personalAssets','Family trust is not adapted in this slice.')]}));
  // Liabilities: union of distinct identities; mirrors are excluded, never re-added.
  for(const row of liabilities)result.components.push(fromEntry(component(row.liabilityKey,'liability',{includesKeys:row.includesKeys.slice()}),row,-1,'principal'));
  result.components.push(component('liability:unreconciled-coverage','liability',{reasons:copied(liabilityEvidence.coverage.reasons)}));

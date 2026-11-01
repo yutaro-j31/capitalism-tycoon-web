@@ -239,3 +239,27 @@ stale ownership/getters, frozen/JSON purity, parent coverage overlap and actual 
 personal/company purchases followed by sale. The Phase0.5 lexical candidate declaration
 is updated for the additional properties token after source review; exactAuthority is
 unchanged. PR/#909 retain executed checks and exact CI, with no new native WebKit claim.
+
+
+## Personal real-estate corporation evidence (partial P3-11 §3/§18)
+
+`asset:personal-real-estate-corporation` separates corporate source evidence from the
+founder's direct cash and property marks. Capture binds the raw establishment flag,
+corporate cash and selected corporate-held property source links. The component reports
+finite non-negative `reportedCash` only as source metadata, explicit cash status/reasons,
+and `entity-asset-reference` links for owned properties with a true ownerCorp marker.
+No holding identity or corporate beneficial ownership is certified; coverage is partial.
+Missing/invalid cash remains null without a default or normalizer.
+
+The component's beneficialOwnerEntityId and amountJPY remain null, as do NAV and every
+linked property's personalWealthValue. Ownership, liabilities and corporate valuation
+are unproven: no corporate cash/underlying property is added to personal cash or the
+known subtotal. The remaining generic unadapted family is trust. This is an explicit
+unvalued component, not a corporate NAV/founder entitlement policy (OD-05).
+
+Source facts join the existing immutable-revision binding, frozen JSON projection and
+coverage boundary. Existing installed corporation and rental/sale writers, saves,
+RNG, legacy net-worth/credit/UI consumers remain unchanged. Canonical tests cover
+source/non-personal cash separation, absent/invalid/frozen/getter sources, stale corporate
+cash, and installed establishment/property contribution. PR/#909 retain actual checks
+and exact CI; no new native WebKit/persistence route is claimed.

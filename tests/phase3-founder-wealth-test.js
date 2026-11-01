@@ -134,6 +134,24 @@ function noReference(value,target,seen=new Set()){
  let reads=0;Object.defineProperty(s.properties[0],'value',{enumerable:true,get(){reads++;throw Error('getter');}});
  assert.equal(project(s).components.length,0);assert.equal(reads,0);
 }
+// Corporation cash/property source evidence is not direct founder cash or an inferred NAV.
+{
+ const s=fixture();s.personalRealEstateCorp={established:true,cash:500};
+ s.personalRealEstateHoldings=[{assetID:'corp-asset',status:'owned',ownerCorp:true,currentValue:1000}];
+ const r=project(s),c=comp(r,'asset:personal-real-estate-corporation');assert(c);
+ assert.equal(c.amountJPY,null);assert.equal(c.beneficialOwnerEntityId,null);
+ assert.equal(c.sourceEvidence.reportedCash,500);assert.equal(c.sourceEvidence.establishmentStatus,'established');
+ assert.equal(c.sourceEvidence.heldPropertySources.length,1);assert.equal(c.sourceEvidence.heldPropertySources[0].assetRole,'entity-asset-reference');
+ assert.equal(c.sourceEvidence.nav,null);assert.equal(r.knownNetWorth,10080);assert.equal(r.totalNetWorth,null);
+ assert.equal(comp(r,'asset:personal-property:corp-asset').amountJPY,null);deq(project(plain(s)),r);frozenDeep(r);
+ const frozen=plain(s);(function lock(x){if(x&&typeof x==='object'){Object.values(x).forEach(lock);Object.freeze(x);}})(frozen);deq(project(frozen),r);
+ const absent=comp(project(fixture()),'asset:personal-real-estate-corporation');assert.equal(absent.sourceEvidence.establishmentStatus,'unknown');assert.equal(absent.sourceEvidence.reportedCash,null);assert.equal(absent.sourceEvidence.cashStatus,'unknown');
+ const b=api.captureFounderWealthEvidence(s);s.personalRealEstateCorp.cash++;
+ assert(codes(api.projectFounderWealth(s,b.ownershipSnapshot,b.valuationEvidence,b.liabilityEvidence).reasons).includes('STALE_EVIDENCE'));
+ for(const cash of [undefined,-1,'500',Infinity,1e100]){const bad=plain(s);if(cash===undefined)delete bad.personalRealEstateCorp.cash;else bad.personalRealEstateCorp.cash=cash;assert.equal(comp(project(bad),'asset:personal-real-estate-corporation').sourceEvidence.reportedCash,null);}
+ let reads=0;Object.defineProperty(s.personalRealEstateCorp,'cash',{enumerable:true,get(){reads++;throw Error('getter');}});
+ assert.equal(project(s).components.length,0);assert.equal(reads,0);
+}
 // Listed formula (contract §7): original 400 + purchased own 100 = 500 × 20; generic own row excluded.
 {
  const s=fixture(),before=JSON.stringify(s),drawsBefore=draws;
@@ -644,6 +662,7 @@ function noReference(value,target,seen=new Set()){
  assert.notEqual(asset.assetID,other.assetID);assert.equal(comp(project(engine.g),key).amountJPY,asset.currentValue);
  assert.equal(engine.establishPersonalRealEstateCorp(),true);assert.equal(engine.contributePersonalRealEstateToCorp(asset.assetID),true);
  assert.equal(comp(project(engine.g),key).amountJPY,null,'corp-owned property is not direct personal title');
+ const corp=comp(project(engine.g),'asset:personal-real-estate-corporation');assert.equal(corp.sourceEvidence.reportedCash,engine.g.personalRealEstateCorp.cash);assert.equal(corp.amountJPY,null);assert(corp.sourceEvidence.heldPropertySources.some(x=>x.sourceAssetId===asset.assetID));
  assert.equal(engine.withdrawPersonalRealEstateFromCorp(asset.assetID),true);
  const before=JSON.stringify(engine.g),n=draws,storage=JSON.stringify([...loaded.ctx.__localStorageData]);
  assert.equal(comp(project(engine.g),key).amountJPY,asset.currentValue);
