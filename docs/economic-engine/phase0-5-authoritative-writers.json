@@ -1747,7 +1747,8 @@
       {
         "file": "js/phase3-founder-wealth.js",
         "tokens": [
-          "personalRealEstateHoldings"
+          "personalRealEstateHoldings",
+          "properties"
         ]
       },
       {
