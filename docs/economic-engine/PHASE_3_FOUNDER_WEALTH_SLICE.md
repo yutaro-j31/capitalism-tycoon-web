@@ -190,3 +190,29 @@ conflicts, missing/invalid evidence, stale ownership, getters, frozen/JSON purit
 parent coverage overlap and installed personal/company team purchases followed by
 personal disposal. PR/#909 retain exact executed checks and CI; no new native WebKit
 or writer persistence proof is claimed for this pure read-only extension.
+
+
+## Personal property catalog (partial P3-11 §3)
+
+The trusted capture supports the separate `personalRealEstateHoldings` catalog using
+its purchase-specific `assetID`, not its reusable offer `id`. Unique current `owned`
+rows with supported direct personal title contribute gross `currentValue` as
+`asset:personal-property:<encoded assetID>`. Repeated purchases of one catalog offer
+remain distinct. Identity grouping occurs before lifecycle exclusion: duplicate
+owned/sold rows are unresolved rather than selecting a convenient value. Unique sold
+or foreclosed rows are historical, not retained assets.
+
+A true or malformed `ownerCorp` marker prevents direct personal valuation; corporation
+beneficial interest/NAV stays unvalued. Absent/false markers follow the installed direct
+purchase/withdrawal source boundary without calling its mutating helpers. Explicit
+owner/account conflicts stay unknown. Revision and parent coverage gates apply.
+
+This is gross property evidence, not sale cash or net equity. No mortgage/tax principal
+is defaulted to zero or deducted speculatively: liability coverage remains explicitly
+incomplete, and totalNetWorth remains null. The general properties inventory, corporate
+interest and trust still need their own evidence. No writer, ledger, pricing, save,
+RNG or consumer/UI changes. The canonical wealth suite covers duplicate catalog offers,
+asset-ID conflicts, current/historical/corporate transitions, invalid/getter/frozen/JSON
+inputs, stale ownership, coverage overlap and actual purchase→corp contribution→
+withdrawal→sale. PR/#909 record executed checks and exact CI; no new native WebKit or
+writer persistence proof is claimed.
