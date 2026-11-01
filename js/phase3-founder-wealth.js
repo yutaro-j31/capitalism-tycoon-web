@@ -74,6 +74,7 @@ const SOURCE_SPEC={fields:{
  ticker:'deep',currentCompanySerial:'deep',isCompanySold:'deep',publicCompany:'deep',stockPrice:'deep',week:'deep',
  personalCash:'deep',personalDebt:'deep',personalStocks:'deep',
  personalInvestments:{rows:['id','currentValue','owner','ownerAccount','status']},
+ luxuryAssets:{rows:['id','currentValue','owner','ownerAccount','status']},
  market:{rows:['id','price','privateCompany','suspended']},
  finance:{fields:{loans:{rows:['loanID','sourceType','status','outstandingPrincipal']}}},
  personalMarginLoan:{fields:{balance:'deep'}},
@@ -272,25 +273,27 @@ function captureFounderWealthEvidence(rawState,externalEvidence){
    sourceRefs:[ref(path,position.sourceDealID,'pe-direct')],status:code?'unknown':'known',
    reasons:code?[reason(code,`${path}.currentValuation`,'Direct PE stake value is missing, invalid or contradicts a zero economic stake.')]:[]});
  }
- // Installed buy/sell and weekly writers keep personalInvestments as the current
- // personal-only inventory. currentValue is a gross source mark, not net redemption.
- const investmentGroups=new Map();
- (view.personalInvestments||[]).forEach((row,i)=>{
-  let encoded=null;try{if(id(row.id))encoded=encodeURIComponent(row.id);}catch(_){}
-  const key=encoded!==null?`personal-investment:${encoded}`:`personal-investment:unidentified:${i}`;
-  if(!investmentGroups.has(key))investmentGroups.set(key,[]);
-  investmentGroups.get(key).push({row,path:`personalInvestments[${i}]`});
- });
- for(const [assetKey,members] of investmentGroups){
-  const {row,path}=members[0],refs=members.map(x=>ref(x.path,id(x.row.id)?x.row.id:null,'personal-investment'));
-  const code=members.length>1?'ALIAS_CONFLICT':!id(row.id)||assetKey.startsWith('personal-investment:unidentified:')?'IDENTITY_UNPROVEN'
-   :[row.owner,row.ownerAccount].some(x=>x!==undefined&&x!=='personal')?'OWNERSHIP_CONFLICT'
-   :row.status!==undefined&&row.status!=='active'?'LIFECYCLE_UNKNOWN'
-   :row.currentValue===undefined?'VALUATION_INCOMPLETE':!money(row.currentValue)||row.currentValue<0?'NUMERIC_DOMAIN_UNSUPPORTED':null;
-  valuation.entries.push({valuationKey:`current:${assetKey}`,assetKey,kind:'reportedCurrentValue',value:code?null:row.currentValue,
-   currency:JPY,provenance:'captured',sourceMethod:'personalInvestments.currentValue-gross',sourceVersion:1,asOfWeek:week,
-   coveredAssets:members.map(x=>x.path),coveredLiabilities:[],sourceRefs:refs,status:code?'unknown':'known',
-   reasons:code?[reason(code,path,'Personal investment current value is missing, ambiguous or not a supported current personal claim.',refs.map(x=>x.path))]:[]});
+ // Installed writers keep these as separate current personal inventories. A gross
+ // source mark is not net redemption; equal IDs across collections are not aliases.
+ for(const [collection,family] of [['personalInvestments','personal-investment'],['luxuryAssets','personal-luxury']]){
+  const inventoryGroups=new Map();
+  (view[collection]||[]).forEach((row,i)=>{
+   let encoded=null;try{if(id(row.id))encoded=encodeURIComponent(row.id);}catch(_){}
+   const key=encoded!==null?`${family}:${encoded}`:`${family}:unidentified:${i}`;
+   if(!inventoryGroups.has(key))inventoryGroups.set(key,[]);
+   inventoryGroups.get(key).push({row,path:`${collection}[${i}]`});
+  });
+  for(const [assetKey,members] of inventoryGroups){
+   const {row,path}=members[0],refs=members.map(x=>ref(x.path,id(x.row.id)?x.row.id:null,family));
+   const code=members.length>1?'ALIAS_CONFLICT':!id(row.id)||assetKey.startsWith(`${family}:unidentified:`)?'IDENTITY_UNPROVEN'
+    :[row.owner,row.ownerAccount].some(x=>x!==undefined&&x!=='personal')?'OWNERSHIP_CONFLICT'
+    :row.status!==undefined&&row.status!=='active'?'LIFECYCLE_UNKNOWN'
+    :row.currentValue===undefined?'VALUATION_INCOMPLETE':!money(row.currentValue)||row.currentValue<0?'NUMERIC_DOMAIN_UNSUPPORTED':null;
+   valuation.entries.push({valuationKey:`current:${assetKey}`,assetKey,kind:'reportedCurrentValue',value:code?null:row.currentValue,
+    currency:JPY,provenance:'captured',sourceMethod:`${collection}.currentValue-gross`,sourceVersion:1,asOfWeek:week,
+    coveredAssets:members.map(x=>x.path),coveredLiabilities:[],sourceRefs:refs,status:code?'unknown':'known',
+    reasons:code?[reason(code,path,'Personal inventory current value is missing, ambiguous or not a supported current personal claim.',refs.map(x=>x.path))]:[]});
+  }
  }
  const loans=view.finance&&Array.isArray(view.finance.loans)?view.finance.loans:[],loanCounts=new Map();
  for(const loan of loans)if(id(loan.loanID))loanCounts.set(loan.loanID,(loanCounts.get(loan.loanID)||0)+1);
@@ -466,8 +469,8 @@ function projectFounderWealth(rawState,ownershipSnapshot,valuationEvidence,liabi
  // Source-scoped direct personal PE value is one asset; company mirrors and funds are excluded.
  for(const row of valuation.filter(row=>row.kind==='stakeValue'&&row.provenance==='captured'&&row.valuationKey.startsWith('stake:pe-direct:')))
   result.components.push(fromEntry(component(`asset:${row.assetKey}`,'asset',{includesKeys:[row.sourceRefs[0].path]}),row,1,'stakeValue'));
- // Gross personal investment marks are captured and counted once by durable source ID.
- for(const row of valuation.filter(row=>row.kind==='reportedCurrentValue'&&row.provenance==='captured'&&row.valuationKey.startsWith('current:personal-investment:')))
+ // Gross personal inventory marks are captured and counted once by durable source ID.
+ for(const row of valuation.filter(row=>row.kind==='reportedCurrentValue'&&row.provenance==='captured'&&(row.valuationKey.startsWith('current:personal-investment:')||row.valuationKey.startsWith('current:personal-luxury:'))))
   result.components.push(fromEntry(component(`asset:${row.assetKey}`,'asset',{includesKeys:row.coveredAssets.slice()}),row,1,'reportedCurrentValue'));
  // Families without an approved valuation adapter stay explicitly unvalued, never zero.
  for(const row of ownership.vc)result.components.push(component(`asset:vc-personal:${row.sourcePath}`,'asset',{sourceRefs:[ref(row.sourcePath,row.startupSourceId,'vc')],includesKeys:[row.sourcePath],
@@ -479,7 +482,7 @@ function projectFounderWealth(rawState,ownershipSnapshot,valuationEvidence,liabi
    ...ownership.peCodes.map(code=>reason(code,'peFirm.funds','PE fund-interest source evidence is unresolved.')),
    reason('VALUATION_INCOMPLETE','peDeals','Unresolved direct PE stakes and GP fund interests remain unvalued; fund NAV, liabilities and waterfall/carry (OD-05) are not established.')]}));
  result.components.push(component('asset:unadapted-personal-families','asset',{
-  reasons:[reason('VALUATION_INCOMPLETE','personalAssets','Personal real estate, luxury assets, sports teams, the personal real-estate corporation and family trust are not adapted in this slice.')]}));
+  reasons:[reason('VALUATION_INCOMPLETE','personalAssets','Personal real estate, sports teams, the personal real-estate corporation and family trust are not adapted in this slice.')]}));
  // Liabilities: union of distinct identities; mirrors are excluded, never re-added.
  for(const row of liabilities)result.components.push(fromEntry(component(row.liabilityKey,'liability',{includesKeys:row.includesKeys.slice()}),row,-1,'principal'));
  result.components.push(component('liability:unreconciled-coverage','liability',{reasons:copied(liabilityEvidence.coverage.reasons)}));
