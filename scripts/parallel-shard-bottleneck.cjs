@@ -57,6 +57,7 @@ function observe(summary) {
     .slice(0, 3).map(s => ({ shard: s.shard, seconds: s[key] }));
   const completeSuccessfulSnapshot = summary.workflowState === 'success' &&
     summary.canonicalCoverageComplete && !summary.pendingObservation &&
+    summary.aggregateState === 'success' && summary.completedRunHasPendingJobs === false &&
     successes.length === 12 && successes.every(s => s.completedAt !== null);
   const latest = completeSuccessfulSnapshot ? Math.max(...successes.map(s => Date.parse(s.completedAt))) : null;
   return { runId: summary.runId, headSha: summary.headSha, workflowState: summary.workflowState,

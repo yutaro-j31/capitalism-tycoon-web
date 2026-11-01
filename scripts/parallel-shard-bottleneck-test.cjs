@@ -15,6 +15,7 @@ patch('I', { jobCreationToStartSeconds: 5, elapsedSeconds: 110, runCreationToSta
 patch('K', { jobCreationToStartSeconds: 2, elapsedSeconds: 120, runCreationToStartSeconds: 12, completed: 132000 });
 const summary = { runId: 42, headSha: 'a'.repeat(40), workflowState: 'success',
   canonicalCoverageComplete: true, pendingObservation: false,
+  aggregateState: 'success', completedRunHasPendingJobs: false,
   runCreationToFirstObservedJobCreationSeconds: 0,
   runCreationToAggregateCompletionSeconds: 2317, rows };
 const copy = structuredClone(summary), full = observe(summary);
@@ -42,6 +43,42 @@ assert.deepEqual(full.topObservedJobCreationToStart.slice(0, 2), [{ shard: 'H', 
 assert.deepEqual(full.lastObservedSuccessfulShards, ['K']);
 assert.deepEqual(full.focusHIK.map(s => s.shard), ['H', 'I', 'K']);
 assert.equal(full.runnerQuota, null); assert.equal(full.productionParallelismAuthorized, false);
+// A successful workflow label cannot certify a failed/missing aggregate or
+// contradictory pending-child metadata. Keep individual observations available.
+for (const mutate of [
+  x => x.aggregateState = 'failed',
+  x => x.aggregateState = 'cancelled',
+  x => x.aggregateState = 'missing-or-ambiguous',
+  x => delete x.aggregateState,
+  x => x.completedRunHasPendingJobs = true,
+  x => delete x.completedRunHasPendingJobs
+]) {
+  const inconsistent = structuredClone(summary); mutate(inconsistent);
+  const observation = observe(inconsistent);
+  assert.equal(observation.completeSuccessfulSnapshot, false, 'incomplete child metadata cannot certify a full successful snapshot');
+  assert.equal(observation.lastObservedSuccessfulShards, null);
+  assert.deepEqual(observation.focusHIK, full.focusHIK, 'individual shard observations survive');
+  assert.deepEqual(observation.topObservedExecution, full.topObservedExecution);
+}
+// Exercise the actual upstream API-snapshot -> summary -> observation boundary.
+const { summarize } = require('./parallel-shard-ci-timing.cjs');
+const time = seconds => new Date(Date.UTC(2026, 10, 1) + seconds * 1000).toISOString();
+const apiRun = { id: 43, head_sha: 'b'.repeat(40), event: 'pull_request',
+  created_at: time(0), status: 'completed', conclusion: 'success' };
+const apiJobs = [...'ABCDEFGHIJKL'].map((shard, index) => ({ id: 100 + index,
+  run_id: 43, name: `test-shard-${shard}`, created_at: time(1), started_at: time(2),
+  completed_at: time(10 + index), status: 'completed', conclusion: 'success' }));
+const aggregate = { id: 200, run_id: 43, name: 'test', created_at: time(22),
+  started_at: time(23), completed_at: time(24), status: 'completed', conclusion: 'success' };
+const fromApi = jobs => observe(summarize(apiRun, { total_count: jobs.length, jobs }, time(30)));
+assert.equal(fromApi([...apiJobs, aggregate]).completeSuccessfulSnapshot, true);
+for (const jobs of [apiJobs, [...apiJobs, { ...aggregate, conclusion: 'failure' }],
+  [...apiJobs, { ...aggregate, status: 'in_progress', conclusion: null, completed_at: null }]]) {
+  const observation = fromApi(jobs);
+  assert.equal(observation.completeSuccessfulSnapshot, false);
+  assert.equal(observation.lastObservedSuccessfulShards, null);
+  assert.equal(observation.canonicalSuccessObserved, 12);
+}
 const partial = structuredClone(summary);
 partial.workflowState = 'pending'; partial.canonicalCoverageComplete = false; partial.pendingObservation = true;
 const h = partial.rows.find(r => r.name === 'test-shard-H');
