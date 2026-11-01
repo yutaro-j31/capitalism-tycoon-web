@@ -38,7 +38,8 @@ An invalid raw root returns `INPUT_INVALID` at `rawState`. Reasons are sorted by
 | `liability:margin` | `personalMarginLoan.balance` | An outside-aggregate identity. |
 | `liability:untracked-property-loan:*` | personal `realEstateMarket` loans that are not `accountingTracked` | Unknown (`LIABILITY_COVERAGE_UNKNOWN`). |
 | `asset:vc-personal:*`, `asset:angel:*` | P3-8 personal observations; active angel rows | Unvalued (`VALUATION_INCOMPLETE`). |
-| `asset:pe-interests` | personal `peDeals` rows plus P3-7 `projectPEFundInterests` GP fund interests | Always unvalued. A GP contribution ratio is not NAV or title to fund assets. Paid distributions/carry are excluded as already-paid cash. |
+| `asset:pe-direct:<source ID>` | P3-7 `projectPEOwnership` accepted personal direct position + captured `peDeals.currentValuation` | Owner-stake value once, without multiplying by the ownership fraction again. Unique active personal source, no conflicting mirror claim and finite non-negative value required. |
+| `asset:pe-interests` | unresolved personal `peDeals` rows plus P3-7 `projectPEFundInterests` GP fund interests | Always unvalued. Accepted direct positions appear only in their dedicated component. A GP contribution ratio is not NAV or title to fund assets. Paid distributions/carry are excluded as already-paid cash. |
 
 Company-owned stocks, startup fractions and PE deals appear only as `company-owned` exclusions. They are never personal amounts.
 
@@ -49,7 +50,7 @@ Only an explicit `currency === 'JPY'` is accepted on valuation and liability ent
 ## Deferred, with reasons
 
 - **A complete total.** `totalNetWorth` is null and `complete` is false in every state this slice can see. Three components are always unknown:
-  - PE: fund NAV, liabilities and waterfall/carry are under OD-05, and P3-9 entitlement is not merged.
+  - PE: fund NAV, liabilities and waterfall/carry remain under OD-05; read-only control eligibility is not a valuation policy.
   - Unadapted personal families: personal real-estate holdings, investments, luxury assets, sports teams, the personal real-estate corporation and the family trust. Contract §4 says raw personal components need separate approval, and family/trust fractions are under OD-05.
   - Unreconciled liability coverage: mortgages on personal real-estate holdings, corporation and trust liabilities. Phase 4 debt identity is not adopted, and P4-AUD-003–008 remain external.
 - **Private Equity Value source (OD-04).** No production producer exists, and legacy `companyValue` is not accepted as Equity Value. In game, a private own company stays unknown. Caller-supplied `externalEvidence.valuations` (own company only, with explicit coverage lists) and `externalEvidence.liabilities` are bound at capture time as `provenance:'supplied'`. This exercises the fixed formulas, EV rejection and the currency gate until Phase 6 supplies a real source.
@@ -89,3 +90,32 @@ Real WebKit and physical iPhone are not claimed. No UI is added.
 - **Repeated founder-loan identities:** they collapse to one unknown `ALIAS_CONFLICT` component, regardless of input order.
 - **Malformed rows in a repeated identity:** a malformed supplied liability with a valid key keeps its identity claim through grouping. It still reports `INPUT_INVALID` under `liabilityEvidence`, and it turns the whole identity into one unknown `ALIAS_CONFLICT` component, including a captured row of that identity. A lone malformed row only reports `INPUT_INVALID`.
 - **Coverage that overlaps other claims:** supplied Equity Value `coveredAssets` are checked against the other asset claims, and `coveredLiabilities` against the personal liability claims (exact key, or a parent/child path). Any overlap leaves own-company and every overlapped component unknown with `ALIAS_CONFLICT`, because counting both would recognize the same economics twice. A company payable covered inside Equity Value is not matched against the founder's receivable, since they are distinct legal positions (contract §6). Coverage that names nothing else projected is unaffected.
+
+
+## Direct personal PE component extension — 2026-11-01
+
+Base: `9ef31b1f20b1c0e6d4acfeaa9157128bf2132243`. The P3-11 contract §3/§8
+and P3-7 §3 already define legacy direct `currentValuation` as the owner's stake
+value. This extension connects that existing basis; it defines no fund NAV or new
+settlement policy and does not depend on the company mirror precision fix #1260.
+
+The trusted capture now includes direct PE amount/fraction/link facts and the minimal
+M&A/overseas subsidiary alias claims. It calls the existing pure P3-7 ownership adapter
+on that detached view. Only accepted personal direct positions receive a dedicated
+`stakeValue` entry and `asset:pe-direct:<encoded source ID>` component. Company holdings,
+exited/sold stakes, duplicate identities, unknown owners/fractions and contradictory
+mirror links never add a personal amount. Unresolved direct ownership retains adapter
+reason codes in the aggregate unknown component. Invalid/missing amounts and positive
+values with a zero economic fraction remain unknown, never a fabricated zero.
+
+The new source fields participate in committed-snapshot binding: a same-week valuation,
+owner, fraction, lifecycle or mirror-link change invalidates prior evidence before
+arithmetic. Supplied Equity Value coverage is checked against the direct claim through
+the existing overlap gate. Descriptor validation rejects valuation getters without
+executing them. An installed personal acquisition verifies the same source semantics.
+
+No UI, consumer, credit limit, `personalNetWorth`, save field, writer, RNG or receipt
+changes. Total wealth remains incomplete because unadapted personal/fund assets and
+liabilities are unresolved. Existing registered founder-wealth tests are extended;
+no duplicate test registration or workflow change is introduced. This is a pure
+read-model extension; targeted new WebKit/IndexedDB behavior is not introduced.

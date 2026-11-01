@@ -351,6 +351,71 @@ function noReference(value,target,seen=new Set()){
  assert.equal(comp(tr,'liability:untracked-property-loan:realEstateMarket.loans[2]'),undefined);
  const m=plain(s);m.personalMarginLoan.balance=-1;deq(codes(comp(project(m),'liability:margin').reasons),['INPUT_INVALID']);
 }
+// P3-11: direct personal PE is already a stake value; it is not GP-managed NAV.
+{
+ const s=fixture();s.peDeals=[{id:'direct:/%',ownerAccount:'personal',status:'active',ownershipRatio:.7,currentValuation:125.75},
+  {id:'company',ownerAccount:'company',status:'active',ownershipRatio:.6,currentValuation:999999},
+  {id:'exited',ownerAccount:'personal',status:'exited',ownershipRatio:.8,currentValuation:500},
+  {id:'sold',ownerAccount:'personal',status:'sold',ownershipRatio:.8,currentValuation:600}];
+ const key='asset:pe-direct:direct%3A%2F%25',before=JSON.stringify(s),beforeDraws=draws;
+ const r=project(s),c=comp(r,key);
+ assert.equal(c.amountJPY,125.75,'currentValuation is not multiplied by ownership a second time');
+ assert.equal(c.valuationBasis,'stakeValue');deq(c.includesKeys,['peDeals[0]']);
+ assert.equal(r.knownNetWorth,10080+125.75);assert.equal(r.totalNetWorth,null);assert.equal(r.complete,false);
+ assert.equal(comp(r,'asset:pe-direct:company'),undefined);
+ assert.equal(comp(r,'asset:pe-direct:exited'),undefined);assert.equal(comp(r,'asset:pe-direct:sold'),undefined);
+ assert(r.exclusions.some(x=>x.sourcePath==='peDeals[1]'&&x.basis==='company-owned'));
+ assert(!comp(r,'asset:pe-interests').includesKeys.includes('peDeals[0]'),'known direct stake is not an unresolved fund claim');
+ const fund=plain(s);fund.peFirm={funds:[{id:'F',size:1000,gpCommit:20,lpContributed:980,status:'investing',nav:1000000,gpCarryPaid:100,deals:[]}]};
+ assert.equal(project(fund).knownNetWorth,r.knownNetWorth,'NAV and paid carry add no personal asset');
+ assert.equal(JSON.stringify(s),before);assert.equal(draws,beforeDraws);frozenDeep(r);
+ assert(noReference(r,s.peDeals));deq(project(plain(s)),r);
+ for(const value of [undefined,null,'125',-1,NaN,Infinity,Number.MAX_SAFE_INTEGER]){
+  const bad=plain(s);bad.peDeals[0].currentValuation=value;
+  const br=project(bad),bc=comp(br,key);assert.equal(bc.amountJPY,null);assert(bc.reasons.length);
+  assert.equal(br.knownNetWorth,10080);
+ }
+ const zero=plain(s);zero.peDeals[0].currentValuation=0;assert.equal(comp(project(zero),key).amountJPY,0);
+ const privateState=plain(s);privateState.publicCompany=false;
+ const overlap=project(privateState,{valuations:[{assetKey:'own-company',kind:'equityValue',amount:1000,currency:'JPY',sourceMethod:'test',coveredAssets:['peDeals'],coveredLiabilities:[]}]});
+ assert.equal(comp(overlap,key).amountJPY,null,'parent coverage cannot count the same personal stake twice');
+ assert(codes(comp(overlap,key).reasons).includes('ALIAS_CONFLICT'));
+ const bound=api.captureFounderWealthEvidence(s);
+ const mixed=api.projectFounderWealth(s,bound.ownershipSnapshot,{...bound.valuationEvidence},bound.liabilityEvidence);
+ assert.equal(mixed.components.length,0);assert.equal(mixed.knownNetWorth,null,'copied valuation evidence remains untrusted');
+ let peGetterReads=0;const accessor=plain(s);Object.defineProperty(accessor.peDeals[0],'currentValuation',{enumerable:true,get(){peGetterReads++;return 1e9;}});
+ assert(project(accessor).reasons.some(x=>x.code==='INPUT_INVALID'));assert.equal(peGetterReads,0);
+
+ for(const mutate of [t=>{delete t.peDeals[0].ownerAccount;},t=>{delete t.peDeals[0].ownershipRatio;},
+  t=>{t.peDeals.push({...t.peDeals[0]});},t=>{t.peDeals[1].id=t.peDeals[0].id;},
+  t=>{t.peDeals[0].subsidiaryID='unexpected';},
+  ...['subsidiaries','maSubsidiaries','overseasSubsidiaries'].map(family=>t=>{t[family]=[{id:'sub',peDealID:t.peDeals[0].id,status:'active',ownership:.7}];})]){
+  const bad=plain(s);mutate(bad);const br=project(bad);
+  assert.equal(br.knownNetWorth,10080,'ambiguous legal ownership never contributes a direct PE value');
+ }
+ const impossible=plain(s);impossible.peDeals[0].ownershipRatio=0;
+ assert.equal(comp(project(impossible),key).amountJPY,null,'positive value with no economic stake is contradictory');
+ // Every consumed PE source fact participates in same-week revision binding.
+ for(const mutate of [t=>{t.peDeals[0].currentValuation++;},t=>{t.peDeals[0].ownershipRatio=.6;},
+  t=>{t.peDeals[0].ownerAccount='company';},t=>{t.peDeals[0].status='exited';},
+  t=>{t.maSubsidiaries=[{id:'sub',peDealID:t.peDeals[0].id}];}]){
+  const t=plain(s),bundle=api.captureFounderWealthEvidence(t);mutate(t);
+  const stale=api.projectFounderWealth(t,bundle.ownershipSnapshot,bundle.valuationEvidence,bundle.liabilityEvidence);
+  assert.equal(stale.components.length,0);assert.equal(stale.knownNetWorth,null);
+  assert.equal(stale.reasons.length,3);assert(stale.reasons.every(x=>x.code==='STALE_EVIDENCE'));
+ }
+}
+// An installed acquisition supplies the same source semantics; projection calls no writer.
+{
+ let rng=187;const l=loadGame({headless:true,random:()=>((rng=Math.imul(rng,1664525)+1013904223>>>0)/2**32)});
+ const e=new l.engineModule.TycoonEngine(),m=l.modules.phase3FounderWealth;e.g.personalCash=2e9;
+ assert.equal(e.createPEDeal('テック',1e6,'personal'),true);
+ const d=e.g.peDeals.at(-1),before=JSON.stringify(e.g);
+ const bundle=m.captureFounderWealthEvidence(e.g);
+ const result=m.projectFounderWealth(e.g,bundle.ownershipSnapshot,bundle.valuationEvidence,bundle.liabilityEvidence);
+ const row=result.components.find(c=>c.sourceRefs.some(r=>r.family==='pe-direct'));
+ assert.equal(row.amountJPY,d.currentValuation);assert.equal(JSON.stringify(e.g),before);
+}
 // Single committed-snapshot boundary: mixed, forged, missing, in-place changed and replaced evidence.
 {
  const s=fixture(),a=api.captureFounderWealthEvidence(s);
