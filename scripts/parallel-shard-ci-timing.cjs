@@ -57,8 +57,9 @@ function summarize(run, response, asOf = new Date().toISOString()) {
   const lastEnd = allEndKnown ? Math.max(...canonical.map(r => r.completed)) : null;
   const last = lastEnd === null ? [] : canonical.filter(r => r.completed === lastEnd).map(r => r.name);
   const events = [];
-  for (const row of rows) if (row.state !== 'skipped' && row.started !== null) {
-    const end = row.completed ?? (row.state === 'pending' ? now : null);
+  for (const row of rows) if ((row.state === 'success' || row.status === 'in_progress') && row.started !== null) {
+    // Conservative overlap: terminal non-success timestamps may be placeholders.
+    const end = row.status === 'in_progress' ? now : row.completed;
     if (end !== null && end > row.started) { events.push([row.started, 1]); events.push([end, -1]); }
   }
   events.sort((a, b) => a[0] - b[0] || a[1] - b[1]);
