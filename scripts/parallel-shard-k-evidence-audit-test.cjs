@@ -105,6 +105,37 @@ try {
     return reports.map(r => r.node.split('.')[0]).sort();
   }), ['v22', 'v24']);
   assert.ok(restoredRoots.every(root => !fs.existsSync(root)), 'success removes temporary files');
+  // Builder composes the unchanged strict auditor with complete restored input.
+  // This is retained-fixture replay, not a new workload/host qualification.
+  const { buildArchive, writeArchive } = require('./parallel-shard-k-archive-build.cjs');
+  withArchive(archived, archiveHash, archivePin, (reports, roots) => {
+    const pinnedExpected = { ...expected, sha: archivePin, runnerSha256: reports[0].runnerSha256 };
+    const inputs = roots.map((root, i) => ({ root, artifactId: 500 + i }));
+    const built = buildArchive(pinnedExpected, inputs), again = buildArchive(pinnedExpected, inputs);
+    assert.ok(built.bytes.equals(again.bytes), 'same inputs/runtime retain identical gzip bytes');
+    assert.equal(built.audit.status, 'cross-node-output-review-required');
+    assert.equal(built.audit.differences.length, 1, 'historical raw stderr gap is not normalized');
+    assert.equal(built.audit.productionAuthorized, false);
+    const output = path.join(directory, 'built.json.gz'); writeArchive(output, built);
+    assert.ok(fs.readFileSync(output).equals(built.bytes));
+    assert.throws(() => writeArchive(output, built), /EEXIST/);
+    assert.ok(fs.readFileSync(output).equals(built.bytes), 'refused overwrite preserves prior bytes');
+    assert.throws(() => buildArchive(pinnedExpected, [inputs[0]]), /both Node artifacts/);
+    assert.throws(() => buildArchive(pinnedExpected, [inputs[0], { ...inputs[1], artifactId: inputs[0].artifactId }]));
+    assert.throws(() => buildArchive({ ...pinnedExpected, sha: '0'.repeat(40) }, inputs));
+    const extra = path.join(roots[0], 'unexpected.json'); fs.writeFileSync(extra, '{}');
+    assert.throws(() => buildArchive(pinnedExpected, inputs)); fs.unlinkSync(extra);
+    const link = path.join(roots[0], 'linked.json'); fs.symlinkSync('controls-node-22.json', link);
+    assert.throws(() => buildArchive(pinnedExpected, inputs), /no symlinks/); fs.unlinkSync(link);
+    const files = JSON.parse(zlib.gunzipSync(built.bytes)).nodes[0].files;
+    const log = files.find(f => f.path.endsWith('.jsonl')), full = path.join(roots[0], log.path);
+    const bytes = fs.readFileSync(full); fs.unlinkSync(full);
+    assert.throws(() => buildArchive(pinnedExpected, inputs)); fs.writeFileSync(full, bytes);
+    fs.appendFileSync(full, '{}\n'); assert.throws(() => buildArchive(pinnedExpected, inputs)); fs.writeFileSync(full, bytes);
+    assert.throws(() => writeArchive(path.join(directory, 'corrupt.gz'), { ...built, bytes: Buffer.from('corrupt') }), /bytes changed/);
+    assert.ok(!fs.existsSync(path.join(directory, 'corrupt.gz')));
+  });
+
   assert.throws(() => withArchive(archived, archiveHash, archivePin, (_, roots) => {
     restoredRoots = roots; throw Error('visitor failed');
   }), /visitor failed/);
