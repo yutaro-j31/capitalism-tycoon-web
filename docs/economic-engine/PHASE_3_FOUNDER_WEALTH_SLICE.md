@@ -119,3 +119,28 @@ changes. Total wealth remains incomplete because unadapted personal/fund assets 
 liabilities are unresolved. Existing registered founder-wealth tests are extended;
 no duplicate test registration or workflow change is introduced. This is a pure
 read-model extension; targeted new WebKit/IndexedDB behavior is not introduced.
+
+
+## Personal investment inventory (partial P3-11 §3)
+
+The trusted capture additionally binds `personalInvestments` ID, currentValue,
+optional explicit owner/account and lifecycle fields. Installed buy/weekly/sell
+writers maintain this personal-only current inventory; its `currentValue` is a gross
+JPY source mark. One unique supported personal row contributes once as
+`asset:personal-investment:<encoded durable ID>` with basis `reportedCurrentValue`.
+Principal is not added again. This value is not a promise of redemption proceeds:
+whole-yen settlement and contingent performance carry remain in the existing writer.
+
+Missing/invalid amounts or IDs, duplicate IDs, conflicting explicit ownership and
+unsupported lifecycle leave the component unknown; duplicate IDs produce one
+unvalued claim with every source reference. These captured source facts participate
+in the existing same-revision token boundary and Equity Value coverage conflict gate.
+No investment history is reconstructed, no asset or receipt is persisted, and no
+wealth/credit/progression/UI consumer changes. Other unsupported personal families
+and liability coverage keep totalNetWorth null and completeness false.
+
+The existing canonical wealth suite covers RED/GREEN, invalid inputs/identity,
+getter non-execution, stale marks, duplicate attribution, coverage overlap,
+JSON/frozen purity and installed bond purchase/redemption. Native browser or writer
+fault coverage is not newly claimed for this pure projection addition; see PR/#909
+for executed focused checks and exact final-HEAD CI.
