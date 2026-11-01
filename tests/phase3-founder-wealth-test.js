@@ -73,6 +73,26 @@ function noReference(value,target,seen=new Set()){
  let reads=0;Object.defineProperty(s.luxuryAssets[0],'currentValue',{enumerable:true,get(){reads++;throw Error('getter');}});
  assert.equal(project(s).components.length,0);assert.equal(reads,0);
 }
+// Sports inventory needs explicit personal ownership; company team value is indirect only.
+{
+ const s=fixture();s.sportsTeams=[{id:'p',owner:'personal',value:300},{id:'c',owner:'company',value:900}];
+ const r=project(s),p=comp(r,'asset:personal-sports:p');assert(p);assert.equal(p.amountJPY,300);
+ assert.equal(comp(r,'asset:personal-sports:c'),undefined);assert.equal(r.knownNetWorth,10380);
+ assert(r.exclusions.some(x=>x.sourcePath==='sportsTeams[1]'&&x.basis==='company-owned'));
+ deq(project(plain(s)),r);frozenDeep(r);assert.equal(r.totalNetWorth,null);
+ const frozen=plain(s);(function lock(x){if(x&&typeof x==='object'){Object.values(x).forEach(lock);Object.freeze(x);}})(frozen);deq(project(frozen),r);
+ const coverage=plain(s);coverage.publicCompany=false;const overlap=project(coverage,{valuations:[{assetKey:'own-company',kind:'equityValue',amount:1000,currency:'JPY',sourceMethod:'test',coveredAssets:['sportsTeams']}]});
+ assert.equal(comp(overlap,'asset:own-company').amountJPY,null);assert.equal(comp(overlap,'asset:personal-sports:p').amountJPY,null);
+ for(const change of [x=>delete x.owner,x=>x.owner='trust',x=>x.ownerAccount='company',x=>x.value='300',x=>x.value=-1,x=>delete x.id]){
+  const bad=plain(s);change(bad.sportsTeams[0]);assert.equal(project(bad).knownNetWorth,10080);
+ }
+ const duplicate=plain(s);duplicate.sportsTeams.push({id:'p',owner:'company',value:1000});
+ const d=comp(project(duplicate),'asset:personal-sports:p');assert.equal(d.amountJPY,null);assert.equal(d.sourceRefs.length,2);
+ const b=api.captureFounderWealthEvidence(s);s.sportsTeams[0].owner='company';
+ assert(codes(api.projectFounderWealth(s,b.ownershipSnapshot,b.valuationEvidence,b.liabilityEvidence).reasons).includes('STALE_EVIDENCE'));
+ let reads=0;Object.defineProperty(s.sportsTeams[1],'value',{enumerable:true,get(){reads++;throw Error('getter');}});
+ assert.equal(project(s).components.length,0);assert.equal(reads,0);
+}
 // Listed formula (contract §7): original 400 + purchased own 100 = 500 × 20; generic own row excluded.
 {
  const s=fixture(),before=JSON.stringify(s),drawsBefore=draws;
@@ -563,5 +583,16 @@ function noReference(value,target,seen=new Set()){
  const cash=engine.g.personalCash,value=lot.currentValue;
  assert.equal(engine.sellLuxury(lot.id),true);assert.equal(comp(project(engine.g),key),undefined);
  assert.equal(engine.g.personalCash-cash,Math.ceil(value*.95),'existing liquidation haircut is not changed');
+}
+// Installed mixed-account acquisition and disposal: only explicit personal team is direct wealth.
+{
+ const engine=new loaded.engineModule.TycoonEngine();engine.g.personalCash=1e12;engine.g.companyCash=1e12;
+ assert.equal(engine.buySportsTeam('basketball','personal'),true);assert.equal(engine.buySportsTeam('baseball','company'),true);
+ const personal=engine.g.sportsTeams.find(x=>x.owner==='personal'),company=engine.g.sportsTeams.find(x=>x.owner==='company');
+ const key=`asset:personal-sports:${encodeURIComponent(personal.id)}`,before=JSON.stringify(engine.g),n=draws,storage=JSON.stringify([...loaded.ctx.__localStorageData]);
+ const r=project(engine.g);assert.equal(comp(r,key).amountJPY,personal.value);
+ assert.equal(comp(r,`asset:personal-sports:${encodeURIComponent(company.id)}`),undefined);
+ assert.equal(JSON.stringify(engine.g),before);assert.equal(draws,n);assert.equal(JSON.stringify([...loaded.ctx.__localStorageData]),storage);
+ assert.equal(engine.sellSportsTeam(personal.id),true);assert.equal(comp(project(engine.g),key),undefined);
 }
 console.log('PASS P3-11 founder wealth: owner formulas, honest partial totals, snapshot binding, JPY gate, fail-closed input, purity and installed wiring');
