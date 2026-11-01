@@ -53,6 +53,38 @@ for(const change of [
  class Exotic{};assert.equal(project(new Exotic()).issues[0].code,'INPUT_INVALID');
  const b=fixture();b.startups.length=2;assert.equal(project(b).issues[0].code,'INPUT_INVALID');
 }
+// P3-8 pending capital is reported separately; it is never current equity or verified cash.
+{
+ const pending=()=>{const x=fixture();x.startups[0].activeFundingRound={id:'round-1',status:'open',round:'Series B',openedWeek:3,closesWeek:7,
+  preMoneyValuation:100,targetRaise:25,postMoneyValuation:125,preRoundOwnedCompany:.6,preRoundOwnedPersonal:.1,contributedCompany:3,contributedPersonal:2};return x;};
+ const x=pending(),before=JSON.stringify(x),r=project(x),personal=r.roundObservations.find(x=>x.account==='personal');
+ assert.equal(personal.reportedContributionJPY,2);assert.equal(personal.reportedPreRoundFraction,.1);
+ assert.equal(personal.paymentStatus,'unverified');assert.equal(personal.assetRole,'pending-capital-evidence');
+ assert.equal(personal.quantity,null);assert.equal(personal.wealthValue,null);assert.equal(personal.votingFraction,null);
+ assert.equal(personal.parentGenerationStatus,'unproven');assert.equal(personal.issuerEntityId,null);assert.equal(personal.ownershipKey,null);
+ assert(r.observations.every(x=>x.status==='unresolved'&&x.economicFraction===null),'pending amount never becomes current shares');
+ assert.equal(r.roundObservations.find(x=>x.account==='company').reportedContributionJPY,3);
+ assert.equal(JSON.stringify(x),before);assert(Object.isFrozen(personal));assert(!Object.isFrozen(x.startups[0].activeFundingRound));
+ assert.deepEqual(plain(project(frozen(plain(x)))),plain(r));
+ for(const change of [
+  t=>t.startups[0].activeFundingRound.postMoneyValuation=126,
+  t=>t.startups[0].activeFundingRound.preRoundOwnedPersonal=.2,
+  t=>t.startups[0].activeFundingRound.contributedPersonal=-1,
+  t=>t.startups[0].activeFundingRound.contributedCompany='3',
+  t=>t.startups[0].activeFundingRound.contributedPersonal=Infinity,
+  t=>t.startups[0].activeFundingRound.contributedCompany=26,
+  t=>t.startups[0].activeFundingRound.targetRaise=Number.MAX_SAFE_INTEGER,
+  t=>t.startups[0].activeFundingRound.closesWeek=3,
+  t=>t.startups[0].activeFundingRound.status='closed',
+  t=>t.startups.push({...t.startups[0],id:'other'}),
+  t=>t.startups[0].alive=false,
+  t=>t.startups[0].subsidiary=true,
+  t=>t.subsidiaries=[{id:'sub',startupID:'s',ownership:.6,status:'active'}]
+ ]){const bad=pending();change(bad);const v=project(bad);assert(v.roundObservations.length>0);assert(v.roundObservations.every(x=>x.status==='unresolved'&&x.reportedContributionJPY===null));}
+ let reads=0;const getter=pending();Object.defineProperty(getter.startups[0].activeFundingRound,'contributedPersonal',{get(){reads++;throw Error('getter');}});
+ const invalid=project(getter);assert.equal(reads,0);assert.equal(invalid.issues[0].code,'INPUT_INVALID');assert.equal(invalid.roundObservations.length,0);
+ const closed=pending();closed.startups[0].activeFundingRound=null;assert.equal(project(closed).roundObservations.length,0);
+}
 assert.throws(()=>vm.runInNewContext(code,ctx),/already registered/);
 // Reuse production harness and actual installed conversion/round writers.
 const {loadGame}=require('./harness');let seed=1,draws=0;
@@ -67,8 +99,13 @@ assert.equal(engine.makeSubsidiary(source.id),true);assert.equal(observed().find
 const other=e.startups[1];Object.assign(other,{alive:true,subsidiary:false,stage:'Series A',valuation:300e6,ownedCompany:.12,ownedPersonal:.05,runwayWeeks:7,fundingOpen:true});e.startupFundingHistory[other.id]=[];
 assert.equal(engine.openStartupFundingRound(other),true);
 assert(project(e).observations.filter(r=>r.startupSourceId===other.id).every(r=>r.status==='unresolved'));
+const pendingRound=project(e).roundObservations.filter(r=>r.startupSourceId===other.id);
+assert.equal(pendingRound.length,2);assert(pendingRound.every(r=>r.status==='source-observed'&&r.reportedContributionJPY===0));
+assert.equal(pendingRound.find(r=>r.account==='personal').reportedPreRoundFraction,.05);
+
 const plan=engine.getStartupFundingRoundPlan(other.id);e.week=plan.closesWeek;assert.equal(engine.closeStartupFundingRound(other),true);
 assert(project(e).observations.filter(r=>r.startupSourceId===other.id).every(r=>r.status==='source-matched'));
+assert.equal(project(e).roundObservations.filter(r=>r.startupSourceId===other.id).length,0,'closed capital is not a second pending asset');
 assert.notEqual(engine.listStartup(other),false);
 assert(project(e).observations.filter(r=>r.startupSourceId===other.id).every(r=>r.assetRole==='historical'));
 assert.deepEqual(plain(project(plain(e))),plain(project(e)));
