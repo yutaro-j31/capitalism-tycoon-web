@@ -26,6 +26,34 @@ function noReference(value,target,seen=new Set()){
  seen.add(value);return Object.values(value).every(v=>noReference(v,target,seen));
 }
 
+// Source-specific personal investments: current gross value once, never company wealth.
+{
+ const s=fixture();s.personalInvestments=[{id:'investment-1',currentValue:250,principal:200}];
+ const before=JSON.stringify(s),r=project(s),row=comp(r,'asset:personal-investment:investment-1');
+ assert(row);assert.equal(row.amountJPY,250);assert.equal(row.valuationBasis,'reportedCurrentValue');
+ assert.equal(r.knownNetWorth,10330);assert.equal(r.totalNetWorth,null);assert.equal(JSON.stringify(s),before);
+ frozenDeep(r);deq(project(plain(s)),r);
+ const ice=plain(s);(function lock(x){if(x&&typeof x==='object'){Object.values(x).forEach(lock);Object.freeze(x);}})(ice);deq(project(ice),r);
+ for(const change of [x=>delete x.id,x=>x.currentValue=-1,x=>x.currentValue='250',x=>x.currentValue=1e100,
+  x=>x.owner='company',x=>x.ownerAccount='company',x=>x.status='sold']){
+  const t=plain(s);change(t.personalInvestments[0]);const v=project(t);
+  assert(v.components.filter(c=>c.componentId.startsWith('asset:personal-investment:')).every(c=>c.amountJPY===null));
+  assert.equal(v.knownNetWorth,10080);
+ }
+ const duplicate=plain(s);duplicate.personalInvestments.push({...duplicate.personalInvestments[0],currentValue:500});
+ const dupe=project(duplicate),rows=dupe.components.filter(c=>c.componentId==='asset:personal-investment:investment-1');
+ assert.equal(rows.length,1);assert.equal(rows[0].amountJPY,null);assert.equal(rows[0].sourceRefs.length,2);
+ const zero=plain(s);zero.personalInvestments[0].currentValue=0;assert.equal(comp(project(zero),'asset:personal-investment:investment-1').amountJPY,0);
+ const badId=plain(s);badId.personalInvestments[0].id=String.fromCharCode(0xd800);assert.doesNotThrow(()=>project(badId));
+ assert.equal(project(badId).knownNetWorth,10080);
+ const coverage=plain(s);coverage.publicCompany=false;
+ const overlap=project(coverage,{valuations:[{assetKey:'own-company',kind:'equityValue',amount:1000,currency:'JPY',sourceMethod:'test',coveredAssets:['personalInvestments']}]});
+ assert.equal(comp(overlap,'asset:own-company').amountJPY,null);assert.equal(comp(overlap,'asset:personal-investment:investment-1').amountJPY,null);
+ const bundle=api.captureFounderWealthEvidence(s);s.personalInvestments[0].currentValue++;
+ assert(codes(api.projectFounderWealth(s,bundle.ownershipSnapshot,bundle.valuationEvidence,bundle.liabilityEvidence).reasons).includes('STALE_EVIDENCE'));
+ let reads=0;Object.defineProperty(s.personalInvestments[0],'currentValue',{enumerable:true,get(){reads++;throw Error('getter');}});
+ assert.equal(project(s).components.length,0);assert.equal(reads,0);
+}
 // Listed formula (contract §7): original 400 + purchased own 100 = 500 × 20; generic own row excluded.
 {
  const s=fixture(),before=JSON.stringify(s),drawsBefore=draws;
@@ -496,5 +524,14 @@ function noReference(value,target,seen=new Set()){
  const fresh=project(g);
  assert.equal(comp(fresh,'liability:personal-debt').amountJPY,-g.personalDebt);assert.equal(comp(fresh,'asset:personal-cash').amountJPY,g.personalCash);
  assert.equal(fresh.knownNetWorth,r.knownNetWorth,'borrowing swaps cash for debt');
+}
+// Actual buy/redeem removes the lot; projected value never survives as a second asset.
+{
+ const engine=new loaded.engineModule.TycoonEngine();engine.g.personalCash=1e9;
+ assert.equal(engine.buyPersonalInvestment('bond',1_000_000),true);
+ const lot=engine.g.personalInvestments[0],key=`asset:personal-investment:${encodeURIComponent(lot.id)}`,r=project(engine.g);
+ assert.equal(comp(r,key).amountJPY,lot.currentValue);
+ const before=JSON.stringify(engine.g),n=draws;project(engine.g);assert.equal(JSON.stringify(engine.g),before);assert.equal(draws,n);
+ assert.equal(engine.sellPersonalInvestment(lot.id),true);assert.equal(comp(project(engine.g),key),undefined);
 }
 console.log('PASS P3-11 founder wealth: owner formulas, honest partial totals, snapshot binding, JPY gate, fail-closed input, purity and installed wiring');
