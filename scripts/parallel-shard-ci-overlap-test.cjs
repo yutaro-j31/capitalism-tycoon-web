@@ -58,3 +58,4 @@ for (const mutate of [
   p => p.snapshots = []
 ]) { const copy = structuredClone(input); mutate(copy); assert.throws(() => summarizeCollection(copy, time(100))); }
 console.log('CI cross-run overlap: PASS (conservative intervals, attempts, missing/queued/cancelled, ties, coverage)');
+require('./parallel-shard-bottleneck-test.cjs');
