@@ -79,6 +79,44 @@ for(const cash of [undefined,null,'5',NaN,Infinity,-1,1e100]){
  let reads=0;Object.defineProperty(f,'cash',{get(){reads++;throw Error('getter');}});
  assert.doesNotThrow(()=>project(s));assert.equal(reads,0);
 }
+// Known waterfall source terms are separate from paid cash and unvalued entitlements.
+{
+ const s=state(),f=s.peFirm.funds[0];f.terms={fee:.02,carry:.2,hurdle:.08};
+ const before=JSON.stringify(s),r=project(s),terms=r.waterfallTerms[0];
+ assert.equal(terms.status,'source-observed');assert.equal(terms.reportedFeeRate,.02);
+ assert.equal(terms.reportedCarryRate,.2);assert.equal(terms.reportedHurdleRate,.08);
+ assert.equal(terms.entitlementStatus,'unverified');assert.equal(terms.carryValue,null);
+ assert.equal(terms.feeReceivable,null);assert.equal(terms.wealthValue,null);
+ assert.equal(terms.sourcePath,'peFirm.funds[0].terms');assert(Object.isFrozen(terms));
+ assert.equal(JSON.stringify(s),before);assert.deepEqual(r,project(freezeTerms(copy(s))));
+ for(const key of ['fee','carry','hurdle']){
+  for(const value of [undefined,null,-1,'0.2',NaN,Infinity]){
+   const x=copy(s);if(value===undefined)delete x.peFirm.funds[0].terms[key];else x.peFirm.funds[0].terms[key]=value;
+   const v=project(x);assert.equal(v.waterfallTerms[0].status,'unresolved');
+   assert.equal(v.waterfallTerms[0]['reported'+key[0].toUpperCase()+key.slice(1)+'Rate'],null);
+   assert(v.issues.some(i=>i.path==='peFirm.funds[0].terms.'+key));
+   assert.equal(v.fundInterests[0].contributionRatio,.02,'term gaps do not erase independent capital');
+  }
+ }
+ for(const value of [null,[],42]){const x=copy(s);x.peFirm.funds[0].terms=value;assert.equal(project(x).waterfallTerms[0].status,'unresolved');}
+ const zero=copy(s);zero.peFirm.funds[0].terms={fee:-0,carry:0,hurdle:0};assert.deepEqual(project(zero),project(copy(zero)));
+ assert.equal(project(zero).waterfallTerms[0].reportedFeeRate,0);
+ const sourceRate=copy(s);sourceRate.peFirm.funds[0].terms.hurdle=2;
+ assert.equal(project(sourceRate).waterfallTerms[0].reportedHurdleRate,2,'reported rate is neither clamped nor endorsed as policy');
+ const hidden=copy(s);Object.defineProperty(hidden.peFirm.funds[0].terms,'fee',{value:.02,enumerable:false});
+ assert.equal(project(hidden).waterfallTerms[0].reportedFeeRate,null);
+ const termsGetter=copy(s);Object.defineProperty(termsGetter.peFirm.funds[0],'terms',{enumerable:true,get(){throw Error('terms getter');}});
+ assert.equal(project(termsGetter).waterfallTerms[0].status,'unresolved');
+ const two=copy(s);two.peFirm.funds.push({...copy(f),id:'a'});
+ const ordered=project(two).waterfallTerms.map(({sourcePath,...row})=>row);
+ two.peFirm.funds.reverse();assert.deepEqual(project(two).waterfallTerms.map(({sourcePath,...row})=>row),ordered);
+ const absent=state();assert.equal(project(absent).waterfallTerms[0].reportedCarryRate,null);
+ let reads=0;Object.defineProperty(f.terms,'carry',{enumerable:true,get(){reads++;throw Error('getter');}});
+ assert.equal(project(s).waterfallTerms[0].reportedCarryRate,null);assert.equal(reads,0);
+ const duplicate=state();duplicate.peFirm.funds[0].terms={fee:.02,carry:.2,hurdle:.08};duplicate.peFirm.funds.push(copy(duplicate.peFirm.funds[0]));
+ assert(project(duplicate).waterfallTerms.every(x=>x.status==='unresolved'&&x.reportedCarryRate===null));
+ function freezeTerms(x){if(x&&typeof x==='object'){Object.values(x).forEach(freezeTerms);Object.freeze(x);}return x;}
+}
 assert.equal(out.fundInterests[0].contributionRatio,.02);
 assert.equal(out.portfolioParticipations[0].fundProceedsFraction,25/35);
 assert.equal(out.portfolioParticipations[0].externalCoinvestProceedsFraction,10/35);
@@ -201,8 +239,9 @@ assert.throws(()=>vm.runInNewContext(src,ctx),/already registered/);
  const ctx={console,EventTarget,Event,CustomEvent,localStorage:{getItem(){return null;},setItem(){},removeItem(){}},document:{addEventListener(){}},setTimeout(){},clearTimeout(){}};ctx.window=ctx;
  for(const file of ['runtime','data','economic-operation','store-market-environment','workforce','supply','competitor','competitor-projects','competitor-entry','competitor-credit','competitor-distress','market','finance','simulation-rng','engine','save-v9','completion','pe-fund'])vm.runInNewContext(fs.readFileSync(require.resolve('../js/'+file+'.js'),'utf8'),ctx);
  const m=ctx.__capitalismTycoonModules,e=new m.engine.TycoonEngine();e.g.personalCash=1e9;
- const f=m.peFund.createFund(e.g,{size:30000000.1,gpCommit:2000000.2});assert(f);
+ const f=m.peFund.createFund(e.g,{size:30000000.1,gpCommit:2000000.2,terms:{fee:.02,carry:.2,hurdle:.08}});assert(f);
  const r=project(copy(e.g));assert.equal(r.fundInterests[0].contributionRatio,f.gpCommit/f.size);
+ assert.equal(r.waterfallTerms[0].reportedCarryRate,f.terms.carry);assert.equal(r.waterfallTerms[0].status,'source-observed');
  f.deals.push(deal());m.peFund.processFundsWeek(e.g,f.deadlineWeek);
  assert.equal(f.status,'closed');assert.equal(f.deals[0].status,'active');
  const closed=project(copy(e.g));assert.equal(closed.fundInterests[0].current,true);assert.equal(closed.managementRelationships[0].current,true);assert.equal(closed.portfolioParticipations[0].current,true);assert.equal(closed.portfolioParticipations[0].fundProceedsFraction,25/35);

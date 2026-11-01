@@ -62,7 +62,7 @@
   }
   function projectPEFundInterests(rawState){
     const result={authority:'read-only',adapterVersion:1,complete:false,commandEligible:false,wealthComplete:false,
-      fundInterests:[],portfolioParticipations:[],managementRelationships:[],distributionEvidence:[],
+      fundInterests:[],portfolioParticipations:[],managementRelationships:[],distributionEvidence:[],waterfallTerms:[],
       issues:[],sourceCoverage:[],valuationStatus:'unknown'};
     const errors=result.issues;
     if(!plain(rawState)){errors.push(issue('INPUT_INVALID','$'));return freeze(result);}
@@ -97,6 +97,21 @@
       result.fundInterests.push(interest);
       const manager=id!==null&&!collision?{fundId:id,sourcePath:path,relationship:'gp-manager',assetRole:'management-only',current:lifecycleSupported&&status!=='closed'}:null;
       if(manager)result.managementRelationships.push(manager);
+      // Source rates are contract metadata, not a carry valuation or fee receivable.
+      // Validate each independently; identity ambiguity quarantines the entire observation.
+      const termsField=safeField(fund,'terms',path,errors),termsPath=`${path}.terms`;
+      const termsValid=termsField.ok&&termsField.present&&plain(termsField.value);
+      if(!termsValid)errors.push(issue(termsField.ok&&!termsField.present?'SOURCE_UNKNOWN':'INPUT_INVALID',termsPath));
+      const termRow={fundId:id,sourcePath:termsPath,status:'source-observed',entitlementStatus:'unverified',
+        reportedFeeRate:null,reportedCarryRate:null,reportedHurdleRate:null,carryValue:null,feeReceivable:null,wealthValue:null};
+      for(const [key,output] of [['fee','reportedFeeRate'],['carry','reportedCarryRate'],['hurdle','reportedHurdleRate']]){
+        const field=termsValid?safeField(termsField.value,key,termsPath,errors):null;
+        const rateValid=field?.ok&&field.present&&typeof field.value==='number'&&Number.isFinite(field.value)&&field.value>=0;
+        if(termsValid&&!rateValid)errors.push(issue('RATE_UNKNOWN',`${termsPath}.${key}`));
+        if(lifecycleSupported&&rateValid)termRow[output]=field.value+0;
+        else termRow.status='unresolved';
+      }
+      result.waterfallTerms.push(termRow);
       const paidKeys=['gpDistributed','lpDistributed','gpCarryPaid','managementFeesPaid'];
       const paid={fundId:id,sourcePath:path,kind:'historical-paid-cash',isReceivable:false};
       for(const key of paidKeys){const r=safeField(fund,key,path,errors);paid[key]=r.ok&&r.present&&finiteNonnegative(r.value)?r.value+0:null;
@@ -146,6 +161,7 @@
     result.fundInterests.sort((a,b)=>textOrder(a.fundId||'',b.fundId||'')||textOrder(a.sourcePath,b.sourcePath));
     result.portfolioParticipations.sort((a,b)=>textOrder(a.fundId||'',b.fundId||'')||textOrder(a.dealId||'',b.dealId||'')||textOrder(a.sourcePath,b.sourcePath));
     result.managementRelationships.sort((a,b)=>textOrder(a.fundId,b.fundId));
+    result.waterfallTerms.sort((a,b)=>textOrder(a.fundId||'',b.fundId||'')||textOrder(a.sourcePath,b.sourcePath));
     result.distributionEvidence.sort((a,b)=>textOrder(a.fundId||'',b.fundId||'')||textOrder(a.sourcePath,b.sourcePath));
     errors.sort((a,b)=>textOrder(a.path,b.path)||textOrder(a.code,b.code));
     return freeze(result);
