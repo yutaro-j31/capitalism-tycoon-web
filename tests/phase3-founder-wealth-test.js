@@ -93,6 +93,26 @@ function noReference(value,target,seen=new Set()){
  let reads=0;Object.defineProperty(s.sportsTeams[1],'value',{enumerable:true,get(){reads++;throw Error('getter');}});
  assert.equal(project(s).components.length,0);assert.equal(reads,0);
 }
+// Personal property catalog uses purchase assetID, not the reusable offer/catalog ID.
+{
+ const s=fixture();s.personalRealEstateHoldings=[{id:'catalog',assetID:'a',status:'owned',currentValue:300,ownerCorp:false},
+  {id:'catalog',assetID:'b',status:'owned',currentValue:400}, {assetID:'old',status:'sold',currentValue:999}];
+ const r=project(s);assert(comp(r,'asset:personal-property:a'));assert.equal(comp(r,'asset:personal-property:a').amountJPY,300);
+ assert.equal(comp(r,'asset:personal-property:b').amountJPY,400);assert.equal(comp(r,'asset:personal-property:old'),undefined);
+ assert.equal(r.knownNetWorth,10780);assert.equal(r.totalNetWorth,null);deq(project(plain(s)),r);
+ const ice=plain(s);(function lock(x){if(x&&typeof x==='object'){Object.values(x).forEach(lock);Object.freeze(x);}})(ice);deq(project(ice),r);
+ const coverage=plain(s);coverage.publicCompany=false;const overlap=project(coverage,{valuations:[{assetKey:'own-company',kind:'equityValue',amount:1000,currency:'JPY',sourceMethod:'test',coveredAssets:['personalRealEstateHoldings']}]});
+ assert.equal(comp(overlap,'asset:own-company').amountJPY,null);assert.equal(comp(overlap,'asset:personal-property:a').amountJPY,null);
+ for(const change of [x=>x.ownerCorp=true,x=>x.ownerCorp='false',x=>x.status='unknown',x=>delete x.assetID,x=>x.currentValue=-1]){
+  const bad=plain(s);change(bad.personalRealEstateHoldings[0]);assert.equal(project(bad).knownNetWorth,10480);
+ }
+ const duplicate=plain(s);duplicate.personalRealEstateHoldings.push({assetID:'a',status:'sold',currentValue:300});
+ const c=comp(project(duplicate),'asset:personal-property:a');assert.equal(c.amountJPY,null);assert.equal(c.sourceRefs.length,2);
+ const b=api.captureFounderWealthEvidence(s);s.personalRealEstateHoldings[0].ownerCorp=true;
+ assert(codes(api.projectFounderWealth(s,b.ownershipSnapshot,b.valuationEvidence,b.liabilityEvidence).reasons).includes('STALE_EVIDENCE'));
+ let reads=0;Object.defineProperty(s.personalRealEstateHoldings[0],'currentValue',{enumerable:true,get(){reads++;throw Error('getter');}});
+ assert.equal(project(s).components.length,0);assert.equal(reads,0);
+}
 // Listed formula (contract §7): original 400 + purchased own 100 = 500 × 20; generic own row excluded.
 {
  const s=fixture(),before=JSON.stringify(s),drawsBefore=draws;
@@ -594,5 +614,19 @@ function noReference(value,target,seen=new Set()){
  assert.equal(comp(r,`asset:personal-sports:${encodeURIComponent(company.id)}`),undefined);
  assert.equal(JSON.stringify(engine.g),before);assert.equal(draws,n);assert.equal(JSON.stringify([...loaded.ctx.__localStorageData]),storage);
  assert.equal(engine.sellSportsTeam(personal.id),true);assert.equal(comp(project(engine.g),key),undefined);
+}
+// Installed catalog purchase -> corporate contribution -> withdrawal -> sale boundaries.
+{
+ const engine=new loaded.engineModule.TycoonEngine();engine.g.personalCash=1e12;
+ assert.equal(engine.buyPersonalRealEstate('studio-tokyo'),true);assert.equal(engine.buyPersonalRealEstate('studio-tokyo'),true);
+ const [asset,other]=engine.g.personalRealEstateHoldings,key=`asset:personal-property:${encodeURIComponent(asset.assetID)}`;
+ assert.notEqual(asset.assetID,other.assetID);assert.equal(comp(project(engine.g),key).amountJPY,asset.currentValue);
+ assert.equal(engine.establishPersonalRealEstateCorp(),true);assert.equal(engine.contributePersonalRealEstateToCorp(asset.assetID),true);
+ assert.equal(comp(project(engine.g),key).amountJPY,null,'corp-owned property is not direct personal title');
+ assert.equal(engine.withdrawPersonalRealEstateFromCorp(asset.assetID),true);
+ const before=JSON.stringify(engine.g),n=draws,storage=JSON.stringify([...loaded.ctx.__localStorageData]);
+ assert.equal(comp(project(engine.g),key).amountJPY,asset.currentValue);
+ assert.equal(JSON.stringify(engine.g),before);assert.equal(draws,n);assert.equal(JSON.stringify([...loaded.ctx.__localStorageData]),storage);
+ assert.equal(engine.sellPersonalRealEstate(asset.assetID),true);assert.equal(comp(project(engine.g),key),undefined);
 }
 console.log('PASS P3-11 founder wealth: owner formulas, honest partial totals, snapshot binding, JPY gate, fail-closed input, purity and installed wiring');
