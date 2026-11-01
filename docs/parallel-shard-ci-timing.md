@@ -70,3 +70,23 @@ The pending snapshot's11 samples are not the eventual full-run median. #4345 rep
 Starting main0d2b6026 includes Work A's merged refounding/buyback tests; its Test4352 remained active. #1229 exacte9f28dee fullCI4350/Codex no findings/threads0 and current-main data integration gate passed, merged3759a6e3. New-main CI is not claimed complete. Active economic branches/Owner-held PRs are untouched; Work B uses an isolated branch/worktree and CI-only files. Existing #1171 null-status/signal/error serial defect remains fixed in main, not reimplemented.
 
 J/C2,E/K1 remain; C18 previously qualified observations are retained until newer complete runs are independently audited. Historical C final-group listing limitation and E local leftover cause remain. E1203 stays Owner-held with separate final merge/enabling decisions. K raw write/output evidence is merged through1229; cross-Node one-byte task_queues stack-frame difference is classified, not normalized. No E/K production enabling. Next: verify current-main and this exactHEAD CI/review, use complete metadata snapshots for queue/overlap evidence, distinguish observed delays from unverified capacity hypotheses.
+
+## Exact-attempt identity
+
+Single-run timing analysis requires a positive integer `run.run_attempt` and a
+matching `job.run_attempt` on every job. Missing or mixed attempt metadata rejects
+the input even when all run IDs, job names and timestamps are otherwise plausible.
+The summary retains `runAttempt`. This brings single-run provenance in line with
+the existing cross-run overlap auditor; it does not change any timing/state rule.
+Use the recorded attempt's jobs endpoint, fetch every page and retain the observation
+time. `runCreationTo*` still uses the original workflow `created_at`; it is not
+relabelled as the start of a rerun attempt. A normalized connector response that removes attempt/creation metadata is
+not a substitute for the raw API fields. Rerunning an old run does not make jobs
+from its previous attempt evidence for the new attempt.
+
+[Retained attempt-specific API field projection](ci-evidence/ci-run-attempt-2026-11-01.json)
+records run41294566245/attempt1, all26 returned jobs, source URLs and an observation
+time. It retains the analyzer inputs, not full job step/actor metadata. The short
+required self-test replays this completed snapshot and rejects a deliberately changed
+job attempt. This is a metadata consistency control, not a rerun of the workload or
+proof that a mixed-attempt response occurred in GitHub production.

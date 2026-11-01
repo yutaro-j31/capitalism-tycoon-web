@@ -2,12 +2,35 @@
 const assert = require('node:assert/strict');
 const { summarize } = require('./parallel-shard-ci-timing.cjs');
 const time = n => new Date(Date.UTC(2026, 9, 30) + n * 1000).toISOString();
-const run = { id: 1, head_sha: 'a'.repeat(40), event: 'push', created_at: time(0), status: 'completed', conclusion: 'success' };
-const make = (id, name, start, end, conclusion = 'success') => ({ id, run_id: 1, name, created_at: time(10), started_at: time(start), completed_at: time(end), status: 'completed', conclusion });
+const run = { id: 1, run_attempt: 1, head_sha: 'a'.repeat(40), event: 'push', created_at: time(0), status: 'completed', conclusion: 'success' };
+const make = (id, name, start, end, conclusion = 'success') => ({ id, run_id: 1, run_attempt: 1, name, created_at: time(10), started_at: time(start), completed_at: time(end), status: 'completed', conclusion });
 const jobs = [...'ABCDEFGHIJKL'].map((s, i) => make(i + 1, `test-shard-${s}`, 20 + i, 100 + i));
 jobs.push(make(13, 'test', 150, 151), make(14, 'cancelled-diagnostic', 20, 500, 'cancelled'), make(15, 'skipped-control', 20, 1000, 'skipped'));
 const response = { total_count: jobs.length, jobs };
 const original = structuredClone(response), result = summarize(run, response, time(1100));
+const rerunResponse = structuredClone(response);
+for (const job of rerunResponse.jobs) job.run_attempt = 2;
+for (const change of [
+  x => x.jobs[0].run_attempt = 2,
+  x => delete x.jobs[0].run_attempt
+]) {
+  const wrongAttempt = structuredClone(response); change(wrongAttempt);
+  assert.throws(() => summarize(run, wrongAttempt, time(1100)), /run attempt/);
+}
+assert.equal(result.runAttempt, 1, 'retain verified run attempt');
+assert.equal(summarize({ ...run, run_attempt: 2 }, rerunResponse, time(1100)).runAttempt, 2);
+for (const attempt of [undefined, null, 0, -1, 1.5, '1'])
+  assert.throws(() => summarize({ ...run, run_attempt: attempt }, response, time(1100)), /run attempt/);
+// Replay a retained projection from a complete attempt-specific GitHub API response.
+const recorded = JSON.parse(require('node:fs').readFileSync(require('node:path').join(
+  __dirname, '../docs/ci-evidence/ci-run-attempt-2026-11-01.json'), 'utf8'));
+const replay = summarize(recorded.run, recorded.jobs, recorded.asOf);
+assert.equal(replay.runAttempt, 1);
+assert.equal(replay.workflowState, 'success');
+assert.equal(replay.canonicalCoverageComplete, true);
+const wrongRecorded = structuredClone(recorded.jobs);
+wrongRecorded.jobs[0].run_attempt = 2;
+assert.throws(() => summarize(recorded.run, wrongRecorded, recorded.asOf), /run attempt/);
 assert.equal(result.workflowState, 'success'); assert.equal(result.canonicalCoverageComplete, true);
 assert.deepEqual(result.successfulShardCreationToStart, { samples: 12, medianSeconds: 15.5 });
 assert.deepEqual(result.successfulShardElapsed, { samples: 12, medianSeconds: 80 });

@@ -63,12 +63,12 @@ for (const mutate of [
 // Exercise the actual upstream API-snapshot -> summary -> observation boundary.
 const { summarize } = require('./parallel-shard-ci-timing.cjs');
 const time = seconds => new Date(Date.UTC(2026, 10, 1) + seconds * 1000).toISOString();
-const apiRun = { id: 43, head_sha: 'b'.repeat(40), event: 'pull_request',
+const apiRun = { id: 43, run_attempt: 1, head_sha: 'b'.repeat(40), event: 'pull_request',
   created_at: time(0), status: 'completed', conclusion: 'success' };
 const apiJobs = [...'ABCDEFGHIJKL'].map((shard, index) => ({ id: 100 + index,
-  run_id: 43, name: `test-shard-${shard}`, created_at: time(1), started_at: time(2),
+  run_id: 43, run_attempt: 1, name: `test-shard-${shard}`, created_at: time(1), started_at: time(2),
   completed_at: time(10 + index), status: 'completed', conclusion: 'success' }));
-const aggregate = { id: 200, run_id: 43, name: 'test', created_at: time(22),
+const aggregate = { id: 200, run_id: 43, run_attempt: 1, name: 'test', created_at: time(22),
   started_at: time(23), completed_at: time(24), status: 'completed', conclusion: 'success' };
 const fromApi = jobs => observe(summarize(apiRun, { total_count: jobs.length, jobs }, time(30)));
 assert.equal(fromApi([...apiJobs, aggregate]).completeSuccessfulSnapshot, true);
