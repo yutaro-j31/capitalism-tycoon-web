@@ -167,3 +167,26 @@ Existing canonical wealth tests cover new-family RED/GREEN, separate collections
 duplicate quarantine, source changes/getters, frozen/JSON purity and actual luxury
 purchase→projection→sale with unchanged sale proceeds. PR/#909 record executed focused
 checks and exact final-HEAD CI; no new native WebKit/persistence proof is claimed.
+
+
+## Sports team inventory (partial P3-11 §3)
+
+The captured mark calculation supports `sportsTeams.value` as a separate gross JPY
+source mark in `asset:personal-sports:<encoded ID>`. Unlike the personal-only investment
+and luxury collections, this is a mixed-account inventory: only explicit `owner=personal`
+with consistent optional account evidence can contribute. A unique consistent company
+row is excluded from direct personal wealth and remains indirect through parent equity.
+Missing/unknown ownership stays unvalued; no legacy default owner is invented.
+
+Identity grouping precedes company exclusion, so duplicate IDs across personal/company
+rows cannot select a convenient owner or value. Unknown identity/lifecycle/value and
+coverage conflicts remain unresolved. Sale listings/offers are not another asset or a
+price source. Source value is not predicted sale cash, and no sports writer, fee model,
+RNG, accounting, save or consumer is changed. Existing revision/coverage gates apply;
+other personal families and liability gaps keep the global total incomplete.
+
+The existing canonical wealth suite covers source-account separation, duplicate owner
+conflicts, missing/invalid evidence, stale ownership, getters, frozen/JSON purity,
+parent coverage overlap and installed personal/company team purchases followed by
+personal disposal. PR/#909 retain exact executed checks and CI; no new native WebKit
+or writer persistence proof is claimed for this pure read-only extension.
