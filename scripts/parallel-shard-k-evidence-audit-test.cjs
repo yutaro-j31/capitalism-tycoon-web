@@ -139,3 +139,5 @@ try {
 
 // Offline multi-run queue controls share this existing required K contract job.
 require('./parallel-shard-queue-series-test.cjs');
+
+require('./parallel-shard-k-source-drift-test.cjs');
