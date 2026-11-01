@@ -40,3 +40,25 @@ rate preservation, order invariance and actual installed `createFund` source ter
 New native WebKit is not claimed: this extension adds no browser/persistence path.
 See the PR and #909 for executed checks and exact final-HEAD CI, separately from these
 behavioral contracts. Full P3-7/family closure and Phase 3 acceptance remain incomplete.
+
+
+## Fund valuation source evidence (partial P3-7 §6)
+
+`projectFundValuationEvidence(rawState)` reuses the existing pure fund-interest and
+participation validation and returns separate `reportedFundCash`,
+`reportedExternalCoinvestCash` and tagged `heldAssetInputs`. A held deal's
+`enterpriseValue` is a whole-enterprise source input, not a marked current equity
+value: no liability subtraction, proceeds allocation or founder fraction is inferred.
+Portfolio-company cash, external coinvest cash and paid distributions are not added to
+fund cash. Duplicate fund/deal identities, invalid allocations, missing values or
+settled/exited deals cannot supply a supported held enterprise-value input. A closed
+fund term alone does not erase a validated unsettled holding.
+
+Missing cash is null rather than zero, getters are not executed, and raw roots are
+unchanged. Outputs are frozen and deterministically ordered. Liability coverage and
+valuation time remain unknown; fund NAV, allocated fund value, founder value and wealth
+remain null even for an otherwise source-observed row. This opt-in evidence function
+has no live consumer or economic writer/save/RNG/browser path and does not implement
+an approved NAV/carry valuation policy. Existing canonical fund tests cover the new
+API, JSON/frozen replay, account separation, invalid sources, lifecycle and installed
+fund creation. Exact executed checks and CI are recorded in the PR/#909.

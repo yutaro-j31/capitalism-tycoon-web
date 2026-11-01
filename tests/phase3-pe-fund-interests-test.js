@@ -117,6 +117,39 @@ for(const cash of [undefined,null,'5',NaN,Infinity,-1,1e100]){
  assert(project(duplicate).waterfallTerms.every(x=>x.status==='unresolved'&&x.reportedCarryRate===null));
  function freezeTerms(x){if(x&&typeof x==='object'){Object.values(x).forEach(freezeTerms);Object.freeze(x);}return x;}
 }
+// Cash and whole-enterprise inputs are evidence, never a complete fund/founder NAV.
+{
+ const value=require('../js/phase3-pe-fund-interests.js').projectFundValuationEvidence;
+ assert.equal(typeof value,'function');
+ const x=state(),f=x.peFirm.funds[0];f.cash=17;f.coinvestCash=3;f.deals[0].enterpriseValue=200;
+ f.deals[0].portfolioCompany={cash:999999};
+ const before=JSON.stringify(x),r=value(x),row=r.funds[0];
+ assert.equal(row.reportedFundCash,17);assert.equal(row.reportedExternalCoinvestCash,3);
+ assert.equal(row.heldAssetInputs[0].reportedEnterpriseValue,200);
+ assert.equal(row.heldAssetInputs[0].valuationBasis,'whole-enterprise-source-input');
+ assert.equal(row.heldAssetInputs[0].fundAllocatedValue,null);assert.equal(row.liabilityStatus,'unknown');
+ assert.equal(row.nav,null);assert.equal(row.founderValue,null);assert.equal(r.complete,false);
+ assert.equal(JSON.stringify(x),before);assert.deepEqual(r,value(copy(x)));assert(Object.isFrozen(row.heldAssetInputs[0]));
+ for(const key of ['cash','coinvestCash'])for(const bad of [undefined,null,'5',-1,Infinity,1e100]){
+  const s=copy(x);if(bad===undefined)delete s.peFirm.funds[0][key];else s.peFirm.funds[0][key]=bad;
+  assert.equal(value(s).funds[0][key==='cash'?'reportedFundCash':'reportedExternalCoinvestCash'],null);
+ }
+ for(const change of [d=>d.status='exited',d=>d.settlement={},d=>d.investedAmount=36,d=>delete d.id,d=>d.enterpriseValue='200']){
+  const s=copy(x);change(s.peFirm.funds[0].deals[0]);assert.equal(value(s).funds[0].heldAssetInputs[0].reportedEnterpriseValue,null);
+ }
+ const duplicates=copy(x);duplicates.peFirm.funds.push(copy(f));
+ assert(value(duplicates).funds.every(v=>v.reportedFundCash===null&&v.heldAssetInputs.every(d=>d.reportedEnterpriseValue===null)));
+ const lifecycle=copy(x);lifecycle.peFirm.funds[0].status='closed';
+ assert.equal(value(lifecycle).funds[0].heldAssetInputs[0].reportedEnterpriseValue,200,'closed term does not erase an unsettled asset');
+ const duplicateDeal=copy(x);duplicateDeal.peFirm.funds[0].deals.push(copy(duplicateDeal.peFirm.funds[0].deals[0]));
+ assert(value(duplicateDeal).funds[0].heldAssetInputs.every(d=>d.reportedEnterpriseValue===null));
+ const frozen=copy(x);(function lock(o){if(o&&typeof o==='object'){Object.values(o).forEach(lock);Object.freeze(o);}})(frozen);
+ assert.deepEqual(value(frozen),r);
+ const invalidTerms=copy(x);invalidTerms.peFirm.funds[0].size=0;
+ assert.equal(value(invalidTerms).funds[0].reportedFundCash,17,'independent cash is not an inferred capital fraction');
+ let reads=0;Object.defineProperty(f.deals[0],'enterpriseValue',{enumerable:true,get(){reads++;throw Error('getter');}});
+ assert.equal(value(x).funds[0].heldAssetInputs[0].reportedEnterpriseValue,null);assert.equal(reads,0);
+}
 assert.equal(out.fundInterests[0].contributionRatio,.02);
 assert.equal(out.portfolioParticipations[0].fundProceedsFraction,25/35);
 assert.equal(out.portfolioParticipations[0].externalCoinvestProceedsFraction,10/35);
@@ -233,6 +266,7 @@ for(const location of ['root','funds','fund-index','deals','deal-index','fractio
 }
 const src=fs.readFileSync(require.resolve('../js/phase3-pe-fund-interests.js'),'utf8');
 const ctx={__capitalismTycoonModules:{}};vm.runInNewContext(src,ctx);assert.equal(typeof ctx.__capitalismTycoonModules.phase3PeFundInterests.projectPEFundInterests,'function');
+assert.equal(typeof ctx.__capitalismTycoonModules.phase3PeFundInterests.projectFundValuationEvidence,'function');
 assert.throws(()=>vm.runInNewContext(src,ctx),/already registered/);
 // Match the installed fund writer's subtraction, including floating-point values.
 {
@@ -241,6 +275,7 @@ assert.throws(()=>vm.runInNewContext(src,ctx),/already registered/);
  const m=ctx.__capitalismTycoonModules,e=new m.engine.TycoonEngine();e.g.personalCash=1e9;
  const f=m.peFund.createFund(e.g,{size:30000000.1,gpCommit:2000000.2,terms:{fee:.02,carry:.2,hurdle:.08}});assert(f);
  const r=project(copy(e.g));assert.equal(r.fundInterests[0].contributionRatio,f.gpCommit/f.size);
+ assert.equal(require('../js/phase3-pe-fund-interests.js').projectFundValuationEvidence(copy(e.g)).funds[0].reportedFundCash,f.cash);
  assert.equal(r.waterfallTerms[0].reportedCarryRate,f.terms.carry);assert.equal(r.waterfallTerms[0].status,'source-observed');
  f.deals.push(deal());m.peFund.processFundsWeek(e.g,f.deadlineWeek);
  assert.equal(f.status,'closed');assert.equal(f.deals[0].status,'active');

@@ -218,6 +218,47 @@
     out.commitments.sort((a,b)=>textOrder(a.fundId||'',b.fundId||'')||textOrder(a.lpTypeID||'',b.lpTypeID||'')||textOrder(a.sourcePath,b.sourcePath));
     errors.sort((a,b)=>textOrder(a.path,b.path)||textOrder(a.code,b.code));return freeze(out);
   }
-  if(typeof module==='object'&&module.exports)module.exports={projectPEFundInterests,projectLPCommitments};
-  else if(root){const registry=root.__capitalismTycoonModules;if(!registry)throw new Error('runtime.js must precede phase3-pe-fund-interests.js');if(registry.phase3PeFundInterests)throw new Error('PE fund interests already registered');registry.phase3PeFundInterests=Object.freeze({projectPEFundInterests,projectLPCommitments});}
+  // P3-7 valuation evidence only: no settlement previews, enterprise-to-equity
+  // conversion, liability default, NAV sum or founder entitlement is inferred.
+  function projectFundValuationEvidence(rawState){
+    const source=projectPEFundInterests(rawState),errors=[...source.issues];
+    const out={authority:'read-only',adapterVersion:1,complete:false,wealthComplete:false,commandEligible:false,funds:[],issues:errors};
+    if(!plain(rawState))return freeze(out);
+    const firm=safeField(rawState,'peFirm','$',errors);
+    if(!firm.ok||!firm.present||!plain(firm.value))return freeze(out);
+    const fundsField=safeField(firm.value,'funds','peFirm',errors);
+    const funds=fundsField.ok&&fundsField.present?inspectArray(fundsField.value,'peFirm.funds',errors,20):null;
+    if(!funds)return freeze(out);
+    const interests=new Map(source.fundInterests.map(row=>[row.sourcePath,row]));
+    const participations=new Map(source.portfolioParticipations.map(row=>[row.sourcePath,row]));
+    const ids=new Map();for(const row of source.fundInterests)if(row.fundId!==null)ids.set(row.fundId,(ids.get(row.fundId)||0)+1);
+    for(let i=0;i<funds.length;i++){
+      const f=funds[i],path=`peFirm.funds[${i}]`,interest=interests.get(path);
+      if(!interest)continue;
+      const identified=interest.fundId!==null&&ids.get(interest.fundId)===1&&['investing','harvesting','closed'].includes(interest.fundStatus);
+      const cash=requireNumber(f,'cash',path,errors),coinvest=requireNumber(f,'coinvestCash',path,errors);
+      const row={fundId:interest.fundId,sourcePath:path,reportedFundCash:identified?cash:null,
+        reportedExternalCoinvestCash:identified?coinvest:null,heldAssetInputs:[],liabilityStatus:'unknown',nav:null,founderValue:null,
+        reasons:[issue('LIABILITY_COVERAGE_UNKNOWN',path),issue('VALUATION_INCOMPLETE',path)]};
+      const field=safeField(f,'deals',path,errors),deals=field.ok&&field.present?inspectArray(field.value,`${path}.deals`,errors,500):null;
+      if(deals)for(let j=0;j<deals.length;j++){
+        const dealPath=`${path}.deals[${j}]`,participation=participations.get(dealPath);
+        if(!participation)continue;
+        const ev=requireNumber(deals[j],'enterpriseValue',dealPath,errors);
+        const observed=identified&&participation.current&&ev!==null;
+        row.heldAssetInputs.push({dealId:participation.dealId,sourcePath:dealPath,status:observed?'source-observed':'unresolved',
+          reportedEnterpriseValue:observed?ev:null,valuationBasis:'whole-enterprise-source-input',valuationAsOfWeek:null,
+          fundAllocatedValue:null,wealthValue:null,allocationStatus:'unallocated',
+          reasons:observed?[]:[issue('VALUATION_UNPROVEN',dealPath)]});
+      }
+      row.heldAssetInputs.sort((a,b)=>textOrder(a.dealId||'',b.dealId||'')||textOrder(a.sourcePath,b.sourcePath));
+      out.funds.push(row);
+    }
+    out.funds.sort((a,b)=>textOrder(a.fundId||'',b.fundId||'')||textOrder(a.sourcePath,b.sourcePath));
+    out.issues=Array.from(new Map(errors.map(row=>[JSON.stringify([row.code,row.path]),row])).values())
+      .sort((a,b)=>textOrder(a.path,b.path)||textOrder(a.code,b.code));
+    return freeze(out);
+  }
+  if(typeof module==='object'&&module.exports)module.exports={projectPEFundInterests,projectLPCommitments,projectFundValuationEvidence};
+  else if(root){const registry=root.__capitalismTycoonModules;if(!registry)throw new Error('runtime.js must precede phase3-pe-fund-interests.js');if(registry.phase3PeFundInterests)throw new Error('PE fund interests already registered');registry.phase3PeFundInterests=Object.freeze({projectPEFundInterests,projectLPCommitments,projectFundValuationEvidence});}
 })(typeof globalThis==='object'?globalThis:null);
