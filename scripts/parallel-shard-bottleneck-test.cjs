@@ -109,6 +109,49 @@ for (const mutate of [
   x => x.headSha = 'short',
   x => x.rows = null
 ]) { const bad = structuredClone(summary); mutate(bad); assert.throws(() => observe(bad)); }
+// Complete-snapshot-only arithmetic; a long non-last shard cannot move the
+// observed canonical end when every other finish is fixed. Not causal speedup.
+const model = full.fixedTimingCompletionModel;
+const bound = (observation, shard) => observation.fixedTimingCompletionModel.shards.find(s => s.shard === shard);
+assert.equal(model.measuredSpeedup, false);
+assert.equal(model.scope, 'canonical-shard-end-only');
+assert.deepEqual(bound(full, 'K'), { shard: 'K', completionSlackSeconds: 0, maximumEndReductionSeconds: 7 });
+assert.deepEqual(bound(full, 'H'), { shard: 'H', completionSlackSeconds: 12, maximumEndReductionSeconds: 0 });
+assert.deepEqual(bound(full, 'I'), { shard: 'I', completionSlackSeconds: 7, maximumEndReductionSeconds: 0 });
+assert.equal(bound(observe(tied), 'K').maximumEndReductionSeconds, 0);
+assert.equal(bound(observe(tied), 'J').maximumEndReductionSeconds, 0);
+// A later start limits the runtime saving even if the previous finisher ended
+// long ago; missing runtime cannot be silently treated as unlimited saving.
+const short = structuredClone(summary); short.rows.find(r => r.name === 'test-shard-K').elapsedSeconds = 2;
+assert.equal(bound(observe(short), 'K').maximumEndReductionSeconds, 2);
+short.rows.find(r => r.name === 'test-shard-K').elapsedSeconds = null;
+assert.equal(bound(observe(short), 'K').maximumEndReductionSeconds, null);
+assert.equal(bound(observe(short), 'H').maximumEndReductionSeconds, 0);
+assert.equal(incomplete.fixedTimingCompletionModel, null);
+for (const mutate of [x => x.rows.pop(), x => x.workflowState = 'cancelled',
+  x => x.aggregateState = 'failed', x => x.completedRunHasPendingJobs = true,
+  x => x.rows[0].completed = null, x => x.rows[0].state = 'failed',
+  x => x.pendingObservation = true, x => x.canonicalCoverageComplete = false]) {
+  const bad = structuredClone(summary); mutate(bad);
+  assert.equal(observe(bad).fixedTimingCompletionModel, null, 'no bound for an incomplete/failed snapshot');
+}
+// Real upstream API timestamps, not a hand-written timing summary.
+const apiObservation = fromApi([...apiJobs, aggregate]);
+assert.deepEqual(bound(apiObservation, 'L'), { shard: 'L', completionSlackSeconds: 0, maximumEndReductionSeconds: 1 });
+assert.equal(bound(apiObservation, 'K').completionSlackSeconds, 1);
+const bothLast = structuredClone(apiJobs); bothLast[10].completed_at = bothLast[11].completed_at;
+assert.equal(bound(fromApi([...bothLast, aggregate]), 'L').maximumEndReductionSeconds, 0);
+
+// Retained completed GitHub snapshot: no new CI execution is needed to replay.
+const retained = JSON.parse(fs.readFileSync(path.join(__dirname,
+  '../docs/ci-evidence/ci-completion-model-41328132694.json'), 'utf8'));
+const replay = observe(summarize(retained.run, retained.jobs, retained.provenance.asOf));
+assert.equal(replay.completeSuccessfulSnapshot, true);
+assert.equal(replay.runId, 41328132694);
+for (const [shard, gap] of [['H', 200], ['I', 721], ['K', 428]])
+  assert.deepEqual(bound(replay, shard), { shard, completionSlackSeconds: gap, maximumEndReductionSeconds: 0 });
+assert.deepEqual(bound(replay, 'L'), { shard: 'L', completionSlackSeconds: 0, maximumEndReductionSeconds: 142 });
+
 const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'shard-bottleneck-'));
 try {
   const input = path.join(dir, 'summary.json'); fs.writeFileSync(input, JSON.stringify(summary));
@@ -116,4 +159,4 @@ try {
     [path.join(__dirname, 'parallel-shard-bottleneck.cjs'), input], { encoding: 'utf8' }));
   assert.deepEqual(result, full, 'CLI matches pure function');
 } finally { fs.rmSync(dir, { recursive: true, force: true }); }
-console.log('CI shard bottleneck observation: PASS (H/I/K queue vs elapsed, partial, ties, missing, CLI, no causal claims)');
+console.log('CI shard bottleneck observation: PASS (H/I/K queue vs elapsed, partial, ties, missing, fixed-timing bounds, CLI, no causal claims)');
