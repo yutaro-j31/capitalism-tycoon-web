@@ -160,6 +160,7 @@ function selfTest() {
 async function main() {
   selfTest();
   if (process.argv.includes('--self-test')) {
+    require('./parallel-shard-memory-snapshot-test.cjs');
     await outputSelfTest();
     require('./parallel-shard-c-evidence-audit-test.cjs');
     console.log('process diagnostic self-test: PASS'); return;
@@ -169,6 +170,7 @@ async function main() {
   const report = { node: process.version, platform: process.platform, sourceSha: process.env.GITHUB_SHA || null,
     runnerSha256: require('node:crypto').createHash('sha256').update(fs.readFileSync(path.join(__dirname, 'parallel-shard-runner.js'))).digest('hex'),
     cpuModel: os.cpus()[0]?.model, logicalCpus: os.cpus().length, physicalMemoryBytes: os.totalmem(),
+    memoryCapacitySnapshot: require('./parallel-shard-memory-snapshot.cjs').capture(),
     identity: identity(), runs: [], ok: false };
   const save = () => { fs.mkdirSync(path.dirname(output), { recursive: true }); fs.writeFileSync(output, JSON.stringify(report, null, 2) + '\n'); };
   const knownGroups = new Set();
