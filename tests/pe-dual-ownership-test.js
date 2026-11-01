@@ -57,6 +57,46 @@ const stakeMatches=(d,s)=>assert.ok(Math.abs(s.valuation*s.ownership-d.currentVa
 // Transfer is fair-value, atomic and commits exactly once.
 {const{x,e,d}=acquire();const price=x.modules.economicOperation.ceilYen(d.currentValuation),pc=e.g.personalCash,cc=e.g.companyCash,pl=e.g.peRealizedPL,tx=e.g.finance.transactions.length;let saves=0,events=[];e.save=()=>{saves++;return true;};e.emit=type=>{events.push(type||'change');};assert.equal(e.transferPEDealToCompany(d.id),true);assert.equal(saves,1);assert.deepEqual(events,['notify','change']);assert.equal(e.g.personalCash,pc+price);assert.equal(e.g.companyCash,cc-price);assert.equal(e.g.peRealizedPL,pl+price-100e6);assert.equal(d.ownerAccount,'company');assert.equal(d.ownerCostBasis,price);assert.equal(e.g.subsidiaries[0].carryingBookValue,price);assert.equal(e.g.finance.transactions.length,tx+1);const snapshot=JSON.stringify(e.g);assert.equal(e.transferPEDealToCompany(d.id),false);assert.equal(JSON.stringify(e.g),snapshot);}
 {const{e,d}=acquire();e.g.companyCash=d.currentValuation-1;const before=JSON.stringify(e.g);assert.equal(e.transferPEDealToCompany(d.id),false);assert.equal(JSON.stringify(e.g),before);}
+// P3-4 FC-G30-01 (partial): personal -> company transfer, installed weekly update,
+// save/reload and company EXIT form one legal-stake lifecycle. Individual writer
+// atomicity is covered elsewhere; this checks cross-route mirror identity and
+// prevents a transferred personal stake from reappearing as a second company asset.
+{
+ const {x,e,d}=acquire('personal',193),dealID=d.id,id=`pe-subsidiary-${dealID}`;
+ const transferPrice=x.modules.economicOperation.ceilYen(d.currentValuation);
+ const companyBefore=e.g.companyCash,personalBefore=e.g.personalCash;
+ assert.equal(e.transferPEDealToCompany(dealID),true);
+ assert.equal(e.g.companyCash,companyBefore-transferPrice);
+ assert.equal(e.g.personalCash,personalBefore+transferPrice);
+ assert.equal(e.g.subsidiaries.filter(s=>s.id===id).length,1,'transfer creates one mirror');
+ e.updatePersonalExpandedWeekly();
+ assert.equal(e.g.subsidiaries.filter(s=>s.id===id).length,1,'weekly update reuses transferred mirror');
+ assert.equal(e.save(),true);
+ const loaded=e.constructor.load(),deal=loaded.g.peDeals.find(s=>s.id===dealID);
+ assert.ok(deal);assert.equal(deal.ownerAccount,'company');
+ assert.equal(loaded.g.peDeals.filter(s=>s.id===dealID).length,1,'one legal PE deal after reload');
+ const mirror=loaded.g.subsidiaries.find(s=>s.id===id);
+ assert.ok(mirror);assert.equal(loaded.g.subsidiaries.filter(s=>s.id===id).length,1);
+ const beforeValue=loaded.companyValue(),beforeStake=mirror.valuation*mirror.ownership;
+ const beforeCash=loaded.g.companyCash,beforePersonal=loaded.g.personalCash;
+ const beforeLedger=loaded.g.finance.transactions.length;
+ loaded.syncPESubsidiary(deal);
+ assert.equal(loaded.g.subsidiaries.filter(s=>s.id===id).length,1,'reload sync cannot duplicate transfer');
+ assert.ok(Math.abs((loaded.companyValue()-beforeValue)-(deal.currentValuation-beforeStake))<.01,'reload sync replaces one stake');
+ assert.equal(loaded.g.companyCash,beforeCash);assert.equal(loaded.g.personalCash,beforePersonal);
+ assert.equal(loaded.g.finance.transactions.length,beforeLedger,'projection alone posts no sale or acquisition');
+ assert.equal(loaded.exitPEDeal(dealID),true);
+ assert.equal(loaded.g.peDeals.find(s=>s.id===dealID).status,'exited');
+ assert.equal(loaded.g.subsidiaries.filter(s=>s.id===id).length,0,'EXIT removes transferred mirror');
+ assert.equal(loaded.g.personalCash,beforePersonal,'company EXIT cannot credit founder cash');
+ assert.equal(loaded.g.finance.transactions.length,beforeLedger+1,'one EXIT ledger receipt');
+ const fresh=loaded.constructor.load();
+ assert.equal(fresh.g.peDeals.find(s=>s.id===dealID).status,'exited','EXIT persists after reload');
+ assert.equal(fresh.g.subsidiaries.filter(s=>s.id===id).length,0,'EXIT mirror cannot resurrect');
+ assert.equal(fresh.g.companyCash,loaded.g.companyCash);
+ assert.equal(fresh.g.personalCash,loaded.g.personalCash);
+}
+
 // Every company initiative payment gets its own deterministic finance sequence in the same week.
 // Two distinct deals (not the same deal twice): a deal can have only one initiative in flight
 // at a time once effects are delayed, so "two payments in the same week" now means two deals,
