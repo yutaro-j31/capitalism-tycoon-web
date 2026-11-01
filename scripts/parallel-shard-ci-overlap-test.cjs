@@ -11,11 +11,15 @@ const job = (id, run_id, start, end, status = 'completed', conclusion = 'success
 const snap = (r, list) => ({ run: r, jobs: { total_count: list.length, jobs: list } });
 const input = { snapshots: [snap(run(1), [job(10, 1, 10, 30), job(11, 1, 20, 40)]),
   snap(run(2), [job(20, 2, 20, 30), job(21, 2, 30, 50)])] };
+const originalInput = structuredClone(input);
 const result = summarizeCollection(input, time(100));
+assert.deepEqual(input, originalInput, 'collection remains read-only');
 assert.equal(result.maximumObservedEligibleJobOverlap, 3);
 assert.equal(result.maximumObservedEligibleRunOverlap, 2);
 assert.deepEqual(result.peakWitness, { at: time(20), jobIds: [10, 11, 20], runIds: [1, 2] });
 assert.equal(result.observedEligibleJobSeconds, 70);
+assert.deepEqual(result.preStart, { startedJobs: 4, observedDelaySeconds: 76, unstartedJobs: 0, censoredAgeSeconds: 0, omittedJobs: 0 });
+assert.deepEqual(result.runs[0].preStart, { startedJobs: 2, observedDelaySeconds: 28, unstartedJobs: 0, censoredAgeSeconds: 0, omittedJobs: 0 });
 assert.equal(result.capacityQuota, null); assert.equal(result.completeRepositoryCoverage, false);
 assert.deepEqual(summarizeCollection({ ...input, asOf: time(100) }), result, 'retained observation time replays deterministically');
 const reversed = structuredClone(input); reversed.snapshots.reverse();
@@ -34,6 +38,13 @@ const waiting = { snapshots: [snap(run(1, 'in_progress', null), [
 const pending = summarizeCollection(waiting, time(100));
 assert.equal(pending.maximumObservedEligibleJobOverlap, 1);
 assert.equal(pending.observedEligibleJobSeconds, 90);
+assert.deepEqual(pending.preStart, { startedJobs: 1, observedDelaySeconds: 9, unstartedJobs: 1, censoredAgeSeconds: 99, omittedJobs: 5 });
+const later = summarizeCollection(waiting, time(110));
+assert.equal(later.preStart.censoredAgeSeconds, 109);
+assert.equal(later.preStart.observedDelaySeconds, 9);
+const missingStart = structuredClone(waiting); missingStart.snapshots[0].jobs.jobs[0].started_at = null;
+assert.equal(summarizeCollection(missingStart, time(100)).preStart.unstartedJobs, 1, 'running with missing timestamp is not invented pre-start time');
+assert.equal(summarizeCollection(missingStart, time(100)).preStart.omittedJobs, 6);
 assert.equal(pending.pendingObservation, true);
 assert.deepEqual(pending.runs[0].jobStates, { success: 1, failed: 1, cancelled: 1, skipped: 1, neutral: 1, pending: 2, unknown: 0 });
 assert.equal(pending.runs[0].workflowState, 'pending');
@@ -43,7 +54,28 @@ inconsistent.snapshots[0].run = run(1);
 const inconsistentResult = summarizeCollection(inconsistent, time(100));
 assert.equal(inconsistentResult.pendingObservation, true, 'completed workflow does not hide pending jobs');
 assert.equal(inconsistentResult.runs[0].completedRunHasPendingJobs, true);
+const zeroDelay = summarizeCollection({ snapshots: [snap(run(1), [job(10, 1, 1, 2)])] }, time(100));
+assert.equal(zeroDelay.preStart.startedJobs, 1); assert.equal(zeroDelay.preStart.observedDelaySeconds, 0);
+for (const status of ['queued', 'waiting', 'pending', 'requested']) {
+  const response = { snapshots: [snap(run(1, 'in_progress', null), [job(10, 1, 1, null, status, null)])] };
+  assert.deepEqual(summarizeCollection(response, time(100)).preStart,
+    { startedJobs: 0, observedDelaySeconds: 0, unstartedJobs: 1, censoredAgeSeconds: 99, omittedJobs: 0 });
+  response.snapshots[0].jobs.jobs[0].created_at = null;
+  assert.equal(summarizeCollection(response, time(100)).preStart.omittedJobs, 1);
+}
+const zeroAgeJob = job(10, 1, 1, null, 'queued', null); zeroAgeJob.created_at = time(100);
+assert.deepEqual(summarizeCollection({ snapshots: [snap(run(1, 'in_progress', null), [zeroAgeJob])] }, time(100)).preStart,
+  { startedJobs: 0, observedDelaySeconds: 0, unstartedJobs: 1, censoredAgeSeconds: 0, omittedJobs: 0 });
+const unknownStatus = job(10, 1, 1, null, 'future_status', null);
+assert.equal(summarizeCollection({ snapshots: [snap(run(1, 'in_progress', null), [unknownStatus])] }, time(100)).preStart.omittedJobs, 1);
+const retained = JSON.parse(require('node:fs').readFileSync(require('node:path').join(__dirname,
+  '../docs/ci-evidence/ci-prestart-snapshots-41303594585-41315187678.json'), 'utf8'));
+const replay = summarizeCollection(retained);
+assert.equal(replay.observedRuns, 2);
+assert.equal(replay.preStart.startedJobs + replay.preStart.unstartedJobs + replay.preStart.omittedJobs, replay.observedJobs);
+assert.equal(replay.capacityQuota, null);
 const none = summarizeCollection({ snapshots: [snap(run(1), [])] }, time(100));
+assert.deepEqual(none.preStart, { startedJobs: 0, observedDelaySeconds: 0, unstartedJobs: 0, censoredAgeSeconds: 0, omittedJobs: 0 });
 assert.equal(none.maximumObservedEligibleJobOverlap, 0); assert.equal(none.peakWitness, null);
 for (const mutate of [
   p => p.snapshots.push(structuredClone(p.snapshots[0])),
