@@ -19,6 +19,7 @@ function median(values) {
 }
 function summarize(run, response, asOf = new Date().toISOString()) {
   assert.ok(Number.isSafeInteger(run.id) && run.id > 0);
+  assert.ok(Number.isSafeInteger(run.run_attempt) && run.run_attempt > 0, 'positive run attempt required');
   assert.match(run.head_sha, /^[a-f0-9]{40}$/);
   assert.ok(Array.isArray(response.jobs));
   assert.equal(response.total_count, response.jobs.length, 'fetch all jobs pages before analysis');
@@ -27,6 +28,7 @@ function summarize(run, response, asOf = new Date().toISOString()) {
   assert.ok(now !== null && origin !== null && now >= origin);
   const rows = response.jobs.map(job => {
     assert.equal(job.run_id, run.id, 'job must belong to this run');
+    assert.equal(job.run_attempt, run.run_attempt, 'job must belong to this run attempt');
     assert.ok(Number.isSafeInteger(job.id) && job.id > 0);
     assert.ok(typeof job.name === 'string' && job.name.length > 0);
     const status = state(job), created = timestamp(job.created_at);
@@ -67,7 +69,7 @@ function summarize(run, response, asOf = new Date().toISOString()) {
   for (const [, change] of events) { active += change; maximum = Math.max(maximum, active); }
   const interval = aggregate?.state === 'success' ? difference(aggregate.completed, lastEnd) : null;
   if (interval !== null) assert.ok(interval >= 0, 'aggregate completed before a required shard');
-  return { runId: run.id, headSha: run.head_sha, event: run.event, asOf, workflowState: state(run), workflowStatus: run.status, workflowConclusion: run.conclusion ?? null,
+  return { runId: run.id, runAttempt: run.run_attempt, headSha: run.head_sha, event: run.event, asOf, workflowState: state(run), workflowStatus: run.status, workflowConclusion: run.conclusion ?? null,
     jobStates: Object.fromEntries(['success', 'failed', 'cancelled', 'skipped', 'neutral', 'pending', 'unknown'].map(s => [s, rows.filter(r => r.state === s).length])),
     observedJobCreationCount: creations.length, returnedJobCreationCoverageComplete: rows.length > 0 && creations.length === rows.length,
     firstObservedJobCreatedAt: firstCreation === null ? null : new Date(firstCreation).toISOString(),
