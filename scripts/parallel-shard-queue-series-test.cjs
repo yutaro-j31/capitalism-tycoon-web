@@ -21,6 +21,20 @@ assert.deepEqual(compareSeries({ summaries: [...input.summaries].reverse() }), r
 const missing = structuredClone(input);
 missing.summaries[0].runCreationToFirstObservedJobCreationSeconds = null;
 assert.equal(compareSeries(missing).metrics.firstJobCreationSeconds.samples, 1);
+// Missing one canonical timestamp must not masquerade as a complete A-L
+// maximum/median. The H/I/K per-shard observations remain available.
+for (const [key, aggregate] of [
+  ['runCreationToJobCreationSeconds', 'lastShardCreationSeconds'],
+  ['jobCreationToStartSeconds', 'runnerQueueMedianSeconds'],
+  ['elapsedSeconds', 'shardExecutionMedianSeconds']
+]) {
+  const partial = structuredClone(input);
+  partial.summaries[0].rows[0][key] = null;
+  const observed = compareSeries(partial);
+  assert.equal(observed.runs.find(r => r.runId === 2)[aggregate], null);
+  assert.equal(observed.metrics[aggregate].samples, 1);
+  assert.deepEqual(observed.focusHIK.K, result.focusHIK.K);
+}
 for (const mutate of [x => x.summaries.pop(), x => x.summaries.push(x.summaries[0]),
   x => x.summaries[0].workflowState = 'pending', x => x.summaries[0].pendingObservation = true,
   x => x.summaries[0].canonicalCoverageComplete = false,

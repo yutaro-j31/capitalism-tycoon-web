@@ -31,11 +31,13 @@ function compareSeries(collection) {
     const creation = letters.map(x => metric(by[x], 'runCreationToJobCreationSeconds'));
     const queue = letters.map(x => metric(by[x], 'jobCreationToStartSeconds'));
     const execution = letters.map(x => metric(by[x], 'elapsedSeconds'));
+    // A partial A-L sample cannot establish the last creation or full-shard median.
+    const complete = values => values.every(n => n !== null);
     return { runId: s.runId, headSha: s.headSha,
       firstJobCreationSeconds: valid(s.runCreationToFirstObservedJobCreationSeconds ?? null),
-      lastShardCreationSeconds: stat(creation).max,
-      runnerQueueMedianSeconds: stat(queue).median,
-      shardExecutionMedianSeconds: stat(execution).median,
+      lastShardCreationSeconds: complete(creation) ? stat(creation).max : null,
+      runnerQueueMedianSeconds: complete(queue) ? stat(queue).median : null,
+      shardExecutionMedianSeconds: complete(execution) ? stat(execution).median : null,
       aggregateCompletionSeconds: valid(s.runCreationToAggregateCompletionSeconds ?? null),
       focusHIK: Object.fromEntries(focus.map(x => [x, {
         runnerQueueSeconds: metric(by[x], 'jobCreationToStartSeconds'),
