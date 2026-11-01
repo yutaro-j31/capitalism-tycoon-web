@@ -144,3 +144,26 @@ getter non-execution, stale marks, duplicate attribution, coverage overlap,
 JSON/frozen purity and installed bond purchase/redemption. Native browser or writer
 fault coverage is not newly claimed for this pure projection addition; see PR/#909
 for executed focused checks and exact final-HEAD CI.
+
+
+## Luxury inventory (partial P3-11 §3)
+
+The same captured personal-inventory mark calculation now supports `luxuryAssets`
+independently of investment products, using `asset:personal-luxury:<encoded ID>`.
+The installed store and auction writers add current personal holdings; sell removes
+the holding. Only unique supported personal rows with valid gross `currentValue`
+contribute. Purchase price is not added again. Equal IDs or names across different
+collections do not establish an alias; source-family identity remains explicit.
+
+Gross current marks are not liquidation proceeds: the existing sell writer's 95%
+conversion and yen rounding remain unchanged. The reader calls no auction/store,
+weekly, sale, save or RNG helper. Duplicate/missing identity, invalid value,
+conflicting explicit owner/account or unsupported lifecycle stay unknown. The same
+revision token and Equity Value coverage gate protect this family as well. Other
+unadapted families and liability gaps keep the total incomplete, with no UI/credit/
+progression consumer switch or new valuation policy.
+
+Existing canonical wealth tests cover new-family RED/GREEN, separate collections,
+duplicate quarantine, source changes/getters, frozen/JSON purity and actual luxury
+purchase→projection→sale with unchanged sale proceeds. PR/#909 record executed focused
+checks and exact final-HEAD CI; no new native WebKit/persistence proof is claimed.

@@ -54,6 +54,25 @@ function noReference(value,target,seen=new Set()){
  let reads=0;Object.defineProperty(s.personalInvestments[0],'currentValue',{enumerable:true,get(){reads++;throw Error('getter');}});
  assert.equal(project(s).components.length,0);assert.equal(reads,0);
 }
+// Luxury inventory is a separate personal source family, valued gross once.
+{
+ const s=fixture();s.luxuryAssets=[{id:'same-id',currentValue:120,purchasePrice:100}];
+ s.personalInvestments=[{id:'same-id',currentValue:50}];
+ const r=project(s),c=comp(r,'asset:personal-luxury:same-id');assert(c);assert.equal(c.amountJPY,120);
+ assert.equal(c.valuationBasis,'reportedCurrentValue');assert.equal(r.knownNetWorth,10250);
+ assert.equal(comp(r,'asset:personal-investment:same-id').amountJPY,50,'same ID in distinct collections is not an implicit alias');
+ assert.equal(r.totalNetWorth,null);frozenDeep(r);deq(project(plain(s)),r);
+ const frozen=plain(s);(function lock(x){if(x&&typeof x==='object'){Object.values(x).forEach(lock);Object.freeze(x);}})(frozen);deq(project(frozen),r);
+ const duplicate=plain(s);duplicate.luxuryAssets.push({...duplicate.luxuryAssets[0],currentValue:500});
+ const dupe=comp(project(duplicate),'asset:personal-luxury:same-id');assert.equal(dupe.amountJPY,null);assert.equal(dupe.sourceRefs.length,2);
+ for(const change of [x=>delete x.id,x=>x.currentValue=-1,x=>x.owner='company',x=>x.status='sold']){
+  const bad=plain(s);change(bad.luxuryAssets[0]);assert.equal(project(bad).knownNetWorth,10130);
+ }
+ const b=api.captureFounderWealthEvidence(s);s.luxuryAssets[0].currentValue++;
+ assert(codes(api.projectFounderWealth(s,b.ownershipSnapshot,b.valuationEvidence,b.liabilityEvidence).reasons).includes('STALE_EVIDENCE'));
+ let reads=0;Object.defineProperty(s.luxuryAssets[0],'currentValue',{enumerable:true,get(){reads++;throw Error('getter');}});
+ assert.equal(project(s).components.length,0);assert.equal(reads,0);
+}
 // Listed formula (contract §7): original 400 + purchased own 100 = 500 × 20; generic own row excluded.
 {
  const s=fixture(),before=JSON.stringify(s),drawsBefore=draws;
@@ -533,5 +552,16 @@ function noReference(value,target,seen=new Set()){
  assert.equal(comp(r,key).amountJPY,lot.currentValue);
  const before=JSON.stringify(engine.g),n=draws;project(engine.g);assert.equal(JSON.stringify(engine.g),before);assert.equal(draws,n);
  assert.equal(engine.sellPersonalInvestment(lot.id),true);assert.equal(comp(project(engine.g),key),undefined);
+}
+// Installed luxury buy/sell uses gross marks before sale and cash-only proceeds after.
+{
+ const engine=new loaded.engineModule.TycoonEngine();engine.g.personalCash=1e9;
+ assert.equal(engine.buyLuxury('watch'),true);const lot=engine.g.luxuryAssets[0],key=`asset:personal-luxury:${encodeURIComponent(lot.id)}`;
+ const before=JSON.stringify(engine.g),drawsBefore=draws,storage=JSON.stringify([...loaded.ctx.__localStorageData]);
+ assert.equal(comp(project(engine.g),key).amountJPY,lot.currentValue);
+ assert.equal(JSON.stringify(engine.g),before);assert.equal(draws,drawsBefore);assert.equal(JSON.stringify([...loaded.ctx.__localStorageData]),storage);
+ const cash=engine.g.personalCash,value=lot.currentValue;
+ assert.equal(engine.sellLuxury(lot.id),true);assert.equal(comp(project(engine.g),key),undefined);
+ assert.equal(engine.g.personalCash-cash,Math.ceil(value*.95),'existing liquidation haircut is not changed');
 }
 console.log('PASS P3-11 founder wealth: owner formulas, honest partial totals, snapshot binding, JPY gate, fail-closed input, purity and installed wiring');
