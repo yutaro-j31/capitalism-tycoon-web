@@ -216,3 +216,26 @@ asset-ID conflicts, current/historical/corporate transitions, invalid/getter/fro
 inputs, stale ownership, coverage overlap and actual purchase→corp contribution→
 withdrawal→sale. PR/#909 record executed checks and exact CI; no new native WebKit or
 writer persistence proof is claimed.
+
+
+## General property inventory (partial P3-11 §3)
+
+The separate `properties` collection now contributes gross `value` source marks only
+for unique explicit personal ownership, under `asset:personal-general-property:<ID>`.
+Company holdings are excluded from direct personal wealth; a unique explicit null
+owner is unowned market inventory and is excluded. Missing/unknown owner is unresolved,
+never defaulted to personal. Duplicate owned/unowned/company IDs are grouped before
+exclusion. The general inventory and personal catalog remain distinct families; names
+or coincident IDs alone do not establish a cross-collection alias.
+
+The reader uses no valuation helper and does not substitute book/purchase/sale price.
+Gross source value is not liquidation proceeds or net equity. Mortgage/tax completeness,
+corporate interest and trust remain unknown, preserving null totalNetWorth. The existing
+revision and Equity Value coverage conflict gates apply; writers, settlement/save/RNG
+and wealth/credit/UI consumers are unchanged.
+
+The canonical wealth suite covers account/market separation, duplicate/invalid claims,
+stale ownership/getters, frozen/JSON purity, parent coverage overlap and actual installed
+personal/company purchases followed by sale. The Phase0.5 lexical candidate declaration
+is updated for the additional properties token after source review; exactAuthority is
+unchanged. PR/#909 retain executed checks and exact CI, with no new native WebKit claim.

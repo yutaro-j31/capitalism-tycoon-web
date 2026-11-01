@@ -165,6 +165,24 @@ try {
     const copy = structuredClone(pack); mutate(copy); const zipped = zlib.gzipSync(JSON.stringify(copy));
     assert.throws(() => withArchive(zipped, hash(zipped), archivePin, () => {}));
   }
+  // New fixed checkpoint: replay complete Node22/24 raw evidence without any
+  // workload rerun, using the separately retained source manifest as expectation.
+  const freshPin = 'daa5236d2483a9dbd1b208bb6b84e44d88a39762';
+  const manifest = JSON.parse(fs.readFileSync(path.join(__dirname, '../docs/ci-evidence/k-refresh-source-daa5236d.json')));
+  assert.equal(manifest.sha, freshPin);
+  const fresh = fs.readFileSync(path.join(__dirname, '../docs/ci-evidence/k-current-source-hosted-2026-11-02.json.gz'));
+  const checked = withArchive(fresh, '34cb96d26ea87f471dfc0996d8c1cfab35f234bcd62066fd2c46df8f7b223c8c', freshPin, (reports, roots) => {
+    const result = auditPair(reports, manifest, roots);
+    const streams = reports.map(r => Buffer.from(r.runs[0].outputs.find(o => o.label === 'tests/player-crisis-turnaround-ratchet-week-rollback-test.js').stderrBase64, 'base64'));
+    assert.equal(streams[0].length, 2613); assert.equal(streams[1].length, 2613);
+    assert.deepEqual([...streams[0].keys()].filter(i => streams[0][i] !== streams[1][i]), [1707]);
+    assert.equal(streams[0][1707], 51); assert.equal(streams[1][1707], 52);
+    assert.ok(streams[0].toString().includes('task_queues:103:5'));
+    assert.ok(streams[1].toString().includes('task_queues:104:5'));
+    return result;
+  });
+  assert.equal(checked.status, 'cross-node-output-review-required');
+  assert.equal(checked.differences.length, 1); assert.equal(checked.productionAuthorized, false);
   console.log('K evidence audit: PASS (synthetic controls + archive restoration; not fresh hosted safety evidence)');
 } finally { fs.rmSync(directory, { recursive: true, force: true }); }
 

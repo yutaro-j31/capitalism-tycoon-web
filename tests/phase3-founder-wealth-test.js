@@ -113,6 +113,27 @@ function noReference(value,target,seen=new Set()){
  let reads=0;Object.defineProperty(s.personalRealEstateHoldings[0],'currentValue',{enumerable:true,get(){reads++;throw Error('getter');}});
  assert.equal(project(s).components.length,0);assert.equal(reads,0);
 }
+// General property inventory: personal title only, separate from the personal catalog.
+{
+ const s=fixture();s.properties=[{id:'p',owner:'personal',value:200},{id:'c',owner:'company',value:900},{id:'market',owner:null,value:999}];
+ s.personalRealEstateHoldings=[{assetID:'p',status:'owned',currentValue:300}];
+ const r=project(s),c=comp(r,'asset:personal-general-property:p');assert(c);assert.equal(c.amountJPY,200);
+ assert.equal(comp(r,'asset:personal-property:p').amountJPY,300);assert.equal(r.knownNetWorth,10580);
+ assert.equal(comp(r,'asset:personal-general-property:c'),undefined);assert.equal(comp(r,'asset:personal-general-property:market'),undefined);
+ assert.equal(r.totalNetWorth,null);deq(project(plain(s)),r);frozenDeep(r);
+ const frozen=plain(s);(function lock(x){if(x&&typeof x==='object'){Object.values(x).forEach(lock);Object.freeze(x);}})(frozen);deq(project(frozen),r);
+ const coverage=plain(s);coverage.publicCompany=false;const overlap=project(coverage,{valuations:[{assetKey:'own-company',kind:'equityValue',amount:1000,currency:'JPY',sourceMethod:'test',coveredAssets:['properties']}]});
+ assert.equal(comp(overlap,'asset:own-company').amountJPY,null);assert.equal(comp(overlap,'asset:personal-general-property:p').amountJPY,null);
+ for(const change of [x=>delete x.owner,x=>x.owner='trust',x=>x.value=Infinity,x=>x.ownerAccount='company',x=>delete x.id]){
+  const bad=plain(s);change(bad.properties[0]);assert.equal(project(bad).knownNetWorth,10380);
+ }
+ const duplicate=plain(s);duplicate.properties.push({id:'p',owner:null,value:200});
+ const d=comp(project(duplicate),'asset:personal-general-property:p');assert.equal(d.amountJPY,null);assert.equal(d.sourceRefs.length,2);
+ const b=api.captureFounderWealthEvidence(s);s.properties[0].owner=null;
+ assert(codes(api.projectFounderWealth(s,b.ownershipSnapshot,b.valuationEvidence,b.liabilityEvidence).reasons).includes('STALE_EVIDENCE'));
+ let reads=0;Object.defineProperty(s.properties[0],'value',{enumerable:true,get(){reads++;throw Error('getter');}});
+ assert.equal(project(s).components.length,0);assert.equal(reads,0);
+}
 // Listed formula (contract §7): original 400 + purchased own 100 = 500 × 20; generic own row excluded.
 {
  const s=fixture(),before=JSON.stringify(s),drawsBefore=draws;
@@ -628,5 +649,16 @@ function noReference(value,target,seen=new Set()){
  assert.equal(comp(project(engine.g),key).amountJPY,asset.currentValue);
  assert.equal(JSON.stringify(engine.g),before);assert.equal(draws,n);assert.equal(JSON.stringify([...loaded.ctx.__localStorageData]),storage);
  assert.equal(engine.sellPersonalRealEstate(asset.assetID),true);assert.equal(comp(project(engine.g),key),undefined);
+}
+// Installed general-property buy/sell keeps company and personal accounts separate.
+{
+ const engine=new loaded.engineModule.TycoonEngine();engine.g.personalCash=1e12;engine.g.companyCash=1e12;
+ const [personal,company]=engine.g.properties.filter(x=>x.owner===null);assert(personal&&company);
+ assert.equal(engine.buyProperty(personal.id,'personal'),true);assert.equal(engine.buyProperty(company.id,'company'),true);
+ const key=`asset:personal-general-property:${encodeURIComponent(personal.id)}`,before=JSON.stringify(engine.g),n=draws,storage=JSON.stringify([...loaded.ctx.__localStorageData]);
+ const r=project(engine.g);assert.equal(comp(r,key).amountJPY,personal.value);
+ assert.equal(comp(r,`asset:personal-general-property:${encodeURIComponent(company.id)}`),undefined);
+ assert.equal(JSON.stringify(engine.g),before);assert.equal(draws,n);assert.equal(JSON.stringify([...loaded.ctx.__localStorageData]),storage);
+ assert.equal(engine.sellProperty(personal.id),true);assert.equal(comp(project(engine.g),key),undefined);
 }
 console.log('PASS P3-11 founder wealth: owner formulas, honest partial totals, snapshot binding, JPY gate, fail-closed input, purity and installed wiring');
