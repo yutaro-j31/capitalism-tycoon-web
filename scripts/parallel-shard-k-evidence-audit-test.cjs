@@ -113,3 +113,6 @@ try {
   }
   console.log('K evidence audit: PASS (synthetic controls + archive restoration; not fresh hosted safety evidence)');
 } finally { fs.rmSync(directory, { recursive: true, force: true }); }
+
+// Offline multi-run queue controls share this existing required K contract job.
+require('./parallel-shard-queue-series-test.cjs');
