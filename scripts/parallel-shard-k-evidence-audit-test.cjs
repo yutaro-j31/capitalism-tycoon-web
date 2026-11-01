@@ -50,6 +50,29 @@ try {
   assert.throws(() => expectedFrom(source, sourceSha), /source tracked files must be clean/);
   const a = fixture(22), b = fixture(24);
   assert.equal(auditPair([a.report, b.report], expected, [a.root, b.root]).status, 'evidence-verified');
+  // Performance reporting must use the verified command data without changing it.
+  const profile = structuredClone(a.report);
+  for (const [index, wallMs] of [[2, 30], [4, 30], [1, 20]])
+    Object.assign(profile.runs[0].result.results[index], { wallMs, cpuMs: index, peakRssMb: index + 10 });
+  const originalProfile = structuredClone(profile);
+  const profiled = auditOne(profile, expected, a.root);
+  assert.equal(profiled.rounds[0].sumCommandWallMs, 106);
+  assert.deepEqual(profiled.rounds[0].longestCommands, [2, 4, 1].map(index => ({
+    index, label: commands[index].label, wallMs: index === 1 ? 20 : 30,
+    cpuMs: index, peakRssMb: index + 10
+  })), 'duration descending, canonical index breaks ties');
+  assert.deepEqual(profiled.host, { cpuModel: profile.cpuModel, logicalCpus: 4,
+    physicalMemoryBytes: 16 * 1024 ** 3 });
+  assert.equal(profiled.rounds[0].systemCpuUtilization, 0.5);
+  assert.equal(profiled.rounds[0].runnerCpuSeconds, 1);
+  assert.equal(profiled.rounds[0].cpuSecondsSampled, 0);
+  assert.deepEqual(profile, originalProfile, 'audit/profile leaves raw report unchanged');
+  const pair = auditPair([profile, b.report], expected, [a.root, b.root]);
+  assert.equal(pair.sourceSha, expected.sha);
+  assert.equal(pair.runnerSha256, expected.runnerSha256);
+  assert.deepEqual(pair.nodes[0].host, profiled.host);
+  assert.deepEqual(pair.nodes[0].rounds, profiled.rounds);
+  assert.equal(pair.productionAuthorized, false);
   const cases = [r => r.runs.pop(), r => r.identity.consistent = false, r => r.identity.numbered.pid++,
     r => delete r.identity.self.startTicks, r => r.targetSourceSha = 'wrong', r => r.runnerSha256 = 'wrong', r => r.rescueCleanup = [{ pid: 1 }],
     r => r.contractSummary = r.contractSummary.replace('628', '627'), r => r.runs[0].result.counts.passed--,
