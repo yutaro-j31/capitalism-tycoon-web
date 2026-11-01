@@ -39,6 +39,18 @@ function observe(summary) {
     return { shard, state: row.state, ...metrics,
       completedAt: completed === null ? null : new Date(completed).toISOString() };
   });
+  // Keep workflow admission and canonical shard creation distinct from runner queueing.
+  const firstObservedJobCreation = numberOrNull(
+    summary.runCreationToFirstObservedJobCreationSeconds ?? null,
+    'runCreationToFirstObservedJobCreationSeconds');
+  const aggregateCompletion = numberOrNull(
+    summary.runCreationToAggregateCompletionSeconds ?? null,
+    'runCreationToAggregateCompletionSeconds');
+  const canonicalCreation = shards.map(s => s.runCreationToJobCreationSeconds)
+    .filter(seconds => seconds !== null);
+  const canonicalShardCreationDelaySeconds = { samples: canonicalCreation.length,
+    min: canonicalCreation.length ? Math.min(...canonicalCreation) : null,
+    max: canonicalCreation.length ? Math.max(...canonicalCreation) : null };
   const successes = shards.filter(s => s.state === 'success');
   const rank = key => successes.filter(s => s[key] !== null)
     .sort((a, b) => b[key] - a[key] || a.shard.localeCompare(b.shard))
@@ -50,6 +62,9 @@ function observe(summary) {
   return { runId: summary.runId, headSha: summary.headSha, workflowState: summary.workflowState,
     pendingObservation: summary.pendingObservation, canonicalSuccessObserved: successes.length,
     completeSuccessfulSnapshot, productionParallelismAuthorized: false, runnerQuota: null,
+    runCreationToFirstObservedJobCreationSeconds: firstObservedJobCreation,
+    canonicalShardCreationDelaySeconds,
+    runCreationToAggregateCompletionSeconds: aggregateCompletion,
     topObservedExecution: rank('elapsedSeconds'),
     topObservedJobCreationToStart: rank('jobCreationToStartSeconds'),
     lastObservedSuccessfulShards: latest === null ? null : successes

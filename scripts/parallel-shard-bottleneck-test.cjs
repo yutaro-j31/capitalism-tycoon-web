@@ -14,11 +14,29 @@ patch('H', { jobCreationToStartSeconds: 100, elapsedSeconds: 10, runCreationToSt
 patch('I', { jobCreationToStartSeconds: 5, elapsedSeconds: 110, runCreationToStartSeconds: 15, completed: 125000 });
 patch('K', { jobCreationToStartSeconds: 2, elapsedSeconds: 120, runCreationToStartSeconds: 12, completed: 132000 });
 const summary = { runId: 42, headSha: 'a'.repeat(40), workflowState: 'success',
-  canonicalCoverageComplete: true, pendingObservation: false, rows };
+  canonicalCoverageComplete: true, pendingObservation: false,
+  runCreationToFirstObservedJobCreationSeconds: 0,
+  runCreationToAggregateCompletionSeconds: 2317, rows };
 const copy = structuredClone(summary), full = observe(summary);
 assert.deepEqual(summary, copy, 'read-only');
 assert.equal(full.completeSuccessfulSnapshot, true);
 assert.equal(full.canonicalSuccessObserved, 12);
+assert.equal(full.runCreationToFirstObservedJobCreationSeconds, 0);
+assert.deepEqual(full.canonicalShardCreationDelaySeconds, { samples: 12, min: 10, max: 10 });
+assert.equal(full.runCreationToAggregateCompletionSeconds, 2317);
+const creationSpread = structuredClone(summary);
+creationSpread.rows[0].runCreationToJobCreationSeconds = 5;
+creationSpread.rows[11].runCreationToJobCreationSeconds = 12;
+assert.deepEqual(observe(creationSpread).canonicalShardCreationDelaySeconds,
+  { samples: 12, min: 5, max: 12 }, 'shard admission differs from first observed job');
+const noCreation = structuredClone(summary);
+noCreation.runCreationToFirstObservedJobCreationSeconds = null;
+noCreation.runCreationToAggregateCompletionSeconds = null;
+for (const row of noCreation.rows) row.runCreationToJobCreationSeconds = null;
+assert.deepEqual(observe(noCreation).canonicalShardCreationDelaySeconds,
+  { samples: 0, min: null, max: null });
+assert.equal(observe(noCreation).runCreationToFirstObservedJobCreationSeconds, null);
+assert.equal(observe(noCreation).runCreationToAggregateCompletionSeconds, null);
 assert.deepEqual(full.topObservedExecution.slice(0, 2), [{ shard: 'K', seconds: 120 }, { shard: 'I', seconds: 110 }]);
 assert.deepEqual(full.topObservedJobCreationToStart.slice(0, 2), [{ shard: 'H', seconds: 100 }, { shard: 'A', seconds: 10 }]);
 assert.deepEqual(full.lastObservedSuccessfulShards, ['K']);
@@ -48,6 +66,9 @@ for (const mutate of [
   x => x.rows.push(structuredClone(x.rows[0])),
   x => x.rows[0].elapsedSeconds = -1,
   x => x.rows[0].completed = NaN,
+  x => x.runCreationToFirstObservedJobCreationSeconds = -1,
+  x => x.runCreationToAggregateCompletionSeconds = Infinity,
+  x => x.rows[0].runCreationToJobCreationSeconds = -1,
   x => x.headSha = 'short',
   x => x.rows = null
 ]) { const bad = structuredClone(summary); mutate(bad); assert.throws(() => observe(bad)); }
