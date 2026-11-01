@@ -13,7 +13,22 @@ assert.deepEqual(result.successfulShardCreationToStart, { samples: 12, medianSec
 assert.deepEqual(result.successfulShardElapsed, { samples: 12, medianSeconds: 80 });
 assert.equal(result.jobStates.cancelled, 1); assert.equal(result.jobStates.skipped, 1);
 assert.equal(result.postShardAggregateIntervalSeconds, 40); assert.equal(result.aggregateCreationToStartSeconds, 140);
-assert.deepEqual(result.lastCanonicalSuccessJobs, ['test-shard-L']); assert.equal(result.maximumObservedJobOverlap, 13);
+assert.deepEqual(result.lastCanonicalSuccessJobs, ['test-shard-L']); assert.equal(result.maximumObservedJobOverlap, 12);
+// Non-success terminal timestamps are not evidence of occupied runner intervals.
+// Preserve their diagnostic row timings, and include observed running intervals.
+const mixedOverlapJobs = [
+  make(101, 'success-control', 20, 100),
+  make(102, 'cancelled-control', 20, 100, 'cancelled'),
+  make(103, 'failed-control', 20, 100, 'failure'),
+  make(104, 'neutral-control', 20, 100, 'neutral'),
+  make(105, 'unknown-control', 20, 100, null),
+  { ...make(106, 'running-control', 20, 100), status: 'in_progress', conclusion: null, completed_at: null }
+];
+const mixedOverlap = summarize(run, { total_count: mixedOverlapJobs.length, jobs: mixedOverlapJobs }, time(1100));
+assert.equal(mixedOverlap.maximumObservedJobOverlap, 2);
+assert.equal(mixedOverlap.rows[1].elapsedSeconds, 80, 'terminal diagnostic timing remains available');
+assert.equal(mixedOverlap.pendingObservation, true);
+assert.equal(summarize(run, { total_count: 5, jobs: mixedOverlapJobs.slice(0, -1) }, time(1100)).maximumObservedJobOverlap, 1);
 assert.deepEqual(response, original);
 assert.equal(result.observedJobCreationCount, jobs.length); assert.equal(result.returnedJobCreationCoverageComplete, true);
 assert.equal(result.firstObservedJobCreatedAt, time(10)); assert.equal(result.runCreationToFirstObservedJobCreationSeconds, 10);
