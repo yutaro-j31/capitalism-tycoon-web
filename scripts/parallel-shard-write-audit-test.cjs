@@ -91,3 +91,5 @@ try {
   assert.ok(audited.events.some(e => e.operation === 'fs.writeFileSync' && e.target.endsWith('/missing/out')), 'attempted failed writes are retained');
   console.log('parallel-shard-write-audit: PASS (read-only, writes, callbacks, promises, descriptors, child, TCP/UDP getter parity, output parity)');
 } finally { fs.rmSync(root, { recursive: true, force: true }); }
+
+require('./parallel-shard-h-boundaries-test.cjs');
