@@ -60,6 +60,22 @@ function observe(summary) {
     summary.aggregateState === 'success' && summary.completedRunHasPendingJobs === false &&
     successes.length === 12 && successes.every(s => s.completedAt !== null);
   const latest = completeSuccessfulSnapshot ? Math.max(...successes.map(s => Date.parse(s.completedAt))) : null;
+  // Arithmetic bound for ONE shard only. Other starts/finishes stay fixed;
+  // this never predicts queue redistribution, runner capacity or workflow speedup.
+  const fixedTimingCompletionModel = latest === null ? null : {
+    scope: 'canonical-shard-end-only', measuredSpeedup: false,
+    assumptions: 'one runtime may shrink to zero; every other shard start/finish stays fixed; no queue or aggregate rescheduling',
+    lastCanonicalEndAt: new Date(latest).toISOString(),
+    shards: successes.map(s => {
+      const end = Date.parse(s.completedAt);
+      const otherEnd = Math.max(...successes.filter(other => other.shard !== s.shard)
+        .map(other => Date.parse(other.completedAt)));
+      const finishMargin = Math.max(0, (end - otherEnd) / 1000);
+      return { shard: s.shard, completionSlackSeconds: (latest - end) / 1000,
+        maximumEndReductionSeconds: finishMargin === 0 ? 0 : s.elapsedSeconds === null
+          ? null : Math.min(s.elapsedSeconds, finishMargin) };
+    })
+  };
   return { runId: summary.runId, headSha: summary.headSha, workflowState: summary.workflowState,
     pendingObservation: summary.pendingObservation, canonicalSuccessObserved: successes.length,
     completeSuccessfulSnapshot, productionParallelismAuthorized: false, runnerQuota: null,
@@ -70,6 +86,7 @@ function observe(summary) {
     topObservedJobCreationToStart: rank('jobCreationToStartSeconds'),
     lastObservedSuccessfulShards: latest === null ? null : successes
       .filter(s => Date.parse(s.completedAt) === latest).map(s => s.shard).sort(),
+    fixedTimingCompletionModel,
     focusHIK: shards.filter(s => ['H', 'I', 'K'].includes(s.shard)),
     allShards: shards };
 }
