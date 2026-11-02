@@ -1,0 +1,82 @@
+{
+  "sourceSha": "555ca4042f183ba01aebb4c1df06be094fdf09bb",
+  "commandCount": 8,
+  "enumerationDigest": "0b26dd22cdd1b2e25b2de8b9181952607415b145c271e7d6fa5925af4f0d917e",
+  "commands": [
+    {
+      "index": 0,
+      "label": "test:digital-portfolio-profitability",
+      "command": "npm",
+      "args": [
+        "run",
+        "test:digital-portfolio-profitability",
+        "--silent"
+      ]
+    },
+    {
+      "index": 1,
+      "label": "tests/vc-writeoff-week-save-atomicity-test.js",
+      "command": "node",
+      "args": [
+        "tests/vc-writeoff-week-save-atomicity-test.js"
+      ]
+    },
+    {
+      "index": 2,
+      "label": "tests/subsidiary-relist-save-atomicity-test.js",
+      "command": "node",
+      "args": [
+        "tests/subsidiary-relist-save-atomicity-test.js"
+      ]
+    },
+    {
+      "index": 3,
+      "label": "tests/pe-transfer-save-atomicity-test.js",
+      "command": "node",
+      "args": [
+        "tests/pe-transfer-save-atomicity-test.js"
+      ]
+    },
+    {
+      "index": 4,
+      "label": "tests/competitor-product-counter-reachability-test.js",
+      "command": "node",
+      "args": [
+        "tests/competitor-product-counter-reachability-test.js"
+      ]
+    },
+    {
+      "index": 5,
+      "label": "tests/simulation-long-run-reload-fork-test.js",
+      "command": "node",
+      "args": [
+        "tests/simulation-long-run-reload-fork-test.js"
+      ]
+    },
+    {
+      "index": 6,
+      "label": "tests/exploration-style-test.js",
+      "command": "node",
+      "args": [
+        "tests/exploration-style-test.js"
+      ]
+    },
+    {
+      "index": 7,
+      "label": "tests/industry-event-response-plans-reachability-test.js",
+      "command": "node",
+      "args": [
+        "tests/industry-event-response-plans-reachability-test.js"
+      ]
+    }
+  ],
+  "contractSummary": "canonical-test-shard-summary: shard=I contractOnly=true executed=0 seen=628 total=0.000s",
+  "sharedStateAudit": {},
+  "concurrency": 1,
+  "plannedParallelLevels": [],
+  "runtimeExecuted": false,
+  "outputParity": null,
+  "parallelExecutionQualified": false,
+  "productionAuthorized": false,
+  "runnerSha256": "78428e0273b7a6aabcdd03f4934b755a20da1966c757450ac0c22984f63c0a27"
+}

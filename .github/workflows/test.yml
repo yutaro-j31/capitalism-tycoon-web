@@ -503,7 +503,7 @@ jobs:
 
   parallel-process-diagnostic:
     name: Parallel process diagnostic (Node ${{ matrix.node }})
-    if: github.event_name == 'pull_request' && github.head_ref == 'ci/parallel-shard-process-diagnostic'
+    if: github.event_name == 'pull_request' && (github.head_ref == 'ci/parallel-shard-process-diagnostic' || github.head_ref == 'ci/i-serial-resource-evidence')
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -528,16 +528,37 @@ jobs:
       - name: Existing runner process integrity regression
         run: node tests/parallel-shard-runner-test.js
       - name: Checkout exact E HEAD for full reproduction
+        if: github.head_ref == 'ci/parallel-shard-process-diagnostic'
         uses: actions/checkout@v4
         with:
           ref: 20dcfe71a3fc5e8ad662c8f8497fac1120162ae1
           path: diagnostic-e-source
           persist-credentials: false
       - name: Compare all 33 E commands serial and parallel two
+        if: github.head_ref == 'ci/parallel-shard-process-diagnostic'
         run: >-
           node scripts/parallel-shard-runner-process-diagnostic.js --full-e
           --root diagnostic-e-source --source-sha 20dcfe71a3fc5e8ad662c8f8497fac1120162ae1
           --report artifacts/process-diagnostic/full-e-node-${{ matrix.node }}.json
+      - name: Checkout fixed I source for serial resource evidence
+        if: github.head_ref == 'ci/i-serial-resource-evidence'
+        uses: actions/checkout@v4
+        with:
+          ref: 555ca4042f183ba01aebb4c1df06be094fdf09bb
+          path: diagnostic-i-source
+          persist-credentials: false
+      - name: Validate all 8 I invocation metadata
+        if: github.head_ref == 'ci/i-serial-resource-evidence'
+        run: >-
+          node scripts/parallel-shard-runner-process-diagnostic.js --full-shard I --plan-only
+          --root diagnostic-i-source --source-sha 555ca4042f183ba01aebb4c1df06be094fdf09bb
+          --report artifacts/process-diagnostic/i-plan-node-${{ matrix.node }}.json
+      - name: Profile all 8 I commands serial only with retained bytes
+        if: github.head_ref == 'ci/i-serial-resource-evidence'
+        run: >-
+          node scripts/parallel-shard-runner-process-diagnostic.js --full-shard I --retain-output
+          --root diagnostic-i-source --source-sha 555ca4042f183ba01aebb4c1df06be094fdf09bb
+          --report artifacts/process-diagnostic/full-i-node-${{ matrix.node }}.json
       - name: Retain process evidence
         if: always()
         uses: actions/upload-artifact@v4
