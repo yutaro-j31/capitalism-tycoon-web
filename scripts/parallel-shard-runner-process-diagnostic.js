@@ -20,6 +20,9 @@ if (planOnly && fullShard !== 'I') throw new Error('plan-only is restricted to t
 if (fullShard === 'I' && !planOnly && !process.argv.includes('--retain-output'))
   throw new Error('I serial profile requires byte-exact --retain-output');
 const auditRoot = option('--write-audit-root');
+const memoryCgroupRoot = option('--memory-cgroup-dir');
+if (process.argv.includes('--memory-cgroup-dir') && (!memoryCgroupRoot || memoryCgroupRoot.startsWith('--') || planOnly || process.argv.includes('--self-test')))
+  throw new Error('memory-cgroup-dir requires an explicit directory and an executed diagnostic, not plan-only');
 if (auditRoot && (fullShard !== 'K' || !process.argv.includes('--retain-output')))
   throw new Error('write audit requires full-shard K and byte-exact --retain-output');
 const delay = ms => new Promise(resolve => setTimeout(resolve, ms));
@@ -212,6 +215,7 @@ function selfTest() {
 async function main() {
   selfTest();
   if (process.argv.includes('--self-test')) {
+    await require('./parallel-shard-cgroup-operation-test.cjs').run();
     require('./parallel-shard-memory-snapshot-test.cjs');
     require('./parallel-shard-i-evidence-audit-test.cjs');
     await outputSelfTest();
@@ -260,8 +264,16 @@ async function main() {
       let items = commands.map((c, i) => ({ ...c, index: i }));
       if (audit) items = writeObservation.prepare(items, path.resolve(auditRoot, name));
       const record = { name, trace, result: null, after: [] }; report.runs.push(record);
-      const result = await runner.runCommands(items, { cwd: ROOT, concurrency, ...runnerScheduling, testTimeoutMs: fullShard ? 1500000 : 240000,
+      const execute = () => runner.runCommands(items, { cwd: ROOT, concurrency, ...runnerScheduling, testTimeoutMs: fullShard ? 1500000 : 240000,
         runTimeoutMs: fullShard ? 3000000 : 300000, sampleMs: 100, log: line => console.log(line) });
+      let result;
+      if (memoryCgroupRoot) {
+        const observed = await require('./parallel-shard-cgroup-memory-window.cjs').observeOperation(memoryCgroupRoot, execute);
+        record.cgroupMemoryWindow = observed.observation;
+        save();
+        if (observed.outcome.status === 'rejected') throw observed.outcome.reason;
+        result = observed.outcome.value;
+      } else result = await execute();
       record.result = result;
       if (process.argv.includes('--retain-output')) record.outputs = retainedOutputs(result.results);
       for (const wait of [0, 100, 2000]) {
