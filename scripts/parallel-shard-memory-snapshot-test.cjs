@@ -47,3 +47,4 @@ assert.equal(failed.observations.hostPhysical.bytes, 64 * GiB); // other evidenc
 const live = capture();
 assert.equal(live.node, process.version); assert.equal(live.observations.selfRss.status, 'observed');
 console.log('memory capacity provenance: PASS (point observations only; no workload or memory qualification)');
+require('./parallel-shard-cgroup-memory-test.cjs');
