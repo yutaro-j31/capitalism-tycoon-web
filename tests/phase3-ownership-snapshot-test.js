@@ -75,6 +75,36 @@ const cash=fixture(),cashIndex=api.buildOwnershipIdentityIndex(cash);cash.compan
 assert.equal(api.projectOwnershipSnapshot(cash,cashIndex).wealthComplete,false);
 // No production consumer, transaction or save format is changed by this opt-in reader.
 assert.equal(state.saveVersion,9);
+// VC source scope reuses the common index/token and binds lifecycle/pending capital.
+{
+ const scope='player-listed-and-vc-source-v1',vc=loaded.modules.phase3VCSourceInterests;
+ const raw=fixture();raw.startups=[{id:'S',alive:true,subsidiary:false,ownedCompany:.6,ownedPersonal:.1,
+  activeFundingRound:{id:'R',status:'open',round:'A',openedWeek:5,closesWeek:10,preMoneyValuation:100,targetRaise:20,postMoneyValuation:120,
+   preRoundOwnedCompany:.6,preRoundOwnedPersonal:.1,contributedCompany:5,contributedPersonal:2}}];raw.subsidiaries=[];
+ assert.equal(typeof api.projectVCSourceSnapshot,'function');
+ const before=JSON.stringify(raw),n=draws,handle=api.buildOwnershipIdentityIndex(raw,scope),r=api.projectVCSourceSnapshot(raw,handle);
+ assert.equal(handle.issues.length,0);assert.equal(r.sourceSnapshotToken,handle.sourceSnapshotToken);assert.equal(r.sourceScope,scope);
+ assert.equal(api.projectOwnershipSnapshot(raw,handle).sourceSnapshotToken,handle.sourceSnapshotToken);
+ assert.equal(api.projectExternalListedHoldings(raw,handle).sourceSnapshotToken,handle.sourceSnapshotToken);
+ assert.deepEqual(plain(r.roundObservations),plain(vc.projectVCSourceInterests(raw).roundObservations));
+ assert.equal(r.roundObservations.find(x=>x.account==='personal').reportedContributionJPY,2);
+ assert.equal(r.complete,false);assert.equal(r.commandEligible,false);assert.equal(r.wealthComplete,false);
+ assert.equal(r.roundObservations[0].quantity,null);assert.equal(r.roundObservations[0].wealthValue,null);
+ assert.equal(JSON.stringify(raw),before);assert.equal(draws,n);frozen(r);assert(!Object.isFrozen(raw));
+ assert.deepEqual(plain(api.projectVCSourceSnapshot(plain(raw))),plain(r));
+ for(const change of [x=>x.startups[0].alive=false,x=>x.startups[0].activeFundingRound.contributedPersonal++,x=>x.startups[0].ddNegotiatedOwnedCompany=.1,x=>x.subsidiaries.push({id:'sub',startupID:'S',ownership:.6,status:'active'}),x=>x.currentCompanySerial++]){
+  const x=plain(raw),h=api.buildOwnershipIdentityIndex(x,scope);change(x);
+  const stale=api.projectVCSourceSnapshot(x,h);assert(stale.issues.some(i=>i.code==='STALE_EVIDENCE'));assert.equal(stale.observations.length,0);assert.equal(stale.roundObservations.length,0);
+  assert(api.projectOwnershipSnapshot(x,h).issues.some(i=>i.code==='STALE_EVIDENCE'));
+ }
+ for(const h of [{},api.buildOwnershipIdentityIndex(raw),api.buildOwnershipIdentityIndex(plain(raw),scope)])assert(api.projectVCSourceSnapshot(raw,h).issues.some(i=>i.code==='STALE_EVIDENCE'));
+ const ignored=plain(raw),h=api.buildOwnershipIdentityIndex(ignored,scope);ignored.startups[0].weeklyRevenue=999;
+ assert.equal(api.projectVCSourceSnapshot(ignored,h).sourceSnapshotToken,h.sourceSnapshotToken,'operating data is outside VC source scope');
+ let reads=0;const bad=plain(raw);Object.defineProperty(bad.startups[0],'alive',{enumerable:true,get(){reads++;throw Error('getter');}});
+ assert.equal(api.projectVCSourceSnapshot(bad).observations.length,0);assert.equal(reads,0);
+ const hidden=plain(raw);Object.defineProperty(hidden.startups[0].activeFundingRound,'contributedPersonal',{value:2,enumerable:false});
+ assert(api.projectVCSourceSnapshot(hidden).issues.some(i=>i.code==='INPUT_INVALID'));
+}
 console.log('PASS phase3 ownership snapshot: composition, dedup, generation quarantine, scoped tokens, purity and v9 reload');
 
 // P3-4 partial replacement-boundary evidence: production v9 compaction/import/load and an actual rejected transaction.
