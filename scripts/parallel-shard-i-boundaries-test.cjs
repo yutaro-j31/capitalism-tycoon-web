@@ -37,3 +37,5 @@ try {
   assert.throws(()=>inventory(root,[{...command,command:'node',args:['tests/escape.js']}]),/inside root/);
   console.log('I source boundaries: PASS (lexical metadata only; no workload or parallel safety qualification)');
 } finally { fs.rmSync(root,{recursive:true,force:true}); }
+
+require('./parallel-shard-index-inputs-test.cjs');
