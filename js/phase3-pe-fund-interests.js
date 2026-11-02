@@ -259,6 +259,59 @@
       .sort((a,b)=>textOrder(a.path,b.path)||textOrder(a.code,b.code));
     return freeze(out);
   }
-  if(typeof module==='object'&&module.exports)module.exports={projectPEFundInterests,projectLPCommitments,projectFundValuationEvidence};
-  else if(root){const registry=root.__capitalismTycoonModules;if(!registry)throw new Error('runtime.js must precede phase3-pe-fund-interests.js');if(registry.phase3PeFundInterests)throw new Error('PE fund interests already registered');registry.phase3PeFundInterests=Object.freeze({projectPEFundInterests,projectLPCommitments,projectFundValuationEvidence});}
+  // Reciprocal legacy conversion metadata only. No canonical issuer, asset or rights adoption.
+  function projectFundParentConversions(rawState){
+    const out={authority:'read-only',adapterVersion:1,complete:false,commandEligible:false,conversions:[],issues:[]},errors=out.issues;
+    const finish=()=>{out.conversions.sort((a,b)=>textOrder(a.fundId||'',b.fundId||'')||textOrder(a.dealId||'',b.dealId||'')||textOrder(a.sourcePath,b.sourcePath));errors.sort((a,b)=>textOrder(a.path,b.path)||textOrder(a.code,b.code));return freeze(out);};
+    if(!plain(rawState)){errors.push(issue('INPUT_INVALID','$'));return finish();}
+    const firm=safeField(rawState,'peFirm','$',errors),subsField=safeField(rawState,'subsidiaries','$',errors);
+    if(!firm.ok||!subsField.ok)return finish();
+    const funds=firm.present?inspectArray(read(firm.value,'funds','peFirm',errors),'peFirm.funds',errors,20):[];
+    const subs=subsField.present?inspectArray(subsField.value,'subsidiaries',errors,1000):[];
+    if(!funds||!subs)return finish();
+    const fundIds=funds.map((f,i)=>requireId(f,'id',`peFirm.funds[${i}]`,errors));
+    const fundCounts=unique(fundIds.map(id=>({id})),r=>r.id,errors,'peFirm.funds');
+    const targets=subs.map((sub,i)=>{
+      const path=`subsidiaries[${i}]`,start=errors.length,fields={};
+      for(const key of ['id','status','source','sourceType','sourcePEFundID','sourcePEDealID'])fields[key]=read(sub,key,path,errors);
+      const competing=['startupID','peDealID','internalVentureID','sourceCompetitorID','acquisitionDealID','restructuredFrom','restructuredWeek'].some(key=>plain(sub)&&has.call(sub,key));
+      return {...fields,path,valid:errors.length===start&&!competing};
+    });
+    const subCounts=unique(targets,r=>validId(r.id)?r.id:null,errors,'subsidiaries');
+    const referenced=new Set(),forwardCounts=new Map();
+    const sources=funds.map((fund,i)=>{
+      const fundPath=`peFirm.funds[${i}]`,fundId=fundIds[i],fundStatus=read(fund,'status',fundPath,errors);
+      const deals=inspectArray(read(fund,'deals',fundPath,errors),`${fundPath}.deals`,errors,500)||[];
+      const dealIds=deals.map((d,j)=>requireId(d,'id',`${fundPath}.deals[${j}]`,errors));
+      const dealCounts=unique(dealIds.map(id=>({id})),r=>r.id,errors,`${fundPath}.deals`);
+      const fields=deals.map((d,j)=>safeField(d,'convertedToSubsidiaryID',`${fundPath}.deals[${j}]`,errors));
+      for(const f of fields)if(f.ok&&validId(f.value))forwardCounts.set(f.value,(forwardCounts.get(f.value)||0)+1);
+      return {fundPath,fundId,fundStatus,deals,dealIds,dealCounts,fields};
+    });
+    for(const {fundPath,fundId,fundStatus,deals,dealIds,dealCounts,fields} of sources){
+      for(let j=0;j<deals.length;j++){
+        const path=`${fundPath}.deals[${j}]`,dealId=dealIds[j],start=errors.length;
+        const field=fields[j];
+        const claims=targets.filter(t=>validId(fundId)&&validId(dealId)&&t.sourcePEFundID===fundId&&t.sourcePEDealID===dealId);
+        claims.forEach(t=>referenced.add(t.path));
+        if(!field.present&&!claims.length)continue;
+        const status=read(deals[j],'status',path,errors),method=read(deals[j],'exitMethod',path,errors);
+        const target=claims.length===1?claims[0]:null,subId=field.ok&&validId(field.value)?field.value:null;
+        const targetIdClaims=targets.filter(t=>subId!==null&&t.id===subId);
+        const supported=errors.length===start&&field.ok&&subId!==null&&fundId!==null&&fundCounts.get(fundId)===1&&
+          ['investing','harvesting','closed'].includes(fundStatus)&&dealId!==null&&dealCounts.get(dealId)===1&&
+          status==='exited'&&method==='parent-company-acquisition'&&target&&target.valid&&target.id===subId&&
+          subCounts.get(subId)===1&&forwardCounts.get(subId)===1&&targetIdClaims.length===1&&target.status==='active'&&
+          target.source==='pe-fund-portfolio'&&target.sourceType==='peFundPortfolioAcquisition';
+        const reasons=supported?[]:[issue('CONVERSION_UNPROVEN',path)];if(!supported)errors.push(...reasons);
+        out.conversions.push({fundId,dealId,sourcePath:path,subsidiarySourceId:subId,status:supported?'source-observed':'unresolved',
+          assetRole:'lifecycle-source-link',fundHoldingCurrent:supported?false:null,legalEquityFraction:null,votingFraction:null,wealthValue:null,
+          sourceRefs:[{path},...claims.map(t=>({path:t.path}))],reasons});
+      }
+    }
+    for(const target of targets)if((target.sourcePEFundID!==undefined||target.sourcePEDealID!==undefined)&&!referenced.has(target.path))errors.push(issue('CONVERSION_SOURCE_UNKNOWN',target.path));
+    return finish();
+  }
+  if(typeof module==='object'&&module.exports)module.exports={projectPEFundInterests,projectLPCommitments,projectFundValuationEvidence,projectFundParentConversions};
+  else if(root){const registry=root.__capitalismTycoonModules;if(!registry)throw new Error('runtime.js must precede phase3-pe-fund-interests.js');if(registry.phase3PeFundInterests)throw new Error('PE fund interests already registered');registry.phase3PeFundInterests=Object.freeze({projectPEFundInterests,projectLPCommitments,projectFundValuationEvidence,projectFundParentConversions});}
 })(typeof globalThis==='object'?globalThis:null);

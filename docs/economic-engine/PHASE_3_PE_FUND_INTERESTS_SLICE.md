@@ -62,3 +62,31 @@ has no live consumer or economic writer/save/RNG/browser path and does not imple
 an approved NAV/carry valuation policy. Existing canonical fund tests cover the new
 API, JSON/frozen replay, account separation, invalid sources, lifecycle and installed
 fund creation. Exact executed checks and CI are recorded in the PR/#909.
+
+
+## Parent-company conversion source links (partial P3-7 §7/§12)
+
+`projectFundParentConversions(rawState)` observes the installed
+`pePortfolioOperations.acquirePortfolioCompanyByParent` metadata without calling its
+preview, normalizers or settlement. A source-observed lifecycle link requires unique
+fund/deal identities within fund scope, supported fund lifecycle, an exited deal with
+parent-company-acquisition exitMethod and convertedToSubsidiaryID, and one active target
+whose ID and reciprocal sourcePEFundID/sourcePEDealID plus source/type markers match.
+Duplicate identities, competing family aliases, missing/stale/one-sided links and orphan
+targets produce explicit unresolved evidence. Names, array indices and matching deal
+labels across fund scopes do not establish a link.
+
+A link is `lifecycle-source-link`, never an additional asset, canonical issuer/security
+or adopted ownership edge. It can observe that the fund source holding is historical;
+it cannot infer legal equity, votes, beneficial identity or wealth. Those fields stay
+null, complete/commandEligible stay false, and the shared ownership merger/authority is
+unchanged. An orphan is not repaired from history or a guessed ID. The reader accepts
+bounded dense own-data collections, never invokes selected getters, returns detached
+frozen output and does not mutate source/save/RNG or cash/accounting consumers.
+
+The existing fund-interest suite covers valid reciprocal IDs, cross-fund labels,
+duplicates, lifecycle/missing/conflicting claims, hidden/accessor fields, frozen and
+JSON parity. The installed parent-company acquisition suite additionally observes a
+real successful conversion and asserts no reader mutation or RNG draw. These source
+link checks do not replace writer rollback/native-IDB/family-closure evidence. Exact
+executed results and final-HEAD CI are recorded in the PR/handoff.
