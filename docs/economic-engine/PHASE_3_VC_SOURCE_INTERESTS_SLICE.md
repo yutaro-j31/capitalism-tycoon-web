@@ -118,3 +118,28 @@ arrays, conflict/duplicate quarantine, replacement-root and stale-alias rejectio
 JSON/frozen output and source/RNG purity. This source integration does not certify full
 P3-6/P3-8 canonical alias arbitration or writer-family closure. PR/handoff hold the actual
 checks and final-HEAD CI results.
+
+
+## IPO lifecycle source links
+
+The partial P3-8 observer now returns `conversionLinks` when a uniquely identified
+startup has a valid `ipoStockID`, is no longer alive, is not a subsidiary, and both raw
+company/personal startup fractions are zero. The row connects the historical startup
+source to the reported listed alias as a `lifecycle-source-link`; it does not reconcile
+or create a listed lot. Retained positive startup fractions keep the link unresolved
+with `CONVERSION_CONFLICT` instead of representing both sources as current interests.
+A residual subsidiary mirror also leaves the link unresolved with `ALIAS_CONFLICT`;
+the reader never certifies an IPO lifecycle while its own alias evidence contradicts it.
+
+Every supported link keeps listed-lot status unverified and share-class status unproven.
+Issuer/class/ownership identity, quantity, voting fraction and wealth value remain null.
+`LISTED_LOT_UNVERIFIED` is retained on the row so callers cannot mistake the source link
+for P3-5 lot reconciliation or conversion-precision evidence. No market/personal/company
+stock collection is read, and no canonical position, replacement edge or authority is
+created by this slice.
+
+Focused coverage includes valid zeroed IPO history, retained-fraction conflict, frozen
+JSON replay and the installed funding-close/IPO writer path. Save, settlement, cash,
+ledger, RNG, UI and browser persistence paths are unchanged; no new native WebKit claim
+is made. Full IPO lot/class reconciliation, floor residuals and common-snapshot consumer
+adoption remain separate P3-8 work.
