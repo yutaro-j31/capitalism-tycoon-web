@@ -111,6 +111,35 @@ assert.equal(state.saveVersion,9);
  const hidden=plain(raw);Object.defineProperty(hidden.peFirm.funds[0].terms,'carry',{value:.2,enumerable:false});
  assert(api.projectPEFundSourceSnapshot(hidden).issues.some(i=>i.code==='INPUT_INVALID'));
 }
+// Parent-company conversion source links share the PE-fund token only when the
+// fund deal and subsidiary metadata are reciprocal and unambiguous.
+{
+ const scope='player-listed-and-pe-fund-source-v1',pe=require('../js/phase3-pe-fund-interests'),raw=fixture();
+ raw.peFirm={funds:[{id:'F',size:100,gpCommit:10,lpContributed:90,status:'harvesting',cash:50,
+  terms:{fee:.02,carry:.2,hurdle:.08},deals:[{id:'D',status:'exited',settlement:{week:8},fundPortion:60,coinvestPortion:40,
+   investedAmount:100,convertedToSubsidiaryID:'SUB',exitMethod:'parent-company-acquisition'}]}]};
+ raw.subsidiaries=[{id:'SUB',status:'active',source:'pe-fund-portfolio',sourceType:'peFundPortfolioAcquisition',sourcePEFundID:'F',sourcePEDealID:'D',ownership:.6}];
+ const before=JSON.stringify(raw),n=draws,index=api.buildOwnershipIdentityIndex(raw,scope),r=api.projectPEFundSourceSnapshot(raw,index);
+ const direct=pe.projectFundParentConversions(raw),snapshot=api.projectOwnershipSnapshot(raw,index),narrow=api.projectOwnershipSnapshot(raw);
+ assert.equal(r.sourceSnapshotToken,index.sourceSnapshotToken);assert.deepEqual(plain(r.parentConversions),plain(direct.conversions));
+ assert.equal(r.parentConversions.length,1);assert.equal(r.parentConversions[0].status,'source-observed');
+ for(const key of ['legalEquityFraction','votingFraction','wealthValue'])assert.equal(r.parentConversions[0][key],null);
+ assert.deepEqual(plain(snapshot.peFundSourceEvidence.parentConversions),plain(r.parentConversions));
+ for(const key of ['positions','classes','sourceReplacements'])assert.deepEqual(plain(snapshot[key]),plain(narrow[key]));
+ assert.equal(JSON.stringify(raw),before);assert.equal(draws,n);frozen(snapshot);assert(!Object.isFrozen(raw));
+ for(const change of [x=>x.peFirm.funds[0].deals[0].convertedToSubsidiaryID='OTHER',x=>x.peFirm.funds[0].deals[0].exitMethod='sale',
+  x=>x.subsidiaries[0].sourcePEDealID='OTHER',x=>x.subsidiaries[0].sourceType='other',x=>x.subsidiaries[0].startupID='VC']){
+  const x=plain(raw),h=api.buildOwnershipIdentityIndex(x,scope);change(x);
+  const stale=api.projectPEFundSourceSnapshot(x,h);assert(stale.issues.some(i=>i.code==='STALE_EVIDENCE'));assert.equal(stale.parentConversions.length,0);
+ }
+ const presentation=plain(raw),presentationHandle=api.buildOwnershipIdentityIndex(presentation,scope);presentation.subsidiaries[0].ownership=.1;
+ assert.equal(api.projectPEFundSourceSnapshot(presentation,presentationHandle).sourceSnapshotToken,presentationHandle.sourceSnapshotToken,'ownership is outside source-link scope');
+ const competing=plain(raw);competing.subsidiaries[0].startupID='VC';
+ const unresolved=api.projectOwnershipSnapshot(competing,api.buildOwnershipIdentityIndex(competing,scope));
+ assert.equal(unresolved.peFundSourceEvidence.parentConversions[0].status,'unresolved');
+ assert(unresolved.issues.some(i=>i.code==='CONVERSION_UNPROVEN'));
+ assert.deepEqual(plain(unresolved.positions),plain(api.projectOwnershipSnapshot(competing).positions),'unproven lifecycle link cannot mint positions');
+}
 // Compose PE fund source evidence into the explicit-scope snapshot without
 // minting canonical positions, classes, replacements, NAV or wealth.
 {
