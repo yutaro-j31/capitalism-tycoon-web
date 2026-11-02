@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 'use strict';
 
-// Branch-only C/E/K diagnosis. Does not enable a canonical shard.
+// Branch-only C/E/I/K diagnosis. Does not enable a canonical shard.
 // Refuses to run/kill process groups when Node PIDs and procfs use different namespaces.
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
@@ -14,7 +14,11 @@ const writeObservation = require('./parallel-shard-write-observation.cjs');
 const option = name => { const i = process.argv.indexOf(name); return i < 0 ? null : process.argv[i + 1]; };
 const ROOT = option('--root') ? path.resolve(option('--root')) : path.resolve(__dirname, '..');
 const fullShard = process.argv.includes('--full-e') ? 'E' : option('--full-shard');
-if (fullShard && !['C', 'E', 'K'].includes(fullShard)) throw new Error('full-shard diagnosis supports C, E or K only');
+if (fullShard && !['C', 'E', 'I', 'K'].includes(fullShard)) throw new Error('full-shard diagnosis supports C, E, I or K only');
+const planOnly = process.argv.includes('--plan-only');
+if (planOnly && fullShard !== 'I') throw new Error('plan-only is restricted to the I serial profile');
+if (fullShard === 'I' && !planOnly && !process.argv.includes('--retain-output'))
+  throw new Error('I serial profile requires byte-exact --retain-output');
 const auditRoot = option('--write-audit-root');
 if (auditRoot && (fullShard !== 'K' || !process.argv.includes('--retain-output')))
   throw new Error('write audit requires full-shard K and byte-exact --retain-output');
@@ -83,7 +87,34 @@ function assertMemory(peakMiB, physicalBytes) {
   assert.ok(Number.isFinite(physicalBytes) && physicalBytes > 0, 'physical memory must be present');
   assert.ok(peakMiB * 1048576 <= physicalBytes / 2, 'diagnostic peak in-use system memory must not exceed 50%');
 }
-function parallelLevels(shard) { return shard === 'K' ? [2, 4] : [2]; }
+function parallelLevels(shard) { return shard === 'I' ? [] : shard === 'K' ? [2, 4] : [2]; }
+function iPlan(root, pin) {
+  assert.match(pin || '', /^[a-f0-9]{40}$/, 'I full source SHA required');
+  assert.equal(cp.execFileSync('git', ['rev-parse', 'HEAD'], { cwd: root, encoding: 'utf8' }).trim(), pin);
+  assert.equal(cp.execFileSync('git', ['status', '--porcelain', '--untracked-files=no'], { cwd: root, encoding: 'utf8' }).trim(), '', 'I tracked source must be clean');
+  assert.equal(fs.readFileSync(path.join(root, 'scripts/parallel-shard-runner.js'), 'utf8'),
+    fs.readFileSync(path.join(__dirname, 'parallel-shard-runner.js'), 'utf8'), 'I target/diagnostic runner source must match');
+  const commands = runner.enumerateShard('I', { root });
+  assert.equal(commands.length, 8, 'full I8 command contract');
+  const contract = cp.spawnSync(process.execPath, ['tests/run-all-shard.js'], { cwd: root, encoding: 'utf8',
+    env: { ...process.env, TEST_SHARD: 'I', TEST_SHARD_CONTRACT: '1' }, maxBuffer: 64 * 1024 * 1024 });
+  assert.equal(contract.status, 0, contract.stderr);
+  const summary = contractSummary('I', contract.stdout); assert.ok(summary, 'I metadata-only execution contract');
+  return { sourceSha: pin, commandCount: commands.length, enumerationDigest: runner.digestOf(commands),
+    commands, contractSummary: summary, sharedStateAudit: runner.scanSharedState(commands, { root }),
+    concurrency: 1, plannedParallelLevels: [], runtimeExecuted: false, outputParity: null,
+    parallelExecutionQualified: false, productionAuthorized: false };
+}
+function iSummary(reference) {
+  assert.equal(reference.ok, true); assert.equal(reference.concurrency, 1);
+  assert.deepEqual(reference.counts, { enumerated: 8, passed: 8, failed: 0, aborted: 0, notStarted: 0 });
+  assert.equal(reference.results.length, 8);
+  return { commandCount: 8, sampleMs: 100, wallMs: reference.wallMs,
+    sampledPeakSystemMemInUseMb: reference.peakSystemMemInUseMb,
+    longestCommands: [...reference.results].sort((a, b) => b.wallMs - a.wallMs).slice(0, 3)
+      .map(r => ({ label: r.label, wallMs: r.wallMs, sampledPeakGroupRssMb: r.peakRssMb, sampledCpuMs: r.cpuMs })),
+    outputParity: null, parallelExecutionQualified: false, productionAuthorized: false };
+}
 function assertCNamespace(value) {
   assert.equal(value.consistent, true, 'C namespace identity must be qualified');
   assert.match(value.selfPidNamespace, /^pid:\[\d+\]$/);
@@ -108,6 +139,16 @@ async function outputSelfTest() {
   assert.deepEqual([...Buffer.from(retained[0].stdoutBase64, 'base64')], binary);
   assert.equal(Buffer.from(retained[0].stderrBase64, 'base64').toString(), 'expected stderr');
   assert.equal(JSON.stringify(actual), before, 'capture must not mutate runner status or flags');
+  for (const args of [['--full-shard', 'I'], ['--full-shard', 'K', '--plan-only'],
+    ['--full-shard', 'I', '--retain-output', '--write-audit-root', '/unused']]) {
+    const rejected = cp.spawnSync(process.execPath, [__filename, ...args], { encoding: 'utf8' });
+    assert.notEqual(rejected.status, 0, 'invalid I/plan/write-audit combinations fail before workloads');
+  }
+  const iControls = await runner.runCommands(Array.from({ length: 8 }, (_, index) => ({ index,
+    label: `i-profile-control-${index}`, command: process.execPath, args: ['-e', 'process.stdout.write("control")'] })),
+    { concurrency: 1, testTimeoutMs: 10000, runTimeoutMs: 15000 });
+  assert.equal(iSummary(iControls).commandCount, 8, 'I summary consumes real serial runner result shape');
+  assert.equal(iSummary(iControls).outputParity, null, 'serial-only controls do not claim parity');
   const changedCapture = { ...actual.results[0], stdout: Buffer.from('changed'), stderr: actual.results[0].stderr };
   assert.throws(() => retainedOutputs([changedCapture]), /capture length/);
   changedCapture.stdout = Buffer.from([1, ...binary.slice(1)]);
@@ -131,6 +172,17 @@ function selfTest() {
   assert.deepEqual(parallelLevels('C'), [2], 'C never diagnoses parallel four');
   assert.deepEqual(parallelLevels('E'), [2]);
   assert.deepEqual(parallelLevels('K'), [2, 4]);
+  assert.deepEqual(parallelLevels('I'), [], 'I profile must never launch parallel levels');
+  const iReference = { ok: true, concurrency: 1, wallMs: 100, peakSystemMemInUseMb: 20,
+    counts: { enumerated: 8, passed: 8, failed: 0, aborted: 0, notStarted: 0 },
+    results: Array.from({ length: 8 }, (_, i) => ({ label: `i-${i}`, wallMs: i + 1, peakRssMb: i, cpuMs: i * 2 })) };
+  const iOriginal = structuredClone(iReference), observed = iSummary(iReference);
+  assert.deepEqual(iReference, iOriginal);
+  assert.deepEqual(observed.longestCommands.map(c => c.label), ['i-7', 'i-6', 'i-5']);
+  assert.equal(observed.outputParity, null); assert.equal(observed.parallelExecutionQualified, false);
+  for (const change of [r => r.ok = false, r => r.concurrency = 2, r => r.counts.failed++, r => r.results.pop()]) {
+    const bad = structuredClone(iReference); change(bad); assert.throws(() => iSummary(bad));
+  }
   const qualified = { consistent: true, selfPidNamespace: 'pid:[1]', numberedPidNamespace: 'pid:[1]' };
   assertCNamespace(qualified);
   for (const change of [{ consistent: false }, { selfPidNamespace: null }, { numberedPidNamespace: 'pid:[2]' }])
@@ -175,6 +227,10 @@ async function main() {
   const save = () => { fs.mkdirSync(path.dirname(output), { recursive: true }); fs.writeFileSync(output, JSON.stringify(report, null, 2) + '\n'); };
   const knownGroups = new Set();
   try {
+    if (planOnly) {
+      report.mode = 'i-plan-only'; report.iSerialPlan = iPlan(ROOT, option('--source-sha'));
+      report.planValidated = true; report.ok = null; save(); return;
+    }
     assert.equal(report.platform, 'linux', 'this diagnostic requires Linux procfs');
     assert.equal(report.identity.consistent, true,
       'Node PID and /proc PID do not match: residue/RSS evidence is unqualified; no test groups launched');
@@ -230,7 +286,7 @@ async function main() {
         assert.equal(trace.length, commands.length, 'C traced command coverage');
         assertCFinalGroups(final.groups, commands.length);
       }
-      if (['C', 'K'].includes(fullShard)) assertMemory(result.peakSystemMemInUseMb, report.physicalMemoryBytes);
+      if (['C', 'I', 'K'].includes(fullShard)) assertMemory(result.peakSystemMemInUseMb, report.physicalMemoryBytes);
       for (let i = 0; i < expected.length; i++) assert.equal(result.results[i].leftoverProcesses, expected[i], `${name}: residue flag for ${items[i].label}`);
       if (audit) {
         record.writeObservation = writeObservation.collect(items, trace);
@@ -248,7 +304,11 @@ async function main() {
         assert.equal(fs.readFileSync(path.join(ROOT, 'scripts/parallel-shard-runner.js'), 'utf8'),
           fs.readFileSync(path.join(__dirname, 'parallel-shard-runner.js'), 'utf8'), 'target and diagnostic use identical runner source');
         const commands = runner.enumerateShard(fullShard, { root: ROOT });
-        const count = { C: 25, E: 33, K: 29 }[fullShard];
+        const count = { C: 25, E: 33, I: 8, K: 29 }[fullShard];
+        if (fullShard === 'I') {
+          report.iSerialPlan = iPlan(ROOT, option('--source-sha'));
+          report.mode = 'i-serial-only';
+        }
         if (fullShard === 'C') assert.equal(cp.execFileSync('git', ['status', '--porcelain', '--untracked-files=no'], { cwd: ROOT, encoding: 'utf8' }).trim(), '', 'C pinned tracked source must be clean');
         assert.equal(commands.length, count, `all ${count} ${fullShard} commands`);
         if (fullShard === 'K') {
@@ -279,7 +339,15 @@ async function main() {
           assert.equal(cp.execFileSync('git', ['status', '--porcelain', '--untracked-files=no'], { cwd: ROOT, encoding: 'utf8' }).trim(), '', 'C tracked source remains clean');
           report.trackedSourceCleanAfter = true;
         }
-        report.outputParity = true; report.ok = true;
+        if (fullShard === 'I') {
+          assert.equal(trace.length, count, 'I traced command coverage');
+          for (const group of report.runs[0].after.at(-1).groups) assert.deepEqual(group.members, [], 'I final groups including zombies must be empty');
+          assert.equal(cp.execFileSync('git', ['status', '--porcelain', '--untracked-files=no'], { cwd: ROOT, encoding: 'utf8' }).trim(), '', 'I tracked source remains clean');
+          assert.equal(cp.execFileSync('git', ['rev-parse', 'HEAD'], { cwd: ROOT, encoding: 'utf8' }).trim(), report.targetSourceSha, 'I source HEAD remains pinned');
+          report.iSerialSummary = iSummary(reference);
+          report.trackedSourceCleanAfter = true;
+        }
+        report.outputParity = fullShard === 'I' ? null : true; report.ok = true;
         return;
       }
       const forever = 'setInterval(()=>{},1000)';
