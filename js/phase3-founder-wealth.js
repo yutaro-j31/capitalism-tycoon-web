@@ -223,6 +223,9 @@ function captureFounderWealthEvidence(rawState,externalEvidence){
  });
  // P3-7 GP fund capital evidence: a contribution ratio is not NAV, carry or title to fund assets.
  const pe=peFundInterests.projectPEFundInterests(view);
+ const fundValuation=peFundInterests.projectFundValuationEvidence(view);
+ ownership.peFundSourceEvidence={fundInterests:pe.fundInterests,waterfallTerms:pe.waterfallTerms,
+  valuationFunds:fundValuation.funds,valuationIssues:fundValuation.issues};
  for(const row of pe.fundInterests){
   if(row.current===false&&row.status==='observed'){ownership.exclusions.push({sourcePath:row.sourcePath,basis:'historical',includedBy:null});continue;}
   ownership.peSources.push(ref(row.sourcePath,row.fundId,'pe-fund'));
@@ -520,7 +523,11 @@ function projectFounderWealth(rawState,ownershipSnapshot,valuationEvidence,liabi
   reasons:[...(row.code?[reason(row.code,row.sourcePath,'Startup source evidence is unresolved.')]:[]),reason('VALUATION_INCOMPLETE',row.sourcePath,'Personal startup interests have no approved valuation basis (preferred terms, pending rounds).')]}));
  for(const row of ownership.angel)result.components.push(component(`asset:angel:${row.sourcePath}`,'asset',{sourceRefs:[ref(row.sourcePath,row.durableId,'angel')],includesKeys:[row.sourcePath],
   reasons:[reason('VALUATION_INCOMPLETE',row.sourcePath,'Legacy angel investments are a separate unresolved personal claim without an approved valuation basis.')]}));
+ const fundEvidence=ownership.peFundSourceEvidence;
  result.components.push(component('asset:pe-interests','asset',{sourceRefs:ownership.peSources.map(r=>({...r})),includesKeys:ownership.peSources.map(r=>r.path),
+  sourceEvidence:{fundInterests:fundEvidence.fundInterests.map(row=>({...row})),waterfallTerms:fundEvidence.waterfallTerms.map(row=>({...row})),
+   valuationFunds:fundEvidence.valuationFunds.map(row=>({...row,reasons:copied(row.reasons),
+    heldAssetInputs:row.heldAssetInputs.map(asset=>({...asset,reasons:copied(asset.reasons)}))})),valuationIssues:copied(fundEvidence.valuationIssues)},
   reasons:[...ownership.peDirectIssues.map(row=>reason(row.code,row.path,'Direct PE ownership/alias evidence is unresolved.')),
    ...ownership.peCodes.map(code=>reason(code,'peFirm.funds','PE fund-interest source evidence is unresolved.')),
    reason('VALUATION_INCOMPLETE','peDeals','Unresolved direct PE stakes and GP fund interests remain unvalued; fund NAV, liabilities and waterfall/carry (OD-05) are not established.')]}));
