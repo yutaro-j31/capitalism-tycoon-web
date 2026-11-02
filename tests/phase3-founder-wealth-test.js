@@ -550,6 +550,11 @@ function noReference(value,target,seen=new Set()){
  assert.equal(pendingComponent.sourceEvidence.rounds[0].paymentStatus,'unverified');
  assert.equal(pendingComponent.sourceEvidence.rounds[0].wealthValue,null);
  assert(codes(pendingComponent.reasons).includes('PENDING_ROUND_UNVERIFIED'));
+ const duplicate=plain(pending);duplicate.startups.push({...plain(duplicate.startups[0]),activeFundingRound:null});
+ const duplicateResult=project(duplicate);
+ assert.equal(comp(duplicateResult,'asset:vc-personal:startups[0].ownedPersonal').sourceEvidence.rounds.length,1);
+ assert.equal(comp(duplicateResult,'asset:vc-personal:startups[1].ownedPersonal').sourceEvidence.rounds.length,0,
+  'duplicate startup IDs must not cross-attach another source row round');
  // P4-AUD-004: only accountingTracked specialist loans are inside personalDebt; others stay unknown.
  const t=plain(s);t.realEstateMarket={loans:[{id:'M1',owner:'personal',status:'defaulted',accountingTracked:true},{id:'M2',owner:'personal',status:'active'},{id:'M3',owner:'personal',status:'paid'}]};
  const tr=project(t);

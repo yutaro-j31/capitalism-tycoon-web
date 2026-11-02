@@ -204,7 +204,8 @@ function captureFounderWealthEvidence(rawState,externalEvidence){
   if(row.assetRole==='historical'){ownership.exclusions.push({sourcePath:row.sourcePath,basis:'historical',includedBy:null});continue;}
   if(row.assetRole==='no-interest')continue;
   ownership.vc.push({sourcePath:row.sourcePath,startupSourceId:row.startupSourceId,status:row.status,economicFraction:row.economicFraction,code:vcIssues.get(row.sourcePath)||null,
-   roundEvidence:vc.roundObservations.filter(evidence=>evidence.startupSourceId===row.startupSourceId&&evidence.account==='personal').map(evidence=>({...evidence,reasons:evidence.reasons.map(item=>({...item}))}))});
+   roundEvidence:vc.roundObservations.filter(evidence=>evidence.startupSourceId===row.startupSourceId&&evidence.account==='personal'
+    &&evidence.sourcePath===row.sourcePath.slice(0,row.sourcePath.lastIndexOf('.'))+'.activeFundingRound').map(evidence=>({...evidence,reasons:evidence.reasons.map(item=>({...item}))}))});
  }
  if(vc.issues.some(row=>row.path==='$'))ownership.issues.push(reason('INPUT_INVALID','vc','Startup source evidence could not be read.'));
  // Reuse P3-7 legal-account/identity/alias checks; quantity and voting rights remain unknown.
