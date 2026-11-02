@@ -263,3 +263,23 @@ RNG, legacy net-worth/credit/UI consumers remain unchanged. Canonical tests cove
 source/non-personal cash separation, absent/invalid/frozen/getter sources, stale corporate
 cash, and installed establishment/property contribution. PR/#909 retain actual checks
 and exact CI; no new native WebKit/persistence route is claimed.
+
+
+## Family-trust source evidence (partial P3-11 §18 / OD-05)
+
+`asset:family-trust` replaces the generic unadapted-family placeholder with explicit,
+revision-bound source metadata: establishment flag, finite non-negative reported cash
+and non-negative safe-integer reported share count. Missing/invalid amounts remain null;
+selected getters and hidden descriptors fail closed without invocation. An establishment
+flag is only source status, not legal or beneficial ownership evidence.
+
+No trust issuer, founder beneficiary/fraction, share rights, liability coverage or NAV is
+inferred. Beneficial owner, security ID, beneficial fraction, NAV and component amount
+remain null. Trust cash is never added to personal cash or knownNetWorth, and the share
+count never expands founder-company shares. OD-05 remains open. Existing wealth/credit,
+trust writers, save, RNG and UI are unchanged. Total net worth remains incomplete.
+
+The canonical wealth suite covers source/JSON purity, frozen output, missing/invalid
+balances, hidden/accessor rejection, same-week stale fields and installed establishment/
+transfer (personal cash decreases while the trust source balance increases). Exact test
+and CI results belong to the PR/handoff; no new native WebKit claim is made.

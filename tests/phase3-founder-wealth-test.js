@@ -152,6 +152,34 @@ function noReference(value,target,seen=new Set()){
  let reads=0;Object.defineProperty(s.personalRealEstateCorp,'cash',{enumerable:true,get(){reads++;throw Error('getter');}});
  assert.equal(project(s).components.length,0);assert.equal(reads,0);
 }
+// Trust source balances never establish founder beneficial title, NAV or issuer identity.
+{
+ const s=fixture();Object.assign(s,{familyTrustEstablished:true,familyTrustCash:500,familyTrustShares:12});
+ const before=JSON.stringify(s),r=project(s),c=comp(r,'asset:family-trust');assert(c);
+ assert.equal(c.amountJPY,null);assert.equal(c.beneficialOwnerEntityId,null);
+ assert.equal(c.sourceEvidence.reportedCash,500);assert.equal(c.sourceEvidence.reportedShares,12);
+ assert.equal(c.sourceEvidence.establishmentStatus,'established');assert.equal(c.sourceEvidence.beneficialFraction,null);
+ assert.equal(c.sourceEvidence.securityId,null);assert.equal(c.sourceEvidence.nav,null);
+ assert.equal(r.knownNetWorth,10080);assert.equal(r.totalNetWorth,null);assert.equal(r.complete,false);
+ assert.equal(JSON.stringify(s),before);deq(project(plain(s)),r);frozenDeep(r);
+ const locked=plain(s);(function lock(x){if(x&&typeof x==='object'){Object.values(x).forEach(lock);Object.freeze(x);}})(locked);deq(project(locked),r);
+ const absent=comp(project(fixture()),'asset:family-trust').sourceEvidence;
+ assert.equal(absent.reportedCash,null);assert.equal(absent.reportedShares,null);assert.equal(absent.establishmentStatus,'unknown');
+ for(const key of ['familyTrustEstablished','familyTrustCash','familyTrustShares']){
+  const v=plain(s),b=api.captureFounderWealthEvidence(v);v[key]=key==='familyTrustEstablished'?false:v[key]+1;
+  const stale=api.projectFounderWealth(v,b.ownershipSnapshot,b.valuationEvidence,b.liabilityEvidence);
+  assert.equal(stale.components.length,0);assert(codes(stale.reasons).includes('STALE_EVIDENCE'));
+  const hidden=plain(s);Object.defineProperty(hidden,key,{value:hidden[key],enumerable:false});assert.equal(project(hidden).components.length,0);
+  let reads=0;const getter=plain(s);Object.defineProperty(getter,key,{enumerable:true,get(){reads++;throw Error('getter');}});
+  assert.equal(project(getter).components.length,0);assert.equal(reads,0);
+ }
+ for(const amount of [undefined,-1,'500',Infinity,1e100]){
+  const v=plain(s);v.familyTrustCash=amount;assert.equal(comp(project(v),'asset:family-trust').sourceEvidence.reportedCash,null);
+ }
+ for(const count of [undefined,-1,1.5,'12',Infinity,Number.MAX_SAFE_INTEGER+1]){
+  const v=plain(s);v.familyTrustShares=count;assert.equal(comp(project(v),'asset:family-trust').sourceEvidence.reportedShares,null);
+ }
+}
 // Listed formula (contract §7): original 400 + purchased own 100 = 500 × 20; generic own row excluded.
 {
  const s=fixture(),before=JSON.stringify(s),drawsBefore=draws;
@@ -169,7 +197,7 @@ function noReference(value,target,seen=new Set()){
  assert.equal(r.knownNetWorth,10080);
  // Unadapted families and liability coverage keep the total honest.
  assert.equal(r.complete,false);assert.equal(r.totalNetWorth,null);
- for(const id of ['asset:pe-interests','asset:unadapted-personal-families','liability:unreconciled-coverage']){
+ for(const id of ['asset:pe-interests','asset:family-trust','liability:unreconciled-coverage']){
   assert(r.unvaluedComponents.includes(id));assert.equal(comp(r,id).amountJPY,null,'unknown is never zero');assert.equal(comp(r,id).completeness,'unknown');
  }
  deq(codes(comp(r,'asset:pe-interests').reasons),['VALUATION_INCOMPLETE']);
@@ -679,5 +707,16 @@ function noReference(value,target,seen=new Set()){
  assert.equal(comp(r,`asset:personal-general-property:${encodeURIComponent(company.id)}`),undefined);
  assert.equal(JSON.stringify(engine.g),before);assert.equal(draws,n);assert.equal(JSON.stringify([...loaded.ctx.__localStorageData]),storage);
  assert.equal(engine.sellProperty(personal.id),true);assert.equal(comp(project(engine.g),key),undefined);
+}
+// Installed trust transfers reduce personal cash; the source balance is never added back.
+{
+ const engine=new loaded.engineModule.TycoonEngine();engine.g.personalCash=30_000_000;
+ const initial=project(engine.g);assert.equal(engine.establishFamilyTrust(),true);
+ assert.equal(engine.transferToFamilyTrust(2_000_000),true);
+ const g=engine.g,before=JSON.stringify(g),storage=JSON.stringify([...loaded.ctx.__localStorageData]),n=draws;
+ const r=project(g),c=comp(r,'asset:family-trust');assert.equal(c.sourceEvidence.reportedCash,12_000_000);
+ assert.equal(c.amountJPY,null);assert.equal(r.knownNetWorth,initial.knownNetWorth-12_000_000);
+ assert.equal(JSON.stringify(g),before);assert.equal(draws,n);assert.equal(JSON.stringify([...loaded.ctx.__localStorageData]),storage);
+ deq(project(plain(g)),r);
 }
 console.log('PASS P3-11 founder wealth: owner formulas, honest partial totals, snapshot binding, JPY gate, fail-closed input, purity and installed wiring');
