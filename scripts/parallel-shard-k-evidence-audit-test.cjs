@@ -190,3 +190,5 @@ try {
 require('./parallel-shard-queue-series-test.cjs');
 
 require('./parallel-shard-k-source-drift-test.cjs');
+
+require('./parallel-shard-k-scheduling-bounds-test.cjs');
