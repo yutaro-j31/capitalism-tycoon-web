@@ -44,7 +44,17 @@ for(const change of [
 }
 {
  const x=fixture();Object.assign(x.startups[0],{ipoStockID:'listed',alive:false,ownedCompany:0,ownedPersonal:0});
- assert(project(x).observations.every(r=>r.assetRole==='historical'));
+ const before=JSON.stringify(x),r=project(x),link=r.conversionLinks[0];
+ assert(r.observations.every(row=>row.assetRole==='historical'));
+ assert.equal(link.status,'source-observed');assert.equal(link.assetRole,'lifecycle-source-link');
+ assert.equal(link.startupSourceId,'s');assert.equal(link.listedAlias,'listed');assert.equal(link.startupInterestCurrent,false);
+ assert.equal(link.listedLotStatus,'unverified');assert.equal(link.shareClassStatus,'unproven');
+ for(const key of ['issuerEntityId','securityClassId','ownershipKey','quantity','votingFraction','wealthValue'])assert.equal(link[key],null);
+ assert.deepEqual(plain(link.reasons),[{code:'LISTED_LOT_UNVERIFIED',path:'startups[0].ipoStockID'}]);
+ assert.equal(JSON.stringify(x),before);assert(Object.isFrozen(link));assert.deepEqual(plain(project(plain(x))),plain(r));
+ const conflict=plain(x);conflict.startups[0].ownedPersonal=.1;
+ const unresolved=project(conflict).conversionLinks[0];assert.equal(unresolved.status,'unresolved');assert.equal(unresolved.startupInterestCurrent,null);
+ assert.equal(unresolved.reasons[0].code,'CONVERSION_CONFLICT');
 }
 {
  let reads=0;const x=fixture();Object.defineProperty(x.startups[0],'ownedPersonal',{get(){reads++;throw Error('getter');}});
@@ -131,6 +141,9 @@ const plan=engine.getStartupFundingRoundPlan(other.id);e.week=plan.closesWeek;as
 assert(project(e).observations.filter(r=>r.startupSourceId===other.id).every(r=>r.status==='source-matched'));
 assert.equal(project(e).roundObservations.filter(r=>r.startupSourceId===other.id).length,0,'closed capital is not a second pending asset');
 assert.notEqual(engine.listStartup(other),false);
-assert(project(e).observations.filter(r=>r.startupSourceId===other.id).every(r=>r.assetRole==='historical'));
+const listed=project(e);assert(listed.observations.filter(r=>r.startupSourceId===other.id).every(r=>r.assetRole==='historical'));
+const conversion=listed.conversionLinks.find(r=>r.startupSourceId===other.id);assert(conversion);
+assert.equal(conversion.status,'source-observed');assert.equal(conversion.listedAlias,other.ipoStockID);
+assert.equal(conversion.quantity,null);assert.equal(conversion.wealthValue,null);assert.equal(conversion.listedLotStatus,'unverified');
 assert.deepEqual(plain(project(plain(e))),plain(project(e)));
 console.log('PASS P3-8 VC source interests: separate accounts, conservative lifecycle/aliases, unsupported rounds/rights, installed writers, purity and v9');
