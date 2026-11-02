@@ -93,3 +93,5 @@ try {
 } finally { fs.rmSync(root, { recursive: true, force: true }); }
 
 require('./parallel-shard-h-boundaries-test.cjs');
+
+require('./parallel-shard-i-boundaries-test.cjs');

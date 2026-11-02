@@ -160,3 +160,37 @@ is not current-main evidence and does not establish repository-wide inactivity.
 Existing required timing self-tests cover gaps, ties, same-run concurrency,
 censored running/omitted jobs, no eligible evidence, subsecond intervals,
 order invariance and conservation of span/job-seconds.
+
+## Pending final aggregate after all canonical shards
+
+Three additive fields describe the final `test` gate while a workflow is still
+pending. `pendingAggregatePostShardObservationSeconds` is age since the last
+successful canonical shard ended, censored at `asOf`, only when all 12 shard
+successes/end times and a unique pending aggregate are present.
+`aggregatePendingWithoutStartAgeSeconds` is that aggregate's age since API job
+creation when it has no observed execution start. Queued placeholder starts do
+not count. A running aggregate retains the former age but has no unstarted age.
+Neither metric is a completed duration or evidence of occupied runner time.
+
+`aggregateCreationOffsetFromLastShardSeconds` separately records the signed
+creation offset; negative values mean the aggregate was created before the last
+shard ended, not a negative queue duration. Missing/ambiguous aggregate or
+incomplete canonical end coverage leaves the relevant field null. A completed
+run containing pending jobs remains flagged as inconsistent and gets no ongoing
+pending age. Existing completed aggregate metrics and overlap rules are unchanged.
+
+[Retained API projections](ci-evidence/aggregate-wait-2026-11-02.json) include all
+26 returned jobs for each attempt1 snapshot, original analyzer-required fields,
+source URLs and individual observation times. On 2026-11-02 at 21:52 JST:
+
+| run | source | successful shards | aggregate state | post-shard pending age | unstarted aggregate age | creation offset |
+|---|---|---:|---|---:|---:|---:|
+|41438867867 (main push)|f124d17d|12|pending|590.066s|589.066s|1s|
+|41439426090 (PR #1302)|8a8b37c7|12|pending|267.256s|267.256s|0s|
+
+These snapshots establish a pending final gate despite successful test shards;
+they do not establish scheduler cause, concurrency cancellation, account quota,
+future completion time or CI success. Both workflows stay pending in the replay.
+No workflow dependency, required job, runner setting, production parallelism,
+rerun or cancellation changes. Synthetic controls and the retained replay are
+invoked by the existing required timing self-test.
