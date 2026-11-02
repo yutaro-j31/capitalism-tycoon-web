@@ -55,6 +55,9 @@ for(const change of [
  const conflict=plain(x);conflict.startups[0].ownedPersonal=.1;
  const unresolved=project(conflict).conversionLinks[0];assert.equal(unresolved.status,'unresolved');assert.equal(unresolved.startupInterestCurrent,null);
  assert.equal(unresolved.reasons[0].code,'CONVERSION_CONFLICT');
+ const mirror=plain(x);mirror.subsidiaries=[{id:'sub',startupID:'s',ownership:0,status:'active'}];
+ const ambiguous=project(mirror).conversionLinks[0];assert.equal(ambiguous.status,'unresolved');assert.equal(ambiguous.startupInterestCurrent,null);
+ assert.equal(ambiguous.reasons[0].code,'ALIAS_CONFLICT');
 }
 {
  let reads=0;const x=fixture();Object.defineProperty(x.startups[0],'ownedPersonal',{get(){reads++;throw Error('getter');}});

@@ -79,11 +79,12 @@ function projectVCSourceInterests(raw){
    if(!error&&typeof alive!=='boolean')error='LIFECYCLE_UNKNOWN';
    if(!error&&!alive&&!id(ipo))error='LIFECYCLE_UNKNOWN';
    if(id(ipo)){
-    const sourcePath=path+'.ipoStockID',supported=!error&&alive===false&&converted===false&&company===0&&personal===0;
+    const sourcePath=path+'.ipoStockID',mirrorConflict=(mirrors.get(source)||[]).length>0,
+     supported=!error&&!mirrorConflict&&alive===false&&converted===false&&company===0&&personal===0;
     out.conversionLinks.push({startupSourceId:id(source)?source:null,listedAlias:ipo,sourcePath,
      status:supported?'source-observed':'unresolved',assetRole:'lifecycle-source-link',startupInterestCurrent:supported?false:null,
      listedLotStatus:'unverified',shareClassStatus:'unproven',issuerEntityId:null,securityClassId:null,ownershipKey:null,
-     quantity:null,votingFraction:null,wealthValue:null,reasons:[{code:supported?'LISTED_LOT_UNVERIFIED':error||'CONVERSION_UNPROVEN',path:sourcePath}]});
+     quantity:null,votingFraction:null,wealthValue:null,reasons:[{code:supported?'LISTED_LOT_UNVERIFIED':error||(mirrorConflict?'ALIAS_CONFLICT':'CONVERSION_UNPROVEN'),path:sourcePath}]});
    }
    for(const [account,stake] of [['company',company],['personal',personal]]){
     const row={startupSourceId:id(source)?source:null,account,sourcePath:path+'.owned'+(account==='company'?'Company':'Personal'),

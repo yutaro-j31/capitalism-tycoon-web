@@ -47,7 +47,11 @@ function collect(commands, trace) {
     const findings = processes.flatMap(p => p.events.filter(e => e.operation !== 'initialized'));
     return { label: command.label, pid, directory, processes, findings };
   });
-  return { ok: reports.every(r => r.findings.length === 0), commands: reports };
+  return { ok: reports.every(r => r.findings.length === 0), commands: reports,
+    coverage: { kind: 'node-api-audit-v1', rootInvocations: reports.length,
+      pidLogs: reports.reduce((n, r) => n + r.processes.length, 0),
+      opaqueChildCalls: reports.reduce((n, r) => n + r.findings.filter(e => e.operation.startsWith('child_process.')).length, 0),
+      completeDescendantCoverage: false, nativeSyscallCoverageComplete: false, workerCoverageComplete: false } };
 }
 function selfTest() {
   const os = require('node:os'), cp = require('node:child_process');
@@ -83,4 +87,7 @@ function selfTest() {
   } finally { fs.rmSync(directory, { recursive: true, force: true }); }
 }
 module.exports = { prepare, collect };
-if (require.main === module) selfTest();
+if (require.main === module) {
+  selfTest();
+  require('./parallel-shard-write-wrapper-test.cjs');
+}

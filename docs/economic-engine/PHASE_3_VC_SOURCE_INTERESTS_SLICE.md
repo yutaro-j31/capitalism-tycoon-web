@@ -128,6 +128,8 @@ company/personal startup fractions are zero. The row connects the historical sta
 source to the reported listed alias as a `lifecycle-source-link`; it does not reconcile
 or create a listed lot. Retained positive startup fractions keep the link unresolved
 with `CONVERSION_CONFLICT` instead of representing both sources as current interests.
+A residual subsidiary mirror also leaves the link unresolved with `ALIAS_CONFLICT`;
+the reader never certifies an IPO lifecycle while its own alias evidence contradicts it.
 
 Every supported link keeps listed-lot status unverified and share-class status unproven.
 Issuer/class/ownership identity, quantity, voting fraction and wealth value remain null.
