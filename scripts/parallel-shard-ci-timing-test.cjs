@@ -37,6 +37,50 @@ assert.deepEqual(result.successfulShardElapsed, { samples: 12, medianSeconds: 80
 assert.equal(result.jobStates.cancelled, 1); assert.equal(result.jobStates.skipped, 1);
 assert.equal(result.postShardAggregateIntervalSeconds, 40); assert.equal(result.aggregateCreationToStartSeconds, 140);
 assert.deepEqual(result.lastCanonicalSuccessJobs, ['test-shard-L']); assert.equal(result.maximumObservedJobOverlap, 12);
+// Pending final aggregate: separate age from completed duration and runner usage.
+const pendingRun = { ...run, status: 'queued', conclusion: null };
+const pendingGate = structuredClone(response);
+Object.assign(pendingGate.jobs[12], { created_at: time(120), status: 'queued', conclusion: null, completed_at: null });
+const gateWait = summarize(pendingRun, pendingGate, time(1100));
+assert.equal(gateWait.aggregateCreationOffsetFromLastShardSeconds, 9);
+assert.equal(gateWait.pendingAggregatePostShardObservationSeconds, 989);
+assert.equal(gateWait.aggregatePendingWithoutStartAgeSeconds, 980);
+assert.equal(gateWait.postShardAggregateIntervalSeconds, null);
+assert.equal(gateWait.runCreationToAggregateCompletionSeconds, null);
+assert.equal(gateWait.maximumObservedJobOverlap, 12, 'queued placeholder is not runner occupation');
+assert.equal(gateWait.rows[12].started, null);
+const runningGate = structuredClone(pendingGate); runningGate.jobs[12].status = 'in_progress';
+const runningTail = summarize(pendingRun, runningGate, time(1100));
+assert.equal(runningTail.pendingAggregatePostShardObservationSeconds, 989);
+assert.equal(runningTail.aggregatePendingWithoutStartAgeSeconds, null);
+const earlyCreation = structuredClone(pendingGate); earlyCreation.jobs[12].created_at = time(10);
+assert.equal(summarize(pendingRun, earlyCreation, time(1100)).aggregateCreationOffsetFromLastShardSeconds, -101,
+  'creation offset stays signed when aggregate metadata predates shard completion');
+assert.equal(summarize(run, pendingGate, time(1100)).pendingAggregatePostShardObservationSeconds, null,
+  'completed run with inconsistent pending jobs is flagged separately, not an ongoing wait');
+for (const change of [
+  r => r.jobs.splice(12, 1),
+  r => r.jobs.push({ ...r.jobs[12], id: 16 }),
+  r => r.jobs[0].conclusion = 'failure',
+  r => r.jobs[0].completed_at = null,
+  r => { r.jobs[12].status = 'completed'; r.jobs[12].conclusion = 'cancelled'; }
+]) {
+  const badGate = structuredClone(pendingGate); change(badGate); badGate.total_count = badGate.jobs.length;
+  assert.equal(summarize(pendingRun, badGate, time(1100)).pendingAggregatePostShardObservationSeconds, null);
+}
+assert.equal(result.pendingAggregatePostShardObservationSeconds, null);
+assert.equal(result.aggregatePendingWithoutStartAgeSeconds, null);
+const retainedWait = require('../docs/ci-evidence/aggregate-wait-2026-11-02.json');
+for (const [i, snapshot] of retainedWait.snapshots.entries()) {
+  const observedWait = summarize(snapshot.run, snapshot.jobs, snapshot.asOf);
+  assert.equal(observedWait.canonicalSuccessCount, 12);
+  assert.equal(observedWait.aggregateState, 'pending');
+  assert.equal(observedWait.pendingAggregatePostShardObservationSeconds, [590.066, 267.256][i]);
+  assert.equal(observedWait.aggregatePendingWithoutStartAgeSeconds, [589.066, 267.256][i]);
+  assert.equal(observedWait.aggregateCreationOffsetFromLastShardSeconds, [1, 0][i]);
+  assert.equal(observedWait.postShardAggregateIntervalSeconds, null);
+  assert.equal(observedWait.workflowState, 'pending');
+}
 // Non-success terminal timestamps are not evidence of occupied runner intervals.
 // Preserve their diagnostic row timings, and include observed running intervals.
 const mixedOverlapJobs = [

@@ -69,6 +69,9 @@ function summarize(run, response, asOf = new Date().toISOString()) {
   for (const [, change] of events) { active += change; maximum = Math.max(maximum, active); }
   const interval = aggregate?.state === 'success' ? difference(aggregate.completed, lastEnd) : null;
   if (interval !== null) assert.ok(interval >= 0, 'aggregate completed before a required shard');
+  // A queued final gate can keep a run open after all twelve shards succeeded.
+  // Observation age is not a completed interval or evidence of runner occupation.
+  const aggregatePending = state(run) === 'pending' && aggregate?.state === 'pending';
   return { runId: run.id, runAttempt: run.run_attempt, headSha: run.head_sha, event: run.event, asOf, workflowState: state(run), workflowStatus: run.status, workflowConclusion: run.conclusion ?? null,
     jobStates: Object.fromEntries(['success', 'failed', 'cancelled', 'skipped', 'neutral', 'pending', 'unknown'].map(s => [s, rows.filter(r => r.state === s).length])),
     observedJobCreationCount: creations.length, returnedJobCreationCoverageComplete: rows.length > 0 && creations.length === rows.length,
@@ -80,7 +83,11 @@ function summarize(run, response, asOf = new Date().toISOString()) {
     lastCanonicalSuccessJobs: last, lastCanonicalSuccessEnd: lastEnd === null ? null : new Date(lastEnd).toISOString(),
     aggregateState: aggregate?.state ?? 'missing-or-ambiguous', aggregateCreationToStartSeconds: aggregate?.jobCreationToStartSeconds ?? null,
     runCreationToAggregateCompletionSeconds: aggregate?.state === 'success' ? difference(aggregate.completed, origin) : null,
-    postShardAggregateIntervalSeconds: interval, maximumObservedJobOverlap: maximum,
+    postShardAggregateIntervalSeconds: interval,
+    aggregateCreationOffsetFromLastShardSeconds: difference(aggregate?.created ?? null, lastEnd),
+    pendingAggregatePostShardObservationSeconds: aggregatePending ? difference(now, lastEnd) : null,
+    aggregatePendingWithoutStartAgeSeconds: aggregatePending ? aggregate.pendingAgeSeconds : null,
+    maximumObservedJobOverlap: maximum,
     pendingObservation: rows.some(r => r.state === 'pending'), completedRunHasPendingJobs: run.status === 'completed' && rows.some(r => r.state === 'pending'), rows };
 }
 module.exports = { summarize };
