@@ -63,3 +63,34 @@ frozen input and v9 JSON behavior are unchanged. This is a read-only source-vali
 correction, with no writer, settlement, save/RNG, financial policy or authority change.
 See the PR/#909 for RED/GREEN execution, exact final-HEAD CI and review provenance;
 no new native WebKit/browser path is introduced.
+
+
+## Common-index bound VC source snapshot
+
+`economicReadModel.buildOwnershipIdentityIndex(rawState,
+'player-listed-and-vc-source-v1')` extends the existing private common-index registry
+with an explicit opt-in source scope. It binds selected startup lifecycle, DD fractions,
+pending-round fields and subsidiary alias/competing-family markers in addition to the
+player/listed identity inputs. Unrelated startup operating data is excluded. Own
+non-enumerable selected fields/accessors are rejected without getter execution. Existing
+player/listed and subsidiary scopes retain their narrower source contracts.
+
+`economicReadModel.projectVCSourceSnapshot(rawState, index?)` defaults to this scope
+and delegates to the existing VC source reader on the detached indexed view. The result
+uses the exact common sourceSnapshotToken; foreign/forged/narrower handles, root
+replacement and same-week selected-field changes fail closed without observations.
+It also remains compatible with the player/listed snapshot and listed reader under the
+same handle; subsidiary/PE composition requires its separate supported scope.
+
+This connects current VC source evidence to index generation without creating another
+token registry or canonical ownership positions. Observed fractions and pending capital
+are still source-only; payment evidence, parent generation, legal issuer/class, shares,
+votes and wealth remain unproven/null under the original reader contract. complete,
+commandEligible and wealthComplete remain false. No authority, settlement, save/RNG,
+consumer/UI or formal acceptance changes. Missing adapter loading fails explicitly.
+
+The existing common snapshot suite covers shared-token composition, pending capital,
+stale lifecycle/round/DD/alias/generation, foreign/copied-state handles, ignored operating
+fields, hidden/accessor input, JSON/frozen output and no state/RNG mutation. Existing
+VC, subsidiary composition and wealth suites remain the compatibility checks. PR/handoff
+record actual final-HEAD CI and browser applicability; no native WebKit claim is implied.
