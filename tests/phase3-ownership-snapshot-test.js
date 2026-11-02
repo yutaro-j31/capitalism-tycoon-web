@@ -75,6 +75,42 @@ const cash=fixture(),cashIndex=api.buildOwnershipIdentityIndex(cash);cash.compan
 assert.equal(api.projectOwnershipSnapshot(cash,cashIndex).wealthComplete,false);
 // No production consumer, transaction or save format is changed by this opt-in reader.
 assert.equal(state.saveVersion,9);
+// PE fund source scope binds the existing P3-7 evidence to the common token.
+// It does not create fund units, portfolio equity, NAV or founder wealth.
+{
+ const scope='player-listed-and-pe-fund-source-v1',pe=require('../js/phase3-pe-fund-interests');
+ const raw=fixture();raw.peFirm={funds:[{id:'F',size:100,gpCommit:10,lpContributed:90,status:'investing',cash:50,
+  terms:{fee:.02,carry:.2,hurdle:.08},gpDistributed:1,lpDistributed:2,gpCarryPaid:3,managementFeesPaid:4,
+  deals:[{id:'D',status:'active',settlement:null,fundPortion:60,coinvestPortion:40,investedAmount:100}],displayName:'ignored'}]};
+ assert.equal(typeof api.projectPEFundSourceSnapshot,'function');
+ const before=JSON.stringify(raw),n=draws,handle=api.buildOwnershipIdentityIndex(raw,scope),r=api.projectPEFundSourceSnapshot(raw,handle);
+ const direct=pe.projectPEFundInterests(raw),common=api.projectOwnershipSnapshot(raw,handle);
+ assert.equal(handle.issues.length,0);assert.equal(r.sourceSnapshotToken,handle.sourceSnapshotToken);assert.equal(r.sourceScope,scope);
+ assert.equal(common.sourceSnapshotToken,handle.sourceSnapshotToken);assert.equal(common.sourceScope,scope);
+ assert.equal(Object.hasOwn(common,'peFundSourceEvidence'),false,'source binding is not canonical composition');
+ for(const key of ['fundInterests','portfolioParticipations','managementRelationships','distributionEvidence','waterfallTerms','sourceCoverage'])
+  assert.deepEqual(plain(r[key]),plain(direct[key]));
+ assert.equal(r.fundInterests[0].contributionRatio,.1);assert.equal(r.portfolioParticipations[0].fundProceedsFraction,.6);
+ assert.equal(r.fundInterests[0].legalTargetShares,null);assert.equal(r.fundInterests[0].votingFraction,null);assert.equal(r.fundInterests[0].wealthValue,null);
+ assert.equal(r.complete,false);assert.equal(r.commandEligible,false);assert.equal(r.wealthComplete,false);
+ assert.equal(JSON.stringify(raw),before);assert.equal(draws,n);frozen(r);assert(!Object.isFrozen(raw));
+ assert.deepEqual(plain(api.projectPEFundSourceSnapshot(plain(raw))),plain(r),'v9 JSON replay retains bound source evidence');
+ for(const change of [x=>x.peFirm.funds[0].gpCommit++,x=>x.peFirm.funds[0].terms.carry=.25,
+  x=>x.peFirm.funds[0].deals[0].investedAmount++,x=>x.peFirm.funds[0].deals[0].settlement={week:2},x=>x.peFirm.funds[0].cash++]){
+  const x=plain(raw),h=api.buildOwnershipIdentityIndex(x,scope);change(x);
+  const stale=api.projectPEFundSourceSnapshot(x,h);assert(stale.issues.some(i=>i.code==='STALE_EVIDENCE'));
+  assert.equal(stale.fundInterests.length,0);assert.equal(stale.portfolioParticipations.length,0);
+  assert(api.projectOwnershipSnapshot(x,h).issues.some(i=>i.code==='STALE_EVIDENCE'));
+ }
+ for(const h of [{},api.buildOwnershipIdentityIndex(raw),api.buildOwnershipIdentityIndex(plain(raw),scope)])
+  assert(api.projectPEFundSourceSnapshot(raw,h).issues.some(i=>i.code==='STALE_EVIDENCE'));
+ const ignored=plain(raw),ignoredHandle=api.buildOwnershipIdentityIndex(ignored,scope);ignored.peFirm.funds[0].displayName='changed';
+ assert.equal(api.projectPEFundSourceSnapshot(ignored,ignoredHandle).sourceSnapshotToken,ignoredHandle.sourceSnapshotToken,'presentation data is outside PE fund source scope');
+ let reads=0;const bad=plain(raw);Object.defineProperty(bad.peFirm.funds[0],'gpCommit',{enumerable:true,get(){reads++;throw Error('getter');}});
+ assert.equal(api.projectPEFundSourceSnapshot(bad).fundInterests.length,0);assert.equal(reads,0);
+ const hidden=plain(raw);Object.defineProperty(hidden.peFirm.funds[0].terms,'carry',{value:.2,enumerable:false});
+ assert(api.projectPEFundSourceSnapshot(hidden).issues.some(i=>i.code==='INPUT_INVALID'));
+}
 // VC source scope reuses the common index/token and binds lifecycle/pending capital.
 {
  const scope='player-listed-and-vc-source-v1',vc=loaded.modules.phase3VCSourceInterests;
