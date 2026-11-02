@@ -184,17 +184,25 @@ function noReference(value,target,seen=new Set()){
 {
  const s=fixture();s.peFirm={funds:[{id:'F',status:'investing',size:100,gpCommit:2,lpContributed:98,cash:17,coinvestCash:3,
   terms:{fee:.02,carry:.2,hurdle:.08},gpDistributed:5,lpDistributed:6,gpCarryPaid:1,managementFeesPaid:2,
-  deals:[{id:'D',status:'active',fundPortion:25,coinvestPortion:10,investedAmount:35,enterpriseValue:200}]}]};
+  deals:[{id:'D',status:'active',fundPortion:25,coinvestPortion:10,investedAmount:35,enterpriseValue:200},
+   {id:'C',status:'exited',exitMethod:'parent-company-acquisition',convertedToSubsidiaryID:'sub1',fundPortion:10,coinvestPortion:0,investedAmount:10,enterpriseValue:80}]}]};
+ s.subsidiaries=[{id:'sub1',status:'active',source:'pe-fund-portfolio',sourceType:'peFundPortfolioAcquisition',sourcePEFundID:'F',sourcePEDealID:'C'}];
  const before=JSON.stringify(s),bundle=api.captureFounderWealthEvidence(s),r=api.projectFounderWealth(s,bundle.ownershipSnapshot,bundle.valuationEvidence,bundle.liabilityEvidence);
  const c=comp(r,'asset:pe-interests'),e=c.sourceEvidence;assert(e);
  assert.equal(e.fundInterests[0].contributionRatio,.02);assert.equal(e.waterfallTerms[0].reportedCarryRate,.2);
  assert.equal(e.valuationFunds[0].reportedFundCash,17);assert.equal(e.valuationFunds[0].reportedExternalCoinvestCash,3);
- assert.equal(e.valuationFunds[0].heldAssetInputs[0].reportedEnterpriseValue,200);
+ assert.equal(e.valuationFunds[0].heldAssetInputs.find(row=>row.dealId==='D').reportedEnterpriseValue,200);
  assert.equal(e.valuationFunds[0].nav,null);assert.equal(e.valuationFunds[0].founderValue,null);
+ assert.equal(e.parentConversions.length,1);assert.equal(e.parentConversions[0].status,'source-observed');
+ assert.equal(e.parentConversions[0].dealId,'C');assert.equal(e.parentConversions[0].assetRole,'lifecycle-source-link');assert.equal(e.parentConversions[0].subsidiarySourceId,'sub1');
+ assert.equal(e.parentConversions[0].legalEquityFraction,null);assert.equal(e.parentConversions[0].votingFraction,null);assert.equal(e.parentConversions[0].wealthValue,null);
+ deq(e.parentConversionIssues,[]);
  assert.equal(c.amountJPY,null);assert.equal(r.knownNetWorth,10080);assert.equal(r.totalNetWorth,null);
  assert.equal(JSON.stringify(s),before);deq(project(plain(s)),r);frozenDeep(r);
  assert.notEqual(e,bundle.ownershipSnapshot.peFundSourceEvidence);assert(noReference(r,s));
- for(const change of [f=>f.cash++,f=>f.terms.carry+=.01,f=>f.deals[0].enterpriseValue++]){
+ assert.notEqual(e.parentConversions,bundle.ownershipSnapshot.peFundSourceEvidence.parentConversions);
+ assert.notEqual(e.parentConversions[0].sourceRefs,bundle.ownershipSnapshot.peFundSourceEvidence.parentConversions[0].sourceRefs);
+ for(const change of [f=>f.cash++,f=>f.terms.carry+=.01,f=>f.deals[0].enterpriseValue++,f=>f.deals[1].convertedToSubsidiaryID='other']){
   const v=plain(s),b=api.captureFounderWealthEvidence(v);change(v.peFirm.funds[0]);
   const stale=api.projectFounderWealth(v,b.ownershipSnapshot,b.valuationEvidence,b.liabilityEvidence);
   assert.equal(stale.components.length,0);assert(codes(stale.reasons).includes('STALE_EVIDENCE'));
@@ -203,9 +211,14 @@ function noReference(value,target,seen=new Set()){
  const unknown=comp(project(bad),'asset:pe-interests').sourceEvidence;
  assert.equal(unknown.fundInterests[0].contributionRatio,null);assert.equal(unknown.valuationFunds[0].reportedFundCash,null);
  assert(unknown.valuationIssues.some(x=>x.code==='IDENTITY_UNKNOWN'));
+ const invalidLink=plain(s);invalidLink.subsidiaries[0].sourcePEDealID='other';
+ const unresolved=comp(project(invalidLink),'asset:pe-interests').sourceEvidence;
+ assert.equal(unresolved.parentConversions[0].status,'unresolved');assert(unresolved.parentConversionIssues.some(x=>x.code==='CONVERSION_UNPROVEN'));
+ const staleSubs=plain(s),staleBundle=api.captureFounderWealthEvidence(staleSubs);staleSubs.subsidiaries[0].sourceType='other';
+ assert(codes(api.projectFounderWealth(staleSubs,staleBundle.ownershipSnapshot,staleBundle.valuationEvidence,staleBundle.liabilityEvidence).reasons).includes('STALE_EVIDENCE'));
  const historical=plain(s);historical.peFirm.funds[0].status='closed';historical.peFirm.funds[0].cash=0;historical.peFirm.funds[0].deals[0].status='exited';
  const h=project(historical),he=comp(h,'asset:pe-interests').sourceEvidence;
- assert.equal(he.fundInterests[0].current,false);assert.equal(he.valuationFunds[0].heldAssetInputs[0].reportedEnterpriseValue,null);
+ assert.equal(he.fundInterests[0].current,false);assert.equal(he.valuationFunds[0].heldAssetInputs.find(row=>row.dealId==='D').reportedEnterpriseValue,null);
  assert.equal(h.knownNetWorth,10080,'paid carry/distributions and historical fund evidence are not new assets');
 }
 // Listed formula (contract §7): original 400 + purchased own 100 = 500 × 20; generic own row excluded.
