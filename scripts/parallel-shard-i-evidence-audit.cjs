@@ -105,11 +105,19 @@ function auditPair(nodes, expected, diagnosticSha) {
 function readArchive(bytes, hash, expected) {
   assert.equal(sha(bytes), hash, 'archive hash mismatch');
   const pack=JSON.parse(zlib.gunzipSync(bytes,{maxOutputLength:4*1024*1024}));
-  assert.equal(pack.schema,'i-serial-evidence-pack-v1'); assert.equal(pack.sourceSha,expected.sourceSha); assert.equal(pack.artifacts.length,2);
+  assert.equal(pack.schema,'i-serial-evidence-pack-v1'); assert.equal(pack.sourceSha,expected.sourceSha);
+  for (const key of ['runId','attempt']) assert.ok(Number.isSafeInteger(pack[key]) && pack[key] > 0, `positive ${key} provenance required`);
+  for (const key of ['headSha','diagnosticMergeSha']) assert.match(pack[key] || '', /^[a-f0-9]{40}$/, `${key} provenance required`);
+  unique(pack.artifacts,'major',2);
+  for (const key of ['artifactId','jobId','zipSha256']) unique(pack.artifacts,key,2);
   const nodes=pack.artifacts.map(a=>{
     assert.ok([22,24].includes(a.major)); assert.match(a.zipSha256,/^[a-f0-9]{64}$/);
+    for (const key of ['artifactId','jobId']) assert.ok(Number.isSafeInteger(a[key]) && a[key] > 0, `positive ${key} provenance required`);
     assert.deepEqual(a.files.map(f=>f.name).sort(),[`full-i-node-${a.major}.json`,`i-plan-node-${a.major}.json`,`node-${a.major}.json`].sort());
     const files=Object.fromEntries(a.files.map(f=>{ const raw=Buffer.from(f.base64,'base64'); assert.equal(raw.toString('base64'),f.base64); assert.equal(sha(raw),f.sha256); return [f.name,JSON.parse(raw.toString('utf8'))]; }));
+    // All three files must belong to the Node major declared by this artifact.
+    // Pair-wide coverage alone would accept two consistently swapped labels.
+    for (const report of Object.values(files)) assert.match(report.node || '', new RegExp(`^v${a.major}\\.`), 'artifact Node label/report mismatch');
     return { full:files[`full-i-node-${a.major}.json`],plan:files[`i-plan-node-${a.major}.json`],controls:files[`node-${a.major}.json`] };
   });
   return { pack, nodes, audit:auditPair(nodes,expected,pack.diagnosticMergeSha) };

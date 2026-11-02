@@ -40,6 +40,23 @@ assert.throws(()=>readArchive(bytes,'0'.repeat(64),expected));
 for(const mutate of [p=>p.artifacts[0].files.pop(),p=>p.artifacts[0].files[0].sha256='0'.repeat(64),p=>p.artifacts[0].files[0].base64+='!',p=>p.artifacts[0].major=99]){
  const pack=structuredClone(original.pack);mutate(pack);const raw=zlib.gzipSync(JSON.stringify(pack));const pin=crypto.createHash('sha256').update(raw).digest('hex');assert.throws(()=>readArchive(raw,pin,expected));
 }
+// Both Node versions still exist in this corrupted pack. Swapped artifact labels
+// and filenames must not pass merely because pair-wide Node coverage is intact.
+const packMutations = [
+ p=>{for(const a of p.artifacts){const old=a.major;a.major=old===22?24:22;for(const f of a.files)f.name=f.name.replace(String(old),String(a.major));}},
+ p=>p.artifacts[1].artifactId=p.artifacts[0].artifactId,
+ p=>p.artifacts[1].jobId=p.artifacts[0].jobId,
+ p=>p.artifacts[1].zipSha256=p.artifacts[0].zipSha256,
+ p=>p.artifacts[0].artifactId=0, p=>p.artifacts[0].jobId='125119496622',
+ p=>p.artifacts[0].artifactId=Number.MAX_SAFE_INTEGER+1,
+ p=>delete p.runId, p=>p.runId=0, p=>p.attempt=0, p=>p.attempt=1.5,
+ p=>delete p.headSha, p=>p.headSha='main', p=>delete p.diagnosticMergeSha
+];
+for(const mutate of packMutations){
+ const pack=structuredClone(original.pack);mutate(pack);
+ const raw=zlib.gzipSync(JSON.stringify(pack)),pin=crypto.createHash('sha256').update(raw).digest('hex');
+ assert.throws(()=>readArchive(raw,pin,expected),'bad artifact/provenance rejected even with a matching outer hash');
+}
 const temp=fs.mkdtempSync(path.join(require('node:os').tmpdir(),'i-evidence-cli-'));
 try {
  const pack=structuredClone(original.pack), record=pack.artifacts[1].files.find(f=>f.name==='full-i-node-24.json');
@@ -48,6 +65,11 @@ try {
  const pin=crypto.createHash('sha256').update(fixture).digest('hex');
  const changedCli=cp.spawnSync(process.execPath,[path.join(__dirname,'parallel-shard-i-evidence-audit.cjs'),file,pin,manifest],{encoding:'utf8'});
  assert.equal(changedCli.status,2,changedCli.stderr);assert.equal(JSON.parse(changedCli.stdout).status,'cross-node-output-review-required');
+ const swapped=structuredClone(original.pack);packMutations[0](swapped);
+ const invalidBytes=zlib.gzipSync(JSON.stringify(swapped));fs.writeFileSync(file,invalidBytes);
+ const invalidHash=crypto.createHash('sha256').update(invalidBytes).digest('hex');
+ const rejected=cp.spawnSync(process.execPath,[path.join(__dirname,'parallel-shard-i-evidence-audit.cjs'),file,invalidHash,manifest],{encoding:'utf8'});
+ assert.equal(rejected.status,1);assert.equal(rejected.stdout,'');assert.match(rejected.stderr,/artifact Node label\/report mismatch/);
 } finally {fs.rmSync(temp,{recursive:true,force:true});}
 const cli=cp.spawnSync(process.execPath,[path.join(__dirname,'parallel-shard-i-evidence-audit.cjs'),archive,hash,manifest],{encoding:'utf8'});
 assert.equal(cli.status,0,cli.stderr);assert.deepEqual(JSON.parse(cli.stdout),original.audit);

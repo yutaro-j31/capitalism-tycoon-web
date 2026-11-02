@@ -51,7 +51,13 @@ node scripts/parallel-shard-i-evidence-audit-test.cjs
 The audit checks the separately retained source manifest, raw hashes/lengths,
 canonical8invocations, counts/signals/reasons, resource bounds, process identity/
 spawn/final coverage, metadata/control evidence and derived longest-command summary.
-It validates retained evidence consistency, not exhaustive write/dependency safety.
+Artifact Node labels and all three contained report Node versions must agree;
+swapping both artifacts' labels/filenames cannot pass just because both Node
+versions are still present pair-wide. Run/attempt/commit provenance fields must be
+well-formed, with distinct positive artifact/job IDs and ZIP digests. This checks
+internal provenance consistency, not live API membership/authenticity; external
+GitHub checks remain necessary. It validates retained evidence consistency, not
+exhaustive write/dependency safety.
 The point memory-capacity snapshot remains supplementary raw metadata; it is not
 used as a replacement for run memory/process evidence. CLI exit0 means retained
 serial evidence verified; a valid cross-Node byte difference gives exit2/review-
