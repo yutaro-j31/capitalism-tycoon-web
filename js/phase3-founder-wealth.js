@@ -73,6 +73,7 @@ function copier(){
 const SOURCE_SPEC={fields:{
  ticker:'deep',currentCompanySerial:'deep',isCompanySold:'deep',publicCompany:'deep',stockPrice:'deep',week:'deep',
  personalCash:'deep',personalDebt:'deep',personalStocks:'deep',
+ familyTrustEstablished:'deep',familyTrustCash:'deep',familyTrustShares:'deep',
  personalInvestments:{rows:['id','currentValue','owner','ownerAccount','status']},
  luxuryAssets:{rows:['id','currentValue','owner','ownerAccount','status']},
  sportsTeams:{rows:['id','value','owner','ownerAccount','status']},
@@ -326,6 +327,17 @@ function captureFounderWealthEvidence(rawState,externalEvidence){
   heldPropertySources,ownershipStatus:'unproven',nav:null,
   reasons:money(corpCash)&&corpCash>=0?[]:[reason('AMOUNT_UNKNOWN','personalRealEstateCorp.cash','No valid non-negative corporate source cash is captured.')],
   sourceRefs:[ref('personalRealEstateCorp',null,'personal-property-corp'),...heldPropertySources.map(row=>ref(row.sourcePath,row.sourceAssetId,'personal-property','entity-asset-reference'))]};
+ // Trust balances carry no issuer, beneficiary or valuation policy in the legacy source.
+ const trustCash=view.familyTrustCash,trustShares=view.familyTrustShares;
+ const cashObserved=money(trustCash)&&trustCash>=0,sharesObserved=Number.isSafeInteger(trustShares)&&trustShares>=0;
+ ownership.familyTrust={sourcePath:'familyTrust',coverage:'partial',
+  establishmentStatus:typeof view.familyTrustEstablished==='boolean'?(view.familyTrustEstablished?'established':'not-established'):'unknown',
+  reportedCash:cashObserved?trustCash+0:null,cashStatus:cashObserved?'source-observed':'unknown',
+  reportedShares:sharesObserved?trustShares+0:null,sharesStatus:sharesObserved?'source-observed':'unknown',
+  ownershipStatus:'unproven',beneficialFraction:null,securityId:null,nav:null,
+  reasons:[...cashObserved?[]:[reason('AMOUNT_UNKNOWN','familyTrustCash','No valid non-negative trust source cash is captured.')],
+   ...sharesObserved?[]:[reason('QUANTITY_UNKNOWN','familyTrustShares','No valid non-negative safe-integer trust share count is captured.')]],
+  sourceRefs:[ref('familyTrustEstablished',null,'family-trust'),ref('familyTrustCash',null,'family-trust'),ref('familyTrustShares',null,'family-trust')]};
  const loans=view.finance&&Array.isArray(view.finance.loans)?view.finance.loans:[],loanCounts=new Map();
  for(const loan of loans)if(id(loan.loanID))loanCounts.set(loan.loanID,(loanCounts.get(loan.loanID)||0)+1);
  loans.forEach((loan,i)=>{
@@ -518,8 +530,12 @@ function projectFounderWealth(rawState,ownershipSnapshot,valuationEvidence,liabi
   sourceEvidence:{...corporation,reasons:copied(corporation.reasons),heldPropertySources:corporation.heldPropertySources.map(row=>({...row})),sourceRefs:corporation.sourceRefs.map(row=>({...row}))},
   reasons:[reason('OWNERSHIP_UNPROVEN','personalRealEstateCorp','Corporate source cash/property does not establish founder beneficial title.'),
    reason('VALUATION_INCOMPLETE','personalRealEstateCorp','Corporate liabilities, ownership and net asset valuation are not established.')]}));
- result.components.push(component('asset:unadapted-personal-families','asset',{
-  reasons:[reason('VALUATION_INCOMPLETE','personalAssets','Family trust is not adapted in this slice.')]}));
+ const trust=ownership.familyTrust;
+ result.components.push(component('asset:family-trust','asset',{beneficialOwnerEntityId:null,
+  sourceRefs:trust.sourceRefs.map(row=>({...row})),includesKeys:['familyTrustCash','familyTrustShares'],
+  sourceEvidence:{...trust,reasons:copied(trust.reasons),sourceRefs:trust.sourceRefs.map(row=>({...row}))},
+  reasons:[reason('OWNERSHIP_UNPROVEN','familyTrust','Trust source balances do not establish the founder beneficiary or beneficial fraction.'),
+   reason('VALUATION_INCOMPLETE','familyTrust','Trust share issuer, liabilities and net asset valuation remain unknown (OD-05).')]}));
  // Liabilities: union of distinct identities; mirrors are excluded, never re-added.
  for(const row of liabilities)result.components.push(fromEntry(component(row.liabilityKey,'liability',{includesKeys:row.includesKeys.slice()}),row,-1,'principal'));
  result.components.push(component('liability:unreconciled-coverage','liability',{reasons:copied(liabilityEvidence.coverage.reasons)}));
