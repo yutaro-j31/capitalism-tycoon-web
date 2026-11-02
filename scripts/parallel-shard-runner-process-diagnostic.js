@@ -213,6 +213,7 @@ async function main() {
   selfTest();
   if (process.argv.includes('--self-test')) {
     require('./parallel-shard-memory-snapshot-test.cjs');
+    require('./parallel-shard-i-evidence-audit-test.cjs');
     await outputSelfTest();
     require('./parallel-shard-c-evidence-audit-test.cjs');
     console.log('process diagnostic self-test: PASS'); return;
