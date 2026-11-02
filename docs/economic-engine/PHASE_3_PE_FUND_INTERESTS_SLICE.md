@@ -16,7 +16,7 @@ Verification: see final PR/handoff for actual executed tests and CI. Independent
 
 `buildOwnershipIdentityIndex(rawState, 'player-listed-and-pe-fund-source-v1')`
 captures only the player/listed inputs plus the PE-fund fields consumed by
-`projectPEFundInterests`. `projectPEFundSourceSnapshot(rawState, index?)` reuses the
+`projectPEFundInterests` and parent-conversion readers. `projectPEFundSourceSnapshot(rawState, index?)` reuses the
 existing private common-index registry and token. It rejects foreign handles, changed
 roots and changes to captured fund capital, lifecycle, terms, distributions, deal
 allocation, settlement or cash evidence. Presentation-only fund fields are outside the
@@ -28,6 +28,15 @@ positions, fund units, issuer identities, legal equity, votes, NAV or wealth, an
 not composed into the canonical ownership snapshot. Missing adapters and malformed,
 accessor or non-enumerable source fields fail closed without executing getters. This is
 source revision binding only, not P3-4 family closure or authority cutover.
+
+The same source payload now includes `parentConversions` from the existing reciprocal
+conversion reader. The PE scope captures only each deal's forward subsidiary ID and
+exit method plus the subsidiary's reciprocal fund/deal IDs, lifecycle/source markers
+and competing-family markers. A change to any captured link input invalidates the old
+token; unrelated subsidiary ownership remains outside this lifecycle-link scope.
+Supported rows remain `lifecycle-source-link` with null legal equity, votes and wealth.
+Ambiguous, one-sided or competing-family metadata stays unresolved and cannot mint a
+canonical position or ownership edge.
 
 When the same explicit PE-fund scope is passed to `projectOwnershipSnapshot`, the
 snapshot includes `peFundSourceEvidence` with that exact token and a separate
