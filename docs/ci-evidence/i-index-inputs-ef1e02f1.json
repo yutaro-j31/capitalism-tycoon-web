@@ -1,0 +1,2727 @@
+{
+  "sourceSha": "ef1e02f1bf756c0dd30e15035bb0ca1bc070e28d",
+  "harnessSha256": "3fce23c4116dabb449864e0bfda51c0624401dcdd8c135dabe1af0f11cc6d85a",
+  "schema": "harness-index-inputs-v1",
+  "indexSha256": "9d065b164784e719afacd8d07e7c76a151cb8b734e6d095a044becfc468695bc",
+  "scripts": [
+    {
+      "index": 0,
+      "startLine": 2,
+      "attrs": {
+        "src": "./js/boot-recovery.js"
+      },
+      "kind": "local",
+      "src": "./js/boot-recovery.js",
+      "path": "js/boot-recovery.js",
+      "bytes": 12074,
+      "sha256": "48c59b8cb55a1886fa8d5d638320a94c7666d05c4297784403b91ef98c212499"
+    },
+    {
+      "index": 1,
+      "startLine": 2,
+      "attrs": {
+        "src": "./js/runtime.js"
+      },
+      "kind": "local",
+      "src": "./js/runtime.js",
+      "path": "js/runtime.js",
+      "bytes": 332,
+      "sha256": "b1593527d412363b03f00930e11e8a6e96be3a988608b8e92291ec6fc9890dfa"
+    },
+    {
+      "index": 2,
+      "startLine": 2,
+      "attrs": {
+        "src": "./js/economic-operation.js"
+      },
+      "kind": "local",
+      "src": "./js/economic-operation.js",
+      "path": "js/economic-operation.js",
+      "bytes": 30846,
+      "sha256": "a70cfa423b6612b1c8d5c7fdf560429f90aa69c10f4d4021d6bdb6ebc6eb7421"
+    },
+    {
+      "index": 3,
+      "startLine": 2,
+      "attrs": {
+        "src": "./js/economic-shadow-journal.js"
+      },
+      "kind": "local",
+      "src": "./js/economic-shadow-journal.js",
+      "path": "js/economic-shadow-journal.js",
+      "bytes": 17615,
+      "sha256": "86ad3a36b0a3c7822c7b62c75bae88bb5bf5f40d9909453441d7e5dcde0e0ad1"
+    },
+    {
+      "index": 4,
+      "startLine": 2,
+      "attrs": {
+        "src": "./js/data.js"
+      },
+      "kind": "local",
+      "src": "./js/data.js",
+      "path": "js/data.js",
+      "bytes": 52618,
+      "sha256": "8c58bf50f7baeadc493b15242faab46dd64116f58aaa86fd59737ef291c68d16"
+    },
+    {
+      "index": 5,
+      "startLine": 2,
+      "attrs": {
+        "data-business-master-compat": ""
+      },
+      "kind": "inline",
+      "bytes": 235,
+      "sha256": "841fce409ca687011d56c45ebc571bd25f429a7364d561d769af5674f7314d4b"
+    },
+    {
+      "index": 6,
+      "startLine": 2,
+      "attrs": {
+        "src": "./js/tenant-site-suitability.js"
+      },
+      "kind": "local",
+      "src": "./js/tenant-site-suitability.js",
+      "path": "js/tenant-site-suitability.js",
+      "bytes": 2174,
+      "sha256": "ab79082378f1e983be45e4f7dd3cd766c4b86e0755697f44435376cca9fc7f26"
+    },
+    {
+      "index": 7,
+      "startLine": 2,
+      "attrs": {
+        "src": "./js/store-market-environment.js"
+      },
+      "kind": "local",
+      "src": "./js/store-market-environment.js",
+      "path": "js/store-market-environment.js",
+      "bytes": 1737,
+      "sha256": "0d410ab989069bab13ced26d8af9f790f296d8c99f74636723b11b9b599d232a"
+    },
+    {
+      "index": 8,
+      "startLine": 2,
+      "attrs": {
+        "src": "./js/workforce.js"
+      },
+      "kind": "local",
+      "src": "./js/workforce.js",
+      "path": "js/workforce.js",
+      "bytes": 48136,
+      "sha256": "9c51584fbd156b3e17443e123166ac724d7d576092967b7a6448482f399ba971"
+    },
+    {
+      "index": 9,
+      "startLine": 2,
+      "attrs": {
+        "src": "./js/supply.js"
+      },
+      "kind": "local",
+      "src": "./js/supply.js",
+      "path": "js/supply.js",
+      "bytes": 39362,
+      "sha256": "129685b609e0c240df1b3fb436b3f3494f8192dd2933c05526d80f55d91d2c6f"
+    },
+    {
+      "index": 10,
+      "startLine": 2,
+      "attrs": {
+        "src": "./js/competitor.js"
+      },
+      "kind": "local",
+      "src": "./js/competitor.js",
+      "path": "js/competitor.js",
+      "bytes": 27590,
+      "sha256": "b02ac3d6d419e4756823528fb6cbea119e343c6bb7d35d7548f026528a9661e2"
+    },
+    {
+      "index": 11,
+      "startLine": 2,
+      "attrs": {
+        "src": "./js/competitor-projects.js"
+      },
+      "kind": "local",
+      "src": "./js/competitor-projects.js",
+      "path": "js/competitor-projects.js",
+      "bytes": 18627,
+      "sha256": "4a26f012b00242e6e89aba9c30f27b732b1924c53206a7865b52117bed45ffb8"
+    },
+    {
+      "index": 12,
+      "startLine": 2,
+      "attrs": {
+        "src": "./js/competitor-entry.js"
+      },
+      "kind": "local",
+      "src": "./js/competitor-entry.js",
+      "path": "js/competitor-entry.js",
+      "bytes": 13264,
+      "sha256": "7de5035be32da23b4011e95b95e7936ed03619c94ef3947c72a83bf6d90f3ff0"
+    },
+    {
+      "index": 13,
+      "startLine": 2,
+      "attrs": {
+        "src": "./js/competitor-credit.js"
+      },
+      "kind": "local",
+      "src": "./js/competitor-credit.js",
+      "path": "js/competitor-credit.js",
+      "bytes": 13601,
+      "sha256": "0ebdd44f0ac932dd63b8bfe00e1a9840b2d68446f680ff7ec0f16e579d9c8cea"
+    },
+    {
+      "index": 14,
+      "startLine": 2,
+      "attrs": {
+        "src": "./js/competitor-distress.js"
+      },
+      "kind": "local",
+      "src": "./js/competitor-distress.js",
+      "path": "js/competitor-distress.js",
+      "bytes": 21249,
+      "sha256": "daa5895fcbaac3abc248854343779d84d71e99112144c1b312354af4dbeb276d"
+    },
+    {
+      "index": 15,
+      "startLine": 2,
+      "attrs": {
+        "src": "./js/competitor-terminal-compat.js"
+      },
+      "kind": "local",
+      "src": "./js/competitor-terminal-compat.js",
+      "path": "js/competitor-terminal-compat.js",
+      "bytes": 6217,
+      "sha256": "561fbc4273c81d74b27fd235f624ed1f9c0e78740b7a7b8d057ba017d04a499b"
+    },
+    {
+      "index": 16,
+      "startLine": 2,
+      "attrs": {
+        "src": "./js/market.js"
+      },
+      "kind": "local",
+      "src": "./js/market.js",
+      "path": "js/market.js",
+      "bytes": 19798,
+      "sha256": "90988fb5382d3f48ad8a56eae48896eb42a9b3f24ce075ef3ba9b59c9203353b"
+    },
+    {
+      "index": 17,
+      "startLine": 2,
+      "attrs": {
+        "src": "./js/finance.js"
+      },
+      "kind": "local",
+      "src": "./js/finance.js",
+      "path": "js/finance.js",
+      "bytes": 107313,
+      "sha256": "8b8e46c32eb3f8f8f0f937d507778b04eae54b91d31cb95a0c7ea15d6802d6d7"
+    },
+    {
+      "index": 18,
+      "startLine": 2,
+      "attrs": {
+        "src": "./js/economic-read-model.js"
+      },
+      "kind": "local",
+      "src": "./js/economic-read-model.js",
+      "path": "js/economic-read-model.js",
+      "bytes": 91593,
+      "sha256": "f5ca3db28a7795e3f4214174dd19974fbe8ea48388e15ab62d512cfe6cfb8e12"
+    },
+    {
+      "index": 19,
+      "startLine": 2,
+      "attrs": {
+        "src": "./js/phase3-indirect-economic-paths.js"
+      },
+      "kind": "local",
+      "src": "./js/phase3-indirect-economic-paths.js",
+      "path": "js/phase3-indirect-economic-paths.js",
+      "bytes": 8461,
+      "sha256": "52afe5cddb3fcadc654773aad10a121678bede9313f16cd3464979a1951344e0"
+    },
+    {
+      "index": 20,
+      "startLine": 2,
+      "attrs": {
+        "src": "./js/phase3-vc-source-interests.js"
+      },
+      "kind": "local",
+      "src": "./js/phase3-vc-source-interests.js",
+      "path": "js/phase3-vc-source-interests.js",
+      "bytes": 8869,
+      "sha256": "3eb69f6c9cb40aea3d2c306903527f4e07dd296f2433f86fd097e587e31d4ada"
+    },
+    {
+      "index": 21,
+      "startLine": 2,
+      "attrs": {
+        "src": "./js/phase3-pe-fund-interests.js"
+      },
+      "kind": "local",
+      "src": "./js/phase3-pe-fund-interests.js",
+      "path": "js/phase3-pe-fund-interests.js",
+      "bytes": 25772,
+      "sha256": "4b864b6fa2d54dc9189df9d0f042d423ee2faf9b6e5ddd774c3484260343d65e"
+    },
+    {
+      "index": 22,
+      "startLine": 2,
+      "attrs": {
+        "src": "./js/phase3-restructuring-lifecycle.js"
+      },
+      "kind": "local",
+      "src": "./js/phase3-restructuring-lifecycle.js",
+      "path": "js/phase3-restructuring-lifecycle.js",
+      "bytes": 8761,
+      "sha256": "cdb2c1dd41c8b26a2f5bff4e65725ac5eb754a49b0126387fdefe11ec02c388e"
+    },
+    {
+      "index": 23,
+      "startLine": 2,
+      "attrs": {
+        "src": "./js/phase3-founder-wealth.js"
+      },
+      "kind": "local",
+      "src": "./js/phase3-founder-wealth.js",
+      "path": "js/phase3-founder-wealth.js",
+      "bytes": 53902,
+      "sha256": "5e94f64b4a26aa834e98c048193a1c3118f65255006ab1d28044327cf2874abc"
+    },
+    {
+      "index": 24,
+      "startLine": 2,
+      "attrs": {
+        "src": "./js/phase3-control-eligibility.js"
+      },
+      "kind": "local",
+      "src": "./js/phase3-control-eligibility.js",
+      "path": "js/phase3-control-eligibility.js",
+      "bytes": 19599,
+      "sha256": "d62dd872fe3db1eb3892fa2c3945d4e880cc35549cb111554565fd105e021d34"
+    },
+    {
+      "index": 25,
+      "startLine": 2,
+      "attrs": {
+        "src": "./js/phase3-ownership-planner.js"
+      },
+      "kind": "local",
+      "src": "./js/phase3-ownership-planner.js",
+      "path": "js/phase3-ownership-planner.js",
+      "bytes": 17276,
+      "sha256": "882fa327f9969bae2fe4962026bc0e5f00940ebfc3cf67bcf68507e2a8595da1"
+    },
+    {
+      "index": 26,
+      "startLine": 2,
+      "attrs": {
+        "src": "./js/phase3-ownership-apply.js"
+      },
+      "kind": "local",
+      "src": "./js/phase3-ownership-apply.js",
+      "path": "js/phase3-ownership-apply.js",
+      "bytes": 5950,
+      "sha256": "06201ca4e330f49b254302971669c6e0b344731a4ce76af7f00e53640a1c559f"
+    },
+    {
+      "index": 27,
+      "startLine": 2,
+      "attrs": {
+        "src": "./js/economic-settlement.js"
+      },
+      "kind": "local",
+      "src": "./js/economic-settlement.js",
+      "path": "js/economic-settlement.js",
+      "bytes": 9465,
+      "sha256": "1d87baaeba372641f4cc86dccb7b21f0dc9c45604c82357eee837a5407d0b1f0"
+    },
+    {
+      "index": 28,
+      "startLine": 2,
+      "attrs": {
+        "src": "./js/real-estate-agency-pipeline.js"
+      },
+      "kind": "local",
+      "src": "./js/real-estate-agency-pipeline.js",
+      "path": "js/real-estate-agency-pipeline.js",
+      "bytes": 13648,
+      "sha256": "bc150e25cebb334c086fa1c7a3461a5a67d23848945424a7dd766e64092ffd58"
+    },
+    {
+      "index": 29,
+      "startLine": 2,
+      "attrs": {
+        "src": "./js/convenience-merchandising.js"
+      },
+      "kind": "local",
+      "src": "./js/convenience-merchandising.js",
+      "path": "js/convenience-merchandising.js",
+      "bytes": 9799,
+      "sha256": "2fbeb0a00db3cb4a192af20aa73f22c3babd8eeafae259e73af5675153aaff6d"
+    },
+    {
+      "index": 30,
+      "startLine": 2,
+      "attrs": {
+        "src": "./js/gym-membership-model.js"
+      },
+      "kind": "local",
+      "src": "./js/gym-membership-model.js",
+      "path": "js/gym-membership-model.js",
+      "bytes": 11178,
+      "sha256": "3a5b367b6706281e9076c14a34ad57921d200488b79ceaf65e71e79de3dab5af"
+    },
+    {
+      "index": 31,
+      "startLine": 2,
+      "attrs": {
+        "src": "./js/microcap-listings.js"
+      },
+      "kind": "local",
+      "src": "./js/microcap-listings.js",
+      "path": "js/microcap-listings.js",
+      "bytes": 5290,
+      "sha256": "75e073c139b484c085c35da9c54a26d5122e52873cbbf37da6ad7be2b23efb87"
+    },
+    {
+      "index": 32,
+      "startLine": 2,
+      "attrs": {
+        "src": "./js/simulation-rng.js"
+      },
+      "kind": "local",
+      "src": "./js/simulation-rng.js",
+      "path": "js/simulation-rng.js",
+      "bytes": 4888,
+      "sha256": "29e5c71de94db5a3b67521448463830fd054b5f617d792c7bc0c6bc69c956f65"
+    },
+    {
+      "index": 33,
+      "startLine": 2,
+      "attrs": {
+        "src": "./js/semantic-hash-v2.js"
+      },
+      "kind": "local",
+      "src": "./js/semantic-hash-v2.js",
+      "path": "js/semantic-hash-v2.js",
+      "bytes": 7780,
+      "sha256": "b50d53d27bd78c30ebb80cd5ff4906fd6213058438717c3dce3a7fefde3eb6cd"
+    },
+    {
+      "index": 34,
+      "startLine": 2,
+      "attrs": {
+        "src": "./js/engine.js"
+      },
+      "kind": "local",
+      "src": "./js/engine.js",
+      "path": "js/engine.js",
+      "bytes": 228083,
+      "sha256": "8ce1dc98ba6cafba16f39148b6d1adfc11436a6dcf2c1c7e81a9041802787864"
+    },
+    {
+      "index": 35,
+      "startLine": 2,
+      "attrs": {
+        "src": "./js/player-media-advertising.js"
+      },
+      "kind": "local",
+      "src": "./js/player-media-advertising.js",
+      "path": "js/player-media-advertising.js",
+      "bytes": 4471,
+      "sha256": "9d43412b3a74c567fe2f260810290ba67b3175c19ac624c3710a40f431266164"
+    },
+    {
+      "index": 36,
+      "startLine": 2,
+      "attrs": {
+        "src": "./js/store-equipment.js"
+      },
+      "kind": "local",
+      "src": "./js/store-equipment.js",
+      "path": "js/store-equipment.js",
+      "bytes": 27518,
+      "sha256": "f9ffb24ec119d2f79e9e011412f98b788402db39992815e17358a71b3d0358f2"
+    },
+    {
+      "index": 37,
+      "startLine": 2,
+      "attrs": {
+        "src": "./js/menu-research.js"
+      },
+      "kind": "local",
+      "src": "./js/menu-research.js",
+      "path": "js/menu-research.js",
+      "bytes": 7827,
+      "sha256": "c50bcdce3feca9f4020223968d7056d4d4a8641b76c00312d81b11d996e41a67"
+    },
+    {
+      "index": 38,
+      "startLine": 2,
+      "attrs": {
+        "src": "./js/real-estate.js"
+      },
+      "kind": "local",
+      "src": "./js/real-estate.js",
+      "path": "js/real-estate.js",
+      "bytes": 24585,
+      "sha256": "59a30ef45477e8506c02db16e65f8309c5120f6f7e94e8782a0c9a880051fe04"
+    },
+    {
+      "index": 39,
+      "startLine": 2,
+      "attrs": {
+        "src": "./js/save-v9.js"
+      },
+      "kind": "local",
+      "src": "./js/save-v9.js",
+      "path": "js/save-v9.js",
+      "bytes": 10623,
+      "sha256": "5cf21d81ff8f277eb91053e4641478dda19de1e9e13f4be73ae89431c20171a6"
+    },
+    {
+      "index": 40,
+      "startLine": 2,
+      "attrs": {
+        "src": "./js/ma-integration.js"
+      },
+      "kind": "local",
+      "src": "./js/ma-integration.js",
+      "path": "js/ma-integration.js",
+      "bytes": 13028,
+      "sha256": "73916b6f7cba331bda24b4ad30075f8ca859d0cf437774f2ceed7d9f9efb1f18"
+    },
+    {
+      "index": 41,
+      "startLine": 2,
+      "attrs": {
+        "src": "./js/ma-deal-room.js"
+      },
+      "kind": "local",
+      "src": "./js/ma-deal-room.js",
+      "path": "js/ma-deal-room.js",
+      "bytes": 38028,
+      "sha256": "4d16b3a7b887eef1b3431812f05a4aae33d74e122faeb65532877a42db6ca0ef"
+    },
+    {
+      "index": 42,
+      "startLine": 2,
+      "attrs": {
+        "src": "./js/pe-rivals.js"
+      },
+      "kind": "local",
+      "src": "./js/pe-rivals.js",
+      "path": "js/pe-rivals.js",
+      "bytes": 5810,
+      "sha256": "eb39c19f53948264e12ef4677c640b991bffe559ccd62c005b6aa2b48b6efae7"
+    },
+    {
+      "index": 43,
+      "startLine": 2,
+      "attrs": {
+        "src": "./js/expansion.js"
+      },
+      "kind": "local",
+      "src": "./js/expansion.js",
+      "path": "js/expansion.js",
+      "bytes": 113347,
+      "sha256": "a5fe89475cc24c0060854b4255f257d74bc5a1f77decf57dfc02278f55bbfe4c"
+    },
+    {
+      "index": 44,
+      "startLine": 2,
+      "attrs": {
+        "src": "./js/pe-value-creation.js"
+      },
+      "kind": "local",
+      "src": "./js/pe-value-creation.js",
+      "path": "js/pe-value-creation.js",
+      "bytes": 21633,
+      "sha256": "1eba5c82954c3a7439fc0b296d096fa4da4f2f45cd1d186bb2e1650534179e77"
+    },
+    {
+      "index": 45,
+      "startLine": 2,
+      "attrs": {
+        "src": "./js/sports-management.js"
+      },
+      "kind": "local",
+      "src": "./js/sports-management.js",
+      "path": "js/sports-management.js",
+      "bytes": 7591,
+      "sha256": "5b515b170315130de85b06febd2cef20532028f95f9b2495471cb29b7e7cd625"
+    },
+    {
+      "index": 46,
+      "startLine": 2,
+      "attrs": {
+        "src": "./js/personal-real-estate-mortgage.js"
+      },
+      "kind": "local",
+      "src": "./js/personal-real-estate-mortgage.js",
+      "path": "js/personal-real-estate-mortgage.js",
+      "bytes": 16553,
+      "sha256": "280a63ea7555d051f2af1f02b52a78c23e4dd427f5fb8f17939c9a9c6abff8eb"
+    },
+    {
+      "index": 47,
+      "startLine": 2,
+      "attrs": {
+        "src": "./js/personal-stock-margin.js"
+      },
+      "kind": "local",
+      "src": "./js/personal-stock-margin.js",
+      "path": "js/personal-stock-margin.js",
+      "bytes": 14157,
+      "sha256": "2166620bac5b6629c18733fe8716514248bd170894d417a48775624e253d3927"
+    },
+    {
+      "index": 48,
+      "startLine": 2,
+      "attrs": {
+        "src": "./js/personal-real-estate-taxes.js"
+      },
+      "kind": "local",
+      "src": "./js/personal-real-estate-taxes.js",
+      "path": "js/personal-real-estate-taxes.js",
+      "bytes": 6209,
+      "sha256": "206f4fbe9f77d2a01f26d31cb8aec3359da5fb7f39b52aaff84894ca4a3c7c08"
+    },
+    {
+      "index": 49,
+      "startLine": 2,
+      "attrs": {
+        "src": "./js/personal-real-estate-short-term.js"
+      },
+      "kind": "local",
+      "src": "./js/personal-real-estate-short-term.js",
+      "path": "js/personal-real-estate-short-term.js",
+      "bytes": 12553,
+      "sha256": "af8e2bafbadeb91b8a8ab22161638b3fe910102a37515e0ea84e84363ab17f32"
+    },
+    {
+      "index": 50,
+      "startLine": 2,
+      "attrs": {
+        "src": "./js/personal-real-estate-redevelopment.js"
+      },
+      "kind": "local",
+      "src": "./js/personal-real-estate-redevelopment.js",
+      "path": "js/personal-real-estate-redevelopment.js",
+      "bytes": 7102,
+      "sha256": "b51dd9675ca7bf75ce5b936586ac73cb7302a984c1e10afda7197c7cb90fc16c"
+    },
+    {
+      "index": 51,
+      "startLine": 2,
+      "attrs": {
+        "src": "./js/personal-real-estate-corp.js"
+      },
+      "kind": "local",
+      "src": "./js/personal-real-estate-corp.js",
+      "path": "js/personal-real-estate-corp.js",
+      "bytes": 7273,
+      "sha256": "802d1a92d5ef8a5c47fa9eef7632df80d76c9de3edf1fd71308cf390b8ec3e9b"
+    },
+    {
+      "index": 52,
+      "startLine": 2,
+      "attrs": {
+        "src": "./js/competitor-media.js"
+      },
+      "kind": "local",
+      "src": "./js/competitor-media.js",
+      "path": "js/competitor-media.js",
+      "bytes": 19680,
+      "sha256": "3ae040bb1ed72b23401d06e0416ef4440bbe4b7bddabf16ba2cef9d3f01ce8a0"
+    },
+    {
+      "index": 53,
+      "startLine": 2,
+      "attrs": {
+        "src": "./js/completion.js"
+      },
+      "kind": "local",
+      "src": "./js/completion.js",
+      "path": "js/completion.js",
+      "bytes": 38763,
+      "sha256": "3821fcd87fb06cf1705d52d5360db1912d7208f4ff6aa68554bef2258caec43c"
+    },
+    {
+      "index": 54,
+      "startLine": 2,
+      "attrs": {
+        "src": "./js/pe-fund.js"
+      },
+      "kind": "local",
+      "src": "./js/pe-fund.js",
+      "path": "js/pe-fund.js",
+      "bytes": 80196,
+      "sha256": "47081ffd74106b91421b8ee6a652636b71514297b4dac4fda7a228ff44303b21"
+    },
+    {
+      "index": 55,
+      "startLine": 2,
+      "attrs": {
+        "src": "./js/company-recall-crisis.js"
+      },
+      "kind": "local",
+      "src": "./js/company-recall-crisis.js",
+      "path": "js/company-recall-crisis.js",
+      "bytes": 9588,
+      "sha256": "664cb5078a0bf56a7448efe95a394c1f37d3a5bbfdd483e9c114f007b7895ce4"
+    },
+    {
+      "index": 56,
+      "startLine": 2,
+      "attrs": {
+        "src": "./js/pe-industry-tiers.js"
+      },
+      "kind": "local",
+      "src": "./js/pe-industry-tiers.js",
+      "path": "js/pe-industry-tiers.js",
+      "bytes": 10052,
+      "sha256": "b9c091c4104eaf22c0897c55207f04cee62fb14337adb8788e516978ab0b8c28"
+    },
+    {
+      "index": 57,
+      "startLine": 2,
+      "attrs": {
+        "src": "./js/pe-network.js"
+      },
+      "kind": "local",
+      "src": "./js/pe-network.js",
+      "path": "js/pe-network.js",
+      "bytes": 10571,
+      "sha256": "f2eb0ecc78fdd40574681b71dddced058f47ebe5fd719b2dbcd91a5d89102b22"
+    },
+    {
+      "index": 58,
+      "startLine": 2,
+      "attrs": {
+        "src": "./js/pe-portfolio-operations.js"
+      },
+      "kind": "local",
+      "src": "./js/pe-portfolio-operations.js",
+      "path": "js/pe-portfolio-operations.js",
+      "bytes": 76073,
+      "sha256": "fad1aad4f4dc44d74c1166e2ee458d5eebb7c359b70ecbda390d10c69128673b"
+    },
+    {
+      "index": 59,
+      "startLine": 2,
+      "attrs": {
+        "src": "./js/pe-deal-supply.js"
+      },
+      "kind": "local",
+      "src": "./js/pe-deal-supply.js",
+      "path": "js/pe-deal-supply.js",
+      "bytes": 36404,
+      "sha256": "eb380300fe27d4cdd88842afa005622596d10725bc7c889b404daf6fe1b09178"
+    },
+    {
+      "index": 60,
+      "startLine": 2,
+      "attrs": {
+        "src": "./js/pe-acquisition.js"
+      },
+      "kind": "local",
+      "src": "./js/pe-acquisition.js",
+      "path": "js/pe-acquisition.js",
+      "bytes": 13762,
+      "sha256": "9aee6f7985b074b387c0a7b00fcfb03ecb5c45ccf941a29f097286e150b6fa89"
+    },
+    {
+      "index": 61,
+      "startLine": 2,
+      "attrs": {
+        "src": "./js/management-context.js"
+      },
+      "kind": "local",
+      "src": "./js/management-context.js",
+      "path": "js/management-context.js",
+      "bytes": 49249,
+      "sha256": "af2b0293767f2d80bfa146558fef4e1bbeaa3d6b0d523a20d77818fe7661f77a"
+    },
+    {
+      "index": 62,
+      "startLine": 2,
+      "attrs": {
+        "src": "./js/pe-network-sourcing.js"
+      },
+      "kind": "local",
+      "src": "./js/pe-network-sourcing.js",
+      "path": "js/pe-network-sourcing.js",
+      "bytes": 10932,
+      "sha256": "2a8ace618a2165b4c5e60616cde3d381fb3b26cc2795552cab610cb9c9768011"
+    },
+    {
+      "index": 63,
+      "startLine": 2,
+      "attrs": {
+        "src": "./js/parity.js"
+      },
+      "kind": "local",
+      "src": "./js/parity.js",
+      "path": "js/parity.js",
+      "bytes": 23661,
+      "sha256": "3c2eb34fe9953e3dadd8dcd8eb73fef086c08ecee06f344aceda8fe7f1039be0"
+    },
+    {
+      "index": 64,
+      "startLine": 2,
+      "attrs": {
+        "src": "./js/ceo-dashboard.js"
+      },
+      "kind": "local",
+      "src": "./js/ceo-dashboard.js",
+      "path": "js/ceo-dashboard.js",
+      "bytes": 10044,
+      "sha256": "a86938731cc0c3039100da3b1e5443d0099ff06158cfb90f34722bd7aeae61ef"
+    },
+    {
+      "index": 65,
+      "startLine": 2,
+      "attrs": {
+        "src": "./js/executive-secretary.js"
+      },
+      "kind": "local",
+      "src": "./js/executive-secretary.js",
+      "path": "js/executive-secretary.js",
+      "bytes": 21809,
+      "sha256": "319ce3b0f1fd8378f7160074139f832ab019790289d7a33292ed61676afa3dcb"
+    },
+    {
+      "index": 66,
+      "startLine": 2,
+      "attrs": {
+        "src": "./js/competitor-parity.js"
+      },
+      "kind": "local",
+      "src": "./js/competitor-parity.js",
+      "path": "js/competitor-parity.js",
+      "bytes": 16307,
+      "sha256": "c18650c45c83deabff9ab64b6928551be39f815e93cd7518e359892b26ebfde8"
+    },
+    {
+      "index": 67,
+      "startLine": 2,
+      "attrs": {
+        "src": "./js/competitor-dashboard.js"
+      },
+      "kind": "local",
+      "src": "./js/competitor-dashboard.js",
+      "path": "js/competitor-dashboard.js",
+      "bytes": 11831,
+      "sha256": "e7bd8127c7950d0acc4d89952b353cabdebb0829de75641b2109a98cc5d5769b"
+    },
+    {
+      "index": 68,
+      "startLine": 2,
+      "attrs": {
+        "src": "./js/competitor-dashboard-status.js"
+      },
+      "kind": "local",
+      "src": "./js/competitor-dashboard-status.js",
+      "path": "js/competitor-dashboard-status.js",
+      "bytes": 3161,
+      "sha256": "a395967401d4c71776388b8f4b0092623dc880475e771392db151f9a47e9c1c5"
+    },
+    {
+      "index": 69,
+      "startLine": 2,
+      "attrs": {
+        "src": "./js/competitor-dashboard-ui.js"
+      },
+      "kind": "local",
+      "src": "./js/competitor-dashboard-ui.js",
+      "path": "js/competitor-dashboard-ui.js",
+      "bytes": 10133,
+      "sha256": "148ce37ddce6ec43dc6a5e0a9d255e7e13f931d7a6c2d970c2a8477ae4b183ca"
+    },
+    {
+      "index": 70,
+      "startLine": 2,
+      "attrs": {
+        "src": "./js/player-crisis-ui.js"
+      },
+      "kind": "local",
+      "src": "./js/player-crisis-ui.js",
+      "path": "js/player-crisis-ui.js",
+      "bytes": 18682,
+      "sha256": "359f7673558663f5e8066c9ca1bad73fc31418cf74f11e3defef86d8af29c0cf"
+    },
+    {
+      "index": 71,
+      "startLine": 2,
+      "attrs": {
+        "src": "./js/player-engine-bridge.js"
+      },
+      "kind": "local",
+      "src": "./js/player-engine-bridge.js",
+      "path": "js/player-engine-bridge.js",
+      "bytes": 32200,
+      "sha256": "f742d6cba8e0a8ad9c17fb374dbaa7ff23013bdb21a342258e26977df3a69275"
+    },
+    {
+      "index": 72,
+      "startLine": 2,
+      "attrs": {
+        "src": "./js/board-governance-resolution.js"
+      },
+      "kind": "local",
+      "src": "./js/board-governance-resolution.js",
+      "path": "js/board-governance-resolution.js",
+      "bytes": 19278,
+      "sha256": "d5b32d5ee2b1dad33a4a19411f3efff01f71b8d8eac55b6ef7d7937684916177"
+    },
+    {
+      "index": 73,
+      "startLine": 2,
+      "attrs": {
+        "src": "./js/internal-venture-business.js"
+      },
+      "kind": "local",
+      "src": "./js/internal-venture-business.js",
+      "path": "js/internal-venture-business.js",
+      "bytes": 38431,
+      "sha256": "4da599393fc7177ebeb9b4dbbcdb63ca53e168c537ac7f9993c1a2588b2ca01e"
+    },
+    {
+      "index": 74,
+      "startLine": 2,
+      "attrs": {
+        "src": "./js/ma-portfolio-summary.js"
+      },
+      "kind": "local",
+      "src": "./js/ma-portfolio-summary.js",
+      "path": "js/ma-portfolio-summary.js",
+      "bytes": 4667,
+      "sha256": "6d635a5bd5ddd215d0040c139b84689a7c02e804beb46ba22d66d4b1b07d7158"
+    },
+    {
+      "index": 75,
+      "startLine": 2,
+      "attrs": {
+        "src": "./js/ma-exit-readiness.js"
+      },
+      "kind": "local",
+      "src": "./js/ma-exit-readiness.js",
+      "path": "js/ma-exit-readiness.js",
+      "bytes": 6264,
+      "sha256": "a7e693351673461804abca72ac6e0a3a65aeb0d0aa97cc325b56a864b577ba76"
+    },
+    {
+      "index": 76,
+      "startLine": 2,
+      "attrs": {
+        "src": "./js/ma-portfolio-summary-ui.js"
+      },
+      "kind": "local",
+      "src": "./js/ma-portfolio-summary-ui.js",
+      "path": "js/ma-portfolio-summary-ui.js",
+      "bytes": 11559,
+      "sha256": "d82bc64595ce79150a410a1ef9e4f8522c3eca62dac16cf07e66aacb3f7a02f8"
+    },
+    {
+      "index": 77,
+      "startLine": 2,
+      "attrs": {
+        "src": "./js/ma-acquisition-financing.js"
+      },
+      "kind": "local",
+      "src": "./js/ma-acquisition-financing.js",
+      "path": "js/ma-acquisition-financing.js",
+      "bytes": 33270,
+      "sha256": "11f00b6a9f8b97fdb3677c77eda4d26dad47b8e362bbe7235c6585f0dd3ce784"
+    },
+    {
+      "index": 78,
+      "startLine": 2,
+      "attrs": {
+        "src": "./js/ma-board-approval.js"
+      },
+      "kind": "local",
+      "src": "./js/ma-board-approval.js",
+      "path": "js/ma-board-approval.js",
+      "bytes": 19541,
+      "sha256": "fdc984e450d85a61ce1b167ac99b5a441378eeb5bd67f94da0f1da6ddf2150e1"
+    },
+    {
+      "index": 79,
+      "startLine": 2,
+      "attrs": {
+        "src": "./js/progression-balance.js"
+      },
+      "kind": "local",
+      "src": "./js/progression-balance.js",
+      "path": "js/progression-balance.js",
+      "bytes": 1481,
+      "sha256": "2253a181ad30f2a4cf57500e6aff0f0e93f6b67f5aa7028d5489e3646a570b3e"
+    },
+    {
+      "index": 80,
+      "startLine": 2,
+      "attrs": {
+        "src": "./js/founding-tutorial.js"
+      },
+      "kind": "local",
+      "src": "./js/founding-tutorial.js",
+      "path": "js/founding-tutorial.js",
+      "bytes": 18702,
+      "sha256": "d80bf43f178f87f205912c5942a1a16d7e6748389ee9e48ebe974e13fd69f857"
+    },
+    {
+      "index": 81,
+      "startLine": 2,
+      "attrs": {
+        "src": "./js/ui-enhancer-registry.js"
+      },
+      "kind": "local",
+      "src": "./js/ui-enhancer-registry.js",
+      "path": "js/ui-enhancer-registry.js",
+      "bytes": 4862,
+      "sha256": "6e4f168c5ac66a9b8a537c776a2100b8992a563e327cc7d760b4ec9f1161c4ff"
+    },
+    {
+      "index": 82,
+      "startLine": 2,
+      "attrs": {
+        "src": "./js/save-storage-idb.js"
+      },
+      "kind": "local",
+      "src": "./js/save-storage-idb.js",
+      "path": "js/save-storage-idb.js",
+      "bytes": 18026,
+      "sha256": "bbbbea55688a9bac1c0d7f7be8b803dca71c6dd0016e58c35184b0888dff5644"
+    },
+    {
+      "index": 83,
+      "startLine": 2,
+      "attrs": {
+        "src": "./js/app.js"
+      },
+      "kind": "local",
+      "src": "./js/app.js",
+      "path": "js/app.js",
+      "bytes": 239237,
+      "sha256": "bccc16f71f6e223ae58dc357ee2cda1501b776383c37fbb05f1a7b1a102ccc36"
+    },
+    {
+      "index": 84,
+      "startLine": 2,
+      "attrs": {
+        "src": "./js/player-media-advertising-ui.js"
+      },
+      "kind": "local",
+      "src": "./js/player-media-advertising-ui.js",
+      "path": "js/player-media-advertising-ui.js",
+      "bytes": 3269,
+      "sha256": "e5c0784706fd48883836b16c48f4f716143471fe7d174e2e2328ccdf980d0fb4"
+    },
+    {
+      "index": 85,
+      "startLine": 2,
+      "attrs": {
+        "src": "./js/difficulty-scenario-balance.js"
+      },
+      "kind": "local",
+      "src": "./js/difficulty-scenario-balance.js",
+      "path": "js/difficulty-scenario-balance.js",
+      "bytes": 16831,
+      "sha256": "7c39bfc314e0dd9aad29833bf08e79ceadfdc19261eb39450cdfc38249b7a8e4"
+    },
+    {
+      "index": 86,
+      "startLine": 2,
+      "attrs": {
+        "src": "./js/player-crisis.js"
+      },
+      "kind": "local",
+      "src": "./js/player-crisis.js",
+      "path": "js/player-crisis.js",
+      "bytes": 12408,
+      "sha256": "e0e2a4e933c5839219bac004ad60eca4ce03b83ac7dad3835580e545899f2cbb"
+    },
+    {
+      "index": 87,
+      "startLine": 2,
+      "attrs": {
+        "src": "./js/player-crisis-actions.js"
+      },
+      "kind": "local",
+      "src": "./js/player-crisis-actions.js",
+      "path": "js/player-crisis-actions.js",
+      "bytes": 16421,
+      "sha256": "d163755e9c104e615adcdc97f1441f324a99dd493f28e17f0323df438ee6d716"
+    },
+    {
+      "index": 88,
+      "startLine": 2,
+      "attrs": {
+        "src": "./js/player-crisis-restructuring.js"
+      },
+      "kind": "local",
+      "src": "./js/player-crisis-restructuring.js",
+      "path": "js/player-crisis-restructuring.js",
+      "bytes": 17380,
+      "sha256": "240cdc1a2e4e3718e01dee5d06146d8b75f539c489aee93d4cc8b18dd6f40491"
+    },
+    {
+      "index": 89,
+      "startLine": 2,
+      "attrs": {
+        "src": "./js/player-crisis-creditor.js"
+      },
+      "kind": "local",
+      "src": "./js/player-crisis-creditor.js",
+      "path": "js/player-crisis-creditor.js",
+      "bytes": 15846,
+      "sha256": "0b71ba1db5172dfdb85bef14cbd018fc19c3a8e61e4cc6ccb578ef90d0b44e86"
+    },
+    {
+      "index": 90,
+      "startLine": 2,
+      "attrs": {
+        "src": "./js/player-debt-service.js"
+      },
+      "kind": "local",
+      "src": "./js/player-debt-service.js",
+      "path": "js/player-debt-service.js",
+      "bytes": 21119,
+      "sha256": "da0b19accead0f5223fb71a2ce83fa9c974dad6affb86a85a823e53307a464af"
+    },
+    {
+      "index": 91,
+      "startLine": 2,
+      "attrs": {
+        "src": "./js/player-turnaround-plan.js"
+      },
+      "kind": "local",
+      "src": "./js/player-turnaround-plan.js",
+      "path": "js/player-turnaround-plan.js",
+      "bytes": 6261,
+      "sha256": "c98a3f9965e3af2aaf11f5d97abae6c4290676dace43bf5f3f4e278d0d857605"
+    },
+    {
+      "index": 92,
+      "startLine": 2,
+      "attrs": {
+        "src": "./js/player-crisis-turnaround-fund.js"
+      },
+      "kind": "local",
+      "src": "./js/player-crisis-turnaround-fund.js",
+      "path": "js/player-crisis-turnaround-fund.js",
+      "bytes": 16793,
+      "sha256": "d9cd53061ce7759e3e55e51572a0a8b1deda7f6b93e939175860062b5635589e"
+    },
+    {
+      "index": 93,
+      "startLine": 2,
+      "attrs": {
+        "src": "./js/player-crisis-creditor-ui.js"
+      },
+      "kind": "local",
+      "src": "./js/player-crisis-creditor-ui.js",
+      "path": "js/player-crisis-creditor-ui.js",
+      "bytes": 6516,
+      "sha256": "b9a5c2e237962caceb8e3185e37c668151f3b9e7ad7b1977f592cc7566a2931c"
+    },
+    {
+      "index": 94,
+      "startLine": 2,
+      "attrs": {
+        "src": "./js/player-turnaround-plan-ui.js"
+      },
+      "kind": "local",
+      "src": "./js/player-turnaround-plan-ui.js",
+      "path": "js/player-turnaround-plan-ui.js",
+      "bytes": 9955,
+      "sha256": "403b7db9e2ced6037b8601fad29942216fef51f75e85b62e922f972ceb93a45c"
+    },
+    {
+      "index": 95,
+      "startLine": 2,
+      "attrs": {
+        "src": "./js/player-turnaround-plan-report.js"
+      },
+      "kind": "local",
+      "src": "./js/player-turnaround-plan-report.js",
+      "path": "js/player-turnaround-plan-report.js",
+      "bytes": 8554,
+      "sha256": "fc1721f980bcc75b6fc466caf0175182b85935b24660addf9c2ca4338b99059a"
+    },
+    {
+      "index": 96,
+      "startLine": 2,
+      "attrs": {
+        "src": "./js/release-diagnostics-ui.js"
+      },
+      "kind": "local",
+      "src": "./js/release-diagnostics-ui.js",
+      "path": "js/release-diagnostics-ui.js",
+      "bytes": 8788,
+      "sha256": "3ee2ccc0fdf9592ce2608fad010ad31fd5a270d8f273e5199682585c4d876601"
+    },
+    {
+      "index": 97,
+      "startLine": 2,
+      "attrs": {
+        "src": "./js/playtest-report-ui.js"
+      },
+      "kind": "local",
+      "src": "./js/playtest-report-ui.js",
+      "path": "js/playtest-report-ui.js",
+      "bytes": 7858,
+      "sha256": "8b03f790580686ff1e99e37b01d5d1675ec4df9fa1b61ee15fec890a3567a455"
+    },
+    {
+      "index": 98,
+      "startLine": 2,
+      "attrs": {
+        "src": "./js/map-phase2-canvas.js?rev=ef20bfd929e6"
+      },
+      "kind": "local",
+      "src": "./js/map-phase2-canvas.js?rev=ef20bfd929e6",
+      "path": "js/map-phase2-canvas.js",
+      "bytes": 61356,
+      "sha256": "dc50a57fea77770ce68e8dc59369a4984cf3c16befea6aa14ab93f18fadf4516"
+    },
+    {
+      "index": 99,
+      "startLine": 2,
+      "attrs": {
+        "src": "./js/city-lab-map.js?rev=ef20bfd929e6"
+      },
+      "kind": "local",
+      "src": "./js/city-lab-map.js?rev=ef20bfd929e6",
+      "path": "js/city-lab-map.js",
+      "bytes": 28049,
+      "sha256": "efd6269d1002addc946d7c4d0d83e27e7a664e6da513dca6987b3e436e4972b3"
+    },
+    {
+      "index": 100,
+      "startLine": 2,
+      "attrs": {
+        "src": "./js/d-ui-shell.js?rev=ef20bfd929e6"
+      },
+      "kind": "local",
+      "src": "./js/d-ui-shell.js?rev=ef20bfd929e6",
+      "path": "js/d-ui-shell.js",
+      "bytes": 40245,
+      "sha256": "3ba875bf9d1f85020b3d55923d2c50b0fe389b653e892d922481559c23800591"
+    },
+    {
+      "index": 101,
+      "startLine": 2,
+      "attrs": {
+        "src": "./js/pe-ui-adapter.js"
+      },
+      "kind": "local",
+      "src": "./js/pe-ui-adapter.js",
+      "path": "js/pe-ui-adapter.js",
+      "bytes": 65967,
+      "sha256": "c20f0d249f287a3aaa5a2f558ef2362d6a990266bf6507674df3f507c6920a6c"
+    },
+    {
+      "index": 102,
+      "startLine": 2,
+      "attrs": {
+        "src": "./js/pe-ui.js"
+      },
+      "kind": "local",
+      "src": "./js/pe-ui.js",
+      "path": "js/pe-ui.js",
+      "bytes": 68193,
+      "sha256": "e4f9b25ab46936e769b0719a8888bf1820f36fd89d1b9774cc72c7149057e685"
+    },
+    {
+      "index": 103,
+      "startLine": 2,
+      "attrs": {
+        "src": "./js/d-ui-context-tabs.js?rev=ef20bfd929e6"
+      },
+      "kind": "local",
+      "src": "./js/d-ui-context-tabs.js?rev=ef20bfd929e6",
+      "path": "js/d-ui-context-tabs.js",
+      "bytes": 21594,
+      "sha256": "793b57eb276e3a6465f7572d9dda30fd4b492af83cb038bc2cf1afa6a8de03b9"
+    },
+    {
+      "index": 104,
+      "startLine": 2,
+      "attrs": {
+        "src": "./js/runtime-recovery-ui.js"
+      },
+      "kind": "local",
+      "src": "./js/runtime-recovery-ui.js",
+      "path": "js/runtime-recovery-ui.js",
+      "bytes": 8230,
+      "sha256": "7d8e820b4b8a5de1fcde34df97fb4ef5f422b20c1ab8d5c8aa13f8f6dde72222"
+    },
+    {
+      "index": 105,
+      "startLine": 2,
+      "attrs": {
+        "src": "./js/shareholder-returns.js"
+      },
+      "kind": "local",
+      "src": "./js/shareholder-returns.js",
+      "path": "js/shareholder-returns.js",
+      "bytes": 14569,
+      "sha256": "f2ce6481c6c909ada81f817deefae85f3e6e9382fac5d5fdcf7e1f404e4d6816"
+    },
+    {
+      "index": 106,
+      "startLine": 2,
+      "attrs": {
+        "src": "./js/shareholder-activism.js"
+      },
+      "kind": "local",
+      "src": "./js/shareholder-activism.js",
+      "path": "js/shareholder-activism.js",
+      "bytes": 19580,
+      "sha256": "f8df676162417d769286a6ab816232a66bd36ea00797d44436552dabb0790e01"
+    },
+    {
+      "index": 107,
+      "startLine": 3,
+      "attrs": {
+        "src": "./js/shareholder-value-destruction.js"
+      },
+      "kind": "local",
+      "src": "./js/shareholder-value-destruction.js",
+      "path": "js/shareholder-value-destruction.js",
+      "bytes": 15939,
+      "sha256": "ee9936c129a422a675d41bdc9b7559ab785910036cf6832330af68fce0d45752"
+    },
+    {
+      "index": 108,
+      "startLine": 3,
+      "attrs": {
+        "src": "./js/capital-allocation-score.js"
+      },
+      "kind": "local",
+      "src": "./js/capital-allocation-score.js",
+      "path": "js/capital-allocation-score.js",
+      "bytes": 11341,
+      "sha256": "476a247613905bd6d402765bdf020ccdd17bc38451b0093b8437b150e545fa5d"
+    },
+    {
+      "index": 109,
+      "startLine": 3,
+      "attrs": {
+        "src": "./js/capital-allocation-policy.js"
+      },
+      "kind": "local",
+      "src": "./js/capital-allocation-policy.js",
+      "path": "js/capital-allocation-policy.js",
+      "bytes": 18743,
+      "sha256": "52a9afb420e900e29c559cfdb46e44f7a9d23c0768f7f9c204772de971500e41"
+    },
+    {
+      "index": 110,
+      "startLine": 3,
+      "attrs": {
+        "data-module-integration-loader": ""
+      },
+      "kind": "inline",
+      "bytes": 85,
+      "sha256": "6f925addb8f6304a0b4f3f87949cbf175bce6ae49ffbf4ebc3c1d473b1a73741"
+    },
+    {
+      "index": 111,
+      "startLine": 3,
+      "attrs": {
+        "data-d-ui-nav-scrub": ""
+      },
+      "kind": "inline",
+      "bytes": 772,
+      "sha256": "27743486624b473b3d226fb2b880fe5808c9ad60a159cf4a2e1d81746dae0e76"
+    },
+    {
+      "index": 112,
+      "startLine": 3,
+      "attrs": {
+        "data-d-ui-nav-proxy": ""
+      },
+      "kind": "inline",
+      "bytes": 593,
+      "sha256": "05391349911526258c3d56723a7c557f927fe74413488e21c51b857d9c095047"
+    },
+    {
+      "index": 113,
+      "startLine": 3,
+      "attrs": {
+        "data-setup-recovery-bootstrap": ""
+      },
+      "kind": "inline",
+      "bytes": 881,
+      "sha256": "d8924f0bcd7bd4f231f69fb6762ff1e0ff5b14eeaaedf439558a262168837e32"
+    },
+    {
+      "index": 114,
+      "startLine": 3,
+      "attrs": {
+        "data-setup-recovery-import-bridge": ""
+      },
+      "kind": "inline",
+      "bytes": 571,
+      "sha256": "bba48408adb5cf46229f4876ab0d5c64a8bfad5386a04bff0b1bced0583c485c"
+    },
+    {
+      "index": 115,
+      "startLine": 3,
+      "attrs": {
+        "data-game-over-settings-bridge": ""
+      },
+      "kind": "inline",
+      "bytes": 367,
+      "sha256": "6505e3905e793978d00cc73e4112b0f2d2b3a7bb873b835a7eb9577b5f9584d2"
+    },
+    {
+      "index": 116,
+      "startLine": 3,
+      "attrs": {
+        "src": "./js/macro-cycle.js"
+      },
+      "kind": "local",
+      "src": "./js/macro-cycle.js",
+      "path": "js/macro-cycle.js",
+      "bytes": 8894,
+      "sha256": "719bdb53d748b53ea0118aca57e8e933c6c39f64650efa4bf0cf5b82ea83d703"
+    },
+    {
+      "index": 117,
+      "startLine": 3,
+      "attrs": {
+        "src": "./js/industry-specific-events.js"
+      },
+      "kind": "local",
+      "src": "./js/industry-specific-events.js",
+      "path": "js/industry-specific-events.js",
+      "bytes": 5385,
+      "sha256": "554ca3129da227856ac3e17a38ef9aada2bc0026e1a774f4800291f7b4e84866"
+    },
+    {
+      "index": 118,
+      "startLine": 3,
+      "attrs": {
+        "src": "./js/industry-event-response-plans.js"
+      },
+      "kind": "local",
+      "src": "./js/industry-event-response-plans.js",
+      "path": "js/industry-event-response-plans.js",
+      "bytes": 4805,
+      "sha256": "9d42dc906d583b3bc5ad00f716e28d16e58065a9d2e819f43da04c371a7b8e20"
+    },
+    {
+      "index": 119,
+      "startLine": 3,
+      "attrs": {
+        "src": "./js/industry-event-response-plans-ui.js"
+      },
+      "kind": "local",
+      "src": "./js/industry-event-response-plans-ui.js",
+      "path": "js/industry-event-response-plans-ui.js",
+      "bytes": 2814,
+      "sha256": "b9a93a9b2a72c4b9f586735006b426218dfccb69c8c02402fff32c18c6a4f334"
+    },
+    {
+      "index": 120,
+      "startLine": 3,
+      "attrs": {
+        "src": "./js/product-lifecycle.js"
+      },
+      "kind": "local",
+      "src": "./js/product-lifecycle.js",
+      "path": "js/product-lifecycle.js",
+      "bytes": 32657,
+      "sha256": "251dff240f99cf9eba68131663798551326da68f2b2033651b5d294880d8d8ba"
+    },
+    {
+      "index": 121,
+      "startLine": 3,
+      "attrs": {
+        "src": "./js/save-storage.js"
+      },
+      "kind": "local",
+      "src": "./js/save-storage.js",
+      "path": "js/save-storage.js",
+      "bytes": 17977,
+      "sha256": "43794867fedf1100532127d59541db0a2b767f0d93bedce5ce9d127c8a52baeb"
+    },
+    {
+      "index": 122,
+      "startLine": 3,
+      "attrs": {
+        "src": "./js/save-import-atomic-guard.js"
+      },
+      "kind": "local",
+      "src": "./js/save-import-atomic-guard.js",
+      "path": "js/save-import-atomic-guard.js",
+      "bytes": 3660,
+      "sha256": "acbdd23d515ae7928b9ce7cae7d4b9f224363e1b3b2c0172f83d23dc41f66f61"
+    },
+    {
+      "index": 123,
+      "startLine": 3,
+      "attrs": {
+        "src": "./js/save-storage-ui.js"
+      },
+      "kind": "local",
+      "src": "./js/save-storage-ui.js",
+      "path": "js/save-storage-ui.js",
+      "bytes": 13654,
+      "sha256": "e1a24f7f83ee117273a5847a304852ea293095fb27e48c9d08d2bdbadc734ed2"
+    },
+    {
+      "index": 124,
+      "startLine": 3,
+      "attrs": {
+        "src": "./js/treasury-prepayment.js"
+      },
+      "kind": "local",
+      "src": "./js/treasury-prepayment.js",
+      "path": "js/treasury-prepayment.js",
+      "bytes": 8233,
+      "sha256": "ad969863bd983393c289c26eeb5c1aad4db917ec949d44908fd15374abb21ebb"
+    },
+    {
+      "index": 125,
+      "startLine": 3,
+      "attrs": {
+        "src": "./js/treasury-refinancing-policy.js"
+      },
+      "kind": "local",
+      "src": "./js/treasury-refinancing-policy.js",
+      "path": "js/treasury-refinancing-policy.js",
+      "bytes": 8085,
+      "sha256": "99a663d21afa5f74888761b8be0dbb834e43aaf7ab798fb0eec91f8e05453612"
+    },
+    {
+      "index": 126,
+      "startLine": 3,
+      "attrs": {
+        "src": "./js/capital-allocation-forecast.js"
+      },
+      "kind": "local",
+      "src": "./js/capital-allocation-forecast.js",
+      "path": "js/capital-allocation-forecast.js",
+      "bytes": 11261,
+      "sha256": "6230b8bedcb8da682ea4a78b3233049236a154cd10dba780fdae1f9b09f92182"
+    },
+    {
+      "index": 127,
+      "startLine": 3,
+      "attrs": {
+        "src": "./js/capital-allocation-actions.js"
+      },
+      "kind": "local",
+      "src": "./js/capital-allocation-actions.js",
+      "path": "js/capital-allocation-actions.js",
+      "bytes": 24472,
+      "sha256": "6a76d2530a23aa8a71055651a43831bc3b427d20406dddc91d0e41fdaa87ec05"
+    },
+    {
+      "index": 128,
+      "startLine": 3,
+      "attrs": {
+        "src": "./js/capital-allocation-decision-memo.js"
+      },
+      "kind": "local",
+      "src": "./js/capital-allocation-decision-memo.js",
+      "path": "js/capital-allocation-decision-memo.js",
+      "bytes": 11315,
+      "sha256": "820d2975767e55763c2a6324e4234ac12e807136a8039bb0d8a35632cad391cd"
+    },
+    {
+      "index": 129,
+      "startLine": 3,
+      "attrs": {
+        "src": "./js/capital-allocation-stress-test.js"
+      },
+      "kind": "local",
+      "src": "./js/capital-allocation-stress-test.js",
+      "path": "js/capital-allocation-stress-test.js",
+      "bytes": 16083,
+      "sha256": "0764f383b4afe01b67e3430182746d07d367526b01298d252807782388b5791d"
+    },
+    {
+      "index": 130,
+      "startLine": 3,
+      "attrs": {
+        "src": "./js/capital-allocation-resilience-memo.js"
+      },
+      "kind": "local",
+      "src": "./js/capital-allocation-resilience-memo.js",
+      "path": "js/capital-allocation-resilience-memo.js",
+      "bytes": 18391,
+      "sha256": "b1e54905c2b1c5f7295b879fcb2fdfcd00913eed58d1436a578936f88e4fae4b"
+    },
+    {
+      "index": 131,
+      "startLine": 3,
+      "attrs": {
+        "src": "./js/capital-allocation-recovery-audit.js"
+      },
+      "kind": "local",
+      "src": "./js/capital-allocation-recovery-audit.js",
+      "path": "js/capital-allocation-recovery-audit.js",
+      "bytes": 12773,
+      "sha256": "f1fffb94224b28e5668ecd94c17855b9d96d68339058230571ac8485682ab96d"
+    },
+    {
+      "index": 132,
+      "startLine": 3,
+      "attrs": {
+        "src": "./js/capital-allocation-recovery-funding.js"
+      },
+      "kind": "local",
+      "src": "./js/capital-allocation-recovery-funding.js",
+      "path": "js/capital-allocation-recovery-funding.js",
+      "bytes": 24114,
+      "sha256": "9e3437446d2ec35668858dd8b2d79ebbd6e0580c2ffdecfae0480491f74600dd"
+    },
+    {
+      "index": 133,
+      "startLine": 3,
+      "attrs": {
+        "src": "./js/capital-allocation-recovery-funding-options.js"
+      },
+      "kind": "local",
+      "src": "./js/capital-allocation-recovery-funding-options.js",
+      "path": "js/capital-allocation-recovery-funding-options.js",
+      "bytes": 14020,
+      "sha256": "8286e969e6bcb8fb3a4898999d41db7012aa22b058700cea9b0e83b6fdaa7400"
+    },
+    {
+      "index": 134,
+      "startLine": 3,
+      "attrs": {
+        "src": "./js/capital-allocation-recovery-funding-readiness.js"
+      },
+      "kind": "local",
+      "src": "./js/capital-allocation-recovery-funding-readiness.js",
+      "path": "js/capital-allocation-recovery-funding-readiness.js",
+      "bytes": 15056,
+      "sha256": "b6d211471730018d5cc90a1c8ef53aa43633b32e9cb9b5dffb67db41a83e741c"
+    },
+    {
+      "index": 135,
+      "startLine": 3,
+      "attrs": {
+        "src": "./js/capital-allocation-recovery-funding-reconciliation.js"
+      },
+      "kind": "local",
+      "src": "./js/capital-allocation-recovery-funding-reconciliation.js",
+      "path": "js/capital-allocation-recovery-funding-reconciliation.js",
+      "bytes": 23760,
+      "sha256": "56ee8924da76f286be555fc5874a7e5b46c7bc91f36491743684652f5a4aeb3f"
+    },
+    {
+      "index": 136,
+      "startLine": 3,
+      "attrs": {
+        "src": "./js/capital-allocation-recovery-funding-outcome.js"
+      },
+      "kind": "local",
+      "src": "./js/capital-allocation-recovery-funding-outcome.js",
+      "path": "js/capital-allocation-recovery-funding-outcome.js",
+      "bytes": 7958,
+      "sha256": "73311c688ab3af0127d4101c80349c03f82a5a3ebbce090bf9f2f7a130b26701"
+    },
+    {
+      "index": 137,
+      "startLine": 3,
+      "attrs": {
+        "src": "./js/capital-allocation-management-guide.js"
+      },
+      "kind": "local",
+      "src": "./js/capital-allocation-management-guide.js",
+      "path": "js/capital-allocation-management-guide.js",
+      "bytes": 15738,
+      "sha256": "33be05908db3549a02ac73c98f0702a437a121c0196e7b1da54b800615fdf04c"
+    },
+    {
+      "index": 138,
+      "startLine": 3,
+      "attrs": {
+        "src": "./js/strategy-balance.js"
+      },
+      "kind": "local",
+      "src": "./js/strategy-balance.js",
+      "path": "js/strategy-balance.js",
+      "bytes": 4149,
+      "sha256": "7cab42e4f514528e768b7492b92ccb5154ffc4199784fb556779d3e42e7ecd85"
+    },
+    {
+      "index": 139,
+      "startLine": 3,
+      "attrs": {
+        "src": "./js/real-estate-development.js"
+      },
+      "kind": "local",
+      "src": "./js/real-estate-development.js",
+      "path": "js/real-estate-development.js",
+      "bytes": 13753,
+      "sha256": "cfa803f5f59b6387a70ff1cf86a10675c933d72d0b27666244d85ba26229c3ff"
+    },
+    {
+      "index": 140,
+      "startLine": 3,
+      "attrs": {
+        "src": "./js/real-estate-insurance-claims.js"
+      },
+      "kind": "local",
+      "src": "./js/real-estate-insurance-claims.js",
+      "path": "js/real-estate-insurance-claims.js",
+      "bytes": 6802,
+      "sha256": "d9ffbe2c8e6a7bb87a1b7a69916beb663fbb0ac6695d8f012ec7da7f290a9a17"
+    },
+    {
+      "index": 141,
+      "startLine": 3,
+      "attrs": {
+        "src": "./js/real-estate-insurance-risk.js"
+      },
+      "kind": "local",
+      "src": "./js/real-estate-insurance-risk.js",
+      "path": "js/real-estate-insurance-risk.js",
+      "bytes": 6446,
+      "sha256": "df788b78133d9b7081259a54e5e4ba0685da0bcca2c8de51c16abaca196935cd"
+    },
+    {
+      "index": 142,
+      "startLine": 3,
+      "attrs": {
+        "src": "./js/real-estate-risk-mitigation.js"
+      },
+      "kind": "local",
+      "src": "./js/real-estate-risk-mitigation.js",
+      "path": "js/real-estate-risk-mitigation.js",
+      "bytes": 6005,
+      "sha256": "43078c1940e1aedc7593af8ec9aba55596377009f4d7a55e2dd859ca1b7dde2e"
+    },
+    {
+      "index": 143,
+      "startLine": 3,
+      "attrs": {
+        "src": "./js/real-estate-safety-certification.js"
+      },
+      "kind": "local",
+      "src": "./js/real-estate-safety-certification.js",
+      "path": "js/real-estate-safety-certification.js",
+      "bytes": 6350,
+      "sha256": "73d3823dcd001871dc0e934223b95353ae37cf8cc05897d0725b73f8c8070214"
+    },
+    {
+      "index": 144,
+      "startLine": 3,
+      "attrs": {
+        "src": "./js/real-estate-tenant-contracts.js"
+      },
+      "kind": "local",
+      "src": "./js/real-estate-tenant-contracts.js",
+      "path": "js/real-estate-tenant-contracts.js",
+      "bytes": 8529,
+      "sha256": "ebcb4b54322a4aab093db96dd4d2384bae46fbae269e17f43a5729ea231aa140"
+    },
+    {
+      "index": 145,
+      "startLine": 3,
+      "attrs": {
+        "src": "./js/real-estate-tenant-leasing.js"
+      },
+      "kind": "local",
+      "src": "./js/real-estate-tenant-leasing.js",
+      "path": "js/real-estate-tenant-leasing.js",
+      "bytes": 10244,
+      "sha256": "f92db7bcf6559bb1774a161812b46599f8fc12fcbbfac692f6319685e98e9ed3"
+    },
+    {
+      "index": 146,
+      "startLine": 3,
+      "attrs": {
+        "src": "./js/real-estate-tenant-operations.js"
+      },
+      "kind": "local",
+      "src": "./js/real-estate-tenant-operations.js",
+      "path": "js/real-estate-tenant-operations.js",
+      "bytes": 7253,
+      "sha256": "aee33ee8f4f01cd3b9c82931c55ae2ae053a959527bd486a5358221190540388"
+    },
+    {
+      "index": 147,
+      "startLine": 3,
+      "attrs": {
+        "src": "./js/real-estate-tenant-renewals.js"
+      },
+      "kind": "local",
+      "src": "./js/real-estate-tenant-renewals.js",
+      "path": "js/real-estate-tenant-renewals.js",
+      "bytes": 5786,
+      "sha256": "f51ca504a61bfc3083a9b31a250f841e0eece08a295807baeaab2c0619cd71ec"
+    },
+    {
+      "index": 148,
+      "startLine": 3,
+      "attrs": {
+        "src": "./js/real-estate-tenant-collections.js"
+      },
+      "kind": "local",
+      "src": "./js/real-estate-tenant-collections.js",
+      "path": "js/real-estate-tenant-collections.js",
+      "bytes": 6173,
+      "sha256": "8bc6b8dbe196c679617ccfc406e53fadc7dd0c8d2eed4dcd36ebc5864ea7aa5d"
+    },
+    {
+      "index": 149,
+      "startLine": 3,
+      "attrs": {
+        "src": "./js/real-estate-rent-guarantee.js"
+      },
+      "kind": "local",
+      "src": "./js/real-estate-rent-guarantee.js",
+      "path": "js/real-estate-rent-guarantee.js",
+      "bytes": 5731,
+      "sha256": "21f1896ede12f823f97ee6f224928b167bfab2fab315431d81c25fb2375337b8"
+    },
+    {
+      "index": 150,
+      "startLine": 3,
+      "attrs": {
+        "src": "./js/real-estate-security-deposits.js"
+      },
+      "kind": "local",
+      "src": "./js/real-estate-security-deposits.js",
+      "path": "js/real-estate-security-deposits.js",
+      "bytes": 3768,
+      "sha256": "2ebfba62ec4e915271738206433611273eff091314194b4a5abba4a9939bbd25"
+    },
+    {
+      "index": 151,
+      "startLine": 3,
+      "attrs": {
+        "src": "./js/real-estate-property-insurance.js"
+      },
+      "kind": "local",
+      "src": "./js/real-estate-property-insurance.js",
+      "path": "js/real-estate-property-insurance.js",
+      "bytes": 8604,
+      "sha256": "f585bbcb9e6f23a9c40bd5807e9515057465aecfa6bcd0936f1aec35bc38dea5"
+    },
+    {
+      "index": 152,
+      "startLine": 3,
+      "attrs": {
+        "src": "./js/real-estate-maintenance-reserves.js"
+      },
+      "kind": "local",
+      "src": "./js/real-estate-maintenance-reserves.js",
+      "path": "js/real-estate-maintenance-reserves.js",
+      "bytes": 1139,
+      "sha256": "a0151869e942f5b674f75bb29820c74a21a3fed4a85adf6f8feff669c7e3d70c"
+    },
+    {
+      "index": 153,
+      "startLine": 3,
+      "attrs": {
+        "src": "./js/real-estate-property-taxes.js"
+      },
+      "kind": "local",
+      "src": "./js/real-estate-property-taxes.js",
+      "path": "js/real-estate-property-taxes.js",
+      "bytes": 5085,
+      "sha256": "7369f6b3d0c3910a7e46d0e5bf97d352a7183d7e70e6c7115992051597d22368"
+    },
+    {
+      "index": 154,
+      "startLine": 3,
+      "attrs": {
+        "src": "./js/real-estate-mortgage-refinancing.js"
+      },
+      "kind": "local",
+      "src": "./js/real-estate-mortgage-refinancing.js",
+      "path": "js/real-estate-mortgage-refinancing.js",
+      "bytes": 19333,
+      "sha256": "1b5c337cda339b7a746588a95042ec06150ec80904d8d4e4d062e12983cbaa8c"
+    },
+    {
+      "index": 155,
+      "startLine": 3,
+      "attrs": {
+        "src": "./js/real-estate-property-disposals.js"
+      },
+      "kind": "local",
+      "src": "./js/real-estate-property-disposals.js",
+      "path": "js/real-estate-property-disposals.js",
+      "bytes": 18142,
+      "sha256": "2028acaea709854638271182bd5e5fff436e111ad2af8e4819d599414c983573"
+    },
+    {
+      "index": 156,
+      "startLine": 3,
+      "attrs": {
+        "src": "./js/real-estate-price-negotiation.js"
+      },
+      "kind": "local",
+      "src": "./js/real-estate-price-negotiation.js",
+      "path": "js/real-estate-price-negotiation.js",
+      "bytes": 5561,
+      "sha256": "9e03405cf0f370b9e19cad35ad737431df35829a84f8e7f20d732c7e048f2fa4"
+    },
+    {
+      "index": 157,
+      "startLine": 3,
+      "attrs": {
+        "src": "./js/real-estate-redevelopment-projects.js"
+      },
+      "kind": "local",
+      "src": "./js/real-estate-redevelopment-projects.js",
+      "path": "js/real-estate-redevelopment-projects.js",
+      "bytes": 9039,
+      "sha256": "064abaaee10a831ff683f334935ae463677470bcfe057974fea241043b11652e"
+    },
+    {
+      "index": 158,
+      "startLine": 3,
+      "attrs": {
+        "src": "./js/real-estate-property-management.js"
+      },
+      "kind": "local",
+      "src": "./js/real-estate-property-management.js",
+      "path": "js/real-estate-property-management.js",
+      "bytes": 4888,
+      "sha256": "e00cb94cc61939c70290e7d0735aa84181fce4d140597cab87a61bdd5aa8373c"
+    },
+    {
+      "index": 159,
+      "startLine": 3,
+      "attrs": {
+        "src": "./js/real-estate-property-maintenance.js"
+      },
+      "kind": "local",
+      "src": "./js/real-estate-property-maintenance.js",
+      "path": "js/real-estate-property-maintenance.js",
+      "bytes": 6867,
+      "sha256": "d504af0b1b145e120c07763c9d3aec7b99fe3ce2b953a691cc9255c1a198e96f"
+    },
+    {
+      "index": 160,
+      "startLine": 3,
+      "attrs": {
+        "src": "./js/real-estate-ui.js"
+      },
+      "kind": "local",
+      "src": "./js/real-estate-ui.js",
+      "path": "js/real-estate-ui.js",
+      "bytes": 17703,
+      "sha256": "71b115e4d68fb0834c7b6ae23c4e29f332a9a2204efe9dcd9e30fe850f571694"
+    },
+    {
+      "index": 161,
+      "startLine": 3,
+      "attrs": {
+        "src": "./js/real-estate-tenant-renewals-ui.js"
+      },
+      "kind": "local",
+      "src": "./js/real-estate-tenant-renewals-ui.js",
+      "path": "js/real-estate-tenant-renewals-ui.js",
+      "bytes": 2492,
+      "sha256": "009339acfdb1962d07c9a5f1db25530710133d1a729f81406c19f4d6974ce697"
+    },
+    {
+      "index": 162,
+      "startLine": 3,
+      "attrs": {
+        "src": "./js/real-estate-tenant-collections-ui.js"
+      },
+      "kind": "local",
+      "src": "./js/real-estate-tenant-collections-ui.js",
+      "path": "js/real-estate-tenant-collections-ui.js",
+      "bytes": 2335,
+      "sha256": "0080e57c2a4cb9d754b07ab6fe1fb087d40ee24b8aca55cf40466ddc2913e114"
+    },
+    {
+      "index": 163,
+      "startLine": 3,
+      "attrs": {
+        "src": "./js/real-estate-rent-guarantee-ui.js"
+      },
+      "kind": "local",
+      "src": "./js/real-estate-rent-guarantee-ui.js",
+      "path": "js/real-estate-rent-guarantee-ui.js",
+      "bytes": 2586,
+      "sha256": "52d45a28ecab97ad335731f87f4a450b31e6b632b6d23239ac84d8dc8e8f0ea5"
+    },
+    {
+      "index": 164,
+      "startLine": 3,
+      "attrs": {
+        "src": "./js/real-estate-security-deposits-ui.js"
+      },
+      "kind": "local",
+      "src": "./js/real-estate-security-deposits-ui.js",
+      "path": "js/real-estate-security-deposits-ui.js",
+      "bytes": 2629,
+      "sha256": "76763e7059abb624df65c586e4fb216689d98ed29077a8c35bccc71dd911110f"
+    },
+    {
+      "index": 165,
+      "startLine": 3,
+      "attrs": {
+        "src": "./js/real-estate-property-insurance-ui.js"
+      },
+      "kind": "local",
+      "src": "./js/real-estate-property-insurance-ui.js",
+      "path": "js/real-estate-property-insurance-ui.js",
+      "bytes": 3013,
+      "sha256": "4146f0359bb51a8b5755396de4835c4fb8ed08a1baa9c35e7f8517ddf976c0a0"
+    },
+    {
+      "index": 166,
+      "startLine": 3,
+      "attrs": {
+        "src": "./js/real-estate-maintenance-reserves-ui.js"
+      },
+      "kind": "local",
+      "src": "./js/real-estate-maintenance-reserves-ui.js",
+      "path": "js/real-estate-maintenance-reserves-ui.js",
+      "bytes": 2719,
+      "sha256": "d43235f67d469e03f14b7da8a33a73808a776e6472d34b21e98981d522aa9319"
+    },
+    {
+      "index": 167,
+      "startLine": 3,
+      "attrs": {
+        "src": "./js/real-estate-property-taxes-ui.js"
+      },
+      "kind": "local",
+      "src": "./js/real-estate-property-taxes-ui.js",
+      "path": "js/real-estate-property-taxes-ui.js",
+      "bytes": 2501,
+      "sha256": "b6d0e358236e4a281b404b2547dde9ba313130ec3bbf29a2c8da7c088ab50698"
+    },
+    {
+      "index": 168,
+      "startLine": 3,
+      "attrs": {
+        "src": "./js/real-estate-mortgage-refinancing-ui.js"
+      },
+      "kind": "local",
+      "src": "./js/real-estate-mortgage-refinancing-ui.js",
+      "path": "js/real-estate-mortgage-refinancing-ui.js",
+      "bytes": 3575,
+      "sha256": "0aa5ac961fcf66dfe3d00c0d5d5aa3e3d423849ffe401d1ae5056b4659111840"
+    },
+    {
+      "index": 169,
+      "startLine": 3,
+      "attrs": {
+        "src": "./js/real-estate-property-disposals-ui.js"
+      },
+      "kind": "local",
+      "src": "./js/real-estate-property-disposals-ui.js",
+      "path": "js/real-estate-property-disposals-ui.js",
+      "bytes": 2684,
+      "sha256": "c7829d03231070bdf836b1ea75f0038b888272cda7f036856457d43fe6d585a6"
+    },
+    {
+      "index": 170,
+      "startLine": 3,
+      "attrs": {
+        "src": "./js/real-estate-redevelopment-projects-ui.js"
+      },
+      "kind": "local",
+      "src": "./js/real-estate-redevelopment-projects-ui.js",
+      "path": "js/real-estate-redevelopment-projects-ui.js",
+      "bytes": 2746,
+      "sha256": "ed7e3b4fe05d755e97224438902137f8e178a1b52535ffe4dc8c5f9aeb471bfa"
+    },
+    {
+      "index": 171,
+      "startLine": 3,
+      "attrs": {
+        "src": "./js/real-estate-property-management-ui.js"
+      },
+      "kind": "local",
+      "src": "./js/real-estate-property-management-ui.js",
+      "path": "js/real-estate-property-management-ui.js",
+      "bytes": 2272,
+      "sha256": "71cd68d1af825e6262307689760f0ee05f5fde032a9480dd366e9a305e31a1ab"
+    },
+    {
+      "index": 172,
+      "startLine": 3,
+      "attrs": {
+        "src": "./js/real-estate-property-maintenance-ui.js"
+      },
+      "kind": "local",
+      "src": "./js/real-estate-property-maintenance-ui.js",
+      "path": "js/real-estate-property-maintenance-ui.js",
+      "bytes": 2823,
+      "sha256": "ff9242d7b4cc2fc9fcb8c3c69c4e1c395102e03c61f09c3619cb1fddf29a2486"
+    },
+    {
+      "index": 173,
+      "startLine": 3,
+      "attrs": {
+        "src": "./js/real-estate-portfolio-dashboard.js"
+      },
+      "kind": "local",
+      "src": "./js/real-estate-portfolio-dashboard.js",
+      "path": "js/real-estate-portfolio-dashboard.js",
+      "bytes": 6291,
+      "sha256": "2b2c7725453dfc7993db530f4e1d6e967ea72f50536b5297bc302793bf45fd2e"
+    },
+    {
+      "index": 174,
+      "startLine": 3,
+      "attrs": {
+        "src": "./js/real-estate-portfolio-dashboard-ui.js"
+      },
+      "kind": "local",
+      "src": "./js/real-estate-portfolio-dashboard-ui.js",
+      "path": "js/real-estate-portfolio-dashboard-ui.js",
+      "bytes": 3318,
+      "sha256": "f3e61d61e46de77201f786abaa21bd0f7d95d560afc8772d3131520c7564a209"
+    },
+    {
+      "index": 175,
+      "startLine": 3,
+      "attrs": {
+        "src": "./js/real-estate-rent-pricing.js"
+      },
+      "kind": "local",
+      "src": "./js/real-estate-rent-pricing.js",
+      "path": "js/real-estate-rent-pricing.js",
+      "bytes": 8449,
+      "sha256": "9b2386e366e2e84bcf8bc4944c1512c3a47fcb4284577e859156eb079157411a"
+    },
+    {
+      "index": 176,
+      "startLine": 3,
+      "attrs": {
+        "src": "./js/real-estate-rent-pricing-ui.js"
+      },
+      "kind": "local",
+      "src": "./js/real-estate-rent-pricing-ui.js",
+      "path": "js/real-estate-rent-pricing-ui.js",
+      "bytes": 2820,
+      "sha256": "2b19e7e2a20d431b7e55a0cb91ec9a1a597e05c311b1578ad93965c937a7e0b5"
+    },
+    {
+      "index": 177,
+      "startLine": 3,
+      "attrs": {
+        "src": "./js/real-estate-rent-performance.js"
+      },
+      "kind": "local",
+      "src": "./js/real-estate-rent-performance.js",
+      "path": "js/real-estate-rent-performance.js",
+      "bytes": 4986,
+      "sha256": "24b24c4bcc9a155babe920a977c8ce2288a92f82064cfea01955a89fca7bbe50"
+    },
+    {
+      "index": 178,
+      "startLine": 3,
+      "attrs": {
+        "src": "./js/real-estate-rent-performance-ui.js"
+      },
+      "kind": "local",
+      "src": "./js/real-estate-rent-performance-ui.js",
+      "path": "js/real-estate-rent-performance-ui.js",
+      "bytes": 2321,
+      "sha256": "d2be11f9750afef6357943a6621cf7adc7543e1296b08cf9dd418d2f9beabd5a"
+    },
+    {
+      "index": 179,
+      "startLine": 3,
+      "attrs": {
+        "src": "./js/real-estate-capex-roi.js"
+      },
+      "kind": "local",
+      "src": "./js/real-estate-capex-roi.js",
+      "path": "js/real-estate-capex-roi.js",
+      "bytes": 6475,
+      "sha256": "19b7e9db61107108a9b0c9f5640efd1322b331b499fce2fc4fac690b43d5a94a"
+    },
+    {
+      "index": 180,
+      "startLine": 3,
+      "attrs": {
+        "src": "./js/real-estate-capex-roi-ui.js"
+      },
+      "kind": "local",
+      "src": "./js/real-estate-capex-roi-ui.js",
+      "path": "js/real-estate-capex-roi-ui.js",
+      "bytes": 2875,
+      "sha256": "783ecb07655aaba53bd6b491ee4ab53836856702d10d1e8a8cc20e990abbe19d"
+    },
+    {
+      "index": 181,
+      "startLine": 3,
+      "attrs": {
+        "src": "./js/real-estate-capex-actuals.js"
+      },
+      "kind": "local",
+      "src": "./js/real-estate-capex-actuals.js",
+      "path": "js/real-estate-capex-actuals.js",
+      "bytes": 6075,
+      "sha256": "4b32e69338753c33b54e27e2ccd26a0848b035e9acd851620f7bb0cea6a15ae1"
+    },
+    {
+      "index": 182,
+      "startLine": 3,
+      "attrs": {
+        "src": "./js/real-estate-capex-actuals-ui.js"
+      },
+      "kind": "local",
+      "src": "./js/real-estate-capex-actuals-ui.js",
+      "path": "js/real-estate-capex-actuals-ui.js",
+      "bytes": 3347,
+      "sha256": "5f3f0637d14cdf08564b6533c764f81fbc4ec2e77090b5aa96fd0062038c4c4b"
+    },
+    {
+      "index": 183,
+      "startLine": 3,
+      "attrs": {
+        "src": "./js/real-estate-complete-cycle.js"
+      },
+      "kind": "local",
+      "src": "./js/real-estate-complete-cycle.js",
+      "path": "js/real-estate-complete-cycle.js",
+      "bytes": 19068,
+      "sha256": "df61215bcabe39cb14e83a69509c2fa8f77013d5c9b8cd33688903c6a3a00a33"
+    },
+    {
+      "index": 184,
+      "startLine": 3,
+      "attrs": {
+        "src": "./js/real-estate-complete-cycle-ui.js"
+      },
+      "kind": "local",
+      "src": "./js/real-estate-complete-cycle-ui.js",
+      "path": "js/real-estate-complete-cycle-ui.js",
+      "bytes": 6585,
+      "sha256": "96aac30e52153db9eb7b79928e20e1497fbbfadc2ab5f86698b3e59f96e82a29"
+    },
+    {
+      "index": 185,
+      "startLine": 3,
+      "attrs": {
+        "src": "./js/listed-subsidiary-market.js"
+      },
+      "kind": "local",
+      "src": "./js/listed-subsidiary-market.js",
+      "path": "js/listed-subsidiary-market.js",
+      "bytes": 21769,
+      "sha256": "09088d23f8009ea51e7816ce3f2bc07fe448cdc52d25ea1a9717c775685fe80a"
+    },
+    {
+      "index": 186,
+      "startLine": 3,
+      "attrs": {
+        "src": "./js/listed-subsidiary-portfolio-dashboard.js"
+      },
+      "kind": "local",
+      "src": "./js/listed-subsidiary-portfolio-dashboard.js",
+      "path": "js/listed-subsidiary-portfolio-dashboard.js",
+      "bytes": 7527,
+      "sha256": "9446936eae0c899d15699347279b9fd20994821fae0e345fa0d14d6f88d4b7e6"
+    },
+    {
+      "index": 187,
+      "startLine": 3,
+      "attrs": {
+        "src": "./js/listed-subsidiary-control-actions.js"
+      },
+      "kind": "local",
+      "src": "./js/listed-subsidiary-control-actions.js",
+      "path": "js/listed-subsidiary-control-actions.js",
+      "bytes": 11427,
+      "sha256": "b1213d3d0c719465eb2cc005424e54b26ecf7a56c7fa06cec8ab51860d149bdc"
+    },
+    {
+      "index": 188,
+      "startLine": 3,
+      "attrs": {
+        "src": "./js/subsidiary-integration-synergy.js"
+      },
+      "kind": "local",
+      "src": "./js/subsidiary-integration-synergy.js",
+      "path": "js/subsidiary-integration-synergy.js",
+      "bytes": 10186,
+      "sha256": "cd94d0c83eed13832ad469522c4421921bcadf9aa1e1f94b16fdf677398b5b0a"
+    },
+    {
+      "index": 189,
+      "startLine": 3,
+      "attrs": {
+        "src": "./js/inter-subsidiary-synergy-allocation.js"
+      },
+      "kind": "local",
+      "src": "./js/inter-subsidiary-synergy-allocation.js",
+      "path": "js/inter-subsidiary-synergy-allocation.js",
+      "bytes": 11141,
+      "sha256": "41bc4e83d452d1ed6814efd8315e82f651cedd87239e0aa4ba192fb512a76533"
+    },
+    {
+      "index": 190,
+      "startLine": 3,
+      "attrs": {
+        "src": "./js/inter-subsidiary-synergy-performance.js"
+      },
+      "kind": "local",
+      "src": "./js/inter-subsidiary-synergy-performance.js",
+      "path": "js/inter-subsidiary-synergy-performance.js",
+      "bytes": 4778,
+      "sha256": "936b3907f04e90da818bf404d51df1a2e7ecd1ebb75f4e8301716a121a77e79b"
+    },
+    {
+      "index": 191,
+      "startLine": 3,
+      "attrs": {
+        "src": "./js/group-capital-allocation-actions.js"
+      },
+      "kind": "local",
+      "src": "./js/group-capital-allocation-actions.js",
+      "path": "js/group-capital-allocation-actions.js",
+      "bytes": 10024,
+      "sha256": "baa271a061c0d03290e12317d0eae419d856f8de4bd8f56ab6cd1b5d3a8c6b3c"
+    },
+    {
+      "index": 192,
+      "startLine": 3,
+      "attrs": {
+        "src": "./js/group-restructuring-candidates.js"
+      },
+      "kind": "local",
+      "src": "./js/group-restructuring-candidates.js",
+      "path": "js/group-restructuring-candidates.js",
+      "bytes": 21655,
+      "sha256": "43b094f955131d473fb17fb58ac6c6ca54b59fc3a0c8a3cb9ad6f7b52c7ea737"
+    },
+    {
+      "index": 193,
+      "startLine": 3,
+      "attrs": {
+        "src": "./js/group-restructuring-progress.js"
+      },
+      "kind": "local",
+      "src": "./js/group-restructuring-progress.js",
+      "path": "js/group-restructuring-progress.js",
+      "bytes": 31618,
+      "sha256": "8d13521fcad9ba88013679cebf99d45d6bdc9754bc93221daee5eab68e91d418"
+    },
+    {
+      "index": 194,
+      "startLine": 3,
+      "attrs": {
+        "src": "./js/subsidiary-relisting-options.js"
+      },
+      "kind": "local",
+      "src": "./js/subsidiary-relisting-options.js",
+      "path": "js/subsidiary-relisting-options.js",
+      "bytes": 11386,
+      "sha256": "cc186a65f48b638ebeb1b229b90e4a40e82e2a31d99ec013a611a43843553c44"
+    },
+    {
+      "index": 195,
+      "startLine": 3,
+      "attrs": {
+        "src": "./js/listed-subsidiary-follow-on-offering.js"
+      },
+      "kind": "local",
+      "src": "./js/listed-subsidiary-follow-on-offering.js",
+      "path": "js/listed-subsidiary-follow-on-offering.js",
+      "bytes": 11446,
+      "sha256": "d5d90dd75be6c26609b5c876861cbef0938d24bfc52a9ff454843c98958cf559"
+    },
+    {
+      "index": 196,
+      "startLine": 3,
+      "attrs": {
+        "src": "./js/ma-investment-committee.js"
+      },
+      "kind": "local",
+      "src": "./js/ma-investment-committee.js",
+      "path": "js/ma-investment-committee.js",
+      "bytes": 11699,
+      "sha256": "0c28cb23e0f546345827b97dc74afdd28496246f6fdb9e3415c9a4603178aa09"
+    },
+    {
+      "index": 197,
+      "startLine": 3,
+      "attrs": {
+        "src": "./js/subsidiary-ipo-preparation.js"
+      },
+      "kind": "local",
+      "src": "./js/subsidiary-ipo-preparation.js",
+      "path": "js/subsidiary-ipo-preparation.js",
+      "bytes": 17426,
+      "sha256": "b98e6a14c5176861da616965bd24e7b925528ce7a49ef2146a5bdf3af9cb750a"
+    },
+    {
+      "index": 198,
+      "startLine": 3,
+      "attrs": {
+        "src": "./js/subsidiary-ipo-secondary-sale.js"
+      },
+      "kind": "local",
+      "src": "./js/subsidiary-ipo-secondary-sale.js",
+      "path": "js/subsidiary-ipo-secondary-sale.js",
+      "bytes": 9159,
+      "sha256": "ef8475c077c369773dbdbcb438a2506fe8a43b8d9a3b552f36731439e67d3eaf"
+    },
+    {
+      "index": 199,
+      "startLine": 3,
+      "attrs": {
+        "src": "./js/pmi-100-day-plan.js"
+      },
+      "kind": "local",
+      "src": "./js/pmi-100-day-plan.js",
+      "path": "js/pmi-100-day-plan.js",
+      "bytes": 15323,
+      "sha256": "68f1a024ec3d9ebb9c6c6fbf1696a579eed0f91ed6f8fc71e78e2ca7cb536dcb"
+    },
+    {
+      "index": 200,
+      "startLine": 3,
+      "attrs": {
+        "src": "./js/pmi-long-run-guard.js"
+      },
+      "kind": "local",
+      "src": "./js/pmi-long-run-guard.js",
+      "path": "js/pmi-long-run-guard.js",
+      "bytes": 2248,
+      "sha256": "088a4993253067290ed8e2b3191597232108ac9b846e83da83d3e1ababaf0088"
+    },
+    {
+      "index": 201,
+      "startLine": 3,
+      "attrs": {
+        "src": "./js/group-holding-governance.js"
+      },
+      "kind": "local",
+      "src": "./js/group-holding-governance.js",
+      "path": "js/group-holding-governance.js",
+      "bytes": 9091,
+      "sha256": "9566c88a181c13a6da2e18b7e26a9779a22d402a5d4a6c07f706c39a9a656285"
+    },
+    {
+      "index": 202,
+      "startLine": 3,
+      "attrs": {
+        "src": "./js/subsidiary-budget-kpi.js"
+      },
+      "kind": "local",
+      "src": "./js/subsidiary-budget-kpi.js",
+      "path": "js/subsidiary-budget-kpi.js",
+      "bytes": 7632,
+      "sha256": "0149142cb1b3871645afc16b6563cb85700a9a7209f745162880b7fe97e6c4d3"
+    },
+    {
+      "index": 203,
+      "startLine": 3,
+      "attrs": {
+        "src": "./js/subsidiary-performance-review.js"
+      },
+      "kind": "local",
+      "src": "./js/subsidiary-performance-review.js",
+      "path": "js/subsidiary-performance-review.js",
+      "bytes": 8113,
+      "sha256": "897a6caed4b7fdbe983f2c2ac4d7beed8a6f1cfa383380359877f936a6f1c523"
+    },
+    {
+      "index": 204,
+      "startLine": 3,
+      "attrs": {
+        "src": "./js/subsidiary-mandate-apply.js"
+      },
+      "kind": "local",
+      "src": "./js/subsidiary-mandate-apply.js",
+      "path": "js/subsidiary-mandate-apply.js",
+      "bytes": 6319,
+      "sha256": "d87887909280d63b19d9c447761bbd1b1d3f3408c0cbe7c4e37cd4f8f825ea07"
+    },
+    {
+      "index": 205,
+      "startLine": 3,
+      "attrs": {
+        "src": "./js/group-capital-allocation-plan.js"
+      },
+      "kind": "local",
+      "src": "./js/group-capital-allocation-plan.js",
+      "path": "js/group-capital-allocation-plan.js",
+      "bytes": 6973,
+      "sha256": "4b530044aab2c2111fdce073fcdf995ff50657649ea4fe26589d9cccc12c3ae9"
+    },
+    {
+      "index": 206,
+      "startLine": 3,
+      "attrs": {
+        "src": "./js/group-capital-allocation-execution.js"
+      },
+      "kind": "local",
+      "src": "./js/group-capital-allocation-execution.js",
+      "path": "js/group-capital-allocation-execution.js",
+      "bytes": 8444,
+      "sha256": "d834a57d0ecd3bc8987bd74a53a378cb9a939916bf8d5584f8d51e0216908a24"
+    },
+    {
+      "index": 207,
+      "startLine": 3,
+      "attrs": {
+        "src": "./js/deterministic-economic-foundation.js"
+      },
+      "kind": "local",
+      "src": "./js/deterministic-economic-foundation.js",
+      "path": "js/deterministic-economic-foundation.js",
+      "bytes": 6872,
+      "sha256": "0f056c256ddb8478c6479971be735848fe670c2ecd195cc22128eabc3c2c395a"
+    },
+    {
+      "index": 208,
+      "startLine": 3,
+      "attrs": {
+        "src": "./js/new-business-market-analysis.js"
+      },
+      "kind": "local",
+      "src": "./js/new-business-market-analysis.js",
+      "path": "js/new-business-market-analysis.js",
+      "bytes": 7218,
+      "sha256": "715b1a427a92b6554124a5b3bcd01ee01051a7d5372aab81e23b82159bbf6824"
+    },
+    {
+      "index": 209,
+      "startLine": 3,
+      "attrs": {
+        "src": "./js/new-business-research-projects.js"
+      },
+      "kind": "local",
+      "src": "./js/new-business-research-projects.js",
+      "path": "js/new-business-research-projects.js",
+      "bytes": 12674,
+      "sha256": "ca62bd8200e74c416d7a94e8ff43742f5da21d1aff3da81f1438c77315f740dd"
+    },
+    {
+      "index": 210,
+      "startLine": 3,
+      "attrs": {
+        "src": "./js/new-business-commercialization.js"
+      },
+      "kind": "local",
+      "src": "./js/new-business-commercialization.js",
+      "path": "js/new-business-commercialization.js",
+      "bytes": 9684,
+      "sha256": "f1aa39a3ad8dc9c941bfd830035ec730643e1ead09577f57c6db3586a6b8baf9"
+    },
+    {
+      "index": 211,
+      "startLine": 3,
+      "attrs": {
+        "src": "./js/bank-loans-covenants.js"
+      },
+      "kind": "local",
+      "src": "./js/bank-loans-covenants.js",
+      "path": "js/bank-loans-covenants.js",
+      "bytes": 20914,
+      "sha256": "b22f7961d6d49194439eafbade10607cd59a8ea358b5e000d70b233d889a50bb"
+    },
+    {
+      "index": 212,
+      "startLine": 3,
+      "attrs": {
+        "src": "./js/real-estate-agency-credit-line.js"
+      },
+      "kind": "local",
+      "src": "./js/real-estate-agency-credit-line.js",
+      "path": "js/real-estate-agency-credit-line.js",
+      "bytes": 8233,
+      "sha256": "cc634ee9ca76bc161c7677675223a3aceb299350fe941fad0da82c79969faef1"
+    },
+    {
+      "index": 213,
+      "startLine": 3,
+      "attrs": {
+        "src": "./js/corporate-bonds-ratings.js"
+      },
+      "kind": "local",
+      "src": "./js/corporate-bonds-ratings.js",
+      "path": "js/corporate-bonds-ratings.js",
+      "bytes": 4112,
+      "sha256": "143f5e779a26c20221146e6488d31bdefb588d0025694de5af83add381ca4c76"
+    },
+    {
+      "index": 214,
+      "startLine": 3,
+      "attrs": {
+        "src": "./js/convertible-bonds-dilution.js"
+      },
+      "kind": "local",
+      "src": "./js/convertible-bonds-dilution.js",
+      "path": "js/convertible-bonds-dilution.js",
+      "bytes": 3620,
+      "sha256": "6a90f13807eb38aa68d7e34a0aa5f22d777cb49a5176f4fb25279770889ffdca"
+    },
+    {
+      "index": 215,
+      "startLine": 3,
+      "attrs": {
+        "src": "./js/preferred-shares-dividends.js"
+      },
+      "kind": "local",
+      "src": "./js/preferred-shares-dividends.js",
+      "path": "js/preferred-shares-dividends.js",
+      "bytes": 3313,
+      "sha256": "587a7a6a4f544695515fc3e21af076c1cda8d64635bb4e94a862c03a0919c0d3"
+    },
+    {
+      "index": 216,
+      "startLine": 3,
+      "attrs": {
+        "src": "./js/executives-department-assignments.js"
+      },
+      "kind": "local",
+      "src": "./js/executives-department-assignments.js",
+      "path": "js/executives-department-assignments.js",
+      "bytes": 9953,
+      "sha256": "8de6ddc8c56690a008a1f64e8e9b5a9dbaacd21d0be4ba9aea9efd595e0e3dc9"
+    },
+    {
+      "index": 217,
+      "startLine": 3,
+      "attrs": {
+        "src": "./js/executive-reviews-succession-board.js"
+      },
+      "kind": "local",
+      "src": "./js/executive-reviews-succession-board.js",
+      "path": "js/executive-reviews-succession-board.js",
+      "bytes": 13124,
+      "sha256": "4e131eac60197a9494d85134941b89e1cc038a066a46b4565546951db3eaea7a"
+    },
+    {
+      "index": 218,
+      "startLine": 3,
+      "attrs": {
+        "src": "./js/executive-retirement-succession.js"
+      },
+      "kind": "local",
+      "src": "./js/executive-retirement-succession.js",
+      "path": "js/executive-retirement-succession.js",
+      "bytes": 6622,
+      "sha256": "f6fac0e7501b4daf08de0b8db24b054b415153e9e2078fcc43d94388ef43eed0"
+    },
+    {
+      "index": 219,
+      "startLine": 3,
+      "attrs": {
+        "src": "./js/global-company-ranking-goals.js"
+      },
+      "kind": "local",
+      "src": "./js/global-company-ranking-goals.js",
+      "path": "js/global-company-ranking-goals.js",
+      "bytes": 6942,
+      "sha256": "28ddadd6a6ae6cac1ae38a20fd7c7cb191e0263d20f6eda1fdf77f39bea0dbac"
+    },
+    {
+      "index": 220,
+      "startLine": 3,
+      "attrs": {
+        "src": "./js/hall-of-fame-generations.js"
+      },
+      "kind": "local",
+      "src": "./js/hall-of-fame-generations.js",
+      "path": "js/hall-of-fame-generations.js",
+      "bytes": 5079,
+      "sha256": "0e6409678b929c7abe75bcdca537104a2afd6d95cf744af8387dd66cd5b1f180"
+    },
+    {
+      "index": 221,
+      "startLine": 3,
+      "attrs": {
+        "src": "./js/long-run-guidance.js"
+      },
+      "kind": "local",
+      "src": "./js/long-run-guidance.js",
+      "path": "js/long-run-guidance.js",
+      "bytes": 4218,
+      "sha256": "a2cda2d6eae2483f1e06eb388820a675a935e70bd8d1fa863f83d76f55e5ae8f"
+    },
+    {
+      "index": 222,
+      "startLine": 3,
+      "attrs": {
+        "src": "./js/pmi-100-day-loader.js"
+      },
+      "kind": "local",
+      "src": "./js/pmi-100-day-loader.js",
+      "path": "js/pmi-100-day-loader.js",
+      "bytes": 193,
+      "sha256": "827a7bccb178e397a2db84483858f41cbcab965c0a5a175f998a9354f59b6a72"
+    },
+    {
+      "index": 223,
+      "startLine": 3,
+      "attrs": {
+        "src": "./js/play-runtime-compat.js"
+      },
+      "kind": "local",
+      "src": "./js/play-runtime-compat.js",
+      "path": "js/play-runtime-compat.js",
+      "bytes": 10879,
+      "sha256": "5f34ca7451263815c575e102adc4f0944e347310c52360df9b59e9e73f6bfb38"
+    },
+    {
+      "index": 224,
+      "startLine": 3,
+      "attrs": {
+        "src": "./js/iphone-baseline-probe.js"
+      },
+      "kind": "local",
+      "src": "./js/iphone-baseline-probe.js",
+      "path": "js/iphone-baseline-probe.js",
+      "bytes": 31776,
+      "sha256": "1dc0dfe2796263ad3edd771d9d50f251c606579e29b120099c2ac4a133ab9edc"
+    },
+    {
+      "index": 225,
+      "startLine": 3,
+      "attrs": {
+        "src": "./js/physical-iphone-playtest.js"
+      },
+      "kind": "local",
+      "src": "./js/physical-iphone-playtest.js",
+      "path": "js/physical-iphone-playtest.js",
+      "bytes": 8610,
+      "sha256": "469c82a21886f3274fbd1901f208f758c14f5536b0ebe72f998d152b01298175"
+    },
+    {
+      "index": 226,
+      "startLine": 3,
+      "attrs": {
+        "src": "./js/iphone-playtest-fixes.js?rev=ef20bfd929e6"
+      },
+      "kind": "local",
+      "src": "./js/iphone-playtest-fixes.js?rev=ef20bfd929e6",
+      "path": "js/iphone-playtest-fixes.js",
+      "bytes": 32467,
+      "sha256": "9e003f2d0bf310eb19454afe34b303691270f16c1cebc1128be354e348441154"
+    }
+  ],
+  "scriptCount": 227,
+  "localScriptCount": 220,
+  "inlineScriptCount": 7,
+  "lexicalInventoryOnly": true,
+  "gameCodeExecuted": false,
+  "dependencyClosureVerified": false,
+  "sharedWriteSafetyQualified": false,
+  "parallelExecutionQualified": false,
+  "productionAuthorized": false
+}
