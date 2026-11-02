@@ -122,3 +122,41 @@ creation-to-start sum is6232 job-seconds (3754 and2478 per run), **not** elapsed
 workflow time. The second run separately records1730 seconds before its first job
 was created. No unstarted sample was present in this particular snapshot; synthetic
 queued/approval-waiting controls exercise censoring without inventing live data.
+
+
+## Duration of observed overlap
+
+`parallel-shard-ci-overlap.cjs` now adds `observedActivity` to the existing
+collection summary. It integrates the same conservative, half-open eligible
+execution intervals, grouped by timestamp. `byJobCount` and `byRunCount` report
+wall seconds at each concurrent job/distinct-run count, sorted by count.
+`activeSeconds` is their union, not the sum of job durations; `crossRunSeconds`
+counts wall seconds with at least two distinct supplied runs active. Multiple
+jobs from one run do not count as cross-run activity. Running intervals end at
+the retained `asOf`, so pending observations remain censored.
+
+`firstObservedStart`, `lastObservedEnd` and `spanSeconds` bound only the eligible
+intervals. `uncoveredSeconds` and zero-count bins describe **internal gaps in this
+supplied subset**, never idle runner time. Other workflows and omitted terminal
+non-success/missing-start jobs may occupy runners. With no positive eligible
+interval there are no bins, bounds/span/uncovered are null, and active/cross-run
+seconds are zero. Zero-length intervals and tied finish/start events invent no
+overlap. Coverage remains false and quota remains null. These are observations,
+not physical utilization, billing, cancellation causes or achievable speedup.
+
+Reproduce without rerunning CI:
+
+```sh
+node scripts/parallel-shard-ci-overlap.cjs docs/ci-evidence/ci-prestart-snapshots-41303594585-41315187678.json
+```
+
+The retained two-run input above yields an eligible span of11236.341 seconds
+(2026-11-01T11:49:32.000Z through14:56:48.341Z), union activity2987.341 seconds,
+internal uncovered time8249 seconds and cross-run activity0 seconds. Its
+job-count distribution is: 0→8249s, 1→247s, 2→172s, 3→70s, 4→155s, 5→151s,
+6→79s, 7→75s, 8→220s, 9→251s, 10→121s, 11→137s, 12→894.341s, 13→415s.
+The distinct-run distribution is0→8249s and1→2987.341s. This retained snapshot
+is not current-main evidence and does not establish repository-wide inactivity.
+Existing required timing self-tests cover gaps, ties, same-run concurrency,
+censored running/omitted jobs, no eligible evidence, subsecond intervals,
+order invariance and conservation of span/job-seconds.

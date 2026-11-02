@@ -74,6 +74,9 @@ const replay = summarizeCollection(retained);
 assert.equal(replay.observedRuns, 2);
 assert.equal(replay.preStart.startedJobs + replay.preStart.unstartedJobs + replay.preStart.omittedJobs, replay.observedJobs);
 assert.equal(replay.capacityQuota, null);
+assert.equal(replay.observedActivity.activeSeconds, 2987.341);
+assert.equal(replay.observedActivity.uncoveredSeconds, 8249);
+assert.equal(replay.observedActivity.crossRunSeconds, 0);
 const none = summarizeCollection({ snapshots: [snap(run(1), [])] }, time(100));
 assert.deepEqual(none.preStart, { startedJobs: 0, observedDelaySeconds: 0, unstartedJobs: 0, censoredAgeSeconds: 0, omittedJobs: 0 });
 assert.equal(none.maximumObservedEligibleJobOverlap, 0); assert.equal(none.peakWitness, null);
@@ -89,5 +92,57 @@ for (const mutate of [
   p => p.snapshots[0].jobs.jobs[0].completed_at = time(9),
   p => p.snapshots = []
 ]) { const copy = structuredClone(input); mutate(copy); assert.throws(() => summarizeCollection(copy, time(100))); }
+// Duration distributions use the same eligible intervals as the existing peaks.
+const activity = (snapshots, asOf = time(100)) => summarizeCollection({ snapshots }, asOf).observedActivity;
+assert.deepEqual(result.observedActivity, {
+  firstObservedStart: time(10), lastObservedEnd: time(50), spanSeconds: 40,
+  activeSeconds: 40, uncoveredSeconds: 0, crossRunSeconds: 20,
+  byJobCount: [{ jobs: 1, seconds: 20 }, { jobs: 2, seconds: 10 }, { jobs: 3, seconds: 10 }],
+  byRunCount: [{ runs: 1, seconds: 20 }, { runs: 2, seconds: 20 }]
+});
+assert.deepEqual(summarizeCollection(reversed, time(100)).observedActivity, result.observedActivity);
+assert.deepEqual(activity(tied.snapshots), {
+  firstObservedStart: time(10), lastObservedEnd: time(30), spanSeconds: 20,
+  activeSeconds: 20, uncoveredSeconds: 0, crossRunSeconds: 0,
+  byJobCount: [{ jobs: 1, seconds: 20 }], byRunCount: [{ runs: 1, seconds: 20 }]
+});
+const gap = [snap(run(1), [job(10, 1, 10, 20)]), snap(run(2), [job(20, 2, 30, 40)])];
+assert.deepEqual(activity(gap), {
+  firstObservedStart: time(10), lastObservedEnd: time(40), spanSeconds: 30,
+  activeSeconds: 20, uncoveredSeconds: 10, crossRunSeconds: 0,
+  byJobCount: [{ jobs: 0, seconds: 10 }, { jobs: 1, seconds: 20 }],
+  byRunCount: [{ runs: 0, seconds: 10 }, { runs: 1, seconds: 20 }]
+});
+const sameRun = [snap(run(1), [job(10, 1, 10, 30), job(11, 1, 10, 30)])];
+assert.equal(activity(sameRun).crossRunSeconds, 0);
+assert.deepEqual(activity(sameRun).byJobCount, [{ jobs: 2, seconds: 20 }]);
+assert.deepEqual(activity(sameRun).byRunCount, [{ runs: 1, seconds: 20 }]);
+assert.deepEqual(pending.observedActivity, {
+  firstObservedStart: time(10), lastObservedEnd: time(100), spanSeconds: 90,
+  activeSeconds: 90, uncoveredSeconds: 0, crossRunSeconds: 0,
+  byJobCount: [{ jobs: 1, seconds: 90 }], byRunCount: [{ runs: 1, seconds: 90 }]
+});
+assert.equal(later.observedActivity.activeSeconds, 100, 'running interval is censored at the supplied observation');
+const emptyActivity = { firstObservedStart: null, lastObservedEnd: null, spanSeconds: null,
+  activeSeconds: 0, uncoveredSeconds: null, crossRunSeconds: 0, byJobCount: [], byRunCount: [] };
+for (const list of [[], [job(10, 1, 10, 10)], [job(10, 1, 1, null, 'queued', null)],
+  [job(10, 1, 10, 20, 'completed', 'cancelled'), job(11, 1, null, 20)]]) {
+  assert.deepEqual(activity([snap(run(1), list)]), emptyActivity, 'no eligible interval does not invent idle time');
+}
+const fractional = summarizeCollection({ snapshots: [snap(run(1), [job(10, 1, 10, 10.5)]),
+  snap(run(2), [job(20, 2, 10.25, 10.75)])] }, time(100));
+assert.equal(fractional.observedActivity.crossRunSeconds, 0.25);
+assert.equal(fractional.observedActivity.spanSeconds, 0.75);
+for (const summary of [result, pending, later, none, replay, fractional,
+  summarizeCollection({ snapshots: gap }, time(100)), summarizeCollection({ snapshots: sameRun }, time(100))]) {
+  const a = summary.observedActivity;
+  const sum = (bins, weight) => bins.reduce((total, bin) => total + bin.seconds * weight(bin), 0);
+  assert.ok(Math.abs(sum(a.byJobCount, b => b.jobs) - summary.observedEligibleJobSeconds) < 1e-8,
+    'weighted duration conserves job-seconds within floating-point summation precision');
+  assert.equal(sum(a.byJobCount, () => 1), a.spanSeconds ?? 0);
+  assert.equal(sum(a.byRunCount, () => 1), a.spanSeconds ?? 0);
+  assert.equal(sum(a.byJobCount, b => b.jobs > 0 ? 1 : 0), a.activeSeconds);
+  assert.equal(summary.capacityQuota, null); assert.equal(summary.completeRepositoryCoverage, false);
+}
 console.log('CI cross-run overlap: PASS (conservative intervals, attempts, missing/queued/cancelled, ties, coverage)');
 require('./parallel-shard-bottleneck-test.cjs');

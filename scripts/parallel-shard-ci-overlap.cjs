@@ -52,9 +52,19 @@ function summarizeCollection(input, asOf = input.asOf ?? new Date().toISOString(
   const events = intervals.flatMap(i => [[i.start, 1, i], [i.end, -1, i]]);
   // Half-open intervals: finish before start at a tie, never invent overlap.
   events.sort((a, b) => a[0] - b[0] || a[1] - b[1] || a[2].id - b[2].id);
+  const jobDurations = new Map(), runDurations = new Map();
+  let previous = null;
   const active = new Map(); let maximum = 0, maximumRuns = 0, witness = null;
   for (let at = 0; at < events.length;) {
     const time = events[at][0];
+    // Integrate the preceding half-open segment before applying this time's
+    // events. Zero-job segments describe only gaps inside the observed subset.
+    if (previous !== null && time > previous) {
+      const elapsed = time - previous, runCount = new Set(active.values()).size;
+      jobDurations.set(active.size, (jobDurations.get(active.size) ?? 0) + elapsed);
+      runDurations.set(runCount, (runDurations.get(runCount) ?? 0) + elapsed);
+    }
+    previous = time;
     while (at < events.length && events[at][0] === time) {
       const [, direction, item] = events[at++];
       if (direction < 0) active.delete(item.id); else active.set(item.id, item.runId);
@@ -66,6 +76,18 @@ function summarizeCollection(input, asOf = input.asOf ?? new Date().toISOString(
         runIds: [...new Set(active.values())].sort((a,b) => a-b) };
     }
   }
+  const first = events[0]?.[0] ?? null, last = events.at(-1)?.[0] ?? null;
+  const bins = (durations, key) => [...durations].sort((a, b) => a[0] - b[0])
+    .map(([count, milliseconds]) => ({ [key]: count, seconds: milliseconds / 1000 }));
+  const observedActivity = {
+    firstObservedStart: first === null ? null : new Date(first).toISOString(),
+    lastObservedEnd: last === null ? null : new Date(last).toISOString(),
+    spanSeconds: first === null ? null : (last - first) / 1000,
+    activeSeconds: [...jobDurations].reduce((sum, [count, ms]) => sum + (count > 0 ? ms : 0), 0) / 1000,
+    uncoveredSeconds: first === null ? null : (jobDurations.get(0) ?? 0) / 1000,
+    crossRunSeconds: [...runDurations].reduce((sum, [count, ms]) => sum + (count > 1 ? ms : 0), 0) / 1000,
+    byJobCount: bins(jobDurations, 'jobs'), byRunCount: bins(runDurations, 'runs')
+  };
   return { repository, asOf, observedRuns: runs.size, observedJobs: jobs.size,
     completeRepositoryCoverage: false, capacityQuota: null,
     preStart: summaries.reduce((total, run) => {
@@ -74,6 +96,7 @@ function summarizeCollection(input, asOf = input.asOf ?? new Date().toISOString(
     }, emptyPreStart()),
     eligibleIntervals: intervals.length, maximumObservedEligibleJobOverlap: maximum,
     maximumObservedEligibleRunOverlap: maximumRuns, peakWitness: witness,
+    observedActivity,
     observedEligibleJobSeconds: intervals.reduce((sum, i) => sum + (i.end - i.start) / 1000, 0),
     pendingObservation: summaries.some(s => s.workflowState === 'pending' || s.pendingObservation), runs: summaries };
 }
