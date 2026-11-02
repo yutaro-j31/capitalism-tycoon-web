@@ -15,6 +15,8 @@ function compareSeries(collection) {
   const runs = collection.summaries.map(s => {
     assert.ok(Number.isSafeInteger(s.runId) && s.runId > 0 && !seen.has(s.runId)); seen.add(s.runId);
     assert.match(s.headSha, /^[a-f0-9]{40}$/);
+    assert.ok(Number.isSafeInteger(s.runAttempt) && s.runAttempt > 0, 'positive runAttempt required; regenerate from exact-attempt raw snapshots');
+    assert.ok(typeof s.asOf === 'string' && Number.isFinite(Date.parse(s.asOf)), 'retained observation timestamp required');
     assert.equal(s.workflowState, 'success'); assert.equal(s.canonicalCoverageComplete, true);
     assert.equal(s.pendingObservation, false);
     // A successful workflow label must not mask incomplete child jobs or an
@@ -33,7 +35,7 @@ function compareSeries(collection) {
     const execution = letters.map(x => metric(by[x], 'elapsedSeconds'));
     // A partial A-L sample cannot establish the last creation or full-shard median.
     const complete = values => values.every(n => n !== null);
-    return { runId: s.runId, headSha: s.headSha,
+    return { runId: s.runId, runAttempt: s.runAttempt, headSha: s.headSha, asOf: s.asOf,
       firstJobCreationSeconds: valid(s.runCreationToFirstObservedJobCreationSeconds ?? null),
       lastShardCreationSeconds: complete(creation) ? stat(creation).max : null,
       runnerQueueMedianSeconds: complete(queue) ? stat(queue).median : null,
