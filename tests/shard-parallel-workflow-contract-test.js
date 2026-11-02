@@ -58,13 +58,57 @@ function jobBlock(id) {
 }
 const diagnostic = jobBlock('parallel-process-diagnostic');
 assert.ok(text.includes('\n  parallel-process-diagnostic:'), 'dedicated process diagnostic job exists');
-assert.ok(diagnostic.includes("if: github.event_name == 'pull_request' && github.head_ref == 'ci/parallel-shard-process-diagnostic'"));
+const processGate = "    if: github.event_name == 'pull_request' && (github.head_ref == 'ci/parallel-shard-process-diagnostic' || github.head_ref == 'ci/i-serial-resource-evidence')";
+assert.equal(diagnostic.split('\n').find(line => line.trim().startsWith('if:')), processGate);
 for (const token of ["node: ['22', '24']", 'timeout-minutes: 90', 'contents: read', 'fail-fast: false',
   'node scripts/parallel-shard-runner-process-diagnostic.js --report',
   'node tests/parallel-shard-runner-test.js', '--full-e', '--root diagnostic-e-source',
   '--source-sha 20dcfe71a3fc5e8ad662c8f8497fac1120162ae1', 'persist-credentials: false', 'if: always()', 'if-no-files-found: error'])
   assert.ok(diagnostic.includes(token), `process diagnostic must retain ${token}`);
 assert.doesNotMatch(diagnostic, /continue-on-error|TEST_SHARD_PARALLELISM|vars\./);
+function verifyISerialWorkflow(block) {
+  assert.equal(block.split('\n').find(line => line.trim().startsWith('if:')), processGate);
+  function step(name) {
+    const marker = `      - name: ${name}\n`, at = block.indexOf(marker);
+    assert.ok(at >= 0, `${name} step retained`);
+    const next = block.indexOf('\n      - ', at + marker.length);
+    return block.slice(at, next < 0 ? undefined : next);
+  }
+  for (const name of ['Checkout exact E HEAD for full reproduction', 'Compare all 33 E commands serial and parallel two'])
+    assert.ok(step(name).includes("if: github.head_ref == 'ci/parallel-shard-process-diagnostic'"), 'E experiment does not run on I branch');
+  const checkout = step('Checkout fixed I source for serial resource evidence');
+  for (const token of ['ref: 555ca4042f183ba01aebb4c1df06be094fdf09bb', 'path: diagnostic-i-source', 'persist-credentials: false'])
+    assert.ok(checkout.includes(token));
+  for (const name of ['Checkout fixed I source for serial resource evidence', 'Validate all 8 I invocation metadata', 'Profile all 8 I commands serial only with retained bytes'])
+    assert.ok(step(name).includes("if: github.head_ref == 'ci/i-serial-resource-evidence'"), 'I is opt-in only');
+  const plan = step('Validate all 8 I invocation metadata'), profile = step('Profile all 8 I commands serial only with retained bytes');
+  for (const run of [plan, profile]) {
+    assert.ok(run.includes('--full-shard I'));
+    assert.ok(run.includes('--root diagnostic-i-source --source-sha 555ca4042f183ba01aebb4c1df06be094fdf09bb'));
+  }
+  assert.ok(plan.includes('--plan-only')); assert.ok(profile.includes('--retain-output'));
+  assert.doesNotMatch(profile, /--plan-only|--write-audit-root|--full-e/);
+  for (const token of ["node: ['22', '24']", 'timeout-minutes: 90', 'contents: read', 'fail-fast: false',
+    'node tests/parallel-shard-runner-test.js', 'if: always()', 'if-no-files-found: error', 'retention-days: 14']) assert.ok(block.includes(token));
+  assert.doesNotMatch(block, /continue-on-error|TEST_SHARD_PARALLELISM|vars\./);
+}
+verifyISerialWorkflow(diagnostic);
+for (const mutate of [
+  b => b.replace(processGate, "    if: github.event_name == 'pull_request'"),
+  b => b.replace("if: github.head_ref == 'ci/parallel-shard-process-diagnostic'", "if: always()"),
+  b => b.replace("if: github.head_ref == 'ci/i-serial-resource-evidence'", "if: always()"),
+  b => b.replace('ref: 555ca4042f183ba01aebb4c1df06be094fdf09bb', 'ref: main'),
+  b => b.replaceAll('--source-sha 555ca4042f183ba01aebb4c1df06be094fdf09bb', '--source-sha 94aaee741c6dd8af5ca15193931c4723667518f1'),
+  b => b.replace('--retain-output', ''),
+  b => b.replace('--full-shard I --retain-output', '--full-shard I --plan-only --retain-output'),
+  b => b.replace('contents: read', 'contents: write'),
+  b => b.replaceAll('persist-credentials: false', 'persist-credentials: true'),
+  b => b.replace('if: always()', 'if: success()'),
+  b => b.replace('if-no-files-found: error', 'if-no-files-found: warn'),
+  b => b + '\n    continue-on-error: true',
+  b => b + '\n    TEST_SHARD_PARALLELISM_I: 2'
+]) assert.throws(() => verifyISerialWorkflow(mutate(diagnostic)), 'unsafe I evidence mutation rejected');
+
 
 const kDiagnostic = jobBlock('parallel-k-diagnostic');
 assert.ok(kDiagnostic.includes("if: github.event_name == 'pull_request' && github.head_ref == 'ci/shard-k-parallel-diagnostic'"));
