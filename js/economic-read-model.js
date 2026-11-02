@@ -887,6 +887,14 @@ function projectOwnershipSnapshot(rawState,identityIndex){
     result.issues.push(...vc.issues.map(row=>ownershipReason(row.code,row.path)));
     result.coverage.push({family:'vc-source',status:vc.issues.length?'partial':'observed'});
   }
+  if(indexed.includePEFund){
+    const peFund=projectPEFundSourceSnapshot(rawState,index);
+    // This is bound source evidence only. Canonical PE positions, fund units,
+    // issuer identities, NAV and founder wealth remain deliberately absent.
+    result.peFundSourceEvidence=peFund;
+    result.issues.push(...peFund.issues.map(row=>ownershipReason(row.code,row.path)));
+    result.coverage.push({family:'pe-fund-source',status:peFund.issues.length?'partial':'observed'});
+  }
 
   return freezeOwned(result);
 }

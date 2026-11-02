@@ -87,7 +87,7 @@ assert.equal(state.saveVersion,9);
  const direct=pe.projectPEFundInterests(raw),common=api.projectOwnershipSnapshot(raw,handle);
  assert.equal(handle.issues.length,0);assert.equal(r.sourceSnapshotToken,handle.sourceSnapshotToken);assert.equal(r.sourceScope,scope);
  assert.equal(common.sourceSnapshotToken,handle.sourceSnapshotToken);assert.equal(common.sourceScope,scope);
- assert.equal(Object.hasOwn(common,'peFundSourceEvidence'),false,'source binding is not canonical composition');
+ assert.equal(common.peFundSourceEvidence.sourceSnapshotToken,handle.sourceSnapshotToken,'explicit scope composes the same source revision');
  for(const key of ['fundInterests','portfolioParticipations','managementRelationships','distributionEvidence','waterfallTerms','sourceCoverage'])
   assert.deepEqual(plain(r[key]),plain(direct[key]));
  assert.equal(r.fundInterests[0].contributionRatio,.1);assert.equal(r.portfolioParticipations[0].fundProceedsFraction,.6);
@@ -110,6 +110,34 @@ assert.equal(state.saveVersion,9);
  assert.equal(api.projectPEFundSourceSnapshot(bad).fundInterests.length,0);assert.equal(reads,0);
  const hidden=plain(raw);Object.defineProperty(hidden.peFirm.funds[0].terms,'carry',{value:.2,enumerable:false});
  assert(api.projectPEFundSourceSnapshot(hidden).issues.some(i=>i.code==='INPUT_INVALID'));
+}
+// Compose PE fund source evidence into the explicit-scope snapshot without
+// minting canonical positions, classes, replacements, NAV or wealth.
+{
+ const scope='player-listed-and-pe-fund-source-v1',raw=fixture();
+ raw.peFirm={funds:[{id:'F',size:100,gpCommit:10,lpContributed:90,status:'investing',cash:50,
+  terms:{fee:.02,carry:.2,hurdle:.08},deals:[{id:'D',status:'active',settlement:null,fundPortion:60,coinvestPortion:40,investedAmount:100}]}]};
+ const before=JSON.stringify(raw),n=draws,index=api.buildOwnershipIdentityIndex(raw,scope);
+ const r=api.projectOwnershipSnapshot(raw,index),pe=api.projectPEFundSourceSnapshot(raw,index),narrow=api.projectOwnershipSnapshot(raw);
+ assert(r.peFundSourceEvidence);assert.equal(r.peFundSourceEvidence.sourceSnapshotToken,r.sourceSnapshotToken);
+ assert.deepEqual(plain(r.peFundSourceEvidence),plain(pe));
+ for(const key of ['positions','classes','sourceReplacements'])assert.deepEqual(plain(r[key]),plain(narrow[key]));
+ assert.equal(r.coverage.find(x=>x.family==='pe').status,'not-implemented','source evidence is not canonical PE completion');
+ assert.equal(r.coverage.find(x=>x.family==='pe-fund-source').status,'observed');
+ assert.equal(r.peFundSourceEvidence.fundInterests[0].legalTargetShares,null);
+ assert.equal(r.peFundSourceEvidence.fundInterests[0].votingFraction,null);
+ assert.equal(r.peFundSourceEvidence.fundInterests[0].wealthValue,null);
+ assert.equal(r.peFundSourceEvidence.valuationStatus,'unknown');
+ assert.equal(Object.hasOwn(narrow,'peFundSourceEvidence'),false,'default snapshot contract stays unchanged');
+ assert.equal(JSON.stringify(raw),before);assert.equal(draws,n);frozen(r);assert(!Object.isFrozen(raw));
+ const reloaded=plain(raw);assert.deepEqual(plain(api.projectOwnershipSnapshot(reloaded,api.buildOwnershipIdentityIndex(reloaded,scope))),plain(r));
+ const conflict=plain(raw);conflict.peFirm.funds.push(plain(conflict.peFirm.funds[0]));
+ const conflicted=api.projectOwnershipSnapshot(conflict,api.buildOwnershipIdentityIndex(conflict,scope));
+ assert(conflicted.peFundSourceEvidence.issues.some(x=>x.code==='IDENTITY_COLLISION'));
+ assert.equal(conflicted.coverage.find(x=>x.family==='pe-fund-source').status,'partial');
+ assert.deepEqual(plain(conflicted.positions),plain(api.projectOwnershipSnapshot(conflict).positions),'source conflict cannot mint positions');
+ const old=api.buildOwnershipIdentityIndex(raw,scope);raw.peFirm.funds[0].gpCommit++;
+ const stale=api.projectOwnershipSnapshot(raw,old);assert.equal(stale.positions.length,0);assert.equal(stale.peFundSourceEvidence,undefined);
 }
 // VC source scope reuses the common index/token and binds lifecycle/pending capital.
 {

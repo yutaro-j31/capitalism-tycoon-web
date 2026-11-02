@@ -29,6 +29,15 @@ not composed into the canonical ownership snapshot. Missing adapters and malform
 accessor or non-enumerable source fields fail closed without executing getters. This is
 source revision binding only, not P3-4 family closure or authority cutover.
 
+When the same explicit PE-fund scope is passed to `projectOwnershipSnapshot`, the
+snapshot includes `peFundSourceEvidence` with that exact token and a separate
+`pe-fund-source` coverage row. Adapter issues are propagated into the common issue
+list. The ordinary/default snapshot shape is unchanged, and a stale handle returns no
+source payload. Existing positions, classes and source replacements remain identical
+to the narrow player/listed projection; canonical `pe` coverage stays
+`not-implemented`. This composition therefore removes caller-side revision joining
+without adopting a PE ownership or valuation model.
+
 ## Applied review corrections
 
 Automated review found that processFundsWeek marks a fund closed at its term while active deals remain saleable. Current portfolio participation follows deal status/settlement and valid source allocation independently of term closure. Fund capital and GP manager relationships also remain current while a validated active participation or positive source cash remains; settled empty funds are non-current. The original closed status is retained, and no NAV entitlement is created. Regressions executed RED, then GREEN, including an installed processFundsWeek deadline transition and subsequent deal exit. These corrections are included in this revision; final-HEAD CI and independent re-review are separate pending gates. Any further candidate must remain outside an active PR while its CI is queued/in progress, per AGENTS.md.
