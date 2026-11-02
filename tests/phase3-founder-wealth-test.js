@@ -538,6 +538,19 @@ function noReference(value,target,seen=new Set()){
  assert(fr.exclusions.some(x=>x.sourcePath==='peFirm.funds[0]'&&x.basis==='historical-paid-cash'));assert.equal(fr.knownNetWorth,r.knownNetWorth);
  const bf=plain(f);bf.peFirm.funds[0].lpContributed=1;
  assert(codes(comp(project(bf),'asset:pe-interests').reasons).includes('CONTRIBUTION_MISMATCH'));
+ // An IPO-converted startup remains historical. Its lifecycle link explains the
+ // exclusion but never revives a current asset, quantity, vote or wealth value.
+ const converted=plain(s);converted.startups=[{id:'ipo-source',alive:false,subsidiary:false,ownedCompany:0,ownedPersonal:0,ipoStockID:'LISTED'}];
+ const convertedResult=project(converted),convertedExclusion=convertedResult.exclusions.find(row=>row.sourcePath==='startups[0].ownedPersonal');
+ assert(convertedExclusion);assert.equal(convertedExclusion.basis,'historical');assert.equal(convertedExclusion.sourceEvidence.conversionLinks.length,1);
+ assert.equal(convertedExclusion.sourceEvidence.conversionLinks[0].listedAlias,'LISTED');
+ assert.equal(convertedExclusion.sourceEvidence.conversionLinks[0].startupInterestCurrent,false);
+ assert.equal(convertedExclusion.sourceEvidence.conversionLinks[0].listedLotStatus,'unverified');
+ assert.equal(convertedExclusion.sourceEvidence.conversionLinks[0].quantity,null);
+ assert.equal(convertedExclusion.sourceEvidence.conversionLinks[0].votingFraction,null);
+ assert.equal(convertedExclusion.sourceEvidence.conversionLinks[0].wealthValue,null);
+ assert.equal(convertedResult.components.some(row=>row.componentId.includes('ipo-source')),false);
+ assert.equal(convertedResult.knownNetWorth,r.knownNetWorth);
  // Pending VC round terms are explanation-only. Declared personal contribution is
  // never promoted to current equity, paid cash or founder wealth.
  const pending=plain(s);pending.startups[0].activeFundingRound={id:'round-1',status:'open',round:'seed',openedWeek:1,closesWeek:2,
