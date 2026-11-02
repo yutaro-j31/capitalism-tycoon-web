@@ -264,9 +264,37 @@ for(const location of ['root','funds','fund-index','deals','deal-index','fractio
  const r=project(x);assert(r.issues.some(i=>i.code==='INPUT_INVALID'),location);
  assert(r.portfolioParticipations.every(d=>d.fundProceedsFraction===null),location);
 }
+// Explicit reciprocal parent-conversion IDs are source links, never new equity/assets.
+{
+ const convert=require('../js/phase3-pe-fund-interests.js').projectFundParentConversions;
+ assert.equal(typeof convert,'function');
+ const s=state(),d=s.peFirm.funds[0].deals[0];Object.assign(d,{status:'exited',exitMethod:'parent-company-acquisition',convertedToSubsidiaryID:'sub1'});
+ s.subsidiaries=[{id:'sub1',status:'active',source:'pe-fund-portfolio',sourceType:'peFundPortfolioAcquisition',sourcePEFundID:'f1',sourcePEDealID:'d1'}];
+ const before=JSON.stringify(s),r=convert(s);assert.equal(r.conversions.length,1);
+ const c=r.conversions[0];assert.equal(c.status,'source-observed');assert.equal(c.subsidiarySourceId,'sub1');
+ assert.equal(c.assetRole,'lifecycle-source-link');assert.equal(c.legalEquityFraction,null);assert.equal(c.wealthValue,null);
+ assert.equal(c.fundHoldingCurrent,false);assert.equal(r.complete,false);assert.equal(r.commandEligible,false);
+ assert.equal(project(s).portfolioParticipations[0].current,false,'settled source is not revived by its link');
+ assert.equal(JSON.stringify(s),before);assert.deepEqual(convert(copy(s)),r);assert(Object.isFrozen(c.sourceRefs));
+ const locked=copy(s);(function lock(x){if(x&&typeof x==='object'){Object.values(x).forEach(lock);Object.freeze(x);}})(locked);assert.deepEqual(convert(locked),r);
+ for(const damage of [x=>delete x.peFirm.funds[0].deals[0].convertedToSubsidiaryID,x=>x.peFirm.funds[0].deals[0].status='active',x=>x.peFirm.funds[0].deals[0].exitMethod='sale',x=>x.subsidiaries[0].sourcePEFundID='other',x=>x.subsidiaries[0].sourcePEDealID='other',x=>x.subsidiaries[0].id='other',x=>x.subsidiaries[0].status='sold',x=>x.subsidiaries[0].startupID='startup',x=>x.subsidiaries.push(copy(x.subsidiaries[0])),x=>x.peFirm.funds.push(copy(x.peFirm.funds[0])),x=>x.peFirm.funds[0].deals.push(copy(x.peFirm.funds[0].deals[0]))]){
+  const v=copy(s);damage(v);const bad=convert(v);assert(bad.conversions.every(c=>c.status==='unresolved'));assert(bad.issues.length>0);
+ }
+ const orphan=copy(s);orphan.peFirm.funds[0].deals=[];assert(convert(orphan).issues.some(x=>x.code==='CONVERSION_SOURCE_UNKNOWN'));
+ let reads=0;const getter=copy(s);Object.defineProperty(getter.subsidiaries[0],'sourcePEDealID',{enumerable:true,get(){reads++;throw Error('getter');}});
+ assert(convert(getter).conversions.every(c=>c.status==='unresolved'));assert.equal(reads,0);
+ const hidden=copy(s);Object.defineProperty(hidden.peFirm.funds[0].deals[0],'convertedToSubsidiaryID',{value:'sub1',enumerable:false});
+ assert(convert(hidden).conversions.every(c=>c.status==='unresolved'));
+ // Equal deal labels in different fund scopes cannot satisfy a mismatched reciprocal link.
+ const cross=copy(s);cross.peFirm.funds.push({...copy(cross.peFirm.funds[0]),id:'f2'});
+ assert(convert(cross).conversions.every(x=>x.status==='unresolved'),'two forward claims quarantine the target');
+ cross.peFirm.funds[1].deals[0].convertedToSubsidiaryID='other';
+ const crossRows=convert(cross).conversions;assert.equal(crossRows.find(x=>x.fundId==='f1').status,'source-observed');assert.equal(crossRows.find(x=>x.fundId==='f2').status,'unresolved');
+}
 const src=fs.readFileSync(require.resolve('../js/phase3-pe-fund-interests.js'),'utf8');
 const ctx={__capitalismTycoonModules:{}};vm.runInNewContext(src,ctx);assert.equal(typeof ctx.__capitalismTycoonModules.phase3PeFundInterests.projectPEFundInterests,'function');
 assert.equal(typeof ctx.__capitalismTycoonModules.phase3PeFundInterests.projectFundValuationEvidence,'function');
+assert.equal(typeof ctx.__capitalismTycoonModules.phase3PeFundInterests.projectFundParentConversions,'function');
 assert.throws(()=>vm.runInNewContext(src,ctx),/already registered/);
 // Match the installed fund writer's subtraction, including floating-point values.
 {
