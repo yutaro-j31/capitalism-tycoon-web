@@ -308,6 +308,22 @@ adopt legal equity or voting rights, assign founder beneficial ownership, or val
 subsidiary. Broken/ambiguous reciprocal identifiers remain unresolved and explicit.
 
 The canonical wealth suite adds source-reader wiring, source/account separation,
+
+## VC pending-round source explanation (P3-11 consuming partial P3-8)
+
+Each current personal startup component now carries the matching P3-8 personal
+`roundObservations` rows under `sourceEvidence.rounds`. These are detached,
+revision-bound explanations of declared round terms and reported contribution only.
+`paymentStatus` remains `unverified`; quantity, voting fraction, wealth value and
+issuer/class identity remain null. The declared contribution is never added to cash,
+current equity or `knownNetWorth`, and the component remains unvalued.
+
+Company round rows are not attached to the founder's personal component. Invalid or
+contradictory round evidence retains the P3-8 reason and cannot establish an asset.
+No round writer, settlement, save, RNG, valuation policy, UI or legacy wealth/credit
+consumer changes. The canonical founder-wealth test covers empty evidence, account
+separation and a pending personal contribution that leaves wealth unchanged. This pure
+reader addition introduces no new native WebKit or IndexedDB path.
 missing identity, closed/exited metadata, reciprocal conversion success/failure,
 detached/frozen/JSON purity and same-week cash/rate/enterprise-value/conversion-link
 staleness checks. No writer, consumer/UI, save or RNG path changes; this is not OD-05

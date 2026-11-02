@@ -203,7 +203,9 @@ function captureFounderWealthEvidence(rawState,externalEvidence){
   if(row.account==='company'){if(row.economicFraction>0)ownership.exclusions.push({sourcePath:row.sourcePath,basis:'company-owned',includedBy:null});continue;}
   if(row.assetRole==='historical'){ownership.exclusions.push({sourcePath:row.sourcePath,basis:'historical',includedBy:null});continue;}
   if(row.assetRole==='no-interest')continue;
-  ownership.vc.push({sourcePath:row.sourcePath,startupSourceId:row.startupSourceId,status:row.status,economicFraction:row.economicFraction,code:vcIssues.get(row.sourcePath)||null});
+  ownership.vc.push({sourcePath:row.sourcePath,startupSourceId:row.startupSourceId,status:row.status,economicFraction:row.economicFraction,code:vcIssues.get(row.sourcePath)||null,
+   roundEvidence:vc.roundObservations.filter(evidence=>evidence.startupSourceId===row.startupSourceId&&evidence.account==='personal'
+    &&evidence.sourcePath===row.sourcePath.slice(0,row.sourcePath.lastIndexOf('.'))+'.activeFundingRound').map(evidence=>({...evidence,reasons:evidence.reasons.map(item=>({...item}))}))});
  }
  if(vc.issues.some(row=>row.path==='$'))ownership.issues.push(reason('INPUT_INVALID','vc','Startup source evidence could not be read.'));
  // Reuse P3-7 legal-account/identity/alias checks; quantity and voting rights remain unknown.
@@ -522,6 +524,7 @@ function projectFounderWealth(rawState,ownershipSnapshot,valuationEvidence,liabi
   result.components.push(fromEntry(component(`asset:${row.assetKey}`,'asset',{includesKeys:row.coveredAssets.slice()}),row,1,'reportedCurrentValue'));
  // Families without an approved valuation adapter stay explicitly unvalued, never zero.
  for(const row of ownership.vc)result.components.push(component(`asset:vc-personal:${row.sourcePath}`,'asset',{sourceRefs:[ref(row.sourcePath,row.startupSourceId,'vc')],includesKeys:[row.sourcePath],
+  sourceEvidence:{rounds:row.roundEvidence.map(evidence=>({...evidence,reasons:evidence.reasons.map(item=>({...item}))}))},
   reasons:[...(row.code?[reason(row.code,row.sourcePath,'Startup source evidence is unresolved.')]:[]),reason('VALUATION_INCOMPLETE',row.sourcePath,'Personal startup interests have no approved valuation basis (preferred terms, pending rounds).')]}));
  for(const row of ownership.angel)result.components.push(component(`asset:angel:${row.sourcePath}`,'asset',{sourceRefs:[ref(row.sourcePath,row.durableId,'angel')],includesKeys:[row.sourcePath],
   reasons:[reason('VALUATION_INCOMPLETE',row.sourcePath,'Legacy angel investments are a separate unresolved personal claim without an approved valuation basis.')]}));

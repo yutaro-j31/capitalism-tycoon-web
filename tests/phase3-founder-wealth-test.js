@@ -522,6 +522,7 @@ function noReference(value,target,seen=new Set()){
  assert(r.exclusions.some(x=>x.sourcePath==='realEstate.loans[0]'&&x.basis==='included-in-personal-debt'),'mirror not re-added');
  assert.equal(r.knownNetWorth,10000+100+10+50-30-7);
  assert.equal(comp(r,'asset:vc-personal:startups[0].ownedPersonal').amountJPY,null);
+ assert.equal(comp(r,'asset:vc-personal:startups[0].ownedPersonal').sourceEvidence.rounds.length,0);
  assert(r.exclusions.some(x=>x.sourcePath==='startups[0].ownedCompany'&&x.basis==='company-owned'));
  deq(comp(r,'asset:pe-interests').includesKeys,['peDeals[0]']);assert.equal(comp(r,'asset:pe-interests').amountJPY,null);
  assert(r.exclusions.some(x=>x.sourcePath==='peDeals[1]'&&x.basis==='company-owned'));
@@ -537,6 +538,23 @@ function noReference(value,target,seen=new Set()){
  assert(fr.exclusions.some(x=>x.sourcePath==='peFirm.funds[0]'&&x.basis==='historical-paid-cash'));assert.equal(fr.knownNetWorth,r.knownNetWorth);
  const bf=plain(f);bf.peFirm.funds[0].lpContributed=1;
  assert(codes(comp(project(bf),'asset:pe-interests').reasons).includes('CONTRIBUTION_MISMATCH'));
+ // Pending VC round terms are explanation-only. Declared personal contribution is
+ // never promoted to current equity, paid cash or founder wealth.
+ const pending=plain(s);pending.startups[0].activeFundingRound={id:'round-1',status:'open',round:'seed',openedWeek:1,closesWeek:2,
+  preMoneyValuation:1000,targetRaise:200,postMoneyValuation:1200,preRoundOwnedCompany:.2,preRoundOwnedPersonal:.1,
+  contributedCompany:20,contributedPersonal:10};
+ const pendingResult=project(pending),pendingComponent=comp(pendingResult,'asset:vc-personal:startups[0].ownedPersonal');
+ assert.equal(pendingComponent.amountJPY,null);assert.equal(pendingResult.knownNetWorth,r.knownNetWorth);
+ assert.equal(pendingComponent.sourceEvidence.rounds.length,1);
+ assert.equal(pendingComponent.sourceEvidence.rounds[0].reportedContributionJPY,10);
+ assert.equal(pendingComponent.sourceEvidence.rounds[0].paymentStatus,'unverified');
+ assert.equal(pendingComponent.sourceEvidence.rounds[0].wealthValue,null);
+ assert(codes(pendingComponent.reasons).includes('PENDING_ROUND_UNVERIFIED'));
+ const duplicate=plain(pending);duplicate.startups.push({...plain(duplicate.startups[0]),activeFundingRound:null});
+ const duplicateResult=project(duplicate);
+ assert.equal(comp(duplicateResult,'asset:vc-personal:startups[0].ownedPersonal').sourceEvidence.rounds.length,1);
+ assert.equal(comp(duplicateResult,'asset:vc-personal:startups[1].ownedPersonal').sourceEvidence.rounds.length,0,
+  'duplicate startup IDs must not cross-attach another source row round');
  // P4-AUD-004: only accountingTracked specialist loans are inside personalDebt; others stay unknown.
  const t=plain(s);t.realEstateMarket={loans:[{id:'M1',owner:'personal',status:'defaulted',accountingTracked:true},{id:'M2',owner:'personal',status:'active'},{id:'M3',owner:'personal',status:'paid'}]};
  const tr=project(t);
