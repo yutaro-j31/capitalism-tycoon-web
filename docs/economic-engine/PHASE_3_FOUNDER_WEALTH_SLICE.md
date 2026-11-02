@@ -288,10 +288,11 @@ and CI results belong to the PR/handoff; no new native WebKit claim is made.
 ## PE fund source explanation (P3-11 consuming partial P3-7)
 
 The existing unvalued `asset:pe-interests` component now exposes `sourceEvidence`:
-fundInterests, waterfallTerms, valuationFunds and valuationIssues from the existing
-P3-7 readers. Capture derives these from its already revision-bound peFirm view; the
-projector returns detached copies. This connects fund source explanations to the wealth
-result without requiring callers to combine independently captured financial inputs.
+fundInterests, waterfallTerms, valuationFunds, valuationIssues, parentConversions and
+parentConversionIssues from the existing P3-7 readers. Capture derives these from its
+revision-bound peFirm/subsidiary view; the projector returns detached copies. This
+connects fund source and reciprocal parent-conversion explanations to the wealth result
+without requiring callers to combine independently captured financial inputs.
 
 A contribution ratio is capital-source metadata, never fund NAV or target shares.
 Reported fund cash, external coinvest cash and whole-enterprise inputs remain separate;
@@ -301,8 +302,14 @@ liability coverage and valuation issues stay explicit. No source amount is added
 knownNetWorth; the PE fund component amount/NAV/founder valuation remain null. Existing
 personal direct PE values continue once under their separate supported component.
 
+A reciprocal parent conversion is only a lifecycle source link between an exited fund
+deal and its installed subsidiary source record. It does not create a second asset,
+adopt legal equity or voting rights, assign founder beneficial ownership, or value the
+subsidiary. Broken/ambiguous reciprocal identifiers remain unresolved and explicit.
+
 The canonical wealth suite adds source-reader wiring, source/account separation,
-missing identity, closed/exited metadata, detached/frozen/JSON purity and same-week
-cash/rate/enterprise-value staleness checks. No writer, consumer/UI, save or RNG path
-changes; this is not OD-05 resolution, canonical fund ownership adoption or complete
-wealth/Phase-3 acceptance. Exact executed checks and CI are in the PR/handoff.
+missing identity, closed/exited metadata, reciprocal conversion success/failure,
+detached/frozen/JSON purity and same-week cash/rate/enterprise-value/conversion-link
+staleness checks. No writer, consumer/UI, save or RNG path changes; this is not OD-05
+resolution, canonical fund ownership adoption or complete wealth/Phase-3 acceptance.
+Exact executed checks and CI are in the PR/handoff.
